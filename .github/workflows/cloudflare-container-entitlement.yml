@@ -1,0 +1,41 @@
+name: MFT Axiom Container Entitlement
+on:
+  workflow_dispatch:
+  push:
+    paths: ['.github/workflows/cloudflare-container-entitlement.yml']
+permissions:
+  contents: read
+jobs:
+  entitlement:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+      CLOUDFLARE_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+    steps:
+      - name: Install Wrangler
+        run: npm install --no-save wrangler@4.129.0
+      - name: Verify identity
+        run: npx wrangler whoami
+      - name: Read Containers entitlement and inventory
+        shell: bash
+        run: |
+          set -o pipefail
+          npx wrangler containers list 2>&1 | tee containers-list.txt
+          code=${PIPESTATUS[0]}
+          echo "$code" > containers-list-exit.txt
+          if [ "$code" -ne 0 ]; then
+            echo 'CONTAINERS_ENTITLEMENT_OR_API_GATE_FAILED'
+            exit "$code"
+          fi
+          echo 'CONTAINERS_ENTITLEMENT_PASS'
+      - name: Upload evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mft-axiom-container-entitlement
+          path: |
+            containers-list.txt
+            containers-list-exit.txt
+          if-no-files-found: warn
+          retention-days: 7
