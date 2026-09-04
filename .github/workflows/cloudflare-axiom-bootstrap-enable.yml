@@ -1,0 +1,118 @@
+name: MFT Axiom Edge Bootstrap Enable
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/cloudflare-axiom-bootstrap-enable.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  enable-and-verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      CF_API: https://api.cloudflare.com/client/v4
+      WORKER_NAME: mft-axiom-bootstrap
+    steps:
+      - name: Require protected Cloudflare credentials
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        run: |
+          set -euo pipefail
+          test -n "$CLOUDFLARE_EMAIL"
+          test -n "$CLOUDFLARE_GLOBAL_API_KEY"
+
+      - name: Resolve exact account and verify script exists
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json,os,urllib.request,urllib.parse
+          h={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY']}
+          base=os.environ['CF_API']
+          req=urllib.request.Request(base+'/zones?name='+urllib.parse.quote('mftintelligence.com')+'&status=active',headers=h)
+          with urllib.request.urlopen(req,timeout=30) as r:b=json.load(r)
+          rows=b.get('result') or []
+          if not b.get('success') or len(rows)!=1: raise SystemExit('zone invariant failed')
+          aid=(rows[0].get('account') or {}).get('id')
+          if not aid: raise SystemExit('account missing')
+          open('account_id.txt','w').write(aid)
+          req=urllib.request.Request(base+f'/accounts/{aid}/workers/scripts',headers=h)
+          with urllib.request.urlopen(req,timeout=30) as r:s=json.load(r)
+          names=[x.get('id') for x in (s.get('result') or [])]
+          if os.environ['WORKER_NAME'] not in names: raise SystemExit('bootstrap worker not present after prior upload')
+          print(json.dumps({'script_present':True,'worker':os.environ['WORKER_NAME']}))
+          PY
+
+      - name: Enable production workers.dev route for bootstrap only
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        run: |
+          set -euo pipefail
+          ACCOUNT_ID="$(cat account_id.txt)"
+          HTTP=$(curl -sS -o subdomain-write.json -w '%{http_code}' -X POST \
+            -H "X-Auth-Email: $CLOUDFLARE_EMAIL" \
+            -H "X-Auth-Key: $CLOUDFLARE_GLOBAL_API_KEY" \
+            -H 'Content-Type: application/json' \
+            --data '{"enabled":true,"previews_enabled":false}' \
+            "$CF_API/accounts/$ACCOUNT_ID/workers/scripts/$WORKER_NAME/subdomain")
+          python - "$HTTP" <<'PY'
+          import json,sys
+          code=int(sys.argv[1]); b=json.load(open('subdomain-write.json'))
+          r=b.get('result') or {}
+          if code not in (200,201) or not b.get('success') or r.get('enabled') is not True:
+              raise SystemExit(f'workers.dev enable failed HTTP {code}: {b.get("errors")}')
+          if r.get('previews_enabled') is True: raise SystemExit('preview URLs unexpectedly enabled')
+          print(json.dumps({'workers_dev_enabled':True,'previews_enabled':False}))
+          PY
+
+      - name: Read back subdomain setting and verify public health
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json,os,urllib.request
+          aid=open('account_id.txt').read().strip(); base=os.environ['CF_API']
+          h={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY']}
+          req=urllib.request.Request(base+f'/accounts/{aid}/workers/scripts/{os.environ["WORKER_NAME"]}/subdomain',headers=h)
+          with urllib.request.urlopen(req,timeout=30) as r:b=json.load(r)
+          rs=b.get('result') or {}
+          if not b.get('success') or rs.get('enabled') is not True or rs.get('previews_enabled') is True:
+              raise SystemExit('subdomain readback invariant failed')
+          req=urllib.request.Request(base+f'/accounts/{aid}/workers/subdomain',headers=h)
+          with urllib.request.urlopen(req,timeout=30) as r:a=json.load(r)
+          sub=(a.get('result') or {}).get('subdomain')
+          if not a.get('success') or not sub: raise SystemExit('account workers.dev subdomain missing')
+          url=f'https://{os.environ["WORKER_NAME"]}.{sub}.workers.dev/health'
+          with urllib.request.urlopen(url,timeout=30) as r:health=json.load(r)
+          expected={'ok':True,'product':'MFT Axiom','build':'MFT-AXIOM-EDGE-BOOTSTRAP-20260904','deployment_state':'EDGE_BOOTSTRAP_ONLY','production_compute_active':False,'tool_count':0,'wolfram_parity':'NOT_CERTIFIED','superiority':'NOT_CERTIFIED'}
+          for k,v in expected.items():
+              if health.get(k)!=v: raise SystemExit(f'health invariant failed for {k}')
+          out={'schema':'mft.axiom.cloudflare.edge_bootstrap.activation.v1','worker_name':os.environ['WORKER_NAME'],'workers_dev_enabled':True,'previews_enabled':False,'public_url':url,'health':health,'custom_domain_bound':False,'production_compute_active':False}
+          json.dump(out,open('axiom-edge-bootstrap-activation.json','w'),indent=2,sort_keys=True)
+          print(json.dumps({'public_health_pass':True,'url':url}))
+          PY
+
+      - name: Seal evidence
+        run: |
+          set -euo pipefail
+          sha256sum axiom-edge-bootstrap-activation.json > axiom-edge-bootstrap-activation.sha256
+
+      - name: Upload evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: mft-axiom-edge-bootstrap-activation
+          path: |
+            axiom-edge-bootstrap-activation.json
+            axiom-edge-bootstrap-activation.sha256
+          if-no-files-found: error
+          retention-days: 7
