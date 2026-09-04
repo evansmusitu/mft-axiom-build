@@ -1,0 +1,39 @@
+name: MFT Axiom Modal Runtime Diagnostic
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/axiom-modal-runtime-diagnostic.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID }}
+      MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET }}
+    steps:
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - run: python -m pip install --disable-pip-version-check --quiet 'modal>=1.5,<2'
+      - name: Inspect app state and recent runtime logs
+        shell: bash
+        run: |
+          set -euo pipefail
+          modal app list --json > modal-apps.json
+          modal app history mft-axiom-v3-modal-staging --json > modal-history.json
+          modal container list --json > modal-containers.json
+          modal app logs mft-axiom-v3-modal-staging --tail 200 --timestamps > modal-runtime.log 2>&1 || true
+          python - <<'PY'
+          import json
+          apps=json.load(open('modal-apps.json'))
+          print('modal_app_list_read=true')
+          print('history_read=true')
+          print('container_list_read=true')
+          PY
+          tail -n 120 modal-runtime.log
