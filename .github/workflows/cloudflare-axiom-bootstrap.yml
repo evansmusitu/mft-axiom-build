@@ -1,0 +1,157 @@
+name: MFT Axiom Cloudflare Edge Bootstrap
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/cloudflare-axiom-bootstrap.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  deploy-bootstrap:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      CF_API: https://api.cloudflare.com/client/v4
+      WORKER_NAME: mft-axiom-bootstrap
+    steps:
+      - name: Require protected Cloudflare credentials
+        shell: bash
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        run: |
+          set -euo pipefail
+          test -n "$CLOUDFLARE_EMAIL"
+          test -n "$CLOUDFLARE_GLOBAL_API_KEY"
+
+      - name: Resolve exact account and zone read-only
+        shell: bash
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json, os, urllib.request, urllib.parse
+          base=os.environ['CF_API']
+          h={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY'],'Content-Type':'application/json'}
+          req=urllib.request.Request(base+'/zones?name='+urllib.parse.quote('mftintelligence.com')+'&status=active',headers=h)
+          with urllib.request.urlopen(req,timeout=30) as r: body=json.load(r)
+          rows=body.get('result') or []
+          if not body.get('success') or len(rows)!=1: raise SystemExit('zone invariant failed')
+          z=rows[0]; a=(z.get('account') or {}).get('id')
+          if not a: raise SystemExit('account id missing')
+          open('account_id.txt','w').write(a)
+          open('zone_id.txt','w').write(z['id'])
+          print(json.dumps({'zone':z['name'],'status':z['status'],'account_id_present':True,'zone_id_present':True}))
+          PY
+
+      - name: Build non-proprietary fail-closed edge bootstrap
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > worker.js <<'JS'
+          const BUILD = 'MFT-AXIOM-EDGE-BOOTSTRAP-20260904';
+          const body = (obj, status=200) => new Response(JSON.stringify(obj), {status, headers:{'content-type':'application/json; charset=utf-8','cache-control':'no-store','x-content-type-options':'nosniff'}});
+          export default {
+            async fetch(request) {
+              const u = new URL(request.url);
+              if (request.method === 'GET' && (u.pathname === '/' || u.pathname === '/health' || u.pathname === '/v1/health')) {
+                return body({ok:true, product:'MFT Axiom', build:BUILD, deployment_state:'EDGE_BOOTSTRAP_ONLY', production_compute_active:false, tool_count:0, wolfram_parity:'NOT_CERTIFIED', superiority:'NOT_CERTIFIED'});
+              }
+              if (u.pathname.startsWith('/v1/')) {
+                return body({ok:false, error:'AXIOM_PRODUCTION_COMPUTE_NOT_ACTIVATED', build:BUILD}, 503);
+              }
+              return body({ok:false, error:'NOT_FOUND'},404);
+            }
+          };
+          JS
+          sha256sum worker.js > worker.sha256
+          cat > metadata.json <<'JSON'
+          {"main_module":"worker.js","compatibility_date":"2026-09-04","compatibility_flags":[]}
+          JSON
+
+      - name: Deploy bootstrap to isolated workers.dev script only
+        shell: bash
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        run: |
+          set -euo pipefail
+          ACCOUNT_ID="$(cat account_id.txt)"
+          HTTP=$(curl -sS -o deploy.json -w '%{http_code}' -X PUT \
+            -H "X-Auth-Email: $CLOUDFLARE_EMAIL" \
+            -H "X-Auth-Key: $CLOUDFLARE_GLOBAL_API_KEY" \
+            -F 'metadata=@metadata.json;type=application/json' \
+            -F 'worker.js=@worker.js;type=application/javascript+module' \
+            "$CF_API/accounts/$ACCOUNT_ID/workers/scripts/$WORKER_NAME")
+          python - "$HTTP" <<'PY'
+          import json,sys
+          code=int(sys.argv[1]); b=json.load(open('deploy.json'))
+          if code not in (200,201) or not b.get('success'):
+              raise SystemExit(f'Cloudflare bootstrap deployment failed HTTP {code}: {b.get("errors")}')
+          print(json.dumps({'deploy_http':code,'success':True}))
+          PY
+
+      - name: Verify server-persisted worker and public health
+        shell: bash
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        run: |
+          set -euo pipefail
+          ACCOUNT_ID="$(cat account_id.txt)"
+          curl -fsS -H "X-Auth-Email: $CLOUDFLARE_EMAIL" -H "X-Auth-Key: $CLOUDFLARE_GLOBAL_API_KEY" \
+            "$CF_API/accounts/$ACCOUNT_ID/workers/scripts/$WORKER_NAME" -o persisted-worker.bin
+          python - <<'PY'
+          import json,os,urllib.request
+          h={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY']}
+          req=urllib.request.Request(os.environ['CF_API']+'/accounts/'+open('account_id.txt').read().strip()+'/workers/subdomain',headers=h)
+          with urllib.request.urlopen(req,timeout=30) as r: b=json.load(r)
+          sub=(b.get('result') or {}).get('subdomain')
+          if not b.get('success') or not sub: raise SystemExit('workers subdomain unavailable')
+          url=f'https://{os.environ["WORKER_NAME"]}.{sub}.workers.dev/health'
+          with urllib.request.urlopen(url,timeout=30) as r: health=json.load(r)
+          if health.get('build')!='MFT-AXIOM-EDGE-BOOTSTRAP-20260904' or health.get('deployment_state')!='EDGE_BOOTSTRAP_ONLY' or health.get('production_compute_active') is not False:
+              raise SystemExit('public health invariant failed')
+          open('public_url.txt','w').write(url+'\n')
+          json.dump(health,open('health.json','w'),indent=2,sort_keys=True)
+          print(json.dumps({'public_health_pass':True,'url':url}))
+          PY
+
+      - name: Seal deployment evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import hashlib,json
+          def sha(p): return hashlib.sha256(open(p,'rb').read()).hexdigest()
+          out={
+            'schema':'mft.axiom.cloudflare.edge_bootstrap.v1',
+            'worker_name':'mft-axiom-bootstrap',
+            'build':'MFT-AXIOM-EDGE-BOOTSTRAP-20260904',
+            'source_sha256':sha('worker.js'),
+            'public_url':open('public_url.txt').read().strip(),
+            'health':json.load(open('health.json')),
+            'production_compute_active':False,
+            'custom_domain_bound':False,
+            'wolfram_parity':'NOT_CERTIFIED',
+            'superiority':'NOT_CERTIFIED'
+          }
+          json.dump(out,open('axiom-edge-bootstrap-evidence.json','w'),indent=2,sort_keys=True)
+          PY
+          sha256sum axiom-edge-bootstrap-evidence.json > axiom-edge-bootstrap-evidence.sha256
+
+      - name: Upload bootstrap evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: mft-axiom-edge-bootstrap-evidence
+          path: |
+            axiom-edge-bootstrap-evidence.json
+            axiom-edge-bootstrap-evidence.sha256
+            worker.sha256
+          if-no-files-found: error
+          retention-days: 7
