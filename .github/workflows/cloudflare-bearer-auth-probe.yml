@@ -1,0 +1,35 @@
+name: Cloudflare Bearer Auth Probe
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/cloudflare-bearer-auth-probe.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      CF_CREDENTIAL: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+    steps:
+      - name: Probe token verify endpoint without exposing credential
+        shell: bash
+        run: |
+          set -euo pipefail
+          code="$(curl -sS -o response.json -w '%{http_code}' https://api.cloudflare.com/client/v4/user/tokens/verify -H "Authorization: Bearer $CF_CREDENTIAL" -H 'Content-Type: application/json')"
+          python - "$code" <<'PY'
+          import json,sys
+          code=int(sys.argv[1]); x=json.load(open('response.json'))
+          out={'http_status':code,'success':bool(x.get('success')),'token_status':(x.get('result') or {}).get('status'),'bearer_compatible':code==200 and bool(x.get('success'))}
+          print(json.dumps(out,sort_keys=True))
+          open('bearer-probe.json','w').write(json.dumps(out,indent=2,sort_keys=True))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cloudflare-bearer-auth-probe
+          path: bearer-probe.json
+          retention-days: 2
