@@ -32,7 +32,7 @@ jobs:
             'highspy' \
             'QuantLib==1.43' \
             'python-flint==0.9.0' \
-            'z3-solver==5.0.0.0'
+            'z3-solver==5.1.0.0'
           (cd wheelhouse && sha256sum * | sort) > metadata/SHA256SUMS.txt
           python - <<'PY'
           import json, pathlib, hashlib, platform, sys
@@ -41,21 +41,28 @@ jobs:
           for p in sorted(root.iterdir()):
               if p.is_file():
                   files.append({'name':p.name,'bytes':p.stat().st_size,'sha256':hashlib.sha256(p.read_bytes()).hexdigest()})
-          manifest={'schema':'mft.axiom.accelerators.v1','python':sys.version,'platform':platform.platform(),'required_roots':['duckdb==1.5.5','pyarrow==25.0.1','Pint==0.25.3','cvxpy==1.9.2','highspy','QuantLib==1.43','python-flint==0.9.0','z3-solver==5.0.0.0'],'files':files}
+          manifest={'schema':'mft.axiom.accelerators.v2','python':sys.version,'platform':platform.platform(),'required_roots':['duckdb==1.5.5','pyarrow==25.0.1','Pint==0.25.3','cvxpy==1.9.2','highspy','QuantLib==1.43','python-flint==0.9.0','z3-solver==5.1.0.0'],'files':files}
           pathlib.Path('metadata/manifest.json').write_text(json.dumps(manifest,indent=2,sort_keys=True))
           PY
-      - name: Offline install and import verification
+      - name: Offline install and functional verification
         shell: bash
         run: |
           set -euo pipefail
           python -m venv verify-env
           verify-env/bin/python -m pip install --no-index --find-links=wheelhouse \
             'duckdb==1.5.5' 'pyarrow==25.0.1' 'Pint==0.25.3' 'cvxpy==1.9.2' highspy \
-            'QuantLib==1.43' 'python-flint==0.9.0' 'z3-solver==5.0.0.0'
+            'QuantLib==1.43' 'python-flint==0.9.0' 'z3-solver==5.1.0.0'
           verify-env/bin/python - <<'PY'
-          import duckdb, pyarrow, pint, cvxpy, highspy, QuantLib, flint, z3
+          import duckdb, pyarrow as pa, pint, cvxpy as cp, highspy, QuantLib as ql, flint, z3
           import json, pathlib
-          out={'duckdb':duckdb.__version__,'pyarrow':pyarrow.__version__,'pint':pint.__version__,'cvxpy':cvxpy.__version__,'QuantLib':QuantLib.__version__,'python_flint':flint.__version__,'z3':z3.get_version_string(),'imports':'PASS'}
+          assert duckdb.sql('select 40+2').fetchone()[0] == 42
+          assert pa.array([1,2,3]).to_pylist() == [1,2,3]
+          u=pint.UnitRegistry(); assert (1*u.meter).to('centimeter').magnitude == 100
+          x=cp.Variable(); p=cp.Problem(cp.Minimize((x-3)**2)); p.solve(solver='HIGHS'); assert abs(x.value-3) < 1e-6
+          assert ql.Date(1,1,2026).year() == 2026
+          assert int(flint.fmpz(6)*flint.fmpz(7)) == 42
+          s=z3.Solver(); a=z3.Int('a'); s.add(a==42); assert s.check()==z3.sat and s.model()[a].as_long()==42
+          out={'duckdb':duckdb.__version__,'pyarrow':pa.__version__,'pint':pint.__version__,'cvxpy':cp.__version__,'highspy':'PASS','QuantLib':ql.__version__,'python_flint':flint.__version__,'z3':z3.get_version_string(),'imports':'PASS','functional':'PASS'}
           pathlib.Path('metadata/verification.json').write_text(json.dumps(out,indent=2,sort_keys=True))
           print(out)
           PY
