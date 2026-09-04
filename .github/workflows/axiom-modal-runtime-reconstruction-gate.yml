@@ -1,0 +1,212 @@
+name: MFT Axiom Modal Runtime Reconstruction Gate
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/axiom-modal-runtime-reconstruction-gate.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  reconstruct-and-boot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID }}
+      MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Reconstruct encrypted Axiom source fail-closed
+        env:
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$CLOUDFLARE_GLOBAL_API_KEY"
+          P=deploy_payload/runtime_min
+          cat "$P/chunk_00.b64" "$P/chunk_01_02.b64" "$P/chunk_03_04.b64" "$P/chunk_05_06.b64" "$P/chunk_07_08.b64" "$P/chunk_09.b64" > runtime.enc.b64
+          base64 -d runtime.enc.b64 > runtime.tar.gz.enc
+          test "$(sha256sum runtime.tar.gz.enc | awk '{print $1}')" = 'b82448d6b4b34b302748815af976b535d69922c197d4b7a9056fc2f91a9e12cf'
+          python - <<'PY'
+          import hashlib,hmac,os
+          data=open('runtime.tar.gz.enc','rb').read()
+          got=hmac.new(os.environ['CLOUDFLARE_GLOBAL_API_KEY'].encode(),data,hashlib.sha256).hexdigest()
+          if not hmac.compare_digest(got,'1a3193d4f3271d61d151e6ebd7cf4576d8ab86c2e79b84eff4ad0f635fe7ab47'):
+              raise SystemExit('Fail-closed: ciphertext HMAC mismatch')
+          PY
+          openssl enc -d -aes-256-cbc -pbkdf2 -iter 250000 -in runtime.tar.gz.enc -out runtime.tar.gz -pass env:CLOUDFLARE_GLOBAL_API_KEY
+          test "$(sha256sum runtime.tar.gz | awk '{print $1}')" = 'b4d5a0266446523969a619f5e9bb5a04d9b815c78a2ab82ed046ef5e23d53663'
+          mkdir runtime
+          tar -xzf runtime.tar.gz -C runtime
+          python - <<'PY'
+          import hashlib,json,pathlib
+          root=pathlib.Path('runtime'); m=json.loads((root/'RUNTIME_SOURCE_MANIFEST.json').read_text())
+          assert m['schema']=='mft.axiom.runtime_minimal_source.v1'
+          assert m['source_build']=='MFT-AXIOM-V3-FULL-SELF-CONTAINED-20260904'
+          for f in m['files']:
+              b=(root/f['path']).read_bytes()
+              assert len(b)==f['size'] and hashlib.sha256(b).hexdigest()==f['sha256']
+          print('source_manifest_verified=true')
+          PY
+
+      - name: Reconstruct Python dependency closure
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --disable-pip-version-check --upgrade pip
+          mapfile -t REQS < <(find runtime -type f -iname 'requirements*.txt' | sort)
+          test "${#REQS[@]}" -ge 1
+          echo "requirements_files=${#REQS[@]}"
+          for r in "${REQS[@]}"; do
+            python -m pip install --disable-pip-version-check -r "$r"
+          done
+          python -m pip install --disable-pip-version-check \
+            'duckdb==1.5.5' \
+            'pyarrow==25.0.1' \
+            'Pint==0.25.3' \
+            'cvxpy==1.9.2' \
+            'highspy==1.15.1' \
+            'QuantLib==1.43' \
+            'python-flint==0.9.0' \
+            'z3-solver==5.1.0.0'
+
+      - name: Verify corrected accelerator roots functionally
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import duckdb, pyarrow as pa, pint, cvxpy as cp, highspy, QuantLib as ql, flint, z3
+          assert duckdb.__version__=='1.5.5'
+          assert pa.__version__=='25.0.1'
+          assert pint.__version__=='0.25.3'
+          assert cp.__version__=='1.9.2'
+          assert ql.__version__=='1.43'
+          assert flint.__version__=='0.9.0'
+          assert z3.get_version_string()=='5.1.0.0'
+          assert duckdb.sql('select 40+2').fetchone()[0]==42
+          assert pa.array([1,2,3]).to_pylist()==[1,2,3]
+          u=pint.UnitRegistry(); assert (1*u.meter).to('centimeter').magnitude==100
+          x=cp.Variable(); p=cp.Problem(cp.Minimize((x-3)**2)); p.solve(solver='HIGHS'); assert abs(float(x.value)-3)<1e-6
+          assert ql.Date(1,1,2026).year()==2026
+          assert int(flint.fmpz(6)*flint.fmpz(7))==42
+          s=z3.Solver(); a=z3.Int('a'); s.add(a==42); assert s.check()==z3.sat and s.model()[a].as_long()==42
+          print('accelerator_functional_gate=PASS')
+          PY
+
+      - name: Discover and boot Axiom ASGI kernel without exposing source
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import ast,json,pathlib
+          root=pathlib.Path('runtime')
+          candidates=[]
+          for p in root.rglob('*.py'):
+              if 'test' in p.parts or '__pycache__' in p.parts: continue
+              try: tree=ast.parse(p.read_text())
+              except Exception: continue
+              imports_fastapi=False; vars=[]
+              for n in ast.walk(tree):
+                  if isinstance(n,(ast.Import,ast.ImportFrom)):
+                      txt=ast.unparse(n) if hasattr(ast,'unparse') else ''
+                      if 'fastapi' in txt.lower(): imports_fastapi=True
+                  if isinstance(n,(ast.Assign,ast.AnnAssign)):
+                      target = n.targets[0] if isinstance(n,ast.Assign) and n.targets else (n.target if isinstance(n,ast.AnnAssign) else None)
+                      value = n.value
+                      if isinstance(target,ast.Name) and isinstance(value,ast.Call):
+                          fn=value.func
+                          name=fn.id if isinstance(fn,ast.Name) else (fn.attr if isinstance(fn,ast.Attribute) else '')
+                          if name=='FastAPI': vars.append(target.id)
+              if imports_fastapi and vars:
+                  rel=p.relative_to(root).with_suffix('')
+                  module='.'.join(rel.parts)
+                  for var in vars: candidates.append({'module':module,'var':var})
+          if not candidates: raise SystemExit('Fail-closed: no FastAPI ASGI application discovered')
+          # Prefer production/kernel server-looking module names but never print source contents.
+          candidates.sort(key=lambda c:(0 if any(k in c['module'].lower() for k in ('kernel','server','app')) else 1,len(c['module'])))
+          c=candidates[0]
+          pathlib.Path('asgi-target.txt').write_text(c['module']+':'+c['var'])
+          print('asgi_target_discovered='+c['module']+':'+c['var'])
+          print('asgi_candidate_count='+str(len(candidates)))
+          PY
+          TARGET="$(cat asgi-target.txt)"
+          python -m uvicorn "$TARGET" --app-dir runtime --host 127.0.0.1 --port 8000 >kernel.log 2>&1 &
+          PID=$!
+          trap 'kill $PID 2>/dev/null || true' EXIT
+          python - <<'PY'
+          import json,time,urllib.request,urllib.error
+          deadline=time.time()+45
+          last=None
+          while time.time()<deadline:
+              try:
+                  with urllib.request.urlopen('http://127.0.0.1:8000/health',timeout=3) as r:
+                      body=r.read().decode(); code=r.status
+                  if code==200:
+                      try: data=json.loads(body)
+                      except Exception: data={}
+                      print('local_health_http=200')
+                      print('local_health_ok='+str(data.get('ok')))
+                      break
+              except Exception as e: last=repr(e)
+              time.sleep(1)
+          else: raise SystemExit('Fail-closed: Axiom kernel did not become healthy: '+str(last))
+          try:
+              with urllib.request.urlopen('http://127.0.0.1:8000/v3/tools',timeout=10) as r:
+                  tools=json.loads(r.read().decode())
+              if isinstance(tools,dict):
+                  seq=tools.get('tools') or tools.get('operations') or tools.get('items') or []
+              elif isinstance(tools,list): seq=tools
+              else: seq=[]
+              if len(seq)!=74: raise SystemExit(f'Fail-closed: expected 74 tools, got {len(seq)}')
+              print('local_tool_count=74')
+          except urllib.error.HTTPError as e:
+              raise SystemExit(f'Fail-closed: /v3/tools HTTP {e.code}')
+          PY
+
+      - name: Verify Modal authentication remains valid
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --disable-pip-version-check --quiet 'modal>=1.5,<2'
+          modal app list --json >/dev/null
+          echo 'modal_auth_gate=PASS'
+
+      - name: Seal reconstruction evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json,pathlib
+          out={
+            'schema':'mft.axiom.modal_runtime_reconstruction_gate.v1',
+            'source_build':'MFT-AXIOM-V3-FULL-SELF-CONTAINED-20260904',
+            'operation_count':74,
+            'python':'3.13',
+            'accelerators':{'duckdb':'1.5.5','pyarrow':'25.0.1','Pint':'0.25.3','cvxpy':'1.9.2','highspy':'1.15.1','QuantLib':'1.43','python-flint':'0.9.0','z3-solver':'5.1.0.0'},
+            'source_transport':'AES-256-CBC/PBKDF2-SHA256-250000 + ciphertext HMAC + plaintext SHA256 + per-file SHA256',
+            'modal_auth':'PASS',
+            'plaintext_source_committed':False,
+            'production_compute_active':False,
+            'wolfram_parity':'NOT_CERTIFIED',
+            'superiority':'NOT_CERTIFIED',
+            'gate':'PASS'
+          }
+          pathlib.Path('modal-runtime-reconstruction-gate.json').write_text(json.dumps(out,indent=2,sort_keys=True))
+          PY
+          sha256sum modal-runtime-reconstruction-gate.json > modal-runtime-reconstruction-gate.sha256
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mft-axiom-modal-runtime-reconstruction-gate
+          path: |
+            modal-runtime-reconstruction-gate.json
+            modal-runtime-reconstruction-gate.sha256
+          if-no-files-found: error
+          retention-days: 7
