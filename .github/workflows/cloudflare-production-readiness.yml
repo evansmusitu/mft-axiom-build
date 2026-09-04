@@ -1,0 +1,145 @@
+name: MFT Axiom Cloudflare Production Readiness
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/cloudflare-production-readiness.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  cloudflare-production-readiness:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      CF_API: https://api.cloudflare.com/client/v4
+      EXPECTED_ZONE: mftintelligence.com
+      EXPECTED_ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      EXPECTED_ZONE_ID: 5b56528f03948ff5917a5e0cd9f7109e
+    steps:
+      - name: Require protected Cloudflare credentials
+        shell: bash
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        run: |
+          set -euo pipefail
+          test -n "$CLOUDFLARE_EMAIL"
+          test -n "$CLOUDFLARE_GLOBAL_API_KEY"
+          echo 'Protected Cloudflare credentials are present.'
+
+      - name: Audit Cloudflare production readiness read-only
+        shell: bash
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json, os, urllib.request, urllib.parse, urllib.error, hashlib
+
+          base=os.environ['CF_API']
+          account=os.environ['EXPECTED_ACCOUNT_ID']
+          zone=os.environ['EXPECTED_ZONE_ID']
+          headers={
+            'X-Auth-Email': os.environ['CLOUDFLARE_EMAIL'],
+            'X-Auth-Key': os.environ['CLOUDFLARE_GLOBAL_API_KEY'],
+            'Content-Type':'application/json',
+            'User-Agent':'MFT-Axiom-Control-Plane/2.0',
+          }
+
+          def get(path, optional=False):
+            req=urllib.request.Request(base+path,headers=headers,method='GET')
+            try:
+              with urllib.request.urlopen(req,timeout=30) as r:
+                body=json.load(r)
+                if r.status != 200 or not body.get('success',False):
+                  raise RuntimeError(f'HTTP {r.status} success={body.get("success")}')
+                return {'ok':True,'status':r.status,'result':body.get('result'),'result_info':body.get('result_info')}
+            except urllib.error.HTTPError as e:
+              if optional:
+                return {'ok':False,'status':e.code,'error':'endpoint_unavailable_or_unauthorized'}
+              raise
+
+          zones=get('/zones?name='+urllib.parse.quote(os.environ['EXPECTED_ZONE'])+'&status=active')
+          zr=zones['result'] or []
+          if len(zr)!=1 or zr[0].get('id')!=zone or (zr[0].get('account') or {}).get('id')!=account:
+            raise SystemExit('Fail-closed: canonical Cloudflare zone/account identity mismatch')
+
+          subscriptions=get(f'/accounts/{account}/subscriptions', optional=True)
+          workers=get(f'/accounts/{account}/workers/scripts', optional=True)
+          d1=get(f'/accounts/{account}/d1/database', optional=True)
+          subdomain=get(f'/accounts/{account}/workers/subdomain', optional=True)
+
+          def names(v):
+            if not v.get('ok'): return []
+            r=v.get('result')
+            if isinstance(r,list):
+              out=[]
+              for x in r:
+                if isinstance(x,dict):
+                  out.append(x.get('id') or x.get('name') or x.get('title') or 'unnamed')
+              return out
+            return []
+
+          sub_summary=[]
+          if subscriptions.get('ok') and isinstance(subscriptions.get('result'),list):
+            for s in subscriptions['result']:
+              if not isinstance(s,dict): continue
+              rate=s.get('rate_plan') or {}
+              sub_summary.append({
+                'id':s.get('id'),
+                'state':s.get('state'),
+                'plan_id':rate.get('id'),
+                'plan_name':rate.get('public_name') or rate.get('name'),
+                'currency':s.get('currency'),
+              })
+
+          evidence={
+            'schema':'mft.axiom.cloudflare.production_readiness.v1',
+            'zone':{'id':zone,'name':os.environ['EXPECTED_ZONE'],'status':'active'},
+            'account_id':account,
+            'subscriptions_endpoint_ok':subscriptions.get('ok',False),
+            'subscriptions':sub_summary,
+            'worker_scripts_endpoint_ok':workers.get('ok',False),
+            'worker_scripts':names(workers),
+            'd1_endpoint_ok':d1.get('ok',False),
+            'd1_databases':names(d1),
+            'workers_subdomain_endpoint_ok':subdomain.get('ok',False),
+            'workers_subdomain':(subdomain.get('result') if subdomain.get('ok') else None),
+            'write_performed':False,
+          }
+          raw=json.dumps(evidence,sort_keys=True,separators=(',',':')).encode()
+          evidence['evidence_sha256']=hashlib.sha256(raw).hexdigest()
+          with open('cloudflare-production-readiness.json','w') as f: json.dump(evidence,f,indent=2,sort_keys=True)
+          print(json.dumps({
+            'ok':True,
+            'zone_identity_verified':True,
+            'subscriptions_endpoint_ok':evidence['subscriptions_endpoint_ok'],
+            'subscription_count':len(sub_summary),
+            'worker_scripts_endpoint_ok':evidence['worker_scripts_endpoint_ok'],
+            'worker_script_count':len(evidence['worker_scripts']),
+            'd1_endpoint_ok':evidence['d1_endpoint_ok'],
+            'd1_database_count':len(evidence['d1_databases']),
+            'write_performed':False,
+          },sort_keys=True))
+          PY
+
+      - name: Seal readiness evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          sha256sum cloudflare-production-readiness.json > cloudflare-production-readiness.sha256
+          cat cloudflare-production-readiness.sha256
+
+      - name: Upload readiness evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: mft-axiom-cloudflare-production-readiness
+          path: |
+            cloudflare-production-readiness.json
+            cloudflare-production-readiness.sha256
+          if-no-files-found: error
+          retention-days: 7
