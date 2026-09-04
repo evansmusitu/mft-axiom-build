@@ -1,0 +1,47 @@
+name: MFT Axiom Modal Route Contract Probe
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/axiom-modal-route-contract-probe.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Probe live public contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE='https://evansmusitu--mft-axiom-production-axiom-api.modal.run'
+          python - <<'PY'
+          import json,urllib.request,urllib.error,pathlib
+          base='https://evansmusitu--mft-axiom-production-axiom-api.modal.run'
+          with urllib.request.urlopen(base+'/openapi.json',timeout=20) as r:
+              spec=json.loads(r.read().decode())
+          paths={}
+          for p,ops in sorted((spec.get('paths') or {}).items()):
+              paths[p]=sorted(k.upper() for k in ops if k.lower() in {'get','post','put','patch','delete','options','head'})
+          print(json.dumps({'schema':'mft.axiom.modal_live_routes.v1','paths':paths},sort_keys=True))
+          pathlib.Path('modal-live-routes.json').write_text(json.dumps({'paths':paths},indent=2,sort_keys=True))
+          for p in ['/v1/compute','/v3/compute','/compute','/v1/tools','/v3/tools','/health']:
+              req=urllib.request.Request(base+p,data=b'{"operation":"arithmetic.evaluate","args":{"expression":"40+2"}}' if 'compute' in p else None,headers={'content-type':'application/json'} if 'compute' in p else {},method='POST' if 'compute' in p else 'GET')
+              try:
+                  with urllib.request.urlopen(req,timeout=20) as r:
+                      code=r.status; body=r.read(512).decode(errors='replace')
+              except urllib.error.HTTPError as e:
+                  code=e.code; body=e.read(512).decode(errors='replace')
+              shape='json' if body.lstrip().startswith(('{','[')) else 'other'
+              print(f'probe path={p} http={code} shape={shape}')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mft-axiom-modal-live-routes
+          path: modal-live-routes.json
+          if-no-files-found: error
+          retention-days: 7
