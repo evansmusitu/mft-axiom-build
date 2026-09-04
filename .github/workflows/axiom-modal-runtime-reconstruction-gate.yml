@@ -82,14 +82,16 @@ jobs:
         run: |
           set -euo pipefail
           python - <<'PY'
+          from importlib.metadata import version as dist_version
           import duckdb, pyarrow as pa, pint, cvxpy as cp, highspy, QuantLib as ql, flint, z3
           assert duckdb.__version__=='1.5.5'
           assert pa.__version__=='25.0.1'
           assert pint.__version__=='0.25.3'
           assert cp.__version__=='1.9.2'
+          assert dist_version('highspy')=='1.15.1'
           assert ql.__version__=='1.43'
           assert flint.__version__=='0.9.0'
-          assert z3.get_version_string()=='5.1.0.0'
+          assert dist_version('z3-solver')=='5.1.0.0'
           assert duckdb.sql('select 40+2').fetchone()[0]==42
           assert pa.array([1,2,3]).to_pylist()==[1,2,3]
           u=pint.UnitRegistry(); assert (1*u.meter).to('centimeter').magnitude==100
@@ -97,6 +99,7 @@ jobs:
           assert ql.Date(1,1,2026).year()==2026
           assert int(flint.fmpz(6)*flint.fmpz(7))==42
           s=z3.Solver(); a=z3.Int('a'); s.add(a==42); assert s.check()==z3.sat and s.model()[a].as_long()==42
+          print('z3_runtime='+z3.get_version_string())
           print('accelerator_functional_gate=PASS')
           PY
 
@@ -105,7 +108,7 @@ jobs:
         run: |
           set -euo pipefail
           python - <<'PY'
-          import ast,json,pathlib
+          import ast,pathlib
           root=pathlib.Path('runtime')
           candidates=[]
           for p in root.rglob('*.py'):
@@ -129,7 +132,6 @@ jobs:
                   module='.'.join(rel.parts)
                   for var in vars: candidates.append({'module':module,'var':var})
           if not candidates: raise SystemExit('Fail-closed: no FastAPI ASGI application discovered')
-          # Prefer production/kernel server-looking module names but never print source contents.
           candidates.sort(key=lambda c:(0 if any(k in c['module'].lower() for k in ('kernel','server','app')) else 1,len(c['module'])))
           c=candidates[0]
           pathlib.Path('asgi-target.txt').write_text(c['module']+':'+c['var'])
