@@ -1,0 +1,68 @@
+name: MFT Axiom HTTP Forensics
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/cloudflare-axiom-http-forensics.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  http-forensics:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Capture staging response without following redirects
+        shell: bash
+        run: |
+          set -euo pipefail
+          URL='https://axiom-stage.mftintelligence.com/health'
+          set +e
+          curl -sS --http1.1 --connect-timeout 20 --max-time 30 \
+            -D stage-headers.txt -o stage-body.bin -w '%{http_code}\n%{remote_ip}\n%{content_type}\n%{redirect_url}\n' "$URL" > stage-meta.txt
+          CURL_RC=$?
+          set -e
+          printf '%s\n' "$CURL_RC" > curl-rc.txt
+          python - <<'PY'
+          import hashlib,json,re
+          headers=open('stage-headers.txt','r',errors='replace').read() if __import__('os').path.exists('stage-headers.txt') else ''
+          body=open('stage-body.bin','rb').read() if __import__('os').path.exists('stage-body.bin') else b''
+          meta=open('stage-meta.txt','r',errors='replace').read().splitlines() if __import__('os').path.exists('stage-meta.txt') else []
+          def h(name):
+            m=re.search(r'^'+re.escape(name)+r':\s*(.*)$',headers,re.I|re.M)
+            return m.group(1).strip() if m else None
+          # keep only non-secret diagnostic headers and body fingerprint/short text
+          text=body[:2000].decode('utf-8','replace')
+          out={
+            'schema':'mft.axiom.http_forensics.v1',
+            'url':'https://axiom-stage.mftintelligence.com/health',
+            'curl_rc':int(open('curl-rc.txt').read().strip()),
+            'http_code':meta[0] if len(meta)>0 else None,
+            'content_type':meta[2] if len(meta)>2 else None,
+            'redirect_url':meta[3] if len(meta)>3 else None,
+            'server':h('server'),
+            'cf_ray':h('cf-ray'),
+            'cf_mitigated':h('cf-mitigated'),
+            'location':h('location'),
+            'www_authenticate':h('www-authenticate'),
+            'body_sha256':hashlib.sha256(body).hexdigest(),
+            'body_bytes':len(body),
+            'body_excerpt':text,
+            'write_performed':False
+          }
+          json.dump(out,open('stage-http-forensics.json','w'),indent=2,sort_keys=True)
+          print(json.dumps({k:out[k] for k in ['http_code','content_type','server','cf_ray','cf_mitigated','location','body_bytes']},sort_keys=True))
+          PY
+      - name: Seal forensics
+        run: sha256sum stage-http-forensics.json > stage-http-forensics.sha256
+      - name: Upload forensics evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: mft-axiom-stage-http-forensics
+          path: |
+            stage-http-forensics.json
+            stage-http-forensics.sha256
+          retention-days: 7
+          if-no-files-found: error
