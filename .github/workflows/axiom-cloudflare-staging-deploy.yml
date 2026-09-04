@@ -1,0 +1,338 @@
+name: MFT Axiom Cloudflare Staging Deploy
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/axiom-cloudflare-staging-deploy.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  deploy-staging:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      CLOUDFLARE_ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+      CLOUDFLARE_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+      STAGING_WORKER: mft-axiom-staging
+      STAGING_DB: mft-axiom-staging
+      DEPLOY_BUILD_ID: MFT-AXIOM-V3-RUNTIME-RECONSTRUCTION-20260904
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Require protected Cloudflare credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$CLOUDFLARE_EMAIL"
+          test -n "$CLOUDFLARE_API_KEY"
+          echo 'Cloudflare credentials present.'
+
+      - name: Reconstruct, authenticate, decrypt, and verify runtime
+        shell: bash
+        env:
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        run: |
+          set -euo pipefail
+          P=deploy_payload/runtime_min
+          cat "$P/chunk_00.b64" "$P/chunk_01_02.b64" "$P/chunk_03_04.b64" "$P/chunk_05_06.b64" "$P/chunk_07_08.b64" "$P/chunk_09.b64" > runtime.enc.b64
+          base64 -d runtime.enc.b64 > runtime.tar.gz.enc
+          test "$(sha256sum runtime.tar.gz.enc | awk '{print $1}')" = 'b82448d6b4b34b302748815af976b535d69922c197d4b7a9056fc2f91a9e12cf'
+          python - <<'PY'
+          import hashlib,hmac,os
+          b=open('runtime.tar.gz.enc','rb').read()
+          got=hmac.new(os.environ['CLOUDFLARE_GLOBAL_API_KEY'].encode(),b,hashlib.sha256).hexdigest()
+          if not hmac.compare_digest(got,'1a3193d4f3271d61d151e6ebd7cf4576d8ab86c2e79b84eff4ad0f635fe7ab47'):
+            raise SystemExit('Fail-closed: encrypted transport HMAC mismatch')
+          PY
+          openssl enc -d -aes-256-cbc -pbkdf2 -iter 250000 -in runtime.tar.gz.enc -out runtime.tar.gz -pass env:CLOUDFLARE_GLOBAL_API_KEY
+          test "$(sha256sum runtime.tar.gz | awk '{print $1}')" = 'b4d5a0266446523969a619f5e9bb5a04d9b815c78a2ab82ed046ef5e23d53663'
+          mkdir runtime
+          tar -xzf runtime.tar.gz -C runtime
+          python - <<'PY'
+          import hashlib,json,pathlib
+          root=pathlib.Path('runtime'); m=json.loads((root/'RUNTIME_SOURCE_MANIFEST.json').read_text())
+          problems=[]
+          for f in m['files']:
+            p=root/f['path']
+            if not p.is_file(): problems.append((f['path'],'missing')); continue
+            b=p.read_bytes()
+            if len(b)!=f['size'] or hashlib.sha256(b).hexdigest()!=f['sha256']: problems.append((f['path'],'integrity'))
+          if problems: raise SystemExit('Fail-closed source integrity mismatch: '+repr(problems[:5]))
+          PY
+          node --input-type=module - <<'NODE'
+          import { TOOLS } from './runtime/worker/src/catalog.js';
+          if (!Array.isArray(TOOLS) || TOOLS.length !== 74 || new Set(TOOLS).size !== 74) throw new Error('Fail-closed operation registry mismatch');
+          NODE
+          grep -q "enableInternet:false" runtime/worker/src/cloudflare.js
+          grep -q "wolfram_parity:'NOT_CERTIFIED'" runtime/worker/src/index.js
+          grep -q "superiority:'NOT_CERTIFIED'" runtime/worker/src/index.js
+          echo 'Verified encrypted runtime source before deployment mutation.'
+
+      - name: Prepare truthful staging deployment source
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('runtime/worker/src/catalog.js')
+          s=p.read_text()
+          old="export const BUILD_ID = 'MFT-AXIOM-V3-SELF-CONTAINED-20260904';"
+          new="export const BUILD_ID = 'MFT-AXIOM-V3-RUNTIME-RECONSTRUCTION-20260904';"
+          if s.count(old)!=1: raise SystemExit('Fail-closed: expected source build identity not found exactly once')
+          p.write_text(s.replace(old,new))
+          PY
+          cat > runtime/kernel/Dockerfile <<'DOCKER'
+          FROM python:3.13-slim
+          ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
+          WORKDIR /app
+          COPY kernel/requirements.txt /tmp/requirements.txt
+          COPY kernel/requirements.full.txt /tmp/requirements.full.txt
+          RUN python -m pip install --no-cache-dir -r /tmp/requirements.full.txt
+          COPY kernel/app /app/app
+          EXPOSE 8080
+          CMD ["python","-m","uvicorn","app.main:app","--host","0.0.0.0","--port","8080","--workers","1"]
+          DOCKER
+          sha256sum runtime/worker/src/catalog.js runtime/kernel/Dockerfile > deployment-mutations.sha256
+          cat deployment-mutations.sha256
+
+      - name: Install exact Wrangler
+        shell: bash
+        working-directory: runtime
+        run: |
+          set -euo pipefail
+          npm install --ignore-scripts --no-audit --no-fund wrangler@4.129.0
+          npx wrangler --version
+          npx wrangler auth token --json >/tmp/cf-auth.json
+          python - <<'PY'
+          import json
+          x=json.load(open('/tmp/cf-auth.json'))
+          if x.get('type')!='api_key': raise SystemExit('Fail-closed: Wrangler did not resolve API-key authentication')
+          print('wrangler_auth_type=api_key')
+          PY
+          rm -f /tmp/cf-auth.json
+
+      - name: Resolve or create staging D1 exactly once
+        id: d1
+        shell: bash
+        working-directory: runtime
+        run: |
+          set -euo pipefail
+          npx wrangler d1 list --json > d1-list.json
+          python - <<'PY' > /tmp/d1-state
+          import json
+          x=json.load(open('d1-list.json'))
+          rows=x if isinstance(x,list) else x.get('result',x.get('databases',[]))
+          m=[r for r in rows if r.get('name')=='mft-axiom-staging']
+          if len(m)>1: raise SystemExit('Fail-closed: multiple staging D1 databases')
+          if len(m)==1:
+            print('EXISTS='+m[0].get('uuid',m[0].get('id','')))
+          else: print('CREATE=1')
+          PY
+          source /tmp/d1-state
+          if [ "${CREATE:-0}" = 1 ]; then
+            npx wrangler d1 create "$STAGING_DB" --location eeur --json > d1-create.json
+            npx wrangler d1 list --json > d1-list-after.json
+          else
+            cp d1-list.json d1-list-after.json
+          fi
+          python - <<'PY' >> "$GITHUB_OUTPUT"
+          import json
+          x=json.load(open('d1-list-after.json'))
+          rows=x if isinstance(x,list) else x.get('result',x.get('databases',[]))
+          m=[r for r in rows if r.get('name')=='mft-axiom-staging']
+          if len(m)!=1: raise SystemExit(f'Fail-closed: expected exactly one staging D1 after resolution, got {len(m)}')
+          ident=m[0].get('uuid',m[0].get('id'))
+          if not ident: raise SystemExit('Fail-closed: D1 identifier unavailable')
+          print('database_id='+ident)
+          print('d1_identity_verified=true')
+          PY
+
+      - name: Generate fail-closed staging Wrangler configuration
+        shell: bash
+        working-directory: runtime
+        env:
+          D1_ID: ${{ steps.d1.outputs.database_id }}
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json,os
+          cfg={
+            '$schema':'node_modules/wrangler/config-schema.json',
+            'name':os.environ['STAGING_WORKER'],
+            'main':'worker/src/cloudflare.js',
+            'compatibility_date':'2026-09-04',
+            'workers_dev':True,
+            'observability':{'enabled':True},
+            'containers':[{'class_name':'AxiomKernel','image':'./kernel/Dockerfile','max_instances':4,'instance_type':'basic','image_build_context':'.','name':'mft-axiom-staging-kernel'}],
+            'durable_objects':{'bindings':[{'name':'AXIOM_KERNEL','class_name':'AxiomKernel'}]},
+            'migrations':[{'tag':'axiom-staging-v1','new_sqlite_classes':['AxiomKernel']}],
+            'd1_databases':[{'binding':'AXIOM_DB','database_name':'mft-axiom-staging','database_id':os.environ['D1_ID']}]
+          }
+          open('wrangler.json','w').write(json.dumps(cfg,indent=2))
+          PY
+          python - <<'PY'
+          import json
+          c=json.load(open('wrangler.json'))
+          assert c['name']=='mft-axiom-staging' and c['workers_dev'] is True
+          assert len(c['d1_databases'])==1 and c['d1_databases'][0]['binding']=='AXIOM_DB'
+          assert c['containers'][0]['max_instances']==4
+          print('staging_config_verified=true')
+          PY
+
+      - name: Apply staging D1 schema
+        shell: bash
+        working-directory: runtime
+        run: |
+          set -euo pipefail
+          npx wrangler d1 execute "$STAGING_DB" --remote --file migrations/0001_revenue_core.sql --yes
+          npx wrangler d1 execute "$STAGING_DB" --remote --command "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name" --json > schema-check.json
+          python - <<'PY'
+          import json
+          text=open('schema-check.json').read()
+          required=['customers','api_keys','usage_buckets','usage_events','billing_subscriptions','webhook_events']
+          missing=[x for x in required if x not in text]
+          if missing: raise SystemExit('Fail-closed D1 schema missing: '+repr(missing))
+          print('d1_schema_verified=true')
+          PY
+
+      - name: Deploy isolated staging Worker and Container
+        shell: bash
+        working-directory: runtime
+        run: |
+          set -euo pipefail
+          docker version
+          npx wrangler deploy --config wrangler.json > deploy.log 2>&1 || { tail -200 deploy.log; exit 1; }
+          tail -100 deploy.log
+
+      - name: Create and install staging-only runtime secrets
+        shell: bash
+        working-directory: runtime
+        run: |
+          set -euo pipefail
+          MFT_CONTROL_SECRET="$(openssl rand -hex 32)"
+          MFT_RECEIPT_SECRET="$(openssl rand -hex 32)"
+          echo "::add-mask::$MFT_CONTROL_SECRET"
+          echo "::add-mask::$MFT_RECEIPT_SECRET"
+          export MFT_CONTROL_SECRET MFT_RECEIPT_SECRET
+          printf '%s' "$MFT_CONTROL_SECRET" | npx wrangler secret put MFT_CONTROL_SECRET --config wrangler.json >/tmp/control-secret.log
+          printf '%s' "$MFT_RECEIPT_SECRET" | npx wrangler secret put MFT_RECEIPT_SECRET --config wrangler.json >/tmp/receipt-secret.log
+          echo 'staging_secrets_installed=true'
+          printf '%s' "$MFT_CONTROL_SECRET" > /tmp/mft-control-secret
+          printf '%s' "$MFT_RECEIPT_SECRET" > /tmp/mft-receipt-secret
+
+      - name: Resolve staging URL and verify public fail-closed gates
+        id: verify
+        shell: bash
+        working-directory: runtime
+        run: |
+          set -euo pipefail
+          SUBDOMAIN="$(python - <<'PY'
+          import json,os,urllib.request
+          req=urllib.request.Request(f"https://api.cloudflare.com/client/v4/accounts/{os.environ['CLOUDFLARE_ACCOUNT_ID']}/workers/subdomain",headers={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_API_KEY']})
+          with urllib.request.urlopen(req,timeout=30) as r: x=json.load(r)
+          if not x.get('success') or not (x.get('result') or {}).get('subdomain'): raise SystemExit('workers subdomain unavailable')
+          print(x['result']['subdomain'])
+          PY
+          )"
+          URL="https://${STAGING_WORKER}.${SUBDOMAIN}.workers.dev"
+          echo "staging_url=$URL" >> "$GITHUB_OUTPUT"
+          for i in $(seq 1 60); do
+            code="$(curl -sS -o health.json -w '%{http_code}' "$URL/health" || true)"
+            if [ "$code" = 200 ]; then break; fi
+            sleep 5
+          done
+          test "$code" = 200 || { echo "Fail-closed: staging health unavailable ($code)"; exit 1; }
+          python - <<'PY'
+          import json,os
+          h=json.load(open('health.json'))
+          expected={'ok':True,'status':'READY','version':'3.0.0','build_id':os.environ['DEPLOY_BUILD_ID'],'operation_count':74,'state':'D1','wolfram_parity':'NOT_CERTIFIED','superiority':'NOT_CERTIFIED'}
+          bad={k:(h.get(k),v) for k,v in expected.items() if h.get(k)!=v}
+          if bad: raise SystemExit('Fail-closed health mismatch: '+repr(bad))
+          print('health_gate=PASS')
+          PY
+          unauth="$(curl -sS -o unauth.json -w '%{http_code}' -X POST "$URL/v1/compute" -H 'content-type: application/json' --data '{"operation":"arithmetic.evaluate","args":{"expression":"40+2"}}')"
+          test "$unauth" = 401 || { echo "Fail-closed: unauth compute expected 401 got $unauth"; exit 1; }
+          tools="$(curl -sS "$URL/v1/tools")"
+          TOOLS_JSON="$tools" python - <<'PY'
+          import json,os
+          x=json.loads(os.environ['TOOLS_JSON'])
+          if x.get('operation_count')!=74 or len(x.get('tools',[]))!=74: raise SystemExit('Fail-closed tool count mismatch')
+          print('tool_gate=PASS')
+          PY
+
+      - name: Verify authenticated internal compute and signed receipt
+        shell: bash
+        working-directory: runtime
+        env:
+          STAGING_URL: ${{ steps.verify.outputs.staging_url }}
+        run: |
+          set -euo pipefail
+          CONTROL="$(cat /tmp/mft-control-secret)"
+          code="$(curl -sS -o compute.json -w '%{http_code}' -X POST "$STAGING_URL/v1/compute" -H "x-mft-control: $CONTROL" -H 'content-type: application/json' --data '{"operation":"arithmetic.evaluate","args":{"expression":"40+2"},"verify":true}')"
+          test "$code" = 200 || { cat compute.json; echo "Fail-closed: authenticated compute HTTP $code"; exit 1; }
+          python - <<'PY'
+          import json
+          x=json.load(open('compute.json'))
+          if not x.get('ok'): raise SystemExit('Fail-closed compute not ok')
+          r=x.get('receipt') or {}
+          if not r.get('signature') or r.get('signature_alg')!='HMAC-SHA256': raise SystemExit('Fail-closed signed receipt missing')
+          if not r.get('request_sha256') or not r.get('result_sha256'): raise SystemExit('Fail-closed receipt hashes missing')
+          print('authenticated_compute_gate=PASS')
+          print('signed_receipt_gate=PASS')
+          PY
+
+      - name: Read back Cloudflare staging bindings and seal evidence
+        shell: bash
+        working-directory: runtime
+        env:
+          STAGING_URL: ${{ steps.verify.outputs.staging_url }}
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json,os,urllib.request,hashlib
+          base='https://api.cloudflare.com/client/v4'
+          account=os.environ['CLOUDFLARE_ACCOUNT_ID']; worker=os.environ['STAGING_WORKER']
+          headers={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_API_KEY']}
+          def get(path):
+            req=urllib.request.Request(base+path,headers=headers)
+            with urllib.request.urlopen(req,timeout=30) as r: x=json.load(r)
+            if not x.get('success'): raise SystemExit('Fail-closed Cloudflare readback failed')
+            return x.get('result')
+          settings=get(f'/accounts/{account}/workers/scripts/{worker}/settings')
+          bindings=settings.get('bindings',[]) if isinstance(settings,dict) else []
+          names=sorted({b.get('name') for b in bindings if isinstance(b,dict) and b.get('name')})
+          required={'AXIOM_DB','AXIOM_KERNEL','MFT_CONTROL_SECRET','MFT_RECEIPT_SECRET'}
+          missing=sorted(required-set(names))
+          if missing: raise SystemExit('Fail-closed missing Cloudflare bindings: '+repr(missing))
+          ev={
+            'schema':'mft.axiom.cloudflare.staging_deployment.v1',
+            'worker':worker,
+            'url':os.environ['STAGING_URL'],
+            'build_id':os.environ['DEPLOY_BUILD_ID'],
+            'operation_count':74,
+            'd1_binding':'AXIOM_DB',
+            'container_binding':'AXIOM_KERNEL',
+            'required_secret_bindings_present':True,
+            'health':'PASS','unauth_compute_401':'PASS','authenticated_compute':'PASS','signed_receipt':'PASS',
+            'wolfram_parity':'NOT_CERTIFIED','superiority':'NOT_CERTIFIED',
+            'custom_domain_attached':False,
+            'promotion_gate':'READY_FOR_EXPLICIT_PRODUCTION_PROMOTION_AFTER_REVIEW'
+          }
+          raw=json.dumps(ev,sort_keys=True,separators=(',',':')).encode(); ev['evidence_sha256']=hashlib.sha256(raw).hexdigest()
+          open('../axiom-staging-deployment-evidence.json','w').write(json.dumps(ev,indent=2,sort_keys=True))
+          PY
+          sha256sum ../axiom-staging-deployment-evidence.json > ../axiom-staging-deployment-evidence.sha256
+          cat ../axiom-staging-deployment-evidence.sha256
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mft-axiom-cloudflare-staging-deployment
+          path: |
+            axiom-staging-deployment-evidence.json
+            axiom-staging-deployment-evidence.sha256
+          if-no-files-found: error
+          retention-days: 14
