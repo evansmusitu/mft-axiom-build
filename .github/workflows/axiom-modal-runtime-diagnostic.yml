@@ -21,19 +21,21 @@ jobs:
         with:
           python-version: '3.13'
       - run: python -m pip install --disable-pip-version-check --quiet 'modal>=1.5,<2'
-      - name: Inspect app state and recent runtime logs
+      - name: Inspect deployed runtime contract read-only
         shell: bash
         run: |
           set -euo pipefail
-          modal app list --json > modal-apps.json
-          modal app history mft-axiom-v3-modal-staging --json > modal-history.json
-          modal container list --json > modal-containers.json
-          modal app logs mft-axiom-v3-modal-staging --tail 200 --timestamps > modal-runtime.log 2>&1 || true
           python - <<'PY'
-          import json
-          apps=json.load(open('modal-apps.json'))
-          print('modal_app_list_read=true')
-          print('history_read=true')
-          print('container_list_read=true')
+          import json, modal
+          p=modal.Function.from_name('mft-axiom-v3-modal-staging','runtime_probe')
+          r=p.remote()
+          safe={
+            'build_id':r.get('build_id'),
+            'routes':r.get('routes'),
+            'packages':r.get('packages'),
+            'compute_request_schema':r.get('compute_request_schema'),
+            'wolfram_parity':r.get('wolfram_parity'),
+            'superiority':r.get('superiority'),
+          }
+          print(json.dumps(safe,sort_keys=True))
           PY
-          tail -n 120 modal-runtime.log
