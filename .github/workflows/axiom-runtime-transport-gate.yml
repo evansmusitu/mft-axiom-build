@@ -86,16 +86,16 @@ jobs:
           grep -q "wolfram_parity:'NOT_CERTIFIED'" runtime/worker/src/index.js
           grep -q "superiority:'NOT_CERTIFIED'" runtime/worker/src/index.js
           grep -q "enableInternet:false" runtime/worker/src/cloudflare.js
-          python - <<'PY'
-          import re
-          s=open('runtime/worker/src/catalog.js').read()
-          m=re.search(r'export const TOOLS=\[(.*?)\];',s,re.S)
-          if not m: raise SystemExit('TOOLS registry not found')
-          # Catalog operation entries are quoted strings; count exact entries conservatively.
-          tools=re.findall(r"'([^']+)'",m.group(1))
-          if len(tools)!=74: raise SystemExit(f'Fail-closed: expected 74 operations, got {len(tools)}')
-          print('operation_count=74')
-          PY
+          node --input-type=module - <<'NODE'
+          import { TOOLS } from './runtime/worker/src/catalog.js';
+          if (!Array.isArray(TOOLS) || TOOLS.length !== 74) {
+            throw new Error(`Fail-closed: expected 74 operations, got ${Array.isArray(TOOLS) ? TOOLS.length : 'non-array'}`);
+          }
+          const unique = new Set(TOOLS);
+          if (unique.size !== 74) throw new Error(`Fail-closed: duplicate operations detected; unique=${unique.size}`);
+          console.log('operation_count=74');
+          console.log('operation_registry_unique=true');
+          NODE
 
       - name: Seal non-secret transport evidence
         shell: bash
