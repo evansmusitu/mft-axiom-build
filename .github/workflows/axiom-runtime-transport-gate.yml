@@ -1,0 +1,127 @@
+name: MFT Axiom Runtime Transport Gate
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'deploy_payload/runtime_min/**'
+      - '.github/workflows/axiom-runtime-transport-gate.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  verify-runtime-transport:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Require protected decryption key
+        shell: bash
+        env:
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        run: |
+          set -euo pipefail
+          test -n "$CLOUDFLARE_GLOBAL_API_KEY"
+          echo 'Protected transport key is present.'
+
+      - name: Reconstruct and authenticate encrypted runtime
+        shell: bash
+        env:
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        run: |
+          set -euo pipefail
+          P=deploy_payload/runtime_min
+          cat "$P/chunk_00.b64" "$P/chunk_01_02.b64" "$P/chunk_03_04.b64" "$P/chunk_05_06.b64" "$P/chunk_07_08.b64" "$P/chunk_09.b64" > runtime.enc.b64
+          base64 -d runtime.enc.b64 > runtime.tar.gz.enc
+          test "$(sha256sum runtime.tar.gz.enc | awk '{print $1}')" = 'b82448d6b4b34b302748815af976b535d69922c197d4b7a9056fc2f91a9e12cf'
+          python - <<'PY'
+          import hashlib,hmac,os
+          data=open('runtime.tar.gz.enc','rb').read()
+          got=hmac.new(os.environ['CLOUDFLARE_GLOBAL_API_KEY'].encode(),data,hashlib.sha256).hexdigest()
+          expected='1a3193d4f3271d61d151e6ebd7cf4576d8ab86c2e79b84eff4ad0f635fe7ab47'
+          if not hmac.compare_digest(got,expected): raise SystemExit('Fail-closed: ciphertext HMAC mismatch')
+          print('ciphertext_hmac_verified=true')
+          PY
+
+      - name: Decrypt and verify plaintext package
+        shell: bash
+        env:
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        run: |
+          set -euo pipefail
+          openssl enc -d -aes-256-cbc -pbkdf2 -iter 250000 -in runtime.tar.gz.enc -out runtime.tar.gz -pass env:CLOUDFLARE_GLOBAL_API_KEY
+          test "$(sha256sum runtime.tar.gz | awk '{print $1}')" = 'b4d5a0266446523969a619f5e9bb5a04d9b815c78a2ab82ed046ef5e23d53663'
+          mkdir runtime
+          tar -xzf runtime.tar.gz -C runtime
+
+      - name: Verify per-file source manifest
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import hashlib,json,pathlib
+          root=pathlib.Path('runtime')
+          m=json.loads((root/'RUNTIME_SOURCE_MANIFEST.json').read_text())
+          assert m['schema']=='mft.axiom.runtime_minimal_source.v1'
+          assert m['source_build']=='MFT-AXIOM-V3-FULL-SELF-CONTAINED-20260904'
+          problems=[]
+          for f in m['files']:
+            p=root/f['path']
+            if not p.is_file(): problems.append([f['path'],'missing']); continue
+            b=p.read_bytes()
+            if len(b)!=f['size']: problems.append([f['path'],'size'])
+            if hashlib.sha256(b).hexdigest()!=f['sha256']: problems.append([f['path'],'sha256'])
+          if problems: raise SystemExit('Fail-closed source manifest mismatch: '+repr(problems[:5]))
+          print('source_manifest_verified=true')
+          print('source_file_count='+str(len(m['files'])))
+          PY
+
+      - name: Verify security and capability invariants
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -q "operation_count:TOOLS.length" runtime/worker/src/index.js
+          grep -q "wolfram_parity:'NOT_CERTIFIED'" runtime/worker/src/index.js
+          grep -q "superiority:'NOT_CERTIFIED'" runtime/worker/src/index.js
+          grep -q "enableInternet:false" runtime/worker/src/cloudflare.js
+          python - <<'PY'
+          import re
+          s=open('runtime/worker/src/catalog.js').read()
+          m=re.search(r'export const TOOLS=\[(.*?)\];',s,re.S)
+          if not m: raise SystemExit('TOOLS registry not found')
+          # Catalog operation entries are quoted strings; count exact entries conservatively.
+          tools=re.findall(r"'([^']+)'",m.group(1))
+          if len(tools)!=74: raise SystemExit(f'Fail-closed: expected 74 operations, got {len(tools)}')
+          print('operation_count=74')
+          PY
+
+      - name: Seal non-secret transport evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > transport-gate-evidence.json <<'JSON'
+          {
+            "schema":"mft.axiom.runtime_transport_gate.v1",
+            "source_build":"MFT-AXIOM-V3-FULL-SELF-CONTAINED-20260904",
+            "ciphertext_sha256":"b82448d6b4b34b302748815af976b535d69922c197d4b7a9056fc2f91a9e12cf",
+            "plaintext_tar_sha256":"b4d5a0266446523969a619f5e9bb5a04d9b815c78a2ab82ed046ef5e23d53663",
+            "operation_count":74,
+            "wolfram_parity":"NOT_CERTIFIED",
+            "superiority":"NOT_CERTIFIED",
+            "plaintext_source_committed":false,
+            "secrets_committed":false,
+            "gate":"PASS"
+          }
+          JSON
+          sha256sum transport-gate-evidence.json > transport-gate-evidence.sha256
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mft-axiom-runtime-transport-gate
+          path: |
+            transport-gate-evidence.json
+            transport-gate-evidence.sha256
+          if-no-files-found: error
+          retention-days: 7
