@@ -1,0 +1,111 @@
+name: MFT Axiom Modal Kernel Contract
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/axiom-modal-kernel-contract.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  inspect-kernel-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Reconstruct encrypted Axiom source fail-closed
+        shell: bash
+        env:
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        run: |
+          set -euo pipefail
+          test -n "$CLOUDFLARE_GLOBAL_API_KEY"
+          P=deploy_payload/runtime_min
+          cat "$P/chunk_00.b64" "$P/chunk_01_02.b64" "$P/chunk_03_04.b64" "$P/chunk_05_06.b64" "$P/chunk_07_08.b64" "$P/chunk_09.b64" > runtime.enc.b64
+          base64 -d runtime.enc.b64 > runtime.tar.gz.enc
+          test "$(sha256sum runtime.tar.gz.enc | awk '{print $1}')" = 'b82448d6b4b34b302748815af976b535d69922c197d4b7a9056fc2f91a9e12cf'
+          python - <<'PY'
+          import hashlib,hmac,os
+          data=open('runtime.tar.gz.enc','rb').read()
+          got=hmac.new(os.environ['CLOUDFLARE_GLOBAL_API_KEY'].encode(),data,hashlib.sha256).hexdigest()
+          if not hmac.compare_digest(got,'1a3193d4f3271d61d151e6ebd7cf4576d8ab86c2e79b84eff4ad0f635fe7ab47'):
+              raise SystemExit('Fail-closed: ciphertext HMAC mismatch')
+          PY
+          openssl enc -d -aes-256-cbc -pbkdf2 -iter 250000 -in runtime.tar.gz.enc -out runtime.tar.gz -pass env:CLOUDFLARE_GLOBAL_API_KEY
+          test "$(sha256sum runtime.tar.gz | awk '{print $1}')" = 'b4d5a0266446523969a619f5e9bb5a04d9b815c78a2ab82ed046ef5e23d53663'
+          mkdir runtime
+          tar -xzf runtime.tar.gz -C runtime
+
+      - name: Extract non-source deployment contract metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import ast, hashlib, json, pathlib, re
+          root=pathlib.Path('runtime')
+          manifest=json.loads((root/'RUNTIME_SOURCE_MANIFEST.json').read_text())
+          paths=[f['path'] for f in manifest['files']]
+          out={
+            'schema':'mft.axiom.modal_kernel_contract.v1',
+            'source_build':manifest['source_build'],
+            'source_file_count':len(paths),
+            'python_files':[],
+            'dependency_files':[],
+            'candidate_modules':[],
+            'truth':{'wolfram_parity':'NOT_CERTIFIED','superiority':'NOT_CERTIFIED'}
+          }
+          for rel in paths:
+            p=root/rel
+            if not p.is_file():
+              raise SystemExit('Fail-closed: manifest file missing')
+            if rel.endswith('.py'):
+              out['python_files'].append(rel)
+              text=p.read_text(errors='replace')
+              flags={
+                'fastapi':'FastAPI(' in text,
+                'uvicorn':'uvicorn' in text,
+                'asgi':'ASGI' in text or 'asgi' in text,
+                'compute_word':'compute' in text.lower(),
+                'kernel_word':'kernel' in text.lower(),
+                'tools_word':'TOOLS' in text or 'tools' in text.lower(),
+              }
+              if sum(bool(v) for v in flags.values())>=2:
+                try:
+                  tree=ast.parse(text)
+                  funcs=[n.name for n in tree.body if isinstance(n,(ast.FunctionDef,ast.AsyncFunctionDef))]
+                  classes=[n.name for n in tree.body if isinstance(n,ast.ClassDef)]
+                  assigns=[]
+                  for n in tree.body:
+                    if isinstance(n,(ast.Assign,ast.AnnAssign)):
+                      ts=n.targets if isinstance(n,ast.Assign) else [n.target]
+                      for t in ts:
+                        if isinstance(t,ast.Name): assigns.append(t.id)
+                  out['candidate_modules'].append({'path':rel,'flags':flags,'functions':funcs[:40],'classes':classes[:40],'assignments':assigns[:40]})
+                except SyntaxError:
+                  out['candidate_modules'].append({'path':rel,'flags':flags,'syntax_parse':'FAILED'})
+            name=pathlib.PurePosixPath(rel).name.lower()
+            if name=='pyproject.toml' or 'requirements' in name:
+              lines=[]
+              for line in p.read_text(errors='replace').splitlines():
+                s=line.strip()
+                if not s or s.startswith('#'): continue
+                if re.search(r'(token|secret|password|key\s*=)',s,re.I): continue
+                lines.append(s[:240])
+              out['dependency_files'].append({'path':rel,'nonsecret_lines':lines[:120]})
+          pathlib.Path('modal-kernel-contract.json').write_text(json.dumps(out,indent=2,sort_keys=True))
+          print('kernel_contract_extracted=true')
+          print('candidate_module_count='+str(len(out['candidate_modules'])))
+          PY
+          sha256sum modal-kernel-contract.json > modal-kernel-contract.sha256
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mft-axiom-modal-kernel-contract
+          path: |
+            modal-kernel-contract.json
+            modal-kernel-contract.sha256
+          retention-days: 1
+          if-no-files-found: error
