@@ -1,0 +1,21 @@
+{
+  "schema": "mft.axiom.encrypted_runtime_transport.v1",
+  "source_build": "MFT-AXIOM-V3-FULL-SELF-CONTAINED-20260904",
+  "transport_class": "encrypted-runtime-reconstruction",
+  "plaintext_tar_sha256": "b4d5a0266446523969a619f5e9bb5a04d9b815c78a2ab82ed046ef5e23d53663",
+  "ciphertext_sha256": "b82448d6b4b34b302748815af976b535d69922c197d4b7a9056fc2f91a9e12cf",
+  "ciphertext_hmac_sha256": "1a3193d4f3271d61d151e6ebd7cf4576d8ab86c2e79b84eff4ad0f635fe7ab47",
+  "cipher": "AES-256-CBC",
+  "kdf": "PBKDF2-SHA256",
+  "iterations": 250000,
+  "chunk_order": [
+    "chunk_00.b64",
+    "chunk_01_02.b64",
+    "chunk_03_04.b64",
+    "chunk_05_06.b64",
+    "chunk_07_08.b64",
+    "chunk_09.b64"
+  ],
+  "plaintext_source_committed": false,
+  "secrets_committed": false
+}
