@@ -1,0 +1,73 @@
+name: MFT Axiom Modal Edge Adapter Preflight
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/axiom-modal-edge-adapter-preflight.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  map-adapter:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Reconstruct protected source fail-closed
+        env:
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          P=deploy_payload/runtime_min
+          cat "$P/chunk_00.b64" "$P/chunk_01_02.b64" "$P/chunk_03_04.b64" "$P/chunk_05_06.b64" "$P/chunk_07_08.b64" "$P/chunk_09.b64" > runtime.enc.b64
+          base64 -d runtime.enc.b64 > runtime.tar.gz.enc
+          test "$(sha256sum runtime.tar.gz.enc | awk '{print $1}')" = 'b82448d6b4b34b302748815af976b535d69922c197d4b7a9056fc2f91a9e12cf'
+          python - <<'PY'
+          import hashlib,hmac,os
+          b=open('runtime.tar.gz.enc','rb').read()
+          got=hmac.new(os.environ['CLOUDFLARE_GLOBAL_API_KEY'].encode(),b,hashlib.sha256).hexdigest()
+          assert hmac.compare_digest(got,'1a3193d4f3271d61d151e6ebd7cf4576d8ab86c2e79b84eff4ad0f635fe7ab47')
+          PY
+          openssl enc -d -aes-256-cbc -pbkdf2 -iter 250000 -in runtime.tar.gz.enc -out runtime.tar.gz -pass env:CLOUDFLARE_GLOBAL_API_KEY
+          test "$(sha256sum runtime.tar.gz | awk '{print $1}')" = 'b4d5a0266446523969a619f5e9bb5a04d9b815c78a2ab82ed046ef5e23d53663'
+          mkdir runtime && tar -xzf runtime.tar.gz -C runtime
+
+      - name: Emit non-source structural metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import hashlib,json,pathlib,re
+          root=pathlib.Path('runtime/worker/src')
+          files=sorted(p for p in root.glob('*.js') if p.is_file())
+          out={'schema':'mft.axiom.modal_edge_adapter_map.v1','files':[]}
+          for p in files:
+              s=p.read_text()
+              imports=[]
+              for m in re.finditer(r"import\s+(.+?)\s+from\s+['\"]([^'\"]+)['\"]",s,re.S):
+                  spec=' '.join(m.group(1).split())
+                  # report only imported identifiers and module name, not code bodies
+                  imports.append({'spec':spec,'from':m.group(2)})
+              exports=sorted(set(re.findall(r'export\s+(?:default\s+)?(?:class|function|const|let|var)\s+([A-Za-z_$][\w$]*)',s)))
+              classes=sorted(set(re.findall(r'class\s+([A-Za-z_$][\w$]*)',s)))
+              funcs=sorted(set(re.findall(r'(?:async\s+)?function\s+([A-Za-z_$][\w$]*)',s)))
+              env=sorted(set(re.findall(r'\benv\.([A-Z][A-Z0-9_]*)',s)))
+              paths=sorted(set(x for x in re.findall(r"['\"](\/[A-Za-z0-9_./:{}-]+)['\"]",s) if len(x)<120))
+              markers={k:s.count(k) for k in ['AXIOM_KERNEL','AXIOM_DB','MFT_CONTROL_SECRET','MFT_RECEIPT_SECRET','enableInternet:false','fetch(','container','getByName','/v1/compute','/v1/tools','/health']}
+              out['files'].append({'name':p.name,'bytes':p.stat().st_size,'sha256':hashlib.sha256(s.encode()).hexdigest(),'imports':imports,'exports':exports,'classes':classes,'functions':funcs,'env_bindings':env,'paths':paths,'marker_counts':markers})
+          pathlib.Path('edge-adapter-map.json').write_text(json.dumps(out,indent=2,sort_keys=True))
+          print(json.dumps(out,sort_keys=True))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mft-axiom-modal-edge-adapter-map
+          path: edge-adapter-map.json
+          if-no-files-found: error
+          retention-days: 7
