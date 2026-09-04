@@ -225,14 +225,40 @@ jobs:
           open('modal-private-deploy-evidence.json','w').write(json.dumps(evidence,indent=2,sort_keys=True))
           print(json.dumps({'modal_private_deploy_pass':True,'route_count':len(routes),'proxy_auth_required':True}))
           PY
-          sha256sum modal-private-deploy-evidence.json > modal-private-deploy-evidence.sha256
 
-      - name: Authenticated health and tools checks
+      - name: Authenticated health and tools checks with ephemeral proxy token
         shell: bash
         run: |
           set -euo pipefail
           URL="$(cat modal-url.txt)"
-          modal curl -sS "$URL/health" > modal-health.json
+          modal workspace proxy-tokens create --json > proxy-token.json
+          python - <<'PY'
+          import json,pathlib
+          obj=json.load(open('proxy-token.json'))
+          vals=[]
+          def walk(x):
+              if isinstance(x,dict):
+                  for v in x.values(): walk(v)
+              elif isinstance(x,list):
+                  for v in x: walk(v)
+              elif isinstance(x,str): vals.append(x)
+          walk(obj)
+          keys=[x for x in vals if x.startswith('wk-')]
+          secs=[x for x in vals if x.startswith('ws-')]
+          if len(keys)!=1 or len(secs)!=1:
+              raise SystemExit('Fail-closed: unexpected Modal proxy-token JSON shape')
+          pathlib.Path('proxy-key.txt').write_text(keys[0])
+          pathlib.Path('proxy-secret.txt').write_text(secs[0])
+          print('ephemeral_proxy_token_created=true')
+          PY
+          KEY="$(cat proxy-key.txt)"
+          SECRET="$(cat proxy-secret.txt)"
+          cleanup() {
+            modal workspace proxy-tokens delete -y "$KEY" >/dev/null 2>&1 || true
+            rm -f proxy-token.json proxy-key.txt proxy-secret.txt
+          }
+          trap cleanup EXIT
+          curl -fsS -H "Modal-Key: $KEY" -H "Modal-Secret: $SECRET" "$URL/health" > modal-health.json
           python - <<'PY'
           import json
           x=json.load(open('modal-health.json'))
@@ -247,7 +273,7 @@ jobs:
           print('/v3/tools' if '/v3/tools' in r else ('/v1/tools' if '/v1/tools' in r else '/tools'))
           PY
           )"
-          modal curl -sS "$URL$TOOLS_PATH" > modal-tools.json
+          curl -fsS -H "Modal-Key: $KEY" -H "Modal-Secret: $SECRET" "$URL$TOOLS_PATH" > modal-tools.json
           python - <<'PY'
           import json
           x=json.load(open('modal-tools.json'))
@@ -260,6 +286,19 @@ jobs:
           if n!=74: raise SystemExit(f'Fail-closed: expected 74 operations, got {n}')
           print('modal_operation_count=74')
           PY
+          modal workspace proxy-tokens delete -y "$KEY" >/dev/null
+          rm -f proxy-token.json proxy-key.txt proxy-secret.txt
+          trap - EXIT
+          python - <<'PY'
+          import json
+          p='modal-private-deploy-evidence.json'
+          x=json.load(open(p))
+          x['ephemeral_proxy_auth_verified']=True
+          x['ephemeral_proxy_token_deleted']=True
+          x['operation_count']=74
+          open(p,'w').write(json.dumps(x,indent=2,sort_keys=True))
+          PY
+          sha256sum modal-private-deploy-evidence.json > modal-private-deploy-evidence.sha256
 
       - uses: actions/upload-artifact@v4
         with:
