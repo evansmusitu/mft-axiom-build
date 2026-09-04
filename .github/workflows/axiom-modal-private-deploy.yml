@@ -204,8 +204,8 @@ jobs:
           if bad: raise SystemExit('Fail-closed: root package version mismatch '+repr(bad))
           routes=r.get('routes') or []
           if '/health' not in routes: raise SystemExit('Fail-closed: /health route missing')
-          if not any(x in routes for x in ['/v3/tools','/tools']): raise SystemExit('Fail-closed: tools route missing')
-          if not any(x in routes for x in ['/v3/compute','/compute']): raise SystemExit('Fail-closed: compute route missing')
+          if not any(x in routes for x in ['/v3/tools','/v1/tools','/tools']): raise SystemExit('Fail-closed: tools route missing')
+          if not any(x in routes for x in ['/v1/compute','/v3/compute','/compute']): raise SystemExit('Fail-closed: compute route missing')
           evidence={
             'schema':'mft.axiom.modal_private_deploy.v1',
             'source_build':r['build_id'],
@@ -237,14 +237,14 @@ jobs:
           import json
           x=json.load(open('modal-health.json'))
           if not isinstance(x,dict): raise SystemExit('Fail-closed: health is not JSON object')
-          if x.get('ok') is False: raise SystemExit('Fail-closed: health reports not ok')
+          if x.get('ok') is not True: raise SystemExit('Fail-closed: health does not report ok=true')
           print('modal_health_pass=true')
           PY
           TOOLS_PATH="$(python - <<'PY'
           import json
           x=json.load(open('modal-private-deploy-evidence.json'))
           r=x['routes']
-          print('/v3/tools' if '/v3/tools' in r else '/tools')
+          print('/v3/tools' if '/v3/tools' in r else ('/v1/tools' if '/v1/tools' in r else '/tools'))
           PY
           )"
           modal curl -sS "$URL$TOOLS_PATH" > modal-tools.json
