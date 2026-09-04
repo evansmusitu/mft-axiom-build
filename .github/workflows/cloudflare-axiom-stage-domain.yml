@@ -1,0 +1,148 @@
+name: MFT Axiom Staging Domain Activation
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/cloudflare-axiom-stage-domain.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  attach-stage-domain:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    env:
+      CF_API: https://api.cloudflare.com/client/v4
+      WORKER_NAME: mft-axiom-bootstrap
+      HOSTNAME: axiom-stage.mftintelligence.com
+    steps:
+      - name: Resolve exact account, zone, worker
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json,os,urllib.request,urllib.parse
+          h={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY']}
+          base=os.environ['CF_API']
+          req=urllib.request.Request(base+'/zones?name='+urllib.parse.quote('mftintelligence.com')+'&status=active',headers=h)
+          with urllib.request.urlopen(req,timeout=30) as r:b=json.load(r)
+          rows=b.get('result') or []
+          if not b.get('success') or len(rows)!=1: raise SystemExit('zone invariant failed')
+          z=rows[0]; aid=(z.get('account') or {}).get('id')
+          if not aid: raise SystemExit('account missing')
+          open('account_id.txt','w').write(aid); open('zone_id.txt','w').write(z['id'])
+          req=urllib.request.Request(base+f'/accounts/{aid}/workers/scripts',headers=h)
+          with urllib.request.urlopen(req,timeout=30) as r:s=json.load(r)
+          if os.environ['WORKER_NAME'] not in [x.get('id') for x in (s.get('result') or [])]: raise SystemExit('bootstrap worker missing')
+          print(json.dumps({'preflight':True,'zone':'mftintelligence.com','worker':os.environ['WORKER_NAME']}))
+          PY
+
+      - name: Ensure staging hostname is not already attached elsewhere
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json,os,urllib.request
+          aid=open('account_id.txt').read().strip(); h={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY']}
+          req=urllib.request.Request(os.environ['CF_API']+f'/accounts/{aid}/workers/domains',headers=h)
+          with urllib.request.urlopen(req,timeout=30) as r:b=json.load(r)
+          if not b.get('success'): raise SystemExit('domain list failed')
+          matches=[x for x in (b.get('result') or []) if x.get('hostname')==os.environ['HOSTNAME']]
+          if len(matches)>1: raise SystemExit('duplicate staging domain invariant failed')
+          if matches and matches[0].get('service')!=os.environ['WORKER_NAME']: raise SystemExit('staging hostname already owned by another worker')
+          json.dump(matches[0] if matches else {},open('prior-domain.json','w'),indent=2,sort_keys=True)
+          print(json.dumps({'already_attached':bool(matches)}))
+          PY
+
+      - name: Attach staging custom domain to bootstrap
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        run: |
+          set -euo pipefail
+          if [ "$(python -c 'import json; print(bool(json.load(open("prior-domain.json"))))')" = "True" ]; then
+            echo 'Staging custom domain already attached to expected worker; write skipped.'
+            exit 0
+          fi
+          ACCOUNT_ID="$(cat account_id.txt)"; ZONE_ID="$(cat zone_id.txt)"
+          python - <<'PY' > domain-body.json
+          import json,os
+          print(json.dumps({'hostname':os.environ['HOSTNAME'],'service':os.environ['WORKER_NAME'],'zone_id':open('zone_id.txt').read().strip()}))
+          PY
+          HTTP=$(curl -sS -o domain-write.json -w '%{http_code}' -X PUT \
+            -H "X-Auth-Email: $CLOUDFLARE_EMAIL" -H "X-Auth-Key: $CLOUDFLARE_GLOBAL_API_KEY" \
+            -H 'Content-Type: application/json' --data-binary @domain-body.json \
+            "$CF_API/accounts/$ACCOUNT_ID/workers/domains")
+          python - "$HTTP" <<'PY'
+          import json,sys
+          code=int(sys.argv[1]); b=json.load(open('domain-write.json'))
+          if code not in (200,201) or not b.get('success'): raise SystemExit(f'custom domain attach failed HTTP {code}: {b.get("errors")}')
+          r=b.get('result') or {}
+          if r.get('hostname')!='axiom-stage.mftintelligence.com' or r.get('service')!='mft-axiom-bootstrap': raise SystemExit('custom domain response invariant failed')
+          print(json.dumps({'domain_attached':True,'hostname':r.get('hostname'),'service':r.get('service')}))
+          PY
+
+      - name: Read back exact domain attachment
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json,os,urllib.request,time
+          aid=open('account_id.txt').read().strip(); h={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY']}
+          req=urllib.request.Request(os.environ['CF_API']+f'/accounts/{aid}/workers/domains',headers=h)
+          with urllib.request.urlopen(req,timeout=30) as r:b=json.load(r)
+          matches=[x for x in (b.get('result') or []) if x.get('hostname')==os.environ['HOSTNAME']]
+          if len(matches)!=1 or matches[0].get('service')!=os.environ['WORKER_NAME']: raise SystemExit('custom domain readback invariant failed')
+          json.dump(matches[0],open('domain-readback.json','w'),indent=2,sort_keys=True)
+          print(json.dumps({'readback_pass':True,'domain_id_present':bool(matches[0].get('id')),'cert_id_present':bool(matches[0].get('cert_id'))}))
+          PY
+
+      - name: Verify staging HTTPS health with bounded certificate propagation wait
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json,time,urllib.request,urllib.error
+          url='https://axiom-stage.mftintelligence.com/health'
+          last=''
+          for _ in range(18):
+            try:
+              with urllib.request.urlopen(url,timeout=20) as r:
+                h=json.load(r)
+              if h.get('build')=='MFT-AXIOM-EDGE-BOOTSTRAP-20260904' and h.get('deployment_state')=='EDGE_BOOTSTRAP_ONLY' and h.get('production_compute_active') is False:
+                json.dump(h,open('stage-health.json','w'),indent=2,sort_keys=True)
+                open('stage-url.txt','w').write(url+'\n')
+                print(json.dumps({'https_health_pass':True,'url':url})); raise SystemExit(0)
+              last='health invariant mismatch'
+            except Exception as e:
+              last=f'{type(e).__name__}: {e}'
+            time.sleep(5)
+          raise SystemExit('staging HTTPS verification failed after bounded wait: '+last)
+          PY
+
+      - name: Seal staging activation evidence
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json,hashlib
+          out={'schema':'mft.axiom.cloudflare.stage_domain.v1','hostname':'axiom-stage.mftintelligence.com','worker_name':'mft-axiom-bootstrap','domain':json.load(open('domain-readback.json')),'health':json.load(open('stage-health.json')),'production_compute_active':False,'production_hostname_bound':False,'wolfram_parity':'NOT_CERTIFIED','superiority':'NOT_CERTIFIED'}
+          json.dump(out,open('axiom-stage-domain-evidence.json','w'),indent=2,sort_keys=True)
+          PY
+          sha256sum axiom-stage-domain-evidence.json > axiom-stage-domain-evidence.sha256
+
+      - name: Upload staging evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: mft-axiom-stage-domain-evidence
+          path: |
+            axiom-stage-domain-evidence.json
+            axiom-stage-domain-evidence.sha256
+          retention-days: 7
+          if-no-files-found: error
