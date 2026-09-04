@@ -1,0 +1,142 @@
+name: MFT Axiom Worker Private Contract
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/axiom-worker-private-contract.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  inspect-worker-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Reconstruct encrypted Axiom source fail-closed
+        env:
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$CLOUDFLARE_GLOBAL_API_KEY"
+          P=deploy_payload/runtime_min
+          cat "$P/chunk_00.b64" "$P/chunk_01_02.b64" "$P/chunk_03_04.b64" "$P/chunk_05_06.b64" "$P/chunk_07_08.b64" "$P/chunk_09.b64" > runtime.enc.b64
+          base64 -d runtime.enc.b64 > runtime.tar.gz.enc
+          test "$(sha256sum runtime.tar.gz.enc | awk '{print $1}')" = 'b82448d6b4b34b302748815af976b535d69922c197d4b7a9056fc2f91a9e12cf'
+          python - <<'PY'
+          import hashlib,hmac,os
+          data=open('runtime.tar.gz.enc','rb').read()
+          got=hmac.new(os.environ['CLOUDFLARE_GLOBAL_API_KEY'].encode(),data,hashlib.sha256).hexdigest()
+          if not hmac.compare_digest(got,'1a3193d4f3271d61d151e6ebd7cf4576d8ab86c2e79b84eff4ad0f635fe7ab47'):
+              raise SystemExit('Fail-closed: ciphertext HMAC mismatch')
+          PY
+          openssl enc -d -aes-256-cbc -pbkdf2 -iter 250000 -in runtime.tar.gz.enc -out runtime.tar.gz -pass env:CLOUDFLARE_GLOBAL_API_KEY
+          test "$(sha256sum runtime.tar.gz | awk '{print $1}')" = 'b4d5a0266446523969a619f5e9bb5a04d9b815c78a2ab82ed046ef5e23d53663'
+          mkdir runtime
+          tar -xzf runtime.tar.gz -C runtime
+
+      - name: Extract safe Worker contract metadata only
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json,pathlib,re,hashlib
+          root=pathlib.Path('runtime')
+          manifest=json.loads((root/'RUNTIME_SOURCE_MANIFEST.json').read_text())
+          worker_files=[f['path'] for f in manifest['files'] if f['path'].startswith('worker/')]
+          texts={p:(root/p).read_text(errors='replace') for p in worker_files if (root/p).suffix in {'.js','.mjs','.ts','.json'} and (root/p).is_file()}
+          joined='\n'.join(texts.values())
+
+          env_refs=sorted(set(re.findall(r'\benv\.([A-Za-z_][A-Za-z0-9_]*)',joined)))
+          env_bracket=sorted(set(re.findall(r"\benv\[['\"]([A-Za-z_][A-Za-z0-9_]*)['\"]\]",joined)))
+          env_refs=sorted(set(env_refs+env_bracket))
+
+          # Only API-looking path literals; exclude source excerpts.
+          routes=set()
+          for t in texts.values():
+              for m in re.finditer(r"['\"](/(?:health|v1|v2|v3|compute|tools|capabilities|usage|customer|api|billing|mcp|receipts?|keys?|quota|internal)[A-Za-z0-9_{}:./-]*)['\"]",t):
+                  routes.add(m.group(1))
+
+          markers=[
+            'AXIOM_PRODUCTION_COMPUTE_NOT_ACTIVATED',
+            'EDGE_BOOTSTRAP_ONLY',
+            'production_compute_active',
+            'enableInternet:false',
+            'enableInternet: false',
+            'MFT-AXIOM-EDGE-BOOTSTRAP-20260904',
+            'MFT-AXIOM-V3-FULL-SELF-CONTAINED-20260904',
+            'NOT_CERTIFIED',
+          ]
+          marker_presence={x:(x in joined) for x in markers}
+
+          # D1/storage behavior by syntax class only.
+          storage={
+            'uses_prepare':'.prepare(' in joined,
+            'uses_batch':'.batch(' in joined,
+            'uses_exec':'.exec(' in joined,
+            'uses_durable_object':bool(re.search(r'\.idFrom(Name|String)\s*\(',joined)),
+            'uses_r2':bool(re.search(r'\.(put|get|delete)\s*\(',joined) and any(x in joined for x in ('R2','bucket','BUCKET'))),
+          }
+
+          # Detect bindings participating in D1-like methods without printing expressions.
+          d1_candidates=[]
+          for name in env_refs:
+              if re.search(rf'\benv\.{re.escape(name)}\s*\.\s*(prepare|batch|exec)\s*\(',joined):
+                  d1_candidates.append(name)
+
+          # Detect fetch target classes safely.
+          fetch_info={
+            'fetch_calls':len(re.findall(r'\bfetch\s*\(',joined)),
+            'uses_env_origin_for_fetch':bool(re.search(r'fetch\s*\(\s*(?:new\s+Request\s*\(\s*)?env\.',joined)),
+            'modal_hostname_literal_present':'modal.run' in joined,
+          }
+
+          # Functions/export shapes are safe contract metadata.
+          exported_default=bool(re.search(r'export\s+default\s*\{',joined))
+          has_fetch_handler=bool(re.search(r'\basync\s+fetch\s*\(|\bfetch\s*\(request\s*,\s*env',joined))
+
+          out={
+            'schema':'mft.axiom.worker_private_contract.v1',
+            'source_build':manifest['source_build'],
+            'worker_files':worker_files,
+            'worker_file_count':len(worker_files),
+            'worker_source_sha256':{p:hashlib.sha256((root/p).read_bytes()).hexdigest() for p in worker_files if (root/p).is_file()},
+            'env_binding_refs':env_refs,
+            'd1_binding_candidates':sorted(d1_candidates),
+            'api_path_literals':sorted(routes),
+            'marker_presence':marker_presence,
+            'storage_syntax':storage,
+            'fetch_contract':fetch_info,
+            'exported_default_handler':exported_default,
+            'fetch_handler_detected':has_fetch_handler,
+            'plaintext_source_committed':False,
+            'wolfram_parity':'NOT_CERTIFIED',
+            'superiority':'NOT_CERTIFIED',
+          }
+          open('axiom-worker-private-contract.json','w').write(json.dumps(out,indent=2,sort_keys=True))
+          print(json.dumps({
+            'worker_contract_pass':True,
+            'worker_file_count':out['worker_file_count'],
+            'env_binding_refs':out['env_binding_refs'],
+            'd1_binding_candidates':out['d1_binding_candidates'],
+            'api_path_literals':out['api_path_literals'],
+            'marker_presence':out['marker_presence'],
+            'storage_syntax':out['storage_syntax'],
+            'fetch_contract':out['fetch_contract'],
+            'fetch_handler_detected':out['fetch_handler_detected'],
+          },sort_keys=True))
+          PY
+          sha256sum axiom-worker-private-contract.json > axiom-worker-private-contract.sha256
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mft-axiom-worker-private-contract
+          path: |
+            axiom-worker-private-contract.json
+            axiom-worker-private-contract.sha256
+          retention-days: 7
+          if-no-files-found: error
