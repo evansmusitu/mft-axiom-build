@@ -1,0 +1,61 @@
+name: MFT Axiom Cloudflare Access Audit
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/cloudflare-access-audit.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  audit-access:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      CF_API: https://api.cloudflare.com/client/v4
+    steps:
+      - name: Resolve account and inspect relevant Access applications read-only
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json,os,urllib.request,urllib.parse
+          h={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY']}
+          base=os.environ['CF_API']
+          req=urllib.request.Request(base+'/zones?name='+urllib.parse.quote('mftintelligence.com')+'&status=active',headers=h)
+          with urllib.request.urlopen(req,timeout=30) as r:z=json.load(r)
+          rows=z.get('result') or []
+          if not z.get('success') or len(rows)!=1: raise SystemExit('zone invariant failed')
+          aid=(rows[0].get('account') or {}).get('id')
+          req=urllib.request.Request(base+f'/accounts/{aid}/access/apps?per_page=100',headers=h)
+          try:
+            with urllib.request.urlopen(req,timeout=30) as r:a=json.load(r)
+          except Exception as e:
+            json.dump({'schema':'mft.axiom.cloudflare.access_audit.v1','access_apps_endpoint_ok':False,'error_type':type(e).__name__,'write_performed':False},open('cloudflare-access-audit.json','w'),indent=2,sort_keys=True)
+            raise
+          if not a.get('success'): raise SystemExit('access apps read failed')
+          relevant=[]
+          for app in a.get('result') or []:
+            domain=str(app.get('domain') or '')
+            name=str(app.get('name') or '')
+            if 'workers.dev' in domain or 'mftintelligence.com' in domain or 'axiom' in name.lower() or 'mft' in name.lower():
+              relevant.append({'id':app.get('id'),'name':name,'domain':domain,'type':app.get('type'),'self_hosted_domains':app.get('self_hosted_domains') or []})
+          out={'schema':'mft.axiom.cloudflare.access_audit.v1','access_apps_endpoint_ok':True,'relevant_apps':relevant,'relevant_app_count':len(relevant),'write_performed':False}
+          json.dump(out,open('cloudflare-access-audit.json','w'),indent=2,sort_keys=True)
+          print(json.dumps({'access_apps_endpoint_ok':True,'relevant_app_count':len(relevant)}))
+          PY
+      - name: Seal evidence
+        run: sha256sum cloudflare-access-audit.json > cloudflare-access-audit.sha256
+      - name: Upload evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: mft-axiom-cloudflare-access-audit
+          path: |
+            cloudflare-access-audit.json
+            cloudflare-access-audit.sha256
+          retention-days: 7
+          if-no-files-found: error
