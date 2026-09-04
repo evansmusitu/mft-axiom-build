@@ -112,7 +112,7 @@ jobs:
               .add_local_dir('runtime/kernel', '/opt/axiom/kernel', copy=True)
           )
 
-          app = modal.App(APP_NAME, include_source=False)
+          app = modal.App(APP_NAME, include_source=True)
 
           @app.function(
               image=image,
