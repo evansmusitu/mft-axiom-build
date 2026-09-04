@@ -1,0 +1,273 @@
+name: MFT Axiom Modal Private Deploy
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/axiom-modal-private-deploy.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  deploy-modal:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID }}
+      MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET }}
+      AXIOM_MODAL_APP: mft-axiom-v3-modal-staging
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Install Modal CLI
+        run: python -m pip install --disable-pip-version-check --quiet 'modal>=1.5,<2'
+
+      - name: Authenticate Modal fail-closed
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$MODAL_TOKEN_ID"
+          test -n "$MODAL_TOKEN_SECRET"
+          modal app list --json >/dev/null
+          echo 'modal_auth_pass=true'
+
+      - name: Reconstruct encrypted Axiom source fail-closed
+        shell: bash
+        env:
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        run: |
+          set -euo pipefail
+          test -n "$CLOUDFLARE_GLOBAL_API_KEY"
+          P=deploy_payload/runtime_min
+          cat "$P/chunk_00.b64" "$P/chunk_01_02.b64" "$P/chunk_03_04.b64" "$P/chunk_05_06.b64" "$P/chunk_07_08.b64" "$P/chunk_09.b64" > runtime.enc.b64
+          base64 -d runtime.enc.b64 > runtime.tar.gz.enc
+          test "$(sha256sum runtime.tar.gz.enc | awk '{print $1}')" = 'b82448d6b4b34b302748815af976b535d69922c197d4b7a9056fc2f91a9e12cf'
+          python - <<'PY'
+          import hashlib,hmac,os
+          data=open('runtime.tar.gz.enc','rb').read()
+          got=hmac.new(os.environ['CLOUDFLARE_GLOBAL_API_KEY'].encode(),data,hashlib.sha256).hexdigest()
+          if not hmac.compare_digest(got,'1a3193d4f3271d61d151e6ebd7cf4576d8ab86c2e79b84eff4ad0f635fe7ab47'):
+              raise SystemExit('Fail-closed: ciphertext HMAC mismatch')
+          PY
+          openssl enc -d -aes-256-cbc -pbkdf2 -iter 250000 -in runtime.tar.gz.enc -out runtime.tar.gz -pass env:CLOUDFLARE_GLOBAL_API_KEY
+          test "$(sha256sum runtime.tar.gz | awk '{print $1}')" = 'b4d5a0266446523969a619f5e9bb5a04d9b815c78a2ab82ed046ef5e23d53663'
+          mkdir runtime
+          tar -xzf runtime.tar.gz -C runtime
+          python - <<'PY'
+          import hashlib,json,pathlib
+          root=pathlib.Path('runtime')
+          m=json.loads((root/'RUNTIME_SOURCE_MANIFEST.json').read_text())
+          assert m['schema']=='mft.axiom.runtime_minimal_source.v1'
+          assert m['source_build']=='MFT-AXIOM-V3-FULL-SELF-CONTAINED-20260904'
+          problems=[]
+          for f in m['files']:
+              p=root/f['path']
+              if not p.is_file(): problems.append([f['path'],'missing']); continue
+              b=p.read_bytes()
+              if len(b)!=f['size'] or hashlib.sha256(b).hexdigest()!=f['sha256']:
+                  problems.append([f['path'],'integrity'])
+          if problems: raise SystemExit('Fail-closed source manifest mismatch')
+          assert (root/'kernel/app/main.py').is_file()
+          print('source_manifest_verified=true')
+          PY
+
+      - name: Generate private Modal adapter
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > modal_deploy.py <<'PY'
+          import importlib
+          import importlib.metadata
+          import sys
+          import modal
+
+          APP_NAME = 'mft-axiom-v3-modal-staging'
+          BUILD_ID = 'MFT-AXIOM-V3-FULL-SELF-CONTAINED-20260904'
+
+          roots = [
+              'fastapi==0.128.2',
+              'uvicorn[standard]==0.38.0',
+              'sympy==1.14.0',
+              'numpy==2.3.5',
+              'scipy==1.17.0',
+              'mpmath==1.3.0',
+              'duckdb==1.5.5',
+              'pyarrow==25.0.1',
+              'pint==0.25.3',
+              'cvxpy==1.9.2',
+              'highspy==1.15.1',
+              'QuantLib==1.43',
+              'python-flint==0.9.0',
+              'z3-solver==5.1.0.0',
+          ]
+
+          image = (
+              modal.Image.debian_slim(python_version='3.13')
+              .pip_install(*roots)
+              .add_local_dir('runtime/kernel', '/opt/axiom/kernel', copy=True)
+          )
+
+          app = modal.App(APP_NAME, include_source=False)
+
+          @app.function(
+              image=image,
+              name='axiom_kernel',
+              min_containers=0,
+              max_containers=1,
+              scaledown_window=60,
+              timeout=300,
+          )
+          @modal.asgi_app(requires_proxy_auth=True)
+          def axiom_kernel():
+              sys.path.insert(0, '/opt/axiom/kernel')
+              from app.main import app as kernel_app
+              return kernel_app
+
+          @app.function(
+              image=image,
+              name='runtime_probe',
+              min_containers=0,
+              max_containers=1,
+              scaledown_window=30,
+              timeout=120,
+          )
+          def runtime_probe():
+              sys.path.insert(0, '/opt/axiom/kernel')
+              m = importlib.import_module('app.main')
+              routes = sorted({getattr(r, 'path', '') for r in m.app.routes if getattr(r, 'path', '')})
+              packages = {}
+              for dist in ['fastapi','uvicorn','sympy','numpy','scipy','mpmath','duckdb','pyarrow','Pint','cvxpy','highspy','QuantLib','python-flint','z3-solver']:
+                  try: packages[dist] = importlib.metadata.version(dist)
+                  except Exception: packages[dist] = None
+              schema = None
+              if hasattr(m, 'ComputeRequest'):
+                  try: schema = m.ComputeRequest.model_json_schema()
+                  except Exception: schema = None
+              return {
+                  'build_id': BUILD_ID,
+                  'routes': routes,
+                  'packages': packages,
+                  'compute_request_schema': schema,
+                  'wolfram_parity': 'NOT_CERTIFIED',
+                  'superiority': 'NOT_CERTIFIED',
+              }
+          PY
+
+      - name: Deploy private authenticated Modal kernel
+        shell: bash
+        run: |
+          set -euo pipefail
+          modal deploy modal_deploy.py --name "$AXIOM_MODAL_APP" --strategy recreate --tag 'MFT-AXIOM-V3-FULL-SELF-CONTAINED-20260904' | tee modal-deploy.log
+          echo 'modal_deploy_pass=true'
+
+      - name: Resolve endpoint and verify proxy-auth boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY' > modal-url.txt
+          import modal
+          f=modal.Function.from_name('mft-axiom-v3-modal-staging','axiom_kernel')
+          u=f.get_web_url()
+          if not u: raise SystemExit('Fail-closed: Modal web URL missing')
+          print(u)
+          PY
+          URL="$(cat modal-url.txt)"
+          case "$URL" in https://*) ;; *) echo 'Fail-closed: non-HTTPS Modal URL' >&2; exit 1;; esac
+          code="$(curl -sS -o unauth-body.txt -w '%{http_code}' "$URL/health" || true)"
+          if [ "$code" != '401' ] && [ "$code" != '403' ]; then
+            echo "Fail-closed: unauthenticated Modal endpoint returned HTTP $code" >&2
+            exit 1
+          fi
+          echo "unauthenticated_health_http=$code"
+
+      - name: Verify deployed runtime privately
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json, modal
+          p=modal.Function.from_name('mft-axiom-v3-modal-staging','runtime_probe')
+          r=p.remote()
+          if r.get('build_id')!='MFT-AXIOM-V3-FULL-SELF-CONTAINED-20260904':
+              raise SystemExit('Fail-closed: build identity mismatch')
+          expected={
+            'fastapi':'0.128.2','uvicorn':'0.38.0','sympy':'1.14.0','numpy':'2.3.5','scipy':'1.17.0','mpmath':'1.3.0',
+            'duckdb':'1.5.5','pyarrow':'25.0.1','Pint':'0.25.3','cvxpy':'1.9.2','highspy':'1.15.1','QuantLib':'1.43',
+            'python-flint':'0.9.0','z3-solver':'5.1.0.0'
+          }
+          bad={k:[r.get('packages',{}).get(k),v] for k,v in expected.items() if r.get('packages',{}).get(k)!=v}
+          if bad: raise SystemExit('Fail-closed: root package version mismatch '+repr(bad))
+          routes=r.get('routes') or []
+          if '/health' not in routes: raise SystemExit('Fail-closed: /health route missing')
+          if not any(x in routes for x in ['/v3/tools','/tools']): raise SystemExit('Fail-closed: tools route missing')
+          if not any(x in routes for x in ['/v3/compute','/compute']): raise SystemExit('Fail-closed: compute route missing')
+          evidence={
+            'schema':'mft.axiom.modal_private_deploy.v1',
+            'source_build':r['build_id'],
+            'modal_app':'mft-axiom-v3-modal-staging',
+            'endpoint_https':True,
+            'proxy_auth_required':True,
+            'routes':routes,
+            'root_packages':r['packages'],
+            'compute_request_schema':r.get('compute_request_schema'),
+            'production_compute_active':False,
+            'deployment_state':'MODAL_PRIVATE_STAGING',
+            'plaintext_source_committed':False,
+            'wolfram_parity':'NOT_CERTIFIED',
+            'superiority':'NOT_CERTIFIED',
+            'gate':'PASS'
+          }
+          open('modal-private-deploy-evidence.json','w').write(json.dumps(evidence,indent=2,sort_keys=True))
+          print(json.dumps({'modal_private_deploy_pass':True,'route_count':len(routes),'proxy_auth_required':True}))
+          PY
+          sha256sum modal-private-deploy-evidence.json > modal-private-deploy-evidence.sha256
+
+      - name: Authenticated health and tools checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          URL="$(cat modal-url.txt)"
+          modal curl -sS "$URL/health" > modal-health.json
+          python - <<'PY'
+          import json
+          x=json.load(open('modal-health.json'))
+          if not isinstance(x,dict): raise SystemExit('Fail-closed: health is not JSON object')
+          if x.get('ok') is False: raise SystemExit('Fail-closed: health reports not ok')
+          print('modal_health_pass=true')
+          PY
+          TOOLS_PATH="$(python - <<'PY'
+          import json
+          x=json.load(open('modal-private-deploy-evidence.json'))
+          r=x['routes']
+          print('/v3/tools' if '/v3/tools' in r else '/tools')
+          PY
+          )"
+          modal curl -sS "$URL$TOOLS_PATH" > modal-tools.json
+          python - <<'PY'
+          import json
+          x=json.load(open('modal-tools.json'))
+          n=None
+          if isinstance(x,list): n=len(x)
+          elif isinstance(x,dict):
+            for k in ('tools','operations','registry'):
+              if isinstance(x.get(k),list): n=len(x[k]); break
+            if n is None and isinstance(x.get('operation_count'),int): n=x['operation_count']
+          if n!=74: raise SystemExit(f'Fail-closed: expected 74 operations, got {n}')
+          print('modal_operation_count=74')
+          PY
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mft-axiom-modal-private-deploy
+          path: |
+            modal-private-deploy-evidence.json
+            modal-private-deploy-evidence.sha256
+            modal-health.json
+            modal-tools.json
+          retention-days: 7
+          if-no-files-found: error
