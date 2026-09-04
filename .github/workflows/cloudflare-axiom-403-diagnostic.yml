@@ -1,0 +1,80 @@
+name: MFT Axiom 403 Diagnostic
+on:
+  workflow_dispatch:
+  push:
+    paths: ['.github/workflows/cloudflare-axiom-403-diagnostic.yml']
+permissions:
+  contents: read
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      CF_API: https://api.cloudflare.com/client/v4
+      HOSTNAME: axiom-stage.mftintelligence.com
+      WORKER_NAME: mft-axiom-bootstrap
+    steps:
+      - name: Diagnose routing and 403 read-only
+        shell: bash
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json,os,urllib.request,urllib.parse
+          h={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY']}
+          base=os.environ['CF_API']
+          def get(path):
+            req=urllib.request.Request(base+path,headers=h)
+            with urllib.request.urlopen(req,timeout=30) as r:return json.load(r)
+          z=get('/zones?name='+urllib.parse.quote('mftintelligence.com')+'&status=active')
+          rows=z.get('result') or []
+          if len(rows)!=1: raise SystemExit('zone invariant failed')
+          zone=rows[0]; zid=zone['id']; aid=zone['account']['id']
+          out={'zone_id':zid,'account_id':aid,'zone_status':zone.get('status')}
+          out['domains']=get(f'/accounts/{aid}/workers/domains').get('result') or []
+          out['dns']=get(f'/zones/{zid}/dns_records?name='+urllib.parse.quote(os.environ['HOSTNAME'])).get('result') or []
+          try: out['rulesets']=get(f'/zones/{zid}/rulesets').get('result') or []
+          except Exception as e: out['rulesets_error']=type(e).__name__+': '+str(e)
+          try: out['firewall_rules']=get(f'/zones/{zid}/firewall/rules?per_page=100').get('result') or []
+          except Exception as e: out['firewall_rules_error']=type(e).__name__+': '+str(e)
+          json.dump(out,open('cf-state.json','w'),indent=2,sort_keys=True)
+          print(json.dumps({'domain_matches':[x for x in out['domains'] if x.get('hostname')==os.environ['HOSTNAME']], 'dns':out['dns'], 'rulesets_count':len(out.get('rulesets',[])), 'firewall_rules_count':len(out.get('firewall_rules',[])), 'rulesets_error':out.get('rulesets_error'), 'firewall_rules_error':out.get('firewall_rules_error')},indent=2))
+          PY
+          set +e
+          curl -sS --http1.1 -D response-headers.txt -o response-body.txt -w '%{http_code}\n' "https://$HOSTNAME/health" > response-code.txt
+          set -e
+          echo '---HTTP CODE---'; cat response-code.txt
+          echo '---HEADERS---'; sed -n '1,80p' response-headers.txt
+          echo '---BODY PREFIX---'; head -c 4000 response-body.txt || true; echo
+          python - <<'PY'
+          import json,re
+          body=open('response-body.txt','r',errors='replace').read(10000)
+          headers=open('response-headers.txt','r',errors='replace').read()
+          code=open('response-code.txt').read().strip()
+          sig={
+            'http_code':code,
+            'server':next((l.split(':',1)[1].strip() for l in headers.splitlines() if l.lower().startswith('server:')),None),
+            'cf_ray_present':'cf-ray:' in headers.lower(),
+            'cf_mitigated':next((l.split(':',1)[1].strip() for l in headers.splitlines() if l.lower().startswith('cf-mitigated:')),None),
+            'location':next((l.split(':',1)[1].strip() for l in headers.splitlines() if l.lower().startswith('location:')),None),
+            'access_page': any(s in body.lower() for s in ['cloudflare access','cf_access','access denied']),
+            'challenge_page': any(s in body.lower() for s in ['just a moment','challenge-platform','cf-chl']),
+            'error_1020': 'error 1020' in body.lower() or 'access denied' in body.lower(),
+          }
+          json.dump(sig,open('403-signature.json','w'),indent=2,sort_keys=True)
+          print(json.dumps(sig,indent=2))
+          PY
+      - name: Upload diagnostic evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: mft-axiom-403-diagnostic
+          path: |
+            cf-state.json
+            response-code.txt
+            response-headers.txt
+            response-body.txt
+            403-signature.json
+          if-no-files-found: error
+          retention-days: 7
