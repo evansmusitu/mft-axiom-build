@@ -1,0 +1,83 @@
+name: MFT Axiom Security Challenge Audit
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/cloudflare-axiom-security-audit.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  security-audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      CF_API: https://api.cloudflare.com/client/v4
+    steps:
+      - name: Resolve exact zone and audit challenge-capable settings/rules read-only
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json,os,urllib.request,urllib.parse,urllib.error
+          base=os.environ['CF_API']; h={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY'],'Content-Type':'application/json'}
+          def get(path):
+            req=urllib.request.Request(base+path,headers=h)
+            try:
+              with urllib.request.urlopen(req,timeout=30) as r:return r.status,json.load(r)
+            except urllib.error.HTTPError as e:
+              try:b=json.load(e)
+              except Exception:b={'errors':[{'message':str(e)}]}
+              return e.code,b
+          code,z=get('/zones?name='+urllib.parse.quote('mftintelligence.com')+'&status=active')
+          rows=z.get('result') or []
+          if code!=200 or not z.get('success') or len(rows)!=1: raise SystemExit('zone invariant failed')
+          zid=rows[0]['id']
+          out={'schema':'mft.axiom.cloudflare.security_challenge_audit.v1','zone_id':zid,'hostname':'axiom-stage.mftintelligence.com','write_performed':False,'reads':{}}
+          # relevant zone settings
+          for key in ['security_level','browser_check','challenge_ttl','bot_fight_mode','always_use_https','ssl']:
+            c,b=get(f'/zones/{zid}/settings/{key}')
+            r=b.get('result') if isinstance(b,dict) else None
+            out['reads']['setting_'+key]={'http':c,'success':bool(isinstance(b,dict) and b.get('success')),'result':r}
+          # all zone rulesets; retain only rule metadata/expression/action, never secrets
+          c,b=get(f'/zones/{zid}/rulesets')
+          summary=[]
+          if c==200 and b.get('success'):
+            for rs in b.get('result') or []:
+              rid=rs.get('id'); phase=rs.get('phase'); name=rs.get('name'); kind=rs.get('kind')
+              entry={'id':rid,'name':name,'phase':phase,'kind':kind,'version':rs.get('version')}
+              if rid:
+                dc,db=get(f'/zones/{zid}/rulesets/{rid}')
+                entry['detail_http']=dc
+                if dc==200 and db.get('success'):
+                  rules=[]
+                  for rule in (db.get('result') or {}).get('rules') or []:
+                    rules.append({'id':rule.get('id'),'action':rule.get('action'),'expression':rule.get('expression'),'description':rule.get('description'),'enabled':rule.get('enabled'),'ref':rule.get('ref')})
+                  entry['rules']=rules
+              summary.append(entry)
+          out['reads']['rulesets']={'http':c,'success':bool(isinstance(b,dict) and b.get('success')),'items':summary}
+          # zone firewall rules endpoint (legacy/custom), read-only
+          c,b=get(f'/zones/{zid}/firewall/rules?per_page=100')
+          fr=[]
+          if c==200 and b.get('success'):
+            for r in b.get('result') or []: fr.append({'id':r.get('id'),'action':r.get('action'),'description':r.get('description'),'paused':r.get('paused'),'filter':{'expression':(r.get('filter') or {}).get('expression'),'paused':(r.get('filter') or {}).get('paused')}})
+          out['reads']['firewall_rules']={'http':c,'success':bool(isinstance(b,dict) and b.get('success')),'items':fr}
+          json.dump(out,open('axiom-security-challenge-audit.json','w'),indent=2,sort_keys=True)
+          print(json.dumps({'zone_settings':{k:v['result'] for k,v in out['reads'].items() if k.startswith('setting_')},'ruleset_count':len(summary),'firewall_rule_count':len(fr)},default=str))
+          PY
+      - name: Seal audit
+        run: sha256sum axiom-security-challenge-audit.json > axiom-security-challenge-audit.sha256
+      - name: Upload audit evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: mft-axiom-security-challenge-audit
+          path: |
+            axiom-security-challenge-audit.json
+            axiom-security-challenge-audit.sha256
+          retention-days: 7
+          if-no-files-found: error
