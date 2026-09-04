@@ -1,0 +1,37 @@
+name: MFT Axiom Cloudflare Staging Deploy V2
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/axiom-cloudflare-staging-deploy-v2.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  deploy-staging:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      CLOUDFLARE_ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+      CLOUDFLARE_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+      CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+      STAGING_WORKER: mft-axiom-staging
+      STAGING_DB: mft-axiom-staging
+      DEPLOY_BUILD_ID: MFT-AXIOM-V3-RUNTIME-RECONSTRUCTION-20260904
+    steps:
+      - uses: actions/checkout@v4
+      - name: Execute fail-closed staging deployment
+        shell: bash
+        run: bash scripts/axiom-staging-deploy.sh
+      - name: Upload non-secret staging evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: mft-axiom-cloudflare-staging-deployment-v2
+          path: |
+            axiom-staging-deployment-evidence.json
+            axiom-staging-deployment-evidence.sha256
+          if-no-files-found: error
+          retention-days: 14
