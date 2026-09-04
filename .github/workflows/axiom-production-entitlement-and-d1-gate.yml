@@ -1,0 +1,169 @@
+name: MFT Axiom Production Entitlement + D1 Gate
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/axiom-production-entitlement-and-d1-gate.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  production-gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      CF_API: https://api.cloudflare.com/client/v4
+      HOSTNAME: axiom-stage.mftintelligence.com
+      WORKER_NAME: mft-axiom-bootstrap
+      D1_NAME: mft-axiom-prod
+      EXPECTED_BUILD: MFT-AXIOM-EDGE-BOOTSTRAP-20260904
+    steps:
+      - name: Install pinned Wrangler
+        run: npm install --no-save wrangler@4.129.0
+
+      - name: Resolve account and verify exact staging state
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json,os,urllib.parse,urllib.request
+          base=os.environ['CF_API']
+          h={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY']}
+          def get(path):
+              req=urllib.request.Request(base+path,headers=h)
+              with urllib.request.urlopen(req,timeout=30) as r:return json.load(r)
+          z=get('/zones?name='+urllib.parse.quote('mftintelligence.com')+'&status=active')
+          rows=z.get('result') or []
+          if not z.get('success') or len(rows)!=1: raise SystemExit('zone invariant failed')
+          zone=rows[0]; aid=(zone.get('account') or {}).get('id')
+          if not aid: raise SystemExit('account id missing')
+          domains=get(f'/accounts/{aid}/workers/domains').get('result') or []
+          matches=[d for d in domains if d.get('hostname')==os.environ['HOSTNAME']]
+          if len(matches)!=1 or matches[0].get('service')!=os.environ['WORKER_NAME'] or matches[0].get('enabled') is False:
+              raise SystemExit('staging custom-domain invariant failed')
+          open('account_id.txt','w').write(aid)
+          json.dump({'zone':zone,'domain':matches[0]},open('cloudflare-readback.json','w'),indent=2,sort_keys=True)
+          print(json.dumps({'state_readback_pass':True,'hostname':os.environ['HOSTNAME'],'worker':os.environ['WORKER_NAME']}))
+          PY
+
+      - name: Verify bootstrap health remains exact and compute remains disabled
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json,os,urllib.error,urllib.request
+          base='https://'+os.environ['HOSTNAME']
+          req=urllib.request.Request(base+'/health',headers={'User-Agent':'MFT-Axiom-Production-Gate/1.0','Accept':'application/json'})
+          with urllib.request.urlopen(req,timeout=30) as r:
+              body=json.load(r); code=r.status; mitigated=r.headers.get('cf-mitigated')
+          expected={'ok':True,'product':'MFT Axiom','build':os.environ['EXPECTED_BUILD'],'deployment_state':'EDGE_BOOTSTRAP_ONLY','production_compute_active':False,'tool_count':0,'wolfram_parity':'NOT_CERTIFIED','superiority':'NOT_CERTIFIED'}
+          bad=[k for k,v in expected.items() if body.get(k)!=v]
+          if code!=200 or mitigated or bad: raise SystemExit('bootstrap contract mismatch: '+','.join(bad))
+          req=urllib.request.Request(base+'/v1/compute',method='GET',headers={'Accept':'application/json','User-Agent':'MFT-Axiom-Production-Gate/1.0'})
+          try:
+              urllib.request.urlopen(req,timeout=20)
+              raise SystemExit('compute route unexpectedly active before FULL deployment')
+          except urllib.error.HTTPError as e:
+              payload=json.loads(e.read().decode())
+              if e.code!=503 or payload.get('error')!='AXIOM_PRODUCTION_COMPUTE_NOT_ACTIVATED':
+                  raise SystemExit(f'fail-closed compute invariant failed HTTP {e.code}')
+          json.dump(body,open('stage-health.json','w'),indent=2,sort_keys=True)
+          print(json.dumps({'staging_gate_pass':True,'compute_fail_closed':True}))
+          PY
+
+      - name: Verify Cloudflare Containers entitlement
+        shell: bash
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        run: |
+          set -o pipefail
+          npx wrangler containers list 2>&1 | tee containers-entitlement.txt
+          code=${PIPESTATUS[0]}
+          echo "$code" > containers-entitlement-exit.txt
+          if [ "$code" -ne 0 ]; then
+            echo 'AXIOM_GATE_BLOCKED: CLOUDFLARE_CONTAINERS_ENTITLEMENT_REQUIRED'
+            exit "$code"
+          fi
+          echo 'AXIOM_CONTAINERS_ENTITLEMENT_PASS'
+
+      - name: Provision or read back production D1
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json,os,urllib.parse,urllib.request
+          aid=open('account_id.txt').read().strip(); base=os.environ['CF_API']
+          h={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY'],'Content-Type':'application/json'}
+          def call(path,method='GET',body=None):
+              data=None if body is None else json.dumps(body).encode()
+              req=urllib.request.Request(base+path,headers=h,method=method,data=data)
+              with urllib.request.urlopen(req,timeout=30) as r:return json.load(r)
+          listing=call(f'/accounts/{aid}/d1/database?name='+urllib.parse.quote(os.environ['D1_NAME']))
+          rows=[x for x in (listing.get('result') or []) if x.get('name')==os.environ['D1_NAME']]
+          if len(rows)>1: raise SystemExit('duplicate production D1 invariant failed')
+          created=False
+          if not rows:
+              made=call(f'/accounts/{aid}/d1/database','POST',{'name':os.environ['D1_NAME'],'read_replication':{'mode':'auto'}})
+              if not made.get('success'): raise SystemExit('D1 create failed')
+              rows=[made.get('result') or {}]; created=True
+          db=rows[0]; dbid=db.get('uuid')
+          if not dbid: raise SystemExit('D1 uuid missing')
+          readback=call(f'/accounts/{aid}/d1/database/{dbid}')
+          result=readback.get('result') or {}
+          if not readback.get('success') or result.get('uuid')!=dbid or result.get('name')!=os.environ['D1_NAME']:
+              raise SystemExit('D1 readback invariant failed')
+          json.dump({'schema':'mft.axiom.d1.production_gate.v1','created':created,'database':result},open('d1-readback.json','w'),indent=2,sort_keys=True)
+          open('d1_database_id.txt','w').write(dbid)
+          print(json.dumps({'d1_gate_pass':True,'created':created,'name':os.environ['D1_NAME'],'database_id_present':True}))
+          PY
+
+      - name: Seal gate evidence
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json,os,pathlib
+          def load(path):
+              p=pathlib.Path(path)
+              return json.load(p.open()) if p.exists() else None
+          entitlement='UNKNOWN'
+          p=pathlib.Path('containers-entitlement-exit.txt')
+          if p.exists(): entitlement='PASS' if p.read_text().strip()=='0' else 'BLOCKED_WORKERS_PAID_REQUIRED'
+          out={
+            'schema':'mft.axiom.production_entitlement_d1_gate.v1',
+            'staging_health':load('stage-health.json'),
+            'cloudflare_readback':load('cloudflare-readback.json'),
+            'containers_entitlement':entitlement,
+            'd1':load('d1-readback.json'),
+            'full_source_deployed':False,
+            'production_compute_active':False,
+            'wolfram_parity':'NOT_CERTIFIED',
+            'superiority':'NOT_CERTIFIED'
+          }
+          json.dump(out,open('axiom-production-gate.json','w'),indent=2,sort_keys=True)
+          PY
+          sha256sum axiom-production-gate.json > axiom-production-gate.sha256
+
+      - name: Upload gate evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mft-axiom-production-entitlement-d1-gate
+          path: |
+            axiom-production-gate.json
+            axiom-production-gate.sha256
+            containers-entitlement.txt
+            containers-entitlement-exit.txt
+            d1-readback.json
+          if-no-files-found: warn
+          retention-days: 7
