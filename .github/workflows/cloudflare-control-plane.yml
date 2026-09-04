@@ -1,0 +1,89 @@
+name: MFT Axiom Cloudflare Control Plane
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/cloudflare-control-plane.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  cloudflare-readonly-preflight:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      CF_API: https://api.cloudflare.com/client/v4
+    steps:
+      - name: Require protected Cloudflare credentials
+        shell: bash
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        run: |
+          set -euo pipefail
+          test -n "$CLOUDFLARE_EMAIL" || { echo 'CLOUDFLARE_EMAIL secret is missing'; exit 20; }
+          test -n "$CLOUDFLARE_GLOBAL_API_KEY" || { echo 'CLOUDFLARE_GLOBAL_API_KEY secret is missing'; exit 21; }
+          echo 'Cloudflare credentials are present in GitHub encrypted secrets.'
+
+      - name: Read-only Cloudflare authentication and zone verification
+        shell: bash
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json, os, urllib.request, urllib.parse, sys
+          base='https://api.cloudflare.com/client/v4'
+          headers={
+            'X-Auth-Email': os.environ['CLOUDFLARE_EMAIL'],
+            'X-Auth-Key': os.environ['CLOUDFLARE_GLOBAL_API_KEY'],
+            'Content-Type': 'application/json',
+            'User-Agent': 'MFT-Axiom-Control-Plane/1.0',
+          }
+          def get(path):
+            req=urllib.request.Request(base+path, headers=headers, method='GET')
+            try:
+              with urllib.request.urlopen(req, timeout=30) as r:
+                body=json.load(r)
+                if r.status != 200 or not body.get('success'):
+                  raise SystemExit(f'Cloudflare read failed: HTTP {r.status}')
+                return body
+            except Exception as e:
+              raise SystemExit(f'Cloudflare transport/auth read failed: {type(e).__name__}: {e}')
+          zones=get('/zones?name='+urllib.parse.quote('mftintelligence.com')+'&status=active')
+          results=zones.get('result') or []
+          if len(results) != 1:
+            raise SystemExit(f'Expected exactly one active mftintelligence.com zone; observed {len(results)}')
+          z=results[0]
+          out={
+            'success': True,
+            'zone_name': z.get('name'),
+            'zone_status': z.get('status'),
+            'zone_id': z.get('id'),
+            'account_id': (z.get('account') or {}).get('id'),
+            'account_name': (z.get('account') or {}).get('name'),
+          }
+          with open('cloudflare-preflight.json','w',encoding='utf-8') as f:
+            json.dump(out,f,indent=2,sort_keys=True)
+          print(json.dumps({'success':True,'zone_name':out['zone_name'],'zone_status':out['zone_status'],'zone_id_present':bool(out['zone_id']),'account_id_present':bool(out['account_id'])}, sort_keys=True))
+          PY
+
+      - name: Seal read-only evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          sha256sum cloudflare-preflight.json > cloudflare-preflight.sha256
+          cat cloudflare-preflight.sha256
+
+      - name: Upload read-only evidence artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: mft-axiom-cloudflare-readonly-preflight
+          path: |
+            cloudflare-preflight.json
+            cloudflare-preflight.sha256
+          if-no-files-found: error
+          retention-days: 7
