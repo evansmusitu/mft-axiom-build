@@ -44,7 +44,7 @@ jobs:
         run: |
           set -euo pipefail
           python - <<'PY'
-          import ast, hashlib, json, pathlib, re
+          import ast, json, pathlib, re
           root=pathlib.Path('runtime')
           manifest=json.loads((root/'RUNTIME_SOURCE_MANIFEST.json').read_text())
           paths=[f['path'] for f in manifest['files']]
@@ -59,8 +59,7 @@ jobs:
           }
           for rel in paths:
             p=root/rel
-            if not p.is_file():
-              raise SystemExit('Fail-closed: manifest file missing')
+            if not p.is_file(): raise SystemExit('Fail-closed: manifest file missing')
             if rel.endswith('.py'):
               out['python_files'].append(rel)
               text=p.read_text(errors='replace')
@@ -96,8 +95,7 @@ jobs:
                 lines.append(s[:240])
               out['dependency_files'].append({'path':rel,'nonsecret_lines':lines[:120]})
           pathlib.Path('modal-kernel-contract.json').write_text(json.dumps(out,indent=2,sort_keys=True))
-          print('kernel_contract_extracted=true')
-          print('candidate_module_count='+str(len(out['candidate_modules'])))
+          print(json.dumps(out,sort_keys=True))
           PY
           sha256sum modal-kernel-contract.json > modal-kernel-contract.sha256
 
