@@ -1,0 +1,232 @@
+name: MFT Axiom Modal Production Deploy
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/axiom-modal-production-deploy.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  deploy-modal:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    env:
+      MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID }}
+      MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Reconstruct protected Axiom source fail-closed
+        env:
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$CLOUDFLARE_GLOBAL_API_KEY"
+          P=deploy_payload/runtime_min
+          cat "$P/chunk_00.b64" "$P/chunk_01_02.b64" "$P/chunk_03_04.b64" "$P/chunk_05_06.b64" "$P/chunk_07_08.b64" "$P/chunk_09.b64" > runtime.enc.b64
+          base64 -d runtime.enc.b64 > runtime.tar.gz.enc
+          test "$(sha256sum runtime.tar.gz.enc | awk '{print $1}')" = 'b82448d6b4b34b302748815af976b535d69922c197d4b7a9056fc2f91a9e12cf'
+          python - <<'PY'
+          import hashlib,hmac,os
+          data=open('runtime.tar.gz.enc','rb').read()
+          got=hmac.new(os.environ['CLOUDFLARE_GLOBAL_API_KEY'].encode(),data,hashlib.sha256).hexdigest()
+          if not hmac.compare_digest(got,'1a3193d4f3271d61d151e6ebd7cf4576d8ab86c2e79b84eff4ad0f635fe7ab47'):
+              raise SystemExit('Fail-closed: ciphertext HMAC mismatch')
+          PY
+          openssl enc -d -aes-256-cbc -pbkdf2 -iter 250000 -in runtime.tar.gz.enc -out runtime.tar.gz -pass env:CLOUDFLARE_GLOBAL_API_KEY
+          test "$(sha256sum runtime.tar.gz | awk '{print $1}')" = 'b4d5a0266446523969a619f5e9bb5a04d9b815c78a2ab82ed046ef5e23d53663'
+          mkdir runtime
+          tar -xzf runtime.tar.gz -C runtime
+          python - <<'PY'
+          import hashlib,json,pathlib
+          root=pathlib.Path('runtime'); m=json.loads((root/'RUNTIME_SOURCE_MANIFEST.json').read_text())
+          assert m['schema']=='mft.axiom.runtime_minimal_source.v1'
+          assert m['source_build']=='MFT-AXIOM-V3-FULL-SELF-CONTAINED-20260904'
+          for f in m['files']:
+              p=root/f['path']; b=p.read_bytes()
+              assert len(b)==f['size'] and hashlib.sha256(b).hexdigest()==f['sha256']
+          print('source_manifest_verified=true')
+          PY
+
+      - name: Create ephemeral Modal deployment wrapper
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > modal_axiom.py <<'PY'
+          import modal
+
+          BUILD = "MFT-AXIOM-V3-FULL-SELF-CONTAINED-20260904"
+          APP_NAME = "mft-axiom-production"
+
+          packages = [
+              "fastapi==0.128.2",
+              "uvicorn[standard]==0.38.0",
+              "sympy==1.14.0",
+              "numpy==2.3.5",
+              "scipy==1.17.0",
+              "mpmath==1.3.0",
+              "duckdb==1.5.5",
+              "pyarrow==25.0.1",
+              "Pint==0.25.3",
+              "cvxpy==1.9.2",
+              "highspy==1.15.1",
+              "QuantLib==1.43",
+              "python-flint==0.9.0",
+              "z3-solver==5.1.0.0",
+          ]
+
+          image = (
+              modal.Image.debian_slim(python_version="3.13")
+              .pip_install(*packages)
+              .add_local_dir("runtime", remote_path="/opt/axiom", copy=True)
+          )
+
+          app = modal.App(APP_NAME)
+
+          @app.function(
+              image=image,
+              timeout=300,
+              scaledown_window=300,
+              min_containers=0,
+              max_containers=20,
+          )
+          @modal.asgi_app()
+          def axiom_api():
+              import sys
+              sys.path.insert(0, "/opt/axiom")
+              from kernel.app.main import app as fastapi_app
+              return fastapi_app
+          PY
+          test ! -s runtime.enc.b64 || true
+          echo 'ephemeral_wrapper_ready=true'
+
+      - name: Install Modal and authenticate
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --disable-pip-version-check --quiet 'modal>=1.5,<2'
+          modal app list --json >/dev/null
+          echo 'modal_auth_gate=PASS'
+
+      - name: Deploy verified Axiom runtime to Modal
+        shell: bash
+        run: |
+          set -euo pipefail
+          modal deploy modal_axiom.py --name mft-axiom-production --tag MFT-AXIOM-V3-FULL-SELF-CONTAINED-20260904 --strategy recreate 2>&1 | tee modal-deploy.log
+          python - <<'PY'
+          import json,pathlib,re
+          text=pathlib.Path('modal-deploy.log').read_text(errors='replace')
+          urls=sorted(set(re.findall(r'https://[^\s)\]}>]+',text)))
+          endpoint=[u.rstrip('.,') for u in urls if 'modal.run' in u]
+          if not endpoint:
+              raise SystemExit('Fail-closed: Modal deployment completed without a discoverable modal.run endpoint')
+          url=endpoint[-1]
+          pathlib.Path('modal-endpoint.txt').write_text(url+'\n')
+          print('modal_endpoint='+url)
+          PY
+
+      - name: Verify external Modal health and exact 74-operation contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE="$(cat modal-endpoint.txt | tr -d '\r\n')"
+          python - <<'PY'
+          import json,os,time,urllib.request,urllib.error,pathlib
+          base=pathlib.Path('modal-endpoint.txt').read_text().strip().rstrip('/')
+          deadline=time.time()+150
+          last=None
+          for _ in range(60):
+              try:
+                  with urllib.request.urlopen(base+'/health',timeout=10) as r:
+                      body=r.read().decode(); code=r.status
+                  if code==200:
+                      data=json.loads(body)
+                      if data.get('ok') is not True:
+                          raise RuntimeError('health ok != true')
+                      print('modal_health_http=200')
+                      print('modal_health_ok=true')
+                      break
+              except Exception as e:
+                  last=repr(e); time.sleep(2.5)
+          else:
+              raise SystemExit('Fail-closed: Modal health never became ready: '+str(last))
+          with urllib.request.urlopen(base+'/v3/tools',timeout=20) as r:
+              tools=json.loads(r.read().decode())
+          if isinstance(tools,dict):
+              seq=tools.get('tools') or tools.get('operations') or tools.get('items') or []
+          elif isinstance(tools,list):
+              seq=tools
+          else:
+              seq=[]
+          if len(seq)!=74:
+              raise SystemExit(f'Fail-closed: expected 74 tools, got {len(seq)}')
+          print('modal_tool_count=74')
+          PY
+
+      - name: Verify live compute path behavior without claiming unsupported auth
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json,pathlib,urllib.request,urllib.error
+          base=pathlib.Path('modal-endpoint.txt').read_text().strip().rstrip('/')
+          # Probe only; preserve whatever authentication contract Axiom itself enforces.
+          req=urllib.request.Request(base+'/v3/compute',data=json.dumps({'operation':'arithmetic','input':{'expression':'40+2'}}).encode(),headers={'content-type':'application/json'},method='POST')
+          try:
+              with urllib.request.urlopen(req,timeout=30) as r:
+                  code=r.status; body=r.read().decode()
+          except urllib.error.HTTPError as e:
+              code=e.code; body=e.read().decode(errors='replace')
+          if code not in (200,401,403,404,422):
+              raise SystemExit(f'Fail-closed: unexpected compute probe HTTP {code}')
+          print('modal_compute_probe_http='+str(code))
+          pathlib.Path('modal-compute-probe.json').write_text(json.dumps({'http_status':code,'body_shape':'json' if body.lstrip().startswith(('{','[')) else 'other'},indent=2,sort_keys=True))
+          PY
+
+      - name: Seal production deployment evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import hashlib,json,pathlib
+          endpoint=pathlib.Path('modal-endpoint.txt').read_text().strip()
+          probe=json.loads(pathlib.Path('modal-compute-probe.json').read_text())
+          out={
+            'schema':'mft.axiom.modal_production_deployment.v1',
+            'build':'MFT-AXIOM-V3-FULL-SELF-CONTAINED-20260904',
+            'modal_app':'mft-axiom-production',
+            'endpoint':endpoint,
+            'health':'PASS_HTTP_200',
+            'operation_count':74,
+            'accelerators':{'duckdb':'1.5.5','pyarrow':'25.0.1','Pint':'0.25.3','cvxpy':'1.9.2','highspy':'1.15.1','QuantLib':'1.43','python-flint':'0.9.0','z3-solver':'5.1.0.0'},
+            'source_transport':'AES-256-CBC/PBKDF2-SHA256-250000 + ciphertext HMAC + plaintext SHA256 + per-file SHA256',
+            'plaintext_source_committed':False,
+            'compute_probe':probe,
+            'wolfram_parity':'NOT_CERTIFIED',
+            'superiority':'NOT_CERTIFIED',
+            'deployment_gate':'MODAL_RUNTIME_LIVE_EDGE_INTEGRATION_PENDING'
+          }
+          p=pathlib.Path('modal-production-deployment.json')
+          p.write_text(json.dumps(out,indent=2,sort_keys=True))
+          pathlib.Path('modal-production-deployment.sha256').write_text(hashlib.sha256(p.read_bytes()).hexdigest()+'  '+p.name+'\n')
+          print(json.dumps(out,sort_keys=True))
+          PY
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mft-axiom-modal-production-deployment
+          path: |
+            modal-production-deployment.json
+            modal-production-deployment.sha256
+            modal-endpoint.txt
+            modal-compute-probe.json
+          if-no-files-found: error
+          retention-days: 14
