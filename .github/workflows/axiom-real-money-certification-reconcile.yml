@@ -199,3 +199,5 @@ jobs:
             real-money-certification-reconcile.sha256
           retention-days: 30
           if-no-files-found: error
+
+# refresh-trigger: 2026-09-05T20:08:00Z
