@@ -1,0 +1,146 @@
+name: MFT Axiom Modal Stage Domain Auth Final
+on:
+  workflow_dispatch:
+  push:
+    paths: ['.github/workflows/axiom-modal-stage-domain-auth-final.yml']
+permissions:
+  contents: read
+jobs:
+  verify-auth:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      ZONE_ID: 5b56528f03948ff5917a5e0cd9f7109e
+      HOSTNAME: axiom-stage.mftintelligence.com
+      EDGE_WORKER: mft-axiom-modal-edge-stage
+      BUILD_ID: MFT-AXIOM-V3-FULL-SELF-CONTAINED-20260904
+      CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+      CLOUDFLARE_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify promoted domain and exact Worker bindings
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json,os,urllib.request
+          base='https://api.cloudflare.com/client/v4'; aid=os.environ['ACCOUNT_ID']
+          h={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_API_KEY']}
+          def get(path):
+              q=urllib.request.Request(base+path,headers=h)
+              with urllib.request.urlopen(q,timeout=30) as r:x=json.load(r)
+              if not x.get('success'): raise SystemExit('Cloudflare read success=false')
+              return x.get('result') or []
+          rows=[d for d in get(f'/accounts/{aid}/workers/domains') if d.get('hostname')==os.environ['HOSTNAME']]
+          if len(rows)!=1 or rows[0].get('service')!=os.environ['EDGE_WORKER']: raise SystemExit('promoted domain precondition failed')
+          settings=get(f'/accounts/{aid}/workers/scripts/{os.environ["EDGE_WORKER"]}/settings')
+          if not isinstance(settings,dict): raise SystemExit('worker settings shape invalid')
+          names={b.get('name') for b in settings.get('bindings',[]) if isinstance(b,dict)}
+          required={'AXIOM_DB','AXIOM_KERNEL','MFT_CONTROL_SECRET','MFT_RECEIPT_SECRET'}
+          if not required.issubset(names): raise SystemExit('required binding missing '+repr(sorted(required-names)))
+          print('domain_and_binding_precondition=PASS')
+          PY
+      - name: Rotate Axiom control and receipt secrets only
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --no-save --ignore-scripts --no-audit --no-fund wrangler@4.129.0 >/dev/null
+          mkdir -p /tmp/secret-config
+          echo 'export default {fetch(){return new Response("unused")}}' >/tmp/secret-config/placeholder.js
+          python - <<'PY'
+          import json,os
+          json.dump({'name':os.environ['EDGE_WORKER'],'main':'placeholder.js','compatibility_date':'2026-09-04'},open('/tmp/secret-config/wrangler.json','w'))
+          PY
+          CONTROL="$(openssl rand -hex 32)"; RECEIPT="$(openssl rand -hex 32)"
+          echo "::add-mask::$CONTROL"; echo "::add-mask::$RECEIPT"
+          printf '%s' "$CONTROL" >/tmp/control-secret
+          printf '%s' "$RECEIPT" >/tmp/receipt-secret
+          printf '%s' "$CONTROL" | (cd /tmp/secret-config && npx wrangler secret put MFT_CONTROL_SECRET --config wrangler.json >/dev/null)
+          printf '%s' "$RECEIPT" | (cd /tmp/secret-config && npx wrangler secret put MFT_RECEIPT_SECRET --config wrangler.json >/dev/null)
+          echo runtime_secret_rotation=PASS
+      - name: Verify custom-domain authenticated compute and signed receipt
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE="https://${HOSTNAME}"
+          for i in $(seq 1 20); do
+            hc="$(curl -sS --max-time 20 -o /tmp/health.json -w '%{http_code}' "$BASE/health" || true)"
+            [ "$hc" = 200 ] && break
+            sleep 2
+          done
+          test "$hc" = 200
+          python - <<'PY'
+          import json,os
+          h=json.load(open('/tmp/health.json'))
+          expected={'ok':True,'status':'READY','version':'3.0.0','build_id':os.environ['BUILD_ID'],'operation_count':74,'state':'D1','wolfram_parity':'NOT_CERTIFIED','superiority':'NOT_CERTIFIED'}
+          bad={k:(h.get(k),v) for k,v in expected.items() if h.get(k)!=v}
+          if bad: raise SystemExit('health mismatch '+repr(bad))
+          PY
+          unauth="$(curl -sS -o /tmp/unauth.json -w '%{http_code}' -X POST "$BASE/v1/compute" -H 'content-type: application/json' --data '{"operation":"arithmetic.evaluate","args":{"expression":"40+2"},"verify":true}')"
+          test "$unauth" = 401
+          CONTROL="$(cat /tmp/control-secret)"
+          code="$(curl -sS --max-time 90 -o /tmp/compute.json -w '%{http_code}' -X POST "$BASE/v1/compute" -H "x-mft-control: $CONTROL" -H 'content-type: application/json' --data '{"operation":"arithmetic.evaluate","args":{"expression":"40+2"},"verify":true}')"
+          test "$code" = 200 || { echo "authenticated compute HTTP=$code"; cat /tmp/compute.json; exit 1; }
+          python - <<'PY'
+          import json
+          x=json.load(open('/tmp/compute.json'))
+          if x.get('ok') is not True: raise SystemExit('authenticated compute ok != true')
+          if x.get('result')!=42: raise SystemExit('authenticated compute expected 42 got '+repr(x.get('result')))
+          r=x.get('receipt') or {}
+          if r.get('signature_alg')!='HMAC-SHA256': raise SystemExit('receipt signature algorithm mismatch')
+          for k in ('signature','request_sha256','result_sha256'):
+              if not r.get(k): raise SystemExit('receipt missing '+k)
+          print('custom_domain_authenticated_compute=PASS')
+          print('custom_domain_signed_receipt=PASS')
+          PY
+      - name: Final Cloudflare domain D1 and security readback
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json,os,urllib.request,pathlib,hashlib
+          base='https://api.cloudflare.com/client/v4'; aid=os.environ['ACCOUNT_ID']; zid=os.environ['ZONE_ID']
+          h={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_API_KEY'],'Content-Type':'application/json'}
+          def get(path):
+              q=urllib.request.Request(base+path,headers=h)
+              with urllib.request.urlopen(q,timeout=30) as r:x=json.load(r)
+              if not x.get('success'): raise SystemExit('Cloudflare read success=false')
+              return x.get('result') or []
+          domains=[d for d in get(f'/accounts/{aid}/workers/domains') if d.get('hostname')==os.environ['HOSTNAME']]
+          if len(domains)!=1 or domains[0].get('service')!=os.environ['EDGE_WORKER']: raise SystemExit('final domain service mismatch')
+          dbs=[d for d in get(f'/accounts/{aid}/d1/database?name=mft-axiom-prod') if d.get('name')=='mft-axiom-prod']
+          if len(dbs)!=1: raise SystemExit('D1 identity mismatch')
+          dbid=dbs[0].get('uuid')
+          body=json.dumps({'sql':"SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' AND name NOT LIKE '_cf_%' ORDER BY name;"}).encode()
+          q=urllib.request.Request(f'{base}/accounts/{aid}/d1/database/{dbid}/query',headers=h,data=body,method='POST')
+          with urllib.request.urlopen(q,timeout=30) as r:x=json.load(r)
+          rr=[]
+          for part in x.get('result',[]): rr += part.get('results') or []
+          tables=sorted(z['name'] for z in rr)
+          expected=['api_keys','billing_subscriptions','customers','usage_buckets','usage_events','webhook_events']
+          if tables!=expected: raise SystemExit('D1 canonical table mismatch '+repr(tables))
+          rules=[]
+          for rs in get(f'/zones/{zid}/rulesets'):
+              rid=rs.get('id')
+              if not rid: continue
+              detail=get(f'/zones/{zid}/rulesets/{rid}')
+              if isinstance(detail,dict):
+                  for r in detail.get('rules') or []:
+                      if r.get('ref')=='mft_axiom_stage_machine_transport': rules.append(r)
+          if len(rules)!=1 or rules[0].get('expression')!='http.host eq "axiom-stage.mftintelligence.com"' or rules[0].get('enabled') is not True:
+              raise SystemExit('stage security rule mismatch')
+          out={'schema':'mft.axiom.modal_stage_domain_final.v1','hostname':os.environ['HOSTNAME'],'service':os.environ['EDGE_WORKER'],'build':os.environ['BUILD_ID'],'compute_host':'Modal','modal_app':'mft-axiom-v3-modal-staging','d1':'mft-axiom-prod','d1_tables':tables,'operation_count':74,'health':'PASS','unauthorized_compute':'401_PASS','authenticated_compute':'PASS_42','signed_receipt':'PASS_HMAC_SHA256','security_rule':'SCOPED_UNCHANGED_PASS','billing':'NOT_CONFIGURED','wolfram_parity':'NOT_CERTIFIED','superiority':'NOT_CERTIFIED','gate':'STAGING_MODAL_COMPUTE_ACTIVE_VERIFIED'}
+          raw=json.dumps(out,sort_keys=True,separators=(',',':')).encode(); out['evidence_sha256']=hashlib.sha256(raw).hexdigest()
+          pathlib.Path('stage-domain-final.json').write_text(json.dumps(out,indent=2,sort_keys=True))
+          print('FINAL_STAGE_MODAL_GATE=PASS')
+          PY
+          sha256sum stage-domain-final.json /tmp/health.json /tmp/compute.json > stage-domain-final.sha256
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mft-axiom-modal-stage-domain-final
+          path: |
+            stage-domain-final.json
+            stage-domain-final.sha256
+          retention-days: 30
+          if-no-files-found: error
