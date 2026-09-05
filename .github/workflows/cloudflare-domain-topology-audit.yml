@@ -87,9 +87,9 @@ jobs:
           print(json.dumps({
             'topology_pass':True,
             'stage_domain_count':len(stage),
-            'stage_services':[x.get('service') for x in stage],
+            'stage_mappings':[{'hostname':x.get('hostname'),'service':x.get('service'),'environment':x.get('environment')} for x in stage],
             'nonstage_axiom_domain_count':len(nonstage),
-            'nonstage_axiom_hostnames':[x.get('hostname') for x in nonstage],
+            'nonstage_axiom_mappings':[{'hostname':x.get('hostname'),'service':x.get('service'),'environment':x.get('environment')} for x in nonstage],
             'write_performed':False,
           },sort_keys=True))
           PY
