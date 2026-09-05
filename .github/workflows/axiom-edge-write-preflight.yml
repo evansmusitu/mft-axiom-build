@@ -1,0 +1,67 @@
+name: MFT Axiom Edge Write Preflight
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/axiom-edge-write-preflight.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  preflight:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Reconstruct encrypted source and inspect deploy shape
+        env:
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+          MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID }}
+          MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET }}
+          MFT_CONTROL_SECRET: ${{ secrets.MFT_CONTROL_SECRET }}
+          MFT_RECEIPT_SECRET: ${{ secrets.MFT_RECEIPT_SECRET }}
+          STRIPE_WEBHOOK_SECRET: ${{ secrets.STRIPE_WEBHOOK_SECRET }}
+          STRIPE_PRICE_PLAN_MAP: ${{ secrets.STRIPE_PRICE_PLAN_MAP }}
+          AXIOM_DOWNGRADE_ON_CANCEL: ${{ secrets.AXIOM_DOWNGRADE_ON_CANCEL }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$CLOUDFLARE_GLOBAL_API_KEY"
+          P=deploy_payload/runtime_min
+          cat "$P/chunk_00.b64" "$P/chunk_01_02.b64" "$P/chunk_03_04.b64" "$P/chunk_05_06.b64" "$P/chunk_07_08.b64" "$P/chunk_09.b64" > runtime.enc.b64
+          base64 -d runtime.enc.b64 > runtime.tar.gz.enc
+          test "$(sha256sum runtime.tar.gz.enc | awk '{print $1}')" = 'b82448d6b4b34b302748815af976b535d69922c197d4b7a9056fc2f91a9e12cf'
+          python - <<'PY'
+          import hashlib,hmac,os
+          b=open('runtime.tar.gz.enc','rb').read()
+          if not hmac.compare_digest(hmac.new(os.environ['CLOUDFLARE_GLOBAL_API_KEY'].encode(),b,hashlib.sha256).hexdigest(),'1a3193d4f3271d61d151e6ebd7cf4576d8ab86c2e79b84eff4ad0f635fe7ab47'):
+              raise SystemExit('ciphertext HMAC mismatch')
+          PY
+          openssl enc -d -aes-256-cbc -pbkdf2 -iter 250000 -in runtime.tar.gz.enc -out runtime.tar.gz -pass env:CLOUDFLARE_GLOBAL_API_KEY
+          test "$(sha256sum runtime.tar.gz | awk '{print $1}')" = 'b4d5a0266446523969a619f5e9bb5a04d9b815c78a2ab82ed046ef5e23d53663'
+          mkdir runtime && tar -xzf runtime.tar.gz -C runtime
+          python - <<'PY'
+          import json,pathlib,os,re
+          root=pathlib.Path('runtime')
+          man=json.loads((root/'RUNTIME_SOURCE_MANIFEST.json').read_text())
+          worker=[f['path'] for f in man['files'] if f['path'].startswith('worker/')]
+          entry='worker/src/index.js'
+          if not (root/entry).is_file(): raise SystemExit('Fail-closed: canonical worker entry missing')
+          imports=[]
+          text=(root/entry).read_text(errors='replace')
+          for m in re.finditer(r'(?:import\s+(?:[^\n]+?\s+from\s+)?|import\s*\()\s*[\'\"]([^\'\"]+)',text): imports.append(m.group(1))
+          presence={k:bool(os.environ.get(k)) for k in ['MODAL_TOKEN_ID','MODAL_TOKEN_SECRET','MFT_CONTROL_SECRET','MFT_RECEIPT_SECRET','STRIPE_WEBHOOK_SECRET','STRIPE_PRICE_PLAN_MAP','AXIOM_DOWNGRADE_ON_CANCEL']}
+          out={'schema':'mft.axiom.edge_write_preflight.v1','source_build':man['source_build'],'worker_entry':entry,'worker_files':worker,'entry_import_specifiers':sorted(set(imports)),'secret_presence':presence,'d1_migration_sha256':'efc2817e42fbba2efa0471ca5a10758b858540beff819ef6c054edd87ab93379','plaintext_source_committed':False,'wolfram_parity':'NOT_CERTIFIED','superiority':'NOT_CERTIFIED'}
+          open('edge-write-preflight.json','w').write(json.dumps(out,indent=2,sort_keys=True))
+          print(json.dumps({'preflight_pass':True,'worker_entry':entry,'worker_files':worker,'entry_import_specifiers':out['entry_import_specifiers'],'secret_presence':presence},sort_keys=True))
+          PY
+          sha256sum edge-write-preflight.json > edge-write-preflight.sha256
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mft-axiom-edge-write-preflight
+          path: |
+            edge-write-preflight.json
+            edge-write-preflight.sha256
+          retention-days: 7
