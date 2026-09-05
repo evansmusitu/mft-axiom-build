@@ -1,0 +1,123 @@
+name: MFT Axiom Canonical D1 Migration
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/axiom-d1-canonical-migration.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    env:
+      CF_API: https://api.cloudflare.com/client/v4
+      ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      D1_NAME: mft-axiom-prod
+      MIGRATION_SHA256: efc2817e42fbba2efa0471ca5a10758b858540beff819ef6c054edd87ab93379
+    steps:
+      - uses: actions/checkout@v4
+      - name: Reconstruct encrypted canonical migration
+        env:
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$CLOUDFLARE_GLOBAL_API_KEY"
+          P=deploy_payload/runtime_min
+          cat "$P/chunk_00.b64" "$P/chunk_01_02.b64" "$P/chunk_03_04.b64" "$P/chunk_05_06.b64" "$P/chunk_07_08.b64" "$P/chunk_09.b64" > runtime.enc.b64
+          base64 -d runtime.enc.b64 > runtime.tar.gz.enc
+          test "$(sha256sum runtime.tar.gz.enc | awk '{print $1}')" = 'b82448d6b4b34b302748815af976b535d69922c197d4b7a9056fc2f91a9e12cf'
+          python - <<'PY'
+          import hashlib,hmac,os
+          data=open('runtime.tar.gz.enc','rb').read()
+          got=hmac.new(os.environ['CLOUDFLARE_GLOBAL_API_KEY'].encode(),data,hashlib.sha256).hexdigest()
+          if not hmac.compare_digest(got,'1a3193d4f3271d61d151e6ebd7cf4576d8ab86c2e79b84eff4ad0f635fe7ab47'):
+              raise SystemExit('Fail-closed: ciphertext HMAC mismatch')
+          PY
+          openssl enc -d -aes-256-cbc -pbkdf2 -iter 250000 -in runtime.tar.gz.enc -out runtime.tar.gz -pass env:CLOUDFLARE_GLOBAL_API_KEY
+          test "$(sha256sum runtime.tar.gz | awk '{print $1}')" = 'b4d5a0266446523969a619f5e9bb5a04d9b815c78a2ab82ed046ef5e23d53663'
+          mkdir runtime
+          tar -xzf runtime.tar.gz -C runtime
+          test "$(sha256sum runtime/migrations/0001_revenue_core.sql | awk '{print $1}')" = "$MIGRATION_SHA256"
+          echo migration_integrity_pass=true
+
+      - name: Apply D1 migration with precondition and readback
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json,os,urllib.request,urllib.parse,urllib.error,hashlib
+          base=os.environ['CF_API']; aid=os.environ['ACCOUNT_ID']
+          headers={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY'],'Content-Type':'application/json'}
+          def call(path,method='GET',body=None):
+              data=None if body is None else json.dumps(body).encode()
+              req=urllib.request.Request(base+path,headers=headers,method=method,data=data)
+              try:
+                  with urllib.request.urlopen(req,timeout=45) as r: raw=r.read(); code=r.status
+              except urllib.error.HTTPError as e:
+                  raw=e.read(); code=e.code
+              if code<200 or code>=300:
+                  raise SystemExit(f'Cloudflare API failure http={code} path={path} body={raw[:300]!r}')
+              obj=json.loads(raw) if raw else {}
+              if isinstance(obj,dict) and obj.get('success') is False:
+                  raise SystemExit('Cloudflare API success=false')
+              return obj
+          dbs=call(f'/accounts/{aid}/d1/database?name='+urllib.parse.quote(os.environ['D1_NAME']))
+          rows=[x for x in dbs.get('result',[]) if x.get('name')==os.environ['D1_NAME']]
+          if len(rows)!=1: raise SystemExit(f'Fail-closed: expected one D1 database, got {len(rows)}')
+          dbid=rows[0]['uuid']
+          qpath=f'/accounts/{aid}/d1/database/{dbid}/query'
+          def query(sql):
+              obj=call(qpath,'POST',{'sql':sql})
+              result=obj.get('result') or []
+              if not result or not all(x.get('success') is True for x in result):
+                  raise SystemExit('Fail-closed: D1 query result not successful')
+              return result
+          inventory_sql="SELECT type,name FROM sqlite_master WHERE type IN ('table','index') AND name NOT LIKE 'sqlite_%' ORDER BY type,name;"
+          before=query(inventory_sql)
+          before_rows=[]
+          for chunk in before:
+              before_rows.extend(chunk.get('results') or [])
+          before_tables=sorted(x['name'] for x in before_rows if x.get('type')=='table')
+          expected_tables=['api_keys','billing_subscriptions','customers','usage_buckets','usage_events','webhook_events']
+          expected_indexes=['idx_api_keys_customer','idx_usage_events_customer_time','idx_usage_events_request']
+          if before_tables and before_tables!=expected_tables:
+              raise SystemExit('Fail-closed: D1 already contains unexpected user tables '+repr(before_tables))
+          write_performed=False
+          if not before_tables:
+              sql=open('runtime/migrations/0001_revenue_core.sql').read()
+              if hashlib.sha256(sql.encode()).hexdigest()!=os.environ['MIGRATION_SHA256']:
+                  raise SystemExit('Fail-closed: migration hash changed in memory')
+              query(sql)
+              write_performed=True
+          after=query(inventory_sql)
+          after_rows=[]
+          for chunk in after:
+              after_rows.extend(chunk.get('results') or [])
+          tables=sorted(x['name'] for x in after_rows if x.get('type')=='table')
+          indexes=sorted(x['name'] for x in after_rows if x.get('type')=='index')
+          if tables!=expected_tables: raise SystemExit('Fail-closed: canonical D1 table set mismatch '+repr(tables))
+          for idx in expected_indexes:
+              if idx not in indexes: raise SystemExit('Fail-closed: missing canonical D1 index '+idx)
+          db=call(f'/accounts/{aid}/d1/database/{dbid}').get('result') or {}
+          out={'schema':'mft.axiom.d1_canonical_migration.v1','database_name':os.environ['D1_NAME'],'database_uuid':dbid,'migration_path':'migrations/0001_revenue_core.sql','migration_sha256':os.environ['MIGRATION_SHA256'],'write_performed':write_performed,'tables':tables,'required_indexes_verified':expected_indexes,'database_num_tables':db.get('num_tables'),'database_file_size':db.get('file_size'),'gate':'PASS','wolfram_parity':'NOT_CERTIFIED','superiority':'NOT_CERTIFIED'}
+          open('d1-canonical-migration-evidence.json','w').write(json.dumps(out,indent=2,sort_keys=True))
+          print(json.dumps({'d1_migration_pass':True,'write_performed':write_performed,'table_count':len(tables),'required_index_count':len(expected_indexes)},sort_keys=True))
+          PY
+          sha256sum d1-canonical-migration-evidence.json > d1-canonical-migration-evidence.sha256
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mft-axiom-d1-canonical-migration
+          path: |
+            d1-canonical-migration-evidence.json
+            d1-canonical-migration-evidence.sha256
+          retention-days: 14
+          if-no-files-found: error
