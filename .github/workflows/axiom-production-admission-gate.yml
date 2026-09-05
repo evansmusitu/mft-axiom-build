@@ -19,9 +19,11 @@ jobs:
       EXPECTED_ZONE_ID: 5b56528f03948ff5917a5e0cd9f7109e
       EXPECTED_ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
       STAGE_HOST: axiom-stage.mftintelligence.com
+      PROD_HOST: axiom.mftintelligence.com
       PUBLIC_EDGE: musitu-axiom-modal-edge-stage
       PROTECTED_BACKEND: mft-axiom-modal-edge-stage
       PROTECTED_ADAPTER: mft-axiom-modal-adapter
+      PROD_MACHINE_RULE_REF: musitu_axiom_prod_machine_transport
       MUSITU_D1: musitu-axiom-prod
       EXPECTED_D1_UUID: 504029cc-f9a5-495e-818f-63c6144b4ea4
       MUSITU_MODAL_URL: https://evansmusitu--musitu-axiom-v3-modal-staging-axiom-kernel.modal.run
@@ -32,11 +34,20 @@ jobs:
       BILLING_ROUTE: payments.mftintelligence.com/billing/*
       PAYMENT_AUTHORITY: mft-phase8-external-authority
       PAYNOW_TRANSPORT: mft-paynow-transport-gateway
-      BEARER_E2E_RUN_ID: '33966226954'
-      BEARER_E2E_JOB_ID: '101344544288'
-      BEARER_E2E_EVIDENCE_SHA256: bc494f4c1b1a725f9adbb649f286e0e5970a865c6fb3154e665135dc55dafaed
+      PROD_DOMAIN_RUN_ID: '33986923936'
+      PROD_DOMAIN_JOB_ID: '101362122670'
+      PROD_DOMAIN_EVIDENCE_SHA256: 48d3b74c95617938a4768be608662d8fcc9f6aab7cb2a92dfc84690c4cff6cab
+      PROD_BEARER_RUN_ID: '33987020189'
+      PROD_BEARER_JOB_ID: '101362385466'
+      PROD_BEARER_EVIDENCE_SHA256: a86617961d1d2448fd870aa17060f7b511b279a265aef16d2806ef183f30c4ff
+      PROD_BEARER_SOURCE_V3_BLOB: 5c3d3e1b78afedab04b98e68f0c11cc1706008cb
+      PROD_BEARER_SOURCE_EVIDENCE_SHA256: a492a79afb945c2f85d3e955e1eb33d821db7c8ee215cd73f4287002dcdd0736
+      BILLING_E2E_RUN_ID: '33965450911'
+      BILLING_E2E_JOB_ID: '101304651482'
+      BILLING_E2E_WORKFLOW_BLOB: 3f9a860eb76887a75f4bde08b5b93d2de0b6a2c6
+      BILLING_E2E_EVIDENCE_SHA256: 673444bcbc3f4791ee8760b1eae0294f6865fb64193b0d444338ade663d4e61f
     steps:
-      - name: Audit production admission fail-closed against current live chain
+      - name: Audit current production chain and sealed evidence fail-closed
         env:
           CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
           CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
@@ -53,8 +64,9 @@ jobs:
             'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],
             'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY'],
             'Accept':'application/json',
-            'User-Agent':'MUSITU-Axiom-Production-Admission/3.0',
+            'User-Agent':'MUSITU-Axiom-Production-Admission/4.0',
           }
+
           def raw_http(url,method='GET',headers_in=None,body=None,timeout=45):
             req=urllib.request.Request(url,headers=dict(headers_in or {}),data=body,method=method)
             try:
@@ -68,7 +80,7 @@ jobs:
             if body is not None:
               h['Content-Type']='application/json'; data=json.dumps(body,separators=(',',':')).encode()
             code,_,raw=raw_http(base+path,method,h,data)
-            if code < 200 or code >= 300:
+            if not 200 <= code < 300:
               raise SystemExit(f'Fail-closed Cloudflare read failed HTTP {code}: {path}')
             x=json.loads(raw or b'{}')
             if x.get('success') is False:
@@ -76,7 +88,7 @@ jobs:
             return x.get('result')
 
           def http_json(url,method='GET',body=None,extra_headers=None):
-            h={'Accept':'application/json','User-Agent':'MUSITU-Axiom-Production-Admission/3.0'}
+            h={'Accept':'application/json','User-Agent':'MUSITU-Axiom-Production-Admission/4.0'}
             if extra_headers: h.update(extra_headers)
             data=None if body is None else json.dumps(body,separators=(',',':')).encode()
             if data is not None: h['Content-Type']='application/json'
@@ -113,7 +125,7 @@ jobs:
               src=parts[0]
             return hashlib.sha256(src).hexdigest()
 
-          # Canonical Cloudflare identity and security posture.
+          # Canonical zone/account and global security posture.
           zones=cf('/zones?name='+urllib.parse.quote(os.environ['EXPECTED_ZONE'])+'&status=active') or []
           if len(zones)!=1: raise SystemExit('Fail-closed: canonical zone not unique')
           z=zones[0]; zid=z.get('id'); aid=(z.get('account') or {}).get('id')
@@ -123,18 +135,30 @@ jobs:
           browser_check=cf(f'/zones/{zid}/settings/browser_check') or {}
           always_https=cf(f'/zones/{zid}/settings/always_use_https') or {}
           if security_level.get('value')!='under_attack' or browser_check.get('value')!='on':
-            raise SystemExit('Fail-closed: global challenge posture weakened from verified state')
+            raise SystemExit('Fail-closed: global challenge posture weakened')
 
-          # Stage mapping and production-domain discovery.
+          # Exact stage and canonical production custom-domain mappings.
           domains=cf(f'/accounts/{aid}/workers/domains') or []
           stage=[d for d in domains if d.get('hostname')==os.environ['STAGE_HOST']]
+          prod=[d for d in domains if d.get('hostname')==os.environ['PROD_HOST']]
           if len(stage)!=1 or stage[0].get('service')!=os.environ['PUBLIC_EDGE']:
-            raise SystemExit('Fail-closed: verified MUSITU staging domain mapping changed')
-          axiom_nonstage=[{
-            'hostname':d.get('hostname'),'service':d.get('service'),'environment':d.get('environment')
-          } for d in domains if 'axiom' in str(d.get('hostname') or '').lower() and d.get('hostname')!=os.environ['STAGE_HOST']]
+            raise SystemExit('Fail-closed: MUSITU staging custom-domain mapping drift')
+          if len(prod)!=1 or prod[0].get('service')!=os.environ['PUBLIC_EDGE']:
+            raise SystemExit('Fail-closed: canonical MUSITU production custom-domain mapping absent or drifted')
 
-          # Public edge -> protected backend -> protected adapter -> Modal chain.
+          # Production API gets only the exact-host machine-transport exception; global security stays strict.
+          rulesets=cf(f'/zones/{zid}/rulesets') or []
+          cfg=[x for x in rulesets if x.get('phase')=='http_config_settings' and x.get('kind')=='zone']
+          if len(cfg)!=1: raise SystemExit('Fail-closed: zone configuration ruleset not unique')
+          config=cf(f'/zones/{zid}/rulesets/{cfg[0]["id"]}') or {}
+          expected_expr='http.host eq "'+os.environ['PROD_HOST']+'"'
+          mr=[r for r in (config.get('rules') or []) if r.get('ref')==os.environ['PROD_MACHINE_RULE_REF']]
+          if len(mr)!=1: raise SystemExit('Fail-closed: production machine-transport rule not unique')
+          rule=mr[0]; ap=rule.get('action_parameters') or {}
+          if rule.get('action')!='set_config' or rule.get('expression')!=expected_expr or ap.get('security_level')!='essentially_off' or ap.get('bic') is not False or rule.get('enabled') is False:
+            raise SystemExit('Fail-closed: production machine-transport rule contract drift')
+
+          # Public edge -> protected backend -> private adapter -> Modal; no retired protocol bindings.
           edge=cf(f'/accounts/{aid}/workers/scripts/{os.environ["PUBLIC_EDGE"]}/settings') or {}
           edge_services=[b for b in (edge.get('bindings') or []) if isinstance(b,dict) and b.get('type')=='service']
           if not any(b.get('service')==os.environ['PROTECTED_BACKEND'] for b in edge_services):
@@ -152,7 +176,7 @@ jobs:
           binding_names={b.get('name') for b in bindings if isinstance(b,dict)}
           required={'AXIOM_DB','AXIOM_KERNEL','MUSITU_CONTROL_SECRET','MUSITU_RECEIPT_SECRET'}
           if not required.issubset(binding_names):
-            raise SystemExit('Fail-closed: current backend MUSITU binding contract incomplete')
+            raise SystemExit('Fail-closed: backend MUSITU binding contract incomplete')
           if {'MFT_CONTROL_SECRET','MFT_RECEIPT_SECRET'} & binding_names:
             raise SystemExit('Fail-closed: retired protocol secret bindings reappeared')
           dbb=[b for b in bindings if b.get('name')=='AXIOM_DB']
@@ -163,7 +187,7 @@ jobs:
             raise SystemExit('Fail-closed: AXIOM_KERNEL protected adapter drift')
           backend_sha=worker_module_sha(os.environ['PROTECTED_BACKEND'],'/v1/compute')
           if backend_sha!=os.environ['EXPECTED_BACKEND_SOURCE_SHA256']:
-            raise SystemExit('Fail-closed: backend changed since certified Bearer/metering E2E; rerun certification required')
+            raise SystemExit('Fail-closed: backend changed since production Bearer/metering certification')
 
           adapter=cf(f'/accounts/{aid}/workers/scripts/{os.environ["PROTECTED_ADAPTER"]}/settings') or {}
           adapter_bindings=adapter.get('bindings') or []
@@ -172,9 +196,9 @@ jobs:
             raise SystemExit('Fail-closed: private Modal adapter binding contract incomplete')
           mb=[b for b in adapter_bindings if b.get('name')=='MODAL_BASE_URL']
           if len(mb)!=1 or mb[0].get('text')!=os.environ['MUSITU_MODAL_URL']:
-            raise SystemExit('Fail-closed: private adapter no longer targets MUSITU Modal')
+            raise SystemExit('Fail-closed: private adapter Modal target drift')
 
-          # Current D1 schema: require mandatory tables/columns/indexes; permit additive schema evolution.
+          # Current additive D1 contract; do not resurrect the stale exact-six-table assumption.
           inventory=d1_query(d1id,"SELECT type,name,tbl_name FROM sqlite_master WHERE type IN ('table','index') AND name NOT LIKE 'sqlite_%' AND name NOT LIKE '_cf_%' ORDER BY type,name;")
           tables={x['name'] for x in inventory if x.get('type')=='table'}
           indexes={x['name'] for x in inventory if x.get('type')=='index'}
@@ -189,23 +213,28 @@ jobs:
             'api_keys':{'id','customer_id','key_hash','key_prefix','label','status','created_at','last_used_at','expires_at','revoked_at'},
             'usage_events':{'id','customer_id','key_id','request_id','operation','compute_units','status','http_status','latency_ms','request_sha256','result_sha256','created_at'},
             'usage_buckets':{'customer_id','month','used_units','unit_limit','updated_at'},
+            'billing_checkout_intents':{'reference','customer_id','plan','amount_cents','currency','monthly_unit_limit','status','browser_url','poll_url'},
           }
           for table,need in required_columns.items():
             if not need.issubset(columns(table)):
               raise SystemExit(f'Fail-closed: live MUSITU D1 column contract drift: {table}')
 
-          # Runtime public contract.
-          stage_base='https://'+os.environ['STAGE_HOST']
-          hs,_,hj=http_json(stage_base+'/health')
-          if hs!=200 or hj.get('ok') is not True or hj.get('build_id')!=os.environ['EXPECTED_BUILD'] or int(hj.get('operation_count') or -1)!=74:
-            raise SystemExit('Fail-closed: staging FULL health contract regressed')
-          ts,_,tj=http_json(stage_base+'/v1/tools')
-          if ts!=200 or int(tj.get('operation_count') or -1)!=74 or len(tj.get('tools') or [])!=74:
-            raise SystemExit('Fail-closed: staging tool registry regressed')
-          us,_,_=http_json(stage_base+'/v1/compute',method='POST',body={'operation':'arithmetic.evaluate','args':{'expression':'40+2'}},extra_headers={'x-musitu-request-id':'MUSITU-PRODUCTION-ADMISSION-UNAUTH'})
-          if us!=401: raise SystemExit(f'Fail-closed: unauth compute expected 401, got {us}')
+          # Stage remains intact; production hostname itself must expose the same immutable FULL contract.
+          def runtime_contract(host,label):
+            rb='https://'+host
+            hs,_,hj=http_json(rb+'/health')
+            if hs!=200 or hj.get('ok') is not True or hj.get('build_id')!=os.environ['EXPECTED_BUILD'] or int(hj.get('operation_count') or -1)!=74:
+              raise SystemExit(f'Fail-closed: {label} FULL health contract regressed')
+            ts,_,tj=http_json(rb+'/v1/tools')
+            if ts!=200 or int(tj.get('operation_count') or -1)!=74 or len(tj.get('tools') or [])!=74:
+              raise SystemExit(f'Fail-closed: {label} tool registry regressed')
+            us,_,_=http_json(rb+'/v1/compute',method='POST',body={'operation':'arithmetic.evaluate','args':{'expression':'40+2'}},extra_headers={'x-musitu-request-id':'MUSITU-ADMISSION-'+label.upper()+'-UNAUTH'})
+            if us!=401: raise SystemExit(f'Fail-closed: {label} unauth compute expected 401, got {us}')
+            return {'health_http':hs,'build_id':hj.get('build_id'),'operation_count':hj.get('operation_count'),'tools_http':ts,'unauth_compute_http':us}
+          stage_runtime=runtime_contract(os.environ['STAGE_HOST'],'stage')
+          prod_runtime=runtime_contract(os.environ['PROD_HOST'],'production')
 
-          # Current Paynow commercial ingress contract. This proves technical readiness only; it does not certify a genuine real-money E2E payment or Verified Merchant status.
+          # Current Paynow commercial ingress and authoritative catalog.
           billing_base='https://'+os.environ['BILLING_HOST']
           bh,_,bho=http_json(billing_base+'/billing/healthz')
           if not (bh==200 and bho.get('ok') is True and bho.get('catalog_configured') is True and bho.get('checkout_enabled') is True and bho.get('provider')=='paynow'):
@@ -246,117 +275,96 @@ jobs:
           if billing_subdomain.get('enabled') is not False or billing_subdomain.get('previews_enabled') is not False:
             raise SystemExit('Fail-closed: billing Worker public subdomain exposure regressed')
 
-          # Admission blockers are intentionally independent of technical staging/billing readiness.
+          # Sealed proof records. Live checks above bind the current infrastructure to these certified contracts.
+          prod_domain_evidence={
+            'status':'PROVEN','gate':'AXIOM_PRODUCTION_CUSTOM_DOMAIN_PASS',
+            'run_id':os.environ['PROD_DOMAIN_RUN_ID'],'job_id':os.environ['PROD_DOMAIN_JOB_ID'],
+            'evidence_sha256':os.environ['PROD_DOMAIN_EVIDENCE_SHA256'],
+            'hostname':os.environ['PROD_HOST'],'service':os.environ['PUBLIC_EDGE'],
+            'raw_modal_publicly_exposed_by_change':False,'worker_auth_preserved':True,
+          }
+          prod_bearer_evidence={
+            'status':'PROVEN','gate':'AXIOM_PRODUCTION_BEARER_COMPUTE_METERING_E2E_PASS',
+            'run_id':os.environ['PROD_BEARER_RUN_ID'],'job_id':os.environ['PROD_BEARER_JOB_ID'],
+            'evidence_sha256':os.environ['PROD_BEARER_EVIDENCE_SHA256'],
+            'source_v3_blob':os.environ['PROD_BEARER_SOURCE_V3_BLOB'],
+            'source_v3_evidence_sha256':os.environ['PROD_BEARER_SOURCE_EVIDENCE_SHA256'],
+            'edge_host':os.environ['PROD_HOST'],'authenticated_compute_http':200,
+            'operation':'arithmetic.evaluate','arg_contract':['expression'],'result_42_observed':True,
+            'receipt_or_signature_material_present':True,'usage_event_delta':1,'compute_units':1,
+            'usage_bucket_unit_delta':1,'request_id_matched':True,'customer_id_matched':True,
+            'key_id_matched':True,'result_sha256_present':True,'api_key_last_used_updated':True,
+            'fixture_rows_remaining':0,'raw_api_key_published':False,'worker_secret_mutation':False,
+          }
+          billing_e2e={
+            'status':'PROVEN','gate':'AXIOM_DISPOSABLE_PAYNOW_CHECKOUT_E2E_PASS',
+            'run_id':os.environ['BILLING_E2E_RUN_ID'],'job_id':os.environ['BILLING_E2E_JOB_ID'],
+            'workflow_blob':os.environ['BILLING_E2E_WORKFLOW_BLOB'],
+            'evidence_sha256':os.environ['BILLING_E2E_EVIDENCE_SHA256'],
+            'pricing_tamper_http':400,'pricing_tamper_rejected':True,'checkout_http':201,
+            'plan':'developer','server_owned_amount_cents':1900,'currency':'USD','intent_unit_limit':1000,
+            'status_http':200,'provider_checkout_created':True,'real_payment_completed':False,
+            'subscription_activated':False,'fixture_subscription_count':0,'fixture_rows_remaining':0,
+            'raw_api_key_published':False,
+          }
+
           blockers=[]
-          if not axiom_nonstage:
-            blockers.append('NO_CANONICAL_AXIOM_PRODUCTION_CUSTOM_DOMAIN_PRESENT')
           if not live_money_certified:
             blockers.append('REAL_MONEY_E2E_NOT_YET_CERTIFIED')
+          capability_boundaries=[{
+            'code':'PAYNOW_VERIFIED_MERCHANT_PENDING',
+            'scope':'Visa/Mastercard and any merchant privileges Paynow explicitly conditions on Verified Merchant status',
+            'core_local_payment_blocker':False,
+            'status':'PENDING_EXTERNAL_CONFIRMATION',
+          }]
 
-          bearer_evidence={
-            'status':'PROVEN',
-            'gate':'AXIOM_CUSTOMER_BEARER_COMPUTE_METERING_E2E_PASS',
-            'run_id':os.environ['BEARER_E2E_RUN_ID'],
-            'job_id':os.environ['BEARER_E2E_JOB_ID'],
-            'evidence_sha256':os.environ['BEARER_E2E_EVIDENCE_SHA256'],
-            'current_backend_source_sha256':backend_sha,
-            'proof_scope':{
-              'authenticated_compute_http':200,
-              'operation':'arithmetic.evaluate',
-              'result_42_observed':True,
-              'receipt_or_signature_material_present':True,
-              'usage_event_delta':1,
-              'compute_units':1,
-              'usage_bucket_unit_delta':1,
-              'request_id_matched':True,
-              'customer_id_matched':True,
-              'key_id_matched':True,
-              'api_key_last_used_updated':True,
-              'fixture_rows_remaining':0,
-              'worker_secret_mutation':False,
-            },
-          }
           out={
-            'schema':'musitu.axiom.production_admission.v3',
+            'schema':'musitu.axiom.production_admission.v4',
             'gate':'AXIOM_PRODUCTION_ADMISSION_PASS' if not blockers else 'AXIOM_PRODUCTION_ADMISSION_BLOCKED',
-            'zone':os.environ['EXPECTED_ZONE'],
-            'account_id':aid,
+            'zone':os.environ['EXPECTED_ZONE'],'account_id':aid,
             'global_security':{
-              'security_level':security_level.get('value'),
-              'browser_check':browser_check.get('value'),
-              'always_use_https':always_https.get('value'),
-              'challenge_posture':'PASS',
-              'configuration_write_performed':False,
+              'security_level':security_level.get('value'),'browser_check':browser_check.get('value'),
+              'always_use_https':always_https.get('value'),'challenge_posture':'PASS','configuration_write_performed':False,
             },
-            'staging':{
-              'hostname':os.environ['STAGE_HOST'],
-              'public_edge':os.environ['PUBLIC_EDGE'],
-              'protected_backend':os.environ['PROTECTED_BACKEND'],
-              'protected_backend_source_sha256':backend_sha,
-              'protected_adapter':os.environ['PROTECTED_ADAPTER'],
-              'modal_target':os.environ['MUSITU_MODAL_URL'],
-              'd1_name':os.environ['MUSITU_D1'],
-              'd1_uuid':d1id,
-              'd1_schema':'PASS',
-              'd1_required_tables':sorted(required_tables),
-              'health':'PASS',
-              'build_id':hj.get('build_id'),
-              'operation_count':hj.get('operation_count'),
-              'tools':'PASS',
-              'unauth_compute_status':us,
-              'musitu_protocol_bindings':'PASS',
-              'retired_protocol_secret_bindings_absent':True,
+            'network_chain':{
+              'stage_hostname':os.environ['STAGE_HOST'],'production_hostname':os.environ['PROD_HOST'],
+              'public_edge':os.environ['PUBLIC_EDGE'],'protected_backend':os.environ['PROTECTED_BACKEND'],
+              'protected_adapter':os.environ['PROTECTED_ADAPTER'],'modal_target':os.environ['MUSITU_MODAL_URL'],
+              'raw_modal_public_exposure_added':False,'production_machine_transport_rule':'PASS',
             },
+            'runtime':{'stage':stage_runtime,'production':prod_runtime,'protected_backend_source_sha256':backend_sha},
+            'd1':{'name':os.environ['MUSITU_D1'],'uuid':d1id,'schema':'PASS','required_tables':sorted(required_tables)},
+            'protocol':{'musitu_bindings':'PASS','retired_mft_protocol_secret_bindings_absent':True},
+            'production_custom_domain_e2e':prod_domain_evidence,
+            'production_customer_bearer_metering_e2e':prod_bearer_evidence,
             'billing':{
-              'provider':'paynow',
-              'technical_contract':'PASS',
-              'hostname':os.environ['BILLING_HOST'],
-              'worker':os.environ['BILLING_WORKER'],
-              'route':os.environ['BILLING_ROUTE'],
-              'exact_route_count':len(exact_billing_routes),
-              'catalog':got_catalog,
-              'catalog_configured':bho.get('catalog_configured'),
-              'checkout_enabled':bho.get('checkout_enabled'),
-              'checkout_noauth_status':bna,
-              'live_money_certified':live_money_certified,
-              'real_money_e2e_certified':live_money_certified,
-              'workers_dev_enabled':billing_subdomain.get('enabled'),
-              'previews_enabled':billing_subdomain.get('previews_enabled'),
+              'provider':'paynow','technical_contract':'PASS','hostname':os.environ['BILLING_HOST'],
+              'worker':os.environ['BILLING_WORKER'],'route':os.environ['BILLING_ROUTE'],
+              'catalog':got_catalog,'catalog_configured':bho.get('catalog_configured'),
+              'checkout_enabled':bho.get('checkout_enabled'),'checkout_noauth_status':bna,
+              'live_money_certified':live_money_certified,'real_money_e2e_certified':live_money_certified,
+              'workers_dev_enabled':billing_subdomain.get('enabled'),'previews_enabled':billing_subdomain.get('previews_enabled'),
+              'disposable_checkout_e2e':billing_e2e,
             },
-            'customer_bearer_metering_e2e':bearer_evidence,
-            'axiom_nonstage_custom_domains':axiom_nonstage,
             'production_admission':'PASS' if not blockers else 'BLOCKED',
-            'blockers':blockers,
-            'write_performed':False,
-            'secret_values_read':False,
-            'plaintext_source_committed':False,
-            'wolfram_parity':'NOT_CERTIFIED',
-            'superiority':'NOT_CERTIFIED',
+            'blockers':blockers,'capability_boundaries':capability_boundaries,
+            'write_performed':False,'secret_values_read':False,'plaintext_source_committed':False,
+            'wolfram_parity':'NOT_CERTIFIED','superiority':'NOT_CERTIFIED',
           }
           raw=(json.dumps(out,indent=2,sort_keys=True)+'\n').encode()
           open('axiom-production-admission.json','wb').write(raw)
           digest=hashlib.sha256(raw).hexdigest()
           open('axiom-production-admission.sha256','w').write(digest+'  axiom-production-admission.json\n')
           print(json.dumps({
-            'gate':out['gate'],
-            'staging_health':'PASS',
-            'build_id':hj.get('build_id'),
-            'operation_count':hj.get('operation_count'),
-            'd1_schema':'PASS',
-            'paynow_technical_contract':'PASS',
-            'paynow_live_money_certified':live_money_certified,
-            'real_money_e2e_certified':live_money_certified,
-            'bearer_metering_e2e':'PROVEN',
-            'bearer_metering_evidence_sha256':os.environ['BEARER_E2E_EVIDENCE_SHA256'],
-            'backend_source_sha256':backend_sha,
-            'axiom_nonstage_custom_domains':axiom_nonstage,
-            'production_admission':out['production_admission'],
-            'blockers':blockers,
-            'write_performed':False,
-            'secret_values_read':False,
-            'evidence_sha256':digest,
+            'gate':out['gate'],'production_hostname':os.environ['PROD_HOST'],
+            'production_custom_domain':'PROVEN','production_bearer_metering_e2e':'PROVEN',
+            'paynow_technical_contract':'PASS','disposable_paynow_checkout_e2e':'PROVEN',
+            'real_money_e2e_certified':live_money_certified,'production_admission':out['production_admission'],
+            'blockers':blockers,'capability_boundaries':[x['code'] for x in capability_boundaries],
+            'write_performed':False,'secret_values_read':False,'evidence_sha256':digest,
           },sort_keys=True))
           PY
+
       - name: Upload sealed production-admission evidence
         uses: actions/upload-artifact@v4
         with:
