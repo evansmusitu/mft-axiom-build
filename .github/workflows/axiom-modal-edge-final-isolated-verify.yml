@@ -1,0 +1,115 @@
+name: MFT Axiom Modal Edge Final Isolated Verify
+on:
+  workflow_dispatch:
+  push:
+    paths: ['.github/workflows/axiom-modal-edge-final-isolated-verify.yml']
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      CLOUDFLARE_ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+      CLOUDFLARE_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+      EDGE_WORKER: mft-axiom-modal-edge-stage
+      BUILD_ID: MFT-AXIOM-V3-FULL-SELF-CONTAINED-20260904
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install exact Wrangler and verify bindings
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --no-save --ignore-scripts --no-audit --no-fund wrangler@4.129.0 >/dev/null
+          python - <<'PY'
+          import json,os,urllib.request
+          h={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_API_KEY']}
+          q=urllib.request.Request(f"https://api.cloudflare.com/client/v4/accounts/{os.environ['CLOUDFLARE_ACCOUNT_ID']}/workers/scripts/{os.environ['EDGE_WORKER']}/settings",headers=h)
+          with urllib.request.urlopen(q,timeout=30) as r:x=json.load(r)
+          names={b.get('name') for b in (x.get('result') or {}).get('bindings',[]) if isinstance(b,dict)}
+          req={'AXIOM_DB','AXIOM_KERNEL','MFT_CONTROL_SECRET','MFT_RECEIPT_SECRET'}
+          if not req.issubset(names): raise SystemExit('missing bindings '+repr(sorted(req-names)))
+          print('binding_readback=PASS')
+          PY
+      - name: Rotate independent Axiom runtime secrets
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/cfg
+          python - <<'PY'
+          import json,os
+          json.dump({'name':os.environ['EDGE_WORKER'],'main':'placeholder.js','compatibility_date':'2026-09-04'},open('/tmp/cfg/wrangler.json','w'))
+          PY
+          echo 'export default {fetch(){return new Response("unused")}}' >/tmp/cfg/placeholder.js
+          C="$(openssl rand -hex 32)"; R="$(openssl rand -hex 32)"; echo "::add-mask::$C"; echo "::add-mask::$R"
+          printf '%s' "$C" >/tmp/control; printf '%s' "$R" >/tmp/receipt
+          printf '%s' "$C" | (cd /tmp/cfg && npx wrangler secret put MFT_CONTROL_SECRET --config wrangler.json >/dev/null)
+          printf '%s' "$R" | (cd /tmp/cfg && npx wrangler secret put MFT_RECEIPT_SECRET --config wrangler.json >/dev/null)
+          echo runtime_secrets_rotated=PASS
+      - name: Resolve URL and verify health tools and auth boundary
+        id: edge
+        shell: bash
+        run: |
+          set -euo pipefail
+          SUB="$(python - <<'PY'
+          import json,os,urllib.request
+          h={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_API_KEY']};q=urllib.request.Request(f"https://api.cloudflare.com/client/v4/accounts/{os.environ['CLOUDFLARE_ACCOUNT_ID']}/workers/subdomain",headers=h)
+          with urllib.request.urlopen(q) as r:x=json.load(r)
+          print(x['result']['subdomain'])
+          PY
+          )"
+          U="https://${EDGE_WORKER}.${SUB}.workers.dev"; echo "url=$U" >> "$GITHUB_OUTPUT"
+          for i in $(seq 1 30); do H="$(curl -sS --max-time 20 -o /tmp/h.json -w '%{http_code}' "$U/health" || true)"; [ "$H" = 200 ] && break; sleep 2; done
+          test "$H" = 200
+          python - <<'PY'
+          import json,os
+          x=json.load(open('/tmp/h.json')); exp={'ok':True,'status':'READY','version':'3.0.0','build_id':os.environ['BUILD_ID'],'operation_count':74,'state':'D1','wolfram_parity':'NOT_CERTIFIED','superiority':'NOT_CERTIFIED'}
+          bad={k:(x.get(k),v) for k,v in exp.items() if x.get(k)!=v}
+          if bad: raise SystemExit('health mismatch '+repr(bad))
+          PY
+          curl -fsS "$U/v1/tools" >/tmp/t.json
+          python - <<'PY'
+          import json
+          x=json.load(open('/tmp/t.json'))
+          if x.get('operation_count')!=74 or len(x.get('tools',[]))!=74: raise SystemExit('tool count')
+          PY
+          test "$(curl -sS -o /tmp/u.json -w '%{http_code}' -X POST "$U/v1/compute" -H 'content-type: application/json' --data '{"operation":"arithmetic.evaluate","args":{"expression":"40+2"},"verify":true}')" = 401
+          echo public_contract=PASS
+      - name: Verify authenticated compute and signed receipt
+        env:
+          EDGE_URL: ${{ steps.edge.outputs.url }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          C="$(cat /tmp/control)"
+          code="$(curl -sS --max-time 90 -o /tmp/c.json -w '%{http_code}' -X POST "$EDGE_URL/v1/compute" -H "x-mft-control: $C" -H 'content-type: application/json' --data '{"operation":"arithmetic.evaluate","args":{"expression":"40+2"},"verify":true}')"
+          test "$code" = 200 || { echo "compute http=$code"; cat /tmp/c.json; exit 1; }
+          python - <<'PY'
+          import json
+          x=json.load(open('/tmp/c.json'))
+          if x.get('ok') is not True: raise SystemExit('compute not ok')
+          r=x.get('receipt') or {}
+          if r.get('signature_alg')!='HMAC-SHA256' or not r.get('signature') or not r.get('request_sha256') or not r.get('result_sha256'): raise SystemExit('receipt gate')
+          print('authenticated_compute=PASS'); print('signed_receipt=PASS')
+          PY
+      - name: Seal evidence
+        env:
+          EDGE_URL: ${{ steps.edge.outputs.url }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import hashlib,json,os
+          x={'schema':'mft.axiom.modal_edge_isolated_final.v1','build':os.environ['BUILD_ID'],'edge_worker':os.environ['EDGE_WORKER'],'edge_url':os.environ['EDGE_URL'],'adapter_worker':'mft-axiom-modal-adapter','modal_app':'mft-axiom-v3-modal-staging','d1':'mft-axiom-prod','operation_count':74,'health':'PASS','unauthorized_compute':'401_PASS','authenticated_compute':'PASS','signed_receipt':'PASS','custom_domain_promoted':False,'billing':'NOT_CONFIGURED','wolfram_parity':'NOT_CERTIFIED','superiority':'NOT_CERTIFIED','gate':'ISOLATED_EDGE_PASS_CUSTOM_DOMAIN_PROMOTION_PENDING'}
+          raw=json.dumps(x,sort_keys=True,separators=(',',':')).encode();x['evidence_sha256']=hashlib.sha256(raw).hexdigest();open('isolated-final.json','w').write(json.dumps(x,indent=2,sort_keys=True))
+          PY
+          sha256sum isolated-final.json > isolated-final.sha256
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mft-axiom-modal-edge-isolated-final
+          path: |
+            isolated-final.json
+            isolated-final.sha256
+          retention-days: 14
+          if-no-files-found: error
