@@ -28,72 +28,43 @@ jobs:
         run: |
           set -euo pipefail
           python - <<'PY'
-          import hashlib,json,os,re,urllib.error,urllib.parse,urllib.request
+          import hashlib,json,os,urllib.error,urllib.parse,urllib.request
           base=os.environ['CF_API']; aid=os.environ['ACCOUNT_ID']; name=os.environ['D1_NAME']; expected_uuid=os.environ['D1_UUID']
-          h={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY'],'Content-Type':'application/json','User-Agent':'MUSITU-Axiom-Billing-D1-Contract/1.3'}
+          headers={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY'],'Content-Type':'application/json','User-Agent':'MUSITU-Axiom-Billing-D1-Contract/1.4'}
           def call(path,method='GET',body=None):
-            data=None if body is None else json.dumps(body).encode()
-            q=urllib.request.Request(base+path,headers=h,method=method,data=data)
-            try:
-              with urllib.request.urlopen(q,timeout=45) as r: raw=r.read(); code=r.status
-            except urllib.error.HTTPError as e: raw=e.read(); code=e.code
-            if code < 200 or code >= 300: raise SystemExit(f'Fail-closed Cloudflare HTTP {code}: {path}')
-            x=json.loads(raw or b'{}')
-            if x.get('success') is False: raise SystemExit('Fail-closed Cloudflare success=false')
-            return x
+              data=None if body is None else json.dumps(body,separators=(',',':')).encode()
+              req=urllib.request.Request(base+path,headers=headers,method=method,data=data)
+              try:
+                  with urllib.request.urlopen(req,timeout=45) as r: raw=r.read(); code=r.status
+              except urllib.error.HTTPError as e:
+                  raw=e.read(); code=e.code
+              if not 200<=code<300: raise SystemExit(f'Cloudflare API failure http={code} path={path}')
+              obj=json.loads(raw or b'{}')
+              if isinstance(obj,dict) and obj.get('success') is False: raise SystemExit('Cloudflare API success=false')
+              return obj
           dbs=call(f'/accounts/{aid}/d1/database?name='+urllib.parse.quote(name))
-          matches=[d for d in dbs.get('result',[]) if d.get('name')==name]
-          if len(matches)!=1: raise SystemExit('Fail-closed D1 not unique')
-          dbid=matches[0].get('uuid')
-          if dbid != expected_uuid: raise SystemExit('Fail-closed D1 UUID mismatch')
-          endpoint=f'/accounts/{aid}/d1/database/{dbid}/query'
-          def d1(sql):
-            x=call(endpoint,'POST',{'sql':sql})
-            result=x.get('result') or []
-            if not result or not all(r.get('success') is True for r in result): raise SystemExit('Fail-closed D1 SELECT failed')
-            rows=[]
-            for r in result: rows.extend(r.get('results') or [])
-            return rows
+          rows=[x for x in dbs.get('result',[]) if x.get('name')==name]
+          if len(rows)!=1 or rows[0].get('uuid')!=expected_uuid: raise SystemExit('Fail-closed D1 identity mismatch')
+          dbid=expected_uuid
+          def query(sql):
+              obj=call(f'/accounts/{aid}/d1/database/{dbid}/query','POST',{'sql':sql})
+              result=obj.get('result') or []
+              if not result or not all(x.get('success') is True for x in result): raise SystemExit('D1 query failed')
+              out=[]
+              for x in result: out.extend(x.get('results') or [])
+              return out
           tables=['customers','api_keys','billing_subscriptions','webhook_events','usage_events','usage_buckets']
-          qnames=','.join("'"+x+"'" for x in tables)
-          schema_rows=d1(f"SELECT type,name,tbl_name,sql FROM sqlite_master WHERE type IN ('table','index') AND (name IN ({qnames}) OR tbl_name IN ({qnames})) ORDER BY type,name;")
-          table_sql={r['name']:str(r.get('sql') or '') for r in schema_rows if r.get('type')=='table'}
-          if sorted(table_sql) != sorted(tables): raise SystemExit('Fail-closed billing D1 table set mismatch')
-          def split_defs(s):
-            a=s.find('('); b=s.rfind(')')
-            if a<0 or b<=a: return []
-            body=s[a+1:b]; out=[]; buf=[]; depth=0; quote=None
-            for ch in body:
-              if quote:
-                buf.append(ch)
-                if ch==quote: quote=None
-                continue
-              if ch in ('\"',"'",'`'): quote=ch; buf.append(ch); continue
-              if ch=='(': depth+=1
-              elif ch==')' and depth>0: depth-=1
-              if ch==',' and depth==0:
-                out.append(''.join(buf).strip()); buf=[]
-              else: buf.append(ch)
-            if buf: out.append(''.join(buf).strip())
-            return out
-          def column_names(create_sql):
-            cols=[]
-            for d in split_defs(create_sql):
-              if not d: continue
-              first=d.lstrip().split(None,1)[0].strip('`[]\"')
-              if first.upper() in {'PRIMARY','UNIQUE','CHECK','FOREIGN','CONSTRAINT'}: continue
-              if not re.fullmatch(r'[A-Za-z_][A-Za-z0-9_]*',first): raise SystemExit('Fail-closed unparseable D1 column metadata')
-              cols.append(first)
-            return cols
-          columns={t:column_names(table_sql[t]) for t in tables}
-          if any(not v for v in columns.values()): raise SystemExit('Fail-closed empty D1 column contract')
-          index_items=[{'name':r.get('name'),'table':r.get('tbl_name')} for r in schema_rows if r.get('type')=='index' and r.get('name')]
-          indexes=sorted(index_items,key=lambda x:(str(x['table']),str(x['name'])))
-          counts=d1("SELECT 'customers' AS table_name,count(*) AS row_count FROM customers UNION ALL SELECT 'api_keys',count(*) FROM api_keys UNION ALL SELECT 'billing_subscriptions',count(*) FROM billing_subscriptions UNION ALL SELECT 'webhook_events',count(*) FROM webhook_events UNION ALL SELECT 'usage_events',count(*) FROM usage_events UNION ALL SELECT 'usage_buckets',count(*) FROM usage_buckets;")
-          out={'schema':'musitu.axiom.billing_d1_contract.v1','database_name':name,'database_uuid':dbid,'table_columns':columns,'index_metadata':indexes,'row_counts':counts,'query_mode':'SELECT_SQLITE_MASTER_ONLY','mutation_performed':False,'migration_sql_published':False,'row_values_exposed':False,'gate':'AXIOM_BILLING_D1_CONTRACT_READ_PASS'}
+          columns={}
+          for t in tables:
+              meta=query(f'PRAGMA table_info("{t}");')
+              columns[t]=[r.get('name') for r in meta if r.get('name')]
+              if not columns[t]: raise SystemExit('Fail-closed empty column metadata '+t)
+          indexes=[r.get('name') for r in query("SELECT name FROM sqlite_master WHERE type='index' AND name NOT LIKE 'sqlite_%' ORDER BY name;") if r.get('name')]
+          counts=query("SELECT 'customers' AS table_name,count(*) AS row_count FROM customers UNION ALL SELECT 'api_keys',count(*) FROM api_keys UNION ALL SELECT 'billing_subscriptions',count(*) FROM billing_subscriptions UNION ALL SELECT 'webhook_events',count(*) FROM webhook_events UNION ALL SELECT 'usage_events',count(*) FROM usage_events UNION ALL SELECT 'usage_buckets',count(*) FROM usage_buckets;")
+          out={'schema':'musitu.axiom.billing_d1_contract.v1','database_name':name,'database_uuid':dbid,'table_columns':columns,'index_names':indexes,'row_counts':counts,'query_mode':'PRAGMA_AND_SELECT_ONLY','mutation_performed':False,'migration_sql_published':False,'row_values_exposed':False,'gate':'AXIOM_BILLING_D1_CONTRACT_READ_PASS'}
           raw=(json.dumps(out,indent=2,sort_keys=True)+'\n').encode(); open('billing-d1-contract.json','wb').write(raw)
           digest=hashlib.sha256(raw).hexdigest(); open('billing-d1-contract.sha256','w').write(digest+'  billing-d1-contract.json\n')
-          print(json.dumps({'gate':out['gate'],'database_uuid':dbid,'columns':columns,'row_counts':counts,'mutation_performed':False,'migration_sql_published':False,'sha256':digest},sort_keys=True))
+          print(json.dumps({'gate':out['gate'],'database_uuid':dbid,'columns':columns,'row_counts':counts,'mutation_performed':False,'sha256':digest},sort_keys=True))
           PY
       - uses: actions/upload-artifact@v4
         with:
