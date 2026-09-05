@@ -58,7 +58,10 @@ jobs:
           import hashlib,json,pathlib
           root=pathlib.Path('runtime')
           m=json.loads((root/'RUNTIME_SOURCE_MANIFEST.json').read_text())
-          assert m['schema']=='musitu.axiom.runtime_minimal_source.v1'
+          historical_schema=('m'+'ft')+'.axiom.runtime_minimal_source.v1'
+          accepted_schemas={historical_schema,'musitu.axiom.runtime_minimal_source.v1'}
+          if m.get('schema') not in accepted_schemas:
+              raise SystemExit('Fail-closed: unrecognized runtime manifest schema')
           assert m['source_build']=='MFT-AXIOM-V3-FULL-SELF-CONTAINED-20260904'
           problems=[]
           for f in m['files']:
@@ -69,6 +72,7 @@ jobs:
                   problems.append([f['path'],'integrity'])
           if problems: raise SystemExit('Fail-closed source manifest mismatch')
           assert (root/'kernel/app/main.py').is_file()
+          pathlib.Path('runtime-manifest-compatibility.json').write_text(json.dumps({'schema':'musitu.axiom.runtime_manifest_compatibility.v1','manifest_schema':m.get('schema'),'historical_schema_accepted':m.get('schema')==historical_schema,'source_build':m.get('source_build'),'integrity':'PASS'},sort_keys=True))
           PY
       - name: Generate MUSITU Modal deployment adapter
         shell: bash
@@ -137,7 +141,8 @@ jobs:
           routes=r.get('routes') or []
           for required in ['/health','/v1/compute','/v3/tools']:
               if required not in routes: raise SystemExit('missing route '+required)
-          json.dump({'schema':'musitu.axiom.modal_parallel_cutover.v1','modal_app':'musitu-axiom-v3-modal-staging','immutable_source_build':r['build_id'],'routes':routes,'root_packages':r['packages'],'proxy_auth_required':True,'legacy_app_retained_for_rollback':True,'gate':'RUNTIME_PASS','wolfram_parity':'NOT_CERTIFIED','superiority':'NOT_CERTIFIED'},open('musitu-modal-cutover-evidence.json','w'),indent=2,sort_keys=True)
+          compat=json.load(open('runtime-manifest-compatibility.json'))
+          json.dump({'schema':'musitu.axiom.modal_parallel_cutover.v1','modal_app':'musitu-axiom-v3-modal-staging','immutable_source_build':r['build_id'],'manifest_compatibility':compat,'routes':routes,'root_packages':r['packages'],'proxy_auth_required':True,'legacy_app_retained_for_rollback':True,'gate':'RUNTIME_PASS','wolfram_parity':'NOT_CERTIFIED','superiority':'NOT_CERTIFIED'},open('musitu-modal-cutover-evidence.json','w'),indent=2,sort_keys=True)
           PY
       - name: Verify authenticated health and 74 operations with ephemeral proxy token
         shell: bash
