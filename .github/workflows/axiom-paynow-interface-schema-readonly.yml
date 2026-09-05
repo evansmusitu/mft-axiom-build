@@ -1,0 +1,103 @@
+name: MUSITU Axiom Paynow Interface Schema Read-Only
+
+on:
+  push:
+    paths:
+      - '.github/workflows/axiom-paynow-interface-schema-readonly.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      CF_API: https://api.cloudflare.com/client/v4
+      ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      PAYNOW_WORKER: mft-paynow-transport-gateway
+    steps:
+      - uses: actions/checkout@v4
+      - name: Parse only request and response field names
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import hashlib,json,os,re,urllib.request
+          api=os.environ['CF_API']; aid=os.environ['ACCOUNT_ID']; worker=os.environ['PAYNOW_WORKER']
+          h={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY'],'User-Agent':'MUSITU-Axiom-Paynow-Interface-Schema/1.0'}
+          req=urllib.request.Request(f'{api}/accounts/{aid}/workers/scripts/{worker}',headers=h,method='GET')
+          with urllib.request.urlopen(req,timeout=45) as r: raw=r.read()
+          text=raw.decode('utf-8','ignore')
+
+          def balanced_slice(src,start,pre=1800,maxlen=18000):
+              lo=max(0,start-pre)
+              # Find nearest opening brace before route and then its matching close.
+              open_i=src.rfind('{',lo,start+1)
+              if open_i<0: return src[lo:min(len(src),start+maxlen)]
+              depth=0; quote=None; esc=False
+              for i in range(open_i,min(len(src),open_i+maxlen)):
+                  ch=src[i]
+                  if quote:
+                      if esc: esc=False
+                      elif ch=='\\': esc=True
+                      elif ch==quote: quote=None
+                      continue
+                  if ch in ('"',"'",'`'): quote=ch; continue
+                  if ch=='{': depth+=1
+                  elif ch=='}':
+                      depth-=1
+                      if depth==0 and i>start: return src[lo:i+1]
+              return src[lo:min(len(src),start+maxlen)]
+
+          def names_from_object_pattern(s):
+              out=set()
+              for m in re.finditer(r'\{([^{}]{1,1200})\}\s*=\s*(?:await\s+)?(?:request\.json\(\)|[A-Za-z_$][A-Za-z0-9_$]*)',s,re.S):
+                  chunk=m.group(1)
+                  for token in chunk.split(','):
+                      token=token.strip().split('=')[0].strip()
+                      if ':' in token: token=token.split(':',1)[0].strip()
+                      if re.fullmatch(r'[A-Za-z_$][A-Za-z0-9_$]*',token): out.add(token)
+              return out
+
+          def route_schema(route):
+              i=text.find(route)
+              if i<0: return {'present':False}
+              s=balanced_slice(text,i)
+              request_fields=set()
+              request_fields |= names_from_object_pattern(s)
+              request_fields |= set(re.findall(r'\b(?:body|payload|input|data|j|reqBody)\.([A-Za-z_$][A-Za-z0-9_$]{0,80})\b',s))
+              # URLSearchParams / FormData payload keys used outbound or inbound.
+              wire_keys=set(re.findall(r'\.(?:append|set|get)\s*\(\s*["\']([A-Za-z0-9_.:-]{1,80})["\']',s))
+              # Object literal keys near JSON responses or normalized records.
+              object_keys=set(re.findall(r'(?<![.\w])["\']?([A-Za-z_$][A-Za-z0-9_$]{1,60})["\']?\s*:',s))
+              safe_object_keys={k for k in object_keys if any(x in k.lower() for x in ['status','reference','amount','currency','poll','redirect','url','customer','email','plan','price','payment','provider','result','return','hash','id','ok','error','message','state','event','additional','info'])}
+              helpers=set(re.findall(r'\b([A-Za-z_$][A-Za-z0-9_$]{2,80})\s*\(',s))
+              helpers={x for x in helpers if x not in {'if','for','while','switch','catch','fetch','Response','URL','URLSearchParams','JSON','String','Number','Boolean','Date','Math','Object','Array','Promise','encodeURIComponent'}}
+              headers=set(h.lower() for h in re.findall(r'headers\s*\.\s*get\s*\(\s*["\']([A-Za-z0-9_-]{1,80})["\']',s,re.I))
+              return {'present':True,'request_field_candidates':sorted(request_fields),'wire_key_candidates':sorted(wire_keys),'safe_object_key_candidates':sorted(safe_object_keys),'helper_call_candidates':sorted(helpers),'header_names':sorted(headers),'block_sha256':hashlib.sha256(s.encode()).hexdigest()}
+
+          routes=['/internal/paynow/initiate','/internal/paynow/poll','/education-nexus/v12/revenue/webhooks/paynow']
+          schemas={r:route_schema(r) for r in routes}
+          # Global helper signatures only; no function bodies or literal values.
+          fn_sigs=[]
+          for m in re.finditer(r'(?:async\s+)?function\s+([A-Za-z_$][A-Za-z0-9_$]*)\s*\(([^)]{0,300})\)',text):
+              name=m.group(1); params=[p.strip().split('=')[0].strip() for p in m.group(2).split(',') if p.strip()]
+              if any(key in name.lower() for key in ['paynow','payment','callback','poll','init','auth','capability','hash']): fn_sigs.append({'name':name,'params':params})
+          out={'schema':'musitu.axiom.paynow_interface_schema_readonly.v1','worker':worker,'routes':schemas,'relevant_function_signatures':fn_sigs,'source_sha256':hashlib.sha256(raw).hexdigest(),'source_published':False,'secret_values_logged':False,'mutation_performed':False,'gate':'AXIOM_PAYNOW_INTERFACE_SCHEMA_READ_PASS'}
+          blob=(json.dumps(out,indent=2,sort_keys=True)+'\n').encode(); open('paynow-interface-schema.json','wb').write(blob)
+          digest=hashlib.sha256(blob).hexdigest(); open('paynow-interface-schema.sha256','w').write(digest+'  paynow-interface-schema.json\n')
+          print(json.dumps({'gate':out['gate'],'routes':schemas,'relevant_function_signatures':fn_sigs,'source_sha256':out['source_sha256'],'source_published':False,'secret_values_logged':False,'mutation_performed':False,'artifact_sha256':digest},sort_keys=True))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: musitu-axiom-paynow-interface-schema-readonly
+          path: |
+            paynow-interface-schema.json
+            paynow-interface-schema.sha256
+          retention-days: 14
+          if-no-files-found: error
