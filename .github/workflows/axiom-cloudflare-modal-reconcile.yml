@@ -1,3 +1,4 @@
+# Pre-promotion read-only reconciliation rerun: 2026-09-05
 name: MFT Axiom Cloudflare Modal Reconcile
 
 on:
@@ -60,41 +61,24 @@ jobs:
           zone=rows[0]; zid=zone.get('id'); aid=(zone.get('account') or {}).get('id')
           if zid!=os.environ['EXPECTED_ZONE_ID']: raise SystemExit('Fail-closed: zone id mismatch')
           if aid!=os.environ['EXPECTED_ACCOUNT_ID']: raise SystemExit('Fail-closed: account id mismatch')
-
-          # Worker script metadata (GET only; never emit source/body)
           script_code,script_resp=call(f'/accounts/{aid}/workers/scripts/{os.environ["WORKER_NAME"]}', allow=(200,404))
           worker_present=script_code==200
-          script_meta={
-              'present':worker_present,
-              'content_type':None,
-              'etag':None,
-          }
-          # Obtain metadata via script settings endpoint where supported.
           settings_code,settings=call(f'/accounts/{aid}/workers/scripts/{os.environ["WORKER_NAME"]}/settings', allow=(200,404))
           binding_rows=[]
           if settings_code==200 and isinstance(settings,dict):
               result=settings.get('result') or {}
-              raw_bindings=result.get('bindings') or []
-              for b in raw_bindings:
-                  if isinstance(b,dict):
-                      binding_rows.append({k:b.get(k) for k in ('name','type','namespace_id','database_id','bucket_name') if b.get(k) is not None})
+              for b in result.get('bindings') or []:
+                  if isinstance(b,dict): binding_rows.append({k:b.get(k) for k in ('name','type','namespace_id','database_id','bucket_name') if b.get(k) is not None})
           binding_rows=sorted(binding_rows,key=lambda x:(str(x.get('name')),str(x.get('type'))))
-
-          # Custom domains for this Worker.
           _,domains=call(f'/accounts/{aid}/workers/domains')
           domain_rows=[]
           for d in (domains or {}).get('result') or []:
               if d.get('hostname')==os.environ['STAGE_HOST']:
                   domain_rows.append({k:d.get(k) for k in ('id','hostname','service','environment','zone_id','cert_id') if d.get(k) is not None})
           if len(domain_rows)!=1: raise SystemExit(f'Fail-closed: expected one staging custom domain, got {len(domain_rows)}')
-
-          # DNS record for stage host.
           _,dns=call(f'/zones/{zid}/dns_records?name='+urllib.parse.quote(os.environ['STAGE_HOST']))
           dns_rows=[]
-          for d in (dns or {}).get('result') or []:
-              dns_rows.append({k:d.get(k) for k in ('id','name','type','content','proxied','proxiable','comment','tags') if d.get(k) is not None})
-
-          # Zone phase rulesets; surface only safe metadata and exact matched staging rule expression/action parameters.
+          for d in (dns or {}).get('result') or []: dns_rows.append({k:d.get(k) for k in ('id','name','type','content','proxied','proxiable','comment','tags') if d.get(k) is not None})
           _,rulesets=call(f'/zones/{zid}/rulesets')
           ruleset_summaries=[]; stage_rules=[]
           for rs in (rulesets or {}).get('result') or []:
@@ -105,53 +89,19 @@ jobs:
                   if c==200:
                       for r in ((detail or {}).get('result') or {}).get('rules') or []:
                           if r.get('ref')==os.environ['STAGE_RULE_REF']:
-                              stage_rules.append({
-                                  'id':r.get('id'),'ref':r.get('ref'),'enabled':r.get('enabled'),
-                                  'expression':r.get('expression'),'action':r.get('action'),
-                                  'action_parameters':r.get('action_parameters'),
-                                  'description':r.get('description'),
-                                  'ruleset_id':rid,'phase':phase,
-                              })
+                              stage_rules.append({'id':r.get('id'),'ref':r.get('ref'),'enabled':r.get('enabled'),'expression':r.get('expression'),'action':r.get('action'),'action_parameters':r.get('action_parameters'),'description':r.get('description'),'ruleset_id':rid,'phase':phase})
           if len(stage_rules)!=1: raise SystemExit(f'Fail-closed: expected one scoped staging rule, got {len(stage_rules)}')
-
-          # D1 exact readback.
           _,d1list=call(f'/accounts/{aid}/d1/database?name='+urllib.parse.quote(os.environ['D1_NAME']))
           matches=[x for x in (d1list or {}).get('result') or [] if x.get('name')==os.environ['D1_NAME']]
           if len(matches)!=1: raise SystemExit(f'Fail-closed: expected exactly one production D1, got {len(matches)}')
-          dbid=matches[0].get('uuid')
-          _,d1read=call(f'/accounts/{aid}/d1/database/{dbid}')
+          dbid=matches[0].get('uuid'); _,d1read=call(f'/accounts/{aid}/d1/database/{dbid}')
           db=(d1read or {}).get('result') or {}
           if db.get('uuid')!=dbid or db.get('name')!=os.environ['D1_NAME']: raise SystemExit('Fail-closed: D1 readback mismatch')
           d1_safe={k:db.get(k) for k in ('uuid','name','version','num_tables','file_size','created_at') if db.get(k) is not None}
-
-          out={
-            'schema':'mft.axiom.cloudflare_modal_reconcile.v1',
-            'zone':{'id':zid,'name':zone.get('name'),'status':zone.get('status'),'account_id':aid},
-            'worker':{'name':os.environ['WORKER_NAME'],'present':worker_present,'settings_http':settings_code,'bindings':binding_rows},
-            'stage_domain':domain_rows[0],
-            'stage_dns':dns_rows,
-            'stage_security_rule':stage_rules[0],
-            'ruleset_count':len(ruleset_summaries),
-            'd1':d1_safe,
-            'write_performed':False,
-            'production_compute_active':False,
-            'wolfram_parity':'NOT_CERTIFIED',
-            'superiority':'NOT_CERTIFIED',
-          }
+          out={'schema':'mft.axiom.cloudflare_modal_reconcile.v1','zone':{'id':zid,'name':zone.get('name'),'status':zone.get('status'),'account_id':aid},'worker':{'name':os.environ['WORKER_NAME'],'present':worker_present,'settings_http':settings_code,'bindings':binding_rows},'stage_domain':domain_rows[0],'stage_dns':dns_rows,'stage_security_rule':stage_rules[0],'ruleset_count':len(ruleset_summaries),'d1':d1_safe,'write_performed':False,'production_compute_active':False,'wolfram_parity':'NOT_CERTIFIED','superiority':'NOT_CERTIFIED'}
           open('cloudflare-modal-reconcile.json','w').write(json.dumps(out,indent=2,sort_keys=True))
-          print(json.dumps({
-            'reconcile_pass':True,
-            'worker_present':worker_present,
-            'binding_names':[x.get('name') for x in binding_rows],
-            'stage_domain_service':domain_rows[0].get('service'),
-            'stage_rule_ref':stage_rules[0].get('ref'),
-            'stage_rule_expression':stage_rules[0].get('expression'),
-            'd1_name':d1_safe.get('name'),
-            'd1_num_tables':d1_safe.get('num_tables'),
-            'write_performed':False,
-          },sort_keys=True))
+          print(json.dumps({'reconcile_pass':True,'worker_present':worker_present,'binding_names':[x.get('name') for x in binding_rows],'stage_domain_service':domain_rows[0].get('service'),'stage_rule_ref':stage_rules[0].get('ref'),'stage_rule_expression':stage_rules[0].get('expression'),'d1_name':d1_safe.get('name'),'d1_num_tables':d1_safe.get('num_tables'),'write_performed':False},sort_keys=True))
           PY
-
       - name: Read external staging health contract
         shell: bash
         run: |
@@ -161,23 +111,13 @@ jobs:
           python - <<'PY'
           import json
           x=json.load(open('stage-health.json'))
-          expected={
-            'ok':True,
-            'product':'MFT Axiom',
-            'build':'MFT-AXIOM-EDGE-BOOTSTRAP-20260904',
-            'deployment_state':'EDGE_BOOTSTRAP_ONLY',
-            'production_compute_active':False,
-            'wolfram_parity':'NOT_CERTIFIED',
-            'superiority':'NOT_CERTIFIED',
-          }
+          expected={'ok':True,'product':'MFT Axiom','build':'MFT-AXIOM-EDGE-BOOTSTRAP-20260904','deployment_state':'EDGE_BOOTSTRAP_ONLY','production_compute_active':False,'wolfram_parity':'NOT_CERTIFIED','superiority':'NOT_CERTIFIED'}
           bad={k:[x.get(k),v] for k,v in expected.items() if x.get(k)!=v}
           if bad: raise SystemExit('Fail-closed: unexpected staging health contract '+repr(bad))
           print(json.dumps({'stage_health_pass':True,'build':x.get('build'),'deployment_state':x.get('deployment_state'),'production_compute_active':x.get('production_compute_active'),'tool_count':x.get('tool_count')},sort_keys=True))
           PY
-
       - name: Seal read-only reconciliation evidence
         run: sha256sum cloudflare-modal-reconcile.json stage-health.json > cloudflare-modal-reconcile.sha256
-
       - uses: actions/upload-artifact@v4
         with:
           name: mft-axiom-cloudflare-modal-reconcile
