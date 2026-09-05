@@ -1,0 +1,117 @@
+name: MUSITU Axiom Commercial Cutover Preflight Read-Only
+
+on:
+  push:
+    paths:
+      - '.github/workflows/axiom-commercial-cutover-preflight-readonly.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  preflight:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      CF_API: https://api.cloudflare.com/client/v4
+      ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      D1_UUID: 504029cc-f9a5-495e-818f-63c6144b4ea4
+      BILLING: mft-axiom-billing-ingress
+      AUTHORITY: mft-phase8-external-authority
+      TRANSPORT: mft-paynow-transport-gateway
+      BACKEND: mft-axiom-modal-edge-stage
+    steps:
+      - uses: actions/checkout@v4
+      - name: Seal live source hashes, bindings, auth semantics and ledger
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import email,hashlib,json,os,re,urllib.error,urllib.parse,urllib.request
+          api=os.environ['CF_API'];aid=os.environ['ACCOUNT_ID'];dbid=os.environ['D1_UUID']
+          H={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY'],'Accept':'application/json','User-Agent':'MUSITU-Axiom-Commercial-Preflight/1.0'}
+          def http(path,method='GET',obj=None):
+              h=dict(H);body=None
+              if obj is not None:h['Content-Type']='application/json';body=json.dumps(obj,separators=(',',':')).encode()
+              q=urllib.request.Request(api+path,headers=h,method=method,data=body)
+              try:
+                  with urllib.request.urlopen(q,timeout=45) as r:return r.status,r.headers,r.read()
+              except urllib.error.HTTPError as e:return e.code,e.headers,e.read()
+          def cf(path,method='GET',obj=None):
+              c,h,b=http(path,method,obj)
+              if not 200<=c<300:raise SystemExit(f'CF HTTP {c} {path}: '+b[:240].decode('utf-8','ignore'))
+              x=json.loads(b or b'{}')
+              if isinstance(x,dict) and x.get('success') is False:raise SystemExit('CF success=false '+path)
+              return x.get('result') if isinstance(x,dict) else None
+          def source(name):
+              c,h,raw=http(f'/accounts/{aid}/workers/scripts/{urllib.parse.quote(name,safe="")}')
+              if c!=200:raise SystemExit(f'source HTTP {c} {name}')
+              ct=h.get('content-type','');src=raw
+              if 'multipart/' in ct.lower():
+                  msg=email.message_from_bytes((f'Content-Type: {ct}\r\nMIME-Version: 1.0\r\n\r\n').encode()+raw);parts=[]
+                  for p in msg.walk():
+                      if p.is_multipart():continue
+                      d=p.get_payload(decode=True) or b''
+                      if any(x in d for x in (b'fetch(',b'export default',b'addEventListener')):parts.append(d)
+                  if len(parts)!=1:raise SystemExit(f'executable module count {name}={len(parts)}')
+                  src=parts[0]
+              return src
+          scripts={}
+          for k in ('BILLING','AUTHORITY','TRANSPORT','BACKEND'):
+              name=os.environ[k];src=source(name);scripts[k.lower()]={'name':name,'sha256':hashlib.sha256(src).hexdigest(),'bytes':len(src)}
+              if k=='BACKEND':backend_text=src.decode('utf-8','ignore')
+          binding_meta={}
+          for k in ('BILLING','AUTHORITY','TRANSPORT'):
+              name=os.environ[k];settings=cf(f'/accounts/{aid}/workers/scripts/{urllib.parse.quote(name,safe="")}/settings') or {};arr=[]
+              for z in settings.get('bindings') or []:
+                  if not isinstance(z,dict):continue
+                  item={'name':z.get('name'),'type':z.get('type')}
+                  if z.get('type')=='service':item['service']=z.get('service')
+                  if z.get('type')=='d1':item['id']=z.get('id')
+                  arr.append(item)
+              binding_meta[k.lower()]=sorted(arr,key=lambda x:str(x.get('name')))
+          # Derive API-key authentication semantics without publishing source.
+          windows=[];low=backend_text.lower()
+          for needle in ('key_hash','authorization','bearer '):
+              start=0
+              while True:
+                  i=low.find(needle,start)
+                  if i<0:break
+                  windows.append(backend_text[max(0,i-1200):min(len(backend_text),i+1800)]);start=i+len(needle)
+          joined='\n'.join(windows)
+          auth_semantics={
+            'authorization_bearer':bool(re.search(r'bearer\s',joined,re.I)),
+            'key_hash_column':'key_hash' in joined.lower(),
+            'sha256_present':bool(re.search(r'SHA-?256|sha256',joined,re.I)),
+            'crypto_subtle_digest':bool(re.search(r'crypto\.subtle\.digest',joined)),
+            'api_key_status_checked':bool(re.search(r'api_keys[^;]{0,500}status|status[^;]{0,500}api_keys',joined,re.I|re.S)),
+            'customer_status_checked':'customers' in joined.lower() and 'status' in joined.lower(),
+          }
+          qpath=f'/accounts/{aid}/d1/database/{dbid}/query'
+          def d1(sql):
+              rr=cf(qpath,'POST',{'sql':sql}) or [];out=[]
+              if not rr or not all(x.get('success') is True for x in rr):raise SystemExit('D1 query failed')
+              for x in rr:out.extend(x.get('results') or [])
+              return out
+          cols=[x.get('name') for x in d1('PRAGMA table_info("billing_checkout_intents");')]
+          intent_count=d1('SELECT count(*) AS n FROM billing_checkout_intents;')[0]['n']
+          customer_count=d1('SELECT count(*) AS n FROM customers;')[0]['n']
+          active_key_count=d1("SELECT count(*) AS n FROM api_keys WHERE status='active';")[0]['n']
+          out={'schema':'musitu.axiom.commercial_cutover_preflight.v1','scripts':scripts,'bindings':binding_meta,'api_key_auth_semantics':auth_semantics,'checkout_intent_columns':cols,'checkout_intent_count':intent_count,'customer_count':customer_count,'active_key_count':active_key_count,'paynow_integration_id':26343,'paynow_integration_key_read':False,'secret_values_read':False,'mutation_performed':False,'gate':'AXIOM_COMMERCIAL_CUTOVER_PREFLIGHT_PASS'}
+          if not all(auth_semantics.values()):raise SystemExit('Fail-closed API key auth semantics incomplete '+json.dumps(auth_semantics))
+          if cols!=['reference','customer_id','plan','amount_cents','currency','monthly_unit_limit','status','browser_url','poll_url','paynow_reference','created_at','expires_at','updated_at','completed_at']:raise SystemExit('Fail-closed checkout intent schema mismatch')
+          blob=(json.dumps(out,indent=2,sort_keys=True)+'\n').encode();open('commercial-cutover-preflight.json','wb').write(blob);dg=hashlib.sha256(blob).hexdigest();open('commercial-cutover-preflight.sha256','w').write(dg+'  commercial-cutover-preflight.json\n')
+          print(json.dumps({**out,'evidence_sha256':dg},sort_keys=True))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: musitu-axiom-commercial-cutover-preflight
+          path: |
+            commercial-cutover-preflight.json
+            commercial-cutover-preflight.sha256
+          retention-days: 30
+          if-no-files-found: error
