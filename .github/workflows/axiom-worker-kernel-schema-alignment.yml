@@ -1,0 +1,78 @@
+name: MFT Axiom Worker Kernel Schema Alignment
+
+on:
+  push:
+    paths:
+      - '.github/workflows/axiom-worker-kernel-schema-alignment.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Reconstruct protected source
+        env:
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          P=deploy_payload/runtime_min
+          cat "$P/chunk_00.b64" "$P/chunk_01_02.b64" "$P/chunk_03_04.b64" "$P/chunk_05_06.b64" "$P/chunk_07_08.b64" "$P/chunk_09.b64" > runtime.enc.b64
+          base64 -d runtime.enc.b64 > runtime.tar.gz.enc
+          test "$(sha256sum runtime.tar.gz.enc | awk '{print $1}')" = 'b82448d6b4b34b302748815af976b535d69922c197d4b7a9056fc2f91a9e12cf'
+          openssl enc -d -aes-256-cbc -pbkdf2 -iter 250000 -in runtime.tar.gz.enc -out runtime.tar.gz -pass env:CLOUDFLARE_GLOBAL_API_KEY
+          test "$(sha256sum runtime.tar.gz | awk '{print $1}')" = 'b4d5a0266446523969a619f5e9bb5a04d9b815c78a2ab82ed046ef5e23d53663'
+          mkdir runtime && tar -xzf runtime.tar.gz -C runtime
+      - name: Compare edge payload additions with kernel compute model
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import ast,json,pathlib,re
+          w=pathlib.Path('runtime/worker/src/index.js').read_text(errors='replace')
+          k=pathlib.Path('runtime/kernel/app/main.py').read_text(errors='replace')
+          pos=w.find('http://container/v1/compute')
+          if pos<0: raise SystemExit('worker compute URL missing')
+          ctx=w[max(0,pos-4000):pos+3000]
+          # Identify fields explicitly added in JSON.stringify object near the kernel request.
+          explicit=sorted(set(re.findall(r'\b([A-Za-z_$][\w$]*)\s*:\s*[A-Za-z_$][\w$]*\s*(?:,|\})',ctx)))
+          spreads=sorted(set(re.findall(r'\.\.\.\s*([A-Za-z_$][\w$]*)',ctx)))
+          request_id_added=bool(re.search(r'\brequest_id\s*:',ctx))
+          # Parse Python AST to report Pydantic-style model fields only, not source text.
+          tree=ast.parse(k)
+          models={}
+          for n in tree.body:
+              if isinstance(n,ast.ClassDef):
+                  bases=[]
+                  for b in n.bases:
+                      if isinstance(b,ast.Name): bases.append(b.id)
+                      elif isinstance(b,ast.Attribute): bases.append(b.attr)
+                  if 'BaseModel' in bases:
+                      fields=[]
+                      for x in n.body:
+                          if isinstance(x,ast.AnnAssign) and isinstance(x.target,ast.Name): fields.append(x.target.id)
+                      models[n.name]=sorted(fields)
+          compute_models={name:fields for name,fields in models.items() if 'compute' in name.lower() or {'operation','args'}.issubset(set(fields))}
+          all_compute_fields=sorted(set(x for v in compute_models.values() for x in v))
+          out={
+            'schema':'mft.axiom.worker_kernel_schema_alignment.v1',
+            'worker_request_id_added':request_id_added,
+            'worker_nearby_explicit_object_keys':explicit,
+            'worker_nearby_spread_variables':spreads,
+            'kernel_compute_models':compute_models,
+            'kernel_compute_fields_union':all_compute_fields,
+            'kernel_accepts_request_id':'request_id' in all_compute_fields,
+            'plaintext_source_committed':False,
+          }
+          pathlib.Path('worker-kernel-schema-alignment.json').write_text(json.dumps(out,indent=2,sort_keys=True))
+          print(json.dumps(out,sort_keys=True))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mft-axiom-worker-kernel-schema-alignment
+          path: worker-kernel-schema-alignment.json
+          retention-days: 7
