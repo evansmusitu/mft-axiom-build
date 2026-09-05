@@ -1,0 +1,93 @@
+name: MUSITU Axiom MCP Production Diagnostic
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/axiom-mcp-production-diagnostic.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    env:
+      CF_API: https://api.cloudflare.com/client/v4
+      ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      ZONE_ID: 5b56528f03948ff5917a5e0cd9f7109e
+      MCP_HOST: mcp.mftintelligence.com
+      MCP_WORKER: musitu-axiom-mcp
+      MCP_RULE_REF: musitu_axiom_mcp_machine_transport
+      AXIOM_BASE: https://axiom.mftintelligence.com
+      BILLING_BASE: https://payments.mftintelligence.com
+    steps:
+      - name: Read live MCP state and probe safely
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json,os,pathlib,urllib.error,urllib.parse,urllib.request
+          api=os.environ['CF_API']; aid=os.environ['ACCOUNT_ID']; zid=os.environ['ZONE_ID']; host=os.environ['MCP_HOST']; worker=os.environ['MCP_WORKER']
+          h={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY'],'Accept':'application/json','User-Agent':'MUSITU-Axiom-MCP-Diagnostic/1.0'}
+          def raw(url,method='GET',headers=None,body=None):
+              req=urllib.request.Request(url,headers=dict(headers or {}),method=method,data=body)
+              try:
+                  with urllib.request.urlopen(req,timeout=40) as r:return r.status,r.headers,r.read()
+              except urllib.error.HTTPError as e:return e.code,e.headers,e.read()
+              except Exception as e:return 0,{},str(type(e).__name__+':'+str(e)).encode()
+          def cf(path):
+              c,hh,b=raw(api+path,headers=h)
+              try:o=json.loads(b or b'{}')
+              except Exception:o={}
+              return c,o.get('result') if isinstance(o,dict) else None
+          def probe(url,method='GET',obj=None):
+              hh={'Accept':'application/json','User-Agent':'MUSITU-Axiom-MCP-Diagnostic/1.0'}; body=None
+              if obj is not None:hh['Content-Type']='application/json';body=json.dumps(obj,separators=(',',':')).encode()
+              c,rh,b=raw(url,method,hh,body)
+              text=b.decode('utf-8','replace')[:5000]
+              try:o=json.loads(text or '{}')
+              except Exception:o={'non_json_prefix':text[:500]}
+              return {'http':c,'body':o,'content_type':str(rh.get('content-type',''))}
+          _,domains=cf(f'/accounts/{aid}/workers/domains'); d=[{'hostname':x.get('hostname'),'service':x.get('service'),'id_present':bool(x.get('id'))} for x in (domains or []) if x.get('hostname')==host]
+          sc,settings=cf(f'/accounts/{aid}/workers/scripts/{urllib.parse.quote(worker,safe="")}/settings')
+          bindings=[]
+          if isinstance(settings,dict):
+              for b in settings.get('bindings') or []:
+                  if not isinstance(b,dict):continue
+                  row={'name':b.get('name'),'type':b.get('type')}
+                  if b.get('type')=='plain_text':row['text']=b.get('text')
+                  bindings.append(row)
+          subc,sub=cf(f'/accounts/{aid}/workers/scripts/{urllib.parse.quote(worker,safe="")}/subdomain')
+          _,rs=cf(f'/zones/{zid}/rulesets'); matches=[]
+          for x in (rs or []):
+              if x.get('phase')=='http_config_settings' and x.get('kind')=='zone':
+                  _,det=cf(f'/zones/{zid}/rulesets/{x.get("id")}')
+                  for r in (det or {}).get('rules') or []:
+                      if r.get('ref')==os.environ['MCP_RULE_REF']:
+                          matches.append({'ref':r.get('ref'),'expression':r.get('expression'),'action':r.get('action'),'action_parameters':r.get('action_parameters'),'enabled':r.get('enabled')})
+          base='https://'+host
+          out={
+            'schema':'musitu.axiom.mcp.production_diagnostic.v1','write_performed':False,
+            'domain_rows':d,'worker_settings_http':sc,'worker_bindings':bindings,'subdomain_http':subc,'subdomain':sub,
+            'machine_transport_rules':matches,
+            'mcp_health':probe(base+'/health'),
+            'mcp_initialize':probe(base+'/mcp','POST',{'jsonrpc':'2.0','id':1,'method':'initialize','params':{'protocolVersion':'2025-06-18','capabilities':{},'clientInfo':{'name':'diagnostic','version':'1'}}}),
+            'axiom_health':probe(os.environ['AXIOM_BASE']+'/health'),
+            'axiom_tools':probe(os.environ['AXIOM_BASE']+'/v1/tools'),
+            'billing_health':probe(os.environ['BILLING_BASE']+'/billing/healthz'),
+          }
+          pathlib.Path('musitu-axiom-mcp-diagnostic.json').write_text(json.dumps(out,indent=2,sort_keys=True)+'\n')
+          print(json.dumps(out,sort_keys=True))
+          PY
+      - name: Upload diagnostic evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: musitu-axiom-mcp-production-diagnostic
+          path: musitu-axiom-mcp-diagnostic.json
+          retention-days: 7
+          if-no-files-found: error
