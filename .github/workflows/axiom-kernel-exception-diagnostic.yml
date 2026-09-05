@@ -88,13 +88,12 @@ jobs:
           import pathlib,re,hashlib,json
           p=pathlib.Path('runtime/worker/src/index.js'); s=p.read_text()
           original_sha=hashlib.sha256(s.encode()).hexdigest()
-          needle='kernel_unavailable'
-          positions=[m.start() for m in re.finditer(needle,s)]
+          positions=[m.start() for m in re.finditer('kernel_unavailable',s)]
           if len(positions)!=1: raise SystemExit(f'Fail-closed: expected exactly one kernel_unavailable literal, got {len(positions)}')
           pos=positions[0]
-          catches=list(re.finditer(r'catch\s*\(\s*([A-Za-z_$][\w$]*)\s*\)\s*\{',s[:pos]))
-          if not catches: raise SystemExit('Fail-closed: catch variable not found')
-          c=catches[-1]; var=c.group(1); start=c.end()
+          catches=list(re.finditer(r'catch\s*(?:\(\s*([A-Za-z_$][\w$]*)\s*\))?\s*\{',s[:pos]))
+          if not catches: raise SystemExit('Fail-closed: enclosing catch not found')
+          c=catches[-1]; start=c.end()
           depth=1; quote=None; esc=False; i=start
           while i<len(s) and depth:
               ch=s[i]
@@ -108,14 +107,16 @@ jobs:
                   elif ch=='}': depth-=1
               i+=1
           if not (c.start() < pos < i): raise SystemExit('Fail-closed: kernel_unavailable not inside nearest catch')
+          var=c.group(1) or '__axiomDiagError'
+          header=s[c.start():c.end()] if c.group(1) else 'catch (__axiomDiagError) {'
           injection = (
               "\nreturn new Response(JSON.stringify({ok:false,error:'kernel_unavailable',diagnostic_error_class:("
               + var + "&&" + var + ".name)||'Error',diagnostic_message:String(("
               + var + "&&" + var + ".message)||'').slice(0,160)}),{status:598,headers:{'content-type':'application/json'}});\n"
           )
-          patched=s[:start]+injection+s[start:]
+          patched=s[:c.start()]+header+injection+s[c.end():]
           p.write_text(patched)
-          out={'original_source_sha256':original_sha,'patched_source_sha256':hashlib.sha256(patched.encode()).hexdigest(),'instrumentation':'CATCH_ENTRY_SAFE_EXCEPTION_CLASS_MESSAGE','plaintext_source_committed':False}
+          out={'original_source_sha256':original_sha,'patched_source_sha256':hashlib.sha256(patched.encode()).hexdigest(),'instrumentation':'BARE_CATCH_SAFE_EXCEPTION_CLASS_MESSAGE','plaintext_source_committed':False}
           pathlib.Path('/tmp/instrumentation.json').write_text(json.dumps(out,sort_keys=True))
           print(json.dumps({'instrumentation_pass':True,'instrumentation':out['instrumentation']},sort_keys=True))
           PY
