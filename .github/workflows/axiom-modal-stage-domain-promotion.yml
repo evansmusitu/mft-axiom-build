@@ -1,0 +1,182 @@
+name: MFT Axiom Modal Stage Domain Promotion
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/axiom-modal-stage-domain-promotion.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  promote:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      CF_API: https://api.cloudflare.com/client/v4
+      ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      ZONE_ID: 5b56528f03948ff5917a5e0cd9f7109e
+      ZONE_NAME: mftintelligence.com
+      HOSTNAME: axiom-stage.mftintelligence.com
+      OLD_SERVICE: mft-axiom-bootstrap
+      NEW_SERVICE: mft-axiom-modal-edge-stage
+      BUILD_ID: MFT-AXIOM-V3-FULL-SELF-CONTAINED-20260904
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Re-read exact pre-promotion domain state
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json,os,urllib.request
+          h={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY'],'Content-Type':'application/json'}
+          base=os.environ['CF_API']; aid=os.environ['ACCOUNT_ID']; host=os.environ['HOSTNAME']
+          def get(path):
+              q=urllib.request.Request(base+path,headers=h)
+              with urllib.request.urlopen(q,timeout=30) as r:x=json.load(r)
+              if not x.get('success'): raise SystemExit('Cloudflare read success=false')
+              return x.get('result') or []
+          domains=get(f'/accounts/{aid}/workers/domains')
+          rows=[d for d in domains if d.get('hostname')==host]
+          if len(rows)!=1: raise SystemExit(f'Fail-closed: expected one custom domain, got {len(rows)}')
+          if rows[0].get('service')!=os.environ['OLD_SERVICE']:
+              raise SystemExit('Fail-closed: staging hostname no longer points to expected bootstrap service')
+          if rows[0].get('zone_id')!=os.environ['ZONE_ID']:
+              raise SystemExit('Fail-closed: custom-domain zone id mismatch')
+          print('domain_precondition=PASS')
+          PY
+          code="$(curl -sS --max-time 30 -o /tmp/pre-health.json -w '%{http_code}' "https://${HOSTNAME}/health" || true)"
+          test "$code" = 200
+          python - <<'PY'
+          import json
+          x=json.load(open('/tmp/pre-health.json'))
+          if x.get('build')!='MFT-AXIOM-EDGE-BOOTSTRAP-20260904' or x.get('deployment_state')!='EDGE_BOOTSTRAP_ONLY' or x.get('production_compute_active') is not False:
+              raise SystemExit('Fail-closed: bootstrap health precondition changed')
+          print('bootstrap_health_precondition=PASS')
+          PY
+
+      - name: Attach staging hostname to verified Modal-backed edge with rollback
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json,os,time,urllib.request,urllib.error
+          base=os.environ['CF_API']; aid=os.environ['ACCOUNT_ID']; host=os.environ['HOSTNAME']; zid=os.environ['ZONE_ID']; zn=os.environ['ZONE_NAME']
+          headers={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY'],'Content-Type':'application/json'}
+          def call(path,method='GET',body=None):
+              data=None if body is None else json.dumps(body).encode()
+              q=urllib.request.Request(base+path,headers=headers,data=data,method=method)
+              try:
+                  with urllib.request.urlopen(q,timeout=30) as r: raw=r.read(); code=r.status
+              except urllib.error.HTTPError as e:
+                  raw=e.read(); code=e.code
+              if not 200<=code<300: raise RuntimeError(f'Cloudflare HTTP {code}: {raw[:300]!r}')
+              x=json.loads(raw) if raw else {}
+              if isinstance(x,dict) and x.get('success') is False: raise RuntimeError('Cloudflare success=false')
+              return x
+          def attach(service):
+              return call(f'/accounts/{aid}/workers/domains','PUT',{'hostname':host,'service':service,'zone_id':zid,'zone_name':zn})
+          promoted=False
+          try:
+              attach(os.environ['NEW_SERVICE']); promoted=True
+              # Exact API readback before external polling.
+              domains=call(f'/accounts/{aid}/workers/domains').get('result') or []
+              rows=[d for d in domains if d.get('hostname')==host]
+              if len(rows)!=1 or rows[0].get('service')!=os.environ['NEW_SERVICE']:
+                  raise RuntimeError('custom-domain service readback mismatch after promotion')
+              print('domain_api_promotion=PASS')
+
+              expected_build=os.environ['BUILD_ID']
+              last=None
+              for _ in range(40):
+                  try:
+                      q=urllib.request.Request('https://'+host+'/health')
+                      with urllib.request.urlopen(q,timeout=20) as r: body=r.read(); code=r.status
+                      if code==200:
+                          h=json.loads(body)
+                          if (h.get('ok') is True and h.get('status')=='READY' and h.get('version')=='3.0.0' and
+                              h.get('build_id')==expected_build and h.get('operation_count')==74 and h.get('state')=='D1' and
+                              h.get('wolfram_parity')=='NOT_CERTIFIED' and h.get('superiority')=='NOT_CERTIFIED'):
+                              open('/tmp/promoted-health.json','wb').write(body)
+                              break
+                          last='health contract mismatch '+repr(h)
+                  except Exception as e: last=repr(e)
+                  time.sleep(2)
+              else: raise RuntimeError('promoted health never reached canonical contract: '+str(last))
+
+              with urllib.request.urlopen('https://'+host+'/v1/tools',timeout=30) as r:
+                  tools=json.loads(r.read())
+              if tools.get('operation_count')!=74 or len(tools.get('tools') or [])!=74:
+                  raise RuntimeError('74-tool gate failed')
+
+              data=json.dumps({'operation':'arithmetic.evaluate','args':{'expression':'40+2'},'verify':True}).encode()
+              q=urllib.request.Request('https://'+host+'/v1/compute',data=data,headers={'content-type':'application/json'},method='POST')
+              try:
+                  with urllib.request.urlopen(q,timeout=30) as r: unauth_code=r.status
+              except urllib.error.HTTPError as e:
+                  unauth_code=e.code; e.read()
+              if unauth_code!=401: raise RuntimeError(f'unauthorized compute expected 401 got {unauth_code}')
+              print('custom_domain_public_contract=PASS')
+          except Exception as exc:
+              if promoted:
+                  try:
+                      attach(os.environ['OLD_SERVICE'])
+                      print('rollback_to_bootstrap=PASS')
+                  except Exception as rb:
+                      print('ROLLBACK_FAILED='+repr(rb))
+              raise
+          PY
+
+      - name: Re-read promoted domain and scoped security state
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json,os,urllib.request
+          h={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY']}
+          base=os.environ['CF_API']; aid=os.environ['ACCOUNT_ID']; zid=os.environ['ZONE_ID']
+          def get(path):
+              q=urllib.request.Request(base+path,headers=h)
+              with urllib.request.urlopen(q,timeout=30) as r:x=json.load(r)
+              if not x.get('success'): raise SystemExit('Cloudflare readback success=false')
+              return x.get('result') or []
+          domains=get(f'/accounts/{aid}/workers/domains')
+          rows=[d for d in domains if d.get('hostname')==os.environ['HOSTNAME']]
+          if len(rows)!=1 or rows[0].get('service')!=os.environ['NEW_SERVICE']:
+              raise SystemExit('Fail-closed: final domain readback mismatch')
+          rulesets=get(f'/zones/{zid}/rulesets'); found=[]
+          for rs in rulesets:
+              rid=rs.get('id')
+              if not rid: continue
+              detail=get(f'/zones/{zid}/rulesets/{rid}')
+              if isinstance(detail,dict): rr=detail.get('rules') or []
+              else: rr=[]
+              for r in rr:
+                  if r.get('ref')=='mft_axiom_stage_machine_transport': found.append(r)
+          if len(found)!=1 or found[0].get('expression')!='http.host eq "axiom-stage.mftintelligence.com"' or found[0].get('enabled') is not True:
+              raise SystemExit('Fail-closed: scoped stage security rule changed')
+          out={'schema':'mft.axiom.modal_stage_domain_promotion.v1','hostname':os.environ['HOSTNAME'],'old_service':os.environ['OLD_SERVICE'],'new_service':os.environ['NEW_SERVICE'],'build':os.environ['BUILD_ID'],'operation_count':74,'health':'PASS','unauthorized_compute':'401_PASS','scoped_security_rule':'UNCHANGED_PASS','authenticated_compute':'PENDING_SEPARATE_FINAL_GATE','billing':'NOT_CONFIGURED','wolfram_parity':'NOT_CERTIFIED','superiority':'NOT_CERTIFIED','gate':'CUSTOM_DOMAIN_PUBLIC_PASS_AUTHENTICATED_FINAL_GATE_PENDING'}
+          open('stage-domain-promotion.json','w').write(json.dumps(out,indent=2,sort_keys=True))
+          print('final_domain_and_security_readback=PASS')
+          PY
+          sha256sum stage-domain-promotion.json /tmp/promoted-health.json > stage-domain-promotion.sha256
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mft-axiom-modal-stage-domain-promotion
+          path: |
+            stage-domain-promotion.json
+            stage-domain-promotion.sha256
+          retention-days: 14
+          if-no-files-found: error
