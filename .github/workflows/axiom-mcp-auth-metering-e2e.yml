@@ -1,0 +1,125 @@
+name: MUSITU Axiom MCP Auth Metering E2E
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/axiom-mcp-auth-metering-e2e.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: musitu-axiom-mcp-auth-metering-e2e
+  cancel-in-progress: false
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    env:
+      CF_API: https://api.cloudflare.com/client/v4
+      ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      D1_UUID: 504029cc-f9a5-495e-818f-63c6144b4ea4
+      MCP_BASE: https://mcp.mftintelligence.com
+      EXPECTED_BUILD: MFT-AXIOM-V3-FULL-SELF-CONTAINED-20260904
+    steps:
+      - name: Execute disposable authenticated MCP compute and prove ledger delta
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import datetime,hashlib,json,os,pathlib,re,secrets,urllib.error,urllib.request,uuid
+          api=os.environ['CF_API'];aid=os.environ['ACCOUNT_ID'];dbid=os.environ['D1_UUID'];base=os.environ['MCP_BASE'];build=os.environ['EXPECTED_BUILD']
+          cfh={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY'],'Accept':'application/json','User-Agent':'MUSITU-Axiom-MCP-E2E/1.0'}
+          def http(url,method='GET',headers=None,body=None):
+            q=urllib.request.Request(url,headers=dict(headers or {}),method=method,data=body)
+            try:
+              with urllib.request.urlopen(q,timeout=50) as r:return r.status,r.headers,r.read()
+            except urllib.error.HTTPError as e:return e.code,e.headers,e.read()
+          def d1(sql,params=None):
+            obj={'sql':sql}
+            if params is not None:obj['params']=params
+            h=dict(cfh);h['Content-Type']='application/json';c,_,b=http(f'{api}/accounts/{aid}/d1/database/{dbid}/query','POST',h,json.dumps(obj,separators=(',',':')).encode())
+            if not 200<=c<300:raise RuntimeError('D1 HTTP '+str(c))
+            x=json.loads(b or b'{}');rr=x.get('result') or [];rows=[]
+            if not rr or not all(r.get('success') is True for r in rr):raise RuntimeError('D1 statement failed')
+            for r in rr:rows.extend(r.get('results') or [])
+            return rows
+          def mcp(method,params=None,token=None,rid=None,id=1):
+            h={'Accept':'application/json','Content-Type':'application/json','User-Agent':'MUSITU-Axiom-MCP-E2E/1.0'}
+            if token:h['Authorization']='Bearer '+token
+            if rid:h['x-musitu-request-id']=rid
+            body=json.dumps({'jsonrpc':'2.0','id':id,'method':method,'params':params or {}},separators=(',',':')).encode()
+            c,hh,b=http(base+'/mcp','POST',h,body)
+            try:o=json.loads(b or b'{}')
+            except:o={}
+            return c,hh,o
+          def keys(x,d=0,out=None):
+            out=set() if out is None else out
+            if d>7:return out
+            if isinstance(x,dict):
+              for k,v in x.items():out.add(str(k));keys(v,d+1,out)
+            elif isinstance(x,list):
+              for v in x[:50]:keys(v,d+1,out)
+            return out
+          hc,_,hb=http(base+'/health',headers={'Accept':'application/json','User-Agent':'MUSITU-Axiom-MCP-E2E/1.0'});health=json.loads(hb or b'{}')
+          if hc!=200 or health.get('ok') is not True or health.get('build_id')!=build or int(health.get('operation_count') or -1)!=74:raise RuntimeError('MCP production health contract mismatch')
+          lc,_,lo=mcp('tools/list',id=2);tools=(lo.get('result') or {}).get('tools') or []
+          if lc!=200 or len({((t.get('_meta') or {}).get('musitu/operation')) for t in tools if isinstance(t,dict)}-{None})!=74:raise RuntimeError('MCP full registry not present')
+          # unauth paid execution must fail before any fixture mutation.
+          uc,_,uo=mcp('tools/call',{'name':'musitu_axiom_execute','arguments':{'operation':'arithmetic.evaluate','args':{'expression':'40+2'}}},id=3)
+          ur=uo.get('result') or {}
+          if uc!=200 or ur.get('isError') is not True or ((ur.get('structuredContent') or {}).get('authenticated') is not False):raise RuntimeError('unauthenticated MCP execution did not fail closed')
+          residue=d1("SELECT (SELECT count(*) FROM customers WHERE id LIKE 'fixture_mcp_customer_%')+(SELECT count(*) FROM api_keys WHERE id LIKE 'fixture_mcp_key_%')+(SELECT count(*) FROM usage_events WHERE customer_id LIKE 'fixture_mcp_customer_%')+(SELECT count(*) FROM usage_buckets WHERE customer_id LIKE 'fixture_mcp_customer_%') AS n;")
+          if not residue or int(residue[0]['n'])!=0:raise RuntimeError('preexisting MCP fixture residue')
+          suffix=uuid.uuid4().hex;customer='fixture_mcp_customer_'+suffix;keyid='fixture_mcp_key_'+suffix
+          token='musitu_axiom_mcp_e2e_'+secrets.token_urlsafe(36);print('::add-mask::'+token)
+          kh=hashlib.sha256(token.encode()).hexdigest();kp=token[:16];email='mcp-e2e-'+suffix+'@invalid.example'
+          now=datetime.datetime.now(datetime.timezone.utc);created=now.isoformat().replace('+00:00','Z');expires=(now+datetime.timedelta(hours=1)).isoformat().replace('+00:00','Z');rid='MUSITU-MCP-E2E-'+uuid.uuid4().hex.upper()
+          inserted=False;evidence={}
+          try:
+            d1('INSERT INTO customers(id,email,name,plan,status,monthly_unit_override,created_at,updated_at) VALUES(?1,?2,?3,?4,?5,?6,?7,?7)',[customer,email,'MUSITU disposable MCP E2E fixture','developer','active',100,created])
+            d1('INSERT INTO api_keys(id,customer_id,key_hash,key_prefix,label,status,created_at,last_used_at,expires_at,revoked_at) VALUES(?1,?2,?3,?4,?5,?6,?7,NULL,?8,NULL)',[keyid,customer,kh,kp,'disposable-mcp-auth-metering-e2e','active',created,expires]);inserted=True
+            be=int(d1('SELECT count(*) AS n FROM usage_events WHERE customer_id=?1',[customer])[0]['n']);bu=int(d1('SELECT COALESCE(SUM(used_units),0) AS n FROM usage_buckets WHERE customer_id=?1',[customer])[0]['n'])
+            cc,_,co=mcp('tools/call',{'name':'musitu_axiom_execute','arguments':{'operation':'arithmetic.evaluate','args':{'expression':'40+2'}}},token,rid,4)
+            if cc!=200:raise RuntimeError('MCP call HTTP '+str(cc))
+            rr=co.get('result') or {}
+            if rr.get('isError') is True:raise RuntimeError('MCP authenticated tool returned isError')
+            ser=json.dumps(co,separators=(',',':'),sort_keys=True)
+            if not re.search(r'(?<![0-9])42(?:\.0+)?(?![0-9])',ser):raise RuntimeError('result 42 absent through MCP')
+            ks=keys(co);receipt=any(('receipt' in k.lower() or 'signature' in k.lower()) for k in ks)
+            if not receipt:raise RuntimeError('receipt/signature material absent through MCP')
+            ev=d1('SELECT request_id,operation,compute_units,customer_id,key_id,http_status,result_sha256 FROM usage_events WHERE customer_id=?1 ORDER BY created_at DESC',[customer])
+            if len(ev)!=be+1:raise RuntimeError('usage event exact delta != 1')
+            e=ev[0];units=int(e.get('compute_units') or 0)
+            if e.get('request_id')!=rid or e.get('operation')!='arithmetic.evaluate' or e.get('customer_id')!=customer or e.get('key_id')!=keyid or int(e.get('http_status') or 0)!=200 or units<=0 or len(str(e.get('result_sha256') or ''))<32:raise RuntimeError('MCP usage-event reconciliation mismatch')
+            au=int(d1('SELECT COALESCE(SUM(used_units),0) AS n FROM usage_buckets WHERE customer_id=?1',[customer])[0]['n'])
+            if au-bu!=units:raise RuntimeError('MCP bucket delta mismatch')
+            bucket=d1('SELECT used_units,unit_limit FROM usage_buckets WHERE customer_id=?1',[customer])
+            if len(bucket)!=1 or int(bucket[0].get('unit_limit') or 0)!=100:raise RuntimeError('MCP quota bucket mismatch')
+            lu=d1('SELECT last_used_at FROM api_keys WHERE id=?1',[keyid])
+            if not lu or not lu[0].get('last_used_at'):raise RuntimeError('MCP API key last_used_at not advanced')
+            evidence={'schema':'musitu.axiom.mcp.auth_metering_e2e.v1','gate':'MUSITU_AXIOM_REMOTE_MCP_E2E_PASS','mcp_endpoint':base+'/mcp','build_id':health.get('build_id'),'operation_count':74,'all_runtime_operations_advertised':True,'unauthenticated_paid_execution_fail_closed':True,'authenticated_mcp_http':cc,'operation':'arithmetic.evaluate','result_42_observed':True,'receipt_or_signature_material_present':True,'usage_event_delta':1,'compute_units':units,'usage_bucket_unit_delta':units,'request_id_matched':True,'customer_id_matched':True,'key_id_matched':True,'result_sha256_present':True,'api_key_last_used_updated':True,'raw_api_key_published':False,'worker_secret_mutation':False,'oauth_public_launch_still_required':True,'wolfram_parity':'NOT_CERTIFIED','superiority':'NOT_CERTIFIED'}
+          finally:
+            if inserted:
+              try:
+                d1('DELETE FROM usage_events WHERE customer_id=?1',[customer]);d1('DELETE FROM usage_buckets WHERE customer_id=?1',[customer]);d1('DELETE FROM api_keys WHERE id=?1',[keyid]);d1('DELETE FROM customers WHERE id=?1',[customer])
+              finally:
+                rm=d1('SELECT (SELECT count(*) FROM customers WHERE id=?1)+(SELECT count(*) FROM api_keys WHERE id=?2)+(SELECT count(*) FROM usage_events WHERE customer_id=?1)+(SELECT count(*) FROM usage_buckets WHERE customer_id=?1) AS n',[customer,keyid]);evidence['fixture_rows_remaining']=int(rm[0]['n']) if rm else -1
+          if evidence.get('gate')!='MUSITU_AXIOM_REMOTE_MCP_E2E_PASS' or evidence.get('fixture_rows_remaining')!=0:raise RuntimeError('MCP E2E gate or cleanup failed')
+          evidence['cleanup_complete']=True;raw=(json.dumps(evidence,indent=2,sort_keys=True)+'\n').encode();pathlib.Path('musitu-axiom-mcp-auth-metering-e2e.json').write_bytes(raw);dg=hashlib.sha256(raw).hexdigest();pathlib.Path('musitu-axiom-mcp-auth-metering-e2e.sha256').write_text(dg+'  musitu-axiom-mcp-auth-metering-e2e.json\n')
+          print(json.dumps({**evidence,'evidence_sha256':dg},sort_keys=True))
+          PY
+      - name: Upload sealed MCP E2E evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: musitu-axiom-mcp-auth-metering-e2e
+          path: |
+            musitu-axiom-mcp-auth-metering-e2e.json
+            musitu-axiom-mcp-auth-metering-e2e.sha256
+          retention-days: 30
+          if-no-files-found: error
