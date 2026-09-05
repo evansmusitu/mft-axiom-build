@@ -1,5 +1,3 @@
-# MUSITU brand cutover verification trigger
-# Fresh live verification refresh: 2026-09-05
 name: MUSITU Axiom Production Admission Gate
 
 on:
@@ -14,17 +12,21 @@ permissions:
 jobs:
   admission:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 12
     env:
       CF_API: https://api.cloudflare.com/client/v4
       EXPECTED_ZONE: mftintelligence.com
       EXPECTED_ZONE_ID: 5b56528f03948ff5917a5e0cd9f7109e
       EXPECTED_ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
       STAGE_HOST: axiom-stage.mftintelligence.com
-      STAGE_SERVICE: mft-axiom-modal-edge-stage
+      PUBLIC_EDGE: musitu-axiom-modal-edge-stage
+      PROTECTED_BACKEND: mft-axiom-modal-edge-stage
+      PROTECTED_ADAPTER: mft-axiom-modal-adapter
+      MUSITU_D1: musitu-axiom-prod
+      MUSITU_MODAL_URL: https://evansmusitu--musitu-axiom-v3-modal-staging-axiom-kernel.modal.run
       EXPECTED_BUILD: MFT-AXIOM-V3-FULL-SELF-CONTAINED-20260904
     steps:
-      - name: Audit production admission fail-closed
+      - name: Audit production admission fail-closed against current live chain
         env:
           CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
           CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
@@ -34,28 +36,37 @@ jobs:
           test -n "$CLOUDFLARE_EMAIL"
           test -n "$CLOUDFLARE_GLOBAL_API_KEY"
           python - <<'PY'
-          import json,os,urllib.parse,urllib.request,urllib.error
+          import hashlib,json,os,urllib.error,urllib.parse,urllib.request
+
           base=os.environ['CF_API']
           headers={
             'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],
             'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY'],
             'Content-Type':'application/json',
-            'User-Agent':'MUSITU-Axiom-Production-Admission/1.0',
+            'User-Agent':'MUSITU-Axiom-Production-Admission/2.0',
           }
-          def cfget(path):
-            req=urllib.request.Request(base+path,headers=headers,method='GET')
-            with urllib.request.urlopen(req,timeout=30) as r: body=json.load(r)
-            if r.status!=200 or not body.get('success'):
-              raise SystemExit(f'Fail-closed Cloudflare read failed: {path}')
-            return body.get('result')
-          def http_json(url,method='GET',body=None,extra=None):
-            h={'Accept':'application/json','User-Agent':'MUSITU-Axiom-Production-Admission/1.0'}
-            if extra: h.update(extra)
+          def cf(path,method='GET',body=None):
+            data=None if body is None else json.dumps(body).encode()
+            req=urllib.request.Request(base+path,headers=headers,data=data,method=method)
+            try:
+              with urllib.request.urlopen(req,timeout=45) as r:
+                raw=r.read(); code=r.status
+            except urllib.error.HTTPError as e:
+              raw=e.read(); code=e.code
+            if code < 200 or code >= 300:
+              raise SystemExit(f'Fail-closed Cloudflare read failed HTTP {code}: {path}')
+            x=json.loads(raw or b'{}')
+            if x.get('success') is False:
+              raise SystemExit(f'Fail-closed Cloudflare success=false: {path}')
+            return x.get('result')
+
+          def http_json(url,method='GET',body=None):
+            h={'Accept':'application/json','User-Agent':'MUSITU-Axiom-Production-Admission/2.0'}
             data=None if body is None else json.dumps(body).encode()
             if data is not None: h['Content-Type']='application/json'
             req=urllib.request.Request(url,headers=h,data=data,method=method)
             try:
-              with urllib.request.urlopen(req,timeout=30) as r:
+              with urllib.request.urlopen(req,timeout=45) as r:
                 raw=r.read(); return r.status,json.loads(raw or b'{}')
             except urllib.error.HTTPError as e:
               raw=e.read()
@@ -63,28 +74,82 @@ jobs:
               except Exception: parsed={}
               return e.code,parsed
 
-          zones=cfget('/zones?name='+urllib.parse.quote(os.environ['EXPECTED_ZONE'])+'&status=active') or []
+          zones=cf('/zones?name='+urllib.parse.quote(os.environ['EXPECTED_ZONE'])+'&status=active') or []
           if len(zones)!=1: raise SystemExit('Fail-closed: canonical zone not unique')
           z=zones[0]; zid=z.get('id'); aid=(z.get('account') or {}).get('id')
           if zid!=os.environ['EXPECTED_ZONE_ID'] or aid!=os.environ['EXPECTED_ACCOUNT_ID']:
             raise SystemExit('Fail-closed: zone/account identity mismatch')
 
-          domains=cfget(f'/accounts/{aid}/workers/domains') or []
+          security_level=cf(f'/zones/{zid}/settings/security_level') or {}
+          browser_check=cf(f'/zones/{zid}/settings/browser_check') or {}
+          always_https=cf(f'/zones/{zid}/settings/always_use_https') or {}
+          if security_level.get('value')!='under_attack' or browser_check.get('value')!='on':
+            raise SystemExit('Fail-closed: global challenge posture weakened from verified state')
+
+          domains=cf(f'/accounts/{aid}/workers/domains') or []
           stage=[d for d in domains if d.get('hostname')==os.environ['STAGE_HOST']]
-          if len(stage)!=1 or stage[0].get('service')!=os.environ['STAGE_SERVICE']:
-            raise SystemExit('Fail-closed: verified staging domain mapping changed')
+          if len(stage)!=1 or stage[0].get('service')!=os.environ['PUBLIC_EDGE']:
+            raise SystemExit('Fail-closed: verified MUSITU staging domain mapping changed')
           axiom_nonstage=[{
             'hostname':d.get('hostname'),'service':d.get('service'),'environment':d.get('environment')
           } for d in domains if 'axiom' in str(d.get('hostname') or '').lower() and d.get('hostname')!=os.environ['STAGE_HOST']]
 
+          edge=cf(f'/accounts/{aid}/workers/scripts/{os.environ["PUBLIC_EDGE"]}/settings') or {}
+          edge_services=[b for b in (edge.get('bindings') or []) if isinstance(b,dict) and b.get('type')=='service']
+          if not any(b.get('service')==os.environ['PROTECTED_BACKEND'] for b in edge_services):
+            raise SystemExit('Fail-closed: public MUSITU edge backend binding drift')
+
+          dbs=cf(f'/accounts/{aid}/d1/database?name='+urllib.parse.quote(os.environ['MUSITU_D1'])) or []
+          dbs=[x for x in dbs if x.get('name')==os.environ['MUSITU_D1']]
+          if len(dbs)!=1: raise SystemExit('Fail-closed: live MUSITU D1 not uniquely resolvable')
+          d1id=dbs[0].get('uuid') or dbs[0].get('id')
+
+          backend=cf(f'/accounts/{aid}/workers/scripts/{os.environ["PROTECTED_BACKEND"]}/settings') or {}
+          bindings=backend.get('bindings') or []
+          binding_names={b.get('name') for b in bindings if isinstance(b,dict)}
+          required={'AXIOM_DB','AXIOM_KERNEL','MUSITU_CONTROL_SECRET','MUSITU_RECEIPT_SECRET'}
+          if not required.issubset(binding_names):
+            raise SystemExit('Fail-closed: current backend MUSITU binding contract incomplete')
+          if {'MFT_CONTROL_SECRET','MFT_RECEIPT_SECRET'} & binding_names:
+            raise SystemExit('Fail-closed: retired protocol secret bindings reappeared')
+          dbb=[b for b in bindings if b.get('name')=='AXIOM_DB']
+          kb=[b for b in bindings if b.get('name')=='AXIOM_KERNEL']
+          if len(dbb)!=1 or dbb[0].get('id')!=d1id:
+            raise SystemExit('Fail-closed: AXIOM_DB no longer targets MUSITU D1')
+          if len(kb)!=1 or kb[0].get('service')!=os.environ['PROTECTED_ADAPTER']:
+            raise SystemExit('Fail-closed: AXIOM_KERNEL protected adapter drift')
+
+          adapter=cf(f'/accounts/{aid}/workers/scripts/{os.environ["PROTECTED_ADAPTER"]}/settings') or {}
+          adapter_bindings=adapter.get('bindings') or []
+          adapter_names={b.get('name') for b in adapter_bindings if isinstance(b,dict)}
+          if not {'MODAL_BASE_URL','MODAL_PROXY_KEY','MODAL_PROXY_SECRET'}.issubset(adapter_names):
+            raise SystemExit('Fail-closed: private Modal adapter binding contract incomplete')
+          mb=[b for b in adapter_bindings if b.get('name')=='MODAL_BASE_URL']
+          if len(mb)!=1 or mb[0].get('text')!=os.environ['MUSITU_MODAL_URL']:
+            raise SystemExit('Fail-closed: private adapter no longer targets MUSITU Modal')
+
+          inventory_sql="SELECT type,name,tbl_name FROM sqlite_master WHERE type IN ('table','index') AND name NOT LIKE 'sqlite_%' AND name NOT LIKE '_cf_%' ORDER BY type,name;"
+          qr=cf(f'/accounts/{aid}/d1/database/{d1id}/query','POST',{'sql':inventory_sql}) or []
+          if not qr or not all(x.get('success') is True for x in qr):
+            raise SystemExit('Fail-closed: live MUSITU D1 SELECT audit failed')
+          inventory=[]
+          for chunk in qr: inventory.extend(chunk.get('results') or [])
+          tables=sorted(x['name'] for x in inventory if x.get('type')=='table')
+          indexes=sorted(x['name'] for x in inventory if x.get('type')=='index')
+          expected_tables=sorted(['customers','api_keys','usage_buckets','usage_events','billing_subscriptions','webhook_events'])
+          required_indexes=sorted(['idx_api_keys_customer','idx_usage_events_customer_time','idx_usage_events_request'])
+          if tables!=expected_tables or any(x not in indexes for x in required_indexes):
+            raise SystemExit('Fail-closed: live MUSITU D1 canonical schema drift')
+
           hs,hj=http_json('https://'+os.environ['STAGE_HOST']+'/health')
           if hs!=200 or hj.get('ok') is not True or hj.get('build_id')!=os.environ['EXPECTED_BUILD'] or int(hj.get('operation_count') or -1)!=74:
             raise SystemExit('Fail-closed: staging FULL health contract regressed')
-          us,uj=http_json('https://'+os.environ['STAGE_HOST']+'/v1/compute',method='POST',body={'operation':'arithmetic.add','args':{'a':40,'b':2}})
+          ts,tj=http_json('https://'+os.environ['STAGE_HOST']+'/v1/tools')
+          if ts!=200 or int(tj.get('operation_count') or -1)!=74 or len(tj.get('tools') or [])!=74:
+            raise SystemExit('Fail-closed: staging tool registry regressed')
+          us,_=http_json('https://'+os.environ['STAGE_HOST']+'/v1/compute',method='POST',body={'operation':'arithmetic.add','args':{'a':40,'b':2}})
           if us!=401: raise SystemExit(f'Fail-closed: unauth compute expected 401, got {us}')
 
-          bindings=cfget(f'/accounts/{aid}/workers/services/{os.environ["STAGE_SERVICE"]}/environments/production/bindings') or []
-          binding_names=sorted({str(b.get('name') or '') for b in bindings})
           stripe_required=['STRIPE_WEBHOOK_SECRET','STRIPE_PRICE_PLAN_MAP','AXIOM_DOWNGRADE_ON_CANCEL']
           stripe_presence={k:(k in binding_names) for k in stripe_required}
           commercial_configured=all(stripe_presence.values())
@@ -97,16 +162,32 @@ jobs:
           blockers.append('CUSTOMER_BEARER_METERING_END_TO_END_NOT_YET_PROVEN')
 
           out={
-            'schema':'musitu.axiom.production_admission.v1',
+            'schema':'musitu.axiom.production_admission.v2',
             'zone':os.environ['EXPECTED_ZONE'],
             'account_id':aid,
+            'global_security':{
+              'security_level':security_level.get('value'),
+              'browser_check':browser_check.get('value'),
+              'always_use_https':always_https.get('value'),
+              'challenge_posture':'PASS',
+              'configuration_write_performed':False,
+            },
             'staging':{
               'hostname':os.environ['STAGE_HOST'],
-              'service':os.environ['STAGE_SERVICE'],
+              'public_edge':os.environ['PUBLIC_EDGE'],
+              'protected_backend':os.environ['PROTECTED_BACKEND'],
+              'protected_adapter':os.environ['PROTECTED_ADAPTER'],
+              'modal_target':os.environ['MUSITU_MODAL_URL'],
+              'd1_name':os.environ['MUSITU_D1'],
+              'd1_uuid':d1id,
+              'd1_schema':'PASS',
               'health':'PASS',
               'build_id':hj.get('build_id'),
               'operation_count':hj.get('operation_count'),
+              'tools':'PASS',
               'unauth_compute_status':us,
+              'musitu_protocol_bindings':'PASS',
+              'retired_protocol_secret_bindings_absent':True,
             },
             'axiom_nonstage_custom_domains':axiom_nonstage,
             'stripe_binding_presence':stripe_presence,
@@ -118,23 +199,32 @@ jobs:
             'wolfram_parity':'NOT_CERTIFIED',
             'superiority':'NOT_CERTIFIED',
           }
-          open('axiom-production-admission.json','w').write(json.dumps(out,indent=2,sort_keys=True))
+          raw=(json.dumps(out,indent=2,sort_keys=True)+'\n').encode()
+          open('axiom-production-admission.json','wb').write(raw)
+          digest=hashlib.sha256(raw).hexdigest()
+          open('axiom-production-admission.sha256','w').write(digest+'  axiom-production-admission.json\n')
           print(json.dumps({
             'staging_health':'PASS',
+            'stage_service':os.environ['PUBLIC_EDGE'],
             'build_id':hj.get('build_id'),
             'operation_count':hj.get('operation_count'),
             'unauth_compute_status':us,
+            'd1_name':os.environ['MUSITU_D1'],
+            'd1_uuid':d1id,
+            'd1_schema':'PASS',
+            'global_challenge_posture':'PASS',
+            'always_use_https':always_https.get('value'),
             'axiom_nonstage_custom_domains':axiom_nonstage,
             'stripe_binding_presence':stripe_presence,
             'customer_bearer_metering_e2e':'NOT_PROVEN',
             'production_admission':out['production_admission'],
             'blockers':blockers,
             'write_performed':False,
+            'sha256':digest,
           },sort_keys=True))
           PY
-      - name: Seal admission evidence
-        run: sha256sum axiom-production-admission.json > axiom-production-admission.sha256
-      - uses: actions/upload-artifact@v4
+      - name: Upload sealed production-admission evidence
+        uses: actions/upload-artifact@v4
         with:
           name: musitu-axiom-production-admission
           path: |
