@@ -1,0 +1,91 @@
+name: MFT Axiom Pathname Match Arguments
+
+on:
+  push:
+    paths:
+      - '.github/workflows/axiom-pathname-match-arguments.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Reconstruct protected source
+        env:
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          P=deploy_payload/runtime_min
+          cat "$P/chunk_00.b64" "$P/chunk_01_02.b64" "$P/chunk_03_04.b64" "$P/chunk_05_06.b64" "$P/chunk_07_08.b64" "$P/chunk_09.b64" > runtime.enc.b64
+          base64 -d runtime.enc.b64 > runtime.tar.gz.enc
+          test "$(sha256sum runtime.tar.gz.enc | awk '{print $1}')" = 'b82448d6b4b34b302748815af976b535d69922c197d4b7a9056fc2f91a9e12cf'
+          openssl enc -d -aes-256-cbc -pbkdf2 -iter 250000 -in runtime.tar.gz.enc -out runtime.tar.gz -pass env:CLOUDFLARE_GLOBAL_API_KEY
+          test "$(sha256sum runtime.tar.gz | awk '{print $1}')" = 'b4d5a0266446523969a619f5e9bb5a04d9b815c78a2ab82ed046ef5e23d53663'
+          mkdir runtime && tar -xzf runtime.tar.gz -C runtime
+      - name: Emit pathname match arguments only
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json,pathlib,re
+          s=pathlib.Path('runtime/worker/src/index.js').read_text(errors='replace')
+          needle='url.pathname.match('
+          args=[]; pos=0
+          while True:
+              i=s.find(needle,pos)
+              if i<0: break
+              j=i+len(needle); start=j; depth=1; quote=None; esc=False; regex_mode=False; charclass=False
+              # Infer regex literal when first non-space char is '/'.
+              while j<len(s) and s[j].isspace(): j+=1
+              if j<len(s) and s[j]=='/': regex_mode=True
+              k=j
+              while k<len(s):
+                  c=s[k]
+                  if quote:
+                      if esc: esc=False
+                      elif c=='\\': esc=True
+                      elif c==quote: quote=None
+                      k+=1; continue
+                  if regex_mode:
+                      if esc: esc=False; k+=1; continue
+                      if c=='\\': esc=True; k+=1; continue
+                      if c=='[': charclass=True; k+=1; continue
+                      if c==']': charclass=False; k+=1; continue
+                      if c=='/' and not charclass and k>j:
+                          regex_mode=False; k+=1
+                          while k<len(s) and s[k].isalpha(): k+=1
+                          continue
+                      k+=1; continue
+                  if c in "'\"`": quote=c; k+=1; continue
+                  if c=='(':
+                      depth+=1
+                  elif c==')':
+                      depth-=1
+                      if depth==0:
+                          arg=s[start:k].strip()
+                          if len(arg)<=300:
+                              args.append(arg)
+                          break
+                  k+=1
+              pos=max(k+1,i+1)
+          # Keep only route-safe argument forms; discard arbitrary expressions.
+          safe=[]
+          for a in args:
+              if re.fullmatch(r'[A-Za-z_$][\w$]*',a): safe.append({'kind':'identifier','value':a})
+              elif a.startswith('/') and re.fullmatch(r'/[A-Za-z0-9_\\/\^$.*+?()[\]{}|:-]+/[gimsuy]*',a): safe.append({'kind':'regex','value':a})
+          # Resolve identifier initializers only if regex literals.
+          resolved=[]
+          for row in safe:
+              if row['kind']=='identifier':
+                  name=row['value']
+                  m=re.search(r'\b(?:const|let|var)\s+'+re.escape(name)+r'\s*=\s*(/[^;\n]{1,300}/[gimsuy]*)\s*;',s)
+                  if m: resolved.append({'identifier':name,'regex':m.group(1)})
+          out={'schema':'mft.axiom.pathname_match_arguments.v1','match_arguments':safe,'resolved_regex_identifiers':resolved,'plaintext_source_committed':False}
+          pathlib.Path('pathname-match-arguments.json').write_text(json.dumps(out,indent=2,sort_keys=True))
+          print(json.dumps(out,sort_keys=True))
+          PY
