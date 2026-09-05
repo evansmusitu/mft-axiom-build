@@ -1,0 +1,193 @@
+name: MFT Axiom Kernel Exception Diagnostic
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/axiom-kernel-exception-diagnostic.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    env:
+      ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+      CLOUDFLARE_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+      CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+      D1_NAME: mft-axiom-prod
+      TARGET_WORKER: mft-axiom-kernel-exception-target
+      DIAG_EDGE: mft-axiom-kernel-exception-edge
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install deployment tooling
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --no-save --ignore-scripts --no-audit --no-fund wrangler@4.129.0 esbuild@0.25.9 >/dev/null
+          npx wrangler auth token --json >/tmp/cf-auth.json
+
+      - name: Reconstruct protected canonical source
+        shell: bash
+        run: |
+          set -euo pipefail
+          P=deploy_payload/runtime_min
+          cat "$P/chunk_00.b64" "$P/chunk_01_02.b64" "$P/chunk_03_04.b64" "$P/chunk_05_06.b64" "$P/chunk_07_08.b64" "$P/chunk_09.b64" > runtime.enc.b64
+          base64 -d runtime.enc.b64 > runtime.tar.gz.enc
+          test "$(sha256sum runtime.tar.gz.enc | awk '{print $1}')" = 'b82448d6b4b34b302748815af976b535d69922c197d4b7a9056fc2f91a9e12cf'
+          python - <<'PY'
+          import hashlib,hmac,os
+          b=open('runtime.tar.gz.enc','rb').read()
+          if not hmac.compare_digest(hmac.new(os.environ['CLOUDFLARE_GLOBAL_API_KEY'].encode(),b,hashlib.sha256).hexdigest(),'1a3193d4f3271d61d151e6ebd7cf4576d8ab86c2e79b84eff4ad0f635fe7ab47'):
+              raise SystemExit('HMAC mismatch')
+          PY
+          openssl enc -d -aes-256-cbc -pbkdf2 -iter 250000 -in runtime.tar.gz.enc -out runtime.tar.gz -pass env:CLOUDFLARE_GLOBAL_API_KEY
+          test "$(sha256sum runtime.tar.gz | awk '{print $1}')" = 'b4d5a0266446523969a619f5e9bb5a04d9b815c78a2ab82ed046ef5e23d53663'
+          mkdir runtime && tar -xzf runtime.tar.gz -C runtime
+
+      - name: Resolve D1 ID
+        id: d1
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY' >/tmp/d1-id
+          import json,os,urllib.request,urllib.parse
+          h={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_API_KEY']}
+          u=f"https://api.cloudflare.com/client/v4/accounts/{os.environ['ACCOUNT_ID']}/d1/database?name="+urllib.parse.quote(os.environ['D1_NAME'])
+          with urllib.request.urlopen(urllib.request.Request(u,headers=h),timeout=30) as r:x=json.load(r)
+          rows=[z for z in x.get('result',[]) if z.get('name')==os.environ['D1_NAME']]
+          if len(rows)!=1: raise SystemExit('expected one D1')
+          print(rows[0].get('uuid') or rows[0].get('id'))
+          PY
+          echo "database_id=$(cat /tmp/d1-id)" >> "$GITHUB_OUTPUT"
+
+      - name: Deploy private always-OK kernel target
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir target
+          cat > target/index.js <<'JS'
+          export default {async fetch(request){
+            return new Response(JSON.stringify({ok:true,operation:'arithmetic.evaluate',result:42,result_sha256:'diagnostic',verified:true,kernel_version:'diagnostic',elapsed_ms:0}),{status:200,headers:{'content-type':'application/json'}});
+          }};
+          JS
+          python - <<'PY'
+          import json,os
+          open('target/wrangler.json','w').write(json.dumps({'name':os.environ['TARGET_WORKER'],'main':'index.js','compatibility_date':'2026-09-04','workers_dev':False},indent=2))
+          PY
+          (cd target && npx wrangler deploy --config wrangler.json >/dev/null)
+
+      - name: Instrument only swallowed kernel exception in ephemeral source
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import pathlib,re,hashlib,json
+          p=pathlib.Path('runtime/worker/src/index.js'); s=p.read_text()
+          original_sha=hashlib.sha256(s.encode()).hexdigest()
+          needle='kernel_unavailable'
+          positions=[m.start() for m in re.finditer(needle,s)]
+          if len(positions)!=1: raise SystemExit(f'Fail-closed: expected exactly one kernel_unavailable literal, got {len(positions)}')
+          pos=positions[0]
+          # Locate nearest enclosing catch(variable) before the literal.
+          catches=list(re.finditer(r'catch\s*\(\s*([A-Za-z_$][\w$]*)\s*\)\s*\{',s[:pos]))
+          if not catches: raise SystemExit('Fail-closed: catch variable not found')
+          c=catches[-1]; var=c.group(1); start=c.end()
+          # Ensure literal is within this catch block by matching braces conservatively.
+          depth=1; quote=None; esc=False; i=start
+          while i<len(s) and depth:
+              ch=s[i]
+              if quote:
+                  if esc: esc=False
+                  elif ch=='\\': esc=True
+                  elif ch==quote: quote=None
+              else:
+                  if ch in "'\"`": quote=ch
+                  elif ch=='{': depth+=1
+                  elif ch=='}': depth-=1
+              i+=1
+          if not (c.start() < pos < i): raise SystemExit('Fail-closed: kernel_unavailable not inside nearest catch')
+          # Inject one safe response at catch entry; do not expose stack/source/data.
+          injection=("\nreturn new Response(JSON.stringify({ok:false,error:'kernel_unavailable',"
+                     f"diagnostic_error_class:({var}&&{var}.name)||'Error',"
+                     f"diagnostic_message:String(({var}&&{var}.message)||'').slice(0,160)}),"
+                     "{status:598,headers:{'content-type':'application/json'}});\n")
+          patched=s[:start]+injection+s[start:]
+          p.write_text(patched)
+          out={'original_source_sha256':original_sha,'patched_source_sha256':hashlib.sha256(patched.encode()).hexdigest(),'instrumentation':'CATCH_ENTRY_SAFE_EXCEPTION_CLASS_MESSAGE','plaintext_source_committed':False}
+          pathlib.Path('/tmp/instrumentation.json').write_text(json.dumps(out,sort_keys=True))
+          print(json.dumps({'instrumentation_pass':True,'instrumentation':out['instrumentation']},sort_keys=True))
+          PY
+
+      - name: Bundle and deploy isolated instrumented edge
+        env:
+          D1_ID: ${{ steps.d1.outputs.database_id }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('runtime/worker/src/catalog.js'); s=p.read_text()
+          candidates=["export const BUILD_ID = 'MFT-AXIOM-V3-SELF-CONTAINED-20260904';","export const BUILD_ID = 'MFT-AXIOM-V3-RUNTIME-RECONSTRUCTION-20260904';","export const BUILD_ID = 'MFT-AXIOM-V3-FULL-SELF-CONTAINED-20260904';"]
+          found=[x for x in candidates if x in s]
+          if len(found)!=1: raise SystemExit('build identity source not unique')
+          p.write_text(s.replace(found[0],"export const BUILD_ID = 'MFT-AXIOM-V3-FULL-SELF-CONTAINED-20260904';"))
+          PY
+          mkdir diag
+          npx esbuild runtime/worker/src/index.js --bundle --format=esm --platform=browser --target=es2022 --outfile=diag/worker.js --log-level=warning
+          python - <<'PY'
+          import json,os
+          cfg={'name':os.environ['DIAG_EDGE'],'main':'worker.js','compatibility_date':'2026-09-04','workers_dev':True,'d1_databases':[{'binding':'AXIOM_DB','database_name':os.environ['D1_NAME'],'database_id':os.environ['D1_ID']}],'services':[{'binding':'AXIOM_KERNEL','service':os.environ['TARGET_WORKER']}]}
+          open('diag/wrangler.json','w').write(json.dumps(cfg,indent=2))
+          PY
+          (cd diag && npx wrangler deploy --config wrangler.json >/dev/null)
+          CONTROL="$(openssl rand -hex 32)"; RECEIPT="$(openssl rand -hex 32)"; echo "::add-mask::$CONTROL"; echo "::add-mask::$RECEIPT"
+          printf '%s' "$CONTROL" >/tmp/control
+          printf '%s' "$CONTROL" | npx wrangler secret put MFT_CONTROL_SECRET --name "$DIAG_EDGE" >/dev/null
+          printf '%s' "$RECEIPT" | npx wrangler secret put MFT_RECEIPT_SECRET --name "$DIAG_EDGE" >/dev/null
+
+      - name: Trigger canonical compute and capture only safe exception metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          SUBDOMAIN="$(python - <<'PY'
+          import json,os,urllib.request
+          h={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_API_KEY']}
+          u=f"https://api.cloudflare.com/client/v4/accounts/{os.environ['ACCOUNT_ID']}/workers/subdomain"
+          with urllib.request.urlopen(urllib.request.Request(u,headers=h),timeout=30) as r:x=json.load(r)
+          print((x.get('result') or {}).get('subdomain') or '')
+          PY
+          )"
+          URL="https://${DIAG_EDGE}.${SUBDOMAIN}.workers.dev"
+          CONTROL="$(cat /tmp/control)"
+          code="$(curl -sS --max-time 40 -o /tmp/diag.json -w '%{http_code}' -X POST "$URL/v1/compute" -H "x-mft-control: $CONTROL" -H 'content-type: application/json' --data '{"operation":"arithmetic.evaluate","args":{"expression":"40+2"},"verify":true}')"
+          HTTP_CODE="$code" python - <<'PY'
+          import json,os,pathlib
+          x=json.load(open('/tmp/diag.json'))
+          safe={'schema':'mft.axiom.kernel_exception_diagnostic.v1','http_status':int(os.environ['HTTP_CODE']),'error':x.get('error'),'diagnostic_error_class':x.get('diagnostic_error_class'),'diagnostic_message':x.get('diagnostic_message'),'response_keys':sorted(x.keys()),'plaintext_source_committed':False}
+          pathlib.Path('kernel-exception-diagnostic.json').write_text(json.dumps(safe,indent=2,sort_keys=True))
+          print(json.dumps(safe,sort_keys=True))
+          if safe['diagnostic_error_class'] is None: raise SystemExit('Fail-closed: diagnostic exception metadata missing')
+          PY
+          sha256sum kernel-exception-diagnostic.json > kernel-exception-diagnostic.sha256
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mft-axiom-kernel-exception-diagnostic
+          path: |
+            kernel-exception-diagnostic.json
+            kernel-exception-diagnostic.sha256
+          retention-days: 7
+          if-no-files-found: error
+
+      - name: Cleanup diagnostics
+        if: ${{ always() }}
+        shell: bash
+        run: |
+          set +e
+          npx wrangler delete --name "$DIAG_EDGE" --force >/dev/null 2>&1 || true
+          npx wrangler delete --name "$TARGET_WORKER" --force >/dev/null 2>&1 || true
+          rm -rf target diag /tmp/control
