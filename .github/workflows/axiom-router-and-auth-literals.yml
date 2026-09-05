@@ -1,0 +1,89 @@
+name: MFT Axiom Router and Auth Literals
+
+on:
+  push:
+    paths:
+      - '.github/workflows/axiom-router-and-auth-literals.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Reconstruct protected source
+        env:
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          P=deploy_payload/runtime_min
+          cat "$P/chunk_00.b64" "$P/chunk_01_02.b64" "$P/chunk_03_04.b64" "$P/chunk_05_06.b64" "$P/chunk_07_08.b64" "$P/chunk_09.b64" > runtime.enc.b64
+          base64 -d runtime.enc.b64 > runtime.tar.gz.enc
+          test "$(sha256sum runtime.tar.gz.enc | awk '{print $1}')" = 'b82448d6b4b34b302748815af976b535d69922c197d4b7a9056fc2f91a9e12cf'
+          openssl enc -d -aes-256-cbc -pbkdf2 -iter 250000 -in runtime.tar.gz.enc -out runtime.tar.gz -pass env:CLOUDFLARE_GLOBAL_API_KEY
+          test "$(sha256sum runtime.tar.gz | awk '{print $1}')" = 'b4d5a0266446523969a619f5e9bb5a04d9b815c78a2ab82ed046ef5e23d53663'
+          mkdir runtime && tar -xzf runtime.tar.gz -C runtime
+      - name: Emit routing and authentication literals only
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json,pathlib,re
+          files={p.name:p.read_text(errors='replace') for p in pathlib.Path('runtime/worker/src').glob('*.js')}
+          idx=files.get('index.js','')
+
+          # Global router literals limited to administrative/key-routing vocabulary.
+          lits=[]
+          for m in re.finditer(r'(["\'])(.*?)\1',idx,re.S):
+              x=m.group(2)
+              if len(x)<=100 and (x.startswith('/v1/admin') or x in {'v1','admin','customers','keys','rotate','revoke','POST','GET','DELETE'}):
+                  lits.append(x)
+
+          # For each *call* (not function definition), report only nearby relevant literals and pathname operations.
+          calls={}
+          for fn in ['adminIssueKey','adminRotateKey','adminRevokeKey']:
+              arr=[]
+              for m in re.finditer(r'\b'+fn+r'\s*\(',idx):
+                  prefix=idx[max(0,m.start()-40):m.start()]
+                  if re.search(r'function\s+$',prefix):
+                      continue
+                  w=idx[max(0,m.start()-1400):min(len(idx),m.start()+500)]
+                  rel=[]
+                  for sm in re.finditer(r'(["\'])(.*?)\1',w,re.S):
+                      x=sm.group(2)
+                      if len(x)<=80 and (x.startswith('/v1/admin') or x in {'v1','admin','customers','keys','rotate','revoke','POST','GET','DELETE'}): rel.append(x)
+                  arr.append({'relevant_literals':sorted(set(rel)),'pathname_split':'.split(' in w,'pathname_segments_indexed':bool(re.search(r'\b(?:parts|segments|pathParts)\s*\[\s*\d+\s*\]',w)),'pathname_match':'.match(' in w})
+              calls[fn]=arr
+
+          # Locate authenticate definition in whichever worker source contains it.
+          auth={}
+          for fname,s in files.items():
+              m=re.search(r'(?:export\s+)?(?:async\s+)?function\s+authenticate\s*\([^)]*\)\s*\{',s)
+              if not m: continue
+              st=m.end()-1; d=0; q=None; esc=False; end=None
+              for i in range(st,len(s)):
+                  c=s[i]
+                  if q:
+                      if esc: esc=False
+                      elif c=='\\': esc=True
+                      elif c==q: q=None
+                      continue
+                  if c in "'\"`": q=c; continue
+                  if c=='{': d+=1
+                  elif c=='}':
+                      d-=1
+                      if d==0: end=i; break
+              b=s[st+1:end] if end else ''
+              headers=sorted(set(x.lower() for x in re.findall(r'headers\.get\s*\(\s*["\']([^"\']+)["\']',b)))
+              strings=sorted(set(x for x in re.findall(r'(["\'])(.*?)\1',b,re.S) for x in [x[1]] if len(x)<=80 and re.search(r'bearer|api|key|authorization|mft',x,re.I)))
+              auth={'file':fname,'headers':headers,'relevant_literals':strings,'uses_startsWith':'.startsWith(' in b,'uses_slice':'.slice(' in b,'uses_split':'.split(' in b}
+              break
+
+          out={'schema':'mft.axiom.router_auth_literals.v1','global_router_literals':sorted(set(lits)),'helper_call_router_metadata':calls,'authenticate':auth,'plaintext_source_committed':False}
+          pathlib.Path('router-auth-literals.json').write_text(json.dumps(out,indent=2,sort_keys=True))
+          print(json.dumps(out,sort_keys=True))
+          PY
