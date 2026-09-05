@@ -1,0 +1,129 @@
+name: MUSITU Axiom Real Money E2E Read-Only Audit
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/axiom-real-money-e2e-readonly-audit.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      CF_API: https://api.cloudflare.com/client/v4
+      ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      D1_UUID: 504029cc-f9a5-495e-818f-63c6144b4ea4
+      BILLING_BASE: https://payments.mftintelligence.com
+    steps:
+      - name: Inspect genuine Paynow settlement evidence without mutation
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import hashlib,json,os,urllib.error,urllib.request
+          api=os.environ['CF_API'];aid=os.environ['ACCOUNT_ID'];dbid=os.environ['D1_UUID'];billing=os.environ['BILLING_BASE']
+          H={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY'],'Content-Type':'application/json','Accept':'application/json','User-Agent':'MUSITU-Axiom-Real-Money-Audit/1.0'}
+          def q(sql,params=None):
+              body={'sql':sql}
+              if params is not None:body['params']=params
+              req=urllib.request.Request(f'{api}/accounts/{aid}/d1/database/{dbid}/query',headers=H,method='POST',data=json.dumps(body,separators=(',',':')).encode())
+              try:
+                  with urllib.request.urlopen(req,timeout=45) as r:raw=r.read();code=r.status
+              except urllib.error.HTTPError as e:raw=e.read();code=e.code
+              if not 200<=code<300:raise SystemExit(f'D1 HTTP {code}: '+raw[:200].decode('utf-8','ignore'))
+              obj=json.loads(raw or b'{}');rr=obj.get('result') or [];rows=[]
+              if not rr or not all(x.get('success') is True for x in rr):raise SystemExit('D1 read failed')
+              for x in rr:rows.extend(x.get('results') or [])
+              return rows
+          def http_json(url):
+              req=urllib.request.Request(url,headers={'Accept':'application/json','User-Agent':'MUSITU-Axiom-Real-Money-Audit/1.0'})
+              try:
+                  with urllib.request.urlopen(req,timeout=30) as r:raw=r.read();code=r.status
+              except urllib.error.HTTPError as e:raw=e.read();code=e.code
+              try:o=json.loads(raw or b'{}')
+              except:o={}
+              return code,o
+
+          # Exact live database identity and schema readback.
+          req=urllib.request.Request(f'{api}/accounts/{aid}/d1/database/{dbid}',headers=H)
+          with urllib.request.urlopen(req,timeout=30) as r:dbobj=json.loads(r.read() or b'{}').get('result') or {}
+          if (dbobj.get('uuid') or dbobj.get('id'))!=dbid:raise SystemExit('D1 identity mismatch')
+          tables=['billing_checkout_intents','billing_subscriptions','webhook_events','customers','usage_buckets']
+          cols={t:[x.get('name') for x in q(f'PRAGMA table_info("{t}");')] for t in tables}
+          if not {'reference','customer_id','plan','amount_cents','currency','monthly_unit_limit','status','paynow_reference','created_at','updated_at','completed_at'}.issubset(set(cols['billing_checkout_intents'])):
+              raise SystemExit('checkout intent schema insufficient for settlement audit')
+
+          # Aggregate only; no customer email, raw reference, poll URL, browser URL, payload, secret, or key is emitted.
+          intent_status=q('SELECT status,count(*) AS n FROM billing_checkout_intents GROUP BY status ORDER BY status;')
+          total_intents=int(q('SELECT count(*) AS n FROM billing_checkout_intents;')[0]['n'])
+          paid_nonfixture=q("SELECT reference,customer_id,plan,amount_cents,currency,monthly_unit_limit,paynow_reference,completed_at,updated_at FROM billing_checkout_intents WHERE status='paid' AND customer_id NOT LIKE 'fixture_%' ORDER BY COALESCE(completed_at,updated_at) DESC LIMIT 20;")
+          total_subscriptions=int(q('SELECT count(*) AS n FROM billing_subscriptions;')[0]['n'])
+          total_webhooks=int(q('SELECT count(*) AS n FROM webhook_events;')[0]['n'])
+          real_candidates=[]
+          for r in paid_nonfixture:
+              ref=str(r.get('reference') or '')
+              customer=str(r.get('customer_id') or '')
+              refhash=hashlib.sha256(ref.encode()).hexdigest() if ref else None
+              custhash=hashlib.sha256(customer.encode()).hexdigest() if customer else None
+              # Count reconciliation records without publishing their contents.
+              sub_count=int(q('SELECT count(*) AS n FROM billing_subscriptions WHERE customer_id=?1',[customer])[0]['n']) if customer else 0
+              wh_count=int(q("SELECT count(*) AS n FROM webhook_events WHERE provider='paynow' AND payload_json LIKE ?1",['%'+ref+'%'])[0]['n']) if ref and 'provider' in cols['webhook_events'] and 'payload_json' in cols['webhook_events'] else 0
+              bucket_count=int(q('SELECT count(*) AS n FROM usage_buckets WHERE customer_id=?1',[customer])[0]['n']) if customer else 0
+              real_candidates.append({
+                  'reference_sha256':refhash,'customer_id_sha256':custhash,'plan':r.get('plan'),
+                  'amount_cents':r.get('amount_cents'),'currency':r.get('currency'),'monthly_unit_limit':r.get('monthly_unit_limit'),
+                  'paynow_reference_present':bool(r.get('paynow_reference')),'completed_at_present':bool(r.get('completed_at')),
+                  'subscription_rows':sub_count,'matching_webhook_rows':wh_count,'usage_bucket_rows':bucket_count,
+              })
+
+          hc,health=http_json(billing+'/billing/healthz')
+          if hc!=200 or health.get('provider')!='paynow':raise SystemExit('billing health unavailable or provider drift')
+
+          # Presence of a paid candidate is necessary but not by itself sufficient for certification.
+          # Certification stays fail-closed until a candidate also proves callback/poll, entitlement, exact reconciliation, and no duplicate provisioning.
+          certified=[]
+          for c in real_candidates:
+              structural=(c['paynow_reference_present'] and c['completed_at_present'] and c['subscription_rows']==1 and c['matching_webhook_rows']>=1)
+              if structural:certified.append(c)
+          real_money_certified=(len(certified)==1 and health.get('live_money_certified') is True)
+          if real_money_certified:
+              gate='AXIOM_REAL_MONEY_E2E_CANDIDATE_RECONCILIATION_PASS'
+              blockers=[]
+          elif not real_candidates:
+              gate='AXIOM_REAL_MONEY_E2E_NOT_YET_CERTIFIED'
+              blockers=['NO_GENUINE_PAID_PAYNOW_CHECKOUT_OBSERVED']
+          else:
+              gate='AXIOM_REAL_MONEY_E2E_NOT_YET_CERTIFIED'
+              blockers=['PAID_CANDIDATE_REQUIRES_OR_FAILED_FULL_RECONCILIATION']
+
+          out={
+              'schema':'musitu.axiom.real_money_e2e_readonly_audit.v1','database_uuid':dbid,
+              'billing_provider':'paynow','billing_health_http':hc,'billing_live_money_certified':health.get('live_money_certified') is True,
+              'checkout_intent_status_counts':intent_status,'checkout_intent_total':total_intents,
+              'nonfixture_paid_candidate_count':len(real_candidates),'candidate_summaries':real_candidates,
+              'billing_subscription_total':total_subscriptions,'webhook_event_total':total_webhooks,
+              'fully_structural_candidate_count':len(certified),'real_money_e2e_certified':real_money_certified,
+              'gate':gate,'blockers':blockers,'query_mode':'SELECT_ONLY','mutation_performed':False,
+              'raw_references_published':False,'customer_identifiers_published':False,'secret_values_read':False,
+              'wolfram_parity':'NOT_CERTIFIED','superiority':'NOT_CERTIFIED',
+          }
+          raw=(json.dumps(out,indent=2,sort_keys=True)+'\n').encode();open('real-money-e2e-readonly-audit.json','wb').write(raw)
+          dg=hashlib.sha256(raw).hexdigest();open('real-money-e2e-readonly-audit.sha256','w').write(dg+'  real-money-e2e-readonly-audit.json\n')
+          print(json.dumps({'gate':gate,'blockers':blockers,'checkout_intent_total':total_intents,'nonfixture_paid_candidate_count':len(real_candidates),'fully_structural_candidate_count':len(certified),'billing_live_money_certified':health.get('live_money_certified') is True,'mutation_performed':False,'raw_references_published':False,'customer_identifiers_published':False,'evidence_sha256':dg},sort_keys=True))
+          PY
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: musitu-axiom-real-money-e2e-readonly-audit
+          path: |
+            real-money-e2e-readonly-audit.json
+            real-money-e2e-readonly-audit.sha256
+          retention-days: 30
+          if-no-files-found: error
