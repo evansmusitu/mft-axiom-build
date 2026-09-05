@@ -20,7 +20,7 @@ jobs:
       EDGE: https://axiom-stage.mftintelligence.com
     steps:
       - uses: actions/checkout@v4
-      - name: Extract request-field metadata and selected public tool schema
+      - name: Extract request-field metadata and public operation schemas
         env:
           CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
           CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
@@ -28,9 +28,9 @@ jobs:
         run: |
           set -euo pipefail
           python - <<'PY'
-          import email,hashlib,json,os,re,urllib.error,urllib.parse,urllib.request
+          import email,hashlib,json,os,re,urllib.parse,urllib.request
           api=os.environ['CF_API'];aid=os.environ['ACCOUNT_ID'];worker=os.environ['BACKEND'];edge=os.environ['EDGE']
-          H={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY'],'User-Agent':'MUSITU-Axiom-Compute-Request-Contract/1.0'}
+          H={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY'],'User-Agent':'MUSITU-Axiom-Compute-Request-Contract/2.0'}
           q=urllib.request.Request(f'{api}/accounts/{aid}/workers/scripts/{urllib.parse.quote(worker,safe="")}',headers=H)
           with urllib.request.urlopen(q,timeout=45) as r:raw=r.read();ct=r.headers.get('content-type','')
           src=raw
@@ -51,22 +51,21 @@ jobs:
               for part in m.group(1).split(','):
                   k=part.strip().split(':',1)[0].strip()
                   if re.fullmatch(r'[A-Za-z_$][A-Za-z0-9_$]*',k):destructured.append(k)
-          literals=sorted(set(re.findall(r'["\']([A-Za-z_$][A-Za-z0-9_$]{1,60})["\']\s+in\s+(?:body|payload|input|data)',win)))
-          # Public tool registry metadata only.
-          req=urllib.request.Request(edge+'/v1/tools',headers={'Accept':'application/json','User-Agent':'MUSITU-Axiom-Compute-Request-Contract/1.0'})
+          req=urllib.request.Request(edge+'/v1/tools',headers={'Accept':'application/json','User-Agent':'MUSITU-Axiom-Compute-Request-Contract/2.0'})
           with urllib.request.urlopen(req,timeout=45) as r:tools=json.loads(r.read() or b'{}')
-          entries=tools.get('tools') or []
-          names=[];selected=[]
+          entries=tools.get('tools') or [];names=[];candidates=[];entry_key_sets=[]
           for t in entries:
               if not isinstance(t,dict):continue
+              entry_key_sets.append(tuple(sorted(t.keys())))
               name=str(t.get('name') or t.get('operation') or t.get('id') or '')
-              if name:names.append(name)
-              if name=='arithmetic.add':
-                  sch=t.get('input_schema') or t.get('inputSchema') or t.get('schema') or {}
+              if not name:continue
+              names.append(name)
+              if re.search(r'(math|arith|calc|add|sum|number|scalar|basic)',name,re.I):
+                  sch=t.get('input_schema') or t.get('inputSchema') or t.get('schema') or t.get('parameters') or {}
                   props=sorted((sch.get('properties') or {}).keys()) if isinstance(sch,dict) else []
                   reqd=sorted(sch.get('required') or []) if isinstance(sch,dict) else []
-                  selected.append({'name':name,'tool_keys':sorted(t.keys()),'schema_property_names':props,'schema_required':reqd})
-          out={'schema':'musitu.axiom.compute_request_contract.v1','route':'/v1/compute','json_body_fields':sorted(set(body_fields+destructured+literals)),'selected_tool':selected,'tool_count':len(entries),'arithmetic_add_present':'arithmetic.add' in names,'source_sha256':hashlib.sha256(src).hexdigest(),'source_published':False,'secret_values_read':False,'mutation_performed':False,'gate':'AXIOM_COMPUTE_REQUEST_CONTRACT_READ_PASS'}
+                  candidates.append({'name':name,'tool_keys':sorted(t.keys()),'schema_property_names':props,'schema_required':reqd})
+          out={'schema':'musitu.axiom.compute_request_contract.v2','route':'/v1/compute','json_body_fields':sorted(set(body_fields+destructured)),'tool_count':len(entries),'operation_names':sorted(names),'candidate_simple_operations':candidates,'tool_entry_key_shapes':[list(x) for x in sorted(set(entry_key_sets))],'source_sha256':hashlib.sha256(src).hexdigest(),'source_published':False,'secret_values_read':False,'mutation_performed':False,'gate':'AXIOM_COMPUTE_REQUEST_CONTRACT_READ_PASS'}
           raw=(json.dumps(out,indent=2,sort_keys=True)+'\n').encode();open('compute-request-contract.json','wb').write(raw);dg=hashlib.sha256(raw).hexdigest();open('compute-request-contract.sha256','w').write(dg+'  compute-request-contract.json\n')
           print(json.dumps({**out,'evidence_sha256':dg},sort_keys=True))
           PY
