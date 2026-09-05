@@ -1,0 +1,80 @@
+name: MUSITU Axiom Compute Request Contract Read-Only
+
+on:
+  push:
+    paths:
+      - '.github/workflows/axiom-compute-request-contract-readonly.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    env:
+      CF_API: https://api.cloudflare.com/client/v4
+      ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      BACKEND: mft-axiom-modal-edge-stage
+      EDGE: https://axiom-stage.mftintelligence.com
+    steps:
+      - uses: actions/checkout@v4
+      - name: Extract request-field metadata and selected public tool schema
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import email,hashlib,json,os,re,urllib.error,urllib.parse,urllib.request
+          api=os.environ['CF_API'];aid=os.environ['ACCOUNT_ID'];worker=os.environ['BACKEND'];edge=os.environ['EDGE']
+          H={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY'],'User-Agent':'MUSITU-Axiom-Compute-Request-Contract/1.0'}
+          q=urllib.request.Request(f'{api}/accounts/{aid}/workers/scripts/{urllib.parse.quote(worker,safe="")}',headers=H)
+          with urllib.request.urlopen(q,timeout=45) as r:raw=r.read();ct=r.headers.get('content-type','')
+          src=raw
+          if 'multipart/' in ct.lower():
+              msg=email.message_from_bytes((f'Content-Type: {ct}\r\nMIME-Version: 1.0\r\n\r\n').encode()+raw);parts=[]
+              for p in msg.walk():
+                  if p.is_multipart():continue
+                  d=p.get_payload(decode=True) or b''
+                  if b'/v1/compute' in d:parts.append(d)
+              if len(parts)!=1:raise SystemExit(f'Fail-closed compute module count {len(parts)}')
+              src=parts[0]
+          text=src.decode('utf-8','ignore');i=text.find('/v1/compute')
+          if i<0:raise SystemExit('Fail-closed compute route absent')
+          win=text[max(0,i-7000):min(len(text),i+15000)]
+          body_fields=sorted(set(re.findall(r'\b(?:body|payload|input|data)\.([A-Za-z_$][A-Za-z0-9_$]*)',win)))
+          destructured=[]
+          for m in re.finditer(r'\{([^{}]{1,1000})\}\s*=\s*await\s+[A-Za-z_$][A-Za-z0-9_$]*\.json\(\)',win,re.S):
+              for part in m.group(1).split(','):
+                  k=part.strip().split(':',1)[0].strip()
+                  if re.fullmatch(r'[A-Za-z_$][A-Za-z0-9_$]*',k):destructured.append(k)
+          literals=sorted(set(re.findall(r'["\']([A-Za-z_$][A-Za-z0-9_$]{1,60})["\']\s+in\s+(?:body|payload|input|data)',win)))
+          # Public tool registry metadata only.
+          req=urllib.request.Request(edge+'/v1/tools',headers={'Accept':'application/json','User-Agent':'MUSITU-Axiom-Compute-Request-Contract/1.0'})
+          with urllib.request.urlopen(req,timeout=45) as r:tools=json.loads(r.read() or b'{}')
+          entries=tools.get('tools') or []
+          names=[];selected=[]
+          for t in entries:
+              if not isinstance(t,dict):continue
+              name=str(t.get('name') or t.get('operation') or t.get('id') or '')
+              if name:names.append(name)
+              if name=='arithmetic.add':
+                  sch=t.get('input_schema') or t.get('inputSchema') or t.get('schema') or {}
+                  props=sorted((sch.get('properties') or {}).keys()) if isinstance(sch,dict) else []
+                  reqd=sorted(sch.get('required') or []) if isinstance(sch,dict) else []
+                  selected.append({'name':name,'tool_keys':sorted(t.keys()),'schema_property_names':props,'schema_required':reqd})
+          out={'schema':'musitu.axiom.compute_request_contract.v1','route':'/v1/compute','json_body_fields':sorted(set(body_fields+destructured+literals)),'selected_tool':selected,'tool_count':len(entries),'arithmetic_add_present':'arithmetic.add' in names,'source_sha256':hashlib.sha256(src).hexdigest(),'source_published':False,'secret_values_read':False,'mutation_performed':False,'gate':'AXIOM_COMPUTE_REQUEST_CONTRACT_READ_PASS'}
+          raw=(json.dumps(out,indent=2,sort_keys=True)+'\n').encode();open('compute-request-contract.json','wb').write(raw);dg=hashlib.sha256(raw).hexdigest();open('compute-request-contract.sha256','w').write(dg+'  compute-request-contract.json\n')
+          print(json.dumps({**out,'evidence_sha256':dg},sort_keys=True))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: musitu-axiom-compute-request-contract
+          path: |
+            compute-request-contract.json
+            compute-request-contract.sha256
+          retention-days: 14
+          if-no-files-found: error
