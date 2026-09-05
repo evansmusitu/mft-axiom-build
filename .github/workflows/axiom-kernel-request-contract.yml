@@ -1,0 +1,75 @@
+name: MFT Axiom Kernel Request Contract
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/axiom-kernel-request-contract.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  trace:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Reconstruct encrypted source
+        env:
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          P=deploy_payload/runtime_min
+          cat "$P/chunk_00.b64" "$P/chunk_01_02.b64" "$P/chunk_03_04.b64" "$P/chunk_05_06.b64" "$P/chunk_07_08.b64" "$P/chunk_09.b64" > runtime.enc.b64
+          base64 -d runtime.enc.b64 > runtime.tar.gz.enc
+          test "$(sha256sum runtime.tar.gz.enc | awk '{print $1}')" = 'b82448d6b4b34b302748815af976b535d69922c197d4b7a9056fc2f91a9e12cf'
+          python - <<'PY'
+          import hashlib,hmac,os
+          b=open('runtime.tar.gz.enc','rb').read()
+          if not hmac.compare_digest(hmac.new(os.environ['CLOUDFLARE_GLOBAL_API_KEY'].encode(),b,hashlib.sha256).hexdigest(),'1a3193d4f3271d61d151e6ebd7cf4576d8ab86c2e79b84eff4ad0f635fe7ab47'):
+              raise SystemExit('HMAC mismatch')
+          PY
+          openssl enc -d -aes-256-cbc -pbkdf2 -iter 250000 -in runtime.tar.gz.enc -out runtime.tar.gz -pass env:CLOUDFLARE_GLOBAL_API_KEY
+          test "$(sha256sum runtime.tar.gz | awk '{print $1}')" = 'b4d5a0266446523969a619f5e9bb5a04d9b815c78a2ab82ed046ef5e23d53663'
+          mkdir runtime && tar -xzf runtime.tar.gz -C runtime
+      - name: Extract kernel transport shape only
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json,pathlib,re
+          p=pathlib.Path('runtime/worker/src/index.js'); s=p.read_text(errors='replace')
+          out={'schema':'mft.axiom.kernel_request_contract.v1','fetch_sites':[],'select_kernel_sites':[],'plaintext_source_committed':False}
+          for m in re.finditer(r'selectKernel\s*\(\s*env\.AXIOM_KERNEL\s*\)',s):
+              lo=max(0,m.start()-600); hi=min(len(s),m.end()+3000); w=s[lo:hi]
+              assign=re.search(r'(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*selectKernel\s*\(\s*env\.AXIOM_KERNEL\s*\)',w)
+              alias=assign.group(1) if assign else None
+              rec={'alias':alias}
+              if alias:
+                  fetches=[]
+                  for fm in re.finditer(r'\b'+re.escape(alias)+r'\s*\.\s*fetch\s*\((.{0,1200}?)\)',w,re.S):
+                      frag=fm.group(1)
+                      urls=sorted(set(re.findall(r"['\"](https?://[^'\"]+|/[A-Za-z0-9_./:{}-]+)['\"]",frag)))
+                      methods=sorted(set(re.findall(r"method\s*:\s*['\"]([A-Z]+)['\"]",frag)))
+                      fetches.append({'url_literals':urls,'methods':methods,'uses_request_object':bool(re.search(r'new\s+Request\s*\(',frag)),'uses_json_stringify':('JSON.stringify' in frag)})
+                  rec['fetches']=fetches
+              out['select_kernel_sites'].append(rec)
+          # Broader fetch call sites carrying kernel-ish literal URLs, but never source excerpts.
+          for fm in re.finditer(r'\.fetch\s*\((.{0,1500}?)\)',s,re.S):
+              frag=fm.group(1)
+              urls=sorted(set(re.findall(r"['\"](https?://[^'\"]+|/(?:v1/)?(?:compute|health|tools)[A-Za-z0-9_./:{}-]*)['\"]",frag)))
+              if urls:
+                  out['fetch_sites'].append({'url_literals':urls,'methods':sorted(set(re.findall(r"method\s*:\s*['\"]([A-Z]+)['\"]",frag))),'uses_json_stringify':('JSON.stringify' in frag)})
+          pathlib.Path('kernel-request-contract.json').write_text(json.dumps(out,indent=2,sort_keys=True))
+          print(json.dumps(out,sort_keys=True))
+          PY
+          sha256sum kernel-request-contract.json > kernel-request-contract.sha256
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mft-axiom-kernel-request-contract
+          path: |
+            kernel-request-contract.json
+            kernel-request-contract.sha256
+          retention-days: 7
