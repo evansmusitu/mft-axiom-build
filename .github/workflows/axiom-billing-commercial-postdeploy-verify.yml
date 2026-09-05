@@ -1,5 +1,6 @@
 name: MUSITU Axiom Billing Commercial Post-Deploy Verify
 
+# Read-only production verification; changing this comment intentionally re-runs the gate.
 on:
   push:
     paths:
