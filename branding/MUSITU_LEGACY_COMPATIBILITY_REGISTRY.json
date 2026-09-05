@@ -1,0 +1,134 @@
+{
+  "schema": "musitu.brand.legacy_compatibility_registry.v1",
+  "company_brand": "MUSITU",
+  "policy": "Legacy identifiers are compatibility handles only. New branding, schemas, artifacts, and newly created resources must use MUSITU. A legacy live handle may be retired only after its MUSITU successor is created, verified, cut over, and rollback evidence is sealed.",
+  "resources": [
+    {
+      "kind": "github_repository_slug",
+      "legacy": "mft-axiom-build",
+      "successor": "musitu-axiom-build",
+      "status": "PENDING_REPOSITORY_ADMIN_RENAME",
+      "cutover_gate": "repository rename or migration preserves commit history, Actions secrets, workflows, and all external references"
+    },
+    {
+      "kind": "cloudflare_zone",
+      "legacy": "mftintelligence.com",
+      "successor": null,
+      "status": "PENDING_MUSITU_APEX_DOMAIN",
+      "cutover_gate": "a MUSITU-branded apex domain is owned, Cloudflare-protected, and verified before DNS/API migration"
+    },
+    {
+      "kind": "cloudflare_worker",
+      "legacy": "mft-axiom-modal-edge-stage",
+      "successor": "musitu-axiom-modal-edge-stage",
+      "status": "READY_FOR_RECREATE_VERIFY_CUTOVER",
+      "cutover_gate": "FULL health, 74 operations, unauthenticated 401, authenticated compute 42, signed receipt, D1 persistence, rollback"
+    },
+    {
+      "kind": "cloudflare_worker",
+      "legacy": "mft-axiom-bootstrap",
+      "successor": "musitu-axiom-bootstrap",
+      "status": "LEGACY_ROLLBACK_ONLY",
+      "cutover_gate": "no active dependency remains"
+    },
+    {
+      "kind": "cloudflare_d1",
+      "legacy": "mft-axiom-prod",
+      "successor": "musitu-axiom-prod",
+      "status": "READY_FOR_CLONE_VERIFY_CUTOVER",
+      "cutover_gate": "canonical six-table schema, indexes, row reconciliation, write/readback, rollback"
+    },
+    {
+      "kind": "cloudflare_staging_resource",
+      "legacy": "mft-axiom-staging",
+      "successor": "musitu-axiom-staging",
+      "status": "LEGACY_COMPATIBILITY",
+      "cutover_gate": "all workflows and active bindings point to successor"
+    },
+    {
+      "kind": "cloudflare_kernel_resource",
+      "legacy": "mft-axiom-staging-kernel",
+      "successor": "musitu-axiom-staging-kernel",
+      "status": "LEGACY_COMPATIBILITY",
+      "cutover_gate": "kernel contract and rollback verified"
+    },
+    {
+      "kind": "modal_app",
+      "legacy": "mft-axiom-v3-modal-staging",
+      "successor": "musitu-axiom-v3-modal-staging",
+      "status": "READY_FOR_PARALLEL_DEPLOY_VERIFY",
+      "cutover_gate": "exact FULL build identity, root-package pins, 74 operations, authenticated-only endpoint"
+    },
+    {
+      "kind": "modal_adapter",
+      "legacy": "mft-axiom-modal-adapter",
+      "successor": "musitu-axiom-modal-adapter",
+      "status": "READY_FOR_PARALLEL_DEPLOY_VERIFY",
+      "cutover_gate": "service-binding Request-object compatibility and /v1/compute 200 verified"
+    },
+    {
+      "kind": "modal_app",
+      "legacy": "mft-axiom-production",
+      "successor": "musitu-axiom-production",
+      "status": "READY_FOR_PARALLEL_DEPLOY_VERIFY",
+      "cutover_gate": "exact FULL build identity and canonical /v1/compute route verified"
+    },
+    {
+      "kind": "secret_binding",
+      "legacy": "MFT_CONTROL_SECRET",
+      "successor": "MUSITU_CONTROL_SECRET",
+      "status": "PENDING_DUAL_BINDING_SOURCE_COMPATIBILITY",
+      "cutover_gate": "canonical Worker accepts successor and legacy only during bounded transition, then legacy removed"
+    },
+    {
+      "kind": "secret_binding",
+      "legacy": "MFT_RECEIPT_SECRET",
+      "successor": "MUSITU_RECEIPT_SECRET",
+      "status": "PENDING_DUAL_BINDING_SOURCE_COMPATIBILITY",
+      "cutover_gate": "HMAC receipt validation passes on successor binding and legacy binding is retired"
+    },
+    {
+      "kind": "http_header",
+      "legacy": "x-mft-control",
+      "successor": "x-musitu-control",
+      "status": "PENDING_DUAL_PROTOCOL_COMPATIBILITY",
+      "cutover_gate": "all trusted clients and Worker source accept successor; legacy header then rejected"
+    },
+    {
+      "kind": "http_header",
+      "legacy": "x-mft-request-id",
+      "successor": "x-musitu-request-id",
+      "status": "PENDING_DUAL_PROTOCOL_COMPATIBILITY",
+      "cutover_gate": "request tracing remains deterministic through Worker, adapter, Modal, and receipts"
+    },
+    {
+      "kind": "http_header",
+      "legacy": "x-mft-axiom-version",
+      "successor": "x-musitu-axiom-version",
+      "status": "PENDING_DUAL_PROTOCOL_COMPATIBILITY",
+      "cutover_gate": "version negotiation passes existing contract suite"
+    },
+    {
+      "kind": "internal_principal",
+      "legacy": "mft-internal",
+      "successor": "musitu-internal",
+      "status": "PENDING_DUAL_PRINCIPAL_COMPATIBILITY",
+      "cutover_gate": "internal admin/control authorization remains fail-closed under successor principal"
+    },
+    {
+      "kind": "machine_transport_symbol",
+      "legacy": "mft_axiom_stage_machine_transport",
+      "successor": "musitu_axiom_stage_machine_transport",
+      "status": "PENDING_COMPATIBILITY_MIGRATION",
+      "cutover_gate": "all workflow evidence producers and consumers agree on successor symbol"
+    }
+  ],
+  "immutable_evidence_policy": {
+    "build_ids": "Historical build IDs beginning with the retired namespace remain immutable evidence and are never rewritten retroactively.",
+    "sealed_hashes": "Cryptographic hashes, signed receipts, archived evidence, and historical artifact identities are never renamed in place."
+  },
+  "truth_boundary": {
+    "wolfram_parity": "NOT_CERTIFIED",
+    "superiority": "NOT_CERTIFIED"
+  }
+}
