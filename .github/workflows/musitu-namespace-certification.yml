@@ -28,8 +28,13 @@ jobs:
           SELF='.github/workflows/musitu-namespace-certification.yml'
           governance={
             SELF,
+            '.github/workflows/musitu-brand-guard.yml',
             'branding/MUSITU_LEGACY_COMPATIBILITY_REGISTRY.json',
             'branding/MUSITU_LEGACY_COMPATIBILITY_REGISTER.json',
+          }
+          compatibility_detection_paths={
+            '.github/workflows/cloudflare-access-audit.yml',
+            '.github/workflows/cloudflare-domain-topology-audit.yml',
           }
           protected_root=pathlib.Path('deploy_payload/runtime_min')
           binary={'.zip','.gz','.tgz','.png','.jpg','.jpeg','.gif','.webp','.pdf','.pyc','.so','.dll','.exe','.bin','.enc'}
@@ -45,9 +50,15 @@ jobs:
           nonbrand=['mft_record','MFT(P)','mft_id','canonical_mft_id','mft_repair_alg']
           build_re=re.compile(r'\bMFT-AXIOM-[A-Z0-9._-]+',re.I)
           retired_re=re.compile(r'(?<![A-Za-z0-9])MFT(?![A-Za-z0-9])',re.I)
+          standalone_literal_re=re.compile(r'(["\'])mft\1',re.I)
 
           classes={k:[] for k in ['BRAND_RESIDUAL','COMPATIBILITY_HANDLE','IMMUTABLE_EVIDENCE','PROTOCOL_COMPATIBILITY','EXTERNAL_RESOURCE','REPOSITORY_SLUG']}
-          exclusions={'governance_mapping_files':sorted(governance),'protected_runtime_root':str(protected_root),'non_brand_terms':nonbrand}
+          exclusions={
+            'governance_mapping_files':sorted(governance),
+            'protected_runtime_root':str(protected_root),
+            'non_brand_terms':nonbrand,
+            'compatibility_detection_paths':sorted(compatibility_detection_paths),
+          }
 
           def add(cls,path,line,identifier):
             classes[cls].append({'path':path,'line':line,'identifier':identifier})
@@ -55,7 +66,7 @@ jobs:
           def remove_exact(work,items,cls,path,line):
             for item in sorted(items,key=len,reverse=True):
               rx=re.compile(re.escape(item),re.I)
-              for m in list(rx.finditer(work)):
+              for _ in rx.finditer(work):
                 add(cls,path,line,item)
               work=rx.sub(' ',work)
             return work
@@ -65,12 +76,8 @@ jobs:
             s=p.as_posix()
             if s in governance or p==protected_root or protected_root in p.parents:
               continue
-            # A retired namespace in a filename/path is a brand residual unless the entire path is an explicitly protected handle.
             if retired_re.search(s):
-              protected_path=False
-              for item in external+protocol+compat+repo:
-                if item.lower() in s.lower():
-                  protected_path=True; break
+              protected_path=any(item.lower() in s.lower() for item in external+protocol+compat+repo)
               if not protected_path:
                 add('BRAND_RESIDUAL',s,0,'retired_namespace_in_path')
             if not p.is_file() or p.suffix.lower() in binary:
@@ -88,6 +95,10 @@ jobs:
               work=remove_exact(work,protocol,'PROTOCOL_COMPATIBILITY',s,n)
               work=remove_exact(work,external,'EXTERNAL_RESOURCE',s,n)
               work=remove_exact(work,compat,'COMPATIBILITY_HANDLE',s,n)
+              if s in compatibility_detection_paths:
+                for _ in standalone_literal_re.finditer(work):
+                  add('COMPATIBILITY_HANDLE',s,n,'legacy_namespace_detection_literal')
+                work=standalone_literal_re.sub(' ',work)
               for item in sorted(nonbrand,key=len,reverse=True):
                 work=re.sub(re.escape(item),' ',work,flags=re.I)
               if retired_re.search(work):
@@ -108,7 +119,7 @@ jobs:
             'commit':subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip(),
             'classification_definitions':{
               'BRAND_RESIDUAL':'must become MUSITU now',
-              'COMPATIBILITY_HANDLE':'live compatibility identifier; migrate only by verified cutover',
+              'COMPATIBILITY_HANDLE':'live compatibility identifier or compatibility detector; migrate only by verified cutover',
               'IMMUTABLE_EVIDENCE':'historical/evidence identity; never rename',
               'PROTOCOL_COMPATIBILITY':'requires versioned dual-header/env support before retirement',
               'EXTERNAL_RESOURCE':'provider-side resource; recreate, verify, cut over, then retire legacy',
