@@ -33,7 +33,7 @@ jobs:
           python - <<'PY'
           import email,hashlib,json,os,re,urllib.error,urllib.parse,urllib.request
           api=os.environ['CF_API'];aid=os.environ['ACCOUNT_ID'];dbid=os.environ['D1_UUID']
-          H={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY'],'Accept':'application/json','User-Agent':'MUSITU-Axiom-Commercial-Preflight/1.0'}
+          H={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY'],'Accept':'application/json','User-Agent':'MUSITU-Axiom-Commercial-Preflight/1.1'}
           def http(path,method='GET',obj=None):
               h=dict(H);body=None
               if obj is not None:h['Content-Type']='application/json';body=json.dumps(obj,separators=(',',':')).encode()
@@ -74,7 +74,6 @@ jobs:
                   if z.get('type')=='d1':item['id']=z.get('id')
                   arr.append(item)
               binding_meta[k.lower()]=sorted(arr,key=lambda x:str(x.get('name')))
-          # Derive API-key authentication semantics without publishing source.
           windows=[];low=backend_text.lower()
           for needle in ('key_hash','authorization','bearer '):
               start=0
@@ -87,7 +86,6 @@ jobs:
             'authorization_bearer':bool(re.search(r'bearer\s',joined,re.I)),
             'key_hash_column':'key_hash' in joined.lower(),
             'sha256_present':bool(re.search(r'SHA-?256|sha256',joined,re.I)),
-            'crypto_subtle_digest':bool(re.search(r'crypto\.subtle\.digest',joined)),
             'api_key_status_checked':bool(re.search(r'api_keys[^;]{0,500}status|status[^;]{0,500}api_keys',joined,re.I|re.S)),
             'customer_status_checked':'customers' in joined.lower() and 'status' in joined.lower(),
           }
