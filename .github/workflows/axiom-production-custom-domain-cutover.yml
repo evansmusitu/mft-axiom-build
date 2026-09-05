@@ -73,7 +73,10 @@ jobs:
             req=urllib.request.Request(url,headers=h,data=data,method=method)
             try:
               with urllib.request.urlopen(req,timeout=30) as r: raw=r.read(); code=r.status
-            except urllib.error.HTTPError as e: raw=e.read(); code=e.code
+            except urllib.error.HTTPError as e:
+              raw=e.read(); code=e.code
+            except urllib.error.URLError:
+              return 0,{}
             try: obj=json.loads(raw or b'{}')
             except Exception: obj={}
             return code,obj
@@ -151,16 +154,19 @@ jobs:
           domain_created=False; rule_created=False; created_rule_id=None
           try:
             if not by_ref:
-              created=call(f'/zones/{zid}/rulesets/{rid}/rules','POST',{
+              call(f'/zones/{zid}/rulesets/{rid}/rules','POST',{
                 'action':'set_config',
                 'action_parameters':{'security_level':'essentially_off','bic':False},
                 'expression':expr,
                 'description':'MUSITU Axiom production API machine transport: disable browser challenge only on canonical API hostname; Worker auth remains fail-closed',
                 'enabled':True,
                 'ref':os.environ['RULE_REF'],
-              }) or {}
-              created_rule_id=created.get('id')
-              if not created_rule_id: raise RuntimeError('production machine-transport rule creation returned no id')
+              })
+              created_detail=call(f'/zones/{zid}/rulesets/{rid}') or {}
+              created_matches=[r for r in (created_detail.get('rules') or []) if r.get('ref')==os.environ['RULE_REF']]
+              if len(created_matches)!=1 or not created_matches[0].get('id'):
+                raise RuntimeError('production machine-transport rule creation readback failed')
+              created_rule_id=created_matches[0]['id']
               rule_created=True
 
             if not before:
@@ -229,18 +235,24 @@ jobs:
             pathlib.Path('axiom-production-custom-domain.sha256').write_text(digest+'  '+p.name+'\n')
             print(json.dumps({'gate':out['gate'],'hostname':prod,'service':edge,'health_http':200,'operation_count':74,'unauthenticated_compute_http':401,'domain_created':domain_created,'rule_created':rule_created,'evidence_sha256':digest},sort_keys=True))
           except Exception as exc:
-            rollback={'domain_deleted':False,'rule_deleted':False}
-            try:
-              if domain_created:
+            rollback={'domain_deleted':False,'rule_deleted':False,'errors':[]}
+            if domain_created:
+              try:
                 rows=prod_rows()
                 if len(rows)==1 and rows[0].get('service')==edge and rows[0].get('id'):
                   call(f'/accounts/{aid}/workers/domains/{rows[0]["id"]}','DELETE')
                   rollback['domain_deleted']=(len(prod_rows())==0)
-            finally:
-              if rule_created and created_rule_id:
+                else:
+                  rollback['errors'].append('domain_rollback_precondition_not_met')
+              except Exception as rb_exc:
+                rollback['errors'].append('domain_rollback:'+type(rb_exc).__name__+':'+str(rb_exc))
+            if rule_created and created_rule_id:
+              try:
                 call(f'/zones/{zid}/rulesets/{rid}/rules/{created_rule_id}','DELETE')
                 chk=call(f'/zones/{zid}/rulesets/{rid}') or {}
                 rollback['rule_deleted']=not any(r.get('ref')==os.environ['RULE_REF'] for r in (chk.get('rules') or []))
+              except Exception as rb_exc:
+                rollback['errors'].append('rule_rollback:'+type(rb_exc).__name__+':'+str(rb_exc))
             pathlib.Path('axiom-production-custom-domain-failure.json').write_text(json.dumps({'schema':'musitu.axiom.production_custom_domain.failure.v1','error_type':type(exc).__name__,'error':str(exc),'rollback':rollback,'raw_modal_publicly_exposed_by_this_change':False,'wolfram_parity':'NOT_CERTIFIED','superiority':'NOT_CERTIFIED'},indent=2,sort_keys=True)+'\n')
             raise
           PY
