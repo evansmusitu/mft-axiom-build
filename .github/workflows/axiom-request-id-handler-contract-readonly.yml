@@ -30,7 +30,7 @@ jobs:
           python - <<'PY'
           import email,hashlib,json,os,re,urllib.parse,urllib.request
           api=os.environ['CF_API'];aid=os.environ['ACCOUNT_ID'];worker=os.environ['BACKEND'];expected=os.environ['EXPECTED_SOURCE_SHA256']
-          H={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY'],'Accept':'application/json','User-Agent':'MUSITU-Axiom-Request-ID-Handler-Contract/1.0'}
+          H={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY'],'Accept':'application/json','User-Agent':'MUSITU-Axiom-Request-ID-Handler-Contract/2.0'}
           q=urllib.request.Request(f'{api}/accounts/{aid}/workers/scripts/{urllib.parse.quote(worker,safe="")}',headers=H)
           with urllib.request.urlopen(q,timeout=45) as r:raw=r.read();ctype=r.headers.get('content-type','')
           if 'multipart/' in ctype.lower():
@@ -45,36 +45,17 @@ jobs:
           sha=hashlib.sha256(src).hexdigest()
           if sha!=expected:raise RuntimeError('live source SHA changed; refusing stale structural read')
           text=src.decode('utf-8')
-          decl=list(re.finditer(r'\b(?:const|let|var)\s+requestId\s*=\s*crypto\s*\.\s*randomUUID\s*\(\s*\)',text))
-          if len(decl)!=1:raise RuntimeError('requestId random declaration count '+str(len(decl)))
-          pos=decl[0].start();before=text[:pos]
-          # Find the nearest function/method signature before the declaration without emitting source.
-          patterns=[
-            ('async_fetch_method',r'async\s+fetch\s*\(([^)]*)\)\s*\{'),
-            ('fetch_method',r'(?<![A-Za-z0-9_$])fetch\s*\(([^)]*)\)\s*\{'),
-            ('async_function',r'async\s+function\s+([A-Za-z_$][A-Za-z0-9_$]*)\s*\(([^)]*)\)\s*\{'),
-            ('function',r'function\s+([A-Za-z_$][A-Za-z0-9_$]*)\s*\(([^)]*)\)\s*\{'),
-          ]
-          candidates=[]
-          for typ,pat in patterns:
-              for m in re.finditer(pat,before):
-                  params=m.group(1) if typ in ('async_fetch_method','fetch_method') else m.group(2)
-                  fname='fetch' if typ in ('async_fetch_method','fetch_method') else m.group(1)
-                  candidates.append((m.start(),typ,fname,params))
-          if not candidates:raise RuntimeError('no enclosing handler signature candidate')
-          _,typ,fname,params=max(candidates,key=lambda x:x[0])
-          param_names=[]
-          for rawp in params.split(','):
-              p=rawp.strip()
-              m=re.match(r'([A-Za-z_$][A-Za-z0-9_$]*)',p)
-              if m:param_names.append(m.group(1))
-          if not param_names:raise RuntimeError('handler parameters unresolved')
-          window=text[max(0,pos-5000):pos+300]
-          header_capable=[]
-          for p in param_names:
-              if re.search(r'\b'+re.escape(p)+r'\s*\.\s*headers\b',window):header_capable.append(p)
-          out={'schema':'musitu.axiom.request_id_handler_contract_readonly.v1','gate':'AXIOM_REQUEST_ID_HANDLER_CONTRACT_READ_PASS','worker':worker,'source_sha256':sha,'request_id_random_declaration_count':1,'nearest_handler_kind':typ,'nearest_handler_name':fname,'handler_parameter_names':param_names,'header_capable_parameters_near_declaration':header_capable,'single_header_capable_parameter':len(header_capable)==1,'request_id_declaration_inside_compute_region':('/v1/compute' in text[max(0,pos-6000):pos+6000]),'mutation_performed':False,'source_published':False,'secret_values_published':False}
-          if len(header_capable)!=1:raise RuntimeError('could not prove exactly one request-like handler parameter')
+          decls=[]
+          for m in re.finditer(r'\b(?:const|let|var)\s+requestId\s*=\s*([^;\n]+)',text):
+              rhs=m.group(1)
+              if re.search(r'crypto\s*\.\s*randomUUID\s*\(',rhs):decls.append((m,rhs))
+          if len(decls)!=1:raise RuntimeError('requestId UUID-bearing declaration count '+str(len(decls)))
+          decl,rhs=decls[0];pos=decl.start();window=text[max(0,pos-7000):pos+1200]
+          header_vars=sorted(set(re.findall(r'\b([A-Za-z_$][A-Za-z0-9_$]*)\s*\.\s*headers\b',window)))
+          url_vars=sorted(set(re.findall(r'\b([A-Za-z_$][A-Za-z0-9_$]*)\s*\.\s*url\b',window)))
+          likely=sorted(set(header_vars).intersection(url_vars))
+          out={'schema':'musitu.axiom.request_id_handler_contract_readonly.v2','gate':'AXIOM_REQUEST_ID_HANDLER_CONTRACT_READ_PASS','worker':worker,'source_sha256':sha,'request_id_uuid_declaration_count':1,'request_id_rhs_uses_random_uuid':True,'request_id_rhs_reads_request_header':bool(re.search(r'headers?\s*\.\s*get\s*\(',rhs,re.I)),'nearby_header_object_identifiers':header_vars,'nearby_url_object_identifiers':url_vars,'request_like_identifier_candidates':likely,'single_request_like_identifier':len(likely)==1,'request_id_declaration_inside_compute_region':('/v1/compute' in text[max(0,pos-7000):pos+7000]),'mutation_performed':False,'source_published':False,'secret_values_published':False}
+          if len(likely)!=1:raise RuntimeError('could not prove exactly one request-like identifier near requestId declaration')
           blob=(json.dumps(out,indent=2,sort_keys=True)+'\n').encode();open('request-id-handler-contract.json','wb').write(blob);dg=hashlib.sha256(blob).hexdigest();open('request-id-handler-contract.sha256','w').write(dg+'  request-id-handler-contract.json\n')
           print(json.dumps({**out,'evidence_sha256':dg},sort_keys=True))
           PY
