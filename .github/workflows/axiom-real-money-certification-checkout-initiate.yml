@@ -27,8 +27,10 @@ jobs:
       EXPECTED_AMOUNT_CENTS: '1900'
       EXPECTED_CURRENCY: USD
       EXPECTED_UNIT_LIMIT: '1000'
+      SOURCE_CHECKOUT_RUN_ID: '33987665074'
+      SOURCE_CHECKOUT_JOB_ID: '101364108018'
     steps:
-      - name: Create one certification customer and unpaid Paynow checkout
+      - name: Recover or create exactly one initiated Paynow certification checkout
         env:
           CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
           CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
@@ -39,7 +41,7 @@ jobs:
           import datetime,hashlib,json,os,pathlib,secrets,urllib.error,urllib.parse,urllib.request,uuid
 
           api=os.environ['CF_API']; aid=os.environ['ACCOUNT_ID']; dbid=os.environ['D1_UUID']; base=os.environ['BILLING_BASE']
-          CFH={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY'],'Content-Type':'application/json','Accept':'application/json','User-Agent':'MUSITU-Axiom-Real-Money-Certification-Initiate/1.0'}
+          CFH={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY'],'Content-Type':'application/json','Accept':'application/json','User-Agent':'MUSITU-Axiom-Real-Money-Certification-Initiate/2.0'}
 
           def q(sql,params=None):
               body={'sql':sql}
@@ -56,7 +58,7 @@ jobs:
 
           def live_checkout(token):
               body=json.dumps({'plan':os.environ['EXPECTED_PLAN']},separators=(',',':')).encode()
-              req=urllib.request.Request(base+'/billing/checkout',headers={'Authorization':'Bearer '+token,'Content-Type':'application/json','Accept':'application/json','User-Agent':'MUSITU-Axiom-Real-Money-Certification-Initiate/1.0'},method='POST',data=body)
+              req=urllib.request.Request(base+'/billing/checkout',headers={'Authorization':'Bearer '+token,'Content-Type':'application/json','Accept':'application/json','User-Agent':'MUSITU-Axiom-Real-Money-Certification-Initiate/2.0'},method='POST',data=body)
               try:
                   with urllib.request.urlopen(req,timeout=60) as r: raw=r.read(); code=r.status
               except urllib.error.HTTPError as e: raw=e.read(); code=e.code
@@ -70,92 +72,101 @@ jobs:
                   return u.scheme=='https' and u.hostname in ('paynow.co.zw','www.paynow.co.zw')
               except Exception:return False
 
-          # Refuse duplicates. A certification checkout is deliberately one-at-a-time.
-          existing=q("SELECT count(*) AS n FROM customers WHERE id LIKE 'cert_real_money_%';")
-          if int(existing[0]['n'])!=0:
-              raise RuntimeError('existing real-money certification customer present; refusing duplicate checkout')
-          existing_intents=q("SELECT count(*) AS n FROM billing_checkout_intents WHERE customer_id LIKE 'cert_real_money_%';")
-          if int(existing_intents[0]['n'])!=0:
-              raise RuntimeError('existing real-money certification intent present; refusing duplicate checkout')
+          def cert_rows():
+              return q("SELECT i.reference,i.customer_id,i.plan,i.amount_cents,i.currency,i.monthly_unit_limit,i.status,i.browser_url,i.poll_url,i.paynow_reference,i.created_at,i.expires_at,i.completed_at FROM billing_checkout_intents i JOIN customers c ON c.id=i.customer_id WHERE i.customer_id LIKE 'cert_real_money_%' ORDER BY i.created_at DESC;")
 
-          suffix=uuid.uuid4().hex
-          customer='cert_real_money_'+suffix
-          key_id='cert_real_money_key_'+suffix
-          email='cert-real-money-'+suffix+'@invalid.example'
-          token='musitu_axiom_real_money_cert_'+secrets.token_urlsafe(40)
-          print('::add-mask::'+token)
-          key_hash=hashlib.sha256(token.encode()).hexdigest(); key_prefix=token[:16]
-          now=datetime.datetime.now(datetime.timezone.utc)
-          created=now.isoformat().replace('+00:00','Z')
-          expires=(now+datetime.timedelta(hours=1)).isoformat().replace('+00:00','Z')
-          customer_inserted=False; key_inserted=False; checkout_created=False
-          reference=None; browser=None
+          customers=q("SELECT id FROM customers WHERE id LIKE 'cert_real_money_%';")
+          intents=cert_rows()
+          recovered=False; checkout_http=201
+          customer=None; reference=None; browser=None
 
-          try:
-              q('INSERT INTO customers(id,email,name,plan,status,monthly_unit_override,created_at,updated_at) VALUES(?1,?2,?3,?4,?5,NULL,?6,?6)',[customer,email,'MUSITU real-money certification customer','developer','active',created])
-              customer_inserted=True
-              q('INSERT INTO api_keys(id,customer_id,key_hash,key_prefix,label,status,created_at,last_used_at,expires_at,revoked_at) VALUES(?1,?2,?3,?4,?5,?6,?7,NULL,?8,NULL)',[key_id,customer,key_hash,key_prefix,'real-money-certification-checkout-initiation','active',created,expires])
-              key_inserted=True
-
-              code,obj=live_checkout(token)
-              if code!=201: raise RuntimeError('billing checkout initiation failed HTTP '+str(code)+' error='+str(obj.get('error')))
-              reference=str(obj.get('reference') or ''); browser=str(obj.get('browser_url') or '')
+          if len(customers)==1 and len(intents)==1:
+              r=intents[0]; customer=r.get('customer_id'); reference=str(r.get('reference') or ''); browser=str(r.get('browser_url') or '')
+              recovered=True
               if reference: print('::add-mask::'+reference)
               if browser: print('::add-mask::'+browser)
-              checkout_created=True
+          elif len(customers)==0 and len(intents)==0:
+              suffix=uuid.uuid4().hex
+              customer='cert_real_money_'+suffix
+              key_id='cert_real_money_key_'+suffix
+              email='cert-real-money-'+suffix+'@invalid.example'
+              token='musitu_axiom_real_money_cert_'+secrets.token_urlsafe(40)
+              print('::add-mask::'+token)
+              key_hash=hashlib.sha256(token.encode()).hexdigest(); key_prefix=token[:16]
+              now=datetime.datetime.now(datetime.timezone.utc)
+              created=now.isoformat().replace('+00:00','Z'); key_expires=(now+datetime.timedelta(hours=1)).isoformat().replace('+00:00','Z')
+              inserted_customer=False; inserted_key=False; provider_created=False
+              try:
+                  q('INSERT INTO customers(id,email,name,plan,status,monthly_unit_override,created_at,updated_at) VALUES(?1,?2,?3,?4,?5,NULL,?6,?6)',[customer,email,'MUSITU real-money certification customer','developer','active',created]); inserted_customer=True
+                  q('INSERT INTO api_keys(id,customer_id,key_hash,key_prefix,label,status,created_at,last_used_at,expires_at,revoked_at) VALUES(?1,?2,?3,?4,?5,?6,?7,NULL,?8,NULL)',[key_id,customer,key_hash,key_prefix,'real-money-certification-checkout-initiation','active',created,key_expires]); inserted_key=True
+                  checkout_http,obj=live_checkout(token)
+                  if checkout_http!=201: raise RuntimeError('billing checkout initiation failed HTTP '+str(checkout_http)+' error='+str(obj.get('error')))
+                  reference=str(obj.get('reference') or ''); browser=str(obj.get('browser_url') or '')
+                  if reference: print('::add-mask::'+reference)
+                  if browser: print('::add-mask::'+browser)
+                  provider_created=True
+                  exact=(obj.get('plan'),obj.get('price_id'),int(obj.get('amount_cents') or 0),obj.get('currency'))
+                  expected=(os.environ['EXPECTED_PLAN'],os.environ['EXPECTED_PRICE_ID'],int(os.environ['EXPECTED_AMOUNT_CENTS']),os.environ['EXPECTED_CURRENCY'])
+                  if exact!=expected or not reference or not safe_paynow_url(browser): raise RuntimeError('provider checkout response contract mismatch')
+                  if obj.get('live_money_certified') is not False: raise RuntimeError('checkout incorrectly claims live-money certification')
+              finally:
+                  if inserted_key:
+                      try:q('DELETE FROM api_keys WHERE id=?1',[key_id])
+                      except Exception:pass
+                  if inserted_customer and not provider_created:
+                      try:q('DELETE FROM customers WHERE id=?1',[customer])
+                      except Exception:pass
+              intents=cert_rows()
+              if len(intents)!=1: raise RuntimeError('new certification intent not persisted exactly once')
+              r=intents[0]
+          else:
+              raise RuntimeError(f'ambiguous certification state customers={len(customers)} intents={len(intents)}; refusing duplicate checkout')
 
-              exact=(obj.get('plan'),obj.get('price_id'),int(obj.get('amount_cents') or 0),obj.get('currency'))
-              expected=(os.environ['EXPECTED_PLAN'],os.environ['EXPECTED_PRICE_ID'],int(os.environ['EXPECTED_AMOUNT_CENTS']),os.environ['EXPECTED_CURRENCY'])
-              if exact!=expected: raise RuntimeError('server-owned checkout catalog mismatch')
-              if not reference or not safe_paynow_url(browser): raise RuntimeError('provider checkout response missing safe Paynow browser URL/reference')
-              if obj.get('live_money_certified') is not False: raise RuntimeError('checkout incorrectly claims live-money certification')
+          r=intents[0]
+          if r.get('customer_id')!=customer or r.get('reference')!=reference:
+              raise RuntimeError('certification customer/reference readback mismatch')
+          if (r.get('plan'),int(r.get('amount_cents') or 0),r.get('currency'),int(r.get('monthly_unit_limit') or 0))!=('developer',1900,'USD',1000):
+              raise RuntimeError('persisted certification checkout catalog mismatch')
+          if str(r.get('status') or '').lower()!='initiated':
+              raise RuntimeError('certification checkout must be in canonical initiated state before payer action; got '+str(r.get('status')))
+          if not safe_paynow_url(r.get('browser_url')) or not safe_paynow_url(r.get('poll_url')):
+              raise RuntimeError('persisted certification checkout Paynow URL contract invalid')
+          if r.get('paynow_reference') or r.get('completed_at'):
+              raise RuntimeError('unpaid certification checkout unexpectedly contains settlement evidence')
+          exp=str(r.get('expires_at') or '')
+          try: exp_dt=datetime.datetime.fromisoformat(exp.replace('Z','+00:00'))
+          except Exception: raise RuntimeError('certification checkout expiry invalid')
+          if exp_dt<=datetime.datetime.now(datetime.timezone.utc): raise RuntimeError('certification checkout has expired; refusing stale payer URL')
 
-              rows=q('SELECT customer_id,plan,amount_cents,currency,monthly_unit_limit,status,browser_url,poll_url,paynow_reference,completed_at FROM billing_checkout_intents WHERE reference=?1 LIMIT 1',[reference])
-              if len(rows)!=1: raise RuntimeError('checkout intent not persisted exactly once')
-              r=rows[0]
-              if (r.get('customer_id'),r.get('plan'),int(r.get('amount_cents') or 0),r.get('currency'),int(r.get('monthly_unit_limit') or 0))!=(customer,'developer',1900,'USD',1000):
-                  raise RuntimeError('persisted checkout intent catalog/customer mismatch')
-              if str(r.get('status') or '').lower()!='pending' or not safe_paynow_url(r.get('browser_url')) or not safe_paynow_url(r.get('poll_url')):
-                  raise RuntimeError('persisted checkout intent is not a valid pending Paynow intent')
-              if r.get('paynow_reference') or r.get('completed_at'):
-                  raise RuntimeError('new unpaid certification checkout unexpectedly contains settlement evidence')
+          # No bearer credential may remain for this certification identity before payer action.
+          q("DELETE FROM api_keys WHERE customer_id=?1 AND label='real-money-certification-checkout-initiation'",[customer])
+          remaining=int(q('SELECT count(*) AS n FROM api_keys WHERE customer_id=?1',[customer])[0]['n'])
+          if remaining!=0: raise RuntimeError('certification identity unexpectedly has persistent API key material')
 
-              # Raw bearer material must not persist after checkout initiation.
-              q('DELETE FROM api_keys WHERE id=?1',[key_id]); key_inserted=False
-              if int(q('SELECT count(*) AS n FROM api_keys WHERE id=?1',[key_id])[0]['n'])!=0:
-                  raise RuntimeError('temporary certification API key cleanup failed')
+          browser=str(r.get('browser_url') or ''); reference=str(r.get('reference') or '')
+          print('::add-mask::'+browser); print('::add-mask::'+reference)
+          pathlib.Path('OPEN_PAYNOW_CERTIFICATION_CHECKOUT.txt').write_text(
+              'MUSITU Axiom real-money certification checkout\n\n'
+              'Plan: Developer\nAmount: USD 19.00\nPurpose: one genuine non-test payment for end-to-end certification\n\n'
+              'Open this Paynow URL before it expires:\n'+browser+'\n',encoding='utf-8')
 
-              # Payer-facing URL is artifact-only; never print it in the public Actions log.
-              pathlib.Path('OPEN_PAYNOW_CERTIFICATION_CHECKOUT.txt').write_text(
-                  'MUSITU Axiom real-money certification checkout\n\n'
-                  'Plan: Developer\nAmount: USD 19.00\nPurpose: one genuine non-test payment for end-to-end certification\n\n'
-                  'Open this Paynow URL before it expires:\n'+browser+'\n',encoding='utf-8')
-              ref_hash=hashlib.sha256(reference.encode()).hexdigest()
-              cust_hash=hashlib.sha256(customer.encode()).hexdigest()
-              evidence={
-                  'schema':'musitu.axiom.real_money_certification_checkout_initiation.v1',
-                  'gate':'AXIOM_REAL_MONEY_CERTIFICATION_CHECKOUT_READY',
-                  'plan':'developer','price_id':'axiom-developer-monthly','amount_cents':1900,'currency':'USD','monthly_unit_limit':1000,
-                  'checkout_http':201,'provider':'paynow','provider_checkout_created':True,'real_payment_completed':False,
-                  'intent_status':'pending','reference_sha256':ref_hash,'customer_id_sha256':cust_hash,
-                  'temporary_api_key_deleted':True,'raw_api_key_published':False,'worker_secret_mutation':False,
-                  'browser_url_logged':False,'browser_url_artifact_only':True,
-                  'live_money_certified':False,'wolfram_parity':'NOT_CERTIFIED','superiority':'NOT_CERTIFIED',
-              }
-              raw=(json.dumps(evidence,indent=2,sort_keys=True)+'\n').encode()
-              pathlib.Path('real-money-certification-checkout-initiation.json').write_bytes(raw)
-              dg=hashlib.sha256(raw).hexdigest()
-              pathlib.Path('real-money-certification-checkout-initiation.sha256').write_text(dg+'  real-money-certification-checkout-initiation.json\n')
-              print(json.dumps({'gate':evidence['gate'],'plan':'developer','amount_cents':1900,'currency':'USD','monthly_unit_limit':1000,'checkout_http':201,'provider_checkout_created':True,'real_payment_completed':False,'temporary_api_key_deleted':True,'raw_api_key_published':False,'browser_url_logged':False,'browser_url_artifact_only':True,'live_money_certified':False,'reference_sha256':ref_hash,'customer_id_sha256':cust_hash,'evidence_sha256':dg},sort_keys=True))
-          except Exception:
-              # If no provider checkout exists, remove all local fixture state. If one exists, preserve the intent/customer for forensic reconciliation and prevent a duplicate charge path.
-              if key_inserted:
-                  try:q('DELETE FROM api_keys WHERE id=?1',[key_id])
-                  except Exception:pass
-              if customer_inserted and not checkout_created:
-                  try:q('DELETE FROM customers WHERE id=?1',[customer])
-                  except Exception:pass
-              raise
+          ref_hash=hashlib.sha256(reference.encode()).hexdigest(); cust_hash=hashlib.sha256(customer.encode()).hexdigest()
+          evidence={
+              'schema':'musitu.axiom.real_money_certification_checkout_initiation.v2',
+              'gate':'AXIOM_REAL_MONEY_CERTIFICATION_CHECKOUT_READY',
+              'plan':'developer','price_id':'axiom-developer-monthly','amount_cents':1900,'currency':'USD','monthly_unit_limit':1000,
+              'checkout_http':checkout_http,'provider':'paynow','provider_checkout_created':True,'real_payment_completed':False,
+              'intent_status':'initiated','reference_sha256':ref_hash,'customer_id_sha256':cust_hash,
+              'recovered_existing_checkout':recovered,
+              'source_checkout_run_id':os.environ['SOURCE_CHECKOUT_RUN_ID'] if recovered else None,
+              'source_checkout_job_id':os.environ['SOURCE_CHECKOUT_JOB_ID'] if recovered else None,
+              'temporary_api_key_deleted':True,'persistent_api_key_count':0,'raw_api_key_published':False,'worker_secret_mutation':False,
+              'browser_url_logged':False,'browser_url_artifact_only':True,'checkout_not_expired':True,
+              'live_money_certified':False,'wolfram_parity':'NOT_CERTIFIED','superiority':'NOT_CERTIFIED',
+          }
+          raw=(json.dumps(evidence,indent=2,sort_keys=True)+'\n').encode(); pathlib.Path('real-money-certification-checkout-initiation.json').write_bytes(raw)
+          dg=hashlib.sha256(raw).hexdigest(); pathlib.Path('real-money-certification-checkout-initiation.sha256').write_text(dg+'  real-money-certification-checkout-initiation.json\n')
+          print(json.dumps({'gate':evidence['gate'],'plan':'developer','amount_cents':1900,'currency':'USD','monthly_unit_limit':1000,'intent_status':'initiated','provider_checkout_created':True,'real_payment_completed':False,'recovered_existing_checkout':recovered,'temporary_api_key_deleted':True,'persistent_api_key_count':0,'raw_api_key_published':False,'browser_url_logged':False,'browser_url_artifact_only':True,'checkout_not_expired':True,'live_money_certified':False,'reference_sha256':ref_hash,'customer_id_sha256':cust_hash,'evidence_sha256':dg},sort_keys=True))
           PY
 
       - name: Upload payer checkout link artifact
