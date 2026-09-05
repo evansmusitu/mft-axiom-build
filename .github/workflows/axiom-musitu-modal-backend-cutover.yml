@@ -113,10 +113,14 @@ jobs:
           test "$ready" = 1
           python - <<'PY'
           import json,os
+          from decimal import Decimal,InvalidOperation
           h=json.load(open('/tmp/h.json'));c=json.load(open('/tmp/c.json'))
           if h.get('ok') is not True:raise SystemExit('Modal health through adapter failed')
-          if c.get('ok') is not True or str(c.get('result')) not in {'42','42.0'}:raise SystemExit('Modal compute through adapter failed '+repr(c.get('result')))
-          out={'schema':'musitu.axiom.modal_backend_cutover.v1','adapter_worker':os.environ['ADAPTER_WORKER'],'old_modal_url':os.environ['OLD_MODAL_URL'],'new_modal_url':os.environ['NEW_MODAL_URL'],'immutable_build':os.environ['BUILD_ID'],'stored_proxy_secret_bindings_preserved':True,'service_binding_health':'PASS','service_binding_compute_42':'PASS','legacy_modal_app_retained_for_rollback':True,'cutover':'PASS','wolfram_parity':'NOT_CERTIFIED','superiority':'NOT_CERTIFIED'}
+          if c.get('ok') is not True:raise SystemExit('Modal compute through adapter not ok')
+          try:value=Decimal(str(c.get('result')))
+          except InvalidOperation:raise SystemExit('Modal compute result not numeric')
+          if value!=Decimal(42):raise SystemExit('Modal compute through adapter expected numeric 42 got '+repr(c.get('result')))
+          out={'schema':'musitu.axiom.modal_backend_cutover.v1','adapter_worker':os.environ['ADAPTER_WORKER'],'old_modal_url':os.environ['OLD_MODAL_URL'],'new_modal_url':os.environ['NEW_MODAL_URL'],'immutable_build':os.environ['BUILD_ID'],'stored_proxy_secret_bindings_preserved':True,'service_binding_health':'PASS','service_binding_compute_42_high_precision':'PASS','legacy_modal_app_retained_for_rollback':True,'cutover':'PASS','wolfram_parity':'NOT_CERTIFIED','superiority':'NOT_CERTIFIED'}
           json.dump(out,open('musitu-modal-backend-cutover.json','w'),indent=2,sort_keys=True)
           PY
           trap - ERR
