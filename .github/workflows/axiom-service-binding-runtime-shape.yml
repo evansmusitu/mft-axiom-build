@@ -17,14 +17,20 @@ jobs:
       ADAPTER_WORKER: mft-axiom-modal-adapter
     steps:
       - uses: actions/checkout@v4
-      - name: Deploy read-only binding-shape probe
+      - name: Deploy exception-safe binding-shape probe
         shell: bash
         run: |
           set -euo pipefail
           npm install --no-save --ignore-scripts --no-audit --no-fund wrangler@4.129.0 >/dev/null
           mkdir -p /tmp/p
           cat >/tmp/p/worker.js <<'JS'
-          export default {async fetch(r,e){return Response.json({fetch:typeof e.UP.fetch,getByName:typeof e.UP.getByName,idFromName:typeof e.UP.idFromName,get:typeof e.UP.get});}};
+          export default {async fetch(r,e){
+            const out={};
+            for(const n of ['fetch','getByName','idFromName','get']){
+              try{out[n]=typeof e.UP[n];}catch(err){out[n]='throws:'+String(err?.name||'Error');}
+            }
+            return Response.json(out);
+          }};
           JS
           python - <<'PY'
           import json,os
@@ -38,11 +44,13 @@ jobs:
           print(x['result']['subdomain'])
           PY
           )"
-          curl -fsS "https://${PROBE_WORKER}.${SUB}.workers.dev/" >/tmp/shape.json
-          cat /tmp/shape.json
+          code="$(curl -sS -o /tmp/shape.txt -w '%{http_code}' "https://${PROBE_WORKER}.${SUB}.workers.dev/" || true)"
+          echo "shape_http=$code"
+          cat /tmp/shape.txt
+          test "$code" = 200 || exit 1
           python - <<'PY'
           import json
-          x=json.load(open('/tmp/shape.json'))
+          x=json.load(open('/tmp/shape.txt'))
           if x.get('fetch')!='function': raise SystemExit('fetch unavailable')
           print('binding_shape_probe=PASS')
           PY
