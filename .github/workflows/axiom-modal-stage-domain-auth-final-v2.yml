@@ -1,4 +1,4 @@
-name: MUSITU Axiom Stage Domain Auth Final V3
+name: MUSITU Axiom Stage Domain Auth Final V4
 on:
   workflow_dispatch:
   push:
@@ -15,30 +15,44 @@ jobs:
       HOSTNAME: axiom-stage.mftintelligence.com
       EDGE_WORKER: musitu-axiom-modal-edge-stage
       BACKEND_WORKER: mft-axiom-modal-edge-stage
+      ADAPTER_WORKER: mft-axiom-modal-adapter
+      MUSITU_D1: musitu-axiom-prod
+      MUSITU_MODAL_URL: https://evansmusitu--musitu-axiom-v3-modal-staging-axiom-kernel.modal.run
       BUILD_ID: MFT-AXIOM-V3-FULL-SELF-CONTAINED-20260904
       CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
       CLOUDFLARE_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
     steps:
       - uses: actions/checkout@v4
-      - name: Precondition MUSITU domain facade and protected backend bindings
+      - name: Precondition MUSITU public edge, D1 backend and Modal runtime
         shell: bash
         run: |
           set -euo pipefail
           python - <<'PY'
-          import json,os,urllib.request
-          base='https://api.cloudflare.com/client/v4'; h={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_API_KEY']}
+          import json,os,urllib.parse,urllib.request
+          base='https://api.cloudflare.com/client/v4';aid=os.environ['ACCOUNT_ID'];h={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_API_KEY']}
           def get(p):
               q=urllib.request.Request(base+p,headers=h)
               with urllib.request.urlopen(q,timeout=30) as r:x=json.load(r)
               if not x.get('success'): raise SystemExit('Cloudflare read failed')
               return x.get('result') or []
-          ds=[d for d in get(f"/accounts/{os.environ['ACCOUNT_ID']}/workers/domains") if d.get('hostname')==os.environ['HOSTNAME']]
-          if len(ds)!=1 or ds[0].get('service')!=os.environ['EDGE_WORKER']: raise SystemExit('MUSITU domain service precondition')
-          st=get(f"/accounts/{os.environ['ACCOUNT_ID']}/workers/scripts/{os.environ['BACKEND_WORKER']}/settings")
-          names={b.get('name') for b in st.get('bindings',[]) if isinstance(b,dict)}
+          ds=[d for d in get(f'/accounts/{aid}/workers/domains') if d.get('hostname')==os.environ['HOSTNAME']]
+          if len(ds)!=1 or ds[0].get('service')!=os.environ['EDGE_WORKER']:raise SystemExit('MUSITU public-domain precondition')
+          d1=[x for x in get(f'/accounts/{aid}/d1/database?name='+urllib.parse.quote(os.environ['MUSITU_D1'])) if x.get('name')==os.environ['MUSITU_D1']]
+          if len(d1)!=1:raise SystemExit('MUSITU D1 resolution')
+          d1id=d1[0].get('uuid') or d1[0].get('id')
+          st=get(f'/accounts/{aid}/workers/scripts/{os.environ["BACKEND_WORKER"]}/settings')
+          bs=st.get('bindings',[]) if isinstance(st,dict) else [];names={b.get('name') for b in bs if isinstance(b,dict)}
           need={'AXIOM_DB','AXIOM_KERNEL','MFT_CONTROL_SECRET','MFT_RECEIPT_SECRET'}
-          if not need.issubset(names): raise SystemExit('protected backend binding precondition '+repr(sorted(need-names)))
-          print('musitu_facade_and_backend_precondition=PASS')
+          if not need.issubset(names):raise SystemExit('backend binding precondition '+repr(sorted(need-names)))
+          dbb=[b for b in bs if b.get('name')=='AXIOM_DB'];kb=[b for b in bs if b.get('name')=='AXIOM_KERNEL']
+          if len(dbb)!=1 or dbb[0].get('id')!=d1id:raise SystemExit('live AXIOM_DB is not MUSITU D1')
+          if len(kb)!=1 or kb[0].get('service')!=os.environ['ADAPTER_WORKER']:raise SystemExit('kernel adapter binding drift')
+          ast=get(f'/accounts/{aid}/workers/scripts/{os.environ["ADAPTER_WORKER"]}/settings')
+          ab=ast.get('bindings',[]) if isinstance(ast,dict) else [];an={b.get('name') for b in ab if isinstance(b,dict)}
+          if not {'MODAL_BASE_URL','MODAL_PROXY_KEY','MODAL_PROXY_SECRET'}.issubset(an):raise SystemExit('adapter bindings missing')
+          mb=[b for b in ab if b.get('name')=='MODAL_BASE_URL']
+          if len(mb)!=1 or mb[0].get('text')!=os.environ['MUSITU_MODAL_URL']:raise SystemExit('live adapter is not pointed at MUSITU Modal')
+          print('musitu_public_d1_modal_precondition=PASS')
           PY
       - name: Rotate only protected backend cryptographic runtime secrets
         shell: bash
@@ -56,7 +70,7 @@ jobs:
           printf '%s' "$C" | (cd /tmp/w && npx wrangler secret put MFT_CONTROL_SECRET --config wrangler.json >/dev/null)
           printf '%s' "$R" | (cd /tmp/w && npx wrangler secret put MFT_RECEIPT_SECRET --config wrangler.json >/dev/null)
           echo protected_backend_runtime_secrets=PASS
-      - name: Verify real MUSITU custom-domain compute and HMAC receipt
+      - name: Verify authenticated compute through MUSITU public edge, D1 and Modal
         shell: bash
         run: |
           set -euo pipefail
@@ -68,61 +82,61 @@ jobs:
           test "$code" = 200 || { echo "auth compute HTTP=$code"; cat /tmp/c.json; exit 1; }
           python - <<'PY'
           import json,os
-          from decimal import Decimal, InvalidOperation
+          from decimal import Decimal,InvalidOperation
           h=json.load(open('/tmp/h.json'))
           exp={'ok':True,'status':'READY','version':'3.0.0','build_id':os.environ['BUILD_ID'],'operation_count':74,'state':'D1','wolfram_parity':'NOT_CERTIFIED','superiority':'NOT_CERTIFIED'}
           bad={k:(h.get(k),v) for k,v in exp.items() if h.get(k)!=v}
-          if bad: raise SystemExit('health mismatch '+repr(bad))
+          if bad:raise SystemExit('health mismatch '+repr(bad))
           x=json.load(open('/tmp/c.json'))
-          if x.get('ok') is not True: raise SystemExit('compute ok false')
-          try: value=Decimal(str(x.get('result')))
-          except InvalidOperation: raise SystemExit('compute result not numeric')
-          if value!=Decimal(42): raise SystemExit('compute expected numeric 42 got '+repr(x.get('result')))
+          if x.get('ok') is not True:raise SystemExit('compute ok false')
+          try:value=Decimal(str(x.get('result')))
+          except InvalidOperation:raise SystemExit('compute result not numeric')
+          if value!=Decimal(42):raise SystemExit('expected numeric 42 got '+repr(x.get('result')))
           r=x.get('receipt') or {}
-          if r.get('signature_alg')!='HMAC-SHA256': raise SystemExit('receipt alg')
+          if r.get('signature_alg')!='HMAC-SHA256':raise SystemExit('receipt alg')
           for k in ('signature','request_sha256','result_sha256'):
-              if not r.get(k): raise SystemExit('receipt missing '+k)
-          print('MUSITU_AUTHENTICATED_COMPUTE_NUMERIC_42=PASS')
-          print('MUSITU_SIGNED_RECEIPT_HMAC_SHA256=PASS')
+              if not r.get(k):raise SystemExit('receipt missing '+k)
+          print('MUSITU_FULL_BACKEND_AUTHENTICATED_COMPUTE_42=PASS')
+          print('MUSITU_FULL_BACKEND_SIGNED_RECEIPT=PASS')
           PY
-      - name: Final MUSITU domain backend and scoped-security readback and seal
+      - name: Final MUSITU backend readback and seal
         shell: bash
         run: |
           set -euo pipefail
           python - <<'PY'
-          import json,os,urllib.request,hashlib,pathlib
-          base='https://api.cloudflare.com/client/v4'; aid=os.environ['ACCOUNT_ID']; zid=os.environ['ZONE_ID']; hdr={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_API_KEY'],'Content-Type':'application/json'}
+          import hashlib,json,os,pathlib,urllib.parse,urllib.request
+          base='https://api.cloudflare.com/client/v4';aid=os.environ['ACCOUNT_ID'];zid=os.environ['ZONE_ID'];hdr={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_API_KEY'],'Content-Type':'application/json'}
           def call(p,method='GET',body=None):
               q=urllib.request.Request(base+p,headers=hdr,data=None if body is None else json.dumps(body).encode(),method=method)
               with urllib.request.urlopen(q,timeout=30) as r:x=json.load(r)
-              if not x.get('success'): raise SystemExit('Cloudflare read failed')
+              if not x.get('success'):raise SystemExit('Cloudflare read failed')
               return x.get('result') or []
           d=[x for x in call(f'/accounts/{aid}/workers/domains') if x.get('hostname')==os.environ['HOSTNAME']]
-          if len(d)!=1 or d[0].get('service')!=os.environ['EDGE_WORKER']: raise SystemExit('MUSITU domain readback')
-          db=[x for x in call(f'/accounts/{aid}/d1/database?name=mft-axiom-prod') if x.get('name')=='mft-axiom-prod']
-          if len(db)!=1: raise SystemExit('legacy backend D1 readback')
+          if len(d)!=1 or d[0].get('service')!=os.environ['EDGE_WORKER']:raise SystemExit('MUSITU domain readback')
+          db=[x for x in call(f'/accounts/{aid}/d1/database?name='+urllib.parse.quote(os.environ['MUSITU_D1'])) if x.get('name')==os.environ['MUSITU_D1']]
+          if len(db)!=1:raise SystemExit('MUSITU D1 readback')
+          dbid=db[0].get('uuid') or db[0].get('id')
           sql="SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' AND name NOT LIKE '_cf_%' ORDER BY name;"
-          res=call(f"/accounts/{aid}/d1/database/{db[0]['uuid']}/query",'POST',{'sql':sql}); rr=[]
-          for p in res: rr += p.get('results') or []
-          tables=sorted(x['name'] for x in rr); expected=['api_keys','billing_subscriptions','customers','usage_buckets','usage_events','webhook_events']
-          if tables!=expected: raise SystemExit('backend D1 tables '+repr(tables))
+          res=call(f'/accounts/{aid}/d1/database/{dbid}/query','POST',{'sql':sql});rr=[]
+          for p in res:rr+=p.get('results') or []
+          tables=sorted(x['name'] for x in rr);expected=['api_keys','billing_subscriptions','customers','usage_buckets','usage_events','webhook_events']
+          if tables!=expected:raise SystemExit('MUSITU D1 tables '+repr(tables))
           found=[]
           for rs in call(f'/zones/{zid}/rulesets'):
-              if not rs.get('id'): continue
+              if not rs.get('id'):continue
               det=call(f"/zones/{zid}/rulesets/{rs['id']}")
-              if isinstance(det,dict):
-                  found += [r for r in det.get('rules',[]) if r.get('expression')=='http.host eq "axiom-stage.mftintelligence.com"' and r.get('enabled') is True]
-          if not found: raise SystemExit('scoped security rule readback')
-          out={'schema':'musitu.axiom.stage_domain_final.v3','hostname':os.environ['HOSTNAME'],'public_service':os.environ['EDGE_WORKER'],'protected_backend_service':os.environ['BACKEND_WORKER'],'build':os.environ['BUILD_ID'],'compute_host':'Modal','modal_app':'mft-axiom-v3-modal-staging','d1':'mft-axiom-prod','d1_tables':tables,'operation_count':74,'health':'PASS','unauthorized_compute':'401_PASS','authenticated_compute':'PASS_NUMERIC_42_HIGH_PRECISION','signed_receipt':'PASS_HMAC_SHA256','security_rule':'SCOPED_UNCHANGED_PASS','compatibility_facade':True,'musitu_modal_successor_ready':'musitu-axiom-v3-modal-staging','musitu_d1_successor_ready':'musitu-axiom-prod','billing':'NOT_CONFIGURED','wolfram_parity':'NOT_CERTIFIED','superiority':'NOT_CERTIFIED','gate':'MUSITU_STAGE_PUBLIC_AND_AUTHENTICATED_PASS'}
-          raw=json.dumps(out,sort_keys=True,separators=(',',':')).encode();out['evidence_sha256']=hashlib.sha256(raw).hexdigest();pathlib.Path('musitu-stage-final-v3.json').write_text(json.dumps(out,indent=2,sort_keys=True))
-          print('MUSITU_STAGE_PUBLIC_AND_AUTHENTICATED_PASS')
+              if isinstance(det,dict):found += [r for r in det.get('rules',[]) if r.get('expression')=='http.host eq "axiom-stage.mftintelligence.com"' and r.get('enabled') is True]
+          if not found:raise SystemExit('scoped security rule readback')
+          out={'schema':'musitu.axiom.stage_domain_final.v4','hostname':os.environ['HOSTNAME'],'public_service':os.environ['EDGE_WORKER'],'protected_backend_service':os.environ['BACKEND_WORKER'],'adapter_worker':os.environ['ADAPTER_WORKER'],'build':os.environ['BUILD_ID'],'compute_host':'Modal','modal_app':'musitu-axiom-v3-modal-staging','d1':'musitu-axiom-prod','d1_tables':tables,'operation_count':74,'health':'PASS','unauthorized_compute':'401_PASS','authenticated_compute':'PASS_NUMERIC_42_HIGH_PRECISION','signed_receipt':'PASS_HMAC_SHA256','security_rule':'SCOPED_UNCHANGED_PASS','compatibility_facade':True,'musitu_modal_backend_active':True,'musitu_d1_backend_active':True,'billing':'NOT_CONFIGURED','wolfram_parity':'NOT_CERTIFIED','superiority':'NOT_CERTIFIED','gate':'MUSITU_STAGE_FULL_BACKEND_ACTIVE_VERIFIED'}
+          raw=json.dumps(out,sort_keys=True,separators=(',',':')).encode();out['evidence_sha256']=hashlib.sha256(raw).hexdigest();pathlib.Path('musitu-stage-final-v4.json').write_text(json.dumps(out,indent=2,sort_keys=True))
+          print('MUSITU_STAGE_FULL_BACKEND_ACTIVE_VERIFIED')
           PY
-          sha256sum musitu-stage-final-v3.json /tmp/h.json /tmp/c.json > musitu-stage-final-v3.sha256
+          sha256sum musitu-stage-final-v4.json /tmp/h.json /tmp/c.json > musitu-stage-final-v4.sha256
       - uses: actions/upload-artifact@v4
         with:
-          name: musitu-axiom-stage-domain-final-v3
+          name: musitu-axiom-stage-domain-final-v4
           path: |
-            musitu-stage-final-v3.json
-            musitu-stage-final-v3.sha256
+            musitu-stage-final-v4.json
+            musitu-stage-final-v4.sha256
           retention-days: 30
           if-no-files-found: error
