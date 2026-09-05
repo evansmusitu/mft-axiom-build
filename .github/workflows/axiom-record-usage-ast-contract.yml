@@ -1,0 +1,78 @@
+name: MUSITU Axiom recordUsage AST Contract
+
+on:
+  push:
+    paths:
+      - '.github/workflows/axiom-record-usage-ast-contract.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Reconstruct protected runtime ephemerally
+        env:
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          P=deploy_payload/runtime_min
+          cat "$P/chunk_00.b64" "$P/chunk_01_02.b64" "$P/chunk_03_04.b64" "$P/chunk_05_06.b64" "$P/chunk_07_08.b64" "$P/chunk_09.b64" > runtime.enc.b64
+          base64 -d runtime.enc.b64 > runtime.tar.gz.enc
+          test "$(sha256sum runtime.tar.gz.enc | awk '{print $1}')" = 'b82448d6b4b34b302748815af976b535d69922c197d4b7a9056fc2f91a9e12cf'
+          openssl enc -d -aes-256-cbc -pbkdf2 -iter 250000 -in runtime.tar.gz.enc -out runtime.tar.gz -pass env:CLOUDFLARE_GLOBAL_API_KEY
+          test "$(sha256sum runtime.tar.gz | awk '{print $1}')" = 'b4d5a0266446523969a619f5e9bb5a04d9b815c78a2ab82ed046ef5e23d53663'
+          mkdir runtime && tar -xzf runtime.tar.gz -C runtime
+      - name: Emit recordUsage structural metadata only
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import hashlib,json,pathlib,re
+          contexts=[]
+          for p in pathlib.Path('runtime').rglob('*.js'):
+              t=p.read_text(errors='replace')
+              if 'recordUsage' not in t:continue
+              # Definition metadata.
+              dm=re.search(r'async\s+function\s+recordUsage\s*\(([^)]*)\)',t)
+              definition={}
+              if dm:
+                  args=[x.strip() for x in dm.group(1).split(',') if x.strip()]
+                  start=dm.start();w=t[max(0,start-1200):min(len(t),start+6000)]
+                  definition={
+                    'arg_names':args,
+                    'uses_insert_or_ignore':bool(re.search(r'INSERT\s+OR\s+IGNORE\s+INTO\s+usage_events',w,re.I)),
+                    'uses_plain_insert':bool(re.search(r'INSERT\s+INTO\s+usage_events',w,re.I)),
+                    'awaits_db_run':bool(re.search(r'await[^;]{0,1800}\.run\s*\(',w,re.S)),
+                    'request_id_references':len(re.findall(r'request[_A-Za-z]*id',w,re.I)),
+                    'id_generation_identifiers':sorted(set(re.findall(r'\b(?:crypto\.randomUUID|randomUUID|uuid|requestId|request_id|eventId|event_id)\b',w,re.I))),
+                  }
+              calls=[]
+              for m in re.finditer(r'(?<!function\s)recordUsage\s*\(([^;]{0,2200})\)',t,re.S):
+                  w=t[max(0,m.start()-1800):min(len(t),m.end()+1800)]
+                  calls.append({
+                    'nearby_async_await':bool(re.search(r'await\s+recordUsage\s*\(',w)),
+                    'nearby_response_return':bool(re.search(r'\breturn\s+new\s+Response|\breturn\s+jsonResponse|\breturn\s+json\s*\(',w,re.I)),
+                    'nearby_success_literal':bool(re.search(r'["\'](?:success|ok)["\']',w,re.I)),
+                    'nearby_failure_literal':bool(re.search(r'["\'](?:failed|error)["\']',w,re.I)),
+                    'argument_identifiers':sorted(set(re.findall(r'\b(?:requestId|request_id|operation|units|computeUnits|compute_units|customerId|customer_id|keyId|key_id|status|httpStatus|http_status)\b',m.group(1),re.I))),
+                  })
+              contexts.append({'file_suffix':p.suffix,'definition':definition,'call_count':len(calls),'calls':calls})
+          if not contexts:raise SystemExit('Fail-closed recordUsage absent')
+          out={'schema':'musitu.axiom.record_usage_ast_contract.v1','contexts':contexts,'runtime_archive_sha256':'b4d5a0266446523969a619f5e9bb5a04d9b815c78a2ab82ed046ef5e23d53663','plaintext_source_published':False,'secret_values_read':False,'mutation_performed':False,'gate':'AXIOM_RECORD_USAGE_AST_CONTRACT_PASS'}
+          raw=(json.dumps(out,indent=2,sort_keys=True)+'\n').encode();pathlib.Path('record-usage-ast-contract.json').write_bytes(raw);dg=hashlib.sha256(raw).hexdigest();pathlib.Path('record-usage-ast-contract.sha256').write_text(dg+'  record-usage-ast-contract.json\n')
+          print(json.dumps({**out,'evidence_sha256':dg},sort_keys=True))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: musitu-axiom-record-usage-ast-contract
+          path: |
+            record-usage-ast-contract.json
+            record-usage-ast-contract.sha256
+          retention-days: 14
+          if-no-files-found: error
