@@ -1,0 +1,152 @@
+name: MUSITU Axiom D1 Parallel Clone
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/axiom-d1-musitu-parallel-clone.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  clone-d1:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      CF_API: https://api.cloudflare.com/client/v4
+      ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      LEGACY_D1: mft-axiom-prod
+      MUSITU_D1: musitu-axiom-prod
+      MIGRATION_SHA256: efc2817e42fbba2efa0471ca5a10758b858540beff819ef6c054edd87ab93379
+    steps:
+      - uses: actions/checkout@v4
+      - name: Reconstruct canonical migration fail-closed
+        env:
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$CLOUDFLARE_GLOBAL_API_KEY"
+          P=deploy_payload/runtime_min
+          cat "$P/chunk_00.b64" "$P/chunk_01_02.b64" "$P/chunk_03_04.b64" "$P/chunk_05_06.b64" "$P/chunk_07_08.b64" "$P/chunk_09.b64" > runtime.enc.b64
+          base64 -d runtime.enc.b64 > runtime.tar.gz.enc
+          test "$(sha256sum runtime.tar.gz.enc | awk '{print $1}')" = 'b82448d6b4b34b302748815af976b535d69922c197d4b7a9056fc2f91a9e12cf'
+          python - <<'PY'
+          import hashlib,hmac,os
+          data=open('runtime.tar.gz.enc','rb').read()
+          got=hmac.new(os.environ['CLOUDFLARE_GLOBAL_API_KEY'].encode(),data,hashlib.sha256).hexdigest()
+          if not hmac.compare_digest(got,'1a3193d4f3271d61d151e6ebd7cf4576d8ab86c2e79b84eff4ad0f635fe7ab47'):
+              raise SystemExit('Fail-closed: ciphertext HMAC mismatch')
+          PY
+          openssl enc -d -aes-256-cbc -pbkdf2 -iter 250000 -in runtime.tar.gz.enc -out runtime.tar.gz -pass env:CLOUDFLARE_GLOBAL_API_KEY
+          test "$(sha256sum runtime.tar.gz | awk '{print $1}')" = 'b4d5a0266446523969a619f5e9bb5a04d9b815c78a2ab82ed046ef5e23d53663'
+          mkdir runtime
+          tar -xzf runtime.tar.gz -C runtime
+          test "$(sha256sum runtime/migrations/0001_revenue_core.sql | awk '{print $1}')" = "$MIGRATION_SHA256"
+      - name: Create schema and securely reconcile data
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import hashlib,json,os,urllib.parse,urllib.request,urllib.error
+          base=os.environ['CF_API']; aid=os.environ['ACCOUNT_ID']
+          headers={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY'],'Content-Type':'application/json','User-Agent':'MUSITU-Axiom-D1-Cutover/1.0'}
+          def call(path,method='GET',body=None):
+              data=None if body is None else json.dumps(body,separators=(',',':')).encode()
+              req=urllib.request.Request(base+path,headers=headers,method=method,data=data)
+              try:
+                  with urllib.request.urlopen(req,timeout=60) as r: raw=r.read(); code=r.status
+              except urllib.error.HTTPError as e:
+                  raw=e.read(); code=e.code
+              if not 200<=code<300: raise SystemExit(f'Cloudflare API failure http={code} path={path}')
+              obj=json.loads(raw or b'{}')
+              if isinstance(obj,dict) and obj.get('success') is False: raise SystemExit('Cloudflare API success=false')
+              return obj
+          def resolve(name,create=False):
+              obj=call(f'/accounts/{aid}/d1/database?name='+urllib.parse.quote(name))
+              rows=[x for x in (obj.get('result') or []) if x.get('name')==name]
+              if len(rows)>1: raise SystemExit('duplicate D1 '+name)
+              if not rows and create:
+                  c=call(f'/accounts/{aid}/d1/database','POST',{'name':name,'read_replication':{'mode':'auto'}})
+                  rows=[c.get('result') or {}]
+              if len(rows)!=1 or not rows[0].get('uuid'): raise SystemExit('D1 resolution failed '+name)
+              return rows[0]['uuid']
+          src=resolve(os.environ['LEGACY_D1'])
+          dst=resolve(os.environ['MUSITU_D1'],create=True)
+          if src==dst: raise SystemExit('source/destination UUID collision')
+          def query(dbid,sql,params=None):
+              payload={'sql':sql}
+              if params is not None: payload['params']=params
+              obj=call(f'/accounts/{aid}/d1/database/{dbid}/query','POST',payload)
+              res=obj.get('result') or []
+              if not res or not all(x.get('success') is True for x in res): raise SystemExit('D1 query failed')
+              rows=[]
+              for x in res: rows.extend(x.get('results') or [])
+              return rows
+          expected=['api_keys','billing_subscriptions','customers','usage_buckets','usage_events','webhook_events']
+          inventory="SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' AND name NOT LIKE '_cf_%' ORDER BY name;"
+          dst_tables=sorted(x['name'] for x in query(dst,inventory))
+          if not dst_tables:
+              migration=open('runtime/migrations/0001_revenue_core.sql').read()
+              if hashlib.sha256(migration.encode()).hexdigest()!=os.environ['MIGRATION_SHA256']: raise SystemExit('migration hash drift')
+              query(dst,migration)
+              dst_tables=sorted(x['name'] for x in query(dst,inventory))
+          if dst_tables!=expected: raise SystemExit('destination schema mismatch '+repr(dst_tables))
+          src_tables=sorted(x['name'] for x in query(src,inventory))
+          if src_tables!=expected: raise SystemExit('source schema mismatch '+repr(src_tables))
+          # Determine a dependency-safe table order from foreign key metadata.
+          deps={t:set() for t in expected}
+          columns={}
+          for t in expected:
+              columns[t]=[r['name'] for r in query(src,f'PRAGMA table_info("{t}");')]
+              for r in query(src,f'PRAGMA foreign_key_list("{t}");'):
+                  target=r.get('table')
+                  if target in deps and target!=t: deps[t].add(target)
+          order=[]; remaining=set(expected)
+          while remaining:
+              ready=sorted(t for t in remaining if not (deps[t] & remaining))
+              if not ready: raise SystemExit('foreign-key dependency cycle')
+              order.extend(ready); remaining-=set(ready)
+          def table_rows(dbid,t): return query(dbid,f'SELECT * FROM "{t}";')
+          def digest(rows):
+              normalized=sorted(json.dumps(r,sort_keys=True,separators=(',',':'),ensure_ascii=False) for r in rows)
+              return hashlib.sha256(('\n'.join(normalized)).encode()).hexdigest()
+          pre_dst_counts={t:len(table_rows(dst,t)) for t in expected}
+          src_counts={t:len(table_rows(src,t)) for t in expected}
+          if any(pre_dst_counts.values()) and pre_dst_counts!=src_counts:
+              raise SystemExit('Fail-closed: successor D1 contains nonmatching pre-existing data')
+          if not any(pre_dst_counts.values()):
+              for t in order:
+                  rows=table_rows(src,t)
+                  cols=columns[t]
+                  if not cols and rows: raise SystemExit('missing column metadata '+t)
+                  placeholders=','.join('?' for _ in cols)
+                  colsql=','.join('"'+c.replace('"','""')+'"' for c in cols)
+                  sql=f'INSERT INTO "{t}" ({colsql}) VALUES ({placeholders});'
+                  for row in rows:
+                      query(dst,sql,[row.get(c) for c in cols])
+          src_hash={}; dst_hash={}; final_counts={}
+          for t in expected:
+              sr=table_rows(src,t); dr=table_rows(dst,t)
+              src_hash[t]=digest(sr); dst_hash[t]=digest(dr); final_counts[t]=len(dr)
+              if len(sr)!=len(dr) or src_hash[t]!=dst_hash[t]: raise SystemExit('row reconciliation mismatch '+t)
+          idx=[x['name'] for x in query(dst,"SELECT name FROM sqlite_master WHERE type='index' AND name NOT LIKE 'sqlite_%' ORDER BY name;")]
+          required=['idx_api_keys_customer','idx_usage_events_customer_time','idx_usage_events_request']
+          if not all(x in idx for x in required): raise SystemExit('required index missing')
+          evidence={'schema':'musitu.axiom.d1_parallel_cutover.v1','legacy_database':os.environ['LEGACY_D1'],'legacy_uuid':src,'musitu_database':os.environ['MUSITU_D1'],'musitu_uuid':dst,'tables':expected,'dependency_order':order,'row_counts':src_counts,'table_content_sha256':src_hash,'required_indexes_verified':required,'plaintext_customer_rows_logged':False,'legacy_database_retained_for_rollback':True,'cutover_performed':False,'gate':'PASS','wolfram_parity':'NOT_CERTIFIED','superiority':'NOT_CERTIFIED'}
+          json.dump(evidence,open('musitu-d1-cutover-evidence.json','w'),indent=2,sort_keys=True)
+          print(json.dumps({'musitu_d1_clone_pass':True,'table_count':len(expected),'total_rows':sum(src_counts.values()),'legacy_retained':True},sort_keys=True))
+          PY
+          sha256sum musitu-d1-cutover-evidence.json > musitu-d1-cutover-evidence.sha256
+      - uses: actions/upload-artifact@v4
+        with:
+          name: musitu-axiom-d1-parallel-cutover
+          path: |
+            musitu-d1-cutover-evidence.json
+            musitu-d1-cutover-evidence.sha256
+          retention-days: 14
+          if-no-files-found: error
