@@ -1,0 +1,90 @@
+name: MFT Axiom API Key Issuance Contract
+
+on:
+  push:
+    paths:
+      - '.github/workflows/axiom-api-key-issuance-contract.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Reconstruct protected source
+        env:
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          P=deploy_payload/runtime_min
+          cat "$P/chunk_00.b64" "$P/chunk_01_02.b64" "$P/chunk_03_04.b64" "$P/chunk_05_06.b64" "$P/chunk_07_08.b64" "$P/chunk_09.b64" > runtime.enc.b64
+          base64 -d runtime.enc.b64 > runtime.tar.gz.enc
+          test "$(sha256sum runtime.tar.gz.enc | awk '{print $1}')" = 'b82448d6b4b34b302748815af976b535d69922c197d4b7a9056fc2f91a9e12cf'
+          openssl enc -d -aes-256-cbc -pbkdf2 -iter 250000 -in runtime.tar.gz.enc -out runtime.tar.gz -pass env:CLOUDFLARE_GLOBAL_API_KEY
+          test "$(sha256sum runtime.tar.gz | awk '{print $1}')" = 'b4d5a0266446523969a619f5e9bb5a04d9b815c78a2ab82ed046ef5e23d53663'
+          mkdir runtime && tar -xzf runtime.tar.gz -C runtime
+      - name: Emit key route metadata only
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json,pathlib,re
+          s=pathlib.Path('runtime/worker/src/index.js').read_text(errors='replace')
+          targets=['adminIssueKey','adminRotateKey','adminRevokeKey']
+          rows={}
+          for name in targets:
+              # Find calls to helper and inspect only safe path/method/field metadata around them.
+              positions=[m.start() for m in re.finditer(r'\b'+re.escape(name)+r'\s*\(',s)]
+              contexts=[]
+              for pos in positions:
+                  w=s[max(0,pos-3500):min(len(s),pos+3500)]
+                  paths=sorted(set(re.findall(r"['\"](\/v1\/admin\/[A-Za-z0-9_./:{}-]+)['\"]",w)))
+                  methods=sorted(set(re.findall(r'request\.method\s*(?:===|==)\s*["\']([A-Z]+)["\']',w)))
+                  params=sorted(set(re.findall(r'url\.pathname\.match\s*\(\s*\/([^/]+)\/',w)))
+                  contexts.append({'paths':paths,'methods':methods,'match_regex_fragments':params})
+              rows[name]=contexts
+          # Extract all literal admin path templates globally, and auth header form from authenticate().
+          admin_paths=sorted(set(re.findall(r"['\"](\/v1\/admin\/[A-Za-z0-9_./:{}-]+)['\"]",s)))
+          # Regex route patterns represented as normalized string only.
+          regex_routes=[]
+          for m in re.finditer(r'url\.pathname\.match\s*\(\s*\/([^\n]{1,180})\/\s*\)',s):
+              raw=m.group(1)
+              if 'admin' in raw: regex_routes.append(raw)
+          # request JSON field usage inside adminIssueKey.
+          def body(name):
+              m=re.search(r'(?:async\s+)?function\s+'+re.escape(name)+r'\s*\([^)]*\)\s*\{',s)
+              if not m:return ''
+              st=m.end()-1;d=0;q=None;e=False
+              for i in range(st,len(s)):
+                  c=s[i]
+                  if q:
+                      if e:e=False
+                      elif c=='\\':e=True
+                      elif c==q:q=None
+                      continue
+                  if c in "'\"`":q=c;continue
+                  if c=='{':d+=1
+                  elif c=='}':
+                      d-=1
+                      if d==0:return s[st+1:i]
+              return ''
+          b=body('adminIssueKey')
+          fields=sorted(set(re.findall(r'\b(?:body|payload|input)\.([A-Za-z_$][\w$]*)\b',b)))
+          literals=sorted(set(x for x in re.findall(r'["\']([^"\']{1,80})["\']',b) if re.search(r'label|key|required|invalid|customer|active',x,re.I)))
+          # Authenticate header mechanics metadata.
+          ab=body('authenticate')
+          auth_headers=sorted(set(x.lower() for x in re.findall(r'headers\.get\s*\(\s*["\']([^"\']+)["\']',ab)))
+          bearer=bool(re.search(r'Bearer\s+',ab,re.I) or re.search(r'bearer',ab,re.I))
+          out={'schema':'mft.axiom.api_key_issuance_contract.v1','helper_call_contexts':rows,'admin_literal_paths':admin_paths,'admin_regex_routes':regex_routes,'issue_key_body_properties':fields,'issue_key_validation_literals':literals,'authenticate_header_names':auth_headers,'authenticate_mentions_bearer':bearer,'plaintext_source_committed':False}
+          pathlib.Path('api-key-issuance-contract.json').write_text(json.dumps(out,indent=2,sort_keys=True))
+          print(json.dumps(out,sort_keys=True))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mft-axiom-api-key-issuance-contract
+          path: api-key-issuance-contract.json
+          retention-days: 7
