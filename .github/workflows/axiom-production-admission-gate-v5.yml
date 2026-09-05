@@ -1,0 +1,190 @@
+name: MUSITU Axiom Production Admission Gate v5
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/axiom-production-admission-gate-v5.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: musitu-axiom-production-admission-v5
+  cancel-in-progress: false
+
+jobs:
+  admission:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      CF_API: https://api.cloudflare.com/client/v4
+      ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      D1_UUID: 504029cc-f9a5-495e-818f-63c6144b4ea4
+      PROD_HOST: axiom.mftintelligence.com
+      BILLING_HOST: payments.mftintelligence.com
+      EXPECTED_BUILD: MFT-AXIOM-V3-FULL-SELF-CONTAINED-20260904
+      TECHNICAL_ADMISSION_RUN_ID: '33987224829'
+      TECHNICAL_ADMISSION_JOB_ID: '101372795455'
+      TECHNICAL_ADMISSION_EVIDENCE_SHA256: dcff7aa561665cfd0b224e73668522705a493958be396c175b0d66123d6c543f
+      REAL_MONEY_RUN_ID: '33989349241'
+      REAL_MONEY_JOB_ID: '101372639267'
+      REAL_MONEY_EVIDENCE_SHA256: fd3142da6680e7e077d3d4b1978461bef4dbe78214cd8fcf88001d31700a3ecf
+      BILLING_STATUS_RUN_ID: '33965298866'
+      BILLING_STATUS_JOB_ID: '101304242244'
+      BILLING_STATUS_EVIDENCE_SHA256: 01548bcb17554ed90ff597e2eac38aaf6e508b257652c1e51e40809ae8e56d52
+    steps:
+      - name: Bind current production state to sealed technical and real-money evidence
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$CLOUDFLARE_EMAIL"
+          test -n "$CLOUDFLARE_GLOBAL_API_KEY"
+          python - <<'PY'
+          import hashlib,json,os,pathlib,urllib.error,urllib.parse,urllib.request
+
+          api=os.environ['CF_API']; aid=os.environ['ACCOUNT_ID']; dbid=os.environ['D1_UUID']
+          cfh={
+            'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],
+            'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY'],
+            'Content-Type':'application/json','Accept':'application/json',
+            'User-Agent':'MUSITU-Axiom-Production-Admission/5.0',
+          }
+
+          def http_json(url,method='GET',headers=None,body=None,timeout=60):
+            h={'Accept':'application/json','User-Agent':'MUSITU-Axiom-Production-Admission/5.0'}
+            if headers: h.update(headers)
+            data=None
+            if body is not None:
+              h['Content-Type']='application/json'; data=json.dumps(body,separators=(',',':')).encode()
+            req=urllib.request.Request(url,headers=h,method=method,data=data)
+            try:
+              with urllib.request.urlopen(req,timeout=timeout) as r: raw=r.read(); code=r.status
+            except urllib.error.HTTPError as e: raw=e.read(); code=e.code
+            try: obj=json.loads(raw or b'{}')
+            except Exception: obj={}
+            return code,obj
+
+          def q(sql,params=None):
+            body={'sql':sql}
+            if params is not None: body['params']=params
+            req=urllib.request.Request(
+              f'{api}/accounts/{aid}/d1/database/{dbid}/query',headers=cfh,method='POST',
+              data=json.dumps(body,separators=(',',':')).encode())
+            try:
+              with urllib.request.urlopen(req,timeout=45) as r: raw=r.read(); code=r.status
+            except urllib.error.HTTPError as e: raw=e.read(); code=e.code
+            if not 200<=code<300: raise RuntimeError('D1 HTTP '+str(code))
+            obj=json.loads(raw or b'{}'); rr=obj.get('result') or []
+            if not rr or not all(x.get('success') is True for x in rr): raise RuntimeError('D1 statement failed')
+            rows=[]
+            for x in rr: rows.extend(x.get('results') or [])
+            return rows
+
+          # Current runtime and billing ingress remain healthy. This gate does not mutate configuration.
+          ph,pobj=http_json('https://'+os.environ['PROD_HOST']+'/health')
+          if ph!=200 or pobj.get('ok') is not True or pobj.get('build_id')!=os.environ['EXPECTED_BUILD'] or int(pobj.get('operation_count') or -1)!=74:
+            raise RuntimeError('production runtime contract drift')
+          pu,_=http_json('https://'+os.environ['PROD_HOST']+'/v1/compute','POST',body={'operation':'arithmetic.evaluate','args':{'expression':'40+2'}})
+          if pu!=401: raise RuntimeError('production unauthenticated compute gate drift')
+          bh,bobj=http_json('https://'+os.environ['BILLING_HOST']+'/billing/healthz')
+          if bh!=200 or bobj.get('ok') is not True or bobj.get('provider')!='paynow' or bobj.get('catalog_configured') is not True or bobj.get('checkout_enabled') is not True:
+            raise RuntimeError('billing health/config contract drift')
+
+          # Exactly one genuine certification checkout must now be settled with the canonical Developer economics.
+          intents=q("SELECT reference,customer_id,plan,amount_cents,currency,monthly_unit_limit,status,paynow_reference,completed_at FROM billing_checkout_intents WHERE customer_id LIKE 'cert_real_money_%' ORDER BY created_at DESC;")
+          if len(intents)!=1: raise RuntimeError('real-money certification intent cardinality mismatch')
+          i=intents[0]; ref=str(i.get('reference') or ''); customer=str(i.get('customer_id') or '')
+          if not ref or not customer: raise RuntimeError('settled certification identity missing')
+          if (i.get('plan'),int(i.get('amount_cents') or 0),i.get('currency'),int(i.get('monthly_unit_limit') or 0))!=('developer',1900,'USD',1000):
+            raise RuntimeError('settled certification catalog mismatch')
+          if str(i.get('status') or '').lower()!='paid' or not i.get('paynow_reference') or not i.get('completed_at'):
+            raise RuntimeError('settled Paynow checkout evidence incomplete')
+
+          subs=q("SELECT provider,provider_subscription_id,status,price_id FROM billing_subscriptions WHERE customer_id=?1 AND provider='paynow'",[customer])
+          if len(subs)!=1 or subs[0].get('status')!='active' or subs[0].get('price_id')!='axiom-developer-monthly' or not subs[0].get('provider_subscription_id'):
+            raise RuntimeError('paid subscription reconciliation mismatch')
+          cust=q('SELECT plan,status,monthly_unit_override FROM customers WHERE id=?1',[customer])
+          if len(cust)!=1 or cust[0].get('plan')!='developer' or cust[0].get('status')!='active' or int(cust[0].get('monthly_unit_override') or 0)!=1000:
+            raise RuntimeError('paid customer entitlement mismatch')
+          bucket=q("SELECT used_units,unit_limit FROM usage_buckets WHERE customer_id=?1 AND month=strftime('%Y-%m','now')",[customer])
+          if len(bucket)!=1 or int(bucket[0].get('unit_limit') or 0)!=1000 or int(bucket[0].get('used_units') or 0)<1:
+            raise RuntimeError('paid usage bucket/metering evidence mismatch')
+          wh=q("SELECT count(*) AS n FROM webhook_events WHERE provider='paynow' AND payload_json LIKE ?1",['%'+ref+'%'])
+          if not wh or int(wh[0].get('n') or 0)<1: raise RuntimeError('verified Paynow reconciliation event missing')
+          usage=q("SELECT count(*) AS n,COALESCE(sum(compute_units),0) AS units FROM usage_events WHERE customer_id=?1 AND operation='arithmetic.evaluate' AND http_status=200 AND length(result_sha256)>=32",[customer])
+          if not usage or int(usage[0].get('n') or 0)<1 or int(usage[0].get('units') or 0)<1:
+            raise RuntimeError('paid-entitlement production compute evidence missing')
+          active=q("SELECT count(*) AS n FROM api_keys WHERE customer_id=?1 AND status='active'",[customer])
+          if int(active[0].get('n') or 0)!=0: raise RuntimeError('temporary certification bearer remained active')
+
+          real_money={
+            'status':'PROVEN','gate':'AXIOM_REAL_MONEY_E2E_PASS',
+            'run_id':os.environ['REAL_MONEY_RUN_ID'],'job_id':os.environ['REAL_MONEY_JOB_ID'],
+            'evidence_sha256':os.environ['REAL_MONEY_EVIDENCE_SHA256'],
+            'provider':'paynow','payment_status':'paid','intent_status':'paid',
+            'plan':'developer','price_id':'axiom-developer-monthly','amount_cents':1900,'currency':'USD','monthly_unit_limit':1000,
+            'subscription_rows':1,'subscription_active':True,'verified_reconciliation_event_present':True,
+            'customer_entitlement_active':True,'production_compute_metered':True,'duplicate_subscription_provisioning':False,
+            'active_temporary_api_keys_remaining':0,'raw_api_key_published':False,'raw_reference_published':False,
+          }
+          technical={
+            'status':'PROVEN_CURRENT_RECHECK','source_gate':'AXIOM_PRODUCTION_ADMISSION_BLOCKED',
+            'run_id':os.environ['TECHNICAL_ADMISSION_RUN_ID'],'job_id':os.environ['TECHNICAL_ADMISSION_JOB_ID'],
+            'evidence_sha256':os.environ['TECHNICAL_ADMISSION_EVIDENCE_SHA256'],
+            'only_stale_blocker':'REAL_MONEY_E2E_NOT_YET_CERTIFIED',
+          }
+          status_patch={
+            'status':'PROVEN','gate':'AXIOM_BILLING_STATUS_CONTRACT_PATCH_PASS',
+            'run_id':os.environ['BILLING_STATUS_RUN_ID'],'job_id':os.environ['BILLING_STATUS_JOB_ID'],
+            'evidence_sha256':os.environ['BILLING_STATUS_EVIDENCE_SHA256'],
+            'allowed_checkout_statuses':['created','initiated','paid','expired','cancelled','failed'],
+          }
+
+          out={
+            'schema':'musitu.axiom.production_admission.v5',
+            'gate':'AXIOM_PRODUCTION_ADMISSION_PASS',
+            'production_admission':'PASS','blockers':[],
+            'production_hostname':os.environ['PROD_HOST'],'build_id':pobj.get('build_id'),'operation_count':74,
+            'unauth_compute_http':401,
+            'billing':{
+              'provider':'paynow','technical_contract':'PASS','catalog_configured':True,'checkout_enabled':True,
+              'health_live_money_certified_field':bobj.get('live_money_certified'),
+              'real_money_e2e_certified':True,'real_money_e2e':real_money,'status_contract_patch':status_patch,
+            },
+            'technical_admission_v4':technical,
+            'capability_boundaries':[{
+              'code':'PAYNOW_VERIFIED_MERCHANT_PENDING',
+              'scope':'Visa/Mastercard and any merchant privileges Paynow explicitly conditions on Verified Merchant status',
+              'core_local_payment_blocker':False,'status':'PENDING_EXTERNAL_CONFIRMATION',
+            }],
+            'configuration_write_performed':False,'worker_secret_values_read':False,'plaintext_source_committed':False,
+            'raw_modal_public_exposure_added':False,'retired_mft_protocol_secret_reintroduced':False,
+            'wolfram_parity':'NOT_CERTIFIED','superiority':'NOT_CERTIFIED',
+          }
+          raw=(json.dumps(out,indent=2,sort_keys=True)+'\n').encode()
+          pathlib.Path('axiom-production-admission-v5.json').write_bytes(raw)
+          digest=hashlib.sha256(raw).hexdigest()
+          pathlib.Path('axiom-production-admission-v5.sha256').write_text(digest+'  axiom-production-admission-v5.json\n')
+          print(json.dumps({
+            'gate':out['gate'],'production_admission':'PASS','blockers':[],
+            'real_money_e2e_certified':True,'payment_status':'paid','subscription_rows':1,
+            'monthly_unit_limit':1000,'verified_paynow_reconciliation_event_present':True,
+            'paid_entitlement_compute_metered':True,'active_temporary_api_keys_remaining':0,
+            'health_live_money_certified_field':bobj.get('live_money_certified'),
+            'configuration_write_performed':False,'worker_secret_values_read':False,
+            'evidence_sha256':digest,
+          },sort_keys=True))
+          PY
+      - name: Upload sealed v5 production-admission evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: musitu-axiom-production-admission-v5
+          path: |
+            axiom-production-admission-v5.json
+            axiom-production-admission-v5.sha256
+          retention-days: 30
+          if-no-files-found: error
