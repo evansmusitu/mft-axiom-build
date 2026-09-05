@@ -1,0 +1,49 @@
+name: MUSITU Axiom Billing Commercial Enable
+
+on:
+  push:
+    paths:
+      - '.github/workflows/axiom-billing-commercial-enable.yml'
+      - 'ops/axiom_billing_commercial_enable_v1.py'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: musitu-axiom-billing-commercial-enable
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      CF_API: https://api.cloudflare.com/client/v4
+      ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      ZONE_ID: 5b56528f03948ff5917a5e0cd9f7109e
+      D1_UUID: 504029cc-f9a5-495e-818f-63c6144b4ea4
+      AUTHORITY: mft-phase8-external-authority
+      AUTHORITY_SHA256: 1d8e1b2a0ccd52f101b7931fc9680afb37d86f5d288aa921c7d9a25de1590731
+      TRANSPORT: mft-paynow-transport-gateway
+      TRANSPORT_SHA256: 1b7d59474d47bbaa949f90e369c56fc366232acb673decbe079182050689d73e
+      BILLING: mft-axiom-billing-ingress
+      BILLING_ROUTE: payments.mftintelligence.com/billing/*
+      PAYMENTS_BASE: https://payments.mftintelligence.com
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compile deployer before any production access
+        run: python -m py_compile ops/axiom_billing_commercial_enable_v1.py
+      - name: Deploy catalog, signer, transport bridge and checkout fail-safely
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        run: python ops/axiom_billing_commercial_enable_v1.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: musitu-axiom-billing-commercial-enable
+          path: |
+            commercial-enable-evidence.json
+            commercial-enable-evidence.sha256
+          retention-days: 30
+          if-no-files-found: error
