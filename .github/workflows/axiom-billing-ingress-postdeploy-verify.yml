@@ -1,0 +1,120 @@
+name: MUSITU Axiom Billing Ingress Post-Deploy Verify
+
+on:
+  push:
+    paths:
+      - '.github/workflows/axiom-billing-ingress-postdeploy-verify.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    env:
+      CF_API: https://api.cloudflare.com/client/v4
+      ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      ZONE_ID: 5b56528f03948ff5917a5e0cd9f7109e
+      D1_UUID: 504029cc-f9a5-495e-818f-63c6144b4ea4
+      AUTHORITY: mft-phase8-external-authority
+      TRANSPORT: mft-paynow-transport-gateway
+      BILLING: mft-axiom-billing-ingress
+      BILLING_ROUTE: payments.mftintelligence.com/billing/*
+      BASE: https://payments.mftintelligence.com
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify live endpoint and control-plane invariants read-only
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        run: |
+          python - <<'PY'
+          import email,hashlib,json,os,urllib.error,urllib.parse,urllib.request
+          api=os.environ['CF_API'];aid=os.environ['ACCOUNT_ID'];zid=os.environ['ZONE_ID'];dbid=os.environ['D1_UUID'];auth=os.environ['AUTHORITY'];transport=os.environ['TRANSPORT'];billing=os.environ['BILLING'];route=os.environ['BILLING_ROUTE'];base=os.environ['BASE']
+          AH={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY'],'Accept':'application/json','User-Agent':'MUSITU-Axiom-Independent-Billing-Verify/1.0'}
+          def http(url,method='GET',headers=None,body=None):
+            q=urllib.request.Request(url,headers=dict(headers or {}),method=method,data=body)
+            try:
+              with urllib.request.urlopen(q,timeout=35) as r:return r.status,r.headers,r.read()
+            except urllib.error.HTTPError as e:return e.code,e.headers,e.read()
+          def cf(path,method='GET',obj=None):
+            h=dict(AH);body=None
+            if obj is not None:h['Content-Type']='application/json';body=json.dumps(obj,separators=(',',':')).encode()
+            c,hh,b=http(api+path,method,h,body)
+            if not 200<=c<300:raise SystemExit(f'FAIL Cloudflare HTTP {c} {path}')
+            x=json.loads(b or b'{}')
+            if isinstance(x,dict) and x.get('success') is False:raise SystemExit('FAIL Cloudflare success=false '+path)
+            return x.get('result') if isinstance(x,dict) else None
+          def live(path,method='GET',body=None,ctype=None):
+            h={'Accept':'application/json','User-Agent':'MUSITU-Axiom-Independent-Billing-Verify/1.0'}
+            if ctype:h['Content-Type']=ctype
+            return http(base+path,method,h,body)
+          def jobj(b):
+            try:return json.loads(b or b'{}')
+            except:return {}
+          def d1(sql):
+            x=cf(f'/accounts/{aid}/d1/database/{dbid}/query','POST',{'sql':sql});rows=[]
+            for rr in x or []:rows.extend(rr.get('results') or [])
+            return rows
+          checks={}
+          c,_,b=live('/billing/healthz');o=jobj(b);checks['health_http']=c;checks['health_ok']=o.get('ok');checks['catalog_configured']=o.get('catalog_configured');checks['charges_enabled']=o.get('charges_enabled');checks['subscription_activation_enabled']=o.get('subscription_activation_enabled');checks['d1']=o.get('d1');checks['transport_bound']=o.get('transport_bound');checks['authority_reachable']=(o.get('authority') or {}).get('reachable');checks['authority_bridge_auth']=(o.get('authority') or {}).get('bridge_auth_accepted');checks['authority_verifier_responded']=(o.get('authority') or {}).get('verifier_responded')
+          if not (c==200 and checks['health_ok'] is True and checks['catalog_configured'] is False and checks['charges_enabled'] is False and checks['subscription_activation_enabled'] is False and checks['d1'] is True and checks['transport_bound'] is True and checks['authority_reachable'] is True and checks['authority_bridge_auth'] is True and checks['authority_verifier_responded'] is True):raise SystemExit('FAIL health invariants '+json.dumps(checks,sort_keys=True))
+          c,_,b=live('/billing/catalog');checks['catalog_http']=c
+          if c!=503 or jobj(b).get('error')!='catalog_not_configured' or jobj(b).get('charges_enabled') is not False:raise SystemExit('FAIL catalog gate')
+          c,_,b=live('/billing/checkout','POST',b'{"price_id":"untrusted","amount":"0.01","plan":"admin"}','application/json');checks['checkout_http']=c;checks['checkout_charge_attempted']=jobj(b).get('charge_attempted')
+          if c!=503 or jobj(b).get('error')!='catalog_not_configured' or jobj(b).get('charge_attempted') is not False:raise SystemExit('FAIL checkout gate')
+          wb=d1('SELECT count(*) AS n FROM webhook_events;')[0]['n'];sb=d1('SELECT count(*) AS n FROM billing_subscriptions;')[0]['n']
+          invalid=('status=Paid&reference=independent-negative&hash='+'0'*128).encode();c,_,b=live('/billing/webhooks/paynow','POST',invalid,'application/x-www-form-urlencoded');checks['invalid_webhook_http']=c
+          wa=d1('SELECT count(*) AS n FROM webhook_events;')[0]['n'];sa=d1('SELECT count(*) AS n FROM billing_subscriptions;')[0]['n'];checks['invalid_webhook_mutation']=(wb!=wa or sb!=sa)
+          if c!=400 or checks['invalid_webhook_mutation']:raise SystemExit('FAIL invalid webhook mutation gate')
+          c,_,b=live('/');root=jobj(b);checks['transport_root_http']=c;checks['transport_authority']=root.get('authority');checks['transport_certifies_payments']=root.get('certifies_payments')
+          if c!=200 or root.get('authority')!='transport_only' or root.get('certifies_payments') is not False:raise SystemExit('FAIL transport root contract')
+          c,_,_=live('/internal/paynow/poll','POST',b'{}','application/json');checks['transport_internal_noauth_http']=c
+          if c!=401:raise SystemExit('FAIL transport internal authorization')
+          routes=cf(f'/zones/{zid}/workers/routes') or [];exact=[r for r in routes if isinstance(r,dict) and r.get('pattern')==route and r.get('script')==billing];checks['exact_route_count']=len(exact)
+          if len(exact)!=1:raise SystemExit('FAIL route count')
+          bset=cf(f'/accounts/{aid}/workers/scripts/{urllib.parse.quote(billing,safe="")}/settings') or {};binds=bset.get('bindings') or [];safe=[]
+          for z in binds:
+            if not isinstance(z,dict):continue
+            item={'name':z.get('name'),'type':z.get('type')}
+            if z.get('type')=='service':item['service']=z.get('service')
+            if z.get('type')=='d1':item['id']=z.get('id')
+            safe.append(item)
+          checks['billing_bindings']=sorted(safe,key=lambda x:str(x.get('name')))
+          by={x.get('name'):x for x in safe}
+          if by.get('AXIOM_DB',{}).get('type')!='d1' or by.get('AXIOM_DB',{}).get('id')!=dbid:raise SystemExit('FAIL D1 binding')
+          if by.get('PAYMENT_AUTHORITY',{}).get('service')!=auth or by.get('PAYNOW_TRANSPORT',{}).get('service')!=transport:raise SystemExit('FAIL service bindings')
+          if by.get('BILLING_BRIDGE_CAPABILITY_TOKEN',{}).get('type')!='secret_text':raise SystemExit('FAIL billing bridge secret binding')
+          sub=cf(f'/accounts/{aid}/workers/scripts/{urllib.parse.quote(billing,safe="")}/subdomain') or {};checks['workers_dev_enabled']=sub.get('enabled');checks['previews_enabled']=sub.get('previews_enabled')
+          if sub.get('enabled') is not False or sub.get('previews_enabled') is not False:raise SystemExit('FAIL subdomain exposure')
+          aset=cf(f'/accounts/{aid}/workers/scripts/{urllib.parse.quote(auth,safe="")}/settings') or {};an={z.get('name') for z in aset.get('bindings') or [] if isinstance(z,dict)}
+          required={'AUTHORITY_CAPABILITY_TOKEN','PAYNOW_INTEGRATION_KEY','BILLING_BRIDGE_CAPABILITY_TOKEN','SIGNING_PRIVATE_G1_B64','SIGNING_PUBLIC_G1_B64'};checks['authority_required_bindings_present']=required.issubset(an)
+          if not checks['authority_required_bindings_present']:raise SystemExit('FAIL authority binding preservation')
+          # Read source hash and ensure bridge extension exists without printing source or values.
+          c,hh,raw=http(f'{api}/accounts/{aid}/workers/scripts/{urllib.parse.quote(auth,safe="")}',headers=AH);src=raw
+          if c!=200:raise SystemExit('FAIL authority source read')
+          ct=hh.get('content-type','')
+          if 'multipart/' in ct.lower():
+            msg=email.message_from_bytes((f'Content-Type: {ct}\r\nMIME-Version: 1.0\r\n\r\n').encode()+raw);ps=[]
+            for p in msg.walk():
+              if p.is_multipart():continue
+              d=p.get_payload(decode=True) or b''
+              if b'verifyPaynowCallback' in d:ps.append(d)
+            if len(ps)!=1:raise SystemExit('FAIL authority module parse')
+            src=ps[0]
+          checks['authority_source_sha256']=hashlib.sha256(src).hexdigest();checks['authority_bridge_code_present']=b'BILLING_BRIDGE_CAPABILITY_TOKEN' in src and b'authorizedLegacy' in src
+          if not checks['authority_bridge_code_present']:raise SystemExit('FAIL authority bridge code absent')
+          evidence={'schema':'musitu.axiom.billing_ingress_postdeploy_verify.v1','checks':checks,'production_mutation_performed':False,'secret_values_read':False,'gate':'AXIOM_BILLING_INGRESS_POSTDEPLOY_VERIFY_PASS'}
+          raw=(json.dumps(evidence,indent=2,sort_keys=True)+'\n').encode();open('postdeploy-verify.json','wb').write(raw);dg=hashlib.sha256(raw).hexdigest();open('postdeploy-verify.sha256','w').write(dg+'  postdeploy-verify.json\n')
+          print(json.dumps({'gate':evidence['gate'],'health_http':checks['health_http'],'catalog_http':checks['catalog_http'],'checkout_http':checks['checkout_http'],'invalid_webhook_http':checks['invalid_webhook_http'],'invalid_webhook_mutation':checks['invalid_webhook_mutation'],'transport_internal_noauth_http':checks['transport_internal_noauth_http'],'exact_route_count':checks['exact_route_count'],'workers_dev_enabled':checks['workers_dev_enabled'],'previews_enabled':checks['previews_enabled'],'authority_bridge_code_present':checks['authority_bridge_code_present'],'production_mutation_performed':False,'secret_values_read':False,'evidence_sha256':dg},sort_keys=True))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: musitu-axiom-billing-ingress-postdeploy-verify
+          path: |
+            postdeploy-verify.json
+            postdeploy-verify.sha256
+          retention-days: 30
+          if-no-files-found: error
