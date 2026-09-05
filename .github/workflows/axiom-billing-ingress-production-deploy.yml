@@ -4,7 +4,7 @@ on:
   push:
     paths:
       - '.github/workflows/axiom-billing-ingress-production-deploy.yml'
-      - 'ops/axiom_billing_ingress_deploy.py'
+      - 'ops/axiom_billing_ingress_deploy_v2.py'
   workflow_dispatch:
 
 permissions:
@@ -28,12 +28,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Syntax-check deployment program
-        run: python -m py_compile ops/axiom_billing_ingress_deploy.py
+        run: python -m py_compile ops/axiom_billing_ingress_deploy_v2.py
       - name: Deploy isolated fail-closed billing ingress with rollback
         env:
           CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
           CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
-        run: python ops/axiom_billing_ingress_deploy.py
+        run: python ops/axiom_billing_ingress_deploy_v2.py
       - uses: actions/upload-artifact@v4
         with:
           name: musitu-axiom-billing-ingress-production-deploy
