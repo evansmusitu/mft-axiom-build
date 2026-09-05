@@ -1,0 +1,76 @@
+name: MUSITU Axiom Billing D1 Contract Read-Only
+
+on:
+  push:
+    paths:
+      - '.github/workflows/axiom-billing-d1-contract-readonly.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      CF_API: https://api.cloudflare.com/client/v4
+      ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      D1_NAME: musitu-axiom-prod
+    steps:
+      - uses: actions/checkout@v4
+      - name: Read billing/auth table contracts without mutation
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import hashlib,json,os,urllib.error,urllib.parse,urllib.request
+          base=os.environ['CF_API']; aid=os.environ['ACCOUNT_ID']; name=os.environ['D1_NAME']
+          h={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY'],'Content-Type':'application/json','User-Agent':'MUSITU-Axiom-Billing-D1-Contract/1.0'}
+          def req(path,method='GET',body=None):
+            data=None if body is None else json.dumps(body).encode()
+            q=urllib.request.Request(base+path,headers=h,method=method,data=data)
+            try:
+              with urllib.request.urlopen(q,timeout=45) as r: raw=r.read(); code=r.status
+            except urllib.error.HTTPError as e: raw=e.read(); code=e.code
+            if code!=200: raise SystemExit(f'Fail-closed Cloudflare HTTP {code}: {path}')
+            x=json.loads(raw or b'{}')
+            if x.get('success') is not True: raise SystemExit('Fail-closed Cloudflare success=false')
+            return x.get('result')
+          dbs=req(f'/accounts/{aid}/d1/database?per_page=100') or []
+          matches=[d for d in dbs if d.get('name')==name]
+          if len(matches)!=1: raise SystemExit('Fail-closed D1 not unique')
+          dbid=matches[0]['uuid']
+          tables=['customers','api_keys','billing_subscriptions','webhook_events','usage_events','usage_buckets']
+          queries=[]
+          for t in tables:
+            queries.append(f"SELECT name, type, \"notnull\" AS notnull, dflt_value, pk FROM pragma_table_info('{t}') ORDER BY cid")
+          # Also inspect indexes and row counts only; no row values.
+          queries.append("SELECT name,tbl_name,sql FROM sqlite_master WHERE type='index' AND tbl_name IN ('customers','api_keys','billing_subscriptions','webhook_events') ORDER BY tbl_name,name")
+          queries.append("SELECT 'customers' AS table_name, count(*) AS row_count FROM customers UNION ALL SELECT 'api_keys',count(*) FROM api_keys UNION ALL SELECT 'billing_subscriptions',count(*) FROM billing_subscriptions UNION ALL SELECT 'webhook_events',count(*) FROM webhook_events")
+          result=req(f'/accounts/{aid}/d1/database/{dbid}/query','POST',{'sql':queries})
+          if not isinstance(result,list) or len(result)!=len(queries): raise SystemExit('Fail-closed unexpected D1 result shape')
+          contracts={}
+          for i,t in enumerate(tables):
+            r=result[i]
+            if r.get('success') is not True: raise SystemExit('Fail-closed PRAGMA failed '+t)
+            rows=r.get('results') or []
+            contracts[t]=[{'name':x.get('name'),'type':x.get('type'),'notnull':x.get('notnull'),'default':x.get('dflt_value'),'pk':x.get('pk')} for x in rows]
+          indexes=result[-2].get('results') or []
+          counts=result[-1].get('results') or []
+          out={'schema':'musitu.axiom.billing_d1_contract.v1','database_name':name,'database_uuid':dbid,'table_contracts':contracts,'index_metadata':indexes,'row_counts':counts,'query_mode':'SELECT_PRAGMA_ONLY','mutation_performed':False,'row_values_exposed':False,'gate':'AXIOM_BILLING_D1_CONTRACT_READ_PASS'}
+          raw=(json.dumps(out,indent=2,sort_keys=True)+'\n').encode(); open('billing-d1-contract.json','wb').write(raw)
+          digest=hashlib.sha256(raw).hexdigest(); open('billing-d1-contract.sha256','w').write(digest+'  billing-d1-contract.json\n')
+          print(json.dumps({'gate':out['gate'],'database_uuid':dbid,'columns':{k:[c['name'] for c in v] for k,v in contracts.items()},'row_counts':counts,'mutation_performed':False,'sha256':digest},sort_keys=True))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: musitu-axiom-billing-d1-contract
+          path: |
+            billing-d1-contract.json
+            billing-d1-contract.sha256
+          retention-days: 14
+          if-no-files-found: error
