@@ -1,0 +1,258 @@
+name: MUSITU Axiom Production Custom Domain Cutover
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/axiom-production-custom-domain-cutover.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  cutover:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    env:
+      CF_API: https://api.cloudflare.com/client/v4
+      ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      ZONE_ID: 5b56528f03948ff5917a5e0cd9f7109e
+      ZONE_NAME: mftintelligence.com
+      PROD_HOST: axiom.mftintelligence.com
+      STAGE_HOST: axiom-stage.mftintelligence.com
+      PUBLIC_EDGE: musitu-axiom-modal-edge-stage
+      PROTECTED_BACKEND: mft-axiom-modal-edge-stage
+      PROTECTED_ADAPTER: mft-axiom-modal-adapter
+      D1_UUID: 504029cc-f9a5-495e-818f-63c6144b4ea4
+      MODAL_BASE_URL: https://evansmusitu--musitu-axiom-v3-modal-staging-axiom-kernel.modal.run
+      EXPECTED_BUILD: MFT-AXIOM-V3-FULL-SELF-CONTAINED-20260904
+      RULE_REF: musitu_axiom_prod_machine_transport
+    steps:
+      - name: Attach production hostname to certified MUSITU public edge with rollback
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$CLOUDFLARE_EMAIL"
+          test -n "$CLOUDFLARE_GLOBAL_API_KEY"
+          python - <<'PY'
+          import hashlib,json,os,time,urllib.error,urllib.parse,urllib.request,pathlib
+
+          base=os.environ['CF_API']
+          aid=os.environ['ACCOUNT_ID']; zid=os.environ['ZONE_ID']; zone_name=os.environ['ZONE_NAME']
+          prod=os.environ['PROD_HOST']; stage=os.environ['STAGE_HOST']; edge=os.environ['PUBLIC_EDGE']
+          backend=os.environ['PROTECTED_BACKEND']; adapter=os.environ['PROTECTED_ADAPTER']
+          hdr={
+            'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],
+            'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY'],
+            'Content-Type':'application/json',
+            'Accept':'application/json',
+            'User-Agent':'MUSITU-Axiom-Production-Domain-Cutover/1.0',
+          }
+
+          def call(path,method='GET',body=None):
+            data=None if body is None else json.dumps(body,separators=(',',':')).encode()
+            req=urllib.request.Request(base+path,headers=hdr,data=data,method=method)
+            try:
+              with urllib.request.urlopen(req,timeout=35) as r:
+                raw=r.read(); code=r.status
+            except urllib.error.HTTPError as e:
+              raw=e.read(); code=e.code
+            try: obj=json.loads(raw or b'{}')
+            except Exception: obj={}
+            if not 200 <= code < 300 or obj.get('success') is False:
+              raise RuntimeError(f'Cloudflare call failed HTTP {code}: {method} {path}')
+            return obj.get('result')
+
+          def http_json(url,method='GET',body=None):
+            data=None if body is None else json.dumps(body,separators=(',',':')).encode()
+            h={'Accept':'application/json','User-Agent':'MUSITU-Axiom-Production-Domain-Verifier/1.0'}
+            if data is not None: h['Content-Type']='application/json'
+            req=urllib.request.Request(url,headers=h,data=data,method=method)
+            try:
+              with urllib.request.urlopen(req,timeout=30) as r: raw=r.read(); code=r.status
+            except urllib.error.HTTPError as e: raw=e.read(); code=e.code
+            try: obj=json.loads(raw or b'{}')
+            except Exception: obj={}
+            return code,obj
+
+          def domains(): return call(f'/accounts/{aid}/workers/domains') or []
+          def prod_rows(): return [x for x in domains() if x.get('hostname')==prod]
+          def settings(service): return call(f'/accounts/{aid}/workers/scripts/{urllib.parse.quote(service,safe="")}/settings') or {}
+          def bindings(service): return [x for x in (settings(service).get('bindings') or []) if isinstance(x,dict)]
+
+          zones=call('/zones?name='+urllib.parse.quote(zone_name)+'&status=active') or []
+          if len(zones)!=1 or zones[0].get('id')!=zid or (zones[0].get('account') or {}).get('id')!=aid:
+            raise RuntimeError('canonical zone/account identity mismatch')
+
+          eb=bindings(edge)
+          if not any(x.get('type')=='service' and x.get('service')==backend for x in eb):
+            raise RuntimeError('MUSITU public edge no longer service-binds to protected backend')
+          bb=bindings(backend); bnames={x.get('name') for x in bb}
+          required_backend={'AXIOM_DB','AXIOM_KERNEL','MUSITU_CONTROL_SECRET','MUSITU_RECEIPT_SECRET'}
+          if not required_backend.issubset(bnames):
+            raise RuntimeError('protected backend MUSITU binding contract incomplete')
+          if {'MFT_CONTROL_SECRET','MFT_RECEIPT_SECRET'} & bnames:
+            raise RuntimeError('retired protocol secret binding reappeared')
+          db=[x for x in bb if x.get('name')=='AXIOM_DB']
+          kernel=[x for x in bb if x.get('name')=='AXIOM_KERNEL']
+          if len(db)!=1 or db[0].get('id')!=os.environ['D1_UUID']:
+            raise RuntimeError('protected backend D1 target drift')
+          if len(kernel)!=1 or kernel[0].get('service')!=adapter:
+            raise RuntimeError('protected backend AXIOM_KERNEL target drift')
+          ab=bindings(adapter); anames={x.get('name') for x in ab}
+          if not {'MODAL_BASE_URL','MODAL_PROXY_KEY','MODAL_PROXY_SECRET'}.issubset(anames):
+            raise RuntimeError('private adapter binding contract incomplete')
+          mb=[x for x in ab if x.get('name')=='MODAL_BASE_URL']
+          if len(mb)!=1 or mb[0].get('text')!=os.environ['MODAL_BASE_URL']:
+            raise RuntimeError('private adapter Modal target drift')
+
+          stage_rows=[x for x in domains() if x.get('hostname')==stage]
+          if len(stage_rows)!=1 or stage_rows[0].get('service')!=edge:
+            raise RuntimeError('certified staging domain no longer maps to MUSITU public edge')
+          hs,hj=http_json('https://'+stage+'/health')
+          if hs!=200 or hj.get('ok') is not True or hj.get('build_id')!=os.environ['EXPECTED_BUILD'] or int(hj.get('operation_count') or -1)!=74:
+            raise RuntimeError('certified staging health precondition failed')
+          ts,tj=http_json('https://'+stage+'/v1/tools')
+          if ts!=200 or int(tj.get('operation_count') or -1)!=74 or len(tj.get('tools') or [])!=74:
+            raise RuntimeError('certified staging tools precondition failed')
+          us,_=http_json('https://'+stage+'/v1/compute','POST',{'operation':'arithmetic.evaluate','args':{'expression':'40+2'}})
+          if us!=401: raise RuntimeError(f'certified staging unauth compute expected 401 got {us}')
+
+          before=prod_rows()
+          if len(before)>1: raise RuntimeError('duplicate production custom-domain rows')
+          if before and before[0].get('service')!=edge:
+            raise RuntimeError('production hostname already belongs to another Worker service')
+          dns=call(f'/zones/{zid}/dns_records?name='+urllib.parse.quote(prod)+'&per_page=100') or []
+          if not before and dns:
+            raise RuntimeError('production hostname already has DNS records; refusing origin override')
+          routes=call(f'/zones/{zid}/workers/routes') or []
+          conflicting_routes=[r for r in routes if prod in str(r.get('pattern') or '')]
+          if not before and conflicting_routes:
+            raise RuntimeError('production hostname already appears in Worker routes; refusing overlap')
+
+          rulesets=call(f'/zones/{zid}/rulesets') or []
+          cfg=[x for x in rulesets if x.get('phase')=='http_config_settings' and x.get('kind')=='zone']
+          if len(cfg)!=1: raise RuntimeError(f'expected one zone configuration ruleset, got {len(cfg)}')
+          rid=cfg[0].get('id'); detail=call(f'/zones/{zid}/rulesets/{rid}') or {}; rules=detail.get('rules') or []
+          expr='http.host eq "'+prod+'"'
+          by_ref=[r for r in rules if r.get('ref')==os.environ['RULE_REF']]
+          if len(by_ref)>1: raise RuntimeError('duplicate production machine-transport rules')
+          same_expr=[r for r in rules if r.get('expression')==expr]
+          if same_expr and not by_ref:
+            raise RuntimeError('production hostname already has a different configuration rule')
+          if by_ref:
+            r=by_ref[0]; ap=r.get('action_parameters') or {}
+            if r.get('action')!='set_config' or r.get('expression')!=expr or ap.get('security_level')!='essentially_off' or ap.get('bic') is not False or r.get('enabled') is False:
+              raise RuntimeError('existing production machine-transport rule differs from required exact contract')
+
+          domain_created=False; rule_created=False; created_rule_id=None
+          try:
+            if not by_ref:
+              created=call(f'/zones/{zid}/rulesets/{rid}/rules','POST',{
+                'action':'set_config',
+                'action_parameters':{'security_level':'essentially_off','bic':False},
+                'expression':expr,
+                'description':'MUSITU Axiom production API machine transport: disable browser challenge only on canonical API hostname; Worker auth remains fail-closed',
+                'enabled':True,
+                'ref':os.environ['RULE_REF'],
+              }) or {}
+              created_rule_id=created.get('id')
+              if not created_rule_id: raise RuntimeError('production machine-transport rule creation returned no id')
+              rule_created=True
+
+            if not before:
+              call(f'/accounts/{aid}/workers/domains','PUT',{
+                'hostname':prod,
+                'service':edge,
+                'zone_id':zid,
+                'zone_name':zone_name,
+                'override_existing_origin':True,
+              })
+              domain_created=True
+
+            after=prod_rows()
+            if len(after)!=1 or after[0].get('service')!=edge:
+              raise RuntimeError('production custom-domain readback mismatch')
+
+            rdetail=call(f'/zones/{zid}/rulesets/{rid}') or {}
+            matches=[r for r in (rdetail.get('rules') or []) if r.get('ref')==os.environ['RULE_REF']]
+            if len(matches)!=1:
+              raise RuntimeError('production machine-transport rule readback count mismatch')
+            rr=matches[0]; ap=rr.get('action_parameters') or {}
+            if rr.get('action')!='set_config' or rr.get('expression')!=expr or ap.get('security_level')!='essentially_off' or ap.get('bic') is not False or rr.get('enabled') is False:
+              raise RuntimeError('production machine-transport rule readback contract mismatch')
+
+            final_health=None; last=None
+            for _ in range(60):
+              hs,hj=http_json('https://'+prod+'/health')
+              if hs==200 and hj.get('ok') is True and hj.get('build_id')==os.environ['EXPECTED_BUILD'] and int(hj.get('operation_count') or -1)==74 and hj.get('wolfram_parity')=='NOT_CERTIFIED' and hj.get('superiority')=='NOT_CERTIFIED':
+                final_health=hj; break
+              last={'http_status':hs,'body_keys':sorted(hj.keys()) if isinstance(hj,dict) else []}
+              time.sleep(2)
+            if final_health is None:
+              raise RuntimeError('production health never reached exact FULL contract: '+repr(last))
+            ts,tj=http_json('https://'+prod+'/v1/tools')
+            if ts!=200 or int(tj.get('operation_count') or -1)!=74 or len(tj.get('tools') or [])!=74:
+              raise RuntimeError('production 74-tool registry verification failed')
+            us,_=http_json('https://'+prod+'/v1/compute','POST',{'operation':'arithmetic.evaluate','args':{'expression':'40+2'}})
+            if us!=401:
+              raise RuntimeError(f'production unauth compute expected 401 got {us}')
+
+            out={
+              'schema':'musitu.axiom.production_custom_domain.v1',
+              'hostname':prod,
+              'service':edge,
+              'protected_backend':backend,
+              'protected_adapter':adapter,
+              'raw_modal_publicly_exposed_by_this_change':False,
+              'build_id':os.environ['EXPECTED_BUILD'],
+              'health_http':200,
+              'operation_count':74,
+              'unauthenticated_compute_http':401,
+              'machine_transport_rule_ref':os.environ['RULE_REF'],
+              'machine_transport_rule_scope':expr,
+              'worker_auth_preserved':True,
+              'global_security_policy_mutated':False,
+              'domain_created':domain_created,
+              'rule_created':rule_created,
+              'rollback_required':False,
+              'wolfram_parity':'NOT_CERTIFIED',
+              'superiority':'NOT_CERTIFIED',
+              'gate':'AXIOM_PRODUCTION_CUSTOM_DOMAIN_PASS',
+            }
+            p=pathlib.Path('axiom-production-custom-domain.json')
+            p.write_text(json.dumps(out,indent=2,sort_keys=True)+'\n')
+            digest=hashlib.sha256(p.read_bytes()).hexdigest()
+            pathlib.Path('axiom-production-custom-domain.sha256').write_text(digest+'  '+p.name+'\n')
+            print(json.dumps({'gate':out['gate'],'hostname':prod,'service':edge,'health_http':200,'operation_count':74,'unauthenticated_compute_http':401,'domain_created':domain_created,'rule_created':rule_created,'evidence_sha256':digest},sort_keys=True))
+          except Exception as exc:
+            rollback={'domain_deleted':False,'rule_deleted':False}
+            try:
+              if domain_created:
+                rows=prod_rows()
+                if len(rows)==1 and rows[0].get('service')==edge and rows[0].get('id'):
+                  call(f'/accounts/{aid}/workers/domains/{rows[0]["id"]}','DELETE')
+                  rollback['domain_deleted']=(len(prod_rows())==0)
+            finally:
+              if rule_created and created_rule_id:
+                call(f'/zones/{zid}/rulesets/{rid}/rules/{created_rule_id}','DELETE')
+                chk=call(f'/zones/{zid}/rulesets/{rid}') or {}
+                rollback['rule_deleted']=not any(r.get('ref')==os.environ['RULE_REF'] for r in (chk.get('rules') or []))
+            pathlib.Path('axiom-production-custom-domain-failure.json').write_text(json.dumps({'schema':'musitu.axiom.production_custom_domain.failure.v1','error_type':type(exc).__name__,'error':str(exc),'rollback':rollback,'raw_modal_publicly_exposed_by_this_change':False,'wolfram_parity':'NOT_CERTIFIED','superiority':'NOT_CERTIFIED'},indent=2,sort_keys=True)+'\n')
+            raise
+          PY
+
+      - name: Upload sealed production custom-domain evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: musitu-axiom-production-custom-domain
+          path: |
+            axiom-production-custom-domain.json
+            axiom-production-custom-domain.sha256
+            axiom-production-custom-domain-failure.json
+          retention-days: 30
+          if-no-files-found: warn
