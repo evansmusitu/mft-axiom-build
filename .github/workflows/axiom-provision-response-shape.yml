@@ -1,0 +1,66 @@
+name: MFT Axiom Provision Response Shape
+
+on:
+  push:
+    paths:
+      - '.github/workflows/axiom-provision-response-shape.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Reconstruct protected source
+        env:
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          P=deploy_payload/runtime_min
+          cat "$P/chunk_00.b64" "$P/chunk_01_02.b64" "$P/chunk_03_04.b64" "$P/chunk_05_06.b64" "$P/chunk_07_08.b64" "$P/chunk_09.b64" > runtime.enc.b64
+          base64 -d runtime.enc.b64 > runtime.tar.gz.enc
+          test "$(sha256sum runtime.tar.gz.enc | awk '{print $1}')" = 'b82448d6b4b34b302748815af976b535d69922c197d4b7a9056fc2f91a9e12cf'
+          openssl enc -d -aes-256-cbc -pbkdf2 -iter 250000 -in runtime.tar.gz.enc -out runtime.tar.gz -pass env:CLOUDFLARE_GLOBAL_API_KEY
+          test "$(sha256sum runtime.tar.gz | awk '{print $1}')" = 'b4d5a0266446523969a619f5e9bb5a04d9b815c78a2ab82ed046ef5e23d53663'
+          mkdir runtime && tar -xzf runtime.tar.gz -C runtime
+      - name: Emit response object keys only
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json,pathlib,re
+          src='\n'.join(p.read_text(errors='replace') for p in pathlib.Path('runtime/worker/src').glob('*.js'))
+          def body(name):
+              m=re.search(r'(?:export\s+)?(?:async\s+)?function\s+'+re.escape(name)+r'\s*\([^)]*\)\s*\{',src)
+              if not m:return ''
+              st=m.end()-1;d=0;q=None;e=False
+              for i in range(st,len(src)):
+                  c=src[i]
+                  if q:
+                      if e:e=False
+                      elif c=='\\':e=True
+                      elif c==q:q=None
+                      continue
+                  if c in "'\"`":q=c;continue
+                  if c=='{':d+=1
+                  elif c=='}':
+                      d-=1
+                      if d==0:return src[st+1:i]
+              return ''
+          out={}
+          for name in ['adminCreateCustomer','adminIssueKey','issueKey']:
+              b=body(name)
+              keysets=[]
+              # object literals supplied to json(...) or returned directly, report property names only
+              for m in re.finditer(r'(?:return\s+)?(?:json\s*\(\s*)?\{([^{}]{0,1800})\}',b,re.S):
+                  keys=sorted(set(re.findall(r'(?:^|[,\n]\s*)([A-Za-z_$][\w$]*)\s*:',m.group(1))))
+                  if keys:keysets.append(keys)
+              out[name]={'present':bool(b),'object_key_sets':keysets,'string_literals':sorted(set(x for x in re.findall(r'["\']([^"\']{1,60})["\']',b) if re.search(r'api.?key|key_id|customer_id|customer|raw|token|secret|label',x,re.I)))}
+          result={'schema':'mft.axiom.provision_response_shape.v1','functions':out,'plaintext_source_committed':False}
+          pathlib.Path('provision-response-shape.json').write_text(json.dumps(result,indent=2,sort_keys=True))
+          print(json.dumps(result,sort_keys=True))
+          PY
