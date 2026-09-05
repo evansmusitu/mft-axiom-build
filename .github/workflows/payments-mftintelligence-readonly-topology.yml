@@ -1,0 +1,95 @@
+name: payments.mftintelligence.com Read-Only Topology Audit
+
+on:
+  push:
+    paths:
+      - '.github/workflows/payments-mftintelligence-readonly-topology.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      CF_API: https://api.cloudflare.com/client/v4
+      EXPECTED_ZONE: mftintelligence.com
+      EXPECTED_ZONE_ID: 5b56528f03948ff5917a5e0cd9f7109e
+      EXPECTED_ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      PAYMENTS_HOST: payments.mftintelligence.com
+    steps:
+      - uses: actions/checkout@v4
+      - name: Read Cloudflare payments topology without mutation
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$CLOUDFLARE_EMAIL"
+          test -n "$CLOUDFLARE_GLOBAL_API_KEY"
+          python - <<'PY'
+          import hashlib,json,os,urllib.error,urllib.parse,urllib.request
+          base=os.environ['CF_API']; zid=os.environ['EXPECTED_ZONE_ID']; aid=os.environ['EXPECTED_ACCOUNT_ID']; host=os.environ['PAYMENTS_HOST']
+          headers={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY'],'Content-Type':'application/json','User-Agent':'MUSITU-Payments-Topology-Audit/1.0'}
+          def cf(path):
+            req=urllib.request.Request(base+path,headers=headers,method='GET')
+            try:
+              with urllib.request.urlopen(req,timeout=45) as r: raw=r.read(); code=r.status
+            except urllib.error.HTTPError as e: raw=e.read(); code=e.code
+            if code != 200: raise SystemExit(f'Fail-closed Cloudflare GET HTTP {code}: {path}')
+            x=json.loads(raw or b'{}')
+            if x.get('success') is not True: raise SystemExit(f'Fail-closed Cloudflare success=false: {path}')
+            return x.get('result')
+          zones=cf('/zones?name='+urllib.parse.quote(os.environ['EXPECTED_ZONE'])+'&status=active') or []
+          if len(zones)!=1: raise SystemExit('Fail-closed: canonical zone not unique')
+          z=zones[0]
+          if z.get('id')!=zid or (z.get('account') or {}).get('id')!=aid: raise SystemExit('Fail-closed: zone/account mismatch')
+          domains=cf(f'/accounts/{aid}/workers/domains') or []
+          payment_domains=[d for d in domains if d.get('hostname')==host]
+          if len(payment_domains)!=1: raise SystemExit('Fail-closed: payments custom domain not unique')
+          pd=payment_domains[0]; service=pd.get('service')
+          if not service: raise SystemExit('Fail-closed: payments domain has no Worker service')
+          settings=cf(f'/accounts/{aid}/workers/scripts/{service}/settings') or {}
+          safe_bindings=[]
+          for b in settings.get('bindings') or []:
+            if not isinstance(b,dict): continue
+            safe_bindings.append({k:b.get(k) for k in ('name','type','service','environment','namespace_id','id','bucket_name','class_name') if b.get(k) is not None})
+          routes=cf(f'/zones/{zid}/workers/routes') or []
+          host_routes=[]
+          for r in routes:
+            pattern=str(r.get('pattern') or '')
+            if host in pattern:
+              host_routes.append({'id':r.get('id'),'pattern':pattern,'script':r.get('script')})
+          rulesets=cf(f'/zones/{zid}/rulesets') or []
+          scoped_rules=[]
+          for rs in rulesets:
+            rsid=rs.get('id')
+            if not rsid: continue
+            detail=cf(f'/zones/{zid}/rulesets/{rsid}') or {}
+            for rule in detail.get('rules') or []:
+              expr=str(rule.get('expression') or '')
+              if host in expr:
+                scoped_rules.append({'phase':detail.get('phase'),'kind':detail.get('kind'),'action':rule.get('action'),'enabled':rule.get('enabled'),'expression':expr,'description':rule.get('description')})
+          def external(method,path):
+            req=urllib.request.Request('https://'+host+path,headers={'Accept':'application/json','User-Agent':'MUSITU-Payments-Topology-Audit/1.0'},method=method)
+            try:
+              with urllib.request.urlopen(req,timeout=30) as r: return {'method':method,'path':path,'status':r.status,'content_type':r.headers.get('content-type'),'server':r.headers.get('server')}
+            except urllib.error.HTTPError as e: return {'method':method,'path':path,'status':e.code,'content_type':e.headers.get('content-type'),'server':e.headers.get('server')}
+            except Exception as e: return {'method':method,'path':path,'status':None,'transport_error':type(e).__name__}
+          probes=[external('GET','/'),external('GET','/health'),external('GET','/v1/billing/webhooks/stripe'),external('OPTIONS','/v1/billing/webhooks/stripe')]
+          out={'schema':'musitu.axiom.payments_topology.v1','zone':os.environ['EXPECTED_ZONE'],'account_id':aid,'hostname':host,'custom_domain':{'service':service,'environment':pd.get('environment')},'worker_binding_metadata':safe_bindings,'hostname_worker_routes':host_routes,'hostname_scoped_security_rules':scoped_rules,'external_safe_probes':probes,'write_performed':False,'secret_values_captured':False,'gate':'PAYMENTS_MFTINTELLIGENCE_TOPOLOGY_READ_PASS'}
+          raw=(json.dumps(out,indent=2,sort_keys=True)+'\n').encode(); open('payments-topology.json','wb').write(raw)
+          digest=hashlib.sha256(raw).hexdigest(); open('payments-topology.sha256','w').write(digest+'  payments-topology.json\n')
+          print(json.dumps({'gate':out['gate'],'hostname':host,'service':service,'binding_names':sorted([x.get('name') for x in safe_bindings if x.get('name')]),'host_routes':host_routes,'scoped_rule_count':len(scoped_rules),'probes':probes,'write_performed':False,'sha256':digest},sort_keys=True))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: musitu-payments-mftintelligence-topology
+          path: |
+            payments-topology.json
+            payments-topology.sha256
+          retention-days: 14
+          if-no-files-found: error
