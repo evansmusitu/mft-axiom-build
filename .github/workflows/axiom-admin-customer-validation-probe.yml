@@ -1,0 +1,73 @@
+name: MFT Axiom Admin Customer Validation Probe
+
+on:
+  push:
+    paths:
+      - '.github/workflows/axiom-admin-customer-validation-probe.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    env:
+      CLOUDFLARE_ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+      CLOUDFLARE_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+      EDGE_WORKER: mft-axiom-modal-edge-stage
+    steps:
+      - name: Install Wrangler and rotate control secret
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --no-save --ignore-scripts --no-audit --no-fund wrangler@4.129.0 >/dev/null
+          mkdir -p /tmp/cfg
+          printf "export default {fetch(){return new Response('unused')}};" >/tmp/cfg/p.js
+          python - <<'PY'
+          import json,os
+          json.dump({'name':os.environ['EDGE_WORKER'],'main':'p.js','compatibility_date':'2026-09-04'},open('/tmp/cfg/wrangler.json','w'))
+          PY
+          C="$(openssl rand -hex 32)"; echo "::add-mask::$C"; printf '%s' "$C" >/tmp/control
+          printf '%s' "$C" | (cd /tmp/cfg && npx wrangler secret put MFT_CONTROL_SECRET --config wrangler.json >/dev/null)
+          echo control_rotation=PASS
+      - name: Probe empty customer POST validation only
+        shell: bash
+        run: |
+          set -euo pipefail
+          SUB="$(python - <<'PY'
+          import json,os,urllib.request
+          h={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_API_KEY']}
+          q=urllib.request.Request(f"https://api.cloudflare.com/client/v4/accounts/{os.environ['CLOUDFLARE_ACCOUNT_ID']}/workers/subdomain",headers=h)
+          with urllib.request.urlopen(q) as r:x=json.load(r)
+          print(x['result']['subdomain'])
+          PY
+          )"
+          U="https://${EDGE_WORKER}.${SUB}.workers.dev"
+          C="$(cat /tmp/control)"
+          code="$(curl -sS -o /tmp/out.json -w '%{http_code}' -X POST "$U/v1/admin/customers" -H "x-mft-control: $C" -H 'content-type: application/json' --data '{}')"
+          echo "admin_empty_post_http=$code"
+          python - "$code" <<'PY'
+          import json,sys
+          code=int(sys.argv[1]); raw=open('/tmp/out.json').read()
+          try:x=json.loads(raw)
+          except Exception:x={}
+          # Only emit safe validation metadata, never values that look like credentials.
+          print('response_json='+str(isinstance(x,dict)).lower())
+          if isinstance(x,dict):
+              print('top_keys='+','.join(sorted(x.keys())))
+              for k in ['error','code','detail','message','required','missing']:
+                  v=x.get(k)
+                  if isinstance(v,(str,int,float,bool,list)):
+                      text=str(v)
+                      if len(text)<=500 and not any(p in text.lower() for p in ['secret','token','api_key','apikey']):
+                          print(f'{k}={text}')
+          if 200 <= code < 300:
+              raise SystemExit('Fail-closed: empty admin customer POST unexpectedly succeeded')
+          if code not in (400,401,403,405,422):
+              raise SystemExit('Fail-closed unexpected validation status '+str(code))
+          print('ADMIN_CUSTOMER_VALIDATION_PROBE_PASS')
+          PY
+          rm -f /tmp/control
