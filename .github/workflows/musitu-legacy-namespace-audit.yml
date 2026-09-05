@@ -1,4 +1,4 @@
-# MUSITU post-cleanup residual audit trigger
+# MUSITU final residual namespace audit trigger
 name: MUSITU Legacy Namespace Audit
 
 on:
