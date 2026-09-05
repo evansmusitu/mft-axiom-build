@@ -1,0 +1,93 @@
+name: MFT Axiom Private Edge Implementation Contract
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/axiom-private-edge-implementation-contract.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Reconstruct encrypted Axiom source fail-closed
+        env:
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$CLOUDFLARE_GLOBAL_API_KEY"
+          P=deploy_payload/runtime_min
+          cat "$P/chunk_00.b64" "$P/chunk_01_02.b64" "$P/chunk_03_04.b64" "$P/chunk_05_06.b64" "$P/chunk_07_08.b64" "$P/chunk_09.b64" > runtime.enc.b64
+          base64 -d runtime.enc.b64 > runtime.tar.gz.enc
+          test "$(sha256sum runtime.tar.gz.enc | awk '{print $1}')" = 'b82448d6b4b34b302748815af976b535d69922c197d4b7a9056fc2f91a9e12cf'
+          python - <<'PY'
+          import hashlib,hmac,os
+          data=open('runtime.tar.gz.enc','rb').read()
+          got=hmac.new(os.environ['CLOUDFLARE_GLOBAL_API_KEY'].encode(),data,hashlib.sha256).hexdigest()
+          if not hmac.compare_digest(got,'1a3193d4f3271d61d151e6ebd7cf4576d8ab86c2e79b84eff4ad0f635fe7ab47'):
+              raise SystemExit('Fail-closed: ciphertext HMAC mismatch')
+          PY
+          openssl enc -d -aes-256-cbc -pbkdf2 -iter 250000 -in runtime.tar.gz.enc -out runtime.tar.gz -pass env:CLOUDFLARE_GLOBAL_API_KEY
+          test "$(sha256sum runtime.tar.gz | awk '{print $1}')" = 'b4d5a0266446523969a619f5e9bb5a04d9b815c78a2ab82ed046ef5e23d53663'
+          mkdir runtime
+          tar -xzf runtime.tar.gz -C runtime
+
+      - name: Extract migration and AXIOM_KERNEL call contract safely
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json,pathlib,re,hashlib
+          root=pathlib.Path('runtime')
+          man=json.loads((root/'RUNTIME_SOURCE_MANIFEST.json').read_text())
+          paths=[f['path'] for f in man['files']]
+          sql=[]
+          for p in paths:
+              q=root/p
+              if q.is_file() and q.suffix.lower()=='.sql':
+                  txt=q.read_text(errors='replace')
+                  tables=sorted(set(re.findall(r'(?i)CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?["`\[]?([A-Za-z_][A-Za-z0-9_]*)',txt)))
+                  indexes=sorted(set(re.findall(r'(?i)CREATE\s+(?:UNIQUE\s+)?INDEX\s+(?:IF\s+NOT\s+EXISTS\s+)?["`\[]?([A-Za-z_][A-Za-z0-9_]*)',txt)))
+                  sql.append({'path':p,'sha256':hashlib.sha256(q.read_bytes()).hexdigest(),'bytes':q.stat().st_size,'tables':tables,'indexes':indexes,'statement_count':len([x for x in txt.split(';') if x.strip()])})
+          texts={}
+          for p in paths:
+              q=root/p
+              if q.is_file() and q.suffix.lower() in {'.js','.mjs','.ts'} and p.startswith('worker/'):
+                  texts[p]=q.read_text(errors='replace')
+          usage=[]
+          for p,t in texts.items():
+              for m in re.finditer(r'env\.AXIOM_KERNEL\s*\.\s*([A-Za-z_][A-Za-z0-9_]*)\s*\(',t):
+                  usage.append({'path':p,'kind':'method','method':m.group(1)})
+              if re.search(r'env\.AXIOM_KERNEL\s*\[',t): usage.append({'path':p,'kind':'bracket_access'})
+              if re.search(r'\bAXIOM_KERNEL\b',t) and not any(u['path']==p for u in usage): usage.append({'path':p,'kind':'reference'})
+          # Service-binding style usually calls .fetch; Durable Object bindings use idFromName/get.
+          style={
+            'service_binding_fetch':any(u.get('method')=='fetch' for u in usage),
+            'durable_object_idFromName':any(u.get('method')=='idFromName' for u in usage),
+            'durable_object_get':any(u.get('method')=='get' for u in usage),
+          }
+          wrangler=[]
+          for p in paths:
+              if pathlib.PurePosixPath(p).name in {'wrangler.toml','wrangler.json','wrangler.jsonc'}:
+                  wrangler.append({'path':p,'sha256':hashlib.sha256((root/p).read_bytes()).hexdigest(),'bytes':(root/p).stat().st_size})
+          out={'schema':'mft.axiom.private_edge_implementation_contract.v1','source_build':man['source_build'],'sql_migrations':sql,'axiom_kernel_usage':usage,'axiom_kernel_binding_style':style,'wrangler_files':wrangler,'plaintext_source_committed':False,'wolfram_parity':'NOT_CERTIFIED','superiority':'NOT_CERTIFIED'}
+          if not sql: raise SystemExit('Fail-closed: no canonical SQL migration found')
+          if not usage: raise SystemExit('Fail-closed: AXIOM_KERNEL usage not found')
+          open('private-edge-implementation-contract.json','w').write(json.dumps(out,indent=2,sort_keys=True))
+          print(json.dumps({'contract_pass':True,'sql_migrations':sql,'axiom_kernel_usage':usage,'binding_style':style,'wrangler_files':wrangler},sort_keys=True))
+          PY
+          sha256sum private-edge-implementation-contract.json > private-edge-implementation-contract.sha256
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mft-axiom-private-edge-implementation-contract
+          path: |
+            private-edge-implementation-contract.json
+            private-edge-implementation-contract.sha256
+          retention-days: 7
+          if-no-files-found: error
