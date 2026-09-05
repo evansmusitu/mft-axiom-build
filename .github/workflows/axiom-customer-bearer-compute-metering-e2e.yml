@@ -1,0 +1,134 @@
+name: MUSITU Axiom Disposable Bearer Compute Metering E2E
+
+on:
+  push:
+    paths:
+      - '.github/workflows/axiom-customer-bearer-compute-metering-e2e.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: musitu-axiom-disposable-bearer-compute-metering
+  cancel-in-progress: false
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    env:
+      CF_API: https://api.cloudflare.com/client/v4
+      ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      D1_UUID: 504029cc-f9a5-495e-818f-63c6144b4ea4
+      EDGE: https://axiom-stage.mftintelligence.com
+      EXPECTED_BUILD: MFT-AXIOM-V3-FULL-SELF-CONTAINED-20260904
+    steps:
+      - uses: actions/checkout@v4
+      - name: Prove disposable Bearer compute and exact metering delta
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import datetime,hashlib,json,os,secrets,urllib.error,urllib.parse,urllib.request,uuid
+          api=os.environ['CF_API'];aid=os.environ['ACCOUNT_ID'];dbid=os.environ['D1_UUID'];edge=os.environ['EDGE'];build=os.environ['EXPECTED_BUILD']
+          CFH={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY'],'Accept':'application/json','User-Agent':'MUSITU-Axiom-Disposable-Bearer-Metering/1.0'}
+          def http(url,method='GET',headers=None,body=None):
+              q=urllib.request.Request(url,headers=dict(headers or {}),method=method,data=body)
+              try:
+                  with urllib.request.urlopen(q,timeout=45) as r:return r.status,r.headers,r.read()
+              except urllib.error.HTTPError as e:return e.code,e.headers,e.read()
+          def cf(path,method='GET',obj=None):
+              h=dict(CFH);body=None
+              if obj is not None:h['Content-Type']='application/json';body=json.dumps(obj,separators=(',',':')).encode()
+              c,hh,b=http(api+path,method,h,body)
+              if not 200<=c<300:raise RuntimeError(f'Cloudflare HTTP {c} {path}: '+b[:300].decode('utf-8','ignore'))
+              x=json.loads(b or b'{}')
+              if isinstance(x,dict) and x.get('success') is False:raise RuntimeError('Cloudflare success=false '+path)
+              return x.get('result') if isinstance(x,dict) else None
+          def d1(sql,params=None):
+              obj={'sql':sql}
+              if params is not None:obj['params']=params
+              x=cf(f'/accounts/{aid}/d1/database/{dbid}/query','POST',obj);rows=[]
+              for rr in x or []:
+                  if rr.get('success') is not True:raise RuntimeError('D1 statement failed')
+                  rows.extend(rr.get('results') or [])
+              return rows
+          def live(path,method='GET',obj=None,token=None,request_id=None):
+              h={'Accept':'application/json','User-Agent':'MUSITU-Axiom-Disposable-Bearer-Metering/1.0'};body=None
+              if obj is not None:h['Content-Type']='application/json';body=json.dumps(obj,separators=(',',':')).encode()
+              if token:h['Authorization']='Bearer '+token
+              if request_id:h['x-musitu-request-id']=request_id
+              c,hh,b=http(edge+path,method,h,body)
+              try:o=json.loads(b or b'{}')
+              except:o={}
+              return c,hh,o
+          # Pin the public edge contract before inserting any fixture.
+          c,_,h=live('/health')
+          if c!=200 or h.get('ok') is not True or h.get('build_id')!=build or int(h.get('operation_count') or -1)!=74:raise RuntimeError('stage health contract mismatch')
+          c,_,_=live('/v1/compute','POST',{'operation':'arithmetic.add','args':{'a':40,'b':2}})
+          if c!=401:raise RuntimeError('unauth compute gate expected 401')
+          suffix=uuid.uuid4().hex
+          customer='fixture_compute_customer_'+suffix;key_id='fixture_compute_key_'+suffix
+          email='axiom-compute-fixture-'+suffix+'@invalid.example';token='musitu_axiom_compute_test_'+secrets.token_urlsafe(36)
+          print('::add-mask::'+token)
+          key_hash=hashlib.sha256(token.encode()).hexdigest();key_prefix=token[:16]
+          now=datetime.datetime.now(datetime.timezone.utc);created=now.isoformat().replace('+00:00','Z');expires=(now+datetime.timedelta(hours=1)).isoformat().replace('+00:00','Z')
+          rid='MUSITU-E2E-'+uuid.uuid4().hex.upper(); evidence={};inserted=False
+          before_events=before_bucket=0
+          try:
+              # Insert only into the same identity tables already exercised by billing E2E.
+              d1('INSERT INTO customers(id,email,name,plan,status,monthly_unit_override,created_at,updated_at) VALUES(?1,?2,?3,?4,?5,?6,?7,?7)',[customer,email,'MUSITU disposable compute fixture','developer','active',100,created])
+              d1('INSERT INTO api_keys(id,customer_id,key_hash,key_prefix,label,status,created_at,last_used_at,expires_at,revoked_at) VALUES(?1,?2,?3,?4,?5,?6,?7,NULL,?8,NULL)',[key_id,customer,key_hash,key_prefix,'disposable-compute-metering-e2e','active',created,expires])
+              inserted=True
+              before_events=int(d1('SELECT count(*) AS n FROM usage_events WHERE customer_id=?1',[customer])[0]['n'])
+              br=d1('SELECT COALESCE(SUM(request_count),0) AS n FROM usage_buckets WHERE customer_id=?1',[customer]);before_bucket=int(br[0]['n'])
+              c,hh,o=live('/v1/compute','POST',{'operation':'arithmetic.add','args':{'a':40,'b':2}},token,rid);evidence['compute_http']=c
+              if c!=200:raise RuntimeError('authenticated compute failed HTTP '+str(c)+' error='+str(o.get('error')))
+              # Accept any canonical result envelope but require numeric 42 somewhere shallow.
+              vals=[]
+              def collect(x,depth=0):
+                  if depth>3:return
+                  if isinstance(x,(int,float)) and not isinstance(x,bool):vals.append(x)
+                  elif isinstance(x,dict):
+                      for v in x.values():collect(v,depth+1)
+                  elif isinstance(x,list):
+                      for v in x[:20]:collect(v,depth+1)
+              collect(o)
+              if 42 not in vals and 42.0 not in vals:raise RuntimeError('compute result 42 absent')
+              events=d1('SELECT request_id,operation,units,receipt_hash,customer_id,api_key_id FROM usage_events WHERE customer_id=?1 ORDER BY created_at DESC',[customer])
+              if len(events)!=before_events+1:raise RuntimeError(f'usage event delta expected 1 got {len(events)-before_events}')
+              ev=events[0]
+              if ev.get('request_id')!=rid or ev.get('operation')!='arithmetic.add' or ev.get('customer_id')!=customer or ev.get('api_key_id')!=key_id:raise RuntimeError('usage event identity mismatch')
+              units=int(ev.get('units') or 0)
+              if units<=0:raise RuntimeError('usage units not positive')
+              receipt_hash=str(ev.get('receipt_hash') or '')
+              if len(receipt_hash)<32:raise RuntimeError('receipt hash absent')
+              ar=d1('SELECT COALESCE(SUM(request_count),0) AS n,COALESCE(SUM(units_used),0) AS units FROM usage_buckets WHERE customer_id=?1',[customer]);after_bucket=int(ar[0]['n']);bucket_units=int(ar[0]['units'])
+              if after_bucket-before_bucket!=1:raise RuntimeError('usage bucket request delta not 1')
+              if bucket_units<units:raise RuntimeError('usage bucket unit total below event units')
+              last=d1('SELECT last_used_at FROM api_keys WHERE id=?1',[key_id]);
+              if not last or not last[0].get('last_used_at'):raise RuntimeError('api key last_used_at not updated')
+              evidence.update({'gate':'AXIOM_CUSTOMER_BEARER_COMPUTE_METERING_E2E_PASS','edge_host':urllib.parse.urlparse(edge).hostname,'build_id':h.get('build_id'),'operation_count':h.get('operation_count'),'unauth_compute_http':401,'authenticated_compute_http':c,'operation':'arithmetic.add','result_42_observed':True,'usage_event_delta':1,'usage_bucket_request_delta':1,'usage_units':units,'receipt_hash_present':True,'request_id_matched':True,'customer_id_matched':True,'api_key_id_matched':True,'api_key_last_used_updated':True,'raw_api_key_published':False,'worker_secret_mutation':False})
+          finally:
+              if inserted:
+                  try:
+                      d1('DELETE FROM usage_events WHERE customer_id=?1',[customer]);d1('DELETE FROM usage_buckets WHERE customer_id=?1',[customer]);d1('DELETE FROM api_keys WHERE id=?1',[key_id]);d1('DELETE FROM customers WHERE id=?1',[customer])
+                  finally:
+                      remain=d1('SELECT (SELECT count(*) FROM customers WHERE id=?1)+(SELECT count(*) FROM api_keys WHERE id=?2)+(SELECT count(*) FROM usage_events WHERE customer_id=?1)+(SELECT count(*) FROM usage_buckets WHERE customer_id=?1) AS n',[customer,key_id]);evidence['fixture_rows_remaining']=int(remain[0]['n']) if remain else -1
+          if evidence.get('gate')!='AXIOM_CUSTOMER_BEARER_COMPUTE_METERING_E2E_PASS' or evidence.get('fixture_rows_remaining')!=0:raise RuntimeError('compute/metering gate or cleanup failed')
+          evidence['cleanup_complete']=True
+          raw=(json.dumps(evidence,indent=2,sort_keys=True)+'\n').encode();open('bearer-compute-metering-e2e.json','wb').write(raw);dg=hashlib.sha256(raw).hexdigest();open('bearer-compute-metering-e2e.sha256','w').write(dg+'  bearer-compute-metering-e2e.json\n')
+          print(json.dumps({'gate':evidence['gate'],'edge_host':evidence['edge_host'],'build_id':evidence['build_id'],'operation_count':evidence['operation_count'],'unauth_compute_http':401,'authenticated_compute_http':evidence['authenticated_compute_http'],'operation':evidence['operation'],'result_42_observed':True,'usage_event_delta':1,'usage_bucket_request_delta':1,'usage_units':evidence['usage_units'],'receipt_hash_present':True,'request_id_matched':True,'api_key_last_used_updated':True,'raw_api_key_published':False,'worker_secret_mutation':False,'cleanup_complete':True,'fixture_rows_remaining':0,'evidence_sha256':dg},sort_keys=True))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: musitu-axiom-customer-bearer-compute-metering-e2e
+          path: |
+            bearer-compute-metering-e2e.json
+            bearer-compute-metering-e2e.sha256
+          retention-days: 30
+          if-no-files-found: error
