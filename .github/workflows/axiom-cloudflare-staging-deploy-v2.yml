@@ -29,7 +29,7 @@ jobs:
       - name: Upload non-secret staging evidence
         uses: actions/upload-artifact@v4
         with:
-          name: mft-axiom-cloudflare-staging-deployment-v2
+          name: musitu-axiom-cloudflare-staging-deployment-v2
           path: |
             axiom-staging-deployment-evidence.json
             axiom-staging-deployment-evidence.sha256

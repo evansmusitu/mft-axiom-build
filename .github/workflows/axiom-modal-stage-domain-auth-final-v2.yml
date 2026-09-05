@@ -119,7 +119,7 @@ jobs:
           sha256sum stage-modal-final-v2.json /tmp/h.json /tmp/c.json > stage-modal-final-v2.sha256
       - uses: actions/upload-artifact@v4
         with:
-          name: mft-axiom-modal-stage-domain-final-v2
+          name: musitu-axiom-modal-stage-domain-final-v2
           path: |
             stage-modal-final-v2.json
             stage-modal-final-v2.sha256

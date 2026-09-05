@@ -154,8 +154,8 @@ echo "::add-mask::$MFT_CONTROL_SECRET"
 echo "::add-mask::$MFT_RECEIPT_SECRET"
 printf '%s' "$MFT_CONTROL_SECRET" | npx wrangler secret put MFT_CONTROL_SECRET --config wrangler.json >/tmp/control-secret.log
 printf '%s' "$MFT_RECEIPT_SECRET" | npx wrangler secret put MFT_RECEIPT_SECRET --config wrangler.json >/tmp/receipt-secret.log
-printf '%s' "$MFT_CONTROL_SECRET" > /tmp/mft-control-secret
-printf '%s' "$MFT_RECEIPT_SECRET" > /tmp/mft-receipt-secret
+printf '%s' "$MFT_CONTROL_SECRET" > /tmp/musitu-control-secret
+printf '%s' "$MFT_RECEIPT_SECRET" > /tmp/musitu-receipt-secret
 echo 'runtime_secrets=PASS'
 
 SUBDOMAIN="$(python - <<'PY'
@@ -192,7 +192,7 @@ if x.get('operation_count')!=74 or len(x.get('tools',[]))!=74: raise SystemExit(
 print('public_security_and_tools=PASS')
 PY
 
-CONTROL="$(cat /tmp/mft-control-secret)"
+CONTROL="$(cat /tmp/musitu-control-secret)"
 code="$(curl -sS -o compute.json -w '%{http_code}' -X POST "$URL/v1/compute" -H "x-mft-control: $CONTROL" -H 'content-type: application/json' --data '{"operation":"arithmetic.evaluate","args":{"expression":"40+2"},"verify":true}')"
 [ "$code" = 200 ] || { cat compute.json; echo "Fail-closed: authenticated compute HTTP $code"; exit 1; }
 python - <<'PY'

@@ -19,8 +19,8 @@ jobs:
       CLOUDFLARE_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
       CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
       D1_NAME: mft-axiom-prod
-      CAPTURE_WORKER: mft-axiom-kernel-capture
-      DIAG_EDGE: mft-axiom-kernel-capture-edge
+      CAPTURE_WORKER: musitu-axiom-kernel-capture
+      DIAG_EDGE: musitu-axiom-kernel-capture-edge
     steps:
       - uses: actions/checkout@v4
       - name: Install deployment tooling
@@ -162,7 +162,7 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: mft-axiom-canonical-kernel-payload-capture
+          name: musitu-axiom-canonical-kernel-payload-capture
           path: |
             canonical-kernel-payload-capture.json
             canonical-kernel-payload-capture.sha256

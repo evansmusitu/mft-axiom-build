@@ -60,7 +60,7 @@ jobs:
           sha256sum edge-write-preflight.json > edge-write-preflight.sha256
       - uses: actions/upload-artifact@v4
         with:
-          name: mft-axiom-edge-write-preflight
+          name: musitu-axiom-edge-write-preflight
           path: |
             edge-write-preflight.json
             edge-write-preflight.sha256

@@ -85,7 +85,7 @@ jobs:
           sha256sum private-edge-implementation-contract.json > private-edge-implementation-contract.sha256
       - uses: actions/upload-artifact@v4
         with:
-          name: mft-axiom-private-edge-implementation-contract
+          name: musitu-axiom-private-edge-implementation-contract
           path: |
             private-edge-implementation-contract.json
             private-edge-implementation-contract.sha256

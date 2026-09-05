@@ -140,7 +140,7 @@ jobs:
       - name: Upload evidence
         uses: actions/upload-artifact@v4
         with:
-          name: mft-axiom-stage-security-activation
+          name: musitu-axiom-stage-security-activation
           path: |
             axiom-stage-security-activation.json
             axiom-stage-security-activation.sha256

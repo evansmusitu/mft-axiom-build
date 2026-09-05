@@ -174,7 +174,7 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: mft-axiom-modal-stage-domain-promotion
+          name: musitu-axiom-modal-stage-domain-promotion
           path: |
             stage-domain-promotion.json
             stage-domain-promotion.sha256

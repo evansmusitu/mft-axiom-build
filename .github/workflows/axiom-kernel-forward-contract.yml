@@ -108,7 +108,7 @@ jobs:
           sha256sum kernel-forward-contract.json > kernel-forward-contract.sha256
       - uses: actions/upload-artifact@v4
         with:
-          name: mft-axiom-kernel-forward-contract
+          name: musitu-axiom-kernel-forward-contract
           path: |
             kernel-forward-contract.json
             kernel-forward-contract.sha256

@@ -53,7 +53,7 @@ jobs:
       - name: Upload evidence
         uses: actions/upload-artifact@v4
         with:
-          name: mft-axiom-cloudflare-access-audit
+          name: musitu-axiom-cloudflare-access-audit
           path: |
             cloudflare-access-audit.json
             cloudflare-access-audit.sha256

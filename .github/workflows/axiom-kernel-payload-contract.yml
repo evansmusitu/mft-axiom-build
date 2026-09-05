@@ -78,6 +78,6 @@ jobs:
           PY
       - uses: actions/upload-artifact@v4
         with:
-          name: mft-axiom-kernel-payload-contract
+          name: musitu-axiom-kernel-payload-contract
           path: kernel-payload-contract.json
           retention-days: 7

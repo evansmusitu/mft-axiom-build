@@ -101,7 +101,7 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: mft-axiom-modal-kernel-contract
+          name: musitu-axiom-modal-kernel-contract
           path: |
             modal-kernel-contract.json
             modal-kernel-contract.sha256

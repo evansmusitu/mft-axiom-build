@@ -70,7 +70,7 @@ jobs:
           sha256sum kernel-timeout-contract.json > kernel-timeout-contract.sha256
       - uses: actions/upload-artifact@v4
         with:
-          name: mft-axiom-kernel-timeout-contract
+          name: musitu-axiom-kernel-timeout-contract
           path: |
             kernel-timeout-contract.json
             kernel-timeout-contract.sha256

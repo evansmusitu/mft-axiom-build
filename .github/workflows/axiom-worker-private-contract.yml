@@ -134,7 +134,7 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: mft-axiom-worker-private-contract
+          name: musitu-axiom-worker-private-contract
           path: |
             axiom-worker-private-contract.json
             axiom-worker-private-contract.sha256

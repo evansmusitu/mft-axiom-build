@@ -20,7 +20,7 @@ jobs:
       MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID }}
       MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET }}
       ADAPTER_WORKER: mft-axiom-modal-adapter
-      PROBE_WORKER: mft-axiom-modal-adapter-probe
+      PROBE_WORKER: musitu-axiom-modal-adapter-probe
     steps:
       - uses: actions/setup-python@v5
         with:
@@ -128,7 +128,7 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: mft-axiom-modal-adapter-transport-diagnostic
+          name: musitu-axiom-modal-adapter-transport-diagnostic
           path: |
             adapter-transport-diagnostic.json
             adapter-transport-diagnostic.sha256

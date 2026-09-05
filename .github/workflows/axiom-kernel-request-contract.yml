@@ -68,7 +68,7 @@ jobs:
           sha256sum kernel-request-contract.json > kernel-request-contract.sha256
       - uses: actions/upload-artifact@v4
         with:
-          name: mft-axiom-kernel-request-contract
+          name: musitu-axiom-kernel-request-contract
           path: |
             kernel-request-contract.json
             kernel-request-contract.sha256

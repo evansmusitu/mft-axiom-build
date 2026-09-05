@@ -222,7 +222,7 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: mft-axiom-modal-production-deployment
+          name: musitu-axiom-modal-production-deployment
           path: |
             modal-production-deployment.json
             modal-production-deployment.sha256

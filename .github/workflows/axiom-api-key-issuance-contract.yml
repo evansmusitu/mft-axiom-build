@@ -85,6 +85,6 @@ jobs:
           PY
       - uses: actions/upload-artifact@v4
         with:
-          name: mft-axiom-api-key-issuance-contract
+          name: musitu-axiom-api-key-issuance-contract
           path: api-key-issuance-contract.json
           retention-days: 7

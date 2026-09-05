@@ -302,7 +302,7 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: mft-axiom-modal-private-deploy
+          name: musitu-axiom-modal-private-deploy
           path: |
             modal-private-deploy-evidence.json
             modal-private-deploy-evidence.sha256

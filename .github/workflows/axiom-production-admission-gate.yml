@@ -134,7 +134,7 @@ jobs:
         run: sha256sum axiom-production-admission.json > axiom-production-admission.sha256
       - uses: actions/upload-artifact@v4
         with:
-          name: mft-axiom-production-admission
+          name: musitu-axiom-production-admission
           path: |
             axiom-production-admission.json
             axiom-production-admission.sha256

@@ -67,7 +67,7 @@ jobs:
           PY
       - uses: actions/upload-artifact@v4
         with:
-          name: mft-axiom-modal-edge-adapter-map
+          name: musitu-axiom-modal-edge-adapter-map
           path: edge-adapter-map.json
           if-no-files-found: error
           retention-days: 7

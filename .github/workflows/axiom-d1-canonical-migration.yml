@@ -115,7 +115,7 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: mft-axiom-d1-canonical-migration
+          name: musitu-axiom-d1-canonical-migration
           path: |
             d1-canonical-migration-evidence.json
             d1-canonical-migration-evidence.sha256

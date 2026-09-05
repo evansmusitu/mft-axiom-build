@@ -79,8 +79,8 @@ jobs:
           RECEIPT="$(openssl rand -hex 32)"
           echo "::add-mask::$CONTROL"
           echo "::add-mask::$RECEIPT"
-          printf '%s' "$CONTROL" >/tmp/mft-control-secret
-          printf '%s' "$RECEIPT" >/tmp/mft-receipt-secret
+          printf '%s' "$CONTROL" >/tmp/musitu-control-secret
+          printf '%s' "$RECEIPT" >/tmp/musitu-receipt-secret
           printf '%s' "$CONTROL" | (cd /tmp/axiom-secret-cfg && npx wrangler secret put MFT_CONTROL_SECRET --config wrangler.json >/dev/null)
           printf '%s' "$RECEIPT" | (cd /tmp/axiom-secret-cfg && npx wrangler secret put MFT_RECEIPT_SECRET --config wrangler.json >/dev/null)
           echo axiom_runtime_secret_rotation=PASS
@@ -133,7 +133,7 @@ jobs:
           EDGE_URL: ${{ steps.edge.outputs.url }}
         run: |
           set -euo pipefail
-          CONTROL="$(cat /tmp/mft-control-secret)"
+          CONTROL="$(cat /tmp/musitu-control-secret)"
           code="$(curl -sS --max-time 120 -o /tmp/compute.json -w '%{http_code}' -X POST "$EDGE_URL/v1/compute" -H "x-mft-control: $CONTROL" -H 'content-type: application/json' --data '{"operation":"arithmetic.evaluate","args":{"expression":"40+2"},"verify":true}')"
           test "$code" = 200 || { echo "Fail-closed authenticated compute HTTP=$code"; cat /tmp/compute.json; exit 1; }
           python - <<'PY'
@@ -209,11 +209,11 @@ jobs:
           pathlib.Path('axiom-modal-edge-authenticated-verify-v2.sha256').write_text(hashlib.sha256(p.read_bytes()).hexdigest()+'  '+p.name+'\n')
           print('evidence_sealed=PASS')
           PY
-          rm -f /tmp/mft-control-secret /tmp/mft-receipt-secret
+          rm -f /tmp/musitu-control-secret /tmp/musitu-receipt-secret
 
       - uses: actions/upload-artifact@v4
         with:
-          name: mft-axiom-modal-edge-authenticated-verify-v2
+          name: musitu-axiom-modal-edge-authenticated-verify-v2
           path: |
             axiom-modal-edge-authenticated-verify-v2.json
             axiom-modal-edge-authenticated-verify-v2.sha256

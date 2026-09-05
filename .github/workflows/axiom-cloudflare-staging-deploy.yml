@@ -221,8 +221,8 @@ jobs:
           printf '%s' "$MFT_CONTROL_SECRET" | npx wrangler secret put MFT_CONTROL_SECRET --config wrangler.json >/tmp/control-secret.log
           printf '%s' "$MFT_RECEIPT_SECRET" | npx wrangler secret put MFT_RECEIPT_SECRET --config wrangler.json >/tmp/receipt-secret.log
           echo 'staging_secrets_installed=true'
-          printf '%s' "$MFT_CONTROL_SECRET" > /tmp/mft-control-secret
-          printf '%s' "$MFT_RECEIPT_SECRET" > /tmp/mft-receipt-secret
+          printf '%s' "$MFT_CONTROL_SECRET" > /tmp/musitu-control-secret
+          printf '%s' "$MFT_RECEIPT_SECRET" > /tmp/musitu-receipt-secret
 
       - name: Resolve staging URL and verify public fail-closed gates
         id: verify
@@ -271,7 +271,7 @@ jobs:
           STAGING_URL: ${{ steps.verify.outputs.staging_url }}
         run: |
           set -euo pipefail
-          CONTROL="$(cat /tmp/mft-control-secret)"
+          CONTROL="$(cat /tmp/musitu-control-secret)"
           code="$(curl -sS -o compute.json -w '%{http_code}' -X POST "$STAGING_URL/v1/compute" -H "x-mft-control: $CONTROL" -H 'content-type: application/json' --data '{"operation":"arithmetic.evaluate","args":{"expression":"40+2"},"verify":true}')"
           test "$code" = 200 || { cat compute.json; echo "Fail-closed: authenticated compute HTTP $code"; exit 1; }
           python - <<'PY'
@@ -330,7 +330,7 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: mft-axiom-cloudflare-staging-deployment
+          name: musitu-axiom-cloudflare-staging-deployment
           path: |
             axiom-staging-deployment-evidence.json
             axiom-staging-deployment-evidence.sha256

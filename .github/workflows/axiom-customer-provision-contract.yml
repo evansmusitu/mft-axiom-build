@@ -73,6 +73,6 @@ jobs:
           PY
       - uses: actions/upload-artifact@v4
         with:
-          name: mft-axiom-customer-provision-contract
+          name: musitu-axiom-customer-provision-contract
           path: customer-provision-contract.json
           retention-days: 7

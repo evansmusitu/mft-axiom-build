@@ -90,7 +90,7 @@ jobs:
           sha256sum axiom-stage-readback.json > axiom-stage-readback.sha256
       - uses: actions/upload-artifact@v4
         with:
-          name: mft-axiom-stage-readback
+          name: musitu-axiom-stage-readback
           path: |
             axiom-stage-readback.json
             axiom-stage-readback.sha256

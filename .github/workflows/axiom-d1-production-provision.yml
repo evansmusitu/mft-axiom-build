@@ -59,7 +59,7 @@ jobs:
       - name: Upload D1 evidence
         uses: actions/upload-artifact@v4
         with:
-          name: mft-axiom-production-d1
+          name: musitu-axiom-production-d1
           path: |
             axiom-d1-production.json
             axiom-d1-production.sha256

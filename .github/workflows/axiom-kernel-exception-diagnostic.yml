@@ -19,8 +19,8 @@ jobs:
       CLOUDFLARE_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
       CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
       D1_NAME: mft-axiom-prod
-      TARGET_WORKER: mft-axiom-kernel-exception-target
-      DIAG_EDGE: mft-axiom-kernel-exception-edge
+      TARGET_WORKER: musitu-axiom-kernel-exception-target
+      DIAG_EDGE: musitu-axiom-kernel-exception-edge
     steps:
       - uses: actions/checkout@v4
       - name: Install deployment tooling
@@ -175,7 +175,7 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: mft-axiom-kernel-exception-diagnostic
+          name: musitu-axiom-kernel-exception-diagnostic
           path: |
             kernel-exception-diagnostic.json
             kernel-exception-diagnostic.sha256

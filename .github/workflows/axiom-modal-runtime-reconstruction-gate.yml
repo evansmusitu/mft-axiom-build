@@ -206,7 +206,7 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: mft-axiom-modal-runtime-reconstruction-gate
+          name: musitu-axiom-modal-runtime-reconstruction-gate
           path: |
             modal-runtime-reconstruction-gate.json
             modal-runtime-reconstruction-gate.sha256

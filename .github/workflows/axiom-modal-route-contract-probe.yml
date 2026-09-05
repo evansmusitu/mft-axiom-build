@@ -41,7 +41,7 @@ jobs:
           PY
       - uses: actions/upload-artifact@v4
         with:
-          name: mft-axiom-modal-live-routes
+          name: musitu-axiom-modal-live-routes
           path: modal-live-routes.json
           if-no-files-found: error
           retention-days: 7

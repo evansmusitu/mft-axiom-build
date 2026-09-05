@@ -17,8 +17,8 @@ jobs:
       ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
       CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
       CLOUDFLARE_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
-      TARGET_WORKER: mft-axiom-fetch-signature-target
-      PROBE_WORKER: mft-axiom-fetch-signature-probe
+      TARGET_WORKER: musitu-axiom-fetch-signature-target
+      PROBE_WORKER: musitu-axiom-fetch-signature-probe
     steps:
       - name: Install Wrangler
         shell: bash

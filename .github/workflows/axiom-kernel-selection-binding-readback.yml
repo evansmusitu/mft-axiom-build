@@ -106,7 +106,7 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: mft-axiom-kernel-selection-binding-readback
+          name: musitu-axiom-kernel-selection-binding-readback
           path: |
             kernel-binding-readback.json
             select-kernel-contract.json

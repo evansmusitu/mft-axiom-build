@@ -56,6 +56,6 @@ jobs:
           PY
       - uses: actions/upload-artifact@v4
         with:
-          name: mft-axiom-admin-auth-contract
+          name: musitu-axiom-admin-auth-contract
           path: admin-auth-contract.json
           retention-days: 7

@@ -107,7 +107,7 @@ jobs:
           sha256sum isolated-final.json > isolated-final.sha256
       - uses: actions/upload-artifact@v4
         with:
-          name: mft-axiom-modal-edge-isolated-final
+          name: musitu-axiom-modal-edge-isolated-final
           path: |
             isolated-final.json
             isolated-final.sha256

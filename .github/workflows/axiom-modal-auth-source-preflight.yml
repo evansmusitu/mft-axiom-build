@@ -103,7 +103,7 @@ jobs:
       - name: Upload non-secret evidence
         uses: actions/upload-artifact@v4
         with:
-          name: mft-axiom-modal-auth-source-preflight
+          name: musitu-axiom-modal-auth-source-preflight
           path: |
             modal-source-preflight.json
             modal-source-preflight.sha256

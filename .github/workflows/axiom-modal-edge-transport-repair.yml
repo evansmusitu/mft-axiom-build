@@ -21,7 +21,7 @@ jobs:
       MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET }}
       ADAPTER_WORKER: mft-axiom-modal-adapter
       EDGE_WORKER: mft-axiom-modal-edge-stage
-      PROBE_WORKER: mft-axiom-modal-adapter-probe
+      PROBE_WORKER: musitu-axiom-modal-adapter-probe
       BUILD_ID: MFT-AXIOM-V3-FULL-SELF-CONTAINED-20260904
     steps:
       - uses: actions/setup-python@v5
@@ -179,7 +179,7 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: mft-axiom-modal-edge-transport-repair
+          name: musitu-axiom-modal-edge-transport-repair
           path: |
             transport-repair-evidence.json
             transport-repair-evidence.sha256

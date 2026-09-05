@@ -13,7 +13,7 @@ jobs:
       CLOUDFLARE_ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
       CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
       CLOUDFLARE_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
-      PROBE_WORKER: mft-axiom-binding-shape-probe
+      PROBE_WORKER: musitu-axiom-binding-shape-probe
       ADAPTER_WORKER: mft-axiom-modal-adapter
     steps:
       - uses: actions/checkout@v4

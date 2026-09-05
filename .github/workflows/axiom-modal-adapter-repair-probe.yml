@@ -16,7 +16,7 @@ jobs:
       MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID }}
       MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET }}
       ADAPTER_WORKER: mft-axiom-modal-adapter
-      PROBE_WORKER: mft-axiom-modal-adapter-probe
+      PROBE_WORKER: musitu-axiom-modal-adapter-probe
       MODAL_BASE_URL: https://evansmusitu--mft-axiom-v3-modal-staging-axiom-kernel.modal.run
     steps:
       - uses: actions/checkout@v4

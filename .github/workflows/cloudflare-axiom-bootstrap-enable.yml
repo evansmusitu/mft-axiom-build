@@ -110,7 +110,7 @@ jobs:
       - name: Upload evidence
         uses: actions/upload-artifact@v4
         with:
-          name: mft-axiom-edge-bootstrap-activation
+          name: musitu-axiom-edge-bootstrap-activation
           path: |
             axiom-edge-bootstrap-activation.json
             axiom-edge-bootstrap-activation.sha256

@@ -17,7 +17,7 @@ jobs:
       CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
       CLOUDFLARE_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
       ADAPTER_WORKER: mft-axiom-modal-adapter
-      PROBE_WORKER: mft-axiom-request-object-probe
+      PROBE_WORKER: musitu-axiom-request-object-probe
     steps:
       - name: Deploy exact Request-object service-binding probe
         shell: bash

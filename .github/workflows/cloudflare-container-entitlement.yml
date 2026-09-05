@@ -33,7 +33,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: mft-axiom-container-entitlement
+          name: musitu-axiom-container-entitlement
           path: |
             containers-list.txt
             containers-list-exit.txt

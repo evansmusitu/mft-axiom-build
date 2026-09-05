@@ -89,6 +89,6 @@ jobs:
           PY
       - uses: actions/upload-artifact@v4
         with:
-          name: mft-axiom-auth-metering-contract
+          name: musitu-axiom-auth-metering-contract
           path: auth-metering-contract.json
           retention-days: 7

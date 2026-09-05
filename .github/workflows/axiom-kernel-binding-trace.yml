@@ -90,7 +90,7 @@ jobs:
           sha256sum axiom-kernel-binding-trace.json > axiom-kernel-binding-trace.sha256
       - uses: actions/upload-artifact@v4
         with:
-          name: mft-axiom-kernel-binding-trace
+          name: musitu-axiom-kernel-binding-trace
           path: |
             axiom-kernel-binding-trace.json
             axiom-kernel-binding-trace.sha256

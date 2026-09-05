@@ -60,7 +60,7 @@ jobs:
       - name: Upload forensics evidence
         uses: actions/upload-artifact@v4
         with:
-          name: mft-axiom-stage-http-forensics
+          name: musitu-axiom-stage-http-forensics
           path: |
             stage-http-forensics.json
             stage-http-forensics.sha256

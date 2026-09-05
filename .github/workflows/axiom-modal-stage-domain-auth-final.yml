@@ -138,7 +138,7 @@ jobs:
           sha256sum stage-domain-final.json /tmp/health.json /tmp/compute.json > stage-domain-final.sha256
       - uses: actions/upload-artifact@v4
         with:
-          name: mft-axiom-modal-stage-domain-final
+          name: musitu-axiom-modal-stage-domain-final
           path: |
             stage-domain-final.json
             stage-domain-final.sha256

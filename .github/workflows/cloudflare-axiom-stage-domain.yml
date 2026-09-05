@@ -140,7 +140,7 @@ jobs:
       - name: Upload staging evidence
         uses: actions/upload-artifact@v4
         with:
-          name: mft-axiom-stage-domain-evidence
+          name: musitu-axiom-stage-domain-evidence
           path: |
             axiom-stage-domain-evidence.json
             axiom-stage-domain-evidence.sha256

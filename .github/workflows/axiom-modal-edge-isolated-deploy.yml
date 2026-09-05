@@ -253,8 +253,8 @@ jobs:
           (cd edge-deploy/axiom && npx wrangler deploy --config wrangler.json > /tmp/axiom-private-deploy.log 2>&1) || { tail -160 /tmp/axiom-private-deploy.log; exit 1; }
           CONTROL="$(openssl rand -hex 32)"; RECEIPT="$(openssl rand -hex 32)"
           echo "::add-mask::$CONTROL"; echo "::add-mask::$RECEIPT"
-          printf '%s' "$CONTROL" > /tmp/mft-control-secret
-          printf '%s' "$RECEIPT" > /tmp/mft-receipt-secret
+          printf '%s' "$CONTROL" > /tmp/musitu-control-secret
+          printf '%s' "$RECEIPT" > /tmp/musitu-receipt-secret
           printf '%s' "$CONTROL" | (cd edge-deploy/axiom && npx wrangler secret put MFT_CONTROL_SECRET --config wrangler.json >/dev/null)
           printf '%s' "$RECEIPT" | (cd edge-deploy/axiom && npx wrangler secret put MFT_RECEIPT_SECRET --config wrangler.json >/dev/null)
           echo axiom_runtime_secrets=PASS
@@ -339,7 +339,7 @@ jobs:
           EDGE_URL: ${{ steps.public.outputs.url }}
         run: |
           set -euo pipefail
-          CONTROL="$(cat /tmp/mft-control-secret)"
+          CONTROL="$(cat /tmp/musitu-control-secret)"
           code="$(curl -sS --max-time 90 -o /tmp/edge-compute.json -w '%{http_code}' -X POST "$EDGE_URL/v1/compute" -H "x-mft-control: $CONTROL" -H 'content-type: application/json' --data '{"operation":"arithmetic.evaluate","args":{"expression":"40+2"},"verify":true}')"
           test "$code" = 200 || { echo "Fail-closed: authenticated compute HTTP $code"; cat /tmp/edge-compute.json; exit 1; }
           python - <<'PY'
@@ -396,12 +396,12 @@ jobs:
           print(json.dumps({'isolated_edge_deployment':'PASS','operation_count':74,'custom_stage_domain_cutover_performed':False,'next_gate':ev['next_gate']},sort_keys=True))
           PY
           sha256sum axiom-modal-edge-isolated-evidence.json > axiom-modal-edge-isolated-evidence.sha256
-          rm -f /tmp/modal-proxy.json /tmp/modal-proxy-key /tmp/modal-proxy-secret /tmp/mft-control-secret /tmp/mft-receipt-secret
+          rm -f /tmp/modal-proxy.json /tmp/modal-proxy-key /tmp/modal-proxy-secret /tmp/musitu-control-secret /tmp/musitu-receipt-secret
           echo 'MODAL_PROXY_RETAIN=1' >> "$GITHUB_ENV"
 
       - uses: actions/upload-artifact@v4
         with:
-          name: mft-axiom-modal-edge-isolated-deployment
+          name: musitu-axiom-modal-edge-isolated-deployment
           path: |
             axiom-modal-edge-isolated-evidence.json
             axiom-modal-edge-isolated-evidence.sha256
@@ -416,4 +416,4 @@ jobs:
           if [ "${MODAL_PROXY_CREATED:-0}" = 1 ] && [ -n "${MODAL_PROXY_KEY:-}" ]; then
             modal workspace proxy-tokens delete -y "$MODAL_PROXY_KEY" >/dev/null 2>&1 || true
           fi
-          rm -f /tmp/modal-proxy.json /tmp/modal-proxy-key /tmp/modal-proxy-secret /tmp/mft-control-secret /tmp/mft-receipt-secret
+          rm -f /tmp/modal-proxy.json /tmp/modal-proxy-key /tmp/modal-proxy-secret /tmp/musitu-control-secret /tmp/musitu-receipt-secret

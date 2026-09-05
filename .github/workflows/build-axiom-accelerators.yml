@@ -71,7 +71,7 @@ jobs:
       - name: Upload immutable Axiom accelerator bundle
         uses: actions/upload-artifact@v4
         with:
-          name: mft-axiom-accelerators-linux-x86_64-cp313
+          name: musitu-axiom-accelerators-linux-x86_64-cp313
           path: |
             wheelhouse/
             metadata/

@@ -91,7 +91,7 @@ jobs:
           sha256sum promotion-v2.json promoted-health.json > promotion-v2.sha256
       - uses: actions/upload-artifact@v4
         with:
-          name: mft-axiom-modal-stage-domain-promotion-v2
+          name: musitu-axiom-modal-stage-domain-promotion-v2
           path: |
             promotion-v2.json
             promotion-v2.sha256

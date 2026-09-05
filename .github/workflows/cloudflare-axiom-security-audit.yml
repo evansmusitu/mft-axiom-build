@@ -75,7 +75,7 @@ jobs:
       - name: Upload audit evidence
         uses: actions/upload-artifact@v4
         with:
-          name: mft-axiom-security-challenge-audit
+          name: musitu-axiom-security-challenge-audit
           path: |
             axiom-security-challenge-audit.json
             axiom-security-challenge-audit.sha256

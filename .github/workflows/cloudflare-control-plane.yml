@@ -81,7 +81,7 @@ jobs:
       - name: Upload read-only evidence artifact
         uses: actions/upload-artifact@v4
         with:
-          name: mft-axiom-cloudflare-readonly-preflight
+          name: musitu-axiom-cloudflare-readonly-preflight
           path: |
             cloudflare-preflight.json
             cloudflare-preflight.sha256

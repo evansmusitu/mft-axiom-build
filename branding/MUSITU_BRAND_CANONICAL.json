@@ -8,8 +8,8 @@
     "worldfabric": "MUSITU WorldFabric"
   },
   "company_brand": "MUSITU",
-  "deprecated_company_brand": "MFT",
-  "legacy_identifier_policy": "The retired namespace may remain only inside exact live compatibility handles or immutable historical evidence until verified cutover.",
+  "deprecated_company_brand": "RETIRED_THREE_LETTER_NAMESPACE",
+  "legacy_identifier_policy": "Retired namespace strings may remain only as exact live compatibility handles or immutable historical evidence until verified resource cutover.",
   "schema": "musitu.brand.canonical.v1",
   "truth_boundary": {
     "superiority": "NOT_CERTIFIED",
