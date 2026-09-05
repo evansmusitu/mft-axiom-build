@@ -1,0 +1,93 @@
+name: MUSITU Axiom Sealed arithmetic.evaluate Contract
+
+on:
+  push:
+    paths:
+      - '.github/workflows/axiom-runtime-arithmetic-evaluate-contract.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Reconstruct protected runtime in ephemeral runner
+        env:
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          P=deploy_payload/runtime_min
+          cat "$P/chunk_00.b64" "$P/chunk_01_02.b64" "$P/chunk_03_04.b64" "$P/chunk_05_06.b64" "$P/chunk_07_08.b64" "$P/chunk_09.b64" > runtime.enc.b64
+          base64 -d runtime.enc.b64 > runtime.tar.gz.enc
+          test "$(sha256sum runtime.tar.gz.enc | awk '{print $1}')" = 'b82448d6b4b34b302748815af976b535d69922c197d4b7a9056fc2f91a9e12cf'
+          openssl enc -d -aes-256-cbc -pbkdf2 -iter 250000 -in runtime.tar.gz.enc -out runtime.tar.gz -pass env:CLOUDFLARE_GLOBAL_API_KEY
+          test "$(sha256sum runtime.tar.gz | awk '{print $1}')" = 'b4d5a0266446523969a619f5e9bb5a04d9b815c78a2ab82ed046ef5e23d53663'
+          mkdir runtime && tar -xzf runtime.tar.gz -C runtime
+      - name: Emit only arithmetic.evaluate parameter metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import hashlib,json,pathlib,re
+          files=list(pathlib.Path('runtime').rglob('*.js'))+list(pathlib.Path('runtime').rglob('*.py'))
+          hits=[]
+          for p in files:
+              t=p.read_text(errors='replace')
+              for m in re.finditer(r'arithmetic\.evaluate',t):
+                  w=t[max(0,m.start()-6000):min(len(t),m.end()+12000)]
+                  # Only names / literals / structural metadata; never source snippets or values.
+                  names=set()
+                  for pat in [
+                    r'\bargs\.([A-Za-z_$][A-Za-z0-9_$]*)',
+                    r'\bargs\[["\']([A-Za-z_$][A-Za-z0-9_$]*)["\']\]',
+                    r'\b(?:payload|params|input)\.([A-Za-z_$][A-Za-z0-9_$]*)',
+                    r'\b(?:payload|params|input)\[["\']([A-Za-z_$][A-Za-z0-9_$]*)["\']\]',
+                    r'["\']([A-Za-z_$][A-Za-z0-9_$]{1,60})["\']\s+in\s+(?:args|payload|params|input)',
+                    r'(?:args|payload|params|input)\.get\(\s*["\']([A-Za-z_$][A-Za-z0-9_$]{1,60})["\']',
+                  ]:
+                      names.update(re.findall(pat,w))
+                  destruct=[]
+                  for mm in re.finditer(r'\{([^{}]{1,1200})\}\s*=\s*(?:args|payload|params|input)\b',w,re.S):
+                      for x in mm.group(1).split(','):
+                          k=x.strip().split(':',1)[0].split('=',1)[0].strip()
+                          if re.fullmatch(r'[A-Za-z_$][A-Za-z0-9_$]*',k):destruct.append(k)
+                  names.update(destruct)
+                  # Python dict indexing/get names around the operation implementation.
+                  names.update(re.findall(r'(?:args|payload|params|input)\s*\[\s*["\']([A-Za-z_][A-Za-z0-9_]*)["\']\s*\]',w))
+                  names.update(re.findall(r'(?:args|payload|params|input)\.get\(\s*["\']([A-Za-z_][A-Za-z0-9_]*)["\']',w))
+                  function_names=sorted(set(re.findall(r'(?:async\s+)?function\s+([A-Za-z_$][A-Za-z0-9_$]*)\s*\(',w)))
+                  py_functions=sorted(set(re.findall(r'^\s*def\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(',w,re.M)))
+                  # Detect common schema declaration property names without exposing types/default values.
+                  schema_props=[]
+                  for sm in re.finditer(r'(?:properties|schema|args_schema|input_schema)\s*[:=]\s*\{([^{}]{0,5000})\}',w,re.S|re.I):
+                      schema_props.extend(re.findall(r'["\']([A-Za-z_$][A-Za-z0-9_$]*)["\']\s*:',sm.group(1)))
+                  hits.append({
+                    'file_suffix':p.suffix,
+                    'arg_property_names':sorted(names),
+                    'schema_property_names':sorted(set(schema_props)),
+                    'nearby_function_names':sorted(set(function_names+py_functions)),
+                    'uses_eval_builtin':bool(re.search(r'\beval\s*\(',w)),
+                    'uses_sympify_identifier':bool(re.search(r'\bsympify\b',w,re.I)),
+                    'uses_expression_identifier':bool(re.search(r'\bexpression\b',w,re.I)),
+                    'uses_expr_identifier':bool(re.search(r'\bexpr\b',w,re.I)),
+                  })
+          if not hits:raise SystemExit('Fail-closed arithmetic.evaluate absent from reconstructed runtime')
+          merged=sorted(set(x for h in hits for x in h['arg_property_names']))
+          schema=sorted(set(x for h in hits for x in h['schema_property_names']))
+          out={'schema':'musitu.axiom.sealed_arithmetic_evaluate_contract.v1','operation':'arithmetic.evaluate','occurrence_count':len(hits),'arg_property_names':merged,'schema_property_names':schema,'contexts':hits,'runtime_archive_sha256':'b4d5a0266446523969a619f5e9bb5a04d9b815c78a2ab82ed046ef5e23d53663','plaintext_source_published':False,'secret_values_read':False,'mutation_performed':False,'gate':'AXIOM_SEALED_ARITHMETIC_EVALUATE_CONTRACT_PASS'}
+          raw=(json.dumps(out,indent=2,sort_keys=True)+'\n').encode();pathlib.Path('sealed-arithmetic-evaluate-contract.json').write_bytes(raw);dg=hashlib.sha256(raw).hexdigest();pathlib.Path('sealed-arithmetic-evaluate-contract.sha256').write_text(dg+'  sealed-arithmetic-evaluate-contract.json\n')
+          print(json.dumps({**out,'evidence_sha256':dg},sort_keys=True))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: musitu-axiom-sealed-arithmetic-evaluate-contract
+          path: |
+            sealed-arithmetic-evaluate-contract.json
+            sealed-arithmetic-evaluate-contract.sha256
+          retention-days: 14
+          if-no-files-found: error
