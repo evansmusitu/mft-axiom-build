@@ -1,0 +1,60 @@
+name: MFT Axiom Modal Adapter Exact Request Probe
+on:
+  workflow_dispatch:
+  push:
+    paths: ['.github/workflows/axiom-modal-adapter-exact-request-probe.yml']
+permissions:
+  contents: read
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      CLOUDFLARE_ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+      CLOUDFLARE_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+      PROBE_WORKER: mft-axiom-modal-exact-probe
+      ADAPTER_WORKER: mft-axiom-modal-adapter
+    steps:
+      - uses: actions/checkout@v4
+      - name: Deploy exact Request-object service-binding probe
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --no-save --ignore-scripts --no-audit --no-fund wrangler@4.129.0 >/dev/null
+          mkdir -p /tmp/exact
+          cat >/tmp/exact/worker.js <<'JS'
+          export default {async fetch(request,env){
+            const requestId=crypto.randomUUID();
+            try {
+              const req=new Request('http://container/v1/compute',{method:'POST',headers:{'content-type':'application/json','x-mft-request-id':requestId},body:JSON.stringify({operation:'arithmetic.evaluate',args:{expression:'40+2'},verify:true,request_id:requestId})});
+              const r=await env.UP.fetch(req);
+              const body=await r.text();
+              return new Response(body,{status:r.status,headers:{'content-type':r.headers.get('content-type')||'application/json','x-probe-fetch':'returned'}});
+            } catch(e) {
+              return Response.json({ok:false,error:'SERVICE_BINDING_THROW',name:e?.name||null,message:String(e?.message||e).slice(0,300)},{status:599});
+            }
+          }};
+          JS
+          python - <<'PY'
+          import json,os
+          json.dump({'name':os.environ['PROBE_WORKER'],'main':'worker.js','compatibility_date':'2026-09-04','workers_dev':True,'services':[{'binding':'UP','service':os.environ['ADAPTER_WORKER']}]},open('/tmp/exact/wrangler.json','w'))
+          PY
+          (cd /tmp/exact && npx wrangler deploy --config wrangler.json >/tmp/exact-deploy.log 2>&1) || { tail -100 /tmp/exact-deploy.log; exit 1; }
+          SUB="$(python - <<'PY'
+          import json,os,urllib.request
+          h={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_API_KEY']}; q=urllib.request.Request(f"https://api.cloudflare.com/client/v4/accounts/{os.environ['CLOUDFLARE_ACCOUNT_ID']}/workers/subdomain",headers=h)
+          with urllib.request.urlopen(q) as r:x=json.load(r)
+          print(x['result']['subdomain'])
+          PY
+          )"
+          U="https://${PROBE_WORKER}.${SUB}.workers.dev"
+          code="$(curl -sS --max-time 90 -o /tmp/result.json -w '%{http_code}' "$U/")"
+          cat /tmp/result.json
+          test "$code" = 200 || { echo "exact_probe_http=$code"; exit 1; }
+          python - <<'PY'
+          import json
+          x=json.load(open('/tmp/result.json'))
+          if x.get('ok') is not True: raise SystemExit('exact request probe not ok')
+          print('EXACT_REQUEST_OBJECT_PASS')
+          PY
