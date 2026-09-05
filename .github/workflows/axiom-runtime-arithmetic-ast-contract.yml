@@ -1,0 +1,96 @@
+name: MUSITU Axiom arithmetic.evaluate AST Contract
+
+on:
+  push:
+    paths:
+      - '.github/workflows/axiom-runtime-arithmetic-ast-contract.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Reconstruct protected runtime ephemerally
+        env:
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          P=deploy_payload/runtime_min
+          cat "$P/chunk_00.b64" "$P/chunk_01_02.b64" "$P/chunk_03_04.b64" "$P/chunk_05_06.b64" "$P/chunk_07_08.b64" "$P/chunk_09.b64" > runtime.enc.b64
+          base64 -d runtime.enc.b64 > runtime.tar.gz.enc
+          test "$(sha256sum runtime.tar.gz.enc | awk '{print $1}')" = 'b82448d6b4b34b302748815af976b535d69922c197d4b7a9056fc2f91a9e12cf'
+          openssl enc -d -aes-256-cbc -pbkdf2 -iter 250000 -in runtime.tar.gz.enc -out runtime.tar.gz -pass env:CLOUDFLARE_GLOBAL_API_KEY
+          test "$(sha256sum runtime.tar.gz | awk '{print $1}')" = 'b4d5a0266446523969a619f5e9bb5a04d9b815c78a2ab82ed046ef5e23d53663'
+          mkdir runtime && tar -xzf runtime.tar.gz -C runtime
+      - name: Emit AST structural metadata only
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import ast,hashlib,json,pathlib
+          target='arithmetic.evaluate'; contexts=[]
+          for p in pathlib.Path('runtime').rglob('*.py'):
+              text=p.read_text(errors='replace')
+              if target not in text:continue
+              try:tree=ast.parse(text)
+              except Exception:continue
+              parents={}
+              for n in ast.walk(tree):
+                  for c in ast.iter_child_nodes(n):parents[c]=n
+              for n in ast.walk(tree):
+                  if not isinstance(n,ast.Constant) or n.value!=target:continue
+                  cur=n; branch=None; func=None
+                  while cur in parents:
+                      cur=parents[cur]
+                      if branch is None and isinstance(cur,(ast.If,ast.Match,ast.match_case)):branch=cur
+                      if isinstance(cur,(ast.FunctionDef,ast.AsyncFunctionDef)):
+                          func=cur;break
+                  scope=branch or func
+                  if scope is None:continue
+                  subscript_string_keys=[];subscript_int_keys=[];get_string_keys=[];calls=[];names=[];string_literals=[]
+                  for x in ast.walk(scope):
+                      if isinstance(x,ast.Subscript):
+                          sl=x.slice
+                          if isinstance(sl,ast.Constant):
+                              if isinstance(sl.value,str):subscript_string_keys.append(sl.value)
+                              elif isinstance(sl.value,int):subscript_int_keys.append(sl.value)
+                      if isinstance(x,ast.Call):
+                          f=x.func
+                          if isinstance(f,ast.Attribute) and f.attr=='get' and x.args and isinstance(x.args[0],ast.Constant) and isinstance(x.args[0].value,str):get_string_keys.append(x.args[0].value)
+                          if isinstance(f,ast.Name):calls.append(f.id)
+                          elif isinstance(f,ast.Attribute):calls.append(f.attr)
+                      if isinstance(x,ast.Name):names.append(x.id)
+                      if isinstance(x,ast.Constant) and isinstance(x.value,str) and len(x.value)<=80:string_literals.append(x.value)
+                  fargs=[]
+                  if func is not None:fargs=[a.arg for a in func.args.args]
+                  contexts.append({
+                    'file_suffix':p.suffix,
+                    'parent_function_name':func.name if func else None,
+                    'parent_function_arg_names':fargs,
+                    'branch_node_type':type(branch).__name__ if branch else None,
+                    'subscript_string_keys':sorted(set(subscript_string_keys)),
+                    'subscript_integer_keys':sorted(set(subscript_int_keys)),
+                    'mapping_get_string_keys':sorted(set(get_string_keys)),
+                    'call_identifiers':sorted(set(calls)),
+                    'name_identifiers':sorted(set(names)),
+                    'short_string_literals':sorted(set(s for s in string_literals if s!=target)),
+                  })
+          if not contexts:raise SystemExit('Fail-closed AST target not found')
+          out={'schema':'musitu.axiom.arithmetic_ast_contract.v1','operation':target,'contexts':contexts,'runtime_archive_sha256':'b4d5a0266446523969a619f5e9bb5a04d9b815c78a2ab82ed046ef5e23d53663','plaintext_source_published':False,'secret_values_read':False,'mutation_performed':False,'gate':'AXIOM_ARITHMETIC_AST_CONTRACT_PASS'}
+          raw=(json.dumps(out,indent=2,sort_keys=True)+'\n').encode();pathlib.Path('arithmetic-ast-contract.json').write_bytes(raw);dg=hashlib.sha256(raw).hexdigest();pathlib.Path('arithmetic-ast-contract.sha256').write_text(dg+'  arithmetic-ast-contract.json\n')
+          print(json.dumps({**out,'evidence_sha256':dg},sort_keys=True))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: musitu-axiom-arithmetic-ast-contract
+          path: |
+            arithmetic-ast-contract.json
+            arithmetic-ast-contract.sha256
+          retention-days: 14
+          if-no-files-found: error
