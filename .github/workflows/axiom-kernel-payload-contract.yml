@@ -1,4 +1,4 @@
-name: MFT Axiom Kernel Payload Contract
+name: MUSITU Axiom Kernel Payload Contract
 
 on:
   push:
@@ -61,7 +61,7 @@ jobs:
           response_methods=sorted(set(re.findall(r'\b(?:kernelResp|kernelResponse|response|resp|r)\.([A-Za-z_$][\w$]*)\b',ctx)))
           status_literals=sorted(set(int(x) for x in re.findall(r'\.status\s*(?:===|!==|==|!=|>=|<=|>|<)\s*(\d{3})',ctx)))
           out={
-            'schema':'mft.axiom.kernel_payload_contract.v1',
+            'schema':'musitu.axiom.kernel_payload_contract.v1',
             'request_url':'http://container/v1/compute',
             'json_object_key_sets':body_keys,
             'header_name_literals':header_names,

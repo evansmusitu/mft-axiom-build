@@ -1,4 +1,4 @@
-name: MFT Axiom Local Match Regex Routes
+name: MUSITU Axiom Local Match Regex Routes
 
 on:
   push:
@@ -60,7 +60,7 @@ jobs:
                           k+=1
                   rows.extend(matches)
               result[fn]=rows
-          out={'schema':'mft.axiom.local_match_regex_routes.v1','routes':result,'plaintext_source_committed':False}
+          out={'schema':'musitu.axiom.local_match_regex_routes.v1','routes':result,'plaintext_source_committed':False}
           pathlib.Path('local-match-regex-routes.json').write_text(json.dumps(out,indent=2,sort_keys=True))
           print(json.dumps(out,sort_keys=True))
           PY

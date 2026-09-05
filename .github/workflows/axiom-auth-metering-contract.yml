@@ -1,4 +1,4 @@
-name: MFT Axiom Authentication Metering Contract
+name: MUSITU Axiom Authentication Metering Contract
 
 on:
   push:
@@ -76,7 +76,7 @@ jobs:
                         'mentions_control':bool(re.search(r'control',w,re.I)),
                       })
           out={
-            'schema':'mft.axiom.auth_metering_contract.v1',
+            'schema':'musitu.axiom.auth_metering_contract.v1',
             'control_header_occurrences':control_occ,
             'usage_events_occurrences':usage_occ,
             'control_contexts':control_meta,

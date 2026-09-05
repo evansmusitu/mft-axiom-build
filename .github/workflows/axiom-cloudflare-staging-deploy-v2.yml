@@ -1,4 +1,4 @@
-name: MFT Axiom Cloudflare Staging Deploy V2
+name: MUSITU Axiom Cloudflare Staging Deploy V2
 
 on:
   workflow_dispatch:

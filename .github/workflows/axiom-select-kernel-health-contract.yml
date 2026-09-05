@@ -1,4 +1,4 @@
-name: MFT Axiom Select Kernel Health Contract
+name: MUSITU Axiom Select Kernel Health Contract
 
 on:
   push:
@@ -53,7 +53,7 @@ jobs:
           urls=sorted(set(re.findall(r"https?://[A-Za-z0-9_.:/{}-]+",b)))
           paths=sorted(set(re.findall(r"['\"](\/[A-Za-z0-9_./:{}-]+)['\"]",b)))
           out={
-            'schema':'mft.axiom.select_kernel_health_contract.v1',
+            'schema':'musitu.axiom.select_kernel_health_contract.v1',
             'url_literals':urls,
             'path_literals':paths,
             'mentions_health':'health' in b.lower(),

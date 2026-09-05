@@ -1,4 +1,4 @@
-name: MFT Axiom Modal Stage Domain Promotion
+name: MUSITU Axiom Modal Stage Domain Promotion
 
 on:
   workflow_dispatch:
@@ -166,7 +166,7 @@ jobs:
                   if r.get('ref')=='mft_axiom_stage_machine_transport': found.append(r)
           if len(found)!=1 or found[0].get('expression')!='http.host eq "axiom-stage.mftintelligence.com"' or found[0].get('enabled') is not True:
               raise SystemExit('Fail-closed: scoped stage security rule changed')
-          out={'schema':'mft.axiom.modal_stage_domain_promotion.v1','hostname':os.environ['HOSTNAME'],'old_service':os.environ['OLD_SERVICE'],'new_service':os.environ['NEW_SERVICE'],'build':os.environ['BUILD_ID'],'operation_count':74,'health':'PASS','unauthorized_compute':'401_PASS','scoped_security_rule':'UNCHANGED_PASS','authenticated_compute':'PENDING_SEPARATE_FINAL_GATE','billing':'NOT_CONFIGURED','wolfram_parity':'NOT_CERTIFIED','superiority':'NOT_CERTIFIED','gate':'CUSTOM_DOMAIN_PUBLIC_PASS_AUTHENTICATED_FINAL_GATE_PENDING'}
+          out={'schema':'musitu.axiom.modal_stage_domain_promotion.v1','hostname':os.environ['HOSTNAME'],'old_service':os.environ['OLD_SERVICE'],'new_service':os.environ['NEW_SERVICE'],'build':os.environ['BUILD_ID'],'operation_count':74,'health':'PASS','unauthorized_compute':'401_PASS','scoped_security_rule':'UNCHANGED_PASS','authenticated_compute':'PENDING_SEPARATE_FINAL_GATE','billing':'NOT_CONFIGURED','wolfram_parity':'NOT_CERTIFIED','superiority':'NOT_CERTIFIED','gate':'CUSTOM_DOMAIN_PUBLIC_PASS_AUTHENTICATED_FINAL_GATE_PENDING'}
           open('stage-domain-promotion.json','w').write(json.dumps(out,indent=2,sort_keys=True))
           print('final_domain_and_security_readback=PASS')
           PY

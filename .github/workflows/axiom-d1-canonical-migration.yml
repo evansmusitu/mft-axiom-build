@@ -1,4 +1,4 @@
-name: MFT Axiom Canonical D1 Migration
+name: MUSITU Axiom Canonical D1 Migration
 
 on:
   workflow_dispatch:
@@ -107,7 +107,7 @@ jobs:
           for idx in expected_indexes:
               if idx not in indexes: raise SystemExit('Fail-closed: missing canonical D1 index '+idx)
           db=call(f'/accounts/{aid}/d1/database/{dbid}').get('result') or {}
-          out={'schema':'mft.axiom.d1_canonical_migration.v1','database_name':os.environ['D1_NAME'],'database_uuid':dbid,'migration_path':'migrations/0001_revenue_core.sql','migration_sha256':os.environ['MIGRATION_SHA256'],'write_performed':write_performed,'tables':tables,'required_indexes_verified':expected_indexes,'cloudflare_internal_tables_ignored':['name LIKE _cf_%'],'database_num_tables':db.get('num_tables'),'database_file_size':db.get('file_size'),'gate':'PASS','wolfram_parity':'NOT_CERTIFIED','superiority':'NOT_CERTIFIED'}
+          out={'schema':'musitu.axiom.d1_canonical_migration.v1','database_name':os.environ['D1_NAME'],'database_uuid':dbid,'migration_path':'migrations/0001_revenue_core.sql','migration_sha256':os.environ['MIGRATION_SHA256'],'write_performed':write_performed,'tables':tables,'required_indexes_verified':expected_indexes,'cloudflare_internal_tables_ignored':['name LIKE _cf_%'],'database_num_tables':db.get('num_tables'),'database_file_size':db.get('file_size'),'gate':'PASS','wolfram_parity':'NOT_CERTIFIED','superiority':'NOT_CERTIFIED'}
           open('d1-canonical-migration-evidence.json','w').write(json.dumps(out,indent=2,sort_keys=True))
           print(json.dumps({'d1_migration_pass':True,'write_performed':write_performed,'table_count':len(tables),'required_index_count':len(expected_indexes)},sort_keys=True))
           PY

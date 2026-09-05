@@ -1,4 +1,4 @@
-name: MFT Axiom Private Edge Implementation Contract
+name: MUSITU Axiom Private Edge Implementation Contract
 
 on:
   workflow_dispatch:
@@ -76,7 +76,7 @@ jobs:
           for p in paths:
               if pathlib.PurePosixPath(p).name in {'wrangler.toml','wrangler.json','wrangler.jsonc'}:
                   wrangler.append({'path':p,'sha256':hashlib.sha256((root/p).read_bytes()).hexdigest(),'bytes':(root/p).stat().st_size})
-          out={'schema':'mft.axiom.private_edge_implementation_contract.v1','source_build':man['source_build'],'sql_migrations':sql,'axiom_kernel_usage':usage,'axiom_kernel_binding_style':style,'wrangler_files':wrangler,'plaintext_source_committed':False,'wolfram_parity':'NOT_CERTIFIED','superiority':'NOT_CERTIFIED'}
+          out={'schema':'musitu.axiom.private_edge_implementation_contract.v1','source_build':man['source_build'],'sql_migrations':sql,'axiom_kernel_usage':usage,'axiom_kernel_binding_style':style,'wrangler_files':wrangler,'plaintext_source_committed':False,'wolfram_parity':'NOT_CERTIFIED','superiority':'NOT_CERTIFIED'}
           if not sql: raise SystemExit('Fail-closed: no canonical SQL migration found')
           if not usage: raise SystemExit('Fail-closed: AXIOM_KERNEL usage not found')
           open('private-edge-implementation-contract.json','w').write(json.dumps(out,indent=2,sort_keys=True))

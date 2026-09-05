@@ -1,0 +1,18 @@
+{
+  "canonical_product_family": {
+    "axiom": "MUSITU Axiom",
+    "education": "MUSITU Education",
+    "fmi": "MUSITU Frontier Market Intelligence",
+    "foundry": "MUSITU Foundry",
+    "markets": "MUSITU Markets",
+    "worldfabric": "MUSITU WorldFabric"
+  },
+  "company_brand": "MUSITU",
+  "deprecated_company_brand": "MFT",
+  "legacy_identifier_policy": "The retired namespace may remain only inside exact live compatibility handles or immutable historical evidence until verified cutover.",
+  "schema": "musitu.brand.canonical.v1",
+  "truth_boundary": {
+    "superiority": "NOT_CERTIFIED",
+    "wolfram_parity": "NOT_CERTIFIED"
+  }
+}

@@ -1,4 +1,4 @@
-name: MFT Axiom Provision Response Shape
+name: MUSITU Axiom Provision Response Shape
 
 on:
   push:
@@ -60,7 +60,7 @@ jobs:
                   keys=sorted(set(re.findall(r'(?:^|[,\n]\s*)([A-Za-z_$][\w$]*)\s*:',m.group(1))))
                   if keys:keysets.append(keys)
               out[name]={'present':bool(b),'object_key_sets':keysets,'string_literals':sorted(set(x for x in re.findall(r'["\']([^"\']{1,60})["\']',b) if re.search(r'api.?key|key_id|customer_id|customer|raw|token|secret|label',x,re.I)))}
-          result={'schema':'mft.axiom.provision_response_shape.v1','functions':out,'plaintext_source_committed':False}
+          result={'schema':'musitu.axiom.provision_response_shape.v1','functions':out,'plaintext_source_committed':False}
           pathlib.Path('provision-response-shape.json').write_text(json.dumps(result,indent=2,sort_keys=True))
           print(json.dumps(result,sort_keys=True))
           PY

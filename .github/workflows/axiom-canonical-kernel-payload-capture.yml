@@ -1,4 +1,4 @@
-name: MFT Axiom Canonical Kernel Payload Capture
+name: MUSITU Axiom Canonical Kernel Payload Capture
 
 on:
   workflow_dispatch:
@@ -143,7 +143,7 @@ jobs:
           HTTP_CODE="$code" python - <<'PY'
           import json,os,pathlib
           x=json.load(open('/tmp/response.json'))
-          out={'schema':'mft.axiom.canonical_kernel_payload_capture.v1','edge_http_status':int(os.environ['HTTP_CODE']),'edge_ok':x.get('ok'),'edge_error':x.get('error'),'response_keys':sorted(x.keys())}
+          out={'schema':'musitu.axiom.canonical_kernel_payload_capture.v1','edge_http_status':int(os.environ['HTTP_CODE']),'edge_ok':x.get('ok'),'edge_error':x.get('error'),'response_keys':sorted(x.keys())}
           # Canonical Worker may wrap kernel result. Walk dictionaries to find the capture marker.
           found=[]
           def walk(v,path=''):

@@ -1,4 +1,4 @@
-name: MFT Axiom Kernel Binding Trace
+name: MUSITU Axiom Kernel Binding Trace
 
 on:
   workflow_dispatch:
@@ -83,7 +83,7 @@ jobs:
                   if path!=a['path']: continue
                   methods=sorted(set(re.findall(r'\b'+re.escape(a['alias'])+r'\s*\.\s*([A-Za-z_$][\w$]*)\s*\(',t)))
                   a['methods']=methods
-          out={'schema':'mft.axiom.kernel_binding_trace.v1','source_build':man['source_build'],'aliases':aliases,'helper_calls':calls,'object_injections':objects,'helper_parameter_usage':helper_methods,'direct_methods':direct,'plaintext_source_committed':False}
+          out={'schema':'musitu.axiom.kernel_binding_trace.v1','source_build':man['source_build'],'aliases':aliases,'helper_calls':calls,'object_injections':objects,'helper_parameter_usage':helper_methods,'direct_methods':direct,'plaintext_source_committed':False}
           open('axiom-kernel-binding-trace.json','w').write(json.dumps(out,indent=2,sort_keys=True))
           print(json.dumps(out,sort_keys=True))
           PY

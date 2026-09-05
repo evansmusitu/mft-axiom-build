@@ -1,4 +1,4 @@
-name: MFT Axiom Worker Kernel Schema Alignment
+name: MUSITU Axiom Worker Kernel Schema Alignment
 
 on:
   push:
@@ -59,7 +59,7 @@ jobs:
           compute_models={name:fields for name,fields in models.items() if 'compute' in name.lower() or {'operation','args'}.issubset(set(fields))}
           all_compute_fields=sorted(set(x for v in compute_models.values() for x in v))
           out={
-            'schema':'mft.axiom.worker_kernel_schema_alignment.v1',
+            'schema':'musitu.axiom.worker_kernel_schema_alignment.v1',
             'worker_request_id_added':request_id_added,
             'worker_nearby_explicit_object_keys':explicit,
             'worker_nearby_spread_variables':spreads,

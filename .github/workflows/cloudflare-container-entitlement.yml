@@ -1,4 +1,4 @@
-name: MFT Axiom Container Entitlement
+name: MUSITU Axiom Container Entitlement
 on:
   workflow_dispatch:
   push:

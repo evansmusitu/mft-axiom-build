@@ -1,4 +1,4 @@
-name: MFT Axiom Kernel Selection and Binding Readback
+name: MUSITU Axiom Kernel Selection and Binding Readback
 
 on:
   workflow_dispatch:
@@ -98,7 +98,7 @@ jobs:
               if mm: kind='binding_method_call'; method=mm.group(1)
               if expr in ('null','undefined'): kind=expr
               returns.append({'kind':kind,'method':method})
-          out={'schema':'mft.axiom.select_kernel_contract.v1','parameter':param,'properties_referenced':props,'typeof_checks':typeof_checks,'binding_methods_called':calls,'return_shapes':returns,'plaintext_source_committed':False}
+          out={'schema':'musitu.axiom.select_kernel_contract.v1','parameter':param,'properties_referenced':props,'typeof_checks':typeof_checks,'binding_methods_called':calls,'return_shapes':returns,'plaintext_source_committed':False}
           pathlib.Path('select-kernel-contract.json').write_text(json.dumps(out,indent=2,sort_keys=True))
           print(json.dumps(out,sort_keys=True))
           PY

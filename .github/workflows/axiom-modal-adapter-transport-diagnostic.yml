@@ -1,4 +1,4 @@
-name: MFT Axiom Modal Adapter Transport Diagnostic
+name: MUSITU Axiom Modal Adapter Transport Diagnostic
 
 on:
   workflow_dispatch:
@@ -120,7 +120,7 @@ jobs:
           python - <<'PY'
           import json,pathlib
           h=json.load(open('health-probe.json')); c=json.load(open('compute-probe.json'))
-          out={'schema':'mft.axiom.modal_adapter_transport_diagnostic.v1','health_probe':h,'compute_probe':c,'plaintext_source_committed':False,'wolfram_parity':'NOT_CERTIFIED','superiority':'NOT_CERTIFIED'}
+          out={'schema':'musitu.axiom.modal_adapter_transport_diagnostic.v1','health_probe':h,'compute_probe':c,'plaintext_source_committed':False,'wolfram_parity':'NOT_CERTIFIED','superiority':'NOT_CERTIFIED'}
           pathlib.Path('adapter-transport-diagnostic.json').write_text(json.dumps(out,indent=2,sort_keys=True))
           print(json.dumps(out,sort_keys=True))
           PY

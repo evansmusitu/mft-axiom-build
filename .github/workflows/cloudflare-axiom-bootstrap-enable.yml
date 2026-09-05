@@ -1,4 +1,4 @@
-name: MFT Axiom Edge Bootstrap Enable
+name: MUSITU Axiom Edge Bootstrap Enable
 
 on:
   workflow_dispatch:
@@ -94,10 +94,10 @@ jobs:
           if not a.get('success') or not sub: raise SystemExit('account workers.dev subdomain missing')
           url=f'https://{os.environ["WORKER_NAME"]}.{sub}.workers.dev/health'
           with urllib.request.urlopen(url,timeout=30) as r:health=json.load(r)
-          expected={'ok':True,'product':'MFT Axiom','build':'MFT-AXIOM-EDGE-BOOTSTRAP-20260904','deployment_state':'EDGE_BOOTSTRAP_ONLY','production_compute_active':False,'tool_count':0,'wolfram_parity':'NOT_CERTIFIED','superiority':'NOT_CERTIFIED'}
+          expected={'ok':True,'product':'MUSITU Axiom','build':'MFT-AXIOM-EDGE-BOOTSTRAP-20260904','deployment_state':'EDGE_BOOTSTRAP_ONLY','production_compute_active':False,'tool_count':0,'wolfram_parity':'NOT_CERTIFIED','superiority':'NOT_CERTIFIED'}
           for k,v in expected.items():
               if health.get(k)!=v: raise SystemExit(f'health invariant failed for {k}')
-          out={'schema':'mft.axiom.cloudflare.edge_bootstrap.activation.v1','worker_name':os.environ['WORKER_NAME'],'workers_dev_enabled':True,'previews_enabled':False,'public_url':url,'health':health,'custom_domain_bound':False,'production_compute_active':False}
+          out={'schema':'musitu.axiom.cloudflare.edge_bootstrap.activation.v1','worker_name':os.environ['WORKER_NAME'],'workers_dev_enabled':True,'previews_enabled':False,'public_url':url,'health':health,'custom_domain_bound':False,'production_compute_active':False}
           json.dump(out,open('axiom-edge-bootstrap-activation.json','w'),indent=2,sort_keys=True)
           print(json.dumps({'public_health_pass':True,'url':url}))
           PY

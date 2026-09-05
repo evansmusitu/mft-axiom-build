@@ -1,4 +1,4 @@
-name: MFT Axiom Service Binding Runtime Shape
+name: MUSITU Axiom Service Binding Runtime Shape
 on:
   workflow_dispatch:
   push:

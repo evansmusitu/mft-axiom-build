@@ -1,4 +1,4 @@
-name: MFT Axiom Kernel Request Contract
+name: MUSITU Axiom Kernel Request Contract
 
 on:
   workflow_dispatch:
@@ -41,7 +41,7 @@ jobs:
           python - <<'PY'
           import json,pathlib,re
           p=pathlib.Path('runtime/worker/src/index.js'); s=p.read_text(errors='replace')
-          out={'schema':'mft.axiom.kernel_request_contract.v1','fetch_sites':[],'select_kernel_sites':[],'plaintext_source_committed':False}
+          out={'schema':'musitu.axiom.kernel_request_contract.v1','fetch_sites':[],'select_kernel_sites':[],'plaintext_source_committed':False}
           for m in re.finditer(r'selectKernel\s*\(\s*env\.AXIOM_KERNEL\s*\)',s):
               lo=max(0,m.start()-600); hi=min(len(s),m.end()+3000); w=s[lo:hi]
               assign=re.search(r'(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*selectKernel\s*\(\s*env\.AXIOM_KERNEL\s*\)',w)

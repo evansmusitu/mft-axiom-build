@@ -1,4 +1,4 @@
-name: MFT Axiom API Key Issuance Contract
+name: MUSITU Axiom API Key Issuance Contract
 
 on:
   push:
@@ -79,7 +79,7 @@ jobs:
           ab=body('authenticate')
           auth_headers=sorted(set(x.lower() for x in re.findall(r'headers\.get\s*\(\s*["\']([^"\']+)["\']',ab)))
           bearer=bool(re.search(r'Bearer\s+',ab,re.I) or re.search(r'bearer',ab,re.I))
-          out={'schema':'mft.axiom.api_key_issuance_contract.v1','helper_call_contexts':rows,'admin_literal_paths':admin_paths,'admin_regex_routes':regex_routes,'issue_key_body_properties':fields,'issue_key_validation_literals':literals,'authenticate_header_names':auth_headers,'authenticate_mentions_bearer':bearer,'plaintext_source_committed':False}
+          out={'schema':'musitu.axiom.api_key_issuance_contract.v1','helper_call_contexts':rows,'admin_literal_paths':admin_paths,'admin_regex_routes':regex_routes,'issue_key_body_properties':fields,'issue_key_validation_literals':literals,'authenticate_header_names':auth_headers,'authenticate_mentions_bearer':bearer,'plaintext_source_committed':False}
           pathlib.Path('api-key-issuance-contract.json').write_text(json.dumps(out,indent=2,sort_keys=True))
           print(json.dumps(out,sort_keys=True))
           PY

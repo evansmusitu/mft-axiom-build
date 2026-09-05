@@ -1,4 +1,4 @@
-name: MFT Axiom Pathname Match Arguments
+name: MUSITU Axiom Pathname Match Arguments
 
 on:
   push:
@@ -85,7 +85,7 @@ jobs:
                   name=row['value']
                   m=re.search(r'\b(?:const|let|var)\s+'+re.escape(name)+r'\s*=\s*(/[^;\n]{1,300}/[gimsuy]*)\s*;',s)
                   if m: resolved.append({'identifier':name,'regex':m.group(1)})
-          out={'schema':'mft.axiom.pathname_match_arguments.v1','match_arguments':safe,'resolved_regex_identifiers':resolved,'plaintext_source_committed':False}
+          out={'schema':'musitu.axiom.pathname_match_arguments.v1','match_arguments':safe,'resolved_regex_identifiers':resolved,'plaintext_source_committed':False}
           pathlib.Path('pathname-match-arguments.json').write_text(json.dumps(out,indent=2,sort_keys=True))
           print(json.dumps(out,sort_keys=True))
           PY

@@ -1,4 +1,4 @@
-name: MFT Axiom Worker Private Contract
+name: MUSITU Axiom Worker Private Contract
 
 on:
   workflow_dispatch:
@@ -100,7 +100,7 @@ jobs:
           has_fetch_handler=bool(re.search(r'\basync\s+fetch\s*\(|\bfetch\s*\(request\s*,\s*env',joined))
 
           out={
-            'schema':'mft.axiom.worker_private_contract.v1',
+            'schema':'musitu.axiom.worker_private_contract.v1',
             'source_build':manifest['source_build'],
             'worker_files':worker_files,
             'worker_file_count':len(worker_files),

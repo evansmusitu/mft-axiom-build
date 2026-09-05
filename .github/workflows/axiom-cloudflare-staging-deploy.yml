@@ -1,4 +1,4 @@
-name: MFT Axiom Cloudflare Staging Deploy
+name: MUSITU Axiom Cloudflare Staging Deploy
 
 on:
   workflow_dispatch:
@@ -309,7 +309,7 @@ jobs:
           missing=sorted(required-set(names))
           if missing: raise SystemExit('Fail-closed missing Cloudflare bindings: '+repr(missing))
           ev={
-            'schema':'mft.axiom.cloudflare.staging_deployment.v1',
+            'schema':'musitu.axiom.cloudflare.staging_deployment.v1',
             'worker':worker,
             'url':os.environ['STAGING_URL'],
             'build_id':os.environ['DEPLOY_BUILD_ID'],

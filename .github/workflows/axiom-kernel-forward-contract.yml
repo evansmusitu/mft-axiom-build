@@ -1,4 +1,4 @@
-name: MFT Axiom Kernel Forward Contract
+name: MUSITU Axiom Kernel Forward Contract
 
 on:
   workflow_dispatch:
@@ -83,7 +83,7 @@ jobs:
           paths=sorted(set(re.findall(r"['\"](\/[A-Za-z0-9_./:{}-]+)['\"]",ctx)))
           urls=sorted(set(re.findall(r"['\"](https?://[^'\"]+)['\"]",ctx)))
           out={
-            'schema':'mft.axiom.kernel_forward_contract.v1',
+            'schema':'musitu.axiom.kernel_forward_contract.v1',
             'select_kernel':{
               'present':bool(sel),
               'mentions_fetch':'.fetch' in sel,

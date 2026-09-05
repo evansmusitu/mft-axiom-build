@@ -1,4 +1,4 @@
-name: MFT Axiom Cloudflare Access Audit
+name: MUSITU Axiom Cloudflare Access Audit
 
 on:
   workflow_dispatch:
@@ -35,7 +35,7 @@ jobs:
           try:
             with urllib.request.urlopen(req,timeout=30) as r:a=json.load(r)
           except Exception as e:
-            json.dump({'schema':'mft.axiom.cloudflare.access_audit.v1','access_apps_endpoint_ok':False,'error_type':type(e).__name__,'write_performed':False},open('cloudflare-access-audit.json','w'),indent=2,sort_keys=True)
+            json.dump({'schema':'musitu.axiom.cloudflare.access_audit.v1','access_apps_endpoint_ok':False,'error_type':type(e).__name__,'write_performed':False},open('cloudflare-access-audit.json','w'),indent=2,sort_keys=True)
             raise
           if not a.get('success'): raise SystemExit('access apps read failed')
           relevant=[]
@@ -44,7 +44,7 @@ jobs:
             name=str(app.get('name') or '')
             if 'workers.dev' in domain or 'mftintelligence.com' in domain or 'axiom' in name.lower() or 'mft' in name.lower():
               relevant.append({'id':app.get('id'),'name':name,'domain':domain,'type':app.get('type'),'self_hosted_domains':app.get('self_hosted_domains') or []})
-          out={'schema':'mft.axiom.cloudflare.access_audit.v1','access_apps_endpoint_ok':True,'relevant_apps':relevant,'relevant_app_count':len(relevant),'write_performed':False}
+          out={'schema':'musitu.axiom.cloudflare.access_audit.v1','access_apps_endpoint_ok':True,'relevant_apps':relevant,'relevant_app_count':len(relevant),'write_performed':False}
           json.dump(out,open('cloudflare-access-audit.json','w'),indent=2,sort_keys=True)
           print(json.dumps({'access_apps_endpoint_ok':True,'relevant_app_count':len(relevant)}))
           PY

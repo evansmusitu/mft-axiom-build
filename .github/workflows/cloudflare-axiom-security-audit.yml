@@ -1,4 +1,4 @@
-name: MFT Axiom Security Challenge Audit
+name: MUSITU Axiom Security Challenge Audit
 
 on:
   workflow_dispatch:
@@ -38,7 +38,7 @@ jobs:
           rows=z.get('result') or []
           if code!=200 or not z.get('success') or len(rows)!=1: raise SystemExit('zone invariant failed')
           zid=rows[0]['id']
-          out={'schema':'mft.axiom.cloudflare.security_challenge_audit.v1','zone_id':zid,'hostname':'axiom-stage.mftintelligence.com','write_performed':False,'reads':{}}
+          out={'schema':'musitu.axiom.cloudflare.security_challenge_audit.v1','zone_id':zid,'hostname':'axiom-stage.mftintelligence.com','write_performed':False,'reads':{}}
           # relevant zone settings
           for key in ['security_level','browser_check','challenge_ttl','bot_fight_mode','always_use_https','ssl']:
             c,b=get(f'/zones/{zid}/settings/{key}')

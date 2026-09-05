@@ -1,4 +1,4 @@
-name: MFT Axiom Modal Edge Final Isolated Verify
+name: MUSITU Axiom Modal Edge Final Isolated Verify
 on:
   workflow_dispatch:
   push:
@@ -101,7 +101,7 @@ jobs:
           set -euo pipefail
           python - <<'PY'
           import hashlib,json,os
-          x={'schema':'mft.axiom.modal_edge_isolated_final.v1','build':os.environ['BUILD_ID'],'edge_worker':os.environ['EDGE_WORKER'],'edge_url':os.environ['EDGE_URL'],'adapter_worker':'mft-axiom-modal-adapter','modal_app':'mft-axiom-v3-modal-staging','d1':'mft-axiom-prod','operation_count':74,'health':'PASS','unauthorized_compute':'401_PASS','authenticated_compute':'PASS','signed_receipt':'PASS','custom_domain_promoted':False,'billing':'NOT_CONFIGURED','wolfram_parity':'NOT_CERTIFIED','superiority':'NOT_CERTIFIED','gate':'ISOLATED_EDGE_PASS_CUSTOM_DOMAIN_PROMOTION_PENDING'}
+          x={'schema':'musitu.axiom.modal_edge_isolated_final.v1','build':os.environ['BUILD_ID'],'edge_worker':os.environ['EDGE_WORKER'],'edge_url':os.environ['EDGE_URL'],'adapter_worker':'mft-axiom-modal-adapter','modal_app':'mft-axiom-v3-modal-staging','d1':'mft-axiom-prod','operation_count':74,'health':'PASS','unauthorized_compute':'401_PASS','authenticated_compute':'PASS','signed_receipt':'PASS','custom_domain_promoted':False,'billing':'NOT_CONFIGURED','wolfram_parity':'NOT_CERTIFIED','superiority':'NOT_CERTIFIED','gate':'ISOLATED_EDGE_PASS_CUSTOM_DOMAIN_PROMOTION_PENDING'}
           raw=json.dumps(x,sort_keys=True,separators=(',',':')).encode();x['evidence_sha256']=hashlib.sha256(raw).hexdigest();open('isolated-final.json','w').write(json.dumps(x,indent=2,sort_keys=True))
           PY
           sha256sum isolated-final.json > isolated-final.sha256

@@ -1,4 +1,4 @@
-name: MFT Axiom Kernel Exception Diagnostic
+name: MUSITU Axiom Kernel Exception Diagnostic
 
 on:
   workflow_dispatch:
@@ -166,7 +166,7 @@ jobs:
           HTTP_CODE="$code" python - <<'PY'
           import json,os,pathlib
           x=json.load(open('/tmp/diag.json'))
-          safe={'schema':'mft.axiom.kernel_exception_diagnostic.v1','http_status':int(os.environ['HTTP_CODE']),'error':x.get('error'),'diagnostic_error_class':x.get('diagnostic_error_class'),'diagnostic_message':x.get('diagnostic_message'),'response_keys':sorted(x.keys()),'plaintext_source_committed':False}
+          safe={'schema':'musitu.axiom.kernel_exception_diagnostic.v1','http_status':int(os.environ['HTTP_CODE']),'error':x.get('error'),'diagnostic_error_class':x.get('diagnostic_error_class'),'diagnostic_message':x.get('diagnostic_message'),'response_keys':sorted(x.keys()),'plaintext_source_committed':False}
           pathlib.Path('kernel-exception-diagnostic.json').write_text(json.dumps(safe,indent=2,sort_keys=True))
           print(json.dumps(safe,sort_keys=True))
           if safe['diagnostic_error_class'] is None: raise SystemExit('Fail-closed: diagnostic exception metadata missing')

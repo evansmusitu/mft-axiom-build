@@ -1,4 +1,4 @@
-name: MFT Axiom Kernel Timeout Contract
+name: MUSITU Axiom Kernel Timeout Contract
 
 on:
   workflow_dispatch:
@@ -63,7 +63,7 @@ jobs:
             'kernel_unavailable_literal':'kernel_unavailable' in w,
             'abort_controller':('AbortController' in w),
           }
-          out={'schema':'mft.axiom.kernel_timeout_contract.v1','timeouts':numbers,'retry_bounds':retries,'response_policy':checks,'plaintext_source_committed':False}
+          out={'schema':'musitu.axiom.kernel_timeout_contract.v1','timeouts':numbers,'retry_bounds':retries,'response_policy':checks,'plaintext_source_committed':False}
           pathlib.Path('kernel-timeout-contract.json').write_text(json.dumps(out,indent=2,sort_keys=True))
           print(json.dumps(out,sort_keys=True))
           PY

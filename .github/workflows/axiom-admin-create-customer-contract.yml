@@ -1,4 +1,4 @@
-name: MFT Axiom Admin Create Customer Contract
+name: MUSITU Axiom Admin Create Customer Contract
 
 on:
   push:
@@ -64,7 +64,7 @@ jobs:
           return_keys=[]
           for m in re.finditer(r'\breturn\s+json\s*\(\s*\{([^{}]{0,1200})\}',b,re.S):
               return_keys.append(sorted(set(re.findall(r'([A-Za-z_$][\w$]*)\s*:',m.group(1)))))
-          result={'schema':'mft.axiom.admin_create_customer_contract.v1','called_functions':[x for x in calls if re.search(r'internal|auth|json|customer|key|id|now|plan|hash|random|uuid',x,re.I)],'request_json_var_present':bool(jvar),'body_properties':body_props,'relevant_string_literals':literals,'env_bindings':env_names,'sql_operations':sql_ops,'return_object_key_sets':return_keys,'plaintext_source_committed':False}
+          result={'schema':'musitu.axiom.admin_create_customer_contract.v1','called_functions':[x for x in calls if re.search(r'internal|auth|json|customer|key|id|now|plan|hash|random|uuid',x,re.I)],'request_json_var_present':bool(jvar),'body_properties':body_props,'relevant_string_literals':literals,'env_bindings':env_names,'sql_operations':sql_ops,'return_object_key_sets':return_keys,'plaintext_source_committed':False}
           pathlib.Path('admin-create-customer-contract.json').write_text(json.dumps(result,indent=2,sort_keys=True))
           print(json.dumps(result,sort_keys=True))
           PY

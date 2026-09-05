@@ -1,4 +1,4 @@
-name: MFT Axiom Runtime Transport Gate
+name: MUSITU Axiom Runtime Transport Gate
 
 on:
   workflow_dispatch:
@@ -64,7 +64,7 @@ jobs:
           import hashlib,json,pathlib
           root=pathlib.Path('runtime')
           m=json.loads((root/'RUNTIME_SOURCE_MANIFEST.json').read_text())
-          assert m['schema']=='mft.axiom.runtime_minimal_source.v1'
+          assert m['schema']=='musitu.axiom.runtime_minimal_source.v1'
           assert m['source_build']=='MFT-AXIOM-V3-FULL-SELF-CONTAINED-20260904'
           problems=[]
           for f in m['files']:
@@ -103,7 +103,7 @@ jobs:
           set -euo pipefail
           cat > transport-gate-evidence.json <<'JSON'
           {
-            "schema":"mft.axiom.runtime_transport_gate.v1",
+            "schema":"musitu.axiom.runtime_transport_gate.v1",
             "source_build":"MFT-AXIOM-V3-FULL-SELF-CONTAINED-20260904",
             "ciphertext_sha256":"b82448d6b4b34b302748815af976b535d69922c197d4b7a9056fc2f91a9e12cf",
             "plaintext_tar_sha256":"b4d5a0266446523969a619f5e9bb5a04d9b815c78a2ab82ed046ef5e23d53663",

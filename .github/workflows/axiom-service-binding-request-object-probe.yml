@@ -1,4 +1,4 @@
-name: MFT Axiom Service Binding Request Object Probe
+name: MUSITU Axiom Service Binding Request Object Probe
 
 on:
   push:

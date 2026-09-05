@@ -1,4 +1,4 @@
-name: MFT Axiom Admin Authorization Contract
+name: MUSITU Axiom Admin Authorization Contract
 
 on:
   push:
@@ -50,7 +50,7 @@ jobs:
               n=m.group(1)
               if re.search(r'auth|admin|principal|control|customer|key',n,re.I):
                   helpers.append({'name':n,'params':[x.strip().split('=')[0].strip() for x in m.group(2).split(',') if x.strip()]})
-          out={'schema':'mft.axiom.admin_auth_contract.v1','route':'/v1/admin/customers','header_literals':headers,'relevant_call_names':relevant_calls,'principal_auth_properties':props,'authorization_string_literals':string_vals,'helper_signatures':helpers,'plaintext_source_committed':False}
+          out={'schema':'musitu.axiom.admin_auth_contract.v1','route':'/v1/admin/customers','header_literals':headers,'relevant_call_names':relevant_calls,'principal_auth_properties':props,'authorization_string_literals':string_vals,'helper_signatures':helpers,'plaintext_source_committed':False}
           pathlib.Path('admin-auth-contract.json').write_text(json.dumps(out,indent=2,sort_keys=True))
           print(json.dumps(out,sort_keys=True))
           PY

@@ -1,4 +1,4 @@
-name: Build MFT Axiom Accelerators
+name: Build MUSITU Axiom Accelerators
 
 on:
   push:
@@ -41,7 +41,7 @@ jobs:
           for p in sorted(root.iterdir()):
               if p.is_file():
                   files.append({'name':p.name,'bytes':p.stat().st_size,'sha256':hashlib.sha256(p.read_bytes()).hexdigest()})
-          manifest={'schema':'mft.axiom.accelerators.v2','python':sys.version,'platform':platform.platform(),'required_roots':['duckdb==1.5.5','pyarrow==25.0.1','Pint==0.25.3','cvxpy==1.9.2','highspy','QuantLib==1.43','python-flint==0.9.0','z3-solver==5.1.0.0'],'files':files}
+          manifest={'schema':'musitu.axiom.accelerators.v2','python':sys.version,'platform':platform.platform(),'required_roots':['duckdb==1.5.5','pyarrow==25.0.1','Pint==0.25.3','cvxpy==1.9.2','highspy','QuantLib==1.43','python-flint==0.9.0','z3-solver==5.1.0.0'],'files':files}
           pathlib.Path('metadata/manifest.json').write_text(json.dumps(manifest,indent=2,sort_keys=True))
           PY
       - name: Offline install and functional verification

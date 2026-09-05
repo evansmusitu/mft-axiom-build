@@ -87,7 +87,7 @@ python - <<'PY' > /tmp/d1-id
 import json,os,urllib.request
 base='https://api.cloudflare.com/client/v4'
 account=os.environ['CLOUDFLARE_ACCOUNT_ID']
-headers={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_API_KEY'],'Content-Type':'application/json','User-Agent':'MFT-Axiom-Staging/1.0'}
+headers={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_API_KEY'],'Content-Type':'application/json','User-Agent':'MUSITU-Axiom-Staging/1.0'}
 def call(method,path,body=None):
     data=None if body is None else json.dumps(body).encode()
     req=urllib.request.Request(base+path,headers=headers,data=data,method=method)
@@ -218,7 +218,7 @@ names=sorted({b.get('name') for b in bindings if isinstance(b,dict) and b.get('n
 required={'AXIOM_DB','AXIOM_KERNEL','MFT_CONTROL_SECRET','MFT_RECEIPT_SECRET'}
 missing=sorted(required-set(names))
 if missing: raise SystemExit('Fail-closed missing bindings: '+repr(missing))
-ev={'schema':'mft.axiom.cloudflare.staging_deployment.v1','worker':worker,'url':os.environ['STAGING_URL'],'build_id':os.environ['DEPLOY_BUILD_ID'],'operation_count':74,'d1_binding':'AXIOM_DB','container_binding':'AXIOM_KERNEL','required_secret_bindings_present':True,'health':'PASS','unauth_compute_401':'PASS','authenticated_compute':'PASS','signed_receipt':'PASS','wolfram_parity':'NOT_CERTIFIED','superiority':'NOT_CERTIFIED','custom_domain_attached':False,'promotion_gate':'STAGING_PASS'}
+ev={'schema':'musitu.axiom.cloudflare.staging_deployment.v1','worker':worker,'url':os.environ['STAGING_URL'],'build_id':os.environ['DEPLOY_BUILD_ID'],'operation_count':74,'d1_binding':'AXIOM_DB','container_binding':'AXIOM_KERNEL','required_secret_bindings_present':True,'health':'PASS','unauth_compute_401':'PASS','authenticated_compute':'PASS','signed_receipt':'PASS','wolfram_parity':'NOT_CERTIFIED','superiority':'NOT_CERTIFIED','custom_domain_attached':False,'promotion_gate':'STAGING_PASS'}
 raw=json.dumps(ev,sort_keys=True,separators=(',',':')).encode(); ev['evidence_sha256']=hashlib.sha256(raw).hexdigest()
 open('../axiom-staging-deployment-evidence.json','w').write(json.dumps(ev,indent=2,sort_keys=True))
 PY

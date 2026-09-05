@@ -1,4 +1,4 @@
-name: MFT Axiom Kernel Response Contract
+name: MUSITU Axiom Kernel Response Contract
 
 on:
   push:
@@ -56,7 +56,7 @@ jobs:
                 'json_parse_after_fetch':bool(re.search(re.escape(rv)+r'\.json\s*\(',ctx)),
                 'text_parse_after_fetch':bool(re.search(re.escape(rv)+r'\.text\s*\(',ctx)),
               })
-          out={'schema':'mft.axiom.kernel_response_contract.v1','fetch_assignments':rows,'plaintext_source_committed':False}
+          out={'schema':'musitu.axiom.kernel_response_contract.v1','fetch_assignments':rows,'plaintext_source_committed':False}
           pathlib.Path('kernel-response-contract.json').write_text(json.dumps(out,indent=2,sort_keys=True))
           print(json.dumps(out,sort_keys=True))
           PY

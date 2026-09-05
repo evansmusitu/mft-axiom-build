@@ -23,7 +23,7 @@ jobs:
           set -euo pipefail
           python - <<'PY'
           import json,os,urllib.request
-          req=urllib.request.Request('https://api.cloudflare.com/client/v4/user/tokens/permission_groups',headers={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY'],'Content-Type':'application/json','User-Agent':'MFT-Axiom-Control-Plane/2.0'})
+          req=urllib.request.Request('https://api.cloudflare.com/client/v4/user/tokens/permission_groups',headers={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY'],'Content-Type':'application/json','User-Agent':'MUSITU-Axiom-Control-Plane/2.0'})
           with urllib.request.urlopen(req,timeout=30) as r: x=json.load(r)
           if not x.get('success'): raise SystemExit('permission-group read failed')
           rows=x.get('result') or []

@@ -1,4 +1,4 @@
-name: MFT Axiom Modal Production Deploy
+name: MUSITU Axiom Modal Production Deploy
 
 on:
   workflow_dispatch:
@@ -48,7 +48,7 @@ jobs:
           python - <<'PY'
           import hashlib,json,pathlib
           root=pathlib.Path('runtime'); m=json.loads((root/'RUNTIME_SOURCE_MANIFEST.json').read_text())
-          assert m['schema']=='mft.axiom.runtime_minimal_source.v1'
+          assert m['schema']=='musitu.axiom.runtime_minimal_source.v1'
           assert m['source_build']=='MFT-AXIOM-V3-FULL-SELF-CONTAINED-20260904'
           for f in m['files']:
               p=root/f['path']; b=p.read_bytes()
@@ -200,7 +200,7 @@ jobs:
           endpoint=pathlib.Path('modal-endpoint.txt').read_text().strip()
           probe=json.loads(pathlib.Path('modal-compute-probe.json').read_text())
           out={
-            'schema':'mft.axiom.modal_production_deployment.v1',
+            'schema':'musitu.axiom.modal_production_deployment.v1',
             'build':'MFT-AXIOM-V3-FULL-SELF-CONTAINED-20260904',
             'modal_app':'mft-axiom-production',
             'endpoint':endpoint,

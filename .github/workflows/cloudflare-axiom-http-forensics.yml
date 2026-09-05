@@ -1,4 +1,4 @@
-name: MFT Axiom HTTP Forensics
+name: MUSITU Axiom HTTP Forensics
 
 on:
   workflow_dispatch:
@@ -36,7 +36,7 @@ jobs:
           # keep only non-secret diagnostic headers and body fingerprint/short text
           text=body[:2000].decode('utf-8','replace')
           out={
-            'schema':'mft.axiom.http_forensics.v1',
+            'schema':'musitu.axiom.http_forensics.v1',
             'url':'https://axiom-stage.mftintelligence.com/health',
             'curl_rc':int(open('curl-rc.txt').read().strip()),
             'http_code':meta[0] if len(meta)>0 else None,

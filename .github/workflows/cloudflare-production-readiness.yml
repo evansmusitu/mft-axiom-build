@@ -1,4 +1,4 @@
-name: MFT Axiom Cloudflare Production Readiness
+name: MUSITU Axiom Cloudflare Production Readiness
 
 on:
   workflow_dispatch:
@@ -47,7 +47,7 @@ jobs:
             'X-Auth-Email': os.environ['CLOUDFLARE_EMAIL'],
             'X-Auth-Key': os.environ['CLOUDFLARE_GLOBAL_API_KEY'],
             'Content-Type':'application/json',
-            'User-Agent':'MFT-Axiom-Control-Plane/2.0',
+            'User-Agent':'MUSITU-Axiom-Control-Plane/2.0',
           }
 
           def get(path, optional=False):
@@ -98,7 +98,7 @@ jobs:
               })
 
           evidence={
-            'schema':'mft.axiom.cloudflare.production_readiness.v1',
+            'schema':'musitu.axiom.cloudflare.production_readiness.v1',
             'zone':{'id':zone,'name':os.environ['EXPECTED_ZONE'],'status':'active'},
             'account_id':account,
             'subscriptions_endpoint_ok':subscriptions.get('ok',False),

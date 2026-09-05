@@ -1,4 +1,4 @@
-name: MFT Axiom Modal Edge Isolated Deploy
+name: MUSITU Axiom Modal Edge Isolated Deploy
 
 on:
   workflow_dispatch:
@@ -370,7 +370,7 @@ jobs:
           if not {'MODAL_PROXY_KEY','MODAL_PROXY_SECRET'}.issubset(set(names)):
               raise SystemExit('adapter secret readback failed')
           ev={
-            'schema':'mft.axiom.modal_edge_isolated_deployment.v1',
+            'schema':'musitu.axiom.modal_edge_isolated_deployment.v1',
             'build_id':os.environ['BUILD_ID'],
             'edge_worker':os.environ['EDGE_WORKER'],
             'edge_url':os.environ['EDGE_URL'],

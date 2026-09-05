@@ -1,5 +1,5 @@
 # Pre-promotion read-only reconciliation rerun: 2026-09-05
-name: MFT Axiom Cloudflare Modal Reconcile
+name: MUSITU Axiom Cloudflare Modal Reconcile
 
 on:
   workflow_dispatch:
@@ -98,7 +98,7 @@ jobs:
           db=(d1read or {}).get('result') or {}
           if db.get('uuid')!=dbid or db.get('name')!=os.environ['D1_NAME']: raise SystemExit('Fail-closed: D1 readback mismatch')
           d1_safe={k:db.get(k) for k in ('uuid','name','version','num_tables','file_size','created_at') if db.get(k) is not None}
-          out={'schema':'mft.axiom.cloudflare_modal_reconcile.v1','zone':{'id':zid,'name':zone.get('name'),'status':zone.get('status'),'account_id':aid},'worker':{'name':os.environ['WORKER_NAME'],'present':worker_present,'settings_http':settings_code,'bindings':binding_rows},'stage_domain':domain_rows[0],'stage_dns':dns_rows,'stage_security_rule':stage_rules[0],'ruleset_count':len(ruleset_summaries),'d1':d1_safe,'write_performed':False,'production_compute_active':False,'wolfram_parity':'NOT_CERTIFIED','superiority':'NOT_CERTIFIED'}
+          out={'schema':'musitu.axiom.cloudflare_modal_reconcile.v1','zone':{'id':zid,'name':zone.get('name'),'status':zone.get('status'),'account_id':aid},'worker':{'name':os.environ['WORKER_NAME'],'present':worker_present,'settings_http':settings_code,'bindings':binding_rows},'stage_domain':domain_rows[0],'stage_dns':dns_rows,'stage_security_rule':stage_rules[0],'ruleset_count':len(ruleset_summaries),'d1':d1_safe,'write_performed':False,'production_compute_active':False,'wolfram_parity':'NOT_CERTIFIED','superiority':'NOT_CERTIFIED'}
           open('cloudflare-modal-reconcile.json','w').write(json.dumps(out,indent=2,sort_keys=True))
           print(json.dumps({'reconcile_pass':True,'worker_present':worker_present,'binding_names':[x.get('name') for x in binding_rows],'stage_domain_service':domain_rows[0].get('service'),'stage_rule_ref':stage_rules[0].get('ref'),'stage_rule_expression':stage_rules[0].get('expression'),'d1_name':d1_safe.get('name'),'d1_num_tables':d1_safe.get('num_tables'),'write_performed':False},sort_keys=True))
           PY
@@ -111,7 +111,7 @@ jobs:
           python - <<'PY'
           import json
           x=json.load(open('stage-health.json'))
-          expected={'ok':True,'product':'MFT Axiom','build':'MFT-AXIOM-EDGE-BOOTSTRAP-20260904','deployment_state':'EDGE_BOOTSTRAP_ONLY','production_compute_active':False,'wolfram_parity':'NOT_CERTIFIED','superiority':'NOT_CERTIFIED'}
+          expected={'ok':True,'product':'MUSITU Axiom','build':'MFT-AXIOM-EDGE-BOOTSTRAP-20260904','deployment_state':'EDGE_BOOTSTRAP_ONLY','production_compute_active':False,'wolfram_parity':'NOT_CERTIFIED','superiority':'NOT_CERTIFIED'}
           bad={k:[x.get(k),v] for k,v in expected.items() if x.get(k)!=v}
           if bad: raise SystemExit('Fail-closed: unexpected staging health contract '+repr(bad))
           print(json.dumps({'stage_health_pass':True,'build':x.get('build'),'deployment_state':x.get('deployment_state'),'production_compute_active':x.get('production_compute_active'),'tool_count':x.get('tool_count')},sort_keys=True))

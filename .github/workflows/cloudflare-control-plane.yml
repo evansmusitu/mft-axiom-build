@@ -1,4 +1,4 @@
-name: MFT Axiom Cloudflare Control Plane
+name: MUSITU Axiom Cloudflare Control Plane
 
 on:
   workflow_dispatch:
@@ -41,7 +41,7 @@ jobs:
             'X-Auth-Email': os.environ['CLOUDFLARE_EMAIL'],
             'X-Auth-Key': os.environ['CLOUDFLARE_GLOBAL_API_KEY'],
             'Content-Type': 'application/json',
-            'User-Agent': 'MFT-Axiom-Control-Plane/1.0',
+            'User-Agent': 'MUSITU-Axiom-Control-Plane/1.0',
           }
           def get(path):
             req=urllib.request.Request(base+path, headers=headers, method='GET')

@@ -1,4 +1,4 @@
-name: MFT Axiom Modal Edge Authenticated Verify V2
+name: MUSITU Axiom Modal Edge Authenticated Verify V2
 
 on:
   push:
@@ -183,7 +183,7 @@ jobs:
           python - <<'PY'
           import hashlib,json,os,pathlib
           ev={
-            'schema':'mft.axiom.modal_edge_authenticated_verify.v2',
+            'schema':'musitu.axiom.modal_edge_authenticated_verify.v2',
             'build_id':os.environ['BUILD_ID'],
             'edge_worker':os.environ['EDGE_WORKER'],
             'edge_url':os.environ['EDGE_URL'],

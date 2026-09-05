@@ -1,4 +1,4 @@
-name: MFT Axiom Modal Edge Service Compatibility Patch
+name: MUSITU Axiom Modal Edge Service Compatibility Patch
 on:
   workflow_dispatch:
   push:

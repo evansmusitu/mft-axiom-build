@@ -1,4 +1,4 @@
-name: MFT Axiom Staging Readback
+name: MUSITU Axiom Staging Readback
 
 on:
   workflow_dispatch:
@@ -38,7 +38,7 @@ jobs:
           if len(found)!=1: raise SystemExit(f'expected one staging rule, observed {len(found)}')
           r=found[0]; ap=r.get('action_parameters') or {}; exp='http.host eq "axiom-stage.mftintelligence.com"'
           if r.get('action')!='set_config' or r.get('expression')!=exp or ap.get('security_level')!='essentially_off' or ap.get('bic') is not False or r.get('enabled') is False: raise SystemExit('staging rule contract mismatch')
-          out={'schema':'mft.axiom.cloudflare.stage_config_readback.v1','id':r.get('id'),'ref':r.get('ref'),'action':r.get('action'),'action_parameters':ap,'expression':r.get('expression'),'enabled':r.get('enabled')}
+          out={'schema':'musitu.axiom.cloudflare.stage_config_readback.v1','id':r.get('id'),'ref':r.get('ref'),'action':r.get('action'),'action_parameters':ap,'expression':r.get('expression'),'enabled':r.get('enabled')}
           json.dump(out,open('config-readback.json','w'),indent=2,sort_keys=True)
           print(json.dumps({'config_readback_pass':True,'rule_id_present':bool(r.get('id'))}))
           PY
@@ -50,10 +50,10 @@ jobs:
           url='https://axiom-stage.mftintelligence.com/health'; last=''
           for _ in range(12):
             try:
-              req=urllib.request.Request(url,headers={'User-Agent':'MFT-Axiom-Deployment-Verifier/1.0','Accept':'application/json'})
+              req=urllib.request.Request(url,headers={'User-Agent':'MUSITU-Axiom-Deployment-Verifier/1.0','Accept':'application/json'})
               with urllib.request.urlopen(req,timeout=20) as r:
                 h=json.load(r); code=r.status; mitigated=r.headers.get('cf-mitigated')
-              expected={'ok':True,'product':'MFT Axiom','build':'MFT-AXIOM-EDGE-BOOTSTRAP-20260904','deployment_state':'EDGE_BOOTSTRAP_ONLY','production_compute_active':False,'tool_count':0,'wolfram_parity':'NOT_CERTIFIED','superiority':'NOT_CERTIFIED'}
+              expected={'ok':True,'product':'MUSITU Axiom','build':'MFT-AXIOM-EDGE-BOOTSTRAP-20260904','deployment_state':'EDGE_BOOTSTRAP_ONLY','production_compute_active':False,'tool_count':0,'wolfram_parity':'NOT_CERTIFIED','superiority':'NOT_CERTIFIED'}
               bad=[k for k,v in expected.items() if h.get(k)!=v]
               if code==200 and not mitigated and not bad:
                 json.dump({'http_status':code,'cf_mitigated':mitigated,'health':h,'url':url},open('health-readback.json','w'),indent=2,sort_keys=True)
@@ -71,7 +71,7 @@ jobs:
           python - <<'PY'
           import json,urllib.request,urllib.error
           url='https://axiom-stage.mftintelligence.com/v1/compute'
-          req=urllib.request.Request(url,method='GET',headers={'Accept':'application/json','User-Agent':'MFT-Axiom-Deployment-Verifier/1.0'})
+          req=urllib.request.Request(url,method='GET',headers={'Accept':'application/json','User-Agent':'MUSITU-Axiom-Deployment-Verifier/1.0'})
           try:
             urllib.request.urlopen(req,timeout=20); raise SystemExit('compute route unexpectedly active')
           except urllib.error.HTTPError as e:
@@ -84,7 +84,7 @@ jobs:
           set -euo pipefail
           python - <<'PY'
           import json
-          out={'schema':'mft.axiom.cloudflare.stage_readback.v1','config':json.load(open('config-readback.json')),'health':json.load(open('health-readback.json')),'production_compute_active':False,'production_hostname_bound':False,'wolfram_parity':'NOT_CERTIFIED','superiority':'NOT_CERTIFIED'}
+          out={'schema':'musitu.axiom.cloudflare.stage_readback.v1','config':json.load(open('config-readback.json')),'health':json.load(open('health-readback.json')),'production_compute_active':False,'production_hostname_bound':False,'wolfram_parity':'NOT_CERTIFIED','superiority':'NOT_CERTIFIED'}
           json.dump(out,open('axiom-stage-readback.json','w'),indent=2,sort_keys=True)
           PY
           sha256sum axiom-stage-readback.json > axiom-stage-readback.sha256

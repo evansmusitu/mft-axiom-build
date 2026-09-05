@@ -1,4 +1,4 @@
-name: MFT Axiom 403 Diagnostic
+name: MUSITU Axiom 403 Diagnostic
 on:
   workflow_dispatch:
   push:

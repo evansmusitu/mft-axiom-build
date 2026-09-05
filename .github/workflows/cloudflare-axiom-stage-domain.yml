@@ -1,4 +1,4 @@
-name: MFT Axiom Staging Domain Activation
+name: MUSITU Axiom Staging Domain Activation
 
 on:
   workflow_dispatch:
@@ -132,7 +132,7 @@ jobs:
           set -euo pipefail
           python - <<'PY'
           import json,hashlib
-          out={'schema':'mft.axiom.cloudflare.stage_domain.v1','hostname':'axiom-stage.mftintelligence.com','worker_name':'mft-axiom-bootstrap','domain':json.load(open('domain-readback.json')),'health':json.load(open('stage-health.json')),'production_compute_active':False,'production_hostname_bound':False,'wolfram_parity':'NOT_CERTIFIED','superiority':'NOT_CERTIFIED'}
+          out={'schema':'musitu.axiom.cloudflare.stage_domain.v1','hostname':'axiom-stage.mftintelligence.com','worker_name':'mft-axiom-bootstrap','domain':json.load(open('domain-readback.json')),'health':json.load(open('stage-health.json')),'production_compute_active':False,'production_hostname_bound':False,'wolfram_parity':'NOT_CERTIFIED','superiority':'NOT_CERTIFIED'}
           json.dump(out,open('axiom-stage-domain-evidence.json','w'),indent=2,sort_keys=True)
           PY
           sha256sum axiom-stage-domain-evidence.json > axiom-stage-domain-evidence.sha256

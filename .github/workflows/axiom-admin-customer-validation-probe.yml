@@ -1,4 +1,4 @@
-name: MFT Axiom Admin Customer Validation Probe
+name: MUSITU Axiom Admin Customer Validation Probe
 
 on:
   push:

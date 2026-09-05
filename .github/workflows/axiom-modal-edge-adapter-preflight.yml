@@ -1,4 +1,4 @@
-name: MFT Axiom Modal Edge Adapter Preflight
+name: MUSITU Axiom Modal Edge Adapter Preflight
 
 on:
   workflow_dispatch:
@@ -47,7 +47,7 @@ jobs:
           import hashlib,json,pathlib,re
           root=pathlib.Path('runtime/worker/src')
           files=sorted(p for p in root.glob('*.js') if p.is_file())
-          out={'schema':'mft.axiom.modal_edge_adapter_map.v1','files':[]}
+          out={'schema':'musitu.axiom.modal_edge_adapter_map.v1','files':[]}
           for p in files:
               s=p.read_text()
               imports=[]

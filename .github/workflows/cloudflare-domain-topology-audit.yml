@@ -1,4 +1,4 @@
-name: MFT Axiom Cloudflare Domain Topology Audit
+name: MUSITU Axiom Cloudflare Domain Topology Audit
 
 on:
   workflow_dispatch:
@@ -35,7 +35,7 @@ jobs:
             'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],
             'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY'],
             'Content-Type':'application/json',
-            'User-Agent':'MFT-Axiom-Topology-Audit/1.0',
+            'User-Agent':'MUSITU-Axiom-Topology-Audit/1.0',
           }
           def get(path):
             req=urllib.request.Request(base+path,headers=headers,method='GET')
@@ -72,7 +72,7 @@ jobs:
           stage=[x for x in relevant if x.get('hostname')=='axiom-stage.mftintelligence.com']
           nonstage=[x for x in relevant if x.get('hostname')!='axiom-stage.mftintelligence.com']
           out={
-            'schema':'mft.axiom.cloudflare_domain_topology.v1',
+            'schema':'musitu.axiom.cloudflare_domain_topology.v1',
             'zone':{'id':zid,'name':zone.get('name'),'status':zone.get('status'),'account_id':aid},
             'relevant_worker_domains':relevant,
             'relevant_dns':relevant_dns,

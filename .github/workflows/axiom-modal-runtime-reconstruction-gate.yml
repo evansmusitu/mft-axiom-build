@@ -1,4 +1,4 @@
-name: MFT Axiom Modal Runtime Reconstruction Gate
+name: MUSITU Axiom Modal Runtime Reconstruction Gate
 
 on:
   workflow_dispatch:
@@ -48,7 +48,7 @@ jobs:
           python - <<'PY'
           import hashlib,json,pathlib
           root=pathlib.Path('runtime'); m=json.loads((root/'RUNTIME_SOURCE_MANIFEST.json').read_text())
-          assert m['schema']=='mft.axiom.runtime_minimal_source.v1'
+          assert m['schema']=='musitu.axiom.runtime_minimal_source.v1'
           assert m['source_build']=='MFT-AXIOM-V3-FULL-SELF-CONTAINED-20260904'
           for f in m['files']:
               b=(root/f['path']).read_bytes()
@@ -187,7 +187,7 @@ jobs:
           python - <<'PY'
           import json,pathlib
           out={
-            'schema':'mft.axiom.modal_runtime_reconstruction_gate.v1',
+            'schema':'musitu.axiom.modal_runtime_reconstruction_gate.v1',
             'source_build':'MFT-AXIOM-V3-FULL-SELF-CONTAINED-20260904',
             'operation_count':74,
             'python':'3.13',

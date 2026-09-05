@@ -1,4 +1,4 @@
-name: MFT Axiom Modal Route Contract Probe
+name: MUSITU Axiom Modal Route Contract Probe
 
 on:
   workflow_dispatch:
@@ -27,7 +27,7 @@ jobs:
           paths={}
           for p,ops in sorted((spec.get('paths') or {}).items()):
               paths[p]=sorted(k.upper() for k in ops if k.lower() in {'get','post','put','patch','delete','options','head'})
-          print(json.dumps({'schema':'mft.axiom.modal_live_routes.v1','paths':paths},sort_keys=True))
+          print(json.dumps({'schema':'musitu.axiom.modal_live_routes.v1','paths':paths},sort_keys=True))
           pathlib.Path('modal-live-routes.json').write_text(json.dumps({'paths':paths},indent=2,sort_keys=True))
           for p in ['/v1/compute','/v3/compute','/compute','/v1/tools','/v3/tools','/health']:
               req=urllib.request.Request(base+p,data=b'{"operation":"arithmetic.evaluate","args":{"expression":"40+2"}}' if 'compute' in p else None,headers={'content-type':'application/json'} if 'compute' in p else {},method='POST' if 'compute' in p else 'GET')

@@ -1,4 +1,4 @@
-name: MFT Axiom Router and Auth Literals
+name: MUSITU Axiom Router and Auth Literals
 
 on:
   push:
@@ -83,7 +83,7 @@ jobs:
               auth={'file':fname,'headers':headers,'relevant_literals':strings,'uses_startsWith':'.startsWith(' in b,'uses_slice':'.slice(' in b,'uses_split':'.split(' in b}
               break
 
-          out={'schema':'mft.axiom.router_auth_literals.v1','global_router_literals':sorted(set(lits)),'helper_call_router_metadata':calls,'authenticate':auth,'plaintext_source_committed':False}
+          out={'schema':'musitu.axiom.router_auth_literals.v1','global_router_literals':sorted(set(lits)),'helper_call_router_metadata':calls,'authenticate':auth,'plaintext_source_committed':False}
           pathlib.Path('router-auth-literals.json').write_text(json.dumps(out,indent=2,sort_keys=True))
           print(json.dumps(out,sort_keys=True))
           PY

@@ -1,4 +1,4 @@
-name: MFT Axiom Dynamic Admin Route Auth Contract
+name: MUSITU Axiom Dynamic Admin Route Auth Contract
 
 on:
   push:
@@ -79,7 +79,7 @@ jobs:
             'uses_split':'.split(' in a,
             'sha256_mentions':len(re.findall(r'sha-?256|sha256',a,re.I)),
           }
-          out={'schema':'mft.axiom.dynamic_admin_route_auth_contract.v1','normalized_template_literals':sorted(set(templates)),'helper_route_segments':segment_sets,'authenticate_mechanics':auth,'plaintext_source_committed':False}
+          out={'schema':'musitu.axiom.dynamic_admin_route_auth_contract.v1','normalized_template_literals':sorted(set(templates)),'helper_route_segments':segment_sets,'authenticate_mechanics':auth,'plaintext_source_committed':False}
           pathlib.Path('dynamic-admin-route-auth-contract.json').write_text(json.dumps(out,indent=2,sort_keys=True))
           print(json.dumps(out,sort_keys=True))
           PY

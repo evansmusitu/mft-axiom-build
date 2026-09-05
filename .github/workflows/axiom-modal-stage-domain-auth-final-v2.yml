@@ -1,4 +1,4 @@
-name: MFT Axiom Modal Stage Domain Auth Final V2
+name: MUSITU Axiom Modal Stage Domain Auth Final V2
 on:
   workflow_dispatch:
   push:
@@ -112,7 +112,7 @@ jobs:
               if isinstance(det,dict):
                   found += [r for r in det.get('rules',[]) if r.get('ref')=='mft_axiom_stage_machine_transport']
           if len(found)!=1 or found[0].get('expression')!='http.host eq "axiom-stage.mftintelligence.com"' or found[0].get('enabled') is not True: raise SystemExit('security rule readback')
-          out={'schema':'mft.axiom.modal_stage_domain_final.v2','hostname':os.environ['HOSTNAME'],'service':os.environ['EDGE_WORKER'],'build':os.environ['BUILD_ID'],'compute_host':'Modal','modal_app':'mft-axiom-v3-modal-staging','d1':'mft-axiom-prod','d1_tables':tables,'operation_count':74,'health':'PASS','unauthorized_compute':'401_PASS','authenticated_compute':'PASS_NUMERIC_42_HIGH_PRECISION','signed_receipt':'PASS_HMAC_SHA256','security_rule':'SCOPED_UNCHANGED_PASS','billing':'NOT_CONFIGURED','wolfram_parity':'NOT_CERTIFIED','superiority':'NOT_CERTIFIED','gate':'STAGING_MODAL_COMPUTE_ACTIVE_VERIFIED'}
+          out={'schema':'musitu.axiom.modal_stage_domain_final.v2','hostname':os.environ['HOSTNAME'],'service':os.environ['EDGE_WORKER'],'build':os.environ['BUILD_ID'],'compute_host':'Modal','modal_app':'mft-axiom-v3-modal-staging','d1':'mft-axiom-prod','d1_tables':tables,'operation_count':74,'health':'PASS','unauthorized_compute':'401_PASS','authenticated_compute':'PASS_NUMERIC_42_HIGH_PRECISION','signed_receipt':'PASS_HMAC_SHA256','security_rule':'SCOPED_UNCHANGED_PASS','billing':'NOT_CONFIGURED','wolfram_parity':'NOT_CERTIFIED','superiority':'NOT_CERTIFIED','gate':'STAGING_MODAL_COMPUTE_ACTIVE_VERIFIED'}
           raw=json.dumps(out,sort_keys=True,separators=(',',':')).encode();out['evidence_sha256']=hashlib.sha256(raw).hexdigest();pathlib.Path('stage-modal-final-v2.json').write_text(json.dumps(out,indent=2,sort_keys=True))
           print('STAGING_MODAL_COMPUTE_ACTIVE_VERIFIED')
           PY

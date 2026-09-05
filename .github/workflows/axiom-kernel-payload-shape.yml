@@ -1,4 +1,4 @@
-name: MFT Axiom Kernel Payload Shape
+name: MUSITU Axiom Kernel Payload Shape
 
 on:
   workflow_dispatch:
@@ -41,7 +41,7 @@ jobs:
           python - <<'PY'
           import json,pathlib,re
           s=pathlib.Path('runtime/worker/src/index.js').read_text(errors='replace')
-          out={'schema':'mft.axiom.kernel_payload_shape.v1','sites':[],'plaintext_source_committed':False}
+          out={'schema':'musitu.axiom.kernel_payload_shape.v1','sites':[],'plaintext_source_committed':False}
           needle='http://container/v1/compute'
           pos=0
           while True:

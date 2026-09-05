@@ -1,4 +1,4 @@
-name: MFT Axiom Cloudflare Edge Bootstrap
+name: MUSITU Axiom Cloudflare Edge Bootstrap
 
 on:
   workflow_dispatch:
@@ -60,7 +60,7 @@ jobs:
             async fetch(request) {
               const u = new URL(request.url);
               if (request.method === 'GET' && (u.pathname === '/' || u.pathname === '/health' || u.pathname === '/v1/health')) {
-                return body({ok:true, product:'MFT Axiom', build:BUILD, deployment_state:'EDGE_BOOTSTRAP_ONLY', production_compute_active:false, tool_count:0, wolfram_parity:'NOT_CERTIFIED', superiority:'NOT_CERTIFIED'});
+                return body({ok:true, product:'MUSITU Axiom', build:BUILD, deployment_state:'EDGE_BOOTSTRAP_ONLY', production_compute_active:false, tool_count:0, wolfram_parity:'NOT_CERTIFIED', superiority:'NOT_CERTIFIED'});
               }
               if (u.pathname.startsWith('/v1/')) {
                 return body({ok:false, error:'AXIOM_PRODUCTION_COMPUTE_NOT_ACTIVATED', build:BUILD}, 503);
@@ -130,7 +130,7 @@ jobs:
           import hashlib,json
           def sha(p): return hashlib.sha256(open(p,'rb').read()).hexdigest()
           out={
-            'schema':'mft.axiom.cloudflare.edge_bootstrap.v1',
+            'schema':'musitu.axiom.cloudflare.edge_bootstrap.v1',
             'worker_name':'mft-axiom-bootstrap',
             'build':'MFT-AXIOM-EDGE-BOOTSTRAP-20260904',
             'source_sha256':sha('worker.js'),

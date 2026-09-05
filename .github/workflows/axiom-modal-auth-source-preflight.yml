@@ -1,4 +1,4 @@
-name: MFT Axiom Modal Auth + Source Preflight
+name: MUSITU Axiom Modal Auth + Source Preflight
 
 on:
   workflow_dispatch:
@@ -65,7 +65,7 @@ jobs:
           import hashlib,json,pathlib
           root=pathlib.Path('runtime')
           m=json.loads((root/'RUNTIME_SOURCE_MANIFEST.json').read_text())
-          assert m['schema']=='mft.axiom.runtime_minimal_source.v1'
+          assert m['schema']=='musitu.axiom.runtime_minimal_source.v1'
           assert m['source_build']=='MFT-AXIOM-V3-FULL-SELF-CONTAINED-20260904'
           problems=[]; paths=[]; total=0
           for f in m['files']:
@@ -77,7 +77,7 @@ jobs:
           if problems: raise SystemExit('Fail-closed source manifest mismatch')
           def anyp(pred): return any(pred(x) for x in paths)
           result={
-            'schema':'mft.axiom.modal_source_preflight.v1',
+            'schema':'musitu.axiom.modal_source_preflight.v1',
             'modal_auth':'PASS',
             'source_build':m['source_build'],
             'source_file_count':len(paths),

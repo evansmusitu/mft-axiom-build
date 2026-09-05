@@ -1,4 +1,4 @@
-name: MFT Axiom Customer Provision Contract
+name: MUSITU Axiom Customer Provision Contract
 
 on:
   push:
@@ -57,7 +57,7 @@ jobs:
           string_keys=sorted(set(re.findall(r'["\']([A-Za-z_][A-Za-z0-9_]*)["\']\s*:',w)))
           auth_headers=sorted(set(x.lower() for x in re.findall(r'headers\.get\s*\(\s*["\']([^"\']+)["\']',w)))
           out={
-            'schema':'mft.axiom.customer_provision_contract.v1',
+            'schema':'musitu.axiom.customer_provision_contract.v1',
             'route':'/v1/admin/customers',
             'route_methods':sorted(set(re.findall(r'request\.method\s*(?:===|==)\s*["\']([A-Z]+)["\']',w))),
             'route_db_calls':sorted(set(route_calls)),

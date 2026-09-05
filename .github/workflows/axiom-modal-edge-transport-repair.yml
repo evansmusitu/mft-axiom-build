@@ -1,4 +1,4 @@
-name: MFT Axiom Modal Edge Transport Repair
+name: MUSITU Axiom Modal Edge Transport Repair
 
 on:
   workflow_dispatch:
@@ -169,7 +169,7 @@ jobs:
           set -euo pipefail
           python - <<'PY'
           import json,hashlib,pathlib,os
-          ev={'schema':'mft.axiom.modal_edge_transport_repair.v1','build_id':os.environ['BUILD_ID'],'adapter_service_binding_ready':'PASS','isolated_health_tools':'PASS','unauthorized_compute_401':'PASS','authenticated_compute':'PASS','signed_receipt':'PASS','d1_state':'CANONICAL_SCHEMA_PRESENT','modal_proxy_credential_retained':True,'custom_stage_domain_cutover_performed':False,'production_compute_active':False,'stripe_configuration_present':False,'plaintext_source_committed':False,'wolfram_parity':'NOT_CERTIFIED','superiority':'NOT_CERTIFIED','next_gate':'VERIFY_D1_CUSTOMER_API_KEY_USAGE_PERSISTENCE_THEN_STAGE_DOMAIN_CUTOVER'}
+          ev={'schema':'musitu.axiom.modal_edge_transport_repair.v1','build_id':os.environ['BUILD_ID'],'adapter_service_binding_ready':'PASS','isolated_health_tools':'PASS','unauthorized_compute_401':'PASS','authenticated_compute':'PASS','signed_receipt':'PASS','d1_state':'CANONICAL_SCHEMA_PRESENT','modal_proxy_credential_retained':True,'custom_stage_domain_cutover_performed':False,'production_compute_active':False,'stripe_configuration_present':False,'plaintext_source_committed':False,'wolfram_parity':'NOT_CERTIFIED','superiority':'NOT_CERTIFIED','next_gate':'VERIFY_D1_CUSTOMER_API_KEY_USAGE_PERSISTENCE_THEN_STAGE_DOMAIN_CUTOVER'}
           raw=json.dumps(ev,sort_keys=True,separators=(',',':')).encode();ev['evidence_sha256']=hashlib.sha256(raw).hexdigest()
           pathlib.Path('transport-repair-evidence.json').write_text(json.dumps(ev,indent=2,sort_keys=True))
           print(json.dumps({'transport_repair':'PASS','next_gate':ev['next_gate']},sort_keys=True))

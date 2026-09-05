@@ -1,4 +1,4 @@
-name: MFT Axiom Modal Runtime Diagnostic
+name: MUSITU Axiom Modal Runtime Diagnostic
 
 on:
   workflow_dispatch:

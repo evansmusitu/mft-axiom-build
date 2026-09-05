@@ -1,4 +1,4 @@
-name: MFT Axiom Modal Private Deploy
+name: MUSITU Axiom Modal Private Deploy
 
 on:
   workflow_dispatch:
@@ -62,7 +62,7 @@ jobs:
           import hashlib,json,pathlib
           root=pathlib.Path('runtime')
           m=json.loads((root/'RUNTIME_SOURCE_MANIFEST.json').read_text())
-          assert m['schema']=='mft.axiom.runtime_minimal_source.v1'
+          assert m['schema']=='musitu.axiom.runtime_minimal_source.v1'
           assert m['source_build']=='MFT-AXIOM-V3-FULL-SELF-CONTAINED-20260904'
           problems=[]
           for f in m['files']:
@@ -207,7 +207,7 @@ jobs:
           if not any(x in routes for x in ['/v3/tools','/v1/tools','/tools']): raise SystemExit('Fail-closed: tools route missing')
           if not any(x in routes for x in ['/v1/compute','/v3/compute','/compute']): raise SystemExit('Fail-closed: compute route missing')
           evidence={
-            'schema':'mft.axiom.modal_private_deploy.v1',
+            'schema':'musitu.axiom.modal_private_deploy.v1',
             'source_build':r['build_id'],
             'modal_app':'mft-axiom-v3-modal-staging',
             'endpoint_https':True,

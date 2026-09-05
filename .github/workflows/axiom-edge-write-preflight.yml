@@ -1,4 +1,4 @@
-name: MFT Axiom Edge Write Preflight
+name: MUSITU Axiom Edge Write Preflight
 
 on:
   workflow_dispatch:
@@ -53,7 +53,7 @@ jobs:
           text=(root/entry).read_text(errors='replace')
           for m in re.finditer(r'(?:import\s+(?:[^\n]+?\s+from\s+)?|import\s*\()\s*[\'\"]([^\'\"]+)',text): imports.append(m.group(1))
           presence={k:bool(os.environ.get(k)) for k in ['MODAL_TOKEN_ID','MODAL_TOKEN_SECRET','MFT_CONTROL_SECRET','MFT_RECEIPT_SECRET','STRIPE_WEBHOOK_SECRET','STRIPE_PRICE_PLAN_MAP','AXIOM_DOWNGRADE_ON_CANCEL']}
-          out={'schema':'mft.axiom.edge_write_preflight.v1','source_build':man['source_build'],'worker_entry':entry,'worker_files':worker,'entry_import_specifiers':sorted(set(imports)),'secret_presence':presence,'d1_migration_sha256':'efc2817e42fbba2efa0471ca5a10758b858540beff819ef6c054edd87ab93379','plaintext_source_committed':False,'wolfram_parity':'NOT_CERTIFIED','superiority':'NOT_CERTIFIED'}
+          out={'schema':'musitu.axiom.edge_write_preflight.v1','source_build':man['source_build'],'worker_entry':entry,'worker_files':worker,'entry_import_specifiers':sorted(set(imports)),'secret_presence':presence,'d1_migration_sha256':'efc2817e42fbba2efa0471ca5a10758b858540beff819ef6c054edd87ab93379','plaintext_source_committed':False,'wolfram_parity':'NOT_CERTIFIED','superiority':'NOT_CERTIFIED'}
           open('edge-write-preflight.json','w').write(json.dumps(out,indent=2,sort_keys=True))
           print(json.dumps({'preflight_pass':True,'worker_entry':entry,'worker_files':worker,'entry_import_specifiers':out['entry_import_specifiers'],'secret_presence':presence},sort_keys=True))
           PY

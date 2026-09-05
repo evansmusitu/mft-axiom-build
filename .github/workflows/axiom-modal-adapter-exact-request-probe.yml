@@ -1,4 +1,4 @@
-name: MFT Axiom Modal Adapter Exact Request Probe
+name: MUSITU Axiom Modal Adapter Exact Request Probe
 on:
   workflow_dispatch:
   push:

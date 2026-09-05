@@ -1,4 +1,4 @@
-name: MFT Axiom Modal Stage Domain Promotion V2
+name: MUSITU Axiom Modal Stage Domain Promotion V2
 on:
   workflow_dispatch:
   push:
@@ -77,7 +77,7 @@ jobs:
                   with urllib.request.urlopen(q,timeout=30) as r: c=r.status
               except urllib.error.HTTPError as e: c=e.code; e.read()
               if c!=401: raise RuntimeError(f'unauthorized compute expected 401 got {c}')
-              out={'schema':'mft.axiom.modal_stage_domain_promotion.v2','hostname':host,'old_service':os.environ['OLD_SERVICE'],'new_service':os.environ['NEW_SERVICE'],'build':expected,'operation_count':74,'health':'PASS','unauthorized_compute':'401_PASS','billing':'NOT_CONFIGURED','wolfram_parity':'NOT_CERTIFIED','superiority':'NOT_CERTIFIED','gate':'CUSTOM_DOMAIN_PUBLIC_PASS_AUTHENTICATED_FINAL_GATE_PENDING'}
+              out={'schema':'musitu.axiom.modal_stage_domain_promotion.v2','hostname':host,'old_service':os.environ['OLD_SERVICE'],'new_service':os.environ['NEW_SERVICE'],'build':expected,'operation_count':74,'health':'PASS','unauthorized_compute':'401_PASS','billing':'NOT_CONFIGURED','wolfram_parity':'NOT_CERTIFIED','superiority':'NOT_CERTIFIED','gate':'CUSTOM_DOMAIN_PUBLIC_PASS_AUTHENTICATED_FINAL_GATE_PENDING'}
               pathlib.Path('promotion-v2.json').write_text(json.dumps(out,indent=2,sort_keys=True))
               print('CUSTOM_DOMAIN_PUBLIC_PASS')
           except Exception:

@@ -1,4 +1,4 @@
-name: MFT Axiom Admin Key Regex Routes
+name: MUSITU Axiom Admin Key Regex Routes
 
 on:
   push:
@@ -47,7 +47,7 @@ jobs:
                       if 'v1' in pat or 'admin' in pat or 'customers' in pat or 'keys' in pat:
                           pats.append(pat)
               out[fn]=sorted(set(pats))
-          result={'schema':'mft.axiom.admin_key_regex_routes.v1','routes':out,'plaintext_source_committed':False}
+          result={'schema':'musitu.axiom.admin_key_regex_routes.v1','routes':out,'plaintext_source_committed':False}
           pathlib.Path('admin-key-regex-routes.json').write_text(json.dumps(result,indent=2,sort_keys=True))
           print(json.dumps(result,sort_keys=True))
           PY

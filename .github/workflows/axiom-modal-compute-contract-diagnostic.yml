@@ -1,4 +1,4 @@
-name: MFT Axiom Modal Compute Contract Diagnostic
+name: MUSITU Axiom Modal Compute Contract Diagnostic
 
 on:
   workflow_dispatch:

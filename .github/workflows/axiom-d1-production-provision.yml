@@ -1,4 +1,4 @@
-name: MFT Axiom Production D1 Provision
+name: MUSITU Axiom Production D1 Provision
 
 on:
   workflow_dispatch:
@@ -50,7 +50,7 @@ jobs:
           db=readback.get('result') or {}
           if not readback.get('success') or db.get('uuid')!=dbid or db.get('name')!=os.environ['D1_NAME']:
               raise SystemExit('D1 readback invariant failed')
-          out={'schema':'mft.axiom.d1.production_provision.v1','created':created,'database':db,'production_compute_active':False,'wolfram_parity':'NOT_CERTIFIED','superiority':'NOT_CERTIFIED'}
+          out={'schema':'musitu.axiom.d1.production_provision.v1','created':created,'database':db,'production_compute_active':False,'wolfram_parity':'NOT_CERTIFIED','superiority':'NOT_CERTIFIED'}
           json.dump(out,open('axiom-d1-production.json','w'),indent=2,sort_keys=True)
           print(json.dumps({'d1_provision_pass':True,'created':created,'name':db.get('name'),'uuid_present':bool(dbid),'num_tables':db.get('num_tables')}))
           PY

@@ -1,4 +1,4 @@
-name: MFT Axiom Modal Adapter Repair Probe
+name: MUSITU Axiom Modal Adapter Repair Probe
 on:
   workflow_dispatch:
   push:
