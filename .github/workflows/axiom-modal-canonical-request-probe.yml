@@ -1,0 +1,59 @@
+name: MFT Axiom Modal Canonical Request Probe
+
+on:
+  push:
+    paths:
+      - '.github/workflows/axiom-modal-canonical-request-probe.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    env:
+      MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID }}
+      MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET }}
+      MODAL_BASE_URL: https://evansmusitu--mft-axiom-v3-modal-staging-axiom-kernel.modal.run
+    steps:
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Create ephemeral proxy token and probe canonical request
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --disable-pip-version-check --quiet 'modal>=1.5,<2'
+          modal workspace proxy-tokens create --json >/tmp/p.json
+          python - <<'PY'
+          import json,pathlib
+          vals=[]
+          def w(x):
+              if isinstance(x,dict):
+                  for v in x.values(): w(v)
+              elif isinstance(x,list):
+                  for v in x: w(v)
+              elif isinstance(x,str): vals.append(x)
+          w(json.load(open('/tmp/p.json')))
+          ks=[x for x in vals if x.startswith('wk-')]; ss=[x for x in vals if x.startswith('ws-')]
+          if len(ks)!=1 or len(ss)!=1: raise SystemExit('proxy token shape')
+          pathlib.Path('/tmp/k').write_text(ks[0]); pathlib.Path('/tmp/s').write_text(ss[0])
+          PY
+          K="$(cat /tmp/k)"; S="$(cat /tmp/s)"; echo "::add-mask::$K"; echo "::add-mask::$S"
+          trap 'modal workspace proxy-tokens delete -y "$K" >/dev/null 2>&1 || true; rm -f /tmp/k /tmp/s /tmp/p.json' EXIT
+          RID="canonical-probe-$(date +%s)"
+          code="$(curl -sS --max-time 90 -o /tmp/out.json -w '%{http_code}' -X POST "$MODAL_BASE_URL/v1/compute" -H "Modal-Key: $K" -H "Modal-Secret: $S" -H 'content-type: application/json' -H "x-mft-request-id: $RID" --data "{\"operation\":\"arithmetic.evaluate\",\"args\":{\"expression\":\"40+2\"},\"verify\":true,\"request_id\":\"$RID\"}")"
+          echo "modal_canonical_http=$code"
+          python - "$code" <<'PY'
+          import json,sys
+          code=int(sys.argv[1]); raw=open('/tmp/out.json').read();
+          try: x=json.loads(raw)
+          except Exception: x={}
+          print('response_json='+str(bool(x)).lower())
+          print('response_top_keys='+','.join(sorted(x.keys())) if isinstance(x,dict) else 'response_top_keys=')
+          print('response_ok='+str(x.get('ok') if isinstance(x,dict) else None))
+          if code!=200 or not isinstance(x,dict) or x.get('ok') is not True:
+              raise SystemExit('Fail-closed: canonical Modal request not accepted')
+          print('MODAL_CANONICAL_REQUEST_PASS')
+          PY
