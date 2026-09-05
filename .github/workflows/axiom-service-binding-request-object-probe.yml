@@ -1,0 +1,67 @@
+name: MFT Axiom Service Binding Request Object Probe
+
+on:
+  push:
+    paths:
+      - '.github/workflows/axiom-service-binding-request-object-probe.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    env:
+      CLOUDFLARE_ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+      CLOUDFLARE_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+      ADAPTER_WORKER: mft-axiom-modal-adapter
+      PROBE_WORKER: mft-axiom-request-object-probe
+    steps:
+      - name: Deploy exact Request-object service-binding probe
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --no-save --ignore-scripts --no-audit --no-fund wrangler@4.129.0 >/dev/null
+          mkdir -p /tmp/probe
+          cat >/tmp/probe/worker.js <<'JS'
+          export default {async fetch(r,e){
+            const u=new URL(r.url);
+            if(u.pathname==='/compute'){
+              const rid='request-object-probe';
+              const req=new Request('http://container/v1/compute',{method:'POST',headers:{'content-type':'application/json','x-mft-request-id':rid},body:JSON.stringify({operation:'arithmetic.evaluate',args:{expression:'40+2'},verify:true,request_id:rid})});
+              return e.UP.fetch(req);
+            }
+            if(u.pathname==='/health') return e.UP.fetch(new Request('http://container/health'));
+            return new Response('not found',{status:404});
+          }};
+          JS
+          python - <<'PY'
+          import json,os
+          json.dump({'name':os.environ['PROBE_WORKER'],'main':'worker.js','compatibility_date':'2026-09-04','workers_dev':True,'services':[{'binding':'UP','service':os.environ['ADAPTER_WORKER']}]},open('/tmp/probe/wrangler.json','w'))
+          PY
+          (cd /tmp/probe && npx wrangler deploy --config wrangler.json >/tmp/deploy.log 2>&1) || { tail -100 /tmp/deploy.log; exit 1; }
+          SUB="$(python - <<'PY'
+          import json,os,urllib.request
+          h={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_API_KEY']}
+          q=urllib.request.Request(f"https://api.cloudflare.com/client/v4/accounts/{os.environ['CLOUDFLARE_ACCOUNT_ID']}/workers/subdomain",headers=h)
+          with urllib.request.urlopen(q) as r:x=json.load(r)
+          print(x['result']['subdomain'])
+          PY
+          )"
+          U="https://${PROBE_WORKER}.${SUB}.workers.dev"
+          hc="$(curl -sS --max-time 60 -o /tmp/h.json -w '%{http_code}' "$U/health")"
+          cc="$(curl -sS --max-time 90 -o /tmp/c.json -w '%{http_code}' "$U/compute")"
+          echo "request_object_health_http=$hc"
+          echo "request_object_compute_http=$cc"
+          python - "$hc" "$cc" <<'PY'
+          import json,sys
+          hc,cc=map(int,sys.argv[1:]); h=json.load(open('/tmp/h.json')); c=json.load(open('/tmp/c.json'))
+          print('health_ok='+str(h.get('ok')))
+          print('compute_ok='+str(c.get('ok')))
+          print('compute_top_keys='+','.join(sorted(c.keys())))
+          if hc!=200 or h.get('ok') is not True or cc!=200 or c.get('ok') is not True:
+              raise SystemExit('Fail-closed: Request-object service-binding path failed')
+          print('REQUEST_OBJECT_SERVICE_BINDING_PASS')
+          PY
