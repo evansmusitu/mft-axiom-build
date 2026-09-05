@@ -1,0 +1,121 @@
+name: MUSITU Axiom Live Metering Durability Patch
+
+on:
+  push:
+    paths:
+      - '.github/workflows/axiom-live-metering-durability-patch.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: musitu-axiom-live-metering-durability-patch
+  cancel-in-progress: false
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    env:
+      CF_API: https://api.cloudflare.com/client/v4
+      ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      BACKEND: mft-axiom-modal-edge-stage
+      EDGE: https://axiom-stage.mftintelligence.com
+      EXPECTED_BUILD: MFT-AXIOM-V3-FULL-SELF-CONTAINED-20260904
+      EXPECTED_SOURCE_SHA256: 583fab34da0bee20b436a9448f7647591d452ae518f83108d1cc3a059c12faf5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Apply scheduling-only live patch with rollback protection
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import email,hashlib,json,os,re,subprocess,time,urllib.error,urllib.parse,urllib.request
+          api=os.environ['CF_API'];aid=os.environ['ACCOUNT_ID'];worker=os.environ['BACKEND'];edge=os.environ['EDGE'];build=os.environ['EXPECTED_BUILD'];expected=os.environ['EXPECTED_SOURCE_SHA256']
+          H={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY'],'Accept':'application/json','User-Agent':'MUSITU-Axiom-Metering-Durability-Patch/1.0'}
+          def req(url,method='GET',headers=None,body=None,timeout=45):
+              q=urllib.request.Request(url,headers=dict(headers or {}),method=method,data=body)
+              try:
+                  with urllib.request.urlopen(q,timeout=timeout) as r:return r.status,r.headers,r.read()
+              except urllib.error.HTTPError as e:return e.code,e.headers,e.read()
+          def script_get():
+              c,h,b=req(f'{api}/accounts/{aid}/workers/scripts/{urllib.parse.quote(worker,safe="")}',headers=H)
+              if not 200<=c<300:raise RuntimeError(f'worker GET HTTP {c}')
+              return b,h.get('content-type','')
+          def extract_module(raw,ctype):
+              if 'multipart/' not in (ctype or '').lower():return raw
+              msg=email.message_from_bytes((f'Content-Type: {ctype}\r\nMIME-Version: 1.0\r\n\r\n').encode()+raw);parts=[]
+              for p in msg.walk():
+                  if p.is_multipart():continue
+                  d=p.get_payload(decode=True) or b''
+                  if b'recordUsage' in d and b'/v1/compute' in d:parts.append(d)
+              if len(parts)!=1:raise RuntimeError('expected exactly one executable metering module, got '+str(len(parts)))
+              return parts[0]
+          def put_raw(raw,ctype):
+              h=dict(H);h['Content-Type']=ctype or 'application/javascript'
+              c,_,b=req(f'{api}/accounts/{aid}/workers/scripts/{urllib.parse.quote(worker,safe="")}/content','PUT',h,raw)
+              if not 200<=c<300:raise RuntimeError(f'content PUT HTTP {c}: '+b[:300].decode('utf-8','ignore'))
+          def binding_shape():
+              c,_,b=req(f'{api}/accounts/{aid}/workers/scripts/{urllib.parse.quote(worker,safe="")}/settings',headers=H)
+              if not 200<=c<300:raise RuntimeError(f'settings HTTP {c}')
+              x=json.loads(b or b'{}');r=x.get('result') or {};bs=r.get('bindings') or []
+              return sorted((str(z.get('name') or ''),str(z.get('type') or ''),str(z.get('service') or ''),str(z.get('id') or '')) for z in bs if isinstance(z,dict))
+          def public_health():
+              c,_,b=req(edge+'/health',headers={'Accept':'application/json','User-Agent':'MUSITU-Axiom-Metering-Durability-Patch/1.0'},timeout=30)
+              try:o=json.loads(b or b'{}')
+              except:o={}
+              return c,o
+          original_raw,ctype=script_get(); original_module=extract_module(original_raw,ctype); original_sha=hashlib.sha256(original_module).hexdigest()
+          if original_sha!=expected:raise RuntimeError('live source hash changed; refusing stale patch')
+          before_bindings=binding_shape()
+          text=original_module.decode('utf-8')
+          calls=[]
+          for m in re.finditer(r'\brecordUsage\s*\(',text):
+              prefix=text[max(0,m.start()-80):m.start()]
+              if re.search(r'(?:async\s+)?function\s*$',prefix):continue
+              calls.append(m)
+          if len(calls)!=1:raise RuntimeError('non-definition recordUsage call count '+str(len(calls)))
+          m=calls[0];prefix=text[max(0,m.start()-40):m.start()]
+          if re.search(r'await\s*$',prefix):raise RuntimeError('recordUsage is already awaited; refusing duplicate patch')
+          window=text[max(0,m.start()-1200):min(len(text),m.start()+2400)]
+          if not re.search(r'recordUsage\s*\([^;]{0,1600}\)\s*\.\s*(?:then|catch|finally)\s*\(',window,re.S):raise RuntimeError('expected existing Promise-chain scheduling shape absent')
+          patched_text=text[:m.start()]+'await '+text[m.start():]
+          if len(re.findall(r'await\s+recordUsage\s*\(',patched_text))!=1:raise RuntimeError('await patch cardinality mismatch')
+          patched_module=patched_text.encode(); open('patched-live-module.mjs','wb').write(patched_module)
+          subprocess.run(['node','--check','patched-live-module.mjs'],check=True,stdout=subprocess.DEVNULL,stderr=subprocess.PIPE)
+          if original_raw.count(original_module)!=1:raise RuntimeError('executable module raw embedding cardinality mismatch')
+          patched_raw=original_raw.replace(original_module,patched_module,1)
+          patched_sha=hashlib.sha256(patched_module).hexdigest(); mutated=False; rolled_back=False
+          evidence={}
+          try:
+              put_raw(patched_raw,ctype);mutated=True;time.sleep(2)
+              live_raw,live_ct=script_get();live_module=extract_module(live_raw,live_ct);live_sha=hashlib.sha256(live_module).hexdigest()
+              if live_sha!=patched_sha:raise RuntimeError('post-PUT source hash mismatch')
+              live_text=live_module.decode('utf-8','ignore')
+              if len(re.findall(r'await\s+recordUsage\s*\(',live_text))!=1:raise RuntimeError('live await scheduling proof failed')
+              if binding_shape()!=before_bindings:raise RuntimeError('binding shape changed during content-only patch')
+              c,h=public_health()
+              if c!=200 or h.get('ok') is not True or h.get('build_id')!=build or int(h.get('operation_count') or -1)!=74:raise RuntimeError('stage health regression after patch')
+              evidence={'schema':'musitu.axiom.live_metering_durability_patch.v1','gate':'AXIOM_LIVE_METERING_DURABILITY_PATCH_PASS','worker':worker,'original_source_sha256':original_sha,'patched_source_sha256':patched_sha,'record_usage_call_count':1,'direct_await_after_patch':True,'existing_promise_chain_preserved':True,'binding_shape_preserved':True,'worker_secret_mutation':False,'binding_mutation':False,'stage_health_http':c,'build_id':h.get('build_id'),'operation_count':h.get('operation_count'),'rollback_performed':False,'plaintext_source_published':False,'secret_values_published':False}
+          except Exception:
+              if mutated:
+                  put_raw(original_raw,ctype);rolled_back=True;time.sleep(1)
+                  rb_raw,rb_ct=script_get();rb_module=extract_module(rb_raw,rb_ct)
+                  if hashlib.sha256(rb_module).hexdigest()!=original_sha:raise RuntimeError('rollback source verification failed')
+                  if binding_shape()!=before_bindings:raise RuntimeError('rollback binding verification failed')
+              raise
+          raw=(json.dumps(evidence,indent=2,sort_keys=True)+'\n').encode();open('metering-durability-patch.json','wb').write(raw);dg=hashlib.sha256(raw).hexdigest();open('metering-durability-patch.sha256','w').write(dg+'  metering-durability-patch.json\n')
+          print(json.dumps({**evidence,'evidence_sha256':dg},sort_keys=True))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: musitu-axiom-live-metering-durability-patch
+          path: |
+            metering-durability-patch.json
+            metering-durability-patch.sha256
+          retention-days: 30
+          if-no-files-found: error
