@@ -1,0 +1,201 @@
+name: MUSITU Axiom Real Money Certification Reconcile
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/axiom-real-money-certification-reconcile.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: musitu-axiom-real-money-certification-reconcile
+  cancel-in-progress: false
+
+jobs:
+  reconcile:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    env:
+      CF_API: https://api.cloudflare.com/client/v4
+      ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      D1_UUID: 504029cc-f9a5-495e-818f-63c6144b4ea4
+      BILLING_BASE: https://payments.mftintelligence.com
+      AXIOM_EDGE: https://axiom.mftintelligence.com
+      EXPECTED_BUILD: MFT-AXIOM-V3-FULL-SELF-CONTAINED-20260904
+    steps:
+      - name: Poll existing certification intent and prove reconciliation fail-closed
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import datetime,hashlib,json,os,pathlib,re,secrets,urllib.error,urllib.parse,urllib.request,uuid
+
+          api=os.environ['CF_API']; aid=os.environ['ACCOUNT_ID']; dbid=os.environ['D1_UUID']; billing=os.environ['BILLING_BASE']; edge=os.environ['AXIOM_EDGE']
+          CFH={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY'],'Content-Type':'application/json','Accept':'application/json','User-Agent':'MUSITU-Axiom-Real-Money-Reconcile/1.0'}
+
+          def q(sql,params=None):
+              body={'sql':sql}
+              if params is not None: body['params']=params
+              req=urllib.request.Request(f'{api}/accounts/{aid}/d1/database/{dbid}/query',headers=CFH,method='POST',data=json.dumps(body,separators=(',',':')).encode())
+              try:
+                  with urllib.request.urlopen(req,timeout=45) as r: raw=r.read(); code=r.status
+              except urllib.error.HTTPError as e: raw=e.read(); code=e.code
+              if not 200<=code<300: raise RuntimeError(f'D1 HTTP {code}')
+              obj=json.loads(raw or b'{}'); rr=obj.get('result') or []; rows=[]
+              if not rr or not all(x.get('success') is True for x in rr): raise RuntimeError('D1 statement failed')
+              for x in rr: rows.extend(x.get('results') or [])
+              return rows
+
+          def api_json(url,method='GET',token=None,body=None,rid=None):
+              h={'Accept':'application/json','User-Agent':'MUSITU-Axiom-Real-Money-Reconcile/1.0'}
+              if token: h['Authorization']='Bearer '+token
+              if rid: h['x-musitu-request-id']=rid
+              data=None
+              if body is not None:
+                  h['Content-Type']='application/json'; data=json.dumps(body,separators=(',',':')).encode()
+              req=urllib.request.Request(url,headers=h,method=method,data=data)
+              try:
+                  with urllib.request.urlopen(req,timeout=60) as r: raw=r.read(); code=r.status
+              except urllib.error.HTTPError as e: raw=e.read(); code=e.code
+              try: obj=json.loads(raw or b'{}')
+              except Exception: obj={}
+              return code,obj
+
+          def response_keys(x,depth=0,out=None):
+              out=set() if out is None else out
+              if depth>5:return out
+              if isinstance(x,dict):
+                  for k,v in x.items():out.add(str(k));response_keys(v,depth+1,out)
+              elif isinstance(x,list):
+                  for v in x[:30]:response_keys(v,depth+1,out)
+              return out
+
+          rows=q("SELECT reference,customer_id,plan,amount_cents,currency,monthly_unit_limit,status,paynow_reference,completed_at FROM billing_checkout_intents WHERE customer_id LIKE 'cert_real_money_%' ORDER BY created_at DESC;")
+          if len(rows)!=1: raise RuntimeError('expected exactly one real-money certification intent, got '+str(len(rows)))
+          intent=rows[0]; reference=str(intent.get('reference') or ''); customer=str(intent.get('customer_id') or '')
+          if not reference or not customer: raise RuntimeError('certification reference/customer absent')
+          print('::add-mask::'+reference); print('::add-mask::'+customer)
+          if (intent.get('plan'),int(intent.get('amount_cents') or 0),intent.get('currency'),int(intent.get('monthly_unit_limit') or 0))!=('developer',1900,'USD',1000):
+              raise RuntimeError('certification catalog drift')
+
+          # Use a one-run bearer only for authenticated provider poll and, if paid, one production compute proof.
+          suffix=uuid.uuid4().hex; key_id='cert_reconcile_key_'+suffix
+          token='musitu_axiom_real_money_reconcile_'+secrets.token_urlsafe(40); print('::add-mask::'+token)
+          key_hash=hashlib.sha256(token.encode()).hexdigest(); key_prefix=token[:16]
+          now=datetime.datetime.now(datetime.timezone.utc); created=now.isoformat().replace('+00:00','Z'); expires=(now+datetime.timedelta(minutes=20)).isoformat().replace('+00:00','Z')
+          q('INSERT INTO api_keys(id,customer_id,key_hash,key_prefix,label,status,created_at,last_used_at,expires_at,revoked_at) VALUES(?1,?2,?3,?4,?5,?6,?7,NULL,?8,NULL)',[key_id,customer,key_hash,key_prefix,'real-money-certification-reconcile','active',created,expires])
+          key_state='active'
+          evidence={}
+          try:
+              code,status_obj=api_json(billing+'/billing/checkout/'+urllib.parse.quote(reference,safe=''),'GET',token)
+              if code!=200: raise RuntimeError('authenticated Paynow status poll failed HTTP '+str(code)+' error='+str(status_obj.get('error')))
+              payment_status=str(status_obj.get('payment_status') or '').lower()
+
+              post=q('SELECT status,paynow_reference,completed_at,updated_at FROM billing_checkout_intents WHERE reference=?1',[reference])
+              if len(post)!=1: raise RuntimeError('certification intent disappeared after poll')
+              sub=q("SELECT provider,provider_subscription_id,status,price_id,current_period_end,updated_at FROM billing_subscriptions WHERE customer_id=?1 AND provider='paynow'",[customer])
+              cust=q('SELECT plan,status,monthly_unit_override FROM customers WHERE id=?1',[customer])
+              bucket=q("SELECT month,used_units,unit_limit,updated_at FROM usage_buckets WHERE customer_id=?1 AND month=strftime('%Y-%m','now')",[customer])
+              webhooks=q("SELECT count(*) AS n FROM webhook_events WHERE provider='paynow' AND payload_json LIKE ?1",['%'+reference+'%'])
+              webhook_count=int(webhooks[0]['n']) if webhooks else 0
+
+              if payment_status!='paid':
+                  if str(post[0].get('status') or '').lower() not in ('initiated','created','expired','cancelled','failed'):
+                      raise RuntimeError('unexpected unpaid canonical intent status '+str(post[0].get('status')))
+                  if len(sub)!=0: raise RuntimeError('unpaid certification intent provisioned subscription')
+                  if cust and int(cust[0].get('monthly_unit_override') or 0)!=0: raise RuntimeError('unpaid certification intent provisioned monthly entitlement')
+                  evidence={
+                      'schema':'musitu.axiom.real_money_certification_reconcile.v1',
+                      'gate':'AXIOM_REAL_MONEY_CERTIFICATION_AWAITING_PAYMENT',
+                      'provider':'paynow','payment_status':payment_status or 'unknown','intent_status':post[0].get('status'),
+                      'subscription_rows':0,'monthly_unit_override':0,'matching_verified_webhook_rows':webhook_count,
+                      'real_money_e2e_certified':False,'compute_performed':False,'mutation_scope':['temporary_api_key_insert_delete'],
+                      'raw_api_key_published':False,'raw_reference_published':False,'worker_secret_mutation':False,
+                      'wolfram_parity':'NOT_CERTIFIED','superiority':'NOT_CERTIFIED',
+                  }
+              else:
+                  # Paid must have reconciled into exactly one active Developer subscription and 1000-unit current bucket.
+                  if str(post[0].get('status') or '').lower()!='paid' or not post[0].get('paynow_reference') or not post[0].get('completed_at'):
+                      raise RuntimeError('provider reports paid but checkout ledger settlement is incomplete')
+                  if len(sub)!=1 or sub[0].get('provider')!='paynow' or sub[0].get('status')!='active' or sub[0].get('price_id')!='axiom-developer-monthly' or not sub[0].get('provider_subscription_id'):
+                      raise RuntimeError('paid checkout subscription reconciliation mismatch')
+                  if len(cust)!=1 or cust[0].get('status')!='active' or cust[0].get('plan')!='developer' or int(cust[0].get('monthly_unit_override') or 0)!=1000:
+                      raise RuntimeError('paid checkout customer entitlement mismatch')
+                  if len(bucket)!=1 or int(bucket[0].get('unit_limit') or 0)!=1000:
+                      raise RuntimeError('paid checkout usage-bucket entitlement mismatch')
+                  if webhook_count<1: raise RuntimeError('paid checkout lacks verified Paynow reconciliation event')
+
+                  used_before=int(bucket[0].get('used_units') or 0)
+                  rid='MUSITU-REAL-MONEY-CERT-'+uuid.uuid4().hex.upper()
+                  payload={'operation':'arithmetic.evaluate','args':{'expression':'40+2'}}
+                  cc,compute_obj=api_json(edge+'/v1/compute','POST',token,payload,rid)
+                  if cc!=200: raise RuntimeError('paid-entitlement production compute failed HTTP '+str(cc))
+                  serialized=json.dumps(compute_obj,separators=(',',':'),sort_keys=True)
+                  if not re.search(r'(?<![0-9])42(?:\.0+)?(?![0-9])',serialized): raise RuntimeError('paid-entitlement compute result 42 absent')
+                  keys=response_keys(compute_obj)
+                  if not any(('receipt' in k.lower() or 'signature' in k.lower()) for k in keys): raise RuntimeError('paid-entitlement receipt/signature evidence absent')
+
+                  ev=q('SELECT request_id,customer_id,key_id,operation,compute_units,http_status,result_sha256 FROM usage_events WHERE request_id=?1',[rid])
+                  if len(ev)!=1: raise RuntimeError('paid-entitlement compute usage event delta not exactly one')
+                  e=ev[0]; units=int(e.get('compute_units') or 0)
+                  if e.get('customer_id')!=customer or e.get('key_id')!=key_id or e.get('operation')!='arithmetic.evaluate' or units<=0 or int(e.get('http_status') or 0)!=200 or len(str(e.get('result_sha256') or ''))<32:
+                      raise RuntimeError('paid-entitlement usage event reconciliation mismatch')
+                  bucket_after=q("SELECT used_units,unit_limit FROM usage_buckets WHERE customer_id=?1 AND month=strftime('%Y-%m','now')",[customer])
+                  if len(bucket_after)!=1 or int(bucket_after[0].get('unit_limit') or 0)!=1000 or int(bucket_after[0].get('used_units') or 0)-used_before!=units:
+                      raise RuntimeError('paid-entitlement bucket metering delta mismatch')
+
+                  # Second status read must not duplicate subscription or provisioning.
+                  code2,status2=api_json(billing+'/billing/checkout/'+urllib.parse.quote(reference,safe=''),'GET',token)
+                  if code2!=200 or str(status2.get('payment_status') or '').lower()!='paid': raise RuntimeError('paid idempotency status reread failed')
+                  sub2=q("SELECT count(*) AS n FROM billing_subscriptions WHERE customer_id=?1 AND provider='paynow'",[customer])
+                  if int(sub2[0]['n'])!=1: raise RuntimeError('duplicate subscription provisioning detected')
+                  bucket2=q("SELECT count(*) AS n FROM usage_buckets WHERE customer_id=?1 AND month=strftime('%Y-%m','now')",[customer])
+                  if int(bucket2[0]['n'])!=1: raise RuntimeError('duplicate usage-bucket provisioning detected')
+
+                  evidence={
+                      'schema':'musitu.axiom.real_money_certification_reconcile.v1',
+                      'gate':'AXIOM_REAL_MONEY_E2E_PASS','provider':'paynow','payment_status':'paid','intent_status':'paid',
+                      'plan':'developer','price_id':'axiom-developer-monthly','amount_cents':1900,'currency':'USD','monthly_unit_limit':1000,
+                      'subscription_rows':1,'subscription_active':True,'paynow_reference_present':True,'completed_at_present':True,
+                      'matching_verified_webhook_rows_minimum_one':True,'customer_entitlement_active':True,
+                      'production_compute_http':200,'operation':'arithmetic.evaluate','arg_contract':['expression'],'result_42_observed':True,
+                      'receipt_or_signature_material_present':True,'usage_event_delta':1,'compute_units':units,
+                      'usage_bucket_unit_delta':units,'usage_bucket_unit_limit':1000,'result_sha256_present':True,
+                      'duplicate_subscription_provisioning':False,'duplicate_usage_bucket_provisioning':False,
+                      'real_money_e2e_certified':True,'raw_api_key_published':False,'raw_reference_published':False,'worker_secret_mutation':False,
+                      'wolfram_parity':'NOT_CERTIFIED','superiority':'NOT_CERTIFIED',
+                  }
+          finally:
+              # If a usage event references this key, preserve only a revoked hash row; otherwise delete the temporary key entirely.
+              cnt=q('SELECT count(*) AS n FROM usage_events WHERE key_id=?1',[key_id])
+              if int(cnt[0]['n'])>0:
+                  revoked=datetime.datetime.now(datetime.timezone.utc).isoformat().replace('+00:00','Z')
+                  q("UPDATE api_keys SET status='revoked',revoked_at=?2 WHERE id=?1",[key_id,revoked]); key_state='revoked'
+              else:
+                  q('DELETE FROM api_keys WHERE id=?1',[key_id]); key_state='deleted'
+
+          active=q("SELECT count(*) AS n FROM api_keys WHERE customer_id=?1 AND status='active'",[customer])
+          if int(active[0]['n'])!=0: raise RuntimeError('active temporary certification bearer remained after reconciliation')
+          evidence['temporary_reconcile_key_final_state']=key_state
+          evidence['active_api_keys_remaining']=0
+          evidence['reference_sha256']=hashlib.sha256(reference.encode()).hexdigest()
+          evidence['customer_id_sha256']=hashlib.sha256(customer.encode()).hexdigest()
+          raw=(json.dumps(evidence,indent=2,sort_keys=True)+'\n').encode(); pathlib.Path('real-money-certification-reconcile.json').write_bytes(raw)
+          dg=hashlib.sha256(raw).hexdigest(); pathlib.Path('real-money-certification-reconcile.sha256').write_text(dg+'  real-money-certification-reconcile.json\n')
+          print(json.dumps({'gate':evidence['gate'],'payment_status':evidence.get('payment_status'),'real_money_e2e_certified':evidence.get('real_money_e2e_certified'), 'subscription_rows':evidence.get('subscription_rows'),'active_api_keys_remaining':0,'temporary_reconcile_key_final_state':key_state,'raw_api_key_published':False,'raw_reference_published':False,'worker_secret_mutation':False,'evidence_sha256':dg},sort_keys=True))
+          PY
+
+      - name: Upload sealed reconciliation evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: musitu-axiom-real-money-certification-reconcile
+          path: |
+            real-money-certification-reconcile.json
+            real-money-certification-reconcile.sha256
+          retention-days: 30
+          if-no-files-found: error
