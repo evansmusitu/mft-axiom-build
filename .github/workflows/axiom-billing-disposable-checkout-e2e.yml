@@ -1,0 +1,125 @@
+name: MUSITU Axiom Disposable Paynow Checkout E2E
+
+on:
+  push:
+    paths:
+      - '.github/workflows/axiom-billing-disposable-checkout-e2e.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: musitu-axiom-disposable-paynow-checkout
+  cancel-in-progress: false
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    env:
+      CF_API: https://api.cloudflare.com/client/v4
+      ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      D1_UUID: 504029cc-f9a5-495e-818f-63c6144b4ea4
+      BASE: https://payments.mftintelligence.com
+    steps:
+      - uses: actions/checkout@v4
+      - name: Create disposable customer, initiate unpaid checkout, verify, and clean up
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import datetime,hashlib,json,os,secrets,urllib.error,urllib.parse,urllib.request,uuid
+          api=os.environ['CF_API'];aid=os.environ['ACCOUNT_ID'];dbid=os.environ['D1_UUID'];base=os.environ['BASE']
+          CFH={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY'],'Accept':'application/json','User-Agent':'MUSITU-Axiom-Disposable-Checkout-E2E/1.0'}
+          def http(url,method='GET',headers=None,body=None):
+              q=urllib.request.Request(url,headers=dict(headers or {}),method=method,data=body)
+              try:
+                  with urllib.request.urlopen(q,timeout=45) as r:return r.status,r.headers,r.read()
+              except urllib.error.HTTPError as e:return e.code,e.headers,e.read()
+          def cf(path,method='GET',obj=None):
+              h=dict(CFH);body=None
+              if obj is not None:h['Content-Type']='application/json';body=json.dumps(obj,separators=(',',':')).encode()
+              c,hh,b=http(api+path,method,h,body)
+              if not 200<=c<300:raise RuntimeError(f'Cloudflare HTTP {c} {path}')
+              x=json.loads(b or b'{}')
+              if isinstance(x,dict) and x.get('success') is False:raise RuntimeError('Cloudflare success=false '+path)
+              return x.get('result') if isinstance(x,dict) else None
+          def d1(sql,params=None):
+              obj={'sql':sql}
+              if params is not None:obj['params']=params
+              x=cf(f'/accounts/{aid}/d1/database/{dbid}/query','POST',obj);rows=[]
+              for rr in x or []:
+                  if rr.get('success') is not True:raise RuntimeError('D1 statement failed')
+                  rows.extend(rr.get('results') or [])
+              return rows
+          def live(path,method='GET',obj=None,token=None):
+              h={'Accept':'application/json','User-Agent':'MUSITU-Axiom-Disposable-Checkout-E2E/1.0'};body=None
+              if obj is not None:h['Content-Type']='application/json';body=json.dumps(obj,separators=(',',':')).encode()
+              if token:h['Authorization']='Bearer '+token
+              c,hh,b=http(base+path,method,h,body)
+              try:o=json.loads(b or b'{}')
+              except:o={}
+              return c,o
+          suffix=uuid.uuid4().hex
+          customer='fixture_customer_'+suffix
+          key_id='fixture_key_'+suffix
+          email='axiom-checkout-fixture-'+suffix+'@invalid.example'
+          token='musitu_axiom_checkout_test_'+secrets.token_urlsafe(36)
+          print('::add-mask::'+token)
+          key_hash=hashlib.sha256(token.encode()).hexdigest();key_prefix=token[:16]
+          now=datetime.datetime.now(datetime.timezone.utc);created=now.isoformat().replace('+00:00','Z');expires=(now+datetime.timedelta(hours=1)).isoformat().replace('+00:00','Z')
+          reference=None; evidence={}; inserted=False
+          try:
+              d1('INSERT INTO customers(id,email,name,plan,status,monthly_unit_override,created_at,updated_at) VALUES(?1,?2,?3,?4,?5,NULL,?6,?6)',[customer,email,'MUSITU disposable checkout fixture','developer','active',created])
+              d1('INSERT INTO api_keys(id,customer_id,key_hash,key_prefix,label,status,created_at,last_used_at,expires_at,revoked_at) VALUES(?1,?2,?3,?4,?5,?6,?7,NULL,?8,NULL)',[key_id,customer,key_hash,key_prefix,'disposable-checkout-e2e','active',created,expires])
+              inserted=True
+              c,o=live('/billing/checkout','POST',{'plan':'developer','amount_cents':1,'currency':'USD'},token);evidence['pricing_tamper_http']=c;evidence['pricing_tamper_error']=o.get('error')
+              if c!=400 or o.get('error')!='client_pricing_not_allowed':raise RuntimeError('pricing tamper gate failed')
+              c,o=live('/billing/checkout','POST',{'plan':'developer'},token);evidence['checkout_http']=c
+              if c!=201:raise RuntimeError('checkout initiation failed HTTP '+str(c)+' error='+str(o.get('error')))
+              reference=str(o.get('reference') or '');reference_hash=hashlib.sha256(reference.encode()).hexdigest();evidence['reference_sha256']=reference_hash
+              evidence['plan']=o.get('plan');evidence['price_id']=o.get('price_id');evidence['amount_cents']=o.get('amount_cents');evidence['currency']=o.get('currency');evidence['payment_status_initial']=o.get('payment_status');evidence['live_money_certified']=o.get('live_money_certified')
+              if (o.get('plan'),o.get('price_id'),o.get('amount_cents'),o.get('currency'))!=('developer','axiom-developer-monthly',1900,'USD'):raise RuntimeError('server-owned pricing mismatch')
+              browser=str(o.get('browser_url') or '');u=urllib.parse.urlparse(browser);evidence['browser_url_https_paynow']=u.scheme=='https' and u.hostname in ('paynow.co.zw','www.paynow.co.zw')
+              if not evidence['browser_url_https_paynow']:raise RuntimeError('browser URL allowlist failed')
+              rows=d1('SELECT customer_id,plan,amount_cents,currency,monthly_unit_limit,status,browser_url,poll_url FROM billing_checkout_intents WHERE reference=?1 LIMIT 1',[reference])
+              if len(rows)!=1:raise RuntimeError('checkout intent not persisted')
+              r=rows[0];evidence['intent_status']=r.get('status');evidence['intent_unit_limit']=r.get('monthly_unit_limit')
+              if (r.get('customer_id'),r.get('plan'),r.get('amount_cents'),r.get('currency'),r.get('monthly_unit_limit'))!=(customer,'developer',1900,'USD',1000):raise RuntimeError('intent ledger mismatch')
+              if not r.get('poll_url'):raise RuntimeError('poll URL absent')
+              c,so=live('/billing/checkout/'+urllib.parse.quote(reference,safe=''),'GET',None,token);evidence['status_http']=c;evidence['polled_payment_status']=so.get('payment_status');evidence['subscription_activated']=so.get('subscription_activated')
+              if c!=200:raise RuntimeError('checkout status poll failed HTTP '+str(c))
+              if str(so.get('payment_status') or '').lower()=='paid' or so.get('subscription_activated') is True:raise RuntimeError('fixture unexpectedly reached paid state')
+              subs=d1("SELECT count(*) AS n FROM billing_subscriptions WHERE customer_id=?1 AND provider='paynow'",[customer]);evidence['fixture_subscription_count']=subs[0]['n']
+              if int(subs[0]['n'])!=0:raise RuntimeError('unpaid checkout created subscription')
+              evidence['raw_api_key_published']=False;evidence['real_payment_completed']=False;evidence['provider_checkout_created']=True;evidence['gate']='AXIOM_DISPOSABLE_PAYNOW_CHECKOUT_E2E_PASS'
+          finally:
+              if inserted:
+                  try:
+                      if reference:
+                          d1('DELETE FROM webhook_events WHERE provider=?1 AND payload_json LIKE ?2',['paynow','%'+reference+'%'])
+                          d1('DELETE FROM billing_checkout_intents WHERE reference=?1',[reference])
+                      d1("DELETE FROM billing_subscriptions WHERE customer_id=?1 AND provider='paynow'",[customer])
+                      d1('DELETE FROM usage_buckets WHERE customer_id=?1',[customer])
+                      d1('DELETE FROM api_keys WHERE id=?1',[key_id])
+                      d1('DELETE FROM customers WHERE id=?1',[customer])
+                  finally:
+                      remain=d1('SELECT (SELECT count(*) FROM customers WHERE id=?1)+(SELECT count(*) FROM api_keys WHERE id=?2)+(SELECT count(*) FROM billing_checkout_intents WHERE customer_id=?1)+(SELECT count(*) FROM billing_subscriptions WHERE customer_id=?1)+(SELECT count(*) FROM usage_buckets WHERE customer_id=?1) AS n',[customer,key_id])
+                      evidence['fixture_rows_remaining']=int(remain[0]['n']) if remain else -1
+          if evidence.get('gate')!='AXIOM_DISPOSABLE_PAYNOW_CHECKOUT_E2E_PASS' or evidence.get('fixture_rows_remaining')!=0:raise RuntimeError('fixture cleanup or gate failed')
+          evidence['cleanup_complete']=True
+          raw=(json.dumps(evidence,indent=2,sort_keys=True)+'\n').encode();open('checkout-e2e-evidence.json','wb').write(raw);dg=hashlib.sha256(raw).hexdigest();open('checkout-e2e-evidence.sha256','w').write(dg+'  checkout-e2e-evidence.json\n')
+          print(json.dumps({'gate':evidence['gate'],'pricing_tamper_http':evidence['pricing_tamper_http'],'checkout_http':evidence['checkout_http'],'plan':evidence['plan'],'amount_cents':evidence['amount_cents'],'currency':evidence['currency'],'intent_unit_limit':evidence['intent_unit_limit'],'status_http':evidence['status_http'],'polled_payment_status':evidence['polled_payment_status'],'subscription_activated':evidence.get('subscription_activated'),'fixture_subscription_count':evidence['fixture_subscription_count'],'provider_checkout_created':True,'real_payment_completed':False,'raw_api_key_published':False,'cleanup_complete':True,'fixture_rows_remaining':0,'reference_sha256':evidence['reference_sha256'],'evidence_sha256':dg},sort_keys=True))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: musitu-axiom-disposable-paynow-checkout-e2e
+          path: |
+            checkout-e2e-evidence.json
+            checkout-e2e-evidence.sha256
+          retention-days: 30
+          if-no-files-found: error
