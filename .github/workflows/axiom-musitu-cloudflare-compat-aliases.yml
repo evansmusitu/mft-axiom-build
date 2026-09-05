@@ -40,7 +40,17 @@ jobs:
           set -euo pipefail
           mkdir -p /tmp/musitu-adapter
           cat >/tmp/musitu-adapter/worker.js <<'JS'
-          export default {async fetch(request,env){return env.LEGACY_ADAPTER.fetch(request);}};
+          async function forward(request,binding){
+            const u=new URL(request.url), h=new Headers(request.headers);
+            for(const n of ['host','content-length','transfer-encoding','connection'])h.delete(n);
+            const init={method:request.method,headers:h,redirect:'manual'};
+            if(request.method!=='GET'&&request.method!=='HEAD'){
+              const body=await request.arrayBuffer();
+              if(body.byteLength)init.body=body;
+            }
+            return binding.fetch('http://legacy'+u.pathname+u.search,init);
+          }
+          export default {async fetch(request,env){return forward(request,env.LEGACY_ADAPTER);}};
           JS
           python - <<'PY'
           import json,os
@@ -53,7 +63,17 @@ jobs:
           set -euo pipefail
           mkdir -p /tmp/musitu-edge
           cat >/tmp/musitu-edge/worker.js <<'JS'
-          export default {async fetch(request,env){return env.LEGACY_EDGE.fetch(request);}};
+          async function forward(request,binding){
+            const u=new URL(request.url), h=new Headers(request.headers);
+            for(const n of ['host','content-length','transfer-encoding','connection'])h.delete(n);
+            const init={method:request.method,headers:h,redirect:'manual'};
+            if(request.method!=='GET'&&request.method!=='HEAD'){
+              const body=await request.arrayBuffer();
+              if(body.byteLength)init.body=body;
+            }
+            return binding.fetch('http://legacy'+u.pathname+u.search,init);
+          }
+          export default {async fetch(request,env){return forward(request,env.LEGACY_EDGE);}};
           JS
           python - <<'PY'
           import json,os
@@ -73,21 +93,29 @@ jobs:
           )"
           test -n "$SUB"
           URL="https://${MUSITU_EDGE}.${SUB}.workers.dev"
-          ready=0
-          for i in $(seq 1 30); do code="$(curl -sS -o /tmp/h.json -w '%{http_code}' "$URL/health" || true)"; [ "$code" = 200 ] && ready=1 && break; sleep 2; done
-          test "$ready" = 1
-          curl -fsS "$URL/v1/tools" >/tmp/t.json
+          ready=0; code=0
+          for i in $(seq 1 30); do
+            code="$(curl -sS --max-time 30 -o /tmp/h.json -w '%{http_code}' "$URL/health" || true)"
+            if [ "$code" = 200 ]; then ready=1; break; fi
+            sleep 2
+          done
+          echo "musitu_edge_health_http=$code"
+          if [ "$ready" != 1 ]; then echo 'Fail-closed: MUSITU facade health never reached 200'; cat /tmp/h.json || true; exit 1; fi
+          tools_code="$(curl -sS --max-time 30 -o /tmp/t.json -w '%{http_code}' "$URL/v1/tools" || true)"
+          echo "musitu_edge_tools_http=$tools_code"
+          test "$tools_code" = 200 || { cat /tmp/t.json || true; exit 1; }
           python - <<'PY'
           import json,os
           h=json.load(open('/tmp/h.json'));t=json.load(open('/tmp/t.json'))
           if h.get('ok') is not True or h.get('build_id')!=os.environ['BUILD_ID'] or int(h.get('operation_count') or -1)!=74: raise SystemExit('health contract mismatch')
           if t.get('operation_count')!=74 or len(t.get('tools',[]))!=74: raise SystemExit('tools contract mismatch')
           PY
-          code="$(curl -sS -o /tmp/u.json -w '%{http_code}' -X POST "$URL/v1/compute" -H 'content-type: application/json' --data '{"operation":"arithmetic.evaluate","args":{"expression":"40+2"}}')"
-          test "$code" = 401
+          unauth_code="$(curl -sS --max-time 30 -o /tmp/u.json -w '%{http_code}' -X POST "$URL/v1/compute" -H 'content-type: application/json' --data '{"operation":"arithmetic.evaluate","args":{"expression":"40+2"}}' || true)"
+          echo "musitu_edge_unauth_compute_http=$unauth_code"
+          test "$unauth_code" = 401 || { cat /tmp/u.json || true; exit 1; }
           python - <<'PY'
           import json,os
-          out={'schema':'musitu.axiom.cloudflare_compatibility_alias.v1','musitu_adapter':os.environ['MUSITU_ADAPTER'],'musitu_edge':os.environ['MUSITU_EDGE'],'legacy_adapter_backend':os.environ['LEGACY_ADAPTER'],'legacy_edge_backend':os.environ['LEGACY_EDGE'],'build_id':os.environ['BUILD_ID'],'health':'PASS','operation_count':74,'unauthenticated_compute_401':'PASS','secret_copy_performed':False,'domain_cutover_performed':False,'compatibility_facade':True,'gate':'PASS','wolfram_parity':'NOT_CERTIFIED','superiority':'NOT_CERTIFIED'}
+          out={'schema':'musitu.axiom.cloudflare_compatibility_alias.v1','musitu_adapter':os.environ['MUSITU_ADAPTER'],'musitu_edge':os.environ['MUSITU_EDGE'],'legacy_adapter_backend':os.environ['LEGACY_ADAPTER'],'legacy_edge_backend':os.environ['LEGACY_EDGE'],'build_id':os.environ['BUILD_ID'],'service_binding_forwarding':'URL_INIT_BUFFERED','health':'PASS','operation_count':74,'unauthenticated_compute_401':'PASS','secret_copy_performed':False,'domain_cutover_performed':False,'compatibility_facade':True,'gate':'PASS','wolfram_parity':'NOT_CERTIFIED','superiority':'NOT_CERTIFIED'}
           json.dump(out,open('musitu-cloudflare-alias-evidence.json','w'),indent=2,sort_keys=True)
           PY
           sha256sum musitu-cloudflare-alias-evidence.json > musitu-cloudflare-alias-evidence.sha256
