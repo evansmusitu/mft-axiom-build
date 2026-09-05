@@ -1,0 +1,145 @@
+name: MFT Axiom Modal Adapter Transport Diagnostic
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/axiom-modal-adapter-transport-diagnostic.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      CLOUDFLARE_ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+      CLOUDFLARE_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+      MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID }}
+      MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET }}
+      ADAPTER_WORKER: mft-axiom-modal-adapter
+      PROBE_WORKER: mft-axiom-modal-adapter-probe
+    steps:
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Install tooling and authenticate
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --no-save --ignore-scripts --no-audit --no-fund wrangler@4.129.0 >/dev/null
+          python -m pip install --disable-pip-version-check --quiet 'modal>=1.5,<2'
+          npx wrangler auth token --json >/tmp/cf-auth.json
+          modal app list --json >/dev/null
+          echo auth_gate=PASS
+
+      - name: Create diagnostic Modal proxy token and refresh adapter secrets
+        shell: bash
+        run: |
+          set -euo pipefail
+          modal workspace proxy-tokens create --json > /tmp/proxy.json
+          python - <<'PY'
+          import json,pathlib
+          obj=json.load(open('/tmp/proxy.json')); vals=[]
+          def walk(x):
+              if isinstance(x,dict):
+                  for v in x.values(): walk(v)
+              elif isinstance(x,list):
+                  for v in x: walk(v)
+              elif isinstance(x,str): vals.append(x)
+          walk(obj)
+          keys=[x for x in vals if x.startswith('wk-')]; secs=[x for x in vals if x.startswith('ws-')]
+          if len(keys)!=1 or len(secs)!=1: raise SystemExit('proxy token shape mismatch')
+          pathlib.Path('/tmp/proxy-key').write_text(keys[0]); pathlib.Path('/tmp/proxy-secret').write_text(secs[0])
+          PY
+          KEY="$(cat /tmp/proxy-key)"; SECRET="$(cat /tmp/proxy-secret)"
+          echo "::add-mask::$KEY"; echo "::add-mask::$SECRET"
+          echo "DIAG_PROXY_KEY=$KEY" >> "$GITHUB_ENV"
+          printf '%s' "$KEY" | npx wrangler secret put MODAL_PROXY_KEY --name "$ADAPTER_WORKER" >/dev/null
+          printf '%s' "$SECRET" | npx wrangler secret put MODAL_PROXY_SECRET --name "$ADAPTER_WORKER" >/dev/null
+          echo adapter_proxy_secrets_refreshed=PASS
+
+      - name: Deploy fixed-function temporary service-binding probe
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir probe
+          cat > probe/index.js <<'JS'
+          const json = (x, status=200) => new Response(JSON.stringify(x), {status, headers:{'content-type':'application/json'}});
+          export default {
+            async fetch(request, env) {
+              const u = new URL(request.url);
+              if (u.pathname === '/probe-health') {
+                try {
+                  const r = await env.ADAPTER.fetch(new Request('http://container/health', {method:'GET'}));
+                  const text = await r.text(); let body=null;
+                  try { body=JSON.parse(text); } catch {}
+                  return json({upstream_status:r.status, upstream_json:body!==null, upstream_ok:body?.ok ?? null, upstream_keys:body && typeof body==='object' ? Object.keys(body).sort() : []});
+                } catch (e) { return json({probe_error_class:e?.name||'Error'}, 502); }
+              }
+              if (u.pathname === '/probe-compute') {
+                try {
+                  const payload={operation:'arithmetic.evaluate',args:{expression:'40+2'},verify:true};
+                  const r = await env.ADAPTER.fetch(new Request('http://container/v1/compute', {method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(payload)}));
+                  const text = await r.text(); let body=null;
+                  try { body=JSON.parse(text); } catch {}
+                  return json({upstream_status:r.status, upstream_json:body!==null, upstream_ok:body?.ok ?? null, upstream_error:body?.error ?? null, upstream_keys:body && typeof body==='object' ? Object.keys(body).sort() : []});
+                } catch (e) { return json({probe_error_class:e?.name||'Error'}, 502); }
+              }
+              return json({ok:false,error:'NOT_FOUND'},404);
+            }
+          };
+          JS
+          python - <<'PY'
+          import json,os
+          cfg={'$schema':'../node_modules/wrangler/config-schema.json','name':os.environ['PROBE_WORKER'],'main':'index.js','compatibility_date':'2026-09-04','workers_dev':True,'services':[{'binding':'ADAPTER','service':os.environ['ADAPTER_WORKER']}], 'observability':{'enabled':True}}
+          open('probe/wrangler.json','w').write(json.dumps(cfg,indent=2))
+          PY
+          (cd probe && npx wrangler deploy --config wrangler.json >/tmp/probe-deploy.log 2>&1) || { tail -100 /tmp/probe-deploy.log; exit 1; }
+          echo probe_deploy=PASS
+
+      - name: Execute fixed transport probes and seal safe metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          SUBDOMAIN="$(python - <<'PY'
+          import json,os,urllib.request
+          h={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_API_KEY']}
+          req=urllib.request.Request(f"https://api.cloudflare.com/client/v4/accounts/{os.environ['CLOUDFLARE_ACCOUNT_ID']}/workers/subdomain",headers=h)
+          with urllib.request.urlopen(req,timeout=30) as r: x=json.load(r)
+          print((x.get('result') or {}).get('subdomain') or '')
+          PY
+          )"
+          test -n "$SUBDOMAIN"
+          URL="https://${PROBE_WORKER}.${SUBDOMAIN}.workers.dev"
+          curl -fsS "$URL/probe-health" > health-probe.json
+          curl -fsS "$URL/probe-compute" > compute-probe.json
+          python - <<'PY'
+          import json,pathlib
+          h=json.load(open('health-probe.json')); c=json.load(open('compute-probe.json'))
+          out={'schema':'mft.axiom.modal_adapter_transport_diagnostic.v1','health_probe':h,'compute_probe':c,'plaintext_source_committed':False,'wolfram_parity':'NOT_CERTIFIED','superiority':'NOT_CERTIFIED'}
+          pathlib.Path('adapter-transport-diagnostic.json').write_text(json.dumps(out,indent=2,sort_keys=True))
+          print(json.dumps(out,sort_keys=True))
+          PY
+          sha256sum adapter-transport-diagnostic.json > adapter-transport-diagnostic.sha256
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mft-axiom-modal-adapter-transport-diagnostic
+          path: |
+            adapter-transport-diagnostic.json
+            adapter-transport-diagnostic.sha256
+          retention-days: 7
+          if-no-files-found: error
+
+      - name: Cleanup probe and revoke diagnostic proxy credential
+        if: ${{ always() }}
+        shell: bash
+        run: |
+          set +e
+          npx wrangler delete --name "$PROBE_WORKER" --force >/dev/null 2>&1 || true
+          if [ -n "${DIAG_PROXY_KEY:-}" ]; then modal workspace proxy-tokens delete -y "$DIAG_PROXY_KEY" >/dev/null 2>&1 || true; fi
+          rm -rf probe /tmp/proxy.json /tmp/proxy-key /tmp/proxy-secret
