@@ -1,0 +1,66 @@
+name: MFT Axiom Local Match Regex Routes
+
+on:
+  push:
+    paths:
+      - '.github/workflows/axiom-local-match-regex-routes.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Reconstruct protected source
+        env:
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          P=deploy_payload/runtime_min
+          cat "$P/chunk_00.b64" "$P/chunk_01_02.b64" "$P/chunk_03_04.b64" "$P/chunk_05_06.b64" "$P/chunk_07_08.b64" "$P/chunk_09.b64" > runtime.enc.b64
+          base64 -d runtime.enc.b64 > runtime.tar.gz.enc
+          test "$(sha256sum runtime.tar.gz.enc | awk '{print $1}')" = 'b82448d6b4b34b302748815af976b535d69922c197d4b7a9056fc2f91a9e12cf'
+          openssl enc -d -aes-256-cbc -pbkdf2 -iter 250000 -in runtime.tar.gz.enc -out runtime.tar.gz -pass env:CLOUDFLARE_GLOBAL_API_KEY
+          test "$(sha256sum runtime.tar.gz | awk '{print $1}')" = 'b4d5a0266446523969a619f5e9bb5a04d9b815c78a2ab82ed046ef5e23d53663'
+          mkdir runtime && tar -xzf runtime.tar.gz -C runtime
+      - name: Emit local match regex routes only
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json,pathlib,re
+          s=pathlib.Path('runtime/worker/src/index.js').read_text(errors='replace')
+          result={}
+          for fn in ['adminIssueKey','adminRotateKey','adminRevokeKey']:
+              rows=[]
+              for cm in re.finditer(r'\b'+fn+r'\s*\(',s):
+                  pre=s[max(0,cm.start()-40):cm.start()]
+                  if re.search(r'function\s+$',pre): continue
+                  w=s[max(0,cm.start()-3000):cm.start()+250]
+                  matches=[]
+                  for mm in re.finditer(r'([A-Za-z_$][\w$]*)\.match\s*\(\s*(/)',w):
+                      start=mm.start(2); k=start+1; esc=False; cls=False
+                      while k<len(w):
+                          c=w[k]
+                          if esc: esc=False; k+=1; continue
+                          if c=='\\': esc=True; k+=1; continue
+                          if c=='[': cls=True; k+=1; continue
+                          if c==']': cls=False; k+=1; continue
+                          if c=='/' and not cls:
+                              end=k+1
+                              while end<len(w) and w[end].isalpha(): end+=1
+                              regex=w[start:end]
+                              if len(regex)<=300 and ('v1' in regex or 'admin' in regex or 'customers' in regex or 'keys' in regex):
+                                  matches.append({'receiver':mm.group(1),'regex':regex})
+                              break
+                          k+=1
+                  rows.extend(matches)
+              result[fn]=rows
+          out={'schema':'mft.axiom.local_match_regex_routes.v1','routes':result,'plaintext_source_committed':False}
+          pathlib.Path('local-match-regex-routes.json').write_text(json.dumps(out,indent=2,sort_keys=True))
+          print(json.dumps(out,sort_keys=True))
+          PY
