@@ -32,7 +32,7 @@ jobs:
           import email,hashlib,json,os,re,urllib.error,urllib.parse,urllib.request
           api=os.environ['CF_API']; aid=os.environ['ACCOUNT_ID']; zid=os.environ['ZONE_ID']
           workers=[os.environ['EXTERNAL_AUTHORITY'],os.environ['SIGNING_AUTHORITY']]
-          headers={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY'],'Accept':'application/json','User-Agent':'MUSITU-Axiom-Phase8-Authority-Audit/1.0'}
+          headers={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY'],'Accept':'application/json','User-Agent':'MUSITU-Axiom-Phase8-Authority-Audit/1.1'}
           def raw(path):
               q=urllib.request.Request(api+path,headers=headers,method='GET')
               try:
@@ -71,10 +71,16 @@ jobs:
               for p in msg.walk():
                   if p.is_multipart(): continue
                   d=p.get_payload(decode=True) or b''
-                  ct=(p.get_content_type() or '').lower(); name=p.get_filename() or ''
-                  if 'javascript' in ct or name.endswith(('.js','.mjs')): parts.append(d)
-              if not parts: raise SystemExit('Fail-closed no JS module part '+worker)
-              return max(parts,key=len)
+                  if not d: continue
+                  # Pick executable-looking text by structure, independent of MIME labels/filenames.
+                  probe=d[:200000].decode('utf-8','ignore')
+                  score=0
+                  for token in ('fetch(', 'export default', 'addEventListener', 'new Response', 'request.url', 'env.', 'PAYNOW_INTEGRATION_KEY'):
+                      if token in probe: score+=1
+                  if score: parts.append((score,len(d),d))
+              if not parts: raise SystemExit('Fail-closed no executable-looking module part '+worker)
+              parts.sort(key=lambda x:(x[0],x[1]),reverse=True)
+              return parts[0][2]
 
           contracts={}
           for w in workers:
