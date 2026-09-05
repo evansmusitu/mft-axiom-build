@@ -1,0 +1,135 @@
+name: MUSITU Axiom Modal Backend Cutover
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/axiom-musitu-modal-backend-cutover.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  cutover:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    env:
+      ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+      CLOUDFLARE_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+      ADAPTER_WORKER: mft-axiom-modal-adapter
+      PROBE_WORKER: musitu-axiom-modal-runtime-cutover-probe
+      OLD_MODAL_URL: https://evansmusitu--mft-axiom-v3-modal-staging-axiom-kernel.modal.run
+      NEW_MODAL_URL: https://evansmusitu--musitu-axiom-v3-modal-staging-axiom-kernel.modal.run
+      BUILD_ID: MFT-AXIOM-V3-FULL-SELF-CONTAINED-20260904
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Wrangler and prove adapter secret bindings exist without reading values
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --no-save --ignore-scripts --no-audit --no-fund wrangler@4.129.0 >/dev/null
+          npx wrangler auth token --json >/tmp/cf-auth.json
+          python - <<'PY'
+          import json,os,urllib.request
+          if json.load(open('/tmp/cf-auth.json')).get('type')!='api_key': raise SystemExit('Cloudflare auth mismatch')
+          base='https://api.cloudflare.com/client/v4';h={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_API_KEY']}
+          q=urllib.request.Request(f"{base}/accounts/{os.environ['ACCOUNT_ID']}/workers/scripts/{os.environ['ADAPTER_WORKER']}/settings",headers=h)
+          with urllib.request.urlopen(q,timeout=30) as r:x=json.load(r)
+          if not x.get('success'):raise SystemExit('adapter settings read failed')
+          names={b.get('name') for b in (x.get('result') or {}).get('bindings',[]) if isinstance(b,dict)}
+          need={'MODAL_PROXY_KEY','MODAL_PROXY_SECRET','MODAL_BASE_URL'}
+          if not need.issubset(names):raise SystemExit('adapter binding precondition '+repr(sorted(need-names)))
+          print('adapter_secret_binding_presence=PASS')
+          PY
+      - name: Cut adapter URL to MUSITU Modal with rollback trap
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/adapter
+          cat >/tmp/adapter/worker.js <<'JS'
+          export default {async fetch(request,env){
+            if(!env.MODAL_PROXY_KEY||!env.MODAL_PROXY_SECRET)return Response.json({ok:false,error:'ADAPTER_AUTH_NOT_CONFIGURED'},{status:503});
+            const u=new URL(request.url), target=new URL(u.pathname+u.search,env.MODAL_BASE_URL), h=new Headers(request.headers);
+            for(const n of ['host','content-length','transfer-encoding','connection','modal-key','modal-secret'])h.delete(n);
+            h.set('Modal-Key',env.MODAL_PROXY_KEY);h.set('Modal-Secret',env.MODAL_PROXY_SECRET);
+            const init={method:request.method,headers:h,redirect:'manual'};
+            if(request.method!=='GET'&&request.method!=='HEAD'){const b=await request.arrayBuffer();if(b.byteLength)init.body=b;}
+            try{return await fetch(target.toString(),init);}catch(e){return Response.json({ok:false,error:'ADAPTER_UPSTREAM_FETCH_FAILED'},{status:502});}
+          }};
+          JS
+          deploy_url(){
+            local target="$1"
+            python - "$target" <<'PY'
+          import json,os,sys
+          json.dump({'name':os.environ['ADAPTER_WORKER'],'main':'worker.js','compatibility_date':'2026-09-04','workers_dev':False,'observability':{'enabled':True},'vars':{'MODAL_BASE_URL':sys.argv[1]}},open('/tmp/adapter/wrangler.json','w'),indent=2)
+          PY
+            (cd /tmp/adapter && npx wrangler deploy --config wrangler.json >/tmp/adapter-deploy.log 2>&1) || { tail -100 /tmp/adapter-deploy.log; return 1; }
+          }
+          deploy_url "$NEW_MODAL_URL"
+          echo adapter_url_cutover_deployed=PASS
+      - name: Verify stored proxy bindings survived and new Modal runtime responds through service binding
+        shell: bash
+        run: |
+          set -euo pipefail
+          rollback(){
+            echo 'verification failed; restoring legacy Modal URL'
+            python - <<'PY'
+          import json,os
+          json.dump({'name':os.environ['ADAPTER_WORKER'],'main':'worker.js','compatibility_date':'2026-09-04','workers_dev':False,'observability':{'enabled':True},'vars':{'MODAL_BASE_URL':os.environ['OLD_MODAL_URL']}},open('/tmp/adapter/wrangler.json','w'),indent=2)
+          PY
+            (cd /tmp/adapter && npx wrangler deploy --config wrangler.json >/tmp/rollback.log 2>&1) || { tail -100 /tmp/rollback.log; return 1; }
+            echo rollback_to_legacy_modal_url=PASS
+          }
+          trap 'rollback' ERR
+          python - <<'PY'
+          import json,os,urllib.request
+          base='https://api.cloudflare.com/client/v4';h={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_API_KEY']}
+          q=urllib.request.Request(f"{base}/accounts/{os.environ['ACCOUNT_ID']}/workers/scripts/{os.environ['ADAPTER_WORKER']}/settings",headers=h)
+          with urllib.request.urlopen(q,timeout=30) as r:x=json.load(r)
+          bindings=(x.get('result') or {}).get('bindings',[]); names={b.get('name') for b in bindings if isinstance(b,dict)}
+          if not {'MODAL_PROXY_KEY','MODAL_PROXY_SECRET','MODAL_BASE_URL'}.issubset(names):raise SystemExit('stored adapter binding disappeared')
+          vars_=[b for b in bindings if b.get('name')=='MODAL_BASE_URL']
+          if len(vars_)!=1 or vars_[0].get('text')!=os.environ['NEW_MODAL_URL']:raise SystemExit('new Modal URL readback mismatch')
+          PY
+          mkdir -p /tmp/probe
+          cat >/tmp/probe/worker.js <<'JS'
+          export default {async fetch(r,e){const u=new URL(r.url);if(u.pathname==='/h')return e.UP.fetch('http://container/health');if(u.pathname==='/c')return e.UP.fetch('http://container/v1/compute',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({operation:'arithmetic.evaluate',args:{expression:'40+2'},verify:true})});return new Response('x',{status:404});}};
+          JS
+          python - <<'PY'
+          import json,os
+          json.dump({'name':os.environ['PROBE_WORKER'],'main':'worker.js','compatibility_date':'2026-09-04','workers_dev':True,'services':[{'binding':'UP','service':os.environ['ADAPTER_WORKER']}]},open('/tmp/probe/wrangler.json','w'),indent=2)
+          PY
+          (cd /tmp/probe && npx wrangler deploy --config wrangler.json >/tmp/probe-deploy.log 2>&1) || { tail -100 /tmp/probe-deploy.log; exit 1; }
+          SUB="$(python - <<'PY'
+          import json,os,urllib.request
+          h={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_API_KEY']};q=urllib.request.Request(f"https://api.cloudflare.com/client/v4/accounts/{os.environ['ACCOUNT_ID']}/workers/subdomain",headers=h)
+          with urllib.request.urlopen(q,timeout=30) as r:x=json.load(r)
+          print((x.get('result') or {}).get('subdomain') or '')
+          PY
+          )"
+          U="https://${PROBE_WORKER}.${SUB}.workers.dev";ready=0
+          for i in $(seq 1 30);do hc="$(curl -sS --max-time 60 -o /tmp/h.json -w '%{http_code}' "$U/h"||true)";cc="$(curl -sS --max-time 60 -o /tmp/c.json -w '%{http_code}' "$U/c"||true)";if [ "$hc" = 200 ]&&[ "$cc" = 200 ];then ready=1;break;fi;sleep 2;done
+          test "$ready" = 1
+          python - <<'PY'
+          import json,os
+          h=json.load(open('/tmp/h.json'));c=json.load(open('/tmp/c.json'))
+          if h.get('ok') is not True:raise SystemExit('Modal health through adapter failed')
+          if c.get('ok') is not True or str(c.get('result')) not in {'42','42.0'}:raise SystemExit('Modal compute through adapter failed '+repr(c.get('result')))
+          out={'schema':'musitu.axiom.modal_backend_cutover.v1','adapter_worker':os.environ['ADAPTER_WORKER'],'old_modal_url':os.environ['OLD_MODAL_URL'],'new_modal_url':os.environ['NEW_MODAL_URL'],'immutable_build':os.environ['BUILD_ID'],'stored_proxy_secret_bindings_preserved':True,'service_binding_health':'PASS','service_binding_compute_42':'PASS','legacy_modal_app_retained_for_rollback':True,'cutover':'PASS','wolfram_parity':'NOT_CERTIFIED','superiority':'NOT_CERTIFIED'}
+          json.dump(out,open('musitu-modal-backend-cutover.json','w'),indent=2,sort_keys=True)
+          PY
+          trap - ERR
+          sha256sum musitu-modal-backend-cutover.json > musitu-modal-backend-cutover.sha256
+      - uses: actions/upload-artifact@v4
+        with:
+          name: musitu-axiom-modal-backend-cutover
+          path: |
+            musitu-modal-backend-cutover.json
+            musitu-modal-backend-cutover.sha256
+          retention-days: 14
+          if-no-files-found: error
+      - name: Cleanup temporary probe
+        if: ${{ always() }}
+        shell: bash
+        run: npx wrangler delete --name "$PROBE_WORKER" --force >/dev/null 2>&1 || true
