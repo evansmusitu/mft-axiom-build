@@ -1,0 +1,179 @@
+name: MFT Axiom Canonical Kernel Payload Capture
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/axiom-canonical-kernel-payload-capture.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  capture:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    env:
+      ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+      CLOUDFLARE_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+      CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+      D1_NAME: mft-axiom-prod
+      CAPTURE_WORKER: mft-axiom-kernel-capture
+      DIAG_EDGE: mft-axiom-kernel-capture-edge
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install deployment tooling
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --no-save --ignore-scripts --no-audit --no-fund wrangler@4.129.0 esbuild@0.25.9 >/dev/null
+          npx wrangler auth token --json >/tmp/cf-auth.json
+          echo tooling_auth=PASS
+
+      - name: Reconstruct protected canonical source
+        shell: bash
+        run: |
+          set -euo pipefail
+          P=deploy_payload/runtime_min
+          cat "$P/chunk_00.b64" "$P/chunk_01_02.b64" "$P/chunk_03_04.b64" "$P/chunk_05_06.b64" "$P/chunk_07_08.b64" "$P/chunk_09.b64" > runtime.enc.b64
+          base64 -d runtime.enc.b64 > runtime.tar.gz.enc
+          test "$(sha256sum runtime.tar.gz.enc | awk '{print $1}')" = 'b82448d6b4b34b302748815af976b535d69922c197d4b7a9056fc2f91a9e12cf'
+          python - <<'PY'
+          import hashlib,hmac,os
+          b=open('runtime.tar.gz.enc','rb').read()
+          if not hmac.compare_digest(hmac.new(os.environ['CLOUDFLARE_GLOBAL_API_KEY'].encode(),b,hashlib.sha256).hexdigest(),'1a3193d4f3271d61d151e6ebd7cf4576d8ab86c2e79b84eff4ad0f635fe7ab47'):
+              raise SystemExit('HMAC mismatch')
+          PY
+          openssl enc -d -aes-256-cbc -pbkdf2 -iter 250000 -in runtime.tar.gz.enc -out runtime.tar.gz -pass env:CLOUDFLARE_GLOBAL_API_KEY
+          test "$(sha256sum runtime.tar.gz | awk '{print $1}')" = 'b4d5a0266446523969a619f5e9bb5a04d9b815c78a2ab82ed046ef5e23d53663'
+          mkdir runtime && tar -xzf runtime.tar.gz -C runtime
+
+      - name: Resolve canonical D1
+        id: d1
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY' >/tmp/d1-id
+          import json,os,urllib.request,urllib.parse
+          h={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_API_KEY']}
+          u=f"https://api.cloudflare.com/client/v4/accounts/{os.environ['ACCOUNT_ID']}/d1/database?name="+urllib.parse.quote(os.environ['D1_NAME'])
+          with urllib.request.urlopen(urllib.request.Request(u,headers=h),timeout=30) as r:x=json.load(r)
+          rows=[z for z in x.get('result',[]) if z.get('name')==os.environ['D1_NAME']]
+          if len(rows)!=1: raise SystemExit('expected one D1')
+          print(rows[0].get('uuid') or rows[0].get('id'))
+          PY
+          echo "database_id=$(cat /tmp/d1-id)" >> "$GITHUB_OUTPUT"
+
+      - name: Deploy internal capture kernel
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir capture
+          cat > capture/index.js <<'JS'
+          async function sha256Hex(text){const d=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(text));return [...new Uint8Array(d)].map(x=>x.toString(16).padStart(2,'0')).join('')}
+          export default {async fetch(request){
+            let body=null; try{body=await request.json()}catch{}
+            const obj=body&&typeof body==='object'&&!Array.isArray(body)?body:{};
+            const capture={
+              top_level_keys:Object.keys(obj).sort(),
+              operation:typeof obj.operation==='string'?obj.operation:null,
+              args_type:Array.isArray(obj.args)?'array':(obj.args===null?'null':typeof obj.args),
+              args_keys:obj.args&&typeof obj.args==='object'&&!Array.isArray(obj.args)?Object.keys(obj.args).sort():[],
+              expression:typeof obj.args?.expression==='string'?obj.args.expression:null,
+              request_id_present:typeof obj.request_id==='string'&&obj.request_id.length>0,
+              request_id_header_present:!!request.headers.get('x-mft-request-id'),
+              verify:typeof obj.verify==='boolean'?obj.verify:null,
+              precision:typeof obj.precision==='number'?obj.precision:null
+            };
+            const raw=JSON.stringify(capture);
+            return new Response(JSON.stringify({ok:true,operation:obj.operation||'capture',result:{capture},result_sha256:await sha256Hex(raw),verified:true,kernel_version:'capture-diagnostic',elapsed_ms:0}),{status:200,headers:{'content-type':'application/json'}});
+          }};
+          JS
+          python - <<'PY'
+          import json,os
+          open('capture/wrangler.json','w').write(json.dumps({'name':os.environ['CAPTURE_WORKER'],'main':'index.js','compatibility_date':'2026-09-04','workers_dev':False},indent=2))
+          PY
+          (cd capture && npx wrangler deploy --config wrangler.json >/tmp/capture-deploy.log 2>&1) || { tail -100 /tmp/capture-deploy.log; exit 1; }
+          echo capture_worker=PASS
+
+      - name: Bundle and deploy isolated canonical diagnostic edge
+        env:
+          D1_ID: ${{ steps.d1.outputs.database_id }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('runtime/worker/src/catalog.js');s=p.read_text()
+          candidates=["export const BUILD_ID = 'MFT-AXIOM-V3-SELF-CONTAINED-20260904';","export const BUILD_ID = 'MFT-AXIOM-V3-RUNTIME-RECONSTRUCTION-20260904';","export const BUILD_ID = 'MFT-AXIOM-V3-FULL-SELF-CONTAINED-20260904';"]
+          found=[x for x in candidates if x in s]
+          if len(found)!=1: raise SystemExit('build identity source not unique')
+          p.write_text(s.replace(found[0],"export const BUILD_ID = 'MFT-AXIOM-V3-FULL-SELF-CONTAINED-20260904';"))
+          PY
+          mkdir diag
+          npx esbuild runtime/worker/src/index.js --bundle --format=esm --platform=browser --target=es2022 --outfile=diag/worker.js --log-level=warning
+          python - <<'PY'
+          import json,os
+          cfg={'name':os.environ['DIAG_EDGE'],'main':'worker.js','compatibility_date':'2026-09-04','workers_dev':True,'d1_databases':[{'binding':'AXIOM_DB','database_name':os.environ['D1_NAME'],'database_id':os.environ['D1_ID']}],'services':[{'binding':'AXIOM_KERNEL','service':os.environ['CAPTURE_WORKER']}]}
+          open('diag/wrangler.json','w').write(json.dumps(cfg,indent=2))
+          PY
+          (cd diag && npx wrangler deploy --config wrangler.json >/tmp/diag-deploy.log 2>&1) || { tail -120 /tmp/diag-deploy.log; exit 1; }
+          CONTROL="$(openssl rand -hex 32)"; RECEIPT="$(openssl rand -hex 32)"; echo "::add-mask::$CONTROL"; echo "::add-mask::$RECEIPT"
+          printf '%s' "$CONTROL" >/tmp/control
+          printf '%s' "$CONTROL" | npx wrangler secret put MFT_CONTROL_SECRET --name "$DIAG_EDGE" >/dev/null
+          printf '%s' "$RECEIPT" | npx wrangler secret put MFT_RECEIPT_SECRET --name "$DIAG_EDGE" >/dev/null
+          echo diagnostic_edge=PASS
+
+      - name: Call canonical edge and recover safe captured request shape
+        shell: bash
+        run: |
+          set -euo pipefail
+          SUBDOMAIN="$(python - <<'PY'
+          import json,os,urllib.request
+          h={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_API_KEY']}
+          u=f"https://api.cloudflare.com/client/v4/accounts/{os.environ['ACCOUNT_ID']}/workers/subdomain"
+          with urllib.request.urlopen(urllib.request.Request(u,headers=h),timeout=30) as r:x=json.load(r)
+          print((x.get('result') or {}).get('subdomain') or '')
+          PY
+          )"
+          URL="https://${DIAG_EDGE}.${SUBDOMAIN}.workers.dev"
+          CONTROL="$(cat /tmp/control)"
+          code="$(curl -sS --max-time 40 -o /tmp/response.json -w '%{http_code}' -X POST "$URL/v1/compute" -H "x-mft-control: $CONTROL" -H 'content-type: application/json' --data '{"operation":"arithmetic.evaluate","args":{"expression":"40+2"},"verify":true}')"
+          HTTP_CODE="$code" python - <<'PY'
+          import json,os,pathlib
+          x=json.load(open('/tmp/response.json'))
+          out={'schema':'mft.axiom.canonical_kernel_payload_capture.v1','edge_http_status':int(os.environ['HTTP_CODE']),'edge_ok':x.get('ok'),'edge_error':x.get('error'),'response_keys':sorted(x.keys())}
+          # Canonical Worker may wrap kernel result. Walk dictionaries to find the capture marker.
+          found=[]
+          def walk(v,path=''):
+              if isinstance(v,dict):
+                  if 'top_level_keys' in v and 'request_id_header_present' in v: found.append({'path':path,'capture':v})
+                  for k,z in v.items(): walk(z,path+'/'+str(k))
+              elif isinstance(v,list):
+                  for i,z in enumerate(v): walk(z,path+'/'+str(i))
+          walk(x)
+          out['captures']=found
+          pathlib.Path('canonical-kernel-payload-capture.json').write_text(json.dumps(out,indent=2,sort_keys=True))
+          print(json.dumps(out,sort_keys=True))
+          if int(os.environ['HTTP_CODE'])!=200 or not found: raise SystemExit('Fail-closed: capture did not traverse canonical edge successfully')
+          PY
+          sha256sum canonical-kernel-payload-capture.json > canonical-kernel-payload-capture.sha256
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mft-axiom-canonical-kernel-payload-capture
+          path: |
+            canonical-kernel-payload-capture.json
+            canonical-kernel-payload-capture.sha256
+          retention-days: 7
+          if-no-files-found: error
+
+      - name: Cleanup diagnostic workers
+        if: ${{ always() }}
+        shell: bash
+        run: |
+          set +e
+          npx wrangler delete --name "$DIAG_EDGE" --force >/dev/null 2>&1 || true
+          npx wrangler delete --name "$CAPTURE_WORKER" --force >/dev/null 2>&1 || true
+          rm -rf capture diag /tmp/control
