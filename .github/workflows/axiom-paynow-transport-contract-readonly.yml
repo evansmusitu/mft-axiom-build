@@ -1,0 +1,71 @@
+name: MUSITU Axiom Paynow Transport Contract Read-Only
+
+on:
+  push:
+    paths:
+      - '.github/workflows/axiom-paynow-transport-contract-readonly.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      CF_API: https://api.cloudflare.com/client/v4
+      ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      TRANSPORT: mft-paynow-transport-gateway
+    steps:
+      - uses: actions/checkout@v4
+      - name: Inspect transport interface without mutation
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import email,hashlib,json,os,re,urllib.parse,urllib.request
+          api=os.environ['CF_API']; aid=os.environ['ACCOUNT_ID']; w=os.environ['TRANSPORT']
+          H={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY'],'User-Agent':'MUSITU-Axiom-Paynow-Transport-Contract/1.0'}
+          def get(path):
+              q=urllib.request.Request(api+path,headers=H)
+              with urllib.request.urlopen(q,timeout=45) as r:return r.headers,r.read()
+          h,raw=get(f'/accounts/{aid}/workers/scripts/{urllib.parse.quote(w,safe="")}'); ct=h.get('content-type',''); src=raw
+          if 'multipart/' in ct.lower():
+              msg=email.message_from_bytes((f'Content-Type: {ct}\r\nMIME-Version: 1.0\r\n\r\n').encode()+raw); parts=[]
+              for p in msg.walk():
+                  if p.is_multipart(): continue
+                  d=p.get_payload(decode=True) or b''
+                  if any(x in d for x in (b'fetch(',b'export default',b'addEventListener')): parts.append(d)
+              if len(parts)!=1: raise SystemExit(f'Fail-closed executable module count {len(parts)}')
+              src=parts[0]
+          text=src.decode('utf-8','ignore')
+          # Interface-level metadata only. Never emit source or secret values.
+          paths=sorted(set(re.findall(r'["\'](/(?:internal/)?[A-Za-z0-9_./:-]+)["\']',text)))
+          header_names=sorted(set(x.lower() for x in re.findall(r'headers\.get\(["\']([^"\']+)["\']\)',text,re.I)))
+          env_names=sorted(set(re.findall(r'env\.([A-Z][A-Z0-9_]{2,80})',text)))
+          json_keys=sorted(set(re.findall(r'\b(?:body|payload|data|input)\.([A-Za-z_][A-Za-z0-9_]*)',text)))
+          form_keys=sorted(set(re.findall(r'(?:\.set|\.append)\(["\']([A-Za-z_][A-Za-z0-9_-]*)["\']',text)))
+          methods=sorted(set(re.findall(r'req(?:uest)?\.method\s*===?\s*["\']([A-Z]+)["\']',text)))
+          settings=json.loads(get(f'/accounts/{aid}/workers/scripts/{urllib.parse.quote(w,safe="")}/settings')[1] or b'{}').get('result') or {}
+          bindings=[]
+          for b in settings.get('bindings') or []:
+              if not isinstance(b,dict): continue
+              item={'name':b.get('name'),'type':b.get('type')}
+              if b.get('type')=='service': item['service']=b.get('service')
+              bindings.append(item)
+          out={'schema':'musitu.axiom.paynow_transport_contract.v1','source_sha256':hashlib.sha256(src).hexdigest(),'paths':paths,'header_names':header_names,'env_names':env_names,'json_body_keys':json_keys,'form_keys':form_keys,'http_methods':methods,'bindings':sorted(bindings,key=lambda x:str(x.get('name'))),'secret_values_read':False,'mutation_performed':False,'gate':'AXIOM_PAYNOW_TRANSPORT_CONTRACT_READ_PASS'}
+          blob=(json.dumps(out,indent=2,sort_keys=True)+'\n').encode(); open('paynow-transport-contract.json','wb').write(blob); dg=hashlib.sha256(blob).hexdigest(); open('paynow-transport-contract.sha256','w').write(dg+'  paynow-transport-contract.json\n')
+          print(json.dumps({**out,'evidence_sha256':dg},sort_keys=True))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: musitu-axiom-paynow-transport-contract
+          path: |
+            paynow-transport-contract.json
+            paynow-transport-contract.sha256
+          retention-days: 14
+          if-no-files-found: error
