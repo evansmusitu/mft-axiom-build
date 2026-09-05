@@ -29,7 +29,8 @@ def cf(path,method='GET',obj=None):
     return c,hh,b,x
 
 def source():
-    _,hh,raw,_=cf(f'/accounts/{AID}/workers/scripts/{urllib.parse.quote(BILLING,safe="")}')
+    c,hh,raw=http(f'{API}/accounts/{AID}/workers/scripts/{urllib.parse.quote(BILLING,safe="")}',headers=H)
+    if c!=200:raise RuntimeError(f'Worker source read HTTP {c}')
     ct=hh.get('content-type','');src=raw
     if 'multipart/' in ct.lower():
         msg=email.message_from_bytes((f'Content-Type: {ct}\r\nMIME-Version: 1.0\r\n\r\n').encode()+raw);parts=[]
