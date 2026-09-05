@@ -1,0 +1,116 @@
+name: MFT Axiom Kernel Forward Contract
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/axiom-kernel-forward-contract.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  trace:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Reconstruct protected source
+        env:
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          P=deploy_payload/runtime_min
+          cat "$P/chunk_00.b64" "$P/chunk_01_02.b64" "$P/chunk_03_04.b64" "$P/chunk_05_06.b64" "$P/chunk_07_08.b64" "$P/chunk_09.b64" > runtime.enc.b64
+          base64 -d runtime.enc.b64 > runtime.tar.gz.enc
+          test "$(sha256sum runtime.tar.gz.enc | awk '{print $1}')" = 'b82448d6b4b34b302748815af976b535d69922c197d4b7a9056fc2f91a9e12cf'
+          python - <<'PY'
+          import hashlib,hmac,os
+          b=open('runtime.tar.gz.enc','rb').read()
+          got=hmac.new(os.environ['CLOUDFLARE_GLOBAL_API_KEY'].encode(),b,hashlib.sha256).hexdigest()
+          if not hmac.compare_digest(got,'1a3193d4f3271d61d151e6ebd7cf4576d8ab86c2e79b84eff4ad0f635fe7ab47'):
+              raise SystemExit('HMAC mismatch')
+          PY
+          openssl enc -d -aes-256-cbc -pbkdf2 -iter 250000 -in runtime.tar.gz.enc -out runtime.tar.gz -pass env:CLOUDFLARE_GLOBAL_API_KEY
+          test "$(sha256sum runtime.tar.gz | awk '{print $1}')" = 'b4d5a0266446523969a619f5e9bb5a04d9b815c78a2ab82ed046ef5e23d53663'
+          mkdir runtime && tar -xzf runtime.tar.gz -C runtime
+
+      - name: Extract safe forwarding metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json,pathlib,re
+          p=pathlib.Path('runtime/worker/src/index.js')
+          s=p.read_text(errors='replace')
+
+          def function_body(name):
+              pats=[rf'(?:async\s+)?function\s+{re.escape(name)}\s*\([^)]*\)\s*\{{',rf'\b(?:const|let|var)\s+{re.escape(name)}\s*=\s*(?:async\s*)?\([^)]*\)\s*=>\s*\{{']
+              m=None
+              for pat in pats:
+                  m=re.search(pat,s)
+                  if m: break
+              if not m: return ''
+              start=m.end()-1; depth=0; quote=None; esc=False
+              for i in range(start,len(s)):
+                  c=s[i]
+                  if quote:
+                      if esc: esc=False
+                      elif c=='\\': esc=True
+                      elif c==quote: quote=None
+                      continue
+                  if c in "'\"`": quote=c; continue
+                  if c=='{': depth+=1
+                  elif c=='}':
+                      depth-=1
+                      if depth==0: return s[start+1:i]
+              return ''
+
+          sel=function_body('selectKernel')
+          # Find bounded context around kernel_unavailable without emitting source.
+          kpos=s.find('kernel_unavailable')
+          ctx=s[max(0,kpos-7000):min(len(s),kpos+3000)] if kpos>=0 else ''
+          # Find likely variable names receiving selectKernel().
+          selected=sorted(set(re.findall(r'\b(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*(?:await\s+)?selectKernel\s*\(',s)))
+          var_meta={}
+          for v in selected:
+              var_meta[v]={
+                'methods':sorted(set(re.findall(r'\b'+re.escape(v)+r'\s*\.\s*([A-Za-z_$][\w$]*)\s*\(',ctx))),
+                'properties':sorted(set(re.findall(r'\b'+re.escape(v)+r'\s*\.\s*([A-Za-z_$][\w$]*)\b',ctx))),
+              }
+          # Path literals only, not code excerpts.
+          paths=sorted(set(re.findall(r"['\"](\/[A-Za-z0-9_./:{}-]+)['\"]",ctx)))
+          urls=sorted(set(re.findall(r"['\"](https?://[^'\"]+)['\"]",ctx)))
+          out={
+            'schema':'mft.axiom.kernel_forward_contract.v1',
+            'select_kernel':{
+              'present':bool(sel),
+              'mentions_fetch':'.fetch' in sel,
+              'mentions_get':'.get(' in sel,
+              'mentions_getByName':'.getByName(' in sel,
+              'mentions_idFromName':'.idFromName(' in sel,
+              'returns_binding_directly':bool(re.search(r'\breturn\s+binding\s*;',sel)),
+              'method_order':[m.group(1) for m in re.finditer(r'binding\s*\.\s*(fetch|getByName|idFromName|get)\b',sel)],
+            },
+            'selected_kernel_vars':selected,
+            'selected_kernel_var_usage':var_meta,
+            'forward_context_paths':paths,
+            'forward_context_urls':urls,
+            'kernel_unavailable_present':kpos>=0,
+            'uses_request_constructor':'new Request' in ctx,
+            'uses_fetch_method':'.fetch(' in ctx,
+            'plaintext_source_committed':False,
+          }
+          pathlib.Path('kernel-forward-contract.json').write_text(json.dumps(out,indent=2,sort_keys=True))
+          print(json.dumps(out,sort_keys=True))
+          PY
+          sha256sum kernel-forward-contract.json > kernel-forward-contract.sha256
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mft-axiom-kernel-forward-contract
+          path: |
+            kernel-forward-contract.json
+            kernel-forward-contract.sha256
+          retention-days: 7
+          if-no-files-found: error
