@@ -63,7 +63,7 @@ jobs:
               returned_objects=[]
               for m in re.finditer(r'\breturn\s*\{([^{}]{0,800})\}',b,re.S):
                   returned_objects.append(sorted(set(re.findall(r'([A-Za-z_$][\w$]*)\s*:',m.group(1)))))
-              out[n]={'present':bool(b),'comparisons':comparisons,'header_literals':headers,'returned_object_key_sets':returned_objects,'mentions_mft_internal':'mft-internal' in b,'mentions_control_secret':'MFT_CONTROL_SECRET' in b}
+              out[n]={'present':bool(b),'comparisons':comparisons,'header_literals':headers,'returned_object_key_sets':returned_objects,'mentions_musitu_internal':'mft-internal' in b,'mentions_control_secret':'MFT_CONTROL_SECRET' in b}
           result={'schema':'musitu.axiom.internal_principal_contract.v1','helpers':out,'plaintext_source_committed':False}
           pathlib.Path('internal-principal-contract.json').write_text(json.dumps(result,indent=2,sort_keys=True))
           print(json.dumps(result,sort_keys=True))
