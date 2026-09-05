@@ -1,0 +1,101 @@
+name: MUSITU Axiom Cloudflare Compatibility Aliases
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/axiom-musitu-cloudflare-compat-aliases.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  aliases:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      CLOUDFLARE_ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+      CLOUDFLARE_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+      LEGACY_ADAPTER: mft-axiom-modal-adapter
+      LEGACY_EDGE: mft-axiom-modal-edge-stage
+      MUSITU_ADAPTER: musitu-axiom-modal-adapter
+      MUSITU_EDGE: musitu-axiom-modal-edge-stage
+      BUILD_ID: MFT-AXIOM-V3-FULL-SELF-CONTAINED-20260904
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Wrangler and verify Cloudflare auth
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --no-save --ignore-scripts --no-audit --no-fund wrangler@4.129.0 >/dev/null
+          npx wrangler auth token --json >/tmp/cf-auth.json
+          python - <<'PY'
+          import json
+          if json.load(open('/tmp/cf-auth.json')).get('type')!='api_key': raise SystemExit('Cloudflare auth mismatch')
+          PY
+      - name: Deploy MUSITU adapter compatibility facade
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/musitu-adapter
+          cat >/tmp/musitu-adapter/worker.js <<'JS'
+          export default {async fetch(request,env){return env.LEGACY_ADAPTER.fetch(request);}};
+          JS
+          python - <<'PY'
+          import json,os
+          json.dump({'name':os.environ['MUSITU_ADAPTER'],'main':'worker.js','compatibility_date':'2026-09-04','workers_dev':False,'observability':{'enabled':True},'services':[{'binding':'LEGACY_ADAPTER','service':os.environ['LEGACY_ADAPTER']}]},open('/tmp/musitu-adapter/wrangler.json','w'),indent=2)
+          PY
+          (cd /tmp/musitu-adapter && npx wrangler deploy --config wrangler.json >/tmp/musitu-adapter.log 2>&1) || { tail -100 /tmp/musitu-adapter.log; exit 1; }
+      - name: Deploy MUSITU edge compatibility facade
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/musitu-edge
+          cat >/tmp/musitu-edge/worker.js <<'JS'
+          export default {async fetch(request,env){return env.LEGACY_EDGE.fetch(request);}};
+          JS
+          python - <<'PY'
+          import json,os
+          json.dump({'name':os.environ['MUSITU_EDGE'],'main':'worker.js','compatibility_date':'2026-09-04','workers_dev':True,'observability':{'enabled':True},'services':[{'binding':'LEGACY_EDGE','service':os.environ['LEGACY_EDGE']}]},open('/tmp/musitu-edge/wrangler.json','w'),indent=2)
+          PY
+          (cd /tmp/musitu-edge && npx wrangler deploy --config wrangler.json >/tmp/musitu-edge.log 2>&1) || { tail -100 /tmp/musitu-edge.log; exit 1; }
+      - name: Verify MUSITU edge facade against canonical public contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          SUB="$(python - <<'PY'
+          import json,os,urllib.request
+          h={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_API_KEY']};q=urllib.request.Request(f"https://api.cloudflare.com/client/v4/accounts/{os.environ['CLOUDFLARE_ACCOUNT_ID']}/workers/subdomain",headers=h)
+          with urllib.request.urlopen(q,timeout=30) as r:x=json.load(r)
+          print((x.get('result') or {}).get('subdomain') or '')
+          PY
+          )"
+          test -n "$SUB"
+          URL="https://${MUSITU_EDGE}.${SUB}.workers.dev"
+          ready=0
+          for i in $(seq 1 30); do code="$(curl -sS -o /tmp/h.json -w '%{http_code}' "$URL/health" || true)"; [ "$code" = 200 ] && ready=1 && break; sleep 2; done
+          test "$ready" = 1
+          curl -fsS "$URL/v1/tools" >/tmp/t.json
+          python - <<'PY'
+          import json,os
+          h=json.load(open('/tmp/h.json'));t=json.load(open('/tmp/t.json'))
+          if h.get('ok') is not True or h.get('build_id')!=os.environ['BUILD_ID'] or int(h.get('operation_count') or -1)!=74: raise SystemExit('health contract mismatch')
+          if t.get('operation_count')!=74 or len(t.get('tools',[]))!=74: raise SystemExit('tools contract mismatch')
+          PY
+          code="$(curl -sS -o /tmp/u.json -w '%{http_code}' -X POST "$URL/v1/compute" -H 'content-type: application/json' --data '{"operation":"arithmetic.evaluate","args":{"expression":"40+2"}}')"
+          test "$code" = 401
+          python - <<'PY'
+          import json,os
+          out={'schema':'musitu.axiom.cloudflare_compatibility_alias.v1','musitu_adapter':os.environ['MUSITU_ADAPTER'],'musitu_edge':os.environ['MUSITU_EDGE'],'legacy_adapter_backend':os.environ['LEGACY_ADAPTER'],'legacy_edge_backend':os.environ['LEGACY_EDGE'],'build_id':os.environ['BUILD_ID'],'health':'PASS','operation_count':74,'unauthenticated_compute_401':'PASS','secret_copy_performed':False,'domain_cutover_performed':False,'compatibility_facade':True,'gate':'PASS','wolfram_parity':'NOT_CERTIFIED','superiority':'NOT_CERTIFIED'}
+          json.dump(out,open('musitu-cloudflare-alias-evidence.json','w'),indent=2,sort_keys=True)
+          PY
+          sha256sum musitu-cloudflare-alias-evidence.json > musitu-cloudflare-alias-evidence.sha256
+      - uses: actions/upload-artifact@v4
+        with:
+          name: musitu-axiom-cloudflare-compatibility-alias
+          path: |
+            musitu-cloudflare-alias-evidence.json
+            musitu-cloudflare-alias-evidence.sha256
+          retention-days: 14
+          if-no-files-found: error
