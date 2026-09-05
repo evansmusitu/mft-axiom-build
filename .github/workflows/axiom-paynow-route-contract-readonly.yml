@@ -1,0 +1,87 @@
+name: MUSITU Axiom Paynow Route Contract Read-Only
+
+on:
+  push:
+    paths:
+      - '.github/workflows/axiom-paynow-route-contract-readonly.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      CF_API: https://api.cloudflare.com/client/v4
+      ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      PAYNOW_WORKER: mft-paynow-transport-gateway
+    steps:
+      - uses: actions/checkout@v4
+      - name: Extract non-secret route/auth contract from live worker
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import hashlib,json,os,re,urllib.error,urllib.request
+          api=os.environ['CF_API']; aid=os.environ['ACCOUNT_ID']; worker=os.environ['PAYNOW_WORKER']
+          headers={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY'],'User-Agent':'MUSITU-Axiom-Paynow-Route-Contract/1.0'}
+          q=urllib.request.Request(f'{api}/accounts/{aid}/workers/scripts/{worker}',headers=headers,method='GET')
+          try:
+              with urllib.request.urlopen(q,timeout=45) as r: raw=r.read(); code=r.status; ctype=r.headers.get('content-type','')
+          except urllib.error.HTTPError as e:
+              raw=e.read(); code=e.code; ctype=e.headers.get('content-type','')
+          if code!=200: raise SystemExit(f'Fail-closed worker script HTTP {code}')
+          text=raw.decode('utf-8','ignore')
+          module_format='modules' if re.search(r'\bexport\s+default\b',text) else ('service-worker' if 'addEventListener' in text else 'unknown')
+          routes=['/internal/paynow/initiate','/internal/paynow/poll','/education-nexus/v12/revenue/webhooks/paynow','/healthz','/internal/evidence/latest','/internal/evidence/recent']
+          out_routes={}
+          for route in routes:
+              i=text.find(route)
+              if i<0:
+                  out_routes[route]={'present':False}; continue
+              lo=max(0,i-5000); hi=min(len(text),i+9000); s=text[lo:hi]
+              # Report only interface-level tokens, never arbitrary literals or values.
+              header_names=sorted(set(h.lower() for h in re.findall(r"headers\s*\.\s*get\s*\(\s*['\"]([A-Za-z0-9_-]{1,80})['\"]",s,re.I)))
+              env_names=sorted(set(re.findall(r'\benv\.([A-Z][A-Z0-9_]{2,80})\b',s)))
+              method_tokens=sorted(set(re.findall(r"(?:request\.)?method\s*(?:===|==)\s*['\"](GET|POST|PUT|PATCH|DELETE|OPTIONS|HEAD)['\"]",s,re.I)))
+              json_fields=sorted(set(re.findall(r'\b(?:body|payload|input|data|requestBody|reqBody)\.([A-Za-z_][A-Za-z0-9_]{0,60})\b',s)))
+              # Include destructured input names only when tied to parsed JSON/form bodies.
+              for m in re.finditer(r'(?:await\s+request\.json\(\)|await\s+request\.formData\(\))',s):
+                  w=s[max(0,m.start()-500):m.end()+1200]
+                  json_fields.extend(re.findall(r'\b(?:body|payload|input|data)\s*\.\s*([A-Za-z_][A-Za-z0-9_]{0,60})',w))
+              json_fields=sorted(set(json_fields))
+              response_keys=sorted(set(re.findall(r'\b(?:ok|status|error|message|pollUrl|redirectUrl|reference|providerReference|paymentReference|hash|verified|received|authority|service|state|amount|currency)\s*:',s)))
+              response_keys=[x[:-1] for x in response_keys]
+              auth_tokens=sorted(set(x for x in ['MFT_GATEWAY_CAPABILITY_TOKEN','Authorization','Bearer','x-mft-gateway-capability','x-gateway-capability','CF-Worker'] if x.lower() in s.lower()))
+              out_routes[route]={
+                  'present':True,
+                  'methods':method_tokens,
+                  'header_names':header_names,
+                  'env_binding_names':env_names,
+                  'request_field_candidates':json_fields,
+                  'response_key_candidates':response_keys,
+                  'auth_tokens_present':auth_tokens,
+              }
+          # Worker-level binding names are safe metadata; values remain inaccessible/unreported.
+          q=urllib.request.Request(f'{api}/accounts/{aid}/workers/scripts/{worker}/settings',headers=headers,method='GET')
+          with urllib.request.urlopen(q,timeout=45) as r: settings=json.loads(r.read() or b'{}')
+          bindings=(settings.get('result') or {}).get('bindings') or []
+          binding_meta=sorted([{'name':b.get('name'),'type':b.get('type')} for b in bindings if isinstance(b,dict) and b.get('name')], key=lambda x:str(x['name']))
+          out={'schema':'musitu.axiom.paynow_route_contract_readonly.v1','worker':worker,'worker_format':module_format,'content_type':ctype,'routes':out_routes,'binding_metadata':binding_meta,'source_length_bytes':len(raw),'source_sha256':hashlib.sha256(raw).hexdigest(),'source_published':False,'secret_values_logged':False,'mutation_performed':False,'gate':'AXIOM_PAYNOW_ROUTE_CONTRACT_READ_PASS'}
+          blob=(json.dumps(out,indent=2,sort_keys=True)+'\n').encode(); open('paynow-route-contract.json','wb').write(blob)
+          digest=hashlib.sha256(blob).hexdigest(); open('paynow-route-contract.sha256','w').write(digest+'  paynow-route-contract.json\n')
+          print(json.dumps({'gate':out['gate'],'worker':worker,'worker_format':module_format,'routes':out_routes,'binding_metadata':binding_meta,'source_sha256':out['source_sha256'],'source_published':False,'secret_values_logged':False,'mutation_performed':False,'artifact_sha256':digest},sort_keys=True))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: musitu-axiom-paynow-route-contract-readonly
+          path: |
+            paynow-route-contract.json
+            paynow-route-contract.sha256
+          retention-days: 14
+          if-no-files-found: error
