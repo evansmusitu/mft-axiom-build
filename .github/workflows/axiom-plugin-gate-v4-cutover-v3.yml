@@ -36,18 +36,22 @@ jobs:
           node --check mcp/musitu_axiom_mcp_oauth_gate_v3.mjs
           python - <<'PY'
           from pathlib import Path
-          import textwrap
+          import re,textwrap
           p=Path('.github/workflows/axiom-plugin-gate-v4-cutover-v2.yml')
           s=p.read_text()
           marker="if rc!=201 or not reg.get('client_id'):raise RuntimeError('DCR failed');client_id=str(reg['client_id']);print('::add-mask::'+client_id)"
-          if marker not in s:
-              raise SystemExit('expected V2 harness defect marker not found')
           start=s.index("          python - <<'PY'\n")+len("          python - <<'PY'\n")
           end=s.index("\n          PY",start)
           code=textwrap.dedent(s[start:end])
-          fixed=code.replace(marker,"if rc!=201 or not reg.get('client_id'):\n  raise RuntimeError('DCR failed')\nclient_id=str(reg['client_id'])\nprint('::add-mask::'+client_id)")
-          if fixed==code:
-              raise SystemExit('harness patch did not apply')
+          m=re.search(r'(?m)^([ \t]*)'+re.escape(marker)+r'$',code)
+          if not m:
+              raise SystemExit('expected V2 harness defect marker not found')
+          indent=m.group(1)
+          replacement=(indent+"if rc!=201 or not reg.get('client_id'):\n"+
+                       indent+"  raise RuntimeError('DCR failed')\n"+
+                       indent+"client_id=str(reg['client_id'])\n"+
+                       indent+"print('::add-mask::'+client_id)")
+          fixed=code[:m.start()]+replacement+code[m.end():]
           compile(fixed,'<v4-certification-harness>','exec')
           Path('/tmp/musitu-v4-certification.py').write_text(fixed)
           print('MUSITU_V4_CERTIFICATION_HARNESS_REPAIR_READY')
