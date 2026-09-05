@@ -205,7 +205,7 @@ jobs:
           us,_,_=http_json(stage_base+'/v1/compute',method='POST',body={'operation':'arithmetic.evaluate','args':{'expression':'40+2'}},extra_headers={'x-musitu-request-id':'MUSITU-PRODUCTION-ADMISSION-UNAUTH'})
           if us!=401: raise SystemExit(f'Fail-closed: unauth compute expected 401, got {us}')
 
-          # Current Paynow commercial ingress contract. This proves technical readiness only, never merchant-live approval.
+          # Current Paynow commercial ingress contract. This proves technical readiness only; it does not certify a genuine real-money E2E payment or Verified Merchant status.
           billing_base='https://'+os.environ['BILLING_HOST']
           bh,_,bho=http_json(billing_base+'/billing/healthz')
           if not (bh==200 and bho.get('ok') is True and bho.get('catalog_configured') is True and bho.get('checkout_enabled') is True and bho.get('provider')=='paynow'):
@@ -251,7 +251,7 @@ jobs:
           if not axiom_nonstage:
             blockers.append('NO_CANONICAL_AXIOM_PRODUCTION_CUSTOM_DOMAIN_PRESENT')
           if not live_money_certified:
-            blockers.append('PAYNOW_MERCHANT_LIVE_APPROVAL_NOT_PROVEN')
+            blockers.append('REAL_MONEY_E2E_NOT_YET_CERTIFIED')
 
           bearer_evidence={
             'status':'PROVEN',
@@ -319,6 +319,7 @@ jobs:
               'checkout_enabled':bho.get('checkout_enabled'),
               'checkout_noauth_status':bna,
               'live_money_certified':live_money_certified,
+              'real_money_e2e_certified':live_money_certified,
               'workers_dev_enabled':billing_subdomain.get('enabled'),
               'previews_enabled':billing_subdomain.get('previews_enabled'),
             },
@@ -344,6 +345,7 @@ jobs:
             'd1_schema':'PASS',
             'paynow_technical_contract':'PASS',
             'paynow_live_money_certified':live_money_certified,
+            'real_money_e2e_certified':live_money_certified,
             'bearer_metering_e2e':'PROVEN',
             'bearer_metering_evidence_sha256':os.environ['BEARER_E2E_EVIDENCE_SHA256'],
             'backend_source_sha256':backend_sha,
