@@ -1,0 +1,115 @@
+name: MFT Axiom Kernel Selection and Binding Readback
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/axiom-kernel-selection-binding-readback.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      EDGE_WORKER: mft-axiom-modal-edge-stage
+      CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+      CLOUDFLARE_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Read exact AXIOM_KERNEL binding target
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json,os,urllib.request
+          h={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_API_KEY']}
+          url=f"https://api.cloudflare.com/client/v4/accounts/{os.environ['ACCOUNT_ID']}/workers/scripts/{os.environ['EDGE_WORKER']}/settings"
+          with urllib.request.urlopen(urllib.request.Request(url,headers=h),timeout=30) as r:x=json.load(r)
+          rows=[]
+          for b in (x.get('result') or {}).get('bindings') or []:
+              if isinstance(b,dict) and b.get('name')=='AXIOM_KERNEL':
+                  rows.append({k:b.get(k) for k in ('name','type','service','environment','namespace_id','class_name') if b.get(k) is not None})
+          if len(rows)!=1: raise SystemExit('Fail-closed: expected one AXIOM_KERNEL binding')
+          open('kernel-binding-readback.json','w').write(json.dumps(rows[0],indent=2,sort_keys=True))
+          print(json.dumps({'binding_readback_pass':True,'binding':rows[0]},sort_keys=True))
+          PY
+
+      - name: Reconstruct encrypted source
+        env:
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          P=deploy_payload/runtime_min
+          cat "$P/chunk_00.b64" "$P/chunk_01_02.b64" "$P/chunk_03_04.b64" "$P/chunk_05_06.b64" "$P/chunk_07_08.b64" "$P/chunk_09.b64" > runtime.enc.b64
+          base64 -d runtime.enc.b64 > runtime.tar.gz.enc
+          test "$(sha256sum runtime.tar.gz.enc | awk '{print $1}')" = 'b82448d6b4b34b302748815af976b535d69922c197d4b7a9056fc2f91a9e12cf'
+          python - <<'PY'
+          import hashlib,hmac,os
+          b=open('runtime.tar.gz.enc','rb').read()
+          if not hmac.compare_digest(hmac.new(os.environ['CLOUDFLARE_GLOBAL_API_KEY'].encode(),b,hashlib.sha256).hexdigest(),'1a3193d4f3271d61d151e6ebd7cf4576d8ab86c2e79b84eff4ad0f635fe7ab47'):
+              raise SystemExit('HMAC mismatch')
+          PY
+          openssl enc -d -aes-256-cbc -pbkdf2 -iter 250000 -in runtime.tar.gz.enc -out runtime.tar.gz -pass env:CLOUDFLARE_GLOBAL_API_KEY
+          test "$(sha256sum runtime.tar.gz | awk '{print $1}')" = 'b4d5a0266446523969a619f5e9bb5a04d9b815c78a2ab82ed046ef5e23d53663'
+          mkdir runtime && tar -xzf runtime.tar.gz -C runtime
+
+      - name: Extract selectKernel branch contract without source excerpts
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json,pathlib,re
+          s=pathlib.Path('runtime/worker/src/index.js').read_text(errors='replace')
+          # locate function declaration or arrow assignment
+          m=re.search(r'(?:function\s+selectKernel\s*\(([^)]*)\)\s*\{|(?:const|let|var)\s+selectKernel\s*=\s*\(([^)]*)\)\s*=>\s*\{)',s)
+          if not m: raise SystemExit('selectKernel definition not found')
+          start=m.end(); depth=1; quote=None; esc=False; i=start
+          while i<len(s) and depth:
+              ch=s[i]
+              if quote:
+                  if esc: esc=False
+                  elif ch=='\\': esc=True
+                  elif ch==quote: quote=None
+              else:
+                  if ch in "'\"`": quote=ch
+                  elif ch=='{': depth+=1
+                  elif ch=='}': depth-=1
+              i+=1
+          body=s[start:i-1]
+          param=(m.group(1) or m.group(2) or '').split(',')[0].strip()
+          if not re.match(r'^[A-Za-z_$][\w$]*$',param): raise SystemExit('unexpected selector parameter')
+          props=sorted(set(re.findall(r'\b'+re.escape(param)+r'\.([A-Za-z_$][\w$]*)',body)))
+          typeof_checks=[]
+          for x in re.finditer(r'typeof\s+'+re.escape(param)+r'\.([A-Za-z_$][\w$]*)\s*(===|!==)\s*[\'\"]([^\'\"]+)[\'\"]',body):
+              typeof_checks.append({'property':x.group(1),'operator':x.group(2),'type_literal':x.group(3)})
+          calls=[]
+          for x in re.finditer(r'\b'+re.escape(param)+r'\.([A-Za-z_$][\w$]*)\s*\(',body): calls.append(x.group(1))
+          # Return expression classes only.
+          returns=[]
+          for x in re.finditer(r'\breturn\s+([^;\n}]+)',body):
+              expr=x.group(1).strip(); kind='other'; method=None
+              if expr==param: kind='binding_direct'
+              mm=re.match(re.escape(param)+r'\.([A-Za-z_$][\w$]*)\s*\(',expr)
+              if mm: kind='binding_method_call'; method=mm.group(1)
+              if expr in ('null','undefined'): kind=expr
+              returns.append({'kind':kind,'method':method})
+          out={'schema':'mft.axiom.select_kernel_contract.v1','parameter':param,'properties_referenced':props,'typeof_checks':typeof_checks,'binding_methods_called':calls,'return_shapes':returns,'plaintext_source_committed':False}
+          pathlib.Path('select-kernel-contract.json').write_text(json.dumps(out,indent=2,sort_keys=True))
+          print(json.dumps(out,sort_keys=True))
+          PY
+          sha256sum kernel-binding-readback.json select-kernel-contract.json > kernel-selection-binding-readback.sha256
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mft-axiom-kernel-selection-binding-readback
+          path: |
+            kernel-binding-readback.json
+            select-kernel-contract.json
+            kernel-selection-binding-readback.sha256
+          retention-days: 7
+          if-no-files-found: error
