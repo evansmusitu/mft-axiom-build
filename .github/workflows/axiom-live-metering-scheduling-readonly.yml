@@ -1,0 +1,66 @@
+name: MUSITU Axiom Live Metering Scheduling Read-Only
+
+on:
+  push:
+    paths:
+      - '.github/workflows/axiom-live-metering-scheduling-readonly.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    env:
+      CF_API: https://api.cloudflare.com/client/v4
+      ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      BACKEND: mft-axiom-modal-edge-stage
+    steps:
+      - uses: actions/checkout@v4
+      - name: Read live scheduling metadata only
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import email,hashlib,json,os,re,urllib.parse,urllib.request
+          api=os.environ['CF_API'];aid=os.environ['ACCOUNT_ID'];w=os.environ['BACKEND']
+          H={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY'],'User-Agent':'MUSITU-Axiom-Live-Metering-Scheduling/1.0'}
+          q=urllib.request.Request(f'{api}/accounts/{aid}/workers/scripts/{urllib.parse.quote(w,safe="")}',headers=H)
+          with urllib.request.urlopen(q,timeout=45) as r:raw=r.read();ct=r.headers.get('content-type','')
+          src=raw
+          if 'multipart/' in ct.lower():
+              msg=email.message_from_bytes((f'Content-Type: {ct}\r\nMIME-Version: 1.0\r\n\r\n').encode()+raw);parts=[]
+              for p in msg.walk():
+                  if p.is_multipart():continue
+                  d=p.get_payload(decode=True) or b''
+                  if b'recordUsage' in d and b'/v1/compute' in d:parts.append(d)
+              if len(parts)!=1:raise SystemExit('Fail-closed executable module count '+str(len(parts)))
+              src=parts[0]
+          t=src.decode('utf-8','ignore')
+          defs=[]
+          for m in re.finditer(r'(?:async\s+)?function\s+([A-Za-z_$][A-Za-z0-9_$]*)\s*\(([^)]*)\)',t):
+              if m.group(1) in ('handleRequest','fetch'):
+                  defs.append({'name':m.group(1),'arg_names':[x.strip() for x in m.group(2).split(',') if x.strip()]})
+          calls=[]
+          for m in re.finditer(r'(?<!function\s)recordUsage\s*\(',t):
+              win=t[max(0,m.start()-1000):min(len(t),m.start()+1900)]
+              calls.append({'uses_wait_until':bool(re.search(r'waitUntil\s*\([^)]{0,1400}recordUsage\s*\(',win,re.S)),'uses_direct_await':bool(re.search(r'await\s+recordUsage\s*\(',win)),'uses_promise_chain':bool(re.search(r'recordUsage\s*\([^;]{0,1400}\)\s*\.\s*(?:then|catch|finally)\s*\(',win,re.S)),'has_return_after_call':bool(re.search(r'recordUsage\s*\([^;]{0,1800};[^;]{0,2200}\breturn\b',win,re.S))})
+          export_identifier=bool(re.search(r'export\s+default\s*\{[^}]*\bfetch\s*:\s*handleRequest\b',t,re.S))
+          out={'schema':'musitu.axiom.live_metering_scheduling.v1','worker':w,'handler_functions':defs,'record_usage_call_count':len(calls),'record_usage_calls':calls,'export_fetch_handle_request':export_identifier,'source_sha256':hashlib.sha256(src).hexdigest(),'source_published':False,'secret_values_read':False,'mutation_performed':False,'gate':'AXIOM_LIVE_METERING_SCHEDULING_READ_PASS'}
+          if len(calls)!=1:raise SystemExit('Fail-closed unexpected recordUsage call count')
+          raw=(json.dumps(out,indent=2,sort_keys=True)+'\n').encode();open('live-metering-scheduling.json','wb').write(raw);dg=hashlib.sha256(raw).hexdigest();open('live-metering-scheduling.sha256','w').write(dg+'  live-metering-scheduling.json\n')
+          print(json.dumps({**out,'evidence_sha256':dg},sort_keys=True))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: musitu-axiom-live-metering-scheduling
+          path: |
+            live-metering-scheduling.json
+            live-metering-scheduling.sha256
+          retention-days: 14
+          if-no-files-found: error
