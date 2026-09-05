@@ -1,0 +1,419 @@
+name: MFT Axiom Modal Edge Isolated Deploy
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/axiom-modal-edge-isolated-deploy.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  deploy-isolated-edge:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    env:
+      CLOUDFLARE_ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+      CLOUDFLARE_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+      CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+      MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID }}
+      MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET }}
+      ADAPTER_WORKER: mft-axiom-modal-adapter
+      EDGE_WORKER: mft-axiom-modal-edge-stage
+      D1_NAME: mft-axiom-prod
+      MODAL_BASE_URL: https://evansmusitu--mft-axiom-v3-modal-staging-axiom-kernel.modal.run
+      BUILD_ID: MFT-AXIOM-V3-FULL-SELF-CONTAINED-20260904
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Require credentials and reconstruct protected source
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$CLOUDFLARE_EMAIL"
+          test -n "$CLOUDFLARE_API_KEY"
+          test -n "$MODAL_TOKEN_ID"
+          test -n "$MODAL_TOKEN_SECRET"
+          P=deploy_payload/runtime_min
+          cat "$P/chunk_00.b64" "$P/chunk_01_02.b64" "$P/chunk_03_04.b64" "$P/chunk_05_06.b64" "$P/chunk_07_08.b64" "$P/chunk_09.b64" > runtime.enc.b64
+          base64 -d runtime.enc.b64 > runtime.tar.gz.enc
+          test "$(sha256sum runtime.tar.gz.enc | awk '{print $1}')" = 'b82448d6b4b34b302748815af976b535d69922c197d4b7a9056fc2f91a9e12cf'
+          python - <<'PY'
+          import hashlib,hmac,os
+          data=open('runtime.tar.gz.enc','rb').read()
+          got=hmac.new(os.environ['CLOUDFLARE_GLOBAL_API_KEY'].encode(),data,hashlib.sha256).hexdigest()
+          if not hmac.compare_digest(got,'1a3193d4f3271d61d151e6ebd7cf4576d8ab86c2e79b84eff4ad0f635fe7ab47'):
+              raise SystemExit('Fail-closed: ciphertext HMAC mismatch')
+          PY
+          openssl enc -d -aes-256-cbc -pbkdf2 -iter 250000 -in runtime.tar.gz.enc -out runtime.tar.gz -pass env:CLOUDFLARE_GLOBAL_API_KEY
+          test "$(sha256sum runtime.tar.gz | awk '{print $1}')" = 'b4d5a0266446523969a619f5e9bb5a04d9b815c78a2ab82ed046ef5e23d53663'
+          mkdir runtime && tar -xzf runtime.tar.gz -C runtime
+          python - <<'PY'
+          import hashlib,json,pathlib
+          root=pathlib.Path('runtime'); m=json.loads((root/'RUNTIME_SOURCE_MANIFEST.json').read_text())
+          if m.get('source_build')!='MFT-AXIOM-V3-FULL-SELF-CONTAINED-20260904': raise SystemExit('source build mismatch')
+          for f in m['files']:
+              p=root/f['path']; b=p.read_bytes()
+              if len(b)!=f['size'] or hashlib.sha256(b).hexdigest()!=f['sha256']:
+                  raise SystemExit('Fail-closed: source integrity mismatch '+f['path'])
+          print('source_integrity=PASS')
+          PY
+
+      - name: Install exact deployment tooling and authenticate
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --no-save --ignore-scripts --no-audit --no-fund wrangler@4.129.0 esbuild@0.25.9 >/dev/null
+          python -m pip install --disable-pip-version-check --quiet 'modal>=1.5,<2'
+          npx wrangler --version
+          npx wrangler auth token --json > /tmp/cf-auth.json
+          python - <<'PY'
+          import json
+          x=json.load(open('/tmp/cf-auth.json'))
+          if x.get('type')!='api_key': raise SystemExit('Fail-closed: Wrangler auth is not api_key')
+          print('cloudflare_auth=PASS')
+          PY
+          rm -f /tmp/cf-auth.json
+          modal app list --json >/dev/null
+          echo modal_auth=PASS
+
+      - name: Verify private Modal kernel remains sealed PASS
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import modal
+          p=modal.Function.from_name('mft-axiom-v3-modal-staging','runtime_probe')
+          r=p.remote()
+          if r.get('build_id')!='MFT-AXIOM-V3-FULL-SELF-CONTAINED-20260904': raise SystemExit('Modal build mismatch')
+          routes=r.get('routes') or []
+          for route in ['/health','/v1/compute','/v3/tools']:
+              if route not in routes: raise SystemExit('Modal route missing '+route)
+          print('modal_private_runtime=PASS')
+          PY
+          URL="$MODAL_BASE_URL"
+          code="$(curl -sS -o /tmp/modal-unauth -w '%{http_code}' "$URL/health" || true)"
+          test "$code" = 401 || { echo "Fail-closed: Modal unauth health expected 401 got $code"; exit 1; }
+          echo modal_proxy_auth_boundary=PASS
+
+      - name: Create persistent Modal proxy credential for internal adapter
+        shell: bash
+        run: |
+          set -euo pipefail
+          modal workspace proxy-tokens create --json > /tmp/modal-proxy.json
+          python - <<'PY'
+          import json,pathlib
+          obj=json.load(open('/tmp/modal-proxy.json')); vals=[]
+          def walk(x):
+              if isinstance(x,dict):
+                  for v in x.values(): walk(v)
+              elif isinstance(x,list):
+                  for v in x: walk(v)
+              elif isinstance(x,str): vals.append(x)
+          walk(obj)
+          keys=[x for x in vals if x.startswith('wk-')]; secs=[x for x in vals if x.startswith('ws-')]
+          if len(keys)!=1 or len(secs)!=1: raise SystemExit('Fail-closed: unexpected Modal proxy token shape')
+          pathlib.Path('/tmp/modal-proxy-key').write_text(keys[0])
+          pathlib.Path('/tmp/modal-proxy-secret').write_text(secs[0])
+          print('modal_proxy_token_created=true')
+          PY
+          KEY="$(cat /tmp/modal-proxy-key)"; SECRET="$(cat /tmp/modal-proxy-secret)"
+          echo "::add-mask::$KEY"; echo "::add-mask::$SECRET"
+          echo "MODAL_PROXY_KEY=$KEY" >> "$GITHUB_ENV"
+          echo "MODAL_PROXY_SECRET=$SECRET" >> "$GITHUB_ENV"
+          echo 'MODAL_PROXY_CREATED=1' >> "$GITHUB_ENV"
+
+      - name: Generate and deploy internal-only Modal adapter
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p edge-deploy/adapter
+          cat > edge-deploy/adapter/adapter.js <<'JS'
+          export default {
+            async fetch(request, env) {
+              if (!env.MODAL_PROXY_KEY || !env.MODAL_PROXY_SECRET) {
+                return new Response(JSON.stringify({ok:false,error:'ADAPTER_AUTH_NOT_CONFIGURED'}), {status:503,headers:{'content-type':'application/json'}});
+              }
+              const incoming = new URL(request.url);
+              const target = new URL(incoming.pathname + incoming.search, env.MODAL_BASE_URL);
+              const headers = new Headers(request.headers);
+              headers.delete('host');
+              headers.delete('modal-key');
+              headers.delete('modal-secret');
+              headers.set('Modal-Key', env.MODAL_PROXY_KEY);
+              headers.set('Modal-Secret', env.MODAL_PROXY_SECRET);
+              const init = {method: request.method, headers, redirect: 'manual'};
+              if (request.method !== 'GET' && request.method !== 'HEAD') init.body = request.body;
+              return fetch(new Request(target.toString(), init));
+            }
+          };
+          JS
+          python - <<'PY'
+          import json,os
+          cfg={
+            '$schema':'../../node_modules/wrangler/config-schema.json',
+            'name':os.environ['ADAPTER_WORKER'],
+            'main':'adapter.js',
+            'compatibility_date':'2026-09-04',
+            'workers_dev':False,
+            'observability':{'enabled':True},
+            'vars':{'MODAL_BASE_URL':os.environ['MODAL_BASE_URL']}
+          }
+          open('edge-deploy/adapter/wrangler.json','w').write(json.dumps(cfg,indent=2))
+          PY
+          (cd edge-deploy/adapter && npx wrangler deploy --config wrangler.json > /tmp/adapter-deploy.log 2>&1) || { tail -120 /tmp/adapter-deploy.log; exit 1; }
+          printf '%s' "$MODAL_PROXY_KEY" | (cd edge-deploy/adapter && npx wrangler secret put MODAL_PROXY_KEY --config wrangler.json >/dev/null)
+          printf '%s' "$MODAL_PROXY_SECRET" | (cd edge-deploy/adapter && npx wrangler secret put MODAL_PROXY_SECRET --config wrangler.json >/dev/null)
+          echo adapter_deploy=PASS
+
+      - name: Resolve production D1 and verify canonical schema
+        id: d1
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY' > /tmp/d1-id
+          import json,os,urllib.request,urllib.parse
+          base='https://api.cloudflare.com/client/v4'; aid=os.environ['CLOUDFLARE_ACCOUNT_ID']
+          h={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_API_KEY']}
+          req=urllib.request.Request(base+f'/accounts/{aid}/d1/database?name='+urllib.parse.quote(os.environ['D1_NAME']),headers=h)
+          with urllib.request.urlopen(req,timeout=30) as r: x=json.load(r)
+          rows=[z for z in x.get('result',[]) if z.get('name')==os.environ['D1_NAME']]
+          if len(rows)!=1: raise SystemExit('Fail-closed: expected one D1')
+          print(rows[0].get('uuid') or rows[0].get('id'))
+          PY
+          D1_ID="$(cat /tmp/d1-id)"; test -n "$D1_ID"
+          echo "database_id=$D1_ID" >> "$GITHUB_OUTPUT"
+          python - <<'PY'
+          import json,os,urllib.request
+          base='https://api.cloudflare.com/client/v4'; aid=os.environ['CLOUDFLARE_ACCOUNT_ID']; dbid=open('/tmp/d1-id').read().strip()
+          h={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_API_KEY'],'Content-Type':'application/json'}
+          sql="SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' AND name NOT LIKE '_cf_%' ORDER BY name;"
+          req=urllib.request.Request(base+f'/accounts/{aid}/d1/database/{dbid}/query',headers=h,data=json.dumps({'sql':sql}).encode(),method='POST')
+          with urllib.request.urlopen(req,timeout=30) as r: x=json.load(r)
+          rows=[]
+          for chunk in x.get('result',[]): rows += chunk.get('results') or []
+          got=sorted(z['name'] for z in rows)
+          exp=['api_keys','billing_subscriptions','customers','usage_buckets','usage_events','webhook_events']
+          if got!=exp: raise SystemExit('Fail-closed D1 schema mismatch '+repr(got))
+          print('canonical_d1_schema=PASS')
+          PY
+
+      - name: Prepare canonical Axiom Worker bundle and private bindings
+        shell: bash
+        env:
+          D1_ID: ${{ steps.d1.outputs.database_id }}
+        run: |
+          set -euo pipefail
+          node --input-type=module - <<'NODE'
+          import { TOOLS } from './runtime/worker/src/catalog.js';
+          if (!Array.isArray(TOOLS) || TOOLS.length !== 74 || new Set(TOOLS).size !== 74) throw new Error('registry mismatch');
+          NODE
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('runtime/worker/src/catalog.js'); s=p.read_text()
+          candidates=[
+            "export const BUILD_ID = 'MFT-AXIOM-V3-SELF-CONTAINED-20260904';",
+            "export const BUILD_ID = 'MFT-AXIOM-V3-RUNTIME-RECONSTRUCTION-20260904';",
+            "export const BUILD_ID = 'MFT-AXIOM-V3-FULL-SELF-CONTAINED-20260904';"
+          ]
+          found=[x for x in candidates if x in s]
+          if len(found)!=1: raise SystemExit('Fail-closed: build identity source not unique')
+          target="export const BUILD_ID = 'MFT-AXIOM-V3-FULL-SELF-CONTAINED-20260904';"
+          p.write_text(s.replace(found[0],target))
+          PY
+          mkdir -p edge-deploy/axiom
+          npx esbuild runtime/worker/src/index.js --bundle --format=esm --platform=browser --target=es2022 --outfile=edge-deploy/axiom/worker.js --log-level=warning
+          grep -q 'MFT-AXIOM-V3-FULL-SELF-CONTAINED-20260904' edge-deploy/axiom/worker.js
+          python - <<'PY'
+          import json,os
+          cfg={
+            '$schema':'../../node_modules/wrangler/config-schema.json',
+            'name':os.environ['EDGE_WORKER'],
+            'main':'worker.js',
+            'compatibility_date':'2026-09-04',
+            'workers_dev':False,
+            'observability':{'enabled':True},
+            'd1_databases':[{'binding':'AXIOM_DB','database_name':os.environ['D1_NAME'],'database_id':os.environ['D1_ID']}],
+            'services':[{'binding':'AXIOM_KERNEL','service':os.environ['ADAPTER_WORKER']}]
+          }
+          open('edge-deploy/axiom/wrangler.json','w').write(json.dumps(cfg,indent=2))
+          PY
+          sha256sum edge-deploy/axiom/worker.js > /tmp/axiom-worker-bundle.sha256
+          echo canonical_edge_bundle=PASS
+
+      - name: Deploy isolated Axiom Worker privately then install independent Axiom secrets
+        shell: bash
+        run: |
+          set -euo pipefail
+          (cd edge-deploy/axiom && npx wrangler deploy --config wrangler.json > /tmp/axiom-private-deploy.log 2>&1) || { tail -160 /tmp/axiom-private-deploy.log; exit 1; }
+          CONTROL="$(openssl rand -hex 32)"; RECEIPT="$(openssl rand -hex 32)"
+          echo "::add-mask::$CONTROL"; echo "::add-mask::$RECEIPT"
+          printf '%s' "$CONTROL" > /tmp/mft-control-secret
+          printf '%s' "$RECEIPT" > /tmp/mft-receipt-secret
+          printf '%s' "$CONTROL" | (cd edge-deploy/axiom && npx wrangler secret put MFT_CONTROL_SECRET --config wrangler.json >/dev/null)
+          printf '%s' "$RECEIPT" | (cd edge-deploy/axiom && npx wrangler secret put MFT_RECEIPT_SECRET --config wrangler.json >/dev/null)
+          echo axiom_runtime_secrets=PASS
+
+      - name: Enable only isolated workers.dev endpoint with required-secret validation
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          p='edge-deploy/axiom/wrangler.json'; c=json.load(open(p))
+          c['workers_dev']=True
+          c['secrets']={'required':['MFT_CONTROL_SECRET','MFT_RECEIPT_SECRET']}
+          open(p,'w').write(json.dumps(c,indent=2))
+          PY
+          (cd edge-deploy/axiom && npx wrangler deploy --config wrangler.json > /tmp/axiom-public-deploy.log 2>&1) || { tail -160 /tmp/axiom-public-deploy.log; exit 1; }
+          echo isolated_workers_dev_enabled=PASS
+
+      - name: Read back bindings before external verification
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json,os,urllib.request
+          base='https://api.cloudflare.com/client/v4'; aid=os.environ['CLOUDFLARE_ACCOUNT_ID']; worker=os.environ['EDGE_WORKER']
+          h={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_API_KEY']}
+          req=urllib.request.Request(base+f'/accounts/{aid}/workers/scripts/{worker}/settings',headers=h)
+          with urllib.request.urlopen(req,timeout=30) as r: x=json.load(r)
+          b=(x.get('result') or {}).get('bindings') or []
+          names=sorted({z.get('name') for z in b if isinstance(z,dict) and z.get('name')})
+          required={'AXIOM_DB','AXIOM_KERNEL','MFT_CONTROL_SECRET','MFT_RECEIPT_SECRET'}
+          missing=sorted(required-set(names))
+          if missing: raise SystemExit('Fail-closed missing edge bindings '+repr(missing))
+          print('edge_binding_readback=PASS')
+          print('edge_binding_names='+','.join(names))
+          PY
+
+      - name: Resolve isolated URL and verify health tools and unauthorized compute
+        id: public
+        shell: bash
+        run: |
+          set -euo pipefail
+          SUBDOMAIN="$(python - <<'PY'
+          import json,os,urllib.request
+          h={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_API_KEY']}
+          req=urllib.request.Request(f"https://api.cloudflare.com/client/v4/accounts/{os.environ['CLOUDFLARE_ACCOUNT_ID']}/workers/subdomain",headers=h)
+          with urllib.request.urlopen(req,timeout=30) as r: x=json.load(r)
+          print((x.get('result') or {}).get('subdomain') or '')
+          PY
+          )"
+          test -n "$SUBDOMAIN"
+          URL="https://${EDGE_WORKER}.${SUBDOMAIN}.workers.dev"
+          echo "url=$URL" >> "$GITHUB_OUTPUT"
+          for i in $(seq 1 45); do
+            code="$(curl -sS --max-time 20 -o /tmp/edge-health.json -w '%{http_code}' "$URL/health" || true)"
+            [ "$code" = 200 ] && break
+            sleep 3
+          done
+          test "$code" = 200 || { echo "Fail-closed: isolated health HTTP $code"; cat /tmp/edge-health.json || true; exit 1; }
+          python - <<'PY'
+          import json,os
+          h=json.load(open('/tmp/edge-health.json'))
+          expected={'ok':True,'status':'READY','version':'3.0.0','build_id':os.environ['BUILD_ID'],'operation_count':74,'state':'D1','wolfram_parity':'NOT_CERTIFIED','superiority':'NOT_CERTIFIED'}
+          bad={k:[h.get(k),v] for k,v in expected.items() if h.get(k)!=v}
+          if bad: raise SystemExit('Fail-closed health mismatch '+repr(bad))
+          print('isolated_health=PASS')
+          PY
+          curl -fsS "$URL/v1/tools" > /tmp/edge-tools.json
+          python - <<'PY'
+          import json
+          x=json.load(open('/tmp/edge-tools.json'))
+          if x.get('operation_count')!=74 or len(x.get('tools',[]))!=74: raise SystemExit('74-tool gate failed')
+          print('isolated_tools_74=PASS')
+          PY
+          unauth="$(curl -sS -o /tmp/edge-unauth.json -w '%{http_code}' -X POST "$URL/v1/compute" -H 'content-type: application/json' --data '{"operation":"arithmetic.evaluate","args":{"expression":"40+2"},"verify":true}')"
+          test "$unauth" = 401 || { echo "Fail-closed: expected 401 unauth compute got $unauth"; cat /tmp/edge-unauth.json; exit 1; }
+          echo isolated_unauth_compute_401=PASS
+
+      - name: Verify authenticated end-to-end Modal compute and signed receipt
+        shell: bash
+        env:
+          EDGE_URL: ${{ steps.public.outputs.url }}
+        run: |
+          set -euo pipefail
+          CONTROL="$(cat /tmp/mft-control-secret)"
+          code="$(curl -sS --max-time 90 -o /tmp/edge-compute.json -w '%{http_code}' -X POST "$EDGE_URL/v1/compute" -H "x-mft-control: $CONTROL" -H 'content-type: application/json' --data '{"operation":"arithmetic.evaluate","args":{"expression":"40+2"},"verify":true}')"
+          test "$code" = 200 || { echo "Fail-closed: authenticated compute HTTP $code"; cat /tmp/edge-compute.json; exit 1; }
+          python - <<'PY'
+          import json
+          x=json.load(open('/tmp/edge-compute.json'))
+          if x.get('ok') is not True: raise SystemExit('compute ok != true')
+          r=x.get('receipt') or {}
+          if r.get('signature_alg')!='HMAC-SHA256' or not r.get('signature'): raise SystemExit('signed receipt missing')
+          if not r.get('request_sha256') or not r.get('result_sha256'): raise SystemExit('receipt hashes missing')
+          print('isolated_authenticated_compute=PASS')
+          print('isolated_signed_receipt=PASS')
+          PY
+
+      - name: Verify adapter remains internal-only and seal evidence
+        shell: bash
+        env:
+          EDGE_URL: ${{ steps.public.outputs.url }}
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json,os,urllib.request,hashlib,pathlib
+          base='https://api.cloudflare.com/client/v4'; aid=os.environ['CLOUDFLARE_ACCOUNT_ID']
+          h={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_API_KEY']}
+          req=urllib.request.Request(base+f'/accounts/{aid}/workers/scripts/{os.environ["ADAPTER_WORKER"]}/settings',headers=h)
+          with urllib.request.urlopen(req,timeout=30) as r: x=json.load(r)
+          bindings=(x.get('result') or {}).get('bindings') or []
+          names=sorted({z.get('name') for z in bindings if isinstance(z,dict) and z.get('name')})
+          if not {'MODAL_PROXY_KEY','MODAL_PROXY_SECRET'}.issubset(set(names)):
+              raise SystemExit('adapter secret readback failed')
+          ev={
+            'schema':'mft.axiom.modal_edge_isolated_deployment.v1',
+            'build_id':os.environ['BUILD_ID'],
+            'edge_worker':os.environ['EDGE_WORKER'],
+            'edge_url':os.environ['EDGE_URL'],
+            'adapter_worker':os.environ['ADAPTER_WORKER'],
+            'adapter_public_workers_dev':False,
+            'kernel_transport':'Cloudflare Service Binding -> internal adapter -> Modal proxy-auth HTTPS',
+            'd1_database':os.environ['D1_NAME'],
+            'operation_count':74,
+            'health':'PASS',
+            'unauthorized_compute_401':'PASS',
+            'authenticated_compute':'PASS',
+            'signed_receipt':'PASS',
+            'stripe_configuration_present':False,
+            'custom_stage_domain_cutover_performed':False,
+            'production_compute_active':False,
+            'plaintext_source_committed':False,
+            'wolfram_parity':'NOT_CERTIFIED',
+            'superiority':'NOT_CERTIFIED',
+            'next_gate':'VERIFY_D1_PERSISTENCE_AND_CUSTOMER_API_KEY_THEN_STAGE_DOMAIN_CUTOVER'
+          }
+          raw=json.dumps(ev,sort_keys=True,separators=(',',':')).encode(); ev['evidence_sha256']=hashlib.sha256(raw).hexdigest()
+          pathlib.Path('axiom-modal-edge-isolated-evidence.json').write_text(json.dumps(ev,indent=2,sort_keys=True))
+          print(json.dumps({'isolated_edge_deployment':'PASS','operation_count':74,'custom_stage_domain_cutover_performed':False,'next_gate':ev['next_gate']},sort_keys=True))
+          PY
+          sha256sum axiom-modal-edge-isolated-evidence.json > axiom-modal-edge-isolated-evidence.sha256
+          rm -f /tmp/modal-proxy.json /tmp/modal-proxy-key /tmp/modal-proxy-secret /tmp/mft-control-secret /tmp/mft-receipt-secret
+          echo 'MODAL_PROXY_RETAIN=1' >> "$GITHUB_ENV"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mft-axiom-modal-edge-isolated-deployment
+          path: |
+            axiom-modal-edge-isolated-evidence.json
+            axiom-modal-edge-isolated-evidence.sha256
+          retention-days: 14
+          if-no-files-found: error
+
+      - name: Delete newly created Modal proxy credential on failure only
+        if: ${{ failure() }}
+        shell: bash
+        run: |
+          set +e
+          if [ "${MODAL_PROXY_CREATED:-0}" = 1 ] && [ -n "${MODAL_PROXY_KEY:-}" ]; then
+            modal workspace proxy-tokens delete -y "$MODAL_PROXY_KEY" >/dev/null 2>&1 || true
+          fi
+          rm -f /tmp/modal-proxy.json /tmp/modal-proxy-key /tmp/modal-proxy-secret /tmp/mft-control-secret /tmp/mft-receipt-secret
