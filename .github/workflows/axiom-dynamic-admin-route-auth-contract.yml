@@ -1,0 +1,85 @@
+name: MFT Axiom Dynamic Admin Route Auth Contract
+
+on:
+  push:
+    paths:
+      - '.github/workflows/axiom-dynamic-admin-route-auth-contract.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Reconstruct protected source
+        env:
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          P=deploy_payload/runtime_min
+          cat "$P/chunk_00.b64" "$P/chunk_01_02.b64" "$P/chunk_03_04.b64" "$P/chunk_05_06.b64" "$P/chunk_07_08.b64" "$P/chunk_09.b64" > runtime.enc.b64
+          base64 -d runtime.enc.b64 > runtime.tar.gz.enc
+          test "$(sha256sum runtime.tar.gz.enc | awk '{print $1}')" = 'b82448d6b4b34b302748815af976b535d69922c197d4b7a9056fc2f91a9e12cf'
+          openssl enc -d -aes-256-cbc -pbkdf2 -iter 250000 -in runtime.tar.gz.enc -out runtime.tar.gz -pass env:CLOUDFLARE_GLOBAL_API_KEY
+          test "$(sha256sum runtime.tar.gz | awk '{print $1}')" = 'b4d5a0266446523969a619f5e9bb5a04d9b815c78a2ab82ed046ef5e23d53663'
+          mkdir runtime && tar -xzf runtime.tar.gz -C runtime
+      - name: Emit dynamic route and auth metadata only
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json,pathlib,re
+          s=pathlib.Path('runtime/worker/src/index.js').read_text(errors='replace')
+          # Normalize template literals that contain /v1/admin while replacing interpolations.
+          templates=[]
+          for m in re.finditer(r'`([^`]{1,260})`',s):
+              t=m.group(1)
+              if '/v1/admin' in t or ('customers' in t and ('keys' in t or 'rotate' in t or 'revoke' in t)):
+                  t=re.sub(r'\$\{[^}]+\}','{param}',t)
+                  templates.append(t)
+          # Collect path segment literals around admin helper call sites.
+          segment_sets={}
+          for name in ['adminIssueKey','adminRotateKey','adminRevokeKey']:
+              arr=[]
+              for m in re.finditer(r'\b'+name+r'\s*\(',s):
+                  w=s[max(0,m.start()-5000):min(len(s),m.start()+2500)]
+                  segs=sorted(set(x for x in re.findall(r'["\']([A-Za-z0-9_-]{2,40})["\']',w) if x in {'v1','admin','customers','customer','keys','key','rotate','revoke'}))
+                  route_ops=sorted(set(re.findall(r'url\.pathname\.([A-Za-z_$][\w$]*)\s*\(',w)))
+                  arr.append({'segments':segs,'pathname_methods':route_ops})
+              segment_sets[name]=arr
+          # Authenticate() exact mechanics as booleans/numbers only, no source text.
+          def body(name):
+              m=re.search(r'(?:async\s+)?function\s+'+re.escape(name)+r'\s*\([^)]*\)\s*\{',s)
+              if not m:return ''
+              st=m.end()-1;d=0;q=None;e=False
+              for i in range(st,len(s)):
+                  c=s[i]
+                  if q:
+                      if e:e=False
+                      elif c=='\\':e=True
+                      elif c==q:q=None
+                      continue
+                  if c in "'\"`":q=c;continue
+                  if c=='{':d+=1
+                  elif c=='}':
+                      d-=1
+                      if d==0:return s[st+1:i]
+              return ''
+          a=body('authenticate')
+          auth={
+            'authorization_literal_present':'authorization' in a.lower(),
+            'bearer_literal_present':'bearer' in a.lower(),
+            'uses_startsWith':'.startsWith(' in a,
+            'uses_slice':'.slice(' in a,
+            'uses_substring':'.substring(' in a,
+            'uses_split':'.split(' in a,
+            'sha256_mentions':len(re.findall(r'sha-?256|sha256',a,re.I)),
+          }
+          out={'schema':'mft.axiom.dynamic_admin_route_auth_contract.v1','normalized_template_literals':sorted(set(templates)),'helper_route_segments':segment_sets,'authenticate_mechanics':auth,'plaintext_source_committed':False}
+          pathlib.Path('dynamic-admin-route-auth-contract.json').write_text(json.dumps(out,indent=2,sort_keys=True))
+          print(json.dumps(out,sort_keys=True))
+          PY
