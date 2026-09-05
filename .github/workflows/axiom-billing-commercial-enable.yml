@@ -5,6 +5,7 @@ on:
     paths:
       - '.github/workflows/axiom-billing-commercial-enable.yml'
       - 'ops/axiom_billing_commercial_enable_v1.py'
+      - 'ops/axiom_billing_commercial_enable_v2.py'
   workflow_dispatch:
 
 permissions:
@@ -33,12 +34,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Compile deployer before any production access
-        run: python -m py_compile ops/axiom_billing_commercial_enable_v1.py
+        run: |
+          python -m py_compile ops/axiom_billing_commercial_enable_v1.py
+          python -m py_compile ops/axiom_billing_commercial_enable_v2.py
       - name: Deploy catalog, signer, transport bridge and checkout fail-safely
         env:
           CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
           CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
-        run: python ops/axiom_billing_commercial_enable_v1.py
+        run: python ops/axiom_billing_commercial_enable_v2.py
       - uses: actions/upload-artifact@v4
         with:
           name: musitu-axiom-billing-commercial-enable
