@@ -1,0 +1,142 @@
+name: MFT Axiom Production Admission Gate
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/axiom-production-admission-gate.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  admission:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      CF_API: https://api.cloudflare.com/client/v4
+      EXPECTED_ZONE: mftintelligence.com
+      EXPECTED_ZONE_ID: 5b56528f03948ff5917a5e0cd9f7109e
+      EXPECTED_ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      STAGE_HOST: axiom-stage.mftintelligence.com
+      STAGE_SERVICE: mft-axiom-modal-edge-stage
+      EXPECTED_BUILD: MFT-AXIOM-V3-FULL-SELF-CONTAINED-20260904
+    steps:
+      - name: Audit production admission fail-closed
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$CLOUDFLARE_EMAIL"
+          test -n "$CLOUDFLARE_GLOBAL_API_KEY"
+          python - <<'PY'
+          import json,os,urllib.parse,urllib.request,urllib.error
+          base=os.environ['CF_API']
+          headers={
+            'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],
+            'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY'],
+            'Content-Type':'application/json',
+            'User-Agent':'MFT-Axiom-Production-Admission/1.0',
+          }
+          def cfget(path):
+            req=urllib.request.Request(base+path,headers=headers,method='GET')
+            with urllib.request.urlopen(req,timeout=30) as r: body=json.load(r)
+            if r.status!=200 or not body.get('success'):
+              raise SystemExit(f'Fail-closed Cloudflare read failed: {path}')
+            return body.get('result')
+          def http_json(url,method='GET',body=None,extra=None):
+            h={'Accept':'application/json','User-Agent':'MFT-Axiom-Production-Admission/1.0'}
+            if extra: h.update(extra)
+            data=None if body is None else json.dumps(body).encode()
+            if data is not None: h['Content-Type']='application/json'
+            req=urllib.request.Request(url,headers=h,data=data,method=method)
+            try:
+              with urllib.request.urlopen(req,timeout=30) as r:
+                raw=r.read(); return r.status,json.loads(raw or b'{}')
+            except urllib.error.HTTPError as e:
+              raw=e.read()
+              try: parsed=json.loads(raw or b'{}')
+              except Exception: parsed={}
+              return e.code,parsed
+
+          zones=cfget('/zones?name='+urllib.parse.quote(os.environ['EXPECTED_ZONE'])+'&status=active') or []
+          if len(zones)!=1: raise SystemExit('Fail-closed: canonical zone not unique')
+          z=zones[0]; zid=z.get('id'); aid=(z.get('account') or {}).get('id')
+          if zid!=os.environ['EXPECTED_ZONE_ID'] or aid!=os.environ['EXPECTED_ACCOUNT_ID']:
+            raise SystemExit('Fail-closed: zone/account identity mismatch')
+
+          domains=cfget(f'/accounts/{aid}/workers/domains') or []
+          stage=[d for d in domains if d.get('hostname')==os.environ['STAGE_HOST']]
+          if len(stage)!=1 or stage[0].get('service')!=os.environ['STAGE_SERVICE']:
+            raise SystemExit('Fail-closed: verified staging domain mapping changed')
+          axiom_nonstage=[{
+            'hostname':d.get('hostname'),'service':d.get('service'),'environment':d.get('environment')
+          } for d in domains if 'axiom' in str(d.get('hostname') or '').lower() and d.get('hostname')!=os.environ['STAGE_HOST']]
+
+          hs,hj=http_json('https://'+os.environ['STAGE_HOST']+'/health')
+          if hs!=200 or hj.get('ok') is not True or hj.get('build_id')!=os.environ['EXPECTED_BUILD'] or int(hj.get('operation_count') or -1)!=74:
+            raise SystemExit('Fail-closed: staging FULL health contract regressed')
+          us,uj=http_json('https://'+os.environ['STAGE_HOST']+'/v1/compute',method='POST',body={'operation':'arithmetic.add','args':{'a':40,'b':2}})
+          if us!=401: raise SystemExit(f'Fail-closed: unauth compute expected 401, got {us}')
+
+          bindings=cfget(f'/accounts/{aid}/workers/services/{os.environ["STAGE_SERVICE"]}/environments/production/bindings') or []
+          binding_names=sorted({str(b.get('name') or '') for b in bindings})
+          stripe_required=['STRIPE_WEBHOOK_SECRET','STRIPE_PRICE_PLAN_MAP','AXIOM_DOWNGRADE_ON_CANCEL']
+          stripe_presence={k:(k in binding_names) for k in stripe_required}
+          commercial_configured=all(stripe_presence.values())
+
+          blockers=[]
+          if not axiom_nonstage:
+            blockers.append('NO_CANONICAL_AXIOM_PRODUCTION_CUSTOM_DOMAIN_PRESENT')
+          if not commercial_configured:
+            blockers.append('STRIPE_COMMERCIAL_BINDINGS_NOT_CONFIGURED')
+          blockers.append('CUSTOMER_BEARER_METERING_END_TO_END_NOT_YET_PROVEN')
+
+          out={
+            'schema':'mft.axiom.production_admission.v1',
+            'zone':os.environ['EXPECTED_ZONE'],
+            'account_id':aid,
+            'staging':{
+              'hostname':os.environ['STAGE_HOST'],
+              'service':os.environ['STAGE_SERVICE'],
+              'health':'PASS',
+              'build_id':hj.get('build_id'),
+              'operation_count':hj.get('operation_count'),
+              'unauth_compute_status':us,
+            },
+            'axiom_nonstage_custom_domains':axiom_nonstage,
+            'stripe_binding_presence':stripe_presence,
+            'customer_bearer_metering_e2e':'NOT_PROVEN',
+            'production_admission':'BLOCKED' if blockers else 'PASS',
+            'blockers':blockers,
+            'write_performed':False,
+            'plaintext_source_committed':False,
+            'wolfram_parity':'NOT_CERTIFIED',
+            'superiority':'NOT_CERTIFIED',
+          }
+          open('axiom-production-admission.json','w').write(json.dumps(out,indent=2,sort_keys=True))
+          print(json.dumps({
+            'staging_health':'PASS',
+            'build_id':hj.get('build_id'),
+            'operation_count':hj.get('operation_count'),
+            'unauth_compute_status':us,
+            'axiom_nonstage_custom_domains':axiom_nonstage,
+            'stripe_binding_presence':stripe_presence,
+            'customer_bearer_metering_e2e':'NOT_PROVEN',
+            'production_admission':out['production_admission'],
+            'blockers':blockers,
+            'write_performed':False,
+          },sort_keys=True))
+          PY
+      - name: Seal admission evidence
+        run: sha256sum axiom-production-admission.json > axiom-production-admission.sha256
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mft-axiom-production-admission
+          path: |
+            axiom-production-admission.json
+            axiom-production-admission.sha256
+          retention-days: 14
+          if-no-files-found: error
