@@ -1,0 +1,62 @@
+name: MFT Axiom Kernel Response Contract
+
+on:
+  push:
+    paths:
+      - '.github/workflows/axiom-kernel-response-contract.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  trace:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Reconstruct protected source
+        env:
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          P=deploy_payload/runtime_min
+          cat "$P/chunk_00.b64" "$P/chunk_01_02.b64" "$P/chunk_03_04.b64" "$P/chunk_05_06.b64" "$P/chunk_07_08.b64" "$P/chunk_09.b64" > runtime.enc.b64
+          base64 -d runtime.enc.b64 > runtime.tar.gz.enc
+          test "$(sha256sum runtime.tar.gz.enc | awk '{print $1}')" = 'b82448d6b4b34b302748815af976b535d69922c197d4b7a9056fc2f91a9e12cf'
+          openssl enc -d -aes-256-cbc -pbkdf2 -iter 250000 -in runtime.tar.gz.enc -out runtime.tar.gz -pass env:CLOUDFLARE_GLOBAL_API_KEY
+          test "$(sha256sum runtime.tar.gz | awk '{print $1}')" = 'b4d5a0266446523969a619f5e9bb5a04d9b815c78a2ab82ed046ef5e23d53663'
+          mkdir runtime && tar -xzf runtime.tar.gz -C runtime
+      - name: Emit kernel response metadata only
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json,pathlib,re
+          s=pathlib.Path('runtime/worker/src/index.js').read_text(errors='replace')
+          # Find variable receiving await kernel.fetch(...)
+          matches=list(re.finditer(r'\b(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*await\s+kernel\s*\.\s*fetch\s*\(',s))
+          if not matches: raise SystemExit('kernel.fetch assignment missing')
+          rows=[]
+          for m in matches:
+              rv=m.group(1); ctx=s[m.start():min(len(s),m.start()+5000)]
+              props=sorted(set(re.findall(r'\b'+re.escape(rv)+r'\.([A-Za-z_$][\w$]*)\b',ctx)))
+              methods=sorted(set(re.findall(r'\b'+re.escape(rv)+r'\.([A-Za-z_$][\w$]*)\s*\(',ctx)))
+              parsed=[]
+              for pm in re.finditer(r'\b(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*await\s+'+re.escape(rv)+r'\.(json|text)\s*\(\s*\)',ctx):
+                  pv=pm.group(1); parsed.append({'var':pv,'parser':pm.group(2),'properties':sorted(set(re.findall(r'\b'+re.escape(pv)+r'\.([A-Za-z_$][\w$]*)\b',ctx[pm.end():]))),'spread':bool(re.search(r'\.\.\.\s*'+re.escape(pv)+r'\b',ctx[pm.end():]))})
+              rows.append({
+                'response_var':rv,
+                'properties':props,
+                'methods':methods,
+                'parsed_vars':parsed,
+                'checks_ok':bool(re.search(r'!?\s*'+re.escape(rv)+r'\.ok\b',ctx)),
+                'checks_status':bool(re.search(re.escape(rv)+r'\.status\b',ctx)),
+                'kernel_unavailable_after_fetch':'kernel_unavailable' in ctx,
+                'json_parse_after_fetch':bool(re.search(re.escape(rv)+r'\.json\s*\(',ctx)),
+                'text_parse_after_fetch':bool(re.search(re.escape(rv)+r'\.text\s*\(',ctx)),
+              })
+          out={'schema':'mft.axiom.kernel_response_contract.v1','fetch_assignments':rows,'plaintext_source_committed':False}
+          pathlib.Path('kernel-response-contract.json').write_text(json.dumps(out,indent=2,sort_keys=True))
+          print(json.dumps(out,sort_keys=True))
+          PY
