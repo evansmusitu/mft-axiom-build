@@ -1,0 +1,64 @@
+name: MUSITU Axiom Metering Write Contract Read-Only
+
+on:
+  push:
+    paths:
+      - '.github/workflows/axiom-metering-write-contract-readonly.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Reconstruct protected runtime ephemerally
+        env:
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          P=deploy_payload/runtime_min
+          cat "$P/chunk_00.b64" "$P/chunk_01_02.b64" "$P/chunk_03_04.b64" "$P/chunk_05_06.b64" "$P/chunk_07_08.b64" "$P/chunk_09.b64" > runtime.enc.b64
+          base64 -d runtime.enc.b64 > runtime.tar.gz.enc
+          test "$(sha256sum runtime.tar.gz.enc | awk '{print $1}')" = 'b82448d6b4b34b302748815af976b535d69922c197d4b7a9056fc2f91a9e12cf'
+          openssl enc -d -aes-256-cbc -pbkdf2 -iter 250000 -in runtime.tar.gz.enc -out runtime.tar.gz -pass env:CLOUDFLARE_GLOBAL_API_KEY
+          test "$(sha256sum runtime.tar.gz | awk '{print $1}')" = 'b4d5a0266446523969a619f5e9bb5a04d9b815c78a2ab82ed046ef5e23d53663'
+          mkdir runtime && tar -xzf runtime.tar.gz -C runtime
+      - name: Emit metering write metadata only
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import hashlib,json,pathlib,re
+          occurrences=[]
+          for p in pathlib.Path('runtime').rglob('*'):
+              if p.suffix not in ('.js','.py'):continue
+              t=p.read_text(errors='replace')
+              for m in re.finditer(r'usage_events',t):
+                  w=t[max(0,m.start()-2200):min(len(t),m.end()+3200)]
+                  occurrences.append({
+                    'file_suffix':p.suffix,
+                    'has_insert_usage_events':bool(re.search(r'INSERT\s+(?:OR\s+\w+\s+)?INTO\s+usage_events',w,re.I)),
+                    'has_update_usage_buckets':bool(re.search(r'usage_buckets',w,re.I)),
+                    'nearby_function_names':sorted(set(re.findall(r'(?:async\s+)?function\s+([A-Za-z_$][A-Za-z0-9_$]*)\s*\(',w)+re.findall(r'^\s*def\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(',w,re.M))),
+                    'status_literals':sorted(set(re.findall(r'["\'](ok|success|failed|error|completed|pending)["\']',w,re.I))),
+                    'request_id_references':len(re.findall(r'request[_A-Za-z]*id',w,re.I)),
+                    'operation_references':len(re.findall(r'\boperation\b',w,re.I)),
+                  })
+          inserts=sum(1 for x in occurrences if x['has_insert_usage_events'])
+          out={'schema':'musitu.axiom.metering_write_contract.v1','usage_events_reference_context_count':len(occurrences),'usage_event_insert_context_count':inserts,'contexts':occurrences,'runtime_archive_sha256':'b4d5a0266446523969a619f5e9bb5a04d9b815c78a2ab82ed046ef5e23d53663','plaintext_source_published':False,'secret_values_read':False,'mutation_performed':False,'gate':'AXIOM_METERING_WRITE_CONTRACT_READ_PASS'}
+          raw=(json.dumps(out,indent=2,sort_keys=True)+'\n').encode();pathlib.Path('metering-write-contract.json').write_bytes(raw);dg=hashlib.sha256(raw).hexdigest();pathlib.Path('metering-write-contract.sha256').write_text(dg+'  metering-write-contract.json\n')
+          print(json.dumps({**out,'evidence_sha256':dg},sort_keys=True))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: musitu-axiom-metering-write-contract
+          path: |
+            metering-write-contract.json
+            metering-write-contract.sha256
+          retention-days: 14
+          if-no-files-found: error
