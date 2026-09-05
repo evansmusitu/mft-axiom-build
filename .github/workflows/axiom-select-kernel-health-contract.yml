@@ -1,0 +1,70 @@
+name: MFT Axiom Select Kernel Health Contract
+
+on:
+  push:
+    paths:
+      - '.github/workflows/axiom-select-kernel-health-contract.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  trace:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Reconstruct protected source
+        env:
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          P=deploy_payload/runtime_min
+          cat "$P/chunk_00.b64" "$P/chunk_01_02.b64" "$P/chunk_03_04.b64" "$P/chunk_05_06.b64" "$P/chunk_07_08.b64" "$P/chunk_09.b64" > runtime.enc.b64
+          base64 -d runtime.enc.b64 > runtime.tar.gz.enc
+          test "$(sha256sum runtime.tar.gz.enc | awk '{print $1}')" = 'b82448d6b4b34b302748815af976b535d69922c197d4b7a9056fc2f91a9e12cf'
+          openssl enc -d -aes-256-cbc -pbkdf2 -iter 250000 -in runtime.tar.gz.enc -out runtime.tar.gz -pass env:CLOUDFLARE_GLOBAL_API_KEY
+          test "$(sha256sum runtime.tar.gz | awk '{print $1}')" = 'b4d5a0266446523969a619f5e9bb5a04d9b815c78a2ab82ed046ef5e23d53663'
+          mkdir runtime && tar -xzf runtime.tar.gz -C runtime
+      - name: Emit selector metadata only
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json,pathlib,re
+          s=pathlib.Path('runtime/worker/src/index.js').read_text(errors='replace')
+          m=re.search(r'(?:async\s+)?function\s+selectKernel\s*\([^)]*\)\s*\{',s)
+          if not m: raise SystemExit('selectKernel missing')
+          start=m.end()-1; depth=0; quote=None; esc=False; end=None
+          for i in range(start,len(s)):
+              c=s[i]
+              if quote:
+                  if esc: esc=False
+                  elif c=='\\': esc=True
+                  elif c==quote: quote=None
+                  continue
+              if c in "'\"`": quote=c; continue
+              if c=='{': depth+=1
+              elif c=='}':
+                  depth-=1
+                  if depth==0: end=i; break
+          b=s[start+1:end]
+          urls=sorted(set(re.findall(r"https?://[A-Za-z0-9_.:/{}-]+",b)))
+          paths=sorted(set(re.findall(r"['\"](\/[A-Za-z0-9_./:{}-]+)['\"]",b)))
+          out={
+            'schema':'mft.axiom.select_kernel_health_contract.v1',
+            'url_literals':urls,
+            'path_literals':paths,
+            'mentions_health':'health' in b.lower(),
+            'fetch_calls':len(re.findall(r'\.fetch\s*\(',b)),
+            'new_request_calls':len(re.findall(r'new\s+Request\s*\(',b)),
+            'checks_ok':'.ok' in b,
+            'checks_status':'.status' in b,
+            'returns_binding_directly':bool(re.search(r'\breturn\s+binding\s*;',b)),
+            'returns_null':bool(re.search(r'\breturn\s+null\s*;',b)),
+            'plaintext_source_committed':False,
+          }
+          pathlib.Path('select-kernel-health-contract.json').write_text(json.dumps(out,indent=2,sort_keys=True))
+          print(json.dumps(out,sort_keys=True))
+          PY
