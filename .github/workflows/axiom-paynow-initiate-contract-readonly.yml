@@ -1,0 +1,75 @@
+name: MUSITU Axiom Paynow Initiate Contract Read-Only
+
+on:
+  push:
+    paths:
+      - '.github/workflows/axiom-paynow-initiate-contract-readonly.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      CF_API: https://api.cloudflare.com/client/v4
+      ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      TRANSPORT: mft-paynow-transport-gateway
+    steps:
+      - uses: actions/checkout@v4
+      - name: Extract initiation payload and response metadata only
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import email,hashlib,json,os,re,urllib.parse,urllib.request
+          api=os.environ['CF_API']; aid=os.environ['ACCOUNT_ID']; w=os.environ['TRANSPORT']
+          H={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY'],'User-Agent':'MUSITU-Axiom-Paynow-Initiate-Contract/1.0'}
+          q=urllib.request.Request(f'{api}/accounts/{aid}/workers/scripts/{urllib.parse.quote(w,safe="")}',headers=H)
+          with urllib.request.urlopen(q,timeout=45) as r: raw=r.read(); ct=r.headers.get('content-type','')
+          src=raw
+          if 'multipart/' in ct.lower():
+              msg=email.message_from_bytes((f'Content-Type: {ct}\r\nMIME-Version: 1.0\r\n\r\n').encode()+raw); parts=[]
+              for p in msg.walk():
+                  if p.is_multipart(): continue
+                  d=p.get_payload(decode=True) or b''
+                  if any(x in d for x in (b'fetch(',b'export default',b'addEventListener')): parts.append(d)
+              if len(parts)!=1: raise SystemExit(f'Fail-closed executable module count {len(parts)}')
+              src=parts[0]
+          text=src.decode('utf-8','ignore')
+          needle='/internal/paynow/initiate'; i=text.find(needle)
+          if i<0: raise SystemExit('Fail-closed initiate route absent')
+          win=text[max(0,i-3500):min(len(text),i+6500)]
+          # Safe interface metadata only; do not emit source text or values.
+          json_access=sorted(set(re.findall(r'\b(?:body|payload|data|input)\.([A-Za-z_][A-Za-z0-9_]*)',win)))
+          destructured=[]
+          for m in re.finditer(r'\{([^{}]{1,600})\}\s*=\s*await\s+req(?:uest)?\.json\(\)',win,re.S):
+              for x in m.group(1).split(','):
+                  k=x.strip().split(':',1)[0].strip()
+                  if re.fullmatch(r'[A-Za-z_][A-Za-z0-9_]*',k): destructured.append(k)
+          form_keys=sorted(set(re.findall(r'(?:\.set|\.append)\(["\']([A-Za-z_][A-Za-z0-9_-]*)["\']',win)))
+          response_keys=sorted(set(re.findall(r'\b(?:return\s+json|json)\s*\(\s*\{([^{}]{1,900})\}',win,re.S)))
+          response_fields=set()
+          for block in response_keys:
+              for m in re.finditer(r'([A-Za-z_][A-Za-z0-9_]*)\s*:',block): response_fields.add(m.group(1))
+          urls=sorted(set(re.findall(r'https://[^"\'\s)]+',win)))
+          paths=sorted(set(re.findall(r'["\'](/internal/[A-Za-z0-9_./:-]+)["\']',win)))
+          literals=sorted(set(re.findall(r'["\']([A-Za-z][A-Za-z0-9_-]{1,40})["\']',win)))
+          relevant=[x for x in literals if x.lower() in {'reference','amount','returnurl','resulturl','additionalinfo','poll_url','redirect_url','url','status','hash','id','email','customer_id','plan','price_id','currency','method','authorization','content-type'}]
+          out={'schema':'musitu.axiom.paynow_initiate_contract.v1','source_sha256':hashlib.sha256(src).hexdigest(),'route':needle,'json_body_keys':sorted(set(json_access+destructured)),'upstream_form_keys':form_keys,'response_fields':sorted(response_fields),'upstream_urls':urls,'internal_paths':paths,'relevant_literals':relevant,'secret_values_read':False,'mutation_performed':False,'source_published':False,'gate':'AXIOM_PAYNOW_INITIATE_CONTRACT_READ_PASS'}
+          blob=(json.dumps(out,indent=2,sort_keys=True)+'\n').encode(); open('paynow-initiate-contract.json','wb').write(blob); dg=hashlib.sha256(blob).hexdigest(); open('paynow-initiate-contract.sha256','w').write(dg+'  paynow-initiate-contract.json\n')
+          print(json.dumps({**out,'evidence_sha256':dg},sort_keys=True))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: musitu-axiom-paynow-initiate-contract
+          path: |
+            paynow-initiate-contract.json
+            paynow-initiate-contract.sha256
+          retention-days: 14
+          if-no-files-found: error
