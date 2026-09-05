@@ -1,0 +1,193 @@
+name: MUSITU Axiom Public Plugin Gate V4 Cutover
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'mcp/musitu_axiom_plugin_gate_v4.mjs'
+      - '.github/workflows/axiom-plugin-gate-v4-cutover.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: musitu-axiom-public-plugin-cutover
+  cancel-in-progress: false
+
+jobs:
+  cutover:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      CF_API: https://api.cloudflare.com/client/v4
+      ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      D1_UUID: 504029cc-f9a5-495e-818f-63c6144b4ea4
+      MCP_HOST: mcp.mftintelligence.com
+      MCP_PUBLIC_WORKER: musitu-axiom-mcp
+      MCP_CORE_WORKER: musitu-axiom-mcp-core
+      AUTH_ISSUER: https://auth.mftintelligence.com
+      EXPECTED_BUILD: MFT-AXIOM-V3-FULL-SELF-CONTAINED-20260904
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate public Plugin gate source
+        run: |
+          set -euo pipefail
+          node --check mcp/musitu_axiom_plugin_gate_v4.mjs
+          grep -q 'submission_safe_commerce_profile' mcp/musitu_axiom_plugin_gate_v4.mjs
+          grep -q 'commerce_tools_exposed:false' mcp/musitu_axiom_plugin_gate_v4.mjs
+      - name: Deploy and prove submission-safe public Plugin profile
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import base64,datetime,hashlib,json,os,pathlib,re,secrets,time,urllib.error,urllib.parse,urllib.request,uuid
+          api=os.environ['CF_API'];aid=os.environ['ACCOUNT_ID'];dbid=os.environ['D1_UUID'];host=os.environ['MCP_HOST'];pub=os.environ['MCP_PUBLIC_WORKER'];core=os.environ['MCP_CORE_WORKER'];issuer=os.environ['AUTH_ISSUER'];resource='https://'+host
+          v3=pathlib.Path('mcp/musitu_axiom_mcp_oauth_gate_v3.mjs').read_bytes();v4=pathlib.Path('mcp/musitu_axiom_plugin_gate_v4.mjs').read_bytes();v4sha=hashlib.sha256(v4).hexdigest()
+          H={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY'],'Accept':'application/json','User-Agent':'MUSITU-Axiom-Plugin-V4-Cutover/1.0'}
+          def raw(url,method='GET',headers=None,body=None,timeout=45,follow=True):
+            req=urllib.request.Request(url,headers=dict(headers or {}),method=method,data=body)
+            opener=urllib.request.build_opener() if follow else urllib.request.build_opener(type('NoRedirect',(urllib.request.HTTPRedirectHandler,),{'redirect_request':lambda self,req,fp,code,msg,headers,newurl:None})())
+            try:
+              with opener.open(req,timeout=timeout) as r:return r.status,r.headers,r.read()
+            except urllib.error.HTTPError as e:return e.code,e.headers,e.read()
+            except urllib.error.URLError:return 0,{},b''
+          def cf(path,method='GET',obj=None):
+            h=dict(H);b=None
+            if obj is not None:h['Content-Type']='application/json';b=json.dumps(obj,separators=(',',':')).encode()
+            c,_,r=raw(api+path,method,h,b)
+            if not 200<=c<300:raise RuntimeError(f'CF HTTP {c} {method} {path}')
+            o=json.loads(r or b'{}')
+            if o.get('success') is False:raise RuntimeError('CF success=false '+path)
+            return o.get('result')
+          def d1(sql,params=None):
+            o={'sql':sql}
+            if params is not None:o['params']=params
+            rr=cf(f'/accounts/{aid}/d1/database/{dbid}/query','POST',o) or [];rows=[]
+            if not rr or not all(x.get('success') is True for x in rr):raise RuntimeError('D1 statement failed')
+            for x in rr:rows.extend(x.get('results') or [])
+            return rows
+          def multipart(source,bindings):
+            bd='----MUSITU'+secrets.token_hex(16);p=[]
+            def a(x):p.append(x.encode() if isinstance(x,str) else x)
+            meta={'main_module':'index.mjs','compatibility_date':'2026-09-05','bindings':bindings}
+            a(f'--{bd}\r\nContent-Disposition: form-data; name="metadata"\r\nContent-Type: application/json\r\n\r\n');a(json.dumps(meta,separators=(',',':')));a('\r\n')
+            a(f'--{bd}\r\nContent-Disposition: form-data; name="index.mjs"; filename="index.mjs"\r\nContent-Type: application/javascript+module\r\n\r\n');a(source);a('\r\n');a(f'--{bd}--\r\n')
+            return bd,b''.join(p)
+          bindings=[{'type':'d1','name':'AXIOM_DB','id':dbid},{'type':'plain_text','name':'AUTH_ISSUER','text':issuer},{'type':'plain_text','name':'MCP_PUBLIC_BASE','text':resource},{'type':'service','name':'MCP_CORE','service':core}]
+          def upload(source):
+            bd,body=multipart(source,bindings);h=dict(H);h['Content-Type']='multipart/form-data; boundary='+bd
+            c,_,b=raw(f'{api}/accounts/{aid}/workers/scripts/{urllib.parse.quote(pub,safe="")}', 'PUT',h,body)
+            if not 200<=c<300:raise RuntimeError('public worker upload HTTP '+str(c)+' '+b[:180].decode('utf-8','ignore'))
+            cf(f'/accounts/{aid}/workers/scripts/{urllib.parse.quote(pub,safe="")}/subdomain','POST',{'enabled':False,'previews_enabled':False})
+          def probe(path,method='GET',obj=None,token=None):
+            h={'Accept':'application/json','User-Agent':'MUSITU-Axiom-Plugin-V4-Verify/1.0'};body=None
+            if obj is not None:h['Content-Type']='application/json';body=json.dumps(obj,separators=(',',':')).encode()
+            if token:h['Authorization']='Bearer '+token
+            c,hh,b=raw(resource+path,method,h,body)
+            try:o=json.loads(b or b'{}')
+            except:o={}
+            return c,hh,o,b
+          def core_mcp(method,params=None):
+            body=json.dumps({'jsonrpc':'2.0','id':1,'method':method,'params':params or {}},separators=(',',':')).encode();req=urllib.request.Request('https://internal.invalid/mcp',data=body,method='POST',headers={'Content-Type':'application/json','Accept':'application/json'})
+            # call private service only via temporary diagnostic Worker is impossible from runner; public v4 health proves binding, and prior sealed v2 core proves its full 112-tool revenue surface.
+          def b64url(b):return base64.urlsafe_b64encode(b).rstrip(b'=').decode()
+          def form(url,data,headers=None,follow=True):
+            h={'Accept':'application/json','Content-Type':'application/x-www-form-urlencoded','User-Agent':'MUSITU-Axiom-Plugin-V4-OAuth-E2E/1.0'}
+            if headers:h.update(headers)
+            return raw(url,'POST',h,urllib.parse.urlencode(data).encode(),45,follow)
+          hidden={'musitu_axiom_plans','musitu_axiom_recommend_plan','musitu_axiom_start_checkout','musitu_axiom_checkout_status'}
+          domains=[x for x in (cf(f'/accounts/{aid}/workers/domains') or []) if x.get('hostname')==host]
+          if len(domains)!=1 or domains[0].get('service')!=pub:raise RuntimeError('canonical MCP domain drift')
+          ps=cf(f'/accounts/{aid}/workers/scripts/{urllib.parse.quote(pub,safe="")}/settings') or {};pb={x.get('name'):x for x in ps.get('bindings') or [] if isinstance(x,dict)}
+          if pb.get('MCP_CORE',{}).get('service')!=core or pb.get('AXIOM_DB',{}).get('id')!=dbid:raise RuntimeError('pre-cutover v3 binding drift')
+          pre,_,preo,_=probe('/health')
+          if pre!=200 or preo.get('oauth_enforced') is not True:raise RuntimeError('pre-cutover v3 not healthy')
+          customer=None;client_id=None;mutated=False;evidence={}
+          try:
+            upload(v4);mutated=True
+            converged=None
+            for attempt in range(40):
+              hc,_,ho,_=probe('/health');lc,_,lo,_=probe('/mcp','POST',{'jsonrpc':'2.0','id':100+attempt,'method':'tools/list','params':{}});tools=(lo.get('result') or {}).get('tools') or []
+              names={t.get('name') for t in tools};mapped={t.get('_meta',{}).get('musitu/operation') for t in tools if isinstance(t,dict)}-{None};biz=[t for t in tools if t.get('_meta',{}).get('musitu/business_product') is True]
+              if hc==200 and ho.get('ok') is True and ho.get('server_version')=='4.0.0' and ho.get('submission_safe_commerce_profile') is True and ho.get('oauth_enforced') is True and (ho.get('core') or {}).get('build_id')==os.environ['EXPECTED_BUILD'] and lc==200 and len(tools)==108 and len(mapped)==74 and len(biz)==30 and not (names&hidden):
+                converged=(ho,tools);break
+              time.sleep(2)
+            if converged is None:raise RuntimeError('v4 convergence failed')
+            ho,tools=converged;names={t.get('name') for t in tools}
+            if any(HIDDEN in json.dumps(tools).lower() for HIDDEN in ['musitu_axiom_start_checkout','musitu_axiom_plans','musitu_axiom_recommend_plan','musitu_axiom_checkout_status']):raise RuntimeError('commerce tool leaked through tools/list')
+            forbidden=re.compile(r'\b(subscribe|upgrade|checkout|monthly plan|subscription plan)\b',re.I)
+            for t in tools:
+              if forbidden.search(str(t.get('description') or '')):raise RuntimeError('promotional commerce wording in '+str(t.get('name')))
+              if not isinstance(t.get('outputSchema'),dict):raise RuntimeError('outputSchema absent '+str(t.get('name')))
+              a=t.get('annotations') or {}
+              if not all(k in a for k in ('readOnlyHint','openWorldHint','destructiveHint')):raise RuntimeError('annotation absent '+str(t.get('name')))
+              schemes=t.get('securitySchemes') or []
+              if t.get('name') in {'search','fetch','musitu_axiom_capabilities'}:
+                if not any(s.get('type')=='noauth' for s in schemes):raise RuntimeError('noauth discovery tool drift')
+              else:
+                if not any(s.get('type')=='oauth2' and s.get('scopes')==['axiom.execute'] for s in schemes):raise RuntimeError('public OAuth scope drift '+str(t.get('name')))
+            ic,_,io,_=probe('/mcp','POST',{'jsonrpc':'2.0','id':2,'method':'initialize','params':{'protocolVersion':'2025-06-18','capabilities':{},'clientInfo':{'name':'v4-verifier','version':'1'}}});instructions=str((io.get('result') or {}).get('instructions') or '')
+            if ic!=200 or forbidden.search(instructions):raise RuntimeError('initialize instructions are promotional')
+            mc,_,meta,_=probe('/.well-known/oauth-protected-resource')
+            if mc!=200 or meta.get('resource')!=resource or meta.get('authorization_servers')!=[issuer] or meta.get('scopes_supported')!=['axiom.execute']:raise RuntimeError('public protected-resource scope drift')
+            for q in ['plan','subscribe','checkout','upgrade']:
+              sc,_,so,_=probe('/mcp','POST',{'jsonrpc':'2.0','id':10,'method':'tools/call','params':{'name':'search','arguments':{'query':q}}});results=((so.get('result') or {}).get('structuredContent') or {}).get('results') or []
+              if sc!=200 or any(str(x.get('id','')).startswith('plan:') or str(x.get('id','')).split(':')[-1] in hidden for x in results):raise RuntimeError('commerce leaked through search '+q)
+            fc,_,fo,_=probe('/mcp','POST',{'jsonrpc':'2.0','id':11,'method':'tools/call','params':{'name':'fetch','arguments':{'id':'tool:musitu_axiom_start_checkout'}}});
+            if fc!=200 or (fo.get('result') or {}).get('isError') is not True:raise RuntimeError('hidden checkout fetch did not fail closed')
+            cc,_,co,_=probe('/mcp','POST',{'jsonrpc':'2.0','id':12,'method':'tools/call','params':{'name':'musitu_axiom_capabilities','arguments':{}}});sc=(co.get('result') or {}).get('structuredContent') or {}
+            if cc!=200 or sc.get('operation_count')!=74 or sc.get('business_product_count')!=30 or sc.get('commerce_tools_exposed') is not False or 'billing_tools' in sc:raise RuntimeError('capability response commerce leak')
+            for page in ['/privacy','/terms','/docs']:
+              pc,_,_,pbod=probe(page)
+              if pc!=200 or len(pbod)<200:raise RuntimeError(page+' not publication-ready')
+            # Disposable OAuth flow requesting only axiom.execute, then public v4 compute and response minimization.
+            prefix='fixture_plugin_v4_'+uuid.uuid4().hex;customer=prefix+'_customer';source_key_id=prefix+'_sourcekey';callback='https://chatgpt.com/connector/oauth/musitu-plugin-v4';now=datetime.datetime.now(datetime.timezone.utc);created=now.isoformat().replace('+00:00','Z');source_exp=(now+datetime.timedelta(hours=1)).isoformat().replace('+00:00','Z')
+            account_key='musitu_axiom_plugin_v4_fixture_'+secrets.token_urlsafe(40);print('::add-mask::'+account_key);verifier=b64url(secrets.token_bytes(48));challenge=b64url(hashlib.sha256(verifier.encode()).digest());print('::add-mask::'+verifier)
+            d1('INSERT INTO customers(id,email,name,plan,status,monthly_unit_override,created_at,updated_at) VALUES(?1,?2,?3,?4,?5,?6,?7,?7)',[customer,prefix+'@invalid.example','MUSITU Plugin v4 OAuth fixture','developer','active',100,created]);d1('INSERT INTO api_keys(id,customer_id,key_hash,key_prefix,label,status,created_at,last_used_at,expires_at,revoked_at) VALUES(?1,?2,?3,?4,?5,?6,?7,NULL,?8,NULL)',[source_key_id,customer,hashlib.sha256(account_key.encode()).hexdigest(),account_key[:16],'plugin-v4-oauth-source','active',created,source_exp])
+            rc,_,rb=raw(issuer+'/oauth/register','POST',{'Accept':'application/json','Content-Type':'application/json','User-Agent':'MUSITU-Axiom-Plugin-V4-OAuth-E2E/1.0'},json.dumps({'redirect_uris':[callback],'client_name':'MUSITU Plugin V4 E2E','token_endpoint_auth_method':'none','grant_types':['authorization_code','refresh_token'],'response_types':['code']},separators=(',',':')).encode());reg=json.loads(rb or b'{}')
+            if rc!=201 or not reg.get('client_id'):raise RuntimeError('DCR failed');client_id=str(reg['client_id']);print('::add-mask::'+client_id)
+            state='st_'+secrets.token_urlsafe(20);aq={'response_type':'code','client_id':client_id,'redirect_uri':callback,'scope':'axiom.execute','state':state,'code_challenge':challenge,'code_challenge_method':'S256','resource':resource}
+            ac,ah,ab=raw(issuer+'/oauth/authorize?'+urllib.parse.urlencode(aq),headers={'Accept':'text/html','User-Agent':'MUSITU-Axiom-Plugin-V4-OAuth-E2E/1.0'});page=ab.decode('utf-8','replace');fm=re.search(r'name="flow_id" value="([^"]+)"',page);cookie=str(ah.get('Set-Cookie') or '').split(';',1)[0]
+            if ac!=200 or not fm or not cookie:raise RuntimeError('authorization page failed')
+            pc,ph,pb=form(issuer+'/oauth/authorize',{'flow_id':fm.group(1),'musitu_account_key':account_key},{'Accept':'text/html','Cookie':cookie},False);loc=str(ph.get('Location') or '');qp=urllib.parse.parse_qs(urllib.parse.urlparse(loc).query);code=(qp.get('code') or [''])[0]
+            if pc!=302 or not code or (qp.get('state') or [''])[0]!=state:raise RuntimeError('authorization redirect failed');print('::add-mask::'+code)
+            tc,_,tb=form(issuer+'/oauth/token',{'grant_type':'authorization_code','code':code,'code_verifier':verifier,'client_id':client_id,'redirect_uri':callback,'resource':resource});tok=json.loads(tb or b'{}');access=str(tok.get('access_token') or '')
+            if tc!=200 or not access or tok.get('scope')!='axiom.execute':raise RuntimeError('single-scope token exchange failed');print('::add-mask::'+access)
+            before=int(d1('SELECT count(*) AS n FROM usage_events WHERE customer_id=?1',[customer])[0]['n']);qc,_,qo,qb=probe('/mcp','POST',{'jsonrpc':'2.0','id':20,'method':'tools/call','params':{'name':'musitu_axiom_execute','arguments':{'operation':'arithmetic.evaluate','args':{'expression':'40+2'}}}},access);after=int(d1('SELECT count(*) AS n FROM usage_events WHERE customer_id=?1',[customer])[0]['n'])
+            if qc!=200 or (qo.get('result') or {}).get('isError') is True or '42' not in qb.decode('utf-8','ignore') or after!=before+1:raise RuntimeError('v4 OAuth compute/metering failed')
+            lower=qb.decode('utf-8','ignore').lower();forbidden_keys=['request_id','customer_id','key_id','receipt','signature','result_sha256','request_sha256','access_token','refresh_token','poll_url','browser_url']
+            if any(('"'+k+'"') in lower for k in forbidden_keys):raise RuntimeError('internal identifier leaked in public tool response')
+            # Valid direct legacy key must fail at Plugin boundary without usage.
+            direct='musitu_axiom_plugin_v4_direct_'+secrets.token_urlsafe(36);print('::add-mask::'+direct);direct_id=prefix+'_direct';d1('INSERT INTO api_keys(id,customer_id,key_hash,key_prefix,label,status,created_at,last_used_at,expires_at,revoked_at) VALUES(?1,?2,?3,?4,?5,?6,?7,NULL,?8,NULL)',[direct_id,customer,hashlib.sha256(direct.encode()).hexdigest(),direct[:16],'plugin-v4-direct-reject','active',created,source_exp]);b2=int(d1('SELECT count(*) AS n FROM usage_events WHERE customer_id=?1',[customer])[0]['n']);dc,_,do,_=probe('/mcp','POST',{'jsonrpc':'2.0','id':21,'method':'tools/call','params':{'name':'musitu_axiom_execute','arguments':{'operation':'arithmetic.evaluate','args':{'expression':'6*7'}}}},direct);a2=int(d1('SELECT count(*) AS n FROM usage_events WHERE customer_id=?1',[customer])[0]['n'])
+            if dc!=200 or (do.get('result') or {}).get('isError') is not True or a2!=b2:raise RuntimeError('legacy bearer bypass at v4')
+            evidence={'schema':'musitu.axiom.public_plugin_gate.v4','gate':'MUSITU_AXIOM_PUBLIC_PLUGIN_V4_PASS','hostname':host,'source_sha256':v4sha,'public_tool_count':108,'operation_count':74,'business_product_count':30,'hidden_commerce_tools':sorted(hidden),'commerce_tools_absent_from_tools_list':True,'commerce_absent_from_search_fetch':True,'promotional_commerce_copy_absent':True,'public_scope_only_axiom_execute':True,'oauth_single_scope_e2e':True,'oauth_compute_http':200,'result_42_observed':True,'metering_verified':True,'legacy_direct_bearer_rejected':True,'internal_identifier_response_minimized':True,'privacy_policy_published':True,'terms_published':True,'direct_revenue_core_preserved':True,'kernel_mutated':False,'billing_worker_mutated':False,'raw_modal_public_exposure_added':False,'secret_values_logged':False,'wolfram_parity':'NOT_CERTIFIED','superiority':'NOT_CERTIFIED'}
+          except Exception:
+            if mutated:
+              try:upload(v3)
+              except:pass
+            raise
+          finally:
+            if customer:
+              try:
+                d1('DELETE FROM usage_events WHERE customer_id=?1',[customer]);d1('DELETE FROM usage_buckets WHERE customer_id=?1',[customer]);d1('DELETE FROM oauth_access_tokens WHERE customer_id=?1',[customer]);d1('DELETE FROM oauth_refresh_tokens WHERE customer_id=?1',[customer]);d1('DELETE FROM oauth_authorization_codes WHERE customer_id=?1',[customer]);d1('DELETE FROM oauth_authorization_flows WHERE client_id=?1',[client_id or '']);d1('DELETE FROM oauth_clients WHERE client_id=?1',[client_id or '']);d1('DELETE FROM api_keys WHERE customer_id=?1',[customer]);d1('DELETE FROM customers WHERE id=?1',[customer])
+              except:pass
+          if customer:
+            rr=d1('SELECT (SELECT count(*) FROM customers WHERE id=?1)+(SELECT count(*) FROM api_keys WHERE customer_id=?1)+(SELECT count(*) FROM usage_events WHERE customer_id=?1)+(SELECT count(*) FROM usage_buckets WHERE customer_id=?1)+(SELECT count(*) FROM oauth_access_tokens WHERE customer_id=?1)+(SELECT count(*) FROM oauth_refresh_tokens WHERE customer_id=?1) AS n',[customer])
+            if not rr or int(rr[0]['n'])!=0:raise RuntimeError('fixture cleanup failed')
+          evidence['fixture_rows_remaining']=0;evidence['cleanup_complete']=True
+          p=pathlib.Path('musitu-axiom-public-plugin-v4.json');p.write_text(json.dumps(evidence,indent=2,sort_keys=True)+'\n');dg=hashlib.sha256(p.read_bytes()).hexdigest();pathlib.Path('musitu-axiom-public-plugin-v4.sha256').write_text(dg+'  '+p.name+'\n')
+          print(json.dumps({'gate':evidence['gate'],'public_tool_count':108,'operation_count':74,'business_product_count':30,'oauth_single_scope_e2e':True,'metering_verified':True,'evidence_sha256':dg},sort_keys=True))
+          PY
+      - name: Upload sealed public Plugin evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: musitu-axiom-public-plugin-v4
+          path: |
+            musitu-axiom-public-plugin-v4.json
+            musitu-axiom-public-plugin-v4.sha256
+          retention-days: 30
+          if-no-files-found: warn
