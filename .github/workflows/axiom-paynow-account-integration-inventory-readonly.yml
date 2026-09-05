@@ -1,0 +1,73 @@
+name: MUSITU Axiom Paynow Integration Inventory Read-Only
+
+on:
+  push:
+    paths:
+      - '.github/workflows/axiom-paynow-account-integration-inventory-readonly.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      CF_API: https://api.cloudflare.com/client/v4
+      ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+    steps:
+      - uses: actions/checkout@v4
+      - name: Scan Worker metadata for existing Paynow integration identity
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import email,hashlib,json,os,re,urllib.parse,urllib.request
+          api=os.environ['CF_API']; aid=os.environ['ACCOUNT_ID']
+          H={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY'],'User-Agent':'MUSITU-Axiom-Paynow-Inventory/1.0'}
+          def get(path):
+              q=urllib.request.Request(api+path,headers=H)
+              with urllib.request.urlopen(q,timeout=45) as r:return r.headers,r.read()
+          scripts=json.loads(get(f'/accounts/{aid}/workers/scripts')[1] or b'{}').get('result') or []
+          names=sorted(str(x.get('id') or x.get('name')) for x in scripts if isinstance(x,dict) and (x.get('id') or x.get('name')))
+          hits=[]
+          for name in names:
+              try:h,raw=get(f'/accounts/{aid}/workers/scripts/{urllib.parse.quote(name,safe="")}')
+              except Exception:continue
+              ct=h.get('content-type',''); src=raw
+              if 'multipart/' in ct.lower():
+                  msg=email.message_from_bytes((f'Content-Type: {ct}\r\nMIME-Version: 1.0\r\n\r\n').encode()+raw); parts=[]
+                  for p in msg.walk():
+                      if p.is_multipart():continue
+                      d=p.get_payload(decode=True) or b''
+                      if any(x in d for x in (b'fetch(',b'export default',b'addEventListener')):parts.append(d)
+                  if len(parts)==1:src=parts[0]
+              text=src.decode('utf-8','ignore')
+              markers={
+                'has_paynow_domain':'paynow.co.zw' in text.lower(),
+                'has_initiate_endpoint':'initiatetransaction' in text.lower(),
+                'has_integration_key_symbol':'PAYNOW_INTEGRATION_KEY' in text,
+                'has_integration_id_symbol':'PAYNOW_INTEGRATION_ID' in text,
+                'has_id_form_literal':bool(re.search(r'["\']id["\']\s*[,)]',text,re.I)),
+              }
+              if any(markers.values()):
+                  public_ids=[]
+                  # Integration IDs are public merchant identifiers per Paynow docs; only emit numeric literals directly adjacent to an integration-id symbol.
+                  for m in re.finditer(r'PAYNOW_INTEGRATION_ID[^0-9]{0,60}(\d{2,20})',text):public_ids.append(m.group(1))
+                  hits.append({'script':name,'source_sha256':hashlib.sha256(src).hexdigest(),'markers':markers,'public_integration_id_candidates':sorted(set(public_ids))})
+          out={'schema':'musitu.axiom.paynow_integration_inventory.v1','scripts_scanned':len(names),'hits':hits,'secret_values_read':False,'mutation_performed':False,'source_published':False,'gate':'AXIOM_PAYNOW_INTEGRATION_INVENTORY_READ_PASS'}
+          blob=(json.dumps(out,indent=2,sort_keys=True)+'\n').encode();open('paynow-integration-inventory.json','wb').write(blob);dg=hashlib.sha256(blob).hexdigest();open('paynow-integration-inventory.sha256','w').write(dg+'  paynow-integration-inventory.json\n')
+          print(json.dumps({**out,'evidence_sha256':dg},sort_keys=True))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: musitu-axiom-paynow-integration-inventory
+          path: |
+            paynow-integration-inventory.json
+            paynow-integration-inventory.sha256
+          retention-days: 14
+          if-no-files-found: error
