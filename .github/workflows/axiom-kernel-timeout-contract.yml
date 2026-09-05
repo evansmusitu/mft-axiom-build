@@ -1,0 +1,77 @@
+name: MFT Axiom Kernel Timeout Contract
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/axiom-kernel-timeout-contract.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Reconstruct encrypted source
+        env:
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          P=deploy_payload/runtime_min
+          cat "$P/chunk_00.b64" "$P/chunk_01_02.b64" "$P/chunk_03_04.b64" "$P/chunk_05_06.b64" "$P/chunk_07_08.b64" "$P/chunk_09.b64" > runtime.enc.b64
+          base64 -d runtime.enc.b64 > runtime.tar.gz.enc
+          test "$(sha256sum runtime.tar.gz.enc | awk '{print $1}')" = 'b82448d6b4b34b302748815af976b535d69922c197d4b7a9056fc2f91a9e12cf'
+          python - <<'PY'
+          import hashlib,hmac,os
+          b=open('runtime.tar.gz.enc','rb').read()
+          if not hmac.compare_digest(hmac.new(os.environ['CLOUDFLARE_GLOBAL_API_KEY'].encode(),b,hashlib.sha256).hexdigest(),'1a3193d4f3271d61d151e6ebd7cf4576d8ab86c2e79b84eff4ad0f635fe7ab47'):
+              raise SystemExit('HMAC mismatch')
+          PY
+          openssl enc -d -aes-256-cbc -pbkdf2 -iter 250000 -in runtime.tar.gz.enc -out runtime.tar.gz -pass env:CLOUDFLARE_GLOBAL_API_KEY
+          test "$(sha256sum runtime.tar.gz | awk '{print $1}')" = 'b4d5a0266446523969a619f5e9bb5a04d9b815c78a2ab82ed046ef5e23d53663'
+          mkdir runtime && tar -xzf runtime.tar.gz -C runtime
+      - name: Extract timeout retry and response policy metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json,pathlib,re
+          s=pathlib.Path('runtime/worker/src/index.js').read_text(errors='replace')
+          needle='http://container/v1/compute'; i=s.find(needle)
+          if i<0: raise SystemExit('kernel fetch site missing')
+          w=s[max(0,i-5000):min(len(s),i+8000)]
+          numbers=[]
+          for pat,kind in [
+            (r'AbortSignal\.timeout\s*\(\s*(\d+)\s*\)','AbortSignal.timeout'),
+            (r'setTimeout\s*\([^,]+,\s*(\d+)\s*\)','setTimeout'),
+            (r'timeout\s*[:=]\s*(\d+)','timeout_assignment')]:
+              for m in re.finditer(pat,w,re.I): numbers.append({'kind':kind,'milliseconds':int(m.group(1))})
+          retries=[]
+          for pat,kind in [
+            (r'for\s*\([^;]*;[^;]*<\s*(\d+)[^;]*;','bounded_for'),
+            (r'for\s*\([^;]*;[^;]*<=\s*(\d+)[^;]*;','bounded_for_inclusive'),
+            (r'retr(?:y|ies)[A-Za-z_$]*\s*[:=]\s*(\d+)','retry_assignment')]:
+              for m in re.finditer(pat,w,re.I): retries.append({'kind':kind,'bound':int(m.group(1))})
+          checks={
+            'checks_response_ok':bool(re.search(r'\b[A-Za-z_$][\w$]*\.ok\b',w)),
+            'checks_response_status':bool(re.search(r'\b[A-Za-z_$][\w$]*\.status\b',w)),
+            'has_try_catch':('try {' in w or 'try{' in w) and ('catch' in w),
+            'kernel_unavailable_literal':'kernel_unavailable' in w,
+            'abort_controller':('AbortController' in w),
+          }
+          out={'schema':'mft.axiom.kernel_timeout_contract.v1','timeouts':numbers,'retry_bounds':retries,'response_policy':checks,'plaintext_source_committed':False}
+          pathlib.Path('kernel-timeout-contract.json').write_text(json.dumps(out,indent=2,sort_keys=True))
+          print(json.dumps(out,sort_keys=True))
+          PY
+          sha256sum kernel-timeout-contract.json > kernel-timeout-contract.sha256
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mft-axiom-kernel-timeout-contract
+          path: |
+            kernel-timeout-contract.json
+            kernel-timeout-contract.sha256
+          retention-days: 7
