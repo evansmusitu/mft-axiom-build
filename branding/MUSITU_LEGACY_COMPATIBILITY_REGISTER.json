@@ -1,0 +1,58 @@
+{
+  "schema": "musitu.brand.legacy_compatibility_register.v1",
+  "company_brand": "MUSITU",
+  "product": "MUSITU Axiom",
+  "status": "BRAND_MIGRATION_COMPLETE_EXTERNAL_COMPATIBILITY_CUTOVER_PENDING",
+  "final_audit_commit": "eb5f2a2ceb06f6ac5632399ee200051e12f04786",
+  "final_audit": {
+    "files_with_legacy_handles": 56,
+    "immutable_build_or_historical_id_occurrences": 62,
+    "legacy_live_domain_occurrences": 53,
+    "legacy_repository_slug_occurrences": 1,
+    "protected_live_resource_occurrences": 81,
+    "protocol_or_other_retired_namespace_occurrences": 35,
+    "secret_env_or_historical_symbol_occurrences": 73
+  },
+  "protected_live_resource_handles": [
+    "mft-axiom-bootstrap",
+    "mft-axiom-prod",
+    "mft-axiom-production",
+    "mft-axiom-modal-edge-stage",
+    "mft-axiom-v3-modal-staging",
+    "mft-axiom-modal-adapter",
+    "mft-axiom-staging",
+    "mft-axiom-staging-kernel"
+  ],
+  "legacy_repository_handle": "evansmusitu/mft-axiom-build",
+  "legacy_live_domain": "mftintelligence.com",
+  "legacy_stage_hostname": "axiom-stage.mftintelligence.com",
+  "compatibility_protocol_symbols": [
+    "MFT_CONTROL_SECRET",
+    "MFT_RECEIPT_SECRET",
+    "x-mft-control",
+    "x-mft-request-id",
+    "x-mft-axiom-version",
+    "mft_axiom_stage_machine_transport",
+    "mft-internal"
+  ],
+  "immutable_build_ids": [
+    "MFT-AXIOM-EDGE-BOOTSTRAP-20260904",
+    "MFT-AXIOM-V3-SELF-CONTAINED-20260904",
+    "MFT-AXIOM-V3-RUNTIME-RECONSTRUCTION-20260904",
+    "MFT-AXIOM-V3-FULL-SELF-CONTAINED-20260904"
+  ],
+  "migration_rule": "No listed legacy string is a company or product brand. Remove each only by recreate-or-alias, verify, cut over, and retire. Never blind-replace a live identifier or immutable evidence key.",
+  "canonical_names": {
+    "company": "MUSITU",
+    "axiom": "MUSITU Axiom",
+    "foundry": "MUSITU Foundry",
+    "markets": "MUSITU Markets",
+    "worldfabric": "MUSITU WorldFabric",
+    "education": "MUSITU Education",
+    "frontier_market_intelligence": "MUSITU Frontier Market Intelligence"
+  },
+  "truth_boundary": {
+    "wolfram_parity": "NOT_CERTIFIED",
+    "superiority": "NOT_CERTIFIED"
+  }
+}
