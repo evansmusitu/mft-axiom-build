@@ -1,0 +1,44 @@
+name: MUSITU Axiom Billing Status Contract Patch
+
+on:
+  push:
+    paths:
+      - '.github/workflows/axiom-billing-status-contract-patch.yml'
+      - 'ops/axiom_billing_status_contract_patch.py'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: musitu-axiom-billing-status-contract-patch
+  cancel-in-progress: false
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    env:
+      CF_API: https://api.cloudflare.com/client/v4
+      ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      D1_UUID: 504029cc-f9a5-495e-818f-63c6144b4ea4
+      BILLING: mft-axiom-billing-ingress
+      BASE: https://payments.mftintelligence.com
+      EXPECTED_BILLING_SHA256: c7e2ca8c11eef9dc6aafc35d435fcdf74f4890212b832c30576c3ca7ed419a7f
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compile patcher before production access
+        run: python -m py_compile ops/axiom_billing_status_contract_patch.py
+      - name: Patch checkout status transitions with rollback
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        run: python ops/axiom_billing_status_contract_patch.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: musitu-axiom-billing-status-contract-patch
+          path: |
+            billing-status-contract-evidence.json
+            billing-status-contract-evidence.sha256
+          retention-days: 30
+          if-no-files-found: error
