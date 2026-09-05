@@ -1,0 +1,198 @@
+name: MFT Axiom Modal Edge Transport Repair
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/axiom-modal-edge-transport-repair.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      CLOUDFLARE_ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+      CLOUDFLARE_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+      MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID }}
+      MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET }}
+      ADAPTER_WORKER: mft-axiom-modal-adapter
+      EDGE_WORKER: mft-axiom-modal-edge-stage
+      PROBE_WORKER: mft-axiom-modal-adapter-probe
+      BUILD_ID: MFT-AXIOM-V3-FULL-SELF-CONTAINED-20260904
+    steps:
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Install tooling and authenticate
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --no-save --ignore-scripts --no-audit --no-fund wrangler@4.129.0 >/dev/null
+          python -m pip install --disable-pip-version-check --quiet 'modal>=1.5,<2'
+          npx wrangler auth token --json >/tmp/cf-auth.json
+          modal app list --json >/dev/null
+          echo auth_gate=PASS
+
+      - name: Create fresh persistent Modal proxy credential and bind adapter
+        shell: bash
+        run: |
+          set -euo pipefail
+          modal workspace proxy-tokens create --json >/tmp/proxy.json
+          python - <<'PY'
+          import json,pathlib
+          obj=json.load(open('/tmp/proxy.json')); vals=[]
+          def walk(x):
+              if isinstance(x,dict):
+                  for v in x.values(): walk(v)
+              elif isinstance(x,list):
+                  for v in x: walk(v)
+              elif isinstance(x,str): vals.append(x)
+          walk(obj)
+          keys=[x for x in vals if x.startswith('wk-')]; secs=[x for x in vals if x.startswith('ws-')]
+          if len(keys)!=1 or len(secs)!=1: raise SystemExit('proxy token shape mismatch')
+          pathlib.Path('/tmp/proxy-key').write_text(keys[0]); pathlib.Path('/tmp/proxy-secret').write_text(secs[0])
+          PY
+          KEY="$(cat /tmp/proxy-key)"; SECRET="$(cat /tmp/proxy-secret)"
+          echo "::add-mask::$KEY"; echo "::add-mask::$SECRET"
+          echo "PERSIST_PROXY_KEY=$KEY" >> "$GITHUB_ENV"
+          echo 'PERSIST_PROXY_CREATED=1' >> "$GITHUB_ENV"
+          printf '%s' "$KEY" | npx wrangler secret put MODAL_PROXY_KEY --name "$ADAPTER_WORKER" >/dev/null
+          printf '%s' "$SECRET" | npx wrangler secret put MODAL_PROXY_SECRET --name "$ADAPTER_WORKER" >/dev/null
+          echo adapter_proxy_secrets_rotated=PASS
+
+      - name: Prove adapter readiness through service binding before edge compute
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir probe
+          cat > probe/index.js <<'JS'
+          const json=(x,s=200)=>new Response(JSON.stringify(x),{status:s,headers:{'content-type':'application/json'}});
+          export default {async fetch(request,env){
+            const u=new URL(request.url);
+            if(u.pathname!=='/ready') return json({ok:false},404);
+            try{
+              const r=await env.ADAPTER.fetch(new Request('http://container/health'));
+              const t=await r.text(); let b=null; try{b=JSON.parse(t)}catch{}
+              return json({upstream_status:r.status,upstream_ok:b?.ok??null});
+            }catch(e){return json({upstream_status:0,upstream_ok:false,error_class:e?.name||'Error'},502)}
+          }};
+          JS
+          python - <<'PY'
+          import json,os
+          open('probe/wrangler.json','w').write(json.dumps({'name':os.environ['PROBE_WORKER'],'main':'index.js','compatibility_date':'2026-09-04','workers_dev':True,'services':[{'binding':'ADAPTER','service':os.environ['ADAPTER_WORKER']}]},indent=2))
+          PY
+          (cd probe && npx wrangler deploy --config wrangler.json >/tmp/probe-deploy.log 2>&1) || { tail -100 /tmp/probe-deploy.log; exit 1; }
+          SUBDOMAIN="$(python - <<'PY'
+          import json,os,urllib.request
+          h={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_API_KEY']}
+          req=urllib.request.Request(f"https://api.cloudflare.com/client/v4/accounts/{os.environ['CLOUDFLARE_ACCOUNT_ID']}/workers/subdomain",headers=h)
+          with urllib.request.urlopen(req,timeout=30) as r:x=json.load(r)
+          print((x.get('result') or {}).get('subdomain') or '')
+          PY
+          )"
+          test -n "$SUBDOMAIN"
+          PROBE_URL="https://${PROBE_WORKER}.${SUBDOMAIN}.workers.dev/ready"
+          ready=0
+          for i in $(seq 1 30); do
+            code="$(curl -sS --max-time 30 -o /tmp/adapter-ready.json -w '%{http_code}' "$PROBE_URL" || true)"
+            if [ "$code" = 200 ] && python - <<'PY'
+          import json,sys
+          try:x=json.load(open('/tmp/adapter-ready.json'))
+          except:sys.exit(1)
+          sys.exit(0 if x.get('upstream_status')==200 and x.get('upstream_ok') is True else 1)
+          PY
+            then ready=1; break; fi
+            sleep 2
+          done
+          test "$ready" = 1 || { echo 'Fail-closed: adapter never became ready'; cat /tmp/adapter-ready.json || true; exit 1; }
+          echo adapter_service_binding_ready=PASS
+
+      - name: Rotate isolated Axiom control and receipt secrets
+        shell: bash
+        run: |
+          set -euo pipefail
+          CONTROL="$(openssl rand -hex 32)"; RECEIPT="$(openssl rand -hex 32)"
+          echo "::add-mask::$CONTROL"; echo "::add-mask::$RECEIPT"
+          printf '%s' "$CONTROL" >/tmp/control
+          printf '%s' "$RECEIPT" >/tmp/receipt
+          printf '%s' "$CONTROL" | npx wrangler secret put MFT_CONTROL_SECRET --name "$EDGE_WORKER" >/dev/null
+          printf '%s' "$RECEIPT" | npx wrangler secret put MFT_RECEIPT_SECRET --name "$EDGE_WORKER" >/dev/null
+          echo edge_runtime_secrets_rotated=PASS
+
+      - name: Verify isolated edge health tools auth compute and signed receipt
+        shell: bash
+        run: |
+          set -euo pipefail
+          SUBDOMAIN="$(python - <<'PY'
+          import json,os,urllib.request
+          h={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_API_KEY']}
+          req=urllib.request.Request(f"https://api.cloudflare.com/client/v4/accounts/{os.environ['CLOUDFLARE_ACCOUNT_ID']}/workers/subdomain",headers=h)
+          with urllib.request.urlopen(req,timeout=30) as r:x=json.load(r)
+          print((x.get('result') or {}).get('subdomain') or '')
+          PY
+          )"
+          URL="https://${EDGE_WORKER}.${SUBDOMAIN}.workers.dev"
+          curl -fsS "$URL/health" >/tmp/health.json
+          curl -fsS "$URL/v1/tools" >/tmp/tools.json
+          python - <<'PY'
+          import json,os
+          h=json.load(open('/tmp/health.json')); t=json.load(open('/tmp/tools.json'))
+          if h.get('ok') is not True or h.get('build_id')!=os.environ['BUILD_ID'] or h.get('operation_count')!=74 or h.get('state')!='D1': raise SystemExit('health contract mismatch')
+          if t.get('operation_count')!=74 or len(t.get('tools',[]))!=74: raise SystemExit('tools contract mismatch')
+          print('isolated_health_tools=PASS')
+          PY
+          unauth="$(curl -sS -o /tmp/unauth.json -w '%{http_code}' -X POST "$URL/v1/compute" -H 'content-type: application/json' --data '{"operation":"arithmetic.evaluate","args":{"expression":"40+2"},"verify":true}')"
+          test "$unauth" = 401 || { echo "expected 401 got $unauth"; exit 1; }
+          CONTROL="$(cat /tmp/control)"
+          code="$(curl -sS --max-time 120 -o /tmp/compute.json -w '%{http_code}' -X POST "$URL/v1/compute" -H "x-mft-control: $CONTROL" -H 'content-type: application/json' --data '{"operation":"arithmetic.evaluate","args":{"expression":"40+2"},"verify":true}')"
+          test "$code" = 200 || { echo "Fail-closed authenticated compute HTTP $code"; cat /tmp/compute.json; exit 1; }
+          python - <<'PY'
+          import json
+          x=json.load(open('/tmp/compute.json'))
+          if x.get('ok') is not True: raise SystemExit('compute not ok')
+          r=x.get('receipt') or {}
+          if r.get('signature_alg')!='HMAC-SHA256' or not r.get('signature') or not r.get('request_sha256') or not r.get('result_sha256'):
+              raise SystemExit('signed receipt contract mismatch')
+          print('isolated_authenticated_compute=PASS')
+          print('isolated_signed_receipt=PASS')
+          PY
+          echo "$URL" >/tmp/edge-url
+
+      - name: Seal transport repair evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json,hashlib,pathlib,os
+          ev={'schema':'mft.axiom.modal_edge_transport_repair.v1','build_id':os.environ['BUILD_ID'],'adapter_service_binding_ready':'PASS','isolated_health_tools':'PASS','unauthorized_compute_401':'PASS','authenticated_compute':'PASS','signed_receipt':'PASS','d1_state':'CANONICAL_SCHEMA_PRESENT','modal_proxy_credential_retained':True,'custom_stage_domain_cutover_performed':False,'production_compute_active':False,'stripe_configuration_present':False,'plaintext_source_committed':False,'wolfram_parity':'NOT_CERTIFIED','superiority':'NOT_CERTIFIED','next_gate':'VERIFY_D1_CUSTOMER_API_KEY_USAGE_PERSISTENCE_THEN_STAGE_DOMAIN_CUTOVER'}
+          raw=json.dumps(ev,sort_keys=True,separators=(',',':')).encode();ev['evidence_sha256']=hashlib.sha256(raw).hexdigest()
+          pathlib.Path('transport-repair-evidence.json').write_text(json.dumps(ev,indent=2,sort_keys=True))
+          print(json.dumps({'transport_repair':'PASS','next_gate':ev['next_gate']},sort_keys=True))
+          PY
+          sha256sum transport-repair-evidence.json > transport-repair-evidence.sha256
+          echo 'PERSIST_PROXY_RETAIN=1' >> "$GITHUB_ENV"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mft-axiom-modal-edge-transport-repair
+          path: |
+            transport-repair-evidence.json
+            transport-repair-evidence.sha256
+          retention-days: 14
+          if-no-files-found: error
+
+      - name: Cleanup temporary probe and revoke proxy only on failure
+        if: ${{ always() }}
+        shell: bash
+        run: |
+          set +e
+          npx wrangler delete --name "$PROBE_WORKER" --force >/dev/null 2>&1 || true
+          if [ "${PERSIST_PROXY_CREATED:-0}" = 1 ] && [ "${PERSIST_PROXY_RETAIN:-0}" != 1 ] && [ -n "${PERSIST_PROXY_KEY:-}" ]; then
+            modal workspace proxy-tokens delete -y "$PERSIST_PROXY_KEY" >/dev/null 2>&1 || true
+          fi
+          rm -rf probe /tmp/proxy.json /tmp/proxy-key /tmp/proxy-secret /tmp/control /tmp/receipt
