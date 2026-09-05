@@ -1,0 +1,55 @@
+name: MUSITU Axiom recordUsage Scheduling Contract
+
+on:
+  push:
+    paths:
+      - '.github/workflows/axiom-record-usage-scheduling-contract.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Reconstruct protected runtime ephemerally
+        env:
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          P=deploy_payload/runtime_min
+          cat "$P/chunk_00.b64" "$P/chunk_01_02.b64" "$P/chunk_03_04.b64" "$P/chunk_05_06.b64" "$P/chunk_07_08.b64" "$P/chunk_09.b64" > runtime.enc.b64
+          base64 -d runtime.enc.b64 > runtime.tar.gz.enc
+          test "$(sha256sum runtime.tar.gz.enc | awk '{print $1}')" = 'b82448d6b4b34b302748815af976b535d69922c197d4b7a9056fc2f91a9e12cf'
+          openssl enc -d -aes-256-cbc -pbkdf2 -iter 250000 -in runtime.tar.gz.enc -out runtime.tar.gz -pass env:CLOUDFLARE_GLOBAL_API_KEY
+          test "$(sha256sum runtime.tar.gz | awk '{print $1}')" = 'b4d5a0266446523969a619f5e9bb5a04d9b815c78a2ab82ed046ef5e23d53663'
+          mkdir runtime && tar -xzf runtime.tar.gz -C runtime
+      - name: Emit call scheduling metadata only
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import hashlib,json,pathlib,re
+          calls=[]
+          for p in pathlib.Path('runtime').rglob('*.js'):
+              t=p.read_text(errors='replace')
+              for m in re.finditer(r'(?<!function\s)recordUsage\s*\(',t):
+                  w=t[max(0,m.start()-900):min(len(t),m.start()+1800)]
+                  calls.append({'file_suffix':p.suffix,'uses_wait_until':bool(re.search(r'waitUntil\s*\([^)]{0,1200}recordUsage\s*\(',w,re.S)),'uses_direct_await':bool(re.search(r'await\s+recordUsage\s*\(',w)),'uses_promise_chain':bool(re.search(r'recordUsage\s*\([^;]{0,1200}\)\s*\.\s*(?:then|catch|finally)\s*\(',w,re.S)),'has_execution_context_identifier':bool(re.search(r'\b(?:ctx|context|executionContext)\b',w)),'has_return_after_call':bool(re.search(r'recordUsage\s*\([^;]{0,1600};[^;]{0,1800}\breturn\b',w,re.S))})
+          if len(calls)!=1:raise SystemExit('Fail-closed recordUsage call count '+str(len(calls)))
+          out={'schema':'musitu.axiom.record_usage_scheduling.v1','calls':calls,'runtime_archive_sha256':'b4d5a0266446523969a619f5e9bb5a04d9b815c78a2ab82ed046ef5e23d53663','plaintext_source_published':False,'secret_values_read':False,'mutation_performed':False,'gate':'AXIOM_RECORD_USAGE_SCHEDULING_CONTRACT_PASS'}
+          raw=(json.dumps(out,indent=2,sort_keys=True)+'\n').encode();pathlib.Path('record-usage-scheduling.json').write_bytes(raw);dg=hashlib.sha256(raw).hexdigest();pathlib.Path('record-usage-scheduling.sha256').write_text(dg+'  record-usage-scheduling.json\n')
+          print(json.dumps({**out,'evidence_sha256':dg},sort_keys=True))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: musitu-axiom-record-usage-scheduling
+          path: |
+            record-usage-scheduling.json
+            record-usage-scheduling.sha256
+          retention-days: 14
+          if-no-files-found: error
