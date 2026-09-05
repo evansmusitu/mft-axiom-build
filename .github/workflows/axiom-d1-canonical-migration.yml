@@ -80,7 +80,7 @@ jobs:
               if not result or not all(x.get('success') is True for x in result):
                   raise SystemExit('Fail-closed: D1 query result not successful')
               return result
-          inventory_sql="SELECT type,name FROM sqlite_master WHERE type IN ('table','index') AND name NOT LIKE 'sqlite_%' ORDER BY type,name;"
+          inventory_sql="SELECT type,name FROM sqlite_master WHERE type IN ('table','index') AND name NOT LIKE 'sqlite_%' AND name NOT LIKE '_cf_%' ORDER BY type,name;"
           before=query(inventory_sql)
           before_rows=[]
           for chunk in before:
@@ -107,7 +107,7 @@ jobs:
           for idx in expected_indexes:
               if idx not in indexes: raise SystemExit('Fail-closed: missing canonical D1 index '+idx)
           db=call(f'/accounts/{aid}/d1/database/{dbid}').get('result') or {}
-          out={'schema':'mft.axiom.d1_canonical_migration.v1','database_name':os.environ['D1_NAME'],'database_uuid':dbid,'migration_path':'migrations/0001_revenue_core.sql','migration_sha256':os.environ['MIGRATION_SHA256'],'write_performed':write_performed,'tables':tables,'required_indexes_verified':expected_indexes,'database_num_tables':db.get('num_tables'),'database_file_size':db.get('file_size'),'gate':'PASS','wolfram_parity':'NOT_CERTIFIED','superiority':'NOT_CERTIFIED'}
+          out={'schema':'mft.axiom.d1_canonical_migration.v1','database_name':os.environ['D1_NAME'],'database_uuid':dbid,'migration_path':'migrations/0001_revenue_core.sql','migration_sha256':os.environ['MIGRATION_SHA256'],'write_performed':write_performed,'tables':tables,'required_indexes_verified':expected_indexes,'cloudflare_internal_tables_ignored':['name LIKE _cf_%'],'database_num_tables':db.get('num_tables'),'database_file_size':db.get('file_size'),'gate':'PASS','wolfram_parity':'NOT_CERTIFIED','superiority':'NOT_CERTIFIED'}
           open('d1-canonical-migration-evidence.json','w').write(json.dumps(out,indent=2,sort_keys=True))
           print(json.dumps({'d1_migration_pass':True,'write_performed':write_performed,'table_count':len(tables),'required_index_count':len(expected_indexes)},sort_keys=True))
           PY
