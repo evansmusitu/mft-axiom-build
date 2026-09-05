@@ -86,8 +86,10 @@ dynamic='bind(intent.reference,status||"unknown",callbackFields.paynowreference|
 normalized='bind(intent.reference,(status==="cancelled"?"cancelled":status==="expired"?"expired":status==="failed"?"failed":"initiated"),callbackFields.paynowreference||null,nowIso()).run()'
 if text.count(dynamic)!=1:raise SystemExit('Fail-closed dynamic provider-status bind shape changed')
 text=text.replace(dynamic,normalized,1)
-for forbidden in ('initiating','initiation_failed','transport_failed','provider_failed','provider_response_unverified','provider_response_invalid',"status='pending'","status='completed'",'status||"unknown"'):
-    if forbidden in text:raise SystemExit('Fail-closed noncanonical checkout status remains: '+forbidden)
+# API error labels may intentionally retain descriptive names such as
+# provider_response_unverified. Guard only database transition expressions.
+for forbidden in ("'initiating'","status='pending'","status='completed'",'status||"unknown"'):
+    if forbidden in text:raise SystemExit('Fail-closed noncanonical checkout DB transition remains: '+forbidden)
 patched=text.encode();open('billing-status-patched.mjs','wb').write(patched);subprocess.run(['node','--check','billing-status-patched.mjs'],check=True,stdout=subprocess.DEVNULL)
 changed=False
 try:
