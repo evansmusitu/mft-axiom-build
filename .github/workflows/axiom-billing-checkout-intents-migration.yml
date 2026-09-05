@@ -1,0 +1,91 @@
+name: MUSITU Axiom Billing Checkout Intent Ledger Migration
+
+on:
+  push:
+    paths:
+      - '.github/workflows/axiom-billing-checkout-intents-migration.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      CF_API: https://api.cloudflare.com/client/v4
+      ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      D1_NAME: musitu-axiom-prod
+      D1_UUID: 504029cc-f9a5-495e-818f-63c6144b4ea4
+    steps:
+      - uses: actions/checkout@v4
+      - name: Create additive checkout-intent ledger and verify exact contract
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import hashlib,json,os,urllib.error,urllib.parse,urllib.request
+          api=os.environ['CF_API'];aid=os.environ['ACCOUNT_ID'];dbid=os.environ['D1_UUID'];name=os.environ['D1_NAME']
+          H={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY'],'Content-Type':'application/json','User-Agent':'MUSITU-Axiom-Billing-Intent-Migration/1.0'}
+          def call(path,method='GET',obj=None):
+              body=None if obj is None else json.dumps(obj,separators=(',',':')).encode();q=urllib.request.Request(api+path,headers=H,method=method,data=body)
+              try:
+                  with urllib.request.urlopen(q,timeout=45) as r:raw=r.read();code=r.status
+              except urllib.error.HTTPError as e:raw=e.read();code=e.code
+              if not 200<=code<300:raise SystemExit(f'Cloudflare HTTP {code} {path}: '+raw[:300].decode('utf-8','ignore'))
+              x=json.loads(raw or b'{}')
+              if isinstance(x,dict) and x.get('success') is False:raise SystemExit('Cloudflare success=false '+path)
+              return x
+          dbs=call(f'/accounts/{aid}/d1/database?name='+urllib.parse.quote(name)).get('result') or []
+          rows=[x for x in dbs if x.get('name')==name]
+          if len(rows)!=1 or rows[0].get('uuid')!=dbid:raise SystemExit('Fail-closed D1 identity mismatch')
+          qpath=f'/accounts/{aid}/d1/database/{dbid}/query'
+          ddl='''CREATE TABLE IF NOT EXISTS billing_checkout_intents (
+            reference TEXT PRIMARY KEY,
+            customer_id TEXT NOT NULL,
+            plan TEXT NOT NULL CHECK(plan IN ('developer','pro','enterprise')),
+            amount_cents INTEGER NOT NULL CHECK(amount_cents > 0),
+            currency TEXT NOT NULL CHECK(currency = 'USD'),
+            monthly_unit_limit INTEGER NOT NULL CHECK(monthly_unit_limit > 0),
+            status TEXT NOT NULL CHECK(status IN ('created','initiated','paid','expired','cancelled','failed')),
+            browser_url TEXT,
+            poll_url TEXT,
+            paynow_reference TEXT,
+            created_at TEXT NOT NULL,
+            expires_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            completed_at TEXT
+          );
+          CREATE INDEX IF NOT EXISTS idx_billing_checkout_customer_time ON billing_checkout_intents(customer_id,created_at);
+          CREATE INDEX IF NOT EXISTS idx_billing_checkout_status_expiry ON billing_checkout_intents(status,expires_at);
+          CREATE UNIQUE INDEX IF NOT EXISTS idx_billing_checkout_paynow_reference ON billing_checkout_intents(paynow_reference) WHERE paynow_reference IS NOT NULL;'''
+          result=call(qpath,'POST',{'sql':ddl}).get('result') or []
+          if not result or not all(x.get('success') is True for x in result):raise SystemExit('Fail-closed checkout-intent DDL failed')
+          def query(sql):
+              rr=call(qpath,'POST',{'sql':sql}).get('result') or [];out=[]
+              if not rr or not all(x.get('success') is True for x in rr):raise SystemExit('Fail-closed verify query failed')
+              for x in rr:out.extend(x.get('results') or [])
+              return out
+          cols=[x.get('name') for x in query('PRAGMA table_info("billing_checkout_intents");')]
+          expected=['reference','customer_id','plan','amount_cents','currency','monthly_unit_limit','status','browser_url','poll_url','paynow_reference','created_at','expires_at','updated_at','completed_at']
+          if cols!=expected:raise SystemExit('Fail-closed billing_checkout_intents column mismatch '+repr(cols))
+          indexes=sorted(x.get('name') for x in query("SELECT name FROM sqlite_master WHERE type='index' AND tbl_name='billing_checkout_intents' AND name NOT LIKE 'sqlite_%';") if x.get('name'))
+          required=sorted(['idx_billing_checkout_customer_time','idx_billing_checkout_status_expiry','idx_billing_checkout_paynow_reference'])
+          if any(x not in indexes for x in required):raise SystemExit('Fail-closed checkout-intent index mismatch '+repr(indexes))
+          count=query('SELECT count(*) AS n FROM billing_checkout_intents;')[0]['n']
+          out={'schema':'musitu.axiom.billing_checkout_intent_ledger.v1','database_name':name,'database_uuid':dbid,'table':'billing_checkout_intents','columns':cols,'required_indexes':required,'row_count_after_migration':count,'migration':'ADDITIVE_CREATE_TABLE_IF_NOT_EXISTS','existing_core_tables_modified':False,'gate':'AXIOM_BILLING_CHECKOUT_INTENT_LEDGER_PASS'}
+          blob=(json.dumps(out,indent=2,sort_keys=True)+'\n').encode();open('billing-checkout-intent-migration.json','wb').write(blob);dg=hashlib.sha256(blob).hexdigest();open('billing-checkout-intent-migration.sha256','w').write(dg+'  billing-checkout-intent-migration.json\n')
+          print(json.dumps({**out,'evidence_sha256':dg},sort_keys=True))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: musitu-axiom-billing-checkout-intent-migration
+          path: |
+            billing-checkout-intent-migration.json
+            billing-checkout-intent-migration.sha256
+          retention-days: 30
+          if-no-files-found: error
