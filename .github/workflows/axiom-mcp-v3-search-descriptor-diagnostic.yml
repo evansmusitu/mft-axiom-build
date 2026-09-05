@@ -1,0 +1,113 @@
+name: MUSITU Axiom MCP V3 Search Descriptor Diagnostic
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/axiom-mcp-v3-search-descriptor-diagnostic.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: musitu-axiom-mcp-v3-cutover
+  cancel-in-progress: false
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    env:
+      CF_API: https://api.cloudflare.com/client/v4
+      ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      D1_UUID: 504029cc-f9a5-495e-818f-63c6144b4ea4
+      MCP_HOST: mcp.mftintelligence.com
+      MCP_PUBLIC_WORKER: musitu-axiom-mcp
+      MCP_CORE_WORKER: musitu-axiom-mcp-core
+      AXIOM_SERVICE: musitu-axiom-modal-edge-stage
+      BILLING_SERVICE: mft-axiom-billing-ingress
+      AXIOM_BASE: https://axiom.mftintelligence.com
+      BILLING_BASE: https://payments.mftintelligence.com
+      AUTH_ISSUER: https://auth.mftintelligence.com
+    steps:
+      - uses: actions/checkout@v4
+      - name: Inspect live v3 descriptor and restore v2
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import hashlib,json,os,pathlib,secrets,time,urllib.error,urllib.parse,urllib.request
+          api=os.environ['CF_API'];aid=os.environ['ACCOUNT_ID'];dbid=os.environ['D1_UUID'];host=os.environ['MCP_HOST'];pub=os.environ['MCP_PUBLIC_WORKER'];core=os.environ['MCP_CORE_WORKER'];issuer=os.environ['AUTH_ISSUER'];resource='https://'+host
+          v2=pathlib.Path('mcp/musitu_axiom_mcp_worker_v2.mjs').read_bytes();v3=pathlib.Path('mcp/musitu_axiom_mcp_oauth_gate_v3.mjs').read_bytes()
+          ah={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY'],'Accept':'application/json','User-Agent':'MUSITU-Axiom-MCP-V3-Descriptor-Diagnostic/1.0'}
+          def raw(url,method='GET',headers=None,body=None,timeout=40):
+            q=urllib.request.Request(url,headers=dict(headers or {}),method=method,data=body)
+            try:
+              with urllib.request.urlopen(q,timeout=timeout) as r:return r.status,r.headers,r.read()
+            except urllib.error.HTTPError as e:return e.code,e.headers,e.read()
+          def cf(path,method='GET',obj=None):
+            h=dict(ah);b=None
+            if obj is not None:h['Content-Type']='application/json';b=json.dumps(obj,separators=(',',':')).encode()
+            c,_,r=raw(api+path,method,h,b)
+            if not 200<=c<300:raise RuntimeError(f'CF HTTP {c} {path}')
+            o=json.loads(r or b'{}')
+            if o.get('success') is False:raise RuntimeError('CF success=false '+path)
+            return o.get('result')
+          def mp(source,meta):
+            bd='----MUSITU'+secrets.token_hex(16);p=[]
+            def a(x):p.append(x.encode() if isinstance(x,str) else x)
+            a(f'--{bd}\r\nContent-Disposition: form-data; name="metadata"\r\nContent-Type: application/json\r\n\r\n');a(json.dumps(meta,separators=(',',':')));a('\r\n')
+            a(f'--{bd}\r\nContent-Disposition: form-data; name="index.mjs"; filename="index.mjs"\r\nContent-Type: application/javascript+module\r\n\r\n');a(source);a('\r\n');a(f'--{bd}--\r\n')
+            return bd,b''.join(p)
+          def upload(source,bindings):
+            bd,body=mp(source,{'main_module':'index.mjs','compatibility_date':'2026-09-05','bindings':bindings});h=dict(ah);h['Content-Type']='multipart/form-data; boundary='+bd
+            c,_,b=raw(f'{api}/accounts/{aid}/workers/scripts/{urllib.parse.quote(pub,safe="")}', 'PUT',h,body)
+            if not 200<=c<300:raise RuntimeError('public worker upload HTTP '+str(c)+' '+b[:160].decode('utf-8','ignore'))
+            cf(f'/accounts/{aid}/workers/scripts/{urllib.parse.quote(pub,safe="")}/subdomain','POST',{'enabled':False,'previews_enabled':False})
+          def probe(obj):
+            h={'Accept':'application/json','Content-Type':'application/json','User-Agent':'MUSITU-Axiom-MCP-V3-Descriptor-Diagnostic/1.0'}
+            c,_,b=raw(resource+'/mcp','POST',h,json.dumps(obj,separators=(',',':')).encode())
+            try:o=json.loads(b or b'{}')
+            except:o={}
+            return c,o
+          core_bind=[{'type':'plain_text','name':'AXIOM_BASE','text':os.environ['AXIOM_BASE']},{'type':'plain_text','name':'BILLING_BASE','text':os.environ['BILLING_BASE']},{'type':'plain_text','name':'MCP_PUBLIC_BASE','text':resource},{'type':'plain_text','name':'AUTH_ISSUER','text':issuer},{'type':'service','name':'AXIOM_SERVICE','service':os.environ['AXIOM_SERVICE']},{'type':'service','name':'BILLING_SERVICE','service':os.environ['BILLING_SERVICE']}]
+          v3_bind=[{'type':'d1','name':'AXIOM_DB','id':dbid},{'type':'plain_text','name':'AUTH_ISSUER','text':issuer},{'type':'plain_text','name':'MCP_PUBLIC_BASE','text':resource},{'type':'service','name':'MCP_CORE','service':core}]
+          out={}
+          try:
+            upload(v3,v3_bind)
+            for _ in range(20):
+              c,_,b=raw(resource+'/health',headers={'Accept':'application/json'}); 
+              try:h=json.loads(b or b'{}')
+              except:h={}
+              if c==200 and h.get('oauth_enforced') is True:break
+              time.sleep(1)
+            c,o=probe({'jsonrpc':'2.0','id':1,'method':'tools/list','params':{}});tools=(o.get('result') or {}).get('tools') or []
+            search=next((t for t in tools if t.get('name')=='search'),None)
+            fetch=next((t for t in tools if t.get('name')=='fetch'),None)
+            plans=next((t for t in tools if t.get('name')=='musitu_axiom_plans'),None)
+            def norm(t):
+              if not isinstance(t,dict):return None
+              return {'name':t.get('name'),'keys':sorted(t.keys()),'annotations':t.get('annotations'),'annotations_keys':sorted((t.get('annotations') or {}).keys()),'outputSchema_type':type(t.get('outputSchema')).__name__,'outputSchema':t.get('outputSchema'),'securitySchemes':t.get('securitySchemes'),'meta_keys':sorted((t.get('_meta') or {}).keys())}
+            out={'schema':'musitu.axiom.mcp.v3_descriptor_diagnostic.v1','http':c,'tool_count':len(tools),'search':norm(search),'fetch':norm(fetch),'plans':norm(plans),'secrets_logged':False}
+            pathlib.Path('mcp-v3-descriptor-diagnostic.json').write_text(json.dumps(out,indent=2,sort_keys=True)+'\n')
+            print(json.dumps(out,sort_keys=True))
+          finally:
+            upload(v2,core_bind)
+            ok=False
+            for _ in range(20):
+              c,_,b=raw(resource+'/health',headers={'Accept':'application/json'}); 
+              try:h=json.loads(b or b'{}')
+              except:h={}
+              if c==200 and h.get('ok') is True and int(h.get('operation_count') or -1)==74:ok=True;break
+              time.sleep(1)
+            if not ok:raise RuntimeError('v2 rollback health not restored')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: musitu-axiom-mcp-v3-descriptor-diagnostic
+          path: mcp-v3-descriptor-diagnostic.json
+          retention-days: 7
+          if-no-files-found: error
