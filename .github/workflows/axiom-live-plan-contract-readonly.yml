@@ -1,0 +1,78 @@
+name: MUSITU Axiom Live Plan Contract Read-Only
+
+on:
+  push:
+    paths:
+      - '.github/workflows/axiom-live-plan-contract-readonly.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      CF_API: https://api.cloudflare.com/client/v4
+      ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      BACKEND: mft-axiom-modal-edge-stage
+    steps:
+      - uses: actions/checkout@v4
+      - name: Extract non-secret plan and quota metadata only
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import email,hashlib,json,os,re,urllib.parse,urllib.request
+          api=os.environ['CF_API']; aid=os.environ['ACCOUNT_ID']; w=os.environ['BACKEND']
+          H={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY'],'User-Agent':'MUSITU-Axiom-Live-Plan-Contract/1.0'}
+          q=urllib.request.Request(f'{api}/accounts/{aid}/workers/scripts/{urllib.parse.quote(w,safe="")}',headers=H)
+          with urllib.request.urlopen(q,timeout=45) as r: raw=r.read(); ct=r.headers.get('content-type','')
+          src=raw
+          if 'multipart/' in ct.lower():
+              msg=email.message_from_bytes((f'Content-Type: {ct}\r\nMIME-Version: 1.0\r\n\r\n').encode()+raw); parts=[]
+              for p in msg.walk():
+                  if p.is_multipart(): continue
+                  d=p.get_payload(decode=True) or b''
+                  if any(x in d for x in (b'fetch(',b'export default',b'addEventListener')): parts.append(d)
+              if len(parts)!=1: raise SystemExit(f'Fail-closed executable module count {len(parts)}')
+              src=parts[0]
+          text=src.decode('utf-8','ignore')
+          lower=text.lower()
+          anchors=['monthly_unit_override','unit_limit','planlimit','plan_limit','plan limits','billing_subscriptions','usage_buckets']
+          windows=[]
+          for a in anchors:
+              start=0
+              while True:
+                  i=lower.find(a,start)
+                  if i<0: break
+                  windows.append(text[max(0,i-900):min(len(text),i+1400)])
+                  start=i+len(a)
+          joined='\n'.join(windows)
+          # Extract only plausible plan identifiers and numeric quota mappings from anchor-local windows.
+          allowed_words={'free','starter','developer','dev','builder','basic','pro','professional','team','business','enterprise','growth','scale','trial','paid','standard','premium'}
+          string_literals=set(re.findall(r'["\']([A-Za-z][A-Za-z0-9_-]{1,40})["\']',joined))
+          plan_tokens=sorted(x for x in string_literals if x.lower() in allowed_words)
+          pairs=[]
+          for m in re.finditer(r'(?:["\']?)([A-Za-z][A-Za-z0-9_-]{1,40})(?:["\']?)\s*:\s*(\d{1,12})',joined):
+              k=m.group(1); v=int(m.group(2))
+              if k.lower() in allowed_words: pairs.append({'plan':k,'units':v})
+          # Also capture explicit comparisons such as plan === 'pro' without source text.
+          compared=sorted(set(re.findall(r'\bplan\s*===?\s*["\']([A-Za-z][A-Za-z0-9_-]{1,40})["\']',joined,re.I)))
+          route_flags={'admin_customers_route': '/v1/admin/customers' in text, 'usage_buckets_reference':'usage_buckets' in lower, 'monthly_override_reference':'monthly_unit_override' in lower, 'billing_subscriptions_reference':'billing_subscriptions' in lower}
+          out={'schema':'musitu.axiom.live_plan_contract.v1','backend':w,'source_sha256':hashlib.sha256(src).hexdigest(),'plan_tokens':plan_tokens,'plan_comparisons':compared,'plan_unit_pairs':sorted(pairs,key=lambda x:(x['plan'],x['units'])),'route_flags':route_flags,'secret_values_read':False,'mutation_performed':False,'source_published':False,'gate':'AXIOM_LIVE_PLAN_CONTRACT_READ_PASS'}
+          blob=(json.dumps(out,indent=2,sort_keys=True)+'\n').encode(); open('live-plan-contract.json','wb').write(blob); dg=hashlib.sha256(blob).hexdigest(); open('live-plan-contract.sha256','w').write(dg+'  live-plan-contract.json\n')
+          print(json.dumps({**out,'evidence_sha256':dg},sort_keys=True))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: musitu-axiom-live-plan-contract
+          path: |
+            live-plan-contract.json
+            live-plan-contract.sha256
+          retention-days: 14
+          if-no-files-found: error
