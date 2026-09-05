@@ -56,6 +56,8 @@ jobs:
           out={'schema':'musitu.brand.legacy_namespace_audit.v1','company_brand':'MUSITU','file_count':len(rows),'class_counts':dict(sorted(counts.items())),'token_counts':dict(sorted(tokens.items())),'files':sorted(rows,key=lambda x:x['path']),'protected_encrypted_runtime':str(protected),'write_performed':False}
           pathlib.Path('musitu-legacy-namespace-audit.json').write_text(json.dumps(out,indent=2,sort_keys=True)+'\n')
           print(json.dumps({'file_count':len(rows),'class_counts':out['class_counts'],'token_counts':out['token_counts']},sort_keys=True))
+          for row in out['files']:
+            print('RESIDUAL_FILE='+json.dumps(row,sort_keys=True,separators=(',',':')))
           PY
       - uses: actions/upload-artifact@v4
         with:
