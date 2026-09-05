@@ -1,5 +1,6 @@
 name: MUSITU Axiom Disposable Paynow Checkout E2E
 
+# Disposable unpaid provider checkout; all fixture rows are deleted in the same run.
 on:
   push:
     paths:
