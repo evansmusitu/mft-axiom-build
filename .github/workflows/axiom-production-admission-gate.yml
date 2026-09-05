@@ -23,8 +23,18 @@ jobs:
       PROTECTED_BACKEND: mft-axiom-modal-edge-stage
       PROTECTED_ADAPTER: mft-axiom-modal-adapter
       MUSITU_D1: musitu-axiom-prod
+      EXPECTED_D1_UUID: 504029cc-f9a5-495e-818f-63c6144b4ea4
       MUSITU_MODAL_URL: https://evansmusitu--musitu-axiom-v3-modal-staging-axiom-kernel.modal.run
       EXPECTED_BUILD: MFT-AXIOM-V3-FULL-SELF-CONTAINED-20260904
+      EXPECTED_BACKEND_SOURCE_SHA256: abd8468f26514c59da090d960443ea8d01209736ebfa308edfda2ab04d616a2e
+      BILLING_HOST: payments.mftintelligence.com
+      BILLING_WORKER: mft-axiom-billing-ingress
+      BILLING_ROUTE: payments.mftintelligence.com/billing/*
+      PAYMENT_AUTHORITY: mft-phase8-external-authority
+      PAYNOW_TRANSPORT: mft-paynow-transport-gateway
+      BEARER_E2E_RUN_ID: '33966226954'
+      BEARER_E2E_JOB_ID: '101344544288'
+      BEARER_E2E_EVIDENCE_SHA256: bc494f4c1b1a725f9adbb649f286e0e5970a865c6fb3154e665135dc55dafaed
     steps:
       - name: Audit production admission fail-closed against current live chain
         env:
@@ -36,23 +46,28 @@ jobs:
           test -n "$CLOUDFLARE_EMAIL"
           test -n "$CLOUDFLARE_GLOBAL_API_KEY"
           python - <<'PY'
-          import hashlib,json,os,urllib.error,urllib.parse,urllib.request
+          import email,hashlib,json,os,urllib.error,urllib.parse,urllib.request
 
           base=os.environ['CF_API']
           headers={
             'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],
             'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY'],
-            'Content-Type':'application/json',
-            'User-Agent':'MUSITU-Axiom-Production-Admission/2.0',
+            'Accept':'application/json',
+            'User-Agent':'MUSITU-Axiom-Production-Admission/3.0',
           }
-          def cf(path,method='GET',body=None):
-            data=None if body is None else json.dumps(body).encode()
-            req=urllib.request.Request(base+path,headers=headers,data=data,method=method)
+          def raw_http(url,method='GET',headers_in=None,body=None,timeout=45):
+            req=urllib.request.Request(url,headers=dict(headers_in or {}),data=body,method=method)
             try:
-              with urllib.request.urlopen(req,timeout=45) as r:
-                raw=r.read(); code=r.status
+              with urllib.request.urlopen(req,timeout=timeout) as r:
+                return r.status,r.headers,r.read()
             except urllib.error.HTTPError as e:
-              raw=e.read(); code=e.code
+              return e.code,e.headers,e.read()
+
+          def cf(path,method='GET',body=None):
+            h=dict(headers); data=None
+            if body is not None:
+              h['Content-Type']='application/json'; data=json.dumps(body,separators=(',',':')).encode()
+            code,_,raw=raw_http(base+path,method,h,data)
             if code < 200 or code >= 300:
               raise SystemExit(f'Fail-closed Cloudflare read failed HTTP {code}: {path}')
             x=json.loads(raw or b'{}')
@@ -60,32 +75,57 @@ jobs:
               raise SystemExit(f'Fail-closed Cloudflare success=false: {path}')
             return x.get('result')
 
-          def http_json(url,method='GET',body=None):
-            h={'Accept':'application/json','User-Agent':'MUSITU-Axiom-Production-Admission/2.0'}
-            data=None if body is None else json.dumps(body).encode()
+          def http_json(url,method='GET',body=None,extra_headers=None):
+            h={'Accept':'application/json','User-Agent':'MUSITU-Axiom-Production-Admission/3.0'}
+            if extra_headers: h.update(extra_headers)
+            data=None if body is None else json.dumps(body,separators=(',',':')).encode()
             if data is not None: h['Content-Type']='application/json'
-            req=urllib.request.Request(url,headers=h,data=data,method=method)
-            try:
-              with urllib.request.urlopen(req,timeout=45) as r:
-                raw=r.read(); return r.status,json.loads(raw or b'{}')
-            except urllib.error.HTTPError as e:
-              raw=e.read()
-              try: parsed=json.loads(raw or b'{}')
-              except Exception: parsed={}
-              return e.code,parsed
+            code,hh,raw=raw_http(url,method,h,data)
+            try: parsed=json.loads(raw or b'{}')
+            except Exception: parsed={}
+            return code,hh,parsed
 
+          def d1_query(d1id,sql,params=None):
+            obj={'sql':sql}
+            if params is not None: obj['params']=params
+            qr=cf(f'/accounts/{aid}/d1/database/{d1id}/query','POST',obj) or []
+            if not qr or not all(x.get('success') is True for x in qr):
+              raise SystemExit('Fail-closed: live MUSITU D1 query failed')
+            rows=[]
+            for chunk in qr: rows.extend(chunk.get('results') or [])
+            return rows
+
+          def worker_module_sha(script,needle):
+            code,hh,raw=raw_http(
+              f'{base}/accounts/{aid}/workers/scripts/{urllib.parse.quote(script,safe="")}',
+              headers_in=headers,
+            )
+            if code!=200: raise SystemExit(f'Fail-closed: Worker source read HTTP {code} for {script}')
+            ctype=hh.get('content-type',''); src=raw
+            if 'multipart/' in ctype.lower():
+              msg=email.message_from_bytes((f'Content-Type: {ctype}\r\nMIME-Version: 1.0\r\n\r\n').encode()+raw)
+              parts=[]
+              for p in msg.walk():
+                if p.is_multipart(): continue
+                data=p.get_payload(decode=True) or b''
+                if needle.encode() in data: parts.append(data)
+              if len(parts)!=1: raise SystemExit(f'Fail-closed: Worker module parse count {len(parts)} for {script}')
+              src=parts[0]
+            return hashlib.sha256(src).hexdigest()
+
+          # Canonical Cloudflare identity and security posture.
           zones=cf('/zones?name='+urllib.parse.quote(os.environ['EXPECTED_ZONE'])+'&status=active') or []
           if len(zones)!=1: raise SystemExit('Fail-closed: canonical zone not unique')
           z=zones[0]; zid=z.get('id'); aid=(z.get('account') or {}).get('id')
           if zid!=os.environ['EXPECTED_ZONE_ID'] or aid!=os.environ['EXPECTED_ACCOUNT_ID']:
             raise SystemExit('Fail-closed: zone/account identity mismatch')
-
           security_level=cf(f'/zones/{zid}/settings/security_level') or {}
           browser_check=cf(f'/zones/{zid}/settings/browser_check') or {}
           always_https=cf(f'/zones/{zid}/settings/always_use_https') or {}
           if security_level.get('value')!='under_attack' or browser_check.get('value')!='on':
             raise SystemExit('Fail-closed: global challenge posture weakened from verified state')
 
+          # Stage mapping and production-domain discovery.
           domains=cf(f'/accounts/{aid}/workers/domains') or []
           stage=[d for d in domains if d.get('hostname')==os.environ['STAGE_HOST']]
           if len(stage)!=1 or stage[0].get('service')!=os.environ['PUBLIC_EDGE']:
@@ -94,6 +134,7 @@ jobs:
             'hostname':d.get('hostname'),'service':d.get('service'),'environment':d.get('environment')
           } for d in domains if 'axiom' in str(d.get('hostname') or '').lower() and d.get('hostname')!=os.environ['STAGE_HOST']]
 
+          # Public edge -> protected backend -> protected adapter -> Modal chain.
           edge=cf(f'/accounts/{aid}/workers/scripts/{os.environ["PUBLIC_EDGE"]}/settings') or {}
           edge_services=[b for b in (edge.get('bindings') or []) if isinstance(b,dict) and b.get('type')=='service']
           if not any(b.get('service')==os.environ['PROTECTED_BACKEND'] for b in edge_services):
@@ -103,6 +144,8 @@ jobs:
           dbs=[x for x in dbs if x.get('name')==os.environ['MUSITU_D1']]
           if len(dbs)!=1: raise SystemExit('Fail-closed: live MUSITU D1 not uniquely resolvable')
           d1id=dbs[0].get('uuid') or dbs[0].get('id')
+          if d1id!=os.environ['EXPECTED_D1_UUID']:
+            raise SystemExit('Fail-closed: canonical MUSITU D1 UUID drift')
 
           backend=cf(f'/accounts/{aid}/workers/scripts/{os.environ["PROTECTED_BACKEND"]}/settings') or {}
           bindings=backend.get('bindings') or []
@@ -118,6 +161,9 @@ jobs:
             raise SystemExit('Fail-closed: AXIOM_DB no longer targets MUSITU D1')
           if len(kb)!=1 or kb[0].get('service')!=os.environ['PROTECTED_ADAPTER']:
             raise SystemExit('Fail-closed: AXIOM_KERNEL protected adapter drift')
+          backend_sha=worker_module_sha(os.environ['PROTECTED_BACKEND'],'/v1/compute')
+          if backend_sha!=os.environ['EXPECTED_BACKEND_SOURCE_SHA256']:
+            raise SystemExit('Fail-closed: backend changed since certified Bearer/metering E2E; rerun certification required')
 
           adapter=cf(f'/accounts/{aid}/workers/scripts/{os.environ["PROTECTED_ADAPTER"]}/settings') or {}
           adapter_bindings=adapter.get('bindings') or []
@@ -128,41 +174,111 @@ jobs:
           if len(mb)!=1 or mb[0].get('text')!=os.environ['MUSITU_MODAL_URL']:
             raise SystemExit('Fail-closed: private adapter no longer targets MUSITU Modal')
 
-          inventory_sql="SELECT type,name,tbl_name FROM sqlite_master WHERE type IN ('table','index') AND name NOT LIKE 'sqlite_%' AND name NOT LIKE '_cf_%' ORDER BY type,name;"
-          qr=cf(f'/accounts/{aid}/d1/database/{d1id}/query','POST',{'sql':inventory_sql}) or []
-          if not qr or not all(x.get('success') is True for x in qr):
-            raise SystemExit('Fail-closed: live MUSITU D1 SELECT audit failed')
-          inventory=[]
-          for chunk in qr: inventory.extend(chunk.get('results') or [])
-          tables=sorted(x['name'] for x in inventory if x.get('type')=='table')
-          indexes=sorted(x['name'] for x in inventory if x.get('type')=='index')
-          expected_tables=sorted(['customers','api_keys','usage_buckets','usage_events','billing_subscriptions','webhook_events'])
-          required_indexes=sorted(['idx_api_keys_customer','idx_usage_events_customer_time','idx_usage_events_request'])
-          if tables!=expected_tables or any(x not in indexes for x in required_indexes):
-            raise SystemExit('Fail-closed: live MUSITU D1 canonical schema drift')
+          # Current D1 schema: require mandatory tables/columns/indexes; permit additive schema evolution.
+          inventory=d1_query(d1id,"SELECT type,name,tbl_name FROM sqlite_master WHERE type IN ('table','index') AND name NOT LIKE 'sqlite_%' AND name NOT LIKE '_cf_%' ORDER BY type,name;")
+          tables={x['name'] for x in inventory if x.get('type')=='table'}
+          indexes={x['name'] for x in inventory if x.get('type')=='index'}
+          required_tables={'customers','api_keys','usage_buckets','usage_events','billing_subscriptions','webhook_events','billing_checkout_intents'}
+          required_indexes={'idx_api_keys_customer','idx_usage_events_customer_time','idx_usage_events_request'}
+          if not required_tables.issubset(tables) or not required_indexes.issubset(indexes):
+            raise SystemExit('Fail-closed: live MUSITU D1 mandatory schema contract drift')
+          def columns(table):
+            return {str(r.get('name')) for r in d1_query(d1id,f'PRAGMA table_info({table});')}
+          required_columns={
+            'customers':{'id','email','name','plan','status','monthly_unit_override','created_at','updated_at'},
+            'api_keys':{'id','customer_id','key_hash','key_prefix','label','status','created_at','last_used_at','expires_at','revoked_at'},
+            'usage_events':{'id','customer_id','key_id','request_id','operation','compute_units','status','http_status','latency_ms','request_sha256','result_sha256','created_at'},
+            'usage_buckets':{'customer_id','month','used_units','unit_limit','updated_at'},
+          }
+          for table,need in required_columns.items():
+            if not need.issubset(columns(table)):
+              raise SystemExit(f'Fail-closed: live MUSITU D1 column contract drift: {table}')
 
-          hs,hj=http_json('https://'+os.environ['STAGE_HOST']+'/health')
+          # Runtime public contract.
+          stage_base='https://'+os.environ['STAGE_HOST']
+          hs,_,hj=http_json(stage_base+'/health')
           if hs!=200 or hj.get('ok') is not True or hj.get('build_id')!=os.environ['EXPECTED_BUILD'] or int(hj.get('operation_count') or -1)!=74:
             raise SystemExit('Fail-closed: staging FULL health contract regressed')
-          ts,tj=http_json('https://'+os.environ['STAGE_HOST']+'/v1/tools')
+          ts,_,tj=http_json(stage_base+'/v1/tools')
           if ts!=200 or int(tj.get('operation_count') or -1)!=74 or len(tj.get('tools') or [])!=74:
             raise SystemExit('Fail-closed: staging tool registry regressed')
-          us,_=http_json('https://'+os.environ['STAGE_HOST']+'/v1/compute',method='POST',body={'operation':'arithmetic.add','args':{'a':40,'b':2}})
+          us,_,_=http_json(stage_base+'/v1/compute',method='POST',body={'operation':'arithmetic.evaluate','args':{'expression':'40+2'}},extra_headers={'x-musitu-request-id':'MUSITU-PRODUCTION-ADMISSION-UNAUTH'})
           if us!=401: raise SystemExit(f'Fail-closed: unauth compute expected 401, got {us}')
 
-          stripe_required=['STRIPE_WEBHOOK_SECRET','STRIPE_PRICE_PLAN_MAP','AXIOM_DOWNGRADE_ON_CANCEL']
-          stripe_presence={k:(k in binding_names) for k in stripe_required}
-          commercial_configured=all(stripe_presence.values())
+          # Current Paynow commercial ingress contract. This proves technical readiness only, never merchant-live approval.
+          billing_base='https://'+os.environ['BILLING_HOST']
+          bh,_,bho=http_json(billing_base+'/billing/healthz')
+          if not (bh==200 and bho.get('ok') is True and bho.get('catalog_configured') is True and bho.get('checkout_enabled') is True and bho.get('provider')=='paynow'):
+            raise SystemExit('Fail-closed: Paynow billing health/config contract regressed')
+          live_money_certified=(bho.get('live_money_certified') is True)
+          bc,_,bco=http_json(billing_base+'/billing/catalog')
+          plans=bco.get('plans') or []
+          expected_catalog=[
+            ('developer','axiom-developer-monthly',1900,'USD',1000),
+            ('pro','axiom-pro-monthly',4900,'USD',5000),
+            ('enterprise','axiom-enterprise-monthly',14900,'USD',25000),
+          ]
+          got_catalog=[(p.get('id'),p.get('price_id'),p.get('amount_cents'),p.get('currency'),p.get('monthly_unit_limit')) for p in plans]
+          if bc!=200 or got_catalog!=expected_catalog:
+            raise SystemExit('Fail-closed: authoritative Axiom Paynow catalog drift')
+          bna,_,_=http_json(billing_base+'/billing/checkout',method='POST',body={'plan':'developer'})
+          if bna!=401: raise SystemExit(f'Fail-closed: unauth billing checkout expected 401, got {bna}')
 
+          routes=cf(f'/zones/{zid}/workers/routes') or []
+          exact_billing_routes=[r for r in routes if isinstance(r,dict) and r.get('pattern')==os.environ['BILLING_ROUTE'] and r.get('script')==os.environ['BILLING_WORKER']]
+          if len(exact_billing_routes)!=1:
+            raise SystemExit('Fail-closed: canonical narrow billing route drift')
+          billing_settings=cf(f'/accounts/{aid}/workers/scripts/{urllib.parse.quote(os.environ["BILLING_WORKER"],safe="")}/settings') or {}
+          bn={b.get('name'):b for b in billing_settings.get('bindings') or [] if isinstance(b,dict)}
+          billing_required={
+            'AXIOM_DB':'d1','PAYMENT_AUTHORITY':'service','PAYNOW_TRANSPORT':'service',
+            'BILLING_BRIDGE_CAPABILITY_TOKEN':'secret_text','BILLING_TRANSPORT_CAPABILITY_TOKEN':'secret_text',
+          }
+          if not all(bn.get(k,{}).get('type')==v for k,v in billing_required.items()):
+            raise SystemExit('Fail-closed: Paynow billing Worker binding contract incomplete')
+          if bn['AXIOM_DB'].get('id')!=d1id:
+            raise SystemExit('Fail-closed: billing AXIOM_DB target drift')
+          if bn['PAYMENT_AUTHORITY'].get('service')!=os.environ['PAYMENT_AUTHORITY']:
+            raise SystemExit('Fail-closed: billing authority service target drift')
+          if bn['PAYNOW_TRANSPORT'].get('service')!=os.environ['PAYNOW_TRANSPORT']:
+            raise SystemExit('Fail-closed: Paynow transport service target drift')
+          billing_subdomain=cf(f'/accounts/{aid}/workers/scripts/{urllib.parse.quote(os.environ["BILLING_WORKER"],safe="")}/subdomain') or {}
+          if billing_subdomain.get('enabled') is not False or billing_subdomain.get('previews_enabled') is not False:
+            raise SystemExit('Fail-closed: billing Worker public subdomain exposure regressed')
+
+          # Admission blockers are intentionally independent of technical staging/billing readiness.
           blockers=[]
           if not axiom_nonstage:
             blockers.append('NO_CANONICAL_AXIOM_PRODUCTION_CUSTOM_DOMAIN_PRESENT')
-          if not commercial_configured:
-            blockers.append('STRIPE_COMMERCIAL_BINDINGS_NOT_CONFIGURED')
-          blockers.append('CUSTOMER_BEARER_METERING_END_TO_END_NOT_YET_PROVEN')
+          if not live_money_certified:
+            blockers.append('PAYNOW_MERCHANT_LIVE_APPROVAL_NOT_PROVEN')
 
+          bearer_evidence={
+            'status':'PROVEN',
+            'gate':'AXIOM_CUSTOMER_BEARER_COMPUTE_METERING_E2E_PASS',
+            'run_id':os.environ['BEARER_E2E_RUN_ID'],
+            'job_id':os.environ['BEARER_E2E_JOB_ID'],
+            'evidence_sha256':os.environ['BEARER_E2E_EVIDENCE_SHA256'],
+            'current_backend_source_sha256':backend_sha,
+            'proof_scope':{
+              'authenticated_compute_http':200,
+              'operation':'arithmetic.evaluate',
+              'result_42_observed':True,
+              'receipt_or_signature_material_present':True,
+              'usage_event_delta':1,
+              'compute_units':1,
+              'usage_bucket_unit_delta':1,
+              'request_id_matched':True,
+              'customer_id_matched':True,
+              'key_id_matched':True,
+              'api_key_last_used_updated':True,
+              'fixture_rows_remaining':0,
+              'worker_secret_mutation':False,
+            },
+          }
           out={
-            'schema':'musitu.axiom.production_admission.v2',
+            'schema':'musitu.axiom.production_admission.v3',
+            'gate':'AXIOM_PRODUCTION_ADMISSION_PASS' if not blockers else 'AXIOM_PRODUCTION_ADMISSION_BLOCKED',
             'zone':os.environ['EXPECTED_ZONE'],
             'account_id':aid,
             'global_security':{
@@ -176,11 +292,13 @@ jobs:
               'hostname':os.environ['STAGE_HOST'],
               'public_edge':os.environ['PUBLIC_EDGE'],
               'protected_backend':os.environ['PROTECTED_BACKEND'],
+              'protected_backend_source_sha256':backend_sha,
               'protected_adapter':os.environ['PROTECTED_ADAPTER'],
               'modal_target':os.environ['MUSITU_MODAL_URL'],
               'd1_name':os.environ['MUSITU_D1'],
               'd1_uuid':d1id,
               'd1_schema':'PASS',
+              'd1_required_tables':sorted(required_tables),
               'health':'PASS',
               'build_id':hj.get('build_id'),
               'operation_count':hj.get('operation_count'),
@@ -189,12 +307,27 @@ jobs:
               'musitu_protocol_bindings':'PASS',
               'retired_protocol_secret_bindings_absent':True,
             },
+            'billing':{
+              'provider':'paynow',
+              'technical_contract':'PASS',
+              'hostname':os.environ['BILLING_HOST'],
+              'worker':os.environ['BILLING_WORKER'],
+              'route':os.environ['BILLING_ROUTE'],
+              'exact_route_count':len(exact_billing_routes),
+              'catalog':got_catalog,
+              'catalog_configured':bho.get('catalog_configured'),
+              'checkout_enabled':bho.get('checkout_enabled'),
+              'checkout_noauth_status':bna,
+              'live_money_certified':live_money_certified,
+              'workers_dev_enabled':billing_subdomain.get('enabled'),
+              'previews_enabled':billing_subdomain.get('previews_enabled'),
+            },
+            'customer_bearer_metering_e2e':bearer_evidence,
             'axiom_nonstage_custom_domains':axiom_nonstage,
-            'stripe_binding_presence':stripe_presence,
-            'customer_bearer_metering_e2e':'NOT_PROVEN',
-            'production_admission':'BLOCKED' if blockers else 'PASS',
+            'production_admission':'PASS' if not blockers else 'BLOCKED',
             'blockers':blockers,
             'write_performed':False,
+            'secret_values_read':False,
             'plaintext_source_committed':False,
             'wolfram_parity':'NOT_CERTIFIED',
             'superiority':'NOT_CERTIFIED',
@@ -204,23 +337,22 @@ jobs:
           digest=hashlib.sha256(raw).hexdigest()
           open('axiom-production-admission.sha256','w').write(digest+'  axiom-production-admission.json\n')
           print(json.dumps({
+            'gate':out['gate'],
             'staging_health':'PASS',
-            'stage_service':os.environ['PUBLIC_EDGE'],
             'build_id':hj.get('build_id'),
             'operation_count':hj.get('operation_count'),
-            'unauth_compute_status':us,
-            'd1_name':os.environ['MUSITU_D1'],
-            'd1_uuid':d1id,
             'd1_schema':'PASS',
-            'global_challenge_posture':'PASS',
-            'always_use_https':always_https.get('value'),
+            'paynow_technical_contract':'PASS',
+            'paynow_live_money_certified':live_money_certified,
+            'bearer_metering_e2e':'PROVEN',
+            'bearer_metering_evidence_sha256':os.environ['BEARER_E2E_EVIDENCE_SHA256'],
+            'backend_source_sha256':backend_sha,
             'axiom_nonstage_custom_domains':axiom_nonstage,
-            'stripe_binding_presence':stripe_presence,
-            'customer_bearer_metering_e2e':'NOT_PROVEN',
             'production_admission':out['production_admission'],
             'blockers':blockers,
             'write_performed':False,
-            'sha256':digest,
+            'secret_values_read':False,
+            'evidence_sha256':digest,
           },sort_keys=True))
           PY
       - name: Upload sealed production-admission evidence
@@ -230,5 +362,5 @@ jobs:
           path: |
             axiom-production-admission.json
             axiom-production-admission.sha256
-          retention-days: 14
+          retention-days: 30
           if-no-files-found: error
