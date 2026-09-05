@@ -1,0 +1,65 @@
+name: MUSITU Legacy Namespace Audit
+
+on:
+  push:
+    paths:
+      - '.github/workflows/musitu-legacy-namespace-audit.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Inventory retired-namespace compatibility handles
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import collections,json,pathlib,re,subprocess
+          root=pathlib.Path('.')
+          protected=pathlib.Path('deploy_payload/runtime_min')
+          self_path=pathlib.Path('.github/workflows/musitu-legacy-namespace-audit.yml')
+          old='m'+'ft'
+          token_re=re.compile(r'(?i)[A-Za-z0-9_./:@-]*'+old+r'[A-Za-z0-9_./:@-]*')
+          binary={'.zip','.gz','.tgz','.png','.jpg','.jpeg','.gif','.webp','.pdf','.pyc','.so','.dll','.exe','.bin','.enc'}
+          def text_file(p):
+            if p.suffix.lower() in binary:return False
+            try:b=p.read_bytes()
+            except OSError:return False
+            if b'\0' in b:return False
+            try:b.decode('utf-8');return True
+            except UnicodeDecodeError:return False
+          def classify(tok):
+            lo=tok.lower()
+            if tok.startswith('MFT-'): return 'immutable_build_or_historical_id'
+            if tok.startswith('MFT_') or lo.startswith('mft_'): return 'secret_env_or_historical_symbol'
+            if 'mftintelligence.com' in lo: return 'legacy_live_domain'
+            if 'mft-axiom-build' in lo: return 'legacy_repository_slug'
+            if lo.startswith('mft-') or '/mft-' in lo: return 'legacy_resource_or_label_candidate'
+            return 'other_retired_namespace'
+          rows=[];counts=collections.Counter();tokens=collections.Counter()
+          for raw in subprocess.check_output(['git','ls-files','-z']).split(b'\0'):
+            if not raw:continue
+            p=pathlib.Path(raw.decode())
+            if p==self_path or p==protected or protected in p.parents or not p.is_file() or not text_file(p):continue
+            found=token_re.findall(p.read_text(errors='replace'))
+            if not found:continue
+            local=collections.Counter(found)
+            classes=collections.Counter()
+            for tok,n in local.items():classes[classify(tok)]+=n;tokens[tok]+=n;counts[classify(tok)]+=n
+            rows.append({'path':str(p),'occurrences':sum(local.values()),'classes':dict(sorted(classes.items())),'tokens':dict(sorted(local.items()))})
+          out={'schema':'musitu.brand.legacy_namespace_audit.v1','company_brand':'MUSITU','file_count':len(rows),'class_counts':dict(sorted(counts.items())),'token_counts':dict(sorted(tokens.items())),'files':sorted(rows,key=lambda x:x['path']),'protected_encrypted_runtime':str(protected),'write_performed':False}
+          pathlib.Path('musitu-legacy-namespace-audit.json').write_text(json.dumps(out,indent=2,sort_keys=True)+'\n')
+          print(json.dumps({'file_count':len(rows),'class_counts':out['class_counts'],'token_counts':out['token_counts']},sort_keys=True))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: musitu-legacy-namespace-audit
+          path: musitu-legacy-namespace-audit.json
+          retention-days: 14
+          if-no-files-found: error
