@@ -1,0 +1,179 @@
+name: MUSITU Axiom D1 Live Cutover
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/axiom-musitu-d1-live-cutover.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  cutover:
+    runs-on: ubuntu-latest
+    timeout-minutes: 22
+    env:
+      ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+      CLOUDFLARE_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+      CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+      EDGE_WORKER: mft-axiom-modal-edge-stage
+      ADAPTER_WORKER: mft-axiom-modal-adapter
+      PUBLIC_EDGE: musitu-axiom-modal-edge-stage
+      HOSTNAME: axiom-stage.mftintelligence.com
+      LEGACY_D1: mft-axiom-prod
+      LEGACY_D1_ID: 4a62b374-7232-4103-b201-34443c467382
+      MUSITU_D1: musitu-axiom-prod
+      BUILD_ID: MFT-AXIOM-V3-FULL-SELF-CONTAINED-20260904
+      PATCH_SHA: e0bf20748acbc47d1696b4678022580f0a4b787398c18d4d8cd1cea717ab7703
+    steps:
+      - uses: actions/checkout@v4
+      - name: Precondition current bindings and reconcile legacy versus MUSITU D1
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import hashlib,json,os,urllib.parse,urllib.request
+          base='https://api.cloudflare.com/client/v4';aid=os.environ['ACCOUNT_ID'];h={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_API_KEY'],'Content-Type':'application/json'}
+          def call(path,method='GET',body=None):
+              q=urllib.request.Request(base+path,headers=h,data=None if body is None else json.dumps(body).encode(),method=method)
+              with urllib.request.urlopen(q,timeout=45) as r:x=json.load(r)
+              if not x.get('success'):raise SystemExit('Cloudflare API read failed')
+              return x.get('result') or []
+          st=call(f'/accounts/{aid}/workers/scripts/{os.environ["EDGE_WORKER"]}/settings')
+          bindings=st.get('bindings',[]) if isinstance(st,dict) else []
+          names={b.get('name') for b in bindings if isinstance(b,dict)}
+          if not {'AXIOM_DB','AXIOM_KERNEL','MFT_CONTROL_SECRET','MFT_RECEIPT_SECRET'}.issubset(names):raise SystemExit('backend binding precondition')
+          dbb=[b for b in bindings if b.get('name')=='AXIOM_DB']
+          if len(dbb)!=1 or dbb[0].get('id')!=os.environ['LEGACY_D1_ID']:raise SystemExit('legacy D1 binding precondition')
+          kb=[b for b in bindings if b.get('name')=='AXIOM_KERNEL']
+          if len(kb)!=1 or kb[0].get('service')!=os.environ['ADAPTER_WORKER']:raise SystemExit('kernel service binding precondition')
+          def resolve(name):
+              rows=[x for x in call(f'/accounts/{aid}/d1/database?name='+urllib.parse.quote(name)) if x.get('name')==name]
+              if len(rows)!=1:raise SystemExit('D1 resolve '+name)
+              return rows[0].get('uuid') or rows[0].get('id')
+          src=resolve(os.environ['LEGACY_D1']);dst=resolve(os.environ['MUSITU_D1'])
+          if src!=os.environ['LEGACY_D1_ID'] or src==dst:raise SystemExit('D1 identity mismatch')
+          def query(dbid,sql):
+              res=call(f'/accounts/{aid}/d1/database/{dbid}/query','POST',{'sql':sql});out=[]
+              for x in res:out+=x.get('results') or []
+              return out
+          expected=['api_keys','billing_subscriptions','customers','usage_buckets','usage_events','webhook_events']
+          inv="SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' AND name NOT LIKE '_cf_%' ORDER BY name;"
+          for dbid in (src,dst):
+              if sorted(x['name'] for x in query(dbid,inv))!=expected:raise SystemExit('D1 schema mismatch')
+          def digest(rows):return hashlib.sha256(('\n'.join(sorted(json.dumps(x,sort_keys=True,separators=(',',':')) for x in rows))).encode()).hexdigest()
+          counts={};hashes={}
+          for t in expected:
+              sr=query(src,f'SELECT * FROM "{t}";');dr=query(dst,f'SELECT * FROM "{t}";')
+              if len(sr)!=len(dr) or digest(sr)!=digest(dr):raise SystemExit('D1 reconciliation mismatch '+t)
+              counts[t]=len(sr);hashes[t]=digest(sr)
+          open('/tmp/musitu-d1-id','w').write(dst)
+          json.dump({'row_counts':counts,'table_sha256':hashes},open('/tmp/d1-reconcile.json','w'),sort_keys=True)
+          print('d1_reconciliation_pre_cutover=PASS')
+          PY
+      - name: Reconstruct and bundle the proven service-compatible Worker
+        shell: bash
+        run: |
+          set -euo pipefail
+          P=deploy_payload/runtime_min
+          cat "$P/chunk_00.b64" "$P/chunk_01_02.b64" "$P/chunk_03_04.b64" "$P/chunk_05_06.b64" "$P/chunk_07_08.b64" "$P/chunk_09.b64" > runtime.enc.b64
+          base64 -d runtime.enc.b64 > runtime.tar.gz.enc
+          test "$(sha256sum runtime.tar.gz.enc|awk '{print $1}')" = b82448d6b4b34b302748815af976b535d69922c197d4b7a9056fc2f91a9e12cf
+          python - <<'PY'
+          import hashlib,hmac,os
+          b=open('runtime.tar.gz.enc','rb').read();g=hmac.new(os.environ['CLOUDFLARE_GLOBAL_API_KEY'].encode(),b,hashlib.sha256).hexdigest()
+          if not hmac.compare_digest(g,'1a3193d4f3271d61d151e6ebd7cf4576d8ab86c2e79b84eff4ad0f635fe7ab47'):raise SystemExit('ciphertext HMAC mismatch')
+          PY
+          openssl enc -d -aes-256-cbc -pbkdf2 -iter 250000 -in runtime.tar.gz.enc -out runtime.tar.gz -pass env:CLOUDFLARE_GLOBAL_API_KEY
+          test "$(sha256sum runtime.tar.gz|awk '{print $1}')" = b4d5a0266446523969a619f5e9bb5a04d9b815c78a2ab82ed046ef5e23d53663
+          mkdir runtime && tar -xzf runtime.tar.gz -C runtime
+          python - <<'PY'
+          from pathlib import Path
+          import hashlib,os
+          p=Path('runtime/worker/src/index.js');s=p.read_text();token='kernel.fetch(new Request('
+          if s.count(token)!=1:raise SystemExit('request-wrapper target count mismatch')
+          pos=s.index(token);o=pos+len('kernel.fetch(new Request')
+          def match(src,start):
+              d=0;q=None;e=False
+              for i in range(start,len(src)):
+                  c=src[i]
+                  if q:
+                      if e:e=False
+                      elif c=='\\':e=True
+                      elif c==q:q=None
+                      continue
+                  if c in "'\"`":q=c;continue
+                  if c=='(':d+=1
+                  elif c==')':
+                      d-=1
+                      if d==0:return i
+              raise SystemExit('unbalanced target')
+          end=match(s,o);s=s[:pos+len('kernel.fetch(')]+s[pos+len('kernel.fetch(new Request('):end]+s[end+1:]
+          old="if(typeof binding.fetch==='function'&&typeof binding.getByName!=='function'&&typeof binding.idFromName!=='function')return binding;"
+          if s.count(old)!=1:raise SystemExit('selector target count mismatch')
+          out=s.replace(old,"if(typeof binding.fetch==='function')return binding;")
+          if hashlib.sha256(out.encode()).hexdigest()!=os.environ['PATCH_SHA']:raise SystemExit('patched Worker hash mismatch')
+          p.write_text(out)
+          c=Path('runtime/worker/src/catalog.js');x=c.read_text();vals=['MFT-AXIOM-V3-SELF-CONTAINED-20260904','MFT-AXIOM-V3-RUNTIME-RECONSTRUCTION-20260904','MFT-AXIOM-V3-FULL-SELF-CONTAINED-20260904'];f=[v for v in vals if v in x]
+          if len(f)!=1:raise SystemExit('build identity mismatch')
+          c.write_text(x.replace(f[0],os.environ['BUILD_ID']))
+          PY
+          npm install --no-save --ignore-scripts --no-audit --no-fund wrangler@4.129.0 esbuild@0.25.9 >/dev/null
+          mkdir -p /tmp/edge
+          npx esbuild runtime/worker/src/index.js --bundle --format=esm --platform=browser --target=es2022 --outfile=/tmp/edge/worker.js --log-level=warning
+      - name: Cut AXIOM_DB to MUSITU D1 and verify with automatic rollback
+        shell: bash
+        run: |
+          set -euo pipefail
+          NEW_ID="$(cat /tmp/musitu-d1-id)"
+          deploy_db(){
+            local name="$1" id="$2"
+            DNAME="$name" DID="$id" python - <<'PY'
+          import json,os
+          json.dump({'name':os.environ['EDGE_WORKER'],'main':'worker.js','compatibility_date':'2026-09-04','workers_dev':True,'d1_databases':[{'binding':'AXIOM_DB','database_name':os.environ['DNAME'],'database_id':os.environ['DID']}],'services':[{'binding':'AXIOM_KERNEL','service':os.environ['ADAPTER_WORKER']}]},open('/tmp/edge/wrangler.json','w'),indent=2)
+          PY
+            (cd /tmp/edge && npx wrangler deploy --config wrangler.json >/tmp/deploy.log 2>&1) || { tail -120 /tmp/deploy.log; return 1; }
+          }
+          rollback(){ echo 'verification failed; restoring legacy D1 binding'; deploy_db "$LEGACY_D1" "$LEGACY_D1_ID"; echo rollback_to_legacy_d1=PASS; }
+          trap 'rollback' ERR
+          deploy_db "$MUSITU_D1" "$NEW_ID"
+          python - "$NEW_ID" <<'PY'
+          import json,os,sys,urllib.request
+          h={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_API_KEY']};base='https://api.cloudflare.com/client/v4'
+          q=urllib.request.Request(f"{base}/accounts/{os.environ['ACCOUNT_ID']}/workers/scripts/{os.environ['EDGE_WORKER']}/settings",headers=h)
+          with urllib.request.urlopen(q,timeout=30) as r:x=json.load(r)
+          bs=(x.get('result') or {}).get('bindings',[]);names={b.get('name') for b in bs if isinstance(b,dict)}
+          if not {'AXIOM_DB','AXIOM_KERNEL','MFT_CONTROL_SECRET','MFT_RECEIPT_SECRET'}.issubset(names):raise SystemExit('binding disappeared')
+          d=[b for b in bs if b.get('name')=='AXIOM_DB'];k=[b for b in bs if b.get('name')=='AXIOM_KERNEL']
+          if len(d)!=1 or d[0].get('id')!=sys.argv[1]:raise SystemExit('MUSITU D1 binding readback failed')
+          if len(k)!=1 or k[0].get('service')!=os.environ['ADAPTER_WORKER']:raise SystemExit('kernel binding drift')
+          PY
+          BASE="https://${HOSTNAME}";ready=0
+          for i in $(seq 1 30);do code="$(curl -sS --max-time 30 -o /tmp/h.json -w '%{http_code}' "$BASE/health"||true)";[ "$code" = 200 ]&&ready=1&&break;sleep 2;done
+          test "$ready" = 1
+          curl -fsS "$BASE/v1/tools" >/tmp/t.json
+          python - <<'PY'
+          import json,os
+          h=json.load(open('/tmp/h.json'));t=json.load(open('/tmp/t.json'))
+          if h.get('ok') is not True or h.get('build_id')!=os.environ['BUILD_ID'] or h.get('state')!='D1' or int(h.get('operation_count') or -1)!=74:raise SystemExit('public health regression')
+          if t.get('operation_count')!=74 or len(t.get('tools',[]))!=74:raise SystemExit('tools regression')
+          PY
+          test "$(curl -sS -o /tmp/u.json -w '%{http_code}' -X POST "$BASE/v1/compute" -H 'content-type: application/json' --data '{"operation":"arithmetic.evaluate","args":{"expression":"40+2"}}')" = 401
+          python - <<'PY'
+          import json,os
+          r=json.load(open('/tmp/d1-reconcile.json'))
+          out={'schema':'musitu.axiom.d1_live_cutover.v1','backend_worker':os.environ['EDGE_WORKER'],'public_edge':os.environ['PUBLIC_EDGE'],'legacy_d1':os.environ['LEGACY_D1'],'musitu_d1':os.environ['MUSITU_D1'],'row_counts':r['row_counts'],'table_sha256':r['table_sha256'],'backend_secret_bindings_preserved':True,'kernel_service_binding_preserved':os.environ['ADAPTER_WORKER'],'public_health':'PASS','operation_count':74,'unauthenticated_compute_401':'PASS','legacy_d1_retained_for_rollback':True,'cutover':'PASS','wolfram_parity':'NOT_CERTIFIED','superiority':'NOT_CERTIFIED'}
+          json.dump(out,open('musitu-d1-live-cutover.json','w'),indent=2,sort_keys=True)
+          PY
+          trap - ERR
+          sha256sum musitu-d1-live-cutover.json > musitu-d1-live-cutover.sha256
+      - uses: actions/upload-artifact@v4
+        with:
+          name: musitu-axiom-d1-live-cutover
+          path: |
+            musitu-d1-live-cutover.json
+            musitu-d1-live-cutover.sha256
+          retention-days: 30
+          if-no-files-found: error
