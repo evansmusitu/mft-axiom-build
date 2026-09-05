@@ -1,0 +1,150 @@
+name: MUSITU Namespace Certification
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/musitu-namespace-certification.yml'
+      - 'branding/**'
+
+permissions:
+  contents: read
+
+jobs:
+  certify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - name: Classify retired namespace occurrences
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import hashlib,json,pathlib,re,subprocess
+
+          SELF='.github/workflows/musitu-namespace-certification.yml'
+          governance={
+            SELF,
+            'branding/MUSITU_LEGACY_COMPATIBILITY_REGISTRY.json',
+            'branding/MUSITU_LEGACY_COMPATIBILITY_REGISTER.json',
+          }
+          protected_root=pathlib.Path('deploy_payload/runtime_min')
+          binary={'.zip','.gz','.tgz','.png','.jpg','.jpeg','.gif','.webp','.pdf','.pyc','.so','.dll','.exe','.bin','.enc'}
+          external=[
+            'mftintelligence.com','axiom-stage.mftintelligence.com',
+            'mft-axiom-bootstrap','mft-axiom-prod','mft-axiom-production',
+            'mft-axiom-modal-edge-stage','mft-axiom-v3-modal-staging',
+            'mft-axiom-modal-adapter','mft-axiom-staging','mft-axiom-staging-kernel',
+          ]
+          protocol=['MFT_CONTROL_SECRET','MFT_RECEIPT_SECRET','x-mft-control','x-mft-request-id','x-mft-axiom-version']
+          compat=['mft_axiom_stage_machine_transport','mft-internal']
+          repo=['evansmusitu/mft-axiom-build','mft-axiom-build']
+          nonbrand=['mft_record','MFT(P)','mft_id','canonical_mft_id','mft_repair_alg']
+          build_re=re.compile(r'\bMFT-AXIOM-[A-Z0-9._-]+',re.I)
+          retired_re=re.compile(r'(?<![A-Za-z0-9])MFT(?![A-Za-z0-9])',re.I)
+
+          classes={k:[] for k in ['BRAND_RESIDUAL','COMPATIBILITY_HANDLE','IMMUTABLE_EVIDENCE','PROTOCOL_COMPATIBILITY','EXTERNAL_RESOURCE','REPOSITORY_SLUG']}
+          exclusions={'governance_mapping_files':sorted(governance),'protected_runtime_root':str(protected_root),'non_brand_terms':nonbrand}
+
+          def add(cls,path,line,identifier):
+            classes[cls].append({'path':path,'line':line,'identifier':identifier})
+
+          def remove_exact(work,items,cls,path,line):
+            for item in sorted(items,key=len,reverse=True):
+              rx=re.compile(re.escape(item),re.I)
+              for m in list(rx.finditer(work)):
+                add(cls,path,line,item)
+              work=rx.sub(' ',work)
+            return work
+
+          tracked=[pathlib.Path(x.decode()) for x in subprocess.check_output(['git','ls-files','-z']).split(b'\0') if x]
+          for p in tracked:
+            s=p.as_posix()
+            if s in governance or p==protected_root or protected_root in p.parents:
+              continue
+            # A retired namespace in a filename/path is a brand residual unless the entire path is an explicitly protected handle.
+            if retired_re.search(s):
+              protected_path=False
+              for item in external+protocol+compat+repo:
+                if item.lower() in s.lower():
+                  protected_path=True; break
+              if not protected_path:
+                add('BRAND_RESIDUAL',s,0,'retired_namespace_in_path')
+            if not p.is_file() or p.suffix.lower() in binary:
+              continue
+            try: text=p.read_text(encoding='utf-8')
+            except Exception: continue
+            for n,line in enumerate(text.splitlines(),1):
+              if not retired_re.search(line):
+                continue
+              work=line
+              for m in list(build_re.finditer(work)):
+                add('IMMUTABLE_EVIDENCE',s,n,m.group(0))
+              work=build_re.sub(' ',work)
+              work=remove_exact(work,repo,'REPOSITORY_SLUG',s,n)
+              work=remove_exact(work,protocol,'PROTOCOL_COMPATIBILITY',s,n)
+              work=remove_exact(work,external,'EXTERNAL_RESOURCE',s,n)
+              work=remove_exact(work,compat,'COMPATIBILITY_HANDLE',s,n)
+              for item in sorted(nonbrand,key=len,reverse=True):
+                work=re.sub(re.escape(item),' ',work,flags=re.I)
+              if retired_re.search(work):
+                add('BRAND_RESIDUAL',s,n,'unclassified_retired_namespace')
+
+          for k in classes:
+            seen=set(); unique=[]
+            for x in classes[k]:
+              key=(x['path'],x['line'],x['identifier'].lower())
+              if key not in seen:
+                seen.add(key); unique.append(x)
+            classes[k]=sorted(unique,key=lambda x:(x['path'],x['line'],x['identifier'].lower()))
+
+          counts={k:len(v) for k,v in classes.items()}
+          out={
+            'schema':'musitu.axiom.namespace_certification.v1',
+            'company_brand':'MUSITU',
+            'commit':subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip(),
+            'classification_definitions':{
+              'BRAND_RESIDUAL':'must become MUSITU now',
+              'COMPATIBILITY_HANDLE':'live compatibility identifier; migrate only by verified cutover',
+              'IMMUTABLE_EVIDENCE':'historical/evidence identity; never rename',
+              'PROTOCOL_COMPATIBILITY':'requires versioned dual-header/env support before retirement',
+              'EXTERNAL_RESOURCE':'provider-side resource; recreate, verify, cut over, then retire legacy',
+              'REPOSITORY_SLUG':'rename only through a supported GitHub repository-rename operation',
+            },
+            'counts':counts,
+            'classifications':classes,
+            'exclusions':exclusions,
+            'brand_residual_gate':'PASS' if counts['BRAND_RESIDUAL']==0 else 'FAIL',
+            'immutable_historical_build_identity_preserved':True,
+            'truth_boundary':{'wolfram_parity':'NOT_CERTIFIED','superiority':'NOT_CERTIFIED'},
+          }
+          raw=(json.dumps(out,indent=2,sort_keys=True)+'\n').encode()
+          pathlib.Path('musitu-namespace-certification.json').write_bytes(raw)
+          digest=hashlib.sha256(raw).hexdigest()
+          pathlib.Path('musitu-namespace-certification.sha256').write_text(digest+'  musitu-namespace-certification.json\n')
+          print(json.dumps({'counts':counts,'brand_residual_gate':out['brand_residual_gate'],'sha256':digest},sort_keys=True))
+          PY
+      - name: Upload sealed namespace evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: musitu-axiom-namespace-certification
+          path: |
+            musitu-namespace-certification.json
+            musitu-namespace-certification.sha256
+          retention-days: 30
+          if-no-files-found: error
+      - name: Enforce zero brand residuals
+        shell: bash
+        run: |
+          python - <<'PY'
+          import json
+          x=json.load(open('musitu-namespace-certification.json'))
+          if x['counts']['BRAND_RESIDUAL'] != 0:
+            for r in x['classifications']['BRAND_RESIDUAL']:
+              print(f"BRAND_RESIDUAL:{r['path']}:{r['line']}:{r['identifier']}")
+            raise SystemExit('MUSITU namespace certification failed: BRAND_RESIDUAL remains')
+          print('MUSITU_NAMESPACE_CERTIFICATION_PASS')
+          PY
