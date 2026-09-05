@@ -1,0 +1,48 @@
+name: MFT Axiom Service Binding Runtime Shape
+on:
+  workflow_dispatch:
+  push:
+    paths: ['.github/workflows/axiom-service-binding-runtime-shape.yml']
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      CLOUDFLARE_ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+      CLOUDFLARE_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+      PROBE_WORKER: mft-axiom-binding-shape-probe
+      ADAPTER_WORKER: mft-axiom-modal-adapter
+    steps:
+      - uses: actions/checkout@v4
+      - name: Deploy read-only binding-shape probe
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --no-save --ignore-scripts --no-audit --no-fund wrangler@4.129.0 >/dev/null
+          mkdir -p /tmp/p
+          cat >/tmp/p/worker.js <<'JS'
+          export default {async fetch(r,e){return Response.json({fetch:typeof e.UP.fetch,getByName:typeof e.UP.getByName,idFromName:typeof e.UP.idFromName,get:typeof e.UP.get});}};
+          JS
+          python - <<'PY'
+          import json,os
+          json.dump({'name':os.environ['PROBE_WORKER'],'main':'worker.js','compatibility_date':'2026-09-04','workers_dev':True,'services':[{'binding':'UP','service':os.environ['ADAPTER_WORKER']}]},open('/tmp/p/wrangler.json','w'))
+          PY
+          (cd /tmp/p && npx wrangler deploy --config wrangler.json >/tmp/d.log 2>&1) || { tail -80 /tmp/d.log; exit 1; }
+          SUB="$(python - <<'PY'
+          import json,os,urllib.request
+          h={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_API_KEY']};q=urllib.request.Request(f"https://api.cloudflare.com/client/v4/accounts/{os.environ['CLOUDFLARE_ACCOUNT_ID']}/workers/subdomain",headers=h)
+          with urllib.request.urlopen(q) as r:x=json.load(r)
+          print(x['result']['subdomain'])
+          PY
+          )"
+          curl -fsS "https://${PROBE_WORKER}.${SUB}.workers.dev/" >/tmp/shape.json
+          cat /tmp/shape.json
+          python - <<'PY'
+          import json
+          x=json.load(open('/tmp/shape.json'))
+          if x.get('fetch')!='function': raise SystemExit('fetch unavailable')
+          print('binding_shape_probe=PASS')
+          PY
