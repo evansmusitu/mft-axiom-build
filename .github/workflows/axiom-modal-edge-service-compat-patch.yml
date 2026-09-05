@@ -18,7 +18,7 @@ jobs:
       D1_NAME: mft-axiom-prod
       D1_ID: 4a62b374-7232-4103-b201-34443c467382
       BUILD_ID: MFT-AXIOM-V3-FULL-SELF-CONTAINED-20260904
-      PATCH_SHA: 576f6c3e5d2bfc9bb14b62574778bd5cf5dceadd7b141210cbc49da9b21c03b2
+      PATCH_SHA: e0bf20748acbc47d1696b4678022580f0a4b787398c18d4d8cd1cea717ab7703
     steps:
       - uses: actions/checkout@v4
       - name: Reconstruct protected source
@@ -37,15 +37,16 @@ jobs:
           openssl enc -d -aes-256-cbc -pbkdf2 -iter 250000 -in runtime.tar.gz.enc -out runtime.tar.gz -pass env:CLOUDFLARE_GLOBAL_API_KEY
           test "$(sha256sum runtime.tar.gz|awk '{print $1}')" = b4d5a0266446523969a619f5e9bb5a04d9b815c78a2ab82ed046ef5e23d53663
           mkdir runtime && tar -xzf runtime.tar.gz -C runtime
-      - name: Apply exactly one compatibility transform
+      - name: Apply two Modal service-binding compatibility transforms
         shell: bash
         run: |
           set -euo pipefail
           python - <<'PY'
           from pathlib import Path
           import hashlib,os
-          p=Path('runtime/worker/src/index.js'); s=p.read_text(); token='kernel.fetch(new Request('
-          if s.count(token)!=1: raise SystemExit('transform target count mismatch')
+          p=Path('runtime/worker/src/index.js'); s=p.read_text()
+          token='kernel.fetch(new Request('
+          if s.count(token)!=1: raise SystemExit('request-wrapper target count mismatch')
           pos=s.index(token); o=pos+len('kernel.fetch(new Request')
           def match(src,start):
               d=0;q=None;e=False
@@ -63,10 +64,15 @@ jobs:
                       if d==0:return i
               raise SystemExit('unbalanced target')
           end=match(s,o)
-          out=s[:pos+len('kernel.fetch(')]+s[pos+len('kernel.fetch(new Request('):end]+s[end+1:]
-          if len(s)-len(out)!=13 or token in out: raise SystemExit('transform invariant')
+          s=s[:pos+len('kernel.fetch(')]+s[pos+len('kernel.fetch(new Request('):end]+s[end+1:]
+          selector="if(typeof binding.fetch==='function'&&typeof binding.getByName!=='function'&&typeof binding.idFromName!=='function')return binding;"
+          replacement="if(typeof binding.fetch==='function')return binding;"
+          if s.count(selector)!=1: raise SystemExit('selector target count mismatch')
+          out=s.replace(selector,replacement)
+          if token in out: raise SystemExit('request wrapper remained')
           if hashlib.sha256(out.encode()).hexdigest()!=os.environ['PATCH_SHA']: raise SystemExit('patched hash mismatch')
           p.write_text(out)
+          print('modal_binding_compatibility=PASS')
           PY
           node --check runtime/worker/src/index.js
       - name: Bundle and deploy isolated Worker with existing bindings
