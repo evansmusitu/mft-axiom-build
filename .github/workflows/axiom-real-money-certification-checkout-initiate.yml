@@ -1,0 +1,170 @@
+name: MUSITU Axiom Real Money Certification Checkout Initiate
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/axiom-real-money-certification-checkout-initiate.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: musitu-axiom-real-money-certification-checkout
+  cancel-in-progress: false
+
+jobs:
+  initiate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      CF_API: https://api.cloudflare.com/client/v4
+      ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      D1_UUID: 504029cc-f9a5-495e-818f-63c6144b4ea4
+      BILLING_BASE: https://payments.mftintelligence.com
+      EXPECTED_PLAN: developer
+      EXPECTED_PRICE_ID: axiom-developer-monthly
+      EXPECTED_AMOUNT_CENTS: '1900'
+      EXPECTED_CURRENCY: USD
+      EXPECTED_UNIT_LIMIT: '1000'
+    steps:
+      - name: Create one certification customer and unpaid Paynow checkout
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import datetime,hashlib,json,os,pathlib,secrets,urllib.error,urllib.parse,urllib.request,uuid
+
+          api=os.environ['CF_API']; aid=os.environ['ACCOUNT_ID']; dbid=os.environ['D1_UUID']; base=os.environ['BILLING_BASE']
+          CFH={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY'],'Content-Type':'application/json','Accept':'application/json','User-Agent':'MUSITU-Axiom-Real-Money-Certification-Initiate/1.0'}
+
+          def q(sql,params=None):
+              body={'sql':sql}
+              if params is not None: body['params']=params
+              req=urllib.request.Request(f'{api}/accounts/{aid}/d1/database/{dbid}/query',headers=CFH,method='POST',data=json.dumps(body,separators=(',',':')).encode())
+              try:
+                  with urllib.request.urlopen(req,timeout=45) as r: raw=r.read(); code=r.status
+              except urllib.error.HTTPError as e: raw=e.read(); code=e.code
+              if not 200<=code<300: raise RuntimeError(f'D1 HTTP {code}')
+              obj=json.loads(raw or b'{}'); rr=obj.get('result') or []; rows=[]
+              if not rr or not all(x.get('success') is True for x in rr): raise RuntimeError('D1 statement failed')
+              for x in rr: rows.extend(x.get('results') or [])
+              return rows
+
+          def live_checkout(token):
+              body=json.dumps({'plan':os.environ['EXPECTED_PLAN']},separators=(',',':')).encode()
+              req=urllib.request.Request(base+'/billing/checkout',headers={'Authorization':'Bearer '+token,'Content-Type':'application/json','Accept':'application/json','User-Agent':'MUSITU-Axiom-Real-Money-Certification-Initiate/1.0'},method='POST',data=body)
+              try:
+                  with urllib.request.urlopen(req,timeout=60) as r: raw=r.read(); code=r.status
+              except urllib.error.HTTPError as e: raw=e.read(); code=e.code
+              try: obj=json.loads(raw or b'{}')
+              except Exception: obj={}
+              return code,obj
+
+          def safe_paynow_url(v):
+              try:
+                  u=urllib.parse.urlparse(str(v or ''))
+                  return u.scheme=='https' and u.hostname in ('paynow.co.zw','www.paynow.co.zw')
+              except Exception:return False
+
+          # Refuse duplicates. A certification checkout is deliberately one-at-a-time.
+          existing=q("SELECT count(*) AS n FROM customers WHERE id LIKE 'cert_real_money_%';")
+          if int(existing[0]['n'])!=0:
+              raise RuntimeError('existing real-money certification customer present; refusing duplicate checkout')
+          existing_intents=q("SELECT count(*) AS n FROM billing_checkout_intents WHERE customer_id LIKE 'cert_real_money_%';")
+          if int(existing_intents[0]['n'])!=0:
+              raise RuntimeError('existing real-money certification intent present; refusing duplicate checkout')
+
+          suffix=uuid.uuid4().hex
+          customer='cert_real_money_'+suffix
+          key_id='cert_real_money_key_'+suffix
+          email='cert-real-money-'+suffix+'@invalid.example'
+          token='musitu_axiom_real_money_cert_'+secrets.token_urlsafe(40)
+          print('::add-mask::'+token)
+          key_hash=hashlib.sha256(token.encode()).hexdigest(); key_prefix=token[:16]
+          now=datetime.datetime.now(datetime.timezone.utc)
+          created=now.isoformat().replace('+00:00','Z')
+          expires=(now+datetime.timedelta(hours=1)).isoformat().replace('+00:00','Z')
+          customer_inserted=False; key_inserted=False; checkout_created=False
+          reference=None; browser=None
+
+          try:
+              q('INSERT INTO customers(id,email,name,plan,status,monthly_unit_override,created_at,updated_at) VALUES(?1,?2,?3,?4,?5,NULL,?6,?6)',[customer,email,'MUSITU real-money certification customer','developer','active',created])
+              customer_inserted=True
+              q('INSERT INTO api_keys(id,customer_id,key_hash,key_prefix,label,status,created_at,last_used_at,expires_at,revoked_at) VALUES(?1,?2,?3,?4,?5,?6,?7,NULL,?8,NULL)',[key_id,customer,key_hash,key_prefix,'real-money-certification-checkout-initiation','active',created,expires])
+              key_inserted=True
+
+              code,obj=live_checkout(token)
+              if code!=201: raise RuntimeError('billing checkout initiation failed HTTP '+str(code)+' error='+str(obj.get('error')))
+              reference=str(obj.get('reference') or ''); browser=str(obj.get('browser_url') or '')
+              if reference: print('::add-mask::'+reference)
+              if browser: print('::add-mask::'+browser)
+              checkout_created=True
+
+              exact=(obj.get('plan'),obj.get('price_id'),int(obj.get('amount_cents') or 0),obj.get('currency'))
+              expected=(os.environ['EXPECTED_PLAN'],os.environ['EXPECTED_PRICE_ID'],int(os.environ['EXPECTED_AMOUNT_CENTS']),os.environ['EXPECTED_CURRENCY'])
+              if exact!=expected: raise RuntimeError('server-owned checkout catalog mismatch')
+              if not reference or not safe_paynow_url(browser): raise RuntimeError('provider checkout response missing safe Paynow browser URL/reference')
+              if obj.get('live_money_certified') is not False: raise RuntimeError('checkout incorrectly claims live-money certification')
+
+              rows=q('SELECT customer_id,plan,amount_cents,currency,monthly_unit_limit,status,browser_url,poll_url,paynow_reference,completed_at FROM billing_checkout_intents WHERE reference=?1 LIMIT 1',[reference])
+              if len(rows)!=1: raise RuntimeError('checkout intent not persisted exactly once')
+              r=rows[0]
+              if (r.get('customer_id'),r.get('plan'),int(r.get('amount_cents') or 0),r.get('currency'),int(r.get('monthly_unit_limit') or 0))!=(customer,'developer',1900,'USD',1000):
+                  raise RuntimeError('persisted checkout intent catalog/customer mismatch')
+              if str(r.get('status') or '').lower()!='pending' or not safe_paynow_url(r.get('browser_url')) or not safe_paynow_url(r.get('poll_url')):
+                  raise RuntimeError('persisted checkout intent is not a valid pending Paynow intent')
+              if r.get('paynow_reference') or r.get('completed_at'):
+                  raise RuntimeError('new unpaid certification checkout unexpectedly contains settlement evidence')
+
+              # Raw bearer material must not persist after checkout initiation.
+              q('DELETE FROM api_keys WHERE id=?1',[key_id]); key_inserted=False
+              if int(q('SELECT count(*) AS n FROM api_keys WHERE id=?1',[key_id])[0]['n'])!=0:
+                  raise RuntimeError('temporary certification API key cleanup failed')
+
+              # Payer-facing URL is artifact-only; never print it in the public Actions log.
+              pathlib.Path('OPEN_PAYNOW_CERTIFICATION_CHECKOUT.txt').write_text(
+                  'MUSITU Axiom real-money certification checkout\n\n'
+                  'Plan: Developer\nAmount: USD 19.00\nPurpose: one genuine non-test payment for end-to-end certification\n\n'
+                  'Open this Paynow URL before it expires:\n'+browser+'\n',encoding='utf-8')
+              ref_hash=hashlib.sha256(reference.encode()).hexdigest()
+              cust_hash=hashlib.sha256(customer.encode()).hexdigest()
+              evidence={
+                  'schema':'musitu.axiom.real_money_certification_checkout_initiation.v1',
+                  'gate':'AXIOM_REAL_MONEY_CERTIFICATION_CHECKOUT_READY',
+                  'plan':'developer','price_id':'axiom-developer-monthly','amount_cents':1900,'currency':'USD','monthly_unit_limit':1000,
+                  'checkout_http':201,'provider':'paynow','provider_checkout_created':True,'real_payment_completed':False,
+                  'intent_status':'pending','reference_sha256':ref_hash,'customer_id_sha256':cust_hash,
+                  'temporary_api_key_deleted':True,'raw_api_key_published':False,'worker_secret_mutation':False,
+                  'browser_url_logged':False,'browser_url_artifact_only':True,
+                  'live_money_certified':False,'wolfram_parity':'NOT_CERTIFIED','superiority':'NOT_CERTIFIED',
+              }
+              raw=(json.dumps(evidence,indent=2,sort_keys=True)+'\n').encode()
+              pathlib.Path('real-money-certification-checkout-initiation.json').write_bytes(raw)
+              dg=hashlib.sha256(raw).hexdigest()
+              pathlib.Path('real-money-certification-checkout-initiation.sha256').write_text(dg+'  real-money-certification-checkout-initiation.json\n')
+              print(json.dumps({'gate':evidence['gate'],'plan':'developer','amount_cents':1900,'currency':'USD','monthly_unit_limit':1000,'checkout_http':201,'provider_checkout_created':True,'real_payment_completed':False,'temporary_api_key_deleted':True,'raw_api_key_published':False,'browser_url_logged':False,'browser_url_artifact_only':True,'live_money_certified':False,'reference_sha256':ref_hash,'customer_id_sha256':cust_hash,'evidence_sha256':dg},sort_keys=True))
+          except Exception:
+              # If no provider checkout exists, remove all local fixture state. If one exists, preserve the intent/customer for forensic reconciliation and prevent a duplicate charge path.
+              if key_inserted:
+                  try:q('DELETE FROM api_keys WHERE id=?1',[key_id])
+                  except Exception:pass
+              if customer_inserted and not checkout_created:
+                  try:q('DELETE FROM customers WHERE id=?1',[customer])
+                  except Exception:pass
+              raise
+          PY
+
+      - name: Upload payer checkout link artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: musitu-axiom-paynow-certification-checkout
+          path: |
+            OPEN_PAYNOW_CERTIFICATION_CHECKOUT.txt
+            real-money-certification-checkout-initiation.json
+            real-money-certification-checkout-initiation.sha256
+          retention-days: 1
+          if-no-files-found: error
