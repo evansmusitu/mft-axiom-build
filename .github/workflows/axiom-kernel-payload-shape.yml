@@ -1,0 +1,107 @@
+name: MFT Axiom Kernel Payload Shape
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/axiom-kernel-payload-shape.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Reconstruct encrypted source
+        env:
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          P=deploy_payload/runtime_min
+          cat "$P/chunk_00.b64" "$P/chunk_01_02.b64" "$P/chunk_03_04.b64" "$P/chunk_05_06.b64" "$P/chunk_07_08.b64" "$P/chunk_09.b64" > runtime.enc.b64
+          base64 -d runtime.enc.b64 > runtime.tar.gz.enc
+          test "$(sha256sum runtime.tar.gz.enc | awk '{print $1}')" = 'b82448d6b4b34b302748815af976b535d69922c197d4b7a9056fc2f91a9e12cf'
+          python - <<'PY'
+          import hashlib,hmac,os
+          b=open('runtime.tar.gz.enc','rb').read()
+          if not hmac.compare_digest(hmac.new(os.environ['CLOUDFLARE_GLOBAL_API_KEY'].encode(),b,hashlib.sha256).hexdigest(),'1a3193d4f3271d61d151e6ebd7cf4576d8ab86c2e79b84eff4ad0f635fe7ab47'):
+              raise SystemExit('HMAC mismatch')
+          PY
+          openssl enc -d -aes-256-cbc -pbkdf2 -iter 250000 -in runtime.tar.gz.enc -out runtime.tar.gz -pass env:CLOUDFLARE_GLOBAL_API_KEY
+          test "$(sha256sum runtime.tar.gz | awk '{print $1}')" = 'b4d5a0266446523969a619f5e9bb5a04d9b815c78a2ab82ed046ef5e23d53663'
+          mkdir runtime && tar -xzf runtime.tar.gz -C runtime
+      - name: Extract structural payload metadata only
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json,pathlib,re
+          s=pathlib.Path('runtime/worker/src/index.js').read_text(errors='replace')
+          out={'schema':'mft.axiom.kernel_payload_shape.v1','sites':[],'plaintext_source_committed':False}
+          needle='http://container/v1/compute'
+          pos=0
+          while True:
+              i=s.find(needle,pos)
+              if i<0: break
+              lo=max(0,i-1800); hi=min(len(s),i+3200); w=s[lo:hi]
+              site={'url':'http://container/v1/compute'}
+              # JSON.stringify object literal nearest URL, output keys and expression categories only.
+              candidates=list(re.finditer(r'JSON\.stringify\s*\(\s*\{(.{0,1800}?)\}\s*\)',w,re.S))
+              best=min(candidates,key=lambda m:abs(m.start()-(i-lo))) if candidates else None
+              if best:
+                  body=best.group(1)
+                  # split conservatively at top-level commas via tiny scanner.
+                  parts=[]; start=0; depth=0; quote=None; esc=False
+                  for j,ch in enumerate(body):
+                      if quote:
+                          if esc: esc=False
+                          elif ch=='\\': esc=True
+                          elif ch==quote: quote=None
+                          continue
+                      if ch in "'\"`": quote=ch; continue
+                      if ch in '([{': depth+=1
+                      elif ch in ')]}': depth=max(0,depth-1)
+                      elif ch==',' and depth==0:
+                          parts.append(body[start:j].strip()); start=j+1
+                  parts.append(body[start:].strip())
+                  fields=[]
+                  for part in parts:
+                      if not part: continue
+                      m=re.match(r'([A-Za-z_$][\w$]*)\s*:\s*(.+)$',part,re.S)
+                      if m:
+                          key=m.group(1); expr=m.group(2).strip()
+                      elif re.match(r'^[A-Za-z_$][\w$]*$',part):
+                          key=part; expr=part
+                      else: continue
+                      category='other'
+                      if re.match(r'^[A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*)*$',expr): category='identifier_or_property'
+                      elif expr in ('true','false','null'): category='literal'
+                      elif re.match(r"^['\"]",expr): category='string_literal'
+                      elif expr.startswith('{'): category='object_literal'
+                      elif expr.startswith('['): category='array_literal'
+                      elif '(' in expr: category='call_or_expression'
+                      fields.append({'key':key,'expression_category':category,'identifier':expr if category=='identifier_or_property' else None})
+                  site['json_body_fields']=fields
+              # header keys nearest fetch.
+              hm=re.search(r'headers\s*:\s*\{(.{0,1000}?)\}',w,re.S)
+              if hm:
+                  keys=sorted(set(re.findall(r"(?:['\"]([^'\"]+)['\"]|([A-Za-z_$][\w$]*))\s*:",hm.group(1))))
+                  site['header_keys']=sorted(set(a or b for a,b in keys if a or b))
+              mm=re.search(r"method\s*:\s*['\"]([A-Z]+)['\"]",w)
+              site['method']=mm.group(1) if mm else None
+              out['sites'].append(site); pos=i+len(needle)
+          pathlib.Path('kernel-payload-shape.json').write_text(json.dumps(out,indent=2,sort_keys=True))
+          print(json.dumps(out,sort_keys=True))
+          PY
+          sha256sum kernel-payload-shape.json > kernel-payload-shape.sha256
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mft-axiom-kernel-payload-shape
+          path: |
+            kernel-payload-shape.json
+            kernel-payload-shape.sha256
+          retention-days: 7
