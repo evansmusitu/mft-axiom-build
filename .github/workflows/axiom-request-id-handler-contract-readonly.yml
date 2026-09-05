@@ -20,7 +20,7 @@ jobs:
       EXPECTED_SOURCE_SHA256: a19212c5efc5651c8551ad6ed72370b7cc6da51009f9de6c8c9442fd04d61c13
     steps:
       - uses: actions/checkout@v4
-      - name: Emit handler identifier metadata only
+      - name: Emit request ID header literal metadata only
         env:
           CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
           CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
@@ -30,7 +30,7 @@ jobs:
           python - <<'PY'
           import email,hashlib,json,os,re,urllib.parse,urllib.request
           api=os.environ['CF_API'];aid=os.environ['ACCOUNT_ID'];worker=os.environ['BACKEND'];expected=os.environ['EXPECTED_SOURCE_SHA256']
-          H={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY'],'Accept':'application/json','User-Agent':'MUSITU-Axiom-Request-ID-Handler-Contract/3.0'}
+          H={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY'],'Accept':'application/json','User-Agent':'MUSITU-Axiom-Request-ID-Handler-Contract/4.0'}
           q=urllib.request.Request(f'{api}/accounts/{aid}/workers/scripts/{urllib.parse.quote(worker,safe="")}',headers=H)
           with urllib.request.urlopen(q,timeout=45) as r:raw=r.read();ctype=r.headers.get('content-type','')
           if 'multipart/' in ctype.lower():
@@ -49,13 +49,11 @@ jobs:
               rhs=m.group(1)
               if re.search(r'crypto\s*\.\s*randomUUID\s*\(',rhs):decls.append((m,rhs))
           if len(decls)!=1:raise RuntimeError('requestId UUID-bearing declaration count '+str(len(decls)))
-          decl,rhs=decls[0];pos=decl.start();window=text[max(0,pos-9000):pos+1800]
-          header_vars=sorted(set(re.findall(r'\b([A-Za-z_$][A-Za-z0-9_$]*)\s*\.\s*headers\b',window)))
-          header_get_vars=sorted(set(re.findall(r'\b([A-Za-z_$][A-Za-z0-9_$]*)\s*\.\s*headers\s*\.\s*get\s*\(',window)))
-          url_vars=sorted(set(re.findall(r'\b([A-Za-z_$][A-Za-z0-9_$]*)\s*\.\s*url\b',window)))
-          json_vars=sorted(set(re.findall(r'\b([A-Za-z_$][A-Za-z0-9_$]*)\s*\.\s*json\s*\(',window)))
-          all_header_get_vars=sorted(set(re.findall(r'\b([A-Za-z_$][A-Za-z0-9_$]*)\s*\.\s*headers\s*\.\s*get\s*\(',text)))
-          out={'schema':'musitu.axiom.request_id_handler_contract_readonly.v3','gate':'AXIOM_REQUEST_ID_HANDLER_METADATA_READ_PASS','worker':worker,'source_sha256':sha,'request_id_uuid_declaration_count':1,'request_id_rhs_uses_random_uuid':True,'request_id_rhs_reads_request_header':bool(re.search(r'headers?\s*\.\s*get\s*\(',rhs,re.I)),'nearby_header_object_identifiers':header_vars,'nearby_header_get_identifiers':header_get_vars,'nearby_url_object_identifiers':url_vars,'nearby_json_method_identifiers':json_vars,'all_source_header_get_identifiers':all_header_get_vars,'header_and_url_intersection':sorted(set(header_vars).intersection(url_vars)),'header_get_and_url_intersection':sorted(set(header_get_vars).intersection(url_vars)),'header_get_url_json_intersection':sorted(set(header_get_vars).intersection(url_vars).intersection(json_vars)),'request_id_declaration_inside_compute_region':('/v1/compute' in text[max(0,pos-9000):pos+9000]),'mutation_performed':False,'source_published':False,'secret_values_published':False}
+          decl,rhs=decls[0]
+          lits=[]
+          for m in re.finditer(r'\brequest\s*\.\s*headers\s*\.\s*get\s*\(\s*(["\'])([^"\']+)\1\s*\)',rhs,re.I):lits.append(m.group(2).lower())
+          out={'schema':'musitu.axiom.request_id_handler_contract_readonly.v4','gate':'AXIOM_REQUEST_ID_HEADER_LITERAL_READ_PASS','worker':worker,'source_sha256':sha,'request_id_uuid_declaration_count':1,'request_object_identifier':'request','request_id_rhs_header_literals':lits,'request_id_rhs_header_literal_count':len(lits),'reads_canonical_musitu_request_id':('x-musitu-request-id' in lits),'reads_generic_request_id':('x-request-id' in lits),'uses_random_uuid_fallback':bool(re.search(r'crypto\s*\.\s*randomUUID\s*\(',rhs)),'mutation_performed':False,'source_published':False,'secret_values_published':False}
+          if len(lits)!=1:raise RuntimeError('expected exactly one requestId request.headers.get literal, got '+str(len(lits)))
           blob=(json.dumps(out,indent=2,sort_keys=True)+'\n').encode();open('request-id-handler-contract.json','wb').write(blob);dg=hashlib.sha256(blob).hexdigest();open('request-id-handler-contract.sha256','w').write(dg+'  request-id-handler-contract.json\n')
           print(json.dumps({**out,'evidence_sha256':dg},sort_keys=True))
           PY
