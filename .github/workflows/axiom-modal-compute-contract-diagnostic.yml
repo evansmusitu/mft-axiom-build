@@ -1,0 +1,73 @@
+name: MFT Axiom Modal Compute Contract Diagnostic
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/axiom-modal-compute-contract-diagnostic.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID }}
+      MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET }}
+      MODAL_BASE_URL: https://evansmusitu--mft-axiom-v3-modal-staging-axiom-kernel.modal.run
+    steps:
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Install Modal and replay canonical payload with ephemeral proxy auth
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --disable-pip-version-check --quiet 'modal>=1.5,<2'
+          modal app list --json >/dev/null
+          modal workspace proxy-tokens create --json > /tmp/proxy.json
+          python - <<'PY'
+          import json,pathlib
+          obj=json.load(open('/tmp/proxy.json')); vals=[]
+          def walk(x):
+              if isinstance(x,dict):
+                  for v in x.values(): walk(v)
+              elif isinstance(x,list):
+                  for v in x: walk(v)
+              elif isinstance(x,str): vals.append(x)
+          walk(obj)
+          k=[x for x in vals if x.startswith('wk-')]; s=[x for x in vals if x.startswith('ws-')]
+          if len(k)!=1 or len(s)!=1: raise SystemExit('proxy token shape mismatch')
+          pathlib.Path('/tmp/k').write_text(k[0]); pathlib.Path('/tmp/s').write_text(s[0])
+          PY
+          KEY="$(cat /tmp/k)"; SECRET="$(cat /tmp/s)"; echo "::add-mask::$KEY"; echo "::add-mask::$SECRET"
+          cleanup(){ modal workspace proxy-tokens delete -y "$KEY" >/dev/null 2>&1 || true; rm -f /tmp/proxy.json /tmp/k /tmp/s; }
+          trap cleanup EXIT
+          code="$(curl -sS --max-time 90 -o /tmp/compute.json -w '%{http_code}' -X POST "$MODAL_BASE_URL/v1/compute" -H "Modal-Key: $KEY" -H "Modal-Secret: $SECRET" -H 'content-type: application/json' --data '{"operation":"arithmetic.evaluate","args":{"expression":"40+2"},"verify":true}')"
+          HTTP_CODE="$code" python - <<'PY'
+          import json,os,pathlib
+          raw=pathlib.Path('/tmp/compute.json').read_text(errors='replace')
+          try: x=json.loads(raw)
+          except Exception: x=None
+          safe={'http_status':int(os.environ['HTTP_CODE']),'json':isinstance(x,(dict,list))}
+          if isinstance(x,dict):
+              safe['keys']=sorted(x.keys())
+              safe['ok']=x.get('ok')
+              safe['error']=x.get('error')
+              safe['detail_type']=type(x.get('detail')).__name__ if 'detail' in x else None
+              r=x.get('receipt')
+              safe['receipt_present']=isinstance(r,dict)
+              if isinstance(r,dict): safe['receipt_keys']=sorted(r.keys())
+          pathlib.Path('modal-compute-contract-diagnostic.json').write_text(json.dumps(safe,indent=2,sort_keys=True))
+          print(json.dumps(safe,sort_keys=True))
+          PY
+          sha256sum modal-compute-contract-diagnostic.json > modal-compute-contract-diagnostic.sha256
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mft-axiom-modal-compute-contract-diagnostic
+          path: |
+            modal-compute-contract-diagnostic.json
+            modal-compute-contract-diagnostic.sha256
+          retention-days: 7
