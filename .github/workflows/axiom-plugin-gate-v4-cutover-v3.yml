@@ -1,0 +1,72 @@
+name: MUSITU Axiom Public Plugin Gate V4 Cutover V3
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/axiom-plugin-gate-v4-cutover-v3.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: musitu-axiom-public-plugin-cutover
+  cancel-in-progress: false
+
+jobs:
+  cutover:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      CF_API: https://api.cloudflare.com/client/v4
+      ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      D1_UUID: 504029cc-f9a5-495e-818f-63c6144b4ea4
+      MCP_HOST: mcp.mftintelligence.com
+      MCP_PUBLIC_WORKER: musitu-axiom-mcp
+      MCP_CORE_WORKER: musitu-axiom-mcp-core
+      AUTH_ISSUER: https://auth.mftintelligence.com
+      EXPECTED_BUILD: MFT-AXIOM-V3-FULL-SELF-CONTAINED-20260904
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate sources and certification harness
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check mcp/musitu_axiom_plugin_gate_v4.mjs
+          node --check mcp/musitu_axiom_mcp_oauth_gate_v3.mjs
+          python - <<'PY'
+          from pathlib import Path
+          import textwrap
+          p=Path('.github/workflows/axiom-plugin-gate-v4-cutover-v2.yml')
+          s=p.read_text()
+          marker="if rc!=201 or not reg.get('client_id'):raise RuntimeError('DCR failed');client_id=str(reg['client_id']);print('::add-mask::'+client_id)"
+          if marker not in s:
+              raise SystemExit('expected V2 harness defect marker not found')
+          start=s.index("          python - <<'PY'\n")+len("          python - <<'PY'\n")
+          end=s.index("\n          PY",start)
+          code=textwrap.dedent(s[start:end])
+          fixed=code.replace(marker,"if rc!=201 or not reg.get('client_id'):\n  raise RuntimeError('DCR failed')\nclient_id=str(reg['client_id'])\nprint('::add-mask::'+client_id)")
+          if fixed==code:
+              raise SystemExit('harness patch did not apply')
+          compile(fixed,'<v4-certification-harness>','exec')
+          Path('/tmp/musitu-v4-certification.py').write_text(fixed)
+          print('MUSITU_V4_CERTIFICATION_HARNESS_REPAIR_READY')
+          PY
+      - name: Execute repaired full v4 certification
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python /tmp/musitu-v4-certification.py
+      - name: Upload sealed public Plugin evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: musitu-axiom-public-plugin-v4-v3
+          path: |
+            musitu-axiom-public-plugin-v4-v2.json
+            musitu-axiom-public-plugin-v4-v2.sha256
+          retention-days: 30
+          if-no-files-found: warn
