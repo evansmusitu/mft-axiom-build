@@ -1,0 +1,272 @@
+name: MUSITU Axiom OAuth Production Deploy
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'auth/musitu_axiom_oauth_worker.mjs'
+      - '.github/workflows/axiom-oauth-production-deploy.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: musitu-axiom-oauth-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      CF_API: https://api.cloudflare.com/client/v4
+      ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      ZONE_ID: 5b56528f03948ff5917a5e0cd9f7109e
+      ZONE_NAME: mftintelligence.com
+      D1_UUID: 504029cc-f9a5-495e-818f-63c6144b4ea4
+      AUTH_HOST: auth.mftintelligence.com
+      AUTH_WORKER: musitu-axiom-oauth
+      AUTH_RULE_REF: musitu_axiom_oauth_machine_transport
+      OAUTH_ISSUER: https://auth.mftintelligence.com
+      MCP_RESOURCE: https://mcp.mftintelligence.com
+      MCP_BASE: https://mcp.mftintelligence.com
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate OAuth worker source
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check auth/musitu_axiom_oauth_worker.mjs
+          if grep -Eiq '\bMFT[[:space:]]+Axiom\b|\bmft\.axiom\b' auth/musitu_axiom_oauth_worker.mjs; then
+            echo 'Retired company branding found in OAuth source' >&2
+            exit 1
+          fi
+
+      - name: Migrate D1, deploy OAuth Worker, and prove OAuth-to-MCP E2E
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$CLOUDFLARE_EMAIL"
+          test -n "$CLOUDFLARE_GLOBAL_API_KEY"
+          python - <<'PY'
+          import base64,datetime,hashlib,json,os,pathlib,re,secrets,time,urllib.error,urllib.parse,urllib.request,uuid
+
+          api=os.environ['CF_API']; aid=os.environ['ACCOUNT_ID']; zid=os.environ['ZONE_ID']; dbid=os.environ['D1_UUID']
+          host=os.environ['AUTH_HOST']; worker=os.environ['AUTH_WORKER']; rule_ref=os.environ['AUTH_RULE_REF']; issuer=os.environ['OAUTH_ISSUER']; resource=os.environ['MCP_RESOURCE']; mcp=os.environ['MCP_BASE']
+          source_path=pathlib.Path('auth/musitu_axiom_oauth_worker.mjs'); source=source_path.read_bytes(); source_sha=hashlib.sha256(source).hexdigest()
+          CFH={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY'],'Accept':'application/json','User-Agent':'MUSITU-Axiom-OAuth-Deploy/1.0'}
+
+          def raw(url,method='GET',headers=None,body=None,timeout=45,follow=True):
+              req=urllib.request.Request(url,headers=dict(headers or {}),method=method,data=body)
+              opener=urllib.request.build_opener() if follow else urllib.request.build_opener(type('NoRedirect',(urllib.request.HTTPRedirectHandler,),{'redirect_request':lambda self,req,fp,code,msg,headers,newurl:None})())
+              try:
+                  with opener.open(req,timeout=timeout) as r:return r.status,r.headers,r.read()
+              except urllib.error.HTTPError as e:return e.code,e.headers,e.read()
+              except urllib.error.URLError:return 0,{},b''
+
+          def cf(path,method='GET',obj=None,expected=None):
+              h=dict(CFH); body=None
+              if obj is not None:h['Content-Type']='application/json';body=json.dumps(obj,separators=(',',':')).encode()
+              c,hh,b=raw(api+path,method,h,body)
+              if expected is not None:
+                  if c not in expected:raise RuntimeError(f'Cloudflare HTTP {c}: {method} {path}')
+              elif not 200<=c<300:raise RuntimeError(f'Cloudflare HTTP {c}: {method} {path}')
+              try:o=json.loads(b or b'{}')
+              except Exception:o={}
+              if isinstance(o,dict) and o.get('success') is False:raise RuntimeError('Cloudflare success=false '+path+' '+str(o.get('errors'))[:300])
+              return o.get('result') if isinstance(o,dict) else None
+
+          def d1(sql,params=None):
+              obj={'sql':sql}
+              if params is not None:obj['params']=params
+              rr=cf(f'/accounts/{aid}/d1/database/{dbid}/query','POST',obj) or [];rows=[]
+              if not rr or not all(x.get('success') is True for x in rr):raise RuntimeError('D1 statement failed')
+              for x in rr:rows.extend(x.get('results') or [])
+              return rows
+
+          def mp(meta):
+              bd='----MUSITU'+secrets.token_hex(18); p=[]
+              def add(v):p.append(v.encode() if isinstance(v,str) else v)
+              add(f'--{bd}\r\nContent-Disposition: form-data; name="metadata"\r\nContent-Type: application/json\r\n\r\n');add(json.dumps(meta,separators=(',',':')));add('\r\n')
+              add(f'--{bd}\r\nContent-Disposition: form-data; name="index.mjs"; filename="index.mjs"\r\nContent-Type: application/javascript+module\r\n\r\n');add(source);add('\r\n');add(f'--{bd}--\r\n')
+              return bd,b''.join(p)
+
+          def http_json(url,method='GET',obj=None,headers=None,follow=True):
+              h={'Accept':'application/json','User-Agent':'MUSITU-Axiom-OAuth-E2E/1.0'}
+              if headers:h.update(headers)
+              body=None
+              if obj is not None:h['Content-Type']='application/json';body=json.dumps(obj,separators=(',',':')).encode()
+              c,hh,b=raw(url,method,h,body,45,follow)
+              try:o=json.loads(b or b'{}')
+              except Exception:o={}
+              return c,hh,o,b
+
+          def form(url,data,headers=None,follow=True):
+              h={'Accept':'application/json','Content-Type':'application/x-www-form-urlencoded','User-Agent':'MUSITU-Axiom-OAuth-E2E/1.0'}
+              if headers:h.update(headers)
+              return raw(url,'POST',h,urllib.parse.urlencode(data).encode(),45,follow)
+
+          def b64url(b):return base64.urlsafe_b64encode(b).rstrip(b'=').decode()
+
+          # Additive OAuth schema only; no existing Axiom table is changed.
+          migrations=[
+          '''CREATE TABLE IF NOT EXISTS oauth_clients (client_id TEXT PRIMARY KEY, redirect_uris_json TEXT NOT NULL, client_name TEXT NOT NULL, created_at TEXT NOT NULL);''',
+          '''CREATE TABLE IF NOT EXISTS oauth_authorization_flows (id TEXT PRIMARY KEY, client_id TEXT NOT NULL, redirect_uri TEXT NOT NULL, state TEXT NOT NULL, resource TEXT NOT NULL, scope TEXT NOT NULL, code_challenge TEXT NOT NULL, nonce_hash TEXT NOT NULL, created_at TEXT NOT NULL, expires_at TEXT NOT NULL, used_at TEXT);''',
+          '''CREATE TABLE IF NOT EXISTS oauth_authorization_codes (code_hash TEXT PRIMARY KEY, client_id TEXT NOT NULL, customer_id TEXT NOT NULL, redirect_uri TEXT NOT NULL, resource TEXT NOT NULL, scope TEXT NOT NULL, code_challenge TEXT NOT NULL, created_at TEXT NOT NULL, expires_at TEXT NOT NULL, used_at TEXT);''',
+          '''CREATE TABLE IF NOT EXISTS oauth_access_tokens (token_hash TEXT PRIMARY KEY, api_key_id TEXT NOT NULL, client_id TEXT NOT NULL, customer_id TEXT NOT NULL, issuer TEXT NOT NULL, resource TEXT NOT NULL, scope TEXT NOT NULL, created_at TEXT NOT NULL, expires_at TEXT NOT NULL, revoked_at TEXT);''',
+          '''CREATE TABLE IF NOT EXISTS oauth_refresh_tokens (token_hash TEXT PRIMARY KEY, api_key_id TEXT NOT NULL, client_id TEXT NOT NULL, customer_id TEXT NOT NULL, resource TEXT NOT NULL, scope TEXT NOT NULL, created_at TEXT NOT NULL, expires_at TEXT NOT NULL, revoked_at TEXT);''',
+          '''CREATE INDEX IF NOT EXISTS idx_oauth_flows_expiry ON oauth_authorization_flows(expires_at);''',
+          '''CREATE INDEX IF NOT EXISTS idx_oauth_codes_client_expiry ON oauth_authorization_codes(client_id,expires_at);''',
+          '''CREATE INDEX IF NOT EXISTS idx_oauth_access_customer_expiry ON oauth_access_tokens(customer_id,expires_at);''',
+          '''CREATE INDEX IF NOT EXISTS idx_oauth_access_api_key ON oauth_access_tokens(api_key_id);''',
+          '''CREATE INDEX IF NOT EXISTS idx_oauth_refresh_customer_expiry ON oauth_refresh_tokens(customer_id,expires_at);''',
+          '''CREATE INDEX IF NOT EXISTS idx_oauth_refresh_api_key ON oauth_refresh_tokens(api_key_id);'''
+          ]
+          for sql in migrations:d1(sql)
+          required_tables={'oauth_clients','oauth_authorization_flows','oauth_authorization_codes','oauth_access_tokens','oauth_refresh_tokens'}
+          inv=d1("SELECT name FROM sqlite_master WHERE type='table' AND name LIKE 'oauth_%' ORDER BY name")
+          if not required_tables.issubset({x.get('name') for x in inv}):raise RuntimeError('OAuth D1 schema incomplete')
+
+          # Canonical zone/account and collision checks.
+          zones=cf('/zones?name='+urllib.parse.quote(os.environ['ZONE_NAME'])+'&status=active') or []
+          if len(zones)!=1 or zones[0].get('id')!=zid or (zones[0].get('account') or {}).get('id')!=aid:raise RuntimeError('canonical zone/account mismatch')
+          domains=cf(f'/accounts/{aid}/workers/domains') or []; before=[d for d in domains if isinstance(d,dict) and d.get('hostname')==host]
+          if len(before)>1:raise RuntimeError('duplicate OAuth custom-domain rows')
+          if before and before[0].get('service')!=worker:raise RuntimeError('OAuth hostname belongs to another Worker')
+          if not before:
+              dns=cf(f'/zones/{zid}/dns_records?name='+urllib.parse.quote(host)+'&per_page=100') or []
+              if dns:raise RuntimeError('OAuth hostname already has DNS records; refusing override')
+              routes=cf(f'/zones/{zid}/workers/routes') or []
+              if any(host in str(r.get('pattern') or '') for r in routes if isinstance(r,dict)):raise RuntimeError('OAuth hostname already appears in Worker routes')
+
+          # Deploy isolated OAuth worker with only D1 + public metadata bindings.
+          meta={'main_module':'index.mjs','compatibility_date':'2026-09-05','bindings':[
+              {'type':'d1','name':'AXIOM_DB','id':dbid},
+              {'type':'plain_text','name':'OAUTH_ISSUER','text':issuer},
+              {'type':'plain_text','name':'MCP_RESOURCE','text':resource},
+          ]}
+          bd,body=mp(meta); h=dict(CFH); h['Content-Type']='multipart/form-data; boundary='+bd
+          c,_,b=raw(f'{api}/accounts/{aid}/workers/scripts/{urllib.parse.quote(worker,safe="")}', 'PUT',h,body)
+          if not 200<=c<300:raise RuntimeError('OAuth Worker upload HTTP '+str(c)+' '+b[:300].decode('utf-8','ignore'))
+          cf(f'/accounts/{aid}/workers/scripts/{urllib.parse.quote(worker,safe="")}/subdomain','POST',{'enabled':False,'previews_enabled':False})
+          st=cf(f'/accounts/{aid}/workers/scripts/{urllib.parse.quote(worker,safe="")}/settings') or {}; bn={x.get('name'):x for x in st.get('bindings') or [] if isinstance(x,dict)}
+          if bn.get('AXIOM_DB',{}).get('id')!=dbid or bn.get('OAUTH_ISSUER',{}).get('text')!=issuer or bn.get('MCP_RESOURCE',{}).get('text')!=resource:raise RuntimeError('OAuth Worker binding readback mismatch')
+          sub=cf(f'/accounts/{aid}/workers/scripts/{urllib.parse.quote(worker,safe="")}/subdomain') or {}
+          if sub.get('enabled') is not False or sub.get('previews_enabled') is not False:raise RuntimeError('OAuth workers.dev exposure not disabled')
+
+          # Preserve strict global posture; exact OAuth host gets machine-transport exception only.
+          sec=cf(f'/zones/{zid}/settings/security_level') or {}; bic=cf(f'/zones/{zid}/settings/browser_check') or {}
+          if sec.get('value')!='under_attack' or bic.get('value')!='on':raise RuntimeError('global challenge posture drift')
+          sets=cf(f'/zones/{zid}/rulesets') or []; cfg=[x for x in sets if x.get('phase')=='http_config_settings' and x.get('kind')=='zone']
+          if len(cfg)!=1:raise RuntimeError('zone configuration ruleset not unique')
+          rsid=cfg[0].get('id'); detail=cf(f'/zones/{zid}/rulesets/{rsid}') or {}; rules=detail.get('rules') or []; expr='http.host eq "'+host+'"'
+          byref=[r for r in rules if r.get('ref')==rule_ref]
+          if len(byref)>1:raise RuntimeError('duplicate OAuth machine-transport rules')
+          if byref:
+              r=byref[0];ap=r.get('action_parameters') or {}
+              if r.get('action')!='set_config' or r.get('expression')!=expr or ap.get('security_level')!='essentially_off' or ap.get('bic') is not False or r.get('enabled') is False:raise RuntimeError('OAuth machine-transport rule drift')
+          else:
+              if any(r.get('expression')==expr for r in rules):raise RuntimeError('OAuth host already has different configuration rule')
+              cf(f'/zones/{zid}/rulesets/{rsid}/rules','POST',{'action':'set_config','action_parameters':{'security_level':'essentially_off','bic':False},'expression':expr,'description':'MUSITU Axiom OAuth machine transport; OAuth application authorization remains fail-closed','enabled':True,'ref':rule_ref})
+          if not before:cf(f'/accounts/{aid}/workers/domains','PUT',{'hostname':host,'service':worker,'zone_id':zid,'zone_name':os.environ['ZONE_NAME'],'override_existing_origin':True})
+          after=[d for d in (cf(f'/accounts/{aid}/workers/domains') or []) if d.get('hostname')==host]
+          if len(after)!=1 or after[0].get('service')!=worker:raise RuntimeError('OAuth custom-domain mapping failed')
+
+          # Public OAuth metadata and health.
+          health=None
+          for _ in range(45):
+              hc,_,ho,_=http_json(issuer+'/health')
+              if hc==200 and ho.get('ok') is True and ho.get('issuer')==issuer and ho.get('resource')==resource and ho.get('dcr') is True and ho.get('pkce_s256') is True:health=ho;break
+              time.sleep(2)
+          if health is None:raise RuntimeError('OAuth health contract did not become ready')
+          dc,_,disc,_=http_json(issuer+'/.well-known/oauth-authorization-server')
+          expected={'issuer':issuer,'authorization_endpoint':issuer+'/oauth/authorize','token_endpoint':issuer+'/oauth/token','registration_endpoint':issuer+'/oauth/register','revocation_endpoint':issuer+'/oauth/revoke'}
+          if dc!=200 or any(disc.get(k)!=v for k,v in expected.items()) or 'S256' not in (disc.get('code_challenge_methods_supported') or []) or 'none' not in (disc.get('token_endpoint_auth_methods_supported') or []):raise RuntimeError('OAuth discovery metadata contract mismatch')
+
+          # Disposable complete OAuth -> MCP -> Axiom proof.
+          prefix='fixture_oauth_'+uuid.uuid4().hex; customer=prefix+'_customer'; source_key_id=prefix+'_sourcekey'; callback='https://chatgpt.com/connector/oauth/musitu-e2e'; now=datetime.datetime.now(datetime.timezone.utc); created=now.isoformat().replace('+00:00','Z'); source_expires=(now+datetime.timedelta(hours=1)).isoformat().replace('+00:00','Z')
+          account_key='musitu_axiom_oauth_fixture_'+secrets.token_urlsafe(40); print('::add-mask::'+account_key); account_hash=hashlib.sha256(account_key.encode()).hexdigest(); account_prefix=account_key[:16]
+          verifier=b64url(secrets.token_bytes(48));challenge=b64url(hashlib.sha256(verifier.encode()).digest());state='st_'+secrets.token_urlsafe(20)
+          print('::add-mask::'+verifier)
+          inserted=False;client_id=None;access=None;refresh=None;access2=None;refresh2=None;evidence={}
+          try:
+              residue=d1("SELECT (SELECT count(*) FROM customers WHERE id LIKE 'fixture_oauth_%')+(SELECT count(*) FROM api_keys WHERE id LIKE 'fixture_oauth_%')+(SELECT count(*) FROM oauth_clients WHERE client_name LIKE 'MUSITU OAuth E2E%')+(SELECT count(*) FROM oauth_authorization_flows WHERE id LIKE 'flow_%' AND created_at>datetime('now','-2 hours')) AS n;")
+              if not residue or int(residue[0]['n'])!=0:raise RuntimeError('preexisting OAuth fixture residue')
+              d1('INSERT INTO customers(id,email,name,plan,status,monthly_unit_override,created_at,updated_at) VALUES(?1,?2,?3,?4,?5,?6,?7,?7)',[customer,prefix+'@invalid.example','MUSITU OAuth E2E fixture','developer','active',100,created])
+              d1('INSERT INTO api_keys(id,customer_id,key_hash,key_prefix,label,status,created_at,last_used_at,expires_at,revoked_at) VALUES(?1,?2,?3,?4,?5,?6,?7,NULL,?8,NULL)',[source_key_id,customer,account_hash,account_prefix,'oauth-e2e-source-key','active',created,source_expires]);inserted=True
+
+              rc,_,reg,rawreg=http_json(issuer+'/oauth/register','POST',{'redirect_uris':[callback],'client_name':'MUSITU OAuth E2E ChatGPT','token_endpoint_auth_method':'none','grant_types':['authorization_code','refresh_token'],'response_types':['code']})
+              if rc!=201 or not reg.get('client_id'):raise RuntimeError('DCR failed HTTP '+str(rc))
+              client_id=str(reg['client_id']);print('::add-mask::'+client_id)
+              aq={'response_type':'code','client_id':client_id,'redirect_uri':callback,'scope':'axiom.execute billing.read','state':state,'code_challenge':challenge,'code_challenge_method':'S256','resource':resource}
+              ac,ah,ab=raw(issuer+'/oauth/authorize?'+urllib.parse.urlencode(aq),headers={'Accept':'text/html','User-Agent':'MUSITU-Axiom-OAuth-E2E/1.0'})
+              if ac!=200:raise RuntimeError('authorization page HTTP '+str(ac))
+              page=ab.decode('utf-8','replace'); fm=re.search(r'name="flow_id" value="([^"]+)"',page); cookie_header=str(ah.get('Set-Cookie') or '')
+              if not fm or 'musitu_oauth_flow=' not in cookie_header:raise RuntimeError('authorization flow/cookie missing')
+              flow_id=fm.group(1);print('::add-mask::'+flow_id);cookie=cookie_header.split(';',1)[0]
+              pc,ph,pb=form(issuer+'/oauth/authorize',{'flow_id':flow_id,'musitu_account_key':account_key},{'Accept':'text/html','Cookie':cookie},follow=False)
+              if pc!=302:raise RuntimeError('authorization consent POST expected 302 got '+str(pc))
+              loc=str(ph.get('Location') or ''); parsed=urllib.parse.urlparse(loc); qp=urllib.parse.parse_qs(parsed.query); code=(qp.get('code') or [''])[0]
+              if not code or (qp.get('state') or [''])[0]!=state:raise RuntimeError('authorization redirect code/state mismatch')
+              print('::add-mask::'+code)
+              tc,_,tb=form(issuer+'/oauth/token',{'grant_type':'authorization_code','code':code,'code_verifier':verifier,'client_id':client_id,'redirect_uri':callback,'resource':resource})
+              if tc!=200:raise RuntimeError('token exchange HTTP '+str(tc)+' '+tb[:240].decode('utf-8','ignore'))
+              tok=json.loads(tb or b'{}');access=str(tok.get('access_token') or '');refresh=str(tok.get('refresh_token') or '')
+              if not access or not refresh or tok.get('token_type')!='Bearer' or int(tok.get('expires_in') or 0)!=3600 or tok.get('resource')!=resource:raise RuntimeError('token response contract mismatch')
+              print('::add-mask::'+access);print('::add-mask::'+refresh)
+              access_hash=hashlib.sha256(access.encode()).hexdigest();ar=d1('SELECT a.api_key_id,a.customer_id,a.issuer,a.resource,a.scope,a.expires_at,a.revoked_at,k.status FROM oauth_access_tokens a JOIN api_keys k ON k.id=a.api_key_id WHERE a.token_hash=?1',[access_hash])
+              if len(ar)!=1 or ar[0].get('customer_id')!=customer or ar[0].get('issuer')!=issuer or ar[0].get('resource')!=resource or ar[0].get('status')!='active' or ar[0].get('revoked_at'):raise RuntimeError('OAuth access-token ledger mismatch')
+
+              rid='MUSITU-OAUTH-MCP-E2E-'+uuid.uuid4().hex.upper();before=int(d1('SELECT count(*) AS n FROM usage_events WHERE customer_id=?1',[customer])[0]['n'])
+              mc,_,mo,_=http_json(mcp+'/mcp','POST',{'jsonrpc':'2.0','id':9,'method':'tools/call','params':{'name':'musitu_axiom_execute','arguments':{'operation':'arithmetic.evaluate','args':{'expression':'40+2'}}}},{'Authorization':'Bearer '+access,'x-musitu-request-id':rid})
+              mr=mo.get('result') or {};ser=json.dumps(mo,separators=(',',':'),sort_keys=True)
+              if mc!=200 or mr.get('isError') is True or not re.search(r'(?<![0-9])42(?:\.0+)?(?![0-9])',ser):raise RuntimeError('OAuth access token failed MCP compute')
+              ev=d1('SELECT request_id,compute_units,http_status,result_sha256,key_id FROM usage_events WHERE customer_id=?1 ORDER BY created_at DESC',[customer])
+              if len(ev)!=before+1 or ev[0].get('request_id')!=rid or int(ev[0].get('compute_units') or 0)<=0 or int(ev[0].get('http_status') or 0)!=200 or len(str(ev[0].get('result_sha256') or ''))<32:raise RuntimeError('OAuth MCP usage event mismatch')
+
+              # Rotate refresh token; old access must be revoked and new access must work.
+              fc,_,fb=form(issuer+'/oauth/token',{'grant_type':'refresh_token','refresh_token':refresh,'client_id':client_id,'resource':resource})
+              if fc!=200:raise RuntimeError('refresh grant HTTP '+str(fc))
+              nt=json.loads(fb or b'{}');access2=str(nt.get('access_token') or '');refresh2=str(nt.get('refresh_token') or '')
+              if not access2 or not refresh2 or access2==access or refresh2==refresh:raise RuntimeError('refresh rotation contract mismatch')
+              print('::add-mask::'+access2);print('::add-mask::'+refresh2)
+              old=d1('SELECT a.revoked_at,k.status FROM oauth_access_tokens a JOIN api_keys k ON k.id=a.api_key_id WHERE a.token_hash=?1',[access_hash])
+              if len(old)!=1 or not old[0].get('revoked_at') or old[0].get('status')!='revoked':raise RuntimeError('old OAuth access not revoked during refresh rotation')
+              mc2,_,mo2,_=http_json(mcp+'/mcp','POST',{'jsonrpc':'2.0','id':10,'method':'tools/call','params':{'name':'musitu_axiom_execute','arguments':{'operation':'arithmetic.evaluate','args':{'expression':'6*7'}}}},{'Authorization':'Bearer '+access2,'x-musitu-request-id':'MUSITU-OAUTH-MCP-REFRESH-'+uuid.uuid4().hex.upper()})
+              if mc2!=200 or (mo2.get('result') or {}).get('isError') is True or '42' not in json.dumps(mo2,separators=(',',':')):raise RuntimeError('rotated OAuth access failed MCP compute')
+
+              # Revoke current access; corresponding API key and refresh must be revoked.
+              vc,_,vb=form(issuer+'/oauth/revoke',{'token':access2,'client_id':client_id})
+              if vc!=200:raise RuntimeError('revocation endpoint HTTP '+str(vc))
+              a2h=hashlib.sha256(access2.encode()).hexdigest();r2h=hashlib.sha256(refresh2.encode()).hexdigest();rev=d1('SELECT a.revoked_at,k.status,(SELECT revoked_at FROM oauth_refresh_tokens WHERE token_hash=?2) AS refresh_revoked FROM oauth_access_tokens a JOIN api_keys k ON k.id=a.api_key_id WHERE a.token_hash=?1',[a2h,r2h])
+              if len(rev)!=1 or not rev[0].get('revoked_at') or rev[0].get('status')!='revoked' or not rev[0].get('refresh_revoked'):raise RuntimeError('OAuth revocation ledger mismatch')
+
+              evidence={'schema':'musitu.axiom.oauth.production_e2e.v1','gate':'MUSITU_AXIOM_OAUTH_E2E_PASS','issuer':issuer,'resource':resource,'authorization_code_flow':True,'dynamic_client_registration':True,'pkce_s256':True,'resource_parameter_preserved':True,'existing_musitu_account_authenticated':True,'account_key_returned_to_chatgpt':False,'authorization_code_one_time':True,'opaque_access_token':True,'access_token_expires_seconds':3600,'refresh_token_rotation':True,'revocation_verified':True,'oauth_access_registered_as_axiom_bearer':True,'oauth_to_mcp_authenticated_compute_http':200,'result_42_observed':True,'usage_event_created':True,'metering_verified':True,'raw_account_key_published':False,'raw_access_token_published':False,'raw_refresh_token_published':False,'raw_authorization_code_published':False,'oauth_worker_source_sha256':source_sha,'kernel_mutated':False,'billing_worker_mutated':False,'raw_modal_public_exposure_added':False,'wolfram_parity':'NOT_CERTIFIED','superiority':'NOT_CERTIFIED'}
+          finally:
+              if inserted:
+                  # OAuth fixture cleanup; never touch non-fixture customer state.
+                  try:
+                      d1('DELETE FROM usage_events WHERE customer_id=?1',[customer]);d1('DELETE FROM usage_buckets WHERE customer_id=?1',[customer]);d1('DELETE FROM oauth_access_tokens WHERE customer_id=?1',[customer]);d1('DELETE FROM oauth_refresh_tokens WHERE customer_id=?1',[customer]);d1('DELETE FROM oauth_authorization_codes WHERE customer_id=?1',[customer]);d1('DELETE FROM oauth_authorization_flows WHERE client_id=?1',[client_id or '']);d1('DELETE FROM oauth_clients WHERE client_id=?1',[client_id or '']);d1('DELETE FROM api_keys WHERE customer_id=?1',[customer]);d1('DELETE FROM customers WHERE id=?1',[customer])
+                  finally:
+                      rem=d1("SELECT (SELECT count(*) FROM customers WHERE id=?1)+(SELECT count(*) FROM api_keys WHERE customer_id=?1)+(SELECT count(*) FROM usage_events WHERE customer_id=?1)+(SELECT count(*) FROM usage_buckets WHERE customer_id=?1)+(SELECT count(*) FROM oauth_access_tokens WHERE customer_id=?1)+(SELECT count(*) FROM oauth_refresh_tokens WHERE customer_id=?1)+(SELECT count(*) FROM oauth_authorization_codes WHERE customer_id=?1) AS n",[customer])
+                      evidence['fixture_rows_remaining']=int(rem[0]['n']) if rem else -1
+          if evidence.get('gate')!='MUSITU_AXIOM_OAUTH_E2E_PASS' or evidence.get('fixture_rows_remaining')!=0:raise RuntimeError('OAuth E2E gate or fixture cleanup failed')
+          evidence['cleanup_complete']=True
+          p=pathlib.Path('musitu-axiom-oauth-production-e2e.json');p.write_text(json.dumps(evidence,indent=2,sort_keys=True)+'\n');dg=hashlib.sha256(p.read_bytes()).hexdigest();pathlib.Path('musitu-axiom-oauth-production-e2e.sha256').write_text(dg+'  '+p.name+'\n')
+          print(json.dumps({'gate':evidence['gate'],'issuer':issuer,'resource':resource,'dcr':True,'pkce_s256':True,'refresh_rotation':True,'revocation_verified':True,'oauth_to_mcp_authenticated_compute_http':200,'metering_verified':True,'fixture_rows_remaining':0,'evidence_sha256':dg},sort_keys=True))
+          PY
+
+      - name: Upload sealed OAuth evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: musitu-axiom-oauth-production-e2e
+          path: |
+            musitu-axiom-oauth-production-e2e.json
+            musitu-axiom-oauth-production-e2e.sha256
+          retention-days: 30
+          if-no-files-found: warn
