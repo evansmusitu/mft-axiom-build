@@ -1,5 +1,6 @@
 name: MUSITU Axiom Live Worker Module Layout Read-Only
 
+# Read-only structure probe; never emits Worker source.
 on:
   push:
     paths:
@@ -38,7 +39,7 @@ jobs:
               for p in msg.walk():
                   if p.is_multipart():continue
                   data=p.get_payload(decode=True) or b''
-                  cd=p.get('Content-Disposition','');name=p.get_param('name',header='Content-Disposition');filename=p.get_filename();ct=p.get_content_type()
+                  name=p.get_param('name',header='Content-Disposition');filename=p.get_filename();ct=p.get_content_type()
                   ismeta=(name=='metadata')
                   if ismeta:
                       try:
