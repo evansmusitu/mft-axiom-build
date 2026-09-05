@@ -1,0 +1,84 @@
+name: Cloudflare Service Binding Fetch Signature Probe
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/cloudflare-service-fetch-signature-probe.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+      CLOUDFLARE_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+      TARGET_WORKER: mft-axiom-fetch-signature-target
+      PROBE_WORKER: mft-axiom-fetch-signature-probe
+    steps:
+      - name: Install Wrangler
+        shell: bash
+        run: npm install --no-save --ignore-scripts --no-audit --no-fund wrangler@4.129.0 >/dev/null
+      - name: Deploy private target and public fixed probe
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir target probe
+          cat > target/index.js <<'JS'
+          export default {async fetch(request){return new Response(JSON.stringify({ok:true,path:new URL(request.url).pathname}),{headers:{'content-type':'application/json'}})}};
+          JS
+          python - <<'PY'
+          import json,os
+          open('target/wrangler.json','w').write(json.dumps({'name':os.environ['TARGET_WORKER'],'main':'index.js','compatibility_date':'2026-09-04','workers_dev':False},indent=2))
+          PY
+          (cd target && npx wrangler deploy --config wrangler.json >/dev/null)
+          cat > probe/index.js <<'JS'
+          const safe=async(fn)=>{try{const r=await fn();let j=null;try{j=await r.json()}catch{};return {success:true,status:r.status,body_ok:j?.ok??null,path:j?.path??null}}catch(e){return {success:false,error_class:e?.name||'Error',message_class:String(e?.message||'').split(':')[0].slice(0,80)}}};
+          export default {async fetch(request,env){
+            const a=await safe(()=>env.TARGET.fetch('http://container/health',{method:'GET'}));
+            const b=await safe(()=>env.TARGET.fetch(new Request('http://container/health',{method:'GET'})));
+            return new Response(JSON.stringify({string_plus_init:a,request_object:b,typeof_fetch:typeof env.TARGET.fetch}),{headers:{'content-type':'application/json'}});
+          }};
+          JS
+          python - <<'PY'
+          import json,os
+          open('probe/wrangler.json','w').write(json.dumps({'name':os.environ['PROBE_WORKER'],'main':'index.js','compatibility_date':'2026-09-04','workers_dev':True,'services':[{'binding':'TARGET','service':os.environ['TARGET_WORKER']}]},indent=2))
+          PY
+          (cd probe && npx wrangler deploy --config wrangler.json >/dev/null)
+      - name: Execute signature probe
+        shell: bash
+        run: |
+          set -euo pipefail
+          SUBDOMAIN="$(python - <<'PY'
+          import json,os,urllib.request
+          h={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_API_KEY']}
+          u=f"https://api.cloudflare.com/client/v4/accounts/{os.environ['ACCOUNT_ID']}/workers/subdomain"
+          with urllib.request.urlopen(urllib.request.Request(u,headers=h),timeout=30) as r:x=json.load(r)
+          print((x.get('result') or {}).get('subdomain') or '')
+          PY
+          )"
+          curl -fsS "https://${PROBE_WORKER}.${SUBDOMAIN}.workers.dev" > signature-probe.json
+          python - <<'PY'
+          import json
+          x=json.load(open('signature-probe.json'))
+          print(json.dumps(x,sort_keys=True))
+          PY
+          sha256sum signature-probe.json > signature-probe.sha256
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cloudflare-service-fetch-signature-probe
+          path: |
+            signature-probe.json
+            signature-probe.sha256
+          retention-days: 7
+      - name: Cleanup
+        if: ${{ always() }}
+        shell: bash
+        run: |
+          set +e
+          npx wrangler delete --name "$PROBE_WORKER" --force >/dev/null 2>&1 || true
+          npx wrangler delete --name "$TARGET_WORKER" --force >/dev/null 2>&1 || true
