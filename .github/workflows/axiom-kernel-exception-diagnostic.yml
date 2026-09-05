@@ -92,11 +92,9 @@ jobs:
           positions=[m.start() for m in re.finditer(needle,s)]
           if len(positions)!=1: raise SystemExit(f'Fail-closed: expected exactly one kernel_unavailable literal, got {len(positions)}')
           pos=positions[0]
-          # Locate nearest enclosing catch(variable) before the literal.
           catches=list(re.finditer(r'catch\s*\(\s*([A-Za-z_$][\w$]*)\s*\)\s*\{',s[:pos]))
           if not catches: raise SystemExit('Fail-closed: catch variable not found')
           c=catches[-1]; var=c.group(1); start=c.end()
-          # Ensure literal is within this catch block by matching braces conservatively.
           depth=1; quote=None; esc=False; i=start
           while i<len(s) and depth:
               ch=s[i]
@@ -110,11 +108,11 @@ jobs:
                   elif ch=='}': depth-=1
               i+=1
           if not (c.start() < pos < i): raise SystemExit('Fail-closed: kernel_unavailable not inside nearest catch')
-          # Inject one safe response at catch entry; do not expose stack/source/data.
-          injection=("\nreturn new Response(JSON.stringify({ok:false,error:'kernel_unavailable',"
-                     f"diagnostic_error_class:({var}&&{var}.name)||'Error',"
-                     f"diagnostic_message:String(({var}&&{var}.message)||'').slice(0,160)}),"
-                     "{status:598,headers:{'content-type':'application/json'}});\n")
+          injection = (
+              "\nreturn new Response(JSON.stringify({ok:false,error:'kernel_unavailable',diagnostic_error_class:("
+              + var + "&&" + var + ".name)||'Error',diagnostic_message:String(("
+              + var + "&&" + var + ".message)||'').slice(0,160)}),{status:598,headers:{'content-type':'application/json'}});\n"
+          )
           patched=s[:start]+injection+s[start:]
           p.write_text(patched)
           out={'original_source_sha256':original_sha,'patched_source_sha256':hashlib.sha256(patched.encode()).hexdigest(),'instrumentation':'CATCH_ENTRY_SAFE_EXCEPTION_CLASS_MESSAGE','plaintext_source_committed':False}
