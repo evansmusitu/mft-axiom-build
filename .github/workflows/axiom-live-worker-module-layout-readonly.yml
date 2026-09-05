@@ -1,0 +1,67 @@
+name: MUSITU Axiom Live Worker Module Layout Read-Only
+
+on:
+  push:
+    paths:
+      - '.github/workflows/axiom-live-worker-module-layout-readonly.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    env:
+      CF_API: https://api.cloudflare.com/client/v4
+      ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      BACKEND: mft-axiom-modal-edge-stage
+    steps:
+      - uses: actions/checkout@v4
+      - name: Emit module layout metadata only
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import email,hashlib,json,os,urllib.parse,urllib.request
+          api=os.environ['CF_API'];aid=os.environ['ACCOUNT_ID'];worker=os.environ['BACKEND']
+          H={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY'],'Accept':'application/json','User-Agent':'MUSITU-Axiom-Worker-Layout/1.0'}
+          q=urllib.request.Request(f'{api}/accounts/{aid}/workers/scripts/{urllib.parse.quote(worker,safe="")}',headers=H)
+          with urllib.request.urlopen(q,timeout=45) as r:raw=r.read();ctype=r.headers.get('content-type','')
+          out={'schema':'musitu.axiom.live_worker_module_layout.v1','worker':worker,'multipart':'multipart/' in ctype.lower(),'parts':[],'main_module':None,'metadata_keys':[],'mutation_performed':False,'source_published':False,'secret_values_published':False}
+          if out['multipart']:
+              msg=email.message_from_bytes((f'Content-Type: {ctype}\r\nMIME-Version: 1.0\r\n\r\n').encode()+raw)
+              for p in msg.walk():
+                  if p.is_multipart():continue
+                  data=p.get_payload(decode=True) or b''
+                  cd=p.get('Content-Disposition','');name=p.get_param('name',header='Content-Disposition');filename=p.get_filename();ct=p.get_content_type()
+                  ismeta=(name=='metadata')
+                  if ismeta:
+                      try:
+                          meta=json.loads(data.decode('utf-8'))
+                          if isinstance(meta,dict):
+                              out['main_module']=meta.get('main_module');out['metadata_keys']=sorted(str(k) for k in meta.keys())
+                      except Exception:
+                          pass
+                  out['parts'].append({'name':name,'filename':filename,'content_type':ct,'bytes':len(data),'sha256':hashlib.sha256(data).hexdigest(),'is_metadata':ismeta,'contains_record_usage':b'recordUsage' in data,'contains_compute_route':b'/v1/compute' in data})
+          else:
+              out['parts'].append({'name':None,'filename':None,'content_type':ctype.split(';',1)[0] if ctype else None,'bytes':len(raw),'sha256':hashlib.sha256(raw).hexdigest(),'is_metadata':False,'contains_record_usage':b'recordUsage' in raw,'contains_compute_route':b'/v1/compute' in raw})
+          targets=[p for p in out['parts'] if p['contains_record_usage'] and p['contains_compute_route']]
+          out['part_count']=len(out['parts']);out['target_module_count']=len(targets)
+          if len(targets)!=1:raise SystemExit('Fail-closed target module count '+str(len(targets)))
+          out['gate']='AXIOM_LIVE_WORKER_MODULE_LAYOUT_READ_PASS'
+          blob=(json.dumps(out,indent=2,sort_keys=True)+'\n').encode();open('live-worker-module-layout.json','wb').write(blob);dg=hashlib.sha256(blob).hexdigest();open('live-worker-module-layout.sha256','w').write(dg+'  live-worker-module-layout.json\n')
+          print(json.dumps({**out,'evidence_sha256':dg},sort_keys=True))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: musitu-axiom-live-worker-module-layout
+          path: |
+            live-worker-module-layout.json
+            live-worker-module-layout.sha256
+          retention-days: 14
+          if-no-files-found: error
