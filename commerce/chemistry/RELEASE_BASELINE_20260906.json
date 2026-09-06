@@ -37,7 +37,8 @@
     "deploy_and_postdeploy": 34048833742,
     "live_public_checkout_readonly": 34049605195,
     "no_charge_checkout_fail_closed": 34050988660,
-    "storefront_and_direct_download": 34052511235
+    "storefront_and_direct_download": 34052511235,
+    "storefront_final_readonly_seal": 34052751949
   },
   "gates": [
     "MUSITU_CHEMISTRY_V12_REMOTE_VERIFY_PASS",
@@ -46,7 +47,8 @@
     "MUSITU_CHEMISTRY_LIVE_PUBLIC_COMMERCE_PASS",
     "MUSITU_CHEMISTRY_NO_CHARGE_CHECKOUT_PASS",
     "MUSITU_CHEMISTRY_STOREFRONT_WORKER_PASS",
-    "MUSITU_CHEMISTRY_STOREFRONT_LIVE_PASS"
+    "MUSITU_CHEMISTRY_STOREFRONT_LIVE_PASS",
+    "MUSITU_CHEMISTRY_STOREFRONT_FINAL_VERIFY_PASS"
   ],
   "no_charge_checkout": {
     "checkout_http": 303,
