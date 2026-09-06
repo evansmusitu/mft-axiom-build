@@ -1,12 +1,14 @@
 {
-  "schema": "musitu.chemistry.release_baseline.v1",
+  "schema": "musitu.chemistry.release_baseline.v2",
   "product": "MUSITU Chemistry Mastery",
   "release": "1.2.0-commercial-rc3",
-  "status": "VERIFIED_COMMERCIAL_BASELINE",
+  "status": "VERIFIED_COMMERCIAL_STOREFRONT_BASELINE",
   "branch": "chemistry-commerce-live-20260906",
   "source": {
     "proven_archive_sha256": "5b2618499eed8dc90261bc4f8260246d5593534500dd2fb145f2d24b5c47754c",
     "deterministic_patched_deployer_sha256": "4bf886dcef9067691c437f524bd25a43492b179c4626a113f4cc9d783bcc6754",
+    "commerce_worker_pre_storefront_sha256": "848e1cec17ec580822d36e595196cda5978713849e8b45c5bc8dc7fcf9765db8",
+    "commerce_worker_storefront_sha256": "8b63862f7528d7e4144f8706e48c7ccd833a4da47659d3df79266f5ce024468b",
     "worker_tests_passed": 8
   },
   "production_commerce": {
@@ -17,17 +19,34 @@
     "merchant_approval_is_product_release_blocker": false,
     "settlement_rule": "VERIFIED_SETTLEMENT_EVIDENCE_TO_SIGNED_ENTITLEMENT"
   },
+  "storefront": {
+    "url": "https://payments.mftintelligence.com/chemistry/",
+    "download_url": "https://payments.mftintelligence.com/chemistry/download/MUSITU_Chemistry_Mastery_1.2.0.apk",
+    "download_worker": "musitu-chemistry-downloads",
+    "download_worker_version_id": "5ed269f9-625c-4d9a-a8bf-afc2afbe20f1",
+    "download_route": "payments.mftintelligence.com/chemistry/download*",
+    "storefront_http": 200,
+    "download_http": 200,
+    "checkout_annual_http": 200,
+    "download_bytes": 5314934,
+    "download_content_disposition": "attachment; filename=\"MUSITU_Chemistry_Mastery_1.2.0.apk\"",
+    "apk_sha256_verified_after_public_download": "055b63f271c18faab540985faefb970f472ea55ba9cb3495db459797902b790d",
+    "production_bindings_preserved": true
+  },
   "verified_runs": {
     "deploy_and_postdeploy": 34048833742,
     "live_public_checkout_readonly": 34049605195,
-    "no_charge_checkout_fail_closed": 34050988660
+    "no_charge_checkout_fail_closed": 34050988660,
+    "storefront_and_direct_download": 34052511235
   },
   "gates": [
     "MUSITU_CHEMISTRY_V12_REMOTE_VERIFY_PASS",
     "MUSITU_CHEMISTRY_COMMERCE_DEPLOY_PASS",
     "MUSITU_CHEMISTRY_COMMERCE_POSTDEPLOY_PASS",
     "MUSITU_CHEMISTRY_LIVE_PUBLIC_COMMERCE_PASS",
-    "MUSITU_CHEMISTRY_NO_CHARGE_CHECKOUT_PASS"
+    "MUSITU_CHEMISTRY_NO_CHARGE_CHECKOUT_PASS",
+    "MUSITU_CHEMISTRY_STOREFRONT_WORKER_PASS",
+    "MUSITU_CHEMISTRY_STOREFRONT_LIVE_PASS"
   ],
   "no_charge_checkout": {
     "checkout_http": 303,
@@ -40,7 +59,9 @@
   },
   "apk": {
     "filename": "MUSITU_Chemistry_Mastery_1.2.0-commercial-rc3.apk",
+    "public_download_filename": "MUSITU_Chemistry_Mastery_1.2.0.apk",
     "sha256": "055b63f271c18faab540985faefb970f472ea55ba9cb3495db459797902b790d",
+    "bytes": 5314934,
     "android_signing_certificate_sha256": "d4455ac3ec74a6d7cd7993ca640f554a83bba95dfd01ef508f7637b6bc72c0d8",
     "legacy_rc2_licences_supported": true,
     "production_licences_supported": true,
@@ -55,11 +76,13 @@
     "production_deploy_evidence_zip_sha256": "7e8b61ed5b140ae245c34315aba6dd64e18a606c729ba710dc60b65cdff725d8",
     "no_charge_checkout_evidence_file_id": "1w1AbgTpHv9ZndTOl-yweB1o04pCLgQB2",
     "no_charge_checkout_evidence_zip_sha256": "6708701d2ccdf8ffdb6a18d7962740746a28eaa73a19edcb18ec5e4252c8a269",
+    "storefront_evidence_file_id": "1YMx3vCM4wlsjea2-DFtn99_UWv_5bhcL",
+    "storefront_evidence_zip_sha256": "9301cd151a4d2f141acb8c0dcb846cff655212c6875b2cf73e1b87db9b412fe2",
     "rc3_apk_file_id": "1aP4jZKRYpYceTOnKBPjck1F_-B4CWbi9"
   },
   "evidence_boundaries": {
     "real_money_settlement_observed": false,
     "real_money_settlement_claimed": false,
-    "reason": "No-charge production initiation and fail-closed entitlement are verified; a completed paid settlement is a separate evidence class."
+    "reason": "Live storefront, exact public APK delivery, no-charge production initiation and fail-closed entitlement are verified; a completed paid settlement is a separate evidence class."
   }
 }
