@@ -126,7 +126,7 @@ jobs:
           set -euo pipefail
           test -n "$CLOUDFLARE_EMAIL"
           test -n "$CLOUDFLARE_GLOBAL_API_KEY"
-          PYTHONPATH=. python frontier_v5/scripts/frontier_live_verify_v2.py
+          PYTHONPATH=. python frontier_v5/scripts/frontier_live_verify.py
 
       - name: Run longitudinal no-regression gate
         shell: bash
