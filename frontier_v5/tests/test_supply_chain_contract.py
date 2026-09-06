@@ -23,6 +23,7 @@ WORKFLOWS = {
     "skill": ROOT / ".github/workflows/axiom-frontier-v5-skill-gate.yml",
     "objective": ROOT / ".github/workflows/axiom-frontier-v5-objective-gate.yml",
     "supply_chain": ROOT / ".github/workflows/axiom-frontier-v5-supply-chain-gate.yml",
+    "python_hash_capture": ROOT / ".github/workflows/axiom-frontier-v5-python-hash-capture.yml",
 }
 HEX40 = re.compile(r"^[0-9a-f]{40}$")
 ACTION = re.compile(r"^\s*uses:\s*(actions/(?:checkout|setup-python|upload-artifact))@([^\s#]+)", re.M)
@@ -104,6 +105,12 @@ def main() -> None:
     if required_names.get("playwright") != expected_playwright:
         fail("Playwright package version differs from supply-chain lock")
     assert str(playwright.get("chromium_build") or "").isdigit()
+
+    capture = WORKFLOWS["python_hash_capture"].read_text(encoding="utf-8")
+    if "capture_distribution_hashes.py" not in capture:
+        fail("Python hash-capture workflow must execute the reviewed capture utility")
+    if "capture_is_attestation" in capture:
+        fail("Python hash-capture workflow must not self-promote captured hashes to attestation")
 
     status = lock.get("status") or {}
     assert status.get("versions_pinned") is True
