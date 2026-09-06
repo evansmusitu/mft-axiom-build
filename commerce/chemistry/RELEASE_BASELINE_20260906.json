@@ -1,17 +1,18 @@
 {
-  "schema": "musitu.chemistry.release_baseline.v4",
+  "schema": "musitu.chemistry.release_baseline.v5",
   "product": "MUSITU Chemistry Mastery",
   "release": "1.2.0-commercial-rc3",
-  "status": "VERIFIED_GLOBAL_PRODUCT_TRUST_STOREFRONT_BASELINE",
-  "branch": "chemistry-global-storefront-20260906",
+  "status": "VERIFIED_FIELD_EXPERIENCE_COLLECTION_BASELINE",
+  "branch": "chemistry-field-experience-20260906",
   "source": {
     "proven_archive_sha256": "5b2618499eed8dc90261bc4f8260246d5593534500dd2fb145f2d24b5c47754c",
     "sealed_base_worker_sha256": "848e1cec17ec580822d36e595196cda5978713849e8b45c5bc8dc7fcf9765db8",
     "previous_public_surfaces_worker_sha256": "009c966386bb4e82fc71f935f2e2334e063bceb1b387ec9aecc2f045e36e9d15",
     "global_storefront_worker_sha256": "8cb1bf7187eb6eb5242ecd57e53e5f3a83fe52c92dc1958285cc71260c7fc210",
-    "current_recovery_hardened_worker_sha256": "d6642aefacc8d6765d17c1d33c2df65df33a9531f843c0bbbc2c304482d3d5f1",
+    "recovery_hardened_predecessor_worker_sha256": "d6642aefacc8d6765d17c1d33c2df65df33a9531f843c0bbbc2c304482d3d5f1",
+    "current_field_experience_worker_sha256": "1134a2581d423547b9876fe8a680ef99ca949edbdbfd6757624150a23d049bec",
     "core_commerce_tests_passed": 8,
-    "global_storefront_and_worker_tests_passed": 19
+    "phase3_storefront_worker_tests_passed": 30
   },
   "production_commerce": {
     "base_url": "https://payments.mftintelligence.com/chemistry/",
@@ -29,7 +30,7 @@
     "download_worker": "musitu-chemistry-downloads",
     "download_worker_version_id": "5ed269f9-625c-4d9a-a8bf-afc2afbe20f1",
     "download_route": "payments.mftintelligence.com/chemistry/download*",
-    "current_worker_sha256": "d6642aefacc8d6765d17c1d33c2df65df33a9531f843c0bbbc2c304482d3d5f1",
+    "current_worker_sha256": "1134a2581d423547b9876fe8a680ef99ca949edbdbfd6757624150a23d049bec",
     "decision_first_home": true,
     "advisory_plan_recommender": true,
     "lifecycle_support": true,
@@ -38,7 +39,9 @@
     "privacy_surface": true,
     "terms_surface": true,
     "security_txt_surface": true,
+    "experience_evidence_surface": true,
     "strict_same_origin_csp": true,
+    "csp_connect_src": "self",
     "csp_unsafe_inline": false,
     "referrer_policy": "no-referrer",
     "recovery_bare_return_link_present": false,
@@ -49,12 +52,43 @@
     "support_http": 200,
     "privacy_http": 200,
     "terms_http": 200,
+    "experience_http": 200,
     "checkout_annual_http": 200,
+    "checkout_school_http": 200,
     "claim_http": 200,
     "download_http": 200,
     "download_bytes": 5314934,
     "apk_sha256_verified_after_public_download": "055b63f271c18faab540985faefb970f472ea55ba9cb3495db459797902b790d",
     "production_bindings_preserved": true
+  },
+  "field_experience": {
+    "collection_live": true,
+    "telemetry_endpoint": "https://payments.mftintelligence.com/chemistry/telemetry/v1",
+    "public_evidence_url": "https://payments.mftintelligence.com/chemistry/experience",
+    "public_evidence_json_url": "https://payments.mftintelligence.com/chemistry/experience.json",
+    "web_vitals_version": "6.0.1",
+    "web_vitals_asset_sha256": "6b3e4ac9d6f6abd4ea1810621668bec7d7adb121279570e6870be4fb98ab3909",
+    "web_vitals_asset_bytes": 8987,
+    "storage_model": "aggregate_histogram_only",
+    "raw_event_rows_retained": false,
+    "measurement_cookies_used": false,
+    "persistent_tracking_identifier_used": false,
+    "ip_addresses_stored": false,
+    "query_strings_collected": false,
+    "referrers_collected": false,
+    "email_collected_for_measurement": false,
+    "device_id_collected_for_measurement": false,
+    "payment_reference_collected_for_measurement": false,
+    "licence_token_collected_for_measurement": false,
+    "gpc_and_dnt_suppression": true,
+    "browser_disable_control": true,
+    "telemetry_cross_origin_rejected": true,
+    "synthetic_valid_telemetry_written_during_certification": false,
+    "public_minimum_metric_sample": 100,
+    "experience_status": "insufficient_field_sample",
+    "field_core_web_vitals_available": false,
+    "field_inp_observed": false,
+    "field_inp_claimed": false
   },
   "standards": {
     "wcag_target": "WCAG_2.2_AA",
@@ -63,13 +97,13 @@
     "mobile_320px_reflow_verified": true,
     "reduced_motion_verified": true,
     "accessibility_tree_landmarks_verified": true,
-    "lighthouse_performance": 1.0,
-    "lighthouse_accessibility": 1.0,
-    "lighthouse_best_practices": 0.96,
-    "lighthouse_lcp_ms": 981.6874,
-    "lighthouse_cls": 0,
-    "lighthouse_tbt_ms": 0,
-    "field_inp_status": "unavailable_no_field_dataset"
+    "phase3_lighthouse_performance": 1.0,
+    "phase3_lighthouse_accessibility": 1.0,
+    "phase3_lighthouse_best_practices": 0.96,
+    "phase3_lighthouse_lcp_ms": 1207.9002,
+    "phase3_lighthouse_cls": 0,
+    "phase3_lighthouse_tbt_ms": 0,
+    "field_inp_status": "collection_live_insufficient_field_sample"
   },
   "verified_runs": {
     "deploy_and_postdeploy": 34048833742,
@@ -81,7 +115,10 @@
     "global_storefront_guarded_deploy_v2": 34056340726,
     "recovery_hardening_preflight": 34057143087,
     "recovery_hardening_guarded_deploy": 34057240422,
-    "recovery_hardening_independent_readonly": 34058146145
+    "recovery_hardening_independent_readonly": 34058146145,
+    "field_experience_preflight": 34060650777,
+    "field_experience_guarded_deploy_v3": 34061057589,
+    "field_experience_independent_live_verify": 34061132108
   },
   "evidence_artifacts": {
     "global_storefront_deploy_v2_artifact_id": 9996067371,
@@ -91,7 +128,13 @@
     "recovery_hardening_deploy_artifact_id": 9996329674,
     "recovery_hardening_deploy_zip_sha256": "5b2c3ac7f1d15942abfb4444885e5ce4df035f5ff9b034deb966a1e23353305a",
     "recovery_hardening_independent_readonly_artifact_id": 9996602789,
-    "recovery_hardening_independent_readonly_zip_sha256": "3889e21d7220493ff771e1fa728c0c915aadc88a0bf39f0f7036bb5d8c94aa39"
+    "recovery_hardening_independent_readonly_zip_sha256": "3889e21d7220493ff771e1fa728c0c915aadc88a0bf39f0f7036bb5d8c94aa39",
+    "field_experience_preflight_artifact_id": 9997354002,
+    "field_experience_preflight_zip_sha256": "dc73383949e8b1b036f9a57d1b6ca977fe701f08902130543d5fb8b092dbce89",
+    "field_experience_deploy_v3_artifact_id": 9997473613,
+    "field_experience_deploy_v3_zip_sha256": "fae2bfa30a02e5e5e2fbdf2788b1f8fc3c6c792f3880c1181eb2402c3dc0c3f7",
+    "field_experience_independent_live_artifact_id": 9997492963,
+    "field_experience_independent_live_zip_sha256": "f81b0bab6417c7e2a8b2a4d138458639552b15723b1cb16bfea030c237f02824"
   },
   "gates": [
     "MUSITU_CHEMISTRY_COMMERCE_DEPLOY_PASS",
@@ -105,8 +148,23 @@
     "MUSITU_CHEMISTRY_RECOVERY_HARDENING_PREFLIGHT_PASS",
     "MUSITU_CHEMISTRY_RECOVERY_HARDENING_DEPLOY_PASS",
     "MUSITU_CHEMISTRY_RECOVERY_HARDENING_LIVE_PASS",
-    "MUSITU_CHEMISTRY_GLOBAL_STOREFRONT_RECOVERY_LIVE_VERIFY_PASS"
+    "MUSITU_CHEMISTRY_GLOBAL_STOREFRONT_RECOVERY_LIVE_VERIFY_PASS",
+    "MUSITU_CHEMISTRY_FIELD_EXPERIENCE_PREFLIGHT_PASS",
+    "MUSITU_CHEMISTRY_FIELD_EXPERIENCE_DEPLOY_V3_PASS",
+    "MUSITU_CHEMISTRY_FIELD_EXPERIENCE_INDEPENDENT_LIVE_VERIFY_PASS"
   ],
+  "superseded_safe_attempts": {
+    "field_experience_guarded_deploy_v1": {
+      "run": 34060564482,
+      "result": "failed_post_upload_then_rollback_verified",
+      "production_baseline_restored": true
+    },
+    "field_experience_guarded_deploy_v2": {
+      "run": 34060769008,
+      "result": "failed_post_upload_then_rollback_verified",
+      "production_baseline_restored": true
+    }
+  },
   "no_charge_checkout": {
     "checkout_http": 303,
     "provider_host": "www.paynow.co.zw",
@@ -142,8 +200,12 @@
   "evidence_boundaries": {
     "real_money_settlement_observed": false,
     "real_money_settlement_claimed": false,
+    "field_experience_collection_live": true,
     "field_inp_observed": false,
+    "field_inp_claimed": false,
+    "field_core_web_vitals_claim_available": false,
+    "independent_field_experience_live_verified": true,
     "independent_recovery_live_recertified": true,
-    "reason": "The global storefront, exact public APK delivery, accessibility and lab-performance gates, no-charge production initiation, fail-closed entitlement, recovery hardening and a subsequent read-only live re-certification are verified. A completed paid settlement and field INP dataset remain separate evidence classes."
+    "reason": "The commercial storefront, exact public APK delivery, accessibility and lab-performance gates, no-charge production initiation, fail-closed entitlement, recovery hardening, privacy-minimized first-party field-experience collection and an independent live Phase 3 verification are verified. A completed paid settlement and a field Core Web Vitals dataset meeting the 100-sample publication threshold remain separate evidence classes and are not claimed."
   }
 }
