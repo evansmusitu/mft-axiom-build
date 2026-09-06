@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
+from types import ModuleType
 import socket
+import sys
 from unittest.mock import patch
 
 from frontier_v5.runtime.fabric import AuthorizationError
@@ -16,6 +18,94 @@ def expect_error(fn, exc=Exception):
     raise AssertionError(f"expected {exc.__name__}")
 
 
+class _FakeRoute:
+    def __init__(self, url: str) -> None:
+        self.request = type("Request", (), {"url": url})()
+        self.aborted = False
+        self.continued = False
+
+    def abort(self, *args, **kwargs):
+        self.aborted = True
+
+    def continue_(self, *args, **kwargs):
+        self.continued = True
+
+
+class _FakeLocator:
+    def inner_text(self):
+        return "public body"
+
+
+class _FakePage:
+    def __init__(self) -> None:
+        self.url = "about:blank"
+        self.route_handler = None
+        self.private_target_reached = False
+
+    def route(self, _pattern, handler):
+        self.route_handler = handler
+
+    def goto(self, url, wait_until=None):
+        self.url = url
+        # A hostile public document attempts to load a private subresource.
+        target = "https://127.0.0.1/private"
+        if self.route_handler is None:
+            self.private_target_reached = True
+        else:
+            route = _FakeRoute(target)
+            self.route_handler(route)
+            if route.continued:
+                self.private_target_reached = True
+        return None
+
+    def locator(self, _selector):
+        return _FakeLocator()
+
+    def title(self):
+        return "Public"
+
+    def screenshot(self, *args, **kwargs):
+        raise AssertionError("screenshot not requested")
+
+    def click(self, *args, **kwargs):
+        return None
+
+
+class _FakeBrowser:
+    def __init__(self, page: _FakePage) -> None:
+        self.page = page
+
+    def new_page(self):
+        return self.page
+
+    def close(self):
+        return None
+
+
+class _FakeChromium:
+    def __init__(self, page: _FakePage) -> None:
+        self.page = page
+
+    def launch(self, headless=True):
+        return _FakeBrowser(self.page)
+
+
+class _FakePlaywright:
+    def __init__(self, page: _FakePage) -> None:
+        self.chromium = _FakeChromium(page)
+
+
+class _FakeSyncPlaywright:
+    def __init__(self, page: _FakePage) -> None:
+        self.page = page
+
+    def __enter__(self):
+        return _FakePlaywright(self.page)
+
+    def __exit__(self, *args):
+        return False
+
+
 def main():
     browser = PlaywrightBrowserAdapter({"example.com"})
     private_resolution = [
@@ -24,6 +114,31 @@ def main():
     ]
     with patch("socket.getaddrinfo", return_value=private_resolution):
         expect_error(lambda: browser._allow("https://example.com"), AuthorizationError)
+
+    # Browser request guard: a public allowlisted top-level page must not be
+    # able to cause a request to a private redirect/subresource target before
+    # MUSITU validates the target URL.
+    page = _FakePage()
+    sync_api = ModuleType("playwright.sync_api")
+    sync_api.sync_playwright = lambda: _FakeSyncPlaywright(page)
+    package = ModuleType("playwright")
+    package.sync_api = sync_api
+
+    def resolution(host, port, *args, **kwargs):
+        if host == "example.com":
+            return [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("93.184.216.34", port))]
+        if host == "127.0.0.1":
+            return [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("127.0.0.1", port))]
+        raise AssertionError(f"unexpected DNS lookup: {host}")
+
+    with patch("socket.getaddrinfo", side_effect=resolution), patch.dict(
+        sys.modules, {"playwright": package, "playwright.sync_api": sync_api}
+    ):
+        browser.run("https://example.com/start")
+
+    assert not page.private_target_reached, (
+        "browser contacted a private subresource before MUSITU validated the request URL"
+    )
 
     print("MUSITU_AXIOM_FRONTIER_BROWSER_NETWORK_PREFLIGHT_PASS")
 
