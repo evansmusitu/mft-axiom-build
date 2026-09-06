@@ -49,7 +49,7 @@ class LiveResearchAdapter(_base.LiveResearchAdapter):
             for key, value in headers.items():
                 if key.casefold() in {"authorization", "cookie", "proxy-authorization"}:
                     raise AuthorizationError("credential-bearing research header prohibited")
-                request_headers[str(key)]] = str(value)
+                request_headers[str(key)] = str(value)
 
         req = urllib.request.Request(url, headers=request_headers, method="GET")
         opener = urllib.request.build_opener(_ValidatedRedirectHandler(self._check_url))
