@@ -1,0 +1,6 @@
+{
+  "version": "v5.0-dev",
+  "required_suites": ["metadata","packaging","proof-envelope","scenario-grid","promotion-fail-closed"],
+  "negative_tests": ["missing proof fields must fail","promotion missing any required PASS must fail","unknown skill requested for packaging must fail"],
+  "claims": "No superiority/frontier production claim until external comparative evidence exists."
+}
