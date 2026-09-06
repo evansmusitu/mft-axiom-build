@@ -1,0 +1,44 @@
+{
+  "schema": "musitu.chemistry.phase3.drive_evidence_pointer.v1",
+  "product": "MUSITU Chemistry Mastery",
+  "date": "2026-09-06",
+  "release_manifest": "commerce/chemistry/RELEASE_BASELINE_20260906.json",
+  "release_manifest_schema": "musitu.chemistry.release_baseline.v5",
+  "live_worker_sha256": "1134a2581d423547b9876fe8a680ef99ca949edbdbfd6757624150a23d049bec",
+  "archives": {
+    "preflight": {
+      "github_run_id": 34060650777,
+      "github_artifact_id": 9997354002,
+      "sha256": "dc73383949e8b1b036f9a57d1b6ca977fe701f08902130543d5fb8b092dbce89",
+      "bytes": 339143,
+      "drive_file_id": "1cZjgEBwHsF4ZWgw7lM7R6aq0nyrvswO2",
+      "drive_filename": "MUSITU_Chemistry_Phase3_Preflight_20260906.zip",
+      "drive_shared": false
+    },
+    "guarded_deploy_v3": {
+      "github_run_id": 34061057589,
+      "github_artifact_id": 9997473613,
+      "sha256": "fae2bfa30a02e5e5e2fbdf2788b1f8fc3c6c792f3880c1181eb2402c3dc0c3f7",
+      "bytes": 4131,
+      "drive_file_id": "1B7-_QzI1NSrp6Q2oC01vxMAaEtyNCrFu",
+      "drive_filename": "MUSITU_Chemistry_Phase3_Deploy_V3_20260906.zip",
+      "drive_shared": false
+    },
+    "independent_live_verify": {
+      "github_run_id": 34061132108,
+      "github_artifact_id": 9997492963,
+      "sha256": "f81b0bab6417c7e2a8b2a4d138458639552b15723b1cb16bfea030c237f02824",
+      "bytes": 3982,
+      "drive_file_id": "1fi1e2eGCnCGNH94x-0LJM-sO-2Cet8rO",
+      "drive_filename": "MUSITU_Chemistry_Phase3_Independent_Live_Verify_20260906.zip",
+      "drive_shared": false
+    }
+  },
+  "evidence_boundaries": {
+    "field_experience_collection_live": true,
+    "field_inp_observed": false,
+    "field_inp_claimed": false,
+    "real_money_settlement_observed": false,
+    "real_money_settlement_claimed": false
+  }
+}
