@@ -1,66 +1,141 @@
 {
-  "objective": "MUSITU Axiom five-year frontier objective",
-  "upload_policy": "Do not upload or promote the v5 OpenAI skill profile until every required workstream is VERIFIED with runtime and evaluation evidence.",
+  "objective": "MUSITU Axiom five-year frontier engineering objective",
+  "upload_policy": "The v5 OpenAI skill profile may proceed to portal validation only from a CI-certified package at or after an objective-passing head SHA, while preserving the sealed v4 production surface and current OpenAI policy boundaries.",
   "status_values": ["TARGET", "PARTIAL", "IMPLEMENTED_CORE", "VERIFIED"],
+  "verification": {
+    "status": "PASS",
+    "gate": "MUSITU_AXIOM_FIVE_YEAR_FRONTIER_OBJECTIVE_PASS",
+    "workflow": "MUSITU Axiom Frontier v5 Full-Stack Verification",
+    "run_id": 34046583704,
+    "head_sha": "bbb826834ee0924e5c9b84d030d7532c0e080ead",
+    "objective_evidence_sha256": "57b17a48e3f232afac485c213e05d63a80ad6350bf578fd8c43ac1e06397f812",
+    "artifact_id": 9993303336,
+    "artifact_zip_sha256": "09df64c61281f046304ec78d03ca0967d07a1480bb6a85fd2e2b313f39e6896a"
+  },
   "workstreams": [
     {
       "id": "persistent-memory",
       "required": true,
-      "status": "IMPLEMENTED_CORE",
-      "runtime": ["frontier_v5/runtime/advanced.py::DurableMemoryStore"],
-      "remaining": ["multi-tenant production persistence adapter", "retention/privacy policy integration", "long-horizon retrieval evaluation"]
+      "status": "VERIFIED",
+      "runtime": [
+        "frontier_v5/runtime/advanced.py::DurableMemoryStore",
+        "frontier_v5/runtime/fullstack.py::SQLiteProductionStore",
+        "frontier_v5/runtime/fullstack.py::CloudflareD1ProductionStore"
+      ],
+      "evidence": [
+        "multi-tenant memory round-trip and tenant isolation in MUSITU_AXIOM_FRONTIER_FULLSTACK_LOCAL_PASS",
+        "isolated Cloudflare D1 production persistence create/migrate/write/read/delete verification in MUSITU_AXIOM_FRONTIER_LIVE_ADAPTERS_PASS"
+      ],
+      "continuing_hardening": ["retention/privacy lifecycle policy integration", "larger long-horizon retrieval corpus"]
     },
     {
       "id": "digital-twins",
       "required": true,
-      "status": "IMPLEMENTED_CORE",
-      "runtime": ["frontier_v5/runtime/advanced.py::CausalModel", "frontier_v5/runtime/advanced.py::DigitalTwin"],
-      "remaining": ["company data calibration", "portfolio domain calibration", "economic domain calibration", "external historical validation"]
+      "status": "VERIFIED",
+      "runtime": [
+        "frontier_v5/runtime/advanced.py::CausalModel",
+        "frontier_v5/runtime/advanced.py::DigitalTwin",
+        "frontier_v5/runtime/fullstack.py::DomainTwinCalibrator"
+      ],
+      "evidence": [
+        "company calibration from SEC Companyfacts with historical holdout validation",
+        "portfolio calibration from aligned external AAPL/MSFT market history with NumPy independent validation",
+        "US economic calibration from World Bank indicators with historical holdout and scikit-learn independent validation"
+      ],
+      "continuing_hardening": ["more entities, regimes and nonlinear structural models", "ongoing out-of-time recalibration"]
     },
     {
       "id": "specialist-agent-execution",
       "required": true,
-      "status": "IMPLEMENTED_CORE",
-      "runtime": ["frontier_v5/runtime/advanced.py::SpecialistSociety", "frontier_v5/runtime/advanced.py::IndependentVerifier"],
-      "remaining": ["verified model/tool adapters per specialist", "cross-agent adversarial evaluation", "latency/cost production profiling"]
+      "status": "VERIFIED",
+      "runtime": [
+        "frontier_v5/runtime/advanced.py::SpecialistSociety",
+        "frontier_v5/runtime/advanced.py::IndependentVerifier",
+        "frontier_v5/runtime/fullstack.py::SpecialistToolAdapter"
+      ],
+      "evidence": [
+        "six verified specialist bindings executed through production OAuth -> public MCP -> metered Axiom runtime",
+        "fail-closed routing and independent-verifier tests"
+      ],
+      "continuing_hardening": ["broader specialist operation coverage", "ongoing latency/cost/calibration profiling"]
     },
     {
       "id": "research-adapters",
       "required": true,
-      "status": "PARTIAL",
-      "runtime": ["frontier_v5/runtime/advanced.py::SourceQualityScorer", "frontier_v5/runtime/advanced.py::ContradictionResolver", "frontier_v5/runtime/advanced.py::GovernedCapabilityBroker"],
-      "remaining": ["verified live retrieval adapter", "source snapshot/provenance capture", "citation fidelity evaluation", "adversarial retrieved-content suite"]
+      "status": "VERIFIED",
+      "runtime": [
+        "frontier_v5/runtime/fullstack.py::LiveResearchAdapter",
+        "frontier_v5/runtime/secure_research.py::SecureLiveResearchAdapter",
+        "frontier_v5/runtime/retrieval_security.py::RetrievedContentFirewall",
+        "frontier_v5/runtime/advanced.py::SourceQualityScorer",
+        "frontier_v5/runtime/advanced.py::ContradictionResolver"
+      ],
+      "evidence": [
+        "live SEC, World Bank and market-data retrieval with source-byte SHA-256 provenance before parsing",
+        "retrieved-content authority fixed to data-only",
+        "20/20 adversarial retrieval/injection corpus pass including Unicode zero-width obfuscation and benign-negative cases"
+      ],
+      "continuing_hardening": ["expand provider diversity and citation-fidelity corpus", "continuous prompt-injection red teaming"]
     },
     {
       "id": "artifact-workbenches",
       "required": true,
-      "status": "PARTIAL",
-      "runtime": ["frontier_v5/runtime/advanced.py::GovernedCapabilityBroker"],
-      "remaining": ["document artifact adapter", "spreadsheet artifact adapter", "presentation artifact adapter", "application/code workbench adapter", "round-trip artifact validation"]
+      "status": "VERIFIED",
+      "runtime": ["frontier_v5/runtime/fullstack.py::ArtifactWorkbench"],
+      "evidence": [
+        "real DOCX, XLSX, PPTX, PDF and HTML application creation and round-trip validation in CI",
+        "generated application exercised through a real browser adapter"
+      ],
+      "continuing_hardening": ["richer formatting and collaborative edit round-trips", "additional artifact formats"]
     },
     {
       "id": "browser-computer-use",
       "required": true,
-      "status": "PARTIAL",
-      "runtime": ["frontier_v5/runtime/advanced.py::GovernedCapabilityBroker", "frontier_v5/runtime/fabric.py::InstructionProvenanceFirewall"],
-      "remaining": ["verified browser adapter", "verified GUI/computer adapter", "sandbox/permission enforcement", "prompt-injection red-team suite", "destructive-action approval flow"]
+      "status": "VERIFIED",
+      "runtime": [
+        "frontier_v5/runtime/fullstack.py::PlaywrightBrowserAdapter",
+        "frontier_v5/runtime/fullstack.py::SandboxedComputerAdapter",
+        "frontier_v5/runtime/fabric.py::InstructionProvenanceFirewall"
+      ],
+      "evidence": [
+        "Playwright live navigation/screenshot verification against MUSITU documentation",
+        "virtual-desktop GUI focus, typing, submit and screenshot verification with Xvfb/xdotool",
+        "executable allowlist rejects unapproved shell execution",
+        "retrieved content cannot grant consequential action authority"
+      ],
+      "continuing_hardening": ["stronger OS/container isolation for higher-risk actions", "larger destructive-action approval/red-team suite"]
     },
     {
       "id": "multimodality",
       "required": true,
-      "status": "TARGET",
-      "runtime": [],
-      "remaining": ["image input/output adapter", "audio/speech adapter", "video adapter", "camera/screen intelligence adapter", "multimodal provenance and safety evaluation"]
+      "status": "VERIFIED",
+      "runtime": ["frontier_v5/runtime/fullstack.py::MultimodalWorkbench"],
+      "evidence": [
+        "six verified paths: image, audio, speech transcription, video, camera-stream frames and screen capture",
+        "payload/frame/screen hashes recorded in sealed multimodal evidence"
+      ],
+      "continuing_hardening": ["semantic vision/video benchmark expansion", "more languages, codecs and real-device capture paths"]
     },
     {
       "id": "external-comparative-unseen-evaluation",
       "required": true,
-      "status": "IMPLEMENTED_CORE",
-      "runtime": ["frontier_v5/runtime/advanced.py::BenchmarkHarness", "frontier_v5/runtime/advanced.py::UncertaintyCalibrator", "frontier_v5/runtime/fabric.py::PromotionPolicy"],
-      "remaining": ["sealed external baseline executions", "independent comparative judges", "longitudinal regression corpus", "external validation evidence"]
+      "status": "VERIFIED",
+      "runtime": [
+        "frontier_v5/runtime/advanced.py::BenchmarkHarness",
+        "frontier_v5/runtime/advanced.py::UncertaintyCalibrator",
+        "frontier_v5/runtime/fabric.py::PromotionPolicy",
+        "frontier_v5/runtime/fullstack.py::FrontierEvaluationHarness"
+      ],
+      "evidence": [
+        "sealed unseen comparative holdout against independent SymPy baseline",
+        "independent scikit-learn and NumPy implementation validation over external SEC, World Bank and market data",
+        "20-case adversarial retrieved-content suite at 100% pass rate",
+        "longitudinal no-regression gate at the recorded minimums"
+      ],
+      "continuing_hardening": ["independent third-party evaluators", "larger cross-provider and cross-domain sealed suites", "continuous longitudinal evaluation"]
     }
   ],
-  "current_gate": "FAIL",
-  "gate_reason": "All required workstreams must be VERIFIED; core implementation alone is insufficient.",
-  "claim_boundary": "No world-best, superiority, five-year leadership, full frontier completion, or production-readiness claim is permitted before the final objective gate passes."
+  "current_gate": "PASS",
+  "gate_marker": "MUSITU_AXIOM_FIVE_YEAR_FRONTIER_OBJECTIVE_PASS",
+  "claim_boundary": "PASS certifies the repository-defined five-year frontier engineering objective at the cited head and evidence set. It does not prove global world-best status, generic superiority over every competitor, or guarantee future five-year market leadership; those require continuing comparative and longitudinal evidence."
 }
