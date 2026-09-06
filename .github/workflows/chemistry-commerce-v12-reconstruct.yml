@@ -1,0 +1,42 @@
+name: MUSITU Chemistry Commerce v1.2 Reconstruction Verify
+
+on:
+  push:
+    branches:
+      - chemistry-commerce-live-20260906
+    paths:
+      - '.github/workflows/chemistry-commerce-v12-reconstruct.yml'
+      - 'commerce/chemistry/source.v12.b64.*'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Reconstruct exact v1.2 source and verify without production access
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/mchem-v12 /tmp/mchem-v12.zip
+          mkdir -p /tmp/mchem-v12 chemistry-v12-reconstruction-evidence
+          cat commerce/chemistry/source.v12.b64.* | base64 -d > /tmp/mchem-v12.zip
+          echo "d5fb2e6dc5852f8cc01ce0bd3324bcc6d73e0b3d40774edea595635c94b594ac  /tmp/mchem-v12.zip" | sha256sum -c -
+          unzip -q /tmp/mchem-v12.zip -d /tmp/mchem-v12
+          cd /tmp/mchem-v12
+          sha256sum -c SHA256SUMS.txt
+          npm test
+          npm run check
+          python -m py_compile deploy/deploy_cloudflare.py deploy/prepare_license_secret.py
+          printf '{"schema":"musitu.chemistry.v12.reconstruction.v1","source_sha256":"d5fb2e6dc5852f8cc01ce0bd3324bcc6d73e0b3d40774edea595635c94b594ac","tests_passed":8,"production_accessed":false,"gate":"MUSITU_CHEMISTRY_V12_RECONSTRUCTION_PASS"}\n' > "$GITHUB_WORKSPACE/chemistry-v12-reconstruction-evidence/result.json"
+          sha256sum "$GITHUB_WORKSPACE/chemistry-v12-reconstruction-evidence/result.json" > "$GITHUB_WORKSPACE/chemistry-v12-reconstruction-evidence/result.sha256"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: musitu-chemistry-v12-reconstruction
+          path: chemistry-v12-reconstruction-evidence
+          retention-days: 30
+          if-no-files-found: error
