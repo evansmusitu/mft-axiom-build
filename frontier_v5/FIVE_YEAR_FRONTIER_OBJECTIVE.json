@@ -1,0 +1,66 @@
+{
+  "objective": "MUSITU Axiom five-year frontier objective",
+  "upload_policy": "Do not upload or promote the v5 OpenAI skill profile until every required workstream is VERIFIED with runtime and evaluation evidence.",
+  "status_values": ["TARGET", "PARTIAL", "IMPLEMENTED_CORE", "VERIFIED"],
+  "workstreams": [
+    {
+      "id": "persistent-memory",
+      "required": true,
+      "status": "IMPLEMENTED_CORE",
+      "runtime": ["frontier_v5/runtime/advanced.py::DurableMemoryStore"],
+      "remaining": ["multi-tenant production persistence adapter", "retention/privacy policy integration", "long-horizon retrieval evaluation"]
+    },
+    {
+      "id": "digital-twins",
+      "required": true,
+      "status": "IMPLEMENTED_CORE",
+      "runtime": ["frontier_v5/runtime/advanced.py::CausalModel", "frontier_v5/runtime/advanced.py::DigitalTwin"],
+      "remaining": ["company data calibration", "portfolio domain calibration", "economic domain calibration", "external historical validation"]
+    },
+    {
+      "id": "specialist-agent-execution",
+      "required": true,
+      "status": "IMPLEMENTED_CORE",
+      "runtime": ["frontier_v5/runtime/advanced.py::SpecialistSociety", "frontier_v5/runtime/advanced.py::IndependentVerifier"],
+      "remaining": ["verified model/tool adapters per specialist", "cross-agent adversarial evaluation", "latency/cost production profiling"]
+    },
+    {
+      "id": "research-adapters",
+      "required": true,
+      "status": "PARTIAL",
+      "runtime": ["frontier_v5/runtime/advanced.py::SourceQualityScorer", "frontier_v5/runtime/advanced.py::ContradictionResolver", "frontier_v5/runtime/advanced.py::GovernedCapabilityBroker"],
+      "remaining": ["verified live retrieval adapter", "source snapshot/provenance capture", "citation fidelity evaluation", "adversarial retrieved-content suite"]
+    },
+    {
+      "id": "artifact-workbenches",
+      "required": true,
+      "status": "PARTIAL",
+      "runtime": ["frontier_v5/runtime/advanced.py::GovernedCapabilityBroker"],
+      "remaining": ["document artifact adapter", "spreadsheet artifact adapter", "presentation artifact adapter", "application/code workbench adapter", "round-trip artifact validation"]
+    },
+    {
+      "id": "browser-computer-use",
+      "required": true,
+      "status": "PARTIAL",
+      "runtime": ["frontier_v5/runtime/advanced.py::GovernedCapabilityBroker", "frontier_v5/runtime/fabric.py::InstructionProvenanceFirewall"],
+      "remaining": ["verified browser adapter", "verified GUI/computer adapter", "sandbox/permission enforcement", "prompt-injection red-team suite", "destructive-action approval flow"]
+    },
+    {
+      "id": "multimodality",
+      "required": true,
+      "status": "TARGET",
+      "runtime": [],
+      "remaining": ["image input/output adapter", "audio/speech adapter", "video adapter", "camera/screen intelligence adapter", "multimodal provenance and safety evaluation"]
+    },
+    {
+      "id": "external-comparative-unseen-evaluation",
+      "required": true,
+      "status": "IMPLEMENTED_CORE",
+      "runtime": ["frontier_v5/runtime/advanced.py::BenchmarkHarness", "frontier_v5/runtime/advanced.py::UncertaintyCalibrator", "frontier_v5/runtime/fabric.py::PromotionPolicy"],
+      "remaining": ["sealed external baseline executions", "independent comparative judges", "longitudinal regression corpus", "external validation evidence"]
+    }
+  ],
+  "current_gate": "FAIL",
+  "gate_reason": "All required workstreams must be VERIFIED; core implementation alone is insufficient.",
+  "claim_boundary": "No world-best, superiority, five-year leadership, full frontier completion, or production-readiness claim is permitted before the final objective gate passes."
+}
