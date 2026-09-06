@@ -17,11 +17,13 @@ import base64
 import csv
 import hashlib
 import io
+import ipaddress
 import json
 import math
 import os
 import re
 import shutil
+import socket
 import sqlite3
 import statistics
 import subprocess
@@ -111,6 +113,28 @@ class LiveResearchAdapter:
         if not self.allowed_hosts or self.max_bytes <= 0 or self.timeout <= 0:
             raise ValueError("allowed_hosts, max_bytes and timeout must be valid")
 
+    @staticmethod
+    def _require_public_resolution(host: str, port: int) -> None:
+        try:
+            literal = ipaddress.ip_address(host)
+        except ValueError:
+            try:
+                resolved = socket.getaddrinfo(host, port, type=socket.SOCK_STREAM)
+            except OSError as exc:
+                raise AuthorizationError("research host DNS resolution failed") from exc
+            addresses = {str(info[4][0]).split("%", 1)[0] for info in resolved if info[4]}
+            if not addresses:
+                raise AuthorizationError("research host DNS resolution returned no addresses")
+        else:
+            addresses = {str(literal)}
+        for address in addresses:
+            try:
+                parsed = ipaddress.ip_address(address)
+            except ValueError as exc:
+                raise AuthorizationError("research host resolved to invalid IP address") from exc
+            if not parsed.is_global:
+                raise AuthorizationError("research host resolves to non-public address")
+
     def _check_url(self, url: str) -> str:
         p = urllib.parse.urlparse(url)
         host = (p.hostname or "").casefold()
@@ -120,6 +144,11 @@ class LiveResearchAdapter:
             raise AuthorizationError("research host is not allowlisted")
         if p.username or p.password:
             raise AuthorizationError("userinfo in research URL is prohibited")
+        try:
+            port = p.port or 443
+        except ValueError as exc:
+            raise AuthorizationError("research URL port is invalid") from exc
+        self._require_public_resolution(host, port)
         return host
 
     def fetch(self, url: str, headers: Mapping[str, str] | None = None) -> RetrievalSnapshot:
