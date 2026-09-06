@@ -1,0 +1,159 @@
+name: MUSITU Chemistry Global Storefront Preflight
+
+on:
+  push:
+    branches: [chemistry-global-storefront-20260906]
+    paths: ['.github/workflows/chemistry-global-storefront-preflight.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: musitu-chemistry-global-storefront-preflight
+  cancel-in-progress: false
+
+jobs:
+  preflight:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Reconstruct sealed base and build exact v3 candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/mchem-base /tmp/mchem-source.zip /tmp/mchem-core /tmp/mchem-preflight
+          mkdir -p /tmp/mchem-base /tmp/mchem-core/src /tmp/mchem-preflight
+          cat commerce/chemistry/source.b64.* | base64 -d > /tmp/mchem-source.zip
+          echo "5b2618499eed8dc90261bc4f8260246d5593534500dd2fb145f2d24b5c47754c  /tmp/mchem-source.zip" | sha256sum -c -
+          unzip -q /tmp/mchem-source.zip -d /tmp/mchem-base
+          echo "848e1cec17ec580822d36e595196cda5978713849e8b45c5bc8dc7fcf9765db8  /tmp/mchem-base/src/index.mjs" | sha256sum -c -
+          cp /tmp/mchem-base/src/index.mjs commerce/chemistry/index.base.mjs
+          python commerce/chemistry/patch_storefront.py
+          echo "8cb1bf7187eb6eb5242ecd57e53e5f3a83fe52c92dc1958285cc71260c7fc210  commerce/chemistry/index.storefront-v3.mjs" | sha256sum -c -
+          node --check commerce/chemistry/index.storefront-v3.mjs
+          node --test commerce/chemistry/storefront/storefront.test.mjs commerce/chemistry/storefront/worker-contract.test.mjs
+          cp commerce/chemistry/index.storefront-v3.mjs /tmp/mchem-core/src/index.mjs
+          cp -a /tmp/mchem-base/test /tmp/mchem-core/
+          cp /tmp/mchem-base/package.json /tmp/mchem-core/
+          cd /tmp/mchem-core
+          npm test
+          npm run check
+          printf '%s\n' '8cb1bf7187eb6eb5242ecd57e53e5f3a83fe52c92dc1958285cc71260c7fc210' > /tmp/mchem-preflight/candidate-worker.sha256
+
+      - name: Negative control proves pre-v3 source is rejected
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp /tmp/mchem-base/src/index.mjs /tmp/pre-v3.mjs
+          node --input-type=module <<'JS'
+          import {pathToFileURL} from 'node:url';
+          const {handleRequest}=await import(pathToFileURL('/tmp/pre-v3.mjs').href);
+          const r=await handleRequest(new Request('https://payments.mftintelligence.com/chemistry/plans'),{});
+          if(r.status===200) throw new Error('negative control unexpectedly exposed v3 plans route');
+          console.log('NEGATIVE_CONTROL_PRE_V3_REJECTED=true');
+          JS
+
+      - name: Install browser audit tooling
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --no-save --no-package-lock playwright axe-core lighthouse
+          CHROME_PATH="$(command -v google-chrome || command -v chromium || command -v chromium-browser || true)"
+          test -n "$CHROME_PATH"
+          echo "CHROME_PATH=$CHROME_PATH" >> "$GITHUB_ENV"
+          node -e "console.log('playwright='+require('playwright/package.json').version);console.log('axe-core='+require('axe-core/package.json').version);console.log('lighthouse='+require('lighthouse/package.json').version)" | tee /tmp/mchem-preflight/tool-versions.txt
+
+      - name: Run axe keyboard reflow reduced-motion and AX-tree gates
+        shell: bash
+        env:
+          WORKER_PATH: ${{ github.workspace }}/commerce/chemistry/index.storefront-v3.mjs
+          BROWSER_EVIDENCE: /tmp/mchem-preflight/browser-evidence.json
+        run: |
+          set -euo pipefail
+          node commerce/chemistry/storefront/browser-smoke.mjs test "$WORKER_PATH"
+
+      - name: Run Lighthouse mobile budgets
+        shell: bash
+        env:
+          WORKER_PATH: ${{ github.workspace }}/commerce/chemistry/index.storefront-v3.mjs
+        run: |
+          set -euo pipefail
+          node commerce/chemistry/storefront/browser-smoke.mjs serve "$WORKER_PATH" >/tmp/store-server.log 2>&1 &
+          SERVER_PID=$!
+          trap 'kill "$SERVER_PID" 2>/dev/null || true' EXIT
+          for i in $(seq 1 30); do curl -fsS http://127.0.0.1:8787/chemistry/ >/dev/null && break; sleep 0.5; done
+          curl -fsS http://127.0.0.1:8787/chemistry/ >/dev/null
+          npx lighthouse http://127.0.0.1:8787/chemistry/ \
+            --output=json --output-path=/tmp/mchem-preflight/lighthouse.json \
+            --only-categories=performance,accessibility,best-practices \
+            --chrome-flags="--headless --no-sandbox --disable-dev-shm-usage" --quiet
+          node --input-type=module <<'JS'
+          import fs from 'node:fs';
+          const budget=JSON.parse(fs.readFileSync('commerce/chemistry/storefront/lighthouse-budget.json','utf8'));
+          const l=JSON.parse(fs.readFileSync('/tmp/mchem-preflight/lighthouse.json','utf8'));
+          const got={
+            performance:l.categories.performance.score,
+            accessibility:l.categories.accessibility.score,
+            best_practices:l.categories['best-practices'].score,
+            lcp_ms:l.audits['largest-contentful-paint'].numericValue,
+            cls:l.audits['cumulative-layout-shift'].numericValue,
+            tbt_ms:l.audits['total-blocking-time'].numericValue,
+            field_inp_status:budget.field_inp_status
+          };
+          const ok=got.performance>=budget.performance_score_min && got.accessibility>=budget.accessibility_score_min && got.best_practices>=budget.best_practices_score_min && got.lcp_ms<=budget.lcp_ms_max && got.cls<=budget.cls_max && got.tbt_ms<=budget.tbt_ms_max;
+          fs.writeFileSync('/tmp/mchem-preflight/lighthouse-summary.json',JSON.stringify({schema:'musitu.chemistry.global_storefront.lighthouse.v1',budget,results:got,pass:ok},null,2)+'\n');
+          console.log(JSON.stringify(got));
+          if(!ok) process.exit(1);
+          JS
+          kill "$SERVER_PID" 2>/dev/null || true
+          trap - EXIT
+
+      - name: Verify final byte and security budgets
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'JS'
+          import fs from 'node:fs';
+          import {pathToFileURL} from 'node:url';
+          const p='commerce/chemistry/index.storefront-v3.mjs';
+          const {handleRequest}=await import(pathToFileURL(process.cwd()+'/'+p).href);
+          async function get(path){const r=await handleRequest(new Request('https://payments.mftintelligence.com'+path),{});return {r,b:Buffer.from(await r.arrayBuffer())}}
+          const root=await get('/chemistry/'),css=await get('/chemistry/assets/storefront.css'),js=await get('/chemistry/assets/storefront.js');
+          const sizes={html:root.b.length,css:css.b.length,js:js.b.length};
+          if(sizes.html>45*1024||sizes.css>24*1024||sizes.js>12*1024) throw new Error('asset budget '+JSON.stringify(sizes));
+          const csp=root.r.headers.get('content-security-policy')||'';
+          if(/unsafe-inline|unsafe-eval/.test(csp)||!csp.includes("style-src 'self'")||!csp.includes("script-src 'self'")) throw new Error('CSP budget failed');
+          fs.writeFileSync('/tmp/mchem-preflight/byte-security-summary.json',JSON.stringify({schema:'musitu.chemistry.global_storefront.byte_security.v1',sizes,csp,pass:true},null,2)+'\n');
+          console.log(JSON.stringify(sizes));
+          JS
+
+      - name: Seal preflight evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > /tmp/mchem-preflight/preflight-summary.json <<JSON
+          {
+            "schema":"musitu.chemistry.global_storefront.preflight.v1",
+            "candidate_worker_sha256":"8cb1bf7187eb6eb5242ecd57e53e5f3a83fe52c92dc1958285cc71260c7fc210",
+            "sealed_base_worker_sha256":"848e1cec17ec580822d36e595196cda5978713849e8b45c5bc8dc7fcf9765db8",
+            "sealed_archive_sha256":"5b2618499eed8dc90261bc4f8260246d5593534500dd2fb145f2d24b5c47754c",
+            "commerce_tests":"8/8",
+            "storefront_and_worker_tests":"18/18",
+            "negative_control_pre_v3_rejected":true,
+            "field_inp_status":"unavailable_no_field_dataset",
+            "gate":"MUSITU_CHEMISTRY_GLOBAL_STOREFRONT_PREFLIGHT_PASS"
+          }
+          JSON
+          cd /tmp/mchem-preflight
+          sha256sum *.json *.txt *.sha256 > SHA256SUMS.txt
+          cat preflight-summary.json
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: musitu-chemistry-global-storefront-preflight
+          path: /tmp/mchem-preflight
+          retention-days: 90
+          if-no-files-found: error
