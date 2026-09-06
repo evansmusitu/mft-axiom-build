@@ -1,0 +1,10 @@
+{
+  "schema": "musitu.chemistry.global_storefront.lighthouse_budget.v1",
+  "performance_score_min": 0.90,
+  "accessibility_score_min": 1.00,
+  "best_practices_score_min": 0.95,
+  "lcp_ms_max": 2500,
+  "cls_max": 0.10,
+  "tbt_ms_max": 200,
+  "field_inp_status": "unavailable_no_field_dataset"
+}
