@@ -1,21 +1,25 @@
 {
-  "schema": "musitu.chemistry.release_baseline.v2",
+  "schema": "musitu.chemistry.release_baseline.v3",
   "product": "MUSITU Chemistry Mastery",
   "release": "1.2.0-commercial-rc3",
-  "status": "VERIFIED_COMMERCIAL_STOREFRONT_BASELINE",
-  "branch": "chemistry-commerce-live-20260906",
+  "status": "VERIFIED_GLOBAL_PRODUCT_TRUST_STOREFRONT_BASELINE",
+  "branch": "chemistry-global-storefront-20260906",
   "source": {
     "proven_archive_sha256": "5b2618499eed8dc90261bc4f8260246d5593534500dd2fb145f2d24b5c47754c",
-    "deterministic_patched_deployer_sha256": "4bf886dcef9067691c437f524bd25a43492b179c4626a113f4cc9d783bcc6754",
-    "commerce_worker_pre_storefront_sha256": "848e1cec17ec580822d36e595196cda5978713849e8b45c5bc8dc7fcf9765db8",
-    "commerce_worker_storefront_sha256": "8b63862f7528d7e4144f8706e48c7ccd833a4da47659d3df79266f5ce024468b",
-    "worker_tests_passed": 8
+    "sealed_base_worker_sha256": "848e1cec17ec580822d36e595196cda5978713849e8b45c5bc8dc7fcf9765db8",
+    "previous_public_surfaces_worker_sha256": "009c966386bb4e82fc71f935f2e2334e063bceb1b387ec9aecc2f045e36e9d15",
+    "global_storefront_worker_sha256": "8cb1bf7187eb6eb5242ecd57e53e5f3a83fe52c92dc1958285cc71260c7fc210",
+    "current_recovery_hardened_worker_sha256": "d6642aefacc8d6765d17c1d33c2df65df33a9531f843c0bbbc2c304482d3d5f1",
+    "core_commerce_tests_passed": 8,
+    "global_storefront_and_worker_tests_passed": 19
   },
   "production_commerce": {
     "base_url": "https://payments.mftintelligence.com/chemistry/",
     "provider_adapter": "paynow",
     "production_licence_key_id": "chem-lic-2026-6783aa7535d1",
     "raw_paynow_key_present_in_product": false,
+    "payment_authority_bound": true,
+    "transport_bound": true,
     "merchant_approval_is_product_release_blocker": false,
     "settlement_rule": "VERIFIED_SETTLEMENT_EVIDENCE_TO_SIGNED_ENTITLEMENT"
   },
@@ -25,30 +29,79 @@
     "download_worker": "musitu-chemistry-downloads",
     "download_worker_version_id": "5ed269f9-625c-4d9a-a8bf-afc2afbe20f1",
     "download_route": "payments.mftintelligence.com/chemistry/download*",
+    "current_worker_sha256": "d6642aefacc8d6765d17c1d33c2df65df33a9531f843c0bbbc2c304482d3d5f1",
+    "decision_first_home": true,
+    "advisory_plan_recommender": true,
+    "lifecycle_support": true,
+    "release_verification_surface": true,
+    "release_notes_surface": true,
+    "privacy_surface": true,
+    "terms_surface": true,
+    "security_txt_surface": true,
+    "strict_same_origin_csp": true,
+    "csp_unsafe_inline": false,
+    "referrer_policy": "no-referrer",
+    "recovery_bare_return_link_present": false,
     "storefront_http": 200,
-    "download_http": 200,
+    "plans_http": 200,
+    "verify_http": 200,
+    "releases_http": 200,
+    "support_http": 200,
+    "privacy_http": 200,
+    "terms_http": 200,
     "checkout_annual_http": 200,
+    "claim_http": 200,
+    "download_http": 200,
     "download_bytes": 5314934,
-    "download_content_disposition": "attachment; filename=\"MUSITU_Chemistry_Mastery_1.2.0.apk\"",
     "apk_sha256_verified_after_public_download": "055b63f271c18faab540985faefb970f472ea55ba9cb3495db459797902b790d",
     "production_bindings_preserved": true
+  },
+  "standards": {
+    "wcag_target": "WCAG_2.2_AA",
+    "axe_serious_or_critical": 0,
+    "keyboard_skip_link_verified": true,
+    "mobile_320px_reflow_verified": true,
+    "reduced_motion_verified": true,
+    "accessibility_tree_landmarks_verified": true,
+    "lighthouse_performance": 1.0,
+    "lighthouse_accessibility": 1.0,
+    "lighthouse_best_practices": 0.96,
+    "lighthouse_lcp_ms": 981.6874,
+    "lighthouse_cls": 0,
+    "lighthouse_tbt_ms": 0,
+    "field_inp_status": "unavailable_no_field_dataset"
   },
   "verified_runs": {
     "deploy_and_postdeploy": 34048833742,
     "live_public_checkout_readonly": 34049605195,
     "no_charge_checkout_fail_closed": 34050988660,
     "storefront_and_direct_download": 34052511235,
-    "storefront_final_readonly_seal": 34052751949
+    "storefront_final_readonly_seal": 34052751949,
+    "global_storefront_preflight": 34056093970,
+    "global_storefront_guarded_deploy_v2": 34056340726,
+    "recovery_hardening_preflight": 34057143087,
+    "recovery_hardening_guarded_deploy": 34057240422
+  },
+  "evidence_artifacts": {
+    "global_storefront_deploy_v2_artifact_id": 9996067371,
+    "global_storefront_deploy_v2_zip_sha256": "b38c3fa6c0ff22a235a39c57b3e92f36b79c1c82fc60630c6ee5d760d74fcc60",
+    "recovery_hardening_preflight_artifact_id": 9996307635,
+    "recovery_hardening_preflight_zip_sha256": "31a894f41eeb2a31081915181e07d01bd5180d92431fc30beac18216421cde1d",
+    "recovery_hardening_deploy_artifact_id": 9996329674,
+    "recovery_hardening_deploy_zip_sha256": "5b2c3ac7f1d15942abfb4444885e5ce4df035f5ff9b034deb966a1e23353305a"
   },
   "gates": [
-    "MUSITU_CHEMISTRY_V12_REMOTE_VERIFY_PASS",
     "MUSITU_CHEMISTRY_COMMERCE_DEPLOY_PASS",
     "MUSITU_CHEMISTRY_COMMERCE_POSTDEPLOY_PASS",
     "MUSITU_CHEMISTRY_LIVE_PUBLIC_COMMERCE_PASS",
     "MUSITU_CHEMISTRY_NO_CHARGE_CHECKOUT_PASS",
-    "MUSITU_CHEMISTRY_STOREFRONT_WORKER_PASS",
-    "MUSITU_CHEMISTRY_STOREFRONT_LIVE_PASS",
-    "MUSITU_CHEMISTRY_STOREFRONT_FINAL_VERIFY_PASS"
+    "MUSITU_CHEMISTRY_STOREFRONT_FINAL_VERIFY_PASS",
+    "MUSITU_CHEMISTRY_GLOBAL_STOREFRONT_PREFLIGHT_PASS",
+    "MUSITU_CHEMISTRY_GLOBAL_STOREFRONT_DEPLOY_V2_PASS",
+    "MUSITU_CHEMISTRY_GLOBAL_STOREFRONT_LIVE_V2_PASS",
+    "MUSITU_CHEMISTRY_RECOVERY_HARDENING_PREFLIGHT_PASS",
+    "MUSITU_CHEMISTRY_RECOVERY_HARDENING_DEPLOY_PASS",
+    "MUSITU_CHEMISTRY_RECOVERY_HARDENING_LIVE_PASS"
   ],
   "no_charge_checkout": {
     "checkout_http": 303,
@@ -85,6 +138,7 @@
   "evidence_boundaries": {
     "real_money_settlement_observed": false,
     "real_money_settlement_claimed": false,
-    "reason": "Live storefront, exact public APK delivery, no-charge production initiation and fail-closed entitlement are verified; a completed paid settlement is a separate evidence class."
+    "field_inp_observed": false,
+    "reason": "The global storefront, exact public APK delivery, accessibility and lab-performance gates, no-charge production initiation, fail-closed entitlement and recovery hardening are verified. A completed paid settlement and field INP dataset remain separate evidence classes."
   }
 }
