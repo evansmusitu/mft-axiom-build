@@ -14,11 +14,11 @@ export const FIELD_SCHEMA_SQL=`CREATE TABLE IF NOT EXISTS chemistry_field_aggreg
 const ROUTE_CLASSES=new Map([
   ['/chemistry','home'],['/chemistry/','home'],['/chemistry/plans','plans'],['/chemistry/checkout/start','checkout'],
   ['/chemistry/return','status'],['/chemistry/claim','claim'],['/chemistry/support','support'],['/chemistry/privacy','privacy'],
-  ['/chemistry/terms','terms'],['/chemistry/verify','verify'],['/chemistry/releases','releases']
+  ['/chemistry/terms','terms'],['/chemistry/verify','verify'],['/chemistry/releases','releases'],['/chemistry/experience','experience']
 ]);
 const VITALS=new Set(['LCP','INP','CLS']);
-const EVENTS=new Set(['page_view','start_free','unlock_full','families_institutions','plan_recommend','plan_choose','checkout_continue','support_contact','seat_claim','status_paid','status_pending','measurement_disabled','measurement_enabled']);
-const ROUTES=new Set(['home','plans','checkout','status','claim','support','privacy','terms','verify','releases','other']);
+const EVENTS=new Set(['page_view','start_free','unlock_full','families_institutions','plan_recommend','plan_choose','checkout_continue','support_contact','seat_claim','status_paid','status_pending']);
+const ROUTES=new Set(['home','plans','checkout','status','claim','support','privacy','terms','verify','releases','experience','other']);
 const VIEWPORTS=new Set(['mobile','tablet','desktop']);
 const DETAILS=new Set(['','term','annual','lifetime','family','tutor','school']);
 const EXPECTED_ORIGIN='https://payments.mftintelligence.com';
@@ -125,12 +125,11 @@ export function computeFieldSnapshot(rows=[],minimumSample=FIELD_MIN_PUBLIC_SAMP
     metrics[name]={sample,p75:claimable?p75:null,rating:claimable?rating(name,p75):'withheld',claimable};
   }
   const claimableCount=Object.values(metrics).filter(m=>m.claimable).length;
-  return {schema:'musitu.chemistry.field_experience.snapshot.v1',minimum_public_sample:minimumSample,status:claimableCount===3?'field_core_web_vitals_available':'insufficient_field_sample',metrics};
+  return {schema:'musitu.chemistry.field_experience.snapshot.v1',window_days:28,minimum_public_sample:minimumSample,status:claimableCount===3?'field_core_web_vitals_available':'insufficient_field_sample',metrics};
 }
 
 export async function readFieldSnapshot(env,minimumSample=FIELD_MIN_PUBLIC_SAMPLE){
   try{
-    await ensureFieldSchema(env);
     const result=await env.CHEMISTRY_DB.prepare(`SELECT name,bucket,SUM(count) AS count FROM chemistry_field_aggregate WHERE kind='vital' AND day>=date('now','-27 day') GROUP BY name,bucket ORDER BY name,CAST(bucket AS REAL)`).all();
     return computeFieldSnapshot(result?.results||[],minimumSample);
   }catch{
@@ -138,20 +137,28 @@ export async function readFieldSnapshot(env,minimumSample=FIELD_MIN_PUBLIC_SAMPL
   }
 }
 
+export function renderExperience(snapshot){
+  const fmt=(name,m)=>m.claimable?`${name}: p75 ${name==='CLS'?m.p75:Number(m.p75).toFixed(0)+(name==='LCP'||name==='INP'?' ms':'')} · ${m.rating} · n=${m.sample}`:`${name}: field result withheld · n=${m.sample} / ${snapshot.minimum_public_sample} required`;
+  const cards=['LCP','INP','CLS'].map(name=>`<section class="verify-card"><h2>${name}</h2><p>${fmt(name,snapshot.metrics[name])}</p></section>`).join('');
+  const status=snapshot.status==='field_core_web_vitals_available'?'<strong>Field Core Web Vitals available</strong>':'<strong>Collecting evidence — insufficient field sample for a public p75 claim.</strong>';
+  const body=`<main id="main" tabindex="-1" class="page-shell"><div class="wrap"><div class="breadcrumbs"><a href="/chemistry/">Chemistry Mastery</a> / Experience evidence</div><h1>Real-user experience evidence</h1><p class="intro">MUSITU publishes only aggregate 28-day Core Web Vitals after each metric reaches the minimum public sample. Individual visits are not stored as analytics rows.</p><div class="notice">${status}</div><div class="verify-grid">${cards}</div><section class="panel"><h2>Measurement boundary</h2><ul class="checklist"><li>No analytics cookies or persistent tracking identifier.</li><li>No IP address, email, Device ID, payment reference, licence token, referrer or URL query string is stored in the field aggregate.</li><li>Metric values are rounded into histogram buckets before storage.</li><li>Global Privacy Control and Do Not Track suppress browser reports.</li><li>Public p75 values are withheld below n=${snapshot.minimum_public_sample} per metric.</li></ul><p><a href="/chemistry/privacy">Privacy and browser measurement control</a></p></section></div></main>`;
+  return shell({title:`Experience evidence · ${PRODUCT.name}`,description:'Aggregate real-user Core Web Vitals evidence for the MUSITU Chemistry storefront.',body});
+}
+
 export const FIELD_EXPERIENCE_JS=String.raw`
 (()=>{
   const KEY='musitu_experience_measurement';
   const q=(s,r=document)=>r.querySelector(s),qa=(s,r=document)=>[...r.querySelectorAll(s)];
-  const privacySignal=()=>navigator.globalPrivacyControl===true||navigator.doNotTrack==='1'||window.doNotTrack==='1';
+  const privacySignal=()=>navigator.globalPrivacyControl===true||['1','yes'].includes(String(navigator.doNotTrack||window.doNotTrack||'').toLowerCase());
   const pref=()=>{try{return localStorage.getItem('musitu_experience_measurement')||''}catch{return ''}};
-  const route=()=>{const p=location.pathname;return p==='/chemistry'||p==='/chemistry/'?'home':p==='/chemistry/plans'?'plans':p==='/chemistry/checkout/start'?'checkout':p==='/chemistry/return'?'status':p==='/chemistry/claim'?'claim':p==='/chemistry/support'?'support':p==='/chemistry/privacy'?'privacy':p==='/chemistry/terms'?'terms':p==='/chemistry/verify'?'verify':p==='/chemistry/releases'?'releases':'other'};
+  const route=()=>{const p=location.pathname;return p==='/chemistry'||p==='/chemistry/'?'home':p==='/chemistry/plans'?'plans':p==='/chemistry/checkout/start'?'checkout':p==='/chemistry/return'?'status':p==='/chemistry/claim'?'claim':p==='/chemistry/support'?'support':p==='/chemistry/privacy'?'privacy':p==='/chemistry/terms'?'terms':p==='/chemistry/verify'?'verify':p==='/chemistry/releases'?'releases':p==='/chemistry/experience'?'experience':'other'};
   const viewport=()=>innerWidth<600?'mobile':innerWidth<900?'tablet':'desktop';
   const allowedPlan=v=>['term','annual','lifetime','family','tutor','school'].includes(v)?v:'';
   const post=events=>{if(!events.length||privacySignal()||pref()==='off')return false;try{return navigator.sendBeacon('/chemistry/telemetry/v1',new Blob([JSON.stringify({events})],{type:'application/json'}))}catch{return false}};
   const event=(name,detail='')=>post([{kind:'event',name,route:route(),viewport:viewport(),detail:allowedPlan(detail)}]);
   const state=q('[data-measurement-state]');
   const paintState=()=>{if(!state)return;state.textContent=privacySignal()?'Disabled by your browser privacy signal':pref()==='off'?'Disabled on this browser':'Enabled: anonymous aggregate experience measurement'};
-  qa('[data-measurement-toggle]').forEach(btn=>btn.addEventListener('click',()=>{try{if(pref()==='off'){localStorage.removeItem(KEY);paintState();event('measurement_enabled')}else{event('measurement_disabled');localStorage.setItem(KEY,'off');paintState()}}catch{}}));
+  qa('[data-measurement-toggle]').forEach(btn=>btn.addEventListener('click',()=>{try{if(pref()==='off')localStorage.removeItem(KEY);else localStorage.setItem(KEY,'off');paintState()}catch{}}));
   paintState();
   if(privacySignal()||pref()==='off')return;
   event('page_view');
@@ -161,7 +168,8 @@ export const FIELD_EXPERIENCE_JS=String.raw`
     const type=(el.tagName==='FORM')?'submit':'click';
     el.addEventListener(type,()=>event(name,detail),{passive:true});
   });
-  const auto=document.body?.dataset?.fieldStatus;
+  const marker=q('[data-field-status]');
+  const auto=marker?.dataset?.fieldStatus||'';
   if(auto==='paid')event('status_paid'); else if(auto==='pending')event('status_pending');
   if(!self.webVitals)return;
   const latest=new Map();
