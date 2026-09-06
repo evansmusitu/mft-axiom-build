@@ -1,0 +1,35 @@
+name: MUSITU Axiom Frontier v5 Security Regression
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'frontier_v5/**'
+      - '.github/workflows/axiom-frontier-v5-security-regression.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: musitu-axiom-frontier-v5-security-regression
+  cancel-in-progress: true
+
+jobs:
+  redirect-preflight:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Verify research redirects fail closed before private target contact
+        shell: bash
+        run: |
+          set -euo pipefail
+          PYTHONPATH=. python frontier_v5/tests/test_research_redirect_preflight.py | tee /tmp/research-redirect-preflight.log
+          grep -q 'MUSITU_AXIOM_FRONTIER_RESEARCH_REDIRECT_PREFLIGHT_PASS' /tmp/research-redirect-preflight.log
