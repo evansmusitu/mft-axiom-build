@@ -24,6 +24,7 @@ WORKFLOWS = {
     "objective": ROOT / ".github/workflows/axiom-frontier-v5-objective-gate.yml",
     "supply_chain": ROOT / ".github/workflows/axiom-frontier-v5-supply-chain-gate.yml",
     "python_hash_capture": ROOT / ".github/workflows/axiom-frontier-v5-python-hash-capture.yml",
+    "durable_tasks": ROOT / ".github/workflows/axiom-frontier-v5-durable-task-gate.yml",
 }
 HEX40 = re.compile(r"^[0-9a-f]{40}$")
 ACTION = re.compile(r"^\s*uses:\s*(actions/(?:checkout|setup-python|upload-artifact))@([^\s#]+)", re.M)
