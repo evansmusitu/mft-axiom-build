@@ -40,6 +40,12 @@ jobs:
           test "${#dirs[@]}" -eq 30
           python frontier_v5/scripts/skill_lint.py "${dirs[@]}"
 
+      - name: Test frontier fabric runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          PYTHONPATH=. python frontier_v5/tests/test_frontier_runtime.py
+
       - name: Package all skills
         shell: bash
         run: |
@@ -94,7 +100,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          sha256sum frontier_v5/MANIFEST.json frontier_v5/EVAL_CONTRACT.json frontier_v5/PROMOTION_GATE.json > /tmp/frontier-v5-evidence.sha256
+          sha256sum frontier_v5/MANIFEST.json frontier_v5/EVAL_CONTRACT.json frontier_v5/PROMOTION_GATE.json frontier_v5/runtime/fabric.py > /tmp/frontier-v5-evidence.sha256
           echo 'MUSITU_AXIOM_FRONTIER_SKILL_GATE_PASS'
           cat /tmp/frontier-v5-evidence.sha256
 
