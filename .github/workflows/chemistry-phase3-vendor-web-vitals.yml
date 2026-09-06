@@ -1,0 +1,67 @@
+name: MUSITU Chemistry Phase 3 Vendor Web Vitals
+
+on:
+  push:
+    branches: [chemistry-field-experience-20260906]
+    paths: ['.github/workflows/chemistry-phase3-vendor-web-vitals.yml']
+
+permissions:
+  contents: write
+
+jobs:
+  vendor:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: chemistry-field-experience-20260906
+      - name: Vendor pinned upstream build
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION=6.0.1
+          mkdir -p /tmp/musitu-web-vitals
+          cd /tmp/musitu-web-vitals
+          npm pack "web-vitals@${VERSION}" --silent > tarball-name.txt
+          TARBALL="$(cat tarball-name.txt)"
+          TARBALL_SHA="$(sha256sum "$TARBALL" | awk '{print $1}')"
+          INTEGRITY="$(npm view "web-vitals@${VERSION}" dist.integrity --json | tr -d '"')"
+          SHASUM="$(npm view "web-vitals@${VERSION}" dist.shasum --json | tr -d '"')"
+          tar -xOf "$TARBALL" package/dist/web-vitals.iife.js > "$GITHUB_WORKSPACE/commerce/chemistry/storefront/web-vitals-6.0.1.iife.js"
+          FILE_SHA="$(sha256sum "$GITHUB_WORKSPACE/commerce/chemistry/storefront/web-vitals-6.0.1.iife.js" | awk '{print $1}')"
+          FILE_BYTES="$(wc -c < "$GITHUB_WORKSPACE/commerce/chemistry/storefront/web-vitals-6.0.1.iife.js" | tr -d ' ')"
+          cat > "$GITHUB_WORKSPACE/commerce/chemistry/storefront/WEB_VITALS_PROVENANCE.json" <<JSON
+          {
+            "schema": "musitu.vendor.web_vitals.v1",
+            "package": "web-vitals",
+            "version": "${VERSION}",
+            "upstream": "https://github.com/GoogleChrome/web-vitals",
+            "license": "Apache-2.0",
+            "npm_dist_integrity": "${INTEGRITY}",
+            "npm_dist_shasum": "${SHASUM}",
+            "downloaded_tarball_sha256": "${TARBALL_SHA}",
+            "vendored_file": "web-vitals-6.0.1.iife.js",
+            "vendored_file_sha256": "${FILE_SHA}",
+            "vendored_file_bytes": ${FILE_BYTES}
+          }
+          JSON
+          cat > "$GITHUB_WORKSPACE/commerce/chemistry/storefront/WEB_VITALS_NOTICE.md" <<'EOF'
+          # Vendored web-vitals
+
+          MUSITU self-hosts the pinned GoogleChrome `web-vitals` browser build so field measurement has no runtime CDN dependency.
+
+          - Package: `web-vitals`
+          - Version: `6.0.1`
+          - Upstream: https://github.com/GoogleChrome/web-vitals
+          - License: Apache-2.0
+          - Runtime use: Core Web Vitals measurement only; MUSITU does not use the attribution build.
+
+          The exact npm integrity, package shasum, tarball SHA-256, vendored-file SHA-256 and byte size are recorded in `WEB_VITALS_PROVENANCE.json`.
+          EOF
+          cd "$GITHUB_WORKSPACE"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add commerce/chemistry/storefront/web-vitals-6.0.1.iife.js commerce/chemistry/storefront/WEB_VITALS_PROVENANCE.json commerce/chemistry/storefront/WEB_VITALS_NOTICE.md
+          git commit -m "vendor: pin web-vitals 6.0.1 for field evidence"
+          git push origin HEAD:chemistry-field-experience-20260906
