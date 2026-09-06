@@ -7,9 +7,9 @@ Draft PR: `#1` — `Axiom v5 Frontier Skill Fabric`
 
 ## Safety invariant
 
-The sealed v4 OpenAI submission surface remains unchanged on `main`. All frontier work is additive on this branch until independently evaluated and promoted through explicit gates.
+The sealed v4 OpenAI submission surface remains unchanged on `main`. Frontier work remains isolated on this branch. Passing frontier evidence does not silently mutate or promote the sealed production profile.
 
-## Implemented in this branch
+## Implemented and verified in the frontier branch
 
 - Exact 110-capability target registry:
   - 44 public OpenAI skill packages
@@ -18,55 +18,63 @@ The sealed v4 OpenAI submission surface remains unchanged on `main`. All frontie
 - 30 composable MUSITU skill packages:
   - 18 submission-oriented analytical/business skills
   - 12 frontier/proprietary skills
-- Separate packaging profiles:
-  - `submission`: exactly 18 OpenAI-submission-oriented skills
-  - `frontier`: exactly 12 proprietary/frontier skills
-  - `all`: exactly 30 skills
-- Packaged skills include OpenAI-facing `agents/openai.yaml` metadata plus the required `SKILL.md`, shared references, and deterministic helper scripts.
-- Shared quality, evidence, proof, routing, commercial and instruction-provenance contracts.
-- Deterministic skill linter and ZIP packager.
-- Deterministic proof-envelope and scenario-grid utilities.
-- Fail-closed promotion gate.
-- Frontier runtime primitives for:
-  - evidence classification and hashing
-  - temporal evidence graph
-  - verified/authorized capability routing
-  - instruction provenance firewall
-  - governance authorization
-  - proof ledger fingerprints
-  - evaluation/promotion decisions
-- CI tests covering positive and negative paths.
+- Proof/evidence, temporal memory, governance, authorization, capability-routing and fail-closed promotion primitives.
+- Persistent memory and isolated production persistence adapters.
+- Company, portfolio and economic digital-twin calibration plus historical/independent validation.
+- Specialist society, independent verifier and production OAuth -> MCP tool bindings.
+- Live research with byte-level provenance capture and a canonical Unicode-normalizing retrieved-content firewall.
+- Real DOCX, XLSX, PPTX, PDF and HTML/application workbenches with round-trip checks.
+- Real Playwright browser automation plus virtual-desktop computer-use verification.
+- Six multimodal paths: image, audio, speech, video, camera-stream and screen.
+- Sealed unseen comparative evaluation, adversarial retrieval evaluation, independent external-data validation and longitudinal regression protection.
 
-## Latest verified gate
+## Five-year frontier engineering objective gate
 
-Workflow: `MUSITU Axiom Frontier v5 Skill Gate`
-Run: `34038809596`
+Workflow: `MUSITU Axiom Frontier v5 Full-Stack Verification`
+Run: `34046583704`
 Result: `SUCCESS`
-Head SHA: `abb638700865abf7de485632bcd14f0d05e0b1ca`
-Artifact: `musitu-axiom-frontier-v5-skills`
-Artifact ID: `9991015490`
-Artifact digest: `sha256:9a8926a31deb38efae93bb0d251cf20acfa5f4d43a226b23dd6b1705a9ee1751`
+Verified head SHA: `bbb826834ee0924e5c9b84d030d7532c0e080ead`
+Final gate: `MUSITU_AXIOM_FIVE_YEAR_FRONTIER_OBJECTIVE_PASS`
+Final objective evidence SHA-256: `57b17a48e3f232afac485c213e05d63a80ad6350bf578fd8c43ac1e06397f812`
+Artifact: `musitu-axiom-frontier-v5-fullstack-evidence`
+Artifact ID: `9993303336`
+Artifact ZIP SHA-256: `09df64c61281f046304ec78d03ca0967d07a1480bb6a85fd2e2b313f39e6896a`
 
-Passed steps include:
-- sealed-v4 surface protection
-- exact 30-skill lint gate
-- frontier runtime fail-closed tests
-- separate 30/all, 18/submission, and 12/frontier package certification
-- OpenAI `agents/openai.yaml` package-presence check
-- proof-envelope positive/negative tests
-- scenario-grid test
-- promotion fail-closed test
-- evidence and package SHA sealing
-- artifact upload
+The passing evidence includes:
 
-Locally extracted from this exact CI artifact for portal use:
-- `musitu-command-center.zip` SHA-256 `bad2b32449ed0d8ff9eb724caaf1e9703a7fa2920fe4680db3be70beac103ff3`
-- `MUSITU_AXIOM_V5_SUBMISSION_SKILL_ZIPS.zip` SHA-256 `358babc5c9e5f002652027bb7eefeccf0adfe0fe988af70be268b94b07a84390`
+- `MUSITU_AXIOM_FRONTIER_FULLSTACK_LOCAL_PASS`
+- `MUSITU_AXIOM_FRONTIER_COMPUTER_USE_PASS`
+- `MUSITU_AXIOM_FRONTIER_MULTIMODAL_PASS`
+- `MUSITU_AXIOM_FRONTIER_ADVERSARIAL_PASS` — 20/20 cases
+- `MUSITU_AXIOM_FRONTIER_INDEPENDENT_IMPLEMENTATION_VALIDATION_PASS`
+- `MUSITU_AXIOM_FRONTIER_LIVE_ADAPTERS_PASS`
+- `MUSITU_AXIOM_FRONTIER_LONGITUDINAL_REGRESSION_PASS`
+- `MUSITU_AXIOM_FIVE_YEAR_FRONTIER_OBJECTIVE_PASS`
+
+Independent/external validation used SEC Companyfacts, World Bank indicators, external AAPL/MSFT market history, scikit-learn, NumPy and SymPy. The live-adapter gate also proved isolated Cloudflare D1 persistence, live provenance-captured research, a real browser path, six production OAuth -> public MCP -> metered specialist bindings, and a sealed comparative holdout.
+
+## Strengthened longitudinal floor
+
+After the objective pass, the regression baseline was raised rather than left at weaker pre-pass thresholds:
+
+- multimodal modalities: `6` minimum
+- adversarial cases: `20` minimum
+- adversarial pass rate: `1.0`
+- live required checks: `6` minimum at `1.0` pass rate
+- independent validators: `2` minimum
+- sealed comparative holdout: `4` minimum
+- specialist tool bindings: `6` minimum
+
+No required minimum may be lowered automatically.
 
 ## Claim boundary
 
-This gate proves the v5 skill/runtime framework is internally consistent and fail-closed under the included tests. It does **not** prove that all 110 target capabilities are implemented, nor does it prove world-best, superiority, OpenAI parity, or five-year leadership. Those claims remain prohibited until corresponding runtime implementations and comparative evaluation evidence exist.
+The repository-defined five-year frontier **engineering objective is verified for the cited evidence set**. This is not a claim that MUSITU is already proven globally world-best, superior to every present/future competitor, or guaranteed to lead the market for five calendar years. Those broader claims remain evidence-gated and require continuing external comparative, adversarial and longitudinal evaluation.
 
 ## Exact next execution
 
-Use the CI-certified `musitu-command-center.zip` as the first upload in the OpenAI Plugin Skills step. Record portal acceptance or any validation rejection before uploading the remaining 17 submission-profile skills. Continue implementing missing runtime capabilities on the frontier branch; do not upload the 12 frontier-only skills to the public plugin merely because they package successfully, and do not merge frontier work into sealed production merely to meet a time target.
+1. Re-run the full-stack verification against the strengthened longitudinal floor and current branch head.
+2. Confirm the skill gate and brand guard are green on the same current branch state.
+3. Package/download a fresh CI-certified 18-skill OpenAI submission profile from that state.
+4. Only then proceed to OpenAI portal skill validation, beginning with the CI-certified `musitu-command-center.zip`.
+5. Keep the 12 frontier-only skills private unless/until each is policy-compatible and explicitly intended for the public OpenAI surface.
