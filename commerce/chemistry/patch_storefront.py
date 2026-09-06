@@ -63,6 +63,15 @@ async function returnPageV3(req,env,u){const reference=String(u.searchParams.get
 
 s=s.replace(marker,bundle+'\n'+public_helpers+'\n'+marker)
 
+# Customer-recovery hardening: a bare /chemistry/return request cannot identify
+# an order, so never present it as a generic recovery link. Keep the route itself
+# unchanged for reference-bearing payment-status URLs.
+old_recovery='<li><a href="/chemistry/return">Recover purchase / re-open order status</a></li>'
+new_recovery='<li><strong>Recover purchase / re-open order status:</strong> use the payment-status link created during checkout. If you no longer have that status link, contact MUSITU support with the minimum order or provider reference needed to locate the transaction.</li>'
+if s.count(old_recovery)!=1:
+    raise SystemExit('support recovery marker mismatch')
+s=s.replace(old_recovery,new_recovery,1)
+
 old="export async function handleRequest(req,env){const u=new URL(req.url),p=u.pathname;if(req.method==='GET'&&p==='/chemistry/healthz')return health(env);"
 new="export async function handleRequest(req,env){const u=new URL(req.url),p=u.pathname;if(req.method==='GET'&&(p==='/chemistry'||p==='/chemistry/'))return storefrontHtml(STOREFRONT.renderStorefront({plans:STOREFRONT.planViewsFromCore()}));if(req.method==='GET'&&p==='/chemistry/plans')return storefrontHtml(STOREFRONT.renderPlanDecision({plans:STOREFRONT.planViewsFromCore(),query:storefrontQuery(u)}));if(req.method==='GET'&&p==='/chemistry/verify')return storefrontHtml(STOREFRONT.renderVerifyRelease());if(req.method==='GET'&&p==='/chemistry/releases')return storefrontHtml(STOREFRONT.renderReleaseNotes());if(req.method==='GET'&&p==='/chemistry/support')return storefrontHtml(STOREFRONT.renderSupport());if(req.method==='GET'&&p==='/chemistry/privacy')return storefrontHtml(STOREFRONT.renderPrivacy());if(req.method==='GET'&&p==='/chemistry/terms')return storefrontHtml(STOREFRONT.renderTerms());if(req.method==='GET'&&p==='/chemistry/sitemap.xml')return storefrontXml(STOREFRONT.renderSitemapXml());if(req.method==='GET'&&p==='/chemistry/security.txt')return storefrontText(STOREFRONT.renderSecurityText());if(req.method==='GET'&&p==='/chemistry/assets/storefront.css')return storefrontAsset(STOREFRONT.STOREFRONT_CSS,'text/css; charset=utf-8');if(req.method==='GET'&&p==='/chemistry/assets/storefront.js')return storefrontAsset(STOREFRONT.STOREFRONT_JS,'application/javascript; charset=utf-8');if(req.method==='GET'&&p==='/chemistry/healthz')return health(env);"
 if s.count(old)!=1:
