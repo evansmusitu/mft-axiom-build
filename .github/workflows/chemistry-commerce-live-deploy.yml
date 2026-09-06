@@ -1,0 +1,123 @@
+name: MUSITU Chemistry Commerce Live Deploy
+
+on:
+  push:
+    branches:
+      - chemistry-commerce-live-20260906
+    paths:
+      - '.github/workflows/chemistry-commerce-live-deploy.yml'
+      - 'commerce/chemistry/source.b64.*'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: musitu-chemistry-commerce-live-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Reconstruct and verify exact sealed source before production access
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/mchem-source /tmp/mchem-source.zip
+          mkdir -p /tmp/mchem-source
+          cat commerce/chemistry/source.b64.* | base64 -d > /tmp/mchem-source.zip
+          echo "5b2618499eed8dc90261bc4f8260246d5593534500dd2fb145f2d24b5c47754c  /tmp/mchem-source.zip" | sha256sum -c -
+          unzip -q /tmp/mchem-source.zip -d /tmp/mchem-source
+          cd /tmp/mchem-source
+          sha256sum -c SHA256SUMS.txt
+          npm test
+          npm run check
+          python -m py_compile deploy/deploy_cloudflare.py deploy/prepare_license_secret.py
+
+      - name: Generate production licence key and encrypted recovery escrow
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$GITHUB_WORKSPACE/chemistry-production-evidence"
+          openssl ecparam -name prime256v1 -genkey -noout -out /tmp/musitu-chemistry-license.pem
+          openssl pkcs8 -topk8 -nocrypt -in /tmp/musitu-chemistry-license.pem -outform DER -out /tmp/musitu-chemistry-license.pk8
+          PKCS8_B64="$(base64 -w0 /tmp/musitu-chemistry-license.pk8)"
+          echo "::add-mask::$PKCS8_B64"
+          printf 'CHEMISTRY_LICENSE_PKCS8_B64=%s\n' "$PKCS8_B64" >> "$GITHUB_ENV"
+          node <<'NODE'
+          const fs=require('fs'); const crypto=require('crypto');
+          (async()=>{
+            const der=fs.readFileSync('/tmp/musitu-chemistry-license.pk8');
+            const key=await crypto.webcrypto.subtle.importKey('pkcs8',der,{name:'ECDSA',namedCurve:'P-256'},true,['sign']);
+            const jwk=await crypto.webcrypto.subtle.exportKey('jwk',key);
+            const pub={kty:jwk.kty,crv:jwk.crv,x:jwk.x,y:jwk.y};
+            const suffix=crypto.createHash('sha256').update(Buffer.from(pub.x+'.'+pub.y)).digest('hex').slice(0,12);
+            const keyId='chem-lic-2026-'+suffix;
+            fs.writeFileSync(process.env.GITHUB_WORKSPACE+'/chemistry-production-evidence/chemistry-license-public-jwk.json',JSON.stringify({keyId,...pub},null,2)+'\n');
+            fs.appendFileSync(process.env.GITHUB_ENV,'CHEMISTRY_LICENSE_KEY_ID='+keyId+'\n');
+          })().catch(e=>{console.error(e);process.exit(1)});
+          NODE
+          openssl x509 -in /tmp/mchem-source/keys/android-release-public.pem -pubkey -noout > /tmp/musitu-android-release-public.pem
+          openssl pkeyutl -encrypt -pubin -inkey /tmp/musitu-android-release-public.pem \
+            -pkeyopt rsa_padding_mode:oaep -pkeyopt rsa_oaep_md:sha256 \
+            -in /tmp/musitu-chemistry-license.pk8 \
+            -out "$GITHUB_WORKSPACE/chemistry-production-evidence/chemistry-license-private-key.rsa-oaep-sha256.bin"
+          sha256sum "$GITHUB_WORKSPACE"/chemistry-production-evidence/* > "$GITHUB_WORKSPACE/chemistry-production-evidence/SHA256SUMS.initial.txt"
+
+      - name: Deploy Chemistry commerce to existing MUSITU authority and transport
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd /tmp/mchem-source
+          python deploy/deploy_cloudflare.py
+          cp chemistry-commerce-deploy-evidence.json "$GITHUB_WORKSPACE/chemistry-production-evidence/"
+          cp chemistry-commerce-deploy-evidence.sha256 "$GITHUB_WORKSPACE/chemistry-production-evidence/"
+
+      - name: Verify deployed public contract independently
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json,urllib.request,urllib.error,hashlib,pathlib,os
+          base='https://payments.mftintelligence.com'
+          outdir=pathlib.Path(os.environ['GITHUB_WORKSPACE'])/'chemistry-production-evidence'
+          def get(path):
+              q=urllib.request.Request(base+path,headers={'Accept':'application/json','User-Agent':'MUSITU-Chemistry-Independent-Verify/1.0'})
+              try:
+                  with urllib.request.urlopen(q,timeout=30) as r:return r.status,json.loads(r.read() or b'{}')
+              except urllib.error.HTTPError as e:return e.code,json.loads(e.read() or b'{}')
+          hc,h=get('/chemistry/healthz'); cc,c=get('/chemistry/catalog')
+          if hc!=200 or h.get('ok') is not True: raise SystemExit('health verification failed')
+          if h.get('raw_paynow_key_present') is not False or h.get('payment_authority_bound') is not True or h.get('transport_bound') is not True: raise SystemExit('security binding verification failed')
+          ids=[p.get('id') for p in c.get('plans') or []]
+          if cc!=200 or ids!=['term','annual','lifetime','family','tutor','school']: raise SystemExit('catalog verification failed')
+          pub=json.loads((outdir/'chemistry-license-public-jwk.json').read_text())
+          if h.get('licence_key_id')!=pub.get('keyId'): raise SystemExit('deployed key id mismatch')
+          ev={'schema':'musitu.chemistry.commerce.independent_postdeploy.v1','health_http':hc,'catalog_http':cc,'plan_ids':ids,'licence_key_id':h.get('licence_key_id'),'raw_paynow_key_present':False,'payment_authority_bound':True,'transport_bound':True,'gate':'MUSITU_CHEMISTRY_COMMERCE_POSTDEPLOY_PASS'}
+          raw=(json.dumps(ev,indent=2,sort_keys=True)+'\n').encode();(outdir/'postdeploy.json').write_bytes(raw);(outdir/'postdeploy.sha256').write_text(hashlib.sha256(raw).hexdigest()+'  postdeploy.json\n')
+          print(json.dumps({'gate':ev['gate'],'licence_key_id':ev['licence_key_id'],'plans':ids},sort_keys=True))
+          PY
+          cd "$GITHUB_WORKSPACE/chemistry-production-evidence"
+          sha256sum chemistry-license-public-jwk.json chemistry-license-private-key.rsa-oaep-sha256.bin chemistry-commerce-deploy-evidence.json postdeploy.json > SHA256SUMS.final.txt
+
+      - name: Remove plaintext production key material
+        if: always()
+        shell: bash
+        run: |
+          rm -f /tmp/musitu-chemistry-license.pem /tmp/musitu-chemistry-license.pk8 /tmp/musitu-android-release-public.pem
+          rm -rf /tmp/mchem-source /tmp/mchem-source.zip
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: musitu-chemistry-commerce-live-deploy
+          path: chemistry-production-evidence
+          retention-days: 90
+          if-no-files-found: error
