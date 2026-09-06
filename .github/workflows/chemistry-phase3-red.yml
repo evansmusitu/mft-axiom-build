@@ -1,0 +1,16 @@
+name: MUSITU Chemistry Phase 3 Red Contract
+
+on:
+  push:
+    branches: [chemistry-field-experience-20260906]
+    paths: ['.github/workflows/chemistry-phase3-red.yml']
+
+permissions:
+  contents: read
+
+jobs:
+  red:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: node --test commerce/chemistry/storefront/field-experience.test.mjs
