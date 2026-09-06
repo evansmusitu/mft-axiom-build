@@ -9,8 +9,10 @@ on:
       - 'frontier_v5/runtime/external_claim_boundary.py'
       - 'frontier_v5/tests/test_external_comparative_gate.py'
       - 'frontier_v5/tests/test_external_claim_boundary.py'
+      - 'frontier_v5/scripts/run_external_claim_readiness.py'
       - 'frontier_v5/evals/EXTERNAL_BASELINE_REGISTRY.json'
       - 'frontier_v5/EVAL_CONTRACT.json'
+      - 'frontier_v5/PROMOTION_GATE.json'
       - '.github/workflows/axiom-frontier-v5-external-comparative-gate.yml'
   pull_request:
     paths:
@@ -18,8 +20,10 @@ on:
       - 'frontier_v5/runtime/external_claim_boundary.py'
       - 'frontier_v5/tests/test_external_comparative_gate.py'
       - 'frontier_v5/tests/test_external_claim_boundary.py'
+      - 'frontier_v5/scripts/run_external_claim_readiness.py'
       - 'frontier_v5/evals/EXTERNAL_BASELINE_REGISTRY.json'
       - 'frontier_v5/EVAL_CONTRACT.json'
+      - 'frontier_v5/PROMOTION_GATE.json'
       - '.github/workflows/axiom-frontier-v5-external-comparative-gate.yml'
   workflow_dispatch:
 
@@ -63,3 +67,13 @@ jobs:
           assert all(x['evidence_status'] not in {'PASS','VERIFIED','CERTIFIED'} for x in d['references'])
           print('MUSITU_AXIOM_FRONTIER_EXTERNAL_BASELINE_REGISTRY_PASS')
           PY
+      - name: Emit current claim readiness and prove Level 5 promotion is blocked
+        run: |
+          set -euo pipefail
+          PYTHONPATH=. python frontier_v5/scripts/run_external_claim_readiness.py | tee /tmp/external-claim-readiness.log
+          grep -q 'MUSITU_AXIOM_EXTERNAL_COMPARATIVE_CLAIM_BLOCKED' /tmp/external-claim-readiness.log
+          if PYTHONPATH=. python frontier_v5/scripts/run_external_claim_readiness.py --require-level5 >/tmp/external-level5-required.log 2>&1; then
+            echo 'Level 5 gate unexpectedly passed without authenticated external comparative evidence' >&2
+            exit 1
+          fi
+          grep -q 'MUSITU_AXIOM_EXTERNAL_COMPARATIVE_CLAIM_BLOCKED' /tmp/external-level5-required.log
