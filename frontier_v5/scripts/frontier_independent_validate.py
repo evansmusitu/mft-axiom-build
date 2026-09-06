@@ -12,8 +12,10 @@ def get(url, ua='MUSITU-Axiom-Independent-Validation/5.0'):
     req=urllib.request.Request(url,headers={'User-Agent':ua,'Accept':'application/json,text/csv,*/*'})
     with urllib.request.urlopen(req,timeout=45) as r: return r.read()
 
+
 def rel_close(a,b,tol=1e-10):
     a=float(a); b=float(b); return abs(a-b)<=tol*(1+abs(b))
+
 
 def annual_company(raw):
     obj=json.loads(raw); us=((obj.get('facts') or {}).get('us-gaap') or {})
@@ -31,8 +33,11 @@ def annual_company(raw):
     op=annual('OperatingIncomeLoss'); years=sorted(set(rev)&set(op))[-10:]
     return years,[rev[y] for y in years],[op[y] for y in years]
 
+
 def wb(raw):
-    rows=json.loads(raw)[1] or []; return {int(r['date']):float(r['value']) for r in rows if r.get('value') is not None and str(r.get('date','')).isdigit()}
+    rows=json.loads(raw)[1] or []
+    return {int(r['date']):float(r['value']) for r in rows if r.get('value') is not None and str(r.get('date','')).isdigit()}
+
 
 def stooq_prices(raw):
     out={}
@@ -43,6 +48,7 @@ def stooq_prices(raw):
             continue
         if date: out[date]=close
     return out
+
 
 def yahoo_prices(symbol):
     url='https://query1.finance.yahoo.com/v8/finance/chart/'+urllib.parse.quote(symbol)+'?range=2y&interval=1d&events=history'
@@ -58,6 +64,7 @@ def yahoo_prices(symbol):
         out[date]=float(c)
     return raw,out
 
+
 def market_prices(symbol,stooq_symbol):
     stooq_url='https://stooq.com/q/d/l/?s='+urllib.parse.quote(stooq_symbol)+'&d1=20240101&i=d'
     try:
@@ -70,6 +77,7 @@ def market_prices(symbol,stooq_symbol):
     if len(prices)<30: raise SystemExit('insufficient external market history for '+symbol)
     return 'Yahoo Finance chart API',raw,prices
 
+
 def aligned_returns(a,b,limit=120):
     dates=sorted(set(a)&set(b))
     if len(dates)<31: raise SystemExit('insufficient aligned external market history')
@@ -80,6 +88,7 @@ def aligned_returns(a,b,limit=120):
         ra.append(ca/pa-1); rb.append(cb/pb-1); used.append(cur)
     if len(ra)<30: raise SystemExit('insufficient aligned external returns')
     return used[-limit:],ra[-limit:],rb[-limit:]
+
 
 sec=get('https://data.sec.gov/api/xbrl/companyfacts/CIK0000320193.json','MUSITU Axiom independent validation support@mftintelligence.com')
 years,x,y=annual_company(sec)
@@ -102,12 +111,26 @@ pours=DomainTwinCalibrator.portfolio('portfolio-independent',{'AAPL':ra,'MSFT':r
 series=np.array(ra)*.5+np.array(rm)*.5
 if not rel_close(pours['mean_return'],float(np.mean(series)),1e-12) or not rel_close(pours['volatility'],float(np.std(series,ddof=1)),1e-12): raise SystemExit('portfolio metrics disagree with numpy')
 
+market_cache={
+ 'schema':'musitu.axiom.frontier.market-cache.v1',
+ 'status':'PASS',
+ 'dates':dates,
+ 'returns':{'AAPL':ra,'MSFT':rm},
+ 'providers':{'AAPL':provider_a,'MSFT':provider_m},
+ 'source_sha256':{'AAPL':hashlib.sha256(rawa).hexdigest(),'MSFT':hashlib.sha256(rawm).hexdigest()},
+ 'observations':len(ra),
+}
+market_cache['cache_sha256']=hashlib.sha256(json.dumps(market_cache,sort_keys=True,separators=(',',':')).encode()).hexdigest()
+Path('/tmp/musitu-frontier-market-cache.json').write_text(json.dumps(market_cache,indent=2),encoding='utf-8')
+
 rows={
  'company':{'years':years,'slope':ours['slope'],'intercept':ours['intercept'],'sklearn_slope':float(mdl.coef_[0]),'source_sha256':hashlib.sha256(sec).hexdigest()},
  'economy':{'years':yrs,'slope':eours['slope'],'intercept':eours['intercept'],'sklearn_slope':float(emdl.coef_[0]),'sources':[hashlib.sha256(rawg).hexdigest(),hashlib.sha256(rawp).hexdigest()]},
- 'portfolio':{'observations':len(ra),'start_date':dates[0],'end_date':dates[-1],'providers':[provider_a,provider_m],'source_sha256':[hashlib.sha256(rawa).hexdigest(),hashlib.sha256(rawm).hexdigest()],'mean':pours['mean_return'],'volatility':pours['volatility'],'numpy_mean':float(np.mean(series)),'numpy_volatility':float(np.std(series,ddof=1))},
+ 'portfolio':{'observations':len(ra),'start_date':dates[0],'end_date':dates[-1],'providers':[provider_a,provider_m],'source_sha256':[hashlib.sha256(rawa).hexdigest(),hashlib.sha256(rawm).hexdigest()],'mean':pours['mean_return'],'volatility':pours['volatility'],'numpy_mean':float(np.mean(series)),'numpy_volatility':float(np.std(series,ddof=1)),'market_cache_sha256':market_cache['cache_sha256']},
 }
-body=json.dumps(rows,sort_keys=True,separators=(',',':')).encode(); evidence={'schema':'musitu.axiom.frontier.independent-validation.v2','status':'PASS','validators':['scikit-learn','NumPy'],'external_sources':['SEC companyfacts','World Bank Indicators',provider_a,provider_m],'results':rows,'evidence_sha256':hashlib.sha256(body).hexdigest()}
+body=json.dumps(rows,sort_keys=True,separators=(',',':')).encode()
+evidence={'schema':'musitu.axiom.frontier.independent-validation.v3','status':'PASS','validators':['scikit-learn','NumPy'],'external_sources':['SEC companyfacts','World Bank Indicators',provider_a,provider_m],'results':rows,'evidence_sha256':hashlib.sha256(body).hexdigest()}
 Path('/tmp/musitu-frontier-independent-validation.json').write_text(json.dumps(evidence,indent=2),encoding='utf-8')
 print('MUSITU_AXIOM_FRONTIER_INDEPENDENT_IMPLEMENTATION_VALIDATION_PASS')
+print('market_cache_sha256='+market_cache['cache_sha256'])
 print('evidence_sha256='+evidence['evidence_sha256'])
