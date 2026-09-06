@@ -4,6 +4,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from http.server import ThreadingHTTPServer, SimpleHTTPRequestHandler
 from pathlib import Path
+from unittest.mock import patch
 import contextlib
 import json
 import os
@@ -124,6 +125,15 @@ def main():
         ra=LiveResearchAdapter({"example.com"})
         expect_error(lambda: ra.fetch("http://example.com"),AuthorizationError)
         expect_error(lambda: ra.fetch("https://not-example.invalid"),AuthorizationError)
+
+        # SSRF preflight: an allowlisted hostname resolving to a non-public address
+        # must fail before any HTTP client is allowed to touch the network.
+        private_resolution=[(socket.AF_INET,socket.SOCK_STREAM,6,"",("127.0.0.1",443))]
+        with patch("socket.getaddrinfo",return_value=private_resolution), patch(
+            "urllib.request.urlopen",side_effect=AssertionError("network reached before SSRF preflight")
+        ) as network:
+            expect_error(lambda: ra.fetch("https://example.com"),AuthorizationError)
+            assert network.call_count==0
 
     print("MUSITU_AXIOM_FRONTIER_FULLSTACK_LOCAL_PASS")
 
