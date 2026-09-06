@@ -1,5 +1,5 @@
 {
-  "schema": "musitu.chemistry.release_baseline.v3",
+  "schema": "musitu.chemistry.release_baseline.v4",
   "product": "MUSITU Chemistry Mastery",
   "release": "1.2.0-commercial-rc3",
   "status": "VERIFIED_GLOBAL_PRODUCT_TRUST_STOREFRONT_BASELINE",
@@ -80,7 +80,8 @@
     "global_storefront_preflight": 34056093970,
     "global_storefront_guarded_deploy_v2": 34056340726,
     "recovery_hardening_preflight": 34057143087,
-    "recovery_hardening_guarded_deploy": 34057240422
+    "recovery_hardening_guarded_deploy": 34057240422,
+    "recovery_hardening_independent_readonly": 34058146145
   },
   "evidence_artifacts": {
     "global_storefront_deploy_v2_artifact_id": 9996067371,
@@ -88,7 +89,9 @@
     "recovery_hardening_preflight_artifact_id": 9996307635,
     "recovery_hardening_preflight_zip_sha256": "31a894f41eeb2a31081915181e07d01bd5180d92431fc30beac18216421cde1d",
     "recovery_hardening_deploy_artifact_id": 9996329674,
-    "recovery_hardening_deploy_zip_sha256": "5b2c3ac7f1d15942abfb4444885e5ce4df035f5ff9b034deb966a1e23353305a"
+    "recovery_hardening_deploy_zip_sha256": "5b2c3ac7f1d15942abfb4444885e5ce4df035f5ff9b034deb966a1e23353305a",
+    "recovery_hardening_independent_readonly_artifact_id": 9996602789,
+    "recovery_hardening_independent_readonly_zip_sha256": "3889e21d7220493ff771e1fa728c0c915aadc88a0bf39f0f7036bb5d8c94aa39"
   },
   "gates": [
     "MUSITU_CHEMISTRY_COMMERCE_DEPLOY_PASS",
@@ -101,7 +104,8 @@
     "MUSITU_CHEMISTRY_GLOBAL_STOREFRONT_LIVE_V2_PASS",
     "MUSITU_CHEMISTRY_RECOVERY_HARDENING_PREFLIGHT_PASS",
     "MUSITU_CHEMISTRY_RECOVERY_HARDENING_DEPLOY_PASS",
-    "MUSITU_CHEMISTRY_RECOVERY_HARDENING_LIVE_PASS"
+    "MUSITU_CHEMISTRY_RECOVERY_HARDENING_LIVE_PASS",
+    "MUSITU_CHEMISTRY_GLOBAL_STOREFRONT_RECOVERY_LIVE_VERIFY_PASS"
   ],
   "no_charge_checkout": {
     "checkout_http": 303,
@@ -139,6 +143,7 @@
     "real_money_settlement_observed": false,
     "real_money_settlement_claimed": false,
     "field_inp_observed": false,
-    "reason": "The global storefront, exact public APK delivery, accessibility and lab-performance gates, no-charge production initiation, fail-closed entitlement and recovery hardening are verified. A completed paid settlement and field INP dataset remain separate evidence classes."
+    "independent_recovery_live_recertified": true,
+    "reason": "The global storefront, exact public APK delivery, accessibility and lab-performance gates, no-charge production initiation, fail-closed entitlement, recovery hardening and a subsequent read-only live re-certification are verified. A completed paid settlement and field INP dataset remain separate evidence classes."
   }
 }
