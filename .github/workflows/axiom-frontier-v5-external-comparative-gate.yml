@@ -6,12 +6,20 @@ on:
       - frontier/axiom-v5-skill-fabric
     paths:
       - 'frontier_v5/runtime/external_comparative.py'
+      - 'frontier_v5/runtime/external_claim_boundary.py'
       - 'frontier_v5/tests/test_external_comparative_gate.py'
+      - 'frontier_v5/tests/test_external_claim_boundary.py'
+      - 'frontier_v5/evals/EXTERNAL_BASELINE_REGISTRY.json'
+      - 'frontier_v5/EVAL_CONTRACT.json'
       - '.github/workflows/axiom-frontier-v5-external-comparative-gate.yml'
   pull_request:
     paths:
       - 'frontier_v5/runtime/external_comparative.py'
+      - 'frontier_v5/runtime/external_claim_boundary.py'
       - 'frontier_v5/tests/test_external_comparative_gate.py'
+      - 'frontier_v5/tests/test_external_claim_boundary.py'
+      - 'frontier_v5/evals/EXTERNAL_BASELINE_REGISTRY.json'
+      - 'frontier_v5/EVAL_CONTRACT.json'
       - '.github/workflows/axiom-frontier-v5-external-comparative-gate.yml'
   workflow_dispatch:
 
@@ -34,3 +42,24 @@ jobs:
           set -euo pipefail
           PYTHONPATH=. python frontier_v5/tests/test_external_comparative_gate.py | tee /tmp/external-comparative.log
           grep -q 'MUSITU_AXIOM_FRONTIER_EXTERNAL_COMPARATIVE_GATE_PASS' /tmp/external-comparative.log
+      - name: Verify self-attested evidence cannot promote Level 5
+        run: |
+          set -euo pipefail
+          PYTHONPATH=. python frontier_v5/tests/test_external_claim_boundary.py | tee /tmp/external-claim-boundary.log
+          grep -q 'MUSITU_AXIOM_FRONTIER_EXTERNAL_CLAIM_BOUNDARY_PASS' /tmp/external-claim-boundary.log
+      - name: Verify external baseline registry remains non-certifying
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          p=Path('frontier_v5/evals/EXTERNAL_BASELINE_REGISTRY.json')
+          d=json.loads(p.read_text(encoding='utf-8'))
+          assert d['current_level5_status']=='NOT_VERIFIED'
+          assert d['current_level6_status']=='NOT_VERIFIED'
+          assert d['current_global_superiority_status']=='NOT_CERTIFIED'
+          assert int(d['minimum_distinct_external_providers_for_broad_claim'])>=3
+          assert len(d['required_comparison_domains'])>=6
+          assert all(x['evidence_status'] not in {'PASS','VERIFIED','CERTIFIED'} for x in d['references'])
+          print('MUSITU_AXIOM_FRONTIER_EXTERNAL_BASELINE_REGISTRY_PASS')
+          PY
