@@ -106,10 +106,16 @@ jobs:
           ]
           for x in required:
             assert x in s,x
-          for x in ["connect-src 'none'",'google-analytics','googletagmanager','posthog.com','segment.com','mixpanel.com']:
+          for x in ['google-analytics','googletagmanager','posthog.com','segment.com','mixpanel.com']:
             assert x not in s,x
-          assert "unsafe-inline" not in s
-          assert "unsafe-eval" not in s
+          start=s.index('const STOREFRONT_PUBLIC_HEADERS={')
+          end=s.index('};',start)+2
+          active_headers=s[start:end]
+          assert "connect-src 'self'" in active_headers
+          assert "connect-src 'none'" not in active_headers
+          assert "unsafe-inline" not in active_headers
+          assert "unsafe-eval" not in active_headers
+          assert 'https://' not in active_headers and 'http://' not in active_headers
           print('PHASE3_STATIC_PRIVACY_SECURITY=PASS')
           PY
 
