@@ -1,4 +1,4 @@
-name: MUSITU Chemistry Commerce Live Read-Only Verify
+name: MUSITU Chemistry Commerce No-Charge Checkout Verify
 
 on:
   push:
@@ -14,41 +14,49 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 8
     steps:
-      - name: Probe live public Chemistry commerce without mutation
+      - name: Initiate one unpaid checkout and verify fail-closed entitlement
         shell: bash
         run: |
           set -euo pipefail
           python - <<'PY'
-          import json,urllib.request,urllib.error,urllib.parse,hashlib
+          import json,urllib.request,urllib.error,urllib.parse,hashlib,uuid,re
           base='https://payments.mftintelligence.com'
-          def get(path,accept='*/*'):
-              q=urllib.request.Request(base+path,headers={'Accept':accept,'User-Agent':'MUSITU-Chemistry-Live-ReadOnly-Verify/1.0'})
-              try:
-                  with urllib.request.urlopen(q,timeout=30) as r:return r.status,(r.headers.get('content-type') or ''),r.read()
-              except urllib.error.HTTPError as e:return e.code,(e.headers.get('content-type') or ''),e.read()
-          hc,hct,hb=get('/chemistry/healthz','application/json');h=json.loads(hb or b'{}')
-          if hc!=200 or h.get('ok') is not True:raise SystemExit('health failed')
-          if h.get('raw_paynow_key_present') is not False or h.get('payment_authority_bound') is not True or h.get('transport_bound') is not True:raise SystemExit('security boundary failed')
-          if h.get('licence_key_id')!='chem-lic-2026-6783aa7535d1':raise SystemExit('production key mismatch')
-          cc,cct,cb=get('/chemistry/catalog','application/json');c=json.loads(cb or b'{}');ids=[p.get('id') for p in c.get('plans') or []]
-          if cc!=200 or ids!=['term','annual','lifetime','family','tutor','school']:raise SystemExit('catalog failed')
-          device='RC3-LIVE-PROBE-DEVICE-98765'
-          q='/chemistry/checkout/start?'+urllib.parse.urlencode({'plan':'annual','device_id':device})
-          pc,pct,pb=get(q,'text/html');pt=pb.decode('utf-8','replace')
-          if pc!=200 or 'text/html' not in pct.lower() or 'name=plan value="annual"' not in pt or device not in pt or 'Continue securely to Paynow' not in pt:raise SystemExit('annual hosted checkout failed')
-          sc,sct,sb=get('/chemistry/checkout/start?'+urllib.parse.urlencode({'plan':'school','device_id':device}),'text/html');st=sb.decode('utf-8','replace')
-          if sc!=200 or 'name=seats' not in st or 'min=1' not in st or 'max=999' not in st:raise SystemExit('school checkout failed')
-          clc,clct,clb=get('/chemistry/claim','text/html');clt=clb.decode('utf-8','replace')
-          if clc!=200 or 'Activate a paid seat' not in clt:raise SystemExit('seat claim page failed')
-          ev={'schema':'musitu.chemistry.live_readonly_verify.v1','health_http':hc,'catalog_http':cc,'checkout_annual_http':pc,'checkout_school_http':sc,'claim_http':clc,'licence_key_id':h.get('licence_key_id'),'plan_ids':ids,'raw_paynow_key_present':False,'production_mutation':False,'gate':'MUSITU_CHEMISTRY_LIVE_PUBLIC_COMMERCE_PASS'}
-          raw=(json.dumps(ev,indent=2,sort_keys=True)+'\n').encode();open('chemistry-live-readonly.json','wb').write(raw);open('chemistry-live-readonly.sha256','w').write(hashlib.sha256(raw).hexdigest()+'  chemistry-live-readonly.json\n')
+          class NoRedirect(urllib.request.HTTPRedirectHandler):
+              def redirect_request(self,req,fp,code,msg,headers,newurl): return None
+          opener=urllib.request.build_opener(NoRedirect)
+          device='RC3-E2E-'+uuid.uuid4().hex[:20].upper()
+          body=urllib.parse.urlencode({'plan':'term','holder':'MUSITU RC3 Automated Checkout Probe','email':'','device_id':device}).encode()
+          req=urllib.request.Request(base+'/chemistry/checkout/start',method='POST',data=body,headers={'Content-Type':'application/x-www-form-urlencoded','Accept':'text/html','User-Agent':'MUSITU-Chemistry-NoCharge-E2E/1.0'})
+          try:
+              r=opener.open(req,timeout=40);code=r.status;headers=r.headers;resp=r.read()
+          except urllib.error.HTTPError as e:
+              code=e.code;headers=e.headers;resp=e.read()
+          if code!=303: raise SystemExit('checkout initiation HTTP '+str(code)+' body='+resp[:200].decode('utf-8','replace'))
+          loc=headers.get('location') or '';u=urllib.parse.urlparse(loc)
+          if u.scheme!='https' or u.hostname not in ('paynow.co.zw','www.paynow.co.zw'): raise SystemExit('untrusted provider redirect')
+          cookie=headers.get('set-cookie') or ''
+          m=re.search(r'mchem_checkout=([^;]+)',cookie)
+          if not m: raise SystemExit('checkout cookie absent')
+          cv=urllib.parse.unquote(m.group(1));dot=cv.find('.')
+          if dot<=0: raise SystemExit('checkout cookie malformed')
+          reference=cv[:dot];secret=cv[dot+1:]
+          if not re.fullmatch(r'MCHEM-[A-Z0-9-]+',reference): raise SystemExit('reference malformed')
+          # Poll only the MUSITU return page. This may query provider status but does not submit payment.
+          ret=urllib.request.Request(base+'/chemistry/return?'+urllib.parse.urlencode({'reference':reference}),headers={'Cookie':'mchem_checkout='+urllib.parse.quote(reference+'.'+secret,safe=''),'Accept':'text/html','User-Agent':'MUSITU-Chemistry-NoCharge-E2E/1.0'})
+          with urllib.request.urlopen(ret,timeout=40) as r:
+              rc=r.status;rt=r.read().decode('utf-8','replace')
+          if rc!=200 or 'Payment status:' not in rt: raise SystemExit('return status page failed')
+          if 'Your activation licence:' in rt or 'MUSITU1.' in rt: raise SystemExit('FAIL CLOSED VIOLATION: licence issued without payment')
+          sm=re.search(r'Payment status:\s*<b>([^<]+)</b>',rt,re.I);status=sm.group(1).strip() if sm else 'unpaid_or_pending'
+          ev={'schema':'musitu.chemistry.no_charge_checkout_verify.v1','checkout_http':code,'provider_host':u.hostname,'reference':reference,'return_http':rc,'observed_payment_status':status,'payment_submitted':False,'money_moved':False,'licence_issued':False,'production_mutation':'one_unpaid_checkout_intent','gate':'MUSITU_CHEMISTRY_NO_CHARGE_CHECKOUT_PASS'}
+          raw=(json.dumps(ev,indent=2,sort_keys=True)+'\n').encode();open('chemistry-no-charge-checkout.json','wb').write(raw);open('chemistry-no-charge-checkout.sha256','w').write(hashlib.sha256(raw).hexdigest()+'  chemistry-no-charge-checkout.json\n')
           print(json.dumps(ev,sort_keys=True))
           PY
       - uses: actions/upload-artifact@v4
         with:
-          name: musitu-chemistry-live-readonly-verify
+          name: musitu-chemistry-no-charge-checkout-verify
           path: |
-            chemistry-live-readonly.json
-            chemistry-live-readonly.sha256
+            chemistry-no-charge-checkout.json
+            chemistry-no-charge-checkout.sha256
           retention-days: 30
           if-no-files-found: error
