@@ -47,7 +47,7 @@ function exactKeys(obj,allowed){
   return keys.every(k=>allowed.has(k));
 }
 
-export async function normalizeTelemetryBatch(req){
+async function normalizeTelemetryBatchImpl(req){
   const origin=req.headers.get('origin')||'';
   const fetchSite=req.headers.get('sec-fetch-site')||'';
   if(origin!==EXPECTED_ORIGIN && !(origin===''&&fetchSite==='same-origin'))throw new Error('origin');
@@ -79,16 +79,18 @@ export async function normalizeTelemetryBatch(req){
   }
   return out;
 }
+export function normalizeTelemetryBatch(req){return normalizeTelemetryBatchImpl(req)}
 
 let schemaReady=false;
-export async function ensureFieldSchema(env){
+async function ensureFieldSchemaImpl(env){
   if(schemaReady)return;
   if(!env?.CHEMISTRY_DB)throw new Error('database');
   await env.CHEMISTRY_DB.prepare(FIELD_SCHEMA_SQL).run();
   schemaReady=true;
 }
+export function ensureFieldSchema(env){return ensureFieldSchemaImpl(env)}
 
-export async function ingestTelemetryRequest(req,env){
+async function ingestTelemetryRequestImpl(req,env){
   let events;
   try{events=await normalizeTelemetryBatch(req)}catch{return new Response(null,{status:400,headers:{'cache-control':'no-store'}})}
   try{
@@ -105,6 +107,7 @@ export async function ingestTelemetryRequest(req,env){
     return new Response(null,{status:503,headers:{'cache-control':'no-store','retry-after':'60'}});
   }
 }
+export function ingestTelemetryRequest(req,env){return ingestTelemetryRequestImpl(req,env)}
 
 function rating(name,value){
   if(name==='LCP')return value<=2500?'good':value<=4000?'needs-improvement':'poor';
@@ -128,7 +131,7 @@ export function computeFieldSnapshot(rows=[],minimumSample=FIELD_MIN_PUBLIC_SAMP
   return {schema:'musitu.chemistry.field_experience.snapshot.v1',window_days:28,minimum_public_sample:minimumSample,status:claimableCount===3?'field_core_web_vitals_available':'insufficient_field_sample',metrics};
 }
 
-export async function readFieldSnapshot(env,minimumSample=FIELD_MIN_PUBLIC_SAMPLE){
+async function readFieldSnapshotImpl(env,minimumSample=FIELD_MIN_PUBLIC_SAMPLE){
   try{
     const result=await env.CHEMISTRY_DB.prepare(`SELECT name,bucket,SUM(count) AS count FROM chemistry_field_aggregate WHERE kind='vital' AND day>=date('now','-27 day') GROUP BY name,bucket ORDER BY name,CAST(bucket AS REAL)`).all();
     return computeFieldSnapshot(result?.results||[],minimumSample);
@@ -136,6 +139,7 @@ export async function readFieldSnapshot(env,minimumSample=FIELD_MIN_PUBLIC_SAMPL
     return computeFieldSnapshot([],minimumSample);
   }
 }
+export function readFieldSnapshot(env,minimumSample=FIELD_MIN_PUBLIC_SAMPLE){return readFieldSnapshotImpl(env,minimumSample)}
 
 export function renderExperience(snapshot){
   const fmt=(name,m)=>m.claimable?`${name}: p75 ${name==='CLS'?m.p75:Number(m.p75).toFixed(0)+(name==='LCP'||name==='INP'?' ms':'')} · ${m.rating} · n=${m.sample}`:`${name}: field result withheld · n=${m.sample} / ${snapshot.minimum_public_sample} required`;
