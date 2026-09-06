@@ -45,7 +45,7 @@ if(mode!=='test') throw new Error('mode must be serve or test');
 const server=await createServer();
 await new Promise((resolve,reject)=>{server.once('error',reject);server.listen(8787,'127.0.0.1',resolve)});
 const browser=await chromium.launch({headless:true,executablePath:process.env.CHROME_PATH||undefined,args:['--no-sandbox','--disable-dev-shm-usage']});
-const context=await browser.newContext({viewport:{width:1280,height:900}});
+const context=await browser.newContext({viewport:{width:1280,height:900},bypassCSP:true});
 const page=await context.newPage();
 const paths=['/chemistry/','/chemistry/plans','/chemistry/verify','/chemistry/support','/chemistry/releases','/chemistry/checkout/start?plan=annual'];
 const evidence={schema:'musitu.chemistry.global_storefront.browser_preflight.v1',pages:{},keyboard:{},mobile:{},reduced_motion:{},ax_tree:{},field_inp_status:'unavailable_no_field_dataset'};
