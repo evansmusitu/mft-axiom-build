@@ -1,33 +1,75 @@
 from pathlib import Path
-p=Path(__file__).with_name('index.base.mjs')
-s=p.read_text()
-STORE=r'''
-const RELEASE={version:'1.2.0',apk:'MUSITU_Chemistry_Mastery_1.2.0.apk',sha256:'055b63f271c18faab540985faefb970f472ea55ba9cb3495db459797902b790d',bytes:5314934};
-function storefrontPage(){
-  const cards=[
-    ['Free','US$0','Diagnostic · Chapters 1–2 · 5-minute foundation exam','/chemistry/download/'+RELEASE.apk,'Download free'],
-    ['Term','US$4.99','4 months · 1 device','/chemistry/checkout/start?plan=term','Choose Term'],
-    ['Annual','US$9.99','12 months · 1 device','/chemistry/checkout/start?plan=annual','Choose Annual'],
-    ['Lifetime','US$19.99','One-time · 1 device','/chemistry/checkout/start?plan=lifetime','Choose Lifetime'],
-    ['Family','US$24.99','12 months · up to 4 devices','/chemistry/checkout/start?plan=family','Choose Family'],
-    ['Tutor','US$39','12 months · up to 10 devices','/chemistry/checkout/start?plan=tutor','Choose Tutor'],
-    ['School','from US$3/student/year','Volume pricing · minimum US$100','/chemistry/checkout/start?plan=school','School checkout']
-  ];
-  const plans=cards.map((c,i)=>`<article class="plan ${i===2?'popular':''}">${i===2?'<span class="tag">Best value</span>':''}<h3>${c[0]}</h3><div class="price">${c[1]}</div><p>${c[2]}</p><a class="button ${i===0?'secondary':''}" href="${c[3]}">${c[4]}</a></article>`).join('');
-  return html(`<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>MUSITU Chemistry Mastery</title><meta name="description" content="Download MUSITU Chemistry Mastery for Android and unlock premium A-Level Chemistry mastery plans securely."><style>
-  :root{font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#111827;background:#f7f8fc}*{box-sizing:border-box}body{margin:0;background:radial-gradient(circle at 80% 0,#e8ecff 0,transparent 28rem),#f7f8fc;color:#111827}a{text-decoration:none;color:inherit}.wrap{max-width:1120px;margin:auto;padding:0 20px}.nav{display:flex;align-items:center;justify-content:space-between;padding:24px 0}.brand{font-weight:900;letter-spacing:.08em}.brand small{display:block;font-size:11px;letter-spacing:.18em;color:#626a7a;margin-top:3px}.navlinks{display:flex;gap:18px;font-size:14px}.hero{padding:70px 0 54px;display:grid;grid-template-columns:1.15fr .85fr;gap:44px;align-items:center}.eyebrow{display:inline-block;background:#111827;color:#fff;border-radius:999px;padding:8px 12px;font-size:12px;font-weight:800;letter-spacing:.08em;text-transform:uppercase}.hero h1{font-size:clamp(42px,7vw,78px);line-height:.98;margin:20px 0 22px;letter-spacing:-.05em}.hero p{font-size:19px;line-height:1.65;color:#596274;max-width:670px}.actions{display:flex;gap:12px;flex-wrap:wrap;margin-top:28px}.button{display:inline-flex;align-items:center;justify-content:center;padding:13px 18px;border-radius:12px;background:#111827;color:#fff;font-weight:800;border:1px solid #111827;min-height:48px}.button.secondary{background:#fff;color:#111827}.phone{background:#111827;border-radius:34px;padding:14px;box-shadow:0 30px 80px #1f293733}.screen{border-radius:24px;background:linear-gradient(155deg,#ffffff,#edf0ff);padding:34px 26px;min-height:400px}.screen .score{font-size:64px;font-weight:900;letter-spacing:-.06em}.screen .meter{height:10px;background:#d8dcec;border-radius:99px;overflow:hidden;margin:16px 0}.screen .meter i{display:block;height:100%;width:76%;background:#111827}.screen ul{padding-left:20px;line-height:1.9;color:#4b5563}.trust{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin:18px 0 70px}.trust div{background:white;border:1px solid #e5e7eb;border-radius:16px;padding:18px}.trust strong{display:block;font-size:22px}.trust span{font-size:13px;color:#697386}.section{padding:66px 0}.section h2{font-size:40px;letter-spacing:-.04em;margin:0 0 10px}.section>p,.intro{color:#626b7c;max-width:720px;line-height:1.7}.features{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;margin-top:32px}.feature{background:#fff;border:1px solid #e3e6ed;border-radius:18px;padding:24px}.feature b{display:block;font-size:18px;margin-bottom:8px}.feature p{color:#667085;line-height:1.6;margin:0}.plans{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;margin-top:34px}.plan{position:relative;background:#fff;border:1px solid #dfe3eb;border-radius:20px;padding:24px;display:flex;flex-direction:column;min-height:250px}.plan.popular{border:2px solid #111827}.tag{position:absolute;right:16px;top:16px;background:#111827;color:#fff;font-size:11px;font-weight:800;border-radius:999px;padding:6px 9px}.plan h3{font-size:20px;margin:0 0 14px}.price{font-size:28px;font-weight:900;letter-spacing:-.03em}.plan p{color:#687184;line-height:1.55;flex:1}.plan .button{width:100%}.steps{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-top:30px}.step{padding:22px;border-radius:18px;background:#111827;color:white}.step span{display:flex;width:32px;height:32px;border-radius:50%;background:white;color:#111827;align-items:center;justify-content:center;font-weight:900;margin-bottom:16px}.step p{color:#c7cbd4;line-height:1.55;margin-bottom:0}.verify{background:#fff;border:1px solid #e1e4eb;border-radius:20px;padding:26px;margin-top:28px}.hash{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;word-break:break-all;background:#f3f4f6;padding:12px;border-radius:10px}.footer{padding:50px 0 70px;color:#687184;font-size:13px;border-top:1px solid #e0e3ea}.footer strong{color:#111827}@media(max-width:860px){.hero{grid-template-columns:1fr}.phone{max-width:480px}.trust{grid-template-columns:repeat(2,1fr)}.features,.plans{grid-template-columns:1fr 1fr}.steps{grid-template-columns:1fr 1fr}.navlinks{display:none}}@media(max-width:560px){.features,.plans,.steps,.trust{grid-template-columns:1fr}.hero{padding-top:42px}.hero p{font-size:17px}.section{padding:48px 0}}
-  </style></head><body><div class="wrap"><nav class="nav"><a class="brand" href="/chemistry/">MUSITU<small>EDUCATION NEXUS</small></a><div class="navlinks"><a href="#features">Features</a><a href="#pricing">Pricing</a><a href="/chemistry/claim">Activate a seat</a></div></nav><main><section class="hero"><div><span class="eyebrow">MUSITU Chemistry Mastery · Android</span><h1>Master Chemistry.<br>Know exactly what to fix.</h1><p>Diagnose weaknesses, learn the full A-Level Chemistry syllabus, practise under exam conditions and turn every mistake into a targeted review plan—all in one focused Android app.</p><div class="actions"><a class="button" href="/chemistry/download/${RELEASE.apk}">Download free · Android</a><a class="button secondary" href="#pricing">See Premium plans</a></div><p style="font-size:13px">Free includes the 36-mark diagnostic, Chapters 1–2 and a 5-minute foundation exam. No payment is required to install.</p></div><div class="phone"><div class="screen"><div style="font-weight:900;letter-spacing:.08em">CHEMISTRY MASTERY</div><p style="color:#6b7280">Readiness snapshot</p><div class="score">76%</div><div class="meter"><i></i></div><ul><li>Structure & bonding · strong</li><li>Electrochemistry · review due</li><li>Organic pathways · improving</li><li>Exam mode · ready</li></ul></div></div></section><section class="trust"><div><strong>18</strong><span>curriculum chapters</span></div><div><strong>3</strong><span>timed exam modes</span></div><div><strong>Offline</strong><span>signed entitlement verification</span></div><div><strong>1 app</strong><span>diagnose · learn · practise · review</span></div></section></main></div><section id="features" class="section"><div class="wrap"><h2>Built for deliberate mastery</h2><p class="intro">The app is free to install. Premium access is unlocked only by a cryptographically verified MUSITU licence after settlement is confirmed.</p><div class="features"><div class="feature"><b>Diagnostic intelligence</b><p>A 36-mark starting diagnostic identifies the chemistry areas that need attention first.</p></div><div class="feature"><b>Full learning system</b><p>Structured chapter learning, confidence tracking, bookmarks and targeted review across the syllabus.</p></div><div class="feature"><b>Exam pressure training</b><p>5, 15, 30 and 90-minute modes move learners from foundation recall to sustained exam execution.</p></div><div class="feature"><b>Final48</b><p>A focused final-revision workflow for the last 48 hours before an assessment.</p></div><div class="feature"><b>Device-bound access</b><p>Premium licences are signed and bound to the learner’s device. Payment secrets never enter the APK.</p></div><div class="feature"><b>Family, tutor & school</b><p>Multi-seat plans let purchasers activate additional paid devices without sharing one unrestricted key.</p></div></div></div></section><section id="pricing" class="section"><div class="wrap"><h2>Start free. Upgrade when you need more.</h2><p class="intro">Choose a plan below. Paid checkout stays on MUSITU’s verified payment flow; the server—not the browser—calculates the price.</p><div class="plans">${plans}</div></div></section><section class="section"><div class="wrap"><h2>One page, one flow</h2><div class="steps"><div class="step"><span>1</span><b>Install</b><p>Download the authentic Android APK directly from MUSITU.</p></div><div class="step"><span>2</span><b>Learn free</b><p>Use the diagnostic, Chapters 1–2 and foundation exam without paying.</p></div><div class="step"><span>3</span><b>Pay</b><p>Select a plan and continue to the verified payment provider.</p></div><div class="step"><span>4</span><b>Activate</b><p>After verified settlement, copy the signed licence into the app and Premium unlocks.</p></div></div><div class="verify"><h3>Verify your download</h3><p>Release ${RELEASE.version} · Android APK · ${(RELEASE.bytes/1048576).toFixed(1)} MB</p><div class="hash">SHA-256 · ${RELEASE.sha256}</div><p style="color:#687184;font-size:13px">The installer is signed with the MUSITU Android release certificate. Premium entitlement is separate from the APK, so sharing the installer does not share paid access.</p></div></div></section><footer class="footer"><div class="wrap"><strong>MUSITU Chemistry Mastery</strong> · MUSITU Education Nexus<br><span>Payment and licence-signing secrets remain server-side. A licence is issued only after verified settlement.</span></div></footer></body></html>`,200,{'cache-control':'public, max-age=300'});
+import hashlib,re
+
+ROOT=Path(__file__).resolve().parent
+BASE=ROOT/'index.base.mjs'
+OUT=ROOT/'index.storefront-v3.mjs'
+EXPECTED_BASE='848e1cec17ec580822d36e595196cda5978713849e8b45c5bc8dc7fcf9765db8'
+
+base=BASE.read_bytes()
+actual=hashlib.sha256(base).hexdigest()
+if actual!=EXPECTED_BASE:
+    raise SystemExit(f'base Worker hash mismatch: {actual}')
+s=base.decode()
+marker='function checkoutPage(plan,deviceId){'
+if s.count(marker)!=1:
+    raise SystemExit('checkout marker mismatch')
+
+parts=[]
+for name in ['content.mjs','recommend.mjs','assets.mjs','render.mjs']:
+    text=(ROOT/'storefront'/name).read_text()
+    text=re.sub(r'^import .*?;\s*$', '', text, flags=re.M)
+    text=text.replace('export const ','const ').replace('export function ','function ')
+    parts.append(f'// storefront/{name}\n{text.strip()}\n')
+
+helpers=r"""
+function planViewsFromCore(){
+  const out={};
+  for(const [id,p] of Object.entries(PLANS)){
+    if(id==='school'){
+      const q=quote('school',1);
+      out[id]={id,label:p.label,price:`from US$${money(q.amount_cents)}/year`,term:'12 months',scope:'volume seats'};
+    }else{
+      const q=quote(id);
+      out[id]={id,label:p.label,price:`US$${money(q.amount_cents)}`,term:q.months===null?'One-time':`${q.months} months`,scope:q.seats===1?'1 device':`up to ${q.seats} devices`};
+    }
+  }
+  return out;
 }
-'''
-marker="function checkoutPage(plan,deviceId){"
-if s.count(marker)!=1: raise SystemExit('checkout marker mismatch')
-s=s.replace(marker,STORE+'\n'+marker)
+"""
+
+bundle='const STOREFRONT=(()=>{\n'+''.join(parts)+helpers+r"""
+return {RELEASE,STOREFRONT_CSS,STOREFRONT_JS,recommendPlan,renderStorefront,renderPlanDecision,renderVerifyRelease,renderReleaseNotes,renderSupport,renderPrivacy,renderTerms,renderSitemapXml,renderSecurityText,renderCheckout,renderSeatClaim,renderPaymentStatus,planViewsFromCore};
+})();
+"""
+
+public_helpers=r"""
+const STOREFRONT_PUBLIC_HEADERS={
+  'x-content-type-options':'nosniff',
+  'referrer-policy':'no-referrer',
+  'x-frame-options':'DENY',
+  'permissions-policy':'camera=(), microphone=(), geolocation=(), payment=()',
+  'content-security-policy':"default-src 'none'; style-src 'self'; script-src 'self'; connect-src 'none'; img-src 'self' data:; font-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'"
+};
+function storefrontHtml(body,status=200,extra={}){return new Response(body,{status,headers:{'content-type':'text/html; charset=utf-8','cache-control':'public, max-age=300',...STOREFRONT_PUBLIC_HEADERS,...extra}})}
+function storefrontAsset(body,type){return new Response(body,{status:200,headers:{'content-type':type,'cache-control':'public, max-age=86400','x-content-type-options':'nosniff','cross-origin-resource-policy':'same-origin'}})}
+function storefrontXml(body){return new Response(body,{status:200,headers:{'content-type':'application/xml; charset=utf-8','cache-control':'public, max-age=3600','x-content-type-options':'nosniff'}})}
+function storefrontText(body){return new Response(body,{status:200,headers:{'content-type':'text/plain; charset=utf-8','cache-control':'public, max-age=3600','x-content-type-options':'nosniff'}})}
+function storefrontQuery(u){return Object.fromEntries(u.searchParams.entries())}
+function checkoutPageV3(plan,deviceId){let q;try{q=quote(plan,plan==='school'?1:null)}catch{return storefrontHtml('<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Unknown plan</title></head><body><main id="main"><h1>Unknown plan</h1><p><a href="/chemistry/plans">Return to plans</a></p></main></body></html>',400)}const price=plan==='school'?'from US$100 / year':`US$${money(q.amount_cents)}`;const scope=plan==='school'?'volume seats':q.months===null?'One-time · 1 device':`${q.months} months · ${q.seats===1?'1 device':`up to ${q.seats} devices`}`;return storefrontHtml(STOREFRONT.renderCheckout({planId:plan,planLabel:PLANS[plan].label,price,scope,deviceId,isSchool:plan==='school'}),200,{'cache-control':'no-store'})}
+function claimPageV3(){return storefrontHtml(STOREFRONT.renderSeatClaim(),200,{'cache-control':'no-store'})}
+async function returnPageV3(req,env,u){const reference=String(u.searchParams.get('reference')||'');const intent=reference?await orderByReference(env,reference):null;if(!intent)return storefrontHtml('<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Order not found</title></head><body><main id="main"><h1>Order not found</h1><p><a href="/chemistry/support">Open support</a></p></main></body></html>',404,{'cache-control':'no-store'});if(intent.status!=='paid'&&intent.poll_url){try{await confirmIntent(env,intent)}catch{}}const fresh=await orderByReference(env,reference);const cv=cookieValue(req,'mchem_checkout'),dot=cv.indexOf('.'),cookieRef=dot>0?cv.slice(0,dot):'',secret=dot>0?cv.slice(dot+1):'';let authorised=false;if(cookieRef===reference&&secret)authorised=(await sha256Hex(secret))===fresh.client_secret_sha256;let token=null;if(authorised&&fresh.status==='paid'){const seat=await env.CHEMISTRY_DB.prepare("SELECT licence_token FROM chemistry_seats WHERE reference=?1 AND seat_no=1").bind(reference).first();token=seat?.licence_token||null}return storefrontHtml(STOREFRONT.renderPaymentStatus({status:fresh.status,token,reference,secret:authorised?secret:'',seats:Number(fresh.seats)||1}),200,{'cache-control':'no-store'})}
+"""
+
+s=s.replace(marker,bundle+'\n'+public_helpers+'\n'+marker)
+
 old="export async function handleRequest(req,env){const u=new URL(req.url),p=u.pathname;if(req.method==='GET'&&p==='/chemistry/healthz')return health(env);"
-new="export async function handleRequest(req,env){const u=new URL(req.url),p=u.pathname;if(req.method==='GET'&&(p==='/chemistry'||p==='/chemistry/'))return storefrontPage();if(req.method==='GET'&&p==='/chemistry/healthz')return health(env);"
-if s.count(old)!=1: raise SystemExit('dispatch marker mismatch')
-s=s.replace(old,new)
-old2="${token?`<p>Your activation licence:</p><textarea style=\"width:100%;height:180px\" readonly>${escapeHtml(token)}</textarea><p>Copy it into Chemistry Mastery → Premium → Activate licence.</p>`:'<p>If you have paid, confirmation may still be processing. Re-open this page shortly from the same device.</p>'}"
-new2="${token?`<p><a href=\"/chemistry/download/${RELEASE.apk}\" style=\"display:inline-block;padding:12px 16px;border-radius:10px;background:#111827;color:white;text-decoration:none;font-weight:800\">Download MUSITU Chemistry</a></p><p>Your activation licence:</p><textarea style=\"width:100%;height:180px\" readonly>${escapeHtml(token)}</textarea><p>Copy it into Chemistry Mastery → Premium → Activate licence.</p>`:'<p>If you have paid, confirmation may still be processing. Re-open this page shortly from the same device.</p>'}"
-if s.count(old2)!=1: raise SystemExit('return token marker mismatch')
-s=s.replace(old2,new2)
-Path(__file__).with_name('index.storefront.mjs').write_text(s)
+new="export async function handleRequest(req,env){const u=new URL(req.url),p=u.pathname;if(req.method==='GET'&&(p==='/chemistry'||p==='/chemistry/'))return storefrontHtml(STOREFRONT.renderStorefront({plans:STOREFRONT.planViewsFromCore()}));if(req.method==='GET'&&p==='/chemistry/plans')return storefrontHtml(STOREFRONT.renderPlanDecision({plans:STOREFRONT.planViewsFromCore(),query:storefrontQuery(u)}));if(req.method==='GET'&&p==='/chemistry/verify')return storefrontHtml(STOREFRONT.renderVerifyRelease());if(req.method==='GET'&&p==='/chemistry/releases')return storefrontHtml(STOREFRONT.renderReleaseNotes());if(req.method==='GET'&&p==='/chemistry/support')return storefrontHtml(STOREFRONT.renderSupport());if(req.method==='GET'&&p==='/chemistry/privacy')return storefrontHtml(STOREFRONT.renderPrivacy());if(req.method==='GET'&&p==='/chemistry/terms')return storefrontHtml(STOREFRONT.renderTerms());if(req.method==='GET'&&p==='/chemistry/sitemap.xml')return storefrontXml(STOREFRONT.renderSitemapXml());if(req.method==='GET'&&p==='/chemistry/security.txt')return storefrontText(STOREFRONT.renderSecurityText());if(req.method==='GET'&&p==='/chemistry/assets/storefront.css')return storefrontAsset(STOREFRONT.STOREFRONT_CSS,'text/css; charset=utf-8');if(req.method==='GET'&&p==='/chemistry/assets/storefront.js')return storefrontAsset(STOREFRONT.STOREFRONT_JS,'application/javascript; charset=utf-8');if(req.method==='GET'&&p==='/chemistry/healthz')return health(env);"
+if s.count(old)!=1:
+    raise SystemExit('dispatch marker mismatch')
+s=s.replace(old,new,1)
+s=s.replace("if(req.method==='GET'&&p==='/chemistry/checkout/start')return checkoutPage(String(u.searchParams.get('plan')||''),String(u.searchParams.get('device_id')||''));","if(req.method==='GET'&&p==='/chemistry/checkout/start')return checkoutPageV3(String(u.searchParams.get('plan')||''),String(u.searchParams.get('device_id')||''));",1)
+s=s.replace("if(req.method==='GET'&&p==='/chemistry/return')return returnPage(req,env,u);","if(req.method==='GET'&&p==='/chemistry/return')return returnPageV3(req,env,u);",1)
+s=s.replace("if(req.method==='GET'&&p==='/chemistry/claim')return claimPage();","if(req.method==='GET'&&p==='/chemistry/claim')return claimPageV3();",1)
+OUT.write_text(s)
+print(hashlib.sha256(OUT.read_bytes()).hexdigest())
