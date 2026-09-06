@@ -1,26 +1,58 @@
 from pathlib import Path
-import hashlib,re
+import hashlib,re,json
 
 ROOT=Path(__file__).resolve().parent
 BASE=ROOT/'index.base.mjs'
 OUT=ROOT/'index.storefront-v3.mjs'
+WEB_VITALS=ROOT/'storefront'/'web-vitals-6.0.1.iife.js'
 EXPECTED_BASE='848e1cec17ec580822d36e595196cda5978713849e8b45c5bc8dc7fcf9765db8'
+EXPECTED_WEB_VITALS='6b3e4ac9d6f6abd4ea1810621668bec7d7adb121279570e6870be4fb98ab3909'
 
 base=BASE.read_bytes()
 actual=hashlib.sha256(base).hexdigest()
 if actual!=EXPECTED_BASE:
     raise SystemExit(f'base Worker hash mismatch: {actual}')
+web_vitals=WEB_VITALS.read_bytes()
+web_vitals_sha=hashlib.sha256(web_vitals).hexdigest()
+if web_vitals_sha!=EXPECTED_WEB_VITALS:
+    raise SystemExit(f'web-vitals hash mismatch: {web_vitals_sha}')
 s=base.decode()
 marker='function checkoutPage(plan,deviceId){'
 if s.count(marker)!=1:
     raise SystemExit('checkout marker mismatch')
 
+def once(text,old,new,label):
+    if text.count(old)!=1:
+        raise SystemExit(f'{label} marker mismatch: {text.count(old)}')
+    return text.replace(old,new,1)
+
+def phase3_render(text):
+    text=once(text,"const assetJs='/chemistry/assets/storefront.js?v=3';","const assetJs='/chemistry/assets/storefront.js?v=3';\nconst assetVitals='/chemistry/assets/web-vitals-6.0.1.iife.js';\nconst assetField='/chemistry/assets/field-experience.js?v=1';",'asset declarations')
+    text=once(text,'<link rel="stylesheet" href="${assetCss}"><script src="${assetJs}" defer></script>','<link rel="stylesheet" href="${assetCss}"><script src="${assetJs}" defer></script><script src="${assetVitals}" defer></script><script src="${assetField}" defer></script>','shell scripts')
+    text=once(text,'<a href="/chemistry/releases">Release notes</a><a href="/chemistry/security.txt">Security</a>','<a href="/chemistry/releases">Release notes</a><a href="/chemistry/experience">Experience evidence</a><a href="/chemistry/security.txt">Security</a>','footer experience')
+    text=once(text,'<a class="button" href="/chemistry/download/${esc(RELEASE.apk)}">Start Free</a>','<a class="button" data-field-event="start_free" href="/chemistry/download/${esc(RELEASE.apk)}">Start Free</a>','start free marker')
+    text=once(text,'<a class="button secondary" href="/chemistry/plans">Unlock Full Mastery</a>','<a class="button secondary" data-field-event="unlock_full" href="/chemistry/plans">Unlock Full Mastery</a>','unlock marker')
+    text=once(text,'<a class="button tertiary" href="/chemistry/plans?who=multiple">Families &amp; Institutions</a>','<a class="button tertiary" data-field-event="families_institutions" href="/chemistry/plans?who=multiple">Families &amp; Institutions</a>','family marker')
+    text=once(text,'<a class="button small" href="/chemistry/checkout/start?plan=${encodeURIComponent(p.id)}">Choose ${esc(p.label)}</a>','<a class="button small" data-field-event="plan_choose" data-field-detail="${esc(p.id)}" href="/chemistry/checkout/start?plan=${encodeURIComponent(p.id)}">Choose ${esc(p.label)}</a>','plan choose marker')
+    text=once(text,'<form class="decision-form" method="get" action="/chemistry/plans">','<form class="decision-form" data-field-event="plan_recommend" method="get" action="/chemistry/plans">','recommend marker')
+    text=once(text,'<form class="checkout-form" method="post" action="/chemistry/checkout/start">','<form class="checkout-form" data-field-event="checkout_continue" data-field-detail="${esc(planId)}" method="post" action="/chemistry/checkout/start">','checkout marker')
+    text=once(text,'<a class="button" href="${esc(SUPPORT.whatsappUrl)}">Open WhatsApp support</a>','<a class="button" data-field-event="support_contact" href="${esc(SUPPORT.whatsappUrl)}">Open WhatsApp support</a>','support marker')
+    text=once(text,'<form class="checkout-form" method="post" action="/chemistry/claim">','<form class="checkout-form" data-field-event="seat_claim" method="post" action="/chemistry/claim">','claim marker')
+    text=once(text,'<main id="main" tabindex="-1" class="page-shell"><div class="wrap narrow"><div class="breadcrumbs"><a href="/chemistry/">Chemistry Mastery</a> / Payment status</div>','<main id="main" tabindex="-1" class="page-shell" data-field-status="${paid?\'paid\':\'pending\'}"><div class="wrap narrow"><div class="breadcrumbs"><a href="/chemistry/">Chemistry Mastery</a> / Payment status</div>','status marker')
+    privacy_insert='<h2>Anonymous experience measurement</h2><p>The storefront measures aggregate customer experience so MUSITU can verify real-world performance and identify friction. Browser reports contain only Core Web Vitals or an allowlisted journey action, a route class, a coarse viewport class and an optional plan class. They do not contain an IP address, email, Device ID, payment reference, licence token, referrer, full URL, URL query string, cookie or persistent tracking identifier.</p><p>Core Web Vitals are rounded into histogram buckets before storage. Individual analytics event rows are not retained: accepted reports increment aggregate day/route/metric buckets and are discarded. Global Privacy Control and Do Not Track suppress browser reports.</p><p><strong data-measurement-state>Experience measurement status is checked in your browser.</strong></p><p><button class="button secondary" type="button" data-measurement-toggle>Enable / disable anonymous experience measurement on this browser</button></p><p class="microcopy">If you disable measurement, the browser stores only the local preference needed to remember that choice. It is not a tracking identifier.</p><p><a href="/chemistry/experience">See published aggregate experience evidence</a></p><h2>Questions or access requests</h2>'
+    text=once(text,'<h2>Questions or access requests</h2>',privacy_insert,'privacy measurement')
+    text=once(text,"const paths=['/chemistry/','/chemistry/plans','/chemistry/verify','/chemistry/releases','/chemistry/support','/chemistry/privacy','/chemistry/terms'];","const paths=['/chemistry/','/chemistry/plans','/chemistry/verify','/chemistry/releases','/chemistry/support','/chemistry/privacy','/chemistry/terms','/chemistry/experience'];",'sitemap experience')
+    return text
+
 parts=[]
-for name in ['content.mjs','recommend.mjs','assets.mjs','render.mjs']:
+for name in ['content.mjs','recommend.mjs','assets.mjs','render.mjs','field-experience.mjs']:
     text=(ROOT/'storefront'/name).read_text()
+    if name=='render.mjs':
+        text=phase3_render(text)
     text=re.sub(r'^import .*?;\s*$', '', text, flags=re.M)
     text=text.replace('export const ','const ').replace('export function ','function ')
     parts.append(f'// storefront/{name}\n{text.strip()}\n')
+parts.append('// storefront/web-vitals-6.0.1.iife.js\nconst WEB_VITALS_IIFE='+json.dumps(web_vitals.decode())+';\n')
 
 helpers=r"""
 function planViewsFromCore(){
@@ -39,7 +71,7 @@ function planViewsFromCore(){
 """
 
 bundle='const STOREFRONT=(()=>{\n'+''.join(parts)+helpers+r"""
-return {RELEASE,STOREFRONT_CSS,STOREFRONT_JS,recommendPlan,renderStorefront,renderPlanDecision,renderVerifyRelease,renderReleaseNotes,renderSupport,renderPrivacy,renderTerms,renderSitemapXml,renderSecurityText,renderCheckout,renderSeatClaim,renderPaymentStatus,planViewsFromCore};
+return {RELEASE,STOREFRONT_CSS,STOREFRONT_JS,WEB_VITALS_IIFE,FIELD_EXPERIENCE_JS,recommendPlan,renderStorefront,renderPlanDecision,renderVerifyRelease,renderReleaseNotes,renderSupport,renderPrivacy,renderTerms,renderSitemapXml,renderSecurityText,renderCheckout,renderSeatClaim,renderPaymentStatus,renderExperience,ingestTelemetryRequest,readFieldSnapshot,computeFieldSnapshot,planViewsFromCore};
 })();
 """
 
@@ -49,12 +81,13 @@ const STOREFRONT_PUBLIC_HEADERS={
   'referrer-policy':'no-referrer',
   'x-frame-options':'DENY',
   'permissions-policy':'camera=(), microphone=(), geolocation=(), payment=()',
-  'content-security-policy':"default-src 'none'; style-src 'self'; script-src 'self'; connect-src 'none'; img-src 'self' data:; font-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'"
+  'content-security-policy':"default-src 'none'; style-src 'self'; script-src 'self'; connect-src 'self'; img-src 'self' data:; font-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'"
 };
 function storefrontHtml(body,status=200,extra={}){return new Response(body,{status,headers:{'content-type':'text/html; charset=utf-8','cache-control':'public, max-age=300',...STOREFRONT_PUBLIC_HEADERS,...extra}})}
 function storefrontAsset(body,type){return new Response(body,{status:200,headers:{'content-type':type,'cache-control':'public, max-age=86400','x-content-type-options':'nosniff','cross-origin-resource-policy':'same-origin'}})}
 function storefrontXml(body){return new Response(body,{status:200,headers:{'content-type':'application/xml; charset=utf-8','cache-control':'public, max-age=3600','x-content-type-options':'nosniff'}})}
 function storefrontText(body){return new Response(body,{status:200,headers:{'content-type':'text/plain; charset=utf-8','cache-control':'public, max-age=3600','x-content-type-options':'nosniff'}})}
+function storefrontJson(value,cache='public, max-age=300'){return new Response(JSON.stringify(value,null,2)+'\n',{status:200,headers:{'content-type':'application/json; charset=utf-8','cache-control':cache,'x-content-type-options':'nosniff'}})}
 function storefrontQuery(u){return Object.fromEntries(u.searchParams.entries())}
 function checkoutPageV3(plan,deviceId){let q;try{q=quote(plan,plan==='school'?1:null)}catch{return storefrontHtml('<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Unknown plan</title></head><body><main id="main"><h1>Unknown plan</h1><p><a href="/chemistry/plans">Return to plans</a></p></main></body></html>',400)}const price=plan==='school'?'from US$100 / year':`US$${money(q.amount_cents)}`;const scope=plan==='school'?'volume seats':q.months===null?'One-time · 1 device':`${q.months} months · ${q.seats===1?'1 device':`up to ${q.seats} devices`}`;return storefrontHtml(STOREFRONT.renderCheckout({planId:plan,planLabel:PLANS[plan].label,price,scope,deviceId,isSchool:plan==='school'}),200,{'cache-control':'no-store'})}
 function claimPageV3(){return storefrontHtml(STOREFRONT.renderSeatClaim(),200,{'cache-control':'no-store'})}
@@ -73,7 +106,7 @@ if s.count(old_recovery)!=1:
 s=s.replace(old_recovery,new_recovery,1)
 
 old="export async function handleRequest(req,env){const u=new URL(req.url),p=u.pathname;if(req.method==='GET'&&p==='/chemistry/healthz')return health(env);"
-new="export async function handleRequest(req,env){const u=new URL(req.url),p=u.pathname;if(req.method==='GET'&&(p==='/chemistry'||p==='/chemistry/'))return storefrontHtml(STOREFRONT.renderStorefront({plans:STOREFRONT.planViewsFromCore()}));if(req.method==='GET'&&p==='/chemistry/plans')return storefrontHtml(STOREFRONT.renderPlanDecision({plans:STOREFRONT.planViewsFromCore(),query:storefrontQuery(u)}));if(req.method==='GET'&&p==='/chemistry/verify')return storefrontHtml(STOREFRONT.renderVerifyRelease());if(req.method==='GET'&&p==='/chemistry/releases')return storefrontHtml(STOREFRONT.renderReleaseNotes());if(req.method==='GET'&&p==='/chemistry/support')return storefrontHtml(STOREFRONT.renderSupport());if(req.method==='GET'&&p==='/chemistry/privacy')return storefrontHtml(STOREFRONT.renderPrivacy());if(req.method==='GET'&&p==='/chemistry/terms')return storefrontHtml(STOREFRONT.renderTerms());if(req.method==='GET'&&p==='/chemistry/sitemap.xml')return storefrontXml(STOREFRONT.renderSitemapXml());if(req.method==='GET'&&p==='/chemistry/security.txt')return storefrontText(STOREFRONT.renderSecurityText());if(req.method==='GET'&&p==='/chemistry/assets/storefront.css')return storefrontAsset(STOREFRONT.STOREFRONT_CSS,'text/css; charset=utf-8');if(req.method==='GET'&&p==='/chemistry/assets/storefront.js')return storefrontAsset(STOREFRONT.STOREFRONT_JS,'application/javascript; charset=utf-8');if(req.method==='GET'&&p==='/chemistry/healthz')return health(env);"
+new="export async function handleRequest(req,env){const u=new URL(req.url),p=u.pathname;if(req.method==='POST'&&p==='/chemistry/telemetry/v1')return STOREFRONT.ingestTelemetryRequest(req,env);if(req.method==='GET'&&(p==='/chemistry'||p==='/chemistry/'))return storefrontHtml(STOREFRONT.renderStorefront({plans:STOREFRONT.planViewsFromCore()}));if(req.method==='GET'&&p==='/chemistry/plans')return storefrontHtml(STOREFRONT.renderPlanDecision({plans:STOREFRONT.planViewsFromCore(),query:storefrontQuery(u)}));if(req.method==='GET'&&p==='/chemistry/verify')return storefrontHtml(STOREFRONT.renderVerifyRelease());if(req.method==='GET'&&p==='/chemistry/releases')return storefrontHtml(STOREFRONT.renderReleaseNotes());if(req.method==='GET'&&p==='/chemistry/support')return storefrontHtml(STOREFRONT.renderSupport());if(req.method==='GET'&&p==='/chemistry/privacy')return storefrontHtml(STOREFRONT.renderPrivacy());if(req.method==='GET'&&p==='/chemistry/terms')return storefrontHtml(STOREFRONT.renderTerms());if(req.method==='GET'&&p==='/chemistry/experience'){const snapshot=await STOREFRONT.readFieldSnapshot(env);return storefrontHtml(STOREFRONT.renderExperience(snapshot),200,{'cache-control':'public, max-age=300'});}if(req.method==='GET'&&p==='/chemistry/experience.json'){const snapshot=await STOREFRONT.readFieldSnapshot(env);return storefrontJson(snapshot);}if(req.method==='GET'&&p==='/chemistry/sitemap.xml')return storefrontXml(STOREFRONT.renderSitemapXml());if(req.method==='GET'&&p==='/chemistry/security.txt')return storefrontText(STOREFRONT.renderSecurityText());if(req.method==='GET'&&p==='/chemistry/assets/storefront.css')return storefrontAsset(STOREFRONT.STOREFRONT_CSS,'text/css; charset=utf-8');if(req.method==='GET'&&p==='/chemistry/assets/storefront.js')return storefrontAsset(STOREFRONT.STOREFRONT_JS,'application/javascript; charset=utf-8');if(req.method==='GET'&&p==='/chemistry/assets/web-vitals-6.0.1.iife.js')return storefrontAsset(STOREFRONT.WEB_VITALS_IIFE,'application/javascript; charset=utf-8');if(req.method==='GET'&&p==='/chemistry/assets/field-experience.js')return storefrontAsset(STOREFRONT.FIELD_EXPERIENCE_JS,'application/javascript; charset=utf-8');if(req.method==='GET'&&p==='/chemistry/healthz')return health(env);"
 if s.count(old)!=1:
     raise SystemExit('dispatch marker mismatch')
 s=s.replace(old,new,1)
