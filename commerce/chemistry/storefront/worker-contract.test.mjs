@@ -100,7 +100,16 @@ test('telemetry endpoint rejects cross-origin input before database access',asyn
 
 test('valid telemetry increments aggregate buckets without retaining identity fields',async()=>{
   const calls=[];
-  const env={CHEMISTRY_DB:{prepare(sql){return {run:async()=>{calls.push({sql,args:[]});return{}},bind(...args){return {run:async()=>{calls.push({sql,args});return{}}}}}}};
+  const env={
+    CHEMISTRY_DB:{
+      prepare(sql){
+        return {
+          async run(){calls.push({sql,args:[]});return{}},
+          bind(...args){return {run:async()=>{calls.push({sql,args});return{}}}}
+        };
+      }
+    }
+  };
   const body={events:[{kind:'vital',name:'LCP',value:1041.4,route:'home',viewport:'mobile',detail:''},{kind:'event',name:'start_free',route:'home',viewport:'mobile',detail:''}]};
   const r=await handleRequest(new Request(base+'/chemistry/telemetry/v1',{method:'POST',headers:{origin:base,'content-type':'application/json'},body:JSON.stringify(body)}),env);
   assert.equal(r.status,204);
