@@ -1,0 +1,7 @@
+{
+  "name": "musitu-chemistry-commerce-bridge",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {"test": "node --test test/*.test.mjs", "check": "node --check src/index.mjs && node --check test/worker.test.mjs"}
+}
