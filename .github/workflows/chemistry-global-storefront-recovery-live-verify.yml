@@ -1,0 +1,178 @@
+name: MUSITU Chemistry Global Storefront Recovery Live Verify
+
+on:
+  push:
+    branches: [chemistry-global-storefront-20260906]
+    paths: ['.github/workflows/chemistry-global-storefront-recovery-live-verify.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: musitu-chemistry-global-storefront-recovery-live-verify
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      EXPECTED_WORKER_SHA: d6642aefacc8d6765d17c1d33c2df65df33a9531f843c0bbbc2c304482d3d5f1
+      LICENCE_KEY_ID: chem-lic-2026-6783aa7535d1
+      APK_SHA256: 055b63f271c18faab540985faefb970f472ea55ba9cb3495db459797902b790d
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Read-only verify live Worker hash and public recovery UX
+        shell: bash
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/mchem-recovery-live
+          mkdir -p /tmp/mchem-recovery-live
+          python - <<'PY'
+          import email,hashlib,json,os,secrets,urllib.error,urllib.parse,urllib.request
+          from pathlib import Path
+
+          API='https://api.cloudflare.com/client/v4'
+          AID='93f395f5121954671f92fffa453d6b61'
+          WORKER='musitu-chemistry-commerce'
+          BASE='https://payments.mftintelligence.com'
+          EXPECTED=os.environ['EXPECTED_WORKER_SHA']
+          KEY=os.environ['LICENCE_KEY_ID']
+          APK=os.environ['APK_SHA256']
+          H={
+            'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],
+            'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY'],
+            'User-Agent':'MUSITU-Chemistry-Recovery-Live-Verify/1.0'
+          }
+
+          def req(url,headers=None,timeout=60):
+              q=urllib.request.Request(url,method='GET',headers=dict(headers or {}))
+              try:
+                  with urllib.request.urlopen(q,timeout=timeout) as r:return r.status,r.headers,r.read()
+              except urllib.error.HTTPError as e:return e.code,e.headers,e.read()
+
+          def public(path,accept='*/*'):
+              nonce=secrets.token_hex(8)
+              path += ('&' if '?' in path else '?')+'__mchem_readonly='+urllib.parse.quote(nonce)
+              return req(BASE+path,headers={
+                'Accept':accept,
+                'Cache-Control':'no-cache',
+                'Pragma':'no-cache',
+                'User-Agent':'MUSITU-Recovery-Independent-ReadOnly/1.0'
+              })
+
+          def extract(raw,ctype,needle):
+              if 'multipart/' not in (ctype or '').lower():return raw
+              msg=email.message_from_bytes((f'Content-Type: {ctype}\r\nMIME-Version: 1.0\r\n\r\n').encode()+raw)
+              parts=[]
+              for p in msg.walk():
+                  if p.is_multipart():continue
+                  data=p.get_payload(decode=True) or b''
+                  if needle.encode() in data:parts.append(data)
+              if len(parts)!=1:raise RuntimeError('module extraction mismatch')
+              return parts[0]
+
+          wc,wh,wb=req(f'{API}/accounts/{AID}/workers/scripts/{WORKER}',headers=H)
+          if wc!=200:raise SystemExit(f'worker read HTTP {wc}')
+          worker=extract(wb,wh.get('content-type',''),'MUSITU Chemistry Commerce')
+          worker_sha=hashlib.sha256(worker).hexdigest()
+          if worker_sha!=EXPECTED:raise SystemExit('LIVE_WORKER_HASH_MISMATCH '+worker_sha)
+
+          checks=[
+            ('/chemistry/','Start Free'),
+            ('/chemistry/plans','Choose access without guessing'),
+            ('/chemistry/plans?who=myself&duration=year','Recommended for you: Annual'),
+            ('/chemistry/plans?who=multiple&context=home','Recommended for you: Family'),
+            ('/chemistry/verify',APK),
+            ('/chemistry/releases','Release notes'),
+            ('/chemistry/support','use the payment-status link created during checkout'),
+            ('/chemistry/privacy','Data is not sold to advertisers'),
+            ('/chemistry/terms','verified settlement'),
+            ('/chemistry/checkout/start?plan=annual','Continue securely to Paynow'),
+            ('/chemistry/claim','Activate a paid seat')
+          ]
+          pages={}
+          for path,needle in checks:
+              c,h,b=public(path,'text/html')
+              text=b.decode('utf-8','replace')
+              csp=h.get('content-security-policy') or ''
+              ref=h.get('referrer-policy') or ''
+              if c!=200 or needle not in text:raise SystemExit('PUBLIC_ROUTE_FAILED '+path)
+              if "style-src 'self'" not in csp or "script-src 'self'" not in csp or 'unsafe-inline' in csp or 'unsafe-eval' in csp:raise SystemExit('CSP_FAILED '+path)
+              if ref!='no-referrer':raise SystemExit('REFERRER_POLICY_FAILED '+path+' '+ref)
+              pages[path]={'http':c,'csp_strict':True,'referrer_policy':ref}
+
+          sc,_,sb=public('/chemistry/support','text/html')
+          support=sb.decode('utf-8','replace')
+          if sc!=200:raise SystemExit('SUPPORT_HTTP_FAILED')
+          if 'href="/chemistry/return"' in support:raise SystemExit('BARE_RECOVERY_LINK_STILL_LIVE')
+          if 'contact MUSITU support' not in support:raise SystemExit('SUPPORT_RECOVERY_GUIDANCE_MISSING')
+
+          hc,_,hb=public('/chemistry/healthz','application/json')
+          health=json.loads(hb or b'{}')
+          if hc!=200 or health.get('ok') is not True:raise SystemExit('HEALTH_FAILED')
+          if health.get('licence_key_id')!=KEY:raise SystemExit('LICENCE_KEY_CHANGED')
+          if health.get('raw_paynow_key_present') is not False:raise SystemExit('RAW_PAYNOW_KEY_BOUNDARY_FAILED')
+          if health.get('payment_authority_bound') is not True or health.get('transport_bound') is not True:raise SystemExit('PAYMENT_BINDING_BOUNDARY_FAILED')
+
+          cc,_,cb=public('/chemistry/catalog','application/json')
+          cat=json.loads(cb or b'{}')
+          ids=[p.get('id') for p in cat.get('plans') or []]
+          if cc!=200 or ids!=['term','annual','lifetime','family','tutor','school']:raise SystemExit('CATALOG_CHANGED')
+
+          ac,_,apk=public('/chemistry/download/MUSITU_Chemistry_Mastery_1.2.0.apk','application/vnd.android.package-archive')
+          apk_sha=hashlib.sha256(apk).hexdigest()
+          if ac!=200 or len(apk)!=5314934 or apk_sha!=APK:raise SystemExit('APK_BOUNDARY_FAILED')
+
+          qc,_,qb=public('/chemistry/checkout/start?plan=school','text/html')
+          school=qb.decode('utf-8','replace')
+          if qc!=200 or 'min="1"' not in school or 'max="999"' not in school:raise SystemExit('SCHOOL_CHECKOUT_CHANGED')
+
+          ev={
+            'schema':'musitu.chemistry.global_storefront.recovery_live_verify.v1',
+            'production_mutation':False,
+            'live_worker_sha256':worker_sha,
+            'expected_worker_sha256':EXPECTED,
+            'recovery_dead_end_removed':True,
+            'support_bare_return_link_present':False,
+            'pages':pages,
+            'health_http':hc,
+            'licence_key_id':health.get('licence_key_id'),
+            'raw_paynow_key_present':health.get('raw_paynow_key_present'),
+            'payment_authority_bound':health.get('payment_authority_bound'),
+            'transport_bound':health.get('transport_bound'),
+            'catalog_http':cc,
+            'plan_ids':ids,
+            'school_checkout_http':qc,
+            'apk_http':ac,
+            'apk_bytes':len(apk),
+            'apk_sha256':apk_sha,
+            'real_money_settlement_observed':False,
+            'real_money_settlement_claimed':False,
+            'gate':'MUSITU_CHEMISTRY_GLOBAL_STOREFRONT_RECOVERY_LIVE_VERIFY_PASS'
+          }
+          raw=(json.dumps(ev,indent=2,sort_keys=True)+'\n').encode()
+          Path('/tmp/mchem-recovery-live/live-verify.json').write_bytes(raw)
+          Path('/tmp/mchem-recovery-live/live-verify.sha256').write_text(hashlib.sha256(raw).hexdigest()+'  live-verify.json\n')
+          print(json.dumps(ev,sort_keys=True))
+          PY
+
+      - name: Seal read-only evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd /tmp/mchem-recovery-live
+          sha256sum *.json *.sha256 > SHA256SUMS.txt
+          cat live-verify.json
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: musitu-chemistry-global-storefront-recovery-live-verify
+          path: /tmp/mchem-recovery-live
+          retention-days: 90
+          if-no-files-found: error
