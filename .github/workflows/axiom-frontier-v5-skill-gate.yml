@@ -45,6 +45,7 @@ jobs:
         run: |
           set -euo pipefail
           PYTHONPATH=. python frontier_v5/tests/test_frontier_runtime.py
+          PYTHONPATH=. python frontier_v5/tests/test_advanced_runtime.py
 
       - name: Package and certify skill profiles
         shell: bash
@@ -107,7 +108,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          sha256sum frontier_v5/MANIFEST.json frontier_v5/EVAL_CONTRACT.json frontier_v5/PROMOTION_GATE.json frontier_v5/CAPABILITY_TARGETS.json frontier_v5/runtime/fabric.py > /tmp/frontier-v5-evidence.sha256
+          sha256sum frontier_v5/MANIFEST.json frontier_v5/EVAL_CONTRACT.json frontier_v5/PROMOTION_GATE.json frontier_v5/CAPABILITY_TARGETS.json frontier_v5/runtime/fabric.py frontier_v5/runtime/advanced.py frontier_v5/tests/test_advanced_runtime.py > /tmp/frontier-v5-evidence.sha256
           find frontier_v5/dist -type f -name '*.zip' -print0 | sort -z | xargs -0 sha256sum > /tmp/frontier-v5-packages.sha256
           echo 'MUSITU_AXIOM_FRONTIER_SKILL_GATE_PASS'
           cat /tmp/frontier-v5-evidence.sha256
