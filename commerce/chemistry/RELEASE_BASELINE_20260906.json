@@ -1,0 +1,65 @@
+{
+  "schema": "musitu.chemistry.release_baseline.v1",
+  "product": "MUSITU Chemistry Mastery",
+  "release": "1.2.0-commercial-rc3",
+  "status": "VERIFIED_COMMERCIAL_BASELINE",
+  "branch": "chemistry-commerce-live-20260906",
+  "source": {
+    "proven_archive_sha256": "5b2618499eed8dc90261bc4f8260246d5593534500dd2fb145f2d24b5c47754c",
+    "deterministic_patched_deployer_sha256": "4bf886dcef9067691c437f524bd25a43492b179c4626a113f4cc9d783bcc6754",
+    "worker_tests_passed": 8
+  },
+  "production_commerce": {
+    "base_url": "https://payments.mftintelligence.com/chemistry/",
+    "provider_adapter": "paynow",
+    "production_licence_key_id": "chem-lic-2026-6783aa7535d1",
+    "raw_paynow_key_present_in_product": false,
+    "merchant_approval_is_product_release_blocker": false,
+    "settlement_rule": "VERIFIED_SETTLEMENT_EVIDENCE_TO_SIGNED_ENTITLEMENT"
+  },
+  "verified_runs": {
+    "deploy_and_postdeploy": 34048833742,
+    "live_public_checkout_readonly": 34049605195,
+    "no_charge_checkout_fail_closed": 34050988660
+  },
+  "gates": [
+    "MUSITU_CHEMISTRY_V12_REMOTE_VERIFY_PASS",
+    "MUSITU_CHEMISTRY_COMMERCE_DEPLOY_PASS",
+    "MUSITU_CHEMISTRY_COMMERCE_POSTDEPLOY_PASS",
+    "MUSITU_CHEMISTRY_LIVE_PUBLIC_COMMERCE_PASS",
+    "MUSITU_CHEMISTRY_NO_CHARGE_CHECKOUT_PASS"
+  ],
+  "no_charge_checkout": {
+    "checkout_http": 303,
+    "provider_host": "www.paynow.co.zw",
+    "return_http": 200,
+    "observed_payment_status": "pending",
+    "payment_submitted": false,
+    "money_moved": false,
+    "licence_issued": false
+  },
+  "apk": {
+    "filename": "MUSITU_Chemistry_Mastery_1.2.0-commercial-rc3.apk",
+    "sha256": "055b63f271c18faab540985faefb970f472ea55ba9cb3495db459797902b790d",
+    "android_signing_certificate_sha256": "d4455ac3ec74a6d7cd7993ca640f554a83bba95dfd01ef508f7637b6bc72c0d8",
+    "legacy_rc2_licences_supported": true,
+    "production_licences_supported": true,
+    "ui_checks_passed": 26,
+    "crypto_entitlement_checks_passed": 16,
+    "stored_entry_alignment": "60/60",
+    "v1_signature_valid": true,
+    "v2_signature_valid": true
+  },
+  "drive": {
+    "production_deploy_evidence_file_id": "13WgplP-jD79yM9ziIKNf6YGYlO55MThY",
+    "production_deploy_evidence_zip_sha256": "7e8b61ed5b140ae245c34315aba6dd64e18a606c729ba710dc60b65cdff725d8",
+    "no_charge_checkout_evidence_file_id": "1w1AbgTpHv9ZndTOl-yweB1o04pCLgQB2",
+    "no_charge_checkout_evidence_zip_sha256": "6708701d2ccdf8ffdb6a18d7962740746a28eaa73a19edcb18ec5e4252c8a269",
+    "rc3_apk_file_id": "1aP4jZKRYpYceTOnKBPjck1F_-B4CWbi9"
+  },
+  "evidence_boundaries": {
+    "real_money_settlement_observed": false,
+    "real_money_settlement_claimed": false,
+    "reason": "No-charge production initiation and fail-closed entitlement are verified; a completed paid settlement is a separate evidence class."
+  }
+}
