@@ -1,0 +1,49 @@
+name: MUSITU Axiom Five-Year Frontier Objective Gate
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  objective-gate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Validate objective ledger fail-closed
+        shell: bash
+        run: |
+          set -euo pipefail
+          python frontier_v5/scripts/objective_gate.py --objective frontier_v5/FIVE_YEAR_FRONTIER_OBJECTIVE.json
+
+      - name: Seal completion evidence
+        if: success()
+        shell: bash
+        run: |
+          set -euo pipefail
+          sha256sum \
+            frontier_v5/FIVE_YEAR_FRONTIER_OBJECTIVE.json \
+            frontier_v5/runtime/fabric.py \
+            frontier_v5/runtime/advanced.py \
+            frontier_v5/CAPABILITY_TARGETS.json \
+            frontier_v5/EVAL_CONTRACT.json \
+            frontier_v5/PROMOTION_GATE.json \
+            > /tmp/five-year-frontier-objective.sha256
+          echo 'MUSITU_AXIOM_FIVE_YEAR_FRONTIER_OBJECTIVE_PASS'
+          cat /tmp/five-year-frontier-objective.sha256
+
+      - name: Upload completion evidence
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: musitu-axiom-five-year-frontier-objective-evidence
+          path: /tmp/five-year-frontier-objective.sha256
+          if-no-files-found: error
