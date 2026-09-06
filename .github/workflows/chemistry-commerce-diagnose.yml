@@ -1,0 +1,55 @@
+name: MUSITU Chemistry Commerce Read-Only Diagnose
+
+on:
+  push:
+    branches: [chemistry-commerce-live-20260906]
+    paths: ['.github/workflows/chemistry-commerce-diagnose.yml']
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Read Cloudflare topology and public route state without mutation
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json,os,urllib.request,urllib.error,urllib.parse,email,hashlib
+          API='https://api.cloudflare.com/client/v4'; AID='93f395f5121954671f92fffa453d6b61'; ZID='5b56528f03948ff5917a5e0cd9f7109e'
+          H={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY'],'User-Agent':'MUSITU-Chemistry-Diagnose/1.0'}
+          def req(url,headers=None):
+              q=urllib.request.Request(url,headers=dict(headers or {}))
+              try:
+                  with urllib.request.urlopen(q,timeout=30) as r:return r.status,dict(r.headers),r.read()
+              except urllib.error.HTTPError as e:return e.code,dict(e.headers),e.read()
+          def cf(path):
+              c,h,b=req(API+path,H)
+              if c!=200: raise SystemExit('Cloudflare read failed '+str(c)+' '+path)
+              x=json.loads(b); return x.get('result')
+          scripts=cf(f'/accounts/{AID}/workers/scripts') or []
+          script_names=sorted(str(x.get('id') or x.get('name')) for x in scripts if isinstance(x,dict))
+          routes=cf(f'/zones/{ZID}/workers/routes') or []
+          chem_routes=[{'pattern':r.get('pattern'),'script':r.get('script')} for r in routes if isinstance(r,dict) and 'chemistry' in str(r.get('pattern') or '')]
+          dbs=cf(f'/accounts/{AID}/d1/database') or []
+          chem_dbs=[{'name':d.get('name'),'uuid_present':bool(d.get('uuid'))} for d in dbs if isinstance(d,dict) and 'chemistry' in str(d.get('name') or '')]
+          def public(path):
+              c,h,b=req('https://payments.mftintelligence.com'+path,{'Accept':'application/json','User-Agent':'MUSITU-Chemistry-Diagnose/1.0'})
+              ct=h.get('Content-Type') or h.get('content-type') or ''
+              text=b[:240].decode('utf-8','replace').replace('\n',' ')
+              return {'status':c,'content_type':ct,'body_prefix':text}
+          result={'schema':'musitu.chemistry.rollback_diagnose.v1','chemistry_worker_present':'musitu-chemistry-commerce' in script_names,'chemistry_routes':chem_routes,'chemistry_dbs':chem_dbs,'billing_public':public('/billing/healthz'),'chemistry_public':public('/chemistry/healthz'),'production_mutation':False}
+          print(json.dumps(result,sort_keys=True))
+          open('chemistry-diagnose.json','w').write(json.dumps(result,indent=2,sort_keys=True)+'\n')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: musitu-chemistry-commerce-diagnose
+          path: chemistry-diagnose.json
+          retention-days: 14
