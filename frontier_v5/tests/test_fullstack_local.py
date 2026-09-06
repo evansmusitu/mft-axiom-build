@@ -90,9 +90,10 @@ def main():
         app=ArtifactWorkbench.application(out/"app.html")
         assert all(Path(x["path"]).exists() for x in (doc,xls,ppt,pdf,app))
 
-        # Real browser automation against generated application.
+        # Real browser automation against generated application. Private access
+        # is an explicit fixture-only opt-in; production/default remains closed.
         with local_server(out) as base:
-            browser=PlaywrightBrowserAdapter({"127.0.0.1"})
+            browser=PlaywrightBrowserAdapter({"127.0.0.1"}, allow_private=True)
             br=browser.run(base+"/app.html",out/"browser.png",click_selector="#run",expect_text="42")
             assert br.screenshot_sha256 and Path(out/"browser.png").exists()
 
