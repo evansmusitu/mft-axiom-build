@@ -117,7 +117,7 @@ def main():
 
     # Browser request guard: a public allowlisted top-level page must not be
     # able to cause a request to a private redirect/subresource target before
-    # MUSITU validates the target URL.
+    # MUSITU validates the target URL. The run must also fail closed visibly.
     page = _FakePage()
     sync_api = ModuleType("playwright.sync_api")
     sync_api.sync_playwright = lambda: _FakeSyncPlaywright(page)
@@ -134,7 +134,7 @@ def main():
     with patch("socket.getaddrinfo", side_effect=resolution), patch.dict(
         sys.modules, {"playwright": package, "playwright.sync_api": sync_api}
     ):
-        browser.run("https://example.com/start")
+        expect_error(lambda: browser.run("https://example.com/start"), AuthorizationError)
 
     assert not page.private_target_reached, (
         "browser contacted a private subresource before MUSITU validated the request URL"
