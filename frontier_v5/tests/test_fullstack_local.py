@@ -23,6 +23,7 @@ from frontier_v5.runtime.fullstack import (
     PlaywrightBrowserAdapter, RetrievedContentFirewall, SandboxedComputerAdapter,
     SQLiteProductionStore,
 )
+from frontier_v5.tests.test_research_redirect_preflight import main as redirect_preflight_main
 
 
 def expect_error(fn, exc=Exception):
@@ -135,6 +136,10 @@ def main():
         ) as network:
             expect_error(lambda: ra.fetch("https://example.com"),AuthorizationError)
             assert network.call_count==0
+
+        # Redirect SSRF: an allowlisted public target must not be permitted to
+        # redirect to a private target before the redirect target is validated.
+        redirect_preflight_main()
 
     print("MUSITU_AXIOM_FRONTIER_FULLSTACK_LOCAL_PASS")
 
