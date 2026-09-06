@@ -1,0 +1,13 @@
+{
+  "promotion_gate": "MUSITU_AXIOM_FRONTIER_PROMOTION",
+  "required": {
+    "functional": "PASS",
+    "security": "PASS",
+    "policy": "PASS",
+    "regression": "PASS",
+    "unseen_eval": "PASS",
+    "provenance": "PASS"
+  },
+  "claim_policy": "No parity/superiority/frontier claim without a sealed evaluation artifact supporting the exact claim.",
+  "sealed_v4_base_sha": "d6a846f6bbe0bccac1758713eb4de167caf07113"
+}
