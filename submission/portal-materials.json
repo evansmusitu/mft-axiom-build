@@ -1,0 +1,62 @@
+{
+  "schema": "musitu.axiom.openai_submission_portal_materials.v1",
+  "listing": {
+    "display_name": "MUSITU Axiom",
+    "subtitle": "Quantitative analysis",
+    "short_description": "Run quantitative finance, statistics, optimization, time-series, verification, and mathematical calculations through MUSITU Axiom in ChatGPT.",
+    "long_description": "MUSITU Axiom gives ChatGPT users access to a production quantitative runtime for finance, statistics, optimization, time-series analysis, verification, and mathematical computation. Users connect an existing MUSITU Axiom account through OAuth. The public ChatGPT surface does not place investment trades, transfer money, or initiate digital-subscription checkout.",
+    "category": "FINANCE",
+    "logo_repository_path": "branding/musitu-axiom-app-icon.svg",
+    "website_url": "https://mcp.mftintelligence.com/docs",
+    "support_url": "https://github.com/evansmusitu/mft-axiom-build/issues",
+    "privacy_policy_url": "https://mcp.mftintelligence.com/privacy",
+    "terms_of_use_url": "https://mcp.mftintelligence.com/terms"
+  },
+  "mcp_server": {
+    "server_type": "UNIVERSAL",
+    "production_url": "https://mcp.mftintelligence.com/mcp",
+    "oauth_issuer": "https://auth.mftintelligence.com",
+    "protected_resource_metadata": "https://mcp.mftintelligence.com/.well-known/oauth-protected-resource",
+    "userinfo_endpoint": "https://auth.mftintelligence.com/oauth/userinfo",
+    "execution_scope": "axiom.execute",
+    "identity_scopes": [
+      "openid",
+      "email"
+    ],
+    "dynamic_client_registration": true,
+    "pkce_s256": true,
+    "ui_resources_exposed": false,
+    "screenshots_required": false,
+    "widget_csp": "NOT_APPLICABLE_NO_WIDGET_RESOURCES_EXPOSED"
+  },
+  "starter_prompts": [
+    "Use MUSITU Axiom to analyze this time series for trend, volatility, and structural changes.",
+    "Use MUSITU Axiom to solve this constrained optimization problem and explain the optimum.",
+    "Use MUSITU Axiom to compare Monte Carlo and closed-form results for this quantitative model.",
+    "Use MUSITU Axiom to verify this quantitative result independently and show the calculation.",
+    "Use MUSITU Axiom to evaluate the risk and return characteristics of these cash flows."
+  ],
+  "release_notes": "Initial public MUSITU Axiom ChatGPT submission: 108 public tools backed by 74 certified runtime operations and 30 business-facing quantitative products; OAuth 2.1 account linking with PKCE, refresh/revocation, UserInfo support for explicitly verified email identities, metered execution for existing entitled accounts, response minimization, and no digital-subscription commerce on the public ChatGPT surface.",
+  "review": {
+    "import_file": "chatgpt-app-submission.json",
+    "positive_test_cases": 5,
+    "negative_test_cases": 3,
+    "reviewer_demo_account": "PRIVATE_PORTAL_CREDENTIAL_REQUIRED",
+    "reviewer_mfa_required": false,
+    "reviewer_email_or_sms_setup_required": false,
+    "domain_verification": "PORTAL_TOKEN_REQUIRED",
+    "publisher_identity_verification": "PORTAL_VERIFICATION_REQUIRED",
+    "country_availability": "PORTAL_SELECTION_REQUIRED",
+    "country_availability_note": "Select only jurisdictions where publisher identity, product availability, support, and legal terms are ready. No worldwide-availability claim is made by this manifest."
+  },
+  "sealed_evidence": {
+    "public_plugin_gate": "MUSITU_AXIOM_PUBLIC_PLUGIN_V4_PASS",
+    "public_plugin_evidence_sha256": "dfb4b615adf612b32c09db64c66eafc71b991f192326993a9c31a4115f6d3935",
+    "submission_package_gate": "MUSITU_AXIOM_CHATGPT_SUBMISSION_PACKAGE_PASS",
+    "submission_json_sha256": "e54351fac1c140da8dc4f463795a281eeb9c9ee61e804a0a993ea82a8e7f5e0d",
+    "oauth_userinfo_gate": "MUSITU_AXIOM_OAUTH_USERINFO_V2_PASS",
+    "oauth_userinfo_evidence_sha256": "55af99a2b0cc7ed9f61a6d0a9590ee42effc1e7a223a6f73c0f7b27e364b316a",
+    "wolfram_parity": "NOT_CERTIFIED",
+    "superiority": "NOT_CERTIFIED"
+  }
+}
