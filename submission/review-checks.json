@@ -1,0 +1,17 @@
+{
+  "business_product_count": 30,
+  "explicit_annotation_tools": 108,
+  "gate": "MUSITU_AXIOM_CHATGPT_SUBMISSION_PACKAGE_PASS",
+  "hidden_commerce_tools_absent": true,
+  "live_mcp": "https://mcp.mftintelligence.com/mcp",
+  "missing_output_schema": [],
+  "operation_count": 74,
+  "promotional_commerce_descriptor_findings": [],
+  "public_tool_count": 108,
+  "schema": "musitu.axiom.chatgpt_app_submission.review_checks.v1",
+  "sensitive_input_fields": [],
+  "submission_json_sha256": "e54351fac1c140da8dc4f463795a281eeb9c9ee61e804a0a993ea82a8e7f5e0d",
+  "superiority": "NOT_CERTIFIED",
+  "widget_csp_review": "NOT_APPLICABLE_NO_WIDGET_RESOURCES_EXPOSED",
+  "wolfram_parity": "NOT_CERTIFIED"
+}
