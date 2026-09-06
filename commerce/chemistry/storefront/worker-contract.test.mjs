@@ -7,6 +7,16 @@ async function get(path,env={}){
   const r=await handleRequest(new Request(base+path),env);
   return {r,text:await r.text()};
 }
+function assertStrictStorefrontHeaders(r,label){
+  const csp=r.headers.get('content-security-policy')||'';
+  assert.match(csp,/style-src 'self'/,label);
+  assert.match(csp,/script-src 'self'/,label);
+  assert.match(csp,/connect-src 'self'/,label);
+  assert.doesNotMatch(csp,/unsafe-inline|unsafe-eval|https?:\/\//,label);
+  assert.equal(r.headers.get('x-content-type-options'),'nosniff',label);
+  assert.equal(r.headers.get('x-frame-options'),'DENY',label);
+  assert.equal(r.headers.get('referrer-policy'),'no-referrer',label);
+}
 
 test('global public routes are server rendered and preserve public trust surfaces',async()=>{
   const checks=[
@@ -24,14 +34,7 @@ test('global public routes are server rendered and preserve public trust surface
     const {r,text}=await get(path);
     assert.equal(r.status,200,path);
     assert.match(text,new RegExp(needle.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')),path);
-    const csp=r.headers.get('content-security-policy')||'';
-    assert.match(csp,/style-src 'self'/,path);
-    assert.match(csp,/script-src 'self'/,path);
-    assert.match(csp,/connect-src 'self'/,path);
-    assert.doesNotMatch(csp,/unsafe-inline|unsafe-eval|https?:\/\//,path);
-    assert.equal(r.headers.get('x-content-type-options'),'nosniff');
-    assert.equal(r.headers.get('x-frame-options'),'DENY');
-    assert.equal(r.headers.get('referrer-policy'),'no-referrer');
+    assertStrictStorefrontHeaders(r,path);
   }
 });
 
@@ -55,15 +58,17 @@ test('sitemap and security surfaces include v3 lifecycle and experience routes',
   assert.equal(security.r.status,200); assert.match(security.text,/Canonical:/); assert.match(security.text,/Policy:/);
 });
 
-test('existing catalogue and checkout GET remain authoritative',async()=>{
+test('existing catalogue and checkout GET remain authoritative with strict Phase 3 headers',async()=>{
   const catalog=await get('/chemistry/catalog');
   assert.equal(catalog.r.status,200);
   const body=JSON.parse(catalog.text);
   assert.deepEqual(body.plans.map(p=>p.id),['term','annual','lifetime','family','tutor','school']);
   const annual=await get('/chemistry/checkout/start?plan=annual');
-  assert.equal(annual.r.status,200); assert.match(annual.text,/Annual/); assert.match(annual.text,/US\$9\.99/); assert.match(annual.text,/Continue securely to Paynow/); assert.match(annual.text,/data-field-event="checkout_continue"/);
+  assert.equal(annual.r.status,200); assert.match(annual.text,/Annual/); assert.match(annual.text,/US\$9\.99/); assert.match(annual.text,/Continue securely to Paynow/); assert.match(annual.text,/data-field-event="checkout_continue"/); assertStrictStorefrontHeaders(annual.r,'annual checkout');
+  assert.equal(annual.r.headers.get('cache-control'),'no-store');
   const school=await get('/chemistry/checkout/start?plan=school');
-  assert.equal(school.r.status,200); assert.match(school.text,/Student seats/); assert.match(school.text,/min="1"/); assert.match(school.text,/max="999"/);
+  assert.equal(school.r.status,200); assert.match(school.text,/Student seats/); assert.match(school.text,/min="1"/); assert.match(school.text,/max="999"/); assertStrictStorefrontHeaders(school.r,'school checkout');
+  assert.equal(school.r.headers.get('cache-control'),'no-store');
 });
 
 test('privacy and experience surfaces state the aggregate-only boundary',async()=>{
