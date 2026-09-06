@@ -30,7 +30,7 @@ jobs:
           required=[
             'OPENAI_APPS_CHALLENGE',
             '/.well-known/openai-apps-challenge',
-            'return text(200,c.challenge)',
+            'new Response(c.challenge',
             'challenge_not_configured'
           ]
           missing=[x for x in required if x not in s]
