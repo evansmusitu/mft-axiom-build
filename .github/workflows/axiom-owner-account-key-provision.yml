@@ -1,0 +1,149 @@
+name: MUSITU Axiom Owner Account Key Provision
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - ops/issue-owner-account-key
+    paths:
+      - '.github/workflows/axiom-owner-account-key-provision.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: musitu-axiom-owner-account-key-provision
+  cancel-in-progress: false
+
+jobs:
+  provision:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    env:
+      CF_API: https://api.cloudflare.com/client/v4
+      ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      D1_UUID: 504029cc-f9a5-495e-818f-63c6144b4ea4
+      OWNER_EMAIL: support@mftintelligence.com
+      OWNER_CUSTOMER_ID: musitu_owner_primary
+    steps:
+      - name: Provision owner account key in canonical production D1
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+          MUSITU_OWNER_ACCOUNT_KEY: ${{ secrets.MUSITU_OWNER_ACCOUNT_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$CLOUDFLARE_EMAIL"
+          test -n "$CLOUDFLARE_GLOBAL_API_KEY"
+          test -n "$MUSITU_OWNER_ACCOUNT_KEY"
+          echo "::add-mask::$MUSITU_OWNER_ACCOUNT_KEY"
+          python - <<'PY'
+          import datetime,hashlib,json,os,urllib.error,urllib.request
+
+          api=os.environ['CF_API']; aid=os.environ['ACCOUNT_ID']; dbid=os.environ['D1_UUID']
+          email=os.environ['OWNER_EMAIL']; preferred_id=os.environ['OWNER_CUSTOMER_ID']; key=os.environ['MUSITU_OWNER_ACCOUNT_KEY']
+          if not key.startswith('musitu_axiom_') or len(key) < 64:
+              raise SystemExit('Fail-closed: MUSITU_OWNER_ACCOUNT_KEY format/length invalid')
+
+          headers={
+              'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],
+              'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY'],
+              'Content-Type':'application/json',
+              'Accept':'application/json',
+              'User-Agent':'MUSITU-Axiom-Owner-Key-Provision/1.0',
+          }
+          def d1(sql,params=None):
+              body={'sql':sql}
+              if params is not None: body['params']=params
+              req=urllib.request.Request(
+                  f'{api}/accounts/{aid}/d1/database/{dbid}/query',
+                  headers=headers,method='POST',
+                  data=json.dumps(body,separators=(',',':')).encode(),
+              )
+              try:
+                  with urllib.request.urlopen(req,timeout=45) as r:
+                      obj=json.load(r)
+              except urllib.error.HTTPError as e:
+                  raise RuntimeError(f'Cloudflare D1 HTTP {e.code}') from e
+              if obj.get('success') is False:
+                  raise RuntimeError('Cloudflare D1 request failed')
+              out=[]
+              for part in obj.get('result') or []:
+                  if part.get('success') is not True:
+                      raise RuntimeError('D1 statement failed')
+                  out.extend(part.get('results') or [])
+              return out
+
+          # Fail closed on schema drift before mutating production data.
+          customer_cols=[r.get('name') for r in d1('PRAGMA table_info(customers);')]
+          key_cols=[r.get('name') for r in d1('PRAGMA table_info(api_keys);')]
+          required_customer={'id','email','name','plan','status','monthly_unit_override','created_at','updated_at'}
+          required_key={'id','customer_id','key_hash','key_prefix','label','status','created_at','last_used_at','expires_at','revoked_at'}
+          if not required_customer.issubset(set(customer_cols)) or not required_key.issubset(set(key_cols)):
+              raise SystemExit('Fail-closed: canonical customer/key schema drift')
+
+          now=datetime.datetime.now(datetime.timezone.utc).isoformat().replace('+00:00','Z')
+          kh=hashlib.sha256(key.encode()).hexdigest(); kp=key[:16]
+
+          # Reuse a unique canonical owner/support customer if one already exists.
+          by_email=d1('SELECT id,email,status,plan FROM customers WHERE email=?1 ORDER BY id',[email])
+          if len(by_email)>1:
+              raise SystemExit('Fail-closed: duplicate canonical owner email customers')
+          if by_email:
+              customer=by_email[0]['id']
+              if by_email[0].get('status')!='active':
+                  raise SystemExit('Fail-closed: canonical owner customer is not active')
+          else:
+              by_id=d1('SELECT id,email,status,plan FROM customers WHERE id=?1',[preferred_id])
+              if by_id:
+                  row=by_id[0]
+                  if row.get('email')!=email or row.get('status')!='active':
+                      raise SystemExit('Fail-closed: preferred owner customer id is occupied or inactive')
+                  customer=preferred_id
+              else:
+                  d1('INSERT INTO customers(id,email,name,plan,status,monthly_unit_override,created_at,updated_at) VALUES(?1,?2,?3,?4,?5,?6,?7,?7)',
+                     [preferred_id,email,'MUSITU Owner','developer','active',None,now])
+                  customer=preferred_id
+
+          # Add/refresh the verified identity claim only if the additive OIDC table exists.
+          ident=d1("SELECT name FROM sqlite_master WHERE type='table' AND name='oauth_identity_claims'")
+          if ident:
+              d1('INSERT INTO oauth_identity_claims(customer_id,email_verified_at,created_at,updated_at) VALUES(?1,?2,?2,?2) ON CONFLICT(customer_id) DO UPDATE SET email_verified_at=excluded.email_verified_at, updated_at=excluded.updated_at',[customer,now])
+
+          existing=d1('SELECT id,customer_id,status,expires_at,revoked_at FROM api_keys WHERE key_hash=?1',[kh])
+          if len(existing)>1:
+              raise SystemExit('Fail-closed: duplicate key hash rows')
+          if existing:
+              row=existing[0]
+              if row.get('customer_id')!=customer:
+                  raise SystemExit('Fail-closed: key hash already belongs to another customer')
+              if row.get('status')!='active' or row.get('revoked_at') is not None:
+                  raise SystemExit('Fail-closed: existing owner key is revoked/inactive; rotate instead of reactivating')
+              key_id=row['id']
+          else:
+              key_id='musitu_owner_key_'+kh[:24]
+              collision=d1('SELECT id,customer_id,key_hash FROM api_keys WHERE id=?1',[key_id])
+              if collision:
+                  raise SystemExit('Fail-closed: deterministic owner key id collision')
+              d1('INSERT INTO api_keys(id,customer_id,key_hash,key_prefix,label,status,created_at,last_used_at,expires_at,revoked_at) VALUES(?1,?2,?3,?4,?5,?6,?7,NULL,NULL,NULL)',
+                 [key_id,customer,kh,kp,'owner-chatgpt-account','active',now])
+
+          # Re-run the exact account-key eligibility shape used by the OAuth worker.
+          eligible=d1("SELECT k.id AS source_key_id,k.customer_id,c.email,c.plan FROM api_keys k JOIN customers c ON c.id=k.customer_id WHERE k.key_hash=?1 AND k.status='active' AND c.status='active' AND (k.expires_at IS NULL OR k.expires_at>?2) LIMIT 2",[kh,now])
+          if len(eligible)!=1 or eligible[0].get('customer_id')!=customer:
+              raise SystemExit('Fail-closed: production OAuth account-key eligibility verification failed')
+
+          print(json.dumps({
+              'gate':'MUSITU_AXIOM_OWNER_ACCOUNT_KEY_PROVISION_PASS',
+              'customer_id':customer,
+              'key_id':key_id,
+              'key_prefix':kp,
+              'customer_status':'active',
+              'key_status':'active',
+              'expires_at':None,
+              'oauth_account_key_eligible':True,
+              'raw_key_logged':False,
+              'd1_uuid':dbid,
+          },sort_keys=True))
+          PY
