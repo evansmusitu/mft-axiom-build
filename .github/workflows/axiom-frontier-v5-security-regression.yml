@@ -15,7 +15,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  redirect-preflight:
+  network-preflight:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -33,3 +33,10 @@ jobs:
           set -euo pipefail
           PYTHONPATH=. python frontier_v5/tests/test_research_redirect_preflight.py | tee /tmp/research-redirect-preflight.log
           grep -q 'MUSITU_AXIOM_FRONTIER_RESEARCH_REDIRECT_PREFLIGHT_PASS' /tmp/research-redirect-preflight.log
+
+      - name: Verify browser requests fail closed before private target contact
+        shell: bash
+        run: |
+          set -euo pipefail
+          PYTHONPATH=. python frontier_v5/tests/test_browser_network_preflight.py | tee /tmp/browser-network-preflight.log
+          grep -q 'MUSITU_AXIOM_FRONTIER_BROWSER_NETWORK_PREFLIGHT_PASS' /tmp/browser-network-preflight.log
