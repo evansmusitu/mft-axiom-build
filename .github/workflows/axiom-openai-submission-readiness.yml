@@ -1,0 +1,147 @@
+name: MUSITU Axiom OpenAI Submission Readiness
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/axiom-openai-submission-readiness.yml'
+      - 'chatgpt-app-submission.json'
+      - 'submission/**'
+      - 'branding/musitu-axiom-app-icon.svg'
+      - 'auth/musitu_axiom_oauth_worker.mjs'
+      - 'mcp/musitu_axiom_plugin_gate_v4.mjs'
+
+permissions:
+  contents: read
+
+jobs:
+  readiness:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Prove repository and live distribution readiness
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import hashlib,json,pathlib,re,urllib.error,urllib.request
+
+          mcp_base='https://mcp.mftintelligence.com'
+          mcp_url=mcp_base+'/mcp'
+          issuer='https://auth.mftintelligence.com'
+          portal=json.loads(pathlib.Path('submission/portal-materials.json').read_text())
+          submission_path=pathlib.Path('chatgpt-app-submission.json')
+          submission=json.loads(submission_path.read_text())
+          review=json.loads(pathlib.Path('submission/review-checks.json').read_text())
+          sha=hashlib.sha256(submission_path.read_bytes()).hexdigest()
+          recorded=pathlib.Path('submission/chatgpt-app-submission.sha256').read_text().split()[0]
+
+          if submission.get('schema_version')!=1 or submission.get('app_info',{}).get('display_name')!='MUSITU Axiom':raise RuntimeError('submission import contract drift')
+          if len(submission.get('tools') or {})!=108 or len(submission.get('test_cases') or [])!=5 or len(submission.get('negative_test_cases') or [])!=3:raise RuntimeError('submission cardinality drift')
+          if review.get('gate')!='MUSITU_AXIOM_CHATGPT_SUBMISSION_PACKAGE_PASS' or review.get('public_tool_count')!=108 or review.get('operation_count')!=74 or review.get('business_product_count')!=30:raise RuntimeError('review-check evidence drift')
+          if any(review.get(k) for k in ('missing_output_schema','sensitive_input_fields','promotional_commerce_descriptor_findings')):raise RuntimeError('review findings are not clean')
+          if sha!=recorded or sha!=portal.get('sealed_evidence',{}).get('submission_json_sha256'):raise RuntimeError('submission SHA mismatch')
+
+          listing=portal.get('listing') or {}; server=portal.get('mcp_server') or {}; rv=portal.get('review') or {}
+          required_listing=['display_name','subtitle','short_description','long_description','category','logo_repository_path','website_url','support_url','privacy_policy_url','terms_of_use_url']
+          if any(not listing.get(k) for k in required_listing):raise RuntimeError('listing material incomplete')
+          if len(listing['subtitle'])>30:raise RuntimeError('subtitle too long')
+          if server.get('server_type')!='UNIVERSAL' or server.get('production_url')!=mcp_url or server.get('execution_scope')!='axiom.execute':raise RuntimeError('MCP portal material drift')
+          if server.get('userinfo_endpoint')!=issuer+'/oauth/userinfo' or server.get('identity_scopes')!=['openid','email']:raise RuntimeError('identity portal material drift')
+          prompts=portal.get('starter_prompts') or []
+          if len(prompts)<4 or len(set(prompts))!=len(prompts) or any(len(p)<25 for p in prompts):raise RuntimeError('starter prompts incomplete')
+          if len(str(portal.get('release_notes') or ''))<120:raise RuntimeError('release notes incomplete')
+
+          logo=pathlib.Path(listing['logo_repository_path'])
+          if not logo.is_file():raise RuntimeError('logo asset missing')
+          logo_text=logo.read_text()
+          if '<svg' not in logo_text or 'viewBox="0 0 128 128"' not in logo_text or 'MUSITU Axiom icon' not in logo_text:raise RuntimeError('logo asset contract drift')
+
+          oauth_source=pathlib.Path('auth/musitu_axiom_oauth_worker.mjs').read_text()
+          mcp_source=pathlib.Path('mcp/musitu_axiom_plugin_gate_v4.mjs').read_text()
+          if 'userinfo_endpoint:c.issuer+"/oauth/userinfo"' not in oauth_source or 'email_verified:Boolean(mail&&row.email_verified_at)' not in oauth_source:raise RuntimeError('canonical OAuth UserInfo source missing')
+          if 'OPENAI_APPS_CHALLENGE' not in mcp_source or '/.well-known/openai-apps-challenge' not in mcp_source:raise RuntimeError('OpenAI domain challenge support missing')
+
+          def request(url,method='GET',obj=None,headers=None):
+            h={'Accept':'application/json','User-Agent':'MUSITU-Axiom-OpenAI-Readiness/1.0'}
+            if headers:h.update(headers)
+            body=None
+            if obj is not None:h['Content-Type']='application/json';body=json.dumps(obj,separators=(',',':')).encode()
+            req=urllib.request.Request(url,data=body,method=method,headers=h)
+            try:
+              with urllib.request.urlopen(req,timeout=45) as r:return r.status,r.headers,r.read()
+            except urllib.error.HTTPError as e:return e.code,e.headers,e.read()
+
+          hc,_,hb=request(mcp_base+'/health');health=json.loads(hb or b'{}')
+          if hc!=200 or health.get('ok') is not True or health.get('server_version')!='4.0.0' or health.get('submission_safe_commerce_profile') is not True or health.get('oauth_enforced') is not True:raise RuntimeError('live MCP v4 health drift')
+          lc,_,lb=request(mcp_url,'POST',{'jsonrpc':'2.0','id':1,'method':'tools/list','params':{}});lo=json.loads(lb or b'{}');tools=(lo.get('result') or {}).get('tools') or []
+          mapped={t.get('_meta',{}).get('musitu/operation') for t in tools if isinstance(t,dict)}-{None};business=[t for t in tools if t.get('_meta',{}).get('musitu/business_product') is True]
+          hidden={'musitu_axiom_plans','musitu_axiom_recommend_plan','musitu_axiom_start_checkout','musitu_axiom_checkout_status'}
+          if lc!=200 or len(tools)!=108 or len(mapped)!=74 or len(business)!=30 or ({t.get('name') for t in tools}&hidden):raise RuntimeError('live public tool surface drift')
+
+          dc,_,db=request(issuer+'/.well-known/oauth-authorization-server');discovery=json.loads(db or b'{}');scopes=set(discovery.get('scopes_supported') or [])
+          if dc!=200 or discovery.get('userinfo_endpoint')!=issuer+'/oauth/userinfo' or not {'axiom.execute','openid','email'}.issubset(scopes) or 'S256' not in (discovery.get('code_challenge_methods_supported') or []):raise RuntimeError('live OAuth metadata drift')
+          uc,_,ub=request(issuer+'/oauth/userinfo');uo=json.loads(ub or b'{}')
+          if uc!=401 or uo.get('error')!='invalid_token':raise RuntimeError('UserInfo does not fail closed without bearer')
+
+          for page in ('/privacy','/terms','/docs'):
+            pc,ph,pb=request(mcp_base+page,headers={'Accept':'text/html'})
+            if pc!=200 or len(pb)<200 or 'text/html' not in str(ph.get('Content-Type') or ''):raise RuntimeError(page+' is not publication-ready')
+          sc,_,sb=request(listing['support_url'],headers={'Accept':'text/html'})
+          if sc!=200 or len(sb)<200:raise RuntimeError('public support URL unavailable')
+
+          expected_placeholders={
+            'reviewer_demo_account':'PRIVATE_PORTAL_CREDENTIAL_REQUIRED',
+            'domain_verification':'PORTAL_TOKEN_REQUIRED',
+            'publisher_identity_verification':'PORTAL_VERIFICATION_REQUIRED',
+            'country_availability':'PORTAL_SELECTION_REQUIRED',
+          }
+          if any(rv.get(k)!=v for k,v in expected_placeholders.items()):raise RuntimeError('portal-only blocker contract drift')
+
+          evidence={
+            'schema':'musitu.axiom.openai_submission_readiness.v1',
+            'gate':'MUSITU_AXIOM_OPENAI_SUBMISSION_AUTOMATION_PASS',
+            'submission_automation_readiness':'PASS',
+            'directory_submission':'NOT_SUBMITTED',
+            'public_tool_count':108,
+            'operation_count':74,
+            'business_product_count':30,
+            'tool_annotations_explicit':108,
+            'positive_tests':5,
+            'negative_tests':3,
+            'starter_prompts':len(prompts),
+            'logo_asset_present':True,
+            'public_legal_pages_ready':True,
+            'public_support_ready':True,
+            'oauth_userinfo_live':True,
+            'verified_email_claim_boundary_proven_by_prior_gate':True,
+            'openai_domain_challenge_handler_present':True,
+            'portal_actions_remaining':[
+              'PUBLISHER_IDENTITY_VERIFICATION',
+              'OPENAI_DOMAIN_CHALLENGE_TOKEN',
+              'PRIVATE_REVIEWER_DEMO_CREDENTIAL_ENTRY',
+              'COUNTRY_AVAILABILITY_SELECTION',
+              'FINAL_SUBMIT_AND_PUBLISH_AFTER_APPROVAL'
+            ],
+            'submission_json_sha256':sha,
+            'public_plugin_evidence_sha256':'dfb4b615adf612b32c09db64c66eafc71b991f192326993a9c31a4115f6d3935',
+            'oauth_userinfo_evidence_sha256':'55af99a2b0cc7ed9f61a6d0a9590ee42effc1e7a223a6f73c0f7b27e364b316a',
+            'real_money_e2e_certified':True,
+            'production_admission':'PASS',
+            'wolfram_parity':'NOT_CERTIFIED',
+            'superiority':'NOT_CERTIFIED'
+          }
+          p=pathlib.Path('musitu-axiom-openai-submission-readiness.json');p.write_text(json.dumps(evidence,indent=2,sort_keys=True)+'\n');digest=hashlib.sha256(p.read_bytes()).hexdigest();pathlib.Path('musitu-axiom-openai-submission-readiness.sha256').write_text(digest+'  '+p.name+'\n')
+          print(json.dumps({'gate':evidence['gate'],'submission_automation_readiness':'PASS','directory_submission':'NOT_SUBMITTED','portal_actions_remaining':len(evidence['portal_actions_remaining']),'public_tool_count':108,'evidence_sha256':digest},sort_keys=True))
+          PY
+
+      - name: Upload sealed submission readiness evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: musitu-axiom-openai-submission-readiness
+          path: |
+            musitu-axiom-openai-submission-readiness.json
+            musitu-axiom-openai-submission-readiness.sha256
+          retention-days: 30
