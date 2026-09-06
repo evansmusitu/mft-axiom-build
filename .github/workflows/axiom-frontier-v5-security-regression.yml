@@ -40,3 +40,10 @@ jobs:
           set -euo pipefail
           PYTHONPATH=. python frontier_v5/tests/test_browser_network_preflight.py | tee /tmp/browser-network-preflight.log
           grep -q 'MUSITU_AXIOM_FRONTIER_BROWSER_NETWORK_PREFLIGHT_PASS' /tmp/browser-network-preflight.log
+
+      - name: Verify DNS rebinding cannot change the validated connection target
+        shell: bash
+        run: |
+          set -euo pipefail
+          PYTHONPATH=. python frontier_v5/tests/test_dns_rebinding_pin.py | tee /tmp/dns-rebinding-pin.log
+          grep -q 'MUSITU_AXIOM_FRONTIER_DNS_REBINDING_PIN_PASS' /tmp/dns-rebinding-pin.log
