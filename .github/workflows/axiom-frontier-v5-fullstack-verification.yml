@@ -46,6 +46,13 @@ jobs:
           PYTHONPATH=. python frontier_v5/tests/test_fullstack_local.py | tee /tmp/fullstack-local.log
           grep -q 'MUSITU_AXIOM_FRONTIER_FULLSTACK_LOCAL_PASS' /tmp/fullstack-local.log
 
+      - name: Verify browser network preflight fails closed
+        shell: bash
+        run: |
+          set -euo pipefail
+          PYTHONPATH=. python frontier_v5/tests/test_browser_network_preflight.py | tee /tmp/browser-network-preflight.log
+          grep -q 'MUSITU_AXIOM_FRONTIER_BROWSER_NETWORK_PREFLIGHT_PASS' /tmp/browser-network-preflight.log
+
       - name: Verify virtual-desktop computer use and screen capture
         shell: bash
         run: |
