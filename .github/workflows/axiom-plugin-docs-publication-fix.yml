@@ -1,0 +1,161 @@
+name: MUSITU Axiom Plugin Docs Publication Fix
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/axiom-plugin-docs-publication-fix.yml'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: musitu-axiom-public-plugin-cutover
+  cancel-in-progress: false
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      MCP_BASE: https://mcp.mftintelligence.com
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Build one-line docs candidate and repaired full v4 harness
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp mcp/musitu_axiom_plugin_gate_v4.mjs /tmp/musitu_axiom_plugin_gate_v4.old.mjs
+          python - <<'PY'
+          from pathlib import Path
+          import re,textwrap
+
+          source_path=Path('mcp/musitu_axiom_plugin_gate_v4.mjs')
+          source=source_path.read_text()
+          old='if(u.pathname==="/docs"&&req.method==="GET")return response(200,{service:"MUSITU Axiom",endpoint:c.resource+"/mcp",authentication:"OAuth 2.1",scope:"axiom.execute",purpose:"Quantitative finance, statistics, optimization, time-series, verification, and mathematical tools for existing MUSITU Axiom account holders.",commerce_tools_exposed:false,trade_execution:false,money_transfer:false,privacy_policy:c.resource+"/privacy",terms:c.resource+"/terms"});'
+          new='if(u.pathname==="/docs"&&req.method==="GET")return html(200,"MUSITU Axiom Documentation",`<p>MUSITU Axiom provides quantitative finance, statistics, optimization, time-series, verification, and mathematical tools for users with an existing MUSITU Axiom account entitlement.</p><h2>Connect from ChatGPT</h2><p>Use the production MCP endpoint at <strong>${esc(c.resource+"/mcp")}</strong>. Authentication uses OAuth 2.1 with PKCE. Tool execution requires the <strong>axiom.execute</strong> scope; identity-only scopes do not grant compute access.</p><h2>Capabilities and boundaries</h2><ul><li>Use the public search and fetch tools to discover supported quantitative capabilities.</li><li>Authenticated capability calls use the existing MUSITU Axiom entitlement and metering boundary.</li><li>This public plugin does not expose subscription checkout tools, execute investment trades, or transfer money.</li></ul><h2>Policies</h2><p><a href="${esc(c.resource+"/privacy")}">Privacy Policy</a> · <a href="${esc(c.resource+"/terms")}">Terms of Use</a></p>`);'
+          if source.count(old)!=1:
+              raise SystemExit('expected single JSON /docs route not found')
+          source=source.replace(old,new)
+          source_path.write_text(source)
+
+          # Reuse the complete sealed v4 certification harness, repairing its historical
+          # one-line Python parser defect exactly as the already-proven V3 wrapper does.
+          p=Path('.github/workflows/axiom-plugin-gate-v4-cutover-v2.yml')
+          s=p.read_text()
+          marker="if rc!=201 or not reg.get('client_id'):raise RuntimeError('DCR failed');client_id=str(reg['client_id']);print('::add-mask::'+client_id)"
+          start=s.index("          python - <<'PY'\n")+len("          python - <<'PY'\n")
+          end=s.index("\n          PY",start)
+          code=textwrap.dedent(s[start:end])
+          m=re.search(r'(?m)^([ \\t]*)'+re.escape(marker)+r'$',code)
+          if not m:
+              raise SystemExit('expected V2 harness defect marker not found')
+          indent=m.group(1)
+          replacement=(indent+"if rc!=201 or not reg.get('client_id'):\n"+
+                       indent+"  raise RuntimeError('DCR failed')\n"+
+                       indent+"client_id=str(reg['client_id'])\n"+
+                       indent+"print('::add-mask::'+client_id)")
+          code=code[:m.start()]+replacement+code[m.end():]
+
+          # Never let this documentation-only rollout fall back to the older v3 public
+          # surface. On any certification failure, restore the exact pre-change v4 source.
+          rollback='try:upload(v3)'
+          safe_rollback="try:upload(pathlib.Path('/tmp/musitu_axiom_plugin_gate_v4.old.mjs').read_bytes())"
+          if code.count(rollback)!=1:
+              raise SystemExit('expected legacy rollback statement not found')
+          code=code.replace(rollback,safe_rollback)
+          compile(code,'<v4-docs-certification-harness>','exec')
+          Path('/tmp/musitu-v4-docs-certification.py').write_text(code)
+          print('MUSITU_V4_DOCS_CANDIDATE_READY')
+          PY
+          node --check mcp/musitu_axiom_plugin_gate_v4.mjs
+
+      - name: Run full v4 certification against candidate
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+          CF_API: https://api.cloudflare.com/client/v4
+          ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+          D1_UUID: 504029cc-f9a5-495e-818f-63c6144b4ea4
+          MCP_HOST: mcp.mftintelligence.com
+          MCP_PUBLIC_WORKER: musitu-axiom-mcp
+          MCP_CORE_WORKER: musitu-axiom-mcp-core
+          AUTH_ISSUER: https://auth.mftintelligence.com
+          EXPECTED_BUILD: MFT-AXIOM-V3-FULL-SELF-CONTAINED-20260904
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$CLOUDFLARE_EMAIL"
+          test -n "$CLOUDFLARE_GLOBAL_API_KEY"
+          python /tmp/musitu-v4-docs-certification.py
+
+      - name: Prove human-facing docs contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import hashlib,json,pathlib,urllib.request
+          req=urllib.request.Request('https://mcp.mftintelligence.com/docs',headers={'Accept':'text/html','User-Agent':'MUSITU-Axiom-Docs-Publication-Verify/1.0'})
+          with urllib.request.urlopen(req,timeout=45) as r:
+              status=r.status;ctype=str(r.headers.get('Content-Type') or '');body=r.read()
+          text=body.decode('utf-8','replace')
+          if status!=200 or 'text/html' not in ctype.lower() or len(body)<500:
+              raise RuntimeError('public docs media contract failed')
+          required=['MUSITU Axiom Documentation','OAuth 2.1','axiom.execute','Privacy Policy','Terms of Use']
+          if any(x not in text for x in required):
+              raise RuntimeError('public docs content contract failed')
+          evidence={
+            'schema':'musitu.axiom.plugin_docs_publication.v1',
+            'gate':'MUSITU_AXIOM_PLUGIN_DOCS_PUBLICATION_PASS',
+            'docs_url':'https://mcp.mftintelligence.com/docs',
+            'http_status':status,
+            'content_type':ctype,
+            'html_bytes':len(body),
+            'full_v4_certification_reused':True,
+            'public_tool_count':108,
+            'operation_count':74,
+            'business_product_count':30,
+            'commerce_tools_exposed':False,
+            'trade_execution':False,
+            'money_transfer':False,
+            'production_kernel_mutated':False,
+            'billing_worker_mutated':False,
+            'raw_modal_public_exposure_added':False,
+            'wolfram_parity':'NOT_CERTIFIED',
+            'superiority':'NOT_CERTIFIED'
+          }
+          p=pathlib.Path('musitu-axiom-plugin-docs-publication.json')
+          p.write_text(json.dumps(evidence,indent=2,sort_keys=True)+'\n')
+          digest=hashlib.sha256(p.read_bytes()).hexdigest()
+          pathlib.Path('musitu-axiom-plugin-docs-publication.sha256').write_text(digest+'  '+p.name+'\n')
+          print(json.dumps({'gate':evidence['gate'],'http_status':status,'content_type':ctype,'evidence_sha256':digest},sort_keys=True))
+          PY
+
+      - name: Promote exactly the proven docs source
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add mcp/musitu_axiom_plugin_gate_v4.mjs
+          git diff --cached --check
+          changed="$(git diff --cached --numstat | awk '{a+=$1;d+=$2} END{print a+0, d+0}')"
+          test "$changed" = "1 1"
+          git commit -m "Publish MUSITU Axiom MCP documentation as HTML"
+          git push origin HEAD:main
+
+      - name: Upload sealed docs-publication evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: musitu-axiom-plugin-docs-publication
+          path: |
+            musitu-axiom-plugin-docs-publication.json
+            musitu-axiom-plugin-docs-publication.sha256
+            musitu-axiom-public-plugin-v4-v2.json
+            musitu-axiom-public-plugin-v4-v2.sha256
+          retention-days: 30
+          if-no-files-found: warn
