@@ -1,15 +1,22 @@
 {
-  "schema": "musitu.axiom.frontier.longitudinal-baseline.v1",
+  "schema": "musitu.axiom.frontier.longitudinal-baseline.v2",
   "minimums": {
     "local_fullstack_pass": 1,
-    "multimodal_modalities": 5,
-    "adversarial_cases": 15,
+    "multimodal_modalities": 6,
+    "adversarial_cases": 20,
     "adversarial_pass_rate": 1.0,
     "live_required_checks": 6,
     "live_required_pass_rate": 1.0,
     "independent_validators": 2,
     "sealed_comparative_holdout_cases": 4,
     "specialist_tool_bindings": 6
+  },
+  "baseline_evidence": {
+    "workflow": "MUSITU Axiom Frontier v5 Full-Stack Verification",
+    "run_id": 34046583704,
+    "head_sha": "bbb826834ee0924e5c9b84d030d7532c0e080ead",
+    "objective_evidence_sha256": "57b17a48e3f232afac485c213e05d63a80ad6350bf578fd8c43ac1e06397f812",
+    "longitudinal_evidence_sha256": "73ccc3bca146174bb738a59bcec5ba9925faf2d86c370f2fcedf1adaf66ca7be"
   },
   "regression_rule": "No required metric may fall below its recorded minimum. Raising a minimum requires fresh passing evidence; lowering a minimum requires explicit review and must never happen automatically."
 }
