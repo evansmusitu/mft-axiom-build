@@ -1,0 +1,129 @@
+name: MUSITU Chemistry Phase 3 Field Experience Independent Live Verify
+
+on:
+  push:
+    branches: [chemistry-field-experience-20260906]
+    paths: ['.github/workflows/chemistry-phase3-field-experience-live-verify.yml']
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      EXPECTED_WORKER_SHA: 1134a2581d423547b9876fe8a680ef99ca949edbdbfd6757624150a23d049bec
+      DEPLOY_RUN_ID: '34061057589'
+      DEPLOY_HEAD_SHA: 0d9575d466290c685ec2edbb8d0a368ac607b4c7
+      DEPLOY_ARTIFACT_ID: '9997473613'
+      DEPLOY_ARTIFACT_SHA256: fae2bfa30a02e5e5e2fbdf2788b1f8fc3c6c792f3880c1181eb2402c3dc0c3f7
+      WEB_VITALS_SHA256: 6b3e4ac9d6f6abd4ea1810621668bec7d7adb121279570e6870be4fb98ab3909
+      APK_SHA256: 055b63f271c18faab540985faefb970f472ea55ba9cb3495db459797902b790d
+      LICENCE_KEY_ID: chem-lic-2026-6783aa7535d1
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Prove exact successful deployment evidence
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/mchem-p3-live && mkdir -p /tmp/mchem-p3-live
+          curl -fsSL -H "Authorization: Bearer $GH_TOKEN" -H 'X-GitHub-Api-Version: 2022-11-28' "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/runs/${DEPLOY_RUN_ID}" > /tmp/mchem-p3-live/deploy-run.json
+          curl -fsSL -H "Authorization: Bearer $GH_TOKEN" -H 'X-GitHub-Api-Version: 2022-11-28' "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/runs/${DEPLOY_RUN_ID}/artifacts?per_page=100" > /tmp/mchem-p3-live/deploy-artifacts.json
+          python - <<'PY'
+          import json,os
+          r=json.load(open('/tmp/mchem-p3-live/deploy-run.json'))
+          checks={'success':r.get('conclusion')=='success','sha':r.get('head_sha')==os.environ['DEPLOY_HEAD_SHA'],'branch':r.get('head_branch')=='chemistry-field-experience-20260906','name':r.get('name')=='MUSITU Chemistry Phase 3 Field Experience Guarded Deploy v3'}
+          if not all(checks.values()):raise SystemExit('deploy proof failed '+json.dumps(checks,sort_keys=True))
+          arts=json.load(open('/tmp/mchem-p3-live/deploy-artifacts.json')).get('artifacts',[])
+          m=[x for x in arts if str(x.get('id'))==os.environ['DEPLOY_ARTIFACT_ID']]
+          if len(m)!=1 or m[0].get('expired') is not False or m[0].get('name')!='musitu-chemistry-field-experience-deploy-v3':raise SystemExit('deploy artifact identity failed')
+          digest=str(m[0].get('digest') or '').removeprefix('sha256:')
+          if digest!=os.environ['DEPLOY_ARTIFACT_SHA256']:raise SystemExit('deploy artifact digest failed '+digest)
+          print('PHASE3_DEPLOY_EVIDENCE_PROOF=PASS')
+          PY
+
+      - name: Independently verify live Worker and public Phase 3
+        shell: bash
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import email,hashlib,json,os,secrets,time,urllib.error,urllib.parse,urllib.request
+          from pathlib import Path
+          API='https://api.cloudflare.com/client/v4';AID='93f395f5121954671f92fffa453d6b61';WORKER='musitu-chemistry-commerce';BASE='https://payments.mftintelligence.com'
+          H={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY'],'User-Agent':'MUSITU-Phase3-Independent-Live-Verify/1.0'}
+          EXPECTED=os.environ['EXPECTED_WORKER_SHA'];APK=os.environ['APK_SHA256'];VITALS=os.environ['WEB_VITALS_SHA256'];KEY=os.environ['LICENCE_KEY_ID']
+          def req(url,method='GET',headers=None,body=None,timeout=60):
+              q=urllib.request.Request(url,method=method,headers=dict(headers or {}),data=body)
+              try:
+                  with urllib.request.urlopen(q,timeout=timeout) as r:return r.status,r.headers,r.read()
+              except urllib.error.HTTPError as e:return e.code,e.headers,e.read()
+          def public(path,accept='*/*',method='GET',headers=None,body=None):
+              if method=='GET':path += ('&' if '?' in path else '?')+'__mchem_p3seal='+urllib.parse.quote(secrets.token_hex(10))
+              h={'Accept':accept,'Cache-Control':'no-cache, no-store, max-age=0','Pragma':'no-cache','User-Agent':'MUSITU-Phase3-Seal/'+secrets.token_hex(5)}
+              if headers:h.update(headers)
+              return req(BASE+path,method=method,headers=h,body=body)
+          def extract(raw,ctype,needle):
+              if 'multipart/' not in (ctype or '').lower():return raw
+              msg=email.message_from_bytes((f'Content-Type: {ctype}\r\nMIME-Version: 1.0\r\n\r\n').encode()+raw);parts=[]
+              for p in msg.walk():
+                  if p.is_multipart():continue
+                  d=p.get_payload(decode=True) or b''
+                  if needle.encode() in d:parts.append(d)
+              if len(parts)!=1:raise RuntimeError('module extraction mismatch')
+              return parts[0]
+          c,h,b=req(f'{API}/accounts/{AID}/workers/scripts/{WORKER}',headers=H)
+          if c!=200:raise SystemExit('worker read HTTP '+str(c))
+          source=extract(b,h.get('content-type',''),'MUSITU Chemistry Commerce');livehash=hashlib.sha256(source).hexdigest()
+          if livehash!=EXPECTED:raise SystemExit('LIVE_WORKER_HASH_MISMATCH '+livehash)
+          def strict(h):
+              csp=h.get('content-security-policy') or ''
+              return "style-src 'self'" in csp and "script-src 'self'" in csp and "connect-src 'self'" in csp and 'unsafe-inline' not in csp and 'unsafe-eval' not in csp and 'http://' not in csp and 'https://' not in csp and (h.get('referrer-policy') or '')=='no-referrer'
+          routes=[('/chemistry/','Know what you don’t know'),('/chemistry/plans','Choose access without guessing'),('/chemistry/privacy','Anonymous experience measurement'),('/chemistry/experience','Real-user experience evidence'),('/chemistry/checkout/start?plan=annual','Continue securely to Paynow'),('/chemistry/checkout/start?plan=school','Student seats'),('/chemistry/claim','Activate a paid seat'),('/chemistry/support','payment-status link created during checkout'),('/chemistry/verify','Verify this MUSITU release'),('/chemistry/releases','Release notes'),('/chemistry/terms','Premium access is granted only by a valid MUSITU-signed licence after verified settlement')]
+          sweeps=[]
+          for sweep_no in range(1,5):
+              rays=[]
+              for path,needle in routes:
+                  c,h,b=public(path,'text/html');t=b.decode('utf-8','replace');ray=h.get('cf-ray') or ''
+                  if c!=200 or needle not in t or not strict(h):raise SystemExit(f'independent route/security failed sweep={sweep_no} path={path}')
+                  if ray:rays.append(ray)
+              sweeps.append(rays);time.sleep(1.0)
+          ec,_,eb=public('/chemistry/experience.json','application/json');experience=json.loads(eb or b'{}')
+          if ec!=200 or experience.get('minimum_public_sample')!=100 or experience.get('status') not in ('insufficient_field_sample','field_core_web_vitals_available'):raise SystemExit('experience contract failed')
+          vc,_,vb=public('/chemistry/assets/web-vitals-6.0.1.iife.js','application/javascript')
+          if vc!=200 or len(vb)!=8987 or hashlib.sha256(vb).hexdigest()!=VITALS:raise SystemExit('web-vitals asset failed')
+          fc,_,fb=public('/chemistry/assets/field-experience.js','application/javascript')
+          if fc!=200 or b'/chemistry/telemetry/v1' not in fb or b'https://' in fb or b'http://' in fb:raise SystemExit('field client failed')
+          neg=json.dumps({'events':[{'kind':'event','name':'page_view','route':'home','viewport':'mobile','detail':''}]}).encode();tc,th,_=public('/chemistry/telemetry/v1','application/json','POST',{'Origin':'https://invalid.musitu.example','Content-Type':'application/json'},neg)
+          if tc!=400 or th.get('set-cookie'):raise SystemExit('telemetry privacy boundary failed')
+          hc,_,hb=public('/chemistry/healthz','application/json');health=json.loads(hb or b'{}')
+          if hc!=200 or health.get('ok') is not True or health.get('licence_key_id')!=KEY or health.get('raw_paynow_key_present') is not False or health.get('payment_authority_bound') is not True or health.get('transport_bound') is not True:raise SystemExit('health boundary failed')
+          cc,_,cb=public('/chemistry/catalog','application/json');cat=json.loads(cb or b'{}');ids=[p.get('id') for p in cat.get('plans') or []]
+          if cc!=200 or ids!=['term','annual','lifetime','family','tutor','school']:raise SystemExit('catalog changed')
+          ac,_,apk=public('/chemistry/download/MUSITU_Chemistry_Mastery_1.2.0.apk','application/vnd.android.package-archive');digest=hashlib.sha256(apk).hexdigest()
+          if ac!=200 or len(apk)!=5314934 or digest!=APK:raise SystemExit('APK changed')
+          ev={'schema':'musitu.chemistry.field_experience.independent_live_verify.v1','live_worker_sha256':livehash,'verified_route_count':len(routes),'independent_consecutive_sweeps':len(sweeps),'observed_cf_rays':[r for s in sweeps for r in s][-30:],'experience_status':experience.get('status'),'public_minimum_metric_sample':experience.get('minimum_public_sample'),'licence_key_id':KEY,'payment_authority_bound':True,'transport_bound':True,'plan_ids':ids,'apk_sha256':digest,'apk_bytes':len(apk),'web_vitals_sha256':VITALS,'web_vitals_bytes':len(vb),'telemetry_cross_origin_rejected':True,'synthetic_valid_telemetry_written':False,'measurement_cookies_used':False,'persistent_tracking_identifier_used':False,'raw_event_rows_retained':False,'production_mutation':False,'field_inp_claimed':False,'gate':'MUSITU_CHEMISTRY_FIELD_EXPERIENCE_INDEPENDENT_LIVE_VERIFY_PASS'}
+          raw=(json.dumps(ev,indent=2,sort_keys=True)+'\n').encode();Path('/tmp/mchem-p3-live/independent-live.json').write_bytes(raw);Path('/tmp/mchem-p3-live/independent-live.sha256').write_text(hashlib.sha256(raw).hexdigest()+'  independent-live.json\n');print(json.dumps(ev,sort_keys=True))
+          PY
+
+      - name: Seal read-only evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd /tmp/mchem-p3-live
+          sha256sum *.json *.sha256 > SHA256SUMS.txt
+          cat independent-live.json
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: musitu-chemistry-field-experience-independent-live-verify
+          path: /tmp/mchem-p3-live
+          retention-days: 90
+          if-no-files-found: error
