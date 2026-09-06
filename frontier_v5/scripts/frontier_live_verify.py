@@ -12,6 +12,7 @@ import os
 import re
 import secrets
 import sys
+import tempfile
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -20,9 +21,10 @@ from pathlib import Path
 
 from frontier_v5.runtime.fullstack import (
     AxiomMCPAdapter, CloudflareD1ProductionStore, DomainTwinCalibrator,
-    FrontierEvaluationHarness, LiveResearchAdapter, PlaywrightBrowserAdapter,
+    FrontierEvaluationHarness, PlaywrightBrowserAdapter,
     SpecialistToolAdapter, SpecialistToolBinding, ComparativeCase,
 )
+from frontier_v5.runtime.secure_research import SecureLiveResearchAdapter
 
 CF_API="https://api.cloudflare.com/client/v4"
 ACCOUNT_ID="93f395f5121954671f92fffa453d6b61"
@@ -75,7 +77,7 @@ def main():
         for x in blocks: rows.extend(x.get("results") or [])
         return rows
 
-    evidence={"schema":"musitu.axiom.frontier.live-verification.v1","started_at":datetime.datetime.now(datetime.timezone.utc).isoformat(),"checks":{}}
+    evidence={"schema":"musitu.axiom.frontier.live-verification.v2","started_at":datetime.datetime.now(datetime.timezone.utc).isoformat(),"checks":{}}
 
     # 1. Isolated production persistence database: never mutate sealed Axiom schema.
     dbs=cf(f"/accounts/{ACCOUNT_ID}/d1/database?per_page=100") or []
@@ -96,16 +98,48 @@ def main():
     if store.query("SELECT count(*) AS n FROM frontier_eval_events WHERE event_id=?1",[rid])[0]["n"]!=0: raise RuntimeError("frontier D1 cleanup failed")
     evidence["checks"]["production_persistence"]={"pass":True,"database_name":FRONTIER_DB_NAME,"database_uuid":frontier_id}
 
-    # 2. Live research with provenance snapshots and data-only instruction authority.
-    research=LiveResearchAdapter({"api.worldbank.org","data.sec.gov","stooq.com"},max_bytes=20_000_000,timeout=45)
+    # 2. Live research with provenance snapshots, hardened retrieval security and provider fallback.
+    research=SecureLiveResearchAdapter({"api.worldbank.org","data.sec.gov","stooq.com","query1.finance.yahoo.com"},max_bytes=20_000_000,timeout=45)
     wb_gdp=research.fetch("https://api.worldbank.org/v2/country/USA/indicator/NY.GDP.MKTP.CD?format=json&per_page=80")
     wb_pop=research.fetch("https://api.worldbank.org/v2/country/USA/indicator/SP.POP.TOTL?format=json&per_page=80")
     sec=research.fetch("https://data.sec.gov/api/xbrl/companyfacts/CIK0000320193.json",headers={"User-Agent":"MUSITU Axiom Frontier verification support@mftintelligence.com"})
-    stooq_a=research.fetch("https://stooq.com/q/d/l/?s=aapl.us&d1=20240101&i=d")
-    stooq_m=research.fetch("https://stooq.com/q/d/l/?s=msft.us&d1=20240101&i=d")
-    snapshots=[x.evidence() for x in (wb_gdp,wb_pop,sec,stooq_a,stooq_m)]
+
+    def stooq_prices(snapshot):
+        out={}
+        for r in csv.DictReader(io.StringIO(snapshot.text())):
+            try:
+                date=str(r.get("Date") or "").strip(); close=float(r.get("Close"))
+            except (TypeError,ValueError):
+                continue
+            if date: out[date]=close
+        return out
+
+    def yahoo_prices(snapshot):
+        obj=json.loads(snapshot.content); result=(((obj.get("chart") or {}).get("result") or [None])[0] or {})
+        ts=result.get("timestamp") or []
+        quote=(((result.get("indicators") or {}).get("quote") or [{}])[0] or {})
+        closes=quote.get("close") or []
+        out={}
+        for t,c in zip(ts,closes):
+            if c is None: continue
+            date=datetime.datetime.fromtimestamp(int(t),datetime.timezone.utc).date().isoformat()
+            out[date]=float(c)
+        return out
+
+    def market(symbol,stooq_symbol):
+        first=research.fetch("https://stooq.com/q/d/l/?s="+urllib.parse.quote(stooq_symbol)+"&d1=20240101&i=d")
+        prices=stooq_prices(first)
+        if len(prices)>=30: return "Stooq",first,prices
+        fallback=research.fetch("https://query1.finance.yahoo.com/v8/finance/chart/"+urllib.parse.quote(symbol)+"?range=2y&interval=1d&events=history")
+        prices=yahoo_prices(fallback)
+        if len(prices)<30: raise RuntimeError("portfolio price history too short for "+symbol)
+        return "Yahoo Finance chart API",fallback,prices
+
+    provider_a,market_a,prices_a=market("AAPL","aapl.us")
+    provider_m,market_m,prices_m=market("MSFT","msft.us")
+    snapshots=[x.evidence() for x in (wb_gdp,wb_pop,sec,market_a,market_m)]
     if any(x["instruction_authority"]!="retrieved-content-data-only" for x in snapshots): raise RuntimeError("retrieval authority drift")
-    evidence["checks"]["live_research"]={"pass":True,"snapshots":snapshots,"citation_fidelity":"source bytes hashed before parsing"}
+    evidence["checks"]["live_research"]={"pass":True,"snapshots":snapshots,"market_providers":[provider_a,provider_m],"citation_fidelity":"source bytes hashed before parsing","retrieval_security":"canonical Unicode-normalizing data-only firewall"}
 
     # 3. Domain-calibrated digital twins + external historical holdout validation.
     sec_obj=json.loads(sec.content)
@@ -141,17 +175,20 @@ def main():
     economy_validation=DomainTwinCalibrator.holdout_validate([pop[y] for y in eyears[:esplit]],[gdp[y] for y in eyears[:esplit]],[pop[y] for y in eyears[esplit:]],[gdp[y] for y in eyears[esplit:]])
     economy=DomainTwinCalibrator.economy("usa-economy-twin",[pop[y] for y in eyears[:esplit]],[gdp[y] for y in eyears[:esplit]],"population","gdp")
 
-    def returns(snapshot):
-        rows=list(csv.DictReader(io.StringIO(snapshot.text())))
-        closes=[float(r["Close"]) for r in rows if r.get("Close") not in (None,"")]
-        if len(closes)<30: raise RuntimeError("portfolio price history too short")
-        return [closes[i]/closes[i-1]-1 for i in range(1,len(closes))][-120:]
-    ar=returns(stooq_a); mr=returns(stooq_m); n=min(len(ar),len(mr)); ar=ar[-n:]; mr=mr[-n:]
+    dates=sorted(set(prices_a)&set(prices_m))
+    if len(dates)<31: raise RuntimeError("aligned portfolio history too short")
+    ar=[]; mr=[]; used=[]
+    for prev,cur in zip(dates,dates[1:]):
+        pa,ca=prices_a[prev],prices_a[cur]; pm,cm=prices_m[prev],prices_m[cur]
+        if pa<=0 or pm<=0: continue
+        ar.append(ca/pa-1); mr.append(cm/pm-1); used.append(cur)
+    ar=ar[-120:]; mr=mr[-120:]; used=used[-120:]
+    if len(ar)<30 or len(ar)!=len(mr): raise RuntimeError("aligned portfolio returns too short")
     portfolio=DomainTwinCalibrator.portfolio("aapl-msft-portfolio-twin",{"AAPL":ar,"MSFT":mr},{"AAPL":.5,"MSFT":.5})
     evidence["checks"]["domain_twins"]={
         "pass":True,
         "company":{"years":years,"calibration":company["calibration"],"holdout":company_validation,"source_sha256":sec.sha256},
-        "portfolio":{"observations":portfolio["observations"],"mean_return":portfolio["mean_return"],"volatility":portfolio["volatility"],"sources":[stooq_a.sha256,stooq_m.sha256]},
+        "portfolio":{"observations":portfolio["observations"],"start_date":used[0],"end_date":used[-1],"providers":[provider_a,provider_m],"mean_return":portfolio["mean_return"],"volatility":portfolio["volatility"],"sources":[market_a.sha256,market_m.sha256]},
         "economy":{"years":eyears,"calibration":economy["calibration"],"holdout":economy_validation,"sources":[wb_gdp.sha256,wb_pop.sha256]},
     }
 
