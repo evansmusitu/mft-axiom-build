@@ -33,10 +33,19 @@ jobs:
           echo "5b2618499eed8dc90261bc4f8260246d5593534500dd2fb145f2d24b5c47754c  /tmp/mchem-source.zip" | sha256sum -c -
           unzip -q /tmp/mchem-source.zip -d /tmp/mchem-base
           echo "848e1cec17ec580822d36e595196cda5978713849e8b45c5bc8dc7fcf9765db8  /tmp/mchem-base/src/index.mjs" | sha256sum -c -
-          echo "$LIVE_PREDECESSOR_SHA  commerce/chemistry/index.storefront-v3.mjs" | sha256sum -c -
-          if grep -q "/chemistry/telemetry/v1" commerce/chemistry/index.storefront-v3.mjs; then
-            echo 'negative control failed: predecessor already contains telemetry' >&2; exit 1
-          fi
+          python - <<'PY'
+          import json,os
+          p='commerce/chemistry/RELEASE_BASELINE_20260906.json'
+          o=json.load(open(p))
+          expected=os.environ['LIVE_PREDECESSOR_SHA']
+          assert o['schema']=='musitu.chemistry.release_baseline.v4',o['schema']
+          assert o['status']=='VERIFIED_GLOBAL_PRODUCT_TRUST_STOREFRONT_BASELINE',o['status']
+          assert o['source']['current_recovery_hardened_worker_sha256']==expected
+          assert o['storefront']['current_worker_sha256']==expected
+          assert o['evidence_boundaries']['independent_recovery_live_recertified'] is True
+          assert o['evidence_boundaries']['field_inp_observed'] is False
+          print('SEALED_V4_PREDECESSOR_MANIFEST=PASS')
+          PY
           cp /tmp/mchem-base/src/index.mjs commerce/chemistry/index.base.mjs
 
       - name: Verify pinned web-vitals provenance and build exact candidate
@@ -45,7 +54,7 @@ jobs:
           set -euo pipefail
           echo "$VENDOR_SHA  commerce/chemistry/storefront/web-vitals-6.0.1.iife.js" | sha256sum -c -
           python - <<'PY'
-          import json,hashlib
+          import json
           p='commerce/chemistry/storefront/WEB_VITALS_PROVENANCE.json'
           o=json.load(open(p))
           assert o['version']=='6.0.1'
@@ -55,6 +64,9 @@ jobs:
           print('VENDOR_PROVENANCE=PASS')
           PY
           CANDIDATE_SHA="$(python commerce/chemistry/patch_storefront.py | tail -1)"
+          test "$CANDIDATE_SHA" != "$LIVE_PREDECESSOR_SHA"
+          grep -q "/chemistry/telemetry/v1" commerce/chemistry/index.storefront-v3.mjs
+          grep -q "/chemistry/experience" commerce/chemistry/index.storefront-v3.mjs
           echo "CANDIDATE_SHA=$CANDIDATE_SHA" | tee -a "$GITHUB_ENV" /tmp/mchem-phase3/candidate.env
           echo "$CANDIDATE_SHA  commerce/chemistry/index.storefront-v3.mjs" | sha256sum -c -
           node --check commerce/chemistry/index.storefront-v3.mjs
