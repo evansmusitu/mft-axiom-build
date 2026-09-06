@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128" role="img" aria-label="MUSITU Axiom icon">
+  <rect x="7" y="7" width="114" height="114" rx="28" fill="#111923" stroke="#405164" stroke-width="3"/>
+  <g fill="none" stroke="#72D6FF" stroke-width="7" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M30 91 L49 38 L64 66 L80 38 L99 91"/>
+    <path d="M55 66 L64 57 L73 66 L64 75 Z"/>
+  </g>
+</svg>
