@@ -46,13 +46,20 @@ jobs:
           set -euo pipefail
           PYTHONPATH=. python frontier_v5/tests/test_frontier_runtime.py
 
-      - name: Package all skills
+      - name: Package and certify skill profiles
         shell: bash
         run: |
           set -euo pipefail
           rm -rf frontier_v5/dist
-          python frontier_v5/scripts/package_skills.py --out frontier_v5/dist | tee /tmp/package.json
-          test "$(find frontier_v5/dist -maxdepth 1 -name '*.zip' | wc -l)" -eq 30
+          python frontier_v5/scripts/package_skills.py --profile all --bundle --out frontier_v5/dist/all | tee /tmp/package-all.json
+          python frontier_v5/scripts/package_skills.py --profile submission --bundle --out frontier_v5/dist/submission | tee /tmp/package-submission.json
+          python frontier_v5/scripts/package_skills.py --profile frontier --bundle --out frontier_v5/dist/frontier | tee /tmp/package-frontier.json
+          test "$(find frontier_v5/dist/all -maxdepth 1 -name 'musitu-*.zip' | wc -l)" -eq 30
+          test "$(find frontier_v5/dist/submission -maxdepth 1 -name 'musitu-*.zip' | wc -l)" -eq 18
+          test "$(find frontier_v5/dist/frontier -maxdepth 1 -name 'musitu-*.zip' | wc -l)" -eq 12
+          test -f frontier_v5/dist/submission/MUSITU_AXIOM_V5_SUBMISSION_SKILL_ZIPS.zip
+          test -f frontier_v5/dist/frontier/MUSITU_AXIOM_V5_FRONTIER_SKILL_ZIPS.zip
+          unzip -l frontier_v5/dist/submission/musitu-command-center.zip | grep -q 'agents/openai.yaml'
 
       - name: Proof envelope positive and negative tests
         shell: bash
@@ -100,7 +107,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          sha256sum frontier_v5/MANIFEST.json frontier_v5/EVAL_CONTRACT.json frontier_v5/PROMOTION_GATE.json frontier_v5/runtime/fabric.py > /tmp/frontier-v5-evidence.sha256
+          sha256sum frontier_v5/MANIFEST.json frontier_v5/EVAL_CONTRACT.json frontier_v5/PROMOTION_GATE.json frontier_v5/CAPABILITY_TARGETS.json frontier_v5/runtime/fabric.py > /tmp/frontier-v5-evidence.sha256
+          find frontier_v5/dist -type f -name '*.zip' -print0 | sort -z | xargs -0 sha256sum > /tmp/frontier-v5-packages.sha256
           echo 'MUSITU_AXIOM_FRONTIER_SKILL_GATE_PASS'
           cat /tmp/frontier-v5-evidence.sha256
 
@@ -109,6 +117,7 @@ jobs:
         with:
           name: musitu-axiom-frontier-v5-skills
           path: |
-            frontier_v5/dist/*.zip
+            frontier_v5/dist/**/*.zip
             /tmp/frontier-v5-evidence.sha256
+            /tmp/frontier-v5-packages.sha256
           if-no-files-found: error
