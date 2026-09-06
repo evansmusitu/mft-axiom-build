@@ -64,3 +64,10 @@ test('public pages do not expose secret names or private material markers',async
   const forbidden=['CHEMISTRY_LICENSE_PKCS8_B64','PAYNOW_INTEGRATION_KEY','CLOUDFLARE_GLOBAL_API_KEY','CHEMISTRY_AUTHORITY_BRIDGE_TOKEN','BEGIN PRIVATE KEY'];
   for(const path of paths){const {text}=await get(path);for(const word of forbidden)assert.equal(text.includes(word),false,`${path} ${word}`)}
 });
+
+test('support recovery does not link to a reference-required status route without a reference',async()=>{
+  const support=await get('/chemistry/support');
+  assert.equal(support.r.status,200);
+  assert.doesNotMatch(support.text,/href="\/chemistry\/return"/);
+  assert.match(support.text,/If you no longer have that status link/i);
+});
