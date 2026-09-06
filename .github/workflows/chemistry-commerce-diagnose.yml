@@ -1,77 +1,54 @@
-name: MUSITU Chemistry Commerce Read-Only Diagnose
+name: MUSITU Chemistry Commerce Live Read-Only Verify
 
 on:
   push:
     branches: [chemistry-commerce-live-20260906]
     paths: ['.github/workflows/chemistry-commerce-diagnose.yml']
+  workflow_dispatch:
 
 permissions:
   contents: read
 
 jobs:
-  diagnose:
+  verify:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 8
     steps:
-      - uses: actions/checkout@v4
-      - name: Reconstruct proven v1.1 source and deterministically patch to v1.2
-        shell: bash
-        run: |
-          set -euo pipefail
-          rm -rf /tmp/mchem-source /tmp/mchem-source.zip
-          mkdir -p /tmp/mchem-source
-          cat commerce/chemistry/source.b64.* | base64 -d > /tmp/mchem-source.zip
-          echo "5b2618499eed8dc90261bc4f8260246d5593534500dd2fb145f2d24b5c47754c  /tmp/mchem-source.zip" | sha256sum -c -
-          unzip -q /tmp/mchem-source.zip -d /tmp/mchem-source
-          cd /tmp/mchem-source
-          sha256sum -c SHA256SUMS.txt
-          python - <<'PY'
-          from pathlib import Path
-          p=Path('deploy/deploy_cloudflare.py')
-          s=p.read_text()
-          old="""    created['route']=rid;time.sleep(2)\n    c,_,b=req(BASE+'/chemistry/healthz',headers={'Accept':'application/json','User-Agent':'MUSITU-Chemistry-Commerce-Verify/1.0'});health=json.loads(b or b'{}')\n    if c!=200 or health.get('ok') is not True or health.get('raw_paynow_key_present') is not False or health.get('payment_authority_bound') is not True or health.get('transport_bound') is not True:raise RuntimeError('public health verification failed')\n    c,_,b=req(BASE+'/chemistry/catalog',headers={'Accept':'application/json'});catalog=json.loads(b or b'{}');ids=[p.get('id') for p in catalog.get('plans') or []]\n    if c!=200 or ids!=['term','annual','lifetime','family','tutor','school']:raise RuntimeError('catalog verification failed')\n"""
-          new="""    created['route']=rid\n    def public_json_ready(path,timeout_s=45):\n        deadline=time.time()+timeout_s;last=None\n        while time.time()<deadline:\n            c,h,b=req(BASE+path,headers={'Accept':'application/json','User-Agent':'MUSITU-Chemistry-Commerce-Verify/1.1'})\n            ct=(h.get('content-type') or '').lower();obj=None\n            if 'json' in ct:\n                try:obj=json.loads(b or b'{}')\n                except Exception:obj=None\n            if c==200 and isinstance(obj,dict):return c,obj\n            last=(c,ct,b[:180].decode('utf-8','replace').replace('\\n',' '));time.sleep(2)\n        raise RuntimeError(f'public route readiness timeout {path}: {last!r}')\n    c,health=public_json_ready('/chemistry/healthz')\n    if health.get('ok') is not True or health.get('raw_paynow_key_present') is not False or health.get('payment_authority_bound') is not True or health.get('transport_bound') is not True:raise RuntimeError('public health verification failed')\n    c,catalog=public_json_ready('/chemistry/catalog');ids=[p.get('id') for p in catalog.get('plans') or []]\n    if ids!=['term','annual','lifetime','family','tutor','school']:raise RuntimeError('catalog verification failed')\n"""
-          if s.count(old)!=1: raise SystemExit('expected exactly one v1.1 readiness block')
-          p.write_text(s.replace(old,new))
-          PY
-          echo "4bf886dcef9067691c437f524bd25a43492b179c4626a113f4cc9d783bcc6754  deploy/deploy_cloudflare.py" | sha256sum -c -
-          npm test
-          npm run check
-          python -m py_compile deploy/deploy_cloudflare.py deploy/prepare_license_secret.py
-      - name: Read Cloudflare topology and public route state without mutation
-        env:
-          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
-          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+      - name: Probe live public Chemistry commerce without mutation
         shell: bash
         run: |
           set -euo pipefail
           python - <<'PY'
-          import json,os,urllib.request,urllib.error
-          API='https://api.cloudflare.com/client/v4'; AID='93f395f5121954671f92fffa453d6b61'; ZID='5b56528f03948ff5917a5e0cd9f7109e'
-          H={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY'],'User-Agent':'MUSITU-Chemistry-Diagnose/1.2'}
-          def req(url,headers=None):
-              q=urllib.request.Request(url,headers=dict(headers or {}))
+          import json,urllib.request,urllib.error,urllib.parse,hashlib
+          base='https://payments.mftintelligence.com'
+          def get(path,accept='*/*'):
+              q=urllib.request.Request(base+path,headers={'Accept':accept,'User-Agent':'MUSITU-Chemistry-Live-ReadOnly-Verify/1.0'})
               try:
-                  with urllib.request.urlopen(q,timeout=30) as r:return r.status,dict(r.headers),r.read()
-              except urllib.error.HTTPError as e:return e.code,dict(e.headers),e.read()
-          def cf(path):
-              c,h,b=req(API+path,H)
-              if c!=200: raise SystemExit('Cloudflare read failed '+str(c)+' '+path)
-              return json.loads(b).get('result')
-          names=sorted(str(x.get('id') or x.get('name')) for x in (cf(f'/accounts/{AID}/workers/scripts') or []) if isinstance(x,dict))
-          routes=cf(f'/zones/{ZID}/workers/routes') or []
-          chem_routes=[{'pattern':r.get('pattern'),'script':r.get('script')} for r in routes if isinstance(r,dict) and 'chemistry' in str(r.get('pattern') or '')]
-          chem_dbs=[{'name':d.get('name'),'uuid_present':bool(d.get('uuid'))} for d in (cf(f'/accounts/{AID}/d1/database') or []) if isinstance(d,dict) and 'chemistry' in str(d.get('name') or '')]
-          def public(path):
-              c,h,b=req('https://payments.mftintelligence.com'+path,{'Accept':'application/json','User-Agent':'MUSITU-Chemistry-Diagnose/1.2'})
-              return {'status':c,'content_type':h.get('Content-Type') or h.get('content-type') or '','body_prefix':b[:240].decode('utf-8','replace').replace('\n',' ')}
-          result={'schema':'musitu.chemistry.rollback_diagnose.v3','source_base_sha256':'5b2618499eed8dc90261bc4f8260246d5593534500dd2fb145f2d24b5c47754c','patched_deployer_sha256':'4bf886dcef9067691c437f524bd25a43492b179c4626a113f4cc9d783bcc6754','source_tests_passed':8,'chemistry_worker_present':'musitu-chemistry-commerce' in names,'chemistry_routes':chem_routes,'chemistry_dbs':chem_dbs,'billing_public':public('/billing/healthz'),'chemistry_public':public('/chemistry/healthz'),'production_mutation':False,'gate':'MUSITU_CHEMISTRY_V12_REMOTE_VERIFY_PASS'}
-          print(json.dumps(result,sort_keys=True))
-          open('chemistry-diagnose.json','w').write(json.dumps(result,indent=2,sort_keys=True)+'\n')
+                  with urllib.request.urlopen(q,timeout=30) as r:return r.status,(r.headers.get('content-type') or ''),r.read()
+              except urllib.error.HTTPError as e:return e.code,(e.headers.get('content-type') or ''),e.read()
+          hc,hct,hb=get('/chemistry/healthz','application/json');h=json.loads(hb or b'{}')
+          if hc!=200 or h.get('ok') is not True:raise SystemExit('health failed')
+          if h.get('raw_paynow_key_present') is not False or h.get('payment_authority_bound') is not True or h.get('transport_bound') is not True:raise SystemExit('security boundary failed')
+          if h.get('licence_key_id')!='chem-lic-2026-6783aa7535d1':raise SystemExit('production key mismatch')
+          cc,cct,cb=get('/chemistry/catalog','application/json');c=json.loads(cb or b'{}');ids=[p.get('id') for p in c.get('plans') or []]
+          if cc!=200 or ids!=['term','annual','lifetime','family','tutor','school']:raise SystemExit('catalog failed')
+          device='RC3-LIVE-PROBE-DEVICE-98765'
+          q='/chemistry/checkout/start?'+urllib.parse.urlencode({'plan':'annual','device_id':device})
+          pc,pct,pb=get(q,'text/html');pt=pb.decode('utf-8','replace')
+          if pc!=200 or 'text/html' not in pct.lower() or 'name=plan value="annual"' not in pt or device not in pt or 'Continue securely to Paynow' not in pt:raise SystemExit('annual hosted checkout failed')
+          sc,sct,sb=get('/chemistry/checkout/start?'+urllib.parse.urlencode({'plan':'school','device_id':device}),'text/html');st=sb.decode('utf-8','replace')
+          if sc!=200 or 'name=seats' not in st or 'min=1' not in st or 'max=999' not in st:raise SystemExit('school checkout failed')
+          clc,clct,clb=get('/chemistry/claim','text/html');clt=clb.decode('utf-8','replace')
+          if clc!=200 or 'Activate a paid seat' not in clt:raise SystemExit('seat claim page failed')
+          ev={'schema':'musitu.chemistry.live_readonly_verify.v1','health_http':hc,'catalog_http':cc,'checkout_annual_http':pc,'checkout_school_http':sc,'claim_http':clc,'licence_key_id':h.get('licence_key_id'),'plan_ids':ids,'raw_paynow_key_present':False,'production_mutation':False,'gate':'MUSITU_CHEMISTRY_LIVE_PUBLIC_COMMERCE_PASS'}
+          raw=(json.dumps(ev,indent=2,sort_keys=True)+'\n').encode();open('chemistry-live-readonly.json','wb').write(raw);open('chemistry-live-readonly.sha256','w').write(hashlib.sha256(raw).hexdigest()+'  chemistry-live-readonly.json\n')
+          print(json.dumps(ev,sort_keys=True))
           PY
       - uses: actions/upload-artifact@v4
         with:
-          name: musitu-chemistry-commerce-diagnose-v3
-          path: chemistry-diagnose.json
-          retention-days: 14
+          name: musitu-chemistry-live-readonly-verify
+          path: |
+            chemistry-live-readonly.json
+            chemistry-live-readonly.sha256
+          retention-days: 30
           if-no-files-found: error
