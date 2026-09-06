@@ -26,7 +26,7 @@ jobs:
           opener=urllib.request.build_opener(NoRedirect)
           device='RC3-E2E-'+uuid.uuid4().hex[:20].upper()
           body=urllib.parse.urlencode({'plan':'term','holder':'MUSITU RC3 Automated Checkout Probe','email':'','device_id':device}).encode()
-          req=urllib.request.Request(base+'/chemistry/checkout/start',method='POST',data=body,headers={'Content-Type':'application/x-www-form-urlencoded','Accept':'text/html','User-Agent':'MUSITU-Chemistry-NoCharge-E2E/1.0'})
+          req=urllib.request.Request(base+'/chemistry/checkout/start',method='POST',data=body,headers={'Content-Type':'application/x-www-form-urlencoded','Accept':'text/html','User-Agent':'MUSITU-Chemistry-NoCharge-E2E/1.1'})
           try:
               r=opener.open(req,timeout=40);code=r.status;headers=r.headers;resp=r.read()
           except urllib.error.HTTPError as e:
@@ -40,21 +40,21 @@ jobs:
           cv=urllib.parse.unquote(m.group(1));dot=cv.find('.')
           if dot<=0: raise SystemExit('checkout cookie malformed')
           reference=cv[:dot];secret=cv[dot+1:]
-          if not re.fullmatch(r'MCHEM-[A-Z0-9-]+',reference): raise SystemExit('reference malformed')
+          if not re.fullmatch(r'MC-[A-Z0-9-]+',reference): raise SystemExit('reference malformed')
           # Poll only the MUSITU return page. This may query provider status but does not submit payment.
-          ret=urllib.request.Request(base+'/chemistry/return?'+urllib.parse.urlencode({'reference':reference}),headers={'Cookie':'mchem_checkout='+urllib.parse.quote(reference+'.'+secret,safe=''),'Accept':'text/html','User-Agent':'MUSITU-Chemistry-NoCharge-E2E/1.0'})
+          ret=urllib.request.Request(base+'/chemistry/return?'+urllib.parse.urlencode({'reference':reference}),headers={'Cookie':'mchem_checkout='+urllib.parse.quote(reference+'.'+secret,safe=''),'Accept':'text/html','User-Agent':'MUSITU-Chemistry-NoCharge-E2E/1.1'})
           with urllib.request.urlopen(ret,timeout=40) as r:
               rc=r.status;rt=r.read().decode('utf-8','replace')
           if rc!=200 or 'Payment status:' not in rt: raise SystemExit('return status page failed')
           if 'Your activation licence:' in rt or 'MUSITU1.' in rt: raise SystemExit('FAIL CLOSED VIOLATION: licence issued without payment')
           sm=re.search(r'Payment status:\s*<b>([^<]+)</b>',rt,re.I);status=sm.group(1).strip() if sm else 'unpaid_or_pending'
-          ev={'schema':'musitu.chemistry.no_charge_checkout_verify.v1','checkout_http':code,'provider_host':u.hostname,'reference':reference,'return_http':rc,'observed_payment_status':status,'payment_submitted':False,'money_moved':False,'licence_issued':False,'production_mutation':'one_unpaid_checkout_intent','gate':'MUSITU_CHEMISTRY_NO_CHARGE_CHECKOUT_PASS'}
+          ev={'schema':'musitu.chemistry.no_charge_checkout_verify.v2','checkout_http':code,'provider_host':u.hostname,'reference':reference,'return_http':rc,'observed_payment_status':status,'payment_submitted':False,'money_moved':False,'licence_issued':False,'production_mutation':'one_unpaid_checkout_intent','gate':'MUSITU_CHEMISTRY_NO_CHARGE_CHECKOUT_PASS'}
           raw=(json.dumps(ev,indent=2,sort_keys=True)+'\n').encode();open('chemistry-no-charge-checkout.json','wb').write(raw);open('chemistry-no-charge-checkout.sha256','w').write(hashlib.sha256(raw).hexdigest()+'  chemistry-no-charge-checkout.json\n')
           print(json.dumps(ev,sort_keys=True))
           PY
       - uses: actions/upload-artifact@v4
         with:
-          name: musitu-chemistry-no-charge-checkout-verify
+          name: musitu-chemistry-no-charge-checkout-verify-v2
           path: |
             chemistry-no-charge-checkout.json
             chemistry-no-charge-checkout.sha256
