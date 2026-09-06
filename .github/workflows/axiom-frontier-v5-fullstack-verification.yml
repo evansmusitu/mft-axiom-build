@@ -16,28 +16,31 @@ concurrency:
 
 jobs:
   full-stack-frontier:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 35
     env:
       PYTHONUNBUFFERED: '1'
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
 
       - name: Setup Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
         with:
-          python-version: '3.12'
+          python-version: '3.12.14'
 
-      - name: Install frontier runtime dependencies
+      - name: Install locked frontier runtime dependencies
         shell: bash
         run: |
           set -euo pipefail
           sudo apt-get update -qq
           sudo apt-get install -y --no-install-recommends ffmpeg espeak-ng xvfb xdotool python3-tk scrot unzip ca-certificates
-          python -m pip install --upgrade pip
-          python -m pip install pillow python-docx openpyxl python-pptx reportlab pypdf playwright vosk opencv-python-headless sympy numpy scikit-learn
+          python -m pip install 'pip==26.2.1'
+          python -m pip install -r frontier_v5/requirements/fullstack.lock.txt
+          python -m pip check
           python -m playwright install --with-deps chromium
+          PYTHONPATH=. python frontier_v5/scripts/verify_supply_chain.py --output /tmp/musitu-frontier-supply-chain.json | tee /tmp/supply-chain-preasset.log
+          grep -q 'MUSITU_AXIOM_FRONTIER_SUPPLY_CHAIN_LOCK_PASS' /tmp/supply-chain-preasset.log
 
       - name: Verify document spreadsheet presentation application browser and local runtime
         shell: bash
@@ -83,11 +86,13 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          rm -rf /tmp/vosk
           mkdir -p /tmp/vosk
-          if [ ! -d /tmp/vosk/vosk-model-small-en-us-0.15 ]; then
-            curl -fsSL --retry 3 https://alphacephei.com/vosk/models/vosk-model-small-en-us-0.15.zip -o /tmp/vosk/model.zip
-            unzip -q /tmp/vosk/model.zip -d /tmp/vosk
-          fi
+          curl -fsSL --retry 3 https://alphacephei.com/vosk/models/vosk-model-small-en-us-0.15.zip -o /tmp/vosk/model.zip
+          echo '30f26242c4eb449f948e42cb302dd7a686cb29a3423a8367f99ff41780942498  /tmp/vosk/model.zip' | sha256sum -c -
+          PYTHONPATH=. python frontier_v5/scripts/verify_supply_chain.py --asset /tmp/vosk/model.zip --output /tmp/musitu-frontier-supply-chain.json | tee /tmp/supply-chain-asset.log
+          grep -q 'MUSITU_AXIOM_FRONTIER_SUPPLY_CHAIN_LOCK_PASS' /tmp/supply-chain-asset.log
+          unzip -q /tmp/vosk/model.zip -d /tmp/vosk
           PYTHONPATH=. python - <<'PY'
           from pathlib import Path
           from PIL import Image,ImageDraw
@@ -103,8 +108,7 @@ jobs:
           if speech['word_count']<2: raise SystemExit('speech transcription too weak')
           subprocess.run(['ffmpeg','-y','-f','lavfi','-i','color=c=black:s=640x360:d=1.2','-f','lavfi','-i','sine=frequency=523:duration=1.2','-shortest','-pix_fmt','yuv420p',str(root/'video.mp4')],check=True,capture_output=True)
           video=MultimodalWorkbench.probe_video(root/'video.mp4')
-          camera=MultimodalWorkbench.camera_stream_frames(str(root/'video.mp4'),max_frames=5)
-          screen=MultimodalWorkbench.inspect_image('/tmp/musitu-screen.png')
+          camera=MultimodalWorkbench.camera_stream_frames(str(root/'video.mp4'),max_frames=5); screen=MultimodalWorkbench.inspect_image('/tmp/musitu-screen.png')
           out={'schema':'musitu.axiom.frontier.multimodal.v1','status':'PASS','modalities':['image','audio','speech','video','camera-stream','screen'],'image':image,'audio':audio,'speech':speech,'video_sha256':video['sha256'],'camera':camera,'screen':screen}
           Path('/tmp/musitu-frontier-multimodal.json').write_text(json.dumps(out,indent=2),encoding='utf-8')
           print('MUSITU_AXIOM_FRONTIER_MULTIMODAL_PASS')
@@ -155,6 +159,7 @@ jobs:
             'market_cache':'/tmp/musitu-frontier-market-cache.json',
             'live':'/tmp/musitu-frontier-live-evidence.json',
             'longitudinal':'/tmp/musitu-frontier-longitudinal.json',
+            'supply_chain_lock':'/tmp/musitu-frontier-supply-chain.json',
           }
           evidence={}
           for k,p in files.items():
@@ -166,16 +171,19 @@ jobs:
             'market_cache':evidence['market_cache']['payload'].get('status')=='PASS',
             'live':evidence['live']['payload'].get('gate')=='MUSITU_AXIOM_FRONTIER_LIVE_ADAPTERS_PASS',
             'longitudinal':evidence['longitudinal']['payload'].get('status')=='PASS',
+            'supply_chain_lock':evidence['supply_chain_lock']['payload'].get('status')=='PASS',
           }
           if not all(required.values()): raise SystemExit('five-year objective evidence incomplete '+repr(required))
-          final={'schema':'musitu.axiom.frontier.five-year-objective.evidence.v2','required':required,'evidence_files':{k:v['sha256'] for k,v in evidence.items()},'head_sha':'${{ github.event.pull_request.head.sha || github.sha }}'}
+          if evidence['supply_chain_lock']['payload'].get('attestation_scope')!='PARTIAL_REPRODUCIBILITY_NOT_COMPLETE_SUPPLY_CHAIN_ATTESTATION':
+            raise SystemExit('supply-chain claim boundary missing')
+          final={'schema':'musitu.axiom.frontier.five-year-objective.evidence.v3','required':required,'evidence_files':{k:v['sha256'] for k,v in evidence.items()},'head_sha':'${{ github.event.pull_request.head.sha || github.sha }}','claim_boundaries':{'supply_chain':'PARTIAL_REPRODUCIBILITY_NOT_COMPLETE_SUPPLY_CHAIN_ATTESTATION','external_frontier_leadership':'NOT_CERTIFIED'}}
           body=json.dumps(final,sort_keys=True,separators=(',',':')).encode(); final['evidence_sha256']=hashlib.sha256(body).hexdigest(); final['gate']='MUSITU_AXIOM_FIVE_YEAR_FRONTIER_OBJECTIVE_PASS'
           Path('/tmp/musitu-frontier-final-objective.json').write_text(json.dumps(final,indent=2),encoding='utf-8')
           print(final['gate']);print('evidence_sha256='+final['evidence_sha256'])
           PY
 
       - name: Upload sealed frontier evidence
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: musitu-axiom-frontier-v5-fullstack-evidence
           path: |
@@ -185,6 +193,7 @@ jobs:
             /tmp/musitu-frontier-market-cache.json
             /tmp/musitu-frontier-live-evidence.json
             /tmp/musitu-frontier-longitudinal.json
+            /tmp/musitu-frontier-supply-chain.json
             /tmp/musitu-frontier-final-objective.json
             /tmp/musitu-screen.png
           if-no-files-found: error
