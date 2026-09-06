@@ -1,10 +1,11 @@
 name: MUSITU Chemistry Phase 3 Field Experience Preflight
-# source-revision: 5e1b9ea43f77c63c032bd350886a7321fb3f8841
 
 on:
   push:
     branches: [chemistry-field-experience-20260906]
-    paths: ['.github/workflows/chemistry-phase3-field-experience-preflight.yml']
+    paths:
+      - '.github/workflows/chemistry-phase3-field-experience-preflight.yml'
+      - 'commerce/chemistry/**'
   workflow_dispatch:
 
 permissions:
