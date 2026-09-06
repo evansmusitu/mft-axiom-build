@@ -85,8 +85,10 @@ class _FakeBrowser:
 class _FakeChromium:
     def __init__(self, page: _FakePage) -> None:
         self.page = page
+        self.launch_args = []
 
-    def launch(self, headless=True):
+    def launch(self, headless=True, args=None):
+        self.launch_args = list(args or [])
         return _FakeBrowser(self.page)
 
 
@@ -131,11 +133,12 @@ def main():
             return [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("127.0.0.1", port))]
         raise AssertionError(f"unexpected DNS lookup: {host}")
 
-    with patch("socket.getaddrinfo", side_effect=resolution), patch.dict(
+    with patch("socket.getaddrinfo", side_effect=resolution) as dns, patch.dict(
         sys.modules, {"playwright": package, "playwright.sync_api": sync_api}
     ):
         expect_error(lambda: browser.run("https://example.com/start"), AuthorizationError)
 
+    assert dns.call_count == 1, "browser performed a second DNS lookup after pinning"
     assert not page.private_target_reached, (
         "browser contacted a private subresource before MUSITU validated the request URL"
     )
