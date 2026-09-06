@@ -8,6 +8,14 @@
     "unseen_eval": "PASS",
     "provenance": "PASS"
   },
-  "claim_policy": "No parity/superiority/frontier claim without a sealed evaluation artifact supporting the exact claim.",
+  "comparative_claim_promotion": {
+    "structural_comparison_is_not_level_5": true,
+    "level_5_external_comparative": "VERIFIED_REQUIRED_FOR_EXTERNAL_PARITY_OR_SUPERIORITY_COMPARISON",
+    "level_6_independent_validation": "VERIFIED_REQUIRED_FOR_INDEPENDENTLY_VALIDATED_CLAIMS",
+    "level_7_longitudinal_defensibility": "ACTIVE_REQUIRED_FOR_DURABLE_FRONTIER_LEADERSHIP_CLAIMS",
+    "self_attestation_can_satisfy_level_5": false,
+    "default_global_leadership_status": "NOT_CERTIFIED"
+  },
+  "claim_policy": "No parity/superiority/frontier claim without a sealed evaluation artifact supporting the exact claim and the required external/independent/longitudinal evidence level.",
   "sealed_v4_base_sha": "d6a846f6bbe0bccac1758713eb4de167caf07113"
 }
