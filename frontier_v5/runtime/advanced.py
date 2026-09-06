@@ -1,29 +1,47 @@
 #!/usr/bin/env python3
-"""Advanced MUSITU Axiom Frontier Fabric primitives.
+"""Advanced MUSITU Axiom Frontier Fabric runtime primitives.
 
-Development-only. These deterministic components implement durable memory,
-causal/digital-twin simulation, specialist-agent coordination, verification,
-source quality, contradiction resolution, uncertainty calibration, governed
-capability execution, benchmark splitting and longitudinal regression gates.
-They do not grant external tools, credentials, or production authority.
+Development-only. These primitives implement deterministic, fail-closed local
+contracts for durable memory, causal/digital twins, specialist societies,
+uncertainty calibration, source-quality scoring, contradiction resolution,
+audit replay, governed external capability adapters, and unseen/regression
+evaluation. They do not claim that an external browser, GUI, deployment,
+multimodal, or model provider exists unless a verified adapter is registered.
 """
 from __future__ import annotations
 
 from dataclasses import dataclass, field, asdict
 from datetime import datetime, timezone
+from pathlib import Path
+from typing import Any, Callable, Iterable, Mapping, Sequence
 import hashlib
 import json
 import math
-import statistics
-from pathlib import Path
-from typing import Any, Callable, Iterable, Mapping, Sequence
+import os
+import tempfile
 
-from .fabric import AuthorizationError, FrontierError, InstructionEnvelope, InstructionProvenanceFirewall
+from .fabric import (
+    ActionPolicy,
+    Authority,
+    AuthorizationError,
+    FrontierError,
+    GovernanceEngine,
+    InstructionEnvelope,
+    InstructionProvenanceFirewall,
+    PolicyContext,
+)
+
+
+def _canonical(value: Any) -> str:
+    return json.dumps(value, sort_keys=True, separators=(",", ":"), default=str)
 
 
 def _sha(value: Any) -> str:
-    body = json.dumps(value, sort_keys=True, separators=(",", ":"), default=str)
-    return hashlib.sha256(body.encode()).hexdigest()
+    return hashlib.sha256(_canonical(value).encode()).hexdigest()
+
+
+def _utcnow() -> str:
+    return datetime.now(timezone.utc).isoformat()
 
 
 @dataclass(frozen=True)
@@ -34,13 +52,13 @@ class MemoryRecord:
     observed_at: str
     source: str
     confidence: float = 1.0
-    supersedes: str | None = None
     tombstone: bool = False
+    supersedes: str | None = None
 
     def __post_init__(self) -> None:
         if not self.namespace or not self.key or not self.source:
             raise ValueError("namespace, key and source are required")
-        if not (0.0 <= self.confidence <= 1.0):
+        if not 0.0 <= self.confidence <= 1.0:
             raise ValueError("confidence must be in [0,1]")
 
     @property
@@ -49,36 +67,85 @@ class MemoryRecord:
 
 
 class DurableMemoryStore:
-    """Append-only, provenance-aware in-process memory with deterministic snapshots."""
+    """Append-only memory journal with optional atomic JSONL persistence."""
 
-    def __init__(self) -> None:
+    def __init__(self, path: str | Path | None = None) -> None:
+        self.path = Path(path) if path is not None else None
         self._records: list[MemoryRecord] = []
-        self._ids: set[str] = set()
+        if self.path and self.path.exists():
+            self._load()
 
-    def put(self, record: MemoryRecord) -> str:
-        rid = record.record_id
-        if rid in self._ids:
-            return rid
-        if record.supersedes and record.supersedes not in self._ids:
+    def _load(self) -> None:
+        assert self.path is not None
+        for line in self.path.read_text(encoding="utf-8").splitlines():
+            if not line.strip():
+                continue
+            raw = json.loads(line)
+            self._records.append(MemoryRecord(**raw))
+
+    def _persist(self) -> None:
+        if self.path is None:
+            return
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        payload = "".join(_canonical(asdict(r)) + "\n" for r in self._records)
+        fd, tmp = tempfile.mkstemp(prefix=self.path.name + ".", dir=str(self.path.parent))
+        try:
+            with os.fdopen(fd, "w", encoding="utf-8") as f:
+                f.write(payload)
+                f.flush()
+                os.fsync(f.fileno())
+            os.replace(tmp, self.path)
+        finally:
+            if os.path.exists(tmp):
+                os.unlink(tmp)
+
+    def append(self, record: MemoryRecord) -> str:
+        if record.supersedes and all(r.record_id != record.supersedes for r in self._records):
             raise ValueError("superseded memory record does not exist")
         self._records.append(record)
-        self._ids.add(rid)
-        return rid
+        self._persist()
+        return record.record_id
 
-    def latest(self, namespace: str, key: str) -> MemoryRecord | None:
-        rows = [r for r in self._records if r.namespace == namespace and r.key == key]
-        if not rows:
+    def put(self, namespace: str, key: str, value: Any, source: str, confidence: float = 1.0) -> str:
+        current = self.latest(namespace, key, include_tombstone=True)
+        return self.append(MemoryRecord(namespace, key, value, _utcnow(), source, confidence,
+                                        supersedes=current.record_id if current else None))
+
+    def delete(self, namespace: str, key: str, source: str) -> str:
+        current = self.latest(namespace, key, include_tombstone=True)
+        if current is None:
+            raise KeyError(f"memory key does not exist: {namespace}/{key}")
+        return self.append(MemoryRecord(namespace, key, None, _utcnow(), source, 1.0,
+                                        tombstone=True, supersedes=current.record_id))
+
+    def history(self, namespace: str, key: str) -> list[MemoryRecord]:
+        return [r for r in self._records if r.namespace == namespace and r.key == key]
+
+    def latest(self, namespace: str, key: str, include_tombstone: bool = False) -> MemoryRecord | None:
+        items = self.history(namespace, key)
+        if not items:
             return None
-        row = sorted(rows, key=lambda r: (r.observed_at, r.record_id))[-1]
-        return None if row.tombstone else row
+        latest = items[-1]
+        if latest.tombstone and not include_tombstone:
+            return None
+        return latest
 
-    def search(self, namespace: str, text: str, limit: int = 10) -> list[MemoryRecord]:
-        q = text.casefold().strip()
-        rows = [r for r in self._records if r.namespace == namespace and not r.tombstone]
-        if q:
-            rows = [r for r in rows if q in r.key.casefold() or q in str(r.value).casefold()]
-        rows = sorted(rows, key=lambda r: (r.observed_at, r.record_id), reverse=True)
-        return rows[: max(0, int(limit))]
+    def search(self, namespace: str, text: str, limit: int = 20) -> list[MemoryRecord]:
+        if limit <= 0:
+            return []
+        needle = text.casefold()
+        out = []
+        latest_by_key: dict[str, MemoryRecord] = {}
+        for r in self._records:
+            if r.namespace == namespace:
+                latest_by_key[r.key] = r
+        for r in latest_by_key.values():
+            if r.tombstone:
+                continue
+            hay = f"{r.key} {_canonical(r.value)} {r.source}".casefold()
+            if needle in hay:
+                out.append(r)
+        return sorted(out, key=lambda r: (-r.confidence, r.observed_at, r.key), reverse=False)[:limit]
 
     @property
     def snapshot_sha256(self) -> str:
@@ -93,11 +160,7 @@ class LinearEquation:
 
 
 class CausalModel:
-    """Deterministic acyclic linear structural causal model.
-
-    Interventions may target endogenous equation nodes or declared exogenous
-    drivers (parents/baseline inputs). Unknown variables remain fail-closed.
-    """
+    """Deterministic acyclic linear structural causal model."""
 
     def __init__(self, equations: Sequence[LinearEquation]) -> None:
         self._eq = {e.node: e for e in equations}
@@ -129,9 +192,6 @@ class CausalModel:
         unknown = set(do) - known
         if unknown:
             raise ValueError("unknown intervention nodes: " + ",".join(sorted(unknown)))
-        # Exogenous interventions override baseline/exogenous state before the
-        # structural equations are evaluated. Endogenous interventions are
-        # applied as standard do()-style replacements in topological order.
         for node, value in do.items():
             if node not in self._eq:
                 state[node] = value
@@ -178,170 +238,258 @@ class Hypothesis:
     label: str
     probability: float
     rationale: str
-
-    def __post_init__(self) -> None:
-        if not (0 <= self.probability <= 1):
-            raise ValueError("hypothesis probability must be in [0,1]")
-
-
-@dataclass(frozen=True)
-class SpecialistResult:
     specialist: str
-    answer: Any
-    confidence: float
-    evidence: tuple[str, ...] = ()
-    veto: str | None = None
 
     def __post_init__(self) -> None:
-        if not self.specialist:
-            raise ValueError("specialist required")
-        if not (0 <= self.confidence <= 1):
-            raise ValueError("confidence must be in [0,1]")
+        if not 0.0 <= self.probability <= 1.0:
+            raise ValueError("probability must be in [0,1]")
+
+
+@dataclass
+class Specialist:
+    name: str
+    domains: frozenset[str]
+    handler: Callable[[Mapping[str, Any]], Mapping[str, Any]]
+    calibration_weight: float = 1.0
+
+    def __post_init__(self) -> None:
+        if self.calibration_weight <= 0:
+            raise ValueError("calibration_weight must be positive")
 
 
 class SpecialistSociety:
-    """Coordinates heterogeneous specialists and preserves dissent."""
+    def __init__(self) -> None:
+        self._specialists: dict[str, Specialist] = {}
 
-    def __init__(self, specialists: Mapping[str, Callable[[Mapping[str, Any]], SpecialistResult]]) -> None:
-        if not specialists:
-            raise ValueError("at least one specialist required")
-        self.specialists = dict(specialists)
+    def register(self, specialist: Specialist) -> None:
+        if specialist.name in self._specialists:
+            raise ValueError("duplicate specialist")
+        self._specialists[specialist.name] = specialist
 
-    def deliberate(self, task: Mapping[str, Any], selected: Sequence[str] | None = None) -> dict[str, Any]:
-        names = list(selected or sorted(self.specialists))
-        unknown = [n for n in names if n not in self.specialists]
-        if unknown:
-            raise FrontierError("unknown specialists: " + ",".join(unknown))
-        results = [self.specialists[n](task) for n in names]
-        vetoes = [r for r in results if r.veto]
-        confidences = [r.confidence for r in results]
-        payload = {
-            "results": [asdict(r) for r in results],
-            "vetoes": [asdict(r) for r in vetoes],
-            "mean_confidence": statistics.fmean(confidences) if confidences else 0.0,
-            "unresolved_dissent": len({json.dumps(r.answer, sort_keys=True, default=str) for r in results}) > 1,
+    def deliberate(self, domain: str, task: Mapping[str, Any]) -> dict[str, Any]:
+        eligible = [s for s in self._specialists.values() if domain in s.domains]
+        if not eligible:
+            raise FrontierError("no specialist available for domain")
+        outputs = []
+        for specialist in sorted(eligible, key=lambda s: s.name):
+            result = dict(specialist.handler(task))
+            result["specialist"] = specialist.name
+            result["calibration_weight"] = specialist.calibration_weight
+            outputs.append(result)
+        return {"domain": domain, "task_sha256": _sha(task), "specialist_outputs": outputs}
+
+    @staticmethod
+    def hypothesis_market(hypotheses: Sequence[Hypothesis], weights: Mapping[str, float] | None = None) -> dict[str, Any]:
+        if not hypotheses:
+            raise ValueError("at least one hypothesis required")
+        by_label: dict[str, list[tuple[float, float]]] = {}
+        for h in hypotheses:
+            w = float((weights or {}).get(h.specialist, 1.0))
+            if w <= 0:
+                raise ValueError("hypothesis weight must be positive")
+            by_label.setdefault(h.label, []).append((h.probability, w))
+        scores = {
+            label: sum(p * w for p, w in vals) / sum(w for _, w in vals)
+            for label, vals in by_label.items()
         }
-        payload["deliberation_sha256"] = _sha(payload)
-        return payload
+        winner = sorted(scores.items(), key=lambda kv: (-kv[1], kv[0]))[0]
+        return {"winner": winner[0], "probability": winner[1], "scores": scores}
 
 
 class IndependentVerifier:
     @staticmethod
-    def verify(primary: Any, independent: Any, tolerance: float = 0.0) -> dict[str, Any]:
-        if isinstance(primary, (int, float)) and isinstance(independent, (int, float)):
-            delta = abs(float(primary) - float(independent))
-            passed = delta <= float(tolerance)
-            return {"pass": passed, "delta": delta, "tolerance": float(tolerance)}
-        passed = json.dumps(primary, sort_keys=True, default=str) == json.dumps(independent, sort_keys=True, default=str)
-        return {"pass": passed, "delta": None, "tolerance": None}
+    def verify(result: Mapping[str, Any], invariants: Sequence[Callable[[Mapping[str, Any]], bool]]) -> dict[str, Any]:
+        checks = []
+        for i, invariant in enumerate(invariants):
+            try:
+                ok = bool(invariant(result))
+            except Exception as exc:
+                checks.append({"index": i, "pass": False, "error": type(exc).__name__})
+            else:
+                checks.append({"index": i, "pass": ok})
+        passed = all(c["pass"] for c in checks)
+        return {"verified": passed, "checks": checks, "result_sha256": _sha(result)}
+
+
+class UncertaintyCalibrator:
+    @staticmethod
+    def brier(probabilities: Sequence[float], outcomes: Sequence[int]) -> float:
+        if len(probabilities) != len(outcomes) or not probabilities:
+            raise ValueError("equal non-empty probability/outcome sequences required")
+        if any(not 0.0 <= p <= 1.0 for p in probabilities) or any(y not in (0, 1) for y in outcomes):
+            raise ValueError("invalid probability or outcome")
+        return sum((p - y) ** 2 for p, y in zip(probabilities, outcomes)) / len(probabilities)
+
+    @staticmethod
+    def expected_calibration_error(probabilities: Sequence[float], outcomes: Sequence[int], bins: int = 10) -> float:
+        if bins <= 0:
+            raise ValueError("bins must be positive")
+        if len(probabilities) != len(outcomes) or not probabilities:
+            raise ValueError("equal non-empty probability/outcome sequences required")
+        groups: list[list[tuple[float, int]]] = [[] for _ in range(bins)]
+        for p, y in zip(probabilities, outcomes):
+            if not 0.0 <= p <= 1.0 or y not in (0, 1):
+                raise ValueError("invalid probability or outcome")
+            idx = min(int(p * bins), bins - 1)
+            groups[idx].append((p, y))
+        n = len(probabilities)
+        ece = 0.0
+        for group in groups:
+            if not group:
+                continue
+            conf = sum(p for p, _ in group) / len(group)
+            acc = sum(y for _, y in group) / len(group)
+            ece += len(group) / n * abs(acc - conf)
+        return ece
 
 
 @dataclass(frozen=True)
-class SourceScore:
-    source: str
-    authority: float
+class SourceProfile:
+    source_id: str
+    primary: bool
+    independently_verifiable: bool
     recency: float
-    provenance: float
-    corroboration: float
-
-    @property
-    def total(self) -> float:
-        vals = (self.authority, self.recency, self.provenance, self.corroboration)
-        if any(v < 0 or v > 1 for v in vals):
-            raise ValueError("source quality dimensions must be in [0,1]")
-        return sum(vals) / len(vals)
+    domain_authority: float
+    methodological_transparency: float
+    conflict_of_interest_risk: float = 0.0
 
 
 class SourceQualityScorer:
     @staticmethod
-    def score(source: str, authority: float, recency: float, provenance: float, corroboration: float) -> SourceScore:
-        out = SourceScore(source, authority, recency, provenance, corroboration)
-        _ = out.total
-        return out
+    def score(p: SourceProfile) -> float:
+        values = (p.recency, p.domain_authority, p.methodological_transparency, p.conflict_of_interest_risk)
+        if any(not 0.0 <= x <= 1.0 for x in values):
+            raise ValueError("source quality dimensions must be in [0,1]")
+        score = (
+            0.20 * float(p.primary)
+            + 0.15 * float(p.independently_verifiable)
+            + 0.15 * p.recency
+            + 0.25 * p.domain_authority
+            + 0.25 * p.methodological_transparency
+            - 0.20 * p.conflict_of_interest_risk
+        )
+        return max(0.0, min(1.0, score))
+
+
+@dataclass(frozen=True)
+class ClaimEvidence:
+    claim: str
+    value: Any
+    confidence: float
+    source_quality: float
+    observed_at: str
+    source_id: str
 
 
 class ContradictionResolver:
     @staticmethod
-    def resolve(claims: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
-        if not claims:
-            raise ValueError("claims required")
-        normalized: dict[str, list[Mapping[str, Any]]] = {}
-        for c in claims:
-            if "value" not in c or "source_score" not in c:
-                raise ValueError("claim value and source_score required")
-            key = json.dumps(c["value"], sort_keys=True, default=str)
-            normalized.setdefault(key, []).append(c)
-        if len(normalized) == 1:
-            winner = max(claims, key=lambda c: float(c["source_score"]))
-            return {"status": "consistent", "winner": winner, "alternatives": []}
-        ranked = sorted(claims, key=lambda c: float(c["source_score"]), reverse=True)
-        top = ranked[0]
-        runner = ranked[1]
-        if float(top["source_score"]) == float(runner["source_score"]):
-            return {"status": "unresolved", "winner": None, "alternatives": ranked}
-        return {"status": "resolved-by-evidence-quality", "winner": top, "alternatives": ranked[1:]}
+    def resolve(items: Sequence[ClaimEvidence], minimum_margin: float = 0.05) -> dict[str, Any]:
+        if len(items) < 2:
+            raise ValueError("at least two evidence items required")
+        if len({x.claim for x in items}) != 1:
+            raise ValueError("evidence items must address the same claim")
+        grouped: dict[str, list[ClaimEvidence]] = {}
+        for item in items:
+            if not 0 <= item.confidence <= 1 or not 0 <= item.source_quality <= 1:
+                raise ValueError("confidence/source_quality must be in [0,1]")
+            grouped.setdefault(_canonical(item.value), []).append(item)
+        ranked = []
+        for canonical_value, group in grouped.items():
+            weight = sum(x.confidence * x.source_quality for x in group)
+            ranked.append((weight, canonical_value, group[0].value, sorted(x.source_id for x in group)))
+        ranked.sort(key=lambda x: (-x[0], x[1]))
+        if len(ranked) == 1:
+            return {"status": "CONSISTENT", "value": ranked[0][2], "support": ranked[0][0]}
+        margin = ranked[0][0] - ranked[1][0]
+        if margin < minimum_margin:
+            return {"status": "UNRESOLVED", "candidates": [r[2] for r in ranked], "margin": margin}
+        return {"status": "RESOLVED", "value": ranked[0][2], "margin": margin, "sources": ranked[0][3]}
 
 
-class UncertaintyCalibrator:
-    """Empirical confidence calibration and fail-closed abstention."""
+class AuditReplayLedger:
+    def __init__(self) -> None:
+        self._events: list[dict[str, Any]] = []
 
-    @staticmethod
-    def expected_calibration_error(probabilities: Sequence[float], outcomes: Sequence[int], bins: int = 10) -> float:
-        if len(probabilities) != len(outcomes) or not probabilities:
-            raise ValueError("aligned probabilities/outcomes required")
-        if bins <= 0:
-            raise ValueError("bins must be positive")
-        n = len(probabilities)
-        ece = 0.0
-        for i in range(bins):
-            lo, hi = i / bins, (i + 1) / bins
-            idx = [j for j, p in enumerate(probabilities) if lo <= p <= hi if (i == bins - 1 or p < hi)]
-            if not idx:
-                continue
-            conf = statistics.fmean(float(probabilities[j]) for j in idx)
-            acc = statistics.fmean(int(outcomes[j]) for j in idx)
-            ece += len(idx) / n * abs(acc - conf)
-        return ece
+    def append(self, event_type: str, payload: Mapping[str, Any], actor: str) -> str:
+        if not event_type or not actor:
+            raise ValueError("event_type and actor required")
+        previous = self._events[-1]["event_sha256"] if self._events else None
+        body = {
+            "sequence": len(self._events),
+            "event_type": event_type,
+            "payload": dict(payload),
+            "actor": actor,
+            "previous_sha256": previous,
+        }
+        event_sha = _sha(body)
+        body["event_sha256"] = event_sha
+        self._events.append(body)
+        return event_sha
 
-    @staticmethod
-    def decision(confidence: float, threshold: float, blockers: Sequence[str] = ()) -> dict[str, Any]:
-        if not (0 <= confidence <= 1 and 0 <= threshold <= 1):
-            raise ValueError("confidence/threshold must be in [0,1]")
-        if blockers:
-            return {"action": "ABSTAIN", "confidence": confidence, "blockers": list(blockers)}
-        return {"action": "PROCEED" if confidence >= threshold else "ABSTAIN", "confidence": confidence, "blockers": []}
+    def verify(self) -> bool:
+        prev = None
+        for i, event in enumerate(self._events):
+            body = dict(event)
+            actual = body.pop("event_sha256", None)
+            if body.get("sequence") != i or body.get("previous_sha256") != prev:
+                return False
+            if _sha(body) != actual:
+                return False
+            prev = actual
+        return True
+
+    def replay(self, reducer: Callable[[Any, Mapping[str, Any]], Any], initial: Any) -> Any:
+        if not self.verify():
+            raise FrontierError("audit ledger integrity failure")
+        state = initial
+        for event in self._events:
+            state = reducer(state, event)
+        return state
 
 
 @dataclass(frozen=True)
-class BrokerRequest:
-    capability: str
-    instruction: InstructionEnvelope
-    authorized: bool
+class ExternalCapability:
+    name: str
+    domain: str
+    modality: str
+    action: str
+    required_scopes: frozenset[str]
     verified: bool
-    destructive: bool = False
+    consequential: bool = False
 
 
 class GovernedCapabilityBroker:
-    """Fail-closed boundary for external model/tool/browser/artifact adapters."""
+    """Executes only explicitly registered, verified external adapters."""
 
-    def __init__(self, adapters: Mapping[str, Callable[[Any], Any]]) -> None:
-        self.adapters = dict(adapters)
+    def __init__(self) -> None:
+        self._caps: dict[str, tuple[ExternalCapability, Callable[[Mapping[str, Any]], Any]]] = {}
 
-    def execute(self, req: BrokerRequest, payload: Any) -> dict[str, Any]:
-        firewall = InstructionProvenanceFirewall.assess(req.instruction)
+    def register(self, cap: ExternalCapability, adapter: Callable[[Mapping[str, Any]], Any]) -> None:
+        if cap.name in self._caps:
+            raise ValueError("duplicate external capability")
+        self._caps[cap.name] = (cap, adapter)
+
+    def execute(self, name: str, request: Mapping[str, Any], ctx: PolicyContext,
+                instruction: InstructionEnvelope) -> dict[str, Any]:
+        if name not in self._caps:
+            raise FrontierError("external capability is not registered")
+        cap, adapter = self._caps[name]
+        if not cap.verified:
+            raise AuthorizationError("external capability is not verified")
+        firewall = InstructionProvenanceFirewall.assess(instruction)
         if not firewall["allowed"]:
             raise AuthorizationError(firewall["reason"])
-        if not req.authorized:
-            raise AuthorizationError("capability execution not authorized")
-        if not req.verified:
-            raise AuthorizationError("capability adapter is not verified")
-        if req.destructive and not req.instruction.consequential:
-            raise AuthorizationError("destructive capability requires consequential-action envelope")
-        adapter = self.adapters.get(req.capability)
-        if adapter is None:
-            raise FrontierError("capability adapter unavailable")
-        result = adapter(payload)
-        return {"capability": req.capability, "result": result, "result_sha256": _sha(result)}
+        policy = ActionPolicy(cap.action, cap.required_scopes)
+        GovernanceEngine.authorize(ctx, policy)
+        result = adapter(request)
+        return {
+            "capability": cap.name,
+            "domain": cap.domain,
+            "modality": cap.modality,
+            "request_sha256": _sha(request),
+            "result": result,
+            "result_sha256": _sha(result),
+        }
 
 
 @dataclass(frozen=True)
@@ -349,87 +497,88 @@ class BenchmarkCase:
     case_id: str
     input: Any
     expected: Any
-    tags: tuple[str, ...] = ()
+    tags: frozenset[str] = frozenset()
 
 
 class BenchmarkHarness:
-    """Deterministic sealed split and comparative scorer."""
+    @staticmethod
+    def split(cases: Sequence[BenchmarkCase], holdout_fraction: float = 0.2,
+              salt: str = "musitu-frontier-v5") -> tuple[list[BenchmarkCase], list[BenchmarkCase]]:
+        if not 0.0 < holdout_fraction < 1.0:
+            raise ValueError("holdout_fraction must be between 0 and 1")
+        train, holdout = [], []
+        threshold = int(holdout_fraction * 10_000)
+        for case in cases:
+            bucket = int(hashlib.sha256(f"{salt}:{case.case_id}".encode()).hexdigest()[:8], 16) % 10_000
+            (holdout if bucket < threshold else train).append(case)
+        if cases and (not train or not holdout):
+            ordered = sorted(cases, key=lambda c: _sha({"salt": salt, "id": c.case_id}))
+            cut = max(1, min(len(ordered) - 1, round(len(ordered) * (1 - holdout_fraction))))
+            train, holdout = ordered[:cut], ordered[cut:]
+        return train, holdout
 
     @staticmethod
-    def sealed_split(cases: Sequence[BenchmarkCase], salt: str, holdout_fraction: float = 0.2) -> tuple[list[BenchmarkCase], list[BenchmarkCase]]:
+    def evaluate(cases: Sequence[BenchmarkCase], runner: Callable[[Any], Any],
+                 scorer: Callable[[Any, Any], float]) -> dict[str, Any]:
         if not cases:
             raise ValueError("benchmark cases required")
-        if not 0 < holdout_fraction < 1:
-            raise ValueError("holdout_fraction must be in (0,1)")
-        ranked = sorted(cases, key=lambda c: hashlib.sha256(f"{salt}:{c.case_id}".encode()).hexdigest())
-        n_hold = max(1, min(len(ranked) - 1, round(len(ranked) * holdout_fraction)))
-        return ranked[n_hold:], ranked[:n_hold]
-
-    @staticmethod
-    def compare(cases: Sequence[BenchmarkCase], candidate: Callable[[Any], Any], baseline: Callable[[Any], Any], scorer: Callable[[Any, Any], float]) -> dict[str, Any]:
-        if not cases:
-            raise ValueError("evaluation cases required")
         rows = []
         for case in cases:
-            cand = candidate(case.input)
-            base = baseline(case.input)
-            cs = float(scorer(cand, case.expected))
-            bs = float(scorer(base, case.expected))
-            if not (math.isfinite(cs) and math.isfinite(bs)):
-                raise ValueError("non-finite benchmark score")
-            rows.append({"case_id": case.case_id, "candidate": cs, "baseline": bs})
-        cmean = statistics.fmean(r["candidate"] for r in rows)
-        bmean = statistics.fmean(r["baseline"] for r in rows)
-        return {"candidate_mean": cmean, "baseline_mean": bmean, "delta": cmean - bmean, "rows": rows, "evaluation_sha256": _sha(rows)}
+            actual = runner(case.input)
+            score = float(scorer(actual, case.expected))
+            if not math.isfinite(score):
+                raise ValueError("benchmark score must be finite")
+            rows.append({"case_id": case.case_id, "score": score, "actual_sha256": _sha(actual)})
+        mean = sum(r["score"] for r in rows) / len(rows)
+        return {"count": len(rows), "mean_score": mean, "cases": rows, "suite_sha256": _sha(rows)}
 
-
-class RegressionGate:
     @staticmethod
-    def compare(current: Mapping[str, float], baseline: Mapping[str, float], tolerances: Mapping[str, float] | None = None) -> dict[str, Any]:
-        tolerances = dict(tolerances or {})
-        missing = sorted(set(baseline) - set(current))
-        regressions = {}
-        for key, b in baseline.items():
-            if key not in current:
-                continue
-            tol = float(tolerances.get(key, 0.0))
-            if float(current[key]) + tol < float(b):
-                regressions[key] = {"current": float(current[key]), "baseline": float(b), "tolerance": tol}
-        return {"status": "PASS" if not missing and not regressions else "FAIL", "missing": missing, "regressions": regressions}
+    def regression_gate(candidate: Mapping[str, float], baseline: Mapping[str, float],
+                        tolerance: float = 0.0) -> dict[str, Any]:
+        missing = sorted(set(baseline) - set(candidate))
+        regressions = sorted(
+            k for k in baseline if k in candidate and float(candidate[k]) + tolerance < float(baseline[k])
+        )
+        return {"status": "PASS" if not missing and not regressions else "FAIL",
+                "missing": missing, "regressions": regressions}
 
 
-class AuditReplayLedger:
-    """Hash-chained append-only audit log."""
+@dataclass(frozen=True)
+class CapabilityEvidence:
+    target: str
+    runtime_path: str
+    test_gate: str
+    evidence_sha256: str
+    status: str
 
-    def __init__(self) -> None:
-        self._events: list[dict[str, Any]] = []
 
-    def append(self, event: Mapping[str, Any]) -> dict[str, Any]:
-        prev = self._events[-1]["event_sha256"] if self._events else "0" * 64
-        payload = {"index": len(self._events), "previous_sha256": prev, "event": dict(event)}
-        payload["event_sha256"] = _sha(payload)
-        self._events.append(payload)
-        return dict(payload)
+class CapabilityStatusRegistry:
+    ALLOWED = frozenset({"TARGET", "PARTIAL", "IMPLEMENTED", "VERIFIED"})
 
-    def verify(self) -> bool:
-        prev = "0" * 64
-        for i, event in enumerate(self._events):
-            if event.get("index") != i or event.get("previous_sha256") != prev:
-                return False
-            check = dict(event)
-            digest = check.pop("event_sha256", None)
-            if digest != _sha(check):
-                return False
-            prev = digest
-        return True
+    def __init__(self, known_targets: Iterable[str]) -> None:
+        self.known_targets = frozenset(known_targets)
+        self._entries: dict[str, CapabilityEvidence] = {}
 
-    def snapshot(self) -> list[dict[str, Any]]:
-        return [dict(e) for e in self._events]
+    def record(self, evidence: CapabilityEvidence) -> None:
+        if evidence.target not in self.known_targets:
+            raise ValueError("unknown capability target")
+        if evidence.status not in self.ALLOWED:
+            raise ValueError("invalid capability status")
+        if evidence.status in {"IMPLEMENTED", "VERIFIED"} and (not evidence.runtime_path or not evidence.test_gate or len(evidence.evidence_sha256) != 64):
+            raise ValueError("implemented/verified capability requires runtime, test gate and SHA-256 evidence")
+        self._entries[evidence.target] = evidence
+
+    def summary(self) -> dict[str, Any]:
+        counts = {s: 0 for s in sorted(self.ALLOWED)}
+        for target in self.known_targets:
+            counts[self._entries.get(target, CapabilityEvidence(target, "", "", "", "TARGET")).status] += 1
+        return {"total": len(self.known_targets), "counts": counts}
 
 
 __all__ = [
-    "AuditReplayLedger", "BenchmarkCase", "BenchmarkHarness", "BrokerRequest", "CausalModel",
-    "ContradictionResolver", "DigitalTwin", "DurableMemoryStore", "GovernedCapabilityBroker",
-    "Hypothesis", "IndependentVerifier", "LinearEquation", "MemoryRecord", "RegressionGate",
-    "SourceQualityScorer", "SourceScore", "SpecialistResult", "SpecialistSociety", "UncertaintyCalibrator",
+    "AuditReplayLedger", "BenchmarkCase", "BenchmarkHarness", "CapabilityEvidence",
+    "CapabilityStatusRegistry", "CausalModel", "ClaimEvidence", "ContradictionResolver",
+    "DigitalTwin", "DurableMemoryStore", "ExternalCapability", "GovernedCapabilityBroker",
+    "Hypothesis", "IndependentVerifier", "LinearEquation", "MemoryRecord", "SourceProfile",
+    "SourceQualityScorer", "Specialist", "SpecialistSociety", "UncertaintyCalibrator",
 ]
