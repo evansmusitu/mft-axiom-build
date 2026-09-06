@@ -1,0 +1,194 @@
+name: MUSITU Chemistry Recovery Hardening Guarded Deploy
+
+on:
+  push:
+    branches: [chemistry-global-storefront-20260906]
+    paths: ['.github/workflows/chemistry-global-storefront-recovery-hardening-deploy.yml']
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: musitu-chemistry-global-storefront-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      PREVIOUS_WORKER_SHA: 8cb1bf7187eb6eb5242ecd57e53e5f3a83fe52c92dc1958285cc71260c7fc210
+      CANDIDATE_WORKER_SHA: d6642aefacc8d6765d17c1d33c2df65df33a9531f843c0bbbc2c304482d3d5f1
+      PREFLIGHT_RUN_ID: '34057143087'
+      PREFLIGHT_HEAD_SHA: e34966a86d556abf7caf607683a3a58a47366580
+      LICENCE_KEY_ID: chem-lic-2026-6783aa7535d1
+      APK_SHA256: 055b63f271c18faab540985faefb970f472ea55ba9cb3495db459797902b790d
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Prove exact successful hardening preflight and reconstruct candidate
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          curl -fsSL -H "Authorization: Bearer $GH_TOKEN" -H 'X-GitHub-Api-Version: 2022-11-28' "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/runs/${PREFLIGHT_RUN_ID}" > /tmp/preflight-run.json
+          python - <<'PY'
+          import json,os
+          o=json.load(open('/tmp/preflight-run.json'))
+          checks={
+            'conclusion':o.get('conclusion')=='success',
+            'head_sha':o.get('head_sha')==os.environ['PREFLIGHT_HEAD_SHA'],
+            'branch':o.get('head_branch')=='chemistry-global-storefront-20260906',
+            'workflow':o.get('name')=='MUSITU Chemistry Recovery Hardening Preflight'
+          }
+          if not all(checks.values()):raise SystemExit('preflight proof failed '+json.dumps(checks,sort_keys=True))
+          print('RECOVERY_HARDENING_PREFLIGHT_PROOF=PASS')
+          PY
+          rm -rf /tmp/mchem-base /tmp/mchem-source.zip /tmp/mchem-core /tmp/mchem-hardening-deploy
+          mkdir -p /tmp/mchem-base /tmp/mchem-core/src /tmp/mchem-hardening-deploy
+          cat commerce/chemistry/source.b64.* | base64 -d > /tmp/mchem-source.zip
+          echo "5b2618499eed8dc90261bc4f8260246d5593534500dd2fb145f2d24b5c47754c  /tmp/mchem-source.zip" | sha256sum -c -
+          unzip -q /tmp/mchem-source.zip -d /tmp/mchem-base
+          echo "848e1cec17ec580822d36e595196cda5978713849e8b45c5bc8dc7fcf9765db8  /tmp/mchem-base/src/index.mjs" | sha256sum -c -
+          cp /tmp/mchem-base/src/index.mjs commerce/chemistry/index.base.mjs
+          python commerce/chemistry/patch_storefront.py
+          echo "$CANDIDATE_WORKER_SHA  commerce/chemistry/index.storefront-v3.mjs" | sha256sum -c -
+          node --check commerce/chemistry/index.storefront-v3.mjs
+          node --test commerce/chemistry/storefront/storefront.test.mjs commerce/chemistry/storefront/worker-contract.test.mjs
+          cp commerce/chemistry/index.storefront-v3.mjs /tmp/mchem-core/src/index.mjs
+          cp -a /tmp/mchem-base/test /tmp/mchem-core/
+          cp /tmp/mchem-base/package.json /tmp/mchem-core/
+          cd /tmp/mchem-core && npm test && npm run check
+
+      - name: Guarded content-only hardening update with rollback
+        shell: bash
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import email,hashlib,json,os,secrets,time,urllib.error,urllib.parse,urllib.request
+          from pathlib import Path
+          API='https://api.cloudflare.com/client/v4';AID='93f395f5121954671f92fffa453d6b61';WORKER='musitu-chemistry-commerce';BASE='https://payments.mftintelligence.com'
+          H={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY'],'User-Agent':'MUSITU-Chemistry-Recovery-Hardening-Deploy/1.0'}
+          OLD=os.environ['PREVIOUS_WORKER_SHA'];NEW=os.environ['CANDIDATE_WORKER_SHA'];KEY=os.environ['LICENCE_KEY_ID'];APK=os.environ['APK_SHA256']
+          candidate=Path('commerce/chemistry/index.storefront-v3.mjs').read_bytes()
+          if hashlib.sha256(candidate).hexdigest()!=NEW:raise SystemExit('candidate hash mismatch')
+          def req(url,method='GET',headers=None,body=None,timeout=60):
+              q=urllib.request.Request(url,method=method,headers=dict(headers or {}),data=body)
+              try:
+                  with urllib.request.urlopen(q,timeout=timeout) as r:return r.status,r.headers,r.read()
+              except urllib.error.HTTPError as e:return e.code,e.headers,e.read()
+          def public(path,accept='*/*',nonce=None):
+              if nonce:path += ('&' if '?' in path else '?')+'__mchem_harden='+urllib.parse.quote(nonce)
+              return req(BASE+path,headers={'Accept':accept,'Cache-Control':'no-cache','Pragma':'no-cache','User-Agent':'MUSITU-Recovery-Hardening-Live/1.0'})
+          def extract(raw,ctype,needle):
+              if 'multipart/' not in (ctype or '').lower():return raw
+              msg=email.message_from_bytes((f'Content-Type: {ctype}\r\nMIME-Version: 1.0\r\n\r\n').encode()+raw);parts=[]
+              for p in msg.walk():
+                  if p.is_multipart():continue
+                  d=p.get_payload(decode=True) or b''
+                  if needle.encode() in d:parts.append(d)
+              if len(parts)!=1:raise RuntimeError('module extraction mismatch')
+              return parts[0]
+          def read_worker():
+              c,h,b=req(f'{API}/accounts/{AID}/workers/scripts/{WORKER}',headers=H)
+              if c!=200:raise RuntimeError(f'worker read HTTP {c}')
+              return extract(b,h.get('content-type',''),'MUSITU Chemistry Commerce')
+          def upload(source):
+              boundary='----MUSITU'+secrets.token_hex(16);meta=json.dumps({'main_module':'index.mjs'},separators=(',',':'))
+              body=(f'--{boundary}\r\nContent-Disposition: form-data; name="metadata"\r\nContent-Type: application/json\r\n\r\n{meta}\r\n--{boundary}\r\nContent-Disposition: form-data; name="index.mjs"; filename="index.mjs"\r\nContent-Type: application/javascript+module\r\n\r\n').encode()+source+f'\r\n--{boundary}--\r\n'.encode()
+              h=dict(H);h['Content-Type']='multipart/form-data; boundary='+boundary
+              c,_,b=req(f'{API}/accounts/{AID}/workers/scripts/{WORKER}/content','PUT',h,body)
+              if not 200<=c<300:raise RuntimeError(f'content upload HTTP {c}: '+b[:300].decode('utf-8','ignore'))
+          original=read_worker();oldhash=hashlib.sha256(original).hexdigest()
+          if oldhash!=OLD:raise SystemExit('LIVE_SOURCE_DRIFT '+oldhash)
+          hc,_,hb=public('/chemistry/healthz','application/json','pre-'+secrets.token_hex(4));health=json.loads(hb or b'{}')
+          if hc!=200 or health.get('ok') is not True or health.get('licence_key_id')!=KEY or health.get('raw_paynow_key_present') is not False or health.get('payment_authority_bound') is not True or health.get('transport_bound') is not True:raise SystemExit('predeploy health boundary failed')
+          ac,_,apk=public('/chemistry/download/MUSITU_Chemistry_Mastery_1.2.0.apk','application/vnd.android.package-archive','pre-'+secrets.token_hex(4))
+          if ac!=200 or len(apk)!=5314934 or hashlib.sha256(apk).hexdigest()!=APK:raise SystemExit('predeploy APK boundary failed')
+          upload(candidate)
+          propagation_attempts=0
+          try:
+              if hashlib.sha256(read_worker()).hexdigest()!=NEW:raise RuntimeError('Cloudflare script API did not retain hardening candidate')
+              for attempt in range(1,31):
+                  propagation_attempts=attempt;nonce=f'{int(time.time()*1000)}-{attempt}-{secrets.token_hex(3)}'
+                  c,h,b=public('/chemistry/support','text/html',nonce);t=b.decode('utf-8','replace');csp=h.get('content-security-policy') or ''
+                  ready=c==200 and 'payment-status link created during checkout' in t and 'href="/chemistry/return"' not in t and "style-src 'self'" in csp and "script-src 'self'" in csp and 'unsafe-inline' not in csp and (h.get('referrer-policy') or '')=='no-referrer'
+                  if ready:break
+                  time.sleep(1.5)
+              else:raise RuntimeError('hardening public-edge propagation timeout')
+              checks=[('/chemistry/','Know what you don’t know'),('/chemistry/plans','Choose access without guessing'),('/chemistry/plans?who=myself&duration=year','Recommended for you: Annual'),('/chemistry/verify','Verify this MUSITU release'),('/chemistry/releases','Release notes'),('/chemistry/support','payment-status link created during checkout'),('/chemistry/privacy','Information processed for purchases'),('/chemistry/terms','Premium access is granted only by a valid MUSITU-signed licence after verified settlement'),('/chemistry/checkout/start?plan=annual','Continue securely to Paynow'),('/chemistry/claim','Activate a paid seat')]
+              pages={}
+              for i,(path,needle) in enumerate(checks):
+                  c,h,b=public(path,'text/html',f'post-{i}-{secrets.token_hex(4)}');t=b.decode('utf-8','replace');csp=h.get('content-security-policy') or ''
+                  if c!=200 or needle not in t:raise RuntimeError('route verification failed '+path)
+                  if "style-src 'self'" not in csp or "script-src 'self'" not in csp or 'unsafe-inline' in csp or 'unsafe-eval' in csp or (h.get('referrer-policy') or '')!='no-referrer':raise RuntimeError('security header verification failed '+path)
+                  if path=='/chemistry/support' and ('href="/chemistry/return"' in t or 'contact MUSITU support' not in t):raise RuntimeError('recovery hardening verification failed')
+                  pages[path]=c
+              hc,_,hb=public('/chemistry/healthz','application/json','health-'+secrets.token_hex(4));o=json.loads(hb or b'{}')
+              if hc!=200 or o.get('licence_key_id')!=KEY or o.get('raw_paynow_key_present') is not False or o.get('payment_authority_bound') is not True or o.get('transport_bound') is not True:raise RuntimeError('postdeploy health boundary failed')
+              cc,_,cb=public('/chemistry/catalog','application/json','catalog-'+secrets.token_hex(4));cat=json.loads(cb or b'{}');ids=[p.get('id') for p in cat.get('plans') or []]
+              if cc!=200 or ids!=['term','annual','lifetime','family','tutor','school']:raise RuntimeError('catalog changed')
+              ac,_,apk=public('/chemistry/download/MUSITU_Chemistry_Mastery_1.2.0.apk','application/vnd.android.package-archive','apk-'+secrets.token_hex(4))
+              if ac!=200 or len(apk)!=5314934 or hashlib.sha256(apk).hexdigest()!=APK:raise RuntimeError('APK changed')
+              livehash=hashlib.sha256(read_worker()).hexdigest()
+              if livehash!=NEW:raise RuntimeError('live Worker hash mismatch '+livehash)
+          except Exception as primary:
+              upload(original)
+              rh=hashlib.sha256(read_worker()).hexdigest();rc,_,_=public('/chemistry/healthz','application/json','rollback-'+secrets.token_hex(4))
+              if rh!=OLD or rc!=200:raise RuntimeError(f'ROLLBACK_VERIFY_FAILED hash={rh} http={rc}') from primary
+              raise
+          ev={'schema':'musitu.chemistry.recovery_hardening.deploy.v1','predecessor_worker_sha256':oldhash,'candidate_worker_sha256':NEW,'live_worker_sha256':livehash,'licence_key_id':KEY,'bindings_preserved':True,'apk_sha256':APK,'apk_bytes':5314934,'plan_ids':ids,'verified_routes':pages,'recovery_bare_return_link_present':False,'edge_propagation_attempts':propagation_attempts,'rollback_available':True,'rollback_used':False,'gate':'MUSITU_CHEMISTRY_RECOVERY_HARDENING_DEPLOY_PASS'}
+          raw=(json.dumps(ev,indent=2,sort_keys=True)+'\n').encode();Path('/tmp/mchem-hardening-deploy/deploy.json').write_bytes(raw);Path('/tmp/mchem-hardening-deploy/deploy.sha256').write_text(hashlib.sha256(raw).hexdigest()+'  deploy.json\n');print(json.dumps(ev,sort_keys=True))
+          PY
+
+      - name: Independent cache-busted public verification
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import hashlib,json,secrets,urllib.error,urllib.parse,urllib.request
+          from pathlib import Path
+          base='https://payments.mftintelligence.com';apk_sha='055b63f271c18faab540985faefb970f472ea55ba9cb3495db459797902b790d'
+          def get(path,accept='*/*'):
+              path += ('&' if '?' in path else '?')+'__mchem_independent_hardening='+urllib.parse.quote(secrets.token_hex(8))
+              q=urllib.request.Request(base+path,headers={'Accept':accept,'Cache-Control':'no-cache','Pragma':'no-cache','User-Agent':'MUSITU-Recovery-Hardening-Independent/1.0'})
+              try:
+                  with urllib.request.urlopen(q,timeout=60) as r:return r.status,dict(r.headers),r.read()
+              except urllib.error.HTTPError as e:return e.code,dict(e.headers),e.read()
+          pages={}
+          for path,needle in [('/chemistry/','Start Free'),('/chemistry/plans','Choose access without guessing'),('/chemistry/verify',apk_sha),('/chemistry/releases','Release notes'),('/chemistry/support','payment-status link created during checkout'),('/chemistry/privacy','Data is not sold to advertisers'),('/chemistry/terms','verified settlement')]:
+              c,h,b=get(path,'text/html');t=b.decode('utf-8','replace');csp=h.get('content-security-policy') or h.get('Content-Security-Policy') or ''
+              if c!=200 or needle not in t or "style-src 'self'" not in csp or "script-src 'self'" not in csp or 'unsafe-inline' in csp:raise SystemExit('independent page/security failed '+path)
+              if path=='/chemistry/support' and ('href="/chemistry/return"' in t or 'contact MUSITU support' not in t):raise SystemExit('independent recovery hardening failed')
+              pages[path]=c
+          hc,_,hb=get('/chemistry/healthz','application/json');health=json.loads(hb or b'{}')
+          cc,_,cb=get('/chemistry/catalog','application/json');catalog=json.loads(cb or b'{}');ids=[p.get('id') for p in catalog.get('plans') or []]
+          qc,_,qb=get('/chemistry/checkout/start?plan=annual','text/html');qt=qb.decode('utf-8','replace')
+          ac,_,apk=get('/chemistry/download/MUSITU_Chemistry_Mastery_1.2.0.apk','application/vnd.android.package-archive');digest=hashlib.sha256(apk).hexdigest()
+          if hc!=200 or health.get('licence_key_id')!='chem-lic-2026-6783aa7535d1' or health.get('raw_paynow_key_present') is not False:raise SystemExit('health boundary failed')
+          if ids!=['term','annual','lifetime','family','tutor','school']:raise SystemExit('catalog changed')
+          if qc!=200 or 'US$9.99' not in qt or 'Continue securely to Paynow' not in qt:raise SystemExit('checkout failed')
+          if ac!=200 or len(apk)!=5314934 or digest!=apk_sha:raise SystemExit('APK failed')
+          ev={'schema':'musitu.chemistry.recovery_hardening.live.v1','pages':pages,'health_http':hc,'catalog_http':cc,'checkout_annual_http':qc,'apk_http':ac,'apk_sha256':digest,'apk_bytes':len(apk),'licence_key_id':health.get('licence_key_id'),'plan_ids':ids,'candidate_worker_sha256':'d6642aefacc8d6765d17c1d33c2df65df33a9531f843c0bbbc2c304482d3d5f1','recovery_bare_return_link_present':False,'production_mutation_in_this_step':False,'gate':'MUSITU_CHEMISTRY_RECOVERY_HARDENING_LIVE_PASS'}
+          raw=(json.dumps(ev,indent=2,sort_keys=True)+'\n').encode();Path('/tmp/mchem-hardening-deploy/live.json').write_bytes(raw);Path('/tmp/mchem-hardening-deploy/live.sha256').write_text(hashlib.sha256(raw).hexdigest()+'  live.json\n');print(json.dumps(ev,sort_keys=True))
+          PY
+
+      - name: Seal hardening deployment evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp /tmp/preflight-run.json /tmp/mchem-hardening-deploy/preflight-run.json
+          cd /tmp/mchem-hardening-deploy
+          sha256sum *.json *.sha256 > SHA256SUMS.txt
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: musitu-chemistry-recovery-hardening-deploy
+          path: /tmp/mchem-hardening-deploy
+          retention-days: 90
+          if-no-files-found: error
