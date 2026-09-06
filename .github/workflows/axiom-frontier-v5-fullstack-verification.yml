@@ -114,6 +114,7 @@ jobs:
         run: |
           set -euo pipefail
           PYTHONPATH=. python frontier_v5/scripts/frontier_independent_validate.py
+          test -s /tmp/musitu-frontier-market-cache.json
 
       - name: Verify live research production persistence calibrated twins browser and specialist adapters
         env:
@@ -125,7 +126,7 @@ jobs:
           set -euo pipefail
           test -n "$CLOUDFLARE_EMAIL"
           test -n "$CLOUDFLARE_GLOBAL_API_KEY"
-          PYTHONPATH=. python frontier_v5/scripts/frontier_live_verify.py
+          PYTHONPATH=. python frontier_v5/scripts/frontier_live_verify_v2.py
 
       - name: Run longitudinal no-regression gate
         shell: bash
@@ -144,6 +145,7 @@ jobs:
             'multimodal':'/tmp/musitu-frontier-multimodal.json',
             'adversarial':'/tmp/musitu-frontier-adversarial.json',
             'independent':'/tmp/musitu-frontier-independent-validation.json',
+            'market_cache':'/tmp/musitu-frontier-market-cache.json',
             'live':'/tmp/musitu-frontier-live-evidence.json',
             'longitudinal':'/tmp/musitu-frontier-longitudinal.json',
           }
@@ -154,11 +156,12 @@ jobs:
             'multimodal':evidence['multimodal']['payload'].get('status')=='PASS',
             'adversarial':evidence['adversarial']['payload'].get('status')=='PASS',
             'independent':evidence['independent']['payload'].get('status')=='PASS',
+            'market_cache':evidence['market_cache']['payload'].get('status')=='PASS',
             'live':evidence['live']['payload'].get('gate')=='MUSITU_AXIOM_FRONTIER_LIVE_ADAPTERS_PASS',
             'longitudinal':evidence['longitudinal']['payload'].get('status')=='PASS',
           }
           if not all(required.values()): raise SystemExit('five-year objective evidence incomplete '+repr(required))
-          final={'schema':'musitu.axiom.frontier.five-year-objective.evidence.v1','required':required,'evidence_files':{k:v['sha256'] for k,v in evidence.items()},'head_sha':'${{ github.event.pull_request.head.sha || github.sha }}'}
+          final={'schema':'musitu.axiom.frontier.five-year-objective.evidence.v2','required':required,'evidence_files':{k:v['sha256'] for k,v in evidence.items()},'head_sha':'${{ github.event.pull_request.head.sha || github.sha }}'}
           body=json.dumps(final,sort_keys=True,separators=(',',':')).encode(); final['evidence_sha256']=hashlib.sha256(body).hexdigest(); final['gate']='MUSITU_AXIOM_FIVE_YEAR_FRONTIER_OBJECTIVE_PASS'
           Path('/tmp/musitu-frontier-final-objective.json').write_text(json.dumps(final,indent=2),encoding='utf-8')
           print(final['gate']);print('evidence_sha256='+final['evidence_sha256'])
@@ -172,6 +175,7 @@ jobs:
             /tmp/musitu-frontier-multimodal.json
             /tmp/musitu-frontier-adversarial.json
             /tmp/musitu-frontier-independent-validation.json
+            /tmp/musitu-frontier-market-cache.json
             /tmp/musitu-frontier-live-evidence.json
             /tmp/musitu-frontier-longitudinal.json
             /tmp/musitu-frontier-final-objective.json
