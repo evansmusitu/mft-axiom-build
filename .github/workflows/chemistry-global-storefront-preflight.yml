@@ -66,25 +66,13 @@ jobs:
           echo "CHROME_PATH=$CHROME_PATH" >> "$GITHUB_ENV"
           node -e "console.log('playwright='+require('playwright/package.json').version);console.log('axe-core='+require('axe-core/package.json').version);console.log('lighthouse='+require('lighthouse/package.json').version)" | tee /tmp/mchem-preflight/tool-versions.txt
 
-      - name: Run axe keyboard reflow reduced-motion and AX-tree gates
+      - name: Run axe keyboard reflow reduced-motion and AX-tree gates with isolated audit injection
         shell: bash
         env:
           WORKER_PATH: ${{ github.workspace }}/commerce/chemistry/index.storefront-v3.mjs
           BROWSER_EVIDENCE: /tmp/mchem-preflight/browser-evidence.json
         run: |
           set -euo pipefail
-          # Axe is injected by the audit harness only. Bypass CSP in this isolated
-          # Playwright context so the product can keep script-src 'self' with no
-          # unsafe-inline. The harness separately asserts the real CSP headers.
-          python - <<'PY'
-          from pathlib import Path
-          p=Path('commerce/chemistry/storefront/browser-smoke.mjs')
-          s=p.read_text()
-          old="const context=await browser.newContext({viewport:{width:1280,height:900}});"
-          new="const context=await browser.newContext({viewport:{width:1280,height:900},bypassCSP:true});"
-          if s.count(old)!=1: raise SystemExit('audit context marker mismatch')
-          p.write_text(s.replace(old,new,1))
-          PY
           node commerce/chemistry/storefront/browser-smoke.mjs test "$WORKER_PATH"
 
       - name: Run Lighthouse mobile budgets
