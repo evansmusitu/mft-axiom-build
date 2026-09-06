@@ -1,0 +1,148 @@
+name: MUSITU Axiom OpenAI Domain Challenge Installer
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/axiom-openai-domain-challenge-install.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: musitu-axiom-openai-domain-challenge
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate challenge contract without reading a token
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check mcp/musitu_axiom_plugin_gate_v4.mjs
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('mcp/musitu_axiom_plugin_gate_v4.mjs')
+          s=p.read_text()
+          required=[
+            'OPENAI_APPS_CHALLENGE',
+            '/.well-known/openai-apps-challenge',
+            'return text(200,c.challenge)',
+            'challenge_not_configured'
+          ]
+          missing=[x for x in required if x not in s]
+          if missing:
+            raise SystemExit('challenge contract missing: '+', '.join(missing))
+          forbidden=['OPENAI_APPS_CHALLENGE=','openai-apps-challenge-token','challenge_token:']
+          for x in forbidden:
+            if x in s:
+              raise SystemExit('possible challenge secret committed in source')
+          print('MUSITU_AXIOM_OPENAI_DOMAIN_CHALLENGE_INSTALLER_READY')
+          PY
+
+  install:
+    if: github.event_name == 'workflow_dispatch'
+    needs: validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      CF_API: https://api.cloudflare.com/client/v4
+      ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      MCP_PUBLIC_WORKER: musitu-axiom-mcp
+      MCP_HOST: mcp.mftintelligence.com
+      OPENAI_APPS_CHALLENGE: ${{ secrets.OPENAI_APPS_CHALLENGE }}
+      CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+      CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+    steps:
+      - name: Install encrypted Worker secret and verify exact public challenge
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$OPENAI_APPS_CHALLENGE"
+          test -n "$CLOUDFLARE_EMAIL"
+          test -n "$CLOUDFLARE_GLOBAL_API_KEY"
+          echo "::add-mask::$OPENAI_APPS_CHALLENGE"
+          python - <<'PY'
+          import json,os,urllib.error,urllib.parse,urllib.request
+
+          api=os.environ['CF_API']; aid=os.environ['ACCOUNT_ID']; worker=os.environ['MCP_PUBLIC_WORKER']; host=os.environ['MCP_HOST']
+          token=os.environ['OPENAI_APPS_CHALLENGE']
+          if len(token)<8:
+              raise RuntimeError('OpenAI challenge token is unexpectedly short')
+          if '\n' in token or '\r' in token:
+              raise RuntimeError('OpenAI challenge token must be a single exact line')
+
+          admin={
+              'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],
+              'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY'],
+              'Accept':'application/json',
+              'User-Agent':'MUSITU-Axiom-OpenAI-Domain-Challenge/1.0'
+          }
+          def raw(url,method='GET',headers=None,body=None,timeout=45):
+              req=urllib.request.Request(url,method=method,headers=dict(headers or {}),data=body)
+              try:
+                  with urllib.request.urlopen(req,timeout=timeout) as r:return r.status,r.headers,r.read()
+              except urllib.error.HTTPError as e:return e.code,e.headers,e.read()
+          def cf(path,method='GET',obj=None):
+              h=dict(admin); body=None
+              if obj is not None:
+                  h['Content-Type']='application/json'
+                  body=json.dumps(obj,separators=(',',':')).encode()
+              code,_,data=raw(api+path,method,h,body)
+              if not 200<=code<300:
+                  raise RuntimeError(f'Cloudflare HTTP {code} for {method} {path}')
+              out=json.loads(data or b'{}')
+              if out.get('success') is False:
+                  raise RuntimeError('Cloudflare success=false for '+path)
+              return out.get('result')
+
+          script=urllib.parse.quote(worker,safe='')
+          # Cloudflare's Workers Secrets API encrypts the value as a secret_text binding.
+          cf(f'/accounts/{aid}/workers/scripts/{script}/secrets','PUT',{
+              'name':'OPENAI_APPS_CHALLENGE','text':token,'type':'secret_text'
+          })
+
+          # Readback is metadata-only: Cloudflare omits the secret value.
+          binding=cf(f'/accounts/{aid}/workers/scripts/{script}/secrets/OPENAI_APPS_CHALLENGE') or {}
+          if binding.get('name')!='OPENAI_APPS_CHALLENGE' or binding.get('type')!='secret_text':
+              raise RuntimeError('challenge secret binding readback failed')
+
+          url='https://'+host+'/.well-known/openai-apps-challenge'
+          code,headers,body=raw(url,headers={'Accept':'text/plain','User-Agent':'MUSITU-Axiom-OpenAI-Domain-Challenge-Verify/1.0'})
+          expected=token.encode()
+          if code!=200 or body!=expected:
+              raise RuntimeError('public OpenAI challenge endpoint does not exactly match the installed token')
+          if 'text/plain' not in str(headers.get('Content-Type') or '').lower():
+              raise RuntimeError('challenge endpoint content type is not text/plain')
+
+          evidence={
+              'schema':'musitu.axiom.openai_domain_challenge.v1',
+              'gate':'MUSITU_AXIOM_OPENAI_DOMAIN_CHALLENGE_PASS',
+              'challenge_url':url,
+              'worker':worker,
+              'secret_binding_name':'OPENAI_APPS_CHALLENGE',
+              'secret_binding_type':'secret_text',
+              'secret_value_logged':False,
+              'endpoint_exact_token_match':True,
+              'http_status':200,
+              'content_type':'text/plain',
+              'production_kernel_mutated':False,
+              'billing_worker_mutated':False,
+              'raw_modal_public_exposure_added':False,
+              'wolfram_parity':'NOT_CERTIFIED',
+              'superiority':'NOT_CERTIFIED'
+          }
+          with open('musitu-axiom-openai-domain-challenge.json','w') as f:
+              json.dump(evidence,f,indent=2,sort_keys=True);f.write('\n')
+          print(json.dumps({'gate':evidence['gate'],'endpoint_exact_token_match':True,'secret_value_logged':False},sort_keys=True))
+          PY
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: musitu-axiom-openai-domain-challenge
+          path: musitu-axiom-openai-domain-challenge.json
+          retention-days: 30
+          if-no-files-found: error
