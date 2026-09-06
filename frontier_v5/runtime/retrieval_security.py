@@ -9,7 +9,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 import re
 import unicodedata
-from typing import Iterable
 
 _ZERO_WIDTH = re.compile(r"[\u200b\u200c\u200d\u2060\ufeff]")
 _WS = re.compile(r"\s+")
@@ -32,9 +31,12 @@ class RetrievedContentFirewall:
             r"\bignore\s+(?:all\s+)?(?:previous|prior|above|earlier)\s+(?:instructions?|rules?|polic(?:y|ies)|messages?)\b",
             re.I,
         ),
+        # Treat explicit instruction headers as authority-confusion. Mere prose
+        # that mentions the phrase "system prompt" in the middle of a sentence
+        # is not itself an attack signal.
         "system-override": re.compile(
-            r"\b(?:system|developer|assistant)\s+(?:prompt|message|instructions?|role)\b",
-            re.I,
+            r"^\s*(?:system|developer|assistant)\s+(?:prompt|message|instructions?|role)\b",
+            re.I | re.M,
         ),
         "credential-request": re.compile(
             r"\b(?:reveal|print|send|exfiltrate|upload|leak|dump|show|return|copy)\b.{0,72}\b(?:secrets?|tokens?|credentials?|api[_ -]?keys?|passwords?|private[_ -]?keys?)\b",
