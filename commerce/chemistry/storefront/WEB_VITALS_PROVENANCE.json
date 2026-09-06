@@ -1,0 +1,13 @@
+{
+  "schema": "musitu.vendor.web_vitals.v1",
+  "package": "web-vitals",
+  "version": "6.0.1",
+  "upstream": "https://github.com/GoogleChrome/web-vitals",
+  "license": "Apache-2.0",
+  "npm_dist_integrity": "sha512-iF3+kno3Anlqi5fPVTQk9gYLfsCiL8P69Hof+AmZyVVx00E3e/BiGVvu+EsOy6jvTLqTKuiaRloPyw0JtdKbSw==",
+  "npm_dist_shasum": "774de5fba561154313bcc09d125990f046fdd174",
+  "downloaded_tarball_sha256": "c11d0209ba9fde8f97c55bd089db43f1a4c5bbf384393049338c8a3fecb378b6",
+  "vendored_file": "web-vitals-6.0.1.iife.js",
+  "vendored_file_sha256": "6b3e4ac9d6f6abd4ea1810621668bec7d7adb121279570e6870be4fb98ab3909",
+  "vendored_file_bytes": 8987
+}
