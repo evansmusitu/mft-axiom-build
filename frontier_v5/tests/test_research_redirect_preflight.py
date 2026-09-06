@@ -1,52 +1,53 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
-from email.message import Message
-from io import BytesIO
 import socket
-import urllib.parse
-import urllib.request
-import urllib.response
 from unittest.mock import patch
 
+import frontier_v5.runtime.fullstack as fullstack
 from frontier_v5.runtime.fabric import AuthorizationError
 from frontier_v5.runtime.fullstack import LiveResearchAdapter
 
 
-class _ResponseBody(BytesIO):
-    def __init__(self, body: bytes, message: str) -> None:
-        super().__init__(body)
-        self.msg = message
+PUBLIC = [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("93.184.216.34", 443))]
 
 
-def _response(url: str, code: int, headers: Message, body: bytes = b""):
-    return urllib.response.addinfourl(
-        _ResponseBody(body, "Found" if code in {301, 302, 303, 307, 308} else "OK"),
-        headers,
-        url,
-        code=code,
-    )
+class _RedirectResponse:
+    status = 302
+
+    def getheader(self, name: str, default=None):
+        if name.casefold() == "location":
+            return "https://127.0.0.1/private"
+        if name.casefold() == "content-type":
+            return "text/plain"
+        return default
+
+    def read(self, _limit):
+        return b""
 
 
-class RedirectingHTTPSHandler(urllib.request.HTTPSHandler):
-    """Deterministic transport: public allowlisted URL redirects to loopback."""
+class _FakePinnedConnection:
+    hosts: list[str] = []
+    private_target_reached = False
 
-    def __init__(self) -> None:
-        super().__init__()
-        self.private_target_reached = False
+    def __init__(self, host, port, addresses, timeout):
+        self.host = str(host)
+        self.port = int(port)
+        self.addresses = tuple(addresses)
+        self.timeout = timeout
+        type(self).hosts.append(self.host)
+        if self.host == "127.0.0.1":
+            type(self).private_target_reached = True
 
-    def https_open(self, req):
-        host = (urllib.parse.urlparse(req.full_url).hostname or "").casefold()
-        if host == "example.com":
-            headers = Message()
-            headers["Location"] = "https://127.0.0.1/private"
-            return _response(req.full_url, 302, headers)
-        if host == "127.0.0.1":
-            self.private_target_reached = True
-            headers = Message()
-            headers["Content-Type"] = "text/plain"
-            return _response(req.full_url, 200, headers, b"private")
-        raise AssertionError(f"unexpected host: {host}")
+    def request(self, method, target, headers=None):
+        assert method == "GET"
+        assert self.host == "example.com", "private redirect target reached network connection boundary"
+
+    def getresponse(self):
+        return _RedirectResponse()
+
+    def close(self):
+        return None
 
 
 def expect_error(fn, exc=Exception):
@@ -59,30 +60,21 @@ def expect_error(fn, exc=Exception):
 
 def main() -> None:
     adapter = LiveResearchAdapter({"example.com"})
-    transport = RedirectingHTTPSHandler()
-    original_build_opener = urllib.request.build_opener
+    _FakePinnedConnection.hosts.clear()
+    _FakePinnedConnection.private_target_reached = False
 
-    def build_safe_opener(*handlers):
-        # Production may add its own redirect validator. Keep the deterministic
-        # transport as the HTTPS boundary so no real network is touched.
-        return original_build_opener(*handlers, transport)
-
-    initial_opener = original_build_opener(transport)
-
-    def resolution(host, port, *args, **kwargs):
-        if host == "example.com":
-            return [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("93.184.216.34", port))]
-        if host == "127.0.0.1":
-            return [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("127.0.0.1", port))]
-        raise AssertionError(f"unexpected DNS lookup: {host}")
-
-    with patch("socket.getaddrinfo", side_effect=resolution), patch(
-        "urllib.request._opener", initial_opener
-    ), patch("urllib.request.build_opener", side_effect=build_safe_opener):
+    # The allowlisted public hostname is resolved and pinned once. The redirect
+    # points at loopback, which is not in the allowlist and must be rejected
+    # before MUSITU constructs any connection for that target.
+    with patch("socket.getaddrinfo", return_value=PUBLIC) as dns, patch.object(
+        fullstack, "_PinnedHTTPSConnection", _FakePinnedConnection
+    ):
         expect_error(lambda: adapter.fetch("https://example.com/start"), AuthorizationError)
 
-    assert not transport.private_target_reached, (
-        "redirect target was contacted before MUSITU validated the redirect URL"
+    assert dns.call_count == 1, "redirect validation unexpectedly re-resolved the public hostname"
+    assert _FakePinnedConnection.hosts == ["example.com"]
+    assert not _FakePinnedConnection.private_target_reached, (
+        "redirect target was contacted before MUSITU rejected the private URL"
     )
     print("MUSITU_AXIOM_FRONTIER_RESEARCH_REDIRECT_PREFLIGHT_PASS")
 
