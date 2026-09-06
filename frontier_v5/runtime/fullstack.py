@@ -49,7 +49,7 @@ class LiveResearchAdapter(_base.LiveResearchAdapter):
             for key, value in headers.items():
                 if key.casefold() in {"authorization", "cookie", "proxy-authorization"}:
                     raise AuthorizationError("credential-bearing research header prohibited")
-                request_headers[str(key)] = str(value)
+                request_headers[str(key)]] = str(value)
 
         req = urllib.request.Request(url, headers=request_headers, method="GET")
         opener = urllib.request.build_opener(_ValidatedRedirectHandler(self._check_url))
@@ -88,12 +88,14 @@ class LiveResearchAdapter(_base.LiveResearchAdapter):
 
 
 class PlaywrightBrowserAdapter(_base.PlaywrightBrowserAdapter):
-    """Browser adapter with fail-closed DNS/IP preflight.
+    """Browser adapter with fail-closed DNS/IP and request-level preflight.
 
     Production/default callers may browse only allowlisted HTTPS hosts that
-    resolve exclusively to globally routable addresses. ``allow_private`` is
-    an explicit escape hatch for isolated local fixtures only; it is never
-    enabled implicitly from environment or hostname shape.
+    resolve exclusively to globally routable addresses. Every navigation and
+    subresource request is revalidated before Playwright is allowed to continue
+    it. ``allow_private`` is an explicit escape hatch for isolated local
+    fixtures only; it is never enabled implicitly from environment or hostname
+    shape.
     """
 
     def __init__(
@@ -119,6 +121,65 @@ class PlaywrightBrowserAdapter(_base.PlaywrightBrowserAdapter):
             raise AuthorizationError("browser URL port is invalid") from exc
         if not self.allow_private:
             _base.LiveResearchAdapter._require_public_resolution(host, port)
+
+    def run(
+        self,
+        url: str,
+        screenshot_path: str | _base.Path | None = None,
+        click_selector: str | None = None,
+        expect_text: str | None = None,
+    ) -> _base.BrowserResult:
+        self._allow(url)
+        try:
+            from playwright.sync_api import sync_playwright
+        except Exception as exc:
+            raise FrontierError("playwright runtime unavailable") from exc
+
+        shot_hash = None
+        blocked: list[AuthorizationError] = []
+        with sync_playwright() as playwright:
+            browser = playwright.chromium.launch(headless=self.headless)
+            page = browser.new_page()
+
+            def guard(route) -> None:
+                try:
+                    self._allow(route.request.url)
+                except AuthorizationError as exc:
+                    blocked.append(exc)
+                    route.abort()
+                    return
+                route.continue_()
+
+            page.route("**/*", guard)
+            try:
+                page.goto(url, wait_until="networkidle")
+            except Exception as exc:
+                browser.close()
+                if blocked:
+                    raise blocked[0] from exc
+                raise
+            if blocked:
+                browser.close()
+                raise blocked[0]
+
+            self._allow(page.url)
+            if click_selector:
+                page.click(click_selector)
+                if blocked:
+                    browser.close()
+                    raise blocked[0]
+            text = page.locator("body").inner_text()
+            if expect_text is not None and expect_text not in text:
+                browser.close()
+                raise FrontierError("browser expected text not observed")
+            if screenshot_path is not None:
+                path = _base.Path(screenshot_path)
+                path.parent.mkdir(parents=True, exist_ok=True)
+                page.screenshot(path=str(path), full_page=True)
+                shot_hash = _base._sha_bytes(path.read_bytes())
+            out = _base.BrowserResult(url, page.title(), _base._sha_bytes(text.encode()), shot_hash, page.url)
+            browser.close()
+            return out
 
 
 __all__ = list(_base.__all__)
