@@ -1,0 +1,35 @@
+{
+  "schema": "musitu.chemistry.day1_publication_boundary.v1",
+  "product": "MUSITU Education Nexus — Chemistry Mastery",
+  "campaign": "MUSITU Chemistry Rescue 2026",
+  "date": "2026-09-07",
+  "approved_copy_source": "growth/chemistry-rescue/DAY1_FOUNDER_POST_READY_20260907.md",
+  "required_destination": "https://payments.mftintelligence.com/chemistry/rescue?src=direct",
+  "publisher_checked": "Metricool",
+  "authorized_brand_count_observed": 1,
+  "authorized_brand_timezone": "Africa/Harare",
+  "connected_social_networks_observed": [
+    "tiktok"
+  ],
+  "linkedin_connection_present": false,
+  "scheduled_posts_observed_for_2026_09_07_through_2026_09_08": 0,
+  "day1_approved_creative_is_text_only": true,
+  "tiktok_text_only_publication_supported": false,
+  "substitute_tiktok_for_linkedin_or_another_founder_text_channel": false,
+  "publication_attempt_performed": false,
+  "publication_scheduled": false,
+  "publication_proven": false,
+  "public_post_url_or_immutable_platform_post_id_present": false,
+  "paid_boost_used": false,
+  "production_product_mutation_performed": false,
+  "boundary": "The currently authorized Metricool brand exposes TikTok only; no LinkedIn provider is connected. The approved Day-1 founder/brand creative is text-only, while TikTok scheduling requires media. The campaign rules prohibit silently substituting a different audience/channel merely to manufacture publication evidence, so no post was scheduled or claimed as published.",
+  "exact_next_action": "Authorize/connect the intended LinkedIn or other approved founder text-publishing account in Metricool (or use that platform's authorized publisher directly), then publish the exact approved copy with src=direct and capture immutable external publication proof before changing GitHub publication status.",
+  "claims": {
+    "day1_organic_publication_proven": false,
+    "learner_adoption_claimed": false,
+    "revenue_claimed": false,
+    "roi_claimed": false,
+    "real_money_settlement_claimed": false,
+    "exam_outcome_improvement_claimed": false
+  }
+}
