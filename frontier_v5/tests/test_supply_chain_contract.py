@@ -43,6 +43,7 @@ WORKFLOWS = {
     "provider_fallback": ROOT / ".github/workflows/axiom-frontier-v5-provider-fallback-gate.yml",
     "freshness": ROOT / ".github/workflows/axiom-frontier-v5-freshness-gate.yml",
     "incident_forensics": ROOT / ".github/workflows/axiom-frontier-v5-incident-forensics-gate.yml",
+    "secret_scanning": ROOT / ".github/workflows/axiom-frontier-v5-secret-scanning-gate.yml",
 }
 HEX40 = re.compile(r"^[0-9a-f]{40}$")
 ACTION = re.compile(r"^\s*uses:\s*(actions/(?:checkout|setup-python|upload-artifact))@([^\s#]+)", re.M)
