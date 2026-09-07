@@ -1,4 +1,4 @@
-name: MUSITU Chemistry Adaptive Install Concierge Guarded Deploy
+name: MUSITU Chemistry Installed App Shell Guarded Deploy
 
 on:
   push:
@@ -18,15 +18,15 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
-      PREVIOUS_WORKER_SHA: ec99c130395556dfab1f5f3e848ed281698a991ce5294316251c9de20c61bf77
-      CANDIDATE_WORKER_SHA: fa5b4233062dab26ef506e9dbf6a7e6be6451096bd06889a1ad84b8db335fe4e
-      EVIDENCE_HEAD_SHA: df5f36d353c7598f0d6e2e06246312d1c7097ca0
-      PREFLIGHT_RUN_ID: '34157084958'
-      PREFLIGHT_ARTIFACT_ID: '10031342409'
-      PREFLIGHT_ARTIFACT_SHA256: 0cc60f348af22c15b11252a25395143f95a3678021f328be3a05f5a9601b4be5
-      INSTALL_CI_RUN_ID: '34157084973'
-      INSTALL_CI_ARTIFACT_ID: '10031331395'
-      INSTALL_CI_ARTIFACT_SHA256: 9f099fe2fa90b0d117f49712ecb193c2a89bd158d281e57707739720ee9e3ad3
+      PREVIOUS_WORKER_SHA: fa5b4233062dab26ef506e9dbf6a7e6be6451096bd06889a1ad84b8db335fe4e
+      CANDIDATE_WORKER_SHA: e6e8e2983c1a285f9abdc6c50fb4feda4f98d09becc82c4a6553ca59f6b16f41
+      EVIDENCE_HEAD_SHA: 7f3449e9685114fd0d552290e03161dddec59fd4
+      PREFLIGHT_RUN_ID: '34159273301'
+      PREFLIGHT_ARTIFACT_ID: '10032050056'
+      PREFLIGHT_ARTIFACT_SHA256: 7c807976d9bea3d9b987c33e951b6deae76abcbae94a9df27fadefb9f059a449
+      INSTALL_CI_RUN_ID: '34159273322'
+      INSTALL_CI_ARTIFACT_ID: '10032036955'
+      INSTALL_CI_ARTIFACT_SHA256: 7e03887207aa5b0847f614ceb9487e402ba512c50cc31a508699c101d7033a14
       WEB_VITALS_SHA256: 6b3e4ac9d6f6abd4ea1810621668bec7d7adb121279570e6870be4fb98ab3909
       LICENCE_KEY_ID: chem-lic-2026-6783aa7535d1
       APK_SHA256: 055b63f271c18faab540985faefb970f472ea55ba9cb3495db459797902b790d
@@ -41,17 +41,17 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          rm -rf /tmp/mchem-instant-deploy /tmp/mchem-instant-base /tmp/mchem-instant-source.zip /tmp/mchem-instant-core
-          mkdir -p /tmp/mchem-instant-deploy /tmp/mchem-instant-base /tmp/mchem-instant-core/src
+          rm -rf /tmp/mchem-appshell-deploy /tmp/mchem-appshell-base /tmp/mchem-appshell-source.zip /tmp/mchem-appshell-core
+          mkdir -p /tmp/mchem-appshell-deploy /tmp/mchem-appshell-base /tmp/mchem-appshell-core/src
           for rid in "$PREFLIGHT_RUN_ID" "$INSTALL_CI_RUN_ID"; do
             curl -fsSL -H "Authorization: Bearer $GH_TOKEN" -H 'X-GitHub-Api-Version: 2022-11-28' \
-              "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/runs/${rid}" > "/tmp/mchem-instant-deploy/run-${rid}.json"
+              "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/runs/${rid}" > "/tmp/mchem-appshell-deploy/run-${rid}.json"
             curl -fsSL -H "Authorization: Bearer $GH_TOKEN" -H 'X-GitHub-Api-Version: 2022-11-28' \
-              "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/runs/${rid}/artifacts?per_page=100" > "/tmp/mchem-instant-deploy/artifacts-${rid}.json"
+              "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/runs/${rid}/artifacts?per_page=100" > "/tmp/mchem-appshell-deploy/artifacts-${rid}.json"
           done
           python - <<'PY'
           import json,os
-          root='/tmp/mchem-instant-deploy/'
+          root='/tmp/mchem-appshell-deploy/'
           def load(p): return json.load(open(root+p))
           expected_runs=[
             (os.environ['PREFLIGHT_RUN_ID'],'MUSITU Chemistry Rescue Full Preflight'),
@@ -72,25 +72,25 @@ jobs:
               raise SystemExit('artifact identity rejected '+name)
             got=str(m[0].get('digest') or '').removeprefix('sha256:')
             if got!=digest: raise SystemExit('artifact digest rejected '+name+' '+got)
-          print('INSTANT_INSTALL_EXACT_EVIDENCE=PASS')
+          print('INSTALLED_APP_SHELL_EXACT_EVIDENCE=PASS')
           PY
-          cat commerce/chemistry/source.b64.* | base64 -d > /tmp/mchem-instant-source.zip
-          echo "5b2618499eed8dc90261bc4f8260246d5593534500dd2fb145f2d24b5c47754c  /tmp/mchem-instant-source.zip" | sha256sum -c -
-          unzip -q /tmp/mchem-instant-source.zip -d /tmp/mchem-instant-base
-          echo "848e1cec17ec580822d36e595196cda5978713849e8b45c5bc8dc7fcf9765db8  /tmp/mchem-instant-base/src/index.mjs" | sha256sum -c -
+          cat commerce/chemistry/source.b64.* | base64 -d > /tmp/mchem-appshell-source.zip
+          echo "5b2618499eed8dc90261bc4f8260246d5593534500dd2fb145f2d24b5c47754c  /tmp/mchem-appshell-source.zip" | sha256sum -c -
+          unzip -q /tmp/mchem-appshell-source.zip -d /tmp/mchem-appshell-base
+          echo "848e1cec17ec580822d36e595196cda5978713849e8b45c5bc8dc7fcf9765db8  /tmp/mchem-appshell-base/src/index.mjs" | sha256sum -c -
           echo "$WEB_VITALS_SHA256  commerce/chemistry/storefront/web-vitals-6.0.1.iife.js" | sha256sum -c -
-          cp /tmp/mchem-instant-base/src/index.mjs commerce/chemistry/index.base.mjs
+          cp /tmp/mchem-appshell-base/src/index.mjs commerce/chemistry/index.base.mjs
           python commerce/chemistry/patch_storefront.py
           python commerce/chemistry/patch_rescue_growth.py
           echo "$CANDIDATE_WORKER_SHA  commerce/chemistry/index.storefront-v3.mjs" | sha256sum -c -
           node --check commerce/chemistry/index.storefront-v3.mjs
           node --test commerce/chemistry/storefront/*.test.mjs
-          cp commerce/chemistry/index.storefront-v3.mjs /tmp/mchem-instant-core/src/index.mjs
-          cp -a /tmp/mchem-instant-base/test /tmp/mchem-instant-core/
-          cp /tmp/mchem-instant-base/package.json /tmp/mchem-instant-core/
-          cd /tmp/mchem-instant-core && npm test && npm run check
+          cp commerce/chemistry/index.storefront-v3.mjs /tmp/mchem-appshell-core/src/index.mjs
+          cp -a /tmp/mchem-appshell-base/test /tmp/mchem-appshell-core/
+          cp /tmp/mchem-appshell-base/package.json /tmp/mchem-appshell-core/
+          cd /tmp/mchem-appshell-core && npm test && npm run check
 
-      - name: Guarded instant-install production cutover with automatic rollback
+      - name: Guarded installed-app production cutover with automatic rollback
         shell: bash
         env:
           CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
@@ -101,9 +101,9 @@ jobs:
           import email,hashlib,json,os,secrets,time,urllib.error,urllib.parse,urllib.request
           from pathlib import Path
           API='https://api.cloudflare.com/client/v4'; ACCOUNT='93f395f5121954671f92fffa453d6b61'; WORKER='musitu-chemistry-commerce'; BASE='https://payments.mftintelligence.com'
-          AUTH={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY'],'User-Agent':'MUSITU-Instant-Install-Deploy/2.0'}
+          AUTH={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY'],'User-Agent':'MUSITU-Installed-App-Shell-Deploy/3.0'}
           OLD=os.environ['PREVIOUS_WORKER_SHA']; NEW=os.environ['CANDIDATE_WORKER_SHA']; KEY=os.environ['LICENCE_KEY_ID']; APK_SHA=os.environ['APK_SHA256']; VITALS_SHA=os.environ['WEB_VITALS_SHA256']
-          evidence=Path('/tmp/mchem-instant-deploy'); candidate=Path('commerce/chemistry/index.storefront-v3.mjs').read_bytes()
+          evidence=Path('/tmp/mchem-appshell-deploy'); candidate=Path('commerce/chemistry/index.storefront-v3.mjs').read_bytes()
           if hashlib.sha256(candidate).hexdigest()!=NEW: raise SystemExit('candidate hash mismatch')
 
           def req(url,method='GET',headers=None,body=None,timeout=60):
@@ -112,8 +112,8 @@ jobs:
               with urllib.request.urlopen(r,timeout=timeout) as x: return x.status,x.headers,x.read()
             except urllib.error.HTTPError as e: return e.code,e.headers,e.read()
           def public(path,accept='*/*',nonce=None,ua=None):
-            if nonce: path += ('&' if '?' in path else '?')+'__mchem_instant='+urllib.parse.quote(nonce)
-            h={'Accept':accept,'Cache-Control':'no-cache, no-store, max-age=0','Pragma':'no-cache','User-Agent':ua or ('MUSITU-Instant-Live/'+secrets.token_hex(4))}
+            if nonce: path += ('&' if '?' in path else '?')+'__mchem_appshell='+urllib.parse.quote(nonce)
+            h={'Accept':accept,'Cache-Control':'no-cache, no-store, max-age=0','Pragma':'no-cache','User-Agent':ua or ('MUSITU-AppShell-Live/'+secrets.token_hex(4))}
             return req(BASE+path,headers=h)
           def extract(raw,ctype,needle):
             if 'multipart/' not in (ctype or '').lower(): return raw
@@ -162,9 +162,13 @@ jobs:
           try:
             wait_hash(NEW,{OLD,NEW},60)
             routes=[
-              ('/chemistry/','Know what you don’t know'),('/chemistry/rescue?src=direct','Install / Start Free'),
-              ('/chemistry/install','Get MUSITU Chemistry on this device'),('/chemistry/install/diagnostics','MUSITU installation check'),
-              ('/chemistry/plans','Choose access without guessing'),('/chemistry/support','Support'),('/chemistry/verify','Verify this MUSITU release'),
+              ('/chemistry/','Know what you don’t know'),
+              ('/chemistry/rescue?src=direct','Install / Start Free'),
+              ('/chemistry/install','Get MUSITU Chemistry on this device'),
+              ('/chemistry/install/diagnostics','MUSITU installation check'),
+              ('/chemistry/app','Your Chemistry workspace'),
+              ('/chemistry/plans','Choose access without guessing'),
+              ('/chemistry/support','Support'),('/chemistry/verify','Verify this MUSITU release'),
               ('/chemistry/privacy','Anonymous experience measurement'),('/chemistry/experience','Real-user experience evidence')
             ]
             streak=0; attempts=0; rays=[]
@@ -175,7 +179,7 @@ jobs:
                 if ray: sweep.append(ray)
                 if c!=200 or needle not in text or not strict(h): ok=False; break
               if ok:
-                streak+=1; rays.extend(sweep); print(f'INSTANT_EDGE_SWEEP_PASS attempt={attempt} streak={streak} rays={json.dumps(sweep)}')
+                streak+=1; rays.extend(sweep); print(f'APP_SHELL_EDGE_SWEEP_PASS attempt={attempt} streak={streak} rays={json.dumps(sweep)}')
                 if streak>=6: break
               else: streak=0
               time.sleep(1)
@@ -189,6 +193,31 @@ jobs:
             c,h,b=public('/chemistry/install','text/html','ios-'+secrets.token_hex(4),ios_ua); ios=b.decode('utf-8','replace')
             if c!=200 or 'data-install-mode="ios-safari"' not in ios or 'Add to Home Screen' not in ios or 'Checking this device' in ios or (h.get('cache-control') or '')!='no-store':
               raise RuntimeError('instant iOS server-render boundary failed')
+
+            c,h,b=public('/chemistry/app','text/html','app-'+secrets.token_hex(4)); app=b.decode('utf-8','replace')
+            if c!=200 or (h.get('cache-control') or '')!='no-store' or not strict(h): raise RuntimeError('installed app response boundary failed')
+            for needle in ['Your Chemistry workspace','class="app-topbar"','class="app-nav"','Diagnose','Revise','Prove','data-app-install-state']:
+              if needle not in app: raise RuntimeError('installed app shell missing '+needle)
+            for forbidden in ['class="site-header"','class="site-footer"','Help another Chemistry student before exams','Checking this device']:
+              if forbidden in app: raise RuntimeError('public website chrome leaked into installed app '+forbidden)
+
+            c,_,b=public('/chemistry/rescue?src=direct','text/html','bridgepage-'+secrets.token_hex(4)); rescue=b.decode('utf-8','replace')
+            bridge_tag='/chemistry/assets/app-bridge.js?v=1'; body_at=rescue.find('<body>'); bridge_at=rescue.find(bridge_tag)
+            if c!=200 or bridge_at<0 or body_at<0 or bridge_at>=body_at: raise RuntimeError('legacy installed Rescue bridge ordering failed')
+            c,_,b=public('/chemistry/assets/app-bridge.js?v=1','application/javascript','bridge-'+secrets.token_hex(4)); bridge=b.decode('utf-8','replace')
+            for needle in ['display-mode: standalone','navigator.standalone',"location.replace('/chemistry/app')"]:
+              if needle not in bridge: raise RuntimeError('app bridge missing '+needle)
+            for forbidden in ['sendBeacon','document.cookie','localStorage','sessionStorage']:
+              if forbidden in bridge: raise RuntimeError('app bridge forbidden '+forbidden)
+
+            c,_,b=public('/chemistry/assets/app-shell.js?v=1','application/javascript','appjs-'+secrets.token_hex(4)); appjs=b.decode('utf-8','replace')
+            for needle in ['musitu_chem_onboarding_v1','serviceWorker.register','data-app-onboarding-step']:
+              if needle not in appjs: raise RuntimeError('app shell JS missing '+needle)
+            for forbidden in ['document.cookie','sendBeacon','getUserMedia','Notification.requestPermission']:
+              if forbidden in appjs: raise RuntimeError('app shell JS forbidden '+forbidden)
+            c,_,b=public('/chemistry/assets/app-shell.css?v=1','text/css','appcss-'+secrets.token_hex(4)); appcss=b.decode('utf-8','replace')
+            for needle in ['safe-area-inset-top','safe-area-inset-bottom','.app-nav','.app-topbar','prefers-reduced-motion']:
+              if needle not in appcss: raise RuntimeError('app shell CSS missing '+needle)
 
             c,_,b=public('/chemistry/assets/install-handoff.js?v=4','application/javascript','handoff-'+secrets.token_hex(4)); js=b.decode('utf-8','replace')
             for needle in ['beforeinstallprompt','appinstalled','immediateMode','serviceWorker.register','install_prompt_available','install_help_needed']:
@@ -205,27 +234,41 @@ jobs:
             c,_,b=public('/chemistry/assets/install-diagnostics.js?v=4','application/javascript','diag-'+secrets.token_hex(4)); diag=b.decode('utf-8','replace')
             if c!=200 or '/chemistry/manifest.webmanifest' not in diag or '/chemistry/sw.js' not in diag or 'sendBeacon' in diag or 'localStorage' in diag: raise RuntimeError('diagnostics boundary failed')
             c,_,b=public('/chemistry/manifest.webmanifest','application/manifest+json','manifest-'+secrets.token_hex(4)); manifest=json.loads(b or b'{}')
-            if c!=200 or manifest.get('start_url')!='/chemistry/rescue?src=direct' or manifest.get('scope')!='/chemistry/' or manifest.get('display')!='standalone': raise RuntimeError('manifest boundary failed')
+            if c!=200 or manifest.get('id')!='/chemistry/rescue?src=direct' or manifest.get('start_url')!='/chemistry/app' or manifest.get('scope')!='/chemistry/' or manifest.get('display')!='standalone' or manifest.get('prefer_related_applications') is not False:
+              raise RuntimeError('installed app manifest boundary failed')
             c,_,b=public('/chemistry/assets/web-vitals-6.0.1.iife.js','application/javascript','vitals-'+secrets.token_hex(4))
             if c!=200 or len(b)!=8987 or hashlib.sha256(b).hexdigest()!=VITALS_SHA: raise RuntimeError('web-vitals asset changed')
             if not health_ok(): raise RuntimeError('postdeploy health boundary failed')
             c,_,apk=public('/chemistry/download/MUSITU_Chemistry_Mastery_1.2.0.apk','application/vnd.android.package-archive','apk-post-'+secrets.token_hex(4))
             if c!=200 or len(apk)!=5314934 or hashlib.sha256(apk).hexdigest()!=APK_SHA: raise RuntimeError('postdeploy APK boundary failed')
             wait_hash(NEW,{NEW},15)
-            result={'schema':'musitu.chemistry.instant_install.deploy.v2','candidate_worker_sha256':NEW,'previous_worker_sha256':OLD,'edge_sweep_streak':streak,'edge_sweep_attempts':attempts,'edge_ray_sample':rays[-24:],'universal_install_url':BASE+'/chemistry/install','server_rendered_no_wait_android':True,'server_rendered_ios_coach':True,'install_html_no_store':True,'critical_assets_version':'v4','service_worker_cache':'musitu-chemistry-install-v4','service_worker_network_first_critical_assets':True,'readable_contrast_verified':True,'diagnostics_live':True,'payment_authority_preserved':True,'transport_binding_preserved':True,'verified_apk_fallback_sha256':APK_SHA,'physical_device_certification':False,'real_money_settlement_performed':False,'rollback_used':rollback}
+            result={
+              'schema':'musitu.chemistry.installed_app_shell.deploy.v1',
+              'candidate_worker_sha256':NEW,'previous_worker_sha256':OLD,
+              'edge_sweep_streak':streak,'edge_sweep_attempts':attempts,'edge_ray_sample':rays[-24:],
+              'universal_install_url':BASE+'/chemistry/install','installed_app_url':BASE+'/chemistry/app',
+              'manifest_id_preserved':True,'manifest_start_url':'/chemistry/app','legacy_rescue_standalone_bridge':True,
+              'public_site_chrome_removed_from_app_shell':True,'app_shell_no_store':True,
+              'server_rendered_no_wait_android':True,'server_rendered_ios_coach':True,'install_html_no_store':True,
+              'critical_assets_version':'v4','service_worker_cache':'musitu-chemistry-install-v4','service_worker_network_first_critical_assets':True,
+              'readable_contrast_verified':True,'diagnostics_live':True,
+              'payment_authority_preserved':True,'transport_binding_preserved':True,
+              'verified_apk_fallback_sha256':APK_SHA,'physical_device_app_shell_retest':False,
+              'real_money_settlement_performed':False,'rollback_used':rollback
+            }
             (evidence/'live-result.json').write_text(json.dumps(result,indent=2)+'\n')
-            print('MUSITU_CHEMISTRY_INSTANT_INSTALL_DEPLOY_PASS'); print(json.dumps(result,sort_keys=True))
+            print('MUSITU_CHEMISTRY_INSTALLED_APP_SHELL_DEPLOY_PASS'); print(json.dumps(result,sort_keys=True))
           except Exception as e:
-            print('INSTANT_INSTALL_ACCEPTANCE_FAILED '+repr(e)); rollback=True; upload(original)
+            print('INSTALLED_APP_SHELL_ACCEPTANCE_FAILED '+repr(e)); rollback=True; upload(original)
             try: wait_hash(OLD,{OLD,NEW},120)
             except Exception as re: raise SystemExit('candidate rejected and rollback source verification failed: '+repr(e)+' / '+repr(re))
             deadline=time.time()+120
             while time.time()<deadline:
               try:
-                c,h,b=public('/chemistry/install','text/html','rollback-'+secrets.token_hex(4));
+                c,h,b=public('/chemistry/install','text/html','rollback-'+secrets.token_hex(4))
                 if c==200 and strict(h) and health_ok():
                   (evidence/'rollback-result.json').write_text(json.dumps({'rollback_used':True,'restored_worker_sha256':OLD,'reason':repr(e)},indent=2)+'\n')
-                  print('MUSITU_CHEMISTRY_INSTANT_INSTALL_ROLLBACK_PASS'); raise SystemExit('candidate rejected; rollback completed: '+repr(e))
+                  print('MUSITU_CHEMISTRY_INSTALLED_APP_SHELL_ROLLBACK_PASS'); raise SystemExit('candidate rejected; rollback completed: '+repr(e))
               except SystemExit: raise
               except Exception: pass
               time.sleep(1)
@@ -236,7 +279,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: musitu-chemistry-instant-install-deploy-evidence
-          path: /tmp/mchem-instant-deploy
+          name: musitu-chemistry-installed-app-shell-deploy-evidence
+          path: /tmp/mchem-appshell-deploy
           if-no-files-found: error
           retention-days: 90
