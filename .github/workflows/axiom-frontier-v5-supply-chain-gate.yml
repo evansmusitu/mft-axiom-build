@@ -24,6 +24,7 @@ on:
       - '.github/workflows/axiom-frontier-v5-enterprise-spend-gate.yml'
       - '.github/workflows/axiom-frontier-v5-enterprise-slo-gate.yml'
       - '.github/workflows/axiom-frontier-v5-enterprise-incident-response-gate.yml'
+      - '.github/workflows/axiom-frontier-v5-enterprise-disaster-recovery-gate.yml'
       - '.github/workflows/axiom-frontier-v5-supply-chain-gate.yml'
   pull_request:
     paths:
@@ -46,6 +47,7 @@ on:
       - '.github/workflows/axiom-frontier-v5-enterprise-spend-gate.yml'
       - '.github/workflows/axiom-frontier-v5-enterprise-slo-gate.yml'
       - '.github/workflows/axiom-frontier-v5-enterprise-incident-response-gate.yml'
+      - '.github/workflows/axiom-frontier-v5-enterprise-disaster-recovery-gate.yml'
       - '.github/workflows/axiom-frontier-v5-supply-chain-gate.yml'
   workflow_dispatch:
 
