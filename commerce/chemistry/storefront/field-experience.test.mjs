@@ -77,3 +77,7 @@ test('public field claims remain withheld until minimum sample and use p75 histo
   assert.equal(small.metrics.LCP.claimable,false);
   assert.equal(small.status,'insufficient_field_sample');
 });
+
+test('Rescue campaign has a dedicated coarse route class',()=>{
+  assert.equal(routeClass('/chemistry/rescue'),'rescue');
+});
