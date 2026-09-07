@@ -1,16 +1,19 @@
 // Dedicated offline shell for the installed MUSITU Chemistry experience.
 // Payment, entitlement and telemetry routes remain network/server authoritative.
 export const INSTALL_SW_V5_JS=String.raw`
-const CACHE='musitu-chemistry-install-v5';
+const CACHE='musitu-chemistry-install-v6';
 const APP='/chemistry/app';
 const RESCUE='/chemistry/rescue?src=direct';
 const INSTALL='/chemistry/install';
 const STATIC=[
   APP,
+  '/chemistry/app?view=rescue',
+  '/chemistry/app?view=premium',
+  '/chemistry/app?view=help',
   RESCUE,
   INSTALL,
-  '/chemistry/assets/app-shell.css?v=1',
-  '/chemistry/assets/app-shell.js?v=1',
+  '/chemistry/assets/app-shell.css?v=3',
+  '/chemistry/assets/app-shell.js?v=3',
   '/chemistry/assets/app-bridge.js?v=1',
   '/chemistry/assets/storefront.css?v=3',
   '/chemistry/assets/install-concierge.css?v=4',
