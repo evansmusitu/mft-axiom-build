@@ -34,12 +34,25 @@ try{
   assert.equal(await root.getAttribute('data-install-mode'),'native');
   await page.locator('#install-musitu').click();
   const swResponse=await page.request.get(origin+'/chemistry/sw.js');
-  assert.equal(swResponse.status(),200);assert.match(swResponse.headers()['cache-control']||'',/no-cache/);assert.match(await swResponse.text(),/musitu-chemistry-install-v4/);
+  assert.equal(swResponse.status(),200);
+  assert.match(swResponse.headers()['cache-control']||'',/no-cache/);
+  const swText=await swResponse.text();
+  assert.match(swText,/musitu-chemistry-install-v5/);
+  assert.match(swText,/const APP='\/chemistry\/app'/);
   await page.evaluate(()=>navigator.serviceWorker?.ready);
+
+  const onlineApp=await page.goto(origin+'/chemistry/app',{waitUntil:'networkidle'});
+  assert.equal(onlineApp?.status(),200);
+  assert.equal(await page.getByRole('heading',{name:'Your Chemistry workspace.'}).count(),1);
+  assert.equal(await page.locator('.site-header').count(),0,'public site header leaked into app shell');
+
   await context.setOffline(true);
   await page.reload({waitUntil:'domcontentloaded'});
-  assert.equal(await page.locator('#install-concierge').count(),1,'offline reload did not recover install shell');
-  await context.setOffline(false);await context.close();
+  assert.equal(await page.getByRole('heading',{name:'Your Chemistry workspace.'}).count(),1,'offline app reload did not recover dedicated app shell');
+  assert.equal(await page.locator('.site-header').count(),0,'offline app reload fell back to public website chrome');
+  assert.equal(await page.locator('.app-nav').count(),1,'offline app navigation missing');
+  await context.setOffline(false);
+  await context.close();
 
   const installedContext=await browser.newContext({viewport:{width:390,height:844},userAgent:UA.androidChrome});
   await installedContext.addInitScript(()=>{const native=window.matchMedia.bind(window);window.matchMedia=q=>q==='(display-mode: standalone)'?{matches:true,media:q,onchange:null,addListener(){},removeListener(){},addEventListener(){},removeEventListener(){},dispatchEvent(){return true}}:native(q)});
@@ -48,5 +61,5 @@ try{
   assert.equal(await installedPage.locator('#install-concierge').getAttribute('data-install-mode'),'installed');
   assert.equal(await installedPage.getByRole('link',{name:'Open Chemistry Rescue'}).count(),1);
   await installedContext.close();
-  console.log(JSON.stringify({schema:'musitu.chemistry.install_browser_matrix.v2',classifier_cases:matrix.map(x=>x[0]),chromium_contracts:['server-rendered immediate Android action','trusted install prompt event','service worker v4 network-first critical assets','offline reload','installed-state UI'],physical_device_certification:false,pass:true},null,2));
+  console.log(JSON.stringify({schema:'musitu.chemistry.install_browser_matrix.v3',classifier_cases:matrix.map(x=>x[0]),chromium_contracts:['server-rendered immediate Android action','trusted install prompt event','service worker v5 dedicated app-shell cache','offline dedicated app-shell reload','installed-state UI','sensitive routes remain network-authoritative'],physical_device_certification:false,pass:true},null,2));
 }finally{await browser.close()}
