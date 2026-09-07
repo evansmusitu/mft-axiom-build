@@ -12,12 +12,18 @@ test('generated Worker serves a no-store native-feel app shell and local assets'
   assert.match(app.text,/class="app-topbar"/);
   assert.match(app.text,/class="app-nav"/);
   assert.match(app.text,/Your Chemistry workspace/);
+  assert.match(app.text,/\/chemistry\/assets\/app-shell\.css\?v=2/);
+  assert.match(app.text,/\/chemistry\/assets\/app-shell\.js\?v=2/);
   assert.doesNotMatch(app.text,/class="site-footer"/);
 
   const js=await get('/chemistry/assets/app-shell.js');
   assert.equal(js.r.status,200);
   assert.match(js.r.headers.get('content-type')||'',/^application\/javascript/);
   assert.match(js.text,/musitu_chem_onboarding_v1/);
+  assert.match(js.text,/musitu-chemistry-app-shell-v2/);
+  assert.match(js.text,/primeOfflineShell/);
+  assert.match(js.text,/Offline ready/);
+  assert.doesNotMatch(js.text,/\/chemistry\/(checkout|return|claim|telemetry|plans)/);
 
   const css=await get('/chemistry/assets/app-shell.css');
   assert.equal(css.r.status,200);
