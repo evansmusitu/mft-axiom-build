@@ -35,5 +35,6 @@ jobs:
           set -euo pipefail
           files=(commerce/chemistry/storefront/field-experience.test.mjs commerce/chemistry/storefront/rescue-growth.test.mjs commerce/chemistry/storefront/worker-contract.test.mjs)
           if [[ -f commerce/chemistry/storefront/rescue-render.test.mjs ]]; then files+=(commerce/chemistry/storefront/rescue-render.test.mjs); fi
+          if [[ -f commerce/chemistry/storefront/rescue-worker.test.mjs ]]; then files+=(commerce/chemistry/storefront/rescue-worker.test.mjs); fi
           if [[ -f commerce/chemistry/storefront/rescue-kits.test.mjs ]]; then files+=(commerce/chemistry/storefront/rescue-kits.test.mjs); fi
           node --test "${files[@]}"
