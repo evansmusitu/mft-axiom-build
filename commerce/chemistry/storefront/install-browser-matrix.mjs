@@ -49,14 +49,14 @@ try{
   assert.equal(await page.getByRole('heading',{name:'Your Chemistry workspace.'}).count(),1);
   assert.equal(await page.locator('.site-header').count(),0,'public site header leaked into app shell');
 
-  await page.getByRole('link',{name:'Premium'}).click();
+  await page.locator('.app-nav a[href="/chemistry/app?view=premium"]').click();
   await page.waitForLoadState('networkidle');
   assert.equal(new URL(page.url()).pathname,'/chemistry/app');
   assert.equal(new URL(page.url()).searchParams.get('view'),'premium');
   assert.equal(await page.getByRole('heading',{name:'Unlock full mastery.'}).count(),1,'Premium left installed app shell');
   assert.equal(await page.locator('.site-header').count(),0,'public site header leaked into Premium app view');
 
-  await page.getByRole('link',{name:'Help'}).click();
+  await page.locator('.app-nav a[href="/chemistry/app?view=help"]').click();
   await page.waitForLoadState('networkidle');
   assert.equal(new URL(page.url()).pathname,'/chemistry/app');
   assert.equal(new URL(page.url()).searchParams.get('view'),'help');
@@ -70,11 +70,11 @@ try{
   assert.equal(await page.locator('.site-header').count(),0,'offline app reload fell back to public website chrome');
   assert.equal(await page.locator('.app-nav').count(),1,'offline app navigation missing');
 
-  await page.getByRole('link',{name:'Premium'}).click();
+  await page.locator('.app-nav a[href="/chemistry/app?view=premium"]').click();
   await page.waitForLoadState('domcontentloaded');
   assert.equal(await page.getByRole('heading',{name:'Unlock full mastery.'}).count(),1,'offline Premium app view was not cached');
   assert.equal(await page.locator('.site-header').count(),0,'offline Premium fell back to public chrome');
-  await page.getByRole('link',{name:'Help'}).click();
+  await page.locator('.app-nav a[href="/chemistry/app?view=help"]').click();
   await page.waitForLoadState('domcontentloaded');
   assert.equal(await page.getByRole('heading',{name:'Help without leaving MUSITU.'}).count(),1,'offline Help app view was not cached');
   assert.equal(await page.locator('.site-header').count(),0,'offline Help fell back to public chrome');
