@@ -1,37 +1,66 @@
 {
-  "schema": "musitu.chemistry.adaptive_install_concierge.v1",
-  "status": "live_guarded_verified",
+  "schema": "musitu.chemistry.adaptive_install_concierge.v2",
+  "status": "live_guarded_verified_instant_no_wait",
   "universal_install_url": "https://payments.mftintelligence.com/chemistry/install",
   "hidden_diagnostics_url": "https://payments.mftintelligence.com/chemistry/install/diagnostics",
-  "production_worker_sha256": "ec99c130395556dfab1f5f3e848ed281698a991ce5294316251c9de20c61bf77",
-  "previous_live_worker_sha256": "450a3df940575f17b300b1576b39d053b52df1e6fb4c9c64271e707f140c9d27",
+  "production_worker_sha256": "fa5b4233062dab26ef506e9dbf6a7e6be6451096bd06889a1ad84b8db335fe4e",
+  "previous_live_worker_sha256": "ec99c130395556dfab1f5f3e848ed281698a991ce5294316251c9de20c61bf77",
+  "instant_install_evidence_head": "df5f36d353c7598f0d6e2e06246312d1c7097ca0",
   "adaptive_install_ci": {
-    "run_id": 34152587560,
-    "head_sha": "cf22447bf2ee98cb784c5d754b1add4a4130230b",
+    "run_id": 34157084973,
+    "head_sha": "df5f36d353c7598f0d6e2e06246312d1c7097ca0",
     "conclusion": "success",
-    "artifact_id": 10029864255,
-    "artifact_sha256": "2280dd2cf01c72f55085a12fd17477535026cc0d62a1fa8c783c98410e920776"
+    "candidate_worker_sha256": "fa5b4233062dab26ef506e9dbf6a7e6be6451096bd06889a1ad84b8db335fe4e",
+    "artifact_id": 10031331395,
+    "artifact_sha256": "9f099fe2fa90b0d117f49712ecb193c2a89bd158d281e57707739720ee9e3ad3",
+    "storefront_tests_passed": 54,
+    "core_commerce_tests_passed": 8,
+    "browser_matrix_passed": true
   },
   "exact_head_full_preflight": {
-    "run_id": 34152640391,
-    "head_sha": "20423eb51ab57942161ae3e86a7b693523e8c598",
+    "run_id": 34157084958,
+    "head_sha": "df5f36d353c7598f0d6e2e06246312d1c7097ca0",
     "conclusion": "success",
-    "artifact_id": 10029898924,
-    "artifact_sha256": "824c266e4d073db4980d22caf00ba7fc77835deb3687dc6cdf40712fd60d49e3"
+    "artifact_id": 10031342409,
+    "artifact_sha256": "0cc60f348af22c15b11252a25395143f95a3678021f328be3a05f5a9601b4be5"
   },
   "guarded_production_deploy": {
-    "run_id": 34152931645,
-    "job_id": 101838754930,
-    "workflow_commit_sha": "c43193ff2c5994c5611c4399dc2b68d12a263d8f",
+    "run_id": 34157418235,
+    "job_id": 101852017678,
+    "workflow_commit_sha": "0aa325fa220e59978fc3ab8f1b9c9e44e2b01e87",
     "conclusion": "success",
     "edge_sweep_streak": 6,
     "edge_sweep_attempts": 6,
     "rollback_used": false,
+    "server_rendered_no_wait_android": true,
+    "server_rendered_ios_coach": true,
+    "install_html_no_store": true,
+    "critical_assets_version": "v4",
+    "service_worker_cache": "musitu-chemistry-install-v4",
+    "service_worker_network_first_critical_assets": true,
+    "readable_contrast_verified": true,
     "diagnostics_live": true,
-    "service_worker_live": true,
-    "rescue_routes_to_install": true,
-    "artifact_id": 10029976566,
-    "artifact_sha256": "e163b2fc5466f185831c175c9b5327fe58c224751f86eeff2b47c27419df4b57"
+    "payment_authority_preserved": true,
+    "transport_binding_preserved": true,
+    "artifact_id": 10031439179,
+    "artifact_sha256": "2d9ae0b7984e85903661c1c24327887f1d45ab862da1a07dc9e34cf6903edbdd"
+  },
+  "customer_waiting_failure_removed": {
+    "old_behavior": "client-side detecting state could remain visible if install JavaScript was delayed, stale or unavailable",
+    "new_behavior": "server renders an actionable device-class state immediately; client JavaScript only upgrades the experience when a trusted browser install prompt becomes available",
+    "detecting_wait_screen_in_current_html": false,
+    "android_immediate_actions": [
+      "Open in Chrome to install",
+      "Use MUSITU now",
+      "verified APK fallback"
+    ],
+    "stale_cache_defenses": [
+      "install HTML cache-control no-store",
+      "install JS and CSS version v4",
+      "service worker cache generation v4",
+      "network-first critical install assets",
+      "old install cache generations deleted on service-worker activation"
+    ]
   },
   "platform_contracts": [
     "iPhone/iPad Safari",
@@ -52,16 +81,13 @@
     "install_help_needed"
   ],
   "fallback_hierarchy": [
-    "browser-native install prompt where exposed",
+    "immediate server-rendered device action",
+    "browser-native install prompt when exposed",
     "iOS Safari Home Screen web-app coach",
     "verified signed Android APK where appropriate",
     "immediate browser experience"
   ],
-  "first_launch_onboarding": [
-    "Diagnose",
-    "Revise",
-    "Prove"
-  ],
+  "first_launch_onboarding": ["Diagnose", "Revise", "Prove"],
   "offline_shell_tested_in_chromium": true,
   "payment_or_checkout_routes_cached": false,
   "strict_csp_preserved": true,
@@ -73,10 +99,10 @@
   "real_money_settlement_observed": false,
   "production_mutation_performed": true,
   "notes": [
-    "The adaptive concierge is live on the universal install URL and passed guarded production acceptance with six consecutive edge sweeps.",
-    "Browser-emulation and contract testing are green; physical iPhone/iPad/Android certification remains a separate field gate and is not claimed here.",
-    "Browser and OS security confirmations remain user-controlled; MUSITU automates guidance up to those protected confirmations.",
-    "The service worker is bounded to non-payment Chemistry web-app shell resources; checkout, return, claim, telemetry and plans are excluded from its cache handling.",
+    "The physical Android screenshot exposed a real customer-experience defect: the old detecting state could remain indefinitely instead of giving an immediate action.",
+    "The defect was removed rather than hidden behind a longer timeout. Current production server-renders an immediately actionable state and no longer contains the Checking this device wait screen.",
+    "The guarded deployment independently verified Android and iOS server-rendered modes, no-store install HTML, v4 stale-cache defenses, readable contrast, strict security boundaries, payment authority, transport binding and the verified APK fallback.",
+    "Physical-device end-to-end installation certification remains incomplete until the post-hotfix hardware retest succeeds; no physical PASS is claimed by this evidence file.",
     "No real-money settlement was performed by this deployment and no field Core Web Vitals claim is made."
   ]
 }
