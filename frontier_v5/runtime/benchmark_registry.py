@@ -135,7 +135,10 @@ class BenchmarkRegistryGate:
             _string(reference.get("contamination_status"), f"reference[{index}].contamination_status")
             ref_reviewed = _utc(reference.get("reviewed_at"), f"reference[{index}].reviewed_at")
             ref_expires = _utc(reference.get("expires_at"), f"reference[{index}].expires_at")
-            if ref_reviewed >= ref_expires:
+            # Expired historical evidence is permitted to remain registered so
+            # the promotion layer can reject it explicitly as expired.  For a
+            # still-current reference, review chronology must remain coherent.
+            if current < ref_expires and ref_reviewed >= ref_expires:
                 raise BenchmarkRegistryError(f"reference {registry_id} review time must precede expiry")
             domains = _string_list(
                 reference.get("comparison_domains"),
@@ -256,8 +259,6 @@ class BenchmarkRegistryGate:
             if not reference["comparison_domains"]:
                 blockers.append(f"reference {registry_id} comparison domain coverage is empty")
 
-            # Do not count a nominally authenticated reference if any blocker is
-            # specific to it.  This keeps the aggregate counts fail-closed.
             prefix = f"reference {registry_id} "
             if not any(message.startswith(prefix) for message in blockers):
                 eligible.append(reference)
