@@ -28,6 +28,7 @@ WORKFLOWS = {
     "mcp_2026": ROOT / ".github/workflows/axiom-frontier-v5-mcp-2026-gate.yml",
     "cimd": ROOT / ".github/workflows/axiom-frontier-v5-cimd-gate.yml",
     "oidc": ROOT / ".github/workflows/axiom-frontier-v5-oidc-gate.yml",
+    "enterprise_identity": ROOT / ".github/workflows/axiom-frontier-v5-enterprise-identity-gate.yml",
 }
 HEX40 = re.compile(r"^[0-9a-f]{40}$")
 ACTION = re.compile(r"^\s*uses:\s*(actions/(?:checkout|setup-python|upload-artifact))@([^\s#]+)", re.M)
