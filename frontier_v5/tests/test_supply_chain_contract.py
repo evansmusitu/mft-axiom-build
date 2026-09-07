@@ -48,6 +48,7 @@ WORKFLOWS = {
     "financial_ontology": ROOT / ".github/workflows/axiom-frontier-v5-financial-ontology-gate.yml",
     "latency_performance": ROOT / ".github/workflows/axiom-frontier-v5-latency-performance-gate.yml",
     "privacy_analytics": ROOT / ".github/workflows/axiom-frontier-v5-privacy-analytics-gate.yml",
+    "enterprise_contracts": ROOT / ".github/workflows/axiom-frontier-v5-enterprise-contracts-gate.yml",
 }
 HEX40 = re.compile(r"^[0-9a-f]{40}$")
 ACTION = re.compile(r"^\s*uses:\s*(actions/(?:checkout|setup-python|upload-artifact))@([^\s#]+)", re.M)
