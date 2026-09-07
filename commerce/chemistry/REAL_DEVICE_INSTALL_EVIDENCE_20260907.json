@@ -1,6 +1,6 @@
 {
-  "schema": "musitu.chemistry.real_device_install_certification.v4",
-  "status": "android_chrome_app_shell_pass_other_device_gates_pending",
+  "schema": "musitu.chemistry.real_device_install_certification.v5",
+  "status": "android_app_shell_pass_offline_retest_required_after_fix",
   "universal_install_url": "https://payments.mftintelligence.com/chemistry/install",
   "installed_app_url": "https://payments.mftintelligence.com/chemistry/app",
   "certification_protocol": "commerce/chemistry/REAL_DEVICE_INSTALL_CERTIFICATION_20260907.md",
@@ -50,6 +50,28 @@
       "screenshot_received": true,
       "personal_identifiers_recorded": false,
       "disposition": "Physical post-deploy reopen succeeded against the dedicated installed Chemistry app shell. Android Chrome install and installed-state reopen gates pass."
+    },
+    {
+      "gate": "A7_offline_reload",
+      "result": "FAIL_PRE_OFFLINE_CACHE_FIX",
+      "observed_at_local_time": "2026-09-07T22:48:00+02:00",
+      "device_class": "physical Android phone",
+      "airplane_mode_visible": true,
+      "reopened_from_installed_app": true,
+      "dedicated_app_shell_retained": false,
+      "observed_content": "Offline reopen fell back to the public MUSITU Chemistry Rescue 2026 page, including the Install / Start Free call to action, instead of retaining the dedicated installed app shell.",
+      "screenshot_received": true,
+      "personal_identifiers_recorded": false,
+      "root_cause": "The existing install service worker had an offline navigation fallback to the cached public Rescue page, while /chemistry/app and its app-shell assets were not pre-seeded into a dedicated bounded app cache.",
+      "fix_candidate": {
+        "app_shell_source_commit": "927af9ed95f0d0bd65a5e5435d9846bdc45d0179",
+        "app_shell_test_commit": "b78e8f3d68b386e12a9a2341b4df8c6e900f939c",
+        "worker_contract_test_commit": "b0ce926fff6902711948f3fdaf80feb284a3a5c6",
+        "bounded_cache": "musitu-chemistry-app-shell-v2",
+        "cached_surface": ["/chemistry/app", "/chemistry/assets/app-shell.css?v=2", "/chemistry/assets/app-shell.js?v=2", "MUSITU icons", "/chemistry/manifest.webmanifest"],
+        "payment_checkout_claim_telemetry_plans_cached": false
+      },
+      "disposition": "A7 remains failed until the offline-shell fix is CI-green, production-deployed, refreshed once online on the physical device, and the airplane-mode reopen is repeated successfully."
     }
   ],
   "instant_install_hotfix_evidence": {
@@ -91,7 +113,7 @@
     "A4_samsung_internet": {"status":"pending","required":["Samsung install path shown","install completed","app icon visible","standalone launch opens dedicated Chemistry app shell"]},
     "A5_android_inapp_recovery": {"status":"pending","required":["wrong-browser recovery shown","recovery opens Chrome or Samsung Internet","install succeeds after recovery"]},
     "A6_installed_state_reopen": {"status":"pass","required":["fully close installed MUSITU","reopen from installed app icon","dedicated MUSITU Chemistry app shell appears","public website header/footer absent","Diagnose Revise Prove onboarding or app home visible"]},
-    "A7_offline_reload": {"status":"pending","required":["successful online app-shell launch first","offline reload retains bounded non-payment shell","checkout/return/claim/telemetry/plans not served from cache"]},
+    "A7_offline_reload": {"status":"fail_retest_required_after_offline_cache_fix","pre_fix_result":"public_rescue_fallback","required":["successful online app-shell launch first","offline reload retains bounded non-payment shell","checkout/return/claim/telemetry/plans not served from cache"]},
     "A8_update_reload": {"status":"pending","required":["reconnect to network","reload returns current live application","no reinstall required","payment authority remains network/server authoritative"]}
   },
   "evidence_requirements_per_gate": [
@@ -106,5 +128,5 @@
     "redacted screenshot evidence",
     "PASS or FAIL with exact failure text"
   ],
-  "authoritative_claim_until_complete": "Android Chrome physical installation and post-deploy reopen into the dedicated MUSITU Chemistry app shell are proven PASS. Full cross-device certification remains pending for iPhone Safari, iPad Safari, Samsung Internet, in-app recovery, offline reload, and update reload."
+  "authoritative_claim_until_complete": "Android Chrome installation and installed-state reopen are proven PASS. The first physical airplane-mode reopen exposed an offline fallback defect; a bounded app-shell cache fix is implemented but A7 remains FAIL until post-deploy physical retest proves the dedicated app shell reopens offline. Full cross-device certification also remains pending for iPhone Safari, iPad Safari, Samsung Internet, in-app recovery, and update reload."
 }
