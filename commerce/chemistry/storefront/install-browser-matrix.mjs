@@ -48,6 +48,9 @@ try{
   assert.equal(onlineApp?.status(),200);
   assert.equal(await page.getByRole('heading',{name:'Your Chemistry workspace.'}).count(),1);
   assert.equal(await page.locator('.site-header').count(),0,'public site header leaked into app shell');
+  const firstLaunch=page.locator('#app-onboarding:not([hidden])');
+  if(await firstLaunch.count())await page.locator('#app-onboarding-skip').click();
+  assert.equal(await page.locator('#app-onboarding[hidden]').count(),1,'first-launch onboarding did not dismiss');
 
   await page.locator('.app-nav a[href="/chemistry/app?view=premium"]').click();
   await page.waitForLoadState('networkidle');
@@ -89,5 +92,5 @@ try{
   assert.equal(await installedPage.locator('#install-concierge').getAttribute('data-install-mode'),'installed');
   assert.equal(await installedPage.getByRole('link',{name:'Open Chemistry Rescue'}).count(),1);
   await installedContext.close();
-  console.log(JSON.stringify({schema:'musitu.chemistry.install_browser_matrix.v4',classifier_cases:matrix.map(x=>x[0]),chromium_contracts:['server-rendered immediate Android action','trusted install prompt event','service worker v6 dedicated app-shell cache','offline dedicated app-shell reload','Premium and Help stay inside installed app online and offline','installed-state UI','sensitive routes remain network-authoritative'],physical_device_certification:false,pass:true},null,2));
+  console.log(JSON.stringify({schema:'musitu.chemistry.install_browser_matrix.v4',classifier_cases:matrix.map(x=>x[0]),chromium_contracts:['server-rendered immediate Android action','trusted install prompt event','service worker v6 dedicated app-shell cache','first-launch onboarding dismissal','offline dedicated app-shell reload','Premium and Help stay inside installed app online and offline','installed-state UI','sensitive routes remain network-authoritative'],physical_device_certification:false,pass:true},null,2));
 }finally{await browser.close()}
