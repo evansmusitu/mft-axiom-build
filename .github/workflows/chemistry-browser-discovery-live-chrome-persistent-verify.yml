@@ -69,8 +69,8 @@ jobs:
           if(!response||response.status()!==200)throw new Error('live Rescue HTTP '+response?.status());
           const csp=response.headers()['content-security-policy']||'';
           if(!csp.includes("manifest-src 'self'")||!csp.includes("script-src 'self'")||!csp.includes("style-src 'self'")||!csp.includes("connect-src 'self'")||csp.includes('unsafe-inline')||csp.includes('unsafe-eval'))throw new Error('production CSP contract '+csp);
-          const dom=await page.evaluate(()=>({canonical:document.querySelector('link[rel=canonical]')?.href||'',manifest:document.querySelector('link[rel=manifest]')?.getAttribute('href')||'',robots:document.querySelector('meta[name=robots]')?.content||'',installHidden:document.getElementById('install-rescue')?.hidden===true}));
-          if(dom.canonical!=='https://payments.mftintelligence.com/chemistry/rescue'||dom.manifest!=='/chemistry/manifest.webmanifest'||!dom.robots.includes('index,follow')||dom.installHidden!==true)throw new Error('live DOM discovery contract '+JSON.stringify(dom));
+          const dom=await page.evaluate(()=>{const install=document.getElementById('install-rescue');return {canonical:document.querySelector('link[rel=canonical]')?.href||'',manifest:document.querySelector('link[rel=manifest]')?.getAttribute('href')||'',robots:document.querySelector('meta[name=robots]')?.content||'',installExists:!!install,installHidden:install?.hidden===true}});
+          if(dom.canonical!=='https://payments.mftintelligence.com/chemistry/rescue'||dom.manifest!=='/chemistry/manifest.webmanifest'||!dom.robots.includes('index,follow')||dom.installExists!==true)throw new Error('live DOM discovery contract '+JSON.stringify(dom));
           const client=await context.newCDPSession(page);
           await client.send('Page.enable');
           const appManifest=await client.send('Page.getAppManifest');
@@ -84,7 +84,7 @@ jobs:
           if(installabilityErrors.length)throw new Error('Chrome installability errors '+JSON.stringify(installabilityErrors));
           const relevantConsoleErrors=consoleErrors.filter(x=>/manifest|content security policy|csp/i.test(x));
           if(relevantConsoleErrors.length)throw new Error('manifest/CSP console errors '+JSON.stringify(relevantConsoleErrors));
-          const out={schema:'musitu.chemistry.browser_discovery.persistent_chrome.v1',live_url:page.url(),manifest_url:appManifest.url,manifest_errors:appManifest.errors,manifest_parsed:manifest,installability_errors:installabilityErrors,production_csp:csp,dom,csp_or_manifest_console_errors:relevantConsoleErrors,incognito_context:false,pass:true,gate:'MUSITU_CHEMISTRY_BROWSER_DISCOVERY_PERSISTENT_CHROME_VERIFY_PASS'};
+          const out={schema:'musitu.chemistry.browser_discovery.persistent_chrome.v2',live_url:page.url(),manifest_url:appManifest.url,manifest_errors:appManifest.errors,manifest_parsed:manifest,installability_errors:installabilityErrors,production_csp:csp,dom,browser_install_prompt_available:dom.installHidden===false,csp_or_manifest_console_errors:relevantConsoleErrors,incognito_context:false,pass:true,gate:'MUSITU_CHEMISTRY_BROWSER_DISCOVERY_PERSISTENT_CHROME_VERIFY_PASS'};
           fs.writeFileSync('/tmp/mchem-discovery-persistent/browser.json',JSON.stringify(out,null,2)+'\n');
           console.log(JSON.stringify(out));
           await context.close();
