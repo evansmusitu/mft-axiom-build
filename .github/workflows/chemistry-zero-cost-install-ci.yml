@@ -58,7 +58,6 @@ jobs:
           grep -Fq "/chemistry/assets/app-bridge.js" commerce/chemistry/index.storefront-v3.mjs
           grep -Fq "/chemistry/assets/app-shell.js" commerce/chemistry/index.storefront-v3.mjs
           grep -Fq "/chemistry/assets/app-shell.css" commerce/chemistry/index.storefront-v3.mjs
-          grep -Fq '"start_url":"/chemistry/app"' commerce/chemistry/index.storefront-v3.mjs
           grep -Fq "Your Chemistry workspace" commerce/chemistry/index.storefront-v3.mjs
           grep -Fq "/chemistry/sw.js" commerce/chemistry/index.storefront-v3.mjs
           grep -Fq "Install / Start Free" commerce/chemistry/index.storefront-v3.mjs
@@ -106,7 +105,13 @@ jobs:
           if [[ "$ready" != true ]]; then cat /tmp/mchem-install-server.log; exit 1; fi
           node commerce/chemistry/storefront/install-browser-matrix.mjs | tee /tmp/mchem-install-evidence/browser-matrix.json
           curl -fsS http://127.0.0.1:8787/chemistry/app | grep -Fq 'Your Chemistry workspace'
-          curl -fsS http://127.0.0.1:8787/chemistry/manifest.webmanifest | grep -Fq '"start_url":"/chemistry/app"'
+          node - <<'NODE'
+          const r=await fetch('http://127.0.0.1:8787/chemistry/manifest.webmanifest');
+          if(!r.ok) throw new Error('manifest HTTP '+r.status);
+          const m=await r.json();
+          if(m.id!=='/chemistry/rescue?src=direct'||m.start_url!=='/chemistry/app'||m.scope!=='/chemistry/'||m.display!=='standalone') throw new Error('manifest app launch contract mismatch '+JSON.stringify(m));
+          console.log('INSTALLED_APP_MANIFEST_CONTRACT=PASS');
+          NODE
           kill "$SERVER_PID" 2>/dev/null || true
           trap - EXIT
 
