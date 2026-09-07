@@ -12,21 +12,39 @@ def once(text,old,new,label):
         raise SystemExit(f'{label} marker mismatch: {n}')
     return text.replace(old,new,1)
 
+def once_in_section(text,start,end,old,new,label):
+    if text.count(start)!=1:
+        raise SystemExit(f'{label} section-start mismatch: {text.count(start)}')
+    i=text.index(start)+len(start)
+    j=text.find(end,i)
+    if j<0:
+        raise SystemExit(f'{label} section-end mismatch: 0')
+    section=text[i:j]
+    n=section.count(old)
+    if n!=1:
+        raise SystemExit(f'{label} marker mismatch in section: {n}')
+    section=section.replace(old,new,1)
+    return text[:i]+section+text[j:]
+
 def module_text(name):
     text=(ROOT/'storefront'/name).read_text()
     text=re.sub(r'^import .*?;\s*$', '', text, flags=re.M)
     text=text.replace('export async function ','async function ').replace('export const ','const ').replace('export function ','function ')
     return f'// storefront/{name}\n{text.strip()}\n'
 
-# Apply unique Phase 3 global-surface anchors before inserting Rescue renderers.
-s=once(
-    s,
+# Scope global-navigation edits to the renderer module. The same literal may
+# legitimately appear elsewhere in the generated Worker, so a global replace
+# would be ambiguous and must fail closed.
+render_start='// storefront/render.mjs\n'
+render_end='// storefront/field-experience.mjs\n'
+s=once_in_section(
+    s,render_start,render_end,
     '<a href="/chemistry/releases">Release notes</a><a href="/chemistry/experience">Experience evidence</a><a href="/chemistry/security.txt">Security</a>',
     '<a href="/chemistry/rescue">Chemistry Rescue</a><a href="/chemistry/releases">Release notes</a><a href="/chemistry/experience">Experience evidence</a><a href="/chemistry/security.txt">Security</a>',
     'Rescue global footer'
 )
-s=once(
-    s,
+s=once_in_section(
+    s,render_start,render_end,
     "'/chemistry/experience'];",
     "'/chemistry/experience','/chemistry/rescue','/chemistry/rescue/teachers','/chemistry/rescue/schools','/chemistry/rescue/ambassadors'];",
     'Rescue sitemap'
