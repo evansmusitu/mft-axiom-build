@@ -20,32 +20,33 @@ for(const [name,ua,vendor,maxTouchPoints,standalone,want] of matrix)assert.equal
 const origin=process.env.INSTALL_MATRIX_ORIGIN||'http://127.0.0.1:8787';
 const browser=await chromium.launch({headless:true,executablePath:process.env.CHROME_PATH||undefined,args:['--no-sandbox','--disable-dev-shm-usage']});
 try{
-  const context=await browser.newContext({viewport:{width:390,height:844}});
+  const context=await browser.newContext({viewport:{width:390,height:844},userAgent:UA.androidChrome});
   const page=await context.newPage();
   const response=await page.goto(origin+'/chemistry/install',{waitUntil:'networkidle'});
   assert.equal(response?.status(),200);
-  await page.waitForTimeout(1100);
   const root=page.locator('#install-concierge');
   assert.equal(await root.count(),1);
+  assert.equal(await root.getAttribute('data-install-mode'),'android-ready');
+  assert.equal(await page.getByRole('link',{name:'Use MUSITU now'}).count()>0,true);
   assert.equal(await page.locator('link[href="/chemistry/manifest.webmanifest"]').count(),1);
-  assert.equal(await page.locator('link[href="/chemistry/assets/install-concierge.css"]').count(),1);
+  assert.equal(await page.locator('link[href="/chemistry/assets/install-concierge.css?v=4"]').count(),1);
   await page.evaluate(()=>{const e=new Event('beforeinstallprompt',{cancelable:true});Object.defineProperty(e,'prompt',{value:async()=>{}});Object.defineProperty(e,'userChoice',{value:Promise.resolve({outcome:'accepted'})});dispatchEvent(e)});
   assert.equal(await root.getAttribute('data-install-mode'),'native');
   await page.locator('#install-musitu').click();
   const swResponse=await page.request.get(origin+'/chemistry/sw.js');
-  assert.equal(swResponse.status(),200);assert.match(swResponse.headers()['cache-control']||'',/no-cache/);assert.match(await swResponse.text(),/musitu-chemistry-install-v2/);
+  assert.equal(swResponse.status(),200);assert.match(swResponse.headers()['cache-control']||'',/no-cache/);assert.match(await swResponse.text(),/musitu-chemistry-install-v4/);
   await page.evaluate(()=>navigator.serviceWorker?.ready);
   await context.setOffline(true);
   await page.reload({waitUntil:'domcontentloaded'});
   assert.equal(await page.locator('#install-concierge').count(),1,'offline reload did not recover install shell');
   await context.setOffline(false);await context.close();
 
-  const installedContext=await browser.newContext({viewport:{width:390,height:844}});
+  const installedContext=await browser.newContext({viewport:{width:390,height:844},userAgent:UA.androidChrome});
   await installedContext.addInitScript(()=>{const native=window.matchMedia.bind(window);window.matchMedia=q=>q==='(display-mode: standalone)'?{matches:true,media:q,onchange:null,addListener(){},removeListener(){},addEventListener(){},removeEventListener(){},dispatchEvent(){return true}}:native(q)});
   const installedPage=await installedContext.newPage();
   await installedPage.goto(origin+'/chemistry/install',{waitUntil:'domcontentloaded'});
   assert.equal(await installedPage.locator('#install-concierge').getAttribute('data-install-mode'),'installed');
   assert.equal(await installedPage.getByRole('link',{name:'Open Chemistry Rescue'}).count(),1);
   await installedContext.close();
-  console.log(JSON.stringify({schema:'musitu.chemistry.install_browser_matrix.v1',classifier_cases:matrix.map(x=>x[0]),chromium_contracts:['adaptive concierge','trusted install prompt event','service worker no-cache','offline reload','installed-state UI'],physical_device_certification:false,pass:true},null,2));
+  console.log(JSON.stringify({schema:'musitu.chemistry.install_browser_matrix.v2',classifier_cases:matrix.map(x=>x[0]),chromium_contracts:['server-rendered immediate Android action','trusted install prompt event','service worker v4 network-first critical assets','offline reload','installed-state UI'],physical_device_certification:false,pass:true},null,2));
 }finally{await browser.close()}
