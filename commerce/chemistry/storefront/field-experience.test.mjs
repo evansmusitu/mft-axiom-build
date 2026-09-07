@@ -8,34 +8,27 @@ const req=(body,headers={})=>new Request('https://payments.mftintelligence.com/c
 
 test('route classification strips customer identifiers and query state by construction',()=>{
   const cases=[
-    ['/chemistry/','home'],['/chemistry/plans','plans'],['/chemistry/checkout/start','checkout'],['/chemistry/return','status'],['/chemistry/claim','claim'],['/chemistry/support','support'],['/chemistry/privacy','privacy'],['/chemistry/verify','verify'],['/unknown','other']
+    ['/chemistry/','home'],['/chemistry/plans','plans'],['/chemistry/checkout/start','checkout'],['/chemistry/return','status'],['/chemistry/claim','claim'],['/chemistry/support','support'],['/chemistry/privacy','privacy'],['/chemistry/verify','verify'],['/chemistry/install','install'],['/chemistry/install/diagnostics','install'],['/unknown','other']
   ];
   for(const [path,want] of cases) assert.equal(routeClass(path),want);
 });
 
 test('viewport buckets are coarse and non-identifying',()=>{
-  assert.equal(viewportBucket(320),'mobile');
-  assert.equal(viewportBucket(599),'mobile');
-  assert.equal(viewportBucket(600),'tablet');
-  assert.equal(viewportBucket(899),'tablet');
-  assert.equal(viewportBucket(900),'desktop');
+  assert.equal(viewportBucket(320),'mobile');assert.equal(viewportBucket(599),'mobile');assert.equal(viewportBucket(600),'tablet');assert.equal(viewportBucket(899),'tablet');assert.equal(viewportBucket(900),'desktop');
 });
 
 test('metric values are bounded and quantized for aggregate histograms',()=>{
-  assert.equal(quantizeMetric('LCP',1041.4),1050);
-  assert.equal(quantizeMetric('INP',187.9),200);
-  assert.equal(quantizeMetric('CLS',0.0871),0.09);
-  assert.equal(quantizeMetric('LCP',999999),10000);
-  assert.equal(quantizeMetric('CLS',99),2);
-  assert.equal(quantizeMetric('BAD',12),null);
+  assert.equal(quantizeMetric('LCP',1041.4),1050);assert.equal(quantizeMetric('INP',187.9),200);assert.equal(quantizeMetric('CLS',0.0871),0.09);assert.equal(quantizeMetric('LCP',999999),10000);assert.equal(quantizeMetric('CLS',99),2);assert.equal(quantizeMetric('BAD',12),null);
 });
 
 test('telemetry accepts only bounded anonymous allowlisted fields',async()=>{
   const batch=await normalizeTelemetryBatch(req({events:[
     {kind:'vital',name:'LCP',value:1041.4,route:'home',viewport:'mobile'},
-    {kind:'event',name:'start_free',route:'home',viewport:'mobile',detail:''}
+    {kind:'event',name:'start_free',route:'home',viewport:'mobile',detail:''},
+    {kind:'event',name:'install_view',route:'install',viewport:'mobile',detail:''},
+    {kind:'event',name:'install_completed',route:'rescue',viewport:'mobile',detail:''}
   ]}));
-  assert.equal(batch.length,2);
+  assert.equal(batch.length,4);
   assert.deepEqual(Object.keys(batch[0]).sort(),['bucket','detail','kind','name','route','viewport'].sort());
   assert.equal(batch[0].bucket,'1050');
   for(const forbidden of ['id','session','user','email','reference','url','query','referrer','ip','ua','device_id']) assert.equal(JSON.stringify(batch).includes(forbidden),false,forbidden);
@@ -46,6 +39,7 @@ test('telemetry rejects identifiers, unknown dimensions, oversized batches and c
   await assert.rejects(()=>normalizeTelemetryBatch(req({events:[{kind:'event',name:'made_up',route:'home',viewport:'mobile'}]})));
   await assert.rejects(()=>normalizeTelemetryBatch(req({events:Array.from({length:17},()=>({kind:'event',name:'page_view',route:'home',viewport:'mobile'}))})));
   await assert.rejects(()=>normalizeTelemetryBatch(req({events:[]},{origin:'https://evil.example'})));
+  await assert.rejects(()=>normalizeTelemetryBatch(req({events:[{kind:'event',name:'install_started',route:'install',viewport:'mobile',detail:'iphone-123'}]})));
 });
 
 test('D1 schema stores aggregate buckets only and has no raw-event identity columns',()=>{
@@ -55,43 +49,28 @@ test('D1 schema stores aggregate buckets only and has no raw-event identity colu
 });
 
 test('field client is same-origin, respects privacy signals, and never creates tracking identifiers',()=>{
-  assert.match(FIELD_EXPERIENCE_JS,/navigator\.globalPrivacyControl/);
-  assert.match(FIELD_EXPERIENCE_JS,/doNotTrack/);
-  assert.match(FIELD_EXPERIENCE_JS,/localStorage\.getItem\('musitu_experience_measurement'\)/);
-  assert.match(FIELD_EXPERIENCE_JS,/sendBeacon\('\/chemistry\/telemetry\/v1'/);
-  assert.doesNotMatch(FIELD_EXPERIENCE_JS,/https?:\/\//);
-  assert.doesNotMatch(FIELD_EXPERIENCE_JS,/(randomUUID|Math\.random|sessionStorage|document\.cookie)/);
+  assert.match(FIELD_EXPERIENCE_JS,/navigator\.globalPrivacyControl/);assert.match(FIELD_EXPERIENCE_JS,/doNotTrack/);assert.match(FIELD_EXPERIENCE_JS,/localStorage\.getItem\(KEY\)/);assert.match(FIELD_EXPERIENCE_JS,/sendBeacon\('\/chemistry\/telemetry\/v1'/);assert.match(FIELD_EXPERIENCE_JS,/musitu:field-event/);assert.match(FIELD_EXPERIENCE_JS,/install_completed/);assert.match(FIELD_EXPERIENCE_JS,/musitu_install_onboarding_v1/);
+  assert.doesNotMatch(FIELD_EXPERIENCE_JS,/https?:\/\//);assert.doesNotMatch(FIELD_EXPERIENCE_JS,/(randomUUID|Math\.random|sessionStorage|document\.cookie)/);
 });
 
 test('public field claims remain withheld until minimum sample and use p75 histogram evidence',()=>{
-  const rows=[
-    {name:'LCP',bucket:'1000',count:74},{name:'LCP',bucket:'2000',count:25},{name:'LCP',bucket:'3000',count:1},
-    {name:'INP',bucket:'100',count:75},{name:'INP',bucket:'200',count:25},
-    {name:'CLS',bucket:'0.05',count:75},{name:'CLS',bucket:'0.1',count:25}
-  ];
-  const snap=computeFieldSnapshot(rows,100);
-  assert.equal(snap.metrics.LCP.sample,100);
-  assert.equal(snap.metrics.LCP.p75,2000);
-  assert.equal(snap.metrics.LCP.claimable,true);
-  const small=computeFieldSnapshot([{name:'LCP',bucket:'1000',count:99}],100);
-  assert.equal(small.metrics.LCP.claimable,false);
-  assert.equal(small.status,'insufficient_field_sample');
+  const rows=[{name:'LCP',bucket:'1000',count:74},{name:'LCP',bucket:'2000',count:25},{name:'LCP',bucket:'3000',count:1},{name:'INP',bucket:'100',count:75},{name:'INP',bucket:'200',count:25},{name:'CLS',bucket:'0.05',count:75},{name:'CLS',bucket:'0.1',count:25}];
+  const snap=computeFieldSnapshot(rows,100);assert.equal(snap.metrics.LCP.sample,100);assert.equal(snap.metrics.LCP.p75,2000);assert.equal(snap.metrics.LCP.claimable,true);
+  const small=computeFieldSnapshot([{name:'LCP',bucket:'1000',count:99}],100);assert.equal(small.metrics.LCP.claimable,false);assert.equal(small.status,'insufficient_field_sample');
 });
 
-test('Rescue campaign has a dedicated coarse route class',()=>{
-  assert.equal(routeClass('/chemistry/rescue'),'rescue');
-});
+test('Rescue campaign has a dedicated coarse route class',()=>{assert.equal(routeClass('/chemistry/rescue'),'rescue')});
 
 test('Rescue telemetry accepts only allowlisted source details and preserves plan-detail rules',async()=>{
-  const batch=await normalizeTelemetryBatch(req({events:[
-    {kind:'event',name:'rescue_start',route:'rescue',viewport:'mobile',detail:'wa_student'},
-    {kind:'event',name:'premium_intent',route:'rescue',viewport:'mobile',detail:'meta'},
-    {kind:'event',name:'plan_choose',route:'plans',viewport:'mobile',detail:'annual'}
-  ]}));
-  assert.equal(batch.length,3);
-  assert.equal(batch[0].detail,'wa_student');
-  assert.equal(batch[1].detail,'meta');
-  assert.equal(batch[2].detail,'annual');
+  const batch=await normalizeTelemetryBatch(req({events:[{kind:'event',name:'rescue_start',route:'rescue',viewport:'mobile',detail:'wa_student'},{kind:'event',name:'premium_intent',route:'rescue',viewport:'mobile',detail:'meta'},{kind:'event',name:'plan_choose',route:'plans',viewport:'mobile',detail:'annual'}]}));
+  assert.equal(batch.length,3);assert.equal(batch[0].detail,'wa_student');assert.equal(batch[1].detail,'meta');assert.equal(batch[2].detail,'annual');
   await assert.rejects(()=>normalizeTelemetryBatch(req({events:[{kind:'event',name:'rescue_start',route:'rescue',viewport:'mobile',detail:'wa_student<script>'}]})));
   await assert.rejects(()=>normalizeTelemetryBatch(req({events:[{kind:'event',name:'plan_choose',route:'plans',viewport:'mobile',detail:'wa_student'}]})));
+});
+
+test('install telemetry is allowlisted by name only and cannot carry identifying detail',async()=>{
+  const names=['install_view','install_prompt_available','install_started','install_completed','install_fallback','install_help_needed'];
+  const batch=await normalizeTelemetryBatch(req({events:names.map(name=>({kind:'event',name,route:'install',viewport:'mobile',detail:''}))}));
+  assert.deepEqual(batch.map(x=>x.name),names);
+  await assert.rejects(()=>normalizeTelemetryBatch(req({events:[{kind:'event',name:'install_help_needed',route:'install',viewport:'mobile',detail:'ios-user-42'}]})));
 });
