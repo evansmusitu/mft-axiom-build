@@ -1,0 +1,71 @@
+name: MUSITU Education Nexus Discoverability Topology
+
+on:
+  push:
+    branches: [musitu-education-nexus-discoverability-20260907]
+    paths:
+      - '.github/workflows/education-nexus-discoverability-topology.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      CF_API: https://api.cloudflare.com/client/v4
+      EXPECTED_ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+    steps:
+      - name: Read-only domain, Worker and public HTTP topology
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json,os,urllib.parse,urllib.request,urllib.error,hashlib
+          base=os.environ['CF_API']; aid=os.environ['EXPECTED_ACCOUNT_ID']
+          h={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY'],'Content-Type':'application/json','User-Agent':'MUSITU-Education-Nexus-Discoverability-Audit/1.0'}
+          def api(path):
+            req=urllib.request.Request(base+path,headers=h,method='GET')
+            try:
+              with urllib.request.urlopen(req,timeout=30) as r: raw=r.read(); code=r.status
+            except urllib.error.HTTPError as e: raw=e.read(); code=e.code
+            if code!=200: raise SystemExit(f'Cloudflare read failed HTTP {code}: {path}')
+            obj=json.loads(raw or b'{}')
+            if obj.get('success') is not True: raise SystemExit(f'Cloudflare success=false: {path}')
+            return obj.get('result')
+          worker_domains=api(f'/accounts/{aid}/workers/domains') or []
+          zones=[]
+          for zn in ('musitu.com','mftintelligence.com'):
+            rows=api('/zones?'+urllib.parse.urlencode({'name':zn,'account.id':aid,'status':'active'})) or []
+            zone={'name':zn,'active_zone_count':len(rows),'zone_id':rows[0].get('id') if len(rows)==1 else None,'worker_domains':[]}
+            if len(rows)==1:
+              zid=rows[0].get('id')
+              for d in worker_domains:
+                host=str(d.get('hostname') or '')
+                if d.get('zone_id')==zid or host==zn or host.endswith('.'+zn):
+                  zone['worker_domains'].append({k:d.get(k) for k in ('hostname','service','environment','zone_id') if d.get(k) is not None})
+            zones.append(zone)
+          probes={}
+          for u in ('https://musitu.com/','https://www.musitu.com/','https://mftintelligence.com/','https://www.mftintelligence.com/','https://payments.mftintelligence.com/chemistry/','https://payments.mftintelligence.com/chemistry/sitemap.xml'):
+            try:
+              req=urllib.request.Request(u,headers={'User-Agent':'MUSITU-Education-Nexus-Discoverability-Audit/1.0'},method='GET')
+              with urllib.request.urlopen(req,timeout=20) as r:
+                b=r.read(4096)
+                probes[u]={'status':r.status,'final_url':r.geturl(),'content_type':r.headers.get('content-type'),'server':r.headers.get('server'),'body_sha256_prefix':hashlib.sha256(b).hexdigest()[:16],'body_prefix':b.decode('utf-8','replace')[:600]}
+            except Exception as e:
+              probes[u]={'error':type(e).__name__+': '+str(e)}
+          out={'schema':'musitu.education_nexus.discoverability.topology.v1','account_id':aid,'zones':zones,'public_probes':probes,'write_performed':False}
+          raw=(json.dumps(out,indent=2,sort_keys=True)+'\n').encode()
+          open('education-nexus-discoverability-topology.json','wb').write(raw)
+          print(json.dumps(out,sort_keys=True))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: education-nexus-discoverability-topology
+          path: education-nexus-discoverability-topology.json
+          retention-days: 7
+          if-no-files-found: error
