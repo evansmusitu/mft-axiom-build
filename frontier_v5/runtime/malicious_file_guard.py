@@ -15,6 +15,7 @@ import xml.etree.ElementTree as ET
 import zipfile
 
 from .fabric import FrontierError
+from . import fullstack_base as _base
 from .fullstack_base import RetrievedContentFirewall
 
 
@@ -229,4 +230,27 @@ class SecureArtifactIngress:
         raise ArtifactSecurityError("unsupported artifact container type")
 
 
-__all__ = ["ArtifactInspection", "ArtifactSecurityError", "SecureArtifactIngress"]
+def install_secure_artifact_ingress() -> None:
+    """Install one explicit inbound-inspection entrypoint on ArtifactWorkbench.
+
+    This mirrors the existing runtime extension pattern used by other isolated
+    Frontier capabilities. It mutates only the class object already exported by
+    ``fullstack_base``; all existing artifact creation methods remain unchanged.
+    """
+    workbench = _base.ArtifactWorkbench
+    if getattr(workbench, "_musitu_secure_artifact_ingress_installed", False):
+        return
+
+    def inspect_input(path: str | Path, **limits: object) -> dict[str, object]:
+        return SecureArtifactIngress(**limits).inspect(path).to_dict()
+
+    setattr(workbench, "inspect_input", staticmethod(inspect_input))
+    setattr(workbench, "_musitu_secure_artifact_ingress_installed", True)
+
+
+__all__ = [
+    "ArtifactInspection",
+    "ArtifactSecurityError",
+    "SecureArtifactIngress",
+    "install_secure_artifact_ingress",
+]
