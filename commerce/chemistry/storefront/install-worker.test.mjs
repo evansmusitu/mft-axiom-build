@@ -40,13 +40,28 @@ test('install diagnostics is hidden from indexing and exposes local health check
   assert.equal(js.r.status,200);assert.match(js.r.headers.get('content-type')||'',/^application\/javascript/);assert.match(js.text,/\/chemistry\/manifest\.webmanifest/);assert.match(js.text,/\/chemistry\/sw\.js/);assert.match(js.text,/\?v=4/);assert.doesNotMatch(js.text,/(sendBeacon|document\.cookie|localStorage|sessionStorage)/);
 });
 
-test('install assets and bounded service worker are stale-cache resistant',async()=>{
+test('service worker v5 preserves installed app shell offline and keeps sensitive routes network-authoritative',async()=>{
+  const sw=await get('/chemistry/sw.js');
+  assert.equal(sw.r.status,200);
+  assert.match(sw.r.headers.get('content-type')||'',/^application\/javascript/);
+  assert.match(sw.r.headers.get('cache-control')||'',/no-cache/);
+  assert.equal(sw.r.headers.get('service-worker-allowed'),'/chemistry/');
+  assert.match(sw.text,/musitu-chemistry-install-v5/);
+  assert.match(sw.text,/const APP='\/chemistry\/app'/);
+  assert.match(sw.text,/\/chemistry\/assets\/app-shell\.css\?v=1/);
+  assert.match(sw.text,/\/chemistry\/assets\/app-shell\.js\?v=1/);
+  assert.match(sw.text,/\/chemistry\/assets\/app-bridge\.js\?v=1/);
+  assert.match(sw.text,/if\(u\.pathname==='\/chemistry\/app'\)/);
+  assert.match(sw.text,/networkFirst\(req,APP\)/);
+  assert.match(sw.text,/checkout\|return\|claim\|telemetry\|plans/);
+  assert.doesNotMatch(sw.text,/caches\.match\('\/chemistry\/rescue\?src=direct'\)\)\);return;/);
+});
+
+test('install assets remain stale-cache resistant',async()=>{
   const js=await get('/chemistry/assets/install-handoff.js');
   assert.equal(js.r.status,200);assert.match(js.text,/beforeinstallprompt/);assert.match(js.text,/appinstalled/);assert.match(js.text,/musitu:field-event/);assert.match(js.text,/serviceWorker\.register/);assert.match(js.text,/immediateMode/);
   const css=await get('/chemistry/assets/install-concierge.css');
   assert.equal(css.r.status,200);assert.match(css.r.headers.get('content-type')||'',/^text\/css/);assert.match(css.text,/color:#f7f9fc/);assert.match(css.text,/ios-coach/);assert.match(css.text,/install-onboarding/);
-  const sw=await get('/chemistry/sw.js');
-  assert.equal(sw.r.status,200);assert.match(sw.r.headers.get('content-type')||'',/^application\/javascript/);assert.match(sw.r.headers.get('cache-control')||'',/no-cache/);assert.equal(sw.r.headers.get('service-worker-allowed'),'/chemistry/');assert.match(sw.text,/checkout\|return\|claim\|telemetry\|plans/);assert.match(sw.text,/musitu-chemistry-install-v4/);assert.match(sw.text,/networkFirst/);
 });
 
 test('install route is in sitemap while diagnostics remains intentionally hidden',async()=>{
