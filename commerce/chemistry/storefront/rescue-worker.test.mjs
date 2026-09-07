@@ -31,3 +31,25 @@ test('field client records bounded Rescue visits and student-share peer starts w
   assert.match(field.text,/detail==='wa_student'/);
   assert.doesNotMatch(field.text,/(sessionStorage|randomUUID|document\.cookie|contact|phone|email)/i);
 });
+
+test('generated Worker serves teacher school and ambassador kits with same-origin print support',async()=>{
+  const checks=[
+    ['/chemistry/rescue/teachers','Teacher Rescue Kit','wa_teacher'],
+    ['/chemistry/rescue/schools','School Rescue Pack','school'],
+    ['/chemistry/rescue/ambassadors','Rescue Ambassador Kit','ambassador']
+  ];
+  for(const [path,needle,source] of checks){
+    const {r,text}=await get(path);
+    assert.equal(r.status,200,path);
+    strict(r);
+    assert.match(text,new RegExp(needle),path);
+    assert.match(text,new RegExp(`/chemistry/rescue\\?src=${source}`),path);
+    assert.match(text,/\/chemistry\/assets\/rescue-print\.css/,path);
+  }
+  const print=await get('/chemistry/assets/rescue-print.css');
+  assert.equal(print.r.status,200);
+  assert.match(print.r.headers.get('content-type')||'',/^text\/css/);
+  assert.match(print.text,/@media print/);
+  const sitemap=await get('/chemistry/sitemap.xml');
+  for(const p of ['/chemistry/rescue/teachers','/chemistry/rescue/schools','/chemistry/rescue/ambassadors']) assert.match(sitemap.text,new RegExp(p));
+});
