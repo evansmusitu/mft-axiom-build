@@ -30,6 +30,7 @@ def module_text(name):
     text=(ROOT/'storefront'/name).read_text()
     text=re.sub(r'^import .*?;\s*$', '', text, flags=re.M)
     text=text.replace('export async function ','async function ').replace('export const ','const ').replace('export function ','function ')
+    text=re.sub(r'^export\s*\{[^}]*\};\s*$', '', text, flags=re.M)
     return f'// storefront/{name}\n{text.strip()}\n'
 
 render_start='// storefront/render.mjs\n'
