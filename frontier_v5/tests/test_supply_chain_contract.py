@@ -31,6 +31,7 @@ WORKFLOWS = {
     "enterprise_identity": ROOT / ".github/workflows/axiom-frontier-v5-enterprise-identity-gate.yml",
     "data_lifecycle": ROOT / ".github/workflows/axiom-frontier-v5-data-lifecycle-gate.yml",
     "enterprise_spend": ROOT / ".github/workflows/axiom-frontier-v5-enterprise-spend-gate.yml",
+    "enterprise_slo": ROOT / ".github/workflows/axiom-frontier-v5-enterprise-slo-gate.yml",
 }
 HEX40 = re.compile(r"^[0-9a-f]{40}$")
 ACTION = re.compile(r"^\s*uses:\s*(actions/(?:checkout|setup-python|upload-artifact))@([^\s#]+)", re.M)
