@@ -37,8 +37,11 @@ try{
   assert.equal(swResponse.status(),200);
   assert.match(swResponse.headers()['cache-control']||'',/no-cache/);
   const swText=await swResponse.text();
-  assert.match(swText,/musitu-chemistry-install-v5/);
+  assert.match(swText,/musitu-chemistry-install-v6/);
   assert.match(swText,/const APP='\/chemistry\/app'/);
+  assert.match(swText,/\/chemistry\/app\?view=premium/);
+  assert.match(swText,/\/chemistry\/app\?view=help/);
+  assert.match(swText,/checkout\|return\|claim\|telemetry\|plans/);
   await page.evaluate(()=>navigator.serviceWorker?.ready);
 
   const onlineApp=await page.goto(origin+'/chemistry/app',{waitUntil:'networkidle'});
@@ -46,11 +49,36 @@ try{
   assert.equal(await page.getByRole('heading',{name:'Your Chemistry workspace.'}).count(),1);
   assert.equal(await page.locator('.site-header').count(),0,'public site header leaked into app shell');
 
+  await page.getByRole('link',{name:'Premium'}).click();
+  await page.waitForLoadState('networkidle');
+  assert.equal(new URL(page.url()).pathname,'/chemistry/app');
+  assert.equal(new URL(page.url()).searchParams.get('view'),'premium');
+  assert.equal(await page.getByRole('heading',{name:'Unlock full mastery.'}).count(),1,'Premium left installed app shell');
+  assert.equal(await page.locator('.site-header').count(),0,'public site header leaked into Premium app view');
+
+  await page.getByRole('link',{name:'Help'}).click();
+  await page.waitForLoadState('networkidle');
+  assert.equal(new URL(page.url()).pathname,'/chemistry/app');
+  assert.equal(new URL(page.url()).searchParams.get('view'),'help');
+  assert.equal(await page.getByRole('heading',{name:'Help without leaving MUSITU.'}).count(),1,'Help left installed app shell');
+  assert.equal(await page.locator('.site-header').count(),0,'public site header leaked into Help app view');
+
+  await page.goto(origin+'/chemistry/app',{waitUntil:'networkidle'});
   await context.setOffline(true);
   await page.reload({waitUntil:'domcontentloaded'});
   assert.equal(await page.getByRole('heading',{name:'Your Chemistry workspace.'}).count(),1,'offline app reload did not recover dedicated app shell');
   assert.equal(await page.locator('.site-header').count(),0,'offline app reload fell back to public website chrome');
   assert.equal(await page.locator('.app-nav').count(),1,'offline app navigation missing');
+
+  await page.getByRole('link',{name:'Premium'}).click();
+  await page.waitForLoadState('domcontentloaded');
+  assert.equal(await page.getByRole('heading',{name:'Unlock full mastery.'}).count(),1,'offline Premium app view was not cached');
+  assert.equal(await page.locator('.site-header').count(),0,'offline Premium fell back to public chrome');
+  await page.getByRole('link',{name:'Help'}).click();
+  await page.waitForLoadState('domcontentloaded');
+  assert.equal(await page.getByRole('heading',{name:'Help without leaving MUSITU.'}).count(),1,'offline Help app view was not cached');
+  assert.equal(await page.locator('.site-header').count(),0,'offline Help fell back to public chrome');
+
   await context.setOffline(false);
   await context.close();
 
@@ -61,5 +89,5 @@ try{
   assert.equal(await installedPage.locator('#install-concierge').getAttribute('data-install-mode'),'installed');
   assert.equal(await installedPage.getByRole('link',{name:'Open Chemistry Rescue'}).count(),1);
   await installedContext.close();
-  console.log(JSON.stringify({schema:'musitu.chemistry.install_browser_matrix.v3',classifier_cases:matrix.map(x=>x[0]),chromium_contracts:['server-rendered immediate Android action','trusted install prompt event','service worker v5 dedicated app-shell cache','offline dedicated app-shell reload','installed-state UI','sensitive routes remain network-authoritative'],physical_device_certification:false,pass:true},null,2));
+  console.log(JSON.stringify({schema:'musitu.chemistry.install_browser_matrix.v4',classifier_cases:matrix.map(x=>x[0]),chromium_contracts:['server-rendered immediate Android action','trusted install prompt event','service worker v6 dedicated app-shell cache','offline dedicated app-shell reload','Premium and Help stay inside installed app online and offline','installed-state UI','sensitive routes remain network-authoritative'],physical_device_certification:false,pass:true},null,2));
 }finally{await browser.close()}
