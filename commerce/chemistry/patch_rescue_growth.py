@@ -38,6 +38,22 @@ s=once(
 insert=module_text('rescue-growth.mjs')+module_text('rescue-render.mjs')
 s=once(s,'// storefront/field-experience.mjs\n',insert+'// storefront/field-experience.mjs\n','Rescue module insertion')
 
+# The existing privacy gate runs immediately before page-view collection. Add
+# Rescue attribution after that gate so GPC/DNT/browser opt-out suppress these
+# signals exactly as they suppress all other first-party field reports.
+s=once(
+    s,
+    "  event('page_view');\n",
+    "  event('page_view');\n  const rescueRoot=q('[data-rescue-source]');\n  if(route()==='rescue'&&rescueRoot)event('rescue_visit',rescueRoot.dataset.rescueSource||'direct');\n",
+    'Rescue visit attribution'
+)
+s=once(
+    s,
+    "    el.addEventListener(type,()=>event(name,detail),{passive:true});\n",
+    "    el.addEventListener(type,()=>{\n      event(name,detail);\n      if(name==='rescue_start'&&detail==='wa_student')event('rescue_peer_start',detail);\n    },{passive:true});\n",
+    'Rescue peer-start attribution'
+)
+
 s=once(
     s,
     'renderPaymentStatus,renderExperience,ingestTelemetryRequest,readFieldSnapshot,computeFieldSnapshot,planViewsFromCore',
