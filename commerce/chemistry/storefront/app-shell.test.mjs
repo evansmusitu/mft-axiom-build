@@ -13,9 +13,10 @@ test('installed app shell is distinct from public website chrome',()=>{
   assert.match(html,/Revise/);
   assert.match(html,/Prove/);
   assert.match(html,/data-app-install-state/);
-  assert.match(html,/\/chemistry\/assets\/app-shell\.css\?v=1/);
-  assert.match(html,/\/chemistry\/assets\/app-shell\.js\?v=1/);
+  assert.match(html,/\/chemistry\/assets\/app-shell\.css\?v=2/);
+  assert.match(html,/\/chemistry\/assets\/app-shell\.js\?v=2/);
   assert.match(html,/noindex,nofollow/);
+  assert.match(html,/app shell is kept available for offline reopening/);
   assert.doesNotMatch(html,/class="site-header"/);
   assert.doesNotMatch(html,/class="site-footer"/);
   assert.doesNotMatch(html,/Help another Chemistry student before exams/);
@@ -30,11 +31,17 @@ test('standalone bridge moves installed rescue launches into app surface before 
   assert.doesNotMatch(APP_BRIDGE_JS,/(fetch\(|sendBeacon|document\.cookie|localStorage|sessionStorage)/);
 });
 
-test('app shell onboarding stores only a bounded local completion flag',()=>{
+test('app shell primes only a bounded non-payment offline cache',()=>{
   assert.match(APP_SHELL_JS,/musitu_chem_onboarding_v1/);
   assert.match(APP_SHELL_JS,/localStorage\.setItem\(KEY,'1'\)/);
   assert.match(APP_SHELL_JS,/serviceWorker\.register/);
-  assert.doesNotMatch(APP_SHELL_JS,/(document\.cookie|sendBeacon|geolocation|getUserMedia|Notification\.requestPermission)/);
+  assert.match(APP_SHELL_JS,/musitu-chemistry-app-shell-v2/);
+  assert.match(APP_SHELL_JS,/primeOfflineShell/);
+  assert.match(APP_SHELL_JS,/\/chemistry\/app/);
+  assert.match(APP_SHELL_JS,/app-shell\.css\?v=2/);
+  assert.match(APP_SHELL_JS,/app-shell\.js\?v=2/);
+  assert.match(APP_SHELL_JS,/Offline ready/);
+  assert.doesNotMatch(APP_SHELL_JS,/(\/chemistry\/(checkout|return|claim|telemetry|plans)|document\.cookie|sendBeacon|geolocation|getUserMedia|Notification\.requestPermission)/);
 });
 
 test('app shell styles include safe areas, bottom navigation and reduced-motion handling',()=>{
