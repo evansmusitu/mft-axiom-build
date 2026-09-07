@@ -12,15 +12,33 @@ test('generated Worker serves a no-store native-feel app shell and local assets'
   assert.match(app.text,/class="app-topbar"/);
   assert.match(app.text,/class="app-nav"/);
   assert.match(app.text,/Your Chemistry workspace/);
-  assert.match(app.text,/\/chemistry\/assets\/app-shell\.css\?v=2/);
-  assert.match(app.text,/\/chemistry\/assets\/app-shell\.js\?v=2/);
+  assert.match(app.text,/\/chemistry\/assets\/app-shell\.css\?v=3/);
+  assert.match(app.text,/\/chemistry\/assets\/app-shell\.js\?v=3/);
+  assert.match(app.text,/\/chemistry\/app\?view=premium/);
+  assert.match(app.text,/\/chemistry\/app\?view=help/);
   assert.doesNotMatch(app.text,/class="site-footer"/);
+
+  const premium=await get('/chemistry/app?view=premium');
+  assert.equal(premium.r.status,200);
+  assert.equal(premium.r.headers.get('cache-control'),'no-store');
+  assert.match(premium.text,/Unlock full mastery/);
+  assert.match(premium.text,/aria-current="page"><b>◇<\/b><span>Premium<\/span>/);
+  assert.doesNotMatch(premium.text,/class="site-header"|class="site-footer"/);
+
+  const help=await get('/chemistry/app?view=help');
+  assert.equal(help.r.status,200);
+  assert.equal(help.r.headers.get('cache-control'),'no-store');
+  assert.match(help.text,/Help without leaving MUSITU/);
+  assert.match(help.text,/Contact MUSITU support/);
+  assert.doesNotMatch(help.text,/class="site-header"|class="site-footer"/);
 
   const js=await get('/chemistry/assets/app-shell.js');
   assert.equal(js.r.status,200);
   assert.match(js.r.headers.get('content-type')||'',/^application\/javascript/);
   assert.match(js.text,/musitu_chem_onboarding_v1/);
-  assert.match(js.text,/musitu-chemistry-app-shell-v2/);
+  assert.match(js.text,/musitu-chemistry-app-shell-v3/);
+  assert.match(js.text,/\/chemistry\/app\?view=premium/);
+  assert.match(js.text,/\/chemistry\/app\?view=help/);
   assert.match(js.text,/primeOfflineShell/);
   assert.match(js.text,/Offline ready/);
   assert.doesNotMatch(js.text,/\/chemistry\/(checkout|return|claim|telemetry|plans)/);
