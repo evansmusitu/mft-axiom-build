@@ -47,6 +47,7 @@ WORKFLOWS = {
     "failure_corpus": ROOT / ".github/workflows/axiom-frontier-v5-failure-corpus-gate.yml",
     "financial_ontology": ROOT / ".github/workflows/axiom-frontier-v5-financial-ontology-gate.yml",
     "latency_performance": ROOT / ".github/workflows/axiom-frontier-v5-latency-performance-gate.yml",
+    "privacy_analytics": ROOT / ".github/workflows/axiom-frontier-v5-privacy-analytics-gate.yml",
 }
 HEX40 = re.compile(r"^[0-9a-f]{40}$")
 ACTION = re.compile(r"^\s*uses:\s*(actions/(?:checkout|setup-python|upload-artifact))@([^\s#]+)", re.M)
@@ -135,9 +136,6 @@ def main() -> None:
     if "capture_is_attestation" in capture:
         fail("Python hash-capture workflow must not self-promote captured hashes to attestation")
 
-    # The supply-chain workflow must trigger when any separately governed
-    # Frontier workflow changes; otherwise a workflow could drift without this
-    # contract being re-evaluated.
     supply_text = WORKFLOWS["supply_chain"].read_text(encoding="utf-8")
     for name, path in WORKFLOWS.items():
         if name == "supply_chain":
@@ -150,7 +148,6 @@ def main() -> None:
     assert status.get("versions_pinned") is True
     assert status.get("github_actions_commit_pinned") is True
     assert status.get("external_asset_digest_pinned") is True
-    # Preserve the claim boundary until stronger work is actually completed.
     assert status.get("python_distribution_hashes_complete") is False
     assert status.get("os_package_snapshot_pinned") is False
     assert status.get("supply_chain_level") == "PARTIAL"
