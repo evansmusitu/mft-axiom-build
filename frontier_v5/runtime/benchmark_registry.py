@@ -96,10 +96,10 @@ class BenchmarkRegistryGate:
 
         reviewed = _utc(registry.get("registry_reviewed_at"), "registry.registry_reviewed_at")
         expires = _utc(registry.get("registry_expires_at"), "registry.registry_expires_at")
-        if reviewed >= expires:
-            raise BenchmarkRegistryError("registry review time must precede registry expiry")
         if current >= expires:
             raise BenchmarkRegistryError("registry expired")
+        if reviewed >= expires:
+            raise BenchmarkRegistryError("registry review time must precede registry expiry")
 
         minimum = registry.get("minimum_distinct_external_providers_for_broad_claim")
         if isinstance(minimum, bool) or not isinstance(minimum, int) or minimum < 1:
@@ -136,7 +136,7 @@ class BenchmarkRegistryGate:
             ref_reviewed = _utc(reference.get("reviewed_at"), f"reference[{index}].reviewed_at")
             ref_expires = _utc(reference.get("expires_at"), f"reference[{index}].expires_at")
             # Expired historical evidence is permitted to remain registered so
-            # the promotion layer can reject it explicitly as expired.  For a
+            # the promotion layer can reject it explicitly as expired. For a
             # still-current reference, review chronology must remain coherent.
             if current < ref_expires and ref_reviewed >= ref_expires:
                 raise BenchmarkRegistryError(f"reference {registry_id} review time must precede expiry")
