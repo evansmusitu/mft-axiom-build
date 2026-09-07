@@ -1,0 +1,289 @@
+name: MUSITU Chemistry Browser Discovery Full Preflight
+
+on:
+  push:
+    branches: [chemistry-browser-discovery-20260907]
+    paths:
+      - 'commerce/chemistry/**'
+      - 'growth/chemistry-rescue/**'
+      - '.github/workflows/chemistry-browser-discovery-full-preflight.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: musitu-chemistry-browser-discovery-preflight
+  cancel-in-progress: false
+
+jobs:
+  preflight:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Reconstruct sealed source and exact discovery candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/mchem-discovery-base /tmp/mchem-discovery-source.zip /tmp/mchem-discovery-core /tmp/mchem-discovery-preflight
+          mkdir -p /tmp/mchem-discovery-base /tmp/mchem-discovery-core/src /tmp/mchem-discovery-preflight
+          cat commerce/chemistry/source.b64.* | base64 -d > /tmp/mchem-discovery-source.zip
+          echo "5b2618499eed8dc90261bc4f8260246d5593534500dd2fb145f2d24b5c47754c  /tmp/mchem-discovery-source.zip" | sha256sum -c -
+          unzip -q /tmp/mchem-discovery-source.zip -d /tmp/mchem-discovery-base
+          echo "848e1cec17ec580822d36e595196cda5978713849e8b45c5bc8dc7fcf9765db8  /tmp/mchem-discovery-base/src/index.mjs" | sha256sum -c -
+          cp /tmp/mchem-discovery-base/src/index.mjs commerce/chemistry/index.base.mjs
+          python commerce/chemistry/patch_storefront.py
+          python commerce/chemistry/patch_rescue_growth.py
+          node --check commerce/chemistry/index.storefront-v3.mjs
+          CANDIDATE_SHA="$(sha256sum commerce/chemistry/index.storefront-v3.mjs | awk '{print $1}')"
+          test -n "$CANDIDATE_SHA"
+          echo "CANDIDATE_SHA=$CANDIDATE_SHA" >> "$GITHUB_ENV"
+          printf '%s\n' "$CANDIDATE_SHA" > /tmp/mchem-discovery-preflight/candidate-worker.sha256
+          echo "CANDIDATE_WORKER_SHA256=$CANDIDATE_SHA"
+
+      - name: Run every storefront privacy Worker Rescue and discovery contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --test commerce/chemistry/storefront/*.test.mjs | tee /tmp/mchem-discovery-preflight/storefront-tests.txt
+
+      - name: Run original sealed commerce regression and syntax checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp commerce/chemistry/index.storefront-v3.mjs /tmp/mchem-discovery-core/src/index.mjs
+          cp -a /tmp/mchem-discovery-base/test /tmp/mchem-discovery-core/
+          cp /tmp/mchem-discovery-base/package.json /tmp/mchem-discovery-core/
+          cd /tmp/mchem-discovery-core
+          npm test | tee /tmp/mchem-discovery-preflight/commerce-tests.txt
+          npm run check | tee /tmp/mchem-discovery-preflight/commerce-check.txt
+
+      - name: Prove sealed pre-growth source does not expose Rescue or discovery assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'JS'
+          import {pathToFileURL} from 'node:url';
+          const {handleRequest}=await import(pathToFileURL('/tmp/mchem-discovery-base/src/index.mjs').href);
+          for(const path of ['/chemistry/rescue','/chemistry/manifest.webmanifest','/chemistry/assets/rescue-install.js']){
+            const r=await handleRequest(new Request('https://payments.mftintelligence.com'+path),{});
+            if(r.status===200) throw new Error('negative control unexpectedly exposed '+path);
+          }
+          console.log('NEGATIVE_CONTROL_SEALED_BASE_DISCOVERY_REJECTED=true');
+          JS
+
+      - name: Verify manifest icons structured data and install safety contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'JS'
+          import {pathToFileURL} from 'node:url';
+          const {handleRequest}=await import(pathToFileURL(process.cwd()+'/commerce/chemistry/index.storefront-v3.mjs').href);
+          const base='https://payments.mftintelligence.com';
+          const get=async path=>{const r=await handleRequest(new Request(base+path),{});return {r,b:new Uint8Array(await r.arrayBuffer())}};
+          const page=await get('/chemistry/rescue?src=direct');
+          if(page.r.status!==200) throw new Error('Rescue page unavailable');
+          const html=new TextDecoder().decode(page.b);
+          for(const needle of [
+            '<link rel="canonical" href="https://payments.mftintelligence.com/chemistry/rescue">',
+            '<meta name="robots" content="index,follow,max-image-preview:large">',
+            '<meta property="og:title" content="MUSITU Chemistry Rescue 2026">',
+            '<meta name="twitter:card" content="summary">',
+            '<link rel="manifest" href="/chemistry/manifest.webmanifest">',
+            '<link rel="sitemap" type="application/xml" href="https://payments.mftintelligence.com/chemistry/sitemap.xml">',
+            '<script type="application/ld+json">'
+          ]) if(!html.includes(needle)) throw new Error('metadata missing '+needle);
+          const match=html.match(/<script type="application\/ld\+json">([^<]+)<\/script>/);
+          if(!match) throw new Error('structured data missing');
+          const ld=JSON.parse(match[1]);
+          if(ld['@type']!=='SoftwareApplication'||ld.applicationCategory!=='EducationalApplication'||ld.operatingSystem!=='Android'||ld.isAccessibleForFree!==true) throw new Error('structured data contract');
+          if('aggregateRating' in ld||'review' in ld) throw new Error('unverified review data present');
+
+          const manifestReply=await get('/chemistry/manifest.webmanifest');
+          if(manifestReply.r.status!==200||!(manifestReply.r.headers.get('content-type')||'').startsWith('application/manifest+json')) throw new Error('manifest response');
+          const manifest=JSON.parse(new TextDecoder().decode(manifestReply.b));
+          if(manifest.name!=='MUSITU Chemistry Rescue 2026'||manifest.start_url!=='/chemistry/rescue?src=direct'||manifest.scope!=='/chemistry/'||manifest.display!=='standalone'||manifest.prefer_related_applications!==false) throw new Error('manifest identity');
+          if(!Array.isArray(manifest.icons)||manifest.icons.length!==2) throw new Error('manifest icons');
+
+          const readPng=(bytes,expected)=>{
+            const sig=[0x89,0x50,0x4e,0x47,0x0d,0x0a,0x1a,0x0a];
+            if(bytes.length<24||sig.some((x,i)=>bytes[i]!==x)) throw new Error('PNG signature');
+            const v=new DataView(bytes.buffer,bytes.byteOffset,bytes.byteLength);
+            if(v.getUint32(16)!==expected||v.getUint32(20)!==expected) throw new Error('PNG dimensions '+expected);
+          };
+          for(const [path,size] of [['/chemistry/assets/musitu-chemistry-192.png',192],['/chemistry/assets/musitu-chemistry-512.png',512]]){
+            const icon=await get(path);
+            if(icon.r.status!==200||icon.r.headers.get('content-type')!=='image/png') throw new Error('icon response '+path);
+            readPng(icon.b,size);
+          }
+          const installReply=await get('/chemistry/assets/rescue-install.js');
+          const install=new TextDecoder().decode(installReply.b);
+          if(installReply.r.status!==200||!install.includes('beforeinstallprompt')||!install.includes('.prompt()')) throw new Error('install JS contract');
+          if(/Notification\.requestPermission|pushManager|document\.cookie|localStorage|sessionStorage/.test(install)) throw new Error('install JS privacy broadening');
+          console.log('DISCOVERY_MANIFEST_ICON_STRUCTURED_INSTALL_CONTRACT=PASS');
+          JS
+
+      - name: Install browser audit tooling
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --no-save --no-package-lock playwright axe-core lighthouse
+          CHROME_PATH="$(command -v google-chrome || command -v chromium || command -v chromium-browser || true)"
+          test -n "$CHROME_PATH"
+          echo "CHROME_PATH=$CHROME_PATH" >> "$GITHUB_ENV"
+          node -e "console.log('playwright='+require('playwright/package.json').version);console.log('axe-core='+require('axe-core/package.json').version);console.log('lighthouse='+require('lighthouse/package.json').version)" | tee /tmp/mchem-discovery-preflight/tool-versions.txt
+
+      - name: Run unchanged Phase 3 keyboard reflow reduced-motion axe and AX-tree gate
+        shell: bash
+        env:
+          WORKER_PATH: ${{ github.workspace }}/commerce/chemistry/index.storefront-v3.mjs
+          BROWSER_EVIDENCE: /tmp/mchem-discovery-preflight/core-browser-evidence.json
+        run: |
+          set -euo pipefail
+          node commerce/chemistry/storefront/browser-smoke.mjs test "$WORKER_PATH"
+
+      - name: Run Rescue discovery axe mobile reflow metadata and install-UI gate
+        shell: bash
+        env:
+          WORKER_PATH: ${{ github.workspace }}/commerce/chemistry/index.storefront-v3.mjs
+        run: |
+          set -euo pipefail
+          node commerce/chemistry/storefront/browser-smoke.mjs serve "$WORKER_PATH" >/tmp/discovery-store-server.log 2>&1 &
+          SERVER_PID=$!
+          trap 'kill "$SERVER_PID" 2>/dev/null || true' EXIT
+          for i in $(seq 1 30); do curl -fsS http://127.0.0.1:8787/chemistry/rescue >/dev/null && break; sleep 0.5; done
+          node --input-type=module <<'JS'
+          import fs from 'node:fs';
+          import {createRequire} from 'node:module';
+          import {chromium} from 'playwright';
+          const require=createRequire(import.meta.url);
+          const axeSource=fs.readFileSync(require.resolve('axe-core/axe.min.js'),'utf8');
+          const origin='http://127.0.0.1:8787';
+          const browser=await chromium.launch({headless:true,executablePath:process.env.CHROME_PATH,args:['--no-sandbox','--disable-dev-shm-usage']});
+          const context=await browser.newContext({viewport:{width:320,height:568},bypassCSP:true});
+          const page=await context.newPage();
+          const evidence={schema:'musitu.chemistry.browser_discovery.browser_preflight.v1'};
+          try{
+            const response=await page.goto(origin+'/chemistry/rescue?src=direct',{waitUntil:'networkidle'});
+            if(!response||response.status()!==200) throw new Error('Rescue HTTP '+response?.status());
+            const h=response.headers(),csp=h['content-security-policy']||'';
+            if(!csp.includes("style-src 'self'")||!csp.includes("script-src 'self'")||!csp.includes("connect-src 'self'")||/unsafe-inline|unsafe-eval/.test(csp)) throw new Error('CSP');
+            if(h['referrer-policy']!=='no-referrer'||h['x-frame-options']!=='DENY'||h['x-content-type-options']!=='nosniff') throw new Error('security headers');
+            await page.addScriptTag({content:axeSource});
+            const axe=await page.evaluate(async()=>await axe.run(document,{runOnly:{type:'tag',values:['wcag2a','wcag2aa','wcag21aa','wcag22aa']}}));
+            const bad=axe.violations.filter(v=>['serious','critical'].includes(v.impact));
+            if(bad.length) throw new Error('axe '+bad.map(v=>v.id).join(','));
+            const ui=await page.evaluate(()=>({
+              scrollWidth:document.documentElement.scrollWidth,
+              clientWidth:document.documentElement.clientWidth,
+              smallControls:Array.from(document.querySelectorAll('a.button,button,input,select')).filter(el=>{const r=el.getBoundingClientRect();return r.width>0&&r.height>0&&(r.width<44||r.height<44)}).length,
+              canonical:document.querySelector('link[rel=canonical]')?.href||'',
+              manifest:document.querySelector('link[rel=manifest]')?.getAttribute('href')||'',
+              installHidden:document.getElementById('install-rescue')?.hidden===true,
+              ld:JSON.parse(document.querySelector('script[type="application/ld+json"]')?.textContent||'{}')
+            }));
+            if(ui.scrollWidth>ui.clientWidth||ui.smallControls) throw new Error('mobile '+JSON.stringify(ui));
+            if(ui.canonical!=='https://payments.mftintelligence.com/chemistry/rescue'||ui.manifest!=='/chemistry/manifest.webmanifest'||ui.installHidden!==true||ui.ld['@type']!=='SoftwareApplication') throw new Error('discovery DOM');
+            await page.evaluate(()=>{
+              const e=new Event('beforeinstallprompt');
+              e.prompt=async()=>{};
+              e.userChoice=Promise.resolve({outcome:'dismissed'});
+              window.dispatchEvent(e);
+            });
+            if(await page.locator('#install-rescue').getAttribute('hidden')!==null) throw new Error('install button did not become browser-event visible');
+            await page.locator('#install-rescue').click();
+            await page.waitForTimeout(20);
+            if(await page.locator('#install-rescue').getAttribute('hidden')===null) throw new Error('install button did not reset');
+            evidence.axe_serious_or_critical=bad.length;
+            evidence.mobile=ui;
+            evidence.browser_controlled_install_prompt=true;
+            evidence.strict_csp=true;
+          }finally{await browser.close()}
+          fs.writeFileSync('/tmp/mchem-discovery-preflight/discovery-browser-evidence.json',JSON.stringify(evidence,null,2)+'\n');
+          console.log('MUSITU_CHEMISTRY_BROWSER_DISCOVERY_BROWSER_PREFLIGHT_PASS');
+          JS
+          kill "$SERVER_PID" 2>/dev/null || true
+          trap - EXIT
+
+      - name: Run core and Rescue Lighthouse mobile budgets
+        shell: bash
+        env:
+          WORKER_PATH: ${{ github.workspace }}/commerce/chemistry/index.storefront-v3.mjs
+        run: |
+          set -euo pipefail
+          node commerce/chemistry/storefront/browser-smoke.mjs serve "$WORKER_PATH" >/tmp/discovery-lighthouse-server.log 2>&1 &
+          SERVER_PID=$!
+          trap 'kill "$SERVER_PID" 2>/dev/null || true' EXIT
+          for i in $(seq 1 30); do curl -fsS http://127.0.0.1:8787/chemistry/rescue >/dev/null && break; sleep 0.5; done
+          npx lighthouse http://127.0.0.1:8787/chemistry/ --output=json --output-path=/tmp/mchem-discovery-preflight/lighthouse-core.json --only-categories=performance,accessibility,best-practices --chrome-flags="--headless --no-sandbox --disable-dev-shm-usage" --quiet
+          npx lighthouse http://127.0.0.1:8787/chemistry/rescue?src=direct --output=json --output-path=/tmp/mchem-discovery-preflight/lighthouse-rescue.json --only-categories=performance,accessibility,best-practices --chrome-flags="--headless --no-sandbox --disable-dev-shm-usage" --quiet
+          node --input-type=module <<'JS'
+          import fs from 'node:fs';
+          const budget=JSON.parse(fs.readFileSync('commerce/chemistry/storefront/lighthouse-budget.json','utf8'));
+          const evaluate=(path,label)=>{const l=JSON.parse(fs.readFileSync(path,'utf8'));const got={performance:l.categories.performance.score,accessibility:l.categories.accessibility.score,best_practices:l.categories['best-practices'].score,lcp_ms:l.audits['largest-contentful-paint'].numericValue,cls:l.audits['cumulative-layout-shift'].numericValue,tbt_ms:l.audits['total-blocking-time'].numericValue};const pass=got.performance>=budget.performance_score_min&&got.accessibility>=budget.accessibility_score_min&&got.best_practices>=budget.best_practices_score_min&&got.lcp_ms<=budget.lcp_ms_max&&got.cls<=budget.cls_max&&got.tbt_ms<=budget.tbt_ms_max;return {label,results:got,pass}};
+          const core=evaluate('/tmp/mchem-discovery-preflight/lighthouse-core.json','core');
+          const rescue=evaluate('/tmp/mchem-discovery-preflight/lighthouse-rescue.json','rescue');
+          const out={schema:'musitu.chemistry.browser_discovery.lighthouse.v1',budget,core,rescue,field_inp_status:budget.field_inp_status,pass:core.pass&&rescue.pass};
+          fs.writeFileSync('/tmp/mchem-discovery-preflight/lighthouse-summary.json',JSON.stringify(out,null,2)+'\n');
+          console.log(JSON.stringify(out));
+          if(!out.pass) process.exit(1);
+          JS
+          kill "$SERVER_PID" 2>/dev/null || true
+          trap - EXIT
+
+      - name: Verify byte security secret and distribution boundaries
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'JS'
+          import fs from 'node:fs';
+          import {pathToFileURL} from 'node:url';
+          const {handleRequest}=await import(pathToFileURL(process.cwd()+'/commerce/chemistry/index.storefront-v3.mjs').href);
+          const base='https://payments.mftintelligence.com';
+          async function get(path){const r=await handleRequest(new Request(base+path),{});return {r,b:Buffer.from(await r.arrayBuffer())}}
+          const checks={root:await get('/chemistry/'),rescue:await get('/chemistry/rescue?src=direct'),manifest:await get('/chemistry/manifest.webmanifest'),install:await get('/chemistry/assets/rescue-install.js'),icon192:await get('/chemistry/assets/musitu-chemistry-192.png'),icon512:await get('/chemistry/assets/musitu-chemistry-512.png')};
+          const sizes=Object.fromEntries(Object.entries(checks).map(([k,v])=>[k,v.b.length]));
+          if(sizes.root>45*1024||sizes.rescue>45*1024||sizes.manifest>8*1024||sizes.install>8*1024||sizes.icon192>16*1024||sizes.icon512>32*1024) throw new Error('byte budget '+JSON.stringify(sizes));
+          const forbidden=['CHEMISTRY_LICENSE_PKCS8_B64','PAYNOW_INTEGRATION_KEY','CLOUDFLARE_GLOBAL_API_KEY','CHEMISTRY_AUTHORITY_BRIDGE_TOKEN','BEGIN PRIVATE KEY'];
+          for(const [name,v] of Object.entries(checks)){if(name.startsWith('icon'))continue;const text=v.b.toString('utf8');for(const word of forbidden) if(text.includes(word)) throw new Error('secret marker '+name+' '+word)}
+          fs.writeFileSync('/tmp/mchem-discovery-preflight/byte-security-summary.json',JSON.stringify({schema:'musitu.chemistry.browser_discovery.byte_security.v1',sizes,forbidden_secret_markers_absent:true,payment_contract_changed:false,licence_contract_changed:false,pass:true},null,2)+'\n');
+          JS
+
+      - name: Seal exact read-only preflight evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > /tmp/mchem-discovery-preflight/preflight-summary.json <<JSON
+          {
+            "schema":"musitu.chemistry.browser_discovery.full_preflight.v1",
+            "commit_sha":"${GITHUB_SHA}",
+            "candidate_worker_sha256":"${CANDIDATE_SHA}",
+            "predecessor_live_worker_sha256":"7b17d37b514913a59a66fa1339ced59ab0b06ff9759ef51cd5ec16d4e5e20af0",
+            "sealed_base_worker_sha256":"848e1cec17ec580822d36e595196cda5978713849e8b45c5bc8dc7fcf9765db8",
+            "sealed_archive_sha256":"5b2618499eed8dc90261bc4f8260246d5593534500dd2fb145f2d24b5c47754c",
+            "production_mutation":false,
+            "search_console_submission_performed":false,
+            "indexing_claimed":false,
+            "browser_forced_popup_claimed":false,
+            "real_money_settlement_observed":false,
+            "real_money_settlement_claimed":false,
+            "core_browser_gate":true,
+            "discovery_browser_gate":true,
+            "core_and_rescue_lighthouse_budgets":true,
+            "commerce_regression":true,
+            "aggregate_only_telemetry_contract":true,
+            "gate":"MUSITU_CHEMISTRY_BROWSER_DISCOVERY_FULL_PREFLIGHT_PASS"
+          }
+          JSON
+          cd /tmp/mchem-discovery-preflight
+          sha256sum *.json *.txt *.sha256 > SHA256SUMS.txt
+          cat preflight-summary.json
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: musitu-chemistry-browser-discovery-full-preflight
+          path: /tmp/mchem-discovery-preflight
+          retention-days: 90
+          if-no-files-found: error
