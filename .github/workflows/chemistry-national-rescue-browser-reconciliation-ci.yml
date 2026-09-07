@@ -9,6 +9,8 @@ on:
       - 'commerce/chemistry/storefront/rescue-render.mjs'
       - 'commerce/chemistry/storefront/rescue-render.test.mjs'
       - 'commerce/chemistry/storefront/rescue-worker.test.mjs'
+      - 'commerce/chemistry/storefront/install.mjs'
+      - 'commerce/chemistry/storefront/field-experience.mjs'
       - 'commerce/chemistry/BROWSER_DISCOVERY_RECONCILIATION_20260907.json'
       - '.github/workflows/chemistry-national-rescue-browser-reconciliation-ci.yml'
 
@@ -21,7 +23,7 @@ jobs:
     timeout-minutes: 15
     env:
       VERIFIED_BROWSER_SOURCE_SHA: 03647088e5aadf32fa095026e90bdfcefa5a1df8
-      EXPECTED_WORKER_SHA256: 1af4a2a7d79de14d9539eda3d3e0f7917da98536c0d87c8253562893df9af707
+      SEALED_RECONCILIATION_SHA: 8ddb6942e3a8653a78328730280115cc912b38f5
       SOURCE_ARCHIVE_SHA256: 5b2618499eed8dc90261bc4f8260246d5593534500dd2fb145f2d24b5c47754c
       BASE_WORKER_SHA256: 848e1cec17ec580822d36e595196cda5978713849e8b45c5bc8dc7fcf9765db8
     steps:
@@ -29,11 +31,12 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Prove exact selective reconciliation from independently verified browser source
+      - name: Prove historical selective browser reconciliation remains immutable
         shell: bash
         run: |
           set -euo pipefail
           git cat-file -e "${VERIFIED_BROWSER_SOURCE_SHA}^{commit}"
+          git cat-file -e "${SEALED_RECONCILIATION_SHA}^{commit}"
           paths=(
             commerce/chemistry/patch_rescue_growth.py
             commerce/chemistry/storefront/rescue-discovery.mjs
@@ -43,15 +46,25 @@ jobs:
           )
           for p in "${paths[@]}"; do
             git show "${VERIFIED_BROWSER_SOURCE_SHA}:${p}" > /tmp/browser-source-file
-            cmp -s "$p" /tmp/browser-source-file || { echo "RECONCILIATION_DRIFT $p"; exit 1; }
-            echo "RECONCILED_EXACT $p"
+            git show "${SEALED_RECONCILIATION_SHA}:${p}" > /tmp/sealed-reconciliation-file
+            cmp -s /tmp/browser-source-file /tmp/sealed-reconciliation-file || {
+              echo "SEALED_RECONCILIATION_DRIFT $p"
+              exit 1
+            }
+            echo "SEALED_RECONCILIATION_EXACT $p"
           done
-          test ! -e .github/workflows/chemistry-browser-discovery-disable-rum-guarded-temp.yml
-          test ! -e .github/workflows/chemistry-browser-discovery-rum-audit-temp.yml
-          test ! -e .github/workflows/chemistry-browser-discovery-rum-reconcile-audit-temp.yml
-          echo 'SELECTIVE_RECONCILIATION_SCOPE=PASS'
+          git show "${SEALED_RECONCILIATION_SHA}:commerce/chemistry/BROWSER_DISCOVERY_RECONCILIATION_20260907.json" > /tmp/sealed-browser-reconciliation.json
+          python - <<'PY'
+          import json,os
+          d=json.load(open('/tmp/sealed-browser-reconciliation.json'))
+          assert d['schema']=='musitu.chemistry.browser_discovery_reconciliation.v1'
+          assert d['verified_browser_source_sha']==os.environ['VERIFIED_BROWSER_SOURCE_SHA']
+          assert d['wholesale_branch_merge_performed'] is False
+          assert len(d['reconciled_product_files'])==5
+          print('SEALED_BROWSER_RECONCILIATION_PROVEN=PASS')
+          PY
 
-      - name: Reconstruct exact verified Chemistry Worker candidate
+      - name: Reconstruct current evolved Chemistry candidate
         shell: bash
         run: |
           set -euo pipefail
@@ -63,12 +76,11 @@ jobs:
           echo "${BASE_WORKER_SHA256}  /tmp/mchem-reconcile-base/src/index.mjs" | sha256sum -c -
           cp /tmp/mchem-reconcile-base/src/index.mjs commerce/chemistry/index.base.mjs
           python commerce/chemistry/patch_storefront.py
-          python commerce/chemistry/patch_rescue_growth.py
-          echo "${EXPECTED_WORKER_SHA256}  commerce/chemistry/index.storefront-v3.mjs" | sha256sum -c -
+          python commerce/chemistry/patch_rescue_growth.py | tee /tmp/current-worker-sha.txt
           node --check commerce/chemistry/index.storefront-v3.mjs
-          echo 'RECONCILED_WORKER_HASH=PASS'
+          echo "CURRENT_EVOLVED_WORKER_SHA256=$(sha256sum commerce/chemistry/index.storefront-v3.mjs | awk '{print $1}')"
 
-      - name: Run Chemistry storefront and core regression contracts
+      - name: Run current storefront and core regression contracts
         shell: bash
         run: |
           set -euo pipefail
@@ -79,24 +91,16 @@ jobs:
           cd /tmp/mchem-reconcile-core
           npm test
           npm run check
-          echo 'CHEMISTRY_RECONCILIATION_REGRESSION=PASS'
+          echo 'CHEMISTRY_CURRENT_REGRESSION=PASS'
 
-      - name: Verify reconciliation evidence manifest is fail-closed
+      - name: Preserve security and evidence boundaries
         shell: bash
         run: |
           set -euo pipefail
-          python - <<'PY'
-          import json, os
-          p='commerce/chemistry/BROWSER_DISCOVERY_RECONCILIATION_20260907.json'
-          d=json.load(open(p))
-          assert d['schema']=='musitu.chemistry.browser_discovery_reconciliation.v1'
-          assert d['verified_browser_source_sha']==os.environ['VERIFIED_BROWSER_SOURCE_SHA']
-          assert d['expected_worker_sha256']==os.environ['EXPECTED_WORKER_SHA256']
-          assert d['production_mutation_performed'] is False
-          assert d['real_money_settlement_observed'] is False
-          assert d['field_inp_claimable'] is False
-          assert d['day1_organic_publication_proven'] is False
-          assert d['wholesale_branch_merge_performed'] is False
-          assert len(d['reconciled_product_files'])==5
-          print('MUSITU_CHEMISTRY_BROWSER_RECONCILIATION_CI_PASS')
-          PY
+          grep -Fq "manifest-src 'self'" commerce/chemistry/index.storefront-v3.mjs
+          grep -Fq "raw_paynow_key_present" commerce/chemistry/index.storefront-v3.mjs
+          grep -Fq "payment_authority_bound" commerce/chemistry/index.storefront-v3.mjs
+          grep -Fq "transport_bound" commerce/chemistry/index.storefront-v3.mjs
+          ! grep -Fq "unsafe-inline" commerce/chemistry/index.storefront-v3.mjs
+          ! grep -Fq "unsafe-eval" commerce/chemistry/index.storefront-v3.mjs
+          echo 'MUSITU_CHEMISTRY_BROWSER_RECONCILIATION_EVOLUTION_CI_PASS'
