@@ -1,0 +1,242 @@
+name: MUSITU Chemistry National Rescue Reconciled Live Seal
+
+on:
+  push:
+    branches: [chemistry-national-rescue-growth-20260907]
+    paths:
+      - '.github/workflows/chemistry-national-rescue-reconciled-live-seal.yml'
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  seal:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      RECONCILIATION_SHA: 8ddb6942e3a8653a78328730280115cc912b38f5
+      RECONCILIATION_RUN_ID: '34116504114'
+      GROWTH_CI_RUN_ID: '34116504132'
+      FULL_PREFLIGHT_RUN_ID: '34116504087'
+      FULL_PREFLIGHT_ARTIFACT_ID: '10016484608'
+      FULL_PREFLIGHT_ARTIFACT_SHA256: f25f97c7ac05392a0861a80c4195c60f80ca38c02912e6055a228debf094b31f
+      EXPECTED_WORKER_SHA256: 1af4a2a7d79de14d9539eda3d3e0f7917da98536c0d87c8253562893df9af707
+      SOURCE_ARCHIVE_SHA256: 5b2618499eed8dc90261bc4f8260246d5593534500dd2fb145f2d24b5c47754c
+      BASE_WORKER_SHA256: 848e1cec17ec580822d36e595196cda5978713849e8b45c5bc8dc7fcf9765db8
+      WEB_VITALS_SHA256: 6b3e4ac9d6f6abd4ea1810621668bec7d7adb121279570e6870be4fb98ab3909
+      APK_SHA256: 055b63f271c18faab540985faefb970f472ea55ba9cb3495db459797902b790d
+      LICENCE_KEY_ID: chem-lic-2026-6783aa7535d1
+      ZONE_ID: 5b56528f03948ff5917a5e0cd9f7109e
+      RULESET_ID: 8e8a2552a8ee4bb383abbe0d748e1da5
+      RULESET_VERSION: '6'
+      RUM_RULE_ID: bc8c60317d884ceaacecaeb3e94e10c2
+      RUM_RULE_REF: musitu_chemistry_disable_cloudflare_rum
+      RUM_RULE_EXPRESSION: '(http.host eq "payments.mftintelligence.com" and (raw.http.request.uri.path eq "/chemistry" or starts_with(raw.http.request.uri.path, "/chemistry/")))'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Prove exact reconciled GitHub evidence chain
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/mchem-reconciled-live-seal && mkdir -p /tmp/mchem-reconciled-live-seal
+          git merge-base --is-ancestor "$RECONCILIATION_SHA" "$GITHUB_SHA"
+          paths=(
+            commerce/chemistry/patch_rescue_growth.py
+            commerce/chemistry/storefront/rescue-discovery.mjs
+            commerce/chemistry/storefront/rescue-render.mjs
+            commerce/chemistry/storefront/rescue-render.test.mjs
+            commerce/chemistry/storefront/rescue-worker.test.mjs
+            commerce/chemistry/BROWSER_DISCOVERY_RECONCILIATION_20260907.json
+          )
+          for p in "${paths[@]}"; do
+            git show "${RECONCILIATION_SHA}:${p}" > /tmp/reconciled-sealed-file
+            cmp -s "$p" /tmp/reconciled-sealed-file || { echo "POST_RECONCILIATION_PRODUCT_DRIFT $p"; exit 1; }
+          done
+          python - <<'PY'
+          import json, os, urllib.request
+          H={'Authorization':'Bearer '+os.environ['GH_TOKEN'],'X-GitHub-Api-Version':'2022-11-28','User-Agent':'MUSITU-Chemistry-Reconciled-Live-Seal/1.0'}
+          repo=os.environ['GITHUB_REPOSITORY']; expected=os.environ['RECONCILIATION_SHA']
+          expected_runs={
+            os.environ['RECONCILIATION_RUN_ID']:'MUSITU Chemistry National Rescue Browser Reconciliation CI',
+            os.environ['GROWTH_CI_RUN_ID']:'MUSITU Chemistry Rescue Growth Focused CI',
+            os.environ['FULL_PREFLIGHT_RUN_ID']:'MUSITU Chemistry Rescue Full Preflight'}
+          proof=[]
+          for rid,name in expected_runs.items():
+            q=urllib.request.Request(f'https://api.github.com/repos/{repo}/actions/runs/{rid}',headers=H)
+            with urllib.request.urlopen(q,timeout=60) as r:d=json.load(r)
+            if d.get('head_sha')!=expected or d.get('head_branch')!='chemistry-national-rescue-growth-20260907' or d.get('conclusion')!='success' or d.get('name')!=name:
+              raise SystemExit('prior run evidence mismatch '+rid+' '+json.dumps({'sha':d.get('head_sha'),'branch':d.get('head_branch'),'conclusion':d.get('conclusion'),'name':d.get('name')},sort_keys=True))
+            proof.append({'run_id':int(rid),'name':name,'conclusion':'success','head_sha':expected})
+          q=urllib.request.Request(f"https://api.github.com/repos/{repo}/actions/runs/{os.environ['FULL_PREFLIGHT_RUN_ID']}/artifacts?per_page=100",headers=H)
+          with urllib.request.urlopen(q,timeout=60) as r:a=json.load(r)
+          m=[x for x in a.get('artifacts',[]) if str(x.get('id'))==os.environ['FULL_PREFLIGHT_ARTIFACT_ID']]
+          if len(m)!=1 or m[0].get('expired') is not False or m[0].get('name')!='musitu-chemistry-rescue-full-preflight':raise SystemExit('preflight artifact identity mismatch')
+          digest=str(m[0].get('digest') or '').removeprefix('sha256:')
+          if digest!=os.environ['FULL_PREFLIGHT_ARTIFACT_SHA256']:raise SystemExit('preflight artifact digest mismatch '+digest)
+          out={'schema':'musitu.chemistry.reconciled.github_chain.v1','reconciliation_sha':expected,'runs':proof,'full_preflight_artifact_id':int(os.environ['FULL_PREFLIGHT_ARTIFACT_ID']),'full_preflight_artifact_sha256':digest,'pass':True,'gate':'MUSITU_CHEMISTRY_RECONCILED_GITHUB_CHAIN_PASS'}
+          open('/tmp/mchem-reconciled-live-seal/github-chain.json','w').write(json.dumps(out,indent=2,sort_keys=True)+'\n')
+          print(json.dumps(out,sort_keys=True))
+          PY
+
+      - name: Reconstruct exact reconciled Worker identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/mchem-seal-base /tmp/mchem-seal-source.zip
+          mkdir -p /tmp/mchem-seal-base
+          cat commerce/chemistry/source.b64.* | base64 -d > /tmp/mchem-seal-source.zip
+          echo "${SOURCE_ARCHIVE_SHA256}  /tmp/mchem-seal-source.zip" | sha256sum -c -
+          unzip -q /tmp/mchem-seal-source.zip -d /tmp/mchem-seal-base
+          echo "${BASE_WORKER_SHA256}  /tmp/mchem-seal-base/src/index.mjs" | sha256sum -c -
+          cp /tmp/mchem-seal-base/src/index.mjs commerce/chemistry/index.base.mjs
+          python commerce/chemistry/patch_storefront.py
+          python commerce/chemistry/patch_rescue_growth.py
+          echo "${EXPECTED_WORKER_SHA256}  commerce/chemistry/index.storefront-v3.mjs" | sha256sum -c -
+          node --check commerce/chemistry/index.storefront-v3.mjs
+          echo 'RECONCILED_SOURCE_WORKER_IDENTITY=PASS'
+
+      - name: GET-only live Worker ruleset public commerce and field boundary verification
+        shell: bash
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import email,hashlib,json,os,secrets,urllib.error,urllib.parse,urllib.request
+          from pathlib import Path
+          API='https://api.cloudflare.com/client/v4'; AID='93f395f5121954671f92fffa453d6b61'; BASE='https://payments.mftintelligence.com'; WORKER='musitu-chemistry-commerce'
+          H={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY'],'User-Agent':'MUSITU-Chemistry-Reconciled-Live-Seal/1.0'}
+          def req(url,headers=None):
+            q=urllib.request.Request(url,method='GET',headers=dict(headers or {}))
+            try:
+              with urllib.request.urlopen(q,timeout=90) as r:return r.status,r.headers,r.read()
+            except urllib.error.HTTPError as e:return e.code,e.headers,e.read()
+          def public(path,accept='*/*'):
+            path += ('&' if '?' in path else '?')+'__mchem_reconciled_seal='+secrets.token_hex(8)
+            return req(BASE+path,{'Accept':accept,'Cache-Control':'no-cache, no-store, max-age=0','Pragma':'no-cache','User-Agent':'MUSITU-Reconciled-Seal/'+secrets.token_hex(4)})
+          def extract(raw,ctype,needle):
+            if 'multipart/' not in (ctype or '').lower():return raw
+            msg=email.message_from_bytes((f'Content-Type: {ctype}\r\nMIME-Version: 1.0\r\n\r\n').encode()+raw); parts=[]
+            for p in msg.walk():
+              if p.is_multipart():continue
+              d=p.get_payload(decode=True) or b''
+              if needle.encode() in d:parts.append(d)
+            if len(parts)!=1:raise RuntimeError('module extraction mismatch')
+            return parts[0]
+          def strict(h):
+            csp=h.get('content-security-policy') or ''
+            return "manifest-src 'self'" in csp and "style-src 'self'" in csp and "script-src 'self'" in csp and "connect-src 'self'" in csp and 'unsafe-inline' not in csp and 'unsafe-eval' not in csp and 'static.cloudflareinsights.com' not in csp and (h.get('referrer-policy') or '')=='no-referrer' and (h.get('x-frame-options') or '')=='DENY' and (h.get('x-content-type-options') or '')=='nosniff'
+          c,h,b=req(f'{API}/accounts/{AID}/workers/scripts/{WORKER}',H)
+          if c!=200:raise SystemExit('worker source read HTTP '+str(c))
+          live=extract(b,h.get('content-type',''),'MUSITU Chemistry Commerce'); livehash=hashlib.sha256(live).hexdigest()
+          if livehash!=os.environ['EXPECTED_WORKER_SHA256']:raise SystemExit('LIVE_WORKER_HASH_MISMATCH '+livehash)
+          c,_,rb=req(f"{API}/zones/{os.environ['ZONE_ID']}/rulesets/{os.environ['RULESET_ID']}",H); payload=json.loads(rb); rs=payload.get('result') or {}; rules=rs.get('rules') or []
+          if c!=200 or payload.get('success') is not True or rs.get('id')!=os.environ['RULESET_ID'] or str(rs.get('version'))!=os.environ['RULESET_VERSION']:raise SystemExit('ruleset drift')
+          target=[r for r in rules if r.get('ref')==os.environ['RUM_RULE_REF']]
+          if len(target)!=1:raise SystemExit('RUM rule cardinality')
+          rr=target[0]
+          if rr.get('id')!=os.environ['RUM_RULE_ID'] or rr.get('expression')!=os.environ['RUM_RULE_EXPRESSION'] or rr.get('action')!='set_config' or rr.get('enabled') is not True or (rr.get('action_parameters') or {}).get('disable_rum') is not True:raise SystemExit('RUM rule drift')
+          routes=[('/chemistry/','Know what you don’t know'),('/chemistry/plans','Choose access without guessing'),('/chemistry/privacy','Anonymous experience measurement'),('/chemistry/experience','Real-user experience evidence'),('/chemistry/support','payment-status link created during checkout'),('/chemistry/verify','Verify this MUSITU release'),('/chemistry/releases','Release notes'),('/chemistry/terms','verified settlement'),('/chemistry/rescue?src=direct','MUSITU Chemistry Rescue 2026'),('/chemistry/rescue/teachers','Teacher Rescue Kit'),('/chemistry/rescue/schools','School Rescue Pack'),('/chemistry/rescue/ambassadors','Rescue Ambassador Kit')]
+          route_http={}
+          for path,needle in routes:
+            c,h,b=public(path,'text/html'); t=b.decode('utf-8','replace')
+            if c!=200 or needle not in t or not strict(h) or 'static.cloudflareinsights.com' in t:raise SystemExit('route/security/injection failed '+path)
+            route_http[path]=c
+          mc,mh,mb=public('/chemistry/manifest.webmanifest','application/manifest+json'); manifest=json.loads(mb or b'{}')
+          if mc!=200 or manifest.get('name')!='MUSITU Chemistry Rescue 2026' or manifest.get('short_name')!='MUSITU Chemistry' or manifest.get('start_url')!='/chemistry/rescue?src=direct' or manifest.get('scope')!='/chemistry/' or manifest.get('display')!='standalone' or manifest.get('prefer_related_applications') is not False or len(manifest.get('icons') or [])!=2:raise SystemExit('manifest drift')
+          hc,_,hb=public('/chemistry/healthz','application/json'); health=json.loads(hb or b'{}')
+          if hc!=200 or health.get('ok') is not True or health.get('licence_key_id')!=os.environ['LICENCE_KEY_ID'] or health.get('raw_paynow_key_present') is not False or health.get('payment_authority_bound') is not True or health.get('transport_bound') is not True:raise SystemExit('health boundary drift')
+          cc,_,cb=public('/chemistry/catalog','application/json'); cat=json.loads(cb or b'{}'); ids=[p.get('id') for p in cat.get('plans') or []]
+          if cc!=200 or ids!=['term','annual','lifetime','family','tutor','school']:raise SystemExit('catalog drift')
+          ac,ah,apk=public('/chemistry/download/MUSITU_Chemistry_Mastery_1.2.0.apk','application/vnd.android.package-archive'); digest=hashlib.sha256(apk).hexdigest()
+          if ac!=200 or len(apk)!=5314934 or digest!=os.environ['APK_SHA256']:raise SystemExit('APK drift')
+          vc,_,vb=public('/chemistry/assets/web-vitals-6.0.1.iife.js','application/javascript')
+          if vc!=200 or len(vb)!=8987 or hashlib.sha256(vb).hexdigest()!=os.environ['WEB_VITALS_SHA256']:raise SystemExit('web-vitals drift')
+          xc,_,xb=public('/chemistry/experience.json','application/json'); exp=json.loads(xb or b'{}')
+          if xc!=200 or exp.get('minimum_public_sample')!=100 or exp.get('status') not in ('insufficient_field_sample','field_core_web_vitals_available'):raise SystemExit('experience boundary drift')
+          metrics=exp.get('metrics') or {}
+          field_claimable=all(isinstance((metrics.get(k) or {}).get('sample_count'),int) and (metrics.get(k) or {}).get('sample_count')>=100 for k in ('LCP','INP','CLS'))
+          out={'schema':'musitu.chemistry.reconciled.live_get.v1','live_worker_sha256':livehash,'ruleset_id':rs.get('id'),'ruleset_version':str(rs.get('version')),'rum_rule_id':rr.get('id'),'disable_rum':True,'verified_routes':route_http,'manifest_verified':True,'licence_key_id':os.environ['LICENCE_KEY_ID'],'payment_authority_bound':True,'transport_bound':True,'plan_ids':ids,'apk_sha256':digest,'apk_bytes':len(apk),'web_vitals_sha256':os.environ['WEB_VITALS_SHA256'],'experience_status':exp.get('status'),'public_minimum_metric_sample':exp.get('minimum_public_sample'),'field_claimable_now':field_claimable,'request_methods_used':['GET'],'production_mutation':False,'real_money_settlement_observed':False,'real_money_settlement_claimed':False,'day1_organic_publication_claimed':False,'pass':True,'gate':'MUSITU_CHEMISTRY_RECONCILED_LIVE_GET_PASS'}
+          Path('/tmp/mchem-reconciled-live-seal/live-get.json').write_text(json.dumps(out,indent=2,sort_keys=True)+'\n')
+          print(json.dumps(out,sort_keys=True))
+          PY
+
+      - name: Persistent Chrome independently proves installability CSP and zero beacon
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --no-save --no-package-lock playwright >/dev/null
+          CHROME_PATH="$(command -v google-chrome || command -v chromium || command -v chromium-browser || true)"
+          test -n "$CHROME_PATH"; export CHROME_PATH
+          rm -rf /tmp/mchem-reconciled-chrome-profile
+          node --input-type=module <<'JS'
+          import fs from 'node:fs'; import {chromium} from 'playwright';
+          const context=await chromium.launchPersistentContext('/tmp/mchem-reconciled-chrome-profile',{headless:true,executablePath:process.env.CHROME_PATH,viewport:{width:390,height:844},args:['--no-sandbox','--disable-dev-shm-usage']});
+          const page=context.pages()[0]||await context.newPage(); const errors=[]; const requests=[];
+          page.on('console',m=>{if(m.type()==='error')errors.push(m.text())}); page.on('request',r=>requests.push(r.url()));
+          const response=await page.goto('https://payments.mftintelligence.com/chemistry/rescue?src=direct&__mchem_reconciled_browser='+Date.now(),{waitUntil:'networkidle'});
+          if(!response||response.status()!==200)throw new Error('live Rescue HTTP '+response?.status());
+          const csp=response.headers()['content-security-policy']||'';
+          if(!csp.includes("manifest-src 'self'")||!csp.includes("script-src 'self'")||!csp.includes("style-src 'self'")||!csp.includes("connect-src 'self'")||csp.includes('unsafe-inline')||csp.includes('unsafe-eval')||csp.includes('static.cloudflareinsights.com'))throw new Error('CSP drift '+csp);
+          const dom=await page.evaluate(()=>{const i=document.getElementById('install-rescue');return {canonical:document.querySelector('link[rel=canonical]')?.href||'',manifest:document.querySelector('link[rel=manifest]')?.getAttribute('href')||'',robots:document.querySelector('meta[name=robots]')?.content||'',installExists:!!i,installHidden:i?.hidden===true,beaconScripts:document.querySelectorAll('script[src*="static.cloudflareinsights.com"]').length}});
+          if(dom.canonical!=='https://payments.mftintelligence.com/chemistry/rescue'||dom.manifest!=='/chemistry/manifest.webmanifest'||!dom.robots.includes('index,follow')||!dom.installExists||dom.beaconScripts)throw new Error('DOM discovery drift '+JSON.stringify(dom));
+          const client=await context.newCDPSession(page); await client.send('Page.enable');
+          const appManifest=await client.send('Page.getAppManifest'); const installability=await client.send('Page.getInstallabilityErrors');
+          const ie=Array.isArray(installability.installabilityErrors)?installability.installabilityErrors:[];
+          if(appManifest.url!=='https://payments.mftintelligence.com/chemistry/manifest.webmanifest'||!Array.isArray(appManifest.errors)||appManifest.errors.length||ie.length)throw new Error('manifest/installability errors '+JSON.stringify({appManifest,ie}));
+          const manifest=JSON.parse(appManifest.data||'{}');
+          if(manifest.name!=='MUSITU Chemistry Rescue 2026'||manifest.short_name!=='MUSITU Chemistry'||manifest.start_url!=='/chemistry/rescue?src=direct'||manifest.scope!=='/chemistry/'||manifest.display!=='standalone'||manifest.prefer_related_applications!==false||!Array.isArray(manifest.icons)||manifest.icons.length!==2)throw new Error('processed manifest drift');
+          const beacon=requests.filter(x=>x.includes('static.cloudflareinsights.com/beacon')); const relevant=errors.filter(x=>/manifest|content security policy|csp|cloudflareinsights/i.test(x));
+          if(beacon.length||relevant.length)throw new Error('browser publication errors '+JSON.stringify({beacon,relevant}));
+          const out={schema:'musitu.chemistry.reconciled.browser.v1',manifest_url:appManifest.url,manifest_errors:appManifest.errors,installability_errors:ie,browser_install_prompt_available:dom.installHidden===false,production_csp:csp,cloudflare_beacon_requests:beacon,csp_or_manifest_console_errors:relevant,persistent_context:true,request_methods_used:['GET'],production_mutation:false,pass:true,gate:'MUSITU_CHEMISTRY_RECONCILED_BROWSER_PASS'};
+          fs.writeFileSync('/tmp/mchem-reconciled-live-seal/browser.json',JSON.stringify(out,null,2)+'\n'); console.log(JSON.stringify(out)); await context.close();
+          JS
+
+      - name: Seal reconciled live evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import hashlib,json,os
+          from pathlib import Path
+          root=Path('/tmp/mchem-reconciled-live-seal')
+          github=json.loads((root/'github-chain.json').read_text()); live=json.loads((root/'live-get.json').read_text()); browser=json.loads((root/'browser.json').read_text())
+          final={
+            'schema':'musitu.chemistry.national_rescue.reconciled_live_final.v1',
+            'workflow_head_sha':os.environ['GITHUB_SHA'],
+            'reconciliation_sha':os.environ['RECONCILIATION_SHA'],
+            'expected_worker_sha256':os.environ['EXPECTED_WORKER_SHA256'],
+            'github_chain_gate':github['gate'],
+            'live_get_gate':live['gate'],
+            'browser_gate':browser['gate'],
+            'strict_csp_preserved':True,
+            'installability_errors_zero':len(browser['installability_errors'])==0,
+            'cloudflare_beacon_absent':len(browser['cloudflare_beacon_requests'])==0,
+            'payment_authority_bound':live['payment_authority_bound'],
+            'transport_bound':live['transport_bound'],
+            'field_claimable_now':live['field_claimable_now'],
+            'production_mutation':False,
+            'real_money_settlement_observed':False,
+            'real_money_settlement_claimed':False,
+            'day1_organic_publication_proven':False,
+            'gate':'MUSITU_CHEMISTRY_NATIONAL_RESCUE_RECONCILED_LIVE_SEAL_PASS'}
+          raw=(json.dumps(final,indent=2,sort_keys=True)+'\n').encode(); (root/'final-summary.json').write_bytes(raw)
+          lines=[]
+          for p in sorted(root.glob('*.json')): lines.append(hashlib.sha256(p.read_bytes()).hexdigest()+'  '+p.name)
+          (root/'SHA256SUMS.txt').write_text('\n'.join(lines)+'\n')
+          print(json.dumps(final,sort_keys=True))
+          PY
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: musitu-chemistry-national-rescue-reconciled-live-seal
+          path: /tmp/mchem-reconciled-live-seal
+          retention-days: 90
+          if-no-files-found: error
