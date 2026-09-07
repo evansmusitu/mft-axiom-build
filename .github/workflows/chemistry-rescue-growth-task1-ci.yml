@@ -28,6 +28,7 @@ jobs:
           echo "848e1cec17ec580822d36e595196cda5978713849e8b45c5bc8dc7fcf9765db8  /tmp/mchem-rescue-base/src/index.mjs" | sha256sum -c -
           cp /tmp/mchem-rescue-base/src/index.mjs commerce/chemistry/index.base.mjs
           python commerce/chemistry/patch_storefront.py
+          python commerce/chemistry/patch_rescue_growth.py
           node --check commerce/chemistry/index.storefront-v3.mjs
       - name: Run focused Rescue growth contracts
         shell: bash
