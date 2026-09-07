@@ -1,0 +1,37 @@
+{
+  "schema": "musitu.chemistry.real_device_install_certification.v1",
+  "status": "pending_physical_device_evidence",
+  "universal_install_url": "https://payments.mftintelligence.com/chemistry/install",
+  "certification_protocol": "commerce/chemistry/REAL_DEVICE_INSTALL_CERTIFICATION_20260907.md",
+  "browser_emulation_verified": true,
+  "physical_device_certified": false,
+  "privacy_boundary": {
+    "personal_identifiers_prohibited": true,
+    "payment_references_prohibited": true,
+    "licence_tokens_prohibited": true,
+    "screenshots_must_hide_notifications_and_account_information": true
+  },
+  "gates": {
+    "A1_iphone_safari": {"status":"pending","required":["adaptive Safari coach shown","Add to Home Screen completed","Home Screen icon visible","standalone launch opens Chemistry Rescue"]},
+    "A2_ipad_safari": {"status":"pending","required":["adaptive Safari coach shown","Add to Home Screen completed","Home Screen icon visible","standalone launch opens Chemistry Rescue"]},
+    "A3_android_chrome": {"status":"pending","required":["trusted browser install control shown","install completed","app icon visible","standalone launch opens Chemistry Rescue"]},
+    "A4_samsung_internet": {"status":"pending","required":["Samsung install path shown","install completed","app icon visible","standalone launch opens Chemistry Rescue"]},
+    "A5_android_inapp_recovery": {"status":"pending","required":["wrong-browser recovery shown","recovery opens Chrome or Samsung Internet","install succeeds after recovery"]},
+    "A6_installed_state_reopen": {"status":"pending","required":["reopen install route from standalone mode","MUSITU is installed state shown","Open Chemistry Rescue action present"]},
+    "A7_offline_reload": {"status":"pending","required":["successful online launch first","offline reload retains bounded non-payment shell","checkout/return/claim/telemetry/plans not served from cache"]},
+    "A8_update_reload": {"status":"pending","required":["reconnect to network","reload returns current live application","no reinstall required","payment authority remains network/server authoritative"]}
+  },
+  "evidence_requirements_per_gate": [
+    "device class and OS major version",
+    "browser name and major version",
+    "local timestamp and timezone",
+    "observed adaptive mode",
+    "install result",
+    "app icon result",
+    "standalone launch result",
+    "self-diagnostics result when troubleshooting is required",
+    "redacted screenshot evidence",
+    "PASS or FAIL with exact failure text"
+  ],
+  "authoritative_claim_until_complete": "Adaptive install concierge live and browser-emulation verified; physical-device certification incomplete."
+}
