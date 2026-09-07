@@ -35,16 +35,22 @@ jobs:
           WORKER_PATH: ${{ github.workspace }}/commerce/chemistry/index.storefront-v3.mjs
         run: |
           set -euo pipefail
-          npm install --no-save --no-package-lock lighthouse
+          npm install --no-save --no-package-lock playwright lighthouse
           node commerce/chemistry/storefront/browser-smoke.mjs serve "$WORKER_PATH" >/tmp/lh-server.log 2>&1 &
           SERVER_PID=$!
           trap 'kill "$SERVER_PID" 2>/dev/null || true' EXIT
-          for i in $(seq 1 30); do curl -fsS http://127.0.0.1:8787/chemistry/rescue >/dev/null && break; sleep 0.5; done
+          ready=false
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:8787/chemistry/rescue >/dev/null; then ready=true; break; fi
+            if ! kill -0 "$SERVER_PID" 2>/dev/null; then cat /tmp/lh-server.log; exit 1; fi
+            sleep 0.5
+          done
+          if [ "$ready" != true ]; then cat /tmp/lh-server.log; exit 1; fi
           npx lighthouse http://127.0.0.1:8787/chemistry/rescue?src=direct --output=json --output-path=/tmp/lighthouse-rescue.json --only-categories=performance,accessibility,best-practices --chrome-flags="--headless --no-sandbox --disable-dev-shm-usage" --quiet
           node --input-type=module <<'JS'
           import fs from 'node:fs';
           const l=JSON.parse(fs.readFileSync('/tmp/lighthouse-rescue.json','utf8'));
-          console.log('SCORES',JSON.stringify(Object.fromEntries(Object.entries(l.categories).map(([k,v])=>[k,v.score]))));
+          console.log('SCORES='+JSON.stringify(Object.fromEntries(Object.entries(l.categories).map(([k,v])=>[k,v.score]))));
           const refs=l.categories['best-practices'].auditRefs;
           const out=[];
           for(const ref of refs){
