@@ -35,6 +35,7 @@ WORKFLOWS = {
     "enterprise_incident_response": ROOT / ".github/workflows/axiom-frontier-v5-enterprise-incident-response-gate.yml",
     "enterprise_disaster_recovery": ROOT / ".github/workflows/axiom-frontier-v5-enterprise-disaster-recovery-gate.yml",
     "migration_safety": ROOT / ".github/workflows/axiom-frontier-v5-migration-safety-gate.yml",
+    "agent_plugin": ROOT / ".github/workflows/axiom-frontier-v5-agent-plugin-gate.yml",
 }
 HEX40 = re.compile(r"^[0-9a-f]{40}$")
 ACTION = re.compile(r"^\s*uses:\s*(actions/(?:checkout|setup-python|upload-artifact))@([^\s#]+)", re.M)
