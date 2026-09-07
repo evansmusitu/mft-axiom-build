@@ -1,0 +1,96 @@
+{
+  "schema": "musitu.chemistry.rescue.reproducibility_recertification_record.v1",
+  "recorded_date": "2026-09-07",
+  "branch": "chemistry-national-rescue-growth-20260907",
+  "purpose": "Append-only evidence record proving that the repaired deterministic Rescue build reproduces the exact already-live Worker bytes without redeployment or production mutation.",
+  "reproducibility_fix_commit": "6d132f94a288850709d23ddf135e36c4f6a274cc",
+  "focused_ci": {
+    "run_id": 34079277629,
+    "conclusion": "success"
+  },
+  "full_preflight": {
+    "run_id": 34079277627,
+    "conclusion": "success"
+  },
+  "read_only_recertification": {
+    "run_id": 34079733211,
+    "job_id": 101612616984,
+    "head_sha": "c54c87af8eb8e37d0bb5f29a1a05fc8f76b06ecf",
+    "conclusion": "success",
+    "gate": "MUSITU_CHEMISTRY_RESCUE_REPRO_RECERTIFY_PASS",
+    "request_methods_used": ["GET"],
+    "telemetry_post_performed": false,
+    "payment_intent_created": false,
+    "production_mutation": false
+  },
+  "sealed_artifact": {
+    "artifact_id": 10003284402,
+    "name": "musitu-chemistry-rescue-repro-recertification",
+    "zip_sha256": "dfb7c9999eb105ae875dc153f208cac28793c0a95e475858d1b2fa6245a7817d",
+    "size_bytes": 1941,
+    "expired": false,
+    "expires_at": "2026-12-06T03:27:59Z"
+  },
+  "source_identity": {
+    "sealed_source_archive_sha256": "5b2618499eed8dc90261bc4f8260246d5593534500dd2fb145f2d24b5c47754c",
+    "base_worker_sha256": "848e1cec17ec580822d36e595196cda5978713849e8b45c5bc8dc7fcf9765db8"
+  },
+  "worker_identity": {
+    "deterministic_candidate_sha256": "7b17d37b514913a59a66fa1339ced59ab0b06ff9759ef51cd5ec16d4e5e20af0",
+    "live_worker_sha256": "7b17d37b514913a59a66fa1339ced59ab0b06ff9759ef51cd5ec16d4e5e20af0",
+    "candidate_matches_live": true,
+    "redeploy_performed": false
+  },
+  "live_public_contract": {
+    "verified_http_200_routes": [
+      "/chemistry/",
+      "/chemistry/plans",
+      "/chemistry/privacy",
+      "/chemistry/experience",
+      "/chemistry/support",
+      "/chemistry/verify",
+      "/chemistry/releases",
+      "/chemistry/terms",
+      "/chemistry/rescue",
+      "/chemistry/rescue/teachers",
+      "/chemistry/rescue/schools",
+      "/chemistry/rescue/ambassadors"
+    ],
+    "rescue_source_classes": [
+      "wa_student",
+      "wa_teacher",
+      "school",
+      "creator",
+      "meta",
+      "tiktok",
+      "ambassador",
+      "direct"
+    ],
+    "unknown_or_hostile_source_collapses_to_direct": true,
+    "canonical_peer_share_url": "https://payments.mftintelligence.com/chemistry/rescue?src=wa_student",
+    "canonical_whatsapp_share_loop_verified": true,
+    "sitemap_rescue_routes_verified": true,
+    "print_asset_verified": true,
+    "strict_security_headers_verified": true,
+    "public_secret_markers_absent": true
+  },
+  "commerce_invariants": {
+    "licence_key_id": "chem-lic-2026-6783aa7535d1",
+    "payment_authority_bound": true,
+    "transport_bound": true,
+    "raw_paynow_key_present": false,
+    "plan_ids": ["term", "annual", "lifetime", "family", "tutor", "school"],
+    "public_plan_prices_verified": true,
+    "apk_sha256": "055b63f271c18faab540985faefb970f472ea55ba9cb3495db459797902b790d",
+    "apk_bytes": 5314934
+  },
+  "claim_boundaries": {
+    "experience_status": "insufficient_field_sample",
+    "public_minimum_metric_sample": 100,
+    "adoption_claimed": false,
+    "campaign_roi_claimed": false,
+    "field_inp_claimed": false,
+    "real_money_settlement_observed": false,
+    "real_money_settlement_claimed": false
+  }
+}
