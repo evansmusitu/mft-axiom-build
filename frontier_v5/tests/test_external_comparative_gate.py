@@ -3,6 +3,9 @@
 
 Synthetic fixtures are permitted only to verify the gate itself. They must
 never be promoted to Level-5 evidence or a leadership/superiority claim.
+Repository-local ``externally_attested`` booleans may describe structural
+readiness, but cannot authenticate external execution or create Level-5
+eligibility.
 """
 from __future__ import annotations
 
@@ -48,6 +51,7 @@ def fixture():
         "metrics": ["quality", "grounding", "safety"],
         "minimum_external_baselines": 2,
     }
+
     def system(system_id: str, provider: str, *, synthetic: bool, externally_attested: bool, values=(0.6, 0.7, 0.8)):
         results = []
         for case, score in zip(cases, values):
@@ -70,6 +74,7 @@ def fixture():
         }
         bundle["results_sha256"] = ExternalComparativeGate.hash_results(results)
         return bundle
+
     musitu = system("musitu-axiom", "MUSITU", synthetic=False, externally_attested=False, values=(0.8, 0.8, 0.9))
     synthetic = [
         system("strong-baseline-a", "FixtureVendorA", synthetic=True, externally_attested=False),
@@ -90,17 +95,20 @@ def main() -> None:
     out = gate.evaluate(manifest, cases, constraints, musitu, synthetic)
     assert out["status"] == "SELF_TEST_ONLY"
     assert out["evidence_level_5_eligible"] is False
+    assert out["external_origin_authenticated"] is False
     assert out["independent_validation_complete"] is False
     assert out["leader_claim_allowed"] is False
     assert out["baseline_count"] == 2
     assert out["case_count"] == 3
 
-    # A complete externally attested comparison may become Level-5 eligible,
-    # but this gate alone must still not authorize a leadership claim because
-    # Level 6 independent validation is a separate requirement.
+    # A complete repository-local bundle with externally_attested=true may be
+    # structurally ready for external provenance verification, but the boolean
+    # itself is self-authored data.  It must never become Level-5 eligibility.
     out = gate.evaluate(manifest, cases, constraints, musitu, attested)
     assert out["status"] == "EXTERNAL_COMPARISON_READY"
-    assert out["evidence_level_5_eligible"] is True
+    assert out["declared_external_attestation_complete"] is True
+    assert out["external_origin_authenticated"] is False
+    assert out["evidence_level_5_eligible"] is False
     assert out["independent_validation_complete"] is False
     assert out["leader_claim_allowed"] is False
     assert set(out["system_scores"]) == {"musitu-axiom", "strong-baseline-a", "strong-baseline-b"}
