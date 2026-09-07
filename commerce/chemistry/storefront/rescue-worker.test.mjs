@@ -64,7 +64,8 @@ test('generated Worker exposes a valid browser-install discovery manifest and lo
   const manifest=JSON.parse(manifestResponse.text);
   assert.equal(manifest.name,'MUSITU Chemistry Rescue 2026');
   assert.equal(manifest.short_name,'MUSITU Chemistry');
-  assert.equal(manifest.start_url,'/chemistry/rescue?src=direct');
+  assert.equal(manifest.id,'/chemistry/rescue?src=direct');
+  assert.equal(manifest.start_url,'/chemistry/app');
   assert.equal(manifest.scope,'/chemistry/');
   assert.equal(manifest.display,'standalone');
   assert.equal(manifest.prefer_related_applications,false);
