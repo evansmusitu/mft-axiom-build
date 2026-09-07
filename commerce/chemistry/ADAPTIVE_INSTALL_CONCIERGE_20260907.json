@@ -1,9 +1,9 @@
 {
   "schema": "musitu.chemistry.adaptive_install_concierge.v1",
-  "status": "candidate_verified_not_yet_live",
+  "status": "live_guarded_verified",
   "universal_install_url": "https://payments.mftintelligence.com/chemistry/install",
   "hidden_diagnostics_url": "https://payments.mftintelligence.com/chemistry/install/diagnostics",
-  "candidate_worker_sha256": "ec99c130395556dfab1f5f3e848ed281698a991ce5294316251c9de20c61bf77",
+  "production_worker_sha256": "ec99c130395556dfab1f5f3e848ed281698a991ce5294316251c9de20c61bf77",
   "previous_live_worker_sha256": "450a3df940575f17b300b1576b39d053b52df1e6fb4c9c64271e707f140c9d27",
   "adaptive_install_ci": {
     "run_id": 34152587560,
@@ -12,12 +12,26 @@
     "artifact_id": 10029864255,
     "artifact_sha256": "2280dd2cf01c72f55085a12fd17477535026cc0d62a1fa8c783c98410e920776"
   },
-  "full_preflight_product_commit": {
-    "run_id": 34152423687,
-    "head_sha": "651831937fc2bd1fbf7bb043a76e2329e55757fb",
+  "exact_head_full_preflight": {
+    "run_id": 34152640391,
+    "head_sha": "20423eb51ab57942161ae3e86a7b693523e8c598",
     "conclusion": "success",
-    "artifact_id": 10029840950,
-    "artifact_sha256": "352666b02759844e38833102cfc4ab044714b3855a1ef55bf68b7c3faf7756fd"
+    "artifact_id": 10029898924,
+    "artifact_sha256": "824c266e4d073db4980d22caf00ba7fc77835deb3687dc6cdf40712fd60d49e3"
+  },
+  "guarded_production_deploy": {
+    "run_id": 34152931645,
+    "job_id": 101838754930,
+    "workflow_commit_sha": "c43193ff2c5994c5611c4399dc2b68d12a263d8f",
+    "conclusion": "success",
+    "edge_sweep_streak": 6,
+    "edge_sweep_attempts": 6,
+    "rollback_used": false,
+    "diagnostics_live": true,
+    "service_worker_live": true,
+    "rescue_routes_to_install": true,
+    "artifact_id": 10029976566,
+    "artifact_sha256": "e163b2fc5466f185831c175c9b5327fe58c224751f86eeff2b47c27419df4b57"
   },
   "platform_contracts": [
     "iPhone/iPad Safari",
@@ -43,7 +57,11 @@
     "verified signed Android APK where appropriate",
     "immediate browser experience"
   ],
-  "first_launch_onboarding": ["Diagnose", "Revise", "Prove"],
+  "first_launch_onboarding": [
+    "Diagnose",
+    "Revise",
+    "Prove"
+  ],
   "offline_shell_tested_in_chromium": true,
   "payment_or_checkout_routes_cached": false,
   "strict_csp_preserved": true,
@@ -53,10 +71,12 @@
   "physical_device_certification": false,
   "field_inp_claimable": false,
   "real_money_settlement_observed": false,
-  "production_mutation_performed_by_this_evidence_commit": false,
+  "production_mutation_performed": true,
   "notes": [
-    "Browser-emulation and contract testing are green; physical iPhone/iPad/Android certification remains a separate field gate.",
+    "The adaptive concierge is live on the universal install URL and passed guarded production acceptance with six consecutive edge sweeps.",
+    "Browser-emulation and contract testing are green; physical iPhone/iPad/Android certification remains a separate field gate and is not claimed here.",
     "Browser and OS security confirmations remain user-controlled; MUSITU automates guidance up to those protected confirmations.",
-    "This evidence file intentionally triggers an exact-head full preflight before any guarded production cutover."
+    "The service worker is bounded to non-payment Chemistry web-app shell resources; checkout, return, claim, telemetry and plans are excluded from its cache handling.",
+    "No real-money settlement was performed by this deployment and no field Core Web Vitals claim is made."
   ]
 }
