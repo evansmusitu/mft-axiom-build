@@ -69,11 +69,13 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          npm install --no-save --no-package-lock playwright
+          # browser-smoke.mjs imports axe-core even in serve mode, so keep the
+          # local acceptance harness dependency-complete and deterministic.
+          npm install --no-save --no-package-lock playwright axe-core
           CHROME_PATH="$(command -v google-chrome || command -v chromium || command -v chromium-browser || true)"
           test -n "$CHROME_PATH"
           echo "CHROME_PATH=$CHROME_PATH" >> "$GITHUB_ENV"
-          node -e "console.log('playwright='+require('playwright/package.json').version)" | tee /tmp/mchem-install-evidence/browser-tooling.txt
+          node -e "console.log('playwright='+require('playwright/package.json').version);console.log('axe-core='+require('axe-core/package.json').version)" | tee /tmp/mchem-install-evidence/browser-tooling.txt
 
       - name: Run adaptive install browser-emulation acceptance matrix
         shell: bash
@@ -85,7 +87,13 @@ jobs:
           node commerce/chemistry/storefront/browser-smoke.mjs serve "$WORKER_PATH" >/tmp/mchem-install-server.log 2>&1 &
           SERVER_PID=$!
           trap 'kill "$SERVER_PID" 2>/dev/null || true' EXIT
-          for i in $(seq 1 40); do curl -fsS http://127.0.0.1:8787/chemistry/install >/dev/null && break; sleep 0.25; done
+          ready=false
+          for i in $(seq 1 40); do
+            if curl -fsS http://127.0.0.1:8787/chemistry/install >/dev/null; then ready=true; break; fi
+            if ! kill -0 "$SERVER_PID" 2>/dev/null; then cat /tmp/mchem-install-server.log; exit 1; fi
+            sleep 0.25
+          done
+          if [[ "$ready" != true ]]; then cat /tmp/mchem-install-server.log; exit 1; fi
           node commerce/chemistry/storefront/install-browser-matrix.mjs | tee /tmp/mchem-install-evidence/browser-matrix.json
           kill "$SERVER_PID" 2>/dev/null || true
           trap - EXIT
