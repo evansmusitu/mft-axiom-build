@@ -1,0 +1,61 @@
+{
+  "schema": "musitu.axiom.frontier.external-baseline-registry.v1",
+  "purpose": "Reference registry for strong current external systems that may be used in fair sealed comparative evaluation. Presence in this registry is not evidence that a system has been run, that access is available, or that MUSITU matches or exceeds it.",
+  "evidence_rule": "A baseline counts toward Evidence Level 5 only after the same sealed unseen case set and materially comparable constraints are executed by the named external system and external origin is authenticated outside the candidate-under-test. Repository-local labels, hashes, URLs, synthetic fixtures, or externally_attested booleans do not authenticate external execution.",
+  "minimum_distinct_external_providers_for_broad_claim": 3,
+  "required_comparison_domains": [
+    "quantitative_reasoning",
+    "multi_source_research",
+    "artifact_work",
+    "browser_computer_use",
+    "multimodal_reasoning",
+    "long_horizon_agent_execution"
+  ],
+  "references": [
+    {
+      "registry_id": "openai-current-agent-stack",
+      "provider": "OpenAI",
+      "system_class": "general_agent_research_coding",
+      "access_status": "REQUIRES_LEGITIMATE_CURRENT_ACCESS",
+      "evidence_status": "NOT_RUN_IN_SEALED_MUSITU_SUITE"
+    },
+    {
+      "registry_id": "anthropic-current-agent-stack",
+      "provider": "Anthropic",
+      "system_class": "managed_agents_finance_artifacts_coding",
+      "access_status": "REQUIRES_LEGITIMATE_CURRENT_ACCESS",
+      "evidence_status": "NOT_RUN_IN_SEALED_MUSITU_SUITE"
+    },
+    {
+      "registry_id": "google-current-gemini-agent-stack",
+      "provider": "Google",
+      "system_class": "multimodal_research_computer_use",
+      "access_status": "REQUIRES_LEGITIMATE_CURRENT_ACCESS",
+      "evidence_status": "NOT_RUN_IN_SEALED_MUSITU_SUITE"
+    },
+    {
+      "registry_id": "microsoft-current-cowork-agent-stack",
+      "provider": "Microsoft",
+      "system_class": "long_running_enterprise_multi_tool_agents",
+      "access_status": "REQUIRES_LEGITIMATE_CURRENT_ACCESS",
+      "evidence_status": "NOT_RUN_IN_SEALED_MUSITU_SUITE"
+    },
+    {
+      "registry_id": "bloomberg-current-askb",
+      "provider": "Bloomberg",
+      "system_class": "institutional_financial_multi_agent_research",
+      "access_status": "LICENSE_OR_PRODUCT_ACCESS_MAY_BE_REQUIRED",
+      "evidence_status": "REFERENCE_ONLY_NOT_RUN"
+    },
+    {
+      "registry_id": "spglobal-current-agent_ready_retrieval",
+      "provider": "S&P Global",
+      "system_class": "institutional_financial_data_retrieval_agents",
+      "access_status": "LICENSE_OR_PRODUCT_ACCESS_MAY_BE_REQUIRED",
+      "evidence_status": "REFERENCE_ONLY_NOT_RUN"
+    }
+  ],
+  "current_level5_status": "NOT_VERIFIED",
+  "current_level6_status": "NOT_VERIFIED",
+  "current_global_superiority_status": "NOT_CERTIFIED"
+}

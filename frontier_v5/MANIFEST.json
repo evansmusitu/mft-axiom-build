@@ -1,0 +1,13 @@
+{
+  "suite": "MUSITU Axiom Frontier Fabric v5",
+  "status": "development",
+  "base_v4_sha": "d6a846f6bbe0bccac1758713eb4de167caf07113",
+  "submission_skill_count": 18,
+  "frontier_skill_count": 12,
+  "capability_matrix_rows": 110,
+  "openai_public_skill_packages_mapped": 44,
+  "public_role_workflows_mapped": 36,
+  "musitu_proprietary_capabilities_mapped": 30,
+  "submission_skills": ["musitu-command-center","musitu-company-intelligence","musitu-financial-modeling","musitu-risk-stress","musitu-time-series-forecasting","musitu-statistics-experiments","musitu-optimization","musitu-data-quality","musitu-kpi-metric-diagnostics","musitu-market-sizing","musitu-cfo-fpa","musitu-credit-treasury","musitu-ma-diligence","musitu-research-synthesis","musitu-report-builder","musitu-model-verifier","musitu-scenario-factory","musitu-commercial-expansion"],
+  "frontier_skills": ["musitu-proof-ledger","musitu-temporal-memory","musitu-causal-counterfactual","musitu-digital-twin","musitu-agent-society","musitu-uncertainty-calibration","musitu-instruction-firewall","musitu-adversarial-simulation","musitu-self-evolving-evals","musitu-continual-learning","musitu-capability-router","musitu-governance"]
+}

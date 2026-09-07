@@ -1,0 +1,124 @@
+name: MUSITU Axiom Frontier v5 Skill Gate
+
+on:
+  pull_request:
+    paths:
+      - 'frontier_v5/**'
+      - '.github/workflows/axiom-frontier-v5-skill-gate.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  frontier-skill-gate:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          fetch-depth: 0
+
+      - name: Setup Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: '3.12.14'
+
+      - name: Protect sealed v4 surface
+        if: github.event_name == 'pull_request'
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin "${{ github.base_ref }}"
+          git diff --exit-code "origin/${{ github.base_ref }}...HEAD" -- mcp/ auth/ chatgpt-app-submission.json submission/
+
+      - name: Lint all frontier skills
+        shell: bash
+        run: |
+          set -euo pipefail
+          mapfile -t dirs < <(find frontier_v5/skills -mindepth 1 -maxdepth 1 -type d | sort)
+          test "${#dirs[@]}" -eq 30
+          python frontier_v5/scripts/skill_lint.py "${dirs[@]}"
+
+      - name: Test frontier fabric runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          PYTHONPATH=. python frontier_v5/tests/test_frontier_runtime.py
+          PYTHONPATH=. python frontier_v5/tests/test_advanced_runtime.py
+
+      - name: Package and certify skill profiles
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf frontier_v5/dist
+          python frontier_v5/scripts/package_skills.py --profile all --bundle --out frontier_v5/dist/all | tee /tmp/package-all.json
+          python frontier_v5/scripts/package_skills.py --profile submission --bundle --out frontier_v5/dist/submission | tee /tmp/package-submission.json
+          python frontier_v5/scripts/package_skills.py --profile frontier --bundle --out frontier_v5/dist/frontier | tee /tmp/package-frontier.json
+          test "$(find frontier_v5/dist/all -maxdepth 1 -name 'musitu-*.zip' | wc -l)" -eq 30
+          test "$(find frontier_v5/dist/submission -maxdepth 1 -name 'musitu-*.zip' | wc -l)" -eq 18
+          test "$(find frontier_v5/dist/frontier -maxdepth 1 -name 'musitu-*.zip' | wc -l)" -eq 12
+          test -f frontier_v5/dist/submission/MUSITU_AXIOM_V5_SUBMISSION_SKILL_ZIPS.zip
+          test -f frontier_v5/dist/frontier/MUSITU_AXIOM_V5_FRONTIER_SKILL_ZIPS.zip
+          unzip -l frontier_v5/dist/submission/musitu-command-center.zip | grep -q 'agents/openai.yaml'
+
+      - name: Proof envelope positive and negative tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > /tmp/proof.json <<'JSON'
+          {"question":"identity","evidence":[{"class":"USER","value":1}],"assumptions":[],"method":"identity","result":1}
+          JSON
+          python frontier_v5/scripts/proof_envelope.py --input /tmp/proof.json --output /tmp/proof-out.json
+          grep -q 'reproducibility_fingerprint_sha256' /tmp/proof-out.json
+          printf '{"question":"broken"}\n' >/tmp/proof-bad.json
+          if python frontier_v5/scripts/proof_envelope.py --input /tmp/proof-bad.json --output /tmp/should-not-exist.json; then
+            echo 'negative proof test unexpectedly passed' >&2
+            exit 1
+          fi
+
+      - name: Scenario grid test
+        shell: bash
+        run: |
+          set -euo pipefail
+          printf '{"variables":{"x":[1,2],"y":[10,20]}}\n' >/tmp/scenario.json
+          python frontier_v5/scripts/scenario_grid.py --spec /tmp/scenario.json --output /tmp/scenario-out.json
+          python - <<'PY'
+          import json
+          x=json.load(open('/tmp/scenario-out.json'))
+          assert x['scenario_count']==4, x
+          PY
+
+      - name: Fail-closed promotion gate tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          printf '{}\n' >/tmp/fail.json
+          if python frontier_v5/scripts/promotion_gate.py --evidence /tmp/fail.json; then
+            echo 'promotion gate failed open' >&2
+            exit 1
+          fi
+          cat >/tmp/pass.json <<'JSON'
+          {"functional":"PASS","security":"PASS","policy":"PASS","regression":"PASS","unseen_eval":"PASS","provenance":"PASS"}
+          JSON
+          python frontier_v5/scripts/promotion_gate.py --evidence /tmp/pass.json | tee /tmp/promotion.json
+          grep -q '"status": "PASS"' /tmp/promotion.json
+
+      - name: Seal gate evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          sha256sum frontier_v5/MANIFEST.json frontier_v5/EVAL_CONTRACT.json frontier_v5/PROMOTION_GATE.json frontier_v5/CAPABILITY_TARGETS.json frontier_v5/runtime/fabric.py frontier_v5/runtime/advanced.py frontier_v5/tests/test_advanced_runtime.py > /tmp/frontier-v5-evidence.sha256
+          find frontier_v5/dist -type f -name '*.zip' -print0 | sort -z | xargs -0 sha256sum > /tmp/frontier-v5-packages.sha256
+          echo 'MUSITU_AXIOM_FRONTIER_SKILL_GATE_PASS'
+          cat /tmp/frontier-v5-evidence.sha256
+
+      - name: Upload skill packages and evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: musitu-axiom-frontier-v5-skills
+          path: |
+            frontier_v5/dist/**/*.zip
+            /tmp/frontier-v5-evidence.sha256
+            /tmp/frontier-v5-packages.sha256
+          if-no-files-found: error
