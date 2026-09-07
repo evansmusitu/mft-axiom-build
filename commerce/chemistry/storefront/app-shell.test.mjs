@@ -5,6 +5,7 @@ import {renderChemistryApp,APP_BRIDGE_JS,APP_SHELL_JS,APP_SHELL_CSS,CHEMISTRY_AP
 test('installed app shell is distinct from public website chrome',()=>{
   const html=renderChemistryApp();
   assert.equal(CHEMISTRY_APP_URL,'https://payments.mftintelligence.com/chemistry/app');
+  assert.notEqual(CHEMISTRY_APP_URL,'https://payments.mftintelligence.com/chemistry/rescue');
   assert.match(html,/Your Chemistry workspace/);
   assert.match(html,/class="app-topbar"/);
   assert.match(html,/class="app-nav"/);
