@@ -1,0 +1,179 @@
+name: MUSITU Chemistry Rescue Final Baseline Seal
+
+on:
+  push:
+    branches: [chemistry-national-rescue-growth-20260907]
+    paths: ['.github/workflows/chemistry-rescue-final-baseline-seal.yml']
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  seal:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      MANIFEST_GIT_BLOB_SHA: e6e98b8f94a8a7ecbc18857e8560a762dca57848
+      EXPECTED_WORKER_SHA: 7b17d37b514913a59a66fa1339ced59ab0b06ff9759ef51cd5ec16d4e5e20af0
+      PREFLIGHT_RUN_ID: '34078053435'
+      PREFLIGHT_ARTIFACT_ID: '10002756931'
+      PREFLIGHT_ARTIFACT_SHA256: d39cf1cd50281268a0b00ba82712450c721367f38a4412127044c66fc5936c0d
+      DEPLOY_RUN_ID: '34078264681'
+      DEPLOY_ARTIFACT_ID: '10002817712'
+      DEPLOY_ARTIFACT_SHA256: f32fe7ce17489232f0360b72f02209634016d710cb0e89fbb032d652af0002cc
+      INDEPENDENT_RUN_ID: '34078349117'
+      INDEPENDENT_ARTIFACT_ID: '10002843618'
+      INDEPENDENT_ARTIFACT_SHA256: fe2f0e9d391cd4ead340be64eb2c6c0d64dc092fc448d8f6c718c44d1712313e
+      CONTENT_QA_RUN_ID: '34077657825'
+      APK_SHA256: 055b63f271c18faab540985faefb970f472ea55ba9cb3495db459797902b790d
+      LICENCE_KEY_ID: chem-lic-2026-6783aa7535d1
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verify canonical Rescue manifest and immutable evidence boundaries
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/mchem-rescue-final
+          test "$(git hash-object commerce/chemistry/RELEASE_BASELINE_20260906.json)" = "$MANIFEST_GIT_BLOB_SHA"
+          sha256sum commerce/chemistry/RELEASE_BASELINE_20260906.json | tee /tmp/mchem-rescue-final/manifest.sha256
+          python - <<'PY'
+          import json,os
+          p='commerce/chemistry/RELEASE_BASELINE_20260906.json'
+          m=json.load(open(p))
+          expected_worker=os.environ['EXPECTED_WORKER_SHA']
+          checks={
+            'schema':m.get('schema')=='musitu.chemistry.release_baseline.v6',
+            'status':m.get('status')=='VERIFIED_NATIONAL_RESCUE_GROWTH_BASELINE',
+            'branch':m.get('branch')=='chemistry-national-rescue-growth-20260907',
+            'source_worker':m.get('source',{}).get('current_national_rescue_worker_sha256')==expected_worker,
+            'storefront_worker':m.get('storefront',{}).get('current_worker_sha256')==expected_worker,
+            'rescue_worker':m.get('national_rescue_growth',{}).get('production_worker_sha256')==expected_worker,
+            'content_qa':m.get('national_rescue_growth',{}).get('content_qa_run')==int(os.environ['CONTENT_QA_RUN_ID']),
+            'preflight_run':m.get('national_rescue_growth',{}).get('full_preflight_run')==int(os.environ['PREFLIGHT_RUN_ID']),
+            'deploy_run':m.get('national_rescue_growth',{}).get('guarded_deploy_run')==int(os.environ['DEPLOY_RUN_ID']),
+            'independent_run':m.get('national_rescue_growth',{}).get('independent_live_verify_run')==int(os.environ['INDEPENDENT_RUN_ID']),
+            'preflight_artifact':m.get('evidence_artifacts',{}).get('national_rescue_full_preflight_artifact_id')==int(os.environ['PREFLIGHT_ARTIFACT_ID']),
+            'preflight_digest':m.get('evidence_artifacts',{}).get('national_rescue_full_preflight_zip_sha256')==os.environ['PREFLIGHT_ARTIFACT_SHA256'],
+            'deploy_artifact':m.get('evidence_artifacts',{}).get('national_rescue_guarded_deploy_artifact_id')==int(os.environ['DEPLOY_ARTIFACT_ID']),
+            'deploy_digest':m.get('evidence_artifacts',{}).get('national_rescue_guarded_deploy_zip_sha256')==os.environ['DEPLOY_ARTIFACT_SHA256'],
+            'independent_artifact':m.get('evidence_artifacts',{}).get('national_rescue_independent_live_artifact_id')==int(os.environ['INDEPENDENT_ARTIFACT_ID']),
+            'independent_digest':m.get('evidence_artifacts',{}).get('national_rescue_independent_live_zip_sha256')==os.environ['INDEPENDENT_ARTIFACT_SHA256'],
+            'source_classes':m.get('national_rescue_growth',{}).get('source_classes')==['wa_student','wa_teacher','school','creator','meta','tiktok','ambassador','direct'],
+            'organic_not_claimed':m.get('evidence_boundaries',{}).get('national_rescue_organic_distribution_evidence_observed') is False,
+            'paid_spend_not_claimed':m.get('evidence_boundaries',{}).get('national_rescue_paid_media_spend_observed') is False,
+            'settlement_not_observed':m.get('evidence_boundaries',{}).get('real_money_settlement_observed') is False,
+            'settlement_not_claimed':m.get('evidence_boundaries',{}).get('real_money_settlement_claimed') is False,
+            'field_inp_not_observed':m.get('evidence_boundaries',{}).get('field_inp_observed') is False,
+            'field_inp_not_claimed':m.get('evidence_boundaries',{}).get('field_inp_claimed') is False,
+            'budget_spent_zero':m.get('national_rescue_growth',{}).get('paid_media_budget_envelope_usd',{}).get('spent_at_baseline_seal')==0,
+            'rollback_unused':m.get('national_rescue_growth',{}).get('guarded_deploy_rollback_used') is False
+          }
+          required=['MUSITU_CHEMISTRY_RESCUE_FULL_PREFLIGHT_PASS','MUSITU_CHEMISTRY_RESCUE_GUARDED_DEPLOY_PASS','MUSITU_CHEMISTRY_RESCUE_INDEPENDENT_LIVE_VERIFY_PASS']
+          checks['gates']=all(g in m.get('gates',[]) for g in required)
+          if not all(checks.values()):
+              raise SystemExit('manifest boundary failure '+json.dumps({k:v for k,v in checks.items() if not v},sort_keys=True))
+          print(json.dumps({'manifest_checks':checks,'pass':True},sort_keys=True))
+          PY
+
+      - name: Prove preflight deploy independent and content-QA run identities
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json,os,urllib.request
+          repo=os.environ['GITHUB_REPOSITORY']; token=os.environ['GH_TOKEN']
+          H={'Authorization':'Bearer '+token,'X-GitHub-Api-Version':'2022-11-28','User-Agent':'MUSITU-Rescue-Final-Seal/1.0'}
+          def get(url):
+              with urllib.request.urlopen(urllib.request.Request(url,headers=H),timeout=30) as r:return json.load(r)
+          specs=[
+            ('content_qa',os.environ['CONTENT_QA_RUN_ID'],'MUSITU Chemistry Rescue Content QA',None,None),
+            ('preflight',os.environ['PREFLIGHT_RUN_ID'],'MUSITU Chemistry Rescue Full Preflight',os.environ['PREFLIGHT_ARTIFACT_ID'],os.environ['PREFLIGHT_ARTIFACT_SHA256']),
+            ('deploy',os.environ['DEPLOY_RUN_ID'],'MUSITU Chemistry Rescue Guarded Deploy',os.environ['DEPLOY_ARTIFACT_ID'],os.environ['DEPLOY_ARTIFACT_SHA256']),
+            ('independent',os.environ['INDEPENDENT_RUN_ID'],'MUSITU Chemistry Rescue Independent Live Verify',os.environ['INDEPENDENT_ARTIFACT_ID'],os.environ['INDEPENDENT_ARTIFACT_SHA256'])
+          ]
+          evidence={}
+          for label,run_id,name,artifact_id,digest in specs:
+              r=get(f'https://api.github.com/repos/{repo}/actions/runs/{run_id}')
+              if r.get('conclusion')!='success' or r.get('name')!=name or r.get('head_branch')!='chemistry-national-rescue-growth-20260907':raise SystemExit(label+' run identity failed')
+              row={'run_id':int(run_id),'head_sha':r.get('head_sha'),'conclusion':r.get('conclusion')}
+              if artifact_id:
+                  arts=get(f'https://api.github.com/repos/{repo}/actions/runs/{run_id}/artifacts?per_page=100').get('artifacts',[])
+                  a=[x for x in arts if str(x.get('id'))==artifact_id]
+                  if len(a)!=1 or a[0].get('expired') is not False or str(a[0].get('digest') or '').removeprefix('sha256:')!=digest:raise SystemExit(label+' artifact identity failed')
+                  row.update({'artifact_id':int(artifact_id),'artifact_sha256':digest})
+              evidence[label]=row
+          open('/tmp/mchem-rescue-final/evidence-identities.json','w').write(json.dumps(evidence,indent=2,sort_keys=True)+'\n')
+          print(json.dumps(evidence,sort_keys=True))
+          PY
+
+      - name: Final read-only live production seal
+        shell: bash
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import email,hashlib,json,os,secrets,urllib.error,urllib.parse,urllib.request
+          from pathlib import Path
+          API='https://api.cloudflare.com/client/v4';AID='93f395f5121954671f92fffa453d6b61';WORKER='musitu-chemistry-commerce';BASE='https://payments.mftintelligence.com'
+          H={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY'],'User-Agent':'MUSITU-Rescue-Final-Baseline-Seal/1.0'}
+          EXPECTED=os.environ['EXPECTED_WORKER_SHA'];APK=os.environ['APK_SHA256'];KEY=os.environ['LICENCE_KEY_ID']
+          def req(url,method='GET',headers=None,body=None,timeout=60):
+              q=urllib.request.Request(url,method=method,headers=dict(headers or {}),data=body)
+              try:
+                  with urllib.request.urlopen(q,timeout=timeout) as r:return r.status,r.headers,r.read()
+              except urllib.error.HTTPError as e:return e.code,e.headers,e.read()
+          def public(path,accept='*/*'):
+              path += ('&' if '?' in path else '?')+'__mchem_final='+urllib.parse.quote(secrets.token_hex(10))
+              return req(BASE+path,headers={'Accept':accept,'Cache-Control':'no-cache, no-store, max-age=0','Pragma':'no-cache','User-Agent':'MUSITU-Rescue-Final/'+secrets.token_hex(5)})
+          def extract(raw,ctype,needle):
+              if 'multipart/' not in (ctype or '').lower():return raw
+              msg=email.message_from_bytes((f'Content-Type: {ctype}\r\nMIME-Version: 1.0\r\n\r\n').encode()+raw);parts=[]
+              for p in msg.walk():
+                  if not p.is_multipart():
+                      d=p.get_payload(decode=True) or b''
+                      if needle.encode() in d:parts.append(d)
+              if len(parts)!=1:raise RuntimeError('module extraction mismatch')
+              return parts[0]
+          c,h,b=req(f'{API}/accounts/{AID}/workers/scripts/{WORKER}',headers=H)
+          if c!=200:raise SystemExit('worker read failed')
+          livehash=hashlib.sha256(extract(b,h.get('content-type',''),'MUSITU Chemistry Commerce')).hexdigest()
+          if livehash!=EXPECTED:raise SystemExit('final live hash mismatch '+livehash)
+          def strict(h):
+              csp=h.get('content-security-policy') or ''
+              return "style-src 'self'" in csp and "script-src 'self'" in csp and "connect-src 'self'" in csp and 'unsafe-inline' not in csp and 'unsafe-eval' not in csp and (h.get('referrer-policy') or '')=='no-referrer' and (h.get('x-frame-options') or '')=='DENY' and (h.get('x-content-type-options') or '')=='nosniff'
+          routes=[('/chemistry/','Know what you don’t know'),('/chemistry/rescue?src=direct','MUSITU Chemistry Rescue 2026'),('/chemistry/rescue/teachers','Teacher Rescue Kit'),('/chemistry/rescue/schools','School Rescue Pack'),('/chemistry/rescue/ambassadors','Rescue Ambassador Kit'),('/chemistry/plans','Choose access without guessing'),('/chemistry/privacy','Anonymous experience measurement'),('/chemistry/experience','Real-user experience evidence'),('/chemistry/support','payment-status link created during checkout'),('/chemistry/verify','Verify this MUSITU release')]
+          rays=[]
+          for path,needle in routes:
+              c,h,b=public(path,'text/html');t=b.decode('utf-8','replace')
+              if c!=200 or needle not in t or not strict(h):raise SystemExit('final route failed '+path)
+              if h.get('cf-ray'):rays.append(h.get('cf-ray'))
+          hc,_,hb=public('/chemistry/healthz','application/json');health=json.loads(hb or b'{}')
+          if hc!=200 or health.get('ok') is not True or health.get('licence_key_id')!=KEY or health.get('raw_paynow_key_present') is not False or health.get('payment_authority_bound') is not True or health.get('transport_bound') is not True:raise SystemExit('final health failed')
+          cc,_,cb=public('/chemistry/catalog','application/json');cat=json.loads(cb or b'{}');ids=[p.get('id') for p in cat.get('plans') or []]
+          if cc!=200 or ids!=['term','annual','lifetime','family','tutor','school']:raise SystemExit('final catalog failed')
+          ac,ah,apk=public('/chemistry/download/MUSITU_Chemistry_Mastery_1.2.0.apk','application/vnd.android.package-archive');digest=hashlib.sha256(apk).hexdigest()
+          if ac!=200 or len(apk)!=5314934 or digest!=APK or 'MUSITU_Chemistry_Mastery_1.2.0.apk' not in (ah.get('content-disposition') or ''):raise SystemExit('final APK failed')
+          ev={'schema':'musitu.chemistry.rescue.final_baseline_seal.v1','manifest_git_blob_sha':os.environ['MANIFEST_GIT_BLOB_SHA'],'live_worker_sha256':livehash,'verified_routes':[x[0] for x in routes],'observed_cf_rays':rays,'licence_key_id':KEY,'payment_authority_bound':True,'transport_bound':True,'plan_ids':ids,'apk_sha256':digest,'apk_bytes':len(apk),'production_mutation':False,'real_money_settlement_observed':False,'real_money_settlement_claimed':False,'field_inp_observed':False,'field_inp_claimed':False,'organic_distribution_outcomes_claimed':False,'paid_media_spend_claimed':False,'gate':'MUSITU_CHEMISTRY_RESCUE_FINAL_BASELINE_SEAL_PASS'}
+          raw=(json.dumps(ev,indent=2,sort_keys=True)+'\n').encode();Path('/tmp/mchem-rescue-final/final-seal.json').write_bytes(raw);Path('/tmp/mchem-rescue-final/final-seal.sha256').write_text(hashlib.sha256(raw).hexdigest()+'  final-seal.json\n');print(json.dumps(ev,sort_keys=True))
+          PY
+
+      - name: Seal evidence bundle
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd /tmp/mchem-rescue-final
+          sha256sum *.json *.sha256 > SHA256SUMS.txt
+          cat final-seal.json
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: musitu-chemistry-rescue-final-baseline-seal
+          path: /tmp/mchem-rescue-final
+          retention-days: 90
+          if-no-files-found: error
