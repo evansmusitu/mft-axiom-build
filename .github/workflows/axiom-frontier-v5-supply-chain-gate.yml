@@ -17,6 +17,7 @@ on:
       - '.github/workflows/axiom-frontier-v5-python-hash-capture.yml'
       - '.github/workflows/axiom-frontier-v5-durable-task-gate.yml'
       - '.github/workflows/axiom-frontier-v5-mcp-2026-gate.yml'
+      - '.github/workflows/axiom-frontier-v5-cimd-gate.yml'
       - '.github/workflows/axiom-frontier-v5-supply-chain-gate.yml'
   pull_request:
     paths:
@@ -32,6 +33,7 @@ on:
       - '.github/workflows/axiom-frontier-v5-python-hash-capture.yml'
       - '.github/workflows/axiom-frontier-v5-durable-task-gate.yml'
       - '.github/workflows/axiom-frontier-v5-mcp-2026-gate.yml'
+      - '.github/workflows/axiom-frontier-v5-cimd-gate.yml'
       - '.github/workflows/axiom-frontier-v5-supply-chain-gate.yml'
   workflow_dispatch:
 
