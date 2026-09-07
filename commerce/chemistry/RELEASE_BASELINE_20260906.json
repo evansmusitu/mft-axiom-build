@@ -1,18 +1,21 @@
 {
-  "schema": "musitu.chemistry.release_baseline.v5",
+  "schema": "musitu.chemistry.release_baseline.v6",
   "product": "MUSITU Chemistry Mastery",
   "release": "1.2.0-commercial-rc3",
-  "status": "VERIFIED_FIELD_EXPERIENCE_COLLECTION_BASELINE",
-  "branch": "chemistry-field-experience-20260906",
+  "status": "VERIFIED_NATIONAL_RESCUE_GROWTH_BASELINE",
+  "branch": "chemistry-national-rescue-growth-20260907",
   "source": {
     "proven_archive_sha256": "5b2618499eed8dc90261bc4f8260246d5593534500dd2fb145f2d24b5c47754c",
     "sealed_base_worker_sha256": "848e1cec17ec580822d36e595196cda5978713849e8b45c5bc8dc7fcf9765db8",
     "previous_public_surfaces_worker_sha256": "009c966386bb4e82fc71f935f2e2334e063bceb1b387ec9aecc2f045e36e9d15",
     "global_storefront_worker_sha256": "8cb1bf7187eb6eb5242ecd57e53e5f3a83fe52c92dc1958285cc71260c7fc210",
     "recovery_hardened_predecessor_worker_sha256": "d6642aefacc8d6765d17c1d33c2df65df33a9531f843c0bbbc2c304482d3d5f1",
-    "current_field_experience_worker_sha256": "1134a2581d423547b9876fe8a680ef99ca949edbdbfd6757624150a23d049bec",
+    "field_experience_predecessor_worker_sha256": "1134a2581d423547b9876fe8a680ef99ca949edbdbfd6757624150a23d049bec",
+    "current_field_experience_worker_sha256": "7b17d37b514913a59a66fa1339ced59ab0b06ff9759ef51cd5ec16d4e5e20af0",
+    "current_national_rescue_worker_sha256": "7b17d37b514913a59a66fa1339ced59ab0b06ff9759ef51cd5ec16d4e5e20af0",
     "core_commerce_tests_passed": 8,
-    "phase3_storefront_worker_tests_passed": 30
+    "phase3_storefront_worker_tests_passed": 30,
+    "national_rescue_storefront_worker_tests_passed": 40
   },
   "production_commerce": {
     "base_url": "https://payments.mftintelligence.com/chemistry/",
@@ -30,7 +33,7 @@
     "download_worker": "musitu-chemistry-downloads",
     "download_worker_version_id": "5ed269f9-625c-4d9a-a8bf-afc2afbe20f1",
     "download_route": "payments.mftintelligence.com/chemistry/download*",
-    "current_worker_sha256": "1134a2581d423547b9876fe8a680ef99ca949edbdbfd6757624150a23d049bec",
+    "current_worker_sha256": "7b17d37b514913a59a66fa1339ced59ab0b06ff9759ef51cd5ec16d4e5e20af0",
     "decision_first_home": true,
     "advisory_plan_recommender": true,
     "lifecycle_support": true,
@@ -40,6 +43,7 @@
     "terms_surface": true,
     "security_txt_surface": true,
     "experience_evidence_surface": true,
+    "national_rescue_surface": true,
     "strict_same_origin_csp": true,
     "csp_connect_src": "self",
     "csp_unsafe_inline": false,
@@ -56,6 +60,10 @@
     "checkout_annual_http": 200,
     "checkout_school_http": 200,
     "claim_http": 200,
+    "rescue_http": 200,
+    "rescue_teacher_kit_http": 200,
+    "rescue_school_kit_http": 200,
+    "rescue_ambassador_kit_http": 200,
     "download_http": 200,
     "download_bytes": 5314934,
     "apk_sha256_verified_after_public_download": "055b63f271c18faab540985faefb970f472ea55ba9cb3495db459797902b790d",
@@ -90,6 +98,60 @@
     "field_inp_observed": false,
     "field_inp_claimed": false
   },
+  "national_rescue_growth": {
+    "campaign": "MUSITU Chemistry Rescue 2026",
+    "entry_url": "https://payments.mftintelligence.com/chemistry/rescue",
+    "teacher_kit_url": "https://payments.mftintelligence.com/chemistry/rescue/teachers",
+    "school_kit_url": "https://payments.mftintelligence.com/chemistry/rescue/schools",
+    "ambassador_kit_url": "https://payments.mftintelligence.com/chemistry/rescue/ambassadors",
+    "free_first": true,
+    "premium_optional": true,
+    "whatsapp_peer_share": true,
+    "source_classes": [
+      "wa_student",
+      "wa_teacher",
+      "school",
+      "creator",
+      "meta",
+      "tiktok",
+      "ambassador",
+      "direct"
+    ],
+    "unknown_source_fallback": "direct",
+    "hostile_source_collapses_to_direct": true,
+    "source_identifiers_prohibited": true,
+    "growth_events": [
+      "rescue_visit",
+      "rescue_start",
+      "rescue_share",
+      "rescue_peer_start",
+      "premium_intent",
+      "teacher_kit",
+      "school_kit",
+      "ambassador_kit"
+    ],
+    "aggregate_only_measurement": true,
+    "gpc_and_dnt_suppression_inherited": true,
+    "official_zimsec_affiliation_claimed": false,
+    "guaranteed_exam_outcome_claimed": false,
+    "paid_media_budget_envelope_usd": {
+      "minimum_experimental_envelope": 200,
+      "maximum_launch_cycle_ceiling": 500,
+      "spent_at_baseline_seal": 0,
+      "paid_scale_requires_organic_funnel_evidence": true
+    },
+    "launch_content_pack_complete": true,
+    "content_qa_run": 34077657825,
+    "full_preflight_run": 34078053435,
+    "guarded_deploy_run": 34078264681,
+    "independent_live_verify_run": 34078349117,
+    "independent_live_verified_route_count": 15,
+    "independent_live_consecutive_sweeps": 4,
+    "guarded_deploy_consecutive_edge_sweeps": 6,
+    "guarded_deploy_rollback_available": true,
+    "guarded_deploy_rollback_used": false,
+    "production_worker_sha256": "7b17d37b514913a59a66fa1339ced59ab0b06ff9759ef51cd5ec16d4e5e20af0"
+  },
   "standards": {
     "wcag_target": "WCAG_2.2_AA",
     "axe_serious_or_critical": 0,
@@ -103,6 +165,13 @@
     "phase3_lighthouse_lcp_ms": 1207.9002,
     "phase3_lighthouse_cls": 0,
     "phase3_lighthouse_tbt_ms": 0,
+    "national_rescue_core_lighthouse_performance": 1.0,
+    "national_rescue_core_lighthouse_accessibility": 1.0,
+    "national_rescue_core_lighthouse_best_practices": 0.96,
+    "national_rescue_rescue_lighthouse_performance": 1.0,
+    "national_rescue_rescue_lighthouse_accessibility": 1.0,
+    "national_rescue_rescue_lighthouse_best_practices": 0.96,
+    "national_rescue_lighthouse_budget_passed": true,
     "field_inp_status": "collection_live_insufficient_field_sample"
   },
   "verified_runs": {
@@ -118,7 +187,11 @@
     "recovery_hardening_independent_readonly": 34058146145,
     "field_experience_preflight": 34060650777,
     "field_experience_guarded_deploy_v3": 34061057589,
-    "field_experience_independent_live_verify": 34061132108
+    "field_experience_independent_live_verify": 34061132108,
+    "national_rescue_content_qa": 34077657825,
+    "national_rescue_full_preflight": 34078053435,
+    "national_rescue_guarded_deploy": 34078264681,
+    "national_rescue_independent_live_verify": 34078349117
   },
   "evidence_artifacts": {
     "global_storefront_deploy_v2_artifact_id": 9996067371,
@@ -134,7 +207,13 @@
     "field_experience_deploy_v3_artifact_id": 9997473613,
     "field_experience_deploy_v3_zip_sha256": "fae2bfa30a02e5e5e2fbdf2788b1f8fc3c6c792f3880c1181eb2402c3dc0c3f7",
     "field_experience_independent_live_artifact_id": 9997492963,
-    "field_experience_independent_live_zip_sha256": "f81b0bab6417c7e2a8b2a4d138458639552b15723b1cb16bfea030c237f02824"
+    "field_experience_independent_live_zip_sha256": "f81b0bab6417c7e2a8b2a4d138458639552b15723b1cb16bfea030c237f02824",
+    "national_rescue_full_preflight_artifact_id": 10002756931,
+    "national_rescue_full_preflight_zip_sha256": "d39cf1cd50281268a0b00ba82712450c721367f38a4412127044c66fc5936c0d",
+    "national_rescue_guarded_deploy_artifact_id": 10002817712,
+    "national_rescue_guarded_deploy_zip_sha256": "f32fe7ce17489232f0360b72f02209634016d710cb0e89fbb032d652af0002cc",
+    "national_rescue_independent_live_artifact_id": 10002843618,
+    "national_rescue_independent_live_zip_sha256": "fe2f0e9d391cd4ead340be64eb2c6c0d64dc092fc448d8f6c718c44d1712313e"
   },
   "gates": [
     "MUSITU_CHEMISTRY_COMMERCE_DEPLOY_PASS",
@@ -151,7 +230,10 @@
     "MUSITU_CHEMISTRY_GLOBAL_STOREFRONT_RECOVERY_LIVE_VERIFY_PASS",
     "MUSITU_CHEMISTRY_FIELD_EXPERIENCE_PREFLIGHT_PASS",
     "MUSITU_CHEMISTRY_FIELD_EXPERIENCE_DEPLOY_V3_PASS",
-    "MUSITU_CHEMISTRY_FIELD_EXPERIENCE_INDEPENDENT_LIVE_VERIFY_PASS"
+    "MUSITU_CHEMISTRY_FIELD_EXPERIENCE_INDEPENDENT_LIVE_VERIFY_PASS",
+    "MUSITU_CHEMISTRY_RESCUE_FULL_PREFLIGHT_PASS",
+    "MUSITU_CHEMISTRY_RESCUE_GUARDED_DEPLOY_PASS",
+    "MUSITU_CHEMISTRY_RESCUE_INDEPENDENT_LIVE_VERIFY_PASS"
   ],
   "superseded_safe_attempts": {
     "field_experience_guarded_deploy_v1": {
@@ -163,6 +245,12 @@
       "run": 34060769008,
       "result": "failed_post_upload_then_rollback_verified",
       "production_baseline_restored": true
+    },
+    "national_rescue_full_preflight_initial": {
+      "run": 34077958549,
+      "result": "failed_readonly_mobile_320px_teacher_kit_overflow",
+      "production_mutation": false,
+      "superseded_by": 34078053435
     }
   },
   "no_charge_checkout": {
@@ -206,6 +294,9 @@
     "field_core_web_vitals_claim_available": false,
     "independent_field_experience_live_verified": true,
     "independent_recovery_live_recertified": true,
-    "reason": "The commercial storefront, exact public APK delivery, accessibility and lab-performance gates, no-charge production initiation, fail-closed entitlement, recovery hardening, privacy-minimized first-party field-experience collection and an independent live Phase 3 verification are verified. A completed paid settlement and a field Core Web Vitals dataset meeting the 100-sample publication threshold remain separate evidence classes and are not claimed."
+    "independent_national_rescue_live_verified": true,
+    "national_rescue_paid_media_spend_observed": false,
+    "national_rescue_organic_distribution_evidence_observed": false,
+    "reason": "The commercial storefront, exact public APK delivery, accessibility and lab-performance gates, no-charge production initiation, fail-closed entitlement, recovery hardening, privacy-minimized first-party field-experience collection, the live MUSITU Chemistry Rescue 2026 free-first growth surfaces and independent live Rescue verification are verified. A completed paid settlement, a field Core Web Vitals dataset meeting the 100-sample publication threshold, real organic distribution outcomes and paid-media performance remain separate evidence classes and are not claimed."
   }
 }
