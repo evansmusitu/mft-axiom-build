@@ -1,0 +1,69 @@
+{
+  "schema": "musitu.chemistry.installed_app_shell.live.v1",
+  "status": "live_guarded_verified_physical_retest_pending",
+  "production_worker_sha256": "e6e8e2983c1a285f9abdc6c50fb4feda4f98d09becc82c4a6553ca59f6b16f41",
+  "previous_worker_sha256": "fa5b4233062dab26ef506e9dbf6a7e6be6451096bd06889a1ad84b8db335fe4e",
+  "universal_install_url": "https://payments.mftintelligence.com/chemistry/install",
+  "installed_app_url": "https://payments.mftintelligence.com/chemistry/app",
+  "source_evidence_head_sha": "7f3449e9685114fd0d552290e03161dddec59fd4",
+  "install_ci": {
+    "run_id": 34159273322,
+    "conclusion": "success",
+    "candidate_worker_sha256": "e6e8e2983c1a285f9abdc6c50fb4feda4f98d09becc82c4a6553ca59f6b16f41",
+    "storefront_tests_passed": 61,
+    "core_commerce_tests_passed": 8,
+    "browser_matrix_passed": true,
+    "artifact_id": 10032036955,
+    "artifact_sha256": "7e03887207aa5b0847f614ceb9487e402ba512c50cc31a508699c101d7033a14"
+  },
+  "full_preflight": {
+    "run_id": 34159273301,
+    "conclusion": "success",
+    "artifact_id": 10032050056,
+    "artifact_sha256": "7c807976d9bea3d9b987c33e951b6deae76abcbae94a9df27fadefb9f059a449"
+  },
+  "guarded_deploy": {
+    "workflow_commit_sha": "778a43c8fe8b1af118b7731eb16d1d48eb4aae76",
+    "run_id": 34159498481,
+    "job_id": 101858154167,
+    "conclusion": "success",
+    "edge_sweep_streak": 6,
+    "edge_sweep_attempts": 9,
+    "rollback_used": false,
+    "artifact_id": 10032113690,
+    "artifact_sha256": "4a3e502a6a8f297835b89e80c3fefab513624f23ce30186b6235d9a8ee82a693"
+  },
+  "installed_launch_contract": {
+    "manifest_id": "/chemistry/rescue?src=direct",
+    "manifest_identity_preserved": true,
+    "manifest_start_url": "/chemistry/app",
+    "manifest_scope": "/chemistry/",
+    "manifest_display": "standalone",
+    "legacy_installed_rescue_bridge": true,
+    "bridge_executes_before_public_rescue_body": true,
+    "app_shell_cache_control_no_store": true,
+    "public_site_header_absent_from_app_shell": true,
+    "public_site_footer_absent_from_app_shell": true,
+    "public_rescue_marketing_copy_absent_from_app_shell": true,
+    "safe_area_ui": true,
+    "fixed_app_navigation": true,
+    "first_launch_onboarding": ["Diagnose", "Revise", "Prove"]
+  },
+  "security_and_commerce_boundaries": {
+    "strict_csp_preserved": true,
+    "payment_authority_preserved": true,
+    "transport_binding_preserved": true,
+    "raw_paynow_key_present": false,
+    "verified_apk_sha256": "055b63f271c18faab540985faefb970f472ea55ba9cb3495db459797902b790d",
+    "payment_routes_cached": false,
+    "real_money_settlement_performed": false
+  },
+  "field_boundary": {
+    "physical_android_install_observed": true,
+    "physical_android_screenshot_showed_pre_app_shell_public_site_content": true,
+    "physical_post_deploy_app_shell_reopen_verified": false,
+    "iphone_physical_verified": false,
+    "ipad_physical_verified": false,
+    "authoritative_claim": "Dedicated installed MUSITU Chemistry app shell is live and guarded-deploy verified. Physical post-deploy reopen remains pending until the installed app is reopened on hardware and visually confirmed."
+  }
+}
