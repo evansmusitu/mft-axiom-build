@@ -7,8 +7,10 @@ on:
     paths:
       - 'frontier_v5/runtime/external_comparative.py'
       - 'frontier_v5/runtime/external_claim_boundary.py'
+      - 'frontier_v5/runtime/benchmark_registry.py'
       - 'frontier_v5/tests/test_external_comparative_gate.py'
       - 'frontier_v5/tests/test_external_claim_boundary.py'
+      - 'frontier_v5/tests/test_benchmark_registry.py'
       - 'frontier_v5/scripts/run_external_claim_readiness.py'
       - 'frontier_v5/evals/EXTERNAL_BASELINE_REGISTRY.json'
       - 'frontier_v5/EVAL_CONTRACT.json'
@@ -18,8 +20,10 @@ on:
     paths:
       - 'frontier_v5/runtime/external_comparative.py'
       - 'frontier_v5/runtime/external_claim_boundary.py'
+      - 'frontier_v5/runtime/benchmark_registry.py'
       - 'frontier_v5/tests/test_external_comparative_gate.py'
       - 'frontier_v5/tests/test_external_claim_boundary.py'
+      - 'frontier_v5/tests/test_benchmark_registry.py'
       - 'frontier_v5/scripts/run_external_claim_readiness.py'
       - 'frontier_v5/evals/EXTERNAL_BASELINE_REGISTRY.json'
       - 'frontier_v5/EVAL_CONTRACT.json'
@@ -51,6 +55,11 @@ jobs:
           set -euo pipefail
           PYTHONPATH=. python frontier_v5/tests/test_external_claim_boundary.py | tee /tmp/external-claim-boundary.log
           grep -q 'MUSITU_AXIOM_FRONTIER_EXTERNAL_CLAIM_BOUNDARY_PASS' /tmp/external-claim-boundary.log
+      - name: Verify benchmark registry expiry contamination and promotion policy
+        run: |
+          set -euo pipefail
+          PYTHONPATH=. python frontier_v5/tests/test_benchmark_registry.py | tee /tmp/benchmark-registry.log
+          grep -q 'MUSITU_AXIOM_FRONTIER_BENCHMARK_REGISTRY_PASS' /tmp/benchmark-registry.log
       - name: Verify external baseline registry remains non-certifying
         run: |
           set -euo pipefail
