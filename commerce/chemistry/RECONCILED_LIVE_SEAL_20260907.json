@@ -1,0 +1,75 @@
+{
+  "schema": "musitu.chemistry.national_rescue.reconciled_live_seal.v1",
+  "product": "MUSITU Education Nexus — Chemistry Mastery",
+  "campaign": "MUSITU Chemistry Rescue 2026",
+  "date": "2026-09-07",
+  "branch": "chemistry-national-rescue-growth-20260907",
+  "reconciliation_commit_sha": "8ddb6942e3a8653a78328730280115cc912b38f5",
+  "live_seal_workflow_commit_sha": "ecbff3702917b7ac6d3f9408ac65a5ba9a9da874",
+  "reconciliation_ci": {
+    "run_id": 34116504114,
+    "result": "success",
+    "gate": "MUSITU_CHEMISTRY_BROWSER_RECONCILIATION_CI_PASS"
+  },
+  "growth_focused_ci": {
+    "run_id": 34116504132,
+    "result": "success"
+  },
+  "full_preflight": {
+    "run_id": 34116504087,
+    "result": "success",
+    "artifact_id": 10016484608,
+    "artifact_zip_sha256": "f25f97c7ac05392a0861a80c4195c60f80ca38c02912e6055a228debf094b31f"
+  },
+  "reconciled_live_seal": {
+    "run_id": 34116755734,
+    "job_id": 101725269836,
+    "result": "success",
+    "artifact_id": 10016563796,
+    "artifact_zip_sha256": "3696aa40399fcf5eac0c40e0d63ce23ecabb39e8a793ed6a2ad3c253395843e7",
+    "gate": "MUSITU_CHEMISTRY_NATIONAL_RESCUE_RECONCILED_LIVE_SEAL_PASS"
+  },
+  "live_worker_sha256": "1af4a2a7d79de14d9539eda3d3e0f7917da98536c0d87c8253562893df9af707",
+  "source_reconstructs_to_live_worker": true,
+  "cloudflare": {
+    "ruleset_id": "8e8a2552a8ee4bb383abbe0d748e1da5",
+    "ruleset_version": "6",
+    "chemistry_disable_rum_rule_id": "bc8c60317d884ceaacecaeb3e94e10c2",
+    "disable_rum": true,
+    "scope_is_chemistry_only": true
+  },
+  "browser": {
+    "persistent_chrome_verified": true,
+    "manifest_errors": 0,
+    "installability_errors": 0,
+    "install_prompt_available": true,
+    "strict_self_only_csp_preserved": true,
+    "cloudflare_beacon_requests": 0,
+    "relevant_console_errors": 0
+  },
+  "commerce": {
+    "production_licence_key_id": "chem-lic-2026-6783aa7535d1",
+    "payment_authority_bound": true,
+    "transport_bound": true,
+    "plan_ids": ["term", "annual", "lifetime", "family", "tutor", "school"],
+    "apk_bytes": 5314934,
+    "apk_sha256": "055b63f271c18faab540985faefb970f472ea55ba9cb3495db459797902b790d",
+    "settlement_to_entitlement_invariant": "VERIFIED_SETTLEMENT_EVIDENCE_TO_SIGNED_ENTITLEMENT"
+  },
+  "field_experience": {
+    "status": "insufficient_field_sample",
+    "minimum_public_sample": 100,
+    "field_claimable_now": false
+  },
+  "claims": {
+    "real_money_settlement_observed": false,
+    "real_money_settlement_claimed": false,
+    "field_inp_claimed": false,
+    "day1_organic_publication_proven": false,
+    "official_zimsec_affiliation_claimed": false,
+    "guaranteed_exam_outcome_claimed": false
+  },
+  "production_mutation_performed_by_reconciliation_or_seal": false,
+  "wholesale_browser_branch_merge_performed": false,
+  "exact_next_action": "Execute the already-approved Day-1 organic founder/brand placement to https://payments.mftintelligence.com/chemistry/rescue?src=direct through an authorized external publishing account, then seal immutable publication proof before making any publication, adoption, revenue, ROI, settlement, or outcome claim."
+}
