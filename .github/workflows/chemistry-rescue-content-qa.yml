@@ -1,0 +1,45 @@
+name: MUSITU Chemistry Rescue Content QA
+
+on:
+  push:
+    branches: [chemistry-national-rescue-growth-20260907]
+    paths:
+      - 'growth/chemistry-rescue/**'
+      - '.github/workflows/chemistry-rescue-content-qa.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  qa:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate complete launch content system
+        shell: bash
+        run: |
+          set -euo pipefail
+          required=(
+            growth/chemistry-rescue/README.md
+            growth/chemistry-rescue/30-day-calendar.md
+            growth/chemistry-rescue/short-video-scripts.md
+            growth/chemistry-rescue/ad-copy.md
+            growth/chemistry-rescue/content-qa.md
+            growth/chemistry-rescue/budget-operations.md
+            growth/chemistry-rescue/teacher-whatsapp.txt
+            growth/chemistry-rescue/parent-whatsapp.txt
+            growth/chemistry-rescue/school-outreach.txt
+            growth/chemistry-rescue/creator-brief.md
+            growth/chemistry-rescue/ambassador-rules.md
+          )
+          for f in "${required[@]}"; do test -s "$f" || { echo "MISSING $f"; exit 1; }; done
+          launch=(growth/chemistry-rescue/30-day-calendar.md growth/chemistry-rescue/short-video-scripts.md growth/chemistry-rescue/ad-copy.md)
+          if grep -Ein 'official ZIMSEC partner|guaranteed pass|guaranteed (grade|mark)|scrape(d)? (student|phone)|bulk (message|WhatsApp).*student|buy followers|fake testimonial' "${launch[@]}"; then
+            echo 'PROHIBITED_GROWTH_CLAIM_FOUND'; exit 1
+          fi
+          grep -q 'https://payments.mftintelligence.com/chemistry/rescue?src=' growth/chemistry-rescue/30-day-calendar.md
+          grep -q 'Do the free MUSITU Chemistry Rescue check' growth/chemistry-rescue/short-video-scripts.md
+          grep -q 'US\$200' growth/chemistry-rescue/budget-operations.md
+          grep -q 'US\$500' growth/chemistry-rescue/budget-operations.md
+          echo MUSITU_CHEMISTRY_RESCUE_CONTENT_QA_PASS
