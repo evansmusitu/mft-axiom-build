@@ -25,6 +25,7 @@ WORKFLOWS = {
     "supply_chain": ROOT / ".github/workflows/axiom-frontier-v5-supply-chain-gate.yml",
     "python_hash_capture": ROOT / ".github/workflows/axiom-frontier-v5-python-hash-capture.yml",
     "durable_tasks": ROOT / ".github/workflows/axiom-frontier-v5-durable-task-gate.yml",
+    "mcp_2026": ROOT / ".github/workflows/axiom-frontier-v5-mcp-2026-gate.yml",
 }
 HEX40 = re.compile(r"^[0-9a-f]{40}$")
 ACTION = re.compile(r"^\s*uses:\s*(actions/(?:checkout|setup-python|upload-artifact))@([^\s#]+)", re.M)
@@ -112,6 +113,17 @@ def main() -> None:
         fail("Python hash-capture workflow must execute the reviewed capture utility")
     if "capture_is_attestation" in capture:
         fail("Python hash-capture workflow must not self-promote captured hashes to attestation")
+
+    # The supply-chain workflow must trigger when any separately governed
+    # Frontier workflow changes; otherwise a workflow could drift without this
+    # contract being re-evaluated.
+    supply_text = WORKFLOWS["supply_chain"].read_text(encoding="utf-8")
+    for name, path in WORKFLOWS.items():
+        if name == "supply_chain":
+            continue
+        relative = path.relative_to(ROOT).as_posix()
+        if relative not in supply_text:
+            fail(f"supply-chain gate does not trigger on governed workflow: {relative}")
 
     status = lock.get("status") or {}
     assert status.get("versions_pinned") is True
