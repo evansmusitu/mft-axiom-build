@@ -14,7 +14,7 @@ export const FIELD_SCHEMA_SQL=`CREATE TABLE IF NOT EXISTS chemistry_field_aggreg
 const ROUTE_CLASSES=new Map([
   ['/chemistry','home'],['/chemistry/','home'],['/chemistry/plans','plans'],['/chemistry/checkout/start','checkout'],
   ['/chemistry/return','status'],['/chemistry/claim','claim'],['/chemistry/support','support'],['/chemistry/privacy','privacy'],
-  ['/chemistry/terms','terms'],['/chemistry/verify','verify'],['/chemistry/releases','releases'],['/chemistry/experience','experience']
+  ['/chemistry/terms','terms'],['/chemistry/verify','verify'],['/chemistry/releases','releases'],['/chemistry/experience','experience'],['/chemistry/rescue','rescue']
 ]);
 const VITALS=new Set(['LCP','INP','CLS']);
 const EVENTS=new Set(['page_view','start_free','unlock_full','families_institutions','plan_recommend','plan_choose','checkout_continue','support_contact','seat_claim','status_paid','status_pending']);
