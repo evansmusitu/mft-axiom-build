@@ -1,0 +1,62 @@
+{
+  "schema": "musitu.chemistry.adaptive_install_concierge.v1",
+  "status": "candidate_verified_not_yet_live",
+  "universal_install_url": "https://payments.mftintelligence.com/chemistry/install",
+  "hidden_diagnostics_url": "https://payments.mftintelligence.com/chemistry/install/diagnostics",
+  "candidate_worker_sha256": "ec99c130395556dfab1f5f3e848ed281698a991ce5294316251c9de20c61bf77",
+  "previous_live_worker_sha256": "450a3df940575f17b300b1576b39d053b52df1e6fb4c9c64271e707f140c9d27",
+  "adaptive_install_ci": {
+    "run_id": 34152587560,
+    "head_sha": "cf22447bf2ee98cb784c5d754b1add4a4130230b",
+    "conclusion": "success",
+    "artifact_id": 10029864255,
+    "artifact_sha256": "2280dd2cf01c72f55085a12fd17477535026cc0d62a1fa8c783c98410e920776"
+  },
+  "full_preflight_product_commit": {
+    "run_id": 34152423687,
+    "head_sha": "651831937fc2bd1fbf7bb043a76e2329e55757fb",
+    "conclusion": "success",
+    "artifact_id": 10029840950,
+    "artifact_sha256": "352666b02759844e38833102cfc4ab044714b3855a1ef55bf68b7c3faf7756fd"
+  },
+  "platform_contracts": [
+    "iPhone/iPad Safari",
+    "iPhone/iPad non-Safari",
+    "iOS in-app browsers",
+    "Android Chrome",
+    "Samsung Internet",
+    "Android WebView/in-app browsers",
+    "desktop Chrome/Edge",
+    "already-installed standalone mode"
+  ],
+  "privacy_safe_install_events": [
+    "install_view",
+    "install_prompt_available",
+    "install_started",
+    "install_completed",
+    "install_fallback",
+    "install_help_needed"
+  ],
+  "fallback_hierarchy": [
+    "browser-native install prompt where exposed",
+    "iOS Safari Home Screen web-app coach",
+    "verified signed Android APK where appropriate",
+    "immediate browser experience"
+  ],
+  "first_launch_onboarding": ["Diagnose", "Revise", "Prove"],
+  "offline_shell_tested_in_chromium": true,
+  "payment_or_checkout_routes_cached": false,
+  "strict_csp_preserved": true,
+  "payment_authority_preserved": true,
+  "transport_binding_preserved": true,
+  "verified_apk_fallback_sha256": "055b63f271c18faab540985faefb970f472ea55ba9cb3495db459797902b790d",
+  "physical_device_certification": false,
+  "field_inp_claimable": false,
+  "real_money_settlement_observed": false,
+  "production_mutation_performed_by_this_evidence_commit": false,
+  "notes": [
+    "Browser-emulation and contract testing are green; physical iPhone/iPad/Android certification remains a separate field gate.",
+    "Browser and OS security confirmations remain user-controlled; MUSITU automates guidance up to those protected confirmations.",
+    "This evidence file intentionally triggers an exact-head full preflight before any guarded production cutover."
+  ]
+}
