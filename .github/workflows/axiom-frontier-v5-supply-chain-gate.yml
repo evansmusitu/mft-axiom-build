@@ -34,6 +34,7 @@ on:
       - '.github/workflows/axiom-frontier-v5-provider-fallback-gate.yml'
       - '.github/workflows/axiom-frontier-v5-freshness-gate.yml'
       - '.github/workflows/axiom-frontier-v5-incident-forensics-gate.yml'
+      - '.github/workflows/axiom-frontier-v5-secret-scanning-gate.yml'
       - '.github/workflows/axiom-frontier-v5-supply-chain-gate.yml'
   pull_request:
     paths:
@@ -66,6 +67,7 @@ on:
       - '.github/workflows/axiom-frontier-v5-provider-fallback-gate.yml'
       - '.github/workflows/axiom-frontier-v5-freshness-gate.yml'
       - '.github/workflows/axiom-frontier-v5-incident-forensics-gate.yml'
+      - '.github/workflows/axiom-frontier-v5-secret-scanning-gate.yml'
       - '.github/workflows/axiom-frontier-v5-supply-chain-gate.yml'
   workflow_dispatch:
 
