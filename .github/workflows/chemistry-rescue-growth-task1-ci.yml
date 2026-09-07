@@ -4,8 +4,7 @@ on:
   push:
     branches: [chemistry-national-rescue-growth-20260907]
     paths:
-      - 'commerce/chemistry/storefront/**'
-      - 'commerce/chemistry/patch_storefront.py'
+      - 'commerce/chemistry/**'
       - '.github/workflows/chemistry-rescue-growth-task1-ci.yml'
 
 permissions:
@@ -17,11 +16,24 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
+      - name: Reconstruct deterministic Chemistry Worker
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/mchem-rescue-base /tmp/mchem-rescue-source.zip
+          mkdir -p /tmp/mchem-rescue-base
+          cat commerce/chemistry/source.b64.* | base64 -d > /tmp/mchem-rescue-source.zip
+          echo "5b2618499eed8dc90261bc4f8260246d5593534500dd2fb145f2d24b5c47754c  /tmp/mchem-rescue-source.zip" | sha256sum -c -
+          unzip -q /tmp/mchem-rescue-source.zip -d /tmp/mchem-rescue-base
+          echo "848e1cec17ec580822d36e595196cda5978713849e8b45c5bc8dc7fcf9765db8  /tmp/mchem-rescue-base/src/index.mjs" | sha256sum -c -
+          cp /tmp/mchem-rescue-base/src/index.mjs commerce/chemistry/index.base.mjs
+          python commerce/chemistry/patch_storefront.py
+          node --check commerce/chemistry/index.storefront-v3.mjs
       - name: Run focused Rescue growth contracts
         shell: bash
         run: |
           set -euo pipefail
-          files=(commerce/chemistry/storefront/field-experience.test.mjs commerce/chemistry/storefront/rescue-growth.test.mjs)
+          files=(commerce/chemistry/storefront/field-experience.test.mjs commerce/chemistry/storefront/rescue-growth.test.mjs commerce/chemistry/storefront/worker-contract.test.mjs)
           if [[ -f commerce/chemistry/storefront/rescue-render.test.mjs ]]; then files+=(commerce/chemistry/storefront/rescue-render.test.mjs); fi
           if [[ -f commerce/chemistry/storefront/rescue-kits.test.mjs ]]; then files+=(commerce/chemistry/storefront/rescue-kits.test.mjs); fi
           node --test "${files[@]}"
