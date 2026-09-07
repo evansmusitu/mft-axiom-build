@@ -1,3 +1,5 @@
+import {GROWTH_SOURCES,normalizeGrowthSource} from './rescue-growth.mjs';
+
 export const FIELD_MIN_PUBLIC_SAMPLE=100;
 export const FIELD_SCHEMA_SQL=`CREATE TABLE IF NOT EXISTS chemistry_field_aggregate(
   day TEXT NOT NULL,
@@ -17,10 +19,13 @@ const ROUTE_CLASSES=new Map([
   ['/chemistry/terms','terms'],['/chemistry/verify','verify'],['/chemistry/releases','releases'],['/chemistry/experience','experience'],['/chemistry/rescue','rescue']
 ]);
 const VITALS=new Set(['LCP','INP','CLS']);
-const EVENTS=new Set(['page_view','start_free','unlock_full','families_institutions','plan_recommend','plan_choose','checkout_continue','support_contact','seat_claim','status_paid','status_pending']);
-const ROUTES=new Set(['home','plans','checkout','status','claim','support','privacy','terms','verify','releases','experience','other']);
+const EVENTS=new Set(['page_view','start_free','unlock_full','families_institutions','plan_recommend','plan_choose','checkout_continue','support_contact','seat_claim','status_paid','status_pending','rescue_visit','rescue_start','rescue_share','rescue_peer_start','premium_intent','teacher_kit','school_kit','ambassador_kit']);
+const ROUTES=new Set(['home','plans','checkout','status','claim','support','privacy','terms','verify','releases','experience','rescue','other']);
 const VIEWPORTS=new Set(['mobile','tablet','desktop']);
-const DETAILS=new Set(['','term','annual','lifetime','family','tutor','school']);
+const PLAN_DETAILS=new Set(['term','annual','lifetime','family','tutor','school']);
+const GROWTH_DETAILS=new Set(GROWTH_SOURCES);
+const PLAN_DETAIL_EVENTS=new Set(['plan_choose','checkout_continue']);
+const GROWTH_DETAIL_EVENTS=new Set(['rescue_visit','rescue_start','rescue_share','rescue_peer_start','premium_intent','teacher_kit','school_kit','ambassador_kit']);
 const EXPECTED_ORIGIN='https://payments.mftintelligence.com';
 const MAX_EVENTS=16;
 
@@ -65,7 +70,7 @@ async function normalizeTelemetryBatchImpl(req){
     const route=String(raw.route||'');
     const viewport=String(raw.viewport||'');
     const detail=String(raw.detail||'');
-    if(!ROUTES.has(route)||!VIEWPORTS.has(viewport)||!DETAILS.has(detail))throw new Error('dimension');
+    if(!ROUTES.has(route)||!VIEWPORTS.has(viewport))throw new Error('dimension');
     if(kind==='vital'){
       if(!VITALS.has(name)||detail!=='')throw new Error('vital');
       const q=quantizeMetric(name,raw.value);
@@ -73,7 +78,11 @@ async function normalizeTelemetryBatchImpl(req){
       out.push({kind,name,route,detail:'',viewport,bucket:String(q)});
     }else if(kind==='event'){
       if(!EVENTS.has(name))throw new Error('event');
-      if(name!=='plan_choose'&&name!=='checkout_continue'&&detail!=='')throw new Error('detail');
+      if(PLAN_DETAIL_EVENTS.has(name)){
+        if(!PLAN_DETAILS.has(detail))throw new Error('detail');
+      }else if(GROWTH_DETAIL_EVENTS.has(name)){
+        if(!GROWTH_DETAILS.has(detail))throw new Error('detail');
+      }else if(detail!=='')throw new Error('detail');
       out.push({kind,name,route,detail,viewport,bucket:'1'});
     }else throw new Error('kind');
   }
@@ -155,11 +164,13 @@ export const FIELD_EXPERIENCE_JS=String.raw`
   const q=(s,r=document)=>r.querySelector(s),qa=(s,r=document)=>[...r.querySelectorAll(s)];
   const privacySignal=()=>navigator.globalPrivacyControl===true||['1','yes'].includes(String(navigator.doNotTrack||window.doNotTrack||'').toLowerCase());
   const pref=()=>{try{return localStorage.getItem('musitu_experience_measurement')||''}catch{return ''}};
-  const route=()=>{const p=location.pathname;return p==='/chemistry'||p==='/chemistry/'?'home':p==='/chemistry/plans'?'plans':p==='/chemistry/checkout/start'?'checkout':p==='/chemistry/return'?'status':p==='/chemistry/claim'?'claim':p==='/chemistry/support'?'support':p==='/chemistry/privacy'?'privacy':p==='/chemistry/terms'?'terms':p==='/chemistry/verify'?'verify':p==='/chemistry/releases'?'releases':p==='/chemistry/experience'?'experience':'other'};
+  const route=()=>{const p=location.pathname;return p==='/chemistry'||p==='/chemistry/'?'home':p==='/chemistry/plans'?'plans':p==='/chemistry/checkout/start'?'checkout':p==='/chemistry/return'?'status':p==='/chemistry/claim'?'claim':p==='/chemistry/support'?'support':p==='/chemistry/privacy'?'privacy':p==='/chemistry/terms'?'terms':p==='/chemistry/verify'?'verify':p==='/chemistry/releases'?'releases':p==='/chemistry/experience'?'experience':p==='/chemistry/rescue'?'rescue':'other'};
   const viewport=()=>innerWidth<600?'mobile':innerWidth<900?'tablet':'desktop';
   const allowedPlan=v=>['term','annual','lifetime','family','tutor','school'].includes(v)?v:'';
+  const allowedSource=v=>['wa_student','wa_teacher','school','creator','meta','tiktok','ambassador','direct'].includes(v)?v:'direct';
+  const growthEvents=new Set(['rescue_visit','rescue_start','rescue_share','rescue_peer_start','premium_intent','teacher_kit','school_kit','ambassador_kit']);
   const post=events=>{if(!events.length||privacySignal()||pref()==='off')return false;try{return navigator.sendBeacon('/chemistry/telemetry/v1',new Blob([JSON.stringify({events})],{type:'application/json'}))}catch{return false}};
-  const event=(name,detail='')=>post([{kind:'event',name,route:route(),viewport:viewport(),detail:allowedPlan(detail)}]);
+  const event=(name,detail='')=>{const safe=growthEvents.has(name)?allowedSource(detail):allowedPlan(detail);return post([{kind:'event',name,route:route(),viewport:viewport(),detail:safe}])};
   const state=q('[data-measurement-state]');
   const paintState=()=>{if(!state)return;state.textContent=privacySignal()?'Disabled by your browser privacy signal':pref()==='off'?'Disabled on this browser':'Enabled: anonymous aggregate experience measurement'};
   qa('[data-measurement-toggle]').forEach(btn=>btn.addEventListener('click',()=>{try{if(pref()==='off')localStorage.removeItem(KEY);else localStorage.setItem(KEY,'off');paintState()}catch{}}));
