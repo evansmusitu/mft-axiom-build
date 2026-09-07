@@ -117,7 +117,7 @@ jobs:
           raw=(json.dumps(ev,indent=2,sort_keys=True)+'\n').encode(); Path('/tmp/mchem-discovery-live/independent-live.json').write_bytes(raw); Path('/tmp/mchem-discovery-live/independent-live.sha256').write_text(hashlib.sha256(raw).hexdigest()+'  independent-live.json\n'); print(json.dumps(ev,sort_keys=True))
           PY
 
-      - name: Live browser verifies manifest fetch under production CSP
+      - name: Live Chrome processes manifest under production CSP and reports installability
         shell: bash
         run: |
           set -euo pipefail
@@ -131,8 +131,7 @@ jobs:
           const browser=await chromium.launch({headless:true,executablePath:process.env.CHROME_PATH,args:['--no-sandbox','--disable-dev-shm-usage']});
           const context=await browser.newContext({viewport:{width:390,height:844}});
           const page=await context.newPage();
-          const manifestResponses=[]; const errors=[];
-          page.on('response',r=>{if(r.url().includes('/chemistry/manifest.webmanifest'))manifestResponses.push({url:r.url(),status:r.status(),contentType:r.headers()['content-type']||''})});
+          const errors=[];
           page.on('console',m=>{if(m.type()==='error')errors.push(m.text())});
           const response=await page.goto('https://payments.mftintelligence.com/chemistry/rescue?src=direct&__mchem_browser_live='+Date.now(),{waitUntil:'networkidle'});
           if(!response||response.status()!==200)throw new Error('live Rescue HTTP '+response?.status());
@@ -140,10 +139,21 @@ jobs:
           if(!csp.includes("manifest-src 'self'")||csp.includes('unsafe-inline')||csp.includes('unsafe-eval'))throw new Error('live CSP contract');
           const dom=await page.evaluate(()=>({canonical:document.querySelector('link[rel=canonical]')?.href||'',manifest:document.querySelector('link[rel=manifest]')?.getAttribute('href')||'',robots:document.querySelector('meta[name=robots]')?.content||'',installHidden:document.getElementById('install-rescue')?.hidden===true}));
           if(dom.canonical!=='https://payments.mftintelligence.com/chemistry/rescue'||dom.manifest!=='/chemistry/manifest.webmanifest'||!dom.robots.includes('index,follow')||dom.installHidden!==true)throw new Error('live discovery DOM contract '+JSON.stringify(dom));
-          if(!manifestResponses.some(x=>x.status===200&&x.contentType.startsWith('application/manifest+json')))throw new Error('browser did not successfully fetch manifest '+JSON.stringify(manifestResponses));
+          const client=await context.newCDPSession(page);
+          await client.send('Page.enable');
+          const appManifest=await client.send('Page.getAppManifest');
+          const expectedManifestUrl='https://payments.mftintelligence.com/chemistry/manifest.webmanifest';
+          if(appManifest.url!==expectedManifestUrl)throw new Error('Chrome manifest URL mismatch '+JSON.stringify(appManifest));
+          if(!Array.isArray(appManifest.errors)||appManifest.errors.length!==0)throw new Error('Chrome manifest processing errors '+JSON.stringify(appManifest.errors));
+          let parsedManifest={};
+          try{parsedManifest=JSON.parse(appManifest.data||'{}')}catch(e){throw new Error('Chrome manifest data is not valid JSON '+String(e))}
+          if(parsedManifest.name!=='MUSITU Chemistry Rescue 2026'||parsedManifest.start_url!=='/chemistry/rescue?src=direct'||parsedManifest.scope!=='/chemistry/'||parsedManifest.display!=='standalone'||parsedManifest.prefer_related_applications!==false||!Array.isArray(parsedManifest.icons)||parsedManifest.icons.length!==2)throw new Error('Chrome processed manifest contract '+JSON.stringify(parsedManifest));
+          const installability=await client.send('Page.getInstallabilityErrors');
+          const installabilityErrors=Array.isArray(installability.installabilityErrors)?installability.installabilityErrors:[];
+          if(installabilityErrors.length)throw new Error('Chrome installability errors '+JSON.stringify(installabilityErrors));
           const relevantErrors=errors.filter(x=>/manifest|content security policy|csp/i.test(x));
           if(relevantErrors.length)throw new Error('browser CSP/manifest errors '+JSON.stringify(relevantErrors));
-          const out={schema:'musitu.chemistry.browser_discovery.live_browser.v1',manifest_responses:manifestResponses,production_csp:csp,dom,csp_or_manifest_console_errors:relevantErrors,pass:true};
+          const out={schema:'musitu.chemistry.browser_discovery.live_browser.v2',manifest_url:appManifest.url,manifest_errors:appManifest.errors,manifest_parsed:parsedManifest,installability_errors:installabilityErrors,production_csp:csp,dom,csp_or_manifest_console_errors:relevantErrors,pass:true};
           fs.writeFileSync('/tmp/mchem-discovery-live/live-browser.json',JSON.stringify(out,null,2)+'\n');
           await browser.close();
           console.log('MUSITU_CHEMISTRY_BROWSER_DISCOVERY_LIVE_BROWSER_PASS');
