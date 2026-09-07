@@ -1,0 +1,166 @@
+name: MUSITU Chemistry Browser Discovery Independent Live Verify
+
+on:
+  push:
+    branches: [chemistry-browser-discovery-20260907]
+    paths: ['.github/workflows/chemistry-browser-discovery-independent-live-verify.yml']
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      EXPECTED_WORKER_SHA: 1af4a2a7d79de14d9539eda3d3e0f7917da98536c0d87c8253562893df9af707
+      DEPLOY_RUN_ID: '34101458667'
+      DEPLOY_HEAD_SHA: e86260a0f40dd85775f11b068cffd105f3ed4c6e
+      DEPLOY_ARTIFACT_ID: '10010643442'
+      DEPLOY_ARTIFACT_SHA256: 42cb34f49b608cd9b7d348b17ad7c41a21eb3ca1c075cfd95a3c1698aabd3eb7
+      APK_SHA256: 055b63f271c18faab540985faefb970f472ea55ba9cb3495db459797902b790d
+      WEB_VITALS_SHA256: 6b3e4ac9d6f6abd4ea1810621668bec7d7adb121279570e6870be4fb98ab3909
+      LICENCE_KEY_ID: chem-lic-2026-6783aa7535d1
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Prove exact guarded deployment evidence
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/mchem-discovery-live && mkdir -p /tmp/mchem-discovery-live
+          curl -fsSL -H "Authorization: Bearer $GH_TOKEN" -H 'X-GitHub-Api-Version: 2022-11-28' "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/runs/${DEPLOY_RUN_ID}" > /tmp/mchem-discovery-live/deploy-run.json
+          curl -fsSL -H "Authorization: Bearer $GH_TOKEN" -H 'X-GitHub-Api-Version: 2022-11-28' "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/runs/${DEPLOY_RUN_ID}/artifacts?per_page=100" > /tmp/mchem-discovery-live/deploy-artifacts.json
+          python - <<'PY'
+          import json,os
+          r=json.load(open('/tmp/mchem-discovery-live/deploy-run.json'))
+          checks={'success':r.get('conclusion')=='success','sha':r.get('head_sha')==os.environ['DEPLOY_HEAD_SHA'],'branch':r.get('head_branch')=='chemistry-browser-discovery-20260907','name':r.get('name')=='MUSITU Chemistry Browser Discovery Guarded Deploy'}
+          if not all(checks.values()): raise SystemExit('deploy evidence proof failed '+json.dumps(checks,sort_keys=True))
+          arts=json.load(open('/tmp/mchem-discovery-live/deploy-artifacts.json')).get('artifacts',[])
+          m=[x for x in arts if str(x.get('id'))==os.environ['DEPLOY_ARTIFACT_ID']]
+          if len(m)!=1 or m[0].get('expired') is not False or m[0].get('name')!='musitu-chemistry-browser-discovery-guarded-deploy': raise SystemExit('deploy artifact identity failed')
+          digest=str(m[0].get('digest') or '').removeprefix('sha256:')
+          if digest!=os.environ['DEPLOY_ARTIFACT_SHA256']: raise SystemExit('deploy artifact digest failed '+digest)
+          print('BROWSER_DISCOVERY_DEPLOY_EVIDENCE_PROOF=PASS')
+          PY
+
+      - name: GET-only provider and public live verification
+        shell: bash
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import email,hashlib,json,os,re,secrets,urllib.error,urllib.parse,urllib.request
+          from pathlib import Path
+          API='https://api.cloudflare.com/client/v4'; AID='93f395f5121954671f92fffa453d6b61'; WORKER='musitu-chemistry-commerce'; BASE='https://payments.mftintelligence.com'
+          EXPECTED=os.environ['EXPECTED_WORKER_SHA']; APK=os.environ['APK_SHA256']; VITALS=os.environ['WEB_VITALS_SHA256']; KEY=os.environ['LICENCE_KEY_ID']
+          H={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY'],'User-Agent':'MUSITU-Discovery-Independent-Live/1.0'}
+          def req(url,headers=None,timeout=90):
+              q=urllib.request.Request(url,method='GET',headers=dict(headers or {}))
+              try:
+                  with urllib.request.urlopen(q,timeout=timeout) as r:return r.status,r.headers,r.read()
+              except urllib.error.HTTPError as e:return e.code,e.headers,e.read()
+          def public(path,accept='*/*'):
+              path += ('&' if '?' in path else '?')+'__mchem_independent='+urllib.parse.quote(secrets.token_hex(8))
+              return req(BASE+path,headers={'Accept':accept,'Cache-Control':'no-cache, no-store, max-age=0','Pragma':'no-cache','User-Agent':'MUSITU-Discovery-Seal/'+secrets.token_hex(4)})
+          def extract(raw,ctype,needle):
+              if 'multipart/' not in (ctype or '').lower(): return raw
+              msg=email.message_from_bytes((f'Content-Type: {ctype}\r\nMIME-Version: 1.0\r\n\r\n').encode()+raw); parts=[]
+              for p in msg.walk():
+                  if p.is_multipart(): continue
+                  d=p.get_payload(decode=True) or b''
+                  if needle.encode() in d: parts.append(d)
+              if len(parts)!=1: raise RuntimeError('module extraction mismatch')
+              return parts[0]
+          def strict(h):
+              csp=h.get('content-security-policy') or ''
+              return "manifest-src 'self'" in csp and "style-src 'self'" in csp and "script-src 'self'" in csp and "connect-src 'self'" in csp and 'unsafe-inline' not in csp and 'unsafe-eval' not in csp and 'http://' not in csp and 'https://' not in csp and (h.get('referrer-policy') or '')=='no-referrer' and (h.get('x-frame-options') or '')=='DENY' and (h.get('x-content-type-options') or '')=='nosniff'
+          def check_png(data,size):
+              if len(data)<24 or data[:8]!=bytes([0x89,0x50,0x4e,0x47,0x0d,0x0a,0x1a,0x0a]) or int.from_bytes(data[16:20],'big')!=size or int.from_bytes(data[20:24],'big')!=size: raise RuntimeError('PNG '+str(size)+' contract')
+          c,h,b=req(f'{API}/accounts/{AID}/workers/scripts/{WORKER}',headers=H)
+          if c!=200: raise SystemExit('worker source read HTTP '+str(c))
+          source=extract(b,h.get('content-type',''),'MUSITU Chemistry Commerce'); livehash=hashlib.sha256(source).hexdigest()
+          if livehash!=EXPECTED: raise SystemExit('LIVE_WORKER_HASH_MISMATCH '+livehash)
+          routes=[('/chemistry/','Know what you don’t know'),('/chemistry/plans','Choose access without guessing'),('/chemistry/privacy','Anonymous experience measurement'),('/chemistry/experience','Real-user experience evidence'),('/chemistry/support','payment-status link created during checkout'),('/chemistry/verify','Verify this MUSITU release'),('/chemistry/releases','Release notes'),('/chemistry/terms','Premium access is granted only by a valid MUSITU-signed licence after verified settlement'),('/chemistry/rescue?src=direct','MUSITU Chemistry Rescue 2026'),('/chemistry/rescue/teachers','Teacher Rescue Kit'),('/chemistry/rescue/schools','School Rescue Pack'),('/chemistry/rescue/ambassadors','Rescue Ambassador Kit')]
+          route_http={}
+          for path,needle in routes:
+              c,h,b=public(path,'text/html'); t=b.decode('utf-8','replace')
+              if c!=200 or needle not in t or not strict(h): raise SystemExit('route/security failed '+path)
+              route_http[path]=c
+          c,h,b=public('/chemistry/rescue?src=direct','text/html'); html=b.decode('utf-8','replace')
+          for needle in ['<link rel="canonical" href="https://payments.mftintelligence.com/chemistry/rescue">','<meta name="robots" content="index,follow,max-image-preview:large">','<meta property="og:title" content="MUSITU Chemistry Rescue 2026">','<meta name="twitter:card" content="summary">','<link rel="manifest" href="/chemistry/manifest.webmanifest">','<script type="application/ld+json">']:
+              if needle not in html: raise SystemExit('discovery metadata missing')
+          m=re.search(r'<script type="application/ld\+json">([^<]+)</script>',html); ld=json.loads(m.group(1) if m else '{}')
+          if ld.get('@type')!='SoftwareApplication' or ld.get('applicationCategory')!='EducationalApplication' or ld.get('operatingSystem')!='Android' or ld.get('isAccessibleForFree') is not True or 'aggregateRating' in ld or 'review' in ld: raise SystemExit('structured data failed')
+          mc,mh,mb=public('/chemistry/manifest.webmanifest','application/manifest+json'); manifest=json.loads(mb or b'{}')
+          if mc!=200 or not (mh.get('content-type') or '').startswith('application/manifest+json') or manifest.get('name')!='MUSITU Chemistry Rescue 2026' or manifest.get('start_url')!='/chemistry/rescue?src=direct' or manifest.get('scope')!='/chemistry/' or len(manifest.get('icons') or [])!=2: raise SystemExit('manifest failed')
+          for path,size in [('/chemistry/assets/musitu-chemistry-192.png',192),('/chemistry/assets/musitu-chemistry-512.png',512)]:
+              ic,ih,ib=public(path,'image/png')
+              if ic!=200 or (ih.get('content-type') or '')!='image/png': raise SystemExit('icon response failed')
+              check_png(ib,size)
+          jc,_,jb=public('/chemistry/assets/rescue-install.js','application/javascript'); js=jb.decode('utf-8','replace')
+          if jc!=200 or 'beforeinstallprompt' not in js or '.prompt()' not in js or any(x in js for x in ['Notification.requestPermission','pushManager','document.cookie','localStorage','sessionStorage']): raise SystemExit('install script failed')
+          vc,_,vb=public('/chemistry/assets/web-vitals-6.0.1.iife.js','application/javascript')
+          if vc!=200 or len(vb)!=8987 or hashlib.sha256(vb).hexdigest()!=VITALS: raise SystemExit('web-vitals changed')
+          hc,_,hb=public('/chemistry/healthz','application/json'); health=json.loads(hb or b'{}')
+          if hc!=200 or health.get('ok') is not True or health.get('licence_key_id')!=KEY or health.get('raw_paynow_key_present') is not False or health.get('payment_authority_bound') is not True or health.get('transport_bound') is not True: raise SystemExit('health boundary failed')
+          cc,_,cb=public('/chemistry/catalog','application/json'); cat=json.loads(cb or b'{}'); ids=[p.get('id') for p in cat.get('plans') or []]
+          if cc!=200 or ids!=['term','annual','lifetime','family','tutor','school']: raise SystemExit('catalog changed')
+          ac,ah,apk=public('/chemistry/download/MUSITU_Chemistry_Mastery_1.2.0.apk','application/vnd.android.package-archive'); digest=hashlib.sha256(apk).hexdigest()
+          if ac!=200 or len(apk)!=5314934 or digest!=APK or 'MUSITU_Chemistry_Mastery_1.2.0.apk' not in (ah.get('content-disposition') or ''): raise SystemExit('APK changed')
+          ev={'schema':'musitu.chemistry.browser_discovery.independent_live.v1','live_worker_sha256':livehash,'verified_routes':route_http,'canonical_verified':True,'robots_index_follow_verified':True,'open_graph_verified':True,'twitter_preview_verified':True,'structured_data_verified':True,'unverified_review_or_rating_present':False,'manifest_verified':True,'icons_verified':[192,512],'install_script_verified':True,'strict_manifest_csp_verified':True,'licence_key_id':KEY,'payment_authority_bound':True,'transport_bound':True,'plan_ids':ids,'apk_sha256':digest,'apk_bytes':len(apk),'web_vitals_sha256':VITALS,'web_vitals_bytes':len(vb),'request_methods_used':['GET'],'production_mutation':False,'search_console_submission_performed':False,'indexnow_submission_performed':False,'indexing_claimed':False,'field_inp_claimed':False,'real_money_settlement_observed':False,'real_money_settlement_claimed':False,'gate':'MUSITU_CHEMISTRY_BROWSER_DISCOVERY_INDEPENDENT_LIVE_VERIFY_PASS'}
+          raw=(json.dumps(ev,indent=2,sort_keys=True)+'\n').encode(); Path('/tmp/mchem-discovery-live/independent-live.json').write_bytes(raw); Path('/tmp/mchem-discovery-live/independent-live.sha256').write_text(hashlib.sha256(raw).hexdigest()+'  independent-live.json\n'); print(json.dumps(ev,sort_keys=True))
+          PY
+
+      - name: Live browser verifies manifest fetch under production CSP
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --no-save --no-package-lock playwright >/dev/null
+          CHROME_PATH="$(command -v google-chrome || command -v chromium || command -v chromium-browser || true)"
+          test -n "$CHROME_PATH"
+          export CHROME_PATH
+          node --input-type=module <<'JS'
+          import fs from 'node:fs';
+          import {chromium} from 'playwright';
+          const browser=await chromium.launch({headless:true,executablePath:process.env.CHROME_PATH,args:['--no-sandbox','--disable-dev-shm-usage']});
+          const context=await browser.newContext({viewport:{width:390,height:844}});
+          const page=await context.newPage();
+          const manifestResponses=[]; const errors=[];
+          page.on('response',r=>{if(r.url().includes('/chemistry/manifest.webmanifest'))manifestResponses.push({url:r.url(),status:r.status(),contentType:r.headers()['content-type']||''})});
+          page.on('console',m=>{if(m.type()==='error')errors.push(m.text())});
+          const response=await page.goto('https://payments.mftintelligence.com/chemistry/rescue?src=direct&__mchem_browser_live='+Date.now(),{waitUntil:'networkidle'});
+          if(!response||response.status()!==200)throw new Error('live Rescue HTTP '+response?.status());
+          const csp=response.headers()['content-security-policy']||'';
+          if(!csp.includes("manifest-src 'self'")||csp.includes('unsafe-inline')||csp.includes('unsafe-eval'))throw new Error('live CSP contract');
+          const dom=await page.evaluate(()=>({canonical:document.querySelector('link[rel=canonical]')?.href||'',manifest:document.querySelector('link[rel=manifest]')?.getAttribute('href')||'',robots:document.querySelector('meta[name=robots]')?.content||'',installHidden:document.getElementById('install-rescue')?.hidden===true}));
+          if(dom.canonical!=='https://payments.mftintelligence.com/chemistry/rescue'||dom.manifest!=='/chemistry/manifest.webmanifest'||!dom.robots.includes('index,follow')||dom.installHidden!==true)throw new Error('live discovery DOM contract '+JSON.stringify(dom));
+          if(!manifestResponses.some(x=>x.status===200&&x.contentType.startsWith('application/manifest+json')))throw new Error('browser did not successfully fetch manifest '+JSON.stringify(manifestResponses));
+          const relevantErrors=errors.filter(x=>/manifest|content security policy|csp/i.test(x));
+          if(relevantErrors.length)throw new Error('browser CSP/manifest errors '+JSON.stringify(relevantErrors));
+          const out={schema:'musitu.chemistry.browser_discovery.live_browser.v1',manifest_responses:manifestResponses,production_csp:csp,dom,csp_or_manifest_console_errors:relevantErrors,pass:true};
+          fs.writeFileSync('/tmp/mchem-discovery-live/live-browser.json',JSON.stringify(out,null,2)+'\n');
+          await browser.close();
+          console.log('MUSITU_CHEMISTRY_BROWSER_DISCOVERY_LIVE_BROWSER_PASS');
+          JS
+
+      - name: Seal independent publication evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd /tmp/mchem-discovery-live
+          sha256sum *.json *.sha256 > SHA256SUMS.txt
+          cat independent-live.json
+          cat live-browser.json
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: musitu-chemistry-browser-discovery-independent-live-verify
+          path: /tmp/mchem-discovery-live
+          retention-days: 90
+          if-no-files-found: error
