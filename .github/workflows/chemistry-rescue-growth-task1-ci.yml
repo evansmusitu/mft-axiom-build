@@ -1,13 +1,11 @@
-name: MUSITU Chemistry Rescue Growth Task 1 CI
+name: MUSITU Chemistry Rescue Growth Focused CI
 
 on:
   push:
     branches: [chemistry-national-rescue-growth-20260907]
     paths:
-      - 'commerce/chemistry/storefront/field-experience.mjs'
-      - 'commerce/chemistry/storefront/field-experience.test.mjs'
-      - 'commerce/chemistry/storefront/rescue-growth.mjs'
-      - 'commerce/chemistry/storefront/rescue-growth.test.mjs'
+      - 'commerce/chemistry/storefront/**'
+      - 'commerce/chemistry/patch_storefront.py'
       - '.github/workflows/chemistry-rescue-growth-task1-ci.yml'
 
 permissions:
@@ -20,8 +18,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Run focused Rescue growth contracts
-        run: node --test commerce/chemistry/storefront/field-experience.test.mjs commerce/chemistry/storefront/rescue-growth.test.mjs 2>/tmp/rescue-test.err || { cat /tmp/rescue-test.err; exit 1; }
-        if: ${{ hashFiles('commerce/chemistry/storefront/rescue-growth.test.mjs') != '' }}
-      - name: Run Phase 3 field baseline when Rescue tests are absent
-        run: node --test commerce/chemistry/storefront/field-experience.test.mjs
-        if: ${{ hashFiles('commerce/chemistry/storefront/rescue-growth.test.mjs') == '' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          files=(commerce/chemistry/storefront/field-experience.test.mjs commerce/chemistry/storefront/rescue-growth.test.mjs)
+          if [[ -f commerce/chemistry/storefront/rescue-render.test.mjs ]]; then files+=(commerce/chemistry/storefront/rescue-render.test.mjs); fi
+          if [[ -f commerce/chemistry/storefront/rescue-kits.test.mjs ]]; then files+=(commerce/chemistry/storefront/rescue-kits.test.mjs); fi
+          node --test "${files[@]}"
