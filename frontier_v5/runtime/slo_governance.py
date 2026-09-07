@@ -9,7 +9,8 @@ governed production promotion.
 Properties:
 * tenant/service-scoped SLO definitions with versioning;
 * trusted telemetry ingestion with semantic idempotency;
-* bounded lateness, future-event, and clock-rollback rejection;
+* exact accepted retries resolved before freshness checks;
+* bounded lateness, future-event, and clock-rollback rejection for new input;
 * explicit authorized maintenance exclusions that remain persisted/audited;
 * availability and latency SLIs plus error-budget consumption;
 * fast/slow multi-window burn-rate alerting;
@@ -271,14 +272,12 @@ class EnterpriseSLOGovernor:
             raise SLOTelemetryError("SLO policy is not configured")
         return row
 
-    def _check_clock(
+    def _advance_clock(
         self,
         tenant_id: str,
         service_id: str,
         now_epoch: int,
         tolerance: int,
-        *,
-        commit: bool = True,
     ) -> int:
         row = self._db.execute(
             "SELECT last_epoch FROM slo_clock WHERE tenant_id=? AND service_id=?",
@@ -294,8 +293,7 @@ class EnterpriseSLOGovernor:
                last_epoch=max(slo_clock.last_epoch,excluded.last_epoch)""",
             (tenant_id, service_id, effective),
         )
-        if commit:
-            self._db.commit()
+        self._db.commit()
         return effective
 
     def define_slo(
@@ -327,23 +325,43 @@ class EnterpriseSLOGovernor:
         availability_target_bps = _integer(
             availability_target_bps, "availability_target_bps", minimum=1
         )
-        latency_target_bps = _integer(latency_target_bps, "latency_target_bps", minimum=1)
+        latency_target_bps = _integer(
+            latency_target_bps, "latency_target_bps", minimum=1
+        )
         if availability_target_bps >= 10_000 or latency_target_bps >= 10_000:
-            raise SLOGovernanceError("SLO targets must be below 10000 bps to define an error budget")
-        latency_threshold_ms = _integer(latency_threshold_ms, "latency_threshold_ms", minimum=1)
+            raise SLOGovernanceError(
+                "SLO targets must be below 10000 bps to define an error budget"
+            )
+        latency_threshold_ms = _integer(
+            latency_threshold_ms, "latency_threshold_ms", minimum=1
+        )
         evaluation_window_seconds = _integer(
             evaluation_window_seconds, "evaluation_window_seconds", minimum=1
         )
-        fast_window_seconds = _integer(fast_window_seconds, "fast_window_seconds", minimum=1)
-        slow_window_seconds = _integer(slow_window_seconds, "slow_window_seconds", minimum=1)
+        fast_window_seconds = _integer(
+            fast_window_seconds, "fast_window_seconds", minimum=1
+        )
+        slow_window_seconds = _integer(
+            slow_window_seconds, "slow_window_seconds", minimum=1
+        )
         if not fast_window_seconds <= slow_window_seconds <= evaluation_window_seconds:
-            raise SLOGovernanceError("SLO windows must satisfy fast <= slow <= evaluation")
-        fast_burn_threshold = _number(fast_burn_threshold, "fast_burn_threshold", minimum=0.000001)
-        slow_burn_threshold = _number(slow_burn_threshold, "slow_burn_threshold", minimum=0.000001)
+            raise SLOGovernanceError(
+                "SLO windows must satisfy fast <= slow <= evaluation"
+            )
+        fast_burn_threshold = _number(
+            fast_burn_threshold, "fast_burn_threshold", minimum=0.000001
+        )
+        slow_burn_threshold = _number(
+            slow_burn_threshold, "slow_burn_threshold", minimum=0.000001
+        )
         min_samples = _integer(min_samples, "min_samples", minimum=1)
-        max_lateness_seconds = _integer(max_lateness_seconds, "max_lateness_seconds", minimum=0)
+        max_lateness_seconds = _integer(
+            max_lateness_seconds, "max_lateness_seconds", minimum=0
+        )
         clock_skew_tolerance_seconds = _integer(
-            clock_skew_tolerance_seconds, "clock_skew_tolerance_seconds", minimum=0
+            clock_skew_tolerance_seconds,
+            "clock_skew_tolerance_seconds",
+            minimum=0,
         )
         now_epoch = _integer(now_epoch, "now_epoch", minimum=0)
 
@@ -351,16 +369,15 @@ class EnterpriseSLOGovernor:
             "SELECT * FROM slo_policies WHERE tenant_id=? AND service_id=?",
             (tenant_id, service_id),
         ).fetchone()
+        version = 1
         if existing is not None:
-            self._check_clock(
+            self._advance_clock(
                 tenant_id,
                 service_id,
                 now_epoch,
                 int(existing["clock_skew_tolerance_seconds"]),
             )
             version = int(existing["version"]) + 1
-        else:
-            version = 1
 
         with self._db:
             self._db.execute(
@@ -472,8 +489,9 @@ class EnterpriseSLOGovernor:
         reason = reason.strip()
         if len(reason) > 500:
             raise SLOGovernanceError("maintenance reason exceeds maximum length")
+
         policy = self._policy(tenant_id, service_id)
-        self._check_clock(
+        self._advance_clock(
             tenant_id,
             service_id,
             now_epoch,
@@ -506,7 +524,16 @@ class EnterpriseSLOGovernor:
                   tenant_id,service_id,maintenance_id,starts_at_epoch,ends_at_epoch,
                   reason,actor,created_epoch
                 ) VALUES(?,?,?,?,?,?,?,?)""",
-                (tenant_id, service_id, maintenance_id, starts, ends, reason, actor, now_epoch),
+                (
+                    tenant_id,
+                    service_id,
+                    maintenance_id,
+                    starts,
+                    ends,
+                    reason,
+                    actor,
+                    now_epoch,
+                ),
             )
             self._append_audit(
                 tenant_id,
@@ -528,13 +555,16 @@ class EnterpriseSLOGovernor:
         }
 
     def _maintenance_for_event(
-        self, tenant_id: str, service_id: str, event_epoch: int
+        self,
+        tenant_id: str,
+        service_id: str,
+        event_epoch: int,
     ) -> str | None:
         row = self._db.execute(
             """SELECT maintenance_id FROM slo_maintenance
                WHERE tenant_id=? AND service_id=?
                  AND starts_at_epoch<=? AND ends_at_epoch>?
-               ORDER BY starts_at_epoch, maintenance_id LIMIT 1""",
+               ORDER BY starts_at_epoch,maintenance_id LIMIT 1""",
             (tenant_id, service_id, event_epoch, event_epoch),
         ).fetchone()
         return str(row["maintenance_id"]) if row is not None else None
@@ -562,17 +592,10 @@ class EnterpriseSLOGovernor:
         event_epoch = _integer(event_epoch, "event_epoch", minimum=0)
         observed_epoch = _integer(observed_epoch, "observed_epoch", minimum=0)
         policy = self._policy(tenant_id, service_id)
-        tolerance = int(policy["clock_skew_tolerance_seconds"])
 
-        # Validate event-time trust before advancing the service clock. Rejected
-        # late/future telemetry must not itself move the trusted clock forward.
-        if event_epoch > observed_epoch + tolerance:
-            raise SLOTelemetryError("future telemetry exceeds configured clock tolerance")
-        lateness = observed_epoch - event_epoch
-        if lateness > int(policy["max_lateness_seconds"]):
-            raise SLOTelemetryError("late telemetry exceeds configured lateness envelope")
-        self._check_clock(tenant_id, service_id, observed_epoch, tolerance)
-
+        # A previously accepted request has already passed freshness and clock
+        # checks. Resolve semantic idempotency first so harmless transport
+        # retries cannot become newly invalid merely because wall time moved on.
         existing = self._db.execute(
             """SELECT * FROM slo_telemetry
                WHERE tenant_id=? AND service_id=? AND request_id=?""",
@@ -593,7 +616,22 @@ class EnterpriseSLOGovernor:
                 "replayed": True,
             }
 
-        maintenance_id = self._maintenance_for_event(tenant_id, service_id, event_epoch)
+        tolerance = int(policy["clock_skew_tolerance_seconds"])
+        # Only genuinely new telemetry is evaluated for event-time trust.
+        # Rejected late/future input cannot move the trusted service clock.
+        if event_epoch > observed_epoch + tolerance:
+            raise SLOTelemetryError(
+                "future telemetry exceeds configured clock tolerance"
+            )
+        if observed_epoch - event_epoch > int(policy["max_lateness_seconds"]):
+            raise SLOTelemetryError(
+                "late telemetry exceeds configured lateness envelope"
+            )
+        self._advance_clock(tenant_id, service_id, observed_epoch, tolerance)
+
+        maintenance_id = self._maintenance_for_event(
+            tenant_id, service_id, event_epoch
+        )
         excluded = maintenance_id is not None
         with self._db:
             self._db.execute(
@@ -667,23 +705,33 @@ class EnterpriseSLOGovernor:
         row = self._db.execute(
             """SELECT
                  count(*) AS total,
-                 coalesce(sum(CASE WHEN success=1 THEN 1 ELSE 0 END),0) AS availability_good,
-                 coalesce(sum(CASE WHEN latency_ms<=? THEN 1 ELSE 0 END),0) AS latency_good
+                 coalesce(sum(CASE WHEN success=1 THEN 1 ELSE 0 END),0)
+                   AS availability_good,
+                 coalesce(sum(CASE WHEN latency_ms<=? THEN 1 ELSE 0 END),0)
+                   AS latency_good
                FROM slo_telemetry
                WHERE tenant_id=? AND service_id=? AND excluded_from_sli=0
                  AND event_epoch>? AND event_epoch<=?""",
             (latency_threshold_ms, tenant_id, service_id, cutoff, now_epoch),
         ).fetchone()
-        return int(row["total"]), int(row["availability_good"]), int(row["latency_good"])
+        return (
+            int(row["total"]),
+            int(row["availability_good"]),
+            int(row["latency_good"]),
+        )
 
     def evaluate(
-        self, tenant_id: str, service_id: str, *, now_epoch: int
+        self,
+        tenant_id: str,
+        service_id: str,
+        *,
+        now_epoch: int,
     ) -> dict[str, Any]:
         tenant_id = _required_id(tenant_id, "tenant_id")
         service_id = _required_id(service_id, "service_id")
         now_epoch = _integer(now_epoch, "now_epoch", minimum=0)
         policy = self._policy(tenant_id, service_id)
-        self._check_clock(
+        self._advance_clock(
             tenant_id,
             service_id,
             now_epoch,
@@ -716,34 +764,39 @@ class EnterpriseSLOGovernor:
         availability_bps = self._bps(availability_good, total)
         latency_bps = self._bps(latency_good, total)
         availability_budget = self._burn_rate(
-            availability_good, total, int(policy["availability_target_bps"])
+            availability_good,
+            total,
+            int(policy["availability_target_bps"]),
         )
         latency_budget = self._burn_rate(
-            latency_good, total, int(policy["latency_target_bps"])
-        )
-
-        fast_availability_burn = self._burn_rate(
-            fast_availability_good,
-            fast_total,
-            int(policy["availability_target_bps"]),
-        )
-        fast_latency_burn = self._burn_rate(
-            fast_latency_good,
-            fast_total,
+            latency_good,
+            total,
             int(policy["latency_target_bps"]),
         )
-        slow_availability_burn = self._burn_rate(
-            slow_availability_good,
-            slow_total,
-            int(policy["availability_target_bps"]),
+        fast_burn = max(
+            self._burn_rate(
+                fast_availability_good,
+                fast_total,
+                int(policy["availability_target_bps"]),
+            ),
+            self._burn_rate(
+                fast_latency_good,
+                fast_total,
+                int(policy["latency_target_bps"]),
+            ),
         )
-        slow_latency_burn = self._burn_rate(
-            slow_latency_good,
-            slow_total,
-            int(policy["latency_target_bps"]),
+        slow_burn = max(
+            self._burn_rate(
+                slow_availability_good,
+                slow_total,
+                int(policy["availability_target_bps"]),
+            ),
+            self._burn_rate(
+                slow_latency_good,
+                slow_total,
+                int(policy["latency_target_bps"]),
+            ),
         )
-        fast_burn = max(fast_availability_burn, fast_latency_burn)
-        slow_burn = max(slow_availability_burn, slow_latency_burn)
 
         min_samples = int(policy["min_samples"])
         if total < min_samples or fast_total < min_samples or slow_total < min_samples:
@@ -765,7 +818,9 @@ class EnterpriseSLOGovernor:
             "availability_bps": availability_bps,
             "latency_good_samples": latency_good,
             "latency_bps": latency_bps,
-            "availability_error_budget_consumed_ratio": round(availability_budget, 6),
+            "availability_error_budget_consumed_ratio": round(
+                availability_budget, 6
+            ),
             "latency_error_budget_consumed_ratio": round(latency_budget, 6),
             "fast_burn_rate": round(fast_burn, 6),
             "slow_burn_rate": round(slow_burn, 6),
