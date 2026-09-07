@@ -7,10 +7,12 @@ systems, independently authenticate an attestation, certify independent
 validation, or authorize a leadership/superiority claim.
 
 Synthetic fixtures are useful for testing this gate, but they are never
-eligible for Level-5 evidence.  Real external baseline evidence must be
-produced outside the candidate-under-test, use the same sealed case set and
-constraints, and be separately provenance-verified before any comparative
-claim is promoted.
+eligible for Level-5 evidence.  A repository-local ``externally_attested``
+boolean can establish only that a bundle is structurally ready for provenance
+verification; it cannot authenticate external origin or create Level-5
+eligibility.  Real external baseline evidence must be produced outside the
+candidate-under-test, use the same sealed case set and constraints, and be
+separately provenance-verified before any comparative claim is promoted.
 """
 from __future__ import annotations
 
@@ -68,13 +70,15 @@ def _metric_value(value: Any, name: str) -> float:
 
 
 class ExternalComparativeGate:
-    """Validate evidence before it can be considered Level-5 *eligible*.
+    """Validate structural comparability before external provenance promotion.
 
-    Eligibility is intentionally narrower than a claim.  This gate never sets
-    ``independent_validation_complete`` or ``leader_claim_allowed`` to true.
-    Level 6 requires an independently reproduced/reviewed evaluation, and a
-    leadership claim requires an additional governed decision using current,
-    sufficiently broad external evidence.
+    This repository-local gate never authenticates external origin and therefore
+    never makes evidence Level-5 eligible.  It may report that all bundles are
+    structurally ready for a separate authenticated provenance boundary.  Level
+    5 requires that separate provenance verification, Level 6 requires an
+    independently reproduced/reviewed evaluation, and any leadership claim
+    requires an additional governed decision using current, sufficiently broad
+    external evidence.
     """
 
     @staticmethod
@@ -224,7 +228,7 @@ class ExternalComparativeGate:
 
         system_scores: dict[str, dict[str, float]] = {musitu_id: musitu_scores}
         baseline_ids: set[str] = set()
-        externally_eligible = True
+        declared_external_attestation_complete = True
         for idx, raw_baseline in enumerate(baseline_list):
             baseline, scores = self._validate_system(
                 raw_baseline,
@@ -243,10 +247,14 @@ class ExternalComparativeGate:
                 baseline.get("externally_attested"), f"baseline[{idx}].externally_attested"
             )
             if synthetic or not attested:
-                externally_eligible = False
+                declared_external_attestation_complete = False
             system_scores[baseline_id] = scores
 
-        status = "EXTERNAL_COMPARISON_READY" if externally_eligible else "SELF_TEST_ONLY"
+        status = (
+            "EXTERNAL_COMPARISON_READY"
+            if declared_external_attestation_complete
+            else "SELF_TEST_ONLY"
+        )
         comparison_basis = {
             "suite_id": suite_id,
             "status": status,
@@ -261,7 +269,9 @@ class ExternalComparativeGate:
             "comparison_sha256": self.hash_object(comparison_basis),
             "case_count": len(case_list),
             "baseline_count": len(baseline_list),
-            "evidence_level_5_eligible": externally_eligible,
+            "declared_external_attestation_complete": declared_external_attestation_complete,
+            "external_origin_authenticated": False,
+            "evidence_level_5_eligible": False,
             "independent_validation_complete": False,
             "leader_claim_allowed": False,
             "claim_policy": "COMPARISON_ONLY_NO_LEADERSHIP_CERTIFICATION",
