@@ -1,0 +1,244 @@
+name: MUSITU Chemistry Rescue Full Preflight
+
+on:
+  push:
+    branches: [chemistry-national-rescue-growth-20260907]
+    paths:
+      - 'commerce/chemistry/**'
+      - 'growth/chemistry-rescue/**'
+      - '.github/workflows/chemistry-rescue-full-preflight.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: musitu-chemistry-rescue-full-preflight
+  cancel-in-progress: false
+
+jobs:
+  preflight:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Reconstruct sealed source and exact Rescue candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/mchem-rescue-base /tmp/mchem-rescue-source.zip /tmp/mchem-rescue-core /tmp/mchem-rescue-preflight
+          mkdir -p /tmp/mchem-rescue-base /tmp/mchem-rescue-core/src /tmp/mchem-rescue-preflight
+          cat commerce/chemistry/source.b64.* | base64 -d > /tmp/mchem-rescue-source.zip
+          echo "5b2618499eed8dc90261bc4f8260246d5593534500dd2fb145f2d24b5c47754c  /tmp/mchem-rescue-source.zip" | sha256sum -c -
+          unzip -q /tmp/mchem-rescue-source.zip -d /tmp/mchem-rescue-base
+          echo "848e1cec17ec580822d36e595196cda5978713849e8b45c5bc8dc7fcf9765db8  /tmp/mchem-rescue-base/src/index.mjs" | sha256sum -c -
+          cp /tmp/mchem-rescue-base/src/index.mjs commerce/chemistry/index.base.mjs
+          python commerce/chemistry/patch_storefront.py
+          python commerce/chemistry/patch_rescue_growth.py
+          node --check commerce/chemistry/index.storefront-v3.mjs
+          CANDIDATE_SHA="$(sha256sum commerce/chemistry/index.storefront-v3.mjs | awk '{print $1}')"
+          test -n "$CANDIDATE_SHA"
+          echo "CANDIDATE_SHA=$CANDIDATE_SHA" >> "$GITHUB_ENV"
+          printf '%s\n' "$CANDIDATE_SHA" > /tmp/mchem-rescue-preflight/candidate-worker.sha256
+          echo "CANDIDATE_WORKER_SHA256=$CANDIDATE_SHA"
+
+      - name: Run every storefront privacy Worker and Rescue contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --test commerce/chemistry/storefront/*.test.mjs | tee /tmp/mchem-rescue-preflight/storefront-tests.txt
+
+      - name: Run original sealed commerce regression and syntax checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp commerce/chemistry/index.storefront-v3.mjs /tmp/mchem-rescue-core/src/index.mjs
+          cp -a /tmp/mchem-rescue-base/test /tmp/mchem-rescue-core/
+          cp /tmp/mchem-rescue-base/package.json /tmp/mchem-rescue-core/
+          cd /tmp/mchem-rescue-core
+          npm test | tee /tmp/mchem-rescue-preflight/commerce-tests.txt
+          npm run check | tee /tmp/mchem-rescue-preflight/commerce-check.txt
+
+      - name: Prove sealed pre-growth source does not expose Rescue
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'JS'
+          import {pathToFileURL} from 'node:url';
+          const {handleRequest}=await import(pathToFileURL('/tmp/mchem-rescue-base/src/index.mjs').href);
+          const r=await handleRequest(new Request('https://payments.mftintelligence.com/chemistry/rescue'),{});
+          if(r.status===200) throw new Error('negative control unexpectedly exposed Rescue');
+          console.log('NEGATIVE_CONTROL_SEALED_BASE_RESCUE_REJECTED=true');
+          JS
+
+      - name: Verify Rescue source normalization fail-closed
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'JS'
+          import {pathToFileURL} from 'node:url';
+          const {handleRequest}=await import(pathToFileURL(process.cwd()+'/commerce/chemistry/index.storefront-v3.mjs').href);
+          const base='https://payments.mftintelligence.com';
+          const allowed=['wa_student','wa_teacher','school','creator','meta','tiktok','ambassador','direct'];
+          for(const src of allowed){
+            const r=await handleRequest(new Request(base+'/chemistry/rescue?src='+encodeURIComponent(src)),{});
+            const t=await r.text();
+            if(r.status!==200||!t.includes(`data-rescue-source="${src}"`)) throw new Error('allowed source failed '+src);
+          }
+          const hostile=['school<script>','student-123','utm_campaign=private','', 'unknown'];
+          for(const src of hostile){
+            const r=await handleRequest(new Request(base+'/chemistry/rescue?src='+encodeURIComponent(src)),{});
+            const t=await r.text();
+            if(r.status!==200||!t.includes('data-rescue-source="direct"')) throw new Error('hostile source did not collapse to direct');
+            if(src&&t.includes(src)) throw new Error('hostile source reflected into HTML');
+          }
+          console.log('RESCUE_SOURCE_NORMALIZATION=PASS');
+          JS
+
+      - name: Install browser audit tooling
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --no-save --no-package-lock playwright axe-core lighthouse
+          CHROME_PATH="$(command -v google-chrome || command -v chromium || command -v chromium-browser || true)"
+          test -n "$CHROME_PATH"
+          echo "CHROME_PATH=$CHROME_PATH" >> "$GITHUB_ENV"
+          node -e "console.log('playwright='+require('playwright/package.json').version);console.log('axe-core='+require('axe-core/package.json').version);console.log('lighthouse='+require('lighthouse/package.json').version)" | tee /tmp/mchem-rescue-preflight/tool-versions.txt
+
+      - name: Run unchanged Phase 3 keyboard reflow reduced-motion axe and AX-tree gate
+        shell: bash
+        env:
+          WORKER_PATH: ${{ github.workspace }}/commerce/chemistry/index.storefront-v3.mjs
+          BROWSER_EVIDENCE: /tmp/mchem-rescue-preflight/core-browser-evidence.json
+        run: |
+          set -euo pipefail
+          node commerce/chemistry/storefront/browser-smoke.mjs test "$WORKER_PATH"
+
+      - name: Run Rescue axe mobile controls reflow and strict-header gate
+        shell: bash
+        env:
+          WORKER_PATH: ${{ github.workspace }}/commerce/chemistry/index.storefront-v3.mjs
+        run: |
+          set -euo pipefail
+          node commerce/chemistry/storefront/browser-smoke.mjs serve "$WORKER_PATH" >/tmp/rescue-store-server.log 2>&1 &
+          SERVER_PID=$!
+          trap 'kill "$SERVER_PID" 2>/dev/null || true' EXIT
+          for i in $(seq 1 30); do curl -fsS http://127.0.0.1:8787/chemistry/rescue >/dev/null && break; sleep 0.5; done
+          node --input-type=module <<'JS'
+          import fs from 'node:fs';
+          import {createRequire} from 'node:module';
+          import {chromium} from 'playwright';
+          const require=createRequire(import.meta.url);
+          const axeSource=fs.readFileSync(require.resolve('axe-core/axe.min.js'),'utf8');
+          const origin='http://127.0.0.1:8787';
+          const paths=['/chemistry/rescue?src=wa_student','/chemistry/rescue/teachers','/chemistry/rescue/schools','/chemistry/rescue/ambassadors'];
+          const browser=await chromium.launch({headless:true,executablePath:process.env.CHROME_PATH,args:['--no-sandbox','--disable-dev-shm-usage']});
+          const context=await browser.newContext({viewport:{width:320,height:568},bypassCSP:true});
+          const page=await context.newPage();
+          const evidence={schema:'musitu.chemistry.rescue.browser_preflight.v1',pages:{}};
+          try{
+            for(const path of paths){
+              const response=await page.goto(origin+path,{waitUntil:'networkidle'});
+              if(!response||response.status()!==200) throw new Error(`HTTP ${response?.status()} ${path}`);
+              const headers=response.headers();
+              const csp=headers['content-security-policy']||'';
+              if(!csp.includes("style-src 'self'")||!csp.includes("script-src 'self'")||/unsafe-inline|unsafe-eval/.test(csp)) throw new Error('CSP '+path);
+              if(headers['referrer-policy']!=='no-referrer'||headers['x-frame-options']!=='DENY'||headers['x-content-type-options']!=='nosniff') throw new Error('headers '+path);
+              await page.addScriptTag({content:axeSource});
+              const axe=await page.evaluate(async()=>await axe.run(document,{runOnly:{type:'tag',values:['wcag2a','wcag2aa','wcag21aa','wcag22aa']}}));
+              const bad=axe.violations.filter(v=>['serious','critical'].includes(v.impact));
+              if(bad.length) throw new Error('axe '+path+' '+bad.map(v=>v.id).join(','));
+              const mobile=await page.evaluate(()=>({scrollWidth:document.documentElement.scrollWidth,clientWidth:document.documentElement.clientWidth,smallControls:Array.from(document.querySelectorAll('a.button,button,input,select')).filter(el=>{const r=el.getBoundingClientRect();return r.width>0&&r.height>0&&(r.width<44||r.height<44)}).length}));
+              if(mobile.scrollWidth>mobile.clientWidth||mobile.smallControls) throw new Error('mobile '+path+' '+JSON.stringify(mobile));
+              const unnamed=await page.locator('a[href],button,input,select,textarea').evaluateAll(els=>els.filter(el=>{const r=el.getBoundingClientRect(),s=getComputedStyle(el);if(el.disabled||r.width<=0||r.height<=0||s.visibility==='hidden'||s.display==='none') return false;const name=el.getAttribute('aria-label')||el.textContent?.trim()||el.getAttribute('name')||'';return !name;}).length);
+              if(unnamed) throw new Error('unnamed control '+path);
+              evidence.pages[path]={axe_serious_or_critical:bad.length,mobile,unnamed_controls:unnamed,csp};
+            }
+          }finally{await browser.close()}
+          fs.writeFileSync('/tmp/mchem-rescue-preflight/rescue-browser-evidence.json',JSON.stringify(evidence,null,2)+'\n');
+          console.log('MUSITU_CHEMISTRY_RESCUE_BROWSER_PREFLIGHT_PASS');
+          JS
+          kill "$SERVER_PID" 2>/dev/null || true
+          trap - EXIT
+
+      - name: Run core and Rescue Lighthouse mobile budgets
+        shell: bash
+        env:
+          WORKER_PATH: ${{ github.workspace }}/commerce/chemistry/index.storefront-v3.mjs
+        run: |
+          set -euo pipefail
+          node commerce/chemistry/storefront/browser-smoke.mjs serve "$WORKER_PATH" >/tmp/lighthouse-store-server.log 2>&1 &
+          SERVER_PID=$!
+          trap 'kill "$SERVER_PID" 2>/dev/null || true' EXIT
+          for i in $(seq 1 30); do curl -fsS http://127.0.0.1:8787/chemistry/rescue >/dev/null && break; sleep 0.5; done
+          npx lighthouse http://127.0.0.1:8787/chemistry/ --output=json --output-path=/tmp/mchem-rescue-preflight/lighthouse-core.json --only-categories=performance,accessibility,best-practices --chrome-flags="--headless --no-sandbox --disable-dev-shm-usage" --quiet
+          npx lighthouse http://127.0.0.1:8787/chemistry/rescue?src=direct --output=json --output-path=/tmp/mchem-rescue-preflight/lighthouse-rescue.json --only-categories=performance,accessibility,best-practices --chrome-flags="--headless --no-sandbox --disable-dev-shm-usage" --quiet
+          node --input-type=module <<'JS'
+          import fs from 'node:fs';
+          const budget=JSON.parse(fs.readFileSync('commerce/chemistry/storefront/lighthouse-budget.json','utf8'));
+          const evaluate=(path,label)=>{const l=JSON.parse(fs.readFileSync(path,'utf8'));const got={performance:l.categories.performance.score,accessibility:l.categories.accessibility.score,best_practices:l.categories['best-practices'].score,lcp_ms:l.audits['largest-contentful-paint'].numericValue,cls:l.audits['cumulative-layout-shift'].numericValue,tbt_ms:l.audits['total-blocking-time'].numericValue};const pass=got.performance>=budget.performance_score_min&&got.accessibility>=budget.accessibility_score_min&&got.best_practices>=budget.best_practices_score_min&&got.lcp_ms<=budget.lcp_ms_max&&got.cls<=budget.cls_max&&got.tbt_ms<=budget.tbt_ms_max;return {label,results:got,pass}};
+          const core=evaluate('/tmp/mchem-rescue-preflight/lighthouse-core.json','core');
+          const rescue=evaluate('/tmp/mchem-rescue-preflight/lighthouse-rescue.json','rescue');
+          const out={schema:'musitu.chemistry.rescue.lighthouse.v1',budget,core,rescue,field_inp_status:budget.field_inp_status,pass:core.pass&&rescue.pass};
+          fs.writeFileSync('/tmp/mchem-rescue-preflight/lighthouse-summary.json',JSON.stringify(out,null,2)+'\n');
+          console.log(JSON.stringify(out));
+          if(!out.pass) process.exit(1);
+          JS
+          kill "$SERVER_PID" 2>/dev/null || true
+          trap - EXIT
+
+      - name: Verify byte security secret and launch-content boundaries
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'JS'
+          import fs from 'node:fs';
+          import {pathToFileURL} from 'node:url';
+          const {handleRequest}=await import(pathToFileURL(process.cwd()+'/commerce/chemistry/index.storefront-v3.mjs').href);
+          const base='https://payments.mftintelligence.com';
+          async function get(path){const r=await handleRequest(new Request(base+path),{});return {r,b:Buffer.from(await r.arrayBuffer())}}
+          const checks={root:await get('/chemistry/'),rescue:await get('/chemistry/rescue?src=direct'),teacher:await get('/chemistry/rescue/teachers'),school:await get('/chemistry/rescue/schools'),ambassador:await get('/chemistry/rescue/ambassadors'),css:await get('/chemistry/assets/storefront.css'),js:await get('/chemistry/assets/storefront.js'),field:await get('/chemistry/assets/field-experience.js'),print:await get('/chemistry/assets/rescue-print.css')};
+          const sizes=Object.fromEntries(Object.entries(checks).map(([k,v])=>[k,v.b.length]));
+          if(sizes.root>45*1024||sizes.rescue>45*1024||sizes.teacher>45*1024||sizes.school>45*1024||sizes.ambassador>45*1024||sizes.css>24*1024||sizes.js>12*1024||sizes.field>12*1024||sizes.print>8*1024) throw new Error('byte budget '+JSON.stringify(sizes));
+          const forbidden=['CHEMISTRY_LICENSE_PKCS8_B64','PAYNOW_INTEGRATION_KEY','CLOUDFLARE_GLOBAL_API_KEY','CHEMISTRY_AUTHORITY_BRIDGE_TOKEN','BEGIN PRIVATE KEY'];
+          for(const [name,v] of Object.entries(checks)){const text=v.b.toString('utf8');for(const word of forbidden) if(text.includes(word)) throw new Error('secret marker '+name+' '+word)}
+          const contentFiles=['growth/chemistry-rescue/README.md','growth/chemistry-rescue/30-day-calendar.md','growth/chemistry-rescue/short-video-scripts.md','growth/chemistry-rescue/ad-copy.md','growth/chemistry-rescue/content-qa.md','growth/chemistry-rescue/budget-operations.md'];
+          for(const p of contentFiles) if(!fs.existsSync(p)||fs.statSync(p).size<500) throw new Error('launch content missing '+p);
+          fs.writeFileSync('/tmp/mchem-rescue-preflight/byte-security-summary.json',JSON.stringify({schema:'musitu.chemistry.rescue.byte_security.v1',sizes,forbidden_secret_markers_absent:true,launch_content_files:contentFiles.length,pass:true},null,2)+'\n');
+          JS
+
+      - name: Seal exact read-only preflight evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > /tmp/mchem-rescue-preflight/preflight-summary.json <<JSON
+          {
+            "schema":"musitu.chemistry.rescue.full_preflight.v1",
+            "commit_sha":"${GITHUB_SHA}",
+            "candidate_worker_sha256":"${CANDIDATE_SHA}",
+            "sealed_base_worker_sha256":"848e1cec17ec580822d36e595196cda5978713849e8b45c5bc8dc7fcf9765db8",
+            "sealed_archive_sha256":"5b2618499eed8dc90261bc4f8260246d5593534500dd2fb145f2d24b5c47754c",
+            "production_mutation":false,
+            "real_money_settlement_observed":false,
+            "real_money_settlement_claimed":false,
+            "negative_control_sealed_base_rescue_rejected":true,
+            "source_normalization_fail_closed":true,
+            "core_browser_gate":true,
+            "rescue_browser_gate":true,
+            "core_and_rescue_lighthouse_budgets":true,
+            "commerce_regression":true,
+            "aggregate_only_telemetry_contract":true,
+            "gate":"MUSITU_CHEMISTRY_RESCUE_FULL_PREFLIGHT_PASS"
+          }
+          JSON
+          cd /tmp/mchem-rescue-preflight
+          sha256sum *.json *.txt *.sha256 > SHA256SUMS.txt
+          cat preflight-summary.json
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: musitu-chemistry-rescue-full-preflight
+          path: /tmp/mchem-rescue-preflight
+          retention-days: 90
+          if-no-files-found: error
