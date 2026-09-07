@@ -16,11 +16,17 @@ export const FIELD_SCHEMA_SQL=`CREATE TABLE IF NOT EXISTS chemistry_field_aggreg
 const ROUTE_CLASSES=new Map([
   ['/chemistry','home'],['/chemistry/','home'],['/chemistry/plans','plans'],['/chemistry/checkout/start','checkout'],
   ['/chemistry/return','status'],['/chemistry/claim','claim'],['/chemistry/support','support'],['/chemistry/privacy','privacy'],
-  ['/chemistry/terms','terms'],['/chemistry/verify','verify'],['/chemistry/releases','releases'],['/chemistry/experience','experience'],['/chemistry/rescue','rescue']
+  ['/chemistry/terms','terms'],['/chemistry/verify','verify'],['/chemistry/releases','releases'],['/chemistry/experience','experience'],
+  ['/chemistry/rescue','rescue'],['/chemistry/install','install'],['/chemistry/install/diagnostics','install']
 ]);
 const VITALS=new Set(['LCP','INP','CLS']);
-const EVENTS=new Set(['page_view','start_free','unlock_full','families_institutions','plan_recommend','plan_choose','checkout_continue','support_contact','seat_claim','status_paid','status_pending','rescue_visit','rescue_start','rescue_share','rescue_peer_start','premium_intent','teacher_kit','school_kit','ambassador_kit']);
-const ROUTES=new Set(['home','plans','checkout','status','claim','support','privacy','terms','verify','releases','experience','rescue','other']);
+const EVENTS=new Set([
+  'page_view','start_free','unlock_full','families_institutions','plan_recommend','plan_choose','checkout_continue',
+  'support_contact','seat_claim','status_paid','status_pending','rescue_visit','rescue_start','rescue_share','rescue_peer_start',
+  'premium_intent','teacher_kit','school_kit','ambassador_kit',
+  'install_view','install_prompt_available','install_started','install_completed','install_fallback','install_help_needed'
+]);
+const ROUTES=new Set(['home','plans','checkout','status','claim','support','privacy','terms','verify','releases','experience','rescue','install','other']);
 const VIEWPORTS=new Set(['mobile','tablet','desktop']);
 const PLAN_DETAILS=new Set(['term','annual','lifetime','family','tutor','school']);
 const GROWTH_DETAILS=new Set(GROWTH_SOURCES);
@@ -161,20 +167,50 @@ export function renderExperience(snapshot){
 export const FIELD_EXPERIENCE_JS=String.raw`
 (()=>{
   const KEY='musitu_experience_measurement';
+  const ONBOARD_KEY='musitu_install_onboarding_v1';
+  const INSTALLED_KEY='musitu_install_completed_v1';
   const q=(s,r=document)=>r.querySelector(s),qa=(s,r=document)=>[...r.querySelectorAll(s)];
   const privacySignal=()=>navigator.globalPrivacyControl===true||['1','yes'].includes(String(navigator.doNotTrack||window.doNotTrack||'').toLowerCase());
-  const pref=()=>{try{return localStorage.getItem('musitu_experience_measurement')||''}catch{return ''}};
-  const route=()=>{const p=location.pathname;return p==='/chemistry'||p==='/chemistry/'?'home':p==='/chemistry/plans'?'plans':p==='/chemistry/checkout/start'?'checkout':p==='/chemistry/return'?'status':p==='/chemistry/claim'?'claim':p==='/chemistry/support'?'support':p==='/chemistry/privacy'?'privacy':p==='/chemistry/terms'?'terms':p==='/chemistry/verify'?'verify':p==='/chemistry/releases'?'releases':p==='/chemistry/experience'?'experience':p==='/chemistry/rescue'?'rescue':'other'};
+  const pref=()=>{try{return localStorage.getItem(KEY)||''}catch{return ''}};
+  const route=()=>{const p=location.pathname;return p==='/chemistry'||p==='/chemistry/'?'home':p==='/chemistry/plans'?'plans':p==='/chemistry/checkout/start'?'checkout':p==='/chemistry/return'?'status':p==='/chemistry/claim'?'claim':p==='/chemistry/support'?'support':p==='/chemistry/privacy'?'privacy':p==='/chemistry/terms'?'terms':p==='/chemistry/verify'?'verify':p==='/chemistry/releases'?'releases':p==='/chemistry/experience'?'experience':p==='/chemistry/rescue'?'rescue':p==='/chemistry/install'||p==='/chemistry/install/diagnostics'?'install':'other'};
   const viewport=()=>innerWidth<600?'mobile':innerWidth<900?'tablet':'desktop';
   const allowedPlan=v=>['term','annual','lifetime','family','tutor','school'].includes(v)?v:'';
   const allowedSource=v=>['wa_student','wa_teacher','school','creator','meta','tiktok','ambassador','direct'].includes(v)?v:'direct';
   const growthEvents=new Set(['rescue_visit','rescue_start','rescue_share','rescue_peer_start','premium_intent','teacher_kit','school_kit','ambassador_kit']);
+  const installEvents=new Set(['install_view','install_prompt_available','install_started','install_completed','install_fallback','install_help_needed']);
   const post=events=>{if(!events.length||privacySignal()||pref()==='off')return false;try{return navigator.sendBeacon('/chemistry/telemetry/v1',new Blob([JSON.stringify({events})],{type:'application/json'}))}catch{return false}};
   const event=(name,detail='')=>{const safe=growthEvents.has(name)?allowedSource(detail):allowedPlan(detail);return post([{kind:'event',name,route:route(),viewport:viewport(),detail:safe}])};
+  addEventListener('musitu:field-event',e=>{const name=String(e?.detail?.name||'');if(installEvents.has(name))event(name)});
   const state=q('[data-measurement-state]');
   const paintState=()=>{if(!state)return;state.textContent=privacySignal()?'Disabled by your browser privacy signal':pref()==='off'?'Disabled on this browser':'Enabled: anonymous aggregate experience measurement'};
   qa('[data-measurement-toggle]').forEach(btn=>btn.addEventListener('click',()=>{try{if(pref()==='off')localStorage.removeItem(KEY);else localStorage.setItem(KEY,'off');paintState()}catch{}}));
   paintState();
+
+  const standalone=()=>matchMedia?.('(display-mode: standalone)').matches===true||navigator.standalone===true;
+  const installOnboarding=()=>{
+    if(route()!=='rescue'||!standalone())return;
+    if('serviceWorker' in navigator)navigator.serviceWorker.register('/chemistry/sw.js',{scope:'/chemistry/'}).catch(()=>{});
+    try{
+      if(localStorage.getItem(INSTALLED_KEY)!=='1'){event('install_completed');localStorage.setItem(INSTALLED_KEY,'1')}
+      if(localStorage.getItem(ONBOARD_KEY)==='done')return;
+    }catch{}
+    if(!q('link[href="/chemistry/assets/install-concierge.css"]')){
+      const link=document.createElement('link');link.rel='stylesheet';link.href='/chemistry/assets/install-concierge.css';document.head.append(link);
+    }
+    const overlay=document.createElement('section');
+    overlay.className='install-onboarding';
+    overlay.id='musitu-install-onboarding';
+    overlay.setAttribute('role','dialog');overlay.setAttribute('aria-modal','true');overlay.setAttribute('aria-labelledby','musitu-onboarding-title');
+    overlay.innerHTML='<div class="install-onboarding-card"><span class="eyebrow">MUSITU Chemistry · installed</span><h2 id="musitu-onboarding-title">Three moves to mastery</h2><div class="install-onboarding-progress" aria-hidden="true"><span class="active"></span><span></span><span></span></div><section class="install-onboarding-step" data-onboard-step="0"><h3>Diagnose</h3><p>Find the Chemistry areas that need attention first.</p><button class="button" type="button" data-onboard-next>Next</button></section><section class="install-onboarding-step" data-onboard-step="1" hidden><h3>Revise</h3><p>Focus your study on the gaps instead of revising everything equally.</p><button class="button" type="button" data-onboard-next>Next</button></section><section class="install-onboarding-step" data-onboard-step="2" hidden><h3>Prove</h3><p>Use timed practice to expose what still breaks under exam pressure.</p><button class="button" type="button" data-onboard-done>Start Chemistry Rescue</button></section></div>';
+    document.body.append(overlay);
+    let step=0;
+    const show=n=>{step=n;qa('[data-onboard-step]',overlay).forEach((el,i)=>el.hidden=i!==n);qa('.install-onboarding-progress span',overlay).forEach((el,i)=>el.classList.toggle('active',i<=n));q(n===2?'[data-onboard-done]':'[data-onboard-next]',overlay)?.focus()};
+    qa('[data-onboard-next]',overlay).forEach(btn=>btn.addEventListener('click',()=>show(Math.min(2,step+1))));
+    q('[data-onboard-done]',overlay)?.addEventListener('click',()=>{try{localStorage.setItem(ONBOARD_KEY,'done')}catch{}overlay.remove();q('#main')?.focus()});
+    show(0);
+  };
+  installOnboarding();
+
   if(privacySignal()||pref()==='off')return;
   event('page_view');
   qa('[data-field-event]').forEach(el=>{
