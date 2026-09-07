@@ -20,6 +20,7 @@ on:
       - '.github/workflows/axiom-frontier-v5-cimd-gate.yml'
       - '.github/workflows/axiom-frontier-v5-oidc-gate.yml'
       - '.github/workflows/axiom-frontier-v5-enterprise-identity-gate.yml'
+      - '.github/workflows/axiom-frontier-v5-data-lifecycle-gate.yml'
       - '.github/workflows/axiom-frontier-v5-supply-chain-gate.yml'
   pull_request:
     paths:
@@ -38,6 +39,7 @@ on:
       - '.github/workflows/axiom-frontier-v5-cimd-gate.yml'
       - '.github/workflows/axiom-frontier-v5-oidc-gate.yml'
       - '.github/workflows/axiom-frontier-v5-enterprise-identity-gate.yml'
+      - '.github/workflows/axiom-frontier-v5-data-lifecycle-gate.yml'
       - '.github/workflows/axiom-frontier-v5-supply-chain-gate.yml'
   workflow_dispatch:
 
