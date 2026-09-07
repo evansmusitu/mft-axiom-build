@@ -8,6 +8,12 @@ on:
       - 'commerce/chemistry/storefront/install-handoff.test.mjs'
       - 'commerce/chemistry/storefront/install-worker.test.mjs'
       - 'commerce/chemistry/storefront/install-browser-matrix.mjs'
+      - 'commerce/chemistry/storefront/app-shell.mjs'
+      - 'commerce/chemistry/storefront/app-shell.test.mjs'
+      - 'commerce/chemistry/storefront/app-shell-worker.test.mjs'
+      - 'commerce/chemistry/storefront/rescue-discovery.mjs'
+      - 'commerce/chemistry/storefront/rescue-render.mjs'
+      - 'commerce/chemistry/storefront/rescue-worker.test.mjs'
       - 'commerce/chemistry/storefront/field-experience.mjs'
       - 'commerce/chemistry/storefront/field-experience.test.mjs'
       - 'commerce/chemistry/patch_rescue_growth.py'
@@ -39,15 +45,21 @@ jobs:
           python commerce/chemistry/patch_rescue_growth.py | tee /tmp/mchem-install-evidence/candidate-sha.txt
           node --check commerce/chemistry/index.storefront-v3.mjs
 
-      - name: Run storefront, privacy and install contract tests
+      - name: Run storefront, privacy, install and app-shell contract tests
         shell: bash
         run: |
           set -euo pipefail
           node --test commerce/chemistry/storefront/*.test.mjs | tee /tmp/mchem-install-evidence/storefront-tests.txt
           grep -Fq "'/chemistry/install'" commerce/chemistry/index.storefront-v3.mjs
+          grep -Fq "'/chemistry/app'" commerce/chemistry/index.storefront-v3.mjs
           grep -Fq "/chemistry/install/diagnostics" commerce/chemistry/index.storefront-v3.mjs
           grep -Fq "/chemistry/assets/install-handoff.js" commerce/chemistry/index.storefront-v3.mjs
           grep -Fq "/chemistry/assets/install-concierge.css" commerce/chemistry/index.storefront-v3.mjs
+          grep -Fq "/chemistry/assets/app-bridge.js" commerce/chemistry/index.storefront-v3.mjs
+          grep -Fq "/chemistry/assets/app-shell.js" commerce/chemistry/index.storefront-v3.mjs
+          grep -Fq "/chemistry/assets/app-shell.css" commerce/chemistry/index.storefront-v3.mjs
+          grep -Fq '"start_url":"/chemistry/app"' commerce/chemistry/index.storefront-v3.mjs
+          grep -Fq "Your Chemistry workspace" commerce/chemistry/index.storefront-v3.mjs
           grep -Fq "/chemistry/sw.js" commerce/chemistry/index.storefront-v3.mjs
           grep -Fq "Install / Start Free" commerce/chemistry/index.storefront-v3.mjs
           grep -Fq "MUSITU_Chemistry_Mastery_1.2.0.apk" commerce/chemistry/index.storefront-v3.mjs
@@ -69,8 +81,6 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          # browser-smoke.mjs imports axe-core even in serve mode, so keep the
-          # local acceptance harness dependency-complete and deterministic.
           npm install --no-save --no-package-lock playwright axe-core
           CHROME_PATH="$(command -v google-chrome || command -v chromium || command -v chromium-browser || true)"
           test -n "$CHROME_PATH"
@@ -95,6 +105,8 @@ jobs:
           done
           if [[ "$ready" != true ]]; then cat /tmp/mchem-install-server.log; exit 1; fi
           node commerce/chemistry/storefront/install-browser-matrix.mjs | tee /tmp/mchem-install-evidence/browser-matrix.json
+          curl -fsS http://127.0.0.1:8787/chemistry/app | grep -Fq 'Your Chemistry workspace'
+          curl -fsS http://127.0.0.1:8787/chemistry/manifest.webmanifest | grep -Fq '"start_url":"/chemistry/app"'
           kill "$SERVER_PID" 2>/dev/null || true
           trap - EXIT
 
@@ -105,28 +117,32 @@ jobs:
           sha256sum commerce/chemistry/index.storefront-v3.mjs | tee /tmp/mchem-install-evidence/candidate.sha256
           cat > /tmp/mchem-install-evidence/acceptance-boundary.json <<'JSON'
           {
-            "schema":"musitu.chemistry.install_acceptance_boundary.v1",
+            "schema":"musitu.chemistry.install_acceptance_boundary.v2",
             "universal_install_url":"https://payments.mftintelligence.com/chemistry/install",
+            "installed_app_url":"https://payments.mftintelligence.com/chemistry/app",
             "platform_detection":["iPhone/iPad Safari","iPhone/iPad non-Safari","iOS in-app","Android Chrome","Samsung Internet","Android in-app/WebView","desktop Chrome/Edge","already-installed"],
+            "installed_launch_contract":{"manifest_identity_preserved":true,"start_url":"/chemistry/app","legacy_rescue_standalone_bridge":true,"public_site_chrome_removed_from_app_shell":true},
             "privacy_safe_install_events":["install_view","install_prompt_available","install_started","install_completed","install_fallback","install_help_needed"],
             "offline_shell_tested":true,
             "payment_routes_cached":false,
-            "physical_device_certification":false,
-            "note":"CI proves browser contracts and emulation. Physical iPhone/iPad/Android hardware acceptance remains a separate field gate."
+            "physical_device_app_shell_retest":false,
+            "note":"CI proves install and dedicated app-shell browser contracts. Physical installed-app reopen remains a separate field gate until retested on hardware."
           }
           JSON
           {
-            echo '## MUSITU adaptive install concierge candidate'
+            echo '## MUSITU adaptive install + installed app-shell candidate'
             echo
             echo '```'
             cat /tmp/mchem-install-evidence/candidate.sha256
             echo '```'
             echo '- One universal install URL.'
+            echo '- Dedicated /chemistry/app launch surface for installed MUSITU.'
+            echo '- Manifest identity preserved; start_url moved to /chemistry/app.'
+            echo '- Legacy installed Rescue launches bridge immediately into app shell.'
+            echo '- Public site header/footer removed from installed app shell.'
             echo '- Adaptive iOS / Android / Samsung / desktop concierge.'
-            echo '- Hidden self-diagnostics.'
-            echo '- Privacy-safe aggregate install funnel.'
-            echo '- Bounded offline shell; checkout/payment routes excluded from cache.'
-            echo '- Browser-emulation matrix green. Physical-device certification remains explicitly unclaimed.'
+            echo '- Privacy-safe aggregate install funnel and bounded offline shell.'
+            echo '- Physical installed-app reopen remains explicitly unclaimed until hardware retest.'
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload candidate evidence
@@ -140,6 +156,9 @@ jobs:
             commerce/chemistry/storefront/install-handoff.test.mjs
             commerce/chemistry/storefront/install-worker.test.mjs
             commerce/chemistry/storefront/install-browser-matrix.mjs
+            commerce/chemistry/storefront/app-shell.mjs
+            commerce/chemistry/storefront/app-shell.test.mjs
+            commerce/chemistry/storefront/app-shell-worker.test.mjs
             commerce/chemistry/storefront/field-experience.mjs
             commerce/chemistry/storefront/field-experience.test.mjs
           if-no-files-found: error
