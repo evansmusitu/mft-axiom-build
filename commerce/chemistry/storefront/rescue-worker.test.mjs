@@ -4,7 +4,8 @@ import {handleRequest} from '../index.storefront-v3.mjs';
 
 const base='https://payments.mftintelligence.com';
 async function get(path){const r=await handleRequest(new Request(base+path),{});return {r,text:await r.text()}}
-function strict(r){const csp=r.headers.get('content-security-policy')||'';assert.match(csp,/style-src 'self'/);assert.match(csp,/script-src 'self'/);assert.match(csp,/connect-src 'self'/);assert.doesNotMatch(csp,/unsafe-inline|unsafe-eval|https?:\/\//);assert.equal(r.headers.get('referrer-policy'),'no-referrer')}
+async function getBytes(path){const r=await handleRequest(new Request(base+path),{});return {r,bytes:new Uint8Array(await r.arrayBuffer())}}
+function strict(r){const csp=r.headers.get('content-security-policy')||'';assert.match(csp,/style-src 'self'/);assert.match(csp,/script-src 'self'/);assert.match(csp,/connect-src 'self'/);assert.match(csp,/manifest-src 'self'/);assert.doesNotMatch(csp,/unsafe-inline|unsafe-eval|https?:\/\//);assert.equal(r.headers.get('referrer-policy'),'no-referrer')}
 
 test('generated Worker serves bounded Rescue campaign through the existing strict public boundary',async()=>{
   const {r,text}=await get('/chemistry/rescue?src=wa_student');
@@ -52,4 +53,40 @@ test('generated Worker serves teacher school and ambassador kits with same-origi
   assert.match(print.text,/@media print/);
   const sitemap=await get('/chemistry/sitemap.xml');
   for(const p of ['/chemistry/rescue/teachers','/chemistry/rescue/schools','/chemistry/rescue/ambassadors']) assert.match(sitemap.text,new RegExp(p));
+});
+
+test('generated Worker exposes a valid browser-install discovery manifest and local install UI',async()=>{
+  const page=await get('/chemistry/rescue?src=direct');
+  strict(page.r);
+  const manifestResponse=await get('/chemistry/manifest.webmanifest');
+  assert.equal(manifestResponse.r.status,200);
+  assert.match(manifestResponse.r.headers.get('content-type')||'',/^application\/manifest\+json/);
+  const manifest=JSON.parse(manifestResponse.text);
+  assert.equal(manifest.name,'MUSITU Chemistry Rescue 2026');
+  assert.equal(manifest.short_name,'MUSITU Chemistry');
+  assert.equal(manifest.start_url,'/chemistry/rescue?src=direct');
+  assert.equal(manifest.scope,'/chemistry/');
+  assert.equal(manifest.display,'standalone');
+  assert.equal(manifest.prefer_related_applications,false);
+  assert.deepEqual(manifest.icons.map(x=>[x.src,x.sizes,x.type]),[
+    ['/chemistry/assets/musitu-chemistry-192.png','192x192','image/png'],
+    ['/chemistry/assets/musitu-chemistry-512.png','512x512','image/png']
+  ]);
+
+  const install=await get('/chemistry/assets/rescue-install.js');
+  assert.equal(install.r.status,200);
+  assert.match(install.r.headers.get('content-type')||'',/^application\/javascript/);
+  assert.match(install.text,/beforeinstallprompt/);
+  assert.match(install.text,/install-rescue/);
+  assert.match(install.text,/\.prompt\(\)/);
+  assert.doesNotMatch(install.text,/(Notification\.requestPermission|pushManager|document\.cookie|localStorage)/);
+
+  for(const [path,size] of [['/chemistry/assets/musitu-chemistry-192.png',192],['/chemistry/assets/musitu-chemistry-512.png',512]]){
+    const icon=await getBytes(path);
+    assert.equal(icon.r.status,200,path);
+    assert.equal(icon.r.headers.get('content-type'),'image/png',path);
+    assert.ok(icon.bytes.length>100,path);
+    assert.deepEqual(Array.from(icon.bytes.slice(0,8)),[0x89,0x50,0x4e,0x47,0x0d,0x0a,0x1a,0x0a],path);
+    assert.equal(size===192||size===512,true);
+  }
 });

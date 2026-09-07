@@ -1,0 +1,52 @@
+{
+  "schema": "musitu.chemistry.browser_discovery_reconciliation.v1",
+  "product": "MUSITU Education Nexus — Chemistry Mastery",
+  "campaign": "MUSITU Chemistry Rescue 2026",
+  "date": "2026-09-07",
+  "target_branch": "chemistry-national-rescue-growth-20260907",
+  "target_pre_reconciliation_sha": "9bf403572a316dd24e04973d223620de7878ba84",
+  "verified_browser_source_branch": "chemistry-browser-discovery-20260907",
+  "verified_browser_source_sha": "03647088e5aadf32fa095026e90bdfcefa5a1df8",
+  "independent_live_verify_run": 34106093065,
+  "independent_live_verify_job": 101691322845,
+  "independent_live_verify_artifact_id": 10012408317,
+  "independent_live_verify_artifact_zip_sha256": "f0967cd4ea02e114866d4069dc2b679960bbc461d843817937486b3c04c94d7b",
+  "expected_worker_sha256": "1af4a2a7d79de14d9539eda3d3e0f7917da98536c0d87c8253562893df9af707",
+  "reconciled_product_files": [
+    {
+      "path": "commerce/chemistry/patch_rescue_growth.py",
+      "source_blob_sha": "5734d68c2a5eca7bbc009a563bf04ceb9cf9abfd"
+    },
+    {
+      "path": "commerce/chemistry/storefront/rescue-discovery.mjs",
+      "source_blob_sha": "ae0c5ef65aab78e50911282465f2cb645d331099"
+    },
+    {
+      "path": "commerce/chemistry/storefront/rescue-render.mjs",
+      "source_blob_sha": "f4583e3def6d56b9928c8d4de8ddf30e3521e7bb"
+    },
+    {
+      "path": "commerce/chemistry/storefront/rescue-render.test.mjs",
+      "source_blob_sha": "cd1b431001491754d7efaa5b1a4f494d331b7611"
+    },
+    {
+      "path": "commerce/chemistry/storefront/rescue-worker.test.mjs",
+      "source_blob_sha": "7e7d322cd862e2afb88abc9bfd7d4099acc8da4e"
+    }
+  ],
+  "intentionally_not_reconciled": [
+    ".github/workflows/chemistry-browser-discovery-disable-rum-guarded-temp.yml",
+    ".github/workflows/chemistry-browser-discovery-rum-audit-temp.yml",
+    ".github/workflows/chemistry-browser-discovery-rum-reconcile-audit-temp.yml",
+    "browser-discovery deployment/debug workflow history"
+  ],
+  "wholesale_branch_merge_performed": false,
+  "production_mutation_performed": false,
+  "payment_authority_changed": false,
+  "licence_authority_changed": false,
+  "settlement_to_entitlement_invariant_changed": false,
+  "real_money_settlement_observed": false,
+  "field_inp_claimable": false,
+  "day1_organic_publication_proven": false,
+  "gate_intent": "selectively reconcile only the exact product files already covered by the successful independent browser-discovery evidence, then prove deterministic worker identity and regressions on the national Rescue branch"
+}
