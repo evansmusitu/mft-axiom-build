@@ -39,6 +39,7 @@ on:
       - '.github/workflows/axiom-frontier-v5-financial-ontology-gate.yml'
       - '.github/workflows/axiom-frontier-v5-latency-performance-gate.yml'
       - '.github/workflows/axiom-frontier-v5-privacy-analytics-gate.yml'
+      - '.github/workflows/axiom-frontier-v5-enterprise-contracts-gate.yml'
       - '.github/workflows/axiom-frontier-v5-supply-chain-gate.yml'
   pull_request:
     paths:
@@ -76,6 +77,7 @@ on:
       - '.github/workflows/axiom-frontier-v5-financial-ontology-gate.yml'
       - '.github/workflows/axiom-frontier-v5-latency-performance-gate.yml'
       - '.github/workflows/axiom-frontier-v5-privacy-analytics-gate.yml'
+      - '.github/workflows/axiom-frontier-v5-enterprise-contracts-gate.yml'
       - '.github/workflows/axiom-frontier-v5-supply-chain-gate.yml'
   workflow_dispatch:
 
