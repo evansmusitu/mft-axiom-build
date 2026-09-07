@@ -40,21 +40,32 @@ render_end='// storefront/field-experience.mjs\n'
 s=once_in_section(
     s,render_start,render_end,
     '<a href="/chemistry/releases">Release notes</a><a href="/chemistry/experience">Experience evidence</a><a href="/chemistry/security.txt">Security</a>',
-    '<a href="/chemistry/rescue">Chemistry Rescue</a><a href="/chemistry/releases">Release notes</a><a href="/chemistry/experience">Experience evidence</a><a href="/chemistry/security.txt">Security</a>',
+    '<a href="/chemistry/rescue">Chemistry Rescue</a><a href="/chemistry/install">Install</a><a href="/chemistry/releases">Release notes</a><a href="/chemistry/experience">Experience evidence</a><a href="/chemistry/security.txt">Security</a>',
     'Rescue global footer'
 )
 s=once_in_section(
     s,render_start,render_end,
     "'/chemistry/experience'];",
-    "'/chemistry/experience','/chemistry/rescue','/chemistry/rescue/teachers','/chemistry/rescue/schools','/chemistry/rescue/ambassadors'];",
+    "'/chemistry/experience','/chemistry/rescue','/chemistry/install','/chemistry/rescue/teachers','/chemistry/rescue/schools','/chemistry/rescue/ambassadors'];",
     'Rescue sitemap'
 )
 
-# Rescue source definitions and browser-discovery assets must exist before
-# renderers and field-experience initialize their bounded contracts.
+# Rescue source definitions, browser-discovery assets and the zero-cost install
+# handoff must exist before field-experience initializes its bounded contracts.
 insert=(module_text('rescue-growth.mjs')+module_text('rescue-discovery.mjs')+
-        module_text('rescue-render.mjs')+module_text('rescue-kits.mjs'))
+        module_text('rescue-render.mjs')+module_text('install.mjs')+
+        module_text('rescue-kits.mjs'))
 s=once(s,'// storefront/field-experience.mjs\n',insert+'// storefront/field-experience.mjs\n','Rescue module insertion')
+
+# Make the primary Rescue CTA route through the browser-native installation
+# handoff instead of forcing a raw APK download. The signed APK remains on the
+# install page as the explicit fallback.
+s=once_in_section(
+    s,'// storefront/rescue-render.mjs\n','// storefront/install.mjs\n',
+    '<a class="button" data-field-event="rescue_start" data-field-detail="${rescueEsc(src)}" href="/chemistry/download/${rescueEsc(RELEASE.apk)}">Start Free Rescue Check</a>',
+    '<a class="button" data-field-event="rescue_start" data-field-detail="${rescueEsc(src)}" href="/chemistry/install">Install / Start Free</a>',
+    'Rescue primary install handoff'
+)
 
 # The existing privacy gate runs immediately before page-view collection. Add
 # Rescue attribution after that gate so GPC/DNT/browser opt-out suppress these
@@ -75,22 +86,22 @@ s=once(
 s=once(
     s,
     'renderPaymentStatus,renderExperience,ingestTelemetryRequest,readFieldSnapshot,computeFieldSnapshot,planViewsFromCore',
-    'renderPaymentStatus,renderExperience,renderRescue,renderTeacherKit,renderSchoolKit,renderAmbassadorKit,RESCUE_PRINT_CSS,normalizeGrowthSource,RESCUE_CANONICAL_URL,RESCUE_MANIFEST,RESCUE_INSTALL_JS,RESCUE_ICON_192_B64,RESCUE_ICON_512_B64,rescuePngBytes,ingestTelemetryRequest,readFieldSnapshot,computeFieldSnapshot,planViewsFromCore',
+    'renderPaymentStatus,renderExperience,renderRescue,renderInstall,renderTeacherKit,renderSchoolKit,renderAmbassadorKit,RESCUE_PRINT_CSS,normalizeGrowthSource,RESCUE_CANONICAL_URL,INSTALL_CANONICAL_URL,INSTALL_HANDOFF_JS,RESCUE_MANIFEST,RESCUE_INSTALL_JS,RESCUE_ICON_192_B64,RESCUE_ICON_512_B64,rescuePngBytes,ingestTelemetryRequest,readFieldSnapshot,computeFieldSnapshot,planViewsFromCore',
     'STOREFRONT Rescue exports'
 )
 
 s=once(
     s,
     "if(req.method==='GET'&&p==='/chemistry/plans')return storefrontHtml(STOREFRONT.renderPlanDecision({plans:STOREFRONT.planViewsFromCore(),query:storefrontQuery(u)}));",
-    "if(req.method==='GET'&&p==='/chemistry/rescue')return storefrontHtml(STOREFRONT.renderRescue({source:STOREFRONT.normalizeGrowthSource(u.searchParams.get('src')||'')}));if(req.method==='GET'&&p==='/chemistry/rescue/teachers')return storefrontHtml(STOREFRONT.renderTeacherKit());if(req.method==='GET'&&p==='/chemistry/rescue/schools')return storefrontHtml(STOREFRONT.renderSchoolKit());if(req.method==='GET'&&p==='/chemistry/rescue/ambassadors')return storefrontHtml(STOREFRONT.renderAmbassadorKit());if(req.method==='GET'&&p==='/chemistry/plans')return storefrontHtml(STOREFRONT.renderPlanDecision({plans:STOREFRONT.planViewsFromCore(),query:storefrontQuery(u)}));",
+    "if(req.method==='GET'&&p==='/chemistry/rescue')return storefrontHtml(STOREFRONT.renderRescue({source:STOREFRONT.normalizeGrowthSource(u.searchParams.get('src')||'')}));if(req.method==='GET'&&p==='/chemistry/install')return storefrontHtml(STOREFRONT.renderInstall());if(req.method==='GET'&&p==='/chemistry/rescue/teachers')return storefrontHtml(STOREFRONT.renderTeacherKit());if(req.method==='GET'&&p==='/chemistry/rescue/schools')return storefrontHtml(STOREFRONT.renderSchoolKit());if(req.method==='GET'&&p==='/chemistry/rescue/ambassadors')return storefrontHtml(STOREFRONT.renderAmbassadorKit());if(req.method==='GET'&&p==='/chemistry/plans')return storefrontHtml(STOREFRONT.renderPlanDecision({plans:STOREFRONT.planViewsFromCore(),query:storefrontQuery(u)}));",
     'Rescue dispatch'
 )
 
 s=once(
     s,
     "if(req.method==='GET'&&p==='/chemistry/assets/field-experience.js')return storefrontAsset(STOREFRONT.FIELD_EXPERIENCE_JS,'application/javascript; charset=utf-8');",
-    "if(req.method==='GET'&&p==='/chemistry/manifest.webmanifest')return storefrontAsset(STOREFRONT.RESCUE_MANIFEST,'application/manifest+json; charset=utf-8');if(req.method==='GET'&&p==='/chemistry/assets/rescue-install.js')return storefrontAsset(STOREFRONT.RESCUE_INSTALL_JS,'application/javascript; charset=utf-8');if(req.method==='GET'&&p==='/chemistry/assets/musitu-chemistry-192.png')return storefrontAsset(STOREFRONT.rescuePngBytes(STOREFRONT.RESCUE_ICON_192_B64),'image/png');if(req.method==='GET'&&p==='/chemistry/assets/musitu-chemistry-512.png')return storefrontAsset(STOREFRONT.rescuePngBytes(STOREFRONT.RESCUE_ICON_512_B64),'image/png');if(req.method==='GET'&&p==='/chemistry/assets/rescue-print.css')return storefrontAsset(STOREFRONT.RESCUE_PRINT_CSS,'text/css; charset=utf-8');if(req.method==='GET'&&p==='/chemistry/assets/field-experience.js')return storefrontAsset(STOREFRONT.FIELD_EXPERIENCE_JS,'application/javascript; charset=utf-8');",
-    'Rescue discovery and print asset dispatch'
+    "if(req.method==='GET'&&p==='/chemistry/manifest.webmanifest')return storefrontAsset(STOREFRONT.RESCUE_MANIFEST,'application/manifest+json; charset=utf-8');if(req.method==='GET'&&p==='/chemistry/assets/rescue-install.js')return storefrontAsset(STOREFRONT.RESCUE_INSTALL_JS,'application/javascript; charset=utf-8');if(req.method==='GET'&&p==='/chemistry/assets/install-handoff.js')return storefrontAsset(STOREFRONT.INSTALL_HANDOFF_JS,'application/javascript; charset=utf-8');if(req.method==='GET'&&p==='/chemistry/assets/musitu-chemistry-192.png')return storefrontAsset(STOREFRONT.rescuePngBytes(STOREFRONT.RESCUE_ICON_192_B64),'image/png');if(req.method==='GET'&&p==='/chemistry/assets/musitu-chemistry-512.png')return storefrontAsset(STOREFRONT.rescuePngBytes(STOREFRONT.RESCUE_ICON_512_B64),'image/png');if(req.method==='GET'&&p==='/chemistry/assets/rescue-print.css')return storefrontAsset(STOREFRONT.RESCUE_PRINT_CSS,'text/css; charset=utf-8');if(req.method==='GET'&&p==='/chemistry/assets/field-experience.js')return storefrontAsset(STOREFRONT.FIELD_EXPERIENCE_JS,'application/javascript; charset=utf-8');",
+    'Rescue discovery and install asset dispatch'
 )
 
 # Browser discovery is same-origin only. Explicitly permit only the manifest
