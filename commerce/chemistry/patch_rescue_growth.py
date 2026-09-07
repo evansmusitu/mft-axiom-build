@@ -32,87 +32,30 @@ def module_text(name):
     text=text.replace('export async function ','async function ').replace('export const ','const ').replace('export function ','function ')
     return f'// storefront/{name}\n{text.strip()}\n'
 
-# Scope global-navigation edits to the renderer module. The same literal may
-# legitimately appear elsewhere in the generated Worker, so a global replace
-# would be ambiguous and must fail closed.
 render_start='// storefront/render.mjs\n'
 render_end='// storefront/field-experience.mjs\n'
-s=once_in_section(
-    s,render_start,render_end,
-    '<a href="/chemistry/releases">Release notes</a><a href="/chemistry/experience">Experience evidence</a><a href="/chemistry/security.txt">Security</a>',
-    '<a href="/chemistry/rescue">Chemistry Rescue</a><a href="/chemistry/install">Install</a><a href="/chemistry/releases">Release notes</a><a href="/chemistry/experience">Experience evidence</a><a href="/chemistry/security.txt">Security</a>',
-    'Rescue global footer'
-)
-s=once_in_section(
-    s,render_start,render_end,
-    "'/chemistry/experience'];",
-    "'/chemistry/experience','/chemistry/rescue','/chemistry/install','/chemistry/rescue/teachers','/chemistry/rescue/schools','/chemistry/rescue/ambassadors'];",
-    'Rescue sitemap'
-)
+s=once_in_section(s,render_start,render_end,'<a href="/chemistry/releases">Release notes</a><a href="/chemistry/experience">Experience evidence</a><a href="/chemistry/security.txt">Security</a>','<a href="/chemistry/rescue">Chemistry Rescue</a><a href="/chemistry/install">Install</a><a href="/chemistry/releases">Release notes</a><a href="/chemistry/experience">Experience evidence</a><a href="/chemistry/security.txt">Security</a>','Rescue global footer')
+s=once_in_section(s,render_start,render_end,"'/chemistry/experience'];","'/chemistry/experience','/chemistry/rescue','/chemistry/install','/chemistry/rescue/teachers','/chemistry/rescue/schools','/chemistry/rescue/ambassadors'];",'Rescue sitemap')
 
-# Rescue source definitions, browser-discovery assets and the zero-cost install
-# handoff must exist before field-experience initializes its bounded contracts.
-insert=(module_text('rescue-growth.mjs')+module_text('rescue-discovery.mjs')+
-        module_text('rescue-render.mjs')+module_text('install.mjs')+
-        module_text('rescue-kits.mjs'))
+insert=(module_text('rescue-growth.mjs')+module_text('rescue-discovery.mjs')+module_text('rescue-render.mjs')+module_text('install.mjs')+module_text('rescue-kits.mjs'))
 s=once(s,'// storefront/field-experience.mjs\n',insert+'// storefront/field-experience.mjs\n','Rescue module insertion')
 
-# Make the primary Rescue CTA route through the browser-native installation
-# handoff instead of forcing a raw APK download. The signed APK remains on the
-# install page as the explicit fallback.
-s=once_in_section(
-    s,'// storefront/rescue-render.mjs\n','// storefront/install.mjs\n',
-    '<a class="button" data-field-event="rescue_start" data-field-detail="${rescueEsc(src)}" href="/chemistry/download/${rescueEsc(RELEASE.apk)}">Start Free Rescue Check</a>',
-    '<a class="button" data-field-event="rescue_start" data-field-detail="${rescueEsc(src)}" href="/chemistry/install">Install / Start Free</a>',
-    'Rescue primary install handoff'
-)
+s=once_in_section(s,'// storefront/rescue-render.mjs\n','// storefront/install.mjs\n','<a class="button" data-field-event="rescue_start" data-field-detail="${rescueEsc(src)}" href="/chemistry/download/${rescueEsc(RELEASE.apk)}">Start Free Rescue Check</a>','<a class="button" data-field-event="rescue_start" data-field-detail="${rescueEsc(src)}" href="/chemistry/install">Install / Start Free</a>','Rescue primary install handoff')
 
-# The existing privacy gate runs immediately before page-view collection. Add
-# Rescue attribution after that gate so GPC/DNT/browser opt-out suppress these
-# signals exactly as they suppress all other first-party field reports.
-s=once(
-    s,
-    "  event('page_view');\n",
-    "  event('page_view');\n  const rescueRoot=q('[data-rescue-source]');\n  if(route()==='rescue'&&rescueRoot)event('rescue_visit',rescueRoot.dataset.rescueSource||'direct');\n",
-    'Rescue visit attribution'
-)
-s=once(
-    s,
-    "    el.addEventListener(type,()=>event(name,detail),{passive:true});\n",
-    "    el.addEventListener(type,()=>{\n      event(name,detail);\n      if(name==='rescue_start'&&detail==='wa_student')event('rescue_peer_start',detail);\n    },{passive:true});\n",
-    'Rescue peer-start attribution'
-)
+s=once(s,"  event('page_view');\n","  event('page_view');\n  const rescueRoot=q('[data-rescue-source]');\n  if(route()==='rescue'&&rescueRoot)event('rescue_visit',rescueRoot.dataset.rescueSource||'direct');\n",'Rescue visit attribution')
+s=once(s,"    el.addEventListener(type,()=>event(name,detail),{passive:true});\n","    el.addEventListener(type,()=>{\n      event(name,detail);\n      if(name==='rescue_start'&&detail==='wa_student')event('rescue_peer_start',detail);\n    },{passive:true});\n",'Rescue peer-start attribution')
 
-s=once(
-    s,
-    'renderPaymentStatus,renderExperience,ingestTelemetryRequest,readFieldSnapshot,computeFieldSnapshot,planViewsFromCore',
-    'renderPaymentStatus,renderExperience,renderRescue,renderInstall,renderTeacherKit,renderSchoolKit,renderAmbassadorKit,RESCUE_PRINT_CSS,normalizeGrowthSource,RESCUE_CANONICAL_URL,INSTALL_CANONICAL_URL,INSTALL_HANDOFF_JS,RESCUE_MANIFEST,RESCUE_INSTALL_JS,RESCUE_ICON_192_B64,RESCUE_ICON_512_B64,rescuePngBytes,ingestTelemetryRequest,readFieldSnapshot,computeFieldSnapshot,planViewsFromCore',
-    'STOREFRONT Rescue exports'
-)
+privacy_old='<p class="microcopy">If you disable measurement, the browser stores only the local preference needed to remember that choice. It is not a tracking identifier.</p>'
+privacy_new='<p class="microcopy">If you disable measurement, the browser stores only the local preference needed to remember that choice. The installed web experience may also store a local yes/no onboarding-complete flag so first-launch guidance is not repeated. Neither value is a tracking identifier.</p>'
+s=once(s,privacy_old,privacy_new,'Install local-state privacy disclosure')
 
-s=once(
-    s,
-    "if(req.method==='GET'&&p==='/chemistry/plans')return storefrontHtml(STOREFRONT.renderPlanDecision({plans:STOREFRONT.planViewsFromCore(),query:storefrontQuery(u)}));",
-    "if(req.method==='GET'&&p==='/chemistry/rescue')return storefrontHtml(STOREFRONT.renderRescue({source:STOREFRONT.normalizeGrowthSource(u.searchParams.get('src')||'')}));if(req.method==='GET'&&p==='/chemistry/install')return storefrontHtml(STOREFRONT.renderInstall());if(req.method==='GET'&&p==='/chemistry/rescue/teachers')return storefrontHtml(STOREFRONT.renderTeacherKit());if(req.method==='GET'&&p==='/chemistry/rescue/schools')return storefrontHtml(STOREFRONT.renderSchoolKit());if(req.method==='GET'&&p==='/chemistry/rescue/ambassadors')return storefrontHtml(STOREFRONT.renderAmbassadorKit());if(req.method==='GET'&&p==='/chemistry/plans')return storefrontHtml(STOREFRONT.renderPlanDecision({plans:STOREFRONT.planViewsFromCore(),query:storefrontQuery(u)}));",
-    'Rescue dispatch'
-)
+s=once(s,'renderPaymentStatus,renderExperience,ingestTelemetryRequest,readFieldSnapshot,computeFieldSnapshot,planViewsFromCore','renderPaymentStatus,renderExperience,renderRescue,renderInstall,renderInstallDiagnostics,renderTeacherKit,renderSchoolKit,renderAmbassadorKit,RESCUE_PRINT_CSS,normalizeGrowthSource,RESCUE_CANONICAL_URL,INSTALL_CANONICAL_URL,INSTALL_DIAGNOSTICS_URL,INSTALL_HANDOFF_JS,INSTALL_DIAGNOSTICS_JS,INSTALL_CONCIERGE_CSS,INSTALL_SW_JS,RESCUE_MANIFEST,RESCUE_INSTALL_JS,RESCUE_ICON_192_B64,RESCUE_ICON_512_B64,rescuePngBytes,ingestTelemetryRequest,readFieldSnapshot,computeFieldSnapshot,planViewsFromCore','STOREFRONT Rescue exports')
 
-s=once(
-    s,
-    "if(req.method==='GET'&&p==='/chemistry/assets/field-experience.js')return storefrontAsset(STOREFRONT.FIELD_EXPERIENCE_JS,'application/javascript; charset=utf-8');",
-    "if(req.method==='GET'&&p==='/chemistry/manifest.webmanifest')return storefrontAsset(STOREFRONT.RESCUE_MANIFEST,'application/manifest+json; charset=utf-8');if(req.method==='GET'&&p==='/chemistry/assets/rescue-install.js')return storefrontAsset(STOREFRONT.RESCUE_INSTALL_JS,'application/javascript; charset=utf-8');if(req.method==='GET'&&p==='/chemistry/assets/install-handoff.js')return storefrontAsset(STOREFRONT.INSTALL_HANDOFF_JS,'application/javascript; charset=utf-8');if(req.method==='GET'&&p==='/chemistry/assets/musitu-chemistry-192.png')return storefrontAsset(STOREFRONT.rescuePngBytes(STOREFRONT.RESCUE_ICON_192_B64),'image/png');if(req.method==='GET'&&p==='/chemistry/assets/musitu-chemistry-512.png')return storefrontAsset(STOREFRONT.rescuePngBytes(STOREFRONT.RESCUE_ICON_512_B64),'image/png');if(req.method==='GET'&&p==='/chemistry/assets/rescue-print.css')return storefrontAsset(STOREFRONT.RESCUE_PRINT_CSS,'text/css; charset=utf-8');if(req.method==='GET'&&p==='/chemistry/assets/field-experience.js')return storefrontAsset(STOREFRONT.FIELD_EXPERIENCE_JS,'application/javascript; charset=utf-8');",
-    'Rescue discovery and install asset dispatch'
-)
+s=once(s,"if(req.method==='GET'&&p==='/chemistry/plans')return storefrontHtml(STOREFRONT.renderPlanDecision({plans:STOREFRONT.planViewsFromCore(),query:storefrontQuery(u)}));","if(req.method==='GET'&&p==='/chemistry/rescue')return storefrontHtml(STOREFRONT.renderRescue({source:STOREFRONT.normalizeGrowthSource(u.searchParams.get('src')||'')}));if(req.method==='GET'&&p==='/chemistry/install')return storefrontHtml(STOREFRONT.renderInstall());if(req.method==='GET'&&p==='/chemistry/install/diagnostics')return storefrontHtml(STOREFRONT.renderInstallDiagnostics(),200,{'cache-control':'no-store'});if(req.method==='GET'&&p==='/chemistry/rescue/teachers')return storefrontHtml(STOREFRONT.renderTeacherKit());if(req.method==='GET'&&p==='/chemistry/rescue/schools')return storefrontHtml(STOREFRONT.renderSchoolKit());if(req.method==='GET'&&p==='/chemistry/rescue/ambassadors')return storefrontHtml(STOREFRONT.renderAmbassadorKit());if(req.method==='GET'&&p==='/chemistry/plans')return storefrontHtml(STOREFRONT.renderPlanDecision({plans:STOREFRONT.planViewsFromCore(),query:storefrontQuery(u)}));",'Rescue dispatch')
 
-# Browser discovery is same-origin only. Explicitly permit only the manifest
-# while preserving every existing strict CSP restriction and no third-party
-# script/style/connect allowance.
-s=once(
-    s,
-    "default-src 'none'; style-src 'self'; script-src 'self'; connect-src 'self'; img-src 'self' data:; font-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'",
-    "default-src 'none'; style-src 'self'; script-src 'self'; connect-src 'self'; img-src 'self' data:; font-src 'self'; manifest-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'",
-    'Browser manifest CSP'
-)
+s=once(s,"if(req.method==='GET'&&p==='/chemistry/assets/field-experience.js')return storefrontAsset(STOREFRONT.FIELD_EXPERIENCE_JS,'application/javascript; charset=utf-8');","if(req.method==='GET'&&p==='/chemistry/manifest.webmanifest')return storefrontAsset(STOREFRONT.RESCUE_MANIFEST,'application/manifest+json; charset=utf-8');if(req.method==='GET'&&p==='/chemistry/assets/rescue-install.js')return storefrontAsset(STOREFRONT.RESCUE_INSTALL_JS,'application/javascript; charset=utf-8');if(req.method==='GET'&&p==='/chemistry/assets/install-handoff.js')return storefrontAsset(STOREFRONT.INSTALL_HANDOFF_JS,'application/javascript; charset=utf-8');if(req.method==='GET'&&p==='/chemistry/assets/install-diagnostics.js')return storefrontAsset(STOREFRONT.INSTALL_DIAGNOSTICS_JS,'application/javascript; charset=utf-8');if(req.method==='GET'&&p==='/chemistry/assets/install-concierge.css')return storefrontAsset(STOREFRONT.INSTALL_CONCIERGE_CSS,'text/css; charset=utf-8');if(req.method==='GET'&&p==='/chemistry/sw.js')return new Response(STOREFRONT.INSTALL_SW_JS,{status:200,headers:{'content-type':'application/javascript; charset=utf-8','cache-control':'no-cache, no-store, must-revalidate','service-worker-allowed':'/chemistry/','x-content-type-options':'nosniff'}});if(req.method==='GET'&&p==='/chemistry/assets/musitu-chemistry-192.png')return storefrontAsset(STOREFRONT.rescuePngBytes(STOREFRONT.RESCUE_ICON_192_B64),'image/png');if(req.method==='GET'&&p==='/chemistry/assets/musitu-chemistry-512.png')return storefrontAsset(STOREFRONT.rescuePngBytes(STOREFRONT.RESCUE_ICON_512_B64),'image/png');if(req.method==='GET'&&p==='/chemistry/assets/rescue-print.css')return storefrontAsset(STOREFRONT.RESCUE_PRINT_CSS,'text/css; charset=utf-8');if(req.method==='GET'&&p==='/chemistry/assets/field-experience.js')return storefrontAsset(STOREFRONT.FIELD_EXPERIENCE_JS,'application/javascript; charset=utf-8');",'Rescue discovery and install asset dispatch')
+
+s=once(s,"default-src 'none'; style-src 'self'; script-src 'self'; connect-src 'self'; img-src 'self' data:; font-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'","default-src 'none'; style-src 'self'; script-src 'self'; connect-src 'self'; img-src 'self' data:; font-src 'self'; manifest-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'",'Browser manifest CSP')
 
 OUT.write_text(s)
 print(hashlib.sha256(OUT.read_bytes()).hexdigest())
