@@ -17,6 +17,7 @@ test('installed app shell is distinct from public website chrome',()=>{
   assert.match(html,/noindex,nofollow/);
   assert.doesNotMatch(html,/class="site-header"/);
   assert.doesNotMatch(html,/class="site-footer"/);
+  assert.doesNotMatch(html,/Help another Chemistry student before exams/);
   assert.doesNotMatch(html,/Checking this device/);
 });
 
