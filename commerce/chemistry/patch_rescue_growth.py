@@ -50,9 +50,10 @@ s=once_in_section(
     'Rescue sitemap'
 )
 
-# Rescue source definitions must exist before field-experience initializes its
-# source-detail allowlist. Renderers follow the existing global renderer.
-insert=module_text('rescue-growth.mjs')+module_text('rescue-render.mjs')+module_text('rescue-kits.mjs')
+# Rescue source definitions and browser-discovery assets must exist before
+# renderers and field-experience initialize their bounded contracts.
+insert=(module_text('rescue-growth.mjs')+module_text('rescue-discovery.mjs')+
+        module_text('rescue-render.mjs')+module_text('rescue-kits.mjs'))
 s=once(s,'// storefront/field-experience.mjs\n',insert+'// storefront/field-experience.mjs\n','Rescue module insertion')
 
 # The existing privacy gate runs immediately before page-view collection. Add
@@ -74,7 +75,7 @@ s=once(
 s=once(
     s,
     'renderPaymentStatus,renderExperience,ingestTelemetryRequest,readFieldSnapshot,computeFieldSnapshot,planViewsFromCore',
-    'renderPaymentStatus,renderExperience,renderRescue,renderTeacherKit,renderSchoolKit,renderAmbassadorKit,RESCUE_PRINT_CSS,normalizeGrowthSource,RESCUE_CANONICAL_URL,ingestTelemetryRequest,readFieldSnapshot,computeFieldSnapshot,planViewsFromCore',
+    'renderPaymentStatus,renderExperience,renderRescue,renderTeacherKit,renderSchoolKit,renderAmbassadorKit,RESCUE_PRINT_CSS,normalizeGrowthSource,RESCUE_CANONICAL_URL,RESCUE_MANIFEST,RESCUE_INSTALL_JS,RESCUE_ICON_192_B64,RESCUE_ICON_512_B64,rescuePngBytes,ingestTelemetryRequest,readFieldSnapshot,computeFieldSnapshot,planViewsFromCore',
     'STOREFRONT Rescue exports'
 )
 
@@ -88,8 +89,8 @@ s=once(
 s=once(
     s,
     "if(req.method==='GET'&&p==='/chemistry/assets/field-experience.js')return storefrontAsset(STOREFRONT.FIELD_EXPERIENCE_JS,'application/javascript; charset=utf-8');",
-    "if(req.method==='GET'&&p==='/chemistry/assets/rescue-print.css')return storefrontAsset(STOREFRONT.RESCUE_PRINT_CSS,'text/css; charset=utf-8');if(req.method==='GET'&&p==='/chemistry/assets/field-experience.js')return storefrontAsset(STOREFRONT.FIELD_EXPERIENCE_JS,'application/javascript; charset=utf-8');",
-    'Rescue print asset dispatch'
+    "if(req.method==='GET'&&p==='/chemistry/manifest.webmanifest')return storefrontAsset(STOREFRONT.RESCUE_MANIFEST,'application/manifest+json; charset=utf-8');if(req.method==='GET'&&p==='/chemistry/assets/rescue-install.js')return storefrontAsset(STOREFRONT.RESCUE_INSTALL_JS,'application/javascript; charset=utf-8');if(req.method==='GET'&&p==='/chemistry/assets/musitu-chemistry-192.png')return storefrontAsset(STOREFRONT.rescuePngBytes(STOREFRONT.RESCUE_ICON_192_B64),'image/png');if(req.method==='GET'&&p==='/chemistry/assets/musitu-chemistry-512.png')return storefrontAsset(STOREFRONT.rescuePngBytes(STOREFRONT.RESCUE_ICON_512_B64),'image/png');if(req.method==='GET'&&p==='/chemistry/assets/rescue-print.css')return storefrontAsset(STOREFRONT.RESCUE_PRINT_CSS,'text/css; charset=utf-8');if(req.method==='GET'&&p==='/chemistry/assets/field-experience.js')return storefrontAsset(STOREFRONT.FIELD_EXPERIENCE_JS,'application/javascript; charset=utf-8');",
+    'Rescue discovery and print asset dispatch'
 )
 
 OUT.write_text(s)
