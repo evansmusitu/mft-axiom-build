@@ -21,3 +21,13 @@ test('generated Worker serves bounded Rescue campaign through the existing stric
   const sitemap=await get('/chemistry/sitemap.xml');
   assert.match(sitemap.text,/\/chemistry\/rescue/);
 });
+
+test('field client records bounded Rescue visits and student-share peer starts without identifiers',async()=>{
+  const field=await get('/chemistry/assets/field-experience.js');
+  assert.equal(field.r.status,200);
+  assert.match(field.text,/q\('\[data-rescue-source\]'\)/);
+  assert.match(field.text,/event\('rescue_visit'/);
+  assert.match(field.text,/event\('rescue_peer_start'/);
+  assert.match(field.text,/detail==='wa_student'/);
+  assert.doesNotMatch(field.text,/(sessionStorage|randomUUID|document\.cookie|contact|phone|email)/i);
+});
