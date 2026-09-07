@@ -25,6 +25,9 @@ _CREDENTIAL = re.compile(
     r"\s*[:=]\s*"
     r"(?:[\"'](?P<quoted>[^\"'\r\n]{20,})[\"']|(?P<bare>[A-Za-z0-9_./+=:-]{20,}))"
 )
+_SOURCE_CONCAT_EXPRESSION = re.compile(
+    r"^\+\s*[A-Za-z_][A-Za-z0-9_]*(?:\s*,\s*[A-Za-z_][A-Za-z0-9_]*\s*=)?$"
+)
 _SKIP_DIRS = frozenset({".git", ".venv", "venv", "__pycache__", ".pytest_cache", "node_modules"})
 _MAX_FILE_BYTES = 2 * 1024 * 1024
 
@@ -92,7 +95,7 @@ class SecretScanner:
         return text.count("\n", 0, offset) + 1
 
     @staticmethod
-    def _looks_runtime_reference(value: str) -> bool:
+    def _looks_runtime_reference(value: str, *, kind: str) -> bool:
         stripped = value.strip()
         lowered = stripped.lower()
         return (
@@ -101,6 +104,7 @@ class SecretScanner:
             or "os.environ" in lowered
             or "process.env" in lowered
             or stripped.startswith("env:")
+            or (kind == "source" and _SOURCE_CONCAT_EXPRESSION.fullmatch(stripped) is not None)
         )
 
     def _finding(self, *, rule_id: str, source: str, line: int, secret: str) -> tuple[SecretFinding | None, int]:
@@ -143,7 +147,7 @@ class SecretScanner:
             if any(start <= match.start() < end for start, end in occupied):
                 continue
             secret = match.group("quoted") or match.group("bare") or ""
-            if self._looks_runtime_reference(secret):
+            if self._looks_runtime_reference(secret, kind=kind):
                 continue
             finding, count = self._finding(
                 rule_id="credential-assignment",
