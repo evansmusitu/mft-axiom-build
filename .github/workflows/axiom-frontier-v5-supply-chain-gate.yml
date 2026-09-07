@@ -29,6 +29,7 @@ on:
       - '.github/workflows/axiom-frontier-v5-agent-plugin-gate.yml'
       - '.github/workflows/axiom-frontier-v5-openai-plugin-package-gate.yml'
       - '.github/workflows/axiom-frontier-v5-persistent-planner-gate.yml'
+      - '.github/workflows/axiom-frontier-v5-workspace-licensing-gate.yml'
       - '.github/workflows/axiom-frontier-v5-supply-chain-gate.yml'
   pull_request:
     paths:
@@ -56,6 +57,7 @@ on:
       - '.github/workflows/axiom-frontier-v5-agent-plugin-gate.yml'
       - '.github/workflows/axiom-frontier-v5-openai-plugin-package-gate.yml'
       - '.github/workflows/axiom-frontier-v5-persistent-planner-gate.yml'
+      - '.github/workflows/axiom-frontier-v5-workspace-licensing-gate.yml'
       - '.github/workflows/axiom-frontier-v5-supply-chain-gate.yml'
   workflow_dispatch:
 
