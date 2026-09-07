@@ -93,5 +93,15 @@ s=once(
     'Rescue discovery and print asset dispatch'
 )
 
+# Browser discovery is same-origin only. Explicitly permit only the manifest
+# while preserving every existing strict CSP restriction and no third-party
+# script/style/connect allowance.
+s=once(
+    s,
+    "default-src 'none'; style-src 'self'; script-src 'self'; connect-src 'self'; img-src 'self' data:; font-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'",
+    "default-src 'none'; style-src 'self'; script-src 'self'; connect-src 'self'; img-src 'self' data:; font-src 'self'; manifest-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'",
+    'Browser manifest CSP'
+)
+
 OUT.write_text(s)
 print(hashlib.sha256(OUT.read_bytes()).hexdigest())
