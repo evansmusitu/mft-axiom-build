@@ -292,14 +292,18 @@ def verify_id_token(
     """Verify one RS256 OIDC ID token against a caller-supplied JWKS."""
     token = _nonempty(token, "ID token")
     parts = token.split(".")
-    if len(parts) != 3 or not all(parts):
-        raise OIDCError("ID token must be a three-part signed JWT")
+    if len(parts) != 3 or not parts[0] or not parts[1]:
+        raise OIDCError("ID token must be a three-part JWT")
     encoded_header, encoded_claims, encoded_signature = parts
     header = _parse_json_segment(encoded_header, "ID token header")
     claims = _parse_json_segment(encoded_claims, "ID token claims")
 
+    # Classify and reject algorithm confusion before inspecting signature
+    # presence. This makes `alg=none` an explicit algorithm-policy failure.
     if header.get("alg") != "RS256":
         raise OIDCError("ID token alg must be RS256")
+    if not encoded_signature:
+        raise OIDCError("ID token must be a signed JWT")
     kid = _nonempty(header.get("kid"), "ID token kid")
 
     if not isinstance(jwks, Mapping):
