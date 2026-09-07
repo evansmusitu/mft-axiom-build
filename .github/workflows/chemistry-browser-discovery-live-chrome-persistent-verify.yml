@@ -1,0 +1,107 @@
+name: MUSITU Chemistry Browser Discovery Persistent Chrome Verify
+
+on:
+  push:
+    branches: [chemistry-browser-discovery-20260907]
+    paths: ['.github/workflows/chemistry-browser-discovery-live-chrome-persistent-verify.yml']
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      EXPECTED_WORKER_SHA: 1af4a2a7d79de14d9539eda3d3e0f7917da98536c0d87c8253562893df9af707
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Re-read exact deployed Worker source
+        shell: bash
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/mchem-discovery-persistent && mkdir -p /tmp/mchem-discovery-persistent
+          python - <<'PY'
+          import email,hashlib,json,os,urllib.request
+          from pathlib import Path
+          api='https://api.cloudflare.com/client/v4/accounts/93f395f5121954671f92fffa453d6b61/workers/scripts/musitu-chemistry-commerce'
+          h={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY'],'User-Agent':'MUSITU-Persistent-Chrome-Verify/1.0'}
+          req=urllib.request.Request(api,method='GET',headers=h)
+          with urllib.request.urlopen(req,timeout=90) as r:
+              raw=r.read(); ctype=r.headers.get('content-type','')
+          if 'multipart/' in ctype.lower():
+              msg=email.message_from_bytes((f'Content-Type: {ctype}\r\nMIME-Version: 1.0\r\n\r\n').encode()+raw); parts=[]
+              for p in msg.walk():
+                  if p.is_multipart(): continue
+                  d=p.get_payload(decode=True) or b''
+                  if b'MUSITU Chemistry Commerce' in d: parts.append(d)
+              if len(parts)!=1: raise SystemExit('worker module extraction mismatch')
+              raw=parts[0]
+          digest=hashlib.sha256(raw).hexdigest()
+          if digest!=os.environ['EXPECTED_WORKER_SHA']: raise SystemExit('LIVE_WORKER_HASH_MISMATCH '+digest)
+          ev={'schema':'musitu.chemistry.browser_discovery.persistent_chrome_source.v1','live_worker_sha256':digest,'provider_request_method':'GET','production_mutation':False}
+          Path('/tmp/mchem-discovery-persistent/source.json').write_text(json.dumps(ev,indent=2,sort_keys=True)+'\n')
+          print(json.dumps(ev,sort_keys=True))
+          PY
+
+      - name: Persistent Chrome processes manifest and reports installability
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --no-save --no-package-lock playwright >/dev/null
+          CHROME_PATH="$(command -v google-chrome || command -v chromium || command -v chromium-browser || true)"
+          test -n "$CHROME_PATH"
+          export CHROME_PATH
+          rm -rf /tmp/mchem-chrome-profile
+          node --input-type=module <<'JS'
+          import fs from 'node:fs';
+          import {chromium} from 'playwright';
+          const context=await chromium.launchPersistentContext('/tmp/mchem-chrome-profile',{headless:true,executablePath:process.env.CHROME_PATH,viewport:{width:390,height:844},args:['--no-sandbox','--disable-dev-shm-usage']});
+          const pages=context.pages();
+          const page=pages[0]||await context.newPage();
+          const consoleErrors=[];
+          page.on('console',m=>{if(m.type()==='error')consoleErrors.push(m.text())});
+          const response=await page.goto('https://payments.mftintelligence.com/chemistry/rescue?src=direct&__mchem_persistent='+Date.now(),{waitUntil:'networkidle'});
+          if(!response||response.status()!==200)throw new Error('live Rescue HTTP '+response?.status());
+          const csp=response.headers()['content-security-policy']||'';
+          if(!csp.includes("manifest-src 'self'")||!csp.includes("script-src 'self'")||!csp.includes("style-src 'self'")||!csp.includes("connect-src 'self'")||csp.includes('unsafe-inline')||csp.includes('unsafe-eval'))throw new Error('production CSP contract '+csp);
+          const dom=await page.evaluate(()=>({canonical:document.querySelector('link[rel=canonical]')?.href||'',manifest:document.querySelector('link[rel=manifest]')?.getAttribute('href')||'',robots:document.querySelector('meta[name=robots]')?.content||'',installHidden:document.getElementById('install-rescue')?.hidden===true}));
+          if(dom.canonical!=='https://payments.mftintelligence.com/chemistry/rescue'||dom.manifest!=='/chemistry/manifest.webmanifest'||!dom.robots.includes('index,follow')||dom.installHidden!==true)throw new Error('live DOM discovery contract '+JSON.stringify(dom));
+          const client=await context.newCDPSession(page);
+          await client.send('Page.enable');
+          const appManifest=await client.send('Page.getAppManifest');
+          if(appManifest.url!=='https://payments.mftintelligence.com/chemistry/manifest.webmanifest')throw new Error('manifest URL '+JSON.stringify(appManifest));
+          if(!Array.isArray(appManifest.errors)||appManifest.errors.length)throw new Error('manifest processing errors '+JSON.stringify(appManifest.errors));
+          let manifest={};
+          try{manifest=JSON.parse(appManifest.data||'{}')}catch(e){throw new Error('manifest JSON '+String(e))}
+          if(manifest.name!=='MUSITU Chemistry Rescue 2026'||manifest.short_name!=='MUSITU Chemistry'||manifest.start_url!=='/chemistry/rescue?src=direct'||manifest.scope!=='/chemistry/'||manifest.display!=='standalone'||manifest.prefer_related_applications!==false||!Array.isArray(manifest.icons)||manifest.icons.length!==2)throw new Error('processed manifest contract '+JSON.stringify(manifest));
+          const installability=await client.send('Page.getInstallabilityErrors');
+          const installabilityErrors=Array.isArray(installability.installabilityErrors)?installability.installabilityErrors:[];
+          if(installabilityErrors.length)throw new Error('Chrome installability errors '+JSON.stringify(installabilityErrors));
+          const relevantConsoleErrors=consoleErrors.filter(x=>/manifest|content security policy|csp/i.test(x));
+          if(relevantConsoleErrors.length)throw new Error('manifest/CSP console errors '+JSON.stringify(relevantConsoleErrors));
+          const out={schema:'musitu.chemistry.browser_discovery.persistent_chrome.v1',live_url:page.url(),manifest_url:appManifest.url,manifest_errors:appManifest.errors,manifest_parsed:manifest,installability_errors:installabilityErrors,production_csp:csp,dom,csp_or_manifest_console_errors:relevantConsoleErrors,incognito_context:false,pass:true,gate:'MUSITU_CHEMISTRY_BROWSER_DISCOVERY_PERSISTENT_CHROME_VERIFY_PASS'};
+          fs.writeFileSync('/tmp/mchem-discovery-persistent/browser.json',JSON.stringify(out,null,2)+'\n');
+          console.log(JSON.stringify(out));
+          await context.close();
+          JS
+
+      - name: Seal evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd /tmp/mchem-discovery-persistent
+          sha256sum *.json > SHA256SUMS.txt
+          cat source.json
+          cat browser.json
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: musitu-chemistry-browser-discovery-persistent-chrome-verify
+          path: /tmp/mchem-discovery-persistent
+          retention-days: 90
+          if-no-files-found: error
