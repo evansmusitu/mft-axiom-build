@@ -39,6 +39,7 @@ WORKFLOWS = {
     "openai_plugin_package": ROOT / ".github/workflows/axiom-frontier-v5-openai-plugin-package-gate.yml",
     "persistent_planner": ROOT / ".github/workflows/axiom-frontier-v5-persistent-planner-gate.yml",
     "workspace_licensing": ROOT / ".github/workflows/axiom-frontier-v5-workspace-licensing-gate.yml",
+    "circuit_breaker": ROOT / ".github/workflows/axiom-frontier-v5-circuit-breaker-gate.yml",
 }
 HEX40 = re.compile(r"^[0-9a-f]{40}$")
 ACTION = re.compile(r"^\s*uses:\s*(actions/(?:checkout|setup-python|upload-artifact))@([^\s#]+)", re.M)
