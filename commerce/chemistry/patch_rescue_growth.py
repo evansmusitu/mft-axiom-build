@@ -18,8 +18,7 @@ def module_text(name):
     text=text.replace('export async function ','async function ').replace('export const ','const ').replace('export function ','function ')
     return f'// storefront/{name}\n{text.strip()}\n'
 
-# Apply unique Phase 3 global-surface anchors before inserting Rescue renderer,
-# which intentionally contains a similar footer of its own.
+# Apply unique Phase 3 global-surface anchors before inserting Rescue renderers.
 s=once(
     s,
     '<a href="/chemistry/releases">Release notes</a><a href="/chemistry/experience">Experience evidence</a><a href="/chemistry/security.txt">Security</a>',
@@ -29,13 +28,13 @@ s=once(
 s=once(
     s,
     "'/chemistry/experience'];",
-    "'/chemistry/experience','/chemistry/rescue'];",
+    "'/chemistry/experience','/chemistry/rescue','/chemistry/rescue/teachers','/chemistry/rescue/schools','/chemistry/rescue/ambassadors'];",
     'Rescue sitemap'
 )
 
 # Rescue source definitions must exist before field-experience initializes its
-# source-detail allowlist. The renderer follows the existing global renderer.
-insert=module_text('rescue-growth.mjs')+module_text('rescue-render.mjs')
+# source-detail allowlist. Renderers follow the existing global renderer.
+insert=module_text('rescue-growth.mjs')+module_text('rescue-render.mjs')+module_text('rescue-kits.mjs')
 s=once(s,'// storefront/field-experience.mjs\n',insert+'// storefront/field-experience.mjs\n','Rescue module insertion')
 
 # The existing privacy gate runs immediately before page-view collection. Add
@@ -57,15 +56,22 @@ s=once(
 s=once(
     s,
     'renderPaymentStatus,renderExperience,ingestTelemetryRequest,readFieldSnapshot,computeFieldSnapshot,planViewsFromCore',
-    'renderPaymentStatus,renderExperience,renderRescue,normalizeGrowthSource,RESCUE_CANONICAL_URL,ingestTelemetryRequest,readFieldSnapshot,computeFieldSnapshot,planViewsFromCore',
+    'renderPaymentStatus,renderExperience,renderRescue,renderTeacherKit,renderSchoolKit,renderAmbassadorKit,RESCUE_PRINT_CSS,normalizeGrowthSource,RESCUE_CANONICAL_URL,ingestTelemetryRequest,readFieldSnapshot,computeFieldSnapshot,planViewsFromCore',
     'STOREFRONT Rescue exports'
 )
 
 s=once(
     s,
     "if(req.method==='GET'&&p==='/chemistry/plans')return storefrontHtml(STOREFRONT.renderPlanDecision({plans:STOREFRONT.planViewsFromCore(),query:storefrontQuery(u)}));",
-    "if(req.method==='GET'&&p==='/chemistry/rescue')return storefrontHtml(STOREFRONT.renderRescue({source:STOREFRONT.normalizeGrowthSource(u.searchParams.get('src')||'')}));if(req.method==='GET'&&p==='/chemistry/plans')return storefrontHtml(STOREFRONT.renderPlanDecision({plans:STOREFRONT.planViewsFromCore(),query:storefrontQuery(u)}));",
+    "if(req.method==='GET'&&p==='/chemistry/rescue')return storefrontHtml(STOREFRONT.renderRescue({source:STOREFRONT.normalizeGrowthSource(u.searchParams.get('src')||'')}));if(req.method==='GET'&&p==='/chemistry/rescue/teachers')return storefrontHtml(STOREFRONT.renderTeacherKit());if(req.method==='GET'&&p==='/chemistry/rescue/schools')return storefrontHtml(STOREFRONT.renderSchoolKit());if(req.method==='GET'&&p==='/chemistry/rescue/ambassadors')return storefrontHtml(STOREFRONT.renderAmbassadorKit());if(req.method==='GET'&&p==='/chemistry/plans')return storefrontHtml(STOREFRONT.renderPlanDecision({plans:STOREFRONT.planViewsFromCore(),query:storefrontQuery(u)}));",
     'Rescue dispatch'
+)
+
+s=once(
+    s,
+    "if(req.method==='GET'&&p==='/chemistry/assets/field-experience.js')return storefrontAsset(STOREFRONT.FIELD_EXPERIENCE_JS,'application/javascript; charset=utf-8');",
+    "if(req.method==='GET'&&p==='/chemistry/assets/rescue-print.css')return storefrontAsset(STOREFRONT.RESCUE_PRINT_CSS,'text/css; charset=utf-8');if(req.method==='GET'&&p==='/chemistry/assets/field-experience.js')return storefrontAsset(STOREFRONT.FIELD_EXPERIENCE_JS,'application/javascript; charset=utf-8');",
+    'Rescue print asset dispatch'
 )
 
 OUT.write_text(s)
