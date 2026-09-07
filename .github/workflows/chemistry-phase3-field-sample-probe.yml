@@ -1,0 +1,71 @@
+name: MUSITU Chemistry Phase 3 Field Sample Probe
+
+on:
+  push:
+    branches: [chemistry-field-experience-20260906]
+    paths: ['.github/workflows/chemistry-phase3-field-sample-probe.yml']
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Fetch current public field snapshot read-only
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/mchem-field-probe && mkdir -p /tmp/mchem-field-probe
+          python - <<'PY'
+          import hashlib,json,secrets,urllib.request
+          from pathlib import Path
+          url='https://payments.mftintelligence.com/chemistry/experience.json?__mchem_field_probe='+secrets.token_hex(10)
+          req=urllib.request.Request(url,headers={'Accept':'application/json','Cache-Control':'no-cache, no-store, max-age=0','Pragma':'no-cache','User-Agent':'MUSITU-Field-Sample-Probe/1.0'})
+          with urllib.request.urlopen(req,timeout=60) as r:
+              status=r.status; raw=r.read(); headers=dict(r.headers)
+          if status!=200:raise SystemExit('experience HTTP '+str(status))
+          obj=json.loads(raw)
+          if obj.get('schema')!='musitu.chemistry.field_experience.snapshot.v1':raise SystemExit('snapshot schema mismatch')
+          if obj.get('minimum_public_sample')!=100:raise SystemExit('minimum sample mismatch')
+          metrics=obj.get('metrics') or {}
+          if sorted(metrics)!=['CLS','INP','LCP']:raise SystemExit('metric set mismatch '+repr(sorted(metrics)))
+          for name in ['LCP','INP','CLS']:
+              m=metrics[name]
+              if not isinstance(m.get('sample'),int) or m['sample']<0:raise SystemExit(name+' sample invalid')
+              if m.get('claimable') is False and (m.get('p75') is not None or m.get('rating')!='withheld'):raise SystemExit(name+' withheld contract invalid')
+              if m.get('claimable') is True and (m.get('sample',0)<100 or m.get('p75') is None):raise SystemExit(name+' claimable contract invalid')
+          Path('/tmp/mchem-field-probe/experience.json').write_bytes(raw)
+          digest=hashlib.sha256(raw).hexdigest()
+          result={
+            'schema':'musitu.chemistry.field_experience.sample_probe.v1',
+            'production_mutation':False,
+            'synthetic_valid_telemetry_written':False,
+            'snapshot_sha256':digest,
+            'status':obj.get('status'),
+            'minimum_public_sample':obj.get('minimum_public_sample'),
+            'metrics':metrics,
+            'all_metrics_claimable':all(bool(metrics[n].get('claimable')) for n in ['LCP','INP','CLS']),
+            'gate':'MUSITU_CHEMISTRY_FIELD_SAMPLE_PROBE_PASS'
+          }
+          out=(json.dumps(result,indent=2,sort_keys=True)+'\n').encode()
+          Path('/tmp/mchem-field-probe/probe.json').write_bytes(out)
+          Path('/tmp/mchem-field-probe/probe.sha256').write_text(hashlib.sha256(out).hexdigest()+'  probe.json\n')
+          print(json.dumps(result,sort_keys=True))
+          PY
+
+      - name: Seal probe evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd /tmp/mchem-field-probe
+          sha256sum experience.json probe.json probe.sha256 > SHA256SUMS.txt
+          cat probe.json
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: musitu-chemistry-field-sample-probe
+          path: /tmp/mchem-field-probe
+          retention-days: 30
+          if-no-files-found: error
