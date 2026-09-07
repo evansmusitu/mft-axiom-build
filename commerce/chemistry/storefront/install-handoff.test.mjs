@@ -19,7 +19,7 @@ const UA={
 test('universal install renderer is immediately actionable and only one canonical URL',()=>{
   const html=renderInstall({userAgent:UA.androidChrome});
   assert.equal(INSTALL_CANONICAL_URL,'https://payments.mftintelligence.com/chemistry/install');
-  assert.match(html,/Get MUSITU on this device/);
+  assert.match(html,/Get MUSITU Chemistry on this device/);
   assert.match(html,/data-install-mode="android-ready"/);
   assert.match(html,/data-install-panel="ios-safari"/);
   assert.match(html,/data-install-panel="ios-inapp"/);
