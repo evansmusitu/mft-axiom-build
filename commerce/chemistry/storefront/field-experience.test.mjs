@@ -81,3 +81,17 @@ test('public field claims remain withheld until minimum sample and use p75 histo
 test('Rescue campaign has a dedicated coarse route class',()=>{
   assert.equal(routeClass('/chemistry/rescue'),'rescue');
 });
+
+test('Rescue telemetry accepts only allowlisted source details and preserves plan-detail rules',async()=>{
+  const batch=await normalizeTelemetryBatch(req({events:[
+    {kind:'event',name:'rescue_start',route:'rescue',viewport:'mobile',detail:'wa_student'},
+    {kind:'event',name:'premium_intent',route:'rescue',viewport:'mobile',detail:'meta'},
+    {kind:'event',name:'plan_choose',route:'plans',viewport:'mobile',detail:'annual'}
+  ]}));
+  assert.equal(batch.length,3);
+  assert.equal(batch[0].detail,'wa_student');
+  assert.equal(batch[1].detail,'meta');
+  assert.equal(batch[2].detail,'annual');
+  await assert.rejects(()=>normalizeTelemetryBatch(req({events:[{kind:'event',name:'rescue_start',route:'rescue',viewport:'mobile',detail:'wa_student<script>'}]})));
+  await assert.rejects(()=>normalizeTelemetryBatch(req({events:[{kind:'event',name:'plan_choose',route:'plans',viewport:'mobile',detail:'wa_student'}]})));
+});
