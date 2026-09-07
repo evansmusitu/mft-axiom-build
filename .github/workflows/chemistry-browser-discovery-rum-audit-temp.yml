@@ -15,7 +15,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: GET-only Cloudflare Web Analytics configuration audit
+      - name: GET-only Cloudflare RUM and configuration-rules audit
         shell: bash
         env:
           CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
@@ -29,28 +29,38 @@ jobs:
           ACCOUNT='93f395f5121954671f92fffa453d6b61'
           ZONE='5b56528f03948ff5917a5e0cd9f7109e'
           TARGET='payments.mftintelligence.com'
-          url=f'https://api.cloudflare.com/client/v4/accounts/{ACCOUNT}/rum/site_info/list'
-          headers={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY'],'User-Agent':'MUSITU-Chemistry-RUM-Audit/1.0'}
-          req=urllib.request.Request(url,method='GET',headers=headers)
-          with urllib.request.urlopen(req,timeout=60) as r:
-              payload=json.load(r)
-          if payload.get('success') is not True:
-              raise SystemExit('Cloudflare RUM list failed')
-          sanitized=[]
-          affecting=[]
-          for s in payload.get('result') or []:
-              ruleset=s.get('ruleset') or {}
-              rules=[]
+          API='https://api.cloudflare.com/client/v4'
+          headers={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY'],'User-Agent':'MUSITU-Chemistry-RUM-Audit/2.0'}
+          def get(url):
+              req=urllib.request.Request(url,method='GET',headers=headers)
+              with urllib.request.urlopen(req,timeout=60) as r: payload=json.load(r)
+              if payload.get('success') is not True: raise SystemExit('Cloudflare GET failed '+url)
+              return payload
+
+          rum=get(f'{API}/accounts/{ACCOUNT}/rum/site_info/list')
+          sanitized=[]; affecting=[]
+          for s in rum.get('result') or []:
+              ruleset=s.get('ruleset') or {}; rules=[]
               for rule in s.get('rules') or []:
-                  item={'id':rule.get('id'),'host':rule.get('host'),'inclusive':rule.get('inclusive'),'is_paused':rule.get('is_paused'),'paths':rule.get('paths'),'priority':rule.get('priority')}
-                  rules.append(item)
+                  rules.append({'id':rule.get('id'),'host':rule.get('host'),'inclusive':rule.get('inclusive'),'is_paused':rule.get('is_paused'),'paths':rule.get('paths'),'priority':rule.get('priority')})
               item={'site_tag':s.get('site_tag'),'auto_install':s.get('auto_install'),'ruleset':{'id':ruleset.get('id'),'enabled':ruleset.get('enabled'),'zone_name':ruleset.get('zone_name'),'zone_tag':ruleset.get('zone_tag')},'rules':rules}
               sanitized.append(item)
               zone_match=ruleset.get('zone_tag')==ZONE or ruleset.get('zone_name')=='mftintelligence.com'
               host_match=any((r.get('host') in (TARGET,'mftintelligence.com','*.mftintelligence.com')) and r.get('is_paused') is not True for r in rules)
-              if zone_match or host_match:
-                  affecting.append(item)
-          evidence={'schema':'musitu.chemistry.browser_discovery.rum_audit.v1','request_method':'GET','target_hostname':TARGET,'target_zone_tag':ZONE,'sites_seen':len(sanitized),'affecting_sites':affecting,'production_mutation':False,'site_tokens_recorded':False,'snippets_recorded':False,'gate':'MUSITU_CHEMISTRY_BROWSER_DISCOVERY_RUM_AUDIT_PASS'}
+              if zone_match or host_match: affecting.append(item)
+
+          rslist=get(f'{API}/zones/{ZONE}/rulesets')
+          config_summaries=[]
+          for rs in rslist.get('result') or []:
+              if rs.get('phase')!='http_config_settings' or rs.get('kind')!='zone': continue
+              full=get(f"{API}/zones/{ZONE}/rulesets/{rs.get('id')}").get('result') or {}
+              rules=[]
+              for rule in full.get('rules') or []:
+                  ap=rule.get('action_parameters') or {}
+                  rules.append({'id':rule.get('id'),'ref':rule.get('ref'),'description':rule.get('description'),'expression':rule.get('expression'),'action':rule.get('action'),'enabled':rule.get('enabled'),'disable_rum':ap.get('disable_rum')})
+              config_summaries.append({'id':full.get('id'),'name':full.get('name'),'kind':full.get('kind'),'phase':full.get('phase'),'version':full.get('version'),'rules':rules})
+
+          evidence={'schema':'musitu.chemistry.browser_discovery.rum_audit.v2','request_methods':['GET'],'target_hostname':TARGET,'target_zone_tag':ZONE,'sites_seen':len(sanitized),'affecting_sites':affecting,'http_config_settings_rulesets':config_summaries,'production_mutation':False,'site_tokens_recorded':False,'snippets_recorded':False,'gate':'MUSITU_CHEMISTRY_BROWSER_DISCOVERY_RUM_CONFIG_AUDIT_PASS'}
           Path('/tmp/mchem-rum-audit/rum-audit.json').write_text(json.dumps(evidence,indent=2,sort_keys=True)+'\n')
           print(json.dumps(evidence,sort_keys=True))
           PY
@@ -65,7 +75,7 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: musitu-chemistry-browser-discovery-rum-audit
+          name: musitu-chemistry-browser-discovery-rum-config-audit
           path: /tmp/mchem-rum-audit
           retention-days: 30
           if-no-files-found: error
