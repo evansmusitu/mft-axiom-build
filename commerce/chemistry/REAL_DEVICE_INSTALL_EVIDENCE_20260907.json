@@ -1,6 +1,6 @@
 {
-  "schema": "musitu.chemistry.real_device_install_certification.v3",
-  "status": "physical_android_install_observed_app_shell_retest_required",
+  "schema": "musitu.chemistry.real_device_install_certification.v4",
+  "status": "android_chrome_app_shell_pass_other_device_gates_pending",
   "universal_install_url": "https://payments.mftintelligence.com/chemistry/install",
   "installed_app_url": "https://payments.mftintelligence.com/chemistry/app",
   "certification_protocol": "commerce/chemistry/REAL_DEVICE_INSTALL_CERTIFICATION_20260907.md",
@@ -32,7 +32,24 @@
       "observed_content": "Installed MUSITU opened the public Chemistry Rescue website content instead of a dedicated app shell.",
       "screenshot_received": true,
       "personal_identifiers_recorded": false,
-      "disposition": "Installation itself succeeded. The installed-launch UX defect was treated as a separate product defect and fixed with the dedicated /chemistry/app shell. Physical reopen against that deployed shell is still required before PASS."
+      "disposition": "Installation itself succeeded. The installed-launch UX defect was treated as a separate product defect and fixed with the dedicated /chemistry/app shell."
+    },
+    {
+      "gates": ["A3_android_chrome", "A6_installed_state_reopen"],
+      "result": "PASS_POST_APP_SHELL_DEPLOY",
+      "observed_at_local_time": "2026-09-07T22:44:00+02:00",
+      "device_class": "physical Android phone",
+      "reopen_from_installed_app_icon": true,
+      "dedicated_app_shell_visible": true,
+      "installed_badge_visible": true,
+      "app_identity_visible": "MUSITU Chemistry / EDUCATION NEXUS",
+      "workspace_heading_visible": "Your Chemistry workspace.",
+      "workflow_visible": ["Diagnose", "Revise with focus", "Prove under pressure"],
+      "app_bottom_navigation_visible": ["Home", "Rescue", "Premium", "Help"],
+      "public_website_header_footer_absent": true,
+      "screenshot_received": true,
+      "personal_identifiers_recorded": false,
+      "disposition": "Physical post-deploy reopen succeeded against the dedicated installed Chemistry app shell. Android Chrome install and installed-state reopen gates pass."
     }
   ],
   "instant_install_hotfix_evidence": {
@@ -70,10 +87,10 @@
   "gates": {
     "A1_iphone_safari": {"status":"pending","required":["adaptive Safari coach shown","Add to Home Screen completed","Home Screen icon visible","standalone launch opens dedicated Chemistry app shell"]},
     "A2_ipad_safari": {"status":"pending","required":["adaptive Safari coach shown","Add to Home Screen completed","Home Screen icon visible","standalone launch opens dedicated Chemistry app shell"]},
-    "A3_android_chrome": {"status":"physical_install_observed_reopen_retest_required","pre_hotfix_result":"fail_waiting_screen","post_hotfix_install_observed":true,"required":["page is immediately actionable with no detecting wait screen","trusted browser install control shown or immediate Chrome install recovery is available","install completed","app icon visible","standalone launch opens dedicated Chemistry app shell"]},
+    "A3_android_chrome": {"status":"pass","pre_hotfix_result":"fail_waiting_screen","post_hotfix_install_observed":true,"post_app_shell_reopen_observed":true,"required":["page is immediately actionable with no detecting wait screen","trusted browser install control shown or immediate Chrome install recovery is available","install completed","app icon visible","standalone launch opens dedicated Chemistry app shell"]},
     "A4_samsung_internet": {"status":"pending","required":["Samsung install path shown","install completed","app icon visible","standalone launch opens dedicated Chemistry app shell"]},
     "A5_android_inapp_recovery": {"status":"pending","required":["wrong-browser recovery shown","recovery opens Chrome or Samsung Internet","install succeeds after recovery"]},
-    "A6_installed_state_reopen": {"status":"retest_required_after_app_shell_deploy","required":["fully close installed MUSITU","reopen from installed app icon","dedicated MUSITU Chemistry app shell appears","public website header/footer absent","Diagnose Revise Prove onboarding or app home visible"]},
+    "A6_installed_state_reopen": {"status":"pass","required":["fully close installed MUSITU","reopen from installed app icon","dedicated MUSITU Chemistry app shell appears","public website header/footer absent","Diagnose Revise Prove onboarding or app home visible"]},
     "A7_offline_reload": {"status":"pending","required":["successful online app-shell launch first","offline reload retains bounded non-payment shell","checkout/return/claim/telemetry/plans not served from cache"]},
     "A8_update_reload": {"status":"pending","required":["reconnect to network","reload returns current live application","no reinstall required","payment authority remains network/server authoritative"]}
   },
@@ -89,5 +106,5 @@
     "redacted screenshot evidence",
     "PASS or FAIL with exact failure text"
   ],
-  "authoritative_claim_until_complete": "Android installation has been physically observed. The dedicated installed MUSITU Chemistry app shell is now live and guarded-deploy verified, but physical post-deploy reopen certification remains pending."
+  "authoritative_claim_until_complete": "Android Chrome physical installation and post-deploy reopen into the dedicated MUSITU Chemistry app shell are proven PASS. Full cross-device certification remains pending for iPhone Safari, iPad Safari, Samsung Internet, in-app recovery, offline reload, and update reload."
 }
