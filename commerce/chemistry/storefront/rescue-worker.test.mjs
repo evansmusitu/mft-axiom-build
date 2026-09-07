@@ -5,7 +5,7 @@ import {handleRequest} from '../index.storefront-v3.mjs';
 const base='https://payments.mftintelligence.com';
 async function get(path){const r=await handleRequest(new Request(base+path),{});return {r,text:await r.text()}}
 async function getBytes(path){const r=await handleRequest(new Request(base+path),{});return {r,bytes:new Uint8Array(await r.arrayBuffer())}}
-function strict(r){const csp=r.headers.get('content-security-policy')||'';assert.match(csp,/style-src 'self'/);assert.match(csp,/script-src 'self'/);assert.match(csp,/connect-src 'self'/);assert.doesNotMatch(csp,/unsafe-inline|unsafe-eval|https?:\/\//);assert.equal(r.headers.get('referrer-policy'),'no-referrer')}
+function strict(r){const csp=r.headers.get('content-security-policy')||'';assert.match(csp,/style-src 'self'/);assert.match(csp,/script-src 'self'/);assert.match(csp,/connect-src 'self'/);assert.match(csp,/manifest-src 'self'/);assert.doesNotMatch(csp,/unsafe-inline|unsafe-eval|https?:\/\//);assert.equal(r.headers.get('referrer-policy'),'no-referrer')}
 
 test('generated Worker serves bounded Rescue campaign through the existing strict public boundary',async()=>{
   const {r,text}=await get('/chemistry/rescue?src=wa_student');
@@ -56,6 +56,8 @@ test('generated Worker serves teacher school and ambassador kits with same-origi
 });
 
 test('generated Worker exposes a valid browser-install discovery manifest and local install UI',async()=>{
+  const page=await get('/chemistry/rescue?src=direct');
+  strict(page.r);
   const manifestResponse=await get('/chemistry/manifest.webmanifest');
   assert.equal(manifestResponse.r.status,200);
   assert.match(manifestResponse.r.headers.get('content-type')||'',/^application\/manifest\+json/);
