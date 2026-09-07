@@ -1,157 +1,167 @@
 # MUSITU Education Nexus — Chemistry Mastery / Chemistry Rescue 2026 Continuation
 
-Status: **BROWSER_DISCOVERY_VERIFIED · DAY-1 ORGANIC PUBLICATION NOT YET PROVEN**
+Status: **RECONCILED LIVE SEALED · DAY-1 ORGANIC PUBLICATION NOT YET PROVEN**
 
 Date: 2026-09-07
 
-This file is the compact continuation and reconciliation pointer for **MUSITU Education Nexus — Chemistry Mastery** and the **MUSITU Chemistry Rescue 2026** growth surface. It records the newest verified GitHub and production evidence without merging divergent branches or inflating any external-growth claim.
+This is the current compact continuation pointer for **MUSITU Education Nexus — Chemistry Mastery** and **MUSITU Chemistry Rescue 2026** in `evansmusitu/mft-axiom-build`. It supersedes any instruction to resume at the earlier manifest/CSP browser failure or at the pre-reconciliation branch state.
 
-## 1. Authoritative repository and branch state
+## 1. Authoritative branch and commits
 
-Repository: `evansmusitu/mft-axiom-build`
-
-National Rescue / growth branch:
+Branch:
 - `chemistry-national-rescue-growth-20260907`
-- pre-reconciliation HEAD: `379bde0b39a5f0c11d7a91eeaad904cdd0912769`
-- message: `ci: remove temporary field evidence probe`
 
-Browser-discovery branch:
+Historical national Rescue predecessor:
+- sealed predecessor Worker SHA-256: `7b17d37b514913a59a66fa1339ced59ab0b06ff9759ef51cd5ec16d4e5e20af0`
+- canonical predecessor manifest: `commerce/chemistry/RELEASE_BASELINE_20260906.json`
+
+Verified browser source branch:
 - `chemistry-browser-discovery-20260907`
-- verified HEAD: `03647088e5aadf32fa095026e90bdfcefa5a1df8`
-- message: `test: add final independent browser discovery live verifier v2`
+- verified source SHA: `03647088e5aadf32fa095026e90bdfcefa5a1df8`
 
-The two branches are intentionally **not** treated as interchangeable. Do not merge the browser-discovery branch wholesale into the national-growth branch without a fresh reconciliation review because the histories diverged. Newer independently verified production evidence, however, advances the live-production truth beyond the older national Rescue release manifest where specifically stated below.
+Selective national-growth reconciliation:
+- commit: `8ddb6942e3a8653a78328730280115cc912b38f5`
+- message: `feat: selectively reconcile verified Chemistry browser discovery`
 
-## 2. Sealed national Rescue baseline
+GET-only reconciled live-seal workflow commit:
+- `ecbff3702917b7ac6d3f9408ac65a5ba9a9da874`
+- message: `ci: add GET-only reconciled Chemistry live seal`
 
-The existing national Rescue baseline remains the architectural and commercial predecessor:
-- canonical manifest: `commerce/chemistry/RELEASE_BASELINE_20260906.json`
-- schema: `musitu.chemistry.release_baseline.v6`
-- status at seal: `VERIFIED_NATIONAL_RESCUE_GROWTH_BASELINE`
-- predecessor live Worker SHA-256 recorded by that seal: `7b17d37b514913a59a66fa1339ced59ab0b06ff9759ef51cd5ec16d4e5e20af0`
-- content QA run: `34077657825`
-- full preflight run: `34078053435`
-- guarded deploy run: `34078264681`
-- independent live verify run: `34078349117`
-- final baseline seal run: `34078568494`
+Static sealed evidence manifest:
+- `commerce/chemistry/RECONCILED_LIVE_SEAL_20260907.json`
 
-This predecessor must not be mistaken for the newest live Worker identity after browser-discovery production advancement.
+## 2. What was selectively reconciled
 
-## 3. Newer verified browser-discovery production advance
+The browser-discovery and national-growth histories diverged, so no wholesale merge was performed. Exactly five product files covered by the previously successful independent browser evidence were reconciled into the national-growth branch:
 
-The publication/browser-discovery work advanced production after the national Rescue baseline.
+1. `commerce/chemistry/patch_rescue_growth.py`
+2. `commerce/chemistry/storefront/rescue-discovery.mjs`
+3. `commerce/chemistry/storefront/rescue-render.mjs`
+4. `commerce/chemistry/storefront/rescue-render.test.mjs`
+5. `commerce/chemistry/storefront/rescue-worker.test.mjs`
 
-Guarded browser-discovery deployment evidence:
-- deployment run: `34101458667`
-- deployment head SHA: `e86260a0f40dd85775f11b068cffd105f3ed4c6e`
-- deployment artifact ID: `10010643442`
-- deployment artifact SHA-256: `42cb34f49b608cd9b7d348b17ad7c41a21eb3ca1c075cfd95a3c1698aabd3eb7`
+The reconciliation evidence contract is:
+- `commerce/chemistry/BROWSER_DISCOVERY_RECONCILIATION_20260907.json`
 
-Newest independently verified live Worker SHA-256:
-- `1af4a2a7d79de14d9539eda3d3e0f7917da98536c0d87c8253562893df9af707`
+Temporary browser-debug/RUM-audit workflows were deliberately not copied. Payment authority, licence authority, settlement-to-entitlement behavior and unrelated growth evidence were not changed.
 
-Cloudflare browser-publication boundary:
+## 3. Reconciliation verification chain
+
+All three required workflows passed on exact reconciliation commit `8ddb6942e3a8653a78328730280115cc912b38f5`:
+
+- Reconciliation CI run `34116504114`: **success**
+- Rescue Growth Focused CI run `34116504132`: **success**
+- Rescue Full Preflight run `34116504087`: **success**
+
+Full-preflight artifact:
+- artifact ID: `10016484608`
+- ZIP SHA-256: `f25f97c7ac05392a0861a80c4195c60f80ca38c02912e6055a228debf094b31f`
+
+The reconciliation CI independently proved that the five product files exactly matched the verified browser-source commit, reconstructed deterministically, and produced Worker SHA-256:
+
+`1af4a2a7d79de14d9539eda3d3e0f7917da98536c0d87c8253562893df9af707`
+
+It also passed 42 storefront/privacy/Rescue contracts plus the original 8 core commerce tests, with syntax checks green.
+
+## 4. New authoritative live seal
+
+GET-only reconciled live seal:
+- workflow: `MUSITU Chemistry National Rescue Reconciled Live Seal`
+- run: `34116755734`
+- job: `101725269836`
+- workflow head SHA: `ecbff3702917b7ac6d3f9408ac65a5ba9a9da874`
+- result: **success**
+- artifact ID: `10016563796`
+- artifact ZIP SHA-256: `3696aa40399fcf5eac0c40e0d63ce23ecabb39e8a793ed6a2ad3c253395843e7`
+- final gate: `MUSITU_CHEMISTRY_NATIONAL_RESCUE_RECONCILED_LIVE_SEAL_PASS`
+
+The seal performed **no production mutation**. It proved that the reconciled national-growth source still reconstructs to the exact live Worker SHA-256 `1af4a2a7d79de14d9539eda3d3e0f7917da98536c0d87c8253562893df9af707` and that live production still matches it.
+
+## 5. Live production boundaries proven by the seal
+
+Cloudflare/publication boundary:
 - ruleset ID: `8e8a2552a8ee4bb383abbe0d748e1da5`
 - ruleset version: `6`
 - Chemistry-scoped rule ID: `bc8c60317d884ceaacecaeb3e94e10c2`
 - rule ref: `musitu_chemistry_disable_cloudflare_rum`
-- rule behavior: `disable_rum: true`
-- scope: `payments.mftintelligence.com/chemistry` and descendants only
+- `disable_rum: true`
+- scope remains Chemistry only
 
-The scoped configuration removes Cloudflare RUM/beacon injection from the Chemistry surface so the strict first-party CSP can remain intact. It does not authorize relaxing the CSP, changing payment authority, changing licence authority, or weakening the settlement-to-entitlement invariant.
+Persistent real Chrome independently proved:
+- manifest processing errors: `0`
+- installability errors: `0`
+- browser install prompt available: `true`
+- strict first-party CSP preserved
+- Cloudflare beacon requests: `0`
+- relevant CSP/manifest console errors: `0`
 
-## 4. Independent real-browser closure
+The seal also GET-verified the public Chemistry home, plans, privacy, experience, support, verification, releases, terms, Rescue, teacher, school and ambassador routes as HTTP 200.
 
-Final independent browser-discovery V2 verification:
-- run: `34106093065`
-- workflow branch/head: `chemistry-browser-discovery-20260907` / `03647088e5aadf32fa095026e90bdfcefa5a1df8`
-- job: `101691322845`
-- result: **success**
-- evidence artifact ID: `10012408317`
-- evidence artifact ZIP SHA-256: `f0967cd4ea02e114866d4069dc2b679960bbc461d843817937486b3c04c94d7b`
-- final gate: `MUSITU_CHEMISTRY_BROWSER_DISCOVERY_INDEPENDENT_LIVE_VERIFY_V2_PASS`
+Commerce identity remained unchanged:
+- production licence key ID: `chem-lic-2026-6783aa7535d1`
+- payment authority bound: `true`
+- transport bound: `true`
+- plans: `term`, `annual`, `lifetime`, `family`, `tutor`, `school`
+- APK bytes: `5,314,934`
+- APK SHA-256: `055b63f271c18faab540985faefb970f472ea55ba9cb3495db459797902b790d`
 
-That run independently proved:
-- the exact live Worker SHA-256 above;
-- the exact Chemistry-scoped `disable_rum` rule and ruleset version;
-- public Chemistry, Rescue, teacher, school, ambassador, privacy, terms, support, release, verification and experience routes remained HTTP 200;
-- canonical URL, robots index/follow metadata, Open Graph, Twitter preview and structured application data were present;
-- the manifest endpoint was valid and Chrome processed it without manifest errors;
-- Chrome installability errors were zero;
-- the browser install prompt was available;
-- the strict CSP remained self-only for script/style/connect/manifest and did not admit Cloudflare beacon domains;
-- Cloudflare beacon requests were absent in the independent browser run;
-- no CSP/manifest browser-console errors remained;
-- APK identity remained 5,314,934 bytes with SHA-256 `055b63f271c18faab540985faefb970f472ea55ba9cb3495db459797902b790d`;
-- production licence key ID remained `chem-lic-2026-6783aa7535d1`;
-- payment authority and transport bindings remained intact;
-- catalog plan IDs remained `term`, `annual`, `lifetime`, `family`, `tutor`, `school`;
-- no real-money settlement, indexing, or field-INP claim was introduced by the verifier.
+Canonical entitlement invariant remains:
 
-Therefore the earlier real-browser publication sub-gate failure is **resolved**. Do not continue debugging the already-closed manifest/CSP failure unless a newer verified run proves regression.
+**VERIFIED_SETTLEMENT_EVIDENCE → SIGNED_MUSITU_ENTITLEMENT**
 
-## 5. Current field-experience boundary
+## 6. Field-experience boundary
 
-A temporary GET-only field-evidence probe ran after the browser closure:
-- run: `34109713561`
-- job: `101702866637`
-- result: **success**
-- endpoint: `https://payments.mftintelligence.com/chemistry/experience.json`
-- status: `insufficient_field_sample`
-- public minimum sample: `100`
-- LCP sample: `49`, p75 withheld, claimable `false`
-- INP sample: `38`, p75 withheld, claimable `false`
-- CLS sample: `52`, p75 withheld, claimable `false`
+The newest reconciled live seal still reports:
+- experience status: `insufficient_field_sample`
+- public minimum metric sample: `100`
+- field claimable now: `false`
 
-The temporary probe workflow was then removed by commit `379bde0b39a5f0c11d7a91eeaad904cdd0912769`.
+Earlier recorded samples were LCP `49`, INP `38`, CLS `52`. Do not claim field Core Web Vitals or field INP quality until the public evidence contract itself reaches the threshold and a new verification seals it.
 
-No field Core Web Vitals or field INP quality claim is permitted from these sample counts.
+## 7. Day-1 organic publication boundary
 
-## 6. Day-1 organic publication state
-
-The approved founder/brand copy is frozen in:
+Approved founder/brand copy remains frozen in:
 - `growth/chemistry-rescue/DAY1_FOUNDER_POST_READY_20260907.md`
 
-Required destination:
+Required destination remains exactly:
 - `https://payments.mftintelligence.com/chemistry/rescue?src=direct`
 
-The pre-distribution aggregate baseline is frozen in:
+Pre-distribution aggregate baseline remains:
 - `growth/chemistry-rescue/DAY1_ORGANIC_BASELINE_20260907.md`
 
-At that baseline, only aggregate Rescue page/visit evidence existed; it was not evidence of distinct users, adoption, revenue, outcome improvement, ROI or settlement.
+**Publication is still NOT YET PROVEN.**
 
-**GitHub publication status remains: NOT YET PUBLISHED / NOT YET PROVEN.**
-
-Do not change that status until external evidence contains all of the following:
+Do not mark Day-1 published until immutable external evidence contains:
 - publishing platform/account identity;
 - public post URL or immutable platform post ID;
 - publication timestamp;
-- exact or platform-rendered Day-1 copy;
+- exact or platform-rendered approved copy;
 - destination retaining `src=direct`;
-- confirmation that the placement was organic and not paid/boosted.
+- proof the placement was organic and not paid/boosted.
 
-A provider/account rejection is evidence of an external publication boundary, not evidence that a post was published. Do not substitute a different audience merely to manufacture a Day-1 result.
+A provider/account authorization failure is evidence of an external boundary, not publication evidence. Do not substitute another audience merely to create an artificial launch result.
 
-## 7. Exact continuation point
+## 8. Exact continuation point
 
-The correct continuation point is **after browser-discovery closure and after the successful insufficient-sample field probe, but before independently proven Day-1 founder publication**.
+The GitHub/browser reconciliation task is now **closed and sealed**. Do not restart it unless a newer verified run proves regression.
 
-For GitHub engineering work:
-1. Preserve the current live Worker SHA-256 `1af4a2a7d79de14d9539eda3d3e0f7917da98536c0d87c8253562893df9af707` and Chemistry-scoped Cloudflare RUM-disable rule as the newest verified production state.
-2. Do not use the older manifest Worker hash `7b17d37b...` as the current live identity.
-3. Do not merge divergent browser-discovery and national-growth histories wholesale. Reconcile only explicitly reviewed product/evidence changes.
-4. Before any future production mutation, re-read the live Worker, ruleset, payment/licence bindings and relevant Actions evidence and require a new gated evidence chain.
-5. The next growth action remains the controlled organic founder/brand Day-1 placement using exactly `src=direct`; GitHub state must not claim publication until immutable external proof is sealed.
+The exact next action is external execution of the already-approved Day-1 organic founder/brand placement to:
 
-## 8. Non-negotiable evidence and commercial boundaries
+`https://payments.mftintelligence.com/chemistry/rescue?src=direct`
 
-- Canonical entitlement invariant: **VERIFIED_SETTLEMENT_EVIDENCE → SIGNED_MUSITU_ENTITLEMENT**.
+through an authorized publishing account. Once a real public post exists, capture and seal its immutable evidence in GitHub before measuring post-publication Rescue funnel movement or making any adoption, revenue, ROI, settlement or outcome claim.
+
+If the publishing provider rejects or lacks authorization, record that exact external boundary and do not falsely mark the Day-1 placement complete.
+
+## 9. Non-negotiable claims and safety boundaries
+
 - Real-money settlement observed/claimed in this continuation: **false**.
 - Field INP claimable: **false**.
-- Paid-media spend authorized as evidence of results: **false**; do not scale paid traffic before qualifying organic-funnel evidence.
+- Day-1 organic publication proven: **false**.
 - Official ZIMSEC affiliation claimed: **false**.
 - Guaranteed exam outcome claimed: **false**.
 - Personal source identifiers in Rescue attribution: **prohibited**.
 - Aggregate/privacy-preserving measurement and GPC/DNT suppression remain mandatory.
+- Paid scaling remains gated on qualifying organic-funnel evidence.
 
-This continuation supersedes any instruction to resume at the earlier failed browser sub-gate. If a newer verified GitHub or production state advances beyond the identities recorded here, that newer verified state becomes authoritative while these architecture, privacy, payment, licence and evidence boundaries remain in force.
+If newer verified GitHub or production evidence advances beyond this document, the newer verified state becomes authoritative while these architecture, privacy, settlement, licence and evidence boundaries remain in force.
