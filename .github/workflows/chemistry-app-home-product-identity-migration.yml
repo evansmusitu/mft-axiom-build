@@ -1,0 +1,84 @@
+name: MUSITU Chemistry Home Product Identity Migration
+
+on:
+  push:
+    branches: [chemistry-national-rescue-growth-20260907]
+    paths: ['.github/workflows/chemistry-app-home-product-identity-migration.yml']
+
+permissions:
+  contents: write
+
+jobs:
+  migrate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    env:
+      RED_TEST_SHA: 40162f2b6ab4c505325cd59c226fb2a78259b2c0
+      TARGET: commerce/chemistry/storefront/app-shell.mjs
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Guard exact red-test lineage
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD^)" = "$RED_TEST_SHA"
+          test "$(git diff --name-only HEAD^ HEAD)" = ".github/workflows/chemistry-app-home-product-identity-migration.yml"
+          git diff --quiet "$RED_TEST_SHA" HEAD -- commerce/chemistry
+
+      - name: Replace Rescue-first Home with MUSITU Chemistry product Home
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('commerce/chemistry/storefront/app-shell.mjs')
+          s=p.read_text()
+          old='''function homeView(){
+  return `<section class="app-hero"><span class="app-eyebrow">Chemistry Rescue 2026</span><h1>Your Chemistry workspace.</h1><p>One focused place to find what needs attention, revise deliberately, and prepare for exam pressure — without the public website chrome.</p><a class="app-primary" href="/chemistry/app?view=rescue">Continue Chemistry Rescue</a></section><section class="app-grid" aria-label="MUSITU rescue method"><article class="app-stat"><b>01</b><span>Diagnose what needs attention</span></article><article class="app-stat"><b>02</b><span>Revise with focus</span></article><article class="app-stat"><b>03</b><span>Prove with scientific expression</span></article></section><section class="app-section"><div class="app-section-head"><h2>Quick access</h2><p>Stay inside MUSITU</p></div><div class="app-actions"><a class="app-action primary" href="/chemistry/app?view=rescue">Continue Rescue</a><a class="app-action" href="/chemistry/app?view=exam">Open Scientific Response OS</a><a class="app-action" href="/chemistry/app?view=premium">Premium options</a><a class="app-action" href="/chemistry/app?view=help">Help &amp; support</a></div></section><p class="app-note"><strong>Installed app mode:</strong> MUSITU runs from the same secure web origin, but the installed launch surface is separated from the public marketing site. Rescue, Prove, Premium and Help navigation stay inside the installed app surface. Payment and entitlement remain server-authoritative.</p>`;
+}'''
+          new='''function homeView(){
+  return `<section class="app-hero"><span class="app-eyebrow">MUSITU Chemistry · Education Nexus</span><h1>Your Chemistry workspace.</h1><p>One focused place to revise deliberately, express Chemistry precisely, and use Rescue when you need targeted support — without the public website chrome.</p><a class="app-primary" href="/chemistry/app?view=exam">Open Scientific Response OS</a></section><section class="app-grid" aria-label="MUSITU Chemistry workspace"><article class="app-stat"><b>01</b><span>Use Rescue when a topic needs targeted support</span></article><article class="app-stat"><b>02</b><span>Revise with focus</span></article><article class="app-stat"><b>03</b><span>Prove with scientific expression</span></article></section><section class="app-section"><div class="app-section-head"><h2>Quick access</h2><p>Stay inside MUSITU Chemistry</p></div><div class="app-actions"><a class="app-action primary" href="/chemistry/app?view=exam">Open Scientific Response OS</a><a class="app-action" href="/chemistry/app?view=rescue">Chemistry Rescue</a><a class="app-action" href="/chemistry/app?view=premium">Premium options</a><a class="app-action" href="/chemistry/app?view=help">Help &amp; support</a></div></section><p class="app-note"><strong>Installed app mode:</strong> MUSITU Chemistry runs from the same secure web origin, with a dedicated installed launch surface separated from the public marketing site. Home, Rescue, Prove, Premium and Help stay inside the installed app surface. Payment and entitlement remain server-authoritative.</p>`;
+}'''
+          if s.count(old)!=1:
+              raise SystemExit(f'homeView anchor count rejected: {s.count(old)}')
+          s=s.replace(old,new)
+          p.write_text(s)
+          print('CHEMISTRY_HOME_PRODUCT_IDENTITY_PATCH=PASS')
+          PY
+
+      - name: Prove focused red-green behavior
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --test commerce/chemistry/storefront/app-shell.test.mjs
+
+      - name: Reconstruct Worker and run full storefront contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/mchem-home-base /tmp/mchem-home-source.zip
+          mkdir -p /tmp/mchem-home-base
+          cat commerce/chemistry/source.b64.* | base64 -d > /tmp/mchem-home-source.zip
+          echo '5b2618499eed8dc90261bc4f8260246d5593534500dd2fb145f2d24b5c47754c  /tmp/mchem-home-source.zip' | sha256sum -c -
+          unzip -q /tmp/mchem-home-source.zip -d /tmp/mchem-home-base
+          echo '848e1cec17ec580822d36e595196cda5978713849e8b45c5bc8dc7fcf9765db8  /tmp/mchem-home-base/src/index.mjs' | sha256sum -c -
+          cp /tmp/mchem-home-base/src/index.mjs commerce/chemistry/index.base.mjs
+          python commerce/chemistry/patch_storefront.py
+          python commerce/chemistry/patch_rescue_growth.py
+          node --check commerce/chemistry/index.storefront-v3.mjs
+          node --test commerce/chemistry/storefront/*.test.mjs
+          sha256sum commerce/chemistry/index.storefront-v3.mjs
+
+      - name: Commit only the verified product fix
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git diff --name-only)" = "$TARGET"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add "$TARGET"
+          git commit -m 'fix: make MUSITU Chemistry the installed Home identity'
+          git push origin HEAD:chemistry-national-rescue-growth-20260907
