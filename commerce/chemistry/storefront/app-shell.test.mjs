@@ -27,8 +27,9 @@ test('installed Home identifies the product as MUSITU Chemistry and keeps Rescue
   const home=renderChemistryApp({view:'home'});
   const rescue=renderChemistryApp({view:'rescue'});
   assert.match(home,/MUSITU Chemistry · Education Nexus/);
-  assert.match(home,/Open Scientific Response OS/);
-  assert.match(home,/Chemistry Rescue/);
+  assert.match(home,/class="app-primary" href="\/chemistry\/app\?view=exam">Open Scientific Response OS/);
+  assert.match(home,/class="app-action primary" href="\/chemistry\/app\?view=exam">Open Scientific Response OS/);
+  assert.match(home,/class="app-action" href="\/chemistry\/app\?view=rescue">Chemistry Rescue/);
   assert.doesNotMatch(home,/Chemistry Rescue 2026/);
   assert.doesNotMatch(home,/Continue Chemistry Rescue/);
   assert.doesNotMatch(home,/aria-label="MUSITU rescue method"/);
