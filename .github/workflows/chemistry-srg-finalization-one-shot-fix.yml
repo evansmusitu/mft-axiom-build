@@ -26,7 +26,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test "$(git rev-parse HEAD^)" = "263ba8a715a87d03143697541688ff7abdec4c4e"
+          test "$(git rev-parse HEAD^)" = "d589653fe4dceb12c7c8b71bbd6166194c3de28c"
           test "$(git diff --name-only HEAD^ HEAD)" = ".github/workflows/chemistry-srg-finalization-one-shot-fix.yml"
           test "$(git branch --show-current)" = "chemistry-national-rescue-growth-20260907"
 
@@ -70,7 +70,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          npm install --no-save --no-package-lock playwright
+          npm install --no-save --no-package-lock playwright axe-core
           CHROME_PATH="$(command -v google-chrome || command -v chromium || command -v chromium-browser || true)"
           test -n "$CHROME_PATH"
           node commerce/chemistry/storefront/browser-smoke.mjs serve commerce/chemistry/index.storefront-v3.mjs >/tmp/mchem-srg-server.log 2>&1 &
