@@ -178,6 +178,44 @@
     "real_money_settlement_performed": false,
     "physical_premium_help_retest_required": true
   },
+  "production_browser_acceptance_evidence": {
+    "verification_commit_sha": "4be45d629cf0f2069c011d614108c973414e7f3a",
+    "deployed_source_sha": "de92b9b75a585b4933645f5c33eca424ec518949",
+    "recorded_production_worker_sha256": "68786463cdb6527adac1df1ec9a3b3424f0e5cdb0544dbbf1a1c9ffaa3ec6967",
+    "worker_hash_claim_scope": "Pointer to immutable guarded-deployment evidence; the read-only browser verifier did not use Cloudflare credentials to re-hash the live script.",
+    "workflow": "MUSITU Chemistry App Production Browser Acceptance",
+    "workflow_run_id": 34183330858,
+    "workflow_job_id": 101926669287,
+    "workflow_conclusion": "success",
+    "artifact_id": 10039651413,
+    "artifact_name": "musitu-chemistry-production-browser-acceptance",
+    "artifact_sha256": "d8ec68a22acf85f24171b2ccac562819f400a527d566e03d14ddc26e79b21ab1",
+    "chrome_version": "152.0.7977.64",
+    "chromedriver_version": "152.0.7977.64",
+    "storefront_tests_passed": 63,
+    "storefront_tests_failed": 0,
+    "exact_worker_reconstruction_pass": true,
+    "direct_app_entry_pass": true,
+    "direct_app_not_redirected_to_rescue": true,
+    "musitu_chemistry_education_nexus_identity_pass": true,
+    "live_navigation_sequence_pass": ["Home", "Rescue", "Premium", "Help"],
+    "dark_app_shell_retained_on_internal_views": true,
+    "public_footer_absent_from_app_views": true,
+    "strict_security_headers_pass": true,
+    "manifest_identity_preserved": true,
+    "manifest_start_url": "/chemistry/app",
+    "service_worker_cache": "musitu-chemistry-install-v6",
+    "offline_non_payment_shell_contract_rechecked": true,
+    "sensitive_routes_absent_from_app_cache_asset": ["checkout", "return", "claim", "telemetry", "plans"],
+    "payment_authority_bound": true,
+    "transport_binding_bound": true,
+    "read_only_verification": true,
+    "deployment_performed": false,
+    "physical_device_claimed": false,
+    "physical_premium_help_retest_required": true,
+    "physical_update_reload_retest_required": true,
+    "real_money_settlement_performed": false
+  },
   "privacy_boundary": {
     "personal_identifiers_prohibited": true,
     "payment_references_prohibited": true,
@@ -193,7 +231,7 @@
     "A6_installed_state_reopen": {"status":"pass","required":["fully close installed MUSITU","reopen from installed app icon","dedicated MUSITU Chemistry app shell appears","public website header/footer absent","Diagnose Revise Prove onboarding or app home visible"]},
     "A7_offline_reload": {"status":"pass","pre_v5_result":"public_rescue_fallback","post_v5_physical_retest":"dedicated_app_shell_retained_in_airplane_mode","required":["successful online app-shell launch first","offline reload retains bounded non-payment shell","checkout/return/claim/telemetry/plans not served from cache"]},
     "A8_update_reload": {"status":"pending","required":["reconnect to network","reload returns current live application","no reinstall required","payment authority remains network/server authoritative"]},
-    "A9_native_premium_help_navigation": {"status":"retest_required_after_deploy","pre_deploy_result":"public_white_pages","required":["refresh installed app online after native-navigation deploy","tap Premium and remain in dark installed app shell","tap Help and remain in dark installed app shell","secure checkout/support actions remain online/server-authoritative"]}
+    "A9_native_premium_help_navigation": {"status":"retest_required_after_deploy","pre_deploy_result":"public_white_pages","browser_production_acceptance":"pass","required":["refresh installed app online after native-navigation deploy","tap Premium and remain in dark installed app shell","tap Help and remain in dark installed app shell","secure checkout/support actions remain online/server-authoritative"]}
   },
   "evidence_requirements_per_gate": [
     "device class and OS major version when available",
@@ -207,5 +245,5 @@
     "redacted screenshot evidence",
     "PASS or FAIL with exact failure text"
   ],
-  "authoritative_claim_until_complete": "Android Chrome installation, installed-state reopen and physical offline reopen are proven PASS. Native Premium and Help app views are CI-green and production-deployed with six consecutive edge sweeps and no rollback, but their physical-device navigation retest remains pending. Full cross-device certification also remains pending for iPhone Safari, iPad Safari, Samsung Internet, Android in-app recovery and update reload."
+  "authoritative_claim_until_complete": "Android Chrome installation, installed-state reopen and physical offline reopen are proven PASS. The production browser acceptance gate independently verified direct /chemistry/app entry and Home, Rescue, Premium and Help navigation in Chrome while retaining the dedicated MUSITU Chemistry application shell and strict security/payment boundaries. Native Premium and Help physical-device navigation retest remains pending. Full cross-device certification also remains pending for iPhone Safari, iPad Safari, Samsung Internet, Android in-app recovery and physical update reload."
 }
