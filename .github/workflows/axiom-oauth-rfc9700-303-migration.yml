@@ -27,7 +27,7 @@ jobs:
           ref: frontier/axiom-v5-skill-fabric
           fetch-depth: 0
 
-      - name: Patch only the credential-bearing authorization POST redirect contract
+      - name: Patch only remaining OAuth authorization POST verifier contracts
         shell: bash
         run: |
           set -euo pipefail
@@ -35,14 +35,6 @@ jobs:
           from pathlib import Path
 
           replacements = {
-              Path('auth/musitu_axiom_oauth_worker.mjs'): (
-                  'return new Response(null,{status:302,headers:{location:r.toString(),',
-                  'return new Response(null,{status:303,headers:{location:r.toString(),',
-              ),
-              Path('.github/workflows/axiom-oauth-production-deploy.yml'): (
-                  "if pc!=302:raise RuntimeError('authorization consent POST expected 302 got '+str(pc))",
-                  "if pc!=303:raise RuntimeError('authorization consent POST expected 303 got '+str(pc))",
-              ),
               Path('.github/workflows/axiom-openai-reviewer-demo-provision.yml'): (
                   "if pc!=302 or not code or (qp.get('state') or [''])[0]!=state: raise RuntimeError('reviewer account OAuth authentication failed')",
                   "if pc!=303 or not code or (qp.get('state') or [''])[0]!=state: raise RuntimeError('reviewer account OAuth authentication failed')",
@@ -51,63 +43,63 @@ jobs:
                   'if pc != 302 or not raw_code or (params.get("state") or [""])[0] != state:',
                   'if pc != 303 or not raw_code or (params.get("state") or [""])[0] != state:',
               ),
+              Path('frontier_v5/scripts/frontier_live_verify.py'): (
+                  'if pc!=302 or not code or (qp.get("state") or [""])[0]!=state: raise RuntimeError("frontier OAuth authorization failed")',
+                  'if pc!=303 or not code or (qp.get("state") or [""])[0]!=state: raise RuntimeError("frontier OAuth authorization failed")',
+              ),
           }
 
           for path, (old, new) in replacements.items():
               text = path.read_text()
               count = text.count(old)
               if count != 1:
-                  raise RuntimeError(f'Fail-closed: {path} expected exactly one targeted 302 contract, found {count}')
+                  raise RuntimeError(f'Fail-closed: {path} expected exactly one targeted stale 302 verifier contract, found {count}')
               path.write_text(text.replace(old, new, 1))
               print(f'patched={path}')
           PY
 
-          # No broad redirect rewrite: only the four reviewed authorization-POST contracts above.
+          # Production behavior is already 303. This migration only aligns the remaining verifiers.
           node --check auth/musitu_axiom_oauth_worker.mjs
-          python -m py_compile scripts/rollout_oauth_userinfo.py
+          python -m py_compile scripts/rollout_oauth_userinfo.py frontier_v5/scripts/frontier_live_verify.py
           git diff --check
 
           python - <<'PY'
           from pathlib import Path
-          checks = {
-            'auth/musitu_axiom_oauth_worker.mjs': ['status:303'],
-            '.github/workflows/axiom-oauth-production-deploy.yml': ['authorization consent POST expected 303'],
-            '.github/workflows/axiom-openai-reviewer-demo-provision.yml': ['pc!=303'],
-            'scripts/rollout_oauth_userinfo.py': ['pc != 303'],
-          }
-          for p, needles in checks.items():
-              text=Path(p).read_text()
-              for needle in needles:
-                  if needle not in text:
-                      raise RuntimeError(f'Fail-closed: required 303 invariant missing: {p}: {needle}')
           worker=Path('auth/musitu_axiom_oauth_worker.mjs').read_text()
+          if 'return new Response(null,{status:303,headers:{location:r.toString(),' not in worker:
+              raise RuntimeError('Fail-closed: credential-bearing worker redirect is not 303')
           if 'return new Response(null,{status:302,headers:{location:r.toString(),' in worker:
               raise RuntimeError('Fail-closed: credential-bearing worker redirect still uses 302')
           deploy=Path('.github/workflows/axiom-oauth-production-deploy.yml').read_text()
+          if 'authorization consent POST expected 303' not in deploy:
+              raise RuntimeError('Fail-closed: production gate does not require 303')
           if 'authorization consent POST expected 302' in deploy:
               raise RuntimeError('Fail-closed: production gate still expects 302')
           reviewer=Path('.github/workflows/axiom-openai-reviewer-demo-provision.yml').read_text()
-          if "if pc!=302 or not code" in reviewer:
-              raise RuntimeError('Fail-closed: reviewer gate still expects 302')
+          if "if pc!=303 or not code" not in reviewer or "if pc!=302 or not code" in reviewer:
+              raise RuntimeError('Fail-closed: reviewer gate 303 invariant failed')
           rollout=Path('scripts/rollout_oauth_userinfo.py').read_text()
-          if 'if pc != 302 or not raw_code' in rollout:
-              raise RuntimeError('Fail-closed: UserInfo rollout gate still expects 302')
-          print('RFC9700_303_TARGETED_INVARIANTS=PASS')
+          if 'if pc != 303 or not raw_code' not in rollout or 'if pc != 302 or not raw_code' in rollout:
+              raise RuntimeError('Fail-closed: UserInfo rollout gate 303 invariant failed')
+          frontier=Path('frontier_v5/scripts/frontier_live_verify.py').read_text()
+          if 'if pc!=303 or not code' not in frontier or 'if pc!=302 or not code' in frontier:
+              raise RuntimeError('Fail-closed: Frontier live verifier 303 invariant failed')
+          print('RFC9700_303_REMAINING_VERIFIERS=PASS')
           PY
 
-      - name: Commit the reviewed 303 migration on Frontier only
+      - name: Commit the remaining 303 verifier alignment on Frontier only
         id: commit
         shell: bash
         run: |
           set -euo pipefail
           test "$(git branch --show-current)" = "$BRANCH"
           git status --short
-          git diff -- auth/musitu_axiom_oauth_worker.mjs .github/workflows/axiom-oauth-production-deploy.yml .github/workflows/axiom-openai-reviewer-demo-provision.yml scripts/rollout_oauth_userinfo.py
+          git diff -- .github/workflows/axiom-openai-reviewer-demo-provision.yml scripts/rollout_oauth_userinfo.py frontier_v5/scripts/frontier_live_verify.py
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add auth/musitu_axiom_oauth_worker.mjs .github/workflows/axiom-oauth-production-deploy.yml .github/workflows/axiom-openai-reviewer-demo-provision.yml scripts/rollout_oauth_userinfo.py
-          test "$(git diff --cached --name-only | wc -l | tr -d ' ')" = "4"
-          git commit -m 'Use RFC 9700 303 for OAuth consent redirect'
+          git add .github/workflows/axiom-openai-reviewer-demo-provision.yml scripts/rollout_oauth_userinfo.py frontier_v5/scripts/frontier_live_verify.py
+          test "$(git diff --cached --name-only | wc -l | tr -d ' ')" = "3"
+          git commit -m 'Align OAuth verifiers with 303 redirect'
           NEW_SHA="$(git rev-parse HEAD)"
           echo "new_sha=$NEW_SHA" >> "$GITHUB_OUTPUT"
           git push origin "HEAD:$BRANCH"
