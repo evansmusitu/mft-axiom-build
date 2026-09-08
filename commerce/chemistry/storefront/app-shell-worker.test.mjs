@@ -65,14 +65,17 @@ test('generated Worker serves a no-store native-feel app shell, Prove and local 
   assert.match(bridge.text,/location\.replace\('\/chemistry\/app'\)/);
 });
 
-test('manifest preserves previous app identity while changing launch destination to app shell',async()=>{
+test('manifest has a dedicated MUSITU Chemistry app identity and launches the app shell',async()=>{
   const manifest=await get('/chemistry/manifest.webmanifest');
   assert.equal(manifest.r.status,200);
   const m=JSON.parse(manifest.text);
-  assert.equal(m.id,'/chemistry/rescue?src=direct');
+  assert.equal(m.id,'/chemistry/app');
+  assert.equal(m.name,'MUSITU Chemistry');
+  assert.equal(m.short_name,'MUSITU Chemistry');
   assert.equal(m.start_url,'/chemistry/app');
   assert.equal(m.scope,'/chemistry/');
   assert.equal(m.display,'standalone');
+  assert.doesNotMatch(m.description,/Rescue/i);
 });
 
 test('public Rescue loads blocking standalone bridge before body content and remains crawlable',async()=>{
