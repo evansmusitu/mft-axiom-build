@@ -1,0 +1,32 @@
+{
+  "schema": "musitu.chemistry.android_sidecar.source_artifact.v1",
+  "artifact_name": "MUSITU_Chemistry_1.3.0_FRONTIER_UNIVERSAL_SIDECAR_SOURCE_20260908.zip",
+  "artifact_sha256": "197f3ba65a7aad4def74cc97bac8c6d2aed553ef5aa43171b0981bfe11c05494",
+  "artifact_bytes": 709150,
+  "artifact_file_count": 25,
+  "library_file_id": "file_0000000035e881fab2cdacf0d19ce15e",
+  "library_file_id_is_private_project_artifact_pointer": true,
+  "unsigned_apk": {
+    "name": "MUSITU_Chemistry_1.3.0-frontier-sidecar-rc1_UNSIGNED.apk",
+    "sha256": "d5cb434021027498c473fbfb2b4ac4d4862e72ad218071a7a453012fee10b4db",
+    "library_file_id": "file_00000000d4508206887f6d1bbf2fb0e3"
+  },
+  "v2_test_apk": {
+    "name": "MUSITU_Chemistry_1.3.0-frontier-sidecar-rc1_V2_TEST.apk",
+    "sha256": "a75d8512085556eaebc77475fe04dda332bc7a5c6bd65c897ffcf5c975d19f8d",
+    "certificate_sha256": "f952a4c2d34f10fcdaf16ff9b26133ef545bdab05d42be91deb8e4f59c9400a7",
+    "library_file_id": "file_00000000ba0481faa0ee17e04ef432f7",
+    "production_authority": false
+  },
+  "evidence_files": {
+    "migration_contract_library_file_id": "file_0000000014d081f8b3b10a8e8a917b78",
+    "sidecar_verification_library_file_id": "file_000000005fe081faa73136e40930df50",
+    "v2_test_verification_library_file_id": "file_00000000c55081faa645e454ceac400f"
+  },
+  "contains_private_keys": false,
+  "contains_keystores": false,
+  "contains_payment_secrets": false,
+  "contains_licence_signing_private_key": false,
+  "production_signing_authority": false,
+  "publication_authority": false
+}
