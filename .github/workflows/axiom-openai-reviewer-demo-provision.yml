@@ -115,6 +115,12 @@ jobs:
           d1('CREATE TABLE IF NOT EXISTS oauth_identity_claims (customer_id TEXT PRIMARY KEY, email_verified_at TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL)')
           d1('INSERT INTO customers(id,email,name,plan,status,monthly_unit_override,created_at,updated_at) VALUES(?1,?2,?3,?4,?5,?6,?7,?7) ON CONFLICT(id) DO UPDATE SET email=excluded.email,name=excluded.name,plan=excluded.plan,status=excluded.status,monthly_unit_override=excluded.monthly_unit_override,updated_at=excluded.updated_at',
              [CUSTOMER,EMAIL,'MUSITU Axiom OpenAI Reviewer Demo','developer','active',100000,now])
+          hc_rows=d1('SELECT count(*) AS n FROM api_keys WHERE key_hash=?1 AND id<>?2',[key_hash,KEY_ID])
+          pc_rows=d1('SELECT count(*) AS n FROM api_keys WHERE key_prefix=?1 AND id<>?2',[key_prefix,KEY_ID])
+          hash_conflicts=int(hc_rows[0].get('n') or 0) if hc_rows else -1
+          prefix_conflicts=int(pc_rows[0].get('n') or 0) if pc_rows else -1
+          print(json.dumps({'reviewer_key_hash_conflicts':hash_conflicts,'reviewer_key_prefix_conflicts':prefix_conflicts},sort_keys=True))
+          if hash_conflicts!=0: raise RuntimeError('reviewer key hash collides with another api_keys row')
           d1('INSERT INTO api_keys(id,customer_id,key_hash,key_prefix,label,status,created_at,last_used_at,expires_at,revoked_at) VALUES(?1,?2,?3,?4,?5,?6,?7,NULL,NULL,NULL) ON CONFLICT(id) DO UPDATE SET customer_id=excluded.customer_id,key_hash=excluded.key_hash,key_prefix=excluded.key_prefix,label=excluded.label,status=excluded.status,expires_at=NULL,revoked_at=NULL',
              [KEY_ID,CUSTOMER,key_hash,key_prefix,'openai-reviewer-demo','active',now])
           d1('INSERT INTO oauth_identity_claims(customer_id,email_verified_at,created_at,updated_at) VALUES(?1,?2,?2,?2) ON CONFLICT(customer_id) DO UPDATE SET email_verified_at=excluded.email_verified_at,updated_at=excluded.updated_at',[CUSTOMER,now])
