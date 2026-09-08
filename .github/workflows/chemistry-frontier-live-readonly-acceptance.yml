@@ -1,0 +1,59 @@
+name: Chemistry Frontier Live Read-Only Acceptance
+on:
+  push:
+    branches: [chemistry-frontier-universal-20260908]
+    paths:
+      - 'commerce/chemistry/frontier_universal/frontier_host_preflight.py'
+      - 'commerce/chemistry/frontier_universal/RELEASE_CANDIDATE.json'
+      - '.github/workflows/chemistry-frontier-live-readonly-acceptance.yml'
+permissions:
+  contents: read
+jobs:
+  live-readonly:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Verify production customer surface with GET only
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/musitu-frontier-live
+          python commerce/chemistry/frontier_universal/frontier_host_preflight.py \
+            --origin https://payments.mftintelligence.com \
+            --json-out /tmp/musitu-frontier-live/result.json
+          python - <<'PY'
+          import json
+          p='/tmp/musitu-frontier-live/result.json'
+          j=json.load(open(p))
+          assert j['method_policy']=='GET_ONLY_NO_MUTATION'
+          assert j['failed']==0
+          print('MUSITU_CHEMISTRY_FRONTIER_LIVE_READONLY_PASS')
+          print('CHECKS',j['passed'])
+          PY
+      - name: Record immutable run provenance
+        shell: bash
+        run: |
+          cat > /tmp/musitu-frontier-live/provenance.json <<EOF
+          {
+            "schema":"musitu.chemistry.frontier.live_readonly.provenance.v1",
+            "github_repository":"${GITHUB_REPOSITORY}",
+            "github_sha":"${GITHUB_SHA}",
+            "github_run_id":"${GITHUB_RUN_ID}",
+            "origin":"https://payments.mftintelligence.com",
+            "method_policy":"GET_ONLY_NO_MUTATION",
+            "deployment_performed":false,
+            "checkout_created":false,
+            "real_money_settlement_performed":false
+          }
+          EOF
+          sha256sum /tmp/musitu-frontier-live/result.json /tmp/musitu-frontier-live/provenance.json > /tmp/musitu-frontier-live/SHA256SUMS.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: musitu-chemistry-frontier-live-readonly
+          path: /tmp/musitu-frontier-live/
+          if-no-files-found: error
+          retention-days: 90
