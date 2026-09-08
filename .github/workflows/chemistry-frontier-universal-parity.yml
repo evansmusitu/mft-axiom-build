@@ -1,0 +1,33 @@
+name: Chemistry Frontier Universal Parity
+on:
+  push:
+    branches: [chemistry-frontier-universal-20260908]
+    paths:
+      - 'commerce/chemistry/frontier_universal/**'
+      - 'commerce/chemistry/storefront/**'
+      - 'commerce/chemistry/patch_storefront.py'
+      - 'commerce/chemistry/patch_public_surfaces.py'
+      - 'commerce/chemistry/patch_rescue_growth.py'
+      - '.github/workflows/chemistry-*.yml'
+  pull_request:
+    paths:
+      - 'commerce/chemistry/frontier_universal/**'
+      - 'commerce/chemistry/storefront/**'
+      - 'commerce/chemistry/patch_storefront.py'
+      - 'commerce/chemistry/patch_public_surfaces.py'
+      - 'commerce/chemistry/patch_rescue_growth.py'
+      - '.github/workflows/chemistry-*.yml'
+permissions:
+  contents: read
+jobs:
+  parity:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Verify customer-requested capability parity
+        run: python commerce/chemistry/frontier_universal/verify_frontier_parity.py
+      - name: Verify release-control syntax
+        run: python -m py_compile commerce/chemistry/frontier_universal/*.py
