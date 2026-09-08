@@ -29,7 +29,7 @@ jobs:
         run: |
           set -euo pipefail
           python - <<'PY'
-          import datetime, hashlib, json, os, re, urllib.error, urllib.request
+          import datetime, hashlib, json, os, re, urllib.error, urllib.parse, urllib.request
 
           API=os.environ['CF_API']; AID=os.environ['ACCOUNT_ID']; DBID=os.environ['D1_UUID']
           CUSTOMER=os.environ['REVIEWER_CUSTOMER_ID']; KEY_ID=os.environ['REVIEWER_KEY_ID']
@@ -46,7 +46,7 @@ jobs:
             'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY'],
             'Content-Type':'application/json',
             'Accept':'application/json',
-            'User-Agent':'MUSITU-Axiom-Mobile-OAuth-Forensics/1.0',
+            'User-Agent':'MUSITU-Axiom-Mobile-OAuth-Forensics/1.1',
           }
           def d1(sql,params=None):
               body={'sql':sql}
@@ -79,21 +79,29 @@ jobs:
           def delta(a,b):
               da=parse_iso(a); db=parse_iso(b)
               return None if not da or not db else round((db-da).total_seconds(),3)
+          def callback_path(v):
+              try:
+                  u=urllib.parse.urlparse(str(v or ''))
+                  if u.scheme!='https' or u.hostname!='chatgpt.com': return 'NON_CHATGPT'
+                  if u.path=='/connector_platform_oauth_redirect': return '/connector_platform_oauth_redirect'
+                  if u.path.startswith('/connector/oauth/'):
+                      return '/connector/oauth/<connector-id>'
+                  return 'CHATGPT_OTHER_PATH'
+              except Exception:
+                  return 'UNPARSEABLE'
 
           report={'diagnostic_utc':now.isoformat().replace('+00:00','Z'),'credential_material_exposed':False}
 
-          # Verify the persistent reviewer record exactly, without printing credential material.
           rr=d1('''SELECT k.id,k.customer_id,k.status,k.created_at,k.last_used_at,k.expires_at,k.revoked_at,c.status AS customer_status
                    FROM api_keys k JOIN customers c ON c.id=k.customer_id
                    WHERE k.id=?1 AND k.customer_id=?2 AND k.key_hash=?3''',[KEY_ID,CUSTOMER,key_hash])
           report['reviewer_exact_key_match_count']=len(rr)
           report['reviewer_exact_key_active']=bool(rr and rr[0].get('status')=='active' and rr[0].get('customer_status')=='active' and not rr[0].get('revoked_at'))
           report['reviewer_key_has_expiry']=bool(rr and rr[0].get('expires_at'))
-          report['reviewer_key_last_used_age_seconds']=age(rr[0].get('last_used_at')) if rr else None
           claims=d1('SELECT count(*) AS n FROM oauth_identity_claims WHERE customer_id=?1',[CUSTOMER])
           report['reviewer_verified_identity_claim_count']=int((claims[0] if claims else {}).get('n') or 0)
 
-          # Read recent authorization flows. Never print flow ids, nonce hashes, state values, client ids, codes or tokens.
+          # Recent flow rows. Deliberately omit flow IDs, state, nonce hashes, client IDs and full redirect URIs.
           flows=d1('''SELECT f.created_at,f.expires_at,f.used_at,f.redirect_uri,f.scope,
                              c.created_at AS client_created_at,c.client_name
                       FROM oauth_authorization_flows f
@@ -102,29 +110,28 @@ jobs:
           sanitized=[]
           for i,r in enumerate(flows,1):
               created=r.get('created_at'); exp=r.get('expires_at'); used=r.get('used_at')
-              redirect=str(r.get('redirect_uri') or '')
               sanitized.append({
                 'ordinal':i,
                 'created_age_seconds':age(created),
                 'expires_in_seconds':None if not parse_iso(exp) else round((parse_iso(exp)-now).total_seconds(),3),
                 'used':bool(used),
                 'used_after_seconds':delta(created,used) if used else None,
-                'chatgpt_redirect':redirect.startswith('https://chatgpt.com/connector/oauth/') or redirect.startswith('https://chatgpt.com/connector_platform_oauth_redirect'),
+                'callback_path_class':callback_path(r.get('redirect_uri')),
                 'scope':str(r.get('scope') or ''),
                 'client_age_at_flow_seconds':delta(r.get('client_created_at'),created),
                 'client_name':str(r.get('client_name') or '')[:80],
               })
           report['recent_flows']=sanitized
 
-          # Reviewer code/token lifecycle, aggregated only.
           code_rows=d1('''SELECT created_at,used_at,expires_at FROM oauth_authorization_codes
-                          WHERE customer_id=?1 ORDER BY created_at DESC LIMIT 20''',[CUSTOMER])
-          report['recent_reviewer_codes']=[{
+                          WHERE customer_id=?1 ORDER BY created_at DESC LIMIT 30''',[CUSTOMER])
+          codes=[{
               'created_age_seconds':age(r.get('created_at')),
               'used':bool(r.get('used_at')),
               'used_after_seconds':delta(r.get('created_at'),r.get('used_at')) if r.get('used_at') else None,
               'expires_in_seconds':None if not parse_iso(r.get('expires_at')) else round((parse_iso(r.get('expires_at'))-now).total_seconds(),3),
           } for r in code_rows]
+          report['recent_reviewer_codes']=codes
 
           at=d1('''SELECT created_at,expires_at,revoked_at FROM oauth_access_tokens
                    WHERE customer_id=?1 ORDER BY created_at DESC LIMIT 20''',[CUSTOMER])
@@ -134,7 +141,6 @@ jobs:
               'expires_in_seconds':None if not parse_iso(r.get('expires_at')) else round((parse_iso(r.get('expires_at'))-now).total_seconds(),3),
           } for r in at]
 
-          # Classify the newest mobile flow from durable state.
           classification='NO_FLOW_ROWS'
           if sanitized:
               newest=sanitized[0]
@@ -149,9 +155,36 @@ jobs:
                   classification='NO_RECENT_FLOW_WITHIN_30_MINUTES'
           report['newest_flow_classification']=classification
 
+          # Correlate only by durable timestamps, not by exposing identifiers. If a used
+          # ChatGPT flow produces a reviewer code at the same offset and that code stays
+          # unused, the authorization server completed consent but no token redemption
+          # is present for that issued code.
+          correlations=[]
+          for f in sanitized[:12]:
+              if not f['used'] or f['client_name']!='ChatGPT' or f['created_age_seconds'] is None or f['used_after_seconds'] is None:
+                  continue
+              expected_code_age=round(f['created_age_seconds']-f['used_after_seconds'],3)
+              candidates=[]
+              for c in codes:
+                  if c['created_age_seconds'] is None: continue
+                  gap=abs(c['created_age_seconds']-expected_code_age)
+                  if gap<=1.25: candidates.append((gap,c))
+              candidates.sort(key=lambda x:x[0])
+              if candidates:
+                  gap,c=candidates[0]
+                  correlations.append({
+                    'flow_ordinal':f['ordinal'],
+                    'callback_path_class':f['callback_path_class'],
+                    'flow_used_after_seconds':f['used_after_seconds'],
+                    'code_timestamp_gap_seconds':round(gap,3),
+                    'matching_code_used':c['used'],
+                    'matching_code_used_after_seconds':c['used_after_seconds'],
+                  })
+          report['chatgpt_flow_code_correlations']=correlations
+          report['recent_chatgpt_used_flow_unredeemed_code_correlations']=sum(1 for x in correlations if not x['matching_code_used'])
+
           print(json.dumps(report,sort_keys=True))
 
-          # Diagnostic gate is read-only and fails only on broken reviewer provisioning, never on a user-flow classification.
           if report['reviewer_exact_key_match_count']!=1 or not report['reviewer_exact_key_active']:
               raise RuntimeError('Fail-closed: current reviewer secret is not uniquely active on the persistent reviewer source key')
           if report['reviewer_verified_identity_claim_count']!=1:
