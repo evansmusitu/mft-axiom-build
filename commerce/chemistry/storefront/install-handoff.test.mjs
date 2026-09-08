@@ -30,6 +30,9 @@ test('universal install renderer is immediately actionable, canonical, and never
   assert.match(html,/Use MUSITU now/);
   assert.match(html,/Add to Home Screen/);
   assert.match(html,/Open as Web App/);
+  assert.match(html,/rel="manifest" href="\/chemistry\/manifest\.webmanifest\?v=2"/);
+  assert.match(html,/data-install-panel="installed"[\s\S]*href="\/chemistry\/app"[\s\S]*Open MUSITU Chemistry/);
+  assert.doesNotMatch(html,/data-install-panel="installed"[\s\S]*Open Chemistry Rescue/);
   assert.doesNotMatch(html,/Download verified Android APK/i);
   assert.doesNotMatch(html,/\/chemistry\/download\/[^"']+\.apk/i);
   assert.match(html,/\/chemistry\/install\/diagnostics/);
@@ -72,7 +75,7 @@ test('hidden diagnostics surface checks platform, prompt, manifest, assets, resc
   assert.match(html,/MUSITU installation check/);
   assert.match(html,/does not send device identifiers/);
   for(const marker of ['manifest','install-js','css','icon','rescue','sw','prompt'])assert.match(html,new RegExp(`data-diag="${marker}"`));
-  assert.match(INSTALL_DIAGNOSTICS_JS,/\?v=4/);
+  assert.match(INSTALL_DIAGNOSTICS_JS,/\/chemistry\/manifest\.webmanifest\?v=2/);
   assert.doesNotMatch(INSTALL_DIAGNOSTICS_JS,/(sendBeacon|document\.cookie|localStorage|sessionStorage)/);
 });
 
