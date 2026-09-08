@@ -1,0 +1,159 @@
+name: MUSITU Axiom OAuth Mobile Live Forensics
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/axiom-oauth-mobile-live-forensics.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  forensics:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    env:
+      CF_API: https://api.cloudflare.com/client/v4
+      ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      D1_UUID: 504029cc-f9a5-495e-818f-63c6144b4ea4
+      REVIEWER_CUSTOMER_ID: openai_reviewer_demo
+      REVIEWER_KEY_ID: openai_reviewer_demo_source
+      REVIEWER_KEY: ${{ secrets.OPENAI_REVIEWER_ACCOUNT_KEY }}
+      CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+      CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Read-only D1 OAuth mobile forensics
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import datetime, hashlib, json, os, re, urllib.error, urllib.request
+
+          API=os.environ['CF_API']; AID=os.environ['ACCOUNT_ID']; DBID=os.environ['D1_UUID']
+          CUSTOMER=os.environ['REVIEWER_CUSTOMER_ID']; KEY_ID=os.environ['REVIEWER_KEY_ID']
+          raw_key=os.environ.get('REVIEWER_KEY','')
+          print('::add-mask::'+raw_key)
+          normalized=re.sub(r'^[\s\u200E\u200F\u202A-\u202E\u2066-\u2069]+|[\s\u200E\u200F\u202A-\u202E\u2066-\u2069]+$','',raw_key)
+          print('::add-mask::'+normalized)
+          if len(normalized)<48:
+              raise SystemExit('Fail-closed: reviewer secret unavailable or too short after boundary normalization')
+          key_hash=hashlib.sha256(normalized.encode()).hexdigest()
+
+          headers={
+            'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],
+            'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY'],
+            'Content-Type':'application/json',
+            'Accept':'application/json',
+            'User-Agent':'MUSITU-Axiom-Mobile-OAuth-Forensics/1.0',
+          }
+          def d1(sql,params=None):
+              body={'sql':sql}
+              if params is not None: body['params']=params
+              req=urllib.request.Request(API+f'/accounts/{AID}/d1/database/{DBID}/query',headers=headers,data=json.dumps(body,separators=(',',':')).encode(),method='POST')
+              try:
+                  with urllib.request.urlopen(req,timeout=45) as r: code=r.status; raw=r.read()
+              except urllib.error.HTTPError as e:
+                  code=e.code; raw=e.read()
+              if not 200<=code<300:
+                  raise RuntimeError('Cloudflare D1 query failed HTTP '+str(code))
+              obj=json.loads(raw or b'{}')
+              if obj.get('success') is False:
+                  raise RuntimeError('Cloudflare D1 query returned success=false')
+              rows=[]
+              for chunk in obj.get('result') or []:
+                  if chunk.get('success') is not True:
+                      raise RuntimeError('D1 statement failed')
+                  rows.extend(chunk.get('results') or [])
+              return rows
+
+          now=datetime.datetime.now(datetime.timezone.utc)
+          def parse_iso(v):
+              if not v: return None
+              try: return datetime.datetime.fromisoformat(str(v).replace('Z','+00:00'))
+              except Exception: return None
+          def age(v):
+              dt=parse_iso(v)
+              return None if not dt else round((now-dt).total_seconds(),3)
+          def delta(a,b):
+              da=parse_iso(a); db=parse_iso(b)
+              return None if not da or not db else round((db-da).total_seconds(),3)
+
+          report={'diagnostic_utc':now.isoformat().replace('+00:00','Z'),'credential_material_exposed':False}
+
+          # Verify the persistent reviewer record exactly, without printing credential material.
+          rr=d1('''SELECT k.id,k.customer_id,k.status,k.created_at,k.last_used_at,k.expires_at,k.revoked_at,c.status AS customer_status
+                   FROM api_keys k JOIN customers c ON c.id=k.customer_id
+                   WHERE k.id=?1 AND k.customer_id=?2 AND k.key_hash=?3''',[KEY_ID,CUSTOMER,key_hash])
+          report['reviewer_exact_key_match_count']=len(rr)
+          report['reviewer_exact_key_active']=bool(rr and rr[0].get('status')=='active' and rr[0].get('customer_status')=='active' and not rr[0].get('revoked_at'))
+          report['reviewer_key_has_expiry']=bool(rr and rr[0].get('expires_at'))
+          report['reviewer_key_last_used_age_seconds']=age(rr[0].get('last_used_at')) if rr else None
+          claims=d1('SELECT count(*) AS n FROM oauth_identity_claims WHERE customer_id=?1',[CUSTOMER])
+          report['reviewer_verified_identity_claim_count']=int((claims[0] if claims else {}).get('n') or 0)
+
+          # Read recent authorization flows. Never print flow ids, nonce hashes, state values, client ids, codes or tokens.
+          flows=d1('''SELECT f.created_at,f.expires_at,f.used_at,f.redirect_uri,f.scope,
+                             c.created_at AS client_created_at,c.client_name
+                      FROM oauth_authorization_flows f
+                      LEFT JOIN oauth_clients c ON c.client_id=f.client_id
+                      ORDER BY f.created_at DESC LIMIT 30''')
+          sanitized=[]
+          for i,r in enumerate(flows,1):
+              created=r.get('created_at'); exp=r.get('expires_at'); used=r.get('used_at')
+              redirect=str(r.get('redirect_uri') or '')
+              sanitized.append({
+                'ordinal':i,
+                'created_age_seconds':age(created),
+                'expires_in_seconds':None if not parse_iso(exp) else round((parse_iso(exp)-now).total_seconds(),3),
+                'used':bool(used),
+                'used_after_seconds':delta(created,used) if used else None,
+                'chatgpt_redirect':redirect.startswith('https://chatgpt.com/connector/oauth/') or redirect.startswith('https://chatgpt.com/connector_platform_oauth_redirect'),
+                'scope':str(r.get('scope') or ''),
+                'client_age_at_flow_seconds':delta(r.get('client_created_at'),created),
+                'client_name':str(r.get('client_name') or '')[:80],
+              })
+          report['recent_flows']=sanitized
+
+          # Reviewer code/token lifecycle, aggregated only.
+          code_rows=d1('''SELECT created_at,used_at,expires_at FROM oauth_authorization_codes
+                          WHERE customer_id=?1 ORDER BY created_at DESC LIMIT 20''',[CUSTOMER])
+          report['recent_reviewer_codes']=[{
+              'created_age_seconds':age(r.get('created_at')),
+              'used':bool(r.get('used_at')),
+              'used_after_seconds':delta(r.get('created_at'),r.get('used_at')) if r.get('used_at') else None,
+              'expires_in_seconds':None if not parse_iso(r.get('expires_at')) else round((parse_iso(r.get('expires_at'))-now).total_seconds(),3),
+          } for r in code_rows]
+
+          at=d1('''SELECT created_at,expires_at,revoked_at FROM oauth_access_tokens
+                   WHERE customer_id=?1 ORDER BY created_at DESC LIMIT 20''',[CUSTOMER])
+          report['recent_reviewer_access_tokens']=[{
+              'created_age_seconds':age(r.get('created_at')),
+              'revoked':bool(r.get('revoked_at')),
+              'expires_in_seconds':None if not parse_iso(r.get('expires_at')) else round((parse_iso(r.get('expires_at'))-now).total_seconds(),3),
+          } for r in at]
+
+          # Classify the newest mobile flow from durable state.
+          classification='NO_FLOW_ROWS'
+          if sanitized:
+              newest=sanitized[0]
+              if newest['created_age_seconds'] is not None and newest['created_age_seconds'] <= 1800:
+                  if newest['used']:
+                      classification='NEWEST_RECENT_FLOW_ALREADY_USED'
+                  elif newest['expires_in_seconds'] is not None and newest['expires_in_seconds'] <= 0:
+                      classification='NEWEST_RECENT_FLOW_EXPIRED_UNUSED'
+                  else:
+                      classification='NEWEST_RECENT_FLOW_LIVE_UNUSED'
+              else:
+                  classification='NO_RECENT_FLOW_WITHIN_30_MINUTES'
+          report['newest_flow_classification']=classification
+
+          print(json.dumps(report,sort_keys=True))
+
+          # Diagnostic gate is read-only and fails only on broken reviewer provisioning, never on a user-flow classification.
+          if report['reviewer_exact_key_match_count']!=1 or not report['reviewer_exact_key_active']:
+              raise RuntimeError('Fail-closed: current reviewer secret is not uniquely active on the persistent reviewer source key')
+          if report['reviewer_verified_identity_claim_count']!=1:
+              raise RuntimeError('Fail-closed: reviewer verified identity claim missing or duplicated')
+          PY
