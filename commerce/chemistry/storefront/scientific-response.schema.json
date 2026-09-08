@@ -1,0 +1,110 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://payments.mftintelligence.com/schemas/musitu-scientific-response-graph-v1.json",
+  "title": "MUSITU Scientific Response Graph v1",
+  "description": "Deterministic, exam-safe representation of a Chemistry response. This schema is a MUSITU internal contract and is not a claim of QTI conformance.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "version", "examMode", "activeMode", "text", "argument", "accessibilityDescription", "objects", "edges", "ink", "provenance", "finalized"],
+  "properties": {
+    "schema": {"const": "musitu.scientific_response_graph.v1"},
+    "version": {"const": 1},
+    "examMode": {"const": "certified"},
+    "activeMode": {
+      "enum": ["equation", "ink", "structure", "mechanism", "graph", "apparatus", "particle", "argument", "accessibility", "graph-data"]
+    },
+    "text": {"type": "string", "maxLength": 12000},
+    "argument": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["claim", "evidence", "principle", "conclusion"],
+      "properties": {
+        "claim": {"type": "string", "maxLength": 4000},
+        "evidence": {"type": "string", "maxLength": 4000},
+        "principle": {"type": "string", "maxLength": 4000},
+        "conclusion": {"type": "string", "maxLength": 4000}
+      }
+    },
+    "accessibilityDescription": {"type": "string", "maxLength": 6000},
+    "objects": {
+      "type": "array",
+      "maxItems": 180,
+      "items": {"$ref": "#/$defs/scientificObject"}
+    },
+    "edges": {
+      "type": "array",
+      "maxItems": 240,
+      "items": {"$ref": "#/$defs/scientificEdge"}
+    },
+    "ink": {
+      "type": "array",
+      "maxItems": 180,
+      "items": {"$ref": "#/$defs/inkStroke"}
+    },
+    "provenance": {
+      "type": "array",
+      "maxItems": 256,
+      "items": {"$ref": "#/$defs/provenanceEvent"}
+    },
+    "finalized": {"type": "boolean"}
+  },
+  "$defs": {
+    "scientificObject": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "mode", "kind", "label", "x", "y"],
+      "properties": {
+        "id": {"type": "string", "pattern": "^n[a-z0-9]{1,16}$"},
+        "mode": {"enum": ["structure", "mechanism", "graph", "apparatus", "particle"]},
+        "kind": {"type": "string", "minLength": 1, "maxLength": 32},
+        "label": {"type": "string", "minLength": 1, "maxLength": 48},
+        "x": {"type": "number", "minimum": 0, "maximum": 100},
+        "y": {"type": "number", "minimum": 0, "maximum": 100}
+      }
+    },
+    "scientificEdge": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "mode", "kind", "from", "to"],
+      "properties": {
+        "id": {"type": "string", "pattern": "^e[0-9]+-[a-z0-9]{1,16}$"},
+        "mode": {"enum": ["structure", "mechanism", "graph", "apparatus", "particle", "cross"]},
+        "kind": {"type": "string", "minLength": 1, "maxLength": 32},
+        "from": {"type": "string", "pattern": "^n[a-z0-9]{1,16}$"},
+        "to": {"type": "string", "pattern": "^n[a-z0-9]{1,16}$"}
+      }
+    },
+    "inkStroke": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["tool", "points"],
+      "properties": {
+        "tool": {"enum": ["ink", "stylus"]},
+        "points": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 220,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["x", "y"],
+            "properties": {
+              "x": {"type": "number", "minimum": 0, "maximum": 1},
+              "y": {"type": "number", "minimum": 0, "maximum": 1}
+            }
+          }
+        }
+      }
+    },
+    "provenanceEvent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["t", "action", "detail"],
+      "properties": {
+        "t": {"type": "integer", "minimum": 0},
+        "action": {"type": "string", "minLength": 1, "maxLength": 40},
+        "detail": {"type": "string", "maxLength": 80}
+      }
+    }
+  }
+}
