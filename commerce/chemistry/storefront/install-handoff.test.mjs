@@ -16,7 +16,7 @@ const UA={
   edge:'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0'
 };
 
-test('universal install renderer is immediately actionable and only one canonical URL',()=>{
+test('universal install renderer is immediately actionable, canonical, and never exposes APK as a customer action',()=>{
   const html=renderInstall({userAgent:UA.androidChrome});
   assert.equal(INSTALL_CANONICAL_URL,'https://payments.mftintelligence.com/chemistry/install');
   assert.match(html,/Get MUSITU Chemistry on this device/);
@@ -30,8 +30,8 @@ test('universal install renderer is immediately actionable and only one canonica
   assert.match(html,/Use MUSITU now/);
   assert.match(html,/Add to Home Screen/);
   assert.match(html,/Open as Web App/);
-  assert.match(html,/Download verified Android APK/);
-  assert.match(html,/MUSITU_Chemistry_Mastery_1\.2\.0\.apk/);
+  assert.doesNotMatch(html,/Download verified Android APK/i);
+  assert.doesNotMatch(html,/\/chemistry\/download\/[^"']+\.apk/i);
   assert.match(html,/\/chemistry\/install\/diagnostics/);
   assert.match(html,/\/chemistry\/assets\/install-concierge\.css\?v=4/);
   assert.match(html,/\/chemistry\/assets\/install-handoff\.js\?v=4/);
