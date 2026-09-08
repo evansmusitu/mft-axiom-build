@@ -1,0 +1,86 @@
+name: Repoint MUSITU Chemistry Home Guarded Deploy
+
+on:
+  push:
+    branches:
+      - chemistry-national-rescue-growth-20260907
+    paths:
+      - .github/workflows/chemistry-home-deploy-repoint.yml
+
+permissions:
+  contents: write
+
+jobs:
+  repoint:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Guard exact source-evidence lineage
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD^)" = "95568aaace24b95c31877e64648055b2ea7a2e99"
+          test "$(git diff --name-only HEAD^ HEAD)" = ".github/workflows/chemistry-home-deploy-repoint.yml"
+          git diff --quiet 95568aaace24b95c31877e64648055b2ea7a2e99 HEAD -- commerce/chemistry
+
+      - name: Repoint proven rollback deploy without changing product source
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('.github/workflows/chemistry-dedicated-app-identity-guarded-deploy.yml')
+          s=p.read_text()
+          pairs=[
+            ('name: MUSITU Chemistry Dedicated App Identity Guarded Deploy','name: MUSITU Chemistry Home Product Identity Guarded Deploy'),
+            ('on:\n  push:','on:\n  workflow_call:\n  push:'),
+            ('SOURCE_SHA: 6fed3639712de008c84c1e47fa20f93b196bcdfd','SOURCE_SHA: 95568aaace24b95c31877e64648055b2ea7a2e99'),
+            ('SOURCE_TREE_SHA: bd6491a1ec5712df33ecccd76db0e942fa95ba1f','SOURCE_TREE_SHA: 9808bd3922dc9110fd7c0bc675a50155df778e02'),
+            ('PREVIOUS_WORKER_SHA: 6f8d5a326b5a43ed25f6674ea73f83a94cf2fc7f7751380bfb0577c99dc6e210','PREVIOUS_WORKER_SHA: 128af0981d82e96c491a7da8e7c681f4e87ec8119bfd5b43b2cf29d07914ff07'),
+            ('CANDIDATE_WORKER_SHA: 128af0981d82e96c491a7da8e7c681f4e87ec8119bfd5b43b2cf29d07914ff07','CANDIDATE_WORKER_SHA: 840de9b766922fd5ab69b34e33f6a25053b50bb025da73e76f947d65a8a7ab35'),
+            ("PREFLIGHT_RUN_ID: '34203876705'","PREFLIGHT_RUN_ID: '34206805113'"),
+            ("PREFLIGHT_ARTIFACT_ID: '10046940504'","PREFLIGHT_ARTIFACT_ID: '10048114328'"),
+            ('PREFLIGHT_ARTIFACT_SHA256: 888e0b65ac48baca1ba8070004a7eee03f7915c79570da356316993b800beec2','PREFLIGHT_ARTIFACT_SHA256: f30b42318e548963f59f536e02ed1aced395c37995670f3398324a54f473ab2f'),
+            ("FOCUSED_RUN_ID: '34203876724'","FOCUSED_RUN_ID: '34206805090'"),
+            ("ZERO_COST_RUN_ID: '34203876701'","ZERO_COST_RUN_ID: '34206805013'"),
+            ("ZERO_COST_ARTIFACT_ID: '10046920452'","ZERO_COST_ARTIFACT_ID: '10048095725'"),
+            ('ZERO_COST_ARTIFACT_SHA256: 959cad2dcf7eaee8e1be7027d974b11141caea543292955721751e5628425139','ZERO_COST_ARTIFACT_SHA256: 5ee651d1d674fb2b967f2bfffaa0ea85891f07d4007d7dafd45b7507da5caeb4'),
+            ('          test "$(git rev-parse HEAD^)" = "$SOURCE_SHA"\n          test "$(git diff --name-only HEAD^ HEAD)" = ".github/workflows/chemistry-dedicated-app-identity-guarded-deploy.yml"\n          test "$(git rev-parse "$SOURCE_SHA^{tree}")" = "$SOURCE_TREE_SHA"',
+             '          git merge-base --is-ancestor "$SOURCE_SHA" HEAD\n          git diff --quiet "$SOURCE_SHA" HEAD -- commerce/chemistry\n          test "$(git rev-parse "$SOURCE_SHA^{tree}")" = "$SOURCE_TREE_SHA"'),
+            ("          print('DEDICATED_APP_IDENTITY_EXACT_EVIDENCE=PASS')","          print('CHEMISTRY_HOME_PRODUCT_IDENTITY_EXACT_EVIDENCE=PASS')"),
+            ("                ('/chemistry/app',('Your Chemistry workspace.','class=\"app-topbar\"','class=\"app-nav\"','manifest.webmanifest?v=2'),('class=\"site-header\"','class=\"site-footer\"')),",
+             "                ('/chemistry/app',('MUSITU Chemistry · Education Nexus','Your Chemistry workspace.','class=\"app-primary\" href=\"/chemistry/app?view=exam\">Open Scientific Response OS','class=\"app-action primary\" href=\"/chemistry/app?view=exam\">Open Scientific Response OS','class=\"app-action\" href=\"/chemistry/app?view=rescue\">Chemistry Rescue','Home, Rescue, Prove, Premium and Help stay inside the installed app surface','class=\"app-topbar\"','class=\"app-nav\"','manifest.webmanifest?v=2'),('Chemistry Rescue 2026','Continue Chemistry Rescue','aria-label=\"MUSITU rescue method\"','class=\"app-action primary\" href=\"/chemistry/app?view=rescue\">Continue Rescue','class=\"site-header\"','class=\"site-footer\"')),\n                ('/chemistry/app?view=rescue',('Chemistry Rescue.','Your Rescue loop','class=\"app-topbar\"','class=\"app-nav\"'),('class=\"site-header\"','class=\"site-footer\"')),"),
+            ("ok=c==200 and 'musitu-chemistry-install-v8' in sw and '/chemistry/manifest.webmanifest?v=2' in sw and '/chemistry/app?view=exam' in sw and 'checkout|return|claim|telemetry|plans' in sw",
+             "ok=c==200 and 'musitu-chemistry-install-v8' in sw and '/chemistry/manifest.webmanifest?v=2' in sw and \"const APP='/chemistry/app'\" in sw and '/chemistry/app?view=exam' in sw and 'checkout|return|claim|telemetry|plans' in sw"),
+            ("print('DEDICATED_APP_IDENTITY_EDGE_SWEEP_PASS attempt='+str(attempt)+' streak='+str(streak))","print('CHEMISTRY_HOME_PRODUCT_IDENTITY_EDGE_SWEEP_PASS attempt='+str(attempt)+' streak='+str(streak))"),
+            ("'schema':'musitu.chemistry.dedicated_app_identity.deploy.v1'","'schema':'musitu.chemistry.home_product_identity.deploy.v1'"),
+            ("'installed_handoff_url':'/chemistry/app','public_rescue_preserved':True,'scientific_response_preserved':True,",
+             "'installed_handoff_url':'/chemistry/app','home_product_identity':'MUSITU Chemistry · Education Nexus','home_primary_action':'/chemistry/app?view=exam','rescue_secondary_internal':True,'public_rescue_preserved':True,'scientific_response_preserved':True,"),
+            ("print('MUSITU_CHEMISTRY_DEDICATED_APP_IDENTITY_DEPLOY=PASS')","print('MUSITU_CHEMISTRY_HOME_PRODUCT_IDENTITY_DEPLOY=PASS')"),
+            ('name: musitu-chemistry-dedicated-app-identity-production-deploy','name: musitu-chemistry-home-product-identity-production-deploy')
+          ]
+          for old,new in pairs:
+            n=s.count(old)
+            if n!=1:
+              raise SystemExit(f'repoint anchor rejected count={n}: {old[:120]}')
+            s=s.replace(old,new)
+          p.write_text(s)
+          print('CHEMISTRY_HOME_DEPLOY_REPOINT=PASS')
+          PY
+          git diff --check
+          git diff --quiet 95568aaace24b95c31877e64648055b2ea7a2e99 HEAD -- commerce/chemistry
+
+      - name: Commit only the repointed guarded deploy
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git diff --name-only)" = ".github/workflows/chemistry-dedicated-app-identity-guarded-deploy.yml"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add .github/workflows/chemistry-dedicated-app-identity-guarded-deploy.yml
+          git commit -m 'deploy: pin guarded cutover to Chemistry Home identity candidate'
+          git push origin HEAD:chemistry-national-rescue-growth-20260907
