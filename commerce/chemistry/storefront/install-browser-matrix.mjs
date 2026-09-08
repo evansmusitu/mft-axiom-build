@@ -37,10 +37,13 @@ try{
   assert.equal(swResponse.status(),200);
   assert.match(swResponse.headers()['cache-control']||'',/no-cache/);
   const swText=await swResponse.text();
-  assert.match(swText,/musitu-chemistry-install-v6/);
+  assert.match(swText,/musitu-chemistry-install-v7/);
   assert.match(swText,/const APP='\/chemistry\/app'/);
+  assert.match(swText,/\/chemistry\/app\?view=exam/);
   assert.match(swText,/\/chemistry\/app\?view=premium/);
   assert.match(swText,/\/chemistry\/app\?view=help/);
+  assert.match(swText,/app-shell\.css\?v=4/);
+  assert.match(swText,/app-shell\.js\?v=4/);
   assert.match(swText,/checkout\|return\|claim\|telemetry\|plans/);
   await page.evaluate(()=>navigator.serviceWorker?.ready);
 
@@ -51,6 +54,71 @@ try{
   const firstLaunch=page.locator('#app-onboarding:not([hidden])');
   if(await firstLaunch.count())await page.locator('#app-onboarding-skip').click();
   assert.equal(await page.locator('#app-onboarding[hidden]').count(),1,'first-launch onboarding did not dismiss');
+
+  // Prove is a real internal scientific response surface, not a keyboard-only page.
+  await page.locator('.app-nav a[href="/chemistry/app?view=exam"]').click();
+  await page.waitForLoadState('networkidle');
+  assert.equal(new URL(page.url()).pathname,'/chemistry/app');
+  assert.equal(new URL(page.url()).searchParams.get('view'),'exam');
+  assert.equal(await page.getByRole('heading',{name:'Answer Chemistry as Chemistry.'}).count(),1);
+  assert.equal(await page.locator('[data-scientific-response-os]').count(),1);
+  assert.equal(await page.locator('.site-header').count(),0,'public site header leaked into Prove app view');
+
+  const equation=page.locator('[data-sr-equation]');
+  await equation.fill('2H₂ + O₂ ');
+  await page.locator('[data-sr-symbol="→"]').click();
+  await equation.pressSequentially(' 2H₂O');
+  assert.equal(await equation.inputValue(),'2H₂ + O₂ → 2H₂O');
+
+  // Each scientific board must resolve independently and persist structured objects/edges.
+  await page.locator('[data-sr-mode="structure"]').click();
+  const structure=page.locator('[data-sr-panel="structure"]');
+  await structure.locator('[data-sr-add="atom"][data-sr-label="C"]').click();
+  await structure.locator('[data-sr-add="atom"][data-sr-label="O"]').click();
+  const structureNodes=structure.locator('[data-sr-node]');
+  assert.equal(await structureNodes.count(),2);
+  await structureNodes.nth(0).click();
+  await structureNodes.nth(1).click();
+  await structure.locator('[data-sr-connect="double-bond"]').click();
+
+  await page.locator('[data-sr-mode="particle"]').click();
+  const particle=page.locator('[data-sr-panel="particle"]');
+  await particle.locator('[data-sr-add="molecule"]').click();
+  assert.equal(await particle.locator('[data-sr-node]').count(),1,'particle board did not resolve independently');
+
+  // Link two representations of one scientific concept in the SRG.
+  await particle.locator('[data-sr-node]').click();
+  await page.locator('[data-sr-mode="structure"]').click();
+  await structure.locator('[data-sr-node]').nth(0).click();
+  await structure.locator('[data-sr-link-representation]').click();
+
+  await page.locator('[data-sr-mode="argument"]').click();
+  await page.locator('[data-sr-argument="claim"]').fill('Increasing pressure changes the equilibrium position.');
+  await page.locator('[data-sr-argument="evidence"]').fill('The two sides contain different total gaseous mole counts.');
+  await page.locator('[data-sr-argument="principle"]').fill('Le Chatelier principle.');
+  await page.locator('[data-sr-argument="conclusion"]').fill('The equilibrium shifts toward fewer gaseous moles.');
+
+  await page.locator('[data-sr-mode="graph-data"]').click();
+  const graphText=await page.locator('[data-sr-graph-output]').textContent();
+  const graph=JSON.parse(graphText||'{}');
+  assert.equal(graph.schema,'musitu.scientific_response_graph.v1');
+  assert.equal(graph.examMode,'certified');
+  assert.equal(graph.text,'2H₂ + O₂ → 2H₂O');
+  assert.ok(graph.objects.some(x=>x.mode==='structure'&&x.label==='C'));
+  assert.ok(graph.objects.some(x=>x.mode==='structure'&&x.label==='O'));
+  assert.ok(graph.objects.some(x=>x.mode==='particle'&&x.kind==='molecule'));
+  assert.ok(graph.edges.some(x=>x.kind==='double-bond'));
+  assert.ok(graph.edges.some(x=>x.mode==='cross'&&x.kind==='same-scientific-concept'));
+  assert.equal(graph.argument.principle,'Le Chatelier principle.');
+
+  // Finalization locks scientific edits but remains explicitly local-only.
+  await page.locator('[data-sr-finalize]').click();
+  assert.equal(await page.locator('[data-sr-equation]').getAttribute('readonly'),'');
+  assert.equal(await page.locator('[data-sr-add="atom"]').first().isDisabled(),true);
+  assert.match(await page.locator('[data-sr-status]').textContent()||'',/locked for review/i);
+  assert.match(await page.locator('[data-sr-live]').textContent()||'',/No network submission has occurred/i);
+  await page.locator('[data-sr-reopen]').click();
+  assert.equal(await page.locator('[data-sr-add="atom"]').first().isDisabled(),false);
 
   await page.locator('.app-nav a[href="/chemistry/app?view=premium"]').click();
   await page.waitForLoadState('networkidle');
@@ -73,6 +141,12 @@ try{
   assert.equal(await page.locator('.site-header').count(),0,'offline app reload fell back to public website chrome');
   assert.equal(await page.locator('.app-nav').count(),1,'offline app navigation missing');
 
+  await page.locator('.app-nav a[href="/chemistry/app?view=exam"]').click();
+  await page.waitForLoadState('domcontentloaded');
+  assert.equal(await page.getByRole('heading',{name:'Answer Chemistry as Chemistry.'}).count(),1,'offline Prove app view was not cached');
+  assert.equal(await page.locator('[data-scientific-response-os]').count(),1,'offline Scientific Response OS missing');
+  assert.equal(await page.locator('.site-header').count(),0,'offline Prove fell back to public chrome');
+
   await page.locator('.app-nav a[href="/chemistry/app?view=premium"]').click();
   await page.waitForLoadState('domcontentloaded');
   assert.equal(await page.getByRole('heading',{name:'Unlock full mastery.'}).count(),1,'offline Premium app view was not cached');
@@ -92,5 +166,5 @@ try{
   assert.equal(await installedPage.locator('#install-concierge').getAttribute('data-install-mode'),'installed');
   assert.equal(await installedPage.getByRole('link',{name:'Open Chemistry Rescue'}).count(),1);
   await installedContext.close();
-  console.log(JSON.stringify({schema:'musitu.chemistry.install_browser_matrix.v4',classifier_cases:matrix.map(x=>x[0]),chromium_contracts:['server-rendered immediate Android action','trusted install prompt event','service worker v6 dedicated app-shell cache','first-launch onboarding dismissal','offline dedicated app-shell reload','Premium and Help stay inside installed app online and offline','installed-state UI','sensitive routes remain network-authoritative'],physical_device_certification:false,pass:true},null,2));
+  console.log(JSON.stringify({schema:'musitu.chemistry.install_browser_matrix.v5',classifier_cases:matrix.map(x=>x[0]),chromium_contracts:['server-rendered immediate Android action','trusted install prompt event','service worker v7 dedicated app-shell cache','first-launch onboarding dismissal','Scientific Response OS equation interaction','independent structured science boards','cross-representation SRG link','scientific argument capture','response finalization lock and reopen','offline dedicated Prove reload','Premium and Help stay inside installed app online and offline','installed-state UI','sensitive routes remain network-authoritative'],physical_device_certification:false,pass:true},null,2));
 }finally{await browser.close()}
