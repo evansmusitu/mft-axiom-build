@@ -28,8 +28,20 @@ try{
   assert.equal(await root.count(),1);
   assert.equal(await root.getAttribute('data-install-mode'),'android-ready');
   assert.equal(await page.getByRole('link',{name:'Use MUSITU now'}).count()>0,true);
-  assert.equal(await page.locator('link[href="/chemistry/manifest.webmanifest"]').count(),1);
+  assert.equal(await page.locator('link[href="/chemistry/manifest.webmanifest?v=2"]').count(),1);
   assert.equal(await page.locator('link[href="/chemistry/assets/install-concierge.css?v=4"]').count(),1);
+
+  const manifestResponse=await page.request.get(origin+'/chemistry/manifest.webmanifest?v=2');
+  assert.equal(manifestResponse.status(),200);
+  const manifest=await manifestResponse.json();
+  assert.equal(manifest.id,'/chemistry/app');
+  assert.equal(manifest.name,'MUSITU Chemistry');
+  assert.equal(manifest.short_name,'MUSITU Chemistry');
+  assert.equal(manifest.start_url,'/chemistry/app');
+  assert.equal(manifest.scope,'/chemistry/');
+  assert.equal(manifest.display,'standalone');
+  assert.doesNotMatch(manifest.description||'',/Rescue/i);
+
   await page.evaluate(()=>{const e=new Event('beforeinstallprompt',{cancelable:true});Object.defineProperty(e,'prompt',{value:async()=>{}});Object.defineProperty(e,'userChoice',{value:Promise.resolve({outcome:'accepted'})});dispatchEvent(e)});
   assert.equal(await root.getAttribute('data-install-mode'),'native');
   await page.locator('#install-musitu').click();
@@ -37,11 +49,12 @@ try{
   assert.equal(swResponse.status(),200);
   assert.match(swResponse.headers()['cache-control']||'',/no-cache/);
   const swText=await swResponse.text();
-  assert.match(swText,/musitu-chemistry-install-v7/);
+  assert.match(swText,/musitu-chemistry-install-v8/);
   assert.match(swText,/const APP='\/chemistry\/app'/);
   assert.match(swText,/\/chemistry\/app\?view=exam/);
   assert.match(swText,/\/chemistry\/app\?view=premium/);
   assert.match(swText,/\/chemistry\/app\?view=help/);
+  assert.match(swText,/\/chemistry\/manifest\.webmanifest\?v=2/);
   assert.match(swText,/app-shell\.css\?v=4/);
   assert.match(swText,/app-shell\.js\?v=4/);
   assert.match(swText,/checkout\|return\|claim\|telemetry\|plans/);
@@ -49,6 +62,7 @@ try{
 
   const onlineApp=await page.goto(origin+'/chemistry/app',{waitUntil:'networkidle'});
   assert.equal(onlineApp?.status(),200);
+  assert.equal(await page.locator('link[href="/chemistry/manifest.webmanifest?v=2"]').count(),1);
   assert.equal(await page.getByRole('heading',{name:'Your Chemistry workspace.'}).count(),1);
   assert.equal(await page.locator('.site-header').count(),0,'public site header leaked into app shell');
   const firstLaunch=page.locator('#app-onboarding:not([hidden])');
@@ -115,7 +129,6 @@ try{
   await page.waitForFunction(()=>document.querySelector('[data-sr-live]')?.textContent?.includes('No network submission has occurred'));
   assert.match(await page.locator('[data-sr-live]').textContent()||'',/No network submission has occurred/i);
 
-  // Review navigation is allowed, but a finalized SRG must be byte-for-byte semantically immutable.
   const frozenBefore=JSON.parse(await page.locator('[data-sr-graph-output]').textContent()||'{}');
   await page.locator('[data-sr-mode="equation"]').click();
   await page.locator('[data-sr-mode="structure"]').click();
@@ -182,7 +195,15 @@ try{
   const installedPage=await installedContext.newPage();
   await installedPage.goto(origin+'/chemistry/install',{waitUntil:'domcontentloaded'});
   assert.equal(await installedPage.locator('#install-concierge').getAttribute('data-install-mode'),'installed');
-  assert.equal(await installedPage.getByRole('link',{name:'Open Chemistry Rescue'}).count(),1);
+  const openApp=installedPage.getByRole('link',{name:'Open MUSITU Chemistry'});
+  assert.equal(await openApp.count(),1);
+  assert.equal(await openApp.getAttribute('href'),'/chemistry/app');
+  assert.equal(await installedPage.getByRole('link',{name:'Open Chemistry Rescue'}).count(),0);
+  await openApp.click();
+  await installedPage.waitForLoadState('networkidle');
+  assert.equal(new URL(installedPage.url()).pathname,'/chemistry/app');
+  assert.equal(await installedPage.getByRole('heading',{name:'Your Chemistry workspace.'}).count(),1);
+  assert.equal(await installedPage.locator('.site-header').count(),0,'installed handoff opened public Rescue chrome');
   await installedContext.close();
-  console.log(JSON.stringify({schema:'musitu.chemistry.install_browser_matrix.v6',classifier_cases:matrix.map(x=>x[0]),chromium_contracts:['server-rendered immediate Android action','trusted install prompt event','service worker v7 dedicated app-shell cache','first-launch onboarding dismissal','Scientific Response OS equation interaction','independent structured science boards','cross-representation SRG link','scientific argument capture','response finalization lock','finalized SRG immutable during review navigation','reopen editing','offline dedicated Prove reload','Premium and Help stay inside installed app online and offline','installed-state UI','sensitive routes remain network-authoritative'],physical_device_certification:false,pass:true},null,2));
+  console.log(JSON.stringify({schema:'musitu.chemistry.install_browser_matrix.v7',classifier_cases:matrix.map(x=>x[0]),chromium_contracts:['server-rendered immediate Android action','versioned dedicated PWA manifest id /chemistry/app','trusted install prompt event','service worker v8 dedicated app-shell cache','first-launch onboarding dismissal','Scientific Response OS equation interaction','independent structured science boards','cross-representation SRG link','scientific argument capture','response finalization lock','finalized SRG immutable during review navigation','finalized lock persists across reload','reopen editing','offline dedicated Prove reload','Premium and Help stay inside installed app online and offline','installed-state opens /chemistry/app','sensitive routes remain network-authoritative'],physical_device_certification:false,physical_fresh_install_retest:false,pass:true},null,2));
 }finally{await browser.close()}
