@@ -17,11 +17,11 @@ jobs:
         with:
           fetch-depth: 2
 
-      - name: Guard exact failed-migration lineage
+      - name: Guard exact dedicated-app RED lineage
         shell: bash
         run: |
           set -euo pipefail
-          test "$(git rev-parse HEAD^)" = "26f5b1b9fc5ca85de7c8f197a61124c6dbda4d59"
+          test "$(git rev-parse HEAD^)" = "a28df4f62e9b16d63ee2b1a0589a57563256ab90"
           test "$(git diff --name-only HEAD^ HEAD)" = ".github/workflows/chemistry-fix-installer-app-identity.yml"
 
       - name: Apply dedicated app-identity migration only
