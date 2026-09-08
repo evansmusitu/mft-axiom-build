@@ -24,6 +24,7 @@ test('generated Worker routes Rescue through instant adaptive install concierge'
   assert.match(install.text,/Use MUSITU now/);
   assert.match(install.text,/data-install-panel="ios-safari"/);
   assert.match(install.text,/data-install-panel="installed"/);
+  assert.match(install.text,/\/chemistry\/manifest\.webmanifest\?v=2/);
   assert.match(install.text,/\/chemistry\/install\/diagnostics/);
   assert.match(install.text,/\/chemistry\/assets\/install-concierge\.css\?v=4/);
   assert.match(install.text,/\/chemistry\/assets\/install-handoff\.js\?v=4/);
@@ -37,16 +38,16 @@ test('install diagnostics is hidden from indexing and exposes local health check
   const diag=await get('/chemistry/install/diagnostics');
   assert.equal(diag.r.status,200);strict(diag.r);assert.match(diag.text,/noindex,nofollow/);assert.match(diag.text,/MUSITU installation check/);assert.equal(diag.r.headers.get('cache-control'),'no-store');
   const js=await get('/chemistry/assets/install-diagnostics.js');
-  assert.equal(js.r.status,200);assert.match(js.r.headers.get('content-type')||'',/^application\/javascript/);assert.match(js.text,/\/chemistry\/manifest\.webmanifest/);assert.match(js.text,/\/chemistry\/sw\.js/);assert.match(js.text,/\?v=4/);assert.doesNotMatch(js.text,/(sendBeacon|document\.cookie|localStorage|sessionStorage)/);
+  assert.equal(js.r.status,200);assert.match(js.r.headers.get('content-type')||'',/^application\/javascript/);assert.match(js.text,/\/chemistry\/manifest\.webmanifest\?v=2/);assert.match(js.text,/\/chemistry\/sw\.js/);assert.match(js.text,/\?v=4/);assert.doesNotMatch(js.text,/(sendBeacon|document\.cookie|localStorage|sessionStorage)/);
 });
 
-test('service worker v7 preserves installed app Prove and subviews offline while keeping sensitive routes network-authoritative',async()=>{
+test('service worker v8 preserves installed app Prove and subviews offline while keeping sensitive routes network-authoritative',async()=>{
   const sw=await get('/chemistry/sw.js');
   assert.equal(sw.r.status,200);
   assert.match(sw.r.headers.get('content-type')||'',/^application\/javascript/);
   assert.match(sw.r.headers.get('cache-control')||'',/no-cache/);
   assert.equal(sw.r.headers.get('service-worker-allowed'),'/chemistry/');
-  assert.match(sw.text,/musitu-chemistry-install-v7/);
+  assert.match(sw.text,/musitu-chemistry-install-v8/);
   assert.match(sw.text,/const APP='\/chemistry\/app'/);
   assert.match(sw.text,/\/chemistry\/app\?view=rescue/);
   assert.match(sw.text,/\/chemistry\/app\?view=exam/);
@@ -55,6 +56,7 @@ test('service worker v7 preserves installed app Prove and subviews offline while
   assert.match(sw.text,/\/chemistry\/assets\/app-shell\.css\?v=4/);
   assert.match(sw.text,/\/chemistry\/assets\/app-shell\.js\?v=4/);
   assert.match(sw.text,/\/chemistry\/assets\/app-bridge\.js\?v=1/);
+  assert.match(sw.text,/\/chemistry\/manifest\.webmanifest\?v=2/);
   assert.match(sw.text,/if\(u\.pathname==='\/chemistry\/app'\)/);
   assert.match(sw.text,/networkFirst\(req,APP\)/);
   assert.match(sw.text,/checkout\|return\|claim\|telemetry\|plans/);
