@@ -1,0 +1,332 @@
+name: MUSITU Chemistry App Offline Reconnect Browser Acceptance
+
+on:
+  push:
+    branches: [chemistry-national-rescue-growth-20260907]
+    paths:
+      - '.github/workflows/chemistry-app-offline-reconnect-browser-acceptance.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: musitu-chemistry-app-offline-reconnect-browser-acceptance
+  cancel-in-progress: false
+
+jobs:
+  offline-reconnect-acceptance:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    env:
+      BASE_URL: https://payments.mftintelligence.com
+      DEPLOYED_SOURCE_SHA: de92b9b75a585b4933645f5c33eca424ec518949
+      SOURCE_ZIP_SHA256: 5b2618499eed8dc90261bc4f8260246d5593534500dd2fb145f2d24b5c47754c
+      BASE_WORKER_SHA256: 848e1cec17ec580822d36e595196cda5978713849e8b45c5bc8dc7fcf9765db8
+      RECORDED_WORKER_SHA256: 68786463cdb6527adac1df1ec9a3b3424f0e5cdb0544dbbf1a1c9ffaa3ec6967
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Reconstruct exact deployed Chemistry source lineage
+        shell: bash
+        run: |
+          set -euo pipefail
+          paths=(
+            commerce/chemistry/storefront/app-shell.mjs
+            commerce/chemistry/storefront/app-shell.test.mjs
+            commerce/chemistry/storefront/app-shell-worker.test.mjs
+            commerce/chemistry/storefront/offline-sw-v5.mjs
+            commerce/chemistry/storefront/install.mjs
+            commerce/chemistry/storefront/install-browser-matrix.mjs
+            commerce/chemistry/patch_rescue_growth.py
+          )
+          for p in "${paths[@]}"; do
+            cmp <(git show "$DEPLOYED_SOURCE_SHA:$p") "$p" || {
+              echo "DEPLOYED_SOURCE_DRIFT $p" >&2
+              exit 1
+            }
+          done
+
+          rm -rf /tmp/mchem-offline-base /tmp/mchem-offline-source.zip
+          mkdir -p /tmp/mchem-offline-base
+          cat commerce/chemistry/source.b64.* | base64 -d > /tmp/mchem-offline-source.zip
+          echo "$SOURCE_ZIP_SHA256  /tmp/mchem-offline-source.zip" | sha256sum -c -
+          unzip -q /tmp/mchem-offline-source.zip -d /tmp/mchem-offline-base
+          echo "$BASE_WORKER_SHA256  /tmp/mchem-offline-base/src/index.mjs" | sha256sum -c -
+          cp /tmp/mchem-offline-base/src/index.mjs commerce/chemistry/index.base.mjs
+          python commerce/chemistry/patch_storefront.py
+          python commerce/chemistry/patch_rescue_growth.py
+          echo "$RECORDED_WORKER_SHA256  commerce/chemistry/index.storefront-v3.mjs" | sha256sum -c -
+          node --check commerce/chemistry/index.storefront-v3.mjs
+          echo 'EXACT_CHEMISTRY_WORKER_RECONSTRUCTION=PASS'
+
+      - name: Re-run Chemistry storefront and offline authority contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --test commerce/chemistry/storefront/*.test.mjs
+
+      - name: Exercise live offline shell sensitive boundaries and reconnect in Chrome
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/mchem-offline-evidence
+          CHROME_BIN="$(command -v google-chrome || command -v google-chrome-stable || true)"
+          DRIVER_BIN="$(command -v chromedriver || true)"
+          test -n "$CHROME_BIN" || { echo 'Google Chrome missing from runner' >&2; exit 1; }
+          test -n "$DRIVER_BIN" || { echo 'ChromeDriver missing from runner' >&2; exit 1; }
+          "$CHROME_BIN" --version | tee /tmp/mchem-offline-evidence/chrome-version.txt
+          "$DRIVER_BIN" --version | tee /tmp/mchem-offline-evidence/chromedriver-version.txt
+          "$DRIVER_BIN" --port=9516 --log-path=/tmp/mchem-offline-evidence/chromedriver.log --verbose >/tmp/mchem-offline-evidence/chromedriver.stdout 2>&1 &
+          DRIVER_PID=$!
+          trap 'kill "$DRIVER_PID" 2>/dev/null || true' EXIT
+          for i in $(seq 1 100); do
+            curl -fsS http://127.0.0.1:9516/status >/dev/null && break
+            sleep .1
+          done
+          curl -fsS http://127.0.0.1:9516/status >/dev/null
+
+          python - <<'PY'
+          import json, os, secrets, time, urllib.error, urllib.request
+          from pathlib import Path
+
+          base=os.environ['BASE_URL']
+          wdroot='http://127.0.0.1:9516'
+          nonce=secrets.token_hex(8)
+
+          def public(path,accept='*/*'):
+              sep='&' if '?' in path else '?'
+              req=urllib.request.Request(base+path+sep+'__mchem_offline='+nonce,headers={
+                  'Accept':accept,
+                  'Cache-Control':'no-cache, no-store, max-age=0',
+                  'Pragma':'no-cache',
+                  'User-Agent':'MUSITU-Chemistry-Offline-Reconnect-Acceptance/1.0',
+              })
+              try:
+                  with urllib.request.urlopen(req,timeout=30) as r:
+                      return r.status,dict(r.headers.items()),r.read()
+              except urllib.error.HTTPError as e:
+                  return e.code,dict(e.headers.items()),e.read()
+
+          status,headers,body=public('/chemistry/app','text/html')
+          if status!=200 or 'Your Chemistry workspace.' not in body.decode('utf-8','replace'):
+              raise SystemExit('LIVE_APP_ENTRY_REJECTED')
+          status,headers,body=public('/chemistry/sw.js','application/javascript')
+          sw=body.decode('utf-8','replace')
+          if status!=200 or 'musitu-chemistry-install-v6' not in sw:
+              raise SystemExit('LIVE_SERVICE_WORKER_REJECTED')
+
+          def wd(method,path,payload=None,timeout=45):
+              data=None if payload is None else json.dumps(payload).encode()
+              req=urllib.request.Request(wdroot+path,method=method,data=data,headers={'Content-Type':'application/json;charset=UTF-8'})
+              try:
+                  with urllib.request.urlopen(req,timeout=timeout) as r:
+                      obj=json.loads(r.read() or b'{}')
+              except urllib.error.HTTPError as e:
+                  raise RuntimeError(f'WebDriver HTTP {e.code} {path}: '+e.read().decode('utf-8','replace')[:1200])
+              value=obj.get('value')
+              if isinstance(value,dict) and value.get('error'):
+                  raise RuntimeError('WebDriver error '+json.dumps(value,sort_keys=True))
+              return value
+
+          created=wd('POST','/session',{'capabilities':{'alwaysMatch':{
+              'browserName':'chrome',
+              'pageLoadStrategy':'normal',
+              'goog:chromeOptions':{'args':['--headless=new','--no-sandbox','--disable-dev-shm-usage','--disable-gpu','--window-size=1280,900']},
+          }}})
+          sid=created.get('sessionId') if isinstance(created,dict) else None
+          if not sid:
+              raise SystemExit('CHROMEDRIVER_SESSION_ID_MISSING '+json.dumps(created,sort_keys=True))
+
+          def execute(script,args=None):
+              return wd('POST',f'/session/{sid}/execute/sync',{'script':script,'args':args or []})
+
+          def execute_async(script,args=None):
+              return wd('POST',f'/session/{sid}/execute/async',{'script':script,'args':args or []},timeout=45)
+
+          def cdp(cmd,params=None):
+              return wd('POST',f'/session/{sid}/goog/cdp/execute',{'cmd':cmd,'params':params or {}})
+
+          def wait(marker,tries=180):
+              last=''
+              for _ in range(tries):
+                  try:
+                      last=execute('return document.body ? document.body.innerText : ""') or ''
+                      if execute('return document.readyState')=='complete' and marker in last:
+                          return last
+                  except Exception:
+                      pass
+                  time.sleep(.1)
+              raise RuntimeError('PAGE_READY_TIMEOUT '+marker+' '+repr(last[:500]))
+
+          def navigate(url,marker,expect_offline=None):
+              wd('POST',f'/session/{sid}/url',{'url':url})
+              text=wait(marker)
+              state={
+                  'url':execute('return location.href'),
+                  'path':execute('return location.pathname+location.search'),
+                  'marker':marker,
+                  'app_shell':bool(execute("return !!document.querySelector('.app-shell')")),
+                  'app_topbar':bool(execute("return !!document.querySelector('.app-topbar')")),
+                  'footer_absent':bool(execute("return document.querySelector('footer')===null")),
+                  'navigator_online':bool(execute('return navigator.onLine')),
+                  'text_sample':text[:220],
+              }
+              if not state['app_shell'] or not state['app_topbar'] or not state['footer_absent']:
+                  raise SystemExit('APP_SHELL_STATE_REJECTED '+json.dumps(state,sort_keys=True))
+              if expect_offline is True and state['navigator_online'] is not False:
+                  raise SystemExit('EXPECTED_OFFLINE_BROWSER_STATE '+json.dumps(state,sort_keys=True))
+              if expect_offline is False and state['navigator_online'] is not True:
+                  raise SystemExit('EXPECTED_ONLINE_BROWSER_STATE '+json.dumps(state,sort_keys=True))
+              return state
+
+          wd('POST',f'/session/{sid}/timeouts',{'script':30000,'pageLoad':45000,'implicit':0})
+          online_home=navigate(base+'/chemistry/app','Your Chemistry workspace.',False)
+          if execute("return document.body.innerText.includes('MUSITU Chemistry') && document.body.innerText.includes('EDUCATION NEXUS')") is not True:
+              raise SystemExit('APP_IDENTITY_REJECTED')
+          if execute("const x=document.getElementById('app-onboarding'); return !!x && !x.hidden"):
+              if execute("const b=document.getElementById('app-onboarding-skip'); if(!b)return false; b.click(); return true") is not True:
+                  raise SystemExit('ONBOARDING_NOT_ACTIONABLE')
+              time.sleep(.2)
+
+          sw_ready=execute_async("""
+            const done=arguments[arguments.length-1];
+            (async()=>{
+              try{
+                if(!('serviceWorker' in navigator)||!('caches' in window)){done({ok:false,reason:'api-missing'});return}
+                await navigator.serviceWorker.ready;
+                const deadline=Date.now()+20000;
+                while(Date.now()<deadline && !navigator.serviceWorker.controller){await new Promise(r=>setTimeout(r,200));}
+                const cache=await caches.open('musitu-chemistry-install-v6');
+                const required=['/chemistry/app','/chemistry/app?view=rescue','/chemistry/app?view=premium','/chemistry/app?view=help'];
+                const missing=[];
+                for(const path of required){if(!(await cache.match(path)))missing.push(path)}
+                const sensitive=['/chemistry/checkout','/chemistry/return','/chemistry/claim','/chemistry/telemetry','/chemistry/plans'];
+                const sensitiveHits=[];
+                const names=await caches.keys();
+                for(const name of names){const c=await caches.open(name);for(const path of sensitive){if(await c.match(path))sensitiveHits.push(name+':'+path)}}
+                done({ok:!!navigator.serviceWorker.controller && missing.length===0 && sensitiveHits.length===0,controller:!!navigator.serviceWorker.controller,cache_names:names,missing,sensitive_hits:sensitiveHits});
+              }catch(e){done({ok:false,reason:String(e)})}
+            })();
+          """)
+          if not isinstance(sw_ready,dict) or sw_ready.get('ok') is not True:
+              raise SystemExit('SERVICE_WORKER_CACHE_PRIME_REJECTED '+json.dumps(sw_ready,sort_keys=True))
+
+          cdp('Network.enable')
+          cdp('Network.emulateNetworkConditions',{'offline':True,'latency':0,'downloadThroughput':0,'uploadThroughput':0})
+          time.sleep(.25)
+
+          offline_states=[]
+          for path,marker in [
+              ('/chemistry/app','Your Chemistry workspace.'),
+              ('/chemistry/app?view=rescue','Chemistry Rescue.'),
+              ('/chemistry/app?view=premium','Unlock full mastery.'),
+              ('/chemistry/app?view=help','Help without leaving MUSITU.'),
+          ]:
+              offline_states.append(navigate(base+path,marker,True))
+
+          sensitive_probe=execute_async("""
+            const done=arguments[arguments.length-1];
+            (async()=>{
+              const paths=['/chemistry/checkout','/chemistry/return','/chemistry/claim','/chemistry/telemetry','/chemistry/plans'];
+              const out=[];
+              for(const path of paths){
+                try{const r=await fetch(path,{cache:'no-store'});out.push({path,resolved:true,status:r.status,type:r.type})}
+                catch(e){out.push({path,resolved:false,error:e&&e.name?e.name:String(e)})}
+              }
+              done(out);
+            })();
+          """)
+          if not isinstance(sensitive_probe,list) or len(sensitive_probe)!=5 or any(item.get('resolved') for item in sensitive_probe):
+              raise SystemExit('SENSITIVE_ROUTE_OFFLINE_AUTHORITY_REJECTED '+json.dumps(sensitive_probe,sort_keys=True))
+
+          cdp('Network.emulateNetworkConditions',{'offline':False,'latency':0,'downloadThroughput':-1,'uploadThroughput':-1})
+          time.sleep(.25)
+          update_probe=execute_async("""
+            const done=arguments[arguments.length-1];
+            (async()=>{
+              try{
+                const reg=await navigator.serviceWorker.ready;
+                await reg.update();
+                done({ok:true,controller:!!navigator.serviceWorker.controller,scriptURL:reg.active&&reg.active.scriptURL||null});
+              }catch(e){done({ok:false,error:String(e)})}
+            })();
+          """)
+          if not isinstance(update_probe,dict) or update_probe.get('ok') is not True:
+              raise SystemExit('SERVICE_WORKER_RECONNECT_UPDATE_REJECTED '+json.dumps(update_probe,sort_keys=True))
+
+          reconnect_home=navigate(base+'/chemistry/app?__mchem_reconnect='+nonce,'Your Chemistry workspace.',False)
+          if '/chemistry/rescue' in reconnect_home['path']:
+              raise SystemExit('RECONNECT_REDIRECTED_TO_RESCUE '+reconnect_home['path'])
+          health_probe=execute_async("""
+            const done=arguments[arguments.length-1];
+            fetch('/chemistry/healthz',{cache:'no-store'}).then(async r=>done({status:r.status,body:await r.json()})).catch(e=>done({error:String(e)}));
+          """)
+          hbody=health_probe.get('body',{}) if isinstance(health_probe,dict) else {}
+          if not isinstance(health_probe,dict) or health_probe.get('status')!=200 or hbody.get('ok') is not True or hbody.get('payment_authority_bound') is not True or hbody.get('transport_bound') is not True or hbody.get('raw_paynow_key_present') is not False:
+              raise SystemExit('RECONNECT_HEALTH_AUTHORITY_REJECTED '+json.dumps(health_probe,sort_keys=True))
+
+          result={
+              'schema':'musitu.chemistry.offline_reconnect_browser_acceptance.v1',
+              'tested_at_utc':time.strftime('%Y-%m-%dT%H:%M:%SZ',time.gmtime()),
+              'github_sha':os.environ['GITHUB_SHA'],
+              'deployed_source_sha':os.environ['DEPLOYED_SOURCE_SHA'],
+              'recorded_production_worker_sha256':os.environ['RECORDED_WORKER_SHA256'],
+              'online_home':online_home,
+              'service_worker_prime':sw_ready,
+              'offline_app_views_pass':True,
+              'offline_states':offline_states,
+              'sensitive_routes_network_authoritative_in_browser_offline_mode':True,
+              'sensitive_route_probe':sensitive_probe,
+              'reconnect_service_worker_update_requested':True,
+              'reconnect_update_probe':update_probe,
+              'reconnect_reload_pass':True,
+              'reconnect_home':reconnect_home,
+              'reconnect_health_authority_pass':True,
+              'physical_A8_update_reload_gate_closed':False,
+              'physical_A9_native_navigation_gate_closed':False,
+              'physical_device_claimed':False,
+              'real_money_settlement_performed':False,
+          }
+          Path('/tmp/mchem-offline-evidence/result.json').write_text(json.dumps(result,indent=2)+'\n')
+          print('MUSITU_CHEMISTRY_OFFLINE_RECONNECT_BROWSER_ACCEPTANCE=PASS')
+          print(json.dumps(result,sort_keys=True))
+          try: wd('DELETE',f'/session/{sid}')
+          except Exception: pass
+          PY
+
+      - name: Seal offline reconnect browser evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd /tmp/mchem-offline-evidence
+          cat > provenance.json <<EOF
+          {
+            "schema": "musitu.chemistry.offline_reconnect_browser_acceptance.provenance.v1",
+            "github_repository": "${GITHUB_REPOSITORY}",
+            "github_sha": "${GITHUB_SHA}",
+            "github_run_id": "${GITHUB_RUN_ID}",
+            "github_run_attempt": "${GITHUB_RUN_ATTEMPT}",
+            "deployed_source_sha": "${DEPLOYED_SOURCE_SHA}",
+            "recorded_production_worker_sha256": "${RECORDED_WORKER_SHA256}",
+            "production_url": "${BASE_URL}/chemistry/app",
+            "read_only_acceptance": true,
+            "deployment_performed": false,
+            "physical_device_claimed": false,
+            "physical_A8_gate_closed": false,
+            "physical_A9_gate_closed": false,
+            "real_money_settlement_performed": false
+          }
+          EOF
+          sha256sum result.json provenance.json chrome-version.txt chromedriver-version.txt > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+
+      - name: Upload immutable offline reconnect browser evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: musitu-chemistry-offline-reconnect-browser-acceptance
+          path: /tmp/mchem-offline-evidence/
+          if-no-files-found: error
+          retention-days: 90
