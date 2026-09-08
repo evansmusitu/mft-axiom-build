@@ -210,6 +210,10 @@ jobs:
               source=(
                 "Object.defineProperty(Navigator.prototype,'vendor',{get:()=>"+json.dumps(case['vendor'])+"});"
                 "Object.defineProperty(Navigator.prototype,'maxTouchPoints',{get:()=>"+str(case['touch'])+"});"
+                "const __mchemAdd=EventTarget.prototype.addEventListener;"
+                "EventTarget.prototype.addEventListener=function(type,listener,options){"
+                "if(this===window&&type==='beforeinstallprompt')return;"
+                "return __mchemAdd.call(this,type,listener,options);};"
               )
               cdp('Page.addScriptToEvaluateOnNewDocument',{'source':source})
               wd('POST',f'/session/{sid}/timeouts',{'script':30000,'pageLoad':45000,'implicit':0})
@@ -231,9 +235,7 @@ jobs:
                   panelText:panel?panel.innerText:'',
                   canonical:document.querySelector('link[rel="canonical"]')?.href||null,
                   manifest:document.querySelector('link[href="/chemistry/manifest.webmanifest"]')?.href||null,
-                  help:document.querySelector('#install-help-link a')?.href||null,
-                  publicHeader:!!document.querySelector('.site-header'),
-                  appShell:!!document.querySelector('.app-shell')
+                  help:document.querySelector('#install-help-link a')?.href||null
                 };
               """,[case['mode']])
               if observed.get('mode')!=case['mode'] or observed.get('visible') is not True:
@@ -252,6 +254,7 @@ jobs:
                 'required_copy_markers':case['markers'],
                 'canonical_pass':True,
                 'manifest_discovery_pass':True,
+                'chromium_beforeinstallprompt_listener_suppressed':True,
               }
             finally:
               try: wd('DELETE',f'/session/{sid}')
@@ -264,14 +267,15 @@ jobs:
             results.append({'name':case['name'],'physical_gate':case['gate'],'expected_mode':case['mode'],'server':server,'browser':browser,'physical_device_claimed':False})
 
           result={
-            'schema':'musitu.chemistry.live_adaptive_install_matrix.v1',
+            'schema':'musitu.chemistry.live_adaptive_install_matrix.v2',
             'tested_at_utc':time.strftime('%Y-%m-%dT%H:%M:%SZ',time.gmtime()),
             'github_sha':os.environ['GITHUB_SHA'],
             'deployed_source_sha':os.environ['DEPLOYED_SOURCE_SHA'],
             'recorded_production_worker_sha256':os.environ['RECORDED_WORKER_SHA256'],
             'matrix_results':results,
             'live_server_adaptive_matrix_pass':True,
-            'live_browser_adaptive_matrix_pass':True,
+            'live_browser_adaptive_fallback_matrix_pass':True,
+            'browser_emulation_constraint':'Chrome is used only as the rendering engine. Its Chromium beforeinstallprompt listener is suppressed so non-Chromium/no-native-prompt fallback surfaces can be exercised; this is not Safari or Samsung physical evidence.',
             'physical_A1_closed':False,
             'physical_A2_closed':False,
             'physical_A4_closed':False,
@@ -292,7 +296,7 @@ jobs:
           cd /tmp/mchem-adaptive-evidence
           cat > provenance.json <<EOF
           {
-            "schema": "musitu.chemistry.live_adaptive_install_matrix.provenance.v1",
+            "schema": "musitu.chemistry.live_adaptive_install_matrix.provenance.v2",
             "github_repository": "${GITHUB_REPOSITORY}",
             "github_sha": "${GITHUB_SHA}",
             "github_run_id": "${GITHUB_RUN_ID}",
