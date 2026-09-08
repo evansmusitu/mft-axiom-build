@@ -122,9 +122,21 @@ try{
   await page.locator('[data-sr-mode="graph-data"]').click();
   const frozenAfter=JSON.parse(await page.locator('[data-sr-graph-output]').textContent()||'{}');
   assert.deepEqual(frozenAfter,frozenBefore,'view-only navigation mutated a finalized Scientific Response Graph');
+  assert.equal(await page.locator('[data-sr-reset]').isDisabled(),true,'finalized response allowed destructive clear before reopen');
+
+  const frozenStorageBeforeReload=await page.evaluate(()=>localStorage.getItem('musitu_chem_scientific_response_v1'));
+  await page.reload({waitUntil:'networkidle'});
+  assert.match(await page.locator('[data-sr-status]').textContent()||'',/locked for review/i,'finalized response did not stay locked across reload');
+  assert.equal(await page.locator('[data-sr-equation]').getAttribute('readonly'),'','finalized equation became editable after reload');
+  assert.equal(await page.locator('[data-sr-reset]').isDisabled(),true,'destructive clear unlocked after reload');
+  const frozenStorageAfterReload=await page.evaluate(()=>localStorage.getItem('musitu_chem_scientific_response_v1'));
+  assert.equal(frozenStorageAfterReload,frozenStorageBeforeReload,'reload mutated persisted finalized Scientific Response Graph');
+  const frozenAfterReload=JSON.parse(await page.locator('[data-sr-graph-output]').textContent()||'{}');
+  assert.deepEqual(frozenAfterReload,frozenBefore,'reload changed finalized Scientific Response Graph semantics');
 
   await page.locator('[data-sr-reopen]').click();
   assert.equal(await page.locator('[data-sr-add="atom"]').first().isDisabled(),false);
+  assert.equal(await page.locator('[data-sr-reset]').isDisabled(),false);
 
   await page.locator('.app-nav a[href="/chemistry/app?view=premium"]').click();
   await page.waitForLoadState('networkidle');

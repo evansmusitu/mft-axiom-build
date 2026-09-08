@@ -47,7 +47,11 @@ test('Scientific Response Graph runtime is bounded, multimodal, cross-representa
   assert.match(APP_SHELL_JS,/edge\.kind\.includes\('electron'\)/);
   assert.match(APP_SHELL_JS,/same-scientific-concept/);
   assert.match(APP_SHELL_JS,/panelFor=mode=>/);
+  assert.match(APP_SHELL_JS,/let viewMode=response\.activeMode/);
   assert.match(APP_SHELL_JS,/boardRefs=\(\)=>/);
+  assert.match(APP_SHELL_JS,/modeObjects=\(\)=>response\.objects\.filter\(o=>o\.mode===viewMode\)/);
+  assert.match(APP_SHELL_JS,/finalized:parsed\.finalized===true/);
+  assert.match(APP_SHELL_JS,/if\(!response\.finalized\)\{response\.activeMode=mode;trace\('mode',mode\);persist\(\);\}/);
   assert.match(APP_SHELL_JS,/paintLock=\(\)=>/);
   assert.match(APP_SHELL_JS,/textArea\.readOnly=locked/);
   assert.match(APP_SHELL_JS,/navigator\.clipboard\.writeText/);

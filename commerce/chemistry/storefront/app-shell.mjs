@@ -80,7 +80,7 @@ export const APP_SHELL_JS=String.raw`
   let response=blank();
   try{
     const raw=localStorage.getItem(SR_KEY);
-    if(raw){const parsed=JSON.parse(raw);if(parsed&&parsed.schema===SR_SCHEMA&&Array.isArray(parsed.objects)&&Array.isArray(parsed.edges)&&Array.isArray(parsed.ink))response={...blank(),...parsed,argument:{...blank().argument,...(parsed.argument||{})},activeMode:modes.has(parsed.activeMode)?parsed.activeMode:'equation',finalized:false};}
+    if(raw){const parsed=JSON.parse(raw);if(parsed&&parsed.schema===SR_SCHEMA&&Array.isArray(parsed.objects)&&Array.isArray(parsed.edges)&&Array.isArray(parsed.ink))response={...blank(),...parsed,argument:{...blank().argument,...(parsed.argument||{})},activeMode:modes.has(parsed.activeMode)?parsed.activeMode:'equation',finalized:parsed.finalized===true};}
   }catch{}
   const live=sr.querySelector('[data-sr-live]');
   const status=sr.querySelector('[data-sr-status]');
@@ -92,6 +92,7 @@ export const APP_SHELL_JS=String.raw`
   let selected=[];
   let activeStroke=null;
   let drag=null;
+  let viewMode=response.activeMode;
   const say=t=>{if(live){live.textContent='';requestAnimationFrame(()=>{live.textContent=t})}};
   const trace=(action,detail='')=>{response.provenance.push({t:Math.max(0,Math.round(performance.now())),action:String(action).slice(0,40),detail:String(detail).slice(0,80)});if(response.provenance.length>MAX_TRACE)response.provenance.splice(0,response.provenance.length-MAX_TRACE)};
   const persist=()=>{try{const raw=JSON.stringify(response);if(raw.length<=240000)localStorage.setItem(SR_KEY,raw)}catch{}};
@@ -104,19 +105,20 @@ export const APP_SHELL_JS=String.raw`
     if(textArea)textArea.readOnly=locked;
     if(accessArea)accessArea.readOnly=locked;
     sr.querySelectorAll('[data-sr-argument]').forEach(el=>{el.readOnly=locked});
-    sr.querySelectorAll('[data-sr-symbol],[data-sr-add],[data-sr-connect],[data-sr-link-representation],[data-sr-delete],[data-sr-ink-undo],[data-sr-ink-clear]').forEach(el=>{el.disabled=locked});
+    sr.querySelectorAll('[data-sr-symbol],[data-sr-add],[data-sr-connect],[data-sr-link-representation],[data-sr-delete],[data-sr-ink-undo],[data-sr-ink-clear],[data-sr-reset]').forEach(el=>{el.disabled=locked});
     const finish=sr.querySelector('[data-sr-finalize]');if(finish)finish.disabled=locked;
     const reopen=sr.querySelector('[data-sr-reopen]');if(reopen)reopen.disabled=!locked;
   };
   const touch=()=>{if(response.finalized)return;persist();renderSummary()};
   const panelFor=mode=>sr.querySelector('[data-sr-panel="'+mode+'"]');
-  const boardRefs=()=>{const panel=panelFor(response.activeMode);return {board:panel?.querySelector('[data-sr-board]'),links:panel?.querySelector('[data-sr-links]'),empty:panel?.querySelector('[data-sr-empty]')}};
+  const boardRefs=()=>{const panel=panelFor(viewMode);return {board:panel?.querySelector('[data-sr-board]'),links:panel?.querySelector('[data-sr-links]'),empty:panel?.querySelector('[data-sr-empty]')}};
   const setMode=mode=>{
     if(!modes.has(mode))return;
-    response.activeMode=mode;
+    viewMode=mode;
+    if(!response.finalized){response.activeMode=mode;trace('mode',mode);persist();}
     sr.querySelectorAll('[data-sr-mode]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.srMode===mode)));
     sr.querySelectorAll('[data-sr-panel]').forEach(p=>p.hidden=p.dataset.srPanel!==mode);
-    trace('mode',mode);if(!response.finalized)persist();renderSummary();
+    renderSummary();
     if(mode==='ink')resizeInk();else if(['structure','mechanism','graph','apparatus','particle'].includes(mode))renderBoard();
   };
   const insertAtCursor=(el,value)=>{
@@ -130,8 +132,8 @@ export const APP_SHELL_JS=String.raw`
   accessArea?.addEventListener('input',()=>{if(response.finalized)return;response.accessibilityDescription=String(accessArea.value).slice(0,6000);trace('accessibility-edit');touch()});
   sr.querySelectorAll('[data-sr-argument]').forEach(el=>el.addEventListener('input',()=>{if(response.finalized)return;const key=el.dataset.srArgument;if(Object.hasOwn(response.argument,key)){response.argument[key]=String(el.value).slice(0,4000);trace('argument-edit',key);touch()}}));
 
-  const modeObjects=()=>response.objects.filter(o=>o.mode===response.activeMode);
-  const modeEdges=()=>response.edges.filter(e=>e.mode===response.activeMode);
+  const modeObjects=()=>response.objects.filter(o=>o.mode===viewMode);
+  const modeEdges=()=>response.edges.filter(e=>e.mode===viewMode);
   const uid=()=>{let id='n'+Math.random().toString(36).slice(2,9);while(response.objects.some(o=>o.id===id))id='n'+Math.random().toString(36).slice(2,9);return id};
   const nextPosition=()=>{const n=modeObjects().length;return {x:12+(n%4)*22,y:14+(Math.floor(n/4)%5)*16}};
   const addObject=(kind,label)=>{
@@ -205,7 +207,7 @@ export const APP_SHELL_JS=String.raw`
   sr.querySelector('[data-sr-ink-clear]')?.addEventListener('click',()=>{if(response.finalized)return;response.ink=[];trace('ink-clear');touch();drawInk()});
   addEventListener('resize',()=>{if(response.activeMode==='ink')resizeInk()},{passive:true});
 
-  sr.querySelector('[data-sr-reset]')?.addEventListener('click',()=>{response=blank();selected=[];textArea&&(textArea.value='');accessArea&&(accessArea.value='');sr.querySelectorAll('[data-sr-argument]').forEach(el=>{el.value=''});try{localStorage.removeItem(SR_KEY)}catch{}trace('reset');setMode('equation');paintLock();renderBoard();drawInk();renderSummary();say('Local scientific response cleared')});
+  sr.querySelector('[data-sr-reset]')?.addEventListener('click',()=>{if(response.finalized)return;response=blank();selected=[];textArea&&(textArea.value='');accessArea&&(accessArea.value='');sr.querySelectorAll('[data-sr-argument]').forEach(el=>{el.value=''});try{localStorage.removeItem(SR_KEY)}catch{}trace('reset');setMode('equation');paintLock();renderBoard();drawInk();renderSummary();say('Local scientific response cleared')});
   sr.querySelector('[data-sr-finalize]')?.addEventListener('click',()=>{response.finalized=true;trace('finalize');persist();paintLock();renderSummary();say('Response locked for review. No network submission has occurred.')});
   sr.querySelector('[data-sr-reopen]')?.addEventListener('click',()=>{response.finalized=false;trace('reopen');persist();paintLock();renderSummary();say('Response reopened for editing')});
   sr.querySelector('[data-sr-export]')?.addEventListener('click',async()=>{const payload=JSON.stringify(response,null,2);try{await navigator.clipboard.writeText(payload);say('Scientific Response Graph copied')}catch{if(graphOut){graphOut.hidden=false;graphOut.focus();say('Copy unavailable. Structured response is shown below.')}}});
