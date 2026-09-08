@@ -3,7 +3,7 @@ import {PRODUCT,RELEASE,SUPPORT} from './content.mjs';
 export const INSTALL_CANONICAL_URL='https://payments.mftintelligence.com/chemistry/install';
 export const INSTALL_DIAGNOSTICS_URL='https://payments.mftintelligence.com/chemistry/install/diagnostics';
 
-const installEsc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot',"'":'&#39;'}[c]));
+const installEsc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
 export function classifyInstallContext({ua='',vendor='',maxTouchPoints=0,standalone=false}={}){
   const u=String(ua).toLowerCase();
