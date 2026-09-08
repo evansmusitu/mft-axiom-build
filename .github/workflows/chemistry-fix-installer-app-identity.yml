@@ -17,11 +17,11 @@ jobs:
         with:
           fetch-depth: 2
 
-      - name: Guard exact RED lineage
+      - name: Guard exact failed-migration lineage
         shell: bash
         run: |
           set -euo pipefail
-          test "$(git rev-parse HEAD^)" = "09ae024015c1717cf6d05cbbc54ff7ec92efa9e9"
+          test "$(git rev-parse HEAD^)" = "26f5b1b9fc5ca85de7c8f197a61124c6dbda4d59"
           test "$(git diff --name-only HEAD^ HEAD)" = ".github/workflows/chemistry-fix-installer-app-identity.yml"
 
       - name: Apply dedicated app-identity migration only
@@ -50,7 +50,9 @@ jobs:
           replace_exact('commerce/chemistry/storefront/install.mjs','<link rel="manifest" href="/chemistry/manifest.webmanifest">','<link rel="manifest" href="/chemistry/manifest.webmanifest?v=2">')
           replace_exact('commerce/chemistry/storefront/install.mjs',"['manifest','/chemistry/manifest.webmanifest']","['manifest','/chemistry/manifest.webmanifest?v=2']")
           replace_exact('commerce/chemistry/storefront/install.mjs','You are ready. Open Chemistry Rescue and continue learning.','You are ready. Open MUSITU Chemistry and continue learning.')
-          replace_exact('commerce/chemistry/storefront/install.mjs','href="/chemistry/rescue?src=direct">Open Chemistry Rescue</a></div></article>','href="/chemistry/app">Open MUSITU Chemistry</a></div></article>')
+          old_installed='<article class="install-card" data-install-panel="installed"><span class="install-state good">Installed ✓</span><h1>MUSITU is installed</h1><p class="lead">You are ready. Open MUSITU Chemistry and continue learning.</p><div class="install-actions"><a class="button" href="/chemistry/rescue?src=direct">Open Chemistry Rescue</a></div></article>'
+          new_installed='<article class="install-card" data-install-panel="installed"><span class="install-state good">Installed ✓</span><h1>MUSITU is installed</h1><p class="lead">You are ready. Open MUSITU Chemistry and continue learning.</p><div class="install-actions"><a class="button" href="/chemistry/app">Open MUSITU Chemistry</a></div></article>'
+          replace_exact('commerce/chemistry/storefront/install.mjs',old_installed,new_installed)
           replace_exact('commerce/chemistry/storefront/install.mjs','Installation is complete. Open Chemistry Rescue.','Installation is complete. Open MUSITU Chemistry.')
 
           replace_exact('commerce/chemistry/storefront/app-shell.mjs','/chemistry/manifest.webmanifest','/chemistry/manifest.webmanifest?v=2',expected=2)
@@ -59,8 +61,7 @@ jobs:
           replace_exact('commerce/chemistry/storefront/offline-sw-v5.mjs',"  '/chemistry/manifest.webmanifest'\n];","  '/chemistry/manifest.webmanifest?v=2'\n];")
           PY
           git diff --check
-          git diff --name-only
-          test "$(git diff --name-only | sort | tr '\n' ' ')" = ".github/workflows/chemistry-fix-installer-app-identity.yml commerce/chemistry/patch_rescue_growth.py commerce/chemistry/storefront/app-shell.mjs commerce/chemistry/storefront/install.mjs commerce/chemistry/storefront/offline-sw-v5.mjs commerce/chemistry/storefront/rescue-render.mjs " || true
+          test "$(git diff --name-only | sort | tr '\n' ' ')" = "commerce/chemistry/patch_rescue_growth.py commerce/chemistry/storefront/app-shell.mjs commerce/chemistry/storefront/install.mjs commerce/chemistry/storefront/offline-sw-v5.mjs commerce/chemistry/storefront/rescue-render.mjs "
 
       - name: Reconstruct and prove GREEN contracts
         shell: bash
@@ -81,8 +82,9 @@ jobs:
           const {handleRequest}=await import('./commerce/chemistry/index.storefront-v3.mjs');
           const base='https://payments.mftintelligence.com';
           const req=async p=>handleRequest(new Request(base+p),{});
-          const manifest=JSON.parse(await (await req('/chemistry/manifest.webmanifest')).text());
-          if(manifest.id!=='/chemistry/app'||manifest.name!=='MUSITU Chemistry'||manifest.start_url!=='/chemistry/app'||/Rescue/i.test(manifest.description||''))throw new Error('dedicated app manifest rejected '+JSON.stringify(manifest));
+          const manifestResponse=await req('/chemistry/manifest.webmanifest?v=2');
+          const manifest=JSON.parse(await manifestResponse.text());
+          if(manifest.id!=='/chemistry/app'||manifest.name!=='MUSITU Chemistry'||manifest.start_url!=='/chemistry/app'||manifest.scope!=='/chemistry/'||/Rescue/i.test(manifest.description||''))throw new Error('dedicated app manifest rejected '+JSON.stringify(manifest));
           const install=await (await req('/chemistry/install')).text();
           if(!install.includes('manifest.webmanifest?v=2')||!install.includes('href="/chemistry/app">Open MUSITU Chemistry')||install.includes('You are ready. Open Chemistry Rescue'))throw new Error('install handoff still rescue-bound');
           const app=await (await req('/chemistry/app')).text();
