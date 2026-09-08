@@ -1,0 +1,177 @@
+name: Record MUSITU Chemistry PWA Primary Production Evidence
+
+on:
+  push:
+    branches: [chemistry-national-rescue-growth-20260907]
+    paths: ['.github/workflows/chemistry-record-pwa-primary-production-evidence.yml']
+
+permissions:
+  contents: write
+  actions: read
+
+concurrency:
+  group: musitu-chemistry-record-pwa-primary-production-evidence
+  cancel-in-progress: false
+
+jobs:
+  record:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    env:
+      EXPECTED_PARENT_SHA: a15d6aa393919cb54862084bba53f3148f06d541
+      DEPLOYED_SOURCE_SHA: 3689b683671598ce5ae3fd86bd7f40aa057b45ba
+      DEPLOYED_SOURCE_TREE_SHA: 38b1799d8abadfe26f976c325ffdcc89634ced47
+      PREVIOUS_WORKER_SHA256: 68786463cdb6527adac1758713eb4de167caf07113
+      CURRENT_WORKER_SHA256: c25d6785e1a7cc10a3dada2e373d44e11aea240bbfd7412dc0d854c91c7e2592
+      DEPLOY_RUN_ID: '34194528793'
+      DEPLOY_JOB_ID: '101959265684'
+      DEPLOY_WORKFLOW_COMMIT_SHA: dd1f1ad54f517155903114c0823262d10d8aa7e2
+      DEPLOY_ARTIFACT_ID: '10043389236'
+      DEPLOY_ARTIFACT_SHA256: 4cb11eec94497cb19f6c6d7361f23879b273281197d055dc339d33329b9ee0e2
+      DEPLOY_ARTIFACT_EXPIRES_AT: '2026-12-07T06:24:34Z'
+      DEPLOY_RESULT_JSON_SHA256: dd9f434e708d36a3ef35fd434bc1c205f86db2caf0238cc6af9888b012c68750
+      DEPLOY_PROVENANCE_JSON_SHA256: 4fc0499d07960b5f3ba281f6c8b2a0d96d4f130896f8729b75caa487a4d45a9d
+      PREFLIGHT_RUN_ID: '34194314676'
+      PREFLIGHT_ARTIFACT_ID: '10043328101'
+      PREFLIGHT_ARTIFACT_SHA256: 7a8bea25139da4fa2a199328b4dcd0d96b1688130a284b92ebd6390fe1861228
+      FOCUSED_CI_RUN_ID: '34194314681'
+      BROWSER_RUN_ID: '34194644152'
+      BROWSER_JOB_ID: '101959615869'
+      BROWSER_VERIFIER_COMMIT_SHA: a15d6aa393919cb54862084bba53f3148f06d541
+      BROWSER_ARTIFACT_ID: '10043421600'
+      BROWSER_ARTIFACT_SHA256: ea5dd55fa377b13c67784cc8fc1cd174c13336f773c1b698342ba3966e4e679c
+      BROWSER_ARTIFACT_EXPIRES_AT: '2026-12-07T06:26:10Z'
+      BROWSER_RESULT_JSON_SHA256: 8e23b189e1ef8f49db405f07aa6eec8db8a385dd67014c0c17ba41678cff4408
+      BROWSER_PROVENANCE_JSON_SHA256: 2cfd9340f2dbc3352bda194ee4985bf79cd4ecc47de22233370518fac300aeba
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Verify exact branch ancestry and immutable GitHub evidence
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          parent="$(git rev-parse HEAD^)"
+          test "$parent" = "$EXPECTED_PARENT_SHA" || { echo "Unexpected parent $parent" >&2; exit 1; }
+          tree="$(git rev-parse "$DEPLOYED_SOURCE_SHA^{tree}")"
+          test "$tree" = "$DEPLOYED_SOURCE_TREE_SHA" || { echo "Source tree mismatch $tree" >&2; exit 1; }
+          python - <<'PY'
+          import json,os,urllib.request
+          repo=os.environ['GITHUB_REPOSITORY']; token=os.environ['GH_TOKEN']
+          def get(path):
+            req=urllib.request.Request('https://api.github.com/repos/'+repo+path,headers={'Authorization':'Bearer '+token,'Accept':'application/vnd.github+json','X-GitHub-Api-Version':'2022-11-28'})
+            with urllib.request.urlopen(req,timeout=30) as r:return json.load(r)
+          for run_id,want_sha in [(os.environ['DEPLOY_RUN_ID'],os.environ['DEPLOY_WORKFLOW_COMMIT_SHA']),(os.environ['BROWSER_RUN_ID'],os.environ['BROWSER_VERIFIER_COMMIT_SHA']),(os.environ['PREFLIGHT_RUN_ID'],os.environ['DEPLOYED_SOURCE_SHA']),(os.environ['FOCUSED_CI_RUN_ID'],os.environ['DEPLOYED_SOURCE_SHA'])]:
+            r=get('/actions/runs/'+run_id)
+            if r.get('status')!='completed' or r.get('conclusion')!='success' or r.get('head_sha')!=want_sha:
+              raise SystemExit('run evidence rejected '+run_id+' '+json.dumps({k:r.get(k) for k in ('status','conclusion','head_sha','name')},sort_keys=True))
+          for run_id,job_id in [(os.environ['DEPLOY_RUN_ID'],os.environ['DEPLOY_JOB_ID']),(os.environ['BROWSER_RUN_ID'],os.environ['BROWSER_JOB_ID'])]:
+            jobs=get('/actions/runs/'+run_id+'/jobs?per_page=100').get('jobs',[])
+            m=[j for j in jobs if str(j.get('id'))==job_id]
+            if len(m)!=1 or m[0].get('status')!='completed' or m[0].get('conclusion')!='success':raise SystemExit('job evidence rejected '+job_id)
+          for run_id,artifact_id,digest in [(os.environ['DEPLOY_RUN_ID'],os.environ['DEPLOY_ARTIFACT_ID'],os.environ['DEPLOY_ARTIFACT_SHA256']),(os.environ['BROWSER_RUN_ID'],os.environ['BROWSER_ARTIFACT_ID'],os.environ['BROWSER_ARTIFACT_SHA256']),(os.environ['PREFLIGHT_RUN_ID'],os.environ['PREFLIGHT_ARTIFACT_ID'],os.environ['PREFLIGHT_ARTIFACT_SHA256'])]:
+            arts=get('/actions/runs/'+run_id+'/artifacts?per_page=100').get('artifacts',[])
+            m=[a for a in arts if str(a.get('id'))==artifact_id]
+            if len(m)!=1 or m[0].get('expired') is not False or str(m[0].get('digest') or '').removeprefix('sha256:')!=digest:raise SystemExit('artifact evidence rejected '+artifact_id)
+          print('IMMUTABLE_PWA_PRIMARY_EVIDENCE=PASS')
+          PY
+
+      - name: Record evidence without changing physical-device gates
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json,os
+          from pathlib import Path
+          p=Path('commerce/chemistry/REAL_DEVICE_INSTALL_EVIDENCE_20260907.json')
+          data=json.loads(p.read_text())
+          gates_before=json.dumps(data.get('gates',{}),sort_keys=True)
+          data['current_production_worker_sha256']=os.environ['CURRENT_WORKER_SHA256']
+          deploy={
+            'source_evidence_head_sha':os.environ['DEPLOYED_SOURCE_SHA'],
+            'source_evidence_tree_sha':os.environ['DEPLOYED_SOURCE_TREE_SHA'],
+            'deployment_workflow_commit_sha':os.environ['DEPLOY_WORKFLOW_COMMIT_SHA'],
+            'production_worker_sha256':os.environ['CURRENT_WORKER_SHA256'],
+            'previous_worker_sha256':'68786463cdb6527adac1df1ec9a3b3424f0e5cdb0544dbbf1a1c9ffaa3ec6967',
+            'preflight_run_id':int(os.environ['PREFLIGHT_RUN_ID']),
+            'preflight_artifact_id':int(os.environ['PREFLIGHT_ARTIFACT_ID']),
+            'preflight_artifact_sha256':os.environ['PREFLIGHT_ARTIFACT_SHA256'],
+            'focused_ci_run_id':int(os.environ['FOCUSED_CI_RUN_ID']),
+            'guarded_deploy_run_id':int(os.environ['DEPLOY_RUN_ID']),
+            'guarded_deploy_job_id':int(os.environ['DEPLOY_JOB_ID']),
+            'guarded_deploy_artifact_id':int(os.environ['DEPLOY_ARTIFACT_ID']),
+            'guarded_deploy_artifact_sha256':os.environ['DEPLOY_ARTIFACT_SHA256'],
+            'guarded_deploy_artifact_expires_at':os.environ['DEPLOY_ARTIFACT_EXPIRES_AT'],
+            'live_result_json_sha256':os.environ['DEPLOY_RESULT_JSON_SHA256'],
+            'provenance_json_sha256':os.environ['DEPLOY_PROVENANCE_JSON_SHA256'],
+            'storefront_tests_passed':63,'storefront_tests_failed':0,'sealed_commerce_tests_passed':8,
+            'edge_sweep_streak':6,'edge_sweep_attempts':13,'rollback_used':False,
+            'storefront_start_free_routes_to_install':True,
+            'customer_install_surface_apk_links_absent':True,
+            'support_apk_links_absent':True,
+            'verify_primary_install_surface':True,
+            'legacy_apk_provenance_preserved':True,
+            'dedicated_app_shell_preserved':True,
+            'premium_help_internal_views_preserved':True,
+            'service_worker_cache':'musitu-chemistry-install-v6',
+            'sensitive_routes_network_authoritative':['checkout','return','claim','telemetry','plans'],
+            'payment_authority_preserved':True,'transport_binding_preserved':True,
+            'physical_device_claimed':False,'real_money_settlement_performed':False
+          }
+          browser={
+            'verification_commit_sha':os.environ['BROWSER_VERIFIER_COMMIT_SHA'],
+            'deployed_source_sha':os.environ['DEPLOYED_SOURCE_SHA'],
+            'recorded_production_worker_sha256':os.environ['CURRENT_WORKER_SHA256'],
+            'workflow':'MUSITU Chemistry PWA Primary Production Browser Acceptance',
+            'workflow_run_id':int(os.environ['BROWSER_RUN_ID']),'workflow_job_id':int(os.environ['BROWSER_JOB_ID']),'workflow_conclusion':'success',
+            'artifact_id':int(os.environ['BROWSER_ARTIFACT_ID']),'artifact_name':'musitu-chemistry-pwa-primary-production-browser-acceptance','artifact_sha256':os.environ['BROWSER_ARTIFACT_SHA256'],'artifact_expires_at':os.environ['BROWSER_ARTIFACT_EXPIRES_AT'],
+            'result_json_sha256':os.environ['BROWSER_RESULT_JSON_SHA256'],'provenance_json_sha256':os.environ['BROWSER_PROVENANCE_JSON_SHA256'],
+            'chrome_version':'152.0.7977.64','chromedriver_version':'152.0.7977.64','storefront_tests_passed':63,'storefront_tests_failed':0,'exact_worker_reconstruction_pass':True,
+            'start_free_click_lands_on':'/chemistry/install','start_free_apk_surface_absent':True,'install_customer_apk_actions_absent':True,'support_customer_apk_actions_absent':True,'verify_primary_install_surface_pass':True,
+            'dedicated_app_shell_pass':True,'premium_help_internal_navigation_pass':True,'public_rescue_pass':True,'strict_security_headers_pass':True,
+            'payment_authority_bound':True,'transport_binding_bound':True,'raw_paynow_key_present':False,
+            'read_only_verification':True,'deployment_performed':False,'physical_device_claimed':False,'real_money_settlement_performed':False
+          }
+          rebuilt={}
+          inserted=False
+          for k,v in data.items():
+            if k=='privacy_boundary':
+              rebuilt['pwa_primary_customer_surface_deploy_evidence']=deploy
+              rebuilt['pwa_primary_production_browser_acceptance_evidence']=browser
+              inserted=True
+            rebuilt[k]=v
+          if not inserted:
+            rebuilt['pwa_primary_customer_surface_deploy_evidence']=deploy
+            rebuilt['pwa_primary_production_browser_acceptance_evidence']=browser
+          rebuilt['authoritative_claim_until_complete']='Customer-facing MUSITU Chemistry is PWA/web-app first in production. Start Free is independently proven in live Chrome to land on /chemistry/install rather than an APK, and customer-facing install, support and verification surfaces no longer expose direct APK actions. The signed Android APK remains available only as an immutable technical provenance endpoint. The real /chemistry/app remains the dedicated MUSITU Chemistry / EDUCATION NEXUS app shell, with browser-proven internal Premium and Help navigation, bounded offline caching, and network/server-authoritative payment and entitlement routes. Prior physical Android installation, installed-state reopen and airplane-mode reopen remain proven PASS. Physical A1 iPhone Safari, A2 iPad Safari, A4 Samsung Internet, A5 Android in-app recovery, A8 reconnect/update reload and A9 Premium/Help navigation remain unclosed until observed on real hardware.'
+          if json.dumps(rebuilt.get('gates',{}),sort_keys=True)!=gates_before:raise SystemExit('physical gate mutation rejected')
+          p.write_text(json.dumps(rebuilt,indent=2,ensure_ascii=False)+'\n')
+          summary={
+            'schema':'musitu.chemistry.pwa_primary_customer_surface.production_evidence.v1',
+            'deployed_source_sha':os.environ['DEPLOYED_SOURCE_SHA'],'production_worker_sha256':os.environ['CURRENT_WORKER_SHA256'],
+            'deploy_run_id':int(os.environ['DEPLOY_RUN_ID']),'deploy_artifact_id':int(os.environ['DEPLOY_ARTIFACT_ID']),'deploy_artifact_sha256':os.environ['DEPLOY_ARTIFACT_SHA256'],
+            'browser_acceptance_run_id':int(os.environ['BROWSER_RUN_ID']),'browser_acceptance_artifact_id':int(os.environ['BROWSER_ARTIFACT_ID']),'browser_acceptance_artifact_sha256':os.environ['BROWSER_ARTIFACT_SHA256'],
+            'start_free_click_lands_on':'/chemistry/install','customer_facing_apk_actions_absent':True,'legacy_apk_provenance_preserved':True,
+            'physical_device_claimed':False,'real_money_settlement_performed':False,'ledger_recording_commit_sha':None
+          }
+          Path('commerce/chemistry/PWA_PRIMARY_CUSTOMER_SURFACE_PRODUCTION_EVIDENCE_20260908.json').write_text(json.dumps(summary,indent=2)+'\n')
+          print('PWA_PRIMARY_LEDGER_RECORDING=PASS')
+          PY
+          python -m json.tool commerce/chemistry/REAL_DEVICE_INSTALL_EVIDENCE_20260907.json >/dev/null
+          python -m json.tool commerce/chemistry/PWA_PRIMARY_CUSTOMER_SURFACE_PRODUCTION_EVIDENCE_20260908.json >/dev/null
+          git diff --check
+
+      - name: Commit evidence-only ledger advance
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'MUSITU Evidence Recorder'
+          git config user.email 'actions@users.noreply.github.com'
+          git add commerce/chemistry/REAL_DEVICE_INSTALL_EVIDENCE_20260907.json commerce/chemistry/PWA_PRIMARY_CUSTOMER_SURFACE_PRODUCTION_EVIDENCE_20260908.json
+          git diff --cached --quiet && { echo 'No ledger changes' >&2; exit 1; }
+          git commit -m 'evidence: record Chemistry PWA-primary production cutover'
+          git push origin HEAD:chemistry-national-rescue-growth-20260907
+          git rev-parse HEAD | tee /tmp/ledger-commit-sha.txt
