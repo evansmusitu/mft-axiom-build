@@ -1,0 +1,199 @@
+name: MUSITU Chemistry PWA Primary Production Browser Acceptance
+
+on:
+  push:
+    branches: [chemistry-national-rescue-growth-20260907]
+    paths: ['.github/workflows/chemistry-pwa-primary-production-browser-acceptance.yml']
+
+permissions:
+  contents: read
+
+jobs:
+  browser-acceptance:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    env:
+      BASE_URL: https://payments.mftintelligence.com
+      DEPLOYED_SOURCE_SHA: 3689b683671598ce5ae3fd86bd7f40aa057b45ba
+      RECORDED_WORKER_SHA256: c25d6785e1a7cc10a3dada2e373d44e11aea240bbfd7412dc0d854c91c7e2592
+      SOURCE_ZIP_SHA256: 5b2618499eed8dc90261bc4f8260246d5593534500dd2fb145f2d24b5c47754c
+      BASE_WORKER_SHA256: 848e1cec17ec580822d36e595196cda5978713849e8b45c5bc8dc7fcf9765db8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Reconstruct exact deployed PWA-first candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          paths=$(git ls-tree -r --name-only "$DEPLOYED_SOURCE_SHA" commerce/chemistry/storefront)
+          for p in $paths commerce/chemistry/patch_storefront.py commerce/chemistry/patch_rescue_growth.py; do
+            cmp <(git show "$DEPLOYED_SOURCE_SHA:$p") "$p" || { echo "DEPLOYED_SOURCE_DRIFT $p" >&2; exit 1; }
+          done
+          rm -rf /tmp/mchem-pwa-browser-base /tmp/mchem-pwa-browser-source.zip
+          mkdir -p /tmp/mchem-pwa-browser-base
+          cat commerce/chemistry/source.b64.* | base64 -d > /tmp/mchem-pwa-browser-source.zip
+          echo "$SOURCE_ZIP_SHA256  /tmp/mchem-pwa-browser-source.zip" | sha256sum -c -
+          unzip -q /tmp/mchem-pwa-browser-source.zip -d /tmp/mchem-pwa-browser-base
+          echo "$BASE_WORKER_SHA256  /tmp/mchem-pwa-browser-base/src/index.mjs" | sha256sum -c -
+          cp /tmp/mchem-pwa-browser-base/src/index.mjs commerce/chemistry/index.base.mjs
+          python commerce/chemistry/patch_storefront.py
+          python commerce/chemistry/patch_rescue_growth.py
+          echo "$RECORDED_WORKER_SHA256  commerce/chemistry/index.storefront-v3.mjs" | sha256sum -c -
+          node --check commerce/chemistry/index.storefront-v3.mjs
+          node --test commerce/chemistry/storefront/*.test.mjs
+          echo 'EXACT_PWA_PRIMARY_WORKER_RECONSTRUCTION=PASS'
+
+      - name: Exercise live customer journey in Chrome
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/mchem-pwa-browser-evidence
+          CHROME_BIN="$(command -v google-chrome || command -v google-chrome-stable || true)"
+          DRIVER_BIN="$(command -v chromedriver || true)"
+          test -n "$CHROME_BIN" || { echo 'Google Chrome missing' >&2; exit 1; }
+          test -n "$DRIVER_BIN" || { echo 'ChromeDriver missing' >&2; exit 1; }
+          "$CHROME_BIN" --version | tee /tmp/mchem-pwa-browser-evidence/chrome-version.txt
+          "$DRIVER_BIN" --version | tee /tmp/mchem-pwa-browser-evidence/chromedriver-version.txt
+          "$DRIVER_BIN" --port=9518 --log-path=/tmp/mchem-pwa-browser-evidence/chromedriver.log --verbose >/tmp/mchem-pwa-browser-evidence/chromedriver.stdout 2>&1 &
+          DRIVER_PID=$!
+          trap 'kill "$DRIVER_PID" 2>/dev/null || true' EXIT
+          for i in $(seq 1 100); do curl -fsS http://127.0.0.1:9518/status >/dev/null && break; sleep .1; done
+          curl -fsS http://127.0.0.1:9518/status >/dev/null
+
+          python - <<'PY'
+          import json,os,secrets,time,urllib.error,urllib.request
+          from pathlib import Path
+          from urllib.parse import urlparse
+
+          base=os.environ['BASE_URL']; wdroot='http://127.0.0.1:9518'; nonce=secrets.token_hex(8)
+
+          def strict(headers):
+            h={k.lower():v for k,v in headers.items()}; csp=h.get('content-security-policy','')
+            return "style-src 'self'" in csp and "script-src 'self'" in csp and "connect-src 'self'" in csp and "manifest-src 'self'" in csp and 'unsafe-inline' not in csp and 'unsafe-eval' not in csp and h.get('referrer-policy')=='no-referrer' and h.get('x-frame-options')=='DENY' and h.get('x-content-type-options')=='nosniff'
+
+          def live(path,accept='text/html'):
+            sep='&' if '?' in path else '?'
+            req=urllib.request.Request(base+path+sep+'__mchem_browser_accept='+nonce,headers={'User-Agent':'MUSITU-PWA-Primary-Acceptance/1.0','Accept':accept,'Cache-Control':'no-cache, no-store, max-age=0','Pragma':'no-cache'})
+            with urllib.request.urlopen(req,timeout=30) as r: return r.status,dict(r.headers.items()),r.read()
+
+          def wd(method,path,payload=None,timeout=45):
+            data=None if payload is None else json.dumps(payload).encode()
+            req=urllib.request.Request(wdroot+path,method=method,data=data,headers={'Content-Type':'application/json;charset=UTF-8'})
+            try:
+              with urllib.request.urlopen(req,timeout=timeout) as r: obj=json.loads(r.read() or b'{}')
+            except urllib.error.HTTPError as e: raise RuntimeError(f'WebDriver HTTP {e.code}: '+e.read().decode('utf-8','replace')[:1200])
+            value=obj.get('value')
+            if isinstance(value,dict) and value.get('error'): raise RuntimeError('WebDriver error '+json.dumps(value,sort_keys=True))
+            return value
+
+          created=wd('POST','/session',{'capabilities':{'alwaysMatch':{'browserName':'chrome','pageLoadStrategy':'normal','goog:chromeOptions':{'args':['--headless=new','--no-sandbox','--disable-dev-shm-usage','--disable-gpu','--window-size=430,900']}}}})
+          sid=created.get('sessionId') if isinstance(created,dict) else None
+          if not sid: raise SystemExit('CHROMEDRIVER_SESSION_ID_MISSING')
+          def js(script,args=None): return wd('POST',f'/session/{sid}/execute/sync',{'script':script,'args':args or []})
+          def go(url): wd('POST',f'/session/{sid}/url',{'url':url}); return wd('GET',f'/session/{sid}/url')
+          def assert_dom(label,required=(),forbidden=()):
+            html=js('return document.documentElement.outerHTML') or ''
+            for x in required:
+              if x not in html: raise SystemExit(label+' missing '+x)
+            for x in forbidden:
+              if x in html: raise SystemExit(label+' exposed '+x)
+            return html
+          try:
+            wd('POST',f'/session/{sid}/timeouts',{'script':30000,'pageLoad':45000,'implicit':0})
+            go(base+'/chemistry/?__mchem_click='+nonce)
+            assert_dom('storefront',('Installable web app','href="/chemistry/install"','Start Free'),('Authentic Android installer','APK installation is free','href="/chemistry/download/'))
+            click_result=js("""
+              const a=[...document.querySelectorAll('a')].find(x=>x.textContent.trim()==='Start Free');
+              if(!a)return {found:false};
+              const href=a.getAttribute('href'); a.click(); return {found:true,href};
+            """)
+            if click_result!={'found':True,'href':'/chemistry/install'}: raise SystemExit('START_FREE_LINK_REJECTED '+json.dumps(click_result,sort_keys=True))
+            for _ in range(100):
+              current=wd('GET',f'/session/{sid}/url')
+              if urlparse(current).path=='/chemistry/install': break
+              time.sleep(.1)
+            else: raise SystemExit('START_FREE_DID_NOT_LAND_ON_INSTALL '+str(current))
+            if '.apk' in current.lower(): raise SystemExit('START_FREE_SURFACED_AS_APK '+current)
+            assert_dom('install',('id="install-concierge"','Get MUSITU Chemistry on this device'),('Download verified Android APK','href="/chemistry/download/','.apk"'))
+
+            go(base+'/chemistry/support?__mchem_support='+nonce)
+            assert_dom('support',('Install MUSITU','Reinstall','href="/chemistry/install"'),('href="/chemistry/download/','.apk"'))
+            go(base+'/chemistry/verify?__mchem_verify='+nonce)
+            assert_dom('verify',('Legacy Android package provenance','href="/chemistry/install"'),('Download verified APK','href="/chemistry/download/'))
+
+            go(base+'/chemistry/app?__mchem_app='+nonce)
+            assert_dom('app',('Your Chemistry workspace.','class="app-topbar"','class="app-nav"'),('class="site-header"','class="site-footer"'))
+            go(base+'/chemistry/app?view=premium&__mchem_premium='+nonce)
+            assert_dom('premium',('Unlock full mastery.','class="app-topbar"','class="app-nav"'),('class="site-header"','class="site-footer"'))
+            go(base+'/chemistry/app?view=help&__mchem_help='+nonce)
+            assert_dom('help',('Help without leaving MUSITU.','class="app-topbar"','class="app-nav"'),('class="site-header"','class="site-footer"'))
+            go(base+'/chemistry/rescue?src=direct&__mchem_rescue='+nonce)
+            assert_dom('rescue',('Help another Chemistry student before exams','class="site-header"','class="site-footer"'),())
+
+            c,h,b=live('/chemistry/healthz','application/json'); health=json.loads(b or b'{}')
+            if c!=200 or health.get('ok') is not True or health.get('raw_paynow_key_present') is not False or health.get('payment_authority_bound') is not True or health.get('transport_bound') is not True: raise SystemExit('HEALTH_AUTHORITY_REJECTED '+json.dumps(health,sort_keys=True))
+            for path in ['/chemistry/','/chemistry/install','/chemistry/support','/chemistry/verify','/chemistry/app']:
+              c,h,_=live(path)
+              if c!=200 or not strict(h): raise SystemExit('STRICT_HEADER_REJECTED '+path)
+
+            result={
+              'schema':'musitu.chemistry.pwa_primary.production_browser_acceptance.v1',
+              'tested_at_utc':time.strftime('%Y-%m-%dT%H:%M:%SZ',time.gmtime()),
+              'github_sha':os.environ['GITHUB_SHA'],
+              'deployed_source_sha':os.environ['DEPLOYED_SOURCE_SHA'],
+              'recorded_production_worker_sha256':os.environ['RECORDED_WORKER_SHA256'],
+              'start_free_click_lands_on':'/chemistry/install',
+              'start_free_apk_surface_absent':True,
+              'install_customer_apk_actions_absent':True,
+              'support_customer_apk_actions_absent':True,
+              'verify_primary_install_surface_pass':True,
+              'dedicated_app_shell_pass':True,
+              'premium_help_internal_navigation_pass':True,
+              'public_rescue_pass':True,
+              'strict_security_headers_pass':True,
+              'payment_authority_bound':True,
+              'transport_binding_bound':True,
+              'raw_paynow_key_present':False,
+              'physical_device_claimed':False,
+              'deployment_performed':False,
+              'real_money_settlement_performed':False,
+            }
+            Path('/tmp/mchem-pwa-browser-evidence/result.json').write_text(json.dumps(result,indent=2)+'\n')
+            print('MUSITU_CHEMISTRY_PWA_PRIMARY_PRODUCTION_BROWSER_ACCEPTANCE=PASS')
+            print(json.dumps(result,sort_keys=True))
+          finally:
+            try: wd('DELETE',f'/session/{sid}')
+            except Exception: pass
+          PY
+
+      - name: Seal browser acceptance evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd /tmp/mchem-pwa-browser-evidence
+          cat > provenance.json <<EOF
+          {
+            "schema":"musitu.chemistry.pwa_primary.production_browser_acceptance.provenance.v1",
+            "github_repository":"${GITHUB_REPOSITORY}",
+            "github_sha":"${GITHUB_SHA}",
+            "github_run_id":"${GITHUB_RUN_ID}",
+            "deployed_source_sha":"${DEPLOYED_SOURCE_SHA}",
+            "recorded_production_worker_sha256":"${RECORDED_WORKER_SHA256}",
+            "read_only_verification":true,
+            "physical_device_claimed":false,
+            "deployment_performed":false,
+            "real_money_settlement_performed":false
+          }
+          EOF
+          sha256sum result.json provenance.json chrome-version.txt chromedriver-version.txt > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+
+      - name: Upload immutable browser acceptance evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: musitu-chemistry-pwa-primary-production-browser-acceptance
+          path: /tmp/mchem-pwa-browser-evidence/
+          if-no-files-found: error
+          retention-days: 90
