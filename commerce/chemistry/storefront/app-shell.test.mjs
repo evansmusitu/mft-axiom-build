@@ -17,7 +17,7 @@ test('installed app shell is distinct from public website chrome and keeps prima
   assert.match(html,/\/chemistry\/assets\/app-shell\.css\?v=4/);
   assert.match(html,/\/chemistry\/assets\/app-shell\.js\?v=4/);
   assert.match(html,/noindex,nofollow/);
-  assert.match(html,/Rescue, Prove, Premium and Help navigation stay inside the installed app surface/);
+  assert.match(html,/Home, Rescue, Prove, Premium and Help stay inside the installed app surface/);
   assert.doesNotMatch(html,/class="site-header"/);
   assert.doesNotMatch(html,/class="site-footer"/);
   assert.doesNotMatch(html,/Checking this device/);
