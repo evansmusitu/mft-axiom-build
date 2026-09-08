@@ -22,7 +22,10 @@
     "reproducible_rebuild": "62/62 PASS",
     "host_preflight_positive_fixture": "13/13 PASS",
     "host_preflight_negative_fixture": "expected failure when /experience is missing",
-    "hosted_capability_parity_ci": "pending_on_exact_branch_head"
+    "hosted_capability_parity_ci": "PASS",
+    "hosted_capability_parity_recorded_run_id": 34260993314,
+    "hosted_capability_parity_recorded_sha": "a745ec071fa9f4368b162e317867745ac364a865",
+    "hosted_capability_parity_checks": "113/113 PASS"
   },
   "security": {
     "private_keys_in_source": false,
@@ -51,7 +54,6 @@
     "reason": "Generated binary overlay and full reproducibility payload are retained as one sealed hash-pinned project artifact; GitHub carries human-reviewable release controls and parity gates."
   },
   "remaining_release_gates": [
-    "hosted capability parity CI on exact branch head",
     "approved Android signing-continuity strategy",
     "production APK v2/v3 signing",
     "physical Android smoke",
