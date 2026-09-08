@@ -1,0 +1,135 @@
+name: MUSITU Chemistry Scientific Response Production Browser Acceptance v2
+
+on:
+  push:
+    branches: [chemistry-national-rescue-growth-20260907]
+    paths: ['.github/workflows/chemistry-scientific-response-production-browser-acceptance-v2.yml']
+
+permissions:
+  contents: read
+
+jobs:
+  browser-acceptance:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 18
+    env:
+      BASE_URL: https://payments.mftintelligence.com
+      EVIDENCE_DIR: /tmp/mchem-srg-browser-evidence
+      DEPLOYED_SOURCE_SHA: c4a16a247a65d557fce77cf46acbee6893a5e4cf
+      DEPLOY_WORKFLOW_SHA: cc74143ff29e791a4091ee9d4a11bec72fd2d3e4
+      VERIFIER_SCRIPT_SHA: 0a357ce5f913ed1d31aeb9ef5cb98d1466563adb
+      PRODUCTION_WORKER_SHA256: 6f8d5a326b5a43ed25f6674ea73f83a94cf2fc7f7751380bfb0577c99dc6e210
+      SOURCE_ZIP_SHA256: 5b2618499eed8dc90261bc4f8260246d5593534500dd2fb145f2d24b5c47754c
+      BASE_WORKER_SHA256: 848e1cec17ec580822d36e595196cda5978713849e8b45c5bc8dc7fcf9765db8
+      APK_SHA256: 055b63f271c18faab540985faefb970f472ea55ba9cb3495db459797902b790d
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Guard verifier lineage and unchanged deployed product source
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD^)" = "$VERIFIER_SCRIPT_SHA"
+          test "$(git diff --name-only HEAD^ HEAD)" = ".github/workflows/chemistry-scientific-response-production-browser-acceptance-v2.yml"
+          git diff --quiet "$DEPLOYED_SOURCE_SHA" HEAD -- commerce/chemistry
+          git merge-base --is-ancestor "$DEPLOYED_SOURCE_SHA" HEAD
+          test "$(git show --format= --name-only "$VERIFIER_SCRIPT_SHA")" = ".github/scripts/chemistry-scientific-response-production-browser-acceptance.cjs"
+          rm -rf "$EVIDENCE_DIR" /tmp/mchem-srg-browser-base /tmp/mchem-srg-browser-source.zip
+          mkdir -p "$EVIDENCE_DIR" /tmp/mchem-srg-browser-base
+
+      - name: Reconstruct exact deployed Scientific Response Worker
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat commerce/chemistry/source.b64.* | base64 -d > /tmp/mchem-srg-browser-source.zip
+          echo "$SOURCE_ZIP_SHA256  /tmp/mchem-srg-browser-source.zip" | sha256sum -c -
+          unzip -q /tmp/mchem-srg-browser-source.zip -d /tmp/mchem-srg-browser-base
+          echo "$BASE_WORKER_SHA256  /tmp/mchem-srg-browser-base/src/index.mjs" | sha256sum -c -
+          cp /tmp/mchem-srg-browser-base/src/index.mjs commerce/chemistry/index.base.mjs
+          python commerce/chemistry/patch_storefront.py
+          python commerce/chemistry/patch_rescue_growth.py
+          echo "$PRODUCTION_WORKER_SHA256  commerce/chemistry/index.storefront-v3.mjs" | sha256sum -c -
+          node --check commerce/chemistry/index.storefront-v3.mjs
+          node --test commerce/chemistry/storefront/*.test.mjs | tee "$EVIDENCE_DIR/source-tests.txt"
+          echo 'EXACT_SCIENTIFIC_RESPONSE_WORKER_RECONSTRUCTION=PASS'
+
+      - name: Prove live Worker hash via read-only Cloudflare API
+        shell: bash
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import email,hashlib,os,urllib.request
+          api='https://api.cloudflare.com/client/v4'
+          account='93f395f5121954671f92fffa453d6b61'
+          worker='musitu-chemistry-commerce'
+          headers={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY'],'User-Agent':'MUSITU-SRG-ReadOnly-Acceptance-v2/1.0'}
+          with urllib.request.urlopen(urllib.request.Request(f'{api}/accounts/{account}/workers/scripts/{worker}',headers=headers),timeout=60) as r:
+            raw=r.read(); ctype=r.headers.get('content-type','')
+          if 'multipart/' in ctype.lower():
+            msg=email.message_from_bytes((f'Content-Type: {ctype}\r\nMIME-Version: 1.0\r\n\r\n').encode()+raw)
+            parts=[]
+            for p in msg.walk():
+              if p.is_multipart(): continue
+              data=p.get_payload(decode=True) or b''
+              if b'MUSITU Chemistry Commerce' in data: parts.append(data)
+            if len(parts)!=1: raise SystemExit('LIVE_WORKER_MODULE_EXTRACTION_REJECTED')
+            raw=parts[0]
+          got=hashlib.sha256(raw).hexdigest(); want=os.environ['PRODUCTION_WORKER_SHA256']
+          if got!=want: raise SystemExit('LIVE_WORKER_HASH_REJECTED '+got)
+          open(os.environ['EVIDENCE_DIR']+'/live-worker-sha256.txt','w').write(got+'\n')
+          print('LIVE_SCIENTIFIC_RESPONSE_WORKER_SHA256='+got)
+          PY
+
+      - name: Install browser tooling
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --no-save --no-package-lock playwright
+          CHROME_PATH="$(command -v google-chrome || command -v chromium || command -v chromium-browser || true)"
+          test -n "$CHROME_PATH"
+          echo "CHROME_PATH=$CHROME_PATH" >> "$GITHUB_ENV"
+          "$CHROME_PATH" --version | tee "$EVIDENCE_DIR/chrome-version.txt"
+          node -e "console.log(require('playwright/package.json').version)" | tee "$EVIDENCE_DIR/playwright-version.txt"
+
+      - name: Exercise live production Scientific Response OS
+        shell: bash
+        run: |
+          set -euo pipefail
+          node .github/scripts/chemistry-scientific-response-production-browser-acceptance.cjs
+
+      - name: Seal independent read-only evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > "$EVIDENCE_DIR/provenance.json" <<EOF
+          {
+            "schema":"musitu.chemistry.scientific_response.production_browser_acceptance.provenance.v2",
+            "github_repository":"${GITHUB_REPOSITORY}",
+            "github_sha":"${GITHUB_SHA}",
+            "github_run_id":"${GITHUB_RUN_ID}",
+            "deployed_source_sha":"${DEPLOYED_SOURCE_SHA}",
+            "deploy_workflow_sha":"${DEPLOY_WORKFLOW_SHA}",
+            "production_worker_sha256":"${PRODUCTION_WORKER_SHA256}",
+            "read_only_verification":true,
+            "deployment_performed":false,
+            "physical_device_claimed":false,
+            "physical_device_certified":false,
+            "real_money_settlement_performed":false
+          }
+          EOF
+          cd "$EVIDENCE_DIR"
+          sha256sum result.json provenance.json sensitive-offline.json live-worker-sha256.txt chrome-version.txt playwright-version.txt source-tests.txt > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+
+      - name: Upload immutable production-browser evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: musitu-chemistry-scientific-response-production-browser-acceptance-v2
+          path: /tmp/mchem-srg-browser-evidence/
+          if-no-files-found: error
+          retention-days: 90
