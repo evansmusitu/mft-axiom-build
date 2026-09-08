@@ -1,4 +1,5 @@
 name: MUSITU Axiom OpenAI Reviewer Demo Provision
+# Reprovision trigger only: synchronize the persistent reviewer record with the current private GitHub secret.
 
 on:
   workflow_dispatch:
