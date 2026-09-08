@@ -46,7 +46,7 @@ jobs:
             'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY'],
             'Content-Type':'application/json',
             'Accept':'application/json',
-            'User-Agent':'MUSITU-Axiom-Mobile-OAuth-Forensics/1.1',
+            'User-Agent':'MUSITU-Axiom-Mobile-OAuth-Forensics/1.2',
           }
           def d1(sql,params=None):
               body={'sql':sql}
@@ -89,6 +89,13 @@ jobs:
                   return 'CHATGPT_OTHER_PATH'
               except Exception:
                   return 'UNPARSEABLE'
+          def resource_class(v):
+              try:
+                  u=urllib.parse.urlparse(str(v or ''))
+                  if u.scheme=='https' and u.hostname=='mcp.mftintelligence.com': return 'MUSITU_MCP'
+                  return 'OTHER_OR_MISSING'
+              except Exception:
+                  return 'OTHER_OR_MISSING'
 
           report={'diagnostic_utc':now.isoformat().replace('+00:00','Z'),'credential_material_exposed':False}
 
@@ -101,8 +108,8 @@ jobs:
           claims=d1('SELECT count(*) AS n FROM oauth_identity_claims WHERE customer_id=?1',[CUSTOMER])
           report['reviewer_verified_identity_claim_count']=int((claims[0] if claims else {}).get('n') or 0)
 
-          # Recent flow rows. Deliberately omit flow IDs, state, nonce hashes, client IDs and full redirect URIs.
-          flows=d1('''SELECT f.created_at,f.expires_at,f.used_at,f.redirect_uri,f.scope,
+          # Never emit flow IDs, state values, nonce hashes, client IDs, code values, or full redirect URIs.
+          flows=d1('''SELECT f.created_at,f.expires_at,f.used_at,f.redirect_uri,f.scope,f.state,f.resource,f.code_challenge,
                              c.created_at AS client_created_at,c.client_name
                       FROM oauth_authorization_flows f
                       LEFT JOIN oauth_clients c ON c.client_id=f.client_id
@@ -110,6 +117,8 @@ jobs:
           sanitized=[]
           for i,r in enumerate(flows,1):
               created=r.get('created_at'); exp=r.get('expires_at'); used=r.get('used_at')
+              state=str(r.get('state') or '')
+              challenge=str(r.get('code_challenge') or '')
               sanitized.append({
                 'ordinal':i,
                 'created_age_seconds':age(created),
@@ -117,20 +126,34 @@ jobs:
                 'used':bool(used),
                 'used_after_seconds':delta(created,used) if used else None,
                 'callback_path_class':callback_path(r.get('redirect_uri')),
+                'state_present':bool(state),
+                'state_length':len(state),
+                'pkce_challenge_present':bool(challenge),
+                'pkce_challenge_length':len(challenge),
+                'resource_class':resource_class(r.get('resource')),
                 'scope':str(r.get('scope') or ''),
                 'client_age_at_flow_seconds':delta(r.get('client_created_at'),created),
                 'client_name':str(r.get('client_name') or '')[:80],
               })
           report['recent_flows']=sanitized
 
-          code_rows=d1('''SELECT created_at,used_at,expires_at FROM oauth_authorization_codes
+          code_rows=d1('''SELECT created_at,used_at,expires_at,redirect_uri,resource,scope,code_challenge
+                          FROM oauth_authorization_codes
                           WHERE customer_id=?1 ORDER BY created_at DESC LIMIT 30''',[CUSTOMER])
-          codes=[{
-              'created_age_seconds':age(r.get('created_at')),
-              'used':bool(r.get('used_at')),
-              'used_after_seconds':delta(r.get('created_at'),r.get('used_at')) if r.get('used_at') else None,
-              'expires_in_seconds':None if not parse_iso(r.get('expires_at')) else round((parse_iso(r.get('expires_at'))-now).total_seconds(),3),
-          } for r in code_rows]
+          codes=[]
+          for r in code_rows:
+              challenge=str(r.get('code_challenge') or '')
+              codes.append({
+                'created_age_seconds':age(r.get('created_at')),
+                'used':bool(r.get('used_at')),
+                'used_after_seconds':delta(r.get('created_at'),r.get('used_at')) if r.get('used_at') else None,
+                'expires_in_seconds':None if not parse_iso(r.get('expires_at')) else round((parse_iso(r.get('expires_at'))-now).total_seconds(),3),
+                'callback_path_class':callback_path(r.get('redirect_uri')),
+                'resource_class':resource_class(r.get('resource')),
+                'scope':str(r.get('scope') or ''),
+                'pkce_challenge_present':bool(challenge),
+                'pkce_challenge_length':len(challenge),
+              })
           report['recent_reviewer_codes']=codes
 
           at=d1('''SELECT created_at,expires_at,revoked_at FROM oauth_access_tokens
@@ -155,10 +178,6 @@ jobs:
                   classification='NO_RECENT_FLOW_WITHIN_30_MINUTES'
           report['newest_flow_classification']=classification
 
-          # Correlate only by durable timestamps, not by exposing identifiers. If a used
-          # ChatGPT flow produces a reviewer code at the same offset and that code stays
-          # unused, the authorization server completed consent but no token redemption
-          # is present for that issued code.
           correlations=[]
           for f in sanitized[:12]:
               if not f['used'] or f['client_name']!='ChatGPT' or f['created_age_seconds'] is None or f['used_after_seconds'] is None:
@@ -175,8 +194,15 @@ jobs:
                   correlations.append({
                     'flow_ordinal':f['ordinal'],
                     'callback_path_class':f['callback_path_class'],
+                    'state_present':f['state_present'],
+                    'state_length':f['state_length'],
+                    'pkce_challenge_length':f['pkce_challenge_length'],
+                    'resource_class':f['resource_class'],
                     'flow_used_after_seconds':f['used_after_seconds'],
                     'code_timestamp_gap_seconds':round(gap,3),
+                    'code_callback_path_class':c['callback_path_class'],
+                    'code_resource_class':c['resource_class'],
+                    'code_pkce_challenge_length':c['pkce_challenge_length'],
                     'matching_code_used':c['used'],
                     'matching_code_used_after_seconds':c['used_after_seconds'],
                   })
