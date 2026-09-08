@@ -31,8 +31,10 @@ test('universal install renderer is immediately actionable, canonical, and never
   assert.match(html,/Add to Home Screen/);
   assert.match(html,/Open as Web App/);
   assert.match(html,/rel="manifest" href="\/chemistry\/manifest\.webmanifest\?v=2"/);
-  assert.match(html,/data-install-panel="installed"[\s\S]*href="\/chemistry\/app"[\s\S]*Open MUSITU Chemistry/);
-  assert.doesNotMatch(html,/data-install-panel="installed"[\s\S]*Open Chemistry Rescue/);
+  const installedPanel=html.match(/<article class="install-card" data-install-panel="installed">[\s\S]*?<\/article>/)?.[0]||'';
+  assert.ok(installedPanel,'installed panel missing');
+  assert.match(installedPanel,/href="\/chemistry\/app">Open MUSITU Chemistry/);
+  assert.doesNotMatch(installedPanel,/Open Chemistry Rescue/);
   assert.doesNotMatch(html,/Download verified Android APK/i);
   assert.doesNotMatch(html,/\/chemistry\/download\/[^"']+\.apk/i);
   assert.match(html,/\/chemistry\/install\/diagnostics/);
