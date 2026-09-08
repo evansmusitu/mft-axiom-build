@@ -149,7 +149,7 @@ jobs:
 
           pc,ph,_=form(ISSUER+'/oauth/authorize',{'flow_id':fm.group(1),'musitu_account_key':ACCOUNT_KEY},{'Accept':'text/html','Cookie':cookie},False)
           loc=str(ph.get('Location') or ''); qp=urllib.parse.parse_qs(urllib.parse.urlparse(loc).query); code=(qp.get('code') or [''])[0]
-          if pc!=302 or not code or (qp.get('state') or [''])[0]!=state: raise RuntimeError('reviewer account OAuth authentication failed')
+          if pc!=303 or not code or (qp.get('state') or [''])[0]!=state: raise RuntimeError('reviewer account OAuth authentication failed')
 
           tc,_,tb=form(ISSUER+'/oauth/token',{'grant_type':'authorization_code','code':code,'code_verifier':verifier,'client_id':client_id,'redirect_uri':callback,'resource':RESOURCE})
           tok=json.loads(tb or b'{}'); access=str(tok.get('access_token') or '')
