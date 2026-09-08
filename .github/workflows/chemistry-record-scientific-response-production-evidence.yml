@@ -1,0 +1,254 @@
+name: MUSITU Chemistry Record Scientific Response Production Evidence
+
+on:
+  push:
+    branches: [chemistry-national-rescue-growth-20260907]
+    paths: ['.github/workflows/chemistry-record-scientific-response-production-evidence.yml']
+
+permissions:
+  contents: write
+  actions: read
+
+concurrency:
+  group: chemistry-record-scientific-response-production-evidence
+  cancel-in-progress: false
+
+jobs:
+  record:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      DEPLOYED_SOURCE_SHA: c4a16a247a65d557fce77cf46acbee6893a5e4cf
+      DEPLOYED_SOURCE_TREE_SHA: fab190ab5b199d74bb7be6f881890f403a958d91
+      PREVIOUS_PRODUCTION_WORKER_SHA256: c25d6785e1a7cc10a3dada2e373d44e11aea240bbfd7412dc0d854c91c7e2592
+      PRODUCTION_WORKER_SHA256: 6f8d5a326b5a43ed25f6674ea73f83a94cf2fc7f7751380bfb0577c99dc6e210
+      FOCUSED_RUN_ID: '34200494775'
+      PREFLIGHT_RUN_ID: '34200494816'
+      PREFLIGHT_ARTIFACT_ID: '10045628712'
+      PREFLIGHT_ARTIFACT_SHA256: 8e5916502a80ce0bf0f03f9fe76a6a0a362b64d7c5546b8bafe34a0eecc35d41
+      ZERO_COST_RUN_ID: '34200494786'
+      ZERO_COST_ARTIFACT_ID: '10045612336'
+      ZERO_COST_ARTIFACT_SHA256: e4bc15c34dc50ff5dacd5e1f8c139a357e3d895af52ef11a172465d271b9b0e7
+      DEPLOY_WORKFLOW_SHA: cc74143ff29e791a4091ee9d4a11bec72fd2d3e4
+      DEPLOY_RUN_ID: '34200777043'
+      DEPLOY_JOB_ID: '101978814760'
+      DEPLOY_ARTIFACT_ID: '10045715086'
+      DEPLOY_ARTIFACT_SHA256: e0e1a87e15417a977bb376ae56b3688e0fb2b4c13fdbeff8639bc9372436b73e
+      BROWSER_WORKFLOW_SHA: 398db8b3f43191f184aabb90083e00e7434f1331
+      BROWSER_RUN_ID: '34201366422'
+      BROWSER_JOB_ID: '101980660671'
+      BROWSER_ARTIFACT_ID: '10045952155'
+      BROWSER_ARTIFACT_SHA256: 084de9d09e5d8d6dbf464d4f74a275e06441c920ed9ab0d25719c0eb4ebc5fcf
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Guard exact recorder lineage
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD^)" = "2364cf31b6f632a279ab27d909a864938b588316"
+          test "$(git diff --name-only HEAD^ HEAD)" = ".github/workflows/chemistry-record-scientific-response-production-evidence.yml"
+          test "$(git rev-parse "$DEPLOYED_SOURCE_SHA^{tree}")" = "$DEPLOYED_SOURCE_TREE_SHA"
+
+      - name: Verify immutable GitHub runs and artifact digests
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json, os, urllib.request
+
+          repo=os.environ['GITHUB_REPOSITORY']
+          token=os.environ['GH_TOKEN']
+          headers={'Authorization':'Bearer '+token,'Accept':'application/vnd.github+json','X-GitHub-Api-Version':'2022-11-28','User-Agent':'MUSITU-Chemistry-Evidence-Recorder/1.0'}
+          def get(url):
+              with urllib.request.urlopen(urllib.request.Request(url,headers=headers),timeout=60) as r:
+                  return json.load(r)
+          expected_runs=[
+              (os.environ['FOCUSED_RUN_ID'],'MUSITU Chemistry Rescue Growth Focused CI',os.environ['DEPLOYED_SOURCE_SHA']),
+              (os.environ['PREFLIGHT_RUN_ID'],'MUSITU Chemistry Rescue Full Preflight',os.environ['DEPLOYED_SOURCE_SHA']),
+              (os.environ['ZERO_COST_RUN_ID'],'MUSITU Chemistry Zero-Cost Install CI',os.environ['DEPLOYED_SOURCE_SHA']),
+              (os.environ['DEPLOY_RUN_ID'],'MUSITU Chemistry Scientific Response OS Guarded Deploy',os.environ['DEPLOY_WORKFLOW_SHA']),
+              (os.environ['BROWSER_RUN_ID'],'MUSITU Chemistry Scientific Response Production Browser Acceptance v2',os.environ['BROWSER_WORKFLOW_SHA']),
+          ]
+          for rid,name,sha in expected_runs:
+              data=get(f'https://api.github.com/repos/{repo}/actions/runs/{rid}')
+              observed=(data.get('status'),data.get('conclusion'),data.get('name'),data.get('head_sha'))
+              wanted=('completed','success',name,sha)
+              if observed!=wanted:
+                  raise SystemExit(f'run evidence rejected {rid}: observed={observed!r} wanted={wanted!r}')
+          expected_artifacts=[
+              (os.environ['PREFLIGHT_RUN_ID'],os.environ['PREFLIGHT_ARTIFACT_ID'],'musitu-chemistry-rescue-full-preflight',os.environ['PREFLIGHT_ARTIFACT_SHA256']),
+              (os.environ['ZERO_COST_RUN_ID'],os.environ['ZERO_COST_ARTIFACT_ID'],'musitu-chemistry-adaptive-install-concierge-candidate',os.environ['ZERO_COST_ARTIFACT_SHA256']),
+              (os.environ['DEPLOY_RUN_ID'],os.environ['DEPLOY_ARTIFACT_ID'],'musitu-chemistry-scientific-response-production-deploy',os.environ['DEPLOY_ARTIFACT_SHA256']),
+              (os.environ['BROWSER_RUN_ID'],os.environ['BROWSER_ARTIFACT_ID'],'musitu-chemistry-scientific-response-production-browser-acceptance-v2',os.environ['BROWSER_ARTIFACT_SHA256']),
+          ]
+          for rid,aid,name,digest in expected_artifacts:
+              items=get(f'https://api.github.com/repos/{repo}/actions/runs/{rid}/artifacts?per_page=100').get('artifacts',[])
+              match=[x for x in items if str(x.get('id'))==aid]
+              if len(match)!=1:
+                  raise SystemExit(f'artifact id rejected {aid}')
+              a=match[0]
+              got=str(a.get('digest') or '').removeprefix('sha256:')
+              if a.get('name')!=name or a.get('expired') is not False or got!=digest:
+                  raise SystemExit(f'artifact evidence rejected {aid}: name={a.get("name")} expired={a.get("expired")} digest={got}')
+          print('SCIENTIFIC_RESPONSE_GITHUB_EVIDENCE=PASS')
+          PY
+
+      - name: Record production proof without moving physical gates
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from copy import deepcopy
+          from datetime import datetime, timezone
+          from pathlib import Path
+          import json, os
+
+          ledger_path=Path('commerce/chemistry/REAL_DEVICE_INSTALL_EVIDENCE_20260907.json')
+          out_path=Path('commerce/chemistry/SCIENTIFIC_RESPONSE_OS_PRODUCTION_EVIDENCE_20260908.json')
+          ledger=json.loads(ledger_path.read_text())
+          if out_path.exists():
+              raise SystemExit('scientific response production evidence already exists')
+          if ledger.get('current_production_worker_sha256') != os.environ['PREVIOUS_PRODUCTION_WORKER_SHA256']:
+              raise SystemExit('unexpected ledger production Worker before record: '+str(ledger.get('current_production_worker_sha256')))
+
+          def sensitive_snapshot(value,path=()):
+              found={}
+              if isinstance(value,dict):
+                  for k,v in value.items():
+                      p=path+(str(k),)
+                      lk=str(k).lower()
+                      if any(token in lk for token in ('physical','gate','real_device')) or lk=='status':
+                          found['/'.join(p)]=deepcopy(v)
+                      found.update(sensitive_snapshot(v,p))
+              elif isinstance(value,list):
+                  for i,v in enumerate(value):
+                      found.update(sensitive_snapshot(v,path+(str(i),)))
+              return found
+
+          before=sensitive_snapshot(ledger)
+          ledger['current_production_worker_sha256']=os.environ['PRODUCTION_WORKER_SHA256']
+          proof={
+              'schema':'musitu.chemistry.scientific_response.production_evidence.v1',
+              'recorded_at_utc':datetime.now(timezone.utc).isoformat().replace('+00:00','Z'),
+              'deployed_source_sha':os.environ['DEPLOYED_SOURCE_SHA'],
+              'deployed_source_tree_sha':os.environ['DEPLOYED_SOURCE_TREE_SHA'],
+              'scientific_response_graph_schema':'musitu.scientific_response_graph.v1',
+              'previous_production_worker_sha256':os.environ['PREVIOUS_PRODUCTION_WORKER_SHA256'],
+              'production_worker_sha256':os.environ['PRODUCTION_WORKER_SHA256'],
+              'source_verification':{
+                  'focused_ci_run_id':int(os.environ['FOCUSED_RUN_ID']),
+                  'full_preflight_run_id':int(os.environ['PREFLIGHT_RUN_ID']),
+                  'full_preflight_artifact_id':int(os.environ['PREFLIGHT_ARTIFACT_ID']),
+                  'full_preflight_artifact_sha256':os.environ['PREFLIGHT_ARTIFACT_SHA256'],
+                  'zero_cost_install_ci_run_id':int(os.environ['ZERO_COST_RUN_ID']),
+                  'zero_cost_install_artifact_id':int(os.environ['ZERO_COST_ARTIFACT_ID']),
+                  'zero_cost_install_artifact_sha256':os.environ['ZERO_COST_ARTIFACT_SHA256'],
+                  'storefront_tests_passed':71,
+                  'storefront_tests_failed':0,
+                  'sealed_commerce_tests_passed':8,
+                  'sealed_commerce_tests_failed':0,
+              },
+              'guarded_deployment':{
+                  'workflow_sha':os.environ['DEPLOY_WORKFLOW_SHA'],
+                  'run_id':int(os.environ['DEPLOY_RUN_ID']),
+                  'job_id':int(os.environ['DEPLOY_JOB_ID']),
+                  'artifact_id':int(os.environ['DEPLOY_ARTIFACT_ID']),
+                  'artifact_sha256':os.environ['DEPLOY_ARTIFACT_SHA256'],
+                  'rollback_used':False,
+                  'final_consecutive_edge_sweeps':6,
+                  'live_result_json_sha256':'8174c52ee0111800d4e73848084c8774b16dea70f82a071fa46edb2124bd6e38',
+                  'provenance_json_sha256':'b048696098e56e25be9f6467faf01ee806cfa58dc4f1c06a1a9d6a001bc2d881',
+                  'cf_rays_sha256':'30d5ca49f457caa05dd34e32a772b86ae05207b0886deb4f5ff18a04162df6cc',
+              },
+              'independent_production_browser_acceptance':{
+                  'verification_sha':os.environ['BROWSER_WORKFLOW_SHA'],
+                  'run_id':int(os.environ['BROWSER_RUN_ID']),
+                  'job_id':int(os.environ['BROWSER_JOB_ID']),
+                  'artifact_id':int(os.environ['BROWSER_ARTIFACT_ID']),
+                  'artifact_sha256':os.environ['BROWSER_ARTIFACT_SHA256'],
+                  'chrome_version':'152.0.7977.64',
+                  'playwright_version':'1.63.0',
+                  'result_json_sha256':'69184e4333ab0a1900894b55839e07c66459ae38646f098b69a8a0d867f473c4',
+                  'provenance_json_sha256':'74962c288582e76188dc902422d9aa4b98342c2cd9e1e1383b9550f935fbbd29',
+                  'sensitive_offline_json_sha256':'47a7618d2ee5a186f774f3319877e7e9ae59d051a2170069c83eb2866f8c5b6c',
+                  'live_worker_sha256_file_sha256':'f9776f7bc1b52c8d61d42aa11223f5b96d633b2d7f8a265f0ef27001e253c0e8',
+                  'source_tests_sha256':'1562e7fa3bc85840d1b6cbd5a546c81bb480f315636694da09dff09980a5f78a',
+                  'scientific_response_route_pass':True,
+                  'equation_interaction_pass':True,
+                  'molecular_structure_pass':True,
+                  'particle_model_pass':True,
+                  'cross_representation_link_pass':True,
+                  'scientific_argument_pass':True,
+                  'scientific_response_graph_pass':True,
+                  'finalized_review_immutable_pass':True,
+                  'finalized_reload_persistence_pass':True,
+                  'reopen_pass':True,
+                  'service_worker_cache':'musitu-chemistry-install-v7',
+                  'offline_prove_pass':True,
+                  'sensitive_routes_offline_fail_closed_pass':True,
+                  'reconnect_pass':True,
+                  'premium_help_internal_pass':True,
+                  'public_rescue_pass':True,
+                  'customer_apk_cta_absent':True,
+                  'manifest_identity_preserved':True,
+                  'strict_security_headers_pass':True,
+                  'health_ok':True,
+                  'raw_paynow_key_present':False,
+                  'payment_authority_bound':True,
+                  'transport_bound':True,
+              },
+              'legacy_apk_provenance':{
+                  'sha256':'055b63f271c18faab540985faefb970f472ea55ba9cb3495db459797902b790d',
+                  'bytes':5314934,
+                  'customer_cta':False,
+              },
+              'physical_gate_state':{
+                  'A1_iphone_safari':'pending_physical',
+                  'A2_ipad_safari':'pending_physical',
+                  'A3_android_chrome':'pass_physical',
+                  'A4_samsung_internet':'pending_physical',
+                  'A5_android_in_app_recovery':'pending_physical',
+                  'A6_installed_state_reopen':'pass_physical',
+                  'A7_offline_reload':'pass_physical',
+                  'A8_update_reconnect_reload':'pending_physical_browser_pass',
+                  'A9_native_premium_help_navigation':'physical_retest_required_browser_pass',
+              },
+              'physical_device_claimed':False,
+              'physical_device_certified':False,
+              'real_money_settlement_performed':False,
+              'ledger_recording_commit_sha':None,
+          }
+          ledger['scientific_response_os_production_evidence']=deepcopy(proof)
+          after=sensitive_snapshot({k:v for k,v in ledger.items() if k!='scientific_response_os_production_evidence'})
+          if before != after:
+              missing=set(before)-set(after); added=set(after)-set(before); changed={k for k in set(before)&set(after) if before[k]!=after[k]}
+              raise SystemExit(f'physical/gate/status mutation rejected missing={sorted(missing)} added={sorted(added)} changed={sorted(changed)}')
+          if ledger.get('physical_device_certified') is not False:
+              raise SystemExit('physical certification must remain false')
+          ledger_path.write_text(json.dumps(ledger,indent=2,ensure_ascii=False)+'\n')
+          out_path.write_text(json.dumps(proof,indent=2,ensure_ascii=False)+'\n')
+          print('SCIENTIFIC_RESPONSE_LEDGER_PHYSICAL_GATES_UNCHANGED=PASS')
+          PY
+          git diff --check
+
+      - name: Commit evidence-only ledger advance
+        shell: bash
+        run: |
+          set -euo pipefail
+          mapfile -t changed < <(git diff --name-only)
+          printf '%s\n' "${changed[@]}" | sort > /tmp/changed
+          printf '%s\n' \
+            commerce/chemistry/REAL_DEVICE_INSTALL_EVIDENCE_20260907.json \
+            commerce/chemistry/SCIENTIFIC_RESPONSE_OS_PRODUCTION_EVIDENCE_20260908.json | sort > /tmp/expected
+          diff -u /tmp/expected /tmp/changed
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add commerce/chemistry/REAL_DEVICE_INSTALL_EVIDENCE_20260907.json commerce/chemistry/SCIENTIFIC_RESPONSE_OS_PRODUCTION_EVIDENCE_20260908.json
+          git commit -m "evidence: record Scientific Response production proof"
+          git push origin HEAD:chemistry-national-rescue-growth-20260907
+          echo "LEDGER_RECORDING_COMMIT_SHA=$(git rev-parse HEAD)"
