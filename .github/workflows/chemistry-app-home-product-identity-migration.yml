@@ -23,9 +23,9 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test "$(git rev-parse HEAD^^)" = "40162f2b6ab4c505325cd59c226fb2a78259b2c0"
-          test "$(git diff --name-only 40162f2b6ab4c505325cd59c226fb2a78259b2c0 HEAD)" = ".github/workflows/chemistry-app-home-product-identity-migration.yml"
-          git diff --quiet 40162f2b6ab4c505325cd59c226fb2a78259b2c0 HEAD -- commerce/chemistry
+          test "$(git rev-parse HEAD^)" = "eaa8e939d0acbea7300ef39b21a68429d968497e"
+          test "$(git diff --name-only HEAD^ HEAD)" = ".github/workflows/chemistry-app-home-product-identity-migration.yml"
+          git diff --quiet HEAD^ HEAD -- commerce/chemistry
 
       - name: Patch Home identity
         shell: bash
