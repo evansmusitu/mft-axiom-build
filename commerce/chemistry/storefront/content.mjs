@@ -1,7 +1,7 @@
 export const PRODUCT=Object.freeze({
   name:'MUSITU Chemistry Mastery',
   family:'MUSITU Education Nexus',
-  platform:'Android',
+  platform:'Installable web app',
   headline:'Know what you don’t know. Master what matters. Prove your readiness.',
   promise:'Diagnose weaknesses, learn with structure, practise under exam conditions and turn every mistake into a clear next action.'
 });
@@ -28,7 +28,7 @@ export const FREE_FEATURES=Object.freeze([
   '36-mark diagnostic',
   'Chapters 1–2',
   '5-minute foundation exam',
-  'Authentic Android installer'
+  'Installable MUSITU web app'
 ]);
 
 export const PREMIUM_FEATURES=Object.freeze([
