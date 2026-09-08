@@ -106,11 +106,11 @@ jobs:
           node commerce/chemistry/storefront/install-browser-matrix.mjs | tee /tmp/mchem-install-evidence/browser-matrix.json
           curl -fsS http://127.0.0.1:8787/chemistry/app | grep -Fq 'Your Chemistry workspace'
           node - <<'NODE'
-          const r=await fetch('http://127.0.0.1:8787/chemistry/manifest.webmanifest');
+          const r=await fetch('http://127.0.0.1:8787/chemistry/manifest.webmanifest?v=2');
           if(!r.ok) throw new Error('manifest HTTP '+r.status);
           const m=await r.json();
-          if(m.id!=='/chemistry/rescue?src=direct'||m.start_url!=='/chemistry/app'||m.scope!=='/chemistry/'||m.display!=='standalone') throw new Error('manifest app launch contract mismatch '+JSON.stringify(m));
-          console.log('INSTALLED_APP_MANIFEST_CONTRACT=PASS');
+          if(m.id!=='/chemistry/app'||m.name!=='MUSITU Chemistry'||m.short_name!=='MUSITU Chemistry'||m.start_url!=='/chemistry/app'||m.scope!=='/chemistry/'||m.display!=='standalone'||/Rescue/i.test(m.description||'')) throw new Error('dedicated Chemistry manifest contract mismatch '+JSON.stringify(m));
+          console.log('DEDICATED_CHEMISTRY_APP_MANIFEST_CONTRACT=PASS');
           NODE
           kill "$SERVER_PID" 2>/dev/null || true
           trap - EXIT
@@ -122,38 +122,39 @@ jobs:
           sha256sum commerce/chemistry/index.storefront-v3.mjs | tee /tmp/mchem-install-evidence/candidate.sha256
           cat > /tmp/mchem-install-evidence/acceptance-boundary.json <<'JSON'
           {
-            "schema":"musitu.chemistry.install_acceptance_boundary.v2",
+            "schema":"musitu.chemistry.install_acceptance_boundary.v3",
             "universal_install_url":"https://payments.mftintelligence.com/chemistry/install",
             "installed_app_url":"https://payments.mftintelligence.com/chemistry/app",
             "platform_detection":["iPhone/iPad Safari","iPhone/iPad non-Safari","iOS in-app","Android Chrome","Samsung Internet","Android in-app/WebView","desktop Chrome/Edge","already-installed"],
-            "installed_launch_contract":{"manifest_identity_preserved":true,"start_url":"/chemistry/app","legacy_rescue_standalone_bridge":true,"public_site_chrome_removed_from_app_shell":true},
+            "installed_launch_contract":{"manifest_identity_migrated":true,"manifest_id":"/chemistry/app","manifest_name":"MUSITU Chemistry","start_url":"/chemistry/app","manifest_versioned_url":"/chemistry/manifest.webmanifest?v=2","service_worker_cache":"musitu-chemistry-install-v8","legacy_rescue_standalone_bridge":true,"public_site_chrome_removed_from_app_shell":true},
             "privacy_safe_install_events":["install_view","install_prompt_available","install_started","install_completed","install_fallback","install_help_needed"],
             "offline_shell_tested":true,
             "payment_routes_cached":false,
-            "physical_device_app_shell_retest":false,
-            "note":"CI proves install and dedicated app-shell browser contracts. Physical installed-app reopen remains a separate field gate until retested on hardware."
+            "physical_device_new_install_retest":false,
+            "note":"CI proves the dedicated MUSITU Chemistry PWA identity and browser install/app-shell contracts. A pre-migration Rescue PWA remains a legacy installation and physical fresh-install certification remains separate until retested on hardware."
           }
           JSON
           {
-            echo '## MUSITU adaptive install + installed app-shell candidate'
+            echo '## MUSITU dedicated Chemistry installer candidate'
             echo
             echo '```'
             cat /tmp/mchem-install-evidence/candidate.sha256
             echo '```'
             echo '- One universal install URL.'
-            echo '- Dedicated /chemistry/app launch surface for installed MUSITU.'
-            echo '- Manifest identity preserved; start_url moved to /chemistry/app.'
-            echo '- Legacy installed Rescue launches bridge immediately into app shell.'
-            echo '- Public site header/footer removed from installed app shell.'
-            echo '- Adaptive iOS / Android / Samsung / desktop concierge.'
-            echo '- Privacy-safe aggregate install funnel and bounded offline shell.'
-            echo '- Physical installed-app reopen remains explicitly unclaimed until hardware retest.'
+            echo '- Dedicated PWA id /chemistry/app and name MUSITU Chemistry.'
+            echo '- start_url /chemistry/app.'
+            echo '- Versioned manifest discovery /chemistry/manifest.webmanifest?v=2.'
+            echo '- Service-worker cache migrated to musitu-chemistry-install-v8.'
+            echo '- Legacy Rescue PWA identity is not treated as the new app identity.'
+            echo '- Public Rescue campaign remains available separately.'
+            echo '- Payment and entitlement routes remain network/server authoritative.'
+            echo '- Physical fresh-install identity remains explicitly unclaimed until hardware retest.'
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload candidate evidence
         uses: actions/upload-artifact@v4
         with:
-          name: musitu-chemistry-adaptive-install-concierge-candidate
+          name: musitu-chemistry-dedicated-app-installer-candidate
           path: |
             /tmp/mchem-install-evidence
             commerce/chemistry/index.storefront-v3.mjs
