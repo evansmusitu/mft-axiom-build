@@ -65,6 +65,14 @@ test('app shell primes bounded internal views only and never caches payment auth
   assert.doesNotMatch(APP_SHELL_JS,/(\/chemistry\/(checkout|return|claim|telemetry|plans)|document\.cookie|sendBeacon|geolocation|getUserMedia|Notification\.requestPermission)/);
 });
 
+test('finalized Scientific Response review is presentation-only and stays locked across reload',()=>{
+  assert.match(APP_SHELL_JS,/let viewMode=response\.activeMode/);
+  assert.match(APP_SHELL_JS,/if\(!response\.finalized\)\{response\.activeMode=mode;trace\('mode',mode\);persist\(\);\}/);
+  assert.match(APP_SHELL_JS,/finalized:parsed\.finalized===true/);
+  assert.match(APP_SHELL_JS,/\[data-sr-reset\]'\)\.forEach\(el=>\{el\.disabled=locked\}\)/);
+  assert.match(APP_SHELL_JS,/response\.finalized=false;trace\('reopen'\);persist\(\);paintLock\(\)/);
+});
+
 test('app shell styles include safe areas, five-target bottom navigation, focus and reduced-motion handling',()=>{
   assert.match(APP_SHELL_CSS,/safe-area-inset-top/);
   assert.match(APP_SHELL_CSS,/safe-area-inset-bottom/);
