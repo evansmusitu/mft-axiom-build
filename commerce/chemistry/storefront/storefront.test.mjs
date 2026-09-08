@@ -30,15 +30,17 @@ test('recommendation matrix is deterministic and advisory',()=>{
   for(const input of [{},{who:'alien'},{who:'multiple',context:'unknown'},{who:'myself',duration:'forever'}]) assert.equal(recommendPlan(input),null,JSON.stringify(input));
 });
 
-test('storefront leads with product decisions, not seven equal paid cards',()=>{
+test('storefront leads with product decisions and the installable web app, not APK downloads',()=>{
   const page=renderStorefront({plans:planViews});
   assert.match(page,/MUSITU Chemistry Mastery/);
-  assert.match(page,/>Start Free</);
+  assert.match(page,/href="\/chemistry\/install">Start Free</);
   assert.match(page,/>Unlock Full Mastery</);
   assert.match(page,/>Families &amp; Institutions</);
   assert.match(page,/Example learner preview/);
-  assert.match(page,/APK installation is free/i);
+  assert.match(page,/installable web app/i);
   assert.match(page,/Premium entitlement/i);
+  assert.doesNotMatch(page,/href="\/chemistry\/download\/[^"]+">Start Free</);
+  assert.doesNotMatch(page,/APK installation is free/i);
   const heroEnd=page.indexOf('</section>');
   assert.ok(heroEnd>0);
   const hero=page.slice(0,heroEnd);
@@ -54,15 +56,20 @@ test('plan decision keeps every plan discoverable and never preselects paid acce
   assert.doesNotMatch(page,/selected(?:=|\s|>)/i);
 });
 
-test('release verification exposes provenance without secret material',()=>{
+test('release verification keeps legacy package provenance without making APK the customer CTA',()=>{
   const page=renderVerifyRelease();
   for(const value of [RELEASE.version,RELEASE.sha256,RELEASE.bytesText,RELEASE.androidCertSha256,RELEASE.licenceKeyId,RELEASE.releaseDate,RELEASE.status]) assert.match(page,new RegExp(value.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')));
   for(const secretName of ['CHEMISTRY_LICENSE_PKCS8_B64','PAYNOW_INTEGRATION_KEY','CLOUDFLARE_GLOBAL_API_KEY','CHEMISTRY_AUTHORITY_BRIDGE_TOKEN']) assert.equal(page.includes(secretName),false);
+  assert.match(page,/legacy Android package/i);
+  assert.match(page,/href="\/chemistry\/install"/);
+  assert.doesNotMatch(page,/>Download verified APK</);
 });
 
-test('support is a lifecycle surface with the existing public support channel',()=>{
+test('support routes install and reinstall through the web app surface',()=>{
   const page=renderSupport();
-  for(const text of ['Download latest version','Verify current version','Reinstall','Recover purchase','Activate licence','Claim another paid seat','Installation troubleshooting','WhatsApp']) assert.match(page,new RegExp(text,'i'));
+  for(const text of ['Install MUSITU','Verify current version','Reinstall','Recover purchase','Activate licence','Claim another paid seat','Installation troubleshooting','WhatsApp']) assert.match(page,new RegExp(text,'i'));
+  assert.match(page,/href="\/chemistry\/install"/);
+  assert.doesNotMatch(page,/href="\/chemistry\/download\/[^"]+"/);
   assert.match(page,/wa\.me\/263781572008/);
 });
 
@@ -115,11 +122,13 @@ test('school checkout retains seat control and explains volume pricing',()=>{
   assert.match(page,/name="seats"/); assert.match(page,/min="1"/); assert.match(page,/max="999"/); assert.match(page,/server calculates the exact school price/i);
 });
 
-test('payment status presentation never invents entitlement for unpaid state',()=>{
+test('payment status presentation never invents entitlement and sends paid users to the web app install surface',()=>{
   const pending=renderPaymentStatus({status:'pending',token:null,reference:'MC-TEST',secret:'',seats:1});
   assert.match(pending,/Payment verification in progress/i); assert.doesNotMatch(pending,/MUSITU1\./); assert.doesNotMatch(pending,/Activation licence ready/i);
   const paid=renderPaymentStatus({status:'paid',token:'MUSITU1.TEST.SIGNATURE',reference:'MC-TEST',secret:'',seats:1});
-  assert.match(paid,/Activation licence ready/i); assert.match(paid,/MUSITU1\.TEST\.SIGNATURE/); assert.match(paid,/Download MUSITU Chemistry/i);
+  assert.match(paid,/Activation licence ready/i); assert.match(paid,/MUSITU1\.TEST\.SIGNATURE/); assert.match(paid,/Open MUSITU Chemistry/i);
+  assert.match(paid,/href="\/chemistry\/install"/);
+  assert.doesNotMatch(paid,/href="\/chemistry\/download\/[^"]+"/);
 });
 
 test('seat claim presentation preserves exact claim form contract',()=>{
