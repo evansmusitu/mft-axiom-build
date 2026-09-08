@@ -55,20 +55,22 @@ test('generated Worker serves teacher school and ambassador kits with same-origi
   for(const p of ['/chemistry/rescue/teachers','/chemistry/rescue/schools','/chemistry/rescue/ambassadors']) assert.match(sitemap.text,new RegExp(p));
 });
 
-test('generated Worker exposes a valid browser-install discovery manifest and local install UI',async()=>{
+test('generated Worker exposes the dedicated MUSITU Chemistry browser-install manifest and local install UI',async()=>{
   const page=await get('/chemistry/rescue?src=direct');
   strict(page.r);
-  const manifestResponse=await get('/chemistry/manifest.webmanifest');
+  assert.match(page.text,/rel="manifest" href="\/chemistry\/manifest\.webmanifest\?v=2"/);
+  const manifestResponse=await get('/chemistry/manifest.webmanifest?v=2');
   assert.equal(manifestResponse.r.status,200);
   assert.match(manifestResponse.r.headers.get('content-type')||'',/^application\/manifest\+json/);
   const manifest=JSON.parse(manifestResponse.text);
-  assert.equal(manifest.name,'MUSITU Chemistry Rescue 2026');
+  assert.equal(manifest.name,'MUSITU Chemistry');
   assert.equal(manifest.short_name,'MUSITU Chemistry');
-  assert.equal(manifest.id,'/chemistry/rescue?src=direct');
+  assert.equal(manifest.id,'/chemistry/app');
   assert.equal(manifest.start_url,'/chemistry/app');
   assert.equal(manifest.scope,'/chemistry/');
   assert.equal(manifest.display,'standalone');
   assert.equal(manifest.prefer_related_applications,false);
+  assert.doesNotMatch(manifest.description||'',/Rescue/i);
   assert.deepEqual(manifest.icons.map(x=>[x.src,x.sizes,x.type]),[
     ['/chemistry/assets/musitu-chemistry-192.png','192x192','image/png'],
     ['/chemistry/assets/musitu-chemistry-512.png','512x512','image/png']
