@@ -1,7 +1,7 @@
 // Dedicated offline shell for the installed MUSITU Chemistry experience.
 // Payment, entitlement and telemetry routes remain network/server authoritative.
 export const INSTALL_SW_V5_JS=String.raw`
-const CACHE='musitu-chemistry-install-v7';
+const CACHE='musitu-chemistry-install-v8';
 const APP='/chemistry/app';
 const RESCUE='/chemistry/rescue?src=direct';
 const INSTALL='/chemistry/install';
@@ -21,7 +21,7 @@ const STATIC=[
   '/chemistry/assets/install-handoff.js?v=4',
   '/chemistry/assets/musitu-chemistry-192.png',
   '/chemistry/assets/musitu-chemistry-512.png',
-  '/chemistry/manifest.webmanifest'
+  '/chemistry/manifest.webmanifest?v=2'
 ];
 const SENSITIVE=/^\/chemistry\/(checkout|return|claim|telemetry|plans)(?:\/|$)/;
 const cachePut=async(req,res)=>{

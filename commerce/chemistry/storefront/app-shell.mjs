@@ -27,7 +27,7 @@ export const APP_SHELL_JS=String.raw`
     '/chemistry/assets/app-shell.js?v=4',
     '/chemistry/assets/musitu-chemistry-192.png',
     '/chemistry/assets/musitu-chemistry-512.png',
-    '/chemistry/manifest.webmanifest'
+    '/chemistry/manifest.webmanifest?v=2'
   ];
   const paintState=()=>{
     root.dataset.appMode=installed()?'installed':'browser';
@@ -283,7 +283,7 @@ export function renderChemistryApp({view='home'}={}){
   const active=normalizeAppView(view);
   const name=appEsc(PRODUCT.name);
   const body=active==='rescue'?rescueView():active==='exam'?examView():active==='premium'?premiumView():active==='help'?helpView():homeView();
-  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="robots" content="noindex,nofollow"><meta name="theme-color" content="#07101f"><title>${name}</title><link rel="manifest" href="/chemistry/manifest.webmanifest"><link rel="apple-touch-icon" href="/chemistry/assets/musitu-chemistry-192.png"><link rel="stylesheet" href="/chemistry/assets/app-shell.css?v=4"><script src="/chemistry/assets/app-shell.js?v=4" defer></script></head><body><div class="app-shell"><header class="app-topbar"><div class="app-brand"><div class="app-icon" aria-hidden="true">M</div><div class="app-brand-copy"><strong>MUSITU Chemistry</strong><span>Education Nexus</span></div></div><span class="app-state" data-app-install-state>Installed</span></header><main class="app-main">${body}</main>${nav(active)}</div>${onboarding()}</body></html>`;
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="robots" content="noindex,nofollow"><meta name="theme-color" content="#07101f"><title>${name}</title><link rel="manifest" href="/chemistry/manifest.webmanifest?v=2"><link rel="apple-touch-icon" href="/chemistry/assets/musitu-chemistry-192.png"><link rel="stylesheet" href="/chemistry/assets/app-shell.css?v=4"><script src="/chemistry/assets/app-shell.js?v=4" defer></script></head><body><div class="app-shell"><header class="app-topbar"><div class="app-brand"><div class="app-icon" aria-hidden="true">M</div><div class="app-brand-copy"><strong>MUSITU Chemistry</strong><span>Education Nexus</span></div></div><span class="app-state" data-app-install-state>Installed</span></header><main class="app-main">${body}</main>${nav(active)}</div>${onboarding()}</body></html>`;
 }
 
 export const CHEMISTRY_APP_URL=APP_URL;
