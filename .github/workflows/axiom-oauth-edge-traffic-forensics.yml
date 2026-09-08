@@ -1,0 +1,104 @@
+name: MUSITU Axiom OAuth Edge Traffic Forensics
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/axiom-oauth-edge-traffic-forensics.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  edge-forensics:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    env:
+      CF_API: https://api.cloudflare.com/client/v4
+      CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+      CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Query aggregated Cloudflare edge traffic only
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import datetime,json,os,urllib.error,urllib.parse,urllib.request
+
+          API=os.environ['CF_API']
+          headers={
+            'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],
+            'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY'],
+            'Accept':'application/json',
+            'Content-Type':'application/json',
+            'User-Agent':'MUSITU-Axiom-OAuth-Edge-Forensics/1.0',
+          }
+          def get_json(url):
+            req=urllib.request.Request(url,headers=headers,method='GET')
+            try:
+              with urllib.request.urlopen(req,timeout=45) as r: code=r.status; raw=r.read()
+            except urllib.error.HTTPError as e:
+              code=e.code; raw=e.read()
+            if not 200<=code<300: raise RuntimeError('Cloudflare REST query failed HTTP '+str(code))
+            obj=json.loads(raw or b'{}')
+            if obj.get('success') is False: raise RuntimeError('Cloudflare REST success=false')
+            return obj
+          zone_obj=get_json(API+'/zones?'+urllib.parse.urlencode({'name':'mftintelligence.com','status':'active','per_page':50}))
+          zones=zone_obj.get('result') or []
+          if len(zones)!=1: raise RuntimeError('Fail-closed: expected exactly one active mftintelligence.com zone')
+          zone_id=str(zones[0].get('id') or '')
+          if not zone_id: raise RuntimeError('zone id unavailable')
+
+          end=datetime.datetime.now(datetime.timezone.utc).replace(microsecond=0)
+          start=end-datetime.timedelta(hours=8)
+          query='''query OAuthTraffic($zoneTag: string, $start: Time, $end: Time) {
+            viewer {
+              zones(filter: {zoneTag: $zoneTag}) {
+                authorize: httpRequestsAdaptiveGroups(
+                  limit: 5000,
+                  orderBy: [datetimeMinute_ASC],
+                  filter: {datetime_geq: $start, datetime_lt: $end, clientRequestHTTPHost: "auth.mftintelligence.com", clientRequestPath: "/oauth/authorize", requestSource: "eyeball"}
+                ) { count dimensions { datetimeMinute clientRequestHTTPMethod edgeResponseStatus } }
+                token: httpRequestsAdaptiveGroups(
+                  limit: 5000,
+                  orderBy: [datetimeMinute_ASC],
+                  filter: {datetime_geq: $start, datetime_lt: $end, clientRequestHTTPHost: "auth.mftintelligence.com", clientRequestPath: "/oauth/token", requestSource: "eyeball"}
+                ) { count dimensions { datetimeMinute clientRequestHTTPMethod edgeResponseStatus } }
+                register: httpRequestsAdaptiveGroups(
+                  limit: 5000,
+                  orderBy: [datetimeMinute_ASC],
+                  filter: {datetime_geq: $start, datetime_lt: $end, clientRequestHTTPHost: "auth.mftintelligence.com", clientRequestPath: "/oauth/register", requestSource: "eyeball"}
+                ) { count dimensions { datetimeMinute clientRequestHTTPMethod edgeResponseStatus } }
+              }
+            }
+          }'''
+          payload={'query':query,'variables':{'zoneTag':zone_id,'start':start.isoformat().replace('+00:00','Z'),'end':end.isoformat().replace('+00:00','Z')}}
+          req=urllib.request.Request(API+'/graphql',headers=headers,data=json.dumps(payload,separators=(',',':')).encode(),method='POST')
+          try:
+            with urllib.request.urlopen(req,timeout=60) as r: code=r.status; raw=r.read()
+          except urllib.error.HTTPError as e:
+            code=e.code; raw=e.read()
+          if not 200<=code<300: raise RuntimeError('Cloudflare GraphQL HTTP '+str(code))
+          obj=json.loads(raw or b'{}')
+          if obj.get('errors'):
+            raise RuntimeError('Cloudflare GraphQL returned schema/query errors: '+json.dumps([str(x.get('message') or '')[:240] for x in obj['errors']]))
+          zone_rows=((((obj.get('data') or {}).get('viewer') or {}).get('zones')) or [])
+          if len(zone_rows)!=1: raise RuntimeError('GraphQL did not return exactly one zone')
+          z=zone_rows[0]
+          def clean(rows):
+            out=[]
+            for r in rows or []:
+              d=r.get('dimensions') or {}
+              out.append({'minute_utc':d.get('datetimeMinute'),'method':d.get('clientRequestHTTPMethod'),'status':d.get('edgeResponseStatus'),'requests':int(r.get('count') or 0)})
+            return out
+          report={
+            'window_start_utc':payload['variables']['start'],
+            'window_end_utc':payload['variables']['end'],
+            'authorize':clean(z.get('authorize')),
+            'token':clean(z.get('token')),
+            'register':clean(z.get('register')),
+            'privacy':{'ip_addresses_exposed':False,'user_agents_exposed':False,'query_strings_exposed':False,'credentials_exposed':False},
+          }
+          print(json.dumps(report,sort_keys=True))
+          PY
