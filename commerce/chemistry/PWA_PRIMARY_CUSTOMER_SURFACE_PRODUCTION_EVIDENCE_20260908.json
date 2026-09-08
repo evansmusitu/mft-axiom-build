@@ -1,0 +1,17 @@
+{
+  "schema": "musitu.chemistry.pwa_primary_customer_surface.production_evidence.v1",
+  "deployed_source_sha": "3689b683671598ce5ae3fd86bd7f40aa057b45ba",
+  "production_worker_sha256": "c25d6785e1a7cc10a3dada2e373d44e11aea240bbfd7412dc0d854c91c7e2592",
+  "deploy_run_id": 34194528793,
+  "deploy_artifact_id": 10043389236,
+  "deploy_artifact_sha256": "4cb11eec94497cb19f6c6d7361f23879b273281197d055dc339d33329b9ee0e2",
+  "browser_acceptance_run_id": 34194644152,
+  "browser_acceptance_artifact_id": 10043421600,
+  "browser_acceptance_artifact_sha256": "ea5dd55fa377b13c67784cc8fc1cd174c13336f773c1b698342ba3966e4e679c",
+  "start_free_click_lands_on": "/chemistry/install",
+  "customer_facing_apk_actions_absent": true,
+  "legacy_apk_provenance_preserved": true,
+  "physical_device_claimed": false,
+  "real_money_settlement_performed": false,
+  "ledger_recording_commit_sha": null
+}

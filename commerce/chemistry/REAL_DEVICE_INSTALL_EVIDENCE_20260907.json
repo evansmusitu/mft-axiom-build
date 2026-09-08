@@ -6,7 +6,7 @@
   "certification_protocol": "commerce/chemistry/REAL_DEVICE_INSTALL_CERTIFICATION_20260907.md",
   "browser_emulation_verified": true,
   "physical_device_certified": false,
-  "current_production_worker_sha256": "68786463cdb6527adac1df1ec9a3b3424f0e5cdb0544dbbf1a1c9ffaa3ec6967",
+  "current_production_worker_sha256": "c25d6785e1a7cc10a3dada2e373d44e11aea240bbfd7412dc0d854c91c7e2592",
   "real_device_observations": [
     {
       "gate": "A3_android_chrome",
@@ -35,7 +35,10 @@
       "disposition": "Installation itself succeeded. The installed-launch UX defect was treated as a separate product defect and fixed with the dedicated /chemistry/app shell."
     },
     {
-      "gates": ["A3_android_chrome", "A6_installed_state_reopen"],
+      "gates": [
+        "A3_android_chrome",
+        "A6_installed_state_reopen"
+      ],
       "result": "PASS_POST_APP_SHELL_DEPLOY",
       "observed_at_local_time": "2026-09-07T22:44:00+02:00",
       "device_class": "physical Android phone",
@@ -44,8 +47,17 @@
       "installed_badge_visible": true,
       "app_identity_visible": "MUSITU Chemistry / EDUCATION NEXUS",
       "workspace_heading_visible": "Your Chemistry workspace.",
-      "workflow_visible": ["Diagnose", "Revise with focus", "Prove under pressure"],
-      "app_bottom_navigation_visible": ["Home", "Rescue", "Premium", "Help"],
+      "workflow_visible": [
+        "Diagnose",
+        "Revise with focus",
+        "Prove under pressure"
+      ],
+      "app_bottom_navigation_visible": [
+        "Home",
+        "Rescue",
+        "Premium",
+        "Help"
+      ],
       "public_website_header_footer_absent": true,
       "screenshot_received": true,
       "personal_identifiers_recorded": false,
@@ -75,8 +87,17 @@
       "dedicated_app_shell_retained": true,
       "installed_badge_visible": true,
       "dark_app_shell_visible": true,
-      "workflow_visible": ["Diagnose", "Revise", "Prove"],
-      "app_bottom_navigation_visible": ["Home", "Rescue", "Premium", "Help"],
+      "workflow_visible": [
+        "Diagnose",
+        "Revise",
+        "Prove"
+      ],
+      "app_bottom_navigation_visible": [
+        "Home",
+        "Rescue",
+        "Premium",
+        "Help"
+      ],
       "public_rescue_fallback_absent": true,
       "screenshot_received": true,
       "personal_identifiers_recorded": false,
@@ -140,7 +161,13 @@
     "offline_app_shell_cached": true,
     "offline_app_assets_cached": true,
     "manifest_start_url": "/chemistry/app",
-    "sensitive_routes_network_authoritative": ["checkout", "return", "claim", "telemetry", "plans"],
+    "sensitive_routes_network_authoritative": [
+      "checkout",
+      "return",
+      "claim",
+      "telemetry",
+      "plans"
+    ],
     "payment_authority_preserved": true,
     "transport_binding_preserved": true,
     "real_money_settlement_performed": false,
@@ -172,7 +199,13 @@
     "help_internal_app_view": true,
     "public_chrome_absent_from_internal_views": true,
     "internal_views_offline_cached": true,
-    "sensitive_routes_network_authoritative": ["checkout", "return", "claim", "telemetry", "plans"],
+    "sensitive_routes_network_authoritative": [
+      "checkout",
+      "return",
+      "claim",
+      "telemetry",
+      "plans"
+    ],
     "payment_authority_preserved": true,
     "transport_binding_preserved": true,
     "real_money_settlement_performed": false,
@@ -198,7 +231,12 @@
     "direct_app_entry_pass": true,
     "direct_app_not_redirected_to_rescue": true,
     "musitu_chemistry_education_nexus_identity_pass": true,
-    "live_navigation_sequence_pass": ["Home", "Rescue", "Premium", "Help"],
+    "live_navigation_sequence_pass": [
+      "Home",
+      "Rescue",
+      "Premium",
+      "Help"
+    ],
     "dark_app_shell_retained_on_internal_views": true,
     "public_footer_absent_from_app_views": true,
     "strict_security_headers_pass": true,
@@ -206,7 +244,13 @@
     "manifest_start_url": "/chemistry/app",
     "service_worker_cache": "musitu-chemistry-install-v6",
     "offline_non_payment_shell_contract_rechecked": true,
-    "sensitive_routes_absent_from_app_cache_asset": ["checkout", "return", "claim", "telemetry", "plans"],
+    "sensitive_routes_absent_from_app_cache_asset": [
+      "checkout",
+      "return",
+      "claim",
+      "telemetry",
+      "plans"
+    ],
     "payment_authority_bound": true,
     "transport_binding_bound": true,
     "read_only_verification": true,
@@ -236,12 +280,23 @@
     "exact_worker_reconstruction_pass": true,
     "service_worker_cache": "musitu-chemistry-install-v6",
     "service_worker_controller_present": true,
-    "cached_app_views_verified": ["/chemistry/app", "/chemistry/app?view=rescue", "/chemistry/app?view=premium", "/chemistry/app?view=help"],
+    "cached_app_views_verified": [
+      "/chemistry/app",
+      "/chemistry/app?view=rescue",
+      "/chemistry/app?view=premium",
+      "/chemistry/app?view=help"
+    ],
     "offline_transport_proof": "Chrome DevTools Protocol transport blocking plus successful service-worker-cached app navigations; navigator.onLine was recorded but not used as an acceptance gate.",
     "offline_app_views_pass": true,
     "dark_app_shell_retained_offline": true,
     "public_footer_absent_offline": true,
-    "sensitive_routes_network_authoritative_offline": ["checkout", "return", "claim", "telemetry", "plans"],
+    "sensitive_routes_network_authoritative_offline": [
+      "checkout",
+      "return",
+      "claim",
+      "telemetry",
+      "plans"
+    ],
     "sensitive_routes_resolved_offline": false,
     "sensitive_routes_present_in_cache": false,
     "reconnect_service_worker_update_pass": true,
@@ -281,10 +336,62 @@
     "live_browser_adaptive_fallback_matrix_pass": true,
     "browser_emulation_constraint": "Chrome is used only as the rendering engine. Its Chromium beforeinstallprompt listener is suppressed so non-Chromium/no-native-prompt fallback surfaces can be exercised; this is not Safari or Samsung physical evidence.",
     "platform_results": {
-      "A1_iphone_safari": {"server_mode":"ios-safari","browser_mode":"ios-safari","http_status":200,"visible_panel":true,"required_copy_markers":["Add to Home Screen","Open as Web App","Share"],"canonical_pass":true,"manifest_discovery_pass":true,"physical_gate_closed":false},
-      "A2_ipad_safari": {"server_mode":"ios-safari","browser_mode":"ios-safari","http_status":200,"visible_panel":true,"required_copy_markers":["Add to Home Screen","Open as Web App","Share"],"canonical_pass":true,"manifest_discovery_pass":true,"physical_gate_closed":false},
-      "A4_samsung_internet": {"server_mode":"samsung","browser_mode":"samsung","http_status":200,"visible_panel":true,"required_copy_markers":["Samsung Internet","Install app","Home screen"],"canonical_pass":true,"manifest_discovery_pass":true,"physical_gate_closed":false},
-      "A5_android_inapp_recovery": {"server_mode":"android-inapp","browser_mode":"android-inapp","http_status":200,"visible_panel":true,"required_copy_markers":["Continue in Chrome","Open in Chrome","trusted install control"],"canonical_pass":true,"manifest_discovery_pass":true,"physical_gate_closed":false}
+      "A1_iphone_safari": {
+        "server_mode": "ios-safari",
+        "browser_mode": "ios-safari",
+        "http_status": 200,
+        "visible_panel": true,
+        "required_copy_markers": [
+          "Add to Home Screen",
+          "Open as Web App",
+          "Share"
+        ],
+        "canonical_pass": true,
+        "manifest_discovery_pass": true,
+        "physical_gate_closed": false
+      },
+      "A2_ipad_safari": {
+        "server_mode": "ios-safari",
+        "browser_mode": "ios-safari",
+        "http_status": 200,
+        "visible_panel": true,
+        "required_copy_markers": [
+          "Add to Home Screen",
+          "Open as Web App",
+          "Share"
+        ],
+        "canonical_pass": true,
+        "manifest_discovery_pass": true,
+        "physical_gate_closed": false
+      },
+      "A4_samsung_internet": {
+        "server_mode": "samsung",
+        "browser_mode": "samsung",
+        "http_status": 200,
+        "visible_panel": true,
+        "required_copy_markers": [
+          "Samsung Internet",
+          "Install app",
+          "Home screen"
+        ],
+        "canonical_pass": true,
+        "manifest_discovery_pass": true,
+        "physical_gate_closed": false
+      },
+      "A5_android_inapp_recovery": {
+        "server_mode": "android-inapp",
+        "browser_mode": "android-inapp",
+        "http_status": 200,
+        "visible_panel": true,
+        "required_copy_markers": [
+          "Continue in Chrome",
+          "Open in Chrome",
+          "trusted install control"
+        ],
+        "canonical_pass": true,
+        "manifest_discovery_pass": true,
+        "physical_gate_closed": false
+      }
     },
     "read_only_verification": true,
     "deployment_performed": false,
@@ -295,6 +402,85 @@
     "physical_A5_android_inapp_recovery_gate_closed": false,
     "real_money_settlement_performed": false
   },
+  "pwa_primary_customer_surface_deploy_evidence": {
+    "source_evidence_head_sha": "3689b683671598ce5ae3fd86bd7f40aa057b45ba",
+    "source_evidence_tree_sha": "38b1799d8abadfe26f976c325ffdcc89634ced47",
+    "deployment_workflow_commit_sha": "dd1f1ad54f517155903114c0823262d10d8aa7e2",
+    "production_worker_sha256": "c25d6785e1a7cc10a3dada2e373d44e11aea240bbfd7412dc0d854c91c7e2592",
+    "previous_worker_sha256": "68786463cdb6527adac1df1ec9a3b3424f0e5cdb0544dbbf1a1c9ffaa3ec6967",
+    "preflight_run_id": 34194314676,
+    "preflight_artifact_id": 10043328101,
+    "preflight_artifact_sha256": "7a8bea25139da4fa2a199328b4dcd0d96b1688130a284b92ebd6390fe1861228",
+    "focused_ci_run_id": 34194314681,
+    "guarded_deploy_run_id": 34194528793,
+    "guarded_deploy_job_id": 101959265684,
+    "guarded_deploy_artifact_id": 10043389236,
+    "guarded_deploy_artifact_sha256": "4cb11eec94497cb19f6c6d7361f23879b273281197d055dc339d33329b9ee0e2",
+    "guarded_deploy_artifact_expires_at": "2026-12-07T06:24:34Z",
+    "live_result_json_sha256": "dd9f434e708d36a3ef35fd434bc1c205f86db2caf0238cc6af9888b012c68750",
+    "provenance_json_sha256": "4fc0499d07960b5f3ba281f6c8b2a0d96d4f130896f8729b75caa487a4d45a9d",
+    "storefront_tests_passed": 63,
+    "storefront_tests_failed": 0,
+    "sealed_commerce_tests_passed": 8,
+    "edge_sweep_streak": 6,
+    "edge_sweep_attempts": 13,
+    "rollback_used": false,
+    "storefront_start_free_routes_to_install": true,
+    "customer_install_surface_apk_links_absent": true,
+    "support_apk_links_absent": true,
+    "verify_primary_install_surface": true,
+    "legacy_apk_provenance_preserved": true,
+    "dedicated_app_shell_preserved": true,
+    "premium_help_internal_views_preserved": true,
+    "service_worker_cache": "musitu-chemistry-install-v6",
+    "sensitive_routes_network_authoritative": [
+      "checkout",
+      "return",
+      "claim",
+      "telemetry",
+      "plans"
+    ],
+    "payment_authority_preserved": true,
+    "transport_binding_preserved": true,
+    "physical_device_claimed": false,
+    "real_money_settlement_performed": false
+  },
+  "pwa_primary_production_browser_acceptance_evidence": {
+    "verification_commit_sha": "a15d6aa393919cb54862084bba53f3148f06d541",
+    "deployed_source_sha": "3689b683671598ce5ae3fd86bd7f40aa057b45ba",
+    "recorded_production_worker_sha256": "c25d6785e1a7cc10a3dada2e373d44e11aea240bbfd7412dc0d854c91c7e2592",
+    "workflow": "MUSITU Chemistry PWA Primary Production Browser Acceptance",
+    "workflow_run_id": 34194644152,
+    "workflow_job_id": 101959615869,
+    "workflow_conclusion": "success",
+    "artifact_id": 10043421600,
+    "artifact_name": "musitu-chemistry-pwa-primary-production-browser-acceptance",
+    "artifact_sha256": "ea5dd55fa377b13c67784cc8fc1cd174c13336f773c1b698342ba3966e4e679c",
+    "artifact_expires_at": "2026-12-07T06:26:10Z",
+    "result_json_sha256": "8e23b189e1ef8f49db405f07aa6eec8db8a385dd67014c0c17ba41678cff4408",
+    "provenance_json_sha256": "2cfd9340f2dbc3352bda194ee4985bf79cd4ecc47de22233370518fac300aeba",
+    "chrome_version": "152.0.7977.64",
+    "chromedriver_version": "152.0.7977.64",
+    "storefront_tests_passed": 63,
+    "storefront_tests_failed": 0,
+    "exact_worker_reconstruction_pass": true,
+    "start_free_click_lands_on": "/chemistry/install",
+    "start_free_apk_surface_absent": true,
+    "install_customer_apk_actions_absent": true,
+    "support_customer_apk_actions_absent": true,
+    "verify_primary_install_surface_pass": true,
+    "dedicated_app_shell_pass": true,
+    "premium_help_internal_navigation_pass": true,
+    "public_rescue_pass": true,
+    "strict_security_headers_pass": true,
+    "payment_authority_bound": true,
+    "transport_binding_bound": true,
+    "raw_paynow_key_present": false,
+    "read_only_verification": true,
+    "deployment_performed": false,
+    "physical_device_claimed": false,
+    "real_money_settlement_performed": false
+  },
   "privacy_boundary": {
     "personal_identifiers_prohibited": true,
     "payment_references_prohibited": true,
@@ -302,15 +488,101 @@
     "screenshots_must_hide_notification_content_and_account_information": true
   },
   "gates": {
-    "A1_iphone_safari": {"status":"pending","live_adaptive_emulation":"pass","required":["adaptive Safari coach shown","Add to Home Screen completed","Home Screen icon visible","standalone launch opens dedicated Chemistry app shell"]},
-    "A2_ipad_safari": {"status":"pending","live_adaptive_emulation":"pass","required":["adaptive Safari coach shown","Add to Home Screen completed","Home Screen icon visible","standalone launch opens dedicated Chemistry app shell"]},
-    "A3_android_chrome": {"status":"pass","pre_hotfix_result":"fail_waiting_screen","post_hotfix_install_observed":true,"post_app_shell_reopen_observed":true,"required":["page is immediately actionable with no detecting wait screen","trusted browser install control shown or immediate Chrome install recovery is available","install completed","app icon visible","standalone launch opens dedicated Chemistry app shell"]},
-    "A4_samsung_internet": {"status":"pending","live_adaptive_emulation":"pass","required":["Samsung install path shown","install completed","app icon visible","standalone launch opens dedicated Chemistry app shell"]},
-    "A5_android_inapp_recovery": {"status":"pending","live_adaptive_emulation":"pass","required":["wrong-browser recovery shown","recovery opens Chrome or Samsung Internet","install succeeds after recovery"]},
-    "A6_installed_state_reopen": {"status":"pass","required":["fully close installed MUSITU","reopen from installed app icon","dedicated MUSITU Chemistry app shell appears","public website header/footer absent","Diagnose Revise Prove onboarding or app home visible"]},
-    "A7_offline_reload": {"status":"pass","pre_v5_result":"public_rescue_fallback","post_v5_physical_retest":"dedicated_app_shell_retained_in_airplane_mode","browser_offline_reconnect_acceptance":"pass","required":["successful online app-shell launch first","offline reload retains bounded non-payment shell","checkout/return/claim/telemetry/plans not served from cache"]},
-    "A8_update_reload": {"status":"pending","browser_reconnect_update_reload_acceptance":"pass","physical_retest_required":true,"required":["reconnect to network","reload returns current live application","no reinstall required","payment authority remains network/server authoritative"]},
-    "A9_native_premium_help_navigation": {"status":"retest_required_after_deploy","pre_deploy_result":"public_white_pages","browser_production_acceptance":"pass","required":["refresh installed app online after native-navigation deploy","tap Premium and remain in dark installed app shell","tap Help and remain in dark installed app shell","secure checkout/support actions remain online/server-authoritative"]}
+    "A1_iphone_safari": {
+      "status": "pending",
+      "live_adaptive_emulation": "pass",
+      "required": [
+        "adaptive Safari coach shown",
+        "Add to Home Screen completed",
+        "Home Screen icon visible",
+        "standalone launch opens dedicated Chemistry app shell"
+      ]
+    },
+    "A2_ipad_safari": {
+      "status": "pending",
+      "live_adaptive_emulation": "pass",
+      "required": [
+        "adaptive Safari coach shown",
+        "Add to Home Screen completed",
+        "Home Screen icon visible",
+        "standalone launch opens dedicated Chemistry app shell"
+      ]
+    },
+    "A3_android_chrome": {
+      "status": "pass",
+      "pre_hotfix_result": "fail_waiting_screen",
+      "post_hotfix_install_observed": true,
+      "post_app_shell_reopen_observed": true,
+      "required": [
+        "page is immediately actionable with no detecting wait screen",
+        "trusted browser install control shown or immediate Chrome install recovery is available",
+        "install completed",
+        "app icon visible",
+        "standalone launch opens dedicated Chemistry app shell"
+      ]
+    },
+    "A4_samsung_internet": {
+      "status": "pending",
+      "live_adaptive_emulation": "pass",
+      "required": [
+        "Samsung install path shown",
+        "install completed",
+        "app icon visible",
+        "standalone launch opens dedicated Chemistry app shell"
+      ]
+    },
+    "A5_android_inapp_recovery": {
+      "status": "pending",
+      "live_adaptive_emulation": "pass",
+      "required": [
+        "wrong-browser recovery shown",
+        "recovery opens Chrome or Samsung Internet",
+        "install succeeds after recovery"
+      ]
+    },
+    "A6_installed_state_reopen": {
+      "status": "pass",
+      "required": [
+        "fully close installed MUSITU",
+        "reopen from installed app icon",
+        "dedicated MUSITU Chemistry app shell appears",
+        "public website header/footer absent",
+        "Diagnose Revise Prove onboarding or app home visible"
+      ]
+    },
+    "A7_offline_reload": {
+      "status": "pass",
+      "pre_v5_result": "public_rescue_fallback",
+      "post_v5_physical_retest": "dedicated_app_shell_retained_in_airplane_mode",
+      "browser_offline_reconnect_acceptance": "pass",
+      "required": [
+        "successful online app-shell launch first",
+        "offline reload retains bounded non-payment shell",
+        "checkout/return/claim/telemetry/plans not served from cache"
+      ]
+    },
+    "A8_update_reload": {
+      "status": "pending",
+      "browser_reconnect_update_reload_acceptance": "pass",
+      "physical_retest_required": true,
+      "required": [
+        "reconnect to network",
+        "reload returns current live application",
+        "no reinstall required",
+        "payment authority remains network/server authoritative"
+      ]
+    },
+    "A9_native_premium_help_navigation": {
+      "status": "retest_required_after_deploy",
+      "pre_deploy_result": "public_white_pages",
+      "browser_production_acceptance": "pass",
+      "required": [
+        "refresh installed app online after native-navigation deploy",
+        "tap Premium and remain in dark installed app shell",
+        "tap Help and remain in dark installed app shell",
+        "secure checkout/support actions remain online/server-authoritative"
+      ]
+    }
   },
   "evidence_requirements_per_gate": [
     "device class and OS major version when available",
@@ -324,5 +596,5 @@
     "redacted screenshot evidence",
     "PASS or FAIL with exact failure text"
   ],
-  "authoritative_claim_until_complete": "Android Chrome installation, installed-state reopen and physical offline reopen are proven PASS. Production Chrome acceptance independently verifies direct /chemistry/app entry, Home/Rescue/Premium/Help navigation, service-worker-cached offline app views, failure-closed sensitive network routes during transport blocking, and successful reconnect/update/reload with payment and transport authority restored. Live production adaptive rendering is additionally verified in controlled browser emulation for iPhone Safari, iPad Safari, Samsung Internet and Android WebView recovery surfaces. These browser results do not close physical A1, A2, A4, A5, A8 or A9. Full physical cross-device certification remains incomplete."
+  "authoritative_claim_until_complete": "Customer-facing MUSITU Chemistry is PWA/web-app first in production. Start Free is independently proven in live Chrome to land on /chemistry/install rather than an APK, and customer-facing install, support and verification surfaces no longer expose direct APK actions. The signed Android APK remains available only as an immutable technical provenance endpoint. The real /chemistry/app remains the dedicated MUSITU Chemistry / EDUCATION NEXUS app shell, with browser-proven internal Premium and Help navigation, bounded offline caching, and network/server-authoritative payment and entitlement routes. Prior physical Android installation, installed-state reopen and airplane-mode reopen remain proven PASS. Physical A1 iPhone Safari, A2 iPad Safari, A4 Samsung Internet, A5 Android in-app recovery, A8 reconnect/update reload and A9 Premium/Help navigation remain unclosed until observed on real hardware."
 }
