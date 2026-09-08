@@ -1,0 +1,45 @@
+name: Chemistry Frontier Android Sidecar Release Control
+
+on:
+  push:
+    branches:
+      - chemistry-frontier-universal-20260908
+    paths:
+      - commerce/chemistry/frontier_universal/ANDROID_SIDECAR_MIGRATION.json
+      - commerce/chemistry/frontier_universal/ANDROID_SIDECAR_SOURCE_ARTIFACT.json
+      - commerce/chemistry/frontier_universal/verify_android_sidecar_release_control.py
+      - commerce/chemistry/frontier_universal/RELEASE_CANDIDATE.json
+      - commerce/chemistry/frontier_universal/SOURCE_ARTIFACT.json
+      - .github/workflows/chemistry-frontier-android-sidecar-release-control.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  release-control:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Verify Android sidecar release control
+        run: python commerce/chemistry/frontier_universal/verify_android_sidecar_release_control.py
+      - name: Verify control syntax
+        run: python -m py_compile commerce/chemistry/frontier_universal/verify_android_sidecar_release_control.py
+      - name: Assert publication remains disabled
+        shell: bash
+        run: |
+          python - <<'PY'
+          import json
+          p='commerce/chemistry/frontier_universal/ANDROID_SIDECAR_MIGRATION.json'
+          j=json.load(open(p))
+          assert j['publication']=={
+              'authorized': False,
+              'production_deployed': False,
+              'production_download_replaced': False,
+              'customer_exposed': False,
+          }
+          print('MUSITU_CHEMISTRY_SIDECAR_PUBLICATION_DISABLED_PASS')
+          PY
