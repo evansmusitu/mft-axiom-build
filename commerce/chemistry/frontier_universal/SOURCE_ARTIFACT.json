@@ -1,0 +1,46 @@
+{
+  "schema": "musitu.chemistry.frontier_universal.source_artifact.v1",
+  "artifact_name": "MUSITU_Chemistry_1.3.0_FRONTIER_UNIVERSAL_REPRO_SOURCE_20260908_FINAL.zip",
+  "artifact_sha256": "e0b6c0cb015c2ad147e6e1f0198f4d43eff0eca0da7ff364ad8fc273fbeae3b8",
+  "artifact_bytes": 698852,
+  "artifact_file_count": 20,
+  "library_file_id": "file_00000000c91881faa0c62cba86c67ca4",
+  "library_file_id_is_project_artifact_pointer": true,
+  "contains_private_keys": false,
+  "contains_payment_secrets": false,
+  "internal_sha256s": {
+    "source/app.js": "f2e8828674bc166ea03acc30302a37633221ae85b091c2801dfe7c2919c57c61",
+    "source/commercial.js": "cc6532b8c669ec373a934d9c5a4b5f6f60d87507bfb9d11de143181b7bccb58c",
+    "source/content.json": "8810414605dc497838920c5e1e8ddf39273478bdd7c33d29f01ebfc8bd73a6c7",
+    "source/frontier.css": "c3fb84e67964caca1f907c258a69be2da6ebcd8fb8df3905e20ab64a95a68b23",
+    "source/frontier.js": "ad889c5b30c81a530a405b84c52fd5b0d2b14ae30118bd743f923e8c347bf926",
+    "source/index.html": "2ce5f6b97630e42e1fb62114a4395438dba0c2fe3e9000a5f1c7f0a6f527465d",
+    "source/manifest.webmanifest": "6c59e09327d6411fb64abccbb977ec6568f644d4ea516e342a079821454beb30",
+    "source/styles.css": "ba5db59c8293b61dd1b5fa121415ea5bcfa3e38a04b0ff952b38bcc9608b5f76",
+    "source/sw.js": "a542a5aa5d29d4614fd5289ba6a089262fd9194d9ece093789f55b4975c174ef",
+    "binary/frontier_android_binary_overlay.zip.b64": "e81bb74fb8d6bb60190e900c7749960428cbeaa56b91ddf7e26e2946453b9f35",
+    "build_frontier_universal.py": "504758b4233eaddd58ff535e502d7c37a4a99cd59ecb6ba3305958dfe106d0e0",
+    "verify_frontier_universal.py": "216475b18971ab1c65a5e192b9bf304fcd5dd00524f48c152a2b8490e765a594",
+    "frontier_host_preflight.py": "4df12d26b80b34a8c240b0d7e8ed1f6b6a539a7bb71747b509d989002295df99",
+    "README.md": "4cd60e80b75e820101122be541e5aa461ff1febba84e45521f41932a5a12cc34",
+    "FRONTIER_PARITY_LEDGER.md": "f1a68e09a02aa75259b0a6ffe412f92f28e45b2241b6c8729f9144481b17b479",
+    "RELEASE_CANDIDATE.json": "05981a8cf520313302277414410a72755cdeff9a3c6f202f2acccfd94e08676e",
+    "HOSTED_CAPABILITY_BASELINE.json": "f3bb3acf480e078ad1a3e720706665a2d00fefdc7dcb6ce352860a7eb907b749",
+    "verify_frontier_parity.py": "ee17e9188f46d671e42f3f0eb92b550ac9bcf97902dd4de8a9687b45e0ef4680"
+  },
+  "rebuild_evidence": {
+    "verification": "62/62 PASS",
+    "unsigned_apk_sha256": "aacd9d3f72e9ce5883aa1cdf63349fb5df75f0871138e1adf0631673ff6793d6",
+    "web_zip_sha256": "1445074e87e8c4a9a15281baa586855fe31f92c06dd393a11458adce9821ec30"
+  },
+  "publication_authority": false,
+  "candidate_verification": {
+    "frontier_contract": "46/46 PASS",
+    "commercial_crypto": "25/25 PASS",
+    "final_apk_package": "31/31 PASS",
+    "reproducible_rebuild": "62/62 PASS",
+    "strict_script_csp": true,
+    "scientific_response_os": true,
+    "offline_payment_authority": false
+  }
+}
