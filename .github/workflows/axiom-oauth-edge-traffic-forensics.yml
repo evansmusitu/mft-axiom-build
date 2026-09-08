@@ -32,7 +32,7 @@ jobs:
             'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY'],
             'Accept':'application/json',
             'Content-Type':'application/json',
-            'User-Agent':'MUSITU-Axiom-OAuth-Edge-Forensics/1.0',
+            'User-Agent':'MUSITU-Axiom-OAuth-Edge-Forensics/1.1',
           }
           def get_json(url):
             req=urllib.request.Request(url,headers=headers,method='GET')
@@ -52,6 +52,9 @@ jobs:
 
           end=datetime.datetime.now(datetime.timezone.utc).replace(microsecond=0)
           start=end-datetime.timedelta(hours=8)
+          # We intentionally do not request user agent, client IP, query string, or
+          # any credential-bearing field. The endpoint path already identifies the
+          # OAuth phase; minute/status groups are sufficient to prove edge traffic.
           query='''query OAuthTraffic($zoneTag: string, $start: Time, $end: Time) {
             viewer {
               zones(filter: {zoneTag: $zoneTag}) {
@@ -59,17 +62,17 @@ jobs:
                   limit: 5000,
                   orderBy: [datetimeMinute_ASC],
                   filter: {datetime_geq: $start, datetime_lt: $end, clientRequestHTTPHost: "auth.mftintelligence.com", clientRequestPath: "/oauth/authorize", requestSource: "eyeball"}
-                ) { count dimensions { datetimeMinute clientRequestHTTPMethod edgeResponseStatus } }
+                ) { count dimensions { datetimeMinute edgeResponseStatus } }
                 token: httpRequestsAdaptiveGroups(
                   limit: 5000,
                   orderBy: [datetimeMinute_ASC],
                   filter: {datetime_geq: $start, datetime_lt: $end, clientRequestHTTPHost: "auth.mftintelligence.com", clientRequestPath: "/oauth/token", requestSource: "eyeball"}
-                ) { count dimensions { datetimeMinute clientRequestHTTPMethod edgeResponseStatus } }
+                ) { count dimensions { datetimeMinute edgeResponseStatus } }
                 register: httpRequestsAdaptiveGroups(
                   limit: 5000,
                   orderBy: [datetimeMinute_ASC],
                   filter: {datetime_geq: $start, datetime_lt: $end, clientRequestHTTPHost: "auth.mftintelligence.com", clientRequestPath: "/oauth/register", requestSource: "eyeball"}
-                ) { count dimensions { datetimeMinute clientRequestHTTPMethod edgeResponseStatus } }
+                ) { count dimensions { datetimeMinute edgeResponseStatus } }
               }
             }
           }'''
@@ -90,7 +93,7 @@ jobs:
             out=[]
             for r in rows or []:
               d=r.get('dimensions') or {}
-              out.append({'minute_utc':d.get('datetimeMinute'),'method':d.get('clientRequestHTTPMethod'),'status':d.get('edgeResponseStatus'),'requests':int(r.get('count') or 0)})
+              out.append({'minute_utc':d.get('datetimeMinute'),'status':d.get('edgeResponseStatus'),'requests':int(r.get('count') or 0)})
             return out
           report={
             'window_start_utc':payload['variables']['start'],
