@@ -1,0 +1,73 @@
+{
+  "schema": "musitu.chemistry.android_sidecar_migration.v1",
+  "product": "MUSITU Chemistry",
+  "version": "1.3.0-frontier-sidecar-rc1",
+  "strategy": "SIDE_BY_SIDE_MIGRATION",
+  "legacy_application_id": "com.mft.chemistry",
+  "sidecar_application_id": "com.musitu.chemistry",
+  "preserved_native_activity": "com.mft.chemistry.MainActivity",
+  "legacy_repaired_apk_sha256": "f0c00c616b359b3ccd112ca55901ef4dc6c8b162f7a3d4add1c213f8a149614a",
+  "legacy_repaired_certificate_sha256": "c30c26e4444dce8d574b90941ea6f9e105ac46f1cff40f7d1164eff212a9f186",
+  "repair_private_key_recovered": false,
+  "baseline_frontier_unsigned_sha256": "aacd9d3f72e9ce5883aa1cdf63349fb5df75f0871138e1adf0631673ff6793d6",
+  "sidecar_unsigned_sha256": "d5cb434021027498c473fbfb2b4ac4d4862e72ad218071a7a453012fee10b4db",
+  "sidecar_v2_test_apk_sha256": "a75d8512085556eaebc77475fe04dda332bc7a5c6bd65c897ffcf5c975d19f8d",
+  "sidecar_v2_test_certificate_sha256": "f952a4c2d34f10fcdaf16ff9b26133ef545bdab05d42be91deb8e4f59c9400a7",
+  "sidecar_v2_test_content_digest_sha256": "ede2d5dfdf13895097d207a9990dd44e43604a969f6ba0125df962b2ceae919a",
+  "v2_test_signature": {
+    "algorithm_id": "0x0103",
+    "block_id": "0x7109871a",
+    "verified_locally": true,
+    "production_authority": false,
+    "private_test_key_persisted": false,
+    "claim_boundary": "Disposable local test signature only; no production Android signer or update continuity is claimed."
+  },
+  "verification": {
+    "tdd_red_observed": true,
+    "focused_sidecar_contract": "40/40 PASS",
+    "independent_unsigned_sidecar": "14/14 PASS",
+    "independent_v2_test_signed_sidecar": "14/14 PASS",
+    "deterministic_unsigned_rebuild": true,
+    "double_transform_fail_closed": true,
+    "v2_signature_and_content_digest": "PASS"
+  },
+  "migration_contract": {
+    "learner_export_schema_version": 2,
+    "learner_progress_export_import_compatible": true,
+    "learner_state_key": "mftChemistryFrontierStateV2",
+    "commercial_state_key": "musituChemistryCommerceV1",
+    "commercial_state_copied_between_installations": false,
+    "new_installation_device_id_expected": true,
+    "premium_restore_or_reissue_required_for_new_device_id": true,
+    "safe_sequence": [
+      "keep legacy repaired app installed",
+      "export learner progress",
+      "install side-by-side MUSITU Chemistry package",
+      "import learner progress",
+      "restore or reissue Premium entitlement to the new Device ID where applicable",
+      "verify learner progress, Premium access, offline behavior and relaunch",
+      "remove legacy app only after successful verification if desired"
+    ]
+  },
+  "manifest_change_boundary": {
+    "android_manifest_only": true,
+    "dex_payload_changed": false,
+    "resources_arsc_changed": false,
+    "web_learning_assets_changed": false,
+    "dynamic_permission_namespaced_to_sidecar": true,
+    "androidx_startup_authority_namespaced_to_sidecar": true,
+    "debuggable": false
+  },
+  "publication": {
+    "authorized": false,
+    "production_deployed": false,
+    "production_download_replaced": false,
+    "customer_exposed": false
+  },
+  "open_gates": [
+    "durable production Android signing authority for com.musitu.chemistry",
+    "physical Android side-by-side install/relaunch/touch/offline/export/import smoke",
+    "physical Premium transfer/restore validation on new Device ID",
+    "explicit publication authorization"
+  ]
+}
