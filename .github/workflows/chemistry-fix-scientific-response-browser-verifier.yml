@@ -1,0 +1,48 @@
+name: MUSITU Chemistry Repair Scientific Response Browser Verifier
+
+on:
+  push:
+    branches: [chemistry-national-rescue-growth-20260907]
+    paths: ['.github/workflows/chemistry-fix-scientific-response-browser-verifier.yml']
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+      - name: Guard failed verifier lineage and patch syntax only
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD^)" = "29863732015963e99399bcee81bec58942a21b57"
+          test "$(git diff --name-only HEAD^ HEAD)" = ".github/workflows/chemistry-fix-scientific-response-browser-verifier.yml"
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('.github/workflows/chemistry-scientific-response-production-browser-acceptance.yml')
+          s=p.read_text()
+          old="""          node - <<'NODE'\n          const fs=require('fs');"""
+          new="""          node - <<'NODE'\n          (async()=>{\n          const fs=require('fs');"""
+          if s.count(old)!=1: raise SystemExit('verifier opener anchor mismatch')
+          s=s.replace(old,new,1)
+          old="""          } finally {\n            if(context)await context.close();\n            await browser.close();\n          }\n          NODE"""
+          new="""          } finally {\n            if(context)await context.close();\n            await browser.close();\n          }\n          })().catch(e=>{console.error(e);process.exit(1)});\n          NODE"""
+          if s.count(old)!=1: raise SystemExit('verifier closer anchor mismatch')
+          p.write_text(s.replace(old,new,1))
+          PY
+          git diff --check
+          test "$(git diff --name-only)" = ".github/workflows/chemistry-scientific-response-production-browser-acceptance.yml"
+      - name: Commit corrected read-only verifier
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .github/workflows/chemistry-scientific-response-production-browser-acceptance.yml
+          git commit -m "test: fix Scientific Response production browser verifier"
+          git push origin HEAD:chemistry-national-rescue-growth-20260907
+          git rev-parse HEAD
