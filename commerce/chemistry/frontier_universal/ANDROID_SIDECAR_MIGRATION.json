@@ -22,6 +22,21 @@
     "private_test_key_persisted": false,
     "claim_boundary": "Disposable local test signature only; no production Android signer or update continuity is claimed."
   },
+  "production_signing": {
+    "authority_recovered": true,
+    "source": "private encrypted MUSITU Android release-signing escrow; no private material committed",
+    "certificate_sha256": "d4455ac3ec74a6d7cd7993ca640f554a83bba95dfd01ef508f7637b6bc72c0d8",
+    "certificate_matches_rc2_rc3": true,
+    "private_release_signing_pointer": "ANDROID_SIDECAR_PRIVATE_RELEASE_SIGNING.json",
+    "signed_apk_sha256": "4ba442122d9c86a0c3cef660334fe337c6ea9ae6fe853c964b5e94961245babd",
+    "v1_verified": true,
+    "v2_verified": true,
+    "v3_verified": true,
+    "non_signature_payload_equal": true,
+    "stored_alignment_failures": 0,
+    "private_key_committed": false,
+    "private_key_embedded": false
+  },
   "verification": {
     "tdd_red_observed": true,
     "focused_sidecar_contract": "40/40 PASS",
@@ -29,7 +44,9 @@
     "independent_v2_test_signed_sidecar": "14/14 PASS",
     "deterministic_unsigned_rebuild": true,
     "double_transform_fail_closed": true,
-    "v2_signature_and_content_digest": "PASS"
+    "v2_signature_and_content_digest": "PASS",
+    "private_release_signed_payload_preservation": "PASS",
+    "private_release_v1_v2_v3": "PASS"
   },
   "migration_contract": {
     "learner_export_schema_version": 2,
@@ -65,7 +82,6 @@
     "customer_exposed": false
   },
   "open_gates": [
-    "durable production Android signing authority for com.musitu.chemistry",
     "physical Android side-by-side install/relaunch/touch/offline/export/import smoke",
     "physical Premium transfer/restore validation on new Device ID",
     "explicit publication authorization"

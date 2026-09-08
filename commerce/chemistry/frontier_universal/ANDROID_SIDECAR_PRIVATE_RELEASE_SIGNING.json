@@ -1,0 +1,36 @@
+{
+  "schema": "musitu.chemistry.android_sidecar.private_release_signing.v1",
+  "product": "MUSITU Chemistry",
+  "application_id": "com.musitu.chemistry",
+  "unsigned_apk_sha256": "d5cb434021027498c473fbfb2b4ac4d4862e72ad218071a7a453012fee10b4db",
+  "private_release_signed_apk": {
+    "name": "MUSITU_Chemistry_1.3.0-frontier-sidecar-rc1_PRIVATE_RELEASE_SIGNED.apk",
+    "sha256": "4ba442122d9c86a0c3cef660334fe337c6ea9ae6fe853c964b5e94961245babd",
+    "bytes": 5892286,
+    "library_file_id": "file_00000000e03c81fa86c30e2da5b44e14"
+  },
+  "signing_evidence": {
+    "name": "MUSITU_Chemistry_1.3.0_FRONTIER_ANDROID_PRIVATE_RELEASE_SIGNING_EVIDENCE_20260908.json",
+    "sha256": "d00d2945d64d5739eadfa839d57afc5e13d20b73fc323a15d3097954d04ca5b1",
+    "library_file_id": "file_00000000368481fabcbfc8ca0bf87207"
+  },
+  "v3_verification": {
+    "name": "MUSITU_Chemistry_1.3.0_FRONTIER_ANDROID_V3_VERIFY_20260908.json",
+    "sha256": "aff17a2775ff84becb976e75bee69a21605c04181aa003f2f5115234467a56ce",
+    "library_file_id": "file_00000000e9e881fa96d2731bc65d3bb2"
+  },
+  "certificate_sha256": "d4455ac3ec74a6d7cd7993ca640f554a83bba95dfd01ef508f7637b6bc72c0d8",
+  "certificate_matches_rc2_rc3": true,
+  "private_signing_authority_recovered": true,
+  "v1_verified": true,
+  "v2_verified": true,
+  "v3_verified": true,
+  "non_signature_payload_equal": true,
+  "stored_alignment_failures": 0,
+  "contains_private_key": false,
+  "contains_keystore": false,
+  "contains_password": false,
+  "physical_android_certified": false,
+  "publication_authorized": false,
+  "production_download_replaced": false
+}

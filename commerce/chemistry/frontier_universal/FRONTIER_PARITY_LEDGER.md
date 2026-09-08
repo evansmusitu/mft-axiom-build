@@ -41,11 +41,18 @@ The offline core may link to these services but must never duplicate payment or 
 
 Required install/runtime families: iPhone Safari, iPad Safari, iOS non-Safari/in-app browsers with handoff guidance, Android Chrome, Samsung Internet, Android WebView/in-app fallback, desktop Chrome/Edge/Firefox/Safari, installed standalone mode, browser mode and offline-ready mode.
 
+## Resolved Android release controls
+
+- Side-by-side migration is the approved carrier strategy: legacy `com.mft.chemistry` can coexist with new `com.musitu.chemistry`.
+- The encrypted MUSITU Android release-signing escrow was recovered privately and verified against the RC2/RC3 release certificate SHA-256 `d4455ac3ec74a6d7cd7993ca640f554a83bba95dfd01ef508f7637b6bc72c0d8`.
+- The exact private sidecar candidate SHA-256 `4ba442122d9c86a0c3cef660334fe337c6ea9ae6fe853c964b5e94961245babd` is signed with v1+v2+v3 and preserves every non-signature APK entry byte-for-byte from the verified unsigned sidecar.
+- No Android signing private key, keystore password, Paynow secret or licence-signing private key is committed to GitHub or embedded in the APK.
+- Production publication remains disabled.
+
 ## Release gates still open
 
-- production Android signing continuity / approved migration decision
-- APK v2/v3 production signature
-- physical Android install/relaunch/touch/offline/checkout smoke
+- physical Android side-by-side install/relaunch/touch/offline/export/import/checkout smoke
+- physical Premium transfer/restore validation on the new Device ID
 - iPhone/iPad Add-to-Home-Screen and offline smoke
 - desktop cross-browser candidate smoke
 - hosted Frontier host preflight against the final production origin
