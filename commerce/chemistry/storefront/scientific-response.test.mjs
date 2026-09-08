@@ -23,11 +23,12 @@ test('exam exposes the MUSITU chemistry-native Scientific Response OS instead of
 test('certified exam surface provides deep scientific expression affordances without answer assistance',()=>{
   const html=renderChemistryApp({view:'exam'});
   for(const token of ['₁','₂','₃','₄','₅','⁺','⁻','²⁺','²⁻','³⁺','³⁻','→','⇌','(s)','(l)','(g)','(aq)','e⁻','Δ','°','×10','√','λ'])assert.ok(html.includes(token),token);
-  for(const concept of ['Electron-pair arrow','Single-electron arrow','Lone pair','Solid wedge','Dashed wedge','R/S centre','Fischer','Haworth','Newman','Orbital','Polymer','Coordination centre','Transition state','Data table','Gradient','Burette','Salt bridge','Crystallize','Collect gas','Cation +','Le Chatelier principle'])assert.ok(html.includes(concept),concept);
+  for(const concept of ['Electron-pair arrow','Single-electron arrow','Lone pair','Solid wedge','Dashed wedge','R/S centre','Fischer','Haworth','Newman','Orbital','Polymer','Coordination centre','Transition state','Data table','Gradient','Burette','Salt bridge','Crystallize','Collect gas','Cation +'])assert.ok(html.includes(concept),concept);
   assert.match(html,/data-sr-link-representation/);
   assert.match(html,/Original evidence retained/);
   assert.match(html,/no hints, predictive completion, automatic balancing, answer correction, hidden retrieval or generative assistance/i);
   assert.match(html,/finishing it here does not transmit or submit an exam/i);
+  assert.doesNotMatch(html,/Le Chatelier principle/i,'certified argument surface must not leak a worked-answer prompt');
 });
 
 test('Scientific Response Graph runtime is bounded, multimodal, cross-representational and local-only',()=>{
