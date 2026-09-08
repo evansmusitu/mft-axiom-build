@@ -42,6 +42,15 @@ const {chromium}=require('playwright');
       for(const x of ['Chemistry Rescue 2026','Continue Chemistry Rescue','aria-label="MUSITU rescue method"','class="app-action primary" href="/chemistry/app?view=rescue">Continue Rescue','class="site-header"','class="site-footer"'])
         if(html.includes(x))throw new Error('Home exposed forbidden '+x);
     };
+    const dismissOnboarding=async p=>{
+      const onboarding=p.locator('#app-onboarding:not([hidden])');
+      if(await onboarding.count()){
+        const skip=p.locator('#app-onboarding-skip');
+        if(await skip.count()!==1)throw new Error('visible onboarding has no skip control');
+        await skip.click();
+        await onboarding.waitFor({state:'hidden'});
+      }
+    };
 
     const installResponse=await page.goto(base+'/chemistry/install?__mchem_home_live='+nonce,{waitUntil:'networkidle'});
     if(installResponse?.status()!==200||!strict(installResponse.headers()))throw new Error('install route rejected');
@@ -88,6 +97,7 @@ const {chromium}=require('playwright');
     await installedPage.waitForLoadState('networkidle');
     if(new URL(installedPage.url()).pathname!=='/chemistry/app')throw new Error('installed handoff landed on '+installedPage.url());
     await assertHome(installedPage);
+    await dismissOnboarding(installedPage);
 
     const prove=installedPage.locator('a.app-primary[href="/chemistry/app?view=exam"]');
     if(await prove.count()!==1)throw new Error('Home primary Prove action missing');
@@ -99,6 +109,7 @@ const {chromium}=require('playwright');
 
     await installedPage.goto(base+'/chemistry/app?__mchem_home_return='+nonce,{waitUntil:'networkidle'});
     await assertHome(installedPage);
+    await dismissOnboarding(installedPage);
     const rescue=installedPage.locator('a.app-action[href="/chemistry/app?view=rescue"]',{hasText:'Chemistry Rescue'});
     if(await rescue.count()!==1)throw new Error('secondary internal Rescue action missing');
     await rescue.click();
@@ -122,7 +133,7 @@ const {chromium}=require('playwright');
       schema:'musitu.chemistry.home_product_identity.production_browser_acceptance.v1',
       tested_at_utc:new Date().toISOString(),github_sha:process.env.GITHUB_SHA,deployed_source_sha:process.env.DEPLOYED_SOURCE_SHA,production_worker_sha256:process.env.PRODUCTION_WORKER_SHA256,
       home_product_identity:'MUSITU Chemistry · Education Nexus',home_primary_action:'/chemistry/app?view=exam',rescue_secondary_internal:true,
-      rescue_first_home_copy_absent:true,home_primary_prove_click_pass:true,internal_rescue_click_pass:true,public_rescue_preserved:true,
+      rescue_first_home_copy_absent:true,first_launch_onboarding_dismissal_pass:true,home_primary_prove_click_pass:true,internal_rescue_click_pass:true,public_rescue_preserved:true,
       versioned_manifest_url:'/chemistry/manifest.webmanifest?v=2',manifest_id:versionedManifest.id,manifest_name:versionedManifest.name,manifest_start_url:versionedManifest.start_url,manifest_scope:versionedManifest.scope,
       unversioned_manifest_same_identity_pass:true,service_worker_v8_pass:true,installed_panel_app_handoff_pass:true,standalone_installed_handoff_click_pass:true,dedicated_dark_app_shell_pass:true,
       customer_apk_cta_absent:true,strict_security_headers_pass:true,health_ok:true,raw_paynow_key_present:false,payment_authority_bound:true,transport_bound:true,
