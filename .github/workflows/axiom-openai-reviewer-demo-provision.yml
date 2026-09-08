@@ -45,9 +45,11 @@ jobs:
           API=os.environ['CF_API']; AID=os.environ['ACCOUNT_ID']; DBID=os.environ['D1_UUID']
           ISSUER=os.environ['AUTH_ISSUER']; RESOURCE=os.environ['MCP_RESOURCE']; MCP=os.environ['MCP_URL']
           CUSTOMER=os.environ['REVIEWER_CUSTOMER_ID']; KEY_ID=os.environ['REVIEWER_KEY_ID']; EMAIL=os.environ['REVIEWER_EMAIL']
-          ACCOUNT_KEY=os.environ.get('REVIEWER_KEY','')
+          RAW_ACCOUNT_KEY=os.environ.get('REVIEWER_KEY','')
+          print('::add-mask::'+RAW_ACCOUNT_KEY)
+          ACCOUNT_KEY=re.sub(r'^[\s\u200E\u200F\u202A-\u202E\u2066-\u2069]+|[\s\u200E\u200F\u202A-\u202E\u2066-\u2069]+$','',RAW_ACCOUNT_KEY)
           if len(ACCOUNT_KEY) < 48:
-              raise SystemExit('Fail-closed: OPENAI_REVIEWER_ACCOUNT_KEY is missing or too short')
+              raise SystemExit('Fail-closed: OPENAI_REVIEWER_ACCOUNT_KEY is missing or too short after boundary normalization')
           print('::add-mask::'+ACCOUNT_KEY)
 
           CFH={
