@@ -64,6 +64,15 @@ jobs:
               rows.extend(chunk.get('results') or [])
             return rows
 
+          # First prove that the current private reviewer secret maps exactly to the
+          # persistent reviewer source key. Then inspect *other* api_keys rows for
+          # collisions. The source row is intentionally excluded from the latter.
+          source=d1('''SELECT k.id,k.customer_id,k.status,k.expires_at,k.revoked_at,c.status AS customer_status
+                       FROM api_keys k JOIN customers c ON c.id=k.customer_id
+                       WHERE k.id=?1 AND k.customer_id=?2 AND k.key_hash=?3''',[KEY_ID,CUSTOMER,key_hash])
+          exact_source_match=len(source)
+          source_active=bool(source and source[0].get('status')=='active' and source[0].get('customer_status')=='active' and not source[0].get('revoked_at') and source[0].get('expires_at') is None)
+
           rows=d1('''SELECT
             count(*) AS total,
             sum(CASE WHEN customer_id=?2 THEN 1 ELSE 0 END) AS reviewer_owned,
@@ -77,6 +86,8 @@ jobs:
           if len(rows)!=1: raise RuntimeError('reviewer key collision classification failed')
           r=rows[0]
           out={k:int(r.get(k) or 0) for k in ('total','reviewer_owned','non_reviewer_owned','reviewer_label_match','reviewer_id_family','reviewer_oauth_access_id','reviewer_active','reviewer_revoked')}
+          out['exact_source_match_count']=exact_source_match
+          out['exact_source_active']=source_active
 
           access_refs=d1('SELECT count(*) AS n FROM oauth_access_tokens WHERE api_key_id IN (SELECT id FROM api_keys WHERE key_hash=?1 AND id<>?2 AND customer_id=?3)',[key_hash,KEY_ID,CUSTOMER])
           refresh_refs=d1('SELECT count(*) AS n FROM oauth_refresh_tokens WHERE api_key_id IN (SELECT id FROM api_keys WHERE key_hash=?1 AND id<>?2 AND customer_id=?3)',[key_hash,KEY_ID,CUSTOMER])
@@ -87,8 +98,10 @@ jobs:
           out['credential_material_exposed']=False
           print(json.dumps(out,sort_keys=True))
 
+          if exact_source_match!=1 or not source_active:
+            raise RuntimeError('Fail-closed: current reviewer secret does not map uniquely to the active persistent reviewer source key')
           if out['non_reviewer_owned']:
             raise RuntimeError('Fail-closed: reviewer secret collides with a non-reviewer production credential')
-          if out['total']!=1 or out['reviewer_owned']!=1:
-            raise RuntimeError('Fail-closed: reviewer collision ownership is not uniquely reviewer-owned')
+          if out['total']!=0 or out['reviewer_owned']!=0:
+            raise RuntimeError('Fail-closed: current reviewer secret is duplicated into another api_keys row')
           PY
