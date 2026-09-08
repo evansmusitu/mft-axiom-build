@@ -49,7 +49,7 @@ test('Scientific Response Graph is bounded, structured, local and has no scienti
   assert.match(APP_SHELL_JS,/localStorage\.setItem\(SR_KEY,raw\)/);
   assert.match(APP_SHELL_JS,/response\.edges\.push/);
   assert.match(APP_SHELL_JS,/response\.ink\.push/);
-  assert.match(APP_SHELL_JS,/electron-pair-flow/);
+  assert.match(APP_SHELL_JS,/edge\.kind\.includes\('electron'\)/);
   assert.match(APP_SHELL_JS,/navigator\.clipboard\.writeText/);
   assert.doesNotMatch(APP_SHELL_JS,/(getUserMedia|geolocation|Notification\.requestPermission|sendBeacon|document\.cookie)/);
   assert.doesNotMatch(APP_SHELL_JS,/(openai|anthropic|gemini|automaticBalance|autoBalance|predictAnswer|completeAnswer|correctAnswer)/i);
