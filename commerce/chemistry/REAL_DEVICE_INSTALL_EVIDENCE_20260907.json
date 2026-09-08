@@ -1,12 +1,12 @@
 {
-  "schema": "musitu.chemistry.real_device_install_certification.v6",
-  "status": "offline_app_shell_v5_deployed_physical_retest_required",
+  "schema": "musitu.chemistry.real_device_install_certification.v7",
+  "status": "android_offline_pass_native_navigation_deployed_physical_retest_required",
   "universal_install_url": "https://payments.mftintelligence.com/chemistry/install",
   "installed_app_url": "https://payments.mftintelligence.com/chemistry/app",
   "certification_protocol": "commerce/chemistry/REAL_DEVICE_INSTALL_CERTIFICATION_20260907.md",
   "browser_emulation_verified": true,
   "physical_device_certified": false,
-  "current_production_worker_sha256": "e86c32bc1388a990953e5cdaf346092bd0a81d6ede772c6dbd2304a4faf3c294",
+  "current_production_worker_sha256": "68786463cdb6527adac1df1ec9a3b3424f0e5cdb0544dbbf1a1c9ffaa3ec6967",
   "real_device_observations": [
     {
       "gate": "A3_android_chrome",
@@ -63,7 +63,34 @@
       "screenshot_received": true,
       "personal_identifiers_recorded": false,
       "root_cause": "The production v4 service worker did not pre-cache /chemistry/app or its app-shell assets and its offline navigation fallback could return the cached public Rescue page.",
-      "disposition": "Defect fixed by service worker v5 and deployed under guarded production cutover. A7 remains failed until the physical phone refreshes v5 once online and then passes a repeated airplane-mode reopen."
+      "disposition": "Defect fixed by service worker v5 and deployed under guarded production cutover."
+    },
+    {
+      "gate": "A7_offline_reload",
+      "result": "PASS_POST_V5_PHYSICAL_RETEST",
+      "observed_at_local_time": "2026-09-07T23:07:00+02:00",
+      "device_class": "physical Android phone",
+      "airplane_mode_visible": true,
+      "reopened_from_installed_app": true,
+      "dedicated_app_shell_retained": true,
+      "installed_badge_visible": true,
+      "dark_app_shell_visible": true,
+      "workflow_visible": ["Diagnose", "Revise", "Prove"],
+      "app_bottom_navigation_visible": ["Home", "Rescue", "Premium", "Help"],
+      "public_rescue_fallback_absent": true,
+      "screenshot_received": true,
+      "personal_identifiers_recorded": false,
+      "disposition": "Physical airplane-mode reopen retained the dedicated MUSITU Chemistry app shell. A7 passes."
+    },
+    {
+      "gate": "installed_app_internal_navigation",
+      "result": "FAIL_PRE_NATIVE_NAV_DEPLOY",
+      "observed_at_local_time": "2026-09-07T23:07:00+02:00",
+      "device_class": "physical Android phone",
+      "observed_failure": "Tapping Premium and Help from the dark installed app shell navigated to white public storefront/Rescue-style pages instead of remaining inside the installed app surface.",
+      "screenshot_received_for_originating_app_state": true,
+      "personal_identifiers_recorded": false,
+      "disposition": "Source already contained native Premium and Help app views but they had not yet been deployed. A guarded production cutover deployed the verified native-navigation candidate. Physical Premium and Help retest remains required."
     }
   ],
   "instant_install_hotfix_evidence": {
@@ -117,7 +144,39 @@
     "payment_authority_preserved": true,
     "transport_binding_preserved": true,
     "real_money_settlement_performed": false,
-    "physical_offline_retest_required": true
+    "physical_offline_retest_required": false,
+    "physical_offline_retest_result": "pass"
+  },
+  "native_app_navigation_evidence": {
+    "source_evidence_head_sha": "de92b9b75a585b4933645f5c33eca424ec518949",
+    "source_evidence_tree_sha": "b3147b1f45e97add21ede42132805f943c296771",
+    "production_worker_sha256": "68786463cdb6527adac1df1ec9a3b3424f0e5cdb0544dbbf1a1c9ffaa3ec6967",
+    "previous_worker_sha256": "e86c32bc1388a990953e5cdaf346092bd0a81d6ede772c6dbd2304a4faf3c294",
+    "preflight_run_id": 34162975752,
+    "preflight_artifact_id": 10033224115,
+    "preflight_artifact_sha256": "04527dfe2700e5c097b201863b74cfcf6f54f134ec7e698b74ffdd7d359dc3f8",
+    "install_ci_run_id": 34162975651,
+    "install_ci_artifact_id": 10033212270,
+    "install_ci_artifact_sha256": "890c4e3399fdcdccdb7ec846d9077b99194db4242e9e7accc38e481effdd3f2d",
+    "focused_ci_run_id": 34162975732,
+    "guarded_deploy_run_id": 34180893287,
+    "guarded_deploy_job_id": 101919621884,
+    "guarded_deploy_artifact_id": 10038863702,
+    "guarded_deploy_artifact_sha256": "4d08650ca9e927185fa7f06a1ab1cceb316b914f6308020dc0f667c9fed93b7b",
+    "deploy_conclusion": "success",
+    "edge_sweep_streak": 6,
+    "edge_sweep_attempts": 7,
+    "rollback_used": false,
+    "service_worker_cache": "musitu-chemistry-install-v6",
+    "premium_internal_app_view": true,
+    "help_internal_app_view": true,
+    "public_chrome_absent_from_internal_views": true,
+    "internal_views_offline_cached": true,
+    "sensitive_routes_network_authoritative": ["checkout", "return", "claim", "telemetry", "plans"],
+    "payment_authority_preserved": true,
+    "transport_binding_preserved": true,
+    "real_money_settlement_performed": false,
+    "physical_premium_help_retest_required": true
   },
   "privacy_boundary": {
     "personal_identifiers_prohibited": true,
@@ -132,8 +191,9 @@
     "A4_samsung_internet": {"status":"pending","required":["Samsung install path shown","install completed","app icon visible","standalone launch opens dedicated Chemistry app shell"]},
     "A5_android_inapp_recovery": {"status":"pending","required":["wrong-browser recovery shown","recovery opens Chrome or Samsung Internet","install succeeds after recovery"]},
     "A6_installed_state_reopen": {"status":"pass","required":["fully close installed MUSITU","reopen from installed app icon","dedicated MUSITU Chemistry app shell appears","public website header/footer absent","Diagnose Revise Prove onboarding or app home visible"]},
-    "A7_offline_reload": {"status":"retest_required_after_v5_deploy","pre_v5_result":"public_rescue_fallback","required":["refresh installed app once online after v5 deploy","fully close app","enable airplane mode","reopen from installed icon","dedicated non-payment app shell remains visible offline","checkout/return/claim/telemetry/plans remain network-authoritative"]},
-    "A8_update_reload": {"status":"pending","required":["reconnect to network","reload returns current live application","no reinstall required","payment authority remains network/server authoritative"]}
+    "A7_offline_reload": {"status":"pass","pre_v5_result":"public_rescue_fallback","post_v5_physical_retest":"dedicated_app_shell_retained_in_airplane_mode","required":["successful online app-shell launch first","offline reload retains bounded non-payment shell","checkout/return/claim/telemetry/plans not served from cache"]},
+    "A8_update_reload": {"status":"pending","required":["reconnect to network","reload returns current live application","no reinstall required","payment authority remains network/server authoritative"]},
+    "A9_native_premium_help_navigation": {"status":"retest_required_after_deploy","pre_deploy_result":"public_white_pages","required":["refresh installed app online after native-navigation deploy","tap Premium and remain in dark installed app shell","tap Help and remain in dark installed app shell","secure checkout/support actions remain online/server-authoritative"]}
   },
   "evidence_requirements_per_gate": [
     "device class and OS major version when available",
@@ -147,5 +207,5 @@
     "redacted screenshot evidence",
     "PASS or FAIL with exact failure text"
   ],
-  "authoritative_claim_until_complete": "Android Chrome installation and installed-state reopen are proven PASS. Offline app-shell service worker v5 is CI-green and production-deployed with six consecutive edge sweeps and no rollback. A7 remains pending physical post-v5 airplane-mode retest. Full cross-device certification also remains pending for iPhone Safari, iPad Safari, Samsung Internet, Android in-app recovery, and update reload."
+  "authoritative_claim_until_complete": "Android Chrome installation, installed-state reopen and physical offline reopen are proven PASS. Native Premium and Help app views are CI-green and production-deployed with six consecutive edge sweeps and no rollback, but their physical-device navigation retest remains pending. Full cross-device certification also remains pending for iPhone Safari, iPad Safari, Samsung Internet, Android in-app recovery and update reload."
 }
