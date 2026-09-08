@@ -20,12 +20,19 @@
     "commercial_crypto": "25/25 PASS",
     "final_apk_package": "31/31 PASS",
     "reproducible_rebuild": "62/62 PASS",
-    "host_preflight_positive_fixture": "13/13 PASS",
-    "host_preflight_negative_fixture": "expected failure when /experience is missing",
+    "host_preflight_positive_fixture": "19/19 PASS",
+    "host_preflight_negative_fixture": "18/19 PASS with deliberate /experience failure",
     "hosted_capability_parity_ci": "PASS",
-    "hosted_capability_parity_recorded_run_id": 34260993314,
-    "hosted_capability_parity_recorded_sha": "a745ec071fa9f4368b162e317867745ac364a865",
-    "hosted_capability_parity_checks": "113/113 PASS"
+    "hosted_capability_parity_latest_run_id": 34261336131,
+    "hosted_capability_parity_latest_sha": "222a8ff28ad96b0b31c7f76ff2daf85a4978fcda",
+    "hosted_capability_parity_checks": "113/113 PASS",
+    "production_live_readonly_contract": "PASS",
+    "production_live_readonly_run_id": 34261336304,
+    "production_live_readonly_job_id": 102179753947,
+    "production_live_readonly_sha": "222a8ff28ad96b0b31c7f76ff2daf85a4978fcda",
+    "production_live_readonly_checks": "19/19 PASS",
+    "production_live_readonly_artifact_id": 10069986861,
+    "production_live_readonly_artifact_sha256": "a242b356ace3fd26c6415fccf06fe898286a5a76cc64fc875b267957b2204f9d"
   },
   "security": {
     "private_keys_in_source": false,
@@ -43,8 +50,11 @@
     "baseline": "HOSTED_CAPABILITY_BASELINE.json",
     "gate": "verify_frontier_parity.py",
     "authoritative_parent": "67952920bd9cab0efb342b2b58a1e550e303af4a",
-    "live_readback_this_turn": "unavailable_environment_dns_and_web_fetch_cache_miss",
-    "claim_boundary": "source/evidence parity is verified separately from current live reachability"
+    "current_production_get_only_contract": "19/19 PASS",
+    "current_production_get_only_method_policy": "GET_ONLY_NO_MUTATION",
+    "current_production_get_only_run_id": 34261336304,
+    "current_production_get_only_artifact_id": 10069986861,
+    "claim_boundary": "Current hosted route/identity/security/authority compatibility is verified read-only. The new 1.3.0 universal carrier itself has not been deployed, so its final hosted browser behavior remains a separate release gate."
   },
   "source_artifact": {
     "pointer": "SOURCE_ARTIFACT.json",
@@ -56,10 +66,10 @@
   "remaining_release_gates": [
     "approved Android signing-continuity strategy",
     "production APK v2/v3 signing",
-    "physical Android smoke",
-    "iPhone/iPad Safari install/offline smoke",
-    "desktop cross-browser smoke",
-    "hosted carrier verification under final production path",
+    "physical Android smoke of the exact 1.3.0 candidate",
+    "iPhone/iPad Safari install/offline smoke of the exact 1.3.0 carrier",
+    "desktop cross-browser interaction smoke of the exact 1.3.0 carrier",
+    "exact 1.3.0 universal web carrier browser verification in an isolated preview or after explicitly authorized production deployment",
     "explicit publication authorization"
   ]
 }
