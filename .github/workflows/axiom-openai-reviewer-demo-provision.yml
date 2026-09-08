@@ -164,7 +164,7 @@ jobs:
 
           s3,_,o3,_=mcp('musitu_axiom_capabilities',{},access,103)
           sc3=((o3.get('result') or {}).get('structuredContent') or {})
-          if s3!=200 or int(sc3.get('operation_count') or -1)!=74 or len(sc3.get('business_products') or [])!=30:
+          if s3!=200 or int(sc3.get('operation_count') or -1)!=74 or int(sc3.get('business_product_count') or -1)!=30:
               raise RuntimeError('positive test 3 capability cardinality mismatch')
 
           # Test cases 4-5: authenticated deterministic execution.
