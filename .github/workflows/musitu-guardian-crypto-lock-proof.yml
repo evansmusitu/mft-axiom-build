@@ -1,0 +1,65 @@
+name: MUSITU Guardian Crypto Lock Proof
+
+on:
+  push:
+    branches:
+      - continuum-phase-k-guardian-crypto-20260908
+
+permissions:
+  contents: read
+
+jobs:
+  guardian-crypto:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: '3.13'
+      - name: Install exact hash-locked production crypto closure
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > requirements.txt <<'EOF'
+          cryptography==50.0.1 \
+              --hash=sha256:51593d180cf6d179bde5c5d065bed81386b1f381656ae7d042b7ffc87a9895ad
+          cffi==2.1.1 \
+              --hash=sha256:a931079504ecc49efed7744c476a5c343a92fabf66dec2db95edb1b2fdc770e2
+          pycparser==3.0 \
+              --hash=sha256:b727414169a36b7d524c1c3e31839a521725078d7b2ff038656844266160a992
+          EOF
+          python -m pip install --disable-pip-version-check --no-cache-dir --only-binary=:all: --require-hashes -r requirements.txt
+          python -m pip check
+      - name: Execute AES-256-GCM tamper proof
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY' | tee guardian-crypto-runtime.txt
+          import importlib.metadata, json, platform
+          from cryptography.exceptions import InvalidTag
+          from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+          assert importlib.metadata.version('cryptography') == '50.0.1'
+          assert importlib.metadata.version('cffi') == '2.1.1'
+          assert importlib.metadata.version('pycparser') == '3.0'
+          key = bytes(range(32)); nonce = bytes(range(12)); aad = b'musitu-guardian-aead-runtime-proof-v1'; pt = b'guardian-ciphertext-only-proof'
+          ct = AESGCM(key).encrypt(nonce, pt, aad)
+          assert AESGCM(key).decrypt(nonce, ct, aad) == pt
+          try:
+              AESGCM(key).decrypt(nonce, ct[:-1] + bytes([ct[-1] ^ 1]), aad)
+          except InvalidTag:
+              pass
+          else:
+              raise SystemExit('tamper was not rejected')
+          print(json.dumps({'status':'pass','python':platform.python_version(),'cryptography':importlib.metadata.version('cryptography'),'cffi':importlib.metadata.version('cffi'),'pycparser':importlib.metadata.version('pycparser'),'algorithm':'AES-256-GCM','tamper_rejected':True,'claim_boundary':'exact_dependency_runtime_proof_not_dependency_vulnerability_audit'}, sort_keys=True))
+          PY
+          sha256sum requirements.txt guardian-crypto-runtime.txt > guardian-crypto-runtime.sha256
+      - name: Preserve runtime proof
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: musitu-guardian-crypto-lock-proof-20260908
+          path: |
+            requirements.txt
+            guardian-crypto-runtime.txt
+            guardian-crypto-runtime.sha256
+          if-no-files-found: error
+          retention-days: 30
