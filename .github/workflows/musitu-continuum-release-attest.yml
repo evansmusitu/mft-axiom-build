@@ -1,0 +1,76 @@
+name: MUSITU Continuum Release Attestation
+
+on:
+  push:
+    branches:
+      - continuum-phase-k-release-attest-20260908
+
+permissions:
+  contents: read
+  id-token: write
+  attestations: write
+
+env:
+  SUBJECT_NAME: MUSITU_CONTINUUM_CURRENT_2026-09-07.zip
+  SUBJECT_SHA256: cfd9f25a9f48d14c2764b55eed2b53bf70b2ddb14d4a3adfb324742fedcc97b7
+  SOURCE_COMMIT: 00cab48b426898d996440d722e2cdf16a65753eb
+  SOURCE_TREE: f197f2921cd0e7f4cf194e54dc247ab231649bd7
+  ATTEST_ACTION_SHA: 977bb373ede98d70efdf65b84cb5f73e068dcc2a
+
+jobs:
+  attest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - name: Attest exact sealed checkpoint digest
+        id: attest
+        uses: actions/attest-build-provenance@977bb373ede98d70efdf65b84cb5f73e068dcc2a
+        with:
+          subject-name: ${{ env.SUBJECT_NAME }}
+          subject-digest: sha256:${{ env.SUBJECT_SHA256 }}
+      - name: Preserve provenance evidence
+        shell: bash
+        env:
+          ATTESTATION_ID: ${{ steps.attest.outputs.attestation-id }}
+          ATTESTATION_URL: ${{ steps.attest.outputs.attestation-url }}
+          BUNDLE_PATH: ${{ steps.attest.outputs.bundle-path }}
+        run: |
+          set -euo pipefail
+          cp "$BUNDLE_PATH" musitu-release-attestation.sigstore.json
+          python - <<'PY'
+          import json, os
+          payload = {
+            "schema_version": 1,
+            "status": "pass",
+            "subject_name": os.environ["SUBJECT_NAME"],
+            "subject_sha256": os.environ["SUBJECT_SHA256"],
+            "source_commit": os.environ["SOURCE_COMMIT"],
+            "source_tree": os.environ["SOURCE_TREE"],
+            "builder_repository": os.environ["GITHUB_REPOSITORY"],
+            "builder_workflow": ".github/workflows/musitu-continuum-release-attest.yml",
+            "builder_commit": os.environ["GITHUB_SHA"],
+            "workflow_run_id": int(os.environ["GITHUB_RUN_ID"]),
+            "workflow_run_attempt": int(os.environ["GITHUB_RUN_ATTEMPT"]),
+            "issuer": "https://token.actions.githubusercontent.com",
+            "signing_model": "sigstore_keyless_oidc",
+            "key_custody": "github_oidc_short_lived_sigstore_certificate_no_long_lived_repository_private_key",
+            "rotation_revocation": "oidc_identity_and_trust_policy_not_static_private_key",
+            "transparency": "github_artifact_attestation_store",
+            "attestation_action_sha": os.environ["ATTEST_ACTION_SHA"],
+            "attestation_id": os.environ["ATTESTATION_ID"],
+            "attestation_url": os.environ["ATTESTATION_URL"],
+            "claim_boundary": "keyless_ci_attestation_of_exact_sealed_checkpoint_digest",
+          }
+          open("musitu-release-attestation-evidence.json", "w").write(json.dumps(payload, indent=2, sort_keys=True) + "\n")
+          PY
+          sha256sum musitu-release-attestation.sigstore.json musitu-release-attestation-evidence.json > musitu-release-attestation.sha256
+      - name: Upload attestation evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: musitu-continuum-release-attestation-20260908
+          path: |
+            musitu-release-attestation.sigstore.json
+            musitu-release-attestation-evidence.json
+            musitu-release-attestation.sha256
+          if-no-files-found: error
+          retention-days: 30
