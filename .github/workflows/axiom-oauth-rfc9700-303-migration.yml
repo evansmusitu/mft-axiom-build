@@ -27,7 +27,7 @@ jobs:
           ref: frontier/axiom-v5-skill-fabric
           fetch-depth: 0
 
-      - name: Patch only remaining OAuth authorization POST verifier contracts
+      - name: Patch only remaining non-workflow OAuth authorization POST verifiers
         shell: bash
         run: |
           set -euo pipefail
@@ -35,10 +35,6 @@ jobs:
           from pathlib import Path
 
           replacements = {
-              Path('.github/workflows/axiom-openai-reviewer-demo-provision.yml'): (
-                  "if pc!=302 or not code or (qp.get('state') or [''])[0]!=state: raise RuntimeError('reviewer account OAuth authentication failed')",
-                  "if pc!=303 or not code or (qp.get('state') or [''])[0]!=state: raise RuntimeError('reviewer account OAuth authentication failed')",
-              ),
               Path('scripts/rollout_oauth_userinfo.py'): (
                   'if pc != 302 or not raw_code or (params.get("state") or [""])[0] != state:',
                   'if pc != 303 or not raw_code or (params.get("state") or [""])[0] != state:',
@@ -58,7 +54,7 @@ jobs:
               print(f'patched={path}')
           PY
 
-          # Production behavior is already 303. This migration only aligns the remaining verifiers.
+          # Production behavior and reviewer gate are already 303. This migration aligns the two remaining non-workflow verifiers.
           node --check auth/musitu_axiom_oauth_worker.mjs
           python -m py_compile scripts/rollout_oauth_userinfo.py frontier_v5/scripts/frontier_live_verify.py
           git diff --check
@@ -84,22 +80,22 @@ jobs:
           frontier=Path('frontier_v5/scripts/frontier_live_verify.py').read_text()
           if 'if pc!=303 or not code' not in frontier or 'if pc!=302 or not code' in frontier:
               raise RuntimeError('Fail-closed: Frontier live verifier 303 invariant failed')
-          print('RFC9700_303_REMAINING_VERIFIERS=PASS')
+          print('RFC9700_303_REMAINING_NONWORKFLOW_VERIFIERS=PASS')
           PY
 
-      - name: Commit the remaining 303 verifier alignment on Frontier only
+      - name: Commit the remaining non-workflow 303 verifier alignment on Frontier only
         id: commit
         shell: bash
         run: |
           set -euo pipefail
           test "$(git branch --show-current)" = "$BRANCH"
           git status --short
-          git diff -- .github/workflows/axiom-openai-reviewer-demo-provision.yml scripts/rollout_oauth_userinfo.py frontier_v5/scripts/frontier_live_verify.py
+          git diff -- scripts/rollout_oauth_userinfo.py frontier_v5/scripts/frontier_live_verify.py
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add .github/workflows/axiom-openai-reviewer-demo-provision.yml scripts/rollout_oauth_userinfo.py frontier_v5/scripts/frontier_live_verify.py
-          test "$(git diff --cached --name-only | wc -l | tr -d ' ')" = "3"
-          git commit -m 'Align OAuth verifiers with 303 redirect'
+          git add scripts/rollout_oauth_userinfo.py frontier_v5/scripts/frontier_live_verify.py
+          test "$(git diff --cached --name-only | wc -l | tr -d ' ')" = "2"
+          git commit -m 'Align remaining OAuth verifiers with 303 redirect'
           NEW_SHA="$(git rev-parse HEAD)"
           echo "new_sha=$NEW_SHA" >> "$GITHUB_OUTPUT"
           git push origin "HEAD:$BRANCH"
