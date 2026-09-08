@@ -222,7 +222,7 @@ def main():
         form=urllib.parse.urlencode({"flow_id":flow_id,"musitu_account_key":account_key}).encode()
         pc,ph,pb=raw(ISSUER+"/oauth/authorize","POST",{"Accept":"text/html","Content-Type":"application/x-www-form-urlencoded","Cookie":cookie,"User-Agent":"MUSITU-Frontier-E2E/5.0"},form,follow=False)
         loc=str(ph.get("Location") or ""); qp=urllib.parse.parse_qs(urllib.parse.urlparse(loc).query); code=(qp.get("code") or [""])[0]
-        if pc!=302 or not code or (qp.get("state") or [""])[0]!=state: raise RuntimeError("frontier OAuth authorization failed")
+        if pc!=303 or not code or (qp.get("state") or [""])[0]!=state: raise RuntimeError("frontier OAuth authorization failed")
         token_body=urllib.parse.urlencode({"grant_type":"authorization_code","code":code,"code_verifier":verifier,"client_id":client_id,"redirect_uri":callback,"resource":RESOURCE}).encode()
         tc,_,tb=raw(ISSUER+"/oauth/token","POST",{"Accept":"application/json","Content-Type":"application/x-www-form-urlencoded","User-Agent":"MUSITU-Frontier-E2E/5.0"},token_body)
         tok=json.loads(tb or b"{}"); access=str(tok.get("access_token") or "")
