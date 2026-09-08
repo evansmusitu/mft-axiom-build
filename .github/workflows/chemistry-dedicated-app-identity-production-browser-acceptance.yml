@@ -1,4 +1,4 @@
-name: MUSITU Chemistry Home Product Identity Production Browser Acceptance
+name: MUSITU Chemistry Dedicated App Identity Full Production Browser Acceptance
 
 on:
   push:
@@ -12,14 +12,17 @@ permissions:
 jobs:
   browser-acceptance:
     runs-on: ubuntu-24.04
-    timeout-minutes: 18
+    timeout-minutes: 20
     env:
       BASE_URL: https://payments.mftintelligence.com
-      EVIDENCE_DIR: /tmp/mchem-home-browser-evidence
+      EVIDENCE_DIR: /tmp/mchem-dedicated-browser-evidence
+      IDENTITY_MIGRATION_SOURCE_SHA: 6fed3639712de008c84c1e47fa20f93b196bcdfd
+      IDENTITY_DEPLOY_WORKFLOW_SHA: d38dfd89582a1609e6dc6c40ea4ac0f60d921153
+      IDENTITY_DEPLOY_RUN_ID: '34204138911'
       DEPLOYED_SOURCE_SHA: 95568aaace24b95c31877e64648055b2ea7a2e99
       DEPLOY_WORKFLOW_SHA: d4b4c4c6e09616e690627e59111fa44b85cfb89e
       DEPLOY_RUN_ID: '34207821298'
-      VERIFIER_SCRIPT_SHA: 0a8a4bdd726261c02550dd8657b998a442b3460f
+      VERIFIER_SCRIPT_SHA: 23f2ed14e128868baf2fb2589b9321c98724fec5
       PRODUCTION_WORKER_SHA256: 840de9b766922fd5ab69b34e33f6a25053b50bb025da73e76f947d65a8a7ab35
       SOURCE_ZIP_SHA256: 5b2618499eed8dc90261bc4f8260246d5593534500dd2fb145f2d24b5c47754c
       BASE_WORKER_SHA256: 848e1cec17ec580822d36e595196cda5978713849e8b45c5bc8dc7fcf9765db8
@@ -30,7 +33,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Guard verifier lineage deployed source and deploy result
+      - name: Guard verifier lineage source ancestry and deploy evidence
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
@@ -38,37 +41,44 @@ jobs:
           set -euo pipefail
           test "$(git rev-parse HEAD^)" = "$VERIFIER_SCRIPT_SHA"
           test "$(git diff --name-only HEAD^ HEAD)" = ".github/workflows/chemistry-dedicated-app-identity-production-browser-acceptance.yml"
-          git diff --quiet "$DEPLOYED_SOURCE_SHA" HEAD -- commerce/chemistry
-          git merge-base --is-ancestor "$DEPLOYED_SOURCE_SHA" HEAD
           test "$(git show --format= --name-only "$VERIFIER_SCRIPT_SHA")" = ".github/scripts/chemistry-dedicated-app-identity-production-browser-acceptance.cjs"
+          git merge-base --is-ancestor "$IDENTITY_MIGRATION_SOURCE_SHA" "$DEPLOYED_SOURCE_SHA"
+          git merge-base --is-ancestor "$DEPLOYED_SOURCE_SHA" HEAD
+          git diff --quiet "$DEPLOYED_SOURCE_SHA" HEAD -- commerce/chemistry
           curl -fsSL -H "Authorization: Bearer $GH_TOKEN" -H 'X-GitHub-Api-Version: 2022-11-28' \
-            "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/runs/${DEPLOY_RUN_ID}" > /tmp/mchem-home-deploy-run.json
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/runs/${IDENTITY_DEPLOY_RUN_ID}" > /tmp/mchem-identity-deploy-run.json
+          curl -fsSL -H "Authorization: Bearer $GH_TOKEN" -H 'X-GitHub-Api-Version: 2022-11-28' \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/runs/${DEPLOY_RUN_ID}" > /tmp/mchem-current-deploy-run.json
           python - <<'PY'
           import json,os
-          r=json.load(open('/tmp/mchem-home-deploy-run.json'))
-          got={k:r.get(k) for k in ('status','conclusion','head_sha','name')}
+          identity=json.load(open('/tmp/mchem-identity-deploy-run.json'))
+          got={k:identity.get(k) for k in ('status','conclusion','head_sha','name')}
+          want={'status':'completed','conclusion':'success','head_sha':os.environ['IDENTITY_DEPLOY_WORKFLOW_SHA'],'name':'MUSITU Chemistry Dedicated App Identity Guarded Deploy'}
+          if got!=want: raise SystemExit('identity deploy evidence rejected '+json.dumps(got,sort_keys=True))
+          current=json.load(open('/tmp/mchem-current-deploy-run.json'))
+          got={k:current.get(k) for k in ('status','conclusion','head_sha','name')}
           want={'status':'completed','conclusion':'success','head_sha':os.environ['DEPLOY_WORKFLOW_SHA'],'name':'MUSITU Chemistry Home Product Identity Guarded Deploy'}
-          if got!=want: raise SystemExit('deploy evidence rejected '+json.dumps(got,sort_keys=True))
-          print('CHEMISTRY_HOME_PRODUCT_IDENTITY_DEPLOY_EVIDENCE=PASS')
+          if got!=want: raise SystemExit('current deploy evidence rejected '+json.dumps(got,sort_keys=True))
+          print('CHEMISTRY_DEPLOY_CONTINUITY_EVIDENCE=PASS')
           PY
-          rm -rf "$EVIDENCE_DIR" /tmp/mchem-home-browser-base /tmp/mchem-home-browser-source.zip
-          mkdir -p "$EVIDENCE_DIR" /tmp/mchem-home-browser-base
+          rm -rf "$EVIDENCE_DIR" /tmp/mchem-browser-base /tmp/mchem-browser-source.zip
+          mkdir -p "$EVIDENCE_DIR" /tmp/mchem-browser-base
 
       - name: Reconstruct exact deployed Chemistry Worker
         shell: bash
         run: |
           set -euo pipefail
-          cat commerce/chemistry/source.b64.* | base64 -d > /tmp/mchem-home-browser-source.zip
-          echo "$SOURCE_ZIP_SHA256  /tmp/mchem-home-browser-source.zip" | sha256sum -c -
-          unzip -q /tmp/mchem-home-browser-source.zip -d /tmp/mchem-home-browser-base
-          echo "$BASE_WORKER_SHA256  /tmp/mchem-home-browser-base/src/index.mjs" | sha256sum -c -
-          cp /tmp/mchem-home-browser-base/src/index.mjs commerce/chemistry/index.base.mjs
+          cat commerce/chemistry/source.b64.* | base64 -d > /tmp/mchem-browser-source.zip
+          echo "$SOURCE_ZIP_SHA256  /tmp/mchem-browser-source.zip" | sha256sum -c -
+          unzip -q /tmp/mchem-browser-source.zip -d /tmp/mchem-browser-base
+          echo "$BASE_WORKER_SHA256  /tmp/mchem-browser-base/src/index.mjs" | sha256sum -c -
+          cp /tmp/mchem-browser-base/src/index.mjs commerce/chemistry/index.base.mjs
           python commerce/chemistry/patch_storefront.py
           python commerce/chemistry/patch_rescue_growth.py
           echo "$PRODUCTION_WORKER_SHA256  commerce/chemistry/index.storefront-v3.mjs" | sha256sum -c -
           node --check commerce/chemistry/index.storefront-v3.mjs
           node --test commerce/chemistry/storefront/*.test.mjs | tee "$EVIDENCE_DIR/source-tests.txt"
-          echo 'EXACT_CHEMISTRY_HOME_PRODUCT_IDENTITY_WORKER_RECONSTRUCTION=PASS'
+          echo 'EXACT_CHEMISTRY_DEDICATED_APP_WORKER_RECONSTRUCTION=PASS'
 
       - name: Prove live Worker hash through read-only Cloudflare API
         shell: bash
@@ -80,7 +90,7 @@ jobs:
           python - <<'PY'
           import email,hashlib,os,urllib.request
           api='https://api.cloudflare.com/client/v4'; account='93f395f5121954671f92fffa453d6b61'; worker='musitu-chemistry-commerce'
-          headers={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY'],'User-Agent':'MUSITU-Home-Product-Identity-ReadOnly-Acceptance/1.0'}
+          headers={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY'],'User-Agent':'MUSITU-Dedicated-App-Identity-ReadOnly-Acceptance/2.0'}
           with urllib.request.urlopen(urllib.request.Request(f'{api}/accounts/{account}/workers/scripts/{worker}',headers=headers),timeout=60) as r:
             raw=r.read(); ctype=r.headers.get('content-type','')
           if 'multipart/' in ctype.lower():
@@ -95,7 +105,7 @@ jobs:
           got=hashlib.sha256(raw).hexdigest(); want=os.environ['PRODUCTION_WORKER_SHA256']
           if got!=want: raise SystemExit('LIVE_WORKER_HASH_REJECTED '+got)
           open(os.environ['EVIDENCE_DIR']+'/live-worker-sha256.txt','w').write(got+'\n')
-          print('LIVE_CHEMISTRY_HOME_PRODUCT_IDENTITY_WORKER_SHA256='+got)
+          print('LIVE_CHEMISTRY_DEDICATED_APP_WORKER_SHA256='+got)
           PY
 
       - name: Install browser tooling
@@ -109,7 +119,7 @@ jobs:
           "$CHROME_PATH" --version | tee "$EVIDENCE_DIR/chrome-version.txt"
           node -e "console.log(require('playwright/package.json').version)" | tee "$EVIDENCE_DIR/playwright-version.txt"
 
-      - name: Exercise live production Home identity and internal navigation
+      - name: Exercise full live dedicated Chemistry PWA contract
         shell: bash
         run: |
           set -euo pipefail
@@ -121,30 +131,35 @@ jobs:
           set -euo pipefail
           cat > "$EVIDENCE_DIR/provenance.json" <<EOF
           {
-            "schema":"musitu.chemistry.home_product_identity.production_browser_acceptance.provenance.v1",
+            "schema":"musitu.chemistry.dedicated_app_identity.production_browser_acceptance.provenance.v2",
             "github_repository":"${GITHUB_REPOSITORY}",
             "github_sha":"${GITHUB_SHA}",
             "github_run_id":"${GITHUB_RUN_ID}",
+            "verifier_script_sha":"${VERIFIER_SCRIPT_SHA}",
+            "identity_migration_source_sha":"${IDENTITY_MIGRATION_SOURCE_SHA}",
+            "identity_deploy_workflow_sha":"${IDENTITY_DEPLOY_WORKFLOW_SHA}",
+            "identity_deploy_run_id":"${IDENTITY_DEPLOY_RUN_ID}",
             "deployed_source_sha":"${DEPLOYED_SOURCE_SHA}",
             "deploy_workflow_sha":"${DEPLOY_WORKFLOW_SHA}",
             "deploy_run_id":"${DEPLOY_RUN_ID}",
             "production_worker_sha256":"${PRODUCTION_WORKER_SHA256}",
             "read_only_verification":true,
             "deployment_performed":false,
-            "physical_reopen_performed":false,
+            "source_modification_performed":false,
+            "physical_fresh_install_claimed":false,
             "physical_device_claimed":false,
             "physical_device_certified":false,
             "real_money_settlement_performed":false
           }
           EOF
           cd "$EVIDENCE_DIR"
-          sha256sum result.json provenance.json live-worker-sha256.txt chrome-version.txt playwright-version.txt source-tests.txt > SHA256SUMS.txt
+          sha256sum result.json provenance.json live-worker-sha256.txt chrome-version.txt playwright-version.txt source-tests.txt sensitive-offline.json > SHA256SUMS.txt
           cat SHA256SUMS.txt
 
       - name: Upload immutable production-browser evidence
         uses: actions/upload-artifact@v4
         with:
-          name: musitu-chemistry-home-product-identity-production-browser-acceptance
-          path: /tmp/mchem-home-browser-evidence/
+          name: musitu-chemistry-dedicated-app-identity-full-production-browser-acceptance
+          path: /tmp/mchem-dedicated-browser-evidence/
           if-no-files-found: error
           retention-days: 90
