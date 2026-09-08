@@ -55,7 +55,6 @@ try{
   if(await firstLaunch.count())await page.locator('#app-onboarding-skip').click();
   assert.equal(await page.locator('#app-onboarding[hidden]').count(),1,'first-launch onboarding did not dismiss');
 
-  // Prove is a real internal scientific response surface, not a keyboard-only page.
   await page.locator('.app-nav a[href="/chemistry/app?view=exam"]').click();
   await page.waitForLoadState('networkidle');
   assert.equal(new URL(page.url()).pathname,'/chemistry/app');
@@ -70,7 +69,6 @@ try{
   await equation.pressSequentially(' 2H₂O');
   assert.equal(await equation.inputValue(),'2H₂ + O₂ → 2H₂O');
 
-  // Each scientific board must resolve independently and persist structured objects/edges.
   await page.locator('[data-sr-mode="structure"]').click();
   const structure=page.locator('[data-sr-panel="structure"]');
   await structure.locator('[data-sr-add="atom"][data-sr-label="C"]').click();
@@ -86,7 +84,6 @@ try{
   await particle.locator('[data-sr-add="molecule"]').click();
   assert.equal(await particle.locator('[data-sr-node]').count(),1,'particle board did not resolve independently');
 
-  // Link two representations of one scientific concept in the SRG.
   await particle.locator('[data-sr-node]').click();
   await page.locator('[data-sr-mode="structure"]').click();
   await structure.locator('[data-sr-node]').nth(0).click();
@@ -111,13 +108,21 @@ try{
   assert.ok(graph.edges.some(x=>x.mode==='cross'&&x.kind==='same-scientific-concept'));
   assert.equal(graph.argument.principle,'Le Chatelier principle.');
 
-  // Finalization locks scientific edits but remains explicitly local-only.
   await page.locator('[data-sr-finalize]').click();
   assert.equal(await page.locator('[data-sr-equation]').getAttribute('readonly'),'');
   assert.equal(await page.locator('[data-sr-add="atom"]').first().isDisabled(),true);
   assert.match(await page.locator('[data-sr-status]').textContent()||'',/locked for review/i);
   await page.waitForFunction(()=>document.querySelector('[data-sr-live]')?.textContent?.includes('No network submission has occurred'));
   assert.match(await page.locator('[data-sr-live]').textContent()||'',/No network submission has occurred/i);
+
+  // Review navigation is allowed, but a finalized SRG must be byte-for-byte semantically immutable.
+  const frozenBefore=JSON.parse(await page.locator('[data-sr-graph-output]').textContent()||'{}');
+  await page.locator('[data-sr-mode="equation"]').click();
+  await page.locator('[data-sr-mode="structure"]').click();
+  await page.locator('[data-sr-mode="graph-data"]').click();
+  const frozenAfter=JSON.parse(await page.locator('[data-sr-graph-output]').textContent()||'{}');
+  assert.deepEqual(frozenAfter,frozenBefore,'view-only navigation mutated a finalized Scientific Response Graph');
+
   await page.locator('[data-sr-reopen]').click();
   assert.equal(await page.locator('[data-sr-add="atom"]').first().isDisabled(),false);
 
@@ -167,5 +172,5 @@ try{
   assert.equal(await installedPage.locator('#install-concierge').getAttribute('data-install-mode'),'installed');
   assert.equal(await installedPage.getByRole('link',{name:'Open Chemistry Rescue'}).count(),1);
   await installedContext.close();
-  console.log(JSON.stringify({schema:'musitu.chemistry.install_browser_matrix.v5',classifier_cases:matrix.map(x=>x[0]),chromium_contracts:['server-rendered immediate Android action','trusted install prompt event','service worker v7 dedicated app-shell cache','first-launch onboarding dismissal','Scientific Response OS equation interaction','independent structured science boards','cross-representation SRG link','scientific argument capture','response finalization lock and reopen','offline dedicated Prove reload','Premium and Help stay inside installed app online and offline','installed-state UI','sensitive routes remain network-authoritative'],physical_device_certification:false,pass:true},null,2));
+  console.log(JSON.stringify({schema:'musitu.chemistry.install_browser_matrix.v6',classifier_cases:matrix.map(x=>x[0]),chromium_contracts:['server-rendered immediate Android action','trusted install prompt event','service worker v7 dedicated app-shell cache','first-launch onboarding dismissal','Scientific Response OS equation interaction','independent structured science boards','cross-representation SRG link','scientific argument capture','response finalization lock','finalized SRG immutable during review navigation','reopen editing','offline dedicated Prove reload','Premium and Help stay inside installed app online and offline','installed-state UI','sensitive routes remain network-authoritative'],physical_device_certification:false,pass:true},null,2));
 }finally{await browser.close()}
