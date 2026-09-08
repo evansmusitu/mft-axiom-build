@@ -116,6 +116,7 @@ try{
   assert.equal(await page.locator('[data-sr-equation]').getAttribute('readonly'),'');
   assert.equal(await page.locator('[data-sr-add="atom"]').first().isDisabled(),true);
   assert.match(await page.locator('[data-sr-status]').textContent()||'',/locked for review/i);
+  await page.waitForFunction(()=>document.querySelector('[data-sr-live]')?.textContent?.includes('No network submission has occurred'));
   assert.match(await page.locator('[data-sr-live]').textContent()||'',/No network submission has occurred/i);
   await page.locator('[data-sr-reopen]').click();
   assert.equal(await page.locator('[data-sr-add="atom"]').first().isDisabled(),false);
