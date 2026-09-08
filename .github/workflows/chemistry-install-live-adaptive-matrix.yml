@@ -1,0 +1,322 @@
+name: MUSITU Chemistry Live Adaptive Install Matrix
+
+on:
+  push:
+    branches: [chemistry-national-rescue-growth-20260907]
+    paths:
+      - '.github/workflows/chemistry-install-live-adaptive-matrix.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: musitu-chemistry-live-adaptive-install-matrix
+  cancel-in-progress: false
+
+jobs:
+  live-adaptive-matrix:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    env:
+      BASE_URL: https://payments.mftintelligence.com
+      DEPLOYED_SOURCE_SHA: de92b9b75a585b4933645f5c33eca424ec518949
+      SOURCE_ZIP_SHA256: 5b2618499eed8dc90261bc4f8260246d5593534500dd2fb145f2d24b5c47754c
+      BASE_WORKER_SHA256: 848e1cec17ec580822d36e595196cda5978713849e8b45c5bc8dc7fcf9765db8
+      RECORDED_WORKER_SHA256: 68786463cdb6527adac1df1ec9a3b3424f0e5cdb0544dbbf1a1c9ffaa3ec6967
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Reconstruct exact deployed Chemistry source lineage
+        shell: bash
+        run: |
+          set -euo pipefail
+          paths=(
+            commerce/chemistry/storefront/app-shell.mjs
+            commerce/chemistry/storefront/app-shell.test.mjs
+            commerce/chemistry/storefront/app-shell-worker.test.mjs
+            commerce/chemistry/storefront/offline-sw-v5.mjs
+            commerce/chemistry/storefront/install.mjs
+            commerce/chemistry/storefront/install-browser-matrix.mjs
+            commerce/chemistry/patch_rescue_growth.py
+          )
+          for p in "${paths[@]}"; do
+            cmp <(git show "$DEPLOYED_SOURCE_SHA:$p") "$p" || {
+              echo "DEPLOYED_SOURCE_DRIFT $p" >&2
+              exit 1
+            }
+          done
+          echo "DEPLOYED_APP_SOURCE_DRIFT=NONE"
+
+          rm -rf /tmp/mchem-adaptive-base /tmp/mchem-adaptive-source.zip
+          mkdir -p /tmp/mchem-adaptive-base
+          cat commerce/chemistry/source.b64.* | base64 -d > /tmp/mchem-adaptive-source.zip
+          echo "$SOURCE_ZIP_SHA256  /tmp/mchem-adaptive-source.zip" | sha256sum -c -
+          unzip -q /tmp/mchem-adaptive-source.zip -d /tmp/mchem-adaptive-base
+          echo "$BASE_WORKER_SHA256  /tmp/mchem-adaptive-base/src/index.mjs" | sha256sum -c -
+          cp /tmp/mchem-adaptive-base/src/index.mjs commerce/chemistry/index.base.mjs
+          python commerce/chemistry/patch_storefront.py
+          python commerce/chemistry/patch_rescue_growth.py
+          echo "$RECORDED_WORKER_SHA256  commerce/chemistry/index.storefront-v3.mjs" | sha256sum -c -
+          node --check commerce/chemistry/index.storefront-v3.mjs
+          echo "EXACT_CHEMISTRY_WORKER_RECONSTRUCTION=PASS"
+
+      - name: Re-run Chemistry storefront contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --test commerce/chemistry/storefront/*.test.mjs
+
+      - name: Exercise live adaptive install surfaces in Chrome
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/mchem-adaptive-evidence
+          CHROME_BIN="$(command -v google-chrome || command -v google-chrome-stable || true)"
+          DRIVER_BIN="$(command -v chromedriver || true)"
+          test -n "$CHROME_BIN" || { echo 'Google Chrome missing from runner' >&2; exit 1; }
+          test -n "$DRIVER_BIN" || { echo 'ChromeDriver missing from runner' >&2; exit 1; }
+          "$CHROME_BIN" --version | tee /tmp/mchem-adaptive-evidence/chrome-version.txt
+          "$DRIVER_BIN" --version | tee /tmp/mchem-adaptive-evidence/chromedriver-version.txt
+          "$DRIVER_BIN" --port=9517 --log-path=/tmp/mchem-adaptive-evidence/chromedriver.log --verbose >/tmp/mchem-adaptive-evidence/chromedriver.stdout 2>&1 &
+          DRIVER_PID=$!
+          trap 'kill "$DRIVER_PID" 2>/dev/null || true' EXIT
+          for i in $(seq 1 100); do
+            curl -fsS http://127.0.0.1:9517/status >/dev/null && break
+            sleep .1
+          done
+          curl -fsS http://127.0.0.1:9517/status >/dev/null
+
+          python - <<'PY'
+          import json, os, re, secrets, time, urllib.error, urllib.request
+          from pathlib import Path
+
+          base=os.environ['BASE_URL']
+          wdroot='http://127.0.0.1:9517'
+          nonce=secrets.token_hex(8)
+
+          matrix=[
+            {
+              'name':'iPhone Safari emulation',
+              'gate':'A1_iphone_safari',
+              'ua':'Mozilla/5.0 (iPhone; CPU iPhone OS 18_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.6 Mobile/15E148 Safari/604.1',
+              'vendor':'Apple Computer, Inc.',
+              'touch':5,
+              'mode':'ios-safari',
+              'markers':['Add to Home Screen','Open as Web App','Share'],
+            },
+            {
+              'name':'iPad Safari emulation',
+              'gate':'A2_ipad_safari',
+              'ua':'Mozilla/5.0 (iPad; CPU OS 18_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.6 Mobile/15E148 Safari/604.1',
+              'vendor':'Apple Computer, Inc.',
+              'touch':5,
+              'mode':'ios-safari',
+              'markers':['Add to Home Screen','Open as Web App','Share'],
+            },
+            {
+              'name':'Samsung Internet emulation',
+              'gate':'A4_samsung_internet',
+              'ua':'Mozilla/5.0 (Linux; Android 15; SM-S928B) AppleWebKit/537.36 (KHTML, like Gecko) SamsungBrowser/28.0 Chrome/140.0.0.0 Mobile Safari/537.36',
+              'vendor':'Google Inc.',
+              'touch':5,
+              'mode':'samsung',
+              'markers':['Samsung Internet','Install app','Home screen'],
+            },
+            {
+              'name':'Android WebView emulation',
+              'gate':'A5_android_inapp_recovery',
+              'ua':'Mozilla/5.0 (Linux; Android 15; Pixel 9 Build/AP3A; wv) AppleWebKit/537.36 Version/4.0 Chrome/140.0.0.0 Mobile Safari/537.36',
+              'vendor':'Google Inc.',
+              'touch':5,
+              'mode':'android-inapp',
+              'markers':['Continue in Chrome','Open in Chrome','trusted install control'],
+            },
+          ]
+
+          def strict(headers):
+            h={k.lower():v for k,v in headers.items()}
+            csp=h.get('content-security-policy','')
+            return (
+              "style-src 'self'" in csp and
+              "script-src 'self'" in csp and
+              "connect-src 'self'" in csp and
+              "manifest-src 'self'" in csp and
+              'unsafe-inline' not in csp and
+              'unsafe-eval' not in csp and
+              h.get('referrer-policy')=='no-referrer' and
+              h.get('x-frame-options')=='DENY' and
+              h.get('x-content-type-options')=='nosniff'
+            )
+
+          def live_install(case):
+            req=urllib.request.Request(
+              base+'/chemistry/install?__mchem_adaptive='+nonce,
+              headers={
+                'User-Agent':case['ua'],
+                'Accept':'text/html',
+                'Cache-Control':'no-cache, no-store, max-age=0',
+                'Pragma':'no-cache',
+              },
+            )
+            with urllib.request.urlopen(req,timeout=30) as r:
+              body=r.read().decode('utf-8','replace')
+              headers=dict(r.headers.items())
+              if r.status!=200:
+                raise SystemExit('INSTALL_HTTP_REJECTED '+case['name']+' '+str(r.status))
+              if not strict(headers):
+                raise SystemExit('INSTALL_SECURITY_HEADERS_REJECTED '+case['name'])
+              if headers.get('Cache-Control')!='no-store':
+                raise SystemExit('INSTALL_CACHE_CONTROL_REJECTED '+case['name']+' '+str(headers.get('Cache-Control')))
+              match=re.search(r'id="install-concierge"[^>]*data-install-mode="([^"]+)"',body)
+              mode=match.group(1) if match else None
+              if mode!=case['mode']:
+                raise SystemExit('SERVER_ADAPTIVE_MODE_REJECTED '+json.dumps({'name':case['name'],'want':case['mode'],'got':mode},sort_keys=True))
+              if 'rel="canonical" href="https://payments.mftintelligence.com/chemistry/install"' not in body:
+                raise SystemExit('INSTALL_CANONICAL_REJECTED '+case['name'])
+              if 'href="/chemistry/manifest.webmanifest"' not in body:
+                raise SystemExit('INSTALL_MANIFEST_DISCOVERY_REJECTED '+case['name'])
+              return {'status':r.status,'server_mode':mode,'cf_ray':headers.get('CF-Ray') or headers.get('cf-ray')}
+
+          def wd(method,path,payload=None,timeout=45):
+            data=None if payload is None else json.dumps(payload).encode()
+            req=urllib.request.Request(wdroot+path,method=method,data=data,headers={'Content-Type':'application/json;charset=UTF-8'})
+            try:
+              with urllib.request.urlopen(req,timeout=timeout) as r:
+                obj=json.loads(r.read() or b'{}')
+            except urllib.error.HTTPError as e:
+              raise RuntimeError(f'WebDriver HTTP {e.code} {path}: '+e.read().decode('utf-8','replace')[:1200])
+            value=obj.get('value')
+            if isinstance(value,dict) and value.get('error'):
+              raise RuntimeError('WebDriver error '+json.dumps(value,sort_keys=True))
+            return value
+
+          def run_browser(case):
+            created=wd('POST','/session',{'capabilities':{'alwaysMatch':{
+              'browserName':'chrome',
+              'pageLoadStrategy':'normal',
+              'goog:chromeOptions':{'args':['--headless=new','--no-sandbox','--disable-dev-shm-usage','--disable-gpu','--window-size=430,900','--user-agent='+case['ua']]},
+            }}})
+            sid=created.get('sessionId') if isinstance(created,dict) else None
+            if not sid:
+              raise SystemExit('CHROMEDRIVER_SESSION_ID_MISSING '+case['name']+' '+json.dumps(created,sort_keys=True))
+            def execjs(script,args=None):
+              return wd('POST',f'/session/{sid}/execute/sync',{'script':script,'args':args or []})
+            def cdp(cmd,params=None):
+              return wd('POST',f'/session/{sid}/goog/cdp/execute',{'cmd':cmd,'params':params or {}})
+            try:
+              source=(
+                "Object.defineProperty(Navigator.prototype,'vendor',{get:()=>"+json.dumps(case['vendor'])+"});"
+                "Object.defineProperty(Navigator.prototype,'maxTouchPoints',{get:()=>"+str(case['touch'])+"});"
+              )
+              cdp('Page.addScriptToEvaluateOnNewDocument',{'source':source})
+              wd('POST',f'/session/{sid}/timeouts',{'script':30000,'pageLoad':45000,'implicit':0})
+              wd('POST',f'/session/{sid}/url',{'url':base+'/chemistry/install?__mchem_browser='+nonce})
+              for _ in range(150):
+                state=execjs("const r=document.getElementById('install-concierge');return r?{ready:document.readyState,mode:r.dataset.installMode}:null")
+                if isinstance(state,dict) and state.get('ready')=='complete' and state.get('mode')==case['mode']:
+                  break
+                time.sleep(.1)
+              else:
+                raise SystemExit('CLIENT_ADAPTIVE_MODE_TIMEOUT '+case['name']+' '+json.dumps(state,sort_keys=True))
+              observed=execjs("""
+                const mode=arguments[0];
+                const root=document.getElementById('install-concierge');
+                const panel=document.querySelector('[data-install-panel="'+mode+'"]');
+                return {
+                  mode:root&&root.dataset.installMode,
+                  visible:!!panel&&getComputedStyle(panel).display!=='none',
+                  panelText:panel?panel.innerText:'',
+                  canonical:document.querySelector('link[rel="canonical"]')?.href||null,
+                  manifest:document.querySelector('link[href="/chemistry/manifest.webmanifest"]')?.href||null,
+                  help:document.querySelector('#install-help-link a')?.href||null,
+                  publicHeader:!!document.querySelector('.site-header'),
+                  appShell:!!document.querySelector('.app-shell')
+                };
+              """,[case['mode']])
+              if observed.get('mode')!=case['mode'] or observed.get('visible') is not True:
+                raise SystemExit('VISIBLE_ADAPTIVE_PANEL_REJECTED '+case['name']+' '+json.dumps(observed,sort_keys=True))
+              text=observed.get('panelText') or ''
+              missing=[m for m in case['markers'] if m.lower() not in text.lower()]
+              if missing:
+                raise SystemExit('ADAPTIVE_COPY_REJECTED '+case['name']+' '+json.dumps({'missing':missing,'text':text[:600]},sort_keys=True))
+              if observed.get('canonical')!='https://payments.mftintelligence.com/chemistry/install':
+                raise SystemExit('BROWSER_CANONICAL_REJECTED '+case['name'])
+              if observed.get('manifest')!='https://payments.mftintelligence.com/chemistry/manifest.webmanifest':
+                raise SystemExit('BROWSER_MANIFEST_REJECTED '+case['name'])
+              return {
+                'client_mode':observed['mode'],
+                'visible_panel':True,
+                'required_copy_markers':case['markers'],
+                'canonical_pass':True,
+                'manifest_discovery_pass':True,
+              }
+            finally:
+              try: wd('DELETE',f'/session/{sid}')
+              except Exception: pass
+
+          results=[]
+          for case in matrix:
+            server=live_install(case)
+            browser=run_browser(case)
+            results.append({'name':case['name'],'physical_gate':case['gate'],'expected_mode':case['mode'],'server':server,'browser':browser,'physical_device_claimed':False})
+
+          result={
+            'schema':'musitu.chemistry.live_adaptive_install_matrix.v1',
+            'tested_at_utc':time.strftime('%Y-%m-%dT%H:%M:%SZ',time.gmtime()),
+            'github_sha':os.environ['GITHUB_SHA'],
+            'deployed_source_sha':os.environ['DEPLOYED_SOURCE_SHA'],
+            'recorded_production_worker_sha256':os.environ['RECORDED_WORKER_SHA256'],
+            'matrix_results':results,
+            'live_server_adaptive_matrix_pass':True,
+            'live_browser_adaptive_matrix_pass':True,
+            'physical_A1_closed':False,
+            'physical_A2_closed':False,
+            'physical_A4_closed':False,
+            'physical_A5_closed':False,
+            'physical_device_claimed':False,
+            'deployment_performed':False,
+            'real_money_settlement_performed':False,
+          }
+          Path('/tmp/mchem-adaptive-evidence/result.json').write_text(json.dumps(result,indent=2)+'\n')
+          print('MUSITU_CHEMISTRY_LIVE_ADAPTIVE_INSTALL_MATRIX=PASS')
+          print(json.dumps(result,sort_keys=True))
+          PY
+
+      - name: Seal live adaptive matrix evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd /tmp/mchem-adaptive-evidence
+          cat > provenance.json <<EOF
+          {
+            "schema": "musitu.chemistry.live_adaptive_install_matrix.provenance.v1",
+            "github_repository": "${GITHUB_REPOSITORY}",
+            "github_sha": "${GITHUB_SHA}",
+            "github_run_id": "${GITHUB_RUN_ID}",
+            "github_run_attempt": "${GITHUB_RUN_ATTEMPT}",
+            "deployed_source_sha": "${DEPLOYED_SOURCE_SHA}",
+            "recorded_production_worker_sha256": "${RECORDED_WORKER_SHA256}",
+            "production_install_url": "${BASE_URL}/chemistry/install",
+            "read_only_acceptance": true,
+            "deployment_performed": false,
+            "physical_device_claimed": false,
+            "physical_A1_closed": false,
+            "physical_A2_closed": false,
+            "physical_A4_closed": false,
+            "physical_A5_closed": false,
+            "real_money_settlement_performed": false
+          }
+          EOF
+          sha256sum result.json provenance.json chrome-version.txt chromedriver-version.txt > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+
+      - name: Upload immutable live adaptive matrix evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: musitu-chemistry-live-adaptive-install-matrix
+          path: /tmp/mchem-adaptive-evidence/
+          if-no-files-found: error
+          retention-days: 90
