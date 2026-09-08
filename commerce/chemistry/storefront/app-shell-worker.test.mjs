@@ -12,6 +12,7 @@ test('generated Worker serves a no-store native-feel app shell, Prove and local 
   assert.match(app.text,/class="app-topbar"/);
   assert.match(app.text,/class="app-nav"/);
   assert.match(app.text,/Your Chemistry workspace/);
+  assert.match(app.text,/\/chemistry\/manifest\.webmanifest\?v=2/);
   assert.match(app.text,/\/chemistry\/assets\/app-shell\.css\?v=4/);
   assert.match(app.text,/\/chemistry\/assets\/app-shell\.js\?v=4/);
   assert.match(app.text,/\/chemistry\/app\?view=exam/);
@@ -46,6 +47,7 @@ test('generated Worker serves a no-store native-feel app shell, Prove and local 
   assert.match(js.r.headers.get('content-type')||'',/^application\/javascript/);
   assert.match(js.text,/musitu_chem_onboarding_v1/);
   assert.match(js.text,/musitu-chemistry-app-shell-v4/);
+  assert.match(js.text,/\/chemistry\/manifest\.webmanifest\?v=2/);
   assert.match(js.text,/\/chemistry\/app\?view=exam/);
   assert.match(js.text,/\/chemistry\/app\?view=premium/);
   assert.match(js.text,/\/chemistry\/app\?view=help/);
@@ -65,8 +67,8 @@ test('generated Worker serves a no-store native-feel app shell, Prove and local 
   assert.match(bridge.text,/location\.replace\('\/chemistry\/app'\)/);
 });
 
-test('manifest has a dedicated MUSITU Chemistry app identity and launches the app shell',async()=>{
-  const manifest=await get('/chemistry/manifest.webmanifest');
+test('versioned manifest has a dedicated MUSITU Chemistry app identity and launches the app shell',async()=>{
+  const manifest=await get('/chemistry/manifest.webmanifest?v=2');
   assert.equal(manifest.r.status,200);
   const m=JSON.parse(manifest.text);
   assert.equal(m.id,'/chemistry/app');
@@ -76,11 +78,13 @@ test('manifest has a dedicated MUSITU Chemistry app identity and launches the ap
   assert.equal(m.scope,'/chemistry/');
   assert.equal(m.display,'standalone');
   assert.doesNotMatch(m.description,/Rescue/i);
+  assert.notEqual(m.id,'/chemistry/rescue?src=direct');
 });
 
-test('public Rescue loads blocking standalone bridge before body content and remains crawlable',async()=>{
+test('public Rescue stays crawlable but discovers the same versioned Chemistry app manifest',async()=>{
   const rescue=await get('/chemistry/rescue?src=direct');
   assert.equal(rescue.r.status,200);
+  assert.match(rescue.text,/\/chemistry\/manifest\.webmanifest\?v=2/);
   assert.match(rescue.text,/\/chemistry\/assets\/app-bridge\.js\?v=1/);
   assert.match(rescue.text,/index,follow,max-image-preview:large/);
   const bridgeAt=rescue.text.indexOf('/chemistry/assets/app-bridge.js?v=1');
