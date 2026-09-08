@@ -41,6 +41,7 @@ test('storefront leads with product decisions and the installable web app, not A
   assert.match(page,/Premium entitlement/i);
   assert.doesNotMatch(page,/href="\/chemistry\/download\/[^"]+">Start Free</);
   assert.doesNotMatch(page,/APK installation is free/i);
+  assert.doesNotMatch(page,/Authentic Android installer/i);
   const heroEnd=page.indexOf('</section>');
   assert.ok(heroEnd>0);
   const hero=page.slice(0,heroEnd);
