@@ -1,0 +1,217 @@
+name: MUSITU Axiom OpenAI Reviewer Demo Provision
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/axiom-openai-reviewer-demo-provision.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: musitu-axiom-openai-reviewer-demo
+  cancel-in-progress: false
+
+jobs:
+  provision-and-verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    env:
+      CF_API: https://api.cloudflare.com/client/v4
+      ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      D1_UUID: 504029cc-f9a5-495e-818f-63c6144b4ea4
+      AUTH_ISSUER: https://auth.mftintelligence.com
+      MCP_RESOURCE: https://mcp.mftintelligence.com
+      MCP_URL: https://mcp.mftintelligence.com/mcp
+      REVIEWER_CUSTOMER_ID: openai_reviewer_demo
+      REVIEWER_KEY_ID: openai_reviewer_demo_source
+      REVIEWER_EMAIL: openai-reviewer-demo@mftintelligence.com
+      REVIEWER_KEY: ${{ secrets.OPENAI_REVIEWER_ACCOUNT_KEY }}
+      CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+      CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Provision persistent reviewer account and verify five positive cases
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import base64,datetime,hashlib,json,os,re,secrets,urllib.error,urllib.parse,urllib.request,uuid
+          from pathlib import Path
+
+          API=os.environ['CF_API']; AID=os.environ['ACCOUNT_ID']; DBID=os.environ['D1_UUID']
+          ISSUER=os.environ['AUTH_ISSUER']; RESOURCE=os.environ['MCP_RESOURCE']; MCP=os.environ['MCP_URL']
+          CUSTOMER=os.environ['REVIEWER_CUSTOMER_ID']; KEY_ID=os.environ['REVIEWER_KEY_ID']; EMAIL=os.environ['REVIEWER_EMAIL']
+          ACCOUNT_KEY=os.environ.get('REVIEWER_KEY','')
+          if len(ACCOUNT_KEY) < 48:
+              raise SystemExit('Fail-closed: OPENAI_REVIEWER_ACCOUNT_KEY is missing or too short')
+          print('::add-mask::'+ACCOUNT_KEY)
+
+          CFH={
+              'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],
+              'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY'],
+              'Accept':'application/json',
+              'User-Agent':'MUSITU-Axiom-OpenAI-Reviewer-Provision/1.0',
+          }
+
+          class NoRedirect(urllib.request.HTTPRedirectHandler):
+              def redirect_request(self,req,fp,code,msg,headers,newurl): return None
+
+          def raw(url,method='GET',headers=None,body=None,follow=True):
+              req=urllib.request.Request(url,method=method,headers=dict(headers or {}),data=body)
+              opener=urllib.request.build_opener() if follow else urllib.request.build_opener(NoRedirect())
+              try:
+                  with opener.open(req,timeout=45) as r: return r.status,r.headers,r.read()
+              except urllib.error.HTTPError as e: return e.code,e.headers,e.read()
+
+          def cf(path,obj):
+              h=dict(CFH); h['Content-Type']='application/json'
+              c,_,b=raw(API+path,'POST',h,json.dumps(obj,separators=(',',':')).encode())
+              if not 200 <= c < 300: raise RuntimeError(f'Cloudflare HTTP {c} {path}')
+              x=json.loads(b or b'{}')
+              if x.get('success') is False: raise RuntimeError('Cloudflare success=false')
+              return x.get('result') or []
+
+          def d1(sql,params=None):
+              obj={'sql':sql}
+              if params is not None: obj['params']=params
+              rows=[]
+              for rr in cf(f'/accounts/{AID}/d1/database/{DBID}/query',obj):
+                  if rr.get('success') is not True: raise RuntimeError('D1 statement failed')
+                  rows.extend(rr.get('results') or [])
+              return rows
+
+          def form(url,data,headers=None,follow=True):
+              h={'Accept':'application/json','Content-Type':'application/x-www-form-urlencoded','User-Agent':'MUSITU-Axiom-OpenAI-Reviewer-Provision/1.0'}
+              h.update(headers or {})
+              return raw(url,'POST',h,urllib.parse.urlencode(data).encode(),follow)
+
+          def json_http(url,method='GET',obj=None,headers=None,follow=True):
+              h={'Accept':'application/json','User-Agent':'MUSITU-Axiom-OpenAI-Reviewer-Provision/1.0'}; h.update(headers or {})
+              body=None
+              if obj is not None:
+                  h['Content-Type']='application/json'; body=json.dumps(obj,separators=(',',':')).encode()
+              c,hh,b=raw(url,method,h,body,follow)
+              try: x=json.loads(b or b'{}')
+              except Exception: x={}
+              return c,hh,x,b
+
+          def b64url(b): return base64.urlsafe_b64encode(b).rstrip(b'=').decode()
+
+          def mcp(name,args,token=None,rpc_id=1):
+              h={}
+              if token: h['Authorization']='Bearer '+token
+              return json_http(MCP,'POST',{'jsonrpc':'2.0','id':rpc_id,'method':'tools/call','params':{'name':name,'arguments':args}},h)
+
+          now=datetime.datetime.now(datetime.timezone.utc).isoformat().replace('+00:00','Z')
+          key_hash=hashlib.sha256(ACCOUNT_KEY.encode()).hexdigest()
+          key_prefix=ACCOUNT_KEY[:16]
+
+          d1('CREATE TABLE IF NOT EXISTS oauth_identity_claims (customer_id TEXT PRIMARY KEY, email_verified_at TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL)')
+          d1('INSERT INTO customers(id,email,name,plan,status,monthly_unit_override,created_at,updated_at) VALUES(?1,?2,?3,?4,?5,?6,?7,?7) ON CONFLICT(id) DO UPDATE SET email=excluded.email,name=excluded.name,plan=excluded.plan,status=excluded.status,monthly_unit_override=excluded.monthly_unit_override,updated_at=excluded.updated_at',
+             [CUSTOMER,EMAIL,'MUSITU Axiom OpenAI Reviewer Demo','developer','active',100000,now])
+          d1('INSERT INTO api_keys(id,customer_id,key_hash,key_prefix,label,status,created_at,last_used_at,expires_at,revoked_at) VALUES(?1,?2,?3,?4,?5,?6,?7,NULL,NULL,NULL) ON CONFLICT(id) DO UPDATE SET customer_id=excluded.customer_id,key_hash=excluded.key_hash,key_prefix=excluded.key_prefix,label=excluded.label,status=excluded.status,expires_at=NULL,revoked_at=NULL',
+             [KEY_ID,CUSTOMER,key_hash,key_prefix,'openai-reviewer-demo','active',now])
+          d1('INSERT INTO oauth_identity_claims(customer_id,email_verified_at,created_at,updated_at) VALUES(?1,?2,?2,?2) ON CONFLICT(customer_id) DO UPDATE SET email_verified_at=excluded.email_verified_at,updated_at=excluded.updated_at',[CUSTOMER,now])
+
+          chk=d1("SELECT c.status AS customer_status,k.status AS key_status,k.expires_at,c.monthly_unit_override FROM customers c JOIN api_keys k ON k.customer_id=c.id WHERE c.id=?1 AND k.id=?2",[CUSTOMER,KEY_ID])
+          if not chk or chk[0].get('customer_status')!='active' or chk[0].get('key_status')!='active' or chk[0].get('expires_at') is not None or int(chk[0].get('monthly_unit_override') or 0)<1000:
+              raise RuntimeError('persistent reviewer record invariant failed')
+
+          hc,_,health,_=json_http(ISSUER+'/health')
+          if hc!=200 or health.get('ok') is not True: raise RuntimeError('OAuth health failed')
+          mc,_,mh,_=json_http(RESOURCE+'/health')
+          if mc!=200 or mh.get('ok') is not True: raise RuntimeError('MCP health failed')
+
+          callback='https://chatgpt.com/connector/oauth/musitu-reviewer-readiness-'+uuid.uuid4().hex[:12]
+          rc,_,reg,_=json_http(ISSUER+'/oauth/register','POST',{
+              'redirect_uris':[callback], 'client_name':'MUSITU OpenAI Reviewer Readiness',
+              'token_endpoint_auth_method':'none','grant_types':['authorization_code','refresh_token'],'response_types':['code']})
+          if rc!=201 or not reg.get('client_id'): raise RuntimeError('DCR failed')
+          client_id=str(reg['client_id'])
+
+          verifier=b64url(secrets.token_bytes(48)); challenge=b64url(hashlib.sha256(verifier.encode()).digest()); state='st_'+secrets.token_urlsafe(16)
+          query=urllib.parse.urlencode({'response_type':'code','client_id':client_id,'redirect_uri':callback,'scope':'openid email axiom.execute','state':state,'code_challenge':challenge,'code_challenge_method':'S256','resource':RESOURCE})
+          ac,ah,ab=raw(ISSUER+'/oauth/authorize?'+query,headers={'Accept':'text/html'})
+          page=ab.decode('utf-8','replace'); fm=re.search(r'name="flow_id" value="([^"]+)"',page); cookie=str(ah.get('Set-Cookie') or '').split(';',1)[0]
+          if ac!=200 or not fm or not cookie: raise RuntimeError('OAuth authorization page failed')
+
+          pc,ph,_=form(ISSUER+'/oauth/authorize',{'flow_id':fm.group(1),'musitu_account_key':ACCOUNT_KEY},{'Accept':'text/html','Cookie':cookie},False)
+          loc=str(ph.get('Location') or ''); qp=urllib.parse.parse_qs(urllib.parse.urlparse(loc).query); code=(qp.get('code') or [''])[0]
+          if pc!=302 or not code or (qp.get('state') or [''])[0]!=state: raise RuntimeError('reviewer account OAuth authentication failed')
+
+          tc,_,tb=form(ISSUER+'/oauth/token',{'grant_type':'authorization_code','code':code,'code_verifier':verifier,'client_id':client_id,'redirect_uri':callback,'resource':RESOURCE})
+          tok=json.loads(tb or b'{}'); access=str(tok.get('access_token') or '')
+          if tc!=200 or not access or tok.get('scope')!='openid email axiom.execute': raise RuntimeError('OAuth token exchange failed')
+          print('::add-mask::'+access)
+          if tok.get('refresh_token'): print('::add-mask::'+str(tok['refresh_token']))
+
+          uc,_,ui,_=json_http(ISSUER+'/oauth/userinfo',headers={'Authorization':'Bearer '+access})
+          if uc!=200 or ui.get('email')!=EMAIL or ui.get('email_verified') is not True: raise RuntimeError('UserInfo reviewer identity failed')
+
+          # Test cases 1-3: discovery, fetch of a returned capability, and capabilities summary.
+          s1,_,o1,_=mcp('search',{'query':'timeseries'},access,101)
+          r1=((o1.get('result') or {}).get('structuredContent') or {}).get('results') or []
+          if s1!=200 or not r1: raise RuntimeError('positive test 1 search returned no results')
+          first_id=str(r1[0].get('id') or '')
+          if not first_id: raise RuntimeError('positive test 1 result id missing')
+
+          s2,_,o2,_=mcp('fetch',{'id':first_id},access,102)
+          sc2=((o2.get('result') or {}).get('structuredContent') or {})
+          if s2!=200 or not sc2.get('resource'): raise RuntimeError('positive test 2 fetch failed')
+
+          s3,_,o3,_=mcp('musitu_axiom_capabilities',{},access,103)
+          sc3=((o3.get('result') or {}).get('structuredContent') or {})
+          if s3!=200 or int(sc3.get('operation_count') or -1)!=74 or len(sc3.get('business_products') or [])!=30:
+              raise RuntimeError('positive test 3 capability cardinality mismatch')
+
+          # Test cases 4-5: authenticated deterministic execution.
+          s4,_,o4,b4=mcp('musitu_axiom_execute',{'operation':'arithmetic.evaluate','args':{'expression':'40+2'}},access,104)
+          if s4!=200 or (o4.get('result') or {}).get('isError') is True or not re.search(rb'(?<![0-9])42(?:\.0+)?(?![0-9])',b4):
+              raise RuntimeError('positive test 4 arithmetic 40+2 failed')
+
+          s5,_,o5,b5=mcp('musitu_axiom_execute',{'operation':'arithmetic.evaluate','args':{'expression':'(12*8)-5'}},access,105)
+          if s5!=200 or (o5.get('result') or {}).get('isError') is True or not re.search(rb'(?<![0-9])91(?:\.0+)?(?![0-9])',b5):
+              raise RuntimeError('positive test 5 arithmetic failed')
+
+          evidence={
+              'schema':'musitu.axiom.openai_reviewer_demo_readiness.v1',
+              'gate':'MUSITU_AXIOM_OPENAI_REVIEWER_DEMO_READY',
+              'customer_id':CUSTOMER,
+              'account_label':'MUSITU Axiom OpenAI Reviewer Demo',
+              'credential_type':'MUSITU Axiom account key',
+              'credential_persistent':True,
+              'credential_expires':False,
+              'sample_data_only':True,
+              'mfa_required':False,
+              'sms_required':False,
+              'email_confirmation_required':False,
+              'private_network_required':False,
+              'oauth_login_page':ISSUER+'/oauth/authorize',
+              'oauth_health':True,
+              'userinfo_verified':True,
+              'mcp_health':True,
+              'public_operation_count':74,
+              'business_product_count':30,
+              'positive_tests_passed':5,
+              'negative_test_contract_count':3,
+              'raw_reviewer_key_published':False,
+              'oauth_tokens_published':False,
+              'sealed_main_mutated':False,
+          }
+          Path('openai-reviewer-demo-readiness.json').write_text(json.dumps(evidence,indent=2,sort_keys=True)+'\n')
+          digest=hashlib.sha256(Path('openai-reviewer-demo-readiness.json').read_bytes()).hexdigest()
+          Path('openai-reviewer-demo-readiness.sha256').write_text(digest+'  openai-reviewer-demo-readiness.json\n')
+          print(json.dumps({**evidence,'evidence_sha256':digest},sort_keys=True))
+          PY
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: musitu-axiom-openai-reviewer-demo-readiness
+          path: |
+            openai-reviewer-demo-readiness.json
+            openai-reviewer-demo-readiness.sha256
+          retention-days: 30
+          if-no-files-found: error
