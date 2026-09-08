@@ -23,6 +23,20 @@ test('installed app shell is distinct from public website chrome and keeps prima
   assert.doesNotMatch(html,/Checking this device/);
 });
 
+test('installed Home identifies the product as MUSITU Chemistry and keeps Rescue secondary',()=>{
+  const home=renderChemistryApp({view:'home'});
+  const rescue=renderChemistryApp({view:'rescue'});
+  assert.match(home,/MUSITU Chemistry · Education Nexus/);
+  assert.match(home,/Open Scientific Response OS/);
+  assert.match(home,/Chemistry Rescue/);
+  assert.doesNotMatch(home,/Chemistry Rescue 2026/);
+  assert.doesNotMatch(home,/Continue Chemistry Rescue/);
+  assert.doesNotMatch(home,/aria-label="MUSITU rescue method"/);
+  assert.doesNotMatch(home,/class="app-action primary" href="\/chemistry\/app\?view=rescue">Continue Rescue/);
+  assert.match(rescue,/<h1>Chemistry Rescue\.<\/h1>/);
+  assert.match(rescue,/Your Rescue loop/);
+});
+
 test('exam, premium and help app views remain in the dark installed shell instead of public pages',()=>{
   const exam=renderChemistryApp({view:'exam'});
   const premium=renderChemistryApp({view:'premium'});
