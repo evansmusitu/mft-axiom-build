@@ -38,9 +38,9 @@ const {chromium}=require('playwright');
     if(!installHtml.includes('Get MUSITU Chemistry on this device')||installHtml.includes('Download verified Android APK'))throw new Error('install customer surface rejected');
     const installedPanel=page.locator('[data-install-panel="installed"]');
     if(await installedPanel.count()!==1)throw new Error('installed panel missing');
-    const installedAppLink=installedPanel.getByRole('link',{name:'Open MUSITU Chemistry'});
-    if(await installedAppLink.count()!==1||await installedAppLink.getAttribute('href')!=='/chemistry/app')throw new Error('installed handoff is not /chemistry/app');
-    if(await installedPanel.getByRole('link',{name:'Open Chemistry Rescue'}).count()!==0)throw new Error('installed panel still exposes Rescue launch');
+    const installedPanelHtml=await installedPanel.evaluate(el=>el.outerHTML);
+    if(!installedPanelHtml.includes('href="/chemistry/app">Open MUSITU Chemistry'))throw new Error('hidden installed handoff is not /chemistry/app');
+    if(installedPanelHtml.includes('Open Chemistry Rescue'))throw new Error('hidden installed panel still exposes Rescue launch');
 
     const versionedManifest=await parseManifest('/chemistry/manifest.webmanifest?v=2');
     const unversionedManifest=await parseManifest('/chemistry/manifest.webmanifest');
