@@ -210,7 +210,7 @@ jobs:
               flow_id=fm.group(1);flow_nonce=nm.group(1);print('::add-mask::'+flow_id);print('::add-mask::'+flow_nonce)
               # Prove mobile-webview resilience by omitting the cookie and authenticating with the one-time hidden nonce.
               pc,ph,pb=form(issuer+'/oauth/authorize',{'flow_id':flow_id,'flow_nonce':flow_nonce,'musitu_account_key':account_key},{'Accept':'text/html'},follow=False)
-              if pc!=302:raise RuntimeError('authorization consent POST expected 302 got '+str(pc))
+              if pc!=303:raise RuntimeError('authorization consent POST expected 303 got '+str(pc))
               loc=str(ph.get('Location') or ''); parsed=urllib.parse.urlparse(loc); qp=urllib.parse.parse_qs(parsed.query); code=(qp.get('code') or [''])[0]
               if not code or (qp.get('state') or [''])[0]!=state:raise RuntimeError('authorization redirect code/state mismatch')
               print('::add-mask::'+code)
