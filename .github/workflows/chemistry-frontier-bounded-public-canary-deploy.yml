@@ -1,0 +1,187 @@
+name: MUSITU Chemistry Frontier Bounded Public Canary Deploy
+
+on:
+  push:
+    branches: [chemistry-frontier-universal-20260908]
+    paths: ['.github/workflows/chemistry-frontier-bounded-public-canary-deploy.yml']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: musitu-chemistry-frontier-public-canary
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    if: github.ref == 'refs/heads/chemistry-frontier-universal-20260908'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Reconstruct byte-exact stable plus canary asset bundles
+        shell: bash
+        env:
+          STABLE_URL: https://payments.mftintelligence.com/chemistry/download/MUSITU_Chemistry_Mastery_1.2.0.apk
+          STABLE_SHA256: 055b63f271c18faab540985faefb970f472ea55ba9cb3495db459797902b790d
+          STABLE_BYTES: '5314934'
+          CANARY_TRANSFER_URL: https://uce527ccee8458d7659edc43fd91.dl.dropboxusercontent.com/cd/0/get/DHyxYNGrcipEfD3mOolWsDLS_5OP-tESnZ9DghkAjCOVSlZrTQjJppZYoa-shFbDM_HXjCJBwJzIRCY0tymyf10YQi_jlsyi7P5OPwXkBEd3A2cTZYhV1JAQbcaW7yYtGTtYcVyzl2TbKUHV_Y9q0UHe6k5Z9XBglf9php4S2AbgQA/file?c_luid=2441df78
+          CANARY_SHA256: 4ba442122d9c86a0c3cef660334fe337c6ea9ae6fe853c964b5e94961245babd
+          CANARY_BYTES: '5892286'
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/mchem-canary /tmp/mchem-stable-only /tmp/mchem-canary-evidence
+          mkdir -p \
+            /tmp/mchem-canary/public/chemistry/download /tmp/mchem-canary/src \
+            /tmp/mchem-stable-only/public/chemistry/download /tmp/mchem-stable-only/src \
+            /tmp/mchem-canary-evidence
+
+          curl --fail --location --silent --show-error --max-time 180 \
+            "$STABLE_URL" -o /tmp/mchem-canary/public/chemistry/download/MUSITU_Chemistry_Mastery_1.2.0.apk
+          echo "$STABLE_SHA256  /tmp/mchem-canary/public/chemistry/download/MUSITU_Chemistry_Mastery_1.2.0.apk" | sha256sum -c -
+          test "$(stat -c %s /tmp/mchem-canary/public/chemistry/download/MUSITU_Chemistry_Mastery_1.2.0.apk)" = "$STABLE_BYTES"
+          cp /tmp/mchem-canary/public/chemistry/download/MUSITU_Chemistry_Mastery_1.2.0.apk \
+             /tmp/mchem-stable-only/public/chemistry/download/MUSITU_Chemistry_Mastery_1.2.0.apk
+
+          curl --fail --location --silent --show-error --max-time 180 \
+            "$CANARY_TRANSFER_URL" -o /tmp/mchem-canary/public/chemistry/download/MUSITU_Chemistry_1.3.0-frontier-sidecar-rc1.apk
+          echo "$CANARY_SHA256  /tmp/mchem-canary/public/chemistry/download/MUSITU_Chemistry_1.3.0-frontier-sidecar-rc1.apk" | sha256sum -c -
+          test "$(stat -c %s /tmp/mchem-canary/public/chemistry/download/MUSITU_Chemistry_1.3.0-frontier-sidecar-rc1.apk)" = "$CANARY_BYTES"
+
+          cat > /tmp/mchem-canary/src/index.js <<'JS'
+          const STABLE='/chemistry/download/MUSITU_Chemistry_Mastery_1.2.0.apk';
+          const CANARY='/chemistry/download/MUSITU_Chemistry_1.3.0-frontier-sidecar-rc1.apk';
+          const SHA_STABLE='055b63f271c18faab540985faefb970f472ea55ba9cb3495db459797902b790d';
+          const SHA_CANARY='4ba442122d9c86a0c3cef660334fe337c6ea9ae6fe853c964b5e94961245babd';
+          export default {async fetch(request,env){
+            const path=new URL(request.url).pathname;
+            const response=await env.ASSETS.fetch(request);
+            if(!response.ok || (path!==STABLE && path!==CANARY)) return response;
+            const h=new Headers(response.headers);
+            h.set('Content-Type','application/vnd.android.package-archive');
+            h.set('X-Content-Type-Options','nosniff');
+            if(path===STABLE){
+              h.set('Content-Disposition','attachment; filename="MUSITU_Chemistry_Mastery_1.2.0.apk"');
+              h.set('Cache-Control','public, max-age=86400, immutable');
+              h.set('X-MUSITU-SHA256',SHA_STABLE);
+            } else {
+              h.set('Content-Disposition','attachment; filename="MUSITU_Chemistry_1.3.0-frontier-sidecar-rc1.apk"');
+              h.set('Cache-Control','no-store');
+              h.set('X-MUSITU-SHA256',SHA_CANARY);
+            }
+            return new Response(response.body,{status:response.status,statusText:response.statusText,headers:h});
+          }};
+          JS
+
+          cat > /tmp/mchem-stable-only/src/index.js <<'JS'
+          export default {async fetch(request,env){const response=await env.ASSETS.fetch(request);if(!response.ok)return response;const h=new Headers(response.headers);h.set('Content-Type','application/vnd.android.package-archive');h.set('Content-Disposition','attachment; filename="MUSITU_Chemistry_Mastery_1.2.0.apk"');h.set('X-Content-Type-Options','nosniff');h.set('Cache-Control','public, max-age=86400, immutable');h.set('X-MUSITU-SHA256','055b63f271c18faab540985faefb970f472ea55ba9cb3495db459797902b790d');return new Response(response.body,{status:response.status,statusText:response.statusText,headers:h})}};
+          JS
+
+          for dir in /tmp/mchem-canary /tmp/mchem-stable-only; do
+            cat > "$dir/wrangler.jsonc" <<'JSON'
+          {
+            "name": "musitu-chemistry-downloads",
+            "account_id": "93f395f5121954671f92fffa453d6b61",
+            "compatibility_date": "2026-09-06",
+            "workers_dev": false,
+            "main": "src/index.js",
+            "routes": [{"pattern":"payments.mftintelligence.com/chemistry/download*","zone_id":"5b56528f03948ff5917a5e0cd9f7109e"}],
+            "assets": {"directory":"./public","binding":"ASSETS","run_worker_first":true}
+          }
+          JSON
+          done
+
+          cat > /tmp/mchem-canary-evidence/predeploy.json <<'JSON'
+          {
+            "schema":"musitu.chemistry.frontier.bounded_public_canary.predeploy.v1",
+            "stable_replacement":false,
+            "stable_sha256":"055b63f271c18faab540985faefb970f472ea55ba9cb3495db459797902b790d",
+            "stable_bytes":5314934,
+            "canary_sha256":"4ba442122d9c86a0c3cef660334fe337c6ea9ae6fe853c964b5e94961245babd",
+            "canary_bytes":5892286,
+            "canary_filename":"MUSITU_Chemistry_1.3.0-frontier-sidecar-rc1.apk",
+            "publication_worker":"musitu-chemistry-downloads",
+            "commerce_worker_mutated":false,
+            "stable_promotion":false
+          }
+          JSON
+
+      - name: Deploy bounded canary with fail-closed stable-only rollback
+        shell: bash
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        run: |
+          set -euo pipefail
+
+          rollback() {
+            echo 'CANARY_ROLLBACK=START'
+            (cd /tmp/mchem-stable-only && npx --yes wrangler@latest deploy --config wrangler.jsonc)
+            python - <<'PY'
+          import hashlib,time,urllib.request
+          url='https://payments.mftintelligence.com/chemistry/download/MUSITU_Chemistry_Mastery_1.2.0.apk'
+          expected='055b63f271c18faab540985faefb970f472ea55ba9cb3495db459797902b790d'
+          for i in range(20):
+              try:
+                  q=urllib.request.Request(url,headers={'User-Agent':'MUSITU-Frontier-Rollback-Verify/1.0','Accept':'application/vnd.android.package-archive'})
+                  with urllib.request.urlopen(q,timeout=60) as r: b=r.read(); code=r.status
+                  if code==200 and len(b)==5314934 and hashlib.sha256(b).hexdigest()==expected:
+                      print('CANARY_ROLLBACK_STABLE_VERIFY=PASS'); break
+              except Exception as e:
+                  last=repr(e)
+              time.sleep(1.5)
+          else:
+              raise SystemExit('stable rollback verification failed: '+locals().get('last','hash/status mismatch'))
+          PY
+            echo 'CANARY_ROLLBACK=PASS'
+          }
+
+          (cd /tmp/mchem-canary && npx --yes wrangler@latest deploy --config wrangler.jsonc)
+
+          if ! python - <<'PY'
+          import hashlib,json,time,urllib.request
+          base='https://payments.mftintelligence.com/chemistry/download/'
+          specs={
+            'stable':('MUSITU_Chemistry_Mastery_1.2.0.apk',5314934,'055b63f271c18faab540985faefb970f472ea55ba9cb3495db459797902b790d'),
+            'canary':('MUSITU_Chemistry_1.3.0-frontier-sidecar-rc1.apk',5892286,'4ba442122d9c86a0c3cef660334fe337c6ea9ae6fe853c964b5e94961245babd')
+          }
+          out={}
+          for kind,(name,size,expected) in specs.items():
+              last='not attempted'
+              for i in range(30):
+                  try:
+                      q=urllib.request.Request(base+name,headers={'User-Agent':'MUSITU-Frontier-Canary-Postdeploy/1.0','Accept':'application/vnd.android.package-archive'})
+                      with urllib.request.urlopen(q,timeout=60) as r:
+                          b=r.read(); code=r.status; headers=dict(r.headers)
+                      digest=hashlib.sha256(b).hexdigest()
+                      hdr=headers.get('X-MUSITU-SHA256') or headers.get('x-musitu-sha256')
+                      cd=headers.get('Content-Disposition') or headers.get('content-disposition') or ''
+                      if code==200 and len(b)==size and digest==expected and hdr==expected and 'attachment' in cd.lower():
+                          out[kind]={'http':code,'bytes':len(b),'sha256':digest,'x_musitu_sha256':hdr,'content_disposition':cd}; break
+                      last=f'http={code} bytes={len(b)} sha={digest} header={hdr}'
+                  except Exception as e:
+                      last=repr(e)
+                  time.sleep(1.5)
+              else:
+                  raise SystemExit(f'{kind} live verification failed: {last}')
+          out.update({'schema':'musitu.chemistry.frontier.bounded_public_canary.live.v1','stable_replacement':False,'stable_promotion':False,'gate':'MUSITU_CHEMISTRY_FRONTIER_BOUNDED_PUBLIC_CANARY_DEPLOY_PASS'})
+          raw=(json.dumps(out,indent=2,sort_keys=True)+'\n').encode()
+          open('/tmp/mchem-canary-evidence/live.json','wb').write(raw)
+          open('/tmp/mchem-canary-evidence/live.sha256','w').write(hashlib.sha256(raw).hexdigest()+'  live.json\n')
+          print(json.dumps(out,sort_keys=True))
+          PY
+          then
+            rollback
+            exit 1
+          fi
+
+          echo 'MUSITU_CHEMISTRY_FRONTIER_BOUNDED_PUBLIC_CANARY_DEPLOY_PASS'
+
+      - name: Upload bounded canary evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: musitu-chemistry-frontier-bounded-public-canary-deploy
+          path: /tmp/mchem-canary-evidence
+          retention-days: 90
+          if-no-files-found: error
