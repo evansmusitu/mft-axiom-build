@@ -1,0 +1,123 @@
+name: MUSITU Store Phase 1 Topology Preflight
+
+on:
+  push:
+    branches: [musitu-store-phase1-20260909]
+    paths:
+      - '.github/workflows/musitu-store-phase1-topology-preflight.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      CF_API: https://api.cloudflare.com/client/v4
+      EXPECTED_ZONE: mftintelligence.com
+      EXPECTED_ZONE_ID: 5b56528f03948ff5917a5e0cd9f7109e
+      EXPECTED_ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      PAYMENTS_HOST: payments.mftintelligence.com
+      EXPECTED_MAIN: d6a846f6bbe0bccac1758713eb4de167caf07113
+      EXPECTED_CHEM_APK_SHA256: 4ba442122d9c86a0c3cef660334fe337c6ea9ae6fe853c964b5e94961245babd
+      EXPECTED_CHEM_APK_BYTES: '5892286'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Prove repository boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF_NAME" = 'musitu-store-phase1-20260909'
+          git fetch --quiet origin main
+          test "$(git rev-parse origin/main)" = "$EXPECTED_MAIN"
+          echo 'REPOSITORY_BOUNDARY=PASS'
+
+      - name: Read live Cloudflare topology and production invariants
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$CLOUDFLARE_EMAIL"
+          test -n "$CLOUDFLARE_GLOBAL_API_KEY"
+          mkdir -p /tmp/musitu-store-topology
+          python - <<'PY'
+          import hashlib,json,os,urllib.error,urllib.parse,urllib.request
+          from pathlib import Path
+          api=os.environ['CF_API']; zid=os.environ['EXPECTED_ZONE_ID']; aid=os.environ['EXPECTED_ACCOUNT_ID']; host=os.environ['PAYMENTS_HOST']
+          H={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY'],'Content-Type':'application/json','User-Agent':'MUSITU-Store-Topology-Preflight/1.0'}
+          def cf(path):
+            q=urllib.request.Request(api+path,headers=H,method='GET')
+            try:
+              with urllib.request.urlopen(q,timeout=45) as r: code=r.status; raw=r.read()
+            except urllib.error.HTTPError as e: code=e.code; raw=e.read()
+            if code!=200: raise SystemExit(f'Cloudflare GET HTTP {code}: {path}')
+            x=json.loads(raw or b'{}')
+            if x.get('success') is not True: raise SystemExit(f'Cloudflare success=false: {path}')
+            return x.get('result')
+          zones=cf('/zones?name='+urllib.parse.quote(os.environ['EXPECTED_ZONE'])+'&status=active') or []
+          if len(zones)!=1: raise SystemExit('canonical zone is not unique')
+          z=zones[0]
+          if z.get('id')!=zid or (z.get('account') or {}).get('id')!=aid: raise SystemExit('zone/account mismatch')
+          domains=cf(f'/accounts/{aid}/workers/domains') or []
+          matches=[d for d in domains if d.get('hostname')==host]
+          if len(matches)!=1: raise SystemExit('payments custom domain is not unique')
+          domain=matches[0]; origin_service=domain.get('service')
+          if not origin_service: raise SystemExit('payments custom domain has no Worker service')
+          settings=cf(f'/accounts/{aid}/workers/scripts/{origin_service}/settings') or {}
+          safe_bindings=[]
+          for b in settings.get('bindings') or []:
+            if not isinstance(b,dict): continue
+            safe_bindings.append({k:b.get(k) for k in ('name','type','service','environment','namespace_id','id','bucket_name','class_name') if b.get(k) is not None})
+          routes=cf(f'/zones/{zid}/workers/routes') or []
+          host_routes=[]
+          store_routes=[]
+          for r in routes:
+            pattern=str(r.get('pattern') or '')
+            if host in pattern:
+              item={'id':r.get('id'),'pattern':pattern,'script':r.get('script')}
+              host_routes.append(item)
+              if '/store' in pattern: store_routes.append(item)
+          if store_routes: raise SystemExit('preexisting /store Worker route detected: '+json.dumps(store_routes,sort_keys=True))
+          def external(path,accept='*/*',read=True):
+            q=urllib.request.Request('https://'+host+path,headers={'Accept':accept,'User-Agent':'MUSITU-Store-Topology-Preflight/1.0'},method='GET')
+            try:
+              with urllib.request.urlopen(q,timeout=60) as r:
+                body=r.read() if read else b''
+                return {'path':path,'status':r.status,'content_type':r.headers.get('content-type'),'bytes':len(body),'sha256':hashlib.sha256(body).hexdigest() if read else None,'body':body}
+            except urllib.error.HTTPError as e:
+              body=e.read() if read else b''
+              return {'path':path,'status':e.code,'content_type':e.headers.get('content-type'),'bytes':len(body),'sha256':hashlib.sha256(body).hexdigest() if read else None,'body':body}
+          store=external('/store','text/html')
+          health=external('/chemistry/healthz','application/json')
+          catalog=external('/chemistry/catalog','application/json')
+          apk=external('/chemistry/download/MUSITU_Chemistry_Mastery_1.3.0.apk','application/vnd.android.package-archive')
+          if health['status']!=200: raise SystemExit('Chemistry health is not HTTP 200')
+          try: health_obj=json.loads(health.pop('body') or b'{}')
+          except Exception: raise SystemExit('Chemistry health is not JSON')
+          if health_obj.get('ok') is not True: raise SystemExit('Chemistry health ok != true')
+          if catalog['status']!=200: raise SystemExit('Chemistry catalog is not HTTP 200')
+          catalog.pop('body',None)
+          if apk['status']!=200 or apk['bytes']!=int(os.environ['EXPECTED_CHEM_APK_BYTES']) or apk['sha256']!=os.environ['EXPECTED_CHEM_APK_SHA256']:
+            raise SystemExit('Chemistry APK invariant failed')
+          apk.pop('body',None)
+          store_preview=(store.pop('body') or b'')[:240].decode('utf-8','replace')
+          out={'schema':'musitu.store.phase1.topology_preflight.v1','head_sha':os.environ['GITHUB_SHA'],'sealed_main':os.environ['EXPECTED_MAIN'],'zone_id':zid,'account_id':aid,'hostname':host,'custom_domain_origin_service':origin_service,'custom_domain_environment':domain.get('environment'),'origin_binding_metadata':safe_bindings,'hostname_worker_routes':host_routes,'preexisting_store_routes':store_routes,'predeploy_store_probe':{**store,'preview':store_preview},'chemistry_health':{'status':health['status'],'content_type':health['content_type'],'safe_fields':{k:health_obj.get(k) for k in ('ok','service','version','licence_key_id','raw_paynow_key_present','payment_authority_bound','transport_bound') if k in health_obj}},'chemistry_catalog':catalog,'chemistry_apk':apk,'write_performed':False,'secret_values_captured':False,'gate':'MUSITU_STORE_PHASE1_TOPOLOGY_PREFLIGHT_PASS'}
+          raw=(json.dumps(out,indent=2,sort_keys=True)+'\n').encode()
+          Path('/tmp/musitu-store-topology/topology.json').write_bytes(raw)
+          Path('/tmp/musitu-store-topology/topology.sha256').write_text(hashlib.sha256(raw).hexdigest()+'  topology.json\n')
+          print(json.dumps({'gate':out['gate'],'origin_service':origin_service,'host_routes':host_routes,'store_status':store['status'],'chemistry_health_status':health['status'],'chemistry_apk_sha256':apk['sha256'],'write_performed':False},sort_keys=True))
+          PY
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: musitu-store-phase1-topology-preflight
+          path: /tmp/musitu-store-topology
+          retention-days: 30
+          if-no-files-found: error
