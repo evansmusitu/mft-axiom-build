@@ -1,0 +1,76 @@
+name: MUSITU Chemistry Frontier Public Canary Preflight
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: musitu-chemistry-frontier-public-canary
+  cancel-in-progress: false
+
+jobs:
+  preflight:
+    if: github.ref == 'refs/heads/chemistry-frontier-universal-20260908'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verify stable baseline and candidate transfer bytes
+        shell: bash
+        env:
+          STABLE_URL: https://payments.mftintelligence.com/chemistry/download/MUSITU_Chemistry_Mastery_1.2.0.apk
+          STABLE_SHA256: 055b63f271c18faab540985faefb970f472ea55ba9cb3495db459797902b790d
+          STABLE_BYTES: '5314934'
+          CANARY_TRANSFER_URL: https://1drv.ms/u/c/767ef9002d240398/EaFNOnWiRcFMpf7PC5y_Pc0BnKkqRyzvoqnWzAyqK1WN_A?e=h3L8Y0&download=1
+          CANARY_SHA256: 4ba442122d9c86a0c3cef660334fe337c6ea9ae6fe853c964b5e94961245babd
+          CANARY_BYTES: '5892286'
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/mchem-frontier-preflight
+          mkdir -p /tmp/mchem-frontier-preflight
+
+          curl --fail --location --silent --show-error --max-time 180 \
+            "$STABLE_URL" -o /tmp/mchem-frontier-preflight/stable.apk
+          echo "$STABLE_SHA256  /tmp/mchem-frontier-preflight/stable.apk" | sha256sum -c -
+          test "$(stat -c %s /tmp/mchem-frontier-preflight/stable.apk)" = "$STABLE_BYTES"
+
+          curl --fail --location --silent --show-error --max-time 180 \
+            "$CANARY_TRANSFER_URL" -o /tmp/mchem-frontier-preflight/canary.apk
+          echo "$CANARY_SHA256  /tmp/mchem-frontier-preflight/canary.apk" | sha256sum -c -
+          test "$(stat -c %s /tmp/mchem-frontier-preflight/canary.apk)" = "$CANARY_BYTES"
+
+          python - <<'PY'
+          from pathlib import Path
+          for p in [Path('/tmp/mchem-frontier-preflight/stable.apk'), Path('/tmp/mchem-frontier-preflight/canary.apk')]:
+              if p.read_bytes()[:4] != b'PK\x03\x04':
+                  raise SystemExit(f'not an APK/ZIP payload: {p}')
+          print('MUSITU_CHEMISTRY_FRONTIER_CANARY_PREFLIGHT_PASS')
+          PY
+
+      - name: Record non-mutation boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > /tmp/mchem-frontier-preflight/preflight.json <<'JSON'
+          {
+            "schema":"musitu.chemistry.frontier.public_canary_preflight.v1",
+            "branch":"chemistry-frontier-universal-20260908",
+            "stable_replacement":false,
+            "stable_sha256":"055b63f271c18faab540985faefb970f472ea55ba9cb3495db459797902b790d",
+            "canary_sha256":"4ba442122d9c86a0c3cef660334fe337c6ea9ae6fe853c964b5e94961245babd",
+            "canary_filename":"MUSITU_Chemistry_1.3.0-frontier-sidecar-rc1.apk",
+            "production_mutation":false,
+            "secrets_read":false,
+            "gate":"MUSITU_CHEMISTRY_FRONTIER_CANARY_PREFLIGHT_PASS"
+          }
+          JSON
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: musitu-chemistry-frontier-public-canary-preflight
+          path: /tmp/mchem-frontier-preflight/preflight.json
+          retention-days: 30
+          if-no-files-found: error
