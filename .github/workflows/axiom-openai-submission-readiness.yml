@@ -61,7 +61,7 @@ jobs:
 
           oauth_source=pathlib.Path('auth/musitu_axiom_oauth_worker.mjs').read_text()
           mcp_source=pathlib.Path('mcp/musitu_axiom_plugin_gate_v4.mjs').read_text()
-          if 'userinfo_endpoint:c.issuer+"/oauth/userinfo"' not in oauth_source or 'email_verified:Boolean(mail&&row.email_verified_at)' not in oauth_source:raise RuntimeError('canonical OAuth UserInfo source missing')
+          if not re.search(r'userinfo_endpoint\s*:\s*c\.issuer\s*\+\s*"/oauth/userinfo"', oauth_source) or not re.search(r'email_verified\s*:\s*Boolean\(\s*mail\s*&&\s*row\.email_verified_at\s*\)', oauth_source):raise RuntimeError('canonical OAuth UserInfo source missing')
           if 'OPENAI_APPS_CHALLENGE' not in mcp_source or '/.well-known/openai-apps-challenge' not in mcp_source:raise RuntimeError('OpenAI domain challenge support missing')
 
           def request(url,method='GET',obj=None,headers=None):
