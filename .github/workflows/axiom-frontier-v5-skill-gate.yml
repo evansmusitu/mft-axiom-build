@@ -33,10 +33,23 @@ jobs:
           # tree must remain byte-identical to it. This detects any real content drift.
           test "$(git merge-base 'd6a846f6bbe0bccac1758713eb4de167caf07113' refs/remotes/origin/main)" = 'd6a846f6bbe0bccac1758713eb4de167caf07113'
           git diff --exit-code 'd6a846f6bbe0bccac1758713eb4de167caf07113' refs/remotes/origin/main --
-          # Public MCP/submission stays sealed except the exact gateway byte set
-          # already proven by the OpenAI server/discover scan.
-          git diff --exit-code 'd6a846f6bbe0bccac1758713eb4de167caf07113' HEAD -- mcp/ ':(exclude)mcp/musitu_axiom_plugin_gate_v4.mjs' chatgpt-app-submission.json submission/
+          # Keep the sealed public MCP and submission import contract unchanged except
+          # for exact, separately reviewed gateway/publication-support files pinned below.
+          git diff --exit-code 'd6a846f6bbe0bccac1758713eb4de167caf07113' HEAD -- \
+            mcp/ \
+            ':(exclude)mcp/musitu_axiom_plugin_gate_v4.mjs' \
+            chatgpt-app-submission.json \
+            submission/ \
+            ':(exclude)submission/OPENAI_PUBLICATION_EXECUTION_PACKET.md' \
+            ':(exclude)submission/OPENAI_PUBLICATION_READINESS_REVALIDATED_20260909.md' \
+            ':(exclude)submission/REVIEWER_NOTES.md' \
+            ':(exclude)submission/portal-materials.json'
           test "$(git rev-parse HEAD:mcp/musitu_axiom_plugin_gate_v4.mjs)" = '4a1ad37a5e7df0e4d3966e8b5f9f0e8f2db69167'
+          # Pin every permitted publication-support drift to an exact reviewed blob.
+          test "$(git rev-parse HEAD:submission/OPENAI_PUBLICATION_EXECUTION_PACKET.md)" = '19fb6c636436b198aa76634e679cc92712c17a0d'
+          test "$(git rev-parse HEAD:submission/OPENAI_PUBLICATION_READINESS_REVALIDATED_20260909.md)" = '6d1ea66f6a7e39b22bea5028af81a44a0a48fc71'
+          test "$(git rev-parse HEAD:submission/REVIEWER_NOTES.md)" = '0f6a81997f2536de8d046608b517a19bcf03ce2d'
+          test "$(git rev-parse HEAD:submission/portal-materials.json)" = '6e7492e6897bf273bf346b064f77f0028a586cbb'
           # Preserve every approved auth byte from the prior snapshot except the
           # mobile/OIDC worker, which is pinned to its live-verified exact blob.
           git diff --exit-code 'd47ca52917521eb48782f59ae1d4ad956e9d6165' HEAD -- auth/ ':(exclude)auth/musitu_axiom_oauth_worker.mjs'
