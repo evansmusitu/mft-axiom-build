@@ -1,0 +1,9 @@
+{
+  "schema": "musitu.chemistry.frontier_canary_publication_intent.v1",
+  "authorized_by_user": true,
+  "strategy": "GitHub-driven public canary; preserve stable 1.2.0 rollback target",
+  "candidate_sha256": "4ba442122d9c86a0c3cef660334fe337c6ea9ae6fe853c964b5e94961245babd",
+  "candidate_bytes": 5892286,
+  "stable_1_2_sha256": "055b63f271c18faab540985faefb970f472ea55ba9cb3495db459797902b790d",
+  "stable_download_must_remain_unchanged": true
+}
