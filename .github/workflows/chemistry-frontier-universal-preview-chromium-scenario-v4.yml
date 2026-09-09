@@ -1,0 +1,64 @@
+name: MUSITU Chemistry Frontier Universal Preview Chromium Scenario v4
+
+on:
+  push:
+    branches: [chemistry-frontier-universal-20260908]
+    paths: ['.github/workflows/chemistry-frontier-universal-preview-chromium-scenario-v4.yml']
+
+permissions:
+  contents: read
+
+jobs:
+  chromium:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      BASE_URL: https://payments.mftintelligence.com/chemistry/frontier-universal-preview/
+      BROWSER_NAME: chromium
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install Playwright Chromium
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/mchem-browser-v4-chromium && cd /tmp/mchem-browser-v4-chromium
+          npm init -y >/dev/null
+          npm install --no-audit --no-fund playwright@1.63.0
+          npx playwright install --with-deps chromium
+      - name: Run exact-nav first-run-aware scenario
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd /tmp/mchem-browser-v4-chromium
+          python - <<'PY'
+          from pathlib import Path
+          import os
+          text=Path(os.environ['GITHUB_WORKSPACE']+'/.github/workflows/chemistry-frontier-universal-preview-browser-matrix.yml').read_text()
+          start=text.index("          cat > verify.cjs <<'JS'\n")+len("          cat > verify.cjs <<'JS'\n")
+          end=text.index("\n          JS\n",start)
+          script='\n'.join(line[10:] if line.startswith('          ') else line for line in text[start:end].splitlines())+'\n'
+          script=script.replace("getByRole('button',{name:n})","getByRole('button',{name:n,exact:true})")
+          script=script.replace("getByRole('button',{name:'Home'})","getByRole('button',{name:'Home',exact:true})")
+          needle="await page.locator('#app').waitFor({state:'visible'});"
+          insert=needle+"\n            const onboarding=page.locator('#frontier-onboarding'); if(await onboarding.isVisible().catch(()=>false)){await onboarding.locator('[data-frontier-done]').last().click();}"
+          script=script.replace(needle,insert,1)
+          mobile="await p.getByRole('button',{name:'Home',exact:true}).waitFor();"
+          mobile_insert="if(await p.locator('#frontier-onboarding').isVisible().catch(()=>false)){await p.locator('#frontier-onboarding [data-frontier-done]').last().click();} "+mobile
+          script=script.replace(mobile,mobile_insert)
+          Path('verify.cjs').write_text(script)
+          PY
+          node verify.cjs
+          sha256sum result.json > result.sha256
+          echo MUSITU_CHEMISTRY_FRONTIER_UNIVERSAL_PREVIEW_CHROMIUM_SCENARIO_PASS
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: musitu-universal-preview-chromium-scenario-v4
+          path: |
+            /tmp/mchem-browser-v4-chromium/result.json
+            /tmp/mchem-browser-v4-chromium/result.sha256
+            /tmp/mchem-browser-v4-chromium/failure.txt
+          if-no-files-found: warn
+          retention-days: 90
