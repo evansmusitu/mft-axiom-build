@@ -1,0 +1,107 @@
+name: MUSITU Store Phase 1 v1.0.1 Web Identity Repair
+
+on:
+  push:
+    branches:
+      - musitu-store-phase1-20260909
+    paths:
+      - .github/workflows/musitu-store-phase1-v101-web-identity-repair.yml
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Prove exact continuation parent and sealed main
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD^)" = "ce2f042baed0b2ac1ccf3da87b0d039d5460fed5"
+          git fetch --quiet origin main
+          test "$(git rev-parse origin/main)" = "d6a846f6bbe0bccac1758713eb4de167caf07113"
+          echo 'CONTINUATION_PARENT=PASS'
+          echo 'SEALED_MAIN=PASS'
+
+      - name: Apply exact Store 1.0.1 web identity repair
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          render=Path('store/phase1/web-surface/render.mjs')
+          text=render.read_text()
+          old='href="/store/bootstrap/MUSITU_Store_1.0.0.apk"'
+          new='href="/store/bootstrap/${esc(BOOTSTRAP.artifactFile)}"'
+          assert text.count(old)==1, text.count(old)
+          text=text.replace(old,new)
+          assert 'MUSITU_Store_1.0.0.apk' not in text
+          render.write_text(text)
+
+          tests=Path('store/phase1/web-surface/storefront.test.mjs')
+          text=tests.read_text()
+          replacements={
+            r'/MUSITU_Store_1\\.0\\.0\\.apk/': r'/MUSITU_Store_1\\.0\\.1\\.apk/',
+            '71391bf614cc1186cbe1fda17e9e626aad71d96dbf26807228b73bd2ea99b2f8': 'b755210f303ebb6d22a3177bb21e5ebae2e076901021ee62ca2fe6ab0f14af82',
+            'assert.equal(o.catalog_revision,1);': 'assert.equal(o.catalog_revision,2);',
+          }
+          for old,new in replacements.items():
+            assert text.count(old)==1,(old,text.count(old))
+            text=text.replace(old,new)
+          tests.write_text(text)
+          print('EXACT_WEB_IDENTITY_PATCH=PASS')
+          PY
+
+      - name: Verify only intended source files changed
+        shell: bash
+        run: |
+          set -euo pipefail
+          mapfile -t changed < <(git diff --name-only | sort)
+          printf '%s\n' "${changed[@]}"
+          test "${#changed[@]}" = 2
+          test "${changed[0]}" = 'store/phase1/web-surface/render.mjs'
+          test "${changed[1]}" = 'store/phase1/web-surface/storefront.test.mjs'
+          git diff --check
+          echo 'PATCH_SCOPE=PASS'
+
+      - name: Run deterministic web-data and full Store behavioral contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          test ! -e store/phase1/web-surface/generated-data.mjs
+          python store/phase1/web-surface/build_store_data.py
+          cp store/phase1/web-surface/generated-data.mjs /tmp/generated-data.first.mjs
+          rm store/phase1/web-surface/generated-data.mjs
+          python store/phase1/web-surface/build_store_data.py
+          cmp /tmp/generated-data.first.mjs store/phase1/web-surface/generated-data.mjs
+          node --check store/phase1/web-surface/generated-data.mjs
+          node --check store/phase1/web-surface/render.mjs
+          node --check store/phase1/web-surface/worker.mjs
+          node --test store/phase1/web-surface/storefront.test.mjs
+          rm store/phase1/web-surface/generated-data.mjs
+          echo 'WEB_IDENTITY_REPAIR_GREEN=PASS'
+
+      - name: Commit verified repair
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'MUSITU Store Repair Gate'
+          git config user.email 'evansmusitu5@gmail.com'
+          git add store/phase1/web-surface/render.mjs store/phase1/web-surface/storefront.test.mjs
+          git commit -m 'fix: align MUSITU Store 1.0.1 web identity'
+          git push origin HEAD:musitu-store-phase1-20260909
+          echo "REPAIR_COMMIT=$(git rev-parse HEAD)"
