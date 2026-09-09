@@ -92,6 +92,23 @@ jobs:
           script=script.replace("browser_matrix.v4","browser_matrix.v5")
           hdr="assert(response&&response.status()===200,'initial HTTP not 200');"
           script=script.replace(hdr,hdr+"\n  const headers=await response.allHeaders();assert(headers['x-musitu-carrier']==='frontier-universal-1.3.0-parity-v2','wrong carrier header');assert(headers['x-musitu-compatibility-overlay']==='strict-csp-event-bridge-v1','compatibility overlay header absent');",1)
+
+          # Attribute console diagnostics to online/offline phases. WebKit 26.6 emits one
+          # driver-level resource diagnostic during a deliberately offline reload even when
+          # the service worker successfully restores the app. Only that exact message, only
+          # in the offline phase, is classified as a harness diagnostic; all other console
+          # and page errors remain fatal.
+          script=script.replace("const pageErrors=[],consoleErrors=[],network=[];","const pageErrors=[],consoleErrors=[],network=[];let testPhase='online';",1)
+          script=script.replace("page.on('console',m=>{if(m.type()==='error')consoleErrors.push(m.text())});","page.on('console',m=>{if(m.type()==='error')consoleErrors.push({phase:testPhase,text:m.text()})});",1)
+          offline="await context.setOffline(true);await safeReload(page,20000);await dismissOnboarding(page);await page.getByRole('button',{name:'Home',exact:true}).waitFor();await context.setOffline(false);"
+          offline_repl="testPhase='offline';await context.setOffline(true);await safeReload(page,20000);await dismissOnboarding(page);await page.getByRole('button',{name:'Home',exact:true}).waitFor();await context.setOffline(false);testPhase='online';"
+          if offline not in script: raise SystemExit('offline phase anchor drift')
+          script=script.replace(offline,offline_repl,1)
+          old_console="const meaningfulConsole=consoleErrors.filter(x=>!/favicon/i.test(x));"
+          new_console="const harnessDiagnostics=consoleErrors.filter(x=>name==='webkit'&&x.phase==='offline'&&x.text==='Failed to load resource: WebKit encountered an internal error');const meaningfulConsole=consoleErrors.filter(x=>!/favicon/i.test(x.text)&&!(name==='webkit'&&x.phase==='offline'&&x.text==='Failed to load resource: WebKit encountered an internal error'));"
+          if old_console not in script: raise SystemExit('console filter anchor drift')
+          script=script.replace(old_console,new_console,1)
+          script=script.replace("console_errors:meaningfulConsole,page_errors:pageErrors","console_errors:meaningfulConsole,webkit_offline_harness_diagnostics:harnessDiagnostics,page_errors:pageErrors",1)
           Path('verify.cjs').write_text(script)
           PY
           node verify.cjs
