@@ -2,6 +2,9 @@
   <uses-permission android:name="android.permission.INTERNET" />
   <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
   <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+  <queries>
+    <package android:name="com.musitu.chemistry" />
+  </queries>
   <application android:allowBackup="false" android:label="MUSITU Store" android:usesCleartextTraffic="false" android:theme="@style/AppTheme">
     <activity android:name=".MainActivity" android:exported="true">
       <intent-filter>
