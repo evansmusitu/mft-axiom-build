@@ -1,0 +1,36 @@
+{
+  "schema": "musitu.store.apk_reconstruction.v1",
+  "source": {
+    "workflow_run_id": 34344259135,
+    "artifact_id": 10101065640,
+    "artifact_name": "musitu-store-phase1-android-unsigned",
+    "file": "MUSITU_Store_1.0.0_UNSIGNED.apk",
+    "bytes": 1675424,
+    "sha256": "823b1ec0ec8bb68e3d5454ee1d70dbca6b7b8028d9f06d51149d79f9b9837555"
+  },
+  "delta": {
+    "encoding": "base64(xz(git-binary-patch))",
+    "parts": [
+      {"file":"store-signed.patch.xz.b64.part00","bytes":6000,"sha256":"05e23c51c344d2bdf5537721a27057c745a7ffda20b934df8acf6791aff21d0a","git_blob_sha1":"72414e2ed426ad68095199c24c0acad1d5e6f69f"},
+      {"file":"store-signed.patch.xz.b64.part01","bytes":6000,"sha256":"737ceff41bea14f110930b8a3c335300dbd4ac1040075feebf177460f52f981c","git_blob_sha1":"bd8a8e348ccbb4048f2f875575cb4bfe156434ec"},
+      {"file":"store-signed.patch.xz.b64.part02","bytes":6000,"sha256":"4fed0837a6697d4c0a84a1874cdf9755c2f446641e80ba4f719c4c11cf6afb37","git_blob_sha1":"bcf5d97c3cf69d8907f5fad85a9e1f43d0624504"},
+      {"file":"store-signed.patch.xz.b64.part03","bytes":6000,"sha256":"f31bd7714e59a65a7e55908e1742ca48942cdaf4f228bf9ea0d522d62ef4828f","git_blob_sha1":"337b56b4f33bf09427f41df1fef4aee598d89144"},
+      {"file":"store-signed.patch.xz.b64.part04","bytes":6000,"sha256":"4a6deee850b82a29f7883e6eaf9d7b30f239e0c8270570f92b89f8f2b712b6e2","git_blob_sha1":"0daddb6492ed3310cfd128c9aa0a09faab5d94f3"},
+      {"file":"store-signed.patch.xz.b64.part05","bytes":3376,"sha256":"72293604a88761e00195ab80d87263c2b894746284684da72a40555cbeb679c3","git_blob_sha1":"7f6bb7a347548bd2a3253113cb997c2d42889691"}
+    ],
+    "concatenated_base64_bytes": 33376,
+    "concatenated_base64_sha256": "dab19d219572c50481a27e166d6c465adbe663a61ebe93f165727b9aa72a827b",
+    "xz_bytes": 25032,
+    "xz_sha256": "93a56b2028249c714d93494e9112d3cc04238d86610a61a4b0426cf43ea2d477",
+    "patch_bytes": 30708,
+    "patch_sha256": "f30f115847721eb019a31c5f3283236ee134088585b1015fbd36ddaa7b9c63ac"
+  },
+  "target": {
+    "file": "MUSITU_Store_1.0.0.apk",
+    "bytes": 1687882,
+    "sha256": "71391bf614cc1186cbe1fda17e9e626aad71d96dbf26807228b73bd2ea99b2f8",
+    "signing_certificate_sha256": "43695b6103d7ab57e89166c9a537f1810b7e33053e20332b1d4e7e2e1c612671"
+  },
+  "private_key_required": false,
+  "phase2_authorized": false
+}
