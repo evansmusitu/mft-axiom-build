@@ -53,7 +53,7 @@ jobs:
           test -n "$CLOUDFLARE_EMAIL"
           test -n "$CLOUDFLARE_GLOBAL_API_KEY"
           python - <<'PY'
-          import base64,datetime,hashlib,json,os,pathlib,re,secrets,time,urllib.error,urllib.parse,urllib.request,uuid
+          import base64,datetime,hashlib,html as htmlmod,json,os,pathlib,re,secrets,time,urllib.error,urllib.parse,urllib.request,uuid
 
           api=os.environ['CF_API']; aid=os.environ['ACCOUNT_ID']; zid=os.environ['ZONE_ID']; dbid=os.environ['D1_UUID']
           host=os.environ['AUTH_HOST']; worker=os.environ['AUTH_WORKER']; rule_ref=os.environ['AUTH_RULE_REF']; issuer=os.environ['OAUTH_ISSUER']; resource=os.environ['MCP_RESOURCE']; mcp=os.environ['MCP_BASE']
@@ -208,11 +208,16 @@ jobs:
               page=ab.decode('utf-8','replace'); fm=re.search(r'name="flow_id" value="([^"]+)"',page); nm=re.search(r'name="flow_nonce" value="([^"]+)"',page); cookie_header=str(ah.get('Set-Cookie') or '')
               if not fm or not nm or 'musitu_oauth_flow=' not in cookie_header:raise RuntimeError('authorization flow/nonce/cookie missing')
               flow_id=fm.group(1);flow_nonce=nm.group(1);print('::add-mask::'+flow_id);print('::add-mask::'+flow_nonce)
-              # Prove mobile-webview resilience by omitting the cookie and authenticating with the one-time hidden nonce.
+              # Prove the exact mobile handoff. The credential POST must render a 200 document, not depend on an HTTP redirect chain.
               pc,ph,pb=form(issuer+'/oauth/authorize',{'flow_id':flow_id,'flow_nonce':flow_nonce,'musitu_account_key':account_key},{'Accept':'text/html'},follow=False)
-              if pc!=303:raise RuntimeError('authorization consent POST expected 303 got '+str(pc))
-              loc=str(ph.get('Location') or ''); parsed=urllib.parse.urlparse(loc); qp=urllib.parse.parse_qs(parsed.query); code=(qp.get('code') or [''])[0]
-              if not code or (qp.get('state') or [''])[0]!=state:raise RuntimeError('authorization redirect code/state mismatch')
+              if pc!=200:raise RuntimeError('authorization consent POST expected 200 callback document got '+str(pc))
+              if ph.get('Location'):raise RuntimeError('authorization consent POST still depends on HTTP redirect')
+              nav=pb.decode('utf-8','replace'); cm=re.search(r'data-oauth-callback="([^"]+)"',nav)
+              if not cm:raise RuntimeError('authorization callback document missing exact callback target')
+              loc=htmlmod.unescape(cm.group(1)); parsed=urllib.parse.urlparse(loc); qp=urllib.parse.parse_qs(parsed.query); code=(qp.get('code') or [''])[0]
+              if parsed.scheme!='https' or parsed.hostname!='chatgpt.com' or parsed.path!='/connector/oauth/musitu-e2e':raise RuntimeError('authorization callback target mismatch')
+              if not code or (qp.get('state') or [''])[0]!=state:raise RuntimeError('authorization callback code/state mismatch')
+              if '<meta http-equiv="refresh"' not in nav or 'window.location.replace(' not in nav or 'id="continue-chatgpt"' not in nav:raise RuntimeError('authorization callback document missing redundant mobile navigation paths')
               print('::add-mask::'+code)
               tc,_,tb=form(issuer+'/oauth/token',{'grant_type':'authorization_code','code':code,'code_verifier':verifier,'client_id':client_id,'redirect_uri':callback,'resource':resource})
               if tc!=200:raise RuntimeError('token exchange HTTP '+str(tc)+' '+tb[:240].decode('utf-8','ignore'))
@@ -246,7 +251,7 @@ jobs:
               a2h=hashlib.sha256(access2.encode()).hexdigest();r2h=hashlib.sha256(refresh2.encode()).hexdigest();rev=d1('SELECT a.revoked_at,k.status,(SELECT revoked_at FROM oauth_refresh_tokens WHERE token_hash=?2) AS refresh_revoked FROM oauth_access_tokens a JOIN api_keys k ON k.id=a.api_key_id WHERE a.token_hash=?1',[a2h,r2h])
               if len(rev)!=1 or not rev[0].get('revoked_at') or rev[0].get('status')!='revoked' or not rev[0].get('refresh_revoked'):raise RuntimeError('OAuth revocation ledger mismatch')
 
-              evidence={'schema':'musitu.axiom.oauth.production_e2e.v1','gate':'MUSITU_AXIOM_OAUTH_E2E_PASS','issuer':issuer,'resource':resource,'authorization_code_flow':True,'dynamic_client_registration':True,'pkce_s256':True,'resource_parameter_preserved':True,'existing_musitu_account_authenticated':True,'mobile_cookie_independent_form_nonce_verified':True,'account_key_returned_to_chatgpt':False,'authorization_code_one_time':True,'opaque_access_token':True,'access_token_expires_seconds':3600,'refresh_token_rotation':True,'revocation_verified':True,'oauth_access_registered_as_axiom_bearer':True,'oauth_to_mcp_authenticated_compute_http':200,'result_42_observed':True,'usage_event_created':True,'metering_verified':True,'raw_account_key_published':False,'raw_access_token_published':False,'raw_refresh_token_published':False,'raw_authorization_code_published':False,'oauth_worker_source_sha256':source_sha,'kernel_mutated':False,'billing_worker_mutated':False,'raw_modal_public_exposure_added':False,'wolfram_parity':'NOT_CERTIFIED','superiority':'NOT_CERTIFIED'}
+              evidence={'schema':'musitu.axiom.oauth.production_e2e.v1','gate':'MUSITU_AXIOM_OAUTH_E2E_PASS','issuer':issuer,'resource':resource,'authorization_code_flow':True,'dynamic_client_registration':True,'pkce_s256':True,'resource_parameter_preserved':True,'existing_musitu_account_authenticated':True,'mobile_cookie_independent_form_nonce_verified':True,'mobile_post_200_callback_document_verified':True,'mobile_http_redirect_chain_removed':True,'mobile_meta_refresh_verified':True,'mobile_js_replace_verified':True,'mobile_manual_continue_anchor_verified':True,'account_key_returned_to_chatgpt':False,'authorization_code_one_time':True,'opaque_access_token':True,'access_token_expires_seconds':3600,'refresh_token_rotation':True,'revocation_verified':True,'oauth_access_registered_as_axiom_bearer':True,'oauth_to_mcp_authenticated_compute_http':200,'result_42_observed':True,'usage_event_created':True,'metering_verified':True,'raw_account_key_published':False,'raw_access_token_published':False,'raw_refresh_token_published':False,'raw_authorization_code_published':False,'oauth_worker_source_sha256':source_sha,'kernel_mutated':False,'billing_worker_mutated':False,'raw_modal_public_exposure_added':False,'wolfram_parity':'NOT_CERTIFIED','superiority':'NOT_CERTIFIED'}
           finally:
               if inserted:
                   # OAuth fixture cleanup; never touch non-fixture customer state.
@@ -258,7 +263,7 @@ jobs:
           if evidence.get('gate')!='MUSITU_AXIOM_OAUTH_E2E_PASS' or evidence.get('fixture_rows_remaining')!=0:raise RuntimeError('OAuth E2E gate or fixture cleanup failed')
           evidence['cleanup_complete']=True
           p=pathlib.Path('musitu-axiom-oauth-production-e2e.json');p.write_text(json.dumps(evidence,indent=2,sort_keys=True)+'\n');dg=hashlib.sha256(p.read_bytes()).hexdigest();pathlib.Path('musitu-axiom-oauth-production-e2e.sha256').write_text(dg+'  '+p.name+'\n')
-          print(json.dumps({'gate':evidence['gate'],'issuer':issuer,'resource':resource,'dcr':True,'pkce_s256':True,'mobile_cookie_independent_form_nonce_verified':True,'refresh_rotation':True,'revocation_verified':True,'oauth_to_mcp_authenticated_compute_http':200,'metering_verified':True,'fixture_rows_remaining':0,'evidence_sha256':dg},sort_keys=True))
+          print(json.dumps({'gate':evidence['gate'],'issuer':issuer,'resource':resource,'dcr':True,'pkce_s256':True,'mobile_cookie_independent_form_nonce_verified':True,'mobile_post_200_callback_document_verified':True,'mobile_http_redirect_chain_removed':True,'refresh_rotation':True,'revocation_verified':True,'oauth_to_mcp_authenticated_compute_http':200,'metering_verified':True,'fixture_rows_remaining':0,'evidence_sha256':dg},sort_keys=True))
           PY
 
       - name: Upload sealed OAuth evidence
