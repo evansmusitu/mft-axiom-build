@@ -87,3 +87,5 @@ jobs:
           set -euo pipefail
           test "$MATRIX_RESULT" = success
           echo MUSITU_CHEMISTRY_FRONTIER_UNIVERSAL_PREVIEW_BROWSER_MATRIX_PASS
+
+# Parity-restoration rerun 2026-09-09 after Android customer-routing seal.
