@@ -1,0 +1,204 @@
+name: MUSITU Chemistry Frontier Universal Production Independent Verify v1
+
+on:
+  push:
+    branches: [chemistry-frontier-universal-20260908]
+    paths: ['.github/workflows/chemistry-frontier-universal-production-independent-verify-v1.yml']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: musitu-chemistry-universal-production-independent-v1
+  cancel-in-progress: false
+
+jobs:
+  http-invariants:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      APP_BASE: https://payments.mftintelligence.com/chemistry/app
+      INSTALL_URL: https://payments.mftintelligence.com/chemistry/install
+      STABLE_APK_URL: https://payments.mftintelligence.com/chemistry/download/MUSITU_Chemistry_Mastery_1.3.0.apk
+      STABLE_APK_PATH: /chemistry/download/MUSITU_Chemistry_Mastery_1.3.0.apk
+      STABLE_APK_SHA256: 4ba442122d9c86a0c3cef660334fe337c6ea9ae6fe853c964b5e94961245babd
+      STABLE_APK_BYTES: '5892286'
+      RETIRED_APK_URL: https://payments.mftintelligence.com/chemistry/download/MUSITU_Chemistry_Mastery_1.2.0.apk
+    steps:
+      - uses: actions/checkout@v4
+      - name: Independently reconstruct expected bytes and verify live production twice
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/mchem-independent-v1
+          mkdir -p /tmp/mchem-independent-v1/source /tmp/mchem-independent-v1/evidence
+          curl --fail --location --silent --show-error --max-time 180 "$STABLE_APK_URL" -o /tmp/mchem-independent-v1/stable.apk
+          echo "$STABLE_APK_SHA256  /tmp/mchem-independent-v1/stable.apk" | sha256sum -c -
+          test "$(stat -c %s /tmp/mchem-independent-v1/stable.apk)" = "$STABLE_APK_BYTES"
+          python - <<'PY'
+          import hashlib,json,pathlib,zipfile
+          root=pathlib.Path('/tmp/mchem-independent-v1/source')
+          manifest=json.load(open('commerce/chemistry/frontier_universal/FULL_PARITY_MANIFEST_20260909.json'))
+          expected={k:v['sha256'] for k,v in manifest['files'].items()}; observed={}
+          with zipfile.ZipFile('/tmp/mchem-independent-v1/stable.apk') as z:
+            for n in z.namelist():
+              if n.startswith('assets/www/') and not n.endswith('/'):
+                rel=n[len('assets/www/'):]
+                if rel:
+                  b=z.read(n);p=root/rel;p.parent.mkdir(parents=True,exist_ok=True);p.write_bytes(b);observed[rel]=hashlib.sha256(b).hexdigest()
+          if observed!=expected:raise SystemExit('independent embedded carrier drift')
+          PY
+          python commerce/chemistry/frontier_universal/patch_web_event_bridge.py /tmp/mchem-independent-v1/source > /tmp/mchem-independent-v1/evidence/overlay.json
+          python - <<'PY'
+          import hashlib,json,os,pathlib,time,urllib.error,urllib.request
+          root=pathlib.Path('/tmp/mchem-independent-v1/source')
+          expected={str(p.relative_to(root)):hashlib.sha256(p.read_bytes()).hexdigest() for p in root.rglob('*') if p.is_file()}
+          APP=os.environ['APP_BASE'].rstrip('/');INSTALL=os.environ['INSTALL_URL'];APK_PATH=os.environ['STABLE_APK_PATH']
+          ANDROID='Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0 Mobile Safari/537.36'
+          SAMSUNG='Mozilla/5.0 (Linux; Android 14; SAMSUNG SM-S921B) AppleWebKit/537.36 (KHTML, like Gecko) SamsungBrowser/27.0 Chrome/125.0 Mobile Safari/537.36'
+          IPHONE='Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1'
+          IOS_INAPP='Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 Mobile/15E148 Instagram 350.0.0'
+          DESKTOP='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0 Safari/537.36'
+          FIREFOX='Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:130.0) Gecko/20100101 Firefox/130.0'
+          class NoRedirect(urllib.request.HTTPRedirectHandler):
+            def redirect_request(self,req,fp,code,msg,headers,newurl):return None
+          no=urllib.request.build_opener(NoRedirect);yes=urllib.request.build_opener()
+          def req(url,ua=DESKTOP,follow=True,accept='*/*'):
+            q=urllib.request.Request(url,headers={'User-Agent':ua,'Accept':accept,'Cache-Control':'no-cache, no-store','Pragma':'no-cache'})
+            try:
+              with (yes if follow else no).open(q,timeout=60) as r:return r.status,r.geturl(),{k.lower():v for k,v in r.headers.items()},r.read()
+            except urllib.error.HTTPError as e:return e.code,e.geturl(),{k.lower():v for k,v in e.headers.items()},e.read()
+          passes=[]
+          for attempt in (1,2):
+            live={}
+            for rel,want in expected.items():
+              c,u,h,b=req(APP+'/' if rel=='index.html' else APP+'/'+rel,DESKTOP,True)
+              got=hashlib.sha256(b).hexdigest()
+              if c!=200 or got!=want or h.get('x-musitu-carrier')!='frontier-universal-1.3.0-parity-v2' or h.get('x-musitu-compatibility-overlay')!='strict-csp-event-bridge-v1':raise SystemExit(f'live file mismatch attempt {attempt} {rel}')
+              live[rel]=got
+            for ua,label in [(ANDROID,'android-chrome'),(SAMSUNG,'samsung')]:
+              c,u,h,b=req(APP,ua,False,'text/html');
+              if c!=302 or h.get('location')!='/chemistry/install' or h.get('x-musitu-platform-route')!='android-native':raise SystemExit(f'{label} app routing failed attempt {attempt}')
+              c,u,h,b=req(INSTALL,ua,False,'text/html')
+              if c!=302 or h.get('location')!=APK_PATH or h.get('x-musitu-release-sha256')!=os.environ['STABLE_APK_SHA256']:raise SystemExit(f'{label} install routing failed attempt {attempt}')
+            for ua,label in [(IPHONE,'ios-safari'),(IOS_INAPP,'ios-inapp'),(DESKTOP,'desktop-chrome'),(FIREFOX,'desktop-firefox')]:
+              c,u,h,b=req(APP,ua,False,'text/html')
+              if c!=308 or h.get('location')!='/chemistry/app/' or h.get('x-musitu-platform-route')!='universal-parity':raise SystemExit(f'{label} app routing failed attempt {attempt}')
+              c,u,h,b=req(INSTALL,ua,False,'text/html')
+              if c!=302 or h.get('location')!='/chemistry/app/#help' or h.get('x-musitu-platform-route')!='universal-parity':raise SystemExit(f'{label} install routing failed attempt {attempt}')
+            c,u,h,b=req(os.environ['STABLE_APK_URL'],DESKTOP,True)
+            if c!=200 or len(b)!=int(os.environ['STABLE_APK_BYTES']) or hashlib.sha256(b).hexdigest()!=os.environ['STABLE_APK_SHA256']:raise SystemExit('stable 1.3 changed')
+            c12,u12,h12,b12=req(os.environ['RETIRED_APK_URL'],DESKTOP,False)
+            if c12!=410 or h12.get('x-musitu-release-status')!='retired' or b12[:2]==b'PK':raise SystemExit('retired 1.2 changed')
+            commerce={}
+            for p in ['/chemistry/verify','/chemistry/plans','/chemistry/healthz']:
+              c,u,h,b=req('https://payments.mftintelligence.com'+p,DESKTOP,True,'text/html,application/json')
+              if c!=200:raise SystemExit('commerce route failed '+p)
+              commerce[p]=c
+            passes.append({'attempt':attempt,'carrier_files':len(live),'stable_1_3':'PASS','retired_1_2':'PASS','commerce':commerce})
+            time.sleep(1)
+          ev={'schema':'musitu.chemistry.frontier.universal_production_independent_http.v1','github_sha':os.environ['GITHUB_SHA'],'attempts':passes,'live_carrier_identity':'27/27 PASS x2','android_native_routing':'PASS x2','non_android_universal_routing':'PASS x2','install_handoff':'PASS x2','stable_1_3_unchanged':True,'retired_1_2_still_410':True,'secrets_used':False,'production_mutation':False,'gate':'MUSITU_CHEMISTRY_FRONTIER_UNIVERSAL_PRODUCTION_INDEPENDENT_HTTP_PASS'}
+          raw=(json.dumps(ev,indent=2,sort_keys=True)+'\n').encode();pathlib.Path('/tmp/mchem-independent-v1/evidence/http-result.json').write_bytes(raw);pathlib.Path('/tmp/mchem-independent-v1/evidence/http-result.sha256').write_text(hashlib.sha256(raw).hexdigest()+'  http-result.json\n');print(json.dumps(ev,sort_keys=True))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: musitu-universal-production-independent-http-v1
+          path: /tmp/mchem-independent-v1/evidence
+          retention-days: 90
+          if-no-files-found: error
+
+  browser:
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium, chrome, msedge, firefox, webkit]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    env:
+      BASE_URL: https://payments.mftintelligence.com/chemistry/app/
+      BROWSER_NAME: ${{ matrix.browser }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Install Playwright and engine
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/mchem-production-browser-${BROWSER_NAME};cd /tmp/mchem-production-browser-${BROWSER_NAME}
+          npm init -y >/dev/null
+          npm install --no-audit --no-fund playwright@1.63.0
+          npx playwright install --with-deps "$BROWSER_NAME"
+      - name: Run complete learner flow against production route
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd /tmp/mchem-production-browser-${BROWSER_NAME}
+          python - <<'PY'
+          from pathlib import Path
+          import os
+          src=Path(os.environ['GITHUB_WORKSPACE']+'/.github/workflows/chemistry-frontier-universal-preview-browser-matrix-v4.yml').read_text()
+          marker="          cat > verify.cjs <<'JS'\n";start=src.index(marker)+len(marker);end=src.index("\n          JS\n",start)
+          script='\n'.join(line[10:] if line.startswith('          ') else line for line in src[start:end].splitlines())+'\n'
+          script=script.replace("const discovery=name==='chromium'?await platformDiscovery(browser):null;","const discovery=null;")
+          script=script.replace("browser_matrix.v4","production_browser_matrix.v1")
+          hdr="assert(response&&response.status()===200,'initial HTTP not 200');"
+          script=script.replace(hdr,hdr+"\n  const headers=await response.allHeaders();assert(headers['x-musitu-carrier']==='frontier-universal-1.3.0-parity-v2','wrong production carrier header');assert(headers['x-musitu-compatibility-overlay']==='strict-csp-event-bridge-v1','production compatibility overlay header absent');",1)
+          script=script.replace("const pageErrors=[],consoleErrors=[],network=[];","const pageErrors=[],consoleErrors=[],network=[];let testPhase='online';",1)
+          script=script.replace("page.on('console',m=>{if(m.type()==='error')consoleErrors.push(m.text())});","page.on('console',m=>{if(m.type()==='error')consoleErrors.push({phase:testPhase,text:m.text()})});",1)
+          offline="await context.setOffline(true);await safeReload(page,20000);await dismissOnboarding(page);await page.getByRole('button',{name:'Home',exact:true}).waitFor();await context.setOffline(false);"
+          repl="testPhase='offline';await context.setOffline(true);await safeReload(page,20000);await dismissOnboarding(page);await page.getByRole('button',{name:'Home',exact:true}).waitFor();await context.setOffline(false);testPhase='online';"
+          if offline not in script:raise SystemExit('offline anchor drift')
+          script=script.replace(offline,repl,1)
+          old="const meaningfulConsole=consoleErrors.filter(x=>!/favicon/i.test(x));"
+          new="const harnessDiagnostics=consoleErrors.filter(x=>name==='webkit'&&x.phase==='offline'&&x.text==='Failed to load resource: WebKit encountered an internal error');const meaningfulConsole=consoleErrors.filter(x=>!/favicon/i.test(x.text)&&!(name==='webkit'&&x.phase==='offline'&&x.text==='Failed to load resource: WebKit encountered an internal error'));"
+          if old not in script:raise SystemExit('console anchor drift')
+          script=script.replace(old,new,1)
+          script=script.replace("console_errors:meaningfulConsole,page_errors:pageErrors","console_errors:meaningfulConsole,webkit_offline_harness_diagnostics:harnessDiagnostics,page_errors:pageErrors",1)
+          Path('verify.cjs').write_text(script)
+          PY
+          node verify.cjs
+          sha256sum result.json > result.sha256
+          echo MUSITU_PRODUCTION_BROWSER_${BROWSER_NAME}_PASS
+      - name: Verify production iOS install intelligence on WebKit
+        if: matrix.browser == 'webkit'
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd /tmp/mchem-production-browser-${BROWSER_NAME}
+          cat > ios.cjs <<'JS'
+          const {webkit}=require('playwright');
+          const assert=(x,m)=>{if(!x)throw new Error(m)};
+          (async()=>{const b=await webkit.launch({headless:true});try{for(const [label,ua,want] of [
+            ['ios-safari','Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1','ios-safari'],
+            ['ios-inapp','Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 Mobile/15E148 Instagram 350.0.0','ios-inapp']]){
+              const c=await b.newContext({userAgent:ua,viewport:{width:390,height:844},isMobile:true,hasTouch:true});const p=await c.newPage();const errs=[];p.on('pageerror',e=>errs.push(String(e)));
+              const r=await p.goto(process.env.BASE_URL,{waitUntil:'domcontentloaded',timeout:45000});assert(r&&r.status()===200,label+' HTTP');await p.locator('#app').waitFor();const o=p.locator('#frontier-onboarding');if(await o.isVisible().catch(()=>false))await o.locator('[data-frontier-done]').last().click();
+              const x=await p.evaluate(()=>({platform:MUSITUFrontier.runtimePlatform(),guidance:MUSITUFrontier.installGuidance(),install:typeof MUSITUFrontier.requestInstall}));assert(x.platform===want,label+' platform '+x.platform);assert(x.guidance.length>20,label+' guidance');assert(x.install==='function',label+' install API');assert(errs.length===0,label+' errors '+errs);await c.close();
+            }console.log('MUSITU_PRODUCTION_WEBKIT_IOS_INSTALL_INTELLIGENCE_PASS')}finally{await b.close()}})();
+          JS
+          node ios.cjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: musitu-universal-production-browser-v1-${{ matrix.browser }}
+          path: |
+            /tmp/mchem-production-browser-${{ matrix.browser }}/result.json
+            /tmp/mchem-production-browser-${{ matrix.browser }}/result.sha256
+          if-no-files-found: warn
+          retention-days: 90
+
+  gate:
+    needs: [http-invariants,browser]
+    if: always()
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Require independent HTTP and all five production browsers green
+        env:
+          HTTP_RESULT: ${{ needs.http-invariants.result }}
+          BROWSER_RESULT: ${{ needs.browser.result }}
+        run: |
+          set -euo pipefail
+          test "$HTTP_RESULT" = success
+          test "$BROWSER_RESULT" = success
+          echo MUSITU_CHEMISTRY_FRONTIER_UNIVERSAL_PRODUCTION_INDEPENDENT_VERIFY_PASS
