@@ -1,0 +1,86 @@
+name: MUSITU Store Phase 1 Release Assets v1.0.1 Repair
+
+on:
+  push:
+    branches: [musitu-store-phase1-20260909]
+    paths:
+      - '.github/workflows/musitu-store-phase1-release-assets-v101-repair.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Prove exact continuation boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD^)" = 'b3ba6a7abd440d7602a68b8c871d7f5916e269f9'
+          git fetch --quiet origin main
+          test "$(git rev-parse origin/main)" = 'd6a846f6bbe0bccac1758713eb4de167caf07113'
+          echo CONTINUATION_BOUNDARY=PASS
+
+      - name: Add only the immutable Store 1.0.1 release route
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('store/phase1/web-surface/worker.mjs')
+          s=p.read_text()
+          marker="const RELEASE_ASSETS={\n"
+          entry="  '/store/bootstrap/MUSITU_Store_1.0.1.apk':{key:'bootstrap/MUSITU_Store_1.0.1.apk',sha256:'b755210f303ebb6d22a3177bb21e5ebae2e076901021ee62ca2fe6ab0f14af82',bytes:1679572,type:'application/vnd.android.package-archive',name:'MUSITU_Store_1.0.1.apk'},\n"
+          assert s.count(marker)==1
+          assert 'MUSITU_Store_1.0.1.apk' not in s
+          assert "'/store/bootstrap/MUSITU_Store_1.0.0.apk'" in s
+          s=s.replace(marker,marker+entry,1)
+          p.write_text(s)
+          print('STORE_V101_RELEASE_ROUTE_PATCH=PASS')
+          PY
+          git diff --check
+          test "$(git diff --name-only | wc -l)" = 1
+          test "$(git diff --name-only)" = 'store/phase1/web-surface/worker.mjs'
+
+      - name: Prove focused RED contract is now GREEN
+        shell: bash
+        run: |
+          set -euo pipefail
+          python store/phase1/web-surface/build_store_data.py
+          node --check store/phase1/web-surface/worker.mjs
+          node --test store/phase1/web-surface/release-assets-v101.test.mjs
+          echo FOCUSED_RELEASE_ASSET_GATE=PASS
+
+      - name: Prove full Store behavior remains GREEN
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --test store/phase1/web-surface/storefront.test.mjs
+          node --test store/phase1/web-surface/runtime-state.test.mjs
+          echo FULL_STORE_BEHAVIOR=PASS
+
+      - name: Commit implementation and remove one-shot repair gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -f store/phase1/web-surface/generated-data.mjs
+          git config user.name 'MUSITU Store Repair Gate'
+          git config user.email 'evansmusitu5@gmail.com'
+          git add store/phase1/web-surface/worker.mjs
+          git rm .github/workflows/musitu-store-phase1-release-assets-v101-repair.yml
+          git diff --cached --check
+          git commit -m 'fix: serve immutable MUSITU Store 1.0.1 release asset'
+          git push origin HEAD:musitu-store-phase1-20260909
+          echo "REPAIR_COMMIT=$(git rev-parse HEAD)"
