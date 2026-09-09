@@ -1,0 +1,95 @@
+{
+  "schema": "musitu.chemistry.android_1_3.customer_routing.evidence.v1",
+  "date": "2026-09-09",
+  "repository": "evansmusitu/mft-axiom-build",
+  "branch": "chemistry-frontier-universal-20260908",
+  "incident": {
+    "symptom": "Android customer entry paths could present the browser/PWA preview even though the signed Android 1.3.0 APK had already been promoted.",
+    "root_cause": "The musitu-chemistry-commerce customer-routing Worker remained on pre-cutover Android/PWA routing and stale release presentation while the separate download Worker already served the verified 1.3.0 APK and retired the 1.2.0 public route.",
+    "old_apk_public_bytes_served_during_forensics": false,
+    "old_1_2_public_route_status": 410
+  },
+  "android_stable": {
+    "version": "1.3.0",
+    "url": "https://payments.mftintelligence.com/chemistry/download/MUSITU_Chemistry_Mastery_1.3.0.apk",
+    "bytes": 5892286,
+    "sha256": "4ba442122d9c86a0c3cef660334fe337c6ea9ae6fe853c964b5e94961245babd",
+    "android_signing_certificate_sha256": "d4455ac3ec74a6d7cd7993ca640f554a83bba95dfd01ef508f7637b6bc72c0d8"
+  },
+  "retired_android_1_2": {
+    "url": "https://payments.mftintelligence.com/chemistry/download/MUSITU_Chemistry_Mastery_1.2.0.apk",
+    "former_sha256": "055b63f271c18faab540985faefb970f472ea55ba9cb3495db459797902b790d",
+    "public_status": 410,
+    "apk_bytes_publicly_returned": false
+  },
+  "production_cutover": {
+    "workflow": ".github/workflows/chemistry-android-1-3-customer-routing-production-deploy-v3.yml",
+    "github_run_id": 34329883557,
+    "github_head_sha": "8f2d5c50a64e7bc3d1a4c92d5cfd9316a13f7390",
+    "deploy_job_id": 102395731913,
+    "previous_worker_sha256": "840de9b766922fd5ab69b34e33f6a25053b50bb025da73e76f947d65a8a7ab35",
+    "production_worker_sha256": "7e3b9b188a9e69399e120f0a36b90bc63ac37e5bae87a2b731e67b565ee3573c",
+    "production_worker_bytes": 203465,
+    "public_edge_convergence_consecutive_passes": 3,
+    "exhaustive_production_sweeps_consecutive_passes": 6,
+    "rollback_used": false,
+    "gate": "MUSITU_CHEMISTRY_ANDROID_1_3_CUSTOMER_ROUTING_DEPLOY_V3_PASS",
+    "artifact": {
+      "id": 10095319303,
+      "name": "musitu-chemistry-android-1-3-customer-routing-production-deploy-v3",
+      "zip_sha256": "4a2c30e046c4c3b49e6d480106ac14499c4192c1bef2d92e480cff492e00b81f"
+    }
+  },
+  "independent_public_verification": {
+    "job_id": 102395973292,
+    "uses_deployment_credentials": false,
+    "production_mutation": false,
+    "sample_count": 19,
+    "android_full_chain_samples": 3,
+    "android_chain": "/chemistry/app -> 302 /chemistry/install -> 302 official 1.3.0 APK -> HTTP 200 exact signed APK bytes",
+    "iphone_web_carrier_preserved": true,
+    "desktop_web_carrier_preserved": true,
+    "verify_page_1_3_release_truth_verified": true,
+    "release_notes_1_3_truth_verified": true,
+    "service_worker_generation": "musitu-chemistry-install-v9",
+    "app_shell_generation": "musitu-chemistry-app-shell-v5",
+    "old_1_2_route_retired_verified": true,
+    "old_1_2_alias_escape_found": false,
+    "gate": "MUSITU_CHEMISTRY_ANDROID_1_3_INDEPENDENT_PUBLIC_VERIFY_V3_PASS",
+    "artifact": {
+      "id": 10095324281,
+      "name": "musitu-chemistry-android-1-3-independent-public-verify-v3",
+      "zip_sha256": "34098b13db3669b5642ddf26f26083c1b94b745fc90b41384db26d5a21d01d09"
+    }
+  },
+  "failure_history_preserved": {
+    "v1_run_id": 34327563567,
+    "v1_rolled_back": true,
+    "v2_run_id": 34329465028,
+    "v2_artifact_id": 10095155870,
+    "v2_artifact_zip_sha256": "ea235e368cef26a6a1498c69df80876049138163815717e5d40c4ace948aa537",
+    "v2_rolled_back": true,
+    "v2_transient_preconvergence_edge_samples": 2,
+    "v2_postconvergence_android_exact_samples": 18,
+    "v2_remaining_failure_was_verifier_contract_mismatch": true
+  },
+  "customer_routing_contract": {
+    "android_app_entry_server_authoritative": true,
+    "android_install_entry_server_authoritative": true,
+    "android_app_routes_to_official_1_3_apk": true,
+    "android_web_preview_is_not_customer_browser_destination": true,
+    "non_android_web_carrier_preserved": true,
+    "commerce_health_preserved": true,
+    "catalog_preserved": true,
+    "payment_authority_preserved": true,
+    "transport_binding_preserved": true,
+    "secrets_published": false,
+    "vercel_used": false,
+    "main_branch_mutation_required": false
+  },
+  "physical_customer_retest_after_routing_cutover": {
+    "claimed": false,
+    "status": "PENDING_CUSTOMER_RETEST"
+  },
+  "gate": "MUSITU_CHEMISTRY_ANDROID_1_3_CUSTOMER_ROUTING_CUTOVER_SEALED"
+}
