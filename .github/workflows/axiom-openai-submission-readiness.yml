@@ -38,7 +38,7 @@ jobs:
           sha=hashlib.sha256(submission_path.read_bytes()).hexdigest()
           recorded=pathlib.Path('submission/chatgpt-app-submission.sha256').read_text().split()[0]
 
-          if submission.get('schema_version')!=1 or submission.get('app_info',{}).get('display_name')!='MUSITU Axiom':raise RuntimeError('submission import contract drift')
+          if submission.get('$schema')!='https://developers.openai.com/apps-sdk/schemas/chatgpt-app-submission.v1.json' or submission.get('app_info',{}).get('display_name')!='MUSITU Axiom':raise RuntimeError('submission import contract drift')
           if len(submission.get('tools') or {})!=108 or len(submission.get('test_cases') or [])!=5 or len(submission.get('negative_test_cases') or [])!=3:raise RuntimeError('submission cardinality drift')
           if review.get('gate')!='MUSITU_AXIOM_CHATGPT_SUBMISSION_PACKAGE_PASS' or review.get('public_tool_count')!=108 or review.get('operation_count')!=74 or review.get('business_product_count')!=30:raise RuntimeError('review-check evidence drift')
           if any(review.get(k) for k in ('missing_output_schema','sensitive_input_fields','promotional_commerce_descriptor_findings')):raise RuntimeError('review findings are not clean')
