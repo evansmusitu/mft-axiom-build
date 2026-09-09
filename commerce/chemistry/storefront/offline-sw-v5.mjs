@@ -1,10 +1,9 @@
-// Dedicated offline shell for the installed MUSITU Chemistry experience.
-// Payment, entitlement and telemetry routes remain network/server authoritative.
+// Dedicated offline shell for the installed MUSITU Chemistry web experience.
+// Payment, entitlement, telemetry and Android APK installation remain network/server authoritative.
 export const INSTALL_SW_V5_JS=String.raw`
-const CACHE='musitu-chemistry-install-v8';
+const CACHE='musitu-chemistry-install-v9';
 const APP='/chemistry/app';
 const RESCUE='/chemistry/rescue?src=direct';
-const INSTALL='/chemistry/install';
 const STATIC=[
   APP,
   '/chemistry/app?view=rescue',
@@ -12,9 +11,8 @@ const STATIC=[
   '/chemistry/app?view=premium',
   '/chemistry/app?view=help',
   RESCUE,
-  INSTALL,
-  '/chemistry/assets/app-shell.css?v=4',
-  '/chemistry/assets/app-shell.js?v=4',
+  '/chemistry/assets/app-shell.css?v=5',
+  '/chemistry/assets/app-shell.js?v=5',
   '/chemistry/assets/app-bridge.js?v=1',
   '/chemistry/assets/storefront.css?v=3',
   '/chemistry/assets/install-concierge.css?v=4',
@@ -23,9 +21,9 @@ const STATIC=[
   '/chemistry/assets/musitu-chemistry-512.png',
   '/chemistry/manifest.webmanifest?v=2'
 ];
-const SENSITIVE=/^\/chemistry\/(checkout|return|claim|telemetry|plans)(?:\/|$)/;
+const SENSITIVE=/^\/chemistry\/(checkout|return|claim|telemetry|plans|install)(?:\/|$)/;
 const cachePut=async(req,res)=>{
-  if(res&&res.ok){const c=await caches.open(CACHE);await c.put(req,res.clone())}
+  if(res&&res.ok&&!res.redirected){const c=await caches.open(CACHE);await c.put(req,res.clone())}
   return res;
 };
 const networkFirst=async(req,fallback)=>{
@@ -36,7 +34,7 @@ self.addEventListener('install',event=>event.waitUntil(
   caches.open(CACHE).then(c=>c.addAll(STATIC)).then(()=>self.skipWaiting())
 ));
 self.addEventListener('activate',event=>event.waitUntil(
-  caches.keys().then(keys=>Promise.all(keys.filter(k=>k.startsWith('musitu-chemistry-install-')&&k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim())
+  caches.keys().then(keys=>Promise.all(keys.filter(k=>(k.startsWith('musitu-chemistry-install-')||k.startsWith('musitu-chemistry-app-shell-'))&&k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim())
 ));
 self.addEventListener('fetch',event=>{
   const req=event.request;
@@ -52,10 +50,6 @@ self.addEventListener('fetch',event=>{
     }
     if(u.pathname==='/chemistry/rescue'){
       event.respondWith(networkFirst(req,RESCUE));
-      return;
-    }
-    if(u.pathname==='/chemistry/install'){
-      event.respondWith(networkFirst(req,INSTALL));
       return;
     }
     return;
