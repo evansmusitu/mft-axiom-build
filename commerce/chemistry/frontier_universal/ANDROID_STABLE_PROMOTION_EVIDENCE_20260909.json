@@ -1,0 +1,120 @@
+{
+  "schema": "musitu.chemistry.frontier.android_stable_promotion.evidence.v1",
+  "date": "2026-09-09",
+  "repository": "evansmusitu/mft-axiom-build",
+  "branch": "chemistry-frontier-universal-20260908",
+  "scope": "android_sidecar_stable_promotion",
+  "product": "MUSITU Chemistry",
+  "stable_version": "1.3.0",
+  "authorization": {
+    "customer_install_verified": true,
+    "installation_reliability_gate": "PASS_BY_CUSTOMER_VERIFICATION",
+    "explicit_stable_promotion_authorized": true
+  },
+  "stable": {
+    "url": "https://payments.mftintelligence.com/chemistry/download/MUSITU_Chemistry_Mastery_1.3.0.apk",
+    "filename": "MUSITU_Chemistry_Mastery_1.3.0.apk",
+    "bytes": 5892286,
+    "sha256": "4ba442122d9c86a0c3cef660334fe337c6ea9ae6fe853c964b5e94961245babd",
+    "release_status_header": "stable",
+    "byte_identical_to_verified_canary": true,
+    "application_id": "com.musitu.chemistry",
+    "signing_certificate_sha256": "d4455ac3ec74a6d7cd7993ca640f554a83bba95dfd01ef508f7637b6bc72c0d8",
+    "signing_certificate_matches_rc2_rc3": true
+  },
+  "legacy_1_2": {
+    "preserved": true,
+    "status": "legacy_rollback",
+    "url": "https://payments.mftintelligence.com/chemistry/download/MUSITU_Chemistry_Mastery_1.2.0.apk",
+    "filename": "MUSITU_Chemistry_Mastery_1.2.0.apk",
+    "bytes": 5314934,
+    "sha256": "055b63f271c18faab540985faefb970f472ea55ba9cb3495db459797902b790d"
+  },
+  "canary_alias": {
+    "preserved": true,
+    "url": "https://payments.mftintelligence.com/chemistry/download/MUSITU_Chemistry_1.3.0-frontier-sidecar-rc1.apk",
+    "bytes": 5892286,
+    "sha256": "4ba442122d9c86a0c3cef660334fe337c6ea9ae6fe853c964b5e94961245babd",
+    "release_status_header": "canary-alias"
+  },
+  "publication": {
+    "mechanism": "github_actions_to_existing_cloudflare_worker_static_assets",
+    "worker": "musitu-chemistry-downloads",
+    "route": "payments.mftintelligence.com/chemistry/download*",
+    "promotion_workflow_commit": "86e1bb0de2baf5a72a925c68f9b8634d6b6eebd8",
+    "promotion_run_id": 34318486073,
+    "promotion_artifact_id": 10090944686,
+    "worker_version_id": "d1469d18-ce0f-4ab0-bca6-99a168a1a362",
+    "conclusion": "success",
+    "rollback_invoked": false,
+    "vercel_used": false,
+    "commerce_worker_mutated": false,
+    "secrets_published": false
+  },
+  "independent_verification": {
+    "workflow_commit": "8a993d0c404fcbd9661bbe3c8f100e6fdc12c2aa",
+    "run_id": 34318587573,
+    "artifact_id": 10090977394,
+    "conclusion": "success",
+    "production_mutation": false,
+    "deployment_secrets_used": false,
+    "samples_per_release": 2,
+    "stable_samples": [
+      {
+        "sample": 1,
+        "http": 200,
+        "bytes": 5892286,
+        "sha256": "4ba442122d9c86a0c3cef660334fe337c6ea9ae6fe853c964b5e94961245babd",
+        "release_status": "stable"
+      },
+      {
+        "sample": 2,
+        "http": 200,
+        "bytes": 5892286,
+        "sha256": "4ba442122d9c86a0c3cef660334fe337c6ea9ae6fe853c964b5e94961245babd",
+        "release_status": "stable"
+      }
+    ],
+    "legacy_samples": [
+      {
+        "sample": 1,
+        "http": 200,
+        "bytes": 5314934,
+        "sha256": "055b63f271c18faab540985faefb970f472ea55ba9cb3495db459797902b790d",
+        "release_status": "legacy"
+      },
+      {
+        "sample": 2,
+        "http": 200,
+        "bytes": 5314934,
+        "sha256": "055b63f271c18faab540985faefb970f472ea55ba9cb3495db459797902b790d",
+        "release_status": "legacy"
+      }
+    ],
+    "canary_alias_samples": [
+      {
+        "sample": 1,
+        "http": 200,
+        "bytes": 5892286,
+        "sha256": "4ba442122d9c86a0c3cef660334fe337c6ea9ae6fe853c964b5e94961245babd",
+        "release_status": "canary-alias"
+      },
+      {
+        "sample": 2,
+        "http": 200,
+        "bytes": 5892286,
+        "sha256": "4ba442122d9c86a0c3cef660334fe337c6ea9ae6fe853c964b5e94961245babd",
+        "release_status": "canary-alias"
+      }
+    ],
+    "gate": "MUSITU_CHEMISTRY_FRONTIER_ANDROID_STABLE_INDEPENDENT_VERIFY_PASS"
+  },
+  "release_boundaries": {
+    "android_sidecar_promoted_to_stable": true,
+    "universal_web_carrier_deployed": false,
+    "universal_web_carrier_promoted": false,
+    "legacy_1_2_deleted": false,
+    "main_branch_mutation_required": false
+  },
+  "gate": "MUSITU_CHEMISTRY_FRONTIER_ANDROID_1_3_0_STABLE_PROMOTION_SEALED"
+}
