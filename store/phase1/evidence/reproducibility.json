@@ -1,18 +1,20 @@
 {
   "schema": "musitu.store.reproducibility_evidence.v1",
-  "generatedAt": "2026-09-09T11:52:34Z",
+  "generatedAt": "2026-09-09T18:29:10Z",
   "storeClient": {
-    "prebuiltHead": "6eaafb8a10e6b555d99d7a99a471294d4d6ad370",
-    "unsignedSha256": "823b1ec0ec8bb68e3d5454ee1d70dbca6b7b8028d9f06d51149d79f9b9837555",
-    "signedSha256": "71391bf614cc1186cbe1fda17e9e626aad71d96dbf26807228b73bd2ea99b2f8",
+    "prebuiltHead": "d731ab34547ba2ac231252ea9f92903e1da8cad2",
+    "prebuildWorkflowRunId": 34375263828,
+    "unsignedSha256": "ebfcac3dfc21887bc2f8203c1b047bd0b9187cbc80ad7ea61775a15d82aa0b76",
+    "signedSha256": "b755210f303ebb6d22a3177bb21e5ebae2e076901021ee62ca2fe6ab0f14af82",
     "signingSchemes": {
-      "v1": true,
+      "v1": false,
       "v2": true,
       "v3": true
     },
     "payloadPreservation": {
-      "entriesCompared": 50,
-      "equal": true
+      "entriesCompared": 67,
+      "equal": true,
+      "signingBlockBytes": 4096
     }
   },
   "chemistry": {

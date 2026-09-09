@@ -1,7 +1,7 @@
 {
   "schema": "musitu.store.catalog.v1",
-  "revision": 1,
-  "generatedAt": "2026-09-09T11:52:34Z",
+  "revision": 2,
+  "generatedAt": "2026-09-09T18:29:10Z",
   "store": {
     "name": "MUSITU Store",
     "canonicalURL": "https://payments.mftintelligence.com/store",
@@ -141,14 +141,14 @@
     "catalogSignatureAlgorithm": "ECDSA_P256_SHA256_DER_BASE64",
     "catalogPublicKeySha256": "4cf17f70dbab900237d8b82b4e989978c667e6ec841de6df79469aa6c5ebd5c0",
     "storeClient": {
-      "version": "1.0.0",
-      "versionCode": 10000,
+      "version": "1.0.1",
+      "versionCode": 10001,
       "packageId": "com.musitu.store",
-      "sha256": "71391bf614cc1186cbe1fda17e9e626aad71d96dbf26807228b73bd2ea99b2f8",
-      "bytes": 1687882,
+      "sha256": "b755210f303ebb6d22a3177bb21e5ebae2e076901021ee62ca2fe6ab0f14af82",
+      "bytes": 1679572,
       "signingCertificateSha256": "43695b6103d7ab57e89166c9a537f1810b7e33053e20332b1d4e7e2e1c612671",
-      "unsignedPrebuiltSha256": "823b1ec0ec8bb68e3d5454ee1d70dbca6b7b8028d9f06d51149d79f9b9837555",
-      "unsignedPrebuiltBytes": 1675424
+      "unsignedPrebuiltSha256": "ebfcac3dfc21887bc2f8203c1b047bd0b9187cbc80ad7ea61775a15d82aa0b76",
+      "unsignedPrebuiltBytes": 1675476
     }
   }
 }

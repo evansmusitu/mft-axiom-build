@@ -1,19 +1,21 @@
 {
   "schema": "musitu.store.phase1_metadata_verification.v1",
-  "generatedAt": "2026-09-09T11:52:34Z",
+  "generatedAt": "2026-09-09T18:29:10Z",
   "inputs": {
     "catalogTemplateSha256": "20e2abf72c45f745c2d383c29680a5d69953b9595a834b1502c4d90da1b59dfc",
     "chemistryApkSha256": "4ba442122d9c86a0c3cef660334fe337c6ea9ae6fe853c964b5e94961245babd",
-    "storeUnsignedApkSha256": "823b1ec0ec8bb68e3d5454ee1d70dbca6b7b8028d9f06d51149d79f9b9837555",
-    "storeSignedApkSha256": "71391bf614cc1186cbe1fda17e9e626aad71d96dbf26807228b73bd2ea99b2f8",
+    "storeUnsignedApkSha256": "ebfcac3dfc21887bc2f8203c1b047bd0b9187cbc80ad7ea61775a15d82aa0b76",
+    "storeSignedApkSha256": "b755210f303ebb6d22a3177bb21e5ebae2e076901021ee62ca2fe6ab0f14af82",
     "iosIpaSha256": "426d2dc05e2fc8846a7582324d953bbdd2a256f170f8db2b5a956bc1c51cc962",
     "webArchiveSha256": "1445074e87e8c4a9a15281baa586855fe31f92c06dd393a11458adce9821ec30"
   },
   "gates": {
-    "storeApkV1": true,
+    "storeApkV1": false,
     "storeApkV2": true,
     "storeApkV3": true,
     "storeApkPayloadPreserved": true,
+    "storeApkSignerMatched": true,
+    "catalogSignerMatched": true,
     "privateMaterialPublished": false,
     "productionDeploymentPerformed": false,
     "freshDevicePhase1Completion": false,
