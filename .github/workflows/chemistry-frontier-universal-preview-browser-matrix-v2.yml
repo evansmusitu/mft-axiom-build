@@ -1,0 +1,76 @@
+name: MUSITU Chemistry Frontier Universal Preview Browser Matrix v2
+
+on:
+  push:
+    branches: [chemistry-frontier-universal-20260908]
+    paths: ['.github/workflows/chemistry-frontier-universal-preview-browser-matrix-v2.yml']
+
+permissions:
+  contents: read
+
+jobs:
+  browser:
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium, chrome, msedge, firefox, webkit]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    env:
+      BASE_URL: https://payments.mftintelligence.com/chemistry/frontier-universal-preview/
+      BROWSER_NAME: ${{ matrix.browser }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install Playwright 1.63.0 and engine
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/mchem-browser-v2-${BROWSER_NAME}
+          cd /tmp/mchem-browser-v2-${BROWSER_NAME}
+          npm init -y >/dev/null
+          npm install --no-audit --no-fund playwright@1.63.0
+          npx playwright install --with-deps "$BROWSER_NAME"
+      - name: Reuse same scenario with exact navigation selectors
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd /tmp/mchem-browser-v2-${BROWSER_NAME}
+          python - <<'PY'
+          from pathlib import Path
+          src=Path(Path.cwd().as_posix().replace('/tmp/mchem-browser-v2-'+__import__('os').environ['BROWSER_NAME'], '') or '.')
+          text=Path(__import__('os').environ['GITHUB_WORKSPACE']+'/.github/workflows/chemistry-frontier-universal-preview-browser-matrix.yml').read_text()
+          start=text.index("          cat > verify.cjs <<'JS'\n") + len("          cat > verify.cjs <<'JS'\n")
+          end=text.index("\n          JS\n",start)
+          script='\n'.join(line[10:] if line.startswith('          ') else line for line in text[start:end].splitlines())+'\n'
+          script=script.replace("getByRole('button',{name:n})","getByRole('button',{name:n,exact:true})")
+          script=script.replace("getByRole('button',{name:'Home'})","getByRole('button',{name:'Home',exact:true})")
+          Path('verify.cjs').write_text(script)
+          PY
+          node verify.cjs
+          sha256sum result.json > result.sha256
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: musitu-universal-preview-browser-v2-${{ matrix.browser }}
+          path: |
+            /tmp/mchem-browser-v2-${{ matrix.browser }}/result.json
+            /tmp/mchem-browser-v2-${{ matrix.browser }}/result.sha256
+            /tmp/mchem-browser-v2-${{ matrix.browser }}/failure.txt
+          if-no-files-found: warn
+          retention-days: 90
+
+  matrix-gate:
+    needs: browser
+    if: always()
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Require every browser job green
+        env:
+          MATRIX_RESULT: ${{ needs.browser.result }}
+        run: |
+          set -euo pipefail
+          test "$MATRIX_RESULT" = success
+          echo MUSITU_CHEMISTRY_FRONTIER_UNIVERSAL_PREVIEW_BROWSER_MATRIX_PASS
