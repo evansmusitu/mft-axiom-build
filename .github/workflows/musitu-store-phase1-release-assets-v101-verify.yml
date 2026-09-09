@@ -1,0 +1,34 @@
+name: MUSITU Store Phase 1 Release Assets v1.0.1 Verify
+
+on:
+  push:
+    branches: [musitu-store-phase1-20260909]
+    paths:
+      - 'store/phase1/web-surface/worker.mjs'
+      - 'store/phase1/web-surface/release-assets-v101.test.mjs'
+      - '.github/workflows/musitu-store-phase1-release-assets-v101-verify.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Generate catalog-backed web data and run focused asset contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          python store/phase1/web-surface/build_store_data.py
+          node --check store/phase1/web-surface/worker.mjs
+          node --test store/phase1/web-surface/release-assets-v101.test.mjs
+          echo MUSITU_STORE_RELEASE_ASSETS_V101=PASS
