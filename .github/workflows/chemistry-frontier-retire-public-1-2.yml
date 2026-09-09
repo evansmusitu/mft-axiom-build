@@ -1,0 +1,170 @@
+name: MUSITU Chemistry Retire Public Android 1.2.0
+
+on:
+  push:
+    branches: [chemistry-frontier-universal-20260908]
+    paths: ['.github/workflows/chemistry-frontier-retire-public-1-2.yml']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: musitu-chemistry-frontier-retire-public-1-2
+  cancel-in-progress: false
+
+jobs:
+  retire:
+    if: github.ref == 'refs/heads/chemistry-frontier-universal-20260908'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      BASE: https://payments.mftintelligence.com/chemistry/download
+      LEGACY_NAME: MUSITU_Chemistry_Mastery_1.2.0.apk
+      LEGACY_SHA256: 055b63f271c18faab540985faefb970f472ea55ba9cb3495db459797902b790d
+      LEGACY_BYTES: '5314934'
+      CANARY_NAME: MUSITU_Chemistry_1.3.0-frontier-sidecar-rc1.apk
+      STABLE_NAME: MUSITU_Chemistry_Mastery_1.3.0.apk
+      STABLE_SHA256: 4ba442122d9c86a0c3cef660334fe337c6ea9ae6fe853c964b5e94961245babd
+      STABLE_BYTES: '5892286'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verify live source bytes and build 1.3-only deployment
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/mchem-retire-12 /tmp/mchem-retire-12-emergency /tmp/mchem-retire-12-evidence
+          mkdir -p /tmp/mchem-retire-12/public/chemistry/download /tmp/mchem-retire-12/src \
+                   /tmp/mchem-retire-12-emergency/public/chemistry/download /tmp/mchem-retire-12-emergency/src \
+                   /tmp/mchem-retire-12-evidence
+
+          # Prove the exact public 1.2.0 object being retired before mutation.
+          curl --fail --location --silent --show-error --max-time 180 "$BASE/$LEGACY_NAME" -o /tmp/legacy-before.apk
+          echo "$LEGACY_SHA256  /tmp/legacy-before.apk" | sha256sum -c -
+          test "$(stat -c %s /tmp/legacy-before.apk)" = "$LEGACY_BYTES"
+
+          # Reconstruct the active deployment only from independently pinned 1.3.0 bytes.
+          curl --fail --location --silent --show-error --max-time 180 "$BASE/$STABLE_NAME" -o /tmp/stable.apk
+          echo "$STABLE_SHA256  /tmp/stable.apk" | sha256sum -c -
+          test "$(stat -c %s /tmp/stable.apk)" = "$STABLE_BYTES"
+          curl --fail --location --silent --show-error --max-time 180 "$BASE/$CANARY_NAME" -o /tmp/canary.apk
+          echo "$STABLE_SHA256  /tmp/canary.apk" | sha256sum -c -
+          test "$(stat -c %s /tmp/canary.apk)" = "$STABLE_BYTES"
+          cmp /tmp/stable.apk /tmp/canary.apk
+          python - <<'PY'
+          from pathlib import Path
+          for p in [Path('/tmp/stable.apk'),Path('/tmp/canary.apk')]:
+              if p.read_bytes()[:4] != b'PK\x03\x04': raise SystemExit('not APK/ZIP: '+str(p))
+          PY
+
+          for dir in /tmp/mchem-retire-12 /tmp/mchem-retire-12-emergency; do
+            cp /tmp/stable.apk "$dir/public/chemistry/download/$STABLE_NAME"
+            cp /tmp/canary.apk "$dir/public/chemistry/download/$CANARY_NAME"
+          done
+
+          cat > /tmp/mchem-retire-12/src/index.js <<'JS'
+          const RETIRED='/chemistry/download/MUSITU_Chemistry_Mastery_1.2.0.apk';
+          const RELEASES={
+            '/chemistry/download/MUSITU_Chemistry_1.3.0-frontier-sidecar-rc1.apk':{name:'MUSITU_Chemistry_1.3.0-frontier-sidecar-rc1.apk',sha:'4ba442122d9c86a0c3cef660334fe337c6ea9ae6fe853c964b5e94961245babd',cache:'no-store',status:'canary-alias'},
+            '/chemistry/download/MUSITU_Chemistry_Mastery_1.3.0.apk':{name:'MUSITU_Chemistry_Mastery_1.3.0.apk',sha:'4ba442122d9c86a0c3cef660334fe337c6ea9ae6fe853c964b5e94961245babd',cache:'public, max-age=86400, immutable',status:'stable'}
+          };
+          export default {async fetch(request,env){
+            const path=new URL(request.url).pathname;
+            if(path===RETIRED){
+              return new Response('MUSITU Chemistry 1.2.0 has been retired from public distribution.\n',{status:410,headers:{'Content-Type':'text/plain; charset=utf-8','Cache-Control':'no-store','X-Content-Type-Options':'nosniff','X-MUSITU-Release-Status':'retired'}});
+            }
+            const response=await env.ASSETS.fetch(request);
+            if(!response.ok || !RELEASES[path]) return response;
+            const meta=RELEASES[path],h=new Headers(response.headers);
+            h.set('Content-Type','application/vnd.android.package-archive');
+            h.set('Content-Disposition',`attachment; filename="${meta.name}"`);
+            h.set('X-Content-Type-Options','nosniff');
+            h.set('Cache-Control',meta.cache);
+            h.set('X-MUSITU-SHA256',meta.sha);
+            h.set('X-MUSITU-Release-Status',meta.status);
+            return new Response(response.body,{status:response.status,statusText:response.statusText,headers:h});
+          }};
+          JS
+
+          # Emergency deployment has the same public-retirement boundary but a minimal handler.
+          cp /tmp/mchem-retire-12/src/index.js /tmp/mchem-retire-12-emergency/src/index.js
+
+          for dir in /tmp/mchem-retire-12 /tmp/mchem-retire-12-emergency; do
+            cat > "$dir/wrangler.jsonc" <<'JSON'
+          {
+            "name":"musitu-chemistry-downloads",
+            "account_id":"93f395f5121954671f92fffa453d6b61",
+            "compatibility_date":"2026-09-06",
+            "workers_dev":false,
+            "main":"src/index.js",
+            "routes":[{"pattern":"payments.mftintelligence.com/chemistry/download*","zone_id":"5b56528f03948ff5917a5e0cd9f7109e"}],
+            "assets":{"directory":"./public","binding":"ASSETS","run_worker_first":true}
+          }
+          JSON
+          done
+
+      - name: Retire 1.2.0 public route with fail-closed 1.3 preservation
+        shell: bash
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        run: |
+          set -euo pipefail
+          emergency(){
+            echo 'RETIREMENT_EMERGENCY_REDEPLOY=START'
+            (cd /tmp/mchem-retire-12-emergency && npx --yes wrangler@latest deploy --config wrangler.jsonc)
+          }
+
+          (cd /tmp/mchem-retire-12 && npx --yes wrangler@latest deploy --config wrangler.jsonc)
+
+          if ! python - <<'PY'
+          import hashlib,json,time,urllib.error,urllib.request
+          base='https://payments.mftintelligence.com/chemistry/download/'
+          stable_sha='4ba442122d9c86a0c3cef660334fe337c6ea9ae6fe853c964b5e94961245babd'
+          specs={
+            'stable':('MUSITU_Chemistry_Mastery_1.3.0.apk',5892286,stable_sha,'stable'),
+            'canary_alias':('MUSITU_Chemistry_1.3.0-frontier-sidecar-rc1.apk',5892286,stable_sha,'canary-alias')
+          }
+          out={}
+          for kind,(name,size,sha,state) in specs.items():
+              last='not attempted'
+              for _ in range(30):
+                  try:
+                      q=urllib.request.Request(base+name,headers={'Cache-Control':'no-cache','User-Agent':'MUSITU-Retire-1.2/1.0','Accept':'application/vnd.android.package-archive'})
+                      with urllib.request.urlopen(q,timeout=90) as r: body=r.read(); status=r.status; h={k.lower():v for k,v in r.headers.items()}
+                      digest=hashlib.sha256(body).hexdigest()
+                      if status==200 and len(body)==size and digest==sha and h.get('x-musitu-sha256')==sha and h.get('x-musitu-release-status')==state:
+                          out[kind]={'http':status,'bytes':len(body),'sha256':digest,'release_status':state};break
+                      last=f'{status}/{len(body)}/{digest}/{h.get("x-musitu-release-status")}'
+                  except Exception as e:last=repr(e)
+                  time.sleep(1.5)
+              else: raise SystemExit(kind+' verification failed '+last)
+
+          retired='MUSITU_Chemistry_Mastery_1.2.0.apk'
+          legacy=None
+          for _ in range(30):
+              try:
+                  q=urllib.request.Request(base+retired,headers={'Cache-Control':'no-cache','User-Agent':'MUSITU-Retire-1.2/1.0'})
+                  with urllib.request.urlopen(q,timeout=30) as r: body=r.read(); status=r.status; h={k.lower():v for k,v in r.headers.items()}
+              except urllib.error.HTTPError as e:
+                  body=e.read(); status=e.code; h={k.lower():v for k,v in e.headers.items()}
+              if status==410 and h.get('x-musitu-release-status')=='retired' and stable_sha.encode() not in body:
+                  legacy={'http':410,'release_status':'retired','public_apk_bytes_served':False,'response_bytes':len(body)};break
+              time.sleep(1.5)
+          if not legacy: raise SystemExit('1.2.0 retirement verification failed')
+
+          ev={'schema':'musitu.chemistry.frontier.android_1_2_public_retirement.live.v1','retired_version':'1.2.0','retired_url':base+retired,'retired_sha256':'055b63f271c18faab540985faefb970f472ea55ba9cb3495db459797902b790d','retired_from_public_distribution':True,'retired_route_http':410,'stable_1_3_preserved':True,'stable_1_3_url':base+'MUSITU_Chemistry_Mastery_1.3.0.apk','stable_1_3_sha256':stable_sha,'canary_alias_preserved':True,'universal_web_carrier_deployed':False,'private_evidence_deleted':False,'samples':{**out,'retired_1_2':legacy},'gate':'MUSITU_CHEMISTRY_ANDROID_1_2_PUBLIC_RETIREMENT_PASS'}
+          raw=(json.dumps(ev,indent=2,sort_keys=True)+'\n').encode();open('/tmp/mchem-retire-12-evidence/live.json','wb').write(raw);open('/tmp/mchem-retire-12-evidence/live.sha256','w').write(hashlib.sha256(raw).hexdigest()+'  live.json\n');print(json.dumps(ev,sort_keys=True))
+          PY
+          then
+            emergency
+            exit 1
+          fi
+          echo 'MUSITU_CHEMISTRY_ANDROID_1_2_PUBLIC_RETIREMENT_PASS'
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: musitu-chemistry-android-1-2-public-retirement
+          path: /tmp/mchem-retire-12-evidence
+          retention-days: 90
+          if-no-files-found: error
