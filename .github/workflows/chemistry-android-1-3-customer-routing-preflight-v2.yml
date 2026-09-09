@@ -1,0 +1,162 @@
+name: MUSITU Chemistry Android 1.3 Customer Routing Preflight v2
+
+on:
+  push:
+    branches: [chemistry-frontier-universal-20260908]
+    paths: ['.github/workflows/chemistry-android-1-3-customer-routing-preflight-v2.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  preflight:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    env:
+      BASELINE_SHA: af73aaf21b19bec26b5825e8e513b55afa3baf45
+      LIVE_WORKER_SHA: 840de9b766922fd5ab69b34e33f6a25053b50bb025da73e76f947d65a8a7ab35
+      SOURCE_ZIP_SHA: 5b2618499eed8dc90261bc4f8260246d5593534500dd2fb145f2d24b5c47754c
+      BASE_WORKER_SHA: 848e1cec17ec580822d36e595196cda5978713849e8b45c5bc8dc7fcf9765db8
+      OLD_SHA: 055b63f271c18faab540985faefb970f472ea55ba9cb3495db459797902b790d
+      NEW_SHA: 4ba442122d9c86a0c3cef660334fe337c6ea9ae6fe853c964b5e94961245babd
+      NEW_BYTES: '5892286'
+      BASE: https://payments.mftintelligence.com
+      ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      WORKER: musitu-chemistry-commerce
+    steps:
+      - uses: actions/checkout@v4
+        with: {fetch-depth: 0}
+
+      - name: Prove previous source reconstructs exact current live Worker
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/old-src /tmp/old-base /tmp/old.zip
+          mkdir -p /tmp/old-src /tmp/old-base
+          git archive "$BASELINE_SHA" commerce/chemistry | tar -x -C /tmp/old-src
+          cd /tmp/old-src/commerce/chemistry
+          cat source.b64.* | base64 -d > /tmp/old.zip
+          echo "$SOURCE_ZIP_SHA  /tmp/old.zip" | sha256sum -c -
+          unzip -q /tmp/old.zip -d /tmp/old-base
+          echo "$BASE_WORKER_SHA  /tmp/old-base/src/index.mjs" | sha256sum -c -
+          cp /tmp/old-base/src/index.mjs index.base.mjs
+          python patch_storefront.py >/dev/null
+          python patch_rescue_growth.py >/dev/null
+          echo "$LIVE_WORKER_SHA  index.storefront-v3.mjs" | sha256sum -c -
+
+      - name: Build corrected candidate and run every storefront plus core test
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/new-base /tmp/new-core /tmp/new.zip android-routing-preflight-v2
+          mkdir -p /tmp/new-base /tmp/new-core/src android-routing-preflight-v2
+          cat commerce/chemistry/source.b64.* | base64 -d > /tmp/new.zip
+          echo "$SOURCE_ZIP_SHA  /tmp/new.zip" | sha256sum -c -
+          unzip -q /tmp/new.zip -d /tmp/new-base
+          echo "$BASE_WORKER_SHA  /tmp/new-base/src/index.mjs" | sha256sum -c -
+          cp /tmp/new-base/src/index.mjs commerce/chemistry/index.base.mjs
+          python commerce/chemistry/patch_storefront.py
+          python commerce/chemistry/patch_rescue_growth.py
+          python commerce/chemistry/patch_android_1_3_customer_routing.py | tee android-routing-preflight-v2/candidate-sha.txt
+          cp commerce/chemistry/index.storefront-v3.mjs android-routing-preflight-v2/candidate-worker.mjs
+          sha256sum android-routing-preflight-v2/candidate-worker.mjs | tee android-routing-preflight-v2/candidate-worker.sha256
+          node --check commerce/chemistry/index.storefront-v3.mjs
+          node --test commerce/chemistry/storefront/*.test.mjs | tee android-routing-preflight-v2/storefront-tests.txt
+          cp commerce/chemistry/index.storefront-v3.mjs /tmp/new-core/src/index.mjs
+          cp -a /tmp/new-base/test /tmp/new-core/
+          cp /tmp/new-base/package.json /tmp/new-core/
+          (cd /tmp/new-core && npm test) | tee android-routing-preflight-v2/core-tests.txt
+          (cd /tmp/new-core && npm run check) | tee android-routing-preflight-v2/core-check.txt
+
+      - name: Enforce new Android routing, release identity, cache and stale-marker invariants
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import hashlib,json,os
+          from pathlib import Path
+          s=Path('commerce/chemistry/index.storefront-v3.mjs').read_text(); raw=s.encode()
+          checks={
+            'old_sha_absent':os.environ['OLD_SHA'] not in s,
+            'old_apk_absent':'MUSITU_Chemistry_Mastery_1.2.0.apk' not in s,
+            'old_current_version_absent':"version:'1.2.0'" not in s,
+            'new_sha_present':os.environ['NEW_SHA'] in s,
+            'new_apk_present':'MUSITU_Chemistry_Mastery_1.3.0.apk' in s,
+            'new_current_version':"version:'1.3.0'" in s,
+            'android_302':"if(/Android/i.test(installUa))return new Response(null,{status:302" in s,
+            'android_location':"'location':'/chemistry/download/MUSITU_Chemistry_Mastery_1.3.0.apk'" in s,
+            'browser_app_handoff':"if(android&&!installed()){location.replace('/chemistry/install');return;}" in s,
+            'app_cache_v5':'musitu-chemistry-app-shell-v5' in s,
+            'app_cache_v4_absent':'musitu-chemistry-app-shell-v4' not in s,
+            'sw_cache_v9':'musitu-chemistry-install-v9' in s,
+            'install_not_sw_cached':"checkout|return|claim|telemetry|plans|install" in s and "const INSTALL='/chemistry/install'" not in s,
+            'current_verify_copy':'Official Android package' in s,
+            'retired_release_copy':'retired Android 1.2.0 public download is unavailable' in s,
+          }
+          if not all(checks.values()): raise SystemExit(json.dumps(checks,sort_keys=True))
+          out={'candidate_sha256':hashlib.sha256(raw).hexdigest(),'candidate_bytes':len(raw),'checks':checks,'gate':'MUSITU_CHEMISTRY_ANDROID_1_3_CANDIDATE_PASS'}
+          Path('android-routing-preflight-v2/invariants.json').write_text(json.dumps(out,indent=2,sort_keys=True)+'\n')
+          print(json.dumps(out,sort_keys=True))
+          PY
+
+      - name: Confirm production has not drifted and exact APK byte boundary is intact
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import email,hashlib,json,os,urllib.request,urllib.error
+          from pathlib import Path
+          H={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY'],'User-Agent':'MUSITU-Android-Preflight-v2'}
+          u=f"https://api.cloudflare.com/client/v4/accounts/{os.environ['ACCOUNT_ID']}/workers/scripts/{os.environ['WORKER']}"
+          q=urllib.request.Request(u,headers=H)
+          with urllib.request.urlopen(q,timeout=45) as r: raw=r.read(); ct=r.headers.get('content-type','')
+          src=raw
+          if 'multipart/' in ct.lower():
+            msg=email.message_from_bytes((f'Content-Type: {ct}\r\nMIME-Version: 1.0\r\n\r\n').encode()+raw);parts=[]
+            for p in msg.walk():
+              if p.is_multipart():continue
+              d=p.get_payload(decode=True) or b''
+              if b'MUSITU Chemistry Commerce' in d:parts.append(d)
+            if len(parts)!=1:raise SystemExit('worker extraction mismatch')
+            src=parts[0]
+          live=hashlib.sha256(src).hexdigest()
+          if live!=os.environ['LIVE_WORKER_SHA']:raise SystemExit('LIVE_SOURCE_DRIFT '+live)
+          ua='Mozilla/5.0 (Linux; Android 12; TECNO KI5k) AppleWebKit/537.36 Chrome/140 Mobile Safari/537.36'
+          def fetch(path):
+            q=urllib.request.Request(os.environ['BASE']+path,headers={'User-Agent':ua,'Cache-Control':'no-cache, no-store','Pragma':'no-cache'})
+            try:
+              with urllib.request.urlopen(q,timeout=45) as r:return r.status,r.read()
+            except urllib.error.HTTPError as e:return e.code,e.read()
+          samples=[]
+          for _ in range(2):
+            c,b=fetch('/chemistry/download/MUSITU_Chemistry_Mastery_1.3.0.apk'); dg=hashlib.sha256(b).hexdigest();samples.append(['new',c,len(b),dg])
+            if c!=200 or len(b)!=int(os.environ['NEW_BYTES']) or dg!=os.environ['NEW_SHA'] or not b.startswith(b'PK'):raise SystemExit('1.3 byte boundary failure')
+            c,b=fetch('/chemistry/download/MUSITU_Chemistry_Mastery_1.2.0.apk');samples.append(['old',c,len(b),hashlib.sha256(b).hexdigest()])
+            if c!=410 or b.startswith(b'PK'):raise SystemExit('1.2 retirement boundary failure')
+          out={'live_worker_sha256':live,'samples':samples,'production_mutation':False,'gate':'MUSITU_CHEMISTRY_ANDROID_1_3_LIVE_DRIFT_PASS'}
+          Path('android-routing-preflight-v2/live.json').write_text(json.dumps(out,indent=2,sort_keys=True)+'\n');print(json.dumps(out,sort_keys=True))
+          PY
+
+      - name: Seal passing preflight
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import hashlib,json
+          from pathlib import Path
+          inv=json.loads(Path('android-routing-preflight-v2/invariants.json').read_text()); live=json.loads(Path('android-routing-preflight-v2/live.json').read_text())
+          out={'candidate_sha256':inv['candidate_sha256'],'baseline_live_worker_sha256':live['live_worker_sha256'],'storefront_tests':'PASS','core_tests':'PASS','production_mutation':False,'gate':'MUSITU_CHEMISTRY_ANDROID_1_3_CUSTOMER_ROUTING_PREFLIGHT_V2_PASS'}
+          raw=(json.dumps(out,indent=2,sort_keys=True)+'\n').encode();Path('android-routing-preflight-v2/PREFLIGHT.json').write_bytes(raw);Path('android-routing-preflight-v2/PREFLIGHT.sha256').write_text(hashlib.sha256(raw).hexdigest()+'  PREFLIGHT.json\n');print(json.dumps(out,sort_keys=True))
+          PY
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: musitu-chemistry-android-1-3-customer-routing-preflight-v2
+          path: android-routing-preflight-v2
+          retention-days: 30
+          if-no-files-found: error
