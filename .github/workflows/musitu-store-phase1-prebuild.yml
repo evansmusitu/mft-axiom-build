@@ -1,0 +1,137 @@
+name: MUSITU Store Phase 1 Prebuild
+
+on:
+  push:
+    branches: [musitu-store-phase1-20260909]
+    paths:
+      - 'store/phase1/source_bundle.b64.*'
+      - '.github/workflows/musitu-store-phase1-prebuild.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: musitu-store-phase1-prebuild
+  cancel-in-progress: false
+
+jobs:
+  android:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - name: Expand sealed Phase 1 source bundle
+        run: cat store/phase1/source_bundle.b64.* | base64 -d | tar -xz
+      - uses: actions/setup-java@v4
+        with: {distribution: temurin, java-version: '21'}
+      - uses: android-actions/setup-android@v3
+      - run: sdkmanager 'platforms;android-36' 'build-tools;36.0.0'
+      - uses: gradle/actions/setup-gradle@v4
+        with: {gradle-version: '8.11.1'}
+      - name: Build unsigned MUSITU Store client
+        run: |
+          set -euo pipefail
+          gradle -p store/phase1/android-client --no-daemon :app:assembleRelease
+          APK=store/phase1/android-client/app/build/outputs/apk/release/app-release-unsigned.apk
+          test -s "$APK"
+          unzip -t "$APK" >/dev/null
+          mkdir -p out
+          cp "$APK" out/MUSITU_Store_1.0.0_UNSIGNED.apk
+          sha256sum out/MUSITU_Store_1.0.0_UNSIGNED.apk > out/android.sha256
+      - uses: actions/upload-artifact@v4
+        with: {name: musitu-store-phase1-android-unsigned, path: out, if-no-files-found: error, retention-days: 30}
+
+  ios:
+    runs-on: macos-15
+    timeout-minutes: 25
+    env:
+      STABLE_URL: https://payments.mftintelligence.com/chemistry/download/MUSITU_Chemistry_Mastery_1.3.0.apk
+      STABLE_SHA256: 4ba442122d9c86a0c3cef660334fe337c6ea9ae6fe853c964b5e94961245babd
+      STABLE_BYTES: '5892286'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Expand sealed Phase 1 source bundle
+        run: cat store/phase1/source_bundle.b64.* | base64 -d | tar -xz
+      - name: Fetch exact Android-embedded learner carrier
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 4 "$STABLE_URL" -o stable.apk
+          test "$(stat -f%z stable.apk)" = "$STABLE_BYTES"
+          echo "$STABLE_SHA256  stable.apk" | shasum -a 256 -c -
+          mkdir -p carrier
+          (cd carrier && unzip -q ../stable.apk 'assets/www/*')
+          test -f carrier/assets/www/index.html
+      - name: Build unsigned SideStore-compatible IPA from exact carrier
+        run: |
+          set -euo pipefail
+          SDK=$(xcrun --sdk iphoneos --show-sdk-path)
+          rm -rf Payload out && mkdir -p Payload/MUSITUChemistry.app/www out
+          cp -R carrier/assets/www/. Payload/MUSITUChemistry.app/www/
+          xcrun --sdk iphoneos swiftc \
+            -target arm64-apple-ios15.0 -sdk "$SDK" \
+            -framework UIKit -framework WebKit -parse-as-library \
+            store/phase1/ios/MUSITUChemistry.swift \
+            -o Payload/MUSITUChemistry.app/MUSITUChemistry
+          cat > Payload/MUSITUChemistry.app/Info.plist <<'PLIST'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0"><dict>
+          <key>CFBundleDisplayName</key><string>MUSITU Chemistry</string>
+          <key>CFBundleExecutable</key><string>MUSITUChemistry</string>
+          <key>CFBundleIdentifier</key><string>com.musitu.chemistry</string>
+          <key>CFBundleInfoDictionaryVersion</key><string>6.0</string>
+          <key>CFBundleName</key><string>MUSITUChemistry</string>
+          <key>CFBundlePackageType</key><string>APPL</string>
+          <key>CFBundleShortVersionString</key><string>1.3.0</string>
+          <key>CFBundleVersion</key><string>10200</string>
+          <key>LSRequiresIPhoneOS</key><true/>
+          <key>MinimumOSVersion</key><string>15.0</string>
+          <key>UILaunchScreen</key><dict/>
+          <key>UISupportedInterfaceOrientations</key><array><string>UIInterfaceOrientationPortrait</string><string>UIInterfaceOrientationLandscapeLeft</string><string>UIInterfaceOrientationLandscapeRight</string></array>
+          </dict></plist>
+          PLIST
+          plutil -lint Payload/MUSITUChemistry.app/Info.plist
+          cp Payload/MUSITUChemistry.app/www/assets/musitu-chemistry-512.png Payload/MUSITUChemistry.app/AppIcon.png || true
+          ditto -c -k --sequesterRsrc --keepParent Payload out/MUSITU_Chemistry_1.3.0.ipa
+          unzip -t out/MUSITU_Chemistry_1.3.0.ipa >/dev/null
+          /usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' Payload/MUSITUChemistry.app/Info.plist | grep -qx com.musitu.chemistry
+          shasum -a 256 out/MUSITU_Chemistry_1.3.0.ipa > out/ios.sha256
+      - uses: actions/upload-artifact@v4
+        with: {name: musitu-store-phase1-ios-unsigned, path: out, if-no-files-found: error, retention-days: 30}
+
+  seal-prebuilt:
+    needs: [android, ios]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with: {ref: musitu-store-phase1-20260909}
+      - name: Expand sealed Phase 1 source bundle
+        run: cat store/phase1/source_bundle.b64.* | base64 -d | tar -xz
+      - uses: actions/download-artifact@v4
+        with: {name: musitu-store-phase1-android-unsigned, path: /tmp/android}
+      - uses: actions/download-artifact@v4
+        with: {name: musitu-store-phase1-ios-unsigned, path: /tmp/ios}
+      - name: Commit immutable unsigned prebuilds for offline signing
+        run: |
+          set -euo pipefail
+          mkdir -p store/phase1/prebuilt/android store/phase1/prebuilt/ios
+          cp /tmp/android/MUSITU_Store_1.0.0_UNSIGNED.apk store/phase1/prebuilt/android/
+          cp /tmp/android/android.sha256 store/phase1/prebuilt/android/
+          cp /tmp/ios/MUSITU_Chemistry_1.3.0.ipa store/phase1/prebuilt/ios/
+          cp /tmp/ios/ios.sha256 store/phase1/prebuilt/ios/
+          python - <<'PY'
+          import hashlib,json,pathlib
+          a=pathlib.Path('store/phase1/prebuilt/android/MUSITU_Store_1.0.0_UNSIGNED.apk')
+          i=pathlib.Path('store/phase1/prebuilt/ios/MUSITU_Chemistry_1.3.0.ipa')
+          h=lambda p: hashlib.sha256(p.read_bytes()).hexdigest()
+          e={'schema':'musitu.store.phase1.prebuilt.v1','android_unsigned':{'file':a.name,'bytes':a.stat().st_size,'sha256':h(a)},'ios_unsigned':{'file':i.name,'bytes':i.stat().st_size,'sha256':h(i),'bundle_id':'com.musitu.chemistry','version':'1.3.0'},'private_signing_material_present':False}
+          pathlib.Path('store/phase1/prebuilt/PREBUILT.json').write_text(json.dumps(e,indent=2,sort_keys=True)+'\n')
+          PY
+          git config user.name 'MUSITU Store Builder'
+          git config user.email 'evansmusitu5@gmail.com'
+          git add store/phase1 ':!store/phase1/source_bundle.b64.*'
+          if git diff --cached --quiet; then echo PREBUILT_UNCHANGED; exit 0; fi
+          git commit -m 'build: seal MUSITU Store Phase 1 unsigned platform carriers'
+          git push origin HEAD:musitu-store-phase1-20260909
