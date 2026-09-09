@@ -1,0 +1,341 @@
+name: MUSITU Chemistry Android 1.3 Customer Routing Production Deploy v2
+
+on:
+  push:
+    branches: [chemistry-frontier-universal-20260908]
+    paths: ['.github/workflows/chemistry-android-1-3-customer-routing-production-deploy-v2.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: musitu-chemistry-global-storefront-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      SOURCE_ZIP_SHA: 5b2618499eed8dc90261bc4f8260246d5593534500dd2fb145f2d24b5c47754c
+      BASE_WORKER_SHA: 848e1cec17ec580822d36e595196cda5978713849e8b45c5bc8dc7fcf9765db8
+      PREVIOUS_WORKER_SHA: 840de9b766922fd5ab69b34e33f6a25053b50bb025da73e76f947d65a8a7ab35
+      CANDIDATE_WORKER_SHA: 7e3b9b188a9e69399e120f0a36b90bc63ac37e5bae87a2b731e67b565ee3573c
+      CANDIDATE_WORKER_BYTES: '203465'
+      APK_SHA: 4ba442122d9c86a0c3cef660334fe337c6ea9ae6fe853c964b5e94961245babd
+      APK_BYTES: '5892286'
+      OLD_APK_SHA: 055b63f271c18faab540985faefb970f472ea55ba9cb3495db459797902b790d
+      FAILED_RUN_ID: '34327563567'
+      FAILED_ARTIFACT_ID: '10094421783'
+      FAILED_ARTIFACT_SHA256: ff810d3f0de2ff087c60d4f2ca445d8d17bf11923b20c807a0def9023b7c4261
+      ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      ZONE_ID: 5b56528f03948ff5917a5e0cd9f7109e
+      WORKER: musitu-chemistry-commerce
+      BASE: https://payments.mftintelligence.com
+      LICENCE_KEY_ID: chem-lic-2026-6783aa7535d1
+
+    steps:
+      - uses: actions/checkout@v4
+        with: {fetch-depth: 0}
+
+      - name: Prove first cutover failed only on SSR/client-state verifier mismatch and rolled back exactly
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf android-routing-deploy-v2 /tmp/failed-routing /tmp/failed-routing.zip
+          mkdir -p android-routing-deploy-v2 /tmp/failed-routing
+          curl -fsSL -L -H "Authorization: Bearer $GH_TOKEN" -H 'X-GitHub-Api-Version: 2022-11-28' \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/artifacts/${FAILED_ARTIFACT_ID}/zip" > /tmp/failed-routing.zip
+          echo "$FAILED_ARTIFACT_SHA256  /tmp/failed-routing.zip" | sha256sum -c -
+          unzip -q /tmp/failed-routing.zip -d /tmp/failed-routing
+          python - <<'PY'
+          import json,os
+          d=json.load(open('/tmp/failed-routing/deploy-result.json'))
+          sweeps=d.get('sweeps') or []
+          assert d.get('rollback_used') is True
+          assert d.get('rollback_verified_worker_sha256')==os.environ['PREVIOUS_WORKER_SHA']
+          assert d.get('failure')=='RuntimeError: four consecutive exhaustive edge sweeps not achieved'
+          assert len(sweeps)==60
+          assert all(s.get('error')=='RuntimeError: iphone web app boundary failed' for s in sweeps)
+          assert all(s.get('android_chain_sha256')==os.environ['APK_SHA'] for s in sweeps)
+          out={
+            'failed_run_id':os.environ['FAILED_RUN_ID'],
+            'failed_artifact_id':os.environ['FAILED_ARTIFACT_ID'],
+            'failed_sweeps':len(sweeps),
+            'all_failed_only_on_iphone_ssr_assertion':True,
+            'android_chain_exact_in_every_failed_sweep':True,
+            'rollback_worker_sha256':d['rollback_verified_worker_sha256'],
+            'gate':'MUSITU_CHEMISTRY_ANDROID_ROUTING_FAILURE_DIAGNOSIS_PASS'
+          }
+          open('android-routing-deploy-v2/failure-diagnosis.json','w').write(json.dumps(out,indent=2,sort_keys=True)+'\n')
+          print(json.dumps(out,sort_keys=True))
+          PY
+
+      - name: Rebuild exact candidate and rerun complete source test corpus
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/mchem-v2-base /tmp/mchem-v2-core /tmp/mchem-v2.zip
+          mkdir -p /tmp/mchem-v2-base /tmp/mchem-v2-core/src
+          cat commerce/chemistry/source.b64.* | base64 -d > /tmp/mchem-v2.zip
+          echo "$SOURCE_ZIP_SHA  /tmp/mchem-v2.zip" | sha256sum -c -
+          unzip -q /tmp/mchem-v2.zip -d /tmp/mchem-v2-base
+          echo "$BASE_WORKER_SHA  /tmp/mchem-v2-base/src/index.mjs" | sha256sum -c -
+          cp /tmp/mchem-v2-base/src/index.mjs commerce/chemistry/index.base.mjs
+          python commerce/chemistry/patch_storefront.py
+          python commerce/chemistry/patch_rescue_growth.py
+          python commerce/chemistry/patch_android_1_3_customer_routing.py
+          echo "$CANDIDATE_WORKER_SHA  commerce/chemistry/index.storefront-v3.mjs" | sha256sum -c -
+          test "$(wc -c < commerce/chemistry/index.storefront-v3.mjs)" = "$CANDIDATE_WORKER_BYTES"
+          node --check commerce/chemistry/index.storefront-v3.mjs
+          node --test commerce/chemistry/storefront/*.test.mjs | tee android-routing-deploy-v2/storefront-tests.txt
+          cp commerce/chemistry/index.storefront-v3.mjs /tmp/mchem-v2-core/src/index.mjs
+          cp -a /tmp/mchem-v2-base/test /tmp/mchem-v2-core/
+          cp /tmp/mchem-v2-base/package.json /tmp/mchem-v2-core/
+          (cd /tmp/mchem-v2-core && npm test) | tee android-routing-deploy-v2/core-tests.txt
+          (cd /tmp/mchem-v2-core && npm run check) | tee android-routing-deploy-v2/core-check.txt
+          sha256sum commerce/chemistry/index.storefront-v3.mjs > android-routing-deploy-v2/candidate.sha256
+
+      - name: Guarded production cutover with exact rollback and six exhaustive edge sweeps
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import email,hashlib,json,os,secrets,time,urllib.error,urllib.request
+          from pathlib import Path
+
+          API='https://api.cloudflare.com/client/v4'; ACCOUNT=os.environ['ACCOUNT_ID']; ZONE=os.environ['ZONE_ID']; WORKER=os.environ['WORKER']; BASE=os.environ['BASE']
+          OLD=os.environ['PREVIOUS_WORKER_SHA']; NEW=os.environ['CANDIDATE_WORKER_SHA']; APK=os.environ['APK_SHA']; APK_BYTES=int(os.environ['APK_BYTES']); OLD_APK=os.environ['OLD_APK_SHA']; KEY=os.environ['LICENCE_KEY_ID']
+          E=Path('android-routing-deploy-v2'); E.mkdir(exist_ok=True)
+          AUTH={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY'],'User-Agent':'MUSITU-Android-1.3-Production-Cutover-v2'}
+          ANDROID='Mozilla/5.0 (Linux; Android 12; TECNO KI5k) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Mobile Safari/537.36'
+          IPHONE='Mozilla/5.0 (iPhone; CPU iPhone OS 18_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.6 Mobile/15E148 Safari/604.1'
+          DESKTOP='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36'
+          candidate=Path('commerce/chemistry/index.storefront-v3.mjs').read_bytes()
+          if hashlib.sha256(candidate).hexdigest()!=NEW or len(candidate)!=int(os.environ['CANDIDATE_WORKER_BYTES']): raise SystemExit('candidate identity mismatch')
+
+          class NoRedirect(urllib.request.HTTPRedirectHandler):
+              def redirect_request(self,req,fp,code,msg,headers,newurl): return None
+          no_redirect=urllib.request.build_opener(NoRedirect); normal=urllib.request.build_opener()
+          def req(url,method='GET',headers=None,body=None,follow=True,timeout=60):
+              q=urllib.request.Request(url,method=method,headers=dict(headers or {}),data=body); op=normal if follow else no_redirect
+              try:
+                  with op.open(q,timeout=timeout) as r:return r.status,r.geturl(),dict(r.headers),r.read()
+              except urllib.error.HTTPError as e:return e.code,e.geturl(),dict(e.headers),e.read()
+          def public(path,ua=ANDROID,follow=True,accept='*/*'):
+              path+=('&' if '?' in path else '?')+'__mchem_v2='+secrets.token_hex(8)
+              return req(BASE+path,headers={'User-Agent':ua,'Accept':accept,'Cache-Control':'no-cache, no-store, max-age=0','Pragma':'no-cache'},follow=follow)
+          def header(h,name):
+              low=name.lower()
+              for k,v in h.items():
+                  if k.lower()==low:return v
+              return None
+          def strict_html(h):
+              csp=header(h,'content-security-policy') or ''
+              return header(h,'x-frame-options')=='DENY' and header(h,'x-content-type-options')=='nosniff' and header(h,'referrer-policy')=='no-referrer' and "script-src 'self'" in csp and "style-src 'self'" in csp
+          def extract(raw,ctype):
+              if 'multipart/' not in (ctype or '').lower():return raw
+              msg=email.message_from_bytes((f'Content-Type: {ctype}\r\nMIME-Version: 1.0\r\n\r\n').encode()+raw); parts=[]
+              for p in msg.walk():
+                  if p.is_multipart():continue
+                  d=p.get_payload(decode=True) or b''
+                  if b'MUSITU Chemistry Commerce' in d:parts.append(d)
+              if len(parts)!=1:raise RuntimeError('worker extraction mismatch '+str(len(parts)))
+              return parts[0]
+          def read_worker():
+              c,_,h,b=req(f'{API}/accounts/{ACCOUNT}/workers/scripts/{WORKER}',headers=AUTH)
+              if c!=200:raise RuntimeError('worker read HTTP '+str(c))
+              return extract(b,header(h,'content-type') or '')
+          def worker_hash():return hashlib.sha256(read_worker()).hexdigest()
+          def upload(source):
+              boundary='----MUSITU'+secrets.token_hex(16); meta=json.dumps({'main_module':'index.mjs'},separators=(',',':'))
+              body=(f'--{boundary}\r\nContent-Disposition: form-data; name="metadata"\r\nContent-Type: application/json\r\n\r\n{meta}\r\n--{boundary}\r\nContent-Disposition: form-data; name="index.mjs"; filename="index.mjs"\r\nContent-Type: application/javascript+module\r\n\r\n').encode()+source+f'\r\n--{boundary}--\r\n'.encode()
+              h=dict(AUTH); h['Content-Type']='multipart/form-data; boundary='+boundary
+              c,_,_,b=req(f'{API}/accounts/{ACCOUNT}/workers/scripts/{WORKER}/content','PUT',h,body)
+              if not 200<=c<300:raise RuntimeError('worker upload HTTP '+str(c)+' '+b[:250].decode(errors='ignore'))
+          PURGE=['/chemistry/','/chemistry/install','/chemistry/verify','/chemistry/releases','/chemistry/support','/chemistry/rescue','/chemistry/plans','/chemistry/app','/chemistry/sw.js','/chemistry/assets/app-shell.js?v=4','/chemistry/assets/app-shell.js?v=5','/chemistry/assets/app-shell.css?v=4','/chemistry/assets/app-shell.css?v=5']
+          def purge():
+              h=dict(AUTH);h['Content-Type']='application/json'; body=json.dumps({'files':[BASE+x for x in PURGE]}).encode()
+              c,_,_,b=req(f'{API}/zones/{ZONE}/purge_cache','POST',h,body)
+              try:o=json.loads(b or b'{}')
+              except:o={}
+              if not 200<=c<300 or o.get('success') is not True:raise RuntimeError('cache purge failed '+str(c)+' '+str(o)[:250])
+              return {'http':c,'success':True,'files':len(PURGE)}
+          def wait_hash(target,allowed,seconds=90):
+              deadline=time.time()+seconds; reads=0
+              while time.time()<deadline:
+                  got=worker_hash(); reads+=1
+                  if got==target:return reads
+                  if got not in allowed:raise RuntimeError('unexpected worker hash '+got)
+                  time.sleep(1)
+              raise RuntimeError('worker hash convergence timeout')
+          def text(path,ua,follow=True):
+              c,u,h,b=public(path,ua,follow,'text/html'); return c,u,h,b.decode('utf-8','replace')
+          def health_catalog():
+              c,_,_,b=public('/chemistry/healthz',DESKTOP,True,'application/json'); h=json.loads(b or b'{}')
+              if c!=200 or h.get('ok') is not True or h.get('licence_key_id')!=KEY or h.get('raw_paynow_key_present') is not False or h.get('payment_authority_bound') is not True or h.get('transport_bound') is not True:raise RuntimeError('health boundary failed '+repr(h))
+              c,_,_,b=public('/chemistry/catalog',DESKTOP,True,'application/json'); cat=json.loads(b or b'{}'); ids=[x.get('id') for x in cat.get('plans') or []]
+              if c!=200 or ids!=['term','annual','lifetime','family','tutor','school']:raise RuntimeError('catalog boundary failed '+repr(ids))
+              return {'health_http':200,'catalog_http':200,'plan_ids':ids,'licence_key_id':h.get('licence_key_id'),'payment_authority_bound':True,'transport_bound':True,'raw_paynow_key_present':False}
+          def apk_exact(path):
+              c,u,h,b=public(path,ANDROID,True,'application/vnd.android.package-archive'); dg=hashlib.sha256(b).hexdigest()
+              if c!=200 or len(b)!=APK_BYTES or dg!=APK or not b.startswith(b'PK'):raise RuntimeError('APK exactness failed '+path+' '+repr((c,len(b),dg,u)))
+              return {'path':path,'http':c,'bytes':len(b),'sha256':dg,'final_url':u,'content_type':header(h,'content-type'),'content_disposition':header(h,'content-disposition')}
+          def old_gone():
+              c,u,h,b=public('/chemistry/download/MUSITU_Chemistry_Mastery_1.2.0.apk',ANDROID,True,'application/vnd.android.package-archive'); dg=hashlib.sha256(b).hexdigest()
+              if c!=410 or b.startswith(b'PK') or dg==OLD_APK:raise RuntimeError('old 1.2 public route not retired '+repr((c,len(b),dg)))
+              return {'http':c,'bytes':len(b),'sha256':dg,'apk_like':False}
+          def alias_probe(path):
+              c,u,h,b=public(path,ANDROID,True,'*/*'); dg=hashlib.sha256(b).hexdigest(); ct=(header(h,'content-type') or '').lower(); apk_like=b.startswith(b'PK') or 'android.package-archive' in ct
+              if dg==OLD_APK or (apk_like and len(b)==5314934):raise RuntimeError('old APK escaped through '+path)
+              return {'path':path,'http':c,'bytes':len(b),'sha256':dg,'apk_like':apk_like,'is_new_1_3':dg==APK,'final_url':u}
+
+          original=read_worker(); before=hashlib.sha256(original).hexdigest()
+          if before!=OLD:raise SystemExit('LIVE_SOURCE_DRIFT '+before)
+          pre={'commerce':health_catalog(),'stable':[apk_exact('/chemistry/download/MUSITU_Chemistry_Mastery_1.3.0.apk') for _ in range(2)],'old':[old_gone() for _ in range(2)]}
+          E.joinpath('rollback-worker.mjs').write_bytes(original); E.joinpath('rollback-worker.sha256').write_text(before+'  rollback-worker.mjs\n')
+          result={'schema':'musitu.chemistry.android_1_3.customer_routing.deploy.v2','github_sha':os.environ.get('GITHUB_SHA'),'predeploy_worker_sha256':before,'candidate_worker_sha256':NEW,'predeploy':pre,'rollback_used':False}
+          try:
+              upload(candidate); result['worker_hash_convergence_reads']=wait_hash(NEW,{OLD,NEW}); result['purge']=purge()
+              streak=0; sweeps=[]
+              for attempt in range(1,21):
+                  sweep={'attempt':attempt}
+                  try:
+                      for p in ['/chemistry/app','/chemistry/app?view=exam','/chemistry/app?view=premium','/chemistry/app?view=help']:
+                          c,u,h,b=public(p,ANDROID,False,'text/html')
+                          if c!=302 or header(h,'location')!='/chemistry/install' or header(h,'x-musitu-platform-route')!='android-native' or b:raise RuntimeError('android server app handoff '+p+' '+repr((c,header(h,'location'),header(h,'x-musitu-platform-route'),len(b))))
+                      c,u,h,b=public('/chemistry/install',ANDROID,False,'text/html')
+                      if c!=302 or header(h,'location')!='/chemistry/download/MUSITU_Chemistry_Mastery_1.3.0.apk' or header(h,'x-musitu-release-version')!='1.3.0' or header(h,'x-musitu-release-sha256')!=APK or b:raise RuntimeError('android install handoff '+repr((c,header(h,'location'),header(h,'x-musitu-release-version'),header(h,'x-musitu-release-sha256'),len(b))))
+                      c,u,h,b=public('/chemistry/app',ANDROID,True,'*/*'); dg=hashlib.sha256(b).hexdigest()
+                      if c!=200 or len(b)!=APK_BYTES or dg!=APK or not b.startswith(b'PK'):raise RuntimeError('android full-chain exact APK '+repr((c,len(b),dg,u)))
+                      sweep['android_chain_sha256']=dg
+                      for ua,name in [(IPHONE,'iphone'),(DESKTOP,'desktop')]:
+                          c,u,h,t=text('/chemistry/install',ua,True)
+                          if c!=200 or not strict_html(h) or 'Get MUSITU Chemistry on this device' not in t or 'manifest.webmanifest?v=2' not in t or 'MUSITU_Chemistry_Mastery_1.3.0.apk' in t:raise RuntimeError(name+' install web-carrier boundary')
+                          c,u,h,t=text('/chemistry/app',ua,True)
+                          if c!=200 or not strict_html(h) or header(h,'cache-control')!='no-store' or 'Your Chemistry workspace.' not in t or 'app-shell.js?v=5' not in t or 'data-app-install-state>Installed</span>' not in t or 'MUSITU_Chemistry_Mastery_1.3.0.apk' in t:raise RuntimeError(name+' app SSR boundary')
+                          c,u,h,t=text('/chemistry/app?view=exam',ua,True)
+                          if c!=200 or 'Scientific Response Graph' not in t or 'data-scientific-response-os' not in t or 'MUSITU_Chemistry_Mastery_1.3.0.apk' in t:raise RuntimeError(name+' exam web-carrier boundary')
+                      c,u,h,v=text('/chemistry/verify',DESKTOP,True)
+                      if c!=200 or 'Official Android package' not in v or '1.3.0' not in v or APK not in v or 'MUSITU_Chemistry_Mastery_1.3.0.apk' not in v or OLD_APK in v or 'MUSITU_Chemistry_Mastery_1.2.0.apk' in v:raise RuntimeError('verify release truth')
+                      c,u,h,r=text('/chemistry/releases',DESKTOP,True)
+                      if c!=200 or '1.3.0' not in r or 'retired Android 1.2.0 public download is unavailable' not in r or OLD_APK in r:raise RuntimeError('release notes truth')
+                      for p in ['/chemistry/','/chemistry/rescue?src=direct','/chemistry/support','/chemistry/plans']:
+                          c,u,h,t=text(p,ANDROID,True)
+                          if c!=200 or OLD_APK in t or 'MUSITU_Chemistry_Mastery_1.2.0.apk' in t:raise RuntimeError('stale customer page '+p)
+                      c,u,h,b=public('/chemistry/sw.js',DESKTOP,True,'application/javascript'); sw=b.decode('utf-8','replace')
+                      if c!=200 or 'musitu-chemistry-install-v9' not in sw or 'musitu-chemistry-install-v8' in sw or "const INSTALL='/chemistry/install'" in sw or 'checkout|return|claim|telemetry|plans|install' not in sw:raise RuntimeError('service-worker migration')
+                      c,u,h,b=public('/chemistry/assets/app-shell.js?v=5',DESKTOP,True,'application/javascript'); js=b.decode('utf-8','replace')
+                      if c!=200 or 'musitu-chemistry-app-shell-v5' not in js or 'musitu-chemistry-app-shell-v4' in js or "if(android&&!installed()){location.replace('/chemistry/install');return;}" not in js or ":'Web preview'" not in js or 'paintState();' not in js:raise RuntimeError('app-shell migration/browser-state contract')
+                      sweep['stable']=[apk_exact('/chemistry/download/MUSITU_Chemistry_Mastery_1.3.0.apk') for _ in range(2)]
+                      sweep['old']=[old_gone() for _ in range(2)]
+                      aliases=['/chemistry/download/MUSITU_Chemistry_1.3.0-frontier-sidecar-rc1.apk','/chemistry/download/MUSITU_Chemistry_Mastery.apk','/chemistry/download/MUSITU_Chemistry.apk','/chemistry/download/latest.apk','/chemistry/download/app.apk','/chemistry/download/MUSITU_Chemistry_Mastery_latest.apk','/chemistry/download/']
+                      sweep['aliases']=[alias_probe(x) for x in aliases]
+                      sweep['commerce']=health_catalog()
+                      if worker_hash()!=NEW:raise RuntimeError('worker hash drift after sweep')
+                      sweep['pass']=True; streak+=1; sweeps.append(sweep); print('ANDROID_ROUTING_V2_EDGE_SWEEP_PASS',attempt,'streak',streak)
+                      if streak>=6:break
+                  except Exception as e:
+                      sweep['pass']=False; sweep['error']=type(e).__name__+': '+str(e); sweeps.append(sweep); streak=0; print('ANDROID_ROUTING_V2_EDGE_SWEEP_FAIL',attempt,sweep['error']); time.sleep(1)
+              result['sweeps']=sweeps; result['final_consecutive_sweeps']=streak
+              if streak<6:raise RuntimeError('six consecutive exhaustive edge sweeps not achieved')
+              result['production_worker_sha256']=worker_hash(); result['commerce_after']=health_catalog(); result['rollback_used']=False; result['gate']='MUSITU_CHEMISTRY_ANDROID_1_3_CUSTOMER_ROUTING_DEPLOY_V2_PASS'
+          except BaseException as e:
+              result['failure']=type(e).__name__+': '+str(e); result['rollback_used']=True
+              try:
+                  upload(original); result['rollback_hash_reads']=wait_hash(OLD,{OLD,NEW}); result['rollback_purge']=purge(); result['rollback_verified_worker_sha256']=worker_hash(); result['rollback_health']=health_catalog(); result['rollback_new_sample']=apk_exact('/chemistry/download/MUSITU_Chemistry_Mastery_1.3.0.apk'); result['rollback_old_sample']=old_gone()
+                  if result['rollback_verified_worker_sha256']!=OLD:raise RuntimeError('rollback hash mismatch')
+              except Exception as rb:result['rollback_failure']=type(rb).__name__+': '+str(rb)
+              raw=(json.dumps(result,indent=2,sort_keys=True)+'\n').encode(); E.joinpath('deploy-result.json').write_bytes(raw); E.joinpath('deploy-result.sha256').write_text(hashlib.sha256(raw).hexdigest()+'  deploy-result.json\n'); raise
+          raw=(json.dumps(result,indent=2,sort_keys=True)+'\n').encode(); E.joinpath('deploy-result.json').write_bytes(raw); E.joinpath('deploy-result.sha256').write_text(hashlib.sha256(raw).hexdigest()+'  deploy-result.json\n')
+          print(json.dumps({'gate':result['gate'],'production_worker_sha256':result['production_worker_sha256'],'rollback_used':result['rollback_used'],'final_consecutive_sweeps':result['final_consecutive_sweeps']},sort_keys=True))
+          PY
+
+      - name: Seal deployment evidence
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          sha256sum android-routing-deploy-v2/* 2>/dev/null | sort > android-routing-deploy-v2/SHA256SUMS.txt || true
+          {
+            echo '## MUSITU Chemistry Android 1.3 customer routing production cutover v2'
+            echo
+            echo "- Candidate Worker SHA: $CANDIDATE_WORKER_SHA"
+            echo "- Android stable APK SHA: $APK_SHA"
+            echo '- Android app entry is server-authoritative and converges to exact signed 1.3.0 APK bytes.'
+            echo '- iPhone/desktop web carrier remains separate and is verified at both SSR and client-state layers.'
+            echo '- Old Android 1.2.0 public URL must remain HTTP 410.'
+            echo '- Automatic exact-source rollback remains mandatory on any failed production assertion.'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload deployment evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: musitu-chemistry-android-1-3-customer-routing-production-deploy-v2
+          path: android-routing-deploy-v2
+          retention-days: 90
+          if-no-files-found: error
+
+  independent_public_verify:
+    needs: deploy
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      BASE: https://payments.mftintelligence.com
+      APK_SHA: 4ba442122d9c86a0c3cef660334fe337c6ea9ae6fe853c964b5e94961245babd
+      APK_BYTES: '5892286'
+      OLD_APK_SHA: 055b63f271c18faab540985faefb970f472ea55ba9cb3495db459797902b790d
+    steps:
+      - name: Independently verify public customer boundaries without deployment credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p independent-public-verify
+          python - <<'PY'
+          import hashlib,json,os,secrets,urllib.error,urllib.request
+          from pathlib import Path
+          BASE=os.environ['BASE']; APK=os.environ['APK_SHA']; SIZE=int(os.environ['APK_BYTES']); OLD=os.environ['OLD_APK_SHA']
+          ANDROID='Mozilla/5.0 (Linux; Android 12; TECNO KI5k) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Mobile Safari/537.36'
+          IPHONE='Mozilla/5.0 (iPhone; CPU iPhone OS 18_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.6 Mobile/15E148 Safari/604.1'
+          DESKTOP='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36'
+          class NoRedirect(urllib.request.HTTPRedirectHandler):
+              def redirect_request(self,req,fp,code,msg,headers,newurl):return None
+          no=urllib.request.build_opener(NoRedirect); yes=urllib.request.build_opener()
+          def fetch(path,ua,follow=True,accept='*/*'):
+              path+=('&' if '?' in path else '?')+'__independent='+secrets.token_hex(8)
+              q=urllib.request.Request(BASE+path,headers={'User-Agent':ua,'Accept':accept,'Cache-Control':'no-cache, no-store','Pragma':'no-cache'}); op=yes if follow else no
+              try:
+                  with op.open(q,timeout=45) as r:return r.status,r.geturl(),dict(r.headers),r.read()
+              except urllib.error.HTTPError as e:return e.code,e.geturl(),dict(e.headers),e.read()
+          def hdr(h,n):
+              for k,v in h.items():
+                  if k.lower()==n.lower():return v
+              return None
+          samples=[]
+          for i in range(3):
+              c,u,h,b=fetch('/chemistry/app',ANDROID,False,'text/html'); assert c==302 and hdr(h,'location')=='/chemistry/install' and hdr(h,'x-musitu-platform-route')=='android-native' and not b
+              c,u,h,b=fetch('/chemistry/install',ANDROID,False,'text/html'); assert c==302 and hdr(h,'location')=='/chemistry/download/MUSITU_Chemistry_Mastery_1.3.0.apk' and hdr(h,'x-musitu-release-version')=='1.3.0' and hdr(h,'x-musitu-release-sha256')==APK and not b
+              c,u,h,b=fetch('/chemistry/app',ANDROID,True,'*/*'); dg=hashlib.sha256(b).hexdigest(); assert c==200 and len(b)==SIZE and dg==APK and b.startswith(b'PK'); samples.append({'kind':'android-full-chain','i':i,'http':c,'bytes':len(b),'sha256':dg})
+              c,u,h,b=fetch('/chemistry/download/MUSITU_Chemistry_Mastery_1.2.0.apk',ANDROID,True,'*/*'); dg=hashlib.sha256(b).hexdigest(); assert c==410 and not b.startswith(b'PK') and dg!=OLD; samples.append({'kind':'retired-1.2','i':i,'http':c,'bytes':len(b),'sha256':dg})
+              for ua,name in [(IPHONE,'iphone'),(DESKTOP,'desktop')]:
+                  c,u,h,b=fetch('/chemistry/app',ua,True,'text/html'); t=b.decode('utf-8','replace'); assert c==200 and 'Your Chemistry workspace.' in t and 'app-shell.js?v=5' in t and 'data-app-install-state>Installed</span>' in t and 'MUSITU_Chemistry_Mastery_1.3.0.apk' not in t; samples.append({'kind':name+'-web-app','i':i,'http':c,'bytes':len(b)})
+          c,u,h,b=fetch('/chemistry/assets/app-shell.js?v=5',DESKTOP,True,'application/javascript'); js=b.decode('utf-8','replace'); assert c==200 and 'musitu-chemistry-app-shell-v5' in js and ":'Web preview'" in js and "if(android&&!installed()){location.replace('/chemistry/install');return;}" in js
+          c,u,h,b=fetch('/chemistry/sw.js',DESKTOP,True,'application/javascript'); sw=b.decode('utf-8','replace'); assert c==200 and 'musitu-chemistry-install-v9' in sw and 'musitu-chemistry-install-v8' not in sw
+          c,u,h,b=fetch('/chemistry/verify',DESKTOP,True,'text/html'); v=b.decode('utf-8','replace'); assert c==200 and 'Official Android package' in v and '1.3.0' in v and APK in v and 'MUSITU_Chemistry_Mastery_1.2.0.apk' not in v
+          out={'schema':'musitu.chemistry.android_1_3.independent_public_verify.v1','production_mutation':False,'uses_deployment_credentials':False,'samples':samples,'gate':'MUSITU_CHEMISTRY_ANDROID_1_3_INDEPENDENT_PUBLIC_VERIFY_PASS'}
+          raw=(json.dumps(out,indent=2,sort_keys=True)+'\n').encode(); Path('independent-public-verify/result.json').write_bytes(raw); Path('independent-public-verify/result.sha256').write_text(hashlib.sha256(raw).hexdigest()+'  result.json\n'); print(json.dumps({'gate':out['gate'],'sample_count':len(samples)},sort_keys=True))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: musitu-chemistry-android-1-3-independent-public-verify
+          path: independent-public-verify
+          retention-days: 90
+          if-no-files-found: error
