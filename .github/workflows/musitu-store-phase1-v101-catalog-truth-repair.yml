@@ -1,0 +1,63 @@
+name: MUSITU Store Phase 1 v1.0.1 Catalog Truth Repair
+
+on:
+  push:
+    branches: [musitu-store-phase1-20260909]
+    paths:
+      - '.github/workflows/musitu-store-phase1-v101-catalog-truth-repair.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Bind exact parent and patch only release-truth freshness contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          remote_tip="$(git ls-remote origin 'refs/heads/musitu-store-phase1-20260909' | awk '{print $1}')"
+          test "$remote_tip" = "$GITHUB_SHA"
+          python - <<'PY'
+          from pathlib import Path
+          w=Path('store/phase1/web-surface/worker.mjs')
+          s=w.read_text()
+          old="function exact(raw,type='application/json; charset=utf-8'){return response(raw,200,type,{'Cache-Control':'public, max-age=300'})}"
+          new=old+"\nfunction releaseTruth(raw,type='application/json; charset=utf-8'){return response(raw,200,type,{'Cache-Control':'no-store'})}"
+          assert s.count(old)==1
+          s=s.replace(old,new,1)
+          assert s.count("case '/store/catalog.json': r=exact(CATALOG_RAW); break;")==1
+          assert s.count("case '/store/catalog.sig': r=exact(CATALOG_SIG_RAW,'text/plain; charset=utf-8'); break;")==1
+          s=s.replace("case '/store/catalog.json': r=exact(CATALOG_RAW); break;","case '/store/catalog.json': r=releaseTruth(CATALOG_RAW); break;",1)
+          s=s.replace("case '/store/catalog.sig': r=exact(CATALOG_SIG_RAW,'text/plain; charset=utf-8'); break;","case '/store/catalog.sig': r=releaseTruth(CATALOG_SIG_RAW,'text/plain; charset=utf-8'); break;",1)
+          w.write_text(s)
+
+          t=Path('store/phase1/web-surface/storefront.test.mjs')
+          q=t.read_text()
+          oldq="  assert.equal(c.headers.get('cache-control'),'public, max-age=300');"
+          newq="  assert.equal(c.headers.get('cache-control'),'no-store');\n  assert.equal(s.headers.get('cache-control'),'no-store');"
+          assert q.count(oldq)==1
+          t.write_text(q.replace(oldq,newq,1))
+          PY
+          node --test store/phase1/web-surface/storefront.test.mjs
+          node --test store/phase1/web-surface/release-assets-v101.test.mjs
+          git diff --check
+          test "$(git diff --name-only | sort)" = $'store/phase1/web-surface/storefront.test.mjs\nstore/phase1/web-surface/worker.mjs'
+      - name: Commit exact repair and self-delete gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm .github/workflows/musitu-store-phase1-v101-catalog-truth-repair.yml
+          git config user.name 'MUSITU Store Release Gate'
+          git config user.email 'evansmusitu5@gmail.com'
+          git add store/phase1/web-surface/worker.mjs store/phase1/web-surface/storefront.test.mjs .github/workflows/musitu-store-phase1-v101-catalog-truth-repair.yml
+          git commit -m 'fix: make Store release truth cache-independent'
+          git push origin HEAD:musitu-store-phase1-20260909
