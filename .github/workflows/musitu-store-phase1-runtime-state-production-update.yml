@@ -1,0 +1,233 @@
+name: MUSITU Store Phase 1 Runtime State Production Update
+
+on:
+  push:
+    branches: [musitu-store-phase1-20260909]
+    paths:
+      - '.github/workflows/musitu-store-phase1-runtime-state-production-update.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: musitu-store-phase1-production
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      CF_API: https://api.cloudflare.com/client/v4
+      ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      ZONE_ID: 5b56528f03948ff5917a5e0cd9f7109e
+      ZONE_NAME: mftintelligence.com
+      PAYMENTS_HOST: payments.mftintelligence.com
+      PAYMENTS_ORIGIN: mft-paynow-transport-gateway
+      STORE_WORKER: musitu-store-phase1
+      STORE_ROUTE: payments.mftintelligence.com/store*
+      STORE_BUCKET: musitu-store-phase1-releases
+      SEALED_MAIN: d6a846f6bbe0bccac1758713eb4de167caf07113
+      PRIOR_DEPLOY_SHA: cdf2849ee5329245bce696729dfb0e388ada8a25
+      STORE_APK_SHA256: 71391bf614cc1186cbe1fda17e9e626aad71d96dbf26807228b73bd2ea99b2f8
+      STORE_APK_BYTES: '1687882'
+      IOS_SHA256: 426d2dc05e2fc8846a7582324d953bbdd2a256f170f8db2b5a956bc1c51cc962
+      IOS_BYTES: '3640968'
+      CHEMISTRY_SHA256: 4ba442122d9c86a0c3cef660334fe337c6ea9ae6fe853c964b5e94961245babd
+      CHEMISTRY_BYTES: '5892286'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Prove source and behavioral gates before production mutation
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF_NAME" = 'musitu-store-phase1-20260909'
+          git fetch --quiet origin main
+          test "$(git rev-parse origin/main)" = "$SEALED_MAIN"
+          python store/phase1/web-surface/build_store_data.py
+          node --check store/phase1/web-surface/generated-data.mjs
+          node --check store/phase1/web-surface/render.mjs
+          node --check store/phase1/web-surface/worker.mjs
+          node --test store/phase1/web-surface/storefront.test.mjs
+          node --test store/phase1/web-surface/runtime-state.test.mjs
+          base64 -d < store/phase1/catalog.sig > /tmp/catalog.sig.der
+          openssl dgst -sha256 -verify store/phase1/catalog-signing-public.pem -signature /tmp/catalog.sig.der store/phase1/catalog.json
+          echo SOURCE_AND_BEHAVIOR_GATES=PASS
+
+      - name: Update only Store Worker runtime state with automatic rollback
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$CLOUDFLARE_EMAIL"
+          test -n "$CLOUDFLARE_GLOBAL_API_KEY"
+          mkdir -p /tmp/store-runtime-state-evidence
+          python - <<'PY'
+          import hashlib,json,os,pathlib,secrets,time,urllib.error,urllib.parse,urllib.request,subprocess
+
+          API=os.environ['CF_API']; AID=os.environ['ACCOUNT_ID']; ZID=os.environ['ZONE_ID']; ZONE=os.environ['ZONE_NAME']
+          HOST=os.environ['PAYMENTS_HOST']; ORIGIN=os.environ['PAYMENTS_ORIGIN']; WORKER=os.environ['STORE_WORKER']; ROUTE=os.environ['STORE_ROUTE']; BUCKET=os.environ['STORE_BUCKET']; BASE='https://'+HOST
+          AUTH={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY'],'Accept':'application/json','User-Agent':'MUSITU-Store-Runtime-State-Update/1.0'}
+          expected_objects={
+            '/store/bootstrap/MUSITU_Store_1.0.0.apk':(int(os.environ['STORE_APK_BYTES']),os.environ['STORE_APK_SHA256']),
+            '/store/ios/MUSITU_Chemistry_1.3.0.ipa':(int(os.environ['IOS_BYTES']),os.environ['IOS_SHA256']),
+            '/store/android/repo/MUSITU_Chemistry_Mastery_1.3.0.apk':(int(os.environ['CHEMISTRY_BYTES']),os.environ['CHEMISTRY_SHA256']),
+          }
+          mutated=False
+
+          def req(url,method='GET',headers=None,body=None,timeout=90):
+              q=urllib.request.Request(url,headers=dict(headers or {}),method=method,data=body)
+              try:
+                  with urllib.request.urlopen(q,timeout=timeout) as r:return r.status,r.headers,r.read()
+              except urllib.error.HTTPError as e:return e.code,e.headers,e.read()
+
+          def cf(path,method='GET',obj=None,expected=None):
+              h=dict(AUTH); body=None
+              if obj is not None:h['Content-Type']='application/json';body=json.dumps(obj,separators=(',',':')).encode()
+              c,hh,b=req(API+path,method,h,body)
+              if expected is not None:
+                  if c not in expected:raise RuntimeError(f'Cloudflare HTTP {c}: {method} {path}: '+b[:300].decode('utf-8','ignore'))
+              elif not 200<=c<300:raise RuntimeError(f'Cloudflare HTTP {c}: {method} {path}: '+b[:300].decode('utf-8','ignore'))
+              try:x=json.loads(b or b'{}')
+              except Exception:x={}
+              if isinstance(x,dict) and x.get('success') is False:raise RuntimeError('Cloudflare success=false '+path+' '+str(x.get('errors'))[:300])
+              return x.get('result') if isinstance(x,dict) else None
+
+          def pub(path,accept='*/*'):
+              return req(BASE+path,'GET',{'Accept':accept,'User-Agent':'MUSITU-Store-Runtime-State-Probe/1.0'})
+
+          def sha(b):return hashlib.sha256(b).hexdigest()
+
+          def multipart(metadata,modules):
+              boundary='----MUSITU'+secrets.token_hex(18); parts=[]
+              def add(v):parts.append(v.encode() if isinstance(v,str) else v)
+              add(f'--{boundary}\r\nContent-Disposition: form-data; name="metadata"\r\nContent-Type: application/json\r\n\r\n');add(json.dumps(metadata,separators=(',',':')));add('\r\n')
+              for name,data in modules:
+                  add(f'--{boundary}\r\nContent-Disposition: form-data; name="{name}"; filename="{name}"\r\nContent-Type: application/javascript+module\r\n\r\n');add(data);add('\r\n')
+              add(f'--{boundary}--\r\n')
+              return boundary,b''.join(parts)
+
+          def upload(modules,runtime_binding):
+              bindings=[{'type':'r2_bucket','name':'STORE_RELEASES','bucket_name':BUCKET}]
+              if runtime_binding:bindings.append({'type':'plain_text','name':'STORE_RUNTIME_PUBLICATION_STATE','text':'production'})
+              metadata={'main_module':'worker.mjs','compatibility_date':'2026-09-09','bindings':bindings}
+              boundary,body=multipart(metadata,modules); h=dict(AUTH);h['Content-Type']='multipart/form-data; boundary='+boundary
+              c,_,b=req(f'{API}/accounts/{AID}/workers/scripts/{urllib.parse.quote(WORKER,safe="")}', 'PUT',h,body)
+              if not 200<=c<300:raise RuntimeError('Worker upload HTTP '+str(c)+' '+b[:400].decode('utf-8','ignore'))
+              cf(f'/accounts/{AID}/workers/scripts/{urllib.parse.quote(WORKER,safe="")}/subdomain','POST',{'enabled':False,'previews_enabled':False})
+
+          def modules_from_worktree():
+              base=pathlib.Path('store/phase1/web-surface')
+              return [(n,(base/n).read_bytes()) for n in ('worker.mjs','render.mjs','assets.mjs','generated-data.mjs')]
+
+          def prior_modules():
+              prior=os.environ['PRIOR_DEPLOY_SHA']; out=[]
+              for n in ('worker.mjs','render.mjs','assets.mjs'):
+                  p='store/phase1/web-surface/'+n
+                  data=subprocess.check_output(['git','show',prior+':'+p])
+                  out.append((n,data))
+              out.append(('generated-data.mjs',pathlib.Path('store/phase1/web-surface/generated-data.mjs').read_bytes()))
+              return out
+
+          def verify_chemistry():
+              c,_,b=pub('/chemistry/healthz','application/json')
+              if c!=200 or json.loads(b or b'{}').get('ok') is not True:raise RuntimeError('Chemistry health invariant failed')
+              c,_,_=pub('/chemistry/catalog','application/json')
+              if c!=200:raise RuntimeError('Chemistry catalog invariant failed')
+              c,_,b=pub('/chemistry/download/MUSITU_Chemistry_Mastery_1.3.0.apk','application/vnd.android.package-archive')
+              if c!=200 or len(b)!=int(os.environ['CHEMISTRY_BYTES']) or sha(b)!=os.environ['CHEMISTRY_SHA256']:raise RuntimeError('Chemistry APK invariant failed')
+
+          def preflight():
+              zones=cf('/zones?name='+urllib.parse.quote(ZONE)+'&status=active') or []
+              if len(zones)!=1 or zones[0].get('id')!=ZID or (zones[0].get('account') or {}).get('id')!=AID:raise RuntimeError('zone/account mismatch')
+              domains=cf(f'/accounts/{AID}/workers/domains') or []; dm=[d for d in domains if isinstance(d,dict) and d.get('hostname')==HOST]
+              if len(dm)!=1 or dm[0].get('service')!=ORIGIN:raise RuntimeError('payments Custom Domain drift')
+              routes=cf(f'/zones/{ZID}/workers/routes') or []; exact=[r for r in routes if isinstance(r,dict) and r.get('pattern')==ROUTE]
+              if len(exact)!=1 or exact[0].get('script')!=WORKER:raise RuntimeError('Store route drift')
+              buckets=cf(f'/accounts/{AID}/r2/buckets?name_contains='+urllib.parse.quote(BUCKET)+'&per_page=100') or {}; rows=buckets.get('buckets') if isinstance(buckets,dict) else buckets
+              if len([b for b in (rows or []) if isinstance(b,dict) and b.get('name')==BUCKET])!=1:raise RuntimeError('Store bucket drift')
+              settings=cf(f'/accounts/{AID}/workers/scripts/{urllib.parse.quote(WORKER,safe="")}/settings') or {}; bs={x.get('name'):x for x in settings.get('bindings') or [] if isinstance(x,dict)}
+              if set(bs)-{'STORE_RELEASES','STORE_RUNTIME_PUBLICATION_STATE'}:raise RuntimeError('unexpected Store Worker binding present')
+              rb=bs.get('STORE_RELEASES') or {}
+              if rb.get('type')!='r2_bucket' or rb.get('bucket_name')!=BUCKET:raise RuntimeError('Store R2 binding drift')
+              if 'STORE_RUNTIME_PUBLICATION_STATE' in bs and (bs['STORE_RUNTIME_PUBLICATION_STATE'].get('type')!='plain_text' or bs['STORE_RUNTIME_PUBLICATION_STATE'].get('text')!='production'):raise RuntimeError('runtime-state binding drift')
+              expected_catalog=pathlib.Path('store/phase1/catalog.json').read_bytes(); expected_sig=pathlib.Path('store/phase1/catalog.sig').read_bytes()
+              c,_,b=pub('/store/catalog.json','application/json')
+              if c!=200 or b!=expected_catalog:raise RuntimeError('live catalog exact-byte drift')
+              c,_,b=pub('/store/catalog.sig','text/plain')
+              if c!=200 or b!=expected_sig:raise RuntimeError('live catalog signature exact-byte drift')
+              for path,(size,digest) in expected_objects.items():
+                  c,_,b=pub(path,'application/octet-stream')
+                  if c!=200 or len(b)!=size or sha(b)!=digest:raise RuntimeError('release binary drift '+path)
+              verify_chemistry()
+              return exact[0].get('id'),bool('STORE_RUNTIME_PUBLICATION_STATE' in bs)
+
+          def verify_runtime(route_id):
+              for _ in range(30):
+                  c,_,b=pub('/store/healthz','application/json')
+                  if c==200:
+                      try:o=json.loads(b or b'{}')
+                      except Exception:o={}
+                      if o.get('runtime_publication_state')=='production' and o.get('catalog_publication_state')=='private-predeployment':break
+                  time.sleep(2)
+              else:raise RuntimeError('new runtime health state did not become ready')
+              if o.get('production_deployed') is not True or o.get('phase2_authorized') is not False or o.get('fresh_device_phase1_complete') is not False or 'publication_state' in o:raise RuntimeError('runtime health contract mismatch')
+              c,_,b=pub('/store/developer','text/html')
+              if c!=200 or b'Signed catalog snapshot' not in b or b'Runtime deployment' not in b or b'production' not in b:raise RuntimeError('Developer Console runtime labels missing')
+              c,_,b=pub('/store/status','text/html')
+              if c!=200 or b'Runtime deployment' not in b or b'private-predeployment' not in b:raise RuntimeError('status runtime labels missing')
+              expected_catalog=pathlib.Path('store/phase1/catalog.json').read_bytes(); expected_sig=pathlib.Path('store/phase1/catalog.sig').read_bytes()
+              c,_,b=pub('/store/catalog.json','application/json')
+              if c!=200 or b!=expected_catalog:raise RuntimeError('catalog changed during runtime update')
+              c,_,b=pub('/store/catalog.sig','text/plain')
+              if c!=200 or b!=expected_sig:raise RuntimeError('catalog signature changed during runtime update')
+              for path,(size,digest) in expected_objects.items():
+                  c,_,b=pub(path,'application/octet-stream')
+                  if c!=200 or len(b)!=size or sha(b)!=digest:raise RuntimeError('binary changed during runtime update '+path)
+              verify_chemistry()
+              routes=cf(f'/zones/{ZID}/workers/routes') or []; exact=[r for r in routes if isinstance(r,dict) and r.get('pattern')==ROUTE]
+              if len(exact)!=1 or exact[0].get('script')!=WORKER or exact[0].get('id')!=route_id:raise RuntimeError('Store route changed during Worker-only update')
+              settings=cf(f'/accounts/{AID}/workers/scripts/{urllib.parse.quote(WORKER,safe="")}/settings') or {}; bs={x.get('name'):x for x in settings.get('bindings') or [] if isinstance(x,dict)}
+              if set(bs)!={'STORE_RELEASES','STORE_RUNTIME_PUBLICATION_STATE'}:raise RuntimeError('post-update binding set mismatch')
+              if (bs.get('STORE_RUNTIME_PUBLICATION_STATE') or {}).get('text')!='production':raise RuntimeError('production runtime binding missing')
+
+          route_id,already_bound=preflight()
+          try:
+              if not already_bound:
+                  upload(modules_from_worktree(),True); mutated=True
+              else:
+                  # Rerun is idempotent, but still refreshes source only when current production contract is not already visible.
+                  c,_,b=pub('/store/healthz','application/json'); o=json.loads(b or b'{}') if c==200 else {}
+                  if o.get('runtime_publication_state')!='production' or o.get('catalog_publication_state')!='private-predeployment':
+                      upload(modules_from_worktree(),True); mutated=True
+              verify_runtime(route_id)
+              out={'schema':'musitu.store.phase1.runtime_state_production_update.v1','head_sha':os.environ['GITHUB_SHA'],'sealed_main':os.environ['SEALED_MAIN'],'worker':WORKER,'route':ROUTE,'route_id':route_id,'r2_bucket':BUCKET,'catalog_publication_state':'private-predeployment','runtime_publication_state':'production','production_deployed':True,'catalog_bytes_changed':False,'catalog_signature_changed':False,'release_objects_changed':False,'route_changed':False,'chemistry_invariants_preserved':True,'phase2_authorized':False,'fresh_device_phase1_complete':False,'rollback_performed':False,'mutation_performed':mutated,'gate':'MUSITU_STORE_PHASE1_RUNTIME_STATE_PRODUCTION_UPDATE_PASS'}
+              raw=(json.dumps(out,indent=2,sort_keys=True)+'\n').encode(); p=pathlib.Path('/tmp/store-runtime-state-evidence/runtime-state.json');p.write_bytes(raw);pathlib.Path('/tmp/store-runtime-state-evidence/runtime-state.sha256').write_text(hashlib.sha256(raw).hexdigest()+'  runtime-state.json\n');print(json.dumps(out,sort_keys=True))
+          except Exception as original:
+              if mutated:
+                  upload(prior_modules(),False)
+                  time.sleep(2)
+                  c,_,b=pub('/store/healthz','application/json')
+                  if c!=200:raise RuntimeError('runtime update failed; rollback health failed: '+repr(original))
+                  verify_chemistry()
+              raise RuntimeError('runtime update failed; prior Worker restored='+str(mutated)+': '+repr(original))
+          PY
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: musitu-store-phase1-runtime-state-production-update-evidence
+          path: /tmp/store-runtime-state-evidence
+          retention-days: 90
+          if-no-files-found: error
