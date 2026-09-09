@@ -43,7 +43,25 @@ function response(body,status=200,type='text/html; charset=utf-8',extra={}){retu
 function exact(raw,type='application/json; charset=utf-8'){return response(raw,200,type,{'Cache-Control':'public, max-age=300'})}
 function headify(req,res){return req.method==='HEAD'?new Response(null,{status:res.status,headers:res.headers}):res}
 function notFound(){return response('<!doctype html><html><body><main id="main"><h1>Not found</h1><a href="/store">MUSITU Store</a></main></body></html>',404)}
-function health(){return response(JSON.stringify({ok:true,service:'musitu-store',phase:'phase1',catalog_revision:CATALOG.revision,phase2_authorized:false,fresh_device_phase1_complete:false,publication_state:CATALOG.releaseControl.publicationState})+'\n',200,'application/json; charset=utf-8',{'Cache-Control':'no-store'})}
+function runtimePublicationState(env){return env?.STORE_RUNTIME_PUBLICATION_STATE==='production'?'production':CATALOG.releaseControl.publicationState}
+function health(env){
+  const runtime=runtimePublicationState(env);
+  return response(JSON.stringify({ok:true,service:'musitu-store',phase:'phase1',catalog_revision:CATALOG.revision,catalog_publication_state:CATALOG.releaseControl.publicationState,runtime_publication_state:runtime,production_deployed:runtime==='production',phase2_authorized:false,fresh_device_phase1_complete:false})+'\n',200,'application/json; charset=utf-8',{'Cache-Control':'no-store'});
+}
+function runtimeLabeledPage(html,env,kind){
+  const runtime=runtimePublicationState(env); const snapshot=CATALOG.releaseControl.publicationState;
+  if(kind==='developer'){
+    const old=`<p><strong>publication state</strong> ${snapshot}</p>`;
+    const next=`<p><strong>Signed catalog snapshot</strong> ${snapshot}</p><p><strong>Runtime deployment</strong> ${runtime}</p>`;
+    return html.replace(old,next);
+  }
+  if(kind==='status'){
+    const marker='<h1>Release status</h1>';
+    const notice=`${marker}<div class="notice"><strong>Runtime deployment</strong> ${runtime} · <strong>Signed catalog snapshot</strong> ${snapshot}</div>`;
+    return html.replace(marker,notice);
+  }
+  return html;
+}
 function localeFor(request){
   const u=new URL(request.url); const q=(u.searchParams.get('lang')||'').toLowerCase();
   if(LOCALES.supported.includes(q)) return q;
@@ -93,11 +111,11 @@ export default {async fetch(request,env){
     case '/store/rollback': r=htmlResponse(request,renderLifecycle('rollback')); break;
     case '/store/transfer-device': r=htmlResponse(request,renderLifecycle('transfer-device')); break;
     case '/store/search': r=htmlResponse(request,renderSearch(u.searchParams.get('q')||'')); break;
-    case '/store/developer': r=htmlResponse(request,renderDeveloper()); break;
+    case '/store/developer': r=htmlResponse(request,runtimeLabeledPage(renderDeveloper(),env,'developer')); break;
     case '/store/releases': r=htmlResponse(request,renderReleases()); break;
-    case '/store/status': r=htmlResponse(request,renderStatus()); break;
+    case '/store/status': r=htmlResponse(request,runtimeLabeledPage(renderStatus(),env,'status')); break;
     case '/store/offline': r=htmlResponse(request,offlinePage()); break;
-    case '/store/healthz': r=health(); break;
+    case '/store/healthz': r=health(env); break;
     case '/store/catalog.json': r=exact(CATALOG_RAW); break;
     case '/store/catalog.sig': r=exact(CATALOG_SIG_RAW,'text/plain; charset=utf-8'); break;
     case '/store/ios/source.json': r=exact(IOS_SOURCE_RAW); break;
