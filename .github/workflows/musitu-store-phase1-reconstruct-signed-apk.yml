@@ -1,0 +1,166 @@
+name: MUSITU Store Phase 1 Signed APK Reconstruction
+
+on:
+  push:
+    branches: [musitu-store-phase1-20260909]
+    paths:
+      - 'release-delta/musitu-store-phase1/**'
+      - '.github/workflows/musitu-store-phase1-reconstruct-signed-apk.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: musitu-store-phase1-reconstruct-signed-apk
+  cancel-in-progress: false
+
+jobs:
+  reconstruct:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - uses: android-actions/setup-android@v3
+
+      - name: Install pinned Android verification tools
+        shell: bash
+        run: sdkmanager 'build-tools;36.0.0'
+
+      - name: Prove branch and sealed main boundaries
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF_NAME" = 'musitu-store-phase1-20260909'
+          git fetch --quiet origin main
+          test "$(git rev-parse origin/main)" = 'd6a846f6bbe0bccac1758713eb4de167caf07113'
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          m=json.loads(Path('release-delta/musitu-store-phase1/reconstruction-manifest.json').read_text())
+          assert m['schema']=='musitu.store.apk_reconstruction.v1'
+          assert m['private_key_required'] is False
+          assert m['phase2_authorized'] is False
+          assert m['target']['sha256']=='71391bf614cc1186cbe1fda17e9e626aad71d96dbf26807228b73bd2ea99b2f8'
+          print('BOUNDARY=PASS')
+          PY
+
+      - name: Verify every delta transfer chunk and reconstruction layer
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROOT=release-delta/musitu-store-phase1
+          python - <<'PY'
+          import hashlib,json
+          from pathlib import Path
+          root=Path('release-delta/musitu-store-phase1')
+          m=json.loads((root/'reconstruction-manifest.json').read_text())
+          ordered=[]
+          for part in m['delta']['parts']:
+            p=root/part['file']
+            raw=p.read_bytes()
+            assert len(raw)==part['bytes'],(p,len(raw),part['bytes'])
+            assert hashlib.sha256(raw).hexdigest()==part['sha256'],p
+            ordered.append(raw)
+          joined=b''.join(ordered)
+          assert len(joined)==m['delta']['concatenated_base64_bytes']
+          assert hashlib.sha256(joined).hexdigest()==m['delta']['concatenated_base64_sha256']
+          Path('/tmp/store.patch.xz.b64').write_bytes(joined)
+          print('DELTA_CHUNKS=PASS')
+          PY
+          base64 -d /tmp/store.patch.xz.b64 > /tmp/store.patch.xz
+          echo '93a56b2028249c714d93494e9112d3cc04238d86610a61a4b0426cf43ea2d477  /tmp/store.patch.xz' | sha256sum -c -
+          test "$(stat -c%s /tmp/store.patch.xz)" = '25032'
+          xz -dc /tmp/store.patch.xz > /tmp/store.patch
+          echo 'f30f115847721eb019a31c5f3283236ee134088585b1015fbd36ddaa7b9c63ac  /tmp/store.patch' | sha256sum -c -
+          test "$(stat -c%s /tmp/store.patch)" = '30708'
+          echo 'DELTA_LAYERS=PASS'
+
+      - name: Verify exact unsigned prebuilt and reconstruct signed APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          SRC=store/phase1/prebuilt/android/MUSITU_Store_1.0.0_UNSIGNED.apk
+          test -s "$SRC"
+          test "$(stat -c%s "$SRC")" = '1675424'
+          echo '823b1ec0ec8bb68e3d5454ee1d70dbca6b7b8028d9f06d51149d79f9b9837555  store/phase1/prebuilt/android/MUSITU_Store_1.0.0_UNSIGNED.apk' | sha256sum -c -
+          rm -rf /tmp/reconstruct && mkdir -p /tmp/reconstruct
+          cp "$SRC" /tmp/reconstruct/MUSITU_Store_1.0.0.apk
+          cd /tmp/reconstruct
+          git init -q
+          git config user.name 'MUSITU Store Reconstructor'
+          git config user.email 'evansmusitu5@gmail.com'
+          git add MUSITU_Store_1.0.0.apk
+          git commit -qm 'seed exact unsigned APK'
+          git apply --binary /tmp/store.patch
+          test "$(stat -c%s MUSITU_Store_1.0.0.apk)" = '1687882'
+          echo '71391bf614cc1186cbe1fda17e9e626aad71d96dbf26807228b73bd2ea99b2f8  MUSITU_Store_1.0.0.apk' | sha256sum -c -
+          unzip -t MUSITU_Store_1.0.0.apk >/dev/null
+          echo 'RECONSTRUCTED_APK=PASS'
+
+      - name: Verify Android signing identity and package
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK=/tmp/reconstruct/MUSITU_Store_1.0.0.apk
+          APKSIGNER="$ANDROID_HOME/build-tools/36.0.0/apksigner"
+          AAPT="$ANDROID_HOME/build-tools/36.0.0/aapt"
+          "$APKSIGNER" verify --verbose --print-certs "$APK" | tee /tmp/apksigner.txt
+          actual="$(sed -n 's/^Signer #1 certificate SHA-256 digest: //p' /tmp/apksigner.txt | head -n1 | tr 'A-F' 'a-f' | tr -d ':[:space:]')"
+          test "$actual" = '43695b6103d7ab57e89166c9a537f1810b7e33053e20332b1d4e7e2e1c612671'
+          "$AAPT" dump badging "$APK" | tee /tmp/aapt.txt
+          grep -q "package: name='com.musitu.store'" /tmp/aapt.txt
+          echo 'APK_IDENTITY=PASS'
+
+      - name: Emit bounded reconstruction evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/evidence /tmp/release
+          cp /tmp/reconstruct/MUSITU_Store_1.0.0.apk /tmp/release/
+          python - <<'PY'
+          import hashlib,json,os
+          from pathlib import Path
+          apk=Path('/tmp/release/MUSITU_Store_1.0.0.apk')
+          out={
+            'schema':'musitu.store.phase1.signed_apk_reconstruction_evidence.v1',
+            'head_sha':os.environ['GITHUB_SHA'],
+            'sealed_main':'d6a846f6bbe0bccac1758713eb4de167caf07113',
+            'source_unsigned_sha256':'823b1ec0ec8bb68e3d5454ee1d70dbca6b7b8028d9f06d51149d79f9b9837555',
+            'target_signed_sha256':hashlib.sha256(apk.read_bytes()).hexdigest(),
+            'target_bytes':apk.stat().st_size,
+            'target_signing_certificate_sha256':'43695b6103d7ab57e89166c9a537f1810b7e33053e20332b1d4e7e2e1c612671',
+            'package_id':'com.musitu.store',
+            'private_key_used':False,
+            'phase2_authorized':False,
+            'production_deployment_performed':False,
+            'gate':'MUSITU_STORE_SIGNED_APK_RECONSTRUCTION_PASS'
+          }
+          raw=(json.dumps(out,indent=2,sort_keys=True)+'\n').encode()
+          Path('/tmp/evidence/reconstruction.json').write_bytes(raw)
+          Path('/tmp/evidence/reconstruction.sha256').write_text(hashlib.sha256(raw).hexdigest()+'  reconstruction.json\n')
+          print(json.dumps(out,sort_keys=True))
+          PY
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: musitu-store-phase1-signed-apk
+          path: /tmp/release/MUSITU_Store_1.0.0.apk
+          retention-days: 30
+          if-no-files-found: error
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: musitu-store-phase1-signed-apk-reconstruction-evidence
+          path: /tmp/evidence
+          retention-days: 30
+          if-no-files-found: error
