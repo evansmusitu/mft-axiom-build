@@ -1,0 +1,58 @@
+name: MUSITU Chemistry Frontier Universal Preview Live Diagnostic
+
+on:
+  push:
+    branches: [chemistry-frontier-universal-20260908]
+    paths: ['.github/workflows/chemistry-frontier-universal-preview-live-diagnostic.yml']
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    env:
+      BASE: https://payments.mftintelligence.com/chemistry/frontier-universal-preview
+      SEALED_ARCHIVE_SHA256: 1445074e87e8c4a9a15281baa586855fe31f92c06dd393a11458adce9821ec30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Inspect live preview without mutation
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/mchem-preview-diagnostic
+          python - <<'PY'
+          import hashlib,json,os,time,urllib.error,urllib.request,pathlib
+          base=os.environ['BASE'].rstrip('/')
+          expected={
+            'app.js':'f2e8828674bc166ea03acc30302a37633221ae85b091c2801dfe7c2919c57c61','assets/buffer_map.png':'2e3cba4e065811626127df040c882aa034fab0cc124797931c488c6f5fe98ed1','assets/electrochemical_cell.png':'569ffc6d38f9281530bbe1584b66822c51fe968e2022b7c1a8f5fb991d637f6a','assets/electrophoresis.png':'7621ac08bd24a22547f64ea885468a33390e7f9fc887efa9197f06b1f1c6ae54','assets/energy_profile.png':'73ec790ebd67ebfaa941ac5026f694a04cd7eb3b1b13c6ff6aaf61c0f00fd0e7','assets/mechanism_arrow_rules.png':'576e233cea6423c036be4443365e48323594272e5d6beb5eee968ff4e0c11dc6','assets/mft_app_icon_source.png':'eef11421c0f16bfcb04d8f0fcc3f2f4cf22edaf74a3e6a501a606aa874561fde','assets/mft_company_logo.png':'07de42d5f67685aad526e309ddfaa660c3100a8a57ee8da0aa67695ff893a05f','assets/mft_education_nexus_logo.png':'93bf82acd04492768cd6145d96000a6c721c1598d7ea553e6d041dc253979e09','assets/mft_icon.png':'93bf82acd04492768cd6145d96000a6c721c1598d7ea553e6d041dc253979e09','assets/musitu-chemistry-192.png':'d8954271509104f8993bfb7b57fa30dae7c4b9b0675ce098a4ec7fe5206fe535','assets/musitu-chemistry-512.png':'7f6b756c6e5e9263357c8ed2cc446d96a6cb178a88473d8dd95dd800e4c5f2ca','assets/octahedral_complex.png':'4e23e7194794074d9402c7ac599e61a0db593f2c24b7c9e4719d86a8ce050728','assets/organic_reaction_map_v3.png':'90fcb0b7b32b6b05809452daf70f3a9672881f5911f01a3970295e7e822e63b2','assets/periodic_trends.png':'3c45090092fcd6f3b297f8879c75b56654671be4fcfc3a2766ad08e5e7d9c37c','assets/polymer_rule.png':'943efdf5386d2cc9ac5346f5247e646a6e8dfe87fdfd45914d029cd937d20e91','commercial.js':'cc6532b8c669ec373a934d9c5a4b5f6f60d87507bfb9d11de143181b7bccb58c','content.json':'8810414605dc497838920c5e1e8ddf39273478bdd7c33d29f01ebfc8bd73a6c7','frontier.css':'c3fb84e67964caca1f907c258a69be2da6ebcd8fb8df3905e20ab64a95a68b23','frontier.js':'ad889c5b30c81a530a405b84c52fd5b0d2b14ae30118bd743f923e8c347bf926','fsrs-entry.js':'938d744197e30d8338f75dd006c585e6afda04f79dc9de86d7bff7438ebffd27','fsrs.bundle.js':'deb98861ea3d1269205c5a6f3bbfa02cb3301e10288b3889c7a1f117fed7109f','index.html':'2ce5f6b97630e42e1fb62114a4395438dba0c2fe3e9000a5f1c7f0a6f527465d','manifest.webmanifest':'6c59e09327d6411fb64abccbb977ec6568f644d4ea516e342a079821454beb30','mft-core.js':'8d8b72ca8e90629f332e1c3be74c7df208397087e42cd153b54ad963f77b805d','styles.css':'ba5db59c8293b61dd1b5fa121415ea5bcfa3e38a04b0ff952b38bcc9608b5f76','sw.js':'a542a5aa5d29d4614fd5289ba6a089262fd9194d9ece093789f55b4975c174ef'}
+          def get(url):
+            q=urllib.request.Request(url,headers={'Cache-Control':'no-cache, no-store','Pragma':'no-cache','User-Agent':'MUSITU-Preview-Diagnostic/1.0'})
+            try:
+              with urllib.request.urlopen(q,timeout=20) as r: return r.status,{k.lower():v for k,v in r.headers.items()},r.read(),None
+            except urllib.error.HTTPError as e: return e.code,{k.lower():v for k,v in e.headers.items()},e.read(),None
+            except Exception as e: return None,{},b'',repr(e)
+          root={}
+          for suffix in ['', '/', '/index.html']:
+            st,h,b,err=get(base+suffix); root[suffix or '<none>']={'http':st,'bytes':len(b),'sha256':hashlib.sha256(b).hexdigest() if b else None,'carrier':h.get('x-musitu-carrier'),'archive':h.get('x-musitu-sealed-archive-sha256'),'content_type':h.get('content-type'),'csp':h.get('content-security-policy'),'error':err,'body_prefix':b[:160].decode('utf-8','replace')}
+          files={}; passed=0
+          for rel,want in expected.items():
+            st,h,b,err=get(base+'/'+rel); got=hashlib.sha256(b).hexdigest() if b else None
+            ok=st==200 and got==want
+            if ok: passed+=1
+            files[rel]={'http':st,'bytes':len(b),'sha256':got,'expected_sha256':want,'byte_match':got==want,'carrier':h.get('x-musitu-carrier'),'archive':h.get('x-musitu-sealed-archive-sha256'),'content_type':h.get('content-type'),'error':err,'body_prefix':None if ok else b[:120].decode('utf-8','replace')}
+          result={'schema':'musitu.chemistry.frontier.universal_preview.diagnostic.v1','github_sha':os.environ['GITHUB_SHA'],'base':base,'root':root,'files':files,'files_passed':passed,'files_expected':len(expected),'read_only':True,'deployment_secrets_used':False}
+          pathlib.Path('/tmp/mchem-preview-diagnostic/result.json').write_text(json.dumps(result,indent=2,sort_keys=True)+'\n')
+          print('LIVE_PREVIEW_FILES',passed,'/',len(expected)); print(json.dumps({'root':root,'failures':{k:v for k,v in files.items() if not v['byte_match'] or v['http']!=200}},sort_keys=True))
+          PY
+      - name: Hash diagnostic
+        if: always()
+        run: cd /tmp/mchem-preview-diagnostic && sha256sum result.json > result.sha256
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: musitu-chemistry-frontier-universal-preview-live-diagnostic
+          path: /tmp/mchem-preview-diagnostic
+          retention-days: 30
+          if-no-files-found: error
