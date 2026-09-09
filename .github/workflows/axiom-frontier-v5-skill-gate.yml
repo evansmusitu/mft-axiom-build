@@ -32,9 +32,10 @@ jobs:
           test "$(git rev-parse refs/remotes/origin/main)" = 'd6a846f6bbe0bccac1758713eb4de167caf07113'
           # Public MCP and submission bytes remain sealed to the unchanged main.
           git diff --exit-code 'd6a846f6bbe0bccac1758713eb4de167caf07113' HEAD -- mcp/ chatgpt-app-submission.json submission/
-          # Preserve only the explicitly approved mobile CSRF and RFC 9700 303
-          # OAuth snapshot. Any further auth addition, deletion or edit fails.
-          git diff --exit-code 'd47ca52917521eb48782f59ae1d4ad956e9d6165' HEAD -- auth/
+          # Preserve every approved auth byte from the prior snapshot except the
+          # mobile continuation worker, which is pinned to its reviewed blob.
+          git diff --exit-code 'd47ca52917521eb48782f59ae1d4ad956e9d6165' HEAD -- auth/ ':(exclude)auth/musitu_axiom_oauth_worker.mjs'
+          test "$(git rev-parse HEAD:auth/musitu_axiom_oauth_worker.mjs)" = 'adeb37d7faa6eb46c945a82bb15e4c333379920a'
 
       - name: Lint all frontier skills
         shell: bash
