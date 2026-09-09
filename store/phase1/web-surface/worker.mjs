@@ -35,6 +35,7 @@ self.addEventListener('fetch',event=>{
 });
 `;
 const RELEASE_ASSETS={
+  '/store/bootstrap/MUSITU_Store_1.0.1.apk':{key:'bootstrap/MUSITU_Store_1.0.1.apk',sha256:'b755210f303ebb6d22a3177bb21e5ebae2e076901021ee62ca2fe6ab0f14af82',bytes:1679572,type:'application/vnd.android.package-archive',name:'MUSITU_Store_1.0.1.apk'},
   '/store/bootstrap/MUSITU_Store_1.0.0.apk':{key:'bootstrap/MUSITU_Store_1.0.0.apk',sha256:'71391bf614cc1186cbe1fda17e9e626aad71d96dbf26807228b73bd2ea99b2f8',bytes:1687882,type:'application/vnd.android.package-archive',name:'MUSITU_Store_1.0.0.apk'},
   '/store/ios/MUSITU_Chemistry_1.3.0.ipa':{key:'ios/MUSITU_Chemistry_1.3.0.ipa',sha256:'426d2dc05e2fc8846a7582324d953bbdd2a256f170f8db2b5a956bc1c51cc962',bytes:3640968,type:'application/octet-stream',name:'MUSITU_Chemistry_1.3.0.ipa'},
   '/store/android/repo/MUSITU_Chemistry_Mastery_1.3.0.apk':{key:'android/MUSITU_Chemistry_Mastery_1.3.0.apk',sha256:'4ba442122d9c86a0c3cef660334fe337c6ea9ae6fe853c964b5e94961245babd',bytes:5892286,type:'application/vnd.android.package-archive',name:'MUSITU_Chemistry_Mastery_1.3.0.apk'}
