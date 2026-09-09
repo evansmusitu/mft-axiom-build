@@ -27,7 +27,7 @@ jobs:
           STABLE_URL: https://payments.mftintelligence.com/chemistry/download/MUSITU_Chemistry_Mastery_1.2.0.apk
           STABLE_SHA256: 055b63f271c18faab540985faefb970f472ea55ba9cb3495db459797902b790d
           STABLE_BYTES: '5314934'
-          CANARY_TRANSFER_URL: https://1drv.ms/u/c/767ef9002d240398/EaFNOnWiRcFMpf7PC5y_Pc0BnKkqRyzvoqnWzAyqK1WN_A?e=h3L8Y0&download=1
+          CANARY_TRANSFER_URL: https://uc33a8cbe7ae4ae62d7bd1c3cfbf.dl.dropboxusercontent.com/cd/0/get/DHxYuW_hnQ0FH4exJ2nQGrz2_XTyrtzxJau2mH14QGvhbAw9-r7GI-y8WDW-T9EcAAJ_UiZeSc4qElbokBkrOloBHXn8502tGTQA9nZjzCxSphXrAzcAtyuCP_8pSuFWWnbQtOgQjap7IOIqArBNVxg7QCb_zSyCCZPBOWt065yhRQ/file?c_luid=2441df78
           CANARY_SHA256: 4ba442122d9c86a0c3cef660334fe337c6ea9ae6fe853c964b5e94961245babd
           CANARY_BYTES: '5892286'
         run: |
