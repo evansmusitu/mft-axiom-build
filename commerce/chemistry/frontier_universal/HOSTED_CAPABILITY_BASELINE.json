@@ -10,6 +10,14 @@
     "evidence_blob_sha": "d5fe332abc961e323a38b898d4ce87c1cf7a2320",
     "production_deployment_run_id": 34333529988,
     "independent_production_verification_run_id": 34333772449,
+    "pin_corrections": {
+      ".github/workflows/chemistry-app-offline-reconnect-browser-acceptance.yml": {
+        "previous_value": "1e4bccb845aa503444c9fcd59e8cea33d118704cd",
+        "previous_value_was_valid_git_sha1_length": false,
+        "sealed_commit_blob": "1e4bccb845aa503444c9fcd59e8cea33d11834bc",
+        "capability_change": false
+      }
+    },
     "checks_removed": false,
     "routes_removed": false,
     "authority_invariants_weakened": false
@@ -41,7 +49,7 @@
     ".github/workflows/chemistry-pwa-primary-production-browser-acceptance.yml": "a40d076cce0c0b11e29b8fb7b0e24c6c48b49158",
     ".github/workflows/chemistry-scientific-response-production-browser-acceptance-v2.yml": "7db24e100dd5ea534e7ed2e908050bfdf8ed892f",
     ".github/workflows/chemistry-dedicated-app-identity-production-browser-acceptance.yml": "3c87d3bbe338b739b0f21dd9600ce938e459a560",
-    ".github/workflows/chemistry-app-offline-reconnect-browser-acceptance.yml": "1e4bccb845aa503444c9fcd59e8cea33d118704cd",
+    ".github/workflows/chemistry-app-offline-reconnect-browser-acceptance.yml": "1e4bccb845aa503444c9fcd59e8cea33d11834bc",
     ".github/workflows/chemistry-phase3-field-experience-live-verify.yml": "360834988dccb674a959aa4429a765de93bcf89c",
     ".github/workflows/chemistry-zero-cost-install-ci.yml": "1b08752b10a26f34e251731c370381c766c70c84",
     ".github/workflows/chemistry-global-storefront-preflight.yml": "2999bc330945fb6f2d738ca350a6f96197aaf012"
