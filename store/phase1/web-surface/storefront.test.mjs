@@ -12,8 +12,8 @@ const worker=(await import(pathToFileURL(workerPath).href+'?t='+Date.now())).def
 const canonicalCatalog=readFileSync(join(phase1,'catalog.json'),'utf8');
 const canonicalSig=readFileSync(join(phase1,'catalog.sig'),'utf8');
 
-async function get(path,headers={}){
-  return worker.fetch(new Request('https://payments.mftintelligence.com'+path,{headers}));
+async function get(path,headers={},env={}){
+  return worker.fetch(new Request('https://payments.mftintelligence.com'+path,{headers}),env,{});
 }
 
 function csp(res){return res.headers.get('content-security-policy')||'';}
@@ -115,7 +115,7 @@ test('developer console is read-only and exposes public trust/release state only
 
 test('public Store routes reject mutation methods',async()=>{
   for(const path of ['/store','/store/developer','/store/catalog.json','/store/releases']){
-    const r=await worker.fetch(new Request('https://payments.mftintelligence.com'+path,{method:'POST',body:'x'}));
+    const r=await worker.fetch(new Request('https://payments.mftintelligence.com'+path,{method:'POST',body:'x'}),{},{});
     assert.equal(r.status,405);
     assert.equal(r.headers.get('allow'),'GET, HEAD');
   }
@@ -124,6 +124,7 @@ test('public Store routes reject mutation methods',async()=>{
 test('health route is non-secret and truthfully keeps Phase 1 incomplete',async()=>{
   const r=await get('/store/healthz');
   assert.equal(r.status,200);
+  assert.equal(r.headers.get('cache-control'),'no-store');
   const o=await r.json();
   assert.equal(o.ok,true);
   assert.equal(o.phase,'phase1');
@@ -131,4 +132,84 @@ test('health route is non-secret and truthfully keeps Phase 1 incomplete',async(
   assert.equal(o.fresh_device_phase1_complete,false);
   assert.equal(o.catalog_revision,1);
   assert.equal(JSON.stringify(o).includes('PRIVATE KEY'),false);
+});
+
+test('installable Store web shell uses only self-hosted script and manifest resources',async()=>{
+  const r=await get('/store'); const t=await r.text();
+  assert.match(csp(r),/script-src 'self'/);
+  assert.match(csp(r),/manifest-src 'self'/);
+  assert.match(t,/<link rel="manifest" href="\/store\/manifest\.webmanifest">/);
+  assert.match(t,/<script src="\/store\/assets\/store\.js" defer><\/script>/);
+  assert.doesNotMatch(t,/<script(?![^>]+src=)/);
+  const manifest=await get('/store/manifest.webmanifest');
+  assert.equal(manifest.status,200);
+  const m=await manifest.json();
+  assert.equal(m.id,'/store/');
+  assert.equal(m.scope,'/store/');
+  assert.match(m.start_url,/^\/store/);
+});
+
+test('service worker provides an offline public shell but never caches installers or commerce',async()=>{
+  const sw=await get('/store/sw.js');
+  assert.equal(sw.status,200);
+  assert.match(sw.headers.get('content-type')||'',/javascript/);
+  const t=await sw.text();
+  assert.match(t,/musitu-store-r1/);
+  assert.match(t,/\/store\/catalog\.json/);
+  assert.match(t,/\/store\/catalog\.sig/);
+  assert.match(t,/\/store\/offline/);
+  assert.match(t,/request\.method !== 'GET'/);
+  assert.doesNotMatch(t,/MUSITU_Store_1\.0\.0\.apk|MUSITU_Chemistry_1\.3\.0\.ipa|\/chemistry\/checkout|\/chemistry\/catalog/);
+  const client=await get('/store/assets/store.js');
+  assert.match(await client.text(),/serviceWorker\.register\('\/store\/sw\.js'/);
+});
+
+test('offline route explains signed-cache and corruption recovery boundaries',async()=>{
+  const r=await get('/store/offline'); const t=await r.text();
+  assert.equal(r.status,200);
+  assert.match(t,/Offline & recovery/);
+  assert.match(t,/signature/i);
+  assert.match(t,/SHA-256/i);
+  assert.match(t,/resum/i);
+  assert.match(t,/does not.*Premium/i);
+  assert.match(t,/\/store\/catalog\.json/);
+  assert.match(t,/\/store\/catalog\.sig/);
+});
+
+test('Save-Data or lite=1 selects a smaller low-bandwidth HTML response',async()=>{
+  const full=await get('/store'); const fullText=await full.text();
+  const lite=await get('/store?lite=1'); const liteText=await lite.text();
+  const save=await get('/store',{'save-data':'on'}); const saveText=await save.text();
+  assert.match(liteText,/Low-bandwidth mode/);
+  assert.match(saveText,/Low-bandwidth mode/);
+  assert.ok(Buffer.byteLength(liteText)<Buffer.byteLength(fullText));
+  assert.ok(Buffer.byteLength(saveText)<Buffer.byteLength(fullText));
+  assert.match(liteText,/MUSITU Chemistry/);
+  assert.match(liteText,/Install/);
+});
+
+test('locale negotiation supports English, Shona and Ndebele with explicit fallback',async()=>{
+  const cases=[
+    ['/store?lang=en','en',/Install MUSITU/],
+    ['/store?lang=sn','sn',/Isa MUSITU/],
+    ['/store?lang=nd','nd',/Faka i-MUSITU/],
+    ['/store?lang=fr','en',/Install MUSITU/]
+  ];
+  for(const [path,lang,needle] of cases){
+    const r=await get(path); const t=await r.text();
+    assert.equal(r.headers.get('content-language'),lang);
+    assert.match(t,new RegExp(`<html lang="${lang}"`));
+    assert.match(t,needle);
+  }
+  const locales=await get('/store/locales.json');
+  assert.deepEqual(await locales.json(),{default:'en',supported:['en','sn','nd']});
+});
+
+test('release binary routes fail closed when required production bindings are absent',async()=>{
+  for(const path of ['/store/bootstrap/MUSITU_Store_1.0.0.apk','/store/ios/MUSITU_Chemistry_1.3.0.ipa','/store/android/repo/MUSITU_Chemistry_Mastery_1.3.0.apk']){
+    const r=await get(path);
+    assert.equal(r.status,503);
+    assert.equal(r.headers.get('cache-control'),'no-store');
+    assert.match(await r.text(),/release asset unavailable/i);
+  }
 });
