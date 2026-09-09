@@ -61,12 +61,17 @@ jobs:
           rollback=json.loads((p/'release/rollback-control.json').read_text())
           boot=json.loads((p/'bootstrap/release.json').read_text())
           assert cat['schema']=='musitu.store.catalog.v1'
-          assert cat['revision']==1
+          assert cat['revision']==2
           assert cat['store']['canonicalURL']=='https://payments.mftintelligence.com/store'
           assert cat['store']['commerceBoundary']=='distribution-state-is-not-payment-or-entitlement'
           assert cat['releaseControl']['phase']=='phase1'
           assert cat['releaseControl']['phase2Authorized'] is False
           assert cat['releaseControl']['publicationState']=='private-predeployment'
+          sc=cat['releaseControl']['storeClient']
+          assert sc['version']=='1.0.1' and sc['versionCode']==10001
+          assert sc['sha256']=='b755210f303ebb6d22a3177bb21e5ebae2e076901021ee62ca2fe6ab0f14af82'
+          assert sc['unsignedPrebuiltSha256']=='ebfcac3dfc21887bc2f8203c1b047bd0b9187cbc80ad7ea61775a15d82aa0b76'
+          assert channels['catalogRevision']==2
           assert channels['phase2Authorized'] is False
           assert channels['stable']['musitu-chemistry']=='1.3.0'
           assert rollback['defaultPolicy']=='deny'
@@ -78,7 +83,9 @@ jobs:
           assert rel['android']['signingCertificateSha256']=='d4455ac3ec74a6d7cd7993ca640f554a83bba95dfd01ef508f7637b6bc72c0d8'
           assert rel['ios']['sha256']=='426d2dc05e2fc8846a7582324d953bbdd2a256f170f8db2b5a956bc1c51cc962'
           assert rel['web']['carrierArchiveSha256']=='1445074e87e8c4a9a15281baa586855fe31f92c06dd393a11458adce9821ec30'
-          assert boot['sha256']=='71391bf614cc1186cbe1fda17e9e626aad71d96dbf26807228b73bd2ea99b2f8'
+          assert boot['version']=='1.0.1' and boot['versionCode']==10001
+          assert boot['artifactFile']=='MUSITU_Store_1.0.1.apk'
+          assert boot['sha256']=='b755210f303ebb6d22a3177bb21e5ebae2e076901021ee62ca2fe6ab0f14af82'
           assert boot['signingCertificateSha256']=='43695b6103d7ab57e89166c9a537f1810b7e33053e20332b1d4e7e2e1c612671'
           assert trust['private_material_published'] is False
           assert trust['catalog_signing_public_pem_sha256']==cat['releaseControl']['catalogPublicKeySha256']
