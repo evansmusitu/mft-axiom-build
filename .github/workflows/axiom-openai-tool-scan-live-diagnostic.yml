@@ -1,0 +1,97 @@
+name: MUSITU Axiom OpenAI Tool Scan Live Diagnostic
+
+on:
+  push:
+    paths:
+      - '.github/workflows/axiom-openai-tool-scan-live-diagnostic.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Reproduce OpenAI-style MCP discovery against production
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json, urllib.error, urllib.request
+
+          url='https://mcp.mftintelligence.com/mcp'
+          base_headers={
+            'Content-Type':'application/json',
+            'Accept':'application/json, text/event-stream',
+            'User-Agent':'OpenAI-MCP-Tool-Scan-Diagnostic/1.0',
+          }
+
+          class NoRedirect(urllib.request.HTTPRedirectHandler):
+              def redirect_request(self,req,fp,code,msg,headers,newurl): return None
+          opener=urllib.request.build_opener(NoRedirect())
+
+          def call(payload):
+              body=json.dumps(payload,separators=(',',':')).encode()
+              req=urllib.request.Request(url,headers=base_headers,data=body,method='POST')
+              try:
+                  with opener.open(req,timeout=40) as r:
+                      status=r.status; headers=dict(r.headers.items()); raw=r.read()
+              except urllib.error.HTTPError as e:
+                  status=e.code; headers=dict(e.headers.items()); raw=e.read()
+              text=raw.decode('utf-8','replace')
+              try: parsed=json.loads(text) if text else None
+              except Exception: parsed={'non_json_prefix':text[:300]}
+              return {'http':status,'content_type':headers.get('Content-Type',''),'mcp_session_id':headers.get('Mcp-Session-Id') or headers.get('MCP-Session-Id'),'body':parsed,'body_len':len(raw)}
+
+          init=call({'jsonrpc':'2.0','id':1,'method':'initialize','params':{'protocolVersion':'2025-06-18','capabilities':{},'clientInfo':{'name':'openai-tool-scan-diagnostic','version':'1'}}})
+          notification=call({'jsonrpc':'2.0','method':'notifications/initialized','params':{}})
+          listed=call({'jsonrpc':'2.0','id':2,'method':'tools/list','params':{}})
+
+          problems=[]
+          if init['http']!=200: problems.append('initialize_http')
+          ib=init.get('body') or {}
+          if not isinstance(ib,dict) or ib.get('jsonrpc')!='2.0' or ib.get('id')!=1 or not isinstance(ib.get('result'),dict): problems.append('initialize_jsonrpc_shape')
+          if notification['http'] not in (202,204): problems.append('initialized_notification_must_be_empty_202_or_204')
+          if notification.get('body') not in (None,''): problems.append('initialized_notification_returned_body')
+          if listed['http']!=200: problems.append('tools_list_http')
+          lb=listed.get('body') or {}; tools=((lb.get('result') or {}).get('tools') if isinstance(lb,dict) else None)
+          if not isinstance(tools,list):
+              problems.append('tools_list_shape'); tools=[]
+          invalid=[]
+          names=set()
+          for i,t in enumerate(tools):
+              p=[]
+              if not isinstance(t,dict): invalid.append({'index':i,'problems':['not_object']}); continue
+              name=t.get('name')
+              if not isinstance(name,str) or not name: p.append('name')
+              elif name in names: p.append('duplicate_name')
+              else: names.add(name)
+              if not isinstance(t.get('description'),str): p.append('description')
+              if not isinstance(t.get('inputSchema'),dict): p.append('inputSchema')
+              if 'outputSchema' in t and not isinstance(t.get('outputSchema'),dict): p.append('outputSchema')
+              ss=t.get('securitySchemes')
+              if ss is not None and not isinstance(ss,list): p.append('securitySchemes')
+              if p: invalid.append({'index':i,'name':name,'problems':p})
+          if invalid: problems.append('invalid_tool_descriptors')
+
+          out={
+            'gate':'MUSITU_AXIOM_OPENAI_TOOL_SCAN_DIAGNOSTIC',
+            'endpoint':url,
+            'initialize':init,
+            'initialized_notification':notification,
+            'tools_list_summary':{
+              'http':listed['http'],
+              'content_type':listed['content_type'],
+              'body_len':listed['body_len'],
+              'tool_count':len(tools),
+              'first_names':[t.get('name') for t in tools[:12] if isinstance(t,dict)],
+              'invalid':invalid[:20],
+            },
+            'problems':problems,
+          }
+          print(json.dumps(out,sort_keys=True))
+          if problems:
+              raise SystemExit('OpenAI-style MCP discovery diagnostic found: '+','.join(problems))
+          PY
