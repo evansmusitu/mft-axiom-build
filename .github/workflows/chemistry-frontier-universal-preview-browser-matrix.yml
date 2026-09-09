@@ -1,0 +1,187 @@
+name: MUSITU Chemistry Frontier Universal Preview Browser Matrix
+
+on:
+  push:
+    branches: [chemistry-frontier-universal-20260908]
+    paths: ['.github/workflows/chemistry-frontier-universal-preview-browser-matrix.yml']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: musitu-chemistry-frontier-universal-preview-browser-matrix
+  cancel-in-progress: false
+
+jobs:
+  browser:
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium, chrome, msedge, firefox, webkit]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    env:
+      BASE_URL: https://payments.mftintelligence.com/chemistry/frontier-universal-preview/
+      BROWSER_NAME: ${{ matrix.browser }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install pinned-at-run Playwright engine
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/mchem-browser-${BROWSER_NAME}
+          cd /tmp/mchem-browser-${BROWSER_NAME}
+          npm init -y >/dev/null
+          npm install --no-audit --no-fund playwright@latest
+          npx playwright install --with-deps "$BROWSER_NAME"
+          node -p "require('playwright/package.json').version" | tee playwright-version.txt
+      - name: Exercise hosted application
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd /tmp/mchem-browser-${BROWSER_NAME}
+          cat > verify.cjs <<'JS'
+          const fs=require('fs');
+          const {chromium,firefox,webkit}=require('playwright');
+          const name=process.env.BROWSER_NAME, base=process.env.BASE_URL;
+          const engines={chromium:()=>chromium.launch({headless:true}),chrome:()=>chromium.launch({headless:true,channel:'chrome'}),msedge:()=>chromium.launch({headless:true,channel:'msedge'}),firefox:()=>firefox.launch({headless:true}),webkit:()=>webkit.launch({headless:true})};
+          function assert(v,m){if(!v)throw new Error(m)}
+          async function visibleText(page,sel,needle){const t=await page.locator(sel).innerText();assert(t.includes(needle),`missing ${needle} in ${sel}`)}
+          async function coreScenario(browser){
+            const context=await browser.newContext({viewport:{width:1366,height:768}}), page=await context.newPage();
+            const pageErrors=[],consoleErrors=[],network=[];
+            page.on('pageerror',e=>pageErrors.push(String(e)));
+            page.on('console',m=>{if(m.type()==='error')consoleErrors.push(m.text())});
+            page.on('request',r=>network.push(r.url()));
+            let response=await page.goto(base,{waitUntil:'domcontentloaded',timeout:45000});
+            assert(response&&response.status()===200,'initial HTTP not 200');
+            await page.locator('#app').waitFor({state:'visible'});
+            assert((await page.title())==='MUSITU Chemistry Mastery','wrong title');
+            await page.getByRole('button',{name:'Home'}).waitFor();
+            for(const n of ['Home','Learn','Review','Prove','More']) await page.getByRole('button',{name:n}).waitFor();
+
+            await page.getByRole('button',{name:'Learn'}).click();
+            await page.getByRole('heading',{name:'Mastery chapters'}).waitFor();
+            await page.locator('.chapter').first().click();
+            await page.getByRole('button',{name:/Bookmark/}).click();
+            await page.getByRole('button',{name:'Confidence: low'}).click();
+            await page.reload({waitUntil:'domcontentloaded'});
+            await page.getByRole('button',{name:/Bookmark/}).waitFor();
+            assert((await page.getByRole('button',{name:/Bookmark/}).getAttribute('class')||'').includes('on'),'bookmark did not persist');
+            assert((await page.getByRole('button',{name:'Confidence: low'}).getAttribute('class')||'').includes('on'),'confidence did not persist');
+
+            await page.evaluate(()=>go('diagnostic'));
+            await page.getByRole('heading',{name:'36-mark entry diagnostic'}).waitFor();
+            await page.locator('#dq0').fill('Committed chemistry diagnostic response');
+            await page.getByRole('button',{name:'Reveal self-mark guide'}).first().click();
+            assert(!(await page.locator('#da0').getAttribute('class')).includes('hidden'),'diagnostic marking guide failed to reveal after committed answer');
+
+            await page.evaluate(()=>go('exam'));
+            await page.getByRole('heading',{name:'Exam mode'}).waitFor();
+            await page.evaluate(()=>startExam(5));
+            await page.getByRole('heading',{name:'5-minute exam session'}).waitFor();
+            await page.locator('textarea[aria-label="Exam answer 1"]').fill('Timed candidate answer');
+            await page.evaluate(()=>finishExam());
+            await page.getByText('Marking guidance').first().waitFor();
+
+            await page.evaluate(()=>go('prove'));
+            await page.getByRole('heading',{name:'Answer Chemistry as Chemistry.'}).waitFor();
+            const eq=page.locator('[data-sr-equation]');
+            await eq.fill('HCl + NaOH → NaCl + H₂O');
+            await page.locator('[data-sr-mode="structure"]').click();
+            await page.locator('[data-sr-panel="structure"] [data-sr-add]').first().click();
+            await page.locator('[data-sr-finalize]').click();
+            await visibleText(page,'[data-sr-status]','Response locked for review');
+            await page.reload({waitUntil:'domcontentloaded'});
+            assert((await page.locator('[data-sr-equation]').inputValue()).includes('HCl + NaOH'),'scientific response draft did not persist');
+            assert(await page.locator('[data-sr-reopen]').isEnabled(),'reopen unavailable after reload');
+            await page.locator('[data-sr-reopen]').click();
+            assert(!(await page.locator('[data-sr-equation]').isEditable())===false || await page.locator('[data-sr-equation]').isEditable(),'equation not editable after reopen');
+
+            await page.evaluate(()=>go('store'));
+            await page.locator('#app').getByText(/Free edition|Premium|Annual/i).first().waitFor();
+            await page.evaluate(()=>go('help'));
+            await page.getByRole('heading',{name:'Offline behavior'}).waitFor();
+
+            await page.setViewportSize({width:390,height:844});
+            await page.evaluate(()=>go('home'));
+            await page.getByRole('button',{name:'Home'}).waitFor();
+            const overflow=await page.evaluate(()=>document.documentElement.scrollWidth-window.innerWidth);
+            assert(overflow<=2,`mobile horizontal overflow ${overflow}`);
+            await page.setViewportSize({width:1440,height:900});
+            const wideOverflow=await page.evaluate(()=>document.documentElement.scrollWidth-window.innerWidth);
+            assert(wideOverflow<=2,`desktop horizontal overflow ${wideOverflow}`);
+
+            const sw=await page.evaluate(async()=>{if(!('serviceWorker' in navigator))return {supported:false}; const r=await navigator.serviceWorker.ready; return {supported:true,scope:r.scope,controller:!!navigator.serviceWorker.controller}});
+            assert(sw.supported,'service worker unsupported');
+            await page.reload({waitUntil:'domcontentloaded'});
+            const controlled=await page.evaluate(()=>!!navigator.serviceWorker.controller);
+            assert(controlled,'service worker did not control page after reload');
+            await context.setOffline(true);
+            await page.reload({waitUntil:'domcontentloaded',timeout:20000});
+            await page.locator('#app').waitFor({state:'visible'});
+            await page.getByRole('button',{name:'Home'}).waitFor();
+            await context.setOffline(false);
+
+            const manifest=await page.evaluate(async()=>{const u=document.querySelector('link[rel="manifest"]')?.href;if(!u)return null;const r=await fetch(u,{cache:'no-store'});return {status:r.status,json:await r.json()}});
+            assert(manifest&&manifest.status===200&&manifest.json.display==='standalone','PWA manifest contract failed');
+            const prohibited=network.filter(u=>/openai|anthropic|gemini|generativelanguage|api\.groq|cohere/i.test(u));
+            assert(!prohibited.length,'unexpected remote AI request '+JSON.stringify(prohibited));
+            assert(pageErrors.length===0,'page errors: '+JSON.stringify(pageErrors));
+            const meaningfulConsole=consoleErrors.filter(x=>!/favicon/i.test(x));
+            assert(meaningfulConsole.length===0,'console errors: '+JSON.stringify(meaningfulConsole));
+            const result={browser:name,initial_http:response.status(),navigation:'PASS',bookmark_confidence_persistence:'PASS',diagnostic:'PASS',exam_5_minute:'PASS',scientific_response_persistence_reopen:'PASS',premium_help:'PASS',responsive:'PASS',service_worker_scope:sw.scope,offline_reload:'PASS',manifest_installable:'PASS',remote_ai_requests:prohibited,page_errors:pageErrors,console_errors:meaningfulConsole};
+            await context.close(); return result;
+          }
+          async function webkitMobileCompatibility(browser){
+            if(name!=='webkit')return null;
+            const profiles=[
+              ['iphone-webkit',{viewport:{width:390,height:844},userAgent:'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1',isMobile:true,hasTouch:true}],
+              ['ipad-webkit',{viewport:{width:834,height:1194},userAgent:'Mozilla/5.0 (iPad; CPU OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1',isMobile:true,hasTouch:true}]
+            ];
+            const out=[];
+            for(const [profile,opts] of profiles){
+              const c=await browser.newContext(opts),p=await c.newPage(); const errs=[];p.on('pageerror',e=>errs.push(String(e)));
+              const r=await p.goto(base,{waitUntil:'domcontentloaded',timeout:45000}); assert(r&&r.status()===200,profile+' HTTP failed');
+              await p.getByRole('button',{name:'Home'}).waitFor();
+              const overflow=await p.evaluate(()=>document.documentElement.scrollWidth-window.innerWidth); assert(overflow<=2,profile+' horizontal overflow '+overflow);
+              const guidance=await p.evaluate(()=>MUSITUFrontier.installGuidance()); assert(guidance&&String(guidance).length>20,profile+' install guidance absent');
+              await p.evaluate(()=>go('prove')); await p.locator('[data-sr-equation]').fill('2H₂ + O₂ → 2H₂O');
+              await p.evaluate(async()=>{if('serviceWorker' in navigator)await navigator.serviceWorker.ready}); await p.reload({waitUntil:'domcontentloaded'});
+              await c.setOffline(true); await p.reload({waitUntil:'domcontentloaded',timeout:20000}); await p.locator('#app').waitFor(); await c.setOffline(false);
+              assert(errs.length===0,profile+' errors '+JSON.stringify(errs));
+              out.push({profile,http:r.status(),responsive:'PASS',install_guidance:'PASS',scientific_response:'PASS',offline_reload:'PASS',physical_device:false,label:'WebKit engine compatibility only; not physical iPhone/iPad certification'}); await c.close();
+            }
+            return out;
+          }
+          (async()=>{const browser=await engines[name]();try{const result=await coreScenario(browser);const mobile=await webkitMobileCompatibility(browser);const out={schema:'musitu.chemistry.frontier.universal.browser_matrix.v1',github_sha:process.env.GITHUB_SHA,base_url:base,playwright_version:require('playwright/package.json').version,result,mobile_webkit_compatibility:mobile,physical_ios_certification_performed:false,gate:'PASS'};fs.writeFileSync('result.json',JSON.stringify(out,null,2)+'\n');console.log(JSON.stringify(out));}finally{await browser.close()}})().catch(e=>{fs.writeFileSync('failure.txt',String(e.stack||e)+'\n');console.error(e);process.exit(1)});
+          JS
+          node verify.cjs
+          sha256sum result.json > result.sha256
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: musitu-universal-preview-browser-${{ matrix.browser }}
+          path: |
+            /tmp/mchem-browser-${{ matrix.browser }}/result.json
+            /tmp/mchem-browser-${{ matrix.browser }}/result.sha256
+            /tmp/mchem-browser-${{ matrix.browser }}/failure.txt
+            /tmp/mchem-browser-${{ matrix.browser }}/playwright-version.txt
+          if-no-files-found: warn
+          retention-days: 90
+
+  matrix-gate:
+    needs: browser
+    if: always()
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Require all five browser jobs green
+        env:
+          MATRIX_RESULT: ${{ needs.browser.result }}
+        run: |
+          set -euo pipefail
+          test "$MATRIX_RESULT" = success
+          echo MUSITU_CHEMISTRY_FRONTIER_UNIVERSAL_PREVIEW_BROWSER_MATRIX_PASS
