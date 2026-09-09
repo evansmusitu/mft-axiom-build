@@ -5,6 +5,10 @@ on:
     branches: [musitu-store-phase1-20260909]
     paths:
       - 'store/phase1/source_bundle.b64.*'
+      - 'store/phase1/source-v1.0.1.patch'
+      - 'store/phase1/apply-source-v1.0.1.sh'
+      - 'store/phase1/android-client/app/build.gradle'
+      - 'store/phase1/android-client/app/src/main/AndroidManifest.xml'
       - '.github/workflows/musitu-store-phase1-prebuild.yml'
   workflow_dispatch:
 
@@ -21,8 +25,8 @@ jobs:
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
-      - name: Expand sealed Phase 1 source bundle
-        run: cat store/phase1/source_bundle.b64.* | base64 -d | tar -xz
+      - name: Expand sealed 1.0.0 source and apply verified 1.0.1 delta
+        run: bash store/phase1/apply-source-v1.0.1.sh
       - uses: actions/setup-java@v4
         with: {distribution: temurin, java-version: '21'}
       - uses: android-actions/setup-android@v3
@@ -37,8 +41,8 @@ jobs:
           test -s "$APK"
           unzip -t "$APK" >/dev/null
           mkdir -p out
-          cp "$APK" out/MUSITU_Store_1.0.0_UNSIGNED.apk
-          sha256sum out/MUSITU_Store_1.0.0_UNSIGNED.apk > out/android.sha256
+          cp "$APK" out/MUSITU_Store_1.0.1_UNSIGNED.apk
+          sha256sum out/MUSITU_Store_1.0.1_UNSIGNED.apk > out/android.sha256
       - uses: actions/upload-artifact@v4
         with: {name: musitu-store-phase1-android-unsigned, path: out, if-no-files-found: error, retention-days: 30}
 
@@ -51,8 +55,8 @@ jobs:
       STABLE_BYTES: '5892286'
     steps:
       - uses: actions/checkout@v4
-      - name: Expand sealed Phase 1 source bundle
-        run: cat store/phase1/source_bundle.b64.* | base64 -d | tar -xz
+      - name: Expand sealed 1.0.0 source and apply verified 1.0.1 delta
+        run: bash store/phase1/apply-source-v1.0.1.sh
       - name: Fetch exact Android-embedded learner carrier
         run: |
           set -euo pipefail
@@ -107,8 +111,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with: {ref: musitu-store-phase1-20260909}
-      - name: Expand sealed Phase 1 source bundle
-        run: cat store/phase1/source_bundle.b64.* | base64 -d | tar -xz
+      - name: Expand sealed 1.0.0 source and apply verified 1.0.1 delta
+        run: bash store/phase1/apply-source-v1.0.1.sh
       - uses: actions/download-artifact@v4
         with: {name: musitu-store-phase1-android-unsigned, path: /tmp/android}
       - uses: actions/download-artifact@v4
@@ -117,16 +121,16 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p store/phase1/prebuilt/android store/phase1/prebuilt/ios
-          cp /tmp/android/MUSITU_Store_1.0.0_UNSIGNED.apk store/phase1/prebuilt/android/
+          cp /tmp/android/MUSITU_Store_1.0.1_UNSIGNED.apk store/phase1/prebuilt/android/
           cp /tmp/android/android.sha256 store/phase1/prebuilt/android/
           cp /tmp/ios/MUSITU_Chemistry_1.3.0.ipa store/phase1/prebuilt/ios/
           cp /tmp/ios/ios.sha256 store/phase1/prebuilt/ios/
           python - <<'PY'
           import hashlib,json,pathlib
-          a=pathlib.Path('store/phase1/prebuilt/android/MUSITU_Store_1.0.0_UNSIGNED.apk')
+          a=pathlib.Path('store/phase1/prebuilt/android/MUSITU_Store_1.0.1_UNSIGNED.apk')
           i=pathlib.Path('store/phase1/prebuilt/ios/MUSITU_Chemistry_1.3.0.ipa')
           h=lambda p: hashlib.sha256(p.read_bytes()).hexdigest()
-          e={'schema':'musitu.store.phase1.prebuilt.v1','android_unsigned':{'file':a.name,'bytes':a.stat().st_size,'sha256':h(a)},'ios_unsigned':{'file':i.name,'bytes':i.stat().st_size,'sha256':h(i),'bundle_id':'com.musitu.chemistry','version':'1.3.0'},'private_signing_material_present':False}
+          e={'schema':'musitu.store.phase1.prebuilt.v1','android_unsigned':{'file':a.name,'bytes':a.stat().st_size,'sha256':h(a),'version':'1.0.1','version_code':10001},'ios_unsigned':{'file':i.name,'bytes':i.stat().st_size,'sha256':h(i),'bundle_id':'com.musitu.chemistry','version':'1.3.0'},'private_signing_material_present':False}
           pathlib.Path('store/phase1/prebuilt/PREBUILT.json').write_text(json.dumps(e,indent=2,sort_keys=True)+'\n')
           PY
           git config user.name 'MUSITU Store Builder'

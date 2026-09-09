@@ -1,0 +1,25 @@
+--- a/store/phase1/android-client/app/src/main/AndroidManifest.xml
++++ b/store/phase1/android-client/app/src/main/AndroidManifest.xml
+@@ -2,6 +2,9 @@
+   <uses-permission android:name="android.permission.INTERNET" />
+   <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+   <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
++  <queries>
++    <package android:name="com.musitu.chemistry" />
++  </queries>
+   <application android:allowBackup="false" android:label="MUSITU Store" android:usesCleartextTraffic="false" android:theme="@style/AppTheme">
+     <activity android:name=".MainActivity" android:exported="true">
+       <intent-filter>
+--- a/store/phase1/android-client/app/build.gradle
++++ b/store/phase1/android-client/app/build.gradle
+@@ -8,8 +8,8 @@
+         applicationId 'com.musitu.store'
+         minSdk 24
+         targetSdk 36
+-        versionCode 10000
+-        versionName '1.0.0'
++        versionCode 10001
++        versionName '1.0.1'
+     }
+ 
+     buildTypes {
