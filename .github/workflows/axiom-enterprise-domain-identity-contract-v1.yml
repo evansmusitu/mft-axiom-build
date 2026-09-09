@@ -1,0 +1,371 @@
+name: MUSITU Axiom Enterprise OIDC Scope Contract V1
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - frontier/axiom-v5-skill-fabric
+    paths:
+      - '.github/workflows/axiom-enterprise-domain-identity-contract-v1.yml'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: musitu-axiom-enterprise-oidc-scope-contract
+  cancel-in-progress: false
+
+jobs:
+  repair-prove-and-deploy:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      CF_API: https://api.cloudflare.com/client/v4
+      ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      D1_UUID: 504029cc-f9a5-495e-818f-63c6144b4ea4
+      MCP_HOST: mcp.mftintelligence.com
+      MCP_PUBLIC_WORKER: musitu-axiom-mcp
+      MCP_CORE_WORKER: musitu-axiom-mcp-core
+      AUTH_ISSUER: https://auth.mftintelligence.com
+      TARGET_BRANCH: frontier/axiom-v5-skill-fabric
+      EXPECTED_SCOPES: openid email axiom.execute
+    steps:
+      - name: Checkout authoritative branch
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: frontier/axiom-v5-skill-fabric
+          fetch-depth: 0
+
+      - name: Build exact fail-closed MCP identity contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp mcp/musitu_axiom_plugin_gate_v4.mjs /tmp/musitu_axiom_plugin_gate_v4.before.mjs
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('mcp/musitu_axiom_plugin_gate_v4.mjs')
+          s=p.read_text()
+          replacements=[
+            ('scope="axiom.execute", error="insufficient_scope"','scope="openid email axiom.execute", error="insufficient_scope"'),
+            ('structuredContent:{authenticated:false,required_scope:"axiom.execute"}','structuredContent:{authenticated:false,required_scope:"openid email axiom.execute"}'),
+            ('if(!scopes.has("axiom.execute"))return{ok:false,reason:"insufficient_scope"};','if(!["openid","email","axiom.execute"].every(scope=>scopes.has(scope)))return{ok:false,reason:"insufficient_scope"};'),
+            ('[{type:"oauth2",scopes:["axiom.execute"]}]','[{type:"oauth2",scopes:["openid","email","axiom.execute"]}]'),
+            ('scopes_supported:["axiom.execute"]','scopes_supported:["openid","email","axiom.execute"]'),
+          ]
+          for old,new in replacements:
+            n=s.count(old)
+            if n != 1:
+              raise SystemExit(f'exact replacement cardinality failed for {old!r}: {n}')
+            s=s.replace(old,new)
+          forbidden=[
+            'scope="axiom.execute", error="insufficient_scope"',
+            'required_scope:"axiom.execute"',
+            'scopes:["axiom.execute"]',
+            'scopes_supported:["axiom.execute"]',
+          ]
+          for x in forbidden:
+            if x in s:
+              raise SystemExit('stale execution-only public OAuth contract remains: '+x)
+          required=[
+            'scope="openid email axiom.execute", error="insufficient_scope"',
+            'required_scope:"openid email axiom.execute"',
+            '["openid","email","axiom.execute"].every(scope=>scopes.has(scope))',
+            'scopes:["openid","email","axiom.execute"]',
+            'scopes_supported:["openid","email","axiom.execute"]',
+          ]
+          for x in required:
+            if x not in s:
+              raise SystemExit('required verified-email OAuth contract missing: '+x)
+          hidden=['musitu_axiom_plans','musitu_axiom_recommend_plan','musitu_axiom_start_checkout','musitu_axiom_checkout_status']
+          for name in hidden:
+            if s.count(name) < 1:
+              raise SystemExit('hidden commerce boundary missing '+name)
+          if 'billing.read' in s or 'billing.write' in s:
+            raise SystemExit('billing scope leaked into public MCP worker')
+          p.write_text(s)
+          PY
+          node --check mcp/musitu_axiom_plugin_gate_v4.mjs
+          git diff --check
+          git diff --exit-code -- auth/ || true
+          test -z "$(git status --porcelain --untracked-files=no | grep -v '^ M mcp/musitu_axiom_plugin_gate_v4.mjs$' || true)"
+
+      - name: Deploy candidate, prove complete OIDC identity chain, and commit only on success
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          python - <<'PY'
+          import base64,datetime,hashlib,html as htmlmod,json,os,pathlib,re,secrets,subprocess,time,urllib.error,urllib.parse,urllib.request,uuid
+
+          api=os.environ['CF_API']; aid=os.environ['ACCOUNT_ID']; dbid=os.environ['D1_UUID']; host=os.environ['MCP_HOST']; pub=os.environ['MCP_PUBLIC_WORKER']; core=os.environ['MCP_CORE_WORKER']; issuer=os.environ['AUTH_ISSUER']; resource='https://'+host
+          expected_scopes=['openid','email','axiom.execute']; expected_scope_text=' '.join(expected_scopes)
+          source=pathlib.Path('mcp/musitu_axiom_plugin_gate_v4.mjs').read_bytes(); old_source=pathlib.Path('/tmp/musitu_axiom_plugin_gate_v4.before.mjs').read_bytes()
+          source_sha=hashlib.sha256(source).hexdigest(); old_sha=hashlib.sha256(old_source).hexdigest()
+          admin={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY'],'Accept':'application/json','User-Agent':'MUSITU-Axiom-Enterprise-OIDC-Scope-V1/1.0'}
+          hidden={'musitu_axiom_plans','musitu_axiom_recommend_plan','musitu_axiom_start_checkout','musitu_axiom_checkout_status'}
+
+          def raw(url,method='GET',headers=None,body=None,timeout=45,follow=True):
+            q=urllib.request.Request(url,headers=dict(headers or {}),method=method,data=body)
+            opener=urllib.request.build_opener() if follow else urllib.request.build_opener(type('NoRedirect',(urllib.request.HTTPRedirectHandler,),{'redirect_request':lambda self,req,fp,code,msg,headers,newurl:None})())
+            try:
+              with opener.open(q,timeout=timeout) as r:return r.status,r.headers,r.read()
+            except urllib.error.HTTPError as e:return e.code,e.headers,e.read()
+            except urllib.error.URLError as e:return 0,{},str(e).encode()
+
+          def cf(path,method='GET',obj=None):
+            h=dict(admin); b=None
+            if obj is not None:
+              h['Content-Type']='application/json'; b=json.dumps(obj,separators=(',',':')).encode()
+            c,_,r=raw(api+path,method,h,b)
+            if not 200<=c<300: raise RuntimeError(f'Cloudflare HTTP {c} {method} {path}: {r[:180]!r}')
+            o=json.loads(r or b'{}')
+            if o.get('success') is False: raise RuntimeError('Cloudflare success=false '+path)
+            return o.get('result')
+
+          def d1(sql,params=None):
+            obj={'sql':sql}
+            if params is not None: obj['params']=params
+            rr=cf(f'/accounts/{aid}/d1/database/{dbid}/query','POST',obj) or []
+            if not rr or not all(x.get('success') is True for x in rr): raise RuntimeError('D1 query failed')
+            rows=[]
+            for x in rr: rows.extend(x.get('results') or [])
+            return rows
+
+          def multipart(worker_source):
+            bindings=[
+              {'type':'d1','name':'AXIOM_DB','id':dbid},
+              {'type':'plain_text','name':'AUTH_ISSUER','text':issuer},
+              {'type':'plain_text','name':'MCP_PUBLIC_BASE','text':resource},
+              {'type':'service','name':'MCP_CORE','service':core},
+            ]
+            meta={'main_module':'index.mjs','compatibility_date':'2026-09-05','bindings':bindings}
+            bd='----MUSITU'+secrets.token_hex(16); parts=[]
+            def add(x): parts.append(x.encode() if isinstance(x,str) else x)
+            add(f'--{bd}\r\nContent-Disposition: form-data; name="metadata"\r\nContent-Type: application/json\r\n\r\n'); add(json.dumps(meta,separators=(',',':'))); add('\r\n')
+            add(f'--{bd}\r\nContent-Disposition: form-data; name="index.mjs"; filename="index.mjs"\r\nContent-Type: application/javascript+module\r\n\r\n'); add(worker_source); add('\r\n'); add(f'--{bd}--\r\n')
+            return bd,b''.join(parts)
+
+          def upload(worker_source):
+            bd,body=multipart(worker_source); h=dict(admin); h['Content-Type']='multipart/form-data; boundary='+bd
+            c,_,b=raw(f'{api}/accounts/{aid}/workers/scripts/{urllib.parse.quote(pub,safe="")}', 'PUT',h,body)
+            if not 200<=c<300: raise RuntimeError('public worker upload failed '+str(c)+' '+b[:180].decode('utf-8','ignore'))
+            cf(f'/accounts/{aid}/workers/scripts/{urllib.parse.quote(pub,safe="")}/subdomain','POST',{'enabled':False,'previews_enabled':False})
+
+          def probe(path,method='GET',obj=None,token=None,base=None,headers=None):
+            h={'Accept':'application/json','User-Agent':'MUSITU-Axiom-Enterprise-OIDC-Scope-V1-Verify/1.0'}; body=None
+            if headers: h.update(headers)
+            if obj is not None: h['Content-Type']='application/json'; body=json.dumps(obj,separators=(',',':')).encode()
+            if token: h['Authorization']='Bearer '+token
+            c,hh,b=raw((base or resource)+path,method,h,body)
+            try:o=json.loads(b or b'{}')
+            except:o={}
+            return c,hh,o,b
+
+          def rpc(method,params=None,token=None,id=1,modern=False):
+            headers={}
+            if modern: headers['MCP-Protocol-Version']='2026-07-28'
+            return probe('/mcp','POST',{'jsonrpc':'2.0','id':id,'method':method,'params':params or {}},token,headers=headers)
+
+          def form(url,data,headers=None,follow=True):
+            h={'Accept':'application/json','Content-Type':'application/x-www-form-urlencoded','User-Agent':'MUSITU-Axiom-Enterprise-OIDC-Scope-V1-OAuth/1.0'}
+            if headers: h.update(headers)
+            return raw(url,'POST',h,urllib.parse.urlencode(data).encode(),45,follow)
+
+          def b64url(b): return base64.urlsafe_b64encode(b).rstrip(b'=').decode()
+          def b64decode(s): return base64.urlsafe_b64decode(s+'='*((4-len(s)%4)%4))
+
+          def verify_jwt(jwt,jwks,client_id,nonce,email,expected_sub=None):
+            parts=jwt.split('.')
+            if len(parts)!=3: raise RuntimeError('ID token is not a compact JWS')
+            header=json.loads(b64decode(parts[0])); claims=json.loads(b64decode(parts[1])); sig=b64decode(parts[2])
+            if header.get('alg')!='RS256' or not header.get('kid'): raise RuntimeError('ID token header invalid')
+            key=next((k for k in jwks.get('keys',[]) if k.get('kid')==header['kid']),None)
+            if not key or key.get('kty')!='RSA' or key.get('use')!='sig' or key.get('alg')!='RS256': raise RuntimeError('JWKS signing key mismatch')
+            n=int.from_bytes(b64decode(key['n']),'big'); e=int.from_bytes(b64decode(key['e']),'big'); s=int.from_bytes(sig,'big'); em=pow(s,e,n).to_bytes((n.bit_length()+7)//8,'big')
+            digest=hashlib.sha256((parts[0]+'.'+parts[1]).encode()).digest(); digest_info=bytes.fromhex('3031300d060960864801650304020105000420')+digest
+            if len(em)<len(digest_info)+11 or em[:2]!=b'\x00\x01' or b'\x00' not in em[2:]: raise RuntimeError('RS256 encoded message malformed')
+            sep=em.find(b'\x00',2)
+            if sep<10 or any(x!=0xff for x in em[2:sep]) or em[sep+1:]!=digest_info: raise RuntimeError('RS256 signature verification failed')
+            now=int(time.time())
+            if claims.get('iss')!=issuer or claims.get('aud')!=client_id: raise RuntimeError('ID token issuer/audience mismatch')
+            if claims.get('exp',0)<=now or claims.get('iat',0)>now+60: raise RuntimeError('ID token time claims invalid')
+            if nonce is not None and claims.get('nonce')!=nonce: raise RuntimeError('ID token nonce mismatch')
+            if claims.get('email')!=email or claims.get('email_verified') is not True: raise RuntimeError('verified email claims missing')
+            if not claims.get('sub'): raise RuntimeError('ID token subject missing')
+            if expected_sub and claims.get('sub')!=expected_sub: raise RuntimeError('ID token subject rotated')
+            return claims
+
+          prefix='fixture_ent_oidc_'+uuid.uuid4().hex
+          stale_customer=prefix+'_stale_customer'; stale_key_id=prefix+'_stale_access_key'; stale_client=prefix+'_stale_client'; stale_token='musitu_stale_'+secrets.token_urlsafe(48)
+          oidc_customer=prefix+'_oidc_customer'; source_key_id=prefix+'_source'; oidc_email=prefix+'@invalid.example'; account='musitu_axiom_ent_oidc_'+secrets.token_urlsafe(48)
+          print('::add-mask::'+stale_token); print('::add-mask::'+account)
+          client_id=''; candidate_deployed=False; success=False
+          evidence={'candidate_sha256':source_sha,'previous_sha256':old_sha,'expected_scopes':expected_scopes,'tool_count':None,'oidc':{},'stale_token_fail_closed':False,'full_scope_mcp_execution':False,'commerce_tools_exposed':False}
+
+          def cleanup():
+            for sql,params in [
+              ("DELETE FROM oauth_oidc_code_nonces WHERE code_hash IN (SELECT code_hash FROM oauth_authorization_codes WHERE customer_id IN (?1,?2))",[stale_customer,oidc_customer]),
+              ("DELETE FROM oauth_authorization_codes WHERE customer_id IN (?1,?2)",[stale_customer,oidc_customer]),
+              ("DELETE FROM oauth_refresh_tokens WHERE customer_id IN (?1,?2)",[stale_customer,oidc_customer]),
+              ("DELETE FROM oauth_access_tokens WHERE customer_id IN (?1,?2)",[stale_customer,oidc_customer]),
+              ("DELETE FROM oauth_oidc_flow_nonces WHERE flow_id IN (SELECT id FROM oauth_authorization_flows WHERE client_id LIKE ?1)",[prefix+'%']),
+              ("DELETE FROM oauth_authorization_flows WHERE client_id LIKE ?1",[prefix+'%']),
+              ("DELETE FROM oauth_identity_claims WHERE customer_id IN (?1,?2)",[stale_customer,oidc_customer]),
+              ("DELETE FROM api_keys WHERE customer_id IN (?1,?2)",[stale_customer,oidc_customer]),
+              ("DELETE FROM oauth_clients WHERE client_id=?1 OR client_name LIKE ?2",[stale_client,prefix+'%']),
+              ("DELETE FROM customers WHERE id IN (?1,?2)",[stale_customer,oidc_customer]),
+            ]:
+              try:d1(sql,params)
+              except Exception as e: print('cleanup warning',type(e).__name__)
+
+          try:
+            subprocess.run(['git','fetch','origin',os.environ['TARGET_BRANCH']],check=True,stdout=subprocess.DEVNULL)
+            remote=subprocess.check_output(['git','rev-parse','FETCH_HEAD'],text=True).strip()
+            if remote!=os.environ['GITHUB_SHA']: raise RuntimeError('branch advanced before production mutation')
+
+            # Baseline public surface must already be healthy before mutation.
+            hc,_,ho,_=probe('/health')
+            if hc!=200 or ho.get('oauth_enforced') is not True: raise RuntimeError('pre-deploy public MCP health failed')
+
+            upload(source); candidate_deployed=True
+
+            tools=None
+            for attempt in range(45):
+              mc,_,meta,_=probe('/.well-known/oauth-protected-resource')
+              lc,_,lo,_=rpc('tools/list',id=100+attempt,modern=True)
+              ts=(lo.get('result') or {}).get('tools') or []
+              if mc==200 and meta.get('scopes_supported')==expected_scopes and lc==200 and len(ts)==108:
+                tools=ts; break
+              time.sleep(2)
+            if tools is None: raise RuntimeError('identity-scope contract did not converge on all public edges')
+            time.sleep(5)
+
+            names={t.get('name') for t in tools}
+            if names & hidden: raise RuntimeError('forbidden commerce tools exposed')
+            evidence['tool_count']=len(tools)
+            protected=0
+            for t in tools:
+              schemes=t.get('securitySchemes') or []
+              if t.get('name') in {'search','fetch','musitu_axiom_capabilities'}:
+                if schemes!=[{'type':'noauth'}]: raise RuntimeError('public discovery security drift '+str(t.get('name')))
+              else:
+                protected+=1
+                if not any(s.get('type')=='oauth2' and s.get('scopes')==expected_scopes for s in schemes): raise RuntimeError('verified-email scope missing on '+str(t.get('name')))
+                for s in schemes:
+                  if any(x.startswith('billing.') for x in s.get('scopes',[])): raise RuntimeError('billing scope leaked to public tool')
+            if protected!=105: raise RuntimeError('unexpected protected tool count')
+
+            dc,_,do,_=rpc('server/discover',{'_meta':{'io.modelcontextprotocol/protocolVersion':'2026-07-28','io.modelcontextprotocol/clientInfo':{'name':'enterprise-oidc-proof','version':'1'},'io.modelcontextprotocol/clientCapabilities':{}}},id=501,modern=True)
+            if dc!=200 or (do.get('result') or {}).get('supportedVersions')!=['2026-07-28']: raise RuntimeError('server/discover regression')
+
+            # No-token challenge must request the complete identity + execution contract.
+            nc,_,no,_=rpc('tools/call',{'name':'musitu_axiom_execute','arguments':{'operation':'arithmetic.evaluate','args':{'expression':'2+2'}}},id=502)
+            nr=no.get('result') or {}; nmeta=nr.get('_meta') or {}; challenges=nmeta.get('mcp/www_authenticate') or []
+            if nc!=200 or nr.get('isError') is not True or not challenges or 'scope="openid email axiom.execute"' not in str(challenges[0]): raise RuntimeError('complete WWW-Authenticate challenge missing')
+
+            # Legacy execution-only access token must fail closed and force reauthorization.
+            now=datetime.datetime.now(datetime.timezone.utc); created=now.isoformat().replace('+00:00','Z'); exp=(now+datetime.timedelta(hours=1)).isoformat().replace('+00:00','Z')
+            d1("INSERT INTO customers(id,email,name,plan,status,monthly_unit_override,created_at,updated_at) VALUES(?1,?2,?3,?4,?5,?6,?7,?7)",[stale_customer,prefix+'-stale@invalid.example','MUSITU stale scope fixture','developer','active',100,created])
+            d1("INSERT INTO oauth_clients(client_id,redirect_uris_json,client_name,created_at) VALUES(?1,?2,?3,?4)",[stale_client,json.dumps(['https://chatgpt.com/connector/oauth/'+prefix]),prefix+' stale',created])
+            d1("INSERT INTO api_keys(id,customer_id,key_hash,key_prefix,label,status,created_at,last_used_at,expires_at,revoked_at) VALUES(?1,?2,?3,?4,?5,'active',?6,NULL,?7,NULL)",[stale_key_id,stale_customer,hashlib.sha256(stale_token.encode()).hexdigest(),stale_token[:16],'enterprise-stale-scope',created,exp])
+            d1("INSERT INTO oauth_access_tokens(token_hash,api_key_id,client_id,customer_id,issuer,resource,scope,created_at,expires_at,revoked_at) VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,NULL)",[hashlib.sha256(stale_token.encode()).hexdigest(),stale_key_id,stale_client,stale_customer,issuer,resource,'axiom.execute',created,exp])
+            sc,_,so,_=rpc('tools/call',{'name':'musitu_axiom_execute','arguments':{'operation':'arithmetic.evaluate','args':{'expression':'2+2'}}},token=stale_token,id=503)
+            sr=so.get('result') or {}; sch=(sr.get('_meta') or {}).get('mcp/www_authenticate') or []
+            if sc!=200 or sr.get('isError') is not True or (sr.get('structuredContent') or {}).get('authenticated') is not False or not sch or 'scope="openid email axiom.execute"' not in str(sch[0]): raise RuntimeError('legacy execution-only token did not fail closed')
+            evidence['stale_token_fail_closed']=True
+
+            # Create a real verified identity and run the complete OIDC authorization-code path.
+            d1("INSERT INTO customers(id,email,name,plan,status,monthly_unit_override,created_at,updated_at) VALUES(?1,?2,?3,?4,?5,?6,?7,?7)",[oidc_customer,oidc_email,'MUSITU enterprise OIDC fixture','developer','active',100,created])
+            d1("INSERT INTO oauth_identity_claims(customer_id,email_verified_at,created_at,updated_at) VALUES(?1,?2,?2,?2)",[oidc_customer,created])
+            d1("INSERT INTO api_keys(id,customer_id,key_hash,key_prefix,label,status,created_at,last_used_at,expires_at,revoked_at) VALUES(?1,?2,?3,?4,?5,'active',?6,NULL,?7,NULL)",[source_key_id,oidc_customer,hashlib.sha256(account.encode()).hexdigest(),account[:16],'enterprise-oidc-source',created,exp])
+
+            oc,_,oidc,_=probe('/.well-known/openid-configuration',base=issuer)
+            if oc!=200 or oidc.get('issuer')!=issuer or oidc.get('userinfo_endpoint')!=issuer+'/oauth/userinfo' or oidc.get('jwks_uri')!=issuer+'/.well-known/jwks.json': raise RuntimeError('OIDC discovery invalid')
+            if not {'openid','email','axiom.execute'}.issubset(set(oidc.get('scopes_supported') or [])) or oidc.get('id_token_signing_alg_values_supported')!=['RS256']: raise RuntimeError('OIDC discovery scope/signing metadata invalid')
+            jc,_,jwks,_=probe('/.well-known/jwks.json',base=issuer)
+            if jc!=200 or not any(k.get('kty')=='RSA' and k.get('alg')=='RS256' and k.get('use')=='sig' for k in jwks.get('keys',[])): raise RuntimeError('JWKS invalid')
+
+            callback='https://chatgpt.com/connector/oauth/'+prefix; verifier=b64url(secrets.token_bytes(48)); challenge=b64url(hashlib.sha256(verifier.encode()).digest()); state='st_'+secrets.token_urlsafe(24); nonce='nonce_'+secrets.token_urlsafe(24)
+            print('::add-mask::'+verifier)
+            rc,_,rb=raw(issuer+'/oauth/register','POST',{'Accept':'application/json','Content-Type':'application/json'},json.dumps({'redirect_uris':[callback],'client_name':prefix+' E2E','token_endpoint_auth_method':'none','grant_types':['authorization_code','refresh_token'],'response_types':['code']},separators=(',',':')).encode()); reg=json.loads(rb or b'{}')
+            if rc!=201 or not reg.get('client_id'): raise RuntimeError('dynamic client registration failed')
+            client_id=str(reg['client_id']); print('::add-mask::'+client_id)
+            aq={'response_type':'code','client_id':client_id,'redirect_uri':callback,'scope':expected_scope_text,'state':state,'nonce':nonce,'code_challenge':challenge,'code_challenge_method':'S256','resource':resource}
+            ac,ah,ab=raw(issuer+'/oauth/authorize?'+urllib.parse.urlencode(aq),headers={'Accept':'text/html'}); page=ab.decode('utf-8','replace')
+            fm=re.search(r'name="flow_id" value="([^"]+)"',page); fn=re.search(r'name="flow_nonce" value="([^"]+)"',page)
+            if ac!=200 or not fm or not fn or 'openid' not in page or 'email' not in page or 'axiom.execute' not in page: raise RuntimeError('OIDC consent did not request complete scopes')
+            pc,_,pb=form(issuer+'/oauth/authorize',{'flow_id':fm.group(1),'flow_nonce':fn.group(1),'musitu_account_key':account},{'Accept':'text/html'},True)
+            ptxt=pb.decode('utf-8','replace'); cm=re.search(r'data-oauth-callback="([^"]+)"',ptxt)
+            if pc!=200 or not cm: raise RuntimeError('mobile-safe authorization callback page failed')
+            callback_url=htmlmod.unescape(cm.group(1)); qp=urllib.parse.parse_qs(urllib.parse.urlparse(callback_url).query); code=(qp.get('code') or [''])[0]
+            if not code or (qp.get('state') or [''])[0]!=state: raise RuntimeError('authorization code/state missing'); print('::add-mask::'+code)
+            tc,_,tb=form(issuer+'/oauth/token',{'grant_type':'authorization_code','code':code,'code_verifier':verifier,'client_id':client_id,'redirect_uri':callback,'resource':resource}); tok=json.loads(tb or b'{}')
+            access=str(tok.get('access_token') or ''); refresh=str(tok.get('refresh_token') or ''); id_token=str(tok.get('id_token') or '')
+            for secret in [access,refresh,id_token]:
+              if secret: print('::add-mask::'+secret)
+            if tc!=200 or not access or not refresh or not id_token or tok.get('scope')!=expected_scope_text: raise RuntimeError('complete-scope token issuance failed')
+            claims=verify_jwt(id_token,jwks,client_id,nonce,oidc_email)
+            uc,_,ui,_=probe('/oauth/userinfo',token=access,base=issuer)
+            if uc!=200 or ui.get('email')!=oidc_email or ui.get('email_verified') is not True or ui.get('sub')!=claims['sub']: raise RuntimeError('UserInfo verified identity mismatch')
+
+            ec,_,eo,_=rpc('tools/call',{'name':'musitu_axiom_execute','arguments':{'operation':'arithmetic.evaluate','args':{'expression':'2+2'}}},token=access,id=504)
+            er=eo.get('result') or {}
+            if ec!=200 or er.get('isError') is True and (er.get('structuredContent') or {}).get('authenticated') is False: raise RuntimeError('full-scope MCP token was rejected')
+            if eo.get('error'): raise RuntimeError('protected MCP execution returned JSON-RPC error')
+            evidence['full_scope_mcp_execution']=True
+
+            rtc,_,rtb=form(issuer+'/oauth/token',{'grant_type':'refresh_token','refresh_token':refresh,'client_id':client_id,'resource':resource}); rtok=json.loads(rtb or b'{}')
+            access2=str(rtok.get('access_token') or ''); refresh2=str(rtok.get('refresh_token') or ''); id2=str(rtok.get('id_token') or '')
+            for secret in [access2,refresh2,id2]:
+              if secret: print('::add-mask::'+secret)
+            if rtc!=200 or not access2 or not refresh2 or not id2 or rtok.get('scope')!=expected_scope_text: raise RuntimeError('refresh did not preserve complete scopes')
+            claims2=verify_jwt(id2,jwks,client_id,None,oidc_email,claims['sub'])
+            u2c,_,ui2,_=probe('/oauth/userinfo',token=access2,base=issuer)
+            if u2c!=200 or ui2.get('sub')!=claims['sub'] or ui2.get('email_verified') is not True: raise RuntimeError('refreshed UserInfo identity drift')
+            oldc,_,oldo,_=rpc('tools/call',{'name':'musitu_axiom_execute','arguments':{'operation':'arithmetic.evaluate','args':{'expression':'2+2'}}},token=access,id=505)
+            oldr=oldo.get('result') or {}
+            if oldc!=200 or oldr.get('isError') is not True or (oldr.get('structuredContent') or {}).get('authenticated') is not False: raise RuntimeError('rotated access token remained valid')
+
+            rvc,_,_=form(issuer+'/oauth/revoke',{'token':refresh2},{'Accept':'application/json'}); 
+            if rvc!=200: raise RuntimeError('revocation endpoint failed')
+            postc,_,_,_=probe('/oauth/userinfo',token=access2,base=issuer)
+            if postc!=401: raise RuntimeError('revocation failed closed')
+
+            evidence['oidc']={'discovery':True,'jwks_rs256':True,'id_token_signature_verified':True,'nonce_verified':True,'email_verified':True,'userinfo':True,'refresh_rotation':True,'stable_sub':True,'revocation_fail_closed':True}
+
+            # Race-safe commit only after live production proof. Roll back production if branch moved or push fails.
+            subprocess.run(['git','fetch','origin',os.environ['TARGET_BRANCH']],check=True,stdout=subprocess.DEVNULL)
+            remote2=subprocess.check_output(['git','rev-parse','FETCH_HEAD'],text=True).strip()
+            if remote2!=os.environ['GITHUB_SHA']: raise RuntimeError('branch advanced during live proof')
+            subprocess.run(['git','add','mcp/musitu_axiom_plugin_gate_v4.mjs'],check=True)
+            subprocess.run(['git','commit','-m','Require verified-email OIDC scopes on public MCP'],check=True)
+            subprocess.run(['git','push','origin','HEAD:'+os.environ['TARGET_BRANCH']],check=True)
+            success=True
+            evidence['status']='PASS'
+            evidence['committed_sha']=subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip()
+            pathlib.Path('/tmp/musitu-enterprise-oidc-scope-evidence.json').write_text(json.dumps(evidence,indent=2,sort_keys=True)+'\n')
+            print('MUSITU_AXIOM_ENTERPRISE_OIDC_SCOPE_CONTRACT_PASS')
+            print(json.dumps({'candidate_sha256':source_sha,'tool_count':108,'scopes':expected_scopes,'oidc':evidence['oidc'],'commerce_tools_exposed':False},sort_keys=True))
+          except Exception:
+            if candidate_deployed and not success:
+              try:
+                print('candidate proof failed; restoring prior public MCP worker')
+                upload(old_source)
+              except Exception as rollback_error:
+                print('ROLLBACK_FAILED',type(rollback_error).__name__)
+            raise
+          finally:
+            cleanup()
+          PY
+
+      - name: Upload non-secret enterprise identity proof
+        if: success()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: musitu-axiom-enterprise-oidc-scope-proof
+          path: /tmp/musitu-enterprise-oidc-scope-evidence.json
+          if-no-files-found: error
