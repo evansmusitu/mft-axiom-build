@@ -7,6 +7,7 @@ on:
     paths:
       - commerce/chemistry/frontier_universal/ANDROID_SIDECAR_MIGRATION.json
       - commerce/chemistry/frontier_universal/ANDROID_SIDECAR_SOURCE_ARTIFACT.json
+      - commerce/chemistry/frontier_universal/ANDROID_SIDECAR_PRIVATE_RELEASE_SIGNING.json
       - commerce/chemistry/frontier_universal/verify_android_sidecar_release_control.py
       - commerce/chemistry/frontier_universal/RELEASE_CANDIDATE.json
       - commerce/chemistry/frontier_universal/SOURCE_ARTIFACT.json
@@ -28,18 +29,23 @@ jobs:
         run: python commerce/chemistry/frontier_universal/verify_android_sidecar_release_control.py
       - name: Verify control syntax
         run: python -m py_compile commerce/chemistry/frontier_universal/verify_android_sidecar_release_control.py
-      - name: Assert publication remains disabled
+      - name: Assert bounded public canary only
         shell: bash
         run: |
           python - <<'PY'
           import json
           p='commerce/chemistry/frontier_universal/ANDROID_SIDECAR_MIGRATION.json'
           j=json.load(open(p))
-          assert j['publication']=={
-              'authorized': False,
-              'production_deployed': False,
-              'production_download_replaced': False,
-              'customer_exposed': False,
-          }
-          print('MUSITU_CHEMISTRY_SIDECAR_PUBLICATION_DISABLED_PASS')
+          pub=j['publication']
+          canary=pub['canary']
+          assert pub['authorized'] is True
+          assert pub['mode']=='PUBLIC_CANARY_SIDE_BY_SIDE'
+          assert pub['production_deployed'] is False
+          assert pub['production_download_replaced'] is False
+          assert pub['customer_exposed'] is True
+          assert canary['artifact_sha256']=='4ba442122d9c86a0c3cef660334fe337c6ea9ae6fe853c964b5e94961245babd'
+          assert canary['url']=='https://1drv.ms/u/c/4530ee4f0527658a/IQDfecNljFSHS6cZpwxVaGLNAZMaPJ3safwWN8c1GEub_ck'
+          assert canary['anonymous_read_only'] is True
+          assert canary['expiration'] is None
+          print('MUSITU_CHEMISTRY_SIDECAR_BOUNDED_PUBLIC_CANARY_PASS')
           PY
