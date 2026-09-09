@@ -1,6 +1,6 @@
 # MUSITU Axiom — OpenAI Public Plugin Publication Execution Packet
 
-Status date: 2026-09-06
+Status date: 2026-09-09
 
 ## 1. Authoritative state
 
@@ -29,6 +29,12 @@ Additional sealed gates:
 - OAuth UserInfo v2 evidence: `55af99a2b0cc7ed9f61a6d0a9590ee42effc1e7a223a6f73c0f7b27e364b316a`
 - Public HTML docs evidence: `4018c0b58a0afe8004d1360ce5263cdb067200833c3fe64cd71b6af6fc71240b`
 - Current submission import JSON SHA-256: `e54351fac1c140da8dc4f463795a281eeb9c9ee61e804a0a993ea82a8e7f5e0d`
+- Reviewer demo gate: `MUSITU_AXIOM_OPENAI_REVIEWER_DEMO_READY`
+- Reviewer demo verification run: `34244742718`
+- Reviewer demo verified commit: `a15b5bee0d319fc9d462ab7846e114ea44a69c68`
+- Reviewer demo evidence SHA-256: `25b2acfa9f5811bab4e18a50793cf1c2383176156e93831280dff17557d12ed6`
+
+The dedicated OpenAI reviewer demo credential has been provisioned and verified as persistent and non-expiring. Its secret value remains private and must be entered only through OpenAI's private reviewer credential field.
 
 Do not claim OpenAI submission, approval, verification, directory publication, Wolfram parity, or superiority unless a later sealed gate proves it.
 
@@ -92,23 +98,36 @@ Developer Identity must be selected from the identity actually verified by the p
 
 - MCP URL type: `Universal`
 - Production MCP Server URL: `https://mcp.mftintelligence.com/mcp`
-- OAuth issuer: `https://auth.mftintelligence.com`
+- OAuth / OpenID Connect issuer: `https://auth.mftintelligence.com`
 - OAuth protected-resource metadata: `https://mcp.mftintelligence.com/.well-known/oauth-protected-resource`
 - OAuth authorization-server metadata: `https://auth.mftintelligence.com/.well-known/oauth-authorization-server`
+- OpenID Connect discovery: `https://auth.mftintelligence.com/.well-known/openid-configuration`
+- JWKS: `https://auth.mftintelligence.com/.well-known/jwks.json`
 - UserInfo endpoint: `https://auth.mftintelligence.com/oauth/userinfo`
 - Execution scope: `axiom.execute`
 - Identity scopes: `openid email`
+- Reviewer requested scopes: `openid email axiom.execute`
 - Dynamic client registration: enabled
 - PKCE: `S256`
+- ID-token signing: `RS256`
 
 Security boundary already proven:
 
 - `openid email` alone does not authorize compute.
 - `axiom.execute` is required for Axiom execution.
 - UserInfo returns verified email only when an explicit MUSITU email-verification record exists.
+- OpenID Connect ID tokens are signed and discoverable through the public JWKS endpoint.
 - Legacy `axiom.execute` remains compatible.
 - OAuth refresh/revocation remains fail-closed.
 - Public Plugin surface does not expose subscription checkout tools, execute investment trades, or transfer money.
+
+### Mobile-safe ChatGPT callback behavior
+
+The current production authorization worker intentionally returns an HTTP 200 HTML callback handoff after the MUSITU account-key POST instead of relying on a server-side redirect chain that proved unreliable in Android ChatGPT embedded browsers.
+
+The handoff document carries the exact registered ChatGPT callback through three independent top-level navigation paths: JavaScript `window.location.replace`, meta refresh, and a user-tappable fallback anchor. The authorization code remains one-time and the MUSITU account key never leaves MUSITU.
+
+Frontier Full-Stack verification has been aligned to this HTTP 200 mobile-safe contract. Do not regress the verifier to an obsolete 302/303-only expectation.
 
 ## 6. Domain verification — secret-safe procedure
 
@@ -181,14 +200,28 @@ Import/use the exact five positive and three negative test cases in `chatgpt-app
 
 Reviewer authentication requirement:
 
-- Provide a dedicated MUSITU reviewer/demo account credential privately in the OpenAI portal.
+- Use the already-provisioned dedicated `MUSITU Axiom OpenAI Reviewer Demo` account credential privately in the OpenAI portal.
+- The demo credential is persistent and non-expiring.
 - The demo credential must execute every submitted positive authenticated test without MFA, SMS, email confirmation, or private-network access.
 - Do **not** commit or publish that credential.
 - Do **not** reuse a production customer’s raw credential for review.
 
-Current state: `PRIVATE_PORTAL_CREDENTIAL_REQUIRED`.
+Current state: `PROVISIONED_PERSISTENT_PRIVATE_PORTAL_CREDENTIAL_REQUIRED`.
 
-No reviewer credential is claimed to exist until it has been provisioned and safely entered into OpenAI Platform.
+Verified reviewer readiness:
+
+- GitHub Actions run: `34244742718`
+- Job: `provision-and-verify`
+- Verified commit: `a15b5bee0d319fc9d462ab7846e114ea44a69c68`
+- Gate: `MUSITU_AXIOM_OPENAI_REVIEWER_DEMO_READY`
+- Positive tests passed: `5`
+- Negative-test contracts: `3`
+- Reviewer UserInfo identity: verified
+- Reviewer credential published: `false`
+- OAuth tokens published: `false`
+- Evidence SHA-256: `25b2acfa9f5811bab4e18a50793cf1c2383176156e93831280dff17557d12ed6`
+
+The reviewer credential must now be copied only from its secure publisher-controlled source into OpenAI's private reviewer credential field. Never expose it in repository automation output or chat.
 
 ## 10. Global tab
 
@@ -202,7 +235,7 @@ Select only jurisdictions where the publisher identity, MUSITU product availabil
 
 Use:
 
-> Initial public MUSITU Axiom ChatGPT submission: 108 public tools backed by 74 certified runtime operations and 30 business-facing quantitative products; OAuth 2.1 account linking with PKCE, refresh/revocation, UserInfo support for explicitly verified email identities, metered execution for existing entitled accounts, response minimization, and no digital-subscription commerce on the public ChatGPT surface.
+> Initial public MUSITU Axiom ChatGPT submission: 108 public tools backed by 74 certified runtime operations and 30 business-facing quantitative products; OAuth 2.1 account linking with PKCE, refresh/revocation, OpenID Connect RS256 ID tokens, JWKS and UserInfo support for explicitly verified email identities, mobile-safe ChatGPT callback handoff, metered execution for existing entitled accounts, response minimization, and no digital-subscription commerce on the public ChatGPT surface.
 
 ## 12. Final policy and submission gate
 
@@ -213,6 +246,7 @@ Before selecting **Submit for Review**, require all of the following:
 - Info-tab values match this packet.
 - Universal MCP URL is exact.
 - OAuth connection succeeds with the dedicated reviewer credential.
+- The current HTTP 200 mobile-safe ChatGPT callback handoff succeeds.
 - `MUSITU_AXIOM_OPENAI_DOMAIN_CHALLENGE_PASS` is sealed after OpenAI issues its token.
 - Scan Tools passes against the current live MCP surface.
 - 108 tools / 74 operations / 30 business products remain exact unless a deliberately reviewed new version has been resealed.
@@ -243,12 +277,12 @@ Do not call the project publicly published until steps 3–6 have actually occur
 
 ## 14. Remaining non-automated blockers
 
-At the time this packet was sealed, the only public-publication actions requiring the OpenAI portal or publisher-controlled secret entry are:
+At the time of this update, the public-publication actions that still require the OpenAI portal or publisher-controlled secret entry are:
 
-1. `PUBLISHER_IDENTITY_VERIFICATION`
+1. `PUBLISHER_IDENTITY_VERIFICATION_OR_CONFIRMATION`
 2. `OPENAI_DOMAIN_CHALLENGE_TOKEN`
 3. `PRIVATE_REVIEWER_DEMO_CREDENTIAL_ENTRY`
 4. `COUNTRY_AVAILABILITY_SELECTION`
 5. `FINAL_SUBMIT_AND_PUBLISH_AFTER_APPROVAL`
 
-All other current submission materials are prepared and the automated submission-readiness gate is PASS.
+The reviewer demo account itself is already provisioned and verified; only its private portal entry remains. All other current submission materials are prepared and the automated submission-readiness gate is PASS.
