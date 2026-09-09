@@ -27,25 +27,33 @@ jobs:
           rm -rf /tmp/mchem-source && mkdir -p /tmp/mchem-source
           unzip -q /tmp/mchem-source.zip -d /tmp/mchem-source
           echo "$EXPECTED_BASE_WORKER_SHA256  /tmp/mchem-source/src/index.mjs" | sha256sum -c -
-      - name: Print APK download and storage contract only
+      - name: Print base and final APK delivery contract only
         shell: python
         run: |
           from pathlib import Path
-          p=Path('/tmp/mchem-source/src/index.mjs')
-          lines=p.read_text().splitlines()
-          needles=('download','apk','bucket','r2','kv','asset','object','storage','MUSITU_Chemistry')
-          hits=[]
-          for i,line in enumerate(lines):
-              if any(n.lower() in line.lower() for n in needles):
-                  hits.append(i)
-          seen=set()
-          for i in hits:
-              a=max(0,i-3); b=min(len(lines),i+5)
-              key=(a,b)
-              if key in seen: continue
-              seen.add(key)
-              print(f'--- lines {a+1}-{b} ---')
-              for j in range(a,b): print(f'{j+1}: {lines[j]}')
+          for label,path in [
+              ('BASE','/tmp/mchem-source/src/index.mjs'),
+              ('FINAL','commerce/chemistry/index.storefront-v3.mjs'),
+          ]:
+              p=Path(path)
+              print(f'===== {label} {path} =====')
+              print(f'exists={p.exists()} bytes={p.stat().st_size if p.exists() else 0}')
+              if not p.exists():
+                  continue
+              lines=p.read_text().splitlines()
+              needles=('download','apk','bucket','r2','kv','asset','object','storage','MUSITU_Chemistry','APK_URL','APK_')
+              hits=[]
+              for i,line in enumerate(lines):
+                  if any(n.lower() in line.lower() for n in needles):
+                      hits.append(i)
+              merged=[]
+              for i in hits:
+                  a=max(0,i-4); b=min(len(lines),i+7)
+                  if merged and a <= merged[-1][1]: merged[-1]=(merged[-1][0],max(merged[-1][1],b))
+                  else: merged.append((a,b))
+              for a,b in merged:
+                  print(f'--- lines {a+1}-{b} ---')
+                  for j in range(a,b): print(f'{j+1}: {lines[j]}')
           print('INSPECTION_COMPLETE=true')
       - name: Assert inspection is read-only
         run: |
