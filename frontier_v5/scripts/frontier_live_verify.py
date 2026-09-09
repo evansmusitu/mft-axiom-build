@@ -6,6 +6,7 @@ import base64
 import csv
 import datetime
 import hashlib
+import html
 import io
 import json
 import os
@@ -221,8 +222,15 @@ def main():
         flow_id=fm.group(1); cookie=cookie_header.split(";",1)[0]
         form=urllib.parse.urlencode({"flow_id":flow_id,"musitu_account_key":account_key}).encode()
         pc,ph,pb=raw(ISSUER+"/oauth/authorize","POST",{"Accept":"text/html","Content-Type":"application/x-www-form-urlencoded","Cookie":cookie,"User-Agent":"MUSITU-Frontier-E2E/5.0"},form,follow=False)
-        loc=str(ph.get("Location") or ""); qp=urllib.parse.parse_qs(urllib.parse.urlparse(loc).query); code=(qp.get("code") or [""])[0]
-        if pc!=303 or not code or (qp.get("state") or [""])[0]!=state: raise RuntimeError("frontier OAuth authorization failed")
+        handoff=pb.decode("utf-8","replace")
+        if pc!=200 or str(ph.get("Location") or ""): raise RuntimeError("frontier OAuth mobile handoff response failed")
+        if "Authorization approved" not in handoff or "Continue to ChatGPT" not in handoff: raise RuntimeError("frontier OAuth mobile handoff UI missing")
+        cm=re.search(r'data-oauth-callback="([^"]+)"',handoff)
+        if not cm: raise RuntimeError("frontier OAuth callback missing from mobile handoff")
+        handoff_url=html.unescape(cm.group(1)); parsed=urllib.parse.urlparse(handoff_url); expected=urllib.parse.urlparse(callback)
+        if (parsed.scheme,parsed.netloc,parsed.path)!=(expected.scheme,expected.netloc,expected.path) or parsed.fragment: raise RuntimeError("frontier OAuth callback target mismatch")
+        qp=urllib.parse.parse_qs(parsed.query); code=(qp.get("code") or [""])[0]
+        if not code or (qp.get("state") or [""])[0]!=state: raise RuntimeError("frontier OAuth authorization failed")
         token_body=urllib.parse.urlencode({"grant_type":"authorization_code","code":code,"code_verifier":verifier,"client_id":client_id,"redirect_uri":callback,"resource":RESOURCE}).encode()
         tc,_,tb=raw(ISSUER+"/oauth/token","POST",{"Accept":"application/json","Content-Type":"application/x-www-form-urlencoded","User-Agent":"MUSITU-Frontier-E2E/5.0"},token_body)
         tok=json.loads(tb or b"{}"); access=str(tok.get("access_token") or "")
