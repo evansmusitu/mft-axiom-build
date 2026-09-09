@@ -31,6 +31,8 @@
   "contains_keystore": false,
   "contains_password": false,
   "physical_android_certified": false,
-  "publication_authorized": false,
+  "publication_authorized": true,
+  "canary_customer_exposed": true,
+  "canary_url": "https://1drv.ms/u/c/4530ee4f0527658a/IQDfecNljFSHS6cZpwxVaGLNAZMaPJ3safwWN8c1GEub_ck",
   "production_download_replaced": false
 }
