@@ -1,0 +1,150 @@
+name: MUSITU Continuum Full Product SAST Reproof
+
+on:
+  push:
+    branches:
+      - continuum-full-product-sast-20260909-v1
+
+permissions:
+  contents: read
+
+env:
+  EXPECTED_CANDIDATE_SHA: 119ab26d62c3ce6e2be5634d890c8521859a85b9e2c67f3bc0ccd697d416298c
+  EXPECTED_SOURCE_MANIFEST_SHA: 17ce541fa22757d149c31984ee71167639ab6aeca17dedfaacac7eee88f59ee7
+  EXPECTED_PROD_MANIFEST_SHA: 054247406dde1ddb40c80b8b631444e01549a3baa899cc5789b29637c0ba546e
+  EXPECTED_STAGED_TREE: 4c9f6c96b3cdb1c0e38a2358c0ac00e6e1edb10b
+  EXPECTED_ALL_COUNT: '88'
+  EXPECTED_PROD_COUNT: '52'
+  EXPECTED_BANDIT_WHEEL_SHA: f89ffa663767f5a0585ea075f01020207e966a9c0f2b9ef56a57c7963a3f6f8e
+  RETURN_PUBLIC_B64: LS0tLS1CRUdJTiBQVUJMSUMgS0VZLS0tLS0KTUlJQm9qQU5CZ2txaGtpRzl3MEJBUUVGQUFPQ0FZOEFNSUlCaWdLQ0FZRUF2TnZqRktYb0gyUXI2eS9SaVRhNwpkN1M3L2llQTd4Z0Y1Tnh4MUczWnQ3dWQ1d2J2UEJtV2tQUGdnL3lsL2Z3bnhuOEtld2pZeC9ZQzZ5VjRiQnZHCld6NnN3RVgxM3pmRDg0MXJKcjdQMHVnR1ErT2Y0UFRuTTQyWWdqZnl2MFpXa2lhMkZqU1M5ckRjdDR2ZXV6SlAKNWplZGM0MHltK0JQYk5hUldSS1N6QjVVVk5qV3BRdTZIeVJaTjFGWFlLY2NqSlpoRzlwMG1qZlhFczhBZEMwRAp2eW1iVTlUcHdkN0wwZW5jU1Q4dFRBbVBuL2hHRWFpZmhZWXFxUlhqQlNuWEl0UEdEbVUyRHJzWU9zK3QzRUQ4CkllbEl4TDlrMUU0Z1N0ZUFaaVNLN1NqUHExejhVaWlFNnF3NDVycTBYWWhZZ0VkT2NRcEtnWGJzQVNjc3I4MVMKUlJjK1BqZUZVaVJ3Q2Z5R2pGV2xjbDFoUG1FTW44ZWhPZEIwMTdzWlRCeU5oSmN4dWp6RU9ML2k2K1V0UWJDMQprN1pzaVhmUmIxWnNlTnRyOWxUWHJ2WEJTNlV1MUQ4Q2xEM0JSem9qOEJmV0xXVkl6OUZRV1pwTkV0WGtRU25oCjR4V0VRNlNkT0FwTFIxSDJlT2NRYURCSUl2QTFWbEd0amR6bVkvbk8xOHppK0pkcjVuZkNNdWdDQVdxcml5VXkKQUV2b21ObU5GV1UxZmlPbEdXT0VmNkxScHhVQ1FteHFoUXpUcWV3Q2I3bFFRRW9kZm9VUElQOGovS2dsL0FjTQo0QTFJV09uejVIZjhGVEZuMVhlQ0F3RUFBUT09Ci0tLS0tRU5EIFBVQkxJQyBLRVktLS0tLQo=
+
+jobs:
+  phase-k-sast:
+    if: ${{ !contains(github.event.head_commit.message, '[MUSITU_CIPHER]') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          fetch-depth: 0
+
+      - name: Generate ephemeral receive key
+        shell: bash
+        run: |
+          set -euo pipefail
+          openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:3072 -out "$RUNNER_TEMP/receive-private.pem" 2>/dev/null
+          openssl pkey -in "$RUNNER_TEMP/receive-private.pem" -pubout -out receive-public.pem
+          chmod 600 "$RUNNER_TEMP/receive-private.pem"
+          sha256sum receive-public.pem > receive-public.sha256
+
+      - name: Publish ephemeral public key only
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: musitu-continuum-full-sast-ephemeral-public-key
+          path: |
+            receive-public.pem
+            receive-public.sha256
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Wait for encrypted candidate and run Bandit 1.9.4
+        shell: bash
+        run: |
+          set -euo pipefail
+          BRANCH="${GITHUB_REF_NAME}"
+          READY=0
+          for attempt in $(seq 1 300); do
+            git fetch --quiet --force origin "refs/heads/${BRANCH}:refs/remotes/origin/${BRANCH}" || true
+            if git cat-file -e "origin/${BRANCH}:continuum-sast-cipher/READY" 2>/dev/null; then READY=1; break; fi
+            sleep 5
+          done
+          test "$READY" = 1
+          rm -rf continuum-sast-cipher
+          git archive "origin/${BRANCH}" continuum-sast-cipher | tar -x
+          cat continuum-sast-cipher/candidate.part.* > "$RUNNER_TEMP/candidate.enc.b64"
+          base64 -d "$RUNNER_TEMP/candidate.enc.b64" > "$RUNNER_TEMP/candidate.enc"
+          base64 -d continuum-sast-cipher/passphrase.enc.b64 > "$RUNNER_TEMP/passphrase.enc"
+          openssl pkeyutl -decrypt -inkey "$RUNNER_TEMP/receive-private.pem" -in "$RUNNER_TEMP/passphrase.enc" -out "$RUNNER_TEMP/passphrase.txt" -pkeyopt rsa_padding_mode:oaep -pkeyopt rsa_oaep_md:sha256
+          chmod 600 "$RUNNER_TEMP/passphrase.txt"
+          openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 -in "$RUNNER_TEMP/candidate.enc" -out candidate.zip -pass file:"$RUNNER_TEMP/passphrase.txt"
+          rm -f "$RUNNER_TEMP/passphrase.txt" "$RUNNER_TEMP/passphrase.enc" "$RUNNER_TEMP/candidate.enc" "$RUNNER_TEMP/candidate.enc.b64"
+          echo "${EXPECTED_CANDIDATE_SHA}  candidate.zip" | sha256sum -c -
+          rm -rf scan && mkdir scan && cd scan
+          unzip -q ../candidate.zip
+          echo "${EXPECTED_SOURCE_MANIFEST_SHA}  meta/source-files.txt" | sha256sum -c -
+          echo "${EXPECTED_PROD_MANIFEST_SHA}  meta/production-source-files.txt" | sha256sum -c -
+          python - <<'PY2'
+          import hashlib,json,pathlib,os
+          root=pathlib.Path('source-files'); meta=pathlib.Path('meta')
+          m=json.loads((meta/'candidate-metadata.json').read_text())
+          expected={'required_scanner':'bandit 1.9.4','candidate_staged_tree':os.environ['EXPECTED_STAGED_TREE'],'source_manifest_sha256':os.environ['EXPECTED_SOURCE_MANIFEST_SHA'],'production_source_manifest_sha256':os.environ['EXPECTED_PROD_MANIFEST_SHA'],'all_python_file_count':int(os.environ['EXPECTED_ALL_COUNT']),'production_python_file_count':int(os.environ['EXPECTED_PROD_COUNT'])}
+          for k,v in expected.items():
+              if m.get(k)!=v: raise SystemExit(f'metadata mismatch {k}: {m.get(k)!r} != {v!r}')
+          for name,count in [('source-files.txt',int(os.environ['EXPECTED_ALL_COUNT'])),('production-source-files.txt',int(os.environ['EXPECTED_PROD_COUNT']))]:
+              rows=[]
+              for raw in (meta/name).read_text().splitlines():
+                  if not raw.strip(): continue
+                  digest,rel=raw.split('  ',1); p=root/rel
+                  if not p.is_file() or hashlib.sha256(p.read_bytes()).hexdigest()!=digest: raise SystemExit(f'source mismatch {rel}')
+                  rows.append(rel)
+              if len(rows)!=count: raise SystemExit(f'count mismatch {name}: {len(rows)} != {count}')
+          PY2
+          mkdir -p "$RUNNER_TEMP/bandit-wheel"
+          python -m pip download --disable-pip-version-check --no-deps --dest "$RUNNER_TEMP/bandit-wheel" 'bandit==1.9.4'
+          BANDIT_WHEEL="$RUNNER_TEMP/bandit-wheel/bandit-1.9.4-py3-none-any.whl"
+          echo "${EXPECTED_BANDIT_WHEEL_SHA}  $BANDIT_WHEEL" | sha256sum -c -
+          python -m pip install --disable-pip-version-check --no-cache-dir "$BANDIT_WHEEL"
+          test "$(python -c 'import importlib.metadata; print(importlib.metadata.version("bandit"))')" = '1.9.4'
+          python - <<'PY2' > bandit-version.txt
+          import importlib.metadata,platform
+          print('bandit',importlib.metadata.version('bandit'))
+          print('python',platform.python_version())
+          PY2
+          sha256sum "$BANDIT_WHEEL" >> bandit-version.txt
+          mapfile -t all_paths < <(sed -E 's/^[0-9a-f]{64}  //' meta/source-files.txt | sed 's#^#source-files/#')
+          mapfile -t prod_paths < <(sed -E 's/^[0-9a-f]{64}  //' meta/production-source-files.txt | sed 's#^#source-files/#')
+          set +e
+          bandit -f json -o bandit-all.json "${all_paths[@]}"; all_rc=$?
+          bandit -f json -o bandit-production.json "${prod_paths[@]}"; prod_rc=$?
+          set -e
+          ALL_RC="$all_rc" PROD_RC="$prod_rc" python - <<'PY2'
+          import hashlib,importlib.metadata,json,os,pathlib,platform
+          def scan(name):
+              d=json.loads(pathlib.Path(name).read_text()); c={'HIGH':0,'MEDIUM':0,'LOW':0}
+              for r in d.get('results',[]):
+                  s=r.get('issue_severity')
+                  if s in c: c[s]+=1
+              return d,c
+          a,ac=scan('bandit-all.json'); p,pc=scan('bandit-production.json')
+          am=pathlib.Path('meta/source-files.txt'); pm=pathlib.Path('meta/production-source-files.txt'); cm=json.loads(pathlib.Path('meta/candidate-metadata.json').read_text())
+          summary={'schema_version':1,'phase':'K','check':'python_sast_full_product_reproof','status':'pass' if not a.get('errors') and not p.get('errors') and pc['HIGH']==0 and pc['MEDIUM']==0 else 'fail','scanner':f"bandit {importlib.metadata.version('bandit')}",'python_version':platform.python_version(),'bandit_wheel_sha256':os.environ['EXPECTED_BANDIT_WHEEL_SHA'],'candidate_archive_sha256':os.environ['EXPECTED_CANDIDATE_SHA'],'candidate_staged_tree':cm.get('candidate_staged_tree'),'source_manifest_sha256':hashlib.sha256(am.read_bytes()).hexdigest(),'production_source_manifest_sha256':hashlib.sha256(pm.read_bytes()).hexdigest(),'source_manifest_files':sum(bool(x.strip()) for x in am.read_text().splitlines()),'production_source_manifest_files':sum(bool(x.strip()) for x in pm.read_text().splitlines()),'all_findings':{k.lower():v for k,v in ac.items()},'production_findings':{k.lower():v for k,v in pc.items()},'all_scanner_errors':a.get('errors',[]),'production_scanner_errors':p.get('errors',[]),'bandit_return_codes':{'all':int(os.environ['ALL_RC']),'production':int(os.environ['PROD_RC'])},'claim_boundary':'internal_sast_not_independent_security_review','candidate_metadata':cm}
+          pathlib.Path('summary.json').write_text(json.dumps(summary,indent=2,sort_keys=True)+'\n')
+          print(json.dumps(summary,indent=2,sort_keys=True))
+          if summary['status']!='pass': raise SystemExit('production SAST admission criteria failed')
+          PY2
+
+      - name: Encrypt raw evidence for private return
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f scan/summary.json || exit 0
+          echo "$RETURN_PUBLIC_B64" | base64 -d > "$RUNNER_TEMP/return-public.pem"
+          (cd scan && zip -q "$RUNNER_TEMP/raw-evidence.zip" bandit-version.txt bandit-all.json bandit-production.json summary.json meta/candidate-metadata.json meta/source-files.txt meta/production-source-files.txt)
+          openssl rand -hex 32 > "$RUNNER_TEMP/evidence-pass.txt"
+          openssl enc -aes-256-cbc -salt -pbkdf2 -iter 200000 -in "$RUNNER_TEMP/raw-evidence.zip" -out sast-evidence.enc -pass file:"$RUNNER_TEMP/evidence-pass.txt"
+          openssl pkeyutl -encrypt -pubin -inkey "$RUNNER_TEMP/return-public.pem" -in "$RUNNER_TEMP/evidence-pass.txt" -out sast-evidence.key.enc -pkeyopt rsa_padding_mode:oaep -pkeyopt rsa_oaep_md:sha256
+          { echo 'schema_version=1'; echo 'claim_boundary=encrypted_transport_only_raw_sast_evidence'; sha256sum sast-evidence.enc sast-evidence.key.enc; } > sast-evidence.envelope.txt
+          rm -f "$RUNNER_TEMP/evidence-pass.txt" "$RUNNER_TEMP/raw-evidence.zip"
+
+      - name: Preserve encrypted SAST evidence only
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: musitu-continuum-full-product-sast-encrypted-evidence
+          path: |
+            sast-evidence.enc
+            sast-evidence.key.enc
+            sast-evidence.envelope.txt
+          if-no-files-found: warn
+          retention-days: 1
