@@ -1,0 +1,34 @@
+name: MUSITU Store Phase 1 Package Visibility Verify
+
+on:
+  push:
+    branches: [musitu-store-phase1-20260909]
+    paths:
+      - 'store/phase1/android-client/app/src/main/AndroidManifest.xml'
+      - 'store/phase1/android-client/package_visibility_contract.py'
+      - '.github/workflows/musitu-store-phase1-package-visibility-verify.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Prove sealed repository boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF_NAME" = 'musitu-store-phase1-20260909'
+          git fetch --quiet origin main
+          test "$(git rev-parse origin/main)" = 'd6a846f6bbe0bccac1758713eb4de167caf07113'
+      - name: Verify Chemistry package visibility contract
+        run: python store/phase1/android-client/package_visibility_contract.py
