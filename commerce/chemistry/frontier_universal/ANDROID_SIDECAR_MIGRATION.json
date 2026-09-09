@@ -76,14 +76,24 @@
     "debuggable": false
   },
   "publication": {
-    "authorized": false,
+    "authorized": true,
+    "mode": "PUBLIC_CANARY_SIDE_BY_SIDE",
     "production_deployed": false,
     "production_download_replaced": false,
-    "customer_exposed": false
+    "customer_exposed": true,
+    "canary": {
+      "artifact_sha256": "4ba442122d9c86a0c3cef660334fe337c6ea9ae6fe853c964b5e94961245babd",
+      "artifact_bytes": 5892286,
+      "url": "https://1drv.ms/u/c/4530ee4f0527658a/IQDfecNljFSHS6cZpwxVaGLNAZMaPJ3safwWN8c1GEub_ck",
+      "host": "Microsoft OneDrive",
+      "anonymous_read_only": true,
+      "expiration": null,
+      "published_at": "2026-09-09T03:38:44Z",
+      "rollback": "revoke anonymous link or remove staged sidecar file; stable MUSITU production download remains unchanged"
+    }
   },
   "open_gates": [
     "physical Android side-by-side install/relaunch/touch/offline/export/import smoke",
-    "physical Premium transfer/restore validation on new Device ID",
-    "explicit publication authorization"
+    "physical Premium transfer/restore validation on new Device ID"
   ]
 }
