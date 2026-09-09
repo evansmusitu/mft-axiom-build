@@ -1,0 +1,25 @@
+{
+  "name": "MUSITU Store",
+  "identifier": "com.musitu.store.source",
+  "sourceURL": "https://payments.mftintelligence.com/store/ios/source.json",
+  "apps": [
+    {
+      "name": "MUSITU Chemistry",
+      "bundleIdentifier": "com.musitu.chemistry",
+      "developerName": "MUSITU",
+      "subtitle": "Offline-first Chemistry mastery and exam preparation",
+      "localizedDescription": "MUSITU Chemistry combines diagnostics, adaptive review, timed exams, Scientific Response tools and offline learning in one Chemistry mastery application.",
+      "iconURL": "https://payments.mftintelligence.com/chemistry/app/assets/musitu-chemistry-512.png",
+      "versions": [
+        {
+          "version": "1.3.0",
+          "date": "2026-09-09",
+          "downloadURL": "https://payments.mftintelligence.com/store/ios/MUSITU_Chemistry_1.3.0.ipa",
+          "size": 3640968,
+          "minOSVersion": "15.0",
+          "localizedDescription": "Frontier universal Chemistry 1.3.0 with full learner intelligence, Scientific Response, offline runtime, Premium entitlement compatibility and cross-platform carrier parity."
+        }
+      ]
+    }
+  ]
+}

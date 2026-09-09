@@ -1,0 +1,35 @@
+{
+  "schema": "musitu.store.release_channels.v1",
+  "generatedAt": "2026-09-09T11:52:34Z",
+  "catalogRevision": 1,
+  "channels": {
+    "stable": {
+      "state": "active",
+      "rolloutPercent": 100,
+      "paused": false,
+      "withdrawn": false
+    },
+    "beta": {
+      "state": "empty",
+      "rolloutPercent": 0,
+      "paused": true,
+      "withdrawn": false
+    },
+    "canary": {
+      "state": "active",
+      "rolloutPercent": 0,
+      "paused": true,
+      "withdrawn": false
+    },
+    "emergency": {
+      "state": "reserved",
+      "rolloutPercent": 0,
+      "paused": true,
+      "withdrawn": false
+    }
+  },
+  "stable": {
+    "musitu-chemistry": "1.3.0"
+  },
+  "phase2Authorized": false
+}

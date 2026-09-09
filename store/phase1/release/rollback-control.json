@@ -1,0 +1,13 @@
+{
+  "schema": "musitu.store.rollback_control.v1",
+  "generatedAt": "2026-09-09T11:52:34Z",
+  "catalogRevision": 1,
+  "defaultPolicy": "deny",
+  "musitu-chemistry": {
+    "currentStable": "1.3.0",
+    "authorized": false,
+    "targetVersion": null,
+    "reason": "No older native release is authorized; Android 1.2.0 remains retired."
+  },
+  "authorizationSource": "signed canonical catalog only"
+}

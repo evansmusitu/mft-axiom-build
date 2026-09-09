@@ -1,0 +1,13 @@
+{
+  "schema": "musitu.store.web_adapter.v1",
+  "generatedAt": "2026-09-09T11:52:34Z",
+  "catalogRevision": 1,
+  "productId": "musitu-chemistry",
+  "version": "1.3.0",
+  "carrier": "pwa",
+  "url": "https://payments.mftintelligence.com/chemistry/app/",
+  "archiveSha256": "1445074e87e8c4a9a15281baa586855fe31f92c06dd393a11458adce9821ec30",
+  "installable": true,
+  "offlineCapable": true,
+  "distributionDoesNotImplyEntitlement": true
+}

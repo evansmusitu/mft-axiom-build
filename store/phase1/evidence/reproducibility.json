@@ -1,0 +1,29 @@
+{
+  "schema": "musitu.store.reproducibility_evidence.v1",
+  "generatedAt": "2026-09-09T11:52:34Z",
+  "storeClient": {
+    "prebuiltHead": "6eaafb8a10e6b555d99d7a99a471294d4d6ad370",
+    "unsignedSha256": "823b1ec0ec8bb68e3d5454ee1d70dbca6b7b8028d9f06d51149d79f9b9837555",
+    "signedSha256": "71391bf614cc1186cbe1fda17e9e626aad71d96dbf26807228b73bd2ea99b2f8",
+    "signingSchemes": {
+      "v1": true,
+      "v2": true,
+      "v3": true
+    },
+    "payloadPreservation": {
+      "entriesCompared": 50,
+      "equal": true
+    }
+  },
+  "chemistry": {
+    "androidReleaseSha256": "4ba442122d9c86a0c3cef660334fe337c6ea9ae6fe853c964b5e94961245babd",
+    "webReproArchiveSha256": "1445074e87e8c4a9a15281baa586855fe31f92c06dd393a11458adce9821ec30",
+    "reproducibleWebCarrier": true,
+    "priorLocalRebuildChecks": "62/62 PASS",
+    "iosCarrierSha256": "426d2dc05e2fc8846a7582324d953bbdd2a256f170f8db2b5a956bc1c51cc962"
+  },
+  "limitations": [
+    "Private signing is intentionally non-reproducible without operator custody.",
+    "Fresh-device Store installation and production-route verification are not claimed by this metadata build."
+  ]
+}

@@ -1,0 +1,30 @@
+{
+  "schema": "musitu.store.client_provenance.v1",
+  "generatedAt": "2026-09-09T11:52:34Z",
+  "subject": {
+    "name": "MUSITU Store",
+    "version": "1.0.0",
+    "packageId": "com.musitu.store"
+  },
+  "sealedUnsigned": {
+    "sha256": "823b1ec0ec8bb68e3d5454ee1d70dbca6b7b8028d9f06d51149d79f9b9837555",
+    "bytes": 1675424,
+    "sourceBranch": "musitu-store-phase1-20260909",
+    "sourceHead": "6eaafb8a10e6b555d99d7a99a471294d4d6ad370"
+  },
+  "privateReleaseSigned": {
+    "sha256": "71391bf614cc1186cbe1fda17e9e626aad71d96dbf26807228b73bd2ea99b2f8",
+    "bytes": 1687882,
+    "certificateSha256": "43695b6103d7ab57e89166c9a537f1810b7e33053e20332b1d4e7e2e1c612671",
+    "v1Verified": true,
+    "v2Verified": true,
+    "v3Verified": true,
+    "v2v3ContentDigestSha256": "bdae8419205816777a1ec6554f0f4f64e407a6da11dcaccd514fcf690426b77d"
+  },
+  "payloadPreservation": {
+    "nonSignatureEntries": 50,
+    "byteIdenticalToUnsigned": true
+  },
+  "privateSigningMaterialPublished": false,
+  "publicationPerformed": false
+}

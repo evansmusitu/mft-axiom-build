@@ -1,0 +1,36 @@
+{
+  "schema": "musitu.store.provenance.v1",
+  "generatedAt": "2026-09-09T11:52:34Z",
+  "subject": {
+    "name": "MUSITU Chemistry",
+    "version": "1.3.0"
+  },
+  "artifacts": {
+    "android": {
+      "sha256": "4ba442122d9c86a0c3cef660334fe337c6ea9ae6fe853c964b5e94961245babd",
+      "bytes": 5892286,
+      "packageId": "com.musitu.chemistry",
+      "signingCertificateSha256": "d4455ac3ec74a6d7cd7993ca640f554a83bba95dfd01ef508f7637b6bc72c0d8"
+    },
+    "ios": {
+      "sha256": "426d2dc05e2fc8846a7582324d953bbdd2a256f170f8db2b5a956bc1c51cc962",
+      "bytes": 3640968,
+      "bundleIdentifier": "com.musitu.chemistry",
+      "signingMode": "unsigned-carrier-for-user-account-resigning"
+    },
+    "web": {
+      "sha256": "1445074e87e8c4a9a15281baa586855fe31f92c06dd393a11458adce9821ec30",
+      "bytes": 3113985
+    }
+  },
+  "source": {
+    "repository": "evansmusitu/mft-axiom-build",
+    "branch": "chemistry-frontier-universal-20260908",
+    "sealedHead": "e8ca9245814a90e3ab5816d71d3e09c036d87f2b"
+  },
+  "evidence": {
+    "universal": "commerce/chemistry/frontier_universal/UNIVERSAL_PRODUCTION_PARITY_EVIDENCE_20260909.json",
+    "androidPromotion": "commerce/chemistry/frontier_universal/ANDROID_STABLE_PROMOTION_EVIDENCE_20260909.json"
+  },
+  "publicationPerformedByThisMetadataBuild": false
+}

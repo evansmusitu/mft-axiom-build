@@ -1,0 +1,50 @@
+{
+  "repo": {
+    "timestamp": 1788954754000,
+    "version": 20002,
+    "name": "MUSITU Store Android Repository",
+    "description": "MUSITU developer-signed Android releases generated from the canonical MUSITU Store catalog.",
+    "address": "https://payments.mftintelligence.com/store/android/repo",
+    "maxage": 86400
+  },
+  "requests": {
+    "install": [],
+    "uninstall": []
+  },
+  "apps": [
+    {
+      "packageName": "com.musitu.chemistry",
+      "name": "MUSITU Chemistry",
+      "summary": "Offline-first Chemistry mastery and exam preparation.",
+      "description": "MUSITU Chemistry is an offline-first Chemistry mastery application with diagnostics, adaptive review, timed exams and Scientific Response tools.",
+      "categories": [
+        "Education"
+      ],
+      "authorName": "MUSITU",
+      "webSite": "https://payments.mftintelligence.com/chemistry/",
+      "issueTracker": "https://payments.mftintelligence.com/chemistry/support",
+      "added": 1788954754000,
+      "lastUpdated": 1788954754000,
+      "suggestedVersionName": "1.3.0",
+      "suggestedVersionCode": "10200"
+    }
+  ],
+  "packages": {
+    "com.musitu.chemistry": [
+      {
+        "apkName": "MUSITU_Chemistry_Mastery_1.3.0.apk",
+        "hash": "4ba442122d9c86a0c3cef660334fe337c6ea9ae6fe853c964b5e94961245babd",
+        "hashType": "sha256",
+        "size": 5892286,
+        "versionName": "1.3.0",
+        "versionCode": 10200,
+        "minSdkVersion": 24,
+        "targetSdkVersion": 36,
+        "signer": "d4455ac3ec74a6d7cd7993ca640f554a83bba95dfd01ef508f7637b6bc72c0d8",
+        "sig": "6d67d22e39d3a26432836bf6ded71c91",
+        "added": 1788954754000,
+        "nativecode": []
+      }
+    ]
+  }
+}
