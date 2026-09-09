@@ -24,3 +24,11 @@ test('1.0.1 route rejects corrupt R2 bytes rather than serving them',async()=>{
   assert.equal(r.status,503);
   assert.match(await r.text(),/integrity verification failed/i);
 });
+
+test('offline service worker never caches Store installer binaries',async()=>{
+  const r=await get('/store/sw.js');
+  assert.equal(r.status,200);
+  const sw=await r.text();
+  assert.doesNotMatch(sw,/MUSITU_Store_1\.0\.1\.apk/);
+  assert.doesNotMatch(sw,/MUSITU_Store_1\.0\.0\.apk/);
+});
