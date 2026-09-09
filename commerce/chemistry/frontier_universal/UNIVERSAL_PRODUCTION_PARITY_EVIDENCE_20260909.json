@@ -1,0 +1,260 @@
+{
+  "schema": "musitu.chemistry.frontier.universal_production_parity_evidence.v1",
+  "date": "2026-09-09",
+  "repository": "evansmusitu/mft-axiom-build",
+  "branch": "chemistry-frontier-universal-20260908",
+  "authorization": {
+    "user_instruction": "put the same intelligence which was there and features eg automatic device discover,installing etc don't leave anything",
+    "scope": "Restore the portable Android 1.3.0 learner intelligence and device/install capabilities to the universal customer surface while preserving the verified Android native release and commerce authority boundaries."
+  },
+  "stable_android_1_3": {
+    "url": "https://payments.mftintelligence.com/chemistry/download/MUSITU_Chemistry_Mastery_1.3.0.apk",
+    "sha256": "4ba442122d9c86a0c3cef660334fe337c6ea9ae6fe853c964b5e94961245babd",
+    "bytes": 5892286,
+    "package_id": "com.musitu.chemistry",
+    "signer_certificate_sha256": "d4455ac3ec74a6d7cd7993ca640f554a83bba95dfd01ef508f7637b6bc72c0d8",
+    "changed_by_universal_cutover": false
+  },
+  "retired_android_1_2": {
+    "url": "https://payments.mftintelligence.com/chemistry/download/MUSITU_Chemistry_Mastery_1.2.0.apk",
+    "historical_sha256": "055b63f271c18faab540985faefb970f472ea55ba9cb3495db459797902b790d",
+    "public_http_status_after_cutover": 410,
+    "release_status": "retired",
+    "apk_bytes_served": false
+  },
+  "origin_carrier": {
+    "source": "assets/www/ embedded in the exact signed stable Android 1.3.0 APK",
+    "carrier_file_count": 27,
+    "sealed_web_archive_sha256": "1445074e87e8c4a9a15281baa586855fe31f92c06dd393a11458adce9821ec30",
+    "full_parity_manifest": "commerce/chemistry/frontier_universal/FULL_PARITY_MANIFEST_20260909.json",
+    "origin_identity": "27/27 PASS",
+    "portable_parity_target": true,
+    "payment_authority_in_carrier": false,
+    "offline_payment_success_authority": false
+  },
+  "portable_capability_groups_restored": {
+    "learner_intelligence": [
+      "mftChemistryFrontierStateV2",
+      "FSRS review scheduling",
+      "diagnostic",
+      "18 chemistry chapters",
+      "bookmark state",
+      "confidence state",
+      "mastery state"
+    ],
+    "exams": [
+      "5-minute",
+      "15-minute",
+      "30-minute",
+      "90-minute",
+      "exam history"
+    ],
+    "scientific_response": [
+      "musitu.scientific_response_graph.v1",
+      "equation",
+      "ink",
+      "structure",
+      "mechanism",
+      "graph",
+      "apparatus",
+      "particle",
+      "argument"
+    ],
+    "commerce_client_boundary": [
+      "musituChemistryCommerceV1",
+      "Device ID",
+      "checkout/start client flow",
+      "signed Premium entitlement verification",
+      "recovery/help surface"
+    ],
+    "migration_and_state": [
+      "schemaVersion",
+      "export",
+      "import",
+      "offline learner state"
+    ],
+    "device_and_install": [
+      "classifyPlatform",
+      "runtimePlatform",
+      "beforeinstallprompt",
+      "appinstalled",
+      "requestInstall",
+      "automatic install guidance",
+      "ios-safari",
+      "ios-inapp",
+      "android-chrome",
+      "samsung",
+      "desktop-edge",
+      "desktop-firefox"
+    ],
+    "other_embedded_surfaces": [
+      "Chemistry Tools",
+      "Final 48",
+      "responsive layout",
+      "service-worker offline operation",
+      "PWA manifest installability"
+    ]
+  },
+  "installation_semantics": {
+    "automatic_device_platform_discovery": true,
+    "android_customer_handoff": "Automatic route to the exact signed stable 1.3.0 APK; operating-system installation confirmation remains user-controlled.",
+    "non_android_customer_handoff": "Automatic route to the full parity carrier and its device-specific Install & Help guidance/requestInstall flow.",
+    "silent_unattended_browser_install_claimed": false,
+    "reason": "Browsers and mobile operating systems require user-controlled install confirmation; parity restores automatic discovery, routing, guidance, and native install prompt handling rather than bypassing platform security."
+  },
+  "strict_csp_compatibility_overlay": {
+    "name": "strict-csp-event-bridge-v1",
+    "purpose": "Preserve the Android learner behavior under hosted strict CSP without enabling script unsafe-inline.",
+    "script_src": "'self'",
+    "script_src_attr": "'none'",
+    "service_worker_cache_generation": "musitu-chemistry-universal-frontier-v2",
+    "modified_files": {
+      "app.js": {
+        "sha256": "c7f1dab4443b23dcfb23a8b9c3c1bb2256a3d6c4b11f37f97f32efdb42dce340",
+        "bytes": 44760
+      },
+      "commercial.js": {
+        "sha256": "e4e4e6447884acc4520516824d0f9ac2415a4d911eff2707387792c2232575a8",
+        "bytes": 13907
+      },
+      "frontier.js": {
+        "sha256": "0b6999fc09ec2dd21beda23bb0f9ecf2ce9d57bdeb20aecf6a7cecb36093ba84",
+        "bytes": 35496
+      },
+      "sw.js": {
+        "sha256": "108ae636ef13f2b1fe2db61b62107a3a6d835452462d710d55a6f920898279eb",
+        "bytes": 1895
+      }
+    },
+    "unsafe_inline_script_enabled": false
+  },
+  "preview_gate": {
+    "workflow": ".github/workflows/chemistry-frontier-universal-web-bounded-preview-deploy-v4.yml",
+    "head_sha": "0048b13b1a542a4c9d5a546e8b5b490fbf411583",
+    "run_id": 34332415214,
+    "conclusion": "success",
+    "gate": "MUSITU_CHEMISTRY_FRONTIER_UNIVERSAL_WEB_BOUNDED_PREVIEW_V4_PASS"
+  },
+  "preproduction_five_engine_gate": {
+    "workflow": ".github/workflows/chemistry-frontier-universal-preview-browser-matrix-v5.yml",
+    "head_sha": "61655b7a5135084e0eef031c6ad36acada743b01",
+    "run_id": 34333111224,
+    "conclusion": "success",
+    "jobs": {
+      "chromium": 102406089570,
+      "chrome": 102406089182,
+      "msedge": 102406089486,
+      "firefox": 102406089510,
+      "webkit": 102406089622,
+      "matrix_gate": 102406465664
+    },
+    "realistic_platform_profiles": [
+      "android-chrome",
+      "samsung",
+      "desktop-edge",
+      "ios-safari",
+      "ios-inapp",
+      "desktop-firefox"
+    ],
+    "gate": "MUSITU_CHEMISTRY_FRONTIER_UNIVERSAL_PREVIEW_BROWSER_MATRIX_V5_PASS"
+  },
+  "production_deployment": {
+    "workflow": ".github/workflows/chemistry-frontier-universal-production-app-deploy-v1.yml",
+    "commit_sha": "8edc6f980b140a2144485e6fdf37cbee2fa2b191",
+    "run_id": 34333529988,
+    "job_id": 102407458158,
+    "conclusion": "success",
+    "worker": "musitu-chemistry-universal-app",
+    "worker_version_id": "d9d17a10-b66d-403d-ba21-1643b7a1cd83",
+    "workers_dev": false,
+    "routes": [
+      "payments.mftintelligence.com/chemistry/app*",
+      "payments.mftintelligence.com/chemistry/install*"
+    ],
+    "production_app_url": "https://payments.mftintelligence.com/chemistry/app/",
+    "install_url": "https://payments.mftintelligence.com/chemistry/install",
+    "live_carrier_identity": "27/27 PASS",
+    "strict_script_csp_preserved": true,
+    "automatic_platform_routes": {
+      "android_chrome": "native-1.3",
+      "samsung": "native-1.3",
+      "ios_safari": "universal-parity",
+      "desktop_chrome": "universal-parity",
+      "desktop_firefox": "universal-parity"
+    },
+    "non_android_install_help_route": "/chemistry/app/#help",
+    "commerce_worker_script_changed": false,
+    "commerce_endpoints_preserved_http_200": [
+      "/chemistry/verify",
+      "/chemistry/plans",
+      "/chemistry/healthz"
+    ],
+    "artifact": {
+      "id": 10096758399,
+      "name": "musitu-chemistry-frontier-universal-production-app-v1",
+      "digest": "sha256:2ff515d444c4a506bfa1cd501792a8a5d22577d87651576ad9c47bcea17555f6"
+    },
+    "vercel_used": false,
+    "gate": "MUSITU_CHEMISTRY_FRONTIER_UNIVERSAL_PRODUCTION_APP_DEPLOY_PASS"
+  },
+  "independent_production_verification": {
+    "workflow": ".github/workflows/chemistry-frontier-universal-production-independent-verify-v1.yml",
+    "head_sha": "a6a6a77fb5752896298e2c48d3387adb0b921745",
+    "run_id": 34333772449,
+    "conclusion": "success",
+    "jobs": {
+      "http_invariants": 102408230552,
+      "chromium": 102408230965,
+      "chrome": 102408230746,
+      "msedge": 102408231039,
+      "firefox": 102408230924,
+      "webkit": 102408230997,
+      "gate": 102408534440
+    },
+    "http_verification": "27/27 live carrier identity PASS x2; Android/Samsung native routing PASS x2; iOS Safari/iOS in-app/desktop Chrome/Firefox universal routing PASS x2; stable 1.3 exact; retired 1.2 remains 410; commerce endpoints remain 200.",
+    "browser_verification": "Complete learner flow PASS in Chromium, Chrome, Edge, Firefox and WebKit; WebKit production iOS install-intelligence check PASS.",
+    "secrets_used": false,
+    "production_mutation": false,
+    "artifacts": {
+      "http": {
+        "id": 10096835825,
+        "digest": "sha256:fee507f5096767b430208b6e7bc2f43cdba891c7e82f39366323b02c7d35cd1a"
+      },
+      "chromium": {
+        "id": 10096845712,
+        "digest": "sha256:bb9587c79d26525b7a657f7bbeb4dc87898683e3e0f5acf154b4c40ca417b757"
+      },
+      "chrome": {
+        "id": 10096850362,
+        "digest": "sha256:88b9ae713208e4575bbe7fa521a86ac211114a9bbbf0a8375cf53c1b9220674f"
+      },
+      "msedge": {
+        "id": 10096862925,
+        "digest": "sha256:4a454c77d25dfa89d4ad7cbd1e16fa1ea57d8025fb3fd8abf981a735495bfd0d"
+      },
+      "firefox": {
+        "id": 10096845993,
+        "digest": "sha256:bf03661c6546be567d01fd3de39e0920beb757bfc478e28ed8247466aad7152b"
+      },
+      "webkit": {
+        "id": 10096862843,
+        "digest": "sha256:32fd7212ffeaafc460fc21a751a965caa36dfb8227fc07e2c4c52e3dc159370f"
+      }
+    },
+    "gate": "MUSITU_CHEMISTRY_FRONTIER_UNIVERSAL_PRODUCTION_INDEPENDENT_VERIFY_PASS"
+  },
+  "certification_boundaries": {
+    "physical_android_device_certification_performed_in_this_parity_cutover": false,
+    "physical_ios_device_certification_performed_in_this_parity_cutover": false,
+    "browser_engine_and_realistic_user_agent_profiles_are_not_claimed_as_physical_device_certification": true
+  },
+  "isolation": {
+    "main_branch_mutated": false,
+    "commerce_worker_script_changed": false,
+    "android_stable_changed": false,
+    "retired_1_2_restored": false,
+    "vercel_used": false
+  },
+  "main_sha_verified_before_seal": "2fa90499b6b2b6da48b8210c62ee9bc19a1dfec7",
+  "gate": "MUSITU_CHEMISTRY_FRONTIER_UNIVERSAL_PRODUCTION_PARITY_SEALED"
+}
