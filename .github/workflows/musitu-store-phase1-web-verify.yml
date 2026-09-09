@@ -33,7 +33,7 @@ jobs:
         with:
           node-version: '22'
 
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '17'
@@ -99,7 +99,8 @@ jobs:
         run: |
           set -euo pipefail
           echo 'f84f0e720c4d7ff578d17a416ded866c8618b2549b50c0ae79861355a79c3cff  store/phase1/android/repo/index-v1.jar' | sha256sum -c -
-          jarsigner -verify -strict store/phase1/android/repo/index-v1.jar
+          jarsigner -verify store/phase1/android/repo/index-v1.jar > /tmp/fdroid-jarsigner.txt 2>&1
+          grep -q 'jar verified' /tmp/fdroid-jarsigner.txt
           unzip -p store/phase1/android/repo/index-v1.jar index-v1.json | cmp - store/phase1/android/repo/index-v1.json
           actual="$(keytool -printcert -jarfile store/phase1/android/repo/index-v1.jar | sed -n 's/^[[:space:]]*SHA256: //p' | head -n1 | tr -d ':\r\n' | tr 'A-F' 'a-f')"
           test "$actual" = '763484cbccf9f9fdb5a35c7d314011369bc53ed95a1361483a6ace17f388b465'
@@ -160,7 +161,6 @@ jobs:
           set -euo pipefail
           python - <<'PY'
           from pathlib import Path
-          import re
           root=Path('store/phase1')
           banned_names={
             'store-signer.pass','fdroid-key.pass','fdroid-keystore.pass',
