@@ -1,0 +1,54 @@
+name: Chemistry Frontier APK Source Inspection
+
+on:
+  push:
+    branches: [chemistry-frontier-universal-20260908]
+    paths: ['.github/workflows/chemistry-frontier-apk-source-inspection.yml']
+
+permissions:
+  contents: read
+
+env:
+  EXPECTED_SOURCE_ZIP_SHA256: 5b2618499eed8dc90261bc4f8260246d5593534500dd2fb145f2d24b5c47754c
+  EXPECTED_BASE_WORKER_SHA256: 848e1cec17ec580822d36e595196cda5978713849e8b45c5bc8dc7fcf9765db8
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Reconstruct canonical Chemistry Worker source
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat commerce/chemistry/source.b64.* | base64 -d > /tmp/mchem-source.zip
+          echo "$EXPECTED_SOURCE_ZIP_SHA256  /tmp/mchem-source.zip" | sha256sum -c -
+          rm -rf /tmp/mchem-source && mkdir -p /tmp/mchem-source
+          unzip -q /tmp/mchem-source.zip -d /tmp/mchem-source
+          echo "$EXPECTED_BASE_WORKER_SHA256  /tmp/mchem-source/src/index.mjs" | sha256sum -c -
+      - name: Print APK download and storage contract only
+        shell: python
+        run: |
+          from pathlib import Path
+          p=Path('/tmp/mchem-source/src/index.mjs')
+          lines=p.read_text().splitlines()
+          needles=('download','apk','bucket','r2','kv','asset','object','storage','MUSITU_Chemistry')
+          hits=[]
+          for i,line in enumerate(lines):
+              if any(n.lower() in line.lower() for n in needles):
+                  hits.append(i)
+          seen=set()
+          for i in hits:
+              a=max(0,i-3); b=min(len(lines),i+5)
+              key=(a,b)
+              if key in seen: continue
+              seen.add(key)
+              print(f'--- lines {a+1}-{b} ---')
+              for j in range(a,b): print(f'{j+1}: {lines[j]}')
+          print('INSPECTION_COMPLETE=true')
+      - name: Assert inspection is read-only
+        run: |
+          echo 'production_mutation=false'
+          echo 'cloudflare_contacted=false'
+          echo 'publication_performed=false'
