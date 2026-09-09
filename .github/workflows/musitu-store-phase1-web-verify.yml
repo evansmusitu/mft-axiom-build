@@ -38,14 +38,16 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Prove sealed main and exact branch
+      - name: Prove sealed main, exact branch and no temporary repair gate
         shell: bash
         run: |
           set -euo pipefail
           test "$GITHUB_REF_NAME" = "musitu-store-phase1-20260909"
           git fetch --quiet origin main
           test "$(git rev-parse origin/main)" = "d6a846f6bbe0bccac1758713eb4de167caf07113"
+          test ! -e .github/workflows/musitu-store-phase1-v101-web-identity-repair.yml
           echo "SEALED_MAIN=PASS"
+          echo "TEMPORARY_REPAIR_GATE_ABSENT=PASS"
 
       - name: Validate canonical catalog and release invariants
         shell: bash
