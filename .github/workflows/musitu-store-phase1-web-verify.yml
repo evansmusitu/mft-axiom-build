@@ -1,0 +1,220 @@
+name: MUSITU Store Phase 1 Web Verify
+
+on:
+  push:
+    branches: [musitu-store-phase1-20260909]
+    paths:
+      - 'store/phase1/**'
+      - '.github/workflows/musitu-store-phase1-web-verify.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: musitu-store-phase1-web-verify
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Prove sealed main and exact branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF_NAME" = "musitu-store-phase1-20260909"
+          git fetch --quiet origin main
+          test "$(git rev-parse origin/main)" = "d6a846f6bbe0bccac1758713eb4de167caf07113"
+          echo "SEALED_MAIN=PASS"
+
+      - name: Validate canonical catalog and release invariants
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          p=Path('store/phase1')
+          cat=json.loads((p/'catalog.json').read_text())
+          trust=json.loads((p/'TRUST.json').read_text())
+          channels=json.loads((p/'release/channels.json').read_text())
+          rollback=json.loads((p/'release/rollback-control.json').read_text())
+          boot=json.loads((p/'bootstrap/release.json').read_text())
+          assert cat['schema']=='musitu.store.catalog.v1'
+          assert cat['revision']==1
+          assert cat['store']['canonicalURL']=='https://payments.mftintelligence.com/store'
+          assert cat['store']['commerceBoundary']=='distribution-state-is-not-payment-or-entitlement'
+          assert cat['releaseControl']['phase']=='phase1'
+          assert cat['releaseControl']['phase2Authorized'] is False
+          assert cat['releaseControl']['publicationState']=='private-predeployment'
+          assert channels['phase2Authorized'] is False
+          assert channels['stable']['musitu-chemistry']=='1.3.0'
+          assert rollback['defaultPolicy']=='deny'
+          assert rollback['musitu-chemistry']['authorized'] is False
+          app=cat['apps'][0]; rel=app['releases'][0]
+          assert app['id']=='musitu-chemistry'
+          assert rel['version']=='1.3.0' and rel['channel']=='stable'
+          assert rel['android']['sha256']=='4ba442122d9c86a0c3cef660334fe337c6ea9ae6fe853c964b5e94961245babd'
+          assert rel['android']['signingCertificateSha256']=='d4455ac3ec74a6d7cd7993ca640f554a83bba95dfd01ef508f7637b6bc72c0d8'
+          assert rel['ios']['sha256']=='426d2dc05e2fc8846a7582324d953bbdd2a256f170f8db2b5a956bc1c51cc962'
+          assert rel['web']['carrierArchiveSha256']=='1445074e87e8c4a9a15281baa586855fe31f92c06dd393a11458adce9821ec30'
+          assert boot['sha256']=='71391bf614cc1186cbe1fda17e9e626aad71d96dbf26807228b73bd2ea99b2f8'
+          assert boot['signingCertificateSha256']=='43695b6103d7ab57e89166c9a537f1810b7e33053e20332b1d4e7e2e1c612671'
+          assert trust['private_material_published'] is False
+          assert trust['catalog_signing_public_pem_sha256']==cat['releaseControl']['catalogPublicKeySha256']
+          print('CATALOG_INVARIANTS=PASS')
+          PY
+
+      - name: Verify catalog detached signature and public-key pin
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo '4cf17f70dbab900237d8b82b4e989978c667e6ec841de6df79469aa6c5ebd5c0  store/phase1/catalog-signing-public.pem' | sha256sum -c -
+          base64 -d < store/phase1/catalog.sig > /tmp/musitu-store-catalog.sig.der
+          openssl dgst -sha256 -verify store/phase1/catalog-signing-public.pem -signature /tmp/musitu-store-catalog.sig.der store/phase1/catalog.json
+          echo "CATALOG_SIGNATURE=PASS"
+
+      - name: Verify signed F-Droid repository index
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo 'f84f0e720c4d7ff578d17a416ded866c8618b2549b50c0ae79861355a79c3cff  store/phase1/android/repo/index-v1.jar' | sha256sum -c -
+          jarsigner -verify -strict store/phase1/android/repo/index-v1.jar
+          unzip -p store/phase1/android/repo/index-v1.jar index-v1.json | cmp - store/phase1/android/repo/index-v1.json
+          actual="$(keytool -printcert -jarfile store/phase1/android/repo/index-v1.jar | sed -n 's/^[[:space:]]*SHA256: //p' | head -n1 | tr -d ':\r\n' | tr 'A-F' 'a-f')"
+          test "$actual" = '763484cbccf9f9fdb5a35c7d314011369bc53ed95a1361483a6ace17f388b465'
+          echo "FDROID_SIGNATURE=PASS"
+
+      - name: Verify committed checksum inventory
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          import hashlib
+          root=Path('store/phase1')
+          missing=[]
+          for line in (root/'SHA256SUMS').read_text().splitlines():
+            if not line.strip(): continue
+            expected,rel=line.split(None,1)
+            path=root/rel.strip()
+            if not path.exists():
+              missing.append(rel.strip()); continue
+            actual=hashlib.sha256(path.read_bytes()).hexdigest()
+            assert actual==expected,(rel,actual,expected)
+          assert missing==['android/repo/MUSITU_Chemistry_Mastery_1.3.0.apk'],missing
+          print('CHECKSUM_INVENTORY=PASS')
+          print('EXTERNAL_RELEASE_BYTES=android/repo/MUSITU_Chemistry_Mastery_1.3.0.apk')
+          PY
+
+      - name: Regenerate web data deterministically
+        shell: bash
+        run: |
+          set -euo pipefail
+          test ! -e store/phase1/web-surface/generated-data.mjs
+          python store/phase1/web-surface/build_store_data.py
+          cp store/phase1/web-surface/generated-data.mjs /tmp/generated-data.first.mjs
+          rm store/phase1/web-surface/generated-data.mjs
+          python store/phase1/web-surface/build_store_data.py
+          cmp /tmp/generated-data.first.mjs store/phase1/web-surface/generated-data.mjs
+          if git ls-files --error-unmatch store/phase1/web-surface/generated-data.mjs >/dev/null 2>&1; then
+            echo 'generated-data.mjs must remain build-generated, not committed' >&2
+            exit 1
+          fi
+          echo "WEB_DATA_DETERMINISM=PASS"
+
+      - name: Run Store web behavioral contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check store/phase1/web-surface/generated-data.mjs
+          node --check store/phase1/web-surface/assets.mjs
+          node --check store/phase1/web-surface/render.mjs
+          node --check store/phase1/web-surface/worker.mjs
+          node --test store/phase1/web-surface/storefront.test.mjs
+          echo "WEB_CONTRACT=PASS"
+
+      - name: Enforce public/private signing boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          import re
+          root=Path('store/phase1')
+          banned_names={
+            'store-signer.pass','fdroid-key.pass','fdroid-keystore.pass',
+            'catalog-signing-key.pem','musitu-store-signing.p12','fdroid-keystore.jks'
+          }
+          banned_text=[
+            b'-----BEGIN PRIVATE KEY-----',b'-----BEGIN EC PRIVATE KEY-----',
+            b'-----BEGIN RSA PRIVATE KEY-----',b'store-signer.pass',
+            b'catalog-signing-key.pem',b'fdroid-key.pass',b'fdroid-keystore.pass'
+          ]
+          bad=[]
+          for p in root.rglob('*'):
+            if not p.is_file(): continue
+            if p.name in banned_names: bad.append(str(p)); continue
+            data=p.read_bytes()
+            for needle in banned_text:
+              if needle in data:
+                bad.append(f'{p}:{needle.decode()}')
+          assert not bad,bad
+          print('PRIVATE_MATERIAL_BOUNDARY=PASS')
+          PY
+
+      - name: Emit bounded verification evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/musitu-store-phase1-web-evidence
+          python - <<'PY'
+          import json,os,hashlib
+          from pathlib import Path
+          root=Path('store/phase1')
+          o={
+            'schema':'musitu.store.phase1.web_verify.v1',
+            'head_sha':os.environ['GITHUB_SHA'],
+            'sealed_main':'d6a846f6bbe0bccac1758713eb4de167caf07113',
+            'catalog_sha256':hashlib.sha256((root/'catalog.json').read_bytes()).hexdigest(),
+            'catalog_signature_verified':True,
+            'fdroid_index_signature_verified':True,
+            'web_contract_passed':True,
+            'private_material_published':False,
+            'phase2_authorized':False,
+            'production_deployment_performed':False,
+            'fresh_device_phase1_complete':False,
+            'gate':'MUSITU_STORE_PHASE1_WEB_VERIFY_PASS'
+          }
+          raw=(json.dumps(o,indent=2,sort_keys=True)+'\n').encode()
+          out=Path('/tmp/musitu-store-phase1-web-evidence/verification.json')
+          out.write_bytes(raw)
+          Path('/tmp/musitu-store-phase1-web-evidence/verification.sha256').write_text(hashlib.sha256(raw).hexdigest()+'  verification.json\n')
+          print(json.dumps(o,sort_keys=True))
+          PY
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: musitu-store-phase1-web-verification
+          path: /tmp/musitu-store-phase1-web-evidence
+          if-no-files-found: error
