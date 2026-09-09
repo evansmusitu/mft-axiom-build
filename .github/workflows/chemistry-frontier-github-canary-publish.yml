@@ -22,7 +22,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Acquire exact already-public signed canary and prove stable rollback
+      - name: Acquire exact signed candidate through prior share and prove stable rollback
         shell: bash
         run: |
           set -euo pipefail
@@ -32,31 +32,40 @@ jobs:
           mkdir -p /tmp/musitu-canary canary
           URL="$(python - <<'PY'
           import json
-          p='commerce/chemistry/frontier_universal/ANDROID_SIDECAR_PRIVATE_RELEASE_SIGNING.json'
-          d=json.load(open(p))
+          d=json.load(open('commerce/chemistry/frontier_universal/ANDROID_SIDECAR_PRIVATE_RELEASE_SIGNING.json'))
           assert d['private_release_signed_apk']['sha256']=='4ba442122d9c86a0c3cef660334fe337c6ea9ae6fe853c964b5e94961245babd'
           assert d['private_release_signed_apk']['bytes']==5892286
           assert d['publication_authorized'] is True
-          assert d['canary_customer_exposed'] is True
           assert d['production_download_replaced'] is False
           print(d['canary_url'])
           PY
           )"
+          SHARE="$(python - "$URL" <<'PY'
+          import base64,sys
+          print('u!'+base64.urlsafe_b64encode(sys.argv[1].encode()).decode().rstrip('='))
+          PY
+          )"
+          mapfile -t SOURCES < <(printf '%s\n' \
+            "https://api.onedrive.com/v1.0/shares/$SHARE/root/content" \
+            "https://api.onedrive.com/v1.0/shares/$SHARE/root/content?download=1" \
+            "https://graph.microsoft.com/v1.0/shares/$SHARE/driveItem/content" \
+            "$URL?download=1" \
+            "$URL")
           ok=''
-          for candidate in "$URL?download=1" "$URL"; do
-            rm -f /tmp/musitu-canary/candidate.apk
-            if curl -fL --retry 2 --connect-timeout 20 --max-time 120 -A 'MUSITU-GitHub-Canary-Publisher/1.0' "$candidate" -o /tmp/musitu-canary/candidate.apk; then
-              GOT="$(sha256sum /tmp/musitu-canary/candidate.apk | awk '{print $1}')"
-              BYTES="$(stat -c %s /tmp/musitu-canary/candidate.apk)"
-              echo "CANARY_SOURCE sha256=$GOT bytes=$BYTES"
+          i=0
+          for candidate in "${SOURCES[@]}"; do
+            i=$((i+1)); rm -f /tmp/musitu-canary/candidate.apk
+            code="$(curl -sSL --retry 1 --connect-timeout 20 --max-time 120 -A 'MUSITU-GitHub-Canary-Publisher/1.1' -w '%{http_code}' "$candidate" -o /tmp/musitu-canary/candidate.apk || true)"
+            if [ -f /tmp/musitu-canary/candidate.apk ]; then
+              GOT="$(sha256sum /tmp/musitu-canary/candidate.apk | awk '{print $1}')"; BYTES="$(stat -c %s /tmp/musitu-canary/candidate.apk)"
+              echo "CANARY_SOURCE_ATTEMPT=$i http=$code sha256=$GOT bytes=$BYTES"
               if [ "$GOT" = "$EXPECTED" ] && [ "$BYTES" = "$EXPECTED_BYTES" ]; then ok=1; break; fi
+            else
+              echo "CANARY_SOURCE_ATTEMPT=$i http=$code no_file"
             fi
           done
           test "$ok" = 1
-          curl -fL --retry 2 --connect-timeout 20 --max-time 120 \
-            -A 'MUSITU-GitHub-Canary-Stable-Probe/1.0' \
-            'https://payments.mftintelligence.com/chemistry/download/MUSITU_Chemistry_Mastery_1.2.0.apk' \
-            -o /tmp/musitu-canary/stable.apk
+          curl -fL --retry 2 --connect-timeout 20 --max-time 120 -A 'MUSITU-GitHub-Canary-Stable-Probe/1.1' 'https://payments.mftintelligence.com/chemistry/download/MUSITU_Chemistry_Mastery_1.2.0.apk' -o /tmp/musitu-canary/stable.apk
           echo "$STABLE  /tmp/musitu-canary/stable.apk" | sha256sum -c -
           test "$(stat -c %s /tmp/musitu-canary/stable.apk)" = '5314934'
           cp /tmp/musitu-canary/candidate.apk canary/MUSITU_Chemistry_1.3.0-frontier-canary.apk
