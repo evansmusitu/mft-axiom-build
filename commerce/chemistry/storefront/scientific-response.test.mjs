@@ -78,14 +78,15 @@ test('machine-readable SRG v1 schema agrees with runtime safety bounds and repre
   assert.equal(graphSchema.additionalProperties,false);
 });
 
-test('generated Worker serves Prove inside the no-store installed app surface',async()=>{
+test('generated Worker serves Prove inside the no-store installed app surface with current shell assets',async()=>{
   const exam=await get('/chemistry/app?view=exam');
   assert.equal(exam.r.status,200);
   assert.equal(exam.r.headers.get('cache-control'),'no-store');
   assert.match(exam.text,/data-scientific-response-os/);
   assert.match(exam.text,/Answer Chemistry as Chemistry/);
   assert.match(exam.text,/musitu\.scientific_response_graph\.v1/);
-  assert.match(exam.text,/app-shell\.css\?v=4/);
-  assert.match(exam.text,/app-shell\.js\?v=4/);
+  assert.match(exam.text,/app-shell\.css\?v=5/);
+  assert.match(exam.text,/app-shell\.js\?v=5/);
+  assert.doesNotMatch(exam.text,/app-shell\.(?:css|js)\?v=4/);
   assert.doesNotMatch(exam.text,/class="site-header"|class="site-footer"/);
 });
