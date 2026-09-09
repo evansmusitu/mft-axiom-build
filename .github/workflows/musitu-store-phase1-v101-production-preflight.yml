@@ -1,0 +1,160 @@
+name: MUSITU Store Phase 1 v1.0.1 Production Preflight
+
+on:
+  push:
+    branches: [musitu-store-phase1-20260909]
+    paths:
+      - '.github/workflows/musitu-store-phase1-v101-production-preflight.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: musitu-store-phase1-production
+  cancel-in-progress: false
+
+jobs:
+  preflight:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      ZONE_ID: 5b56528f03948ff5917a5e0cd9f7109e
+      ZONE_NAME: mftintelligence.com
+      PAYMENTS_HOST: payments.mftintelligence.com
+      PAYMENTS_ORIGIN: mft-paynow-transport-gateway
+      STORE_WORKER: musitu-store-phase1
+      STORE_ROUTE: payments.mftintelligence.com/store*
+      STORE_BUCKET: musitu-store-phase1-releases
+      SEALED_MAIN: d6a846f6bbe0bccac1758713eb4de167caf07113
+      PRIOR_PRODUCTION_CATALOG_SHA: cdfe7943d2b6256fac273a3b27bec6de6cc00449093e5ba169725d4308bd06b9
+      OLD_STORE_SHA: 71391bf614cc1186cbe1fda17e9e626aad71d96dbf26807228b73bd2ea99b2f8
+      OLD_STORE_BYTES: '1687882'
+      NEW_STORE_SHA: b755210f303ebb6d22a3177bb21e5ebae2e076901021ee62ca2fe6ab0f14af82
+      CHEMISTRY_SHA: 4ba442122d9c86a0c3cef660334fe337c6ea9ae6fe853c964b5e94961245babd
+      CHEMISTRY_BYTES: '5892286'
+      WRANGLER_VERSION: 4.129.1
+      WRANGLER_LOG_SANITIZE: 'true'
+      WRANGLER_SEND_METRICS: 'false'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Prove repository release gates before external reads
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF_NAME" = 'musitu-store-phase1-20260909'
+          git fetch --quiet origin main
+          test "$(git rev-parse origin/main)" = "$SEALED_MAIN"
+          python store/phase1/web-surface/build_store_data.py
+          node --test store/phase1/web-surface/release-assets-v101.test.mjs
+          node --test store/phase1/web-surface/storefront.test.mjs
+          base64 -d < store/phase1/catalog.sig > /tmp/catalog-v2.sig.der
+          openssl dgst -sha256 -verify store/phase1/catalog-signing-public.pem -signature /tmp/catalog-v2.sig.der store/phase1/catalog.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          c=json.loads(Path('store/phase1/catalog.json').read_text())
+          b=json.loads(Path('store/phase1/bootstrap/release.json').read_text())
+          assert c['revision']==2
+          assert c['releaseControl']['storeClient']['version']=='1.0.1'
+          assert c['releaseControl']['storeClient']['sha256']=='b755210f303ebb6d22a3177bb21e5ebae2e076901021ee62ca2fe6ab0f14af82'
+          assert b['artifactFile']=='MUSITU_Store_1.0.1.apk'
+          assert b['sha256']=='b755210f303ebb6d22a3177bb21e5ebae2e076901021ee62ca2fe6ab0f14af82'
+          assert c['releaseControl']['phase2Authorized'] is False
+          print('REPOSITORY_RELEASE_GATES=PASS')
+          PY
+
+      - name: Read-only Cloudflare topology and live production proof
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+          CLOUDFLARE_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+          CLOUDFLARE_ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$CLOUDFLARE_EMAIL"
+          test -n "$CLOUDFLARE_GLOBAL_API_KEY"
+          mkdir -p /tmp/v101-preflight
+          python - <<'PY'
+          import hashlib,json,os,urllib.error,urllib.parse,urllib.request,pathlib
+          API='https://api.cloudflare.com/client/v4'; AID=os.environ['ACCOUNT_ID']; ZID=os.environ['ZONE_ID']
+          HOST=os.environ['PAYMENTS_HOST']; WORKER=os.environ['STORE_WORKER']; ROUTE=os.environ['STORE_ROUTE']; BUCKET=os.environ['STORE_BUCKET']; BASE='https://'+HOST
+          auth={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY'],'Accept':'application/json','User-Agent':'MUSITU-Store-v101-Preflight/1.0'}
+          def req(url,headers=None,timeout=90):
+              q=urllib.request.Request(url,headers=headers or {},method='GET')
+              try:
+                  with urllib.request.urlopen(q,timeout=timeout) as r:return r.status,r.headers,r.read()
+              except urllib.error.HTTPError as e:return e.code,e.headers,e.read()
+          def cf(path):
+              c,_,b=req(API+path,auth)
+              if c!=200: raise RuntimeError(f'Cloudflare GET {path} HTTP {c}: '+b[:300].decode('utf-8','ignore'))
+              x=json.loads(b or b'{}')
+              if x.get('success') is not True: raise RuntimeError('Cloudflare success=false '+path)
+              return x.get('result')
+          zones=cf('/zones?name='+urllib.parse.quote(os.environ['ZONE_NAME'])+'&status=active') or []
+          assert len(zones)==1 and zones[0]['id']==ZID and zones[0]['account']['id']==AID
+          domains=cf(f'/accounts/{AID}/workers/domains') or []
+          dm=[d for d in domains if isinstance(d,dict) and d.get('hostname')==HOST]
+          assert len(dm)==1 and dm[0].get('service')==os.environ['PAYMENTS_ORIGIN']
+          routes=cf(f'/zones/{ZID}/workers/routes') or []
+          exact=[r for r in routes if isinstance(r,dict) and r.get('pattern')==ROUTE]
+          assert len(exact)==1 and exact[0].get('script')==WORKER
+          settings=cf(f'/accounts/{AID}/workers/scripts/{urllib.parse.quote(WORKER,safe="")}/settings') or {}
+          bs={x.get('name'):x for x in settings.get('bindings') or [] if isinstance(x,dict)}
+          assert set(bs)=={'STORE_RELEASES','STORE_RUNTIME_PUBLICATION_STATE'},bs
+          assert bs['STORE_RELEASES'].get('type')=='r2_bucket' and bs['STORE_RELEASES'].get('bucket_name')==BUCKET
+          assert bs['STORE_RUNTIME_PUBLICATION_STATE'].get('type')=='plain_text' and bs['STORE_RUNTIME_PUBLICATION_STATE'].get('text')=='production'
+          buckets=cf(f'/accounts/{AID}/r2/buckets?name_contains='+urllib.parse.quote(BUCKET)+'&per_page=100') or {}
+          rows=buckets.get('buckets') if isinstance(buckets,dict) else buckets
+          assert len([b for b in (rows or []) if isinstance(b,dict) and b.get('name')==BUCKET])==1
+          def pub(path,accept='*/*'):
+              return req(BASE+path,{'Accept':accept,'User-Agent':'MUSITU-Store-v101-Preflight/1.0'})
+          c,_,b=pub('/store/healthz','application/json'); assert c==200
+          h=json.loads(b); assert h['ok'] is True and h['runtime_publication_state']=='production' and h['phase2_authorized'] is False and h['fresh_device_phase1_complete'] is False
+          assert h['catalog_revision']==1,h
+          c,_,b=pub('/store/catalog.json','application/json'); assert c==200
+          assert hashlib.sha256(b).hexdigest()==os.environ['PRIOR_PRODUCTION_CATALOG_SHA']
+          pathlib.Path('/tmp/v101-preflight/live-catalog-v1.json').write_bytes(b)
+          c,_,b=pub('/store/catalog.sig','text/plain'); assert c==200
+          pathlib.Path('/tmp/v101-preflight/live-catalog-v1.sig').write_bytes(b)
+          c,_,b=pub('/store/bootstrap/MUSITU_Store_1.0.0.apk','application/vnd.android.package-archive')
+          assert c==200 and len(b)==int(os.environ['OLD_STORE_BYTES']) and hashlib.sha256(b).hexdigest()==os.environ['OLD_STORE_SHA']
+          c,_,b=pub('/store/bootstrap/MUSITU_Store_1.0.1.apk','application/vnd.android.package-archive')
+          assert c==404,(c,len(b))
+          c,_,b=pub('/chemistry/healthz','application/json'); assert c==200 and json.loads(b).get('ok') is True
+          c,_,b=pub('/chemistry/catalog','application/json'); assert c==200
+          c,_,b=pub('/chemistry/download/MUSITU_Chemistry_Mastery_1.3.0.apk','application/vnd.android.package-archive')
+          assert c==200 and len(b)==int(os.environ['CHEMISTRY_BYTES']) and hashlib.sha256(b).hexdigest()==os.environ['CHEMISTRY_SHA']
+          out={'schema':'musitu.store.phase1.v101.production_preflight.v1','head_sha':os.environ['GITHUB_SHA'],'sealed_main':os.environ['SEALED_MAIN'],'store_route_id':exact[0].get('id'),'store_worker':WORKER,'r2_bucket':BUCKET,'live_catalog_revision':1,'live_store_version':'1.0.0','live_store_sha256':os.environ['OLD_STORE_SHA'],'new_public_route_http':404,'chemistry_preserved':True,'phase2_authorized':False,'fresh_device_phase1_complete':False,'gate':'MUSITU_STORE_V101_PRODUCTION_PREFLIGHT_PASS'}
+          raw=(json.dumps(out,indent=2,sort_keys=True)+'\n').encode(); pathlib.Path('/tmp/v101-preflight/preflight.json').write_bytes(raw); pathlib.Path('/tmp/v101-preflight/preflight.sha256').write_text(hashlib.sha256(raw).hexdigest()+'  preflight.json\n')
+          print(json.dumps(out,sort_keys=True))
+          PY
+
+          npx -y wrangler@$WRANGLER_VERSION r2 object get "$STORE_BUCKET/bootstrap/MUSITU_Store_1.0.0.apk" --remote --file /tmp/v101-preflight/r2-old.apk >/tmp/v101-preflight/r2-old.log 2>&1
+          test "$(stat -c%s /tmp/v101-preflight/r2-old.apk)" = "$OLD_STORE_BYTES"
+          echo "$OLD_STORE_SHA  /tmp/v101-preflight/r2-old.apk" | sha256sum -c -
+          set +e
+          npx -y wrangler@$WRANGLER_VERSION r2 object get "$STORE_BUCKET/bootstrap/MUSITU_Store_1.0.1.apk" --remote --file /tmp/v101-preflight/r2-new.apk >/tmp/v101-preflight/r2-new.log 2>&1
+          rc=$?
+          set -e
+          test "$rc" -ne 0
+          test ! -s /tmp/v101-preflight/r2-new.apk
+          grep -Eiq 'not found|does not exist|NoSuchKey|404' /tmp/v101-preflight/r2-new.log
+          echo R2_APPEND_ONLY_SLOT=PASS
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: musitu-store-v101-production-preflight
+          path: /tmp/v101-preflight
+          if-no-files-found: error
