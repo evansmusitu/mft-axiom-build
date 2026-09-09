@@ -63,6 +63,9 @@ jobs:
           mcp_source=pathlib.Path('mcp/musitu_axiom_plugin_gate_v4.mjs').read_text()
           if not re.search(r'userinfo_endpoint\s*:\s*c\.issuer\s*\+\s*"/oauth/userinfo"', oauth_source) or not re.search(r'email_verified\s*:\s*Boolean\(\s*mail\s*&&\s*row\.email_verified_at\s*\)', oauth_source):raise RuntimeError('canonical OAuth UserInfo source missing')
           if 'OPENAI_APPS_CHALLENGE' not in mcp_source or '/.well-known/openai-apps-challenge' not in mcp_source:raise RuntimeError('OpenAI domain challenge support missing')
+          version_match=re.search(r'const\s+VERSION\s*=\s*"([^"]+)"\s*;',mcp_source)
+          if not version_match:raise RuntimeError('MCP source version missing')
+          expected_server_version=version_match.group(1)
 
           def request(url,method='GET',obj=None,headers=None):
             h={'Accept':'application/json','User-Agent':'MUSITU-Axiom-OpenAI-Readiness/1.0'}
@@ -75,7 +78,7 @@ jobs:
             except urllib.error.HTTPError as e:return e.code,e.headers,e.read()
 
           hc,_,hb=request(mcp_base+'/health');health=json.loads(hb or b'{}')
-          if hc!=200 or health.get('ok') is not True or health.get('server_version')!='4.0.0' or health.get('submission_safe_commerce_profile') is not True or health.get('oauth_enforced') is not True:raise RuntimeError('live MCP v4 health drift')
+          if hc!=200 or health.get('ok') is not True or health.get('server_version')!=expected_server_version or health.get('submission_safe_commerce_profile') is not True or health.get('oauth_enforced') is not True:raise RuntimeError('live MCP v4 health drift')
           lc,_,lb=request(mcp_url,'POST',{'jsonrpc':'2.0','id':1,'method':'tools/list','params':{}});lo=json.loads(lb or b'{}');tools=(lo.get('result') or {}).get('tools') or []
           mapped={t.get('_meta',{}).get('musitu/operation') for t in tools if isinstance(t,dict)}-{None};business=[t for t in tools if t.get('_meta',{}).get('musitu/business_product') is True]
           hidden={'musitu_axiom_plans','musitu_axiom_recommend_plan','musitu_axiom_start_checkout','musitu_axiom_checkout_status'}
