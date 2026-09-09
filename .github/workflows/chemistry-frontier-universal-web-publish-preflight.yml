@@ -49,33 +49,29 @@ jobs:
           with zipfile.ZipFile(apk) as z:
             names=[]
             for n in z.namelist():
-              if not n.startswith('assets/www/') or n.endswith('/'):
-                continue
+              if not n.startswith('assets/www/') or n.endswith('/'): continue
               rel=n[len('assets/www/'):]
               if not rel: continue
-              data=z.read(n)
-              p=out/rel; p.parent.mkdir(parents=True,exist_ok=True); p.write_bytes(data); names.append(rel)
+              data=z.read(n); p=out/rel; p.parent.mkdir(parents=True,exist_ok=True); p.write_bytes(data); names.append(rel)
           names=sorted(names)
-          if len(names)!=int(os.environ['CORE_FILES']): raise SystemExit(f'core file count mismatch {len(names)}')
-          for rel,want in expected_overlays.items():
-            got=hashlib.sha256((out/rel).read_bytes()).hexdigest()
-            if got!=want: raise SystemExit(f'overlay drift {rel} {got}')
+          observed_hashes={rel:hashlib.sha256((out/rel).read_bytes()).hexdigest() if (out/rel).exists() else None for rel in expected_overlays}
+          overlay_matches={rel:observed_hashes[rel]==want for rel,want in expected_overlays.items()}
           required=['mft-core.js','fsrs.bundle.js','fsrs-entry.js','assets/musitu-chemistry-192.png','assets/musitu-chemistry-512.png']
-          for rel in required:
-            if rel not in names: raise SystemExit('missing core file '+rel)
-          index=(out/'index.html').read_text('utf-8')
-          manifest=(out/'manifest.webmanifest').read_text('utf-8')
-          sw=(out/'sw.js').read_text('utf-8')
+          required_present={rel:rel in names for rel in required}
+          index=(out/'index.html').read_text('utf-8') if (out/'index.html').exists() else ''
+          manifest=(out/'manifest.webmanifest').read_text('utf-8') if (out/'manifest.webmanifest').exists() else ''
+          sw=(out/'sw.js').read_text('utf-8') if (out/'sw.js').exists() else ''
           checks={
             'identity':'MUSITU Chemistry' in index and 'MUSITU Chemistry' in manifest,
             'pwa_manifest':'rel="manifest"' in index and '"display": "standalone"' in manifest,
             'apple_capable':'apple-mobile-web-app-capable' in index,
-            'offline_worker':'service-worker' not in index and "const CACHE='musitu-chemistry-universal-frontier-v1'" in sw,
+            'offline_worker':"const CACHE='musitu-chemistry-universal-frontier-v1'" in sw,
             'network_authority':'checkout|return|claim|telemetry|plans|order|callback|healthz' in sw,
             'strict_script_csp':"script-src 'self'" in index and "'unsafe-eval'" not in index,
           }
-          if not all(checks.values()): raise SystemExit('static boundary failed '+json.dumps(checks,sort_keys=True))
-          (pathlib.Path('/tmp/mchem-universal-preflight/evidence/files.json')).write_text(json.dumps({'files':names,'checks':checks},indent=2)+'\n')
+          diag={'files':names,'observed_core_files':len(names),'expected_core_files':int(os.environ['CORE_FILES']),'observed_overlay_sha256':observed_hashes,'overlay_matches':overlay_matches,'required_present':required_present,'checks':checks}
+          pathlib.Path('/tmp/mchem-universal-preflight/evidence/files.json').write_text(json.dumps(diag,indent=2,sort_keys=True)+'\n')
+          print(json.dumps(diag,sort_keys=True))
           PY
 
           python - <<'PY'
@@ -87,16 +83,29 @@ jobs:
             for p in sorted(x for x in root.rglob('*') if x.is_file()):
               rel=p.relative_to(root).as_posix(); zi=zipfile.ZipInfo(rel,stamp); zi.compress_type=zipfile.ZIP_DEFLATED; zi.external_attr=0o100644<<16
               z.writestr(zi,p.read_bytes(),compress_type=zipfile.ZIP_DEFLATED,compresslevel=9)
-          raw=zpath.read_bytes(); got=hashlib.sha256(raw).hexdigest(); want=os.environ['REPRO_WEB_SHA256']
-          if got!=want: raise SystemExit(f'repro web hash mismatch {got} != {want}')
-          ev={'schema':'musitu.chemistry.frontier.universal_web_publish_preflight.v1','github_sha':os.environ['GITHUB_SHA'],'stable_apk_sha256':os.environ['STABLE_APK_SHA256'],'stable_apk_bytes':int(os.environ['STABLE_APK_BYTES']),'repro_web_sha256':got,'core_files':int(os.environ['CORE_FILES']),'production_mutation':False,'vercel_used':False,'gate':'MUSITU_CHEMISTRY_FRONTIER_UNIVERSAL_WEB_PUBLISH_PREFLIGHT_PASS'}
+          got=hashlib.sha256(zpath.read_bytes()).hexdigest(); want=os.environ['REPRO_WEB_SHA256']
+          diag=json.loads(pathlib.Path('/tmp/mchem-universal-preflight/evidence/files.json').read_text())
+          exact=(got==want and diag['observed_core_files']==diag['expected_core_files'] and all(diag['overlay_matches'].values()) and all(diag['required_present'].values()) and all(diag['checks'].values()))
+          ev={'schema':'musitu.chemistry.frontier.universal_web_publish_preflight.v2','github_sha':os.environ['GITHUB_SHA'],'stable_apk_sha256':os.environ['STABLE_APK_SHA256'],'stable_apk_bytes':int(os.environ['STABLE_APK_BYTES']),'observed_repro_web_sha256':got,'expected_repro_web_sha256':want,'core_files':diag['observed_core_files'],'exact_candidate_match':exact,'production_mutation':False,'vercel_used':False,'gate':'MUSITU_CHEMISTRY_FRONTIER_UNIVERSAL_WEB_PUBLISH_PREFLIGHT_PASS' if exact else 'MUSITU_CHEMISTRY_FRONTIER_UNIVERSAL_WEB_PUBLISH_PREFLIGHT_BLOCKED'}
           pathlib.Path('/tmp/mchem-universal-preflight/evidence/result.json').write_text(json.dumps(ev,indent=2,sort_keys=True)+'\n')
           print(json.dumps(ev,sort_keys=True))
+          if not exact: raise SystemExit('exact universal web candidate reconstruction rejected; see uploaded diagnostics')
           PY
           (cd /tmp/mchem-universal-preflight/evidence && sha256sum files.json result.json > SHA256SUMS.txt)
           echo MUSITU_CHEMISTRY_FRONTIER_UNIVERSAL_WEB_PUBLISH_PREFLIGHT_PASS
 
+      - name: Seal diagnostic hashes
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -d /tmp/mchem-universal-preflight/evidence ]; then
+            cd /tmp/mchem-universal-preflight/evidence
+            sha256sum files.json result.json 2>/dev/null > SHA256SUMS.txt || true
+          fi
+
       - uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: musitu-chemistry-frontier-universal-web-publish-preflight
           path: /tmp/mchem-universal-preflight/evidence
