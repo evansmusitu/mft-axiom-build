@@ -1,0 +1,49 @@
+name: Patch OAuth Deployment Gate
+
+on:
+  push:
+    paths:
+      - '.github/workflows/patch-oauth-deploy-gate.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: frontier/axiom-v5-skill-fabric
+      - name: Patch production proof to test the real mobile callback document
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('.github/workflows/axiom-oauth-production-deploy.yml')
+          s=p.read_text()
+          old_import="import base64,datetime,hashlib,json,os,pathlib,re,secrets,time,urllib.error,urllib.parse,urllib.request,uuid"
+          new_import="import base64,datetime,hashlib,html as htmlmod,json,os,pathlib,re,secrets,time,urllib.error,urllib.parse,urllib.request,uuid"
+          if old_import not in s:
+              raise SystemExit('expected Python import line not found')
+          s=s.replace(old_import,new_import,1)
+          old='''              # Prove mobile-webview resilience by omitting the cookie and authenticating with the one-time hidden nonce.\n              pc,ph,pb=form(issuer+'/oauth/authorize',{'flow_id':flow_id,'flow_nonce':flow_nonce,'musitu_account_key':account_key},{'Accept':'text/html'},follow=False)\n              if pc!=303:raise RuntimeError('authorization consent POST expected 303 got '+str(pc))\n              loc=str(ph.get('Location') or ''); parsed=urllib.parse.urlparse(loc); qp=urllib.parse.parse_qs(parsed.query); code=(qp.get('code') or [''])[0]\n              if not code or (qp.get('state') or [''])[0]!=state:raise RuntimeError('authorization redirect code/state mismatch')\n              print('::add-mask::'+code)\n'''
+          new='''              # Prove the exact mobile handoff. The credential POST must render a 200 document, not depend on an HTTP redirect chain.\n              pc,ph,pb=form(issuer+'/oauth/authorize',{'flow_id':flow_id,'flow_nonce':flow_nonce,'musitu_account_key':account_key},{'Accept':'text/html'},follow=False)\n              if pc!=200:raise RuntimeError('authorization consent POST expected 200 callback document got '+str(pc))\n              if ph.get('Location'):raise RuntimeError('authorization consent POST still depends on HTTP redirect')\n              nav=pb.decode('utf-8','replace'); cm=re.search(r'data-oauth-callback="([^"]+)"',nav)\n              if not cm:raise RuntimeError('authorization callback document missing exact callback target')\n              loc=htmlmod.unescape(cm.group(1)); parsed=urllib.parse.urlparse(loc); qp=urllib.parse.parse_qs(parsed.query); code=(qp.get('code') or [''])[0]\n              if parsed.scheme!='https' or parsed.hostname!='chatgpt.com' or parsed.path!='/connector/oauth/musitu-e2e':raise RuntimeError('authorization callback target mismatch')\n              if not code or (qp.get('state') or [''])[0]!=state:raise RuntimeError('authorization callback code/state mismatch')\n              if '<meta http-equiv="refresh"' not in nav or 'window.location.replace(' not in nav or 'id="continue-chatgpt"' not in nav:raise RuntimeError('authorization callback document missing redundant mobile navigation paths')\n              print('::add-mask::'+code)\n'''
+          if old not in s:
+              raise SystemExit('expected old 303 proof block not found')
+          s=s.replace(old,new,1)
+          old_ev="'mobile_cookie_independent_form_nonce_verified':True,'account_key_returned_to_chatgpt':False"
+          new_ev="'mobile_cookie_independent_form_nonce_verified':True,'mobile_post_200_callback_document_verified':True,'mobile_http_redirect_chain_removed':True,'mobile_meta_refresh_verified':True,'mobile_js_replace_verified':True,'mobile_manual_continue_anchor_verified':True,'account_key_returned_to_chatgpt':False"
+          if old_ev not in s:
+              raise SystemExit('expected evidence marker not found')
+          s=s.replace(old_ev,new_ev,1)
+          p.write_text(s)
+          PY
+          git diff --check
+          git diff -- .github/workflows/axiom-oauth-production-deploy.yml
+          git config user.name 'evansmusitu'
+          git config user.email 'evansmusitu5@gmail.com'
+          git add .github/workflows/axiom-oauth-production-deploy.yml
+          git commit -m 'Test rendered ChatGPT callback in OAuth production gate'
+          git push origin HEAD:frontier/axiom-v5-skill-fabric
