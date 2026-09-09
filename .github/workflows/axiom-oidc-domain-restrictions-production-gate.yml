@@ -30,7 +30,7 @@ jobs:
         with:
           ref: frontier/axiom-v5-skill-fabric
 
-      - name: Deploy exact OIDC worker and prove discovery plus verified UserInfo lifecycle
+      - name: Deploy exact OIDC worker and prove discovery, JWKS, signed ID tokens, and verified UserInfo
         env:
           CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
           CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
@@ -40,13 +40,13 @@ jobs:
           test -n "$CLOUDFLARE_EMAIL"
           test -n "$CLOUDFLARE_GLOBAL_API_KEY"
           node --check auth/musitu_axiom_oauth_worker.mjs
-          test "$(git hash-object auth/musitu_axiom_oauth_worker.mjs)" = 'b25132acec4973a1a5e0d7c2c36962f716f2cc59'
+          test "$(git hash-object auth/musitu_axiom_oauth_worker.mjs)" = '2f32e79115aebb443f9b62d8f222769f1382ffba'
           python - <<'PY'
-          import datetime,hashlib,json,os,pathlib,secrets,time,urllib.error,urllib.parse,urllib.request,uuid
+          import base64,datetime,hashlib,hmac,json,os,pathlib,secrets,time,urllib.error,urllib.parse,urllib.request,uuid
 
           api=os.environ['CF_API'];aid=os.environ['ACCOUNT_ID'];dbid=os.environ['D1_UUID'];worker=os.environ['AUTH_WORKER'];issuer=os.environ['OAUTH_ISSUER'];resource=os.environ['MCP_RESOURCE']
           source=pathlib.Path('auth/musitu_axiom_oauth_worker.mjs').read_bytes()
-          auth={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY'],'Accept':'application/json','User-Agent':'MUSITU-Axiom-OIDC-Production-Gate/1.0'}
+          auth={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY'],'Accept':'application/json','User-Agent':'MUSITU-Axiom-OIDC-Production-Gate/2.0'}
 
           def raw(url,method='GET',headers=None,body=None,timeout=45):
               q=urllib.request.Request(url,headers=dict(headers or {}),method=method,data=body)
@@ -72,7 +72,7 @@ jobs:
               return rows
 
           def getj(url,headers=None):
-              h={'Accept':'application/json','User-Agent':'MUSITU-Axiom-OIDC-Production-Gate/1.0'}
+              h={'Accept':'application/json','User-Agent':'MUSITU-Axiom-OIDC-Production-Gate/2.0'}
               if headers:h.update(headers)
               c,hh,b=raw(url,headers=h)
               try:o=json.loads(b or b'{}')
@@ -80,12 +80,44 @@ jobs:
               return c,hh,o
 
           def form(url,data):
-              c,hh,b=raw(url,'POST',{'Accept':'application/json','Content-Type':'application/x-www-form-urlencoded','User-Agent':'MUSITU-Axiom-OIDC-Production-Gate/1.0'},urllib.parse.urlencode(data).encode())
+              c,hh,b=raw(url,'POST',{'Accept':'application/json','Content-Type':'application/x-www-form-urlencoded','User-Agent':'MUSITU-Axiom-OIDC-Production-Gate/2.0'},urllib.parse.urlencode(data).encode())
               try:o=json.loads(b or b'{}')
               except Exception:o={}
               return c,hh,o
 
-          # Deploy exactly the reviewed worker bytes with the same minimal bindings as production.
+          def b64url(data):return base64.urlsafe_b64encode(data).rstrip(b'=').decode()
+          def b64decode(value):
+              s=value.encode();return base64.urlsafe_b64decode(s+b'='*((4-len(s)%4)%4))
+
+          def parse_jwt(token):
+              parts=token.split('.')
+              if len(parts)!=3:raise RuntimeError('ID token is not a compact JWT')
+              try:
+                  header=json.loads(b64decode(parts[0]));claims=json.loads(b64decode(parts[1]))
+              except Exception as exc:raise RuntimeError('ID token JSON decode failed') from exc
+              return parts,header,claims
+
+          def verify_rs256(token,jwk):
+              parts,header,claims=parse_jwt(token)
+              if header.get('alg')!='RS256' or header.get('kid')!=jwk.get('kid'):return False,header,claims
+              n=int.from_bytes(b64decode(jwk['n']),'big');e=int.from_bytes(b64decode(jwk['e']),'big');sig=b64decode(parts[2]);k=(n.bit_length()+7)//8
+              if len(sig)!=k:return False,header,claims
+              em=pow(int.from_bytes(sig,'big'),e,n).to_bytes(k,'big')
+              digest=hashlib.sha256((parts[0]+'.'+parts[1]).encode()).digest();digest_info=bytes.fromhex('3031300d060960864801650304020105000420')+digest
+              padlen=k-len(digest_info)-3
+              if padlen<8:return False,header,claims
+              expected=b'\x00\x01'+b'\xff'*padlen+b'\x00'+digest_info
+              return hmac.compare_digest(em,expected),header,claims
+
+          # Additive OIDC schema first so deployment cannot expose routes before their backing tables exist.
+          d1('''CREATE TABLE IF NOT EXISTS oauth_identity_claims (customer_id TEXT PRIMARY KEY,email_verified_at TEXT NOT NULL,created_at TEXT NOT NULL,updated_at TEXT NOT NULL);''')
+          d1('''CREATE INDEX IF NOT EXISTS idx_oauth_identity_verified_at ON oauth_identity_claims(email_verified_at);''')
+          d1('''CREATE TABLE IF NOT EXISTS oauth_oidc_signing_keys (kid TEXT PRIMARY KEY,private_jwk_json TEXT NOT NULL,public_jwk_json TEXT NOT NULL,alg TEXT NOT NULL,created_at TEXT NOT NULL,retired_at TEXT);''')
+          d1('''CREATE INDEX IF NOT EXISTS idx_oauth_oidc_signing_active ON oauth_oidc_signing_keys(retired_at,created_at);''')
+          d1('''CREATE TABLE IF NOT EXISTS oauth_oidc_flow_nonces (flow_id TEXT PRIMARY KEY,nonce TEXT NOT NULL,created_at TEXT NOT NULL,expires_at TEXT NOT NULL);''')
+          d1('''CREATE TABLE IF NOT EXISTS oauth_oidc_code_nonces (code_hash TEXT PRIMARY KEY,nonce TEXT NOT NULL,created_at TEXT NOT NULL,expires_at TEXT NOT NULL);''')
+
+          # Deploy exactly the reviewed worker bytes with the same minimal production bindings.
           boundary='----MUSITU'+secrets.token_hex(16);parts=[]
           def add(v):parts.append(v.encode() if isinstance(v,str) else v)
           meta={'main_module':'index.mjs','compatibility_date':'2026-09-05','bindings':[{'type':'d1','name':'AXIOM_DB','id':dbid},{'type':'plain_text','name':'OAUTH_ISSUER','text':issuer},{'type':'plain_text','name':'MCP_RESOURCE','text':resource}]}
@@ -96,53 +128,75 @@ jobs:
           if not 200<=c<300:raise RuntimeError('OAuth Worker upload HTTP '+str(c)+' '+b[:200].decode('utf-8','ignore'))
           cf(f'/accounts/{aid}/workers/scripts/{urllib.parse.quote(worker,safe="")}/subdomain','POST',{'enabled':False,'previews_enabled':False})
 
-          # OIDC identity ledger is additive and already used by UserInfo; make its contract explicit.
-          d1('''CREATE TABLE IF NOT EXISTS oauth_identity_claims (customer_id TEXT PRIMARY KEY,email_verified_at TEXT NOT NULL,created_at TEXT NOT NULL,updated_at TEXT NOT NULL);''')
-
-          oidc=None
+          oidc=None;jwks=None
           for _ in range(30):
               hc,_,health=getj(issuer+'/health')
               oc,_,candidate=getj(issuer+'/.well-known/openid-configuration')
-              if hc==200 and health.get('ok') is True and oc==200:
-                  oidc=candidate;break
+              jc,_,candidate_jwks=getj(issuer+'/.well-known/jwks.json')
+              if hc==200 and health.get('ok') is True and health.get('oidc') is True and oc==200 and jc==200:
+                  oidc=candidate;jwks=candidate_jwks;break
               time.sleep(2)
-          if oidc is None:raise RuntimeError('OIDC discovery did not become live')
-          expected={'issuer':issuer,'authorization_endpoint':issuer+'/oauth/authorize','token_endpoint':issuer+'/oauth/token','registration_endpoint':issuer+'/oauth/register','revocation_endpoint':issuer+'/oauth/revoke','userinfo_endpoint':issuer+'/oauth/userinfo'}
+          if oidc is None or jwks is None:raise RuntimeError('OIDC discovery/JWKS did not become live')
+          expected={'issuer':issuer,'authorization_endpoint':issuer+'/oauth/authorize','token_endpoint':issuer+'/oauth/token','registration_endpoint':issuer+'/oauth/register','revocation_endpoint':issuer+'/oauth/revoke','userinfo_endpoint':issuer+'/oauth/userinfo','jwks_uri':issuer+'/.well-known/jwks.json'}
           if any(oidc.get(k)!=v for k,v in expected.items()):raise RuntimeError('OIDC endpoint metadata mismatch')
           if not {'openid','email'}.issubset(set(oidc.get('scopes_supported') or [])):raise RuntimeError('OIDC openid/email scopes missing')
           if 'S256' not in (oidc.get('code_challenge_methods_supported') or []):raise RuntimeError('OIDC PKCE S256 missing')
           if 'none' not in (oidc.get('token_endpoint_auth_methods_supported') or []):raise RuntimeError('OIDC public-client token auth missing')
-          if not {'sub','email','email_verified'}.issubset(set(oidc.get('claims_supported') or [])):raise RuntimeError('OIDC identity claims metadata incomplete')
+          if 'public' not in (oidc.get('subject_types_supported') or []):raise RuntimeError('OIDC subject type metadata missing')
+          if 'RS256' not in (oidc.get('id_token_signing_alg_values_supported') or []):raise RuntimeError('OIDC ID-token signing metadata missing')
+          if not {'sub','email','email_verified','iss','aud','exp','iat','nonce'}.issubset(set(oidc.get('claims_supported') or [])):raise RuntimeError('OIDC identity claims metadata incomplete')
+          keys=jwks.get('keys') or []
+          if not keys:raise RuntimeError('JWKS has no public signing key')
+          for key in keys:
+              if key.get('kty')!='RSA' or key.get('use')!='sig' or key.get('alg')!='RS256' or not key.get('kid') or not key.get('n') or not key.get('e'):raise RuntimeError('JWKS public key contract failed')
+              if any(name in key for name in ('d','p','q','dp','dq','qi','oth')):raise RuntimeError('JWKS exposed private key material')
 
-          # Create a disposable token ledger fixture, call the real UserInfo endpoint, rotate it,
-          # and prove revocation fails closed. No fixture secret is printed.
-          p='oidc_gate_'+uuid.uuid4().hex;customer=p+'_customer';keyid=p+'_key';client=p+'_client';email=p+'@example.com'
-          access='musitu_oidc_gate_at_'+secrets.token_urlsafe(32);refresh='musitu_oidc_gate_rt_'+secrets.token_urlsafe(36)
-          ah=hashlib.sha256(access.encode()).hexdigest();rh=hashlib.sha256(refresh.encode()).hexdigest();now=datetime.datetime.now(datetime.timezone.utc);created=now.isoformat().replace('+00:00','Z');aexp=(now+datetime.timedelta(hours=1)).isoformat().replace('+00:00','Z');rexp=(now+datetime.timedelta(days=1)).isoformat().replace('+00:00','Z')
-          print('::add-mask::'+access);print('::add-mask::'+refresh);print('::add-mask::'+client)
+          # Create a disposable authorization-code fixture and exercise the real token endpoint.
+          p='oidc_gate_'+uuid.uuid4().hex;customer=p+'_customer';client=p+'_client';email=p+'@example.com';redirect='https://chatgpt.com/connector/oauth/oidc-gate'
+          raw_code='musitu_oidc_gate_code_'+secrets.token_urlsafe(32);verifier=b64url(secrets.token_bytes(48));challenge=b64url(hashlib.sha256(verifier.encode()).digest());code_hash=hashlib.sha256(raw_code.encode()).hexdigest();nonce='oidc_nonce_'+secrets.token_urlsafe(24)
+          now=datetime.datetime.now(datetime.timezone.utc);created=now.isoformat().replace('+00:00','Z');cexp=(now+datetime.timedelta(minutes=5)).isoformat().replace('+00:00','Z')
+          for secret in (raw_code,verifier,nonce,client):print('::add-mask::'+secret)
           try:
               d1('INSERT INTO customers(id,email,name,plan,status,monthly_unit_override,created_at,updated_at) VALUES(?1,?2,?3,?4,?5,?6,?7,?7)',[customer,email,'OIDC domain restriction fixture','developer','active',10,created])
-              d1('INSERT INTO api_keys(id,customer_id,key_hash,key_prefix,label,status,created_at,last_used_at,expires_at,revoked_at) VALUES(?1,?2,?3,?4,?5,?6,?7,NULL,?8,NULL)',[keyid,customer,ah,access[:16],'oidc-domain-gate','active',created,aexp])
-              d1('INSERT INTO oauth_clients(client_id,redirect_uris_json,client_name,created_at) VALUES(?1,?2,?3,?4)',[client,'["https://chatgpt.com/connector/oauth/oidc-gate"]','OIDC domain gate',created])
+              d1('INSERT INTO oauth_clients(client_id,redirect_uris_json,client_name,created_at) VALUES(?1,?2,?3,?4)',[client,json.dumps([redirect]),'OIDC domain gate',created])
               d1('INSERT INTO oauth_identity_claims(customer_id,email_verified_at,created_at,updated_at) VALUES(?1,?2,?2,?2)',[customer,created])
-              d1('INSERT INTO oauth_access_tokens(token_hash,api_key_id,client_id,customer_id,issuer,resource,scope,created_at,expires_at,revoked_at) VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,NULL)',[ah,keyid,client,customer,issuer,resource,'openid email axiom.execute',created,aexp])
-              d1('INSERT INTO oauth_refresh_tokens(token_hash,api_key_id,client_id,customer_id,resource,scope,created_at,expires_at,revoked_at) VALUES(?1,?2,?3,?4,?5,?6,?7,?8,NULL)',[rh,keyid,client,customer,resource,'openid email axiom.execute',created,rexp])
+              d1('INSERT INTO oauth_authorization_codes(code_hash,client_id,customer_id,redirect_uri,resource,scope,code_challenge,created_at,expires_at,used_at) VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,NULL)',[code_hash,client,customer,redirect,resource,'openid email axiom.execute',challenge,created,cexp])
+              d1('INSERT INTO oauth_oidc_code_nonces(code_hash,nonce,created_at,expires_at) VALUES(?1,?2,?3,?4)',[code_hash,nonce,created,cexp])
+
+              tc,_,to=form(issuer+'/oauth/token',{'grant_type':'authorization_code','client_id':client,'code':raw_code,'code_verifier':verifier,'redirect_uri':redirect,'resource':resource})
+              if tc!=200 or not to.get('access_token') or not to.get('refresh_token') or not to.get('id_token'):raise RuntimeError('OIDC authorization-code token exchange failed')
+              access=str(to['access_token']);refresh=str(to['refresh_token']);id_token=str(to['id_token']);print('::add-mask::'+access);print('::add-mask::'+refresh);print('::add-mask::'+id_token)
+              parts,header,claims=parse_jwt(id_token);matched=next((k for k in keys if k.get('kid')==header.get('kid')),None)
+              if not matched:raise RuntimeError('ID token kid not present in JWKS')
+              ok,_,claims=verify_rs256(id_token,matched)
+              if not ok:raise RuntimeError('ID token RS256 signature verification failed')
+              now_s=int(time.time())
+              if claims.get('iss')!=issuer or claims.get('aud')!=client or claims.get('nonce')!=nonce or claims.get('email')!=email or claims.get('email_verified') is not True or not claims.get('sub'):raise RuntimeError('ID token identity claims failed')
+              if not isinstance(claims.get('iat'),int) or not isinstance(claims.get('exp'),int) or not claims['iat']<=now_s+60<claims['exp']+60:raise RuntimeError('ID token time claims failed')
+              sub=claims['sub']
 
               uc,_,uo=getj(issuer+'/oauth/userinfo',{'Authorization':'Bearer '+access})
-              if uc!=200 or uo.get('email')!=email or uo.get('email_verified') is not True or len(str(uo.get('sub') or ''))!=64:raise RuntimeError('verified UserInfo contract failed')
-              sub=uo['sub']
+              if uc!=200 or uo.get('email')!=email or uo.get('email_verified') is not True or uo.get('sub')!=sub:raise RuntimeError('verified UserInfo contract failed')
 
               rc,_,ro=form(issuer+'/oauth/token',{'grant_type':'refresh_token','client_id':client,'refresh_token':refresh,'resource':resource})
-              if rc!=200 or not ro.get('access_token') or not ro.get('refresh_token'):raise RuntimeError('OIDC refresh rotation failed')
-              access2=str(ro['access_token']);refresh2=str(ro['refresh_token']);print('::add-mask::'+access2);print('::add-mask::'+refresh2)
+              if rc!=200 or not ro.get('access_token') or not ro.get('refresh_token') or not ro.get('id_token'):raise RuntimeError('OIDC refresh rotation failed')
+              access2=str(ro['access_token']);refresh2=str(ro['refresh_token']);id2=str(ro['id_token']);print('::add-mask::'+access2);print('::add-mask::'+refresh2);print('::add-mask::'+id2)
+              _,h2,c2=parse_jwt(id2);matched2=next((k for k in keys if k.get('kid')==h2.get('kid')),None)
+              if not matched2:raise RuntimeError('refreshed ID token kid not present in JWKS')
+              ok2,_,c2=verify_rs256(id2,matched2)
+              if not ok2 or c2.get('sub')!=sub or c2.get('email')!=email or c2.get('email_verified') is not True or c2.get('aud')!=client or 'nonce' in c2:raise RuntimeError('refreshed ID token contract failed')
               u2c,_,u2=getj(issuer+'/oauth/userinfo',{'Authorization':'Bearer '+access2})
               if u2c!=200 or u2.get('email')!=email or u2.get('email_verified') is not True or u2.get('sub')!=sub:raise RuntimeError('verified identity did not survive refresh rotation')
+              oldc,_,oldo=getj(issuer+'/oauth/userinfo',{'Authorization':'Bearer '+access})
+              if oldc!=401 or oldo.get('error')!='invalid_token':raise RuntimeError('refresh rotation did not revoke prior access')
 
               vc,_,_=form(issuer+'/oauth/revoke',{'token':access2})
               if vc!=200:raise RuntimeError('OIDC access revocation failed')
               puc,_,puo=getj(issuer+'/oauth/userinfo',{'Authorization':'Bearer '+access2})
               if puc!=401 or puo.get('error')!='invalid_token':raise RuntimeError('revoked OIDC access remained valid')
           finally:
+              d1('DELETE FROM oauth_oidc_code_nonces WHERE code_hash=?1',[code_hash])
+              d1('DELETE FROM oauth_authorization_codes WHERE customer_id=?1',[customer])
               d1('DELETE FROM oauth_refresh_tokens WHERE customer_id=?1',[customer])
               d1('DELETE FROM oauth_access_tokens WHERE customer_id=?1',[customer])
               d1('DELETE FROM oauth_identity_claims WHERE customer_id=?1',[customer])
@@ -150,7 +204,7 @@ jobs:
               d1('DELETE FROM api_keys WHERE customer_id=?1',[customer])
               d1('DELETE FROM customers WHERE id=?1',[customer])
 
-          residue=d1('SELECT (SELECT count(*) FROM customers WHERE id=?1)+(SELECT count(*) FROM api_keys WHERE customer_id=?1)+(SELECT count(*) FROM oauth_identity_claims WHERE customer_id=?1)+(SELECT count(*) FROM oauth_access_tokens WHERE customer_id=?1)+(SELECT count(*) FROM oauth_refresh_tokens WHERE customer_id=?1)+(SELECT count(*) FROM oauth_clients WHERE client_id=?2) AS n',[customer,client])
+          residue=d1('SELECT (SELECT count(*) FROM customers WHERE id=?1)+(SELECT count(*) FROM api_keys WHERE customer_id=?1)+(SELECT count(*) FROM oauth_identity_claims WHERE customer_id=?1)+(SELECT count(*) FROM oauth_authorization_codes WHERE customer_id=?1)+(SELECT count(*) FROM oauth_access_tokens WHERE customer_id=?1)+(SELECT count(*) FROM oauth_refresh_tokens WHERE customer_id=?1)+(SELECT count(*) FROM oauth_clients WHERE client_id=?2)+(SELECT count(*) FROM oauth_oidc_code_nonces WHERE code_hash=?3) AS n',[customer,client,code_hash])
           if not residue or int(residue[0].get('n') or 0)!=0:raise RuntimeError('OIDC fixture residue detected')
-          print(json.dumps({'gate':'MUSITU_AXIOM_OIDC_DOMAIN_RESTRICTIONS_PASS','oidc_discovery':True,'openid_scope':True,'email_scope':True,'userinfo_endpoint':True,'verified_email':True,'stable_subject_across_refresh':True,'refresh_rotation':True,'revocation_fail_closed':True,'worker_blob':'b25132acec4973a1a5e0d7c2c36962f716f2cc59','secrets_published':False},sort_keys=True))
+          print(json.dumps({'gate':'MUSITU_AXIOM_OIDC_DOMAIN_RESTRICTIONS_PASS','oidc_discovery':True,'jwks':True,'rs256_id_token':True,'openid_scope':True,'email_scope':True,'userinfo_endpoint':True,'verified_email':True,'nonce_binding':True,'stable_subject_across_refresh':True,'refresh_rotation':True,'revocation_fail_closed':True,'worker_blob':'2f32e79115aebb443f9b62d8f222769f1382ffba','private_key_published':False,'secrets_published':False},sort_keys=True))
           PY

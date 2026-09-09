@@ -1,6 +1,8 @@
 const ISSUER_DEFAULT = "https://auth.mftintelligence.com";
 const RESOURCE_DEFAULT = "https://mcp.mftintelligence.com";
 const SCOPES = new Set(["axiom.execute", "billing.read", "billing.write", "openid", "email"]);
+const OIDC_SIGNING_ALG = "RS256";
+const OIDC_ACTIVE_KID = "musitu_oidc_rs256_20260909";
 const JSON_HEADERS = {
   "content-type": "application/json; charset=utf-8",
   "cache-control": "no-store",
@@ -38,10 +40,12 @@ function cfg(env) {
 function iso(d = new Date()) { return d.toISOString(); }
 function plus(seconds) { return new Date(Date.now() + seconds * 1000).toISOString(); }
 function b64url(bytes) { return btoa(String.fromCharCode(...bytes)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, ""); }
+function b64urlText(s) { return b64url(new TextEncoder().encode(String(s))); }
 function random(prefix, bytes = 32) { const a = new Uint8Array(bytes); crypto.getRandomValues(a); return prefix + b64url(a); }
 async function sha256(s) { const d = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(s)); return [...new Uint8Array(d)].map(x => x.toString(16).padStart(2, "0")).join(""); }
 async function pkce(v) { const d = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(v)); return b64url(new Uint8Array(d)); }
 function scopes(raw) { const xs = String(raw || "").split(/\s+/).filter(Boolean); if (!xs.length) xs.push("axiom.execute"); if (xs.some(x => !SCOPES.has(x))) return null; return [...new Set(xs)].join(" "); }
+function scopeSet(raw) { return new Set(String(raw || "").split(/\s+/).filter(Boolean)); }
 function allowedRedirect(s) { try { const u = new URL(s); if (u.protocol !== "https:") return false; if (u.hostname !== "chatgpt.com") return false; return u.pathname.startsWith("/connector/oauth/") || u.pathname === "/connector_platform_oauth_redirect"; } catch { return false; } }
 function esc(s) { return String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;", "'": "&#39;" }[c])); }
 function jsString(s) { return JSON.stringify(String(s)).replace(/</g, "\\u003c").replace(/>/g, "\\u003e").replace(/&/g, "\\u0026"); }
@@ -94,6 +98,7 @@ async function discovery(c) {
     registration_endpoint: c.issuer + "/oauth/register",
     revocation_endpoint: c.issuer + "/oauth/revoke",
     userinfo_endpoint: c.issuer + "/oauth/userinfo",
+    jwks_uri: c.issuer + "/.well-known/jwks.json",
     response_types_supported: ["code"],
     grant_types_supported: ["authorization_code", "refresh_token"],
     token_endpoint_auth_methods_supported: ["none"],
@@ -111,15 +116,70 @@ async function oidcDiscovery(c) {
     registration_endpoint: c.issuer + "/oauth/register",
     revocation_endpoint: c.issuer + "/oauth/revoke",
     userinfo_endpoint: c.issuer + "/oauth/userinfo",
+    jwks_uri: c.issuer + "/.well-known/jwks.json",
     response_types_supported: ["code"],
     grant_types_supported: ["authorization_code", "refresh_token"],
     token_endpoint_auth_methods_supported: ["none"],
     code_challenge_methods_supported: ["S256"],
     scopes_supported: [...SCOPES],
     subject_types_supported: ["public"],
-    claims_supported: ["sub", "email", "email_verified"],
+    id_token_signing_alg_values_supported: [OIDC_SIGNING_ALG],
+    claims_supported: ["iss", "sub", "aud", "exp", "iat", "nonce", "email", "email_verified"],
     client_id_metadata_document_supported: false,
   });
+}
+
+async function ensureOidcSigningKey(c) {
+  let row = await one(c.db, "SELECT kid,private_jwk_json,public_jwk_json,alg,created_at FROM oauth_oidc_signing_keys WHERE kid=?1 AND retired_at IS NULL LIMIT 1", [OIDC_ACTIVE_KID]);
+  if (row) return row;
+  const pair = await crypto.subtle.generateKey(
+    { name: "RSASSA-PKCS1-v1_5", modulusLength: 2048, publicExponent: new Uint8Array([1, 0, 1]), hash: "SHA-256" },
+    true,
+    ["sign", "verify"],
+  );
+  const privateJwk = await crypto.subtle.exportKey("jwk", pair.privateKey);
+  const publicJwk = await crypto.subtle.exportKey("jwk", pair.publicKey);
+  const kid = OIDC_ACTIVE_KID, now = iso();
+  for (const x of [privateJwk, publicJwk]) { x.kid = kid; x.use = "sig"; x.alg = OIDC_SIGNING_ALG; }
+  await run(c.db, "INSERT OR IGNORE INTO oauth_oidc_signing_keys(kid,private_jwk_json,public_jwk_json,alg,created_at,retired_at) VALUES(?1,?2,?3,?4,?5,NULL)", [kid, JSON.stringify(privateJwk), JSON.stringify(publicJwk), OIDC_SIGNING_ALG, now]);
+  row = await one(c.db, "SELECT kid,private_jwk_json,public_jwk_json,alg,created_at FROM oauth_oidc_signing_keys WHERE kid=?1 AND retired_at IS NULL LIMIT 1", [OIDC_ACTIVE_KID]);
+  if (!row) throw new Error("oidc_signing_key_unavailable");
+  return row;
+}
+
+async function jwks(c) {
+  await ensureOidcSigningKey(c);
+  const rows = await c.db.prepare("SELECT public_jwk_json FROM oauth_oidc_signing_keys WHERE retired_at IS NULL ORDER BY created_at DESC").all();
+  const keys = [];
+  for (const row of rows.results || []) {
+    try {
+      const k = JSON.parse(row.public_jwk_json || "{}");
+      if (k.kty === "RSA" && k.kid && k.n && k.e && k.alg === OIDC_SIGNING_ALG) keys.push(k);
+    } catch {}
+  }
+  if (!keys.length) return j(503, { error: "jwks_unavailable" });
+  return j(200, { keys }, { "cache-control": "public, max-age=300" });
+}
+
+async function signIdToken(c, row, clientId, scopeText, nonce = "") {
+  const ss = scopeSet(scopeText);
+  if (!ss.has("openid")) return "";
+  const identity = await one(c.db, "SELECT c.email,i.email_verified_at FROM customers c LEFT JOIN oauth_identity_claims i ON i.customer_id=c.id WHERE c.id=?1 LIMIT 1", [row.customer_id]);
+  if (!identity) throw new Error("oidc_identity_unavailable");
+  const keyRow = await ensureOidcSigningKey(c), privateJwk = JSON.parse(keyRow.private_jwk_json || "{}");
+  const key = await crypto.subtle.importKey("jwk", privateJwk, { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" }, false, ["sign"]);
+  const now = Math.floor(Date.now() / 1000), sub = await sha256(c.issuer + "\n" + row.customer_id);
+  const claims = { iss: c.issuer, sub, aud: clientId, exp: now + 3600, iat: now };
+  if (nonce) claims.nonce = nonce;
+  if (ss.has("email")) {
+    const mail = String(identity.email || "");
+    claims.email = mail;
+    claims.email_verified = Boolean(mail && identity.email_verified_at);
+  }
+  const header = { alg: OIDC_SIGNING_ALG, typ: "JWT", kid: keyRow.kid };
+  const signingInput = b64urlText(JSON.stringify(header)) + "." + b64urlText(JSON.stringify(claims));
+  const sig = await crypto.subtle.sign("RSASSA-PKCS1-v1_5", key, new TextEncoder().encode(signingInput));
+  return signingInput + "." + b64url(new Uint8Array(sig));
 }
 
 async function register(req, c) {
@@ -145,13 +205,21 @@ async function authorizeGet(req, c) {
   if (q.get("response_type") !== "code") return html(400, errorPage("Unsupported OAuth response type."));
   const cid = q.get("client_id") || "", redirect = q.get("redirect_uri") || "", resource = q.get("resource") || "", challenge = q.get("code_challenge") || "", method = q.get("code_challenge_method") || "", scope = scopes(q.get("scope"));
   if (resource !== c.resource || method !== "S256" || challenge.length < 40 || !scope) return html(400, errorPage("Invalid OAuth authorization request."));
+  const requestedNonce = String(q.get("nonce") || "");
+  if (requestedNonce.length > 512) return html(400, errorPage("Invalid OpenID Connect nonce."));
   const cl = await one(c.db, "SELECT redirect_uris_json FROM oauth_clients WHERE client_id=?1", [cid]);
   if (!cl) return html(400, errorPage("Unknown OAuth client."));
   let allowed = [];
   try { allowed = JSON.parse(cl.redirect_uris_json || "[]"); } catch {}
   if (!allowed.includes(redirect)) return html(400, errorPage("Redirect URI is not registered."));
   const id = random("flow_", 24), csrf = random("csrf_", 24), nh = await sha256(csrf), now = iso(), exp = plus(600);
-  await run(c.db, "INSERT INTO oauth_authorization_flows(id,client_id,redirect_uri,state,resource,scope,code_challenge,nonce_hash,created_at,expires_at,used_at) VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,NULL)", [id, cid, redirect, q.get("state") || "", resource, scope, challenge, nh, now, exp]);
+  const statements = [
+    c.db.prepare("INSERT INTO oauth_authorization_flows(id,client_id,redirect_uri,state,resource,scope,code_challenge,nonce_hash,created_at,expires_at,used_at) VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,NULL)").bind(id, cid, redirect, q.get("state") || "", resource, scope, challenge, nh, now, exp),
+  ];
+  if (requestedNonce && scopeSet(scope).has("openid")) {
+    statements.push(c.db.prepare("INSERT INTO oauth_oidc_flow_nonces(flow_id,nonce,created_at,expires_at) VALUES(?1,?2,?3,?4)").bind(id, requestedNonce, now, exp));
+  }
+  await c.db.batch(statements);
   return html(200, consentPage({ id, nonce: csrf }, scope), { "set-cookie": `musitu_oauth_flow=${encodeURIComponent(csrf)}; Path=/oauth/authorize; Max-Age=600; HttpOnly; Secure; SameSite=Lax` });
 }
 
@@ -170,10 +238,14 @@ async function authorizePost(req, c) {
   if (!user) return html(401, errorPage("MUSITU account authentication failed."));
 
   const rawCode = random("musitu_oauth_code_", 32), ch = await sha256(rawCode), now = iso();
-  await c.db.batch([
+  const oidcNonce = await one(c.db, "SELECT nonce FROM oauth_oidc_flow_nonces WHERE flow_id=?1 AND expires_at>?2 LIMIT 1", [id, now]);
+  const statements = [
     c.db.prepare("INSERT INTO oauth_authorization_codes(code_hash,client_id,customer_id,redirect_uri,resource,scope,code_challenge,created_at,expires_at,used_at) VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,NULL)").bind(ch, flow.client_id, user.customer_id, flow.redirect_uri, flow.resource, flow.scope, flow.code_challenge, now, plus(300)),
     c.db.prepare("UPDATE oauth_authorization_flows SET used_at=?2 WHERE id=?1 AND used_at IS NULL").bind(id, now),
-  ]);
+    c.db.prepare("DELETE FROM oauth_oidc_flow_nonces WHERE flow_id=?1").bind(id),
+  ];
+  if (oidcNonce?.nonce) statements.push(c.db.prepare("INSERT INTO oauth_oidc_code_nonces(code_hash,nonce,created_at,expires_at) VALUES(?1,?2,?3,?4)").bind(ch, oidcNonce.nonce, now, plus(300)));
+  await c.db.batch(statements);
 
   // Android ChatGPT's embedded browser has repeatedly failed to complete server-side
   // redirect chains after the credential POST. Return a real 200 document instead,
@@ -197,14 +269,16 @@ async function authorizeContinue(req, c) {
   return callbackResponse(chatgptCallback(flow, code));
 }
 
-async function mint(c, row, clientId, scopeText) {
+async function mint(c, row, clientId, scopeText, nonce = "") {
   const access = random("musitu_oauth_at_", 36), refresh = random("musitu_oauth_rt_", 40), accessHash = await sha256(access), refreshHash = await sha256(refresh), keyId = "oauth_access_" + crypto.randomUUID().replaceAll("-", ""), now = iso(), aexp = plus(3600), rexp = plus(2592000), prefix = access.slice(0, 16);
   await c.db.batch([
     c.db.prepare("INSERT INTO api_keys(id,customer_id,key_hash,key_prefix,label,status,created_at,last_used_at,expires_at,revoked_at) VALUES(?1,?2,?3,?4,'chatgpt-oauth-access','active',?5,NULL,?6,NULL)").bind(keyId, row.customer_id, accessHash, prefix, now, aexp),
     c.db.prepare("INSERT INTO oauth_access_tokens(token_hash,api_key_id,client_id,customer_id,issuer,resource,scope,created_at,expires_at,revoked_at) VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,NULL)").bind(accessHash, keyId, clientId, row.customer_id, c.issuer, c.resource, scopeText, now, aexp),
     c.db.prepare("INSERT INTO oauth_refresh_tokens(token_hash,api_key_id,client_id,customer_id,resource,scope,created_at,expires_at,revoked_at) VALUES(?1,?2,?3,?4,?5,?6,?7,?8,NULL)").bind(refreshHash, keyId, clientId, row.customer_id, c.resource, scopeText, now, rexp),
   ]);
-  return { access_token: access, token_type: "Bearer", expires_in: 3600, refresh_token: refresh, scope: scopeText, resource: c.resource };
+  const out = { access_token: access, token_type: "Bearer", expires_in: 3600, refresh_token: refresh, scope: scopeText, resource: c.resource };
+  if (scopeSet(scopeText).has("openid")) out.id_token = await signIdToken(c, row, clientId, scopeText, nonce);
+  return out;
 }
 
 async function token(req, c) {
@@ -218,9 +292,12 @@ async function token(req, c) {
     if (!code || verifier.length < 43) return j(400, { error: "invalid_grant" });
     const ch = await sha256(code), row = await one(c.db, "SELECT * FROM oauth_authorization_codes WHERE code_hash=?1", [ch]);
     if (!row || row.used_at || row.expires_at <= iso() || row.client_id !== cid || row.redirect_uri !== redirect || row.resource !== resource || await pkce(verifier) !== row.code_challenge) return j(400, { error: "invalid_grant" });
+    const nonceRow = await one(c.db, "SELECT nonce FROM oauth_oidc_code_nonces WHERE code_hash=?1 AND expires_at>?2 LIMIT 1", [ch, iso()]);
     const used = await run(c.db, "UPDATE oauth_authorization_codes SET used_at=?2 WHERE code_hash=?1 AND used_at IS NULL AND expires_at>?2", [ch, iso()]);
     if (Number(used.meta?.changes || 0) !== 1) return j(400, { error: "invalid_grant" });
-    return j(200, await mint(c, row, cid, row.scope));
+    const out = await mint(c, row, cid, row.scope, String(nonceRow?.nonce || ""));
+    await run(c.db, "DELETE FROM oauth_oidc_code_nonces WHERE code_hash=?1", [ch]);
+    return j(200, out);
   }
 
   if (grant === "refresh_token") {
@@ -241,7 +318,6 @@ async function token(req, c) {
 }
 
 function bearer(req) { const a = req.headers.get("authorization") || ""; return a.startsWith("Bearer ") && a.length > 12 ? a.slice(7) : ""; }
-function scopeSet(raw) { return new Set(String(raw || "").split(/\s+/).filter(Boolean)); }
 
 async function userinfo(req, c) {
   const tok = bearer(req);
@@ -280,6 +356,7 @@ export default {
     if (!c.db) return j(503, { error: "database_unavailable" });
     if (u.pathname === "/.well-known/openid-configuration" && req.method === "GET") return oidcDiscovery(c);
     if (u.pathname === "/.well-known/oauth-authorization-server" && req.method === "GET") return discovery(c);
+    if (u.pathname === "/.well-known/jwks.json" && req.method === "GET") return jwks(c);
     if (u.pathname === "/oauth/register" && req.method === "POST") return register(req, c);
     if (u.pathname === "/oauth/authorize" && req.method === "GET") return authorizeGet(req, c);
     if (u.pathname === "/oauth/authorize" && req.method === "POST") return authorizePost(req, c);
@@ -289,7 +366,7 @@ export default {
     if (u.pathname === "/oauth/revoke" && req.method === "POST") return revoke(req, c);
     if (u.pathname === "/health" && req.method === "GET") {
       const x = await one(c.db, "SELECT count(*) AS n FROM oauth_clients");
-      return j(200, { ok: true, service: "MUSITU Axiom OAuth 2.1", issuer: c.issuer, resource: c.resource, dcr: true, pkce_s256: true, userinfo: true, identity_scopes: ["openid", "email"], public_client_token_auth: "none", registered_clients: Number(x?.n || 0) });
+      return j(200, { ok: true, service: "MUSITU Axiom OAuth 2.1 + OpenID Connect", issuer: c.issuer, resource: c.resource, dcr: true, pkce_s256: true, oidc: true, userinfo: true, jwks_uri: c.issuer + "/.well-known/jwks.json", id_token_signing_alg: OIDC_SIGNING_ALG, identity_scopes: ["openid", "email"], public_client_token_auth: "none", registered_clients: Number(x?.n || 0) });
     }
     return j(404, { error: "not_found" });
   },
