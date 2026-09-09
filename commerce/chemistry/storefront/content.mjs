@@ -1,20 +1,20 @@
 export const PRODUCT=Object.freeze({
   name:'MUSITU Chemistry Mastery',
   family:'MUSITU Education Nexus',
-  platform:'Installable web app',
+  platform:'Android app + installable web app',
   headline:'Know what you don’t know. Master what matters. Prove your readiness.',
   promise:'Diagnose weaknesses, learn with structure, practise under exam conditions and turn every mistake into a clear next action.'
 });
 
 export const RELEASE=Object.freeze({
-  version:'1.2.0',
-  releaseDate:'2026-09-06',
-  status:'Verified release',
-  apk:'MUSITU_Chemistry_Mastery_1.2.0.apk',
-  bytes:5314934,
-  bytesText:'5,314,934 bytes',
-  sizeText:'5.1 MB',
-  sha256:'055b63f271c18faab540985faefb970f472ea55ba9cb3495db459797902b790d',
+  version:'1.3.0',
+  releaseDate:'2026-09-09',
+  status:'Verified stable release',
+  apk:'MUSITU_Chemistry_Mastery_1.3.0.apk',
+  bytes:5892286,
+  bytesText:'5,892,286 bytes',
+  sizeText:'5.6 MB',
+  sha256:'4ba442122d9c86a0c3cef660334fe337c6ea9ae6fe853c964b5e94961245babd',
   androidCertSha256:'d4455ac3ec74a6d7cd7993ca640f554a83bba95dfd01ef508f7637b6bc72c0d8',
   licenceKeyId:'chem-lic-2026-6783aa7535d1'
 });
@@ -28,7 +28,7 @@ export const FREE_FEATURES=Object.freeze([
   '36-mark diagnostic',
   'Chapters 1–2',
   '5-minute foundation exam',
-  'Installable MUSITU web app'
+  'Official Android app or installable MUSITU web app'
 ]);
 
 export const PREMIUM_FEATURES=Object.freeze([
