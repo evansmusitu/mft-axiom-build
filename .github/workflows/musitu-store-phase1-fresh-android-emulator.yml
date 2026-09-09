@@ -1,0 +1,77 @@
+name: MUSITU Store Phase 1 Fresh Android Virtual Device
+
+on:
+  push:
+    branches: [musitu-store-phase1-20260909]
+    paths:
+      - '.github/scripts/musitu-store-fresh-android-emulator.sh'
+      - '.github/workflows/musitu-store-phase1-fresh-android-emulator.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: musitu-store-phase1-fresh-android-virtual-device
+  cancel-in-progress: false
+
+jobs:
+  fresh-install:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      STORE_URL: https://payments.mftintelligence.com/store/bootstrap/MUSITU_Store_1.0.0.apk
+      STORE_SHA256: 71391bf614cc1186cbe1fda17e9e626aad71d96dbf26807228b73bd2ea99b2f8
+      STORE_BYTES: '1687882'
+      CHEM_URL: https://payments.mftintelligence.com/store/android/repo/MUSITU_Chemistry_Mastery_1.3.0.apk
+      CHEM_SHA256: 4ba442122d9c86a0c3cef660334fe337c6ea9ae6fe853c964b5e94961245babd
+      CHEM_BYTES: '5892286'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Prove sealed repository boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF_NAME" = 'musitu-store-phase1-20260909'
+          git fetch --quiet origin main
+          test "$(git rev-parse origin/main)" = 'd6a846f6bbe0bccac1758713eb4de167caf07113'
+          echo SEALED_MAIN=PASS
+
+      - name: Enable KVM access when available
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -e /dev/kvm ]]; then
+            echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+            sudo udevadm control --reload-rules
+            sudo udevadm trigger --name-match=kvm
+            ls -l /dev/kvm
+          else
+            echo 'KVM device is not exposed on this runner; emulator action may use its supported fallback.'
+          fi
+
+      - name: Fresh API 36 install, launch and signed-catalog recognition
+        uses: ReactiveCircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d
+        with:
+          api-level: 36
+          target: google_apis
+          arch: x86_64
+          profile: pixel_7_pro
+          cores: 2
+          ram-size: 3072M
+          emulator-boot-timeout: 600
+          disable-animations: true
+          disable-linux-hw-accel: auto
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none
+          script: bash .github/scripts/musitu-store-fresh-android-emulator.sh
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: musitu-store-phase1-fresh-android-virtual-device-evidence
+          path: ${{ runner.temp }}/musitu-store-fresh-android
+          retention-days: 90
+          if-no-files-found: warn
