@@ -93,7 +93,7 @@ jobs:
           if sc!=200 or len(sb)<200:raise RuntimeError('public support URL unavailable')
 
           expected_placeholders={
-            'reviewer_demo_account':'PRIVATE_PORTAL_CREDENTIAL_REQUIRED',
+            'reviewer_demo_account':'PROVISIONED_PERSISTENT_PRIVATE_PORTAL_CREDENTIAL_REQUIRED',
             'domain_verification':'PORTAL_TOKEN_REQUIRED',
             'publisher_identity_verification':'PORTAL_VERIFICATION_REQUIRED',
             'country_availability':'PORTAL_SELECTION_REQUIRED',
@@ -119,7 +119,7 @@ jobs:
             'verified_email_claim_boundary_proven_by_prior_gate':True,
             'openai_domain_challenge_handler_present':True,
             'portal_actions_remaining':[
-              'PUBLISHER_IDENTITY_VERIFICATION',
+              'PUBLISHER_IDENTITY_VERIFICATION_OR_CONFIRMATION',
               'OPENAI_DOMAIN_CHALLENGE_TOKEN',
               'PRIVATE_REVIEWER_DEMO_CREDENTIAL_ENTRY',
               'COUNTRY_AVAILABILITY_SELECTION',
