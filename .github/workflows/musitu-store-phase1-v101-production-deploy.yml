@@ -1,0 +1,223 @@
+name: MUSITU Store Phase 1 v1.0.1 Production Deploy
+
+on:
+  push:
+    branches: [musitu-store-phase1-20260909]
+    paths:
+      - '.github/workflows/musitu-store-phase1-v101-production-deploy.yml'
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: musitu-store-phase1-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    env:
+      ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      ZONE_ID: 5b56528f03948ff5917a5e0cd9f7109e
+      ZONE_NAME: mftintelligence.com
+      PAYMENTS_HOST: payments.mftintelligence.com
+      PAYMENTS_ORIGIN: mft-paynow-transport-gateway
+      STORE_WORKER: musitu-store-phase1
+      STORE_ROUTE: payments.mftintelligence.com/store*
+      STORE_BUCKET: musitu-store-phase1-releases
+      SEALED_MAIN: d6a846f6bbe0bccac1758713eb4de167caf07113
+      ROLLBACK_COMMIT: cdf2849ee5329245bce696729dfb0e388ada8a25
+      ROLLBACK_WORKER_BLOB: 487e20b8fa4d19a85f06b5f122f37b38af9c7b15
+      ROLLBACK_RENDER_BLOB: 4033091c82bc37a017280ab1a26c08a1fb9ba993
+      ROLLBACK_ASSETS_BLOB: 295a5d7c14b76e6534ec5174d58551a8ac3045b8
+      ROLLBACK_GENERATOR_BLOB: 4ff20109c824a62c5cf3ad1a6583022f60b365f0
+      PRIOR_PRODUCTION_CATALOG_SHA: cdfe7943d2b6256fac273a3b27bec6de6cc00449093e5ba169725d4308bd06b9
+      OLD_STORE_SHA: 71391bf614cc1186cbe1fda17e9e626aad71d96dbf26807228b73bd2ea99b2f8
+      OLD_STORE_BYTES: '1687882'
+      NEW_STORE_SHA: b755210f303ebb6d22a3177bb21e5ebae2e076901021ee62ca2fe6ab0f14af82
+      NEW_STORE_BYTES: '1679572'
+      STORE_SIGNER_SHA: 43695b6103d7ab57e89166c9a537f1810b7e33053e20332b1d4e7e2e1c612671
+      CHEMISTRY_SHA: 4ba442122d9c86a0c3cef660334fe337c6ea9ae6fe853c964b5e94961245babd
+      CHEMISTRY_BYTES: '5892286'
+      WRANGLER_VERSION: 4.129.1
+      WRANGLER_LOG_SANITIZE: 'true'
+      WRANGLER_SEND_METRICS: 'false'
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - uses: android-actions/setup-android@v3
+
+      - name: Install pinned Android verification tools
+        shell: bash
+        run: sdkmanager 'build-tools;36.0.0'
+
+      - name: Prove exact branch tip, sealed main, repository release gates and transaction syntax
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF_NAME" = 'musitu-store-phase1-20260909'
+          remote_tip="$(git ls-remote origin 'refs/heads/musitu-store-phase1-20260909' | awk '{print $1}')"
+          test "$remote_tip" = "$GITHUB_SHA"
+          git fetch --quiet origin main
+          test "$(git rev-parse origin/main)" = "$SEALED_MAIN"
+          python -m py_compile store/phase1/release/v101_production_upgrade.py
+          python store/phase1/web-surface/build_store_data.py
+          node --test store/phase1/web-surface/release-assets-v101.test.mjs
+          node --test store/phase1/web-surface/storefront.test.mjs
+          base64 -d < store/phase1/catalog.sig > /tmp/catalog-v2.sig.der
+          openssl dgst -sha256 -verify store/phase1/catalog-signing-public.pem -signature /tmp/catalog-v2.sig.der store/phase1/catalog.json
+          python - <<'PY'
+          import hashlib,json
+          from pathlib import Path
+          c=json.loads(Path('store/phase1/catalog.json').read_text())
+          b=json.loads(Path('store/phase1/bootstrap/release.json').read_text())
+          assert c['revision']==2
+          assert c['releaseControl']['storeClient']['version']=='1.0.1'
+          assert c['releaseControl']['storeClient']['sha256']=='b755210f303ebb6d22a3177bb21e5ebae2e076901021ee62ca2fe6ab0f14af82'
+          assert c['releaseControl']['phase2Authorized'] is False
+          assert b['artifactFile']=='MUSITU_Store_1.0.1.apk'
+          assert b['sha256']=='b755210f303ebb6d22a3177bb21e5ebae2e076901021ee62ca2fe6ab0f14af82'
+          assert b.get('phase2Authorized',False) is False
+          print('REPOSITORY_RELEASE_GATES=PASS')
+          PY
+
+      - name: Reconstruct and independently verify exact signed Store 1.0.1 APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROOT=release-delta/musitu-store-phase1
+          mkdir -p /tmp/store-v101
+          python - <<'PY'
+          import hashlib,json
+          from pathlib import Path
+          root=Path('release-delta/musitu-store-phase1')
+          m=json.loads((root/'reconstruction-manifest.json').read_text())
+          assert m['schema']=='musitu.store.apk_reconstruction.v1'
+          assert m['private_key_required'] is False
+          assert m['phase2_authorized'] is False
+          assert m['source']['sha256']=='ebfcac3dfc21887bc2f8203c1b047bd0b9187cbc80ad7ea61775a15d82aa0b76'
+          assert m['target']['sha256']=='b755210f303ebb6d22a3177bb21e5ebae2e076901021ee62ca2fe6ab0f14af82'
+          assert m['target']['signing_certificate_sha256']=='43695b6103d7ab57e89166c9a537f1810b7e33053e20332b1d4e7e2e1c612671'
+          ordered=[]
+          for part in m['delta']['parts']:
+              p=root/part['file']; raw=p.read_bytes()
+              assert len(raw)==part['bytes']
+              assert hashlib.sha256(raw).hexdigest()==part['sha256']
+              ordered.append(raw)
+          joined=b''.join(ordered)
+          assert len(joined)==m['delta']['concatenated_base64_bytes']
+          assert hashlib.sha256(joined).hexdigest()==m['delta']['concatenated_base64_sha256']
+          Path('/tmp/store-v101/store.patch.xz.b64').write_bytes(joined)
+          PY
+          base64 -d /tmp/store-v101/store.patch.xz.b64 > /tmp/store-v101/store.patch.xz
+          echo 'a95f245f4478835c443ade478983c39d6613a552a893f1b30fcacf52c932bdb6  /tmp/store-v101/store.patch.xz' | sha256sum -c -
+          xz -dc /tmp/store-v101/store.patch.xz > /tmp/store-v101/store.patch
+          echo '8d5cdf695f076935ca8b8ec4f3a0d7f827432e714b0794ec2f3959f065944bcf  /tmp/store-v101/store.patch' | sha256sum -c -
+          SRC=store/phase1/prebuilt/android/MUSITU_Store_1.0.1_UNSIGNED.apk
+          test "$(stat -c%s "$SRC")" = '1675476'
+          echo 'ebfcac3dfc21887bc2f8203c1b047bd0b9187cbc80ad7ea61775a15d82aa0b76  store/phase1/prebuilt/android/MUSITU_Store_1.0.1_UNSIGNED.apk' | sha256sum -c -
+          mkdir -p /tmp/store-v101/reconstruct
+          cp "$SRC" /tmp/store-v101/reconstruct/seed.apk
+          cd /tmp/store-v101/reconstruct
+          git init -q
+          git config user.name 'MUSITU Store Reconstructor'
+          git config user.email 'evansmusitu5@gmail.com'
+          git add seed.apk
+          git commit -qm 'seed exact unsigned APK'
+          git apply --binary /tmp/store-v101/store.patch
+          test "$(stat -c%s seed.apk)" = "$NEW_STORE_BYTES"
+          echo "$NEW_STORE_SHA  seed.apk" | sha256sum -c -
+          mv seed.apk ../MUSITU_Store_1.0.1.apk
+          APK=/tmp/store-v101/MUSITU_Store_1.0.1.apk
+          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose --print-certs "$APK" | tee /tmp/store-v101/apksigner.txt
+          actual="$(sed -n 's/^Signer #1 certificate SHA-256 digest: //p' /tmp/store-v101/apksigner.txt | head -n1 | tr 'A-F' 'a-f' | tr -d ':[:space:]')"
+          test "$actual" = "$STORE_SIGNER_SHA"
+          grep -q '^Verified using v1 scheme (JAR signing): false$' /tmp/store-v101/apksigner.txt
+          grep -q '^Verified using v2 scheme (APK Signature Scheme v2): true$' /tmp/store-v101/apksigner.txt
+          grep -q '^Verified using v3 scheme (APK Signature Scheme v3): true$' /tmp/store-v101/apksigner.txt
+          "$ANDROID_HOME/build-tools/36.0.0/aapt" dump badging "$APK" | tee /tmp/store-v101/aapt.txt
+          grep -q "package: name='com.musitu.store' versionCode='10001' versionName='1.0.1'" /tmp/store-v101/aapt.txt
+          echo SIGNED_APK_RELEASE_BYTES=PASS
+
+      - name: Reconstruct exact original production Worker as rollback source
+        shell: bash
+        run: |
+          set -euo pipefail
+          git cat-file -e "$ROLLBACK_COMMIT^{commit}"
+          test "$(git rev-parse "$ROLLBACK_COMMIT:store/phase1/web-surface/worker.mjs")" = "$ROLLBACK_WORKER_BLOB"
+          test "$(git rev-parse "$ROLLBACK_COMMIT:store/phase1/web-surface/render.mjs")" = "$ROLLBACK_RENDER_BLOB"
+          test "$(git rev-parse "$ROLLBACK_COMMIT:store/phase1/web-surface/assets.mjs")" = "$ROLLBACK_ASSETS_BLOB"
+          test "$(git rev-parse "$ROLLBACK_COMMIT:store/phase1/web-surface/build_store_data.py")" = "$ROLLBACK_GENERATOR_BLOB"
+          rm -rf /tmp/store-rollback
+          git worktree add --detach /tmp/store-rollback "$ROLLBACK_COMMIT"
+          python /tmp/store-rollback/store/phase1/web-surface/build_store_data.py
+          for f in worker.mjs render.mjs assets.mjs generated-data.mjs; do
+            test -s "/tmp/store-rollback/store/phase1/web-surface/$f"
+          done
+          test "$(sha256sum /tmp/store-rollback/store/phase1/catalog.json | awk '{print $1}')" = "$PRIOR_PRODUCTION_CATALOG_SHA"
+          base64 -d < /tmp/store-rollback/store/phase1/catalog.sig > /tmp/catalog-v1.sig.der
+          openssl dgst -sha256 -verify /tmp/store-rollback/store/phase1/catalog-signing-public.pem -signature /tmp/catalog-v1.sig.der /tmp/store-rollback/store/phase1/catalog.json
+          echo ROLLBACK_SOURCE=PASS
+
+      - name: Guarded append-only production upgrade with automatic exact rollback
+        id: production_upgrade
+        continue-on-error: true
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+          CLOUDFLARE_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+          CLOUDFLARE_ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$CLOUDFLARE_EMAIL"
+          test -n "$CLOUDFLARE_GLOBAL_API_KEY"
+          remote_tip="$(git ls-remote origin 'refs/heads/musitu-store-phase1-20260909' | awk '{print $1}')"
+          test "$remote_tip" = "$GITHUB_SHA"
+          python store/phase1/release/v101_production_upgrade.py
+
+      - name: Upload production transaction evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: musitu-store-v101-production-deploy-evidence
+          path: /tmp/store-v101-deploy-evidence
+          retention-days: 90
+          if-no-files-found: error
+
+      - name: Enforce deployment result
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          test '${{ steps.production_upgrade.outcome }}' = 'success'
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          p=Path('/tmp/store-v101-deploy-evidence/deployment.json')
+          o=json.loads(p.read_text())
+          assert o['gate']=='MUSITU_STORE_V101_PRODUCTION_DEPLOY_PASS'
+          assert o['rollback_performed'] is False
+          assert o['phase2_authorized'] is False
+          assert o['fresh_device_phase1_complete'] is False
+          assert o['chemistry_invariants_preserved'] is True
+          print('PRODUCTION_UPGRADE_GATE=PASS')
+          PY
