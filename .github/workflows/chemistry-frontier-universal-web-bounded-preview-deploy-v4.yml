@@ -1,0 +1,140 @@
+name: MUSITU Chemistry Frontier Universal Web Bounded Preview Deploy v4
+
+on:
+  push:
+    branches: [chemistry-frontier-universal-20260908]
+    paths: ['.github/workflows/chemistry-frontier-universal-web-bounded-preview-deploy-v4.yml']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: musitu-chemistry-frontier-universal-web-preview
+  cancel-in-progress: false
+
+jobs:
+  deploy-preview:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      STABLE_APK_URL: https://payments.mftintelligence.com/chemistry/download/MUSITU_Chemistry_Mastery_1.3.0.apk
+      STABLE_APK_SHA256: 4ba442122d9c86a0c3cef660334fe337c6ea9ae6fe853c964b5e94961245babd
+      STABLE_APK_BYTES: '5892286'
+      SEALED_REPRO_WEB_ARCHIVE_SHA256: 1445074e87e8c4a9a15281baa586855fe31f92c06dd393a11458adce9821ec30
+      PREVIEW_BASE: https://payments.mftintelligence.com/chemistry/frontier-universal-preview
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Reconstruct exact Android-embedded carrier and apply deterministic web compatibility overlay
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/mchem-universal-preview-v4 /tmp/mchem-universal-preview-v4-evidence
+          mkdir -p /tmp/mchem-universal-preview-v4/public/chemistry/frontier-universal-preview /tmp/mchem-universal-preview-v4/src /tmp/mchem-universal-preview-v4-evidence
+          curl --fail --location --silent --show-error --max-time 180 "$STABLE_APK_URL" -o /tmp/stable-v4.apk
+          echo "$STABLE_APK_SHA256  /tmp/stable-v4.apk" | sha256sum -c -
+          test "$(stat -c %s /tmp/stable-v4.apk)" = "$STABLE_APK_BYTES"
+          python - <<'PY'
+          import hashlib,json,pathlib,zipfile
+          manifest=json.load(open('commerce/chemistry/frontier_universal/FULL_PARITY_MANIFEST_20260909.json'))
+          expected={k:v['sha256'] for k,v in manifest['files'].items()}
+          out=pathlib.Path('/tmp/mchem-universal-preview-v4/public/chemistry/frontier-universal-preview'); observed={}
+          with zipfile.ZipFile('/tmp/stable-v4.apk') as z:
+            for n in z.namelist():
+              if not n.startswith('assets/www/') or n.endswith('/'): continue
+              rel=n[len('assets/www/'):]
+              if not rel: continue
+              data=z.read(n); p=out/rel; p.parent.mkdir(parents=True,exist_ok=True); p.write_bytes(data); observed[rel]=hashlib.sha256(data).hexdigest()
+          if observed!=expected: raise SystemExit('Android embedded 27-file carrier drift')
+          print('ANDROID_EMBEDDED_CARRIER=27/27 PASS')
+          PY
+          python commerce/chemistry/frontier_universal/patch_web_event_bridge.py /tmp/mchem-universal-preview-v4/public/chemistry/frontier-universal-preview | tee /tmp/mchem-universal-preview-v4-evidence/overlay.json
+          python - <<'PY'
+          import hashlib,json,pathlib
+          root=pathlib.Path('/tmp/mchem-universal-preview-v4/public/chemistry/frontier-universal-preview')
+          base=json.load(open('commerce/chemistry/frontier_universal/FULL_PARITY_MANIFEST_20260909.json'))
+          overlay=json.load(open('/tmp/mchem-universal-preview-v4-evidence/overlay.json'))
+          expected={k:v['sha256'] for k,v in base['files'].items()}
+          for k,v in overlay.items(): expected[k]=v['sha256']
+          observed={str(p.relative_to(root)):hashlib.sha256(p.read_bytes()).hexdigest() for p in root.rglob('*') if p.is_file()}
+          if observed!=expected: raise SystemExit('post-overlay carrier drift')
+          pathlib.Path('/tmp/mchem-universal-preview-v4-evidence/live-expected.json').write_text(json.dumps(expected,indent=2,sort_keys=True)+'\n')
+          print('PARITY_CARRIER_POST_OVERLAY=27/27 PASS')
+          PY
+          cat > /tmp/mchem-universal-preview-v4/src/index.js <<'JS'
+          const PREFIX='/chemistry/frontier-universal-preview';
+          const ARCHIVE='1445074e87e8c4a9a15281baa586855fe31f92c06dd393a11458adce9821ec30';
+          const OVERLAY='strict-csp-event-bridge-v1';
+          function secure(response,path){
+            const h=new Headers(response.headers);
+            h.set('X-Content-Type-Options','nosniff');h.set('Referrer-Policy','no-referrer');h.set('X-Frame-Options','DENY');
+            h.set('Permissions-Policy','camera=(), microphone=(), geolocation=()');h.set('Cross-Origin-Resource-Policy','same-origin');
+            h.set('X-MUSITU-Carrier','frontier-universal-1.3.0-parity-v2');h.set('X-MUSITU-Origin-Archive-SHA256',ARCHIVE);h.set('X-MUSITU-Compatibility-Overlay',OVERLAY);h.set('X-MUSITU-Carrier-Files','27');
+            if(path===PREFIX+'/'||path===PREFIX+'/index.html') h.set('Content-Security-Policy',"default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'; script-src-attr 'none'; connect-src 'self'; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'none'; frame-src 'none'");
+            if(path===PREFIX+'/'||path===PREFIX+'/index.html'||path.endsWith('/sw.js')||path.endsWith('/manifest.webmanifest')) h.set('Cache-Control','no-cache, no-store, max-age=0');
+            else h.set('Cache-Control','public, max-age=86400, immutable');
+            return new Response(response.body,{status:response.status,statusText:response.statusText,headers:h});
+          }
+          export default {async fetch(request,env){
+            const u=new URL(request.url), path=u.pathname;
+            if(path===PREFIX) return Response.redirect(u.origin+PREFIX+'/',308);
+            if(!path.startsWith(PREFIX+'/')) return new Response('Not found',{status:404});
+            if(path===PREFIX+'/index.html'){
+              const root=new URL(request.url);root.pathname=PREFIX+'/';
+              const r=await env.ASSETS.fetch(new Request(root.toString(),request));
+              return secure(r,path);
+            }
+            const r=await env.ASSETS.fetch(request);return secure(r,path);
+          }};
+          JS
+          cat > /tmp/mchem-universal-preview-v4/wrangler.jsonc <<'JSON'
+          {
+            "name":"musitu-chemistry-universal-preview",
+            "account_id":"93f395f5121954671f92fffa453d6b61",
+            "compatibility_date":"2026-09-06",
+            "workers_dev":false,
+            "main":"src/index.js",
+            "routes":[{"pattern":"payments.mftintelligence.com/chemistry/frontier-universal-preview*","zone_id":"5b56528f03948ff5917a5e0cd9f7109e"}],
+            "assets":{"directory":"./public","binding":"ASSETS","run_worker_first":true}
+          }
+          JSON
+
+      - name: Deploy corrected bounded preview and verify all carrier bytes
+        shell: bash
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        run: |
+          set -euo pipefail
+          (cd /tmp/mchem-universal-preview-v4 && npx --yes wrangler@latest deploy --config wrangler.jsonc) | tee /tmp/mchem-universal-preview-v4-evidence/wrangler.txt
+          python - <<'PY'
+          import hashlib,json,os,pathlib,time,urllib.request
+          expected=json.load(open('/tmp/mchem-universal-preview-v4-evidence/live-expected.json')); base=os.environ['PREVIEW_BASE'].rstrip('/'); out={}
+          for rel,want in expected.items():
+            url=(base+'/' if rel=='index.html' else base+'/'+rel); last=None
+            for _ in range(40):
+              try:
+                q=urllib.request.Request(url,headers={'Cache-Control':'no-cache, no-store','Pragma':'no-cache','User-Agent':'MUSITU-Universal-Preview-v4/1.0'})
+                with urllib.request.urlopen(q,timeout=30) as r: body=r.read(); status=r.status; h={k.lower():v for k,v in r.headers.items()}
+                got=hashlib.sha256(body).hexdigest()
+                if status==200 and got==want and h.get('x-musitu-carrier')=='frontier-universal-1.3.0-parity-v2' and h.get('x-musitu-compatibility-overlay')=='strict-csp-event-bridge-v1': out[rel]={'http':status,'bytes':len(body),'sha256':got};break
+                last=(status,len(body),got,h.get('x-musitu-carrier'),h.get('x-musitu-compatibility-overlay'))
+              except Exception as e:last=repr(e)
+              time.sleep(1)
+            else:raise SystemExit('live mismatch '+rel+' '+repr(last))
+          q=urllib.request.Request(base+'/',headers={'Cache-Control':'no-cache, no-store','User-Agent':'MUSITU-Universal-Preview-v4/1.0'})
+          with urllib.request.urlopen(q,timeout=30) as r:
+            h={k.lower():v for k,v in r.headers.items()}; csp=h.get('content-security-policy','')
+            if "script-src 'self'" not in csp or "script-src-attr 'none'" not in csp or "'unsafe-inline'" in csp.split('script-src ')[1].split(';')[0]: raise SystemExit('strict script CSP not preserved')
+          ev={'schema':'musitu.chemistry.frontier.universal_web_preview.live.v4','github_sha':os.environ['GITHUB_SHA'],'preview_url':base+'/','stable_android_source_sha256':os.environ['STABLE_APK_SHA256'],'sealed_origin_archive_sha256':os.environ['SEALED_REPRO_WEB_ARCHIVE_SHA256'],'origin_carrier_identity':'27/27 PASS','deterministic_compatibility_overlay':'strict-csp-event-bridge-v1','post_overlay_live_identity':'27/27 PASS','strict_script_csp_preserved':True,'service_worker_cache_version':'musitu-chemistry-universal-frontier-v2','production_app_route_changed':False,'commerce_worker_changed':False,'android_stable_changed':False,'vercel_used':False,'gate':'MUSITU_CHEMISTRY_FRONTIER_UNIVERSAL_WEB_BOUNDED_PREVIEW_V4_PASS'}
+          raw=(json.dumps(ev,indent=2,sort_keys=True)+'\n').encode();pathlib.Path('/tmp/mchem-universal-preview-v4-evidence/result.json').write_bytes(raw);pathlib.Path('/tmp/mchem-universal-preview-v4-evidence/result.sha256').write_text(hashlib.sha256(raw).hexdigest()+'  result.json\n');print(json.dumps(ev,sort_keys=True))
+          PY
+          echo MUSITU_CHEMISTRY_FRONTIER_UNIVERSAL_WEB_BOUNDED_PREVIEW_V4_PASS
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: musitu-chemistry-frontier-universal-web-bounded-preview-v4
+          path: /tmp/mchem-universal-preview-v4-evidence
+          retention-days: 90
+          if-no-files-found: warn
