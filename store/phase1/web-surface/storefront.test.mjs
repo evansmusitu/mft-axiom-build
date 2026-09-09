@@ -66,8 +66,8 @@ test('Android gets the signed Store bootstrap and verified Android metadata',asy
   const r=await get('/store/install',{ 'user-agent':'Mozilla/5.0 (Linux; Android 14; Pixel 8)' });
   const t=await r.text();
   assert.match(t,/Recommended for Android/);
-  assert.match(t,/MUSITU_Store_1\.0\.0\.apk/);
-  assert.match(t,/71391bf614cc1186cbe1fda17e9e626aad71d96dbf26807228b73bd2ea99b2f8/);
+  assert.match(t,/MUSITU_Store_1\.0\.1\.apk/);
+  assert.match(t,/b755210f303ebb6d22a3177bb21e5ebae2e076901021ee62ca2fe6ab0f14af82/);
   assert.match(t,/43695b6103d7ab57e89166c9a537f1810b7e33053e20332b1d4e7e2e1c612671/);
 });
 
@@ -130,7 +130,7 @@ test('health route is non-secret and truthfully keeps Phase 1 incomplete',async(
   assert.equal(o.phase,'phase1');
   assert.equal(o.phase2_authorized,false);
   assert.equal(o.fresh_device_phase1_complete,false);
-  assert.equal(o.catalog_revision,1);
+  assert.equal(o.catalog_revision,2);
   assert.equal(JSON.stringify(o).includes('PRIVATE KEY'),false);
 });
 
