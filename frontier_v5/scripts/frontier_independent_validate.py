@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
-import csv, datetime, io, json, hashlib, urllib.parse, urllib.request
+import csv, datetime, io, json, hashlib, time, urllib.error, urllib.parse, urllib.request
 from pathlib import Path
 import numpy as np
 from sklearn.linear_model import LinearRegression
@@ -10,7 +10,21 @@ from frontier_v5.runtime.fullstack import DomainTwinCalibrator
 
 def get(url, ua='MUSITU-Axiom-Independent-Validation/5.0'):
     req=urllib.request.Request(url,headers={'User-Agent':ua,'Accept':'application/json,text/csv,*/*'})
-    with urllib.request.urlopen(req,timeout=45) as r: return r.read()
+    last=None
+    for attempt in range(4):
+        try:
+            with urllib.request.urlopen(req,timeout=45) as r: return r.read()
+        except urllib.error.HTTPError as e:
+            last=e
+            if e.code not in (429,500,502,503,504) or attempt==3: raise
+            retry_after=str(e.headers.get('Retry-After') or '').strip()
+            delay=float(retry_after) if retry_after.isdigit() else float(2**attempt)
+            time.sleep(min(max(delay,1.0),8.0))
+        except urllib.error.URLError as e:
+            last=e
+            if attempt==3: raise
+            time.sleep(float(2**attempt))
+    raise last
 
 
 def rel_close(a,b,tol=1e-10):
@@ -51,22 +65,30 @@ def stooq_prices(raw):
 
 
 def yahoo_prices(symbol):
-    url='https://query1.finance.yahoo.com/v8/finance/chart/'+urllib.parse.quote(symbol)+'?range=2y&interval=1d&events=history'
-    raw=get(url)
-    obj=json.loads(raw); result=(((obj.get('chart') or {}).get('result') or [None])[0] or {})
-    ts=result.get('timestamp') or []
-    q=(((result.get('indicators') or {}).get('quote') or [{}])[0] or {})
-    closes=q.get('close') or []
-    out={}
-    for t,c in zip(ts,closes):
-        if c is None: continue
-        date=datetime.datetime.fromtimestamp(int(t),datetime.timezone.utc).date().isoformat()
-        out[date]=float(c)
-    return raw,out
+    errors=[]
+    for host in ('query2.finance.yahoo.com','query1.finance.yahoo.com'):
+        url='https://'+host+'/v8/finance/chart/'+urllib.parse.quote(symbol)+'?range=2y&interval=1d&events=history'
+        try:
+            raw=get(url)
+            obj=json.loads(raw); result=(((obj.get('chart') or {}).get('result') or [None])[0] or {})
+            ts=result.get('timestamp') or []
+            q=(((result.get('indicators') or {}).get('quote') or [{}])[0] or {})
+            closes=q.get('close') or []
+            out={}
+            for t,c in zip(ts,closes):
+                if c is None: continue
+                date=datetime.datetime.fromtimestamp(int(t),datetime.timezone.utc).date().isoformat()
+                out[date]=float(c)
+            if len(out)>=30: return raw,out
+            errors.append(host+':insufficient-history')
+        except Exception as e:
+            errors.append(host+':'+type(e).__name__)
+    raise RuntimeError('Yahoo market history unavailable after bounded provider fallback: '+','.join(errors))
 
 
 def market_prices(symbol,stooq_symbol):
-    stooq_url='https://stooq.com/q/d/l/?s='+urllib.parse.quote(stooq_symbol)+'&d1=20240101&i=d'
+    today=datetime.datetime.now(datetime.timezone.utc).date().strftime('%Y%m%d')
+    stooq_url='https://stooq.com/q/d/l/?s='+urllib.parse.quote(stooq_symbol)+'&d1=20240101&d2='+today+'&i=d'
     try:
         raw=get(stooq_url); prices=stooq_prices(raw)
     except Exception:
