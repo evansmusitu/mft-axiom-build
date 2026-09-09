@@ -1,0 +1,190 @@
+name: MUSITU Chemistry Android Customer Download Exhaustive Forensics
+
+on:
+  push:
+    branches:
+      - chemistry-android-customer-download-forensics-20260909
+    paths:
+      - '.github/workflows/chemistry-android-customer-download-exhaustive-forensics.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  forensic-audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      BASE: https://payments.mftintelligence.com
+      OLD_SHA: 055b63f271c18faab540985faefb970f472ea55ba9cb3495db459797902b790d
+      NEW_SHA: 4ba442122d9c86a0c3cef660334fe337c6ea9ae6fe853c964b5e94961245babd
+      ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      ZONE_ID: 5b56528f03948ff5917a5e0cd9f7109e
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Exhaustive repo and live-surface forensics
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p android-forensics
+          python - <<'PY'
+          import os,re,json,hashlib,urllib.request,urllib.error,urllib.parse,email
+          from pathlib import Path
+
+          ROOT=Path('.')
+          BASE=os.environ['BASE'].rstrip('/')
+          OLD=os.environ['OLD_SHA']; NEW=os.environ['NEW_SHA']
+          old_name='MUSITU_Chemistry_Mastery_1.2.0.apk'
+          new_name='MUSITU_Chemistry_Mastery_1.3.0.apk'
+          android_ua='Mozilla/5.0 (Linux; Android 12; TECNO KI5k) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Mobile Safari/537.36'
+          desktop_ua='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36'
+          markers=['1.2.0','1.3.0',OLD,NEW,old_name,new_name,'com.mft.chemistry','com.musitu.chemistry','/chemistry/download','/chemistry/install','Web preview','Installable web app']
+          report={'schema':'musitu.chemistry.android_customer_download_forensics.v1','mutation_performed':False,'repo_hits':[], 'pages':[], 'apk_probes':[], 'cloudflare':{}, 'discovered_apk_urls':[]}
+
+          # 1. Repository source scan (skip .git and obvious binaries).
+          for p in sorted(ROOT.rglob('*')):
+              if not p.is_file() or '.git' in p.parts: continue
+              try:
+                  if p.stat().st_size>2_000_000: continue
+                  text=p.read_text(errors='ignore')
+              except Exception: continue
+              for no,line in enumerate(text.splitlines(),1):
+                  found=[m for m in markers if m in line]
+                  if found:
+                      # Never publish likely secret values; only matching line fragments for public release/path markers.
+                      frag=line.strip()[:500]
+                      if re.search(r'(?i)(secret|password|private.?key|integration.?key)\s*[:=]',frag):
+                          frag='[redacted line containing sensitive-name token]'
+                      report['repo_hits'].append({'path':str(p),'line':no,'markers':found,'fragment':frag})
+
+          def request(url,ua=android_ua,max_bytes=15_000_000,follow=True):
+              class NoRedirect(urllib.request.HTTPRedirectHandler):
+                  def redirect_request(self,req,fp,code,msg,headers,newurl): return None
+              opener=urllib.request.build_opener() if follow else urllib.request.build_opener(NoRedirect)
+              req=urllib.request.Request(url,headers={'User-Agent':ua,'Cache-Control':'no-cache, no-store','Pragma':'no-cache','Accept':'*/*'})
+              try:
+                  with opener.open(req,timeout=35) as r:
+                      b=r.read(max_bytes+1); return r.status,r.geturl(),dict(r.headers),b
+              except urllib.error.HTTPError as e:
+                  b=e.read(max_bytes+1); return e.code,e.geturl(),dict(e.headers),b
+              except Exception as e:
+                  return 0,url,{},str(e).encode()
+
+          def body_meta(b,h):
+              sha=hashlib.sha256(b).hexdigest(); ct=(h.get('Content-Type') or h.get('content-type') or '').lower()
+              apk=b.startswith(b'PK') or 'android.package-archive' in ct
+              cls='not_apk'
+              if apk:
+                  cls='old_1_2' if sha==OLD else 'new_1_3' if sha==NEW else 'unknown_apk'
+              return sha,len(b),ct,apk,cls
+
+          # 2. Crawl customer surfaces under Android and desktop UAs, extract local links.
+          pages=['/chemistry/','/chemistry/install','/chemistry/install/diagnostics','/chemistry/rescue','/chemistry/app','/chemistry/verify','/chemistry/releases','/chemistry/support','/chemistry/plans']
+          discovered=set()
+          for ua_name,ua in [('android',android_ua),('desktop',desktop_ua)]:
+              for path in pages:
+                  code,final,h,b=request(BASE+path,ua,max_bytes=2_000_000)
+                  text=b.decode('utf-8','ignore')
+                  found={m:(m in text) for m in markers}
+                  links=[]
+                  for m in re.finditer(r'''(?i)(?:href|src)=["']([^"']+)["']''',text):
+                      href=urllib.parse.urljoin(final,m.group(1))
+                      if href.startswith(BASE+'/chemistry/'):
+                          links.append(href)
+                          if '.apk' in href.lower(): discovered.add(href)
+                  report['pages'].append({'ua':ua_name,'path':path,'http':code,'final_url':final,'content_type':h.get('Content-Type') or h.get('content-type'),'cache_control':h.get('Cache-Control') or h.get('cache-control'),'body_sha256':hashlib.sha256(b).hexdigest(),'bytes':len(b),'markers':found,'chemistry_links':sorted(set(links))[:200]})
+
+          # 3. Probe known/likely APK aliases and every discovered APK URL.
+          likely=[
+            '/chemistry/download/'+new_name,
+            '/chemistry/download/'+old_name,
+            '/chemistry/download/MUSITU_Chemistry_1.3.0-frontier-sidecar-rc1.apk',
+            '/chemistry/download/MUSITU_Chemistry_Mastery.apk',
+            '/chemistry/download/MUSITU_Chemistry.apk',
+            '/chemistry/download/latest.apk',
+            '/chemistry/download/app.apk',
+            '/chemistry/download/MUSITU_Chemistry_Mastery_latest.apk',
+            '/chemistry/download/'
+          ]
+          for u in sorted(set([BASE+x for x in likely]+list(discovered))):
+              for follow in (False,True):
+                  code,final,h,b=request(u,android_ua,follow=follow)
+                  sha,n,ct,apk,cls=body_meta(b,h)
+                  report['apk_probes'].append({'url':u,'follow_redirects':follow,'http':code,'final_url':final,'location':h.get('Location') or h.get('location'),'content_type':ct,'content_disposition':h.get('Content-Disposition') or h.get('content-disposition'),'x_musitu_sha256':h.get('X-MUSITU-SHA256') or h.get('x-musitu-sha256'),'release_status':h.get('X-MUSITU-Release-Status') or h.get('x-musitu-release-status'),'bytes':n,'sha256':sha,'apk_like':apk,'classification':cls})
+          report['discovered_apk_urls']=sorted(discovered)
+
+          # 4. Cloudflare route + worker inventory, recording only safe markers/path literals.
+          email_addr=os.environ.get('CLOUDFLARE_EMAIL',''); key=os.environ.get('CLOUDFLARE_GLOBAL_API_KEY','')
+          cf={'routes':[],'workers':[],'auth_available':bool(email_addr and key)}
+          if email_addr and key:
+              H={'X-Auth-Email':email_addr,'X-Auth-Key':key,'User-Agent':'MUSITU-Chemistry-Android-Forensics/1.0'}
+              def cfget(path):
+                  q=urllib.request.Request('https://api.cloudflare.com/client/v4'+path,headers=H)
+                  with urllib.request.urlopen(q,timeout=45) as r:return dict(r.headers),r.read()
+              try:
+                  routes=json.loads(cfget(f'/zones/{os.environ["ZONE_ID"]}/workers/routes')[1] or b'{}').get('result') or []
+                  for x in routes:
+                      pat=str(x.get('pattern') or ''); script=x.get('script')
+                      if 'chemistry' in pat.lower() or 'payments.mftintelligence.com' in pat.lower(): cf['routes'].append({'pattern':pat,'script':script})
+                  scripts=json.loads(cfget(f'/accounts/{os.environ["ACCOUNT_ID"]}/workers/scripts')[1] or b'{}').get('result') or []
+                  route_scripts={str(x.get('script')) for x in routes if x.get('script')}
+                  for item in scripts:
+                      name=str(item.get('id') or item.get('name') or '')
+                      if not name: continue
+                      # Inspect every script; output only scripts with Chemistry/APK/version markers or active Chemistry route binding.
+                      try:
+                          hh,raw=cfget(f'/accounts/{os.environ["ACCOUNT_ID"]}/workers/scripts/{urllib.parse.quote(name,safe="")}')
+                      except Exception: continue
+                      src=raw; ct=(hh.get('Content-Type') or hh.get('content-type') or '')
+                      if 'multipart/' in ct.lower():
+                          msg=email.message_from_bytes((f'Content-Type: {ct}\r\nMIME-Version: 1.0\r\n\r\n').encode()+raw); parts=[]
+                          for part in msg.walk():
+                              if part.is_multipart(): continue
+                              d=part.get_payload(decode=True) or b''
+                              if any(x in d for x in (b'fetch(',b'export default',b'addEventListener')): parts.append(d)
+                          if parts: src=max(parts,key=len)
+                      text=src.decode('utf-8','ignore')
+                      bools={m:(m in text) for m in markers}
+                      apk_literals=sorted(set(re.findall(r'''(?i)(?:https://payments\.mftintelligence\.com)?/chemistry/[A-Za-z0-9_./?=&%+-]*\.apk''',text)))
+                      relevant=name in route_scripts or any(bools.values()) or apk_literals
+                      if relevant:
+                          cf['workers'].append({'script':name,'source_sha256':hashlib.sha256(src).hexdigest(),'markers':bools,'apk_path_literals':apk_literals[:100],'bound_to_relevant_route':name in route_scripts})
+              except Exception as e:
+                  cf['inventory_error']=type(e).__name__+': '+str(e)[:300]
+          report['cloudflare']=cf
+
+          # 5. Verdict: old bytes anywhere is critical; stale Android funnel/metadata is also a fail.
+          old_public=[x for x in report['apk_probes'] if x['classification']=='old_1_2' and x['http']==200]
+          new_public=[x for x in report['apk_probes'] if x['classification']=='new_1_3' and x['http']==200]
+          android_pages=[x for x in report['pages'] if x['ua']=='android']
+          stale_pages=[x for x in android_pages if x['markers'].get('1.2.0') or x['markers'].get(old_name) or x['markers'].get(OLD)]
+          web_preview_pages=[x for x in android_pages if x['markers'].get('Web preview') or x['markers'].get('Installable web app')]
+          report['summary']={'old_public_apk_count':len(old_public),'new_public_apk_count':len(new_public),'stale_android_page_count':len(stale_pages),'android_web_preview_page_count':len(web_preview_pages),'old_public_urls':sorted(set(x['final_url'] for x in old_public)),'new_public_urls':sorted(set(x['final_url'] for x in new_public))}
+          if old_public:
+              gate='MUSITU_CHEMISTRY_ANDROID_OLD_PUBLIC_PATHS_FOUND'
+          elif stale_pages or web_preview_pages:
+              gate='MUSITU_CHEMISTRY_ANDROID_CUSTOMER_ROUTING_STALE'
+          elif not new_public:
+              gate='MUSITU_CHEMISTRY_ANDROID_NEW_STABLE_NOT_REACHABLE'
+          else:
+              gate='MUSITU_CHEMISTRY_ANDROID_CUSTOMER_DOWNLOAD_PATHS_CLEAN'
+          report['gate']=gate
+          raw=(json.dumps(report,indent=2,sort_keys=True)+'\n').encode()
+          Path('android-forensics/android-customer-download-forensics.json').write_bytes(raw)
+          Path('android-forensics/android-customer-download-forensics.sha256').write_text(hashlib.sha256(raw).hexdigest()+'  android-customer-download-forensics.json\n')
+          Path('android-forensics/SUMMARY.txt').write_text(json.dumps({'gate':gate,**report['summary']},indent=2,sort_keys=True)+'\n')
+          print(json.dumps({'gate':gate,**report['summary']},sort_keys=True))
+          PY
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: musitu-chemistry-android-customer-download-exhaustive-forensics
+          path: android-forensics
+          retention-days: 14
+          if-no-files-found: error
