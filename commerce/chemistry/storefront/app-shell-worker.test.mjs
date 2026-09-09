@@ -5,7 +5,7 @@ import {handleRequest} from '../index.storefront-v3.mjs';
 const base='https://payments.mftintelligence.com';
 async function get(path,headers={}){const r=await handleRequest(new Request(base+path,{headers}),{});return {r,text:await r.text()}}
 
-test('generated Worker serves a no-store native-feel app shell, Prove and local assets',async()=>{
+test('generated Worker serves a no-store native-feel app shell, Prove and current local assets',async()=>{
   const app=await get('/chemistry/app');
   assert.equal(app.r.status,200);
   assert.equal(app.r.headers.get('cache-control'),'no-store');
@@ -13,8 +13,9 @@ test('generated Worker serves a no-store native-feel app shell, Prove and local 
   assert.match(app.text,/class="app-nav"/);
   assert.match(app.text,/Your Chemistry workspace/);
   assert.match(app.text,/\/chemistry\/manifest\.webmanifest\?v=2/);
-  assert.match(app.text,/\/chemistry\/assets\/app-shell\.css\?v=4/);
-  assert.match(app.text,/\/chemistry\/assets\/app-shell\.js\?v=4/);
+  assert.match(app.text,/\/chemistry\/assets\/app-shell\.css\?v=5/);
+  assert.match(app.text,/\/chemistry\/assets\/app-shell\.js\?v=5/);
+  assert.doesNotMatch(app.text,/app-shell\.(?:css|js)\?v=4/);
   assert.match(app.text,/\/chemistry\/app\?view=exam/);
   assert.match(app.text,/\/chemistry\/app\?view=premium/);
   assert.match(app.text,/\/chemistry\/app\?view=help/);
@@ -46,7 +47,10 @@ test('generated Worker serves a no-store native-feel app shell, Prove and local 
   assert.equal(js.r.status,200);
   assert.match(js.r.headers.get('content-type')||'',/^application\/javascript/);
   assert.match(js.text,/musitu_chem_onboarding_v1/);
-  assert.match(js.text,/musitu-chemistry-app-shell-v4/);
+  assert.match(js.text,/musitu-chemistry-app-shell-v5/);
+  assert.doesNotMatch(js.text,/musitu-chemistry-app-shell-v4/);
+  assert.match(js.text,/const android=\/Android\/i\.test\(navigator\.userAgent\|\|''\)/);
+  assert.match(js.text,/if\(android&&!installed\(\)\)\{location\.replace\('\/chemistry\/install'\);return;\}/);
   assert.match(js.text,/\/chemistry\/manifest\.webmanifest\?v=2/);
   assert.match(js.text,/\/chemistry\/app\?view=exam/);
   assert.match(js.text,/\/chemistry\/app\?view=premium/);
