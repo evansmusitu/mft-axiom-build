@@ -1,0 +1,16 @@
+{
+  "android_unsigned": {
+    "bytes": 1675424,
+    "file": "MUSITU_Store_1.0.0_UNSIGNED.apk",
+    "sha256": "823b1ec0ec8bb68e3d5454ee1d70dbca6b7b8028d9f06d51149d79f9b9837555"
+  },
+  "ios_unsigned": {
+    "bundle_id": "com.musitu.chemistry",
+    "bytes": 3640968,
+    "file": "MUSITU_Chemistry_1.3.0.ipa",
+    "sha256": "426d2dc05e2fc8846a7582324d953bbdd2a256f170f8db2b5a956bc1c51cc962",
+    "version": "1.3.0"
+  },
+  "private_signing_material_present": false,
+  "schema": "musitu.store.phase1.prebuilt.v1"
+}

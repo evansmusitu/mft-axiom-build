@@ -1,0 +1,8 @@
+{
+  "catalog_signing_public_pem_sha256": "4cf17f70dbab900237d8b82b4e989978c667e6ec841de6df79469aa6c5ebd5c0",
+  "fdroid_repo_certificate_sha256": "763484cbccf9f9fdb5a35c7d314011369bc53ed95a1361483a6ace17f388b465",
+  "private_escrow_ciphertext_sha256": "100a695d1687ce1e45c1d7d434b75e219f44ca722b4f73a88aa0f2232ff54314",
+  "private_material_published": false,
+  "schema": "musitu.store.phase1.trust.v1",
+  "store_client_signing_certificate_sha256": "43695b6103d7ab57e89166c9a537f1810b7e33053e20332b1d4e7e2e1c612671"
+}

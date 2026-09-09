@@ -1,0 +1,23 @@
+plugins { id 'com.android.application' }
+
+android {
+    namespace 'com.musitu.store'
+    compileSdk 36
+
+    defaultConfig {
+        applicationId 'com.musitu.store'
+        minSdk 24
+        targetSdk 36
+        versionCode 10000
+        versionName '1.0.0'
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            shrinkResources false
+        }
+    }
+}
+
+dependencies { implementation 'androidx.core:core:1.16.0' }

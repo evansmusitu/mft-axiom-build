@@ -1,0 +1,4 @@
+<resources>
+  <string name="app_name">MUSITU Store</string>
+  <string name="file_provider_authority">com.musitu.store.files</string>
+</resources>
