@@ -3,9 +3,21 @@ import assert from 'node:assert/strict';
 import {handleRequest} from '../index.storefront-v3.mjs';
 
 const base='https://payments.mftintelligence.com';
+const androidUA='Mozilla/5.0 (Linux; Android 15; Pixel 9) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Mobile Safari/537.36';
 async function get(path,headers={}){const r=await handleRequest(new Request(base+path,{headers}),{});return {r,text:await r.text()}}
 
-test('generated Worker serves a no-store native-feel app shell, Prove and current local assets',async()=>{
+test('Android app entry is server-routed to native install before web preview can render',async()=>{
+  for(const path of ['/chemistry/app','/chemistry/app?view=exam','/chemistry/app?view=premium']){
+    const x=await get(path,{'user-agent':androidUA});
+    assert.equal(x.r.status,302);
+    assert.equal(x.r.headers.get('location'),'/chemistry/install');
+    assert.equal(x.r.headers.get('cache-control'),'no-store');
+    assert.equal(x.r.headers.get('x-musitu-platform-route'),'android-native');
+    assert.equal(x.text,'');
+  }
+});
+
+test('non-Android generated Worker serves a no-store native-feel app shell, Prove and current local assets',async()=>{
   const app=await get('/chemistry/app');
   assert.equal(app.r.status,200);
   assert.equal(app.r.headers.get('cache-control'),'no-store');
