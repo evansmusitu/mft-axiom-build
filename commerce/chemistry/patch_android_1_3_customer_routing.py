@@ -57,10 +57,9 @@ once('<li>Installable MUSITU Chemistry web app is the primary customer surface.<
 once('<li>Legacy Android package provenance remains available for support and verification only.</li>','<li>The retired Android 1.2.0 public download is unavailable; 1.3.0 is the current verified Android stable release.</li>','release Android retirement')
 once('Installation troubleshooting: use the adaptive MUSITU install surface; Chrome, Samsung Internet and Safari expose their trusted install controls when available.','Installation troubleshooting: Android uses the official signed 1.3.0 APK through the MUSITU install route. Safari and supported desktop browsers use their trusted web-app install controls when available.','support installation guidance')
 
-# Android browser users who somehow arrive directly on /chemistry/app must not
-# remain on the browser preview. Standalone-installed PWA sessions are preserved;
-# browser-mode Android is handed back to /chemistry/install, which resolves to
-# the official 1.3.0 APK.
+# Browser-side defense in depth. The server dispatch below is authoritative for
+# Android /app navigation; this keeps already-loaded app-shell documents from
+# remaining on the old Web preview if they execute after the cutover.
 installed="  const installed=()=>{try{return window.matchMedia&&window.matchMedia('(display-mode: standalone)').matches===true||navigator.standalone===true}catch{return false}};"
 once(installed,installed+"\n  const android=/Android/i.test(navigator.userAgent||'');\n  if(android&&!installed()){location.replace('/chemistry/install');return;}",'Android browser app handoff')
 
@@ -68,28 +67,32 @@ once(installed,installed+"\n  const android=/Android/i.test(navigator.userAgent|
 # Android clients do not keep executing the old preview handoff. The service
 # worker source separately moves to install-v9 and does not cache /install.
 once("  const APP_CACHE='musitu-chemistry-app-shell-v4';","  const APP_CACHE='musitu-chemistry-app-shell-v5';",'app shell cache generation')
-# Two occurrences each are expected: one in APP_STATIC and one in rendered app HTML.
 exact_count('/chemistry/assets/app-shell.css?v=4',2,'app shell css v4')
 exact_count('/chemistry/assets/app-shell.js?v=4',2,'app shell js v4')
 s=s.replace('/chemistry/assets/app-shell.css?v=4','/chemistry/assets/app-shell.css?v=5')
 s=s.replace('/chemistry/assets/app-shell.js?v=4','/chemistry/assets/app-shell.js?v=5')
 
-# Server-authoritative Android install convergence. This is a temporary redirect
-# so browsers/CDNs do not permanently pin a release URL. Non-Android clients keep
-# the existing adaptive PWA install surface.
+# Server-authoritative Android app entry. This intentionally moves all Android
+# browser/PWA navigations back through the native install path. Non-Android
+# devices retain the dedicated web/PWA app surface.
+old_app_dispatch="if(req.method==='GET'&&p==='/chemistry/app')return storefrontHtml(STOREFRONT.renderChemistryApp({view:u.searchParams.get('view')||'home'}),200,{'cache-control':'no-store'});"
+new_app_dispatch="if(req.method==='GET'&&p==='/chemistry/app'){const appUa=req.headers.get('user-agent')||'';if(/Android/i.test(appUa))return new Response(null,{status:302,headers:{'location':'/chemistry/install','cache-control':'no-store','x-musitu-platform-route':'android-native'}});return storefrontHtml(STOREFRONT.renderChemistryApp({view:u.searchParams.get('view')||'home'}),200,{'cache-control':'no-store'});}"
+once(old_app_dispatch,new_app_dispatch,'Android app dispatch')
+
+# Server-authoritative Android install convergence. Temporary redirects avoid a
+# browser/CDN permanently pinning a release URL. Non-Android clients keep the
+# adaptive PWA install surface.
 old_dispatch="if(req.method==='GET'&&p==='/chemistry/install')return storefrontHtml(STOREFRONT.renderInstall({userAgent:req.headers.get('user-agent')||''}),200,{'cache-control':'no-store'});"
 new_dispatch="if(req.method==='GET'&&p==='/chemistry/install'){const installUa=req.headers.get('user-agent')||'';if(/Android/i.test(installUa))return new Response(null,{status:302,headers:{'location':'"+NEW_URL+"','cache-control':'no-store','x-musitu-release-version':'1.3.0','x-musitu-release-sha256':'"+NEW_SHA+"'}});return storefrontHtml(STOREFRONT.renderInstall({userAgent:installUa}),200,{'cache-control':'no-store'});}"
 once(old_dispatch,new_dispatch,'Android install dispatch')
 
-# Customer-facing HTML should revalidate quickly after this correction. Assets
-# retain their existing immutable-ish cache policy; route HTML gets no stale 5m
-# window during the migration.
+# Customer-facing HTML should revalidate immediately after this correction.
 once("function storefrontHtml(body,status=200,extra={}){return new Response(body,{status,headers:{'content-type':'text/html; charset=utf-8','cache-control':'public, max-age=300',...STOREFRONT_PUBLIC_HEADERS,...extra}})}","function storefrontHtml(body,status=200,extra={}){return new Response(body,{status,headers:{'content-type':'text/html; charset=utf-8','cache-control':'no-cache, max-age=0, must-revalidate',...STOREFRONT_PUBLIC_HEADERS,...extra}})}",'customer HTML cache policy')
 
 # Final fail-closed invariants for this release.
 if OLD_SHA in s or OLD_APK in s or "version:'1.2.0'" in s:
     raise SystemExit('old Android current-release marker survived final patch')
-for required in [NEW_SHA,NEW_APK,"version:'1.3.0'",'/chemistry/assets/app-shell.js?v=5',"musitu-chemistry-app-shell-v5",'x-musitu-release-version']:
+for required in [NEW_SHA,NEW_APK,"version:'1.3.0'",'/chemistry/assets/app-shell.js?v=5',"musitu-chemistry-app-shell-v5",'x-musitu-release-version','x-musitu-platform-route']:
     if required not in s:
         raise SystemExit('final Android 1.3 invariant missing: '+required)
 
