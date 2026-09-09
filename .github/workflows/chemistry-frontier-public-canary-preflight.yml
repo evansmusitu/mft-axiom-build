@@ -1,6 +1,9 @@
 name: MUSITU Chemistry Frontier Public Canary Preflight
 
 on:
+  push:
+    branches: [chemistry-frontier-universal-20260908]
+    paths: ['.github/workflows/chemistry-frontier-public-canary-preflight.yml']
   workflow_dispatch:
 
 permissions:
