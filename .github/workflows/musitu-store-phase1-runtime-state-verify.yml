@@ -1,0 +1,56 @@
+name: MUSITU Store Phase 1 Runtime State Verify
+
+on:
+  push:
+    branches: [musitu-store-phase1-20260909]
+    paths:
+      - 'store/phase1/web-surface/runtime-state.test.mjs'
+      - 'store/phase1/web-surface/worker.mjs'
+      - 'store/phase1/web-surface/render.mjs'
+      - '.github/workflows/musitu-store-phase1-runtime-state-verify.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Prove sealed boundary and immutable signed snapshot
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF_NAME" = 'musitu-store-phase1-20260909'
+          git fetch --quiet origin main
+          test "$(git rev-parse origin/main)" = 'd6a846f6bbe0bccac1758713eb4de167caf07113'
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          c=json.loads(Path('store/phase1/catalog.json').read_text())
+          assert c['revision']==1
+          assert c['releaseControl']['publicationState']=='private-predeployment'
+          assert c['releaseControl']['phase2Authorized'] is False
+          print('SIGNED_SNAPSHOT_BOUNDARY=PASS')
+          PY
+      - name: Generate public web data
+        run: python store/phase1/web-surface/build_store_data.py
+      - name: Run runtime-state behavioral contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check store/phase1/web-surface/generated-data.mjs
+          node --check store/phase1/web-surface/render.mjs
+          node --check store/phase1/web-surface/worker.mjs
+          node --test store/phase1/web-surface/runtime-state.test.mjs
+          echo RUNTIME_STATE_CONTRACT=PASS
