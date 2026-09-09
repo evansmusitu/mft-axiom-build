@@ -1,0 +1,205 @@
+name: Chemistry Frontier Google Play Bundle Build
+
+on:
+  push:
+    branches:
+      - chemistry-frontier-universal-20260908
+    paths:
+      - .github/workflows/chemistry-frontier-google-play-bundle-build.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-play-bundle:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      STABLE_URL: https://payments.mftintelligence.com/chemistry/download/MUSITU_Chemistry_Mastery_1.3.0.apk
+      STABLE_SHA256: 4ba442122d9c86a0c3cef660334fe337c6ea9ae6fe853c964b5e94961245babd
+      STABLE_BYTES: '5892286'
+      AAPT2_VERSION: 9.4.0-15978811
+      BUNDLETOOL_VERSION: 1.18.3
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Fetch and pin exact public Chemistry 1.3.0 APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 4 --retry-delay 2 "$STABLE_URL" -o stable.apk
+          test "$(stat -c%s stable.apk)" = "$STABLE_BYTES"
+          echo "$STABLE_SHA256  stable.apk" | sha256sum -c -
+          python - <<'PY'
+          import zipfile
+          with zipfile.ZipFile('stable.apk') as z:
+              assert z.testzip() is None
+              assert z.read('classes.dex')[:3] == b'dex'
+          print('MUSITU_CHEMISTRY_PLAY_SOURCE_APK_PIN_PASS')
+          PY
+
+      - name: Download pinned Android bundle tooling
+        shell: bash
+        run: |
+          set -euo pipefail
+          AAPT2_URL="https://dl.google.com/dl/android/maven2/com/android/tools/build/aapt2/${AAPT2_VERSION}/aapt2-${AAPT2_VERSION}-linux.jar"
+          BUNDLETOOL_URL="https://github.com/google/bundletool/releases/download/${BUNDLETOOL_VERSION}/bundletool-all-${BUNDLETOOL_VERSION}.jar"
+          curl --fail --location --retry 4 "$AAPT2_URL" -o aapt2-linux.jar
+          curl --fail --location --retry 4 "$BUNDLETOOL_URL" -o bundletool.jar
+          mkdir -p aapt2-dist
+          (cd aapt2-dist && jar xf ../aapt2-linux.jar)
+          chmod +x aapt2-dist/aapt2
+          ./aapt2-dist/aapt2 version
+          java -jar bundletool.jar version
+
+      - name: Convert exact APK resources to App Bundle protobuf format
+        shell: bash
+        run: |
+          set -euo pipefail
+          ./aapt2-dist/aapt2 convert \
+            -o proto.apk \
+            --output-format proto \
+            --keep-raw-values \
+            stable.apk
+          unzip -t proto.apk
+
+      - name: Construct bundletool base module without changing code or learner assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf proto base
+          mkdir -p proto base/manifest base/dex base/root
+          unzip -q proto.apk -d proto
+          python - <<'PY'
+          import pathlib, shutil
+          src=pathlib.Path('proto'); dst=pathlib.Path('base')
+          manifest=src/'AndroidManifest.xml'
+          resources=src/'resources.pb'
+          assert manifest.is_file(), 'proto manifest missing'
+          assert resources.is_file(), 'resources.pb missing'
+          shutil.copy2(manifest,dst/'manifest'/'AndroidManifest.xml')
+          shutil.copy2(resources,dst/'resources.pb')
+          for p in sorted(src.rglob('*')):
+              if not p.is_file():
+                  continue
+              rel=p.relative_to(src)
+              top=rel.parts[0]
+              if rel.as_posix() in ('AndroidManifest.xml','resources.pb'):
+                  continue
+              if top == 'META-INF':
+                  continue
+              if len(rel.parts)==1 and rel.name.startswith('classes') and rel.suffix=='.dex':
+                  q=dst/'dex'/rel.name
+              elif top in ('res','assets','lib'):
+                  q=dst/rel
+              else:
+                  q=dst/'root'/rel
+              q.parent.mkdir(parents=True,exist_ok=True)
+              shutil.copy2(p,q)
+          dex=sorted((dst/'dex').glob('classes*.dex'))
+          assert len(dex)==4, dex
+          assert (dst/'assets'/'www'/'index.html').is_file()
+          print('MUSITU_CHEMISTRY_PLAY_BASE_MODULE_LAYOUT_PASS')
+          PY
+          (cd base && zip -q -r ../base.zip .)
+          unzip -l base.zip | sort > base-module-list.txt
+
+      - name: Build and validate unsigned Play App Bundle
+        shell: bash
+        run: |
+          set -euo pipefail
+          java -jar bundletool.jar build-bundle \
+            --modules=base.zip \
+            --output=MUSITU_Chemistry_Mastery_1.3.0-play-unsigned.aab
+          java -jar bundletool.jar validate \
+            --bundle=MUSITU_Chemistry_Mastery_1.3.0-play-unsigned.aab \
+            | tee bundletool-validate.txt
+          java -jar bundletool.jar dump manifest \
+            --bundle=MUSITU_Chemistry_Mastery_1.3.0-play-unsigned.aab \
+            > bundle-manifest.txt
+          grep -q 'com.musitu.chemistry' bundle-manifest.txt
+          grep -q 'targetSdkVersion' bundle-manifest.txt
+          grep -Eq '36|0x24' bundle-manifest.txt
+          echo MUSITU_CHEMISTRY_PLAY_AAB_VALIDATE_PASS
+
+      - name: Recreate Google-Play-style universal test APK and prove payload preservation
+        shell: bash
+        run: |
+          set -euo pipefail
+          keytool -genkeypair -noprompt \
+            -keystore play-test.jks \
+            -storepass changeit -keypass changeit \
+            -alias playtest -keyalg RSA -keysize 3072 -validity 3650 \
+            -dname 'CN=MUSITU Play Pipeline Test,O=MUSITU' >/dev/null 2>&1
+          java -jar bundletool.jar build-apks \
+            --bundle=MUSITU_Chemistry_Mastery_1.3.0-play-unsigned.aab \
+            --output=play-test.apks \
+            --mode=universal \
+            --ks=play-test.jks \
+            --ks-key-alias=playtest \
+            --ks-pass=pass:changeit \
+            --key-pass=pass:changeit
+          unzip -p play-test.apks universal.apk > MUSITU_Chemistry_Mastery_1.3.0-play-test-universal.apk
+          ./aapt2-dist/aapt2 dump badging MUSITU_Chemistry_Mastery_1.3.0-play-test-universal.apk > play-test-badging.txt
+          grep -q "package: name='com.musitu.chemistry'" play-test-badging.txt
+          grep -q "targetSdkVersion:'36'" play-test-badging.txt
+          python - <<'PY'
+          import hashlib, zipfile
+          old='stable.apk'; new='MUSITU_Chemistry_Mastery_1.3.0-play-test-universal.apk'
+          def h(b): return hashlib.sha256(b).hexdigest()
+          with zipfile.ZipFile(old) as a, zipfile.ZipFile(new) as b:
+              an=set(a.namelist()); bn=set(b.namelist())
+              preserve=[]
+              for n in sorted(an):
+                  if n.startswith('META-INF/'):
+                      continue
+                  if n.startswith('assets/') or n.startswith('kotlin/') or n=='DebugProbesKt.bin' or (n.startswith('classes') and n.endswith('.dex')):
+                      preserve.append(n)
+              missing=[n for n in preserve if n not in bn]
+              changed=[n for n in preserve if n in bn and h(a.read(n))!=h(b.read(n))]
+              assert not missing, missing
+              assert not changed, changed
+              assert len([n for n in preserve if n.startswith('classes')])==4
+              print('preserved_entries',len(preserve))
+              print('MUSITU_CHEMISTRY_PLAY_PAYLOAD_PRESERVATION_PASS')
+          PY
+
+      - name: Record hashes and publication boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          sha256sum \
+            stable.apk \
+            base.zip \
+            MUSITU_Chemistry_Mastery_1.3.0-play-unsigned.aab \
+            MUSITU_Chemistry_Mastery_1.3.0-play-test-universal.apk \
+            > SHA256SUMS.txt
+          cat > PLAY_PUBLICATION_BOUNDARY.txt <<'EOF'
+          This workflow does NOT publish to Google Play and does NOT alter the current public APK route.
+          The AAB is an unsigned, validated build artifact derived from the exact public 1.3.0 APK payload.
+          The universal APK is signed only with an ephemeral CI test key and MUST NOT be distributed.
+          Production Play upload must use the approved MUSITU signing/upload-key strategy and Google Play Console/API authorization.
+          EOF
+          echo MUSITU_CHEMISTRY_GOOGLE_PLAY_BUNDLE_BUILD_PASS
+
+      - name: Upload Play build evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: musitu-chemistry-1-3-0-google-play-bundle-candidate
+          if-no-files-found: error
+          retention-days: 90
+          path: |
+            MUSITU_Chemistry_Mastery_1.3.0-play-unsigned.aab
+            MUSITU_Chemistry_Mastery_1.3.0-play-test-universal.apk
+            SHA256SUMS.txt
+            bundletool-validate.txt
+            bundle-manifest.txt
+            play-test-badging.txt
+            base-module-list.txt
+            PLAY_PUBLICATION_BOUNDARY.txt
