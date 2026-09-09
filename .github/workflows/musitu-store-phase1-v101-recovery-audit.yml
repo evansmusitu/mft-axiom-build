@@ -1,0 +1,147 @@
+name: MUSITU Store Phase 1 v1.0.1 Recovery Audit
+
+on:
+  push:
+    branches: [musitu-store-phase1-20260909]
+    paths:
+      - '.github/workflows/musitu-store-phase1-v101-recovery-audit.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: musitu-store-phase1-production
+  cancel-in-progress: false
+
+jobs:
+  audit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    env:
+      ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      ZONE_ID: 5b56528f03948ff5917a5e0cd9f7109e
+      ZONE_NAME: mftintelligence.com
+      PAYMENTS_HOST: payments.mftintelligence.com
+      PAYMENTS_ORIGIN: mft-paynow-transport-gateway
+      STORE_WORKER: musitu-store-phase1
+      STORE_ROUTE: payments.mftintelligence.com/store*
+      STORE_BUCKET: musitu-store-phase1-releases
+      SEALED_MAIN: d6a846f6bbe0bccac1758713eb4de167caf07113
+      OLD_STORE_SHA: 71391bf614cc1186cbe1fda17e9e626aad71d96dbf26807228b73bd2ea99b2f8
+      OLD_STORE_BYTES: '1687882'
+      NEW_STORE_SHA: b755210f303ebb6d22a3177bb21e5ebae2e076901021ee62ca2fe6ab0f14af82
+      NEW_STORE_BYTES: '1679572'
+      OLD_CATALOG_SHA: cdfe7943d2b6256fac273a3b27bec6de6cc00449093e5ba169725d4308bd06b9
+      CHEMISTRY_SHA: 4ba442122d9c86a0c3cef660334fe337c6ea9ae6fe853c964b5e94961245babd
+      CHEMISTRY_BYTES: '5892286'
+      WRANGLER_VERSION: 4.129.1
+      WRANGLER_LOG_SANITIZE: 'true'
+      WRANGLER_SEND_METRICS: 'false'
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Prove exact audit tip and sealed main
+        shell: bash
+        run: |
+          set -euo pipefail
+          remote_tip="$(git ls-remote origin 'refs/heads/musitu-store-phase1-20260909' | awk '{print $1}')"
+          test "$remote_tip" = "$GITHUB_SHA"
+          git fetch --quiet origin main
+          test "$(git rev-parse origin/main)" = "$SEALED_MAIN"
+
+      - name: Read-only live recovery audit
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+          CLOUDFLARE_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+          CLOUDFLARE_ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/store-recovery-audit
+          python - <<'PY'
+          import hashlib,json,os,pathlib,subprocess,urllib.error,urllib.parse,urllib.request
+          API='https://api.cloudflare.com/client/v4'
+          BASE='https://'+os.environ['PAYMENTS_HOST']
+          OUT=pathlib.Path('/tmp/store-recovery-audit')
+          AUTH={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY'],'Accept':'application/json','User-Agent':'MUSITU-Store-Recovery-Audit/1.0'}
+          def sha(b): return hashlib.sha256(b).hexdigest()
+          def req(url,headers=None):
+              q=urllib.request.Request(url,headers=headers or {},method='GET')
+              try:
+                  with urllib.request.urlopen(q,timeout=90) as r: return r.status,dict(r.headers),r.read()
+              except urllib.error.HTTPError as e: return e.code,dict(e.headers),e.read()
+          def cf(path):
+              code,_,raw=req(API+path,AUTH)
+              if not 200<=code<300: raise RuntimeError(f'Cloudflare GET {path} HTTP {code}')
+              o=json.loads(raw or b'{}')
+              if o.get('success') is False: raise RuntimeError(str(o.get('errors')))
+              return o.get('result')
+          def pub(path,accept='*/*'):
+              return req(BASE+path,{'Accept':accept,'User-Agent':'MUSITU-Store-Recovery-Audit/1.0','Cache-Control':'no-cache','Pragma':'no-cache'})
+          audit={'schema':'musitu.store.phase1.v101.recovery_audit.v1','head_sha':os.environ['GITHUB_SHA'],'sealed_main':os.environ['SEALED_MAIN'],'writes_performed':False}
+          # Public Store state
+          code,h,raw=pub('/store/healthz','application/json'); audit['store_health_http']=code
+          try: audit['store_health']=json.loads(raw or b'{}')
+          except Exception: audit['store_health_raw_sha256']=sha(raw)
+          code,h,raw=pub('/store/catalog.json','application/json'); audit['store_catalog_http']=code; audit['store_catalog_bytes']=len(raw); audit['store_catalog_sha256']=sha(raw)
+          try:
+              c=json.loads(raw); audit['store_catalog_revision']=c.get('revision'); audit['store_catalog_client']=((c.get('releaseControl') or {}).get('storeClient') or {})
+          except Exception: pass
+          for ver,expected,size in [('1.0.0',os.environ['OLD_STORE_SHA'],int(os.environ['OLD_STORE_BYTES'])),('1.0.1',os.environ['NEW_STORE_SHA'],int(os.environ['NEW_STORE_BYTES']))]:
+              code,h,raw=pub(f'/store/bootstrap/MUSITU_Store_{ver}.apk','application/vnd.android.package-archive')
+              audit[f'public_apk_{ver}']={'http':code,'bytes':len(raw),'sha256':sha(raw),'expected_match':code==200 and len(raw)==size and sha(raw)==expected,'x_content_sha256':h.get('X-Content-SHA256') or h.get('x-content-sha256')}
+          code,_,raw=pub('/store/install','text/html'); audit['install_http']=code; audit['install_mentions_101']=b'MUSITU_Store_1.0.1.apk' in raw; audit['install_mentions_100']=b'MUSITU_Store_1.0.0.apk' in raw
+          code,_,raw=pub('/store/sw.js','application/javascript'); audit['sw_http']=code; audit['sw_mentions_101']=b'MUSITU_Store_1.0.1.apk' in raw; audit['sw_mentions_100']=b'MUSITU_Store_1.0.0.apk' in raw
+          # Cloudflare topology
+          zones=cf('/zones?name='+urllib.parse.quote(os.environ['ZONE_NAME'])+'&status=active') or []
+          audit['zone_exact']=len(zones)==1 and zones[0].get('id')==os.environ['ZONE_ID'] and (zones[0].get('account') or {}).get('id')==os.environ['ACCOUNT_ID']
+          domains=cf(f"/accounts/{os.environ['ACCOUNT_ID']}/workers/domains") or []
+          dm=[d for d in domains if isinstance(d,dict) and d.get('hostname')==os.environ['PAYMENTS_HOST']]
+          audit['payments_domain_services']=[d.get('service') for d in dm]
+          routes=cf(f"/zones/{os.environ['ZONE_ID']}/workers/routes") or []
+          exact=[r for r in routes if isinstance(r,dict) and r.get('pattern')==os.environ['STORE_ROUTE']]
+          audit['store_route']=exact
+          settings=cf(f"/accounts/{os.environ['ACCOUNT_ID']}/workers/scripts/{urllib.parse.quote(os.environ['STORE_WORKER'],safe='')}/settings") or {}
+          audit['worker_bindings']=settings.get('bindings') or []
+          sub=cf(f"/accounts/{os.environ['ACCOUNT_ID']}/workers/scripts/{urllib.parse.quote(os.environ['STORE_WORKER'],safe='')}/subdomain") or {}
+          audit['worker_subdomain']=sub
+          # Read-only R2 object probes
+          def r2_get(key,label):
+              p=OUT/(label+'.apk')
+              cp=subprocess.run(['npx','-y','wrangler@'+os.environ['WRANGLER_VERSION'],'r2','object','get',os.environ['STORE_BUCKET']+'/'+key,'--remote','--file',str(p)],text=True,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,env=os.environ.copy())
+              if cp.returncode==0 and p.exists():
+                  b=p.read_bytes(); return {'exists':True,'bytes':len(b),'sha256':sha(b)}
+              return {'exists':False,'probe_output_tail':cp.stdout[-300:]}
+          audit['r2_old']=r2_get('bootstrap/MUSITU_Store_1.0.0.apk','r2-old')
+          audit['r2_new']=r2_get('bootstrap/MUSITU_Store_1.0.1.apk','r2-new')
+          # Chemistry invariants after incident
+          code,_,raw=pub('/chemistry/healthz','application/json'); audit['chemistry_health_http']=code
+          try: audit['chemistry_health']=json.loads(raw or b'{}')
+          except Exception: pass
+          code,_,raw=pub('/chemistry/catalog','application/json'); audit['chemistry_catalog_http']=code; audit['chemistry_catalog_sha256']=sha(raw)
+          code,_,raw=pub('/chemistry/download/MUSITU_Chemistry_Mastery_1.3.0.apk','application/vnd.android.package-archive')
+          audit['chemistry_apk']={'http':code,'bytes':len(raw),'sha256':sha(raw),'expected_match':code==200 and len(raw)==int(os.environ['CHEMISTRY_BYTES']) and sha(raw)==os.environ['CHEMISTRY_SHA']}
+          OUT.joinpath('audit.json').write_text(json.dumps(audit,indent=2,sort_keys=True)+'\n')
+          print(json.dumps({k:audit.get(k) for k in ['store_health','store_catalog_revision','store_catalog_sha256','public_apk_1.0.0','public_apk_1.0.1','r2_old','r2_new','chemistry_apk']},sort_keys=True))
+          PY
+
+      - name: Upload read-only recovery evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: musitu-store-v101-recovery-audit
+          path: /tmp/store-recovery-audit
+          retention-days: 90
+          if-no-files-found: error
