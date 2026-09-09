@@ -1,0 +1,129 @@
+name: MUSITU Store Phase 1 Release Storage Preflight
+
+on:
+  push:
+    branches: [musitu-store-phase1-20260909]
+    paths:
+      - '.github/workflows/musitu-store-phase1-release-storage-preflight.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: musitu-store-phase1-release-storage-preflight
+  cancel-in-progress: false
+
+jobs:
+  audit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      CF_API: https://api.cloudflare.com/client/v4
+      ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      ZONE_ID: 5b56528f03948ff5917a5e0cd9f7109e
+      ZONE_NAME: mftintelligence.com
+      PAYMENTS_HOST: payments.mftintelligence.com
+      STORE_WORKER: musitu-store-phase1
+      STORE_ROUTE: payments.mftintelligence.com/store*
+      STORE_BUCKET: musitu-store-phase1-releases
+      SEALED_MAIN: d6a846f6bbe0bccac1758713eb4de167caf07113
+      CHEMISTRY_SHA256: 4ba442122d9c86a0c3cef660334fe337c6ea9ae6fe853c964b5e94961245babd
+      CHEMISTRY_BYTES: '5892286'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Read-only Cloudflare and production preflight
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$CLOUDFLARE_EMAIL"
+          test -n "$CLOUDFLARE_GLOBAL_API_KEY"
+          test "$GITHUB_REF_NAME" = 'musitu-store-phase1-20260909'
+          git fetch --quiet origin main
+          test "$(git rev-parse origin/main)" = "$SEALED_MAIN"
+          python - <<'PY'
+          import hashlib,json,os,urllib.error,urllib.parse,urllib.request
+          api=os.environ['CF_API']; aid=os.environ['ACCOUNT_ID']; zid=os.environ['ZONE_ID']
+          host=os.environ['PAYMENTS_HOST']; worker=os.environ['STORE_WORKER']; route=os.environ['STORE_ROUTE']; bucket=os.environ['STORE_BUCKET']
+          headers={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY'],'Accept':'application/json','User-Agent':'MUSITU-Store-Phase1-Preflight/1.0'}
+          def raw(url,method='GET',headers_=None):
+              req=urllib.request.Request(url,headers=headers_ or headers,method=method)
+              try:
+                  with urllib.request.urlopen(req,timeout=45) as r:return r.status,r.headers,r.read()
+              except urllib.error.HTTPError as e:return e.code,e.headers,e.read()
+          def cf(path,allow=(200,)):
+              c,hh,b=raw(api+path)
+              if c not in allow: raise SystemExit(f'Cloudflare GET HTTP {c}: {path}')
+              if c==404:return None
+              x=json.loads(b or b'{}')
+              if x.get('success') is not True:raise SystemExit(f'Cloudflare success=false: {path}')
+              return x.get('result')
+          zones=cf('/zones?name='+urllib.parse.quote(os.environ['ZONE_NAME'])+'&status=active') or []
+          if len(zones)!=1 or zones[0].get('id')!=zid or (zones[0].get('account') or {}).get('id')!=aid:raise SystemExit('canonical zone/account mismatch')
+          routes=cf(f'/zones/{zid}/workers/routes') or []
+          exact=[r for r in routes if str(r.get('pattern') or '')==route]
+          if len(exact)>1:raise SystemExit('duplicate Store route collision')
+          if exact and exact[0].get('script')!=worker:raise SystemExit('Store route belongs to another Worker')
+          settings=cf(f'/accounts/{aid}/workers/scripts/{urllib.parse.quote(worker,safe="")}/settings',allow=(200,404))
+          worker_exists=settings is not None
+          if worker_exists:
+              bindings={b.get('name'):b for b in settings.get('bindings') or [] if isinstance(b,dict)}
+              rb=bindings.get('STORE_RELEASES')
+              if rb is not None and rb.get('bucket_name') not in (None,bucket):raise SystemExit('Store Worker R2 binding collision')
+          buckets_obj=cf(f'/accounts/{aid}/r2/buckets?name_contains='+urllib.parse.quote(bucket)+'&per_page=100') or {}
+          buckets=buckets_obj.get('buckets') if isinstance(buckets_obj,dict) else buckets_obj
+          buckets=buckets or []
+          named=[b for b in buckets if b.get('name')==bucket]
+          if len(named)>1:raise SystemExit('duplicate R2 bucket impossible state')
+          bucket_exists=bool(named)
+          def external(path,method='GET'):
+              req=urllib.request.Request('https://'+host+path,headers={'User-Agent':'MUSITU-Store-Phase1-Preflight/1.0','Accept':'*/*'},method=method)
+              try:
+                  with urllib.request.urlopen(req,timeout=45) as r:return r.status,r.headers,r.read()
+              except urllib.error.HTTPError as e:return e.code,e.headers,e.read()
+          sc,sh,sb=external('/store')
+          if exact:
+              if sc not in (200,503):raise SystemExit(f'existing Store route unhealthy HTTP {sc}')
+          elif sc!=404:raise SystemExit(f'unoccupied Store slot expected 404, got {sc}')
+          hc,hh,hb=external('/chemistry/health')
+          if hc!=200:raise SystemExit(f'Chemistry health HTTP {hc}')
+          dc,dh,db=external('/chemistry/download/MUSITU_Chemistry_Mastery_1.3.0.apk')
+          if dc!=200:raise SystemExit(f'Chemistry stable APK HTTP {dc}')
+          if len(db)!=int(os.environ['CHEMISTRY_BYTES']):raise SystemExit('Chemistry stable APK byte drift')
+          if hashlib.sha256(db).hexdigest()!=os.environ['CHEMISTRY_SHA256']:raise SystemExit('Chemistry stable APK SHA drift')
+          out={
+            'schema':'musitu.store.phase1.release_storage_preflight.v1',
+            'head_sha':os.environ['GITHUB_SHA'],
+            'sealed_main':os.environ['SEALED_MAIN'],
+            'r2_list_authorized':True,
+            'store_bucket_exists':bucket_exists,
+            'store_worker_exists':worker_exists,
+            'store_route_exists':bool(exact),
+            'store_route_owner':exact[0].get('script') if exact else None,
+            'store_surface_status':sc,
+            'chemistry_health_status':hc,
+            'chemistry_apk_sha256':hashlib.sha256(db).hexdigest(),
+            'write_performed':False,
+            'phase2_authorized':False,
+            'gate':'MUSITU_STORE_PHASE1_RELEASE_STORAGE_PREFLIGHT_PASS'
+          }
+          rawout=(json.dumps(out,indent=2,sort_keys=True)+'\n').encode()
+          open('/tmp/store-release-storage-preflight.json','wb').write(rawout)
+          open('/tmp/store-release-storage-preflight.sha256','w').write(hashlib.sha256(rawout).hexdigest()+'  store-release-storage-preflight.json\n')
+          print(json.dumps(out,sort_keys=True))
+          PY
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: musitu-store-phase1-release-storage-preflight
+          path: |
+            /tmp/store-release-storage-preflight.json
+            /tmp/store-release-storage-preflight.sha256
+          retention-days: 30
+          if-no-files-found: error
