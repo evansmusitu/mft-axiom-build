@@ -46,7 +46,7 @@ jobs:
           cd /tmp/mchem-browser-v5-${BROWSER_NAME}
           python - <<'PY'
           from pathlib import Path
-          import os
+          import os, textwrap
           src=Path(os.environ['GITHUB_WORKSPACE']+'/.github/workflows/chemistry-frontier-universal-preview-browser-matrix-v4.yml').read_text()
           marker="          cat > verify.cjs <<'JS'\n"
           start=src.index(marker)+len(marker)
@@ -55,36 +55,38 @@ jobs:
 
           old_start=script.index('async function platformDiscovery(browser){')
           old_end=script.index('\n(async()=>',old_start)
-          replacement=r'''async function platformDiscovery(browser){
-  let profiles=[];
-  if(name==='chromium')profiles=[
-    ['android-chrome',{userAgent:'Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Mobile Safari/537.36',viewport:{width:390,height:844},isMobile:true,hasTouch:true},'android-chrome'],
-    ['samsung',{userAgent:'Mozilla/5.0 (Linux; Android 14; SAMSUNG SM-S921B) AppleWebKit/537.36 (KHTML, like Gecko) SamsungBrowser/27.0 Chrome/125.0 Mobile Safari/537.36',viewport:{width:390,height:844},isMobile:true,hasTouch:true},'samsung'],
-    ['desktop-edge',{userAgent:'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0 Safari/537.36 Edg/128.0',viewport:{width:1366,height:768}},'desktop-edge']
-  ];
-  else if(name==='webkit')profiles=[
-    ['ios-safari',{userAgent:'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1',viewport:{width:390,height:844},isMobile:true,hasTouch:true},'ios-safari'],
-    ['ios-inapp',{userAgent:'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 Mobile/15E148 Instagram 350.0.0',viewport:{width:390,height:844},isMobile:true,hasTouch:true},'ios-inapp']
-  ];
-  else if(name==='firefox')profiles=[
-    ['desktop-firefox',{userAgent:'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:130.0) Gecko/20100101 Firefox/130.0',viewport:{width:1366,height:768}},'desktop-firefox']
-  ];
-  const out=[];
-  for(const [label,opts,want] of profiles){
-    const c=await browser.newContext(opts),p=await c.newPage();
-    const errors=[];p.on('pageerror',e=>errors.push(String(e)));
-    const r=await p.goto(base,{waitUntil:'domcontentloaded',timeout:45000});assert(r&&r.status()===200,label+' HTTP failed');
-    await p.locator('#app').waitFor();await dismissOnboarding(p);
-    const got=await p.evaluate(()=>({platform:MUSITUFrontier.runtimePlatform(),guidance:MUSITUFrontier.installGuidance(),requestInstall:typeof MUSITUFrontier.requestInstall}));
-    assert(got.platform===want,`${label} classified as ${got.platform}`);
-    assert(got.guidance&&got.guidance.length>20,`${label} guidance absent`);
-    assert(got.requestInstall==='function',`${label} requestInstall API absent`);
-    assert(errors.length===0,`${label} page errors ${JSON.stringify(errors)}`);
-    out.push({profile:label,platform:got.platform,automatic_device_discovery:'PASS',install_guidance:'PASS',request_install_api:'PASS'});
-    await c.close();
-  }
-  return out;
-}'''
+          replacement=textwrap.dedent(r'''
+          async function platformDiscovery(browser){
+            let profiles=[];
+            if(name==='chromium')profiles=[
+              ['android-chrome',{userAgent:'Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Mobile Safari/537.36',viewport:{width:390,height:844},isMobile:true,hasTouch:true},'android-chrome'],
+              ['samsung',{userAgent:'Mozilla/5.0 (Linux; Android 14; SAMSUNG SM-S921B) AppleWebKit/537.36 (KHTML, like Gecko) SamsungBrowser/27.0 Chrome/125.0 Mobile Safari/537.36',viewport:{width:390,height:844},isMobile:true,hasTouch:true},'samsung'],
+              ['desktop-edge',{userAgent:'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0 Safari/537.36 Edg/128.0',viewport:{width:1366,height:768}},'desktop-edge']
+            ];
+            else if(name==='webkit')profiles=[
+              ['ios-safari',{userAgent:'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1',viewport:{width:390,height:844},isMobile:true,hasTouch:true},'ios-safari'],
+              ['ios-inapp',{userAgent:'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 Mobile/15E148 Instagram 350.0.0',viewport:{width:390,height:844},isMobile:true,hasTouch:true},'ios-inapp']
+            ];
+            else if(name==='firefox')profiles=[
+              ['desktop-firefox',{userAgent:'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:130.0) Gecko/20100101 Firefox/130.0',viewport:{width:1366,height:768}},'desktop-firefox']
+            ];
+            const out=[];
+            for(const [label,opts,want] of profiles){
+              const c=await browser.newContext(opts),p=await c.newPage();
+              const errors=[];p.on('pageerror',e=>errors.push(String(e)));
+              const r=await p.goto(base,{waitUntil:'domcontentloaded',timeout:45000});assert(r&&r.status()===200,label+' HTTP failed');
+              await p.locator('#app').waitFor();await dismissOnboarding(p);
+              const got=await p.evaluate(()=>({platform:MUSITUFrontier.runtimePlatform(),guidance:MUSITUFrontier.installGuidance(),requestInstall:typeof MUSITUFrontier.requestInstall}));
+              assert(got.platform===want,`${label} classified as ${got.platform}`);
+              assert(got.guidance&&got.guidance.length>20,`${label} guidance absent`);
+              assert(got.requestInstall==='function',`${label} requestInstall API absent`);
+              assert(errors.length===0,`${label} page errors ${JSON.stringify(errors)}`);
+              out.push({profile:label,platform:got.platform,automatic_device_discovery:'PASS',install_guidance:'PASS',request_install_api:'PASS'});
+              await c.close();
+            }
+            return out;
+          }
+          ''').strip()
           script=script[:old_start]+replacement+script[old_end:]
           script=script.replace("const discovery=name==='chromium'?await platformDiscovery(browser):null;","const discovery=await platformDiscovery(browser);if(['chromium','webkit','firefox'].includes(name))assert(discovery.length>0,'platform discovery profiles did not run');")
           script=script.replace("browser_matrix.v4","browser_matrix.v5")
