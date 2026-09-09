@@ -103,6 +103,25 @@ async function discovery(c) {
   });
 }
 
+async function oidcDiscovery(c) {
+  return j(200, {
+    issuer: c.issuer,
+    authorization_endpoint: c.issuer + "/oauth/authorize",
+    token_endpoint: c.issuer + "/oauth/token",
+    registration_endpoint: c.issuer + "/oauth/register",
+    revocation_endpoint: c.issuer + "/oauth/revoke",
+    userinfo_endpoint: c.issuer + "/oauth/userinfo",
+    response_types_supported: ["code"],
+    grant_types_supported: ["authorization_code", "refresh_token"],
+    token_endpoint_auth_methods_supported: ["none"],
+    code_challenge_methods_supported: ["S256"],
+    scopes_supported: [...SCOPES],
+    subject_types_supported: ["public"],
+    claims_supported: ["sub", "email", "email_verified"],
+    client_id_metadata_document_supported: false,
+  });
+}
+
 async function register(req, c) {
   let x;
   try { x = await req.json(); } catch { return j(400, { error: "invalid_client_metadata" }); }
@@ -259,6 +278,7 @@ export default {
   async fetch(req, env) {
     const c = cfg(env), u = new URL(req.url);
     if (!c.db) return j(503, { error: "database_unavailable" });
+    if (u.pathname === "/.well-known/openid-configuration" && req.method === "GET") return oidcDiscovery(c);
     if (u.pathname === "/.well-known/oauth-authorization-server" && req.method === "GET") return discovery(c);
     if (u.pathname === "/oauth/register" && req.method === "POST") return register(req, c);
     if (u.pathname === "/oauth/authorize" && req.method === "GET") return authorizeGet(req, c);
