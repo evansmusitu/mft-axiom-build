@@ -1,0 +1,70 @@
+name: MUSITU Chemistry Frontier Public Canary Independent Verify
+
+on:
+  push:
+    branches: [chemistry-frontier-universal-20260908]
+    paths: ['.github/workflows/chemistry-frontier-public-canary-independent-verify.yml']
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    if: github.ref == 'refs/heads/chemistry-frontier-universal-20260908'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Independently fetch public stable and canary twice
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/mchem-independent
+          mkdir -p /tmp/mchem-independent
+          python - <<'PY'
+          import hashlib,json,time,urllib.request
+          specs={
+            'stable':{
+              'url':'https://payments.mftintelligence.com/chemistry/download/MUSITU_Chemistry_Mastery_1.2.0.apk',
+              'bytes':5314934,
+              'sha256':'055b63f271c18faab540985faefb970f472ea55ba9cb3495db459797902b790d',
+              'filename':'MUSITU_Chemistry_Mastery_1.2.0.apk'
+            },
+            'canary':{
+              'url':'https://payments.mftintelligence.com/chemistry/download/MUSITU_Chemistry_1.3.0-frontier-sidecar-rc1.apk',
+              'bytes':5892286,
+              'sha256':'4ba442122d9c86a0c3cef660334fe337c6ea9ae6fe853c964b5e94961245babd',
+              'filename':'MUSITU_Chemistry_1.3.0-frontier-sidecar-rc1.apk'
+            }
+          }
+          evidence={'schema':'musitu.chemistry.frontier.public_canary.independent_verify.v1','production_mutation':False,'uses_deployment_secrets':False,'samples':{}}
+          for kind,s in specs.items():
+              samples=[]
+              for n in (1,2):
+                  q=urllib.request.Request(s['url'],headers={'User-Agent':f'MUSITU-Frontier-Independent-Verify/{kind}/{n}','Accept':'application/vnd.android.package-archive','Cache-Control':'no-cache'})
+                  with urllib.request.urlopen(q,timeout=90) as r:
+                      body=r.read(); status=r.status; headers={k.lower():v for k,v in r.headers.items()}
+                  digest=hashlib.sha256(body).hexdigest()
+                  if status!=200: raise SystemExit(f'{kind} sample {n} HTTP {status}')
+                  if len(body)!=s['bytes']: raise SystemExit(f'{kind} sample {n} byte mismatch {len(body)}')
+                  if digest!=s['sha256']: raise SystemExit(f'{kind} sample {n} SHA mismatch {digest}')
+                  if body[:4]!=b'PK\x03\x04': raise SystemExit(f'{kind} sample {n} not APK/ZIP payload')
+                  if headers.get('x-musitu-sha256')!=s['sha256']: raise SystemExit(f'{kind} sample {n} X-MUSITU-SHA256 mismatch')
+                  cd=headers.get('content-disposition','')
+                  if 'attachment' not in cd.lower() or s['filename'] not in cd: raise SystemExit(f'{kind} sample {n} content-disposition mismatch {cd}')
+                  samples.append({'sample':n,'http':status,'bytes':len(body),'sha256':digest,'x_musitu_sha256':headers.get('x-musitu-sha256'),'content_disposition':cd,'content_type':headers.get('content-type'),'cache_control':headers.get('cache-control')})
+                  time.sleep(1)
+              evidence['samples'][kind]=samples
+          evidence.update({'stable_replacement':False,'stable_promotion':False,'canary_public_url':specs['canary']['url'],'canary_sha256':specs['canary']['sha256'],'stable_sha256':specs['stable']['sha256'],'gate':'MUSITU_CHEMISTRY_FRONTIER_PUBLIC_CANARY_INDEPENDENT_VERIFY_PASS'})
+          raw=(json.dumps(evidence,indent=2,sort_keys=True)+'\n').encode()
+          open('/tmp/mchem-independent/independent-live.json','wb').write(raw)
+          open('/tmp/mchem-independent/independent-live.sha256','w').write(hashlib.sha256(raw).hexdigest()+'  independent-live.json\n')
+          print(json.dumps(evidence,sort_keys=True))
+          print('MUSITU_CHEMISTRY_FRONTIER_PUBLIC_CANARY_INDEPENDENT_VERIFY_PASS')
+          PY
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: musitu-chemistry-frontier-public-canary-independent-verify
+          path: /tmp/mchem-independent
+          retention-days: 90
+          if-no-files-found: error
