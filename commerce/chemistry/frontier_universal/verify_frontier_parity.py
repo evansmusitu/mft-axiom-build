@@ -62,7 +62,14 @@ check('release_repro_web_matches',candidate.get('repro_web_sha256')==SOURCE.get(
 check('release_source_artifact_matches',candidate.get('repro_source_artifact_sha256')==SOURCE.get('artifact_sha256'))
 check('hosted_baseline_reference',RELEASE.get('hosted_capability_parity',{}).get('baseline')=='HOSTED_CAPABILITY_BASELINE.json')
 check('hosted_gate_reference',RELEASE.get('hosted_capability_parity',{}).get('gate')=='verify_frontier_parity.py')
-check('publication_false', RELEASE.get('publication',{}).get('authorized') is False and RELEASE.get('publication',{}).get('production_deployed') is False and RELEASE.get('publication',{}).get('production_apk_replaced') is False)
+pub=RELEASE.get('publication',{})
+canary=pub.get('android_sidecar_canary',{})
+check('publication_canary_authorized',pub.get('authorized') is True and pub.get('mode')=='PUBLIC_CANARY_SIDE_BY_SIDE')
+check('universal_web_not_production_deployed',pub.get('production_deployed') is False)
+check('production_apk_not_replaced',pub.get('production_apk_replaced') is False)
+check('canary_customer_exposed',canary.get('customer_exposed') is True)
+check('canary_exact_hash',canary.get('sha256')=='4ba442122d9c86a0c3cef660334fe337c6ea9ae6fe853c964b5e94961245babd')
+check('canary_url_exact',canary.get('url')=='https://1drv.ms/u/c/4530ee4f0527658a/IQDfecNljFSHS6cZpwxVaGLNAZMaPJ3safwWN8c1GEub_ck')
 check('no_frontier_deployer', not any('deploy' in p.name.lower() for p in HERE.rglob('*') if p.is_file()))
 
 failed=[x for x in checks if not x[1]]
