@@ -25,12 +25,16 @@ jobs:
           python-version: '3.12.14'
 
       - name: Protect sealed v4 surface
-        if: github.event_name == 'pull_request'
         shell: bash
         run: |
           set -euo pipefail
-          git fetch origin "${{ github.base_ref }}"
-          git diff --exit-code "origin/${{ github.base_ref }}...HEAD" -- mcp/ auth/ chatgpt-app-submission.json submission/
+          git fetch origin main
+          test "$(git rev-parse refs/remotes/origin/main)" = 'd6a846f6bbe0bccac1758713eb4de167caf07113'
+          # Public MCP and submission bytes remain sealed to the unchanged main.
+          git diff --exit-code 'd6a846f6bbe0bccac1758713eb4de167caf07113' HEAD -- mcp/ chatgpt-app-submission.json submission/
+          # Preserve only the explicitly approved mobile CSRF and RFC 9700 303
+          # OAuth snapshot. Any further auth addition, deletion or edit fails.
+          git diff --exit-code 'd47ca52917521eb48782f59ae1d4ad956e9d6165' HEAD -- auth/
 
       - name: Lint all frontier skills
         shell: bash
