@@ -85,6 +85,8 @@ jobs:
           assert rel['web']['carrierArchiveSha256']=='1445074e87e8c4a9a15281baa586855fe31f92c06dd393a11458adce9821ec30'
           assert boot['version']=='1.0.1' and boot['versionCode']==10001
           assert boot['artifactFile']=='MUSITU_Store_1.0.1.apk'
+          assert boot['artifactFile']==f"MUSITU_Store_{sc['version']}.apk"
+          assert boot['sha256']==sc['sha256']
           assert boot['sha256']=='b755210f303ebb6d22a3177bb21e5ebae2e076901021ee62ca2fe6ab0f14af82'
           assert boot['signingCertificateSha256']=='43695b6103d7ab57e89166c9a537f1810b7e33053e20332b1d4e7e2e1c612671'
           assert trust['private_material_published'] is False
