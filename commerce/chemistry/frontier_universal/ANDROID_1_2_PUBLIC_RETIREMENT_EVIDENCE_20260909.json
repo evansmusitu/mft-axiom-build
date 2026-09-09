@@ -1,0 +1,76 @@
+{
+  "schema": "musitu.chemistry.frontier.android_1_2_public_retirement.evidence.v1",
+  "date": "2026-09-09",
+  "repository": "evansmusitu/mft-axiom-build",
+  "branch": "chemistry-frontier-universal-20260908",
+  "scope": "retire_android_1_2_from_public_distribution",
+  "authorization": {
+    "explicit_user_instruction": "Stable 1.2 delete it from public",
+    "authorized": true
+  },
+  "retired_release": {
+    "version": "1.2.0",
+    "former_public_url": "https://payments.mftintelligence.com/chemistry/download/MUSITU_Chemistry_Mastery_1.2.0.apk",
+    "former_filename": "MUSITU_Chemistry_Mastery_1.2.0.apk",
+    "former_bytes": 5314934,
+    "former_sha256": "055b63f271c18faab540985faefb970f472ea55ba9cb3495db459797902b790d",
+    "public_distribution_retired": true,
+    "current_http_status": 410,
+    "current_release_status_header": "retired",
+    "current_apk_bytes_served": false,
+    "active_asset_manifest_contains_1_2": false
+  },
+  "stable_1_3": {
+    "preserved": true,
+    "url": "https://payments.mftintelligence.com/chemistry/download/MUSITU_Chemistry_Mastery_1.3.0.apk",
+    "bytes": 5892286,
+    "sha256": "4ba442122d9c86a0c3cef660334fe337c6ea9ae6fe853c964b5e94961245babd",
+    "release_status": "stable"
+  },
+  "canary_alias": {
+    "preserved": true,
+    "url": "https://payments.mftintelligence.com/chemistry/download/MUSITU_Chemistry_1.3.0-frontier-sidecar-rc1.apk",
+    "bytes": 5892286,
+    "sha256": "4ba442122d9c86a0c3cef660334fe337c6ea9ae6fe853c964b5e94961245babd",
+    "release_status": "canary-alias"
+  },
+  "deployment": {
+    "mechanism": "github_actions_to_existing_cloudflare_worker_static_assets",
+    "worker": "musitu-chemistry-downloads",
+    "route": "payments.mftintelligence.com/chemistry/download*",
+    "workflow_commit": "74c3c8ebd3ceae6d8dfa12b543f82e3e22f71e52",
+    "run_id": 34320891282,
+    "job_id": 102367045358,
+    "artifact_id": 10091816480,
+    "artifact_sha256": "13867b6bd24f7850e7b94d3d02b064bffaf259bd3b8a77ae46f0a8c23bb8f68e",
+    "conclusion": "success",
+    "vercel_used": false,
+    "commerce_worker_mutated": false,
+    "secrets_published": false
+  },
+  "independent_verification": {
+    "workflow_commit": "b0289e9cf9e259485c611a9fa86b96c79a29bfe6",
+    "run_id": 34321006596,
+    "job_id": 102367400968,
+    "artifact_id": 10091848236,
+    "artifact_sha256": "279256a267b9c25e7fbe34648dc9b6980b8d9a5b12ff100a877854973462ce21",
+    "conclusion": "success",
+    "production_mutation": false,
+    "deployment_secrets_used": false,
+    "retired_1_2_samples": 2,
+    "stable_1_3_samples": 2,
+    "canary_alias_samples": 2,
+    "retired_1_2_http_expected": 410,
+    "retired_1_2_apk_bytes_expected": false,
+    "historical_workers_dev_exact_retired_apk_served": false,
+    "gate": "MUSITU_CHEMISTRY_ANDROID_1_2_PUBLIC_RETIREMENT_INDEPENDENT_VERIFY_PASS"
+  },
+  "preservation_boundaries": {
+    "private_release_evidence_deleted": false,
+    "historical_git_evidence_deleted": false,
+    "stable_1_3_changed": false,
+    "universal_web_carrier_deployed": false,
+    "main_branch_mutation_required": false
+  },
+  "gate": "MUSITU_CHEMISTRY_ANDROID_1_2_PUBLIC_RETIREMENT_SEALED"
+}
