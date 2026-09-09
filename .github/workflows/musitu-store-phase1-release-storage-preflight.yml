@@ -51,11 +51,11 @@ jobs:
           import hashlib,json,os,urllib.error,urllib.parse,urllib.request
           api=os.environ['CF_API']; aid=os.environ['ACCOUNT_ID']; zid=os.environ['ZONE_ID']
           host=os.environ['PAYMENTS_HOST']; worker=os.environ['STORE_WORKER']; route=os.environ['STORE_ROUTE']; bucket=os.environ['STORE_BUCKET']
-          headers={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY'],'Accept':'application/json','User-Agent':'MUSITU-Store-Phase1-Preflight/1.0'}
+          headers={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY'],'Accept':'application/json','User-Agent':'MUSITU-Store-Phase1-Preflight/1.1'}
           def raw(url,method='GET',headers_=None):
               req=urllib.request.Request(url,headers=headers_ or headers,method=method)
               try:
-                  with urllib.request.urlopen(req,timeout=45) as r:return r.status,r.headers,r.read()
+                  with urllib.request.urlopen(req,timeout=60) as r:return r.status,r.headers,r.read()
               except urllib.error.HTTPError as e:return e.code,e.headers,e.read()
           def cf(path,allow=(200,)):
               c,hh,b=raw(api+path)
@@ -82,18 +82,23 @@ jobs:
           named=[b for b in buckets if b.get('name')==bucket]
           if len(named)>1:raise SystemExit('duplicate R2 bucket impossible state')
           bucket_exists=bool(named)
-          def external(path,method='GET'):
-              req=urllib.request.Request('https://'+host+path,headers={'User-Agent':'MUSITU-Store-Phase1-Preflight/1.0','Accept':'*/*'},method=method)
+          def external(path,accept='*/*'):
+              req=urllib.request.Request('https://'+host+path,headers={'User-Agent':'MUSITU-Store-Phase1-Preflight/1.1','Accept':accept},method='GET')
               try:
-                  with urllib.request.urlopen(req,timeout=45) as r:return r.status,r.headers,r.read()
+                  with urllib.request.urlopen(req,timeout=60) as r:return r.status,r.headers,r.read()
               except urllib.error.HTTPError as e:return e.code,e.headers,e.read()
-          sc,sh,sb=external('/store')
+          sc,sh,sb=external('/store','text/html')
           if exact:
               if sc not in (200,503):raise SystemExit(f'existing Store route unhealthy HTTP {sc}')
           elif sc!=404:raise SystemExit(f'unoccupied Store slot expected 404, got {sc}')
-          hc,hh,hb=external('/chemistry/health')
-          if hc!=200:raise SystemExit(f'Chemistry health HTTP {hc}')
-          dc,dh,db=external('/chemistry/download/MUSITU_Chemistry_Mastery_1.3.0.apk')
+          hc,hh,hb=external('/chemistry/healthz','application/json')
+          if hc!=200:raise SystemExit(f'Chemistry healthz HTTP {hc}')
+          try: ho=json.loads(hb or b'{}')
+          except Exception:raise SystemExit('Chemistry healthz is not JSON')
+          if ho.get('ok') is not True:raise SystemExit('Chemistry healthz ok != true')
+          cc,ch,cb=external('/chemistry/catalog','application/json')
+          if cc!=200:raise SystemExit(f'Chemistry catalog HTTP {cc}')
+          dc,dh,db=external('/chemistry/download/MUSITU_Chemistry_Mastery_1.3.0.apk','application/vnd.android.package-archive')
           if dc!=200:raise SystemExit(f'Chemistry stable APK HTTP {dc}')
           if len(db)!=int(os.environ['CHEMISTRY_BYTES']):raise SystemExit('Chemistry stable APK byte drift')
           if hashlib.sha256(db).hexdigest()!=os.environ['CHEMISTRY_SHA256']:raise SystemExit('Chemistry stable APK SHA drift')
@@ -108,6 +113,7 @@ jobs:
             'store_route_owner':exact[0].get('script') if exact else None,
             'store_surface_status':sc,
             'chemistry_health_status':hc,
+            'chemistry_catalog_status':cc,
             'chemistry_apk_sha256':hashlib.sha256(db).hexdigest(),
             'write_performed':False,
             'phase2_authorized':False,
