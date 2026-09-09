@@ -96,17 +96,20 @@ jobs:
           test "$(stat -c%s "$SRC")" = '1675476'
           echo 'ebfcac3dfc21887bc2f8203c1b047bd0b9187cbc80ad7ea61775a15d82aa0b76  store/phase1/prebuilt/android/MUSITU_Store_1.0.1_UNSIGNED.apk' | sha256sum -c -
           rm -rf /tmp/reconstruct && mkdir -p /tmp/reconstruct
-          cp "$SRC" /tmp/reconstruct/MUSITU_Store_1.0.1.apk
+          cp "$SRC" /tmp/reconstruct/seed.apk
           cd /tmp/reconstruct
           git init -q
           git config user.name 'MUSITU Store Reconstructor'
           git config user.email 'evansmusitu5@gmail.com'
-          git add MUSITU_Store_1.0.1.apk
+          git add seed.apk
           git commit -qm 'seed exact unsigned APK'
           git apply --binary /tmp/store.patch
+          test "$(stat -c%s seed.apk)" = '1679572'
+          echo 'b755210f303ebb6d22a3177bb21e5ebae2e076901021ee62ca2fe6ab0f14af82  seed.apk' | sha256sum -c -
+          unzip -t seed.apk >/dev/null
+          mv seed.apk MUSITU_Store_1.0.1.apk
           test "$(stat -c%s MUSITU_Store_1.0.1.apk)" = '1679572'
           echo 'b755210f303ebb6d22a3177bb21e5ebae2e076901021ee62ca2fe6ab0f14af82  MUSITU_Store_1.0.1.apk' | sha256sum -c -
-          unzip -t MUSITU_Store_1.0.1.apk >/dev/null
           echo 'RECONSTRUCTED_APK=PASS'
 
       - name: Verify Android signing identity, schemes and package version
@@ -119,6 +122,7 @@ jobs:
           "$APKSIGNER" verify --verbose --print-certs "$APK" | tee /tmp/apksigner.txt
           actual="$(sed -n 's/^Signer #1 certificate SHA-256 digest: //p' /tmp/apksigner.txt | head -n1 | tr 'A-F' 'a-f' | tr -d ':[:space:]')"
           test "$actual" = '43695b6103d7ab57e89166c9a537f1810b7e33053e20332b1d4e7e2e1c612671'
+          grep -q '^Verified using v1 scheme (JAR signing): false$' /tmp/apksigner.txt
           grep -q '^Verified using v2 scheme (APK Signature Scheme v2): true$' /tmp/apksigner.txt
           grep -q '^Verified using v3 scheme (APK Signature Scheme v3): true$' /tmp/apksigner.txt
           "$AAPT" dump badging "$APK" | tee /tmp/aapt.txt
