@@ -1,0 +1,215 @@
+name: MUSITU Store Phase 1 v1.0.1 Runtime Recovery
+
+on:
+  push:
+    branches: [musitu-store-phase1-20260909]
+    paths:
+      - '.github/workflows/musitu-store-phase1-v101-runtime-recovery.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: musitu-store-phase1-production
+  cancel-in-progress: false
+
+jobs:
+  recover:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      ZONE_ID: 5b56528f03948ff5917a5e0cd9f7109e
+      ZONE_NAME: mftintelligence.com
+      PAYMENTS_HOST: payments.mftintelligence.com
+      PAYMENTS_ORIGIN: mft-paynow-transport-gateway
+      STORE_WORKER: musitu-store-phase1
+      STORE_ROUTE: payments.mftintelligence.com/store*
+      STORE_BUCKET: musitu-store-phase1-releases
+      SEALED_MAIN: d6a846f6bbe0bccac1758713eb4de167caf07113
+      TRUE_RUNTIME_COMMIT: 425831b3efd66b1b426e70df39c8868a83ed8ddc
+      STALE_ROLLBACK_COMMIT: cdf2849ee5329245bce696729dfb0e388ada8a25
+      TRUE_WORKER_BLOB: d165cd02494d9d1977825ec68c560e09991a779e
+      RENDER_BLOB: 4033091c82bc37a017280ab1a26c08a1fb9ba993
+      ASSETS_BLOB: 295a5d7c14b76e6534ec5174d58551a8ac3045b8
+      GENERATOR_BLOB: 4ff20109c824a62c5cf3ad1a6583022f60b365f0
+      REV1_CATALOG_SHA: cdfe7943d2b6256fac273a3b27bec6de6cc00449093e5ba169725d4308bd06b9
+      OLD_STORE_SHA: 71391bf614cc1186cbe1fda17e9e626aad71d96dbf26807228b73bd2ea99b2f8
+      OLD_STORE_BYTES: '1687882'
+      NEW_STORE_SHA: b755210f303ebb6d22a3177bb21e5ebae2e076901021ee62ca2fe6ab0f14af82
+      CHEMISTRY_SHA: 4ba442122d9c86a0c3cef660334fe337c6ea9ae6fe853c964b5e94961245babd
+      CHEMISTRY_BYTES: '5892286'
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Reconstruct exact proven rev1 runtime generation and current contained rollback generation
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF_NAME" = 'musitu-store-phase1-20260909'
+          remote_tip="$(git ls-remote origin 'refs/heads/musitu-store-phase1-20260909' | awk '{print $1}')"
+          test "$remote_tip" = "$GITHUB_SHA"
+          git fetch --quiet origin main
+          test "$(git rev-parse origin/main)" = "$SEALED_MAIN"
+
+          test "$(git rev-parse "$TRUE_RUNTIME_COMMIT:store/phase1/web-surface/worker.mjs")" = "$TRUE_WORKER_BLOB"
+          test "$(git rev-parse "$TRUE_RUNTIME_COMMIT:store/phase1/web-surface/render.mjs")" = "$RENDER_BLOB"
+          test "$(git rev-parse "$TRUE_RUNTIME_COMMIT:store/phase1/web-surface/assets.mjs")" = "$ASSETS_BLOB"
+          test "$(git rev-parse "$TRUE_RUNTIME_COMMIT:store/phase1/web-surface/build_store_data.py")" = "$GENERATOR_BLOB"
+
+          rm -rf /tmp/store-true-runtime /tmp/store-stale-rollback
+          git worktree add --detach /tmp/store-true-runtime "$TRUE_RUNTIME_COMMIT"
+          git worktree add --detach /tmp/store-stale-rollback "$STALE_ROLLBACK_COMMIT"
+          (cd /tmp/store-true-runtime && python store/phase1/web-surface/build_store_data.py)
+          (cd /tmp/store-stale-rollback && python store/phase1/web-surface/build_store_data.py)
+
+          for root in /tmp/store-true-runtime /tmp/store-stale-rollback; do
+            test "$(sha256sum "$root/store/phase1/catalog.json" | awk '{print $1}')" = "$REV1_CATALOG_SHA"
+            for f in worker.mjs render.mjs assets.mjs generated-data.mjs; do
+              test -s "$root/store/phase1/web-surface/$f"
+            done
+          done
+          echo EXACT_RUNTIME_GENERATIONS=PASS
+
+      - name: Recover true production runtime generation with fail-closed rollback
+        id: recover
+        continue-on-error: true
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$CLOUDFLARE_EMAIL"
+          test -n "$CLOUDFLARE_GLOBAL_API_KEY"
+          mkdir -p /tmp/store-runtime-recovery-evidence
+          python - <<'PY'
+          import hashlib,json,os,pathlib,secrets,time,urllib.error,urllib.parse,urllib.request
+
+          API='https://api.cloudflare.com/client/v4'; AID=os.environ['ACCOUNT_ID']; ZID=os.environ['ZONE_ID']
+          HOST=os.environ['PAYMENTS_HOST']; ORIGIN=os.environ['PAYMENTS_ORIGIN']; WORKER=os.environ['STORE_WORKER']; ROUTE=os.environ['STORE_ROUTE']; BUCKET=os.environ['STORE_BUCKET']; BASE='https://'+HOST
+          TRUE=pathlib.Path('/tmp/store-true-runtime/store/phase1/web-surface'); STALE=pathlib.Path('/tmp/store-stale-rollback/store/phase1/web-surface'); OUT=pathlib.Path('/tmp/store-runtime-recovery-evidence')
+          AUTH={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY'],'Accept':'application/json','User-Agent':'MUSITU-Store-Runtime-Recovery/1.0'}
+          state={'mutated':False,'rollback_performed':False}; checks={}
+          def sha(b): return hashlib.sha256(b).hexdigest()
+          def req(url,method='GET',headers=None,body=None,timeout=90):
+              q=urllib.request.Request(url,headers=dict(headers or {}),method=method,data=body)
+              try:
+                  with urllib.request.urlopen(q,timeout=timeout) as r:return r.status,r.headers,r.read()
+              except urllib.error.HTTPError as e:return e.code,e.headers,e.read()
+          def cf(path,method='GET',obj=None):
+              h=dict(AUTH); body=None
+              if obj is not None:h['Content-Type']='application/json';body=json.dumps(obj,separators=(',',':')).encode()
+              c,_,b=req(API+path,method,h,body)
+              if not 200<=c<300:raise RuntimeError(f'Cloudflare {method} {path} HTTP {c}: '+b[:300].decode('utf-8','ignore'))
+              o=json.loads(b or b'{}')
+              if isinstance(o,dict) and o.get('success') is False:raise RuntimeError('Cloudflare success=false '+path+' '+str(o.get('errors'))[:300])
+              return o.get('result') if isinstance(o,dict) else None
+          def pub(path,accept='*/*'):
+              return req(BASE+path,'GET',{'Accept':accept,'User-Agent':'MUSITU-Store-Runtime-Recovery-Probe/1.0','Cache-Control':'no-cache','Pragma':'no-cache'})
+          def multipart(root):
+              boundary='----MUSITU'+secrets.token_hex(18); parts=[]
+              def add(v):parts.append(v.encode() if isinstance(v,str) else v)
+              md={'main_module':'worker.mjs','compatibility_date':'2026-09-09','bindings':[{'type':'r2_bucket','name':'STORE_RELEASES','bucket_name':BUCKET},{'type':'plain_text','name':'STORE_RUNTIME_PUBLICATION_STATE','text':'production'}]}
+              add(f'--{boundary}\r\nContent-Disposition: form-data; name="metadata"\r\nContent-Type: application/json\r\n\r\n');add(json.dumps(md,separators=(',',':')));add('\r\n')
+              for n in ('worker.mjs','render.mjs','assets.mjs','generated-data.mjs'):
+                  add(f'--{boundary}\r\nContent-Disposition: form-data; name="{n}"; filename="{n}"\r\nContent-Type: application/javascript+module\r\n\r\n');add((root/n).read_bytes());add('\r\n')
+              add(f'--{boundary}--\r\n'); return boundary,b''.join(parts)
+          def upload(root):
+              boundary,body=multipart(root); h=dict(AUTH); h['Content-Type']='multipart/form-data; boundary='+boundary
+              c,_,b=req(f'{API}/accounts/{AID}/workers/scripts/{urllib.parse.quote(WORKER,safe="")}', 'PUT',h,body,120)
+              if not 200<=c<300:raise RuntimeError('Worker upload HTTP '+str(c)+' '+b[:400].decode('utf-8','ignore'))
+          def topology():
+              domains=cf(f'/accounts/{AID}/workers/domains') or []; dm=[d for d in domains if isinstance(d,dict) and d.get('hostname')==HOST]
+              if len(dm)!=1 or dm[0].get('service')!=ORIGIN:raise RuntimeError('payments Custom Domain drift')
+              routes=cf(f'/zones/{ZID}/workers/routes') or []; exact=[r for r in routes if isinstance(r,dict) and r.get('pattern')==ROUTE]
+              if len(exact)!=1 or exact[0].get('script')!=WORKER:raise RuntimeError('Store route drift')
+              settings=cf(f'/accounts/{AID}/workers/scripts/{urllib.parse.quote(WORKER,safe="")}/settings') or {}; bs={x.get('name'):x for x in settings.get('bindings') or [] if isinstance(x,dict)}
+              if set(bs)!={'STORE_RELEASES','STORE_RUNTIME_PUBLICATION_STATE'}:raise RuntimeError('Store bindings drift')
+              if (bs['STORE_RELEASES'].get('bucket_name')!=BUCKET or bs['STORE_RELEASES'].get('type')!='r2_bucket' or bs['STORE_RUNTIME_PUBLICATION_STATE'].get('type')!='plain_text' or bs['STORE_RUNTIME_PUBLICATION_STATE'].get('text')!='production'):raise RuntimeError('Store binding values drift')
+              return exact[0].get('id')
+          def chemistry():
+              c,_,b=pub('/chemistry/healthz','application/json')
+              if c!=200 or json.loads(b or b'{}').get('ok') is not True:raise RuntimeError('Chemistry health drift')
+              c,_,b=pub('/chemistry/download/MUSITU_Chemistry_Mastery_1.3.0.apk','application/vnd.android.package-archive')
+              if c!=200 or len(b)!=int(os.environ['CHEMISTRY_BYTES']) or sha(b)!=os.environ['CHEMISTRY_SHA']:raise RuntimeError('Chemistry APK drift')
+          def release_invariants(expect_true_runtime):
+              route_id=topology()
+              c,_,b=pub('/store/catalog.json','application/json')
+              if c!=200 or sha(b)!=os.environ['REV1_CATALOG_SHA']:raise RuntimeError('rev1 catalog drift')
+              c,_,b=pub('/store/bootstrap/MUSITU_Store_1.0.0.apk','application/vnd.android.package-archive')
+              if c!=200 or len(b)!=int(os.environ['OLD_STORE_BYTES']) or sha(b)!=os.environ['OLD_STORE_SHA']:raise RuntimeError('Store 1.0.0 drift')
+              c,_,_=pub('/store/bootstrap/MUSITU_Store_1.0.1.apk','application/vnd.android.package-archive')
+              if c!=404:raise RuntimeError('Store 1.0.1 unexpectedly public')
+              c,_,b=pub('/store/healthz','application/json')
+              if c!=200:raise RuntimeError('Store health unavailable')
+              h=json.loads(b or b'{}')
+              if h.get('phase2_authorized') is not False or h.get('fresh_device_phase1_complete') is not False:raise RuntimeError('phase boundary drift')
+              if expect_true_runtime:
+                  if h.get('runtime_publication_state')!='production' or h.get('catalog_publication_state')!='private-predeployment' or h.get('production_deployed') is not True or 'publication_state' in h:raise RuntimeError('true production runtime contract not visible: '+repr(h))
+              else:
+                  if h.get('catalog_revision')!=1:raise RuntimeError('contained rev1 health drift')
+              chemistry(); return route_id,h
+          def write(gate,error=None,rollback_error=None):
+              o={'schema':'musitu.store.phase1.runtime_recovery.v1','head_sha':os.environ['GITHUB_SHA'],'true_runtime_commit':os.environ['TRUE_RUNTIME_COMMIT'],'stale_rollback_commit':os.environ['STALE_ROLLBACK_COMMIT'],'gate':gate,'mutated':state['mutated'],'rollback_performed':state['rollback_performed'],'phase2_authorized':False,'fresh_device_phase1_complete':False,'checks':checks,'error':error,'rollback_error':rollback_error}
+              raw=(json.dumps(o,indent=2,sort_keys=True)+'\n').encode(); OUT.joinpath('recovery.json').write_bytes(raw); OUT.joinpath('recovery.sha256').write_text(sha(raw)+'  recovery.json\n')
+
+          primary=None; rb_error=None
+          try:
+              route_before,health_before=release_invariants(False); checks['pre_route_id']=route_before; checks['pre_health']=health_before
+              upload(TRUE); state['mutated']=True
+              ready=None
+              for _ in range(30):
+                  try:
+                      route_after,h=release_invariants(True)
+                      if route_after==route_before:ready=(route_after,h);break
+                  except Exception:pass
+                  time.sleep(2)
+              if ready is None:raise RuntimeError('exact true production runtime generation did not become ready')
+              checks['post_route_id']=ready[0]; checks['post_health']=ready[1]; checks['chemistry_preserved']=True
+              write('MUSITU_STORE_REV1_RUNTIME_RECOVERY_PASS')
+          except Exception as exc:
+              primary=repr(exc)
+              if state['mutated']:
+                  state['rollback_performed']=True
+                  try:
+                      upload(STALE)
+                      time.sleep(3)
+                      release_invariants(False)
+                  except Exception as rb:rb_error=repr(rb)
+              write('MUSITU_STORE_REV1_RUNTIME_RECOVERY_FAIL',primary,rb_error)
+              raise SystemExit('PRIMARY_ERROR='+primary+(' ROLLBACK_ERROR='+rb_error if rb_error else ''))
+          PY
+
+      - name: Upload runtime recovery evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: musitu-store-v101-runtime-recovery-evidence
+          path: /tmp/store-runtime-recovery-evidence
+          retention-days: 90
+          if-no-files-found: error
+
+      - name: Enforce recovery result
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          test '${{ steps.recover.outcome }}' = 'success'
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          o=json.loads(Path('/tmp/store-runtime-recovery-evidence/recovery.json').read_text())
+          assert o['gate']=='MUSITU_STORE_REV1_RUNTIME_RECOVERY_PASS'
+          assert o['phase2_authorized'] is False
+          assert o['fresh_device_phase1_complete'] is False
+          assert o['checks']['chemistry_preserved'] is True
+          print('RUNTIME_RECOVERY_GATE=PASS')
+          PY
