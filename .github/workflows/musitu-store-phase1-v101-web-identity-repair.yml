@@ -30,7 +30,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test "$(git rev-parse HEAD^)" = "ce2f042baed0b2ac1ccf3da87b0d039d5460fed5"
+          test "$(git rev-parse HEAD^)" = "7898b9b67b73c17a2547cc9144e2ed4ef643a93c"
           git fetch --quiet origin main
           test "$(git rev-parse origin/main)" = "d6a846f6bbe0bccac1758713eb4de167caf07113"
           echo 'CONTINUATION_PARENT=PASS'
@@ -55,7 +55,7 @@ jobs:
           tests=Path('store/phase1/web-surface/storefront.test.mjs')
           text=tests.read_text()
           replacements={
-            r'/MUSITU_Store_1\\.0\\.0\\.apk/': r'/MUSITU_Store_1\\.0\\.1\\.apk/',
+            '/MUSITU_Store_1\\.0\\.0\\.apk/': '/MUSITU_Store_1\\.0\\.1\\.apk/',
             '71391bf614cc1186cbe1fda17e9e626aad71d96dbf26807228b73bd2ea99b2f8': 'b755210f303ebb6d22a3177bb21e5ebae2e076901021ee62ca2fe6ab0f14af82',
             'assert.equal(o.catalog_revision,1);': 'assert.equal(o.catalog_revision,2);',
           }
