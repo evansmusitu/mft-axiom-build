@@ -13,7 +13,7 @@
      buildTypes {
 --- a/store/phase1/android-client/app/src/main/java/com/musitu/store/StoreCore.java
 +++ b/store/phase1/android-client/app/src/main/java/com/musitu/store/StoreCore.java
-@@ -30,15 +30,15 @@ final class StoreCore {
+@@ -30,16 +30,16 @@ final class StoreCore {
    static PublicKey publicKey() throws Exception {
      String b64=PUB_PEM.replace("-----BEGIN PUBLIC KEY-----","").replace("-----END PUBLIC KEY-----","").replaceAll("\\s","");
 -    return KeyFactory.getInstance("EC").generatePublic(new X509EncodedKeySpec(Base64.getDecoder().decode(b64)));
