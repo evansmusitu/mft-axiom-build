@@ -4,6 +4,7 @@ from dataclasses import asdict, dataclass
 from typing import Any, Mapping, Sequence
 
 from .core import FrontierSafetyError, parse_time, sha256
+from .evaluation import SealedCaseResult, SealedEvaluation
 
 
 TRUSTED_EXTERNAL_PROVENANCE = frozenset({"provider_export", "provider_api_receipt", "independent_lab_record"})
@@ -30,16 +31,115 @@ class ExternalRunRecord:
 
     def __post_init__(self) -> None:
         parse_time(self.executed_at)
-        hashes = (self.case_set_hash, self.constraint_hash, self.permissions_hash, self.result_hash,
-                  self.raw_evidence_hash, self.candidate_environment_hash)
+        hashes = (
+            self.case_set_hash,
+            self.constraint_hash,
+            self.permissions_hash,
+            self.result_hash,
+            self.raw_evidence_hash,
+            self.candidate_environment_hash,
+        )
         if any(len(x) != 64 for x in hashes):
             raise ValueError("external run hashes must be SHA-256")
-        if not self.provider_org or not self.product or not self.exact_version:
-            raise ValueError("exact external provider/product/version required")
+        if not self.run_id or not self.provider_org or not self.product or not self.exact_version:
+            raise ValueError("exact external provider/product/version/run identity required")
 
     @property
     def independently_grounded(self) -> bool:
         return self.authenticated and self.provenance_type in TRUSTED_EXTERNAL_PROVENANCE
+
+
+@dataclass(frozen=True)
+class ComparativeOutcome:
+    """Paired candidate-vs-baseline result bound to one authenticated external run."""
+
+    provider_org: str
+    external_run_id: str
+    candidate_sha: str
+    case_set_hash: str
+    constraint_hash: str
+    external_result_hash: str
+    raw_external_evidence_hash: str
+    matched_cases: int
+    mean_delta: float
+    ci_low_delta: float
+    ci_high_delta: float
+    candidate_wins: int
+    baseline_wins: int
+    ties: int
+
+    def __post_init__(self) -> None:
+        for value in (
+            self.case_set_hash,
+            self.constraint_hash,
+            self.external_result_hash,
+            self.raw_external_evidence_hash,
+        ):
+            if len(value) != 64:
+                raise ValueError("comparison provenance hashes must be SHA-256")
+        if self.matched_cases < 5:
+            raise ValueError("at least five matched sealed cases required")
+        if self.candidate_wins + self.baseline_wins + self.ties != self.matched_cases:
+            raise ValueError("comparison counts do not sum to matched cases")
+        if self.ci_low_delta > self.ci_high_delta:
+            raise ValueError("invalid comparison confidence interval")
+
+    @property
+    def statistically_positive(self) -> bool:
+        return self.mean_delta > 0.0 and self.ci_low_delta > 0.0
+
+    @property
+    def fingerprint(self) -> str:
+        return sha256(asdict(self))
+
+    @classmethod
+    def from_paired_results(
+        cls,
+        run: ExternalRunRecord,
+        candidate: Sequence[SealedCaseResult],
+        baseline: Sequence[SealedCaseResult],
+        *,
+        confidence: float = 0.95,
+        bootstrap_samples: int = 4000,
+    ) -> "ComparativeOutcome":
+        if not run.independently_grounded:
+            raise FrontierSafetyError("comparison requires authenticated external run provenance")
+        candidate_fps = sorted(x.case_fingerprint for x in candidate)
+        baseline_fps = sorted(x.case_fingerprint for x in baseline)
+        if candidate_fps != baseline_fps:
+            raise FrontierSafetyError("candidate and baseline must use identical sealed cases")
+        derived_case_set_hash = sha256({
+            "case_fingerprints": candidate_fps,
+            "constraint_hash": run.constraint_hash,
+        })
+        if derived_case_set_hash != run.case_set_hash:
+            raise FrontierSafetyError("sealed case set does not match authenticated external run")
+        derived_result_hash = sha256([asdict(x) for x in sorted(baseline, key=lambda x: x.case_fingerprint)])
+        if derived_result_hash != run.result_hash:
+            raise FrontierSafetyError("baseline results do not match authenticated external result hash")
+        comparison = SealedEvaluation.paired_comparison(
+            candidate,
+            baseline,
+            confidence=confidence,
+            bootstrap_samples=bootstrap_samples,
+        )
+        lo, hi = comparison["bootstrap_ci"]
+        return cls(
+            provider_org=run.provider_org,
+            external_run_id=run.run_id,
+            candidate_sha=run.candidate_sha,
+            case_set_hash=run.case_set_hash,
+            constraint_hash=run.constraint_hash,
+            external_result_hash=run.result_hash,
+            raw_external_evidence_hash=run.raw_evidence_hash,
+            matched_cases=int(comparison["matched_cases"]),
+            mean_delta=float(comparison["mean_delta"]),
+            ci_low_delta=float(lo),
+            ci_high_delta=float(hi),
+            candidate_wins=int(comparison["candidate_wins"]),
+            baseline_wins=int(comparison["baseline_wins"]),
+            ties=int(comparison["ties"]),
+        )
 
 
 @dataclass(frozen=True)
@@ -54,6 +154,8 @@ class IndependentValidationRecord:
 
     def __post_init__(self) -> None:
         parse_time(self.validated_at)
+        if len(self.case_set_hash) != 64 or len(self.reproduction_hash) != 64:
+            raise ValueError("independent validation hashes must be SHA-256")
 
 
 @dataclass(frozen=True)
@@ -68,6 +170,14 @@ class LongitudinalRefreshRecord:
 
     def __post_init__(self) -> None:
         parse_time(self.executed_at)
+        hashes = (
+            self.baseline_registry_hash,
+            self.retained_failure_corpus_hash,
+            self.drift_report_hash,
+            self.replacement_governance_hash,
+        )
+        if any(len(x) != 64 for x in hashes):
+            raise ValueError("longitudinal evidence hashes must be SHA-256")
 
 
 class ExternalEvidenceGate:
@@ -83,58 +193,204 @@ class ExternalEvidenceGate:
         candidate_shas = {r.candidate_sha for r in grounded}
         providers = {r.provider_org.lower() for r in grounded}
         reasons = []
-        if len(case_hashes) != 1: reasons.append("case_sets_not_identical")
-        if len(constraint_hashes) != 1: reasons.append("constraints_not_identical")
-        if len(candidate_shas) != 1: reasons.append("candidate_sha_not_identical")
-        if len(providers) < required_provider_orgs: reasons.append("insufficient_independent_providers")
+        if len(case_hashes) != 1:
+            reasons.append("case_sets_not_identical")
+        if len(constraint_hashes) != 1:
+            reasons.append("constraints_not_identical")
+        if len(candidate_shas) != 1:
+            reasons.append("candidate_sha_not_identical")
+        if len(providers) < required_provider_orgs:
+            reasons.append("insufficient_independent_providers")
         if any(r.provenance_type not in TRUSTED_EXTERNAL_PROVENANCE or not r.authenticated for r in grounded):
             reasons.append("untrusted_external_provenance")
-        return {"status": "PASS" if not reasons else "FAIL", "level": 5, "reasons": reasons,
-                "provider_orgs": sorted(providers), "run_count": len(grounded),
-                "evidence_sha256": sha256([asdict(r) for r in sorted(grounded, key=lambda x: x.run_id)])}
+        return {
+            "status": "PASS" if not reasons else "FAIL",
+            "level": 5,
+            "reasons": reasons,
+            "provider_orgs": sorted(providers),
+            "run_ids": sorted(r.run_id for r in grounded),
+            "run_count": len(grounded),
+            "candidate_sha": next(iter(candidate_shas)) if len(candidate_shas) == 1 else None,
+            "case_set_hash": next(iter(case_hashes)) if len(case_hashes) == 1 else None,
+            "constraint_hash": next(iter(constraint_hashes)) if len(constraint_hashes) == 1 else None,
+            "evidence_sha256": sha256([asdict(r) for r in sorted(grounded, key=lambda x: x.run_id)]),
+        }
 
     @staticmethod
     def level6(level5: Mapping[str, Any], validations: Sequence[IndependentValidationRecord]) -> dict[str, Any]:
         good = [v for v in validations if v.passed and v.provenance_type in TRUSTED_EXTERNAL_PROVENANCE]
         reasons = []
-        if level5.get("status") != "PASS": reasons.append("level5_not_passed")
-        if not good: reasons.append("no_independent_end_to_end_reproduction")
-        return {"status": "PASS" if not reasons else "FAIL", "level": 6, "reasons": reasons,
-                "validators": sorted({v.validator_org for v in good}), "validation_count": len(good)}
+        if level5.get("status") != "PASS":
+            reasons.append("level5_not_passed")
+        expected_candidate = level5.get("candidate_sha")
+        expected_cases = level5.get("case_set_hash")
+        bound = [v for v in good if v.candidate_sha == expected_candidate and v.case_set_hash == expected_cases]
+        if not bound:
+            reasons.append("no_independent_end_to_end_reproduction")
+        return {
+            "status": "PASS" if not reasons else "FAIL",
+            "level": 6,
+            "reasons": reasons,
+            "validators": sorted({v.validator_org for v in bound}),
+            "validation_count": len(bound),
+        }
 
     @staticmethod
-    def level7(level6: Mapping[str, Any], refreshes: Sequence[LongitudinalRefreshRecord], *, min_refreshes: int = 3) -> dict[str, Any]:
+    def level7(
+        level6: Mapping[str, Any],
+        refreshes: Sequence[LongitudinalRefreshRecord],
+        *,
+        min_refreshes: int = 3,
+    ) -> dict[str, Any]:
         passed = [r for r in refreshes if r.passed]
         reasons = []
-        if level6.get("status") != "PASS": reasons.append("level6_not_passed")
-        if len(passed) < min_refreshes: reasons.append("insufficient_longitudinal_refreshes")
+        if level6.get("status") != "PASS":
+            reasons.append("level6_not_passed")
+        if len(passed) < min_refreshes:
+            reasons.append("insufficient_longitudinal_refreshes")
         if len({r.baseline_registry_hash for r in passed}) < 2 and len(passed) >= min_refreshes:
             reasons.append("baselines_not_refreshed")
-        return {"status": "PASS" if not reasons else "FAIL", "level": 7, "reasons": reasons,
-                "refresh_count": len(passed)}
+        return {
+            "status": "PASS" if not reasons else "FAIL",
+            "level": 7,
+            "reasons": reasons,
+            "refresh_count": len(passed),
+            "refresh_evidence_sha256": sha256([asdict(r) for r in sorted(passed, key=lambda x: x.refresh_id)]),
+        }
 
 
 class ClaimBoundary:
-    BROAD_CLAIMS = frozenset({"world best", "global frontier leader", "better than openai", "better than anthropic",
-                              "better than google", "superior to all systems", "frontier-leading", "crowned"})
+    BROAD_CLAIMS = frozenset({
+        "world best",
+        "global frontier leader",
+        "better than openai",
+        "better than anthropic",
+        "better than google",
+        "superior to all systems",
+        "frontier-leading",
+        "crowned",
+    })
 
     @classmethod
-    def authorize(cls, requested_claim: str, *, level5: Mapping[str, Any], level6: Mapping[str, Any],
-                  level7: Mapping[str, Any], comparison_scope: str | None, benchmark_hash: str | None) -> dict[str, Any]:
+    def authorize(
+        cls,
+        requested_claim: str,
+        *,
+        level5: Mapping[str, Any],
+        level6: Mapping[str, Any],
+        level7: Mapping[str, Any],
+        comparison_scope: str | None,
+        benchmark_hash: str | None,
+        comparative_outcomes: Sequence[ComparativeOutcome] = (),
+        required_provider_orgs: Sequence[str] = (),
+    ) -> dict[str, Any]:
         normalized = requested_claim.strip().lower()
         broad = any(token in normalized for token in cls.BROAD_CLAIMS)
         max_level = 4
-        if level5.get("status") == "PASS": max_level = 5
-        if level6.get("status") == "PASS": max_level = 6
-        if level7.get("status") == "PASS": max_level = 7
+        if level5.get("status") == "PASS":
+            max_level = 5
+        if level6.get("status") == "PASS":
+            max_level = 6
+        if level7.get("status") == "PASS":
+            max_level = 7
         if broad and max_level < 7:
-            return {"status": "DENY", "max_evidence_level": max_level, "reason": "broad_frontier_claim_not_proven"}
+            return {
+                "status": "DENY",
+                "max_evidence_level": max_level,
+                "reason": "broad_frontier_claim_not_proven",
+            }
         if max_level < 5:
-            return {"status": "DENY", "max_evidence_level": max_level, "reason": "authenticated_external_comparison_missing"}
+            return {
+                "status": "DENY",
+                "max_evidence_level": max_level,
+                "reason": "authenticated_external_comparison_missing",
+            }
         if not comparison_scope or not benchmark_hash or len(benchmark_hash) != 64:
-            return {"status": "DENY", "max_evidence_level": max_level, "reason": "comparison_scope_or_benchmark_missing"}
+            return {
+                "status": "DENY",
+                "max_evidence_level": max_level,
+                "reason": "comparison_scope_or_benchmark_missing",
+            }
+
+        expected_providers = {str(x).lower() for x in level5.get("provider_orgs", [])}
+        expected_runs = {str(x) for x in level5.get("run_ids", [])}
+        expected_candidate = level5.get("candidate_sha")
+        expected_cases = level5.get("case_set_hash")
+        expected_constraints = level5.get("constraint_hash")
+        if not comparative_outcomes:
+            return {
+                "status": "DENY",
+                "max_evidence_level": max_level,
+                "reason": "comparative_win_evidence_missing",
+            }
+
+        reasons = []
+        positive_providers: set[str] = set()
+        outcome_runs: set[str] = set()
+        fingerprints: list[str] = []
+        for outcome in comparative_outcomes:
+            provider = outcome.provider_org.lower()
+            fingerprints.append(outcome.fingerprint)
+            outcome_runs.add(outcome.external_run_id)
+            if provider not in expected_providers:
+                reasons.append("comparison_provider_not_in_level5_evidence")
+            if outcome.external_run_id not in expected_runs:
+                reasons.append("comparison_run_not_in_level5_evidence")
+            if outcome.candidate_sha != expected_candidate:
+                reasons.append("comparison_candidate_sha_mismatch")
+            if outcome.case_set_hash != expected_cases:
+                reasons.append("comparison_case_set_mismatch")
+            if outcome.constraint_hash != expected_constraints:
+                reasons.append("comparison_constraint_mismatch")
+            if not outcome.statistically_positive:
+                reasons.append("comparative_superiority_not_demonstrated")
+            else:
+                positive_providers.add(provider)
+
+        if positive_providers != expected_providers:
+            reasons.append("positive_comparison_provider_coverage_incomplete")
+        if outcome_runs != expected_runs:
+            reasons.append("comparison_run_coverage_incomplete")
+        if reasons:
+            return {
+                "status": "DENY",
+                "max_evidence_level": max_level,
+                "reason": sorted(set(reasons))[0],
+                "reasons": sorted(set(reasons)),
+                "positive_provider_orgs": sorted(positive_providers),
+            }
+
+        required = {str(x).lower() for x in required_provider_orgs}
         if broad:
-            return {"status": "ALLOW", "max_evidence_level": max_level,
-                    "claim_boundary": f"Broad claim permitted only for evidence scope: {comparison_scope}"}
-        return {"status": "ALLOW", "max_evidence_level": max_level,
-                "claim_boundary": f"Evidence supports only: {comparison_scope}; benchmark={benchmark_hash}"}
+            if len(expected_providers) < 4:
+                return {
+                    "status": "DENY",
+                    "max_evidence_level": max_level,
+                    "reason": "broad_provider_coverage_insufficient",
+                }
+            if not required:
+                return {
+                    "status": "DENY",
+                    "max_evidence_level": max_level,
+                    "reason": "broad_provider_scope_not_declared",
+                }
+            if not required.issubset(positive_providers):
+                return {
+                    "status": "DENY",
+                    "max_evidence_level": max_level,
+                    "reason": "required_broad_provider_not_positive",
+                }
+            return {
+                "status": "ALLOW",
+                "max_evidence_level": max_level,
+                "claim_boundary": f"Broad claim permitted only for evidence scope: {comparison_scope}",
+                "positive_provider_orgs": sorted(positive_providers),
+                "comparison_evidence_sha256": sha256(sorted(fingerprints)),
+            }
+        return {
+            "status": "ALLOW",
+            "max_evidence_level": max_level,
+            "claim_boundary": f"Evidence supports only: {comparison_scope}; benchmark={benchmark_hash}",
+            "positive_provider_orgs": sorted(positive_providers),
+            "comparison_evidence_sha256": sha256(sorted(fingerprints)),
+        }
