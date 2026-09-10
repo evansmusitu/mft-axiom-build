@@ -1,0 +1,16 @@
+{
+  "android_unsigned": {
+    "bytes": 1675244,
+    "file": "MUSITU_Store_1.0.2_UNSIGNED.apk",
+    "min_sdk": 24,
+    "package": "com.musitu.store",
+    "sha256": "c2075829bb5a5c41f11e13cbd854cd71f9dc3e502a0f457532cc4e9c2f4a0640",
+    "source_sha": "bd188c7ed357b0cda351c4f3a5df6f4157b6808c",
+    "version": "1.0.2",
+    "version_code": 10002
+  },
+  "fresh_device_phase1_complete": false,
+  "phase2_authorized": false,
+  "private_signing_material_present": false,
+  "schema": "musitu.store.phase1.prebuilt.v102"
+}
