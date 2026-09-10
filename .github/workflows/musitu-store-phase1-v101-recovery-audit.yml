@@ -1,3 +1,4 @@
+# Fresh read-only audit trigger after guarded 1.0.1 attempt and verified automatic rollback.
 name: MUSITU Store Phase 1 v1.0.1 Recovery Audit
 
 on:
@@ -91,7 +92,6 @@ jobs:
           def pub(path,accept='*/*'):
               return req(BASE+path,{'Accept':accept,'User-Agent':'MUSITU-Store-Recovery-Audit/1.0','Cache-Control':'no-cache','Pragma':'no-cache'})
           audit={'schema':'musitu.store.phase1.v101.recovery_audit.v1','head_sha':os.environ['GITHUB_SHA'],'sealed_main':os.environ['SEALED_MAIN'],'writes_performed':False}
-          # Public Store state
           code,h,raw=pub('/store/healthz','application/json'); audit['store_health_http']=code
           try: audit['store_health']=json.loads(raw or b'{}')
           except Exception: audit['store_health_raw_sha256']=sha(raw)
@@ -104,7 +104,6 @@ jobs:
               audit[f'public_apk_{ver}']={'http':code,'bytes':len(raw),'sha256':sha(raw),'expected_match':code==200 and len(raw)==size and sha(raw)==expected,'x_content_sha256':h.get('X-Content-SHA256') or h.get('x-content-sha256')}
           code,_,raw=pub('/store/install','text/html'); audit['install_http']=code; audit['install_mentions_101']=b'MUSITU_Store_1.0.1.apk' in raw; audit['install_mentions_100']=b'MUSITU_Store_1.0.0.apk' in raw
           code,_,raw=pub('/store/sw.js','application/javascript'); audit['sw_http']=code; audit['sw_mentions_101']=b'MUSITU_Store_1.0.1.apk' in raw; audit['sw_mentions_100']=b'MUSITU_Store_1.0.0.apk' in raw
-          # Cloudflare topology
           zones=cf('/zones?name='+urllib.parse.quote(os.environ['ZONE_NAME'])+'&status=active') or []
           audit['zone_exact']=len(zones)==1 and zones[0].get('id')==os.environ['ZONE_ID'] and (zones[0].get('account') or {}).get('id')==os.environ['ACCOUNT_ID']
           domains=cf(f"/accounts/{os.environ['ACCOUNT_ID']}/workers/domains") or []
@@ -117,7 +116,6 @@ jobs:
           audit['worker_bindings']=settings.get('bindings') or []
           sub=cf(f"/accounts/{os.environ['ACCOUNT_ID']}/workers/scripts/{urllib.parse.quote(os.environ['STORE_WORKER'],safe='')}/subdomain") or {}
           audit['worker_subdomain']=sub
-          # Read-only R2 object probes
           def r2_get(key,label):
               p=OUT/(label+'.apk')
               cp=subprocess.run(['npx','-y','wrangler@'+os.environ['WRANGLER_VERSION'],'r2','object','get',os.environ['STORE_BUCKET']+'/'+key,'--remote','--file',str(p)],text=True,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,env=os.environ.copy())
@@ -126,7 +124,6 @@ jobs:
               return {'exists':False,'probe_output_tail':cp.stdout[-300:]}
           audit['r2_old']=r2_get('bootstrap/MUSITU_Store_1.0.0.apk','r2-old')
           audit['r2_new']=r2_get('bootstrap/MUSITU_Store_1.0.1.apk','r2-new')
-          # Chemistry invariants after incident
           code,_,raw=pub('/chemistry/healthz','application/json'); audit['chemistry_health_http']=code
           try: audit['chemistry_health']=json.loads(raw or b'{}')
           except Exception: pass
