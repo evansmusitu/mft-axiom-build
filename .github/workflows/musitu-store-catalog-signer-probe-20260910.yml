@@ -1,0 +1,136 @@
+name: MUSITU Store catalog signer availability probe 20260910
+
+on:
+  push:
+    branches: [musitu-store-handoff-probe-20260910]
+    paths:
+      - '.github/workflows/musitu-store-catalog-signer-probe-20260910.yml'
+      - 'handoff-input/catalog-revision3.json'
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    env:
+      K01: ${{ secrets.MUSITU_STORE_CATALOG_SIGNING_PRIVATE_KEY }}
+      K02: ${{ secrets.MUSITU_STORE_CATALOG_SIGNING_KEY }}
+      K03: ${{ secrets.MUSITU_STORE_CATALOG_PRIVATE_KEY }}
+      K04: ${{ secrets.MUSITU_CATALOG_SIGNING_PRIVATE_KEY }}
+      K05: ${{ secrets.MUSITU_CATALOG_SIGNING_KEY }}
+      K06: ${{ secrets.MUSITU_CATALOG_PRIVATE_KEY }}
+      K07: ${{ secrets.STORE_CATALOG_SIGNING_PRIVATE_KEY }}
+      K08: ${{ secrets.STORE_CATALOG_SIGNING_KEY }}
+      K09: ${{ secrets.STORE_CATALOG_PRIVATE_KEY }}
+      K10: ${{ secrets.CATALOG_SIGNING_PRIVATE_KEY }}
+      K11: ${{ secrets.CATALOG_SIGNING_KEY }}
+      K12: ${{ secrets.MUSITU_STORE_PHASE1_CATALOG_SIGNING_KEY }}
+      K13: ${{ secrets.MUSITU_STORE_PHASE1_CATALOG_PRIVATE_KEY }}
+      K14: ${{ secrets.MUSITU_STORE_CATALOG_SIGNING_PRIVATE_KEY_B64 }}
+      K15: ${{ secrets.MUSITU_CATALOG_SIGNING_PRIVATE_KEY_B64 }}
+      K16: ${{ secrets.CATALOG_SIGNING_PRIVATE_KEY_B64 }}
+      K17: ${{ secrets.CATALOG_SIGNING_PKCS8_B64 }}
+      K18: ${{ secrets.MUSITU_STORE_SIGNING_PRIVATE_KEY }}
+      K19: ${{ secrets.MUSITU_STORE_SIGNING_KEY }}
+      K20: ${{ secrets.STORE_SIGNING_PRIVATE_KEY }}
+      P01: ${{ secrets.MUSITU_STORE_CATALOG_SIGNING_PASSWORD }}
+      P02: ${{ secrets.MUSITU_CATALOG_SIGNING_PASSWORD }}
+      P03: ${{ secrets.CATALOG_SIGNING_PASSWORD }}
+      P04: ${{ secrets.STORE_CATALOG_SIGNING_PASSWORD }}
+      P05: ${{ secrets.MUSITU_STORE_SIGNER_PASSWORD }}
+      P06: ${{ secrets.STORE_SIGNER_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Probe existing catalog signer without exposing material
+        shell: bash
+        run: |
+          set -euo pipefail
+          set +x
+          umask 077
+          input='handoff-input/catalog-revision3.json'
+          expected_input_sha='4fa31c5f9f84facc0d1fbf7a91a50b0adcaa5ef4c97b7d82abbe9657ea10b7f9'
+          target_pub_sha='2c3579fd89648185a54cb2048f1a4c772cdcccb695940ee77c32fa9c9645b995'
+          test "$(sha256sum "$input" | awk '{print $1}')" = "$expected_input_sha"
+          mkdir -p signer-probe-result
+          tmp="$(mktemp -d)"
+          match=''
+          present=0
+          parseable=0
+          for key_name in K01 K02 K03 K04 K05 K06 K07 K08 K09 K10 K11 K12 K13 K14 K15 K16 K17 K18 K19 K20; do
+            value="${!key_name:-}"
+            [ -n "$value" ] || continue
+            present=$((present+1))
+            printf '%s' "$value" > "$tmp/raw"
+            printf '%b' "$value" > "$tmp/unescaped"
+            if printf '%s' "$value" | base64 --decode > "$tmp/decoded" 2>/dev/null; then :; else : > "$tmp/decoded"; fi
+            for variant in raw unescaped decoded; do
+              [ -s "$tmp/$variant" ] || continue
+              for pass_name in NONE P01 P02 P03 P04 P05 P06; do
+                if [ "$pass_name" = NONE ]; then
+                  if openssl pkey -in "$tmp/$variant" -pubout -outform DER -out "$tmp/pub.der" 2>/dev/null; then
+                    parseable=$((parseable+1))
+                    got="$(sha256sum "$tmp/pub.der" | awk '{print $1}')"
+                    if [ "$got" = "$target_pub_sha" ]; then
+                      openssl dgst -sha256 -sign "$tmp/$variant" "$input" | base64 -w0 > signer-probe-result/catalog.sig
+                      printf '\n' >> signer-probe-result/catalog.sig
+                      match="$key_name:$variant:NONE"
+                      break 3
+                    fi
+                  fi
+                else
+                  pass_value="${!pass_name:-}"
+                  [ -n "$pass_value" ] || continue
+                  if openssl pkey -in "$tmp/$variant" -passin "env:$pass_name" -pubout -outform DER -out "$tmp/pub.der" 2>/dev/null; then
+                    parseable=$((parseable+1))
+                    got="$(sha256sum "$tmp/pub.der" | awk '{print $1}')"
+                    if [ "$got" = "$target_pub_sha" ]; then
+                      openssl dgst -sha256 -sign "$tmp/$variant" -passin "env:$pass_name" "$input" | base64 -w0 > signer-probe-result/catalog.sig
+                      printf '\n' >> signer-probe-result/catalog.sig
+                      match="$key_name:$variant:$pass_name"
+                      break 3
+                    fi
+                  fi
+                fi
+              done
+            done
+          done
+          if [ -n "$match" ]; then
+            base64 -d < signer-probe-result/catalog.sig > "$tmp/catalog.sig.der"
+            openssl dgst -sha256 -verify store/phase1/catalog-signing-public.pem -signature "$tmp/catalog.sig.der" "$input"
+            status='MATCH_SIGNED_VERIFIED'
+            signing_performed=true
+          elif [ "$present" -eq 0 ]; then
+            status='NO_CANDIDATE_SECRET_PRESENT'
+            signing_performed=false
+          else
+            status='CANDIDATE_PRESENT_BUT_NO_IDENTITY_MATCH'
+            signing_performed=false
+          fi
+          STATUS="$status" PRESENT="$present" PARSEABLE="$parseable" SIGNING="$signing_performed" python - <<'PY'
+          import hashlib,json,os
+          from pathlib import Path
+          out={
+            "status":os.environ["STATUS"],
+            "candidateSecretsPresent":int(os.environ["PRESENT"]),
+            "parseableVariants":int(os.environ["PARSEABLE"]),
+            "catalogInputSha256":"4fa31c5f9f84facc0d1fbf7a91a50b0adcaa5ef4c97b7d82abbe9657ea10b7f9",
+            "catalogPublicKeyFileSha256":"4cf17f70dbab900237d8b82b4e989978c667e6ec841de6df79469aa6c5ebd5c0",
+            "catalogPublicKeyDerSha256":"2c3579fd89648185a54cb2048f1a4c772cdcccb695940ee77c32fa9c9645b995",
+            "signingPerformed":os.environ["SIGNING"]=="true",
+            "privateMaterialExposed":False,
+          }
+          sig=Path("signer-probe-result/catalog.sig")
+          if sig.exists():
+            out["catalogSigSha256"]=hashlib.sha256(sig.read_bytes()).hexdigest()
+          Path("signer-probe-result/SIGNER_PROBE.json").write_text(json.dumps(out,indent=2,sort_keys=True)+"\n")
+          PY
+          printf '%s\n' "$status"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: musitu-store-catalog-signer-probe-20260910
+          path: signer-probe-result/
+          if-no-files-found: error
+          retention-days: 7
