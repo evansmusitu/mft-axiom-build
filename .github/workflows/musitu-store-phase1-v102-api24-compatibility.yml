@@ -4,6 +4,8 @@ on:
   push:
     branches: [musitu-store-phase1-20260909]
     paths:
+      - 'store/phase1/source-v1.0.2.patch'
+      - 'store/phase1/apply-source-v1.0.2.sh'
       - '.github/workflows/musitu-store-phase1-v102-api24-compatibility.yml'
   workflow_dispatch:
 
