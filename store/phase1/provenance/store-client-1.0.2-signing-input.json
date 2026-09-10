@@ -1,0 +1,59 @@
+{
+  "schema": "musitu.store.client_signing_input.v1",
+  "subject": {
+    "name": "MUSITU Store",
+    "packageId": "com.musitu.store",
+    "version": "1.0.2",
+    "versionCode": 10002,
+    "minSdk": 24
+  },
+  "repositoryBoundary": {
+    "branch": "musitu-store-phase1-20260909",
+    "unsignedCarrierSealHead": "a7238e4200f63073b961f3e910378bf15437caf6",
+    "sealedMain": "d6a846f6bbe0bccac1758713eb4de167caf07113"
+  },
+  "sourceAndProof": {
+    "sourcePromotionHead": "8a5ff15264bb080b6434b4c3b476b55cb40eee82",
+    "checkedSourceApi24ProofHead": "8f1844e33ad60253f121683f9a51d7d32dc2657a",
+    "api24ProofRunId": 34461900045,
+    "api24ProofArtifactId": 10146009178,
+    "api24ProofArtifactZipSha256": "bf8bc99e25152fad391b006a796a9186061de6dc0acf1874fffea9d2b74823a6",
+    "api24CatalogVerification": "PASS"
+  },
+  "unsignedInput": {
+    "file": "MUSITU_Store_1.0.2_UNSIGNED.apk",
+    "bytes": 1675244,
+    "sha256": "c2075829bb5a5c41f11e13cbd854cd71f9dc3e502a0f457532cc4e9c2f4a0640",
+    "prebuildSourceHead": "bd188c7ed357b0cda351c4f3a5df6f4157b6808c"
+  },
+  "requiredExistingSigningIdentity": {
+    "certificateSha256": "43695b6103d7ab57e89166c9a537f1810b7e33053e20332b1d4e7e2e1c612671",
+    "v1Required": false,
+    "v2Required": true,
+    "v3Required": true,
+    "signerReplacementAuthorized": false
+  },
+  "signedOutputAcceptance": {
+    "packageIdMustEqual": "com.musitu.store",
+    "versionMustEqual": "1.0.2",
+    "versionCodeMustEqual": 10002,
+    "signingCertificateSha256MustEqual": "43695b6103d7ab57e89166c9a537f1810b7e33053e20332b1d4e7e2e1c612671",
+    "v1MustVerify": false,
+    "v2MustVerify": true,
+    "v3MustVerify": true,
+    "nonSignaturePayloadMustMatchUnsignedInput": true,
+    "apkSignatureVerificationMustPass": true
+  },
+  "securityBoundary": {
+    "privateSigningMaterialPresentInRepository": false,
+    "privateSigningMaterialMayBeLogged": false,
+    "privateSigningMaterialMayBeReturnedInResponses": false,
+    "signingMustUseAuthorizedOperatorPrivateMechanism": true
+  },
+  "state": {
+    "signingPerformed": false,
+    "productionDeploymentPerformed": false,
+    "freshDevicePhase1Complete": false,
+    "phase2Authorized": false
+  }
+}
