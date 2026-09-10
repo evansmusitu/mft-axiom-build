@@ -102,6 +102,7 @@ class GapClosureTests(unittest.TestCase):
         refreshes=[LongitudinalRefreshRecord(str(i),(NOW+timedelta(days=i*30)).isoformat(), (str(i%2)*64), "1"*64,"2"*64,"3"*64,True) for i in range(3)]
         l7=ExternalEvidenceGate.level7(l6,refreshes); self.assertEqual(l7["status"],"PASS")
 
+
     def test_claim_gate_requires_actual_statistically_positive_comparisons(self):
         fps=[f"{i:064x}" for i in range(10)]
         baseline=[SealedCaseResult(fp,.8) for fp in fps]
