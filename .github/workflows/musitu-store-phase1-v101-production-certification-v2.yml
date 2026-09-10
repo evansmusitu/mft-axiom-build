@@ -1,4 +1,5 @@
 name: MUSITU Store Phase 1 v1.0.1 Production Certification V2
+# Trigger-only marker for fresh read-only certification at current branch head.
 
 on:
   push:
