@@ -54,6 +54,26 @@ jobs:
             echo 'KVM device is not exposed on this runner; emulator action may use its supported fallback.'
           fi
 
+      - name: Prepare API 24 diagnostic wrapper
+        shell: bash
+        run: |
+          set -euo pipefail
+          WRAP="$RUNNER_TEMP/musitu-store-minsdk-with-diagnostics.sh"
+          cat > "$WRAP" <<'BASH'
+          #!/usr/bin/env bash
+          set +e
+          bash .github/scripts/musitu-store-fresh-android-emulator.sh
+          status=$?
+          OUT="${RUNNER_TEMP:-/tmp}/musitu-store-fresh-android"
+          mkdir -p "$OUT"
+          timeout 15s adb logcat -d -v threadtime > "$OUT/api24-final-logcat.txt" 2>&1 || true
+          timeout 10s adb shell dumpsys activity activities > "$OUT/api24-final-activities.txt" 2>&1 || true
+          timeout 10s adb shell dumpsys package com.musitu.store > "$OUT/api24-final-store-package.txt" 2>&1 || true
+          timeout 10s adb shell pidof com.musitu.store > "$OUT/api24-final-store-pid.txt" 2>&1 || true
+          exit "$status"
+          BASH
+          chmod +x "$WRAP"
+
       - name: Fresh API 24 minimum-supported install and launch
         uses: ReactiveCircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d
         with:
@@ -67,7 +87,7 @@ jobs:
           disable-animations: true
           disable-linux-hw-accel: auto
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none
-          script: bash .github/scripts/musitu-store-fresh-android-emulator.sh
+          script: bash "$RUNNER_TEMP/musitu-store-minsdk-with-diagnostics.sh"
 
       - uses: actions/upload-artifact@v4
         if: always()
