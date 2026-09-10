@@ -1,0 +1,105 @@
+name: MUSITU Store Phase 1 Android Catalog Diagnostic V2
+
+on:
+  push:
+    branches: [musitu-store-phase1-20260909]
+    paths:
+      - '.github/workflows/musitu-store-phase1-android-catalog-diagnostic-v2.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  api36-diagnostic:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with: {fetch-depth: 0}
+      - name: Prepare exact 1.0.1 source
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --quiet origin main
+          test "$(git rev-parse origin/main)" = 'd6a846f6bbe0bccac1758713eb4de167caf07113'
+          bash store/phase1/apply-source-v1.0.1.sh
+          grep -q 'versionCode 10001' store/phase1/android-client/app/build.gradle
+          grep -q "versionName '1.0.1'" store/phase1/android-client/app/build.gradle
+      - name: Instrument StoreCore only in the diagnostic workspace
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('store/phase1/android-client/app/src/main/java/com/musitu/store/StoreCore.java')
+          s=p.read_text()
+          assert 'import android.util.Log;' not in s
+          s=s.replace('import android.provider.Settings;','import android.provider.Settings;\nimport android.util.Log;',1)
+          old='int code=c.getResponseCode(); if(code!=200)throw new IOException("HTTP "+code+" "+u);'
+          new='int code=c.getResponseCode(); Log.i("MUSITUStoreDiag","GET "+u+" code="+code+" type="+c.getContentType()+" encoding="+c.getContentEncoding()+" length="+c.getContentLengthLong()+" cache="+c.getHeaderField("Cache-Control")); if(code!=200)throw new IOException("HTTP "+code+" "+u);'
+          assert s.count(old)==1
+          s=s.replace(old,new,1)
+          old='try(InputStream in=c.getInputStream();ByteArrayOutputStream out=new ByteArrayOutputStream()){byte[] b=new byte[32768];for(int n;(n=in.read(b))>0;)out.write(b,0,n);return out.toByteArray();}'
+          new='try(InputStream in=c.getInputStream();ByteArrayOutputStream out=new ByteArrayOutputStream()){byte[] b=new byte[32768];for(int n;(n=in.read(b))>0;)out.write(b,0,n);byte[] raw=out.toByteArray();Log.i("MUSITUStoreDiag","BODY "+u+" bytes="+raw.length+" sha256="+hex(MessageDigest.getInstance("SHA-256").digest(raw)));return raw;}'
+          assert s.count(old)==1
+          s=s.replace(old,new,1)
+          old='byte[] cat=get(CATALOG_URL), sig=Base64.getDecoder().decode(new String(get(SIG_URL),StandardCharsets.UTF_8).trim());\n    if(!verify(cat,sig))throw new SecurityException("catalog signature invalid");'
+          new='byte[] cat=get(CATALOG_URL), sigRaw=get(SIG_URL); Log.i("MUSITUStoreDiag","SIG_TEXT bytes="+sigRaw.length+" sha256="+hex(MessageDigest.getInstance("SHA-256").digest(sigRaw))); byte[] sig=Base64.getDecoder().decode(new String(sigRaw,StandardCharsets.UTF_8).trim()); Log.i("MUSITUStoreDiag","SIG_DECODED bytes="+sig.length+" sha256="+hex(MessageDigest.getInstance("SHA-256").digest(sig))); boolean verified=verify(cat,sig); Log.i("MUSITUStoreDiag","VERIFY result="+verified+" catalogBytes="+cat.length);\n    if(!verified)throw new SecurityException("catalog signature invalid");'
+          assert s.count(old)==1
+          s=s.replace(old,new,1)
+          p.write_text(s)
+          PY
+          git diff --check
+          test "$(git diff --name-only)" = 'store/phase1/android-client/app/src/main/java/com/musitu/store/StoreCore.java'
+      - uses: actions/setup-java@v4
+        with: {distribution: temurin, java-version: '21'}
+      - uses: android-actions/setup-android@v3
+      - run: sdkmanager 'platforms;android-36' 'build-tools;36.0.0'
+      - uses: gradle/actions/setup-gradle@v4
+        with: {gradle-version: '8.11.1'}
+      - name: Build diagnostic debug APK
+        run: gradle -p store/phase1/android-client --no-daemon :app:assembleDebug
+      - name: Enable KVM access when available
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -e /dev/kvm ]]; then
+            echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+            sudo udevadm control --reload-rules
+            sudo udevadm trigger --name-match=kvm
+          fi
+      - name: Run Android transport and signature diagnostic
+        uses: ReactiveCircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d
+        with:
+          api-level: 36
+          target: google_apis
+          arch: x86_64
+          profile: pixel_7_pro
+          cores: 2
+          ram-size: 3072M
+          emulator-boot-timeout: 600
+          disable-animations: true
+          disable-linux-hw-accel: auto
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none
+          script: |
+            set -euo pipefail
+            OUT="$RUNNER_TEMP/musitu-store-catalog-diagnostic-v2"
+            mkdir -p "$OUT"
+            adb logcat -c
+            adb install -r store/phase1/android-client/app/build/outputs/apk/debug/app-debug.apk
+            adb shell am force-stop com.musitu.store
+            adb shell am start -W -n com.musitu.store/.MainActivity | tee "$OUT/launch.txt"
+            sleep 15
+            adb logcat -d -v threadtime > "$OUT/logcat.txt" || true
+            grep 'MUSITUStoreDiag' "$OUT/logcat.txt" | tee "$OUT/diagnostic.txt" || true
+            timeout 8s adb shell uiautomator dump /sdcard/window.xml >/dev/null 2>&1 || true
+            timeout 8s adb pull /sdcard/window.xml "$OUT/window.xml" >/dev/null 2>&1 || true
+            test -s "$OUT/diagnostic.txt"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: musitu-store-phase1-android-catalog-diagnostic-v2
+          path: ${{ runner.temp }}/musitu-store-catalog-diagnostic-v2
+          retention-days: 30
+          if-no-files-found: warn
