@@ -1,0 +1,43 @@
+{
+  "schema": "musitu.store.apk_reconstruction.v1",
+  "release": "MUSITU Store 1.0.2",
+  "package_id": "com.musitu.store",
+  "version": "1.0.2",
+  "version_code": 10002,
+  "sealed_main": "d6a846f6bbe0bccac1758713eb4de167caf07113",
+  "acceptance_contract_head": "9fd567dcc061220b15a689c8f2ecc3d38b8a014c",
+  "source": {
+    "file": "store/phase1/prebuilt/android/MUSITU_Store_1.0.2_UNSIGNED.apk",
+    "sha256": "c2075829bb5a5c41f11e13cbd854cd71f9dc3e502a0f457532cc4e9c2f4a0640",
+    "bytes": 1675244
+  },
+  "delta": {
+    "file": "store-signed.patch.xz.b64",
+    "base64_bytes": 3532,
+    "base64_sha256": "25037591d7d1e20d676bf5b5f584f0b3bfc30647c6f5f48d3a476a6d0f4d1456",
+    "xz_bytes": 2648,
+    "xz_sha256": "24ce0ec4dd1d2d43cbf5c2163838069a4e93f3d5135cfbcc54e7b3b69424c3c7",
+    "patch_bytes": 3084,
+    "patch_sha256": "b653719f1703a84783ea582e9bdbaa153e9338fc782ad486ca6d53f2895f4629"
+  },
+  "target": {
+    "file": "MUSITU_Store_1.0.2.apk",
+    "sha256": "3a0c4b0f971ec84cd6167a137f8e3d75c7bb20e525c26ab533b3d88044cd0784",
+    "bytes": 1679340,
+    "signing_certificate_sha256": "43695b6103d7ab57e89166c9a537f1810b7e33053e20332b1d4e7e2e1c612671",
+    "signing_schemes": {"v1": false, "v2": true, "v3": true},
+    "v3_min_sdk": 28,
+    "v3_max_sdk": 2147483647
+  },
+  "payload_preservation": {
+    "unsigned_reconstructed_exactly_after_signature_block_removal": true,
+    "zip_entry_names_identical": true,
+    "zip_entry_payloads_identical": true,
+    "legacy_v1_signature_entries_present": false
+  },
+  "private_key_required": false,
+  "private_material_published": false,
+  "production_deployment_performed": false,
+  "fresh_device_phase1_complete": false,
+  "phase2_authorized": false
+}

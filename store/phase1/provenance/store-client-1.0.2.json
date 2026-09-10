@@ -1,0 +1,34 @@
+{
+  "schema": "musitu.store.client_signed_release.v1",
+  "product": "MUSITU Store",
+  "packageId": "com.musitu.store",
+  "version": "1.0.2",
+  "versionCode": 10002,
+  "minSdk": 24,
+  "targetSdk": 36,
+  "acceptanceContractHead": "9fd567dcc061220b15a689c8f2ecc3d38b8a014c",
+  "unsignedCarrierSealHead": "a7238e4200f63073b961f3e910378bf15437caf6",
+  "unsigned": {
+    "sha256": "c2075829bb5a5c41f11e13cbd854cd71f9dc3e502a0f457532cc4e9c2f4a0640",
+    "bytes": 1675244
+  },
+  "signed": {
+    "sha256": "3a0c4b0f971ec84cd6167a137f8e3d75c7bb20e525c26ab533b3d88044cd0784",
+    "bytes": 1679340,
+    "certificateSha256": "43695b6103d7ab57e89166c9a537f1810b7e33053e20332b1d4e7e2e1c612671",
+    "schemes": {"v1": false, "v2": true, "v3": true},
+    "contentDigestSha256": "6a5ef2eb9a3ea419113bfb52425eff3c3dfb894cb877aeccc61f7bdcaef7fef5"
+  },
+  "payloadPreservation": {
+    "unsignedReconstructedExactlyAfterSignatureBlockRemoval": true,
+    "zipEntryNamesIdentical": true,
+    "zipEntryPayloadsIdentical": true,
+    "legacyV1SignatureEntriesPresent": false
+  },
+  "offlineSigningPerformed": true,
+  "signerReplaced": false,
+  "privateMaterialPublished": false,
+  "productionDeploymentPerformed": false,
+  "freshDevicePhase1Complete": false,
+  "phase2Authorized": false
+}
