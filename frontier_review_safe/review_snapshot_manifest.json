@@ -1,0 +1,56 @@
+{
+  "schema": "musitu.axiom.openai-review-snapshot.v1",
+  "authoritative_frontier_sha": "d9196774a9fff3150922e2cb681d16e2423651da",
+  "authoritative_root_tree_sha": "6bddc3297bcc1eb81c007d0a630e557ca2f61687",
+  "sealed_main_sha": "d6a846f6bbe0bccac1758713eb4de167caf07113",
+  "public_tool_count": 108,
+  "certified_runtime_operation_count": 74,
+  "business_product_count": 30,
+  "required_scopes": ["openid", "email", "axiom.execute"],
+  "forbidden_tools": [
+    "musitu_axiom_plans",
+    "musitu_axiom_recommend_plan",
+    "musitu_axiom_start_checkout",
+    "musitu_axiom_checkout_status"
+  ],
+  "mcp_url": "https://mcp.mftintelligence.com/mcp",
+  "auth_url": "https://auth.mftintelligence.com",
+  "demo_url": "https://mcp.mftintelligence.com/demo.mp4",
+  "review_checks_blob_sha": "a2575db5a931909c089bb57335aac6ee659fb650",
+  "submission_json_blob_sha": "e6e94f4c7f644d694d3aa732f0b8c9c86dae2b7d",
+  "reviewer_demo_blob_sha": "d3eb576dc83e5df1edb2c7d58fb14f345ce85cc8",
+  "protected_git_object_shas": {
+    "auth": "d2814277d6b3a9c12bb0332e4acfd44ccfc9dcd4",
+    "branding": "7707ee8033a1c2753b83cd807543aeeec5a5d997",
+    "chatgpt-app-submission.json": "e6e94f4c7f644d694d3aa732f0b8c9c86dae2b7d",
+    "deploy_payload": "ce2d4b0b0e620e44b035081b92db3cc5aca21d7a",
+    "mcp": "1ca86d943145df743d5eff5e58a8c46052478de0",
+    "submission": "4b4a4483c97fe739f551e015401674222c69a887"
+  },
+  "protected_paths": [
+    "auth",
+    "branding",
+    "chatgpt-app-submission.json",
+    "deploy_payload",
+    "mcp",
+    "submission",
+    ".github/workflows/axiom-mcp-production-deploy.yml",
+    ".github/workflows/axiom-mcp-production-deploy-v2.yml",
+    ".github/workflows/axiom-oauth-production-deploy.yml",
+    ".github/workflows/axiom-modal-production-deploy.yml",
+    ".github/workflows/axiom-openai-reviewer-demo-kv-origin-v2.yml",
+    ".github/workflows/axiom-openai-reviewer-demo-provision.yml",
+    ".github/workflows/axiom-openai-reviewer-demo-publication-v1.yml",
+    ".github/workflows/axiom-openai-domain-challenge-install.yml"
+  ],
+  "public_safety": {
+    "investment_trades": false,
+    "money_or_crypto_transfers": false,
+    "digital_subscription_checkout": false,
+    "ads": false
+  },
+  "claim_boundary": {
+    "superiority": "NOT_CERTIFIED",
+    "wolfram_parity": "NOT_CERTIFIED"
+  }
+}

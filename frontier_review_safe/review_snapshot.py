@@ -41,7 +41,7 @@ class ReviewSnapshotManifest:
     required_scopes: tuple[str, ...]
     forbidden_tools: tuple[str, ...]
     protected_paths: tuple[str, ...]
-    protected_git_blob_shas: Mapping[str, str]
+    protected_git_object_shas: Mapping[str, str]
     mcp_url: str
     auth_url: str
     demo_url: str
@@ -63,14 +63,14 @@ class ReviewSnapshotGuard:
 
     def verify_tree(self, git_blob_shas: Mapping[str, str]) -> dict[str, Any]:
         changed, missing = [], []
-        for path, expected in self.manifest.protected_git_blob_shas.items():
+        for path, expected in self.manifest.protected_git_object_shas.items():
             if path not in git_blob_shas:
                 missing.append(path)
             elif git_blob_shas[path] != expected:
                 changed.append(path)
         if missing or changed:
             raise ReviewSnapshotViolation(f"review snapshot tree drift: missing={missing}, changed={changed}")
-        return {"status": "PASS", "protected_paths_verified": len(self.manifest.protected_git_blob_shas),
+        return {"status": "PASS", "protected_paths_verified": len(self.manifest.protected_git_object_shas),
                 "manifest_sha256": self.manifest.fingerprint}
 
     def verify_public_contract(self, observation: PublicContractObservation) -> dict[str, Any]:
