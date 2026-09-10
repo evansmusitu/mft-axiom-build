@@ -1,0 +1,149 @@
+name: MUSITU Store Phase 1 v1.0.2 Unsigned Prebuild
+
+on:
+  push:
+    branches: [musitu-store-phase1-20260909]
+    paths:
+      - 'store/phase1/source-v1.0.2.patch'
+      - 'store/phase1/apply-source-v1.0.2.sh'
+      - 'store/phase1/android-client/app/build.gradle'
+      - 'store/phase1/android-client/app/src/main/java/com/musitu/store/StoreCore.java'
+      - '.github/workflows/musitu-store-phase1-v102-prebuild.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: musitu-store-phase1-v102-prebuild
+  cancel-in-progress: false
+
+jobs:
+  build-unsigned-v102:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Prove source and sealed boundaries
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF_NAME" = 'musitu-store-phase1-20260909'
+          git fetch --quiet origin main
+          test "$(git rev-parse origin/main)" = 'd6a846f6bbe0bccac1758713eb4de167caf07113'
+          bash store/phase1/apply-source-v1.0.2.sh
+          git diff --exit-code -- store/phase1/android-client
+          test "$(sha256sum store/phase1/prebuilt/android/MUSITU_Store_1.0.1_UNSIGNED.apk | awk '{print $1}')" = 'ebfcac3dfc21887bc2f8203c1b047bd0b9187cbc80ad7ea61775a15d82aa0b76'
+          test "$(sha256sum store/phase1/prebuilt/ios/MUSITU_Chemistry_1.3.0.ipa | awk '{print $1}')" = '426d2dc05e2fc8846a7582324d953bbdd2a256f170f8db2b5a956bc1c51cc962'
+          echo MUSITU_STORE_V102_PREBUILD_BOUNDARY=PASS
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: android-actions/setup-android@v3
+      - run: sdkmanager 'platforms;android-36' 'build-tools;36.0.0'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.11.1'
+
+      - name: Build exact unsigned 1.0.2 release APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          gradle -p store/phase1/android-client --no-daemon :app:assembleRelease
+          APK=store/phase1/android-client/app/build/outputs/apk/release/app-release-unsigned.apk
+          test -s "$APK"
+          "$ANDROID_HOME/build-tools/36.0.0/aapt" dump badging "$APK" | tee "$RUNNER_TEMP/v102-aapt.txt"
+          grep -q "package: name='com.musitu.store' versionCode='10002' versionName='1.0.2'" "$RUNNER_TEMP/v102-aapt.txt"
+          grep -q "sdkVersion:'24'" "$RUNNER_TEMP/v102-aapt.txt"
+          SHA="$(sha256sum "$APK" | awk '{print $1}')"
+          BYTES="$(stat -c%s "$APK")"
+          test -n "$SHA"
+          test "$BYTES" -gt 0
+          mkdir -p "$RUNNER_TEMP/v102-build"
+          cp "$APK" "$RUNNER_TEMP/v102-build/MUSITU_Store_1.0.2_UNSIGNED.apk"
+          cp "$RUNNER_TEMP/v102-aapt.txt" "$RUNNER_TEMP/v102-build/aapt.txt"
+          printf '%s  %s\n' "$SHA" 'MUSITU_Store_1.0.2_UNSIGNED.apk' > "$RUNNER_TEMP/v102-build/android-v102.sha256"
+          printf 'source_sha=%s\nsha256=%s\nbytes=%s\npackage=com.musitu.store\nversion_code=10002\nversion=1.0.2\nmin_sdk=24\n' "$GITHUB_SHA" "$SHA" "$BYTES" > "$RUNNER_TEMP/v102-build/build-evidence.txt"
+          echo MUSITU_STORE_V102_UNSIGNED_BUILD=PASS
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: musitu-store-phase1-v102-unsigned-build
+          path: ${{ runner.temp }}/v102-build
+          retention-days: 90
+          if-no-files-found: error
+
+  seal-unsigned-v102:
+    needs: build-unsigned-v102
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: musitu-store-phase1-v102-unsigned-build
+          path: ${{ runner.temp }}/v102-build
+
+      - name: Re-verify immutable carriers and seal only new 1.0.2 unsigned files
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          git fetch --quiet origin main musitu-store-phase1-20260909
+          test "$(git rev-parse origin/main)" = 'd6a846f6bbe0bccac1758713eb4de167caf07113'
+          test "$(git rev-parse origin/musitu-store-phase1-20260909)" = "$GITHUB_SHA"
+          test "$(sha256sum store/phase1/prebuilt/android/MUSITU_Store_1.0.1_UNSIGNED.apk | awk '{print $1}')" = 'ebfcac3dfc21887bc2f8203c1b047bd0b9187cbc80ad7ea61775a15d82aa0b76'
+          test "$(sha256sum store/phase1/prebuilt/ios/MUSITU_Chemistry_1.3.0.ipa | awk '{print $1}')" = '426d2dc05e2fc8846a7582324d953bbdd2a256f170f8db2b5a956bc1c51cc962'
+          test "$(git hash-object store/phase1/prebuilt/PREBUILT.json)" = '64278155863055a2a8d0638d898110d2c902fe78'
+          SRC="$RUNNER_TEMP/v102-build/MUSITU_Store_1.0.2_UNSIGNED.apk"
+          test -s "$SRC"
+          SHA="$(sha256sum "$SRC" | awk '{print $1}')"
+          BYTES="$(stat -c%s "$SRC")"
+          mkdir -p store/phase1/prebuilt/android
+          cp "$SRC" store/phase1/prebuilt/android/MUSITU_Store_1.0.2_UNSIGNED.apk
+          printf '%s  %s\n' "$SHA" 'MUSITU_Store_1.0.2_UNSIGNED.apk' > store/phase1/prebuilt/android/android-v102.sha256
+          python - "$SHA" "$BYTES" "$GITHUB_SHA" <<'PY'
+          import json,sys
+          from pathlib import Path
+          sha, size, source_sha = sys.argv[1], int(sys.argv[2]), sys.argv[3]
+          payload = {
+              'android_unsigned': {
+                  'bytes': size,
+                  'file': 'MUSITU_Store_1.0.2_UNSIGNED.apk',
+                  'min_sdk': 24,
+                  'package': 'com.musitu.store',
+                  'sha256': sha,
+                  'source_sha': source_sha,
+                  'version': '1.0.2',
+                  'version_code': 10002,
+              },
+              'fresh_device_phase1_complete': False,
+              'phase2_authorized': False,
+              'private_signing_material_present': False,
+              'schema': 'musitu.store.phase1.prebuilt.v102',
+          }
+          Path('store/phase1/prebuilt/PREBUILT_V102.json').write_text(json.dumps(payload, indent=2, sort_keys=True) + '\n')
+          PY
+          git add store/phase1/prebuilt/android/MUSITU_Store_1.0.2_UNSIGNED.apk store/phase1/prebuilt/android/android-v102.sha256 store/phase1/prebuilt/PREBUILT_V102.json
+          test "$(git diff --cached --name-only | wc -l | tr -d '[:space:]')" = '3'
+          git diff --cached --name-only | grep -qx 'store/phase1/prebuilt/PREBUILT_V102.json'
+          git diff --cached --name-only | grep -qx 'store/phase1/prebuilt/android/MUSITU_Store_1.0.2_UNSIGNED.apk'
+          git diff --cached --name-only | grep -qx 'store/phase1/prebuilt/android/android-v102.sha256'
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m "build: seal Store 1.0.2 unsigned prebuilt"
+          git fetch --quiet origin musitu-store-phase1-20260909
+          test "$(git rev-parse origin/musitu-store-phase1-20260909)" = "$GITHUB_SHA"
+          git push origin HEAD:musitu-store-phase1-20260909
+          echo "MUSITU_STORE_V102_UNSIGNED_SHA=$SHA"
+          echo "MUSITU_STORE_V102_UNSIGNED_BYTES=$BYTES"
+          echo MUSITU_STORE_V102_UNSIGNED_SEAL=PASS
