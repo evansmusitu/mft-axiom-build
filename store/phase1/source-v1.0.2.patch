@@ -1,0 +1,36 @@
+--- a/store/phase1/android-client/app/build.gradle
++++ b/store/phase1/android-client/app/build.gradle
+@@ -8,8 +8,8 @@ android {
+         applicationId 'com.musitu.store'
+         minSdk 24
+         targetSdk 36
+-        versionCode 10001
+-        versionName '1.0.1'
++        versionCode 10002
++        versionName '1.0.2'
+     }
+ 
+     buildTypes {
+--- a/store/phase1/android-client/app/src/main/java/com/musitu/store/StoreCore.java
++++ b/store/phase1/android-client/app/src/main/java/com/musitu/store/StoreCore.java
+@@ -30,15 +30,15 @@ final class StoreCore {
+   static PublicKey publicKey() throws Exception {
+     String b64=PUB_PEM.replace("-----BEGIN PUBLIC KEY-----","").replace("-----END PUBLIC KEY-----","").replaceAll("\\s","");
+-    return KeyFactory.getInstance("EC").generatePublic(new X509EncodedKeySpec(Base64.getDecoder().decode(b64)));
++    return KeyFactory.getInstance("EC").generatePublic(new X509EncodedKeySpec(android.util.Base64.decode(b64, android.util.Base64.DEFAULT)));
+   }
+   static boolean verify(byte[] catalog, byte[] sig) throws Exception {java.security.Signature s=java.security.Signature.getInstance("SHA256withECDSA");s.initVerify(publicKey());s.update(catalog);return s.verify(sig);}
+   static JSONObject fetchVerified(Context c) throws Exception {
+-    byte[] cat=get(CATALOG_URL), sig=Base64.getDecoder().decode(new String(get(SIG_URL),StandardCharsets.UTF_8).trim());
++    byte[] cat=get(CATALOG_URL), sig=android.util.Base64.decode(new String(get(SIG_URL),StandardCharsets.UTF_8).trim(), android.util.Base64.DEFAULT);
+     if(!verify(cat,sig))throw new SecurityException("catalog signature invalid");
+     JSONObject j=new JSONObject(new String(cat,StandardCharsets.UTF_8));
+-    c.getSharedPreferences("musitu_store",0).edit().putString("catalog",Base64.getEncoder().encodeToString(cat)).putString("sig",Base64.getEncoder().encodeToString(sig)).apply();
++    c.getSharedPreferences("musitu_store",0).edit().putString("catalog",android.util.Base64.encodeToString(cat, android.util.Base64.NO_WRAP)).putString("sig",android.util.Base64.encodeToString(sig, android.util.Base64.NO_WRAP)).apply();
+     return j;
+   }
+   static JSONObject cachedVerified(Context c) throws Exception {
+     SharedPreferences p=c.getSharedPreferences("musitu_store",0);String a=p.getString("catalog",null),b=p.getString("sig",null);if(a==null||b==null)throw new IOException("no cached catalog");
+-    byte[] cat=Base64.getDecoder().decode(a),sig=Base64.getDecoder().decode(b);if(!verify(cat,sig))throw new SecurityException("cached signature invalid");return new JSONObject(new String(cat,StandardCharsets.UTF_8));
++    byte[] cat=android.util.Base64.decode(a, android.util.Base64.DEFAULT),sig=android.util.Base64.decode(b, android.util.Base64.DEFAULT);if(!verify(cat,sig))throw new SecurityException("cached signature invalid");return new JSONObject(new String(cat,StandardCharsets.UTF_8));
+   }

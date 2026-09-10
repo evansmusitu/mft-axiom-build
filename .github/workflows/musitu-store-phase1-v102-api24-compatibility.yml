@@ -1,0 +1,150 @@
+name: MUSITU Store Phase 1 v1.0.2 API24 Compatibility Proof
+
+on:
+  push:
+    branches: [musitu-store-phase1-20260909]
+    paths:
+      - '.github/workflows/musitu-store-phase1-v102-api24-compatibility.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: musitu-store-phase1-v102-api24-compatibility
+  cancel-in-progress: false
+
+jobs:
+  api24-proof:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Prove sealed boundary and reconstruct exact prospective 1.0.2 source
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF_NAME" = 'musitu-store-phase1-20260909'
+          git fetch --quiet origin main
+          test "$(git rev-parse origin/main)" = 'd6a846f6bbe0bccac1758713eb4de167caf07113'
+          bash store/phase1/apply-source-v1.0.2.sh
+          grep -q 'minSdk 24' store/phase1/android-client/app/build.gradle
+          grep -q 'versionCode 10002' store/phase1/android-client/app/build.gradle
+          grep -q "versionName '1.0.2'" store/phase1/android-client/app/build.gradle
+          test "$(grep -o 'android.util.Base64\.' store/phase1/android-client/app/src/main/java/com/musitu/store/StoreCore.java | wc -l | tr -d '[:space:]')" = '6'
+          ! grep -Eq 'Base64\.getDecoder|Base64\.getEncoder' store/phase1/android-client/app/src/main/java/com/musitu/store/StoreCore.java
+          echo MUSITU_STORE_V102_API24_SOURCE_BOUNDARY=PASS
+
+      - name: Add diagnostic marker only in CI workspace
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+from pathlib import Path
+p=Path('store/phase1/android-client/app/src/main/java/com/musitu/store/StoreCore.java')
+s=p.read_text()
+assert 'import android.util.Log;' not in s
+s=s.replace('import android.provider.Settings;','import android.provider.Settings;\nimport android.util.Log;',1)
+old='if(!verify(cat,sig))throw new SecurityException("catalog signature invalid");'
+new='if(!verify(cat,sig))throw new SecurityException("catalog signature invalid"); Log.i("MUSITUStoreV102","CATALOG_VERIFY_PASS bytes="+cat.length);'
+assert s.count(old)==1
+s=s.replace(old,new,1)
+p.write_text(s)
+PY
+          git diff --check
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: android-actions/setup-android@v3
+      - run: sdkmanager 'platforms;android-36' 'build-tools;36.0.0'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.11.1'
+
+      - name: Build debug APK from prospective 1.0.2 source
+        shell: bash
+        run: |
+          set -euo pipefail
+          gradle -p store/phase1/android-client --no-daemon :app:assembleDebug
+          APK=store/phase1/android-client/app/build/outputs/apk/debug/app-debug.apk
+          test -s "$APK"
+          "$ANDROID_HOME/build-tools/36.0.0/aapt" dump badging "$APK" | tee /tmp/v102-aapt.txt
+          grep -q "package: name='com.musitu.store' versionCode='10002' versionName='1.0.2'" /tmp/v102-aapt.txt
+
+      - name: Enable KVM access when available
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -e /dev/kvm ]]; then
+            echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+            sudo udevadm control --reload-rules
+            sudo udevadm trigger --name-match=kvm
+          fi
+
+      - name: Prepare one-shot API24 proof script
+        shell: bash
+        run: |
+          set -euo pipefail
+          OUT="$RUNNER_TEMP/musitu-store-v102-api24"
+          mkdir -p "$OUT"
+          cp /tmp/v102-aapt.txt "$OUT/aapt.txt"
+          cat > "$OUT/run-api24-proof.sh" <<'BASH'
+          #!/usr/bin/env bash
+          set -euo pipefail
+          OUT="$RUNNER_TEMP/musitu-store-v102-api24"
+          APK=store/phase1/android-client/app/build/outputs/apk/debug/app-debug.apk
+          mkdir -p "$OUT"
+          adb logcat -c
+          adb install -r "$APK" | tee "$OUT/install.txt"
+          grep -q '^Success$' "$OUT/install.txt"
+          adb shell am force-stop com.musitu.store
+          timeout 20s adb shell am start -W -n com.musitu.store/.MainActivity | tee "$OUT/launch.txt"
+          sleep 15
+          adb logcat -d -v threadtime > "$OUT/logcat.txt" || true
+          timeout 10s adb shell dumpsys activity activities > "$OUT/activities.txt" 2>&1 || true
+          timeout 10s adb shell dumpsys package com.musitu.store > "$OUT/package.txt" 2>&1 || true
+          timeout 10s adb shell pidof com.musitu.store | tee "$OUT/pid.txt" || true
+          timeout 8s adb shell uiautomator dump /sdcard/window.xml >/dev/null 2>&1 || true
+          timeout 8s adb pull /sdcard/window.xml "$OUT/window.xml" >/dev/null 2>&1 || true
+          grep 'MUSITUStoreV102' "$OUT/logcat.txt" | tee "$OUT/diagnostic.txt"
+          grep -q 'CATALOG_VERIFY_PASS' "$OUT/diagnostic.txt"
+          test -s "$OUT/pid.txt"
+          if grep -Eq 'NoClassDefFoundError.*java/util/Base64|java\.lang\.NoClassDefFoundError: java\.util\.Base64' "$OUT/logcat.txt"; then
+            echo API24_JAVA_UTIL_BASE64_CRASH=FAIL >&2
+            exit 1
+          fi
+          if grep -q 'FATAL EXCEPTION:.*com.musitu.store' "$OUT/logcat.txt"; then
+            echo API24_STORE_FATAL_EXCEPTION=FAIL >&2
+            exit 1
+          fi
+          echo MUSITU_STORE_V102_API24_CATALOG_VERIFY=PASS | tee "$OUT/gate.txt"
+          BASH
+          chmod +x "$OUT/run-api24-proof.sh"
+
+      - name: Execute on Android API 24 minimum-supported virtual device
+        uses: ReactiveCircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d
+        with:
+          api-level: 24
+          target: google_apis
+          arch: x86_64
+          profile: pixel_7_pro
+          cores: 2
+          ram-size: 2048M
+          emulator-boot-timeout: 600
+          disable-animations: true
+          disable-linux-hw-accel: auto
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none
+          script: bash "$RUNNER_TEMP/musitu-store-v102-api24/run-api24-proof.sh"
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: musitu-store-phase1-v102-api24-compatibility-evidence
+          path: ${{ runner.temp }}/musitu-store-v102-api24
+          retention-days: 90
+          if-no-files-found: error
