@@ -4,6 +4,7 @@ on:
   push:
     branches: [musitu-store-phase1-20260909]
     paths:
+      - '.github/scripts/musitu-store-fresh-android-emulator.sh'
       - '.github/workflows/musitu-store-phase1-fresh-android-minsdk-emulator.yml'
   workflow_dispatch:
 
