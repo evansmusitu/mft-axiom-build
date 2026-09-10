@@ -12,9 +12,9 @@ from frontier_review_safe.controls import (
     CommercialIntentQualifier, CommercialIntentRequest, ModelRegistration, ModelRiskGovernance, SecureLocator,
 )
 from frontier_review_safe.core import Evidence, FrontierSafetyError, sha256
-from frontier_review_safe.evaluation import DecisionProvenanceLedger, FailureCorpus
+from frontier_review_safe.evaluation import DecisionProvenanceLedger, FailureCorpus, SealedCaseResult
 from frontier_review_safe.external_validation import (
-    ClaimBoundary, ExternalEvidenceGate, ExternalRunRecord, IndependentValidationRecord, LongitudinalRefreshRecord,
+    ClaimBoundary, ComparativeOutcome, ExternalEvidenceGate, ExternalRunRecord, IndependentValidationRecord, LongitudinalRefreshRecord,
 )
 from frontier_review_safe.governance import (
     AuthorizationRequest, GovernedPermissionGraph, Instruction, JurisdictionPolicy, PolicyJurisdictionRouter,
@@ -101,6 +101,48 @@ class GapClosureTests(unittest.TestCase):
         l6=ExternalEvidenceGate.level6(l5,[v]); self.assertEqual(l6["status"],"PASS")
         refreshes=[LongitudinalRefreshRecord(str(i),(NOW+timedelta(days=i*30)).isoformat(), (str(i%2)*64), "1"*64,"2"*64,"3"*64,True) for i in range(3)]
         l7=ExternalEvidenceGate.level7(l6,refreshes); self.assertEqual(l7["status"],"PASS")
+
+    def test_claim_gate_requires_actual_statistically_positive_comparisons(self):
+        fps=[f"{i:064x}" for i in range(10)]
+        baseline=[SealedCaseResult(fp,.8) for fp in fps]
+        candidate_loses=[SealedCaseResult(fp,.4) for fp in fps]
+        candidate_wins=[SealedCaseResult(fp,.95) for fp in fps]
+        constraints="b"*64
+        case_set=sha256({"case_fingerprints":sorted(fps),"constraint_hash":constraints})
+        baseline_hash=sha256([{"case_fingerprint":x.case_fingerprint,"score":x.score,"latency_ms":x.latency_ms,"cost_units":x.cost_units} for x in baseline])
+        base=dict(executed_at=NOW_S,access_mode="api",case_set_hash=case_set,constraint_hash=constraints,
+                  permissions_hash="c"*64,result_hash=baseline_hash,raw_evidence_hash="e"*64,
+                  candidate_sha="candidate",candidate_environment_hash="f"*64,metrics={"score":.8})
+        providers=("OpenAI","Anthropic","Google")
+        runs=[ExternalRunRecord(str(i),p,"product","v",provenance_type="provider_api_receipt",authenticated=True,**base)
+              for i,p in enumerate(providers)]
+        l5=ExternalEvidenceGate.level5(runs)
+        losing=[ComparativeOutcome.from_paired_results(r,candidate_loses,baseline,bootstrap_samples=200) for r in runs]
+        denied=ClaimBoundary.authorize("outperformed baselines on sealed suite",level5=l5,level6={"status":"FAIL"},
+            level7={"status":"FAIL"},comparison_scope="sealed suite",benchmark_hash=case_set,comparative_outcomes=losing)
+        self.assertEqual(denied["status"],"DENY")
+        self.assertIn("comparative_superiority_not_demonstrated",denied["reasons"])
+        winning=[ComparativeOutcome.from_paired_results(r,candidate_wins,baseline,bootstrap_samples=200) for r in runs]
+        allowed=ClaimBoundary.authorize("outperformed registered baselines on sealed suite",level5=l5,level6={"status":"FAIL"},
+            level7={"status":"FAIL"},comparison_scope="sealed suite only",benchmark_hash=case_set,comparative_outcomes=winning)
+        self.assertEqual(allowed["status"],"ALLOW")
+        self.assertEqual(set(allowed["positive_provider_orgs"]),{p.lower() for p in providers})
+
+    def test_broad_claim_requires_level7_four_positive_declared_provider_orgs(self):
+        providers=("OpenAI","Anthropic","Google","Microsoft")
+        run_ids=[str(i) for i in range(4)]
+        l5={"status":"PASS","provider_orgs":[p.lower() for p in providers],"run_ids":run_ids,
+            "candidate_sha":"candidate","case_set_hash":H,"constraint_hash":"b"*64}
+        l6={"status":"PASS"}; l7={"status":"PASS"}
+        outcomes=[ComparativeOutcome(p,str(i),"candidate",H,"b"*64,"d"*64,"e"*64,20,.1,.02,.18,12,6,2)
+                  for i,p in enumerate(providers)]
+        denied=ClaimBoundary.authorize("world best",level5=l5,level6=l6,level7=l7,comparison_scope="declared sealed scope",
+            benchmark_hash=H,comparative_outcomes=outcomes)
+        self.assertEqual(denied["status"],"DENY")
+        self.assertEqual(denied["reason"],"broad_provider_scope_not_declared")
+        allowed=ClaimBoundary.authorize("world best",level5=l5,level6=l6,level7=l7,comparison_scope="declared sealed scope",
+            benchmark_hash=H,comparative_outcomes=outcomes,required_provider_orgs=providers)
+        self.assertEqual(allowed["status"],"ALLOW")
 
     def test_twin_store_is_append_only_replayable_and_tamper_evident(self):
         cal=TwinCalibration(NOW_S,H,"mae",.1,100)
