@@ -28,8 +28,8 @@ jobs:
       STORE_ROUTE: payments.mftintelligence.com/store*
       STORE_BUCKET: musitu-store-phase1-releases
       SEALED_MAIN: d6a846f6bbe0bccac1758713eb4de167caf07113
-      ROLLBACK_COMMIT: cdf2849ee5329245bce696729dfb0e388ada8a25
-      ROLLBACK_WORKER_BLOB: 487e20b8fa4d19a85f06b5f122f37b38af9c7b15
+      ROLLBACK_COMMIT: 425831b3efd66b1b426e70df39c8868a83ed8ddc
+      ROLLBACK_WORKER_BLOB: d165cd02494d9d1977825ec68c560e09991a779e
       ROLLBACK_RENDER_BLOB: 4033091c82bc37a017280ab1a26c08a1fb9ba993
       ROLLBACK_ASSETS_BLOB: 295a5d7c14b76e6534ec5174d58551a8ac3045b8
       ROLLBACK_GENERATOR_BLOB: 4ff20109c824a62c5cf3ad1a6583022f60b365f0
@@ -157,7 +157,7 @@ jobs:
           grep -q "package: name='com.musitu.store' versionCode='10001' versionName='1.0.1'" /tmp/store-v101/aapt.txt
           echo SIGNED_APK_RELEASE_BYTES=PASS
 
-      - name: Reconstruct exact original production Worker as rollback source
+      - name: Reconstruct exact proven rev1 production Worker as rollback source
         shell: bash
         run: |
           set -euo pipefail
