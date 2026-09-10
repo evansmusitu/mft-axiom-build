@@ -59,7 +59,8 @@ test('catalog and detached signature routes preserve exact committed bytes',asyn
   const s=await get('/store/catalog.sig');
   assert.equal(s.status,200);
   assert.equal(await s.text(),canonicalSig);
-  assert.equal(c.headers.get('cache-control'),'public, max-age=300');
+  assert.equal(c.headers.get('cache-control'),'no-store');
+  assert.equal(s.headers.get('cache-control'),'no-store');
 });
 
 test('Android gets the signed Store bootstrap and verified Android metadata',async()=>{

@@ -42,6 +42,7 @@ const RELEASE_ASSETS={
 };
 function response(body,status=200,type='text/html; charset=utf-8',extra={}){return new Response(body,{status,headers:{...SECURITY,'Content-Type':type,...extra}})}
 function exact(raw,type='application/json; charset=utf-8'){return response(raw,200,type,{'Cache-Control':'public, max-age=300'})}
+function releaseTruth(raw,type='application/json; charset=utf-8'){return response(raw,200,type,{'Cache-Control':'no-store'})}
 function headify(req,res){return req.method==='HEAD'?new Response(null,{status:res.status,headers:res.headers}):res}
 function notFound(){return response('<!doctype html><html><body><main id="main"><h1>Not found</h1><a href="/store">MUSITU Store</a></main></body></html>',404)}
 function runtimePublicationState(env){return env?.STORE_RUNTIME_PUBLICATION_STATE==='production'?'production':CATALOG.releaseControl.publicationState}
@@ -117,8 +118,8 @@ export default {async fetch(request,env){
     case '/store/status': r=htmlResponse(request,runtimeLabeledPage(renderStatus(),env,'status')); break;
     case '/store/offline': r=htmlResponse(request,offlinePage()); break;
     case '/store/healthz': r=health(env); break;
-    case '/store/catalog.json': r=exact(CATALOG_RAW); break;
-    case '/store/catalog.sig': r=exact(CATALOG_SIG_RAW,'text/plain; charset=utf-8'); break;
+    case '/store/catalog.json': r=releaseTruth(CATALOG_RAW); break;
+    case '/store/catalog.sig': r=releaseTruth(CATALOG_SIG_RAW,'text/plain; charset=utf-8'); break;
     case '/store/ios/source.json': r=exact(IOS_SOURCE_RAW); break;
     case '/store/web/adapter.json': r=exact(WEB_ADAPTER_RAW); break;
     case '/store/android/repo/index-v1.json': r=exact(FDROID_INDEX_RAW); break;
