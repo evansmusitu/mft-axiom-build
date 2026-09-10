@@ -85,7 +85,18 @@ def cf(path: str, method: str = "GET", obj: object | None = None):
 
 
 def pub(path: str, accept: str = "*/*", ua: str = "MUSITU-Store-v101-Production-Probe/1.0"):
-    return req(BASE + path, "GET", {"Accept": accept, "User-Agent": ua}, None, 90)
+    return req(
+        BASE + path,
+        "GET",
+        {
+            "Accept": accept,
+            "User-Agent": ua,
+            "Cache-Control": "no-cache",
+            "Pragma": "no-cache",
+        },
+        None,
+        90,
+    )
 
 
 def wrangler(*args: str, check: bool = True):
@@ -247,30 +258,66 @@ def verify_prior_state():
 
 def verify_new_state():
     route_id = verify_topology()
-    ready = None
-    for _ in range(30):
-        code, _, raw = pub("/store/healthz", "application/json")
-        if code == 200:
-            try:
-                h = json.loads(raw or b"{}")
-            except Exception:
-                h = {}
-            if h.get("ok") is True and h.get("catalog_revision") == 2:
-                ready = h
-                break
-        time.sleep(2)
-    if ready is None:
-        raise RuntimeError("Store revision 2 did not become ready")
-    if ready.get("runtime_publication_state") != "production" or ready.get("phase2_authorized") is not False or ready.get("fresh_device_phase1_complete") is not False:
-        raise RuntimeError("Store revision 2 runtime-state contract failed")
     expected_catalog = (ROOT / "store/phase1/catalog.json").read_bytes()
     expected_sig = (ROOT / "store/phase1/catalog.sig").read_bytes()
-    code, _, raw = pub("/store/catalog.json", "application/json")
-    if code != 200 or raw != expected_catalog:
-        raise RuntimeError("public Store catalog revision 2 exact-byte mismatch")
-    code, _, raw = pub("/store/catalog.sig", "text/plain")
-    if code != 200 or raw != expected_sig:
-        raise RuntimeError("public Store catalog signature exact-byte mismatch")
+    samples: list[dict[str, object]] = []
+    consecutive_exact = 0
+    ready = None
+    for attempt in range(90):
+        health_code, health_headers, health_raw = pub("/store/healthz", "application/json")
+        if health_code == 200:
+            try:
+                health = json.loads(health_raw or b"{}")
+            except Exception:
+                health = {}
+        else:
+            health = {}
+        catalog_code, catalog_headers, catalog_raw = pub("/store/catalog.json", "application/json")
+        sig_code, sig_headers, sig_raw = pub("/store/catalog.sig", "text/plain")
+        sample = {
+            "attempt": attempt + 1,
+            "health_http": health_code,
+            "health_revision": health.get("catalog_revision"),
+            "health_runtime_state": health.get("runtime_publication_state"),
+            "catalog_http": catalog_code,
+            "catalog_sha256": sha(catalog_raw),
+            "catalog_exact": catalog_code == 200 and catalog_raw == expected_catalog,
+            "catalog_cf_cache_status": catalog_headers.get("CF-Cache-Status"),
+            "catalog_age": catalog_headers.get("Age"),
+            "signature_http": sig_code,
+            "signature_sha256": sha(sig_raw),
+            "signature_exact": sig_code == 200 and sig_raw == expected_sig,
+            "signature_cf_cache_status": sig_headers.get("CF-Cache-Status"),
+            "signature_age": sig_headers.get("Age"),
+            "health_cf_ray": health_headers.get("CF-Ray"),
+        }
+        samples.append(sample)
+        exact = (
+            health.get("ok") is True
+            and health.get("catalog_revision") == 2
+            and health.get("runtime_publication_state") == "production"
+            and health.get("phase2_authorized") is False
+            and health.get("fresh_device_phase1_complete") is False
+            and sample["catalog_exact"] is True
+            and sample["signature_exact"] is True
+        )
+        if exact:
+            consecutive_exact += 1
+            ready = health
+            if consecutive_exact >= 3:
+                break
+        else:
+            consecutive_exact = 0
+            ready = None
+        time.sleep(2)
+    checks["release_truth_convergence"] = {
+        "attempts": len(samples),
+        "required_consecutive_exact": 3,
+        "consecutive_exact": consecutive_exact,
+        "last_samples": samples[-10:],
+    }
+    if ready is None or consecutive_exact < 3:
+        raise RuntimeError("Store revision 2 release truth did not converge")
     code, headers, raw = pub("/store/bootstrap/MUSITU_Store_1.0.1.apk", "application/vnd.android.package-archive")
     if code != 200 or len(raw) != NEW_BYTES or sha(raw) != NEW_SHA or headers.get("X-Content-SHA256") != NEW_SHA:
         raise RuntimeError("public Store 1.0.1 artifact mismatch")
@@ -288,7 +335,6 @@ def verify_new_state():
     r2_readback(OLD_KEY, EVIDENCE / "r2-old-postdeploy.apk", OLD_BYTES, OLD_SHA)
     checks["postdeploy_route_id"] = route_id
     checks["postdeploy_catalog_revision"] = 2
-
 
 def restore_prior_state():
     state["rollback_performed"] = True
