@@ -61,13 +61,67 @@ class GapClosureTests(unittest.TestCase):
             self.assertEqual(len(corpus.unresolved()), 1)
             self.assertGreaterEqual(len(AdversarialSimulation.baseline_cases()), 25)
 
-    def test_secure_locator_blocks_path_escape_and_non_allowlisted_or_private_urls(self):
+    def test_secure_locator_blocks_path_escape_and_pins_only_global_dns(self):
         with tempfile.TemporaryDirectory() as td:
             self.assertTrue(str(SecureLocator.safe_path(td, "a/b.txt")).startswith(td))
-            with self.assertRaises(FrontierSafetyError): SecureLocator.safe_path(td, "../secret")
-        self.assertEqual(SecureLocator.safe_url("https://example.com/a", frozenset({"example.com"})), "https://example.com/a")
-        with self.assertRaises(FrontierSafetyError): SecureLocator.safe_url("http://example.com/a", frozenset({"example.com"}))
-        with self.assertRaises(FrontierSafetyError): SecureLocator.safe_url("https://127.0.0.1/a", frozenset({"127.0.0.1"}))
+            with self.assertRaises(FrontierSafetyError):
+                SecureLocator.safe_path(td, "../secret")
+
+        resolver = lambda host, port: ["93.184.216.34"]
+        pinned = SecureLocator.safe_url(
+            "https://example.com/a", frozenset({"example.com"}),
+            resolver=resolver, resolver_id="test-dns", resolved_at=NOW_S,
+        )
+        self.assertEqual(pinned.hostname, "example.com")
+        self.assertEqual(pinned.resolved_ips, ("93.184.216.34",))
+        self.assertEqual(
+            SecureLocator.verify_pin(pinned, resolver=resolver, resolver_id="test-dns", now=NOW_S)["status"],
+            "PASS",
+        )
+        with self.assertRaises(FrontierSafetyError):
+            SecureLocator.safe_url(
+                "https://example.com/a", frozenset({"example.com"}),
+                resolver=lambda host, port: ["127.0.0.1"], resolver_id="test-dns", resolved_at=NOW_S,
+            )
+        with self.assertRaises(FrontierSafetyError):
+            SecureLocator.safe_url(
+                "https://example.com/a", frozenset({"example.com"}),
+                resolver=lambda host, port: ["169.254.169.254"], resolver_id="test-dns", resolved_at=NOW_S,
+            )
+        with self.assertRaises(FrontierSafetyError):
+            SecureLocator.safe_url(
+                "http://example.com/a", frozenset({"example.com"}),
+                resolver=resolver, resolver_id="test-dns", resolved_at=NOW_S,
+            )
+        with self.assertRaises(FrontierSafetyError):
+            SecureLocator.safe_url(
+                "https://example.com:8443/a", frozenset({"example.com"}),
+                resolver=resolver, resolver_id="test-dns", resolved_at=NOW_S,
+            )
+        with self.assertRaises(FrontierSafetyError):
+            SecureLocator.safe_url(
+                "https://example.com/a", frozenset({"example.com"}),
+                resolver=None, resolver_id=None, resolved_at=NOW_S,
+            )
+
+    def test_secure_locator_detects_dns_rebinding_and_stale_pins(self):
+        approved = SecureLocator.safe_url(
+            "https://example.com/data", frozenset({"example.com"}),
+            resolver=lambda host, port: ["93.184.216.34"], resolver_id="resolver-a", resolved_at=NOW_S,
+        )
+        with self.assertRaises(FrontierSafetyError):
+            SecureLocator.verify_pin(
+                approved, resolver=lambda host, port: ["1.1.1.1"], resolver_id="resolver-a", now=NOW_S,
+            )
+        with self.assertRaises(FrontierSafetyError):
+            SecureLocator.verify_pin(
+                approved, resolver=lambda host, port: ["93.184.216.34"], resolver_id="resolver-b", now=NOW_S,
+            )
+        with self.assertRaises(FrontierSafetyError):
+            SecureLocator.verify_pin(
+                approved, resolver=lambda host, port: ["93.184.216.34"], resolver_id="resolver-a",
+                now=(NOW + timedelta(seconds=31)).isoformat(), max_pin_age_seconds=30,
+            )
 
     def test_capability_selection_quality_measures_regret(self):
         obs = [CapabilitySelectionObservation("r1", "a", ("a","b"), {"a":.9,"b":.8}, {"a":10,"b":10}, {"a":1,"b":1}),

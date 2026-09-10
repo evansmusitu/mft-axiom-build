@@ -170,8 +170,36 @@ class AdversarialSimulation:
                 "results_sha256": sha256([asdict(x) for x in results])}
 
 
+@dataclass(frozen=True)
+class PinnedNetworkTarget:
+    """Resolver evidence that a transport must use without re-resolving the hostname.
+
+    ``resolved_ips`` are the only addresses a consuming HTTP transport may connect
+    to. The original hostname is retained solely for TLS SNI / Host authority.
+    """
+
+    url: str
+    hostname: str
+    port: int
+    resolved_ips: tuple[str, ...]
+    resolver_id: str
+    resolved_at: str
+    resolution_sha256: str
+
+    @property
+    def authority(self) -> str:
+        return self.hostname if self.port == 443 else f"{self.hostname}:{self.port}"
+
+
 class SecureLocator:
-    """Conservative path/URL guard for untrusted retrieval inputs."""
+    """Fail-closed path and SSRF guard with DNS pinning/rebinding detection.
+
+    URL approval is not complete until an allowlisted hostname has been resolved
+    through an identified resolver and *every* returned address is globally
+    routable. Consumers must connect to ``PinnedNetworkTarget.resolved_ips``
+    directly while using ``hostname`` for TLS SNI/Host, rather than resolving the
+    hostname again inside the HTTP client.
+    """
 
     @staticmethod
     def safe_path(root: str | Path, candidate: str | Path) -> Path:
@@ -184,20 +212,107 @@ class SecureLocator:
         return cand
 
     @staticmethod
-    def safe_url(url: str, allowed_hosts: frozenset[str]) -> str:
+    def _normalize_hostname(host: str) -> str:
+        raw = host.rstrip(".")
+        if not raw or "%" in raw:
+            raise FrontierSafetyError("invalid or scoped hostname")
+        try:
+            normalized = raw.encode("idna").decode("ascii").lower()
+        except UnicodeError as exc:
+            raise FrontierSafetyError("hostname IDNA normalization failed") from exc
+        if normalized == "localhost" or normalized.endswith(".localhost"):
+            raise FrontierSafetyError("localhost targets are denied")
+        return normalized
+
+    @staticmethod
+    def _validated_ips(values: Sequence[str]) -> tuple[str, ...]:
+        if not values:
+            raise FrontierSafetyError("DNS resolution returned no addresses")
+        normalized: set[str] = set()
+        for value in values:
+            try:
+                ip = ipaddress.ip_address(str(value).split("%", 1)[0])
+            except ValueError as exc:
+                raise FrontierSafetyError("resolver returned a non-IP address") from exc
+            # ``is_global`` is intentionally stricter than a private/loopback
+            # blacklist and excludes special-use, link-local and reserved ranges.
+            if not ip.is_global:
+                raise FrontierSafetyError("DNS resolution includes a non-global address")
+            normalized.add(ip.compressed)
+        if not normalized:
+            raise FrontierSafetyError("DNS resolution returned no usable global addresses")
+        return tuple(sorted(normalized))
+
+    @classmethod
+    def safe_url(
+        cls,
+        url: str,
+        allowed_hosts: frozenset[str],
+        *,
+        resolver: Callable[[str, int], Sequence[str]] | None = None,
+        resolver_id: str | None = None,
+        allowed_ports: frozenset[int] = frozenset({443}),
+        resolved_at: str | None = None,
+    ) -> PinnedNetworkTarget:
         parsed = urlparse(url)
-        if parsed.scheme != "https" or not parsed.hostname or parsed.username or parsed.password:
+        if parsed.scheme.lower() != "https" or not parsed.hostname or parsed.username or parsed.password:
             raise FrontierSafetyError("only credential-free HTTPS URLs are permitted")
-        host = parsed.hostname.rstrip(".").lower()
-        if host not in {x.rstrip('.').lower() for x in allowed_hosts}:
+        if parsed.scheme != parsed.scheme.lower():
+            raise FrontierSafetyError("URL scheme must be canonical lowercase HTTPS")
+        host = cls._normalize_hostname(parsed.hostname)
+        allowed = {cls._normalize_hostname(x) for x in allowed_hosts}
+        if host not in allowed:
             raise FrontierSafetyError("host not allowlisted")
         try:
-            ip = ipaddress.ip_address(host)
-        except ValueError:
-            ip = None
-        if ip and (ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_multicast or ip.is_reserved):
-            raise FrontierSafetyError("non-public network target denied")
-        return url
+            port = parsed.port or 443
+        except ValueError as exc:
+            raise FrontierSafetyError("invalid URL port") from exc
+        if port not in allowed_ports:
+            raise FrontierSafetyError("URL port not allowlisted")
+        if resolver is None or not resolver_id:
+            raise FrontierSafetyError("identified DNS resolver required for SSRF-safe URL approval")
+
+        # Literal IPs are still passed through the same global-address policy; a
+        # resolver may return the literal itself, but the transport contract is
+        # uniform for names and IP literals.
+        raw_ips = resolver(host, port)
+        ips = cls._validated_ips(tuple(str(x) for x in raw_ips))
+        observed = resolved_at or utcnow()
+        parse_time(observed)
+        body = {"hostname": host, "port": port, "resolved_ips": ips,
+                "resolver_id": resolver_id, "resolved_at": observed}
+        return PinnedNetworkTarget(url, host, port, ips, resolver_id, observed, sha256(body))
+
+    @classmethod
+    def verify_pin(
+        cls,
+        target: PinnedNetworkTarget,
+        *,
+        resolver: Callable[[str, int], Sequence[str]],
+        resolver_id: str,
+        now: str | None = None,
+        max_pin_age_seconds: float = 30.0,
+    ) -> dict[str, Any]:
+        if resolver_id != target.resolver_id:
+            raise FrontierSafetyError("resolver identity changed after URL approval")
+        if max_pin_age_seconds <= 0:
+            raise ValueError("positive pin freshness window required")
+        checked_at = now or utcnow()
+        age = (parse_time(checked_at) - parse_time(target.resolved_at)).total_seconds()
+        if age < 0 or age > max_pin_age_seconds:
+            raise FrontierSafetyError("DNS pin is stale")
+        current = cls._validated_ips(tuple(str(x) for x in resolver(target.hostname, target.port)))
+        if current != target.resolved_ips:
+            raise FrontierSafetyError("DNS rebinding detected: resolution changed after approval")
+        return {
+            "status": "PASS",
+            "hostname": target.hostname,
+            "port": target.port,
+            "pinned_ips": list(target.resolved_ips),
+            "resolver_id": target.resolver_id,
+            "resolution_sha256": target.resolution_sha256,
+            "transport_contract": "CONNECT_ONLY_TO_PINNED_IP_PRESERVE_TLS_SNI_AND_HOST",
+        }
 
 
 @dataclass(frozen=True)
