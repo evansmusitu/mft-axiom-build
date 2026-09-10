@@ -30,7 +30,7 @@ jobs:
           test "$(git rev-parse origin/main)" = 'd6a846f6bbe0bccac1758713eb4de167caf07113'
           bash store/phase1/apply-source-v1.0.1.sh
           grep -q 'versionCode 10001' store/phase1/android-client/app/build.gradle
-          grep -q 'versionName "1.0.1"' store/phase1/android-client/app/build.gradle
+          grep -q "versionName '1.0.1'" store/phase1/android-client/app/build.gradle
       - name: Add diagnostic-only public transport and verification logging
         shell: bash
         run: |
