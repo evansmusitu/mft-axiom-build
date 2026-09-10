@@ -69,6 +69,29 @@ jobs:
             sudo udevadm control --reload-rules
             sudo udevadm trigger --name-match=kvm
           fi
+      - name: Prepare one-shot Bash diagnostic script
+        shell: bash
+        run: |
+          set -euo pipefail
+          OUT="$RUNNER_TEMP/musitu-store-catalog-diagnostic-v2"
+          mkdir -p "$OUT"
+          cat > "$OUT/run-diagnostic.sh" <<'BASH'
+          #!/usr/bin/env bash
+          set -euo pipefail
+          OUT="$RUNNER_TEMP/musitu-store-catalog-diagnostic-v2"
+          mkdir -p "$OUT"
+          adb logcat -c
+          adb install -r store/phase1/android-client/app/build/outputs/apk/debug/app-debug.apk
+          adb shell am force-stop com.musitu.store
+          adb shell am start -W -n com.musitu.store/.MainActivity | tee "$OUT/launch.txt"
+          sleep 15
+          adb logcat -d -v threadtime > "$OUT/logcat.txt" || true
+          grep 'MUSITUStoreDiag' "$OUT/logcat.txt" | tee "$OUT/diagnostic.txt" || true
+          timeout 8s adb shell uiautomator dump /sdcard/window.xml >/dev/null 2>&1 || true
+          timeout 8s adb pull /sdcard/window.xml "$OUT/window.xml" >/dev/null 2>&1 || true
+          test -s "$OUT/diagnostic.txt"
+          BASH
+          chmod +x "$OUT/run-diagnostic.sh"
       - name: Run Android transport and signature diagnostic
         uses: ReactiveCircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d
         with:
@@ -82,20 +105,7 @@ jobs:
           disable-animations: true
           disable-linux-hw-accel: auto
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none
-          script: |
-            set -euo pipefail
-            OUT="$RUNNER_TEMP/musitu-store-catalog-diagnostic-v2"
-            mkdir -p "$OUT"
-            adb logcat -c
-            adb install -r store/phase1/android-client/app/build/outputs/apk/debug/app-debug.apk
-            adb shell am force-stop com.musitu.store
-            adb shell am start -W -n com.musitu.store/.MainActivity | tee "$OUT/launch.txt"
-            sleep 15
-            adb logcat -d -v threadtime > "$OUT/logcat.txt" || true
-            grep 'MUSITUStoreDiag' "$OUT/logcat.txt" | tee "$OUT/diagnostic.txt" || true
-            timeout 8s adb shell uiautomator dump /sdcard/window.xml >/dev/null 2>&1 || true
-            timeout 8s adb pull /sdcard/window.xml "$OUT/window.xml" >/dev/null 2>&1 || true
-            test -s "$OUT/diagnostic.txt"
+          script: bash "$RUNNER_TEMP/musitu-store-catalog-diagnostic-v2/run-diagnostic.sh"
       - uses: actions/upload-artifact@v4
         if: always()
         with:
