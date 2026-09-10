@@ -1,0 +1,72 @@
+name: MUSITU Store Phase 1 v1.0.1 Rollback Authority Repair
+
+on:
+  push:
+    branches: [musitu-store-phase1-20260909]
+    paths:
+      - '.github/workflows/musitu-store-phase1-v101-rollback-authority-repair.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    env:
+      SEALED_MAIN: d6a846f6bbe0bccac1758713eb4de167caf07113
+      TRUE_RUNTIME_COMMIT: 425831b3efd66b1b426e70df39c8868a83ed8ddc
+      TRUE_WORKER_BLOB: d165cd02494d9d1977825ec68c560e09991a779e
+      STALE_ROLLBACK_COMMIT: cdf2849ee5329245bce696729dfb0e388ada8a25
+      STALE_WORKER_BLOB: 487e20b8fa4d19a85f06b5f122f37b38af9c7b15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Prove authority and patch only rollback pointer
+        shell: bash
+        run: |
+          set -euo pipefail
+          remote_tip="$(git ls-remote origin 'refs/heads/musitu-store-phase1-20260909' | awk '{print $1}')"
+          test "$remote_tip" = "$GITHUB_SHA"
+          git fetch --quiet origin main
+          test "$(git rev-parse origin/main)" = "$SEALED_MAIN"
+          test "$(git rev-parse "$TRUE_RUNTIME_COMMIT:store/phase1/web-surface/worker.mjs")" = "$TRUE_WORKER_BLOB"
+          test "$(git rev-parse "$TRUE_RUNTIME_COMMIT:store/phase1/web-surface/render.mjs")" = '4033091c82bc37a017280ab1a26c08a1fb9ba993'
+          test "$(git rev-parse "$TRUE_RUNTIME_COMMIT:store/phase1/web-surface/assets.mjs")" = '295a5d7c14b76e6534ec5174d58551a8ac3045b8'
+          test "$(git rev-parse "$TRUE_RUNTIME_COMMIT:store/phase1/web-surface/build_store_data.py")" = '4ff20109c824a62c5cf3ad1a6583022f60b365f0'
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('.github/workflows/musitu-store-phase1-v101-production-deploy.yml')
+          s=p.read_text()
+          old_commit='ROLLBACK_COMMIT: cdf2849ee5329245bce696729dfb0e388ada8a25'
+          new_commit='ROLLBACK_COMMIT: 425831b3efd66b1b426e70df39c8868a83ed8ddc'
+          old_worker='ROLLBACK_WORKER_BLOB: 487e20b8fa4d19a85f06b5f122f37b38af9c7b15'
+          new_worker='ROLLBACK_WORKER_BLOB: d165cd02494d9d1977825ec68c560e09991a779e'
+          old_name='Reconstruct exact original production Worker as rollback source'
+          new_name='Reconstruct exact proven rev1 production Worker as rollback source'
+          assert s.count(old_commit)==1
+          assert s.count(old_worker)==1
+          assert s.count(old_name)==1
+          s=s.replace(old_commit,new_commit,1).replace(old_worker,new_worker,1).replace(old_name,new_name,1)
+          p.write_text(s)
+          PY
+          grep -q 'ROLLBACK_COMMIT: 425831b3efd66b1b426e70df39c8868a83ed8ddc' .github/workflows/musitu-store-phase1-v101-production-deploy.yml
+          grep -q 'ROLLBACK_WORKER_BLOB: d165cd02494d9d1977825ec68c560e09991a779e' .github/workflows/musitu-store-phase1-v101-production-deploy.yml
+          python -m py_compile store/phase1/release/v101_production_upgrade.py
+          python store/phase1/web-surface/build_store_data.py
+          node --test store/phase1/web-surface/release-assets-v101.test.mjs
+          node --test store/phase1/web-surface/storefront.test.mjs
+          git diff --check
+          test "$(git diff --name-only)" = '.github/workflows/musitu-store-phase1-v101-production-deploy.yml'
+          echo ROLLBACK_AUTHORITY_REPAIR=PASS
+      - name: Commit correction and self-delete gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm .github/workflows/musitu-store-phase1-v101-rollback-authority-repair.yml
+          git config user.name 'MUSITU Store Release Gate'
+          git config user.email 'evansmusitu5@gmail.com'
+          git add .github/workflows/musitu-store-phase1-v101-production-deploy.yml .github/workflows/musitu-store-phase1-v101-rollback-authority-repair.yml
+          git commit -m 'fix: bind Store 1.0.1 rollback to proven rev1 runtime'
+          git push origin HEAD:musitu-store-phase1-20260909
