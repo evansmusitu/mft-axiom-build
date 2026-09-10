@@ -47,6 +47,7 @@ jobs:
           assert q.count(oldq)==1
           t.write_text(q.replace(oldq,newq,1))
           PY
+          python store/phase1/web-surface/build_store_data.py
           node --test store/phase1/web-surface/storefront.test.mjs
           node --test store/phase1/web-surface/release-assets-v101.test.mjs
           git diff --check
