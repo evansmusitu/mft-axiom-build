@@ -20,9 +20,9 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     env:
-      STORE_URL: https://payments.mftintelligence.com/store/bootstrap/MUSITU_Store_1.0.0.apk
-      STORE_SHA256: 71391bf614cc1186cbe1fda17e9e626aad71d96dbf26807228b73bd2ea99b2f8
-      STORE_BYTES: '1687882'
+      STORE_URL: https://payments.mftintelligence.com/store/bootstrap/MUSITU_Store_1.0.1.apk
+      STORE_SHA256: b755210f303ebb6d22a3177bb21e5ebae2e076901021ee62ca2fe6ab0f14af82
+      STORE_BYTES: '1679572'
       CHEM_URL: https://payments.mftintelligence.com/store/android/repo/MUSITU_Chemistry_Mastery_1.3.0.apk
       CHEM_SHA256: 4ba442122d9c86a0c3cef660334fe337c6ea9ae6fe853c964b5e94961245babd
       CHEM_BYTES: '5892286'
