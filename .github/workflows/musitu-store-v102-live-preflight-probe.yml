@@ -1,0 +1,227 @@
+name: MUSITU Store v1.0.2 Live Preflight Probe
+
+on:
+  push:
+    branches: [musitu-store-handoff-probe-20260910]
+    paths:
+      - '.github/workflows/musitu-store-v102-live-preflight-probe.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: musitu-store-phase1-production
+  cancel-in-progress: false
+
+jobs:
+  preflight:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      AUTHORITATIVE_STORE_BRANCH: musitu-store-phase1-20260909
+      AUTHORITATIVE_STORE_HEAD: 0ffe2de07c6b18873cc73b157ade3afe589f8a35
+      SEALED_MAIN: d6a846f6bbe0bccac1758713eb4de167caf07113
+      ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      ZONE_ID: 5b56528f03948ff5917a5e0cd9f7109e
+      ZONE_NAME: mftintelligence.com
+      PAYMENTS_HOST: payments.mftintelligence.com
+      PAYMENTS_ORIGIN: mft-paynow-transport-gateway
+      STORE_WORKER: musitu-store-phase1
+      STORE_ROUTE: payments.mftintelligence.com/store*
+      STORE_BUCKET: musitu-store-phase1-releases
+      EXPECTED_CATALOG_SHA: 3b9361a755266b3ac2ab618062afa7fb75caa28441201131d7c8e5eb70a1a3bf
+      EXPECTED_CATALOG_PUBLIC_PEM_SHA: 4cf17f70dbab900237d8b82b4e989978c667e6ec841de6df79469aa6c5ebd5c0
+      STORE_V100_SHA: 71391bf614cc1186cbe1fda17e9e626aad71d96dbf26807228b73bd2ea99b2f8
+      STORE_V100_BYTES: '1687882'
+      STORE_V101_SHA: b755210f303ebb6d22a3177bb21e5ebae2e076901021ee62ca2fe6ab0f14af82
+      STORE_V101_BYTES: '1679572'
+      STORE_V102_SHA: 3a0c4b0f971ec84cd6167a137f8e3d75c7bb20e525c26ab533b3d88044cd0784
+      STORE_V102_BYTES: '1679340'
+      CHEMISTRY_APK_SHA: 4ba442122d9c86a0c3cef660334fe337c6ea9ae6fe853c964b5e94961245babd
+      CHEMISTRY_APK_BYTES: '5892286'
+      CHEMISTRY_IPA_SHA: 426d2dc05e2fc8846a7582324d953bbdd2a256f170f8db2b5a956bc1c51cc962
+      CHEMISTRY_IPA_BYTES: '3640968'
+      FDROID_INDEX_SHA: f84f0e720c4d7ff578d17a416ded866c8618b2549b50c0ae79861355a79c3cff
+      FDROID_CERT_SHA: 763484cbccf9f9fdb5a35c7d314011369bc53ed95a1361483a6ace17f388b465
+      WRANGLER_VERSION: 4.129.1
+      WRANGLER_LOG_SANITIZE: 'true'
+      WRANGLER_SEND_METRICS: 'false'
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Prove authoritative Git anchors and exact rev2 baseline
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF_NAME" = 'musitu-store-handoff-probe-20260910'
+          git fetch --quiet origin "$AUTHORITATIVE_STORE_BRANCH" main
+          test "$(git rev-parse origin/$AUTHORITATIVE_STORE_BRANCH)" = "$AUTHORITATIVE_STORE_HEAD"
+          test "$(git rev-parse origin/main)" = "$SEALED_MAIN"
+          mkdir -p /tmp/v102-live-preflight
+          git show "$AUTHORITATIVE_STORE_HEAD:store/phase1/catalog.json" > /tmp/v102-live-preflight/expected-catalog.json
+          git show "$AUTHORITATIVE_STORE_HEAD:store/phase1/catalog.sig" > /tmp/v102-live-preflight/expected-catalog.sig
+          git show "$AUTHORITATIVE_STORE_HEAD:store/phase1/catalog-signing-public.pem" > /tmp/v102-live-preflight/catalog-signing-public.pem
+          git show "$AUTHORITATIVE_STORE_HEAD:store/phase1/ios/source.json" > /tmp/v102-live-preflight/expected-source.json
+          git show "$AUTHORITATIVE_STORE_HEAD:store/phase1/android/repo/index-v1.jar" > /tmp/v102-live-preflight/expected-index-v1.jar
+          test "$(sha256sum /tmp/v102-live-preflight/expected-catalog.json | awk '{print $1}')" = "$EXPECTED_CATALOG_SHA"
+          test "$(sha256sum /tmp/v102-live-preflight/catalog-signing-public.pem | awk '{print $1}')" = "$EXPECTED_CATALOG_PUBLIC_PEM_SHA"
+          test "$(sha256sum /tmp/v102-live-preflight/expected-index-v1.jar | awk '{print $1}')" = "$FDROID_INDEX_SHA"
+          base64 -d < /tmp/v102-live-preflight/expected-catalog.sig > /tmp/v102-live-preflight/expected-catalog.sig.der
+          openssl dgst -sha256 -verify /tmp/v102-live-preflight/catalog-signing-public.pem -signature /tmp/v102-live-preflight/expected-catalog.sig.der /tmp/v102-live-preflight/expected-catalog.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          c=json.loads(Path('/tmp/v102-live-preflight/expected-catalog.json').read_text())
+          assert c['schema']=='musitu.store.catalog.v1'
+          assert c['revision']==2
+          sc=c['releaseControl']['storeClient']
+          assert sc['version']=='1.0.1' and sc['versionCode']==10001
+          assert sc['sha256']=='b755210f303ebb6d22a3177bb21e5ebae2e076901021ee62ca2fe6ab0f14af82'
+          assert c['releaseControl']['phase']=='phase1'
+          assert c['releaseControl']['phase2Authorized'] is False
+          rel=c['apps'][0]['releases'][0]
+          assert rel['android']['sha256']=='4ba442122d9c86a0c3cef660334fe337c6ea9ae6fe853c964b5e94961245babd'
+          assert rel['ios']['sha256']=='426d2dc05e2fc8846a7582324d953bbdd2a256f170f8db2b5a956bc1c51cc962'
+          print('AUTHORITATIVE_REV2_BASELINE=PASS')
+          PY
+
+      - name: Read-only Cloudflare topology and exact public-production preflight
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+          CLOUDFLARE_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+          CLOUDFLARE_ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$CLOUDFLARE_EMAIL"
+          test -n "$CLOUDFLARE_GLOBAL_API_KEY"
+          python - <<'PY'
+          import hashlib,json,os,pathlib,subprocess,time,urllib.error,urllib.parse,urllib.request
+          API='https://api.cloudflare.com/client/v4'; AID=os.environ['ACCOUNT_ID']; ZID=os.environ['ZONE_ID']
+          HOST=os.environ['PAYMENTS_HOST']; BASE='https://'+HOST; WORKER=os.environ['STORE_WORKER']; ROUTE=os.environ['STORE_ROUTE']; BUCKET=os.environ['STORE_BUCKET']
+          out=pathlib.Path('/tmp/v102-live-preflight')
+          auth={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY'],'Accept':'application/json','User-Agent':'MUSITU-Store-v102-Live-Preflight/1.0'}
+          def sha(b): return hashlib.sha256(b).hexdigest()
+          def req(url,headers=None,timeout=120):
+              q=urllib.request.Request(url,headers=headers or {},method='GET')
+              try:
+                  with urllib.request.urlopen(q,timeout=timeout) as r:return r.status,dict(r.headers),r.read()
+              except urllib.error.HTTPError as e:return e.code,dict(e.headers),e.read()
+          def cf(path):
+              c,_,b=req(API+path,auth)
+              if c!=200: raise RuntimeError(f'Cloudflare GET {path} HTTP {c}: '+b[:300].decode('utf-8','ignore'))
+              x=json.loads(b or b'{}')
+              if x.get('success') is not True: raise RuntimeError('Cloudflare success=false '+path)
+              return x.get('result')
+          def pub(path,accept='*/*'):
+              sep='&' if '?' in path else '?'
+              return req(BASE+path+sep+'musitu_preflight='+str(time.time_ns()),{'Accept':accept,'User-Agent':'MUSITU-Store-v102-Live-Preflight/1.0','Cache-Control':'no-cache','Pragma':'no-cache'})
+          zones=cf('/zones?name='+urllib.parse.quote(os.environ['ZONE_NAME'])+'&status=active') or []
+          assert len(zones)==1 and zones[0]['id']==ZID and zones[0]['account']['id']==AID
+          domains=cf(f'/accounts/{AID}/workers/domains') or []
+          dm=[d for d in domains if isinstance(d,dict) and d.get('hostname')==HOST]
+          assert len(dm)==1 and dm[0].get('service')==os.environ['PAYMENTS_ORIGIN']
+          routes=cf(f'/zones/{ZID}/workers/routes') or []
+          exact=[r for r in routes if isinstance(r,dict) and r.get('pattern')==ROUTE]
+          assert len(exact)==1 and exact[0].get('script')==WORKER
+          settings=cf(f'/accounts/{AID}/workers/scripts/{urllib.parse.quote(WORKER,safe="")}/settings') or {}
+          bs={x.get('name'):x for x in settings.get('bindings') or [] if isinstance(x,dict)}
+          assert set(bs)=={'STORE_RELEASES','STORE_RUNTIME_PUBLICATION_STATE'},bs
+          assert bs['STORE_RELEASES'].get('type')=='r2_bucket' and bs['STORE_RELEASES'].get('bucket_name')==BUCKET
+          assert bs['STORE_RUNTIME_PUBLICATION_STATE'].get('type')=='plain_text' and bs['STORE_RUNTIME_PUBLICATION_STATE'].get('text')=='production'
+          sub=cf(f'/accounts/{AID}/workers/scripts/{urllib.parse.quote(WORKER,safe="")}/subdomain') or {}
+          assert sub.get('enabled') is False and sub.get('previews_enabled') is False
+
+          c,_,b=pub('/store/healthz','application/json'); assert c==200
+          h=json.loads(b); assert h.get('ok') is True and h.get('catalog_revision')==2 and h.get('phase2_authorized') is False and h.get('fresh_device_phase1_complete') is False
+          assert h.get('runtime_publication_state')=='production'
+
+          c,_,cat=pub('/store/catalog.json','application/json'); assert c==200 and sha(cat)==os.environ['EXPECTED_CATALOG_SHA']
+          expected=(out/'expected-catalog.json').read_bytes(); assert cat==expected
+          (out/'live-catalog.json').write_bytes(cat)
+          c,_,sig=pub('/store/catalog.sig','text/plain'); assert c==200 and len(sig)>20
+          (out/'live-catalog.sig').write_bytes(sig)
+
+          for path,needle in [('/store/index.html',b'MUSITU Store'),('/store/apps/chemistry/index.html',b'MUSITU Chemistry')]:
+              c,_,b=pub(path,'text/html'); assert c==200 and needle.lower() in b.lower(),(path,c,len(b))
+
+          expected_store={
+            '/store/bootstrap/MUSITU_Store_1.0.0.apk':(int(os.environ['STORE_V100_BYTES']),os.environ['STORE_V100_SHA']),
+            '/store/bootstrap/MUSITU_Store_1.0.1.apk':(int(os.environ['STORE_V101_BYTES']),os.environ['STORE_V101_SHA']),
+          }
+          for path,(n,digest) in expected_store.items():
+              c,headers,b=pub(path,'application/vnd.android.package-archive'); assert c==200 and len(b)==n and sha(b)==digest,(path,c,len(b),sha(b))
+              assert headers.get('X-Content-SHA256') in (None,digest)
+          c,_,b=pub('/store/bootstrap/MUSITU_Store_1.0.2.apk','application/vnd.android.package-archive'); assert c==404,(c,len(b))
+
+          c,_,b=pub('/chemistry/download/MUSITU_Chemistry_Mastery_1.3.0.apk','application/vnd.android.package-archive'); assert c==200 and len(b)==int(os.environ['CHEMISTRY_APK_BYTES']) and sha(b)==os.environ['CHEMISTRY_APK_SHA']
+          c,_,b=pub('/store/ios/MUSITU_Chemistry_1.3.0.ipa','application/octet-stream'); assert c==200 and len(b)==int(os.environ['CHEMISTRY_IPA_BYTES']) and sha(b)==os.environ['CHEMISTRY_IPA_SHA']
+          c,_,b=pub('/store/ios/source.json','application/json'); assert c==200 and b==(out/'expected-source.json').read_bytes()
+          (out/'live-source.json').write_bytes(b)
+          c,_,b=pub('/store/android/repo/index-v1.jar','application/java-archive'); assert c==200 and sha(b)==os.environ['FDROID_INDEX_SHA'] and b==(out/'expected-index-v1.jar').read_bytes()
+          (out/'live-index-v1.jar').write_bytes(b)
+
+          evidence={
+            'schema':'musitu.store.phase1.v102.live_preflight.v1',
+            'authoritative_store_head':os.environ['AUTHORITATIVE_STORE_HEAD'],
+            'sealed_main':os.environ['SEALED_MAIN'],
+            'store_worker':WORKER,'store_route':ROUTE,'store_route_id':exact[0].get('id'),'r2_bucket':BUCKET,
+            'live_catalog_revision':2,'live_catalog_sha256':sha(cat),'live_catalog_signature_sha256':sha(sig),
+            'store_v100_preserved':True,'store_v101_preserved':True,'store_v102_public_absent':True,
+            'chemistry_apk_preserved':True,'chemistry_ipa_preserved':True,'sidestore_source_exact':True,'fdroid_index_exact':True,
+            'phase2_authorized':False,'fresh_device_phase1_complete':False,
+            'gate':'MUSITU_STORE_V102_LIVE_PREFLIGHT_PUBLIC_PASS'
+          }
+          raw=(json.dumps(evidence,indent=2,sort_keys=True)+'\n').encode(); (out/'public-preflight.json').write_bytes(raw); (out/'public-preflight.sha256').write_text(sha(raw)+'  public-preflight.json\n')
+          print(json.dumps(evidence,sort_keys=True))
+          PY
+
+          base64 -d < /tmp/v102-live-preflight/live-catalog.sig > /tmp/v102-live-preflight/live-catalog.sig.der
+          openssl dgst -sha256 -verify /tmp/v102-live-preflight/catalog-signing-public.pem -signature /tmp/v102-live-preflight/live-catalog.sig.der /tmp/v102-live-preflight/live-catalog.json
+          jarsigner -verify /tmp/v102-live-preflight/live-index-v1.jar > /tmp/v102-live-preflight/fdroid-jarsigner.txt 2>&1
+          grep -q 'jar verified' /tmp/v102-live-preflight/fdroid-jarsigner.txt
+          actual_fdroid_cert="$(keytool -printcert -jarfile /tmp/v102-live-preflight/live-index-v1.jar | sed -n 's/^[[:space:]]*SHA256: //p' | head -n1 | tr -d ':\r\n' | tr 'A-F' 'a-f')"
+          test "$actual_fdroid_cert" = "$FDROID_CERT_SHA"
+
+          for spec in \
+            "bootstrap/MUSITU_Store_1.0.0.apk:$STORE_V100_BYTES:$STORE_V100_SHA" \
+            "bootstrap/MUSITU_Store_1.0.1.apk:$STORE_V101_BYTES:$STORE_V101_SHA"; do
+            key="${spec%%:*}"; rest="${spec#*:}"; bytes="${rest%%:*}"; digest="${rest#*:}"; out="/tmp/v102-live-preflight/r2-$(basename "$key")"
+            npx -y wrangler@$WRANGLER_VERSION r2 object get "$STORE_BUCKET/$key" --remote --file "$out" >/tmp/v102-live-preflight/wrangler-read.log 2>&1
+            test "$(stat -c%s "$out")" = "$bytes"
+            echo "$digest  $out" | sha256sum -c -
+          done
+          rm -f /tmp/v102-live-preflight/r2-v102-absent.apk
+          set +e
+          npx -y wrangler@$WRANGLER_VERSION r2 object get "$STORE_BUCKET/bootstrap/MUSITU_Store_1.0.2.apk" --remote --file /tmp/v102-live-preflight/r2-v102-absent.apk >/tmp/v102-live-preflight/wrangler-v102-absent.log 2>&1
+          rc=$?
+          set -e
+          test "$rc" -ne 0
+          test ! -s /tmp/v102-live-preflight/r2-v102-absent.apk
+          grep -Eiq 'not found|does not exist|NoSuchKey|404' /tmp/v102-live-preflight/wrangler-v102-absent.log
+          echo 'MUSITU_STORE_V102_LIVE_PREFLIGHT=PASS'
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: musitu-store-v102-live-preflight
+          path: /tmp/v102-live-preflight
+          if-no-files-found: error
+          retention-days: 90
