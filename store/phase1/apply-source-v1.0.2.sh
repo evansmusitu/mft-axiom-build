@@ -32,7 +32,8 @@ git apply "$PATCH"
 
 grep -q 'versionCode 10002' "$BUILD"
 grep -q "versionName '1.0.2'" "$BUILD"
-test "$(grep -o 'android.util.Base64\.' "$CORE" | wc -l | tr -d '[:space:]')" = '6'
+test "$(grep -oF 'android.util.Base64.decode(' "$CORE" | wc -l | tr -d '[:space:]')" = '4'
+test "$(grep -oF 'android.util.Base64.encodeToString(' "$CORE" | wc -l | tr -d '[:space:]')" = '2'
 if grep -Eq 'Base64\.getDecoder|Base64\.getEncoder' "$CORE"; then
   echo MUSITU_STORE_V102_FORBIDDEN_JAVA_BASE64=FAIL >&2
   exit 1
