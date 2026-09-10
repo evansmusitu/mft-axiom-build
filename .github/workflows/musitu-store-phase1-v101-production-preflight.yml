@@ -1,3 +1,4 @@
+# Fresh current-head certification trigger after rev1 runtime recovery and catalog-truth cache repair.
 name: MUSITU Store Phase 1 v1.0.1 Production Preflight
 
 on:
