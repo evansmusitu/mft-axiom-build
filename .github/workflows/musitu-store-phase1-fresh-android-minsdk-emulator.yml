@@ -58,6 +58,18 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          path = Path('.github/scripts/musitu-store-fresh-android-emulator.sh')
+          text = path.read_text()
+          old = 'adb shell am start -W -n com.musitu.store/.MainActivity'
+          count = text.count(old)
+          if count != 2:
+              raise SystemExit(f'expected exactly 2 Store launch waits, found {count}')
+          text = text.replace(old, 'timeout 20s adb shell am start -W -n com.musitu.store/.MainActivity')
+          path.write_text(text)
+          print('API24_LAUNCH_WAIT_BOUNDARY_SECONDS=20')
+          PY
           WRAP="$RUNNER_TEMP/musitu-store-minsdk-with-diagnostics.sh"
           cat > "$WRAP" <<'BASH'
           #!/usr/bin/env bash
