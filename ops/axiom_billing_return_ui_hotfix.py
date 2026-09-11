@@ -23,7 +23,7 @@ CF_HEADERS = {
     "User-Agent": "MUSITU-Axiom-Billing-Return-UI-Hotfix/1.0",
 }
 
-MARKER = "MUSITU_AXIOM_PAYMENT_RETURN_UI_V1"
+MARKER = "<!--MUSITU_AXIOM_PAYMENT_RETURN_UI_V1-->"
 OLD_ROUTE = 'if(p==="/billing/return"&&req.method==="GET")return out(200,{ok:true,reference:u.searchParams.get("reference"),message:"Payment return received. Settlement is verified independently by MUSITU Axiom; query checkout status with your API key."});'
 NEW_ROUTE = 'if(p==="/billing/return"&&req.method==="GET")return paymentReturn(u);'
 EXPORT_ANCHOR = "export default{async fetch(req,env){"
