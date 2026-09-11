@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Mapping as MappingABC
 from dataclasses import asdict, dataclass
 from typing import Any, Mapping, Sequence
 import math
@@ -33,6 +34,14 @@ def _valid_git_sha(value: str) -> bool:
 
 def _nonblank(value: Any) -> bool:
     return isinstance(value, str) and bool(value.strip())
+
+
+def _runtime_mapping(value: Any) -> tuple[dict[Any, Any], bool]:
+    if value is None:
+        return {}, True
+    if not isinstance(value, MappingABC):
+        return {}, False
+    return dict(value), True
 
 
 @dataclass(frozen=True)
@@ -318,9 +327,13 @@ class ExternalEvidenceGate:
                 "attestation_verified": False, "baseline_registry_verified": False,
             }
         receipt_map = cls._receipt_map(receipts, "external_run")
-        secrets = dict(verifier_secrets or {})
-        issuers = dict(trusted_issuers or {})
+        secrets, secrets_valid = _runtime_mapping(verifier_secrets)
+        issuers, issuers_valid = _runtime_mapping(trusted_issuers)
         reasons: list[str] = []
+        if not secrets_valid:
+            reasons.append("external_verifier_secret_store_invalid")
+        if not issuers_valid:
+            reasons.append("external_attestation_trust_root_invalid")
         verified: list[ExternalRunRecord] = []
         receipt_hashes: dict[str, str] = {}
         provider_classes: set[str] = set()
@@ -445,6 +458,12 @@ class ExternalEvidenceGate:
         trusted_issuers: Mapping[str, frozenset[str]] | None = None,
     ) -> dict[str, Any]:
         reasons = []
+        secrets, secrets_valid = _runtime_mapping(verifier_secrets)
+        issuers, issuers_valid = _runtime_mapping(trusted_issuers)
+        if not secrets_valid:
+            reasons.append("external_verifier_secret_store_invalid")
+        if not issuers_valid:
+            reasons.append("external_attestation_trust_root_invalid")
         if (level5.get("status") != "PASS" or level5.get("attestation_verified") is not True
                 or level5.get("baseline_registry_verified") is not True):
             reasons.append("level5_not_attested_registered_and_passed")
@@ -486,8 +505,8 @@ class ExternalEvidenceGate:
                 expected_subject_type="independent_validation",
                 expected_subject_id=subject_id,
                 expected_subject_hash=validation.fingerprint,
-                verifier_secrets=dict(verifier_secrets or {}),
-                trusted_issuers=dict(trusted_issuers or {}),
+                verifier_secrets=secrets,
+                trusted_issuers=issuers,
             )
             if verification["status"] != "PASS" or receipt.provenance_type != validation.provenance_type:
                 continue
@@ -543,6 +562,12 @@ class ExternalEvidenceGate:
         min_refreshes: int = 3,
     ) -> dict[str, Any]:
         reasons = []
+        secrets, secrets_valid = _runtime_mapping(verifier_secrets)
+        issuers, issuers_valid = _runtime_mapping(trusted_issuers)
+        if not secrets_valid:
+            reasons.append("external_verifier_secret_store_invalid")
+        if not issuers_valid:
+            reasons.append("external_attestation_trust_root_invalid")
         if level6.get("status") != "PASS" or level6.get("attestation_verified") is not True:
             reasons.append("level6_not_attested_and_passed")
         try:
@@ -607,8 +632,8 @@ class ExternalEvidenceGate:
                 expected_subject_type="longitudinal_refresh",
                 expected_subject_id=refresh.refresh_id,
                 expected_subject_hash=refresh.fingerprint,
-                verifier_secrets=dict(verifier_secrets or {}),
-                trusted_issuers=dict(trusted_issuers or {}),
+                verifier_secrets=secrets,
+                trusted_issuers=issuers,
             )
             if verification["status"] != "PASS":
                 continue
