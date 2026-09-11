@@ -1,0 +1,41 @@
+name: MUSITU Store 1.0.3 Exact Live Capture
+
+on:
+  push:
+    branches: [musitu-store-native-install-handoff-20260911]
+    paths:
+      - '.github/workflows/musitu-store-v103-live-capture.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  capture:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      STORE_WORKER: musitu-store-phase1
+      EXPECTED_COMPATIBILITY_DATE: '2026-09-09'
+      LIVE_WORKER_SHA: e17e0c7bde55d9f8d41b476e917159b6bf39b46c3895b7ec6d2a7b4f705beb81
+      LIVE_RENDER_SHA: fb18de6b27cce881652af79a9b29e66a7c3ce5d5cb5a0a09751884f76e1e114a
+      LIVE_ASSETS_SHA: 443e558c297d700bedc706ea56647c97162709e5178b80acd63d478054bba4b4
+      LIVE_GENERATED_DATA_SHA: 27ab78a914019cb44844de51bd0f4be46dc53bdf4b928a8dff7944228ccce063
+      LIVE_MODULE_OUTPUT: /tmp/musitu-store-v103-live
+    steps:
+      - uses: actions/checkout@v4
+      - name: Capture exact current live Store modules — GET only
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        run: |
+          set -euo pipefail
+          python store/phase2/capture_exact_live_store_worker.py | tee /tmp/musitu-store-v103-live/capture.log
+          grep -q 'PASS_EXACT_LIVE_CAPTURE' /tmp/musitu-store-v103-live/capture.json
+      - name: Upload exact non-secret live baseline
+        uses: actions/upload-artifact@v4
+        with:
+          name: musitu-store-v103-exact-live-baseline
+          path: /tmp/musitu-store-v103-live
+          retention-days: 30
+          if-no-files-found: error
