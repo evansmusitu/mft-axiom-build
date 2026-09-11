@@ -29,6 +29,13 @@ def _valid_secret(value: Any) -> bool:
     return isinstance(value, (bytes, bytearray)) and len(value) >= 32
 
 
+def _valid_trusted_key_set(value: Any) -> bool:
+    return (
+        isinstance(value, frozenset)
+        and all(_canonical_identity(key_id) for key_id in value)
+    )
+
+
 @dataclass(frozen=True)
 class ExternalAttestationReceipt:
     schema: str
@@ -140,8 +147,12 @@ class ExternalAttestationService:
         trusted_issuers: Mapping[str, frozenset[str]],
     ) -> dict[str, Any]:
         reasons: list[str] = []
-        trusted_keys = trusted_issuers.get(receipt.issuer_org, frozenset())
-        if receipt.verifier_key_id not in trusted_keys:
+        trusted_keys = trusted_issuers.get(receipt.issuer_org)
+        if trusted_keys is None:
+            reasons.append("untrusted_external_issuer_or_key")
+        elif not _valid_trusted_key_set(trusted_keys):
+            reasons.append("external_attestation_trust_root_invalid")
+        elif receipt.verifier_key_id not in trusted_keys:
             reasons.append("untrusted_external_issuer_or_key")
         secret = verifier_secrets.get(receipt.verifier_key_id)
         if not _valid_secret(secret):
