@@ -27,6 +27,19 @@ const cases=[
   {path:'/store/offline'},
   {path:'/store/healthz'}
 ];
+const machineCases=[
+  {path:'/store/catalog.json',accept:'application/json',title:'Verified MUSITU catalog'},
+  {path:'/store/catalog.sig',accept:'text/plain',title:'Catalog signature'},
+  {path:'/store/ios/source.json',accept:'application/json',title:'iOS SideStore source'},
+  {path:'/store/web/adapter.json',accept:'application/json',title:'Web adapter metadata'},
+  {path:'/store/android/repo/index-v1.json',accept:'application/json',title:'Android repository index'},
+  {path:'/store/apps/chemistry/sbom.json',accept:'application/json',title:'Chemistry software bill of materials'},
+  {path:'/store/apps/chemistry/dependencies.json',accept:'application/json',title:'Chemistry dependency manifest'},
+  {path:'/store/release/channels.json',accept:'application/json',title:'Release channels'},
+  {path:'/store/release/rollback-control.json',accept:'application/json',title:'Rollback control'},
+  {path:'/store/bootstrap/release.json',accept:'application/json',title:'Store bootstrap release'},
+  {path:'/store/locales.json',accept:'application/json',title:'Supported Store languages'}
+];
 
 const expectedHeaderDelta=new Set([
   'content-security-policy',
@@ -65,20 +78,42 @@ for(const tc of cases){
   if(bh['cross-origin-opener-policy']!=='same-origin') throw new Error(`${tc.path}: COOP mismatch`);
   if(bh['x-permitted-cross-domain-policies']!=='none') throw new Error(`${tc.path}: X-Permitted-Cross-Domain-Policies mismatch`);
 
-  report.push({
-    path:tc.path,
-    request_headers:tc.headers||{},
-    status:a.status,
-    body_bytes:ab.length,
-    body_sha256:sha(ab),
-    expected_security_header_delta:expected
-  });
+  report.push({path:tc.path,request_headers:tc.headers||{},status:a.status,body_bytes:ab.length,body_sha256:sha(ab),expected_security_header_delta:expected});
+}
+
+const machineReport=[];
+for(const tc of machineCases){
+  const url='https://payments.mftintelligence.com'+tc.path;
+  const [baseRaw,candidateRaw]=await Promise.all([
+    baseline.fetch(new Request(url,{headers:{Accept:tc.accept}}),env,{}),
+    candidate.fetch(new Request(url,{headers:{Accept:tc.accept}}),env,{})
+  ]);
+  const [baseBytes,candidateBytes]=await Promise.all([Buffer.from(await baseRaw.arrayBuffer()),Buffer.from(await candidateRaw.arrayBuffer())]);
+  if(baseRaw.status!==candidateRaw.status||baseRaw.status!==200) throw new Error(`${tc.path}: machine HTTP status changed`);
+  if(!baseBytes.equals(candidateBytes)) throw new Error(`${tc.path}: machine payload bytes changed ${sha(baseBytes)} != ${sha(candidateBytes)}`);
+  if((baseRaw.headers.get('content-type')||'')!==(candidateRaw.headers.get('content-type')||'')) throw new Error(`${tc.path}: machine content type changed`);
+
+  const human=await candidate.fetch(new Request(url,{headers:{Accept:'text/html'}}),env,{});
+  const humanBody=await human.text();
+  if(human.status!==200) throw new Error(`${tc.path}: human browser view HTTP ${human.status}`);
+  if(!(human.headers.get('content-type')||'').toLowerCase().startsWith('text/html')) throw new Error(`${tc.path}: human browser view is not HTML`);
+  if(!humanBody.includes('<span class="eyebrow">Machine-readable endpoint</span>')) throw new Error(`${tc.path}: human browser presentation marker missing`);
+  if(!humanBody.includes(tc.title)) throw new Error(`${tc.path}: human browser title missing`);
+  if(!humanBody.includes(`${tc.path}?raw=1`)) throw new Error(`${tc.path}: raw-data escape hatch missing`);
+  if(humanBody.trimStart().startsWith('{')) throw new Error(`${tc.path}: browser still dumps raw JSON`);
+
+  const rawOverride=await candidate.fetch(new Request(url+'?raw=1',{headers:{Accept:'text/html'}}),env,{});
+  const rawOverrideBytes=Buffer.from(await rawOverride.arrayBuffer());
+  if(!rawOverrideBytes.equals(candidateBytes)) throw new Error(`${tc.path}: ?raw=1 does not preserve original bytes`);
+
+  machineReport.push({path:tc.path,raw_body_bytes:candidateBytes.length,raw_body_sha256:sha(candidateBytes),browser_html:true,raw_override_byte_identical:true});
 }
 
 const out={
-  schema:'musitu.store.phase2.response_body_equivalence.v1',
+  schema:'musitu.store.phase2.response_body_equivalence.v2',
   result:'PASS',
   cases:report,
-  conclusion:'Hardened candidate response bodies are byte-identical to baseline for the tested accessibility-relevant route matrix; only the explicitly permitted security-header set differs.'
+  machine_endpoints:machineReport,
+  conclusion:'Accessibility-relevant Store response bodies remain byte-identical to the baseline; machine endpoint payload bytes remain unchanged for software clients, while direct browser navigation is intentionally rendered as a readable HTML page with an explicit raw-data escape hatch.'
 };
 console.log(JSON.stringify(out,null,2));
