@@ -1,0 +1,35 @@
+{
+  "schema": "musitu.store.platform_install_carriers.execute.v1",
+  "date_utc": "2026-09-11",
+  "authorized_scope": "MUSITU Store web-surface install-action routing across Android, iOS and Web/PWA only",
+  "source_fix_head": "a341d6aaba4864a2db7cb082e410fd8b1fc5949f",
+  "source_verify_run": 34621303476,
+  "source_verify_conclusion": "success",
+  "android": {
+    "install_update_repair_reinstall_target": "com.musitu.store",
+    "chemistry_apk_browser_download_forbidden": true,
+    "store_bootstrap_browser_download_allowed_only_for_first_store_install": true,
+    "silent_install_claimed": false
+  },
+  "ios": {
+    "native_carrier": "SideStore URL scheme",
+    "raw_ipa_browser_primary_action_forbidden": true,
+    "web_pwa_fallback_separately_labelled": true,
+    "silent_install_claimed": false
+  },
+  "web_pwa": {
+    "install_surface": "https://payments.mftintelligence.com/chemistry/install",
+    "package_binary_browser_download_forbidden": true,
+    "browser_security_prompt_preserved": true
+  },
+  "production_safety": {
+    "capture_exact_live_module_root_before_write": true,
+    "preserve_assets_and_generated_data_bytes": true,
+    "preserve_catalog_and_signature_bytes": true,
+    "preserve_store_apk_bytes": true,
+    "verify_machine_endpoints": true,
+    "perform_exact_rollback_drill": true,
+    "final_redeploy_only_after_verified_rollback": true,
+    "physical_device_verification_must_not_be_fabricated": true
+  }
+}
