@@ -205,7 +205,7 @@ class SpecialistSociety:
                 def invoke() -> None:
                     try:
                         q.put(("ok", self.handlers[c.name](task)))
-                    except BaseException as exc:  # isolate specialist failure from orchestrator
+                    except BaseException as exc:
                         q.put(("err", exc))
                 worker = Thread(target=invoke, daemon=True, name=f"axiom-specialist-{c.name}")
                 worker.start()
@@ -219,7 +219,7 @@ class SpecialistSociety:
                     if not 0 <= result.confidence <= 1:
                         raise FrontierSafetyError("invalid specialist confidence")
                     return result
-                except Empty as exc:
+                except Empty:
                     last = FutureTimeout(f"specialist timeout: {c.name}")
                 except Exception as exc:
                     last = exc
@@ -316,3 +316,9 @@ class HypothesisMarket:
         return HypothesisState(state.hypothesis_id, state.statement, p, state.status,
                                tuple(dict.fromkeys((*state.evidence_ids, evidence.evidence_id))), utcnow(),
                                state.resolution_criteria)
+
+
+# Canonical verifier export. These assignments deliberately override the legacy
+# inline definitions above so every supported import path resolves to the
+# provenance-backed fail-closed implementation in frontier_review_safe.verification.
+from .verification import IndependentVerifier as IndependentVerifier, VerificationPath as VerificationPath
