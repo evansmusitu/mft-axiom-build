@@ -1,0 +1,214 @@
+name: MUSITU Store Phase 2 Repaired-Live Hardened Candidate
+
+on:
+  push:
+    branches: [musitu-store-phase2-standards-hardening-20260911]
+    paths:
+      - '.github/workflows/musitu-store-phase2-repaired-live-hardened-candidate.yml'
+      - 'store/phase2/apply-standards-hardening.py'
+      - 'store/phase2/browser_machine_presentation.py'
+      - 'store/phase2/response-body-equivalence.mjs'
+      - 'store/phase2/security-hardening-smoke.mjs'
+      - 'store/phase2/standards-browser-smoke.mjs'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: musitu-store-phase2-repaired-live-hardened-candidate
+  cancel-in-progress: false
+
+jobs:
+  qualify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    env:
+      SEALED_MAIN: d6a846f6bbe0bccac1758713eb4de167caf07113
+      PHASE1_HEAD: ebded495617cc89bb96d7a5531c1ce4fc6bbedd9
+      LIVE_WORKER_SHA: e17e0c7bde55d9f8d41b476e917159b6bf39b46c3895b7ec6d2a7b4f705beb81
+      LIVE_RENDER_SHA: fc4abcec85fd5338c71e26fad5b21d318c99e6a1e1bd62f09091db9c4e914e04
+      LIVE_ASSETS_SHA: 443e558c297d700bedc706ea56647c97162709e5178b80acd63d478054bba4b4
+      LIVE_GENERATED_DATA_SHA: 27ab78a914019cb44844de51bd0f4be46dc53bdf4b928a8dff7944228ccce063
+      EXPECTED_COMPATIBILITY_DATE: '2026-09-09'
+      STORE_SHA: 3a0c4b0f971ec84cd6167a137f8e3d75c7bb20e525c26ab533b3d88044cd0784
+      STORE_BYTES: '1679340'
+      CATALOG_SHA: 4fa31c5f9f84facc0d1fbf7a91a50b0adcaa5ef4c97b7d82abbe9657ea10b7f9
+      CATALOG_SIG_SHA: 9b854358f90368ceb5cc3baab8d99064d8ee94b79ead378a614f8cc1732b06a7
+      ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      STORE_WORKER: musitu-store-phase1
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Prove immutable boundaries
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --quiet origin main musitu-store-phase1-20260909
+          test "$(git rev-parse origin/main)" = "$SEALED_MAIN"
+          test "$(git rev-parse origin/musitu-store-phase1-20260909)" = "$PHASE1_HEAD"
+          test -z "$(git diff --name-only "$PHASE1_HEAD"..."$GITHUB_SHA" -- store/phase1 commerce/chemistry)"
+          test -z "$(git diff --name-only "$PHASE1_HEAD"..."$GITHUB_SHA" -- commerce | grep -E 'payment|claim|licen[cs]e|entitlement' || true)"
+          echo REPAIRED_LIVE_CANDIDATE_BOUNDARY=PASS
+
+      - name: Run inherited Store regressions
+        shell: bash
+        run: |
+          set -euo pipefail
+          python store/phase1/web-surface/build_store_data.py
+          node --test store/phase1/web-surface/*.test.mjs
+
+      - name: Capture exact repaired production Worker — GET only
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+          LIVE_MODULE_OUTPUT: /tmp/musitu-p2-repaired-live
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/musitu-p2-repaired-live /tmp/musitu-p2-repaired-candidate /tmp/musitu-p2-repaired-evidence
+          mkdir -p /tmp/musitu-p2-repaired-evidence
+          test -n "$CLOUDFLARE_EMAIL" && test -n "$CLOUDFLARE_GLOBAL_API_KEY"
+          python store/phase2/capture_exact_live_store_worker.py | tee /tmp/musitu-p2-repaired-evidence/live-capture.json
+          grep -q '"result": "PASS_EXACT_LIVE_CAPTURE"' /tmp/musitu-p2-repaired-evidence/live-capture.json
+
+      - name: Verify immutable public release identities
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --retry 3 --retry-all-errors -fsSL -H 'Accept: application/json' https://payments.mftintelligence.com/store/catalog.json -o /tmp/catalog.json
+          curl --retry 3 --retry-all-errors -fsSL -H 'Accept: text/plain' https://payments.mftintelligence.com/store/catalog.sig -o /tmp/catalog.sig
+          curl --retry 3 --retry-all-errors -fsSL https://payments.mftintelligence.com/store/bootstrap/MUSITU_Store_1.0.2.apk -o /tmp/store.apk
+          test "$(sha256sum /tmp/catalog.json | awk '{print $1}')" = "$CATALOG_SHA"
+          test "$(sha256sum /tmp/catalog.sig | awk '{print $1}')" = "$CATALOG_SIG_SHA"
+          test "$(stat -c%s /tmp/store.apk)" = "$STORE_BYTES"
+          test "$(sha256sum /tmp/store.apk | awk '{print $1}')" = "$STORE_SHA"
+          echo REPAIRED_LIVE_RELEASE_IDENTITIES=PASS
+
+      - name: Build hardened candidate from exact repaired live modules
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp -a /tmp/musitu-p2-repaired-live /tmp/musitu-p2-repaired-candidate
+          python store/phase2/apply-standards-hardening.py /tmp/musitu-p2-repaired-candidate/worker.mjs
+          node --check /tmp/musitu-p2-repaired-candidate/worker.mjs
+          cmp /tmp/musitu-p2-repaired-live/render.mjs /tmp/musitu-p2-repaired-candidate/render.mjs
+          cmp /tmp/musitu-p2-repaired-live/assets.mjs /tmp/musitu-p2-repaired-candidate/assets.mjs
+          cmp /tmp/musitu-p2-repaired-live/generated-data.mjs /tmp/musitu-p2-repaired-candidate/generated-data.mjs
+          sha256sum /tmp/musitu-p2-repaired-candidate/worker.mjs | tee /tmp/musitu-p2-repaired-evidence/hardened-worker.sha256
+
+      - name: Prove body and machine-client compatibility
+        shell: bash
+        env:
+          BASELINE_WORKER_PATH: /tmp/musitu-p2-repaired-live/worker.mjs
+          CANDIDATE_WORKER_PATH: /tmp/musitu-p2-repaired-candidate/worker.mjs
+        run: |
+          set -euo pipefail
+          node store/phase2/response-body-equivalence.mjs | tee /tmp/musitu-p2-repaired-evidence/response-body-equivalence.json
+          grep -q '"result": "PASS"' /tmp/musitu-p2-repaired-evidence/response-body-equivalence.json
+
+      - name: Enforce hardened security runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          node store/phase2/security-hardening-smoke.mjs /tmp/musitu-p2-repaired-candidate/worker.mjs | tee /tmp/musitu-p2-repaired-evidence/security-hardening.log
+          grep -q 'MUSITU_STORE_PHASE2_SECURITY_HARDENING_RUNTIME_PASS' /tmp/musitu-p2-repaired-evidence/security-hardening.log
+
+      - name: Install browser audit tooling
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --no-save --no-package-lock playwright axe-core lighthouse
+          CHROME_PATH="$(command -v google-chrome || command -v chromium || command -v chromium-browser || true)"
+          test -n "$CHROME_PATH"
+          echo "CHROME_PATH=$CHROME_PATH" >> "$GITHUB_ENV"
+
+      - name: Run automated accessibility low-bandwidth and browser standards gate
+        shell: bash
+        env:
+          WORKER_PATH: /tmp/musitu-p2-repaired-candidate/worker.mjs
+          PHASE2_BROWSER_EVIDENCE: /tmp/musitu-p2-repaired-evidence/browser-standards-evidence.json
+        run: |
+          set -euo pipefail
+          node store/phase2/standards-browser-smoke.mjs "$WORKER_PATH"
+
+      - name: Run Lighthouse budgets
+        shell: bash
+        env:
+          WORKER_PATH: /tmp/musitu-p2-repaired-candidate/worker.mjs
+        run: |
+          set -euo pipefail
+          cat >/tmp/p2-repaired-serve.mjs <<'JS'
+          import http from 'node:http'; import {pathToFileURL} from 'node:url';
+          const worker=(await import(pathToFileURL(process.env.WORKER_PATH).href+'?serve='+Date.now())).default;
+          const origin='http://127.0.0.1:8787';
+          http.createServer(async(req,res)=>{try{const r=await worker.fetch(new Request(origin+req.url,{method:req.method,headers:req.headers}),{STORE_RUNTIME_PUBLICATION_STATE:'production'},{});res.statusCode=r.status;for(const [k,v] of r.headers)res.setHeader(k,v);res.end(Buffer.from(await r.arrayBuffer()));}catch(e){res.statusCode=500;res.end(String(e));}}).listen(8787,'127.0.0.1');
+          JS
+          node /tmp/p2-repaired-serve.mjs >/tmp/p2-repaired-server.log 2>&1 & SERVER_PID=$!
+          trap 'kill "$SERVER_PID" 2>/dev/null || true' EXIT
+          for i in $(seq 1 30); do curl -fsS http://127.0.0.1:8787/store >/dev/null && break; sleep 0.5; done
+          npx lighthouse http://127.0.0.1:8787/store --output=json --output-path=/tmp/musitu-p2-repaired-evidence/lighthouse.json --only-categories=performance,accessibility,best-practices --chrome-flags="--headless --no-sandbox --disable-dev-shm-usage" --quiet
+          node --input-type=module <<'JS'
+          import fs from 'node:fs';
+          const b=JSON.parse(fs.readFileSync('commerce/chemistry/storefront/lighthouse-budget.json','utf8'));
+          const l=JSON.parse(fs.readFileSync('/tmp/musitu-p2-repaired-evidence/lighthouse.json','utf8'));
+          const r={performance:l.categories.performance.score,accessibility:l.categories.accessibility.score,best_practices:l.categories['best-practices'].score,lcp_ms:l.audits['largest-contentful-paint'].numericValue,cls:l.audits['cumulative-layout-shift'].numericValue,tbt_ms:l.audits['total-blocking-time'].numericValue};
+          const pass=r.performance>=b.performance_score_min&&r.accessibility>=b.accessibility_score_min&&r.best_practices>=b.best_practices_score_min&&r.lcp_ms<=b.lcp_ms_max&&r.cls<=b.cls_max&&r.tbt_ms<=b.tbt_ms_max;
+          fs.writeFileSync('/tmp/musitu-p2-repaired-evidence/lighthouse-summary.json',JSON.stringify({budget:b,results:r,pass},null,2)+'\n');
+          if(!pass)process.exit(1); console.log(JSON.stringify(r));
+          JS
+          kill "$SERVER_PID" 2>/dev/null || true; trap - EXIT
+
+      - name: Seal repaired-live candidate evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import hashlib,json,os
+          from pathlib import Path
+          root=Path('/tmp/musitu-p2-repaired-evidence')
+          worker=Path('/tmp/musitu-p2-repaired-candidate/worker.mjs').read_bytes()
+          browser=json.loads((root/'browser-standards-evidence.json').read_text())
+          equiv=json.loads((root/'response-body-equivalence.json').read_text())
+          lighthouse=json.loads((root/'lighthouse-summary.json').read_text())
+          summary={
+            'schema':'musitu.store.phase2.repaired_live_hardened_candidate.v1',
+            'result':'PASS',
+            'head':os.environ['GITHUB_SHA'],
+            'sealed_main':os.environ['SEALED_MAIN'],
+            'phase1_head':os.environ['PHASE1_HEAD'],
+            'baseline_live_worker_sha256':os.environ['LIVE_WORKER_SHA'],
+            'candidate_worker_sha256':hashlib.sha256(worker).hexdigest(),
+            'non_worker_modules_unchanged':True,
+            'browser_presentation_preserved':True,
+            'machine_client_bytes_preserved':len(equiv.get('machine_endpoints',[]))==11,
+            'response_body_equivalence':equiv.get('result'),
+            'security_hardening':'PASS',
+            'automated_accessibility_low_bandwidth':browser.get('result'),
+            'lighthouse_budget':'PASS' if lighthouse.get('pass') else 'FAIL',
+            'manual_real_assistive_technology':'PENDING',
+            'production_mutation':False,
+            'phase2Complete':False
+          }
+          (root/'summary.json').write_text(json.dumps(summary,indent=2,sort_keys=True)+'\n')
+          print(json.dumps(summary,sort_keys=True))
+          PY
+          (cd /tmp/musitu-p2-repaired-evidence && find . -maxdepth 1 -type f ! -name SHA256SUMS.txt -print0 | sort -z | xargs -0 sha256sum > SHA256SUMS.txt)
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: musitu-store-phase2-repaired-live-hardened-candidate
+          path: /tmp/musitu-p2-repaired-evidence
+          retention-days: 90
+          if-no-files-found: error
