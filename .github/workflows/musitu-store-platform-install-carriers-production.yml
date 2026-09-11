@@ -1,0 +1,170 @@
+name: MUSITU Store Platform Install Carriers Production
+
+on:
+  push:
+    branches: [musitu-store-native-install-handoff-20260911]
+    paths:
+      - 'evidence/musitu-store/MUSITU_STORE_PLATFORM_INSTALL_CARRIERS_EXECUTE_20260911.json'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: musitu-store-platform-install-carriers-production
+  cancel-in-progress: false
+
+jobs:
+  deploy-verify-rollback-redeploy:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    env:
+      SOURCE_FIX_HEAD: a341d6aaba4864a2db7cb082e410fd8b1fc5949f
+      SOURCE_FIX_VERIFY_RUN: '34621303476'
+      LIVE_WORKER_SHA: e17e0c7bde55d9f8d41b476e917159b6bf39b46c3895b7ec6d2a7b4f705beb81
+      LIVE_RENDER_SHA: fb18de6b27cce881652af79a9b29e66a7c3ce5d5cb5a0a09751884f76e1e114a
+      LIVE_ASSETS_SHA: 443e558c297d700bedc706ea56647c97162709e5178b80acd63d478054bba4b4
+      LIVE_GENERATED_DATA_SHA: 27ab78a914019cb44844de51bd0f4be46dc53bdf4b928a8dff7944228ccce063
+      EXPECTED_COMPATIBILITY_DATE: '2026-09-09'
+      STORE_SHA: 3a0c4b0f971ec84cd6167a137f8e3d75c7bb20e525c26ab533b3d88044cd0784
+      STORE_BYTES: '1679340'
+      CATALOG_SHA: 4fa31c5f9f84facc0d1fbf7a91a50b0adcaa5ef4c97b7d82abbe9657ea10b7f9
+      CATALOG_SIG_SHA: 9b854358f90368ceb5cc3baab8d99064d8ee94b79ead378a614f8cc1732b06a7
+      ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      ZONE_ID: 5b56528f03948ff5917a5e0cd9f7109e
+      ZONE_NAME: mftintelligence.com
+      PAYMENTS_HOST: payments.mftintelligence.com
+      PAYMENTS_ORIGIN: mft-paynow-transport-gateway
+      STORE_WORKER: musitu-store-phase1
+      STORE_ROUTE: payments.mftintelligence.com/store*
+      STORE_BUCKET: musitu-store-phase1-releases
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Prove source carrier matrix and certified live baseline
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF_NAME" = 'musitu-store-native-install-handoff-20260911'
+          git merge-base --is-ancestor "$SOURCE_FIX_HEAD" "$GITHUB_SHA"
+          test -z "$(git diff --name-only "$SOURCE_FIX_HEAD"..."$GITHUB_SHA" -- store/phase1/web-surface/render.mjs store/phase1/web-surface/worker.mjs store/phase1/web-surface/native-install-handoff.test.mjs store/phase1/web-surface/storefront.test.mjs)"
+          test "$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$SOURCE_FIX_VERIFY_RUN" --jq '.conclusion')" = success
+          test "$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$SOURCE_FIX_VERIFY_RUN" --jq '.head_sha')" = "$SOURCE_FIX_HEAD"
+          python - <<'PY'
+          import json,os
+          from pathlib import Path
+          d=json.loads(Path('evidence/musitu-store/MUSITU_STORE_NATIVE_INSTALL_HANDOFF_PRODUCTION_CERTIFICATION_20260911.json').read_text())
+          assert d['status']=='PASS_DEPLOY_ROLLBACK_REDEPLOY_VERIFIED'
+          assert d['production_workflow']['run_id']==34616021901
+          assert d['production']['worker']=='musitu-store-phase1'
+          assert d['production']['candidate_render_sha256']==os.environ['LIVE_RENDER_SHA']
+          assert d['release_identity']['store_version']=='1.0.2'
+          assert d['release_identity']['store_apk_sha256']==os.environ['STORE_SHA']
+          assert d['release_identity']['store_apk_bytes']==int(os.environ['STORE_BYTES'])
+          print('PRIOR_NATIVE_HANDOFF_CERTIFICATION=PASS')
+          PY
+          python -m py_compile store/phase2/capture_exact_live_store_worker.py store/phase2/apply-platform-install-carriers.py store/phase2/deploy-native-install-handoff.py store/phase2/deploy-platform-install-carriers.py
+          node --check store/phase2/platform-install-carriers-smoke.mjs
+
+      - name: Capture exact current production Store module root — GET only
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+          LIVE_MODULE_OUTPUT: /tmp/musitu-platform-live-baseline
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/musitu-platform-live-baseline /tmp/musitu-platform-candidate /tmp/musitu-platform-evidence
+          mkdir -p /tmp/musitu-platform-evidence
+          test -n "$CLOUDFLARE_EMAIL" && test -n "$CLOUDFLARE_GLOBAL_API_KEY"
+          python store/phase2/capture_exact_live_store_worker.py | tee /tmp/musitu-platform-evidence/live-baseline-capture.json
+          grep -q '"result": "PASS_EXACT_LIVE_CAPTURE"' /tmp/musitu-platform-evidence/live-baseline-capture.json
+
+      - name: Build exact worker-plus-render candidate from live production
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp -a /tmp/musitu-platform-live-baseline /tmp/musitu-platform-candidate
+          cp store/phase1/web-surface/render.mjs /tmp/musitu-platform-candidate/render.mjs
+          python store/phase2/apply-platform-install-carriers.py /tmp/musitu-platform-candidate/worker.mjs
+          node --check /tmp/musitu-platform-candidate/worker.mjs
+          node --check /tmp/musitu-platform-candidate/render.mjs
+          node --check /tmp/musitu-platform-candidate/assets.mjs
+          node --check /tmp/musitu-platform-candidate/generated-data.mjs
+          cmp /tmp/musitu-platform-live-baseline/assets.mjs /tmp/musitu-platform-candidate/assets.mjs
+          cmp /tmp/musitu-platform-live-baseline/generated-data.mjs /tmp/musitu-platform-candidate/generated-data.mjs
+          ! cmp -s /tmp/musitu-platform-live-baseline/worker.mjs /tmp/musitu-platform-candidate/worker.mjs
+          ! cmp -s /tmp/musitu-platform-live-baseline/render.mjs /tmp/musitu-platform-candidate/render.mjs
+          BASELINE_MODULE_ROOT=/tmp/musitu-platform-live-baseline CANDIDATE_MODULE_ROOT=/tmp/musitu-platform-candidate node store/phase2/platform-install-carriers-smoke.mjs | tee /tmp/musitu-platform-evidence/predeploy-smoke.json
+          grep -q 'MUSITU_STORE_PLATFORM_INSTALL_CARRIERS_PREDEPLOY_PASS' /tmp/musitu-platform-evidence/predeploy-smoke.json
+          sha256sum /tmp/musitu-platform-live-baseline/*.mjs /tmp/musitu-platform-candidate/*.mjs | tee /tmp/musitu-platform-evidence/module-sha256.txt
+          echo PLATFORM_INSTALL_CARRIERS_PREDEPLOY=PASS
+
+      - name: Execute guarded production deployment with exact rollback drill
+        id: transaction
+        continue-on-error: true
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+          BASELINE_MODULE_ROOT: /tmp/musitu-platform-live-baseline
+          CANDIDATE_MODULE_ROOT: /tmp/musitu-platform-candidate
+          NATIVE_HANDOFF_HEAD: ${{ github.sha }}
+          NATIVE_HANDOFF_EVIDENCE: /tmp/musitu-platform-evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          python store/phase2/deploy-platform-install-carriers.py
+
+      - name: Upload non-secret deployment evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: musitu-store-platform-install-carriers-production
+          path: /tmp/musitu-platform-evidence
+          retention-days: 90
+          if-no-files-found: error
+
+      - name: Enforce successful cross-platform production transaction
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          test '${{ steps.transaction.outcome }}' = success
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          d=json.loads(Path('/tmp/musitu-platform-evidence/deployment.json').read_text())
+          assert d['schema']=='musitu.store.platform_install_carriers.production.v1'
+          assert d['gate']=='MUSITU_STORE_PLATFORM_INSTALL_CARRIERS_DEPLOY_AND_ROLLBACK_PASS'
+          assert d['platforms']==['android','ios','web_pwa']
+          assert d['install_actions']==['install','update','repair','reinstall']
+          s=d['state']
+          assert s['candidate_deployed_once'] is True
+          assert s['rollback_drill_performed'] is True
+          assert s['rollback_drill_verified'] is True
+          assert s['candidate_redeployed_final'] is True
+          assert s['final_state_verified'] is True
+          assert s['emergency_baseline_restore_performed'] is False
+          c=d['checks']
+          assert c['changed_modules']==['worker.mjs','render.mjs']
+          assert c['assets_and_generated_data_preserved'] is True
+          assert c['android_all_install_actions_target_com_musitu_store'] is True
+          assert c['ios_all_install_actions_target_sidestore'] is True
+          assert c['web_pwa_all_install_actions_target_install_surface'] is True
+          assert c['browser_chemistry_package_download_actions_absent'] is True
+          assert len(c['machine_endpoint_verification'])==11
+          assert c['physical_device_verification_claimed'] is False
+          print('MUSITU_STORE_PLATFORM_INSTALL_CARRIERS_PRODUCTION=PASS')
+          PY
