@@ -1,0 +1,162 @@
+name: MUSITU Continuum Rust dependency disposition probe 20260911 v2
+
+on:
+  push:
+    branches:
+      - continuum-rust-disposition-20260911-v2
+    paths:
+      - '.github/workflows/continuum-rust-disposition-20260911-v2.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  rust-dependency-probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Install Rust 1.93
+        shell: bash
+        run: |
+          set -euo pipefail
+          rustup toolchain install 1.93.0 --profile minimal
+          rustup default 1.93.0
+          rustc --version
+          cargo --version
+      - name: Recreate dependency-only manifest
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p probe/src
+          cat > probe/Cargo.toml <<'EOF'
+          [package]
+          name = "musitu-matrix-transport"
+          version = "0.1.0"
+          edition = "2024"
+          rust-version = "1.93"
+
+          [dependencies]
+          anyhow = "1.0"
+          matrix-sdk = "=0.18.0"
+          serde_json = "1.0"
+
+          [dev-dependencies]
+          tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+          EOF
+          printf '%s\n' 'pub fn dependency_probe() {}' > probe/src/lib.rs
+          cd probe
+          cargo generate-lockfile
+          sha256sum Cargo.lock | tee ../generated-lock.sha256
+      - name: Capture target-specific active dependency graph
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd probe
+          rustc -vV | tee ../rustc-version.txt
+          cargo tree --locked --target x86_64-unknown-linux-gnu -e normal,build > ../tree-linux-normal-build.txt
+          cargo tree --locked --target x86_64-unknown-linux-gnu -e normal,build -i bitmaps > ../tree-bitmaps.txt || true
+          cargo tree --locked --target x86_64-unknown-linux-gnu -e normal,build -i derivative > ../tree-derivative.txt || true
+          cargo tree --locked --target x86_64-unknown-linux-gnu -e normal,build -i proc-macro-error2 > ../tree-proc-macro-error2.txt || true
+          cargo tree --locked --target wasm32-unknown-unknown -e normal,build -i derivative > ../tree-derivative-wasm.txt || true
+      - name: Fetch sources and inspect affected API/re-exports
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd probe
+          cargo fetch --locked
+          BITMAPS=$(find "$HOME/.cargo/registry/src" -type d -name 'bitmaps-3.2.1' | head -n1)
+          IMBL=$(find "$HOME/.cargo/registry/src" -type d -name 'imbl-6.1.0' | head -n1)
+          test -n "$BITMAPS" && test -n "$IMBL"
+          {
+            echo "bitmaps_dir=$BITMAPS"
+            echo "imbl_dir=$IMBL"
+            echo '--- exact affected API mentions in imbl ---'
+            grep -RFn --include='*.rs' 'Bitmap::try_from' "$IMBL" || true
+            grep -RFn --include='*.rs' 'try_from(&[' "$IMBL" || true
+            echo '--- bitmaps re-export/import surface in imbl ---'
+            grep -RFn --include='*.rs' -E 'pub[[:space:]]+use[[:space:]]+bitmaps|use[[:space:]]+bitmaps|bitmaps::' "$IMBL" || true
+            echo '--- affected implementation in bitmaps ---'
+            grep -RFn --include='*.rs' 'TryFrom<&[u8]>' "$BITMAPS" || true
+          } > ../bitmaps-reachability.txt
+          tar -C "$HOME/.cargo/registry/src" -czf ../dependency-source-proof.tar.gz \
+            "$(realpath --relative-to="$HOME/.cargo/registry/src" "$BITMAPS")" \
+            "$(realpath --relative-to="$HOME/.cargo/registry/src" "$IMBL")"
+          sha256sum ../dependency-source-proof.tar.gz > ../dependency-source-proof.sha256
+      - name: Compile dependency-only target
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd probe
+          cargo check --locked --target x86_64-unknown-linux-gnu
+          cargo test --locked --target x86_64-unknown-linux-gnu
+      - name: Run RustSec audit 0.22.2
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo install cargo-audit --version 0.22.2 --locked
+          cd probe
+          set +e
+          cargo audit --json > ../cargo-audit.json
+          rc=$?
+          set -e
+          printf '%s\n' "$rc" > ../cargo-audit-exit-code.txt
+          cargo audit --version > ../cargo-audit-version.txt
+          python - <<'PY'
+          import json, pathlib
+          data=json.loads(pathlib.Path('../cargo-audit.json').read_text())
+          warnings=data.get('warnings',{})
+          vulns=data.get('vulnerabilities',{}).get('list',[])
+          out={
+            'vulnerability_count': len(vulns),
+            'warning_counts': {k: len(v) for k,v in warnings.items() if isinstance(v,list)},
+            'advisory_ids': sorted({
+              item.get('advisory',{}).get('id')
+              for group in warnings.values() if isinstance(group,list)
+              for item in group if item.get('advisory',{}).get('id')
+            } | {
+              item.get('advisory',{}).get('id') for item in vulns if item.get('advisory',{}).get('id')
+            }),
+          }
+          pathlib.Path('../audit-summary.json').write_text(json.dumps(out,indent=2,sort_keys=True))
+          print(json.dumps(out,sort_keys=True))
+          PY
+      - name: Emit probe metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import hashlib,json,pathlib
+          files=['generated-lock.sha256','tree-linux-normal-build.txt','tree-bitmaps.txt','tree-derivative.txt','tree-proc-macro-error2.txt','tree-derivative-wasm.txt','bitmaps-reachability.txt','cargo-audit.json','cargo-audit-version.txt','cargo-audit-exit-code.txt','audit-summary.json','rustc-version.txt','dependency-source-proof.sha256']
+          meta={
+            'schema_version':1,
+            'scope':'dependency_only_no_musitu_product_source_uploaded',
+            'matrix_sdk':'0.18.0',
+            'target':'x86_64-unknown-linux-gnu',
+            'expected_checkpoint_lock_sha256':'30541d6f6fd794440d92aedb609fd4cb4a50b64b40d2cb0b514895a560b1f9c5',
+            'files':{f:hashlib.sha256(pathlib.Path(f).read_bytes()).hexdigest() for f in files},
+          }
+          pathlib.Path('probe-metadata.json').write_text(json.dumps(meta,indent=2,sort_keys=True))
+          PY
+      - name: Upload dependency disposition evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: musitu-continuum-rust-disposition-probe-20260911-v2
+          path: |
+            generated-lock.sha256
+            tree-linux-normal-build.txt
+            tree-bitmaps.txt
+            tree-derivative.txt
+            tree-proc-macro-error2.txt
+            tree-derivative-wasm.txt
+            bitmaps-reachability.txt
+            dependency-source-proof.tar.gz
+            dependency-source-proof.sha256
+            cargo-audit.json
+            cargo-audit-version.txt
+            cargo-audit-exit-code.txt
+            audit-summary.json
+            rustc-version.txt
+            probe-metadata.json
+          if-no-files-found: error
+          retention-days: 30
