@@ -86,11 +86,11 @@ class ExternalExecutionNormalizationTests(unittest.TestCase):
         gate = ExternalEvidenceGate.level5(
             [normalized["run"]],
             baseline_registry=registry,
-            required_provider_orgs=1,
         )
         self.assertEqual(gate["status"], "FAIL")
         self.assertFalse(gate["attestation_verified"])
         self.assertIn("external_run_attestation_missing", gate["reasons"])
+        self.assertIn("insufficient_independent_providers", gate["reasons"])
 
     def test_exact_version_and_registry_drift_fail_closed(self):
         registry, evidence = self.evidence()
