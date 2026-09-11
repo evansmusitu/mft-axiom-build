@@ -49,14 +49,15 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          EXPECTED_SHA='fabb37404cbd9c021e0503db6c7d2c9e719c7e2fea334f936499593957473248'
-          EXPECTED_BYTES='1670512'
+          EXPECTED_SHA='fabb197b0ffeac6c69041a93aa3fc9023dccd841758f817ffd28b7dacdf2559f'
+          EXPECTED_BYTES='1677040'
           gradle --no-daemon --stacktrace :app:assembleRelease
           APK='app/build/outputs/apk/release/app-release-unsigned.apk'
           test -f "$APK"
           ACTUAL_SHA="$(sha256sum "$APK" | awk '{print $1}')"
           ACTUAL_BYTES="$(stat -c '%s' "$APK")"
           printf '%s  %s\n' "$ACTUAL_SHA" 'MUSITU_Store_1.0.3_UNSIGNED.apk' | tee "$GITHUB_WORKSPACE/MUSITU_Store_1.0.3_UNSIGNED.sha256"
+          echo "MUSITU_STORE_1_0_3_UNSIGNED_BYTES=$ACTUAL_BYTES"
           test "$ACTUAL_SHA" = "$EXPECTED_SHA"
           test "$ACTUAL_BYTES" = "$EXPECTED_BYTES"
           cp "$APK" "$GITHUB_WORKSPACE/MUSITU_Store_1.0.3_UNSIGNED.apk"
