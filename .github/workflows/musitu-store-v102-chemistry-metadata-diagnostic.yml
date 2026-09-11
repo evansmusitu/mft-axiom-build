@@ -1,0 +1,51 @@
+name: MUSITU Store v1.0.2 Chemistry Metadata Diagnostic
+
+on:
+  push:
+    branches: [musitu-store-handoff-probe-20260910]
+    paths:
+      - '.github/workflows/musitu-store-v102-chemistry-metadata-diagnostic.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      AUTHORITATIVE_STORE_BRANCH: musitu-store-phase1-20260909
+      AUTHORITATIVE_STORE_HEAD: 0ffe2de07c6b18873cc73b157ade3afe589f8a35
+      SEALED_MAIN: d6a846f6bbe0bccac1758713eb4de167caf07113
+      STORE_URL: https://payments.mftintelligence.com/store/bootstrap/MUSITU_Store_1.0.2.apk
+      STORE_SHA: 3a0c4b0f971ec84cd6167a137f8e3d75c7bb20e525c26ab533b3d88044cd0784
+      CHEM_URL: https://payments.mftintelligence.com/chemistry/download/MUSITU_Chemistry_Mastery_1.3.0.apk
+      CHEM_SHA: 4ba442122d9c86a0c3cef660334fe337c6ea9ae6fe853c964b5e94961245babd
+      BUILD_TOOLS: '36.0.0'
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          fetch-depth: 0
+      - uses: android-actions/setup-android@9fc6c4e9069bf8d3d10b2204b1fb8f6ef7065407
+      - name: Observe exact signed APK metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --quiet origin "$AUTHORITATIVE_STORE_BRANCH" main
+          test "$(git rev-parse origin/$AUTHORITATIVE_STORE_BRANCH)" = "$AUTHORITATIVE_STORE_HEAD"
+          test "$(git rev-parse origin/main)" = "$SEALED_MAIN"
+          sdkmanager "build-tools;$BUILD_TOOLS" >/dev/null
+          mkdir -p /tmp/musitu-meta
+          curl --fail --location --silent --show-error "$STORE_URL?meta=$GITHUB_RUN_ID" -o /tmp/musitu-meta/store.apk
+          curl --fail --location --silent --show-error "$CHEM_URL?meta=$GITHUB_RUN_ID" -o /tmp/musitu-meta/chemistry.apk
+          echo "STORE_BYTES=$(stat -c%s /tmp/musitu-meta/store.apk)"
+          echo "STORE_SHA=$(sha256sum /tmp/musitu-meta/store.apk | awk '{print $1}')"
+          echo "CHEM_BYTES=$(stat -c%s /tmp/musitu-meta/chemistry.apk)"
+          echo "CHEM_SHA=$(sha256sum /tmp/musitu-meta/chemistry.apk | awk '{print $1}')"
+          test "$(sha256sum /tmp/musitu-meta/store.apk | awk '{print $1}')" = "$STORE_SHA"
+          test "$(sha256sum /tmp/musitu-meta/chemistry.apk | awk '{print $1}')" = "$CHEM_SHA"
+          "$ANDROID_HOME/build-tools/$BUILD_TOOLS/apksigner" verify --print-certs /tmp/musitu-meta/store.apk | grep -E '^(Signer #1 certificate SHA-256 digest:|Verified using v[123] scheme)' || true
+          "$ANDROID_HOME/build-tools/$BUILD_TOOLS/apksigner" verify --print-certs /tmp/musitu-meta/chemistry.apk | grep -E '^(Signer #1 certificate SHA-256 digest:|Verified using v[123] scheme)' || true
+          "$ANDROID_HOME/build-tools/$BUILD_TOOLS/aapt" dump badging /tmp/musitu-meta/store.apk | grep -E '^(package:|launchable-activity:)' | head -n2
+          "$ANDROID_HOME/build-tools/$BUILD_TOOLS/aapt" dump badging /tmp/musitu-meta/chemistry.apk | grep -E '^(package:|launchable-activity:)' | head -n2
+          echo MUSITU_CHEMISTRY_METADATA_DIAGNOSTIC=PASS
