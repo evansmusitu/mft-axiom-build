@@ -21,6 +21,7 @@ jobs:
     env:
       SOURCE_FIX_HEAD: 5330b04e7c5e00ca7ec671b32fb7e7541ba1e076
       SOURCE_FIX_VERIFY_RUN: '34614511566'
+      RAW_OVERRIDE_DIAGNOSTIC_RUN: '34615364218'
       LIVE_WORKER_SHA: e17e0c7bde55d9f8d41b476e917159b6bf39b46c3895b7ec6d2a7b4f705beb81
       LIVE_RENDER_SHA: fc4abcec85fd5338c71e26fad5b21d318c99e6a1e1bd62f09091db9c4e914e04
       LIVE_ASSETS_SHA: 443e558c297d700bedc706ea56647c97162709e5178b80acd63d478054bba4b4
@@ -50,7 +51,7 @@ jobs:
         with:
           node-version: '22'
 
-      - name: Prove verified source fix and immutable production baseline record
+      - name: Prove verified source fix, raw-override diagnosis and immutable production baseline record
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash
@@ -61,6 +62,7 @@ jobs:
           test -z "$(git diff --name-only "$SOURCE_FIX_HEAD"..."$GITHUB_SHA" -- store/phase1/web-surface/render.mjs store/phase1/web-surface/native-install-handoff.test.mjs)"
           test "$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$SOURCE_FIX_VERIFY_RUN" --jq '.conclusion')" = success
           test "$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$SOURCE_FIX_VERIFY_RUN" --jq '.head_sha')" = "$SOURCE_FIX_HEAD"
+          test "$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$RAW_OVERRIDE_DIAGNOSTIC_RUN" --jq '.conclusion')" = success
           python - <<'PY'
           import json,os
           from pathlib import Path
@@ -82,7 +84,7 @@ jobs:
           assert rel['catalog_signature_sha256']==os.environ['CATALOG_SIG_SHA']
           print('CERTIFIED_LIVE_BASELINE_RECORD=PASS')
           PY
-          python -m py_compile store/phase2/apply-native-install-handoff.py store/phase2/capture_exact_live_store_worker.py store/phase2/deploy-native-install-handoff.py
+          python -m py_compile store/phase2/apply-native-install-handoff.py store/phase2/capture_exact_live_store_worker.py store/phase2/deploy-native-install-handoff.py store/phase2/deploy-native-install-handoff-v2.py
           node --check store/phase2/native-install-handoff-smoke.mjs
 
       - name: Capture exact certified current live Store modules — GET only
@@ -131,13 +133,13 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          python store/phase2/deploy-native-install-handoff.py
+          python store/phase2/deploy-native-install-handoff-v2.py
 
       - name: Upload non-secret deployment evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: musitu-store-native-install-handoff-production
+          name: musitu-store-native-install-handoff-production-v2
           path: /tmp/musitu-native-evidence
           retention-days: 90
           if-no-files-found: error
@@ -164,5 +166,6 @@ jobs:
           assert d['checks']['only_render_module_changed'] is True
           assert d['checks']['android_primary_install_routes_to_native_store'] is True
           assert len(d['checks']['machine_endpoint_verification'])==11
+          assert d['checks']['machine_probe_policy']['diagnostic_run']==34615364218
           print('MUSITU_STORE_NATIVE_INSTALL_HANDOFF_PRODUCTION=PASS')
           PY
