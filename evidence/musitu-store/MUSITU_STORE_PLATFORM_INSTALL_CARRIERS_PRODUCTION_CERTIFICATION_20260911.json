@@ -1,0 +1,105 @@
+{
+  "schema": "musitu.store.platform_install_carriers.production_certification.v1",
+  "date_utc": "2026-09-11",
+  "status": "PASS_DEPLOY_ROLLBACK_REDEPLOY_VERIFIED",
+  "scope": "Customer-facing MUSITU Store install, update, repair and reinstall routing across Android, iOS and Web/PWA, while preserving platform security approval and keeping browser-open fallbacks separate.",
+  "repository": "evansmusitu/mft-axiom-build",
+  "branch": "musitu-store-native-install-handoff-20260911",
+  "production_workflow": {
+    "run_id": 34621714872,
+    "head_sha": "7cd97659bfcf974491283233828d9cf74ba3dc8a",
+    "conclusion": "success",
+    "all_required_steps_success": true,
+    "artifact_id": 10272412652,
+    "artifact_name": "musitu-store-platform-install-carriers-production",
+    "artifact_sha256": "13aef17801b19b5b17867c6b2563ff4e5cde868d99bd48a72aa57e646efe751b",
+    "deployment_evidence_sha256": "b45f50531b598ec367373bde8110e822313c0794a0639f2d0542d8b28cc131ec"
+  },
+  "source_verification": {
+    "head_sha": "a341d6aaba4864a2db7cb082e410fd8b1fc5949f",
+    "workflow_run_id": 34621303476,
+    "conclusion": "success"
+  },
+  "production": {
+    "worker": "musitu-store-phase1",
+    "route": "payments.mftintelligence.com/store*",
+    "changed_modules": [
+      "worker.mjs",
+      "render.mjs"
+    ],
+    "candidate_module_sha256": {
+      "worker.mjs": "ef6fc4c57f1cd869ef541b2d8c4e7e8baa4977b2f5063678c44c12b14bc36551",
+      "render.mjs": "174e8b9eb903d4de98212f3c865eb22e694cf58dd34f375fb5cb66b25b0d4694",
+      "assets.mjs": "443e558c297d700bedc706ea56647c97162709e5178b80acd63d478054bba4b4",
+      "generated-data.mjs": "27ab78a914019cb44844de51bd0f4be46dc53bdf4b928a8dff7944228ccce063"
+    },
+    "assets_and_generated_data_preserved": true
+  },
+  "platform_install_contract": {
+    "install_actions": [
+      "install",
+      "update",
+      "repair",
+      "reinstall"
+    ],
+    "android": {
+      "primary_carrier": "explicit Android intent targeting package com.musitu.store with musitustore://app/chemistry semantics",
+      "all_install_actions_target_com_musitu_store": true,
+      "chemistry_apk_browser_download_actions_absent": true,
+      "store_bootstrap_apk_role": "one-time MUSITU Store installation only",
+      "open_in_browser_separate_fallback": true,
+      "web_app_separate_fallback": true,
+      "native_store_install_boundary": "MUSITU Store downloads and verifies the Chemistry APK internally, then invokes Android's package installer; Android retains mandatory installation approval.",
+      "silent_install_claimed": false
+    },
+    "ios": {
+      "primary_carrier": "SideStore sidestore://install URL scheme",
+      "all_install_actions_target_sidestore": true,
+      "sidestore_source_action_present": true,
+      "raw_ipa_browser_primary_actions_absent": true,
+      "web_pwa_separate_fallback": true,
+      "open_in_browser_separate_fallback": true,
+      "silent_install_claimed": false
+    },
+    "web_pwa": {
+      "primary_install_surface": "https://payments.mftintelligence.com/chemistry/install",
+      "all_install_actions_target_install_surface": true,
+      "apk_or_ipa_browser_install_actions_absent": true,
+      "open_in_browser_separate_fallback": true,
+      "browser_install_security_prompt_preserved": true
+    }
+  },
+  "verified_gates": {
+    "exact_live_module_root_captured_before_mutation": true,
+    "predeploy_platform_carrier_smoke": true,
+    "android_platform_matrix_verified": true,
+    "ios_platform_matrix_verified": true,
+    "web_pwa_platform_matrix_verified": true,
+    "browser_chemistry_package_download_actions_absent": true,
+    "machine_endpoints_preserved": 11,
+    "catalog_bytes_preserved": true,
+    "catalog_signature_bytes_preserved": true,
+    "store_apk_identity_preserved": true,
+    "assets_bytes_preserved": true,
+    "generated_data_bytes_preserved": true,
+    "rollback_drill_performed": true,
+    "rollback_exact_platform_matrix_verified": true,
+    "candidate_redeployed_final": true,
+    "final_state_verified": true,
+    "emergency_baseline_restore_performed": false
+  },
+  "release_identity": {
+    "store_version": "1.0.2",
+    "store_apk_sha256": "3a0c4b0f971ec84cd6167a137f8e3d75c7bb20e525c26ab533b3d88044cd0784",
+    "store_apk_bytes": 1679340,
+    "store_signing_certificate_sha256": "43695b6103d7ab57e89166c9a537f1810b7e33053e20332b1d4e7e2e1c612671",
+    "catalog_sha256": "4fa31c5f9f84facc0d1fbf7a91a50b0adcaa5ef4c97b7d82abbe9657ea10b7f9",
+    "catalog_signature_sha256": "9b854358f90368ceb5cc3baab8d99064d8ee94b79ead378a614f8cc1732b06a7"
+  },
+  "physical_device_boundary": {
+    "physical_device_verification_claimed": false,
+    "reason": "Production edge and user-agent-specific routing were verified in the guarded production transaction. CI cannot truthfully prove that an installed native app or SideStore opens after an actual user tap on a physical device.",
+    "remaining_confirmation": "On an Android device with MUSITU Store installed, tapping Install, Update, Repair or Reinstall must open MUSITU Store rather than Chrome downloading Chemistry. On iOS with SideStore installed, the primary action must open SideStore. Web/PWA must enter the Chemistry install surface and browser-approved install flow."
+  },
+  "claim_boundary": "The production MUSITU Store web surface now routes customer-facing install, update, repair and reinstall actions through the appropriate platform carrier: com.musitu.store on Android, SideStore on iOS, and the dedicated Chemistry PWA installation surface on Web/PWA. Browser Chemistry APK/IPA download actions are absent; only the separately labelled one-time MUSITU Store bootstrap may download an Android Store APK through the browser. Platform-mandated approval/security prompts remain in force. Physical-device handoff has not been fabricated or claimed by CI."
+}
