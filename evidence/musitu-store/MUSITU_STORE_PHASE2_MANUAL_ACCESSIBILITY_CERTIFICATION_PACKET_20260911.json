@@ -31,6 +31,7 @@
     "automated_accessibility_tree_is_not_a_substitute": true,
     "manual_keyboard_test_required": true,
     "real_zoom_reflow_test_required": true,
+    "screen_reader_live_transcription_visible_required": true,
     "continuous_recording_preferred": true,
     "single_recording_may_cover_multiple_evidence_fields_with_timestamp_fragments": true,
     "evidence_sha256_and_byte_length_required": true,
@@ -65,6 +66,7 @@
     "low_bandwidth_route_operable_without_pointer": null
   },
   "screen_reader_checks": {
+    "narrator_speech_recap_live_transcription_visible": null,
     "page_title_announced_meaningfully": null,
     "language_announced_or_interpreted_correctly": null,
     "main_landmark_discoverable": null,
