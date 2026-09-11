@@ -286,8 +286,16 @@ def validate_experimental_evidence(evidence: Mapping[str, Any]) -> dict[str, Any
                 reasons.append("negative_memory")
         except (KeyError, TypeError, ValueError):
             reasons.append("invalid_measurement")
-    if len(str(evidence.get("evidence_sha256", ""))) != 64:
-        reasons.append("evidence_hash_missing")
+
+    supplied_hash = str(evidence.get("evidence_sha256", ""))
+    if len(supplied_hash) != 64 or any(c not in "0123456789abcdef" for c in supplied_hash.lower()):
+        reasons.append("evidence_hash_missing_or_invalid")
+    else:
+        hash_body = dict(evidence)
+        hash_body.pop("evidence_sha256", None)
+        if sha256(hash_body) != supplied_hash:
+            reasons.append("evidence_hash_mismatch")
+
     return {
         "status": "PASS" if not reasons else "FAIL",
         "promotion_status": PROMOTION_STATUS,
