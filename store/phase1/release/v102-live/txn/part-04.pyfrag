@@ -1,0 +1,73 @@
+leted"],
+        "checks": checks,
+        "error": error,
+        "gate": gate,
+    }
+    raw = (json.dumps(out, indent=2, sort_keys=True) + "\n").encode()
+    (EVIDENCE / "deployment.json").write_bytes(raw)
+    (EVIDENCE / "deployment.sha256").write_text(sha(raw) + "  deployment.json\n")
+    return out
+
+
+def rollback_after_failure():
+    if not state["worker_updated"] and not state["new_object_uploaded"]:
+        return
+    state["rollback_performed"] = True
+    errors = []
+    if state["worker_updated"]:
+        try:
+            restore_worker_snapshot()
+            state["rollback_worker_restored"] = True
+        except Exception as exc:
+            errors.append("worker restore failed: " + repr(exc))
+    if state["new_object_uploaded"]:
+        try:
+            wrangler("r2", "object", "delete", BUCKET + "/" + NEW_KEY, "--remote")
+            r2_assert_absent(NEW_KEY)
+            state["rollback_new_object_deleted"] = True
+        except Exception as exc:
+            errors.append("new object cleanup failed: " + repr(exc))
+    try:
+        # Re-check prior public state after rollback without taking a new snapshot.
+        verify_topology()
+        code, _, raw = pub("/store/catalog.json", "application/json")
+        if code != 200 or sha(raw) != PRIOR_CATALOG_SHA:
+            raise RuntimeError("prior catalog not restored")
+        code, _, raw = pub("/store/bootstrap/MUSITU_Store_1.0.2.apk")
+        if code != 404:
+            raise RuntimeError("v1.0.2 route still public after rollback")
+        verify_chemistry_and_platform()
+    except Exception as exc:
+        errors.append("post-rollback verification failed: " + repr(exc))
+    if errors:
+        raise RuntimeError("; ".join(errors))
+
+
+def main():
+    if not APK.is_file() or APK.stat().st_size != V102_BYTES or sha(APK.read_bytes()) != V102_SHA:
+        raise RuntimeError("prepared Store 1.0.2 APK mismatch")
+    try:
+        verify_prior_state()
+        wrangler("r2", "object", "put", BUCKET + "/" + NEW_KEY, "--remote", "--file", str(APK), "--content-type", "application/vnd.android.package-archive")
+        state["new_object_uploaded"] = True
+        r2_readback(NEW_KEY, SNAPSHOT / "r2-v102-after-upload.apk", V102_BYTES, V102_SHA)
+        upload_worker(CURRENT)
+        state["worker_updated"] = True
+        verify_new_state()
+        out = write_evidence("MUSITU_STORE_V102_PRODUCTION_DEPLOY_PASS")
+        print(json.dumps(out, sort_keys=True))
+    except Exception as exc:
+        original = repr(exc)
+        rollback_error = None
+        try:
+            rollback_after_failure()
+        except Exception as rollback_exc:
+            rollback_error = repr(rollback_exc)
+        msg = original if rollback_error is None else original + " | ROLLBACK_ERROR=" + rollback_error
+        out = write_evidence("MUSITU_STORE_V102_PRODUCTION_DEPLOY_FAIL", msg)
+        print(json.dumps(out, sort_keys=True))
+        raise RuntimeError(msg) from exc
+
+
+if __name__ == "__main__":
+    main()
