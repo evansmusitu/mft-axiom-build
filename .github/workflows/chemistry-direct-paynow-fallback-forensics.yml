@@ -1,0 +1,98 @@
+name: MUSITU Chemistry Direct Paynow Fallback Forensics
+
+on:
+  push:
+    branches: [chemistry-direct-paynow-fallback-forensics-20260911]
+    paths: ['.github/workflows/chemistry-direct-paynow-fallback-forensics.yml']
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Inspect exact live worker and Paynow member route without mutation
+        shell: bash
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import email,hashlib,json,os,re,urllib.error,urllib.parse,urllib.request
+          API='https://api.cloudflare.com/client/v4'
+          AID='93f395f5121954671f92fffa453d6b61'
+          WORKER='musitu-chemistry-commerce'
+          H={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY'],'User-Agent':'MUSITU-Chemistry-Direct-Paynow-Forensics/1.0'}
+          def req(url,headers=None,timeout=60):
+              q=urllib.request.Request(url,headers=dict(headers or {}))
+              try:
+                  with urllib.request.urlopen(q,timeout=timeout) as r:return r.status,r.headers,r.read()
+              except urllib.error.HTTPError as e:return e.code,e.headers,e.read()
+          c,h,b=req(f'{API}/accounts/{AID}/workers/scripts/{WORKER}',H)
+          if c!=200: raise SystemExit(f'worker read HTTP {c}')
+          ctype=h.get('content-type','')
+          source=b
+          if 'multipart/' in ctype.lower():
+              msg=email.message_from_bytes((f'Content-Type: {ctype}\r\nMIME-Version: 1.0\r\n\r\n').encode()+b)
+              mods=[]
+              for p in msg.walk():
+                  if p.is_multipart(): continue
+                  d=p.get_payload(decode=True) or b''
+                  if b'MUSITU Chemistry Commerce' in d: mods.append(d)
+              if len(mods)!=1: raise SystemExit(f'main module extraction mismatch {len(mods)}')
+              source=mods[0]
+          text=source.decode('utf-8')
+          sha=hashlib.sha256(source).hexdigest()
+          markers={
+            'render_checkout':text.count('function renderCheckout({planId,planLabel,price,scope,deviceId=\'\',isSchool=false}={})'),
+            'continue_paynow':text.count('Continue securely to Paynow'),
+            'support_whatsapp':text.count('Open WhatsApp support'),
+            'direct_paynow_url':text.count('www.paynow.co.zw/Payment/Find?search=evansmusitu5%40gmail.com'),
+            'direct_fallback_marker':text.count('data-direct-paynow-fallback')
+          }
+          print('LIVE_WORKER_SHA256='+sha)
+          print('LIVE_WORKER_BYTES='+str(len(source)))
+          print('MARKERS='+json.dumps(markers,sort_keys=True))
+          if markers['render_checkout']!=1 or markers['continue_paynow']<1 or markers['support_whatsapp']<1:
+              raise SystemExit('live worker is not safely patchable by the exact fallback transform')
+          hc,hh,hb=req('https://payments.mftintelligence.com/chemistry/healthz',{'Accept':'application/json','Cache-Control':'no-cache','User-Agent':'MUSITU-Direct-Paynow-Forensics/1.0'})
+          health=json.loads(hb or b'{}')
+          safe={k:health.get(k) for k in ['ok','licence_key_id','raw_paynow_key_present','payment_authority_bound','transport_bound']}
+          print('LIVE_HEALTH='+json.dumps(safe,sort_keys=True))
+          if hc!=200 or health.get('ok') is not True or health.get('raw_paynow_key_present') is not False:
+              raise SystemExit('live health boundary failed')
+          url='https://www.paynow.co.zw/Payment/Find?search=evansmusitu5%40gmail.com'
+          pc,ph,pb=req(url,{'User-Agent':'Mozilla/5.0 MUSITU-Paynow-Route-Check/1.0','Accept':'text/html'})
+          pt=pb.decode('utf-8','ignore')
+          paynow={
+            'http':pc,
+            'bytes':len(pb),
+            'is_paynow_page':('Paynow' in pt),
+            'merchant_details':('Merchant Details' in pt),
+            'member_since':('Member Since' in pt),
+            'not_found':bool(re.search(r'not\s+found|no\s+member|could\s+not\s+find',pt,re.I))
+          }
+          print('PAYNOW_DIRECT_ROUTE='+json.dumps(paynow,sort_keys=True))
+          if pc<200 or pc>=400 or not paynow['is_paynow_page']:
+              raise SystemExit('Paynow direct member route did not resolve to a Paynow page')
+          report={
+            'schema':'musitu.chemistry.direct_paynow_fallback_forensics.v1',
+            'production_mutation':False,
+            'live_worker_sha256':sha,
+            'live_worker_bytes':len(source),
+            'markers':markers,
+            'health':safe,
+            'paynow_direct_route':paynow,
+            'direct_url':url,
+            'result':'PASS_READ_ONLY_PATCHABILITY' if markers['direct_fallback_marker']==0 else 'PASS_ALREADY_PRESENT'
+          }
+          open('/tmp/direct-paynow-forensics.json','w').write(json.dumps(report,indent=2,sort_keys=True)+'\n')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: musitu-chemistry-direct-paynow-fallback-forensics
+          path: /tmp/direct-paynow-forensics.json
+          if-no-files-found: error
