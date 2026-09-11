@@ -1,6 +1,6 @@
 import {CATALOG_RAW,CATALOG_SIG_RAW,IOS_SOURCE_RAW,WEB_ADAPTER_RAW,FDROID_INDEX_RAW,SBOM_RAW,DEPENDENCIES_RAW,CHANNELS_RAW,ROLLBACK_RAW,BOOTSTRAP_RAW,CATALOG} from './generated-data.mjs';
 import {STORE_CSS} from './assets.mjs';
-import {renderHome,renderApp,renderInstall,renderSearch,renderDeveloper,renderReleases,renderStatus,renderLifecycle} from './render.mjs';
+import {renderHome,renderApp,renderInstall,renderSearch,renderDeveloper,renderReleases,renderStatus,renderLifecycle,primaryInstallHref} from './render.mjs';
 
 const SECURITY={
   'Content-Security-Policy':"default-src 'none'; style-src 'self'; script-src 'self'; img-src 'self' data:; form-action 'self'; base-uri 'none'; frame-ancestors 'none'; connect-src 'self'; manifest-src 'self'",
@@ -77,13 +77,13 @@ function installShellAssets(html,lang){
   return out;
 }
 function htmlResponse(request,html,lang=localeFor(request),extra={}){return response(installShellAssets(html,lang),200,'text/html; charset=utf-8',{'Content-Language':lang,'Vary':'Save-Data, Accept-Language',...extra})}
-function liteHome(lang){
+function liteHome(lang,request){
   const title=HOME_TITLE[lang]||HOME_TITLE.en;
-  return `<!doctype html><html lang="${lang}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>MUSITU Store</title><link rel="stylesheet" href="/store/assets/store.css"></head><body><a class="skip-link" href="#main">Skip to main content</a><main id="main" tabindex="-1" class="page"><div class="wrap"><span class="eyebrow">Low-bandwidth mode</span><h1>${title}</h1><p>MUSITU Chemistry 1.3.0 · verified stable release.</p><div class="actions"><a class="button" href="/store/install">Install</a><a class="button secondary" href="/store/apps/chemistry">Details</a></div><p class="micro"><a href="/store/offline">Offline &amp; recovery</a></p></div></main></body></html>`;
+  return `<!doctype html><html lang="${lang}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>MUSITU Store</title><link rel="stylesheet" href="/store/assets/store.css"></head><body><a class="skip-link" href="#main">Skip to main content</a><main id="main" tabindex="-1" class="page"><div class="wrap"><span class="eyebrow">Low-bandwidth mode</span><h1>${title}</h1><p>MUSITU Chemistry 1.3.0 · verified stable release.</p><div class="actions"><a class="button" href="${primaryInstallHref(request,'install')}">Install</a><a class="button secondary" href="/store/apps/chemistry">Details</a></div><p class="micro"><a href="/store/offline">Offline &amp; recovery</a></p></div></main></body></html>`;
 }
 function homeResponse(request){
   const u=new URL(request.url); const lang=localeFor(request); const lite=u.searchParams.get('lite')==='1'||(request.headers.get('save-data')||'').toLowerCase()==='on';
-  if(lite) return htmlResponse(request,liteHome(lang),lang,{'Cache-Control':'private, max-age=0'});
+  if(lite) return htmlResponse(request,liteHome(lang,request),lang,{'Cache-Control':'private, max-age=0'});
   let html=renderHome(request).replace('Install MUSITU with release truth you can verify.',HOME_TITLE[lang]||HOME_TITLE.en);
   return htmlResponse(request,html,lang);
 }
@@ -104,15 +104,15 @@ export default {async fetch(request,env){
   if(RELEASE_ASSETS[u.pathname]) r=await releaseAsset(env,RELEASE_ASSETS[u.pathname]);
   else switch(u.pathname){
     case '/store': case '/store/': r=homeResponse(request); break;
-    case '/store/apps/chemistry': r=htmlResponse(request,renderApp()); break;
+    case '/store/apps/chemistry': r=htmlResponse(request,renderApp(request)); break;
     case '/store/install': r=htmlResponse(request,renderInstall(request)); break;
     case '/store/open': r=Response.redirect(CATALOG.apps[0].releases[0].web.appURL,302); break;
-    case '/store/update': r=htmlResponse(request,renderLifecycle('update')); break;
-    case '/store/repair': r=htmlResponse(request,renderLifecycle('repair')); break;
-    case '/store/reinstall': r=htmlResponse(request,renderLifecycle('reinstall')); break;
-    case '/store/rollback': r=htmlResponse(request,renderLifecycle('rollback')); break;
-    case '/store/transfer-device': r=htmlResponse(request,renderLifecycle('transfer-device')); break;
-    case '/store/search': r=htmlResponse(request,renderSearch(u.searchParams.get('q')||'')); break;
+    case '/store/update': r=htmlResponse(request,renderLifecycle(request,'update')); break;
+    case '/store/repair': r=htmlResponse(request,renderLifecycle(request,'repair')); break;
+    case '/store/reinstall': r=htmlResponse(request,renderLifecycle(request,'reinstall')); break;
+    case '/store/rollback': r=htmlResponse(request,renderLifecycle(request,'rollback')); break;
+    case '/store/transfer-device': r=htmlResponse(request,renderLifecycle(request,'transfer-device')); break;
+    case '/store/search': r=htmlResponse(request,renderSearch(request,u.searchParams.get('q')||'')); break;
     case '/store/developer': r=htmlResponse(request,runtimeLabeledPage(renderDeveloper(),env,'developer')); break;
     case '/store/releases': r=htmlResponse(request,renderReleases()); break;
     case '/store/status': r=htmlResponse(request,runtimeLabeledPage(renderStatus(),env,'status')); break;
