@@ -1,0 +1,37 @@
+name: RevenueGuard Public Holdout Materializer
+
+on:
+  push:
+    branches:
+      - revenueguard-axiom-governor-20260911
+    paths:
+      - '.github/workflows/revenueguard-public-holdout-materialize.yml'
+      - 'ops/revenueguard_public_holdout_manifest.py'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  materialize:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download pinned public benchmark archives
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p public_holdouts
+          curl -L --fail --retry 3 -o public_holdouts/cuad-data.zip \
+            https://raw.githubusercontent.com/The-Atticus-Project/cuad/67faa0e6023b04fcaae6cc09497ab00e5d63a2a2/data.zip
+          curl -L --fail --retry 3 -o public_holdouts/contract-nli.zip \
+            https://raw.githubusercontent.com/stanfordnlp/contract-nli/eced6528dd3c1d14d73f9a87df8f7bdbc03126f9/resources/contract-nli.zip
+          sha256sum public_holdouts/*.zip | tee public_holdouts/ARCHIVE_SHA256SUMS.txt
+          python ops/revenueguard_public_holdout_manifest.py public_holdouts
+      - uses: actions/upload-artifact@v4
+        with:
+          name: revenueguard-public-holdouts-pinned
+          path: public_holdouts/
+          if-no-files-found: error
+          retention-days: 30
