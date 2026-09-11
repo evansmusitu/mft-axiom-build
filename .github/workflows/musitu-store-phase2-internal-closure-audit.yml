@@ -86,7 +86,8 @@ jobs:
           set -euo pipefail
           python -m py_compile store/phase2/*.py
           for f in store/phase2/*.mjs; do node --check "$f"; done
-          if grep -RInE '\b(TODO|FIXME|HACK|XXX)\b' store/phase2 docs/MUSITU_STORE_PHASE2_* .github/workflows/musitu-store-phase2-*; then
+          mapfile -t debt_files < <(find store/phase2 docs .github/workflows -type f \( -path 'store/phase2/*' -o -name 'MUSITU_STORE_PHASE2_*' -o -name 'musitu-store-phase2-*' \) ! -name 'musitu-store-phase2-internal-closure-audit.yml' -print)
+          if ((${#debt_files[@]})) && grep -nHE '\b(TODO|FIXME|HACK|XXX)\b' "${debt_files[@]}"; then
             echo 'Unresolved engineering debt marker found' >&2
             exit 1
           fi
@@ -98,7 +99,7 @@ jobs:
           set -euo pipefail
           mkdir -p /tmp/musitu-phase2-closure
           python - <<'PY'
-          import json
+          import json, os
           from pathlib import Path
 
           root=Path('evidence/musitu-store')
@@ -113,7 +114,7 @@ jobs:
           }
           d={k:json.loads(p.read_text()) for k,p in paths.items()}
 
-          # Historical baseline/predeploy records are preserved, not mistaken for current work.
+          # Historical snapshots are intentionally preserved as historical records.
           assert d['baseline']['status']=='IN_PROGRESS'
           assert d['baseline']['baseline_findings']['low_bandwidth_constrained_browser_validation']['status']=='GAP_TO_CLOSE'
           assert d['baseline']['baseline_findings']['phase2_specific_verified_deployment_and_rollback']['status']=='GAP_TO_CLOSE'
@@ -169,7 +170,7 @@ jobs:
           assert manual['rules']['screen_reader_live_transcription_visible_required'] is True
           assert manual['rules']['automated_accessibility_tree_is_not_a_substitute'] is True
 
-          # No null/unresolved values are allowed in current non-manual evidence.
+          # Current non-manual evidence may not contain unresolved nulls.
           def null_paths(obj, prefix=''):
               out=[]
               if obj is None:
@@ -186,23 +187,20 @@ jobs:
           report={
             'schema':'musitu.store.phase2.internal_closure_audit.v1',
             'result':'PASS_INTERNAL_CLOSURE_PENDING_EXTERNAL_CERTIFICATION',
-            'head': '${GITHUB_SHA}',
+            'head':os.environ['GITHUB_SHA'],
             'sealed_main':'d6a846f6bbe0bccac1758713eb4de167caf07113',
             'phase1_head':'ebded495617cc89bb96d7a5531c1ce4fc6bbedd9',
-            'historical_baseline_gaps_superseded_by_later_evidence': True,
-            'independently_actionable_internal_engineering_remaining': [],
-            'independently_actionable_internal_qualification_remaining': [],
-            'current_external_blockers': ['real manual keyboard + Narrator screen-reader + 200%/400% zoom/reflow certification evidence and original-evidence review'],
-            'external_certification_is_only_current_blocker': True,
-            'post_external_transaction_prepared': True,
+            'historical_baseline_gaps_superseded_by_later_evidence':True,
+            'independently_actionable_internal_engineering_remaining':[],
+            'independently_actionable_internal_qualification_remaining':[],
+            'current_external_blockers':['real manual keyboard + Narrator screen-reader + 200%/400% zoom/reflow certification evidence and original-evidence review'],
+            'external_certification_is_only_current_blocker':True,
+            'post_external_transaction_prepared':True,
             'post_external_transaction':'strict packet validation -> guarded Worker-only production deployment -> live rollback drill -> final candidate redeploy -> deployment evidence sealing',
-            'production_mutation': False,
-            'phase2Complete': False,
+            'production_mutation':False,
+            'phase2Complete':False,
             'claim_boundary':'Internal Phase-2 engineering and executable qualification are closed. Real external accessibility certification is the sole current blocker. Production deployment/rollback is already implemented and guarded downstream of that external PASS; it has not yet executed.'
           }
-          # expand actual SHA at runtime without shell interpolation inside quoted heredoc
-          import os
-          report['head']=os.environ['GITHUB_SHA']
           Path('/tmp/musitu-phase2-closure/internal-closure.json').write_text(json.dumps(report,indent=2)+'\n')
           print(json.dumps(report,indent=2))
           PY
@@ -284,8 +282,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          issues="$(gh api search/issues -f q="repo:$GITHUB_REPOSITORY \"Phase 2\" is:open is:issue" --jq '.total_count')"
-          prs="$(gh api search/issues -f q="repo:$GITHUB_REPOSITORY phase2 is:open is:pr" --jq '.total_count')"
+          issues="$(gh api -X GET search/issues -f q="repo:$GITHUB_REPOSITORY \"Phase 2\" is:open is:issue" --jq '.total_count')"
+          prs="$(gh api -X GET search/issues -f q="repo:$GITHUB_REPOSITORY phase2 is:open is:pr" --jq '.total_count')"
           test "$issues" = 0
           test "$prs" = 0
           echo PHASE2_OPEN_WORK_TRACKERS=PASS
