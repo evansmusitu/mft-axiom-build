@@ -1,0 +1,116 @@
+name: MUSITU Continuum Rust bitmaps 3.1.0 remediation probe 20260911 v3
+
+on:
+  push:
+    branches:
+      - continuum-rust-bitmaps-downgrade-20260911-v3
+    paths:
+      - '.github/workflows/continuum-rust-bitmaps-downgrade-20260911-v3.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Install Rust 1.93
+        shell: bash
+        run: |
+          set -euo pipefail
+          rustup toolchain install 1.93.0 --profile minimal
+          rustup default 1.93.0
+      - name: Create dependency-only Matrix manifest
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p probe/src
+          cat > probe/Cargo.toml <<'EOF'
+          [package]
+          name = "musitu-matrix-transport"
+          version = "0.1.0"
+          edition = "2024"
+          rust-version = "1.93"
+
+          [dependencies]
+          anyhow = "1.0"
+          matrix-sdk = "=0.18.0"
+          serde_json = "1.0"
+          bitmaps = "=3.1.0"
+
+          [dev-dependencies]
+          tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+          EOF
+          printf '%s\n' 'pub fn dependency_probe() {}' > probe/src/lib.rs
+          cd probe
+          cargo generate-lockfile
+          cargo tree --locked -i bitmaps | tee ../tree-bitmaps.txt
+          python - <<'PY'
+          import pathlib,re
+          text=pathlib.Path('Cargo.lock').read_text()
+          m=re.search(r'\[\[package\]\]\nname = "bitmaps"\nversion = "([^"]+)"\nsource = "([^"]+)"\nchecksum = "([^"]+)"',text)
+          if not m: raise SystemExit('bitmaps lock entry missing')
+          pathlib.Path('../bitmaps-lock-entry.json').write_text(__import__('json').dumps({'version':m.group(1),'source':m.group(2),'checksum':m.group(3)},indent=2,sort_keys=True))
+          print(pathlib.Path('../bitmaps-lock-entry.json').read_text())
+          PY
+      - name: Compile and test dependency resolution
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd probe
+          cargo check --locked --target x86_64-unknown-linux-gnu
+          cargo test --locked --target x86_64-unknown-linux-gnu
+      - name: Inspect all bitmaps consumers
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd probe
+          cargo fetch --locked
+          BITMAPS=$(find "$HOME/.cargo/registry/src" -type d -name 'bitmaps-3.1.0' | head -n1)
+          IMBL=$(find "$HOME/.cargo/registry/src" -type d -name 'imbl-6.1.0' | head -n1)
+          CHUNKS=$(find "$HOME/.cargo/registry/src" -type d -name 'imbl-sized-chunks-0.1.3' | head -n1)
+          test -n "$BITMAPS" && test -n "$IMBL" && test -n "$CHUNKS"
+          {
+            echo "bitmaps=$BITMAPS"
+            echo "imbl=$IMBL"
+            echo "chunks=$CHUNKS"
+            echo '--- affected try_from API mentions downstream ---'
+            grep -RFn --include='*.rs' 'Bitmap::try_from' "$IMBL" "$CHUNKS" || true
+            echo '--- TryFrom byte-slice patterns downstream ---'
+            grep -RFn --include='*.rs' -E 'TryFrom<&\[u8\]>|try_from\([^)]*\[u8\]' "$IMBL" "$CHUNKS" || true
+            echo '--- AsMut byte-slice impl in selected bitmaps ---'
+            grep -RFn --include='*.rs' 'AsMut<\[u8\]>' "$BITMAPS" || true
+            echo '--- TryFrom byte-slice impl in selected bitmaps ---'
+            grep -RFn --include='*.rs' 'TryFrom<&\[u8\]>' "$BITMAPS" || true
+          } | tee ../bitmaps-consumer-inspection.txt
+      - name: Audit exact resolution
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo install cargo-audit --version 0.22.2 --locked
+          cd probe
+          cargo audit --json > ../cargo-audit.json
+          python - <<'PY'
+          import json,pathlib
+          d=json.loads(pathlib.Path('../cargo-audit.json').read_text())
+          warnings=d.get('warnings',{})
+          out={'vulnerability_count':len(d.get('vulnerabilities',{}).get('list',[])),
+               'warning_counts':{k:len(v) for k,v in warnings.items() if isinstance(v,list)},
+               'advisory_ids':sorted({i.get('advisory',{}).get('id') for v in warnings.values() if isinstance(v,list) for i in v if i.get('advisory',{}).get('id')})}
+          pathlib.Path('../audit-summary.json').write_text(json.dumps(out,indent=2,sort_keys=True))
+          print(json.dumps(out,sort_keys=True))
+          PY
+      - name: Upload remediation evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: musitu-continuum-rust-bitmaps-downgrade-20260911-v3
+          path: |
+            bitmaps-lock-entry.json
+            tree-bitmaps.txt
+            bitmaps-consumer-inspection.txt
+            cargo-audit.json
+            audit-summary.json
+          if-no-files-found: error
+          retention-days: 30
