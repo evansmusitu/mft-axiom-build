@@ -1,0 +1,39 @@
+name: MUSITU Axiom Frontier Review-Safe CI
+
+on:
+  push:
+    branches:
+      - frontier/axiom-v5-world-top-tier-review-safe
+    paths:
+      - 'frontier_review_safe/**'
+      - '.github/workflows/axiom-frontier-review-safe-ci.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: musitu-axiom-frontier-review-safe-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  review-safe-runtime:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - name: Checkout immutable action
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - name: Setup patch-pinned Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: '3.12.14'
+      - name: Compile private review-safe runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m compileall -q frontier_review_safe
+      - name: Run private review-safe tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          PYTHONPATH=. python -m unittest discover -s frontier_review_safe/tests -v
