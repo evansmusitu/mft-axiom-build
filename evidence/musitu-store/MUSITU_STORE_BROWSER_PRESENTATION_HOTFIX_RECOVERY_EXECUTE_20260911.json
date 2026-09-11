@@ -1,0 +1,29 @@
+{
+  "schema": "musitu.store.browser_presentation_hotfix_recovery_execution.v1",
+  "created_date_utc": "2026-09-11",
+  "authorization_source": "explicit_user_instruction_in_chat",
+  "authorization_text": "Fix this and also other sites with the same problem",
+  "incident": {
+    "failed_livebase_run": 34580899323,
+    "candidate_upload_succeeded": true,
+    "validation_failure": "stale reconstructed bootstrap release hash",
+    "old_raw_multipart_restore_rejected_by_cloudflare": true,
+    "production_must_be_treated_as_candidate-live_until_verified": true
+  },
+  "correct_bootstrap_release_raw_sha256": "e51eab19fc558766f5ab1bee1c4f9c341643d8308f582db830598f1ff3c8e779",
+  "certified_pre_hotfix_baseline_artifact": {
+    "run_id": 34580437336,
+    "artifact_id": 10191363071,
+    "artifact_digest": "sha256:8cefe039999c63f3477be1c13e0946258c40bfdbcc70a8c343fe2eeed1c98f35"
+  },
+  "exact_pre_hotfix_module_sha256": {
+    "worker.mjs": "7a05f174db9fa88ce2d3f77a357947622f9d3a10bcd8a049aab69309a59b5168",
+    "render.mjs": "fc4abcec85fd5338c71e26fad5b21d318c99e6a1e1bd62f09091db9c4e914e04",
+    "assets.mjs": "443e558c297d700bedc706ea56647c97162709e5178b80acd63d478054bba4b4",
+    "generated-data.mjs": "27ab78a914019cb44844de51bd0f4be46dc53bdf4b928a8dff7944228ccce063"
+  },
+  "presentation_candidate_worker_sha256": "e17e0c7bde55d9f8d41b476e917159b6bf39b46c3895b7ec6d2a7b4f705beb81",
+  "rollback_method": "rebuild exact certified baseline modules with verified live compatibility date and bindings",
+  "requires_successful_baseline_restore_and_candidate_redeploy": true,
+  "catalog_apk_commerce_licence_security_hardening_mutation_authorized": false
+}

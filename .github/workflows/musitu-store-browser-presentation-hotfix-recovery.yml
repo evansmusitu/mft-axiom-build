@@ -1,0 +1,138 @@
+name: MUSITU Store Browser Presentation Hotfix Recovery
+
+on:
+  push:
+    branches: [musitu-store-phase2-standards-hardening-20260911]
+    paths:
+      - 'evidence/musitu-store/MUSITU_STORE_BROWSER_PRESENTATION_HOTFIX_RECOVERY_EXECUTE_20260911.json'
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: musitu-store-browser-presentation-hotfix-production
+  cancel-in-progress: false
+
+jobs:
+  recover:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      SEALED_MAIN: d6a846f6bbe0bccac1758713eb4de167caf07113
+      PHASE1_HEAD: ebded495617cc89bb96d7a5531c1ce4fc6bbedd9
+      FORENSIC_RUN: '34580437336'
+      FORENSIC_ARTIFACT: '10191363071'
+      FORENSIC_DIGEST: sha256:8cefe039999c63f3477be1c13e0946258c40bfdbcc70a8c343fe2eeed1c98f35
+      LIVE_WORKER_SHA: 7a05f174db9fa88ce2d3f77a357947622f9d3a10bcd8a049aab69309a59b5168
+      LIVE_RENDER_SHA: fc4abcec85fd5338c71e26fad5b21d318c99e6a1e1bd62f09091db9c4e914e04
+      LIVE_ASSETS_SHA: 443e558c297d700bedc706ea56647c97162709e5178b80acd63d478054bba4b4
+      LIVE_GENERATED_DATA_SHA: 27ab78a914019cb44844de51bd0f4be46dc53bdf4b928a8dff7944228ccce063
+      HOTFIX_WORKER_SHA: e17e0c7bde55d9f8d41b476e917159b6bf39b46c3895b7ec6d2a7b4f705beb81
+      EXPECTED_COMPATIBILITY_DATE: '2026-09-09'
+      STORE_SHA: 3a0c4b0f971ec84cd6167a137f8e3d75c7bb20e525c26ab533b3d88044cd0784
+      STORE_BYTES: '1679340'
+      CATALOG_SHA: 4fa31c5f9f84facc0d1fbf7a91a50b0adcaa5ef4c97b7d82abbe9657ea10b7f9
+      CATALOG_SIG_SHA: 9b854358f90368ceb5cc3baab8d99064d8ee94b79ead378a614f8cc1732b06a7
+      ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      ZONE_ID: 5b56528f03948ff5917a5e0cd9f7109e
+      ZONE_NAME: mftintelligence.com
+      PAYMENTS_HOST: payments.mftintelligence.com
+      PAYMENTS_ORIGIN: mft-paynow-transport-gateway
+      STORE_WORKER: musitu-store-phase1
+      STORE_ROUTE: payments.mftintelligence.com/store*
+      STORE_BUCKET: musitu-store-phase1-releases
+
+    steps:
+      - uses: actions/checkout@v4
+        with: {fetch-depth: 0}
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+
+      - name: Prove immutable anchors and retrieve certified pre-hotfix live modules
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --quiet origin main musitu-store-phase1-20260909
+          test "$(git rev-parse origin/main)" = "$SEALED_MAIN"
+          test "$(git rev-parse origin/musitu-store-phase1-20260909)" = "$PHASE1_HEAD"
+          test -z "$(git diff --name-only "$PHASE1_HEAD"..."$GITHUB_SHA" -- store/phase1 commerce/chemistry)"
+          row="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$FORENSIC_RUN/artifacts" --jq ".artifacts[] | select(.id == $FORENSIC_ARTIFACT) | [.expired,.digest] | @tsv")"
+          test "$(printf '%s' "$row" | cut -f1)" = false
+          test "$(printf '%s' "$row" | cut -f2)" = "$FORENSIC_DIGEST"
+          rm -rf /tmp/recovery-artifact /tmp/browser-hotfix-baseline /tmp/browser-hotfix-candidate /tmp/browser-hotfix-recovery
+          mkdir -p /tmp/recovery-artifact /tmp/browser-hotfix-baseline /tmp/browser-hotfix-recovery
+          gh run download "$FORENSIC_RUN" -n musitu-store-live-worker-forensics -D /tmp/recovery-artifact
+          cp /tmp/recovery-artifact/live-worker.mjs /tmp/browser-hotfix-baseline/worker.mjs
+          cp /tmp/recovery-artifact/live-render.mjs /tmp/browser-hotfix-baseline/render.mjs
+          cp /tmp/recovery-artifact/live-assets.mjs /tmp/browser-hotfix-baseline/assets.mjs
+          cp /tmp/recovery-artifact/live-generated-data.mjs /tmp/browser-hotfix-baseline/generated-data.mjs
+          test "$(sha256sum /tmp/browser-hotfix-baseline/worker.mjs | awk '{print $1}')" = "$LIVE_WORKER_SHA"
+          test "$(sha256sum /tmp/browser-hotfix-baseline/render.mjs | awk '{print $1}')" = "$LIVE_RENDER_SHA"
+          test "$(sha256sum /tmp/browser-hotfix-baseline/assets.mjs | awk '{print $1}')" = "$LIVE_ASSETS_SHA"
+          test "$(sha256sum /tmp/browser-hotfix-baseline/generated-data.mjs | awk '{print $1}')" = "$LIVE_GENERATED_DATA_SHA"
+
+      - name: Rebuild and qualify candidate from exact certified baseline
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp -a /tmp/browser-hotfix-baseline /tmp/browser-hotfix-candidate
+          python store/phase2/browser_machine_presentation.py /tmp/browser-hotfix-candidate/worker.mjs
+          node --check /tmp/browser-hotfix-candidate/worker.mjs
+          test "$(sha256sum /tmp/browser-hotfix-candidate/worker.mjs | awk '{print $1}')" = "$HOTFIX_WORKER_SHA"
+          BASELINE_WORKER_PATH=/tmp/browser-hotfix-baseline/worker.mjs CANDIDATE_WORKER_PATH=/tmp/browser-hotfix-candidate/worker.mjs node store/phase2/browser-machine-presentation-smoke.mjs | tee /tmp/browser-hotfix-recovery/pre-recovery-smoke.json
+          grep -q '"result": "PASS"' /tmp/browser-hotfix-recovery/pre-recovery-smoke.json
+
+      - name: Recover safely, prove rollback, and leave candidate verified live
+        id: recovery
+        continue-on-error: true
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+          BASELINE_MODULE_ROOT: /tmp/browser-hotfix-baseline
+          CANDIDATE_MODULE_ROOT: /tmp/browser-hotfix-candidate
+          RECOVERY_HEAD: ${{ github.sha }}
+          RECOVERY_EVIDENCE: /tmp/browser-hotfix-recovery
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$CLOUDFLARE_EMAIL" && test -n "$CLOUDFLARE_GLOBAL_API_KEY"
+          python store/phase2/recover_browser_presentation_hotfix.py
+
+      - name: Upload non-secret recovery evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: musitu-store-browser-presentation-hotfix-recovery
+          path: /tmp/browser-hotfix-recovery
+          retention-days: 90
+          if-no-files-found: error
+
+      - name: Enforce successful recovery transaction
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          test '${{ steps.recovery.outcome }}' = success
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          d=json.loads(Path('/tmp/browser-hotfix-recovery/recovery.json').read_text())
+          assert d['gate']=='MUSITU_STORE_BROWSER_PRESENTATION_HOTFIX_RECOVERY_AND_ROLLBACK_PASS'
+          s=d['state']
+          assert s['prior_failed_attempt_candidate_detected'] is True
+          assert s['recovered_to_baseline_before_drill'] is True
+          assert s['candidate_deployed_for_verification'] is True
+          assert s['rollback_drill_performed'] is True
+          assert s['rollback_drill_verified'] is True
+          assert s['candidate_redeployed_final'] is True
+          assert s['final_state_verified'] is True
+          assert s['emergency_baseline_restore_performed'] is False
+          assert d['checks']['normal_store_responses_unchanged'] is True
+          assert len(d['checks']['machine_endpoint_verification']) == 11
+          print('MUSITU_STORE_BROWSER_PRESENTATION_HOTFIX_RECOVERY=PASS')
+          PY
