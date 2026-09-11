@@ -8,6 +8,14 @@ import hmac
 from .core import canonical, parse_time, sha256
 
 
+def _valid_sha256(value: str) -> bool:
+    return (
+        isinstance(value, str)
+        and len(value) == 64
+        and all(c in "0123456789abcdef" for c in value.lower())
+    )
+
+
 @dataclass(frozen=True)
 class ExternalAttestationReceipt:
     schema: str
@@ -25,10 +33,10 @@ class ExternalAttestationReceipt:
             raise ValueError("unsupported external attestation schema")
         if not all((self.subject_type, self.subject_id, self.issuer_org, self.verifier_key_id, self.provenance_type)):
             raise ValueError("complete external attestation identity required")
-        if len(self.subject_hash) != 64:
+        if not _valid_sha256(self.subject_hash):
             raise ValueError("external attestation subject hash must be SHA-256")
         parse_time(self.issued_at)
-        if len(self.receipt_hmac) != 64:
+        if not _valid_sha256(self.receipt_hmac):
             raise ValueError("external attestation HMAC must be SHA-256")
 
     @property
@@ -83,7 +91,7 @@ class ExternalAttestationService:
         if len(verifier_secret) < 32:
             raise ValueError("external verifier secret must be >=32 bytes")
         parse_time(issued_at)
-        if len(subject_hash) != 64:
+        if not _valid_sha256(subject_hash):
             raise ValueError("subject_hash must be SHA-256")
         body = cls._body(
             subject_type=subject_type,
@@ -119,7 +127,9 @@ class ExternalAttestationService:
             reasons.append("external_attestation_subject_type_mismatch")
         if receipt.subject_id != expected_subject_id:
             reasons.append("external_attestation_subject_id_mismatch")
-        if receipt.subject_hash != expected_subject_hash:
+        if not _valid_sha256(expected_subject_hash):
+            reasons.append("external_attestation_expected_subject_hash_invalid")
+        elif receipt.subject_hash != expected_subject_hash:
             reasons.append("external_attestation_subject_hash_mismatch")
         parse_time(receipt.issued_at)
         if secret is not None and len(secret) >= 32:
