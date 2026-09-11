@@ -576,6 +576,7 @@ class ExternalEvidenceGate:
         latest_validation_at = max((parse_time(v.validated_at) for v in bound), default=None)
         reasons = sorted(set(reasons))
         passed = not reasons
+        baseline_registry_hash = level5.get("baseline_registry_hash")
         return {
             "status": "PASS" if passed else "FAIL",
             "level": 6,
@@ -583,6 +584,7 @@ class ExternalEvidenceGate:
             "attestation_verified": passed,
             "candidate_sha": expected_candidate if identity_valid else None,
             "case_set_hash": expected_cases if identity_valid else None,
+            "baseline_registry_hash": baseline_registry_hash if _valid_sha256(baseline_registry_hash) else None,
             "level5_provider_orgs": sorted(level5_providers),
             "latest_external_run_at": latest_external_run_at.isoformat() if latest_external_run_at is not None else None,
             "latest_validation_at": latest_validation_at.isoformat() if latest_validation_at is not None else None,
@@ -616,6 +618,10 @@ class ExternalEvidenceGate:
         except ValueError:
             expected_identity = None
             reasons.append("level6_identity_binding_invalid")
+        expected_baseline_registry_hash = level6.get("baseline_registry_hash")
+        if expected_baseline_registry_hash is not None and not _valid_sha256(expected_baseline_registry_hash):
+            reasons.append("level6_baseline_registry_hash_invalid")
+            expected_baseline_registry_hash = None
         if not isinstance(min_refreshes, int) or isinstance(min_refreshes, bool):
             reasons.append("invalid_longitudinal_refresh_floor")
             effective_min_refreshes = cls.LEVEL7_REFRESH_FLOOR
@@ -704,6 +710,7 @@ class ExternalEvidenceGate:
             passed_refreshes.append(refresh)
             receipt_hashes.append(verification["receipt_sha256"])
         distinct_refresh_times = {parse_time(r.executed_at) for r in passed_refreshes}
+        baseline_registry_hashes = {r.baseline_registry_hash for r in passed_refreshes}
         if len(passed_refreshes) < effective_min_refreshes:
             if saw_nonindependent_provenance:
                 reasons.append("longitudinal_refresh_provenance_required")
@@ -726,8 +733,12 @@ class ExternalEvidenceGate:
             reasons.append("insufficient_attested_longitudinal_refreshes")
         elif len(distinct_refresh_times) < effective_min_refreshes:
             reasons.append("insufficient_distinct_longitudinal_refresh_times")
-        if len({r.baseline_registry_hash for r in passed_refreshes}) < 2 and len(passed_refreshes) >= effective_min_refreshes:
-            reasons.append("baselines_not_refreshed")
+        if len(passed_refreshes) >= effective_min_refreshes:
+            if (expected_baseline_registry_hash is not None
+                    and expected_baseline_registry_hash not in baseline_registry_hashes):
+                reasons.append("level5_baseline_registry_not_anchored")
+            if len(baseline_registry_hashes) < 2:
+                reasons.append("baselines_not_refreshed")
         reasons = sorted(set(reasons))
         passed = not reasons
         return {
@@ -737,6 +748,7 @@ class ExternalEvidenceGate:
             "attestation_verified": passed,
             "candidate_sha": expected_identity.candidate_sha if expected_identity is not None else None,
             "case_set_hash": expected_identity.case_set_hash if expected_identity is not None else None,
+            "baseline_registry_hash": expected_baseline_registry_hash,
             "level5_provider_orgs": sorted(level5_providers),
             "latest_validation_at": latest_validation_at.isoformat() if latest_validation_at is not None else None,
             "refresh_count": len(passed_refreshes),
@@ -1058,6 +1070,10 @@ class ClaimBoundary:
             }
 
         required = {_organization_key(str(x)) for x in required_provider_orgs}
+        verified_scope = {
+            "case_set_hash": expected_cases,
+            "constraint_hash": expected_constraints,
+        }
         if broad:
             if len(expected_providers) < 4:
                 return {"status": "DENY", "max_evidence_level": max_level, "reason": "broad_provider_coverage_insufficient"}
@@ -1082,7 +1098,11 @@ class ClaimBoundary:
                 return {"status": "DENY", "max_evidence_level": max_level, "reason": "required_broad_provider_not_positive"}
             return {
                 "status": "ALLOW", "max_evidence_level": max_level,
-                "claim_boundary": f"Broad claim permitted only for evidence scope: {comparison_scope}",
+                "claim_boundary": (
+                    f"Broad claim permitted only for verified sealed evidence: "
+                    f"case_set={expected_cases}; constraints={expected_constraints}"
+                ),
+                "verified_comparison_scope": verified_scope,
                 "positive_provider_orgs": sorted(positive_providers),
                 "named_provider_orgs": sorted(named_frontier_providers),
                 "frontier_provider_orgs": sorted(cls.FRONTIER_PROVIDER_NAMES & positive_providers),
@@ -1090,7 +1110,11 @@ class ClaimBoundary:
             }
         return {
             "status": "ALLOW", "max_evidence_level": max_level,
-            "claim_boundary": f"Evidence supports only: {comparison_scope}; benchmark={benchmark_hash}",
+            "claim_boundary": (
+                f"Evidence supports only verified sealed evidence: "
+                f"case_set={expected_cases}; constraints={expected_constraints}"
+            ),
+            "verified_comparison_scope": verified_scope,
             "positive_provider_orgs": sorted(positive_providers),
             "comparison_evidence_sha256": sha256(sorted(fingerprints)),
         }
