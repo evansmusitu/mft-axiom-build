@@ -62,8 +62,12 @@ class PersistentAdaptationTests(unittest.TestCase):
             registry.promote(v1, regression_pass=True)
             with self.assertRaises(FrontierSafetyError):
                 registry.promote(self.release("v2", "missing", "1"), regression_pass=True)
+            # Same version with a valid parent shape but different evidence must
+            # reach the version-collision guard rather than self-parent validation.
             with self.assertRaises(FrontierSafetyError):
-                registry.promote(self.release("v1", "v1", "1"), regression_pass=True)
+                registry.promote(self.release("v1", None, "1"), regression_pass=True)
+            with self.assertRaises(ValueError):
+                registry.promote(self.release("self", "self", "1"), regression_pass=True)
 
     def test_tampered_active_state_or_transition_chain_is_rejected(self):
         with tempfile.TemporaryDirectory() as td:
