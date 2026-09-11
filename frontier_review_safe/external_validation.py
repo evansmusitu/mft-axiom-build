@@ -17,6 +17,7 @@ from .longitudinal_binding import LongitudinalIdentityBinding
 TRUSTED_EXTERNAL_PROVENANCE = frozenset({"provider_export", "provider_api_receipt", "independent_lab_record"})
 LEVEL5_PROVIDER_PROVENANCE = frozenset({"provider_export", "provider_api_receipt"})
 _CLAIM_CONFUSABLES = str.maketrans({
+    "0": "o", "1": "i", "3": "e", "4": "a", "5": "s", "7": "t",
     "Α": "A", "Β": "B", "Ε": "E", "Η": "H", "Ι": "I", "Κ": "K", "Μ": "M", "Ν": "N",
     "Ο": "O", "Ρ": "P", "Τ": "T", "Χ": "X", "α": "a", "ε": "e", "ι": "i", "κ": "k",
     "ο": "o", "ρ": "p", "τ": "t", "χ": "x",
