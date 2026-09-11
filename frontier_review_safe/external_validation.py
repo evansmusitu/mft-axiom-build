@@ -324,6 +324,11 @@ class ExternalEvidenceGate:
         verified: list[ExternalRunRecord] = []
         receipt_hashes: dict[str, str] = {}
         provider_classes: set[str] = set()
+        level5_provider_orgs = {
+            run.provider_org.strip().lower()
+            for run in runs
+            if _nonblank(run.provider_org)
+        }
 
         if baseline_registry is None:
             reasons.append("baseline_registry_missing")
@@ -380,6 +385,12 @@ class ExternalEvidenceGate:
                 continue
             if receipt.provenance_type != run.provenance_type:
                 reasons.append("external_run_provenance_type_mismatch")
+                continue
+            if not isinstance(receipt.issuer_org, str) or not receipt.issuer_org.strip():
+                reasons.append("external_attestation_issuer_identity_invalid")
+                continue
+            if receipt.issuer_org.strip().lower() in level5_provider_orgs:
+                reasons.append("external_attestation_issuer_overlaps_level5_provider")
                 continue
             verified.append(run)
             receipt_hashes[run.run_id] = verification["receipt_sha256"]
