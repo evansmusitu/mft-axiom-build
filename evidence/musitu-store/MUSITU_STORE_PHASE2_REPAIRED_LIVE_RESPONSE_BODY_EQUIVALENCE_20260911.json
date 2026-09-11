@@ -1,0 +1,47 @@
+{
+  "schema": "musitu.store.phase2.repaired_live_response_body_equivalence.v1",
+  "status": "PASS",
+  "date_utc": "2026-09-11",
+  "repository": {
+    "workflow_head": "142da49e1a8ee185a9494690651b8a2a0be81143",
+    "sealed_main": "d6a846f6bbe0bccac1758713eb4de167caf07113",
+    "phase1_head": "ebded495617cc89bb96d7a5531c1ce4fc6bbedd9",
+    "baseline_live_worker_sha256": "e17e0c7bde55d9f8d41b476e917159b6bf39b46c3895b7ec6d2a7b4f705beb81",
+    "certified_candidate_worker_sha256": "c98e6e36fa153f16a05c627b10b9a562e5f2ffde1f02ec0a7676a8d5121b7cce"
+  },
+  "workflow": {
+    "run_id": "34582501210",
+    "job_id": "103209089223",
+    "conclusion": "success",
+    "artifact": {
+      "id": "10192199123",
+      "name": "musitu-store-phase2-repaired-live-hardened-candidate",
+      "digest": "sha256:3b1c157fd2a061c26c9b150c5e018aefc109ddd6cea3d8fab3e1e2908717f497",
+      "bytes": 299314,
+      "expires_at": "2026-12-10T09:06:24Z"
+    }
+  },
+  "proof": {
+    "normal_store_case_count": 14,
+    "normal_store_response_body_byte_equality": true,
+    "machine_endpoint_count": 11,
+    "machine_endpoint_payload_byte_equality": true,
+    "browser_presentation_preserved": true,
+    "raw_query_override_byte_identical": true,
+    "unexpected_header_delta": false,
+    "expected_header_delta_only": [
+      "content-security-policy",
+      "cross-origin-opener-policy",
+      "x-permitted-cross-domain-policies"
+    ],
+    "security_hardening_runtime": "PASS"
+  },
+  "manual_evidence_applicability": {
+    "current_live_store_1_0_2_body_may_be_manually_tested_for_candidate": true,
+    "reason": "The repaired live Store and hardened candidate produce byte-identical accessibility-relevant bodies across the certified route matrix; only the bounded security-header delta is introduced by the candidate. Browser presentation is already present in the live baseline and is preserved by the candidate.",
+    "real_screen_reader_still_required": true,
+    "manual_keyboard_still_required": true,
+    "real_zoom_reflow_still_required": true
+  },
+  "phase2Complete": false
+}
