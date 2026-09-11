@@ -8,6 +8,14 @@ from .core import FrontierSafetyError, parse_time, sha256
 from .evidence_resolution import SourceQualityProfile
 
 
+def _valid_sha256(value: str) -> bool:
+    return (
+        isinstance(value, str)
+        and len(value) == 64
+        and all(c in "0123456789abcdef" for c in value.lower())
+    )
+
+
 @dataclass(frozen=True)
 class SourceQualityObservation:
     observation_id: str
@@ -24,12 +32,13 @@ class SourceQualityObservation:
     provenance_hash: str
 
     def __post_init__(self) -> None:
-        if not all((self.observation_id, self.source_id, self.source_group, self.domain)):
+        identity = (self.observation_id, self.source_id, self.source_group, self.domain)
+        if any(not isinstance(value, str) or not value.strip() for value in identity):
             raise ValueError("source-quality observation identity fields are required")
         if self.split not in {"train", "validation"}:
             raise ValueError("split must be train or validation")
         parse_time(self.observed_at)
-        if len(self.provenance_hash) != 64:
+        if not _valid_sha256(self.provenance_hash):
             raise ValueError("observation provenance_hash must be SHA-256")
 
 
@@ -41,6 +50,19 @@ class SourceCalibrationMetric:
     heuristic_brier: float
     calibration_gain: float
     authorized: bool
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.domain, str) or not self.domain.strip():
+            raise ValueError("calibration metric domain required")
+        if not isinstance(self.validation_count, int) or isinstance(self.validation_count, bool) or self.validation_count <= 0:
+            raise ValueError("calibration validation_count must be a positive integer")
+        values = (float(self.brier), float(self.heuristic_brier), float(self.calibration_gain))
+        if any(not math.isfinite(value) for value in values):
+            raise ValueError("calibration metrics must be finite")
+        if not 0.0 <= float(self.brier) <= 1.0 or not 0.0 <= float(self.heuristic_brier) <= 1.0:
+            raise ValueError("Brier scores must be within [0,1]")
+        if not isinstance(self.authorized, bool):
+            raise ValueError("calibration authorization must be boolean")
 
 
 @dataclass(frozen=True)
@@ -59,10 +81,22 @@ class SourceQualityCalibrationArtifact:
         parse_time(self.trained_at)
         if self.schema != "musitu.axiom.source-quality-calibration.v1":
             raise ValueError("unsupported source-quality calibration schema")
-        if len(self.corpus_hash) != 64:
+        if not isinstance(self.version, str) or not self.version.strip():
+            raise ValueError("calibration version required")
+        if not _valid_sha256(self.corpus_hash):
             raise ValueError("calibration corpus hash must be SHA-256")
+        if not self.profiles or not self.metrics:
+            raise ValueError("calibration artifact requires profiles and holdout metrics")
+        if any(not isinstance(group, str) or not group.strip() for group in (*self.train_groups, *self.validation_groups)):
+            raise ValueError("calibration source groups must be non-empty strings")
+        if len(self.train_groups) != len(set(self.train_groups)) or len(self.validation_groups) != len(set(self.validation_groups)):
+            raise ValueError("duplicate calibration source group")
         if set(self.train_groups) & set(self.validation_groups):
             raise FrontierSafetyError("source-group leakage between train and validation")
+        if not isinstance(self.promotion_authorized, bool):
+            raise ValueError("promotion_authorized must be boolean")
+        if self.promotion_authorized and not all(metric.authorized for metric in self.metrics):
+            raise FrontierSafetyError("promoted calibration artifact contains unauthorized holdout metric")
 
     @property
     def fingerprint(self) -> str:
@@ -90,7 +124,13 @@ class SourceQualityCalibrator:
     def _brier(predictions: Sequence[float], outcomes: Sequence[int]) -> float:
         if not predictions or len(predictions) != len(outcomes):
             raise ValueError("equal non-empty predictions/outcomes required")
-        return sum((float(p) - int(y)) ** 2 for p, y in zip(predictions, outcomes)) / len(predictions)
+        values = [float(p) for p in predictions]
+        labels = [int(y) for y in outcomes]
+        if any(not math.isfinite(value) or not 0.0 <= value <= 1.0 for value in values):
+            raise ValueError("calibration probabilities must be finite and within [0,1]")
+        if any(label not in {0, 1} for label in labels):
+            raise ValueError("calibration outcomes must be binary")
+        return sum((p - y) ** 2 for p, y in zip(values, labels)) / len(values)
 
     @staticmethod
     def _profile(rows: Sequence[SourceQualityObservation]) -> SourceQualityProfile:
@@ -125,8 +165,17 @@ class SourceQualityCalibrator:
         maximum_brier_regression: float = 0.0,
     ) -> SourceQualityCalibrationArtifact:
         parse_time(trained_at)
-        if not version or minimum_train <= 0 or minimum_validation <= 0:
-            raise ValueError("version and positive sample thresholds required")
+        if not isinstance(version, str) or not version.strip():
+            raise ValueError("calibration version required")
+        for name, value in (("minimum_train", minimum_train), ("minimum_validation", minimum_validation)):
+            if not isinstance(value, int) or isinstance(value, bool) or value <= 0:
+                raise ValueError(f"{name} must be a positive integer")
+        try:
+            maximum_regression = float(maximum_brier_regression)
+        except (TypeError, ValueError) as exc:
+            raise ValueError("maximum_brier_regression must be a finite non-negative number") from exc
+        if not math.isfinite(maximum_regression) or maximum_regression < 0.0:
+            raise ValueError("maximum_brier_regression must be a finite non-negative number")
         if not observations:
             raise ValueError("calibration observations required")
         ids = [r.observation_id for r in observations]
@@ -171,14 +220,9 @@ class SourceQualityCalibrator:
                     predictions.append(cls._predict(profile))
                 outcomes.append(1 if row.outcome_correct and row.provenance_intact else 0)
                 heuristic.append(0.5)
-            if len(rows) < minimum_validation:
-                authorized = False
-                brier = cls._brier(predictions, outcomes)
-                baseline = cls._brier(heuristic, outcomes)
-            else:
-                brier = cls._brier(predictions, outcomes)
-                baseline = cls._brier(heuristic, outcomes)
-                authorized = brier <= baseline + maximum_brier_regression
+            brier = cls._brier(predictions, outcomes)
+            baseline = cls._brier(heuristic, outcomes)
+            authorized = len(rows) >= minimum_validation and brier <= baseline + maximum_regression
             all_authorized = all_authorized and authorized
             metrics.append(SourceCalibrationMetric(domain, len(rows), brier, baseline, baseline - brier, authorized))
 
