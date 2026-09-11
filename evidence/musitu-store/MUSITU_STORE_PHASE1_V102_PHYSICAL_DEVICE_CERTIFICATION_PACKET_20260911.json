@@ -1,0 +1,226 @@
+{
+  "schema": "musitu.store.phase1.v102.physical_device_certification_packet.v1",
+  "created_date_utc": "2026-09-11",
+  "status": "PENDING_EXTERNAL_DEVICE_EVIDENCE",
+  "scope": "phase1-physical-customer-device-step15",
+  "production_mutation": false,
+  "phase2Authorized": false,
+  "freshDevicePhase1Complete": false,
+  "physical_device_evidence": false,
+  "authoritative_state": {
+    "release_source_head": "0ffe2de07c6b18873cc73b157ade3afe589f8a35",
+    "authoritative_branch_head_before_packet": "c7e4357dfd48dd6736777f004039835c9b64cffb",
+    "sealed_main": "d6a846f6bbe0bccac1758713eb4de167caf07113",
+    "virtual_device_certification_commit": "c7e4357dfd48dd6736777f004039835c9b64cffb",
+    "virtual_device_certification_path": "evidence/musitu-store/MUSITU_STORE_PHASE1_V102_VIRTUAL_DEVICE_CERTIFICATION_20260911.json",
+    "virtual_device_step14_complete": true
+  },
+  "protocol": {
+    "source_path": "docs/MUSITU_STORE_PHASE1_PHYSICAL_DEVICE_CERTIFICATION_PROTOCOL_20260909.md",
+    "source_blob_sha": "cc337993fc4c25f2fbefa5246c24215788ba420b",
+    "adaptation_rule": "The protocol mechanics remain authoritative. Its superseded Store 1.0.1 current-release identity is replaced only by the verified Store 1.0.2 production identity in this packet. Rollback 1.0.1 and 1.0.0 are not current-release certification targets.",
+    "physical_pass_requires_real_hardware": true,
+    "emulator_or_simulator_cannot_satisfy_physical_gate": true,
+    "continuous_recording_preferred": true,
+    "failures_must_be_recorded_without_reinterpretation": true
+  },
+  "immutable_production_identities": {
+    "store_home": "https://payments.mftintelligence.com/store",
+    "store_android_apk": {
+      "url": "https://payments.mftintelligence.com/store/bootstrap/MUSITU_Store_1.0.2.apk",
+      "package": "com.musitu.store",
+      "version_name": "1.0.2",
+      "version_code": 10002,
+      "bytes": 1679340,
+      "sha256": "3a0c4b0f971ec84cd6167a137f8e3d75c7bb20e525c26ab533b3d88044cd0784",
+      "signer_sha256": "43695b6103d7ab57e89166c9a537f1810b7e33053e20332b1d4e7e2e1c612671"
+    },
+    "chemistry_android_apk": {
+      "url": "https://payments.mftintelligence.com/chemistry/download/MUSITU_Chemistry_Mastery_1.3.0.apk",
+      "package": "com.musitu.chemistry",
+      "catalog_release": "1.3.0",
+      "version_name": "1.3.0-frontier-u-rc1",
+      "version_code": 10200,
+      "bytes": 5892286,
+      "sha256": "4ba442122d9c86a0c3cef660334fe337c6ea9ae6fe853c964b5e94961245babd",
+      "signer_sha256": "d4455ac3ec74a6d7cd7993ca640f554a83bba95dfd01ef508f7637b6bc72c0d8"
+    },
+    "chemistry_ios_ipa": {
+      "url": "https://payments.mftintelligence.com/store/ios/MUSITU_Chemistry_1.3.0.ipa",
+      "source_url": "https://payments.mftintelligence.com/store/ios/source.json",
+      "bundle": "com.musitu.chemistry",
+      "version": "1.3.0",
+      "build": 10200,
+      "bytes": 3640968,
+      "sha256": "426d2dc05e2fc8846a7582324d953bbdd2a256f170f8db2b5a956bc1c51cc962",
+      "minimum_ios": "15.0",
+      "native_install_mechanism": "SideStore/user-account re-signing"
+    },
+    "chemistry_pwa": {
+      "url": "https://payments.mftintelligence.com/chemistry/app/"
+    }
+  },
+  "privacy_and_evidence_binding": {
+    "raw_device_serial_or_udid_capture_required": true,
+    "raw_identifier_must_not_be_committed_to_public_repository": true,
+    "public_record_identifier_binding": "SHA-256 of the raw serial/UDID plus a private evidence reference",
+    "account_passwords_recovery_codes_api_keys_signing_secrets_forbidden": true
+  },
+  "lanes": {
+    "physical_android": {
+      "status": "PENDING_EXTERNAL_DEVICE_EVIDENCE",
+      "required_device_metadata": {
+        "manufacturer": null,
+        "model": null,
+        "android_version": null,
+        "security_patch": null,
+        "browser_name": null,
+        "browser_version": null,
+        "device_serial_sha256": null,
+        "private_raw_serial_evidence_reference": null
+      },
+      "preconditions": {
+        "store_absent_before_recording": null,
+        "chemistry_absent_before_recording": null
+      },
+      "required_checks": {
+        "open_production_store_in_normal_browser": null,
+        "download_exact_store_1_0_2_from_production_route": null,
+        "system_install_store_success": null,
+        "launch_store_from_app_icon": null,
+        "first_launch_musitu_store_visible": null,
+        "first_launch_musitu_chemistry_visible": null,
+        "signed_catalog_resolves": null,
+        "chemistry_version_1_3_0_visible": null,
+        "verified_publisher_musitu_visible": null,
+        "chemistry_not_installed_before_install_visible": null,
+        "store_mediated_chemistry_download_verifies_before_installer": null,
+        "system_install_chemistry_success": null,
+        "chemistry_first_launch_real_learner_experience": null,
+        "chemistry_no_immediate_crash_or_blank_surface": null,
+        "store_after_install_reports_installed_up_to_date": null,
+        "store_after_install_offers_open": null,
+        "store_reopen_after_process_kill": null,
+        "chemistry_reopen_after_process_kill": null,
+        "check_for_updates_while_current": null,
+        "temporary_network_loss_fails_closed_no_unverified_install": null
+      },
+      "required_evidence": {
+        "continuous_recording_reference": null,
+        "fresh_state_screenshot_reference": null,
+        "store_first_launch_screenshot_reference": null,
+        "chemistry_installer_or_verified_handoff_screenshot_reference": null,
+        "chemistry_first_launch_screenshot_reference": null,
+        "store_installed_up_to_date_open_screenshot_reference": null,
+        "recovery_or_network_loss_screenshot_reference": null
+      },
+      "result": null,
+      "failure_details": null
+    },
+    "physical_iphone": {
+      "status": "PENDING_EXTERNAL_DEVICE_EVIDENCE",
+      "required_device_metadata": {
+        "model": null,
+        "ios_version": null,
+        "browser_name": null,
+        "browser_version": null,
+        "device_udid_sha256": null,
+        "private_raw_udid_evidence_reference": null
+      },
+      "required_checks": {
+        "chemistry_absent_before_recording": null,
+        "production_store_ios_routing_correct": null,
+        "sidestore_source_exact_production_url_used": null,
+        "exact_chemistry_1_3_0_ipa_installed_via_normal_user_resigning": null,
+        "native_app_launch_success": null,
+        "bundle_product_identity_visible_or_verified": null,
+        "actual_chemistry_learner_experience_opens": null,
+        "native_app_close_reopen_success": null,
+        "browser_pwa_fallback_verified_separately": null,
+        "pwa_not_misrepresented_as_native_install": null
+      },
+      "required_evidence": {
+        "continuous_recording_reference": null,
+        "sidestore_source_or_install_screenshot_reference": null,
+        "native_first_launch_screenshot_reference": null,
+        "native_reopen_screenshot_reference": null,
+        "pwa_fallback_screenshot_reference": null
+      },
+      "result": null,
+      "failure_details": null
+    },
+    "physical_ipad": {
+      "status": "PENDING_EXTERNAL_DEVICE_EVIDENCE",
+      "required_device_metadata": {
+        "model": null,
+        "ipados_version": null,
+        "browser_name": null,
+        "browser_version": null,
+        "device_udid_sha256": null,
+        "private_raw_udid_evidence_reference": null
+      },
+      "required_checks": {
+        "chemistry_absent_before_recording": null,
+        "production_store_ios_routing_correct": null,
+        "sidestore_source_exact_production_url_used": null,
+        "exact_chemistry_1_3_0_ipa_installed_via_normal_user_resigning": null,
+        "native_app_launch_success": null,
+        "actual_chemistry_learner_experience_opens": null,
+        "native_app_close_reopen_success": null,
+        "browser_pwa_fallback_verified_separately": null,
+        "ipad_viewport_usable": null,
+        "supported_orientations_have_no_blocking_layout_failure": null
+      },
+      "required_evidence": {
+        "continuous_recording_reference": null,
+        "sidestore_source_or_install_screenshot_reference": null,
+        "native_first_launch_screenshot_reference": null,
+        "native_reopen_screenshot_reference": null,
+        "ipad_layout_portrait_screenshot_reference": null,
+        "ipad_layout_landscape_screenshot_reference": null,
+        "pwa_fallback_screenshot_reference": null
+      },
+      "result": null,
+      "failure_details": null
+    },
+    "desktop_pwa": {
+      "status": "PENDING_EXTERNAL_DEVICE_EVIDENCE",
+      "required_device_metadata": {
+        "os_name": null,
+        "os_build": null,
+        "device_model_class": null,
+        "browser_name": null,
+        "browser_version": null,
+        "desktop_identifier_sha256": null,
+        "private_raw_identifier_evidence_reference": null
+      },
+      "required_checks": {
+        "open_production_store": null,
+        "store_recommends_browser_pwa_not_nonexistent_native_package": null,
+        "open_chemistry_pwa": null,
+        "browser_native_pwa_install_mechanism_used_where_supported": null,
+        "launch_installed_pwa_from_os_or_browser_app_surface": null,
+        "close_all_windows_then_reopen_installed_pwa": null,
+        "offline_shell_or_recovery_page_after_cache": null
+      },
+      "required_evidence": {
+        "store_routing_screenshot_reference": null,
+        "pwa_install_prompt_or_installed_state_screenshot_reference": null,
+        "installed_pwa_launch_screenshot_reference": null,
+        "installed_pwa_reopen_screenshot_reference": null,
+        "offline_shell_or_recovery_screenshot_reference": null
+      },
+      "result": null,
+      "failure_details": null
+    }
+  },
+  "acceptance_rule": {
+    "all_four_lanes_must_pass": true,
+    "any_failed_required_check_blocks_phase1_completion": true,
+    "missing_required_device_metadata_blocks_phase1_completion": true,
+    "missing_required_evidence_reference_blocks_phase1_completion": true,
+    "freshDevicePhase1Complete_must_remain_false_until_reviewed_and_accepted": true,
+    "phase2_remains_unauthorized": true
+  },
+  "claim_boundary": "Phase 1 virtual-device certification is complete. Physical Android, iPhone, iPad, and desktop/PWA customer-device certification remains pending. This packet is a collection contract, not physical-device PASS evidence."
+}
