@@ -21,7 +21,7 @@ jobs:
       PHASE1_HEAD: ebded495617cc89bb96d7a5531c1ce4fc6bbedd9
       CATALOG_SHA: 4fa31c5f9f84facc0d1fbf7a91a50b0adcaa5ef4c97b7d82abbe9657ea10b7f9
       CATALOG_SIG_SHA: 9b854358f90368ceb5cc3baab8d99064d8ee94b79ead378a614f8cc1732b06a7
-      CANDIDATE_WORKER_SHA: ee95b816bc056ab79be4d764cf88a68e25feed7aafdaad33ff23e2188f954616
+      CANDIDATE_WORKER_SHA: 8c8ee6dcd8640b43883d12c2c9aec2d5ff8e7075d441b0e50c97ed9a78ab3184
 
     steps:
       - uses: actions/checkout@v4
