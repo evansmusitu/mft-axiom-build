@@ -37,6 +37,7 @@ jobs:
       CHEM_SIGNER: d4455ac3ec74a6d7cd7993ca640f554a83bba95dfd01ef508f7637b6bc72c0d8
       CHEM_PACKAGE: com.musitu.chemistry
       CHEM_VERSION_CODE: '10200'
+      CHEM_MANIFEST_VERSION_NAME: 1.3.0-frontier-u-rc1
       BUILD_TOOLS: '36.0.0'
 
     steps:
@@ -72,7 +73,7 @@ jobs:
           "$ANDROID_HOME/build-tools/$BUILD_TOOLS/aapt" dump badging /tmp/musitu-detect/store.apk > /tmp/musitu-detect/store-badging.txt
           "$ANDROID_HOME/build-tools/$BUILD_TOOLS/aapt" dump badging /tmp/musitu-detect/chemistry.apk > /tmp/musitu-detect/chem-badging.txt
           grep -q "package: name='$STORE_PACKAGE' versionCode='10002' versionName='1.0.2'" /tmp/musitu-detect/store-badging.txt
-          grep -q "package: name='$CHEM_PACKAGE' versionCode='$CHEM_VERSION_CODE' versionName='1.3.0'" /tmp/musitu-detect/chem-badging.txt
+          grep -q "package: name='$CHEM_PACKAGE' versionCode='$CHEM_VERSION_CODE' versionName='$CHEM_MANIFEST_VERSION_NAME'" /tmp/musitu-detect/chem-badging.txt
           sed -n "s/^launchable-activity: name='\([^']*\)'.*/\1/p" /tmp/musitu-detect/store-badging.txt | head -n1 > /tmp/musitu-detect/store-launch.txt
           test -s /tmp/musitu-detect/store-launch.txt
           echo EXACT_PRODUCTION_APKS=PASS
@@ -113,9 +114,9 @@ jobs:
           adb logcat -d > "$ev/logcat.txt"
           if grep -F "$STORE_PACKAGE" "$ev/logcat.txt" | grep -q 'FATAL EXCEPTION'; then exit 1; fi
           API="$api" EV="$ev" python - <<'PY'
-          import hashlib,json,os,pathlib
+          import json,os,pathlib
           ev=pathlib.Path(os.environ['EV'])
-          out={'schema':'musitu.store.phase1.v102.installed_app_detection.v1','result':'PASS','api_level':int(os.environ['API']),'github_run_id':int(os.environ['GITHUB_RUN_ID']),'workflow_head':os.environ['GITHUB_SHA'],'authoritative_store_head':os.environ['AUTHORITATIVE_STORE_HEAD'],'sealed_main':os.environ['SEALED_MAIN'],'fresh_avd':True,'store_sha256':os.environ['STORE_SHA'],'chemistry_sha256':os.environ['CHEM_SHA'],'chemistry_package':os.environ['CHEM_PACKAGE'],'chemistry_version_code':int(os.environ['CHEM_VERSION_CODE']),'chemistry_preinstall_absent':True,'store_preinstall_absent':True,'chemistry_install_success':True,'store_install_success':True,'runtime_detection_ui_status':'Installed · up to date','runtime_detection_primary_action':'Open','runtime_installed_app_detection_proven':True,'screenshot_captured':True}
+          out={'schema':'musitu.store.phase1.v102.installed_app_detection.v1','result':'PASS','api_level':int(os.environ['API']),'github_run_id':int(os.environ['GITHUB_RUN_ID']),'workflow_head':os.environ['GITHUB_SHA'],'authoritative_store_head':os.environ['AUTHORITATIVE_STORE_HEAD'],'sealed_main':os.environ['SEALED_MAIN'],'fresh_avd':True,'store_sha256':os.environ['STORE_SHA'],'chemistry_sha256':os.environ['CHEM_SHA'],'chemistry_package':os.environ['CHEM_PACKAGE'],'chemistry_version_code':int(os.environ['CHEM_VERSION_CODE']),'chemistry_manifest_version_name':os.environ['CHEM_MANIFEST_VERSION_NAME'],'chemistry_preinstall_absent':True,'store_preinstall_absent':True,'chemistry_install_success':True,'store_install_success':True,'runtime_detection_ui_status':'Installed · up to date','runtime_detection_primary_action':'Open','runtime_installed_app_detection_proven':True,'screenshot_captured':True}
           ev.joinpath('certification.json').write_text(json.dumps(out,indent=2,sort_keys=True)+'\n')
           PY
           echo "MUSITU_STORE_V102_INSTALLED_APP_DETECTION_API_${api}=PASS"
@@ -160,6 +161,7 @@ jobs:
           assert o['runtime_installed_app_detection_proven'] is True
           assert o['store_sha256']=='3a0c4b0f971ec84cd6167a137f8e3d75c7bb20e525c26ab533b3d88044cd0784'
           assert o['chemistry_sha256']=='4ba442122d9c86a0c3cef660334fe337c6ea9ae6fe853c964b5e94961245babd'
+          assert o['chemistry_manifest_version_name']=='1.3.0-frontier-u-rc1'
           assert o['runtime_detection_primary_action']=='Open'
           PY
 
