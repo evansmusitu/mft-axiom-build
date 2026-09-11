@@ -5,6 +5,7 @@ from dataclasses import asdict, dataclass
 from typing import Any, Mapping, Sequence
 import math
 import re
+import unicodedata
 
 from .baseline_registry import BaselineRegistry
 from .core import FrontierSafetyError, parse_time, sha256
@@ -38,11 +39,11 @@ def _nonblank(value: Any) -> bool:
 
 
 def _organization_key(value: str) -> str:
-    return value.strip().casefold()
+    return unicodedata.normalize("NFKC", value.strip()).casefold()
 
 
 def _independence_organization_key(value: str) -> str:
-    return " ".join(value.split()).casefold()
+    return unicodedata.normalize("NFKC", " ".join(value.split())).casefold()
 
 
 def _runtime_mapping(value: Any) -> tuple[dict[Any, Any], bool]:
@@ -765,11 +766,13 @@ class ClaimBoundary:
 
     @staticmethod
     def _normalize_claim(value: str) -> str:
-        return " ".join(re.sub(r"[^a-z0-9]+", " ", value.strip().lower()).split())
+        compatible = unicodedata.normalize("NFKC", value)
+        return " ".join(re.sub(r"[^a-z0-9]+", " ", compatible.strip().lower()).split())
 
     @staticmethod
     def _separator_tolerant_pattern(value: str) -> str:
-        compact = re.sub(r"[^a-z0-9]+", "", value.strip().lower())
+        compatible = unicodedata.normalize("NFKC", value)
+        compact = re.sub(r"[^a-z0-9]+", "", compatible.strip().lower())
         if not compact:
             return r"(?!x)x"
         body = r"[^a-z0-9]*".join(re.escape(char) for char in compact)
@@ -779,7 +782,8 @@ class ClaimBoundary:
     def _contains_protected_literal(cls, requested_claim: str, literal: str) -> bool:
         if not isinstance(requested_claim, str):
             return False
-        return re.search(cls._separator_tolerant_pattern(literal), requested_claim.lower()) is not None
+        compatible = unicodedata.normalize("NFKC", requested_claim)
+        return re.search(cls._separator_tolerant_pattern(literal), compatible.lower()) is not None
 
     @classmethod
     def _named_frontier_providers(cls, requested_claim: str) -> set[str]:
@@ -1012,6 +1016,8 @@ class ClaimBoundary:
         expected_cases = level5.get("case_set_hash")
         expected_constraints = level5.get("constraint_hash")
         expected_receipts = dict(level5.get("run_receipt_hashes", {}))
+        if benchmark_hash != expected_cases:
+            return {"status": "DENY", "max_evidence_level": max_level, "reason": "comparison_benchmark_hash_mismatch"}
         if not comparative_outcomes:
             return {"status": "DENY", "max_evidence_level": max_level, "reason": "comparative_win_evidence_missing"}
 
