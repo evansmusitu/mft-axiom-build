@@ -21,12 +21,13 @@ from frontier_review_safe.governance import (
     PolicyRule, Principal,
 )
 from frontier_review_safe.orchestration import (
-    CostLatencyQualityRouter, ProviderState, SpecialistContract, SpecialistResult, SpecialistSociety, VerificationPath,
+    CostLatencyQualityRouter, ProviderState, SpecialistContract, SpecialistResult, SpecialistSociety,
 )
 from frontier_review_safe.performance import PerformanceBudget, PerformanceHarness
 from frontier_review_safe.persistence import TwinStateStore
 from frontier_review_safe.pipeline import ReviewSafeWorkflow, WorkflowAdapters, WorkflowRequest
 from frontier_review_safe.sealed_benchmark import SealedBenchmarkRegistry
+from frontier_review_safe.verification import IndependentVerifier, VerificationPath
 
 NOW = datetime(2026, 9, 10, 18, 0, tzinfo=timezone.utc)
 NOW_S = NOW.isoformat()
@@ -123,6 +124,32 @@ class GapClosureTests(unittest.TestCase):
                 now=(NOW + timedelta(seconds=31)).isoformat(), max_pin_age_seconds=30,
             )
 
+    def test_high_consequence_verification_requires_separate_provenanced_origin(self):
+        local_only = [
+            VerificationPath("l1", "invariant", None, lambda r: r["x"] == 2),
+            VerificationPath("l2", "alternate", None, lambda r: r["x"] == 2),
+        ]
+        blocked = IndependentVerifier.verify({"x": 2}, local_only, require_separate_origin=True)
+        self.assertEqual(blocked["status"], "ESCALATE")
+        self.assertIn("separate_external_origin_required", blocked["reasons"])
+        self.assertIn("insufficient_independent_origins", blocked["reasons"])
+
+        independently_grounded = [
+            VerificationPath("l1", "invariant", None, lambda r: r["x"] == 2),
+            VerificationPath("p1", "alternate", "provider-b", lambda r: r["x"] == 2,
+                             origin="provider:provider-b", provenance_hash=H, requires_external_origin=True),
+        ]
+        passed = IndependentVerifier.verify({"x": 2}, independently_grounded, require_separate_origin=True)
+        self.assertEqual(passed["status"], "PASS")
+        self.assertEqual(passed["independent_providers"], ["provider-b"])
+
+        duplicate = [
+            VerificationPath("same", "invariant", None, lambda r: True),
+            VerificationPath("same", "alternate", "provider-b", lambda r: True,
+                             origin="provider:provider-b", provenance_hash=H),
+        ]
+        self.assertIn("duplicate_verifier_id", IndependentVerifier.verify({}, duplicate)["reasons"])
+
     def test_capability_selection_quality_measures_regret(self):
         obs = [CapabilitySelectionObservation("r1", "a", ("a","b"), {"a":.9,"b":.8}, {"a":10,"b":10}, {"a":1,"b":1}),
                CapabilitySelectionObservation("r2", "b", ("a","b"), {"a":.9,"b":.7}, {"a":10,"b":10}, {"a":1,"b":1})]
@@ -155,7 +182,6 @@ class GapClosureTests(unittest.TestCase):
         l6=ExternalEvidenceGate.level6(l5,[v]); self.assertEqual(l6["status"],"PASS")
         refreshes=[LongitudinalRefreshRecord(str(i),(NOW+timedelta(days=i*30)).isoformat(), (str(i%2)*64), "1"*64,"2"*64,"3"*64,True) for i in range(3)]
         l7=ExternalEvidenceGate.level7(l6,refreshes); self.assertEqual(l7["status"],"PASS")
-
 
     def test_claim_gate_requires_actual_statistically_positive_comparisons(self):
         fps=[f"{i:064x}" for i in range(10)]
@@ -235,7 +261,8 @@ class GapClosureTests(unittest.TestCase):
         society=SpecialistSociety(handlers)
         contracts=(SpecialistContract("a","risk","lane-a",.2,0,1), SpecialistContract("b","risk","lane-b",.2,0,1))
         verifiers=(VerificationPath("v1","invariant",None,lambda r: r["value"]==42),
-                   VerificationPath("v2","alternate","provider-independent",lambda r: r["value"]==42))
+                   VerificationPath("v2","alternate","provider-independent",lambda r: r["value"]==42,
+                                    origin="provider:provider-independent", provenance_hash=H, requires_external_origin=True))
         with tempfile.TemporaryDirectory() as td:
             ledger=DecisionProvenanceLedger(Path(td)/"ledger.json")
             flow=ReviewSafeWorkflow(permissions=permissions,jurisdictions=jurisdictions,router=router,specialists=society,

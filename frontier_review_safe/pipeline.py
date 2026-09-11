@@ -10,7 +10,8 @@ from .evaluation import DecisionProvenanceLedger, ProofEnvelope
 from .governance import (AuthorizationRequest, GovernedPermissionGraph, Instruction,
                          InstructionProvenanceFirewall, PolicyJurisdictionRouter, Principal)
 from .orchestration import (CostLatencyQualityRouter, FailClosedAbstentionPolicy, AbstentionContext,
-                            IndependentVerifier, SpecialistContract, SpecialistSociety, VerificationPath)
+                            SpecialistContract, SpecialistSociety)
+from .verification import IndependentVerifier, VerificationPath
 
 
 @dataclass(frozen=True)
@@ -132,7 +133,11 @@ class ReviewSafeWorkflow:
         causal_supported = bool(analysis.get("causal_supported", True))
         eval_boundary = bool(analysis.get("evaluation_boundary_exceeded", False))
 
-        verification = IndependentVerifier.verify(analysis, self.verifier_paths) if self.verifier_paths else {"status": "ESCALATE"}
+        verification = IndependentVerifier.verify(
+            analysis,
+            self.verifier_paths,
+            require_separate_origin=req.high_consequence,
+        ) if self.verifier_paths else {"status": "ESCALATE"}
         checkpoint("verification", verification)
         provider_ok = verification.get("status") == "PASS"
         abstention = FailClosedAbstentionPolicy.decide(AbstentionContext(
