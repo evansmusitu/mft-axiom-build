@@ -177,6 +177,31 @@ class ExternalValidationIntegrityTests(unittest.TestCase):
         self.assertEqual(denied["reason"], "broad_frontier_claim_not_proven")
         self.assertEqual(denied["max_evidence_level"], 5)
 
+    def test_equivalent_broad_claim_wording_cannot_bypass_level7(self):
+        broad_variants = (
+            "world-best system",
+            "best in the world",
+            "superior to Microsoft",
+            "outperforms OpenAI",
+            "beats Google",
+            "ahead of Anthropic",
+            "globally leading system",
+            "frontier leader",
+        )
+        for claim in broad_variants:
+            with self.subTest(claim=claim):
+                self.assertTrue(ClaimBoundary._is_broad_claim(claim))
+
+    def test_scoped_baseline_comparison_is_not_laundered_into_broad_claim(self):
+        scoped_variants = (
+            "better than baseline-v1 on declared sealed benchmark",
+            "outperforms registered baseline on metric X",
+            "positive paired delta on the declared case set",
+        )
+        for claim in scoped_variants:
+            with self.subTest(claim=claim):
+                self.assertFalse(ClaimBoundary._is_broad_claim(claim))
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
