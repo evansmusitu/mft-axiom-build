@@ -6,6 +6,7 @@ from threading import Lock
 from time import perf_counter
 from typing import Any, Callable, Mapping
 import json
+import math
 import os
 import platform
 import tracemalloc
@@ -25,11 +26,14 @@ from .orchestration import (
 SCHEMA = "musitu.axiom.review-safe-scale-experiments.v1"
 PROMOTION_STATUS = "MEASUREMENT_ONLY_UNBUDGETED"
 FIXED_TIME = "2026-09-11T00:00:00+00:00"
+AUDIT_GROWTH_NAME = "audit_log_growth_10k_events"
+AUDIT_GROWTH_CHECKPOINTS = (1_000, 5_000, 10_000)
 EXPECTED_NAMES = frozenset({
     "router_degraded_pool_512x2000",
     "contradiction_resolution_10k",
     "specialist_retry_storm_64",
     "concurrent_ledger_1k_16_workers",
+    AUDIT_GROWTH_NAME,
 })
 
 
@@ -231,12 +235,58 @@ def _concurrent_ledger() -> dict[str, Any]:
     return _measure("concurrent_ledger_1k_16_workers", event_count, workload)
 
 
+def _audit_log_growth() -> dict[str, Any]:
+    event_count = AUDIT_GROWTH_CHECKPOINTS[-1]
+    checkpoint_targets = set(AUDIT_GROWTH_CHECKPOINTS)
+
+    def serialized_size(ledger: DecisionProvenanceLedger) -> int:
+        payload = {"schema": ledger.SCHEMA, "events": ledger.events}
+        return len(json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8"))
+
+    def workload() -> dict[str, Any]:
+        ledger = DecisionProvenanceLedger()
+        checkpoint_bytes: dict[str, int] = {}
+        for i in range(event_count):
+            ledger.append(
+                "benchmark.audit-growth",
+                "storage-benchmark",
+                {"index": i, "bucket": i % 128, "retained": True},
+                request_id=f"audit-growth-{i:05d}",
+                policy_version="bench-policy-v1",
+                code_version="bench-code-v1",
+                input_hashes=[sha256({"audit-input": i})],
+            )
+            count = i + 1
+            if count in checkpoint_targets:
+                checkpoint_bytes[str(count)] = serialized_size(ledger)
+
+        ledger.verify()
+        if len(ledger.events) != event_count:
+            raise FrontierSafetyError("audit growth benchmark lost events")
+        observed_sizes = [checkpoint_bytes[str(count)] for count in AUDIT_GROWTH_CHECKPOINTS]
+        if any(later <= earlier for earlier, later in zip(observed_sizes, observed_sizes[1:])):
+            raise FrontierSafetyError("audit storage growth checkpoints are not strictly increasing")
+        final_bytes = observed_sizes[-1]
+        return {
+            "events": event_count,
+            "checkpoint_serialized_bytes": checkpoint_bytes,
+            "serialized_bytes": final_bytes,
+            "bytes_per_event": round(final_bytes / event_count, 3),
+            "growth_ratio_10k_vs_1k": round(observed_sizes[-1] / observed_sizes[0], 3),
+            "chain_verified": True,
+            "ledger_fingerprint": ledger.fingerprint,
+        }
+
+    return _measure(AUDIT_GROWTH_NAME, event_count, workload)
+
+
 def run_all() -> dict[str, Any]:
     experiments = [
         _router_degraded_pool(),
         _contradiction_resolution(),
         _specialist_retry_storm(),
         _concurrent_ledger(),
+        _audit_log_growth(),
     ]
     evidence = {
         "schema": SCHEMA,
@@ -256,6 +306,40 @@ def run_all() -> dict[str, Any]:
     return evidence
 
 
+def _valid_audit_growth_details(details: Any) -> bool:
+    if not isinstance(details, Mapping):
+        return False
+    try:
+        events = details["events"]
+        serialized_bytes = details["serialized_bytes"]
+        bytes_per_event = float(details["bytes_per_event"])
+        growth_ratio = float(details["growth_ratio_10k_vs_1k"])
+        checkpoints = details["checkpoint_serialized_bytes"]
+        chain_verified = details["chain_verified"]
+        fingerprint = str(details["ledger_fingerprint"])
+    except (KeyError, TypeError, ValueError):
+        return False
+    if events != AUDIT_GROWTH_CHECKPOINTS[-1] or chain_verified is not True:
+        return False
+    if not isinstance(serialized_bytes, int) or isinstance(serialized_bytes, bool) or serialized_bytes <= 0:
+        return False
+    if not math.isfinite(bytes_per_event) or bytes_per_event <= 0.0:
+        return False
+    if not math.isfinite(growth_ratio) or growth_ratio <= 1.0:
+        return False
+    if not isinstance(checkpoints, Mapping) or set(checkpoints) != {str(x) for x in AUDIT_GROWTH_CHECKPOINTS}:
+        return False
+    sizes = []
+    for checkpoint in AUDIT_GROWTH_CHECKPOINTS:
+        value = checkpoints.get(str(checkpoint))
+        if not isinstance(value, int) or isinstance(value, bool) or value <= 0:
+            return False
+        sizes.append(value)
+    if sizes[-1] != serialized_bytes or any(later <= earlier for earlier, later in zip(sizes, sizes[1:])):
+        return False
+    return len(fingerprint) == 64 and all(c in "0123456789abcdef" for c in fingerprint.lower())
+
+
 def validate_experimental_evidence(evidence: Mapping[str, Any]) -> dict[str, Any]:
     reasons: list[str] = []
     if evidence.get("schema") != SCHEMA:
@@ -267,7 +351,7 @@ def validate_experimental_evidence(evidence: Mapping[str, Any]) -> dict[str, Any
         reasons.append("experiments_missing")
         rows = []
     names = {str(row.get("name")) for row in rows if isinstance(row, Mapping)}
-    if names != EXPECTED_NAMES:
+    if names != EXPECTED_NAMES or len(rows) != len(EXPECTED_NAMES):
         reasons.append("experiment_set_mismatch")
     for row in rows:
         if not isinstance(row, Mapping):
@@ -276,16 +360,22 @@ def validate_experimental_evidence(evidence: Mapping[str, Any]) -> dict[str, Any
         if row.get("budget_eligible") is not False:
             reasons.append("experiment_incorrectly_budget_eligible")
         try:
-            if int(row["units"]) <= 0:
-                reasons.append("nonpositive_units")
-            if float(row["elapsed_ms"]) < 0:
-                reasons.append("negative_elapsed")
-            if float(row["throughput_per_sec"]) <= 0:
-                reasons.append("nonpositive_throughput")
-            if int(row["peak_python_bytes"]) < 0:
-                reasons.append("negative_memory")
+            units = row["units"]
+            elapsed = float(row["elapsed_ms"])
+            throughput = float(row["throughput_per_sec"])
+            peak = row["peak_python_bytes"]
+            if not isinstance(units, int) or isinstance(units, bool) or units <= 0:
+                reasons.append("nonpositive_or_invalid_units")
+            if not math.isfinite(elapsed) or elapsed < 0.0:
+                reasons.append("invalid_elapsed")
+            if not math.isfinite(throughput) or throughput <= 0.0:
+                reasons.append("invalid_throughput")
+            if not isinstance(peak, int) or isinstance(peak, bool) or peak < 0:
+                reasons.append("invalid_memory")
         except (KeyError, TypeError, ValueError):
             reasons.append("invalid_measurement")
+        if row.get("name") == AUDIT_GROWTH_NAME and not _valid_audit_growth_details(row.get("details")):
+            reasons.append("audit_growth_details_invalid")
 
     supplied_hash = str(evidence.get("evidence_sha256", ""))
     if len(supplied_hash) != 64 or any(c not in "0123456789abcdef" for c in supplied_hash.lower()):

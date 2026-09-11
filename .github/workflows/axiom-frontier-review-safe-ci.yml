@@ -142,7 +142,7 @@ jobs:
           assert evidence['candidate_sha'] == os.environ['GITHUB_SHA']
           report = validate_experimental_evidence(evidence)
           assert report['status'] == 'PASS', report
-          assert report['experiment_count'] == 4
+          assert report['experiment_count'] == 5
           assert report['promotion_status'] == 'MEASUREMENT_ONLY_UNBUDGETED'
           assert report['budget_authorized'] is False
           assert report['claim_authorized'] is False
