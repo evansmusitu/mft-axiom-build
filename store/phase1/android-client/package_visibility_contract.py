@@ -1,9 +1,12 @@
 from pathlib import Path
+import subprocess
+import tempfile
 import xml.etree.ElementTree as ET
 
 ANDROID_NS = "http://schemas.android.com/apk/res/android"
 CHEMISTRY_PACKAGE = "com.musitu.chemistry"
-MANIFEST = Path(__file__).resolve().parent / "app" / "src" / "main" / "AndroidManifest.xml"
+ROOT = Path(__file__).resolve().parent
+MANIFEST = ROOT / "app" / "src" / "main" / "AndroidManifest.xml"
 
 root = ET.parse(MANIFEST).getroot()
 visible = [
@@ -19,5 +22,14 @@ assert CHEMISTRY_PACKAGE in visible, (
 assert visible.count(CHEMISTRY_PACKAGE) == 1, (
     "com.musitu.chemistry package visibility declaration must appear exactly once."
 )
+
+policy = ROOT / "app" / "src" / "main" / "java" / "com" / "musitu" / "store" / "NativeInstallPolicy.java"
+contract = ROOT / "app" / "src" / "test" / "java" / "com" / "musitu" / "store" / "NativeInstallPolicyContract.java"
+with tempfile.TemporaryDirectory(prefix="musitu-store-policy-") as classes:
+    subprocess.run(["javac", "-d", classes, str(policy), str(contract)], check=True)
+    subprocess.run(
+        ["java", "-cp", classes, "com.musitu.store.NativeInstallPolicyContract"],
+        check=True,
+    )
 
 print("STORE_CHEMISTRY_PACKAGE_VISIBILITY=PASS")

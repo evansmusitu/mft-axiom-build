@@ -13,9 +13,11 @@ import java.util.Locale;
 import java.util.concurrent.*;
 
 public class MainActivity extends Activity {
-  final ExecutorService io=Executors.newSingleThreadExecutor(); LinearLayout root; TextView status,meta; Button primary,repair,rollback,transfer,refresh; JSONObject catalog,release; String pendingAction;
-  @Override public void onCreate(Bundle b){super.onCreate(b);renderShell();if(b==null)acceptInstallIntent(getIntent());scheduleUpdates();refresh();}
+  static final String STATE_PENDING_ACTION="pending_action";
+  final ExecutorService io=Executors.newSingleThreadExecutor(); LinearLayout root; TextView status,meta; Button primary,repair,rollback,transfer,refresh; JSONObject catalog,release; String pendingAction; boolean downloadInProgress;
+  @Override public void onCreate(Bundle b){super.onCreate(b);renderShell();if(b!=null)pendingAction=b.getString(STATE_PENDING_ACTION);acceptInstallIntent(getIntent());scheduleUpdates();refresh();}
   @Override protected void onNewIntent(Intent intent){super.onNewIntent(intent);setIntent(intent);if(acceptInstallIntent(intent)){if(release!=null)maybeRunPendingAction();else refresh();}}
+  @Override protected void onSaveInstanceState(Bundle out){out.putString(STATE_PENDING_ACTION,pendingAction);super.onSaveInstanceState(out);}
   @Override protected void onResume(){super.onResume();try{if(StoreCore.resumePendingInstall(this)&&status!=null)status.setText("Verified package ready. Android is asking you to approve installation.");}catch(Exception e){if(status!=null)status.setText("Pending installation stopped: "+e.getMessage());}}
   boolean acceptInstallIntent(Intent intent){
     if(intent==null||!Intent.ACTION_VIEW.equals(intent.getAction()))return false;Uri u=intent.getData();if(u==null)return false;
@@ -25,7 +27,7 @@ public class MainActivity extends Activity {
     pendingAction=action;intent.setData(null);return true;
   }
   void maybeRunPendingAction(){
-    if(release==null||pendingAction==null)return;String action=pendingAction;pendingAction=null;status.setText("Continuing requested "+action+" in MUSITU Store…");
+    if(release==null||pendingAction==null||downloadInProgress)return;String action=pendingAction;pendingAction=null;status.setText("Continuing requested "+action+" in MUSITU Store…");
     if("repair".equals(action)||"reinstall".equals(action))downloadAndInstall();else primaryAction();
   }
   void renderShell(){
@@ -44,7 +46,7 @@ public class MainActivity extends Activity {
     meta.setText("Version "+r.optString("version")+" · "+(a==null?"":a.optLong("bytes")/1024/1024+" MB")+"\nVerified publisher: MUSITU\nChannel: stable · rollout: 100%\nPremium access remains controlled by MUSITU entitlement, not installation.");
     primary.setEnabled(true);repair.setEnabled(true);rollback.setEnabled(r.optJSONObject("rollback")!=null&&r.optJSONObject("rollback").optBoolean("authorized",false));primary.setText(installed<0?"Install":installed<current?"Update":"Open");maybeRunPendingAction();
   }
-  void primaryAction(){long installed=StoreCore.installedVersion(this);long current=release==null?-1:release.optLong("versionCode",-1);if(installed>=current&&installed>0)StoreCore.openApp(this);else downloadAndInstall();}
-  void downloadAndInstall(){if(release==null)return;JSONObject a=release.optJSONObject("android");if(a==null)return;primary.setEnabled(false);repair.setEnabled(false);status.setText("Preparing verified download…");io.execute(()->{try{final long expectedBytes=a.getLong("bytes");final String expectedSha=a.getString("sha256");File f=StoreCore.download(this,a.getString("apkURL"),expectedBytes,expectedSha,(d,t)->runOnUiThread(()->status.setText("Downloading securely… "+Math.min(100,(int)(100*d/Math.max(1,t)))+"%")));runOnUiThread(()->{try{primary.setEnabled(true);repair.setEnabled(true);boolean launched=StoreCore.install(this,f,expectedBytes,expectedSha);status.setText(launched?"Verified. Android is asking you to approve installation.":"Verified. Allow MUSITU Store to install apps, then return here; installation will continue automatically.");}catch(Exception e){status.setText("Installation stopped: "+e.getMessage());}});}catch(Exception e){runOnUiThread(()->{status.setText("Installation stopped: "+e.getMessage());primary.setEnabled(true);repair.setEnabled(true);});}});}
+  void primaryAction(){if(release==null||downloadInProgress)return;long installed=StoreCore.installedVersion(this);long current=release.optLong("versionCode",-1);if(installed>=current&&installed>0)StoreCore.openApp(this);else downloadAndInstall();}
+  void downloadAndInstall(){if(release==null||downloadInProgress)return;JSONObject a=release.optJSONObject("android");if(a==null)return;downloadInProgress=true;primary.setEnabled(false);repair.setEnabled(false);status.setText("Preparing verified download…");io.execute(()->{try{final long expectedBytes=a.getLong("bytes");final String expectedSha=a.getString("sha256");File f=StoreCore.download(this,a.getString("apkURL"),expectedBytes,expectedSha,(d,t)->runOnUiThread(()->status.setText("Downloading securely… "+Math.min(100,(int)(100*d/Math.max(1,t)))+"%")));runOnUiThread(()->{try{boolean launched=StoreCore.install(this,f,expectedBytes,expectedSha);status.setText(launched?"Verified. Android is asking you to approve installation.":"Verified. Allow MUSITU Store to install apps, then return here; installation will continue automatically.");}catch(Exception e){status.setText("Installation stopped: "+e.getMessage());}finally{downloadInProgress=false;primary.setEnabled(true);repair.setEnabled(true);}});}catch(Exception e){runOnUiThread(()->{status.setText("Installation stopped: "+e.getMessage());downloadInProgress=false;primary.setEnabled(true);repair.setEnabled(true);});}});}
   void scheduleUpdates(){AlarmManager a=(AlarmManager)getSystemService(ALARM_SERVICE);Intent i=new Intent(this,UpdateCheckReceiver.class);PendingIntent p=PendingIntent.getBroadcast(this,101,i,PendingIntent.FLAG_IMMUTABLE|PendingIntent.FLAG_UPDATE_CURRENT);a.setInexactRepeating(AlarmManager.ELAPSED_REALTIME_WAKEUP,SystemClock.elapsedRealtime()+6*60*60*1000L,12*60*60*1000L,p);}
 }
