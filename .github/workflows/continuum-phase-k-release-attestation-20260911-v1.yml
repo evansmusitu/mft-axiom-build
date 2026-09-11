@@ -1,0 +1,76 @@
+name: MUSITU Continuum Engineering Release Candidate Digest Attestation 20260911 v1
+
+on:
+  push:
+    branches:
+      - continuum-phase-k-release-attestation-20260911-v1
+    paths:
+      - '.github/workflows/continuum-phase-k-release-attestation-20260911-v1.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+  attestations: write
+  artifact-metadata: write
+
+jobs:
+  attest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Record exact locally reproducible release-candidate subject
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > musitu-release-subject.json <<'JSON'
+          {
+            "schema_version": 1,
+            "product": "MUSITU Continuum",
+            "label": "engineering_release_candidate",
+            "date": "2026-09-11",
+            "subject_name": "MUSITU_CONTINUUM_ENGINEERING_RELEASE_CANDIDATE_2026-09-11.zip",
+            "subject_sha256": "a2adf65e9bfd2d754ae268e882084107688c08264c66eab7c217ec7eefc14592",
+            "source_staged_tree": "eaa231b8d08f202795da13729cb4e2cfdfa64304",
+            "release_manifest_sha256": "0d0734d8df6e6e5b86161dc10e21e859e85243eb9707909db6e83a89e184d2e0",
+            "runtime_file_count": 99,
+            "production_readiness": "blocked_0_of_11",
+            "zerosim_scope": "lab_only",
+            "lora_meshtastic_rf": "not_tested",
+            "provenance_scope": "keyless_oidc_digest_attestation_of_locally_reproducible_artifact_not_remote_rebuild_from_source",
+            "claim_boundary": "engineering_release_candidate_not_production_readiness_or_external_certification"
+          }
+          JSON
+          sha256sum musitu-release-subject.json
+      - name: Create keyless Sigstore OIDC attestation for exact subject digest
+        id: attest
+        uses: actions/attest@v4
+        with:
+          subject-name: MUSITU_CONTINUUM_ENGINEERING_RELEASE_CANDIDATE_2026-09-11.zip
+          subject-digest: sha256:a2adf65e9bfd2d754ae268e882084107688c08264c66eab7c217ec7eefc14592
+      - name: Collect attestation bundle and metadata
+        shell: bash
+        env:
+          BUNDLE_PATH: ${{ steps.attest.outputs.bundle-path }}
+          ATTESTATION_ID: ${{ steps.attest.outputs.attestation-id }}
+          ATTESTATION_URL: ${{ steps.attest.outputs.attestation-url }}
+        run: |
+          set -euo pipefail
+          test -f "$BUNDLE_PATH"
+          cp "$BUNDLE_PATH" musitu-release-attestation.sigstore.json
+          printf '%s\n' "$ATTESTATION_ID" > attestation-id.txt
+          printf '%s\n' "$ATTESTATION_URL" > attestation-url.txt
+          sha256sum musitu-release-attestation.sigstore.json > attestation-bundle.sha256
+          cat attestation-bundle.sha256
+      - name: Upload attestation evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: musitu-continuum-release-candidate-attestation-20260911
+          path: |
+            musitu-release-subject.json
+            musitu-release-attestation.sigstore.json
+            attestation-bundle.sha256
+            attestation-id.txt
+            attestation-url.txt
+          if-no-files-found: error
+          retention-days: 30
