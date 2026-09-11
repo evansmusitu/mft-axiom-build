@@ -76,6 +76,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          python store/phase1/web-surface/build_store_data.py
           node --test store/phase1/web-surface/*.test.mjs
           (
             cd commerce/chemistry
