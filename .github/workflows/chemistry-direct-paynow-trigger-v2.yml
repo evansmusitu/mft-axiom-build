@@ -1,0 +1,27 @@
+name: MUSITU Chemistry Direct Paynow Trigger v2
+
+on:
+  push:
+    branches: [chemistry-direct-paynow-fallback-20260911]
+    paths: ['.github/workflows/chemistry-direct-paynow-trigger-v2.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: write
+
+jobs:
+  dispatch:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Dispatch guarded Direct Paynow v2 at current Chemistry branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh workflow run chemistry-direct-paynow-guarded-production-deploy-v2.yml \
+            --repo evansmusitu/mft-axiom-build \
+            --ref chemistry-direct-paynow-fallback-20260911
+          echo 'DIRECT_PAYNOW_V2_DISPATCH=PASS'
