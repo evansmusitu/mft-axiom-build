@@ -1,0 +1,298 @@
+name: MUSITU Store Phase 2 Internal Closure Audit
+
+on:
+  push:
+    branches: [musitu-store-phase2-standards-hardening-20260911]
+    paths:
+      - 'store/phase2/**'
+      - 'docs/MUSITU_STORE_PHASE2_*'
+      - 'evidence/musitu-store/MUSITU_STORE_PHASE2_*'
+      - '.github/workflows/musitu-store-phase2-*'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+  issues: read
+  pull-requests: read
+
+jobs:
+  internal-closure:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      SEALED_MAIN: d6a846f6bbe0bccac1758713eb4de167caf07113
+      PHASE1_HEAD: ebded495617cc89bb96d7a5531c1ce4fc6bbedd9
+      CERTIFIED_CANDIDATE_HEAD: 6a1d50c76dec96e924751dd6f5f2bc1ffe4191e1
+      BODY_EQUIVALENCE_HEAD: e42f461b7dadd9e53afc0eb285a276c7e2710fc7
+      HELPER_SOURCE_HEAD: 27bf8ad6fbaf09ed4e20dab10f3c708847f1302b
+      MANUAL_PACKET: evidence/musitu-store/MUSITU_STORE_PHASE2_MANUAL_ACCESSIBILITY_CERTIFICATION_PACKET_20260911.json
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: Prove branch ancestry, immutable anchors and Phase-2-only isolation
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF_NAME" = 'musitu-store-phase2-standards-hardening-20260911'
+          git fetch --quiet origin main musitu-store-phase1-20260909
+          test "$(git rev-parse origin/main)" = "$SEALED_MAIN"
+          test "$(git rev-parse origin/musitu-store-phase1-20260909)" = "$PHASE1_HEAD"
+          git merge-base --is-ancestor "$PHASE1_HEAD" "$GITHUB_SHA"
+          git merge-base --is-ancestor "$CERTIFIED_CANDIDATE_HEAD" "$GITHUB_SHA"
+          git merge-base --is-ancestor "$BODY_EQUIVALENCE_HEAD" "$GITHUB_SHA"
+          git merge-base --is-ancestor "$HELPER_SOURCE_HEAD" "$GITHUB_SHA"
+
+          test -z "$(git diff --name-only "$PHASE1_HEAD"..."$GITHUB_SHA" -- store/phase1 commerce/chemistry)"
+          test -z "$(git diff --name-only "$CERTIFIED_CANDIDATE_HEAD"..."$GITHUB_SHA" -- store/phase2/apply-standards-hardening.py store/phase2/security-hardening-smoke.mjs store/phase2/standards-browser-smoke.mjs)"
+          test -z "$(git diff --name-only "$HELPER_SOURCE_HEAD"..."$GITHUB_SHA" -- store/phase2/prepare_manual_accessibility_evidence.ps1)"
+
+          git diff --name-status "$PHASE1_HEAD"..."$GITHUB_SHA" > /tmp/phase2-changes.txt
+          test -s /tmp/phase2-changes.txt
+          python - <<'PY'
+          from pathlib import Path
+          rows=[]
+          for line in Path('/tmp/phase2-changes.txt').read_text().splitlines():
+              parts=line.split('\t')
+              status=parts[0]
+              path=parts[-1]
+              assert status == 'A', f'Phase-2 branch must only add isolated Phase-2 files; saw {status}: {path}'
+              allowed=(
+                  path.startswith('.github/workflows/musitu-store-phase2-'),
+                  path.startswith('store/phase2/'),
+                  path.startswith('docs/MUSITU_STORE_PHASE2_'),
+                  path.startswith('evidence/musitu-store/MUSITU_STORE_PHASE2_'),
+              )
+              assert any(allowed), f'out-of-scope Phase-2 change: {path}'
+              rows.append(path)
+          assert len(rows) >= 22, f'unexpectedly small Phase-2 surface: {len(rows)} files'
+          print(f'PHASE2_ISOLATION=PASS files={len(rows)}')
+          PY
+
+      - name: Compile every Phase-2 implementation and reject engineering debt markers
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m py_compile store/phase2/*.py
+          for f in store/phase2/*.mjs; do node --check "$f"; done
+          if grep -RInE '\b(TODO|FIXME|HACK|XXX)\b' store/phase2 docs/MUSITU_STORE_PHASE2_* .github/workflows/musitu-store-phase2-*; then
+            echo 'Unresolved engineering debt marker found' >&2
+            exit 1
+          fi
+          echo PHASE2_SOURCE_HYGIENE=PASS
+
+      - name: Prove historical snapshots are superseded and current evidence has one external blocker only
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/musitu-phase2-closure
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          root=Path('evidence/musitu-store')
+          paths={
+            'baseline': root/'MUSITU_STORE_PHASE2_STANDARDS_HARDENING_BASELINE_20260911.json',
+            'predeploy': root/'MUSITU_STORE_PHASE2_STANDARDS_HARDENING_PREDEPLOY_CERTIFICATION_20260911.json',
+            'candidate': root/'MUSITU_STORE_PHASE2_HARDENED_CANDIDATE_PREDEPLOY_CERTIFICATION_20260911.json',
+            'equivalence': root/'MUSITU_STORE_PHASE2_RESPONSE_BODY_EQUIVALENCE_20260911.json',
+            'helper': root/'MUSITU_STORE_PHASE2_EVIDENCE_HELPER_CERTIFICATION_20260911.json',
+            'readiness': root/'MUSITU_STORE_PHASE2_DEPLOYMENT_READINESS_20260911.json',
+            'manual': root/'MUSITU_STORE_PHASE2_MANUAL_ACCESSIBILITY_CERTIFICATION_PACKET_20260911.json',
+          }
+          d={k:json.loads(p.read_text()) for k,p in paths.items()}
+
+          # Historical baseline/predeploy records are preserved, not mistaken for current work.
+          assert d['baseline']['status']=='IN_PROGRESS'
+          assert d['baseline']['baseline_findings']['low_bandwidth_constrained_browser_validation']['status']=='GAP_TO_CLOSE'
+          assert d['baseline']['baseline_findings']['phase2_specific_verified_deployment_and_rollback']['status']=='GAP_TO_CLOSE'
+          assert d['predeploy']['status']=='PASS_AUTOMATED_PREDEPLOY_MANUAL_AND_DEPLOYMENT_PENDING'
+          assert d['candidate']['status']=='PASS_PREDEPLOY_MANUAL_AND_DEPLOYMENT_PENDING'
+
+          # Later evidence closes every independently executable baseline engineering gap.
+          assert d['predeploy']['automated_standards']['low_bandwidth_save_data']=='PASS'
+          assert d['predeploy']['automated_standards']['browser_gate']=='PASS_AUTOMATED'
+          assert d['candidate']['gates']['security_hardening_runtime']=='PASS'
+          assert d['candidate']['gates']['automated_accessibility_low_bandwidth']=='PASS_AUTOMATED'
+          assert d['candidate']['gates']['lighthouse']['result']=='PASS'
+          assert d['equivalence']['status']=='PASS'
+          assert d['equivalence']['proof']['response_body_byte_equality'] is True
+          assert d['equivalence']['proof']['unexpected_header_delta'] is False
+          assert d['helper']['status']=='PASS'
+          assert d['helper']['windows_smoke']['conclusion']=='success'
+
+          readiness=d['readiness']
+          assert readiness['schema']=='musitu.store.phase2.deployment_readiness_record.v3'
+          assert readiness['status']=='PASS_READY_EXCEPT_REAL_MANUAL_ACCESSIBILITY_EVIDENCE'
+          assert readiness['phase2Authorized'] is True
+          assert readiness['phase2Complete'] is False
+          assert readiness['production_mutation'] is False
+          assert readiness['readiness_workflow']['conclusion']=='success'
+          assert readiness['latest_full_regressions']['standards_preflight']['conclusion']=='success'
+          assert readiness['latest_full_regressions']['hardened_candidate_preflight']['conclusion']=='success'
+          assert readiness['response_body_equivalence']['result']=='PASS'
+          assert readiness['evidence_helper']['result']=='PASS'
+          assert readiness['manual_accessibility_gate']['current_state']=='BLOCKED_PENDING_REAL_EVIDENCE'
+          assert readiness['manual_accessibility_gate']['current_validator_behavior']=='FAIL_CLOSED_AS_REQUIRED'
+          assert readiness['production_workflow']['trigger']=='workflow_dispatch_only'
+          assert readiness['production_workflow']['strict_manual_validator_before_mutation'] is True
+          assert readiness['production_workflow']['response_body_equivalence_gate_before_mutation'] is True
+          assert readiness['production_workflow']['live_snapshot_restore_rollback_drill'] is True
+          assert readiness['production_workflow']['emergency_snapshot_restore_on_failure'] is True
+          assert isinstance(readiness['current_blocker']['single_external_evidence_action'],str) and readiness['current_blocker']['single_external_evidence_action'].strip()
+
+          manual=d['manual']
+          assert manual['schema']=='musitu.store.phase2.manual_accessibility_certification_packet.v2'
+          assert manual['status']=='PENDING_REAL_ASSISTIVE_TECHNOLOGY_EVIDENCE'
+          assert manual['result'] is None
+          assert manual['phase2Complete'] is False
+          assert manual['production_mutation'] is False
+          assert manual['evidence_manifest']==[]
+          assert manual['review']['original_evidence_reviewed'] is False
+          for group in ('manual_keyboard_checks','screen_reader_checks','zoom_reflow_checks'):
+              assert manual[group] and all(v is None for v in manual[group].values()), f'{group} must remain unclaimed before real evidence'
+          assert all(v is None for v in manual['required_evidence'].values())
+          assert manual['rules']['real_screen_reader_required'] is True
+          assert manual['rules']['manual_keyboard_test_required'] is True
+          assert manual['rules']['real_zoom_reflow_test_required'] is True
+          assert manual['rules']['screen_reader_live_transcription_visible_required'] is True
+          assert manual['rules']['automated_accessibility_tree_is_not_a_substitute'] is True
+
+          # No null/unresolved values are allowed in current non-manual evidence.
+          def null_paths(obj, prefix=''):
+              out=[]
+              if obj is None:
+                  out.append(prefix or '$')
+              elif isinstance(obj,dict):
+                  for k,v in obj.items(): out.extend(null_paths(v, f'{prefix}.{k}' if prefix else k))
+              elif isinstance(obj,list):
+                  for i,v in enumerate(obj): out.extend(null_paths(v, f'{prefix}[{i}]'))
+              return out
+          for key in ('baseline','predeploy','candidate','equivalence','helper','readiness'):
+              nulls=null_paths(d[key])
+              assert not nulls, f'unexpected unresolved nulls in {key}: {nulls}'
+
+          report={
+            'schema':'musitu.store.phase2.internal_closure_audit.v1',
+            'result':'PASS_INTERNAL_CLOSURE_PENDING_EXTERNAL_CERTIFICATION',
+            'head': '${GITHUB_SHA}',
+            'sealed_main':'d6a846f6bbe0bccac1758713eb4de167caf07113',
+            'phase1_head':'ebded495617cc89bb96d7a5531c1ce4fc6bbedd9',
+            'historical_baseline_gaps_superseded_by_later_evidence': True,
+            'independently_actionable_internal_engineering_remaining': [],
+            'independently_actionable_internal_qualification_remaining': [],
+            'current_external_blockers': ['real manual keyboard + Narrator screen-reader + 200%/400% zoom/reflow certification evidence and original-evidence review'],
+            'external_certification_is_only_current_blocker': True,
+            'post_external_transaction_prepared': True,
+            'post_external_transaction':'strict packet validation -> guarded Worker-only production deployment -> live rollback drill -> final candidate redeploy -> deployment evidence sealing',
+            'production_mutation': False,
+            'phase2Complete': False,
+            'claim_boundary':'Internal Phase-2 engineering and executable qualification are closed. Real external accessibility certification is the sole current blocker. Production deployment/rollback is already implemented and guarded downstream of that external PASS; it has not yet executed.'
+          }
+          # expand actual SHA at runtime without shell interpolation inside quoted heredoc
+          import os
+          report['head']=os.environ['GITHUB_SHA']
+          Path('/tmp/musitu-phase2-closure/internal-closure.json').write_text(json.dumps(report,indent=2)+'\n')
+          print(json.dumps(report,indent=2))
+          PY
+
+      - name: Prove pending manual packet fails the exact production validator closed
+        shell: bash
+        run: |
+          set -euo pipefail
+          set +e
+          python store/phase2/validate_manual_accessibility_packet.py "$MANUAL_PACKET" . >/tmp/manual-validator.txt 2>&1
+          rc=$?
+          set -e
+          test "$rc" -ne 0
+          grep -q 'MANUAL_ACCESSIBILITY_PACKET_INVALID' /tmp/manual-validator.txt
+          echo MANUAL_PACKET_FAIL_CLOSED=PASS
+
+      - name: Prove production transaction is structurally complete and externally gated before mutation
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          w=Path('.github/workflows/musitu-store-phase2-guarded-production-deploy.yml').read_text()
+          assert '\n  workflow_dispatch:' in w
+          assert '\n  push:' not in w
+          anchors=w.index('Prove immutable repository anchors')
+          manual=w.index('Require reviewed real manual accessibility evidence')
+          equiv=w.index('Require response-body equivalence proof')
+          candidate=w.index('Require certified hardened candidate evidence')
+          reconstruct=w.index('Reconstruct exact baseline and hardened candidate')
+          transaction=w.index('Execute Worker-only deployment with live rollback drill')
+          assert anchors < manual < equiv < candidate < reconstruct < transaction
+          assert 'validate_manual_accessibility_packet.py' in w
+          assert 'continue-on-error: true' in w
+          assert 'Upload non-secret Phase 2 deployment evidence' in w
+          assert 'Enforce deployment transaction' in w
+          d=Path('store/phase2/deploy_hardened_store.py').read_text()
+          for needle in ('def restore_snapshot','def emergency_rollback','rollback_drill_performed','rollback_drill_verified','candidate_redeployed_final','final_state_verified','emergency_rollback_performed'):
+              assert needle in d, f'missing deployment/rollback control: {needle}'
+          print('PRODUCTION_TRANSACTION_COMPLETENESS=PASS')
+          PY
+
+      - name: Revalidate referenced successful GitHub Actions runs and evidence artifacts online
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          check_run(){
+            local run="$1"
+            test "$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run" --jq '.status')" = completed
+            test "$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run" --jq '.conclusion')" = success
+          }
+          check_artifact(){
+            local run="$1" id="$2" digest="$3"
+            local row
+            row="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run/artifacts" --jq ".artifacts[] | select(.id == $id) | [.expired,.digest] | @tsv")"
+            test -n "$row"
+            test "$(printf '%s' "$row" | cut -f1)" = false
+            test "$(printf '%s' "$row" | cut -f2)" = "$digest"
+          }
+          check_run 34573267968
+          check_artifact 34573267968 10188613182 sha256:3fdcbb54a6d2a42e2bc969f3adc713d17c92e8e4e126a50e0de2a8c6b2656506
+          check_run 34573638727
+          check_artifact 34573638727 10188749517 sha256:0e1066a9453ae437c7d6e5ebed50a464ce3f96f39490a25b6c604e73bfc51ac4
+          check_run 34575291010
+          check_artifact 34575291010 10189381691 sha256:135cc85142d9eee8801a01f6221b6638f723577e8346ebd63604747cb82ff605
+          check_run 34575797677
+          check_artifact 34575797677 10189562925 sha256:063c5b1d793471ab9c09de0c7a03be040b273f166bf4b8454ae28204490eb015
+          check_run 34576058839
+          check_artifact 34576058839 10189660738 sha256:f9e39680fb791e0b00aade7934141794f9b2b62100c26bb89c65bc906c1fb32c
+          check_run 34575782786
+          check_run 34575782807
+          echo REFERENCED_GITHUB_EVIDENCE=PASS
+
+      - name: Prove no open Phase-2 issue or pull request is carrying hidden work
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          issues="$(gh api search/issues -f q="repo:$GITHUB_REPOSITORY \"Phase 2\" is:open is:issue" --jq '.total_count')"
+          prs="$(gh api search/issues -f q="repo:$GITHUB_REPOSITORY phase2 is:open is:pr" --jq '.total_count')"
+          test "$issues" = 0
+          test "$prs" = 0
+          echo PHASE2_OPEN_WORK_TRACKERS=PASS
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: musitu-store-phase2-internal-closure-audit
+          path: /tmp/musitu-phase2-closure
+          retention-days: 90
+          if-no-files-found: error
