@@ -16,6 +16,15 @@ from .longitudinal_binding import LongitudinalIdentityBinding
 
 TRUSTED_EXTERNAL_PROVENANCE = frozenset({"provider_export", "provider_api_receipt", "independent_lab_record"})
 LEVEL5_PROVIDER_PROVENANCE = frozenset({"provider_export", "provider_api_receipt"})
+_CLAIM_CONFUSABLES = str.maketrans({
+    "Α": "A", "Β": "B", "Ε": "E", "Η": "H", "Ι": "I", "Κ": "K", "Μ": "M", "Ν": "N",
+    "Ο": "O", "Ρ": "P", "Τ": "T", "Χ": "X", "α": "a", "ε": "e", "ι": "i", "κ": "k",
+    "ο": "o", "ρ": "p", "τ": "t", "χ": "x",
+    "А": "A", "В": "B", "С": "C", "Е": "E", "Н": "H", "І": "I", "Ј": "J", "К": "K",
+    "М": "M", "О": "O", "Р": "P", "Ѕ": "S", "Т": "T", "Х": "X", "У": "Y",
+    "а": "a", "с": "c", "е": "e", "і": "i", "ј": "j", "к": "k", "м": "m", "о": "o",
+    "р": "p", "ѕ": "s", "х": "x", "у": "y",
+})
 
 
 def _valid_sha256(value: str) -> bool:
@@ -794,7 +803,7 @@ class ClaimBoundary:
     def _contains_protected_literal(cls, requested_claim: str, literal: str) -> bool:
         if not isinstance(requested_claim, str):
             return False
-        compatible = unicodedata.normalize("NFKC", requested_claim)
+        compatible = unicodedata.normalize("NFKC", requested_claim).translate(_CLAIM_CONFUSABLES)
         return re.search(cls._separator_tolerant_pattern(literal), compatible.lower()) is not None
 
     @classmethod
