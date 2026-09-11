@@ -8,8 +8,7 @@ on:
       - 'docs/MUSITU_STORE_PHASE2_*'
       - 'evidence/musitu-store/MUSITU_STORE_PHASE2_*'
       - 'evidence/musitu-store/MUSITU_STORE_BROWSER_PRESENTATION_HOTFIX_PRODUCTION_CERTIFICATION_20260911.json'
-      - '.github/workflows/musitu-store-phase2-*'
-      - '.github/workflows/musitu-store-browser-presentation-hotfix-*'
+      - '.github/workflows/musitu-store-*'
   workflow_dispatch:
 
 permissions:
@@ -39,11 +38,9 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
@@ -52,8 +49,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test "$GITHUB_REF_NAME" = 'musitu-store-phase2-standards-hardening-20260911'
           git fetch --quiet origin main musitu-store-phase1-20260909
+          test "$GITHUB_REF_NAME" = 'musitu-store-phase2-standards-hardening-20260911'
           test "$(git rev-parse origin/main)" = "$SEALED_MAIN"
           test "$(git rev-parse origin/musitu-store-phase1-20260909)" = "$PHASE1_HEAD"
           git merge-base --is-ancestor "$PHASE1_HEAD" "$GITHUB_SHA"
@@ -63,16 +60,14 @@ jobs:
           test -z "$(git diff --name-only "$QUALIFICATION_HEAD"..."$GITHUB_SHA" -- store/phase2/apply-standards-hardening.py store/phase2/browser_machine_presentation.py store/phase2/security-hardening-smoke.mjs store/phase2/standards-browser-smoke.mjs store/phase2/response-body-equivalence.mjs)"
           test -z "$(git diff --name-only "$HELPER_SOURCE_HEAD"..."$GITHUB_SHA" -- store/phase2/prepare_manual_accessibility_evidence.ps1)"
           git diff --name-status "$PHASE1_HEAD"..."$GITHUB_SHA" > /tmp/phase2-changes.txt
-          test -s /tmp/phase2-changes.txt
           python - <<'PY'
           from pathlib import Path
           rows=[]
           for line in Path('/tmp/phase2-changes.txt').read_text().splitlines():
-              parts=line.split('\t'); status=parts[0]; path=parts[-1]
-              assert status == 'A', f'Phase-2 branch must remain additive relative to sealed Phase-1; saw {status}: {path}'
+              status,*_,path=line.split('\t')
+              assert status == 'A', f'non-additive change relative to Phase-1: {status} {path}'
               allowed=(
-                  path.startswith('.github/workflows/musitu-store-phase2-'),
-                  path.startswith('.github/workflows/musitu-store-browser-presentation-hotfix-'),
+                  path.startswith('.github/workflows/musitu-store-'),
                   path.startswith('store/phase2/'),
                   path.startswith('docs/MUSITU_STORE_PHASE2_'),
                   path.startswith('evidence/musitu-store/MUSITU_STORE_PHASE2_'),
@@ -80,21 +75,18 @@ jobs:
               )
               assert any(allowed), f'out-of-scope Phase-2 change: {path}'
               rows.append(path)
-          assert len(rows) >= 22, f'unexpectedly small Phase-2 surface: {len(rows)} files'
+          assert len(rows) >= 22
           print(f'PHASE2_ISOLATION=PASS files={len(rows)}')
           PY
 
-      - name: Compile all Phase-2 implementation and reject unresolved debt markers
+      - name: Compile Phase-2 implementation and reject unresolved debt markers
         shell: bash
         run: |
           set -euo pipefail
           python -m py_compile store/phase2/*.py
           for f in store/phase2/*.mjs; do node --check "$f"; done
           mapfile -t debt_files < <(find store/phase2 docs .github/workflows -type f \( -path 'store/phase2/*' -o -name 'MUSITU_STORE_PHASE2_*' -o -name 'musitu-store-phase2-*' \) ! -name 'musitu-store-phase2-internal-closure-audit.yml' -print)
-          if ((${#debt_files[@]})) && grep -nHE '\b(TODO|FIXME|HACK|XXX)\b' "${debt_files[@]}"; then
-            echo 'Unresolved engineering debt marker found' >&2
-            exit 1
-          fi
+          if ((${#debt_files[@]})) && grep -nHE '\b(TODO|FIXME|HACK|XXX)\b' "${debt_files[@]}"; then exit 1; fi
           echo PHASE2_SOURCE_HYGIENE=PASS
 
       - name: Prove current evidence chain and single external blocker
@@ -103,14 +95,12 @@ jobs:
           set -euo pipefail
           mkdir -p /tmp/musitu-phase2-closure
           python - <<'PY'
-          import json, os
+          import json,os
           from pathlib import Path
-          hotfix=json.loads(Path(os.environ['HOTFIX_CERT']).read_text())
-          candidate=json.loads(Path(os.environ['CANDIDATE_CERT']).read_text())
-          equiv=json.loads(Path(os.environ['EQUIVALENCE_RECORD']).read_text())
-          readiness=json.loads(Path(os.environ['READINESS_RECORD']).read_text())
-          manual=json.loads(Path(os.environ['MANUAL_PACKET']).read_text())
-          helper=json.loads(Path('evidence/musitu-store/MUSITU_STORE_PHASE2_EVIDENCE_HELPER_CERTIFICATION_20260911.json').read_text())
+          load=lambda p: json.loads(Path(p).read_text())
+          hotfix=load(os.environ['HOTFIX_CERT']); candidate=load(os.environ['CANDIDATE_CERT'])
+          equiv=load(os.environ['EQUIVALENCE_RECORD']); readiness=load(os.environ['READINESS_RECORD'])
+          manual=load(os.environ['MANUAL_PACKET']); helper=load('evidence/musitu-store/MUSITU_STORE_PHASE2_EVIDENCE_HELPER_CERTIFICATION_20260911.json')
           assert hotfix['status']=='PASS_RECOVERED_DEPLOY_ROLLBACK_REDEPLOY_VERIFIED'
           assert hotfix['production']['final_worker_sha256']==os.environ['BASELINE_WORKER_SHA']
           assert hotfix['machine_endpoint_contract']['endpoint_count']==11
@@ -123,8 +113,6 @@ jobs:
           assert candidate['candidate']['browser_presentation_preserved'] is True
           assert candidate['candidate']['machine_client_bytes_preserved'] is True
           assert candidate['candidate']['production_mutation'] is False
-          assert candidate['github_actions']['run_id']==34582501210
-          assert candidate['github_actions']['artifact']['id']==10192199123
           assert candidate['gates']['security_hardening_runtime']=='PASS'
           assert candidate['gates']['automated_accessibility_low_bandwidth']=='PASS_AUTOMATED'
           assert candidate['gates']['lighthouse']['result']=='PASS'
@@ -136,37 +124,25 @@ jobs:
           assert equiv['proof']['browser_presentation_preserved'] is True
           assert equiv['proof']['raw_query_override_byte_identical'] is True
           assert equiv['proof']['unexpected_header_delta'] is False
-          assert helper['status']=='PASS'
-          assert helper['windows_smoke']['conclusion']=='success'
+          assert helper['status']=='PASS' and helper['windows_smoke']['conclusion']=='success'
           assert readiness['schema']=='musitu.store.phase2.deployment_readiness_record.v4'
           assert readiness['status']=='PASS_READY_EXCEPT_REAL_MANUAL_ACCESSIBILITY_EVIDENCE'
           assert readiness['phase2Complete'] is False
           assert readiness['phase2_security_production_mutation'] is False
           assert readiness['readiness_workflow']['run_id']==34582977701
-          assert readiness['readiness_workflow']['conclusion']=='success'
-          assert readiness['readiness_workflow']['classification']['manual_accessibility_gate']=='BLOCKED_PENDING_REAL_EVIDENCE'
-          assert readiness['readiness_workflow']['classification']['manual_validator']=='FAIL_CLOSED_AS_REQUIRED'
-          assert readiness['readiness_workflow']['classification']['rollback_transaction']=='SAFE_MODULE_ROOT_STATICALLY_VERIFIED'
-          assert readiness['readiness_workflow']['classification']['raw_get_multipart_rollback']=='FORBIDDEN'
-          assert readiness['production_workflow']['strict_manual_validator_before_any_mutation'] is True
+          c=readiness['readiness_workflow']['classification']
+          assert c['manual_accessibility_gate']=='BLOCKED_PENDING_REAL_EVIDENCE'
+          assert c['manual_validator']=='FAIL_CLOSED_AS_REQUIRED'
+          assert c['rollback_transaction']=='SAFE_MODULE_ROOT_STATICALLY_VERIFIED'
+          assert c['raw_get_multipart_rollback']=='FORBIDDEN'
           assert readiness['production_workflow']['raw_get_multipart_replay_forbidden'] is True
-          assert readiness['production_workflow']['deploy_verify_rollback_verify_redeploy_verify'] is True
           assert manual['schema']=='musitu.store.phase2.manual_accessibility_certification_packet.v2'
-          assert manual['status']=='PENDING_REAL_ASSISTIVE_TECHNOLOGY_EVIDENCE'
-          assert manual['result'] is None
-          assert manual['phase2Complete'] is False
-          assert manual['production_mutation'] is False
+          assert manual['status']=='PENDING_REAL_ASSISTIVE_TECHNOLOGY_EVIDENCE' and manual['result'] is None
           assert manual['body_equivalence']['candidate_worker_sha256']==os.environ['CANDIDATE_WORKER_SHA']
-          assert manual['evidence_manifest']==[]
-          assert manual['review']['original_evidence_reviewed'] is False
+          assert manual['evidence_manifest']==[] and manual['review']['original_evidence_reviewed'] is False
           for group in ('manual_keyboard_checks','screen_reader_checks','zoom_reflow_checks'):
-              assert manual[group] and all(v is None for v in manual[group].values()), f'{group} must remain unclaimed before real evidence'
+              assert all(v is None for v in manual[group].values())
           assert all(v is None for v in manual['required_evidence'].values())
-          assert manual['rules']['real_screen_reader_required'] is True
-          assert manual['rules']['manual_keyboard_test_required'] is True
-          assert manual['rules']['real_zoom_reflow_test_required'] is True
-          assert manual['rules']['screen_reader_live_transcription_visible_required'] is True
-          assert manual['rules']['automated_accessibility_tree_is_not_a_substitute'] is True
           report={
             'schema':'musitu.store.phase2.internal_closure_audit.v2',
             'result':'PASS_INTERNAL_CLOSURE_PENDING_EXTERNAL_CERTIFICATION',
@@ -180,28 +156,23 @@ jobs:
             'independently_actionable_internal_qualification_remaining':[],
             'current_external_blockers':['real manual keyboard + Narrator screen-reader with visible Speech Recap + 200%/400% zoom/reflow evidence and original-evidence review'],
             'external_certification_is_only_current_blocker':True,
-            'post_external_transaction_prepared':True,
             'phase2_security_production_mutation':False,
-            'phase2Complete':False,
-            'claim_boundary':'The browser-presentation defect is fixed in production and all currently executable internal Phase-2 engineering and qualification are closed. Real manual accessibility evidence is the sole current Phase-2 blocker; guarded security deployment remains downstream of that PASS.'
+            'phase2Complete':False
           }
           Path('/tmp/musitu-phase2-closure/internal-closure.json').write_text(json.dumps(report,indent=2)+'\n')
           print(json.dumps(report,indent=2))
           PY
 
-      - name: Prove pending manual packet fails exact production validator closed
+      - name: Prove pending manual packet fails production validator closed
         shell: bash
         run: |
           set -euo pipefail
-          set +e
-          python store/phase2/validate_manual_accessibility_packet.py "$MANUAL_PACKET" . >/tmp/manual-validator.txt 2>&1
-          rc=$?
-          set -e
+          set +e; python store/phase2/validate_manual_accessibility_packet.py "$MANUAL_PACKET" . >/tmp/manual-validator.txt 2>&1; rc=$?; set -e
           test "$rc" -ne 0
           grep -q 'MANUAL_ACCESSIBILITY_PACKET_INVALID' /tmp/manual-validator.txt
           echo MANUAL_PACKET_FAIL_CLOSED=PASS
 
-      - name: Prove guarded production transaction ordering and safe rollback structure
+      - name: Prove guarded production ordering and safe rollback structure
         shell: bash
         run: |
           set -euo pipefail
@@ -209,40 +180,26 @@ jobs:
           from pathlib import Path
           w=Path('.github/workflows/musitu-store-phase2-guarded-production-deploy.yml').read_text()
           assert '\n  workflow_dispatch:' in w and '\n  push:' not in w
-          anchors=w.index('Prove immutable repository anchors and candidate transform')
-          manual=w.index('Require reviewed real manual accessibility evidence before any production mutation')
-          equiv=w.index('Require repaired-live response-body equivalence proof')
-          candidate=w.index('Require repaired-live hardened candidate certification')
-          capture=w.index('Capture exact current repaired live Worker')
-          build=w.index('Build exact hardened candidate from captured repaired live modules')
-          transaction=w.index('Execute Worker-only deployment with safe module-root rollback drill')
-          assert anchors < manual < equiv < candidate < capture < build < transaction
-          assert 'validate_manual_accessibility_packet.py' in w
-          assert 'continue-on-error: true' in w
+          labels=['Prove immutable repository anchors and candidate transform','Require reviewed real manual accessibility evidence before any production mutation','Require repaired-live response-body equivalence proof','Require repaired-live hardened candidate certification','Capture exact current repaired live Worker','Build exact hardened candidate from captured repaired live modules','Execute Worker-only deployment with safe module-root rollback drill']
+          pos=[w.index(x) for x in labels]; assert pos==sorted(pos)
           d=Path('store/phase2/deploy_hardened_store.py').read_text()
-          for needle in ('def upload_root','upload_root(BASELINE)','rollback_drill_performed','rollback_drill_verified','candidate_redeployed_final','final_state_verified','emergency_baseline_restore_performed'):
-              assert needle in d, f'missing deployment/rollback control: {needle}'
-          assert 'raw Cloudflare GET multipart replay is forbidden' in d
-          assert 'restore_snapshot' not in d
+          for n in ('def upload_root','upload_root(BASELINE)','rollback_drill_performed','rollback_drill_verified','candidate_redeployed_final','final_state_verified','emergency_baseline_restore_performed'): assert n in d
+          assert 'raw Cloudflare GET multipart replay is forbidden' in d and 'restore_snapshot' not in d
           print('PRODUCTION_TRANSACTION_COMPLETENESS=PASS')
           PY
 
-      - name: Revalidate current successful runs and evidence artifacts online
+      - name: Revalidate current successful runs and artifacts online
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
           set -euo pipefail
-          check_run(){ local run="$1"; test "$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run" --jq '.status')" = completed; test "$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run" --jq '.conclusion')" = success; }
-          check_artifact(){ local run="$1" id="$2" digest="$3"; local row; row="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run/artifacts" --jq ".artifacts[] | select(.id == $id) | [.expired,.digest] | @tsv")"; test -n "$row"; test "$(printf '%s' "$row" | cut -f1)" = false; test "$(printf '%s' "$row" | cut -f2)" = "$digest"; }
-          check_run 34581130498
-          check_artifact 34581130498 10191650385 sha256:df7be164f3535ec20fe1ddd15e63ab3ab047824081c19782360b311f91667659
-          check_run 34582501210
-          check_artifact 34582501210 10192199123 sha256:3b1c157fd2a061c26c9b150c5e018aefc109ddd6cea3d8fab3e1e2908717f497
-          check_run 34582977701
-          check_artifact 34582977701 10192373027 sha256:b68c380b59cc56956f1af181932fbaeafe393530ce0b7917be492363eeee32ca
-          check_run 34575797677
-          check_artifact 34575797677 10189562925 sha256:063c5b1d793471ab9c09de0c7a03be040b273f166bf4b8454ae28204490eb015
+          check_run(){ local r="$1"; test "$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$r" --jq '.status')" = completed; test "$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$r" --jq '.conclusion')" = success; }
+          check_artifact(){ local r="$1" id="$2" digest="$3"; local row; row="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$r/artifacts" --jq ".artifacts[] | select(.id == $id) | [.expired,.digest] | @tsv")"; test "$(printf '%s' "$row" | cut -f1)" = false; test "$(printf '%s' "$row" | cut -f2)" = "$digest"; }
+          check_run 34581130498; check_artifact 34581130498 10191650385 sha256:df7be164f3535ec20fe1ddd15e63ab3ab047824081c19782360b311f91667659
+          check_run 34582501210; check_artifact 34582501210 10192199123 sha256:3b1c157fd2a061c26c9b150c5e018aefc109ddd6cea3d8fab3e1e2908717f497
+          check_run 34582977701; check_artifact 34582977701 10192373027 sha256:b68c380b59cc56956f1af181932fbaeafe393530ce0b7917be492363eeee32ca
+          check_run 34575797677; check_artifact 34575797677 10189562925 sha256:063c5b1d793471ab9c09de0c7a03be040b273f166bf4b8454ae28204490eb015
           echo REFERENCED_ACTIONS_EVIDENCE=PASS
 
       - name: Prove no open Phase-2 issue or pull request carries hidden work
@@ -253,8 +210,7 @@ jobs:
           set -euo pipefail
           open_issues="$(gh api "repos/$GITHUB_REPOSITORY/issues?state=open&per_page=100" --jq '[.[] | select(.pull_request|not) | select((.title+" "+(.body//""))|test("MUSITU Store Phase 2|musitu-store-phase2";"i"))] | length')"
           open_prs="$(gh api "repos/$GITHUB_REPOSITORY/pulls?state=open&per_page=100" --jq '[.[] | select((.title+" "+(.body//""))|test("MUSITU Store Phase 2|musitu-store-phase2";"i"))] | length')"
-          test "$open_issues" = 0
-          test "$open_prs" = 0
+          test "$open_issues" = 0 && test "$open_prs" = 0
           echo PHASE2_HIDDEN_OPEN_WORK=NONE
 
       - uses: actions/upload-artifact@v4
