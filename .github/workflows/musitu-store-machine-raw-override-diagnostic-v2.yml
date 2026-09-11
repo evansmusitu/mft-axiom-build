@@ -1,0 +1,47 @@
+name: MUSITU Store Machine Raw Override Diagnostic V2
+
+on:
+  push:
+    branches: [musitu-store-native-install-handoff-20260911]
+    paths:
+      - '.github/workflows/musitu-store-machine-raw-override-diagnostic-v2.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Prove diagnostic is GET-only
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m py_compile store/phase2/diagnose-machine-raw-override.py
+          python - <<'PY'
+          from pathlib import Path
+          s=Path('store/phase2/diagnose-machine-raw-override.py').read_text()
+          for verb in ('POST','PUT','PATCH','DELETE'):
+              assert f"method='{verb}'" not in s
+              assert f'method="{verb}"' not in s
+          assert "method='GET'" in s
+          assert "production_mutation':False" in s
+          print('DIAGNOSTIC_GET_ONLY=PASS')
+          PY
+      - name: Probe current public production representations
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/musitu-raw-override-diagnostic
+          python store/phase2/diagnose-machine-raw-override.py | tee /tmp/musitu-raw-override-diagnostic/report.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: musitu-store-machine-raw-override-diagnostic-v2
+          path: /tmp/musitu-raw-override-diagnostic/report.json
+          retention-days: 30
+          if-no-files-found: error
