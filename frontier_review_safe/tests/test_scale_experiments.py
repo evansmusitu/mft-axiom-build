@@ -3,6 +3,7 @@ from __future__ import annotations
 import copy
 import unittest
 
+from frontier_review_safe.core import sha256
 from frontier_review_safe.scale_experiments import (
     EXPECTED_NAMES,
     PROMOTION_STATUS,
@@ -14,10 +15,9 @@ from frontier_review_safe.scale_experiments import (
 class ScaleExperimentContractTests(unittest.TestCase):
     @staticmethod
     def _valid_evidence():
-        return {
+        evidence = {
             "schema": SCHEMA,
             "promotion_status": PROMOTION_STATUS,
-            "evidence_sha256": "a" * 64,
             "experiments": [
                 {
                     "name": name,
@@ -31,6 +31,8 @@ class ScaleExperimentContractTests(unittest.TestCase):
                 for name in sorted(EXPECTED_NAMES)
             ],
         }
+        evidence["evidence_sha256"] = sha256(evidence)
+        return evidence
 
     def test_experimental_measurements_are_valid_but_never_budget_or_claim_authority(self):
         report = validate_experimental_evidence(self._valid_evidence())
@@ -60,6 +62,15 @@ class ScaleExperimentContractTests(unittest.TestCase):
         report = validate_experimental_evidence(evidence)
         self.assertEqual(report["status"], "FAIL")
         self.assertIn("promotion_status_mismatch", report["reasons"])
+
+    def test_tampered_measurement_cannot_reuse_old_evidence_hash(self):
+        evidence = self._valid_evidence()
+        evidence["experiments"][0]["elapsed_ms"] = 2.0
+        report = validate_experimental_evidence(evidence)
+        self.assertEqual(report["status"], "FAIL")
+        self.assertIn("evidence_hash_mismatch", report["reasons"])
+        self.assertFalse(report["budget_authorized"])
+        self.assertFalse(report["claim_authorized"])
 
 
 if __name__ == "__main__":
