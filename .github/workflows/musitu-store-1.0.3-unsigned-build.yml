@@ -44,15 +44,23 @@ jobs:
           grep -q 'resumePendingInstall' store/phase1/android-client/app/src/main/java/com/musitu/store/StoreCore.java
           grep -q 'canRequestPackageInstalls' store/phase1/android-client/app/src/main/java/com/musitu/store/StoreCore.java
           echo MUSITU_STORE_1_0_3_NATIVE_HANDOFF_SOURCE=PASS
-      - name: Build unsigned release APK and export official signing tools
+      - name: Build and prove exact unsigned release APK
         working-directory: store/phase1/android-client
         shell: bash
         run: |
           set -euo pipefail
+          EXPECTED_SHA='fabb37404cbd9c021e0503db6c7d2c9e719c7e2fea334f936499593957473248'
+          EXPECTED_BYTES='1670512'
           gradle --no-daemon --stacktrace :app:assembleRelease
-          test -f app/build/outputs/apk/release/app-release-unsigned.apk
-          cp app/build/outputs/apk/release/app-release-unsigned.apk "$GITHUB_WORKSPACE/MUSITU_Store_1.0.3_UNSIGNED.apk"
-          sha256sum "$GITHUB_WORKSPACE/MUSITU_Store_1.0.3_UNSIGNED.apk" | tee "$GITHUB_WORKSPACE/MUSITU_Store_1.0.3_UNSIGNED.sha256"
+          APK='app/build/outputs/apk/release/app-release-unsigned.apk'
+          test -f "$APK"
+          ACTUAL_SHA="$(sha256sum "$APK" | awk '{print $1}')"
+          ACTUAL_BYTES="$(stat -c '%s' "$APK")"
+          printf '%s  %s\n' "$ACTUAL_SHA" 'MUSITU_Store_1.0.3_UNSIGNED.apk' | tee "$GITHUB_WORKSPACE/MUSITU_Store_1.0.3_UNSIGNED.sha256"
+          test "$ACTUAL_SHA" = "$EXPECTED_SHA"
+          test "$ACTUAL_BYTES" = "$EXPECTED_BYTES"
+          cp "$APK" "$GITHUB_WORKSPACE/MUSITU_Store_1.0.3_UNSIGNED.apk"
+          echo MUSITU_STORE_1_0_3_UNSIGNED_REPRODUCIBILITY=PASS
           mkdir -p "$GITHUB_WORKSPACE/android-build-tools/lib"
           cp "$ANDROID_HOME/build-tools/36.0.0/apksigner" "$GITHUB_WORKSPACE/android-build-tools/apksigner"
           cp "$ANDROID_HOME/build-tools/36.0.0/lib/apksigner.jar" "$GITHUB_WORKSPACE/android-build-tools/lib/apksigner.jar"
