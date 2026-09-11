@@ -156,6 +156,83 @@ class UncertaintyCalibrationTests(unittest.TestCase):
         self.assertEqual(failed["status"], "FAIL")
         self.assertGreater(failed["coverage_shortfall"], .03)
 
+    def test_observation_and_fit_reject_nonfinite_or_malformed_authority(self):
+        with self.assertRaises(ValueError):
+            ProbabilityCalibrationObservation(
+                "obs-nan", "risk", "group-nan", "calibration", float("nan"),
+                True, NOW_S, h("obs-nan"),
+            )
+        with self.assertRaises(ValueError):
+            ProbabilityCalibrationObservation(
+                "obs-bad-hash", "risk", "group-bad-hash", "calibration", .5,
+                True, NOW_S, "z" * 64,
+            )
+        with self.assertRaises(ValueError):
+            ProbabilityCalibrationObservation(
+                " ", "risk", "group-blank", "calibration", .5,
+                True, NOW_S, h("obs-blank"),
+            )
+        with self.assertRaises(ValueError):
+            DomainProbabilityCalibrator.fit(
+                self.observations(), version="v-inf-regression", calibrated_at=NOW_S,
+                valid_until=(NOW + timedelta(days=1)).isoformat(),
+                minimum_calibration=40, minimum_holdout=20,
+                maximum_brier_regression=float("inf"),
+            )
+        with self.assertRaises(ValueError):
+            DomainProbabilityCalibrator.fit(
+                self.observations(), version="v-nan-ece", calibrated_at=NOW_S,
+                valid_until=(NOW + timedelta(days=1)).isoformat(),
+                minimum_calibration=40, minimum_holdout=20,
+                maximum_holdout_ece=float("nan"),
+            )
+
+    def test_nonfinite_confidence_and_drift_disablement_fail_closed(self):
+        artifact = self.artifact()
+        when = (NOW + timedelta(hours=1)).isoformat()
+        with self.assertRaises(ValueError):
+            artifact.calibrate(float("nan"), when)
+        with self.assertRaises(ValueError):
+            artifact.calibrate(
+                .9, when, current_confidences=[.05] * 100,
+                maximum_drift_psi=float("inf"),
+            )
+        with self.assertRaises(ValueError):
+            DomainCalibrationRegistry([artifact]).calibrate(" ", .9, when)
+
+    def test_artifact_rejects_nonfinite_metrics_and_false_ece_promotion(self):
+        artifact = self.artifact()
+        with self.assertRaises(ValueError):
+            replace(artifact, holdout_raw_brier=float("nan"))
+        with self.assertRaises(ValueError):
+            replace(artifact, maximum_holdout_ece=float("inf"))
+        with self.assertRaises(FrontierSafetyError):
+            replace(
+                artifact,
+                promotion_authorized=True,
+                holdout_ece=.2,
+                maximum_holdout_ece=.1,
+            )
+
+    def test_interval_gate_rejects_threshold_disablement_and_invalid_configuration(self):
+        rows = [
+            IntervalCoverageObservation(
+                f"cfg-{i}", "risk", 0.0, 1.0, .5, .1, NOW_S, h(f"cfg-{i}")
+            )
+            for i in range(40)
+        ]
+        with self.assertRaises(ValueError):
+            IntervalCoverageGate.evaluate(
+                rows, domain="risk", alpha=.1,
+                maximum_coverage_shortfall=float("inf"),
+            )
+        with self.assertRaises(ValueError):
+            IntervalCoverageGate.evaluate(rows, domain="risk", alpha=float("nan"))
+        with self.assertRaises(ValueError):
+            IntervalCoverageGate.evaluate(rows, domain="risk", alpha=.1, minimum_samples=0)
+        with self.assertRaises(ValueError):
+            IntervalCoverageGate.evaluate(rows, domain=" ", alpha=.1)
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
