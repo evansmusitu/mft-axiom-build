@@ -1,0 +1,85 @@
+{
+  "schema": "musitu.store.phase2.manual_accessibility_validator_certification.v1",
+  "status": "PASS_SYNTHETIC_CONTRACT_TESTS_NOT_REAL_ACCESSIBILITY_EVIDENCE",
+  "date_utc": "2026-09-11",
+  "repository": {
+    "name": "evansmusitu/mft-axiom-build",
+    "branch": "musitu-store-phase2-standards-hardening-20260911",
+    "readiness_head": "21d755e16bd4c3039976bb7cdca7e5b7a0706695",
+    "sealed_main": "d6a846f6bbe0bccac1758713eb4de167caf07113",
+    "phase1_head": "ebded495617cc89bb96d7a5531c1ce4fc6bbedd9"
+  },
+  "validator": {
+    "path": "store/phase2/validate_manual_accessibility_packet.py",
+    "contract_test_path": "store/phase2/test_manual_accessibility_validator.py",
+    "packet_schema": "musitu.store.phase2.manual_accessibility_certification_packet.v2",
+    "baseline_live_worker_sha256": "e17e0c7bde55d9f8d41b476e917159b6bf39b46c3895b7ec6d2a7b4f705beb81",
+    "candidate_worker_sha256": "c98e6e36fa153f16a05c627b10b9a562e5f2ffde1f02ec0a7676a8d5121b7cce",
+    "qualification_run_id": "34582501210",
+    "qualification_artifact_id": "10192199123",
+    "qualification_artifact_digest": "sha256:3b1c157fd2a061c26c9b150c5e018aefc109ddd6cea3d8fab3e1e2908717f497"
+  },
+  "enforced_contract": {
+    "exact_repaired_live_candidate_binding_required": true,
+    "exact_response_equivalence_binding_required": true,
+    "complete_keyboard_check_keyset_required": true,
+    "complete_screen_reader_check_keyset_required": true,
+    "narrator_speech_recap_key_required": true,
+    "complete_zoom_reflow_check_keyset_required": true,
+    "all_required_checks_must_be_true": true,
+    "windows_environment_required": true,
+    "microsoft_narrator_required": true,
+    "stable_drive_or_repo_evidence_reference_required": true,
+    "evidence_sha256_and_positive_bytes_required": true,
+    "continuous_recording_must_be_video": true,
+    "test_time_ordering_enforced": true,
+    "review_time_after_test_enforced": true,
+    "original_evidence_review_required": true,
+    "review_statement_must_cover_real_assistive_keyboard_narrator_zoom": true,
+    "pending_packet_rejected": true
+  },
+  "adversarial_synthetic_tests": {
+    "result": "PASS",
+    "real_accessibility_evidence": false,
+    "cases": [
+      "complete structurally valid synthetic fixture accepted",
+      "missing Narrator Speech Recap key rejected",
+      "wrong candidate binding rejected",
+      "wrong qualification artifact binding rejected",
+      "false manual screen-reader check rejected",
+      "missing zoom/reflow key rejected",
+      "non-Narrator environment rejected",
+      "unstable evidence reference scheme rejected",
+      "unreviewed original evidence rejected",
+      "pending packet rejected"
+    ]
+  },
+  "readiness_workflow": {
+    "run_id": 34584007750,
+    "job_id": 103213876381,
+    "conclusion": "success",
+    "artifact": {
+      "id": 10192785701,
+      "name": "musitu-store-phase2-deployment-readiness",
+      "bytes": 882,
+      "digest": "sha256:35769406748050939b396e8bf7cd1a38048af9fde1bf02b18a26acb3e8cd697a",
+      "expires_at": "2026-12-10T09:24:07Z"
+    },
+    "manual_accessibility_gate": "BLOCKED_PENDING_REAL_EVIDENCE",
+    "production_mutation": false,
+    "phase2Complete": false
+  },
+  "post_hardening_internal_closure": {
+    "run_id": 34584007681,
+    "job_id": 103213876297,
+    "conclusion": "success",
+    "artifact": {
+      "id": 10192793898,
+      "name": "musitu-store-phase2-internal-closure-audit",
+      "bytes": 688,
+      "digest": "sha256:b4fea18cda2bac2c5e14a8c5d43e0f41dad68a239e64e384a66da2ed14c009a2",
+      "expires_at": "2026-12-10T09:24:07Z"
+    }
+  },
+  "claim_boundary": "This certification proves the validator contract was attacked with synthetic structural fixtures and rejects missing, unbound, failed, unstable, or unreviewed packets. It is explicitly not real accessibility evidence and does not unblock Phase 2 production security hardening."
+}
