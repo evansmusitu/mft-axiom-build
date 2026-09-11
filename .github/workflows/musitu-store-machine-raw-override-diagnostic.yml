@@ -23,8 +23,16 @@ jobs:
         run: |
           set -euo pipefail
           python -m py_compile store/phase2/diagnose-machine-raw-override.py
-          ! grep -E 'method=["'"'](POST|PUT|PATCH|DELETE)["'"']|Request\([^\n]*method=["'"'](POST|PUT|PATCH|DELETE)["'"']' store/phase2/diagnose-machine-raw-override.py
-          echo DIAGNOSTIC_GET_ONLY=PASS
+          python - <<'PY'
+          from pathlib import Path
+          s=Path('store/phase2/diagnose-machine-raw-override.py').read_text()
+          for verb in ('POST','PUT','PATCH','DELETE'):
+              assert f"method='{verb}'" not in s
+              assert f'method="{verb}"' not in s
+          assert "method='GET'" in s
+          assert "production_mutation':False" in s
+          print('DIAGNOSTIC_GET_ONLY=PASS')
+          PY
       - name: Probe current public production representations
         shell: bash
         run: |
