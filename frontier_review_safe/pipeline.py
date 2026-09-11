@@ -5,11 +5,13 @@ from queue import Empty, Queue
 from threading import Thread
 from typing import Any, Callable, Mapping, Sequence
 
+from .commercial_intent import CommercialIntentQualifier, CommercialIntentRequest
 from .core import DataLineageContract, Evidence, LineageStep, sha256, utcnow
 from .evidence_resolution import ResearchSourceScorer, SourceQualityProfile
 from .evaluation import DecisionProvenanceLedger, ProofEnvelope
 from .governance import (AuthorizationRequest, GovernedPermissionGraph, Instruction,
                          InstructionProvenanceFirewall, PolicyJurisdictionRouter, Principal)
+from .model_risk import ModelRiskGovernance
 from .orchestration import (CostLatencyQualityRouter, FailClosedAbstentionPolicy, AbstentionContext,
                             SpecialistContract, SpecialistSociety)
 from .specialist_governance import GovernedSpecialistDeliberation, SpecialistGovernancePolicy
@@ -32,6 +34,12 @@ class WorkflowRequest:
     policy_version: str
     code_version: str
     high_consequence: bool = False
+    public_surface: bool = False
+    intent_effects: frozenset[str] = frozenset()
+    intent_resource_kind: str | None = None
+    intent_target: str | None = None
+    model_id: str | None = None
+    model_version: str | None = None
 
 
 @dataclass(frozen=True)
@@ -49,7 +57,8 @@ class ReviewSafeWorkflow:
                  router: CostLatencyQualityRouter, specialists: SpecialistSociety,
                  specialist_contracts: Sequence[SpecialistContract], verifier_paths: Sequence[VerificationPath],
                  ledger: DecisionProvenanceLedger,
-                 specialist_policy: SpecialistGovernancePolicy | None = None) -> None:
+                 specialist_policy: SpecialistGovernancePolicy | None = None,
+                 model_risk: ModelRiskGovernance | None = None) -> None:
         self.permissions = permissions
         self.jurisdictions = jurisdictions
         self.router = router
@@ -58,6 +67,7 @@ class ReviewSafeWorkflow:
         self.verifier_paths = tuple(verifier_paths)
         self.ledger = ledger
         self.specialist_policy = specialist_policy or SpecialistGovernancePolicy()
+        self.model_risk = model_risk
 
     @staticmethod
     def _bounded_call(fn: Callable[[], Any], timeout_seconds: float) -> Any:
@@ -161,6 +171,26 @@ class ReviewSafeWorkflow:
         if not firewall.get("allowed"):
             return self._abstain(req, trace, ["instruction_provenance_denied"])
 
+        commercial_decision: Mapping[str, Any] | None = None
+        if req.public_surface:
+            commercial_request = CommercialIntentRequest(
+                action=req.action,
+                public_surface=True,
+                description=req.question,
+                consequential=req.high_consequence,
+                effects=req.intent_effects,
+                resource_kind=req.intent_resource_kind,
+                target=req.intent_target,
+            )
+            commercial_decision = CommercialIntentQualifier.qualify(commercial_request)
+            checkpoint("commercial_intent", commercial_decision)
+            if commercial_decision.get("status") != "ALLOW":
+                return self._abstain(
+                    req,
+                    trace,
+                    ["commercial_intent_denied", str(commercial_decision.get("reason", "intent_not_allowed"))],
+                )
+
         try:
             authorization = self.permissions.authorize(req.principal, req.authorization_request)
         except Exception as exc:
@@ -173,6 +203,30 @@ class ReviewSafeWorkflow:
                 checkpoint("jurisdiction", asdict(policy))
             except Exception as exc:
                 return self._abstain(req, trace, ["jurisdiction_policy_unavailable"], error_type=type(exc).__name__)
+
+        model_risk_decision: Mapping[str, Any] | None = None
+        model_identity_requested = bool(req.model_id or req.model_version)
+        if model_identity_requested or (req.high_consequence and self.model_risk is not None):
+            if not req.model_id or not req.model_version:
+                checkpoint("model_risk", {"status": "ABSTAIN", "reason": "model_identity_missing"})
+                return self._abstain(req, trace, ["model_risk_identity_missing"])
+            if self.model_risk is None:
+                checkpoint("model_risk", {"status": "ABSTAIN", "reason": "model_risk_registry_unavailable"})
+                return self._abstain(req, trace, ["model_risk_registry_unavailable"])
+            model_risk_decision = self.model_risk.authorize_use(
+                req.model_id,
+                req.model_version,
+                req.domain,
+                req.now,
+                high_consequence=req.high_consequence,
+            )
+            checkpoint("model_risk", model_risk_decision)
+            if model_risk_decision.get("status") != "PASS":
+                return self._abstain(
+                    req,
+                    trace,
+                    ["model_risk_denied", *model_risk_decision.get("reasons", [])],
+                )
 
         try:
             evidence = tuple(self._bounded_call(lambda: adapters.acquire_evidence(req), evidence_timeout_seconds))
@@ -194,11 +248,24 @@ class ReviewSafeWorkflow:
         weak = sum(1 for x in scores if x < req.min_source_quality)
 
         try:
-            route = self.router.route(req.now, req.min_confidence)["provider"]
+            route_result = self.router.route(
+                req.now,
+                req.min_confidence,
+                capability=req.domain,
+                jurisdiction=req.principal.jurisdiction,
+            )
+            route = route_result["provider"]
         except Exception as exc:
             return self._abstain(req, trace, ["capability_route_unavailable"], error_type=type(exc).__name__,
                                  input_hashes=evidence_hashes)
-        checkpoint("routing", asdict(route))
+        checkpoint("routing", {
+            "provider": asdict(route),
+            "selection_score": route_result.get("selection_score"),
+            "degradation_state": route_result.get("degradation_state"),
+            "selection_sha256": route_result.get("selection_sha256"),
+            "fallbacks": [p.name for p in route_result.get("fallbacks", ())],
+            "policy_version": route_result.get("policy_version"),
+        })
         route_tools = {"route": route.name}
 
         specialist_task = {
@@ -240,6 +307,14 @@ class ReviewSafeWorkflow:
             return self._abstain(req, trace, ["analysis_failure"], error_type=type(exc).__name__,
                                  input_hashes=evidence_hashes, tool_versions=route_tools)
         checkpoint("analysis", analysis)
+        if req.model_version is not None and str(analysis.get("model_version", "")) != req.model_version:
+            return self._abstain(
+                req,
+                trace,
+                ["analysis_model_version_mismatch"],
+                input_hashes=evidence_hashes,
+                tool_versions=route_tools,
+            )
         confidence = float(analysis.get("confidence", 0.0))
         uncertainty = float(analysis.get("uncertainty", 1.0))
         contradiction_status = str(analysis.get("contradiction_status", "RESOLVED"))
@@ -278,11 +353,16 @@ class ReviewSafeWorkflow:
                                            request_id=req.request_id, policy_version=req.policy_version,
                                            code_version=req.code_version, input_hashes=known_inputs,
                                            model_version=analysis.get("model_version"), tool_versions=route_tools)
+        proof_authorization = dict(authorization)
+        if commercial_decision is not None:
+            proof_authorization["commercial_intent_sha256"] = sha256(commercial_decision)
+        if model_risk_decision is not None:
+            proof_authorization["model_risk_sha256"] = sha256(model_risk_decision)
         proof = ProofEnvelope(sha256({"question": req.question, "action": req.action}), known_inputs,
                               tuple(analysis.get("assumptions", ("explicit_inputs_only",))),
                               str(analysis.get("method", "unspecified")), sha256(analysis),
                               {"confidence": confidence, "uncertainty": uncertainty}, verification,
-                              authorization, lineage_hash, decision_hash, req.code_version,
+                              proof_authorization, lineage_hash, decision_hash, req.code_version,
                               req.policy_version, utcnow())
         return {"status": "PASS", "result": analysis, "proof": asdict(proof),
                 "proof_sha256": proof.fingerprint, "trace": trace}
