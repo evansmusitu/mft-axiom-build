@@ -1,0 +1,41 @@
+RESUME MUSITU CHEMISTRY MASTERY / CHEMISTRY RESCUE 2026 REVENUE EXECUTION FROM THE EXACT VERIFIED HANDOFF PACKAGE.
+
+THIS IS A CONTINUATION — NOT A RESTART, REDESIGN, SUMMARY, BRAINSTORMING SESSION, OR PERMISSION TO RECONSTRUCT FROM MEMORY OR CHAT HISTORY.
+
+Use my connected Google Drive directly.
+
+Folder:
+MUSITU_CHEMISTRY_HANDOFFS
+
+Retrieve the newest authoritative ZIP and its sibling SHA-256 checksum file created on 2026-09-11 for the Chemistry revenue continuation.
+
+Verify the downloaded ZIP SHA-256 against the sibling checksum file. If it does not match, STOP immediately and report the mismatch. Do not continue from an unverified package.
+
+Extract the ZIP.
+
+READ THIS FILE FIRST, BEFORE ANY OTHER HANDOFF FILE:
+00_START_HERE/NEW_CHAT_START_HERE.md
+
+Then follow the exact read order in:
+99_READ_ORDER.txt
+
+Treat the source snapshot in 01_SOURCE as the exact captured authoritative product source at handoff, but re-read the connected GitHub branch directly before making changes because newer verified GitHub/production evidence supersedes the packaged snapshot.
+
+Repository:
+evansmusitu/mft-axiom-build
+
+Captured authoritative Chemistry/revenue branch:
+chemistry-direct-paynow-fallback-20260911
+
+Captured source HEAD:
+fff60ebac1dd4cf28210d86976f87c7864c041e2
+
+Sealed main MUST remain unchanged at:
+d6a846f6bbe0bccac1758713eb4de167caf07113
+
+Do not resume parked MUSITU Store certification work. Continue the Chemistry revenue path directly: re-check the Paynow support thread, scheduled LinkedIn publications, current aggregate Rescue funnel, and verified settlement state. Do not send duplicate support spam, do not start paid media before its organic/product-health gate passes, and do not call pending/cancelled order intents revenue.
+
+Preserve the invariant:
+VERIFIED_SETTLEMENT_EVIDENCE -> SIGNED_MUSITU_ENTITLEMENT
+
+Execute safe, already-authorized revenue operations directly. Minimize discussion. Do not fabricate customers, sales, settlement, adoption, endorsements, grades, or completion evidence.
