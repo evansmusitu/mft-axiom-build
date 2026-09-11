@@ -6,7 +6,7 @@
     <package android:name="com.musitu.chemistry" />
   </queries>
   <application android:allowBackup="false" android:label="MUSITU Store" android:usesCleartextTraffic="false" android:theme="@style/AppTheme">
-    <activity android:name=".MainActivity" android:exported="true">
+    <activity android:name=".MainActivity" android:exported="true" android:launchMode="singleTop">
       <intent-filter>
         <action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.LAUNCHER"/>
       </intent-filter>
