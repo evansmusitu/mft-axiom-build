@@ -100,10 +100,9 @@ class PersistentAdaptationTests(unittest.TestCase):
                 PersistentContinualAdaptationRegistry(path)
 
             path.unlink()
-            registry = PersistentContinualAdaptationRegistry(path)
-            malformed = AdaptationRelease("v1", None, "short", "b" * 64, "c" * 64, "d" * 64, None)
             with self.assertRaises(ValueError):
-                registry.promote(malformed, regression_pass=True)
+                AdaptationRelease("v1", None, "short", "b" * 64, "c" * 64, "d" * 64, None)
+            self.assertFalse(path.exists())
 
     def test_stale_instances_refresh_under_file_lock(self):
         with tempfile.TemporaryDirectory() as td:
