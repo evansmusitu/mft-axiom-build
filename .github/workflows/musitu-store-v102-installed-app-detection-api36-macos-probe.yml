@@ -1,0 +1,254 @@
+name: MUSITU Store v1.0.2 API36 macOS Installed-App Proof
+
+on:
+  push:
+    branches: [musitu-store-handoff-probe-20260910]
+    paths:
+      - '.github/workflows/musitu-store-v102-installed-app-detection-api36-macos-probe.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: musitu-store-phase1-v102-api36-macos-proof
+  cancel-in-progress: true
+
+jobs:
+  prove:
+    name: API 36 exact production runtime detection on macOS Intel
+    runs-on: macos-15-intel
+    timeout-minutes: 45
+    env:
+      HOMEBREW_NO_AUTO_UPDATE: '1'
+      AUTHORITATIVE_STORE_BRANCH: musitu-store-phase1-20260909
+      AUTHORITATIVE_STORE_HEAD: 0ffe2de07c6b18873cc73b157ade3afe589f8a35
+      SEALED_MAIN: d6a846f6bbe0bccac1758713eb4de167caf07113
+      STORE_URL: https://payments.mftintelligence.com/store/bootstrap/MUSITU_Store_1.0.2.apk
+      STORE_SHA: 3a0c4b0f971ec84cd6167a137f8e3d75c7bb20e525c26ab533b3d88044cd0784
+      STORE_BYTES: '1679340'
+      STORE_SIGNER: 43695b6103d7ab57e89166c9a537f1810b7e33053e20332b1d4e7e2e1c612671
+      STORE_PACKAGE: com.musitu.store
+      CHEM_URL: https://payments.mftintelligence.com/chemistry/download/MUSITU_Chemistry_Mastery_1.3.0.apk
+      CHEM_SHA: 4ba442122d9c86a0c3cef660334fe337c6ea9ae6fe853c964b5e94961245babd
+      CHEM_BYTES: '5892286'
+      CHEM_SIGNER: d4455ac3ec74a6d7cd7993ca640f554a83bba95dfd01ef508f7637b6bc72c0d8
+      CHEM_PACKAGE: com.musitu.chemistry
+      CHEM_VERSION_CODE: '10200'
+      CHEM_MANIFEST_VERSION_NAME: 1.3.0-frontier-u-rc1
+      BUILD_TOOLS: '36.0.0'
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - uses: android-actions/setup-android@9fc6c4e9069bf8d3d10b2204b1fb8f6ef7065407
+
+      - name: Prepare bounded command support
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! command -v gtimeout >/dev/null 2>&1; then
+            brew install coreutils
+          fi
+          gtimeout 5s true
+
+      - name: Verify sealed refs and exact production APK identities
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --quiet origin "$AUTHORITATIVE_STORE_BRANCH" main
+          test "$(git rev-parse origin/$AUTHORITATIVE_STORE_BRANCH)" = "$AUTHORITATIVE_STORE_HEAD"
+          test "$(git rev-parse origin/main)" = "$SEALED_MAIN"
+
+          sdkmanager "build-tools;$BUILD_TOOLS" platform-tools >/dev/null
+          mkdir -p /tmp/musitu-api36-macos evidence/api-36-macos
+
+          curl --fail --location --silent --show-error -H 'Cache-Control: no-cache' "$STORE_URL?api36mac=${GITHUB_RUN_ID}" -o /tmp/musitu-api36-macos/store.apk
+          curl --fail --location --silent --show-error -H 'Cache-Control: no-cache' "$CHEM_URL?api36mac=${GITHUB_RUN_ID}" -o /tmp/musitu-api36-macos/chemistry.apk
+
+          test "$(stat -f%z /tmp/musitu-api36-macos/store.apk)" = "$STORE_BYTES"
+          test "$(shasum -a 256 /tmp/musitu-api36-macos/store.apk | awk '{print $1}')" = "$STORE_SHA"
+          test "$(stat -f%z /tmp/musitu-api36-macos/chemistry.apk)" = "$CHEM_BYTES"
+          test "$(shasum -a 256 /tmp/musitu-api36-macos/chemistry.apk | awk '{print $1}')" = "$CHEM_SHA"
+
+          "$ANDROID_HOME/build-tools/$BUILD_TOOLS/apksigner" verify --print-certs /tmp/musitu-api36-macos/store.apk > /tmp/musitu-api36-macos/store-sign.txt
+          "$ANDROID_HOME/build-tools/$BUILD_TOOLS/apksigner" verify --print-certs /tmp/musitu-api36-macos/chemistry.apk > /tmp/musitu-api36-macos/chem-sign.txt
+          test "$(sed -n 's/^Signer #1 certificate SHA-256 digest: //p' /tmp/musitu-api36-macos/store-sign.txt | head -n1 | tr -d ':\r\n' | tr A-F a-f)" = "$STORE_SIGNER"
+          test "$(sed -n 's/^Signer #1 certificate SHA-256 digest: //p' /tmp/musitu-api36-macos/chem-sign.txt | head -n1 | tr -d ':\r\n' | tr A-F a-f)" = "$CHEM_SIGNER"
+
+          "$ANDROID_HOME/build-tools/$BUILD_TOOLS/aapt" dump badging /tmp/musitu-api36-macos/store.apk > /tmp/musitu-api36-macos/store-badging.txt
+          "$ANDROID_HOME/build-tools/$BUILD_TOOLS/aapt" dump badging /tmp/musitu-api36-macos/chemistry.apk > /tmp/musitu-api36-macos/chem-badging.txt
+          grep -q "package: name='$STORE_PACKAGE' versionCode='10002' versionName='1.0.2'" /tmp/musitu-api36-macos/store-badging.txt
+          grep -q "package: name='$CHEM_PACKAGE' versionCode='$CHEM_VERSION_CODE' versionName='$CHEM_MANIFEST_VERSION_NAME'" /tmp/musitu-api36-macos/chem-badging.txt
+          sed -n "s/^launchable-activity: name='\([^']*\)'.*/\1/p" /tmp/musitu-api36-macos/store-badging.txt | head -n1 > /tmp/musitu-api36-macos/store-launch.txt
+          test -s /tmp/musitu-api36-macos/store-launch.txt
+          echo EXACT_PRODUCTION_IDENTITIES=PASS
+
+      - name: Prepare persistent hardware-accelerated proof harness
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > /tmp/musitu-api36-macos/run.sh <<'BASH'
+          #!/usr/bin/env bash
+          set -euo pipefail
+          ev=evidence/api-36-macos
+          mkdir -p "$ev"
+
+          capture() {
+            gtimeout 20s adb shell dumpsys activity activities > "$ev/dumpsys-activity.txt" 2>/dev/null || true
+            gtimeout 20s adb shell dumpsys window windows > "$ev/dumpsys-window.txt" 2>/dev/null || true
+            gtimeout 20s adb exec-out screencap -p > "$ev/screen.png" 2>/dev/null || true
+            gtimeout 25s adb logcat -d > "$ev/logcat.txt" 2>/dev/null || true
+          }
+          trap capture EXIT
+
+          test "$(gtimeout 20s adb shell getprop ro.build.version.sdk | tr -d '\r')" = 36
+          accel="$(gtimeout 20s adb shell getprop ro.hardware 2>/dev/null | tr -d '\r' || true)"
+          printf '%s\n' "$accel" > "$ev/ro-hardware.txt"
+
+          gtimeout 20s adb shell settings put global device_provisioned 1 || true
+          gtimeout 20s adb shell settings put secure user_setup_complete 1 || true
+          gtimeout 20s adb shell input keyevent KEYCODE_HOME >/dev/null 2>&1 || true
+          sleep 3
+
+          for p in "$STORE_PACKAGE" "$CHEM_PACKAGE"; do
+            if gtimeout 20s adb shell pm path "$p" 2>/dev/null | tr -d '\r' | grep -q '^package:'; then
+              echo "unexpected preinstall $p" >&2
+              exit 1
+            fi
+          done
+
+          gtimeout 120s adb install /tmp/musitu-api36-macos/chemistry.apk | tee "$ev/install-chemistry.txt"
+          grep -q '^Success$' "$ev/install-chemistry.txt"
+          gtimeout 30s adb shell dumpsys package "$CHEM_PACKAGE" > "$ev/chemistry-package.txt"
+          grep -Eq "versionCode=${CHEM_VERSION_CODE}([[:space:]]|$)" "$ev/chemistry-package.txt"
+
+          gtimeout 120s adb install /tmp/musitu-api36-macos/store.apk | tee "$ev/install-store.txt"
+          grep -q '^Success$' "$ev/install-store.txt"
+          gtimeout 30s adb shell dumpsys package "$STORE_PACKAGE" > "$ev/store-package.txt"
+          grep -Eq 'versionCode=10002([[:space:]]|$)' "$ev/store-package.txt"
+
+          launch="$(tr -d '\r\n' < /tmp/musitu-api36-macos/store-launch.txt)"
+          gtimeout 20s adb shell am force-stop "$STORE_PACKAGE" || true
+          gtimeout 80s adb shell am start -W -n "$STORE_PACKAGE/$launch" | tee "$ev/store-launch.txt"
+          grep -q '^Status: ok$' "$ev/store-launch.txt"
+          sleep 4
+
+          found=0
+          for i in 1 2 3 4 5 6; do
+            if gtimeout 30s adb shell uiautomator dump /sdcard/musitu-window.xml > "$ev/uiautomator-$i.txt" 2>&1; then
+              gtimeout 20s adb pull /sdcard/musitu-window.xml "$ev/window-$i.xml" >/dev/null 2>&1 || true
+            fi
+            if test -s "$ev/window-$i.xml"; then
+              cp "$ev/window-$i.xml" "$ev/window.xml"
+              if grep -Fq 'package="com.musitu.store"' "$ev/window.xml" && grep -Fq 'Installed · up to date' "$ev/window.xml" && grep -Fq 'text="Open"' "$ev/window.xml"; then
+                found=1
+                echo "STORE_RUNTIME_DETECTION_ATTEMPT_$i=PASS"
+                break
+              fi
+            fi
+            sleep 3
+          done
+
+          capture
+          test "$found" = 1
+          test -s "$ev/window.xml"
+          grep -Fq 'package="com.musitu.store"' "$ev/window.xml"
+          grep -Fq 'Installed · up to date' "$ev/window.xml"
+          grep -Fq 'text="Open"' "$ev/window.xml"
+          test -s "$ev/screen.png"
+
+          if grep -F "$STORE_PACKAGE" "$ev/logcat.txt" 2>/dev/null | grep -q 'FATAL EXCEPTION'; then
+            echo STORE_FATAL_EXCEPTION=FAIL >&2
+            exit 1
+          fi
+
+          EV="$ev" python3 - <<'PY'
+          import json, os, pathlib
+          ev=pathlib.Path(os.environ['EV'])
+          out={
+            'schema':'musitu.store.phase1.v102.installed_app_detection.api36_macos.v1',
+            'result':'PASS',
+            'api_level':36,
+            'runner':'macos-15-intel',
+            'architecture':'x86_64',
+            'fresh_avd':True,
+            'github_run_id':int(os.environ['GITHUB_RUN_ID']),
+            'workflow_head':os.environ['GITHUB_SHA'],
+            'authoritative_store_head':os.environ['AUTHORITATIVE_STORE_HEAD'],
+            'sealed_main':os.environ['SEALED_MAIN'],
+            'store_sha256':os.environ['STORE_SHA'],
+            'chemistry_sha256':os.environ['CHEM_SHA'],
+            'chemistry_preinstall_absent':True,
+            'store_preinstall_absent':True,
+            'chemistry_install_success':True,
+            'store_install_success':True,
+            'store_launch_success':True,
+            'runtime_detection_ui_status':'Installed · up to date',
+            'runtime_detection_primary_action':'Open',
+            'runtime_installed_app_detection_proven':True,
+            'screenshot_captured':ev.joinpath('screen.png').stat().st_size>0,
+            'production_mutation':False,
+            'phase2_authorized':False
+          }
+          ev.joinpath('certification.json').write_text(json.dumps(out,indent=2,sort_keys=True)+'\n')
+          PY
+          trap - EXIT
+          echo MUSITU_STORE_V102_API36_MACOS_INSTALLED_APP_DETECTION=PASS
+          BASH
+          chmod 0755 /tmp/musitu-api36-macos/run.sh
+          bash -n /tmp/musitu-api36-macos/run.sh
+
+      - name: Fresh API 36 hardware-accelerated runtime detection proof
+        uses: ReactiveCircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d
+        with:
+          api-level: 36
+          target: default
+          arch: x86_64
+          profile: pixel_2
+          cores: 2
+          ram-size: 2048M
+          force-avd-creation: true
+          emulator-boot-timeout: 900
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -no-metrics
+          disable-animations: true
+          script: bash /tmp/musitu-api36-macos/run.sh
+
+      - name: Upload API36 macOS evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: musitu-store-v102-installed-app-detection-api36-macos
+          path: evidence/api-36-macos
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Enforce API36 macOS proof
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json, pathlib
+          p=pathlib.Path('evidence/api-36-macos/certification.json')
+          o=json.loads(p.read_text())
+          assert o['schema']=='musitu.store.phase1.v102.installed_app_detection.api36_macos.v1'
+          assert o['result']=='PASS' and o['api_level']==36
+          assert o['runner']=='macos-15-intel'
+          assert o['runtime_installed_app_detection_proven'] is True
+          assert o['runtime_detection_ui_status']=='Installed · up to date'
+          assert o['runtime_detection_primary_action']=='Open'
+          assert o['store_sha256']=='3a0c4b0f971ec84cd6167a137f8e3d75c7bb20e525c26ab533b3d88044cd0784'
+          assert o['chemistry_sha256']=='4ba442122d9c86a0c3cef660334fe337c6ea9ae6fe853c964b5e94961245babd'
+          assert o['authoritative_store_head']=='0ffe2de07c6b18873cc73b157ade3afe589f8a35'
+          assert o['sealed_main']=='d6a846f6bbe0bccac1758713eb4de167caf07113'
+          assert o['screenshot_captured'] is True
+          assert o['production_mutation'] is False
+          assert o['phase2_authorized'] is False
+          PY
+          echo MUSITU_STORE_V102_API36_MACOS_ENFORCEMENT=PASS
