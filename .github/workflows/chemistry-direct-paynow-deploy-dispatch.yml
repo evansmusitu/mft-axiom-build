@@ -16,4 +16,4 @@ jobs:
       - name: Dispatch existing guarded production workflow at current branch
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh workflow run chemistry-direct-paynow-guarded-production-deploy-v2.yml --ref chemistry-direct-paynow-fallback-20260911
+        run: gh workflow run chemistry-direct-paynow-guarded-production-deploy-v2.yml --repo evansmusitu/mft-axiom-build --ref chemistry-direct-paynow-fallback-20260911
