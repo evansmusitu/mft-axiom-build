@@ -105,6 +105,37 @@ class EvidenceHardeningTests(unittest.TestCase):
             "FAIL",
         )
 
+    def test_sealed_authority_rejects_pseudo_hashes_inexact_candidate_sha_and_time_reversal(self):
+        cases = [{"prompt": "sealed evaluator case"}]
+        with self.assertRaises(ValueError):
+            SealedBenchmarkRegistry.build(
+                cases, SECRET, suite_id="suite-bad", version="1", evaluator_key_id="eval-key-1",
+                domains=("risk",), constraints_hash="z" * 64,
+            )
+        manifest = SealedBenchmarkRegistry.build(
+            cases, SECRET, suite_id="suite-strict", version="1", evaluator_key_id="eval-key-1",
+            domains=("risk",), constraints_hash=H,
+        )
+        with self.assertRaises(ValueError):
+            SealedBenchmarkRegistry.create_custody_receipt(
+                manifest, SECRET, evaluator_org="Independent Evaluator A", sealed_at=NOW_S,
+                candidate_sha="z" * 40, candidate_frozen_at=(NOW - timedelta(hours=1)).isoformat(),
+            )
+        with self.assertRaises(ValueError):
+            SealedBenchmarkRegistry.create_custody_receipt(
+                manifest, SECRET, evaluator_org="Independent Evaluator A",
+                sealed_at=(NOW - timedelta(hours=2)).isoformat(), candidate_sha="b" * 40,
+                candidate_frozen_at=NOW_S,
+            )
+        receipt = SealedBenchmarkRegistry.create_custody_receipt(
+            manifest, SECRET, evaluator_org="Independent Evaluator A", sealed_at=NOW_S,
+            candidate_sha="b" * 40, candidate_frozen_at=(NOW - timedelta(hours=1)).isoformat(),
+        )
+        with self.assertRaises(ValueError):
+            SealedBenchmarkRegistry.verify_custody_receipt(
+                manifest, receipt, SECRET, expected_candidate_sha="z" * 40,
+            )
+
     def test_sealed_domain_coverage_and_disguised_contamination_fail_closed(self):
         sealed = [
             {"prompt": "compute the exact reverse stress threshold for correlated rates credit and liquidity shocks in portfolio alpha"},
