@@ -40,6 +40,10 @@ def _organization_key(value: str) -> str:
     return value.strip().casefold()
 
 
+def _independence_organization_key(value: str) -> str:
+    return " ".join(value.split()).casefold()
+
+
 def _runtime_mapping(value: Any) -> tuple[dict[Any, Any], bool]:
     if value is None:
         return {}, True
@@ -495,7 +499,7 @@ class ExternalEvidenceGate:
             if validation.provenance_type != "independent_lab_record":
                 saw_nonindependent_provenance = True
                 continue
-            if _organization_key(validation.validator_org) in level5_providers:
+            if _independence_organization_key(validation.validator_org) in level5_providers:
                 saw_provider_overlap = True
                 continue
             if validation.candidate_sha != expected_candidate or validation.case_set_hash != expected_cases:
