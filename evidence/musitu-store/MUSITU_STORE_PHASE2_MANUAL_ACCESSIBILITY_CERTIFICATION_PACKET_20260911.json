@@ -1,5 +1,5 @@
 {
-  "schema": "musitu.store.phase2.manual_accessibility_certification_packet.v1",
+  "schema": "musitu.store.phase2.manual_accessibility_certification_packet.v2",
   "created_date_utc": "2026-09-11",
   "status": "PENDING_REAL_ASSISTIVE_TECHNOLOGY_EVIDENCE",
   "scope": "phase2-wcag-2.2-aa-manual-smoke",
@@ -7,19 +7,37 @@
   "phase2Complete": false,
   "automated_predeploy": {
     "certification_path": "evidence/musitu-store/MUSITU_STORE_PHASE2_STANDARDS_HARDENING_PREDEPLOY_CERTIFICATION_20260911.json",
-    "workflow_run_id": 34573267968,
-    "artifact_id": 10188613182,
+    "workflow_run_id": "34573267968",
+    "artifact_id": "10188613182",
     "artifact_digest": "sha256:3fdcbb54a6d2a42e2bc969f3adc713d17c92e8e4e126a50e0de2a8c6b2656506",
     "result": "PASS_AUTOMATED"
+  },
+  "body_equivalence": {
+    "record_path": "evidence/musitu-store/MUSITU_STORE_PHASE2_RESPONSE_BODY_EQUIVALENCE_20260911.json",
+    "workflow_run_id": "34575291010",
+    "artifact_id": "10189381691",
+    "artifact_digest": "sha256:135cc85142d9eee8801a01f6221b6638f723577e8346ebd63604747cb82ff605",
+    "result": "PASS",
+    "candidate_worker_sha256": "ee95b816bc056ab79be4d764cf88a68e25feed7aafdaad33ff23e2188f954616",
+    "manual_evidence_target": "current live Store 1.0.2 body",
+    "applicability_condition": "Candidate body-producing source and bounded security transform remain unchanged from the certified response-body-equivalence proof."
+  },
+  "protocol": {
+    "path": "docs/MUSITU_STORE_PHASE2_REAL_ACCESSIBILITY_TEST_PROTOCOL_20260911.md",
+    "validator": "store/phase2/validate_manual_accessibility_packet.py"
   },
   "rules": {
     "real_screen_reader_required": true,
     "automated_accessibility_tree_is_not_a_substitute": true,
     "manual_keyboard_test_required": true,
+    "real_zoom_reflow_test_required": true,
     "continuous_recording_preferred": true,
+    "single_recording_may_cover_multiple_evidence_fields_with_timestamp_fragments": true,
+    "evidence_sha256_and_byte_length_required": true,
+    "original_evidence_review_required": true,
     "failures_must_be_recorded_without_reinterpretation": true,
     "secrets_and_private_account_credentials_forbidden": true,
-    "minimum_required_result": "all required checks PASS with complete evidence references"
+    "minimum_required_result": "all required checks PASS with complete integrity metadata and reviewed original evidence"
   },
   "test_environment": {
     "platform": null,
@@ -30,7 +48,9 @@
     "screen_reader_name": null,
     "screen_reader_version": null,
     "production_url": "https://payments.mftintelligence.com/store",
-    "store_version_under_test": "1.0.2"
+    "store_version_under_test": "1.0.2",
+    "test_started_at_utc": null,
+    "test_completed_at_utc": null
   },
   "manual_keyboard_checks": {
     "first_tab_reaches_skip_link": null,
@@ -76,14 +96,26 @@
     "zoom_reflow_reference": null,
     "tester_notes_reference": null
   },
+  "evidence_manifest": [],
+  "tester_notes": null,
+  "review": {
+    "reviewer": null,
+    "reviewed_at_utc": null,
+    "original_evidence_reviewed": false,
+    "failures_omitted_or_reinterpreted": null,
+    "statement": null
+  },
   "result": null,
   "failure_details": null,
   "acceptance_rule": {
     "all_required_checks_must_pass": true,
     "missing_environment_metadata_blocks_acceptance": true,
     "missing_required_evidence_blocks_acceptance": true,
+    "missing_evidence_integrity_metadata_blocks_acceptance": true,
+    "missing_original_evidence_review_blocks_acceptance": true,
     "automated_predeploy_pass_does_not_override_manual_failure": true,
+    "body_equivalence_pass_does_not_substitute_for_real_screen_reader_test": true,
     "phase2_deployment_must_not_be_certified_complete_from_this_packet_until_reviewed": true
   },
-  "claim_boundary": "This packet is a collection contract only. It is not manual WCAG evidence and does not establish WCAG 2.2 AA conformance or Phase-2 completion."
+  "claim_boundary": "This packet is a collection and review contract only. The automated candidate and response-body-equivalence gates pass, but this file is not real manual assistive-technology evidence and does not establish complete WCAG 2.2 AA conformance or Phase-2 completion until it is populated from original evidence, validated, reviewed, and marked PASS."
 }
