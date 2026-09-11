@@ -128,14 +128,16 @@ class CausalCounterfactualModel:
         return {"status": "OK", "rows": rows, "range": [min(r["outcome"] for r in rows), max(r["outcome"] for r in rows)]}
 
 
+# Legacy local definitions remain below for source-history compatibility; the
+# canonical exports at the end of this module replace them with scenario_engine.
 @dataclass(frozen=True)
-class ShockVariable:
+class _LegacyShockVariable:
     name: str
     mean: float
     stddev: float
 
 
-class ScenarioFactory:
+class _LegacyScenarioFactory:
     @staticmethod
     def _cholesky(matrix: Sequence[Sequence[float]]) -> list[list[float]]:
         n = len(matrix)
@@ -164,7 +166,7 @@ class ScenarioFactory:
         return L
 
     @classmethod
-    def correlated_paths(cls, variables: Sequence[ShockVariable], correlation: Sequence[Sequence[float]],
+    def correlated_paths(cls, variables: Sequence[_LegacyShockVariable], correlation: Sequence[Sequence[float]],
                          periods: int, paths: int, seed: int) -> list[list[dict[str, float]]]:
         if periods <= 0 or paths <= 0:
             raise ValueError("periods and paths must be positive")
@@ -260,3 +262,14 @@ class DigitalTwin:
             rows.append({"period": i, "shock": dict(shock), "state": dict(state)})
         return {"status": "OK", "path": rows, "twin_version": self.state.model_version,
                 "scenario_sha256": sha256(rows), "diagnostics": diag}
+
+
+# Canonical scenario/world-stress exports. Direct callers of analysis.py and the
+# existing scale benchmark now exercise the versioned compositional engine.
+from .scenario_engine import (
+    ScenarioConstraint as ScenarioConstraint,
+    ScenarioContract as ScenarioContract,
+    ScenarioFactory as ScenarioFactory,
+    ShockDependency as ShockDependency,
+    ShockVariable as ShockVariable,
+)
