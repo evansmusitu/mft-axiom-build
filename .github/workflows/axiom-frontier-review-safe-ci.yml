@@ -66,3 +66,23 @@ jobs:
           set -euo pipefail
           workload_blob="$(git hash-object frontier_review_safe/scale_benchmarks.py)"
           PYTHONPATH=. python -m frontier_review_safe.scale_budget /tmp/axiom-scale-evidence.json "$workload_blob"
+      - name: Measure unbudgeted degraded-path scale experiments
+        shell: bash
+        run: |
+          set -euo pipefail
+          PYTHONPATH=. python -m frontier_review_safe.scale_experiments | tee /tmp/axiom-scale-experiments.json
+          python - <<'PY'
+          import json, os
+          from frontier_review_safe.scale_experiments import validate_experimental_evidence
+          p = '/tmp/axiom-scale-experiments.json'
+          with open(p, encoding='utf-8') as f:
+              evidence = json.load(f)
+          assert evidence['candidate_sha'] == os.environ['GITHUB_SHA']
+          report = validate_experimental_evidence(evidence)
+          assert report['status'] == 'PASS', report
+          assert report['experiment_count'] == 4
+          assert report['promotion_status'] == 'MEASUREMENT_ONLY_UNBUDGETED'
+          assert report['budget_authorized'] is False
+          assert report['claim_authorized'] is False
+          print('MUSITU_AXIOM_REVIEW_SAFE_SCALE_EXPERIMENTS_MEASURED_NOT_PROMOTED')
+          PY
