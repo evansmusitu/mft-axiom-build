@@ -1,0 +1,119 @@
+name: MUSITU Store Phase 2 Deployment Readiness
+
+on:
+  push:
+    branches: [musitu-store-phase2-standards-hardening-20260911]
+    paths:
+      - 'store/phase2/deploy_hardened_store.py'
+      - 'evidence/musitu-store/MUSITU_STORE_PHASE2_MANUAL_ACCESSIBILITY_CERTIFICATION_PACKET_20260911.json'
+      - 'evidence/musitu-store/MUSITU_STORE_PHASE2_HARDENED_CANDIDATE_PREDEPLOY_CERTIFICATION_20260911.json'
+      - '.github/workflows/musitu-store-phase2-guarded-production-deploy.yml'
+      - '.github/workflows/musitu-store-phase2-deployment-readiness.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  readiness:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      SEALED_MAIN: d6a846f6bbe0bccac1758713eb4de167caf07113
+      PHASE1_HEAD: ebded495617cc89bb96d7a5531c1ce4fc6bbedd9
+      CERTIFIED_CANDIDATE_HEAD: 6a1d50c76dec96e924751dd6f5f2bc1ffe4191e1
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Prove immutable boundaries and candidate-source stability
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --quiet origin main musitu-store-phase1-20260909
+          test "$(git rev-parse origin/main)" = "$SEALED_MAIN"
+          test "$(git rev-parse origin/musitu-store-phase1-20260909)" = "$PHASE1_HEAD"
+          git merge-base --is-ancestor "$CERTIFIED_CANDIDATE_HEAD" "$GITHUB_SHA"
+          test -z "$(git diff --name-only "$PHASE1_HEAD"..."$GITHUB_SHA" -- store/phase1 commerce/chemistry)"
+          test -z "$(git diff --name-only "$CERTIFIED_CANDIDATE_HEAD"..."$GITHUB_SHA" -- store/phase2/apply-standards-hardening.py store/phase2/security-hardening-smoke.mjs store/phase2/standards-browser-smoke.mjs)"
+          echo READINESS_BOUNDARY=PASS
+
+      - name: Compile deployment transaction and bounded transform
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m py_compile store/phase2/deploy_hardened_store.py store/phase2/apply-standards-hardening.py
+          node --check store/phase2/security-hardening-smoke.mjs
+          node --check store/phase2/standards-browser-smoke.mjs
+          echo DEPLOYMENT_CODE_STATIC_GATE=PASS
+
+      - name: Prove production workflow is manual-only and rollback-capable
+        shell: bash
+        run: |
+          set -euo pipefail
+          W=.github/workflows/musitu-store-phase2-guarded-production-deploy.yml
+          grep -q '^  workflow_dispatch:' "$W"
+          ! grep -q '^  push:' "$W"
+          grep -q 'Require reviewed real manual accessibility evidence' "$W"
+          grep -q 'continue-on-error: true' "$W"
+          grep -q 'Upload non-secret Phase 2 deployment evidence' "$W"
+          grep -q 'Enforce deployment transaction' "$W"
+          grep -q 'rollback_drill_performed' "$W"
+          grep -q 'rollback_drill_verified' "$W"
+          grep -q 'emergency_rollback_performed' "$W"
+          grep -q 'def restore_snapshot' store/phase2/deploy_hardened_store.py
+          grep -q 'def emergency_rollback' store/phase2/deploy_hardened_store.py
+          grep -q 'restore_snapshot()' store/phase2/deploy_hardened_store.py
+          echo MANUAL_ONLY_ROLLBACK_GUARD=PASS
+
+      - name: Verify candidate certificate and classify manual gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/musitu-p2-readiness
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          cert=json.loads(Path('evidence/musitu-store/MUSITU_STORE_PHASE2_HARDENED_CANDIDATE_PREDEPLOY_CERTIFICATION_20260911.json').read_text())
+          assert cert['status']=='PASS_PREDEPLOY_MANUAL_AND_DEPLOYMENT_PENDING'
+          assert cert['repository']['certified_head']=='6a1d50c76dec96e924751dd6f5f2bc1ffe4191e1'
+          assert cert['candidate']['hardened_worker_sha256']=='ee95b816bc056ab79be4d764cf88a68e25feed7aafdaad33ff23e2188f954616'
+          assert cert['github_actions']['run_id']==34573638727
+          assert cert['github_actions']['artifact']['digest']=='sha256:0e1066a9453ae437c7d6e5ebed50a464ce3f96f39490a25b6c604e73bfc51ac4'
+
+          packet=json.loads(Path('evidence/musitu-store/MUSITU_STORE_PHASE2_MANUAL_ACCESSIBILITY_CERTIFICATION_PACKET_20260911.json').read_text())
+          if packet['status']=='PENDING_REAL_ASSISTIVE_TECHNOLOGY_EVIDENCE' and packet['result'] is None:
+              manual='BLOCKED_PENDING_REAL_EVIDENCE'
+          elif packet['status']=='PASS_REVIEWED_REAL_ASSISTIVE_TECHNOLOGY_EVIDENCE' and packet['result']=='PASS':
+              manual='READY_FOR_GUARDED_DEPLOYMENT'
+          else:
+              raise SystemExit('invalid or failed manual accessibility gate state')
+
+          out={
+            'schema':'musitu.store.phase2.deployment_readiness.v1',
+            'result':'PASS',
+            'sealed_main':'d6a846f6bbe0bccac1758713eb4de167caf07113',
+            'phase1_head':'ebded495617cc89bb96d7a5531c1ce4fc6bbedd9',
+            'candidate_predeploy':'PASS',
+            'manual_accessibility_gate':manual,
+            'production_workflow':'MANUAL_DISPATCH_ONLY',
+            'rollback_transaction':'STATICALLY_VERIFIED',
+            'production_mutation':False,
+            'phase2Complete':False
+          }
+          Path('/tmp/musitu-p2-readiness/readiness.json').write_text(json.dumps(out,indent=2)+'\n')
+          print(json.dumps(out,indent=2))
+          PY
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: musitu-store-phase2-deployment-readiness
+          path: /tmp/musitu-p2-readiness
+          retention-days: 90
+          if-no-files-found: error
