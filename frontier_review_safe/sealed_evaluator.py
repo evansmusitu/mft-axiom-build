@@ -35,11 +35,15 @@ REQUIRED_EVALUATION_DOMAINS = (
 
 
 def _valid_sha256(value: str | None) -> bool:
-    return bool(value) and len(value) == 64 and all(c in "0123456789abcdef" for c in value.lower())
+    return isinstance(value, str) and len(value) == 64 and all(c in "0123456789abcdef" for c in value.lower())
 
 
 def _valid_git_sha(value: str | None) -> bool:
-    return bool(value) and len(value) == 40 and all(c in "0123456789abcdef" for c in value.lower())
+    return isinstance(value, str) and len(value) == 40 and all(c in "0123456789abcdef" for c in value.lower())
+
+
+def _nonblank(value: Any) -> bool:
+    return isinstance(value, str) and bool(value.strip())
 
 
 @dataclass(frozen=True)
@@ -56,8 +60,16 @@ class PrivateEvaluationCase:
     tool_permissions: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
-        if not self.case_id or not self.domain or not self.prompt.strip() or not self.rubric:
+        if not all(_nonblank(value) for value in (self.case_id, self.domain, self.prompt)) or not self.rubric:
             raise ValueError("complete private evaluation case required")
+        if not isinstance(self.rubric, Mapping):
+            raise ValueError("evaluation rubric must be a mapping")
+        if not isinstance(self.adversarial, bool) or not isinstance(self.negative, bool):
+            raise ValueError("case adversarial/negative flags must be boolean")
+        if any(not _nonblank(value) for value in self.tool_permissions):
+            raise ValueError("tool permissions must be non-empty strings")
+        if len(self.tool_permissions) != len(set(self.tool_permissions)):
+            raise ValueError("duplicate case tool permission")
 
 
 @dataclass(frozen=True)
@@ -67,6 +79,14 @@ class SealedCaseDescriptor:
     adversarial: bool
     negative: bool
     tool_permissions_hash: str
+
+    def __post_init__(self) -> None:
+        if not _valid_sha256(self.case_fingerprint) or not _valid_sha256(self.tool_permissions_hash):
+            raise ValueError("sealed descriptor hashes must be SHA-256")
+        if not _nonblank(self.domain):
+            raise ValueError("sealed descriptor domain required")
+        if not isinstance(self.adversarial, bool) or not isinstance(self.negative, bool):
+            raise ValueError("sealed descriptor flags must be boolean")
 
 
 @dataclass(frozen=True)
@@ -80,6 +100,31 @@ class SealedSuiteManifestV2:
     descriptors: tuple[SealedCaseDescriptor, ...]
     required_domains: tuple[str, ...]
     policy_hash: str
+
+    def __post_init__(self) -> None:
+        if not all(_nonblank(value) for value in (self.suite_id, self.version, self.evaluator_key_id)):
+            raise ValueError("sealed suite identity fields required")
+        for value in (self.constraints_hash, self.scoring_policy_hash, self.case_set_hash, self.policy_hash):
+            if not _valid_sha256(value):
+                raise ValueError("sealed suite authority hashes must be SHA-256")
+        if not self.descriptors:
+            raise ValueError("sealed suite descriptors required")
+        fingerprints = [row.case_fingerprint for row in self.descriptors]
+        if len(fingerprints) != len(set(fingerprints)):
+            raise FrontierSafetyError("duplicate sealed case fingerprints")
+        if not self.required_domains or any(not _nonblank(domain) for domain in self.required_domains):
+            raise ValueError("sealed suite required domains required")
+        if len(self.required_domains) != len(set(self.required_domains)):
+            raise ValueError("sealed suite required domains must be unique")
+        present_domains = {row.domain for row in self.descriptors}
+        if set(self.required_domains) - present_domains:
+            raise FrontierSafetyError("sealed suite manifest omits a required domain")
+        expected_case_set_hash = sha256({
+            "case_fingerprints": sorted(fingerprints),
+            "constraint_hash": self.constraints_hash,
+        })
+        if self.case_set_hash != expected_case_set_hash:
+            raise FrontierSafetyError("sealed suite case-set hash does not bind exact descriptors and constraints")
 
     @property
     def case_fingerprints(self) -> tuple[str, ...]:
@@ -110,13 +155,17 @@ class UnseenSuitePolicy:
     minimum_case_count: int = len(REQUIRED_EVALUATION_DOMAINS)
 
     def __post_init__(self) -> None:
-        if not self.required_domains or len(set(self.required_domains)) != len(self.required_domains):
+        if not self.required_domains or any(not _nonblank(domain) for domain in self.required_domains):
+            raise ValueError("required evaluation domains required")
+        if len(set(self.required_domains)) != len(self.required_domains):
             raise ValueError("unique required evaluation domains required")
-        if self.min_cases_per_domain <= 0 or self.minimum_case_count <= 0:
-            raise ValueError("positive case-count policy required")
+        for name, value in (("min_cases_per_domain", self.min_cases_per_domain), ("minimum_case_count", self.minimum_case_count)):
+            if not isinstance(value, int) or isinstance(value, bool) or value <= 0:
+                raise ValueError(f"{name} must be a positive integer")
         for value in (self.min_adversarial_fraction, self.min_negative_fraction):
-            if not 0 <= value <= 1:
-                raise ValueError("suite fractions must be in [0,1]")
+            numeric = float(value)
+            if not math.isfinite(numeric) or not 0.0 <= numeric <= 1.0:
+                raise ValueError("suite fractions must be finite and in [0,1]")
 
     @property
     def fingerprint(self) -> str:
@@ -183,7 +232,7 @@ class SealedSuiteBuilder:
     ) -> SealedSuiteManifestV2:
         if len(evaluator_secret) < 32:
             raise ValueError("evaluator secret must be at least 32 bytes")
-        if not suite_id or not version or not evaluator_key_id or not cases:
+        if not all(_nonblank(value) for value in (suite_id, version, evaluator_key_id)) or not cases:
             raise ValueError("suite identity, key identity and cases are required")
         if not _valid_sha256(constraints_hash) or not _valid_sha256(scoring_policy_hash):
             raise ValueError("constraint and scoring-policy hashes must be SHA-256")
@@ -254,20 +303,28 @@ class ContaminationScanner:
     ) -> dict[str, Any]:
         if len(evaluator_secret) < 32:
             raise ValueError("evaluator secret must be at least 32 bytes")
-        candidate = cls._normalize("\n".join(str(v) for _, v in sorted(candidate_artifacts.items())))
+        if not candidate_artifacts or not cases:
+            raise ValueError("candidate artifacts and sealed cases are required for contamination scan")
+        if any(not _nonblank(name) or not isinstance(text, str) for name, text in candidate_artifacts.items()):
+            raise ValueError("candidate artifact names and text must be valid strings")
+        candidate = cls._normalize("\n".join(v for _, v in sorted(candidate_artifacts.items())))
+        case_fingerprints: list[str] = []
         contaminated: list[str] = []
         for case in cases:
+            fp = hmac.new(
+                evaluator_secret,
+                canonical(SealedSuiteBuilder._private_payload(case)).encode(),
+                hashlib.sha256,
+            ).hexdigest()
+            case_fingerprints.append(fp)
             sensitive = [case.prompt]
             if case.reference_answer:
                 sensitive.append(case.reference_answer)
             fragments = tuple(fragment for text in sensitive for fragment in cls._fragments(text))
             if fragments and any(fragment in candidate for fragment in fragments):
-                fp = hmac.new(
-                    evaluator_secret,
-                    canonical(SealedSuiteBuilder._private_payload(case)).encode(),
-                    hashlib.sha256,
-                ).hexdigest()
                 contaminated.append(fp)
+        if len(case_fingerprints) != len(set(case_fingerprints)):
+            raise FrontierSafetyError("duplicate cases in contamination scan")
         result = {
             "status": "PASS" if not contaminated else "FAIL",
             "contaminated_case_fingerprints": sorted(contaminated),
@@ -276,6 +333,7 @@ class ContaminationScanner:
                 for name, text in sorted(candidate_artifacts.items())
             },
             "case_count_scanned": len(cases),
+            "case_fingerprint_set_hash": sha256(sorted(case_fingerprints)),
         }
         result["report_sha256"] = sha256(result)
         return result
@@ -301,8 +359,10 @@ class EvaluatedCaseResult:
         for value in (self.latency_ms, self.cost_units):
             if value is not None and (not math.isfinite(float(value)) or float(value) < 0):
                 raise ValueError("latency/cost must be finite and non-negative")
-        if self.status in {"FAIL", "ABSTAIN", "ERROR"} and not self.failure_category:
+        if self.status in {"FAIL", "ABSTAIN", "ERROR"} and not _nonblank(self.failure_category):
             raise ValueError("non-pass result must retain a failure category")
+        if self.status == "PASS" and self.failure_category is not None:
+            raise ValueError("pass result cannot carry a failure category")
 
 
 @dataclass(frozen=True)
@@ -325,6 +385,33 @@ class EvaluationReceipt:
     result_count: int
     evaluator_signature: str
 
+    def __post_init__(self) -> None:
+        if self.receipt_schema != "musitu.axiom.sealed-evaluation-receipt.v1":
+            raise ValueError("unsupported sealed evaluation receipt schema")
+        if not all(_nonblank(value) for value in (self.evaluator_key_id, self.suite_id, self.suite_version)):
+            raise ValueError("sealed evaluation receipt identity fields required")
+        if not _valid_git_sha(self.candidate_sha):
+            raise ValueError("sealed evaluation receipt requires exact 40-hex candidate SHA")
+        for value in (
+            self.candidate_environment_hash,
+            self.case_set_hash,
+            self.constraints_hash,
+            self.scoring_policy_hash,
+            self.permissions_hash,
+            self.contamination_report_hash,
+            self.results_hash,
+            self.raw_evidence_hash,
+            self.evaluator_signature,
+        ):
+            if not _valid_sha256(value):
+                raise ValueError("sealed evaluation receipt hashes/signature must be SHA-256")
+        start = parse_time(self.started_at)
+        end = parse_time(self.completed_at)
+        if end < start:
+            raise ValueError("sealed evaluation receipt completion precedes start")
+        if not isinstance(self.result_count, int) or isinstance(self.result_count, bool) or self.result_count <= 0:
+            raise ValueError("sealed evaluation receipt result_count must be a positive integer")
+
     @property
     def fingerprint(self) -> str:
         return sha256(asdict(self))
@@ -338,6 +425,31 @@ class EvaluatorReceiptAuthority:
         body = asdict(receipt)
         body.pop("evaluator_signature", None)
         return body
+
+    @staticmethod
+    def _verify_contamination_report(report: Mapping[str, Any], manifest: SealedSuiteManifestV2) -> None:
+        if report.get("status") != "PASS":
+            raise FrontierSafetyError("contaminated evaluation run cannot be receipted")
+        supplied_hash = report.get("report_sha256")
+        if not _valid_sha256(supplied_hash):
+            raise FrontierSafetyError("invalid contamination report hash")
+        body = dict(report)
+        body.pop("report_sha256", None)
+        if sha256(body) != supplied_hash:
+            raise FrontierSafetyError("contamination report hash mismatch")
+        if report.get("case_count_scanned") != len(manifest.descriptors):
+            raise FrontierSafetyError("contamination scan does not cover exact sealed suite count")
+        expected_set_hash = sha256(sorted(manifest.case_fingerprints))
+        if report.get("case_fingerprint_set_hash") != expected_set_hash:
+            raise FrontierSafetyError("contamination scan is not bound to exact sealed case fingerprints")
+        artifact_hashes = report.get("candidate_artifact_hashes")
+        if not isinstance(artifact_hashes, Mapping) or not artifact_hashes:
+            raise FrontierSafetyError("contamination scan candidate artifact binding missing")
+        if any(not _nonblank(name) or not _valid_sha256(value) for name, value in artifact_hashes.items()):
+            raise FrontierSafetyError("contamination scan candidate artifact binding invalid")
+        contaminated = report.get("contaminated_case_fingerprints")
+        if not isinstance(contaminated, list) or contaminated:
+            raise FrontierSafetyError("contamination scan must contain an explicit empty contamination set")
 
     @classmethod
     def issue(
@@ -365,8 +477,7 @@ class EvaluatorReceiptAuthority:
         end = parse_time(completed_at)
         if end < start:
             raise ValueError("evaluation completion precedes start")
-        if contamination_report.get("status") != "PASS" or not _valid_sha256(str(contamination_report.get("report_sha256") or "")):
-            raise FrontierSafetyError("contaminated or invalid evaluation run cannot be receipted")
+        cls._verify_contamination_report(contamination_report, manifest)
 
         expected = list(manifest.case_fingerprints)
         observed = [x.case_fingerprint for x in results]
@@ -411,6 +522,10 @@ class EvaluatorReceiptAuthority:
             reasons.append("receipt_schema_mismatch")
         if receipt.evaluator_key_id != manifest.evaluator_key_id:
             reasons.append("evaluator_key_mismatch")
+        if receipt.suite_id != manifest.suite_id:
+            reasons.append("suite_id_mismatch")
+        if receipt.suite_version != manifest.version:
+            reasons.append("suite_version_mismatch")
         if receipt.case_set_hash != manifest.case_set_hash:
             reasons.append("case_set_mismatch")
         if receipt.constraints_hash != manifest.constraints_hash:
@@ -419,6 +534,17 @@ class EvaluatorReceiptAuthority:
             reasons.append("scoring_policy_mismatch")
         if receipt.result_count != len(manifest.descriptors):
             reasons.append("result_count_mismatch")
+        if not _valid_git_sha(receipt.candidate_sha):
+            reasons.append("candidate_sha_invalid")
+        for name, value in (
+            ("candidate_environment_hash", receipt.candidate_environment_hash),
+            ("permissions_hash", receipt.permissions_hash),
+            ("contamination_report_hash", receipt.contamination_report_hash),
+            ("results_hash", receipt.results_hash),
+            ("raw_evidence_hash", receipt.raw_evidence_hash),
+        ):
+            if not _valid_sha256(value):
+                reasons.append(f"{name}_invalid")
         try:
             if parse_time(receipt.completed_at) < parse_time(receipt.started_at):
                 reasons.append("invalid_time_order")
@@ -430,7 +556,7 @@ class EvaluatorReceiptAuthority:
                 reasons.append("signature_mismatch")
         result = {
             "status": "PASS" if not reasons else "FAIL",
-            "reasons": reasons,
+            "reasons": sorted(set(reasons)),
             "receipt_fingerprint": receipt.fingerprint,
             "case_set_hash": receipt.case_set_hash,
             "candidate_sha": receipt.candidate_sha,

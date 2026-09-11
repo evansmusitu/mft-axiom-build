@@ -2,6 +2,9 @@ from __future__ import annotations
 
 from dataclasses import replace
 from datetime import datetime, timedelta, timezone
+import hashlib
+import hmac
+import copy
 import unittest
 
 from frontier_review_safe.core import FrontierSafetyError, canonical, sha256
@@ -55,6 +58,25 @@ def manifest(secret=SECRET):
     )
 
 
+def results_for(built, score=.8):
+    return [
+        EvaluatedCaseResult(x.case_fingerprint, score, "PASS", sha256({"case": x.case_fingerprint}))
+        for x in built.descriptors
+    ]
+
+
+def issue_receipt(built, clean, *, secret=SECRET):
+    return EvaluatorReceiptAuthority.issue(
+        built, results_for(built), clean, secret,
+        candidate_sha="d" * 40,
+        candidate_environment_hash="e" * 64,
+        permissions_hash="f" * 64,
+        raw_evidence_hash="1" * 64,
+        started_at=NOW.isoformat(),
+        completed_at=(NOW + timedelta(minutes=5)).isoformat(),
+    )
+
+
 class SealedEvaluatorTests(unittest.TestCase):
     def test_suite_requires_full_domain_adversarial_and_negative_coverage(self):
         built = manifest()
@@ -77,6 +99,15 @@ class SealedEvaluatorTests(unittest.TestCase):
                 suite_id="bad", version="1", evaluator_key_id="eval-key-1",
                 constraints_hash=CONSTRAINTS, scoring_policy_hash=SCORING,
             )
+
+    def test_manifest_self_validates_exact_descriptor_case_set_binding(self):
+        built = manifest()
+        with self.assertRaises(FrontierSafetyError):
+            replace(built, case_set_hash="a" * 64)
+        with self.assertRaises(ValueError):
+            replace(built, constraints_hash="z" * 64)
+        with self.assertRaises(FrontierSafetyError):
+            replace(built, descriptors=built.descriptors[:-1])
 
     def test_candidate_view_contains_only_safe_metadata(self):
         visible = manifest().candidate_view()
@@ -114,6 +145,8 @@ class SealedEvaluatorTests(unittest.TestCase):
             SECRET,
         )
         self.assertEqual(clean["status"], "PASS")
+        self.assertEqual(clean["case_count_scanned"], len(private_cases))
+        self.assertEqual(clean["case_fingerprint_set_hash"], sha256(sorted(manifest().case_fingerprints)))
         leaked_phrase = private_cases[0].prompt
         contaminated = ContaminationScanner.scan(
             {"candidate.py": "# memorized\n" + leaked_phrase},
@@ -127,19 +160,8 @@ class SealedEvaluatorTests(unittest.TestCase):
     def test_authenticated_receipt_requires_complete_exact_suite_and_clean_contamination(self):
         built = manifest()
         clean = ContaminationScanner.scan({"candidate.py": "safe implementation"}, cases(), SECRET)
-        results = [
-            EvaluatedCaseResult(x.case_fingerprint, .8, "PASS", sha256({"case": x.case_fingerprint}))
-            for x in built.descriptors
-        ]
-        receipt = EvaluatorReceiptAuthority.issue(
-            built, results, clean, SECRET,
-            candidate_sha="d" * 40,
-            candidate_environment_hash="e" * 64,
-            permissions_hash="f" * 64,
-            raw_evidence_hash="1" * 64,
-            started_at=NOW.isoformat(),
-            completed_at=(NOW + timedelta(minutes=5)).isoformat(),
-        )
+        results = results_for(built)
+        receipt = issue_receipt(built, clean)
         verified = EvaluatorReceiptAuthority.verify(receipt, built, SECRET)
         self.assertEqual(verified["status"], "PASS")
         self.assertEqual(verified["candidate_sha"], "d" * 40)
@@ -165,25 +187,57 @@ class SealedEvaluatorTests(unittest.TestCase):
                 started_at=NOW.isoformat(), completed_at=(NOW + timedelta(minutes=5)).isoformat(),
             )
 
+    def test_contamination_receipt_recomputes_hash_and_binds_exact_case_set(self):
+        built = manifest()
+        clean = ContaminationScanner.scan({"candidate.py": "safe implementation"}, cases(), SECRET)
+
+        tampered = copy.deepcopy(clean)
+        tampered["candidate_artifact_hashes"]["candidate.py"] = "a" * 64
+        with self.assertRaises(FrontierSafetyError):
+            issue_receipt(built, tampered)
+
+        wrong_count = ContaminationScanner.scan({"candidate.py": "safe implementation"}, cases()[:-1], SECRET)
+        with self.assertRaises(FrontierSafetyError):
+            issue_receipt(built, wrong_count)
+
+        unrelated_cases = [replace(row, prompt=row.prompt + " changed") for row in cases()]
+        same_count_wrong_set = ContaminationScanner.scan(
+            {"candidate.py": "safe implementation"}, unrelated_cases, SECRET
+        )
+        self.assertEqual(same_count_wrong_set["case_count_scanned"], len(built.descriptors))
+        with self.assertRaises(FrontierSafetyError):
+            issue_receipt(built, same_count_wrong_set)
+
     def test_receipt_tamper_or_wrong_evaluator_key_fails_authentication(self):
         built = manifest()
         clean = ContaminationScanner.scan({"candidate.py": "safe implementation"}, cases(), SECRET)
-        results = [
-            EvaluatedCaseResult(x.case_fingerprint, .9, "PASS", sha256(x.case_fingerprint))
-            for x in built.descriptors
-        ]
-        receipt = EvaluatorReceiptAuthority.issue(
-            built, results, clean, SECRET,
-            candidate_sha="d" * 40,
-            candidate_environment_hash="e" * 64,
-            permissions_hash="f" * 64,
-            raw_evidence_hash="1" * 64,
-            started_at=NOW.isoformat(), completed_at=(NOW + timedelta(minutes=1)).isoformat(),
-        )
+        receipt = issue_receipt(built, clean)
         tampered = replace(receipt, raw_evidence_hash="2" * 64)
         self.assertEqual(EvaluatorReceiptAuthority.verify(tampered, built, SECRET)["status"], "FAIL")
         self.assertIn("signature_mismatch", EvaluatorReceiptAuthority.verify(tampered, built, SECRET)["reasons"])
         self.assertEqual(EvaluatorReceiptAuthority.verify(receipt, built, OTHER_SECRET)["status"], "FAIL")
+
+    def test_correctly_signed_receipt_cannot_cross_suite_identity(self):
+        built = manifest()
+        clean = ContaminationScanner.scan({"candidate.py": "safe implementation"}, cases(), SECRET)
+        receipt = issue_receipt(built, clean)
+        wrong_suite = replace(receipt, suite_id="other-suite")
+        signature = hmac.new(
+            SECRET,
+            canonical(EvaluatorReceiptAuthority._body(wrong_suite)).encode(),
+            hashlib.sha256,
+        ).hexdigest()
+        wrong_suite = replace(wrong_suite, evaluator_signature=signature)
+        verification = EvaluatorReceiptAuthority.verify(wrong_suite, built, SECRET)
+        self.assertEqual(verification["status"], "FAIL")
+        self.assertIn("suite_id_mismatch", verification["reasons"])
+
+        with self.assertRaises(ValueError):
+            replace(receipt, candidate_sha="not-an-exact-git-sha")
+        with self.assertRaises(ValueError):
+            replace(receipt, result_count=True)
+        with self.assertRaises(ValueError):
+            replace(receipt, evaluator_signature="z" * 64)
 
     def test_nonpass_result_must_retain_failure_category(self):
         fp = "a" * 64
@@ -191,6 +245,14 @@ class SealedEvaluatorTests(unittest.TestCase):
             EvaluatedCaseResult(fp, 0, "ABSTAIN", "b" * 64)
         row = EvaluatedCaseResult(fp, 0, "ABSTAIN", "b" * 64, failure_category="insufficient_evidence")
         self.assertEqual(row.failure_category, "insufficient_evidence")
+        with self.assertRaises(ValueError):
+            EvaluatedCaseResult(fp, 1, "PASS", "b" * 64, failure_category="impossible")
+
+    def test_policy_rejects_nonfinite_fractions_and_noninteger_counts(self):
+        with self.assertRaises(ValueError):
+            UnseenSuitePolicy(min_adversarial_fraction=float("nan"))
+        with self.assertRaises(ValueError):
+            UnseenSuitePolicy(min_cases_per_domain=1.5)
 
 
 if __name__ == "__main__":
