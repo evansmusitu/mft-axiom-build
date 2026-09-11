@@ -1,0 +1,60 @@
+{
+  "schema": "musitu.store.phase2.response_body_equivalence_record.v1",
+  "created_date_utc": "2026-09-11",
+  "status": "PASS",
+  "phase2Complete": false,
+  "repository": {
+    "full_name": "evansmusitu/mft-axiom-build",
+    "branch": "musitu-store-phase2-standards-hardening-20260911",
+    "workflow_head": "e42f461b7dadd9e53afc0eb285a276c7e2710fc7",
+    "phase1_head": "ebded495617cc89bb96d7a5531c1ce4fc6bbedd9",
+    "sealed_main": "d6a846f6bbe0bccac1758713eb4de167caf07113",
+    "certified_candidate_worker_sha256": "ee95b816bc056ab79be4d764cf88a68e25feed7aafdaad33ff23e2188f954616"
+  },
+  "workflow": {
+    "name": "MUSITU Store Phase 2 Response Body Equivalence",
+    "run_id": "34575291010",
+    "conclusion": "success",
+    "artifact": {
+      "id": "10189381691",
+      "name": "musitu-store-phase2-body-equivalence",
+      "bytes": 1716,
+      "digest": "sha256:135cc85142d9eee8801a01f6221b6638f723577e8346ebd63604747cb82ff605",
+      "expires_at_utc": "2026-12-10T07:37:59Z"
+    }
+  },
+  "route_matrix": [
+    "/store",
+    "/store?lite=1",
+    "/store with Save-Data:on",
+    "/store?lang=sn",
+    "/store?lang=nd",
+    "/store/apps/chemistry",
+    "/store/install",
+    "/store/install?platform=android",
+    "/store/install?platform=ios",
+    "/store/developer",
+    "/store/releases",
+    "/store/status",
+    "/store/offline",
+    "/store/healthz"
+  ],
+  "proof": {
+    "baseline_and_candidate_status_equality": true,
+    "response_body_byte_equality": true,
+    "unexpected_header_delta": false,
+    "only_permitted_security_header_delta": true,
+    "permitted_header_delta": [
+      "Content-Security-Policy",
+      "Cross-Origin-Opener-Policy",
+      "X-Permitted-Cross-Domain-Policies"
+    ]
+  },
+  "manual_evidence_applicability": {
+    "current_live_store_1_0_2_body_may_be_manually_tested_for_candidate": true,
+    "condition": "This proof remains applicable only while the certified candidate UI/body-producing source and hardened worker transform remain unchanged.",
+    "invalidate_and_repeat_if_candidate_body_changes": true
+  },
+  "production_mutation": false,
+  "claim_boundary": "For the tested accessibility-relevant route matrix, the reconstructed hardened candidate and exact current Store 1.0.2 baseline have byte-identical response bodies and differ only by the explicitly permitted security headers. This makes real manual accessibility evidence collected against the current live Store body applicable to this unchanged hardened candidate; it does not itself constitute manual accessibility evidence or complete Phase 2."
+}
