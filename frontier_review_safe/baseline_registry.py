@@ -182,7 +182,7 @@ class BaselineRegistry:
         required_provider_orgs: Sequence[str] = (),
         required_provider_classes: Sequence[str] = (),
     ) -> dict[str, Any]:
-        providers = {r.provider_org.lower() for r in self.registrations}
+        providers = {r.provider_org.casefold() for r in self.registrations}
         classes = {r.provider_class for r in self.registrations}
         reasons: list[str] = []
 
@@ -191,7 +191,7 @@ class BaselineRegistry:
             reasons.append("invalid_required_provider_orgs")
             required_orgs: set[str] = set()
         else:
-            required_orgs = {value.lower() for value in required_org_values}
+            required_orgs = {value.casefold() for value in required_org_values}
 
         required_classes = {str(x) for x in required_provider_classes}
         missing_orgs = sorted(required_orgs - providers)

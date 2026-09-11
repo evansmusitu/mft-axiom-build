@@ -36,6 +36,10 @@ def _nonblank(value: Any) -> bool:
     return isinstance(value, str) and bool(value.strip())
 
 
+def _organization_key(value: str) -> str:
+    return value.strip().casefold()
+
+
 def _runtime_mapping(value: Any) -> tuple[dict[Any, Any], bool]:
     if value is None:
         return {}, True
@@ -338,7 +342,7 @@ class ExternalEvidenceGate:
         receipt_hashes: dict[str, str] = {}
         provider_classes: set[str] = set()
         level5_provider_orgs = {
-            run.provider_org.strip().lower()
+            _organization_key(run.provider_org)
             for run in runs
             if _nonblank(run.provider_org)
         }
@@ -405,7 +409,7 @@ class ExternalEvidenceGate:
             if not isinstance(receipt.issuer_org, str) or not receipt.issuer_org.strip():
                 reasons.append("external_attestation_issuer_identity_invalid")
                 continue
-            if receipt.issuer_org.strip().lower() in level5_provider_orgs:
+            if _organization_key(receipt.issuer_org) in level5_provider_orgs:
                 reasons.append("external_attestation_issuer_overlaps_level5_provider")
                 continue
             verified.append(run)
@@ -414,7 +418,7 @@ class ExternalEvidenceGate:
         case_hashes = {r.case_set_hash for r in verified}
         constraint_hashes = {r.constraint_hash for r in verified}
         candidate_shas = {r.candidate_sha for r in verified}
-        providers = {r.provider_org.lower() for r in verified}
+        providers = {_organization_key(r.provider_org) for r in verified}
         if len(verified) != len(runs):
             reasons.append("not_all_external_runs_attested_and_registered")
         if len(case_hashes) != 1:
@@ -474,7 +478,7 @@ class ExternalEvidenceGate:
         if not identity_valid:
             reasons.append("level5_identity_binding_invalid")
         level5_providers = {
-            str(provider).strip().lower()
+            _organization_key(provider)
             for provider in level5.get("provider_orgs", ())
             if isinstance(provider, str) and provider.strip()
         }
@@ -491,7 +495,7 @@ class ExternalEvidenceGate:
             if validation.provenance_type != "independent_lab_record":
                 saw_nonindependent_provenance = True
                 continue
-            if validation.validator_org.strip().lower() in level5_providers:
+            if _organization_key(validation.validator_org) in level5_providers:
                 saw_provider_overlap = True
                 continue
             if validation.candidate_sha != expected_candidate or validation.case_set_hash != expected_cases:
@@ -516,7 +520,7 @@ class ExternalEvidenceGate:
             if not isinstance(receipt.issuer_org, str) or not receipt.issuer_org.strip():
                 saw_attester_identity_invalid = True
                 continue
-            if receipt.issuer_org.strip().lower() in level5_providers:
+            if _organization_key(receipt.issuer_org) in level5_providers:
                 saw_attester_overlap = True
                 continue
             bound.append(validation)
@@ -583,7 +587,7 @@ class ExternalEvidenceGate:
             if min_refreshes < cls.LEVEL7_REFRESH_FLOOR:
                 reasons.append("longitudinal_refresh_floor_below_required")
         level5_providers = {
-            str(provider).strip().lower()
+            _organization_key(provider)
             for provider in level6.get("level5_provider_orgs", ())
             if isinstance(provider, str) and provider.strip()
         }
@@ -643,7 +647,7 @@ class ExternalEvidenceGate:
             if parse_time(receipt.issued_at) < parse_time(refresh.executed_at):
                 saw_attestation_time_reversal = True
                 continue
-            if receipt.issuer_org.strip().lower() in level5_providers:
+            if _organization_key(receipt.issuer_org) in level5_providers:
                 saw_attester_overlap = True
                 continue
             passed_refreshes.append(refresh)
@@ -937,7 +941,7 @@ class ClaimBoundary:
         if not comparison_scope or not benchmark_hash or not _valid_sha256(benchmark_hash):
             return {"status": "DENY", "max_evidence_level": max_level, "reason": "comparison_scope_or_benchmark_missing"}
 
-        expected_providers = {str(x).lower() for x in level5.get("provider_orgs", [])}
+        expected_providers = {_organization_key(str(x)) for x in level5.get("provider_orgs", [])}
         expected_runs = {str(x) for x in level5.get("run_ids", [])}
         expected_candidate = level5.get("candidate_sha")
         expected_cases = level5.get("case_set_hash")
@@ -951,7 +955,7 @@ class ClaimBoundary:
         outcome_runs: set[str] = set()
         fingerprints: list[str] = []
         for outcome in comparative_outcomes:
-            provider = outcome.provider_org.lower()
+            provider = _organization_key(outcome.provider_org)
             fingerprints.append(outcome.fingerprint)
             outcome_runs.add(outcome.external_run_id)
             if provider not in expected_providers:
@@ -982,7 +986,7 @@ class ClaimBoundary:
                 "positive_provider_orgs": sorted(positive_providers),
             }
 
-        required = {str(x).lower() for x in required_provider_orgs}
+        required = {_organization_key(str(x)) for x in required_provider_orgs}
         if broad:
             if len(expected_providers) < 4:
                 return {"status": "DENY", "max_evidence_level": max_level, "reason": "broad_provider_coverage_insufficient"}
