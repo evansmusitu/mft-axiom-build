@@ -1,0 +1,198 @@
+name: MUSITU Store v1.0.2 F-Droid JAR Repair
+
+on:
+  push:
+    branches: [musitu-store-handoff-probe-20260910]
+    paths:
+      - 'store/phase1/release/v102-live/FDROID_JAR_REPAIR_TRIGGER_20260911'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: musitu-store-v102-fdroid-jar-production-repair
+  cancel-in-progress: false
+
+jobs:
+  guarded-repair:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      AUTHORITATIVE_STORE_BRANCH: musitu-store-phase1-20260909
+      AUTHORITATIVE_STORE_HEAD: 0ffe2de07c6b18873cc73b157ade3afe589f8a35
+      SEALED_MAIN: d6a846f6bbe0bccac1758713eb4de167caf07113
+      ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      ZONE_ID: 5b56528f03948ff5917a5e0cd9f7109e
+      ZONE_NAME: mftintelligence.com
+      PAYMENTS_HOST: payments.mftintelligence.com
+      PAYMENTS_ORIGIN: mft-paynow-transport-gateway
+      STORE_WORKER: musitu-store-phase1
+      STORE_ROUTE: payments.mftintelligence.com/store*
+      STORE_BUCKET: musitu-store-phase1-releases
+      CATALOG_REV3_SHA: 4fa31c5f9f84facc0d1fbf7a91a50b0adcaa5ef4c97b7d82abbe9657ea10b7f9
+      CATALOG_REV3_SIG_SHA: 9b854358f90368ceb5cc3baab8d99064d8ee94b79ead378a614f8cc1732b06a7
+      CATALOG_PUBLIC_PEM_SHA: 4cf17f70dbab900237d8b82b4e989978c667e6ec841de6df79469aa6c5ebd5c0
+      FDROID_REPO_JAR_SHA: f84f0e720c4d7ff578d17a416ded866c8618b2549b50c0ae79861355a79c3cff
+      FDROID_REPO_JAR_BYTES: '3705'
+      FDROID_REPO_CERT_SHA: 763484cbccf9f9fdb5a35c7d314011369bc53ed95a1361483a6ace17f388b465
+      STORE_V102_SHA: 3a0c4b0f971ec84cd6167a137f8e3d75c7bb20e525c26ab533b3d88044cd0784
+      STORE_V102_BYTES: '1679340'
+      STORE_V101_SHA: b755210f303ebb6d22a3177bb21e5ebae2e076901021ee62ca2fe6ab0f14af82
+      STORE_V101_BYTES: '1679572'
+      STORE_V100_SHA: 71391bf614cc1186cbe1fda17e9e626aad71d96dbf26807228b73bd2ea99b2f8
+      STORE_V100_BYTES: '1687882'
+      CHEMISTRY_APK_SHA: 4ba442122d9c86a0c3cef660334fe337c6ea9ae6fe853c964b5e94961245babd
+      CHEMISTRY_APK_BYTES: '5892286'
+      CHEMISTRY_IPA_SHA: 426d2dc05e2fc8846a7582324d953bbdd2a256f170f8db2b5a956bc1c51cc962
+      CHEMISTRY_IPA_BYTES: '3640968'
+      WRANGLER_VERSION: 4.129.1
+      WRANGLER_LOG_SANITIZE: 'true'
+      WRANGLER_SEND_METRICS: 'false'
+
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Pin immutable refs and verify signed repair inputs
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF_NAME" = 'musitu-store-handoff-probe-20260910'
+          test -f store/phase1/release/v102-live/FDROID_JAR_REPAIR_TRIGGER_20260911
+          git fetch --quiet origin "$AUTHORITATIVE_STORE_BRANCH" main
+          test "$(git rev-parse origin/$AUTHORITATIVE_STORE_BRANCH)" = "$AUTHORITATIVE_STORE_HEAD"
+          test "$(git rev-parse origin/main)" = "$SEALED_MAIN"
+          test "$(sha256sum store/phase1/release/v102-live/catalog-revision-3.json | awk '{print $1}')" = "$CATALOG_REV3_SHA"
+          test "$(sha256sum store/phase1/release/v102-live/catalog-revision-3.sig | awk '{print $1}')" = "$CATALOG_REV3_SIG_SHA"
+          git show "$AUTHORITATIVE_STORE_HEAD:store/phase1/catalog-signing-public.pem" > /tmp/catalog-signing-public.pem
+          test "$(sha256sum /tmp/catalog-signing-public.pem | awk '{print $1}')" = "$CATALOG_PUBLIC_PEM_SHA"
+          base64 -d < store/phase1/release/v102-live/catalog-revision-3.sig > /tmp/catalog-revision-3.sig.der
+          openssl dgst -sha256 -verify /tmp/catalog-signing-public.pem -signature /tmp/catalog-revision-3.sig.der store/phase1/release/v102-live/catalog-revision-3.json
+          mkdir -p /tmp/fdroid
+          git show "$AUTHORITATIVE_STORE_HEAD:store/phase1/android/repo/index-v1.jar" > /tmp/fdroid/index-v1.jar
+          test "$(stat -c%s /tmp/fdroid/index-v1.jar)" = "$FDROID_REPO_JAR_BYTES"
+          test "$(sha256sum /tmp/fdroid/index-v1.jar | awk '{print $1}')" = "$FDROID_REPO_JAR_SHA"
+          jarsigner -verify /tmp/fdroid/index-v1.jar > /tmp/fdroid/jarsigner.txt 2>&1
+          grep -q 'jar verified' /tmp/fdroid/jarsigner.txt
+          cert="$(keytool -printcert -jarfile /tmp/fdroid/index-v1.jar | sed -n 's/^[[:space:]]*SHA256: //p' | head -n1 | tr -d ':\r\n' | tr 'A-F' 'a-f')"
+          test "$cert" = "$FDROID_REPO_CERT_SHA"
+          python -m py_compile store/phase1/release/v102-live/fdroid-jar-repair.py
+          echo FDROID_REPAIR_INPUT_GATE=PASS
+
+      - name: Reconstruct exact current rev3 Worker and JAR-only repaired Worker
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/fdroid-current /tmp/fdroid-repaired
+          git worktree add --detach /tmp/fdroid-current "$AUTHORITATIVE_STORE_HEAD"
+          git worktree add --detach /tmp/fdroid-repaired "$AUTHORITATIVE_STORE_HEAD"
+          for root in /tmp/fdroid-current /tmp/fdroid-repaired; do
+            cp store/phase1/release/v102-live/catalog-revision-3.json "$root/store/phase1/catalog.json"
+            cp store/phase1/release/v102-live/catalog-revision-3.sig "$root/store/phase1/catalog.sig"
+            ROOT="$root" python - <<'PY'
+          import json,os
+          from pathlib import Path
+          root=Path(os.environ['ROOT'])/'store/phase1'
+          b=json.loads((root/'bootstrap/release.json').read_text())
+          b.update({
+            'generatedAt':'2026-09-10T14:06:47Z',
+            'version':'1.0.2','versionCode':10002,'packageId':'com.musitu.store',
+            'artifactFile':'MUSITU_Store_1.0.2.apk',
+            'sha256':'3a0c4b0f971ec84cd6167a137f8e3d75c7bb20e525c26ab533b3d88044cd0784',
+            'bytes':1679340,
+            'signingCertificateSha256':'43695b6103d7ab57e89166c9a537f1810b7e33053e20332b1d4e7e2e1c612671'
+          })
+          (root/'bootstrap/release.json').write_text(json.dumps(b,indent=2)+'\n')
+          w=root/'web-surface/worker.mjs'
+          s=w.read_text()
+          needle='const RELEASE_ASSETS={\n'
+          entry="  '/store/bootstrap/MUSITU_Store_1.0.2.apk':{key:'bootstrap/MUSITU_Store_1.0.2.apk',sha256:'3a0c4b0f971ec84cd6167a137f8e3d75c7bb20e525c26ab533b3d88044cd0784',bytes:1679340,type:'application/vnd.android.package-archive',name:'MUSITU_Store_1.0.2.apk'},\n"
+          assert needle in s and 'MUSITU_Store_1.0.2.apk' not in s
+          w.write_text(s.replace(needle,needle+entry,1))
+          PY
+            (cd "$root" && python store/phase1/web-surface/build_store_data.py)
+          done
+          ROOT=/tmp/fdroid-repaired python - <<'PY'
+          import os
+          from pathlib import Path
+          w=Path(os.environ['ROOT'])/'store/phase1/web-surface/worker.mjs'
+          s=w.read_text()
+          needle='const RELEASE_ASSETS={\n'
+          entry="  '/store/android/repo/index-v1.jar':{key:'android/repo/index-v1.jar',sha256:'f84f0e720c4d7ff578d17a416ded866c8618b2549b50c0ae79861355a79c3cff',bytes:3705,type:'application/java-archive',name:'index-v1.jar'},\n"
+          assert needle in s and "'/store/android/repo/index-v1.jar'" not in s
+          w.write_text(s.replace(needle,needle+entry,1))
+          PY
+          node --check /tmp/fdroid-current/store/phase1/web-surface/worker.mjs
+          node --check /tmp/fdroid-repaired/store/phase1/web-surface/worker.mjs
+          for f in render.mjs assets.mjs generated-data.mjs; do
+            cmp "/tmp/fdroid-current/store/phase1/web-surface/$f" "/tmp/fdroid-repaired/store/phase1/web-surface/$f"
+          done
+          test "$(grep -c "'/store/android/repo/index-v1.jar'" /tmp/fdroid-repaired/store/phase1/web-surface/worker.mjs)" = 1
+          test "$(grep -c "'/store/bootstrap/MUSITU_Store_1.0.2.apk'" /tmp/fdroid-repaired/store/phase1/web-surface/worker.mjs)" = 1
+          test "$(sha256sum /tmp/fdroid-current/store/phase1/catalog.json | awk '{print $1}')" = "$CATALOG_REV3_SHA"
+          test "$(sha256sum /tmp/fdroid-current/store/phase1/catalog.sig | awk '{print $1}')" = "$CATALOG_REV3_SIG_SHA"
+          echo "FDROID_JSON_SHA=$(sha256sum /tmp/fdroid-current/store/phase1/android/repo/index-v1.json | awk '{print $1}')" >> "$GITHUB_ENV"
+          echo "SIDESTORE_SHA=$(sha256sum /tmp/fdroid-current/store/phase1/ios/source.json | awk '{print $1}')" >> "$GITHUB_ENV"
+          echo FDROID_REPAIR_WORKER_RECONSTRUCTION_GATE=PASS
+
+      - name: Guarded append-only F-Droid JAR publication transaction
+        id: repair_transaction
+        continue-on-error: true
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+          CLOUDFLARE_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+          CLOUDFLARE_ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$CLOUDFLARE_EMAIL"
+          test -n "$CLOUDFLARE_GLOBAL_API_KEY"
+          git fetch --quiet origin "$AUTHORITATIVE_STORE_BRANCH" main
+          test "$(git rev-parse origin/$AUTHORITATIVE_STORE_BRANCH)" = "$AUTHORITATIVE_STORE_HEAD"
+          test "$(git rev-parse origin/main)" = "$SEALED_MAIN"
+          export EXPECTED_CURRENT_ROOT=/tmp/fdroid-current
+          export SOURCE_ROOT=/tmp/fdroid-repaired
+          export FDROID_JAR=/tmp/fdroid/index-v1.jar
+          python store/phase1/release/v102-live/fdroid-jar-repair.py
+
+      - name: Upload non-secret repair evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: musitu-store-v102-fdroid-jar-repair-evidence
+          path: /tmp/store-v102-fdroid-repair-evidence
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Enforce successful repair gate
+        if: always()
+        shell: bash
+        env:
+          TX_OUTCOME: ${{ steps.repair_transaction.outcome }}
+        run: |
+          set -euo pipefail
+          test "$TX_OUTCOME" = success
+          test -f /tmp/store-v102-fdroid-repair-evidence/repair.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          o=json.loads(Path('/tmp/store-v102-fdroid-repair-evidence/repair.json').read_text())
+          assert o['gate']=='MUSITU_STORE_V102_FDROID_JAR_REPAIR_PASS'
+          assert o['catalog_revision']==3
+          assert o['fdroid_index_jar_sha256']=='f84f0e720c4d7ff578d17a416ded866c8618b2549b50c0ae79861355a79c3cff'
+          assert o['fdroid_index_jar_bytes']==3705
+          assert o['jar_uploaded'] is True
+          assert o['worker_updated'] is True
+          assert o['rollback_performed'] is False
+          assert o['phase2_authorized'] is False
+          assert o['fresh_device_phase1_complete'] is False
+          assert o['checks']['fdroid_index_jar_public_http']==200
+          PY
+          echo MUSITU_STORE_V102_FDROID_JAR_REPAIR_GATE=PASS
