@@ -145,7 +145,7 @@ class EnterpriseOperationsTests(unittest.TestCase):
         slo = SLOContract("slo-v1", target_availability=.99, max_p95_latency_ms=250, minimum_requests=100)
         healthy = evaluate_slo(slo, [True] * 100, [50.0] * 100)
         self.assertEqual(healthy["status"], "PASS")
-        unhealthy = evaluate_slo(slo, [False] * 5 + [True] * 95, [50.0] * 95 + [500.0] * 5)
+        unhealthy = evaluate_slo(slo, [False] * 5 + [True] * 95, [50.0] * 94 + [500.0] * 6)
         self.assertEqual(unhealthy["status"], "FAIL")
         self.assertIn("availability_slo_breached", unhealthy["reasons"])
         self.assertIn("latency_slo_breached", unhealthy["reasons"])
