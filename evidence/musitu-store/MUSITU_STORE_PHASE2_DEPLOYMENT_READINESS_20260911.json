@@ -1,0 +1,75 @@
+{
+  "schema": "musitu.store.phase2.deployment_readiness_record.v1",
+  "created_date_utc": "2026-09-11",
+  "status": "PASS_READY_EXCEPT_REAL_MANUAL_ACCESSIBILITY_EVIDENCE",
+  "phase2Authorized": true,
+  "phase2Complete": false,
+  "repository": {
+    "full_name": "evansmusitu/mft-axiom-build",
+    "branch": "musitu-store-phase2-standards-hardening-20260911",
+    "readiness_head": "3293d5427ed7b0b6ee9b019dffba869754081a54",
+    "certified_candidate_head": "6a1d50c76dec96e924751dd6f5f2bc1ffe4191e1",
+    "phase1_head": "ebded495617cc89bb96d7a5531c1ce4fc6bbedd9",
+    "sealed_main": "d6a846f6bbe0bccac1758713eb4de167caf07113"
+  },
+  "readiness_workflow": {
+    "run_id": 34574011214,
+    "job_id": 103182287996,
+    "conclusion": "success",
+    "gates": {
+      "immutable_boundaries_and_candidate_source_stability": "PASS",
+      "deployment_transaction_compile_and_static_checks": "PASS",
+      "manual_only_production_trigger_and_rollback_hooks": "PASS",
+      "candidate_certificate_verification": "PASS"
+    },
+    "artifact": {
+      "id": 10188879614,
+      "name": "musitu-store-phase2-deployment-readiness",
+      "bytes": 456,
+      "digest": "sha256:32246f8e4041150339b7b5e15faed70c428e309cd3255a1a179836e443428375",
+      "expires_at_utc": "2026-12-10T07:21:41Z"
+    }
+  },
+  "certified_hardened_candidate": {
+    "predeploy_run_id": 34573638727,
+    "predeploy_artifact_id": 10188749517,
+    "predeploy_artifact_digest": "sha256:0e1066a9453ae437c7d6e5ebed50a464ce3f96f39490a25b6c604e73bfc51ac4",
+    "worker_sha256": "ee95b816bc056ab79be4d764cf88a68e25feed7aafdaad33ff23e2188f954616",
+    "automated_standards": "PASS",
+    "security_hardening": "PASS",
+    "low_bandwidth": "PASS",
+    "lighthouse_budget": "PASS"
+  },
+  "production_workflow": {
+    "path": ".github/workflows/musitu-store-phase2-guarded-production-deploy.yml",
+    "trigger": "workflow_dispatch_only",
+    "manual_accessibility_gate_before_mutation": true,
+    "worker_only_mutation": true,
+    "catalog_mutation": false,
+    "apk_mutation": false,
+    "commerce_mutation": false,
+    "licence_mutation": false,
+    "live_snapshot_restore_rollback_drill": true,
+    "emergency_snapshot_restore_on_failure": true
+  },
+  "current_blocker": {
+    "manual_accessibility_gate": "BLOCKED_PENDING_REAL_EVIDENCE",
+    "packet_path": "evidence/musitu-store/MUSITU_STORE_PHASE2_MANUAL_ACCESSIBILITY_CERTIFICATION_PACKET_20260911.json",
+    "required": [
+      "real manual keyboard evidence",
+      "real screen-reader evidence",
+      "zoom/reflow evidence",
+      "complete test-environment metadata",
+      "complete evidence references",
+      "reviewed PASS result"
+    ],
+    "automated_accessibility_tree_may_substitute": false
+  },
+  "parallel_phase1_state": {
+    "physical_device_step15_complete": false,
+    "freshDevicePhase1Complete": false,
+    "phase1_evidence_modified_by_phase2": false
+  },
+  "production_mutation": false,
+  "claim_boundary": "Phase 2 is authorized and all currently executable automated predeployment, hardened-candidate, and deployment-readiness gates pass. The guarded production transaction is prepared and rollback-capable but remains blocked before mutation because real manual keyboard, screen-reader, and zoom/reflow evidence has not been supplied and reviewed. Production is unchanged and Phase 2 is not complete."
+}
