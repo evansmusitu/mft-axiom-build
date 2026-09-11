@@ -1,0 +1,61 @@
+{
+  "schema": "musitu.store.phase2.manual_validator_hardening_certification.v1",
+  "created_date_utc": "2026-09-11",
+  "status": "PASS_SYNTHETIC_VALIDATOR_CONTRACT_HARDENING",
+  "repository": {
+    "full_name": "evansmusitu/mft-axiom-build",
+    "branch": "musitu-store-phase2-standards-hardening-20260911",
+    "validator_hardening_commit": "74fe72035a677a3fb380f21a362d6f5eb8cd6fc3",
+    "synthetic_contract_test_commit": "ef0f40dedcfe8a1f39c936a5fa0658aa872a4567",
+    "workflow_head": "21d755e16bd4c3039976bb7cdca7e5b7a0706695",
+    "sealed_main": "d6a846f6bbe0bccac1758713eb4de167caf07113",
+    "phase1_head": "ebded495617cc89bb96d7a5531c1ce4fc6bbedd9"
+  },
+  "candidate_binding": {
+    "baseline_live_worker_sha256": "e17e0c7bde55d9f8d41b476e917159b6bf39b46c3895b7ec6d2a7b4f705beb81",
+    "candidate_worker_sha256": "c98e6e36fa153f16a05c627b10b9a562e5f2ffde1f02ec0a7676a8d5121b7cce",
+    "candidate_hash_pinned_by_validator": true
+  },
+  "validator_contract": {
+    "complete_manual_keyboard_check_keyset_required": true,
+    "complete_screen_reader_check_keyset_required": true,
+    "complete_zoom_reflow_check_keyset_required": true,
+    "all_required_check_values_must_be_true": true,
+    "microsoft_narrator_required": true,
+    "visible_narrator_speech_recap_live_transcription_required": true,
+    "stable_evidence_reference_scheme_required": true,
+    "sha256_and_positive_byte_length_required": true,
+    "original_evidence_review_required": true,
+    "candidate_worker_sha256_exact_match_required": true,
+    "phase2_complete_must_remain_false_before_deployment": true,
+    "production_mutation_must_remain_false_in_manual_packet": true,
+    "failures_omitted_or_reinterpreted_must_be_false": true
+  },
+  "github_actions": {
+    "run_id": 34584007750,
+    "job_id": 103213876381,
+    "conclusion": "success",
+    "artifact": {
+      "id": 10192785701,
+      "name": "musitu-store-phase2-deployment-readiness",
+      "bytes": 882,
+      "digest": "sha256:35769406748050939b396e8bf7cd1a38048af9fde1bf02b18a26acb3e8cd697a",
+      "expires_at_utc": "2026-12-10T09:24:07Z"
+    },
+    "observed_outputs": {
+      "synthetic_validator_contract_tests": "PASS",
+      "synthetic_fixture_is_not_real_accessibility_evidence": true,
+      "pending_real_packet_fails_closed": true,
+      "deployment_readiness_result": "PASS",
+      "manual_accessibility_gate": "BLOCKED_PENDING_REAL_EVIDENCE"
+    }
+  },
+  "evidence_boundary": {
+    "synthetic_tests_are_real_accessibility_evidence": false,
+    "synthetic_tests_may_satisfy_manual_accessibility_gate": false,
+    "manual_accessibility_gate_still_requires_original_real_evidence": true,
+    "production_security_hardening_mutation_occurred": false,
+    "phase2Complete": false
+  },
+  "claim_boundary": "The manual-accessibility packet validator is structurally hardened and adversarially tested against synthetic malformed and structurally valid fixtures. These tests prove validator behavior only; they are not real accessibility evidence and do not satisfy the manual keyboard, Microsoft Narrator, or 200%/400% zoom-reflow certification gate."
+}
