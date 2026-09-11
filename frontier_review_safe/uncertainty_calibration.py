@@ -7,6 +7,14 @@ import math
 from .core import FrontierSafetyError, parse_time, sha256
 
 
+def _valid_sha256(value: str) -> bool:
+    return (
+        isinstance(value, str)
+        and len(value) == 64
+        and all(c in "0123456789abcdef" for c in value.lower())
+    )
+
+
 @dataclass(frozen=True)
 class ProbabilityCalibrationObservation:
     observation_id: str
@@ -19,12 +27,15 @@ class ProbabilityCalibrationObservation:
     provenance_hash: str
 
     def __post_init__(self) -> None:
-        if not all((self.observation_id, self.domain, self.independence_group)):
+        if any(not isinstance(value, str) or not value.strip() for value in (self.observation_id, self.domain, self.independence_group)):
             raise ValueError("calibration observation identity fields are required")
         if self.split not in {"calibration", "holdout"}:
             raise ValueError("split must be calibration or holdout")
-        if not 0.0 <= float(self.predicted_confidence) <= 1.0:
-            raise ValueError("predicted_confidence must be in [0,1]")
+        confidence = float(self.predicted_confidence)
+        if not math.isfinite(confidence) or not 0.0 <= confidence <= 1.0:
+            raise ValueError("predicted_confidence must be finite and in [0,1]")
+        if not isinstance(self.correct, bool):
+            raise ValueError("correct must be boolean")
         parse_time(self.observed_at)
         if not _valid_sha256(self.provenance_hash):
             raise ValueError("calibration provenance_hash must be SHA-256")
@@ -39,11 +50,18 @@ class CalibrationBin:
     calibrated_confidence: float
 
     def __post_init__(self) -> None:
-        if not (0.0 <= self.lower < self.upper <= 1.0):
+        lower = float(self.lower)
+        upper = float(self.upper)
+        calibrated = float(self.calibrated_confidence)
+        if not all(math.isfinite(value) for value in (lower, upper, calibrated)):
+            raise ValueError("calibration bin values must be finite")
+        if not (0.0 <= lower < upper <= 1.0):
             raise ValueError("invalid calibration bin bounds")
+        if any(not isinstance(value, int) or isinstance(value, bool) for value in (self.count, self.correct_count)):
+            raise ValueError("calibration bin counts must be integers")
         if self.count < 0 or self.correct_count < 0 or self.correct_count > self.count:
             raise ValueError("invalid calibration bin counts")
-        if not 0.0 <= self.calibrated_confidence <= 1.0:
+        if not 0.0 <= calibrated <= 1.0:
             raise ValueError("calibrated confidence must be in [0,1]")
 
 
@@ -70,7 +88,7 @@ class DomainProbabilityCalibrationArtifact:
     def __post_init__(self) -> None:
         if self.schema != "musitu.axiom.domain-probability-calibration.v1":
             raise ValueError("unsupported uncertainty calibration schema")
-        if not self.version or not self.domain:
+        if any(not isinstance(value, str) or not value.strip() for value in (self.version, self.domain)):
             raise ValueError("calibration version and domain are required")
         start = parse_time(self.calibrated_at)
         end = parse_time(self.valid_until)
@@ -80,22 +98,39 @@ class DomainProbabilityCalibrationArtifact:
             raise ValueError("calibration corpus_hash must be SHA-256")
         if not self.bins or len(self.bins) != len(self.reference_histogram):
             raise ValueError("calibration bins and reference histogram must align")
-        if self.calibration_count <= 0 or self.holdout_count <= 0:
-            raise ValueError("calibration and holdout samples are required")
+        if any(not isinstance(value, int) or isinstance(value, bool) or value <= 0 for value in (self.calibration_count, self.holdout_count)):
+            raise ValueError("calibration and holdout sample counts must be positive integers")
+        if any(not isinstance(group, str) or not group.strip() for group in (*self.calibration_groups, *self.holdout_groups)):
+            raise ValueError("calibration independence groups must be non-empty strings")
+        if len(self.calibration_groups) != len(set(self.calibration_groups)) or len(self.holdout_groups) != len(set(self.holdout_groups)):
+            raise ValueError("duplicate uncertainty calibration independence group")
         if set(self.calibration_groups) & set(self.holdout_groups):
             raise FrontierSafetyError("independence-group leakage between calibration and holdout")
-        if any(x < 0.0 for x in (self.holdout_raw_brier, self.holdout_calibrated_brier, self.holdout_ece)):
-            raise ValueError("calibration metrics cannot be negative")
-        if not math.isclose(sum(self.reference_histogram), 1.0, rel_tol=0.0, abs_tol=1e-9):
+        metrics = tuple(float(x) for x in (self.holdout_raw_brier, self.holdout_calibrated_brier, self.holdout_ece, self.maximum_holdout_ece))
+        if any(not math.isfinite(value) for value in metrics):
+            raise ValueError("calibration metrics and thresholds must be finite")
+        if not 0.0 <= metrics[0] <= 1.0 or not 0.0 <= metrics[1] <= 1.0:
+            raise ValueError("holdout Brier scores must be within [0,1]")
+        if not 0.0 <= metrics[2] <= 1.0 or not 0.0 <= metrics[3] <= 1.0:
+            raise ValueError("holdout ECE values must be within [0,1]")
+        histogram = tuple(float(value) for value in self.reference_histogram)
+        if any(not math.isfinite(value) or not 0.0 <= value <= 1.0 for value in histogram):
+            raise ValueError("reference histogram entries must be finite probabilities")
+        if not math.isclose(sum(histogram), 1.0, rel_tol=0.0, abs_tol=1e-9):
             raise ValueError("reference histogram must sum to one")
+        if not isinstance(self.promotion_authorized, bool):
+            raise ValueError("promotion_authorized must be boolean")
+        if self.promotion_authorized and self.holdout_ece > self.maximum_holdout_ece:
+            raise FrontierSafetyError("promoted uncertainty calibration exceeds declared holdout ECE limit")
 
     @property
     def fingerprint(self) -> str:
         return sha256(asdict(self))
 
     def _bin_index(self, confidence: float) -> int:
-        if not 0.0 <= confidence <= 1.0:
-            raise ValueError("confidence must be in [0,1]")
+        confidence = float(confidence)
+        if not math.isfinite(confidence) or not 0.0 <= confidence <= 1.0:
+            raise ValueError("confidence must be finite and in [0,1]")
         for index, row in enumerate(self.bins):
             if confidence < row.upper or index == len(self.bins) - 1:
                 return index
@@ -115,20 +150,22 @@ class DomainProbabilityCalibrationArtifact:
             raise FrontierSafetyError("domain uncertainty calibration artifact is not promoted")
         if when < parse_time(self.calibrated_at) or when >= parse_time(self.valid_until):
             raise FrontierSafetyError("domain uncertainty calibration artifact is stale or not yet effective")
-        if maximum_drift_psi < 0:
-            raise ValueError("maximum_drift_psi cannot be negative")
+        maximum_drift = float(maximum_drift_psi)
+        if not math.isfinite(maximum_drift) or maximum_drift < 0.0:
+            raise ValueError("maximum_drift_psi must be finite and non-negative")
         drift = None
         if current_confidences is not None:
             drift = self.drift_psi(current_confidences)
-            if drift > maximum_drift_psi:
+            if drift > maximum_drift:
                 raise FrontierSafetyError("domain uncertainty calibration drift exceeds limit")
-        index = self._bin_index(float(confidence))
+        confidence_value = float(confidence)
+        index = self._bin_index(confidence_value)
         row = self.bins[index]
         return {
             "status": "CALIBRATED",
             "domain": self.domain,
             "version": self.version,
-            "raw_confidence": float(confidence),
+            "raw_confidence": confidence_value,
             "calibrated_confidence": row.calibrated_confidence,
             "bin_index": index,
             "bin_count": row.count,
@@ -145,11 +182,14 @@ class DomainProbabilityCalibrationArtifact:
         total = len(current_confidences)
         current = [count / total for count in counts]
         epsilon = 1e-6
-        return sum(
+        result = sum(
             (max(epsilon, cur) - max(epsilon, ref))
             * math.log(max(epsilon, cur) / max(epsilon, ref))
             for ref, cur in zip(self.reference_histogram, current)
         )
+        if not math.isfinite(result) or result < 0.0:
+            raise FrontierSafetyError("invalid uncertainty calibration drift measurement")
+        return result
 
 
 class DomainProbabilityCalibrator:
@@ -157,15 +197,31 @@ class DomainProbabilityCalibrator:
     def _brier(probabilities: Sequence[float], outcomes: Sequence[int]) -> float:
         if not probabilities or len(probabilities) != len(outcomes):
             raise ValueError("equal non-empty probabilities/outcomes required")
-        return sum((float(p) - int(y)) ** 2 for p, y in zip(probabilities, outcomes)) / len(probabilities)
+        values = [float(p) for p in probabilities]
+        labels = [int(y) for y in outcomes]
+        if any(not math.isfinite(value) or not 0.0 <= value <= 1.0 for value in values):
+            raise ValueError("probabilities must be finite and within [0,1]")
+        if any(label not in {0, 1} for label in labels):
+            raise ValueError("outcomes must be binary")
+        return sum((p - y) ** 2 for p, y in zip(values, labels)) / len(values)
 
     @staticmethod
     def _ece(probabilities: Sequence[float], outcomes: Sequence[int], bin_count: int) -> float:
+        if not probabilities or len(probabilities) != len(outcomes):
+            raise ValueError("equal non-empty probabilities/outcomes required")
+        if not isinstance(bin_count, int) or isinstance(bin_count, bool) or bin_count < 2:
+            raise ValueError("bin_count must be an integer >=2")
+        values = [float(p) for p in probabilities]
+        labels = [int(y) for y in outcomes]
+        if any(not math.isfinite(value) or not 0.0 <= value <= 1.0 for value in values):
+            raise ValueError("probabilities must be finite and within [0,1]")
+        if any(label not in {0, 1} for label in labels):
+            raise ValueError("outcomes must be binary")
         groups: list[list[tuple[float, int]]] = [[] for _ in range(bin_count)]
-        for probability, outcome in zip(probabilities, outcomes):
-            index = min(bin_count - 1, int(float(probability) * bin_count))
-            groups[index].append((float(probability), int(outcome)))
-        total = len(probabilities)
+        for probability, outcome in zip(values, labels):
+            index = min(bin_count - 1, int(probability * bin_count))
+            groups[index].append((probability, outcome))
+        total = len(values)
         ece = 0.0
         for group in groups:
             if not group:
@@ -193,10 +249,19 @@ class DomainProbabilityCalibrator:
         parse_time(valid_until)
         if not observations:
             raise ValueError("calibration observations required")
-        if not version or bin_count < 2 or minimum_calibration <= 0 or minimum_holdout <= 0:
-            raise ValueError("valid version, bins and sample thresholds required")
-        if maximum_brier_regression < 0 or not 0.0 <= maximum_holdout_ece <= 1.0:
-            raise ValueError("invalid calibration promotion thresholds")
+        if not isinstance(version, str) or not version.strip():
+            raise ValueError("calibration version required")
+        if not isinstance(bin_count, int) or isinstance(bin_count, bool) or bin_count < 2:
+            raise ValueError("bin_count must be an integer >=2")
+        for name, value in (("minimum_calibration", minimum_calibration), ("minimum_holdout", minimum_holdout)):
+            if not isinstance(value, int) or isinstance(value, bool) or value <= 0:
+                raise ValueError(f"{name} must be a positive integer")
+        maximum_regression = float(maximum_brier_regression)
+        maximum_ece = float(maximum_holdout_ece)
+        if not math.isfinite(maximum_regression) or maximum_regression < 0.0:
+            raise ValueError("maximum_brier_regression must be finite and non-negative")
+        if not math.isfinite(maximum_ece) or not 0.0 <= maximum_ece <= 1.0:
+            raise ValueError("maximum_holdout_ece must be finite and in [0,1]")
 
         domains = {row.domain for row in observations}
         if len(domains) != 1:
@@ -245,8 +310,8 @@ class DomainProbabilityCalibrator:
         calibrated_brier = cls._brier(holdout_calibrated, outcomes)
         ece = cls._ece(holdout_calibrated, outcomes, bin_count)
         promoted = (
-            calibrated_brier <= raw_brier + maximum_brier_regression
-            and ece <= maximum_holdout_ece
+            calibrated_brier <= raw_brier + maximum_regression
+            and ece <= maximum_ece
         )
         reference_histogram = tuple(count / len(calibration) for count in counts)
         corpus_hash = sha256([asdict(row) for row in sorted(observations, key=lambda x: x.observation_id)])
@@ -264,7 +329,7 @@ class DomainProbabilityCalibrator:
             raw_brier,
             calibrated_brier,
             ece,
-            maximum_holdout_ece,
+            maximum_ece,
             tuple(sorted(calibration_groups)),
             tuple(sorted(holdout_groups)),
             promoted,
@@ -300,6 +365,8 @@ class DomainCalibrationRegistry:
         current_confidences: Sequence[float] | None = None,
         maximum_drift_psi: float = 0.2,
     ) -> dict[str, Any]:
+        if not isinstance(domain, str) or not domain.strip():
+            raise ValueError("calibration domain required")
         when = parse_time(at)
         candidates = [
             artifact
@@ -337,13 +404,14 @@ class IntervalCoverageObservation:
     provenance_hash: str
 
     def __post_init__(self) -> None:
-        if not self.observation_id or not self.domain:
+        if any(not isinstance(value, str) or not value.strip() for value in (self.observation_id, self.domain)):
             raise ValueError("interval observation identity required")
-        if not all(math.isfinite(float(x)) for x in (self.lower, self.upper, self.realized, self.alpha)):
+        values = tuple(float(x) for x in (self.lower, self.upper, self.realized, self.alpha))
+        if not all(math.isfinite(value) for value in values):
             raise ValueError("interval observations must be finite")
-        if self.lower > self.upper:
+        if values[0] > values[1]:
             raise ValueError("interval lower bound exceeds upper bound")
-        if not 0.0 < self.alpha < 1.0:
+        if not 0.0 < values[3] < 1.0:
             raise ValueError("alpha must be in (0,1)")
         parse_time(self.observed_at)
         if not _valid_sha256(self.provenance_hash):
@@ -360,10 +428,20 @@ class IntervalCoverageGate:
         minimum_samples: int = 30,
         maximum_coverage_shortfall: float = 0.03,
     ) -> dict[str, Any]:
+        if not isinstance(domain, str) or not domain.strip():
+            raise ValueError("interval coverage domain required")
+        alpha_value = float(alpha)
+        maximum_shortfall = float(maximum_coverage_shortfall)
+        if not math.isfinite(alpha_value) or not 0.0 < alpha_value < 1.0:
+            raise ValueError("interval coverage alpha must be finite and in (0,1)")
+        if not isinstance(minimum_samples, int) or isinstance(minimum_samples, bool) or minimum_samples <= 0:
+            raise ValueError("minimum_samples must be a positive integer")
+        if not math.isfinite(maximum_shortfall) or not 0.0 <= maximum_shortfall <= 1.0:
+            raise ValueError("maximum_coverage_shortfall must be finite and in [0,1]")
         rows = [row for row in observations if row.domain == domain]
         if len(rows) < minimum_samples:
             return {"status": "FAIL", "reason": "insufficient_interval_holdout_samples", "n": len(rows)}
-        if any(not math.isclose(row.alpha, alpha, rel_tol=0.0, abs_tol=1e-12) for row in rows):
+        if any(not math.isclose(row.alpha, alpha_value, rel_tol=0.0, abs_tol=1e-12) for row in rows):
             raise FrontierSafetyError("mixed interval alpha values")
         if len({row.observation_id for row in rows}) != len(rows):
             raise FrontierSafetyError("duplicate interval observation id")
@@ -372,13 +450,13 @@ class IntervalCoverageGate:
             raise FrontierSafetyError("duplicate interval provenance record")
         covered = sum(1 for row in rows if row.lower <= row.realized <= row.upper)
         coverage = covered / len(rows)
-        target = 1.0 - alpha
+        target = 1.0 - alpha_value
         average_width = sum(row.upper - row.lower for row in rows) / len(rows)
         shortfall = max(0.0, target - coverage)
         return {
-            "status": "PASS" if shortfall <= maximum_coverage_shortfall else "FAIL",
+            "status": "PASS" if shortfall <= maximum_shortfall else "FAIL",
             "domain": domain,
-            "alpha": alpha,
+            "alpha": alpha_value,
             "target_coverage": target,
             "empirical_coverage": coverage,
             "coverage_shortfall": shortfall,
@@ -386,11 +464,3 @@ class IntervalCoverageGate:
             "n": len(rows),
             "evidence_sha256": sha256([asdict(row) for row in sorted(rows, key=lambda x: x.observation_id)]),
         }
-
-
-def _valid_sha256(value: str) -> bool:
-    return (
-        isinstance(value, str)
-        and len(value) == 64
-        and all(c in "0123456789abcdef" for c in value.lower())
-    )
