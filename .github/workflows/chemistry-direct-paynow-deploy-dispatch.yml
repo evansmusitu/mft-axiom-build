@@ -1,0 +1,19 @@
+name: MUSITU Chemistry Direct Paynow Deploy Dispatch
+
+on:
+  push:
+    branches: [chemistry-direct-paynow-fallback-20260911]
+    paths: ['.github/workflows/chemistry-direct-paynow-deploy-dispatch.yml']
+
+permissions:
+  contents: read
+  actions: write
+
+jobs:
+  dispatch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Dispatch existing guarded production workflow at current branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run chemistry-direct-paynow-guarded-production-deploy-v2.yml --ref chemistry-direct-paynow-fallback-20260911
