@@ -165,6 +165,15 @@ def gate(
     if workload_git_blob_sha != BASELINE_CONTRACT["workload_git_blob_sha"]:
         reasons.append("workload_definition_changed_rebaseline_required")
 
+    supplied_hash = str(evidence.get("evidence_sha256", ""))
+    if len(supplied_hash) != 64 or any(c not in "0123456789abcdef" for c in supplied_hash.lower()):
+        reasons.append("evidence_hash_missing_or_invalid")
+    else:
+        hash_body = dict(evidence)
+        hash_body.pop("evidence_sha256", None)
+        if sha256(hash_body) != supplied_hash:
+            reasons.append("evidence_hash_mismatch")
+
     environment = evidence.get("environment", {})
     expected_environment = BASELINE_CONTRACT["environment"]
     if environment.get("python") != expected_environment["python"]:
@@ -257,7 +266,7 @@ def gate(
         "baseline_evidence_sha256": list(BASELINE_CONTRACT["evidence_sha256"]),
         "baseline_contract_sha256": contract_fingerprint(),
         "candidate_sha": evidence.get("candidate_sha"),
-        "candidate_evidence_sha256": evidence.get("evidence_sha256"),
+        "candidate_evidence_sha256": supplied_hash,
         "workload_git_blob_sha": workload_git_blob_sha,
         "checks": checks,
     }
