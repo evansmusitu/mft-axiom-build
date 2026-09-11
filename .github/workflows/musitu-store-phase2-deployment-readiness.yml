@@ -5,8 +5,10 @@ on:
     branches: [musitu-store-phase2-standards-hardening-20260911]
     paths:
       - 'store/phase2/deploy_hardened_store.py'
+      - 'store/phase2/validate_manual_accessibility_packet.py'
       - 'evidence/musitu-store/MUSITU_STORE_PHASE2_MANUAL_ACCESSIBILITY_CERTIFICATION_PACKET_20260911.json'
       - 'evidence/musitu-store/MUSITU_STORE_PHASE2_HARDENED_CANDIDATE_PREDEPLOY_CERTIFICATION_20260911.json'
+      - 'evidence/musitu-store/MUSITU_STORE_PHASE2_RESPONSE_BODY_EQUIVALENCE_20260911.json'
       - '.github/workflows/musitu-store-phase2-guarded-production-deploy.yml'
       - '.github/workflows/musitu-store-phase2-deployment-readiness.yml'
   workflow_dispatch:
@@ -22,6 +24,8 @@ jobs:
       SEALED_MAIN: d6a846f6bbe0bccac1758713eb4de167caf07113
       PHASE1_HEAD: ebded495617cc89bb96d7a5531c1ce4fc6bbedd9
       CERTIFIED_CANDIDATE_HEAD: 6a1d50c76dec96e924751dd6f5f2bc1ffe4191e1
+      BODY_EQUIVALENCE_HEAD: e42f461b7dadd9e53afc0eb285a276c7e2710fc7
+      MANUAL_PACKET: evidence/musitu-store/MUSITU_STORE_PHASE2_MANUAL_ACCESSIBILITY_CERTIFICATION_PACKET_20260911.json
 
     steps:
       - uses: actions/checkout@v4
@@ -40,20 +44,22 @@ jobs:
           test "$(git rev-parse origin/main)" = "$SEALED_MAIN"
           test "$(git rev-parse origin/musitu-store-phase1-20260909)" = "$PHASE1_HEAD"
           git merge-base --is-ancestor "$CERTIFIED_CANDIDATE_HEAD" "$GITHUB_SHA"
+          git merge-base --is-ancestor "$BODY_EQUIVALENCE_HEAD" "$GITHUB_SHA"
           test -z "$(git diff --name-only "$PHASE1_HEAD"..."$GITHUB_SHA" -- store/phase1 commerce/chemistry)"
           test -z "$(git diff --name-only "$CERTIFIED_CANDIDATE_HEAD"..."$GITHUB_SHA" -- store/phase2/apply-standards-hardening.py store/phase2/security-hardening-smoke.mjs store/phase2/standards-browser-smoke.mjs)"
           echo READINESS_BOUNDARY=PASS
 
-      - name: Compile deployment transaction and bounded transform
+      - name: Compile deployment transaction, validator and bounded transform
         shell: bash
         run: |
           set -euo pipefail
-          python -m py_compile store/phase2/deploy_hardened_store.py store/phase2/apply-standards-hardening.py
+          python -m py_compile store/phase2/deploy_hardened_store.py store/phase2/apply-standards-hardening.py store/phase2/validate_manual_accessibility_packet.py
           node --check store/phase2/security-hardening-smoke.mjs
           node --check store/phase2/standards-browser-smoke.mjs
+          node --check store/phase2/response-body-equivalence.mjs
           echo DEPLOYMENT_CODE_STATIC_GATE=PASS
 
-      - name: Prove production workflow is manual-only and rollback-capable
+      - name: Prove production workflow is manual-only, strict-gated and rollback-capable
         shell: bash
         run: |
           set -euo pipefail
@@ -61,6 +67,8 @@ jobs:
           grep -q '^  workflow_dispatch:' "$W"
           ! grep -q '^  push:' "$W"
           grep -q 'Require reviewed real manual accessibility evidence' "$W"
+          grep -q 'validate_manual_accessibility_packet.py' "$W"
+          grep -q 'Require response-body equivalence proof' "$W"
           grep -q 'continue-on-error: true' "$W"
           grep -q 'Upload non-secret Phase 2 deployment evidence' "$W"
           grep -q 'Enforce deployment transaction' "$W"
@@ -70,7 +78,58 @@ jobs:
           grep -q 'def restore_snapshot' store/phase2/deploy_hardened_store.py
           grep -q 'def emergency_rollback' store/phase2/deploy_hardened_store.py
           grep -q 'restore_snapshot()' store/phase2/deploy_hardened_store.py
-          echo MANUAL_ONLY_ROLLBACK_GUARD=PASS
+          echo MANUAL_ONLY_STRICT_ROLLBACK_GUARD=PASS
+
+      - name: Prove response-body equivalence record
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          d=json.loads(Path('evidence/musitu-store/MUSITU_STORE_PHASE2_RESPONSE_BODY_EQUIVALENCE_20260911.json').read_text())
+          assert d['status']=='PASS'
+          assert d['repository']['workflow_head']=='e42f461b7dadd9e53afc0eb285a276c7e2710fc7'
+          assert d['workflow']['run_id']=='34575291010'
+          assert d['workflow']['artifact']['id']=='10189381691'
+          assert d['workflow']['artifact']['digest']=='sha256:135cc85142d9eee8801a01f6221b6638f723577e8346ebd63604747cb82ff605'
+          assert d['proof']['response_body_byte_equality'] is True
+          assert d['proof']['unexpected_header_delta'] is False
+          print('RESPONSE_BODY_EQUIVALENCE_RECORD=PASS')
+          PY
+
+      - name: Prove manual evidence validator fails closed or passes only reviewed evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY' > /tmp/manual-state.txt
+          import json,os
+          from pathlib import Path
+          d=json.loads(Path(os.environ['MANUAL_PACKET']).read_text())
+          print(d['status'])
+          print(d.get('result'))
+          print(d.get('schema'))
+          PY
+          STATUS="$(sed -n '1p' /tmp/manual-state.txt)"
+          RESULT="$(sed -n '2p' /tmp/manual-state.txt)"
+          SCHEMA="$(sed -n '3p' /tmp/manual-state.txt)"
+          test "$SCHEMA" = 'musitu.store.phase2.manual_accessibility_certification_packet.v2'
+          if [ "$STATUS" = 'PENDING_REAL_ASSISTIVE_TECHNOLOGY_EVIDENCE' ]; then
+            set +e
+            python store/phase2/validate_manual_accessibility_packet.py "$MANUAL_PACKET" . >/tmp/manual-validator.out 2>&1
+            RC=$?
+            set -e
+            test "$RC" -ne 0
+            grep -q 'MANUAL_ACCESSIBILITY_PACKET_INVALID' /tmp/manual-validator.out
+            echo STRICT_MANUAL_VALIDATOR_FAILS_CLOSED=PASS
+          elif [ "$STATUS" = 'PASS_REVIEWED_REAL_ASSISTIVE_TECHNOLOGY_EVIDENCE' ] && [ "$RESULT" = 'PASS' ]; then
+            python store/phase2/validate_manual_accessibility_packet.py "$MANUAL_PACKET" . | tee /tmp/manual-validator.out
+            grep -q '"result": "PASS"' /tmp/manual-validator.out
+            echo STRICT_MANUAL_VALIDATOR_ACCEPTS_REVIEWED_EVIDENCE=PASS
+          else
+            echo "invalid manual packet state: status=$STATUS result=$RESULT" >&2
+            exit 1
+          fi
 
       - name: Verify candidate certificate and classify manual gate
         shell: bash
@@ -90,18 +149,23 @@ jobs:
           packet=json.loads(Path('evidence/musitu-store/MUSITU_STORE_PHASE2_MANUAL_ACCESSIBILITY_CERTIFICATION_PACKET_20260911.json').read_text())
           if packet['status']=='PENDING_REAL_ASSISTIVE_TECHNOLOGY_EVIDENCE' and packet['result'] is None:
               manual='BLOCKED_PENDING_REAL_EVIDENCE'
+              validator='FAIL_CLOSED_AS_REQUIRED'
           elif packet['status']=='PASS_REVIEWED_REAL_ASSISTIVE_TECHNOLOGY_EVIDENCE' and packet['result']=='PASS':
               manual='READY_FOR_GUARDED_DEPLOYMENT'
+              validator='PASS_REVIEWED_EVIDENCE'
           else:
               raise SystemExit('invalid or failed manual accessibility gate state')
 
           out={
-            'schema':'musitu.store.phase2.deployment_readiness.v1',
+            'schema':'musitu.store.phase2.deployment_readiness.v2',
             'result':'PASS',
             'sealed_main':'d6a846f6bbe0bccac1758713eb4de167caf07113',
             'phase1_head':'ebded495617cc89bb96d7a5531c1ce4fc6bbedd9',
             'candidate_predeploy':'PASS',
+            'response_body_equivalence':'PASS',
+            'manual_packet_schema':packet['schema'],
             'manual_accessibility_gate':manual,
+            'manual_validator':validator,
             'production_workflow':'MANUAL_DISPATCH_ONLY',
             'rollback_transaction':'STATICALLY_VERIFIED',
             'production_mutation':False,
