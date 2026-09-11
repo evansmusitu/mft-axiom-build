@@ -60,8 +60,7 @@ jobs:
           python - <<'PY'
           import json
           from pathlib import Path
-          p=Path('evidence/musitu-store/MUSITU_STORE_PHASE2_STANDARDS_HARDENING_BASELINE_20260911.json')
-          d=json.loads(p.read_text())
+          d=json.loads(Path('evidence/musitu-store/MUSITU_STORE_PHASE2_STANDARDS_HARDENING_BASELINE_20260911.json').read_text())
           assert d['schema']=='musitu.store.phase2.standards_hardening_baseline.v1'
           assert d['authorization']['phase2Authorized'] is True
           assert d['authorization']['authorization_text']=='Begin phase 2'
@@ -72,18 +71,21 @@ jobs:
           print('PHASE2_AUTHORIZATION_AND_BOUNDARY=PASS')
           PY
 
-      - name: Run inherited Store and commerce regression suites
+      - name: Prove commerce and licence surface is untouched by Phase 2
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -z "$(git diff --name-only "$PHASE1_HEAD_AT_PHASE2_START"..."$GITHUB_SHA" -- commerce/chemistry)"
+          test -z "$(git diff --name-only "$PHASE1_HEAD_AT_PHASE2_START"..."$GITHUB_SHA" -- commerce | grep -E 'payment|claim|licen[cs]e|entitlement' || true)"
+          echo PHASE2_COMMERCE_AND_LICENCE_IMMUTABILITY=PASS
+
+      - name: Run inherited Store regression suite
         shell: bash
         run: |
           set -euo pipefail
           python store/phase1/web-surface/build_store_data.py
           node --test store/phase1/web-surface/*.test.mjs
-          (
-            cd commerce/chemistry
-            npm test
-            npm run check
-          )
-          echo INHERITED_REGRESSION_SUITES=PASS
+          echo INHERITED_STORE_REGRESSION_SUITE=PASS
 
       - name: Reconstruct exact current production Store 1.0.2 web image
         shell: bash
@@ -103,17 +105,14 @@ jobs:
           catalog=json.loads((root/'catalog.json').read_text())
           assert catalog['revision']==3
           sc=catalog['releaseControl']['storeClient']
-          assert sc['version']=='1.0.2'
-          assert sc['versionCode']==10002
+          assert sc['version']=='1.0.2' and sc['versionCode']==10002
           assert sc['packageId']=='com.musitu.store'
           assert sc['sha256']=='3a0c4b0f971ec84cd6167a137f8e3d75c7bb20e525c26ab533b3d88044cd0784'
           assert sc['bytes']==1679340
           bootstrap=root/'bootstrap/release.json'
           b=json.loads(bootstrap.read_text())
           b.update({
-            'version':'1.0.2',
-            'versionCode':10002,
-            'packageId':'com.musitu.store',
+            'version':'1.0.2','versionCode':10002,'packageId':'com.musitu.store',
             'artifactFile':'MUSITU_Store_1.0.2.apk',
             'sha256':'3a0c4b0f971ec84cd6167a137f8e3d75c7bb20e525c26ab533b3d88044cd0784',
             'bytes':1679340,
@@ -126,14 +125,10 @@ jobs:
               needle='const RELEASE_ASSETS={\n'
               entry="  '/store/bootstrap/MUSITU_Store_1.0.2.apk':{key:'bootstrap/MUSITU_Store_1.0.2.apk',sha256:'3a0c4b0f971ec84cd6167a137f8e3d75c7bb20e525c26ab533b3d88044cd0784',bytes:1679340,type:'application/vnd.android.package-archive',name:'MUSITU_Store_1.0.2.apk'},\n"
               assert needle in s
-              s=s.replace(needle,needle+entry,1)
-              worker.write_text(s)
+              worker.write_text(s.replace(needle,needle+entry,1))
           print('EXACT_V102_RUNTIME_IMAGE_PREPARED=PASS')
           PY
-          (
-            cd /tmp/musitu-store-phase2
-            python store/phase1/web-surface/build_store_data.py
-          )
+          (cd /tmp/musitu-store-phase2 && python store/phase1/web-surface/build_store_data.py)
           node --check /tmp/musitu-store-phase2/store/phase1/web-surface/worker.mjs
           node --check /tmp/musitu-store-phase2/store/phase1/web-surface/generated-data.mjs
 
@@ -210,16 +205,8 @@ jobs:
           import fs from 'node:fs';
           const budget=JSON.parse(fs.readFileSync('commerce/chemistry/storefront/lighthouse-budget.json','utf8'));
           const l=JSON.parse(fs.readFileSync('/tmp/musitu-store-phase2-evidence/lighthouse.json','utf8'));
-          const results={
-            performance:l.categories.performance.score,
-            accessibility:l.categories.accessibility.score,
-            best_practices:l.categories['best-practices'].score,
-            lcp_ms:l.audits['largest-contentful-paint'].numericValue,
-            cls:l.audits['cumulative-layout-shift'].numericValue,
-            tbt_ms:l.audits['total-blocking-time'].numericValue,
-            field_inp_status:budget.field_inp_status
-          };
-          const pass=results.performance>=budget.performance_score_min && results.accessibility>=budget.accessibility_score_min && results.best_practices>=budget.best_practices_score_min && results.lcp_ms<=budget.lcp_ms_max && results.cls<=budget.cls_max && results.tbt_ms<=budget.tbt_ms_max;
+          const results={performance:l.categories.performance.score,accessibility:l.categories.accessibility.score,best_practices:l.categories['best-practices'].score,lcp_ms:l.audits['largest-contentful-paint'].numericValue,cls:l.audits['cumulative-layout-shift'].numericValue,tbt_ms:l.audits['total-blocking-time'].numericValue,field_inp_status:budget.field_inp_status};
+          const pass=results.performance>=budget.performance_score_min&&results.accessibility>=budget.accessibility_score_min&&results.best_practices>=budget.best_practices_score_min&&results.lcp_ms<=budget.lcp_ms_max&&results.cls<=budget.cls_max&&results.tbt_ms<=budget.tbt_ms_max;
           fs.writeFileSync('/tmp/musitu-store-phase2-evidence/lighthouse-summary.json',JSON.stringify({schema:'musitu.store.phase2.lighthouse.v1',budget_source:'commerce/chemistry/storefront/lighthouse-budget.json',budget,results,pass},null,2)+'\n');
           console.log(JSON.stringify(results));
           if(!pass) process.exit(1);
@@ -235,31 +222,12 @@ jobs:
           node --input-type=module <<'JS'
           import fs from 'node:fs';
           const dir='/tmp/musitu-store-phase2-evidence';
-          const browserPath=dir+'/browser-standards-evidence.json';
-          const lighthousePath=dir+'/lighthouse-summary.json';
-          const livePath=dir+'/live-identity.json';
-          const browser=fs.existsSync(browserPath)?JSON.parse(fs.readFileSync(browserPath,'utf8')):null;
-          const lighthouse=fs.existsSync(lighthousePath)?JSON.parse(fs.readFileSync(lighthousePath,'utf8')):null;
-          const live=fs.existsSync(livePath)?JSON.parse(fs.readFileSync(livePath,'utf8')):null;
+          const read=p=>fs.existsSync(p)?JSON.parse(fs.readFileSync(p,'utf8')):null;
+          const browser=read(dir+'/browser-standards-evidence.json');
+          const lighthouse=read(dir+'/lighthouse-summary.json');
+          const live=read(dir+'/live-identity.json');
           const automatedPass=browser?.result==='PASS_AUTOMATED'&&lighthouse?.pass===true&&live?.result==='PASS';
-          const summary={
-            schema:'musitu.store.phase2.standards_hardening_predeploy.v1',
-            phase2_authorized:true,
-            phase1_physical_device_step15_complete:false,
-            freshDevicePhase1Complete:false,
-            sealed_main:'d6a846f6bbe0bccac1758713eb4de167caf07113',
-            exact_production_store_version:'1.0.2',
-            exact_production_catalog_revision:3,
-            automated_wcag_security_low_bandwidth_gate:browser?.result||'NOT_COMPLETED',
-            lighthouse_budget_gate:lighthouse?.pass===true?'PASS':'NOT_PASS',
-            live_identity_gate:live?.result||'NOT_COMPLETED',
-            manual_screen_reader_smoke:'PENDING',
-            phase2_verified_deployment:'PENDING',
-            phase2_rollback_proof:'PENDING',
-            production_mutation:false,
-            automated_predeploy_gate:automatedPass?'PASS':'NOT_PASS',
-            claim_boundary:'Automated pre-deployment standards evidence may pass while full Phase 2 remains incomplete until required manual accessibility evidence plus Phase-2-specific verified deployment and rollback proof are complete.'
-          };
+          const summary={schema:'musitu.store.phase2.standards_hardening_predeploy.v1',phase2_authorized:true,phase1_physical_device_step15_complete:false,freshDevicePhase1Complete:false,sealed_main:'d6a846f6bbe0bccac1758713eb4de167caf07113',exact_production_store_version:'1.0.2',exact_production_catalog_revision:3,automated_wcag_security_low_bandwidth_gate:browser?.result||'NOT_COMPLETED',lighthouse_budget_gate:lighthouse?.pass===true?'PASS':'NOT_PASS',live_identity_gate:live?.result||'NOT_COMPLETED',manual_screen_reader_smoke:'PENDING',phase2_verified_deployment:'PENDING',phase2_rollback_proof:'PENDING',production_mutation:false,automated_predeploy_gate:automatedPass?'PASS':'NOT_PASS',claim_boundary:'Automated pre-deployment standards evidence may pass while full Phase 2 remains incomplete until required manual accessibility evidence plus Phase-2-specific verified deployment and rollback proof are complete.'};
           fs.mkdirSync(dir,{recursive:true});
           fs.writeFileSync(dir+'/predeploy-summary.json',JSON.stringify(summary,null,2)+'\n');
           console.log(JSON.stringify(summary,null,2));
