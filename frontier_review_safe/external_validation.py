@@ -600,6 +600,17 @@ class ClaimBoundary:
         return {provider for provider in cls.FRONTIER_PROVIDER_NAMES if provider in words}
 
     @classmethod
+    def _is_named_provider_comparison(cls, requested_claim: str) -> bool:
+        normalized = cls._normalize_claim(requested_claim)
+        named = bool(cls._named_frontier_providers(requested_claim))
+        superiority = any(term in normalized for term in cls.PROVIDER_SUPERIORITY_TERMS)
+        explicitly_global = (
+            any(token in normalized for token in cls.BROAD_CLAIMS)
+            or any(scope in normalized for scope in cls.GLOBAL_SCOPE_TERMS)
+        )
+        return named and superiority and not explicitly_global
+
+    @classmethod
     def _is_broad_claim(cls, requested_claim: str) -> bool:
         normalized = cls._normalize_claim(requested_claim)
         if any(token in normalized for token in cls.BROAD_CLAIMS):
@@ -768,6 +779,7 @@ class ClaimBoundary:
     ) -> dict[str, Any]:
         broad = cls._is_broad_claim(requested_claim)
         named_frontier_providers = cls._named_frontier_providers(requested_claim)
+        named_provider_only = cls._is_named_provider_comparison(requested_claim)
         max_level = 4
         if (level5.get("status") == "PASS" and level5.get("attestation_verified") is True
                 and level5.get("baseline_registry_verified") is True):
@@ -839,6 +851,14 @@ class ClaimBoundary:
                     "reason": "named_frontier_provider_not_positive",
                     "missing_named_provider_orgs": sorted(missing_named),
                 }
+            if not named_provider_only:
+                missing_frontier = cls.FRONTIER_PROVIDER_NAMES - positive_providers
+                if missing_frontier:
+                    return {
+                        "status": "DENY", "max_evidence_level": max_level,
+                        "reason": "frontier_provider_coverage_incomplete",
+                        "missing_frontier_provider_orgs": sorted(missing_frontier),
+                    }
             if not required:
                 return {"status": "DENY", "max_evidence_level": max_level, "reason": "broad_provider_scope_not_declared"}
             if not required.issubset(positive_providers):
@@ -848,6 +868,7 @@ class ClaimBoundary:
                 "claim_boundary": f"Broad claim permitted only for evidence scope: {comparison_scope}",
                 "positive_provider_orgs": sorted(positive_providers),
                 "named_provider_orgs": sorted(named_frontier_providers),
+                "frontier_provider_orgs": sorted(cls.FRONTIER_PROVIDER_NAMES & positive_providers),
                 "comparison_evidence_sha256": sha256(sorted(fingerprints)),
             }
         return {
