@@ -14,6 +14,7 @@ from .longitudinal_binding import LongitudinalIdentityBinding
 
 
 TRUSTED_EXTERNAL_PROVENANCE = frozenset({"provider_export", "provider_api_receipt", "independent_lab_record"})
+LEVEL5_PROVIDER_PROVENANCE = frozenset({"provider_export", "provider_api_receipt"})
 
 
 def _valid_sha256(value: str) -> bool:
@@ -364,6 +365,9 @@ class ExternalEvidenceGate:
         for run in runs:
             if not run.declared_external_provenance:
                 reasons.append("untrusted_external_provenance")
+                continue
+            if run.provenance_type not in LEVEL5_PROVIDER_PROVENANCE:
+                reasons.append("provider_execution_provenance_required")
                 continue
             if baseline_registry is None:
                 continue
