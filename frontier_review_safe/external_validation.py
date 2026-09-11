@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass
 from typing import Any, Mapping, Sequence
 
+from .baseline_registry import BaselineRegistry
 from .core import FrontierSafetyError, parse_time, sha256
 from .evaluation import SealedCaseResult, SealedEvaluation
 from .external_attestation import ExternalAttestationReceipt, ExternalAttestationService
@@ -29,6 +30,11 @@ class ExternalRunRecord:
     candidate_sha: str
     candidate_environment_hash: str
     metrics: Mapping[str, float]
+    configuration_hash: str | None = None
+    account_scope_hash: str | None = None
+    baseline_registry_hash: str | None = None
+    baseline_registration_id: str | None = None
+    baseline_registration_hash: str | None = None
 
     def __post_init__(self) -> None:
         parse_time(self.executed_at)
@@ -42,6 +48,14 @@ class ExternalRunRecord:
         )
         if any(len(x) != 64 for x in hashes):
             raise ValueError("external run hashes must be SHA-256")
+        for optional_hash in (
+            self.configuration_hash,
+            self.account_scope_hash,
+            self.baseline_registry_hash,
+            self.baseline_registration_hash,
+        ):
+            if optional_hash is not None and len(optional_hash) != 64:
+                raise ValueError("optional external-run binding hashes must be SHA-256")
         if not self.run_id or not self.provider_org or not self.product or not self.exact_version:
             raise ValueError("exact external provider/product/version/run identity required")
 
@@ -56,8 +70,6 @@ class ExternalRunRecord:
 
 @dataclass(frozen=True)
 class ComparativeOutcome:
-    """Paired candidate-vs-baseline result bound to one attested external run."""
-
     provider_org: str
     external_run_id: str
     candidate_sha: str
@@ -117,21 +129,13 @@ class ComparativeOutcome:
         baseline_fps = sorted(x.case_fingerprint for x in baseline)
         if candidate_fps != baseline_fps:
             raise FrontierSafetyError("candidate and baseline must use identical sealed cases")
-        derived_case_set_hash = sha256({
-            "case_fingerprints": candidate_fps,
-            "constraint_hash": run.constraint_hash,
-        })
+        derived_case_set_hash = sha256({"case_fingerprints": candidate_fps, "constraint_hash": run.constraint_hash})
         if derived_case_set_hash != run.case_set_hash:
             raise FrontierSafetyError("sealed case set does not match authenticated external run")
         derived_result_hash = sha256([asdict(x) for x in sorted(baseline, key=lambda x: x.case_fingerprint)])
         if derived_result_hash != run.result_hash:
             raise FrontierSafetyError("baseline results do not match authenticated external result hash")
-        comparison = SealedEvaluation.paired_comparison(
-            candidate,
-            baseline,
-            confidence=confidence,
-            bootstrap_samples=bootstrap_samples,
-        )
+        comparison = SealedEvaluation.paired_comparison(candidate, baseline, confidence=confidence, bootstrap_samples=bootstrap_samples)
         lo, hi = comparison["bootstrap_ci"]
         return cls(
             provider_org=run.provider_org,
@@ -199,8 +203,6 @@ class LongitudinalRefreshRecord:
 
 
 class ExternalEvidenceGate:
-    """Computes Levels 5-7 only from externally attested record fingerprints."""
-
     @staticmethod
     def _receipt_map(receipts: Sequence[ExternalAttestationReceipt], subject_type: str) -> dict[str, ExternalAttestationReceipt]:
         out: dict[str, ExternalAttestationReceipt] = {}
@@ -220,20 +222,58 @@ class ExternalEvidenceGate:
         receipts: Sequence[ExternalAttestationReceipt] = (),
         verifier_secrets: Mapping[str, bytes] | None = None,
         trusted_issuers: Mapping[str, frozenset[str]] | None = None,
+        baseline_registry: BaselineRegistry | None = None,
         required_provider_orgs: int = 3,
+        required_provider_classes: Sequence[str] = (),
     ) -> dict[str, Any]:
         if not runs:
-            return {"status": "FAIL", "level": 5, "reason": "no_external_runs", "attestation_verified": False}
+            return {"status": "FAIL", "level": 5, "reason": "no_external_runs", "attestation_verified": False, "baseline_registry_verified": False}
         receipt_map = cls._receipt_map(receipts, "external_run")
         secrets = dict(verifier_secrets or {})
         issuers = dict(trusted_issuers or {})
         reasons: list[str] = []
         verified: list[ExternalRunRecord] = []
         receipt_hashes: dict[str, str] = {}
+        provider_classes: set[str] = set()
+
+        if baseline_registry is None:
+            reasons.append("baseline_registry_missing")
+        else:
+            coverage = baseline_registry.coverage(required_provider_classes=required_provider_classes)
+            if coverage["status"] != "PASS":
+                reasons.extend(coverage["missing_provider_classes"] and ["baseline_provider_class_coverage_incomplete"] or [])
+
         for run in runs:
             if not run.declared_external_provenance:
                 reasons.append("untrusted_external_provenance")
                 continue
+            if baseline_registry is None:
+                continue
+            if not all((run.configuration_hash, run.account_scope_hash, run.baseline_registry_hash,
+                        run.baseline_registration_id, run.baseline_registration_hash)):
+                reasons.append("baseline_run_binding_missing")
+                continue
+            if run.baseline_registry_hash != baseline_registry.fingerprint:
+                reasons.append("baseline_registry_hash_mismatch")
+                continue
+            binding = baseline_registry.validate_run_binding(
+                run.baseline_registration_id,
+                run.baseline_registration_hash,
+                provider_org=run.provider_org,
+                product=run.product,
+                exact_version=run.exact_version,
+                access_mode=run.access_mode,
+                executed_at=run.executed_at,
+                case_set_hash=run.case_set_hash,
+                constraint_hash=run.constraint_hash,
+                permissions_hash=run.permissions_hash,
+                configuration_hash=run.configuration_hash,
+                account_scope_hash=run.account_scope_hash,
+            )
+            if binding["status"] != "PASS":
+                reasons.extend(binding["reasons"])
+                continue
+            provider_classes.add(binding["provider_class"])
             receipt = receipt_map.get(run.run_id)
             if receipt is None:
                 reasons.append("external_run_attestation_missing")
@@ -260,7 +300,7 @@ class ExternalEvidenceGate:
         candidate_shas = {r.candidate_sha for r in verified}
         providers = {r.provider_org.lower() for r in verified}
         if len(verified) != len(runs):
-            reasons.append("not_all_external_runs_attested")
+            reasons.append("not_all_external_runs_attested_and_registered")
         if len(case_hashes) != 1:
             reasons.append("case_sets_not_identical")
         if len(constraint_hashes) != 1:
@@ -269,6 +309,8 @@ class ExternalEvidenceGate:
             reasons.append("candidate_sha_not_identical")
         if len(providers) < required_provider_orgs:
             reasons.append("insufficient_independent_providers")
+        if set(required_provider_classes) - provider_classes:
+            reasons.append("baseline_provider_class_coverage_incomplete")
         reasons = sorted(set(reasons))
         passed = not reasons
         return {
@@ -276,12 +318,15 @@ class ExternalEvidenceGate:
             "level": 5,
             "reasons": reasons,
             "attestation_verified": passed,
+            "baseline_registry_verified": passed,
             "provider_orgs": sorted(providers),
+            "provider_classes": sorted(provider_classes),
             "run_ids": sorted(r.run_id for r in verified),
             "run_count": len(verified),
             "candidate_sha": next(iter(candidate_shas)) if len(candidate_shas) == 1 else None,
             "case_set_hash": next(iter(case_hashes)) if len(case_hashes) == 1 else None,
             "constraint_hash": next(iter(constraint_hashes)) if len(constraint_hashes) == 1 else None,
+            "baseline_registry_hash": baseline_registry.fingerprint if baseline_registry is not None else None,
             "run_receipt_hashes": dict(sorted(receipt_hashes.items())),
             "evidence_sha256": sha256([asdict(r) for r in sorted(verified, key=lambda x: x.run_id)]),
         }
@@ -297,8 +342,9 @@ class ExternalEvidenceGate:
         trusted_issuers: Mapping[str, frozenset[str]] | None = None,
     ) -> dict[str, Any]:
         reasons = []
-        if level5.get("status") != "PASS" or level5.get("attestation_verified") is not True:
-            reasons.append("level5_not_attested_and_passed")
+        if (level5.get("status") != "PASS" or level5.get("attestation_verified") is not True
+                or level5.get("baseline_registry_verified") is not True):
+            reasons.append("level5_not_attested_registered_and_passed")
         receipt_map = cls._receipt_map(receipts, "independent_validation")
         expected_candidate = level5.get("candidate_sha")
         expected_cases = level5.get("case_set_hash")
@@ -393,14 +439,8 @@ class ExternalEvidenceGate:
 
 class ClaimBoundary:
     BROAD_CLAIMS = frozenset({
-        "world best",
-        "global frontier leader",
-        "better than openai",
-        "better than anthropic",
-        "better than google",
-        "superior to all systems",
-        "frontier-leading",
-        "crowned",
+        "world best", "global frontier leader", "better than openai", "better than anthropic",
+        "better than google", "superior to all systems", "frontier-leading", "crowned",
     })
 
     @classmethod
@@ -419,7 +459,8 @@ class ClaimBoundary:
         normalized = requested_claim.strip().lower()
         broad = any(token in normalized for token in cls.BROAD_CLAIMS)
         max_level = 4
-        if level5.get("status") == "PASS" and level5.get("attestation_verified") is True:
+        if (level5.get("status") == "PASS" and level5.get("attestation_verified") is True
+                and level5.get("baseline_registry_verified") is True):
             max_level = 5
         if level6.get("status") == "PASS" and level6.get("attestation_verified") is True and max_level >= 5:
             max_level = 6
@@ -428,7 +469,7 @@ class ClaimBoundary:
         if broad and max_level < 7:
             return {"status": "DENY", "max_evidence_level": max_level, "reason": "broad_frontier_claim_not_proven"}
         if max_level < 5:
-            return {"status": "DENY", "max_evidence_level": max_level, "reason": "attested_external_comparison_missing"}
+            return {"status": "DENY", "max_evidence_level": max_level, "reason": "attested_registered_external_comparison_missing"}
         if not comparison_scope or not benchmark_hash or len(benchmark_hash) != 64:
             return {"status": "DENY", "max_evidence_level": max_level, "reason": "comparison_scope_or_benchmark_missing"}
 
@@ -472,10 +513,8 @@ class ClaimBoundary:
             reasons.append("comparison_run_coverage_incomplete")
         if reasons:
             return {
-                "status": "DENY",
-                "max_evidence_level": max_level,
-                "reason": sorted(set(reasons))[0],
-                "reasons": sorted(set(reasons)),
+                "status": "DENY", "max_evidence_level": max_level,
+                "reason": sorted(set(reasons))[0], "reasons": sorted(set(reasons)),
                 "positive_provider_orgs": sorted(positive_providers),
             }
 
@@ -488,15 +527,13 @@ class ClaimBoundary:
             if not required.issubset(positive_providers):
                 return {"status": "DENY", "max_evidence_level": max_level, "reason": "required_broad_provider_not_positive"}
             return {
-                "status": "ALLOW",
-                "max_evidence_level": max_level,
+                "status": "ALLOW", "max_evidence_level": max_level,
                 "claim_boundary": f"Broad claim permitted only for evidence scope: {comparison_scope}",
                 "positive_provider_orgs": sorted(positive_providers),
                 "comparison_evidence_sha256": sha256(sorted(fingerprints)),
             }
         return {
-            "status": "ALLOW",
-            "max_evidence_level": max_level,
+            "status": "ALLOW", "max_evidence_level": max_level,
             "claim_boundary": f"Evidence supports only: {comparison_scope}; benchmark={benchmark_hash}",
             "positive_provider_orgs": sorted(positive_providers),
             "comparison_evidence_sha256": sha256(sorted(fingerprints)),

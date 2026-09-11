@@ -8,6 +8,7 @@ from .orchestration import *
 from .verification import *
 from .evaluation import *
 from .external_attestation import *
+from .baseline_registry import *
 from .external_validation import *
 from .ledger_auth import *
 from .adaptation import *

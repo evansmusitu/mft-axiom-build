@@ -7,6 +7,7 @@ import tempfile
 import unittest
 
 from frontier_review_safe.analysis import TwinCalibration, TwinState
+from frontier_review_safe.baseline_registry import BaselineRegistration, BaselineRegistry
 from frontier_review_safe.controls import (
     AdversarialSimulation, AttackCase, CapabilityDiscoveryOptimizer, CapabilitySelectionObservation,
     CommercialIntentQualifier, CommercialIntentRequest, ModelRegistration, ModelRiskGovernance, SecureLocator,
@@ -53,6 +54,46 @@ def attest(subject_type, subject_id, subject_hash, provenance_type):
         issued_at=NOW_S,
         verifier_secret=EXT_SECRET,
     )
+
+
+def registered_runs(providers, *, case_set_hash, constraint_hash, result_hash, provenance_type="provider_api_receipt"):
+    registrations = []
+    provider_classes = ("general_agent", "research_agent", "coding_agent", "enterprise_agent")
+    for i, provider in enumerate(providers):
+        registrations.append(BaselineRegistration(
+            registration_id=f"reg-{i}",
+            provider_org=provider,
+            provider_class=provider_classes[i % len(provider_classes)],
+            product="product",
+            exact_version="v",
+            access_mode="api",
+            registered_at=(NOW - timedelta(minutes=5)).isoformat(),
+            valid_until=(NOW + timedelta(days=1)).isoformat(),
+            case_set_hash=case_set_hash,
+            constraint_hash=constraint_hash,
+            permissions_hash="c" * 64,
+            configuration_hash="6" * 64,
+            account_scope_hash="7" * 64,
+            capabilities=("sealed_eval",),
+        ))
+    registry = BaselineRegistry(
+        "musitu.axiom.baseline-registry.v1",
+        "test-v1",
+        (NOW - timedelta(minutes=5)).isoformat(),
+        tuple(registrations),
+    )
+    runs = [
+        ExternalRunRecord(
+            str(i), provider, "product", "v", NOW_S, "api", case_set_hash, constraint_hash,
+            "c"*64, result_hash, "e"*64, provenance_type, True, "candidate", "f"*64, {"score":.9},
+            configuration_hash="6"*64, account_scope_hash="7"*64,
+            baseline_registry_hash=registry.fingerprint,
+            baseline_registration_id=registration.registration_id,
+            baseline_registration_hash=registration.fingerprint,
+        )
+        for i, (provider, registration) in enumerate(zip(providers, registrations))
+    ]
+    return registry, runs
 
 
 class GapClosureTests(unittest.TestCase):
@@ -175,30 +216,34 @@ class GapClosureTests(unittest.TestCase):
         self.assertGreater(r["mean_regret"], 0)
 
     def test_external_levels_reject_unattested_records_and_claim_laundering(self):
-        base = dict(executed_at=NOW_S, access_mode="api", case_set_hash=H, constraint_hash="b"*64,
-                    permissions_hash="c"*64, result_hash="d"*64, raw_evidence_hash="e"*64,
-                    candidate_sha="candidate", candidate_environment_hash="f"*64, metrics={"score":.9})
-        local = ExternalRunRecord("1","OpenAI","x","v", provenance_type="repository_local", authenticated=True, **base)
-        self.assertEqual(ExternalEvidenceGate.level5([local])["status"], "FAIL")
-        runs = [ExternalRunRecord(str(i), p, "product", "2026-09", provenance_type="provider_api_receipt", authenticated=True, **base)
-                for i,p in enumerate(("OpenAI","Anthropic","Google"))]
+        registry, runs = registered_runs(("OpenAI","Anthropic","Google"), case_set_hash=H, constraint_hash="b"*64, result_hash="d"*64)
         self.assertEqual(ExternalEvidenceGate.level5(runs)["status"], "FAIL")
         receipts = [attest("external_run", r.run_id, r.fingerprint, r.provenance_type) for r in runs]
-        l5 = ExternalEvidenceGate.level5(runs, receipts=receipts, verifier_secrets=VERIFIER_SECRETS, trusted_issuers=TRUSTED_ISSUERS)
+        self.assertEqual(ExternalEvidenceGate.level5(
+            runs, receipts=receipts, verifier_secrets=VERIFIER_SECRETS,
+            trusted_issuers=TRUSTED_ISSUERS,
+        )["status"], "FAIL")
+        l5 = ExternalEvidenceGate.level5(
+            runs, receipts=receipts, verifier_secrets=VERIFIER_SECRETS,
+            trusted_issuers=TRUSTED_ISSUERS, baseline_registry=registry,
+        )
         self.assertEqual(l5["status"], "PASS")
         self.assertTrue(l5["attestation_verified"])
+        self.assertTrue(l5["baseline_registry_verified"])
         denied = ClaimBoundary.authorize("world best", level5=l5, level6={"status":"FAIL"}, level7={"status":"FAIL"},
                                          comparison_scope="sealed suite", benchmark_hash=H)
         self.assertEqual(denied["status"], "DENY")
 
     def test_external_levels_6_and_7_require_attested_reproduction_and_refresh(self):
-        base = dict(executed_at=NOW_S, access_mode="api", case_set_hash=H, constraint_hash="b"*64,
-                    permissions_hash="c"*64, result_hash="d"*64, raw_evidence_hash="e"*64,
-                    candidate_sha="candidate", candidate_environment_hash="f"*64, metrics={"score":.9})
-        runs = [ExternalRunRecord(str(i), p, "product", "v", provenance_type="provider_export", authenticated=True, **base)
-                for i,p in enumerate(("A","B","C"))]
+        registry, runs = registered_runs(
+            ("A","B","C"), case_set_hash=H, constraint_hash="b"*64,
+            result_hash="d"*64, provenance_type="provider_export",
+        )
         run_receipts = [attest("external_run", r.run_id, r.fingerprint, r.provenance_type) for r in runs]
-        l5=ExternalEvidenceGate.level5(runs, receipts=run_receipts, verifier_secrets=VERIFIER_SECRETS, trusted_issuers=TRUSTED_ISSUERS)
+        l5=ExternalEvidenceGate.level5(
+            runs, receipts=run_receipts, verifier_secrets=VERIFIER_SECRETS,
+            trusted_issuers=TRUSTED_ISSUERS, baseline_registry=registry,
+        )
         v=IndependentValidationRecord("lab", NOW_S, "candidate", H, "9"*64, True, "independent_lab_record")
         self.assertEqual(ExternalEvidenceGate.level6(l5,[v])["status"],"FAIL")
         validation_receipt = attest("independent_validation", v.fingerprint, v.fingerprint, v.provenance_type)
@@ -218,14 +263,15 @@ class GapClosureTests(unittest.TestCase):
         constraints="b"*64
         case_set=sha256({"case_fingerprints":sorted(fps),"constraint_hash":constraints})
         baseline_hash=sha256([{"case_fingerprint":x.case_fingerprint,"score":x.score,"latency_ms":x.latency_ms,"cost_units":x.cost_units} for x in baseline])
-        base=dict(executed_at=NOW_S,access_mode="api",case_set_hash=case_set,constraint_hash=constraints,
-                  permissions_hash="c"*64,result_hash=baseline_hash,raw_evidence_hash="e"*64,
-                  candidate_sha="candidate",candidate_environment_hash="f"*64,metrics={"score":.8})
-        providers=("OpenAI","Anthropic","Google")
-        runs=[ExternalRunRecord(str(i),p,"product","v",provenance_type="provider_api_receipt",authenticated=True,**base)
-              for i,p in enumerate(providers)]
+        registry, runs = registered_runs(
+            ("OpenAI","Anthropic","Google"), case_set_hash=case_set,
+            constraint_hash=constraints, result_hash=baseline_hash,
+        )
         receipts=[attest("external_run",r.run_id,r.fingerprint,r.provenance_type) for r in runs]
-        l5=ExternalEvidenceGate.level5(runs,receipts=receipts,verifier_secrets=VERIFIER_SECRETS,trusted_issuers=TRUSTED_ISSUERS)
+        l5=ExternalEvidenceGate.level5(
+            runs,receipts=receipts,verifier_secrets=VERIFIER_SECRETS,
+            trusted_issuers=TRUSTED_ISSUERS,baseline_registry=registry,
+        )
         losing=[ComparativeOutcome.from_paired_results(r,candidate_loses,baseline,
                 attestation_receipt_hash=l5["run_receipt_hashes"][r.run_id],bootstrap_samples=200) for r in runs]
         denied=ClaimBoundary.authorize("outperformed baselines on sealed suite",level5=l5,level6={"status":"FAIL"},
@@ -237,14 +283,16 @@ class GapClosureTests(unittest.TestCase):
         allowed=ClaimBoundary.authorize("outperformed registered baselines on sealed suite",level5=l5,level6={"status":"FAIL"},
             level7={"status":"FAIL"},comparison_scope="sealed suite only",benchmark_hash=case_set,comparative_outcomes=winning)
         self.assertEqual(allowed["status"],"ALLOW")
-        self.assertEqual(set(allowed["positive_provider_orgs"]),{p.lower() for p in providers})
+        self.assertEqual(set(allowed["positive_provider_orgs"]),{"openai","anthropic","google"})
 
     def test_broad_claim_requires_level7_four_positive_declared_provider_orgs(self):
         providers=("OpenAI","Anthropic","Google","Microsoft")
         run_ids=[str(i) for i in range(4)]
         receipt_hashes={str(i): f"{i+10:064x}" for i in range(4)}
-        l5={"status":"PASS","attestation_verified":True,"provider_orgs":[p.lower() for p in providers],"run_ids":run_ids,
-            "candidate_sha":"candidate","case_set_hash":H,"constraint_hash":"b"*64,"run_receipt_hashes":receipt_hashes}
+        l5={"status":"PASS","attestation_verified":True,"baseline_registry_verified":True,
+            "provider_orgs":[p.lower() for p in providers],"run_ids":run_ids,
+            "candidate_sha":"candidate","case_set_hash":H,"constraint_hash":"b"*64,
+            "run_receipt_hashes":receipt_hashes}
         l6={"status":"PASS","attestation_verified":True}; l7={"status":"PASS","attestation_verified":True}
         outcomes=[ComparativeOutcome(p,str(i),"candidate",H,"b"*64,"d"*64,"e"*64,20,.1,.02,.18,12,6,2,receipt_hashes[str(i)])
                   for i,p in enumerate(providers)]
