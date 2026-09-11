@@ -48,6 +48,30 @@ def _ambiguous_trust_key_ids(trusted_issuers: Mapping[str, frozenset[str]]) -> s
     return {key_id for key_id, issuer_orgs in owners.items() if len(issuer_orgs) > 1}
 
 
+def _ambiguous_trust_secret_key_ids(
+    trusted_issuers: Mapping[str, frozenset[str]],
+    verifier_secrets: Mapping[str, bytes],
+) -> set[str]:
+    owners_by_secret: dict[bytes, set[str]] = {}
+    key_ids_by_secret: dict[bytes, set[str]] = {}
+    for issuer_org, key_ids in trusted_issuers.items():
+        if not _canonical_identity(issuer_org) or not _valid_trusted_key_set(key_ids):
+            continue
+        owner = issuer_org.casefold()
+        for key_id in key_ids:
+            secret = verifier_secrets.get(key_id)
+            if not _valid_secret(secret):
+                continue
+            secret_fingerprint = hashlib.sha256(bytes(secret)).digest()
+            owners_by_secret.setdefault(secret_fingerprint, set()).add(owner)
+            key_ids_by_secret.setdefault(secret_fingerprint, set()).add(key_id)
+    ambiguous: set[str] = set()
+    for secret_fingerprint, owners in owners_by_secret.items():
+        if len(owners) > 1:
+            ambiguous.update(key_ids_by_secret[secret_fingerprint])
+    return ambiguous
+
+
 @dataclass(frozen=True)
 class ExternalAttestationReceipt:
     schema: str
@@ -90,7 +114,8 @@ class ExternalAttestationService:
     execution time and must never be committed to the candidate repository. HMAC
     authenticates the receipt bytes; it does not by itself prove organizational
     independence, so issuer/key trust is a separate required input. A verifier key
-    ID is bound to exactly one normalized issuer organization within a trust root.
+    ID is bound to exactly one normalized issuer organization within a trust root,
+    and secret material may not be reused across distinct normalized issuers.
     """
 
     @staticmethod
@@ -174,6 +199,9 @@ class ExternalAttestationService:
         ambiguous_key_ids = _ambiguous_trust_key_ids(trust_root)
         if receipt.verifier_key_id in ambiguous_key_ids:
             reasons.append("external_attestation_key_reused_across_issuers")
+        ambiguous_secret_key_ids = _ambiguous_trust_secret_key_ids(trust_root, secret_store)
+        if receipt.verifier_key_id in ambiguous_secret_key_ids:
+            reasons.append("external_attestation_secret_reused_across_issuers")
         trusted_keys = trust_root.get(receipt.issuer_org)
         if trusted_keys is None:
             reasons.append("untrusted_external_issuer_or_key")
