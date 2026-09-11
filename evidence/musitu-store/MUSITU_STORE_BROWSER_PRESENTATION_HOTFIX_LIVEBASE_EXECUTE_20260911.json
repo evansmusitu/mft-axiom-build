@@ -1,0 +1,32 @@
+{
+  "schema": "musitu.store.browser_presentation_hotfix_livebase_execution.v1",
+  "created_date_utc": "2026-09-11",
+  "authorization_source": "explicit_user_instruction_in_chat",
+  "authorization_text": "Fix this and also other sites with the same problem",
+  "scope": "presentation-only repair rebased onto the exact current production Worker",
+  "prior_guarded_attempt": {
+    "run_id": 34580233215,
+    "outcome": "STOPPED_BEFORE_MUTATION_LIVE_WORKER_DRIFT"
+  },
+  "forensic_basis": {
+    "live_worker_run_id": 34580437336,
+    "live_worker_artifact_id": 10191363071,
+    "generated_data_run_id": 34580594824,
+    "generated_data_artifact_id": 10191426596,
+    "generated_data_artifact_digest": "sha256:22db555f67c6edfc49fdb1f6ac27a0cea70b6e6a8fecd01cfe9a6621d3f3f8e5",
+    "worker_delta_classification": "legitimate signed F-Droid index-v1.jar release route",
+    "generated_data_delta_classification": "bootstrap generatedAt timestamp only; identity and semantics unchanged"
+  },
+  "exact_live_module_sha256": {
+    "worker.mjs": "7a05f174db9fa88ce2d3f77a357947622f9d3a10bcd8a049aab69309a59b5168",
+    "render.mjs": "fc4abcec85fd5338c71e26fad5b21d318c99e6a1e1bd62f09091db9c4e914e04",
+    "assets.mjs": "443e558c297d700bedc706ea56647c97162709e5178b80acd63d478054bba4b4",
+    "generated-data.mjs": "27ab78a914019cb44844de51bd0f4be46dc53bdf4b928a8dff7944228ccce063"
+  },
+  "presentation_candidate_worker_sha256": "e17e0c7bde55d9f8d41b476e917159b6bf39b46c3895b7ec6d2a7b4f705beb81",
+  "requires_exact_live_hash_match_before_mutation": true,
+  "requires_live_snapshot_rollback_drill": true,
+  "requires_emergency_restore_on_failure": true,
+  "catalog_apk_commerce_licence_mutation_authorized": false,
+  "phase2_security_hardening_cutover_authorized_by_this_record": false
+}
