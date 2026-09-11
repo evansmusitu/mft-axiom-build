@@ -15,6 +15,7 @@ spec.loader.exec_module(base)
 MACHINE_ATTEMPTS=5
 PUBLIC_INSTALL_ATTEMPTS=12
 DELAY_SECONDS=1.0
+ANDROID_UA='Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 Chrome/140 Mobile Safari/537.36'
 
 
 def exact_probe(path:str,accept:str,expected_sha:str,*,human:bool=False,html_tokens=()):
@@ -63,9 +64,42 @@ def stable_machine_contract():
     return endpoint_observations
 
 
+def capture_android_install_baseline():
+    headers={'Accept':'text/html','User-Agent':ANDROID_UA,'Cache-Control':'no-cache','Pragma':'no-cache'}
+    url=base.BASE_URL+'/store/install?musitu_android_baseline='+str(time.time_ns())
+    code,resp_headers,body=base.request(url,'GET',headers)
+    ctype=(resp_headers.get('Content-Type') or resp_headers.get('content-type') or '').lower()
+    if code!=200 or not ctype.startswith('text/html'):
+        raise RuntimeError(f'Android baseline install page unavailable: HTTP {code}, content-type {ctype!r}')
+    text=body.decode('utf-8','replace')
+    if 'href="musitustore://app/chemistry"' in text:
+        raise RuntimeError('pre-mutation Android baseline unexpectedly already contains candidate native handoff')
+    base.baseline_install_sha=base.sha256(body)
+    base.checks['baseline_android_install']={
+        'sha256':base.baseline_install_sha,
+        'content_type':ctype,
+        'platform':'android',
+        'user_agent_class':'Android',
+    }
+
+
+def stable_capture_baseline_public():
+    # Preserve the original exact-body baselines for all routes that are not /store/install.
+    for path in base.UNCHANGED:
+        accept='application/json' if path.endswith('healthz') else 'text/html'
+        code,headers,body=base.public(path,accept)
+        if code!=200:
+            raise RuntimeError(f'baseline route unavailable: {path}')
+        base.baseline_public[path]={
+            'sha256':base.sha256(body),
+            'content_type':headers.get('Content-Type') or headers.get('content-type'),
+        }
+    # /store/install is platform-sensitive. Capture Android and later verify rollback with the same Android UA.
+    capture_android_install_baseline()
+
+
 def probe_android_install(require_candidate:bool):
-    ua='Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 Chrome/140 Mobile Safari/537.36'
-    headers={'Accept':'text/html','User-Agent':ua,'Cache-Control':'no-cache','Pragma':'no-cache'}
+    headers={'Accept':'text/html','User-Agent':ANDROID_UA,'Cache-Control':'no-cache','Pragma':'no-cache'}
     observations=[]
     required=(
         'href="musitustore://app/chemistry"',
@@ -83,13 +117,13 @@ def probe_android_install(require_candidate:bool):
         if require_candidate:
             ok=code==200 and ctype.startswith('text/html') and all(token in text for token in required) and forbidden not in text
         else:
-            ok=code==200 and digest==base.baseline_install_sha
+            ok=code==200 and ctype.startswith('text/html') and digest==base.baseline_install_sha and 'href="musitustore://app/chemistry"' not in text
         observations.append({'attempt':attempt,'status':code,'content_type':ctype,'sha256':digest,'ok':ok})
         if ok:
             return body,observations
         if attempt<PUBLIC_INSTALL_ATTEMPTS:
             time.sleep(DELAY_SECONDS)
-    label='candidate native install handoff' if require_candidate else 'baseline install response'
+    label='candidate native install handoff' if require_candidate else 'Android baseline install response'
     raise RuntimeError(f'{label} did not converge on public production edge: {observations}')
 
 
@@ -113,6 +147,7 @@ def stable_baseline_public():
     stable_machine_contract()
 
 
+base.capture_baseline_public=stable_capture_baseline_public
 base.verify_machine_contract=stable_machine_contract
 base.verify_candidate_public=stable_candidate_public
 base.verify_baseline_public=stable_baseline_public
@@ -124,10 +159,11 @@ base.checks['machine_probe_policy']={
     'diagnostic_result':'all 11 raw overrides byte-identical to software-client raw bodies',
 }
 base.checks['public_install_probe_policy']={
-    'semantics':'candidate must expose the native MUSITU Store URI publicly; rollback must reproduce the exact captured baseline install body',
+    'semantics':'capture Android baseline with Android UA; candidate must expose native MUSITU Store URI; rollback must reproduce the exact Android baseline body',
     'attempts':PUBLIC_INSTALL_ATTEMPTS,
     'delay_seconds':DELAY_SECONDS,
-    'failure_behavior':'restore exact captured baseline',
+    'failure_behavior':'restore exact captured baseline modules',
+    'platform_comparison':'Android baseline -> Android rollback',
 }
 
 if __name__=='__main__':
