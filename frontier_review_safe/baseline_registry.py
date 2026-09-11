@@ -17,6 +17,14 @@ BASELINE_PROVIDER_CLASSES = frozenset({
 })
 
 
+def _valid_sha256(value: str) -> bool:
+    return (
+        isinstance(value, str)
+        and len(value) == 64
+        and all(c in "0123456789abcdef" for c in value.lower())
+    )
+
+
 @dataclass(frozen=True)
 class BaselineRegistration:
     registration_id: str
@@ -35,7 +43,14 @@ class BaselineRegistration:
     capabilities: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
-        if not all((self.registration_id, self.provider_org, self.product, self.exact_version, self.access_mode)):
+        identities = (
+            self.registration_id,
+            self.provider_org,
+            self.product,
+            self.exact_version,
+            self.access_mode,
+        )
+        if any(not isinstance(value, str) or not value.strip() for value in identities):
             raise ValueError("complete baseline registration identity required")
         if self.provider_class not in BASELINE_PROVIDER_CLASSES:
             raise ValueError("unsupported baseline provider class")
@@ -49,8 +64,10 @@ class BaselineRegistration:
             self.configuration_hash,
             self.account_scope_hash,
         ):
-            if len(value) != 64:
+            if not _valid_sha256(value):
                 raise ValueError("baseline binding hashes must be SHA-256")
+        if any(not isinstance(capability, str) or not capability.strip() for capability in self.capabilities):
+            raise ValueError("baseline capabilities must be non-empty strings")
         if len(self.capabilities) != len(set(self.capabilities)):
             raise ValueError("duplicate baseline capabilities")
 
@@ -69,7 +86,7 @@ class BaselineRegistry:
     def __post_init__(self) -> None:
         if self.schema != "musitu.axiom.baseline-registry.v1":
             raise ValueError("unsupported baseline registry schema")
-        if not self.version or not self.registrations:
+        if not isinstance(self.version, str) or not self.version.strip() or not self.registrations:
             raise ValueError("versioned non-empty baseline registry required")
         parse_time(self.created_at)
         ids = [r.registration_id for r in self.registrations]
