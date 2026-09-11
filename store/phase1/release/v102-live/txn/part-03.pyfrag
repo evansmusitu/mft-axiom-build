@@ -1,0 +1,88 @@
+HA:
+        raise RuntimeError("prepared release truth hash drift")
+    consecutive = 0
+    samples = []
+    ready = None
+    for attempt in range(90):
+        hc, hh, hr = pub("/store/healthz", "application/json")
+        try:
+            health = json.loads(hr or b"{}") if hc == 200 else {}
+        except Exception:
+            health = {}
+        cc, ch, cr = pub("/store/catalog.json", "application/json")
+        sc, sh, sr = pub("/store/catalog.sig", "text/plain")
+        exact = (
+            health.get("ok") is True and health.get("catalog_revision") == 3 and
+            health.get("runtime_publication_state") == "production" and
+            health.get("phase2_authorized") is False and health.get("fresh_device_phase1_complete") is False and
+            cc == 200 and cr == expected_catalog and sc == 200 and sr == expected_sig
+        )
+        samples.append({"attempt": attempt + 1, "health_http": hc, "revision": health.get("catalog_revision"), "catalog_sha256": sha(cr), "catalog_exact": cr == expected_catalog, "signature_sha256": sha(sr), "signature_exact": sr == expected_sig, "catalog_cache": ch.get("CF-Cache-Status"), "signature_cache": sh.get("CF-Cache-Status"), "ray": hh.get("CF-Ray")})
+        if exact:
+            consecutive += 1
+            ready = health
+            if consecutive >= 3:
+                break
+        else:
+            consecutive = 0
+            ready = None
+        time.sleep(2)
+    checks["release_truth_convergence"] = {"attempts": len(samples), "consecutive_exact": consecutive, "last_samples": samples[-10:]}
+    if ready is None or consecutive < 3:
+        raise RuntimeError("revision 3 release truth did not converge")
+
+    for path, n, digest in [
+        ("/store/bootstrap/MUSITU_Store_1.0.2.apk", V102_BYTES, V102_SHA),
+        ("/store/bootstrap/MUSITU_Store_1.0.1.apk", V101_BYTES, V101_SHA),
+        ("/store/bootstrap/MUSITU_Store_1.0.0.apk", V100_BYTES, V100_SHA),
+    ]:
+        code, headers, raw = pub(path, "application/vnd.android.package-archive")
+        if code != 200 or len(raw) != n or sha(raw) != digest:
+            raise RuntimeError("post-deploy Store artifact mismatch " + path)
+        if path.endswith("1.0.2.apk") and headers.get("X-Content-SHA256") != V102_SHA:
+            raise RuntimeError("Store 1.0.2 integrity header mismatch")
+
+    r2_readback(NEW_KEY, SNAPSHOT / "r2-v102.apk", V102_BYTES, V102_SHA)
+    r2_readback(V101_KEY, SNAPSHOT / "r2-v101.apk", V101_BYTES, V101_SHA)
+    r2_readback(V100_KEY, SNAPSHOT / "r2-v100.apk", V100_BYTES, V100_SHA)
+    verify_chemistry_and_platform()
+
+    code, headers, raw = pub("/store/install?platform=android", "text/html")
+    if code != 200 or b"MUSITU_Store_1.0.2.apk" not in raw or V102_SHA.encode() not in raw:
+        raise RuntimeError("Android install routing did not promote Store 1.0.2")
+    for path, expected_lang in [("/store?lang=sn", "sn"), ("/store?lang=nd", "nd")]:
+        code, headers, raw = pub(path, "text/html")
+        if code != 200 or headers.get("Content-Language") != expected_lang or b"MUSITU Store" not in raw:
+            raise RuntimeError("locale routing invariant failed " + path)
+    code, _, raw = pub("/store?lite=1", "text/html")
+    if code != 200 or b"Low-bandwidth mode" not in raw:
+        raise RuntimeError("lite-mode invariant failed")
+    code, _, raw = pub("/store/offline", "text/html")
+    if code != 200 or b"Offline" not in raw:
+        raise RuntimeError("offline-mode invariant failed")
+    code, _, _ = pub("/store/android/repo/index-v1.jar", "application/java-archive")
+    checks["fdroid_index_jar_public_http"] = code
+    checks["post_route_id"] = route_id
+
+
+def write_evidence(gate: str, error: str | None = None):
+    out = {
+        "schema": "musitu.store.phase1.v102.production_deploy.v1",
+        "authoritative_store_head": AUTHORITATIVE_STORE_HEAD,
+        "sealed_main": SEALED_MAIN,
+        "catalog_revision_before": 2,
+        "catalog_revision_after": 3 if gate.endswith("PASS") else None,
+        "catalog_revision3_sha256": NEW_CATALOG_SHA,
+        "catalog_signature_sha256": NEW_SIG_SHA,
+        "store_v102_sha256": V102_SHA,
+        "store_v102_bytes": V102_BYTES,
+        "store_v101_preserved": True if gate.endswith("PASS") else None,
+        "store_v100_preserved": True if gate.endswith("PASS") else None,
+        "chemistry_invariants_preserved": True if gate.endswith("PASS") else None,
+        "phase2_authorized": False,
+        "fresh_device_phase1_complete": False,
+        "new_object_uploaded": state["new_object_uploaded"],
+        "worker_updated": state["worker_updated"],
+        "rollback_performed": state["rollback_performed"],
+        "rollback_worker_restored": state["rollback_worker_restored"],
+        "rollback_new_object_deleted": state["rollback_new_object_de
