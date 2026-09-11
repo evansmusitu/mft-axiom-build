@@ -1,0 +1,265 @@
+name: MFT Phase2 Row6-8 Ephemeral Private Build
+
+on:
+  push:
+    branches:
+      - mft-phase2-public-probes-20260911
+    paths:
+      - '.github/workflows/mft-phase2-row678-ephemeral-private-build.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-row678:
+    runs-on: windows-latest
+    timeout-minutes: 90
+    env:
+      BUILD_ID: row678-ephemeral-v1
+      SOURCE_SHA256: bfb1f70415a35738d7082550df9fe8afbd7e445d84eb3698020858fe1d48b168
+      OUTPUT_PUBLIC_KEY_B64: LS0tLS1CRUdJTiBQVUJMSUMgS0VZLS0tLS0KTUlJQ0lqQU5CZ2txaGtpRzl3MEJBUUVGQUFPQ0FnOEFNSUlDQ2dLQ0FnRUEyeGNSaFVWSDJDQ3NNTGpIeGg1aQpWTGtPWUc3NHl3b0JjcTR2M3ZNenlabXNGL1g4M2JyQlExb20wZ3NSTEcxczB2T0tkdjE4dVBvTzFnWEE5ai9OCnlvemhTUTllVlM4VjY2Q3pxTXJidmtxakVmcGd2MjBXZWhMSmFoWEQ1U0ZTWS9MVVJDZFdsUFdiYXFVVG15R2cKZW96WUhPV3pIN3pRUXRQNWdCd2tINEhPOVVabUZQYkNXZUgrZm8xNmg0cDNDTjRqS0M3OGJ2bHdhdTFLNERqMApjOEcyN3hoajZLeVY3d1A3L2hJcXZHMCtKUnlCSzJMcWlVcWk3MStnNGFLaVBIT3l4WkdPYVNnMkxoT1VpK25GCklHWHQweTh5YUdNbHVmbTg1djRkQ051M1FWOU45NHhBZ1RVSEkxQmNQZzFzK1BWTWVaTzFPUkxzeDVxOVBlNEcKdmF6QjJscVRURDBsdEFNcjJZZzUrR2paY2ZBTFNkc0h4RkJxQld4NldMQlFSVXBmVG9wdnR2YUhySEFVZk9hSQpVWkFRbGpyQis5ZXdTYzJUTTc2WEt5TGlTeTFpODJ4Nnh6ZmhCc0ZaVkpkQzVKZFRlVzgyMGQ0MGFYKys1NDQ2CkdPYWZEU0Y4OGUwTzJBK1ZTQ0xhWUJ3WnNqaUw1bXdsaTRWU2Z2RE1QS01WVjArbHlJYzZLSHVFb0RZN3Y5NHoKbWJBM1U2ajI2dzZvVXl1TncwcS9QTzVIZUlNRVh0dkRFd2ZBOWk1ZXJHVks5Wk5LdmQzWWh3UGQxeFhUM3FhRgo2Mm9yN1UyaXhmQ2VUYkJCWE1GdllGdFQwc0doTFJ4RU9Sbi9uT2o5ZjJ0K2xSZG9UMXdWR3BGMkdGTVEwOWxuCjAzdUZ5Y2Fsa1hUT0NYNzJwOUUyWHhzQ0F3RUFBUT09Ci0tLS0tRU5EIFBVQkxJQyBLRVktLS0tLQo=
+      OUTPUT_PUBLIC_KEY_SHA256: 22545e2e2dc173337de6d7c913648ba746af9b45416617de502e5b815c7f83ff
+      RELEASE_TAG: mft-phase2-row678-encrypted-20260911-v1
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12.10'
+          architecture: 'x64'
+
+      - name: Create ephemeral source-decryption key and publish public half
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          python -m pip install --disable-pip-version-check 'cryptography==46.0.4'
+          @'
+          from cryptography.hazmat.primitives.asymmetric import rsa
+          from cryptography.hazmat.primitives import serialization
+          from pathlib import Path
+          import hashlib, json
+          key=rsa.generate_private_key(public_exponent=65537,key_size=4096)
+          priv=key.private_bytes(serialization.Encoding.PEM,serialization.PrivateFormat.PKCS8,serialization.NoEncryption())
+          pub=key.public_key().public_bytes(serialization.Encoding.PEM,serialization.PublicFormat.SubjectPublicKeyInfo)
+          Path('ephemeral-source-private.pem').write_bytes(priv)
+          Path('handshake').mkdir(exist_ok=True)
+          Path('handshake/row678-source-public.pem').write_bytes(pub)
+          Path('handshake/row678-request.json').write_text(json.dumps({
+              'schema':'mft.education_nexus.phase2.row678.ephemeral_handshake.v1',
+              'build_id':'row678-ephemeral-v1',
+              'source_plain_sha256':'bfb1f70415a35738d7082550df9fe8afbd7e445d84eb3698020858fe1d48b168',
+              'public_key_sha256':hashlib.sha256(pub).hexdigest(),
+              'private_key_persisted':False
+          },indent=2)+'\n')
+          '@ | Set-Content -Encoding utf8 make_handshake.py
+          python make_handshake.py
+          git config user.name 'mft-ephemeral-builder'
+          git config user.email 'actions@users.noreply.github.com'
+          git add handshake/row678-source-public.pem handshake/row678-request.json
+          git commit -m 'handshake: publish ephemeral row6-8 source public key'
+          git push origin HEAD:${env:GITHUB_REF_NAME}
+
+      - name: Wait for encrypted source payload
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $ready=$false
+          for($i=0;$i -lt 180;$i++){
+            git pull --ff-only origin ${env:GITHUB_REF_NAME} | Out-Null
+            if(Test-Path 'handshake/row678-source-meta.json'){ $ready=$true; break }
+            Start-Sleep -Seconds 5
+          }
+          if(-not $ready){ throw 'encrypted source payload did not arrive within handshake window' }
+
+      - name: Decrypt and verify canonical build source
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          @'
+          import base64,hashlib,json,zipfile
+          from pathlib import Path
+          from cryptography.hazmat.primitives import hashes,serialization
+          from cryptography.hazmat.primitives.asymmetric import padding
+          from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+          meta=json.loads(Path('handshake/row678-source-meta.json').read_text())
+          raw=''.join(Path(p).read_text().strip() for p in meta['parts'])
+          ciphertext=base64.b64decode(raw)
+          priv=serialization.load_pem_private_key(Path('ephemeral-source-private.pem').read_bytes(),password=None)
+          aes=priv.decrypt(base64.b64decode(meta['wrapped_key_b64']),padding.OAEP(mgf=padding.MGF1(algorithm=hashes.SHA256()),algorithm=hashes.SHA256(),label=None))
+          plain=AESGCM(aes).decrypt(base64.b64decode(meta['nonce_b64']),ciphertext,b'mft-row678-source-v1')
+          got=hashlib.sha256(plain).hexdigest()
+          assert got==meta['plain_sha256']=='bfb1f70415a35738d7082550df9fe8afbd7e445d84eb3698020858fe1d48b168',got
+          Path('private-source.zip').write_bytes(plain)
+          Path('private-src').mkdir(exist_ok=True)
+          with zipfile.ZipFile('private-source.zip') as z: z.extractall('private-src')
+          print('SOURCE_SHA256='+got)
+          '@ | Set-Content -Encoding utf8 decrypt_source.py
+          python decrypt_source.py
+
+      - name: Install exact Python environment and build real sidecar
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          Push-Location private-src
+          python -m pip install --disable-pip-version-check -r requirements.lock
+          python -m pip install --disable-pip-version-check 'PyInstaller==6.22.2'
+          python tools/a14_release.py build-sidecar --output sidecar-build
+          if($LASTEXITCODE -ne 0){ throw 'canonical sidecar build failed' }
+          if(-not (Test-Path 'sidecar-build/dist/mft-nexus-core.exe')){ throw 'sidecar binary missing' }
+          Pop-Location
+
+      - name: Acquire and identify offline Windows runtime tools
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          choco install ffmpeg -y --no-progress
+          if($LASTEXITCODE -ne 0){ throw 'ffmpeg acquisition failed' }
+          choco install tesseract -y --no-progress
+          if($LASTEXITCODE -ne 0){ throw 'tesseract acquisition failed' }
+          choco install espeak -y --no-progress
+          if($LASTEXITCODE -ne 0){
+            choco install espeak-ng -y --no-progress
+            if($LASTEXITCODE -ne 0){ throw 'espeak/espeak-ng acquisition failed' }
+          }
+          New-Item -ItemType Directory -Force runtime-tools/support | Out-Null
+          $ffmpeg=(Get-ChildItem 'C:\ProgramData\chocolatey\lib' -Recurse -Filter ffmpeg.exe -File -ErrorAction SilentlyContinue | Where-Object {$_.Length -gt 1000000} | Sort-Object Length -Descending | Select-Object -First 1)
+          $ffprobe=(Get-ChildItem 'C:\ProgramData\chocolatey\lib' -Recurse -Filter ffprobe.exe -File -ErrorAction SilentlyContinue | Where-Object {$_.Length -gt 1000000} | Sort-Object Length -Descending | Select-Object -First 1)
+          $tesseract=(Get-ChildItem @('C:\Program Files','C:\ProgramData\chocolatey\lib') -Recurse -Filter tesseract.exe -File -ErrorAction SilentlyContinue | Where-Object {$_.Length -gt 100000} | Sort-Object Length -Descending | Select-Object -First 1)
+          $espeak=(Get-ChildItem @('C:\Program Files','C:\Program Files (x86)','C:\ProgramData\chocolatey\lib') -Recurse -Include espeak.exe,espeak-ng.exe -File -ErrorAction SilentlyContinue | Where-Object {$_.Length -gt 50000} | Sort-Object Length -Descending | Select-Object -First 1)
+          if(-not $ffmpeg -or -not $ffprobe -or -not $tesseract -or -not $espeak){ throw 'one or more runtime executables not located' }
+          Copy-Item $ffmpeg.FullName runtime-tools/ffmpeg.exe
+          Copy-Item $ffprobe.FullName runtime-tools/ffprobe.exe
+          Copy-Item $tesseract.FullName runtime-tools/tesseract.exe
+          Copy-Item $espeak.FullName runtime-tools/espeak.exe
+          $tessdata=Join-Path $tesseract.DirectoryName 'tessdata'
+          if(-not (Test-Path $tessdata)){ $tessdata=(Get-ChildItem $tesseract.DirectoryName -Recurse -Directory -Filter tessdata | Select-Object -First 1).FullName }
+          if(-not $tessdata -or -not (Test-Path $tessdata)){ throw 'tessdata not located' }
+          Copy-Item $tessdata runtime-tools/tessdata -Recurse
+          $edataCandidates=@(
+            (Join-Path $espeak.DirectoryName 'espeak-data'),
+            (Join-Path $espeak.DirectoryName 'espeak-ng-data'),
+            'C:\Program Files\eSpeak NG\espeak-ng-data',
+            'C:\Program Files (x86)\eSpeak\espeak-data'
+          )
+          $edata=$edataCandidates | Where-Object {Test-Path $_} | Select-Object -First 1
+          if(-not $edata){ $edata=(Get-ChildItem @('C:\Program Files','C:\Program Files (x86)','C:\ProgramData\chocolatey\lib') -Recurse -Directory -Include espeak-data,espeak-ng-data -ErrorAction SilentlyContinue | Select-Object -First 1).FullName }
+          if(-not $edata -or -not (Test-Path $edata)){ throw 'espeak data not located' }
+          Copy-Item $edata runtime-tools/espeak-data -Recurse
+          foreach($root in @($tesseract.DirectoryName,$espeak.DirectoryName)){
+            Get-ChildItem $root -Recurse -Filter '*.dll' -File -ErrorAction SilentlyContinue | ForEach-Object {
+              Copy-Item $_.FullName (Join-Path 'runtime-tools/support' $_.Name) -Force
+            }
+          }
+          [ordered]@{
+            schema='mft.education_nexus.phase2.runtime_support.v1'
+            ffmpeg_source=$ffmpeg.FullName
+            ffprobe_source=$ffprobe.FullName
+            tesseract_source=$tesseract.FullName
+            espeak_source=$espeak.FullName
+            support_dll_count=(Get-ChildItem runtime-tools/support -Filter '*.dll' -File).Count
+            generated_utc=(Get-Date).ToUniversalTime().ToString('o')
+          } | ConvertTo-Json | Set-Content -Encoding utf8 runtime-tools/support/RUNTIME_SUPPORT_MANIFEST.json
+
+      - name: Stage exact canonical runtime roles and exercise installed payload
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          Push-Location private-src
+          python tools/a14_release.py stage-runtime --stage src-tauri/resources/runtime `
+            --sidecar sidecar-build/dist/mft-nexus-core.exe `
+            --ffmpeg ../runtime-tools/ffmpeg.exe `
+            --ffprobe ../runtime-tools/ffprobe.exe `
+            --tesseract ../runtime-tools/tesseract.exe `
+            --tessdata ../runtime-tools/tessdata `
+            --espeak ../runtime-tools/espeak.exe `
+            --espeak-data ../runtime-tools/espeak-data `
+            --support ../runtime-tools/support
+          if($LASTEXITCODE -ne 0){ throw 'canonical runtime staging failed' }
+          $stage=(Resolve-Path 'src-tauri/resources/runtime').Path
+          & (Join-Path $stage 'mft-nexus-core.exe') --acceptance-self-test --receipt (Join-Path $stage 'INSTALLED_SIDECAR_ACCEPTANCE.json')
+          if($LASTEXITCODE -ne 0){ throw 'installed runtime acceptance self-test failed' }
+          Pop-Location
+
+      - name: Create row6-8 receipt and encrypt private output
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          @'
+          import base64,hashlib,json,os,zipfile
+          from pathlib import Path
+          from cryptography.hazmat.primitives import hashes,serialization
+          from cryptography.hazmat.primitives.asymmetric import padding
+          from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+          stage=Path('private-src/src-tauri/resources/runtime')
+          sidecar=stage/'mft-nexus-core.exe'
+          manifest=stage/'RUNTIME_PAYLOAD_MANIFEST.json'
+          acceptance=stage/'INSTALLED_SIDECAR_ACCEPTANCE.json'
+          assert sidecar.is_file() and manifest.is_file() and acceptance.is_file()
+          acc=json.loads(acceptance.read_text())
+          assert acc.get('offline_runtime_tools_executed') is True
+          def sha(p): return hashlib.sha256(Path(p).read_bytes()).hexdigest()
+          receipt={
+            'schema':'mft.education_nexus.phase2.row678.ephemeral_private_build.v1',
+            'mode':'PRE_ADMISSION_ENGINEERING_ONLY',
+            'source_bundle_sha256':os.environ['SOURCE_SHA256'],
+            'sidecar_sha256':sha(sidecar),
+            'sidecar_bytes':sidecar.stat().st_size,
+            'runtime_manifest_sha256':sha(manifest),
+            'acceptance_receipt_sha256':sha(acceptance),
+            'offline_runtime_tools_executed':True,
+            'sidecar_acceptance_started_twice':acc.get('actual_sidecar_started_twice') is True,
+            'runtime_file_count':len(json.loads(manifest.read_text()).get('files',[])),
+            'required_runtime_roles':json.loads(manifest.read_text()).get('offline_required_roles'),
+            'rows':{'6':'PREADMISSION_FIVE_STATE_CANDIDATE','7':'PREADMISSION_FIVE_STATE_CANDIDATE','8':'PREADMISSION_FIVE_STATE_CANDIDATE'},
+            'signed':False,
+            'code_signing_row2_claimed':False,
+            'private_source_publicly_exposed':False,
+            'plaintext_output_publicly_exposed':False,
+            'official_phase2_credit_awarded':False
+          }
+          Path('ROW678_RECEIPT.json').write_text(json.dumps(receipt,indent=2,sort_keys=True)+'\n')
+          plain_zip=Path('row678-private-output.zip')
+          with zipfile.ZipFile(plain_zip,'w',zipfile.ZIP_DEFLATED,compresslevel=6) as z:
+            for p in sorted(stage.rglob('*')):
+              if p.is_file(): z.write(p,Path('src-tauri/resources/runtime')/p.relative_to(stage))
+            z.write('ROW678_RECEIPT.json','ROW678_RECEIPT.json')
+          plain=plain_zip.read_bytes()
+          pub=serialization.load_pem_public_key(base64.b64decode(os.environ['OUTPUT_PUBLIC_KEY_B64']))
+          aes=os.urandom(32); nonce=os.urandom(12)
+          cipher=AESGCM(aes).encrypt(nonce,plain,b'mft-row678-output-v1')
+          wrapped=pub.encrypt(aes,padding.OAEP(mgf=padding.MGF1(algorithm=hashes.SHA256()),algorithm=hashes.SHA256(),label=None))
+          Path('row678-private-output.enc').write_bytes(cipher)
+          meta={
+            'schema':'mft.education_nexus.phase2.row678.encrypted_output.v1',
+            'plain_sha256':hashlib.sha256(plain).hexdigest(),
+            'plain_bytes':len(plain),
+            'cipher_sha256':hashlib.sha256(cipher).hexdigest(),
+            'cipher_bytes':len(cipher),
+            'wrapped_key_b64':base64.b64encode(wrapped).decode(),
+            'nonce_b64':base64.b64encode(nonce).decode(),
+            'aad':'mft-row678-output-v1',
+            'recipient_public_key_sha256':os.environ['OUTPUT_PUBLIC_KEY_SHA256']
+          }
+          Path('row678-private-output-meta.json').write_text(json.dumps(meta,indent=2,sort_keys=True)+'\n')
+          print(json.dumps(receipt,indent=2,sort_keys=True))
+          print(json.dumps(meta,indent=2,sort_keys=True))
+          '@ | Set-Content -Encoding utf8 encrypt_output.py
+          python encrypt_output.py
+          Remove-Item -Force ephemeral-source-private.pem,private-source.zip,row678-private-output.zip
+          Remove-Item -Recurse -Force private-src,runtime-tools
+
+      - name: Publish encrypted output only
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          gh release view $env:RELEASE_TAG --repo $env:GITHUB_REPOSITORY *> $null
+          if($LASTEXITCODE -eq 0){ throw "release already exists: $env:RELEASE_TAG" }
+          gh release create $env:RELEASE_TAG --repo $env:GITHUB_REPOSITORY `
+            --title 'MFT Phase2 rows 6-8 encrypted private build v1' `
+            --notes 'Ciphertext-only transfer. No private source, plaintext sidecar, runtime payload, signing key, or authority claim is published.' `
+            row678-private-output.enc row678-private-output-meta.json ROW678_RECEIPT.json
+          if($LASTEXITCODE -ne 0){ throw 'encrypted release publication failed' }
