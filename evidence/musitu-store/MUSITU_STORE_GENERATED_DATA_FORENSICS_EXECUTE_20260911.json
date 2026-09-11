@@ -1,0 +1,9 @@
+{
+  "schema": "musitu.store.phase2.generated_data_forensics_execution.v1",
+  "created_date_utc": "2026-09-11",
+  "purpose": "Resolve the remaining same-size live generated-data.mjs delta discovered by the first read-only live Worker forensic pass.",
+  "production_mutation_authorized": false,
+  "cloudflare_allowed_methods": ["GET"],
+  "parent_forensic_run": 34580437336,
+  "parent_forensic_artifact": 10191363071
+}
