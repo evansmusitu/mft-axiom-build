@@ -12,6 +12,7 @@ from .governance import (AuthorizationRequest, GovernedPermissionGraph, Instruct
                          InstructionProvenanceFirewall, PolicyJurisdictionRouter, Principal)
 from .orchestration import (CostLatencyQualityRouter, FailClosedAbstentionPolicy, AbstentionContext,
                             SpecialistContract, SpecialistSociety)
+from .specialist_governance import GovernedSpecialistDeliberation, SpecialistGovernancePolicy
 from .verification import IndependentVerifier, VerificationPath
 
 
@@ -47,7 +48,8 @@ class ReviewSafeWorkflow:
     def __init__(self, *, permissions: GovernedPermissionGraph, jurisdictions: PolicyJurisdictionRouter,
                  router: CostLatencyQualityRouter, specialists: SpecialistSociety,
                  specialist_contracts: Sequence[SpecialistContract], verifier_paths: Sequence[VerificationPath],
-                 ledger: DecisionProvenanceLedger) -> None:
+                 ledger: DecisionProvenanceLedger,
+                 specialist_policy: SpecialistGovernancePolicy | None = None) -> None:
         self.permissions = permissions
         self.jurisdictions = jurisdictions
         self.router = router
@@ -55,6 +57,7 @@ class ReviewSafeWorkflow:
         self.specialist_contracts = tuple(specialist_contracts)
         self.verifier_paths = tuple(verifier_paths)
         self.ledger = ledger
+        self.specialist_policy = specialist_policy or SpecialistGovernancePolicy()
 
     @staticmethod
     def _bounded_call(fn: Callable[[], Any], timeout_seconds: float) -> Any:
@@ -116,6 +119,35 @@ class ReviewSafeWorkflow:
             out["verification"] = dict(verification)
         return out
 
+    @staticmethod
+    def _specialist_abstention_reason(deliberation: Mapping[str, Any]) -> str:
+        reason = str(deliberation.get("reason", ""))
+        governed_reasons = {
+            "specialist_deadlock",
+            "specialist_retry_budget_not_reserved",
+            "specialist_domain_mismatch",
+            "specialist_unbound_evidence",
+            "specialist_evidence_quorum_failed",
+            "specialist_failure_fraction_exceeded",
+            "specialist_quorum_not_configured",
+            "duplicate_specialist_identity",
+            "duplicate_specialist_lane",
+            "specialist_task_domain_missing",
+            "specialist_task_evidence_missing",
+            "specialist_successful_lane_quorum_failed",
+            "specialist_mean_confidence_below_policy",
+            "specialist_confidence_spread_exceeded",
+            "minority_dissent_not_recorded",
+        }
+        if reason in governed_reasons:
+            return reason
+        status = str(deliberation.get("status", "UNKNOWN")).upper()
+        if status == "VETO":
+            return "specialist_veto"
+        if status == "ABSTAIN":
+            return "specialist_abstain"
+        return "specialist_deliberation_unresolved"
+
     def execute(self, req: WorkflowRequest, adapters: WorkflowAdapters, *, evidence_timeout_seconds: float = 10.0,
                 analysis_timeout_seconds: float = 20.0, specialist_budget: int = 8) -> dict[str, Any]:
         trace: list[dict[str, Any]] = []
@@ -169,17 +201,38 @@ class ReviewSafeWorkflow:
         checkpoint("routing", asdict(route))
         route_tools = {"route": route.name}
 
+        specialist_task = {
+            "request": req.question,
+            "domain": req.domain,
+            "evidence": [asdict(e) for e in evidence],
+        }
         try:
-            deliberation = self.specialists.deliberate(self.specialist_contracts,
-                                                       {"request": req.question, "evidence": [asdict(e) for e in evidence]},
-                                                       specialist_budget)
+            if req.high_consequence:
+                deliberation = GovernedSpecialistDeliberation.deliberate(
+                    self.specialists,
+                    self.specialist_contracts,
+                    specialist_task,
+                    specialist_budget,
+                    self.specialist_policy,
+                )
+            else:
+                deliberation = self.specialists.deliberate(
+                    self.specialist_contracts,
+                    specialist_task,
+                    specialist_budget,
+                )
         except Exception as exc:
             return self._abstain(req, trace, ["specialist_deliberation_failed"], error_type=type(exc).__name__,
                                  input_hashes=evidence_hashes, tool_versions=route_tools)
         checkpoint("specialists", deliberation)
-        if deliberation.get("status") == "VETO":
-            return self._abstain(req, trace, ["specialist_veto"], input_hashes=evidence_hashes,
-                                 tool_versions=route_tools)
+        if deliberation.get("status") != "OK":
+            return self._abstain(
+                req,
+                trace,
+                [self._specialist_abstention_reason(deliberation)],
+                input_hashes=evidence_hashes,
+                tool_versions=route_tools,
+            )
 
         try:
             analysis = dict(self._bounded_call(lambda: adapters.analyze(req, evidence, deliberation), analysis_timeout_seconds))
