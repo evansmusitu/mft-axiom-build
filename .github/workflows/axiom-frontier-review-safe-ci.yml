@@ -4,9 +4,6 @@ on:
   push:
     branches:
       - frontier/axiom-v5-world-top-tier-review-safe
-    paths:
-      - 'frontier_review_safe/**'
-      - '.github/workflows/axiom-frontier-review-safe-ci.yml'
   workflow_dispatch:
 
 permissions:
