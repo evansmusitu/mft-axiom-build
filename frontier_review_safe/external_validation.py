@@ -482,7 +482,7 @@ class ExternalEvidenceGate:
 class ClaimBoundary:
     BROAD_CLAIMS = frozenset({
         "world best", "global frontier leader", "better than openai", "better than anthropic",
-        "better than google", "superior to all systems", "frontier-leading", "crowned",
+        "better than google", "better than microsoft", "superior to all systems", "frontier-leading", "crowned",
     })
 
     @classmethod
