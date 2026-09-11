@@ -1,0 +1,195 @@
+name: MUSITU Store v1.0.2 Fresh Emulator Certification
+
+on:
+  push:
+    branches: [musitu-store-handoff-probe-20260910]
+    paths:
+      - '.github/workflows/musitu-store-v102-emulator-certification-probe.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: musitu-store-phase1-v102-emulator-certification
+  cancel-in-progress: false
+
+jobs:
+  fresh-emulator:
+    name: API ${{ matrix.api-level }} exact APK install and launch
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      matrix:
+        api-level: [24, 36]
+    env:
+      AUTHORITATIVE_STORE_BRANCH: musitu-store-phase1-20260909
+      AUTHORITATIVE_STORE_HEAD: 0ffe2de07c6b18873cc73b157ade3afe589f8a35
+      SEALED_MAIN: d6a846f6bbe0bccac1758713eb4de167caf07113
+      STORE_V102_URL: https://payments.mftintelligence.com/store/bootstrap/MUSITU_Store_1.0.2.apk
+      STORE_V102_SHA: 3a0c4b0f971ec84cd6167a137f8e3d75c7bb20e525c26ab533b3d88044cd0784
+      STORE_V102_BYTES: '1679340'
+      STORE_V102_SIGNER_SHA: 43695b6103d7ab57e89166c9a537f1810b7e33053e20332b1d4e7e2e1c612671
+      STORE_PACKAGE: com.musitu.store
+      STORE_VERSION_NAME: '1.0.2'
+      STORE_VERSION_CODE: '10002'
+      BUILD_TOOLS: '36.0.0'
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - uses: android-actions/setup-android@v3
+
+      - name: Pin authoritative refs and fetch exact deployed APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF_NAME" = 'musitu-store-handoff-probe-20260910'
+          git fetch --quiet origin "$AUTHORITATIVE_STORE_BRANCH" main
+          test "$(git rev-parse origin/$AUTHORITATIVE_STORE_BRANCH)" = "$AUTHORITATIVE_STORE_HEAD"
+          test "$(git rev-parse origin/main)" = "$SEALED_MAIN"
+          sdkmanager "build-tools;$BUILD_TOOLS" 'platform-tools' >/dev/null
+          mkdir -p /tmp/musitu-v102 "evidence/api-${{ matrix.api-level }}"
+          curl --fail --location --silent --show-error \
+            -H 'Cache-Control: no-cache' \
+            "$STORE_V102_URL?emulator_cert=${GITHUB_RUN_ID}-${{ matrix.api-level }}-${GITHUB_RUN_ATTEMPT}" \
+            -o /tmp/musitu-v102/MUSITU_Store_1.0.2.apk
+          test "$(stat -c%s /tmp/musitu-v102/MUSITU_Store_1.0.2.apk)" = "$STORE_V102_BYTES"
+          test "$(sha256sum /tmp/musitu-v102/MUSITU_Store_1.0.2.apk | awk '{print $1}')" = "$STORE_V102_SHA"
+          "$ANDROID_HOME/build-tools/$BUILD_TOOLS/apksigner" verify --verbose --print-certs /tmp/musitu-v102/MUSITU_Store_1.0.2.apk | tee /tmp/musitu-v102/apksigner.txt
+          signer="$(sed -n 's/^Signer #1 certificate SHA-256 digest: //p' /tmp/musitu-v102/apksigner.txt | head -n1 | tr -d ':\r\n' | tr 'A-F' 'a-f')"
+          test "$signer" = "$STORE_V102_SIGNER_SHA"
+          grep -q '^Verified using v1 scheme (JAR signing): false$' /tmp/musitu-v102/apksigner.txt
+          grep -q '^Verified using v2 scheme (APK Signature Scheme v2): true$' /tmp/musitu-v102/apksigner.txt
+          grep -q '^Verified using v3 scheme (APK Signature Scheme v3): true$' /tmp/musitu-v102/apksigner.txt
+          "$ANDROID_HOME/build-tools/$BUILD_TOOLS/aapt" dump badging /tmp/musitu-v102/MUSITU_Store_1.0.2.apk | tee /tmp/musitu-v102/badging.txt
+          pkg_line="$(grep '^package:' /tmp/musitu-v102/badging.txt | head -n1)"
+          printf '%s\n' "$pkg_line" | grep -q "name='$STORE_PACKAGE'"
+          printf '%s\n' "$pkg_line" | grep -q "versionCode='$STORE_VERSION_CODE'"
+          printf '%s\n' "$pkg_line" | grep -q "versionName='$STORE_VERSION_NAME'"
+          launch_activity="$(sed -n "s/^launchable-activity: name='\([^']*\)'.*/\1/p" /tmp/musitu-v102/badging.txt | head -n1)"
+          test -n "$launch_activity"
+          printf '%s' "$launch_activity" > /tmp/musitu-v102/launch_activity.txt
+          cp /tmp/musitu-v102/apksigner.txt "evidence/api-${{ matrix.api-level }}/apk-signature.txt"
+          cp /tmp/musitu-v102/badging.txt "evidence/api-${{ matrix.api-level }}/apk-badging.txt"
+          echo EXACT_DEPLOYED_APK_GATE=PASS
+
+      - name: Boot fresh API ${{ matrix.api-level }}, install exact APK and prove launch
+        uses: ReactiveCircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d
+        with:
+          api-level: ${{ matrix.api-level }}
+          target: google_apis
+          arch: x86_64
+          profile: pixel_2
+          cores: 2
+          ram-size: 2048M
+          force-avd-creation: true
+          emulator-boot-timeout: 900
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim
+          disable-animations: true
+          script: |
+            set -euo pipefail
+            EVIDENCE_DIR="evidence/api-${{ matrix.api-level }}"
+            APK=/tmp/musitu-v102/MUSITU_Store_1.0.2.apk
+            actual_api="$(adb shell getprop ro.build.version.sdk | tr -d '\r')"
+            test "$actual_api" = '${{ matrix.api-level }}'
+            fingerprint="$(adb shell getprop ro.build.fingerprint | tr -d '\r')"
+            test -n "$fingerprint"
+            if adb shell pm path "$STORE_PACKAGE" 2>/dev/null | grep -q '^package:'; then
+              echo 'Package unexpectedly present before install' >&2
+              exit 1
+            fi
+            adb logcat -c
+            adb install "$APK" | tee "$EVIDENCE_DIR/install.txt"
+            grep -q '^Success$' "$EVIDENCE_DIR/install.txt"
+            installed_path="$(adb shell pm path "$STORE_PACKAGE" | tr -d '\r')"
+            printf '%s\n' "$installed_path" | grep -q '^package:'
+            adb shell dumpsys package "$STORE_PACKAGE" > "$EVIDENCE_DIR/dumpsys-package.txt"
+            grep -Eq "versionCode=${STORE_VERSION_CODE}([[:space:]]|$)" "$EVIDENCE_DIR/dumpsys-package.txt"
+            grep -Eq "versionName=${STORE_VERSION_NAME}([[:space:]]|$)" "$EVIDENCE_DIR/dumpsys-package.txt"
+            launch_activity="$(cat /tmp/musitu-v102/launch_activity.txt)"
+            test -n "$launch_activity"
+            component="$STORE_PACKAGE/$launch_activity"
+            adb shell am force-stop "$STORE_PACKAGE"
+            adb shell am start -W -n "$component" | tee "$EVIDENCE_DIR/launch.txt"
+            grep -q '^Status: ok$' "$EVIDENCE_DIR/launch.txt"
+            sleep 5
+            pid="$(adb shell pidof "$STORE_PACKAGE" | tr -d '\r' | xargs)"
+            test -n "$pid"
+            adb shell dumpsys activity activities > "$EVIDENCE_DIR/dumpsys-activity.txt"
+            grep -E 'mResumedActivity|topResumedActivity|ResumedActivity' "$EVIDENCE_DIR/dumpsys-activity.txt" > "$EVIDENCE_DIR/resumed-activity.txt" || true
+            grep -q "$STORE_PACKAGE" "$EVIDENCE_DIR/resumed-activity.txt"
+            adb exec-out screencap -p > "$EVIDENCE_DIR/screen.png"
+            test -s "$EVIDENCE_DIR/screen.png"
+            adb logcat -d > "$EVIDENCE_DIR/logcat.txt"
+            if grep -F "$STORE_PACKAGE" "$EVIDENCE_DIR/logcat.txt" | grep -q 'FATAL EXCEPTION'; then
+              echo 'Package fatal exception detected after launch' >&2
+              exit 1
+            fi
+            export ACTUAL_API="$actual_api" FINGERPRINT="$fingerprint" LAUNCH_ACTIVITY="$launch_activity" PID="$pid" INSTALLED_PATH="$installed_path"
+            python - <<'PY'
+            import hashlib,json,os,pathlib
+            api=os.environ['ACTUAL_API']; d=pathlib.Path('evidence')/f'api-{api}'
+            apk=pathlib.Path('/tmp/musitu-v102/MUSITU_Store_1.0.2.apk').read_bytes()
+            out={
+              'schema':'musitu.store.phase1.v102.fresh_emulator_certification.v1',
+              'result':'PASS',
+              'github_run_id':int(os.environ['GITHUB_RUN_ID']),
+              'github_run_attempt':int(os.environ['GITHUB_RUN_ATTEMPT']),
+              'workflow_head':os.environ['GITHUB_SHA'],
+              'authoritative_store_head':os.environ['AUTHORITATIVE_STORE_HEAD'],
+              'sealed_main':os.environ['SEALED_MAIN'],
+              'fresh_avd':True,
+              'preinstall_package_absent':True,
+              'api_level':int(api),
+              'build_fingerprint':os.environ['FINGERPRINT'],
+              'artifact_url':os.environ['STORE_V102_URL'],
+              'artifact_sha256':hashlib.sha256(apk).hexdigest(),
+              'artifact_bytes':len(apk),
+              'package':os.environ['STORE_PACKAGE'],
+              'version_name':os.environ['STORE_VERSION_NAME'],
+              'version_code':int(os.environ['STORE_VERSION_CODE']),
+              'signer_certificate_sha256':os.environ['STORE_V102_SIGNER_SHA'],
+              'launch_activity':os.environ['LAUNCH_ACTIVITY'],
+              'installed_path':os.environ['INSTALLED_PATH'],
+              'process_pid':os.environ['PID'],
+              'install_success':True,
+              'launch_status_ok':True,
+              'foreground_activity_proven':True,
+              'post_launch_process_alive':True,
+              'screenshot_captured':True,
+            }
+            (d/'certification.json').write_text(json.dumps(out,indent=2,sort_keys=True)+'\n')
+            PY
+            test "$(python -c "import json; print(json.load(open('$EVIDENCE_DIR/certification.json'))['result'])")" = PASS
+            echo "MUSITU_STORE_V102_FRESH_EMULATOR_API_${actual_api}=PASS"
+
+      - name: Upload API ${{ matrix.api-level }} certification evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: musitu-store-v102-fresh-emulator-api-${{ matrix.api-level }}
+          path: evidence/api-${{ matrix.api-level }}
+          if-no-files-found: error
+          retention-days: 30
+
+  enforce-both:
+    name: Enforce API 24 and API 36 certification
+    if: always()
+    needs: [fresh-emulator]
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Require both matrix jobs to pass
+        shell: bash
+        env:
+          MATRIX_RESULT: ${{ needs.fresh-emulator.result }}
+        run: |
+          set -euo pipefail
+          test "$MATRIX_RESULT" = success
+          echo MUSITU_STORE_V102_API24_API36_EMULATOR_GATE=PASS
