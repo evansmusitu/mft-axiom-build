@@ -1,0 +1,37 @@
+{
+  "schema": "musitu.store.native_install_handoff.execute.v1",
+  "date_utc": "2026-09-11",
+  "authorized_scope": "Fix the Android customer-facing Install action so it routes into the installed native MUSITU Store instead of using the raw Store bootstrap APK as the primary app-install action.",
+  "production_change": {
+    "worker": "musitu-store-phase1",
+    "route": "payments.mftintelligence.com/store*",
+    "module_scope": ["render.mjs"],
+    "worker_module_change": false,
+    "assets_module_change": false,
+    "generated_data_module_change": false,
+    "catalog_change": false,
+    "apk_change": false,
+    "commerce_change": false,
+    "entitlement_change": false
+  },
+  "required_behavior": {
+    "primary_android_install_uri": "musitustore://app/chemistry",
+    "bootstrap_remains_separate_first_time_store_install": true,
+    "native_store_retains_hash_signature_package_and_certificate_verification": true,
+    "android_package_installer_confirmation_retained": true
+  },
+  "required_safety": {
+    "capture_exact_live_baseline_before_mutation": true,
+    "predeploy_equivalence_and_native_handoff_smoke": true,
+    "module_root_rollback_drill": true,
+    "emergency_baseline_restore_on_failure": true,
+    "preserve_machine_endpoint_bytes": true,
+    "preserve_all_non_install_store_response_bodies": true
+  },
+  "source_fix_verification": {
+    "head": "5330b04e7c5e00ca7ec671b32fb7e7541ba1e076",
+    "workflow_run": 34614511566,
+    "conclusion": "success"
+  },
+  "execute": true
+}
