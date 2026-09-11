@@ -7,8 +7,8 @@ on:
       - 'store/phase2/deploy_hardened_store.py'
       - 'store/phase2/validate_manual_accessibility_packet.py'
       - 'evidence/musitu-store/MUSITU_STORE_PHASE2_MANUAL_ACCESSIBILITY_CERTIFICATION_PACKET_20260911.json'
-      - 'evidence/musitu-store/MUSITU_STORE_PHASE2_HARDENED_CANDIDATE_PREDEPLOY_CERTIFICATION_20260911.json'
-      - 'evidence/musitu-store/MUSITU_STORE_PHASE2_RESPONSE_BODY_EQUIVALENCE_20260911.json'
+      - 'evidence/musitu-store/MUSITU_STORE_PHASE2_REPAIRED_LIVE_HARDENED_CANDIDATE_CERTIFICATION_20260911.json'
+      - 'evidence/musitu-store/MUSITU_STORE_PHASE2_REPAIRED_LIVE_RESPONSE_BODY_EQUIVALENCE_20260911.json'
       - '.github/workflows/musitu-store-phase2-guarded-production-deploy.yml'
       - '.github/workflows/musitu-store-phase2-deployment-readiness.yml'
   workflow_dispatch:
@@ -23,9 +23,12 @@ jobs:
     env:
       SEALED_MAIN: d6a846f6bbe0bccac1758713eb4de167caf07113
       PHASE1_HEAD: ebded495617cc89bb96d7a5531c1ce4fc6bbedd9
-      CERTIFIED_CANDIDATE_HEAD: 6a1d50c76dec96e924751dd6f5f2bc1ffe4191e1
-      BODY_EQUIVALENCE_HEAD: e42f461b7dadd9e53afc0eb285a276c7e2710fc7
+      QUALIFICATION_HEAD: 142da49e1a8ee185a9494690651b8a2a0be81143
+      BASELINE_WORKER_SHA: e17e0c7bde55d9f8d41b476e917159b6bf39b46c3895b7ec6d2a7b4f705beb81
+      CANDIDATE_WORKER_SHA: c98e6e36fa153f16a05c627b10b9a562e5f2ffde1f02ec0a7676a8d5121b7cce
       MANUAL_PACKET: evidence/musitu-store/MUSITU_STORE_PHASE2_MANUAL_ACCESSIBILITY_CERTIFICATION_PACKET_20260911.json
+      CANDIDATE_CERT: evidence/musitu-store/MUSITU_STORE_PHASE2_REPAIRED_LIVE_HARDENED_CANDIDATE_CERTIFICATION_20260911.json
+      BODY_EQUIVALENCE_RECORD: evidence/musitu-store/MUSITU_STORE_PHASE2_REPAIRED_LIVE_RESPONSE_BODY_EQUIVALENCE_20260911.json
 
     steps:
       - uses: actions/checkout@v4
@@ -36,66 +39,97 @@ jobs:
         with:
           python-version: '3.12'
 
-      - name: Prove immutable boundaries and candidate-source stability
+      - name: Prove immutable boundaries and repaired-live candidate-source stability
         shell: bash
         run: |
           set -euo pipefail
           git fetch --quiet origin main musitu-store-phase1-20260909
           test "$(git rev-parse origin/main)" = "$SEALED_MAIN"
           test "$(git rev-parse origin/musitu-store-phase1-20260909)" = "$PHASE1_HEAD"
-          git merge-base --is-ancestor "$CERTIFIED_CANDIDATE_HEAD" "$GITHUB_SHA"
-          git merge-base --is-ancestor "$BODY_EQUIVALENCE_HEAD" "$GITHUB_SHA"
+          git merge-base --is-ancestor "$QUALIFICATION_HEAD" "$GITHUB_SHA"
           test -z "$(git diff --name-only "$PHASE1_HEAD"..."$GITHUB_SHA" -- store/phase1 commerce/chemistry)"
-          test -z "$(git diff --name-only "$CERTIFIED_CANDIDATE_HEAD"..."$GITHUB_SHA" -- store/phase2/apply-standards-hardening.py store/phase2/security-hardening-smoke.mjs store/phase2/standards-browser-smoke.mjs)"
+          test -z "$(git diff --name-only "$QUALIFICATION_HEAD"..."$GITHUB_SHA" -- store/phase2/apply-standards-hardening.py store/phase2/browser_machine_presentation.py store/phase2/security-hardening-smoke.mjs store/phase2/standards-browser-smoke.mjs store/phase2/response-body-equivalence.mjs)"
           echo READINESS_BOUNDARY=PASS
 
-      - name: Compile deployment transaction, validator and bounded transform
+      - name: Compile safe deployment transaction validator and bounded transform
         shell: bash
         run: |
           set -euo pipefail
-          python -m py_compile store/phase2/deploy_hardened_store.py store/phase2/apply-standards-hardening.py store/phase2/validate_manual_accessibility_packet.py
+          python -m py_compile store/phase2/deploy_hardened_store.py store/phase2/apply-standards-hardening.py store/phase2/capture_exact_live_store_worker.py store/phase2/validate_manual_accessibility_packet.py
           node --check store/phase2/security-hardening-smoke.mjs
           node --check store/phase2/standards-browser-smoke.mjs
           node --check store/phase2/response-body-equivalence.mjs
           echo DEPLOYMENT_CODE_STATIC_GATE=PASS
 
-      - name: Prove production workflow is manual-only, strict-gated and rollback-capable
+      - name: Prove production workflow is manual-only strict-gated and module-root rollback-capable
         shell: bash
         run: |
           set -euo pipefail
           W=.github/workflows/musitu-store-phase2-guarded-production-deploy.yml
           grep -q '^  workflow_dispatch:' "$W"
           ! grep -q '^  push:' "$W"
-          grep -q 'Require reviewed real manual accessibility evidence' "$W"
+          grep -q 'Require reviewed real manual accessibility evidence before any production mutation' "$W"
           grep -q 'validate_manual_accessibility_packet.py' "$W"
-          grep -q 'Require response-body equivalence proof' "$W"
+          grep -q 'Require repaired-live response-body equivalence proof' "$W"
+          grep -q 'Capture exact current repaired live Worker — GET only' "$W"
+          grep -q 'safe module-root rollback drill' "$W"
           grep -q 'continue-on-error: true' "$W"
           grep -q 'Upload non-secret Phase 2 deployment evidence' "$W"
           grep -q 'Enforce deployment transaction' "$W"
           grep -q 'rollback_drill_performed' "$W"
           grep -q 'rollback_drill_verified' "$W"
-          grep -q 'emergency_rollback_performed' "$W"
-          grep -q 'def restore_snapshot' store/phase2/deploy_hardened_store.py
-          grep -q 'def emergency_rollback' store/phase2/deploy_hardened_store.py
-          grep -q 'restore_snapshot()' store/phase2/deploy_hardened_store.py
-          echo MANUAL_ONLY_STRICT_ROLLBACK_GUARD=PASS
+          grep -q 'emergency_baseline_restore_performed' "$W"
+          grep -q 'def upload_root' store/phase2/deploy_hardened_store.py
+          grep -q 'upload_root(BASELINE)' store/phase2/deploy_hardened_store.py
+          grep -q 'raw Cloudflare GET multipart replay is forbidden' store/phase2/deploy_hardened_store.py
+          ! grep -q 'restore_snapshot' store/phase2/deploy_hardened_store.py
+          echo MANUAL_ONLY_STRICT_MODULE_ROOT_ROLLBACK_GUARD=PASS
 
-      - name: Prove response-body equivalence record
+      - name: Prove repaired-live response-body equivalence record
         shell: bash
         run: |
           set -euo pipefail
           python - <<'PY'
-          import json
+          import json, os
           from pathlib import Path
-          d=json.loads(Path('evidence/musitu-store/MUSITU_STORE_PHASE2_RESPONSE_BODY_EQUIVALENCE_20260911.json').read_text())
+          d=json.loads(Path(os.environ['BODY_EQUIVALENCE_RECORD']).read_text())
           assert d['status']=='PASS'
-          assert d['repository']['workflow_head']=='e42f461b7dadd9e53afc0eb285a276c7e2710fc7'
-          assert d['workflow']['run_id']=='34575291010'
-          assert d['workflow']['artifact']['id']=='10189381691'
-          assert d['workflow']['artifact']['digest']=='sha256:135cc85142d9eee8801a01f6221b6638f723577e8346ebd63604747cb82ff605'
-          assert d['proof']['response_body_byte_equality'] is True
+          assert d['repository']['workflow_head']=='142da49e1a8ee185a9494690651b8a2a0be81143'
+          assert d['repository']['baseline_live_worker_sha256']==os.environ['BASELINE_WORKER_SHA']
+          assert d['repository']['certified_candidate_worker_sha256']==os.environ['CANDIDATE_WORKER_SHA']
+          assert d['workflow']['run_id']=='34582501210'
+          assert d['workflow']['artifact']['id']=='10192199123'
+          assert d['workflow']['artifact']['digest']=='sha256:3b1c157fd2a061c26c9b150c5e018aefc109ddd6cea3d8fab3e1e2908717f497'
+          assert d['proof']['normal_store_response_body_byte_equality'] is True
+          assert d['proof']['machine_endpoint_payload_byte_equality'] is True
+          assert d['proof']['browser_presentation_preserved'] is True
+          assert d['proof']['raw_query_override_byte_identical'] is True
           assert d['proof']['unexpected_header_delta'] is False
-          print('RESPONSE_BODY_EQUIVALENCE_RECORD=PASS')
+          print('REPAIRED_LIVE_RESPONSE_BODY_EQUIVALENCE_RECORD=PASS')
+          PY
+
+      - name: Prove repaired-live candidate certificate
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json, os
+          from pathlib import Path
+          cert=json.loads(Path(os.environ['CANDIDATE_CERT']).read_text())
+          assert cert['status']=='PASS_PREDEPLOY_MANUAL_AND_DEPLOYMENT_PENDING'
+          assert cert['repository']['qualification_head']=='142da49e1a8ee185a9494690651b8a2a0be81143'
+          assert cert['baseline']['worker_sha256']==os.environ['BASELINE_WORKER_SHA']
+          assert cert['candidate']['worker_sha256']==os.environ['CANDIDATE_WORKER_SHA']
+          assert cert['candidate']['browser_presentation_preserved'] is True
+          assert cert['candidate']['machine_client_bytes_preserved'] is True
+          assert cert['candidate']['production_mutation'] is False
+          assert cert['github_actions']['run_id']==34582501210
+          assert cert['github_actions']['artifact']['id']==10192199123
+          assert cert['github_actions']['artifact']['digest']=='sha256:3b1c157fd2a061c26c9b150c5e018aefc109ddd6cea3d8fab3e1e2908717f497'
+          assert cert['gates']['security_hardening_runtime']=='PASS'
+          assert cert['gates']['automated_accessibility_low_bandwidth']=='PASS_AUTOMATED'
+          assert cert['gates']['lighthouse']['result']=='PASS'
+          print('REPAIRED_LIVE_CANDIDATE_CERTIFICATE=PASS')
           PY
 
       - name: Prove manual evidence validator fails closed or passes only reviewed evidence
@@ -109,11 +143,14 @@ jobs:
           print(d['status'])
           print(d.get('result'))
           print(d.get('schema'))
+          print((d.get('body_equivalence') or {}).get('candidate_worker_sha256'))
           PY
           STATUS="$(sed -n '1p' /tmp/manual-state.txt)"
           RESULT="$(sed -n '2p' /tmp/manual-state.txt)"
           SCHEMA="$(sed -n '3p' /tmp/manual-state.txt)"
+          PACKET_CANDIDATE="$(sed -n '4p' /tmp/manual-state.txt)"
           test "$SCHEMA" = 'musitu.store.phase2.manual_accessibility_certification_packet.v2'
+          test "$PACKET_CANDIDATE" = "$CANDIDATE_WORKER_SHA"
           if [ "$STATUS" = 'PENDING_REAL_ASSISTIVE_TECHNOLOGY_EVIDENCE' ]; then
             set +e
             python store/phase2/validate_manual_accessibility_packet.py "$MANUAL_PACKET" . >/tmp/manual-validator.out 2>&1
@@ -131,22 +168,15 @@ jobs:
             exit 1
           fi
 
-      - name: Verify candidate certificate and classify manual gate
+      - name: Classify repaired-live deployment readiness
         shell: bash
         run: |
           set -euo pipefail
           mkdir -p /tmp/musitu-p2-readiness
           python - <<'PY'
-          import json
+          import json, os
           from pathlib import Path
-          cert=json.loads(Path('evidence/musitu-store/MUSITU_STORE_PHASE2_HARDENED_CANDIDATE_PREDEPLOY_CERTIFICATION_20260911.json').read_text())
-          assert cert['status']=='PASS_PREDEPLOY_MANUAL_AND_DEPLOYMENT_PENDING'
-          assert cert['repository']['certified_head']=='6a1d50c76dec96e924751dd6f5f2bc1ffe4191e1'
-          assert cert['candidate']['hardened_worker_sha256']=='ee95b816bc056ab79be4d764cf88a68e25feed7aafdaad33ff23e2188f954616'
-          assert cert['github_actions']['run_id']==34573638727
-          assert cert['github_actions']['artifact']['digest']=='sha256:0e1066a9453ae437c7d6e5ebed50a464ce3f96f39490a25b6c604e73bfc51ac4'
-
-          packet=json.loads(Path('evidence/musitu-store/MUSITU_STORE_PHASE2_MANUAL_ACCESSIBILITY_CERTIFICATION_PACKET_20260911.json').read_text())
+          packet=json.loads(Path(os.environ['MANUAL_PACKET']).read_text())
           if packet['status']=='PENDING_REAL_ASSISTIVE_TECHNOLOGY_EVIDENCE' and packet['result'] is None:
               manual='BLOCKED_PENDING_REAL_EVIDENCE'
               validator='FAIL_CLOSED_AS_REQUIRED'
@@ -155,19 +185,24 @@ jobs:
               validator='PASS_REVIEWED_EVIDENCE'
           else:
               raise SystemExit('invalid or failed manual accessibility gate state')
-
           out={
-            'schema':'musitu.store.phase2.deployment_readiness.v2',
+            'schema':'musitu.store.phase2.deployment_readiness.v3',
             'result':'PASS',
-            'sealed_main':'d6a846f6bbe0bccac1758713eb4de167caf07113',
-            'phase1_head':'ebded495617cc89bb96d7a5531c1ce4fc6bbedd9',
-            'candidate_predeploy':'PASS',
-            'response_body_equivalence':'PASS',
+            'sealed_main':os.environ['SEALED_MAIN'],
+            'phase1_head':os.environ['PHASE1_HEAD'],
+            'qualification_head':os.environ['QUALIFICATION_HEAD'],
+            'baseline_live_worker_sha256':os.environ['BASELINE_WORKER_SHA'],
+            'candidate_worker_sha256':os.environ['CANDIDATE_WORKER_SHA'],
+            'candidate_predeploy':'PASS_REPAIRED_LIVE_BASE',
+            'response_body_equivalence':'PASS_REPAIRED_LIVE_BASE',
+            'browser_presentation_preserved':True,
+            'machine_client_bytes_preserved':True,
             'manual_packet_schema':packet['schema'],
             'manual_accessibility_gate':manual,
             'manual_validator':validator,
             'production_workflow':'MANUAL_DISPATCH_ONLY',
-            'rollback_transaction':'STATICALLY_VERIFIED',
+            'rollback_transaction':'SAFE_MODULE_ROOT_STATICALLY_VERIFIED',
+            'raw_get_multipart_rollback':'FORBIDDEN',
             'production_mutation':False,
             'phase2Complete':False
           }
