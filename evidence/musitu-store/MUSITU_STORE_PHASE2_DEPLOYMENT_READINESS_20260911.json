@@ -1,5 +1,5 @@
 {
-  "schema": "musitu.store.phase2.deployment_readiness_record.v1",
+  "schema": "musitu.store.phase2.deployment_readiness_record.v2",
   "created_date_utc": "2026-09-11",
   "status": "PASS_READY_EXCEPT_REAL_MANUAL_ACCESSIBILITY_EVIDENCE",
   "phase2Authorized": true,
@@ -7,28 +7,41 @@
   "repository": {
     "full_name": "evansmusitu/mft-axiom-build",
     "branch": "musitu-store-phase2-standards-hardening-20260911",
-    "readiness_head": "3293d5427ed7b0b6ee9b019dffba869754081a54",
+    "readiness_head": "1defad18d7e2696d26793af7db0bd8b6bb954d7b",
+    "body_equivalence_head": "e42f461b7dadd9e53afc0eb285a276c7e2710fc7",
     "certified_candidate_head": "6a1d50c76dec96e924751dd6f5f2bc1ffe4191e1",
     "phase1_head": "ebded495617cc89bb96d7a5531c1ce4fc6bbedd9",
     "sealed_main": "d6a846f6bbe0bccac1758713eb4de167caf07113"
   },
   "readiness_workflow": {
-    "run_id": 34574011214,
-    "job_id": 103182287996,
+    "run_id": 34575592571,
+    "job_id": 103187205673,
     "conclusion": "success",
     "gates": {
       "immutable_boundaries_and_candidate_source_stability": "PASS",
-      "deployment_transaction_compile_and_static_checks": "PASS",
-      "manual_only_production_trigger_and_rollback_hooks": "PASS",
+      "deployment_transaction_validator_and_transform_compile": "PASS",
+      "manual_only_strict_production_trigger_and_rollback_hooks": "PASS",
+      "response_body_equivalence_record": "PASS",
+      "strict_manual_validator_current_pending_packet": "FAIL_CLOSED_AS_REQUIRED",
       "candidate_certificate_verification": "PASS"
     },
     "artifact": {
-      "id": 10188879614,
+      "id": 10189478824,
       "name": "musitu-store-phase2-deployment-readiness",
-      "bytes": 456,
-      "digest": "sha256:32246f8e4041150339b7b5e15faed70c428e309cd3255a1a179836e443428375",
-      "expires_at_utc": "2026-12-10T07:21:41Z"
+      "bytes": 527,
+      "digest": "sha256:f5d169532253ce7b61eadf0ebe239fc301e53b2d9e23f2c34e902ec7da39d785",
+      "expires_at_utc": "2026-12-10T07:41:49Z"
     }
+  },
+  "response_body_equivalence": {
+    "record_path": "evidence/musitu-store/MUSITU_STORE_PHASE2_RESPONSE_BODY_EQUIVALENCE_20260911.json",
+    "run_id": 34575291010,
+    "artifact_id": 10189381691,
+    "artifact_digest": "sha256:135cc85142d9eee8801a01f6221b6638f723577e8346ebd63604747cb82ff605",
+    "result": "PASS",
+    "body_byte_equality": true,
+    "unexpected_header_delta": false,
+    "manual_live_body_evidence_applicable_to_unchanged_candidate": true
   },
   "certified_hardened_candidate": {
     "predeploy_run_id": 34573638727,
@@ -40,9 +53,22 @@
     "low_bandwidth": "PASS",
     "lighthouse_budget": "PASS"
   },
+  "manual_accessibility_gate": {
+    "packet_path": "evidence/musitu-store/MUSITU_STORE_PHASE2_MANUAL_ACCESSIBILITY_CERTIFICATION_PACKET_20260911.json",
+    "packet_schema": "musitu.store.phase2.manual_accessibility_certification_packet.v2",
+    "protocol_path": "docs/MUSITU_STORE_PHASE2_REAL_ACCESSIBILITY_TEST_PROTOCOL_20260911.md",
+    "validator_path": "store/phase2/validate_manual_accessibility_packet.py",
+    "current_state": "BLOCKED_PENDING_REAL_EVIDENCE",
+    "current_validator_behavior": "FAIL_CLOSED_AS_REQUIRED",
+    "requires_sha256_and_byte_integrity_metadata": true,
+    "requires_original_evidence_review": true,
+    "automated_accessibility_tree_may_substitute": false
+  },
   "production_workflow": {
     "path": ".github/workflows/musitu-store-phase2-guarded-production-deploy.yml",
     "trigger": "workflow_dispatch_only",
+    "strict_manual_validator_before_mutation": true,
+    "response_body_equivalence_gate_before_mutation": true,
     "manual_accessibility_gate_before_mutation": true,
     "worker_only_mutation": true,
     "catalog_mutation": false,
@@ -54,16 +80,15 @@
   },
   "current_blocker": {
     "manual_accessibility_gate": "BLOCKED_PENDING_REAL_EVIDENCE",
-    "packet_path": "evidence/musitu-store/MUSITU_STORE_PHASE2_MANUAL_ACCESSIBILITY_CERTIFICATION_PACKET_20260911.json",
     "required": [
       "real manual keyboard evidence",
-      "real screen-reader evidence",
-      "zoom/reflow evidence",
+      "real screen-reader evidence with audible/observable screen-reader interaction",
+      "real browser zoom/reflow evidence",
       "complete test-environment metadata",
-      "complete evidence references",
-      "reviewed PASS result"
-    ],
-    "automated_accessibility_tree_may_substitute": false
+      "stable evidence references with SHA-256 and byte lengths",
+      "original evidence review",
+      "strict validator PASS"
+    ]
   },
   "parallel_phase1_state": {
     "physical_device_step15_complete": false,
@@ -71,5 +96,5 @@
     "phase1_evidence_modified_by_phase2": false
   },
   "production_mutation": false,
-  "claim_boundary": "Phase 2 is authorized and all currently executable automated predeployment, hardened-candidate, and deployment-readiness gates pass. The guarded production transaction is prepared and rollback-capable but remains blocked before mutation because real manual keyboard, screen-reader, and zoom/reflow evidence has not been supplied and reviewed. Production is unchanged and Phase 2 is not complete."
+  "claim_boundary": "Phase 2 is authorized and all currently executable automated predeployment, hardened-candidate, response-body-equivalence, deployment-readiness, and fail-closed evidence-validation gates pass. The guarded production transaction is prepared and rollback-capable but remains blocked before mutation because original real manual keyboard, screen-reader, and zoom/reflow evidence has not been supplied and reviewed. Production is unchanged and Phase 2 is not complete."
 }
