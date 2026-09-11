@@ -1,0 +1,53 @@
+name: MUSITU Continuum Phase K Bandit Wheelhouse 20260911 v1
+
+on:
+  push:
+    branches:
+      - continuum-phase-k-bandit-wheelhouse-20260911-v1
+    paths:
+      - '.github/workflows/continuum-phase-k-bandit-wheelhouse-20260911-v1.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  wheelhouse:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Set up Python 3.13
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Download binary-only Bandit 1.9.4 wheelhouse
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          mkdir -p wheelhouse
+          python -m pip download --only-binary=:all: --dest wheelhouse 'bandit==1.9.4'
+      - name: Verify pinned Bandit wheel and emit manifests
+        shell: bash
+        run: |
+          set -euo pipefail
+          BANDIT_WHEEL=$(find wheelhouse -maxdepth 1 -type f -name 'bandit-1.9.4-py3-none-any.whl' -print -quit)
+          test -n "$BANDIT_WHEEL"
+          EXPECTED='f89ffa663767f5a0585ea075f01020207e966a9c0f2b9ef56a57c7963a3f6f8e'
+          ACTUAL=$(sha256sum "$BANDIT_WHEEL" | awk '{print $1}')
+          test "$ACTUAL" = "$EXPECTED"
+          (cd wheelhouse && sha256sum *.whl | sort -k2 > SHA256SUMS)
+          python --version > wheelhouse/PYTHON_VERSION.txt
+          python -m pip --version > wheelhouse/PIP_VERSION.txt
+          printf '%s\n' "$EXPECTED" > wheelhouse/BANDIT_1_9_4_EXPECTED_SHA256.txt
+          printf '%s\n' "$ACTUAL" > wheelhouse/BANDIT_1_9_4_ACTUAL_SHA256.txt
+          printf '%s\n' 'bandit==1.9.4' > wheelhouse/REQUESTED.txt
+          ls -la wheelhouse
+          cat wheelhouse/SHA256SUMS
+      - name: Upload closed wheelhouse
+        uses: actions/upload-artifact@v4
+        with:
+          name: musitu-continuum-bandit-1.9.4-wheelhouse-py313-20260911
+          path: wheelhouse/
+          if-no-files-found: error
+          retention-days: 7
