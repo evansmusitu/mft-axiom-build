@@ -64,6 +64,13 @@ class WorkflowSafetyTests(unittest.TestCase):
         self.assertIn("persist-credentials: false", text)
         self.assertIn("permissions:\n  contents: read", text)
 
+    def test_review_safe_ci_guard_runs_on_every_track_b_push(self):
+        text = Path(".github/workflows/axiom-frontier-review-safe-ci.yml").read_text(encoding="utf-8")
+        push_block = text.split("  push:\n", 1)[1].split("  workflow_dispatch:\n", 1)[0]
+        self.assertIn("      - frontier/axiom-v5-world-top-tier-review-safe", push_block)
+        self.assertNotIn("    paths:", push_block)
+        self.assertNotIn("    paths-ignore:", push_block)
+
     def test_job_creation_tamper_invalidates_blocked_unexecuted_evidence(self):
         audit = authoritative_workflow_audit()
         tampered = copy.deepcopy(audit)
