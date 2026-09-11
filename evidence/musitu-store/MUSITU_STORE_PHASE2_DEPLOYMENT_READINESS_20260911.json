@@ -7,8 +7,11 @@
   "repository": {
     "full_name": "evansmusitu/mft-axiom-build",
     "branch": "musitu-store-phase2-standards-hardening-20260911",
-    "readiness_head": "0c7fb43c69415ef4304c5963f1be7ac0f541f433",
+    "readiness_head": "21d755e16bd4c3039976bb7cdca7e5b7a0706695",
     "qualification_head": "142da49e1a8ee185a9494690651b8a2a0be81143",
+    "validator_hardening_commit": "74fe72035a677a3fb380f21a362d6f5eb8cd6fc3",
+    "validator_contract_test_commit": "ef0f40dedcfe8a1f39c936a5fa0658aa872a4567",
+    "validator_hardening_certification_commit": "8f2f25f668a829520c68fae6cfa9a3477cb5148a",
     "phase1_head": "ebded495617cc89bb96d7a5531c1ce4fc6bbedd9",
     "sealed_main": "d6a846f6bbe0bccac1758713eb4de167caf07113"
   },
@@ -68,34 +71,69 @@
     "unexpected_header_delta": false,
     "manual_live_body_evidence_applicable_to_candidate": true
   },
+  "manual_validator_hardening": {
+    "certification_path": "evidence/musitu-store/MUSITU_STORE_PHASE2_MANUAL_VALIDATOR_HARDENING_CERTIFICATION_20260911.json",
+    "status": "PASS_SYNTHETIC_VALIDATOR_CONTRACT_HARDENING",
+    "run_id": 34584007750,
+    "job_id": 103213876381,
+    "artifact_id": 10192785701,
+    "artifact_digest": "sha256:35769406748050939b396e8bf7cd1a38048af9fde1bf02b18a26acb3e8cd697a",
+    "artifact_bytes": 882,
+    "complete_required_check_keysets_required": true,
+    "candidate_worker_sha256_pinned": "c98e6e36fa153f16a05c627b10b9a562e5f2ffde1f02ec0a7676a8d5121b7cce",
+    "microsoft_narrator_required": true,
+    "stable_evidence_reference_scheme_required": true,
+    "synthetic_fixture_is_real_accessibility_evidence": false,
+    "synthetic_fixture_may_satisfy_manual_gate": false
+  },
   "readiness_workflow": {
-    "run_id": 34582977701,
-    "job_id": 103210600266,
+    "run_id": 34584007750,
+    "job_id": 103213876381,
     "conclusion": "success",
     "gates": {
       "immutable_boundaries_and_repaired_live_candidate_stability": "PASS",
-      "safe_deployment_transaction_validator_and_transform_compile": "PASS",
+      "deployment_code_and_validator_contract_gate": "PASS",
       "manual_only_strict_module_root_rollback_guard": "PASS",
       "repaired_live_response_body_equivalence_record": "PASS",
       "repaired_live_candidate_certificate": "PASS",
-      "strict_manual_validator_current_pending_packet": "FAIL_CLOSED_AS_REQUIRED"
+      "strict_manual_validator_current_pending_packet": "FAIL_CLOSED_AS_REQUIRED",
+      "manual_validator_synthetic_contract_tests": "PASS_STRUCTURE_ONLY_NOT_REAL_EVIDENCE"
     },
     "classification": {
       "candidate_predeploy": "PASS_REPAIRED_LIVE_BASE",
       "response_body_equivalence": "PASS_REPAIRED_LIVE_BASE",
       "manual_accessibility_gate": "BLOCKED_PENDING_REAL_EVIDENCE",
       "manual_validator": "FAIL_CLOSED_AS_REQUIRED",
+      "manual_validator_contract_tests": "PASS_SYNTHETIC_STRUCTURE_ONLY_NOT_REAL_EVIDENCE",
+      "manual_validator_requires_complete_check_keysets": true,
+      "manual_validator_requires_microsoft_narrator": true,
+      "manual_validator_requires_stable_evidence_reference_scheme": true,
       "production_workflow": "MANUAL_DISPATCH_ONLY",
       "rollback_transaction": "SAFE_MODULE_ROOT_STATICALLY_VERIFIED",
       "raw_get_multipart_rollback": "FORBIDDEN"
     },
     "artifact": {
-      "id": 10192373027,
+      "id": 10192785701,
       "name": "musitu-store-phase2-deployment-readiness",
-      "bytes": 768,
-      "digest": "sha256:b68c380b59cc56956f1af181932fbaeafe393530ce0b7917be492363eeee32ca",
-      "expires_at_utc": "2026-12-10T09:12:00Z"
+      "bytes": 882,
+      "digest": "sha256:35769406748050939b396e8bf7cd1a38048af9fde1bf02b18a26acb3e8cd697a",
+      "expires_at_utc": "2026-12-10T09:24:07Z"
     }
+  },
+  "internal_closure_audit": {
+    "run_id": 34584007681,
+    "job_id": 103213876297,
+    "conclusion": "success",
+    "artifact": {
+      "id": 10192793898,
+      "name": "musitu-store-phase2-internal-closure-audit",
+      "bytes": 688,
+      "digest": "sha256:b4fea18cda2bac2c5e14a8c5d43e0f41dad68a239e64e384a66da2ed14c009a2",
+      "expires_at_utc": "2026-12-10T09:24:07Z"
+    },
+    "independently_actionable_internal_engineering_remaining": [],
+    "independently_actionable_internal_qualification_remaining": [],
+    "external_certification_is_only_current_phase2_blocker": true
   },
   "evidence_helper": {
     "certification_path": "evidence/musitu-store/MUSITU_STORE_PHASE2_EVIDENCE_HELPER_CERTIFICATION_20260911.json",
@@ -115,13 +153,17 @@
     "validator_path": "store/phase2/validate_manual_accessibility_packet.py",
     "current_state": "BLOCKED_PENDING_REAL_EVIDENCE",
     "current_validator_behavior": "FAIL_CLOSED_AS_REQUIRED",
+    "requires_complete_expected_check_keysets": true,
     "requires_real_keyboard_test": true,
     "requires_real_screen_reader_test": true,
+    "required_screen_reader": "Microsoft Narrator",
     "requires_visible_narrator_speech_recap_live_transcription": true,
     "requires_real_browser_zoom_reflow_test": true,
     "requires_sha256_and_byte_integrity_metadata": true,
+    "requires_stable_evidence_reference_scheme": true,
     "requires_original_evidence_review": true,
-    "automated_accessibility_tree_may_substitute": false
+    "automated_accessibility_tree_may_substitute": false,
+    "synthetic_validator_test_may_substitute": false
   },
   "production_workflow": {
     "path": ".github/workflows/musitu-store-phase2-guarded-production-deploy.yml",
@@ -144,10 +186,10 @@
   },
   "current_blocker": {
     "manual_accessibility_gate": "BLOCKED_PENDING_REAL_EVIDENCE",
-    "single_external_evidence_action": "Create one continuous real Windows accessibility recording following the committed protocol, with Narrator Speech Recap live transcription visible, then preserve the original recording at a stable retrievable reference.",
+    "single_external_evidence_action": "Create one continuous real Windows accessibility recording following the committed protocol, with Microsoft Narrator Speech Recap live transcription visible, then preserve the unedited original recording at a stable retrievable reference.",
     "required": [
       "real manual keyboard evidence",
-      "real Narrator screen-reader evidence with Speech Recap live transcription visible",
+      "real Microsoft Narrator screen-reader evidence with Speech Recap live transcription visible",
       "real browser 200%/400% zoom-reflow evidence",
       "complete test-environment metadata",
       "stable evidence reference with SHA-256 and byte length",
@@ -161,5 +203,5 @@
     "phase1_evidence_modified_by_phase2": false
   },
   "phase2_security_production_mutation": false,
-  "claim_boundary": "The customer-facing browser-presentation defect is fixed and verified in production. The Phase-2 security-hardening candidate has been rebuilt and qualified from that exact repaired live Worker, with browser presentation, machine-client byte compatibility, response bodies, release identities, automated accessibility, low-bandwidth behavior, regressions and performance all verified. The guarded security-hardening deployment now uses a safe module-root rollback transaction and remains strictly blocked before mutation because original real keyboard, Narrator screen-reader with visible Speech Recap live transcription, and 200%/400% zoom-reflow evidence has not yet been supplied and reviewed. Phase 2 is not complete."
+  "claim_boundary": "The customer-facing browser-presentation defect is fixed and verified in production. The Phase-2 security-hardening candidate has been rebuilt and qualified from that exact repaired live Worker, with browser presentation, machine-client byte compatibility, response bodies, release identities, automated accessibility, low-bandwidth behavior, regressions and performance all verified. The manual-evidence validator is now candidate-pinned, complete-keyset enforcing and adversarially contract-tested with synthetic fixtures that explicitly do not count as real accessibility evidence. The guarded security-hardening deployment uses a safe module-root rollback transaction and remains strictly blocked before mutation because original real keyboard, Microsoft Narrator with visible Speech Recap live transcription, and 200%/400% zoom-reflow evidence has not yet been supplied and reviewed. Phase 2 is not complete."
 }
