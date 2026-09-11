@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from copy import deepcopy
+import math
 import unittest
 
 from frontier_review_safe.scale_budget import (
@@ -35,12 +36,19 @@ class ScaleBudgetTests(unittest.TestCase):
 
     def test_budget_is_mechanically_derived_from_recorded_baseline_policy(self):
         budgets = derived_budgets()
-        self.assertEqual(budgets["temporal_evidence_graph_10k"]["max_elapsed_ms"], 10569)
-        self.assertEqual(budgets["temporal_evidence_graph_10k"]["max_peak_python_bytes"], 25143598)
-        self.assertEqual(budgets["temporal_evidence_graph_10k"]["min_throughput_per_sec"], 955)
+        temporal = budgets["temporal_evidence_graph_10k"]
+        self.assertEqual(temporal["max_elapsed_ms"], 10569)
+        self.assertEqual(temporal["max_peak_python_bytes"], 25143598)
+        self.assertEqual(temporal["min_throughput_per_sec"], 946.163)
         self.assertEqual(len(contract_fingerprint()), 64)
         self.assertEqual(BASELINE_CONTRACT["workflow_run_attempts"], 3)
         self.assertEqual(len(BASELINE_CONTRACT["evidence_sha256"]), 3)
+
+    def test_latency_and_throughput_budgets_are_one_coherent_timing_envelope(self):
+        for name, budget in derived_budgets().items():
+            units = EXPECTED_UNITS[name]
+            implied = round(units * 1000.0 / float(budget["max_elapsed_ms"]), 3)
+            self.assertEqual(budget["min_throughput_per_sec"], implied, name)
 
     def test_recorded_baseline_shape_passes_provisional_internal_gate(self):
         report = gate(
@@ -56,13 +64,27 @@ class ScaleBudgetTests(unittest.TestCase):
         budget = derived_budgets()["decision_ledger_3k_events"]
         row["elapsed_ms"] = budget["max_elapsed_ms"] + 1
         row["peak_python_bytes"] = budget["max_peak_python_bytes"] + 1
-        row["throughput_per_sec"] = budget["min_throughput_per_sec"] - 1
+        row["throughput_per_sec"] = round(
+            EXPECTED_UNITS["decision_ledger_3k_events"] * 1000.0 / row["elapsed_ms"], 3
+        )
         report = gate(evidence, workload_git_blob_sha=BASELINE_CONTRACT["workload_git_blob_sha"])
         self.assertEqual(report["status"], "FAIL")
         reasons = report["checks"]["decision_ledger_3k_events"]["reasons"]
         self.assertIn("elapsed_budget_exceeded", reasons)
         self.assertIn("memory_budget_exceeded", reasons)
         self.assertIn("throughput_budget_missed", reasons)
+        self.assertNotIn("throughput_elapsed_measurement_inconsistent", reasons)
+
+    def test_inconsistent_throughput_telemetry_fails_closed(self):
+        evidence = self.evidence()
+        row = next(x for x in evidence["benchmarks"] if x["name"] == "persistent_adaptation_100_releases")
+        row["throughput_per_sec"] = 1.0
+        report = gate(evidence, workload_git_blob_sha=BASELINE_CONTRACT["workload_git_blob_sha"])
+        self.assertEqual(report["status"], "FAIL")
+        self.assertIn(
+            "throughput_elapsed_measurement_inconsistent",
+            report["checks"]["persistent_adaptation_100_releases"]["reasons"],
+        )
 
     def test_workload_change_or_smaller_declared_workload_requires_rebaseline(self):
         evidence = self.evidence()

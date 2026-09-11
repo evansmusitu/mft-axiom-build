@@ -11,7 +11,7 @@ from .core import sha256
 
 
 BASELINE_CONTRACT: dict[str, Any] = {
-    "schema": "musitu.axiom.review-safe-scale-baseline.v1",
+    "schema": "musitu.axiom.review-safe-scale-baseline.v2",
     "scope": "internal GitHub-hosted Ubuntu 24.04 x86_64 CPython 3.12.14 regression envelope only",
     "baseline_candidate_sha": "ad2cb13b6612ad1035d7cda54ad0c3c56d0faeb0",
     "workflow_run_id": 34558594971,
@@ -33,7 +33,9 @@ BASELINE_CONTRACT: dict[str, Any] = {
         "elapsed_fixed_margin_ms": 100.0,
         "memory_multiplier": 2.0,
         "memory_fixed_margin_bytes": 1048576,
-        "minimum_throughput_fraction": 0.4,
+        "throughput_semantics": "derived_from_elapsed_ceiling_and_fixed_workload_units",
+        "throughput_measurement_rel_tol": 0.01,
+        "throughput_measurement_abs_tol": 1.0,
     },
     "observed_worst": {
         "temporal_evidence_graph_10k": {
@@ -97,25 +99,37 @@ EXPECTED_UNITS: dict[str, int] = {
 }
 
 
+def _coherent_throughput_floor(units: int, max_elapsed_ms: float) -> float:
+    if units <= 0 or not math.isfinite(max_elapsed_ms) or max_elapsed_ms <= 0:
+        raise ValueError("positive units and finite elapsed ceiling required")
+    return round((float(units) * 1000.0) / float(max_elapsed_ms), 3)
+
+
 def derived_budgets() -> dict[str, dict[str, float | int]]:
+    """Derive one timing envelope, expressed consistently as latency and throughput.
+
+    Throughput in scale_benchmarks is exactly ``units / elapsed``. It is therefore
+    not an independent performance dimension. The previous contract derived a
+    latency ceiling and a separate throughput floor from different multipliers,
+    allowing the two representations of the same timing sample to contradict one
+    another. v2 derives the throughput floor from the latency ceiling and fixed
+    workload units, while memory remains independently budgeted.
+    """
     policy = BASELINE_CONTRACT["policy"]
     out: dict[str, dict[str, float | int]] = {}
     for name, observed in BASELINE_CONTRACT["observed_worst"].items():
+        max_elapsed_ms = math.ceil(
+            observed["max_elapsed_ms"] * policy["elapsed_multiplier"]
+            + policy["elapsed_fixed_margin_ms"]
+        )
         out[name] = {
-            "max_elapsed_ms": math.ceil(
-                observed["max_elapsed_ms"] * policy["elapsed_multiplier"]
-                + policy["elapsed_fixed_margin_ms"]
-            ),
+            "max_elapsed_ms": max_elapsed_ms,
             "max_peak_python_bytes": math.ceil(
                 observed["max_peak_python_bytes"] * policy["memory_multiplier"]
                 + policy["memory_fixed_margin_bytes"]
             ),
-            "min_throughput_per_sec": max(
-                1,
-                math.floor(
-                    observed["min_throughput_per_sec"]
-                    * policy["minimum_throughput_fraction"]
-                ),
+            "min_throughput_per_sec": _coherent_throughput_floor(
+                EXPECTED_UNITS[name], max_elapsed_ms
             ),
         }
     return out
@@ -123,6 +137,21 @@ def derived_budgets() -> dict[str, dict[str, float | int]]:
 
 def contract_fingerprint() -> str:
     return sha256(BASELINE_CONTRACT)
+
+
+def _throughput_matches_elapsed(*, units: int, elapsed_ms: float, throughput_per_sec: float) -> bool:
+    if units <= 0 or not math.isfinite(elapsed_ms) or elapsed_ms <= 0:
+        return False
+    if not math.isfinite(throughput_per_sec) or throughput_per_sec <= 0:
+        return False
+    expected = (float(units) * 1000.0) / elapsed_ms
+    policy = BASELINE_CONTRACT["policy"]
+    return math.isclose(
+        throughput_per_sec,
+        expected,
+        rel_tol=float(policy["throughput_measurement_rel_tol"]),
+        abs_tol=float(policy["throughput_measurement_abs_tol"]),
+    )
 
 
 def gate(
@@ -173,7 +202,8 @@ def gate(
             checks[name] = {"status": "FAIL", "reasons": ["benchmark_missing"]}
             continue
         local_reasons: list[str] = []
-        if row.get("units") != EXPECTED_UNITS[name]:
+        units = EXPECTED_UNITS[name]
+        if row.get("units") != units:
             local_reasons.append("workload_units_changed")
         details = row.get("details")
         if not isinstance(details, Mapping):
@@ -194,6 +224,12 @@ def gate(
             peak = 2**63 - 1
             throughput = 0.0
 
+        if not _throughput_matches_elapsed(
+            units=units,
+            elapsed_ms=elapsed,
+            throughput_per_sec=throughput,
+        ):
+            local_reasons.append("throughput_elapsed_measurement_inconsistent")
         if elapsed > float(budget["max_elapsed_ms"]):
             local_reasons.append("elapsed_budget_exceeded")
         if peak > int(budget["max_peak_python_bytes"]):
