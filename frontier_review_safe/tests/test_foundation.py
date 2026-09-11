@@ -240,7 +240,7 @@ class FoundationTests(unittest.TestCase):
             loaded = FailureCorpus(Path(td) / "failures.json")
             self.assertTrue(loaded.records["f1"].resolved)
         registry = ContinualAdaptationRegistry()
-        base = AdaptationRelease("v1", None, "f"*64, "c"*64, "r"*64, "e"*64, None)
+        base = AdaptationRelease("v1", None, "f"*64, "c"*64, "d"*64, "e"*64, None)
         registry.releases["v1"] = base
         registry.active_version = "v1"
         v2 = AdaptationRelease("v2", "v1", "1"*64, "2"*64, "3"*64, "4"*64, "v1")
