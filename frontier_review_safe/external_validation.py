@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import asdict, dataclass
 from typing import Any, Mapping, Sequence
+import math
 
 from .baseline_registry import BaselineRegistry
 from .core import FrontierSafetyError, parse_time, sha256
@@ -10,6 +11,14 @@ from .external_attestation import ExternalAttestationReceipt, ExternalAttestatio
 
 
 TRUSTED_EXTERNAL_PROVENANCE = frozenset({"provider_export", "provider_api_receipt", "independent_lab_record"})
+
+
+def _valid_sha256(value: str) -> bool:
+    return (
+        isinstance(value, str)
+        and len(value) == 64
+        and all(c in "0123456789abcdef" for c in value.lower())
+    )
 
 
 @dataclass(frozen=True)
@@ -46,7 +55,7 @@ class ExternalRunRecord:
             self.raw_evidence_hash,
             self.candidate_environment_hash,
         )
-        if any(len(x) != 64 for x in hashes):
+        if any(not _valid_sha256(x) for x in hashes):
             raise ValueError("external run hashes must be SHA-256")
         for optional_hash in (
             self.configuration_hash,
@@ -54,10 +63,24 @@ class ExternalRunRecord:
             self.baseline_registry_hash,
             self.baseline_registration_hash,
         ):
-            if optional_hash is not None and len(optional_hash) != 64:
+            if optional_hash is not None and not _valid_sha256(optional_hash):
                 raise ValueError("optional external-run binding hashes must be SHA-256")
-        if not self.run_id or not self.provider_org or not self.product or not self.exact_version:
-            raise ValueError("exact external provider/product/version/run identity required")
+        if not all(str(x).strip() for x in (
+            self.run_id, self.provider_org, self.product, self.exact_version,
+            self.access_mode, self.candidate_sha,
+        )):
+            raise ValueError("exact external provider/product/version/run/candidate identity required")
+        if not isinstance(self.metrics, Mapping):
+            raise ValueError("external run metrics must be a mapping")
+        for key, value in self.metrics.items():
+            if not isinstance(key, str) or not key.strip():
+                raise ValueError("external run metric names must be non-empty strings")
+            try:
+                numeric = float(value)
+            except (TypeError, ValueError) as exc:
+                raise ValueError("external run metric values must be numeric") from exc
+            if not math.isfinite(numeric):
+                raise ValueError("external run metric values must be finite")
 
     @property
     def fingerprint(self) -> str:
@@ -93,12 +116,20 @@ class ComparativeOutcome:
             self.external_result_hash,
             self.raw_external_evidence_hash,
         ):
-            if len(value) != 64:
+            if not _valid_sha256(value):
                 raise ValueError("comparison provenance hashes must be SHA-256")
-        if self.attestation_receipt_hash is not None and len(self.attestation_receipt_hash) != 64:
+        if self.attestation_receipt_hash is not None and not _valid_sha256(self.attestation_receipt_hash):
             raise ValueError("comparison attestation receipt hash must be SHA-256")
+        if not all(str(x).strip() for x in (self.provider_org, self.external_run_id, self.candidate_sha)):
+            raise ValueError("comparison provider/run/candidate identity required")
         if self.matched_cases < 5:
             raise ValueError("at least five matched sealed cases required")
+        counts = (self.candidate_wins, self.baseline_wins, self.ties)
+        if any(not isinstance(x, int) or isinstance(x, bool) or x < 0 for x in counts):
+            raise ValueError("comparison counts must be non-negative integers")
+        deltas = (self.mean_delta, self.ci_low_delta, self.ci_high_delta)
+        if any(not math.isfinite(float(x)) for x in deltas):
+            raise ValueError("comparison deltas must be finite")
         if self.candidate_wins + self.baseline_wins + self.ties != self.matched_cases:
             raise ValueError("comparison counts do not sum to matched cases")
         if self.ci_low_delta > self.ci_high_delta:
@@ -123,7 +154,7 @@ class ComparativeOutcome:
         confidence: float = 0.95,
         bootstrap_samples: int = 4000,
     ) -> "ComparativeOutcome":
-        if len(attestation_receipt_hash) != 64:
+        if not _valid_sha256(attestation_receipt_hash):
             raise FrontierSafetyError("authenticated external-run receipt is required")
         candidate_fps = sorted(x.case_fingerprint for x in candidate)
         baseline_fps = sorted(x.case_fingerprint for x in baseline)
@@ -168,8 +199,10 @@ class IndependentValidationRecord:
 
     def __post_init__(self) -> None:
         parse_time(self.validated_at)
-        if len(self.case_set_hash) != 64 or len(self.reproduction_hash) != 64:
+        if not _valid_sha256(self.case_set_hash) or not _valid_sha256(self.reproduction_hash):
             raise ValueError("independent validation hashes must be SHA-256")
+        if not self.validator_org.strip() or not self.candidate_sha.strip():
+            raise ValueError("independent validation identity required")
 
     @property
     def fingerprint(self) -> str:
@@ -194,8 +227,10 @@ class LongitudinalRefreshRecord:
             self.drift_report_hash,
             self.replacement_governance_hash,
         )
-        if any(len(x) != 64 for x in hashes):
+        if any(not _valid_sha256(x) for x in hashes):
             raise ValueError("longitudinal evidence hashes must be SHA-256")
+        if not self.refresh_id.strip():
+            raise ValueError("longitudinal refresh identity required")
 
     @property
     def fingerprint(self) -> str:
@@ -399,10 +434,17 @@ class ExternalEvidenceGate:
         reasons = []
         if level6.get("status") != "PASS" or level6.get("attestation_verified") is not True:
             reasons.append("level6_not_attested_and_passed")
+        if min_refreshes < 3:
+            reasons.append("longitudinal_refresh_floor_below_required")
         receipt_map = cls._receipt_map(receipts, "longitudinal_refresh")
         passed_refreshes: list[LongitudinalRefreshRecord] = []
         receipt_hashes: list[str] = []
+        seen_refresh_ids: set[str] = set()
         for refresh in refreshes:
+            if refresh.refresh_id in seen_refresh_ids:
+                reasons.append("duplicate_longitudinal_refresh")
+                continue
+            seen_refresh_ids.add(refresh.refresh_id)
             if not refresh.passed:
                 continue
             receipt = receipt_map.get(refresh.refresh_id)
@@ -420,9 +462,9 @@ class ExternalEvidenceGate:
                 continue
             passed_refreshes.append(refresh)
             receipt_hashes.append(verification["receipt_sha256"])
-        if len(passed_refreshes) < min_refreshes:
+        if len(passed_refreshes) < max(3, min_refreshes):
             reasons.append("insufficient_attested_longitudinal_refreshes")
-        if len({r.baseline_registry_hash for r in passed_refreshes}) < 2 and len(passed_refreshes) >= min_refreshes:
+        if len({r.baseline_registry_hash for r in passed_refreshes}) < 2 and len(passed_refreshes) >= max(3, min_refreshes):
             reasons.append("baselines_not_refreshed")
         reasons = sorted(set(reasons))
         passed = not reasons
@@ -470,7 +512,7 @@ class ClaimBoundary:
             return {"status": "DENY", "max_evidence_level": max_level, "reason": "broad_frontier_claim_not_proven"}
         if max_level < 5:
             return {"status": "DENY", "max_evidence_level": max_level, "reason": "attested_registered_external_comparison_missing"}
-        if not comparison_scope or not benchmark_hash or len(benchmark_hash) != 64:
+        if not comparison_scope or not benchmark_hash or not _valid_sha256(benchmark_hash):
             return {"status": "DENY", "max_evidence_level": max_level, "reason": "comparison_scope_or_benchmark_missing"}
 
         expected_providers = {str(x).lower() for x in level5.get("provider_orgs", [])}
