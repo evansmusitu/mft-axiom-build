@@ -69,7 +69,7 @@ class EvaluationIntegrityTests(unittest.TestCase):
         registry.promote(v1, regression_pass=True)
         with self.assertRaises(FrontierSafetyError):
             registry.promote(
-                AdaptationRelease("v1", "v1", H, "b" * 64, "c" * 64, "d" * 64, None),
+                AdaptationRelease("v1", "other-parent", H, "b" * 64, "c" * 64, "d" * 64, None),
                 regression_pass=True,
             )
 
