@@ -594,11 +594,17 @@ class ClaimBoundary:
         return " ".join(re.sub(r"[^a-z0-9]+", " ", value.strip().lower()).split())
 
     @classmethod
+    def _named_frontier_providers(cls, requested_claim: str) -> set[str]:
+        normalized = cls._normalize_claim(requested_claim)
+        words = set(normalized.split())
+        return {provider for provider in cls.FRONTIER_PROVIDER_NAMES if provider in words}
+
+    @classmethod
     def _is_broad_claim(cls, requested_claim: str) -> bool:
         normalized = cls._normalize_claim(requested_claim)
         if any(token in normalized for token in cls.BROAD_CLAIMS):
             return True
-        provider_named = any(provider in normalized for provider in cls.FRONTIER_PROVIDER_NAMES)
+        provider_named = bool(cls._named_frontier_providers(requested_claim))
         superiority = any(term in normalized for term in cls.PROVIDER_SUPERIORITY_TERMS)
         if provider_named and superiority:
             return True
@@ -761,6 +767,7 @@ class ClaimBoundary:
         required_provider_orgs: Sequence[str],
     ) -> dict[str, Any]:
         broad = cls._is_broad_claim(requested_claim)
+        named_frontier_providers = cls._named_frontier_providers(requested_claim)
         max_level = 4
         if (level5.get("status") == "PASS" and level5.get("attestation_verified") is True
                 and level5.get("baseline_registry_verified") is True):
@@ -825,6 +832,13 @@ class ClaimBoundary:
         if broad:
             if len(expected_providers) < 4:
                 return {"status": "DENY", "max_evidence_level": max_level, "reason": "broad_provider_coverage_insufficient"}
+            missing_named = named_frontier_providers - positive_providers
+            if missing_named:
+                return {
+                    "status": "DENY", "max_evidence_level": max_level,
+                    "reason": "named_frontier_provider_not_positive",
+                    "missing_named_provider_orgs": sorted(missing_named),
+                }
             if not required:
                 return {"status": "DENY", "max_evidence_level": max_level, "reason": "broad_provider_scope_not_declared"}
             if not required.issubset(positive_providers):
@@ -833,6 +847,7 @@ class ClaimBoundary:
                 "status": "ALLOW", "max_evidence_level": max_level,
                 "claim_boundary": f"Broad claim permitted only for evidence scope: {comparison_scope}",
                 "positive_provider_orgs": sorted(positive_providers),
+                "named_provider_orgs": sorted(named_frontier_providers),
                 "comparison_evidence_sha256": sha256(sorted(fingerprints)),
             }
         return {
