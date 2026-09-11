@@ -26,26 +26,37 @@ jobs:
           python -m pip download -d nli_bundle/wheelhouse \
             'transformers==4.56.2' 'tokenizers==0.22.0' 'safetensors==0.6.2' \
             'sentencepiece==0.2.1' 'huggingface-hub==0.34.4' 'regex' 'pyyaml' 'requests' 'tqdm'
-          python -m pip install 'transformers==4.56.2' 'huggingface-hub==0.34.4' 'sentencepiece==0.2.1'
+          python -m pip install 'huggingface-hub==0.34.4'
           python - <<'PY'
-          from transformers import AutoTokenizer, AutoModelForSequenceClassification
+          from huggingface_hub import HfApi, snapshot_download
           from pathlib import Path
-          import json, hashlib
+          import json, hashlib, shutil
           repo='cross-encoder/nli-deberta-v3-small'
-          revision='main'
+          api=HfApi()
+          info=api.model_info(repo)
+          revision=info.sha
           out=Path('nli_bundle/model')
-          tok=AutoTokenizer.from_pretrained(repo, revision=revision)
-          mdl=AutoModelForSequenceClassification.from_pretrained(repo, revision=revision)
-          tok.save_pretrained(out)
-          mdl.save_pretrained(out, safe_serialization=True)
+          cache=Path('nli_bundle/hf_cache')
+          snap=Path(snapshot_download(
+              repo_id=repo,
+              revision=revision,
+              cache_dir=cache,
+              allow_patterns=['config.json','model.safetensors','pytorch_model.bin','spm.model','tokenizer.json','tokenizer_config.json','special_tokens_map.json','added_tokens.json'],
+          ))
+          for p in snap.rglob('*'):
+              if p.is_file():
+                  target=out/p.relative_to(snap)
+                  target.parent.mkdir(parents=True,exist_ok=True)
+                  shutil.copy2(p,target)
+          shutil.rmtree(cache,ignore_errors=True)
           rows=[]
           for p in sorted(out.rglob('*')):
               if p.is_file():
                   b=p.read_bytes(); rows.append({'path':str(p.relative_to(out)),'bytes':len(b),'sha256':hashlib.sha256(b).hexdigest()})
-          manifest={'schema':'musitu.revenueguard.nli_base.v1','source_repo':repo,'revision':revision,'files':rows}
+          manifest={'schema':'musitu.revenueguard.nli_base.v2','source_repo':repo,'revision':revision,'files':rows}
           manifest['manifest_sha256']=hashlib.sha256(json.dumps(manifest,sort_keys=True,separators=(',',':')).encode()).hexdigest()
           Path('nli_bundle/MODEL_MANIFEST.json').write_text(json.dumps(manifest,indent=2,sort_keys=True)+'\n')
-          print(json.dumps({'files':len(rows),'manifest_sha256':manifest['manifest_sha256']},indent=2))
+          print(json.dumps({'revision':revision,'files':len(rows),'manifest_sha256':manifest['manifest_sha256']},indent=2))
           PY
           sha256sum nli_bundle/wheelhouse/* > nli_bundle/WHEELHOUSE_SHA256SUMS.txt
       - uses: actions/upload-artifact@v4
