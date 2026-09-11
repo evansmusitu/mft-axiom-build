@@ -1,0 +1,33 @@
+{
+  "schema": "musitu.store.signed_apk_reconstruction.v1",
+  "version": "1.0.3",
+  "versionCode": 10003,
+  "packageId": "com.musitu.store",
+  "unsigned": {
+    "sha256": "fabb197b0ffeac6c69041a93aa3fc9023dccd841758f817ffd28b7dacdf2559f",
+    "bytes": 1677040,
+    "ciWorkflowRunId": 34631798237,
+    "ciArtifactId": 10277090287,
+    "ciArtifactZipSha256": "d1e0f887adbb74b5097a293736371f84ffcc6c3592711f9c60a548425845f3b4"
+  },
+  "patch": {
+    "format": "zstd --patch-from",
+    "file": "signed-apk.zstdpatch.b64",
+    "decodedSha256": "e0ffe4a155efb920c417339d357f47d16df271289f8fea4e69380da9a0febe44",
+    "decodedBytes": 10189,
+    "containsPrivateSigningMaterial": false
+  },
+  "signed": {
+    "sha256": "9bbb97b928fcd9130a84f333f3ffe48f3829edec474ec19d18a36df289c36081",
+    "bytes": 1692495,
+    "signingCertificateSha256": "43695b6103d7ab57e89166c9a537f1810b7e33053e20332b1d4e7e2e1c612671",
+    "signatureSchemes": {
+      "v1": false,
+      "v2": true,
+      "v3": true,
+      "v3_1": false,
+      "v4": false
+    }
+  },
+  "securityBoundary": "The committed reconstruction inputs contain only public/non-secret release bytes. Android signing private keys, keystores and passwords are excluded. The patch reconstructs the already-signed canonical APK only when applied to the exact CI-proven unsigned APK."
+}
