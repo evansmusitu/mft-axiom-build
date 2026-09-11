@@ -27,7 +27,8 @@
     "emergency_baseline_restore_on_failure": true,
     "preserve_machine_endpoint_bytes": true,
     "preserve_all_non_install_store_response_bodies": true,
-    "exact_machine_checks_may_retry_but_must_match_expected_bytes": true
+    "exact_machine_checks_may_retry_but_must_match_expected_bytes": true,
+    "public_native_install_handoff_must_converge_before_success": true
   },
   "source_fix_verification": {
     "head": "5330b04e7c5e00ca7ec671b32fb7e7541ba1e076",
@@ -41,6 +42,13 @@
     "endpoint_count": 11,
     "all_raw_overrides_byte_identical": true
   },
-  "attempt": 2,
+  "prior_attempt": {
+    "workflow_run": 34615550923,
+    "candidate_deployed_once": true,
+    "rollback_drill_verified": true,
+    "final_candidate_public_edge_convergence": false,
+    "emergency_baseline_restore_performed": true
+  },
+  "attempt": 3,
   "execute": true
 }
