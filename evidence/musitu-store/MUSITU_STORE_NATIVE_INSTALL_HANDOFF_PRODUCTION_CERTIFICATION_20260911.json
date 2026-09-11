@@ -1,0 +1,63 @@
+{
+  "schema": "musitu.store.native_install_handoff.production_certification.v1",
+  "date_utc": "2026-09-11",
+  "status": "PASS_DEPLOY_ROLLBACK_REDEPLOY_VERIFIED",
+  "scope": "Android customer-facing Install routing from the MUSITU Store web surface into the installed native MUSITU Store, with the Store bootstrap APK retained only as the separate first-time Store installation path.",
+  "repository": "evansmusitu/mft-axiom-build",
+  "branch": "musitu-store-native-install-handoff-20260911",
+  "production_workflow": {
+    "run_id": 34616021901,
+    "head_sha": "8bd3f33776216e12cb99558221abf42902c66f4c",
+    "conclusion": "success",
+    "all_required_steps_success": true,
+    "artifact_id": 10271035427,
+    "artifact_name": "musitu-store-native-install-handoff-production-v2",
+    "artifact_sha256": "b4048d9c226667a0227be8978d15fac7371a3f085c5b48a3ecee0f322dda2962"
+  },
+  "source_verification": {
+    "head_sha": "5330b04e7c5e00ca7ec671b32fb7e7541ba1e076",
+    "workflow_run_id": 34614511566,
+    "conclusion": "success"
+  },
+  "production": {
+    "worker": "musitu-store-phase1",
+    "route": "payments.mftintelligence.com/store*",
+    "changed_module": "render.mjs",
+    "candidate_render_sha256": "fb18de6b27cce881652af79a9b29e66a7c3ce5d5cb5a0a09751884f76e1e114a",
+    "primary_android_install_uri": "musitustore://app/chemistry",
+    "bootstrap_path_role": "first-time MUSITU Store installation only"
+  },
+  "verified_gates": {
+    "exact_live_baseline_captured_before_mutation": true,
+    "render_only_candidate": true,
+    "predeploy_native_handoff_smoke": true,
+    "non_install_store_routes_preserved": 12,
+    "machine_endpoints_preserved": 11,
+    "catalog_bytes_preserved": true,
+    "catalog_signature_bytes_preserved": true,
+    "store_apk_bytes_preserved": true,
+    "commerce_unchanged": true,
+    "entitlement_boundary_unchanged": true,
+    "candidate_deployed": true,
+    "public_android_native_handoff_verified": true,
+    "rollback_drill_performed": true,
+    "rollback_verified_against_android_baseline": true,
+    "candidate_redeployed_final": true,
+    "final_state_verified": true
+  },
+  "native_client_boundary": {
+    "manifest_browsable_scheme": "musitustore",
+    "manifest_host": "app",
+    "current_product_surface": "MUSITU Chemistry",
+    "native_install_action": "verified Store download followed by Android package installer handoff",
+    "silent_package_install_claimed": false,
+    "reason": "Android package installation remains subject to platform installer/security confirmation; MUSITU Store does not bypass Android security controls."
+  },
+  "release_identity": {
+    "store_version": "1.0.2",
+    "store_apk_sha256": "3a0c4b0f971ec84cd6167a137f8e3d75c7bb20e525c26ab533b3d88044cd0784",
+    "store_apk_bytes": 1679340,
+    "store_signing_certificate_sha256": "43695b6103d7ab57e89166c9a537f1810b7e33053e20332b1d4e7e2e1c612671"
+  },
+  "claim_boundary": "On the verified production Store web surface, the primary Android Install action no longer downloads the Store APK. It routes to the native MUSITU Store product surface. The native Store retains signed-catalog and artifact verification and invokes Android's package installer for installation approval. The separate Store bootstrap APK remains only for devices on which MUSITU Store is not yet installed."
+}
