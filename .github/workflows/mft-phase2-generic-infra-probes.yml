@@ -86,10 +86,13 @@ jobs:
           EOF
           docker run -d --restart=always -p 5000:5000 --name mft-registry registry:2
           sudo nohup k3s server --write-kubeconfig-mode 644 --disable traefik --disable servicelb >k3s.log 2>&1 &
+          NODE_COUNT=0
           for i in $(seq 1 120); do
-            if sudo k3s kubectl get node >/dev/null 2>&1; then break; fi
+            NODE_COUNT="$(sudo k3s kubectl get nodes --no-headers 2>/dev/null | sed '/^$/d' | wc -l | tr -d ' ')"
+            if [ "$NODE_COUNT" -ge 1 ]; then break; fi
             sleep 2
           done
+          test "$NODE_COUNT" -ge 1
           sudo k3s kubectl wait --for=condition=Ready node --all --timeout=180s
           export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
           k3s kubectl version -o yaml > kubectl-version.yaml
@@ -182,7 +185,6 @@ jobs:
           EOF
           k3s kubectl apply -f resources.yaml
           k3s kubectl -n mft-row19 rollout status deployment/probe --timeout=180s
-          k3s kubectl -n mft-row19 wait --for=jsonpath='{.status.phase}'=Bound pvc/state --timeout=120s || true
           test "$(k3s kubectl -n mft-row19 get pvc state -o jsonpath='{.status.phase}')" = 'Bound'
 
           k3s kubectl -n mft-row19 run allowed --image=127.0.0.1:5000/mft-row19-probe:v1 --restart=Never --labels=access=allowed --command -- sh -c 'sleep 3600'
@@ -204,7 +206,7 @@ jobs:
           test "$PVC_VALUE" = 'durable-row19'
 
           python3 - <<PY
-          import json, hashlib
+          import json
           receipt = {
             'schema':'mft.education_nexus.phase2.kubernetes_oci_public_probe.v1',
             'phase2_row':19,
