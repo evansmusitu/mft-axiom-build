@@ -5,4 +5,5 @@ from .orchestration import *
 from .verification import *
 from .evaluation import *
 from .ledger_auth import *
+from .adaptation import *
 from .enterprise import *
