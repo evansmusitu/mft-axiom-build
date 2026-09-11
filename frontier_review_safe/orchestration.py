@@ -318,7 +318,7 @@ class HypothesisMarket:
                                state.resolution_criteria)
 
 
-# Canonical verifier export. These assignments deliberately override the legacy
-# inline definitions above so every supported import path resolves to the
-# provenance-backed fail-closed implementation in frontier_review_safe.verification.
+# Canonical exports. These assignments deliberately override legacy inline
+# definitions so every supported import path resolves to the hardened modules.
 from .verification import IndependentVerifier as IndependentVerifier, VerificationPath as VerificationPath
+from .hypothesis_market import HypothesisMarket as HypothesisMarket, HypothesisState as HypothesisState
