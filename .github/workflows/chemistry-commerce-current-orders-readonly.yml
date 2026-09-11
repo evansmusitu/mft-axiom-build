@@ -1,0 +1,73 @@
+name: MUSITU Chemistry Commerce Current Orders Readonly
+
+on:
+  push:
+    branches: [chemistry-direct-paynow-fallback-20260911]
+    paths: ['.github/workflows/chemistry-commerce-current-orders-readonly.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      CLOUDFLARE_ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      D1_DATABASE_NAME: musitu-chemistry-commerce
+    steps:
+      - uses: actions/checkout@v4
+      - name: SELECT aggregate order state only
+        shell: bash
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/mchem-orders-readonly
+          python - <<'PY'
+          import datetime,hashlib,json,os,urllib.error,urllib.request
+          from pathlib import Path
+          API='https://api.cloudflare.com/client/v4'; account=os.environ['CLOUDFLARE_ACCOUNT_ID']; db_name=os.environ['D1_DATABASE_NAME']
+          H={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY'],'Content-Type':'application/json','User-Agent':'MUSITU-Chemistry-Orders-Readonly/1.0'}
+          def req(url,method='GET',body=None):
+            q=urllib.request.Request(url,method=method,headers=H,data=body)
+            try:
+              with urllib.request.urlopen(q,timeout=60) as r:return r.status,json.loads(r.read() or b'{}')
+            except urllib.error.HTTPError as e:raise SystemExit(f'Cloudflare HTTP {e.code}: '+e.read()[:400].decode('utf-8','replace'))
+          c,o=req(f'{API}/accounts/{account}/d1/database?per_page=100')
+          matches=[d for d in (o.get('result') or []) if d.get('name')==db_name]
+          if c!=200 or o.get('success') is not True or len(matches)!=1:raise SystemExit('exact D1 database resolution failed')
+          db_id=matches[0].get('uuid') or matches[0].get('id')
+          queries={
+            'all_time':"""SELECT plan,status,currency,COUNT(*) AS orders,SUM(amount_cents) AS amount_cents,MIN(created_at) AS first_created_at,MAX(created_at) AS last_created_at FROM chemistry_orders GROUP BY plan,status,currency ORDER BY plan,status,currency""",
+            'since_rescue_launch':"""SELECT plan,status,currency,COUNT(*) AS orders,SUM(amount_cents) AS amount_cents,MIN(created_at) AS first_created_at,MAX(created_at) AS last_created_at FROM chemistry_orders WHERE created_at >= '2026-09-07T00:00:00Z' GROUP BY plan,status,currency ORDER BY plan,status,currency""",
+            'since_direct_fallback_deploy':"""SELECT plan,status,currency,COUNT(*) AS orders,SUM(amount_cents) AS amount_cents,MIN(created_at) AS first_created_at,MAX(created_at) AS last_created_at FROM chemistry_orders WHERE created_at >= '2026-09-11T11:34:00Z' GROUP BY plan,status,currency ORDER BY plan,status,currency"""
+          }
+          forbidden=['INSERT','UPDATE','DELETE','CREATE','ALTER','DROP','REPLACE','UPSERT','PRAGMA','VACUUM']
+          results={}; digests={}
+          for label,sql in queries.items():
+            norm=' '+sql.upper()+' '
+            if not sql.lstrip().upper().startswith('SELECT ') or any((' '+w+' ') in norm for w in forbidden):raise SystemExit('non-readonly query rejected: '+label)
+            qc,qo=req(f'{API}/accounts/{account}/d1/database/{db_id}/query','POST',json.dumps({'sql':sql}).encode())
+            rr=qo.get('result') or []
+            if qc!=200 or qo.get('success') is not True or len(rr)!=1 or rr[0].get('success') is not True:raise SystemExit('D1 SELECT failed: '+label)
+            results[label]=rr[0].get('results') or []
+            digests[label]=hashlib.sha256(sql.encode()).hexdigest()
+          def summarize(rows):
+            orders=sum(int(r.get('orders') or 0) for r in rows)
+            cents=sum(int(r.get('amount_cents') or 0) for r in rows)
+            by_status={}
+            for r in rows:
+              s=str(r.get('status') or ''); by_status[s]=by_status.get(s,0)+int(r.get('orders') or 0)
+            return {'orders':orders,'amount_cents':cents,'by_status':by_status}
+          evidence={'schema':'musitu.chemistry.commerce.orders_readonly.v1','captured_at_utc':datetime.datetime.now(datetime.timezone.utc).replace(microsecond=0).isoformat(),'repository_head':os.environ.get('GITHUB_SHA',''),'d1_database_name':db_name,'d1_database_id':db_id,'query_class':'SELECT_ONLY_AGGREGATE','query_sha256':digests,'all_time':summarize(results['all_time']),'since_rescue_launch':summarize(results['since_rescue_launch']),'since_direct_fallback_deploy':summarize(results['since_direct_fallback_deploy']),'rows':results,'raw_order_references_read':False,'holder_names_read':False,'emails_read':False,'personal_identifiers_queried':False,'production_mutation':False,'payment_created':False,'payment_submitted':False,'settlement_claimed':False,'gate':'MUSITU_CHEMISTRY_COMMERCE_ORDERS_READONLY_PASS'}
+          out=Path('/tmp/mchem-orders-readonly'); raw=(json.dumps(evidence,indent=2,sort_keys=True)+'\n').encode(); out.joinpath('orders-readonly.json').write_bytes(raw); out.joinpath('orders-readonly.sha256').write_text(hashlib.sha256(raw).hexdigest()+'  orders-readonly.json\n'); print(json.dumps(evidence,sort_keys=True))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: musitu-chemistry-commerce-orders-readonly
+          path: /tmp/mchem-orders-readonly
+          retention-days: 90
+          if-no-files-found: error
