@@ -580,8 +580,11 @@ class ExternalEvidenceGate:
                 continue
             passed_refreshes.append(refresh)
             receipt_hashes.append(verification["receipt_sha256"])
+        distinct_refresh_times = {parse_time(r.executed_at) for r in passed_refreshes}
         if len(passed_refreshes) < effective_min_refreshes:
             reasons.append("insufficient_attested_longitudinal_refreshes")
+        elif len(distinct_refresh_times) < effective_min_refreshes:
+            reasons.append("insufficient_distinct_longitudinal_refresh_times")
         if len({r.baseline_registry_hash for r in passed_refreshes}) < 2 and len(passed_refreshes) >= effective_min_refreshes:
             reasons.append("baselines_not_refreshed")
         reasons = sorted(set(reasons))
@@ -594,6 +597,7 @@ class ExternalEvidenceGate:
             "candidate_sha": expected_identity.candidate_sha if expected_identity is not None else None,
             "case_set_hash": expected_identity.case_set_hash if expected_identity is not None else None,
             "refresh_count": len(passed_refreshes),
+            "distinct_refresh_times": len(distinct_refresh_times),
             "refresh_evidence_sha256": sha256([asdict(r) for r in sorted(passed_refreshes, key=lambda x: x.refresh_id)]),
             "attestation_sha256": sha256(sorted(receipt_hashes)) if receipt_hashes else None,
         }
