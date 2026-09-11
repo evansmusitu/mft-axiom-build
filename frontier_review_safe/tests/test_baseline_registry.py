@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import datetime, timedelta, timezone
 import unittest
 
@@ -78,6 +79,20 @@ class BaselineRegistryTests(unittest.TestCase):
         reg = registration()
         with self.assertRaises(FrontierSafetyError):
             BaselineRegistry("musitu.axiom.baseline-registry.v1", "v1", NOW.isoformat(), (reg, reg))
+
+    def test_registration_rejects_nonhex_hashes_and_blank_identity(self):
+        reg = registration()
+        with self.assertRaises(ValueError):
+            replace(reg, case_set_hash="z" * 64)
+        with self.assertRaises(ValueError):
+            replace(reg, provider_org="   ")
+        with self.assertRaises(ValueError):
+            replace(reg, capabilities=("research", " "))
+
+    def test_registry_rejects_blank_version(self):
+        reg = registration()
+        with self.assertRaises(ValueError):
+            BaselineRegistry("musitu.axiom.baseline-registry.v1", "   ", NOW.isoformat(), (reg,))
 
 
 if __name__ == "__main__":
