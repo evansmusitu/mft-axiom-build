@@ -1,0 +1,15 @@
+{
+  "schema": "musitu.store.bootstrap_release.v1",
+  "generatedAt": "2026-09-11T18:19:19Z",
+  "name": "MUSITU Store",
+  "version": "1.0.3",
+  "versionCode": 10003,
+  "packageId": "com.musitu.store",
+  "artifactFile": "MUSITU_Store_1.0.3.apk",
+  "sha256": "9bbb97b928fcd9130a84f333f3ffe48f3829edec474ec19d18a36df289c36081",
+  "bytes": 1692495,
+  "signingCertificateSha256": "43695b6103d7ab57e89166c9a537f1810b7e33053e20332b1d4e7e2e1c612671",
+  "catalogURL": "https://payments.mftintelligence.com/store/catalog.json",
+  "catalogSignatureURL": "https://payments.mftintelligence.com/store/catalog.sig",
+  "publicationState": "private-predeployment"
+}
