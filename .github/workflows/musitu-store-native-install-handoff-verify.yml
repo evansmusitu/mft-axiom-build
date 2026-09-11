@@ -1,0 +1,50 @@
+name: MUSITU Store Native Install Handoff Verify
+
+on:
+  push:
+    branches: [musitu-store-native-install-handoff-20260911]
+    paths:
+      - 'store/phase1/**'
+      - '.github/workflows/musitu-store-native-install-handoff-verify.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Regenerate Store web data
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -f store/phase1/web-surface/generated-data.mjs
+          python store/phase1/web-surface/build_store_data.py
+      - name: Syntax check Store web surface
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check store/phase1/web-surface/generated-data.mjs
+          node --check store/phase1/web-surface/assets.mjs
+          node --check store/phase1/web-surface/render.mjs
+          node --check store/phase1/web-surface/worker.mjs
+      - name: Run existing Store behavioral contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --test store/phase1/web-surface/storefront.test.mjs
+      - name: Prove native Store install handoff
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --test store/phase1/web-surface/native-install-handoff.test.mjs
+          echo 'NATIVE_INSTALL_HANDOFF=PASS'
