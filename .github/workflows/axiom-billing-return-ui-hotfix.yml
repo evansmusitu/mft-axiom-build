@@ -1,0 +1,48 @@
+name: MUSITU Axiom Billing Return UI Hotfix
+
+on:
+  push:
+    paths:
+      - '.github/workflows/axiom-billing-return-ui-hotfix.yml'
+      - 'ops/axiom_billing_return_ui_hotfix.py'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: musitu-axiom-billing-return-ui-hotfix
+  cancel-in-progress: false
+
+jobs:
+  deploy-verify-rollback-redeploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      CF_API: https://api.cloudflare.com/client/v4
+      ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      ZONE_ID: 5b56528f03948ff5917a5e0cd9f7109e
+      BILLING_WORKER: mft-axiom-billing-ingress
+      BILLING_ROUTE: payments.mftintelligence.com/billing/*
+      PAYMENTS_BASE: https://payments.mftintelligence.com
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Compile hotfix before production access
+        run: python -m py_compile ops/axiom_billing_return_ui_hotfix.py
+
+      - name: Deploy browser-safe payment return UI with rollback proof
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        run: python ops/axiom_billing_return_ui_hotfix.py
+
+      - name: Upload certification evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: musitu-axiom-billing-return-ui-hotfix
+          path: |
+            billing-return-ui-hotfix-evidence.json
+            billing-return-ui-hotfix-evidence.sha256
+          retention-days: 30
+          if-no-files-found: error
