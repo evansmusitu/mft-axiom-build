@@ -63,16 +63,18 @@ class Level6AttestationIssuerIndependenceTests(unittest.TestCase):
         self.assertIn("no_attested_independent_end_to_end_reproduction", result["reasons"])
         self.assertEqual(result["validation_count"], 0)
 
-    def test_provider_issuer_case_and_whitespace_alias_still_fails(self):
+    def test_provider_issuer_case_alias_still_fails_and_whitespace_alias_is_rejected_at_issue(self):
         record = validation()
         secret = b"a" * 32
-        receipt = issue(record, issuer_org=" ANTHROPIC ", key_id="anthropic-key", secret=secret)
+        with self.assertRaises(ValueError):
+            issue(record, issuer_org=" ANTHROPIC ", key_id="anthropic-key", secret=secret)
+        receipt = issue(record, issuer_org="ANTHROPIC", key_id="anthropic-key", secret=secret)
         result = ExternalEvidenceGate.level6(
             LEVEL5,
             [record],
             receipts=[receipt],
             verifier_secrets={"anthropic-key": secret},
-            trusted_issuers={" ANTHROPIC ": frozenset({"anthropic-key"})},
+            trusted_issuers={"ANTHROPIC": frozenset({"anthropic-key"})},
         )
         self.assertEqual(result["status"], "FAIL")
         self.assertIn("independent_validation_attester_overlaps_level5_provider", result["reasons"])

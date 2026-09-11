@@ -126,16 +126,18 @@ class Level5AttestationIndependenceTests(unittest.TestCase):
         self.assertIn("external_attestation_issuer_overlaps_level5_provider", result["reasons"])
         self.assertEqual(result["run_count"], 0)
 
-    def test_case_and_whitespace_alias_of_provider_still_counts_as_overlap(self):
+    def test_case_alias_still_counts_as_overlap_and_whitespace_alias_is_rejected_at_issue(self):
         registry, runs = fixture()
         secrets = {"alias-key": b"z" * 32, "lab-key": b"l" * 32}
+        with self.assertRaises(ValueError):
+            issue(runs[0], issuer_org=" OPENAI ", key_id="alias-key", secret=secrets["alias-key"])
         receipts = [
-            issue(runs[0], issuer_org=" OPENAI ", key_id="alias-key", secret=secrets["alias-key"]),
+            issue(runs[0], issuer_org="OPENAI", key_id="alias-key", secret=secrets["alias-key"]),
             issue(runs[1], issuer_org="ExternalLab", key_id="lab-key", secret=secrets["lab-key"]),
             issue(runs[2], issuer_org="ExternalLab", key_id="lab-key", secret=secrets["lab-key"]),
         ]
         trust = {
-            " OPENAI ": frozenset({"alias-key"}),
+            "OPENAI": frozenset({"alias-key"}),
             "ExternalLab": frozenset({"lab-key"}),
         }
         result = self.evaluate(registry, runs, receipts, secrets, trust)

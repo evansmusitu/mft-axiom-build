@@ -16,6 +16,19 @@ def _valid_sha256(value: str) -> bool:
     )
 
 
+def _canonical_identity(value: Any) -> bool:
+    return (
+        isinstance(value, str)
+        and bool(value)
+        and value == value.strip()
+        and value == " ".join(value.split())
+    )
+
+
+def _valid_secret(value: Any) -> bool:
+    return isinstance(value, (bytes, bytearray)) and len(value) >= 32
+
+
 @dataclass(frozen=True)
 class ExternalAttestationReceipt:
     schema: str
@@ -31,8 +44,15 @@ class ExternalAttestationReceipt:
     def __post_init__(self) -> None:
         if self.schema != "musitu.axiom.external-attestation.v1":
             raise ValueError("unsupported external attestation schema")
-        if not all((self.subject_type, self.subject_id, self.issuer_org, self.verifier_key_id, self.provenance_type)):
-            raise ValueError("complete external attestation identity required")
+        identities = (
+            self.subject_type,
+            self.subject_id,
+            self.issuer_org,
+            self.verifier_key_id,
+            self.provenance_type,
+        )
+        if any(not _canonical_identity(value) for value in identities):
+            raise ValueError("external attestation identities must be canonical non-empty strings")
         if not _valid_sha256(self.subject_hash):
             raise ValueError("external attestation subject hash must be SHA-256")
         parse_time(self.issued_at)
@@ -88,8 +108,11 @@ class ExternalAttestationService:
         issued_at: str,
         verifier_secret: bytes,
     ) -> ExternalAttestationReceipt:
-        if len(verifier_secret) < 32:
-            raise ValueError("external verifier secret must be >=32 bytes")
+        identities = (subject_type, subject_id, issuer_org, verifier_key_id, provenance_type)
+        if any(not _canonical_identity(value) for value in identities):
+            raise ValueError("external attestation identities must be canonical non-empty strings")
+        if not _valid_secret(verifier_secret):
+            raise ValueError("external verifier secret must be bytes with length >=32")
         parse_time(issued_at)
         if not _valid_sha256(subject_hash):
             raise ValueError("subject_hash must be SHA-256")
@@ -102,7 +125,7 @@ class ExternalAttestationService:
             provenance_type=provenance_type,
             issued_at=issued_at,
         )
-        signature = hmac.new(verifier_secret, canonical(body).encode("utf-8"), hashlib.sha256).hexdigest()
+        signature = hmac.new(bytes(verifier_secret), canonical(body).encode("utf-8"), hashlib.sha256).hexdigest()
         return ExternalAttestationReceipt(**body, receipt_hmac=signature)
 
     @classmethod
@@ -121,18 +144,22 @@ class ExternalAttestationService:
         if receipt.verifier_key_id not in trusted_keys:
             reasons.append("untrusted_external_issuer_or_key")
         secret = verifier_secrets.get(receipt.verifier_key_id)
-        if secret is None or len(secret) < 32:
+        if not _valid_secret(secret):
             reasons.append("external_verifier_secret_unavailable")
-        if receipt.subject_type != expected_subject_type:
+        if not _canonical_identity(expected_subject_type):
+            reasons.append("external_attestation_expected_subject_type_invalid")
+        elif receipt.subject_type != expected_subject_type:
             reasons.append("external_attestation_subject_type_mismatch")
-        if receipt.subject_id != expected_subject_id:
+        if not _canonical_identity(expected_subject_id):
+            reasons.append("external_attestation_expected_subject_id_invalid")
+        elif receipt.subject_id != expected_subject_id:
             reasons.append("external_attestation_subject_id_mismatch")
         if not _valid_sha256(expected_subject_hash):
             reasons.append("external_attestation_expected_subject_hash_invalid")
         elif receipt.subject_hash != expected_subject_hash:
             reasons.append("external_attestation_subject_hash_mismatch")
         parse_time(receipt.issued_at)
-        if secret is not None and len(secret) >= 32:
+        if _valid_secret(secret):
             body = cls._body(
                 subject_type=receipt.subject_type,
                 subject_id=receipt.subject_id,
@@ -142,7 +169,7 @@ class ExternalAttestationService:
                 provenance_type=receipt.provenance_type,
                 issued_at=receipt.issued_at,
             )
-            expected = hmac.new(secret, canonical(body).encode("utf-8"), hashlib.sha256).hexdigest()
+            expected = hmac.new(bytes(secret), canonical(body).encode("utf-8"), hashlib.sha256).hexdigest()
             if not hmac.compare_digest(receipt.receipt_hmac, expected):
                 reasons.append("external_attestation_authentication_failed")
         return {
