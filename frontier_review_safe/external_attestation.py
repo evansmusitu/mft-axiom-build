@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Mapping as MappingABC
 from dataclasses import asdict, dataclass
 from typing import Any, Mapping
 import hashlib
@@ -159,17 +160,28 @@ class ExternalAttestationService:
         trusted_issuers: Mapping[str, frozenset[str]],
     ) -> dict[str, Any]:
         reasons: list[str] = []
-        ambiguous_key_ids = _ambiguous_trust_key_ids(trusted_issuers)
+        if isinstance(trusted_issuers, MappingABC):
+            trust_root = trusted_issuers
+        else:
+            trust_root = {}
+            reasons.append("external_attestation_trust_root_invalid")
+        if isinstance(verifier_secrets, MappingABC):
+            secret_store = verifier_secrets
+        else:
+            secret_store = {}
+            reasons.append("external_verifier_secret_store_invalid")
+
+        ambiguous_key_ids = _ambiguous_trust_key_ids(trust_root)
         if receipt.verifier_key_id in ambiguous_key_ids:
             reasons.append("external_attestation_key_reused_across_issuers")
-        trusted_keys = trusted_issuers.get(receipt.issuer_org)
+        trusted_keys = trust_root.get(receipt.issuer_org)
         if trusted_keys is None:
             reasons.append("untrusted_external_issuer_or_key")
         elif not _valid_trusted_key_set(trusted_keys):
             reasons.append("external_attestation_trust_root_invalid")
         elif receipt.verifier_key_id not in trusted_keys:
             reasons.append("untrusted_external_issuer_or_key")
-        secret = verifier_secrets.get(receipt.verifier_key_id)
+        secret = secret_store.get(receipt.verifier_key_id)
         if not _valid_secret(secret):
             reasons.append("external_verifier_secret_unavailable")
         if not _canonical_identity(expected_subject_type):
