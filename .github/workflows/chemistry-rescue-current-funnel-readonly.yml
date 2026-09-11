@@ -1,0 +1,161 @@
+name: MUSITU Chemistry Rescue Current Funnel Readonly
+
+on:
+  push:
+    branches: [chemistry-direct-paynow-fallback-20260911]
+    paths: ['.github/workflows/chemistry-rescue-current-funnel-readonly.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      CLOUDFLARE_ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      D1_DATABASE_NAME: musitu-chemistry-commerce
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Resolve exact D1 identity and SELECT aggregate Rescue funnel only
+        shell: bash
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/mchem-funnel-current
+          mkdir -p /tmp/mchem-funnel-current
+          python - <<'PY'
+          import datetime, hashlib, json, os, urllib.error, urllib.request
+          from pathlib import Path
+
+          API='https://api.cloudflare.com/client/v4'
+          account=os.environ['CLOUDFLARE_ACCOUNT_ID']
+          db_name=os.environ['D1_DATABASE_NAME']
+          headers={
+              'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],
+              'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY'],
+              'Content-Type':'application/json',
+              'User-Agent':'MUSITU-Chemistry-Rescue-Funnel-Readonly/1.0'
+          }
+
+          def request(url, method='GET', body=None):
+              req=urllib.request.Request(url,method=method,headers=headers,data=body)
+              try:
+                  with urllib.request.urlopen(req,timeout=60) as r:
+                      return r.status,json.loads(r.read() or b'{}')
+              except urllib.error.HTTPError as e:
+                  raw=e.read()
+                  raise SystemExit(f'Cloudflare HTTP {e.code}: '+raw[:500].decode('utf-8','replace'))
+
+          status,obj=request(f'{API}/accounts/{account}/d1/database?per_page=100')
+          if status!=200 or obj.get('success') is not True:
+              raise SystemExit('D1 database listing failed')
+          matches=[d for d in (obj.get('result') or []) if d.get('name')==db_name]
+          if len(matches)!=1:
+              raise SystemExit(f'exact D1 database identity mismatch: {len(matches)} matches for {db_name}')
+          db=matches[0]
+          db_id=db.get('uuid') or db.get('id')
+          if not db_id:
+              raise SystemExit('D1 database UUID missing')
+
+          sql="""SELECT day,name,route,detail,viewport,SUM(count) AS count
+          FROM chemistry_field_aggregate
+          WHERE kind='event'
+            AND (route='rescue' OR name IN (
+              'rescue_visit','rescue_start','rescue_share','rescue_peer_start',
+              'premium_intent','teacher_kit','school_kit','ambassador_kit'
+            ))
+          GROUP BY day,name,route,detail,viewport
+          ORDER BY day,name,detail,viewport"""
+          forbidden=['INSERT','UPDATE','DELETE','CREATE','ALTER','DROP','REPLACE','UPSERT','PRAGMA','VACUUM']
+          normalized=' '+sql.upper()+' '
+          if not sql.lstrip().upper().startswith('SELECT '):
+              raise SystemExit('query is not SELECT-only')
+          if any((' '+word+' ') in normalized for word in forbidden):
+              raise SystemExit('mutation token detected in funnel query')
+
+          body=json.dumps({'sql':sql}).encode()
+          qstatus,qobj=request(f'{API}/accounts/{account}/d1/database/{db_id}/query','POST',body)
+          if qstatus!=200 or qobj.get('success') is not True:
+              raise SystemExit('D1 SELECT query failed')
+          result=qobj.get('result') or []
+          if len(result)!=1 or result[0].get('success') is not True:
+              raise SystemExit('unexpected D1 query result shape')
+          rows=result[0].get('results') or []
+
+          growth_names={
+              'rescue_visit','rescue_start','rescue_share','rescue_peer_start',
+              'premium_intent','teacher_kit','school_kit','ambassador_kit'
+          }
+          allowed_sources={'wa_student','wa_teacher','school','creator','meta','tiktok','ambassador','direct',''}
+          totals={}
+          sources={}
+          rescue_page_views=0
+          for row in rows:
+              name=str(row.get('name') or '')
+              detail=str(row.get('detail') or '')
+              count=int(row.get('count') or 0)
+              if name=='page_view' and str(row.get('route') or '')=='rescue':
+                  rescue_page_views+=count
+              if name in growth_names:
+                  if detail not in allowed_sources:
+                      raise SystemExit('unexpected Rescue source detail in aggregate snapshot')
+                  totals[name]=totals.get(name,0)+count
+                  key=detail or 'unspecified'
+                  sources.setdefault(key,{})[name]=sources.setdefault(key,{}).get(name,0)+count
+
+          baseline={'rescue_page_views':3,'rescue_visit':3,'rescue_start':0,'rescue_share':0,'rescue_peer_start':0,'premium_intent':0,'teacher_kit':0,'school_kit':0,'ambassador_kit':0}
+          current={'rescue_page_views':rescue_page_views,**{k:totals.get(k,0) for k in sorted(growth_names)}}
+          delta={k:current.get(k,0)-v for k,v in baseline.items()}
+          now=datetime.datetime.now(datetime.timezone.utc).replace(microsecond=0).isoformat()
+          evidence={
+              'schema':'musitu.chemistry.rescue.current_funnel_readonly.v1',
+              'captured_at_utc':now,
+              'repository_head':os.environ.get('GITHUB_SHA',''),
+              'cloudflare_account_id':account,
+              'd1_database_name':db_name,
+              'd1_database_id':db_id,
+              'query_class':'SELECT_ONLY_AGGREGATE',
+              'query_sha256':hashlib.sha256(sql.encode()).hexdigest(),
+              'aggregate_rows_returned':len(rows),
+              'baseline_2026_09_07':baseline,
+              'current_totals':current,
+              'delta_from_baseline':delta,
+              'growth_event_totals_by_source':sources,
+              'raw_identity_rows_read':False,
+              'personal_identifiers_queried':False,
+              'telemetry_post_performed':False,
+              'payment_intent_created':False,
+              'production_mutation':False,
+              'adoption_claimed':False,
+              'campaign_roi_claimed':False,
+              'real_money_settlement_claimed':False,
+              'gate':'MUSITU_CHEMISTRY_RESCUE_CURRENT_FUNNEL_READONLY_PASS'
+          }
+          out=Path('/tmp/mchem-funnel-current')
+          raw=(json.dumps(evidence,indent=2,sort_keys=True)+'\n').encode()
+          out.joinpath('current-funnel.json').write_bytes(raw)
+          out.joinpath('current-funnel.sha256').write_text(hashlib.sha256(raw).hexdigest()+'  current-funnel.json\n')
+          out.joinpath('aggregate-rows.json').write_text(json.dumps(rows,indent=2,sort_keys=True)+'\n')
+          out.joinpath('query.sql').write_text(sql+';\n')
+          print(json.dumps(evidence,sort_keys=True))
+          PY
+
+      - name: Seal snapshot evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd /tmp/mchem-funnel-current
+          sha256sum current-funnel.json current-funnel.sha256 aggregate-rows.json query.sql > SHA256SUMS.txt
+          cat current-funnel.json
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: musitu-chemistry-rescue-current-funnel-readonly
+          path: /tmp/mchem-funnel-current
+          retention-days: 90
+          if-no-files-found: error
