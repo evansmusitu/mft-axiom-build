@@ -340,6 +340,7 @@ class CapabilityDiscoveryOptimizer:
                 "max_regret": max(regrets), "n": len(observations), "observations_sha256": sha256([asdict(x) for x in observations])}
 
 
-# Canonical durable model-risk exports. These override the legacy inline classes
-# so callers using frontier_review_safe.controls cannot bypass persistent governance.
+# Canonical hardened exports. These override legacy inline classes so callers
+# cannot bypass structured intent qualification or durable model-risk governance.
+from .commercial_intent import CommercialIntentQualifier as CommercialIntentQualifier, CommercialIntentRequest as CommercialIntentRequest
 from .model_risk import ModelRegistration as ModelRegistration, ModelRiskGovernance as ModelRiskGovernance
