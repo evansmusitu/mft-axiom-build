@@ -6,6 +6,7 @@ on:
     paths:
       - 'store/phase2/deploy_hardened_store.py'
       - 'store/phase2/validate_manual_accessibility_packet.py'
+      - 'store/phase2/test_manual_accessibility_validator.py'
       - 'evidence/musitu-store/MUSITU_STORE_PHASE2_MANUAL_ACCESSIBILITY_CERTIFICATION_PACKET_20260911.json'
       - 'evidence/musitu-store/MUSITU_STORE_PHASE2_REPAIRED_LIVE_HARDENED_CANDIDATE_CERTIFICATION_20260911.json'
       - 'evidence/musitu-store/MUSITU_STORE_PHASE2_REPAIRED_LIVE_RESPONSE_BODY_EQUIVALENCE_20260911.json'
@@ -51,15 +52,18 @@ jobs:
           test -z "$(git diff --name-only "$QUALIFICATION_HEAD"..."$GITHUB_SHA" -- store/phase2/apply-standards-hardening.py store/phase2/browser_machine_presentation.py store/phase2/security-hardening-smoke.mjs store/phase2/standards-browser-smoke.mjs store/phase2/response-body-equivalence.mjs)"
           echo READINESS_BOUNDARY=PASS
 
-      - name: Compile safe deployment transaction validator and bounded transform
+      - name: Compile deployment code and adversarially test manual-evidence validator contract
         shell: bash
         run: |
           set -euo pipefail
-          python -m py_compile store/phase2/deploy_hardened_store.py store/phase2/apply-standards-hardening.py store/phase2/capture_exact_live_store_worker.py store/phase2/validate_manual_accessibility_packet.py
+          python -m py_compile store/phase2/deploy_hardened_store.py store/phase2/apply-standards-hardening.py store/phase2/capture_exact_live_store_worker.py store/phase2/validate_manual_accessibility_packet.py store/phase2/test_manual_accessibility_validator.py
           node --check store/phase2/security-hardening-smoke.mjs
           node --check store/phase2/standards-browser-smoke.mjs
           node --check store/phase2/response-body-equivalence.mjs
-          echo DEPLOYMENT_CODE_STATIC_GATE=PASS
+          python store/phase2/test_manual_accessibility_validator.py | tee /tmp/manual-validator-contract-tests.txt
+          grep -q 'MUSITU_STORE_PHASE2_MANUAL_VALIDATOR_SYNTHETIC_CONTRACT_TESTS=PASS' /tmp/manual-validator-contract-tests.txt
+          grep -q 'SYNTHETIC_FIXTURE_IS_NOT_REAL_ACCESSIBILITY_EVIDENCE=TRUE' /tmp/manual-validator-contract-tests.txt
+          echo DEPLOYMENT_CODE_AND_VALIDATOR_CONTRACT_GATE=PASS
 
       - name: Prove production workflow is manual-only strict-gated and module-root rollback-capable
         shell: bash
@@ -132,7 +136,7 @@ jobs:
           print('REPAIRED_LIVE_CANDIDATE_CERTIFICATE=PASS')
           PY
 
-      - name: Prove manual evidence validator fails closed or passes only reviewed evidence
+      - name: Prove manual evidence validator fails closed or passes only complete reviewed evidence
         shell: bash
         run: |
           set -euo pipefail
@@ -162,7 +166,8 @@ jobs:
           elif [ "$STATUS" = 'PASS_REVIEWED_REAL_ASSISTIVE_TECHNOLOGY_EVIDENCE' ] && [ "$RESULT" = 'PASS' ]; then
             python store/phase2/validate_manual_accessibility_packet.py "$MANUAL_PACKET" . | tee /tmp/manual-validator.out
             grep -q '"result": "PASS"' /tmp/manual-validator.out
-            echo STRICT_MANUAL_VALIDATOR_ACCEPTS_REVIEWED_EVIDENCE=PASS
+            grep -q '"complete_required_check_keysets": true' /tmp/manual-validator.out
+            echo STRICT_MANUAL_VALIDATOR_ACCEPTS_ONLY_COMPLETE_REVIEWED_EVIDENCE=PASS
           else
             echo "invalid manual packet state: status=$STATUS result=$RESULT" >&2
             exit 1
@@ -186,7 +191,7 @@ jobs:
           else:
               raise SystemExit('invalid or failed manual accessibility gate state')
           out={
-            'schema':'musitu.store.phase2.deployment_readiness.v3',
+            'schema':'musitu.store.phase2.deployment_readiness.v4',
             'result':'PASS',
             'sealed_main':os.environ['SEALED_MAIN'],
             'phase1_head':os.environ['PHASE1_HEAD'],
@@ -200,6 +205,11 @@ jobs:
             'manual_packet_schema':packet['schema'],
             'manual_accessibility_gate':manual,
             'manual_validator':validator,
+            'manual_validator_contract_tests':'PASS_SYNTHETIC_STRUCTURE_ONLY_NOT_REAL_EVIDENCE',
+            'manual_validator_pinned_candidate_sha256':os.environ['CANDIDATE_WORKER_SHA'],
+            'manual_validator_requires_complete_check_keysets':True,
+            'manual_validator_requires_microsoft_narrator':True,
+            'manual_validator_requires_stable_evidence_reference_scheme':True,
             'production_workflow':'MANUAL_DISPATCH_ONLY',
             'rollback_transaction':'SAFE_MODULE_ROOT_STATICALLY_VERIFIED',
             'raw_get_multipart_rollback':'FORBIDDEN',
