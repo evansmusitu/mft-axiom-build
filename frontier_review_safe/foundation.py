@@ -5,6 +5,7 @@ from .governance import *
 from .analysis import *
 from .causal_validation import *
 from .orchestration import *
+from .specialist_governance import *
 from .verification import *
 from .evaluation import *
 from .external_attestation import *
