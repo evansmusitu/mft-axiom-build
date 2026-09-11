@@ -1,0 +1,103 @@
+name: MUSITU Chemistry Direct Paynow Fallback Qualification
+
+on:
+  push:
+    branches: [chemistry-direct-paynow-fallback-20260911]
+    paths: ['.github/workflows/chemistry-direct-paynow-fallback-qualify.yml']
+
+permissions:
+  contents: read
+
+jobs:
+  qualify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    env:
+      EXPECTED_LIVE_SHA256: 7e3b9b188a9e69399e120f0a36b90bc63ac37e5bae87a2b731e67b565ee3573c
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run transform contract tests
+        run: python -m unittest -v commerce/chemistry/test_direct_paynow_fallback_transform.py
+
+      - name: Capture exact live module read-only and build candidate
+        shell: bash
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import email,hashlib,json,os,re,urllib.error,urllib.request
+          API='https://api.cloudflare.com/client/v4';AID='93f395f5121954671f92fffa453d6b61';WORKER='musitu-chemistry-commerce'
+          H={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY'],'User-Agent':'MUSITU-Direct-Paynow-Qualify/1.0'}
+          def req(url,headers=None,timeout=60):
+              q=urllib.request.Request(url,headers=dict(headers or {}))
+              try:
+                  with urllib.request.urlopen(q,timeout=timeout) as r:return r.status,r.headers,r.read()
+              except urllib.error.HTTPError as e:return e.code,e.headers,e.read()
+          c,h,b=req(f'{API}/accounts/{AID}/workers/scripts/{WORKER}',H)
+          if c!=200: raise SystemExit(f'worker read HTTP {c}')
+          source=b;ctype=h.get('content-type','')
+          if 'multipart/' in ctype.lower():
+              msg=email.message_from_bytes((f'Content-Type: {ctype}\r\nMIME-Version: 1.0\r\n\r\n').encode()+b);mods=[]
+              for p in msg.walk():
+                  if p.is_multipart(): continue
+                  d=p.get_payload(decode=True) or b''
+                  if b'MUSITU Chemistry Commerce' in d: mods.append(d)
+              if len(mods)!=1: raise SystemExit(f'main module extraction mismatch {len(mods)}')
+              source=mods[0]
+          sha=hashlib.sha256(source).hexdigest()
+          if sha!=os.environ['EXPECTED_LIVE_SHA256']: raise SystemExit('LIVE_SOURCE_DRIFT '+sha)
+          open('/tmp/live.mjs','wb').write(source)
+          url='https://www.paynow.co.zw/Payment/Find?search=evansmusitu5%40gmail.com'
+          pc,_,pb=req(url,{'User-Agent':'Mozilla/5.0 MUSITU-Paynow-Qualification/1.0','Accept':'text/html'})
+          pt=pb.decode('utf-8','ignore')
+          route={'http':pc,'bytes':len(pb),'merchant_details':'Merchant Details' in pt,'member_since':'Member Since' in pt,'not_found':bool(re.search(r'not\s+found|no\s+member|could\s+not\s+find',pt,re.I))}
+          if pc!=200 or not route['merchant_details'] or not route['member_since'] or route['not_found']:
+              raise SystemExit('direct Paynow merchant route not proven '+json.dumps(route,sort_keys=True))
+          open('/tmp/paynow-route.json','w').write(json.dumps(route,sort_keys=True))
+          print('QUALIFIED_LIVE_SHA256='+sha)
+          print('PAYNOW_MEMBER_ROUTE='+json.dumps(route,sort_keys=True))
+          PY
+          python commerce/chemistry/direct_paynow_fallback_transform.py /tmp/live.mjs /tmp/candidate.mjs | tee /tmp/transform.out
+          node --check /tmp/candidate.mjs
+          grep -F 'data-direct-paynow-fallback="fixed-price"' /tmp/candidate.mjs >/dev/null
+          grep -F 'data-direct-paynow-fallback="school-contact"' /tmp/candidate.mjs >/dev/null
+          grep -F 'https://www.paynow.co.zw/Payment/Find?search=evansmusitu5%40gmail.com' /tmp/candidate.mjs >/dev/null
+          grep -F 'does not automatically unlock Premium' /tmp/candidate.mjs >/dev/null
+          grep -F 'Do not pay twice.' /tmp/candidate.mjs >/dev/null
+          grep -F 'Continue securely to Paynow' /tmp/candidate.mjs >/dev/null
+          CANDIDATE_SHA=$(sha256sum /tmp/candidate.mjs | awk '{print $1}')
+          CANDIDATE_BYTES=$(wc -c < /tmp/candidate.mjs | tr -d ' ')
+          TRANSFORM_SHA=$(sha256sum commerce/chemistry/direct_paynow_fallback_transform.py | awk '{print $1}')
+          TEST_SHA=$(sha256sum commerce/chemistry/test_direct_paynow_fallback_transform.py | awk '{print $1}')
+          export CANDIDATE_SHA CANDIDATE_BYTES TRANSFORM_SHA TEST_SHA
+          python - <<'PY'
+          import json,os
+          route=json.load(open('/tmp/paynow-route.json'))
+          report={
+            'schema':'musitu.chemistry.direct_paynow_fallback_qualification.v1',
+            'production_mutation':False,
+            'baseline_live_worker_sha256':os.environ['EXPECTED_LIVE_SHA256'],
+            'candidate_worker_sha256':os.environ['CANDIDATE_SHA'],
+            'candidate_worker_bytes':int(os.environ['CANDIDATE_BYTES']),
+            'transform_sha256':os.environ['TRANSFORM_SHA'],
+            'test_sha256':os.environ['TEST_SHA'],
+            'paynow_direct_route':route,
+            'fixed_price_fallback':True,
+            'school_variable_price_fallback_disabled':True,
+            'automatic_entitlement_from_direct_route':False,
+            'manual_settlement_verification_required':True,
+            'existing_automated_checkout_preserved':True,
+            'result':'PASS_READ_ONLY_QUALIFICATION'
+          }
+          open('/tmp/direct-paynow-qualification.json','w').write(json.dumps(report,indent=2,sort_keys=True)+'\n')
+          print('QUALIFICATION='+json.dumps(report,sort_keys=True))
+          PY
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: musitu-chemistry-direct-paynow-fallback-qualification
+          path: /tmp/direct-paynow-qualification.json
+          if-no-files-found: error
