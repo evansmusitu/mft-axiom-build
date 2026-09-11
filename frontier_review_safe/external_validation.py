@@ -22,6 +22,18 @@ def _valid_sha256(value: str) -> bool:
     )
 
 
+def _valid_git_sha(value: str) -> bool:
+    return (
+        isinstance(value, str)
+        and len(value) == 40
+        and all(c in "0123456789abcdef" for c in value.lower())
+    )
+
+
+def _nonblank(value: Any) -> bool:
+    return isinstance(value, str) and bool(value.strip())
+
+
 @dataclass(frozen=True)
 class ExternalRunRecord:
     run_id: str
@@ -66,11 +78,14 @@ class ExternalRunRecord:
         ):
             if optional_hash is not None and not _valid_sha256(optional_hash):
                 raise ValueError("optional external-run binding hashes must be SHA-256")
-        if not all(str(x).strip() for x in (
-            self.run_id, self.provider_org, self.product, self.exact_version,
-            self.access_mode, self.candidate_sha,
+        if not all(_nonblank(x) for x in (
+            self.run_id, self.provider_org, self.product, self.exact_version, self.access_mode,
         )):
-            raise ValueError("exact external provider/product/version/run/candidate identity required")
+            raise ValueError("exact external provider/product/version/run identity required")
+        if not _valid_git_sha(self.candidate_sha):
+            raise ValueError("external run candidate_sha must be an exact 40-hex Git SHA")
+        if not isinstance(self.authenticated, bool):
+            raise ValueError("external run authenticated flag must be boolean")
         if not isinstance(self.metrics, Mapping):
             raise ValueError("external run metrics must be a mapping")
         for key, value in self.metrics.items():
@@ -89,7 +104,7 @@ class ExternalRunRecord:
 
     @property
     def declared_external_provenance(self) -> bool:
-        return self.authenticated and self.provenance_type in TRUSTED_EXTERNAL_PROVENANCE
+        return self.authenticated is True and self.provenance_type in TRUSTED_EXTERNAL_PROVENANCE
 
 
 @dataclass(frozen=True)
@@ -121,10 +136,12 @@ class ComparativeOutcome:
                 raise ValueError("comparison provenance hashes must be SHA-256")
         if self.attestation_receipt_hash is not None and not _valid_sha256(self.attestation_receipt_hash):
             raise ValueError("comparison attestation receipt hash must be SHA-256")
-        if not all(str(x).strip() for x in (self.provider_org, self.external_run_id, self.candidate_sha)):
-            raise ValueError("comparison provider/run/candidate identity required")
-        if self.matched_cases < 5:
-            raise ValueError("at least five matched sealed cases required")
+        if not all(_nonblank(x) for x in (self.provider_org, self.external_run_id)):
+            raise ValueError("comparison provider/run identity required")
+        if not _valid_git_sha(self.candidate_sha):
+            raise ValueError("comparison candidate_sha must be an exact 40-hex Git SHA")
+        if not isinstance(self.matched_cases, int) or isinstance(self.matched_cases, bool) or self.matched_cases < 5:
+            raise ValueError("matched_cases must be an integer with at least five sealed cases")
         counts = (self.candidate_wins, self.baseline_wins, self.ties)
         if any(not isinstance(x, int) or isinstance(x, bool) or x < 0 for x in counts):
             raise ValueError("comparison counts must be non-negative integers")
@@ -202,8 +219,12 @@ class IndependentValidationRecord:
         parse_time(self.validated_at)
         if not _valid_sha256(self.case_set_hash) or not _valid_sha256(self.reproduction_hash):
             raise ValueError("independent validation hashes must be SHA-256")
-        if not self.validator_org.strip() or not self.candidate_sha.strip():
+        if not _nonblank(self.validator_org) or not _nonblank(self.provenance_type):
             raise ValueError("independent validation identity required")
+        if not _valid_git_sha(self.candidate_sha):
+            raise ValueError("independent validation candidate_sha must be an exact 40-hex Git SHA")
+        if not isinstance(self.passed, bool):
+            raise ValueError("independent validation passed flag must be boolean")
 
     @property
     def fingerprint(self) -> str:
@@ -230,8 +251,10 @@ class LongitudinalRefreshRecord:
         )
         if any(not _valid_sha256(x) for x in hashes):
             raise ValueError("longitudinal evidence hashes must be SHA-256")
-        if not self.refresh_id.strip():
+        if not _nonblank(self.refresh_id):
             raise ValueError("longitudinal refresh identity required")
+        if not isinstance(self.passed, bool):
+            raise ValueError("longitudinal refresh passed flag must be boolean")
 
     @property
     def fingerprint(self) -> str:
@@ -239,6 +262,9 @@ class LongitudinalRefreshRecord:
 
 
 class ExternalEvidenceGate:
+    LEVEL5_PROVIDER_FLOOR = 3
+    LEVEL7_REFRESH_FLOOR = 3
+
     @staticmethod
     def _receipt_map(receipts: Sequence[ExternalAttestationReceipt], subject_type: str) -> dict[str, ExternalAttestationReceipt]:
         out: dict[str, ExternalAttestationReceipt] = {}
@@ -262,8 +288,26 @@ class ExternalEvidenceGate:
         required_provider_orgs: int = 3,
         required_provider_classes: Sequence[str] = (),
     ) -> dict[str, Any]:
+        if not isinstance(required_provider_orgs, int) or isinstance(required_provider_orgs, bool):
+            return {
+                "status": "FAIL", "level": 5,
+                "reason": "invalid_required_provider_orgs",
+                "reasons": ["invalid_required_provider_orgs"],
+                "attestation_verified": False, "baseline_registry_verified": False,
+            }
+        if required_provider_orgs < cls.LEVEL5_PROVIDER_FLOOR:
+            return {
+                "status": "FAIL", "level": 5,
+                "reason": "external_provider_floor_below_required",
+                "reasons": ["external_provider_floor_below_required"],
+                "attestation_verified": False, "baseline_registry_verified": False,
+            }
         if not runs:
-            return {"status": "FAIL", "level": 5, "reason": "no_external_runs", "attestation_verified": False, "baseline_registry_verified": False}
+            return {
+                "status": "FAIL", "level": 5,
+                "reason": "no_external_runs", "reasons": ["no_external_runs"],
+                "attestation_verified": False, "baseline_registry_verified": False,
+            }
         receipt_map = cls._receipt_map(receipts, "external_run")
         secrets = dict(verifier_secrets or {})
         issuers = dict(trusted_issuers or {})
@@ -384,10 +428,12 @@ class ExternalEvidenceGate:
         receipt_map = cls._receipt_map(receipts, "independent_validation")
         expected_candidate = level5.get("candidate_sha")
         expected_cases = level5.get("case_set_hash")
+        if not _valid_git_sha(expected_candidate) or not _valid_sha256(expected_cases):
+            reasons.append("level5_identity_binding_invalid")
         bound: list[IndependentValidationRecord] = []
         receipt_hashes: list[str] = []
         for validation in validations:
-            if not validation.passed or validation.provenance_type not in TRUSTED_EXTERNAL_PROVENANCE:
+            if validation.passed is not True or validation.provenance_type not in TRUSTED_EXTERNAL_PROVENANCE:
                 continue
             if validation.candidate_sha != expected_candidate or validation.case_set_hash != expected_cases:
                 continue
@@ -435,8 +481,13 @@ class ExternalEvidenceGate:
         reasons = []
         if level6.get("status") != "PASS" or level6.get("attestation_verified") is not True:
             reasons.append("level6_not_attested_and_passed")
-        if min_refreshes < 3:
-            reasons.append("longitudinal_refresh_floor_below_required")
+        if not isinstance(min_refreshes, int) or isinstance(min_refreshes, bool):
+            reasons.append("invalid_longitudinal_refresh_floor")
+            effective_min_refreshes = cls.LEVEL7_REFRESH_FLOOR
+        else:
+            effective_min_refreshes = max(cls.LEVEL7_REFRESH_FLOOR, min_refreshes)
+            if min_refreshes < cls.LEVEL7_REFRESH_FLOOR:
+                reasons.append("longitudinal_refresh_floor_below_required")
         receipt_map = cls._receipt_map(receipts, "longitudinal_refresh")
         passed_refreshes: list[LongitudinalRefreshRecord] = []
         receipt_hashes: list[str] = []
@@ -446,7 +497,7 @@ class ExternalEvidenceGate:
                 reasons.append("duplicate_longitudinal_refresh")
                 continue
             seen_refresh_ids.add(refresh.refresh_id)
-            if not refresh.passed:
+            if refresh.passed is not True:
                 continue
             receipt = receipt_map.get(refresh.refresh_id)
             if receipt is None:
@@ -463,9 +514,9 @@ class ExternalEvidenceGate:
                 continue
             passed_refreshes.append(refresh)
             receipt_hashes.append(verification["receipt_sha256"])
-        if len(passed_refreshes) < max(3, min_refreshes):
+        if len(passed_refreshes) < effective_min_refreshes:
             reasons.append("insufficient_attested_longitudinal_refreshes")
-        if len({r.baseline_registry_hash for r in passed_refreshes}) < 2 and len(passed_refreshes) >= max(3, min_refreshes):
+        if len({r.baseline_registry_hash for r in passed_refreshes}) < 2 and len(passed_refreshes) >= effective_min_refreshes:
             reasons.append("baselines_not_refreshed")
         reasons = sorted(set(reasons))
         passed = not reasons

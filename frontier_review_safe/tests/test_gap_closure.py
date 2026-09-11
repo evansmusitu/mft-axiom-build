@@ -34,6 +34,7 @@ from frontier_review_safe.verification import IndependentVerifier, VerificationP
 NOW = datetime(2026, 9, 10, 18, 0, tzinfo=timezone.utc)
 NOW_S = NOW.isoformat()
 H = "a" * 64
+EXTERNAL_CANDIDATE_SHA = "d" * 40
 EXT_SECRET = b"x" * 32
 VERIFIER_SECRETS = {"key-1": EXT_SECRET}
 TRUSTED_ISSUERS = {"test-verifier": frozenset({"key-1"})}
@@ -85,7 +86,7 @@ def registered_runs(providers, *, case_set_hash, constraint_hash, result_hash, p
     runs = [
         ExternalRunRecord(
             str(i), provider, "product", "v", NOW_S, "api", case_set_hash, constraint_hash,
-            "c"*64, result_hash, "e"*64, provenance_type, True, "candidate", "f"*64, {"score":.9},
+            "c"*64, result_hash, "e"*64, provenance_type, True, EXTERNAL_CANDIDATE_SHA, "f"*64, {"score":.9},
             configuration_hash="6"*64, account_scope_hash="7"*64,
             baseline_registry_hash=registry.fingerprint,
             baseline_registration_id=registration.registration_id,
@@ -244,7 +245,7 @@ class GapClosureTests(unittest.TestCase):
             runs, receipts=run_receipts, verifier_secrets=VERIFIER_SECRETS,
             trusted_issuers=TRUSTED_ISSUERS, baseline_registry=registry,
         )
-        v=IndependentValidationRecord("lab", NOW_S, "candidate", H, "9"*64, True, "independent_lab_record")
+        v=IndependentValidationRecord("lab", NOW_S, EXTERNAL_CANDIDATE_SHA, H, "9"*64, True, "independent_lab_record")
         self.assertEqual(ExternalEvidenceGate.level6(l5,[v])["status"],"FAIL")
         validation_receipt = attest("independent_validation", v.fingerprint, v.fingerprint, v.provenance_type)
         l6=ExternalEvidenceGate.level6(l5,[v],receipts=[validation_receipt],verifier_secrets=VERIFIER_SECRETS,trusted_issuers=TRUSTED_ISSUERS)
@@ -291,10 +292,10 @@ class GapClosureTests(unittest.TestCase):
         receipt_hashes={str(i): f"{i+10:064x}" for i in range(4)}
         l5={"status":"PASS","attestation_verified":True,"baseline_registry_verified":True,
             "provider_orgs":[p.lower() for p in providers],"run_ids":run_ids,
-            "candidate_sha":"candidate","case_set_hash":H,"constraint_hash":"b"*64,
+            "candidate_sha":EXTERNAL_CANDIDATE_SHA,"case_set_hash":H,"constraint_hash":"b"*64,
             "run_receipt_hashes":receipt_hashes}
         l6={"status":"PASS","attestation_verified":True}; l7={"status":"PASS","attestation_verified":True}
-        outcomes=[ComparativeOutcome(p,str(i),"candidate",H,"b"*64,"d"*64,"e"*64,20,.1,.02,.18,12,6,2,receipt_hashes[str(i)])
+        outcomes=[ComparativeOutcome(p,str(i),EXTERNAL_CANDIDATE_SHA,H,"b"*64,"d"*64,"e"*64,20,.1,.02,.18,12,6,2,receipt_hashes[str(i)])
                   for i,p in enumerate(providers)]
         denied=ClaimBoundary.authorize("world best",level5=l5,level6=l6,level7=l7,comparison_scope="declared sealed scope",
             benchmark_hash=H,comparative_outcomes=outcomes)

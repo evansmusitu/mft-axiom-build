@@ -18,6 +18,7 @@ from frontier_review_safe.external_validation import (
 
 NOW = datetime(2026, 9, 11, 8, 40, tzinfo=timezone.utc).isoformat()
 H = "a" * 64
+CANDIDATE_SHA = "d" * 40
 SECRET = b"v" * 32
 SECRETS = {"validator-key": SECRET}
 TRUST = {"Independent Validator": frozenset({"validator-key"})}
@@ -52,7 +53,7 @@ class ExternalValidationIntegrityTests(unittest.TestCase):
             raw_evidence_hash="5" * 64,
             provenance_type="provider_api_receipt",
             authenticated=True,
-            candidate_sha="candidate",
+            candidate_sha=CANDIDATE_SHA,
             candidate_environment_hash="6" * 64,
             metrics={"score": 0.9},
             configuration_hash="7" * 64,
@@ -62,7 +63,7 @@ class ExternalValidationIntegrityTests(unittest.TestCase):
             baseline_registration_hash="a" * 64,
         )
 
-    def test_external_run_rejects_nonhex_hashes_nonfinite_metrics_and_empty_candidate(self):
+    def test_external_run_rejects_nonhex_hashes_nonfinite_metrics_and_inexact_candidate(self):
         run = self.valid_run()
         with self.assertRaises(ValueError):
             replace(run, result_hash="z" * 64)
@@ -71,13 +72,15 @@ class ExternalValidationIntegrityTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             replace(run, metrics={"score": math.inf})
         with self.assertRaises(ValueError):
-            replace(run, candidate_sha="")
+            replace(run, candidate_sha="candidate")
+        with self.assertRaises(ValueError):
+            replace(run, authenticated="yes")
 
-    def test_comparative_outcome_rejects_malformed_or_nonfinite_statistics(self):
+    def test_comparative_outcome_rejects_malformed_nonfinite_or_inexact_identity(self):
         outcome = ComparativeOutcome(
             provider_org="Provider",
             external_run_id="run-1",
-            candidate_sha="candidate",
+            candidate_sha=CANDIDATE_SHA,
             case_set_hash="1" * 64,
             constraint_hash="2" * 64,
             external_result_hash="3" * 64,
@@ -97,16 +100,38 @@ class ExternalValidationIntegrityTests(unittest.TestCase):
             replace(outcome, mean_delta=math.inf, ci_low_delta=math.inf, ci_high_delta=math.inf)
         with self.assertRaises(ValueError):
             replace(outcome, candidate_wins=6, baseline_wins=-1)
+        with self.assertRaises(ValueError):
+            replace(outcome, candidate_sha="candidate")
+        with self.assertRaises(ValueError):
+            replace(outcome, matched_cases=5.0)
 
-    def test_level6_and_level7_record_hashes_require_real_hex_digests(self):
+    def test_level6_and_level7_records_require_real_identity_hashes_and_booleans(self):
         with self.assertRaises(ValueError):
             IndependentValidationRecord(
-                "Lab", NOW, "candidate", "z" * 64, H, True, "independent_lab_record"
+                "Lab", NOW, CANDIDATE_SHA, "z" * 64, H, True, "independent_lab_record"
             )
+        valid = IndependentValidationRecord(
+            "Lab", NOW, CANDIDATE_SHA, H, "9" * 64, True, "independent_lab_record"
+        )
+        with self.assertRaises(ValueError):
+            replace(valid, candidate_sha="candidate")
+        with self.assertRaises(ValueError):
+            replace(valid, passed="yes")
         with self.assertRaises(ValueError):
             LongitudinalRefreshRecord(
                 "refresh-1", NOW, H, "q" * 64, H, H, True
             )
+        refresh = LongitudinalRefreshRecord("refresh-1", NOW, H, H, H, H, True)
+        with self.assertRaises(ValueError):
+            replace(refresh, passed="yes")
+
+    def test_level5_provider_floor_cannot_be_lowered_or_malformed(self):
+        lowered = ExternalEvidenceGate.level5([], required_provider_orgs=1)
+        self.assertEqual(lowered["status"], "FAIL")
+        self.assertEqual(lowered["reason"], "external_provider_floor_below_required")
+        malformed = ExternalEvidenceGate.level5([], required_provider_orgs=3.0)
+        self.assertEqual(malformed["status"], "FAIL")
+        self.assertEqual(malformed["reason"], "invalid_required_provider_orgs")
 
     def test_level7_rejects_duplicate_refreshes_and_cannot_lower_three_refresh_floor(self):
         l6 = {"status": "PASS", "attestation_verified": True}
@@ -133,6 +158,9 @@ class ExternalValidationIntegrityTests(unittest.TestCase):
         )
         self.assertEqual(lowered["status"], "FAIL")
         self.assertIn("longitudinal_refresh_floor_below_required", lowered["reasons"])
+        malformed = ExternalEvidenceGate.level7(l6, [a, b], min_refreshes=3.0)
+        self.assertEqual(malformed["status"], "FAIL")
+        self.assertIn("invalid_longitudinal_refresh_floor", malformed["reasons"])
 
     def test_claim_boundary_rejects_nonhex_benchmark_digest(self):
         l5 = {
@@ -141,7 +169,7 @@ class ExternalValidationIntegrityTests(unittest.TestCase):
             "baseline_registry_verified": True,
             "provider_orgs": ["provider"],
             "run_ids": ["run-1"],
-            "candidate_sha": "candidate",
+            "candidate_sha": CANDIDATE_SHA,
             "case_set_hash": H,
             "constraint_hash": "b" * 64,
             "run_receipt_hashes": {"run-1": "c" * 64},
