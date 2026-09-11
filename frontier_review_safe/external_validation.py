@@ -460,6 +460,8 @@ class ExternalEvidenceGate:
         receipt_hashes: list[str] = []
         saw_nonindependent_provenance = False
         saw_provider_overlap = False
+        saw_attester_overlap = False
+        saw_attester_identity_invalid = False
         for validation in validations:
             if validation.passed is not True:
                 continue
@@ -485,6 +487,12 @@ class ExternalEvidenceGate:
             )
             if verification["status"] != "PASS" or receipt.provenance_type != validation.provenance_type:
                 continue
+            if not isinstance(receipt.issuer_org, str) or not receipt.issuer_org.strip():
+                saw_attester_identity_invalid = True
+                continue
+            if receipt.issuer_org.strip().lower() in level5_providers:
+                saw_attester_overlap = True
+                continue
             bound.append(validation)
             receipt_hashes.append(verification["receipt_sha256"])
         if not bound:
@@ -492,6 +500,10 @@ class ExternalEvidenceGate:
                 reasons.append("independent_validation_provenance_required")
             if saw_provider_overlap:
                 reasons.append("validator_overlaps_level5_provider")
+            if saw_attester_overlap:
+                reasons.append("independent_validation_attester_overlaps_level5_provider")
+            if saw_attester_identity_invalid:
+                reasons.append("independent_validation_attester_identity_invalid")
             reasons.append("no_attested_independent_end_to_end_reproduction")
         reasons = sorted(set(reasons))
         passed = not reasons
