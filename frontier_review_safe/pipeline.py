@@ -1,11 +1,12 @@
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from queue import Empty, Queue
 from threading import Thread
 from typing import Any, Callable, Mapping, Sequence
 
-from .core import DataLineageContract, Evidence, LineageStep, ResearchSourceScorer, sha256, utcnow
+from .core import DataLineageContract, Evidence, LineageStep, sha256, utcnow
+from .evidence_resolution import ResearchSourceScorer, SourceQualityProfile
 from .evaluation import DecisionProvenanceLedger, ProofEnvelope
 from .governance import (AuthorizationRequest, GovernedPermissionGraph, Instruction,
                          InstructionProvenanceFirewall, PolicyJurisdictionRouter, Principal)
@@ -37,6 +38,7 @@ class WorkflowAdapters:
     acquire_evidence: Callable[[WorkflowRequest], Sequence[Evidence]]
     analyze: Callable[[WorkflowRequest, Sequence[Evidence], Mapping[str, Any]], Mapping[str, Any]]
     cancellation_requested: Callable[[], bool] = lambda: False
+    source_profiles: Mapping[str, SourceQualityProfile] = field(default_factory=dict)
 
 
 class ReviewSafeWorkflow:
@@ -146,8 +148,16 @@ class ReviewSafeWorkflow:
             return self._abstain(req, trace, ["evidence_provider_failure"], error_type=type(exc).__name__)
         if not evidence:
             return self._abstain(req, trace, ["evidence_missing"])
-        scores = [ResearchSourceScorer.score(e) for e in evidence]
-        checkpoint("evidence", {"hashes": [e.fingerprint for e in evidence], "scores": scores})
+        source_quality = [
+            ResearchSourceScorer.diagnostics(e, adapters.source_profiles.get(e.source_id))
+            for e in evidence
+        ]
+        scores = [row["score"] for row in source_quality]
+        checkpoint("evidence", {
+            "hashes": [e.fingerprint for e in evidence],
+            "scores": scores,
+            "source_quality_sha256": sha256(source_quality),
+        })
         evidence_hashes = tuple(e.fingerprint for e in evidence)
         weak = sum(1 for x in scores if x < req.min_source_quality)
 
@@ -195,7 +205,6 @@ class ReviewSafeWorkflow:
             True, len(evidence) - weak, max(1, len(evidence)), uncertainty, req.max_uncertainty,
             contradiction_status, stale, causal_supported, provider_ok, not eval_boundary
         ))
-        # Explicitly add the request threshold; the generic policy has its own confidence field semantics.
         if confidence < req.min_confidence:
             abstention = {"status": "ABSTAIN", "reasons": sorted(set(abstention.get("reasons", [])) | {"confidence_below_request_threshold"})}
         checkpoint("abstention", abstention)
