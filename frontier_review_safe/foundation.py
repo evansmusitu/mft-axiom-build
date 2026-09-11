@@ -15,3 +15,4 @@ from .replay import *
 from .enterprise import *
 from .twin_validation import *
 from .sealed_benchmark import *
+from .sealed_suite_contract import *
