@@ -8,23 +8,24 @@ import unittest
 EXPECTED_FRONTIER_SHA = "d9196774a9fff3150922e2cb681d16e2423651da"
 EXPECTED_MAIN_SHA = "d6a846f6bbe0bccac1758713eb4de167caf07113"
 EXPECTED_DEMO_SHA = "d3eb576dc83e5df1edb2c7d58fb14f345ce85cc8"
+EXPECTED_DEMO_PATH = "submission/reviewer/MUSITU_Axiom_OpenAI_Reviewer_Demo_FINAL.mp4"
 EXPECTED_PROTECTED_OBJECTS = {
     "auth": "d2814277d6b3a9c12bb0332e4acfd44ccfc9dcd4",
     "branding": "7707ee8033a1c2753b83cd807543aeeec5a5d997",
     "chatgpt-app-submission.json": "e6e94f4c7f644d694d3aa732f0b8c9c86dae2b7d",
-    "demo.mp4": EXPECTED_DEMO_SHA,
     "deploy_payload": "ce2d4b0b0e620e44b035081b92db3cc5aca21d7a",
     "mcp": "1ca86d943145df743d5eff5e58a8c46052478de0",
     "submission": "4b4a4483c97fe739f551e015401674222c69a887",
+    EXPECTED_DEMO_PATH: EXPECTED_DEMO_SHA,
 }
 REQUIRED_PROTECTED_PATHS = {
     "auth",
     "branding",
     "chatgpt-app-submission.json",
-    "demo.mp4",
     "deploy_payload",
     "mcp",
     "submission",
+    EXPECTED_DEMO_PATH,
     ".github/workflows/axiom-mcp-production-deploy.yml",
     ".github/workflows/axiom-mcp-production-deploy-v2.yml",
     ".github/workflows/axiom-oauth-production-deploy.yml",
