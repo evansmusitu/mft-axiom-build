@@ -37,6 +37,13 @@ def _valid_trusted_key_set(value: Any) -> bool:
     )
 
 
+def _valid_trust_root(value: Mapping[Any, Any]) -> bool:
+    return all(
+        _canonical_identity(issuer_org) and _valid_trusted_key_set(key_ids)
+        for issuer_org, key_ids in value.items()
+    )
+
+
 def _ambiguous_trust_key_ids(trusted_issuers: Mapping[str, frozenset[str]]) -> set[str]:
     owners: dict[str, set[str]] = {}
     for issuer_org, key_ids in trusted_issuers.items():
@@ -115,7 +122,9 @@ class ExternalAttestationService:
     authenticates the receipt bytes; it does not by itself prove organizational
     independence, so issuer/key trust is a separate required input. A verifier key
     ID is bound to exactly one normalized issuer organization within a trust root,
-    and secret material may not be reused across distinct normalized issuers.
+    and secret material may not be reused across distinct normalized issuers. The
+    trust root is validated as one atomic configuration so malformed unrelated
+    issuer entries cannot be ignored to hide conflicting key ownership.
     """
 
     @staticmethod
@@ -187,6 +196,8 @@ class ExternalAttestationService:
         reasons: list[str] = []
         if isinstance(trusted_issuers, MappingABC):
             trust_root = trusted_issuers
+            if not _valid_trust_root(trust_root):
+                reasons.append("external_attestation_trust_root_invalid")
         else:
             trust_root = {}
             reasons.append("external_attestation_trust_root_invalid")
