@@ -289,8 +289,12 @@ class ModelRiskGovernance:
             raise ValueError("actor and SHA-256 promotion evidence required")
         with self._lock:
             auth = self.authorize_use(model_id, version, domain, at, high_consequence=True)
-            if auth["status"] != "PASS":
-                raise FrontierSafetyError("model promotion blocked: " + ",".join(auth["reasons"]))
+            blockers = [reason for reason in auth["reasons"] if reason != "model_version_not_active"]
+            if blockers:
+                raise FrontierSafetyError("model promotion blocked: " + ",".join(blockers))
+            if (model_id, version) not in self._models:
+                raise FrontierSafetyError("model promotion blocked: unregistered_model")
+            previous_active = self.active_version(model_id)
             return self._append_event(
                 "PROMOTION",
                 model_id,
@@ -298,7 +302,7 @@ class ModelRiskGovernance:
                 {
                     "actor_id": actor_id,
                     "promotion_evidence_hash": promotion_evidence_hash,
-                    "previous_active_version": self.active_version(model_id),
+                    "previous_active_version": previous_active,
                     "domain": domain,
                 },
                 at,
@@ -323,7 +327,6 @@ class ModelRiskGovernance:
             if not target or (model_id, target) not in self._models:
                 raise FrontierSafetyError("no registered rollback target")
             target_model = self._models[(model_id, target)]
-            # Rollback is emergency-safe but cannot target retired or unapproved material.
             approved, approval_id, _ = self._effective_approval(target_model)
             if self._retired(model_id, target) or not approved or not approval_id:
                 raise FrontierSafetyError("rollback target is not operationally approved")
