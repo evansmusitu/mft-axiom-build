@@ -1,0 +1,88 @@
+{
+  "schema": "musitu.store.phase2.hardened_candidate_predeploy_certification.v1",
+  "created_date_utc": "2026-09-11",
+  "status": "PASS_PREDEPLOY_MANUAL_AND_DEPLOYMENT_PENDING",
+  "phase2Authorized": true,
+  "phase2Complete": false,
+  "repository": {
+    "full_name": "evansmusitu/mft-axiom-build",
+    "branch": "musitu-store-phase2-standards-hardening-20260911",
+    "certified_head": "6a1d50c76dec96e924751dd6f5f2bc1ffe4191e1",
+    "phase1_head": "ebded495617cc89bb96d7a5531c1ce4fc6bbedd9",
+    "sealed_main": "d6a846f6bbe0bccac1758713eb4de167caf07113"
+  },
+  "candidate": {
+    "construction": "exact verified live Store 1.0.2 identity plus bounded Phase-2 web-security transform",
+    "hardened_worker_sha256": "ee95b816bc056ab79be4d764cf88a68e25feed7aafdaad33ff23e2188f954616",
+    "production_mutation": false,
+    "catalog_mutation": false,
+    "apk_mutation": false,
+    "commerce_mutation": false,
+    "licence_mutation": false,
+    "security_delta": {
+      "csp_added": [
+        "worker-src 'self'",
+        "font-src 'self'",
+        "object-src 'none'",
+        "frame-src 'none'",
+        "upgrade-insecure-requests"
+      ],
+      "headers_added": {
+        "Cross-Origin-Opener-Policy": "same-origin",
+        "X-Permitted-Cross-Domain-Policies": "none"
+      }
+    }
+  },
+  "exact_live_inputs": {
+    "store_version": "1.0.2",
+    "store_sha256": "3a0c4b0f971ec84cd6167a137f8e3d75c7bb20e525c26ab533b3d88044cd0784",
+    "store_bytes": 1679340,
+    "catalog_revision": 3,
+    "catalog_sha256": "4fa31c5f9f84facc0d1fbf7a91a50b0adcaa5ef4c97b7d82abbe9657ea10b7f9",
+    "catalog_signature_sha256": "9b854358f90368ceb5cc3baab8d99064d8ee94b79ead378a614f8cc1732b06a7"
+  },
+  "github_actions": {
+    "run_id": 34573638727,
+    "job_id": 103181071338,
+    "conclusion": "success",
+    "artifact": {
+      "id": 10188749517,
+      "name": "musitu-store-phase2-hardened-candidate-predeploy",
+      "bytes": 295859,
+      "digest": "sha256:0e1066a9453ae437c7d6e5ebed50a464ce3f96f39490a25b6c604e73bfc51ac4",
+      "expires_at_utc": "2026-12-10T07:16:46Z"
+    }
+  },
+  "gates": {
+    "immutable_boundary": "PASS",
+    "inherited_store_regressions": {
+      "result": "PASS",
+      "passed": 29,
+      "failed": 0
+    },
+    "live_input_hash_verification": "PASS",
+    "security_hardening_runtime": "PASS",
+    "automated_accessibility_low_bandwidth": "PASS_AUTOMATED",
+    "lighthouse": {
+      "result": "PASS",
+      "performance": 1.0,
+      "accessibility": 1.0,
+      "best_practices": 0.96,
+      "lcp_ms": 1016.2062000000001,
+      "cls": 0,
+      "tbt_ms": 0
+    }
+  },
+  "parallel_phase1_state": {
+    "physical_device_step15_complete": false,
+    "freshDevicePhase1Complete": false,
+    "phase1_evidence_modified": false
+  },
+  "remaining_phase2_gates": {
+    "manual_keyboard_smoke": "PENDING_REAL_EVIDENCE",
+    "manual_screen_reader_smoke": "PENDING_REAL_ASSISTIVE_TECHNOLOGY_EVIDENCE",
+    "verified_production_deployment": "PENDING",
+    "verified_rollback_proof": "PENDING"
+  },
+  "claim_boundary": "The bounded hardened Store 1.0.2 candidate passed all automated predeployment standards, security, accessibility, low-bandwidth, regression, and performance gates. Production is unchanged. Complete WCAG 2.2 AA and full Phase 2 are not claimed until real manual accessibility evidence and Phase-2-specific deployment/rollback proof pass."
+}
