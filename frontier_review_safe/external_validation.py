@@ -506,6 +506,7 @@ class ExternalEvidenceGate:
         saw_nonindependent_provenance = False
         saw_provider_overlap = False
         saw_attester_overlap = False
+        saw_attester_validator_overlap = False
         saw_attester_identity_invalid = False
         saw_attestation_time_reversal = False
         saw_predating_level5_run = False
@@ -546,6 +547,9 @@ class ExternalEvidenceGate:
             if _organization_key(receipt.issuer_org) in level5_providers:
                 saw_attester_overlap = True
                 continue
+            if _independence_organization_key(receipt.issuer_org) == _independence_organization_key(validation.validator_org):
+                saw_attester_validator_overlap = True
+                continue
             bound.append(validation)
             receipt_hashes.append(verification["receipt_sha256"])
         if not bound:
@@ -555,6 +559,8 @@ class ExternalEvidenceGate:
                 reasons.append("validator_overlaps_level5_provider")
             if saw_attester_overlap:
                 reasons.append("independent_validation_attester_overlaps_level5_provider")
+            if saw_attester_validator_overlap:
+                reasons.append("independent_validation_attester_overlaps_validator")
             if saw_attester_identity_invalid:
                 reasons.append("independent_validation_attester_identity_invalid")
             if saw_attestation_time_reversal:
@@ -635,6 +641,7 @@ class ExternalEvidenceGate:
         saw_executor_identity_invalid = False
         saw_executor_overlap = False
         saw_attester_overlap = False
+        saw_attester_executor_overlap = False
         saw_predating_refresh = False
         saw_attestation_time_reversal = False
         for refresh in refreshes:
@@ -684,6 +691,9 @@ class ExternalEvidenceGate:
             if _organization_key(receipt.issuer_org) in level5_providers:
                 saw_attester_overlap = True
                 continue
+            if _independence_organization_key(receipt.issuer_org) == _independence_organization_key(refresh.executor_org):
+                saw_attester_executor_overlap = True
+                continue
             passed_refreshes.append(refresh)
             receipt_hashes.append(verification["receipt_sha256"])
         distinct_refresh_times = {parse_time(r.executed_at) for r in passed_refreshes}
@@ -696,6 +706,8 @@ class ExternalEvidenceGate:
                 reasons.append("longitudinal_refresh_executor_overlaps_level5_provider")
             if saw_attester_overlap:
                 reasons.append("longitudinal_refresh_attester_overlaps_level5_provider")
+            if saw_attester_executor_overlap:
+                reasons.append("longitudinal_refresh_attester_overlaps_executor")
             if saw_predating_refresh:
                 reasons.append("longitudinal_refresh_predates_level6_validation")
             if saw_attestation_time_reversal:
