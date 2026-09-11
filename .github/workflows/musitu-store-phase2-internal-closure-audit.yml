@@ -8,6 +8,8 @@ on:
       - 'docs/MUSITU_STORE_PHASE2_*'
       - 'evidence/musitu-store/MUSITU_STORE_PHASE2_*'
       - 'evidence/musitu-store/MUSITU_STORE_BROWSER_PRESENTATION_HOTFIX_*'
+      - 'evidence/musitu-store/MUSITU_STORE_GENERATED_DATA_FORENSICS_*'
+      - 'evidence/musitu-store/MUSITU_STORE_LIVE_WORKER_FORENSICS_*'
       - '.github/workflows/musitu-store-*'
   workflow_dispatch:
 
@@ -72,6 +74,8 @@ jobs:
                   path.startswith('docs/MUSITU_STORE_PHASE2_'),
                   path.startswith('evidence/musitu-store/MUSITU_STORE_PHASE2_'),
                   path.startswith('evidence/musitu-store/MUSITU_STORE_BROWSER_PRESENTATION_HOTFIX_'),
+                  path.startswith('evidence/musitu-store/MUSITU_STORE_GENERATED_DATA_FORENSICS_'),
+                  path.startswith('evidence/musitu-store/MUSITU_STORE_LIVE_WORKER_FORENSICS_'),
               )
               assert any(allowed), f'out-of-scope Phase-2 change: {path}'
               rows.append(path)
