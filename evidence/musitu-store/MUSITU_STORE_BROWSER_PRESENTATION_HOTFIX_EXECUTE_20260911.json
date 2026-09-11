@@ -1,0 +1,18 @@
+{
+  "schema": "musitu.store.browser_presentation_hotfix_execution_authorization.v1",
+  "created_date_utc": "2026-09-11",
+  "authorization_source": "explicit_user_instruction_in_chat",
+  "authorization_text": "Fix this and also other sites with the same problem",
+  "scope": "presentation-only repair for Store machine-readable endpoints during human browser navigation",
+  "preflight_run_id": 34580043437,
+  "preflight_job_id": 103201241579,
+  "preflight_result": "PASS",
+  "preflight_artifact_id": 10191210985,
+  "preflight_artifact_digest": "sha256:567ec8a9f707c1a2cfa1f8708d173596502e4793aba0b6197c805a1b3830f39b",
+  "presentation_worker_sha256": "51c53e0983e978236d8bde94fb24a12bbcc7fff194cb840be577e936be77cb11",
+  "catalog_or_apk_mutation_authorized": false,
+  "commerce_or_licence_mutation_authorized": false,
+  "phase2_security_hardening_cutover_authorized_by_this_record": false,
+  "requires_live_snapshot_rollback_drill": true,
+  "requires_emergency_restore_on_failure": true
+}

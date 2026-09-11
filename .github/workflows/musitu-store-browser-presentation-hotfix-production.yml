@@ -1,0 +1,139 @@
+name: MUSITU Store Browser Presentation Hotfix Production
+
+on:
+  push:
+    branches: [musitu-store-phase2-standards-hardening-20260911]
+    paths:
+      - 'evidence/musitu-store/MUSITU_STORE_BROWSER_PRESENTATION_HOTFIX_EXECUTE_20260911.json'
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: musitu-store-browser-presentation-hotfix-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      SEALED_MAIN: d6a846f6bbe0bccac1758713eb4de167caf07113
+      PHASE1_HEAD: ebded495617cc89bb96d7a5531c1ce4fc6bbedd9
+      HOTFIX_WORKER_SHA: 51c53e0983e978236d8bde94fb24a12bbcc7fff194cb840be577e936be77cb11
+      PREFLIGHT_RUN: '34580043437'
+      PREFLIGHT_ARTIFACT: '10191210985'
+      PREFLIGHT_DIGEST: sha256:567ec8a9f707c1a2cfa1f8708d173596502e4793aba0b6197c805a1b3830f39b
+      STORE_SHA: 3a0c4b0f971ec84cd6167a137f8e3d75c7bb20e525c26ab533b3d88044cd0784
+      STORE_BYTES: '1679340'
+      CATALOG_SHA: 4fa31c5f9f84facc0d1fbf7a91a50b0adcaa5ef4c97b7d82abbe9657ea10b7f9
+      CATALOG_SIG_SHA: 9b854358f90368ceb5cc3baab8d99064d8ee94b79ead378a614f8cc1732b06a7
+      ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      ZONE_ID: 5b56528f03948ff5917a5e0cd9f7109e
+      ZONE_NAME: mftintelligence.com
+      PAYMENTS_HOST: payments.mftintelligence.com
+      PAYMENTS_ORIGIN: mft-paynow-transport-gateway
+      STORE_WORKER: musitu-store-phase1
+      STORE_ROUTE: payments.mftintelligence.com/store*
+      STORE_BUCKET: musitu-store-phase1-releases
+
+    steps:
+      - uses: actions/checkout@v4
+        with: {fetch-depth: 0}
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+
+      - name: Prove immutable anchors and qualified preflight evidence
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --quiet origin main musitu-store-phase1-20260909
+          test "$(git rev-parse origin/main)" = "$SEALED_MAIN"
+          test "$(git rev-parse origin/musitu-store-phase1-20260909)" = "$PHASE1_HEAD"
+          test -z "$(git diff --name-only "$PHASE1_HEAD"..."$GITHUB_SHA" -- store/phase1 commerce/chemistry)"
+          test "$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$PREFLIGHT_RUN" --jq '.conclusion')" = success
+          row="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$PREFLIGHT_RUN/artifacts" --jq ".artifacts[] | select(.id == $PREFLIGHT_ARTIFACT) | [.expired,.digest] | @tsv")"
+          test "$(printf '%s' "$row" | cut -f1)" = false
+          test "$(printf '%s' "$row" | cut -f2)" = "$PREFLIGHT_DIGEST"
+
+      - name: Reconstruct exact baseline and qualified presentation-only candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/browser-hotfix-baseline /tmp/browser-hotfix-candidate /tmp/browser-hotfix-evidence
+          mkdir -p /tmp/browser-hotfix-evidence
+          curl --retry 3 --retry-all-errors -fsSL -H 'Accept: application/json' https://payments.mftintelligence.com/store/catalog.json -o /tmp/catalog.json
+          curl --retry 3 --retry-all-errors -fsSL -H 'Accept: text/plain' https://payments.mftintelligence.com/store/catalog.sig -o /tmp/catalog.sig
+          curl --retry 3 --retry-all-errors -fsSL https://payments.mftintelligence.com/store/bootstrap/MUSITU_Store_1.0.2.apk -o /tmp/store.apk
+          test "$(sha256sum /tmp/catalog.json | awk '{print $1}')" = "$CATALOG_SHA"
+          test "$(sha256sum /tmp/catalog.sig | awk '{print $1}')" = "$CATALOG_SIG_SHA"
+          test "$(stat -c%s /tmp/store.apk)" = "$STORE_BYTES"
+          test "$(sha256sum /tmp/store.apk | awk '{print $1}')" = "$STORE_SHA"
+          git worktree add --detach /tmp/browser-hotfix-baseline "$PHASE1_HEAD"
+          git worktree add --detach /tmp/browser-hotfix-candidate "$PHASE1_HEAD"
+          for root in /tmp/browser-hotfix-baseline /tmp/browser-hotfix-candidate; do
+            cp /tmp/catalog.json "$root/store/phase1/catalog.json"
+            cp /tmp/catalog.sig "$root/store/phase1/catalog.sig"
+            ROOT="$root" python - <<'PY'
+          import json,os
+          from pathlib import Path
+          root=Path(os.environ['ROOT'])/'store/phase1'; c=json.loads((root/'catalog.json').read_text()); sc=c['releaseControl']['storeClient']
+          assert c['revision']==3 and sc['version']=='1.0.2' and sc['versionCode']==10002 and sc['sha256']=='3a0c4b0f971ec84cd6167a137f8e3d75c7bb20e525c26ab533b3d88044cd0784'
+          p=root/'bootstrap/release.json'; b=json.loads(p.read_text()); b.update({'version':'1.0.2','versionCode':10002,'packageId':'com.musitu.store','artifactFile':'MUSITU_Store_1.0.2.apk','sha256':sc['sha256'],'bytes':1679340,'signingCertificateSha256':'43695b6103d7ab57e89166c9a537f1810b7e33053e20332b1d4e7e2e1c612671'}); p.write_text(json.dumps(b,indent=2)+'\n')
+          w=root/'web-surface/worker.mjs'; s=w.read_text()
+          if 'MUSITU_Store_1.0.2.apk' not in s:
+              needle='const RELEASE_ASSETS={\n'; entry="  '/store/bootstrap/MUSITU_Store_1.0.2.apk':{key:'bootstrap/MUSITU_Store_1.0.2.apk',sha256:'3a0c4b0f971ec84cd6167a137f8e3d75c7bb20e525c26ab533b3d88044cd0784',bytes:1679340,type:'application/vnd.android.package-archive',name:'MUSITU_Store_1.0.2.apk'},\n"; assert needle in s; w.write_text(s.replace(needle,needle+entry,1))
+          PY
+            (cd "$root" && python store/phase1/web-surface/build_store_data.py)
+          done
+          python store/phase2/browser_machine_presentation.py /tmp/browser-hotfix-candidate/store/phase1/web-surface/worker.mjs
+          test "$(sha256sum /tmp/browser-hotfix-candidate/store/phase1/web-surface/worker.mjs | awk '{print $1}')" = "$HOTFIX_WORKER_SHA"
+          BASELINE_WORKER_PATH=/tmp/browser-hotfix-baseline/store/phase1/web-surface/worker.mjs CANDIDATE_WORKER_PATH=/tmp/browser-hotfix-candidate/store/phase1/web-surface/worker.mjs node store/phase2/browser-machine-presentation-smoke.mjs | tee /tmp/browser-hotfix-evidence/predeploy-smoke.json
+          grep -q '"result": "PASS"' /tmp/browser-hotfix-evidence/predeploy-smoke.json
+
+      - name: Execute presentation-only deployment with live rollback drill
+        id: transaction
+        continue-on-error: true
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+          BASELINE_MODULE_ROOT: /tmp/browser-hotfix-baseline/store/phase1/web-surface
+          CANDIDATE_MODULE_ROOT: /tmp/browser-hotfix-candidate/store/phase1/web-surface
+          HOTFIX_HEAD: ${{ github.sha }}
+          HOTFIX_DEPLOY_EVIDENCE: /tmp/browser-hotfix-evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$CLOUDFLARE_EMAIL" && test -n "$CLOUDFLARE_GLOBAL_API_KEY"
+          python store/phase2/deploy_browser_presentation_hotfix.py
+
+      - name: Upload non-secret deployment evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: musitu-store-browser-presentation-hotfix-production
+          path: /tmp/browser-hotfix-evidence
+          retention-days: 90
+          if-no-files-found: error
+
+      - name: Enforce successful hotfix transaction
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          test '${{ steps.transaction.outcome }}' = success
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          d=json.loads(Path('/tmp/browser-hotfix-evidence/deployment.json').read_text())
+          assert d['gate']=='MUSITU_STORE_BROWSER_PRESENTATION_HOTFIX_DEPLOY_AND_ROLLBACK_PASS'
+          s=d['state']; assert s['initial_snapshot_verified'] and s['presentation_candidate_deployed_once'] and s['rollback_drill_performed'] and s['rollback_drill_verified'] and s['presentation_candidate_redeployed_final'] and s['final_state_verified'] and not s['emergency_rollback_performed']
+          assert d['checks']['normal_store_responses_unchanged'] is True
+          assert len(d['checks']['machine_endpoint_verification'])==11
+          print('MUSITU_STORE_BROWSER_PRESENTATION_HOTFIX_PRODUCTION=PASS')
+          PY
