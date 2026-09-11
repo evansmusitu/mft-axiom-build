@@ -505,6 +505,7 @@ class ExternalEvidenceGate:
             if saw_attester_identity_invalid:
                 reasons.append("independent_validation_attester_identity_invalid")
             reasons.append("no_attested_independent_end_to_end_reproduction")
+        latest_validation_at = max((parse_time(v.validated_at) for v in bound), default=None)
         reasons = sorted(set(reasons))
         passed = not reasons
         return {
@@ -515,6 +516,7 @@ class ExternalEvidenceGate:
             "candidate_sha": expected_candidate if identity_valid else None,
             "case_set_hash": expected_cases if identity_valid else None,
             "level5_provider_orgs": sorted(level5_providers),
+            "latest_validation_at": latest_validation_at.isoformat() if latest_validation_at is not None else None,
             "validators": sorted({v.validator_org for v in bound}),
             "validation_count": len(bound),
             "attestation_sha256": sha256(sorted(receipt_hashes)) if receipt_hashes else None,
@@ -551,12 +553,23 @@ class ExternalEvidenceGate:
             for provider in level6.get("level5_provider_orgs", ())
             if isinstance(provider, str) and provider.strip()
         }
+        latest_validation_raw = level6.get("latest_validation_at")
+        latest_validation_at = None
+        if latest_validation_raw is not None:
+            if not isinstance(latest_validation_raw, str):
+                reasons.append("level6_validation_time_invalid")
+            else:
+                try:
+                    latest_validation_at = parse_time(latest_validation_raw)
+                except ValueError:
+                    reasons.append("level6_validation_time_invalid")
         receipt_map = cls._receipt_map(receipts, "longitudinal_refresh")
         passed_refreshes: list[LongitudinalRefreshRecord] = []
         receipt_hashes: list[str] = []
         seen_refresh_ids: set[str] = set()
         saw_nonindependent_provenance = False
         saw_attester_overlap = False
+        saw_predating_refresh = False
         for refresh in refreshes:
             if refresh.refresh_id in seen_refresh_ids:
                 reasons.append("duplicate_longitudinal_refresh")
@@ -572,6 +585,9 @@ class ExternalEvidenceGate:
                 continue
             if refresh.provenance_type != "independent_lab_record":
                 saw_nonindependent_provenance = True
+                continue
+            if latest_validation_at is not None and parse_time(refresh.executed_at) < latest_validation_at:
+                saw_predating_refresh = True
                 continue
             receipt = receipt_map.get(refresh.refresh_id)
             if receipt is None:
@@ -600,6 +616,8 @@ class ExternalEvidenceGate:
                 reasons.append("longitudinal_refresh_provenance_required")
             if saw_attester_overlap:
                 reasons.append("longitudinal_refresh_attester_overlaps_level5_provider")
+            if saw_predating_refresh:
+                reasons.append("longitudinal_refresh_predates_level6_validation")
             reasons.append("insufficient_attested_longitudinal_refreshes")
         elif len(distinct_refresh_times) < effective_min_refreshes:
             reasons.append("insufficient_distinct_longitudinal_refresh_times")
@@ -615,6 +633,7 @@ class ExternalEvidenceGate:
             "candidate_sha": expected_identity.candidate_sha if expected_identity is not None else None,
             "case_set_hash": expected_identity.case_set_hash if expected_identity is not None else None,
             "level5_provider_orgs": sorted(level5_providers),
+            "latest_validation_at": latest_validation_at.isoformat() if latest_validation_at is not None else None,
             "refresh_count": len(passed_refreshes),
             "distinct_refresh_times": len(distinct_refresh_times),
             "refresh_evidence_sha256": sha256([asdict(r) for r in sorted(passed_refreshes, key=lambda x: x.refresh_id)]),
