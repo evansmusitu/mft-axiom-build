@@ -44,7 +44,7 @@ jobs:
           grep -q 'resumePendingInstall' store/phase1/android-client/app/src/main/java/com/musitu/store/StoreCore.java
           grep -q 'canRequestPackageInstalls' store/phase1/android-client/app/src/main/java/com/musitu/store/StoreCore.java
           echo MUSITU_STORE_1_0_3_NATIVE_HANDOFF_SOURCE=PASS
-      - name: Build unsigned release APK
+      - name: Build unsigned release APK and export official signing tools
         working-directory: store/phase1/android-client
         shell: bash
         run: |
@@ -53,11 +53,20 @@ jobs:
           test -f app/build/outputs/apk/release/app-release-unsigned.apk
           cp app/build/outputs/apk/release/app-release-unsigned.apk "$GITHUB_WORKSPACE/MUSITU_Store_1.0.3_UNSIGNED.apk"
           sha256sum "$GITHUB_WORKSPACE/MUSITU_Store_1.0.3_UNSIGNED.apk" | tee "$GITHUB_WORKSPACE/MUSITU_Store_1.0.3_UNSIGNED.sha256"
+          mkdir -p "$GITHUB_WORKSPACE/android-build-tools/lib"
+          cp "$ANDROID_HOME/build-tools/36.0.0/apksigner" "$GITHUB_WORKSPACE/android-build-tools/apksigner"
+          cp "$ANDROID_HOME/build-tools/36.0.0/lib/apksigner.jar" "$GITHUB_WORKSPACE/android-build-tools/lib/apksigner.jar"
+          cp "$ANDROID_HOME/build-tools/36.0.0/zipalign" "$GITHUB_WORKSPACE/android-build-tools/zipalign"
+          chmod +x "$GITHUB_WORKSPACE/android-build-tools/apksigner" "$GITHUB_WORKSPACE/android-build-tools/zipalign"
+          "$GITHUB_WORKSPACE/android-build-tools/apksigner" --version
       - uses: actions/upload-artifact@v4
         with:
           name: musitu-store-1.0.3-unsigned
           path: |
             MUSITU_Store_1.0.3_UNSIGNED.apk
             MUSITU_Store_1.0.3_UNSIGNED.sha256
+            android-build-tools/apksigner
+            android-build-tools/lib/apksigner.jar
+            android-build-tools/zipalign
           retention-days: 30
           if-no-files-found: error
