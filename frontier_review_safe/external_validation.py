@@ -648,6 +648,8 @@ class ExternalEvidenceGate:
         saw_attester_executor_overlap = False
         saw_predating_refresh = False
         saw_attestation_time_reversal = False
+        saw_identity_mismatch = False
+        saw_provenance_mismatch = False
         for refresh in refreshes:
             if refresh.refresh_id in seen_refresh_ids:
                 reasons.append("duplicate_longitudinal_refresh")
@@ -657,7 +659,7 @@ class ExternalEvidenceGate:
                 candidate_sha=refresh.candidate_sha,
                 case_set_hash=refresh.case_set_hash,
             ):
-                reasons.append("longitudinal_refresh_identity_mismatch")
+                saw_identity_mismatch = True
                 continue
             if refresh.passed is not True:
                 continue
@@ -687,7 +689,7 @@ class ExternalEvidenceGate:
             if verification["status"] != "PASS":
                 continue
             if receipt.provenance_type != refresh.provenance_type:
-                reasons.append("longitudinal_refresh_provenance_type_mismatch")
+                saw_provenance_mismatch = True
                 continue
             if parse_time(receipt.issued_at) < parse_time(refresh.executed_at):
                 saw_attestation_time_reversal = True
@@ -716,6 +718,10 @@ class ExternalEvidenceGate:
                 reasons.append("longitudinal_refresh_predates_level6_validation")
             if saw_attestation_time_reversal:
                 reasons.append("longitudinal_refresh_attestation_predates_execution")
+            if saw_identity_mismatch:
+                reasons.append("longitudinal_refresh_identity_mismatch")
+            if saw_provenance_mismatch:
+                reasons.append("longitudinal_refresh_provenance_type_mismatch")
             reasons.append("insufficient_attested_longitudinal_refreshes")
         elif len(distinct_refresh_times) < effective_min_refreshes:
             reasons.append("insufficient_distinct_longitudinal_refresh_times")
