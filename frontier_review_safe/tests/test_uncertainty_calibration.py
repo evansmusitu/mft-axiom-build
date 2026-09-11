@@ -60,6 +60,7 @@ class UncertaintyCalibrationTests(unittest.TestCase):
         self.assertTrue(artifact.promotion_authorized)
         self.assertLess(artifact.holdout_calibrated_brier, artifact.holdout_raw_brier)
         self.assertLessEqual(artifact.holdout_ece, .1)
+        self.assertEqual(artifact.maximum_brier_regression, 0.0)
         registry = DomainCalibrationRegistry([artifact])
         result = registry.calibrate("risk", .9, (NOW + timedelta(hours=1)).isoformat())
         self.assertEqual(result["status"], "CALIBRATED")
@@ -181,6 +182,13 @@ class UncertaintyCalibrationTests(unittest.TestCase):
             )
         with self.assertRaises(ValueError):
             DomainProbabilityCalibrator.fit(
+                self.observations(), version="v-excess-regression", calibrated_at=NOW_S,
+                valid_until=(NOW + timedelta(days=1)).isoformat(),
+                minimum_calibration=40, minimum_holdout=20,
+                maximum_brier_regression=1.01,
+            )
+        with self.assertRaises(ValueError):
+            DomainProbabilityCalibrator.fit(
                 self.observations(), version="v-nan-ece", calibrated_at=NOW_S,
                 valid_until=(NOW + timedelta(days=1)).isoformat(),
                 minimum_calibration=40, minimum_holdout=20,
@@ -200,12 +208,24 @@ class UncertaintyCalibrationTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             DomainCalibrationRegistry([artifact]).calibrate(" ", .9, when)
 
-    def test_artifact_rejects_nonfinite_metrics_and_false_ece_promotion(self):
+    def test_artifact_rejects_nonfinite_metrics_and_false_promotion(self):
         artifact = self.artifact()
         with self.assertRaises(ValueError):
             replace(artifact, holdout_raw_brier=float("nan"))
         with self.assertRaises(ValueError):
             replace(artifact, maximum_holdout_ece=float("inf"))
+        with self.assertRaises(ValueError):
+            replace(artifact, maximum_brier_regression=float("inf"))
+        with self.assertRaises(ValueError):
+            replace(artifact, maximum_brier_regression=1.01)
+        with self.assertRaises(FrontierSafetyError):
+            replace(
+                artifact,
+                promotion_authorized=True,
+                holdout_raw_brier=.1,
+                holdout_calibrated_brier=.2,
+                maximum_brier_regression=0.0,
+            )
         with self.assertRaises(FrontierSafetyError):
             replace(
                 artifact,
