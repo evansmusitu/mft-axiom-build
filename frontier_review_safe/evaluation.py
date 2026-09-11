@@ -7,10 +7,20 @@ from typing import Any, Mapping, Sequence
 import hashlib
 import hmac
 import json
+import math
 import random
 import statistics
 
 from .core import FrontierSafetyError, atomic_write, canonical, parse_time, sha256, utcnow
+
+
+def _valid_sha256(value: str) -> bool:
+    return (
+        isinstance(value, str)
+        and len(value) == 64
+        and all(c in "0123456789abcdef" for c in value.lower())
+    )
+
 
 @dataclass(frozen=True)
 class SealedCaseResult:
@@ -18,6 +28,15 @@ class SealedCaseResult:
     score: float
     latency_ms: float | None = None
     cost_units: float | None = None
+
+    def __post_init__(self) -> None:
+        if not _valid_sha256(self.case_fingerprint):
+            raise ValueError("sealed case fingerprint must be SHA-256")
+        if not math.isfinite(float(self.score)):
+            raise ValueError("sealed case score must be finite")
+        for name, value in (("latency_ms", self.latency_ms), ("cost_units", self.cost_units)):
+            if value is not None and (not math.isfinite(float(value)) or float(value) < 0.0):
+                raise ValueError(f"sealed case {name} must be finite and non-negative")
 
 
 class SealedEvaluation:
@@ -31,18 +50,32 @@ class SealedEvaluation:
 
     @staticmethod
     def suite_hash(case_fingerprints: Sequence[str], constraint_hash: str) -> str:
-        if not case_fingerprints or len(constraint_hash) != 64:
+        if not case_fingerprints or not _valid_sha256(constraint_hash):
             raise ValueError("sealed fingerprints and constraint hash required")
+        if any(not _valid_sha256(value) for value in case_fingerprints):
+            raise ValueError("sealed case fingerprints must be SHA-256")
+        if len(case_fingerprints) != len(set(case_fingerprints)):
+            raise ValueError("duplicate sealed case fingerprints are forbidden")
         return sha256({"cases": list(case_fingerprints), "constraint_hash": constraint_hash})
 
     @staticmethod
     def paired_comparison(candidate: Sequence[SealedCaseResult], baseline: Sequence[SealedCaseResult],
                           confidence: float = 0.95, bootstrap_samples: int = 4000) -> dict[str, Any]:
+        if not 0.0 < float(confidence) < 1.0:
+            raise ValueError("comparison confidence must be between zero and one")
+        if not isinstance(bootstrap_samples, int) or isinstance(bootstrap_samples, bool) or bootstrap_samples <= 0:
+            raise ValueError("bootstrap_samples must be a positive integer")
+        candidate_ids = [x.case_fingerprint for x in candidate]
+        baseline_ids = [x.case_fingerprint for x in baseline]
+        if len(candidate_ids) != len(set(candidate_ids)) or len(baseline_ids) != len(set(baseline_ids)):
+            raise ValueError("duplicate paired sealed cases are forbidden")
         b = {x.case_fingerprint: x for x in baseline}
         pairs = [(x.score, b[x.case_fingerprint].score) for x in candidate if x.case_fingerprint in b]
         if len(pairs) < 5:
             raise ValueError("at least five matched sealed cases required")
         deltas = [a - z for a, z in pairs]
+        if any(not math.isfinite(float(delta)) for delta in deltas):
+            raise ValueError("paired comparison deltas must be finite")
         mean = statistics.fmean(deltas)
         seed = int(hashlib.sha256(canonical(sorted(deltas)).encode()).hexdigest()[:16], 16)
         rng = random.Random(seed)
@@ -68,6 +101,18 @@ class FailureRecord:
     candidate_version: str
     remediation_version: str | None = None
     resolved: bool = False
+
+    def __post_init__(self) -> None:
+        if any(not isinstance(value, str) or not value.strip()
+               for value in (self.failure_id, self.category, self.candidate_version)):
+            raise ValueError("complete failure identity required")
+        if not _valid_sha256(self.case_hash):
+            raise ValueError("failure case hash must be SHA-256")
+        parse_time(self.observed_at)
+        if self.remediation_version is not None and not self.remediation_version.strip():
+            raise ValueError("remediation version must be non-empty when supplied")
+        if self.resolved and self.remediation_version is None:
+            raise ValueError("resolved failure requires remediation version")
 
 
 class FailureCorpus:
@@ -115,6 +160,18 @@ class AdaptationRelease:
     eval_hash: str
     rollback_to: str | None
 
+    def __post_init__(self) -> None:
+        if not isinstance(self.version, str) or not self.version.strip():
+            raise ValueError("adaptation version required")
+        for value in (self.failure_corpus_hash, self.calibration_hash, self.routing_policy_hash, self.eval_hash):
+            if not _valid_sha256(value):
+                raise ValueError("adaptation evidence hashes must be SHA-256")
+        for name, value in (("parent_version", self.parent_version), ("rollback_to", self.rollback_to)):
+            if value is not None and (not isinstance(value, str) or not value.strip()):
+                raise ValueError(f"{name} must be non-empty when supplied")
+        if self.parent_version == self.version or self.rollback_to == self.version:
+            raise ValueError("adaptation cannot parent or roll back to itself")
+
 
 class ContinualAdaptationRegistry:
     """Versioned non-weight adaptation ledger; does not claim model-weight learning."""
@@ -126,6 +183,8 @@ class ContinualAdaptationRegistry:
     def promote(self, release: AdaptationRelease, regression_pass: bool) -> None:
         if not regression_pass:
             raise FrontierSafetyError("adaptation promotion blocked by regression gate")
+        if release.version in self.releases:
+            raise FrontierSafetyError("adaptation version collision")
         if release.parent_version != self.active_version:
             raise FrontierSafetyError("adaptation parent is not active version")
         self.releases[release.version] = release
@@ -147,15 +206,25 @@ class RegressionProtection:
     def gate(candidate: Mapping[str, float], baseline: Mapping[str, float],
              tolerances: Mapping[str, float] | None = None) -> dict[str, Any]:
         missing = sorted(set(baseline) - set(candidate))
-        regressed = []
+        regressed: list[str] = []
+        invalid: list[str] = []
         for k, base in baseline.items():
             if k not in candidate:
                 continue
-            tol = float((tolerances or {}).get(k, 0.0))
-            if float(candidate[k]) + tol < float(base):
+            try:
+                base_value = float(base)
+                candidate_value = float(candidate[k])
+                tol = float((tolerances or {}).get(k, 0.0))
+            except (TypeError, ValueError):
+                invalid.append(k)
+                continue
+            if not all(math.isfinite(value) for value in (base_value, candidate_value, tol)) or tol < 0.0:
+                invalid.append(k)
+                continue
+            if candidate_value + tol < base_value:
                 regressed.append(k)
-        return {"status": "PASS" if not missing and not regressed else "FAIL", "missing": missing,
-                "regressions": sorted(regressed)}
+        return {"status": "PASS" if not missing and not regressed and not invalid else "FAIL", "missing": missing,
+                "regressions": sorted(regressed), "invalid_metrics": sorted(set(invalid))}
 
 
 # ---------------------------------------------------------------------------
@@ -184,8 +253,11 @@ class DecisionProvenanceLedger:
                request_id: str, policy_version: str, code_version: str,
                input_hashes: Sequence[str], model_version: str | None = None,
                tool_versions: Mapping[str, str] | None = None) -> str:
-        if not event_type or not actor or not request_id or not policy_version or not code_version:
+        if any(not isinstance(value, str) or not value.strip()
+               for value in (event_type, actor, request_id, policy_version, code_version)):
             raise ValueError("complete decision provenance required")
+        if any(not _valid_sha256(value) for value in input_hashes):
+            raise ValueError("decision input hashes must be SHA-256")
         with self._lock:
             idempotency_body = {"event_type": event_type, "actor": actor, "request_id": request_id,
                                 "policy_version": policy_version, "code_version": code_version,
@@ -240,8 +312,10 @@ class ProofEnvelope:
     def __post_init__(self) -> None:
         parse_time(self.created_at)
         for value in (self.request_hash, self.result_hash, self.lineage_hash, self.decision_event_hash):
-            if len(value) != 64:
+            if not _valid_sha256(value):
                 raise ValueError("proof hashes must be SHA-256 hex")
+        if any(not _valid_sha256(value) for value in self.evidence_hashes):
+            raise ValueError("proof evidence hashes must be SHA-256 hex")
         if not self.evidence_hashes or not self.method or not self.assumptions:
             raise ValueError("proof evidence, method and assumptions required")
 
