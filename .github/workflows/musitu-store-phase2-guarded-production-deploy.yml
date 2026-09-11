@@ -1,0 +1,200 @@
+name: MUSITU Store Phase 2 Guarded Production Deploy
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: musitu-store-phase2-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      SEALED_MAIN: d6a846f6bbe0bccac1758713eb4de167caf07113
+      PHASE1_HEAD: ebded495617cc89bb96d7a5531c1ce4fc6bbedd9
+      CERTIFIED_CANDIDATE_HEAD: 6a1d50c76dec96e924751dd6f5f2bc1ffe4191e1
+      CANDIDATE_WORKER_SHA: ee95b816bc056ab79be4d764cf88a68e25feed7aafdaad33ff23e2188f954616
+      STORE_SHA: 3a0c4b0f971ec84cd6167a137f8e3d75c7bb20e525c26ab533b3d88044cd0784
+      STORE_BYTES: '1679340'
+      CATALOG_SHA: 4fa31c5f9f84facc0d1fbf7a91a50b0adcaa5ef4c97b7d82abbe9657ea10b7f9
+      CATALOG_SIG_SHA: 9b854358f90368ceb5cc3baab8d99064d8ee94b79ead378a614f8cc1732b06a7
+      ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      ZONE_ID: 5b56528f03948ff5917a5e0cd9f7109e
+      ZONE_NAME: mftintelligence.com
+      PAYMENTS_HOST: payments.mftintelligence.com
+      PAYMENTS_ORIGIN: mft-paynow-transport-gateway
+      STORE_WORKER: musitu-store-phase1
+      STORE_ROUTE: payments.mftintelligence.com/store*
+      STORE_BUCKET: musitu-store-phase1-releases
+      MANUAL_PACKET: evidence/musitu-store/MUSITU_STORE_PHASE2_MANUAL_ACCESSIBILITY_CERTIFICATION_PACKET_20260911.json
+      CANDIDATE_CERT: evidence/musitu-store/MUSITU_STORE_PHASE2_HARDENED_CANDIDATE_PREDEPLOY_CERTIFICATION_20260911.json
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Prove immutable repository anchors
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF_NAME" = 'musitu-store-phase2-standards-hardening-20260911'
+          git fetch --quiet origin main musitu-store-phase1-20260909
+          test "$(git rev-parse origin/main)" = "$SEALED_MAIN"
+          test "$(git rev-parse origin/musitu-store-phase1-20260909)" = "$PHASE1_HEAD"
+          git merge-base --is-ancestor "$CERTIFIED_CANDIDATE_HEAD" "$GITHUB_SHA"
+          test -z "$(git diff --name-only "$CERTIFIED_CANDIDATE_HEAD"..."$GITHUB_SHA" -- store/phase2/apply-standards-hardening.py store/phase2/security-hardening-smoke.mjs store/phase2/standards-browser-smoke.mjs)"
+          test -z "$(git diff --name-only "$PHASE1_HEAD"..."$GITHUB_SHA" -- store/phase1 commerce/chemistry)"
+          echo PHASE2_DEPLOY_REPOSITORY_ANCHORS=PASS
+
+      - name: Require reviewed real manual accessibility evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          p=Path('evidence/musitu-store/MUSITU_STORE_PHASE2_MANUAL_ACCESSIBILITY_CERTIFICATION_PACKET_20260911.json')
+          d=json.loads(p.read_text())
+          assert d['schema']=='musitu.store.phase2.manual_accessibility_certification_packet.v1'
+          assert d['status']=='PASS_REVIEWED_REAL_ASSISTIVE_TECHNOLOGY_EVIDENCE'
+          assert d['result']=='PASS'
+          env=d['test_environment']
+          for key in ('platform','os_version','device_model_class','browser_name','browser_version','screen_reader_name','screen_reader_version'):
+              assert isinstance(env.get(key),str) and env[key].strip(), f'missing manual environment metadata: {key}'
+          for group in ('manual_keyboard_checks','screen_reader_checks','zoom_reflow_checks'):
+              failed=[k for k,v in d[group].items() if v is not True]
+              assert not failed, f'{group} not all PASS: {failed}'
+          refs=d['required_evidence']
+          missing=[k for k,v in refs.items() if not isinstance(v,str) or not v.strip()]
+          assert not missing, f'missing manual evidence references: {missing}'
+          assert d.get('failure_details') in (None,'')
+          print('REAL_MANUAL_ACCESSIBILITY_GATE=PASS')
+          PY
+
+      - name: Require certified hardened candidate evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          d=json.loads(Path('evidence/musitu-store/MUSITU_STORE_PHASE2_HARDENED_CANDIDATE_PREDEPLOY_CERTIFICATION_20260911.json').read_text())
+          assert d['status']=='PASS_PREDEPLOY_MANUAL_AND_DEPLOYMENT_PENDING'
+          assert d['repository']['certified_head']=='6a1d50c76dec96e924751dd6f5f2bc1ffe4191e1'
+          assert d['candidate']['hardened_worker_sha256']=='ee95b816bc056ab79be4d764cf88a68e25feed7aafdaad33ff23e2188f954616'
+          assert d['github_actions']['run_id']==34573638727
+          assert d['github_actions']['artifact']['id']==10188749517
+          assert d['github_actions']['artifact']['digest']=='sha256:0e1066a9453ae437c7d6e5ebed50a464ce3f96f39490a25b6c604e73bfc51ac4'
+          assert d['gates']['security_hardening_runtime']=='PASS'
+          assert d['gates']['automated_accessibility_low_bandwidth']=='PASS_AUTOMATED'
+          assert d['gates']['lighthouse']['result']=='PASS'
+          assert d['candidate']['production_mutation'] is False
+          print('HARDENED_CANDIDATE_CERTIFICATION_GATE=PASS')
+          PY
+
+      - name: Reconstruct exact baseline and hardened candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/musitu-p2-baseline /tmp/musitu-p2-candidate /tmp/musitu-store-phase2-deploy-evidence
+          curl --retry 3 --retry-all-errors -fsSL https://payments.mftintelligence.com/store/catalog.json -o /tmp/catalog.json
+          curl --retry 3 --retry-all-errors -fsSL https://payments.mftintelligence.com/store/catalog.sig -o /tmp/catalog.sig
+          curl --retry 3 --retry-all-errors -fsSL https://payments.mftintelligence.com/store/bootstrap/MUSITU_Store_1.0.2.apk -o /tmp/store.apk
+          test "$(sha256sum /tmp/catalog.json | awk '{print $1}')" = "$CATALOG_SHA"
+          test "$(sha256sum /tmp/catalog.sig | awk '{print $1}')" = "$CATALOG_SIG_SHA"
+          test "$(stat -c%s /tmp/store.apk)" = "$STORE_BYTES"
+          test "$(sha256sum /tmp/store.apk | awk '{print $1}')" = "$STORE_SHA"
+          git worktree add --detach /tmp/musitu-p2-baseline "$PHASE1_HEAD"
+          git worktree add --detach /tmp/musitu-p2-candidate "$PHASE1_HEAD"
+          for root in /tmp/musitu-p2-baseline /tmp/musitu-p2-candidate; do
+            cp /tmp/catalog.json "$root/store/phase1/catalog.json"
+            cp /tmp/catalog.sig "$root/store/phase1/catalog.sig"
+            ROOT="$root" python - <<'PY'
+          import json,os
+          from pathlib import Path
+          root=Path(os.environ['ROOT'])/'store/phase1'
+          c=json.loads((root/'catalog.json').read_text())
+          assert c['revision']==3
+          sc=c['releaseControl']['storeClient']
+          assert sc['version']=='1.0.2' and sc['versionCode']==10002 and sc['sha256']=='3a0c4b0f971ec84cd6167a137f8e3d75c7bb20e525c26ab533b3d88044cd0784'
+          bpath=root/'bootstrap/release.json'
+          b=json.loads(bpath.read_text())
+          b.update({'version':'1.0.2','versionCode':10002,'packageId':'com.musitu.store','artifactFile':'MUSITU_Store_1.0.2.apk','sha256':sc['sha256'],'bytes':1679340,'signingCertificateSha256':'43695b6103d7ab57e89166c9a537f1810b7e33053e20332b1d4e7e2e1c612671'})
+          bpath.write_text(json.dumps(b,indent=2)+'\n')
+          w=root/'web-surface/worker.mjs'
+          s=w.read_text()
+          if 'MUSITU_Store_1.0.2.apk' not in s:
+              needle='const RELEASE_ASSETS={\n'
+              entry="  '/store/bootstrap/MUSITU_Store_1.0.2.apk':{key:'bootstrap/MUSITU_Store_1.0.2.apk',sha256:'3a0c4b0f971ec84cd6167a137f8e3d75c7bb20e525c26ab533b3d88044cd0784',bytes:1679340,type:'application/vnd.android.package-archive',name:'MUSITU_Store_1.0.2.apk'},\n"
+              assert needle in s
+              w.write_text(s.replace(needle,needle+entry,1))
+          PY
+            (cd "$root" && python store/phase1/web-surface/build_store_data.py)
+          done
+          python store/phase2/apply-standards-hardening.py /tmp/musitu-p2-candidate/store/phase1/web-surface/worker.mjs
+          test "$(sha256sum /tmp/musitu-p2-candidate/store/phase1/web-surface/worker.mjs | awk '{print $1}')" = "$CANDIDATE_WORKER_SHA"
+          cmp /tmp/musitu-p2-baseline/store/phase1/web-surface/render.mjs /tmp/musitu-p2-candidate/store/phase1/web-surface/render.mjs
+          cmp /tmp/musitu-p2-baseline/store/phase1/web-surface/assets.mjs /tmp/musitu-p2-candidate/store/phase1/web-surface/assets.mjs
+          cmp /tmp/musitu-p2-baseline/store/phase1/web-surface/generated-data.mjs /tmp/musitu-p2-candidate/store/phase1/web-surface/generated-data.mjs
+          echo PHASE2_DEPLOY_IMAGES=PASS
+
+      - name: Execute Worker-only deployment with live rollback drill
+        id: transaction
+        continue-on-error: true
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+          BASELINE_MODULE_ROOT: /tmp/musitu-p2-baseline/store/phase1/web-surface
+          CANDIDATE_MODULE_ROOT: /tmp/musitu-p2-candidate/store/phase1/web-surface
+          PHASE2_HEAD: ${{ github.sha }}
+          PHASE2_DEPLOY_EVIDENCE: /tmp/musitu-store-phase2-deploy-evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$CLOUDFLARE_EMAIL"
+          test -n "$CLOUDFLARE_GLOBAL_API_KEY"
+          git fetch --quiet origin main musitu-store-phase1-20260909
+          test "$(git rev-parse origin/main)" = "$SEALED_MAIN"
+          test "$(git rev-parse origin/musitu-store-phase1-20260909)" = "$PHASE1_HEAD"
+          python store/phase2/deploy_hardened_store.py
+
+      - name: Upload non-secret Phase 2 deployment evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: musitu-store-phase2-production-deploy-evidence
+          path: /tmp/musitu-store-phase2-deploy-evidence
+          retention-days: 90
+          if-no-files-found: warn
+
+      - name: Enforce deployment transaction
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          test '${{ steps.transaction.outcome }}' = 'success'
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          p=Path('/tmp/musitu-store-phase2-deploy-evidence/deployment.json')
+          d=json.loads(p.read_text())
+          assert d['gate']=='MUSITU_STORE_PHASE2_WORKER_DEPLOY_AND_ROLLBACK_PASS'
+          assert d['state']['initial_snapshot_verified'] is True
+          assert d['state']['candidate_deployed_once'] is True
+          assert d['state']['rollback_drill_performed'] is True
+          assert d['state']['rollback_drill_verified'] is True
+          assert d['state']['candidate_redeployed_final'] is True
+          assert d['state']['final_state_verified'] is True
+          assert d['state']['emergency_rollback_performed'] is False
+          print('MUSITU_STORE_PHASE2_PRODUCTION_DEPLOYMENT=PASS')
+          PY
