@@ -28,7 +28,8 @@
     "preserve_machine_endpoint_bytes": true,
     "preserve_all_non_install_store_response_bodies": true,
     "exact_machine_checks_may_retry_but_must_match_expected_bytes": true,
-    "public_native_install_handoff_must_converge_before_success": true
+    "public_native_install_handoff_must_converge_before_success": true,
+    "rollback_install_verification_must_compare_android_to_android": true
   },
   "source_fix_verification": {
     "head": "5330b04e7c5e00ca7ec671b32fb7e7541ba1e076",
@@ -42,13 +43,21 @@
     "endpoint_count": 11,
     "all_raw_overrides_byte_identical": true
   },
-  "prior_attempt": {
-    "workflow_run": 34615550923,
-    "candidate_deployed_once": true,
-    "rollback_drill_verified": true,
-    "final_candidate_public_edge_convergence": false,
-    "emergency_baseline_restore_performed": true
-  },
-  "attempt": 3,
+  "attempt_history": [
+    {
+      "workflow_run": 34615550923,
+      "result": "failed_closed",
+      "reason": "final candidate public edge had not converged",
+      "exact_baseline_module_restore_readback": true
+    },
+    {
+      "workflow_run": 34615724157,
+      "result": "failed_closed",
+      "reason": "rollback verifier compared an Android response against a web-platform baseline hash",
+      "candidate_public_native_handoff_observed": true,
+      "exact_baseline_module_restore_readback": true
+    }
+  ],
+  "attempt": 4,
   "execute": true
 }
