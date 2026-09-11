@@ -37,3 +37,24 @@ jobs:
         run: |
           set -euo pipefail
           PYTHONPATH=. python -m unittest discover -s frontier_review_safe/tests -v
+      - name: Measure private runtime scale with raw evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          PYTHONPATH=. python -m frontier_review_safe.scale_benchmarks | tee /tmp/axiom-scale-evidence.json
+          python - <<'PY'
+          import json, os
+          p = '/tmp/axiom-scale-evidence.json'
+          with open(p, encoding='utf-8') as f:
+              evidence = json.load(f)
+          assert evidence['schema'] == 'musitu.axiom.review-safe-scale-evidence.v1'
+          assert evidence['candidate_sha'] == os.environ['GITHUB_SHA']
+          assert len(evidence['benchmarks']) == 7
+          assert len(evidence['evidence_sha256']) == 64
+          for row in evidence['benchmarks']:
+              assert row['units'] > 0
+              assert row['elapsed_ms'] >= 0
+              assert row['throughput_per_sec'] > 0
+              assert row['peak_python_bytes'] >= 0
+          print('MUSITU_AXIOM_REVIEW_SAFE_SCALE_EVIDENCE_OK')
+          PY
