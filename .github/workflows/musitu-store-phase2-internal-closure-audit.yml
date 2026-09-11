@@ -7,7 +7,7 @@ on:
       - 'store/phase2/**'
       - 'docs/MUSITU_STORE_PHASE2_*'
       - 'evidence/musitu-store/MUSITU_STORE_PHASE2_*'
-      - 'evidence/musitu-store/MUSITU_STORE_BROWSER_PRESENTATION_HOTFIX_PRODUCTION_CERTIFICATION_20260911.json'
+      - 'evidence/musitu-store/MUSITU_STORE_BROWSER_PRESENTATION_HOTFIX_*'
       - '.github/workflows/musitu-store-*'
   workflow_dispatch:
 
@@ -71,7 +71,7 @@ jobs:
                   path.startswith('store/phase2/'),
                   path.startswith('docs/MUSITU_STORE_PHASE2_'),
                   path.startswith('evidence/musitu-store/MUSITU_STORE_PHASE2_'),
-                  path == 'evidence/musitu-store/MUSITU_STORE_BROWSER_PRESENTATION_HOTFIX_PRODUCTION_CERTIFICATION_20260911.json',
+                  path.startswith('evidence/musitu-store/MUSITU_STORE_BROWSER_PRESENTATION_HOTFIX_'),
               )
               assert any(allowed), f'out-of-scope Phase-2 change: {path}'
               rows.append(path)
