@@ -1,0 +1,25 @@
+name: MUSITU Chemistry Revenue Readonly Evidence Refresh
+
+on:
+  push:
+    branches: [chemistry-direct-paynow-fallback-20260911]
+    paths: ['.github/workflows/chemistry-revenue-readonly-refresh-trigger.yml']
+
+permissions:
+  actions: write
+  contents: read
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Re-run audited privacy-safe evidence workflows
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh api --method POST "repos/${GITHUB_REPOSITORY}/actions/runs/34595772436/rerun"
+          gh api --method POST "repos/${GITHUB_REPOSITORY}/actions/runs/34596023006/rerun"
+          echo 'Requested fresh reruns of the audited SELECT-only funnel and order evidence workflows.'
