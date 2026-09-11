@@ -10,7 +10,8 @@ import os
 import platform
 import tracemalloc
 
-from .core import ContradictionResolver, Evidence, FrontierSafetyError, sha256
+from .core import Evidence, FrontierSafetyError, sha256
+from .evidence_resolution import ContradictionResolver
 from .evaluation import DecisionProvenanceLedger
 from .orchestration import (
     CostLatencyQualityRouter,
@@ -99,10 +100,16 @@ def _contradiction_resolution() -> dict[str, Any]:
     values = ("A", "B", "C", "D", "E")
     items = []
     for i in range(count):
+        group = i % 1_000
+        cycle = i // 1_000
+        # 100 dependency families intentionally drift across values over cycles;
+        # 900 remain internally consistent. The hardened resolver must quarantine
+        # the conflicted components instead of lending their weight to both sides.
+        value_index = (i + cycle) % len(values) if group < 100 else i % len(values)
         items.append(Evidence(
             evidence_id=f"contradiction-{i:05d}",
             claim="benchmark_claim",
-            value=values[i % len(values)],
+            value=values[value_index],
             source_id=f"source-{i:05d}",
             observed_at=FIXED_TIME,
             confidence=.65 + (i % 30) / 100.0,
@@ -113,7 +120,7 @@ def _contradiction_resolution() -> dict[str, Any]:
             recency_score=.90,
             correction_risk=(i % 5) / 100.0,
             conflict_risk=(i % 7) / 100.0,
-            independence_group=f"dependency-{i % 1_000:04d}",
+            independence_group=f"dependency-{group:04d}",
         ))
 
     def workload() -> dict[str, Any]:
@@ -125,7 +132,11 @@ def _contradiction_resolution() -> dict[str, Any]:
             "declared_dependency_groups": 1_000,
             "status": result["status"],
             "minority_value_count": len(result.get("minority_evidence", [])),
-            "ranked_value_count": len(ranked) if ranked else len(values),
+            "ranked_value_count": len(ranked),
+            "dependency_component_count": result["dependency_component_count"],
+            "internally_conflicted_component_count": result["internally_conflicted_component_count"],
+            "usable_component_count": result["usable_component_count"],
+            "discarded_correlated_items": result["discarded_correlated_items"],
             "result_sha256": sha256(result),
         }
 
