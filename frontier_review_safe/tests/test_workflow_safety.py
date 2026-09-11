@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import copy
+from pathlib import Path
 import unittest
 
 from frontier_review_safe.workflow_safety import (
@@ -45,10 +46,23 @@ class WorkflowSafetyTests(unittest.TestCase):
         f["risk_class"] = "LOCAL_READ_ONLY_CONTRACT"
         self.assertEqual(validate_authoritative_workflow_audit(laundering)["status"], "FAIL")
 
-    def test_brand_guard_mutable_action_ref_remains_visible_as_supply_chain_gap(self):
+    def test_authoritative_brand_guard_mutable_ref_remains_visible_as_historical_gap(self):
         audit = authoritative_workflow_audit()
         brand = next(x for x in audit["records"] if x["name"] == "MUSITU Brand Guard")
         self.assertEqual(brand["risk_class"], RISK_MUTABLE_ACTION)
+
+    def test_review_safe_candidate_brand_guard_uses_immutable_action_and_runner(self):
+        text = Path(".github/workflows/musitu-brand-guard.yml").read_text(encoding="utf-8")
+        self.assertIn("runs-on: ubuntu-24.04", text)
+        self.assertIn("actions/checkout@11d5960a326750d5838078e36cf38b85af677262", text)
+        self.assertIn("persist-credentials: false", text)
+        self.assertNotIn("actions/checkout@v4", text)
+        self.assertNotIn("runs-on: ubuntu-latest", text)
+
+    def test_review_safe_ci_does_not_persist_checkout_credentials(self):
+        text = Path(".github/workflows/axiom-frontier-review-safe-ci.yml").read_text(encoding="utf-8")
+        self.assertIn("persist-credentials: false", text)
+        self.assertIn("permissions:\n  contents: read", text)
 
     def test_job_creation_tamper_invalidates_blocked_unexecuted_evidence(self):
         audit = authoritative_workflow_audit()
