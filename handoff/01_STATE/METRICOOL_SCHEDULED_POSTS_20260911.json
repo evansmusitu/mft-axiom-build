@@ -1,0 +1,74 @@
+{
+  "schema": "musitu.chemistry.metricool_schedule_snapshot.v1",
+  "brand_id": "6872208",
+  "brand_timezone": "Africa/Harare",
+  "captured_date": "2026-09-11",
+  "provider": "linkedin",
+  "source_code": "direct",
+  "paid_boost_authorized": false,
+  "posts": [
+    {
+      "id": 374403412,
+      "uuid": "311377022671015836",
+      "publication_date": "2026-09-11T15:00:00",
+      "timezone": "Africa/Harare",
+      "status": "PENDING",
+      "auto_publish": true,
+      "topic": "pH arithmetic",
+      "text": "Quick A-Level Chemistry check: if [H⁺] = 1 × 10⁻³ mol L⁻¹, what is the pH?\n\npH = −log₁₀[H⁺], so the answer is 3.\n\nThe trap is knowing when the question gives hydrogen-ion concentration directly and when you first need an equilibrium calculation. Small setup mistakes can hide bigger revision gaps.\n\nDo the free MUSITU Chemistry Rescue check:\nhttps://payments.mftintelligence.com/chemistry/rescue?src=direct\n\nFree to start · No card required for Free access · Premium optional\n\nMUSITU Chemistry Rescue is an independent MUSITU Education Nexus campaign and is not presented as an official ZIMSEC programme or endorsement."
+    },
+    {
+      "id": 374369966,
+      "uuid": "-3234946248137881481",
+      "publication_date": "2026-09-12T11:00:00",
+      "timezone": "Africa/Harare",
+      "status": "PENDING",
+      "auto_publish": true,
+      "topic": "anode sign trap",
+      "text": "A-Level Chemistry trap: is the anode always negative?\n\nNo. **Anode means oxidation** and **cathode means reduction**. Those definitions do not change. The sign can.\n\nIn a galvanic cell, the anode is negative because electrons leave it spontaneously. In an electrolytic cell, the external power source changes the electrode polarity.\n\nSo in an exam, anchor yourself to oxidation/reduction first — not a memorised + or − sign.\n\nIf that distinction is shaky, do the free MUSITU Chemistry Rescue check and identify what else needs attention:\nhttps://payments.mftintelligence.com/chemistry/rescue?src=direct\n\nFree to start · No card required for Free access · Premium optional\n\nMUSITU Chemistry Rescue is an independent MUSITU Education Nexus campaign and is not presented as an official ZIMSEC programme or endorsement."
+    },
+    {
+      "id": 374370044,
+      "uuid": "2794658882158085469",
+      "publication_date": "2026-09-14T11:00:00",
+      "timezone": "Africa/Harare",
+      "status": "PENDING",
+      "auto_publish": true,
+      "topic": "primary alcohol to aldehyde",
+      "text": "A-Level Organic Chemistry check: what matters when converting a primary alcohol to an aldehyde?\n\nIt is not just choosing an oxidising agent. You also need **controlled oxidation** and to **distil the aldehyde as it forms** so it is not further oxidised to a carboxylic acid.\n\nThat is a common exam trap: knowing the reagent but missing the conditions.\n\nDo the free MUSITU Chemistry Rescue check to see which Chemistry areas need the most attention:\nhttps://payments.mftintelligence.com/chemistry/rescue?src=direct\n\nFree to start · No card required for Free access · Premium optional\n\nMUSITU Chemistry Rescue is an independent MUSITU Education Nexus campaign and is not presented as an official ZIMSEC programme or endorsement."
+    },
+    {
+      "id": 374370113,
+      "uuid": "8669881750796585803",
+      "publication_date": "2026-09-16T11:00:00",
+      "timezone": "Africa/Harare",
+      "status": "PENDING",
+      "auto_publish": true,
+      "topic": "parent revision focus",
+      "text": "For parents supporting an A-Level Chemistry learner: more revision time is not always the same as better revision.\n\nA useful first step is identifying which topics actually need attention, then focusing practice there instead of rereading every chapter equally.\n\nMUSITU Chemistry Rescue gives learners a free starting point for that process.\n\nStart the free Rescue check:\nhttps://payments.mftintelligence.com/chemistry/rescue?src=direct\n\nFree to start · No card required for Free access · Android · Premium optional\n\nMUSITU does not guarantee a pass or predict a ZIMSEC grade. The aim is to help learners revise more deliberately and practise under exam pressure."
+    },
+    {
+      "id": 374400086,
+      "uuid": "5779650643505073534",
+      "publication_date": "2026-09-19T11:00:00",
+      "timezone": "Africa/Harare",
+      "status": "PENDING",
+      "auto_publish": true,
+      "topic": "catalyst and equilibrium",
+      "text": "A-Level Chemistry check: adding a catalyst changes the equilibrium position — true or false?\n\nFalse. A catalyst speeds up both the forward and reverse reactions. It helps equilibrium get established faster, but it does not change the equilibrium constant or the final equilibrium composition at that temperature.\n\nThat distinction is easy to lose under exam pressure.\n\nDo the free MUSITU Chemistry Rescue check:\nhttps://payments.mftintelligence.com/chemistry/rescue?src=direct\n\nFree to start · No card required for Free access · Premium optional\n\nMUSITU Chemistry Rescue is an independent MUSITU Education Nexus campaign and is not presented as an official ZIMSEC programme or endorsement."
+    }
+  ],
+  "day1_published_evidence": {
+    "public_url": "https://www.linkedin.com/feed/update/urn:li:share:7502708694757974016",
+    "external_id": "urn:li:share:7502708694757974016",
+    "published_date": "2026-09-07",
+    "observed_impressions": 158,
+    "observed_unique_impressions": 127,
+    "observed_engagement": 0.0,
+    "clicks_field": null,
+    "comments_field": null,
+    "reactions_field": null,
+    "shares_field": null,
+    "boundary": "Null metric fields are unknown/not returned, not proven zero."
+  }
+}
