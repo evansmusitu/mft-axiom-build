@@ -423,6 +423,7 @@ class ExternalEvidenceGate:
         constraint_hashes = {r.constraint_hash for r in verified}
         candidate_shas = {r.candidate_sha for r in verified}
         providers = {_organization_key(r.provider_org) for r in verified}
+        latest_external_run_at = max((parse_time(r.executed_at) for r in verified), default=None)
         if len(verified) != len(runs):
             reasons.append("not_all_external_runs_attested_and_registered")
         if len(case_hashes) != 1:
@@ -451,6 +452,7 @@ class ExternalEvidenceGate:
             "case_set_hash": next(iter(case_hashes)) if len(case_hashes) == 1 else None,
             "constraint_hash": next(iter(constraint_hashes)) if len(constraint_hashes) == 1 else None,
             "baseline_registry_hash": baseline_registry.fingerprint if baseline_registry is not None else None,
+            "latest_external_run_at": latest_external_run_at.isoformat() if latest_external_run_at is not None else None,
             "run_receipt_hashes": dict(sorted(receipt_hashes.items())),
             "evidence_sha256": sha256([asdict(r) for r in sorted(verified, key=lambda x: x.run_id)]),
         }
@@ -486,6 +488,16 @@ class ExternalEvidenceGate:
             for provider in level5.get("provider_orgs", ())
             if isinstance(provider, str) and provider.strip()
         }
+        latest_external_run_raw = level5.get("latest_external_run_at")
+        latest_external_run_at = None
+        if latest_external_run_raw is not None:
+            if not isinstance(latest_external_run_raw, str):
+                reasons.append("level5_external_run_time_invalid")
+            else:
+                try:
+                    latest_external_run_at = parse_time(latest_external_run_raw)
+                except ValueError:
+                    reasons.append("level5_external_run_time_invalid")
         bound: list[IndependentValidationRecord] = []
         receipt_hashes: list[str] = []
         saw_nonindependent_provenance = False
@@ -493,6 +505,7 @@ class ExternalEvidenceGate:
         saw_attester_overlap = False
         saw_attester_identity_invalid = False
         saw_attestation_time_reversal = False
+        saw_predating_level5_run = False
         for validation in validations:
             if validation.passed is not True:
                 continue
@@ -503,6 +516,9 @@ class ExternalEvidenceGate:
                 saw_provider_overlap = True
                 continue
             if validation.candidate_sha != expected_candidate or validation.case_set_hash != expected_cases:
+                continue
+            if latest_external_run_at is not None and parse_time(validation.validated_at) < latest_external_run_at:
+                saw_predating_level5_run = True
                 continue
             subject_id = validation.fingerprint
             receipt = receipt_map.get(subject_id)
@@ -540,6 +556,8 @@ class ExternalEvidenceGate:
                 reasons.append("independent_validation_attester_identity_invalid")
             if saw_attestation_time_reversal:
                 reasons.append("independent_validation_attestation_predates_validation")
+            if saw_predating_level5_run:
+                reasons.append("independent_validation_predates_level5_external_run")
             reasons.append("no_attested_independent_end_to_end_reproduction")
         latest_validation_at = max((parse_time(v.validated_at) for v in bound), default=None)
         reasons = sorted(set(reasons))
@@ -552,6 +570,7 @@ class ExternalEvidenceGate:
             "candidate_sha": expected_candidate if identity_valid else None,
             "case_set_hash": expected_cases if identity_valid else None,
             "level5_provider_orgs": sorted(level5_providers),
+            "latest_external_run_at": latest_external_run_at.isoformat() if latest_external_run_at is not None else None,
             "latest_validation_at": latest_validation_at.isoformat() if latest_validation_at is not None else None,
             "validators": sorted({v.validator_org for v in bound}),
             "validation_count": len(bound),
