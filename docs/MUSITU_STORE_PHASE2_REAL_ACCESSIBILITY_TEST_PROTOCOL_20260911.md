@@ -28,13 +28,16 @@ Microsoft's current Narrator documentation identifies:
 - `Narrator + F5` — list landmarks.
 - `Narrator + F6` — list headings.
 - `Narrator + F7` — list links.
+- `Narrator + Alt + X` — open **Speech Recap**, which shows Narrator's recent spoken strings and provides **live transcription of Narrator speech**. Keep this window visible in the recording during the real screen-reader section so spoken output is independently reviewable from the video itself.
 
 Official references:
 
+- https://support.microsoft.com/en-us/accessibility/windows/narrator/chapter-2-narrator-basics
 - https://support.microsoft.com/en-us/accessibility/windows/narrator/chapter-3-using-scan-mode
 - https://support.microsoft.com/en-us/accessibility/windows/narrator/appendix-b-narrator-keyboard-commands-and-touch-gestures
+- https://support.microsoft.com/en-us/accessibility/windows/narrator/complete-guide-to-narrator
 
-A different real screen reader is acceptable, but the packet must record the exact screen-reader name/version and the equivalent commands used.
+A different real screen reader is acceptable only if its actual spoken output is also made observable in the evidence (for example an official speech-viewer/transcript window), and the packet records the exact screen-reader name/version and equivalent commands used.
 
 ## 3. Evidence rule — one continuous recording is enough
 
@@ -85,26 +88,29 @@ A single failure makes the manual keyboard gate FAIL.
 
 Start Narrator with `Windows + Ctrl + Enter`. Ensure speech is audible in the recording. Turn on Scan Mode with `Narrator + Spacebar` if it is not already active.
 
+**Before judging any spoken output, press `Narrator + Alt + X` to open Speech Recap and keep its live-transcription window visible throughout this section.** Verify that the text in Speech Recap visibly updates as Narrator speaks. If live transcription is not visible, the screen-reader evidence gate is not acceptable even if audio is present.
+
 On `/store`:
 
-1. Verify the page/window title is announced meaningfully.
-2. Use `Narrator + F5` and/or Scan Mode `D` to verify landmarks are discoverable, including the main landmark and navigation landmarks.
-3. Use `Narrator + F6` and/or Scan Mode `H` to navigate headings. Verify the hierarchy and spoken names are understandable.
-4. Use `Narrator + F7` and/or Scan Mode `K` to navigate links. Verify link/button names make sense without surrounding visual context.
-5. Locate the Install action and verify its spoken name is clear.
-6. Navigate the Chemistry product card/details and verify product name and version information is understandable.
-7. Verify publisher/verification information is understandable.
-8. Verify the distinction between distribution/install and entitlement/payment/licensing is understandable where presented.
-9. Verify status information is not communicated only by color.
+1. Verify Speech Recap live transcription is visible and updating from real Narrator output.
+2. Verify the page/window title is announced meaningfully.
+3. Use `Narrator + F5` and/or Scan Mode `D` to verify landmarks are discoverable, including the main landmark and navigation landmarks.
+4. Use `Narrator + F6` and/or Scan Mode `H` to navigate headings. Verify the hierarchy and spoken names are understandable.
+5. Use `Narrator + F7` and/or Scan Mode `K` to navigate links. Verify link/button names make sense without surrounding visual context.
+6. Locate the Install action and verify its spoken name is clear.
+7. Navigate the Chemistry product card/details and verify product name and version information is understandable.
+8. Verify publisher/verification information is understandable.
+9. Verify the distinction between distribution/install and entitlement/payment/licensing is understandable where presented.
+10. Verify status information is not communicated only by color.
 
-Then test these routes with Narrator still running:
+Then test these routes with Narrator and Speech Recap still running:
 
-10. `/store/install` — verify install instructions/actions are understandable and operable.
-11. `/store/offline` — verify offline/recovery information is understandable.
-12. `/store?lite=1` — verify Low-bandwidth mode is announced/understandable and its Install/Details actions are operable.
-13. During the complete screen-reader traversal, verify there is no blocking unlabeled control and no unrecoverable focus loss.
+11. `/store/install` — verify install instructions/actions are understandable and operable.
+12. `/store/offline` — verify offline/recovery information is understandable.
+13. `/store?lite=1` — verify Low-bandwidth mode is announced/understandable and its Install/Details actions are operable.
+14. During the complete screen-reader traversal, verify there is no blocking unlabeled control and no unrecoverable focus loss.
 
-Record PASS/FAIL for every key in `screen_reader_checks`. Any failure makes the screen-reader gate FAIL.
+Record PASS/FAIL for every key in `screen_reader_checks`, including `narrator_speech_recap_live_transcription_visible`. Any failure makes the screen-reader gate FAIL.
 
 ## 7. Zoom and reflow checks
 
@@ -139,6 +145,17 @@ For the continuous recording and any supplementary file:
 
 The packet may point several evidence fields to the same recording with different timestamp fragments.
 
+Use `store/phase2/prepare_manual_accessibility_evidence.ps1` after the original recording has a stable reference. The helper has its own Windows CI smoke certification and only fingerprints evidence/gathers environment metadata; it never marks accessibility checks PASS.
+
+Example:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\store\phase2\prepare_manual_accessibility_evidence.ps1 `
+  -RecordingPath "C:\path\to\MUSITU_Store_Phase2_Accessibility.mp4" `
+  -Reference "drive://<stable-file-id>" `
+  -Browser Edge
+```
+
 ## 10. Acceptance boundary
 
 Manual evidence is acceptable only when all of the following are true:
@@ -146,7 +163,7 @@ Manual evidence is acceptable only when all of the following are true:
 - response-body equivalence workflow is PASS;
 - the environment metadata is complete;
 - every keyboard check is `true`;
-- every screen-reader check is `true`;
+- every screen-reader check is `true`, including visible Narrator Speech Recap live transcription;
 - every zoom/reflow check is `true`;
 - evidence references are complete;
 - evidence integrity metadata is complete;
