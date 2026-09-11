@@ -1,0 +1,51 @@
+{
+  "schema": "musitu.chemistry.revenue_handoff.authoritative_state.v1",
+  "captured_date": "2026-09-11",
+  "scope": "MUSITU Education Nexus — Chemistry Mastery / Chemistry Rescue 2026 revenue execution",
+  "repository": "evansmusitu/mft-axiom-build",
+  "authoritative_working_branch": "chemistry-direct-paynow-fallback-20260911",
+  "captured_source_head": "fff60ebac1dd4cf28210d86976f87c7864c041e2",
+  "sealed_main_sha": "d6a846f6bbe0bccac1758713eb4de167caf07113",
+  "production": {
+    "worker_name": "musitu-chemistry-commerce",
+    "worker_sha256": "a2da15a78e6d685fe644d22fdc6f68a02e3dad3f7b3e263d360082e13afee4a5",
+    "direct_paynow_fallback_active": true,
+    "entitlement_mode": "manual_verified_settlement_only",
+    "guarded_deploy_run": 34594648101,
+    "guarded_deploy_job": 103247470726,
+    "guarded_deploy_artifact_id": 10262265281,
+    "guarded_deploy_artifact_zip_sha256": "714a0ea47ef6eb43f29ac335445dbb433e27389d56f1938cb644fbf277369c6d",
+    "rollback_used": false,
+    "final_public_verification": "PASS"
+  },
+  "catalog": {
+    "term": {"amount_cents": 499, "seats": 1, "months": 4},
+    "annual": {"amount_cents": 999, "seats": 1, "months": 12},
+    "lifetime": {"amount_cents": 1999, "seats": 1, "months": null},
+    "family": {"amount_cents": 2499, "seats": 4, "months": 12},
+    "tutor": {"amount_cents": 3900, "seats": 10, "months": 12},
+    "school": {"amount_cents": null, "seats": null, "months": 12}
+  },
+  "paynow": {
+    "integration_id": "26343",
+    "test_reference": "60480278",
+    "test_result": "Paid (TESTING: Faked Success)",
+    "live_mode_activation_reply_observed_at_handoff": false,
+    "gmail_thread_id": "1a0851d1b9ad9f75",
+    "latest_followup_message_id": "1a0900d469f36356"
+  },
+  "invariant": "VERIFIED_SETTLEMENT_EVIDENCE -> SIGNED_MUSITU_ENTITLEMENT",
+  "claims_boundary": {
+    "verified_real_money_settlement_claimed": false,
+    "revenue_claimed_from_pending_or_cancelled_orders": false,
+    "paid_media_authorized_at_handoff": false,
+    "official_zimsec_affiliation_claimed": false,
+    "guaranteed_exam_outcomes_claimed": false
+  },
+  "scope_exclusions": [
+    "MUSITU Store continuation",
+    "MUSITU Axiom continuation",
+    "MUSITU FMI continuation",
+    "MUSITU Financial Fabric continuation"
+  ]
+}
