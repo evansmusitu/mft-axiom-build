@@ -1,0 +1,244 @@
+name: MFT Phase2 Generic Infrastructure Probes
+
+on:
+  push:
+    branches:
+      - mft-phase2-public-probes-20260911
+    paths:
+      - .github/workflows/mft-phase2-generic-infra-probes.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  signtool-row1:
+    name: qualify-signtool-row1
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - name: Locate, hash, and exercise signtool.exe
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $roots = @(
+            "${env:ProgramFiles(x86)}\Windows Kits\10\bin",
+            "$env:ProgramFiles\Windows Kits\10\bin"
+          ) | Where-Object { Test-Path $_ }
+          $candidates = foreach ($root in $roots) {
+            Get-ChildItem -Path $root -Filter signtool.exe -Recurse -File -ErrorAction SilentlyContinue |
+              Where-Object { $_.FullName -match '\\x64\\signtool\.exe$' }
+          }
+          if (-not $candidates) { throw 'signtool.exe x64 not found on windows-latest' }
+          $signtool = $candidates | Sort-Object FullName -Descending | Select-Object -First 1
+          $hash = (Get-FileHash -Algorithm SHA256 $signtool.FullName).Hash.ToLowerInvariant()
+          $version = $signtool.VersionInfo.FileVersion
+          $help = & $signtool.FullName '/?' 2>&1 | Out-String
+          if ($LASTEXITCODE -ne 0) { throw "signtool /? failed with exit $LASTEXITCODE" }
+          if ($help -notmatch 'SignTool') { throw 'signtool help did not identify SignTool' }
+          $receipt = [ordered]@{
+            schema = 'mft.education_nexus.phase2.signtool_public_probe.v1'
+            phase2_row = 1
+            dependency = 'signtool.exe'
+            runner_os = $env:RUNNER_OS
+            runner_arch = $env:RUNNER_ARCH
+            image = $env:ImageOS
+            path = $signtool.FullName
+            file_version = $version
+            sha256 = $hash
+            exercise = 'signtool /?'
+            exercise_exit = 0
+            help_identified_signtool = $true
+            secret_material_used = $false
+          }
+          $receipt | ConvertTo-Json -Depth 5 | Set-Content -Encoding utf8 signtool-row1-receipt.json
+          Get-Content signtool-row1-receipt.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: signtool-row1-receipt
+          path: signtool-row1-receipt.json
+          if-no-files-found: error
+
+  kubernetes-oci-row19:
+    name: qualify-kubernetes-oci-row19
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Qualify K3s, OCI registry, NetworkPolicy, PVC and Service
+        shell: bash
+        run: |
+          set -euo pipefail
+          K3S_VERSION='v1.36.4+k3s1'
+          curl -fsSLo k3s "https://github.com/k3s-io/k3s/releases/download/${K3S_VERSION}/k3s"
+          curl -fsSLo sha256sum-amd64.txt "https://github.com/k3s-io/k3s/releases/download/${K3S_VERSION}/sha256sum-amd64.txt"
+          EXPECTED="$(awk '$2=="k3s" {print $1}' sha256sum-amd64.txt)"
+          ACTUAL="$(sha256sum k3s | awk '{print $1}')"
+          test -n "$EXPECTED"
+          test "$EXPECTED" = "$ACTUAL"
+          chmod +x k3s
+          sudo install -m 0755 k3s /usr/local/bin/k3s
+          sudo mkdir -p /etc/rancher/k3s
+          cat <<'EOF' | sudo tee /etc/rancher/k3s/registries.yaml >/dev/null
+          mirrors:
+            "127.0.0.1:5000":
+              endpoint:
+                - "http://127.0.0.1:5000"
+          EOF
+          docker run -d --restart=always -p 5000:5000 --name mft-registry registry:2
+          sudo nohup k3s server --write-kubeconfig-mode 644 --disable traefik --disable servicelb >k3s.log 2>&1 &
+          for i in $(seq 1 120); do
+            if sudo k3s kubectl get node >/dev/null 2>&1; then break; fi
+            sleep 2
+          done
+          sudo k3s kubectl wait --for=condition=Ready node --all --timeout=180s
+          export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
+          k3s kubectl version -o yaml > kubectl-version.yaml
+          k3s --version > k3s-version.txt
+
+          mkdir -p image
+          cat > image/Dockerfile <<'EOF'
+          FROM busybox:1.36
+          RUN mkdir -p /www && echo mft-row19-ok >/www/index.html
+          CMD ["httpd","-f","-p","8080","-h","/www"]
+          EOF
+          docker build -t 127.0.0.1:5000/mft-row19-probe:v1 image
+          docker push 127.0.0.1:5000/mft-row19-probe:v1
+          OCI_DIGEST="$(docker inspect --format='{{index .RepoDigests 0}}' 127.0.0.1:5000/mft-row19-probe:v1)"
+
+          cat > resources.yaml <<'EOF'
+          apiVersion: v1
+          kind: Namespace
+          metadata:
+            name: mft-row19
+          ---
+          apiVersion: v1
+          kind: PersistentVolumeClaim
+          metadata:
+            name: state
+            namespace: mft-row19
+          spec:
+            accessModes: ["ReadWriteOnce"]
+            resources:
+              requests:
+                storage: 32Mi
+          ---
+          apiVersion: apps/v1
+          kind: Deployment
+          metadata:
+            name: probe
+            namespace: mft-row19
+          spec:
+            replicas: 1
+            selector:
+              matchLabels: {app: probe}
+            template:
+              metadata:
+                labels: {app: probe}
+              spec:
+                containers:
+                  - name: probe
+                    image: 127.0.0.1:5000/mft-row19-probe:v1
+                    imagePullPolicy: Always
+                    ports: [{containerPort: 8080}]
+                    volumeMounts:
+                      - name: state
+                        mountPath: /state
+                volumes:
+                  - name: state
+                    persistentVolumeClaim: {claimName: state}
+          ---
+          apiVersion: v1
+          kind: Service
+          metadata:
+            name: probe
+            namespace: mft-row19
+          spec:
+            selector: {app: probe}
+            ports: [{port: 8080, targetPort: 8080}]
+          ---
+          apiVersion: networking.k8s.io/v1
+          kind: NetworkPolicy
+          metadata:
+            name: probe-default-deny
+            namespace: mft-row19
+          spec:
+            podSelector: {matchLabels: {app: probe}}
+            policyTypes: [Ingress]
+          ---
+          apiVersion: networking.k8s.io/v1
+          kind: NetworkPolicy
+          metadata:
+            name: probe-allow-labelled
+            namespace: mft-row19
+          spec:
+            podSelector: {matchLabels: {app: probe}}
+            policyTypes: [Ingress]
+            ingress:
+              - from:
+                  - podSelector: {matchLabels: {access: allowed}}
+                ports:
+                  - protocol: TCP
+                    port: 8080
+          EOF
+          k3s kubectl apply -f resources.yaml
+          k3s kubectl -n mft-row19 rollout status deployment/probe --timeout=180s
+          k3s kubectl -n mft-row19 wait --for=jsonpath='{.status.phase}'=Bound pvc/state --timeout=120s || true
+          test "$(k3s kubectl -n mft-row19 get pvc state -o jsonpath='{.status.phase}')" = 'Bound'
+
+          k3s kubectl -n mft-row19 run allowed --image=127.0.0.1:5000/mft-row19-probe:v1 --restart=Never --labels=access=allowed --command -- sh -c 'sleep 3600'
+          k3s kubectl -n mft-row19 run denied --image=127.0.0.1:5000/mft-row19-probe:v1 --restart=Never --command -- sh -c 'sleep 3600'
+          k3s kubectl -n mft-row19 wait --for=condition=Ready pod/allowed pod/denied --timeout=120s
+          ALLOWED_BODY="$(k3s kubectl -n mft-row19 exec allowed -- wget -qO- --timeout=5 http://probe:8080/)"
+          test "$ALLOWED_BODY" = 'mft-row19-ok'
+          if k3s kubectl -n mft-row19 exec denied -- wget -qO- --timeout=3 http://probe:8080/ >/tmp/denied.out 2>/tmp/denied.err; then
+            echo 'default-deny NetworkPolicy failed: denied pod reached service' >&2
+            exit 1
+          fi
+
+          POD="$(k3s kubectl -n mft-row19 get pod -l app=probe -o jsonpath='{.items[0].metadata.name}')"
+          k3s kubectl -n mft-row19 exec "$POD" -- sh -c 'printf durable-row19 > /state/probe.txt && sync'
+          k3s kubectl -n mft-row19 delete pod "$POD" --wait=true
+          k3s kubectl -n mft-row19 rollout status deployment/probe --timeout=180s
+          POD2="$(k3s kubectl -n mft-row19 get pod -l app=probe -o jsonpath='{.items[0].metadata.name}')"
+          PVC_VALUE="$(k3s kubectl -n mft-row19 exec "$POD2" -- cat /state/probe.txt)"
+          test "$PVC_VALUE" = 'durable-row19'
+
+          python3 - <<PY
+          import json, hashlib
+          receipt = {
+            'schema':'mft.education_nexus.phase2.kubernetes_oci_public_probe.v1',
+            'phase2_row':19,
+            'dependency':'Kubernetes cluster + OCI image registry + NetworkPolicy/PVC/Service support',
+            'k3s_version':'${K3S_VERSION}',
+            'k3s_sha256':'${ACTUAL}',
+            'k3s_checksum_verified': True,
+            'oci_registry':'local registry:2 on 127.0.0.1:5000',
+            'oci_image_digest':'${OCI_DIGEST}',
+            'service_response':'${ALLOWED_BODY}',
+            'networkpolicy_allowed_client_passed': True,
+            'networkpolicy_denied_client_blocked': True,
+            'pvc_bound': True,
+            'pvc_value_after_pod_recreation':'${PVC_VALUE}',
+            'service_exercised': True,
+            'secret_material_used': False
+          }
+          open('kubernetes-oci-row19-receipt.json','w').write(json.dumps(receipt,indent=2,sort_keys=True)+'\n')
+          print(json.dumps(receipt,indent=2,sort_keys=True))
+          PY
+      - name: Diagnostics on failure
+        if: failure()
+        shell: bash
+        run: |
+          sudo tail -n 300 k3s.log || true
+          sudo k3s kubectl get nodes,pods,pvc,svc,networkpolicy -A -o wide || true
+          docker ps -a || true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: kubernetes-oci-row19-evidence
+          path: |
+            kubernetes-oci-row19-receipt.json
+            k3s-version.txt
+            kubectl-version.yaml
+            k3s.log
+          if-no-files-found: warn
