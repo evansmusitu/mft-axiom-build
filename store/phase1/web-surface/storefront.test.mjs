@@ -72,22 +72,23 @@ test('Android gets the signed Store bootstrap and verified Android metadata',asy
   assert.match(t,/43695b6103d7ab57e89166c9a537f1810b7e33053e20332b1d4e7e2e1c612671/);
 });
 
-test('iPhone and iPad get SideStore source plus PWA fallback without false direct native-install claim',async()=>{
+test('iPhone and iPad use SideStore deep links plus explicit Web/PWA fallback without false App Store privilege claims',async()=>{
   for(const ua of ['Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X)','Mozilla/5.0 (iPad; CPU OS 18_0 like Mac OS X)']){
     const r=await get('/store/install',{'user-agent':ua}); const t=await r.text();
     assert.match(t,/Recommended for iOS/i);
-    assert.match(t,/SideStore/i);
-    assert.match(t,/\/store\/ios\/source\.json/);
-    assert.match(t,/Open the PWA/i);
-    assert.match(t,/Native install requires SideStore/i);
-    assert.doesNotMatch(t,/direct native install available/i);
+    assert.match(t,/sidestore:\/\/install\?url=/i);
+    assert.match(t,/sidestore:\/\/source\?url=/i);
+    assert.match(t,/Install Web App instead/i);
+    assert.match(t,/does not claim App Store privileges or silent installation/i);
+    assert.doesNotMatch(t,/href="https?:[^"]+\.ipa/i);
   }
 });
 
-test('desktop/browser route recommends the PWA and does not claim a native desktop package',async()=>{
+test('desktop/browser route recommends the dedicated Web/PWA install surface and does not claim a native desktop package',async()=>{
   const r=await get('/store/install',{'user-agent':'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}); const t=await r.text();
-  assert.match(t,/Recommended for this browser/);
-  assert.match(t,/Open MUSITU Chemistry/);
+  assert.match(t,/Recommended for Web \/ PWA/);
+  assert.match(t,/Install Web App/);
+  assert.match(t,/https:\/\/payments\.mftintelligence\.com\/chemistry\/install/);
   assert.match(t,/Installable PWA/);
   assert.doesNotMatch(t,/Windows installer|\.exe|\.msi/);
 });
