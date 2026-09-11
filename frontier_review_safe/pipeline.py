@@ -68,6 +68,52 @@ class ReviewSafeWorkflow:
         if not ok: raise value
         return value
 
+    def _abstain(self, req: WorkflowRequest, trace: Sequence[Mapping[str, Any]], reasons: Sequence[str], *,
+                 error_type: str | None = None, verification: Mapping[str, Any] | None = None,
+                 input_hashes: Sequence[str] = (), tool_versions: Mapping[str, str] | None = None) -> dict[str, Any]:
+        """Persist every abstention before returning it to the caller.
+
+        The ledger payload intentionally stores trace fingerprints rather than raw
+        intermediate values or exception messages. This keeps denial evidence
+        replayable without turning the audit log into a secondary secret sink.
+        """
+        normalized_reasons = sorted({str(x) for x in reasons if str(x)}) or ["unspecified_abstention"]
+        trace_summary = [
+            {"stage": str(row.get("stage", "unknown")), "sha256": str(row.get("sha256", ""))}
+            for row in trace
+        ]
+        payload: dict[str, Any] = {
+            "status": "ABSTAIN",
+            "reasons": normalized_reasons,
+            "failed_stage": trace_summary[-1]["stage"] if trace_summary else "request_entry",
+            "trace": trace_summary,
+        }
+        if error_type:
+            payload["error_type"] = str(error_type)
+        if verification is not None:
+            payload["verification_sha256"] = sha256(verification)
+        decision_hash = self.ledger.append(
+            "analysis.abstain",
+            req.principal.principal_id,
+            payload,
+            request_id=req.request_id,
+            policy_version=req.policy_version,
+            code_version=req.code_version,
+            input_hashes=tuple(input_hashes),
+            tool_versions=dict(tool_versions or {}),
+        )
+        out: dict[str, Any] = {
+            "status": "ABSTAIN",
+            "reasons": normalized_reasons,
+            "trace": list(trace),
+            "decision_event_hash": decision_hash,
+        }
+        if error_type:
+            out["error_type"] = str(error_type)
+        if verification is not None:
+            out["verification"] = dict(verification)
+        return out
+
     def execute(self, req: WorkflowRequest, adapters: WorkflowAdapters, *, evidence_timeout_seconds: float = 10.0,
                 analysis_timeout_seconds: float = 20.0, specialist_budget: int = 8) -> dict[str, Any]:
         trace: list[dict[str, Any]] = []
@@ -79,12 +125,12 @@ class ReviewSafeWorkflow:
         firewall = InstructionProvenanceFirewall.assess(req.instruction)
         checkpoint("instruction_provenance", firewall)
         if not firewall.get("allowed"):
-            return {"status": "ABSTAIN", "reasons": ["instruction_provenance_denied"], "trace": trace}
+            return self._abstain(req, trace, ["instruction_provenance_denied"])
 
         try:
             authorization = self.permissions.authorize(req.principal, req.authorization_request)
         except Exception as exc:
-            return {"status": "ABSTAIN", "reasons": ["authorization_denied"], "error_type": type(exc).__name__, "trace": trace}
+            return self._abstain(req, trace, ["authorization_denied"], error_type=type(exc).__name__)
         checkpoint("authorization", authorization)
 
         if req.high_consequence:
@@ -92,39 +138,44 @@ class ReviewSafeWorkflow:
                 policy = self.jurisdictions.route(req.principal.jurisdiction, req.action, req.now)
                 checkpoint("jurisdiction", asdict(policy))
             except Exception as exc:
-                return {"status": "ABSTAIN", "reasons": ["jurisdiction_policy_unavailable"],
-                        "error_type": type(exc).__name__, "trace": trace}
+                return self._abstain(req, trace, ["jurisdiction_policy_unavailable"], error_type=type(exc).__name__)
 
         try:
             evidence = tuple(self._bounded_call(lambda: adapters.acquire_evidence(req), evidence_timeout_seconds))
         except Exception as exc:
-            return {"status": "ABSTAIN", "reasons": ["evidence_provider_failure"], "error_type": type(exc).__name__, "trace": trace}
+            return self._abstain(req, trace, ["evidence_provider_failure"], error_type=type(exc).__name__)
         if not evidence:
-            return {"status": "ABSTAIN", "reasons": ["evidence_missing"], "trace": trace}
+            return self._abstain(req, trace, ["evidence_missing"])
         scores = [ResearchSourceScorer.score(e) for e in evidence]
         checkpoint("evidence", {"hashes": [e.fingerprint for e in evidence], "scores": scores})
+        evidence_hashes = tuple(e.fingerprint for e in evidence)
         weak = sum(1 for x in scores if x < req.min_source_quality)
 
         try:
             route = self.router.route(req.now, req.min_confidence)["provider"]
         except Exception as exc:
-            return {"status": "ABSTAIN", "reasons": ["capability_route_unavailable"], "error_type": type(exc).__name__, "trace": trace}
+            return self._abstain(req, trace, ["capability_route_unavailable"], error_type=type(exc).__name__,
+                                 input_hashes=evidence_hashes)
         checkpoint("routing", asdict(route))
+        route_tools = {"route": route.name}
 
         try:
             deliberation = self.specialists.deliberate(self.specialist_contracts,
                                                        {"request": req.question, "evidence": [asdict(e) for e in evidence]},
                                                        specialist_budget)
         except Exception as exc:
-            return {"status": "ABSTAIN", "reasons": ["specialist_deliberation_failed"], "error_type": type(exc).__name__, "trace": trace}
+            return self._abstain(req, trace, ["specialist_deliberation_failed"], error_type=type(exc).__name__,
+                                 input_hashes=evidence_hashes, tool_versions=route_tools)
         checkpoint("specialists", deliberation)
         if deliberation.get("status") == "VETO":
-            return {"status": "ABSTAIN", "reasons": ["specialist_veto"], "trace": trace}
+            return self._abstain(req, trace, ["specialist_veto"], input_hashes=evidence_hashes,
+                                 tool_versions=route_tools)
 
         try:
             analysis = dict(self._bounded_call(lambda: adapters.analyze(req, evidence, deliberation), analysis_timeout_seconds))
         except Exception as exc:
-            return {"status": "ABSTAIN", "reasons": ["analysis_failure"], "error_type": type(exc).__name__, "trace": trace}
+            return self._abstain(req, trace, ["analysis_failure"], error_type=type(exc).__name__,
+                                 input_hashes=evidence_hashes, tool_versions=route_tools)
         checkpoint("analysis", analysis)
         confidence = float(analysis.get("confidence", 0.0))
         uncertainty = float(analysis.get("uncertainty", 1.0))
@@ -149,11 +200,11 @@ class ReviewSafeWorkflow:
             abstention = {"status": "ABSTAIN", "reasons": sorted(set(abstention.get("reasons", [])) | {"confidence_below_request_threshold"})}
         checkpoint("abstention", abstention)
         if abstention.get("status") != "PROCEED":
-            return {"status": "ABSTAIN", "reasons": abstention.get("reasons", []), "trace": trace,
-                    "verification": verification}
+            return self._abstain(req, trace, abstention.get("reasons", []), verification=verification,
+                                 input_hashes=evidence_hashes, tool_versions=route_tools)
 
         steps = []
-        known_inputs = tuple(e.fingerprint for e in evidence)
+        known_inputs = evidence_hashes
         previous = known_inputs
         for i, row in enumerate(trace):
             out = sha256(row)
@@ -164,7 +215,7 @@ class ReviewSafeWorkflow:
         decision_hash = self.ledger.append("analysis.decision", req.principal.principal_id, analysis,
                                            request_id=req.request_id, policy_version=req.policy_version,
                                            code_version=req.code_version, input_hashes=known_inputs,
-                                           model_version=analysis.get("model_version"), tool_versions={"route": route.name})
+                                           model_version=analysis.get("model_version"), tool_versions=route_tools)
         proof = ProofEnvelope(sha256({"question": req.question, "action": req.action}), known_inputs,
                               tuple(analysis.get("assumptions", ("explicit_inputs_only",))),
                               str(analysis.get("method", "unspecified")), sha256(analysis),
