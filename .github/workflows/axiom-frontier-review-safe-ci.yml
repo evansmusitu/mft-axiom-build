@@ -58,3 +58,9 @@ jobs:
               assert row['peak_python_bytes'] >= 0
           print('MUSITU_AXIOM_REVIEW_SAFE_SCALE_EVIDENCE_OK')
           PY
+      - name: Gate performance regression against measured baseline
+        shell: bash
+        run: |
+          set -euo pipefail
+          workload_blob="$(git hash-object frontier_review_safe/scale_benchmarks.py)"
+          PYTHONPATH=. python -m frontier_review_safe.scale_budget /tmp/axiom-scale-evidence.json "$workload_blob"
