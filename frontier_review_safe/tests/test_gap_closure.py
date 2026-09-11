@@ -13,6 +13,7 @@ from frontier_review_safe.controls import (
 )
 from frontier_review_safe.core import Evidence, FrontierSafetyError, sha256
 from frontier_review_safe.evaluation import DecisionProvenanceLedger, FailureCorpus, SealedCaseResult
+from frontier_review_safe.external_attestation import ExternalAttestationService
 from frontier_review_safe.external_validation import (
     ClaimBoundary, ComparativeOutcome, ExternalEvidenceGate, ExternalRunRecord, IndependentValidationRecord, LongitudinalRefreshRecord,
 )
@@ -32,10 +33,26 @@ from frontier_review_safe.verification import IndependentVerifier, VerificationP
 NOW = datetime(2026, 9, 10, 18, 0, tzinfo=timezone.utc)
 NOW_S = NOW.isoformat()
 H = "a" * 64
+EXT_SECRET = b"x" * 32
+VERIFIER_SECRETS = {"key-1": EXT_SECRET}
+TRUSTED_ISSUERS = {"test-verifier": frozenset({"key-1"})}
 
 
 def evidence(eid="e1"):
     return Evidence(eid, "fact", True, "source", NOW_S, .95, True, .9, .9, 1, 1, 0, 0, eid)
+
+
+def attest(subject_type, subject_id, subject_hash, provenance_type):
+    return ExternalAttestationService.issue(
+        subject_type=subject_type,
+        subject_id=subject_id,
+        subject_hash=subject_hash,
+        issuer_org="test-verifier",
+        verifier_key_id="key-1",
+        provenance_type=provenance_type,
+        issued_at=NOW_S,
+        verifier_secret=EXT_SECRET,
+    )
 
 
 class GapClosureTests(unittest.TestCase):
@@ -157,7 +174,7 @@ class GapClosureTests(unittest.TestCase):
         self.assertEqual(r["selection_accuracy"], .5)
         self.assertGreater(r["mean_regret"], 0)
 
-    def test_external_levels_reject_local_or_single_provider_and_claim_laundering(self):
+    def test_external_levels_reject_unattested_records_and_claim_laundering(self):
         base = dict(executed_at=NOW_S, access_mode="api", case_set_hash=H, constraint_hash="b"*64,
                     permissions_hash="c"*64, result_hash="d"*64, raw_evidence_hash="e"*64,
                     candidate_sha="candidate", candidate_environment_hash="f"*64, metrics={"score":.9})
@@ -165,25 +182,35 @@ class GapClosureTests(unittest.TestCase):
         self.assertEqual(ExternalEvidenceGate.level5([local])["status"], "FAIL")
         runs = [ExternalRunRecord(str(i), p, "product", "2026-09", provenance_type="provider_api_receipt", authenticated=True, **base)
                 for i,p in enumerate(("OpenAI","Anthropic","Google"))]
-        l5 = ExternalEvidenceGate.level5(runs)
+        self.assertEqual(ExternalEvidenceGate.level5(runs)["status"], "FAIL")
+        receipts = [attest("external_run", r.run_id, r.fingerprint, r.provenance_type) for r in runs]
+        l5 = ExternalEvidenceGate.level5(runs, receipts=receipts, verifier_secrets=VERIFIER_SECRETS, trusted_issuers=TRUSTED_ISSUERS)
         self.assertEqual(l5["status"], "PASS")
+        self.assertTrue(l5["attestation_verified"])
         denied = ClaimBoundary.authorize("world best", level5=l5, level6={"status":"FAIL"}, level7={"status":"FAIL"},
                                          comparison_scope="sealed suite", benchmark_hash=H)
         self.assertEqual(denied["status"], "DENY")
 
-    def test_external_levels_6_and_7_require_independent_reproduction_and_refresh(self):
+    def test_external_levels_6_and_7_require_attested_reproduction_and_refresh(self):
         base = dict(executed_at=NOW_S, access_mode="api", case_set_hash=H, constraint_hash="b"*64,
                     permissions_hash="c"*64, result_hash="d"*64, raw_evidence_hash="e"*64,
                     candidate_sha="candidate", candidate_environment_hash="f"*64, metrics={"score":.9})
         runs = [ExternalRunRecord(str(i), p, "product", "v", provenance_type="provider_export", authenticated=True, **base)
                 for i,p in enumerate(("A","B","C"))]
-        l5=ExternalEvidenceGate.level5(runs)
+        run_receipts = [attest("external_run", r.run_id, r.fingerprint, r.provenance_type) for r in runs]
+        l5=ExternalEvidenceGate.level5(runs, receipts=run_receipts, verifier_secrets=VERIFIER_SECRETS, trusted_issuers=TRUSTED_ISSUERS)
         v=IndependentValidationRecord("lab", NOW_S, "candidate", H, "9"*64, True, "independent_lab_record")
-        l6=ExternalEvidenceGate.level6(l5,[v]); self.assertEqual(l6["status"],"PASS")
+        self.assertEqual(ExternalEvidenceGate.level6(l5,[v])["status"],"FAIL")
+        validation_receipt = attest("independent_validation", v.fingerprint, v.fingerprint, v.provenance_type)
+        l6=ExternalEvidenceGate.level6(l5,[v],receipts=[validation_receipt],verifier_secrets=VERIFIER_SECRETS,trusted_issuers=TRUSTED_ISSUERS)
+        self.assertEqual(l6["status"],"PASS")
         refreshes=[LongitudinalRefreshRecord(str(i),(NOW+timedelta(days=i*30)).isoformat(), (str(i%2)*64), "1"*64,"2"*64,"3"*64,True) for i in range(3)]
-        l7=ExternalEvidenceGate.level7(l6,refreshes); self.assertEqual(l7["status"],"PASS")
+        self.assertEqual(ExternalEvidenceGate.level7(l6,refreshes)["status"],"FAIL")
+        refresh_receipts=[attest("longitudinal_refresh", r.refresh_id, r.fingerprint, "independent_lab_record") for r in refreshes]
+        l7=ExternalEvidenceGate.level7(l6,refreshes,receipts=refresh_receipts,verifier_secrets=VERIFIER_SECRETS,trusted_issuers=TRUSTED_ISSUERS)
+        self.assertEqual(l7["status"],"PASS")
 
-    def test_claim_gate_requires_actual_statistically_positive_comparisons(self):
+    def test_claim_gate_requires_actual_statistically_positive_attested_comparisons(self):
         fps=[f"{i:064x}" for i in range(10)]
         baseline=[SealedCaseResult(fp,.8) for fp in fps]
         candidate_loses=[SealedCaseResult(fp,.4) for fp in fps]
@@ -197,13 +224,16 @@ class GapClosureTests(unittest.TestCase):
         providers=("OpenAI","Anthropic","Google")
         runs=[ExternalRunRecord(str(i),p,"product","v",provenance_type="provider_api_receipt",authenticated=True,**base)
               for i,p in enumerate(providers)]
-        l5=ExternalEvidenceGate.level5(runs)
-        losing=[ComparativeOutcome.from_paired_results(r,candidate_loses,baseline,bootstrap_samples=200) for r in runs]
+        receipts=[attest("external_run",r.run_id,r.fingerprint,r.provenance_type) for r in runs]
+        l5=ExternalEvidenceGate.level5(runs,receipts=receipts,verifier_secrets=VERIFIER_SECRETS,trusted_issuers=TRUSTED_ISSUERS)
+        losing=[ComparativeOutcome.from_paired_results(r,candidate_loses,baseline,
+                attestation_receipt_hash=l5["run_receipt_hashes"][r.run_id],bootstrap_samples=200) for r in runs]
         denied=ClaimBoundary.authorize("outperformed baselines on sealed suite",level5=l5,level6={"status":"FAIL"},
             level7={"status":"FAIL"},comparison_scope="sealed suite",benchmark_hash=case_set,comparative_outcomes=losing)
         self.assertEqual(denied["status"],"DENY")
         self.assertIn("comparative_superiority_not_demonstrated",denied["reasons"])
-        winning=[ComparativeOutcome.from_paired_results(r,candidate_wins,baseline,bootstrap_samples=200) for r in runs]
+        winning=[ComparativeOutcome.from_paired_results(r,candidate_wins,baseline,
+                attestation_receipt_hash=l5["run_receipt_hashes"][r.run_id],bootstrap_samples=200) for r in runs]
         allowed=ClaimBoundary.authorize("outperformed registered baselines on sealed suite",level5=l5,level6={"status":"FAIL"},
             level7={"status":"FAIL"},comparison_scope="sealed suite only",benchmark_hash=case_set,comparative_outcomes=winning)
         self.assertEqual(allowed["status"],"ALLOW")
@@ -212,10 +242,11 @@ class GapClosureTests(unittest.TestCase):
     def test_broad_claim_requires_level7_four_positive_declared_provider_orgs(self):
         providers=("OpenAI","Anthropic","Google","Microsoft")
         run_ids=[str(i) for i in range(4)]
-        l5={"status":"PASS","provider_orgs":[p.lower() for p in providers],"run_ids":run_ids,
-            "candidate_sha":"candidate","case_set_hash":H,"constraint_hash":"b"*64}
-        l6={"status":"PASS"}; l7={"status":"PASS"}
-        outcomes=[ComparativeOutcome(p,str(i),"candidate",H,"b"*64,"d"*64,"e"*64,20,.1,.02,.18,12,6,2)
+        receipt_hashes={str(i): f"{i+10:064x}" for i in range(4)}
+        l5={"status":"PASS","attestation_verified":True,"provider_orgs":[p.lower() for p in providers],"run_ids":run_ids,
+            "candidate_sha":"candidate","case_set_hash":H,"constraint_hash":"b"*64,"run_receipt_hashes":receipt_hashes}
+        l6={"status":"PASS","attestation_verified":True}; l7={"status":"PASS","attestation_verified":True}
+        outcomes=[ComparativeOutcome(p,str(i),"candidate",H,"b"*64,"d"*64,"e"*64,20,.1,.02,.18,12,6,2,receipt_hashes[str(i)])
                   for i,p in enumerate(providers)]
         denied=ClaimBoundary.authorize("world best",level5=l5,level6=l6,level7=l7,comparison_scope="declared sealed scope",
             benchmark_hash=H,comparative_outcomes=outcomes)

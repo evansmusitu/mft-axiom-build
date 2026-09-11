@@ -5,6 +5,7 @@ from typing import Any, Mapping, Sequence
 
 from .core import FrontierSafetyError, parse_time, sha256
 from .evaluation import SealedCaseResult, SealedEvaluation
+from .external_attestation import ExternalAttestationReceipt, ExternalAttestationService
 
 
 TRUSTED_EXTERNAL_PROVENANCE = frozenset({"provider_export", "provider_api_receipt", "independent_lab_record"})
@@ -45,13 +46,17 @@ class ExternalRunRecord:
             raise ValueError("exact external provider/product/version/run identity required")
 
     @property
-    def independently_grounded(self) -> bool:
+    def fingerprint(self) -> str:
+        return sha256(asdict(self))
+
+    @property
+    def declared_external_provenance(self) -> bool:
         return self.authenticated and self.provenance_type in TRUSTED_EXTERNAL_PROVENANCE
 
 
 @dataclass(frozen=True)
 class ComparativeOutcome:
-    """Paired candidate-vs-baseline result bound to one authenticated external run."""
+    """Paired candidate-vs-baseline result bound to one attested external run."""
 
     provider_org: str
     external_run_id: str
@@ -67,6 +72,7 @@ class ComparativeOutcome:
     candidate_wins: int
     baseline_wins: int
     ties: int
+    attestation_receipt_hash: str | None = None
 
     def __post_init__(self) -> None:
         for value in (
@@ -77,6 +83,8 @@ class ComparativeOutcome:
         ):
             if len(value) != 64:
                 raise ValueError("comparison provenance hashes must be SHA-256")
+        if self.attestation_receipt_hash is not None and len(self.attestation_receipt_hash) != 64:
+            raise ValueError("comparison attestation receipt hash must be SHA-256")
         if self.matched_cases < 5:
             raise ValueError("at least five matched sealed cases required")
         if self.candidate_wins + self.baseline_wins + self.ties != self.matched_cases:
@@ -99,11 +107,12 @@ class ComparativeOutcome:
         candidate: Sequence[SealedCaseResult],
         baseline: Sequence[SealedCaseResult],
         *,
+        attestation_receipt_hash: str,
         confidence: float = 0.95,
         bootstrap_samples: int = 4000,
     ) -> "ComparativeOutcome":
-        if not run.independently_grounded:
-            raise FrontierSafetyError("comparison requires authenticated external run provenance")
+        if len(attestation_receipt_hash) != 64:
+            raise FrontierSafetyError("authenticated external-run receipt is required")
         candidate_fps = sorted(x.case_fingerprint for x in candidate)
         baseline_fps = sorted(x.case_fingerprint for x in baseline)
         if candidate_fps != baseline_fps:
@@ -139,6 +148,7 @@ class ComparativeOutcome:
             candidate_wins=int(comparison["candidate_wins"]),
             baseline_wins=int(comparison["baseline_wins"]),
             ties=int(comparison["ties"]),
+            attestation_receipt_hash=attestation_receipt_hash,
         )
 
 
@@ -156,6 +166,10 @@ class IndependentValidationRecord:
         parse_time(self.validated_at)
         if len(self.case_set_hash) != 64 or len(self.reproduction_hash) != 64:
             raise ValueError("independent validation hashes must be SHA-256")
+
+    @property
+    def fingerprint(self) -> str:
+        return sha256(asdict(self))
 
 
 @dataclass(frozen=True)
@@ -179,20 +193,74 @@ class LongitudinalRefreshRecord:
         if any(len(x) != 64 for x in hashes):
             raise ValueError("longitudinal evidence hashes must be SHA-256")
 
+    @property
+    def fingerprint(self) -> str:
+        return sha256(asdict(self))
+
 
 class ExternalEvidenceGate:
-    """Computes Levels 5-7 from external provenance. Local labels cannot pass it."""
+    """Computes Levels 5-7 only from externally attested record fingerprints."""
 
     @staticmethod
-    def level5(runs: Sequence[ExternalRunRecord], *, required_provider_orgs: int = 3) -> dict[str, Any]:
-        grounded = [r for r in runs if r.independently_grounded]
-        if not grounded:
-            return {"status": "FAIL", "level": 5, "reason": "no_authenticated_external_runs"}
-        case_hashes = {r.case_set_hash for r in grounded}
-        constraint_hashes = {r.constraint_hash for r in grounded}
-        candidate_shas = {r.candidate_sha for r in grounded}
-        providers = {r.provider_org.lower() for r in grounded}
-        reasons = []
+    def _receipt_map(receipts: Sequence[ExternalAttestationReceipt], subject_type: str) -> dict[str, ExternalAttestationReceipt]:
+        out: dict[str, ExternalAttestationReceipt] = {}
+        for receipt in receipts:
+            if receipt.subject_type != subject_type:
+                continue
+            if receipt.subject_id in out:
+                raise FrontierSafetyError(f"duplicate external attestation receipt for {receipt.subject_id}")
+            out[receipt.subject_id] = receipt
+        return out
+
+    @classmethod
+    def level5(
+        cls,
+        runs: Sequence[ExternalRunRecord],
+        *,
+        receipts: Sequence[ExternalAttestationReceipt] = (),
+        verifier_secrets: Mapping[str, bytes] | None = None,
+        trusted_issuers: Mapping[str, frozenset[str]] | None = None,
+        required_provider_orgs: int = 3,
+    ) -> dict[str, Any]:
+        if not runs:
+            return {"status": "FAIL", "level": 5, "reason": "no_external_runs", "attestation_verified": False}
+        receipt_map = cls._receipt_map(receipts, "external_run")
+        secrets = dict(verifier_secrets or {})
+        issuers = dict(trusted_issuers or {})
+        reasons: list[str] = []
+        verified: list[ExternalRunRecord] = []
+        receipt_hashes: dict[str, str] = {}
+        for run in runs:
+            if not run.declared_external_provenance:
+                reasons.append("untrusted_external_provenance")
+                continue
+            receipt = receipt_map.get(run.run_id)
+            if receipt is None:
+                reasons.append("external_run_attestation_missing")
+                continue
+            verification = ExternalAttestationService.verify(
+                receipt,
+                expected_subject_type="external_run",
+                expected_subject_id=run.run_id,
+                expected_subject_hash=run.fingerprint,
+                verifier_secrets=secrets,
+                trusted_issuers=issuers,
+            )
+            if verification["status"] != "PASS":
+                reasons.extend(verification["reasons"])
+                continue
+            if receipt.provenance_type != run.provenance_type:
+                reasons.append("external_run_provenance_type_mismatch")
+                continue
+            verified.append(run)
+            receipt_hashes[run.run_id] = verification["receipt_sha256"]
+
+        case_hashes = {r.case_set_hash for r in verified}
+        constraint_hashes = {r.constraint_hash for r in verified}
+        candidate_shas = {r.candidate_sha for r in verified}
+        providers = {r.provider_org.lower() for r in verified}
+        if len(verified) != len(runs):
+            reasons.append("not_all_external_runs_attested")
         if len(case_hashes) != 1:
             reasons.append("case_sets_not_identical")
         if len(constraint_hashes) != 1:
@@ -201,61 +269,125 @@ class ExternalEvidenceGate:
             reasons.append("candidate_sha_not_identical")
         if len(providers) < required_provider_orgs:
             reasons.append("insufficient_independent_providers")
-        if any(r.provenance_type not in TRUSTED_EXTERNAL_PROVENANCE or not r.authenticated for r in grounded):
-            reasons.append("untrusted_external_provenance")
+        reasons = sorted(set(reasons))
+        passed = not reasons
         return {
-            "status": "PASS" if not reasons else "FAIL",
+            "status": "PASS" if passed else "FAIL",
             "level": 5,
             "reasons": reasons,
+            "attestation_verified": passed,
             "provider_orgs": sorted(providers),
-            "run_ids": sorted(r.run_id for r in grounded),
-            "run_count": len(grounded),
+            "run_ids": sorted(r.run_id for r in verified),
+            "run_count": len(verified),
             "candidate_sha": next(iter(candidate_shas)) if len(candidate_shas) == 1 else None,
             "case_set_hash": next(iter(case_hashes)) if len(case_hashes) == 1 else None,
             "constraint_hash": next(iter(constraint_hashes)) if len(constraint_hashes) == 1 else None,
-            "evidence_sha256": sha256([asdict(r) for r in sorted(grounded, key=lambda x: x.run_id)]),
+            "run_receipt_hashes": dict(sorted(receipt_hashes.items())),
+            "evidence_sha256": sha256([asdict(r) for r in sorted(verified, key=lambda x: x.run_id)]),
         }
 
-    @staticmethod
-    def level6(level5: Mapping[str, Any], validations: Sequence[IndependentValidationRecord]) -> dict[str, Any]:
-        good = [v for v in validations if v.passed and v.provenance_type in TRUSTED_EXTERNAL_PROVENANCE]
+    @classmethod
+    def level6(
+        cls,
+        level5: Mapping[str, Any],
+        validations: Sequence[IndependentValidationRecord],
+        *,
+        receipts: Sequence[ExternalAttestationReceipt] = (),
+        verifier_secrets: Mapping[str, bytes] | None = None,
+        trusted_issuers: Mapping[str, frozenset[str]] | None = None,
+    ) -> dict[str, Any]:
         reasons = []
-        if level5.get("status") != "PASS":
-            reasons.append("level5_not_passed")
+        if level5.get("status") != "PASS" or level5.get("attestation_verified") is not True:
+            reasons.append("level5_not_attested_and_passed")
+        receipt_map = cls._receipt_map(receipts, "independent_validation")
         expected_candidate = level5.get("candidate_sha")
         expected_cases = level5.get("case_set_hash")
-        bound = [v for v in good if v.candidate_sha == expected_candidate and v.case_set_hash == expected_cases]
+        bound: list[IndependentValidationRecord] = []
+        receipt_hashes: list[str] = []
+        for validation in validations:
+            if not validation.passed or validation.provenance_type not in TRUSTED_EXTERNAL_PROVENANCE:
+                continue
+            if validation.candidate_sha != expected_candidate or validation.case_set_hash != expected_cases:
+                continue
+            subject_id = validation.fingerprint
+            receipt = receipt_map.get(subject_id)
+            if receipt is None:
+                continue
+            verification = ExternalAttestationService.verify(
+                receipt,
+                expected_subject_type="independent_validation",
+                expected_subject_id=subject_id,
+                expected_subject_hash=validation.fingerprint,
+                verifier_secrets=dict(verifier_secrets or {}),
+                trusted_issuers=dict(trusted_issuers or {}),
+            )
+            if verification["status"] != "PASS" or receipt.provenance_type != validation.provenance_type:
+                continue
+            bound.append(validation)
+            receipt_hashes.append(verification["receipt_sha256"])
         if not bound:
-            reasons.append("no_independent_end_to_end_reproduction")
+            reasons.append("no_attested_independent_end_to_end_reproduction")
+        reasons = sorted(set(reasons))
+        passed = not reasons
         return {
-            "status": "PASS" if not reasons else "FAIL",
+            "status": "PASS" if passed else "FAIL",
             "level": 6,
             "reasons": reasons,
+            "attestation_verified": passed,
             "validators": sorted({v.validator_org for v in bound}),
             "validation_count": len(bound),
+            "attestation_sha256": sha256(sorted(receipt_hashes)) if receipt_hashes else None,
         }
 
-    @staticmethod
+    @classmethod
     def level7(
+        cls,
         level6: Mapping[str, Any],
         refreshes: Sequence[LongitudinalRefreshRecord],
         *,
+        receipts: Sequence[ExternalAttestationReceipt] = (),
+        verifier_secrets: Mapping[str, bytes] | None = None,
+        trusted_issuers: Mapping[str, frozenset[str]] | None = None,
         min_refreshes: int = 3,
     ) -> dict[str, Any]:
-        passed = [r for r in refreshes if r.passed]
         reasons = []
-        if level6.get("status") != "PASS":
-            reasons.append("level6_not_passed")
-        if len(passed) < min_refreshes:
-            reasons.append("insufficient_longitudinal_refreshes")
-        if len({r.baseline_registry_hash for r in passed}) < 2 and len(passed) >= min_refreshes:
+        if level6.get("status") != "PASS" or level6.get("attestation_verified") is not True:
+            reasons.append("level6_not_attested_and_passed")
+        receipt_map = cls._receipt_map(receipts, "longitudinal_refresh")
+        passed_refreshes: list[LongitudinalRefreshRecord] = []
+        receipt_hashes: list[str] = []
+        for refresh in refreshes:
+            if not refresh.passed:
+                continue
+            receipt = receipt_map.get(refresh.refresh_id)
+            if receipt is None:
+                continue
+            verification = ExternalAttestationService.verify(
+                receipt,
+                expected_subject_type="longitudinal_refresh",
+                expected_subject_id=refresh.refresh_id,
+                expected_subject_hash=refresh.fingerprint,
+                verifier_secrets=dict(verifier_secrets or {}),
+                trusted_issuers=dict(trusted_issuers or {}),
+            )
+            if verification["status"] != "PASS":
+                continue
+            passed_refreshes.append(refresh)
+            receipt_hashes.append(verification["receipt_sha256"])
+        if len(passed_refreshes) < min_refreshes:
+            reasons.append("insufficient_attested_longitudinal_refreshes")
+        if len({r.baseline_registry_hash for r in passed_refreshes}) < 2 and len(passed_refreshes) >= min_refreshes:
             reasons.append("baselines_not_refreshed")
+        reasons = sorted(set(reasons))
+        passed = not reasons
         return {
-            "status": "PASS" if not reasons else "FAIL",
+            "status": "PASS" if passed else "FAIL",
             "level": 7,
             "reasons": reasons,
-            "refresh_count": len(passed),
-            "refresh_evidence_sha256": sha256([asdict(r) for r in sorted(passed, key=lambda x: x.refresh_id)]),
+            "attestation_verified": passed,
+            "refresh_count": len(passed_refreshes),
+            "refresh_evidence_sha256": sha256([asdict(r) for r in sorted(passed_refreshes, key=lambda x: x.refresh_id)]),
+            "attestation_sha256": sha256(sorted(receipt_hashes)) if receipt_hashes else None,
         }
 
 
@@ -287,42 +419,27 @@ class ClaimBoundary:
         normalized = requested_claim.strip().lower()
         broad = any(token in normalized for token in cls.BROAD_CLAIMS)
         max_level = 4
-        if level5.get("status") == "PASS":
+        if level5.get("status") == "PASS" and level5.get("attestation_verified") is True:
             max_level = 5
-        if level6.get("status") == "PASS":
+        if level6.get("status") == "PASS" and level6.get("attestation_verified") is True and max_level >= 5:
             max_level = 6
-        if level7.get("status") == "PASS":
+        if level7.get("status") == "PASS" and level7.get("attestation_verified") is True and max_level >= 6:
             max_level = 7
         if broad and max_level < 7:
-            return {
-                "status": "DENY",
-                "max_evidence_level": max_level,
-                "reason": "broad_frontier_claim_not_proven",
-            }
+            return {"status": "DENY", "max_evidence_level": max_level, "reason": "broad_frontier_claim_not_proven"}
         if max_level < 5:
-            return {
-                "status": "DENY",
-                "max_evidence_level": max_level,
-                "reason": "authenticated_external_comparison_missing",
-            }
+            return {"status": "DENY", "max_evidence_level": max_level, "reason": "attested_external_comparison_missing"}
         if not comparison_scope or not benchmark_hash or len(benchmark_hash) != 64:
-            return {
-                "status": "DENY",
-                "max_evidence_level": max_level,
-                "reason": "comparison_scope_or_benchmark_missing",
-            }
+            return {"status": "DENY", "max_evidence_level": max_level, "reason": "comparison_scope_or_benchmark_missing"}
 
         expected_providers = {str(x).lower() for x in level5.get("provider_orgs", [])}
         expected_runs = {str(x) for x in level5.get("run_ids", [])}
         expected_candidate = level5.get("candidate_sha")
         expected_cases = level5.get("case_set_hash")
         expected_constraints = level5.get("constraint_hash")
+        expected_receipts = dict(level5.get("run_receipt_hashes", {}))
         if not comparative_outcomes:
-            return {
-                "status": "DENY",
-                "max_evidence_level": max_level,
-                "reason": "comparative_win_evidence_missing",
-            }
+            return {"status": "DENY", "max_evidence_level": max_level, "reason": "comparative_win_evidence_missing"}
 
         reasons = []
         positive_providers: set[str] = set()
@@ -342,6 +459,8 @@ class ClaimBoundary:
                 reasons.append("comparison_case_set_mismatch")
             if outcome.constraint_hash != expected_constraints:
                 reasons.append("comparison_constraint_mismatch")
+            if outcome.attestation_receipt_hash != expected_receipts.get(outcome.external_run_id):
+                reasons.append("comparison_attestation_receipt_mismatch")
             if not outcome.statistically_positive:
                 reasons.append("comparative_superiority_not_demonstrated")
             else:
@@ -363,23 +482,11 @@ class ClaimBoundary:
         required = {str(x).lower() for x in required_provider_orgs}
         if broad:
             if len(expected_providers) < 4:
-                return {
-                    "status": "DENY",
-                    "max_evidence_level": max_level,
-                    "reason": "broad_provider_coverage_insufficient",
-                }
+                return {"status": "DENY", "max_evidence_level": max_level, "reason": "broad_provider_coverage_insufficient"}
             if not required:
-                return {
-                    "status": "DENY",
-                    "max_evidence_level": max_level,
-                    "reason": "broad_provider_scope_not_declared",
-                }
+                return {"status": "DENY", "max_evidence_level": max_level, "reason": "broad_provider_scope_not_declared"}
             if not required.issubset(positive_providers):
-                return {
-                    "status": "DENY",
-                    "max_evidence_level": max_level,
-                    "reason": "required_broad_provider_not_positive",
-                }
+                return {"status": "DENY", "max_evidence_level": max_level, "reason": "required_broad_provider_not_positive"}
             return {
                 "status": "ALLOW",
                 "max_evidence_level": max_level,
