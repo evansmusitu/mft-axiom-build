@@ -1,0 +1,123 @@
+name: MUSITU Chemistry Revenue Continuation Handoff Pack 20260911
+
+on:
+  push:
+    branches: [chemistry-revenue-handoff-pack-20260911-v2]
+    paths:
+      - 'handoff/**'
+      - '.github/workflows/chemistry-revenue-continuation-handoff-pack-20260911.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  SOURCE_SHA: fff60ebac1dd4cf28210d86976f87c7864c041e2
+  SOURCE_BRANCH: chemistry-direct-paynow-fallback-20260911
+  SEALED_MAIN_SHA: d6a846f6bbe0bccac1758713eb4de167caf07113
+  SOURCE_TREE_SHA: f9e5c284dd9e7039b7371a1e5df2d21da9c0b2b8
+  PACK_NAME: MUSITU_CHEMISTRY_REVENUE_CONTINUATION_HANDOFF_20260911_AUTHORITATIVE
+
+jobs:
+  package:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Verify immutable source anchors
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse "$SOURCE_SHA")" = "$SOURCE_SHA"
+          test "$(git show -s --format=%T "$SOURCE_SHA")" = "$SOURCE_TREE_SHA"
+          git fetch origin main --depth=1
+          test "$(git rev-parse FETCH_HEAD)" = "$SEALED_MAIN_SHA"
+          git fetch origin "$SOURCE_BRANCH" --depth=1
+          test "$(git rev-parse FETCH_HEAD)" = "$SOURCE_SHA"
+          echo "SOURCE_ANCHORS=PASS"
+
+      - name: Assemble clean package with full exact source snapshot
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROOT="/tmp/$PACK_NAME"
+          rm -rf "$ROOT"
+          mkdir -p "$ROOT/01_SOURCE/mft-axiom-build"
+
+          # Full repository snapshot at the exact captured authoritative product source commit.
+          git archive --format=tar "$SOURCE_SHA" | tar -xf - -C "$ROOT/01_SOURCE/mft-axiom-build"
+
+          # Handoff control plane is copied from the isolated packaging branch, not into product source.
+          cp -a handoff/00_START_HERE "$ROOT/00_START_HERE"
+          cp -a handoff/01_STATE "$ROOT/01_STATE"
+          cp -a handoff/02_EXECUTION "$ROOT/02_EXECUTION"
+          cp handoff/99_READ_ORDER.txt "$ROOT/99_READ_ORDER.txt"
+
+          python - <<'PY'
+          import json, os, pathlib, subprocess, datetime
+          root=pathlib.Path('/tmp')/os.environ['PACK_NAME']
+          source=os.environ['SOURCE_SHA']
+          data={
+            'schema':'musitu.chemistry.revenue_continuation_handoff.package.v1',
+            'created_at_utc':datetime.datetime.now(datetime.timezone.utc).replace(microsecond=0).isoformat(),
+            'repository':'evansmusitu/mft-axiom-build',
+            'captured_source_branch':os.environ['SOURCE_BRANCH'],
+            'captured_source_head':source,
+            'captured_source_tree':os.environ['SOURCE_TREE_SHA'],
+            'sealed_main_sha':os.environ['SEALED_MAIN_SHA'],
+            'packaging_branch':os.environ.get('GITHUB_REF_NAME',''),
+            'packaging_head':os.environ.get('GITHUB_SHA',''),
+            'full_source_snapshot_included':True,
+            'raw_secrets_included':False,
+            'private_signing_material_included':False,
+            'read_first':'00_START_HERE/NEW_CHAT_START_HERE.md',
+            'read_order':'99_READ_ORDER.txt'
+          }
+          (root/'PACKAGE_METADATA.json').write_text(json.dumps(data,indent=2,sort_keys=True)+'\n',encoding='utf-8')
+          PY
+
+          # Deterministic per-file checksum manifest inside the package.
+          (
+            cd "$ROOT"
+            find . -type f ! -name SHA256SUMS.txt -print0 | sort -z | xargs -0 sha256sum > SHA256SUMS.txt
+          )
+
+          FILES=$(find "$ROOT" -type f | wc -l)
+          BYTES=$(du -sb "$ROOT" | awk '{print $1}')
+          echo "PACKAGE_FILES=$FILES"
+          echo "PACKAGE_UNCOMPRESSED_BYTES=$BYTES"
+          echo "PACKAGE_ROOT=$ROOT"
+
+      - name: Validate handoff content and source identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROOT="/tmp/$PACK_NAME"
+          test -s "$ROOT/00_START_HERE/NEW_CHAT_START_HERE.md"
+          test -s "$ROOT/00_START_HERE/NEW_CHAT_COMMAND.txt"
+          test -s "$ROOT/99_READ_ORDER.txt"
+          test -s "$ROOT/01_SOURCE/mft-axiom-build/commerce/chemistry/CHEMISTRY_RESCUE_2026_CONTINUATION.md"
+          test -s "$ROOT/01_SOURCE/mft-axiom-build/growth/chemistry-rescue/30-day-calendar.md"
+          grep -Fq "$SOURCE_SHA" "$ROOT/00_START_HERE/NEW_CHAT_START_HERE.md"
+          grep -Fq "$SEALED_MAIN_SHA" "$ROOT/00_START_HERE/NEW_CHAT_START_HERE.md"
+          grep -Fq 'VERIFIED_SETTLEMENT_EVIDENCE -> SIGNED_MUSITU_ENTITLEMENT' "$ROOT/00_START_HERE/NEW_CHAT_START_HERE.md"
+          grep -Fq 'do not call pending/cancelled order intents revenue' "$ROOT/00_START_HERE/NEW_CHAT_COMMAND.txt"
+          (
+            cd "$ROOT"
+            sha256sum -c SHA256SUMS.txt
+          )
+          echo "HANDOFF_PACKAGE_VALIDATION=PASS"
+
+      - name: Upload authoritative continuation ZIP artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: MUSITU_CHEMISTRY_REVENUE_CONTINUATION_HANDOFF_20260911_AUTHORITATIVE
+          path: /tmp/MUSITU_CHEMISTRY_REVENUE_CONTINUATION_HANDOFF_20260911_AUTHORITATIVE/
+          retention-days: 90
+          if-no-files-found: error
+          compression-level: 9
+          overwrite: false
+          include-hidden-files: true
