@@ -549,6 +549,7 @@ class ExternalEvidenceGate:
         passed_refreshes: list[LongitudinalRefreshRecord] = []
         receipt_hashes: list[str] = []
         seen_refresh_ids: set[str] = set()
+        saw_nonindependent_provenance = False
         for refresh in refreshes:
             if refresh.refresh_id in seen_refresh_ids:
                 reasons.append("duplicate_longitudinal_refresh")
@@ -561,6 +562,9 @@ class ExternalEvidenceGate:
                 reasons.append("longitudinal_refresh_identity_mismatch")
                 continue
             if refresh.passed is not True:
+                continue
+            if refresh.provenance_type != "independent_lab_record":
+                saw_nonindependent_provenance = True
                 continue
             receipt = receipt_map.get(refresh.refresh_id)
             if receipt is None:
@@ -582,6 +586,8 @@ class ExternalEvidenceGate:
             receipt_hashes.append(verification["receipt_sha256"])
         distinct_refresh_times = {parse_time(r.executed_at) for r in passed_refreshes}
         if len(passed_refreshes) < effective_min_refreshes:
+            if saw_nonindependent_provenance:
+                reasons.append("longitudinal_refresh_provenance_required")
             reasons.append("insufficient_attested_longitudinal_refreshes")
         elif len(distinct_refresh_times) < effective_min_refreshes:
             reasons.append("insufficient_distinct_longitudinal_refresh_times")
