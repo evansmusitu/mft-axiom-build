@@ -100,6 +100,15 @@ if ([string]::IsNullOrWhiteSpace($ScreenReaderVersion)) {
 if ([string]::IsNullOrWhiteSpace($OutputPath)) {
     $OutputPath = Join-Path $recording.DirectoryName 'MUSITU_STORE_PHASE2_ACCESSIBILITY_EVIDENCE_METADATA.json'
 }
+if ([IO.Path]::IsPathRooted($OutputPath)) {
+    $outputFullPath = [IO.Path]::GetFullPath($OutputPath)
+} else {
+    $outputFullPath = [IO.Path]::GetFullPath((Join-Path (Get-Location).Path $OutputPath))
+}
+$outputDirectory = Split-Path -Parent $outputFullPath
+if (-not (Test-Path -LiteralPath $outputDirectory -PathType Container)) {
+    New-Item -ItemType Directory -Path $outputDirectory -Force | Out-Null
+}
 
 $manifestItem = [ordered]@{
     reference = $Reference
@@ -149,10 +158,10 @@ $out = [ordered]@{
 }
 
 $json = $out | ConvertTo-Json -Depth 8
-[IO.File]::WriteAllText((Join-Path (Get-Location) $OutputPath), $json + [Environment]::NewLine, (New-Object Text.UTF8Encoding($false)))
+[IO.File]::WriteAllText($outputFullPath, $json + [Environment]::NewLine, (New-Object Text.UTF8Encoding($false)))
 
 Write-Host 'MUSITU_STORE_PHASE2_ACCESSIBILITY_EVIDENCE_METADATA=CREATED'
-Write-Host "Output: $OutputPath"
+Write-Host "Output: $outputFullPath"
 Write-Host "Recording SHA-256: $hash"
 Write-Host "Recording bytes: $($recording.Length)"
 Write-Host "Browser: $Browser $browserVersion"
