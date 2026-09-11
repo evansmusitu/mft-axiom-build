@@ -1,0 +1,97 @@
+{
+  "baseline_sha256": "9e9e1aadcea59d3ff634cbb483ad48cc7615394109bcf77b7090da82f127a791",
+  "bindings_preserved": true,
+  "candidate_sha256": "06c2051f6509c58f214c5e7ee6940a03f4e4adb60adae3452fcc08897ec6c54f",
+  "change_scope": "GET /billing/return browser presentation only",
+  "database_mutated": false,
+  "final_candidate_redeployed": true,
+  "gate": "AXIOM_BILLING_RETURN_UI_PASS",
+  "machine_endpoints_before": {
+    "catalog": {
+      "cache_control": "no-store",
+      "content_type": "application/json; charset=utf-8",
+      "sha256": "d96fe52611e47cce6a68bb92b8d5defb6e28001c15e5bd435120734f5952138f",
+      "status": 200
+    },
+    "checkout_noauth": {
+      "cache_control": "no-store",
+      "content_type": "application/json; charset=utf-8",
+      "sha256": "f6cb57f53ea9116741c45c94612ad4fe6ed38c6f862a91d339d542d8cf467a47",
+      "status": 401
+    },
+    "not_found": {
+      "cache_control": "no-store",
+      "content_type": "application/json; charset=utf-8",
+      "sha256": "8e4a404a550a765c8410cb38d835d6546b1c668931795d873c8d617883a18366",
+      "status": 404
+    },
+    "webhook_wrong_media": {
+      "cache_control": "no-store",
+      "content_type": "application/json; charset=utf-8",
+      "sha256": "29df15585d53d70c2fcf8a1e8a29fa1cc63875b0c52cf805869d5fff5f1f21d2",
+      "status": 415
+    }
+  },
+  "machine_endpoints_final": {
+    "catalog": {
+      "cache_control": "no-store",
+      "content_type": "application/json; charset=utf-8",
+      "sha256": "d96fe52611e47cce6a68bb92b8d5defb6e28001c15e5bd435120734f5952138f",
+      "status": 200
+    },
+    "checkout_noauth": {
+      "cache_control": "no-store",
+      "content_type": "application/json; charset=utf-8",
+      "sha256": "f6cb57f53ea9116741c45c94612ad4fe6ed38c6f862a91d339d542d8cf467a47",
+      "status": 401
+    },
+    "not_found": {
+      "cache_control": "no-store",
+      "content_type": "application/json; charset=utf-8",
+      "sha256": "8e4a404a550a765c8410cb38d835d6546b1c668931795d873c8d617883a18366",
+      "status": 404
+    },
+    "webhook_wrong_media": {
+      "cache_control": "no-store",
+      "content_type": "application/json; charset=utf-8",
+      "sha256": "29df15585d53d70c2fcf8a1e8a29fa1cc63875b0c52cf805869d5fff5f1f21d2",
+      "status": 415
+    }
+  },
+  "machine_endpoints_preserved": true,
+  "money_moved": false,
+  "payment_transaction_created": false,
+  "return_before": {
+    "cache_control": "no-store",
+    "content_type": "application/json; charset=utf-8",
+    "sha256": "9e4d6d952748b54cdf20148d48387335bd16e9abd635bc6d24a8c0010cacd1ec",
+    "status": 200
+  },
+  "return_candidate": {
+    "cache_control": "no-store, no-cache, must-revalidate",
+    "content_type": "text/html; charset=utf-8",
+    "sha256": "eb9685a3b0c5412503da9eb55a16c1e4c44523015aac8a35fc1e89a5918d8572",
+    "status": 200
+  },
+  "return_final": {
+    "cache_control": "no-store, no-cache, must-revalidate",
+    "content_type": "text/html; charset=utf-8",
+    "sha256": "eb9685a3b0c5412503da9eb55a16c1e4c44523015aac8a35fc1e89a5918d8572",
+    "status": 200
+  },
+  "return_rollback": {
+    "cache_control": "no-store",
+    "content_type": "application/json; charset=utf-8",
+    "sha256": "9e4d6d952748b54cdf20148d48387335bd16e9abd635bc6d24a8c0010cacd1ec",
+    "status": 200
+  },
+  "rollback_performed": true,
+  "rollback_verified": true,
+  "route": "payments.mftintelligence.com/billing/*",
+  "schema": "musitu.axiom.billing_return_ui_hotfix.v1",
+  "secret_values_published": false,
+  "settlement_semantics_preserved": true,
+  "source_mutated_this_run": true,
+  "status": "PASS_DEPLOY_ROLLBACK_REDEPLOY_VERIFIED",
+  "worker": "mft-axiom-billing-ingress"
+}
