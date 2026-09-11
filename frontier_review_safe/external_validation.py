@@ -514,6 +514,7 @@ class ExternalEvidenceGate:
             "attestation_verified": passed,
             "candidate_sha": expected_candidate if identity_valid else None,
             "case_set_hash": expected_cases if identity_valid else None,
+            "level5_provider_orgs": sorted(level5_providers),
             "validators": sorted({v.validator_org for v in bound}),
             "validation_count": len(bound),
             "attestation_sha256": sha256(sorted(receipt_hashes)) if receipt_hashes else None,
@@ -545,11 +546,17 @@ class ExternalEvidenceGate:
             effective_min_refreshes = max(cls.LEVEL7_REFRESH_FLOOR, min_refreshes)
             if min_refreshes < cls.LEVEL7_REFRESH_FLOOR:
                 reasons.append("longitudinal_refresh_floor_below_required")
+        level5_providers = {
+            str(provider).strip().lower()
+            for provider in level6.get("level5_provider_orgs", ())
+            if isinstance(provider, str) and provider.strip()
+        }
         receipt_map = cls._receipt_map(receipts, "longitudinal_refresh")
         passed_refreshes: list[LongitudinalRefreshRecord] = []
         receipt_hashes: list[str] = []
         seen_refresh_ids: set[str] = set()
         saw_nonindependent_provenance = False
+        saw_attester_overlap = False
         for refresh in refreshes:
             if refresh.refresh_id in seen_refresh_ids:
                 reasons.append("duplicate_longitudinal_refresh")
@@ -582,12 +589,17 @@ class ExternalEvidenceGate:
             if receipt.provenance_type != refresh.provenance_type:
                 reasons.append("longitudinal_refresh_provenance_type_mismatch")
                 continue
+            if receipt.issuer_org.strip().lower() in level5_providers:
+                saw_attester_overlap = True
+                continue
             passed_refreshes.append(refresh)
             receipt_hashes.append(verification["receipt_sha256"])
         distinct_refresh_times = {parse_time(r.executed_at) for r in passed_refreshes}
         if len(passed_refreshes) < effective_min_refreshes:
             if saw_nonindependent_provenance:
                 reasons.append("longitudinal_refresh_provenance_required")
+            if saw_attester_overlap:
+                reasons.append("longitudinal_refresh_attester_overlaps_level5_provider")
             reasons.append("insufficient_attested_longitudinal_refreshes")
         elif len(distinct_refresh_times) < effective_min_refreshes:
             reasons.append("insufficient_distinct_longitudinal_refresh_times")
@@ -602,6 +614,7 @@ class ExternalEvidenceGate:
             "attestation_verified": passed,
             "candidate_sha": expected_identity.candidate_sha if expected_identity is not None else None,
             "case_set_hash": expected_identity.case_set_hash if expected_identity is not None else None,
+            "level5_provider_orgs": sorted(level5_providers),
             "refresh_count": len(passed_refreshes),
             "distinct_refresh_times": len(distinct_refresh_times),
             "refresh_evidence_sha256": sha256([asdict(r) for r in sorted(passed_refreshes, key=lambda x: x.refresh_id)]),
