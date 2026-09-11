@@ -6,21 +6,24 @@
   "production_mutation": false,
   "phase2Complete": false,
   "automated_predeploy": {
-    "certification_path": "evidence/musitu-store/MUSITU_STORE_PHASE2_STANDARDS_HARDENING_PREDEPLOY_CERTIFICATION_20260911.json",
-    "workflow_run_id": "34573267968",
-    "artifact_id": "10188613182",
-    "artifact_digest": "sha256:3fdcbb54a6d2a42e2bc969f3adc713d17c92e8e4e126a50e0de2a8c6b2656506",
+    "certification_path": "evidence/musitu-store/MUSITU_STORE_PHASE2_REPAIRED_LIVE_HARDENED_CANDIDATE_CERTIFICATION_20260911.json",
+    "workflow_run_id": "34582501210",
+    "artifact_id": "10192199123",
+    "artifact_digest": "sha256:3b1c157fd2a061c26c9b150c5e018aefc109ddd6cea3d8fab3e1e2908717f497",
+    "candidate_worker_sha256": "c98e6e36fa153f16a05c627b10b9a562e5f2ffde1f02ec0a7676a8d5121b7cce",
+    "baseline_live_worker_sha256": "e17e0c7bde55d9f8d41b476e917159b6bf39b46c3895b7ec6d2a7b4f705beb81",
     "result": "PASS_AUTOMATED"
   },
   "body_equivalence": {
-    "record_path": "evidence/musitu-store/MUSITU_STORE_PHASE2_RESPONSE_BODY_EQUIVALENCE_20260911.json",
-    "workflow_run_id": "34575291010",
-    "artifact_id": "10189381691",
-    "artifact_digest": "sha256:135cc85142d9eee8801a01f6221b6638f723577e8346ebd63604747cb82ff605",
+    "record_path": "evidence/musitu-store/MUSITU_STORE_PHASE2_REPAIRED_LIVE_RESPONSE_BODY_EQUIVALENCE_20260911.json",
+    "workflow_run_id": "34582501210",
+    "artifact_id": "10192199123",
+    "artifact_digest": "sha256:3b1c157fd2a061c26c9b150c5e018aefc109ddd6cea3d8fab3e1e2908717f497",
     "result": "PASS",
-    "candidate_worker_sha256": "ee95b816bc056ab79be4d764cf88a68e25feed7aafdaad33ff23e2188f954616",
-    "manual_evidence_target": "current live Store 1.0.2 body",
-    "applicability_condition": "Candidate body-producing source and bounded security transform remain unchanged from the certified response-body-equivalence proof."
+    "baseline_live_worker_sha256": "e17e0c7bde55d9f8d41b476e917159b6bf39b46c3895b7ec6d2a7b4f705beb81",
+    "candidate_worker_sha256": "c98e6e36fa153f16a05c627b10b9a562e5f2ffde1f02ec0a7676a8d5121b7cce",
+    "manual_evidence_target": "current repaired live Store 1.0.2 body",
+    "applicability_condition": "The candidate is derived from the exact repaired live Worker. Across the certified accessibility-relevant route matrix its response bodies are byte-identical to the repaired live Store, and only the bounded Phase-2 security-header delta is introduced. The already-live browser-presentation repair is preserved."
   },
   "protocol": {
     "path": "docs/MUSITU_STORE_PHASE2_REAL_ACCESSIBILITY_TEST_PROTOCOL_20260911.md",
@@ -119,5 +122,5 @@
     "body_equivalence_pass_does_not_substitute_for_real_screen_reader_test": true,
     "phase2_deployment_must_not_be_certified_complete_from_this_packet_until_reviewed": true
   },
-  "claim_boundary": "This packet is a collection and review contract only. The automated candidate and response-body-equivalence gates pass, but this file is not real manual assistive-technology evidence and does not establish complete WCAG 2.2 AA conformance or Phase-2 completion until it is populated from original evidence, validated, reviewed, and marked PASS."
+  "claim_boundary": "This packet is a collection and review contract only. The repaired-live candidate and response-body-equivalence gates pass, but this file is not real manual assistive-technology evidence and does not establish complete WCAG 2.2 AA conformance or Phase-2 completion until it is populated from original evidence, validated, reviewed, and marked PASS."
 }
