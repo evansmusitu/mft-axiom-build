@@ -159,6 +159,24 @@ class ExternalValidationIntegrityTests(unittest.TestCase):
         self.assertEqual(denied["status"], "DENY")
         self.assertEqual(denied["reason"], "comparison_scope_or_benchmark_missing")
 
+    def test_microsoft_superiority_claim_is_broad_and_requires_level7(self):
+        l5 = {
+            "status": "PASS",
+            "attestation_verified": True,
+            "baseline_registry_verified": True,
+        }
+        denied = ClaimBoundary.authorize(
+            "better than Microsoft",
+            level5=l5,
+            level6={"status": "FAIL", "attestation_verified": False},
+            level7={"status": "FAIL", "attestation_verified": False},
+            comparison_scope="sealed benchmark",
+            benchmark_hash=H,
+        )
+        self.assertEqual(denied["status"], "DENY")
+        self.assertEqual(denied["reason"], "broad_frontier_claim_not_proven")
+        self.assertEqual(denied["max_evidence_level"], 5)
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
