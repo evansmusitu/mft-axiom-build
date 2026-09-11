@@ -1,0 +1,99 @@
+r name in sorted(expected_names):
+        expected = (ROLLBACK_CURRENT / name).read_bytes()
+        actual = module_parts[name]
+        if actual != expected:
+            raise RuntimeError("live Worker module drift: " + name)
+        hashes[name] = sha(actual)
+    worker_snapshot_body = body
+    worker_snapshot_content_type = ctype
+    checks["preflight_worker_snapshot_sha256"] = sha(body)
+    checks["preflight_worker_module_sha256"] = hashes
+
+
+def worker_metadata():
+    return {
+        "main_module": "worker.mjs",
+        "compatibility_date": "2026-09-09",
+        "bindings": [
+            {"type": "r2_bucket", "name": "STORE_RELEASES", "bucket_name": BUCKET},
+            {"type": "plain_text", "name": "STORE_RUNTIME_PUBLICATION_STATE", "text": "production"},
+        ],
+    }
+
+
+def multipart_modules(metadata: dict, module_root: pathlib.Path):
+    boundary = "----MUSITU" + secrets.token_hex(18)
+    out: list[bytes] = []
+    def add(v: str | bytes):
+        out.append(v.encode() if isinstance(v, str) else v)
+    add(f'--{boundary}\r\nContent-Disposition: form-data; name="metadata"\r\nContent-Type: application/json\r\n\r\n')
+    add(json.dumps(metadata, separators=(",", ":")))
+    add("\r\n")
+    for name in ("worker.mjs", "render.mjs", "assets.mjs", "generated-data.mjs"):
+        data = (module_root / name).read_bytes()
+        add(f'--{boundary}\r\nContent-Disposition: form-data; name="{name}"; filename="{name}"\r\nContent-Type: application/javascript+module\r\n\r\n')
+        add(data)
+        add("\r\n")
+    add(f"--{boundary}--\r\n")
+    return boundary, b"".join(out)
+
+
+def upload_worker(module_root: pathlib.Path):
+    boundary, body = multipart_modules(worker_metadata(), module_root)
+    headers = dict(AUTH)
+    headers["Content-Type"] = "multipart/form-data; boundary=" + boundary
+    path = f"{API}/accounts/{AID}/workers/scripts/{urllib.parse.quote(WORKER, safe='')}"
+    code, _, raw = req(path, "PUT", headers, body, 180)
+    if not 200 <= code < 300:
+        raise RuntimeError("Store Worker upload HTTP " + str(code) + " " + raw[:400].decode("utf-8", "ignore"))
+
+
+def restore_worker_snapshot():
+    if worker_snapshot_body is None or worker_snapshot_content_type is None:
+        raise RuntimeError("rollback Worker snapshot unavailable")
+    headers = dict(AUTH)
+    headers["Content-Type"] = worker_snapshot_content_type
+    path = f"{API}/accounts/{AID}/workers/scripts/{urllib.parse.quote(WORKER, safe='')}"
+    code, _, raw = req(path, "PUT", headers, worker_snapshot_body, 180)
+    if not 200 <= code < 300:
+        raise RuntimeError("rollback Worker restore HTTP " + str(code) + " " + raw[:400].decode("utf-8", "ignore"))
+
+
+def verify_prior_state():
+    route_id = verify_topology()
+    code, _, raw = pub("/store/healthz", "application/json")
+    if code != 200:
+        raise RuntimeError("prior Store health HTTP " + str(code))
+    health = json.loads(raw or b"{}")
+    if not (health.get("ok") is True and health.get("runtime_publication_state") == "production" and health.get("catalog_revision") == 2 and health.get("phase2_authorized") is False and health.get("fresh_device_phase1_complete") is False):
+        raise RuntimeError("prior Store health contract drift")
+    code, _, raw = pub("/store/catalog.json", "application/json")
+    if code != 200 or sha(raw) != PRIOR_CATALOG_SHA:
+        raise RuntimeError("prior live catalog drift")
+    code, _, sig = pub("/store/catalog.sig", "text/plain")
+    if code != 200 or sha(sig) != PRIOR_SIG_SHA:
+        raise RuntimeError("prior live catalog signature drift")
+    for path, n, digest in [
+        ("/store/bootstrap/MUSITU_Store_1.0.0.apk", V100_BYTES, V100_SHA),
+        ("/store/bootstrap/MUSITU_Store_1.0.1.apk", V101_BYTES, V101_SHA),
+    ]:
+        code, _, raw = pub(path, "application/vnd.android.package-archive")
+        if code != 200 or len(raw) != n or sha(raw) != digest:
+            raise RuntimeError("prior Store artifact drift " + path)
+    code, _, raw = pub("/store/bootstrap/MUSITU_Store_1.0.2.apk", "application/vnd.android.package-archive")
+    if code != 404:
+        raise RuntimeError("Store 1.0.2 public route is not empty pre-upgrade")
+    verify_chemistry_and_platform()
+    r2_readback(V100_KEY, SNAPSHOT / "r2-v100.apk", V100_BYTES, V100_SHA)
+    r2_readback(V101_KEY, SNAPSHOT / "r2-v101.apk", V101_BYTES, V101_SHA)
+    r2_assert_absent(NEW_KEY)
+    snapshot_and_verify_live_worker()
+    checks["preflight_route_id"] = route_id
+    checks["preflight_catalog_revision"] = 2
+
+
+def verify_new_state():
+    route_id = verify_topology()
+    expected_catalog = (SOURCE / "store/phase1/catalog.json").read_bytes()
+    expected_sig = (SOURCE / "store/phase1/catalog.sig").read_bytes()
+    if sha(expected_catalog) != NEW_CATALOG_SHA or sha(expected_sig) != NEW_SIG_S
