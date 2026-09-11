@@ -4,6 +4,7 @@ from copy import deepcopy
 import math
 import unittest
 
+from frontier_review_safe.core import sha256
 from frontier_review_safe.scale_budget import (
     BASELINE_CONTRACT, EXPECTED_DETAILS, EXPECTED_UNITS, contract_fingerprint,
     derived_budgets, gate,
@@ -22,7 +23,7 @@ class ScaleBudgetTests(unittest.TestCase):
                 "peak_python_bytes": observed["max_peak_python_bytes"],
                 "details": deepcopy(EXPECTED_DETAILS[name]),
             })
-        return {
+        evidence = {
             "schema": "musitu.axiom.review-safe-scale-evidence.v1",
             "candidate_sha": "candidate",
             "environment": {
@@ -31,8 +32,9 @@ class ScaleBudgetTests(unittest.TestCase):
                 "machine": "x86_64",
             },
             "benchmarks": rows,
-            "evidence_sha256": "e" * 64,
         }
+        evidence["evidence_sha256"] = sha256(evidence)
+        return evidence
 
     def test_budget_is_mechanically_derived_from_recorded_baseline_policy(self):
         budgets = derived_budgets()
@@ -93,6 +95,13 @@ class ScaleBudgetTests(unittest.TestCase):
         self.assertEqual(report["status"], "FAIL")
         self.assertIn("workload_definition_changed_rebaseline_required", report["reasons"])
         self.assertTrue(any("workload_units_changed" in reason for reason in report["reasons"]))
+
+    def test_tampered_measurement_cannot_reuse_old_evidence_hash(self):
+        evidence = self.evidence()
+        evidence["benchmarks"][0]["peak_python_bytes"] += 1
+        report = gate(evidence, workload_git_blob_sha=BASELINE_CONTRACT["workload_git_blob_sha"])
+        self.assertEqual(report["status"], "FAIL")
+        self.assertIn("evidence_hash_mismatch", report["reasons"])
 
 
 if __name__ == "__main__":
