@@ -1,0 +1,222 @@
+name: Paynow Integration 26343 Authorized Replacement Test Checkout
+
+on:
+  push:
+    branches:
+      - paynow-test-26343-20260911
+    paths:
+      - '.github/paynow-test-26343-replacement.trigger'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: paynow-integration-26343-authorized-replacement
+  cancel-in-progress: false
+
+jobs:
+  initiate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      CF_API: https://api.cloudflare.com/client/v4
+      ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      D1_UUID: 504029cc-f9a5-495e-818f-63c6144b4ea4
+      BILLING_BASE: https://payments.mftintelligence.com
+      TEST_CUSTOMER_ID: paynow_test_26343_20260911_replacement
+    steps:
+      - name: Create the one explicitly authorized replacement Test Mode checkout
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import datetime
+          import hashlib
+          import json
+          import os
+          import pathlib
+          import secrets
+          import urllib.error
+          import urllib.parse
+          import urllib.request
+
+          api = os.environ['CF_API']
+          account = os.environ['ACCOUNT_ID']
+          database = os.environ['D1_UUID']
+          billing = os.environ['BILLING_BASE']
+          customer = os.environ['TEST_CUSTOMER_ID']
+          key_id = customer + '_key'
+          headers = {
+              'X-Auth-Email': os.environ['CLOUDFLARE_EMAIL'],
+              'X-Auth-Key': os.environ['CLOUDFLARE_GLOBAL_API_KEY'],
+              'Content-Type': 'application/json',
+              'Accept': 'application/json',
+              'User-Agent': 'MUSITU-Paynow-26343-Replacement-Test/1.0',
+          }
+
+          def d1(sql, params=None):
+              body = {'sql': sql}
+              if params is not None:
+                  body['params'] = params
+              request = urllib.request.Request(
+                  f'{api}/accounts/{account}/d1/database/{database}/query',
+                  headers=headers,
+                  method='POST',
+                  data=json.dumps(body, separators=(',', ':')).encode(),
+              )
+              try:
+                  with urllib.request.urlopen(request, timeout=45) as response:
+                      code = response.status
+                      raw = response.read()
+              except urllib.error.HTTPError as error:
+                  code = error.code
+                  raw = error.read()
+              if not 200 <= code < 300:
+                  raise RuntimeError(f'D1 HTTP {code}')
+              payload = json.loads(raw or b'{}')
+              results = payload.get('result') or []
+              if not results or not all(item.get('success') is True for item in results):
+                  raise RuntimeError('D1 statement failed')
+              rows = []
+              for item in results:
+                  rows.extend(item.get('results') or [])
+              return rows
+
+          def checkout(token):
+              request = urllib.request.Request(
+                  billing + '/billing/checkout',
+                  headers={
+                      'Authorization': 'Bearer ' + token,
+                      'Content-Type': 'application/json',
+                      'Accept': 'application/json',
+                      'User-Agent': 'MUSITU-Paynow-26343-Replacement-Test/1.0',
+                  },
+                  method='POST',
+                  data=b'{"plan":"developer"}',
+              )
+              try:
+                  with urllib.request.urlopen(request, timeout=60) as response:
+                      code = response.status
+                      raw = response.read()
+              except urllib.error.HTTPError as error:
+                  code = error.code
+                  raw = error.read()
+              try:
+                  payload = json.loads(raw or b'{}')
+              except Exception:
+                  payload = {}
+              return code, payload
+
+          def safe_paynow_url(value):
+              parsed = urllib.parse.urlparse(str(value or ''))
+              return parsed.scheme == 'https' and parsed.hostname in ('paynow.co.zw', 'www.paynow.co.zw')
+
+          prior = d1(
+              "SELECT c.email FROM billing_checkout_intents i JOIN customers c ON c.id=i.customer_id "
+              "WHERE lower(i.status) IN ('paid','completed') AND i.paynow_reference IS NOT NULL "
+              "AND lower(c.email) NOT LIKE '%@invalid.example' AND lower(c.email) NOT LIKE '%@example.com' "
+              "ORDER BY COALESCE(i.completed_at,i.created_at) DESC LIMIT 1"
+          )
+          if len(prior) != 1 or not str(prior[0].get('email') or '').strip():
+              raise RuntimeError('no prior completed payer email is available for a safe replacement')
+          payer_email = str(prior[0]['email']).strip()
+          email_hash = hashlib.sha256(payer_email.lower().encode()).hexdigest()
+
+          rows = d1(
+              'SELECT reference,status,browser_url,poll_url,paynow_reference,created_at,expires_at,completed_at '
+              'FROM billing_checkout_intents WHERE customer_id=?1 ORDER BY created_at DESC',
+              [customer],
+          )
+          if rows:
+              raise RuntimeError('replacement checkout already exists; refusing any duplicate')
+          if d1('SELECT id FROM customers WHERE id=?1', [customer]):
+              raise RuntimeError('replacement customer exists without a checkout; refusing ambiguous state')
+
+          token = 'musitu_paynow_26343_replacement_' + secrets.token_urlsafe(40)
+          print('::add-mask::' + token)
+          now = datetime.datetime.now(datetime.timezone.utc)
+          created_at = now.isoformat().replace('+00:00', 'Z')
+          key_expires = (now + datetime.timedelta(hours=1)).isoformat().replace('+00:00', 'Z')
+          token_hash = hashlib.sha256(token.encode()).hexdigest()
+          d1(
+              'INSERT INTO customers(id,email,name,plan,status,monthly_unit_override,created_at,updated_at) '
+              'VALUES(?1,?2,?3,?4,?5,NULL,?6,?6)',
+              [customer, payer_email, 'Paynow Integration 26343 Authorized Replacement', 'developer', 'active', created_at],
+          )
+          d1(
+              'INSERT INTO api_keys(id,customer_id,key_hash,key_prefix,label,status,created_at,last_used_at,expires_at,revoked_at) '
+              'VALUES(?1,?2,?3,?4,?5,?6,?7,NULL,?8,NULL)',
+              [key_id, customer, token_hash, token[:16], 'paynow-26343-authorized-replacement', 'active', created_at, key_expires],
+          )
+          try:
+              code, payload = checkout(token)
+          finally:
+              d1('DELETE FROM api_keys WHERE id=?1', [key_id])
+          if code != 201:
+              raise RuntimeError('replacement checkout initiation failed HTTP ' + str(code) + ' error=' + str(payload.get('error')))
+          expected = ('developer', 'axiom-developer-monthly', 1900, 'USD')
+          actual = (payload.get('plan'), payload.get('price_id'), int(payload.get('amount_cents') or 0), payload.get('currency'))
+          if actual != expected:
+              raise RuntimeError('server-owned checkout economics mismatch')
+          if payload.get('live_money_certified') is not False:
+              raise RuntimeError('checkout unexpectedly claims live-money certification')
+
+          rows = d1(
+              'SELECT reference,status,browser_url,poll_url,paynow_reference,created_at,expires_at,completed_at '
+              'FROM billing_checkout_intents WHERE customer_id=?1 ORDER BY created_at DESC',
+              [customer],
+          )
+          if len(rows) != 1:
+              raise RuntimeError('exactly-one replacement persistence check failed')
+          record = rows[0]
+          browser_url = str(record.get('browser_url') or '')
+          reference = str(record.get('reference') or '')
+          if not reference or not safe_paynow_url(browser_url) or not safe_paynow_url(record.get('poll_url')):
+              raise RuntimeError('Paynow replacement checkout URL contract failed')
+          if str(record.get('status') or '').lower() != 'initiated':
+              raise RuntimeError('replacement checkout is not in initiated state')
+          if record.get('paynow_reference') or record.get('completed_at'):
+              raise RuntimeError('replacement unexpectedly contains settlement evidence')
+          print('::add-mask::' + browser_url)
+          print('::add-mask::' + reference)
+
+          pathlib.Path('OPEN_PAYNOW_26343_REPLACEMENT_TEST.txt').write_text(browser_url + '\n', encoding='utf-8')
+          evidence = {
+              'schema': 'musitu.paynow.integration_26343.replacement_test.v1',
+              'gate': 'PAYNOW_26343_AUTHORIZED_REPLACEMENT_READY',
+              'integration_id': 26343,
+              'provider': 'paynow',
+              'provider_checkout_created_now': True,
+              'intent_status': 'initiated',
+              'plan': 'developer',
+              'amount_cents': 1900,
+              'currency': 'USD',
+              'live_money_certified': False,
+              'payment_completed': False,
+              'temporary_api_key_deleted': True,
+              'duplicate_guard': 'fixed_replacement_customer_exactly_one',
+              'payer_email_sha256': email_hash,
+              'reference_sha256': hashlib.sha256(reference.encode()).hexdigest(),
+          }
+          raw = (json.dumps(evidence, indent=2, sort_keys=True) + '\n').encode()
+          pathlib.Path('paynow-26343-replacement-test.json').write_bytes(raw)
+          pathlib.Path('paynow-26343-replacement-test.sha256').write_text(
+              hashlib.sha256(raw).hexdigest() + '  paynow-26343-replacement-test.json\n',
+              encoding='utf-8',
+          )
+          print(json.dumps(evidence, sort_keys=True))
+          PY
+
+      - name: Upload the replacement Paynow Test Mode handoff
+        uses: actions/upload-artifact@v4
+        with:
+          name: paynow-26343-replacement-test
+          path: |
+            OPEN_PAYNOW_26343_REPLACEMENT_TEST.txt
+            paynow-26343-replacement-test.json
+            paynow-26343-replacement-test.sha256
+          retention-days: 1
+          if-no-files-found: error
