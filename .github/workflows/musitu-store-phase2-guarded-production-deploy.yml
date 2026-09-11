@@ -18,6 +18,7 @@ jobs:
       SEALED_MAIN: d6a846f6bbe0bccac1758713eb4de167caf07113
       PHASE1_HEAD: ebded495617cc89bb96d7a5531c1ce4fc6bbedd9
       CERTIFIED_CANDIDATE_HEAD: 6a1d50c76dec96e924751dd6f5f2bc1ffe4191e1
+      BODY_EQUIVALENCE_HEAD: e42f461b7dadd9e53afc0eb285a276c7e2710fc7
       CANDIDATE_WORKER_SHA: ee95b816bc056ab79be4d764cf88a68e25feed7aafdaad33ff23e2188f954616
       STORE_SHA: 3a0c4b0f971ec84cd6167a137f8e3d75c7bb20e525c26ab533b3d88044cd0784
       STORE_BYTES: '1679340'
@@ -33,6 +34,7 @@ jobs:
       STORE_BUCKET: musitu-store-phase1-releases
       MANUAL_PACKET: evidence/musitu-store/MUSITU_STORE_PHASE2_MANUAL_ACCESSIBILITY_CERTIFICATION_PACKET_20260911.json
       CANDIDATE_CERT: evidence/musitu-store/MUSITU_STORE_PHASE2_HARDENED_CANDIDATE_PREDEPLOY_CERTIFICATION_20260911.json
+      BODY_EQUIVALENCE_RECORD: evidence/musitu-store/MUSITU_STORE_PHASE2_RESPONSE_BODY_EQUIVALENCE_20260911.json
 
     steps:
       - uses: actions/checkout@v4
@@ -52,6 +54,7 @@ jobs:
           test "$(git rev-parse origin/main)" = "$SEALED_MAIN"
           test "$(git rev-parse origin/musitu-store-phase1-20260909)" = "$PHASE1_HEAD"
           git merge-base --is-ancestor "$CERTIFIED_CANDIDATE_HEAD" "$GITHUB_SHA"
+          git merge-base --is-ancestor "$BODY_EQUIVALENCE_HEAD" "$GITHUB_SHA"
           test -z "$(git diff --name-only "$CERTIFIED_CANDIDATE_HEAD"..."$GITHUB_SHA" -- store/phase2/apply-standards-hardening.py store/phase2/security-hardening-smoke.mjs store/phase2/standards-browser-smoke.mjs)"
           test -z "$(git diff --name-only "$PHASE1_HEAD"..."$GITHUB_SHA" -- store/phase1 commerce/chemistry)"
           echo PHASE2_DEPLOY_REPOSITORY_ANCHORS=PASS
@@ -60,25 +63,28 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          python store/phase2/validate_manual_accessibility_packet.py "$MANUAL_PACKET" . | tee /tmp/manual-accessibility-validation.json
+          grep -q '"result": "PASS"' /tmp/manual-accessibility-validation.json
+          echo REAL_MANUAL_ACCESSIBILITY_GATE=PASS
+
+      - name: Require response-body equivalence proof
+        shell: bash
+        run: |
+          set -euo pipefail
           python - <<'PY'
-          import json
+          import json, os
           from pathlib import Path
-          p=Path('evidence/musitu-store/MUSITU_STORE_PHASE2_MANUAL_ACCESSIBILITY_CERTIFICATION_PACKET_20260911.json')
-          d=json.loads(p.read_text())
-          assert d['schema']=='musitu.store.phase2.manual_accessibility_certification_packet.v1'
-          assert d['status']=='PASS_REVIEWED_REAL_ASSISTIVE_TECHNOLOGY_EVIDENCE'
-          assert d['result']=='PASS'
-          env=d['test_environment']
-          for key in ('platform','os_version','device_model_class','browser_name','browser_version','screen_reader_name','screen_reader_version'):
-              assert isinstance(env.get(key),str) and env[key].strip(), f'missing manual environment metadata: {key}'
-          for group in ('manual_keyboard_checks','screen_reader_checks','zoom_reflow_checks'):
-              failed=[k for k,v in d[group].items() if v is not True]
-              assert not failed, f'{group} not all PASS: {failed}'
-          refs=d['required_evidence']
-          missing=[k for k,v in refs.items() if not isinstance(v,str) or not v.strip()]
-          assert not missing, f'missing manual evidence references: {missing}'
-          assert d.get('failure_details') in (None,'')
-          print('REAL_MANUAL_ACCESSIBILITY_GATE=PASS')
+          d=json.loads(Path(os.environ['BODY_EQUIVALENCE_RECORD']).read_text())
+          assert d['status']=='PASS'
+          assert d['repository']['workflow_head']=='e42f461b7dadd9e53afc0eb285a276c7e2710fc7'
+          assert d['repository']['certified_candidate_worker_sha256']=='ee95b816bc056ab79be4d764cf88a68e25feed7aafdaad33ff23e2188f954616'
+          assert d['workflow']['run_id']=='34575291010'
+          assert d['workflow']['artifact']['id']=='10189381691'
+          assert d['workflow']['artifact']['digest']=='sha256:135cc85142d9eee8801a01f6221b6638f723577e8346ebd63604747cb82ff605'
+          assert d['proof']['response_body_byte_equality'] is True
+          assert d['proof']['unexpected_header_delta'] is False
+          assert d['manual_evidence_applicability']['current_live_store_1_0_2_body_may_be_manually_tested_for_candidate'] is True
+          print('RESPONSE_BODY_EQUIVALENCE_GATE=PASS')
           PY
 
       - name: Require certified hardened candidate evidence
@@ -86,9 +92,9 @@ jobs:
         run: |
           set -euo pipefail
           python - <<'PY'
-          import json
+          import json, os
           from pathlib import Path
-          d=json.loads(Path('evidence/musitu-store/MUSITU_STORE_PHASE2_HARDENED_CANDIDATE_PREDEPLOY_CERTIFICATION_20260911.json').read_text())
+          d=json.loads(Path(os.environ['CANDIDATE_CERT']).read_text())
           assert d['status']=='PASS_PREDEPLOY_MANUAL_AND_DEPLOYMENT_PENDING'
           assert d['repository']['certified_head']=='6a1d50c76dec96e924751dd6f5f2bc1ffe4191e1'
           assert d['candidate']['hardened_worker_sha256']=='ee95b816bc056ab79be4d764cf88a68e25feed7aafdaad33ff23e2188f954616'
