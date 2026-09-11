@@ -116,6 +116,7 @@ def refresh(refresh_id: str, executed_at: str, baseline_char: str):
         replacement_governance_hash="3" * 64,
         passed=True,
         provenance_type="independent_lab_record",
+        executor_org="Independent Longitudinal Lab",
     )
 
 

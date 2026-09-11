@@ -199,6 +199,7 @@ class UnicodeOrganizationIdentityTests(unittest.TestCase):
                 replacement_governance_hash="5" * 64,
                 passed=True,
                 provenance_type="independent_lab_record",
+                executor_org="Independent Longitudinal Lab",
             )
             for i in range(3)
         )

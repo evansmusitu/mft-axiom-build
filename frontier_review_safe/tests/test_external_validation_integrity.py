@@ -57,6 +57,7 @@ def refresh(refresh_id: str, baseline_hash: str, *, candidate_sha: str = CANDIDA
         "3" * 64,
         "4" * 64,
         True,
+        executor_org="Independent Longitudinal Lab",
     )
 
 
@@ -151,6 +152,8 @@ class ExternalValidationIntegrityTests(unittest.TestCase):
             replace(record, candidate_sha="candidate")
         with self.assertRaises(ValueError):
             replace(record, case_set_hash="z" * 64)
+        with self.assertRaises(ValueError):
+            replace(record, executor_org=1)
 
     def test_level5_provider_floor_cannot_be_lowered_or_malformed(self):
         lowered = ExternalEvidenceGate.level5([], required_provider_orgs=1)

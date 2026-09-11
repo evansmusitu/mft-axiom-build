@@ -250,7 +250,7 @@ class GapClosureTests(unittest.TestCase):
         validation_receipt = attest("independent_validation", v.fingerprint, v.fingerprint, v.provenance_type)
         l6=ExternalEvidenceGate.level6(l5,[v],receipts=[validation_receipt],verifier_secrets=VERIFIER_SECRETS,trusted_issuers=TRUSTED_ISSUERS)
         self.assertEqual(l6["status"],"PASS")
-        refreshes=[LongitudinalRefreshRecord(str(i),(NOW+timedelta(days=i*30)).isoformat(), EXTERNAL_CANDIDATE_SHA, H, (str(i%2)*64), "1"*64,"2"*64,"3"*64,True) for i in range(3)]
+        refreshes=[LongitudinalRefreshRecord(str(i),(NOW+timedelta(days=i*30)).isoformat(), EXTERNAL_CANDIDATE_SHA, H, (str(i%2)*64), "1"*64,"2"*64,"3"*64,True, executor_org="Independent Longitudinal Lab") for i in range(3)]
         self.assertEqual(ExternalEvidenceGate.level7(l6,refreshes)["status"],"FAIL")
         refresh_receipts=[attest("longitudinal_refresh", r.refresh_id, r.fingerprint, "independent_lab_record", issued_at=r.executed_at) for r in refreshes]
         l7=ExternalEvidenceGate.level7(l6,refreshes,receipts=refresh_receipts,verifier_secrets=VERIFIER_SECRETS,trusted_issuers=TRUSTED_ISSUERS)
@@ -325,7 +325,7 @@ class GapClosureTests(unittest.TestCase):
         validation=IndependentValidationRecord("lab",NOW_S,EXTERNAL_CANDIDATE_SHA,case_set,"9"*64,True,"independent_lab_record")
         validation_receipt=attest("independent_validation",validation.fingerprint,validation.fingerprint,validation.provenance_type)
         refreshes=[LongitudinalRefreshRecord(str(i),(NOW+timedelta(days=i*30)).isoformat(),EXTERNAL_CANDIDATE_SHA,case_set,
-                    (str(i%2)*64),"1"*64,"2"*64,"3"*64,True) for i in range(3)]
+                    (str(i%2)*64),"1"*64,"2"*64,"3"*64,True, executor_org="Independent Longitudinal Lab") for i in range(3)]
         refresh_receipts=[attest("longitudinal_refresh",r.refresh_id,r.fingerprint,r.provenance_type, issued_at=r.executed_at) for r in refreshes]
         verified=ClaimBoundary.authorize_verified(
             "world best",runs=runs,run_receipts=run_receipts,verifier_secrets=VERIFIER_SECRETS,

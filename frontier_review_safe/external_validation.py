@@ -261,6 +261,7 @@ class LongitudinalRefreshRecord:
     replacement_governance_hash: str
     passed: bool
     provenance_type: str = "independent_lab_record"
+    executor_org: str | None = None
 
     def __post_init__(self) -> None:
         parse_time(self.executed_at)
@@ -279,6 +280,8 @@ class LongitudinalRefreshRecord:
             raise ValueError("longitudinal refresh identity required")
         if self.provenance_type not in TRUSTED_EXTERNAL_PROVENANCE:
             raise ValueError("longitudinal refresh provenance type must be trusted external provenance")
+        if self.executor_org is not None and not isinstance(self.executor_org, str):
+            raise ValueError("longitudinal refresh executor identity must be a string")
         if not isinstance(self.passed, bool):
             raise ValueError("longitudinal refresh passed flag must be boolean")
 
@@ -629,6 +632,8 @@ class ExternalEvidenceGate:
         receipt_hashes: list[str] = []
         seen_refresh_ids: set[str] = set()
         saw_nonindependent_provenance = False
+        saw_executor_identity_invalid = False
+        saw_executor_overlap = False
         saw_attester_overlap = False
         saw_predating_refresh = False
         saw_attestation_time_reversal = False
@@ -647,6 +652,12 @@ class ExternalEvidenceGate:
                 continue
             if refresh.provenance_type != "independent_lab_record":
                 saw_nonindependent_provenance = True
+                continue
+            if not isinstance(refresh.executor_org, str) or not refresh.executor_org.strip():
+                saw_executor_identity_invalid = True
+                continue
+            if _independence_organization_key(refresh.executor_org) in level5_providers:
+                saw_executor_overlap = True
                 continue
             if latest_validation_at is not None and parse_time(refresh.executed_at) < latest_validation_at:
                 saw_predating_refresh = True
@@ -679,6 +690,10 @@ class ExternalEvidenceGate:
         if len(passed_refreshes) < effective_min_refreshes:
             if saw_nonindependent_provenance:
                 reasons.append("longitudinal_refresh_provenance_required")
+            if saw_executor_identity_invalid:
+                reasons.append("longitudinal_refresh_executor_identity_invalid")
+            if saw_executor_overlap:
+                reasons.append("longitudinal_refresh_executor_overlaps_level5_provider")
             if saw_attester_overlap:
                 reasons.append("longitudinal_refresh_attester_overlaps_level5_provider")
             if saw_predating_refresh:
@@ -703,6 +718,11 @@ class ExternalEvidenceGate:
             "latest_validation_at": latest_validation_at.isoformat() if latest_validation_at is not None else None,
             "refresh_count": len(passed_refreshes),
             "distinct_refresh_times": len(distinct_refresh_times),
+            "refresh_executor_orgs": sorted({
+                _independence_organization_key(r.executor_org)
+                for r in passed_refreshes
+                if isinstance(r.executor_org, str) and r.executor_org.strip()
+            }),
             "refresh_evidence_sha256": sha256([asdict(r) for r in sorted(passed_refreshes, key=lambda x: x.refresh_id)]),
             "attestation_sha256": sha256(sorted(receipt_hashes)) if receipt_hashes else None,
         }

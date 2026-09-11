@@ -171,6 +171,7 @@ class ExternalAttestationGateMappingIntegrityTests(unittest.TestCase):
                 f"r{i}", (NOW + timedelta(days=i * 30)).isoformat(), CANDIDATE_SHA,
                 CASE_SET_HASH, ("4" if i % 2 == 0 else "5") * 64,
                 "1" * 64, "2" * 64, "3" * 64, True,
+                executor_org="Independent Longitudinal Lab",
             )
             for i in range(3)
         ]

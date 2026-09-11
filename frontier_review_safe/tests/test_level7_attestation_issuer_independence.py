@@ -74,6 +74,7 @@ def refresh(refresh_id: str, day: int, baseline_hash: str) -> LongitudinalRefres
         replacement_governance_hash="3" * 64,
         passed=True,
         provenance_type="independent_lab_record",
+        executor_org="Independent Longitudinal Lab",
     )
 
 
@@ -167,6 +168,7 @@ class Level7AttestationIssuerIndependenceTests(unittest.TestCase):
         self.assertEqual(result["status"], "PASS")
         self.assertEqual(result["refresh_count"], 3)
         self.assertEqual(result["level5_provider_orgs"], ["anthropic", "google", "openai"])
+        self.assertEqual(result["refresh_executor_orgs"], ["independent longitudinal lab"])
 
     def test_provider_attested_extra_does_not_poison_three_independent_refreshes(self):
         level6 = level6_with_provider_scope()

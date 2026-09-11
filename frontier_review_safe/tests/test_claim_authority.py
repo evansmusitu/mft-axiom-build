@@ -190,6 +190,7 @@ class ClaimAuthorityTests(unittest.TestCase):
                 "3" * 64,
                 True,
                 "independent_lab_record",
+                executor_org="Independent Longitudinal Lab",
             )
             for i in range(3)
         ]

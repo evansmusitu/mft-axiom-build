@@ -33,6 +33,7 @@ def refresh(refresh_id: str, day: int, provenance_type: str, baseline_hash: str)
         replacement_governance_hash="3" * 64,
         passed=True,
         provenance_type=provenance_type,
+        executor_org="Independent Longitudinal Lab",
     )
 
 
@@ -93,6 +94,7 @@ class Level7ProvenanceIntegrityTests(unittest.TestCase):
         self.assertEqual(result["status"], "PASS")
         self.assertEqual(result["refresh_count"], 3)
         self.assertEqual(result["distinct_refresh_times"], 3)
+        self.assertEqual(result["refresh_executor_orgs"], ["independent longitudinal lab"])
 
     def test_provider_origin_extra_does_not_poison_complete_independent_set(self):
         records = [
