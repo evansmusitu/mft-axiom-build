@@ -1,0 +1,50 @@
+{
+  "schema": "musitu.store.phase2.accessibility_evidence_helper_certification.v1",
+  "created_date_utc": "2026-09-11",
+  "status": "PASS",
+  "phase2Complete": false,
+  "production_mutation": false,
+  "repository": {
+    "full_name": "evansmusitu/mft-axiom-build",
+    "branch": "musitu-store-phase2-standards-hardening-20260911",
+    "helper_source_commit": "27bf8ad6fbaf09ed4e20dab10f3c708847f1302b",
+    "workflow_head": "26370063663fe85f5bdd765f87f19de5cc7d7dce",
+    "phase1_head": "ebded495617cc89bb96d7a5531c1ce4fc6bbedd9",
+    "sealed_main": "d6a846f6bbe0bccac1758713eb4de167caf07113"
+  },
+  "helper": {
+    "path": "store/phase2/prepare_manual_accessibility_evidence.ps1",
+    "purpose": "Fingerprint an original real accessibility recording and emit deterministic environment plus evidence-integrity metadata without marking accessibility checks PASS.",
+    "does_not_substitute_for_real_assistive_technology_test": true,
+    "does_not_mark_manual_checks_pass": true,
+    "does_not_authorize_production_mutation": true
+  },
+  "windows_smoke": {
+    "workflow": "MUSITU Store Phase 2 Evidence Helper Smoke",
+    "run_id": 34575797677,
+    "job_id": 103187853256,
+    "conclusion": "success",
+    "runner": "windows-latest",
+    "verified": {
+      "powershell_parse": true,
+      "deterministic_recording_fixture": true,
+      "sha256_generation": true,
+      "byte_length_generation": true,
+      "media_type_detection": true,
+      "windows_os_metadata": true,
+      "browser_name_and_version_detection": true,
+      "microsoft_narrator_metadata": true,
+      "stable_reference_propagation": true,
+      "manifest_hash_and_byte_consistency": true,
+      "absolute_output_path_handling": true
+    },
+    "artifact": {
+      "id": 10189562925,
+      "name": "musitu-store-phase2-evidence-helper-smoke",
+      "bytes": 1068,
+      "digest": "sha256:063c5b1d793471ab9c09de0c7a03be040b273f166bf4b8454ae28204490eb015",
+      "expires_at_utc": "2026-10-11T07:44:45Z"
+    }
+  },
+  "claim_boundary": "The Windows evidence-preparation helper has been executed successfully on a real Windows GitHub runner and is suitable for deterministic capture of recording integrity and environment metadata. This certification does not constitute real keyboard, screen-reader, or zoom/reflow evidence and does not complete Phase 2."
+}
