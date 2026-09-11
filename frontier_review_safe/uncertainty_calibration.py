@@ -84,6 +84,7 @@ class DomainProbabilityCalibrationArtifact:
     calibration_groups: tuple[str, ...]
     holdout_groups: tuple[str, ...]
     promotion_authorized: bool
+    maximum_brier_regression: float = 0.0
 
     def __post_init__(self) -> None:
         if self.schema != "musitu.axiom.domain-probability-calibration.v1":
@@ -106,13 +107,21 @@ class DomainProbabilityCalibrationArtifact:
             raise ValueError("duplicate uncertainty calibration independence group")
         if set(self.calibration_groups) & set(self.holdout_groups):
             raise FrontierSafetyError("independence-group leakage between calibration and holdout")
-        metrics = tuple(float(x) for x in (self.holdout_raw_brier, self.holdout_calibrated_brier, self.holdout_ece, self.maximum_holdout_ece))
+        metrics = tuple(float(x) for x in (
+            self.holdout_raw_brier,
+            self.holdout_calibrated_brier,
+            self.holdout_ece,
+            self.maximum_holdout_ece,
+            self.maximum_brier_regression,
+        ))
         if any(not math.isfinite(value) for value in metrics):
             raise ValueError("calibration metrics and thresholds must be finite")
         if not 0.0 <= metrics[0] <= 1.0 or not 0.0 <= metrics[1] <= 1.0:
             raise ValueError("holdout Brier scores must be within [0,1]")
         if not 0.0 <= metrics[2] <= 1.0 or not 0.0 <= metrics[3] <= 1.0:
             raise ValueError("holdout ECE values must be within [0,1]")
+        if not 0.0 <= metrics[4] <= 1.0:
+            raise ValueError("maximum_brier_regression must be within [0,1]")
         histogram = tuple(float(value) for value in self.reference_histogram)
         if any(not math.isfinite(value) or not 0.0 <= value <= 1.0 for value in histogram):
             raise ValueError("reference histogram entries must be finite probabilities")
@@ -120,6 +129,8 @@ class DomainProbabilityCalibrationArtifact:
             raise ValueError("reference histogram must sum to one")
         if not isinstance(self.promotion_authorized, bool):
             raise ValueError("promotion_authorized must be boolean")
+        if self.promotion_authorized and self.holdout_calibrated_brier > self.holdout_raw_brier + self.maximum_brier_regression:
+            raise FrontierSafetyError("promoted uncertainty calibration exceeds declared Brier regression limit")
         if self.promotion_authorized and self.holdout_ece > self.maximum_holdout_ece:
             raise FrontierSafetyError("promoted uncertainty calibration exceeds declared holdout ECE limit")
 
@@ -258,8 +269,8 @@ class DomainProbabilityCalibrator:
                 raise ValueError(f"{name} must be a positive integer")
         maximum_regression = float(maximum_brier_regression)
         maximum_ece = float(maximum_holdout_ece)
-        if not math.isfinite(maximum_regression) or maximum_regression < 0.0:
-            raise ValueError("maximum_brier_regression must be finite and non-negative")
+        if not math.isfinite(maximum_regression) or not 0.0 <= maximum_regression <= 1.0:
+            raise ValueError("maximum_brier_regression must be finite and in [0,1]")
         if not math.isfinite(maximum_ece) or not 0.0 <= maximum_ece <= 1.0:
             raise ValueError("maximum_holdout_ece must be finite and in [0,1]")
 
@@ -333,6 +344,7 @@ class DomainProbabilityCalibrator:
             tuple(sorted(calibration_groups)),
             tuple(sorted(holdout_groups)),
             promoted,
+            maximum_regression,
         )
 
 
