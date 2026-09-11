@@ -1,0 +1,91 @@
+tes") or []
+    exact = [r for r in routes if isinstance(r, dict) and r.get("pattern") == ROUTE]
+    if len(exact) != 1 or exact[0].get("script") != WORKER:
+        raise RuntimeError("Store route drift")
+    settings = cf(f"/accounts/{AID}/workers/scripts/{urllib.parse.quote(WORKER, safe='')}/settings") or {}
+    bindings = {x.get("name"): x for x in settings.get("bindings") or [] if isinstance(x, dict)}
+    if set(bindings) != {"STORE_RELEASES", "STORE_RUNTIME_PUBLICATION_STATE"}:
+        raise RuntimeError("Store binding set drift")
+    r2 = bindings["STORE_RELEASES"]
+    runtime = bindings["STORE_RUNTIME_PUBLICATION_STATE"]
+    if r2.get("type") != "r2_bucket" or r2.get("bucket_name") != BUCKET:
+        raise RuntimeError("Store R2 binding drift")
+    if runtime.get("type") != "plain_text" or runtime.get("text") != "production":
+        raise RuntimeError("Store runtime-state binding drift")
+    sub = cf(f"/accounts/{AID}/workers/scripts/{urllib.parse.quote(WORKER, safe='')}/subdomain") or {}
+    if sub.get("enabled") is not False or sub.get("previews_enabled") is not False:
+        raise RuntimeError("Store workers.dev exposure drift")
+    return exact[0].get("id")
+
+
+def r2_readback(key: str, out: pathlib.Path, expected_bytes: int, expected_sha: str):
+    if out.exists():
+        out.unlink()
+    wrangler("r2", "object", "get", BUCKET + "/" + key, "--remote", "--file", str(out))
+    raw = out.read_bytes()
+    if len(raw) != expected_bytes or sha(raw) != expected_sha:
+        raise RuntimeError("R2 readback mismatch " + key)
+
+
+def r2_assert_absent(key: str):
+    out = SNAPSHOT / "absent-probe.bin"
+    if out.exists():
+        out.unlink()
+    p = wrangler("r2", "object", "get", BUCKET + "/" + key, "--remote", "--file", str(out), check=False)
+    if p.returncode == 0:
+        raise RuntimeError("append-only target unexpectedly exists: " + key)
+    if out.exists() and out.stat().st_size:
+        raise RuntimeError("absent R2 probe produced bytes")
+    if not re.search(r"not found|does not exist|NoSuchKey|404", p.stdout, re.I):
+        raise RuntimeError("R2 absence not proven; probe failed for another reason")
+
+
+def verify_chemistry_and_platform():
+    code, _, raw = pub("/chemistry/healthz", "application/json")
+    if code != 200 or json.loads(raw or b"{}").get("ok") is not True:
+        raise RuntimeError("Chemistry health invariant failed")
+    code, _, raw = pub("/chemistry/download/MUSITU_Chemistry_Mastery_1.3.0.apk", "application/vnd.android.package-archive")
+    if code != 200 or len(raw) != CHEM_APK_BYTES or sha(raw) != CHEM_APK_SHA:
+        raise RuntimeError("Chemistry Android invariant failed")
+    code, _, raw = pub("/store/ios/MUSITU_Chemistry_1.3.0.ipa", "application/octet-stream")
+    if code != 200 or len(raw) != CHEM_IPA_BYTES or sha(raw) != CHEM_IPA_SHA:
+        raise RuntimeError("Chemistry iOS invariant failed")
+    code, _, raw = pub("/store/ios/source.json", "application/json")
+    if code != 200 or sha(raw) != SIDESTORE_SHA:
+        raise RuntimeError("SideStore source invariant failed")
+    code, _, raw = pub("/store/android/repo/index-v1.json", "application/json")
+    if code != 200 or sha(raw) != FDROID_JSON_SHA:
+        raise RuntimeError("F-Droid JSON invariant failed")
+
+
+def parse_worker_multipart(content_type: str, body: bytes) -> dict[str, bytes]:
+    if "multipart/" not in content_type.lower():
+        raise RuntimeError("live Worker is not multipart modules")
+    raw = ("Content-Type: " + content_type + "\r\nMIME-Version: 1.0\r\n\r\n").encode() + body
+    msg = email.message_from_bytes(raw, policy=email.policy.default)
+    parts: dict[str, bytes] = {}
+    for part in msg.iter_parts():
+        name = part.get_param("name", header="content-disposition") or part.get_filename()
+        if name:
+            payload = part.get_payload(decode=True)
+            if payload is not None:
+                parts[str(name)] = payload
+    return parts
+
+
+def snapshot_and_verify_live_worker():
+    global worker_snapshot_body, worker_snapshot_content_type
+    path = f"/accounts/{AID}/workers/scripts/{urllib.parse.quote(WORKER, safe='')}"
+    code, headers, body = req(API + path, "GET", AUTH)
+    if code != 200:
+        raise RuntimeError("failed to snapshot live Store Worker")
+    ctype = headers.get("Content-Type") or headers.get("content-type")
+    if not ctype:
+        raise RuntimeError("live Store Worker snapshot missing Content-Type")
+    parts = parse_worker_multipart(ctype, body)
+    expected_names = {"worker.mjs", "render.mjs", "assets.mjs", "generated-data.mjs"}
+    module_parts = {k: v for k, v in parts.items() if k in expected_names}
+    if set(module_parts) != expected_names:
+        raise RuntimeError("live Worker module set mismatch: " + repr(sorted(parts)))
+    hashes = {}
+    fo
