@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass
 from typing import Any, Mapping, Sequence
 import math
+import re
 
 from .baseline_registry import BaselineRegistry
 from .core import FrontierSafetyError, parse_time, sha256
@@ -481,9 +482,33 @@ class ExternalEvidenceGate:
 
 class ClaimBoundary:
     BROAD_CLAIMS = frozenset({
-        "world best", "global frontier leader", "better than openai", "better than anthropic",
-        "better than google", "better than microsoft", "superior to all systems", "frontier-leading", "crowned",
+        "world best", "best in the world", "world leading", "global best", "global leader",
+        "global frontier leader", "frontier leader", "frontier leading",
+        "superior to all systems", "leading all systems", "crowned",
     })
+    FRONTIER_PROVIDER_NAMES = frozenset({"openai", "anthropic", "google", "microsoft"})
+    PROVIDER_SUPERIORITY_TERMS = frozenset({
+        "better than", "superior to", "outperforms", "outperforming", "beats", "beating", "dominates", "ahead of",
+    })
+    GLOBAL_SCOPE_TERMS = frozenset({"world", "global", "frontier", "all systems"})
+    GLOBAL_SUPERLATIVE_TERMS = frozenset({"best", "leading", "leader", "top", "number one", "superior", "crowned"})
+
+    @staticmethod
+    def _normalize_claim(value: str) -> str:
+        return " ".join(re.sub(r"[^a-z0-9]+", " ", value.strip().lower()).split())
+
+    @classmethod
+    def _is_broad_claim(cls, requested_claim: str) -> bool:
+        normalized = cls._normalize_claim(requested_claim)
+        if any(token in normalized for token in cls.BROAD_CLAIMS):
+            return True
+        provider_named = any(provider in normalized for provider in cls.FRONTIER_PROVIDER_NAMES)
+        superiority = any(term in normalized for term in cls.PROVIDER_SUPERIORITY_TERMS)
+        if provider_named and superiority:
+            return True
+        global_scope = any(scope in normalized for scope in cls.GLOBAL_SCOPE_TERMS)
+        global_superlative = any(term in normalized for term in cls.GLOBAL_SUPERLATIVE_TERMS)
+        return global_scope and global_superlative
 
     @classmethod
     def authorize(
@@ -498,8 +523,7 @@ class ClaimBoundary:
         comparative_outcomes: Sequence[ComparativeOutcome] = (),
         required_provider_orgs: Sequence[str] = (),
     ) -> dict[str, Any]:
-        normalized = requested_claim.strip().lower()
-        broad = any(token in normalized for token in cls.BROAD_CLAIMS)
+        broad = cls._is_broad_claim(requested_claim)
         max_level = 4
         if (level5.get("status") == "PASS" and level5.get("attestation_verified") is True
                 and level5.get("baseline_registry_verified") is True):
