@@ -1,0 +1,275 @@
+name: MUSITU Store Phase 2 Standards Hardening Preflight
+
+on:
+  push:
+    branches: [musitu-store-phase2-standards-hardening-20260911]
+    paths:
+      - 'store/phase2/**'
+      - 'evidence/musitu-store/MUSITU_STORE_PHASE2_STANDARDS_HARDENING_BASELINE_20260911.json'
+      - '.github/workflows/musitu-store-phase2-standards-hardening-preflight.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: musitu-store-phase2-standards-hardening-preflight
+  cancel-in-progress: false
+
+jobs:
+  standards-preflight:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      SEALED_MAIN: d6a846f6bbe0bccac1758713eb4de167caf07113
+      PHASE1_BRANCH: musitu-store-phase1-20260909
+      PHASE1_HEAD_AT_PHASE2_START: ebded495617cc89bb96d7a5531c1ce4fc6bbedd9
+      RELEASE_SOURCE_ANCESTOR: 0ffe2de07c6b18873cc73b157ade3afe589f8a35
+      STORE_V102_SHA: 3a0c4b0f971ec84cd6167a137f8e3d75c7bb20e525c26ab533b3d88044cd0784
+      STORE_V102_BYTES: '1679340'
+      CATALOG_REV3_SHA: 4fa31c5f9f84facc0d1fbf7a91a50b0adcaa5ef4c97b7d82abbe9657ea10b7f9
+      CATALOG_REV3_SIG_SHA: 9b854358f90368ceb5cc3baab8d99064d8ee94b79ead378a614f8cc1732b06a7
+      CHEMISTRY_APK_SHA: 4ba442122d9c86a0c3cef660334fe337c6ea9ae6fe853c964b5e94961245babd
+      CHEMISTRY_APK_BYTES: '5892286'
+      CHEMISTRY_IPA_SHA: 426d2dc05e2fc8846a7582324d953bbdd2a256f170f8db2b5a956bc1c51cc962
+      CHEMISTRY_IPA_BYTES: '3640968'
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Prove Phase 2 authorization and immutable boundaries
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF_NAME" = 'musitu-store-phase2-standards-hardening-20260911'
+          git fetch --quiet origin main "$PHASE1_BRANCH"
+          test "$(git rev-parse origin/main)" = "$SEALED_MAIN"
+          test "$(git rev-parse origin/$PHASE1_BRANCH)" = "$PHASE1_HEAD_AT_PHASE2_START"
+          git merge-base --is-ancestor "$RELEASE_SOURCE_ANCESTOR" "$GITHUB_SHA"
+          git merge-base --is-ancestor "$PHASE1_HEAD_AT_PHASE2_START" "$GITHUB_SHA"
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          p=Path('evidence/musitu-store/MUSITU_STORE_PHASE2_STANDARDS_HARDENING_BASELINE_20260911.json')
+          d=json.loads(p.read_text())
+          assert d['schema']=='musitu.store.phase2.standards_hardening_baseline.v1'
+          assert d['authorization']['phase2Authorized'] is True
+          assert d['authorization']['authorization_text']=='Begin phase 2'
+          assert d['repository']['sealed_main']=='d6a846f6bbe0bccac1758713eb4de167caf07113'
+          assert d['parallel_phase1_state']['freshDevicePhase1Complete'] is False
+          assert d['parallel_phase1_state']['physical_device_step15_complete'] is False
+          assert d['production_mutation_from_phase2_start'] is False
+          print('PHASE2_AUTHORIZATION_AND_BOUNDARY=PASS')
+          PY
+
+      - name: Run inherited Store and commerce regression suites
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --test store/phase1/web-surface/*.test.mjs
+          (
+            cd commerce/chemistry
+            npm test
+            npm run check
+          )
+          echo INHERITED_REGRESSION_SUITES=PASS
+
+      - name: Reconstruct exact current production Store 1.0.2 web image
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/musitu-store-phase2 /tmp/musitu-store-phase2-evidence
+          mkdir -p /tmp/musitu-store-phase2-evidence
+          git worktree add --detach /tmp/musitu-store-phase2 "$GITHUB_SHA"
+          cp /tmp/musitu-store-phase2/store/phase1/release/v102-live/catalog-revision-3.json /tmp/musitu-store-phase2/store/phase1/catalog.json
+          cp /tmp/musitu-store-phase2/store/phase1/release/v102-live/catalog-revision-3.sig /tmp/musitu-store-phase2/store/phase1/catalog.sig
+          test "$(sha256sum /tmp/musitu-store-phase2/store/phase1/catalog.json | awk '{print $1}')" = "$CATALOG_REV3_SHA"
+          test "$(sha256sum /tmp/musitu-store-phase2/store/phase1/catalog.sig | awk '{print $1}')" = "$CATALOG_REV3_SIG_SHA"
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          root=Path('/tmp/musitu-store-phase2/store/phase1')
+          catalog=json.loads((root/'catalog.json').read_text())
+          assert catalog['revision']==3
+          sc=catalog['releaseControl']['storeClient']
+          assert sc['version']=='1.0.2'
+          assert sc['versionCode']==10002
+          assert sc['packageId']=='com.musitu.store'
+          assert sc['sha256']=='3a0c4b0f971ec84cd6167a137f8e3d75c7bb20e525c26ab533b3d88044cd0784'
+          assert sc['bytes']==1679340
+          bootstrap=root/'bootstrap/release.json'
+          b=json.loads(bootstrap.read_text())
+          b.update({
+            'version':'1.0.2',
+            'versionCode':10002,
+            'packageId':'com.musitu.store',
+            'artifactFile':'MUSITU_Store_1.0.2.apk',
+            'sha256':'3a0c4b0f971ec84cd6167a137f8e3d75c7bb20e525c26ab533b3d88044cd0784',
+            'bytes':1679340,
+            'signingCertificateSha256':'43695b6103d7ab57e89166c9a537f1810b7e33053e20332b1d4e7e2e1c612671'
+          })
+          bootstrap.write_text(json.dumps(b,indent=2)+'\n')
+          worker=root/'web-surface/worker.mjs'
+          s=worker.read_text()
+          if 'MUSITU_Store_1.0.2.apk' not in s:
+              needle='const RELEASE_ASSETS={\n'
+              entry="  '/store/bootstrap/MUSITU_Store_1.0.2.apk':{key:'bootstrap/MUSITU_Store_1.0.2.apk',sha256:'3a0c4b0f971ec84cd6167a137f8e3d75c7bb20e525c26ab533b3d88044cd0784',bytes:1679340,type:'application/vnd.android.package-archive',name:'MUSITU_Store_1.0.2.apk'},\n"
+              assert needle in s
+              s=s.replace(needle,needle+entry,1)
+              worker.write_text(s)
+          print('EXACT_V102_RUNTIME_IMAGE_PREPARED=PASS')
+          PY
+          (
+            cd /tmp/musitu-store-phase2
+            python store/phase1/web-surface/build_store_data.py
+          )
+          node --check /tmp/musitu-store-phase2/store/phase1/web-surface/worker.mjs
+          node --check /tmp/musitu-store-phase2/store/phase1/web-surface/generated-data.mjs
+
+      - name: Verify live production identities read-only
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --retry 3 --retry-all-errors -fsSL https://payments.mftintelligence.com/store/catalog.json -o /tmp/live-catalog.json
+          curl --retry 3 --retry-all-errors -fsSL https://payments.mftintelligence.com/store/catalog.sig -o /tmp/live-catalog.sig
+          curl --retry 3 --retry-all-errors -fsSL https://payments.mftintelligence.com/store/bootstrap/MUSITU_Store_1.0.2.apk -o /tmp/MUSITU_Store_1.0.2.apk
+          curl --retry 3 --retry-all-errors -fsSL https://payments.mftintelligence.com/chemistry/download/MUSITU_Chemistry_Mastery_1.3.0.apk -o /tmp/MUSITU_Chemistry_Mastery_1.3.0.apk
+          curl --retry 3 --retry-all-errors -fsSL https://payments.mftintelligence.com/store/ios/MUSITU_Chemistry_1.3.0.ipa -o /tmp/MUSITU_Chemistry_1.3.0.ipa
+          test "$(sha256sum /tmp/live-catalog.json | awk '{print $1}')" = "$CATALOG_REV3_SHA"
+          test "$(sha256sum /tmp/live-catalog.sig | awk '{print $1}')" = "$CATALOG_REV3_SIG_SHA"
+          test "$(stat -c%s /tmp/MUSITU_Store_1.0.2.apk)" = "$STORE_V102_BYTES"
+          test "$(sha256sum /tmp/MUSITU_Store_1.0.2.apk | awk '{print $1}')" = "$STORE_V102_SHA"
+          test "$(stat -c%s /tmp/MUSITU_Chemistry_Mastery_1.3.0.apk)" = "$CHEMISTRY_APK_BYTES"
+          test "$(sha256sum /tmp/MUSITU_Chemistry_Mastery_1.3.0.apk | awk '{print $1}')" = "$CHEMISTRY_APK_SHA"
+          test "$(stat -c%s /tmp/MUSITU_Chemistry_1.3.0.ipa)" = "$CHEMISTRY_IPA_BYTES"
+          test "$(sha256sum /tmp/MUSITU_Chemistry_1.3.0.ipa | awk '{print $1}')" = "$CHEMISTRY_IPA_SHA"
+          printf '%s\n' '{"schema":"musitu.store.phase2.live_identity_readonly.v1","result":"PASS","production_mutation":false,"catalog_revision":3,"store_version":"1.0.2"}' > /tmp/musitu-store-phase2-evidence/live-identity.json
+          echo LIVE_PRODUCTION_IDENTITIES=PASS
+
+      - name: Install browser audit tooling
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --no-save --no-package-lock playwright axe-core lighthouse
+          CHROME_PATH="$(command -v google-chrome || command -v chromium || command -v chromium-browser || true)"
+          test -n "$CHROME_PATH"
+          echo "CHROME_PATH=$CHROME_PATH" >> "$GITHUB_ENV"
+          node -e "console.log('playwright='+require('playwright/package.json').version);console.log('axe-core='+require('axe-core/package.json').version);console.log('lighthouse='+require('lighthouse/package.json').version)" | tee /tmp/musitu-store-phase2-evidence/tool-versions.txt
+
+      - name: Run WCAG automation security and constrained-network browser gate
+        shell: bash
+        env:
+          WORKER_PATH: /tmp/musitu-store-phase2/store/phase1/web-surface/worker.mjs
+          PHASE2_BROWSER_EVIDENCE: /tmp/musitu-store-phase2-evidence/browser-standards-evidence.json
+        run: |
+          set -euo pipefail
+          node store/phase2/standards-browser-smoke.mjs "$WORKER_PATH"
+
+      - name: Run inherited Lighthouse performance budgets against exact 1.0.2 image
+        shell: bash
+        env:
+          WORKER_PATH: /tmp/musitu-store-phase2/store/phase1/web-surface/worker.mjs
+        run: |
+          set -euo pipefail
+          cat >/tmp/musitu-store-phase2-serve.mjs <<'JS'
+          import http from 'node:http';
+          import {pathToFileURL} from 'node:url';
+          const worker=(await import(pathToFileURL(process.env.WORKER_PATH).href+'?serve='+Date.now())).default;
+          const origin='http://127.0.0.1:8787';
+          const server=http.createServer(async(req,res)=>{
+            try{
+              const response=await worker.fetch(new Request(origin+req.url,{method:req.method,headers:req.headers}),{STORE_RUNTIME_PUBLICATION_STATE:'production'},{});
+              res.statusCode=response.status;
+              for(const [k,v] of response.headers) res.setHeader(k,v);
+              res.end(Buffer.from(await response.arrayBuffer()));
+            }catch(error){res.statusCode=500;res.end(String(error?.stack||error));}
+          });
+          server.listen(8787,'127.0.0.1',()=>console.log('STORE_PHASE2_SERVER_READY'));
+          JS
+          node /tmp/musitu-store-phase2-serve.mjs >/tmp/musitu-store-phase2-server.log 2>&1 &
+          SERVER_PID=$!
+          trap 'kill "$SERVER_PID" 2>/dev/null || true' EXIT
+          for i in $(seq 1 30); do curl -fsS http://127.0.0.1:8787/store >/dev/null && break; sleep 0.5; done
+          curl -fsS http://127.0.0.1:8787/store >/dev/null
+          npx lighthouse http://127.0.0.1:8787/store \
+            --output=json --output-path=/tmp/musitu-store-phase2-evidence/lighthouse.json \
+            --only-categories=performance,accessibility,best-practices \
+            --chrome-flags="--headless --no-sandbox --disable-dev-shm-usage" --quiet
+          node --input-type=module <<'JS'
+          import fs from 'node:fs';
+          const budget=JSON.parse(fs.readFileSync('commerce/chemistry/storefront/lighthouse-budget.json','utf8'));
+          const l=JSON.parse(fs.readFileSync('/tmp/musitu-store-phase2-evidence/lighthouse.json','utf8'));
+          const results={
+            performance:l.categories.performance.score,
+            accessibility:l.categories.accessibility.score,
+            best_practices:l.categories['best-practices'].score,
+            lcp_ms:l.audits['largest-contentful-paint'].numericValue,
+            cls:l.audits['cumulative-layout-shift'].numericValue,
+            tbt_ms:l.audits['total-blocking-time'].numericValue,
+            field_inp_status:budget.field_inp_status
+          };
+          const pass=results.performance>=budget.performance_score_min && results.accessibility>=budget.accessibility_score_min && results.best_practices>=budget.best_practices_score_min && results.lcp_ms<=budget.lcp_ms_max && results.cls<=budget.cls_max && results.tbt_ms<=budget.tbt_ms_max;
+          fs.writeFileSync('/tmp/musitu-store-phase2-evidence/lighthouse-summary.json',JSON.stringify({schema:'musitu.store.phase2.lighthouse.v1',budget_source:'commerce/chemistry/storefront/lighthouse-budget.json',budget,results,pass},null,2)+'\n');
+          console.log(JSON.stringify(results));
+          if(!pass) process.exit(1);
+          JS
+          kill "$SERVER_PID" 2>/dev/null || true
+          trap - EXIT
+
+      - name: Seal Phase 2 pre-deployment evidence
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'JS'
+          import fs from 'node:fs';
+          const dir='/tmp/musitu-store-phase2-evidence';
+          const browserPath=dir+'/browser-standards-evidence.json';
+          const lighthousePath=dir+'/lighthouse-summary.json';
+          const livePath=dir+'/live-identity.json';
+          const browser=fs.existsSync(browserPath)?JSON.parse(fs.readFileSync(browserPath,'utf8')):null;
+          const lighthouse=fs.existsSync(lighthousePath)?JSON.parse(fs.readFileSync(lighthousePath,'utf8')):null;
+          const live=fs.existsSync(livePath)?JSON.parse(fs.readFileSync(livePath,'utf8')):null;
+          const automatedPass=browser?.result==='PASS_AUTOMATED'&&lighthouse?.pass===true&&live?.result==='PASS';
+          const summary={
+            schema:'musitu.store.phase2.standards_hardening_predeploy.v1',
+            phase2_authorized:true,
+            phase1_physical_device_step15_complete:false,
+            freshDevicePhase1Complete:false,
+            sealed_main:'d6a846f6bbe0bccac1758713eb4de167caf07113',
+            exact_production_store_version:'1.0.2',
+            exact_production_catalog_revision:3,
+            automated_wcag_security_low_bandwidth_gate:browser?.result||'NOT_COMPLETED',
+            lighthouse_budget_gate:lighthouse?.pass===true?'PASS':'NOT_PASS',
+            live_identity_gate:live?.result||'NOT_COMPLETED',
+            manual_screen_reader_smoke:'PENDING',
+            phase2_verified_deployment:'PENDING',
+            phase2_rollback_proof:'PENDING',
+            production_mutation:false,
+            automated_predeploy_gate:automatedPass?'PASS':'NOT_PASS',
+            claim_boundary:'Automated pre-deployment standards evidence may pass while full Phase 2 remains incomplete until required manual accessibility evidence plus Phase-2-specific verified deployment and rollback proof are complete.'
+          };
+          fs.mkdirSync(dir,{recursive:true});
+          fs.writeFileSync(dir+'/predeploy-summary.json',JSON.stringify(summary,null,2)+'\n');
+          console.log(JSON.stringify(summary,null,2));
+          JS
+          cd /tmp/musitu-store-phase2-evidence
+          find . -maxdepth 1 -type f ! -name SHA256SUMS.txt -print0 | sort -z | xargs -0 sha256sum > SHA256SUMS.txt
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: musitu-store-phase2-standards-hardening-predeploy
+          path: /tmp/musitu-store-phase2-evidence
+          retention-days: 90
+          if-no-files-found: error
