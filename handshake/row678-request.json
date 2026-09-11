@@ -1,0 +1,7 @@
+{
+  "schema": "mft.education_nexus.phase2.row678.ephemeral_handshake.v1",
+  "build_id": "row678-ephemeral-v1",
+  "source_plain_sha256": "bfb1f70415a35738d7082550df9fe8afbd7e445d84eb3698020858fe1d48b168",
+  "public_key_sha256": "fb0da74f258d947aa931641ba19844f149d79803fe92ed73db364420246d9ee7",
+  "private_key_persisted": false
+}
