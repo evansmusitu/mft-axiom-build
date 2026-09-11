@@ -1,0 +1,50 @@
+{
+  "schema": "musitu.chemistry.commerce.orders_readonly.v1",
+  "captured_at_utc": "2026-09-11T11:51:18+00:00",
+  "workflow_run": 34596023006,
+  "workflow_job": 103251843492,
+  "artifact_id": 10262462653,
+  "artifact_zip_sha256": "1cdc0f18ac027620352390d2c824a97294df3a0903fbcb97d4720428e9528705",
+  "repository_head": "fff60ebac1dd4cf28210d86976f87c7864c041e2",
+  "all_time": {
+    "orders": 40,
+    "amount_cents": 150576,
+    "by_status": {"cancelled": 26, "pending": 14}
+  },
+  "since_rescue_launch": {
+    "orders": 24,
+    "amount_cents": 94978,
+    "by_status": {"cancelled": 10, "pending": 14}
+  },
+  "since_direct_fallback_deploy": {
+    "orders": 0,
+    "amount_cents": 0,
+    "by_status": {}
+  },
+  "aggregate_rows": {
+    "all_time": [
+      {"plan":"annual","status":"pending","currency":"USD","orders":8,"amount_cents":7992,"first_created_at":"2026-09-10T07:10:12.065Z","last_created_at":"2026-09-10T07:10:47.175Z"},
+      {"plan":"school","status":"cancelled","currency":"USD","orders":2,"amount_cents":80000,"first_created_at":"2026-09-07T21:06:21.738Z","last_created_at":"2026-09-07T21:06:23.093Z"},
+      {"plan":"term","status":"cancelled","currency":"USD","orders":10,"amount_cents":4990,"first_created_at":"2026-09-06T17:48:14.384Z","last_created_at":"2026-09-08T09:39:58.046Z"},
+      {"plan":"term","status":"pending","currency":"USD","orders":6,"amount_cents":2994,"first_created_at":"2026-09-10T07:08:37.966Z","last_created_at":"2026-09-10T07:09:30.857Z"},
+      {"plan":"tutor","status":"cancelled","currency":"USD","orders":14,"amount_cents":54600,"first_created_at":"2026-09-06T18:59:05.712Z","last_created_at":"2026-09-06T18:59:25.363Z"}
+    ],
+    "since_rescue_launch": [
+      {"plan":"annual","status":"pending","currency":"USD","orders":8,"amount_cents":7992,"first_created_at":"2026-09-10T07:10:12.065Z","last_created_at":"2026-09-10T07:10:47.175Z"},
+      {"plan":"school","status":"cancelled","currency":"USD","orders":2,"amount_cents":80000,"first_created_at":"2026-09-07T21:06:21.738Z","last_created_at":"2026-09-07T21:06:23.093Z"},
+      {"plan":"term","status":"cancelled","currency":"USD","orders":8,"amount_cents":3992,"first_created_at":"2026-09-07T20:56:10.336Z","last_created_at":"2026-09-08T09:39:58.046Z"},
+      {"plan":"term","status":"pending","currency":"USD","orders":6,"amount_cents":2994,"first_created_at":"2026-09-10T07:08:37.966Z","last_created_at":"2026-09-10T07:09:30.857Z"}
+    ],
+    "since_direct_fallback_deploy": []
+  },
+  "query_class": "SELECT_ONLY_AGGREGATE",
+  "raw_order_references_read": false,
+  "holder_names_read": false,
+  "emails_read": false,
+  "personal_identifiers_queried": false,
+  "production_mutation": false,
+  "payment_created": false,
+  "payment_submitted": false,
+  "settlement_claimed": false,
+  "interpretation_boundary": "Order records and nominal amounts are not verified settlement or revenue. No paid status is present in this snapshot."
+}
