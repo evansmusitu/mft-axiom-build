@@ -85,7 +85,7 @@ def attest(record: LongitudinalRefreshRecord, *, issuer_org: str, key_id: str, s
         issuer_org=issuer_org,
         verifier_key_id=key_id,
         provenance_type=record.provenance_type,
-        issued_at=NOW.isoformat(),
+        issued_at=record.executed_at,
         verifier_secret=secret,
     )
 

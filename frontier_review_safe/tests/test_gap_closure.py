@@ -44,7 +44,7 @@ def evidence(eid="e1"):
     return Evidence(eid, "fact", True, "source", NOW_S, .95, True, .9, .9, 1, 1, 0, 0, eid)
 
 
-def attest(subject_type, subject_id, subject_hash, provenance_type):
+def attest(subject_type, subject_id, subject_hash, provenance_type, *, issued_at=NOW_S):
     return ExternalAttestationService.issue(
         subject_type=subject_type,
         subject_id=subject_id,
@@ -52,7 +52,7 @@ def attest(subject_type, subject_id, subject_hash, provenance_type):
         issuer_org="test-verifier",
         verifier_key_id="key-1",
         provenance_type=provenance_type,
-        issued_at=NOW_S,
+        issued_at=issued_at,
         verifier_secret=EXT_SECRET,
     )
 
@@ -252,7 +252,7 @@ class GapClosureTests(unittest.TestCase):
         self.assertEqual(l6["status"],"PASS")
         refreshes=[LongitudinalRefreshRecord(str(i),(NOW+timedelta(days=i*30)).isoformat(), EXTERNAL_CANDIDATE_SHA, H, (str(i%2)*64), "1"*64,"2"*64,"3"*64,True) for i in range(3)]
         self.assertEqual(ExternalEvidenceGate.level7(l6,refreshes)["status"],"FAIL")
-        refresh_receipts=[attest("longitudinal_refresh", r.refresh_id, r.fingerprint, "independent_lab_record") for r in refreshes]
+        refresh_receipts=[attest("longitudinal_refresh", r.refresh_id, r.fingerprint, "independent_lab_record", issued_at=r.executed_at) for r in refreshes]
         l7=ExternalEvidenceGate.level7(l6,refreshes,receipts=refresh_receipts,verifier_secrets=VERIFIER_SECRETS,trusted_issuers=TRUSTED_ISSUERS)
         self.assertEqual(l7["status"],"PASS")
 
@@ -326,7 +326,7 @@ class GapClosureTests(unittest.TestCase):
         validation_receipt=attest("independent_validation",validation.fingerprint,validation.fingerprint,validation.provenance_type)
         refreshes=[LongitudinalRefreshRecord(str(i),(NOW+timedelta(days=i*30)).isoformat(),EXTERNAL_CANDIDATE_SHA,case_set,
                     (str(i%2)*64),"1"*64,"2"*64,"3"*64,True) for i in range(3)]
-        refresh_receipts=[attest("longitudinal_refresh",r.refresh_id,r.fingerprint,r.provenance_type) for r in refreshes]
+        refresh_receipts=[attest("longitudinal_refresh",r.refresh_id,r.fingerprint,r.provenance_type, issued_at=r.executed_at) for r in refreshes]
         verified=ClaimBoundary.authorize_verified(
             "world best",runs=runs,run_receipts=run_receipts,verifier_secrets=VERIFIER_SECRETS,
             trusted_issuers=TRUSTED_ISSUERS,baseline_registry=registry,

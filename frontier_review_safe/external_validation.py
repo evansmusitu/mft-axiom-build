@@ -383,6 +383,9 @@ class ExternalEvidenceGate:
             if verification["status"] != "PASS":
                 reasons.extend(verification["reasons"])
                 continue
+            if parse_time(receipt.issued_at) < parse_time(run.executed_at):
+                reasons.append("external_run_attestation_predates_execution")
+                continue
             if receipt.provenance_type != run.provenance_type:
                 reasons.append("external_run_provenance_type_mismatch")
                 continue
@@ -462,6 +465,7 @@ class ExternalEvidenceGate:
         saw_provider_overlap = False
         saw_attester_overlap = False
         saw_attester_identity_invalid = False
+        saw_attestation_time_reversal = False
         for validation in validations:
             if validation.passed is not True:
                 continue
@@ -487,6 +491,9 @@ class ExternalEvidenceGate:
             )
             if verification["status"] != "PASS" or receipt.provenance_type != validation.provenance_type:
                 continue
+            if parse_time(receipt.issued_at) < parse_time(validation.validated_at):
+                saw_attestation_time_reversal = True
+                continue
             if not isinstance(receipt.issuer_org, str) or not receipt.issuer_org.strip():
                 saw_attester_identity_invalid = True
                 continue
@@ -504,6 +511,8 @@ class ExternalEvidenceGate:
                 reasons.append("independent_validation_attester_overlaps_level5_provider")
             if saw_attester_identity_invalid:
                 reasons.append("independent_validation_attester_identity_invalid")
+            if saw_attestation_time_reversal:
+                reasons.append("independent_validation_attestation_predates_validation")
             reasons.append("no_attested_independent_end_to_end_reproduction")
         latest_validation_at = max((parse_time(v.validated_at) for v in bound), default=None)
         reasons = sorted(set(reasons))
@@ -570,6 +579,7 @@ class ExternalEvidenceGate:
         saw_nonindependent_provenance = False
         saw_attester_overlap = False
         saw_predating_refresh = False
+        saw_attestation_time_reversal = False
         for refresh in refreshes:
             if refresh.refresh_id in seen_refresh_ids:
                 reasons.append("duplicate_longitudinal_refresh")
@@ -605,6 +615,9 @@ class ExternalEvidenceGate:
             if receipt.provenance_type != refresh.provenance_type:
                 reasons.append("longitudinal_refresh_provenance_type_mismatch")
                 continue
+            if parse_time(receipt.issued_at) < parse_time(refresh.executed_at):
+                saw_attestation_time_reversal = True
+                continue
             if receipt.issuer_org.strip().lower() in level5_providers:
                 saw_attester_overlap = True
                 continue
@@ -618,6 +631,8 @@ class ExternalEvidenceGate:
                 reasons.append("longitudinal_refresh_attester_overlaps_level5_provider")
             if saw_predating_refresh:
                 reasons.append("longitudinal_refresh_predates_level6_validation")
+            if saw_attestation_time_reversal:
+                reasons.append("longitudinal_refresh_attestation_predates_execution")
             reasons.append("insufficient_attested_longitudinal_refreshes")
         elif len(distinct_refresh_times) < effective_min_refreshes:
             reasons.append("insufficient_distinct_longitudinal_refresh_times")

@@ -25,7 +25,7 @@ SECRETS = {"claim-key": SECRET}
 TRUST = {"claim-verifier": frozenset({"claim-key"})}
 
 
-def issue(subject_type: str, subject_id: str, subject_hash: str, provenance_type: str):
+def issue(subject_type: str, subject_id: str, subject_hash: str, provenance_type: str, *, issued_at: str = NOW_S):
     return ExternalAttestationService.issue(
         subject_type=subject_type,
         subject_id=subject_id,
@@ -33,7 +33,7 @@ def issue(subject_type: str, subject_id: str, subject_hash: str, provenance_type
         issuer_org="claim-verifier",
         verifier_key_id="claim-key",
         provenance_type=provenance_type,
-        issued_at=NOW_S,
+        issued_at=issued_at,
         verifier_secret=SECRET,
     )
 
@@ -199,6 +199,7 @@ class ClaimAuthorityTests(unittest.TestCase):
                 refresh.refresh_id,
                 refresh.fingerprint,
                 "provider_export" if i == 1 else refresh.provenance_type,
+                issued_at=refresh.executed_at,
             )
             for i, refresh in enumerate(refreshes)
         ]

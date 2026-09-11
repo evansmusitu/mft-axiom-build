@@ -44,7 +44,7 @@ def attest(record: LongitudinalRefreshRecord):
         issuer_org="Independent Longitudinal Evaluator",
         verifier_key_id="provenance-key",
         provenance_type=record.provenance_type,
-        issued_at=NOW.isoformat(),
+        issued_at=record.executed_at,
         verifier_secret=SECRET,
     )
 

@@ -44,7 +44,7 @@ def attest(record: LongitudinalRefreshRecord):
         issuer_org="Independent Time Validator",
         verifier_key_id="time-key",
         provenance_type=record.provenance_type,
-        issued_at=NOW.isoformat(),
+        issued_at=record.executed_at,
         verifier_secret=SECRET,
     )
 
