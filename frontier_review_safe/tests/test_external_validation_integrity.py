@@ -37,6 +37,29 @@ def attest(refresh: LongitudinalRefreshRecord):
     )
 
 
+def level6_identity() -> dict[str, object]:
+    return {
+        "status": "PASS",
+        "attestation_verified": True,
+        "candidate_sha": CANDIDATE_SHA,
+        "case_set_hash": H,
+    }
+
+
+def refresh(refresh_id: str, baseline_hash: str, *, candidate_sha: str = CANDIDATE_SHA, case_set_hash: str = H) -> LongitudinalRefreshRecord:
+    return LongitudinalRefreshRecord(
+        refresh_id,
+        NOW,
+        candidate_sha,
+        case_set_hash,
+        baseline_hash,
+        "2" * 64,
+        "3" * 64,
+        "4" * 64,
+        True,
+    )
+
+
 class ExternalValidationIntegrityTests(unittest.TestCase):
     def valid_run(self) -> ExternalRunRecord:
         return ExternalRunRecord(
@@ -119,11 +142,15 @@ class ExternalValidationIntegrityTests(unittest.TestCase):
             replace(valid, passed="yes")
         with self.assertRaises(ValueError):
             LongitudinalRefreshRecord(
-                "refresh-1", NOW, H, "q" * 64, H, H, True
+                "refresh-1", NOW, CANDIDATE_SHA, H, H, "q" * 64, H, H, True
             )
-        refresh = LongitudinalRefreshRecord("refresh-1", NOW, H, H, H, H, True)
+        record = refresh("refresh-1", H)
         with self.assertRaises(ValueError):
-            replace(refresh, passed="yes")
+            replace(record, passed="yes")
+        with self.assertRaises(ValueError):
+            replace(record, candidate_sha="candidate")
+        with self.assertRaises(ValueError):
+            replace(record, case_set_hash="z" * 64)
 
     def test_level5_provider_floor_cannot_be_lowered_or_malformed(self):
         lowered = ExternalEvidenceGate.level5([], required_provider_orgs=1)
@@ -134,9 +161,9 @@ class ExternalValidationIntegrityTests(unittest.TestCase):
         self.assertEqual(malformed["reason"], "invalid_required_provider_orgs")
 
     def test_level7_rejects_duplicate_refreshes_and_cannot_lower_three_refresh_floor(self):
-        l6 = {"status": "PASS", "attestation_verified": True}
-        a = LongitudinalRefreshRecord("a", NOW, "1" * 64, "2" * 64, "3" * 64, "4" * 64, True)
-        b = LongitudinalRefreshRecord("b", NOW, "5" * 64, "6" * 64, "7" * 64, "8" * 64, True)
+        l6 = level6_identity()
+        a = refresh("a", "1" * 64)
+        b = refresh("b", "5" * 64)
         duplicate = ExternalEvidenceGate.level7(
             l6,
             [a, a, b],
@@ -161,6 +188,40 @@ class ExternalValidationIntegrityTests(unittest.TestCase):
         malformed = ExternalEvidenceGate.level7(l6, [a, b], min_refreshes=3.0)
         self.assertEqual(malformed["status"], "FAIL")
         self.assertIn("invalid_longitudinal_refresh_floor", malformed["reasons"])
+
+    def test_level7_rejects_correctly_attested_refresh_for_other_candidate_or_case_set(self):
+        l6 = level6_identity()
+        good_a = refresh("good-a", "1" * 64)
+        good_b = refresh("good-b", "5" * 64)
+        wrong_candidate = refresh("wrong-candidate", "9" * 64, candidate_sha="e" * 40)
+        wrong_cases = refresh("wrong-cases", "6" * 64, case_set_hash="b" * 64)
+
+        report = ExternalEvidenceGate.level7(
+            l6,
+            [good_a, good_b, wrong_candidate, wrong_cases],
+            receipts=[attest(x) for x in (good_a, good_b, wrong_candidate, wrong_cases)],
+            verifier_secrets=SECRETS,
+            trusted_issuers=TRUST,
+        )
+        self.assertEqual(report["status"], "FAIL")
+        self.assertIn("longitudinal_refresh_identity_mismatch", report["reasons"])
+        self.assertIn("insufficient_attested_longitudinal_refreshes", report["reasons"])
+        self.assertEqual(report["refresh_count"], 2)
+
+    def test_level7_requires_level6_identity_binding(self):
+        a = refresh("a", "1" * 64)
+        b = refresh("b", "5" * 64)
+        c = refresh("c", "9" * 64)
+        report = ExternalEvidenceGate.level7(
+            {"status": "PASS", "attestation_verified": True},
+            [a, b, c],
+            receipts=[attest(a), attest(b), attest(c)],
+            verifier_secrets=SECRETS,
+            trusted_issuers=TRUST,
+        )
+        self.assertEqual(report["status"], "FAIL")
+        self.assertIn("level6_identity_binding_invalid", report["reasons"])
+        self.assertEqual(report["refresh_count"], 0)
 
     def test_claim_boundary_rejects_nonhex_benchmark_digest(self):
         l5 = {

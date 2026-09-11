@@ -9,6 +9,7 @@ from .baseline_registry import BaselineRegistry
 from .core import FrontierSafetyError, parse_time, sha256
 from .evaluation import SealedCaseResult, SealedEvaluation
 from .external_attestation import ExternalAttestationReceipt, ExternalAttestationService
+from .longitudinal_binding import LongitudinalIdentityBinding
 
 
 TRUSTED_EXTERNAL_PROVENANCE = frozenset({"provider_export", "provider_api_receipt", "independent_lab_record"})
@@ -235,6 +236,8 @@ class IndependentValidationRecord:
 class LongitudinalRefreshRecord:
     refresh_id: str
     executed_at: str
+    candidate_sha: str
+    case_set_hash: str
     baseline_registry_hash: str
     retained_failure_corpus_hash: str
     drift_report_hash: str
@@ -244,6 +247,7 @@ class LongitudinalRefreshRecord:
     def __post_init__(self) -> None:
         parse_time(self.executed_at)
         hashes = (
+            self.case_set_hash,
             self.baseline_registry_hash,
             self.retained_failure_corpus_hash,
             self.drift_report_hash,
@@ -251,6 +255,8 @@ class LongitudinalRefreshRecord:
         )
         if any(not _valid_sha256(x) for x in hashes):
             raise ValueError("longitudinal evidence hashes must be SHA-256")
+        if not _valid_git_sha(self.candidate_sha):
+            raise ValueError("longitudinal candidate_sha must be an exact 40-hex Git SHA")
         if not _nonblank(self.refresh_id):
             raise ValueError("longitudinal refresh identity required")
         if not isinstance(self.passed, bool):
@@ -428,7 +434,8 @@ class ExternalEvidenceGate:
         receipt_map = cls._receipt_map(receipts, "independent_validation")
         expected_candidate = level5.get("candidate_sha")
         expected_cases = level5.get("case_set_hash")
-        if not _valid_git_sha(expected_candidate) or not _valid_sha256(expected_cases):
+        identity_valid = _valid_git_sha(expected_candidate) and _valid_sha256(expected_cases)
+        if not identity_valid:
             reasons.append("level5_identity_binding_invalid")
         bound: list[IndependentValidationRecord] = []
         receipt_hashes: list[str] = []
@@ -462,6 +469,8 @@ class ExternalEvidenceGate:
             "level": 6,
             "reasons": reasons,
             "attestation_verified": passed,
+            "candidate_sha": expected_candidate if identity_valid else None,
+            "case_set_hash": expected_cases if identity_valid else None,
             "validators": sorted({v.validator_org for v in bound}),
             "validation_count": len(bound),
             "attestation_sha256": sha256(sorted(receipt_hashes)) if receipt_hashes else None,
@@ -481,6 +490,11 @@ class ExternalEvidenceGate:
         reasons = []
         if level6.get("status") != "PASS" or level6.get("attestation_verified") is not True:
             reasons.append("level6_not_attested_and_passed")
+        try:
+            expected_identity = LongitudinalIdentityBinding.from_level6(level6)
+        except ValueError:
+            expected_identity = None
+            reasons.append("level6_identity_binding_invalid")
         if not isinstance(min_refreshes, int) or isinstance(min_refreshes, bool):
             reasons.append("invalid_longitudinal_refresh_floor")
             effective_min_refreshes = cls.LEVEL7_REFRESH_FLOOR
@@ -497,6 +511,12 @@ class ExternalEvidenceGate:
                 reasons.append("duplicate_longitudinal_refresh")
                 continue
             seen_refresh_ids.add(refresh.refresh_id)
+            if expected_identity is None or not expected_identity.matches(
+                candidate_sha=refresh.candidate_sha,
+                case_set_hash=refresh.case_set_hash,
+            ):
+                reasons.append("longitudinal_refresh_identity_mismatch")
+                continue
             if refresh.passed is not True:
                 continue
             receipt = receipt_map.get(refresh.refresh_id)
@@ -525,6 +545,8 @@ class ExternalEvidenceGate:
             "level": 7,
             "reasons": reasons,
             "attestation_verified": passed,
+            "candidate_sha": expected_identity.candidate_sha if expected_identity is not None else None,
+            "case_set_hash": expected_identity.case_set_hash if expected_identity is not None else None,
             "refresh_count": len(passed_refreshes),
             "refresh_evidence_sha256": sha256([asdict(r) for r in sorted(passed_refreshes, key=lambda x: x.refresh_id)]),
             "attestation_sha256": sha256(sorted(receipt_hashes)) if receipt_hashes else None,
