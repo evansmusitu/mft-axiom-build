@@ -95,7 +95,7 @@ jobs:
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim
           disable-animations: true
           script: |
-            set -euo pipefail
+            set -eu
             EVIDENCE_DIR="evidence/api-${{ matrix.api-level }}"
             APK=/tmp/musitu-v102/MUSITU_Store_1.0.2.apk
             actual_api="$(adb shell getprop ro.build.version.sdk | tr -d '\r')"
