@@ -1,0 +1,271 @@
+name: MUSITU Store v1.0.2 Independent Production Certification
+
+on:
+  push:
+    branches: [musitu-store-handoff-probe-20260910]
+    paths:
+      - '.github/workflows/musitu-store-v102-production-certification-probe.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: musitu-store-phase1-certification
+  cancel-in-progress: false
+
+jobs:
+  certify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      AUTHORITATIVE_STORE_BRANCH: musitu-store-phase1-20260909
+      AUTHORITATIVE_STORE_HEAD: 0ffe2de07c6b18873cc73b157ade3afe589f8a35
+      SEALED_MAIN: d6a846f6bbe0bccac1758713eb4de167caf07113
+      DEPLOYMENT_RUN_ID: '34555388491'
+      ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      ZONE_ID: 5b56528f03948ff5917a5e0cd9f7109e
+      ZONE_NAME: mftintelligence.com
+      PAYMENTS_HOST: payments.mftintelligence.com
+      PAYMENTS_ORIGIN: mft-paynow-transport-gateway
+      STORE_WORKER: musitu-store-phase1
+      STORE_ROUTE: payments.mftintelligence.com/store*
+      STORE_BUCKET: musitu-store-phase1-releases
+      CATALOG_REV3_SHA: 4fa31c5f9f84facc0d1fbf7a91a50b0adcaa5ef4c97b7d82abbe9657ea10b7f9
+      CATALOG_REV3_SIG_SHA: 9b854358f90368ceb5cc3baab8d99064d8ee94b79ead378a614f8cc1732b06a7
+      CATALOG_PUBLIC_PEM_SHA: 4cf17f70dbab900237d8b82b4e989978c667e6ec841de6df79469aa6c5ebd5c0
+      STORE_V102_SHA: 3a0c4b0f971ec84cd6167a137f8e3d75c7bb20e525c26ab533b3d88044cd0784
+      STORE_V102_BYTES: '1679340'
+      STORE_V102_SIGNER_SHA: 43695b6103d7ab57e89166c9a537f1810b7e33053e20332b1d4e7e2e1c612671
+      STORE_V101_SHA: b755210f303ebb6d22a3177bb21e5ebae2e076901021ee62ca2fe6ab0f14af82
+      STORE_V101_BYTES: '1679572'
+      STORE_V100_SHA: 71391bf614cc1186cbe1fda17e9e626aad71d96dbf26807228b73bd2ea99b2f8
+      STORE_V100_BYTES: '1687882'
+      CHEMISTRY_APK_SHA: 4ba442122d9c86a0c3cef660334fe337c6ea9ae6fe853c964b5e94961245babd
+      CHEMISTRY_APK_BYTES: '5892286'
+      CHEMISTRY_IPA_SHA: 426d2dc05e2fc8846a7582324d953bbdd2a256f170f8db2b5a956bc1c51cc962
+      CHEMISTRY_IPA_BYTES: '3640968'
+      FDROID_REPO_JAR_SHA: f84f0e720c4d7ff578d17a416ded866c8618b2549b50c0ae79861355a79c3cff
+      FDROID_REPO_CERT_SHA: 763484cbccf9f9fdb5a35c7d314011369bc53ed95a1361483a6ace17f388b465
+      WRANGLER_VERSION: 4.129.1
+      WRANGLER_LOG_SANITIZE: 'true'
+      WRANGLER_SEND_METRICS: 'false'
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - uses: android-actions/setup-android@v3
+
+      - name: Install pinned Android verification tools
+        shell: bash
+        run: sdkmanager 'build-tools;36.0.0'
+
+      - name: Prove independent runner anchors and exact certification inputs
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF_NAME" = 'musitu-store-handoff-probe-20260910'
+          git fetch --quiet origin "$AUTHORITATIVE_STORE_BRANCH" main
+          test "$(git rev-parse origin/$AUTHORITATIVE_STORE_BRANCH)" = "$AUTHORITATIVE_STORE_HEAD"
+          test "$(git rev-parse origin/main)" = "$SEALED_MAIN"
+          mkdir -p /tmp/v102-cert /tmp/v102-cert-evidence
+          cp store/phase1/release/v102-live/catalog-revision-3.json /tmp/v102-cert/expected-catalog.json
+          cp store/phase1/release/v102-live/catalog-revision-3.sig /tmp/v102-cert/expected-catalog.sig
+          git show "$AUTHORITATIVE_STORE_HEAD:store/phase1/catalog-signing-public.pem" > /tmp/v102-cert/catalog-signing-public.pem
+          git show "$AUTHORITATIVE_STORE_HEAD:store/phase1/ios/source.json" > /tmp/v102-cert/expected-source.json
+          git show "$AUTHORITATIVE_STORE_HEAD:store/phase1/android/repo/index-v1.json" > /tmp/v102-cert/expected-index-v1.json
+          git show "$AUTHORITATIVE_STORE_HEAD:store/phase1/android/repo/index-v1.jar" > /tmp/v102-cert/repository-index-v1.jar
+          test "$(sha256sum /tmp/v102-cert/expected-catalog.json | awk '{print $1}')" = "$CATALOG_REV3_SHA"
+          test "$(sha256sum /tmp/v102-cert/expected-catalog.sig | awk '{print $1}')" = "$CATALOG_REV3_SIG_SHA"
+          test "$(sha256sum /tmp/v102-cert/catalog-signing-public.pem | awk '{print $1}')" = "$CATALOG_PUBLIC_PEM_SHA"
+          test "$(sha256sum /tmp/v102-cert/repository-index-v1.jar | awk '{print $1}')" = "$FDROID_REPO_JAR_SHA"
+          base64 -d < /tmp/v102-cert/expected-catalog.sig > /tmp/v102-cert/expected-catalog.sig.der
+          openssl dgst -sha256 -verify /tmp/v102-cert/catalog-signing-public.pem -signature /tmp/v102-cert/expected-catalog.sig.der /tmp/v102-cert/expected-catalog.json
+          jarsigner -verify /tmp/v102-cert/repository-index-v1.jar > /tmp/v102-cert/repo-jarsigner.txt 2>&1
+          grep -q 'jar verified' /tmp/v102-cert/repo-jarsigner.txt
+          actual_fdroid_cert="$(keytool -printcert -jarfile /tmp/v102-cert/repository-index-v1.jar | sed -n 's/^[[:space:]]*SHA256: //p' | head -n1 | tr -d ':\r\n' | tr 'A-F' 'a-f')"
+          test "$actual_fdroid_cert" = "$FDROID_REPO_CERT_SHA"
+          echo INDEPENDENT_INPUT_AND_REPOSITORY_SIGNATURE_GATE=PASS
+
+      - name: Independently certify live topology, release truth and immutable products
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+          CLOUDFLARE_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+          CLOUDFLARE_ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$CLOUDFLARE_EMAIL"
+          test -n "$CLOUDFLARE_GLOBAL_API_KEY"
+          python - <<'PY'
+          import hashlib,json,os,pathlib,time,urllib.error,urllib.parse,urllib.request
+          API='https://api.cloudflare.com/client/v4'; AID=os.environ['ACCOUNT_ID']; ZID=os.environ['ZONE_ID']
+          HOST=os.environ['PAYMENTS_HOST']; BASE='https://'+HOST; WORKER=os.environ['STORE_WORKER']; ROUTE=os.environ['STORE_ROUTE']; BUCKET=os.environ['STORE_BUCKET']
+          tmp=pathlib.Path('/tmp/v102-cert'); evdir=pathlib.Path('/tmp/v102-cert-evidence')
+          auth={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY'],'Accept':'application/json','User-Agent':'MUSITU-Store-v102-Independent-Certification/1.0'}
+          def sha(b): return hashlib.sha256(b).hexdigest()
+          def req(url,headers=None,timeout=150):
+              q=urllib.request.Request(url,headers=headers or {},method='GET')
+              try:
+                  with urllib.request.urlopen(q,timeout=timeout) as r:return r.status,dict(r.headers),r.read()
+              except urllib.error.HTTPError as e:return e.code,dict(e.headers),e.read()
+          def cf(path):
+              c,_,b=req(API+path,auth); assert c==200,(path,c,b[:200])
+              x=json.loads(b or b'{}'); assert x.get('success') is True,(path,x.get('errors'))
+              return x.get('result')
+          def pub(path,accept='*/*'):
+              sep='&' if '?' in path else '?'
+              return req(BASE+path+sep+'musitu_cert='+str(time.time_ns()),{'Accept':accept,'User-Agent':'MUSITU-Store-v102-Independent-Certification/1.0','Cache-Control':'no-cache','Pragma':'no-cache'})
+
+          zones=cf('/zones?name='+urllib.parse.quote(os.environ['ZONE_NAME'])+'&status=active') or []
+          assert len(zones)==1 and zones[0]['id']==ZID and zones[0]['account']['id']==AID
+          domains=cf(f'/accounts/{AID}/workers/domains') or []
+          dm=[d for d in domains if isinstance(d,dict) and d.get('hostname')==HOST]
+          assert len(dm)==1 and dm[0].get('service')==os.environ['PAYMENTS_ORIGIN']
+          routes=cf(f'/zones/{ZID}/workers/routes') or []
+          exact=[r for r in routes if isinstance(r,dict) and r.get('pattern')==ROUTE]
+          assert len(exact)==1 and exact[0].get('script')==WORKER
+          settings=cf(f'/accounts/{AID}/workers/scripts/{urllib.parse.quote(WORKER,safe="")}/settings') or {}
+          bs={x.get('name'):x for x in settings.get('bindings') or [] if isinstance(x,dict)}
+          assert set(bs)=={'STORE_RELEASES','STORE_RUNTIME_PUBLICATION_STATE'}
+          assert bs['STORE_RELEASES'].get('type')=='r2_bucket' and bs['STORE_RELEASES'].get('bucket_name')==BUCKET
+          assert bs['STORE_RUNTIME_PUBLICATION_STATE'].get('type')=='plain_text' and bs['STORE_RUNTIME_PUBLICATION_STATE'].get('text')=='production'
+          sub=cf(f'/accounts/{AID}/workers/scripts/{urllib.parse.quote(WORKER,safe="")}/subdomain') or {}
+          assert sub.get('enabled') is False and sub.get('previews_enabled') is False
+
+          c,_,hr=pub('/store/healthz','application/json'); assert c==200
+          h=json.loads(hr); assert h.get('ok') is True and h.get('catalog_revision')==3 and h.get('runtime_publication_state')=='production'
+          assert h.get('phase2_authorized') is False and h.get('fresh_device_phase1_complete') is False
+
+          c,_,cat=pub('/store/catalog.json','application/json'); assert c==200
+          assert cat==tmp.joinpath('expected-catalog.json').read_bytes() and sha(cat)==os.environ['CATALOG_REV3_SHA']
+          c,_,sig=pub('/store/catalog.sig','text/plain'); assert c==200
+          assert sig==tmp.joinpath('expected-catalog.sig').read_bytes() and sha(sig)==os.environ['CATALOG_REV3_SIG_SHA']
+          tmp.joinpath('live-catalog.json').write_bytes(cat); tmp.joinpath('live-catalog.sig').write_bytes(sig)
+
+          store_checks=[]
+          for version,path,n,digest in [
+              ('1.0.2','/store/bootstrap/MUSITU_Store_1.0.2.apk',int(os.environ['STORE_V102_BYTES']),os.environ['STORE_V102_SHA']),
+              ('1.0.1','/store/bootstrap/MUSITU_Store_1.0.1.apk',int(os.environ['STORE_V101_BYTES']),os.environ['STORE_V101_SHA']),
+              ('1.0.0','/store/bootstrap/MUSITU_Store_1.0.0.apk',int(os.environ['STORE_V100_BYTES']),os.environ['STORE_V100_SHA'])]:
+              c,headers,b=pub(path,'application/vnd.android.package-archive'); assert c==200 and len(b)==n and sha(b)==digest,(path,c,len(b),sha(b))
+              if version=='1.0.2':
+                  assert headers.get('X-Content-SHA256')==digest
+                  tmp.joinpath('live-store-v102.apk').write_bytes(b)
+              store_checks.append({'version':version,'bytes':len(b),'sha256':sha(b),'http':c})
+
+          c,_,b=pub('/chemistry/healthz','application/json'); assert c==200 and json.loads(b).get('ok') is True
+          c,_,_=pub('/chemistry/catalog','application/json'); assert c==200
+          c,_,b=pub('/chemistry/download/MUSITU_Chemistry_Mastery_1.3.0.apk','application/vnd.android.package-archive'); assert c==200 and len(b)==int(os.environ['CHEMISTRY_APK_BYTES']) and sha(b)==os.environ['CHEMISTRY_APK_SHA']
+          c,_,b=pub('/store/ios/MUSITU_Chemistry_1.3.0.ipa','application/octet-stream'); assert c==200 and len(b)==int(os.environ['CHEMISTRY_IPA_BYTES']) and sha(b)==os.environ['CHEMISTRY_IPA_SHA']
+          c,_,b=pub('/store/ios/source.json','application/json'); assert c==200 and b==tmp.joinpath('expected-source.json').read_bytes()
+          c,_,b=pub('/store/android/repo/index-v1.json','application/json'); assert c==200 and b==tmp.joinpath('expected-index-v1.json').read_bytes()
+          c,_,jar_body=pub('/store/android/repo/index-v1.jar','application/java-archive'); fdroid_jar_http=c
+          assert c in (200,404)
+          if c==200:
+              assert jar_body==tmp.joinpath('repository-index-v1.jar').read_bytes() and sha(jar_body)==os.environ['FDROID_REPO_JAR_SHA']
+
+          for path,needle in [('/store',b'MUSITU Store'),('/store/apps/chemistry',b'MUSITU Chemistry'),('/store/install?platform=android',b'MUSITU_Store_1.0.2.apk'),('/store?lite=1',b'Low-bandwidth mode'),('/store/offline',b'Offline')]:
+              c,_,b=pub(path,'text/html'); assert c==200 and needle.lower() in b.lower(),(path,c,len(b))
+          c,_,install=pub('/store/install?platform=android','text/html'); assert c==200 and os.environ['STORE_V102_SHA'].encode() in install
+          for lang in ('sn','nd'):
+              c,headers,b=pub('/store?lang='+lang,'text/html'); assert c==200 and headers.get('Content-Language')==lang and b'MUSITU Store' in b
+
+          evidence={
+            'schema':'musitu.store.phase1.v102.production_certification.v1',
+            'deployment_run_id':int(os.environ['DEPLOYMENT_RUN_ID']),
+            'certification_head':os.environ['GITHUB_SHA'],
+            'authoritative_store_head':os.environ['AUTHORITATIVE_STORE_HEAD'],
+            'sealed_main':os.environ['SEALED_MAIN'],
+            'store_worker':WORKER,'store_route':ROUTE,'store_route_id':exact[0].get('id'),'r2_bucket':BUCKET,
+            'catalog_revision':3,'catalog_sha256':sha(cat),'catalog_signature_sha256':sha(sig),'catalog_signature_exact':True,
+            'store_releases':store_checks,'store_v102_signer_expected':os.environ['STORE_V102_SIGNER_SHA'],
+            'chemistry_apk_preserved':True,'chemistry_ipa_preserved':True,'sidestore_source_exact':True,'fdroid_index_json_exact':True,
+            'fdroid_repository_jar_sha256':os.environ['FDROID_REPO_JAR_SHA'],'fdroid_repository_jar_signature_verified':True,'fdroid_index_jar_public_http':fdroid_jar_http,
+            'locales_verified':['sn','nd'],'lite_mode_verified':True,'offline_mode_verified':True,'android_install_route_verified':True,
+            'phase2_authorized':False,'fresh_device_phase1_complete':False,'production_write_performed':False,
+            'gate':'MUSITU_STORE_V102_PRODUCTION_CERTIFICATION_PASS'
+          }
+          raw=(json.dumps(evidence,indent=2,sort_keys=True)+'\n').encode(); evdir.joinpath('certification.json').write_bytes(raw); evdir.joinpath('certification.sha256').write_text(sha(raw)+'  certification.json\n')
+          print(json.dumps(evidence,sort_keys=True))
+          PY
+
+      - name: Verify live catalog cryptography and Store v1.0.2 Android identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          base64 -d < /tmp/v102-cert/live-catalog.sig > /tmp/v102-cert/live-catalog.sig.der
+          openssl dgst -sha256 -verify /tmp/v102-cert/catalog-signing-public.pem -signature /tmp/v102-cert/live-catalog.sig.der /tmp/v102-cert/live-catalog.json
+          APK=/tmp/v102-cert/live-store-v102.apk
+          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose --print-certs "$APK" | tee /tmp/v102-cert/apksigner.txt
+          signer="$(sed -n 's/^Signer #1 certificate SHA-256 digest: //p' /tmp/v102-cert/apksigner.txt | head -n1 | tr 'A-F' 'a-f' | tr -d ':[:space:]')"
+          test "$signer" = "$STORE_V102_SIGNER_SHA"
+          grep -q '^Verified using v1 scheme (JAR signing): false$' /tmp/v102-cert/apksigner.txt
+          grep -q '^Verified using v2 scheme (APK Signature Scheme v2): true$' /tmp/v102-cert/apksigner.txt
+          grep -q '^Verified using v3 scheme (APK Signature Scheme v3): true$' /tmp/v102-cert/apksigner.txt
+          "$ANDROID_HOME/build-tools/36.0.0/aapt" dump badging "$APK" | tee /tmp/v102-cert/aapt.txt
+          grep -q "package: name='com.musitu.store' versionCode='10002' versionName='1.0.2'" /tmp/v102-cert/aapt.txt
+          grep -q "sdkVersion:'24'" /tmp/v102-cert/aapt.txt
+          grep -q "targetSdkVersion:'36'" /tmp/v102-cert/aapt.txt
+          echo LIVE_V102_ANDROID_IDENTITY=PASS
+
+      - name: Independently certify append-only R2 objects
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+          CLOUDFLARE_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+          CLOUDFLARE_ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+        shell: bash
+        run: |
+          set -euo pipefail
+          for spec in \
+            "bootstrap/MUSITU_Store_1.0.2.apk:$STORE_V102_BYTES:$STORE_V102_SHA" \
+            "bootstrap/MUSITU_Store_1.0.1.apk:$STORE_V101_BYTES:$STORE_V101_SHA" \
+            "bootstrap/MUSITU_Store_1.0.0.apk:$STORE_V100_BYTES:$STORE_V100_SHA"; do
+            key="${spec%%:*}"; rest="${spec#*:}"; bytes="${rest%%:*}"; digest="${rest#*:}"; out="/tmp/v102-cert/r2-$(basename "$key")"
+            npx -y wrangler@$WRANGLER_VERSION r2 object get "$STORE_BUCKET/$key" --remote --file "$out" >/tmp/v102-cert/wrangler-read.log 2>&1
+            test "$(stat -c%s "$out")" = "$bytes"
+            echo "$digest  $out" | sha256sum -c -
+          done
+          echo R2_APPEND_ONLY_RELEASE_SET=PASS
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: musitu-store-v102-production-certification-evidence
+          path: /tmp/v102-cert-evidence
+          retention-days: 90
+          if-no-files-found: error
+
+      - name: Enforce independent certification result
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          o=json.loads(Path('/tmp/v102-cert-evidence/certification.json').read_text())
+          assert o['gate']=='MUSITU_STORE_V102_PRODUCTION_CERTIFICATION_PASS'
+          assert o['catalog_revision']==3
+          assert o['catalog_signature_exact'] is True
+          assert [x['version'] for x in o['store_releases']]==['1.0.2','1.0.1','1.0.0']
+          assert o['chemistry_apk_preserved'] is True and o['chemistry_ipa_preserved'] is True
+          assert o['phase2_authorized'] is False
+          assert o['fresh_device_phase1_complete'] is False
+          assert o['production_write_performed'] is False
+          print('MUSITU_STORE_V102_INDEPENDENT_PRODUCTION_CERTIFICATION=PASS')
+          PY
