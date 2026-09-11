@@ -698,34 +698,71 @@ class ClaimBoundary:
     def _normalize_claim(value: str) -> str:
         return " ".join(re.sub(r"[^a-z0-9]+", " ", value.strip().lower()).split())
 
+    @staticmethod
+    def _separator_tolerant_pattern(value: str) -> str:
+        compact = re.sub(r"[^a-z0-9]+", "", value.strip().lower())
+        if not compact:
+            return r"(?!x)x"
+        body = r"[^a-z0-9]*".join(re.escape(char) for char in compact)
+        return rf"(?<![a-z0-9]){body}(?![a-z0-9])"
+
+    @classmethod
+    def _contains_protected_literal(cls, requested_claim: str, literal: str) -> bool:
+        if not isinstance(requested_claim, str):
+            return False
+        return re.search(cls._separator_tolerant_pattern(literal), requested_claim.lower()) is not None
+
     @classmethod
     def _named_frontier_providers(cls, requested_claim: str) -> set[str]:
-        normalized = cls._normalize_claim(requested_claim)
-        words = set(normalized.split())
-        return {provider for provider in cls.FRONTIER_PROVIDER_NAMES if provider in words}
+        return {
+            provider
+            for provider in cls.FRONTIER_PROVIDER_NAMES
+            if cls._contains_protected_literal(requested_claim, provider)
+        }
 
     @classmethod
     def _is_named_provider_comparison(cls, requested_claim: str) -> bool:
         normalized = cls._normalize_claim(requested_claim)
         named = bool(cls._named_frontier_providers(requested_claim))
-        superiority = any(term in normalized for term in cls.PROVIDER_SUPERIORITY_TERMS)
+        superiority = any(
+            term in normalized or cls._contains_protected_literal(requested_claim, term)
+            for term in cls.PROVIDER_SUPERIORITY_TERMS
+        )
         explicitly_global = (
-            any(token in normalized for token in cls.BROAD_CLAIMS)
-            or any(scope in normalized for scope in cls.GLOBAL_SCOPE_TERMS)
+            any(
+                token in normalized or cls._contains_protected_literal(requested_claim, token)
+                for token in cls.BROAD_CLAIMS
+            )
+            or any(
+                scope in normalized or cls._contains_protected_literal(requested_claim, scope)
+                for scope in cls.GLOBAL_SCOPE_TERMS
+            )
         )
         return named and superiority and not explicitly_global
 
     @classmethod
     def _is_broad_claim(cls, requested_claim: str) -> bool:
         normalized = cls._normalize_claim(requested_claim)
-        if any(token in normalized for token in cls.BROAD_CLAIMS):
+        if any(
+            token in normalized or cls._contains_protected_literal(requested_claim, token)
+            for token in cls.BROAD_CLAIMS
+        ):
             return True
         provider_named = bool(cls._named_frontier_providers(requested_claim))
-        superiority = any(term in normalized for term in cls.PROVIDER_SUPERIORITY_TERMS)
+        superiority = any(
+            term in normalized or cls._contains_protected_literal(requested_claim, term)
+            for term in cls.PROVIDER_SUPERIORITY_TERMS
+        )
         if provider_named and superiority:
             return True
-        global_scope = any(scope in normalized for scope in cls.GLOBAL_SCOPE_TERMS)
-        global_superlative = any(term in normalized for term in cls.GLOBAL_SUPERLATIVE_TERMS)
+        global_scope = any(
+            scope in normalized or cls._contains_protected_literal(requested_claim, scope)
+            for scope in cls.GLOBAL_SCOPE_TERMS
+        )
+        global_superlative = any(
+            term in normalized or cls._contains_protected_literal(requested_claim, term)
+            for term in cls.GLOBAL_SUPERLATIVE_TERMS
+        )
         return global_scope and global_superlative
 
     @classmethod
