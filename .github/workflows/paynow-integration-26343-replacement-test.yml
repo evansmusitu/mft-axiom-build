@@ -6,6 +6,7 @@ on:
       - paynow-test-26343-20260911
     paths:
       - '.github/paynow-test-26343-replacement.trigger'
+      - '.github/paynow-test-26343-replacement-retry.trigger'
 
 permissions:
   contents: read
@@ -114,15 +115,9 @@ jobs:
               parsed = urllib.parse.urlparse(str(value or ''))
               return parsed.scheme == 'https' and parsed.hostname in ('paynow.co.zw', 'www.paynow.co.zw')
 
-          prior = d1(
-              "SELECT c.email FROM billing_checkout_intents i JOIN customers c ON c.id=i.customer_id "
-              "WHERE lower(i.status) IN ('paid','completed') AND i.paynow_reference IS NOT NULL "
-              "AND lower(c.email) NOT LIKE '%@invalid.example' AND lower(c.email) NOT LIKE '%@example.com' "
-              "ORDER BY COALESCE(i.completed_at,i.created_at) DESC LIMIT 1"
-          )
-          if len(prior) != 1 or not str(prior[0].get('email') or '').strip():
-              raise RuntimeError('no prior completed payer email is available for a safe replacement')
-          payer_email = str(prior[0]['email']).strip()
+          payer_email = os.environ['CLOUDFLARE_EMAIL'].strip()
+          if '@' not in payer_email:
+              raise RuntimeError('configured account email is unavailable')
           email_hash = hashlib.sha256(payer_email.lower().encode()).hexdigest()
 
           rows = d1(
