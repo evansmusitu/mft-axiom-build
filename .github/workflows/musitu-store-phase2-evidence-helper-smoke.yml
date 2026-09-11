@@ -1,0 +1,64 @@
+name: MUSITU Store Phase 2 Evidence Helper Smoke
+
+on:
+  push:
+    branches: [musitu-store-phase2-standards-hardening-20260911]
+    paths:
+      - 'store/phase2/prepare_manual_accessibility_evidence.ps1'
+      - '.github/workflows/musitu-store-phase2-evidence-helper-smoke.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  windows-helper-smoke:
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Parse helper and create deterministic dummy recording
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          [ScriptBlock]::Create((Get-Content store/phase2/prepare_manual_accessibility_evidence.ps1 -Raw)) | Out-Null
+          $bytes = New-Object byte[] 4096
+          for($i=0;$i -lt $bytes.Length;$i++){ $bytes[$i] = [byte]($i % 251) }
+          [IO.File]::WriteAllBytes("$env:RUNNER_TEMP\phase2-helper-smoke.mp4", $bytes)
+          'HELPER_PARSE_AND_FIXTURE=PASS'
+
+      - name: Execute evidence helper on Windows
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $recording="$env:RUNNER_TEMP\phase2-helper-smoke.mp4"
+          $output="$env:RUNNER_TEMP\phase2-helper-output.json"
+          ./store/phase2/prepare_manual_accessibility_evidence.ps1 `
+            -RecordingPath $recording `
+            -Reference 'drive://phase2-helper-smoke-recording' `
+            -Browser Edge `
+            -OutputPath $output
+          if(-not (Test-Path -LiteralPath $output)){ throw 'helper output missing' }
+          $d=Get-Content -LiteralPath $output -Raw | ConvertFrom-Json
+          if($d.schema -ne 'musitu.store.phase2.manual_accessibility_capture_metadata.v1'){ throw 'schema mismatch' }
+          if($d.source_recording.bytes -ne 4096){ throw 'byte-size mismatch' }
+          if($d.source_recording.sha256 -notmatch '^[0-9a-f]{64}$'){ throw 'SHA-256 malformed' }
+          if($d.source_recording.media_type -ne 'video/mp4'){ throw 'media type mismatch' }
+          if($d.suggested_test_environment.platform -ne 'Windows'){ throw 'platform mismatch' }
+          if([string]::IsNullOrWhiteSpace($d.suggested_test_environment.os_version)){ throw 'OS metadata missing' }
+          if($d.suggested_test_environment.browser_name -ne 'Edge'){ throw 'browser name mismatch' }
+          if([string]::IsNullOrWhiteSpace($d.suggested_test_environment.browser_version)){ throw 'browser version missing' }
+          if($d.suggested_test_environment.screen_reader_name -ne 'Microsoft Narrator'){ throw 'screen reader mismatch' }
+          if($d.evidence_manifest_item.reference -ne 'drive://phase2-helper-smoke-recording'){ throw 'reference mismatch' }
+          if($d.evidence_manifest_item.sha256 -ne $d.source_recording.sha256){ throw 'manifest hash mismatch' }
+          if($d.evidence_manifest_item.bytes -ne $d.source_recording.bytes){ throw 'manifest byte mismatch' }
+          'MUSITU_STORE_PHASE2_EVIDENCE_HELPER_SMOKE=PASS'
+
+      - name: Upload helper smoke output
+        uses: actions/upload-artifact@v4
+        with:
+          name: musitu-store-phase2-evidence-helper-smoke
+          path: ${{ runner.temp }}/phase2-helper-output.json
+          retention-days: 30
+          if-no-files-found: error
