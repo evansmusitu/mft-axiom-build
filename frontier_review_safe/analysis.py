@@ -87,6 +87,13 @@ class CausalCounterfactualModel:
         unknown = set(do) - (set(self.equations) | set(state))
         if unknown:
             raise ValueError("unknown intervention: " + ",".join(sorted(unknown)))
+        # Apply interventions on exogenous/root inputs immediately. Endogenous
+        # equation nodes are still replaced inside the topological loop below.
+        # Without this, a validated do(shock=...) on an exogenous driver was
+        # silently ignored, producing false replay/stress results.
+        for node, value in do.items():
+            if node not in self.equations:
+                state[node] = value
         for n in self.order:
             if n in do:
                 state[n] = do[n]
