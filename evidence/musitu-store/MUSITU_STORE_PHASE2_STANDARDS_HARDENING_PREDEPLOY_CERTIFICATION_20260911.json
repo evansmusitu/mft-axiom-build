@@ -1,0 +1,106 @@
+{
+  "schema": "musitu.store.phase2.standards_hardening_predeploy_certification.v1",
+  "created_date_utc": "2026-09-11",
+  "status": "PASS_AUTOMATED_PREDEPLOY_MANUAL_AND_DEPLOYMENT_PENDING",
+  "authorization": {
+    "phase2Authorized": true,
+    "authorization_text": "Begin phase 2"
+  },
+  "repository": {
+    "full_name": "evansmusitu/mft-axiom-build",
+    "branch": "musitu-store-phase2-standards-hardening-20260911",
+    "certified_head": "deb7c590535957ed0a98cd63091ac63aebb828b2",
+    "phase2_base": "ebded495617cc89bb96d7a5531c1ce4fc6bbedd9",
+    "release_source_ancestor": "0ffe2de07c6b18873cc73b157ade3afe589f8a35",
+    "sealed_main": "d6a846f6bbe0bccac1758713eb4de167caf07113"
+  },
+  "github_actions": {
+    "workflow_run_id": 34573267968,
+    "job_id": 103179893104,
+    "workflow_conclusion": "success",
+    "artifact": {
+      "id": 10188613182,
+      "name": "musitu-store-phase2-standards-hardening-predeploy",
+      "bytes": 296332,
+      "digest": "sha256:3fdcbb54a6d2a42e2bc969f3adc713d17c92e8e4e126a50e0de2a8c6b2656506",
+      "retention_days": 90
+    }
+  },
+  "verified_boundaries": {
+    "sealed_main_unchanged": true,
+    "phase1_branch_unchanged_at_certification": true,
+    "phase1_physical_device_step15_complete": false,
+    "freshDevicePhase1Complete": false,
+    "commerce_and_licence_surface_untouched": true,
+    "production_mutation": false
+  },
+  "exact_production_identity": {
+    "store_version": "1.0.2",
+    "store_version_code": 10002,
+    "store_package": "com.musitu.store",
+    "store_sha256": "3a0c4b0f971ec84cd6167a137f8e3d75c7bb20e525c26ab533b3d88044cd0784",
+    "store_bytes": 1679340,
+    "catalog_revision": 3,
+    "catalog_sha256": "4fa31c5f9f84facc0d1fbf7a91a50b0adcaa5ef4c97b7d82abbe9657ea10b7f9",
+    "catalog_signature_sha256": "9b854358f90368ceb5cc3baab8d99064d8ee94b79ead378a614f8cc1732b06a7",
+    "chemistry_android_sha256": "4ba442122d9c86a0c3cef660334fe337c6ea9ae6fe853c964b5e94961245babd",
+    "chemistry_ios_sha256": "426d2dc05e2fc8846a7582324d953bbdd2a256f170f8db2b5a956bc1c51cc962"
+  },
+  "regression": {
+    "store_tests_passed": 29,
+    "store_tests_failed": 0,
+    "result": "PASS"
+  },
+  "tooling": {
+    "playwright": "1.63.0",
+    "axe_core": "4.13.0",
+    "lighthouse": "13.4.1",
+    "browser": "Google Chrome on GitHub ubuntu-24.04 runner"
+  },
+  "automated_standards": {
+    "wcag_axe_tags": ["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"],
+    "axe_violations": 0,
+    "keyboard_skip_focus": "PASS",
+    "visible_focus": "PASS",
+    "mobile_reflow_320x568": "PASS",
+    "minimum_touch_target_44px": "PASS",
+    "reduced_motion": "PASS",
+    "accessibility_tree_landmarks": "PASS",
+    "strict_csp_security_headers": "PASS",
+    "low_bandwidth_save_data": "PASS",
+    "constrained_network_reference_profile": {
+      "latency_ms": 400,
+      "download_bytes_per_second": 51200,
+      "upload_bytes_per_second": 16384,
+      "connection_type": "cellular3g",
+      "contractual_speed_threshold": false
+    },
+    "browser_gate": "PASS_AUTOMATED"
+  },
+  "lighthouse": {
+    "result": "PASS",
+    "performance": 1.0,
+    "accessibility": 1.0,
+    "best_practices": 0.96,
+    "lcp_ms": 999.8539000000001,
+    "cls": 0,
+    "tbt_ms": 0,
+    "field_inp_status": "unavailable_no_field_dataset",
+    "budgets": {
+      "performance_score_min": 0.9,
+      "accessibility_score_min": 1.0,
+      "best_practices_score_min": 0.95,
+      "lcp_ms_max": 2500,
+      "cls_max": 0.1,
+      "tbt_ms_max": 200
+    }
+  },
+  "remaining_phase2_gates": {
+    "manual_keyboard_smoke": "PENDING_REAL_USER_OR_ASSISTIVE_TECHNOLOGY_EVIDENCE",
+    "manual_screen_reader_smoke": "PENDING_REAL_ASSISTIVE_TECHNOLOGY_EVIDENCE",
+    "phase2_specific_verified_deployment": "PENDING",
+    "phase2_specific_rollback_proof": "PENDING"
+  },
+  "phase2Complete": false,
+  "claim_boundary": "The automated Phase-2 standards-hardening predeployment gate passed on the exact verified Store 1.0.2 production identity. Complete WCAG 2.2 AA conformance and full Phase 2 are not claimed. Real manual keyboard/screen-reader smoke and Phase-2-specific verified deployment plus rollback proof remain required."
+}
