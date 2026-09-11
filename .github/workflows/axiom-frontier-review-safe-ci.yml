@@ -22,13 +22,78 @@ jobs:
     timeout-minutes: 12
     steps:
       - name: Checkout immutable action
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
         with:
           persist-credentials: false
+          fetch-depth: 0
       - name: Setup patch-pinned Python
-        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
         with:
           python-version: '3.12.14'
+      - name: Enforce frozen OpenAI review snapshot
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --no-tags --force origin \
+            +refs/heads/main:refs/remotes/origin/main \
+            +refs/heads/frontier/axiom-v5-skill-fabric:refs/remotes/origin/frontier/axiom-v5-skill-fabric
+          PYTHONPATH=. python - <<'PY'
+          import json
+          import pathlib
+          import subprocess
+          from frontier_review_safe.review_snapshot import ReviewSnapshotGuard, ReviewSnapshotManifest
+
+          def git(*args):
+              return subprocess.check_output(['git', *args], text=True).strip()
+
+          raw = json.loads(pathlib.Path('frontier_review_safe/review_snapshot_manifest.json').read_text(encoding='utf-8'))
+          manifest = ReviewSnapshotManifest(
+              schema=raw['schema'],
+              authoritative_frontier_sha=raw['authoritative_frontier_sha'],
+              sealed_main_sha=raw['sealed_main_sha'],
+              public_tool_count=raw['public_tool_count'],
+              required_scopes=tuple(raw['required_scopes']),
+              forbidden_tools=tuple(raw['forbidden_tools']),
+              protected_paths=tuple(raw['protected_paths']),
+              protected_git_object_shas=dict(raw['protected_git_object_shas']),
+              mcp_url=raw['mcp_url'],
+              auth_url=raw['auth_url'],
+              demo_url=raw['demo_url'],
+          )
+          guard = ReviewSnapshotGuard(manifest)
+
+          observed_main = git('rev-parse', 'refs/remotes/origin/main')
+          observed_frontier = git('rev-parse', 'refs/remotes/origin/frontier/axiom-v5-skill-fabric')
+          if observed_main != manifest.sealed_main_sha:
+              raise SystemExit(f'FROZEN_MAIN_DRIFT:{observed_main}')
+          if observed_frontier != manifest.authoritative_frontier_sha:
+              raise SystemExit(f'FROZEN_FRONTIER_DRIFT:{observed_frontier}')
+
+          authoritative_objects = {
+              path: git('rev-parse', f'{manifest.authoritative_frontier_sha}:{path}')
+              for path in manifest.protected_git_object_shas
+          }
+          current_objects = {
+              path: git('rev-parse', f'HEAD:{path}')
+              for path in manifest.protected_git_object_shas
+          }
+          guard.verify_tree(authoritative_objects)
+          guard.verify_tree(current_objects)
+
+          changed = [
+              line for line in git('diff', '--name-only', f'{manifest.authoritative_frontier_sha}..HEAD').splitlines()
+              if line
+          ]
+          guard.verify_no_protected_diff(changed, manifest.protected_paths)
+          print(json.dumps({
+              'status': 'PASS',
+              'sealed_main_sha': observed_main,
+              'authoritative_frontier_sha': observed_frontier,
+              'protected_objects_verified': len(current_objects),
+              'changed_paths_checked': len(changed),
+              'manifest_sha256': manifest.fingerprint,
+          }, sort_keys=True))
+          PY
       - name: Compile private review-safe runtime
         shell: bash
         run: |
