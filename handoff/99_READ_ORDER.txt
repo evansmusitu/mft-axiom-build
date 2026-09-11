@@ -1,0 +1,18 @@
+READ IN THIS EXACT ORDER
+
+1. handoff/00_START_HERE/NEW_CHAT_START_HERE.md
+2. handoff/00_START_HERE/NEW_CHAT_COMMAND.txt
+3. handoff/01_STATE/AUTHORITATIVE_STATE.json
+4. handoff/01_STATE/CURRENT_FUNNEL_SNAPSHOT_20260911.json
+5. handoff/01_STATE/CURRENT_ORDER_STATE_20260911.json
+6. handoff/01_STATE/METRICOOL_SCHEDULED_POSTS_20260911.json
+7. handoff/01_STATE/PAYNOW_SUPPORT_STATUS_20260911.md
+8. handoff/02_EXECUTION/NEXT_ACTIONS.md
+9. 01_SOURCE/mft-axiom-build/commerce/chemistry/CHEMISTRY_RESCUE_2026_CONTINUATION.md
+10. 01_SOURCE/mft-axiom-build/growth/chemistry-rescue/30-day-calendar.md
+11. 01_SOURCE/mft-axiom-build/growth/chemistry-rescue/README.md
+12. 01_SOURCE/mft-axiom-build/growth/chemistry-rescue/content-qa.md
+13. 01_SOURCE/mft-axiom-build/growth/chemistry-rescue/budget-operations.md
+14. 01_SOURCE/mft-axiom-build/growth/chemistry-rescue/short-video-scripts.md
+
+Then use connected GitHub/Gmail/Metricool/Drive directly and continue from newer verified state if it supersedes this package.
