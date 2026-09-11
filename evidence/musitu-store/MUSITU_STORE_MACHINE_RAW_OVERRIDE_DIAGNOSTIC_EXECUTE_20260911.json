@@ -3,5 +3,6 @@
   "date_utc": "2026-09-11",
   "scope": "GET-only diagnosis of current public machine endpoint representation and raw=1 browser override equivalence after native-install production preflight failure.",
   "production_mutation": false,
+  "attempt": 2,
   "execute": true
 }
