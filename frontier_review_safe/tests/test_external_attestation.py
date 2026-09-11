@@ -71,6 +71,54 @@ class ExternalAttestationTests(unittest.TestCase):
         self.assertIn("external_verifier_secret_unavailable", bad["reasons"])
         self.assertIn("untrusted_external_issuer_or_key", bad["reasons"])
 
+    def test_malformed_digest_strings_are_rejected_not_accepted_by_length(self):
+        with self.assertRaises(ValueError):
+            ExternalAttestationService.issue(
+                subject_type="external_run",
+                subject_id="run-malformed",
+                subject_hash="z" * 64,
+                issuer_org="Independent Lab",
+                verifier_key_id="lab-key-1",
+                provenance_type="provider_export",
+                issued_at=NOW,
+                verifier_secret=SECRET,
+            )
+
+        receipt = ExternalAttestationService.issue(
+            subject_type="external_run",
+            subject_id="run-valid",
+            subject_hash="d" * 64,
+            issuer_org="Independent Lab",
+            verifier_key_id="lab-key-1",
+            provenance_type="provider_export",
+            issued_at=NOW,
+            verifier_secret=SECRET,
+        )
+        with self.assertRaises(ValueError):
+            replace(receipt, receipt_hmac="q" * 64)
+
+    def test_invalid_expected_subject_digest_fails_closed(self):
+        receipt = ExternalAttestationService.issue(
+            subject_type="external_run",
+            subject_id="run-3",
+            subject_hash="e" * 64,
+            issuer_org="Independent Lab",
+            verifier_key_id="lab-key-1",
+            provenance_type="provider_export",
+            issued_at=NOW,
+            verifier_secret=SECRET,
+        )
+        bad = ExternalAttestationService.verify(
+            receipt,
+            expected_subject_type="external_run",
+            expected_subject_id="run-3",
+            expected_subject_hash="z" * 64,
+            verifier_secrets=SECRETS,
+            trusted_issuers=TRUST,
+        )
+        self.assertEqual(bad["status"], "FAIL")
+        self.assertIn("external_attestation_expected_subject_hash_invalid", bad["reasons"])
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
