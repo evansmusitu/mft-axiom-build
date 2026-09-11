@@ -234,8 +234,6 @@ class SecureLocator:
                 ip = ipaddress.ip_address(str(value).split("%", 1)[0])
             except ValueError as exc:
                 raise FrontierSafetyError("resolver returned a non-IP address") from exc
-            # ``is_global`` is intentionally stricter than a private/loopback
-            # blacklist and excludes special-use, link-local and reserved ranges.
             if not ip.is_global:
                 raise FrontierSafetyError("DNS resolution includes a non-global address")
             normalized.add(ip.compressed)
@@ -271,10 +269,6 @@ class SecureLocator:
             raise FrontierSafetyError("URL port not allowlisted")
         if resolver is None or not resolver_id:
             raise FrontierSafetyError("identified DNS resolver required for SSRF-safe URL approval")
-
-        # Literal IPs are still passed through the same global-address policy; a
-        # resolver may return the literal itself, but the transport contract is
-        # uniform for names and IP literals.
         raw_ips = resolver(host, port)
         ips = cls._validated_ips(tuple(str(x) for x in raw_ips))
         observed = resolved_at or utcnow()
@@ -344,3 +338,8 @@ class CapabilityDiscoveryOptimizer:
             regrets.append(utility[best] - utility[obs.selected])
         return {"selection_accuracy": correct / len(observations), "mean_regret": sum(regrets) / len(regrets),
                 "max_regret": max(regrets), "n": len(observations), "observations_sha256": sha256([asdict(x) for x in observations])}
+
+
+# Canonical durable model-risk exports. These override the legacy inline classes
+# so callers using frontier_review_safe.controls cannot bypass persistent governance.
+from .model_risk import ModelRegistration as ModelRegistration, ModelRiskGovernance as ModelRiskGovernance
