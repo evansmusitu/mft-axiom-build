@@ -10,7 +10,7 @@ class SpecialistGovernanceTests(unittest.TestCase):
     def policy(self, **overrides):
         values = {
             "minimum_successful_lanes": 2,
-            "minimum_consensus_fraction": .67,
+            "minimum_consensus_fraction": 2.0 / 3.0,
             "minimum_mean_confidence": .5,
             "maximum_confidence_spread": .5,
             "maximum_failure_fraction": 0.0,
