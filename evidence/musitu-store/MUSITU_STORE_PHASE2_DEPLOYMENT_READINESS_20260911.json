@@ -1,5 +1,5 @@
 {
-  "schema": "musitu.store.phase2.deployment_readiness_record.v3",
+  "schema": "musitu.store.phase2.deployment_readiness_record.v4",
   "created_date_utc": "2026-09-11",
   "status": "PASS_READY_EXCEPT_REAL_MANUAL_ACCESSIBILITY_EVIDENCE",
   "phase2Authorized": true,
@@ -7,66 +7,95 @@
   "repository": {
     "full_name": "evansmusitu/mft-axiom-build",
     "branch": "musitu-store-phase2-standards-hardening-20260911",
-    "readiness_head": "d8331962c4d6a21c4e22e10105b1d2cbd7c20844",
-    "body_equivalence_head": "e42f461b7dadd9e53afc0eb285a276c7e2710fc7",
-    "certified_candidate_head": "6a1d50c76dec96e924751dd6f5f2bc1ffe4191e1",
-    "evidence_helper_source_commit": "27bf8ad6fbaf09ed4e20dab10f3c708847f1302b",
+    "readiness_head": "0c7fb43c69415ef4304c5963f1be7ac0f541f433",
+    "qualification_head": "142da49e1a8ee185a9494690651b8a2a0be81143",
     "phase1_head": "ebded495617cc89bb96d7a5531c1ce4fc6bbedd9",
     "sealed_main": "d6a846f6bbe0bccac1758713eb4de167caf07113"
   },
-  "readiness_workflow": {
-    "run_id": 34576058839,
-    "job_id": 103188653766,
-    "conclusion": "success",
-    "gates": {
-      "immutable_boundaries_and_candidate_source_stability": "PASS",
-      "deployment_transaction_validator_and_transform_compile": "PASS",
-      "manual_only_strict_production_trigger_and_rollback_hooks": "PASS",
-      "response_body_equivalence_record": "PASS",
-      "strict_manual_validator_current_pending_packet": "FAIL_CLOSED_AS_REQUIRED",
-      "candidate_certificate_verification": "PASS"
-    },
-    "artifact": {
-      "id": 10189660738,
-      "name": "musitu-store-phase2-deployment-readiness",
-      "bytes": 527,
-      "digest": "sha256:f9e39680fb791e0b00aade7934141794f9b2b62100c26bb89c65bc906c1fb32c",
-      "expires_at_utc": "2026-12-10T07:47:41Z"
-    }
+  "browser_presentation_hotfix": {
+    "production_certification_path": "evidence/musitu-store/MUSITU_STORE_BROWSER_PRESENTATION_HOTFIX_PRODUCTION_CERTIFICATION_20260911.json",
+    "status": "PASS_RECOVERED_DEPLOY_ROLLBACK_REDEPLOY_VERIFIED",
+    "recovery_run_id": 34581130498,
+    "recovery_job_id": 103204687151,
+    "artifact_id": 10191650385,
+    "artifact_digest": "sha256:df7be164f3535ec20fe1ddd15e63ab3ab047824081c19782360b311f91667659",
+    "production_worker_sha256": "e17e0c7bde55d9f8d41b476e917159b6bf39b46c3895b7ec6d2a7b4f705beb81",
+    "machine_endpoint_count": 11,
+    "browser_navigation_readable_html": true,
+    "software_client_raw_bytes_preserved": true,
+    "raw_query_override_preserved": true,
+    "presentation_hotfix_production_mutation": true,
+    "phase2_security_hardening_cutover": false
   },
-  "latest_full_regressions": {
-    "standards_preflight": {
-      "run_id": 34575782786,
-      "job_id": 103187828365,
-      "conclusion": "success",
-      "head": "27bf8ad6fbaf09ed4e20dab10f3c708847f1302b"
+  "repaired_live_hardened_candidate": {
+    "certification_path": "evidence/musitu-store/MUSITU_STORE_PHASE2_REPAIRED_LIVE_HARDENED_CANDIDATE_CERTIFICATION_20260911.json",
+    "baseline_live_worker_sha256": "e17e0c7bde55d9f8d41b476e917159b6bf39b46c3895b7ec6d2a7b4f705beb81",
+    "candidate_worker_sha256": "c98e6e36fa153f16a05c627b10b9a562e5f2ffde1f02ec0a7676a8d5121b7cce",
+    "qualification_run_id": 34582501210,
+    "qualification_job_id": 103209089223,
+    "artifact_id": 10192199123,
+    "artifact_digest": "sha256:3b1c157fd2a061c26c9b150c5e018aefc109ddd6cea3d8fab3e1e2908717f497",
+    "artifact_bytes": 299314,
+    "inherited_store_tests": 29,
+    "inherited_store_failures": 0,
+    "browser_presentation_preserved": true,
+    "machine_client_bytes_preserved": true,
+    "security_hardening": "PASS",
+    "automated_accessibility_low_bandwidth": "PASS_AUTOMATED",
+    "lighthouse": {
+      "result": "PASS",
+      "performance": 1.0,
+      "accessibility": 1.0,
+      "best_practices": 0.96,
+      "lcp_ms": 1113.119,
+      "cls": 0,
+      "tbt_ms": 57
     },
-    "hardened_candidate_preflight": {
-      "run_id": 34575782807,
-      "job_id": 103187844407,
-      "conclusion": "success",
-      "head": "27bf8ad6fbaf09ed4e20dab10f3c708847f1302b"
-    }
+    "production_mutation": false
   },
   "response_body_equivalence": {
-    "record_path": "evidence/musitu-store/MUSITU_STORE_PHASE2_RESPONSE_BODY_EQUIVALENCE_20260911.json",
-    "run_id": 34575291010,
-    "artifact_id": 10189381691,
-    "artifact_digest": "sha256:135cc85142d9eee8801a01f6221b6638f723577e8346ebd63604747cb82ff605",
+    "record_path": "evidence/musitu-store/MUSITU_STORE_PHASE2_REPAIRED_LIVE_RESPONSE_BODY_EQUIVALENCE_20260911.json",
+    "run_id": 34582501210,
+    "artifact_id": 10192199123,
+    "artifact_digest": "sha256:3b1c157fd2a061c26c9b150c5e018aefc109ddd6cea3d8fab3e1e2908717f497",
     "result": "PASS",
-    "body_byte_equality": true,
+    "normal_store_case_count": 14,
+    "normal_store_body_byte_equality": true,
+    "machine_endpoint_count": 11,
+    "machine_payload_byte_equality": true,
+    "browser_presentation_preserved": true,
+    "raw_query_override_byte_identical": true,
     "unexpected_header_delta": false,
-    "manual_live_body_evidence_applicable_to_unchanged_candidate": true
+    "manual_live_body_evidence_applicable_to_candidate": true
   },
-  "certified_hardened_candidate": {
-    "predeploy_run_id": 34573638727,
-    "predeploy_artifact_id": 10188749517,
-    "predeploy_artifact_digest": "sha256:0e1066a9453ae437c7d6e5ebed50a464ce3f96f39490a25b6c604e73bfc51ac4",
-    "worker_sha256": "ee95b816bc056ab79be4d764cf88a68e25feed7aafdaad33ff23e2188f954616",
-    "automated_standards": "PASS",
-    "security_hardening": "PASS",
-    "low_bandwidth": "PASS",
-    "lighthouse_budget": "PASS"
+  "readiness_workflow": {
+    "run_id": 34582977701,
+    "job_id": 103210600266,
+    "conclusion": "success",
+    "gates": {
+      "immutable_boundaries_and_repaired_live_candidate_stability": "PASS",
+      "safe_deployment_transaction_validator_and_transform_compile": "PASS",
+      "manual_only_strict_module_root_rollback_guard": "PASS",
+      "repaired_live_response_body_equivalence_record": "PASS",
+      "repaired_live_candidate_certificate": "PASS",
+      "strict_manual_validator_current_pending_packet": "FAIL_CLOSED_AS_REQUIRED"
+    },
+    "classification": {
+      "candidate_predeploy": "PASS_REPAIRED_LIVE_BASE",
+      "response_body_equivalence": "PASS_REPAIRED_LIVE_BASE",
+      "manual_accessibility_gate": "BLOCKED_PENDING_REAL_EVIDENCE",
+      "manual_validator": "FAIL_CLOSED_AS_REQUIRED",
+      "production_workflow": "MANUAL_DISPATCH_ONLY",
+      "rollback_transaction": "SAFE_MODULE_ROOT_STATICALLY_VERIFIED",
+      "raw_get_multipart_rollback": "FORBIDDEN"
+    },
+    "artifact": {
+      "id": 10192373027,
+      "name": "musitu-store-phase2-deployment-readiness",
+      "bytes": 768,
+      "digest": "sha256:b68c380b59cc56956f1af181932fbaeafe393530ce0b7917be492363eeee32ca",
+      "expires_at_utc": "2026-12-10T09:12:00Z"
+    }
   },
   "evidence_helper": {
     "certification_path": "evidence/musitu-store/MUSITU_STORE_PHASE2_EVIDENCE_HELPER_CERTIFICATION_20260911.json",
@@ -81,6 +110,7 @@
   "manual_accessibility_gate": {
     "packet_path": "evidence/musitu-store/MUSITU_STORE_PHASE2_MANUAL_ACCESSIBILITY_CERTIFICATION_PACKET_20260911.json",
     "packet_schema": "musitu.store.phase2.manual_accessibility_certification_packet.v2",
+    "bound_candidate_worker_sha256": "c98e6e36fa153f16a05c627b10b9a562e5f2ffde1f02ec0a7676a8d5121b7cce",
     "protocol_path": "docs/MUSITU_STORE_PHASE2_REAL_ACCESSIBILITY_TEST_PROTOCOL_20260911.md",
     "validator_path": "store/phase2/validate_manual_accessibility_packet.py",
     "current_state": "BLOCKED_PENDING_REAL_EVIDENCE",
@@ -96,16 +126,21 @@
   "production_workflow": {
     "path": ".github/workflows/musitu-store-phase2-guarded-production-deploy.yml",
     "trigger": "workflow_dispatch_only",
-    "strict_manual_validator_before_mutation": true,
-    "response_body_equivalence_gate_before_mutation": true,
-    "manual_accessibility_gate_before_mutation": true,
+    "strict_manual_validator_before_any_mutation": true,
+    "repaired_live_candidate_certificate_gate_before_mutation": true,
+    "repaired_live_response_body_equivalence_gate_before_mutation": true,
+    "exact_live_worker_capture_before_candidate_build": true,
+    "candidate_rebuilt_from_exact_live_modules": true,
+    "candidate_hash_required": "c98e6e36fa153f16a05c627b10b9a562e5f2ffde1f02ec0a7676a8d5121b7cce",
     "worker_only_mutation": true,
     "catalog_mutation": false,
     "apk_mutation": false,
     "commerce_mutation": false,
     "licence_mutation": false,
-    "live_snapshot_restore_rollback_drill": true,
-    "emergency_snapshot_restore_on_failure": true
+    "rollback_method": "fresh valid multipart rebuilt from exact certified baseline module root",
+    "raw_get_multipart_replay_forbidden": true,
+    "deploy_verify_rollback_verify_redeploy_verify": true,
+    "emergency_exact_baseline_module_restore_on_failure": true
   },
   "current_blocker": {
     "manual_accessibility_gate": "BLOCKED_PENDING_REAL_EVIDENCE",
@@ -125,6 +160,6 @@
     "freshDevicePhase1Complete": false,
     "phase1_evidence_modified_by_phase2": false
   },
-  "production_mutation": false,
-  "claim_boundary": "Phase 2 is authorized and every currently executable automated predeployment, hardened-candidate, response-body-equivalence, evidence-helper, deployment-readiness, regression, and fail-closed validation gate passes. The guarded production transaction is prepared and rollback-capable but remains blocked before mutation because original real keyboard, Narrator screen-reader with visible Speech Recap live transcription, and zoom/reflow evidence has not been supplied and reviewed. Production is unchanged and Phase 2 is not complete."
+  "phase2_security_production_mutation": false,
+  "claim_boundary": "The customer-facing browser-presentation defect is fixed and verified in production. The Phase-2 security-hardening candidate has been rebuilt and qualified from that exact repaired live Worker, with browser presentation, machine-client byte compatibility, response bodies, release identities, automated accessibility, low-bandwidth behavior, regressions and performance all verified. The guarded security-hardening deployment now uses a safe module-root rollback transaction and remains strictly blocked before mutation because original real keyboard, Narrator screen-reader with visible Speech Recap live transcription, and 200%/400% zoom-reflow evidence has not yet been supplied and reviewed. Phase 2 is not complete."
 }
