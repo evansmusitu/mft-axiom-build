@@ -1,0 +1,55 @@
+name: MUSITU Chemistry Direct Paynow Public Verify
+
+on:
+  push:
+    branches: [chemistry-direct-paynow-fallback-20260911]
+    paths: ['.github/workflows/chemistry-direct-paynow-public-verify.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Verify public Direct Paynow contract read-only
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json,secrets,time,urllib.request
+          BASE='https://payments.mftintelligence.com'
+          def get(path,accept='application/json'):
+              nonce=secrets.token_hex(8)
+              sep='&' if '?' in path else '?'
+              q=urllib.request.Request(BASE+path+sep+'__paynow_verify='+nonce,headers={
+                  'Accept':accept,'Cache-Control':'no-cache, no-store, max-age=0','Pragma':'no-cache',
+                  'User-Agent':'MUSITU-Direct-Paynow-Public-Verify/'+nonce})
+              with urllib.request.urlopen(q,timeout=25) as r:
+                  return r.status,r.read()
+          c,b=get('/chemistry/healthz'); h=json.loads(b or b'{}')
+          assert c==200 and h.get('ok') is True
+          assert h.get('direct_paynow_fallback_active') is True
+          assert h.get('direct_paynow_entitlement_mode')=='manual_verified_settlement_only'
+          assert h.get('raw_paynow_key_present') is False
+          assert h.get('payment_authority_bound') is True
+          assert h.get('transport_bound') is True
+          c,b=get('/chemistry/catalog'); cat=json.loads(b or b'{}')
+          got={p['id']:(p.get('amount_cents'),p.get('seats'),p.get('months')) for p in cat.get('plans',[])}
+          want={'term':(499,1,4),'annual':(999,1,12),'lifetime':(1999,1,None),'family':(2499,4,12),'tutor':(3900,10,12),'school':(None,None,12)}
+          assert c==200 and got==want
+          c,b=get('/chemistry/checkout/start?plan=annual','text/html'); t=b.decode('utf-8','replace')
+          assert c==200 and 'Continue securely to Paynow' in t
+          assert 'Premium remains locked until MUSITU independently verifies settlement' in t
+          assert 'Annual' in t and 'US$9.99' in t
+          c,b=get('/chemistry/support','text/html'); s=b.decode('utf-8','replace')
+          assert c==200 and 'Temporary direct Paynow route' in s
+          assert 'settlement can be verified before a signed licence is issued' in s
+          print('PUBLIC_DIRECT_PAYNOW_CONTRACT=PASS')
+          print('DIRECT_PAYNOW_FALLBACK_ACTIVE=TRUE')
+          print('ENTITLEMENT_MODE=MANUAL_VERIFIED_SETTLEMENT_ONLY')
+          print('PAYMENT_CREATED_BY_VERIFY=FALSE')
+          print('PRODUCTION_MUTATION=FALSE')
+          PY
