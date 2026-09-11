@@ -34,6 +34,7 @@ jobs:
       CANDIDATE_CERT: evidence/musitu-store/MUSITU_STORE_PHASE2_REPAIRED_LIVE_HARDENED_CANDIDATE_CERTIFICATION_20260911.json
       EQUIVALENCE_RECORD: evidence/musitu-store/MUSITU_STORE_PHASE2_REPAIRED_LIVE_RESPONSE_BODY_EQUIVALENCE_20260911.json
       READINESS_RECORD: evidence/musitu-store/MUSITU_STORE_PHASE2_DEPLOYMENT_READINESS_20260911.json
+      VALIDATOR_CERT: evidence/musitu-store/MUSITU_STORE_PHASE2_MANUAL_VALIDATOR_HARDENING_CERTIFICATION_20260911.json
       HOTFIX_CERT: evidence/musitu-store/MUSITU_STORE_BROWSER_PRESENTATION_HOTFIX_PRODUCTION_CERTIFICATION_20260911.json
 
     steps:
@@ -93,7 +94,7 @@ jobs:
           if ((${#debt_files[@]})) && grep -nHE '\b(TODO|FIXME|HACK|XXX)\b' "${debt_files[@]}"; then exit 1; fi
           echo PHASE2_SOURCE_HYGIENE=PASS
 
-      - name: Prove current evidence chain and single external blocker
+      - name: Prove current evidence chain hardened validator and single external blocker
         shell: bash
         run: |
           set -euo pipefail
@@ -104,7 +105,8 @@ jobs:
           load=lambda p: json.loads(Path(p).read_text())
           hotfix=load(os.environ['HOTFIX_CERT']); candidate=load(os.environ['CANDIDATE_CERT'])
           equiv=load(os.environ['EQUIVALENCE_RECORD']); readiness=load(os.environ['READINESS_RECORD'])
-          manual=load(os.environ['MANUAL_PACKET']); helper=load('evidence/musitu-store/MUSITU_STORE_PHASE2_EVIDENCE_HELPER_CERTIFICATION_20260911.json')
+          validator=load(os.environ['VALIDATOR_CERT']); manual=load(os.environ['MANUAL_PACKET'])
+          helper=load('evidence/musitu-store/MUSITU_STORE_PHASE2_EVIDENCE_HELPER_CERTIFICATION_20260911.json')
           assert hotfix['status']=='PASS_RECOVERED_DEPLOY_ROLLBACK_REDEPLOY_VERIFIED'
           assert hotfix['production']['final_worker_sha256']==os.environ['BASELINE_WORKER_SHA']
           assert hotfix['machine_endpoint_contract']['endpoint_count']==11
@@ -129,17 +131,36 @@ jobs:
           assert equiv['proof']['raw_query_override_byte_identical'] is True
           assert equiv['proof']['unexpected_header_delta'] is False
           assert helper['status']=='PASS' and helper['windows_smoke']['conclusion']=='success'
+          assert validator['status']=='PASS_SYNTHETIC_VALIDATOR_CONTRACT_HARDENING'
+          assert validator['candidate_binding']['candidate_worker_sha256']==os.environ['CANDIDATE_WORKER_SHA']
+          assert validator['candidate_binding']['candidate_hash_pinned_by_validator'] is True
+          assert validator['validator_contract']['complete_manual_keyboard_check_keyset_required'] is True
+          assert validator['validator_contract']['complete_screen_reader_check_keyset_required'] is True
+          assert validator['validator_contract']['complete_zoom_reflow_check_keyset_required'] is True
+          assert validator['validator_contract']['microsoft_narrator_required'] is True
+          assert validator['validator_contract']['stable_evidence_reference_scheme_required'] is True
+          assert validator['evidence_boundary']['synthetic_tests_are_real_accessibility_evidence'] is False
+          assert validator['evidence_boundary']['synthetic_tests_may_satisfy_manual_accessibility_gate'] is False
           assert readiness['schema']=='musitu.store.phase2.deployment_readiness_record.v4'
           assert readiness['status']=='PASS_READY_EXCEPT_REAL_MANUAL_ACCESSIBILITY_EVIDENCE'
           assert readiness['phase2Complete'] is False
           assert readiness['phase2_security_production_mutation'] is False
-          assert readiness['readiness_workflow']['run_id']==34582977701
+          assert readiness['readiness_workflow']['run_id']==34584007750
+          assert readiness['readiness_workflow']['artifact']['id']==10192785701
+          assert readiness['readiness_workflow']['artifact']['digest']=='sha256:35769406748050939b396e8bf7cd1a38048af9fde1bf02b18a26acb3e8cd697a'
           c=readiness['readiness_workflow']['classification']
           assert c['manual_accessibility_gate']=='BLOCKED_PENDING_REAL_EVIDENCE'
           assert c['manual_validator']=='FAIL_CLOSED_AS_REQUIRED'
+          assert c['manual_validator_contract_tests']=='PASS_SYNTHETIC_STRUCTURE_ONLY_NOT_REAL_EVIDENCE'
+          assert c['manual_validator_requires_complete_check_keysets'] is True
+          assert c['manual_validator_requires_microsoft_narrator'] is True
+          assert c['manual_validator_requires_stable_evidence_reference_scheme'] is True
           assert c['rollback_transaction']=='SAFE_MODULE_ROOT_STATICALLY_VERIFIED'
           assert c['raw_get_multipart_rollback']=='FORBIDDEN'
           assert readiness['production_workflow']['raw_get_multipart_replay_forbidden'] is True
+          assert readiness['internal_closure_audit']['external_certification_is_only_current_phase2_blocker'] is True
+          assert readiness['internal_closure_audit']['independently_actionable_internal_engineering_remaining']==[]
+          assert readiness['internal_closure_audit']['independently_actionable_internal_qualification_remaining']==[]
           assert manual['schema']=='musitu.store.phase2.manual_accessibility_certification_packet.v2'
           assert manual['status']=='PENDING_REAL_ASSISTIVE_TECHNOLOGY_EVIDENCE' and manual['result'] is None
           assert manual['body_equivalence']['candidate_worker_sha256']==os.environ['CANDIDATE_WORKER_SHA']
@@ -148,17 +169,19 @@ jobs:
               assert all(v is None for v in manual[group].values())
           assert all(v is None for v in manual['required_evidence'].values())
           report={
-            'schema':'musitu.store.phase2.internal_closure_audit.v2',
+            'schema':'musitu.store.phase2.internal_closure_audit.v3',
             'result':'PASS_INTERNAL_CLOSURE_PENDING_EXTERNAL_CERTIFICATION',
             'head':os.environ['GITHUB_SHA'],
             'sealed_main':os.environ['SEALED_MAIN'],
             'phase1_head':os.environ['PHASE1_HEAD'],
             'browser_presentation_production_fix_verified':True,
             'repaired_live_hardened_candidate_verified':True,
+            'manual_validator_hardened_and_contract_tested':True,
+            'synthetic_validator_tests_count_as_real_accessibility_evidence':False,
             'safe_module_root_rollback_prepared':True,
             'independently_actionable_internal_engineering_remaining':[],
             'independently_actionable_internal_qualification_remaining':[],
-            'current_external_blockers':['real manual keyboard + Narrator screen-reader with visible Speech Recap + 200%/400% zoom/reflow evidence and original-evidence review'],
+            'current_external_blockers':['real manual keyboard + Microsoft Narrator with visible Speech Recap + 200%/400% zoom/reflow evidence and original-evidence review'],
             'external_certification_is_only_current_blocker':True,
             'phase2_security_production_mutation':False,
             'phase2Complete':False
@@ -174,7 +197,10 @@ jobs:
           set +e; python store/phase2/validate_manual_accessibility_packet.py "$MANUAL_PACKET" . >/tmp/manual-validator.txt 2>&1; rc=$?; set -e
           test "$rc" -ne 0
           grep -q 'MANUAL_ACCESSIBILITY_PACKET_INVALID' /tmp/manual-validator.txt
-          echo MANUAL_PACKET_FAIL_CLOSED=PASS
+          python store/phase2/test_manual_accessibility_validator.py >/tmp/manual-validator-contract.txt
+          grep -q 'MUSITU_STORE_PHASE2_MANUAL_VALIDATOR_SYNTHETIC_CONTRACT_TESTS=PASS' /tmp/manual-validator-contract.txt
+          grep -q 'SYNTHETIC_FIXTURE_IS_NOT_REAL_ACCESSIBILITY_EVIDENCE=TRUE' /tmp/manual-validator-contract.txt
+          echo MANUAL_PACKET_FAIL_CLOSED_AND_VALIDATOR_CONTRACT=PASS
 
       - name: Prove guarded production ordering and safe rollback structure
         shell: bash
@@ -202,7 +228,8 @@ jobs:
           check_artifact(){ local r="$1" id="$2" digest="$3"; local row; row="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$r/artifacts" --jq ".artifacts[] | select(.id == $id) | [.expired,.digest] | @tsv")"; test "$(printf '%s' "$row" | cut -f1)" = false; test "$(printf '%s' "$row" | cut -f2)" = "$digest"; }
           check_run 34581130498; check_artifact 34581130498 10191650385 sha256:df7be164f3535ec20fe1ddd15e63ab3ab047824081c19782360b311f91667659
           check_run 34582501210; check_artifact 34582501210 10192199123 sha256:3b1c157fd2a061c26c9b150c5e018aefc109ddd6cea3d8fab3e1e2908717f497
-          check_run 34582977701; check_artifact 34582977701 10192373027 sha256:b68c380b59cc56956f1af181932fbaeafe393530ce0b7917be492363eeee32ca
+          check_run 34584007750; check_artifact 34584007750 10192785701 sha256:35769406748050939b396e8bf7cd1a38048af9fde1bf02b18a26acb3e8cd697a
+          check_run 34584007681; check_artifact 34584007681 10192793898 sha256:b4fea18cda2bac2c5e14a8c5d43e0f41dad68a239e64e384a66da2ed14c009a2
           check_run 34575797677; check_artifact 34575797677 10189562925 sha256:063c5b1d793471ab9c09de0c7a03be040b273f166bf4b8454ae28204490eb015
           echo REFERENCED_ACTIONS_EVIDENCE=PASS
 
