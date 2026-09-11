@@ -1,133 +1,17 @@
-name: MUSITU Store Browser Presentation Hotfix Live-Base Production
+name: MUSITU Store Browser Presentation Hotfix Live-Base Production — RETIRED
 
 on:
-  push:
-    branches: [musitu-store-phase2-standards-hardening-20260911]
-    paths:
-      - 'evidence/musitu-store/MUSITU_STORE_BROWSER_PRESENTATION_HOTFIX_LIVEBASE_EXECUTE_20260911.json'
+  workflow_dispatch:
 
 permissions:
   contents: read
 
-concurrency:
-  group: musitu-store-browser-presentation-hotfix-production
-  cancel-in-progress: false
-
 jobs:
-  deploy:
+  retired:
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
-    env:
-      SEALED_MAIN: d6a846f6bbe0bccac1758713eb4de167caf07113
-      PHASE1_HEAD: ebded495617cc89bb96d7a5531c1ce4fc6bbedd9
-      LIVE_WORKER_SHA: 7a05f174db9fa88ce2d3f77a357947622f9d3a10bcd8a049aab69309a59b5168
-      LIVE_RENDER_SHA: fc4abcec85fd5338c71e26fad5b21d318c99e6a1e1bd62f09091db9c4e914e04
-      LIVE_ASSETS_SHA: 443e558c297d700bedc706ea56647c97162709e5178b80acd63d478054bba4b4
-      LIVE_GENERATED_DATA_SHA: 27ab78a914019cb44844de51bd0f4be46dc53bdf4b928a8dff7944228ccce063
-      HOTFIX_WORKER_SHA: e17e0c7bde55d9f8d41b476e917159b6bf39b46c3895b7ec6d2a7b4f705beb81
-      EXPECTED_COMPATIBILITY_DATE: '2026-09-09'
-      STORE_SHA: 3a0c4b0f971ec84cd6167a137f8e3d75c7bb20e525c26ab533b3d88044cd0784
-      STORE_BYTES: '1679340'
-      CATALOG_SHA: 4fa31c5f9f84facc0d1fbf7a91a50b0adcaa5ef4c97b7d82abbe9657ea10b7f9
-      CATALOG_SIG_SHA: 9b854358f90368ceb5cc3baab8d99064d8ee94b79ead378a614f8cc1732b06a7
-      ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
-      ZONE_ID: 5b56528f03948ff5917a5e0cd9f7109e
-      ZONE_NAME: mftintelligence.com
-      PAYMENTS_HOST: payments.mftintelligence.com
-      PAYMENTS_ORIGIN: mft-paynow-transport-gateway
-      STORE_WORKER: musitu-store-phase1
-      STORE_ROUTE: payments.mftintelligence.com/store*
-      STORE_BUCKET: musitu-store-phase1-releases
-
     steps:
-      - uses: actions/checkout@v4
-        with: {fetch-depth: 0}
-      - uses: actions/setup-python@v5
-        with: {python-version: '3.12'}
-      - uses: actions/setup-node@v4
-        with: {node-version: '22'}
-
-      - name: Prove immutable repository anchors
-        shell: bash
+      - name: Retired one-time workflow
         run: |
-          set -euo pipefail
-          git fetch --quiet origin main musitu-store-phase1-20260909
-          test "$(git rev-parse origin/main)" = "$SEALED_MAIN"
-          test "$(git rev-parse origin/musitu-store-phase1-20260909)" = "$PHASE1_HEAD"
-          test -z "$(git diff --name-only "$PHASE1_HEAD"..."$GITHUB_SHA" -- store/phase1 commerce/chemistry)"
-
-      - name: Capture and verify the exact current live Worker — GET only
-        env:
-          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
-          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
-          LIVE_MODULE_OUTPUT: /tmp/browser-hotfix-live
-        shell: bash
-        run: |
-          set -euo pipefail
-          rm -rf /tmp/browser-hotfix-live /tmp/browser-hotfix-candidate /tmp/browser-hotfix-evidence
-          mkdir -p /tmp/browser-hotfix-evidence
-          test -n "$CLOUDFLARE_EMAIL" && test -n "$CLOUDFLARE_GLOBAL_API_KEY"
-          python store/phase2/capture_exact_live_store_worker.py | tee /tmp/browser-hotfix-evidence/live-capture.log
-          grep -q '"result": "PASS_EXACT_LIVE_CAPTURE"' /tmp/browser-hotfix-evidence/live-capture.log
-
-      - name: Build candidate from exact live bytes and prove presentation-only delta
-        shell: bash
-        run: |
-          set -euo pipefail
-          cp -a /tmp/browser-hotfix-live /tmp/browser-hotfix-candidate
-          python store/phase2/browser_machine_presentation.py /tmp/browser-hotfix-candidate/worker.mjs
-          node --check /tmp/browser-hotfix-candidate/worker.mjs
-          test "$(sha256sum /tmp/browser-hotfix-candidate/worker.mjs | awk '{print $1}')" = "$HOTFIX_WORKER_SHA"
-          cmp /tmp/browser-hotfix-live/render.mjs /tmp/browser-hotfix-candidate/render.mjs
-          cmp /tmp/browser-hotfix-live/assets.mjs /tmp/browser-hotfix-candidate/assets.mjs
-          cmp /tmp/browser-hotfix-live/generated-data.mjs /tmp/browser-hotfix-candidate/generated-data.mjs
-          BASELINE_WORKER_PATH=/tmp/browser-hotfix-live/worker.mjs CANDIDATE_WORKER_PATH=/tmp/browser-hotfix-candidate/worker.mjs node store/phase2/browser-machine-presentation-smoke.mjs | tee /tmp/browser-hotfix-evidence/exact-live-presentation-smoke.json
-          grep -q '"result": "PASS"' /tmp/browser-hotfix-evidence/exact-live-presentation-smoke.json
-
-      - name: Execute exact-live presentation deployment with rollback drill
-        id: transaction
-        continue-on-error: true
-        env:
-          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
-          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
-          BASELINE_MODULE_ROOT: /tmp/browser-hotfix-live
-          CANDIDATE_MODULE_ROOT: /tmp/browser-hotfix-candidate
-          HOTFIX_HEAD: ${{ github.sha }}
-          HOTFIX_DEPLOY_EVIDENCE: /tmp/browser-hotfix-evidence
-        shell: bash
-        run: |
-          set -euo pipefail
-          python store/phase2/deploy_browser_presentation_hotfix.py
-
-      - name: Upload non-secret deployment evidence
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: musitu-store-browser-presentation-hotfix-livebase-production
-          path: /tmp/browser-hotfix-evidence
-          retention-days: 90
-          if-no-files-found: error
-
-      - name: Enforce successful exact-live hotfix transaction
-        if: always()
-        shell: bash
-        run: |
-          set -euo pipefail
-          test '${{ steps.transaction.outcome }}' = success
-          python - <<'PY'
-          import json
-          from pathlib import Path
-          d=json.loads(Path('/tmp/browser-hotfix-evidence/deployment.json').read_text())
-          assert d['gate']=='MUSITU_STORE_BROWSER_PRESENTATION_HOTFIX_DEPLOY_AND_ROLLBACK_PASS'
-          s=d['state']
-          assert s['initial_snapshot_verified'] is True
-          assert s['presentation_candidate_deployed_once'] is True
-          assert s['rollback_drill_performed'] is True
-          assert s['rollback_drill_verified'] is True
-          assert s['presentation_candidate_redeployed_final'] is True
-          assert s['final_state_verified'] is True
-          assert s['emergency_rollback_performed'] is False
-          assert d['checks']['normal_store_responses_unchanged'] is True
-          assert len(d['checks']['machine_endpoint_verification'])==11
-          print('MUSITU_STORE_BROWSER_PRESENTATION_HOTFIX_LIVEBASE_PRODUCTION=PASS')
-          PY
+          echo 'RETIRED: the one-time browser-presentation production transaction completed via recovery run 34581130498.'
+          echo 'Do not reuse the old raw-multipart rollback harness.'
+          exit 1
