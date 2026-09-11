@@ -1,0 +1,81 @@
+{
+  "schema": "musitu.store.phase2.repaired_live_hardened_candidate_certification.v1",
+  "status": "PASS_PREDEPLOY_MANUAL_AND_DEPLOYMENT_PENDING",
+  "date_utc": "2026-09-11",
+  "repository": {
+    "name": "evansmusitu/mft-axiom-build",
+    "branch": "musitu-store-phase2-standards-hardening-20260911",
+    "qualification_head": "142da49e1a8ee185a9494690651b8a2a0be81143",
+    "sealed_main": "d6a846f6bbe0bccac1758713eb4de167caf07113",
+    "phase1_head": "ebded495617cc89bb96d7a5531c1ce4fc6bbedd9"
+  },
+  "baseline": {
+    "source": "exact repaired live Cloudflare Worker modules captured by GET only",
+    "worker_sha256": "e17e0c7bde55d9f8d41b476e917159b6bf39b46c3895b7ec6d2a7b4f705beb81",
+    "render_sha256": "fc4abcec85fd5338c71e26fad5b21d318c99e6a1e1bd62f09091db9c4e914e04",
+    "assets_sha256": "443e558c297d700bedc706ea56647c97162709e5178b80acd63d478054bba4b4",
+    "generated_data_sha256": "27ab78a914019cb44844de51bd0f4be46dc53bdf4b928a8dff7944228ccce063",
+    "compatibility_date": "2026-09-09",
+    "browser_presentation_hotfix_present": true
+  },
+  "candidate": {
+    "worker_sha256": "c98e6e36fa153f16a05c627b10b9a562e5f2ffde1f02ec0a7676a8d5121b7cce",
+    "non_worker_modules_unchanged": true,
+    "browser_presentation_preserved": true,
+    "machine_client_bytes_preserved": true,
+    "security_hardening_applied": true,
+    "production_mutation": false
+  },
+  "release_identity": {
+    "store_version": "1.0.2",
+    "store_apk_sha256": "3a0c4b0f971ec84cd6167a137f8e3d75c7bb20e525c26ab533b3d88044cd0784",
+    "store_apk_bytes": 1679340,
+    "catalog_revision": 3,
+    "catalog_sha256": "4fa31c5f9f84facc0d1fbf7a91a50b0adcaa5ef4c97b7d82abbe9657ea10b7f9",
+    "catalog_signature_sha256": "9b854358f90368ceb5cc3baab8d99064d8ee94b79ead378a614f8cc1732b06a7"
+  },
+  "github_actions": {
+    "run_id": 34582501210,
+    "job_id": 103209089223,
+    "conclusion": "success",
+    "artifact": {
+      "id": 10192199123,
+      "name": "musitu-store-phase2-repaired-live-hardened-candidate",
+      "bytes": 299314,
+      "digest": "sha256:3b1c157fd2a061c26c9b150c5e018aefc109ddd6cea3d8fab3e1e2908717f497",
+      "expires_at": "2026-12-10T09:06:24Z"
+    }
+  },
+  "gates": {
+    "immutable_repository_boundary": "PASS",
+    "inherited_store_regressions": {
+      "result": "PASS",
+      "tests": 29,
+      "failures": 0
+    },
+    "exact_repaired_live_capture": "PASS",
+    "public_release_identity": "PASS",
+    "response_body_equivalence": {
+      "result": "PASS",
+      "normal_cases": 14,
+      "machine_endpoints": 11,
+      "unexpected_header_delta": false
+    },
+    "security_hardening_runtime": "PASS",
+    "automated_accessibility_low_bandwidth": "PASS_AUTOMATED",
+    "lighthouse": {
+      "result": "PASS",
+      "performance": 1.0,
+      "accessibility": 1.0,
+      "best_practices": 0.96,
+      "lcp_ms": 1113.119,
+      "cls": 0,
+      "tbt_ms": 57
+    },
+    "manual_real_assistive_technology": "PENDING",
+    "production_deployment": "PENDING",
+    "rollback_proof_for_security_cutover": "PENDING"
+  },
+  "phase2Complete": false,
+  "claim_boundary": "The exact repaired live Store has a hardened candidate that passes all currently executable automated standards, compatibility, accessibility, low-bandwidth, regression and performance gates. Real manual assistive-technology evidence and guarded production deployment/rollback remain required before Phase 2 completion."
+}
