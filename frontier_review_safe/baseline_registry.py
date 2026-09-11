@@ -25,6 +25,15 @@ def _valid_sha256(value: str) -> bool:
     )
 
 
+def _canonical_provider_org(value: Any) -> bool:
+    return (
+        isinstance(value, str)
+        and bool(value.strip())
+        and value == value.strip()
+        and value == " ".join(value.split())
+    )
+
+
 @dataclass(frozen=True)
 class BaselineRegistration:
     registration_id: str
@@ -45,13 +54,14 @@ class BaselineRegistration:
     def __post_init__(self) -> None:
         identities = (
             self.registration_id,
-            self.provider_org,
             self.product,
             self.exact_version,
             self.access_mode,
         )
         if any(not isinstance(value, str) or not value.strip() for value in identities):
             raise ValueError("complete baseline registration identity required")
+        if not _canonical_provider_org(self.provider_org):
+            raise ValueError("baseline provider_org must use canonical whitespace")
         if self.provider_class not in BASELINE_PROVIDER_CLASSES:
             raise ValueError("unsupported baseline provider class")
         registered = parse_time(self.registered_at)
@@ -174,12 +184,26 @@ class BaselineRegistry:
     ) -> dict[str, Any]:
         providers = {r.provider_org.lower() for r in self.registrations}
         classes = {r.provider_class for r in self.registrations}
-        required_orgs = {str(x).lower() for x in required_provider_orgs}
+        reasons: list[str] = []
+
+        required_org_values = tuple(required_provider_orgs)
+        if any(not _canonical_provider_org(value) for value in required_org_values):
+            reasons.append("invalid_required_provider_orgs")
+            required_orgs: set[str] = set()
+        else:
+            required_orgs = {value.lower() for value in required_org_values}
+
         required_classes = {str(x) for x in required_provider_classes}
         missing_orgs = sorted(required_orgs - providers)
         missing_classes = sorted(required_classes - classes)
+        if missing_orgs:
+            reasons.append("baseline_provider_org_coverage_incomplete")
+        if missing_classes:
+            reasons.append("baseline_provider_class_coverage_incomplete")
+        reasons = sorted(set(reasons))
         return {
-            "status": "PASS" if not missing_orgs and not missing_classes else "FAIL",
+            "status": "PASS" if not reasons else "FAIL",
+            "reasons": reasons,
             "provider_orgs": sorted(providers),
             "provider_classes": sorted(classes),
             "missing_provider_orgs": missing_orgs,
