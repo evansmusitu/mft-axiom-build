@@ -1,0 +1,13 @@
+{
+  "schema": "musitu.store.phase2.live_worker_forensics_execution.v1",
+  "created_date_utc": "2026-09-11",
+  "purpose": "Read-only forensic comparison after the browser-presentation hotfix deployment guard detected unexpected live worker.mjs drift before any mutation.",
+  "production_mutation_authorized": false,
+  "cloudflare_allowed_methods": ["GET"],
+  "sealed_main": "d6a846f6bbe0bccac1758713eb4de167caf07113",
+  "phase1_head": "ebded495617cc89bb96d7a5531c1ce4fc6bbedd9",
+  "failed_guarded_hotfix_run": 34580233215,
+  "failed_guarded_hotfix_job": 103201839088,
+  "guard_outcome": "STOPPED_BEFORE_MUTATION_LIVE_WORKER_DRIFT",
+  "user_authorization_source": "Fix this and also other sites with the same problem"
+}

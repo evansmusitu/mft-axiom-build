@@ -1,0 +1,95 @@
+name: MUSITU Store Live Worker Forensics
+
+on:
+  push:
+    branches: [musitu-store-phase2-standards-hardening-20260911]
+    paths:
+      - 'evidence/musitu-store/MUSITU_STORE_LIVE_WORKER_FORENSICS_EXECUTE_20260911.json'
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      SEALED_MAIN: d6a846f6bbe0bccac1758713eb4de167caf07113
+      PHASE1_HEAD: ebded495617cc89bb96d7a5531c1ce4fc6bbedd9
+      STORE_SHA: 3a0c4b0f971ec84cd6167a137f8e3d75c7bb20e525c26ab533b3d88044cd0784
+      STORE_BYTES: '1679340'
+      CATALOG_SHA: 4fa31c5f9f84facc0d1fbf7a91a50b0adcaa5ef4c97b7d82abbe9657ea10b7f9
+      CATALOG_SIG_SHA: 9b854358f90368ceb5cc3baab8d99064d8ee94b79ead378a614f8cc1732b06a7
+      ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      STORE_WORKER: musitu-store-phase1
+
+    steps:
+      - uses: actions/checkout@v4
+        with: {fetch-depth: 0}
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+
+      - name: Prove immutable anchors and reconstruct exact public 1.0.2 baseline
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --quiet origin main musitu-store-phase1-20260909
+          test "$(git rev-parse origin/main)" = "$SEALED_MAIN"
+          test "$(git rev-parse origin/musitu-store-phase1-20260909)" = "$PHASE1_HEAD"
+          test -z "$(git diff --name-only "$PHASE1_HEAD"..."$GITHUB_SHA" -- store/phase1 commerce/chemistry)"
+          rm -rf /tmp/live-worker-baseline /tmp/musitu-store-live-worker-forensics
+          git worktree add --detach /tmp/live-worker-baseline "$PHASE1_HEAD"
+          curl --retry 3 --retry-all-errors -fsSL -H 'Accept: application/json' https://payments.mftintelligence.com/store/catalog.json -o /tmp/catalog.json
+          curl --retry 3 --retry-all-errors -fsSL -H 'Accept: text/plain' https://payments.mftintelligence.com/store/catalog.sig -o /tmp/catalog.sig
+          curl --retry 3 --retry-all-errors -fsSL https://payments.mftintelligence.com/store/bootstrap/MUSITU_Store_1.0.2.apk -o /tmp/store.apk
+          test "$(sha256sum /tmp/catalog.json | awk '{print $1}')" = "$CATALOG_SHA"
+          test "$(sha256sum /tmp/catalog.sig | awk '{print $1}')" = "$CATALOG_SIG_SHA"
+          test "$(stat -c%s /tmp/store.apk)" = "$STORE_BYTES"
+          test "$(sha256sum /tmp/store.apk | awk '{print $1}')" = "$STORE_SHA"
+          cp /tmp/catalog.json /tmp/live-worker-baseline/store/phase1/catalog.json
+          cp /tmp/catalog.sig /tmp/live-worker-baseline/store/phase1/catalog.sig
+          ROOT=/tmp/live-worker-baseline python - <<'PY'
+          import json, os
+          from pathlib import Path
+          root=Path(os.environ['ROOT'])/'store/phase1'
+          c=json.loads((root/'catalog.json').read_text()); sc=c['releaseControl']['storeClient']
+          assert c['revision']==3 and sc['version']=='1.0.2' and sc['versionCode']==10002 and sc['sha256']=='3a0c4b0f971ec84cd6167a137f8e3d75c7bb20e525c26ab533b3d88044cd0784'
+          p=root/'bootstrap/release.json'; b=json.loads(p.read_text()); b.update({'version':'1.0.2','versionCode':10002,'packageId':'com.musitu.store','artifactFile':'MUSITU_Store_1.0.2.apk','sha256':sc['sha256'],'bytes':1679340,'signingCertificateSha256':'43695b6103d7ab57e89166c9a537f1810b7e33053e20332b1d4e7e2e1c612671'}); p.write_text(json.dumps(b,indent=2)+'\n')
+          w=root/'web-surface/worker.mjs'; s=w.read_text()
+          if 'MUSITU_Store_1.0.2.apk' not in s:
+              needle='const RELEASE_ASSETS={\n'; entry="  '/store/bootstrap/MUSITU_Store_1.0.2.apk':{key:'bootstrap/MUSITU_Store_1.0.2.apk',sha256:'3a0c4b0f971ec84cd6167a137f8e3d75c7bb20e525c26ab533b3d88044cd0784',bytes:1679340,type:'application/vnd.android.package-archive',name:'MUSITU_Store_1.0.2.apk'},\n"; assert needle in s; w.write_text(s.replace(needle,needle+entry,1))
+          PY
+          (cd /tmp/live-worker-baseline && python store/phase1/web-surface/build_store_data.py)
+
+      - name: Read live Cloudflare Worker and compare — GET only
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+          BASELINE_MODULE_ROOT: /tmp/live-worker-baseline/store/phase1/web-surface
+          FORENSIC_OUTPUT: /tmp/musitu-store-live-worker-forensics
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$CLOUDFLARE_EMAIL" && test -n "$CLOUDFLARE_GLOBAL_API_KEY"
+          python store/phase2/inspect_live_store_worker.py | tee /tmp/live-worker-forensics.log
+          grep -q '"result": "PASS_READ_ONLY_CAPTURE"' /tmp/live-worker-forensics.log
+
+      - name: Assert workflow contains no Cloudflare mutation verbs
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          s=Path('store/phase2/inspect_live_store_worker.py').read_text()
+          for token in ["method=\"PUT\"", "method='PUT'", "method=\"POST\"", "method='POST'", "method=\"PATCH\"", "method='PATCH'", "method=\"DELETE\"", "method='DELETE'"]:
+              assert token not in s, token
+          assert 'method="GET"' in s
+          print('READ_ONLY_CLOUDFLARE_FORENSICS=PASS')
+          PY
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: musitu-store-live-worker-forensics
+          path: /tmp/musitu-store-live-worker-forensics
+          retention-days: 30
+          if-no-files-found: error
