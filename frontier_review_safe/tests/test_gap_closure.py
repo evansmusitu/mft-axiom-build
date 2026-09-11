@@ -269,41 +269,76 @@ class GapClosureTests(unittest.TestCase):
             constraint_hash=constraints, result_hash=baseline_hash,
         )
         receipts=[attest("external_run",r.run_id,r.fingerprint,r.provenance_type) for r in runs]
-        l5=ExternalEvidenceGate.level5(
-            runs,receipts=receipts,verifier_secrets=VERIFIER_SECRETS,
-            trusted_issuers=TRUSTED_ISSUERS,baseline_registry=registry,
+        baseline_by_run={r.run_id: baseline for r in runs}
+        denied=ClaimBoundary.authorize_verified(
+            "outperformed baselines on sealed suite",
+            runs=runs, run_receipts=receipts, verifier_secrets=VERIFIER_SECRETS,
+            trusted_issuers=TRUSTED_ISSUERS, baseline_registry=registry,
+            candidate_results=candidate_loses, baseline_results_by_run=baseline_by_run,
+            comparison_scope="sealed suite", benchmark_hash=case_set,
+            comparison_bootstrap_samples=200,
         )
-        losing=[ComparativeOutcome.from_paired_results(r,candidate_loses,baseline,
-                attestation_receipt_hash=l5["run_receipt_hashes"][r.run_id],bootstrap_samples=200) for r in runs]
-        denied=ClaimBoundary.authorize("outperformed baselines on sealed suite",level5=l5,level6={"status":"FAIL"},
-            level7={"status":"FAIL"},comparison_scope="sealed suite",benchmark_hash=case_set,comparative_outcomes=losing)
         self.assertEqual(denied["status"],"DENY")
         self.assertIn("comparative_superiority_not_demonstrated",denied["reasons"])
-        winning=[ComparativeOutcome.from_paired_results(r,candidate_wins,baseline,
-                attestation_receipt_hash=l5["run_receipt_hashes"][r.run_id],bootstrap_samples=200) for r in runs]
-        allowed=ClaimBoundary.authorize("outperformed registered baselines on sealed suite",level5=l5,level6={"status":"FAIL"},
-            level7={"status":"FAIL"},comparison_scope="sealed suite only",benchmark_hash=case_set,comparative_outcomes=winning)
+        allowed=ClaimBoundary.authorize_verified(
+            "outperformed registered baselines on sealed suite",
+            runs=runs, run_receipts=receipts, verifier_secrets=VERIFIER_SECRETS,
+            trusted_issuers=TRUSTED_ISSUERS, baseline_registry=registry,
+            candidate_results=candidate_wins, baseline_results_by_run=baseline_by_run,
+            comparison_scope="sealed suite only", benchmark_hash=case_set,
+            comparison_bootstrap_samples=200,
+        )
         self.assertEqual(allowed["status"],"ALLOW")
+        self.assertEqual(allowed["verified_evidence_levels"]["level5"],"PASS")
+        self.assertEqual(allowed["verified_evidence_levels"]["level6"],"FAIL")
         self.assertEqual(set(allowed["positive_provider_orgs"]),{"openai","anthropic","google"})
 
-    def test_broad_claim_requires_level7_four_positive_declared_provider_orgs(self):
+    def test_broad_claim_requires_verified_level7_four_positive_declared_provider_orgs(self):
         providers=("OpenAI","Anthropic","Google","Microsoft")
         run_ids=[str(i) for i in range(4)]
         receipt_hashes={str(i): f"{i+10:064x}" for i in range(4)}
-        l5={"status":"PASS","attestation_verified":True,"baseline_registry_verified":True,
+        forged_l5={"status":"PASS","attestation_verified":True,"baseline_registry_verified":True,
             "provider_orgs":[p.lower() for p in providers],"run_ids":run_ids,
             "candidate_sha":EXTERNAL_CANDIDATE_SHA,"case_set_hash":H,"constraint_hash":"b"*64,
             "run_receipt_hashes":receipt_hashes}
-        l6={"status":"PASS","attestation_verified":True}; l7={"status":"PASS","attestation_verified":True}
-        outcomes=[ComparativeOutcome(p,str(i),EXTERNAL_CANDIDATE_SHA,H,"b"*64,"d"*64,"e"*64,20,.1,.02,.18,12,6,2,receipt_hashes[str(i)])
-                  for i,p in enumerate(providers)]
-        denied=ClaimBoundary.authorize("world best",level5=l5,level6=l6,level7=l7,comparison_scope="declared sealed scope",
-            benchmark_hash=H,comparative_outcomes=outcomes)
+        forged_l6={"status":"PASS","attestation_verified":True}; forged_l7={"status":"PASS","attestation_verified":True}
+        forged_outcomes=[ComparativeOutcome(p,str(i),EXTERNAL_CANDIDATE_SHA,H,"b"*64,"d"*64,"e"*64,20,.1,.02,.18,12,6,2,receipt_hashes[str(i)])
+                         for i,p in enumerate(providers)]
+        denied=ClaimBoundary.authorize("world best",level5=forged_l5,level6=forged_l6,level7=forged_l7,
+            comparison_scope="declared sealed scope",benchmark_hash=H,comparative_outcomes=forged_outcomes)
         self.assertEqual(denied["status"],"DENY")
         self.assertEqual(denied["reason"],"broad_provider_scope_not_declared")
-        allowed=ClaimBoundary.authorize("world best",level5=l5,level6=l6,level7=l7,comparison_scope="declared sealed scope",
-            benchmark_hash=H,comparative_outcomes=outcomes,required_provider_orgs=providers)
-        self.assertEqual(allowed["status"],"ALLOW")
+        forged_allow=ClaimBoundary.authorize("world best",level5=forged_l5,level6=forged_l6,level7=forged_l7,
+            comparison_scope="declared sealed scope",benchmark_hash=H,comparative_outcomes=forged_outcomes,
+            required_provider_orgs=providers)
+        self.assertEqual(forged_allow["status"],"DENY")
+        self.assertEqual(forged_allow["reason"],"verified_external_evidence_required")
+
+        fps=[f"{i:064x}" for i in range(10)]
+        baseline=[SealedCaseResult(fp,.8) for fp in fps]
+        candidate=[SealedCaseResult(fp,.95) for fp in fps]
+        constraints="b"*64
+        case_set=sha256({"case_fingerprints":sorted(fps),"constraint_hash":constraints})
+        baseline_hash=sha256([{"case_fingerprint":x.case_fingerprint,"score":x.score,"latency_ms":x.latency_ms,"cost_units":x.cost_units} for x in baseline])
+        registry,runs=registered_runs(providers,case_set_hash=case_set,constraint_hash=constraints,result_hash=baseline_hash)
+        run_receipts=[attest("external_run",r.run_id,r.fingerprint,r.provenance_type) for r in runs]
+        validation=IndependentValidationRecord("lab",NOW_S,EXTERNAL_CANDIDATE_SHA,case_set,"9"*64,True,"independent_lab_record")
+        validation_receipt=attest("independent_validation",validation.fingerprint,validation.fingerprint,validation.provenance_type)
+        refreshes=[LongitudinalRefreshRecord(str(i),(NOW+timedelta(days=i*30)).isoformat(),EXTERNAL_CANDIDATE_SHA,case_set,
+                    (str(i%2)*64),"1"*64,"2"*64,"3"*64,True) for i in range(3)]
+        refresh_receipts=[attest("longitudinal_refresh",r.refresh_id,r.fingerprint,r.provenance_type) for r in refreshes]
+        verified=ClaimBoundary.authorize_verified(
+            "world best",runs=runs,run_receipts=run_receipts,verifier_secrets=VERIFIER_SECRETS,
+            trusted_issuers=TRUSTED_ISSUERS,baseline_registry=registry,
+            candidate_results=candidate,baseline_results_by_run={r.run_id:baseline for r in runs},
+            validations=[validation],validation_receipts=[validation_receipt],
+            refreshes=refreshes,refresh_receipts=refresh_receipts,required_provider_count=4,
+            comparison_scope="declared sealed scope",benchmark_hash=case_set,required_provider_orgs=providers,
+            comparison_bootstrap_samples=200,
+        )
+        self.assertEqual(verified["status"],"ALLOW")
+        self.assertEqual(verified["max_evidence_level"],7)
+        self.assertEqual(verified["verified_evidence_levels"],{"level5":"PASS","level6":"PASS","level7":"PASS"})
 
     def test_twin_store_is_append_only_replayable_and_tamper_evident(self):
         cal=TwinCalibration(NOW_S,H,"mae",.1,100)

@@ -243,6 +243,7 @@ class LongitudinalRefreshRecord:
     drift_report_hash: str
     replacement_governance_hash: str
     passed: bool
+    provenance_type: str = "independent_lab_record"
 
     def __post_init__(self) -> None:
         parse_time(self.executed_at)
@@ -259,6 +260,8 @@ class LongitudinalRefreshRecord:
             raise ValueError("longitudinal candidate_sha must be an exact 40-hex Git SHA")
         if not _nonblank(self.refresh_id):
             raise ValueError("longitudinal refresh identity required")
+        if self.provenance_type not in TRUSTED_EXTERNAL_PROVENANCE:
+            raise ValueError("longitudinal refresh provenance type must be trusted external provenance")
         if not isinstance(self.passed, bool):
             raise ValueError("longitudinal refresh passed flag must be boolean")
 
@@ -532,6 +535,9 @@ class ExternalEvidenceGate:
             )
             if verification["status"] != "PASS":
                 continue
+            if receipt.provenance_type != refresh.provenance_type:
+                reasons.append("longitudinal_refresh_provenance_type_mismatch")
+                continue
             passed_refreshes.append(refresh)
             receipt_hashes.append(verification["receipt_sha256"])
         if len(passed_refreshes) < effective_min_refreshes:
@@ -595,6 +601,147 @@ class ClaimBoundary:
         benchmark_hash: str | None,
         comparative_outcomes: Sequence[ComparativeOutcome] = (),
         required_provider_orgs: Sequence[str] = (),
+    ) -> dict[str, Any]:
+        provisional = cls._authorize_from_assessments(
+            requested_claim,
+            level5=level5,
+            level6=level6,
+            level7=level7,
+            comparison_scope=comparison_scope,
+            benchmark_hash=benchmark_hash,
+            comparative_outcomes=comparative_outcomes,
+            required_provider_orgs=required_provider_orgs,
+        )
+        if provisional.get("status") == "ALLOW":
+            return {
+                "status": "DENY",
+                "max_evidence_level": provisional.get("max_evidence_level", 4),
+                "reason": "verified_external_evidence_required",
+            }
+        return provisional
+
+    @classmethod
+    def authorize_verified(
+        cls,
+        requested_claim: str,
+        *,
+        runs: Sequence[ExternalRunRecord],
+        run_receipts: Sequence[ExternalAttestationReceipt],
+        verifier_secrets: Mapping[str, bytes],
+        trusted_issuers: Mapping[str, frozenset[str]],
+        baseline_registry: BaselineRegistry,
+        candidate_results: Sequence[SealedCaseResult],
+        baseline_results_by_run: Mapping[str, Sequence[SealedCaseResult]],
+        validations: Sequence[IndependentValidationRecord] = (),
+        validation_receipts: Sequence[ExternalAttestationReceipt] = (),
+        refreshes: Sequence[LongitudinalRefreshRecord] = (),
+        refresh_receipts: Sequence[ExternalAttestationReceipt] = (),
+        required_provider_count: int = 3,
+        required_provider_classes: Sequence[str] = (),
+        min_refreshes: int = 3,
+        comparison_confidence: float = 0.95,
+        comparison_bootstrap_samples: int = 4000,
+        comparison_scope: str | None,
+        benchmark_hash: str | None,
+        required_provider_orgs: Sequence[str] = (),
+    ) -> dict[str, Any]:
+        level5 = ExternalEvidenceGate.level5(
+            runs,
+            receipts=run_receipts,
+            verifier_secrets=verifier_secrets,
+            trusted_issuers=trusted_issuers,
+            baseline_registry=baseline_registry,
+            required_provider_orgs=required_provider_count,
+            required_provider_classes=required_provider_classes,
+        )
+        level6 = ExternalEvidenceGate.level6(
+            level5,
+            validations,
+            receipts=validation_receipts,
+            verifier_secrets=verifier_secrets,
+            trusted_issuers=trusted_issuers,
+        )
+        level7 = ExternalEvidenceGate.level7(
+            level6,
+            refreshes,
+            receipts=refresh_receipts,
+            verifier_secrets=verifier_secrets,
+            trusted_issuers=trusted_issuers,
+            min_refreshes=min_refreshes,
+        )
+
+        outcomes: list[ComparativeOutcome] = []
+        comparison_error: str | None = None
+        if level5.get("status") == "PASS":
+            expected_run_ids = set(level5.get("run_ids", ()))
+            supplied_run_ids = set(baseline_results_by_run)
+            if supplied_run_ids != expected_run_ids:
+                comparison_error = "comparison_raw_run_coverage_incomplete"
+            else:
+                receipt_hashes = dict(level5.get("run_receipt_hashes", {}))
+                runs_by_id = {run.run_id: run for run in runs}
+                try:
+                    for run_id in sorted(expected_run_ids):
+                        run = runs_by_id[run_id]
+                        outcomes.append(ComparativeOutcome.from_paired_results(
+                            run,
+                            candidate_results,
+                            baseline_results_by_run[run_id],
+                            attestation_receipt_hash=receipt_hashes[run_id],
+                            confidence=comparison_confidence,
+                            bootstrap_samples=comparison_bootstrap_samples,
+                        ))
+                except (FrontierSafetyError, ValueError, KeyError, TypeError):
+                    comparison_error = "comparison_raw_evidence_invalid"
+
+        if comparison_error is not None:
+            max_level = 5 if level5.get("status") == "PASS" else 4
+            if level6.get("status") == "PASS":
+                max_level = 6
+            if level7.get("status") == "PASS":
+                max_level = 7
+            return {
+                "status": "DENY",
+                "max_evidence_level": max_level,
+                "reason": comparison_error,
+                "verified_evidence_levels": {
+                    "level5": level5.get("status"),
+                    "level6": level6.get("status"),
+                    "level7": level7.get("status"),
+                },
+            }
+
+        result = cls._authorize_from_assessments(
+            requested_claim,
+            level5=level5,
+            level6=level6,
+            level7=level7,
+            comparison_scope=comparison_scope,
+            benchmark_hash=benchmark_hash,
+            comparative_outcomes=tuple(outcomes),
+            required_provider_orgs=required_provider_orgs,
+        )
+        return {
+            **result,
+            "verified_evidence_levels": {
+                "level5": level5.get("status"),
+                "level6": level6.get("status"),
+                "level7": level7.get("status"),
+            },
+        }
+
+    @classmethod
+    def _authorize_from_assessments(
+        cls,
+        requested_claim: str,
+        *,
+        level5: Mapping[str, Any],
+        level6: Mapping[str, Any],
+        level7: Mapping[str, Any],
+        comparison_scope: str | None,
+        benchmark_hash: str | None,
+        comparative_outcomes: Sequence[ComparativeOutcome],
+        required_provider_orgs: Sequence[str],
     ) -> dict[str, Any]:
         broad = cls._is_broad_claim(requested_claim)
         max_level = 4
