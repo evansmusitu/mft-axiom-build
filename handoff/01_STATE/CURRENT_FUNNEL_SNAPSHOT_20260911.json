@@ -1,0 +1,58 @@
+{
+  "schema": "musitu.chemistry.rescue.current_funnel_readonly.v1",
+  "captured_at_utc": "2026-09-11T11:48:10+00:00",
+  "workflow_run": 34595772436,
+  "workflow_job": 103251048638,
+  "artifact_id": 10262292177,
+  "artifact_zip_sha256": "78374d0a7dc7019f944fb2d9b1014cef11a2efdba17f0d831596f3aa55b26112",
+  "repository_head": "69a2c65459a1563585db553eadc0ff31a09d1199",
+  "baseline_2026_09_07": {
+    "rescue_page_views": 3,
+    "rescue_visit": 3,
+    "rescue_start": 0,
+    "rescue_share": 0,
+    "rescue_peer_start": 0,
+    "premium_intent": 0,
+    "teacher_kit": 0,
+    "school_kit": 0,
+    "ambassador_kit": 0
+  },
+  "current_totals": {
+    "rescue_page_views": 52,
+    "rescue_visit": 52,
+    "rescue_start": 14,
+    "rescue_share": 2,
+    "rescue_peer_start": 0,
+    "premium_intent": 2,
+    "teacher_kit": 0,
+    "school_kit": 0,
+    "ambassador_kit": 0
+  },
+  "delta_from_baseline": {
+    "rescue_page_views": 49,
+    "rescue_visit": 49,
+    "rescue_start": 14,
+    "rescue_share": 2,
+    "rescue_peer_start": 0,
+    "premium_intent": 2,
+    "teacher_kit": 0,
+    "school_kit": 0,
+    "ambassador_kit": 0
+  },
+  "growth_event_totals_by_source": {
+    "direct": {
+      "rescue_visit": 52,
+      "rescue_start": 14,
+      "rescue_share": 2,
+      "premium_intent": 2
+    }
+  },
+  "query_class": "SELECT_ONLY_AGGREGATE",
+  "raw_identity_rows_read": false,
+  "personal_identifiers_queried": false,
+  "production_mutation": false,
+  "adoption_claimed": false,
+  "campaign_roi_claimed": false,
+  "real_money_settlement_claimed": false,
+  "interpretation_boundary": "Aggregate event counts only. Do not infer unique learners, customers, sales, settlement, or revenue."
+}
