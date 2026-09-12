@@ -1,0 +1,61 @@
+name: MUSITU FMI Billing Pattern Preflight
+
+on:
+  push:
+    branches: [fmi-billing-binding-20260912-ephemeral]
+    paths: ['.github/workflows/fmi-billing-pattern-preflight.yml']
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      CF_API: https://api.cloudflare.com/client/v4
+      ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+    steps:
+      - name: Inspect product-extension code pattern read-only
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import email,hashlib,json,os,urllib.parse,urllib.request
+          api=os.environ['CF_API']; aid=os.environ['ACCOUNT_ID']; H={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY']}
+          def src(name):
+              q=urllib.request.Request(f'{api}/accounts/{aid}/workers/scripts/{urllib.parse.quote(name,safe="")}',headers=H)
+              with urllib.request.urlopen(q,timeout=45) as r: raw=r.read(); ct=r.headers.get('content-type','')
+              if 'multipart/' not in ct.lower(): return raw
+              msg=email.message_from_bytes((f'Content-Type: {ct}\r\nMIME-Version: 1.0\r\n\r\n').encode()+raw); parts=[]
+              for p in msg.walk():
+                  if p.is_multipart(): continue
+                  d=p.get_payload(decode=True) or b''
+                  if any(x in d for x in (b'export default',b'addEventListener',b'fetch(')): parts.append(d)
+              if len(parts)!=1: raise SystemExit(f'{name} module count={len(parts)}')
+              return parts[0]
+          def windows(text, needles, radius=500):
+              out={}
+              for n in needles:
+                  pos=[]; start=0
+                  while True:
+                      i=text.find(n,start)
+                      if i<0: break
+                      pos.append(text[max(0,i-radius):min(len(text),i+len(n)+radius)])
+                      start=i+len(n)
+                  out[n]=pos
+              return out
+          a=src('mft-phase8-external-authority'); t=src('mft-paynow-transport-gateway')
+          obj={'authority_sha256':hashlib.sha256(a).hexdigest(),'transport_sha256':hashlib.sha256(t).hexdigest(),'authority_windows':windows(a.decode('utf-8','ignore'),['CHEMISTRY_AUTHORITY_BRIDGE_TOKEN','sign-initiate-chemistry','verify-callback-chemistry']),'transport_windows':windows(t.decode('utf-8','ignore'),['CHEMISTRY_TRANSPORT_BRIDGE_TOKEN','/internal/paynow/initiate','/internal/paynow/poll'])}
+          open('fmi-billing-pattern-preflight.json','w').write(json.dumps(obj,indent=2,sort_keys=True)+'\n')
+          print(json.dumps({'authority_sha256':obj['authority_sha256'],'transport_sha256':obj['transport_sha256'],'authority_occurrences':{k:len(v) for k,v in obj['authority_windows'].items()},'transport_occurrences':{k:len(v) for k,v in obj['transport_windows'].items()}},sort_keys=True))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: musitu-fmi-billing-pattern-preflight-20260912
+          path: fmi-billing-pattern-preflight.json
+          retention-days: 1
+          if-no-files-found: error
