@@ -9,8 +9,9 @@ from .longitudinal_binding import LongitudinalArtifactBundle, LongitudinalIdenti
 
 # Preserve the pre-hardening module surface used by integrity tests and internal
 # callers. Python import-star intentionally omits private names, so re-export
-# the existing canonical independence normalizer explicitly rather than
-# duplicating or weakening its implementation.
+# the existing canonical organization normalizers explicitly rather than
+# duplicating or weakening their implementation.
+_organization_key = _core._organization_key
 _independence_organization_key = _core._independence_organization_key
 
 
