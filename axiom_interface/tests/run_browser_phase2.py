@@ -29,7 +29,7 @@ def main() -> None:
             page=context.new_page(); requests=[]; page.on('request',lambda r:requests.append(r.url))
             page.goto(origin+'/index.html#/projects',wait_until='networkidle')
             page.wait_for_function("window.AxiomProjects && window.AxiomProjects.store")
-            assert page.get_by_role('heading',name='Projects',exact=True).is_visible()
+            assert page.locator('#workspace-title').get_by_text('Projects', exact=True).is_visible()
             assert 'does not claim cloud or multi-device sync' in page.locator('.boundary-note').inner_text()
 
             page.locator('#project-name').fill('Phase 2 Persistence Proof')
