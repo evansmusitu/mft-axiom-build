@@ -7,6 +7,8 @@ import unittest
 ROOT=Path(__file__).resolve().parents[1]
 APP=(ROOT/'app.js').read_text(encoding='utf-8')
 LIVE=(ROOT/'live.js').read_text(encoding='utf-8')
+DURABILITY=(ROOT/'live_durability.js').read_text(encoding='utf-8')
+BRIDGE=(ROOT/'live_semantic_bridge.js').read_text(encoding='utf-8')
 CSS=(ROOT/'styles'/'live.css').read_text(encoding='utf-8')
 SW=(ROOT/'sw.js').read_text(encoding='utf-8')
 SURFACE=json.loads((ROOT/'surface-map.json').read_text(encoding='utf-8'))
@@ -17,9 +19,11 @@ class Phase7LiveContractTests(unittest.TestCase):
         self.assertIn("from './live.js'",APP)
         self.assertIn('initLiveWorkspace',APP)
         self.assertIn("state:'phase7'",APP)
-        self.assertIn("'./live.js'",SW)
-        self.assertIn("'./styles/live.css'",SW)
-        self.assertIn("axiom-interface-phase7-v1",SW)
+        self.assertIn("from './live_semantic_bridge.js'",DURABILITY)
+        self.assertIn('attachLiveSemanticBridge',DURABILITY)
+        for asset in ["'./live.js'","'./live_durability.js'","'./live_semantic_bridge.js'","'./styles/live.css'"]:
+            self.assertIn(asset,SW)
+        self.assertIn("axiom-interface-phase7-v2",SW)
 
     def test_required_modalities_and_browser_media_controls_exist(self):
         self.assertEqual(SURFACE['live_substrate']['modalities'],['voice','camera','screen'])
@@ -40,13 +44,28 @@ class Phase7LiveContractTests(unittest.TestCase):
         self.assertIn('LOCAL_UI_ACKNOWLEDGEMENT_ONLY',LIVE)
         self.assertEqual(SURFACE['live_substrate']['interruption_target_ms'],250)
         self.assertEqual(SURFACE['live_substrate']['interruption_measurement_scope'],'LOCAL_UI_ACKNOWLEDGEMENT_ONLY')
+        self.assertIn('SEMANTIC_EXECUTION_END_TO_END_STOP',BRIDGE)
+        self.assertIn('max_semantic_stop_ms:250',BRIDGE)
 
     def test_accessibility_has_non_drag_controls_live_regions_and_responsive_layout(self):
         for token in ['type="number"','aria-live="polite"','aria-label="Live camera or screen preview"','Keyboard-accessible normalized coordinates']:
             self.assertIn(token,LIVE)
+        for token in ['aria-live="polite"','Analyze selected capture','Interrupt semantic work','aria-label="Semantic receipts"']:
+            self.assertIn(token,BRIDGE)
         self.assertIn('@media(max-width:52rem)',CSS)
         self.assertIn('@media(forced-colors:active)',CSS)
         self.assertIn('.live-privacy .recording',CSS)
+
+    def test_semantic_host_bridge_is_receipt_bound_and_fail_closed(self):
+        for token in ['local semantic host unavailable','receipt_sha256','output_sha256','engine_asset_sha256','input_sha256','tool_receipt_sha256','OFFLINE_ASR_VERIFIED_MCP_SPECIALIST_TTS_DIALOGUE','OCR_TEXT_','offline-vosk-asr','offline-mcp-2026-specialist','LOCAL_HOST_ONLY_NO_CLOUD_NO_HIDDEN_REASONING_NO_GENERAL_VLM_CLAIM']:
+            self.assertIn(token,BRIDGE)
+        self.assertIn('host_transport:\'IN_PROCESS_HOST_ADAPTER\'',BRIDGE)
+        self.assertIn('fail_closed_without_host:true',BRIDGE)
+        self.assertIn('cloud_provider_used!==false',BRIDGE)
+        self.assertIn('hidden_reasoning_recorded!==false',BRIDGE)
+        self.assertNotIn('fetch(',BRIDGE)
+        self.assertNotIn('WebSocket(',BRIDGE)
+        self.assertNotIn('EventSource(',BRIDGE)
 
     def test_truth_boundaries_remain_fail_closed(self):
         live=SURFACE['live_substrate']
