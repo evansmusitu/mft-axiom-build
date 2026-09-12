@@ -5,6 +5,7 @@ import { initResearchWorkspace } from './research_claims.js';
 import { enhanceResearchWorkspace } from './research_quality.js';
 import { initArtifactWorkspace } from './artifacts.js';
 import { initObservabilityWorkspace } from './observability.js';
+import { initLiveWorkspace } from './live.js';
 
 const $ = (selector, root = document) => root.querySelector(selector);
 const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
@@ -16,7 +17,7 @@ const routeCopy = {
   research:['Research','Build synchronized reports, evidence maps and timelines from exact source-bound claims, contradictions, lineage and freshness.'],
   create:['Create','Build first-class documents, sheets, presentations, website/code previews and dashboards with versioning, diff, rollback and provenance.'],
   code:['Code','Code work stays inspectable, sandboxed and policy-bounded.'],
-  live:['Live','Multimodal live work will preserve privacy, interruption and explicit action boundaries.'],
+  live:['Live','Permissioned voice, camera and screen capture with interruption, annotation, project context and evidence logs.'],
   agents:['Agents','Agents expose roles, scopes, tools, policy and dissent rather than hidden reasoning.'],
   evidence:['Evidence','Claims, attestations, evaluations and receipts remain linked to provenance.'],
   observability:['Observability','Inspect linked traces, actors, tools, policy, latency, errors and recovery without exposing secrets or hidden reasoning.'],
@@ -33,7 +34,8 @@ function emit(type, detail={}) {
   state.trace.unshift(event); state.trace = state.trace.slice(0, 24); renderTrace(); return event.id;
 }
 function renderTrace() {
-  const list=$('#trace-list'); if(!list) return; list.replaceChildren();
+  const list=$('#trace-list'); if(!list) return;
+  list.replaceChildren();
   for(const event of state.trace){ const li=document.createElement('li'); const time=document.createElement('time'); time.dateTime=event.at; time.textContent=new Date(event.at).toLocaleTimeString(); const body=document.createElement('span'); body.textContent=`${event.type} · ${Object.entries(event.detail).map(([k,v])=>`${k}=${v}`).join(' · ') || 'operational'}`; li.append(time,body); list.append(li); }
 }
 function setRoute(route){ const [title,description]=routeCopy[route] || [route,'This surface is registered but not yet implemented.']; $('#workspace-title').textContent=title; $('#workspace-description').textContent=description; $$('.nav-item').forEach(a=>{ const active=a.dataset.route===route; a.classList.toggle('active',active); if(active)a.setAttribute('aria-current','page');else a.removeAttribute('aria-current');}); emit('route.change',{state:route}); }
@@ -70,6 +72,6 @@ function installEvents(){
 }
 function registerServiceWorker(){ if('serviceWorker' in navigator && location.protocol!=='file:') navigator.serviceWorker.register('./sw.js',{scope:'./'}).then(()=>emit('pwa.service-worker',{state:'registered'})).catch(()=>emit('pwa.service-worker',{state:'registration-failed'})); }
 
-applyTheme(state.theme); restoreDraft(); installEvents(); syncRoute(); updateConstraintSummary(); updateNetwork(); registerServiceWorker(); emit('shell.ready',{state:'phase6'});
+applyTheme(state.theme); restoreDraft(); installEvents(); syncRoute(); updateConstraintSummary(); updateNetwork(); registerServiceWorker(); emit('shell.ready',{state:'phase7'});
 window.AxiomUI = Object.freeze({ emit, reportError, setProgress, setProof, getTrace:()=>structuredClone(state.trace) });
-initProjectWorkspace({emit}).then(async projects=>{const outcomes=await initOutcomeContractWorkspace({emit,projects});const observability=await initObservabilityWorkspace({emit,projects});await initOutcomeExecutionWorkspace({emit,projects,outcomes,observability});const research=await initResearchWorkspace({emit,projects});await enhanceResearchWorkspace({emit,research});await initArtifactWorkspace({emit,projects});emit('workspace.ready',{state:'phase6'});}).catch(error=>reportError({errorId:'AXIOM-WORKSPACE-INIT',component:'Workspace',impact:'Project, Work, Research, Create or Observability workspace unavailable',failed:error.message,recovery:'Reload the workspace and retry'}));
+initProjectWorkspace({emit}).then(async projects=>{const outcomes=await initOutcomeContractWorkspace({emit,projects});const observability=await initObservabilityWorkspace({emit,projects});await initLiveWorkspace({emit,projects,observability});await initOutcomeExecutionWorkspace({emit,projects,outcomes,observability});const research=await initResearchWorkspace({emit,projects});await enhanceResearchWorkspace({emit,research});await initArtifactWorkspace({emit,projects});emit('workspace.ready',{state:'phase7'});}).catch(error=>reportError({errorId:'AXIOM-WORKSPACE-INIT',component:'Workspace',impact:'Project, Work, Research, Create, Live or Observability workspace unavailable',failed:error.message,recovery:'Reload the workspace and retry'}));
