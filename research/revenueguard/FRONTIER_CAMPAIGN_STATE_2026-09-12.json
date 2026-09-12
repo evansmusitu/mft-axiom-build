@@ -1,0 +1,68 @@
+{
+  "schema": "musitu.revenueguard.frontier_campaign_state.v2",
+  "status": "NOT_CERTIFIED",
+  "as_of": "2026-09-12",
+  "product_freeze": {
+    "revenueguard_v4": "FROZEN_UNTOUCHED",
+    "v4_1_promotion_rule": "Only promote a research specialist after locked development gates pass; MAUD transfer remains post-freeze."
+  },
+  "contractnli": {
+    "commit": "eced6528dd3c1d14d73f9a87df8f7bdbc03126f9",
+    "adapted_encoder_artifact_sha256": "3d78d473ffde6f790b3919226d1069b81fa8426f0f139007d3ba8b9d9cf23055",
+    "rejected_policy_head_diagnostic": {
+      "dev_accuracy": 0.8746383799421408,
+      "dev_macro_f1": 0.8149915635966174,
+      "false_grounding_notmentioned": 0.04964539007092199,
+      "gate_pass": false
+    },
+    "retrieval_ceiling": {"k14": 0.8094, "k24": 0.9235, "k32": 0.9593},
+    "negative_context_contamination_rate": 0.10352393319303273,
+    "training_class_geometry": {
+      "not_mentioned": 22333,
+      "entailment": 5897,
+      "contradiction": 1258
+    },
+    "old_monolithic_runs": {
+      "control_v3": {"run_id": 34682919739, "result": "CANCELLED_TIMEOUT_NO_ARTIFACT"},
+      "balanced_v4": {"run_id": 34683109166, "result": "CANCELLED_TIMEOUT_NO_ARTIFACT"}
+    },
+    "authoritative_epoch1_matched_runs": {
+      "control": {"run_id": 34697863465, "status": "IN_PROGRESS", "chunks": 8},
+      "balanced": {"run_id": 34697878064, "status": "IN_PROGRESS", "chunks": 8}
+    },
+    "locked_gate": {
+      "accuracy_min": 0.90,
+      "macro_f1_min": 0.88,
+      "false_grounding_max": 0.02,
+      "selected_exact_evidence_span_recall_min": 0.85
+    },
+    "selection": "K in {24,32} and confidence threshold selected exclusively on hash-held training calibration documents; dev evaluated once after selection."
+  },
+  "cuad": {
+    "commit": "67faa0e6023b04fcaae6cc09497ab00e5d63a2a2",
+    "train_sha256": "7de21d2bb741ac939e2a839ef9640634a5e0f9f40ea2b82c6833baf7db33dab4",
+    "base_repo": "deepset/minilm-uncased-squad2",
+    "base_revision": "934656cdda79824eabf503ed56e15c01ddbdbe3f",
+    "epoch1_training_run_id": 34683449126,
+    "epoch1_artifact_name": "revenueguard-cuad-epoch1-chunked-final",
+    "epoch1_artifact_sha256": "a5684a5a8ed59909b46c93fd4729ce9ed0f8f672dc0be1474cf94a5e07d6e44b",
+    "epoch1_optimizer_steps": 944,
+    "epoch1_running_loss": 2.095627215,
+    "official_test_opened": false,
+    "heldout_eval_run_id": 34697993470,
+    "heldout_eval_status": "IN_PROGRESS_AFTER_PLUMBING_FIX",
+    "locked_gate": {
+      "no_answer_false_positive_rate_max": 0.02,
+      "answer_detection_f1_min": 0.85,
+      "localization_overlap_recall_min": 0.85,
+      "answerable_token_f1_min": 0.80
+    }
+  },
+  "maud": {"status": "SEALED_UNOPENED"},
+  "external_evidence": {
+    "permissioned_companies": 0,
+    "verified_recovered_cash_usd": 0,
+    "verified_mft_contingency_revenue_usd": 0
+  },
+  "certification": "NOT_CERTIFIED"
+}
