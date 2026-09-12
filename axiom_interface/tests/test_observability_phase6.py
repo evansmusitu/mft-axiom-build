@@ -18,7 +18,8 @@ class Phase6ObservabilityContractTests(unittest.TestCase):
         self.assertIn('initObservabilityWorkspace',APP)
         self.assertIn('initOutcomeExecutionWorkspace({emit,projects,outcomes,observability})',APP)
         self.assertLess(APP.index('initObservabilityWorkspace({emit,projects})'),APP.index('initOutcomeExecutionWorkspace({emit,projects,outcomes,observability})'))
-        self.assertIn("state:'phase6'",APP)
+        self.assertIn("state:'phase7'",APP)
+        self.assertIn('initLiveWorkspace',APP)
 
     def test_outcome_runs_cannot_start_without_observability_substrate(self):
         self.assertIn("!observability?.store",OUTCOME)
@@ -50,7 +51,11 @@ class Phase6ObservabilityContractTests(unittest.TestCase):
     def test_trace_assets_participate_in_offline_shell(self):
         self.assertIn("'./observability.js'",SW)
         self.assertIn("'./styles/observability.css'",SW)
-        self.assertIn("axiom-interface-phase6-v1",SW)
+        self.assertIn("axiom-interface-phase7-v1",SW)
+
+    def test_phase6_authority_remains_pinned_under_phase7(self):
+        self.assertEqual(SURFACE['authority']['qualified_phase6_sha'],'db5eefa2982457c4045717a0b175bb5d0d9fc556')
+        self.assertEqual(SURFACE['phase'],'PHASE_7_LIVE_MULTIMODALITY')
 
 
 if __name__=='__main__':
