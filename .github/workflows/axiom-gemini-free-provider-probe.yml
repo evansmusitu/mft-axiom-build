@@ -1,0 +1,93 @@
+name: MUSITU Axiom Gemini Free Provider Metadata Probe
+
+on:
+  push:
+    branches:
+      - frontier/axiom-v5-gemini-free-provider-run-20260912
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: musitu-axiom-gemini-free-provider-probe-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  gemini-provider-probe:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Checkout immutable action
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Setup patch-pinned Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
+        with:
+          python-version: '3.12.14'
+          check-latest: false
+
+      - name: Verify probe tests
+        run: PYTHONPATH=. python -m unittest frontier_review_safe.tests.test_gemini_free_probe -v
+
+      - name: Execute provider metadata probe or record credential blocker
+        id: probe
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        shell: bash
+        run: |
+          set +e
+          PYTHONPATH=. python -m frontier_review_safe.gemini_free_probe \
+            --model gemini-3.8-flash \
+            --output gemini-free-provider-probe.json
+          code=$?
+          set -e
+          echo "exit_code=$code" >> "$GITHUB_OUTPUT"
+          test -s gemini-free-provider-probe.json
+
+      - name: Seal non-secret evidence
+        shell: bash
+        run: sha256sum gemini-free-provider-probe.json > gemini-free-provider-probe.sha256
+
+      - name: Classify result without laundering evidence
+        shell: bash
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          p = json.loads(Path('gemini-free-provider-probe.json').read_text(encoding='utf-8'))
+          print(json.dumps({
+              'status': p.get('status'),
+              'provider_org': p.get('provider_org'),
+              'requested_model': p.get('requested_model'),
+              'provider_model_version': p.get('provider_model_version'),
+              'level5_identity_ready': p.get('level5_identity_ready'),
+              'level5_admissibility': p.get('level5_admissibility'),
+              'reasons': p.get('reasons', []),
+              'claim_authority': p.get('claim_authority'),
+          }, sort_keys=True))
+          if p.get('status') == 'BLOCKED':
+              print('MUSITU_AXIOM_GEMINI_PROVIDER_PROBE_BLOCKED_MISSING_SECRET')
+          elif p.get('status') == 'PASS':
+              print('MUSITU_AXIOM_GEMINI_PROVIDER_CALL_CONFIRMED')
+              if p.get('level5_identity_ready') is True:
+                  print('MUSITU_AXIOM_GEMINI_LEVEL5_PROVIDER_IDENTITY_READY_NOT_ATTESTED')
+              else:
+                  print('MUSITU_AXIOM_GEMINI_LEVEL5_PROVIDER_IDENTITY_INCOMPLETE')
+          else:
+              raise SystemExit('GEMINI_PROVIDER_PROBE_FAILED')
+          PY
+
+      - name: Upload immutable probe evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: musitu-axiom-gemini-free-provider-probe-${{ github.sha }}
+          path: |
+            gemini-free-provider-probe.json
+            gemini-free-provider-probe.sha256
+          if-no-files-found: error
+          retention-days: 30
