@@ -92,7 +92,7 @@ def main():
                 assert active is True
                 button.click()
                 expected_count={'voice':1,'camera':2,'screen':3}[modality]
-                page.wait_for_function('(args)=>window.AxiomLive.store.get(args[0]).then(r=>r.captures.length===args[1])',[session_id,expected_count])
+                page.wait_for_function('(args)=>window.AxiomLive.store.get(args[0]).then(r=>r.captures.length===args[1])',arg=[session_id,expected_count])
                 expect(page.locator(f'[data-privacy="{modality}"]')).to_contain_text('off')
             row=page.evaluate('id=>window.AxiomLive.store.get(id)',session_id)
             assert len(row['captures'])==3
