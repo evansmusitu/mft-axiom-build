@@ -19,6 +19,7 @@ IDENTITY_IGNORABLE_ALIASES = (
     "Open\u200dAI",      # ZERO WIDTH JOINER, Cf
     "Open\u200cAI",      # ZERO WIDTH NON-JOINER, Cf
     "Open\u2060AI",      # WORD JOINER, Cf
+    "Open\u2065AI",      # reserved Default_Ignorable code point, Cn
     "Open\ufeffAI",      # ZERO WIDTH NO-BREAK SPACE, Cf
     "Open\u034fAI",      # COMBINING GRAPHEME JOINER, Mn
     "Open\ufe0fAI",      # VARIATION SELECTOR-16, Mn
