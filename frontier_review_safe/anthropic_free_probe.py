@@ -67,18 +67,48 @@ def _response_text(payload: Mapping[str, Any]) -> str:
     return "".join(str(item.get("text", "")) for item in content if isinstance(item, Mapping) and item.get("type") == "text").strip()
 
 
+def _safe_error_classification(raw: bytes) -> tuple[str | None, str]:
+    try:
+        payload = json.loads(raw.decode("utf-8"))
+    except Exception:
+        return None, "unparseable_provider_error"
+    error = payload.get("error", {}) if isinstance(payload, Mapping) else {}
+    error_type = error.get("type") if isinstance(error, Mapping) and isinstance(error.get("type"), str) else None
+    message = str(error.get("message", "")).casefold() if isinstance(error, Mapping) else ""
+    if any(term in message for term in ("credit", "billing", "payment", "spend limit", "usage limit")):
+        category = "credit_or_billing_limit"
+    elif any(term in message for term in ("model", "not available", "not found", "access")):
+        category = "model_or_access_restriction"
+    elif "max_tokens" in message or "token" in message:
+        category = "token_configuration_invalid"
+    elif any(term in message for term in ("temperature", "top_p", "top_k", "sampling")):
+        category = "sampling_configuration_invalid"
+    elif any(term in message for term in ("api key", "authentication", "unauthorized")):
+        category = "authentication_problem"
+    elif error_type == "invalid_request_error":
+        category = "invalid_request_other"
+    else:
+        category = "provider_error_other"
+    return error_type, category
+
+
 def run_probe(*, api_key: str, model: str = DEFAULT_MODEL, timeout_seconds: int = 45, opener=urlopen) -> dict[str, Any]:
     key = _canonical_api_key(api_key)
-    # Claude 4.7+ (including Fable 5.1) rejects non-default sampling controls.
-    # Omit temperature/top_p/top_k entirely and let the provider use its supported defaults.
-    body_obj = {"model": model, "max_tokens": 64, "messages": [{"role": "user", "content": PROBE_TEXT}]}
+    # Fable 5.1 uses adaptive thinking. Low effort minimizes free-credit use while
+    # 1024 max output tokens avoids an artificially tiny cap on thinking + answer.
+    body_obj = {
+        "model": model,
+        "max_tokens": 1024,
+        "output_config": {"effort": "low"},
+        "messages": [{"role": "user", "content": PROBE_TEXT}],
+    }
     body = _canonical_bytes(body_obj)
     request_sha256 = _sha256_bytes(body)
     req = Request("https://api.anthropic.com/v1/messages", data=body, method="POST", headers={
         "content-type": "application/json",
         "x-api-key": key,
         "anthropic-version": "2023-06-01",
-        "user-agent": "MUSITU-Axiom-Level5-Provider-Probe/1.3",
+        "user-agent": "MUSITU-Axiom-Level5-Provider-Probe/1.4",
     })
     started_at = _now()
     try:
@@ -90,13 +120,15 @@ def run_probe(*, api_key: str, model: str = DEFAULT_MODEL, timeout_seconds: int 
         raw = exc.read()
         headers = _header_map(getattr(exc, "headers", {}))
         request_id = headers.get("request-id")
+        error_type, error_category = _safe_error_classification(raw)
         return {
             "schema": SCHEMA, "status": "HTTP_ERROR", "provider_org": "Anthropic", "product": "Claude API",
             "requested_model": model, "access_mode": "api_free_credit", "started_at": started_at, "completed_at": _now(),
             "http_status": int(exc.code), "request_sha256": request_sha256, "error_body_sha256": _sha256_bytes(raw),
+            "provider_error_type": error_type, "provider_error_category": error_category,
             "provider_request_id": request_id, "provider_response_id": None, "level5_identity_ready": False,
             "level5_admissibility": "NOT_ADMISSIBLE_PROVIDER_CALL_FAILED", "claim_authority": "NONE",
-            "reasons": ["provider_call_failed"] + ([] if request_id else ["provider_request_id_missing"]),
+            "reasons": ["provider_call_failed", error_category] + ([] if request_id else ["provider_request_id_missing"]),
         }
 
     try:
@@ -155,7 +187,7 @@ def main(argv: list[str] | None = None) -> int:
     except ValueError as exc:
         payload = {"schema": SCHEMA, "status": "BLOCKED", "provider_org": "Anthropic", "product": "Claude API", "requested_model": args.model, "access_mode": "api_free_credit", "level5_identity_ready": False, "level5_admissibility": "NOT_ADMISSIBLE_INVALID_API_KEY_ENCODING", "claim_authority": "NONE", "reasons": [str(exc)]}
     _write(args.output, payload)
-    print(json.dumps({"status": payload["status"], "provider_org": payload["provider_org"], "requested_model": payload["requested_model"], "provider_model_version": payload.get("provider_model_version"), "provider_request_id_present": bool(payload.get("provider_request_id")), "provider_response_id_present": bool(payload.get("provider_response_id")), "level5_identity_ready": payload["level5_identity_ready"], "level5_admissibility": payload["level5_admissibility"], "reasons": payload["reasons"], "output": args.output}, sort_keys=True))
+    print(json.dumps({"status": payload["status"], "provider_org": payload["provider_org"], "requested_model": payload["requested_model"], "provider_model_version": payload.get("provider_model_version"), "provider_request_id_present": bool(payload.get("provider_request_id")), "provider_response_id_present": bool(payload.get("provider_response_id")), "provider_error_type": payload.get("provider_error_type"), "provider_error_category": payload.get("provider_error_category"), "level5_identity_ready": payload["level5_identity_ready"], "level5_admissibility": payload["level5_admissibility"], "reasons": payload["reasons"], "output": args.output}, sort_keys=True))
     return 0 if payload["status"] == "PASS" else 2
 
 
