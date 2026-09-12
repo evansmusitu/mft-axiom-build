@@ -1,0 +1,58 @@
+{
+  "schema": "musitu.store.v103.signing_custody_gate.v1",
+  "product": "MUSITU Store",
+  "version": "1.0.3",
+  "packageId": "com.musitu.store",
+  "branch": "musitu-store-native-install-handoff-20260911",
+  "attemptHead": "d42bba89960dd247882d5e4b217e6b89ea395694",
+  "workflow": {
+    "name": "MUSITU Store 1.0.3 Authorized Sign",
+    "runId": 34678763647,
+    "jobId": 103513295231,
+    "result": "BLOCKED_AT_AUTHORIZED_SIGNING_CUSTODY"
+  },
+  "sealedUnsignedInput": {
+    "workflowRunId": 34675592872,
+    "artifactId": 10292027543,
+    "artifactName": "musitu-store-1.0.3-unsigned",
+    "artifactArchiveSha256": "949e9ca0b16181802cb8c0880053fa3f72f7ce2860a6b5a7508209f6d904cad7",
+    "apkSha256": "808828892d6eaced0904b0a0e437853041f54d51f8dcdb695d2557e8c338c0da",
+    "apkBytes": 1679020,
+    "downloadResult": "PASS",
+    "sha256AndSizeVerification": "PASS",
+    "zipalignVerification": "PASS"
+  },
+  "activationVerification": "PASS",
+  "androidSigningToolchainSetup": "PASS",
+  "requiredExistingSignerCertificateSha256": "43695b6103d7ab57e89166c9a537f1810b7e33053e20332b1d4e7e2e1c612671",
+  "custodyGate": {
+    "result": "BLOCKED_MISSING_ENCRYPTED_SIGNING_CREDENTIALS",
+    "firstReportedMissingSecret": "MUSITU_STORE_SIGNING_KEYSTORE_B64",
+    "requiredSecretNames": [
+      "MUSITU_STORE_SIGNING_KEYSTORE_B64",
+      "MUSITU_STORE_SIGNING_KEYSTORE_PASSWORD",
+      "MUSITU_STORE_SIGNING_KEY_ALIAS"
+    ],
+    "optionalSecretNames": [
+      "MUSITU_STORE_SIGNING_KEY_PASSWORD"
+    ],
+    "secretValuesStoredInRepository": false,
+    "secretValuesRecordedInThisEvidence": false
+  },
+  "effects": {
+    "signingOperationExecuted": false,
+    "signedApkProduced": false,
+    "signedApkVerified": false,
+    "artifactUploaded": false,
+    "productionDeploymentExecuted": false,
+    "signerReplacementExecuted": false,
+    "unsignedApkModified": false
+  },
+  "nextGate": {
+    "action": "Configure the existing MUSITU Store signing identity through GitHub Actions encrypted secrets using the required secret names, without exposing private signing material in the repository, logs, or chat; then rerun the authorized signing workflow.",
+    "mustRetainSignerCertificateSha256": "43695b6103d7ab57e89166c9a537f1810b7e33053e20332b1d4e7e2e1c612671",
+    "mustRetainUnsignedInputSha256": "808828892d6eaced0904b0a0e437853041f54d51f8dcdb695d2557e8c338c0da",
+    "signerReplacementAuthorized": false,
+    "deploymentBeforeSignedVerificationAuthorized": false
+  }
+}
