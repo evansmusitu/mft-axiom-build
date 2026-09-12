@@ -1,6 +1,9 @@
 name: MUSITU Axiom Authoritative Whole-Product Handoff 20260912-1943
 
 on:
+  push:
+    branches:
+      - handoff/axiom-frontier-v5-whole-continuation-20260912-1943
   workflow_dispatch:
 
 permissions:
@@ -31,7 +34,6 @@ jobs:
           rm -rf "$PKG"
           mkdir -p "$PKG/PRODUCT_SOURCE" "$PKG/00_START_HERE" "$PKG/HANDOFF" "$PKG/AUTHORITY"
 
-          # Complete clean working-tree snapshot: exact source commit, no .git directory.
           git archive --format=tar "$SOURCE_SHA" | tar -xf - -C "$PKG/PRODUCT_SOURCE"
 
           cp 00_START_HERE/NEW_CHAT_START_HERE.md "$PKG/00_START_HERE/NEW_CHAT_START_HERE.md"
@@ -101,8 +103,6 @@ jobs:
           print(f"PACKAGED_FILES={len(rows)}")
           PY
 
-          # Verify the exported source is byte-identical to git archive semantics by
-          # checking the exact source tree identity remains pinned in the authority file.
           test "$(git rev-parse "${SOURCE_SHA}^{tree}")" = "$SOURCE_TREE"
           echo "MUSITU_AXIOM_HANDOFF_PACKAGE_READY"
 
