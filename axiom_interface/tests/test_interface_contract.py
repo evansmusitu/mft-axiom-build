@@ -118,22 +118,32 @@ class InterfaceContractTests(unittest.TestCase):
 
     def test_surface_map_matches_authority_and_phase(self):
         self.assertEqual(SURFACE_MAP["authority"]["earned_track_b_sha"], "73ecdbad38cb10020b6e30ebe42a9222a3bb6c55")
+        self.assertEqual(SURFACE_MAP["authority"]["qualified_phase1_sha"], "5b7233fd9e62b530ef9eb161b41010727d76bacb")
         self.assertEqual(SURFACE_MAP["authority"]["blueprint_sha256"], "e750039a9c88abc780d24f48c3e86e22fd9295fec99a1b0593668aa8dd9ac166")
-        self.assertEqual(SURFACE_MAP["phase"], "PHASE_1_ISOLATED_SHELL")
+        self.assertEqual(SURFACE_MAP["phase"], "PHASE_2_PROJECT_GRAPH")
         self.assertGreaterEqual(len(SURFACE_MAP["surfaces"]), 11)
         self.assertIn("observability", SURFACE_MAP["workspace_routes"])
+        self.assertEqual(SURFACE_MAP["project_substrate"]["persistence"], "INDEXEDDB_BROWSER_LOCAL_DEVICE")
+        self.assertFalse(SURFACE_MAP["project_substrate"]["cloud_sync_claimed"])
 
     def test_service_worker_is_same_origin_and_shell_only(self):
         self.assertIn("event.request.method!=='GET'", SW)
         self.assertIn("self.location.origin", SW)
         self.assertIn("./index.html", SW)
+        self.assertIn("./projects.js", SW)
         self.assertNotIn("https://", SW)
 
-    def test_design_contract_fingerprint_is_locked(self):
-        payload = "\n--FILE--\n".join([HTML, TOKENS, CSS, JS])
+    def test_qualified_phase1_design_snapshot_remains_byte_locked(self):
+        phase1_html = (ROOT / "tests" / "phase1_index_snapshot.html").read_text(encoding="utf-8")
+        phase1_tokens = (ROOT / "tests" / "phase1_tokens_snapshot.css").read_text(encoding="utf-8")
+        phase1_css = (ROOT / "tests" / "phase1_styles_snapshot.css").read_text(encoding="utf-8")
+        phase1_js = (ROOT / "tests" / "phase1_app_snapshot.js").read_text(encoding="utf-8")
+        payload = "\n--FILE--\n".join([phase1_html, phase1_tokens, phase1_css, phase1_js])
         digest = hashlib.sha256(payload.encode("utf-8")).hexdigest()
         expected = (ROOT / "tests" / "design_contract.sha256").read_text(encoding="utf-8").strip()
         self.assertEqual(digest, expected)
+        self.assertIn("initProjectWorkspace", JS)
+        self.assertIn('./styles/projects.css', HTML)
 
 
 if __name__ == "__main__":
