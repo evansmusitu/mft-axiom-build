@@ -169,6 +169,7 @@ class UniversalArtifactEngine:
             graph[override[0]] = list(override[1])
         visiting: set[str] = set()
         visited: set[str] = set()
+
         def visit(node: str) -> None:
             if node in visiting:
                 raise ArtifactError("artifact dependency cycle detected")
@@ -181,6 +182,7 @@ class UniversalArtifactEngine:
                 visit(dep)
             visiting.remove(node)
             visited.add(node)
+
         for node in sorted(graph):
             visit(node)
 
@@ -208,6 +210,7 @@ class UniversalArtifactEngine:
         history = self.versions.setdefault(row["artifact_id"], [])
         prior = history[-1] if history else None
         version_number = len(history)
+        snapshot = self._snapshot(row)
         body = {
             "schema": "musitu.axiom.artifact-version.v1",
             "artifact_id": row["artifact_id"],
@@ -215,8 +218,8 @@ class UniversalArtifactEngine:
             "version_id": f"{row['artifact_id']}:v{version_number}",
             "version_number": version_number,
             "artifact_type": row["artifact_type"],
-            "snapshot": self._snapshot(row),
-            "snapshot_sha256": _sha(self._snapshot(row)),
+            "snapshot": snapshot,
+            "snapshot_sha256": _sha(snapshot),
             "change_type": change_type,
             "rollback_of_version_id": rollback_of_version_id,
             "actor_id": actor_id,
@@ -287,7 +290,13 @@ class UniversalArtifactEngine:
         self.comments[artifact_id] = []
         try:
             self._validate_acyclic()
-            self._append_version(row, actor_id=owner_id, at=created_at, change_type="create", provenance_source=provenance_source)
+            self._append_version(
+                row,
+                actor_id=owner_id,
+                at=created_at,
+                change_type="create",
+                provenance_source=provenance_source,
+            )
         except Exception:
             self.artifacts.pop(artifact_id, None)
             self.versions.pop(artifact_id, None)
@@ -319,7 +328,9 @@ class UniversalArtifactEngine:
         if source_refs is not None:
             next_row["source_refs"] = _unique_texts(source_refs, "source_ref")
         if dependency_artifact_ids is not None:
-            next_row["dependency_artifact_ids"] = self._validate_dependencies(artifact_id, row["project_id"], dependency_artifact_ids)
+            next_row["dependency_artifact_ids"] = self._validate_dependencies(
+                artifact_id, row["project_id"], dependency_artifact_ids
+            )
             self._validate_acyclic((artifact_id, next_row["dependency_artifact_ids"]))
         if metadata is not None:
             next_row["metadata"] = _json_value(dict(metadata), "metadata")
@@ -329,7 +340,13 @@ class UniversalArtifactEngine:
             next_row["permissions"] = _permissions(permissions, row["owner_id"])
         self.artifacts[artifact_id] = next_row
         try:
-            version = self._append_version(next_row, actor_id=actor_id, at=at, change_type="edit", provenance_source=provenance_source)
+            version = self._append_version(
+                next_row,
+                actor_id=actor_id,
+                at=at,
+                change_type="edit",
+                provenance_source=provenance_source,
+            )
         except Exception:
             self.artifacts[artifact_id] = row
             raise
@@ -430,8 +447,14 @@ class UniversalArtifactEngine:
                 if _sha(version["snapshot"]) != version["snapshot_sha256"]:
                     errors.append(f"snapshot_hash:{aid}:{index}")
                 previous = version["version_sha256"]
-            if not history or row["current_version_id"] != history[-1]["version_id"] or row["current_version_number"] != len(history)-1:
+            if (
+                not history
+                or row["current_version_id"] != history[-1]["version_id"]
+                or row["current_version_number"] != len(history) - 1
+            ):
                 errors.append(f"current_version:{aid}")
+            elif self._snapshot(row) != history[-1]["snapshot"]:
+                errors.append(f"current_snapshot:{aid}")
             for comment in self.comments.get(aid, []):
                 body = {k: deepcopy(v) for k, v in comment.items() if k != "comment_sha256"}
                 if _sha(body) != comment["comment_sha256"]:
