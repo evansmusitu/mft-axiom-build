@@ -25,12 +25,13 @@ jobs:
           repository: evansmusitu/mft-axiom-build
           run-id: 34700936203
           github-token: ${{ secrets.GITHUB_TOKEN }}
-      - name: Download provenance-sealed aggregate
+      - name: Download exact provenance-sealed aggregate
         uses: actions/download-artifact@v4
         with:
           name: revenueguard-cuad-epoch1-question32-heldout-eval-provenance-sealed
           path: aggregate
           repository: evansmusitu/mft-axiom-build
+          run-id: 34705875417
           github-token: ${{ secrets.GITHUB_TOKEN }}
       - name: Mine frozen failures only
         shell: bash
