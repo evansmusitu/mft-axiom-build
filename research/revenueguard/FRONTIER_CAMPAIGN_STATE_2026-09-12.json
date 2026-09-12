@@ -1,5 +1,5 @@
 {
-  "schema": "musitu.revenueguard.frontier_campaign_state.v2",
+  "schema": "musitu.revenueguard.frontier_campaign_state.v3",
   "status": "NOT_CERTIFIED",
   "as_of": "2026-09-12",
   "product_freeze": {
@@ -17,26 +17,26 @@
     },
     "retrieval_ceiling": {"k14": 0.8094, "k24": 0.9235, "k32": 0.9593},
     "negative_context_contamination_rate": 0.10352393319303273,
-    "training_class_geometry": {
-      "not_mentioned": 22333,
-      "entailment": 5897,
-      "contradiction": 1258
-    },
+    "training_class_geometry": {"not_mentioned": 22333, "entailment": 5897, "contradiction": 1258},
     "old_monolithic_runs": {
       "control_v3": {"run_id": 34682919739, "result": "CANCELLED_TIMEOUT_NO_ARTIFACT"},
       "balanced_v4": {"run_id": 34683109166, "result": "CANCELLED_TIMEOUT_NO_ARTIFACT"}
     },
+    "split_integrity": {
+      "audit_run_id": 34698290240,
+      "normalized_train_dev_duplicate_groups": 0,
+      "normalized_build_calibration_duplicate_groups": 1,
+      "duplicate_equivalent_documents": {"build_doc_id": "515", "calibration_doc_id": "548", "normalized_text_sha256": "769fe472e0405060afb6bb91fe8ac3a5abf547e20d342ddcb6d97c882ad29f3a"},
+      "selection_fix": "Calibration doc 548 and any future calibration document whose normalized full-text hash occurs in build are excluded before K/threshold selection. Official dev remains untouched."
+    },
+    "checkpoint_state_contract_run_id": 34698494974,
+    "checkpoint_state_contract": "PASS",
     "authoritative_epoch1_matched_runs": {
       "control": {"run_id": 34697863465, "status": "IN_PROGRESS", "chunks": 8},
       "balanced": {"run_id": 34697878064, "status": "IN_PROGRESS", "chunks": 8}
     },
-    "locked_gate": {
-      "accuracy_min": 0.90,
-      "macro_f1_min": 0.88,
-      "false_grounding_max": 0.02,
-      "selected_exact_evidence_span_recall_min": 0.85
-    },
-    "selection": "K in {24,32} and confidence threshold selected exclusively on hash-held training calibration documents; dev evaluated once after selection."
+    "locked_gate": {"accuracy_min": 0.90, "macro_f1_min": 0.88, "false_grounding_max": 0.02, "selected_exact_evidence_span_recall_min": 0.85},
+    "selection": "K in {24,32} and confidence threshold selected exclusively on duplicate-clean hash-held training calibration documents; official dev evaluated once after selection."
   },
   "cuad": {
     "commit": "67faa0e6023b04fcaae6cc09497ab00e5d63a2a2",
@@ -49,20 +49,23 @@
     "epoch1_optimizer_steps": 944,
     "epoch1_running_loss": 2.095627215,
     "official_test_opened": false,
-    "heldout_eval_run_id": 34697993470,
-    "heldout_eval_status": "IN_PROGRESS_AFTER_PLUMBING_FIX",
-    "locked_gate": {
-      "no_answer_false_positive_rate_max": 0.02,
-      "answer_detection_f1_min": 0.85,
-      "localization_overlap_recall_min": 0.85,
-      "answerable_token_f1_min": 0.80
-    }
+    "cross_split_duplicate_audit": {
+      "run_id": 34698236475,
+      "contracts": 408,
+      "heldout_contracts": 45,
+      "exact_cross_split_duplicate_groups": 0,
+      "normalized_cross_split_duplicate_groups": 0,
+      "pass": true
+    },
+    "heldout_question_count": 2461,
+    "authoritative_8way_eval_run_id": 34697993470,
+    "authoritative_8way_eval_status": "IN_PROGRESS_AFTER_PLUMBING_FIX",
+    "execution_replica_16way_run_id": 34698573722,
+    "execution_replica_16way_status": "QUEUED_OR_IN_PROGRESS",
+    "execution_replica_rule": "8-way and 16-way runs use the same model, heldout set, split, threshold selection, metrics and gates; only deterministic work partition differs.",
+    "locked_gate": {"no_answer_false_positive_rate_max": 0.02, "answer_detection_f1_min": 0.85, "localization_overlap_recall_min": 0.85, "answerable_token_f1_min": 0.80}
   },
   "maud": {"status": "SEALED_UNOPENED"},
-  "external_evidence": {
-    "permissioned_companies": 0,
-    "verified_recovered_cash_usd": 0,
-    "verified_mft_contingency_revenue_usd": 0
-  },
+  "external_evidence": {"permissioned_companies": 0, "verified_recovered_cash_usd": 0, "verified_mft_contingency_revenue_usd": 0},
   "certification": "NOT_CERTIFIED"
 }
