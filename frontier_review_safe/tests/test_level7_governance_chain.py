@@ -80,7 +80,15 @@ def evaluate(records):
     )
 
 
-def good_chain():
+def acyclic_good_chain():
+    return [
+        refresh("r1", 0, before_hash=ANCHOR, after_hash=ANCHOR),
+        refresh("r2", 30, before_hash=ANCHOR, after_hash=BASELINE_B),
+        refresh("r3", 60, before_hash=BASELINE_B, after_hash=BASELINE_C),
+    ]
+
+
+def rollback_chain():
     return [
         refresh("r1", 0, before_hash=ANCHOR, after_hash=ANCHOR),
         refresh("r2", 30, before_hash=ANCHOR, after_hash=BASELINE_B),
@@ -95,55 +103,28 @@ def good_chain():
 
 
 class Level7GovernanceChainTests(unittest.TestCase):
-    def test_verified_anchor_and_continuous_governance_chain_pass(self):
-        result = evaluate(good_chain())
+    def test_normal_anchored_acyclic_progression_passes(self):
+        result = evaluate(acyclic_good_chain())
         self.assertEqual(result["status"], "PASS")
         self.assertTrue(result["governance_chain_verified"])
         self.assertEqual(result["governance_chain_refresh_count"], 3)
         self.assertEqual(result["governance_chain_refresh_ids"], ["r1", "r2", "r3"])
         self.assertEqual(len(result["governance_chain_sha256"]), 64)
 
-    def test_individually_valid_but_discontinuous_transitions_cannot_pass(self):
+    def test_a_to_b_to_a_to_b_replacement_cycle_cannot_satisfy_depth(self):
         records = [
             refresh("r1", 0, before_hash=ANCHOR, after_hash=ANCHOR),
-            refresh("r2", 30, before_hash="4" * 64, after_hash=BASELINE_B),
-            refresh(
-                "r3",
-                60,
-                before_hash=BASELINE_B,
-                after_hash=ANCHOR,
-                decision="rollback",
-            ),
+            refresh("r2", 30, before_hash=ANCHOR, after_hash=BASELINE_B),
+            refresh("r3", 60, before_hash=BASELINE_B, after_hash=ANCHOR, decision="replace"),
+            refresh("r4", 90, before_hash=ANCHOR, after_hash=BASELINE_B, decision="replace"),
         ]
         result = evaluate(records)
         self.assertEqual(result["status"], "FAIL")
         self.assertFalse(result["governance_chain_verified"])
-        self.assertIn("longitudinal_governance_chain_discontinuity", result["reasons"])
         self.assertLess(result["governance_chain_refresh_count"], 3)
+        self.assertIn("longitudinal_governance_chain_discontinuity", result["reasons"])
 
-    def test_three_semantic_refreshes_without_any_level5_anchor_start_cannot_pass(self):
-        records = [
-            refresh("r1", 0, before_hash="4" * 64, after_hash=ANCHOR),
-            refresh("r2", 30, before_hash="6" * 64, after_hash=BASELINE_B),
-            refresh("r3", 60, before_hash="7" * 64, after_hash=ANCHOR),
-        ]
-        result = evaluate(records)
-        self.assertEqual(result["status"], "FAIL")
-        self.assertIn("longitudinal_governance_chain_anchor_mismatch", result["reasons"])
-        self.assertEqual(result["governance_chain_refresh_count"], 0)
-
-    def test_disconnected_extra_does_not_poison_complete_anchored_chain(self):
-        records = [
-            *good_chain(),
-            refresh("disconnected-extra", 90, before_hash="8" * 64, after_hash=BASELINE_B),
-        ]
-        result = evaluate(records)
-        self.assertEqual(result["status"], "PASS")
-        self.assertTrue(result["governance_chain_verified"])
-        self.assertEqual(result["governance_chain_refresh_ids"], ["r1", "r2", "r3"])
-        self.assertEqual(result["refresh_count"], 4)
-
-    def test_replace_cannot_cycle_back_to_previously_seen_baseline(self):
+    def test_replace_cannot_earn_credit_by_returning_to_seen_baseline(self):
         records = [
             refresh("r1", 0, before_hash=ANCHOR, after_hash=ANCHOR),
             refresh("r2", 30, before_hash=ANCHOR, after_hash=BASELINE_B),
@@ -155,7 +136,26 @@ class Level7GovernanceChainTests(unittest.TestCase):
         self.assertEqual(result["governance_chain_refresh_count"], 2)
         self.assertIn("longitudinal_governance_chain_discontinuity", result["reasons"])
 
-    def test_rollback_must_target_a_baseline_observed_on_same_chain(self):
+    def test_legitimate_explicit_rollback_to_observed_baseline_is_representable(self):
+        result = evaluate(rollback_chain())
+        self.assertEqual(result["status"], "PASS")
+        self.assertTrue(result["governance_chain_verified"])
+        self.assertEqual(result["governance_chain_refresh_count"], 3)
+        self.assertEqual(result["governance_chain_refresh_ids"], ["r1", "r2", "r3"])
+
+    def test_terminal_rollback_cannot_be_extended_for_extra_refresh_credit(self):
+        records = [
+            *rollback_chain(),
+            refresh("r4", 90, before_hash=ANCHOR, after_hash=BASELINE_C, decision="replace"),
+        ]
+        result = evaluate(records)
+        self.assertEqual(result["status"], "PASS")
+        self.assertTrue(result["governance_chain_verified"])
+        self.assertEqual(result["refresh_count"], 4)
+        self.assertEqual(result["governance_chain_refresh_count"], 3)
+        self.assertEqual(result["governance_chain_refresh_ids"], ["r1", "r2", "r3"])
+
+    def test_rollback_to_never_observed_baseline_fails_closed(self):
         records = [
             refresh("r1", 0, before_hash=ANCHOR, after_hash=ANCHOR),
             refresh("r2", 30, before_hash=ANCHOR, after_hash=BASELINE_B),
@@ -167,17 +167,40 @@ class Level7GovernanceChainTests(unittest.TestCase):
         self.assertEqual(result["governance_chain_refresh_count"], 2)
         self.assertIn("longitudinal_governance_chain_discontinuity", result["reasons"])
 
-    def test_terminal_rollback_cannot_be_reused_to_inflate_refresh_depth(self):
+    def test_invalid_cyclic_and_disconnected_extras_do_not_poison_valid_acyclic_chain(self):
         records = [
-            *good_chain(),
-            refresh("r4", 90, before_hash=ANCHOR, after_hash=BASELINE_C, decision="replace"),
+            *acyclic_good_chain(),
+            refresh("cyclic-extra", 90, before_hash=BASELINE_C, after_hash=ANCHOR, decision="replace"),
+            refresh("disconnected-extra", 120, before_hash="8" * 64, after_hash=BASELINE_B),
         ]
         result = evaluate(records)
         self.assertEqual(result["status"], "PASS")
         self.assertTrue(result["governance_chain_verified"])
-        self.assertEqual(result["refresh_count"], 4)
-        self.assertEqual(result["governance_chain_refresh_count"], 3)
         self.assertEqual(result["governance_chain_refresh_ids"], ["r1", "r2", "r3"])
+        self.assertEqual(result["refresh_count"], 5)
+
+    def test_individually_valid_but_discontinuous_transitions_cannot_pass(self):
+        records = [
+            refresh("r1", 0, before_hash=ANCHOR, after_hash=ANCHOR),
+            refresh("r2", 30, before_hash="4" * 64, after_hash=BASELINE_B),
+            refresh("r3", 60, before_hash=BASELINE_B, after_hash=BASELINE_C),
+        ]
+        result = evaluate(records)
+        self.assertEqual(result["status"], "FAIL")
+        self.assertFalse(result["governance_chain_verified"])
+        self.assertIn("longitudinal_governance_chain_discontinuity", result["reasons"])
+        self.assertLess(result["governance_chain_refresh_count"], 3)
+
+    def test_three_semantic_refreshes_without_any_level5_anchor_start_cannot_pass(self):
+        records = [
+            refresh("r1", 0, before_hash="4" * 64, after_hash=ANCHOR),
+            refresh("r2", 30, before_hash="6" * 64, after_hash=BASELINE_B),
+            refresh("r3", 60, before_hash="7" * 64, after_hash=BASELINE_C),
+        ]
+        result = evaluate(records)
+        self.assertEqual(result["status"], "FAIL")
+        self.assertIn("longitudinal_governance_chain_anchor_mismatch", result["reasons"])
+        self.assertEqual(result["governance_chain_refresh_count"], 0)
 
 
 if __name__ == "__main__":
