@@ -51,7 +51,7 @@ class Phase6ObservabilityContractTests(unittest.TestCase):
     def test_trace_assets_participate_in_offline_shell(self):
         self.assertIn("'./observability.js'",SW)
         self.assertIn("'./styles/observability.css'",SW)
-        self.assertIn("axiom-interface-phase7-v1",SW)
+        self.assertIn("axiom-interface-phase7-v2",SW)
 
     def test_phase6_authority_remains_pinned_under_phase7(self):
         self.assertEqual(SURFACE['authority']['qualified_phase6_sha'],'db5eefa2982457c4045717a0b175bb5d0d9fc556')
