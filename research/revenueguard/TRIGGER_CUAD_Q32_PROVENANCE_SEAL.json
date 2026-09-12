@@ -1,0 +1,12 @@
+{
+  "schema": "musitu.revenueguard.cuad.provenance_seal_trigger.v1",
+  "date": "2026-09-12",
+  "raw_run_id": 34700936203,
+  "aggregate_artifact": "revenueguard-cuad-epoch1-question32-heldout-eval",
+  "aggregate_artifact_sha256": "215279ad0868bd21a9836f5080fb3514c6a96aa3ea1d823f9d4973051c911861",
+  "aggregate_report_sha256": "cddc876c8a2affcf03bb6ceed74a491ef6110439244ca2c1d9830c42a9d5521f",
+  "raw_shards": 32,
+  "heldout_rows": 2461,
+  "gate_pass": false,
+  "operation": "metadata_only_provenance_correction_no_metric_or_threshold_change"
+}
