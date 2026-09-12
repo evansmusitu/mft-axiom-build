@@ -15,6 +15,7 @@ from frontier_review_safe.external_validation import (
     ExternalEvidenceGate,
     LongitudinalRefreshRecord,
 )
+from frontier_review_safe.tests.level7_semantic_fixtures import level7_artifact_fields
 
 
 NOW = datetime(2026, 9, 11, 10, 30, tzinfo=timezone.utc)
@@ -181,22 +182,26 @@ class ClaimAuthorityTests(unittest.TestCase):
             "candidate_sha": CANDIDATE_SHA,
             "case_set_hash": "a" * 64,
         }
-        refreshes = [
-            LongitudinalRefreshRecord(
-                f"refresh-{i}",
-                (NOW + timedelta(days=30 * i)).isoformat(),
-                CANDIDATE_SHA,
-                "a" * 64,
-                f"{i % 2:064x}",
-                "1" * 64,
-                "2" * 64,
-                "3" * 64,
-                True,
-                "independent_lab_record",
+        refreshes = []
+        for i in range(3):
+            executed_at = (NOW + timedelta(days=30 * i)).isoformat()
+            baseline_hash = f"{i % 2:064x}"
+            refreshes.append(LongitudinalRefreshRecord(
+                refresh_id=f"refresh-{i}",
+                executed_at=executed_at,
+                candidate_sha=CANDIDATE_SHA,
+                case_set_hash="a" * 64,
+                baseline_registry_hash=baseline_hash,
+                passed=True,
+                provenance_type="independent_lab_record",
                 executor_org="Independent Longitudinal Lab",
-            )
-            for i in range(3)
-        ]
+                **level7_artifact_fields(
+                    candidate_sha=CANDIDATE_SHA,
+                    case_set_hash="a" * 64,
+                    baseline_registry_hash=baseline_hash,
+                    generated_at=executed_at,
+                ),
+            ))
         receipts = [
             issue(
                 "longitudinal_refresh",
