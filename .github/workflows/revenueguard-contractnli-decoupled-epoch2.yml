@@ -1,0 +1,185 @@
+name: RevenueGuard ContractNLI Decoupled Epoch 2
+
+on:
+  push:
+    branches: [revenueguard-axiom-governor-20260911]
+    paths: ['research/revenueguard/TRIGGER_CONTRACTNLI_DECOUPLED_EPOCH2.json']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  chunk0:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - name: Assert exact adapted encoder artifact identity
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          curl -fsSL -H "Authorization: Bearer ${GH_TOKEN}" -H 'Accept: application/vnd.github+json' \
+            'https://api.github.com/repos/evansmusitu/mft-axiom-build/actions/runs/34676990123/artifacts?name=revenueguard-contractnli-adapted-model' > meta.json
+          python - <<'PY'
+          import json
+          o=json.load(open('meta.json'))
+          a=[x for x in o['artifacts'] if x['name']=='revenueguard-contractnli-adapted-model' and not x['expired']]
+          assert len(a)==1,a
+          assert a[0]['digest']=='sha256:3d78d473ffde6f790b3919226d1069b81fa8426f0f139007d3ba8b9d9cf23055',a[0]['digest']
+          print('adapted encoder identity PASS')
+          PY
+      - uses: actions/download-artifact@v4
+        with:
+          name: revenueguard-contractnli-adapted-model
+          path: adapted_bundle
+          repository: evansmusitu/mft-axiom-build
+          run-id: 34676990123
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Install pinned runtime and fetch pinned ContractNLI
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          python -m pip install --index-url https://download.pytorch.org/whl/cpu torch
+          python -m pip install 'transformers==4.56.2'
+          curl -fL --retry 4 --retry-delay 2 -o contract-nli.zip 'https://raw.githubusercontent.com/stanfordnlp/contract-nli/eced6528dd3c1d14d73f9a87df8f7bdbc03126f9/resources/contract-nli.zip'
+          unzip -q contract-nli.zip
+          test -f contract-nli/train.json
+      - name: Train decoupled chunk 0 of 4
+        run: |
+          python research/revenueguard/contractnli_decoupled_chunk_train.py \
+            --encoder adapted_bundle/adapted_model --train-json contract-nli/train.json \
+            --chunk-index 0 --num-chunks 4 \
+            --state-out decoupled_state_0.pt --report CONTRACTNLI_DECOUPLED_CHUNK_0.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: revenueguard-contractnli-decoupled-chunk-0
+          path: |
+            decoupled_state_0.pt
+            CONTRACTNLI_DECOUPLED_CHUNK_0.json
+          if-no-files-found: error
+          retention-days: 30
+
+  chunk1:
+    needs: chunk0
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: revenueguard-contractnli-adapted-model
+          path: adapted_bundle
+          repository: evansmusitu/mft-axiom-build
+          run-id: 34676990123
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+      - uses: actions/download-artifact@v4
+        with:
+          name: revenueguard-contractnli-decoupled-chunk-0
+          path: previous
+      - name: Install pinned runtime and fetch pinned ContractNLI
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          python -m pip install --index-url https://download.pytorch.org/whl/cpu torch
+          python -m pip install 'transformers==4.56.2'
+          curl -fL --retry 4 --retry-delay 2 -o contract-nli.zip 'https://raw.githubusercontent.com/stanfordnlp/contract-nli/eced6528dd3c1d14d73f9a87df8f7bdbc03126f9/resources/contract-nli.zip'
+          unzip -q contract-nli.zip
+      - name: Train decoupled chunk 1 of 4
+        run: |
+          python research/revenueguard/contractnli_decoupled_chunk_train.py \
+            --encoder adapted_bundle/adapted_model --train-json contract-nli/train.json \
+            --chunk-index 1 --num-chunks 4 --state-in previous/decoupled_state_0.pt \
+            --state-out decoupled_state_1.pt --report CONTRACTNLI_DECOUPLED_CHUNK_1.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: revenueguard-contractnli-decoupled-chunk-1
+          path: |
+            decoupled_state_1.pt
+            CONTRACTNLI_DECOUPLED_CHUNK_1.json
+          if-no-files-found: error
+          retention-days: 30
+
+  chunk2:
+    needs: chunk1
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: revenueguard-contractnli-adapted-model
+          path: adapted_bundle
+          repository: evansmusitu/mft-axiom-build
+          run-id: 34676990123
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+      - uses: actions/download-artifact@v4
+        with:
+          name: revenueguard-contractnli-decoupled-chunk-1
+          path: previous
+      - name: Install pinned runtime and fetch pinned ContractNLI
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          python -m pip install --index-url https://download.pytorch.org/whl/cpu torch
+          python -m pip install 'transformers==4.56.2'
+          curl -fL --retry 4 --retry-delay 2 -o contract-nli.zip 'https://raw.githubusercontent.com/stanfordnlp/contract-nli/eced6528dd3c1d14d73f9a87df8f7bdbc03126f9/resources/contract-nli.zip'
+          unzip -q contract-nli.zip
+      - name: Train decoupled chunk 2 of 4
+        run: |
+          python research/revenueguard/contractnli_decoupled_chunk_train.py \
+            --encoder adapted_bundle/adapted_model --train-json contract-nli/train.json \
+            --chunk-index 2 --num-chunks 4 --state-in previous/decoupled_state_1.pt \
+            --state-out decoupled_state_2.pt --report CONTRACTNLI_DECOUPLED_CHUNK_2.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: revenueguard-contractnli-decoupled-chunk-2
+          path: |
+            decoupled_state_2.pt
+            CONTRACTNLI_DECOUPLED_CHUNK_2.json
+          if-no-files-found: error
+          retention-days: 30
+
+  chunk3:
+    needs: chunk2
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: revenueguard-contractnli-adapted-model
+          path: adapted_bundle
+          repository: evansmusitu/mft-axiom-build
+          run-id: 34676990123
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+      - uses: actions/download-artifact@v4
+        with:
+          name: revenueguard-contractnli-decoupled-chunk-2
+          path: previous
+      - name: Install pinned runtime and fetch pinned ContractNLI
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          python -m pip install --index-url https://download.pytorch.org/whl/cpu torch
+          python -m pip install 'transformers==4.56.2'
+          curl -fL --retry 4 --retry-delay 2 -o contract-nli.zip 'https://raw.githubusercontent.com/stanfordnlp/contract-nli/eced6528dd3c1d14d73f9a87df8f7bdbc03126f9/resources/contract-nli.zip'
+          unzip -q contract-nli.zip
+      - name: Train decoupled chunk 3 of 4 and seal final state
+        run: |
+          python research/revenueguard/contractnli_decoupled_chunk_train.py \
+            --encoder adapted_bundle/adapted_model --train-json contract-nli/train.json \
+            --chunk-index 3 --num-chunks 4 --state-in previous/decoupled_state_2.pt \
+            --state-out decoupled_epoch2_state.pt --report CONTRACTNLI_DECOUPLED_EPOCH2_FINAL.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: revenueguard-contractnli-decoupled-epoch2-final
+          path: |
+            decoupled_epoch2_state.pt
+            CONTRACTNLI_DECOUPLED_EPOCH2_FINAL.json
+          if-no-files-found: error
+          retention-days: 30
