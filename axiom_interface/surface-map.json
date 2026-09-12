@@ -8,6 +8,10 @@
     "qualified_phase4_sha": "4ee9dec2f68dcc17f09457623f4a3c39aba98e88",
     "qualified_phase5_sha": "81c0c3c364d9d057a78203cc4fbcb8c767e92b18",
     "qualified_phase6_sha": "db5eefa2982457c4045717a0b175bb5d0d9fc556",
+    "qualified_phase7_sha": "d8b3c233947a204e81b0753fd94afe777e8d1cf9",
+    "qualified_phase7_run_id": 34724477902,
+    "qualified_phase7_evidence_artifact_id": 10307990299,
+    "qualified_phase7_evidence_digest": "sha256:f4fa1fdca09634a9cfebf23cc3a8975a328c4064d41ef04440ef0bb80e4f93ac",
     "blueprint_sha256": "e750039a9c88abc780d24f48c3e86e22fd9295fec99a1b0593668aa8dd9ac166"
   },
   "phase": "PHASE_7_LIVE_MULTIMODALITY",
@@ -115,13 +119,62 @@
     "artifact_capture": "PROJECT_LINKED_LOCAL_MEDIA_WITH_SHA256",
     "project_linked_notes": true,
     "transcript_evidence_log": "MANUAL_TRANSCRIPT_ONLY",
+    "transcript_evidence_log_scope": "BASE_CAPTURE_CONTROL_LAYER_ONLY",
     "interruption_target_ms": 250,
     "interruption_measurement_scope": "LOCAL_UI_ACKNOWLEDGEMENT_ONLY",
     "capture_integrity": "SHA256_LINKED_SESSION_EVENTS_AND_CAPTURE_METADATA",
     "model_understanding_claimed": false,
     "automated_transcription_claimed": false,
     "cloud_media_upload_claimed": false,
-    "real_device_certification_claimed": false
+    "real_device_certification_claimed": false,
+    "base_capture_control_boundary": {
+      "device_api_test_mode": "DETERMINISTIC_MOCKED_MEDIA_APIS_NOT_REAL_HARDWARE_CERTIFICATION",
+      "model_understanding_claimed": false,
+      "automated_transcription_claimed": false,
+      "cloud_media_upload_claimed": false,
+      "real_device_certification_claimed": false
+    },
+    "semantic_runtime_qualification": {
+      "status": "EARNED",
+      "qualification_scope": "OFFLINE_SCOPED_LIVE_SEMANTICS",
+      "qualified_sha": "d8b3c233947a204e81b0753fd94afe777e8d1cf9",
+      "workflow_run_id": 34724477902,
+      "evidence_artifact_id": 10307990299,
+      "evidence_artifact_digest": "sha256:f4fa1fdca09634a9cfebf23cc3a8975a328c4064d41ef04440ef0bb80e4f93ac",
+      "voice_dialogue": {
+        "continuous_dialogue_verified": true,
+        "automated_asr_verified": true,
+        "tts_verified": true,
+        "asr_model_id": "vosk-model-small-en-us-0.15",
+        "asr_model_archive_sha256": "30f26242c4eb449f948e42cb302dd7a686cb29a3423a8367f99ff41780942498",
+        "specialist_transport": "MCP_2026_RECEIPT_BOUND"
+      },
+      "camera_understanding": {
+        "verified": true,
+        "scope": "OCR_TEXT_QR_WITH_OPTIONAL_FACE_DETECTOR_AND_OPTIONAL_REGION_NOT_GENERAL_VLM"
+      },
+      "screen_understanding": {
+        "verified": true,
+        "selected_region_verified": true,
+        "scope": "OCR_TEXT_QR_WITH_OPTIONAL_FACE_DETECTOR_AND_OPTIONAL_REGION_NOT_GENERAL_VLM"
+      },
+      "tool_specialist_hooks": {
+        "mcp_2026_tools_call_verified": true,
+        "tool_receipts_verified": true
+      },
+      "interruption": {
+        "scope": "SEMANTIC_EXECUTION_END_TO_END_STOP",
+        "engineering_target_ms": 250,
+        "within_target_verified": true
+      },
+      "privacy_and_claim_boundaries": {
+        "cloud_provider_used": false,
+        "hidden_reasoning_recorded": false,
+        "general_vlm_claimed": false,
+        "cloud_media_upload_claimed": false,
+        "real_device_certification_claimed": false
+      }
+    }
   },
   "execution_boundary": "PREVIEW_ONLY_NO_EXTERNAL_CONSEQUENTIAL_ACTIONS"
 }
