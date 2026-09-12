@@ -8,14 +8,14 @@ import os
 from pathlib import Path
 from typing import Any, Callable, Mapping
 from urllib.error import HTTPError
-from urllib.parse import quote
 from urllib.request import Request, urlopen
 
 
-SCHEMA = "musitu.axiom.gemini-provider-metadata-probe.v1"
+SCHEMA = "musitu.axiom.gemini-provider-metadata-probe.v2"
 DEFAULT_MODEL = "gemini-3.8-flash"
 PROBE_TEXT = "Return exactly MUSITU_GEMINI_PROVIDER_PROBE_OK and nothing else."
 EXPECTED_TEXT = "MUSITU_GEMINI_PROVIDER_PROBE_OK"
+INTERACTIONS_ENDPOINT = "https://generativelanguage.googleapis.com/v1beta/interactions"
 REQUEST_ID_HEADERS = ("x-request-id", "x-goog-request-id")
 SAFE_RESPONSE_HEADERS = frozenset({
     "content-type",
@@ -61,19 +61,54 @@ def _provider_request_id(headers: Mapping[str, str]) -> str | None:
     return None
 
 
-def _response_text(payload: Mapping[str, Any]) -> str:
-    try:
-        candidates = payload.get("candidates", [])
-        first = candidates[0]
-        content = first.get("content", {})
-        parts = content.get("parts", [])
-    except Exception:
+def _interaction_text(payload: Mapping[str, Any]) -> str:
+    steps = payload.get("steps", [])
+    if not isinstance(steps, list):
         return ""
     values: list[str] = []
-    for part in parts:
-        if isinstance(part, Mapping) and isinstance(part.get("text"), str):
-            values.append(part["text"])
+    for step in steps:
+        if not isinstance(step, Mapping) or step.get("type") != "model_output":
+            continue
+        content = step.get("content", [])
+        if not isinstance(content, list):
+            continue
+        for item in content:
+            if isinstance(item, Mapping) and item.get("type") == "text" and isinstance(item.get("text"), str):
+                values.append(item["text"])
     return "".join(values).strip()
+
+
+def _safe_error_details(body: bytes) -> tuple[str | None, str]:
+    """Return provider error status and a non-secret diagnostic category.
+
+    The raw body is hash-bound separately. We intentionally do not persist the
+    provider's free-form message because it can evolve or unexpectedly echo
+    project/account details.
+    """
+    try:
+        parsed = json.loads(body.decode("utf-8"))
+        error = parsed.get("error", {}) if isinstance(parsed, Mapping) else {}
+        status = error.get("status") if isinstance(error, Mapping) else None
+        message = error.get("message") if isinstance(error, Mapping) else ""
+    except Exception:
+        return None, "unparseable_provider_error"
+    status_text = status if isinstance(status, str) and status.strip() else None
+    message_text = message.casefold() if isinstance(message, str) else ""
+    if "project has been denied access" in message_text:
+        category = "project_access_denied"
+    elif "caller does not have permission" in message_text:
+        category = "caller_permission_denied"
+    elif "api key" in message_text and "permission" in message_text:
+        category = "api_key_permission_denied"
+    elif "reported as leaked" in message_text:
+        category = "api_key_blocked_as_leaked"
+    elif status_text == "PERMISSION_DENIED":
+        category = "permission_denied_unspecified"
+    elif status_text == "UNAUTHENTICATED":
+        category = "authentication_failed"
+    else:
+        category = "provider_error_other"
+    return status_text, category
 
 
 def run_probe(
@@ -88,25 +123,18 @@ def run_probe(
     if not isinstance(model, str) or not model.strip() or model != model.strip():
         raise ValueError("model must be a canonical non-empty string")
 
-    request_payload = {
-        "contents": [{"role": "user", "parts": [{"text": PROBE_TEXT}]}],
-        "generationConfig": {"temperature": 0, "maxOutputTokens": 32},
-    }
+    request_payload = {"model": model, "input": PROBE_TEXT}
     request_bytes = _canonical_bytes(request_payload)
     request_sha256 = _sha256_bytes(request_bytes)
-    endpoint = (
-        "https://generativelanguage.googleapis.com/v1beta/models/"
-        + quote(model, safe="-._")
-        + ":generateContent"
-    )
     request = Request(
-        endpoint,
+        INTERACTIONS_ENDPOINT,
         data=request_bytes,
         method="POST",
         headers={
             "Content-Type": "application/json",
             "x-goog-api-key": api_key,
-            "User-Agent": "MUSITU-Axiom-Level5-Provider-Probe/1.0",
+            "Api-Revision": "2026-05-20",
+            "User-Agent": "MUSITU-Axiom-Level5-Provider-Probe/2.0",
         },
     )
     started_at = _now()
@@ -117,11 +145,12 @@ def run_probe(
             body = response.read()
     except HTTPError as exc:
         body = exc.read()
+        provider_error_status, provider_error_category = _safe_error_details(body)
         return {
             "schema": SCHEMA,
             "status": "HTTP_ERROR",
             "provider_org": "Google",
-            "product": "Gemini API",
+            "product": "Gemini Interactions API",
             "requested_model": model,
             "access_mode": "api_free_tier",
             "started_at": started_at,
@@ -129,9 +158,12 @@ def run_probe(
             "http_status": int(exc.code),
             "request_sha256": request_sha256,
             "error_body_sha256": _sha256_bytes(body),
+            "provider_error_status": provider_error_status,
+            "provider_error_category": provider_error_category,
             "level5_identity_ready": False,
             "level5_admissibility": "NOT_ADMISSIBLE_PROVIDER_CALL_FAILED",
-            "reasons": ["provider_call_failed"],
+            "claim_authority": "NONE",
+            "reasons": ["provider_call_failed", provider_error_category],
         }
 
     completed_at = _now()
@@ -141,39 +173,49 @@ def run_probe(
     except Exception:
         payload = {}
 
-    response_id = payload.get("responseId") if isinstance(payload, Mapping) else None
-    model_version = payload.get("modelVersion") if isinstance(payload, Mapping) else None
+    interaction_id = payload.get("id") if isinstance(payload, Mapping) else None
+    model_version = payload.get("model") if isinstance(payload, Mapping) else None
+    interaction_status = payload.get("status") if isinstance(payload, Mapping) else None
     provider_request_id = _provider_request_id(safe_headers)
-    text = _response_text(payload) if isinstance(payload, Mapping) else ""
+    text = _interaction_text(payload) if isinstance(payload, Mapping) else ""
     response_matches_probe = text == EXPECTED_TEXT
 
     reasons: list[str] = []
-    if not isinstance(response_id, str) or not response_id.strip():
+    if not isinstance(interaction_id, str) or not interaction_id.strip():
         reasons.append("provider_response_id_missing")
-        response_id = None
+        interaction_id = None
     if not isinstance(model_version, str) or not model_version.strip():
         reasons.append("provider_model_version_missing")
         model_version = None
     if provider_request_id is None:
         reasons.append("provider_request_id_missing")
+    if interaction_status != "completed":
+        reasons.append("interaction_not_completed")
     if not response_matches_probe:
         reasons.append("probe_response_mismatch")
 
     receipt_envelope = {
         "http_status": status_code,
         "safe_response_headers": safe_headers,
-        "response_id": response_id,
+        "interaction_id": interaction_id,
+        "interaction_status": interaction_status,
         "model_version": model_version,
         "raw_response_sha256": raw_response_sha256,
     }
-    level5_identity_ready = bool(provider_request_id and response_id and model_version)
-    provider_call_valid = bool(200 <= status_code < 300 and response_id and model_version and response_matches_probe)
+    level5_identity_ready = bool(provider_request_id and interaction_id and model_version)
+    provider_call_valid = bool(
+        200 <= status_code < 300
+        and interaction_id
+        and model_version
+        and interaction_status == "completed"
+        and response_matches_probe
+    )
 
     return {
         "schema": SCHEMA,
         "status": "PASS" if provider_call_valid else "FAIL",
         "provider_org": "Google",
-        "product": "Gemini API",
+        "product": "Gemini Interactions API",
         "requested_model": model,
         "provider_model_version": model_version,
         "access_mode": "api_free_tier",
@@ -184,7 +226,8 @@ def run_probe(
         "raw_response_sha256": raw_response_sha256,
         "provider_receipt_hash": _sha256_bytes(_canonical_bytes(receipt_envelope)),
         "provider_request_id": provider_request_id,
-        "provider_response_id": response_id,
+        "provider_response_id": interaction_id,
+        "interaction_status": interaction_status,
         "safe_response_headers": safe_headers,
         "response_matches_probe": response_matches_probe,
         "level5_identity_ready": level5_identity_ready,
@@ -205,7 +248,7 @@ def _write(path: str | Path, payload: Mapping[str, Any]) -> None:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Probe Gemini API provider metadata without emitting credentials.")
+    parser = argparse.ArgumentParser(description="Probe Gemini Interactions API provider metadata without emitting credentials.")
     parser.add_argument("--model", default=DEFAULT_MODEL)
     parser.add_argument("--output", required=True)
     args = parser.parse_args(argv)
@@ -216,7 +259,7 @@ def main(argv: list[str] | None = None) -> int:
             "schema": SCHEMA,
             "status": "BLOCKED",
             "provider_org": "Google",
-            "product": "Gemini API",
+            "product": "Gemini Interactions API",
             "requested_model": args.model,
             "access_mode": "api_free_tier",
             "level5_identity_ready": False,
@@ -235,6 +278,8 @@ def main(argv: list[str] | None = None) -> int:
         "provider_org": payload["provider_org"],
         "requested_model": payload["requested_model"],
         "provider_model_version": payload.get("provider_model_version"),
+        "provider_error_status": payload.get("provider_error_status"),
+        "provider_error_category": payload.get("provider_error_category"),
         "provider_request_id_present": bool(payload.get("provider_request_id")),
         "provider_response_id_present": bool(payload.get("provider_response_id")),
         "level5_identity_ready": payload["level5_identity_ready"],
