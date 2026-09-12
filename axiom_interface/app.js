@@ -1,4 +1,6 @@
 import { initProjectWorkspace } from './projects.js';
+import { initOutcomeContractWorkspace } from './outcome_contracts.js';
+import { initOutcomeExecutionWorkspace } from './outcome_execution.js';
 
 const $ = (selector, root = document) => root.querySelector(selector);
 const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
@@ -6,7 +8,7 @@ const safeText = (value) => String(value ?? '').replace(/[\u0000-\u001f\u007f]/g
 const routeCopy = {
   home:['Home','State your outcome. Axiom prepares inspectable work before consequential action.'],
   projects:['Projects','Persistent goals, sources, artifacts, runs, memories and decisions live in a provenance-linked graph.'],
-  work:['Work','Outcome Contracts and checkpointed execution will live in this surface.'],
+  work:['Work','Create inspectable Outcome Contracts, approval receipts, durable checkpoints and acceptance tests.'],
   research:['Research','Claim-native investigation will connect statements to evidence and provenance.'],
   create:['Create','Artifacts are first-class, editable, versioned and reversible objects.'],
   code:['Code','Code work stays inspectable, sandboxed and policy-bounded.'],
@@ -64,6 +66,6 @@ function installEvents(){
 }
 function registerServiceWorker(){ if('serviceWorker' in navigator && location.protocol!=='file:') navigator.serviceWorker.register('./sw.js',{scope:'./'}).then(()=>emit('pwa.service-worker',{state:'registered'})).catch(()=>emit('pwa.service-worker',{state:'registration-failed'})); }
 
-applyTheme(state.theme); restoreDraft(); installEvents(); syncRoute(); updateConstraintSummary(); updateNetwork(); registerServiceWorker(); emit('shell.ready',{state:'phase2'});
+applyTheme(state.theme); restoreDraft(); installEvents(); syncRoute(); updateConstraintSummary(); updateNetwork(); registerServiceWorker(); emit('shell.ready',{state:'phase3'});
 window.AxiomUI = Object.freeze({ emit, reportError, setProgress, setProof, getTrace:()=>structuredClone(state.trace) });
-initProjectWorkspace({emit}).catch(error=>reportError({errorId:'AXIOM-PROJECT-INIT',component:'Projects',impact:'Project workspace unavailable',failed:error.message,recovery:'Reload the workspace and retry'}));
+initProjectWorkspace({emit}).then(async projects=>{const outcomes=await initOutcomeContractWorkspace({emit,projects});await initOutcomeExecutionWorkspace({emit,projects,outcomes});emit('work.ready',{state:'phase3'});}).catch(error=>reportError({errorId:'AXIOM-WORK-INIT',component:'Work',impact:'Project or Outcome workspace unavailable',failed:error.message,recovery:'Reload the workspace and retry'}));
