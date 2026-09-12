@@ -1,0 +1,124 @@
+name: MUSITU FMI Edge Security Independent Readback Once
+on:
+  push:
+    branches: [fmi-billing-binding-20260912-ephemeral]
+    paths: ['.github/workflows/fmi-edge-security-independent-readback-once.yml']
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    env:
+      API: https://api.cloudflare.com/client/v4
+      AID: 93f395f5121954671f92fffa453d6b61
+      DBID: a03dc12d-8206-47be-b904-1f24e4e37d91
+      EDGE: mft-fmi-global-edge
+      BILLING: mft-fmi-billing
+      ADAPTER: mft-fmi-modal-adapter
+      AUTHORITY: mft-phase8-external-authority
+      TRANSPORT: mft-paynow-transport-gateway
+      PUBLIC: https://mft-fmi-global-edge.mft-education-nexus-93f395f5.workers.dev
+      REF: FMI-MTYO41LA-CD6240DEB118
+      EDGE_SHA: 8b96455c0237dad85312606dc0c984efa4d278726924edf94f4abab4c2b9e891
+      BILLING_SHA: cd55b2b7b34bc5f73c394eddebd9edbc22690250b4ab7aff36a209064a3b9454
+      AUTH_SHA: ec2294e7bb9109a8b7b96ecfbc5c1bdc85c141d4aed501eed7a2c1cca1a94f26
+      TRANSPORT_SHA: e3c6db1ced0ab7e8e9844364b69777dfc7a15c8c2daf08b5bd330e035979f4ac
+    steps:
+      - name: Independently verify hardened live edge and unpaid state
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_RUN_ATTEMPT" = 1
+          python - <<'PY'
+          import email,hashlib,json,os,urllib.error,urllib.parse,urllib.request,uuid
+          from datetime import datetime,timezone
+          API=os.environ['API'];AID=os.environ['AID'];DBID=os.environ['DBID'];BASE=os.environ['PUBLIC'].rstrip('/');REF=os.environ['REF']
+          H={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY'],'Accept':'application/json','User-Agent':'MUSITU-FMI-Independent-Hardening-Readback/1.0'}
+          def raw(url,method='GET',headers=None,body=None):
+            q=urllib.request.Request(url,method=method,headers=headers or {},data=body)
+            try:
+              with urllib.request.urlopen(q,timeout=40) as r:return r.status,r.headers,r.read()
+            except urllib.error.HTTPError as e:return e.code,e.headers,e.read()
+          def cf(path,method='GET',obj=None):
+            h=dict(H);body=None
+            if obj is not None:h['Content-Type']='application/json';body=json.dumps(obj,separators=(',',':')).encode()
+            code,_,b=raw(API+path,method,h,body);assert 200<=code<300,(path,code,b[:200])
+            x=json.loads(b or b'{}');assert x.get('success') is not False,(path,x.get('errors'));return x.get('result')
+          def src(name):
+            code,h,b=raw(f'{API}/accounts/{AID}/workers/scripts/{urllib.parse.quote(name,safe="")}',headers=H);assert code==200,(name,code)
+            ct=h.get('content-type','')
+            if 'multipart/' not in ct.lower():return b
+            m=email.message_from_bytes((f'Content-Type: {ct}\r\nMIME-Version: 1.0\r\n\r\n').encode()+b);parts=[]
+            for x in m.walk():
+              if x.is_multipart():continue
+              d=x.get_payload(decode=True) or b''
+              if any(k in d for k in (b'export default',b'addEventListener',b'fetch(')):parts.append(d)
+            assert len(parts)==1,(name,len(parts));return parts[0]
+          def sha(b):return hashlib.sha256(b).hexdigest()
+          def bindings(name):
+            s=cf(f'/accounts/{AID}/workers/scripts/{urllib.parse.quote(name,safe="")}/settings') or {};return {x.get('name'):x for x in (s.get('bindings') or []) if isinstance(x,dict)}
+          def subdomain(name):return cf(f'/accounts/{AID}/workers/scripts/{urllib.parse.quote(name,safe="")}/subdomain') or {}
+          def d1(sql,params=None):
+            o={'sql':sql}
+            if params is not None:o['params']=params
+            result=cf(f'/accounts/{AID}/d1/database/{DBID}/query','POST',o) or [];rows=[]
+            for r in result:assert r.get('success') is True,r;rows.extend(r.get('results') or [])
+            return rows
+          def pub(path,method='GET',obj=None,bearer=None):
+            h={'Accept':'application/json','User-Agent':'MUSITU-FMI-Independent-Hardening-Readback/1.0'};body=None
+            if obj is not None:h['Content-Type']='application/json';body=json.dumps(obj,separators=(',',':')).encode()
+            if bearer is not None:h['Authorization']='Bearer '+bearer
+            code,rh,b=raw(BASE+path,method,h,body)
+            try:x=json.loads(b or b'{}')
+            except:x={'raw':b[:200].decode('utf-8','ignore')}
+            return code,x,{k.lower():v for k,v in rh.items()}
+          expected={'edge':os.environ['EDGE_SHA'],'billing':os.environ['BILLING_SHA'],'authority':os.environ['AUTH_SHA'],'transport':os.environ['TRANSPORT_SHA']}
+          names={'edge':os.environ['EDGE'],'billing':os.environ['BILLING'],'authority':os.environ['AUTHORITY'],'transport':os.environ['TRANSPORT']}
+          actual={k:sha(src(v)) for k,v in names.items()};assert actual==expected,(actual,expected)
+          eb=bindings(names['edge']);bb=bindings(names['billing'])
+          assert eb.get('FMI_BILLING',{}).get('service')==names['billing']
+          assert eb.get('FMI_DB',{}).get('id')==DBID
+          assert eb.get('FMI_KERNEL',{}).get('service')==os.environ['ADAPTER']
+          assert bb.get('FMI_DB',{}).get('id')==DBID
+          assert bb.get('PAYMENT_AUTHORITY',{}).get('service')==names['authority']
+          assert bb.get('PAYNOW_TRANSPORT',{}).get('service')==names['transport']
+          assert bb.get('FMI_AUTHORITY_BRIDGE_TOKEN',{}).get('type')=='secret_text'
+          assert bb.get('FMI_TRANSPORT_BRIDGE_TOKEN',{}).get('type')=='secret_text'
+          assert subdomain(names['edge']).get('enabled') is True
+          assert subdomain(names['billing']).get('enabled') is False
+          assert subdomain(os.environ['ADAPTER']).get('enabled') is False
+          required={'strict-transport-security','x-content-type-options','x-frame-options','content-security-policy','referrer-policy','permissions-policy'}
+          def header_gate(h):
+            assert required.issubset(set(h)),sorted(required-set(h));assert h['x-content-type-options'].lower()=='nosniff';assert h['x-frame-options'].upper()=='DENY';assert h['referrer-policy'].lower()=='no-referrer'
+          nonce=uuid.uuid4().hex;endpoint_checks={}
+          for path in ['/?r='+nonce,'/healthz?r='+nonce,'/v1/plans?r='+nonce,'/v1/billing/healthz?r='+nonce,'/v1/billing/catalog?r='+nonce]:
+            code,body,h=pub(path);assert code==200,(path,code,body);header_gate(h);endpoint_checks[path.split('?')[0]]={'status':code,'security_headers':'PASS'}
+          code,hz,h=pub('/healthz?r='+nonce);assert hz.get('authority')=='PAPER_SHADOW_ONLY';header_gate(h)
+          code,bh,h=pub('/v1/billing/healthz?r='+nonce);assert bh.get('ok') is True and bh.get('settlement_certified') is False;header_gate(h)
+          code,cat,h=pub('/v1/billing/catalog?r='+nonce);assert cat['plans']['FOUNDING']['amount_cents']==4900 and cat['plans']['FOUNDING']['currency']=='USD' and cat['plans']['PRO']['amount_cents']==14900 and cat['plans']['PRO']['currency']=='USD';header_gate(h)
+          negative={}
+          for n,p,m,o,bearer in [('me_no_auth','/v1/me','GET',None,None),('me_bad_auth','/v1/me','GET',None,'invalid-token'),('checkout_no_auth','/v1/billing/checkout','POST',{'plan':'FOUNDING'},None),('checkout_bad_auth','/v1/billing/checkout','POST',{'plan':'FOUNDING'},'invalid-token'),('poll_no_auth','/v1/billing/poll','POST',{'reference':REF},None),('poll_bad_auth','/v1/billing/poll','POST',{'reference':REF},'invalid-token')]:
+            code,body,h=pub(p,m,o,bearer);assert code in (400,401,403),(n,code,body);header_gate(h);negative[n]=code
+          code,body,h=pub('/__independent_unknown_'+nonce);assert code==404;header_gate(h);negative['unknown_route']=404
+          intents=d1('SELECT reference,customer_id,plan,amount_cents,currency,status,paynow_reference,created_at,completed_at FROM billing_checkout_intents WHERE reference=?1 LIMIT 2',[REF]);assert len(intents)==1,intents
+          i=intents[0];assert i['reference']==REF and i['plan']=='FOUNDING' and int(i['amount_cents'])==4900 and i['currency']=='USD' and i['status']=='pending' and not i.get('completed_at')
+          customer=d1('SELECT id,plan,status FROM customers WHERE id=?1 LIMIT 2',[i['customer_id']]);assert len(customer)==1 and customer[0]['plan']=='FREE' and customer[0]['status']=='active'
+          subs=d1("SELECT count(*) AS n FROM billing_subscriptions WHERE customer_id=?1 AND status='active'",[i['customer_id']]);active_subs=int(subs[0]['n'])
+          events=d1("SELECT count(*) AS n FROM lifecycle_events WHERE customer_id=?1 AND event_name='PLAN_ACTIVATED'",[i['customer_id']]);activated=int(events[0]['n'])
+          count=d1('SELECT count(*) AS n FROM billing_checkout_intents WHERE reference=?1',[REF]);ref_count=int(count[0]['n'])
+          assert active_subs==0 and activated==0 and ref_count==1
+          record={'schema':'musitu-fmi.edge-security-hardening-independent-readback.v1','verified_at':datetime.now(timezone.utc).isoformat(),'gate':'PASS','source_shas':actual,'bindings_verified':True,'edge_workers_dev_enabled':True,'billing_worker_private':True,'modal_adapter_private':True,'required_security_headers':sorted(required),'security_header_baseline':'PASS','endpoint_checks':endpoint_checks,'negative_auth_probe_statuses':negative,'reference':REF,'checkout_intent_count_for_reference':1,'intent_status':'pending','plan':'FOUNDING','amount_cents':4900,'currency':'USD','customer_plan':'FREE','active_paid_subscription_count':0,'plan_activated_event_count':0,'provider_checkout_created_by_readback':False,'payment_action_executed':False,'real_money_settlement_tested':False,'real_money_settlement_certified':False,'paper_shadow_authority_preserved':True,'live_trading_authorized':False,'model_authorized_trade_execution':False,'production_model_authority':False}
+          raw=(json.dumps(record,indent=2,sort_keys=True)+'\n').encode();open('fmi-edge-security-independent-readback.json','wb').write(raw);ev=hashlib.sha256(raw).hexdigest();open('fmi-edge-security-independent-readback.sha256','w').write(f'{ev}  fmi-edge-security-independent-readback.json\n');print(json.dumps({'gate':'PASS','edge_sha256':actual['edge'],'security_header_baseline':'PASS','reference':REF,'intent_status':'pending','customer_plan':'FREE','active_paid_subscription_count':0,'plan_activated_event_count':0,'settlement_certified':False,'evidence_sha256':ev},sort_keys=True))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: musitu-fmi-edge-security-independent-readback-${{ github.run_id }}
+          path: |
+            fmi-edge-security-independent-readback.json
+            fmi-edge-security-independent-readback.sha256
+          retention-days: 7
+          if-no-files-found: error
