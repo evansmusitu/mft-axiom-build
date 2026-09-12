@@ -9,6 +9,10 @@ from frontier_review_safe.external_validation import (
     IndependentValidationRecord,
     LongitudinalRefreshRecord,
 )
+from frontier_review_safe.tests.level7_semantic_fixture import (
+    bind_semantic_record,
+    semantic_artifacts_for,
+)
 
 
 NOW = datetime(2026, 9, 11, 11, 35, tzinfo=timezone.utc)
@@ -63,7 +67,7 @@ def level6_with_provider_scope():
 
 
 def refresh(refresh_id: str, day: int, baseline_hash: str) -> LongitudinalRefreshRecord:
-    return LongitudinalRefreshRecord(
+    return bind_semantic_record(LongitudinalRefreshRecord(
         refresh_id=refresh_id,
         executed_at=(NOW + timedelta(days=day)).isoformat(),
         candidate_sha=CANDIDATE_SHA,
@@ -75,7 +79,7 @@ def refresh(refresh_id: str, day: int, baseline_hash: str) -> LongitudinalRefres
         passed=True,
         provenance_type="independent_lab_record",
         executor_org="Independent Longitudinal Lab",
-    )
+    ))
 
 
 def attest(record: LongitudinalRefreshRecord, *, issuer_org: str, key_id: str, secret: bytes):
@@ -113,6 +117,7 @@ class Level7AttestationIssuerIndependenceTests(unittest.TestCase):
             receipts=receipts,
             verifier_secrets={PROVIDER_KEY: PROVIDER_SECRET},
             trusted_issuers={"OpenAI": frozenset({PROVIDER_KEY})},
+            semantic_artifacts=semantic_artifacts_for(records),
         )
         self.assertEqual(result["status"], "FAIL")
         self.assertIn("longitudinal_refresh_attester_overlaps_level5_provider", result["reasons"])
@@ -136,6 +141,7 @@ class Level7AttestationIssuerIndependenceTests(unittest.TestCase):
             receipts=receipts,
             verifier_secrets={PROVIDER_KEY: PROVIDER_SECRET},
             trusted_issuers={"openai": frozenset({PROVIDER_KEY})},
+            semantic_artifacts=semantic_artifacts_for(records),
         )
         self.assertEqual(result["status"], "FAIL")
         self.assertIn("longitudinal_refresh_attester_overlaps_level5_provider", result["reasons"])
@@ -164,8 +170,10 @@ class Level7AttestationIssuerIndependenceTests(unittest.TestCase):
             trusted_issuers={
                 "Independent Longitudinal Evaluator": frozenset({EXTERNAL_REFRESH_KEY})
             },
+            semantic_artifacts=semantic_artifacts_for(records),
         )
         self.assertEqual(result["status"], "PASS")
+        self.assertTrue(result["semantic_artifacts_verified"])
         self.assertEqual(result["refresh_count"], 3)
         self.assertEqual(result["level5_provider_orgs"], ["anthropic", "google", "openai"])
         self.assertEqual(result["refresh_executor_orgs"], ["independent longitudinal lab"])
@@ -202,8 +210,10 @@ class Level7AttestationIssuerIndependenceTests(unittest.TestCase):
                 "Independent Longitudinal Evaluator": frozenset({EXTERNAL_REFRESH_KEY}),
                 "OpenAI": frozenset({PROVIDER_KEY}),
             },
+            semantic_artifacts=semantic_artifacts_for(records),
         )
         self.assertEqual(result["status"], "PASS")
+        self.assertTrue(result["semantic_artifacts_verified"])
         self.assertNotIn("longitudinal_refresh_attester_overlaps_level5_provider", result["reasons"])
         self.assertEqual(result["refresh_count"], 3)
 
