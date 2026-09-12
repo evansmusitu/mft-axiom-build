@@ -57,11 +57,27 @@ def _organization_key(value: str) -> str:
     return unicodedata.normalize("NFKC", value.strip()).casefold()
 
 
+def _independence_identity_ignorable(char: str) -> bool:
+    codepoint = ord(char)
+    return (
+        unicodedata.category(char) in {"Cc", "Cf", "Cs"}
+        or codepoint == 0x034F
+        or 0x115F <= codepoint <= 0x1160
+        or 0x17B4 <= codepoint <= 0x17B5
+        or 0x180B <= codepoint <= 0x180F
+        or codepoint == 0x3164
+        or 0xFE00 <= codepoint <= 0xFE0F
+        or codepoint == 0xFFA0
+        or 0xFFF0 <= codepoint <= 0xFFF8
+        or 0xE0000 <= codepoint <= 0xE0FFF
+    )
+
+
 def _independence_organization_key(value: str) -> str:
     compatible = unicodedata.normalize("NFKC", " ".join(value.split()))
     visible = "".join(
         char for char in compatible
-        if unicodedata.category(char) != "Cf"
+        if not _independence_identity_ignorable(char)
     )
     return visible.translate(_ORGANIZATION_CONFUSABLES).casefold()
 
