@@ -1,3 +1,4 @@
+# Read-only verification for anchored, continuous Level-7 governance history.
 name: MUSITU Axiom Level-7 Governance Chain CI
 
 on:
