@@ -1,0 +1,224 @@
+name: RevenueGuard CUAD Matched-Window Multitask Epoch 2
+
+on:
+  push:
+    branches: [revenueguard-axiom-governor-20260911]
+    paths: ['research/revenueguard/TRIGGER_CUAD_MATCHED_WINDOW_MULTITASK.json']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  chunk0:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - name: Assert exact source artifact identity
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          curl -fsSL -H "Authorization: Bearer ${GH_TOKEN}" -H 'Accept: application/vnd.github+json' \
+            'https://api.github.com/repos/evansmusitu/mft-axiom-build/actions/runs/34683449126/artifacts?name=revenueguard-cuad-epoch1-chunked-final' > source_meta.json
+          python - <<'PY'
+          import json
+          o=json.load(open('source_meta.json'))
+          a=[x for x in o['artifacts'] if x['name']=='revenueguard-cuad-epoch1-chunked-final' and not x['expired']]
+          assert len(a)==1,a
+          assert a[0]['digest']=='sha256:a5684a5a8ed59909b46c93fd4729ce9ed0f8f672dc0be1474cf94a5e07d6e44b',a[0]['digest']
+          print('source artifact identity PASS')
+          PY
+      - name: Download exact failed epoch1 source model
+        uses: actions/download-artifact@v4
+        with:
+          name: revenueguard-cuad-epoch1-chunked-final
+          path: source
+          repository: evansmusitu/mft-axiom-build
+          run-id: 34683449126
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Download exact matched-window geometry audit
+        uses: actions/download-artifact@v4
+        with:
+          name: revenueguard-cuad-matched-window-geometry-audit
+          path: geometry
+          repository: evansmusitu/mft-axiom-build
+          run-id: 34706691340
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Assert frozen geometry contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          o=json.load(open('geometry/CUAD_MATCHED_WINDOW_GEOMETRY_AUDIT.json'))
+          assert o['schema']=='musitu.revenueguard.cuad.matched_window_geometry_audit.v1'
+          assert o['report_sha256']=='e14b667cc4e8ac96b35909741847d804505b3d7f0c4c79ddebb53ab07bee10e7'
+          assert o['train_sha256']=='7de21d2bb741ac939e2a839ef9640634a5e0f9f40ea2b82c6833baf7db33dab4'
+          assert o['cuad_commit']=='67faa0e6023b04fcaae6cc09497ab00e5d63a2a2'
+          assert o['counts']['heldout_questions']==2461
+          assert o['counts']['build_questions']==19989
+          assert o['selected_training_windows']==61659
+          assert o['counts']['selected_positive_windows']==12305
+          assert o['counts']['selected_hard_negative_windows']==49354
+          print('geometry contract PASS')
+          PY
+      - name: Install pinned runtime and fetch pinned CUAD
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          python -m pip install --index-url https://download.pytorch.org/whl/cpu torch
+          python -m pip install 'transformers==4.56.2' safetensors
+          curl -fL --retry 4 --retry-delay 2 -o cuad-data.zip 'https://raw.githubusercontent.com/The-Atticus-Project/cuad/67faa0e6023b04fcaae6cc09497ab00e5d63a2a2/data.zip'
+          unzip -q cuad-data.zip
+      - name: Train matched-window chunk 0 of 4
+        shell: bash
+        run: |
+          set -euo pipefail
+          TRAIN=$(find . -name train_separate_questions.json -type f | head -n1)
+          python research/revenueguard/cuad_matched_window_multitask_train.py \
+            --model-in source/cuad_epoch1_final \
+            --train-json "$TRAIN" \
+            --chunk-index 0 --num-chunks 4 \
+            --model-out cuad_matched_chunk_0 \
+            --state-out cuad_matched_state_0.pt \
+            --report CUAD_MATCHED_CHUNK_0.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: revenueguard-cuad-matched-window-chunk-0
+          path: |
+            cuad_matched_chunk_0/
+            cuad_matched_state_0.pt
+            CUAD_MATCHED_CHUNK_0.json
+          if-no-files-found: error
+          retention-days: 30
+
+  chunk1:
+    needs: chunk0
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: revenueguard-cuad-matched-window-chunk-0
+          path: previous
+      - name: Install pinned runtime and fetch pinned CUAD
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          python -m pip install --index-url https://download.pytorch.org/whl/cpu torch
+          python -m pip install 'transformers==4.56.2' safetensors
+          curl -fL --retry 4 --retry-delay 2 -o cuad-data.zip 'https://raw.githubusercontent.com/The-Atticus-Project/cuad/67faa0e6023b04fcaae6cc09497ab00e5d63a2a2/data.zip'
+          unzip -q cuad-data.zip
+      - name: Train matched-window chunk 1 of 4
+        shell: bash
+        run: |
+          set -euo pipefail
+          TRAIN=$(find . -name train_separate_questions.json -type f | head -n1)
+          python research/revenueguard/cuad_matched_window_multitask_train.py \
+            --model-in previous/cuad_matched_chunk_0 \
+            --train-json "$TRAIN" \
+            --chunk-index 1 --num-chunks 4 \
+            --state-in previous/cuad_matched_state_0.pt \
+            --model-out cuad_matched_chunk_1 \
+            --state-out cuad_matched_state_1.pt \
+            --report CUAD_MATCHED_CHUNK_1.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: revenueguard-cuad-matched-window-chunk-1
+          path: |
+            cuad_matched_chunk_1/
+            cuad_matched_state_1.pt
+            CUAD_MATCHED_CHUNK_1.json
+          if-no-files-found: error
+          retention-days: 30
+
+  chunk2:
+    needs: chunk1
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: revenueguard-cuad-matched-window-chunk-1
+          path: previous
+      - name: Install pinned runtime and fetch pinned CUAD
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          python -m pip install --index-url https://download.pytorch.org/whl/cpu torch
+          python -m pip install 'transformers==4.56.2' safetensors
+          curl -fL --retry 4 --retry-delay 2 -o cuad-data.zip 'https://raw.githubusercontent.com/The-Atticus-Project/cuad/67faa0e6023b04fcaae6cc09497ab00e5d63a2a2/data.zip'
+          unzip -q cuad-data.zip
+      - name: Train matched-window chunk 2 of 4
+        shell: bash
+        run: |
+          set -euo pipefail
+          TRAIN=$(find . -name train_separate_questions.json -type f | head -n1)
+          python research/revenueguard/cuad_matched_window_multitask_train.py \
+            --model-in previous/cuad_matched_chunk_1 \
+            --train-json "$TRAIN" \
+            --chunk-index 2 --num-chunks 4 \
+            --state-in previous/cuad_matched_state_1.pt \
+            --model-out cuad_matched_chunk_2 \
+            --state-out cuad_matched_state_2.pt \
+            --report CUAD_MATCHED_CHUNK_2.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: revenueguard-cuad-matched-window-chunk-2
+          path: |
+            cuad_matched_chunk_2/
+            cuad_matched_state_2.pt
+            CUAD_MATCHED_CHUNK_2.json
+          if-no-files-found: error
+          retention-days: 30
+
+  chunk3:
+    needs: chunk2
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: revenueguard-cuad-matched-window-chunk-2
+          path: previous
+      - name: Install pinned runtime and fetch pinned CUAD
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          python -m pip install --index-url https://download.pytorch.org/whl/cpu torch
+          python -m pip install 'transformers==4.56.2' safetensors
+          curl -fL --retry 4 --retry-delay 2 -o cuad-data.zip 'https://raw.githubusercontent.com/The-Atticus-Project/cuad/67faa0e6023b04fcaae6cc09497ab00e5d63a2a2/data.zip'
+          unzip -q cuad-data.zip
+      - name: Train matched-window chunk 3 of 4 and seal candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          TRAIN=$(find . -name train_separate_questions.json -type f | head -n1)
+          python research/revenueguard/cuad_matched_window_multitask_train.py \
+            --model-in previous/cuad_matched_chunk_2 \
+            --train-json "$TRAIN" \
+            --chunk-index 3 --num-chunks 4 \
+            --state-in previous/cuad_matched_state_2.pt \
+            --model-out cuad_matched_epoch2_final \
+            --state-out cuad_matched_epoch2_state.pt \
+            --report CUAD_MATCHED_EPOCH2_FINAL.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: revenueguard-cuad-matched-window-epoch2-final
+          path: |
+            cuad_matched_epoch2_final/
+            cuad_matched_epoch2_state.pt
+            CUAD_MATCHED_EPOCH2_FINAL.json
+          if-no-files-found: error
+          retention-days: 30
