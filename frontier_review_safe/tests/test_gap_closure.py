@@ -102,7 +102,10 @@ def registered_runs(providers, *, case_set_hash, constraint_hash, result_hash, p
     return registry, runs
 
 
-def longitudinal_refresh(refresh_id, executed_at, candidate_sha, case_set_hash, baseline_registry_hash):
+def longitudinal_refresh(
+    refresh_id, executed_at, candidate_sha, case_set_hash, baseline_registry_hash,
+    before_baseline_registry_hash=None,
+):
     return LongitudinalRefreshRecord(
         refresh_id=refresh_id,
         executed_at=executed_at,
@@ -116,6 +119,7 @@ def longitudinal_refresh(refresh_id, executed_at, candidate_sha, case_set_hash, 
             case_set_hash=case_set_hash,
             baseline_registry_hash=baseline_registry_hash,
             generated_at=executed_at,
+            governance_before_hash=before_baseline_registry_hash,
         ),
     )
 
@@ -273,7 +277,11 @@ class GapClosureTests(unittest.TestCase):
         validation_receipt = attest("independent_validation", v.fingerprint, v.fingerprint, v.provenance_type)
         l6=ExternalEvidenceGate.level6(l5,[v],receipts=[validation_receipt],verifier_secrets=VERIFIER_SECRETS,trusted_issuers=TRUSTED_ISSUERS)
         self.assertEqual(l6["status"],"PASS")
-        refreshes=[longitudinal_refresh(str(i),(NOW+timedelta(days=i*30)).isoformat(), EXTERNAL_CANDIDATE_SHA, H, (registry.fingerprint if i%2==0 else "5"*64)) for i in range(3)]
+        refreshes=[longitudinal_refresh(
+            str(i), (NOW+timedelta(days=i*30)).isoformat(), EXTERNAL_CANDIDATE_SHA, H,
+            (registry.fingerprint if i%2==0 else "5"*64),
+            (registry.fingerprint if i < 2 else "5"*64),
+        ) for i in range(3)]
         self.assertEqual(ExternalEvidenceGate.level7(l6,refreshes)["status"],"FAIL")
         refresh_receipts=[attest("longitudinal_refresh", r.refresh_id, r.fingerprint, "independent_lab_record", issued_at=r.executed_at) for r in refreshes]
         l7=ExternalEvidenceGate.level7(l6,refreshes,receipts=refresh_receipts,verifier_secrets=VERIFIER_SECRETS,trusted_issuers=TRUSTED_ISSUERS)
@@ -347,8 +355,11 @@ class GapClosureTests(unittest.TestCase):
         run_receipts=[attest("external_run",r.run_id,r.fingerprint,r.provenance_type) for r in runs]
         validation=IndependentValidationRecord("lab",NOW_S,EXTERNAL_CANDIDATE_SHA,case_set,"9"*64,True,"independent_lab_record")
         validation_receipt=attest("independent_validation",validation.fingerprint,validation.fingerprint,validation.provenance_type)
-        refreshes=[longitudinal_refresh(str(i),(NOW+timedelta(days=i*30)).isoformat(),EXTERNAL_CANDIDATE_SHA,case_set,
-                    (registry.fingerprint if i%2==0 else "5"*64)) for i in range(3)]
+        refreshes=[longitudinal_refresh(
+            str(i), (NOW+timedelta(days=i*30)).isoformat(), EXTERNAL_CANDIDATE_SHA, case_set,
+            (registry.fingerprint if i%2==0 else "5"*64),
+            (registry.fingerprint if i < 2 else "5"*64),
+        ) for i in range(3)]
         refresh_receipts=[attest("longitudinal_refresh",r.refresh_id,r.fingerprint,r.provenance_type, issued_at=r.executed_at) for r in refreshes]
         verified=ClaimBoundary.authorize_verified(
             "world best",runs=runs,run_receipts=run_receipts,verifier_secrets=VERIFIER_SECRETS,
