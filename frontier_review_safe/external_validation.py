@@ -42,31 +42,100 @@ def _longest_anchored_governance_chain(
     *,
     anchor_hash: str,
 ) -> list[dict[str, Any]]:
-    best_by_end: dict[str, list[dict[str, Any]]] = {}
+    """Return the longest time-ordered, anchored, non-cyclic governance path.
+
+    Retain/investigate decisions may keep the current baseline. Replace decisions
+    must advance to a baseline state that has not previously appeared on that
+    path. Rollback may return to a previously observed state, but rollback is a
+    terminal governance event and cannot be used as a predecessor for additional
+    refresh credit. This prevents A->B->A->B cycles from manufacturing apparent
+    longitudinal depth while preserving a genuine terminal rollback.
+    """
+
     ordered = sorted(
         candidates,
         key=lambda row: (row["executed_at"], row["refresh"].refresh_id),
     )
-    for row in ordered:
-        predecessor: list[dict[str, Any]] | None = [] if row["before"] == anchor_hash else None
-        existing = best_by_end.get(row["before"])
-        if existing and existing[-1]["executed_at"] < row["executed_at"]:
-            if predecessor is None or len(existing) > len(predecessor):
-                predecessor = existing
-        if predecessor is None:
-            continue
+
+    # State is keyed by the current baseline, every baseline state observed on
+    # the path, and whether a terminal rollback has occurred. Keeping distinct
+    # histories avoids collapsing two paths that end at the same registry but
+    # have different cycle constraints.
+    states: dict[tuple[str, frozenset[str], bool], list[dict[str, Any]]] = {}
+
+    def consider(
+        predecessor: list[dict[str, Any]],
+        *,
+        seen: frozenset[str],
+        terminal: bool,
+        row: dict[str, Any],
+    ) -> None:
+        if terminal:
+            return
+        before = row["before"]
+        after = row["after"]
+        decision = row["decision"]
+        if before != (predecessor[-1]["after"] if predecessor else anchor_hash):
+            return
+        if predecessor and predecessor[-1]["executed_at"] >= row["executed_at"]:
+            return
+
+        next_seen = seen
+        next_terminal = False
+        if after == before:
+            # Semantic verification already restricts unchanged transitions to
+            # retain/investigate; enforce it again at the chain boundary.
+            if decision not in {"retain", "investigate"}:
+                return
+        elif decision == "replace":
+            if after in seen:
+                return
+            next_seen = frozenset((*seen, after))
+        elif decision == "rollback":
+            # A rollback is meaningful only when it returns to a state actually
+            # observed earlier on this same accepted governance path.
+            if after not in seen:
+                return
+            next_terminal = True
+        else:
+            return
+
         chain = [*predecessor, row]
-        current = best_by_end.get(row["after"])
+        key = (after, next_seen, next_terminal)
+        current = states.get(key)
         current_ids = tuple(item["refresh"].refresh_id for item in current or ())
         chain_ids = tuple(item["refresh"].refresh_id for item in chain)
         if current is None or len(chain) > len(current) or (
             len(chain) == len(current) and chain_ids < current_ids
         ):
-            best_by_end[row["after"]] = chain
-    if not best_by_end:
+            states[key] = chain
+
+    for row in ordered:
+        # Anchor-starting path.
+        if row["before"] == anchor_hash:
+            consider(
+                [],
+                seen=frozenset({anchor_hash}),
+                terminal=False,
+                row=row,
+            )
+
+        # Snapshot the predecessor states so a row cannot extend a state created
+        # from itself during the same iteration.
+        for (end_hash, seen, terminal), predecessor in list(states.items()):
+            if end_hash != row["before"]:
+                continue
+            consider(
+                predecessor,
+                seen=seen,
+                terminal=terminal,
+                row=row,
+            )
+
+    if not states:
         return []
     return min(
-        best_by_end.values(),
+        states.values(),
         key=lambda chain: (-len(chain), tuple(item["refresh"].refresh_id for item in chain)),
     )
 
