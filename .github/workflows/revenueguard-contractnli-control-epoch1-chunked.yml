@@ -1,0 +1,46 @@
+name: RevenueGuard ContractNLI Control Epoch1 Chunked
+
+on:
+  push:
+    branches:
+      - revenueguard-axiom-governor-20260911
+    paths:
+      - '.github/workflows/revenueguard-contractnli-control-epoch1-chunked.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  c0:
+    uses: ./.github/workflows/revenueguard-contractnli-chunk-worker.yml
+    with: {mode: control, chunk: 0, previous_artifact: NONE, output_artifact: revenueguard-contractnli-control-e1-c0}
+  c1:
+    needs: c0
+    uses: ./.github/workflows/revenueguard-contractnli-chunk-worker.yml
+    with: {mode: control, chunk: 1, previous_artifact: revenueguard-contractnli-control-e1-c0, output_artifact: revenueguard-contractnli-control-e1-c1}
+  c2:
+    needs: c1
+    uses: ./.github/workflows/revenueguard-contractnli-chunk-worker.yml
+    with: {mode: control, chunk: 2, previous_artifact: revenueguard-contractnli-control-e1-c1, output_artifact: revenueguard-contractnli-control-e1-c2}
+  c3:
+    needs: c2
+    uses: ./.github/workflows/revenueguard-contractnli-chunk-worker.yml
+    with: {mode: control, chunk: 3, previous_artifact: revenueguard-contractnli-control-e1-c2, output_artifact: revenueguard-contractnli-control-e1-c3}
+  c4:
+    needs: c3
+    uses: ./.github/workflows/revenueguard-contractnli-chunk-worker.yml
+    with: {mode: control, chunk: 4, previous_artifact: revenueguard-contractnli-control-e1-c3, output_artifact: revenueguard-contractnli-control-e1-c4}
+  c5:
+    needs: c4
+    uses: ./.github/workflows/revenueguard-contractnli-chunk-worker.yml
+    with: {mode: control, chunk: 5, previous_artifact: revenueguard-contractnli-control-e1-c4, output_artifact: revenueguard-contractnli-control-e1-c5}
+  c6:
+    needs: c5
+    uses: ./.github/workflows/revenueguard-contractnli-chunk-worker.yml
+    with: {mode: control, chunk: 6, previous_artifact: revenueguard-contractnli-control-e1-c5, output_artifact: revenueguard-contractnli-control-e1-c6}
+  c7:
+    needs: c6
+    uses: ./.github/workflows/revenueguard-contractnli-chunk-worker.yml
+    with: {mode: control, chunk: 7, previous_artifact: revenueguard-contractnli-control-e1-c6, output_artifact: revenueguard-contractnli-control-epoch1-final}
