@@ -1,0 +1,48 @@
+name: RevenueGuard CUAD Post-Gate Failure Miner
+
+on:
+  push:
+    branches: [revenueguard-axiom-governor-20260911]
+    paths: ['research/revenueguard/TRIGGER_CUAD_POSTGATE_FAILURE_MINER.json']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  mine:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download all authoritative question-shard raw scores
+        uses: actions/download-artifact@v4
+        with:
+          pattern: revenueguard-cuadq32-heldout-shard-*
+          path: shards
+          merge-multiple: true
+          repository: evansmusitu/mft-axiom-build
+          run-id: 34700936203
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Download provenance-sealed aggregate
+        uses: actions/download-artifact@v4
+        with:
+          name: revenueguard-cuad-epoch1-question32-heldout-eval-provenance-sealed
+          path: aggregate
+          repository: evansmusitu/mft-axiom-build
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Mine frozen failures only
+        shell: bash
+        run: |
+          set -euo pipefail
+          python research/revenueguard/cuad_postgate_failure_miner.py \
+            --aggregate aggregate/CUAD_EPOCH1_QUESTION32_HELDOUT_EVAL_PROVENANCE_SEALED.json \
+            --shard-glob 'shards/raw_shard_*.json' \
+            --out CUAD_EPOCH1_POSTGATE_FAILURE_FAMILIES.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: revenueguard-cuad-epoch1-postgate-failure-families
+          path: CUAD_EPOCH1_POSTGATE_FAILURE_FAMILIES.json
+          if-no-files-found: error
+          retention-days: 30
