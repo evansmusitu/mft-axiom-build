@@ -33,9 +33,9 @@ class AnthropicFreeProbeTests(unittest.TestCase):
         self.assertEqual(result["claim_authority"], "NONE")
         self.assertNotIn("secret-key", json.dumps(result))
 
-    def test_unicode_format_mark_is_removed_without_changing_key(self):
+    def test_clipboard_format_and_linewrap_artifacts_are_removed(self):
         payload = {"id":"msg_123","model":"claude-fable-5-1","content":[{"type":"text","text":"MUSITU_CLAUDE_PROVIDER_PROBE_OK"}]}
-        result = run_probe(api_key="secret-key\u200e", opener=self.opener(payload, {"request-id":"req_456"}))
+        result = run_probe(api_key="secret-\n\u200ekey", opener=self.opener(payload, {"request-id":"req_456"}))
         self.assertEqual(result["status"], "PASS")
         self.assertTrue(result["level5_identity_ready"])
 
