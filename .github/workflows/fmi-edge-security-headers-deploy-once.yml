@@ -1,0 +1,172 @@
+name: MUSITU FMI Edge Security Headers Deploy Once
+on:
+  push:
+    branches: [fmi-billing-binding-20260912-ephemeral]
+    paths: ['.github/workflows/fmi-edge-security-headers-deploy-once.yml']
+permissions:
+  contents: read
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      API: https://api.cloudflare.com/client/v4
+      AID: 93f395f5121954671f92fffa453d6b61
+      DBID: a03dc12d-8206-47be-b904-1f24e4e37d91
+      EDGE: mft-fmi-global-edge
+      BILLING: mft-fmi-billing
+      AUTHORITY: mft-phase8-external-authority
+      TRANSPORT: mft-paynow-transport-gateway
+      PUBLIC: https://mft-fmi-global-edge.mft-education-nexus-93f395f5.workers.dev
+      REF: FMI-MTYO41LA-CD6240DEB118
+      BEFORE_SHA: 591f40e44a744655e439e5d8c154ccdd7e7379b47c7a583ce76f3a0b1c89572e
+      AFTER_SHA: 8b96455c0237dad85312606dc0c984efa4d278726924edf94f4abab4c2b9e891
+      BILLING_SHA: cd55b2b7b34bc5f73c394eddebd9edbc22690250b4ab7aff36a209064a3b9454
+      AUTH_SHA: ec2294e7bb9109a8b7b96ecfbc5c1bdc85c141d4aed501eed7a2c1cca1a94f26
+      TRANSPORT_SHA: e3c6db1ced0ab7e8e9844364b69777dfc7a15c8c2daf08b5bd330e035979f4ac
+    steps:
+      - name: Hash-guarded deploy with automatic rollback
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_RUN_ATTEMPT" = 1
+          python - <<'PY'
+          import email,hashlib,json,os,pathlib,secrets,subprocess,time,urllib.error,urllib.parse,urllib.request
+          from datetime import datetime,timezone
+          API=os.environ['API'];AID=os.environ['AID'];DBID=os.environ['DBID'];EDGE=os.environ['EDGE'];BASE=os.environ['PUBLIC'].rstrip('/');REF=os.environ['REF']
+          H={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY'],'Accept':'application/json','User-Agent':'MUSITU-FMI-Edge-Hardening/1.0'}
+          def raw(url,method='GET',headers=None,body=None):
+            q=urllib.request.Request(url,method=method,headers=headers or {},data=body)
+            try:
+              with urllib.request.urlopen(q,timeout=45) as r:return r.status,r.headers,r.read()
+            except urllib.error.HTTPError as e:return e.code,e.headers,e.read()
+          def cf(path,method='GET',obj=None):
+            h=dict(H);body=None
+            if obj is not None:h['Content-Type']='application/json';body=json.dumps(obj,separators=(',',':')).encode()
+            code,_,b=raw(API+path,method,h,body)
+            if not 200<=code<300:raise RuntimeError(f'Cloudflare HTTP {code}: {path}: {b[:300]!r}')
+            x=json.loads(b or b'{}')
+            if isinstance(x,dict) and x.get('success') is False:raise RuntimeError(f'Cloudflare success=false: {path}: {x.get("errors")}')
+            return x.get('result') if isinstance(x,dict) else x
+          def source(name):
+            code,h,b=raw(f'{API}/accounts/{AID}/workers/scripts/{urllib.parse.quote(name,safe="")}',headers=H)
+            if code!=200:raise RuntimeError(f'source fetch HTTP {code}')
+            ct=h.get('content-type','')
+            if 'multipart/' not in ct.lower():return b
+            m=email.message_from_bytes((f'Content-Type: {ct}\r\nMIME-Version: 1.0\r\n\r\n').encode()+b);parts=[]
+            for x in m.walk():
+              if x.is_multipart():continue
+              d=x.get_payload(decode=True) or b''
+              if any(k in d for k in (b'export default',b'addEventListener',b'fetch(')):parts.append(d)
+            if len(parts)!=1:raise RuntimeError(f'{name}: module count {len(parts)}')
+            return parts[0]
+          def sha(b):return hashlib.sha256(b).hexdigest()
+          def settings(name):return cf(f'/accounts/{AID}/workers/scripts/{urllib.parse.quote(name,safe="")}/settings') or {}
+          def canon_bindings(items):
+            out=[]
+            for b in items or []:
+              if not isinstance(b,dict):continue
+              t=b.get('type');n=b.get('name')
+              if t=='d1':out.append({'type':'d1','name':n,'id':b.get('id') or b.get('database_id')})
+              elif t=='service':
+                x={'type':'service','name':n,'service':b.get('service')}
+                if b.get('environment'):x['environment']=b['environment']
+                out.append(x)
+              elif t=='kv_namespace':out.append({'type':t,'name':n,'namespace_id':b.get('namespace_id')})
+              elif t in ('plain_text','secret_text'):
+                if t=='plain_text':out.append({'type':t,'name':n,'text':b.get('text','')})
+                else:raise RuntimeError('refusing upload that would require unrecoverable secret_text binding')
+              else:raise RuntimeError(f'unsupported binding type during guarded edge upload: {t}')
+            return out
+          def multipart(src,meta):
+            boundary='----MUSITUFMI'+secrets.token_hex(18);parts=[]
+            def add(x):parts.append(x.encode() if isinstance(x,str) else x)
+            add(f'--{boundary}\r\nContent-Disposition: form-data; name="metadata"\r\nContent-Type: application/json\r\n\r\n');add(json.dumps(meta,separators=(',',':')));add('\r\n')
+            add(f'--{boundary}\r\nContent-Disposition: form-data; name="index.mjs"; filename="index.mjs"\r\nContent-Type: application/javascript+module\r\n\r\n');add(src);add('\r\n');add(f'--{boundary}--\r\n')
+            return boundary,b''.join(parts)
+          def upload(src,meta):
+            boundary,body=multipart(src,meta);h=dict(H);h['Content-Type']='multipart/form-data; boundary='+boundary
+            code,_,b=raw(f'{API}/accounts/{AID}/workers/scripts/{urllib.parse.quote(EDGE,safe="")}',method='PUT',headers=h,body=body)
+            if not 200<=code<300:raise RuntimeError(f'worker upload HTTP {code}: {b[:300]!r}')
+            x=json.loads(b or b'{}');
+            if x.get('success') is False:raise RuntimeError(f'worker upload success=false: {x.get("errors")}')
+          def d1(sql,params=None):
+            o={'sql':sql};
+            if params is not None:o['params']=params
+            result=cf(f'/accounts/{AID}/d1/database/{DBID}/query','POST',o) or [];rows=[]
+            for r in result:
+              if r.get('success') is not True:raise RuntimeError('D1 query failed')
+              rows.extend(r.get('results') or [])
+            return rows
+          def dbstate():return {'intent':d1('SELECT reference,customer_id,plan,amount_cents,currency,status,paynow_reference,completed_at FROM billing_checkout_intents WHERE reference=?1 LIMIT 2',[REF]),'intents':d1('SELECT count(*) AS n FROM billing_checkout_intents'),'subs':d1("SELECT count(*) AS n FROM billing_subscriptions WHERE status='active'"),'activations':d1("SELECT count(*) AS n FROM lifecycle_events WHERE event_name='PLAN_ACTIVATED'")}
+          def pub(path,method='GET',obj=None,bearer=None):
+            h={'Accept':'application/json','User-Agent':'MUSITU-FMI-Edge-Hardening-Probe/1.0'};body=None
+            if obj is not None:h['Content-Type']='application/json';body=json.dumps(obj,separators=(',',':')).encode()
+            if bearer is not None:h['Authorization']='Bearer '+bearer
+            code,rh,b=raw(BASE+path,method,h,body)
+            try:x=json.loads(b or b'{}')
+            except:x={'raw':b[:300].decode('utf-8','ignore')}
+            return code,x,{k.lower():v for k,v in rh.items()}
+          required={'strict-transport-security','x-content-type-options','x-frame-options','content-security-policy','referrer-policy','permissions-policy'}
+          def assert_headers(h):
+            missing=sorted(required-set(h));
+            if missing:raise AssertionError(('missing_security_headers',missing,h))
+            assert h['x-content-type-options'].lower()=='nosniff';assert h['x-frame-options'].upper()=='DENY';assert h['referrer-policy'].lower()=='no-referrer'
+          before=source(EDGE);before_sha=sha(before);assert before_sha==os.environ['BEFORE_SHA'],(before_sha,os.environ['BEFORE_SHA'])
+          st=settings(EDGE);bindings=canon_bindings(st.get('bindings') or []);binding_snapshot=json.dumps(bindings,sort_keys=True,separators=(',',':'))
+          sub_before=cf(f'/accounts/{AID}/workers/scripts/{urllib.parse.quote(EDGE,safe="")}/subdomain') or {};assert sub_before.get('enabled') is True
+          db_before=dbstate();assert len(db_before['intent'])==1 and db_before['intent'][0].get('status')=='pending'
+          original=before.decode('utf-8')
+          marker='const HTML_H={"content-type":"text/html; charset=utf-8","cache-control":"public, max-age=300"};\n'
+          insert='const HTML_H={"content-type":"text/html; charset=utf-8","cache-control":"public, max-age=300"};\nconst SECURITY_H={"strict-transport-security":"max-age=31536000; includeSubDomains","x-content-type-options":"nosniff","x-frame-options":"DENY","referrer-policy":"no-referrer","permissions-policy":"camera=(), microphone=(), geolocation=()"};\nfunction secure(res){const h=new Headers(res.headers);for(const [k,v] of Object.entries(SECURITY_H))h.set(k,v);const ct=(h.get(\'content-type\')||\'\').toLowerCase();h.set(\'content-security-policy\',ct.includes(\'text/html\')?"default-src \'none\'; style-src \'unsafe-inline\'; img-src \'self\' data:; frame-ancestors \'none\'; base-uri \'none\'; form-action \'none\'":"default-src \'none\'; frame-ancestors \'none\'; base-uri \'none\'; form-action \'none\'");const body=[204,205,304].includes(res.status)?null:res.body;return new Response(body,{status:res.status,statusText:res.statusText,headers:h})}\n'
+          assert original.count(marker)==1
+          patched=original.replace(marker,insert,1)
+          assert patched.count('export default {async fetch(req,env){')==1
+          patched=patched.replace('export default {async fetch(req,env){','export default {async fetch(req,env){const response=await (async()=>{',1)
+          tail="return out(404,{ok:false,error:'not_found'})}};";assert patched.count(tail)==1
+          patched=patched.replace(tail,"return out(404,{ok:false,error:'not_found'})})();return secure(response)}};",1).encode()
+          patched_sha=sha(patched);assert patched_sha==os.environ['AFTER_SHA'],(patched_sha,os.environ['AFTER_SHA'])
+          pathlib.Path('/tmp/fmi-edge-patched.mjs').write_bytes(patched);subprocess.run(['node','--check','/tmp/fmi-edge-patched.mjs'],check=True)
+          meta={'main_module':'index.mjs','compatibility_date':st.get('compatibility_date') or '2026-09-12','bindings':bindings}
+          if st.get('compatibility_flags'):meta['compatibility_flags']=st['compatibility_flags']
+          uploaded=False
+          try:
+            upload(patched,meta);uploaded=True
+            time.sleep(3)
+            live=source(EDGE);assert sha(live)==patched_sha,(sha(live),patched_sha)
+            assert json.dumps(canon_bindings(settings(EDGE).get('bindings') or []),sort_keys=True,separators=(',',':'))==binding_snapshot
+            assert (cf(f'/accounts/{AID}/workers/scripts/{urllib.parse.quote(EDGE,safe="")}/subdomain') or {}).get('enabled') is True
+            checks={}
+            for path in ['/','/healthz','/v1/plans','/v1/billing/healthz','/v1/billing/catalog']:
+              code,body,h=pub(path);assert code==200,(path,code,body);assert_headers(h);checks[path]={'status':code,'security_headers':'PASS'}
+            code,hz,h=pub('/healthz');assert hz.get('authority')=='PAPER_SHADOW_ONLY'
+            code,bh,h=pub('/v1/billing/healthz');assert bh.get('ok') is True and bh.get('settlement_certified') is False
+            code,cat,h=pub('/v1/billing/catalog');assert cat['plans']['FOUNDING']['amount_cents']==4900 and cat['plans']['PRO']['amount_cents']==14900
+            code,b,h=pub('/v1/me');assert code==401;assert_headers(h);checks['/v1/me unauth']={'status':401,'security_headers':'PASS'}
+            code,b,h=pub('/__security_header_unknown__');assert code==404;assert_headers(h);checks['404']={'status':404,'security_headers':'PASS'}
+            db_after=dbstate();assert db_after==db_before,(db_before,db_after)
+            assert sha(source(os.environ['BILLING']))==os.environ['BILLING_SHA']
+            assert sha(source(os.environ['AUTHORITY']))==os.environ['AUTH_SHA']
+            assert sha(source(os.environ['TRANSPORT']))==os.environ['TRANSPORT_SHA']
+            record={'schema':'musitu-fmi.edge-security-hardening-deployment.v1','verified_at':datetime.now(timezone.utc).isoformat(),'gate':'PASS','edge_before_sha256':before_sha,'edge_after_sha256':patched_sha,'source_delta':'SECURITY_HEADERS_AND_TOP_LEVEL_RESPONSE_WRAPPER_ONLY','syntax_check':'PASS','bindings_preserved':True,'workers_dev_preserved':True,'endpoint_checks':checks,'required_security_headers':sorted(required),'security_header_baseline':'PASS','database_state_unchanged':True,'pending_checkout_preserved':True,'provider_checkout_created':False,'payment_action_executed':False,'real_money_settlement_tested':False,'real_money_settlement_certified':False,'paper_shadow_authority_preserved':True,'billing_source_sha256':os.environ['BILLING_SHA'],'authority_source_sha256':os.environ['AUTH_SHA'],'transport_source_sha256':os.environ['TRANSPORT_SHA'],'live_trading_authorized':False,'model_authorized_trade_execution':False,'production_model_authority':False,'rollback_executed':False}
+            out=(json.dumps(record,indent=2,sort_keys=True)+'\n').encode();pathlib.Path('fmi-edge-security-hardening-deployment.json').write_bytes(out);evsha=sha(out);pathlib.Path('fmi-edge-security-hardening-deployment.sha256').write_text(f'{evsha}  fmi-edge-security-hardening-deployment.json\n')
+            print(json.dumps({'gate':'PASS','edge_before_sha256':before_sha,'edge_after_sha256':patched_sha,'security_header_baseline':'PASS','database_state_unchanged':True,'provider_checkout_created':False,'settlement_certified':False,'evidence_sha256':evsha},sort_keys=True))
+          except Exception as exc:
+            if uploaded:
+              try:
+                upload(before,meta);time.sleep(3);restored=sha(source(EDGE));assert restored==before_sha,(restored,before_sha);print('ROLLBACK=PASS restored_sha256='+restored)
+              except Exception as rb:
+                print('ROLLBACK=FAIL '+repr(rb));raise RuntimeError('edge hardening failed and rollback failed') from exc
+            raise
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: musitu-fmi-edge-security-hardening-${{ github.run_id }}
+          path: |
+            fmi-edge-security-hardening-deployment.json
+            fmi-edge-security-hardening-deployment.sha256
+          retention-days: 7
+          if-no-files-found: error
