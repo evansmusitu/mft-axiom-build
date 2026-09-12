@@ -1,0 +1,95 @@
+name: RevenueGuard CUAD Epoch1 Question32 Heldout Gate
+
+on:
+  push:
+    branches: [revenueguard-axiom-governor-20260911]
+    paths: ['.github/workflows/revenueguard-cuad-heldout-epoch1-question32.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  score:
+    strategy:
+      fail-fast: false
+      max-parallel: 12
+      matrix:
+        shard: [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31]
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download exact sealed epoch1 model
+        uses: actions/download-artifact@v4
+        with:
+          name: revenueguard-cuad-epoch1-chunked-final
+          path: model_bundle
+          repository: evansmusitu/mft-axiom-build
+          run-id: 34683449126
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Install runtime and fetch pinned CUAD train corpus
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          python -m pip install --index-url https://download.pytorch.org/whl/cpu torch
+          python -m pip install 'transformers==4.56.2'
+          curl -fL --retry 4 --retry-delay 2 -o cuad-data.zip 'https://raw.githubusercontent.com/The-Atticus-Project/cuad/67faa0e6023b04fcaae6cc09497ab00e5d63a2a2/data.zip'
+          unzip -q cuad-data.zip
+      - name: Score heldout question shard
+        shell: bash
+        run: |
+          set -euo pipefail
+          TRAIN=$(find . -name train_separate_questions.json -type f | head -n1)
+          python research/revenueguard/cuad_heldout_question_shard.py \
+            --model model_bundle/cuad_epoch1_final \
+            --train-json "$TRAIN" \
+            --shard-index ${{ matrix.shard }} \
+            --num-shards 32 \
+            --out raw_shard_${{ matrix.shard }}.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: revenueguard-cuadq32-heldout-shard-${{ matrix.shard }}
+          path: raw_shard_${{ matrix.shard }}.json
+          if-no-files-found: error
+          retention-days: 30
+
+  aggregate:
+    needs: score
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: revenueguard-cuadq32-heldout-shard-*
+          path: shards
+          merge-multiple: true
+      - name: Install aggregation runtime and fetch pinned CUAD corpus
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          python -m pip install --index-url https://download.pytorch.org/whl/cpu torch
+          python -m pip install 'transformers==4.56.2'
+          curl -fL --retry 4 --retry-delay 2 -o cuad-data.zip 'https://raw.githubusercontent.com/The-Atticus-Project/cuad/67faa0e6023b04fcaae6cc09497ab00e5d63a2a2/data.zip'
+          unzip -q cuad-data.zip
+      - name: Aggregate exact complete heldout set
+        shell: bash
+        run: |
+          set -euo pipefail
+          TRAIN=$(find . -name train_separate_questions.json -type f | head -n1)
+          python research/revenueguard/cuad_heldout_aggregate.py \
+            --train-json "$TRAIN" \
+            --shard-glob 'shards/raw_shard_*.json' \
+            --expected-shards 32 \
+            --model-artifact-sha256 a5684a5a8ed59909b46c93fd4729ce9ed0f8f672dc0be1474cf94a5e07d6e44b \
+            --out CUAD_EPOCH1_QUESTION32_HELDOUT_EVAL.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: revenueguard-cuad-epoch1-question32-heldout-eval
+          path: CUAD_EPOCH1_QUESTION32_HELDOUT_EVAL.json
+          if-no-files-found: error
+          retention-days: 30
