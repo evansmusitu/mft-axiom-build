@@ -61,8 +61,10 @@ class ProviderExecutionEvidence:
             self.provider_response_id,
             self.candidate_sha,
         )
-        if not all(str(x).strip() for x in identities):
+        if not all(isinstance(x, str) and x.strip() for x in identities):
             raise ValueError("complete provider execution identity required")
+        if not _valid_git_sha(self.candidate_sha):
+            raise ValueError("provider execution candidate_sha must be an exact 40-hex Git SHA")
         if self.provenance_type not in PROVIDER_EXECUTION_PROVENANCE:
             raise ValueError("provider execution must use provider API/export provenance")
         parse_time(self.executed_at)
@@ -104,6 +106,14 @@ def _valid_sha256(value: str) -> bool:
     return (
         isinstance(value, str)
         and len(value) == 64
+        and all(c in "0123456789abcdef" for c in value.lower())
+    )
+
+
+def _valid_git_sha(value: str) -> bool:
+    return (
+        isinstance(value, str)
+        and len(value) == 40
         and all(c in "0123456789abcdef" for c in value.lower())
     )
 
