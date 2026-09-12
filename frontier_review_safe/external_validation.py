@@ -1,278 +1,207 @@
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass
+from collections.abc import Mapping as MappingABC
 from typing import Any, Mapping, Sequence
+import json
 
-from . import external_validation_core as _core
-from .external_validation_core import *  # noqa: F401,F403
-from .longitudinal_binding import LongitudinalArtifactBundle, LongitudinalIdentityBinding
+from . import external_validation_semantic_core as _semantic
+from .external_validation_semantic_core import *  # noqa: F401,F403
+from .core import parse_time, sha256
+from .longitudinal_binding import LongitudinalArtifactBundle, valid_sha256
 
-# Preserve the pre-hardening module surface used by integrity tests and internal
-# callers. Python import-star intentionally omits private names, so re-export
-# the existing canonical organization normalizers explicitly rather than
-# duplicating or weakening their implementation.
-_organization_key = _core._organization_key
-_independence_organization_key = _core._independence_organization_key
-
-
-@dataclass(frozen=True)
-class LongitudinalRefreshRecord(_core.LongitudinalRefreshRecord):
-    artifact_bundle: LongitudinalArtifactBundle | None = None
-
-    def __post_init__(self) -> None:
-        super().__post_init__()
-        if self.artifact_bundle is not None and not isinstance(self.artifact_bundle, LongitudinalArtifactBundle):
-            raise ValueError("longitudinal artifact bundle must use LongitudinalArtifactBundle")
-
-    @property
-    def fingerprint(self) -> str:
-        return _core.sha256(asdict(self))
+# Preserve the complete earned semantic-gate module surface.
+_organization_key = _semantic._organization_key
+_independence_organization_key = _semantic._independence_organization_key
+LongitudinalRefreshRecord = _semantic.LongitudinalRefreshRecord
 
 
-class ExternalEvidenceGate(_core.ExternalEvidenceGate):
+def _governance_transition(refresh: LongitudinalRefreshRecord) -> dict[str, Any] | None:
+    bundle = getattr(refresh, "artifact_bundle", None)
+    if not isinstance(bundle, LongitudinalArtifactBundle):
+        return None
+    try:
+        value = json.loads(bundle.replacement_governance_json)
+    except (TypeError, ValueError, json.JSONDecodeError):
+        return None
+    if not isinstance(value, MappingABC):
+        return None
+    before = value.get("baseline_registry_hash_before")
+    after = value.get("baseline_registry_hash_after")
+    decision = value.get("decision")
+    if not valid_sha256(before) or not valid_sha256(after) or not isinstance(decision, str):
+        return None
+    return {
+        "before": before,
+        "after": after,
+        "decision": decision,
+    }
+
+
+def _longest_anchored_governance_chain(
+    candidates: Sequence[dict[str, Any]],
+    *,
+    anchor_hash: str,
+) -> list[dict[str, Any]]:
+    best_by_end: dict[str, list[dict[str, Any]]] = {}
+    ordered = sorted(
+        candidates,
+        key=lambda row: (row["executed_at"], row["refresh"].refresh_id),
+    )
+    for row in ordered:
+        predecessor: list[dict[str, Any]] | None = [] if row["before"] == anchor_hash else None
+        existing = best_by_end.get(row["before"])
+        if existing and existing[-1]["executed_at"] < row["executed_at"]:
+            if predecessor is None or len(existing) > len(predecessor):
+                predecessor = existing
+        if predecessor is None:
+            continue
+        chain = [*predecessor, row]
+        current = best_by_end.get(row["after"])
+        current_ids = tuple(item["refresh"].refresh_id for item in current or ())
+        chain_ids = tuple(item["refresh"].refresh_id for item in chain)
+        if current is None or len(chain) > len(current) or (
+            len(chain) == len(current) and chain_ids < current_ids
+        ):
+            best_by_end[row["after"]] = chain
+    if not best_by_end:
+        return []
+    return min(
+        best_by_end.values(),
+        key=lambda chain: (-len(chain), tuple(item["refresh"].refresh_id for item in chain)),
+    )
+
+
+class ExternalEvidenceGate(_semantic.ExternalEvidenceGate):
     @classmethod
     def level7(
         cls,
         level6: Mapping[str, Any],
         refreshes: Sequence[LongitudinalRefreshRecord],
         *,
-        receipts: Sequence[_core.ExternalAttestationReceipt] = (),
+        receipts: Sequence[_semantic.ExternalAttestationReceipt] = (),
         verifier_secrets: Mapping[str, bytes] | None = None,
         trusted_issuers: Mapping[str, frozenset[str]] | None = None,
         min_refreshes: int = 3,
     ) -> dict[str, Any]:
-        reasons: list[str] = []
-        if not isinstance(level6, _core.MappingABC):
-            reasons.append("invalid_level6_assessment")
-            level6 = {}
         try:
-            level6_provider_values = tuple(level6.get("level5_provider_orgs", ()))
+            refresh_values = tuple(refreshes)
+            receipt_values = tuple(receipts)
         except Exception:
-            reasons.append("invalid_level6_provider_orgs")
-            level6_provider_values = ()
-        typed_refreshes, invalid_refreshes = _core._typed_records(refreshes, LongitudinalRefreshRecord)
-        if invalid_refreshes:
-            reasons.append("invalid_longitudinal_refresh_record")
-        secrets, secrets_valid = _core._runtime_mapping(verifier_secrets)
-        issuers, issuers_valid = _core._runtime_mapping(trusted_issuers)
-        if not secrets_valid:
-            reasons.append("external_verifier_secret_store_invalid")
-        if not issuers_valid:
-            reasons.append("external_attestation_trust_root_invalid")
-        if level6.get("status") != "PASS" or level6.get("attestation_verified") is not True:
-            reasons.append("level6_not_attested_and_passed")
-        try:
-            expected_identity = LongitudinalIdentityBinding.from_level6(level6)
-        except ValueError:
-            expected_identity = None
-            reasons.append("level6_identity_binding_invalid")
-        expected_baseline_registry_hash = level6.get("baseline_registry_hash")
-        if expected_baseline_registry_hash is not None and not _core._valid_sha256(expected_baseline_registry_hash):
-            reasons.append("level6_baseline_registry_hash_invalid")
-            expected_baseline_registry_hash = None
-        if not isinstance(min_refreshes, int) or isinstance(min_refreshes, bool):
-            reasons.append("invalid_longitudinal_refresh_floor")
-            effective_min_refreshes = cls.LEVEL7_REFRESH_FLOOR
-        else:
-            effective_min_refreshes = max(cls.LEVEL7_REFRESH_FLOOR, min_refreshes)
-            if min_refreshes < cls.LEVEL7_REFRESH_FLOOR:
-                reasons.append("longitudinal_refresh_floor_below_required")
-        level5_providers = {
-            _core._organization_key(provider)
-            for provider in level6_provider_values
-            if isinstance(provider, str) and provider.strip()
-        }
-        level5_provider_independence = {
-            _core._independence_organization_key(provider)
-            for provider in level6_provider_values
-            if isinstance(provider, str) and provider.strip()
-        }
-        latest_validation_raw = level6.get("latest_validation_at")
-        latest_validation_at = None
-        if latest_validation_raw is not None:
-            if not isinstance(latest_validation_raw, str):
-                reasons.append("level6_validation_time_invalid")
-            else:
-                try:
-                    latest_validation_at = _core.parse_time(latest_validation_raw)
-                except ValueError:
-                    reasons.append("level6_validation_time_invalid")
-        receipt_map, duplicate_receipts, invalid_receipts = cls._receipt_map(receipts, "longitudinal_refresh")
-        if duplicate_receipts:
-            reasons.append("duplicate_longitudinal_refresh_attestation_receipt")
-        if invalid_receipts:
-            reasons.append("invalid_longitudinal_refresh_attestation_receipt")
-
-        passed_refreshes: list[LongitudinalRefreshRecord] = []
-        receipt_hashes: list[str] = []
-        semantic_evidence_hashes: list[str] = []
-        seen_refresh_ids: set[str] = set()
-        semantic_artifact_reasons: set[str] = set()
-        saw_semantic_artifacts_missing = False
-        saw_nonindependent_provenance = False
-        saw_executor_identity_invalid = False
-        saw_executor_overlap = False
-        saw_attester_overlap = False
-        saw_attester_executor_overlap = False
-        saw_predating_refresh = False
-        saw_attestation_time_reversal = False
-        saw_identity_mismatch = False
-        saw_provenance_mismatch = False
-
-        for refresh in typed_refreshes:
-            if refresh.refresh_id in seen_refresh_ids:
-                reasons.append("duplicate_longitudinal_refresh")
-                continue
-            seen_refresh_ids.add(refresh.refresh_id)
-            if expected_identity is None or not expected_identity.matches(
-                candidate_sha=refresh.candidate_sha,
-                case_set_hash=refresh.case_set_hash,
-            ):
-                saw_identity_mismatch = True
-                continue
-            if refresh.passed is not True:
-                continue
-            if refresh.provenance_type != "independent_lab_record":
-                saw_nonindependent_provenance = True
-                continue
-            if not isinstance(refresh.executor_org, str) or not refresh.executor_org.strip():
-                saw_executor_identity_invalid = True
-                continue
-            if _core._independence_organization_key(refresh.executor_org) in level5_provider_independence:
-                saw_executor_overlap = True
-                continue
-            if latest_validation_at is not None and _core.parse_time(refresh.executed_at) < latest_validation_at:
-                saw_predating_refresh = True
-                continue
-            receipt = receipt_map.get(refresh.refresh_id)
-            if receipt is None:
-                continue
-            verification = _core.ExternalAttestationService.verify(
-                receipt,
-                expected_subject_type="longitudinal_refresh",
-                expected_subject_id=refresh.refresh_id,
-                expected_subject_hash=refresh.fingerprint,
-                verifier_secrets=secrets,
-                trusted_issuers=issuers,
+            return super().level7(
+                level6,
+                refreshes,
+                receipts=receipts,
+                verifier_secrets=verifier_secrets,
+                trusted_issuers=trusted_issuers,
+                min_refreshes=min_refreshes,
             )
-            if verification["status"] != "PASS":
-                continue
-            if receipt.provenance_type != refresh.provenance_type:
-                saw_provenance_mismatch = True
-                continue
-            if _core.parse_time(receipt.issued_at) < _core.parse_time(refresh.executed_at):
-                saw_attestation_time_reversal = True
-                continue
-            if not isinstance(receipt.issuer_org, str) or not receipt.issuer_org.strip():
-                saw_attester_overlap = True
-                continue
-            if _core._independence_organization_key(receipt.issuer_org) in level5_provider_independence:
-                saw_attester_overlap = True
-                continue
-            if (
-                _core._independence_organization_key(receipt.issuer_org)
-                == _core._independence_organization_key(refresh.executor_org)
-            ):
-                saw_attester_executor_overlap = True
-                continue
 
-            if not isinstance(refresh.artifact_bundle, LongitudinalArtifactBundle):
-                saw_semantic_artifacts_missing = True
+        result = dict(super().level7(
+            level6,
+            refresh_values,
+            receipts=receipt_values,
+            verifier_secrets=verifier_secrets,
+            trusted_issuers=trusted_issuers,
+            min_refreshes=min_refreshes,
+        ))
+        result.setdefault("governance_chain_verified", False)
+        result.setdefault("governance_chain_refresh_count", 0)
+        result.setdefault("governance_chain_refresh_ids", [])
+        result.setdefault("governance_chain_sha256", None)
+
+        # Do not obscure an earlier fail-closed reason. Chain validation is an
+        # additional promotion condition only after the earned semantic gate passes.
+        if result.get("status") != "PASS":
+            return result
+        if not isinstance(level6, MappingABC):
+            return result
+        anchor_hash = level6.get("baseline_registry_hash")
+        if anchor_hash is None:
+            result["governance_chain_reason"] = "level6_baseline_anchor_absent"
+            return result
+        if not valid_sha256(anchor_hash):
+            result["status"] = "FAIL"
+            result["attestation_verified"] = False
+            result["reasons"] = sorted(set([*result.get("reasons", []), "level6_baseline_registry_hash_invalid"]))
+            result["governance_chain_reason"] = "level6_baseline_registry_hash_invalid"
+            return result
+
+        effective_min = (
+            max(cls.LEVEL7_REFRESH_FLOOR, min_refreshes)
+            if isinstance(min_refreshes, int) and not isinstance(min_refreshes, bool)
+            else cls.LEVEL7_REFRESH_FLOOR
+        )
+        accepted: list[dict[str, Any]] = []
+        for refresh in refresh_values:
+            if not isinstance(refresh, LongitudinalRefreshRecord):
                 continue
-            semantic = refresh.artifact_bundle.verify(
-                candidate_sha=refresh.candidate_sha,
-                case_set_hash=refresh.case_set_hash,
-                baseline_registry_hash=refresh.baseline_registry_hash,
-                retained_failure_corpus_hash=refresh.retained_failure_corpus_hash,
-                drift_report_hash=refresh.drift_report_hash,
-                replacement_governance_hash=refresh.replacement_governance_hash,
+            individual = super().level7(
+                level6,
+                [refresh],
+                receipts=receipt_values,
+                verifier_secrets=verifier_secrets,
+                trusted_issuers=trusted_issuers,
+                min_refreshes=effective_min,
             )
-            if semantic["status"] != "PASS":
-                semantic_artifact_reasons.update(semantic["reasons"])
+            if individual.get("refresh_count") != 1:
                 continue
+            transition = _governance_transition(refresh)
+            if transition is None:
+                continue
+            accepted.append({
+                "refresh": refresh,
+                "executed_at": parse_time(refresh.executed_at),
+                **transition,
+            })
 
-            passed_refreshes.append(refresh)
-            receipt_hashes.append(verification["receipt_sha256"])
-            semantic_evidence_hashes.append(semantic["semantic_evidence_sha256"])
+        chain = _longest_anchored_governance_chain(accepted, anchor_hash=anchor_hash)
+        chain_ids = [row["refresh"].refresh_id for row in chain]
+        chain_baselines = {row["refresh"].baseline_registry_hash for row in chain}
+        result["governance_chain_refresh_count"] = len(chain)
+        result["governance_chain_refresh_ids"] = chain_ids
+        if chain:
+            result["governance_chain_sha256"] = sha256([
+                {
+                    "refresh_id": row["refresh"].refresh_id,
+                    "executed_at": row["refresh"].executed_at,
+                    "before": row["before"],
+                    "after": row["after"],
+                    "decision": row["decision"],
+                }
+                for row in chain
+            ])
 
-        distinct_refresh_times = {_core.parse_time(r.executed_at) for r in passed_refreshes}
-        baseline_registry_hashes = {r.baseline_registry_hash for r in passed_refreshes}
-        if len(passed_refreshes) < effective_min_refreshes:
-            if saw_nonindependent_provenance:
-                reasons.append("longitudinal_refresh_provenance_required")
-            if saw_executor_identity_invalid:
-                reasons.append("longitudinal_refresh_executor_identity_invalid")
-            if saw_executor_overlap:
-                reasons.append("longitudinal_refresh_executor_overlaps_level5_provider")
-            if saw_attester_overlap:
-                reasons.append("longitudinal_refresh_attester_overlaps_level5_provider")
-            if saw_attester_executor_overlap:
-                reasons.append("longitudinal_refresh_attester_overlaps_executor")
-            if saw_predating_refresh:
-                reasons.append("longitudinal_refresh_predates_level6_validation")
-            if saw_attestation_time_reversal:
-                reasons.append("longitudinal_refresh_attestation_predates_execution")
-            if saw_identity_mismatch:
-                reasons.append("longitudinal_refresh_identity_mismatch")
-            if saw_provenance_mismatch:
-                reasons.append("longitudinal_refresh_provenance_type_mismatch")
-            if saw_semantic_artifacts_missing:
-                reasons.append("longitudinal_semantic_artifacts_missing")
-            if semantic_artifact_reasons:
-                reasons.append("longitudinal_semantic_artifacts_invalid")
-            reasons.append("insufficient_attested_longitudinal_refreshes")
-        elif len(distinct_refresh_times) < effective_min_refreshes:
-            reasons.append("insufficient_distinct_longitudinal_refresh_times")
-        if len(passed_refreshes) >= effective_min_refreshes:
-            if (
-                expected_baseline_registry_hash is not None
-                and expected_baseline_registry_hash not in baseline_registry_hashes
-            ):
-                reasons.append("level5_baseline_registry_not_anchored")
-            if len(baseline_registry_hashes) < 2:
-                reasons.append("baselines_not_refreshed")
+        chain_reasons: list[str] = []
+        has_anchor_start = any(row["before"] == anchor_hash for row in accepted)
+        if len(chain) < effective_min:
+            chain_reasons.append(
+                "longitudinal_governance_chain_discontinuity"
+                if has_anchor_start
+                else "longitudinal_governance_chain_anchor_mismatch"
+            )
+        if len(chain) >= effective_min:
+            if anchor_hash not in chain_baselines:
+                chain_reasons.append("level5_baseline_registry_not_anchored")
+            if len(chain_baselines) < 2:
+                chain_reasons.append("baselines_not_refreshed")
 
-        reasons = sorted(set(reasons))
-        passed = not reasons
-        semantic_floor_met = len(passed_refreshes) >= effective_min_refreshes
-        return {
-            "status": "PASS" if passed else "FAIL",
-            "level": 7,
-            "reasons": reasons,
-            "attestation_verified": passed,
-            "semantic_artifacts_verified": semantic_floor_met,
-            "semantic_artifact_reasons": sorted(semantic_artifact_reasons),
-            "candidate_sha": expected_identity.candidate_sha if expected_identity is not None else None,
-            "case_set_hash": expected_identity.case_set_hash if expected_identity is not None else None,
-            "baseline_registry_hash": expected_baseline_registry_hash,
-            "level5_provider_orgs": sorted(level5_providers),
-            "latest_validation_at": (
-                latest_validation_at.isoformat() if latest_validation_at is not None else None
-            ),
-            "refresh_count": len(passed_refreshes),
-            "distinct_refresh_times": len(distinct_refresh_times),
-            "refresh_executor_orgs": sorted({
-                _core._independence_organization_key(r.executor_org)
-                for r in passed_refreshes
-                if isinstance(r.executor_org, str) and r.executor_org.strip()
-            }),
-            "refresh_evidence_sha256": _core.sha256([
-                asdict(r) for r in sorted(passed_refreshes, key=lambda x: x.refresh_id)
-            ]),
-            "semantic_evidence_sha256": (
-                _core.sha256(sorted(semantic_evidence_hashes))
-                if semantic_evidence_hashes else None
-            ),
-            "attestation_sha256": (
-                _core.sha256(sorted(receipt_hashes)) if receipt_hashes else None
-            ),
-        }
+        if chain_reasons:
+            result["status"] = "FAIL"
+            result["attestation_verified"] = False
+            result["governance_chain_verified"] = False
+            result["reasons"] = sorted(set([*result.get("reasons", []), *chain_reasons]))
+            result["governance_chain_reason"] = sorted(set(chain_reasons))[0]
+            return result
+
+        result["governance_chain_verified"] = True
+        result["governance_chain_reason"] = None
+        return result
 
 
-# Keep legacy implementation byte-for-byte in external_validation_core while
-# ensuring all runtime lookups used by ClaimBoundary.authorize_verified resolve
-# to the hardened Level-7 record and gate defined above.
-_core.LongitudinalRefreshRecord = LongitudinalRefreshRecord
-_core.ExternalEvidenceGate = ExternalEvidenceGate
+# ClaimBoundary.authorize_verified is defined in the frozen legacy module and
+# resolves ExternalEvidenceGate dynamically from that module's globals. Point
+# it at the chain-hardened successor without changing the prior implementation.
+_semantic._core.LongitudinalRefreshRecord = LongitudinalRefreshRecord
+_semantic._core.ExternalEvidenceGate = ExternalEvidenceGate
 
-ClaimBoundary = _core.ClaimBoundary
+ClaimBoundary = _semantic.ClaimBoundary
