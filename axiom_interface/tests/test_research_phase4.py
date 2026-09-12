@@ -15,9 +15,10 @@ class Phase4ResearchContractTests(unittest.TestCase):
             self.assertIn(token,RESEARCH)
         self.assertIn("initResearchWorkspace",APP)
         self.assertIn("enhanceResearchWorkspace",APP)
-        self.assertIn("state:'phase6'",APP)
+        self.assertIn("state:'phase7'",APP)
         self.assertIn("initArtifactWorkspace",APP)
         self.assertIn("initObservabilityWorkspace",APP)
+        self.assertIn("initLiveWorkspace",APP)
 
     def test_exact_citation_and_hash_binding(self):
         self.assertIn("source.text.slice(start,end)!==quote",RESEARCH)
