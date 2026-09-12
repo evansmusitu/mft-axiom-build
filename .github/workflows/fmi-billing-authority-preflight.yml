@@ -1,0 +1,95 @@
+name: MUSITU FMI Billing Authority Preflight
+
+on:
+  push:
+    branches: [fmi-billing-binding-20260912-ephemeral]
+    paths: ['.github/workflows/fmi-billing-authority-preflight.yml']
+
+permissions:
+  contents: read
+
+jobs:
+  preflight:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      CF_API: https://api.cloudflare.com/client/v4
+      ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      FMI_DB_UUID: a03dc12d-8206-47be-b904-1f24e4e37d91
+      TRANSPORT: mft-paynow-transport-gateway
+      AUTHORITY: mft-phase8-external-authority
+      FMI_EDGE: mft-fmi-global-edge
+    steps:
+      - name: Inspect live payment interfaces read-only
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$CLOUDFLARE_EMAIL"; test -n "$CLOUDFLARE_GLOBAL_API_KEY"
+          python - <<'PY'
+          import email,hashlib,json,os,re,urllib.error,urllib.parse,urllib.request
+          api=os.environ['CF_API']; aid=os.environ['ACCOUNT_ID']
+          H={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY'],'User-Agent':'MUSITU-FMI-Billing-Preflight/1.0'}
+          def cf(path,method='GET',obj=None):
+              h=dict(H); data=None
+              if obj is not None: h['Content-Type']='application/json'; data=json.dumps(obj,separators=(',',':')).encode()
+              q=urllib.request.Request(api+path,headers=h,method=method,data=data)
+              try:
+                  with urllib.request.urlopen(q,timeout=45) as r: raw=r.read(); code=r.status; hdr=r.headers
+              except urllib.error.HTTPError as e: raw=e.read(); code=e.code; hdr=e.headers
+              if not 200<=code<300: raise SystemExit(f'Cloudflare read failed HTTP {code} {path}')
+              return hdr,raw
+          def module(script):
+              h,raw=cf(f'/accounts/{aid}/workers/scripts/{urllib.parse.quote(script,safe="")}')
+              ct=h.get('content-type',''); src=raw
+              if 'multipart/' in ct.lower():
+                  msg=email.message_from_bytes((f'Content-Type: {ct}\r\nMIME-Version: 1.0\r\n\r\n').encode()+raw); parts=[]
+                  for p in msg.walk():
+                      if p.is_multipart(): continue
+                      d=p.get_payload(decode=True) or b''
+                      if any(x in d for x in (b'export default',b'addEventListener',b'fetch(')): parts.append(d)
+                  if len(parts)!=1: raise SystemExit(f'{script}: executable module count={len(parts)}')
+                  src=parts[0]
+              return src
+          def settings(script):
+              _,raw=cf(f'/accounts/{aid}/workers/scripts/{urllib.parse.quote(script,safe="")}/settings')
+              x=json.loads(raw or b'{}'); return (x.get('result') or {}).get('bindings') or []
+          def meta(script):
+              src=module(script); t=src.decode('utf-8','ignore')
+              return {
+                'source_sha256':hashlib.sha256(src).hexdigest(),
+                'paths':sorted(set(re.findall(r'["\'](/(?:internal/)?[A-Za-z0-9_./:{}-]{1,120})["\']',t))),
+                'headers':sorted(set(x.lower() for x in re.findall(r'headers\.get\(["\']([^"\']+)["\']\)',t,re.I))),
+                'env_names':sorted(set(re.findall(r'env\.([A-Z][A-Z0-9_]{2,80})',t))),
+                'body_keys':sorted(set(re.findall(r'\b(?:body|payload|data|input)\.([A-Za-z_][A-Za-z0-9_]*)',t))),
+                'form_keys':sorted(set(re.findall(r'(?:\.set|\.append)\(["\']([A-Za-z_][A-Za-z0-9_-]*)["\']',t))),
+                'methods':sorted(set(re.findall(r'\.method\s*===?\s*["\']([A-Z]+)["\']',t))),
+                'bindings':sorted([{'name':b.get('name'),'type':b.get('type'),'service':b.get('service')} for b in settings(script) if isinstance(b,dict)],key=lambda x:str(x.get('name')))
+              }
+          transport=meta(os.environ['TRANSPORT']); authority=meta(os.environ['AUTHORITY'])
+          edge_bind=settings(os.environ['FMI_EDGE']); edge_names={b.get('name') for b in edge_bind if isinstance(b,dict)}
+          q="SELECT name, sql FROM sqlite_master WHERE type='table' ORDER BY name;"
+          _,raw=cf(f"/accounts/{aid}/d1/database/{os.environ['FMI_DB_UUID']}/query",'POST',{'sql':q})
+          x=json.loads(raw or b'{}'); rows=[]
+          for rr in x.get('result') or []:
+              if rr.get('success') is not True: raise SystemExit('D1 schema read failed')
+              rows.extend(rr.get('results') or [])
+          tables=sorted(str(r.get('name')) for r in rows if r.get('name'))
+          required={'customers','api_keys','billing_subscriptions','webhook_events'}
+          if not required.issubset(set(tables)): raise SystemExit('FMI billing tables missing')
+          if 'FMI_BILLING' in edge_names: raise SystemExit('Fail-closed: FMI_BILLING unexpectedly already bound')
+          out={'schema':'musitu-fmi.billing-authority-preflight.v1','gate':'PASS','transport':transport,'authority':authority,'fmi_edge_binding_names':sorted(x for x in edge_names if x),'fmi_billing_bound':False,'fmi_db_tables':tables,'mutation_performed':False,'secret_values_read_or_logged':False}
+          open('fmi-billing-authority-preflight.json','w').write(json.dumps(out,indent=2,sort_keys=True)+'\n')
+          dg=hashlib.sha256(open('fmi-billing-authority-preflight.json','rb').read()).hexdigest(); open('fmi-billing-authority-preflight.sha256','w').write(dg+'  fmi-billing-authority-preflight.json\n')
+          print(json.dumps({'gate':'PASS','transport_paths':transport['paths'],'transport_headers':transport['headers'],'transport_body_keys':transport['body_keys'],'transport_form_keys':transport['form_keys'],'authority_paths':authority['paths'],'authority_headers':authority['headers'],'authority_env_names':authority['env_names'],'fmi_edge_binding_names':sorted(x for x in edge_names if x),'fmi_db_tables':tables,'evidence_sha256':dg},sort_keys=True))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: musitu-fmi-billing-authority-preflight-20260912
+          path: |
+            fmi-billing-authority-preflight.json
+            fmi-billing-authority-preflight.sha256
+          retention-days: 7
+          if-no-files-found: error
