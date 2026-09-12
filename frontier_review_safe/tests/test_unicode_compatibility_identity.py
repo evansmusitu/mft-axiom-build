@@ -5,9 +5,9 @@ import unittest
 
 from frontier_review_safe.baseline_registry import BaselineRegistration, BaselineRegistry
 from frontier_review_safe.external_attestation import ExternalAttestationService
+from frontier_review_safe.external_execution import ProviderBoundExternalRunRecord
 from frontier_review_safe.external_validation import (
     ExternalEvidenceGate,
-    ExternalRunRecord,
     IndependentValidationRecord,
     LongitudinalRefreshRecord,
 )
@@ -50,9 +50,9 @@ def registry(providers: tuple[str, ...]) -> BaselineRegistry:
     )
 
 
-def run_for(registry_value: BaselineRegistry, index: int) -> ExternalRunRecord:
+def run_for(registry_value: BaselineRegistry, index: int) -> ProviderBoundExternalRunRecord:
     registration = registry_value.registrations[index]
-    return ExternalRunRecord(
+    return ProviderBoundExternalRunRecord(
         run_id=f"run-{index}",
         provider_org=registration.provider_org,
         product=registration.product,
@@ -74,6 +74,9 @@ def run_for(registry_value: BaselineRegistry, index: int) -> ExternalRunRecord:
         baseline_registry_hash=registry_value.fingerprint,
         baseline_registration_id=registration.registration_id,
         baseline_registration_hash=registration.fingerprint,
+        provider_receipt_hash=f"{index + 30:064x}",
+        provider_request_id=f"request-{index}",
+        provider_response_id=f"response-{index}",
     )
 
 

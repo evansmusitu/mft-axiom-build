@@ -15,8 +15,9 @@ from frontier_review_safe.controls import (
 from frontier_review_safe.core import Evidence, FrontierSafetyError, sha256
 from frontier_review_safe.evaluation import DecisionProvenanceLedger, FailureCorpus, SealedCaseResult
 from frontier_review_safe.external_attestation import ExternalAttestationService
+from frontier_review_safe.external_execution import ProviderBoundExternalRunRecord
 from frontier_review_safe.external_validation import (
-    ClaimBoundary, ComparativeOutcome, ExternalEvidenceGate, ExternalRunRecord, IndependentValidationRecord, LongitudinalRefreshRecord,
+    ClaimBoundary, ComparativeOutcome, ExternalEvidenceGate, IndependentValidationRecord, LongitudinalRefreshRecord,
 )
 from frontier_review_safe.governance import (
     AuthorizationRequest, GovernedPermissionGraph, Instruction, JurisdictionPolicy, PolicyJurisdictionRouter,
@@ -84,13 +85,16 @@ def registered_runs(providers, *, case_set_hash, constraint_hash, result_hash, p
         tuple(registrations),
     )
     runs = [
-        ExternalRunRecord(
+        ProviderBoundExternalRunRecord(
             str(i), provider, "product", "v", NOW_S, "api", case_set_hash, constraint_hash,
             "c"*64, result_hash, "e"*64, provenance_type, True, EXTERNAL_CANDIDATE_SHA, "f"*64, {"score":.9},
             configuration_hash="6"*64, account_scope_hash="7"*64,
             baseline_registry_hash=registry.fingerprint,
             baseline_registration_id=registration.registration_id,
             baseline_registration_hash=registration.fingerprint,
+            provider_receipt_hash=f"{i + 30:064x}",
+            provider_request_id=f"request-{i}",
+            provider_response_id=f"response-{i}",
         )
         for i, (provider, registration) in enumerate(zip(providers, registrations))
     ]

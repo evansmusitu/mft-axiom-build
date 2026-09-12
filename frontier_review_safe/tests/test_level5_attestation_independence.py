@@ -5,7 +5,8 @@ import unittest
 
 from frontier_review_safe.baseline_registry import BaselineRegistration, BaselineRegistry
 from frontier_review_safe.external_attestation import ExternalAttestationService
-from frontier_review_safe.external_validation import ExternalEvidenceGate, ExternalRunRecord
+from frontier_review_safe.external_execution import ProviderBoundExternalRunRecord
+from frontier_review_safe.external_validation import ExternalEvidenceGate
 
 
 NOW = datetime(2026, 9, 11, 10, 50, tzinfo=timezone.utc)
@@ -46,7 +47,7 @@ def fixture():
         registrations,
     )
     runs = tuple(
-        ExternalRunRecord(
+        ProviderBoundExternalRunRecord(
             run_id=f"run-{i}",
             provider_org=provider,
             product="agent",
@@ -68,6 +69,9 @@ def fixture():
             baseline_registry_hash=registry.fingerprint,
             baseline_registration_id=registration.registration_id,
             baseline_registration_hash=registration.fingerprint,
+            provider_receipt_hash=f"{i + 30:064x}",
+            provider_request_id=f"request-{i}",
+            provider_response_id=f"response-{i}",
         )
         for i, (provider, registration) in enumerate(zip(PROVIDERS, registrations))
     )

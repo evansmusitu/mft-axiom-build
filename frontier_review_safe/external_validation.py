@@ -502,6 +502,14 @@ class ExternalEvidenceGate:
             if _independence_organization_key(receipt.issuer_org) in level5_provider_orgs:
                 reasons.append("external_attestation_issuer_overlaps_level5_provider")
                 continue
+            run_payload = asdict(run)
+            if (
+                not _valid_sha256(run_payload.get("provider_receipt_hash"))
+                or not _nonblank(run_payload.get("provider_request_id"))
+                or not _nonblank(run_payload.get("provider_response_id"))
+            ):
+                reasons.append("provider_execution_receipt_binding_missing")
+                continue
             verified.append(run)
             receipt_hashes[run.run_id] = verification["receipt_sha256"]
 
