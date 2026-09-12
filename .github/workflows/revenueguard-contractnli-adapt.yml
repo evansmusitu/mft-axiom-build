@@ -1,0 +1,121 @@
+name: RevenueGuard ContractNLI Local Adaptation
+
+on:
+  push:
+    branches:
+      - revenueguard-axiom-governor-20260911
+    paths:
+      - '.github/workflows/revenueguard-contractnli-adapt.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  adapt:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - name: Train contract-specific final-layer NLI adapter
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          python -m pip install 'torch' 'transformers==4.56.2' 'huggingface-hub==0.34.4' 'safetensors' 'scikit-learn'
+          curl -fL --retry 4 --retry-delay 2 -o contract-nli.zip 'https://raw.githubusercontent.com/stanfordnlp/contract-nli/eced6528dd3c1d14d73f9a87df8f7bdbc03126f9/resources/contract-nli.zip'
+          unzip -q contract-nli.zip
+          python - <<'PY'
+          import json, hashlib, re, random, time
+          from pathlib import Path
+          from collections import Counter
+          import torch
+          from torch.utils.data import DataLoader, Dataset
+          from transformers import AutoTokenizer, AutoModelForSequenceClassification
+          from huggingface_hub import snapshot_download
+
+          BASE='cross-encoder/nli-MiniLM2-L6-H768'
+          REV='b95119ce93d3e065de6214e38cd4a97b0f2f2c6d'
+          SEED=774193
+          random.seed(SEED); torch.manual_seed(SEED)
+          obj=json.load(open('contract-nli/train.json'))
+          labels=obj['labels']; hids=sorted(labels)
+          def build_partition(d):
+              x=int(hashlib.sha256(str(d['id']).encode()).hexdigest()[:8],16)
+              return 'cal' if x%10==0 else 'build'
+          def span_texts(d): return [d['text'][a:b].strip() for a,b in d['spans']]
+          def words(s): return set(re.findall(r"[a-z0-9]+",s.lower()))
+          def overlap(a,b):
+              A=words(a); B=words(b)
+              return len(A&B)/(len(A|B) or 1)
+          examples=[]
+          counts=Counter()
+          for d in obj['documents']:
+              if build_partition(d)!='build': continue
+              ss=span_texts(d); ann=d['annotation_sets'][0]['annotations']
+              for h in hids:
+                  hyp=labels[h]['hypothesis']; a=ann[h]; gold=set(a['spans'])
+                  if a['choice']!='NotMentioned':
+                      lab=1 if a['choice']=='Entailment' else 0
+                      for i in gold:
+                          if i<len(ss) and ss[i].strip():
+                              examples.append((ss[i],hyp,lab)); counts[lab]+=1
+                      nong=[i for i in range(len(ss)) if i not in gold]
+                      if nong:
+                          i=max(nong,key=lambda j:overlap(ss[j],hyp))
+                          examples.append((ss[i],hyp,2)); counts[2]+=1
+                  else:
+                      order=sorted(range(len(ss)),key=lambda i:overlap(ss[i],hyp),reverse=True)[:2]
+                      for i in order:
+                          examples.append((ss[i],hyp,2)); counts[2]+=1
+          random.shuffle(examples)
+          print('examples',len(examples),'class_counts',dict(counts),flush=True)
+          src=Path(snapshot_download(BASE,revision=REV,allow_patterns=['config.json','model.safetensors','tokenizer.json','tokenizer_config.json','special_tokens_map.json','vocab.json','merges.txt']))
+          tok=AutoTokenizer.from_pretrained(src,local_files_only=True)
+          model=AutoModelForSequenceClassification.from_pretrained(src,local_files_only=True)
+          for p in model.parameters(): p.requires_grad=False
+          for p in model.classifier.parameters(): p.requires_grad=True
+          for p in model.roberta.encoder.layer[-1].parameters(): p.requires_grad=True
+          trainable=sum(p.numel() for p in model.parameters() if p.requires_grad)
+          total=sum(p.numel() for p in model.parameters())
+          print('trainable',trainable,'total',total,flush=True)
+          class Pairs(Dataset):
+              def __len__(self): return len(examples)
+              def __getitem__(self,i): return examples[i]
+          def collate(batch):
+              a=[x[0] for x in batch]; b=[x[1] for x in batch]; y=torch.tensor([x[2] for x in batch],dtype=torch.long)
+              e=tok(a,b,padding=True,truncation=True,max_length=128,return_tensors='pt'); e['labels']=y; return e
+          dl=DataLoader(Pairs(),batch_size=32,shuffle=True,collate_fn=collate,num_workers=2)
+          weights=torch.tensor([1/max(1,counts[i]) for i in range(3)],dtype=torch.float)
+          weights=weights/weights.mean()
+          opt=torch.optim.AdamW([p for p in model.parameters() if p.requires_grad],lr=3e-5,weight_decay=.01)
+          model.train(); losses=[]; t0=time.time()
+          for epoch in range(2):
+              tot=0.; n=0
+              for step,b in enumerate(dl):
+                  opt.zero_grad(set_to_none=True)
+                  logits=model(input_ids=b['input_ids'],attention_mask=b['attention_mask']).logits
+                  loss=torch.nn.functional.cross_entropy(logits,b['labels'],weight=weights)
+                  loss.backward(); torch.nn.utils.clip_grad_norm_([p for p in model.parameters() if p.requires_grad],1.0); opt.step()
+                  tot+=float(loss);n+=1
+                  if step and step%100==0: print('epoch',epoch+1,'step',step,'loss',round(tot/n,4),'elapsed',round(time.time()-t0,1),flush=True)
+              losses.append(tot/n); print('epoch_done',epoch+1,'loss',losses[-1],flush=True)
+          out=Path('adapted_model');out.mkdir()
+          model.save_pretrained(out,safe_serialization=True);tok.save_pretrained(out)
+          files=[]
+          for p in sorted(out.iterdir()):
+              if p.is_file():
+                  b=p.read_bytes();files.append({'path':p.name,'bytes':len(b),'sha256':hashlib.sha256(b).hexdigest()})
+          report={'schema':'musitu.revenueguard.contractnli_adapter_train.v1','status':'DEV_RESEARCH_ONLY','base_repo':BASE,'base_revision':REV,'contractnli_commit':'eced6528dd3c1d14d73f9a87df8f7bdbc03126f9','seed':SEED,'examples':len(examples),'class_counts':dict(counts),'trainable_parameters':trainable,'total_parameters':total,'epoch_loss':losses,'files':files}
+          report['report_sha256']=hashlib.sha256(json.dumps(report,sort_keys=True,separators=(',',':')).encode()).hexdigest()
+          Path('TRAINING_REPORT.json').write_text(json.dumps(report,indent=2,sort_keys=True)+'\n')
+          print(json.dumps(report,indent=2,sort_keys=True),flush=True)
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: revenueguard-contractnli-adapted-model
+          path: |
+            adapted_model/
+            TRAINING_REPORT.json
+          if-no-files-found: error
+          retention-days: 30
