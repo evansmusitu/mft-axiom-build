@@ -1,0 +1,87 @@
+name: MUSITU FMI Commercial Control Plane Preflight
+
+on:
+  push:
+    branches:
+      - fmi-commercial-launch-20260912-ephemeral
+    paths:
+      - '.github/workflows/fmi-commercial-control-plane-preflight.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  preflight:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    env:
+      CLOUDFLARE_ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+      CLOUDFLARE_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+      MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID }}
+      MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET }}
+      FMI_MODAL_APP: mft-fmi-commercial
+      FMI_D1: musitu-fmi-global
+      FMI_ADAPTER: mft-fmi-modal-adapter
+      FMI_EDGE: mft-fmi-global-edge
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Require existing secret handles without exposing values
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$CLOUDFLARE_EMAIL"
+          test -n "$CLOUDFLARE_API_KEY"
+          test -n "$MODAL_TOKEN_ID"
+          test -n "$MODAL_TOKEN_SECRET"
+          echo credential_handles=PASS
+      - name: Verify Modal authentication and inspect dedicated FMI app
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --disable-pip-version-check --quiet 'modal>=1.5,<2'
+          modal app list --json > /tmp/modal-apps.json
+          python - <<'PY'
+          import json, os
+          x=json.load(open('/tmp/modal-apps.json'))
+          rows=x if isinstance(x,list) else x.get('apps',x.get('data',[])) if isinstance(x,dict) else []
+          names=[]
+          for r in rows:
+              if isinstance(r,dict):
+                  n=r.get('name') or r.get('app_name')
+                  if n: names.append(n)
+          target=os.environ['FMI_MODAL_APP']
+          print('modal_auth=PASS')
+          print('fmi_modal_app_present='+str(target in names).lower())
+          print('axiom_modal_prod_name_present='+str('mft-axiom-v3-modal-staging' in names).lower())
+          PY
+      - name: Verify Cloudflare authentication and inspect dedicated FMI D1/workers read-only
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json, os, urllib.request, urllib.parse
+          base='https://api.cloudflare.com/client/v4'; aid=os.environ['CLOUDFLARE_ACCOUNT_ID']
+          h={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_API_KEY']}
+          def get(path):
+              req=urllib.request.Request(base+path,headers=h)
+              with urllib.request.urlopen(req,timeout=30) as r: x=json.load(r)
+              if not x.get('success'): raise SystemExit('cloudflare read failed')
+              return x.get('result')
+          db=get(f'/accounts/{aid}/d1/database?name='+urllib.parse.quote(os.environ['FMI_D1']))
+          db_names=sorted({r.get('name') for r in (db or []) if isinstance(r,dict) and r.get('name')})
+          scripts=get(f'/accounts/{aid}/workers/scripts')
+          worker_names=[]
+          if isinstance(scripts,list):
+              worker_names=sorted({r.get('id') or r.get('name') for r in scripts if isinstance(r,dict) and (r.get('id') or r.get('name'))})
+          print('cloudflare_auth=PASS')
+          print('fmi_d1_present='+str(os.environ['FMI_D1'] in db_names).lower())
+          print('fmi_adapter_present='+str(os.environ['FMI_ADAPTER'] in worker_names).lower())
+          print('fmi_edge_present='+str(os.environ['FMI_EDGE'] in worker_names).lower())
+          for forbidden in ['mft-axiom-modal-adapter','mft-axiom-modal-edge-stage']:
+              print('protected_'+forbidden.replace('-','_')+'_present='+str(forbidden in worker_names).lower())
+          print('preflight_read_only=PASS')
+          PY
