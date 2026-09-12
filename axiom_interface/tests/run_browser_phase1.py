@@ -85,7 +85,7 @@ def main() -> None:
             page.get_by_role("button", name="Build").click()
             page.get_by_role("button", name="Preview plan").click()
             assert page.get_by_text("Not executed", exact=True).is_visible()
-            assert "No external action" in page.locator("#run-preview").inner_text()
+            assert "No consequential tool or external system has been invoked" in page.locator("#run-preview").inner_text()
             assert len(page.evaluate("window.AxiomUI.getTrace()")) > 0
 
             # Reliability/recovery surface contains every mandatory field.
