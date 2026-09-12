@@ -13,6 +13,7 @@ CANDIDATE_SHA = "d" * 40
 CASE_SET_HASH = "a" * 64
 ANCHOR = "9" * 64
 BASELINE_B = "5" * 64
+BASELINE_C = "6" * 64
 SECRET = b"g" * 32
 KEY_ID = "governance-chain-key"
 ISSUER = "Independent Governance Chain Evaluator"
@@ -33,6 +34,7 @@ def refresh(
     *,
     before_hash: str,
     after_hash: str,
+    decision: str | None = None,
 ) -> LongitudinalRefreshRecord:
     executed_at = (NOW + timedelta(days=day)).isoformat()
     return LongitudinalRefreshRecord(
@@ -50,6 +52,7 @@ def refresh(
             baseline_registry_hash=after_hash,
             generated_at=executed_at,
             governance_before_hash=before_hash,
+            governance_decision=decision,
         ),
     )
 
@@ -81,7 +84,13 @@ def good_chain():
     return [
         refresh("r1", 0, before_hash=ANCHOR, after_hash=ANCHOR),
         refresh("r2", 30, before_hash=ANCHOR, after_hash=BASELINE_B),
-        refresh("r3", 60, before_hash=BASELINE_B, after_hash=ANCHOR),
+        refresh(
+            "r3",
+            60,
+            before_hash=BASELINE_B,
+            after_hash=ANCHOR,
+            decision="rollback",
+        ),
     ]
 
 
@@ -98,7 +107,13 @@ class Level7GovernanceChainTests(unittest.TestCase):
         records = [
             refresh("r1", 0, before_hash=ANCHOR, after_hash=ANCHOR),
             refresh("r2", 30, before_hash="4" * 64, after_hash=BASELINE_B),
-            refresh("r3", 60, before_hash=BASELINE_B, after_hash=ANCHOR),
+            refresh(
+                "r3",
+                60,
+                before_hash=BASELINE_B,
+                after_hash=ANCHOR,
+                decision="rollback",
+            ),
         ]
         result = evaluate(records)
         self.assertEqual(result["status"], "FAIL")
@@ -127,6 +142,42 @@ class Level7GovernanceChainTests(unittest.TestCase):
         self.assertTrue(result["governance_chain_verified"])
         self.assertEqual(result["governance_chain_refresh_ids"], ["r1", "r2", "r3"])
         self.assertEqual(result["refresh_count"], 4)
+
+    def test_replace_cannot_cycle_back_to_previously_seen_baseline(self):
+        records = [
+            refresh("r1", 0, before_hash=ANCHOR, after_hash=ANCHOR),
+            refresh("r2", 30, before_hash=ANCHOR, after_hash=BASELINE_B),
+            refresh("r3", 60, before_hash=BASELINE_B, after_hash=ANCHOR, decision="replace"),
+        ]
+        result = evaluate(records)
+        self.assertEqual(result["status"], "FAIL")
+        self.assertFalse(result["governance_chain_verified"])
+        self.assertEqual(result["governance_chain_refresh_count"], 2)
+        self.assertIn("longitudinal_governance_chain_discontinuity", result["reasons"])
+
+    def test_rollback_must_target_a_baseline_observed_on_same_chain(self):
+        records = [
+            refresh("r1", 0, before_hash=ANCHOR, after_hash=ANCHOR),
+            refresh("r2", 30, before_hash=ANCHOR, after_hash=BASELINE_B),
+            refresh("r3", 60, before_hash=BASELINE_B, after_hash=BASELINE_C, decision="rollback"),
+        ]
+        result = evaluate(records)
+        self.assertEqual(result["status"], "FAIL")
+        self.assertFalse(result["governance_chain_verified"])
+        self.assertEqual(result["governance_chain_refresh_count"], 2)
+        self.assertIn("longitudinal_governance_chain_discontinuity", result["reasons"])
+
+    def test_terminal_rollback_cannot_be_reused_to_inflate_refresh_depth(self):
+        records = [
+            *good_chain(),
+            refresh("r4", 90, before_hash=ANCHOR, after_hash=BASELINE_C, decision="replace"),
+        ]
+        result = evaluate(records)
+        self.assertEqual(result["status"], "PASS")
+        self.assertTrue(result["governance_chain_verified"])
+        self.assertEqual(result["refresh_count"], 4)
+        self.assertEqual(result["governance_chain_refresh_count"], 3)
+        self.assertEqual(result["governance_chain_refresh_ids"], ["r1", "r2", "r3"])
 
 
 if __name__ == "__main__":
