@@ -45,7 +45,6 @@ def main():
             selector=page.locator('#project-select');expect(selector).not_to_have_value('')
             project_id=selector.input_value();assert project_id.startswith('prj_')
 
-            # Expand Project permissions before artifacts inherit them.
             updated=page.evaluate("""async pid=>{const s=window.AxiomProjects.store,p=await s.getProject(pid);return s.updateProject(pid,'local-user',{permissions:[{principal_id:'local-user',role:'owner'},{principal_id:'editor-user',role:'editor'},{principal_id:'viewer-user',role:'viewer'}]},p.revision)}""",project_id)
             assert len(updated['permissions'])==3
 
@@ -53,7 +52,6 @@ def main():
             page.locator('#artifact-space').wait_for(state='visible')
             page.locator('#artifact-project').select_option(project_id);page.wait_for_timeout(100)
 
-            # Create a document through the actual UI.
             document_content={'blocks':[{'type':'heading','text':'Phase 5 proof'},{'type':'paragraph','text':'Version zero evidence.'}]}
             page.locator('#artifact-type').select_option('document')
             page.locator('#artifact-name').fill('Evidence Document')
@@ -68,19 +66,19 @@ def main():
             assert doc0['project_object_id'].startswith('obj_')
             assert doc0['source_refs']==['research:c1','source:s1']
 
-            # Create the remaining first-class types through the same qualified store.
             sheet=page.evaluate("p=>window.AxiomArtifacts.store.create(window.AxiomProjects,'local-user',p)",payload(project_id,'sheet','Evidence Sheet',{'columns':['name','value'],'rows':[['alpha',1]]}))
             presentation=page.evaluate("p=>window.AxiomArtifacts.store.create(window.AxiomProjects,'local-user',p)",payload(project_id,'presentation','Evidence Presentation',{'slides':[{'title':'Opening','body':'Bound evidence'}]}))
             website=page.evaluate("p=>window.AxiomArtifacts.store.create(window.AxiomProjects,'local-user',p)",payload(project_id,'website','Static Website Preview',{'html':'<main><h1>Safe preview</h1></main>','css':'main{display:block}','js':'window.__MUST_NOT_RUN__=true'}))
             dashboard=page.evaluate("p=>window.AxiomArtifacts.store.create(window.AxiomProjects,'local-user',p)",payload(project_id,'dashboard','Evidence Dashboard',{'metrics':[{'label':'Score','value':7}],'panels':[]},deps=[doc_id]))
-            ids=[doc_id,sheet['artifact']['artifact_id'],presentation['artifact']['artifact_id'],website['artifact']['artifact_id'],dashboard['artifact']['artifact_id']]
+            website_id=website['artifact']['artifact_id']
+            dashboard_id=dashboard['artifact']['artifact_id']
+            ids=[doc_id,sheet['artifact']['artifact_id'],presentation['artifact']['artifact_id'],website_id,dashboard_id]
             assert len(set(ids))==5 and all(x.startswith('art_') for x in ids)
             rows=page.evaluate('pid=>window.AxiomArtifacts.store.list(pid)',project_id)
             assert {x['artifact_type'] for x in rows}=={'document','sheet','presentation','website','dashboard'}
             integrity=page.evaluate('pid=>window.AxiomArtifacts.store.verify(pid)',project_id)
             assert integrity['status']=='PASS',integrity
 
-            # Project graph must hold one artifact object per first-class artifact and a dependency relation.
             graph=page.evaluate('pid=>window.AxiomProjects.store.graph(pid)',project_id)
             artifact_objects=[x for x in graph['objects'] if x['type']=='artifact']
             assert len(artifact_objects)==5
@@ -89,13 +87,11 @@ def main():
             assert len(dep_edges)==1
             assert page.evaluate('pid=>window.AxiomProjects.store.verifyEventChain(pid)',project_id) is True
 
-            # Project-level viewer permission is enforced for writes while comments remain allowed.
             denied=page.evaluate("""async args=>{try{const s=window.AxiomArtifacts.store,row=await s.get('artifacts',args[0]);await s.edit(window.AxiomProjects,'viewer-user',args[0],{expectedVersion:row.current_version_number,content:{bad:true},provenanceSource:'viewer-write'});return 'ALLOWED';}catch(e){return e.name;}}""",[doc_id])
             assert denied=='NotAllowedError',denied
             comment=page.evaluate("args=>window.AxiomArtifacts.store.addComment(window.AxiomProjects,'viewer-user',args[0],args[1])",[doc_id,'Viewer evidence comment'])
             assert comment['actor_id']=='viewer-user'
 
-            # Commit an edit through the UI and prove deterministic structured diff.
             await_refresh=page.evaluate('()=>window.AxiomArtifacts.refresh()');assert await_refresh is None
             page.locator(f'[data-artifact-id="{doc_id}"]').click();page.wait_for_timeout(100)
             document_v1={'blocks':[{'type':'heading','text':'Phase 5 proof'},{'type':'paragraph','text':'Version one evidence with a verified edit.'}]}
@@ -112,12 +108,10 @@ def main():
             page.get_by_role('button',name='Compute diff').click();page.wait_for_timeout(80)
             expect(page.locator('#artifact-diff-output')).to_contain_text('diff_sha256')
 
-            # Dependency cycle must fail before a new version is committed.
-            cycle=page.evaluate("""async args=>{try{const s=window.AxiomArtifacts.store,row=await s.get('artifacts',args[0]);await s.edit(window.AxiomProjects,'local-user',args[0],{expectedVersion:row.current_version_number,dependencyArtifactIds:[args[1]],provenanceSource:'cycle-attempt'});return 'ALLOWED';}catch(e){return e.name;}}""",[doc_id,dashboard['artifact']['artifact_id']])
+            cycle=page.evaluate("""async args=>{try{const s=window.AxiomArtifacts.store,row=await s.get('artifacts',args[0]);await s.edit(window.AxiomProjects,'local-user',args[0],{expectedVersion:row.current_version_number,dependencyArtifactIds:[args[1]],provenanceSource:'cycle-attempt'});return 'ALLOWED';}catch(e){return e.name;}}""",[doc_id,dashboard_id])
             assert cycle=='InvalidStateError',cycle
             assert len(page.evaluate('id=>window.AxiomArtifacts.store.versions(id)',doc_id))==2
 
-            # Rollback is append-only: v0 is restored as v2 and v0/v1 hashes are unchanged.
             page.locator('#artifact-rollback-target').select_option('0')
             page.get_by_role('button',name='Rollback as new version').click();page.wait_for_timeout(160)
             rolled=page.evaluate('id=>window.AxiomArtifacts.store.get("artifacts",id)',doc_id)
@@ -128,7 +122,6 @@ def main():
             assert versions[2]['change_type']=='rollback' and versions[2]['rollback_of_version_id']==f'{doc_id}:v0'
             assert page.evaluate('args=>window.AxiomArtifacts.store.diff(args[0],args[1],args[2])',[doc_id,0,2])['change_count']==0
 
-            # Machine-readable local export carries the full provenance/version envelope.
             bundle=page.evaluate('id=>window.AxiomArtifacts.store.exportBundle(id)',doc_id)
             assert bundle['integrity']['status']=='PASS'
             assert bundle['export_scope']=='MACHINE_READABLE_BROWSER_LOCAL_BUNDLE'
@@ -136,18 +129,15 @@ def main():
             assert bundle['artifact']['cloud_collaboration_claimed'] is False
             assert bundle['artifact']['external_publication_claimed'] is False
 
-            # Website/code preview is static display only; supplied JavaScript never executes.
             page.evaluate('()=>window.AxiomArtifacts.refresh()')
-            page.locator(f'[data-artifact-id="{website["artifact"]["artifact_id"]}"]').click();page.wait_for_timeout(80)
+            page.locator(f'[data-artifact-id="{website_id}"]').click();page.wait_for_timeout(80)
             expect(page.locator('#artifact-preview')).to_contain_text('Static preview only')
             executed=page.evaluate('Boolean(window.__MUST_NOT_RUN__)');assert executed is False
 
-            # Direct mutable-state tampering must fail integrity, then exact restoration must recover PASS.
             tamper=page.evaluate("""async args=>{const s=window.AxiomArtifacts.store,id=args[0],pid=args[1],original=await s.get('artifacts',id);const bad=structuredClone(original);bad.content={tampered:true};let tx=s.db.transaction('artifacts','readwrite');tx.objectStore('artifacts').put(bad);await new Promise((r,j)=>{tx.oncomplete=r;tx.onerror=()=>j(tx.error)});const failed=await s.verify(pid,id);tx=s.db.transaction('artifacts','readwrite');tx.objectStore('artifacts').put(original);await new Promise((r,j)=>{tx.oncomplete=r;tx.onerror=()=>j(tx.error)});const restored=await s.verify(pid,id);return {failed,restored};}""",[doc_id,project_id])
             assert tamper['failed']['status']=='FAIL' and f'current_snapshot:{doc_id}' in tamper['failed']['errors']
             assert tamper['restored']['status']=='PASS'
 
-            # Hard reload must preserve exact artifact identity, versions, links and project provenance.
             page.reload(wait_until='networkidle');page.locator('#artifact-space').wait_for(state='visible')
             page.locator('#artifact-project').select_option(project_id);page.wait_for_timeout(130)
             persisted=page.evaluate('pid=>window.AxiomArtifacts.store.list(pid)',project_id)
@@ -155,7 +145,8 @@ def main():
             persisted_doc=next(x for x in persisted if x['artifact_id']==doc_id)
             assert persisted_doc['current_version_number']==2 and persisted_doc['content']==document_content
             assert len(page.evaluate('id=>window.AxiomArtifacts.store.versions(id)',doc_id))==3
-            assert page.evaluate('pid=>window.AxiomArtifacts.store.verify(pid)',project_id)['status']=='PASS'
+            final_integrity=page.evaluate('pid=>window.AxiomArtifacts.store.verify(pid)',project_id)
+            assert final_integrity['status']=='PASS'
             assert page.evaluate('pid=>window.AxiomProjects.store.verifyEventChain(pid)',project_id) is True
 
             foreign=[u for u in requests if not u.startswith(origin+'/')]
@@ -172,7 +163,7 @@ def main():
                 'current_state_tamper_detected':True,'cross_reload_persistence_verified':True,
                 'export_scope':'MACHINE_READABLE_BROWSER_LOCAL_BUNDLE','website_preview_execution':'STATIC_DISPLAY_ONLY',
                 'cloud_collaboration_claimed':False,'external_publication_claimed':False,'deployment_claimed':False,
-                'foreign_requests':foreign,'artifact_integrity_sha256':page.evaluate('pid=>window.AxiomArtifacts.store.verify(pid)',project_id)['integrity_sha256'],
+                'foreign_requests':foreign,'artifact_integrity_sha256':final_integrity['integrity_sha256'],
             }
             (ARTIFACT_DIR/'phase5-artifact-evidence.json').write_text(json.dumps(evidence,indent=2,sort_keys=True)+'\n',encoding='utf-8')
             browser.close()
