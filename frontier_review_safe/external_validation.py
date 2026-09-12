@@ -65,6 +65,7 @@ def _independence_identity_ignorable(char: str) -> bool:
         or 0x115F <= codepoint <= 0x1160
         or 0x17B4 <= codepoint <= 0x17B5
         or 0x180B <= codepoint <= 0x180F
+        or codepoint == 0x2065
         or codepoint == 0x3164
         or 0xFE00 <= codepoint <= 0xFE0F
         or codepoint == 0xFFA0
