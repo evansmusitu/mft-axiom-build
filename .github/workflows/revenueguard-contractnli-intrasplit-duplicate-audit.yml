@@ -1,0 +1,46 @@
+name: RevenueGuard ContractNLI Intrasplit Duplicate Audit
+
+on:
+  push:
+    branches: [revenueguard-axiom-governor-20260911]
+    paths: ['.github/workflows/revenueguard-contractnli-intrasplit-duplicate-audit.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Measure normalized duplicate groups within splits
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fL --retry 4 --retry-delay 2 -o contract-nli.zip 'https://raw.githubusercontent.com/stanfordnlp/contract-nli/eced6528dd3c1d14d73f9a87df8f7bdbc03126f9/resources/contract-nli.zip'
+          unzip -q contract-nli.zip
+          python - <<'PY'
+          import json,hashlib,re
+          from collections import defaultdict
+          from pathlib import Path
+          tr=json.load(open('contract-nli/train.json'));dv=json.load(open('contract-nli/dev.json'))
+          def part(d):return 'cal' if int(hashlib.sha256(str(d['id']).encode()).hexdigest()[:8],16)%10==0 else 'build'
+          def h(d):return hashlib.sha256(re.sub(r'\s+',' ',d['text']).strip().lower().encode()).hexdigest()
+          groups=defaultdict(list)
+          for d in tr['documents']:groups[(part(d),h(d))].append(str(d['id']))
+          for d in dv['documents']:groups[('dev',h(d))].append(str(d['id']))
+          out={}
+          for split in ('build','cal','dev'):
+              gs=[ids for (s,_),ids in groups.items() if s==split and len(ids)>1]
+              out[split]={'duplicate_groups':len(gs),'documents_in_duplicate_groups':sum(len(x) for x in gs),'extra_duplicate_copies':sum(len(x)-1 for x in gs),'examples':gs[:25]}
+          rep={'schema':'musitu.revenueguard.contractnli.intrasplit_duplicate_audit.v1','status':'DEV_RESEARCH_ONLY','commit':'eced6528dd3c1d14d73f9a87df8f7bdbc03126f9','splits':out}
+          rep['report_sha256']=hashlib.sha256(json.dumps(rep,sort_keys=True,separators=(',',':')).encode()).hexdigest();Path('CONTRACTNLI_INTRASPLIT_DUPLICATES.json').write_text(json.dumps(rep,indent=2,sort_keys=True)+'\n');print(json.dumps(rep,indent=2,sort_keys=True))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: revenueguard-contractnli-intrasplit-duplicate-audit
+          path: CONTRACTNLI_INTRASPLIT_DUPLICATES.json
+          if-no-files-found: error
+          retention-days: 30
