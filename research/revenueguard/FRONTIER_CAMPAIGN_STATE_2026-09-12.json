@@ -1,19 +1,20 @@
 {
-  "schema": "musitu.revenueguard.frontier_campaign_state.v4",
+  "schema": "musitu.revenueguard.frontier_campaign_state.v5",
   "status": "NOT_CERTIFIED",
   "as_of": "2026-09-12",
   "product_freeze": {
     "revenueguard_v4": "FROZEN_UNTOUCHED",
-    "v4_1_promotion_rule": "Only promote a research specialist after locked development gates pass; MAUD transfer remains post-freeze."
+    "v4_1_promotion_rule": "Only promote a research specialist after locked development gates pass and any required fresh seal passes; MAUD remains post-freeze."
   },
   "contractnli": {
     "commit": "eced6528dd3c1d14d73f9a87df8f7bdbc03126f9",
     "adapted_encoder_artifact_sha256": "3d78d473ffde6f790b3919226d1069b81fa8426f0f139007d3ba8b9d9cf23055",
-    "rejected_policy_head_diagnostic": {
+    "prior_exposed_dev_diagnostic": {
       "dev_accuracy": 0.8746383799421408,
       "dev_macro_f1": 0.8149915635966174,
       "false_grounding_notmentioned": 0.04964539007092199,
-      "gate_pass": false
+      "gate_pass": false,
+      "consequence": "dev.json is development evidence only and cannot serve as a fresh certification seal"
     },
     "retrieval_ceiling": {"k14": 0.8094, "k24": 0.9235, "k32": 0.9593},
     "negative_context_contamination_rate": 0.10352393319303273,
@@ -32,27 +33,32 @@
     "authoritative_epoch1_matched_runs": {
       "control": {
         "run_id": 34697863465,
-        "status": "C3_IN_PROGRESS",
-        "completed_checkpoint_artifacts": {
-          "c0": "8c5ca20c8e25f28c9e1598a4f793530995985fd1a76326fad3a478175c2c0fe9",
-          "c1": "451580942eb0e5187a8d0865404a34334c14594990bb570922bf3499c44a2d90",
-          "c2": "a61447da5d020132fbeba4d5ebd93ae7ef742e66fa952b536bedc5fd684f00eb"
-        }
+        "status": "C0_C7_COMPLETE",
+        "final_artifact": "revenueguard-contractnli-control-epoch1-final",
+        "final_artifact_sha256": "b436bd2103ff2dc3a9bd04ad0d5e8c1500814deaddc0c51a47cf0fa595f89b1c",
+        "final_state": {"next_chunk": 8, "global_steps": 615, "num_chunks": 8, "full_epoch_samples": 29488}
       },
       "balanced": {
         "run_id": 34697878064,
-        "status": "C3_IN_PROGRESS",
-        "completed_checkpoint_artifacts": {
-          "c0": "99b367fa79eeb29940b3ed56f7dc639ddc28fc19b2ce8fc79a29417d8902efe4",
-          "c1": "9b52df3d59c8e6f1aed5a6b8d940e7e56eec53c3436730ff743d0c4fc85841ca",
-          "c2": "eb81dce23c1122fdff93eef0b57277115349aa6002acfdfc771645a510178918"
-        }
+        "status": "C0_C7_COMPLETE",
+        "final_artifact": "revenueguard-contractnli-balanced-epoch1-final",
+        "final_artifact_sha256": "0aabaf77ac57b90529432eded113d246780f379ba8014935d732770922fc0c7f",
+        "final_state": {"next_chunk": 8, "global_steps": 615, "num_chunks": 8, "full_epoch_samples": 29488}
       }
     },
-    "final_locked_eval_workflow": ".github/workflows/revenueguard-contractnli-epoch1-final-eval.yml",
-    "final_locked_eval_status": "DORMANT_UNTIL_C7_ARTIFACTS_EXIST",
-    "locked_gate": {"accuracy_min": 0.90, "macro_f1_min": 0.88, "false_grounding_max": 0.02, "selected_exact_evidence_span_recall_min": 0.85},
-    "selection": "K in {24,32} and threshold selected exclusively on duplicate-clean hash-held training calibration documents; official dev evaluated once after selection."
+    "locked_dev_evaluator": {
+      "run_id": 34705965474,
+      "status": "IN_PROGRESS",
+      "evidence_label": "DEVELOPMENT_EVIDENCE_ONLY_PRIORLY_EXPOSED",
+      "current_verified_progress": "7_OF_8_CONTROL_SHARDS_SEALED; BALANCED_SCORING_ACTIVE",
+      "locked_gate": {"accuracy_min": 0.90, "macro_f1_min": 0.88, "false_grounding_max": 0.02, "selected_exact_evidence_span_recall_min": 0.85},
+      "selection": "K in {24,32} and threshold selected exclusively on duplicate-clean hash-held training calibration documents; dev graded only after selection"
+    },
+    "fresh_test_policy": {
+      "test_split_exists": true,
+      "test_opened_for_current_candidates": false,
+      "rule": "Only if a development arm earns candidacy: freeze exact arm/checkpoint/K/threshold first, then open ContractNLI test.json once as the fresh semantic seal. Never tune on test."
+    }
   },
   "cuad": {
     "commit": "67faa0e6023b04fcaae6cc09497ab00e5d63a2a2",
@@ -63,19 +69,63 @@
     "epoch1_artifact_sha256": "a5684a5a8ed59909b46c93fd4729ce9ed0f8f672dc0be1474cf94a5e07d6e44b",
     "epoch1_optimizer_steps": 944,
     "official_test_opened": false,
-    "cross_split_duplicate_audit": {"run_id": 34698236475, "contracts": 408, "heldout_contracts": 45, "exact_cross_split_duplicate_groups": 0, "normalized_cross_split_duplicate_groups": 0, "pass": true},
-    "heldout_question_count": 2461,
+    "cross_split_duplicate_audit": {"run_id": 34698236475, "contracts": 408, "heldout_contracts": 45, "heldout_questions": 2461, "exact_cross_split_duplicate_groups": 0, "normalized_cross_split_duplicate_groups": 0, "pass": true},
     "invalid_execution_attempts": [
       {"run_id": 34697993470, "partition": "8 title shards", "result": "NO_SCORE_HEAVY_SHARDS_CANCELLED_AGGREGATE_SKIPPED"},
       {"run_id": 34698573722, "partition": "16 title shards", "result": "NO_SCORE_SHARDS_11_AND_14_CANCELLED_AGGREGATE_SKIPPED"}
     ],
-    "authoritative_heldout_attempt": {
+    "authoritative_epoch1_heldout": {
       "run_id": 34700936203,
       "partition": "32 deterministic question-hash shards",
-      "status": "IN_PROGRESS",
-      "integrity_rule": "Only execution granularity changed. Same sealed epoch1 artifact, exact 45 heldout contracts/2461 questions, title-bound calibration/evaluation split, frozen threshold selection, metrics and gates. Aggregator requires exact full question-ID coverage exactly once."
+      "status": "GATE_FAIL_FROZEN_AS_CURRICULUM",
+      "heldout_rows": 2461,
+      "calibration_rows": 1301,
+      "evaluation_rows": 1160,
+      "selected_threshold": 3.872389316558838,
+      "evaluation": {
+        "answer_detection_f1": 0.35258358662613987,
+        "answer_detection_precision": 0.8854961832061069,
+        "answer_detection_recall": 0.22011385199240988,
+        "no_answer_false_positive_rate": 0.023696682464454975,
+        "answerable_exact_match": 0.056925996204933584,
+        "answerable_token_f1": 0.07888703038087094,
+        "localization_overlap_recall": 0.07969639468690702,
+        "tp": 116, "fp": 15, "fn": 411, "tn": 618
+      },
+      "locked_gate": {"no_answer_false_positive_rate_max": 0.02, "answer_detection_f1_min": 0.85, "localization_overlap_recall_min": 0.85, "answerable_token_f1_min": 0.80},
+      "gate_pass": false,
+      "aggregate_report_sha256": "c4c9f32207bd65624eb03d8f30e4ebecbf7db44b694cee6e77a340bf0516af98"
     },
-    "locked_gate": {"no_answer_false_positive_rate_max": 0.02, "answer_detection_f1_min": 0.85, "localization_overlap_recall_min": 0.85, "answerable_token_f1_min": 0.80}
+    "provenance_seal": {
+      "run_id": 34705875417,
+      "artifact_sha256": "c4ed800527c8b831a7720e8cdabe430316efdfb78b1a5ee28e46217254cb9e10",
+      "seal_report_sha256": "7c47bbe602cee4fe9857a0c6560616036bc9d102ca8bffd540036bb5088e0766",
+      "protected_metric_fields_equal_to_source": true,
+      "change": "execution-description metadata only"
+    },
+    "postgate_failure_mining": {
+      "run_id": 34706042580,
+      "artifact_sha256": "bac8b2248da2cbcdfe7d26d89e895d63468a3ec4cf1a67b8df49cd726e566ba9",
+      "report_sha256": "e11313c920669a5d81412a667103ee389dede045db3d75ae37d21b78c15582fb",
+      "failure_families": {"missed_answer_abstention": 411, "wrong_localization": 74, "false_grounding_no_answer": 15, "localized_but_low_semantic_match": 9, "partial_span_boundary_or_semantic": 4}
+    },
+    "rejected_localizer": {
+      "run_id": 34680141616,
+      "artifact_sha256": "08af821242f2b2a1950f563fcd5f8846309b55e05c4900f7d57188d394f9d372",
+      "model_sha256": "7cd1461c47d7c9c85cce8263732eb56db354abc999d547053a57691dc97b164b",
+      "retrieval_recall": {"top1": 0.17798013245033112, "top3": 0.3170529801324503, "top5": 0.38079470198675497, "top8": 0.45612582781456956},
+      "detection": {"precision": 0.5980335454019664, "recall": 0.8559602649006622, "f1": 0.7041198501872659, "false_positive_rate": 0.5546687948922586},
+      "gate_pass": false,
+      "decision": "DO_NOT_COMPOSE_AS_PRIMARY_RETRIEVER"
+    },
+    "next_real_data_candidate": {
+      "geometry_audit_run_id": 34706691340,
+      "geometry_audit_status": "IN_PROGRESS",
+      "trainer_commit": "bd63acc5169b141dba34a0a391ce44dc1c41fcfd",
+      "trainer": "research/revenueguard/cuad_matched_window_multitask_train.py",
+      "training_status": "DORMANT_PENDING_EXACT_WORKLOAD_COUNT",
+      "curriculum": "real CUAD only; evaluator-style 384/128 sliding windows; all answer-containing windows; multiple same-question hard negatives; explicit answerability plus span supervision; heldout 45 contracts excluded; official test unopened"
+    }
   },
   "maud": {"status": "SEALED_UNOPENED"},
   "external_evidence": {"permissioned_companies": 0, "verified_recovered_cash_usd": 0, "verified_mft_contingency_revenue_usd": 0},
