@@ -1,0 +1,33 @@
+name: MUSITU FMI 557 Base Fetch Preflight
+
+on:
+  push:
+    branches:
+      - fmi-commercial-launch-20260912-ephemeral
+    paths:
+      - '.github/workflows/fmi-557-base-fetch-preflight.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  verify-557-base:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fetch exact sealed 557 base from authoritative Drive object
+        shell: bash
+        run: |
+          set -euo pipefail
+          OUT=/tmp/MUSITU_FMI_GITHUB_FREE_COUNCIL_557_GREEN_20260907.zip
+          URL='https://drive.usercontent.google.com/download?id=1puc9f7scmLdl4UJ_GiN2vKmKb81IfvEa&export=download&confirm=t'
+          curl -fL --retry 5 --retry-all-errors --retry-delay 2 --connect-timeout 20 --max-time 120 "$URL" -o "$OUT"
+          size="$(stat -c %s "$OUT")"
+          sha="$(sha256sum "$OUT" | awk '{print $1}')"
+          echo "size=$size"
+          echo "sha256=$sha"
+          test "$size" = '623719'
+          test "$sha" = 'e92e047a9377f4c2a9ba1e16268938dfe95bb6388c14cd1ca35ac04185e02dd0'
+          unzip -tq "$OUT"
+          echo fmi_557_base_fetch=PASS
