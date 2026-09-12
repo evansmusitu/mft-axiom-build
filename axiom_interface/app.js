@@ -2,6 +2,7 @@ import { initProjectWorkspace } from './projects.js';
 import { initOutcomeContractWorkspace } from './outcome_contracts.js';
 import { initOutcomeExecutionWorkspace } from './outcome_execution.js';
 import { initResearchWorkspace } from './research_claims.js';
+import { enhanceResearchWorkspace } from './research_quality.js';
 
 const $ = (selector, root = document) => root.querySelector(selector);
 const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
@@ -69,4 +70,4 @@ function registerServiceWorker(){ if('serviceWorker' in navigator && location.pr
 
 applyTheme(state.theme); restoreDraft(); installEvents(); syncRoute(); updateConstraintSummary(); updateNetwork(); registerServiceWorker(); emit('shell.ready',{state:'phase4'});
 window.AxiomUI = Object.freeze({ emit, reportError, setProgress, setProof, getTrace:()=>structuredClone(state.trace) });
-initProjectWorkspace({emit}).then(async projects=>{const outcomes=await initOutcomeContractWorkspace({emit,projects});await initOutcomeExecutionWorkspace({emit,projects,outcomes});await initResearchWorkspace({emit,projects});emit('workspace.ready',{state:'phase4'});}).catch(error=>reportError({errorId:'AXIOM-WORKSPACE-INIT',component:'Workspace',impact:'Project, Work or Research workspace unavailable',failed:error.message,recovery:'Reload the workspace and retry'}));
+initProjectWorkspace({emit}).then(async projects=>{const outcomes=await initOutcomeContractWorkspace({emit,projects});await initOutcomeExecutionWorkspace({emit,projects,outcomes});const research=await initResearchWorkspace({emit,projects});await enhanceResearchWorkspace({emit,research});emit('workspace.ready',{state:'phase4'});}).catch(error=>reportError({errorId:'AXIOM-WORKSPACE-INIT',component:'Workspace',impact:'Project, Work or Research workspace unavailable',failed:error.message,recovery:'Reload the workspace and retry'}));
