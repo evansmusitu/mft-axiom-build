@@ -1,0 +1,47 @@
+name: RevenueGuard ContractNLI Chunk State Contract Test
+
+on:
+  push:
+    branches: [revenueguard-axiom-governor-20260911]
+    paths: ['.github/workflows/revenueguard-contractnli-chunk-state-contract-test.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Static checkpoint contract audit
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import ast,json,hashlib
+          from pathlib import Path
+          p=Path('research/revenueguard/contractnli_joint_chunk_train.py')
+          src=p.read_text();tree=ast.parse(src)
+          required_tokens=[
+            "'trainable_state'", "'optimizer_state'", "'torch_rng_state'",
+            "'python_rng_state'", "'numpy_rng_state'", "'next_chunk'",
+            "model.load_state_dict(st['trainable_state'],strict=False)",
+            "opt.load_state_dict(st['optimizer_state'])",
+            "torch.set_rng_state(st['torch_rng_state'])",
+            "random.setstate(st['python_rng_state'])",
+            "np.random.set_state(st['numpy_rng_state'])",
+            "st['mode']!=args.mode", "st['next_chunk']!=args.chunk_index"
+          ]
+          missing=[x for x in required_tokens if x not in src]
+          rep={'schema':'musitu.revenueguard.contractnli.chunk_state_contract.v1','status':'STATIC_RESEARCH_GUARD','python_syntax_ok':True,'required_contract_tokens':required_tokens,'missing':missing,'pass':not missing,'trainer_sha256':hashlib.sha256(p.read_bytes()).hexdigest()}
+          Path('CONTRACTNLI_CHUNK_STATE_CONTRACT.json').write_text(json.dumps(rep,indent=2,sort_keys=True)+'\n');print(json.dumps(rep,indent=2,sort_keys=True))
+          if missing:raise SystemExit(2)
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: revenueguard-contractnli-chunk-state-contract
+          path: CONTRACTNLI_CHUNK_STATE_CONTRACT.json
+          if-no-files-found: error
+          retention-days: 30
