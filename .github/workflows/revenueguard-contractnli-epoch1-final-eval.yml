@@ -1,0 +1,129 @@
+name: RevenueGuard ContractNLI Epoch1 Final Locked Eval
+
+on:
+  push:
+    branches: [revenueguard-axiom-governor-20260911]
+    paths: ['research/revenueguard/TRIGGER_CONTRACTNLI_EPOCH1_EVAL.json']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  score:
+    strategy:
+      fail-fast: false
+      max-parallel: 8
+      matrix:
+        mode: [control, balanced]
+        shard: [0,1,2,3,4,5,6,7]
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download exact adapted semantic encoder
+        uses: actions/download-artifact@v4
+        with:
+          name: revenueguard-contractnli-adapted-model
+          path: adapted_bundle
+          repository: evansmusitu/mft-axiom-build
+          run-id: 34676990123
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Download exact final checkpoint
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ matrix.mode == 'control' && 'revenueguard-contractnli-control-epoch1-final' || 'revenueguard-contractnli-balanced-epoch1-final' }}
+          path: final_checkpoint
+          repository: evansmusitu/mft-axiom-build
+          run-id: ${{ matrix.mode == 'control' && 34697863465 || 34697878064 }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Install pinned evaluator runtime and corpus
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          python -m pip install --index-url https://download.pytorch.org/whl/cpu torch
+          python -m pip install 'transformers==4.56.2' 'scikit-learn>=1.5,<2'
+          curl -fL --retry 4 --retry-delay 2 -o contract-nli.zip 'https://raw.githubusercontent.com/stanfordnlp/contract-nli/eced6528dd3c1d14d73f9a87df8f7bdbc03126f9/resources/contract-nli.zip'
+          unzip -q contract-nli.zip
+      - name: Assert exact final checkpoint identity
+        shell: bash
+        env:
+          MODE: ${{ matrix.mode }}
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import os, torch
+          st=torch.load('final_checkpoint/semantic_state.pt',map_location='cpu',weights_only=False)
+          assert st['schema']=='musitu.revenueguard.contractnli.chunk_state.v1', st.get('schema')
+          assert st['mode']==os.environ['MODE'], (st['mode'],os.environ['MODE'])
+          assert st['num_chunks']==8, st['num_chunks']
+          assert st['next_chunk']==8, st['next_chunk']
+          assert st['global_steps']==615, st['global_steps']
+          required={'class_head.weight','class_head.bias','ev_head.weight','ev_head.bias'}
+          assert required.issubset(st['trainable_state'].keys())
+          print({'mode':st['mode'],'next_chunk':st['next_chunk'],'global_steps':st['global_steps'],'trainable_tensors':len(st['trainable_state'])})
+          PY
+      - name: Score raw locked shard
+        shell: bash
+        run: |
+          set -euo pipefail
+          python research/revenueguard/contractnli_joint_checkpoint_shard.py \
+            --encoder adapted_bundle/adapted_model \
+            --state final_checkpoint/semantic_state.pt \
+            --train-json contract-nli/train.json \
+            --dev-json contract-nli/dev.json \
+            --shard-index ${{ matrix.shard }} \
+            --num-shards 8 \
+            --out raw_${{ matrix.mode }}_${{ matrix.shard }}.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: revenueguard-contractnli-e1-${{ matrix.mode }}-eval-shard-${{ matrix.shard }}
+          path: raw_${{ matrix.mode }}_${{ matrix.shard }}.json
+          if-no-files-found: error
+          retention-days: 30
+
+  aggregate:
+    needs: score
+    strategy:
+      fail-fast: false
+      matrix:
+        mode: [control, balanced]
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: revenueguard-contractnli-e1-${{ matrix.mode }}-eval-shard-*
+          path: shards
+          merge-multiple: true
+      - name: Install aggregation runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          python -m pip install 'scikit-learn>=1.5,<2'
+      - name: Bind exact parent artifact digest and aggregate locked gate
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          MODE: ${{ matrix.mode }}
+        run: |
+          set -euo pipefail
+          if [ "$MODE" = control ]; then RUN_ID=34697863465; ART='revenueguard-contractnli-control-epoch1-final'; else RUN_ID=34697878064; ART='revenueguard-contractnli-balanced-epoch1-final'; fi
+          API="https://api.github.com/repos/evansmusitu/mft-axiom-build/actions/runs/${RUN_ID}/artifacts?name=${ART}"
+          DIGEST=$(curl -fsSL -H "Authorization: Bearer ${GH_TOKEN}" -H 'Accept: application/vnd.github+json' "$API" | python -c "import sys,json; o=json.load(sys.stdin); a=[x for x in o['artifacts'] if x['name']=='$ART' and not x['expired']]; assert len(a)==1,a; d=a[0].get('digest',''); assert d.startswith('sha256:'); print(d.split(':',1)[1])")
+          python research/revenueguard/contractnli_joint_checkpoint_aggregate.py \
+            --shard-glob "shards/raw_${MODE}_*.json" \
+            --expected-shards 8 \
+            --mode "$MODE" \
+            --checkpoint-artifact-sha256 "$DIGEST" \
+            --out "CONTRACTNLI_EPOCH1_${MODE^^}_LOCKED_EVAL.json"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: revenueguard-contractnli-epoch1-${{ matrix.mode }}-locked-eval
+          path: CONTRACTNLI_EPOCH1_*_LOCKED_EVAL.json
+          if-no-files-found: error
+          retention-days: 30
