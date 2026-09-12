@@ -1,0 +1,18 @@
+{
+  "schema": "musitu.revenueguard.maud_transfer_holdout_seal.v1",
+  "status": "SEALED_SOURCE_ONLY_NOT_OPENED_FOR_V4_1_DEVELOPMENT",
+  "created_date": "2026-09-12",
+  "source_repository": "The-Atticus-Project/maud",
+  "source_commit": "4640316078dcd370debb877f350c39a28b181ffe",
+  "source_archive": "data.zip",
+  "purpose": "Post-freeze transfer evaluation on expert-annotated merger agreements materially distinct from CUAD clause extraction and ContractNLI NDA entailment.",
+  "development_prohibition": [
+    "Do not inspect MAUD case contents to select V4.1 architecture, prompts, thresholds, weights, rules, retrieval settings or solver graphs.",
+    "Do not train or tune V4.1 on MAUD examples.",
+    "Do not choose an easy MAUD subset after seeing candidate outputs.",
+    "Any intentional development use of MAUD invalidates this seal and requires a different unseen transfer family."
+  ],
+  "opening_rule": "Materialize and deterministically select the evaluation subset only after the complete V4.1 candidate artifact has been frozen by SHA-256.",
+  "minimum_transfer_requirement": "The eventual MAUD result is an additional transfer gate; it cannot replace the locked CUAD/ContractNLI public gate, real-company evidence, human review or frontier head-to-head evidence.",
+  "claim_rule": "No MAUD transfer claim exists until the post-freeze run is executed and its manifest/results are hashed."
+}
