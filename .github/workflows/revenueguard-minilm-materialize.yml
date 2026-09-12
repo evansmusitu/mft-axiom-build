@@ -1,0 +1,70 @@
+name: RevenueGuard MiniLM NLI Materializer
+
+on:
+  push:
+    branches:
+      - revenueguard-axiom-governor-20260911
+    paths:
+      - '.github/workflows/revenueguard-minilm-materialize.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  materialize:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Materialize pinned MiniLM NLI model
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          python -m pip install 'huggingface-hub==0.34.4'
+          mkdir -p minilm_bundle/model minilm_bundle/wheelhouse
+          python - <<'PY'
+          from huggingface_hub import HfApi, snapshot_download
+          from pathlib import Path
+          import json, hashlib, shutil
+          repo='cross-encoder/nli-MiniLM2-L6-H768'
+          info=HfApi().model_info(repo)
+          rev=info.sha
+          src=Path(snapshot_download(repo_id=repo, revision=rev, allow_patterns=[
+              'config.json','model.safetensors','tokenizer.json','tokenizer_config.json',
+              'special_tokens_map.json','vocab.json','merges.txt'
+          ]))
+          out=Path('minilm_bundle/model')
+          for name in ['config.json','model.safetensors','tokenizer.json','tokenizer_config.json','special_tokens_map.json','vocab.json','merges.txt']:
+              p=src/name
+              if p.exists(): shutil.copy2(p,out/name)
+          rows=[]
+          for p in sorted(out.iterdir()):
+              if p.is_file():
+                  b=p.read_bytes(); rows.append({'path':p.name,'bytes':len(b),'sha256':hashlib.sha256(b).hexdigest()})
+          manifest={'schema':'musitu.revenueguard.minilm_nli_base.v1','source_repo':repo,'revision':rev,'files':rows}
+          manifest['manifest_sha256']=hashlib.sha256(json.dumps(manifest,sort_keys=True,separators=(',',':')).encode()).hexdigest()
+          Path('minilm_bundle/MODEL_MANIFEST.json').write_text(json.dumps(manifest,indent=2,sort_keys=True)+'\n')
+          print(json.dumps({'revision':rev,'files':len(rows),'bytes':sum(x['bytes'] for x in rows),'manifest_sha256':manifest['manifest_sha256']},indent=2))
+          PY
+          python -m pip download -d minilm_bundle/wheelhouse \
+            'transformers==4.56.2' 'tokenizers==0.22.0' 'safetensors==0.6.2' \
+            'huggingface-hub==0.34.4' 'regex' 'pyyaml' 'requests' 'tqdm' 'packaging' 'filelock' 'fsspec' 'numpy'
+          sha256sum minilm_bundle/wheelhouse/* > minilm_bundle/WHEELHOUSE_SHA256SUMS.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: revenueguard-minilm-model
+          path: |
+            minilm_bundle/model/
+            minilm_bundle/MODEL_MANIFEST.json
+          if-no-files-found: error
+          retention-days: 30
+      - uses: actions/upload-artifact@v4
+        with:
+          name: revenueguard-minilm-wheelhouse
+          path: |
+            minilm_bundle/wheelhouse/
+            minilm_bundle/WHEELHOUSE_SHA256SUMS.txt
+          if-no-files-found: error
+          retention-days: 30
