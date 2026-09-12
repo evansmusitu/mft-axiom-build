@@ -1,0 +1,31 @@
+name: MFT Education Nexus OneDrive Private Download Probe
+on:
+  push:
+    branches: [mft-edu-row678-builder-20260912]
+    paths: ['.github/workflows/mft-edu-onedrive-private-download-probe.yml']
+  workflow_dispatch:
+jobs:
+  probe:
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - name: Probe private OneDrive content redirects without changing permissions
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $expected='3fb025b05128e36fa25a5ae298a56cb7fd9d8bba91787b0003436a0069738b64'
+          $urls=@(
+            'https://onedrive.live.com/download?cid=4530EE4F0527658A&resid=4530EE4F0527658A!se769187a55b84329a0ba372fdd0461ed',
+            'https://onedrive.live.com?cid=4530EE4F0527658A&id=4530EE4F0527658A!se769187a55b84329a0ba372fdd0461ed&download=1'
+          )
+          $ok=$false
+          foreach($url in $urls){
+            Remove-Item candidate.bin -Force -ErrorAction SilentlyContinue
+            try { Invoke-WebRequest -UseBasicParsing -MaximumRedirection 10 -Uri $url -OutFile candidate.bin -ErrorAction Stop } catch { Write-Host "probe transport error: $($_.Exception.Message)"; continue }
+            $bytes=(Get-Item candidate.bin).Length
+            $sha=(Get-FileHash candidate.bin -Algorithm SHA256).Hash.ToLowerInvariant()
+            Write-Host "probe bytes=$bytes sha=$sha"
+            if($bytes -eq 8526465 -and $sha -eq $expected){$ok=$true;break}
+          }
+          if(!$ok){throw 'private OneDrive download did not yield exact canonical bytes'}
+          Write-Host 'CANONICAL_ONEDRIVE_PRIVATE_DOWNLOAD=PASS'
