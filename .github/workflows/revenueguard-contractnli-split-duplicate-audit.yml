@@ -1,0 +1,51 @@
+name: RevenueGuard ContractNLI Split Duplicate Audit
+
+on:
+  push:
+    branches: [revenueguard-axiom-governor-20260911]
+    paths: ['.github/workflows/revenueguard-contractnli-split-duplicate-audit.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Audit cross split document duplication
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fL --retry 4 --retry-delay 2 -o contract-nli.zip 'https://raw.githubusercontent.com/stanfordnlp/contract-nli/eced6528dd3c1d14d73f9a87df8f7bdbc03126f9/resources/contract-nli.zip'
+          unzip -q contract-nli.zip
+          python - <<'PY'
+          import json,hashlib,re
+          from collections import defaultdict
+          from pathlib import Path
+          train=json.load(open('contract-nli/train.json'));dev=json.load(open('contract-nli/dev.json'))
+          def part(d):return 'cal' if int(hashlib.sha256(str(d['id']).encode()).hexdigest()[:8],16)%10==0 else 'build'
+          def norm(s):return re.sub(r'\s+',' ',s).strip().lower()
+          def groups(docs,splitfn):
+              out=defaultdict(lambda:defaultdict(list))
+              for d in docs:
+                  sp=splitfn(d);h=hashlib.sha256(norm(d['text']).encode()).hexdigest();out[h][sp].append(str(d['id']))
+              return out
+          tr=groups(train['documents'],part)
+          internal=[{'sha256':h,'build':v['build'],'cal':v['cal']} for h,v in tr.items() if v['build'] and v['cal']]
+          td=defaultdict(lambda:{'train':[],'dev':[]})
+          for name,obj in [('train',train),('dev',dev)]:
+              for d in obj['documents']:
+                  h=hashlib.sha256(norm(d['text']).encode()).hexdigest();td[h][name].append(str(d['id']))
+          official=[{'sha256':h,'train':v['train'],'dev':v['dev']} for h,v in td.items() if v['train'] and v['dev']]
+          rep={'schema':'musitu.revenueguard.contractnli.split_duplicate_audit.v1','status':'DEV_RESEARCH_ONLY','commit':'eced6528dd3c1d14d73f9a87df8f7bdbc03126f9','train_documents':len(train['documents']),'dev_documents':len(dev['documents']),'calibration_documents':sum(part(d)=='cal' for d in train['documents']),'build_documents':sum(part(d)=='build' for d in train['documents']),'normalized_build_cal_duplicate_groups':len(internal),'normalized_train_dev_duplicate_groups':len(official),'build_cal_examples':internal[:20],'train_dev_examples':official[:20],'pass':not internal and not official}
+          rep['report_sha256']=hashlib.sha256(json.dumps(rep,sort_keys=True,separators=(',',':')).encode()).hexdigest();Path('CONTRACTNLI_SPLIT_DUPLICATE_AUDIT.json').write_text(json.dumps(rep,indent=2,sort_keys=True)+'\n');print(json.dumps(rep,indent=2,sort_keys=True))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: revenueguard-contractnli-split-duplicate-audit
+          path: CONTRACTNLI_SPLIT_DUPLICATE_AUDIT.json
+          if-no-files-found: error
+          retention-days: 30
