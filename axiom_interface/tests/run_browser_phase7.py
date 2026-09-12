@@ -94,6 +94,8 @@ def main():
                 expected_count={'voice':1,'camera':2,'screen':3}[modality]
                 page.wait_for_function('(args)=>window.AxiomLive.store.get(args[0]).then(r=>r.captures.length===args[1])',arg=[session_id,expected_count])
                 expect(page.locator(f'[data-privacy="{modality}"]')).to_contain_text('off')
+            # Re-confirm the complete durable set before the aggregate IndexedDB read.
+            page.wait_for_function('(id)=>window.AxiomLive.store.get(id).then(r=>r.captures.length===3)',arg=session_id)
             row=page.evaluate('id=>window.AxiomLive.store.get(id)',session_id)
             assert len(row['captures'])==3
             assert {c['modality'] for c in row['captures']}=={'voice','camera','screen'}
