@@ -1,0 +1,13 @@
+{
+  "schema": "musitu.revenueguard.cuad.matched_window_trigger.v1",
+  "status": "AUTHORIZED_DEV_RESEARCH_TRAINING",
+  "source_model_run_id": 34683449126,
+  "source_model_artifact": "revenueguard-cuad-epoch1-chunked-final",
+  "source_model_artifact_sha256": "a5684a5a8ed59909b46c93fd4729ce9ed0f8f672dc0be1474cf94a5e07d6e44b",
+  "geometry_run_id": 34706691340,
+  "geometry_artifact_sha256": "7ff5e7ccd10aa3c4747136a0d5b67af2004edaf9777247155ce6e37812c56c04",
+  "geometry_report_sha256": "e14b667cc4e8ac96b35909741847d804505b3d7f0c4c79ddebb53ab07bee10e7",
+  "train_sha256": "7de21d2bb741ac939e2a839ef9640634a5e0f9f40ea2b82c6833baf7db33dab4",
+  "num_chunks": 4,
+  "policy": "Real CUAD build-only matched-window curriculum. Frozen heldout title-hash split excluded. Official CUAD test unopened. No threshold tuning in training."
+}
