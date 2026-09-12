@@ -12,6 +12,7 @@ permissions:
   contents: read
   actions: read
 
+# Plumbing revision 2: tokenizer overflow bookkeeping is stripped before model.forward().
 jobs:
   score:
     strategy:
