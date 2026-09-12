@@ -34,6 +34,7 @@ def refresh(
     baseline_hash: str,
     *,
     before_hash: str | None = None,
+    decision: str | None = None,
 ) -> LongitudinalRefreshRecord:
     executed_at = (NOW + timedelta(days=day)).isoformat()
     return LongitudinalRefreshRecord(
@@ -51,6 +52,7 @@ def refresh(
             baseline_registry_hash=baseline_hash,
             generated_at=executed_at,
             governance_before_hash=before_hash,
+            governance_decision=decision,
         ),
     )
 
@@ -95,7 +97,7 @@ class Level7BaselineRegistryAnchorTests(unittest.TestCase):
         records = [
             refresh("r1", 0, LEVEL5_REGISTRY_HASH, before_hash=LEVEL5_REGISTRY_HASH),
             refresh("r2", 30, replacement_hash, before_hash=LEVEL5_REGISTRY_HASH),
-            refresh("r3", 60, LEVEL5_REGISTRY_HASH, before_hash=replacement_hash),
+            refresh("r3", 60, LEVEL5_REGISTRY_HASH, before_hash=replacement_hash, decision="rollback"),
         ]
         result = evaluate(records)
         self.assertEqual(result["status"], "PASS")

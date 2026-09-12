@@ -105,6 +105,7 @@ def registered_runs(providers, *, case_set_hash, constraint_hash, result_hash, p
 def longitudinal_refresh(
     refresh_id, executed_at, candidate_sha, case_set_hash, baseline_registry_hash,
     before_baseline_registry_hash=None,
+    governance_decision=None,
 ):
     return LongitudinalRefreshRecord(
         refresh_id=refresh_id,
@@ -120,6 +121,7 @@ def longitudinal_refresh(
             baseline_registry_hash=baseline_registry_hash,
             generated_at=executed_at,
             governance_before_hash=before_baseline_registry_hash,
+            governance_decision=governance_decision,
         ),
     )
 
@@ -281,6 +283,7 @@ class GapClosureTests(unittest.TestCase):
             str(i), (NOW+timedelta(days=i*30)).isoformat(), EXTERNAL_CANDIDATE_SHA, H,
             (registry.fingerprint if i%2==0 else "5"*64),
             (registry.fingerprint if i < 2 else "5"*64),
+            governance_decision=("rollback" if i == 2 else None),
         ) for i in range(3)]
         self.assertEqual(ExternalEvidenceGate.level7(l6,refreshes)["status"],"FAIL")
         refresh_receipts=[attest("longitudinal_refresh", r.refresh_id, r.fingerprint, "independent_lab_record", issued_at=r.executed_at) for r in refreshes]
@@ -359,6 +362,7 @@ class GapClosureTests(unittest.TestCase):
             str(i), (NOW+timedelta(days=i*30)).isoformat(), EXTERNAL_CANDIDATE_SHA, case_set,
             (registry.fingerprint if i%2==0 else "5"*64),
             (registry.fingerprint if i < 2 else "5"*64),
+            governance_decision=("rollback" if i == 2 else None),
         ) for i in range(3)]
         refresh_receipts=[attest("longitudinal_refresh",r.refresh_id,r.fingerprint,r.provenance_type, issued_at=r.executed_at) for r in refreshes]
         verified=ClaimBoundary.authorize_verified(
