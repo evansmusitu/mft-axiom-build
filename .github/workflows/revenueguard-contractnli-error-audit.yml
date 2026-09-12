@@ -1,0 +1,76 @@
+name: RevenueGuard ContractNLI Residual Error Audit
+
+on:
+  push:
+    branches:
+      - revenueguard-axiom-governor-20260911
+    paths:
+      - '.github/workflows/revenueguard-contractnli-error-audit.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: revenueguard-contractnli-adapted-model
+          path: adapted_bundle
+          repository: evansmusitu/mft-axiom-build
+          run-id: 34676990123
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Audit raw dev error geometry
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          python -m pip install --index-url https://download.pytorch.org/whl/cpu 'torch'
+          python -m pip install 'transformers==4.56.2'
+          curl -fL --retry 4 --retry-delay 2 -o contract-nli.zip 'https://raw.githubusercontent.com/stanfordnlp/contract-nli/eced6528dd3c1d14d73f9a87df8f7bdbc03126f9/resources/contract-nli.zip'
+          unzip -q contract-nli.zip
+          python - <<'PY'
+          import json,re,hashlib
+          from collections import defaultdict
+          from pathlib import Path
+          import torch
+          from transformers import AutoTokenizer,AutoModelForSequenceClassification
+          torch.set_num_threads(2)
+          M=Path('adapted_bundle/adapted_model');tok=AutoTokenizer.from_pretrained(M,local_files_only=True);model=AutoModelForSequenceClassification.from_pretrained(M,local_files_only=True);model.eval()
+          lm={'Contradiction':0,'Entailment':1,'NotMentioned':2}; names=['Contradiction','Entailment','NotMentioned']
+          def words(s):return set(re.findall(r'[a-z0-9]+',s.lower()))
+          def ov(a,b):A=words(a);B=words(b);return len(A&B)/(len(A|B) or 1)
+          obj=json.load(open('contract-nli/dev.json'));labs=obj['labels'];rows=[]
+          for d in obj['documents']:
+              spans=[d['text'][a:b].strip() for a,b in d['spans']];anns=d['annotation_sets'][0]['annotations']
+              for hid in sorted(labs):
+                  a=anns[hid];h=labs[hid]['hypothesis']
+                  if a['choice']!='NotMentioned' and a.get('spans'):prem=' '.join(spans[i] for i in a['spans'] if i<len(spans))[:4000]
+                  else:prem=(max(spans,key=lambda s:ov(s,h)) if spans else '')[:4000]
+                  rows.append((prem,h,lm[a['choice']],hid,str(d['id'])))
+          probs=[]
+          with torch.inference_mode():
+              for i in range(0,len(rows),96):
+                  b=rows[i:i+96];e=tok([x[0] for x in b],[x[1] for x in b],padding=True,truncation=True,max_length=192,return_tensors='pt');probs.extend(torch.softmax(model(**e).logits,-1).tolist())
+          conf=[[0]*3 for _ in range(3)];per=defaultdict(lambda:{'n':0,'correct':0,'conf_sum':0.0,'errors':defaultdict(int)})
+          bins=defaultdict(lambda:{'n':0,'correct':0})
+          wrong=[]
+          for r,p in zip(rows,probs):
+              y=r[2];pred=max(range(3),key=lambda j:p[j]);c=max(p);conf[y][pred]+=1;z=per[r[3]];z['n']+=1;z['correct']+=int(pred==y);z['conf_sum']+=c;z['errors'][f'{names[y]}->{names[pred]}']+=int(pred!=y);bi=int(min(9,c*10));bins[bi]['n']+=1;bins[bi]['correct']+=int(pred==y)
+              if pred!=y:wrong.append({'hid':r[3],'doc':r[4],'gold':names[y],'pred':names[pred],'confidence':c,'margin':sorted(p,reverse=True)[0]-sorted(p,reverse=True)[1]})
+          per={k:{'n':v['n'],'accuracy':v['correct']/v['n'],'mean_confidence':v['conf_sum']/v['n'],'errors':dict(v['errors'])} for k,v in per.items()}
+          bins={str(k):{'n':v['n'],'accuracy':v['correct']/v['n']} for k,v in bins.items()}
+          rep={'schema':'musitu.revenueguard.contractnli.error_audit.v1','status':'DEV_FAILURE_MINING_ONLY','artifact_sha256':'3d78d473ffde6f790b3919226d1069b81fa8426f0f139007d3ba8b9d9cf23055','n':len(rows),'raw_accuracy':sum(conf[i][i] for i in range(3))/len(rows),'confusion':conf,'per_hypothesis':per,'confidence_bins':bins,'top_high_confidence_errors':sorted(wrong,key=lambda x:-x['confidence'])[:100]}
+          rep['report_sha256']=hashlib.sha256(json.dumps(rep,sort_keys=True,separators=(',',':')).encode()).hexdigest();Path('CONTRACTNLI_ERROR_AUDIT.json').write_text(json.dumps(rep,indent=2,sort_keys=True)+'\n');print(json.dumps(rep,indent=2,sort_keys=True))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: revenueguard-contractnli-error-audit
+          path: CONTRACTNLI_ERROR_AUDIT.json
+          if-no-files-found: error
+          retention-days: 30
