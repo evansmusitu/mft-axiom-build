@@ -1227,7 +1227,11 @@ class ClaimBoundary:
                 "positive_provider_orgs": sorted(positive_providers),
             }
 
-        required = {_organization_key(str(x)) for x in required_provider_orgs}
+        try:
+            required_provider_values = tuple(required_provider_orgs)
+        except TypeError:
+            return {"status": "DENY", "max_evidence_level": max_level, "reason": "invalid_required_provider_orgs"}
+        required = {_organization_key(str(x)) for x in required_provider_values}
         verified_scope = {
             "case_set_hash": expected_cases,
             "constraint_hash": expected_constraints,
