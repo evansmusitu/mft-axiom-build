@@ -1069,12 +1069,30 @@ class ClaimBoundary:
                     "level7": level7.get("status"),
                 },
             }
+        try:
+            baseline_result_map = dict(baseline_results_by_run)
+        except Exception:
+            max_level = 5 if level5.get("status") == "PASS" else 4
+            if level6.get("status") == "PASS":
+                max_level = 6
+            if level7.get("status") == "PASS":
+                max_level = 7
+            return {
+                "status": "DENY",
+                "max_evidence_level": max_level,
+                "reason": "invalid_baseline_results_by_run",
+                "verified_evidence_levels": {
+                    "level5": level5.get("status"),
+                    "level6": level6.get("status"),
+                    "level7": level7.get("status"),
+                },
+            }
 
         outcomes: list[ComparativeOutcome] = []
         comparison_error: str | None = None
         if level5.get("status") == "PASS":
             expected_run_ids = set(level5.get("run_ids", ()))
-            supplied_run_ids = set(baseline_results_by_run)
+            supplied_run_ids = set(baseline_result_map)
             if supplied_run_ids != expected_run_ids:
                 comparison_error = "comparison_raw_run_coverage_incomplete"
             else:
@@ -1086,7 +1104,7 @@ class ClaimBoundary:
                         outcomes.append(ComparativeOutcome.from_paired_results(
                             run,
                             candidate_results,
-                            baseline_results_by_run[run_id],
+                            baseline_result_map[run_id],
                             attestation_receipt_hash=receipt_hashes[run_id],
                             confidence=comparison_confidence,
                             bootstrap_samples=comparison_bootstrap_samples,
@@ -1180,12 +1198,15 @@ class ClaimBoundary:
         level5_receipt_values = level5.get("run_receipt_hashes", {})
         if not isinstance(level5_receipt_values, MappingABC):
             return {"status": "DENY", "max_evidence_level": max_level, "reason": "invalid_level5_run_receipt_hashes"}
+        try:
+            expected_receipts = dict(level5_receipt_values)
+        except Exception:
+            return {"status": "DENY", "max_evidence_level": max_level, "reason": "invalid_level5_run_receipt_hashes"}
         expected_providers = {_organization_key(str(x)) for x in level5_provider_values}
         expected_runs = {str(x) for x in level5_run_values}
         expected_candidate = level5.get("candidate_sha")
         expected_cases = level5.get("case_set_hash")
         expected_constraints = level5.get("constraint_hash")
-        expected_receipts = dict(level5_receipt_values)
         if benchmark_hash != expected_cases:
             return {"status": "DENY", "max_evidence_level": max_level, "reason": "comparison_benchmark_hash_mismatch"}
         typed_outcomes, invalid_outcomes = _typed_records(comparative_outcomes, ComparativeOutcome)
