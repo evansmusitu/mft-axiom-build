@@ -59,6 +59,7 @@ def score_question(model,tok,question,context):
         padding='max_length',return_tensors='pt'
     )
     offsets=enc.pop('offset_mapping')
+    enc.pop('overflow_to_sample_mapping',None)
     n=enc['input_ids'].shape[0]
     best_score=-1e30; best_text=''; best_chars=(None,None); min_null=1e30
     for lo in range(0,n,24):
@@ -175,7 +176,6 @@ def official_style_curve(raw_rows):
     for th in thresholds:
         p,r=official_point(raw_rows,th);pts.append((r,p,th))
     pts.sort(key=lambda x:x[0])
-    # Compress duplicate recall to best precision and apply the CUAD-style monotonic precision envelope.
     compressed=[]
     for r,p,th in pts:
         if compressed and abs(compressed[-1][0]-r)<1e-12:
