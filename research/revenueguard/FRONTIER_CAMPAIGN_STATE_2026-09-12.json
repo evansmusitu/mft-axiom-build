@@ -44,8 +44,8 @@
         "status": "C3_IN_PROGRESS",
         "completed_checkpoint_artifacts": {
           "c0": "99b367fa79eeb29940b3ed56f7dc639ddc28fc19b2ce8fc79a29417d8902efe4",
-          "c1": "9b52df3d9d5af0ee9e0a368a51938107e4eb95c5df7e36cac0c96f8687e541ca",
-          "c2": "eb81dce2f2144edf33be0dfd762bba62bf563c82bec0a2adb44a6169e1c88918"
+          "c1": "9b52df3d59c8e6f1aed5a6b8d940e7e56eec53c3436730ff743d0c4fc85841ca",
+          "c2": "eb81dce23c1122fdff93eef0b57277115349aa6002acfdfc771645a510178918"
         }
       }
     },
