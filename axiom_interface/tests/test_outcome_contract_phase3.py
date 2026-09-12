@@ -18,6 +18,11 @@ class Phase3WorkContractTests(unittest.TestCase):
         self.assertIn("relation:'approves'",CONTRACTS)
         self.assertIn('explicit-user-approval',CONTRACTS)
 
+    def test_multiline_success_criteria_remain_distinct_before_sanitization(self):
+        self.assertIn("String(value??'').slice(0,8000).split(/\\r?\\n/)",CONTRACTS)
+        self.assertIn('map(x=>clean(x,1000))',CONTRACTS)
+        self.assertNotIn("clean(value,8000).split(/\\r?\\n/)",CONTRACTS)
+
     def test_work_surface_contains_plan_checkpoints_approval_and_acceptance(self):
         for token in ['BACKGROUND_READY','PREPARED','EXECUTION_COMPLETE','AWAITING_ACCEPTANCE','ACCEPTANCE_FAILED','SUCCEEDED']:
             self.assertIn(token,RUNS)
