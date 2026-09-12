@@ -15,11 +15,12 @@ class Phase5ArtifactInterfaceContractTests(unittest.TestCase):
     def test_phase5_is_wired_into_shell_and_offline_cache(self):
         self.assertIn("from './artifacts.js'",APP)
         self.assertIn('initArtifactWorkspace',APP)
-        self.assertIn("state:'phase6'",APP)
+        self.assertIn("state:'phase7'",APP)
         self.assertIn("initObservabilityWorkspace",APP)
+        self.assertIn("initLiveWorkspace",APP)
         self.assertIn("'./artifacts.js'",SW)
         self.assertIn("'./styles/artifacts.css'",SW)
-        self.assertIn("axiom-interface-phase6-v1",SW)
+        self.assertIn("axiom-interface-phase7-v1",SW)
 
     def test_exact_first_class_types_are_present(self):
         for value in ['document','sheet','presentation','website','dashboard']:
@@ -61,10 +62,11 @@ class Phase5ArtifactInterfaceContractTests(unittest.TestCase):
         self.assertIn('cloud_collaboration_claimed:false',ART)
         self.assertIn('external_publication_claimed:false',ART)
 
-    def test_phase5_authority_is_preserved_as_exact_earned_phase6_ancestor(self):
+    def test_phase5_authority_is_preserved_as_exact_earned_phase7_ancestor(self):
         self.assertEqual(SURFACE['authority']['qualified_phase4_sha'],'4ee9dec2f68dcc17f09457623f4a3c39aba98e88')
         self.assertEqual(SURFACE['authority']['qualified_phase5_sha'],'81c0c3c364d9d057a78203cc4fbcb8c767e92b18')
-        self.assertEqual(SURFACE['phase'],'PHASE_6_OBSERVABILITY_SUBSTRATE')
+        self.assertEqual(SURFACE['authority']['qualified_phase6_sha'],'db5eefa2982457c4045717a0b175bb5d0d9fc556')
+        self.assertEqual(SURFACE['phase'],'PHASE_7_LIVE_MULTIMODALITY')
         self.assertTrue(SURFACE['work_substrate']['observability_linkage_required'])
 
 
