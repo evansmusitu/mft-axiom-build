@@ -9,6 +9,7 @@ from frontier_review_safe.external_validation import (
     IndependentValidationRecord,
     LongitudinalRefreshRecord,
 )
+from frontier_review_safe.tests.level7_semantic_fixtures import level7_artifact_fields
 
 
 NOW = datetime(2026, 9, 11, 11, 45, tzinfo=timezone.utc)
@@ -69,18 +70,22 @@ def level6_with_latest_validation():
 
 
 def refresh(refresh_id: str, at: datetime, baseline_hash: str) -> LongitudinalRefreshRecord:
+    executed_at = at.isoformat()
     return LongitudinalRefreshRecord(
         refresh_id=refresh_id,
-        executed_at=at.isoformat(),
+        executed_at=executed_at,
         candidate_sha=CANDIDATE_SHA,
         case_set_hash=CASE_SET_HASH,
         baseline_registry_hash=baseline_hash,
-        retained_failure_corpus_hash="1" * 64,
-        drift_report_hash="2" * 64,
-        replacement_governance_hash="3" * 64,
         passed=True,
         provenance_type="independent_lab_record",
         executor_org="Independent Longitudinal Lab",
+        **level7_artifact_fields(
+            candidate_sha=CANDIDATE_SHA,
+            case_set_hash=CASE_SET_HASH,
+            baseline_registry_hash=baseline_hash,
+            generated_at=executed_at,
+        ),
     )
 
 
@@ -139,6 +144,7 @@ class Level7ValidationChronologyTests(unittest.TestCase):
         self.assertEqual(result["status"], "PASS")
         self.assertEqual(result["refresh_count"], 3)
         self.assertEqual(result["latest_validation_at"], cutoff.isoformat())
+        self.assertTrue(result["semantic_artifacts_verified"])
 
     def test_offset_alias_before_cutoff_is_compared_as_utc_instant(self):
         level6 = level6_with_latest_validation()
