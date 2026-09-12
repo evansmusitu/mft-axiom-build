@@ -1,0 +1,327 @@
+name: MUSITU Axiom OpenAI Reviewer Demo KV Origin V2
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - frontier/axiom-v5-skill-fabric
+    paths:
+      - '.github/workflows/axiom-openai-reviewer-demo-kv-origin-v2.yml'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: musitu-axiom-public-plugin-cutover
+  cancel-in-progress: false
+
+jobs:
+  migrate-demo-origin:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      CF_API: https://api.cloudflare.com/client/v4
+      ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      D1_UUID: 504029cc-f9a5-495e-818f-63c6144b4ea4
+      MCP_HOST: mcp.mftintelligence.com
+      MCP_PUBLIC_WORKER: musitu-axiom-mcp
+      MCP_CORE_WORKER: musitu-axiom-mcp-core
+      AUTH_ISSUER: https://auth.mftintelligence.com
+      TARGET_BRANCH: frontier/axiom-v5-skill-fabric
+      VIDEO_PATH: submission/reviewer/MUSITU_Axiom_OpenAI_Reviewer_Demo_FINAL.mp4
+      WRAPPER_PATH: mcp/musitu_axiom_plugin_gate_v4_demo.mjs
+      KV_TITLE: musitu-axiom-public-assets
+      KV_KEY: reviewer-demo-v1.mp4
+      EXPECTED_SHA256: 779be1d7948f0971f673d54d99572a6dada168104f10388cc3139a4cd423e5d3
+      EXPECTED_SIZE: '6325952'
+
+    steps:
+      - name: Checkout exact triggering commit
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+
+      - name: Verify immutable source asset and branch boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF_NAME" = "$TARGET_BRANCH"
+          git fetch origin "$TARGET_BRANCH"
+          test "$(git rev-parse origin/$TARGET_BRANCH)" = "$GITHUB_SHA" || { echo 'Fail-closed: branch advanced before KV migration'; exit 1; }
+          test -f "$VIDEO_PATH"
+          test "$(stat -c%s "$VIDEO_PATH")" = "$EXPECTED_SIZE"
+          test "$(sha256sum "$VIDEO_PATH" | awk '{print $1}')" = "$EXPECTED_SHA256"
+          python - <<'PY'
+          import os
+          p=os.environ['VIDEO_PATH']
+          b=open(p,'rb').read(32)
+          if len(b)<12 or b[4:8] != b'ftyp':
+              raise SystemExit('Fail-closed: MP4 signature missing')
+          print('immutable_asset=PASS')
+          PY
+
+      - name: Create or resolve Cloudflare KV namespace and upload exact bytes
+        id: kv
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import hashlib,json,os,time,urllib.error,urllib.parse,urllib.request
+          api=os.environ['CF_API']; aid=os.environ['ACCOUNT_ID']; title=os.environ['KV_TITLE']; key=os.environ['KV_KEY']; path=os.environ['VIDEO_PATH']
+          admin={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY'],'Accept':'application/json','User-Agent':'MUSITU-Axiom-Reviewer-Demo-KV-V2/1.0'}
+          expected_sha=os.environ['EXPECTED_SHA256']; expected_size=int(os.environ['EXPECTED_SIZE'])
+          payload=open(path,'rb').read()
+          if len(payload)!=expected_size or hashlib.sha256(payload).hexdigest()!=expected_sha:
+              raise SystemExit('Fail-closed: source asset integrity mismatch')
+          def raw(url,method='GET',headers=None,body=None,timeout=90):
+              req=urllib.request.Request(url,method=method,headers=dict(headers or {}),data=body)
+              try:
+                  with urllib.request.urlopen(req,timeout=timeout) as r:return r.status,r.headers,r.read()
+              except urllib.error.HTTPError as e:return e.code,e.headers,e.read()
+          def cf(path,method='GET',obj=None):
+              h=dict(admin); b=None
+              if obj is not None:
+                  h['Content-Type']='application/json'; b=json.dumps(obj,separators=(',',':')).encode()
+              c,_,r=raw(api+path,method,h,b)
+              if not 200<=c<300: raise RuntimeError(f'Cloudflare HTTP {c} {method} {path}: {r[:200]!r}')
+              o=json.loads(r or b'{}')
+              if o.get('success') is False: raise RuntimeError('Cloudflare success=false '+path+' '+repr(o.get('errors')))
+              return o.get('result')
+          namespaces=cf(f'/accounts/{aid}/storage/kv/namespaces?per_page=100') or []
+          matches=[x for x in namespaces if x.get('title')==title]
+          if len(matches)>1: raise RuntimeError('Fail-closed: duplicate KV namespaces with title '+title)
+          if not matches:
+              ns=cf(f'/accounts/{aid}/storage/kv/namespaces','POST',{'title':title}) or {}
+              nsid=ns.get('id')
+          else:
+              nsid=matches[0].get('id')
+          if not nsid: raise RuntimeError('KV namespace id unavailable')
+          print('kv_namespace_id='+nsid)
+          print('::add-mask::'+nsid)
+          h=dict(admin); h['Content-Type']='video/mp4'
+          url=f'{api}/accounts/{aid}/storage/kv/namespaces/{urllib.parse.quote(nsid,safe="")}/values/{urllib.parse.quote(key,safe="")}'
+          c,_,r=raw(url,'PUT',h,payload,120)
+          if not 200<=c<300: raise RuntimeError('KV asset upload HTTP '+str(c)+' '+r[:200].decode('utf-8','ignore'))
+          try:o=json.loads(r or b'{}')
+          except:o={}
+          if o.get('success') is False: raise RuntimeError('KV upload success=false '+repr(o.get('errors')))
+          read_headers=dict(admin); read_headers['Accept']='application/octet-stream'
+          got=None
+          for _ in range(20):
+              c,_,b=raw(url,'GET',read_headers,None,90)
+              if c==200 and len(b)==expected_size and hashlib.sha256(b).hexdigest()==expected_sha:
+                  got=b; break
+              time.sleep(2)
+          if got is None: raise RuntimeError('Fail-closed: KV read-back integrity did not converge')
+          open('/tmp/kv_namespace_id','w').write(nsid)
+          print('kv_upload_and_readback=PASS')
+          PY
+          echo "namespace_id=$(cat /tmp/kv_namespace_id)" >> "$GITHUB_OUTPUT"
+
+      - name: Generate Cloudflare-native reviewer wrapper candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > /tmp/musitu_axiom_plugin_gate_v4_demo_kv.mjs <<'JS'
+          import base from "./musitu_axiom_plugin_gate_v4.mjs";
+          const DEMO_KEY="reviewer-demo-v1.mp4";
+          const DEMO_SHA256="779be1d7948f0971f673d54d99572a6dada168104f10388cc3139a4cd423e5d3";
+          const DEMO_SIZE=6325952;
+          function commonHeaders(){
+            return {
+              "content-type":"video/mp4",
+              "content-disposition":'inline; filename="MUSITU_Axiom_OpenAI_Reviewer_Demo_FINAL.mp4"',
+              "cache-control":"public, max-age=86400, immutable",
+              "accept-ranges":"bytes",
+              "x-content-type-options":"nosniff",
+              "x-musitu-demo-sha256":DEMO_SHA256,
+              "x-musitu-demo-size":String(DEMO_SIZE),
+              "etag":`"sha256-${DEMO_SHA256}"`
+            };
+          }
+          function parseRange(value){
+            if(!value)return null;
+            const m=/^bytes=(\d*)-(\d*)$/.exec(value.trim());
+            if(!m)return {invalid:true};
+            let start,end;
+            if(m[1]===""&&m[2]==="")return {invalid:true};
+            if(m[1]===""){
+              const suffix=Number(m[2]);
+              if(!Number.isSafeInteger(suffix)||suffix<=0)return {invalid:true};
+              start=Math.max(0,DEMO_SIZE-suffix); end=DEMO_SIZE-1;
+            }else{
+              start=Number(m[1]);
+              if(!Number.isSafeInteger(start)||start<0||start>=DEMO_SIZE)return {invalid:true};
+              end=m[2]===""?DEMO_SIZE-1:Number(m[2]);
+              if(!Number.isSafeInteger(end)||end<start)return {invalid:true};
+              end=Math.min(end,DEMO_SIZE-1);
+            }
+            return {start,end};
+          }
+          async function reviewerDemo(req,env){
+            const headers=commonHeaders();
+            if(req.method==="HEAD"){
+              headers["content-length"]=String(DEMO_SIZE);
+              return new Response(null,{status:200,headers});
+            }
+            const range=parseRange(req.headers.get("range"));
+            if(range?.invalid){
+              headers["content-range"]=`bytes */${DEMO_SIZE}`;
+              return new Response(null,{status:416,headers});
+            }
+            const data=await env.REVIEWER_ASSETS.get(DEMO_KEY,{type:"arrayBuffer"});
+            if(!(data instanceof ArrayBuffer)||data.byteLength!==DEMO_SIZE){
+              return new Response("Reviewer demo temporarily unavailable",{status:503,headers:{"content-type":"text/plain; charset=utf-8","cache-control":"no-store","retry-after":"10"}});
+            }
+            if(range){
+              const body=data.slice(range.start,range.end+1);
+              headers["content-range"]=`bytes ${range.start}-${range.end}/${DEMO_SIZE}`;
+              headers["content-length"]=String(range.end-range.start+1);
+              return new Response(body,{status:206,headers});
+            }
+            headers["content-length"]=String(DEMO_SIZE);
+            return new Response(data,{status:200,headers});
+          }
+          export default{async fetch(req,env,ctx){
+            const u=new URL(req.url);
+            if(u.pathname==="/demo.mp4"&&(req.method==="GET"||req.method==="HEAD"))return reviewerDemo(req,env);
+            return base.fetch(req,env,ctx);
+          }};
+          JS
+          node --check /tmp/musitu_axiom_plugin_gate_v4_demo_kv.mjs
+          grep -q 'REVIEWER_ASSETS.get' /tmp/musitu_axiom_plugin_gate_v4_demo_kv.mjs
+          ! grep -q 'raw.githubusercontent.com' /tmp/musitu_axiom_plugin_gate_v4_demo_kv.mjs
+          echo 'kv_wrapper_candidate=PASS'
+
+      - name: Deploy KV-backed wrapper and prove exact public contract
+        id: prove
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+          KV_NAMESPACE_ID: ${{ steps.kv.outputs.namespace_id }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import hashlib,json,os,pathlib,secrets,time,urllib.error,urllib.parse,urllib.request
+          api=os.environ['CF_API']; aid=os.environ['ACCOUNT_ID']; dbid=os.environ['D1_UUID']; host=os.environ['MCP_HOST']; pub=os.environ['MCP_PUBLIC_WORKER']; core=os.environ['MCP_CORE_WORKER']; issuer=os.environ['AUTH_ISSUER']; resource='https://'+host; nsid=os.environ['KV_NAMESPACE_ID']
+          expected_sha=os.environ['EXPECTED_SHA256']; expected_size=int(os.environ['EXPECTED_SIZE'])
+          wrapper=pathlib.Path('/tmp/musitu_axiom_plugin_gate_v4_demo_kv.mjs').read_bytes(); original=pathlib.Path('mcp/musitu_axiom_plugin_gate_v4.mjs').read_bytes()
+          admin={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY'],'Accept':'application/json','User-Agent':'MUSITU-Axiom-Reviewer-Demo-KV-Deploy/2.0'}
+          hidden={'musitu_axiom_plans','musitu_axiom_recommend_plan','musitu_axiom_start_checkout','musitu_axiom_checkout_status'}; expected_scopes=['openid','email','axiom.execute']
+          def raw(url,method='GET',headers=None,body=None,timeout=90):
+              req=urllib.request.Request(url,headers=dict(headers or {}),method=method,data=body)
+              try:
+                  with urllib.request.urlopen(req,timeout=timeout) as r:return r.status,r.headers,r.read()
+              except urllib.error.HTTPError as e:return e.code,e.headers,e.read()
+              except urllib.error.URLError as e:return 0,{},str(e).encode()
+          def multipart():
+              bindings=[
+                {'type':'d1','name':'AXIOM_DB','id':dbid},
+                {'type':'plain_text','name':'AUTH_ISSUER','text':issuer},
+                {'type':'plain_text','name':'MCP_PUBLIC_BASE','text':resource},
+                {'type':'service','name':'MCP_CORE','service':core},
+                {'type':'kv_namespace','name':'REVIEWER_ASSETS','namespace_id':nsid},
+              ]
+              meta={'main_module':'index.mjs','compatibility_date':'2026-09-05','bindings':bindings}; bd='----MUSITU'+secrets.token_hex(16); parts=[]
+              def add(x):parts.append(x.encode() if isinstance(x,str) else x)
+              add(f'--{bd}\r\nContent-Disposition: form-data; name="metadata"\r\nContent-Type: application/json\r\n\r\n'); add(json.dumps(meta,separators=(',',':'))); add('\r\n')
+              add(f'--{bd}\r\nContent-Disposition: form-data; name="index.mjs"; filename="index.mjs"\r\nContent-Type: application/javascript+module\r\n\r\n'); add(wrapper); add('\r\n')
+              add(f'--{bd}\r\nContent-Disposition: form-data; name="musitu_axiom_plugin_gate_v4.mjs"; filename="musitu_axiom_plugin_gate_v4.mjs"\r\nContent-Type: application/javascript+module\r\n\r\n'); add(original); add('\r\n')
+              add(f'--{bd}--\r\n'); return bd,b''.join(parts)
+          bd,body=multipart(); h=dict(admin); h['Content-Type']='multipart/form-data; boundary='+bd
+          c,_,b=raw(f'{api}/accounts/{aid}/workers/scripts/{urllib.parse.quote(pub,safe="")}', 'PUT',h,body,120)
+          if not 200<=c<300: raise RuntimeError('Worker deploy HTTP '+str(c)+' '+b[:200].decode('utf-8','ignore'))
+          def probe(path,method='GET',headers=None,body=None):
+              hh={'User-Agent':'MUSITU-Axiom-Reviewer-Demo-KV-Proof/2.0','Accept':'*/*'}
+              if headers:hh.update(headers)
+              return raw(resource+path,method,hh,body,90)
+          def rpc(method,params=None,id=1):
+              body=json.dumps({'jsonrpc':'2.0','id':id,'method':method,'params':params or {}},separators=(',',':')).encode()
+              c,h,b=probe('/mcp','POST',{'content-type':'application/json','accept':'application/json'},body)
+              try:o=json.loads(b or b'{}')
+              except:o={}
+              return c,h,o
+          def core_contract():
+              hc,_,hb=probe('/health'); health=json.loads(hb or b'{}') if hc==200 else {}
+              if hc!=200 or health.get('ok') is not True or health.get('oauth_enforced') is not True or health.get('server_version')!='4.0.1': raise RuntimeError('health contract drift')
+              lc,_,lo=rpc('tools/list',id=501); tools=(lo.get('result') or {}).get('tools') or []; names={t.get('name') for t in tools if isinstance(t,dict)}
+              if lc!=200 or len(tools)!=108 or names&hidden: raise RuntimeError('public tool surface drift')
+              for t in tools:
+                  if not isinstance(t,dict) or t.get('name') in {'search','fetch','musitu_axiom_capabilities'}: continue
+                  ss=t.get('securitySchemes') or []
+                  if not any(s.get('type')=='oauth2' and s.get('scopes')==expected_scopes for s in ss): raise RuntimeError('OAuth tool scope drift '+str(t.get('name')))
+              mc,_,mb=probe('/.well-known/oauth-protected-resource'); meta=json.loads(mb or b'{}') if mc==200 else {}
+              if mc!=200 or meta.get('resource')!=resource or meta.get('authorization_servers')!=[issuer] or meta.get('scopes_supported')!=expected_scopes: raise RuntimeError('protected resource metadata drift')
+              dc,_,do=rpc('server/discover',id=502)
+              if dc!=200 or (do.get('result') or {}).get('resultType')!='complete': raise RuntimeError('modern MCP discovery drift')
+          ok=False
+          for _ in range(60):
+              try:
+                  core_contract()
+                  hc,hh,_=probe('/demo.mp4','HEAD')
+                  if hc==200 and hh.get('x-musitu-demo-sha256')==expected_sha and hh.get('content-length')==str(expected_size):
+                      gc,gh,gb=probe('/demo.mp4','GET')
+                      if gc==200 and len(gb)==expected_size and hashlib.sha256(gb).hexdigest()==expected_sha:
+                          rc,rh,rb=probe('/demo.mp4','GET',{'Range':'bytes=0-1023'})
+                          if rc==206 and len(rb)==1024 and str(rh.get('content-range','')).startswith(f'bytes 0-1023/{expected_size}'):
+                              ok=True; break
+              except Exception:
+                  pass
+              time.sleep(2)
+          if not ok: raise RuntimeError('KV-backed reviewer route failed to converge with exact integrity')
+          # Additional range forms and invalid-range behavior.
+          rc2,rh2,rb2=probe('/demo.mp4','GET',{'Range':'bytes=1024-2047'})
+          if rc2!=206 or len(rb2)!=1024 or str(rh2.get('content-range',''))!=f'bytes 1024-2047/{expected_size}': raise RuntimeError('second range contract failed')
+          rc3,rh3,rb3=probe('/demo.mp4','GET',{'Range':'bytes=-512'})
+          if rc3!=206 or len(rb3)!=512 or str(rh3.get('content-range',''))!=f'bytes {expected_size-512}-{expected_size-1}/{expected_size}': raise RuntimeError('suffix range contract failed')
+          rc4,rh4,_=probe('/demo.mp4','GET',{'Range':f'bytes={expected_size}-'})
+          if rc4!=416 or str(rh4.get('content-range',''))!=f'bytes */{expected_size}': raise RuntimeError('invalid range fail-closed contract failed')
+          core_contract()
+          proof={
+            'ok':True,
+            'origin':'cloudflare-kv',
+            'public_url':resource+'/demo.mp4',
+            'sha256':expected_sha,
+            'size':expected_size,
+            'http_get':200,
+            'http_head':200,
+            'http_range':206,
+            'http_invalid_range':416,
+            'tool_count':108,
+            'oauth_scopes':expected_scopes,
+            'hidden_commerce_absent':True,
+            'modern_mcp_discovery':True,
+            'raw_github_runtime_dependency':False,
+          }
+          pathlib.Path('/tmp/musitu-axiom-reviewer-demo-kv-proof.json').write_text(json.dumps(proof,indent=2,sort_keys=True)+'\n')
+          print('MUSITU_AXIOM_REVIEWER_DEMO_KV_ORIGIN_PASS')
+          PY
+
+      - name: Commit durable KV-backed wrapper only after production proof
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin "$TARGET_BRANCH"
+          test "$(git rev-parse origin/$TARGET_BRANCH)" = "$GITHUB_SHA" || { echo 'Fail-closed: branch advanced during production proof'; exit 1; }
+          cp /tmp/musitu_axiom_plugin_gate_v4_demo_kv.mjs "$WRAPPER_PATH"
+          node --check "$WRAPPER_PATH"
+          ! grep -q 'raw.githubusercontent.com' "$WRAPPER_PATH"
+          git diff --check
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add "$WRAPPER_PATH"
+          git commit -m 'Serve reviewer demo from Cloudflare KV origin'
+          git push origin HEAD:"$TARGET_BRANCH"
+
+      - name: Upload sealed KV-origin production proof
+        uses: actions/upload-artifact@v4
+        with:
+          name: musitu-axiom-reviewer-demo-kv-origin-proof
+          path: /tmp/musitu-axiom-reviewer-demo-kv-proof.json
+          retention-days: 30
+          if-no-files-found: error

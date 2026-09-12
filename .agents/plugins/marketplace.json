@@ -1,0 +1,20 @@
+{
+  "name": "musitu-frontier",
+  "interface": {
+    "displayName": "MUSITU Frontier"
+  },
+  "plugins": [
+    {
+      "name": "musitu-axiom",
+      "source": {
+        "source": "local",
+        "path": "./frontier_v5/openai_plugins/musitu-axiom-public"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Finance"
+    }
+  ]
+}
