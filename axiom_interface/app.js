@@ -27,6 +27,7 @@ const state = { verb:'Ask', theme:localStorage.getItem('axiom.ui.theme') || 'sys
 function newId(prefix='evt') { return `${prefix}_${crypto.randomUUID?.() || `${Date.now()}_${Math.random().toString(16).slice(2)}`}`; }
 function emit(type, detail={}) {
   const event = { id:newId(), at:new Date().toISOString(), type:safeText(type), route:location.hash || '#/home', detail:{} };
+  // Operational metadata is allow-listed. Never record composer text, credentials or private reasoning.
   for (const key of ['control','state','error_id','component','retry_state','progress','verb','theme']) if (key in detail) event.detail[key]=safeText(detail[key]);
   state.trace.unshift(event); state.trace = state.trace.slice(0, 24); renderTrace(); return event.id;
 }
