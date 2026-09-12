@@ -385,6 +385,13 @@ class ExternalEvidenceGate:
                 "reasons": ["external_provider_floor_below_required"],
                 "attestation_verified": False, "baseline_registry_verified": False,
             }
+        if baseline_registry is not None and not isinstance(baseline_registry, BaselineRegistry):
+            return {
+                "status": "FAIL", "level": 5,
+                "reason": "invalid_baseline_registry",
+                "reasons": ["invalid_baseline_registry"],
+                "attestation_verified": False, "baseline_registry_verified": False,
+            }
         typed_runs, invalid_runs = _typed_records(runs, ExternalRunRecord)
         if not typed_runs and not invalid_runs:
             return {
@@ -536,6 +543,9 @@ class ExternalEvidenceGate:
         trusted_issuers: Mapping[str, frozenset[str]] | None = None,
     ) -> dict[str, Any]:
         reasons = []
+        if not isinstance(level5, MappingABC):
+            reasons.append("invalid_level5_assessment")
+            level5 = {}
         typed_validations, invalid_validations = _typed_records(validations, IndependentValidationRecord)
         if invalid_validations:
             reasons.append("invalid_independent_validation_record")
@@ -677,6 +687,9 @@ class ExternalEvidenceGate:
         min_refreshes: int = 3,
     ) -> dict[str, Any]:
         reasons = []
+        if not isinstance(level6, MappingABC):
+            reasons.append("invalid_level6_assessment")
+            level6 = {}
         typed_refreshes, invalid_refreshes = _typed_records(refreshes, LongitudinalRefreshRecord)
         if invalid_refreshes:
             reasons.append("invalid_longitudinal_refresh_record")
