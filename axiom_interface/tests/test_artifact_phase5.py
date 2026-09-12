@@ -20,7 +20,7 @@ class Phase5ArtifactInterfaceContractTests(unittest.TestCase):
         self.assertIn("initLiveWorkspace",APP)
         self.assertIn("'./artifacts.js'",SW)
         self.assertIn("'./styles/artifacts.css'",SW)
-        self.assertIn("axiom-interface-phase7-v1",SW)
+        self.assertIn("axiom-interface-phase7-v2",SW)
 
     def test_exact_first_class_types_are_present(self):
         for value in ['document','sheet','presentation','website','dashboard']:
