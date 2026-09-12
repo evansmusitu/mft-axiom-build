@@ -7,6 +7,7 @@ import json
 import os
 from pathlib import Path
 from typing import Any, Mapping
+import unicodedata
 from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 
@@ -29,6 +30,23 @@ def _canonical_bytes(value: Any) -> bytes:
     return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
 
 
+def _canonical_api_key(value: str) -> str:
+    if not isinstance(value, str):
+        raise ValueError("ANTHROPIC_API_KEY must be a string")
+    # Clipboard/UI copy can introduce invisible Unicode format marks (for example U+200E).
+    # Remove only Unicode format characters; do not silently rewrite arbitrary key data.
+    normalized = "".join(ch for ch in value.strip() if unicodedata.category(ch) != "Cf")
+    if not normalized:
+        raise ValueError("ANTHROPIC_API_KEY is required")
+    try:
+        normalized.encode("ascii")
+    except UnicodeEncodeError as exc:
+        raise ValueError("ANTHROPIC_API_KEY contains unsupported non-ASCII characters") from exc
+    if any(ord(ch) < 33 or ord(ch) > 126 for ch in normalized):
+        raise ValueError("ANTHROPIC_API_KEY contains unsupported control or whitespace characters")
+    return normalized
+
+
 def _header_map(headers: Any) -> dict[str, str]:
     try:
         items = headers.items()
@@ -49,16 +67,15 @@ def _response_text(payload: Mapping[str, Any]) -> str:
 
 
 def run_probe(*, api_key: str, model: str = DEFAULT_MODEL, timeout_seconds: int = 45, opener=urlopen) -> dict[str, Any]:
-    if not isinstance(api_key, str) or not api_key.strip():
-        raise ValueError("ANTHROPIC_API_KEY is required")
+    key = _canonical_api_key(api_key)
     body_obj = {"model": model, "max_tokens": 64, "temperature": 0, "messages": [{"role": "user", "content": PROBE_TEXT}]}
     body = _canonical_bytes(body_obj)
     request_sha256 = _sha256_bytes(body)
     req = Request("https://api.anthropic.com/v1/messages", data=body, method="POST", headers={
         "content-type": "application/json",
-        "x-api-key": api_key,
+        "x-api-key": key,
         "anthropic-version": "2023-06-01",
-        "user-agent": "MUSITU-Axiom-Level5-Provider-Probe/1.0",
+        "user-agent": "MUSITU-Axiom-Level5-Provider-Probe/1.1",
     })
     started_at = _now()
     try:
@@ -88,10 +105,17 @@ def run_probe(*, api_key: str, model: str = DEFAULT_MODEL, timeout_seconds: int 
     request_id = headers.get("request-id")
     text = _response_text(payload) if isinstance(payload, Mapping) else ""
     reasons: list[str] = []
-    if not isinstance(request_id, str) or not request_id.strip(): reasons.append("provider_request_id_missing"); request_id = None
-    if not isinstance(message_id, str) or not message_id.strip(): reasons.append("provider_response_id_missing"); message_id = None
-    if not isinstance(model_version, str) or not model_version.strip(): reasons.append("provider_model_version_missing"); model_version = None
-    if text != EXPECTED_TEXT: reasons.append("probe_response_mismatch")
+    if not isinstance(request_id, str) or not request_id.strip():
+        reasons.append("provider_request_id_missing")
+        request_id = None
+    if not isinstance(message_id, str) or not message_id.strip():
+        reasons.append("provider_response_id_missing")
+        message_id = None
+    if not isinstance(model_version, str) or not model_version.strip():
+        reasons.append("provider_model_version_missing")
+        model_version = None
+    if text != EXPECTED_TEXT:
+        reasons.append("probe_response_mismatch")
     raw_hash = _sha256_bytes(raw)
     receipt = {"http_status": status, "safe_response_headers": headers, "message_id": message_id, "model_version": model_version, "raw_response_sha256": raw_hash}
     identity_ready = bool(request_id and message_id and model_version)
@@ -117,11 +141,16 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--model", default=DEFAULT_MODEL)
     parser.add_argument("--output", required=True)
     args = parser.parse_args(argv)
-    key = os.environ.get("ANTHROPIC_API_KEY", "")
-    if not key:
+    raw_key = os.environ.get("ANTHROPIC_API_KEY", "")
+    if not raw_key:
         payload = {"schema": SCHEMA, "status": "BLOCKED", "provider_org": "Anthropic", "product": "Claude API", "requested_model": args.model, "access_mode": "api_free_credit", "level5_identity_ready": False, "level5_admissibility": "NOT_ADMISSIBLE_MISSING_API_KEY", "claim_authority": "NONE", "reasons": ["ANTHROPIC_API_KEY_missing"]}
-        _write(args.output, payload); print(json.dumps(payload, sort_keys=True)); return 3
-    payload = run_probe(api_key=key, model=args.model)
+        _write(args.output, payload)
+        print(json.dumps(payload, sort_keys=True))
+        return 3
+    try:
+        payload = run_probe(api_key=raw_key, model=args.model)
+    except ValueError as exc:
+        payload = {"schema": SCHEMA, "status": "BLOCKED", "provider_org": "Anthropic", "product": "Claude API", "requested_model": args.model, "access_mode": "api_free_credit", "level5_identity_ready": False, "level5_admissibility": "NOT_ADMISSIBLE_INVALID_API_KEY_ENCODING", "claim_authority": "NONE", "reasons": [str(exc)]}
     _write(args.output, payload)
     print(json.dumps({"status": payload["status"], "provider_org": payload["provider_org"], "requested_model": payload["requested_model"], "provider_model_version": payload.get("provider_model_version"), "provider_request_id_present": bool(payload.get("provider_request_id")), "provider_response_id_present": bool(payload.get("provider_response_id")), "level5_identity_ready": payload["level5_identity_ready"], "level5_admissibility": payload["level5_admissibility"], "reasons": payload["reasons"], "output": args.output}, sort_keys=True))
     return 0 if payload["status"] == "PASS" else 2
