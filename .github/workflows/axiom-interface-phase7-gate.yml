@@ -235,6 +235,7 @@ jobs:
           python - <<'PY'
           import json
           e=json.load(open('/tmp/axiom-interface-phase7/phase7-live-evidence.json',encoding='utf-8'))
+          assert e['schema']=='musitu.axiom.interface.phase7-live-evidence.v2'
           assert e['status']=='PASS'
           assert e['modalities']==['voice','camera','screen']
           assert e['explicit_permissions_verified'] is True
@@ -245,17 +246,26 @@ jobs:
           assert e['project_linked_capture_count']==3
           assert e['project_linked_note_verified'] is True
           assert e['manual_transcript_turn_count']==2
+          assert e['automated_semantic_transcript_turn_count']==2
           assert e['interruption_measurement_scope']=='LOCAL_UI_ACKNOWLEDGEMENT_ONLY'
           assert e['interruption_target_ms']==250
           assert e['interruption_within_target'] is True
+          assert e['semantic_bridge']['host_transport']=='IN_PROCESS_HOST_ADAPTER'
+          assert e['semantic_bridge']['real_local_engine_execution_verified'] is True
+          assert e['semantic_bridge']['receipt_count']==3
+          assert e['semantic_bridge']['modalities']==['camera','screen','voice']
+          assert e['semantic_bridge']['voice_turn_count']==1
+          assert e['semantic_bridge']['mcp_tool_receipts_verified'] is True
+          assert e['semantic_bridge']['semantic_interruption_verified'] is True
           assert e['capture_tamper_detected'] is True
           assert e['cross_reload_persistence_verified'] is True
           assert e['project_event_chain_verified'] is True
-          assert e['model_understanding_claimed'] is False
-          assert e['automated_transcription_claimed'] is False
+          assert e['base_capture_layer_model_understanding_claimed'] is False
+          assert e['base_capture_layer_automated_transcription_claimed'] is False
           assert e['cloud_media_upload_claimed'] is False
           assert e['real_device_certification_claimed'] is False
-          assert e['device_api_test_mode']=='DETERMINISTIC_MOCKED_MEDIA_APIS_NOT_REAL_HARDWARE_CERTIFICATION'
+          assert e['semantic_scope']=='OFFLINE_SCOPED_ASR_OCR_QR_MCP_SPECIALIST_NOT_GENERAL_VLM'
+          assert e['device_api_test_mode']=='DETERMINISTIC_MOCKED_MEDIA_APIS_WITH_REAL_CAPTURE_BYTES_AND_REAL_LOCAL_SEMANTIC_HOST_RUNTIME'
           assert e['foreign_requests']==[]
           print('MUSITU_AXIOM_PHASE7_LIVE_EVIDENCE_BOUNDARY_PASS')
           PY
