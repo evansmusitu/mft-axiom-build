@@ -1,0 +1,58 @@
+{
+  "schema": "musitu.revenueguard.contractnli.row_failure_diagnosis.v1",
+  "status": "DEV_RESEARCH_ONLY_TEST_REMAINS_SEALED",
+  "source_run_id": 34705965474,
+  "source_arm": "control",
+  "source_report_sha256": "5a956fe8418f49811ef66f5eacf3debe1a9b87554da6b0b56a28e00785597756",
+  "frozen_k": 32,
+  "frozen_threshold": 0.75,
+  "dev_rows": 1037,
+  "class_counts": {
+    "Contradiction": 95,
+    "Entailment": 519,
+    "NotMentioned": 423
+  },
+  "confusion_matrix": {
+    "Contradiction": {"Contradiction": 21, "Entailment": 2, "NotMentioned": 72},
+    "Entailment": {"Contradiction": 1, "Entailment": 141, "NotMentioned": 377},
+    "NotMentioned": {"Contradiction": 0, "Entailment": 6, "NotMentioned": 417}
+  },
+  "positive_cases": 614,
+  "exact_evidence_hits": 309,
+  "exact_evidence_recall": 0.503257328990228,
+  "exact_evidence_misses": 305,
+  "positive_semantic_accuracy_after_frozen_threshold": 0.26384364820846906,
+  "raw_candidate_semantic_accuracy_all_positive": 0.9022801302931596,
+  "raw_candidate_semantic_accuracy_when_exact_evidence_hit": 0.9514563106796117,
+  "raw_candidate_semantic_accuracy_when_exact_evidence_missed": 0.8524590163934426,
+  "exact_hit_failure_buckets": {
+    "abstention_despite_exact_evidence": 211,
+    "semantic_flip_despite_exact_evidence": 2,
+    "correct_semantic_with_exact_evidence": 96
+  },
+  "notmentioned_cases": 423,
+  "notmentioned_false_grounding_cases": 6,
+  "notmentioned_false_grounding_rate": 0.014184397163120567,
+  "score_quantiles": {
+    "positive_exact_hit": {"p10": 0.3963, "p25": 0.5547, "p50": 0.6898, "p75": 0.7719, "p90": 0.8150},
+    "positive_evidence_miss": {"p10": 0.2786, "p25": 0.4161, "p50": 0.6064, "p75": 0.7357, "p90": 0.7877},
+    "notmentioned": {"p10": 0.0019, "p25": 0.0206, "p50": 0.2627, "p75": 0.5030, "p90": 0.6450}
+  },
+  "deberta_scout": {
+    "run_id": 34680431927,
+    "artifact_sha256": "befe8def0b99b02b8b5cdc997330880fdc2d36982ac65fa9fdf99bb150045709",
+    "report_sha256": "32ef2af4bb1deda7c95504cb6330faa47499a4103aee79c33a1031b81b506fb1",
+    "dev_fail_closed_accuracy": 0.6345226615236258,
+    "dev_fail_closed_macro_f1": 0.5725916319631356,
+    "dev_false_grounding_notmentioned": 0.1867612293144208,
+    "value_gate_pass": false
+  },
+  "diagnosis": [
+    "The epoch1 joint score entangles evidence relevance, semantic polarity and abstention; the safety threshold therefore suppresses true positive decisions.",
+    "Exact evidence retrieval is the first hard bottleneck at 50.33% recall.",
+    "Conditional on an exact evidence hit, raw Entailment-vs-Contradiction polarity is already 95.15% accurate, so replacing the semantic encoder wholesale is not justified by current evidence.",
+    "A larger off-the-shelf DeBERTa NLI scout failed its value gate and greatly increased false grounding.",
+    "The next candidate should train a separate relevance/evidence selector and a positive-only binary semantic head, then calibrate abstention only from the relevance signal."
+  ],
+  "sealed_policy": "ContractNLI test.json remains unopened. MAUD remains sealed. Development failures may be used as curriculum diagnostics; no test-derived model selection is permitted."
+}
