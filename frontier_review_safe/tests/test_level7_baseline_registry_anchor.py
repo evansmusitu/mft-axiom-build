@@ -28,7 +28,13 @@ LEVEL6 = {
 }
 
 
-def refresh(refresh_id: str, day: int, baseline_hash: str) -> LongitudinalRefreshRecord:
+def refresh(
+    refresh_id: str,
+    day: int,
+    baseline_hash: str,
+    *,
+    before_hash: str | None = None,
+) -> LongitudinalRefreshRecord:
     executed_at = (NOW + timedelta(days=day)).isoformat()
     return LongitudinalRefreshRecord(
         refresh_id=refresh_id,
@@ -44,6 +50,7 @@ def refresh(refresh_id: str, day: int, baseline_hash: str) -> LongitudinalRefres
             case_set_hash=CASE_SET_HASH,
             baseline_registry_hash=baseline_hash,
             generated_at=executed_at,
+            governance_before_hash=before_hash,
         ),
     )
 
@@ -84,16 +91,19 @@ class Level7BaselineRegistryAnchorTests(unittest.TestCase):
         self.assertEqual(result["refresh_count"], 3)
 
     def test_verified_level5_registry_plus_distinct_refresh_registry_is_anchored(self):
+        replacement_hash = "5" * 64
         records = [
-            refresh("r1", 0, LEVEL5_REGISTRY_HASH),
-            refresh("r2", 30, "5" * 64),
-            refresh("r3", 60, LEVEL5_REGISTRY_HASH),
+            refresh("r1", 0, LEVEL5_REGISTRY_HASH, before_hash=LEVEL5_REGISTRY_HASH),
+            refresh("r2", 30, replacement_hash, before_hash=LEVEL5_REGISTRY_HASH),
+            refresh("r3", 60, LEVEL5_REGISTRY_HASH, before_hash=replacement_hash),
         ]
         result = evaluate(records)
         self.assertEqual(result["status"], "PASS")
         self.assertNotIn("level5_baseline_registry_not_anchored", result["reasons"])
         self.assertNotIn("baselines_not_refreshed", result["reasons"])
         self.assertTrue(result["semantic_artifacts_verified"])
+        self.assertTrue(result["governance_chain_verified"])
+        self.assertEqual(result["governance_chain_refresh_ids"], ["r1", "r2", "r3"])
 
 
 if __name__ == "__main__":
