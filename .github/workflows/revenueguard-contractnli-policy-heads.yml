@@ -1,0 +1,139 @@
+name: RevenueGuard ContractNLI Policy Specialist Heads
+
+on:
+  push:
+    branches:
+      - revenueguard-axiom-governor-20260911
+    paths:
+      - '.github/workflows/revenueguard-contractnli-policy-heads.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  train-evaluate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download exact adapted semantic encoder
+        uses: actions/download-artifact@v4
+        with:
+          name: revenueguard-contractnli-adapted-model
+          path: adapted_bundle
+          repository: evansmusitu/mft-axiom-build
+          run-id: 34676990123
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Train policy-conditioned heads and evaluate untouched dev
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          python -m pip install 'torch' 'transformers==4.56.2' 'scikit-learn==1.9.1' 'joblib'
+          curl -fL --retry 4 --retry-delay 2 -o contract-nli.zip 'https://raw.githubusercontent.com/stanfordnlp/contract-nli/eced6528dd3c1d14d73f9a87df8f7bdbc03126f9/resources/contract-nli.zip'
+          unzip -q contract-nli.zip
+          python - <<'PY'
+          import json,re,hashlib
+          from pathlib import Path
+          from collections import defaultdict
+          import numpy as np
+          import torch
+          from transformers import AutoTokenizer,AutoModelForSequenceClassification
+          from sklearn.linear_model import LogisticRegression
+          from sklearn.preprocessing import StandardScaler
+          from sklearn.pipeline import make_pipeline
+          from sklearn.metrics import f1_score
+          import joblib
+
+          SEED=882731
+          torch.manual_seed(SEED);np.random.seed(SEED);torch.set_num_threads(2)
+          MODEL=Path('adapted_bundle/adapted_model')
+          tok=AutoTokenizer.from_pretrained(MODEL,local_files_only=True)
+          model=AutoModelForSequenceClassification.from_pretrained(MODEL,local_files_only=True,output_hidden_states=True)
+          model.eval()
+          label_map={'Contradiction':0,'Entailment':1,'NotMentioned':2}
+          def words(s):return set(re.findall(r'[a-z0-9]+',s.lower()))
+          def overlap(a,b):
+              A=words(a);B=words(b);return len(A&B)/(len(A|B) or 1)
+          def split_doc(d):
+              x=int(hashlib.sha256(str(d['id']).encode()).hexdigest()[:8],16)
+              return 'cal' if x%10==0 else 'build'
+          def premise(d,hid,labels):
+              a=d['annotation_sets'][0]['annotations'][hid]
+              spans=[d['text'][s:e].strip() for s,e in d['spans']]
+              if a['choice']!='NotMentioned' and a.get('spans'):
+                  xs=[spans[i] for i in a['spans'] if i<len(spans) and spans[i].strip()]
+                  return ' '.join(xs)[:4000]
+              h=labels[hid]['hypothesis']
+              return (max(spans,key=lambda s:overlap(s,h)) if spans else '')[:4000]
+          def collect(path,which=None):
+              obj=json.load(open(path));labs=obj['labels'];rows=[]
+              for d in obj['documents']:
+                  if which is not None and split_doc(d)!=which:continue
+                  anns=d['annotation_sets'][0]['annotations']
+                  for hid in sorted(labs):
+                      rows.append({'hid':hid,'premise':premise(d,hid,labs),'hyp':labs[hid]['hypothesis'],'y':label_map[anns[hid]['choice']],'doc':str(d['id'])})
+              return rows
+          build=collect('contract-nli/train.json','build');cal=collect('contract-nli/train.json','cal');dev=collect('contract-nli/dev.json')
+
+          @torch.inference_mode()
+          def encode(rows,batch=96):
+              feats=[]
+              for i in range(0,len(rows),batch):
+                  b=rows[i:i+batch]
+                  e=tok([x['premise'] for x in b],[x['hyp'] for x in b],padding=True,truncation=True,max_length=192,return_tensors='pt')
+                  o=model(**e,output_hidden_states=True,return_dict=True)
+                  cls=o.hidden_states[-1][:,0,:].cpu().numpy()
+                  logits=o.logits.cpu().numpy()
+                  feats.append(np.concatenate([cls,logits],axis=1))
+              return np.vstack(feats)
+          Xb=encode(build);Xc=encode(cal);Xd=encode(dev)
+          yb=np.array([x['y'] for x in build]);yc=np.array([x['y'] for x in cal]);yd=np.array([x['y'] for x in dev])
+          heads={}
+          for hid in sorted({x['hid'] for x in build}):
+              ix=[i for i,x in enumerate(build) if x['hid']==hid]
+              # Balanced policy-specific probabilistic head over adapted semantic embedding + base logits.
+              h=make_pipeline(StandardScaler(),LogisticRegression(C=.25,max_iter=1000,class_weight='balanced',random_state=SEED,multi_class='auto'))
+              h.fit(Xb[ix],yb[ix]);heads[hid]=h
+          def probs(rows,X):
+              P=np.zeros((len(rows),3),dtype=float)
+              for hid,h in heads.items():
+                  ix=[i for i,x in enumerate(rows) if x['hid']==hid]
+                  raw=h.predict_proba(X[ix]);classes=list(h[-1].classes_)
+                  for rpos,i in enumerate(ix):
+                      for j,c in enumerate(classes):P[i,int(c)]=raw[rpos,j]
+              return P
+          Pc=probs(cal,Xc);Pd=probs(dev,Xd)
+          def apply(P,thr,margin):
+              out=[]
+              for p in P:
+                  order=np.argsort(-p);top,second=int(order[0]),int(order[1])
+                  if top!=2 and (p[top]<thr or p[top]-p[second]<margin):top=2
+                  out.append(top)
+              return np.array(out)
+          def metrics(y,p):
+              nm=np.where(y==2)[0];pos=np.where(y!=2)[0]
+              return {'accuracy':float((p==y).mean()),'macro_f1':float(f1_score(y,p,labels=[0,1,2],average='macro',zero_division=0)),'false_grounding_notmentioned':float((p[nm]!=2).mean()) if len(nm) else 0.0,'positive_semantic_accuracy':float((p[pos]==y[pos]).mean()) if len(pos) else 0.0,'n':int(len(y))}
+          best=None
+          for th in [.34,.40,.45,.50,.55,.60,.65,.70,.75,.80,.85,.90,.93,.95]:
+              for margin in [0,.05,.10,.15,.20,.25,.30,.35,.40]:
+                  p=apply(Pc,th,margin);m=metrics(yc,p);key=(m['false_grounding_notmentioned']<=.02,m['macro_f1'],m['accuracy'],-m['false_grounding_notmentioned'])
+                  if best is None or key>best[0]:best=(key,th,margin,m)
+          _,th,margin,cm=best;dp=apply(Pd,th,margin);dm=metrics(yd,dp)
+          by={}
+          for hid in sorted(heads):
+              ix=np.array([i for i,x in enumerate(dev) if x['hid']==hid]);by[hid]=metrics(yd[ix],dp[ix])
+          out=Path('contractnli_policy_heads');out.mkdir();joblib.dump({'heads':heads,'threshold':th,'margin':margin},out/'heads.joblib',compress=3)
+          report={'schema':'musitu.revenueguard.contractnli.policy_heads.v1','status':'DEV_RESEARCH_ONLY','source_model_artifact_sha256':'3d78d473ffde6f790b3919226d1069b81fa8426f0f139007d3ba8b9d9cf23055','contractnli_commit':'eced6528dd3c1d14d73f9a87df8f7bdbc03126f9','seed':SEED,'feature_dim':int(Xb.shape[1]),'build_n':len(build),'cal_n':len(cal),'dev_n':len(dev),'threshold':th,'margin':margin,'calibration':cm,'dev':dm,'dev_by_hypothesis':by,'gate':{'semantic_accuracy_min':.90,'macro_f1_min':.88,'false_grounding_max':.02,'pass':dm['accuracy']>=.90 and dm['macro_f1']>=.88 and dm['false_grounding_notmentioned']<=.02}}
+          b=(out/'heads.joblib').read_bytes();report['heads_sha256']=hashlib.sha256(b).hexdigest();report['report_sha256']=hashlib.sha256(json.dumps(report,sort_keys=True,separators=(',',':')).encode()).hexdigest();Path('CONTRACTNLI_POLICY_HEADS_DEV_EVAL.json').write_text(json.dumps(report,indent=2,sort_keys=True)+'\n');print(json.dumps(report,indent=2,sort_keys=True))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: revenueguard-contractnli-policy-heads-dev
+          path: |
+            contractnli_policy_heads/
+            CONTRACTNLI_POLICY_HEADS_DEV_EVAL.json
+          if-no-files-found: error
+          retention-days: 30
