@@ -1088,7 +1088,7 @@ class ClaimBoundary:
                             confidence=comparison_confidence,
                             bootstrap_samples=comparison_bootstrap_samples,
                         ))
-                except (FrontierSafetyError, ValueError, KeyError, TypeError):
+                except (FrontierSafetyError, ValueError, KeyError, TypeError, AttributeError):
                     comparison_error = "comparison_raw_evidence_invalid"
 
         if comparison_error is not None:
