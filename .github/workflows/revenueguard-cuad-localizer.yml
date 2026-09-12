@@ -33,12 +33,15 @@ jobs:
           from sklearn.pipeline import FeatureUnion
           from sklearn.feature_extraction.text import TfidfVectorizer
           from sklearn.linear_model import SGDClassifier
-          from sklearn.metrics import precision_recall_fscore_support
           import joblib
 
           SEED=917331
           random.seed(SEED); np.random.seed(SEED)
-          data=json.load(open('data/train_separate_questions.json'))['data']
+          matches=list(Path('.').rglob('train_separate_questions.json'))
+          if len(matches)!=1: raise RuntimeError(f'expected exactly one CUAD train file, got {matches}')
+          train_path=matches[0]
+          train_sha256=hashlib.sha256(train_path.read_bytes()).hexdigest()
+          data=json.load(open(train_path))['data']
 
           def is_dev(title):
               return int(hashlib.sha256(title.encode()).hexdigest()[:8],16)%10==0
@@ -76,10 +79,8 @@ jobs:
                       if is_dev(title):
                           dev_rows.append((title,q,ctx,ws,answers,positives,qa['id']))
                           continue
-                      # Positive windows, deduped. If impossible, none.
                       for wi in sorted(set(positives)):
                           train_text.append('QUESTION: '+q+'\nWINDOW: '+ws[wi][2]);train_y.append(1);pos_count+=1
-                      # Hard negatives: lexical-close windows not overlapping answers.
                       candidates=[(lexical(q,w[2]),i) for i,w in enumerate(ws) if i not in positives]
                       candidates.sort(reverse=True)
                       take=max(2,min(5,2+len(positives)))
@@ -108,7 +109,6 @@ jobs:
               rows.append(item)
 
           recall={f'top{k}':sum(x[f'top{k}_hit'] for x in positive)/(len(positive) or 1) for k in [1,3,5,8]}
-          # Calibrate an answer/no-answer threshold on dev for measurement only; this split will never be final certification evidence.
           thresholds=sorted({round(x['max_score'],4) for x in rows})
           best=None
           for th in thresholds:
@@ -122,7 +122,6 @@ jobs:
           by_category=defaultdict(lambda:{'n':0,'top5':0})
           for x,(title,q,ctx,ws,answers,positives,qid) in zip(rows,dev_rows):
               if answers:
-                  # Category is embedded in CUAD's stable qid suffix after '__' when present; otherwise hash question text as stable name.
                   cat=q.split('Details:')[0].strip()
                   by_category[cat]['n']+=1;by_category[cat]['top5']+=int(x.get('top5_hit',False))
           by_category={k:{'n':v['n'],'top5_recall':v['top5']/(v['n'] or 1)} for k,v in by_category.items()}
@@ -130,9 +129,10 @@ jobs:
           out=Path('cuad_localizer');out.mkdir()
           joblib.dump({'vectorizer':vectorizer,'classifier':clf,'threshold':threshold},out/'localizer.joblib',compress=3)
           report={
-            'schema':'musitu.revenueguard.cuad_localizer.dev.v1',
+            'schema':'musitu.revenueguard.cuad_localizer.dev.v2',
             'status':'DEV_RESEARCH_ONLY',
             'cuad_commit':'67faa0e6023b04fcaae6cc09497ab00e5d63a2a2',
+            'cuad_train_path':str(train_path),'cuad_train_sha256':train_sha256,
             'seed':SEED,
             'split':'document-disjoint hash split inside official train_separate_questions.json; official test.json unopened',
             'training_examples':len(train_y),'positive_training_examples':pos_count,'negative_training_examples':neg_count,
