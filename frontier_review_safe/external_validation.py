@@ -7,6 +7,12 @@ from . import external_validation_core as _core
 from .external_validation_core import *  # noqa: F401,F403
 from .longitudinal_binding import LongitudinalArtifactBundle, LongitudinalIdentityBinding
 
+# Preserve the pre-hardening module surface used by integrity tests and internal
+# callers. Python import-star intentionally omits private names, so re-export
+# the existing canonical independence normalizer explicitly rather than
+# duplicating or weakening its implementation.
+_independence_organization_key = _core._independence_organization_key
+
 
 @dataclass(frozen=True)
 class LongitudinalRefreshRecord(_core.LongitudinalRefreshRecord):
