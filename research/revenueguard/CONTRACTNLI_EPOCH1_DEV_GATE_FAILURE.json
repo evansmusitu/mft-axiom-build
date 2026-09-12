@@ -1,0 +1,47 @@
+{
+  "schema": "musitu.revenueguard.contractnli.dev_gate_failure.v1",
+  "status": "DEV_GATE_FAILED_TEST_REMAINS_SEALED",
+  "evaluation_run_id": 34705965474,
+  "test_opened": false,
+  "gate": {
+    "accuracy_min": 0.90,
+    "macro_f1_min": 0.88,
+    "false_grounding_max": 0.02,
+    "evidence_recall_min": 0.85
+  },
+  "control": {
+    "checkpoint_artifact_sha256": "b436bd2103ff2dc3a9bd04ad0d5e8c1500814deaddc0c51a47cf0fa595f89b1c",
+    "locked_eval_artifact_sha256": "bb43cf238ae877951f8fa1bb3f34c0fe5df0432ecac32e62891d44f4764c1be5",
+    "report_sha256": "5a956fe8418f49811ef66f5eacf3debe1a9b87554da6b0b56a28e00785597756",
+    "chosen_k": 32,
+    "chosen_threshold": 0.75,
+    "dev_rows": 1037,
+    "accuracy": 0.5583413693346191,
+    "macro_f1": 0.4760477453717815,
+    "false_grounding_notmentioned": 0.014184397163120567,
+    "selected_evidence_exact_span_recall": 0.503257328990228,
+    "positive_semantic_accuracy": 0.26384364820846906,
+    "gate_pass": false
+  },
+  "balanced": {
+    "checkpoint_artifact_sha256": "0aabaf77ac57b90529432eded113d246780f379ba8014935d732770922fc0c7f",
+    "locked_eval_artifact_sha256": "25ccb8a3d2523320c38a923b9bc1d7629805a9e359e110171ddf057b86a486e4",
+    "report_sha256": "175f67d426c7ffb7d1439b0cc5ec099822b8b48b5919bbafac6f7a46ff13c454",
+    "chosen_k": 32,
+    "chosen_threshold": 0.85,
+    "dev_rows": 1037,
+    "accuracy": 0.47058823529411764,
+    "macro_f1": 0.3440017779758005,
+    "false_grounding_notmentioned": 0.004728132387706856,
+    "selected_evidence_exact_span_recall": 0.48534201954397393,
+    "positive_semantic_accuracy": 0.10912052117263844,
+    "gate_pass": false
+  },
+  "failure_interpretation": [
+    "The principal defect is not false grounding; both arms satisfy the false-grounding ceiling.",
+    "Semantic discrimination on positive Entailment/Contradiction cases collapsed, especially under the balanced arm.",
+    "Evidence localization remains near 0.50 exact-span recall, far below the 0.85 gate.",
+    "The next candidate must improve positive semantic classification and exact evidence selection jointly rather than retuning the abstention threshold."
+  ],
+  "next_policy": "Keep ContractNLI test.json sealed. Promote dev failures to real-data curriculum. No threshold-only rescue and no candidate switching on test are permitted."
+}
