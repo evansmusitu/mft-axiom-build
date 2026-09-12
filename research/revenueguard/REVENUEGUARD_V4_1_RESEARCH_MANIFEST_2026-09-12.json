@@ -1,0 +1,111 @@
+{
+  "schema": "musitu.revenueguard.v4_1.research_manifest.v1",
+  "status": "NOT_CERTIFIED",
+  "frozen_product_rule": "MUSITU RevenueGuard V4 structured money engine remains immutable during document-intelligence research",
+  "real_world_boundary": {
+    "permissioned_companies": 0,
+    "verified_recovered_cash_usd": 0,
+    "verified_musitu_fee_usd": 0
+  },
+  "contractnli": {
+    "commit": "eced6528dd3c1d14d73f9a87df8f7bdbc03126f9",
+    "simple_adapted_minilm": {
+      "artifact_sha256": "3d78d473ffde6f790b3919226d1069b81fa8426f0f139007d3ba8b9d9cf23055",
+      "dev_accuracy": 0.7628,
+      "dev_macro_f1": 0.732,
+      "dev_false_grounding": 0.0733,
+      "status": "REJECTED"
+    },
+    "deberta_scout": {
+      "dev_accuracy": 0.6345,
+      "dev_macro_f1": 0.5726,
+      "dev_false_grounding": 0.1868,
+      "status": "REJECTED"
+    },
+    "policy_head_diagnostic": {
+      "run_id": 34682409882,
+      "artifact_id": 10294452265,
+      "dev_accuracy": 0.8746383799421408,
+      "dev_macro_f1": 0.8149915635966174,
+      "dev_false_grounding": 0.04964539007092199,
+      "positive_semantic_accuracy": 0.8224755700325733,
+      "report_sha256": "cae3c99bc0d38cb4a37b30316ee6d0e80f82fd691b94e3bfdd67f9937329aeba",
+      "status": "REJECTED_DIAGNOSTIC_ONLY"
+    },
+    "lexical_preselector_ceiling": {
+      "top14_any_evidence_recall": 0.809446,
+      "top24_any_evidence_recall": 0.923453,
+      "top32_any_evidence_recall": 0.959283,
+      "status": "TOP14_REJECTED"
+    },
+    "v1_negative_context_contamination": {
+      "rate": 0.103524,
+      "status": "V1_REJECTED"
+    },
+    "training_geometry": {
+      "samples": 29488,
+      "contradiction": 1258,
+      "entailment": 5897,
+      "not_mentioned": 22333,
+      "not_mentioned_fraction": 0.7573589256646771,
+      "report_sha256": "e83bb7094c9562809806e408c8ddc9c54fe44be88136da8c075c89fcb9ae24e2"
+    },
+    "active_generalized_control": {
+      "name": "Joint Span NLI V3",
+      "run_id": 34682919739,
+      "job_id": 103524747352,
+      "seed": 481928,
+      "candidate_k": [24, 32],
+      "gate": {
+        "accuracy_min": 0.90,
+        "macro_f1_min": 0.88,
+        "false_grounding_max": 0.02,
+        "selected_evidence_exact_span_recall_min": 0.85
+      }
+    },
+    "active_balanced_treatment": {
+      "name": "Joint Span NLI V4 Balanced",
+      "run_id": 34683109166,
+      "job_id": 103525253222,
+      "seed": 481928,
+      "difference_from_control": "build-only square-root inverse-frequency class and evidence loss weights",
+      "gate_unchanged": true
+    }
+  },
+  "cuad": {
+    "commit": "67faa0e6023b04fcaae6cc09497ab00e5d63a2a2",
+    "train_sha256": "7de21d2bb741ac939e2a839ef9640634a5e0f9f40ea2b82c6833baf7db33dab4",
+    "official_test_opened": false,
+    "sparse_localizer": {
+      "top5_recall": 0.38079470198675497,
+      "top8_recall": 0.45612582781456956,
+      "no_answer_false_positive_rate": 0.5546687948922586,
+      "status": "REJECTED"
+    },
+    "original_neural_trainer": {
+      "run_id": 34680322952,
+      "job_id": 103517681481,
+      "status_at_manifest": "IN_PROGRESS"
+    },
+    "checkpoint_safe_successor": {
+      "run_id": 34683023162,
+      "epoch1_job_id": 103525024112,
+      "status_at_manifest": "IN_PROGRESS"
+    },
+    "heldout_gate": {
+      "no_answer_false_positive_max": 0.02,
+      "answer_detection_f1_min": 0.85,
+      "localization_overlap_recall_min": 0.85,
+      "answerable_token_f1_min": 0.80,
+      "official_style_metrics_also_recorded": ["AUPR", "precision_at_80_recall", "precision_at_90_recall"]
+    }
+  },
+  "sealed_transfer": {
+    "dataset": "MAUD",
+    "repository": "The-Atticus-Project/maud",
+    "commit": "4640316078dcd370debb877f350c39a28b181ffe",
+    "data_blob_sha": "74dc33bf4b8720df325d2858ea74c2790f16db20",
+    "development_access": "FORBIDDEN_UNTIL_V4_1_FREEZE"
+  },
+  "promotion_rule": "No V4.1 integration or frontier comparison until independent ContractNLI and CUAD internal gates pass. MAUD is opened only after candidate freeze. Real-company evidence remains a separate mandatory gate."
+}
