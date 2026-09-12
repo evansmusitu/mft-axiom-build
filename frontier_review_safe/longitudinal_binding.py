@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Mapping as MappingABC
 from dataclasses import dataclass
 from typing import Any, Mapping
 
@@ -33,6 +34,8 @@ class LongitudinalIdentityBinding:
 
     @classmethod
     def from_level6(cls, level6: Mapping[str, Any]) -> "LongitudinalIdentityBinding":
+        if not isinstance(level6, MappingABC):
+            raise ValueError("level6 assessment must be a mapping")
         return cls(
             candidate_sha=level6.get("candidate_sha"),
             case_set_hash=level6.get("case_set_hash"),
