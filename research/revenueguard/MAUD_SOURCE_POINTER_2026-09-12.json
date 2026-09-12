@@ -1,0 +1,10 @@
+{
+  "schema": "musitu.revenueguard.maud_source_pointer.v1",
+  "status": "SEALED_UNOPENED_SOURCE",
+  "repository": "The-Atticus-Project/maud",
+  "commit_sha": "4640316078dcd370debb877f350c39a28b181ffe",
+  "archive_path": "data.zip",
+  "github_blob_sha": "74dc33bf4b8720df325d2858ea74c2790f16db20",
+  "content_inspected_for_v4_1_development": false,
+  "rule": "Do not materialize or inspect archive case contents until a complete V4.1 candidate is frozen."
+}
