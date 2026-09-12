@@ -1,0 +1,11 @@
+{
+  "schema": "musitu.revenueguard.cuad.postgate_failure_miner_trigger.v1",
+  "date": "2026-09-12",
+  "raw_run_id": 34700936203,
+  "provenance_seal_run_id": 34705875417,
+  "provenance_artifact": "revenueguard-cuad-epoch1-question32-heldout-eval-provenance-sealed",
+  "provenance_artifact_sha256": "c4ed800527c8b831a7720e8cdabe430316efdfb78b1a5ee28e46217254cb9e10",
+  "source_aggregate_report_sha256": "c4c9f32207bd65624eb03d8f30e4ebecbf7db44b694cee6e77a340bf0516af98",
+  "gate_pass": false,
+  "policy": "mine frozen evaluation failures only; no score, threshold, model or gate changes"
+}
