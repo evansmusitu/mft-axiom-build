@@ -1,0 +1,49 @@
+name: MFT Education Nexus Canonical Drive Diagnostic
+
+on:
+  push:
+    branches: [mft-edu-row678-builder-20260912]
+    paths: ['.github/workflows/mft-edu-canonical-drive-diagnostic.yml']
+  workflow_dispatch:
+
+jobs:
+  diagnose:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Probe canonical Drive transports
+        shell: pwsh
+        continue-on-error: true
+        run: |
+          $ErrorActionPreference='Continue'
+          New-Item -ItemType Directory -Force diag | Out-Null
+          py -3 --version *> diag\python.txt
+          py -3 -m pip install --disable-pip-version-check gdown *> diag\pip-gdown.txt
+          $ids=@('1j3DeJLdTHR1IlDtJ6joaGwPuASCkEboA','1QyNEqp_6q7XdsQuOhWN9KOQiAAyS92MT')
+          foreach($id in $ids){
+            $safe=$id.Substring(0,6)
+            Remove-Item "diag\$safe.bin" -Force -ErrorAction SilentlyContinue
+            & py -3 -m gdown $id -O "diag\$safe.bin" *> "diag\gdown-$safe.txt"
+            $code=$LASTEXITCODE
+            if(Test-Path "diag\$safe.bin"){
+              $f=Get-Item "diag\$safe.bin"
+              $sha=(Get-FileHash $f.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+              "exit=$code`nbytes=$($f.Length)`nsha256=$sha" | Set-Content "diag\gdown-$safe-meta.txt"
+            } else {"exit=$code`nfile_missing=true" | Set-Content "diag\gdown-$safe-meta.txt"}
+            $url="https://drive.usercontent.google.com/download?id=$id&export=download&confirm=t"
+            try {
+              Invoke-WebRequest -UseBasicParsing -MaximumRedirection 10 -Uri $url -OutFile "diag\direct-$safe.bin" -ErrorAction Stop
+              $f=Get-Item "diag\direct-$safe.bin"
+              $sha=(Get-FileHash $f.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+              "bytes=$($f.Length)`nsha256=$sha" | Set-Content "diag\direct-$safe-meta.txt"
+            } catch { $_ | Out-String | Set-Content "diag\direct-$safe-error.txt" }
+          }
+      - name: Upload diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mft-edu-canonical-drive-diagnostic-${{ github.run_id }}
+          path: diag/
+          if-no-files-found: error
+          retention-days: 7
