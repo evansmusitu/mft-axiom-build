@@ -86,12 +86,33 @@ def main():
             now=datetime.now(timezone.utc).replace(second=0,microsecond=0)
             as_of=now-timedelta(minutes=2);retrieved=now-timedelta(minutes=1)
 
-            # Invalid operator quality metadata must fail before any source enters the graph.
-            fill_source(page,title='Invalid quality',url='https://example.com/invalid',text='Never admitted.',as_of=as_of,retrieved=retrieved,primary=False,verifiable=False,authority=1.5,transparency=.5,conflict=.5)
-            page.get_by_role('button',name='Add source').click();page.wait_for_timeout(100)
+            # The HTML form blocks out-of-range quality metadata natively. Separately,
+            # the store wrapper must fail closed for the same invalid metadata even
+            # when called programmatically, before the underlying source store runs.
+            authority_input=page.locator('#research-quality-authority')
+            authority_input.fill('1.5')
+            native=authority_input.evaluate("el => ({valid:el.checkValidity(), max:el.max})")
+            assert native=={'valid':False,'max':'1'},native
+            invalid=page.evaluate("""async () => {
+              try {
+                await window.AxiomResearch.store.addSource(null,null,{
+                  qualityProfile:{
+                    primary:false,
+                    independently_verifiable:false,
+                    recency:0.9,
+                    domain_authority:1.5,
+                    methodological_transparency:0.5,
+                    conflict_of_interest_risk:0.5
+                  }
+                },null);
+                return 'ALLOWED';
+              } catch (error) {
+                return error.name;
+              }
+            }""")
+            assert invalid=='TypeError',invalid
             empty=page.evaluate('pid => window.AxiomResearch.store.snapshot(pid)',project_id)
             assert not empty['sources']
-            assert page.locator('#error-region').is_visible()
 
             support_text='Alpha revenue rose 10%. Risk remains high.'
             counter_text='Alpha revenue fell 2%. Accounting scope differs.'
