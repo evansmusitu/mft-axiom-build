@@ -1,0 +1,151 @@
+name: MUSITU FMI Commercial Hardening Audit V2 Once
+
+on:
+  push:
+    branches: [fmi-billing-binding-20260912-ephemeral]
+    paths: ['.github/workflows/fmi-commercial-hardening-audit-v2-once.yml']
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    env:
+      API: https://api.cloudflare.com/client/v4
+      AID: 93f395f5121954671f92fffa453d6b61
+      DBID: a03dc12d-8206-47be-b904-1f24e4e37d91
+      EDGE: mft-fmi-global-edge
+      BILLING: mft-fmi-billing
+      ADAPTER: mft-fmi-modal-adapter
+      AUTHORITY: mft-phase8-external-authority
+      TRANSPORT: mft-paynow-transport-gateway
+      PUBLIC: https://mft-fmi-global-edge.mft-education-nexus-93f395f5.workers.dev
+      FMI_REFERENCE: FMI-MTYO41LA-CD6240DEB118
+      EDGE_SHA256: 591f40e44a744655e439e5d8c154ccdd7e7379b47c7a583ce76f3a0b1c89572e
+      BILLING_SHA256: cd55b2b7b34bc5f73c394eddebd9edbc22690250b4ab7aff36a209064a3b9454
+      AUTHORITY_SHA256: ec2294e7bb9109a8b7b96ecfbc5c1bdc85c141d4aed501eed7a2c1cca1a94f26
+      TRANSPORT_SHA256: e3c6db1ced0ab7e8e9844364b69777dfc7a15c8c2daf08b5bd330e035979f4ac
+    steps:
+      - name: Audit live FMI boundary without payment or provider initiation
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_EVENT_NAME" = push
+          test "$GITHUB_RUN_ATTEMPT" = 1
+          python - <<'PY'
+          import email,hashlib,json,os,urllib.error,urllib.parse,urllib.request
+          from datetime import datetime,timezone
+          API=os.environ['API'];AID=os.environ['AID'];DBID=os.environ['DBID'];PUBLIC=os.environ['PUBLIC'].rstrip('/')
+          H={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY']}
+          def get(path):
+              with urllib.request.urlopen(urllib.request.Request(API+path,headers=H),timeout=30) as r:return r.headers,r.read()
+          def src(name):
+              h,b=get(f'/accounts/{AID}/workers/scripts/{urllib.parse.quote(name,safe="")}');ct=h.get('content-type','')
+              if 'multipart/' not in ct.lower():return b
+              m=email.message_from_bytes((f'Content-Type: {ct}\r\nMIME-Version: 1.0\r\n\r\n').encode()+b);parts=[]
+              for x in m.walk():
+                  if x.is_multipart():continue
+                  d=x.get_payload(decode=True) or b''
+                  if any(k in d for k in (b'export default',b'addEventListener',b'fetch(')):parts.append(d)
+              if len(parts)!=1:raise SystemExit(f'{name}: module count {len(parts)}')
+              return parts[0]
+          def bindings(name):
+              _,b=get(f'/accounts/{AID}/workers/scripts/{urllib.parse.quote(name,safe="")}/settings');return (json.loads(b).get('result') or {}).get('bindings') or []
+          def private(name):
+              _,b=get(f'/accounts/{AID}/workers/scripts/{urllib.parse.quote(name,safe="")}/subdomain');return (json.loads(b).get('result') or {}).get('enabled') is False
+          def d1(sql,params=None):
+              hh=dict(H);hh['Content-Type']='application/json';o={'sql':sql}
+              if params is not None:o['params']=params
+              q=urllib.request.Request(f'{API}/accounts/{AID}/d1/database/{DBID}/query',headers=hh,method='POST',data=json.dumps(o,separators=(',',':')).encode())
+              with urllib.request.urlopen(q,timeout=30) as r:x=json.load(r)
+              if x.get('success') is False:raise SystemExit('D1 API success=false')
+              rows=[]
+              for rr in x.get('result') or []:
+                  if rr.get('success') is not True:raise SystemExit('D1 query failed')
+                  rows.extend(rr.get('results') or [])
+              return rows
+          def pub(path,method='GET',obj=None,bearer=None):
+              h={'Accept':'application/json','User-Agent':'MUSITU-FMI-Hardening-V2/1.0'};data=None
+              if obj is not None:h['Content-Type']='application/json';data=json.dumps(obj,separators=(',',':')).encode()
+              if bearer is not None:h['Authorization']='Bearer '+bearer
+              q=urllib.request.Request(PUBLIC+path,headers=h,method=method,data=data)
+              try:
+                  with urllib.request.urlopen(q,timeout=30) as r:
+                      raw=r.read();rh={k.lower():v for k,v in r.headers.items()}
+                      try:b=json.loads(raw or b'{}')
+                      except:b={}
+                      return r.status,b,rh
+              except urllib.error.HTTPError as e:
+                  raw=e.read();rh={k.lower():v for k,v in e.headers.items()}
+                  try:b=json.loads(raw or b'{}')
+                  except:b={}
+                  return e.code,b,rh
+          names={'edge':os.environ['EDGE'],'billing':os.environ['BILLING'],'authority':os.environ['AUTHORITY'],'transport':os.environ['TRANSPORT']}
+          exp={'edge':os.environ['EDGE_SHA256'],'billing':os.environ['BILLING_SHA256'],'authority':os.environ['AUTHORITY_SHA256'],'transport':os.environ['TRANSPORT_SHA256']}
+          sources={k:src(v) for k,v in names.items()};shas={k:hashlib.sha256(v).hexdigest() for k,v in sources.items()}
+          assert shas==exp,(shas,exp)
+          eb={x.get('name'):x for x in bindings(os.environ['EDGE']) if isinstance(x,dict)};bb={x.get('name'):x for x in bindings(os.environ['BILLING']) if isinstance(x,dict)}
+          assert eb.get('FMI_BILLING',{}).get('service')==os.environ['BILLING']
+          assert bb.get('FMI_DB',{}).get('id')==DBID
+          assert bb.get('PAYMENT_AUTHORITY',{}).get('service')==os.environ['AUTHORITY']
+          assert bb.get('PAYNOW_TRANSPORT',{}).get('service')==os.environ['TRANSPORT']
+          assert bb.get('FMI_AUTHORITY_BRIDGE_TOKEN',{}).get('type')=='secret_text'
+          assert bb.get('FMI_TRANSPORT_BRIDGE_TOKEN',{}).get('type')=='secret_text'
+          assert private(os.environ['BILLING']) and private(os.environ['ADAPTER'])
+          t=sources['billing'].decode('utf-8','ignore')
+          static={
+            'provider_key_absent':'PAYNOW_INTEGRATION_KEY' not in t,
+            'server_prices':('4900' in t and '14900' in t),
+            'checkout_route':'/v1/billing/checkout' in t,
+            'poll_route':'/v1/billing/poll' in t,
+            'webhook_route':'/v1/billing/webhooks/paynow' in t,
+            'authority_service':'PAYMENT_AUTHORITY' in t,
+            'transport_service':'PAYNOW_TRANSPORT' in t,
+            'idempotency_storage':'webhook_events' in t,
+          };assert all(static.values()),static
+          ref=os.environ['FMI_REFERENCE']
+          def state():return {
+            'intent':d1('SELECT reference,customer_id,plan,amount_cents,currency,status,paynow_reference,completed_at FROM billing_checkout_intents WHERE reference=?1 LIMIT 2',[ref]),
+            'intents':d1('SELECT count(*) AS n FROM billing_checkout_intents'),
+            'subs':d1("SELECT count(*) AS n FROM billing_subscriptions WHERE status='active'"),
+            'activations':d1("SELECT count(*) AS n FROM lifecycle_events WHERE event_name='PLAN_ACTIVATED'")}
+          before=state();assert len(before['intent'])==1;i=before['intent'][0]
+          assert i.get('plan')=='FOUNDING' and int(i.get('amount_cents',-1))==4900 and i.get('currency')=='USD' and i.get('status')=='pending' and not i.get('completed_at')
+          hc,h,hh=pub('/healthz');assert hc==200 and h.get('authority')=='PAPER_SHADOW_ONLY'
+          bc,bh,bhh=pub('/v1/billing/healthz');assert bc==200 and bh.get('ok') is True and bh.get('settlement_certified') is False
+          cc,c,ch=pub('/v1/billing/catalog');assert cc==200 and (c.get('plans') or {}).get('FOUNDING',{}).get('amount_cents')==4900 and (c.get('plans') or {}).get('PRO',{}).get('amount_cents')==14900
+          probes={}
+          tests=[
+            ('checkout_no_auth','/v1/billing/checkout','POST',{'plan':'FOUNDING'},None),('checkout_bad_auth','/v1/billing/checkout','POST',{'plan':'FOUNDING'},'invalid-token'),
+            ('poll_no_auth','/v1/billing/poll','POST',{'reference':ref},None),('poll_bad_auth','/v1/billing/poll','POST',{'reference':ref},'invalid-token'),
+            ('me_no_auth','/v1/me','GET',None,None),('me_bad_auth','/v1/me','GET',None,'invalid-token'),
+            ('intel_no_auth','/v1/intelligence/analyze','POST',{'query':'audit'},None),('intel_bad_auth','/v1/intelligence/analyze','POST',{'query':'audit'},'invalid-token')]
+          for n,p,m,o,bearer in tests:
+              s,b,_=pub(p,m,o,bearer);probes[n]=s;assert s in (400,401,403),(n,s,b)
+          s,b,_=pub('/v1/billing/webhooks/paynow','POST',{'reference':ref,'status':'paid','amount':'49.00','hash':'invalid'});probes['forged_webhook']=s;assert not 200<=s<300,(s,b)
+          s,b,_=pub('/__definitely_unknown_fmi_path__');probes['unknown_route']=s;assert s==404
+          after=state();assert after==before,(before,after)
+          def headers(h):return {'hsts':'strict-transport-security' in h,'nosniff':h.get('x-content-type-options','').lower()=='nosniff','frame':'x-frame-options' in h,'csp':'content-security-policy' in h,'referrer':'referrer-policy' in h,'permissions':'permissions-policy' in h}
+          posture={'health':headers(hh),'billing_health':headers(bhh),'catalog':headers(ch)};score=sum(sum(v.values()) for v in posture.values());total=sum(len(v) for v in posture.values())
+          record={'schema':'musitu-fmi.commercial-hardening-audit.v2','verified_at':datetime.now(timezone.utc).isoformat(),'gate':'PASS','reference':ref,
+            'source_shas':shas,'billing_source_baseline_provenance':'FIRST_EXPLICIT_REALIZED_WORKER_PIN_AFTER_SUCCESSFUL_HASH_GUARDED_DEPLOYMENT_AND_POSTDEPLOY_READBACK',
+            'deployment_program_sha256':'fb9ed06245d5e02017fd3778253d3fd23ef57ce6418e0a1a5f3b5fd3e681599e','service_binding_isolation':'PASS','billing_worker_private':True,'modal_adapter_private':True,
+            'static_billing_checks':static,'negative_probe_statuses':probes,'database_state_unchanged':True,'pending_checkout_preserved':True,'provider_checkout_created':False,'payment_action_executed':False,
+            'real_money_settlement_tested':False,'real_money_settlement_certified':False,'paper_shadow_authority_preserved':True,'live_trading_authorized':False,'model_authorized_trade_execution':False,'production_model_authority':False,
+            'security_header_posture':posture,'security_header_score':{'present':score,'possible':total},'security_headers_full_baseline':score==total}
+          raw=(json.dumps(record,indent=2,sort_keys=True)+'\n').encode();open('fmi-commercial-hardening-audit.json','wb').write(raw);sha=hashlib.sha256(raw).hexdigest();open('fmi-commercial-hardening-audit.sha256','w').write(f'{sha}  fmi-commercial-hardening-audit.json\n')
+          print(json.dumps({'gate':'PASS','billing_worker_sha256':shas['billing'],'database_state_unchanged':True,'negative_probes':'PASS','forged_webhook':'REJECTED','security_header_score':f'{score}/{total}','provider_checkout_created':False,'real_money_settlement_certified':False,'evidence_sha256':sha},sort_keys=True))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: musitu-fmi-commercial-hardening-audit-${{ github.run_id }}
+          path: |
+            fmi-commercial-hardening-audit.json
+            fmi-commercial-hardening-audit.sha256
+          retention-days: 1
+          if-no-files-found: error
