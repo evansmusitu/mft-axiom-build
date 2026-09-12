@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import replace
 from typing import Any
 
 from frontier_review_safe.core import sha256
@@ -75,6 +76,21 @@ def hashes_for_bundle(bundle: dict[str, dict[str, Any]]) -> tuple[str, str, str]
         sha256(bundle["drift_report"]),
         sha256(bundle["replacement_governance"]),
     )
+
+
+def bind_semantic_record(record: Any) -> Any:
+    bundle = artifact_bundle_for(record)
+    failure_hash, drift_hash, governance_hash = hashes_for_bundle(bundle)
+    return replace(
+        record,
+        retained_failure_corpus_hash=failure_hash,
+        drift_report_hash=drift_hash,
+        replacement_governance_hash=governance_hash,
+    )
+
+
+def bind_semantic_records(records: list[Any]) -> list[Any]:
+    return [bind_semantic_record(record) for record in records]
 
 
 def semantic_artifacts_for(records: list[Any]) -> dict[str, dict[str, dict[str, Any]]]:
