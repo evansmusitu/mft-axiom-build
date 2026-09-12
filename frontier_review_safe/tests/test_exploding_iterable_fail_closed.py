@@ -107,6 +107,18 @@ class ExplodingIterableFailClosedTests(unittest.TestCase):
         self.assertEqual(result["status"], "DENY")
         self.assertEqual(result["reason"], "invalid_level5_provider_orgs")
 
+    def test_claim_level5_run_ids_exploding_iterable_is_denied(self):
+        result = ClaimBoundary.authorize(
+            "scoped comparison",
+            level5=_level5_pass(run_ids=ExplodingIterable()),
+            level6={"status": "FAIL"},
+            level7={"status": "FAIL"},
+            comparison_scope="sealed benchmark",
+            benchmark_hash=CASE_HASH,
+        )
+        self.assertEqual(result["status"], "DENY")
+        self.assertEqual(result["reason"], "invalid_level5_run_ids")
+
     def test_claim_required_provider_scope_exploding_iterable_is_denied(self):
         result = ClaimBoundary.authorize(
             "scoped comparison",
