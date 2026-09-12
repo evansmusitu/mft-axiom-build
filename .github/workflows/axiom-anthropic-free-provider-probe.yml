@@ -1,0 +1,68 @@
+name: MUSITU Axiom Anthropic Free Provider Metadata Probe
+
+on:
+  push:
+    branches:
+      - frontier/axiom-v5-anthropic-free-provider-run-20260912
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  anthropic-provider-probe:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout immutable action
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Setup patch-pinned Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
+        with:
+          python-version: '3.12.14'
+          check-latest: false
+      - name: Verify probe tests
+        run: PYTHONPATH=. python -m unittest frontier_review_safe.tests.test_anthropic_free_probe -v
+      - name: Execute provider metadata probe or record credential blocker
+        id: probe
+        shell: bash --noprofile --norc -e -o pipefail {0}
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          set +e
+          PYTHONPATH=. python -m frontier_review_safe.anthropic_free_probe \
+            --model claude-fable-5-1 \
+            --output anthropic-free-provider-probe.json
+          code=$?
+          set -e
+          echo "exit_code=$code" >> "$GITHUB_OUTPUT"
+          test -s anthropic-free-provider-probe.json
+      - name: Seal non-secret evidence
+        run: sha256sum anthropic-free-provider-probe.json > anthropic-free-provider-probe.sha256
+      - name: Classify result without laundering evidence
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          p=json.loads(Path('anthropic-free-provider-probe.json').read_text())
+          print(json.dumps({k:p.get(k) for k in ['status','provider_org','requested_model','provider_model_version','level5_identity_ready','level5_admissibility','reasons','claim_authority']},sort_keys=True))
+          if p.get('status')=='BLOCKED':
+              print('MUSITU_AXIOM_ANTHROPIC_PROVIDER_PROBE_BLOCKED_MISSING_SECRET')
+          elif p.get('status')=='PASS':
+              print('MUSITU_AXIOM_ANTHROPIC_PROVIDER_CALL_CONFIRMED')
+              print('MUSITU_AXIOM_ANTHROPIC_LEVEL5_PROVIDER_IDENTITY_READY_NOT_ATTESTED' if p.get('level5_identity_ready') else 'MUSITU_AXIOM_ANTHROPIC_LEVEL5_PROVIDER_IDENTITY_INCOMPLETE')
+          else:
+              raise SystemExit('ANTHROPIC_PROVIDER_PROBE_FAILED')
+          PY
+      - name: Upload immutable probe evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: musitu-axiom-anthropic-free-provider-probe-${{ github.sha }}
+          path: |
+            anthropic-free-provider-probe.json
+            anthropic-free-provider-probe.sha256
+          if-no-files-found: error
+          retention-days: 30
