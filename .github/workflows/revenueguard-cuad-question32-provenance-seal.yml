@@ -1,0 +1,41 @@
+name: RevenueGuard CUAD Question32 Provenance Seal
+
+on:
+  push:
+    branches: [revenueguard-axiom-governor-20260911]
+    paths: ['research/revenueguard/TRIGGER_CUAD_Q32_PROVENANCE_SEAL.json']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  seal:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download frozen aggregate from authoritative raw-score run
+        uses: actions/download-artifact@v4
+        with:
+          name: revenueguard-cuad-epoch1-question32-heldout-eval
+          path: aggregate
+          repository: evansmusitu/mft-axiom-build
+          run-id: 34700936203
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Apply metadata-only provenance seal
+        shell: bash
+        run: |
+          set -euo pipefail
+          python research/revenueguard/cuad_provenance_seal.py \
+            --input aggregate/CUAD_EPOCH1_QUESTION32_HELDOUT_EVAL.json \
+            --raw-run-id 34700936203 \
+            --raw-shards 32 \
+            --out CUAD_EPOCH1_QUESTION32_HELDOUT_EVAL_PROVENANCE_SEALED.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: revenueguard-cuad-epoch1-question32-heldout-eval-provenance-sealed
+          path: CUAD_EPOCH1_QUESTION32_HELDOUT_EVAL_PROVENANCE_SEALED.json
+          if-no-files-found: error
+          retention-days: 30
