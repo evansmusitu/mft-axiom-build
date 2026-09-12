@@ -1,0 +1,32 @@
+name: RevenueGuard ContractNLI Label Map
+on:
+  push:
+    branches: [revenueguard-axiom-governor-20260911]
+    paths: ['.github/workflows/revenueguard-contractnli-label-map.yml']
+permissions:
+  contents: read
+jobs:
+  map:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - shell: bash
+        run: |
+          set -euo pipefail
+          curl -fL --retry 4 -o contract-nli.zip 'https://raw.githubusercontent.com/stanfordnlp/contract-nli/eced6528dd3c1d14d73f9a87df8f7bdbc03126f9/resources/contract-nli.zip'
+          unzip -q contract-nli.zip
+          python - <<'PY'
+          import json,hashlib
+          from pathlib import Path
+          o=json.load(open('contract-nli/train.json'))
+          rep={'schema':'musitu.revenueguard.contractnli.label_map.v1','labels':o['labels']}
+          rep['report_sha256']=hashlib.sha256(json.dumps(rep,sort_keys=True,separators=(',',':')).encode()).hexdigest()
+          Path('CONTRACTNLI_LABEL_MAP.json').write_text(json.dumps(rep,indent=2,sort_keys=True)+'\n')
+          print(json.dumps(rep,indent=2,sort_keys=True))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: revenueguard-contractnli-label-map
+          path: CONTRACTNLI_LABEL_MAP.json
+          retention-days: 30
