@@ -3,6 +3,7 @@ import { initOutcomeContractWorkspace } from './outcome_contracts.js';
 import { initOutcomeExecutionWorkspace } from './outcome_execution.js';
 import { initResearchWorkspace } from './research_claims.js';
 import { enhanceResearchWorkspace } from './research_quality.js';
+import { initArtifactWorkspace } from './artifacts.js';
 
 const $ = (selector, root = document) => root.querySelector(selector);
 const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
@@ -12,7 +13,7 @@ const routeCopy = {
   projects:['Projects','Persistent goals, sources, artifacts, runs, memories and decisions live in a provenance-linked graph.'],
   work:['Work','Create inspectable Outcome Contracts, approval receipts, durable checkpoints and acceptance tests.'],
   research:['Research','Build synchronized reports, evidence maps and timelines from exact source-bound claims, contradictions, lineage and freshness.'],
-  create:['Create','Artifacts are first-class, editable, versioned and reversible objects.'],
+  create:['Create','Build first-class documents, sheets, presentations, website/code previews and dashboards with versioning, diff, rollback and provenance.'],
   code:['Code','Code work stays inspectable, sandboxed and policy-bounded.'],
   live:['Live','Multimodal live work will preserve privacy, interruption and explicit action boundaries.'],
   agents:['Agents','Agents expose roles, scopes, tools, policy and dissent rather than hidden reasoning.'],
@@ -26,7 +27,6 @@ const state = { verb:'Ask', theme:localStorage.getItem('axiom.ui.theme') || 'sys
 function newId(prefix='evt') { return `${prefix}_${crypto.randomUUID?.() || `${Date.now()}_${Math.random().toString(16).slice(2)}`}`; }
 function emit(type, detail={}) {
   const event = { id:newId(), at:new Date().toISOString(), type:safeText(type), route:location.hash || '#/home', detail:{} };
-  // Operational metadata is allow-listed. Never record composer text, credentials or private reasoning.
   for (const key of ['control','state','error_id','component','retry_state','progress','verb','theme']) if (key in detail) event.detail[key]=safeText(detail[key]);
   state.trace.unshift(event); state.trace = state.trace.slice(0, 24); renderTrace(); return event.id;
 }
@@ -68,6 +68,6 @@ function installEvents(){
 }
 function registerServiceWorker(){ if('serviceWorker' in navigator && location.protocol!=='file:') navigator.serviceWorker.register('./sw.js',{scope:'./'}).then(()=>emit('pwa.service-worker',{state:'registered'})).catch(()=>emit('pwa.service-worker',{state:'registration-failed'})); }
 
-applyTheme(state.theme); restoreDraft(); installEvents(); syncRoute(); updateConstraintSummary(); updateNetwork(); registerServiceWorker(); emit('shell.ready',{state:'phase4'});
+applyTheme(state.theme); restoreDraft(); installEvents(); syncRoute(); updateConstraintSummary(); updateNetwork(); registerServiceWorker(); emit('shell.ready',{state:'phase5'});
 window.AxiomUI = Object.freeze({ emit, reportError, setProgress, setProof, getTrace:()=>structuredClone(state.trace) });
-initProjectWorkspace({emit}).then(async projects=>{const outcomes=await initOutcomeContractWorkspace({emit,projects});await initOutcomeExecutionWorkspace({emit,projects,outcomes});const research=await initResearchWorkspace({emit,projects});await enhanceResearchWorkspace({emit,research});emit('workspace.ready',{state:'phase4'});}).catch(error=>reportError({errorId:'AXIOM-WORKSPACE-INIT',component:'Workspace',impact:'Project, Work or Research workspace unavailable',failed:error.message,recovery:'Reload the workspace and retry'}));
+initProjectWorkspace({emit}).then(async projects=>{const outcomes=await initOutcomeContractWorkspace({emit,projects});await initOutcomeExecutionWorkspace({emit,projects,outcomes});const research=await initResearchWorkspace({emit,projects});await enhanceResearchWorkspace({emit,research});await initArtifactWorkspace({emit,projects});emit('workspace.ready',{state:'phase5'});}).catch(error=>reportError({errorId:'AXIOM-WORKSPACE-INIT',component:'Workspace',impact:'Project, Work, Research or Create workspace unavailable',failed:error.message,recovery:'Reload the workspace and retry'}));
