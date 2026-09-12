@@ -1,0 +1,188 @@
+<!doctype html>
+<html lang="en" data-theme="system">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#0b1020">
+  <meta name="color-scheme" content="light dark">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self'; media-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'">
+  <meta name="description" content="MUSITU Axiom Workspace — evidence-native intelligence operating system shell.">
+  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="stylesheet" href="./styles/tokens.css">
+  <link rel="stylesheet" href="./styles/app.css">
+  <title>MUSITU Axiom Workspace</title>
+</head>
+<body>
+  <a class="skip-link" href="#main-workspace">Skip to main workspace</a>
+  <div id="network-banner" class="network-banner" role="status" aria-live="polite" hidden></div>
+
+  <div class="app-shell" id="app-shell">
+    <header class="topbar">
+      <div class="brand-block" aria-label="MUSITU Axiom">
+        <span class="brand-mark" aria-hidden="true">A</span>
+        <div><strong>Axiom</strong><span class="eyebrow">Workspace</span></div>
+      </div>
+      <div class="topbar-actions">
+        <span id="connection-state" class="status-pill" data-state="online"><span class="status-dot" aria-hidden="true"></span><span>Online</span></span>
+        <button class="icon-button" id="shortcuts-button" type="button" aria-haspopup="dialog" aria-controls="shortcuts-dialog" aria-label="Keyboard shortcuts">?</button>
+        <button class="button secondary" id="theme-button" type="button" aria-label="Change theme"><span aria-hidden="true">◐</span><span id="theme-label">System</span></button>
+      </div>
+    </header>
+
+    <aside class="global-rail" aria-label="Global navigation">
+      <nav aria-label="Global">
+        <a class="nav-item active" href="#/home" data-route="home" aria-current="page"><span aria-hidden="true">⌂</span><span>Home</span></a>
+        <a class="nav-item" href="#/projects" data-route="projects"><span aria-hidden="true">▦</span><span>Projects</span></a>
+        <a class="nav-item" href="#/work" data-route="work"><span aria-hidden="true">✓</span><span>Work</span></a>
+        <a class="nav-item" href="#/research" data-route="research"><span aria-hidden="true">⌕</span><span>Research</span></a>
+        <a class="nav-item" href="#/create" data-route="create"><span aria-hidden="true">✦</span><span>Create</span></a>
+        <a class="nav-item" href="#/code" data-route="code"><span aria-hidden="true">‹›</span><span>Code</span></a>
+        <a class="nav-item" href="#/live" data-route="live"><span aria-hidden="true">◉</span><span>Live</span></a>
+        <a class="nav-item" href="#/agents" data-route="agents"><span aria-hidden="true">◇</span><span>Agents</span></a>
+        <a class="nav-item" href="#/evidence" data-route="evidence"><span aria-hidden="true">◫</span><span>Evidence</span></a>
+        <a class="nav-item" href="#/observability" data-route="observability"><span aria-hidden="true">⌁</span><span>Observe</span></a>
+        <a class="nav-item" href="#/developer" data-route="developer"><span aria-hidden="true">{ }</span><span>Developer</span></a>
+        <a class="nav-item" href="#/settings" data-route="settings"><span aria-hidden="true">⚙</span><span>Settings</span></a>
+      </nav>
+    </aside>
+
+    <aside class="project-rail" aria-label="Project navigation">
+      <div class="rail-header">
+        <span class="eyebrow">Current project</span>
+        <strong>Interface Blueprint</strong>
+      </div>
+      <nav aria-label="Project">
+        <a href="#/project/overview" data-project-route="overview" aria-current="page">Overview</a>
+        <a href="#/project/conversations" data-project-route="conversations">Conversations</a>
+        <a href="#/project/sources" data-project-route="sources">Sources</a>
+        <a href="#/project/agents" data-project-route="agents">Agents</a>
+        <a href="#/project/artifacts" data-project-route="artifacts">Artifacts</a>
+        <a href="#/project/runs" data-project-route="runs">Runs</a>
+        <a href="#/project/memory" data-project-route="memory">Memory</a>
+        <a href="#/project/settings" data-project-route="settings">Settings</a>
+      </nav>
+      <div class="project-health" aria-label="Project evidence status">
+        <span class="eyebrow">Proof posture</span>
+        <strong>Evidence-first</strong>
+        <span>Operational evidence only. No private reasoning logs.</span>
+      </div>
+    </aside>
+
+    <main id="main-workspace" class="workspace" tabindex="-1">
+      <section class="workspace-header" aria-labelledby="workspace-title">
+        <div>
+          <span class="eyebrow">Persistent intelligence workspace</span>
+          <h1 id="workspace-title">Home</h1>
+          <p id="workspace-description">State your outcome. Axiom can prepare an inspectable plan before any consequential action.</p>
+        </div>
+        <button class="button secondary mobile-only" id="proof-mobile-button" type="button" aria-controls="proof-drawer" aria-expanded="false">Proof</button>
+      </section>
+
+      <section class="hero-card" aria-labelledby="hero-title">
+        <div class="hero-copy">
+          <span class="eyebrow">More agency with more proof</span>
+          <h2 id="hero-title">Work from intent to evidence without losing control.</h2>
+          <p>Build, investigate, create, and prepare actions from one shell. Consequential execution remains policy-gated and inspectable.</p>
+        </div>
+        <div class="principle-grid" aria-label="Axiom operating principles">
+          <div><strong>Inspectable</strong><span>Sources, tools, policy, receipts</span></div>
+          <div><strong>Interruptible</strong><span>Pause, retry, cancel, recover</span></div>
+          <div><strong>Reversible</strong><span>Preview before action; rollback where possible</span></div>
+          <div><strong>Evidence-native</strong><span>Claims link to provenance</span></div>
+        </div>
+      </section>
+
+      <section class="run-stage" aria-labelledby="run-stage-title">
+        <div class="section-heading">
+          <div><span class="eyebrow">Execution preview</span><h2 id="run-stage-title">Ready for an outcome</h2></div>
+          <span id="run-status-badge" class="status-pill neutral">Idle</span>
+        </div>
+        <div id="run-preview" class="empty-state">
+          <span class="empty-icon" aria-hidden="true">✦</span>
+          <strong>No run is active</strong>
+          <p>Your composer stays local in this Phase‑1 shell until you create a preview. No external action is executed here.</p>
+        </div>
+        <div id="progress-region" class="progress-card" role="status" aria-live="polite" aria-atomic="true" hidden>
+          <div class="progress-copy"><strong id="progress-title">Preparing</strong><span id="progress-detail">Validating constraints</span></div>
+          <div class="progress-track" aria-hidden="true"><span id="progress-bar"></span></div>
+          <span id="progress-value">0%</span>
+        </div>
+        <div id="error-region" class="error-card" role="alert" hidden></div>
+      </section>
+    </main>
+
+    <aside class="proof-drawer" id="proof-drawer" aria-label="Proof Drawer">
+      <div class="proof-header">
+        <div><span class="eyebrow">Inspection</span><h2>Proof Drawer</h2></div>
+        <button class="icon-button mobile-only" id="proof-close-button" type="button" aria-label="Close Proof Drawer">×</button>
+      </div>
+      <div class="tab-list" role="tablist" aria-label="Proof views">
+        <button id="tab-sources" role="tab" type="button" aria-selected="true" aria-controls="panel-sources">Sources</button>
+        <button id="tab-claims" role="tab" type="button" aria-selected="false" aria-controls="panel-claims" tabindex="-1">Claims</button>
+        <button id="tab-run" role="tab" type="button" aria-selected="false" aria-controls="panel-run" tabindex="-1">Run</button>
+      </div>
+      <section id="panel-sources" role="tabpanel" aria-labelledby="tab-sources">
+        <div class="proof-empty"><strong>No source attached</strong><span>Provenance appears here when evidence is connected.</span></div>
+      </section>
+      <section id="panel-claims" role="tabpanel" aria-labelledby="tab-claims" hidden>
+        <div class="claim-row"><span class="claim-state observation">Observation</span><span>Phase‑1 interface is isolated from consequential execution.</span></div>
+        <div class="claim-row"><span class="claim-state supported">Supported</span><span>Protected product anchors are outside this shell branch.</span></div>
+      </section>
+      <section id="panel-run" role="tabpanel" aria-labelledby="tab-run" hidden>
+        <p class="trace-note">Operational events only—route, UI action, policy preview, status, and recovery metadata. Private chain-of-thought is never recorded here.</p>
+        <ol id="trace-list" class="trace-list" aria-label="Operational event trace"></ol>
+      </section>
+    </aside>
+
+    <form class="composer" id="composer" aria-label="Universal composer" novalidate>
+      <div class="composer-verbs" role="group" aria-label="Outcome verbs">
+        <button type="button" class="verb active" data-verb="Ask" aria-pressed="true">Ask</button>
+        <button type="button" class="verb" data-verb="Build" aria-pressed="false">Build</button>
+        <button type="button" class="verb" data-verb="Investigate" aria-pressed="false">Investigate</button>
+        <button type="button" class="verb" data-verb="Act" aria-pressed="false">Act</button>
+        <button type="button" class="verb" data-verb="Create" aria-pressed="false">Create</button>
+      </div>
+      <label class="sr-only" for="composer-input">Describe your desired outcome</label>
+      <textarea id="composer-input" rows="2" placeholder="Describe the outcome you want…" autocomplete="off"></textarea>
+      <div class="composer-footer">
+        <div class="composer-tools" aria-label="Input tools">
+          <button type="button" class="tool-button" data-tool="attach" aria-label="Attach file or folder">＋</button>
+          <button type="button" class="tool-button" data-tool="voice" aria-label="Use voice input">◉</button>
+          <button type="button" class="tool-button" data-tool="camera" aria-label="Use camera">▣</button>
+          <button type="button" class="tool-button" data-tool="screen" aria-label="Share screen">▤</button>
+          <button type="button" class="tool-button" data-tool="source" aria-label="Connect source or app">⌘</button>
+        </div>
+        <div class="constraint-summary" id="constraint-summary">Private · approval before action · standard evidence</div>
+        <button class="button primary" id="preview-button" type="submit">Preview plan</button>
+      </div>
+      <details class="constraints" id="constraints">
+        <summary>Constraints &amp; control</summary>
+        <div class="constraint-grid">
+          <label>Privacy scope<select id="privacy-scope"><option>Private</option><option>Project</option><option>Organization</option></select></label>
+          <label>Evidence requirement<select id="evidence-level"><option>Standard</option><option>Strict</option><option>Independent validation</option></select></label>
+          <label>Autonomy level<select id="autonomy-level"><option>Preview only</option><option>Approval each action</option><option>Policy-bounded</option></select></label>
+          <label>Approval policy<select id="approval-policy"><option>Before consequential action</option><option>Every tool action</option><option>Read-only auto, writes approved</option></select></label>
+          <label>Deadline<input id="deadline" type="datetime-local"></label>
+          <label>Compute budget<input id="compute-budget" inputmode="numeric" min="0" type="number" placeholder="Optional limit"></label>
+        </div>
+      </details>
+    </form>
+  </div>
+
+  <dialog id="shortcuts-dialog" aria-labelledby="shortcuts-title">
+    <div class="dialog-header"><h2 id="shortcuts-title">Keyboard shortcuts</h2><button class="icon-button" type="button" data-close-dialog aria-label="Close shortcuts">×</button></div>
+    <dl class="shortcut-list"><div><dt><kbd>Ctrl/⌘</kbd> + <kbd>K</kbd></dt><dd>Focus composer</dd></div><div><dt><kbd>Ctrl/⌘</kbd> + <kbd>Shift</kbd> + <kbd>P</kbd></dt><dd>Toggle Proof Drawer</dd></div><div><dt><kbd>?</kbd></dt><dd>Open shortcuts</dd></div><div><dt><kbd>Esc</kbd></dt><dd>Close overlays</dd></div></dl>
+  </dialog>
+
+  <template id="preview-template">
+    <article class="plan-card">
+      <header><div><span class="eyebrow">Outcome preview</span><h3 data-preview-title></h3></div><span class="status-pill neutral">Not executed</span></header>
+      <div class="plan-flow" aria-label="Consequential action lifecycle"><span>Preview</span><span>Approval</span><span>Action</span><span>Receipt</span><span>Undo / rollback</span></div>
+      <dl class="plan-meta"><div><dt>Autonomy</dt><dd data-preview-autonomy></dd></div><div><dt>Evidence</dt><dd data-preview-evidence></dd></div><div><dt>Privacy</dt><dd data-preview-privacy></dd></div><div><dt>Policy</dt><dd>Models propose; policy decides</dd></div></dl>
+      <p>This shell creates an inspectable local preview only. No consequential tool or external system has been invoked.</p>
+    </article>
+  </template>
+
+  <script type="module" src="./app.js"></script>
+</body>
+</html>
