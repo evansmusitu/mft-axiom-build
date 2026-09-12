@@ -1,0 +1,73 @@
+{
+  "schema": "musitu-fmi.commercial-deployment-preflight.v1",
+  "date": "2026-09-12",
+  "classification": "PAPER_SHADOW_DEPLOYMENT_PREFLIGHT_ONLY",
+  "authoritative_handoff": {
+    "outer_zip_sha256": "6e7be55958c8d228b145b2045cff79bde5e9f1fdbd04b7d60281de275165d7c6",
+    "commercial_launch_transport_bytes": 333338,
+    "commercial_launch_transport_sha256": "c87009714befc99bf88c81d882aad98cd7dfa32f56daa1c8a5a38987f978152e",
+    "local_regression": "618/618 PASS",
+    "compileall": "PASS"
+  },
+  "github_authority": {
+    "fmi_working_branch": "musitu-fmi-open-model-federation-20260907",
+    "fmi_working_head": "522c530dd9bd581ffdf90790495db14616e56c94",
+    "fmi_working_tree": "2d34e90da15d734fcb485e387716deb8c0a59b91",
+    "sealed_main": "564bef47bc2cf7a477a904594bc9b6cd294d075e",
+    "pr_9_open": true,
+    "pr_9_draft": true,
+    "pr_9_merged": false,
+    "axiom_main": "d6a846f6bbe0bccac1758713eb4de167caf07113",
+    "control_branch": "fmi-commercial-launch-20260912-ephemeral"
+  },
+  "control_plane_preflight": {
+    "workflow_run_id": 34701402712,
+    "result": "PASS",
+    "modal_auth": "PASS",
+    "cloudflare_auth": "PASS",
+    "dedicated_fmi_modal_app_present": false,
+    "dedicated_fmi_d1_present": false,
+    "dedicated_fmi_adapter_present": false,
+    "dedicated_fmi_edge_present": false,
+    "protected_axiom_adapter_present": true,
+    "protected_axiom_edge_present": true,
+    "writes_performed": false
+  },
+  "source_reconstruction": {
+    "sealed_557_checkpoint_bytes": 623719,
+    "sealed_557_checkpoint_sha256": "e92e047a9377f4c2a9ba1e16268938dfe95bb6388c14cd1ca35ac04185e02dd0",
+    "current_src_files": 163,
+    "base_557_src_files": 155,
+    "byte_identical_existing_src_files": 150,
+    "modified_existing_src_files": 5,
+    "added_src_files": 8,
+    "removed_src_files": 0,
+    "local_reconstruction_delta_files": 13,
+    "drive_fetch_preflight_run_id": 34701267970,
+    "drive_fetch_preflight_result": "FAIL_CLOSED",
+    "drive_received_bytes": 914198,
+    "drive_received_sha256": "73964c4bb424ed255f67d5f62831059480691492427aaa0ef6ef8186ebd4d553",
+    "expected_drive_bytes": 623719,
+    "expected_drive_sha256": "e92e047a9377f4c2a9ba1e16268938dfe95bb6388c14cd1ca35ac04185e02dd0",
+    "interpretation": "GitHub Actions received a Google Drive login/session document rather than the private checkpoint archive. Deployment remains blocked until an authorized byte-preserving source transport is available."
+  },
+  "deployment": {
+    "modal_deployed": false,
+    "cloudflare_resources_created": false,
+    "cloudflare_resources_modified": false,
+    "source_transport_gate": "BLOCKED_PRIVATE_DRIVE_NOT_AUTHENTICATED_TO_GITHUB_ACTIONS"
+  },
+  "authority": {
+    "numeric_finance_risk_authority": "DETERMINISTIC_TOOL_ONLY",
+    "model_override_authorized": false,
+    "production_model_authority": false,
+    "live_trading_authorized": false,
+    "model_authorized_trade_execution": false,
+    "scaled_autonomy_authorized": false,
+    "profitability_certified": false,
+    "superiority_certified": false,
+    "frontier_certified": false,
+    "sealed_main_change_authorized": false,
+    "pr_merge_authorized": false
+  }
+}
