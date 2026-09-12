@@ -205,7 +205,7 @@ def main():
             assert semantic_interruption['value']['scope']=='SEMANTIC_EXECUTION_END_TO_END_STOP'
             assert semantic_interruption['value']['within_target'] is True and semantic_interruption['value']['stop_latency_ms']<=250
             assert len(tool_calls)>=1
-            expect(page.locator('#live-semantic-status')).to_contain_text('verified semantic receipts')
+            expect(page.locator('#live-semantic-status')).to_contain_text('Semantic execution stopped in')
 
             page.locator('#live-capture-select').select_option(screen_capture['capture_id'])
             page.locator('#live-ann-x').fill('0.25');page.locator('#live-ann-y').fill('0.75')
