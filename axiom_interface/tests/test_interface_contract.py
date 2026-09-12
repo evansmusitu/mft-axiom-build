@@ -98,6 +98,9 @@ class InterfaceContractTests(unittest.TestCase):
         self.assertNotIn("event.detail.composer", JS)
         self.assertIn("Private chain-of-thought", HTML)
         self.assertIn("getTrace", JS)
+        observability=(ROOT/"observability.js").read_text(encoding="utf-8")
+        self.assertIn("OPERATIONAL_METADATA_ONLY_NO_SECRETS_NO_HIDDEN_REASONING",observability)
+        self.assertIn("SecurityError",observability)
 
     def test_security_boundary_has_no_external_runtime_dependencies(self):
         self.assertIn("default-src 'self'", HTML)
@@ -123,8 +126,9 @@ class InterfaceContractTests(unittest.TestCase):
         self.assertEqual(authority["qualified_phase2_sha"], "0b22d9932b374555d11b0d5d23379d470a368f50")
         self.assertEqual(authority["qualified_phase3_sha"], "ddb8a97c394e7e5b4107c95110c426ebd19ca66c")
         self.assertEqual(authority["qualified_phase4_sha"], "4ee9dec2f68dcc17f09457623f4a3c39aba98e88")
+        self.assertEqual(authority["qualified_phase5_sha"], "81c0c3c364d9d057a78203cc4fbcb8c767e92b18")
         self.assertEqual(authority["blueprint_sha256"], "e750039a9c88abc780d24f48c3e86e22fd9295fec99a1b0593668aa8dd9ac166")
-        self.assertEqual(SURFACE_MAP["phase"], "PHASE_5_UNIVERSAL_ARTIFACT_ENGINE")
+        self.assertEqual(SURFACE_MAP["phase"], "PHASE_6_OBSERVABILITY_SUBSTRATE")
         self.assertGreaterEqual(len(SURFACE_MAP["surfaces"]), 11)
         self.assertIn("observability", SURFACE_MAP["workspace_routes"])
         self.assertEqual(SURFACE_MAP["project_substrate"]["persistence"], "INDEXEDDB_BROWSER_LOCAL_DEVICE")
@@ -132,6 +136,7 @@ class InterfaceContractTests(unittest.TestCase):
         self.assertTrue(SURFACE_MAP["work_substrate"]["outcome_contracts"])
         self.assertTrue(SURFACE_MAP["work_substrate"]["approval_queue"])
         self.assertTrue(SURFACE_MAP["work_substrate"]["acceptance_test"])
+        self.assertTrue(SURFACE_MAP["work_substrate"]["observability_linkage_required"])
         self.assertFalse(SURFACE_MAP["work_substrate"]["literal_multi_hour_wall_clock_soak"])
         research=SURFACE_MAP["research_substrate"]
         self.assertEqual(research["citation_binding"],"EXACT_SOURCE_TEXT_SPAN_PLUS_SHA256")
@@ -147,11 +152,17 @@ class InterfaceContractTests(unittest.TestCase):
         self.assertFalse(artifacts["cloud_collaboration_claimed"])
         self.assertFalse(artifacts["external_publication_claimed"])
         self.assertFalse(artifacts["deployment_claimed"])
+        obs=SURFACE_MAP["observability_substrate"]
+        self.assertEqual(obs["event_history"],"SHA256_LINKED_OPERATIONAL_EVENTS")
+        self.assertEqual(obs["replay_scope"],"OPERATIONAL_METADATA_ONLY_NO_SECRETS_NO_HIDDEN_REASONING")
+        self.assertTrue(obs["production_trace_and_actor_required"])
+        self.assertFalse(obs["cloud_telemetry_backend_claimed"])
+        self.assertFalse(obs["private_chain_of_thought_exposed"])
 
     def test_service_worker_is_same_origin_and_shell_only(self):
         self.assertIn("event.request.method!=='GET'", SW)
         self.assertIn("self.location.origin", SW)
-        for asset in ["./index.html", "./projects.js", "./outcome_contracts.js", "./outcome_execution.js", "./research_claims.js", "./styles/research.css", "./artifacts.js", "./styles/artifacts.css"]:
+        for asset in ["./index.html", "./projects.js", "./outcome_contracts.js", "./outcome_execution.js", "./research_claims.js", "./styles/research.css", "./artifacts.js", "./styles/artifacts.css", "./observability.js", "./styles/observability.css"]:
             self.assertIn(asset, SW)
         self.assertNotIn("https://", SW)
 
@@ -169,6 +180,7 @@ class InterfaceContractTests(unittest.TestCase):
         self.assertIn("initOutcomeExecutionWorkspace", JS)
         self.assertIn("initResearchWorkspace", JS)
         self.assertIn("initArtifactWorkspace", JS)
+        self.assertIn("initObservabilityWorkspace", JS)
         self.assertIn('./styles/projects.css', HTML)
 
 
