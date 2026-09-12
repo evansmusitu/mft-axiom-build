@@ -33,9 +33,13 @@ def _canonical_bytes(value: Any) -> bytes:
 def _canonical_api_key(value: str) -> str:
     if not isinstance(value, str):
         raise ValueError("ANTHROPIC_API_KEY must be a string")
-    # Clipboard/UI copy can introduce invisible Unicode format marks (for example U+200E).
-    # Remove only Unicode format characters; do not silently rewrite arbitrary key data.
-    normalized = "".join(ch for ch in value.strip() if unicodedata.category(ch) != "Cf")
+    # API keys are contiguous ASCII tokens. Clipboard/UI copy can inject line-wrap
+    # whitespace or invisible Unicode formatting/control marks. Remove only those
+    # impossible-in-key artifacts; reject every other non-ASCII mutation.
+    normalized = "".join(
+        ch for ch in value
+        if not ch.isspace() and unicodedata.category(ch) not in {"Cf", "Cc"}
+    )
     if not normalized:
         raise ValueError("ANTHROPIC_API_KEY is required")
     try:
@@ -43,7 +47,7 @@ def _canonical_api_key(value: str) -> str:
     except UnicodeEncodeError as exc:
         raise ValueError("ANTHROPIC_API_KEY contains unsupported non-ASCII characters") from exc
     if any(ord(ch) < 33 or ord(ch) > 126 for ch in normalized):
-        raise ValueError("ANTHROPIC_API_KEY contains unsupported control or whitespace characters")
+        raise ValueError("ANTHROPIC_API_KEY contains unsupported characters")
     return normalized
 
 
@@ -75,7 +79,7 @@ def run_probe(*, api_key: str, model: str = DEFAULT_MODEL, timeout_seconds: int 
         "content-type": "application/json",
         "x-api-key": key,
         "anthropic-version": "2023-06-01",
-        "user-agent": "MUSITU-Axiom-Level5-Provider-Probe/1.1",
+        "user-agent": "MUSITU-Axiom-Level5-Provider-Probe/1.2",
     })
     started_at = _now()
     try:
