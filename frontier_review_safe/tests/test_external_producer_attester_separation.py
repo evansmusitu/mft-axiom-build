@@ -9,6 +9,7 @@ from frontier_review_safe.external_validation import (
     IndependentValidationRecord,
     LongitudinalRefreshRecord,
 )
+from frontier_review_safe.tests.level7_semantic_fixtures import level7_artifact_fields
 
 
 NOW = datetime(2026, 9, 11, 15, 0, tzinfo=timezone.utc)
@@ -61,18 +62,22 @@ def level6_for_refreshes():
 
 
 def refresh(refresh_id: str, day: int, baseline_hash: str, executor_org: str) -> LongitudinalRefreshRecord:
+    executed_at = (NOW + timedelta(days=day)).isoformat()
     return LongitudinalRefreshRecord(
         refresh_id=refresh_id,
-        executed_at=(NOW + timedelta(days=day)).isoformat(),
+        executed_at=executed_at,
         candidate_sha=CANDIDATE_SHA,
         case_set_hash=CASE_SET_HASH,
         baseline_registry_hash=baseline_hash,
-        retained_failure_corpus_hash="1" * 64,
-        drift_report_hash="2" * 64,
-        replacement_governance_hash="3" * 64,
         passed=True,
         provenance_type="independent_lab_record",
         executor_org=executor_org,
+        **level7_artifact_fields(
+            candidate_sha=CANDIDATE_SHA,
+            case_set_hash=CASE_SET_HASH,
+            baseline_registry_hash=baseline_hash,
+            generated_at=executed_at,
+        ),
     )
 
 
