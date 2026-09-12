@@ -119,18 +119,24 @@ class InterfaceContractTests(unittest.TestCase):
     def test_surface_map_matches_authority_and_phase(self):
         self.assertEqual(SURFACE_MAP["authority"]["earned_track_b_sha"], "73ecdbad38cb10020b6e30ebe42a9222a3bb6c55")
         self.assertEqual(SURFACE_MAP["authority"]["qualified_phase1_sha"], "5b7233fd9e62b530ef9eb161b41010727d76bacb")
+        self.assertEqual(SURFACE_MAP["authority"]["qualified_phase2_sha"], "0b22d9932b374555d11b0d5d23379d470a368f50")
         self.assertEqual(SURFACE_MAP["authority"]["blueprint_sha256"], "e750039a9c88abc780d24f48c3e86e22fd9295fec99a1b0593668aa8dd9ac166")
-        self.assertEqual(SURFACE_MAP["phase"], "PHASE_2_PROJECT_GRAPH")
+        self.assertEqual(SURFACE_MAP["phase"], "PHASE_3_WORK_OUTCOME_CONTRACTS")
         self.assertGreaterEqual(len(SURFACE_MAP["surfaces"]), 11)
         self.assertIn("observability", SURFACE_MAP["workspace_routes"])
         self.assertEqual(SURFACE_MAP["project_substrate"]["persistence"], "INDEXEDDB_BROWSER_LOCAL_DEVICE")
         self.assertFalse(SURFACE_MAP["project_substrate"]["cloud_sync_claimed"])
+        self.assertTrue(SURFACE_MAP["work_substrate"]["outcome_contracts"])
+        self.assertTrue(SURFACE_MAP["work_substrate"]["approval_queue"])
+        self.assertTrue(SURFACE_MAP["work_substrate"]["acceptance_test"])
+        self.assertFalse(SURFACE_MAP["work_substrate"]["literal_multi_hour_wall_clock_soak"])
+        self.assertFalse(SURFACE_MAP["work_substrate"]["external_consequential_actions_claimed"])
 
     def test_service_worker_is_same_origin_and_shell_only(self):
         self.assertIn("event.request.method!=='GET'", SW)
         self.assertIn("self.location.origin", SW)
-        self.assertIn("./index.html", SW)
-        self.assertIn("./projects.js", SW)
+        for asset in ["./index.html", "./projects.js", "./outcome_contracts.js", "./outcome_execution.js"]:
+            self.assertIn(asset, SW)
         self.assertNotIn("https://", SW)
 
     def test_qualified_phase1_design_snapshot_remains_byte_locked(self):
@@ -143,6 +149,8 @@ class InterfaceContractTests(unittest.TestCase):
         expected = (ROOT / "tests" / "design_contract.sha256").read_text(encoding="utf-8").strip()
         self.assertEqual(digest, expected)
         self.assertIn("initProjectWorkspace", JS)
+        self.assertIn("initOutcomeContractWorkspace", JS)
+        self.assertIn("initOutcomeExecutionWorkspace", JS)
         self.assertIn('./styles/projects.css', HTML)
 
 
