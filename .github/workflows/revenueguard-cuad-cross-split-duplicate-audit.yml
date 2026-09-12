@@ -1,0 +1,48 @@
+name: RevenueGuard CUAD Cross Split Duplicate Audit
+
+on:
+  push:
+    branches: [revenueguard-axiom-governor-20260911]
+    paths: ['.github/workflows/revenueguard-cuad-cross-split-duplicate-audit.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Audit exact and normalized contract duplication
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fL --retry 4 --retry-delay 2 -o cuad-data.zip 'https://raw.githubusercontent.com/The-Atticus-Project/cuad/67faa0e6023b04fcaae6cc09497ab00e5d63a2a2/data.zip'
+          unzip -q cuad-data.zip
+          TRAIN=$(find . -name train_separate_questions.json -type f | head -n1)
+          python - "$TRAIN" <<'PY'
+          import sys,json,hashlib,re
+          from collections import defaultdict
+          from pathlib import Path
+          p=Path(sys.argv[1]);raw=json.load(open(p))['data']
+          def held(title):return int(hashlib.sha256(title.encode()).hexdigest()[:8],16)%10==0
+          def norm(s):return re.sub(r'\s+',' ',s).strip().lower()
+          exact=defaultdict(lambda:{'build':[],'heldout':[]}); normalized=defaultdict(lambda:{'build':[],'heldout':[]}); title_counts=defaultdict(lambda:{'build':0,'heldout':0})
+          for c in raw:
+              title=c.get('title','');split='heldout' if held(title) else 'build';title_counts[title][split]+=1
+              text='\n'.join(p['context'] for p in c.get('paragraphs',[]))
+              exact[hashlib.sha256(text.encode()).hexdigest()][split].append(title)
+              normalized[hashlib.sha256(norm(text).encode()).hexdigest()][split].append(title)
+          ex=[{'sha256':h,'build_titles':v['build'],'heldout_titles':v['heldout']} for h,v in exact.items() if v['build'] and v['heldout']]
+          no=[{'sha256':h,'build_titles':v['build'],'heldout_titles':v['heldout']} for h,v in normalized.items() if v['build'] and v['heldout']]
+          rep={'schema':'musitu.revenueguard.cuad.cross_split_duplicate_audit.v1','status':'DEV_RESEARCH_ONLY','cuad_commit':'67faa0e6023b04fcaae6cc09497ab00e5d63a2a2','train_sha256':hashlib.sha256(p.read_bytes()).hexdigest(),'contracts':len(raw),'heldout_contracts':sum(held(c.get('title','')) for c in raw),'exact_cross_split_duplicate_groups':len(ex),'normalized_cross_split_duplicate_groups':len(no),'exact_examples':ex[:20],'normalized_examples':no[:20],'pass':not ex and not no}
+          rep['report_sha256']=hashlib.sha256(json.dumps(rep,sort_keys=True,separators=(',',':')).encode()).hexdigest();Path('CUAD_CROSS_SPLIT_DUPLICATE_AUDIT.json').write_text(json.dumps(rep,indent=2,sort_keys=True)+'\n');print(json.dumps(rep,indent=2,sort_keys=True))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: revenueguard-cuad-cross-split-duplicate-audit
+          path: CUAD_CROSS_SPLIT_DUPLICATE_AUDIT.json
+          if-no-files-found: error
+          retention-days: 30
