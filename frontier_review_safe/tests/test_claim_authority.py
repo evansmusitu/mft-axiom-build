@@ -8,11 +8,11 @@ from frontier_review_safe.baseline_registry import BaselineRegistration, Baselin
 from frontier_review_safe.core import sha256
 from frontier_review_safe.evaluation import SealedCaseResult
 from frontier_review_safe.external_attestation import ExternalAttestationService
+from frontier_review_safe.external_execution import ProviderBoundExternalRunRecord
 from frontier_review_safe.external_validation import (
     ClaimBoundary,
     ComparativeOutcome,
     ExternalEvidenceGate,
-    ExternalRunRecord,
     LongitudinalRefreshRecord,
 )
 
@@ -72,7 +72,7 @@ def external_fixture():
     )
     runs = []
     for i, (provider, registration) in enumerate(zip(providers, registrations)):
-        runs.append(ExternalRunRecord(
+        runs.append(ProviderBoundExternalRunRecord(
             run_id=f"run-{i}",
             provider_org=provider,
             product="agent",
@@ -94,6 +94,9 @@ def external_fixture():
             baseline_registry_hash=registry.fingerprint,
             baseline_registration_id=registration.registration_id,
             baseline_registration_hash=registration.fingerprint,
+            provider_receipt_hash=f"{i + 30:064x}",
+            provider_request_id=f"request-{i}",
+            provider_response_id=f"response-{i}",
         ))
     receipts = [issue("external_run", r.run_id, r.fingerprint, r.provenance_type) for r in runs]
     return registry, runs, receipts, baseline, candidate, case_set_hash, constraint_hash
