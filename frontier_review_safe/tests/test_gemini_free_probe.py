@@ -24,9 +24,9 @@ class _Response:
 
 
 class _HttpError(HTTPError):
-    def __init__(self, payload, code=403):
+    def __init__(self, payload, code=403, headers=None):
         body = json.dumps(payload).encode("utf-8")
-        super().__init__("https://generativelanguage.googleapis.com/v1beta/interactions", code, "error", {}, None)
+        super().__init__("https://generativelanguage.googleapis.com/v1beta/interactions", code, "error", headers or {}, None)
         self._body = body
 
     def read(self):
@@ -42,16 +42,18 @@ class GeminiFreeProbeTests(unittest.TestCase):
             return _Response(payload, headers=headers)
         return _open
 
-    def test_provider_ids_make_probe_identity_ready_without_attestation(self):
-        payload = {
+    def _pass_payload(self):
+        return {
             "id": "int_google_response_123",
             "model": "gemini-3.8-flash",
             "status": "completed",
             "steps": [{"type": "model_output", "content": [{"type": "text", "text": "MUSITU_GEMINI_PROVIDER_PROBE_OK"}]}],
         }
+
+    def test_provider_ids_make_probe_identity_ready_without_attestation(self):
         result = run_probe(
             api_key="secret-key",
-            opener=self.opener(payload, {"x-request-id": "google-request-456", "content-type": "application/json"}),
+            opener=self.opener(self._pass_payload(), {"x-request-id": "google-request-456", "content-type": "application/json"}),
         )
         self.assertEqual(result["status"], "PASS")
         self.assertTrue(result["level5_identity_ready"])
@@ -61,14 +63,24 @@ class GeminiFreeProbeTests(unittest.TestCase):
         self.assertEqual(result["claim_authority"], "NONE")
         self.assertNotIn("secret-key", json.dumps(result))
 
+    def test_header_names_are_discovered_but_unapproved_values_are_not_persisted(self):
+        result = run_probe(
+            api_key="secret-key",
+            opener=self.opener(self._pass_payload(), {
+                "content-type": "application/json",
+                "x-cloud-trace-context": "TRACE_VALUE_MUST_NOT_PERSIST",
+                "set-cookie": "COOKIE_VALUE_MUST_NOT_PERSIST",
+            }),
+        )
+        encoded = json.dumps(result)
+        self.assertIn("x-cloud-trace-context", result["response_header_names"])
+        self.assertIn("set-cookie", result["response_header_names"])
+        self.assertNotIn("TRACE_VALUE_MUST_NOT_PERSIST", encoded)
+        self.assertNotIn("COOKIE_VALUE_MUST_NOT_PERSIST", encoded)
+        self.assertFalse(result["level5_identity_ready"])
+
     def test_missing_provider_request_id_stays_not_admissible(self):
-        payload = {
-            "id": "int_google_response_123",
-            "model": "gemini-3.8-flash",
-            "status": "completed",
-            "steps": [{"type": "model_output", "content": [{"type": "text", "text": "MUSITU_GEMINI_PROVIDER_PROBE_OK"}]}],
-        }
-        result = run_probe(api_key="secret-key", opener=self.opener(payload, {"content-type": "application/json"}))
+        result = run_probe(api_key="secret-key", opener=self.opener(self._pass_payload(), {"content-type": "application/json"}))
         self.assertEqual(result["status"], "PASS")
         self.assertFalse(result["level5_identity_ready"])
         self.assertIn("provider_request_id_missing", result["reasons"])
@@ -98,15 +110,18 @@ class GeminiFreeProbeTests(unittest.TestCase):
         }
 
         def _open(request, timeout=45):
-            raise _HttpError(error_payload)
+            raise _HttpError(error_payload, headers={"x-debug-secret": "MUST_NOT_PERSIST"})
 
         result = run_probe(api_key="secret-key", opener=_open)
         self.assertEqual(result["status"], "HTTP_ERROR")
         self.assertEqual(result["provider_error_status"], "PERMISSION_DENIED")
         self.assertEqual(result["provider_error_category"], "project_access_denied")
         self.assertIn("provider_call_failed", result["reasons"])
-        self.assertNotIn("denied access. please contact support", json.dumps(result).casefold())
-        self.assertNotIn("secret-key", json.dumps(result))
+        self.assertIn("x-debug-secret", result["response_header_names"])
+        encoded = json.dumps(result)
+        self.assertNotIn("denied access. please contact support", encoded.casefold())
+        self.assertNotIn("MUST_NOT_PERSIST", encoded)
+        self.assertNotIn("secret-key", encoded)
 
 
 if __name__ == "__main__":
