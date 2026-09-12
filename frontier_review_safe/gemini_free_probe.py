@@ -11,7 +11,7 @@ from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 
 
-SCHEMA = "musitu.axiom.gemini-provider-metadata-probe.v2"
+SCHEMA = "musitu.axiom.gemini-provider-metadata-probe.v3"
 DEFAULT_MODEL = "gemini-3.8-flash"
 PROBE_TEXT = "Return exactly MUSITU_GEMINI_PROVIDER_PROBE_OK and nothing else."
 EXPECTED_TEXT = "MUSITU_GEMINI_PROVIDER_PROBE_OK"
@@ -38,18 +38,27 @@ def _canonical_bytes(value: Any) -> bytes:
     return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
 
 
-def _header_map(headers: Any) -> dict[str, str]:
+def _header_items(headers: Any) -> list[tuple[str, str]]:
     try:
         items = headers.items()
     except Exception:
-        return {}
-    out: dict[str, str] = {}
+        return []
+    out: list[tuple[str, str]] = []
     for key, value in items:
-        if not isinstance(key, str):
-            continue
-        normalized = key.casefold()
+        if isinstance(key, str):
+            out.append((key.casefold(), str(value)))
+    return out
+
+
+def _header_names(headers: Any) -> list[str]:
+    return sorted({key for key, _ in _header_items(headers)})
+
+
+def _header_map(headers: Any) -> dict[str, str]:
+    out: dict[str, str] = {}
+    for normalized, value in _header_items(headers):
         if normalized in SAFE_RESPONSE_HEADERS:
-            out[normalized] = str(value)
+            out[normalized] = value
     return dict(sorted(out.items()))
 
 
@@ -79,12 +88,6 @@ def _interaction_text(payload: Mapping[str, Any]) -> str:
 
 
 def _safe_error_details(body: bytes) -> tuple[str | None, str]:
-    """Return provider error status and a non-secret diagnostic category.
-
-    The raw body is hash-bound separately. We intentionally do not persist the
-    provider's free-form message because it can evolve or unexpectedly echo
-    project/account details.
-    """
     try:
         parsed = json.loads(body.decode("utf-8"))
         error = parsed.get("error", {}) if isinstance(parsed, Mapping) else {}
@@ -134,17 +137,20 @@ def run_probe(
             "Content-Type": "application/json",
             "x-goog-api-key": api_key,
             "Api-Revision": "2026-05-20",
-            "User-Agent": "MUSITU-Axiom-Level5-Provider-Probe/2.0",
+            "User-Agent": "MUSITU-Axiom-Level5-Provider-Probe/3.0",
         },
     )
     started_at = _now()
     try:
         with opener(request, timeout=timeout_seconds) as response:
             status_code = int(getattr(response, "status", 200))
-            safe_headers = _header_map(getattr(response, "headers", {}))
+            raw_headers = getattr(response, "headers", {})
+            response_header_names = _header_names(raw_headers)
+            safe_headers = _header_map(raw_headers)
             body = response.read()
     except HTTPError as exc:
         body = exc.read()
+        raw_headers = getattr(exc, "headers", {})
         provider_error_status, provider_error_category = _safe_error_details(body)
         return {
             "schema": SCHEMA,
@@ -158,6 +164,7 @@ def run_probe(
             "http_status": int(exc.code),
             "request_sha256": request_sha256,
             "error_body_sha256": _sha256_bytes(body),
+            "response_header_names": _header_names(raw_headers),
             "provider_error_status": provider_error_status,
             "provider_error_category": provider_error_category,
             "level5_identity_ready": False,
@@ -196,6 +203,7 @@ def run_probe(
 
     receipt_envelope = {
         "http_status": status_code,
+        "response_header_names": response_header_names,
         "safe_response_headers": safe_headers,
         "interaction_id": interaction_id,
         "interaction_status": interaction_status,
@@ -228,6 +236,7 @@ def run_probe(
         "provider_request_id": provider_request_id,
         "provider_response_id": interaction_id,
         "interaction_status": interaction_status,
+        "response_header_names": response_header_names,
         "safe_response_headers": safe_headers,
         "response_matches_probe": response_matches_probe,
         "level5_identity_ready": level5_identity_ready,
@@ -282,6 +291,7 @@ def main(argv: list[str] | None = None) -> int:
         "provider_error_category": payload.get("provider_error_category"),
         "provider_request_id_present": bool(payload.get("provider_request_id")),
         "provider_response_id_present": bool(payload.get("provider_response_id")),
+        "response_header_names": payload.get("response_header_names", []),
         "level5_identity_ready": payload["level5_identity_ready"],
         "level5_admissibility": payload["level5_admissibility"],
         "reasons": payload["reasons"],
