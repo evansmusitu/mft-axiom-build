@@ -39,6 +39,17 @@ def exact_match(pred:str,gold:str)->float:
 def overlap_span(a,b,c,d):
     return max(a,c)<min(b,d)
 
+def cuad_jaccard(gt:str,pred:str)->float:
+    for token in ['.',',',';',':']:
+        gt=gt.replace(token,'');pred=pred.replace(token,'')
+    gt=gt.lower().replace('/',' ');pred=pred.lower().replace('/',' ')
+    gs=set(gt.split());ps=set(pred.split())
+    u=gs|ps
+    return len(gs&ps)/len(u) if u else 1.0
+
+def cuad_match(gold:str,pred:str,qid:str)->bool:
+    return cuad_jaccard(gold,pred)>=0.5 or ('Parties' in qid and gold in pred)
+
 @torch.inference_mode()
 def score_question(model,tok,question,context):
     enc=tok(
@@ -142,10 +153,49 @@ def metrics(rows):
       'tp':tp,'fp':fp,'fn':fn,'tn':tn
     }
 
+def official_point(raw_rows,threshold):
+    tp=fp=fn=0
+    for r in raw_rows:
+        pred=r['text'] if r['confidence']>=threshold else ''
+        answers=r['gold_texts']
+        if not answers:
+            fp+=int(bool(pred));continue
+        for ans in answers:
+            if pred and cuad_match(ans,pred,r['id']):tp+=1
+            else:fn+=1
+        if pred and not any(cuad_match(ans,pred,r['id']) for ans in answers):fp+=1
+    precision=tp/(tp+fp) if tp+fp else 1.0
+    recall=tp/(tp+fn) if tp+fn else 0.0
+    return precision,recall
+
+def official_style_curve(raw_rows):
+    vals=sorted(set(r['confidence'] for r in raw_rows if math.isfinite(r['confidence'])),reverse=True)
+    thresholds=[float('inf')]+vals+[float('-inf')]
+    pts=[]
+    for th in thresholds:
+        p,r=official_point(raw_rows,th);pts.append((r,p,th))
+    pts.sort(key=lambda x:x[0])
+    # Compress duplicate recall to best precision and apply the CUAD-style monotonic precision envelope.
+    compressed=[]
+    for r,p,th in pts:
+        if compressed and abs(compressed[-1][0]-r)<1e-12:
+            if p>compressed[-1][1]:compressed[-1]=(r,p,th)
+        else:compressed.append((r,p,th))
+    env=[list(x) for x in compressed]
+    best=0.0
+    for i in range(len(env)-1,-1,-1):
+        best=max(best,env[i][1]);env[i][1]=best
+    aupr=0.0
+    for a,b in zip(env,env[1:]):
+        aupr+=(b[0]-a[0])*(a[1]+b[1])/2
+    def pat(target):
+        candidates=[p for r,p,_ in env if r>=target]
+        return max(candidates) if candidates else 0.0
+    return {'aupr':aupr,'precision_at_80_recall':pat(.80),'precision_at_90_recall':pat(.90),'matching':'CUAD-style word Jaccard >=0.5, with Parties substring exception; single-best-span prediction profile','curve_points':len(env)}
+
 def choose_threshold(rows):
     vals=sorted(set([r['confidence'] for r in rows if math.isfinite(r['confidence'])]))
     if not vals:return 0.0,metrics(apply_threshold(rows,0.0))
-    # Include extremes and midpoints; select exclusively on calibration contracts.
     candidates=[vals[0]-1.0,vals[-1]+1.0]+[(a+b)/2 for a,b in zip(vals,vals[1:])]
     best=None
     for th in candidates:
@@ -161,6 +211,7 @@ def main():
     raw=json.load(open(args.train_json))['data']
     cal_raw=collect(raw,'calibration',model,tok);threshold,cal_metrics=choose_threshold(cal_raw)
     eval_raw=collect(raw,'evaluation',model,tok);eval_rows=apply_threshold(eval_raw,threshold);eval_metrics=metrics(eval_rows)
+    official_style=official_style_curve(eval_raw)
     gate={
       'no_answer_false_positive_max':.02,
       'answer_detection_f1_min':.85,
@@ -168,6 +219,6 @@ def main():
       'answerable_token_f1_min':.80,
     }
     gate['pass']=(eval_metrics['no_answer_false_positive_rate']<=gate['no_answer_false_positive_max'] and eval_metrics['answer_detection_f1']>=gate['answer_detection_f1_min'] and eval_metrics['localization_overlap_recall']>=gate['localization_overlap_recall_min'] and eval_metrics['answerable_token_f1']>=gate['answerable_token_f1_min'])
-    rep={'schema':'musitu.revenueguard.cuad.heldout_eval.v1','status':'DEV_RESEARCH_ONLY','split':'original 10% title-hash heldout, then independent deterministic title-hash calibration/evaluation split; official CUAD test.json unopened','max_length':MAX_LEN,'stride':STRIDE,'threshold':threshold,'calibration':cal_metrics,'evaluation':eval_metrics,'gate':gate}
+    rep={'schema':'musitu.revenueguard.cuad.heldout_eval.v1','status':'DEV_RESEARCH_ONLY','split':'original 10% title-hash heldout, then independent deterministic title-hash calibration/evaluation split; official CUAD test.json unopened','max_length':MAX_LEN,'stride':STRIDE,'threshold':threshold,'calibration':cal_metrics,'evaluation':eval_metrics,'official_style_heldout':official_style,'gate':gate}
     rep['report_sha256']=hashlib.sha256(json.dumps(rep,sort_keys=True,separators=(',',':')).encode()).hexdigest();Path(args.out).write_text(json.dumps(rep,indent=2,sort_keys=True)+'\n');print(json.dumps(rep,indent=2,sort_keys=True))
 if __name__=='__main__':main()
