@@ -1,18 +1,19 @@
 {
-  "schema": "musitu.axiom.interface.surface-map.v5",
+  "schema": "musitu.axiom.interface.surface-map.v6",
   "authority": {
     "earned_track_b_sha": "73ecdbad38cb10020b6e30ebe42a9222a3bb6c55",
     "qualified_phase1_sha": "5b7233fd9e62b530ef9eb161b41010727d76bacb",
     "qualified_phase2_sha": "0b22d9932b374555d11b0d5d23379d470a368f50",
     "qualified_phase3_sha": "ddb8a97c394e7e5b4107c95110c426ebd19ca66c",
     "qualified_phase4_sha": "4ee9dec2f68dcc17f09457623f4a3c39aba98e88",
+    "qualified_phase5_sha": "81c0c3c364d9d057a78203cc4fbcb8c767e92b18",
     "blueprint_sha256": "e750039a9c88abc780d24f48c3e86e22fd9295fec99a1b0593668aa8dd9ac166"
   },
-  "phase": "PHASE_5_UNIVERSAL_ARTIFACT_ENGINE",
+  "phase": "PHASE_6_OBSERVABILITY_SUBSTRATE",
   "surfaces": [
     {"id":"flagship","target":"musitu.ai/axiom","state":"future-routing","access":"public"},
-    {"id":"app","target":"app","state":"shell-plus-project-graph-plus-work-plus-research-plus-artifacts","access":"authenticated"},
-    {"id":"developers","target":"developers","state":"registered-placeholder","access":"mixed"},
+    {"id":"app","target":"app","state":"shell-plus-project-graph-plus-work-plus-research-plus-artifacts-plus-observability","access":"authenticated"},
+    {"id":"developers","target":"developers","state":"trace-explorer-local-workspace","access":"mixed"},
     {"id":"docs","target":"docs","state":"existing-fragments","access":"public"},
     {"id":"research","target":"research","state":"claim-graph-local-workspace","access":"mixed"},
     {"id":"evals","target":"evals","state":"registered-placeholder","access":"public"},
@@ -43,6 +44,7 @@
     "approval_queue": true,
     "acceptance_test": true,
     "browser_run_persistence": "INDEXEDDB_BROWSER_LOCAL_DEVICE",
+    "observability_linkage_required": true,
     "accelerated_elapsed_restart_proof": "FIVE_HOURS",
     "literal_multi_hour_wall_clock_soak": false,
     "cloud_scheduler_claimed": false,
@@ -87,6 +89,18 @@
     "cloud_collaboration_claimed": false,
     "external_publication_claimed": false,
     "deployment_claimed": false
+  },
+  "observability_substrate": {
+    "persistence": "INDEXEDDB_BROWSER_LOCAL_DEVICE",
+    "interfaces": ["USER_RUN_INSPECTOR","DEVELOPER_TRACE_EXPLORER","OPERATOR_CONTROL_PLANE"],
+    "required_run_identity": ["trace_id","actor_id","user_intent_id","project_id","run_id"],
+    "trace_linkage": ["user_intent_id","project_id","run_id","agent_id","model_execution_id","tool_call_id","policy_decision_id","source_id","artifact_id","verification_id","deployment_id"],
+    "event_history": "SHA256_LINKED_OPERATIONAL_EVENTS",
+    "replay_scope": "OPERATIONAL_METADATA_ONLY_NO_SECRETS_NO_HIDDEN_REASONING",
+    "error_taxonomy": ["VALIDATION","PERMISSION","POLICY","MODEL","TOOL","NETWORK","TIMEOUT","DEPENDENCY","INTEGRITY","USER_CANCELLED","INTERNAL"],
+    "production_trace_and_actor_required": true,
+    "cloud_telemetry_backend_claimed": false,
+    "private_chain_of_thought_exposed": false
   },
   "execution_boundary": "PREVIEW_ONLY_NO_EXTERNAL_CONSEQUENTIAL_ACTIONS"
 }
