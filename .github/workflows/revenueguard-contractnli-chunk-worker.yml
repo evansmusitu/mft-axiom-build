@@ -1,0 +1,77 @@
+name: RevenueGuard ContractNLI Chunk Worker
+
+on:
+  workflow_call:
+    inputs:
+      mode:
+        required: true
+        type: string
+      chunk:
+        required: true
+        type: number
+      previous_artifact:
+        required: true
+        type: string
+      output_artifact:
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  train:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download exact adapted semantic encoder
+        uses: actions/download-artifact@v4
+        with:
+          name: revenueguard-contractnli-adapted-model
+          path: adapted_bundle
+          repository: evansmusitu/mft-axiom-build
+          run-id: 34676990123
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Download previous checkpoint
+        if: ${{ inputs.previous_artifact != 'NONE' }}
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ inputs.previous_artifact }}
+          path: previous
+      - name: Install runtime and fetch pinned ContractNLI
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          python -m pip install --index-url https://download.pytorch.org/whl/cpu torch
+          python -m pip install 'transformers==4.56.2'
+          curl -fL --retry 4 --retry-delay 2 -o contract-nli.zip 'https://raw.githubusercontent.com/stanfordnlp/contract-nli/eced6528dd3c1d14d73f9a87df8f7bdbc03126f9/resources/contract-nli.zip'
+          unzip -q contract-nli.zip
+      - name: Train deterministic checkpoint chunk
+        shell: bash
+        env:
+          MODE: ${{ inputs.mode }}
+          CHUNK: ${{ inputs.chunk }}
+          PREVIOUS: ${{ inputs.previous_artifact }}
+        run: |
+          set -euo pipefail
+          mkdir -p out
+          EXTRA=()
+          if [ "$PREVIOUS" != "NONE" ]; then EXTRA=(--state-in previous/semantic_state.pt); fi
+          python research/revenueguard/contractnli_joint_chunk_train.py \
+            --encoder adapted_bundle/adapted_model \
+            --train-json contract-nli/train.json \
+            --mode "$MODE" \
+            --chunk-index "$CHUNK" \
+            --num-chunks 8 \
+            "${EXTRA[@]}" \
+            --state-out out/semantic_state.pt \
+            --report out/SEMANTIC_CHUNK.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ inputs.output_artifact }}
+          path: out/
+          if-no-files-found: error
+          retention-days: 30
