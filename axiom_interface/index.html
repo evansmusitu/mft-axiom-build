@@ -79,6 +79,8 @@
         <button class="button secondary mobile-only" id="proof-mobile-button" type="button" aria-controls="proof-drawer" aria-expanded="false">Proof</button>
       </section>
 
+      <div id="error-region" class="error-card" role="alert" hidden></div>
+
       <section class="hero-card" aria-labelledby="hero-title">
         <div class="hero-copy">
           <span class="eyebrow">More agency with more proof</span>
@@ -108,7 +110,6 @@
           <div class="progress-track" aria-hidden="true"><span id="progress-bar"></span></div>
           <span id="progress-value">0%</span>
         </div>
-        <div id="error-region" class="error-card" role="alert" hidden></div>
       </section>
     </main>
 
@@ -172,7 +173,7 @@
 
   <dialog id="shortcuts-dialog" aria-labelledby="shortcuts-title">
     <div class="dialog-header"><h2 id="shortcuts-title">Keyboard shortcuts</h2><button class="icon-button" type="button" data-close-dialog aria-label="Close shortcuts">×</button></div>
-    <dl class="shortcut-list"><div><dt><kbd>Ctrl/⌘</kbd> + <kbd>K</kbd></dt><dd>Focus composer</dd></div><div><dt><kbd>Ctrl/⌘</kbd> + <kbd>Shift</kbd> + <kbd>P</kbd></dt><dd>Toggle Proof Drawer</dd></div><div><dt><kbd>?</kbd></dt><dd>Open shortcuts</dd></div><div><dt><kbd>Esc</kbd></dt><dd>Close overlays</dd></div></dl>
+    <dl class="shortcut-list"><div><dt><kbd>Ctrl/⌘</kbd> + <kbd>K</kbd></dt><dd>Focus composer</dd></div><div><dt><kbd>Ctrl/⌘</kbd> + <kbd>Shift</kbd> + <kbd>P</kbd></dt><dd>Toggle Proof Drawer</dd></div><div><dt>?</dt><dd>Open shortcuts</dd></div><div><dt><kbd>Esc</kbd></dt><dd>Close overlays</dd></div></dl>
   </dialog>
 
   <template id="preview-template">
