@@ -1,3 +1,4 @@
+# Isolated read-only verification for Level-7 semantic artifact binding.
 name: MUSITU Axiom Level-7 Semantic Binding CI
 
 on:
