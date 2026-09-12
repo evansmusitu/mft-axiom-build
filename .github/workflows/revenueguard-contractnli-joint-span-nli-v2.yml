@@ -1,0 +1,159 @@
+name: RevenueGuard ContractNLI Joint Span NLI V2
+
+on:
+  push:
+    branches:
+      - revenueguard-axiom-governor-20260911
+    paths:
+      - '.github/workflows/revenueguard-contractnli-joint-span-nli-v2.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  train-evaluate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 70
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download exact adapted MiniLM encoder
+        uses: actions/download-artifact@v4
+        with:
+          name: revenueguard-contractnli-adapted-model
+          path: adapted_bundle
+          repository: evansmusitu/mft-axiom-build
+          run-id: 34676990123
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Train target-marked joint evidence plus NLI specialist
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          python -m pip install --index-url https://download.pytorch.org/whl/cpu 'torch'
+          python -m pip install 'transformers==4.56.2' 'scikit-learn==1.9.1'
+          curl -fL --retry 4 --retry-delay 2 -o contract-nli.zip 'https://raw.githubusercontent.com/stanfordnlp/contract-nli/eced6528dd3c1d14d73f9a87df8f7bdbc03126f9/resources/contract-nli.zip'
+          unzip -q contract-nli.zip
+          python - <<'PY'
+          import json,re,hashlib,random,time
+          from pathlib import Path
+          import numpy as np
+          import torch
+          from torch import nn
+          from torch.utils.data import Dataset,DataLoader
+          from transformers import AutoTokenizer,AutoModel
+          from sklearn.metrics import f1_score
+
+          SEED=481928
+          random.seed(SEED);np.random.seed(SEED);torch.manual_seed(SEED);torch.set_num_threads(2)
+          SRC=Path('adapted_bundle/adapted_model')
+          tok=AutoTokenizer.from_pretrained(SRC,local_files_only=True)
+          enc=AutoModel.from_pretrained(SRC,local_files_only=True)
+          H=enc.config.hidden_size
+
+          class Joint(nn.Module):
+              def __init__(self,encoder):
+                  super().__init__();self.encoder=encoder;self.drop=nn.Dropout(.1);self.class_head=nn.Linear(H,3);self.ev_head=nn.Linear(H,2)
+              def forward(self,**kw):
+                  o=self.encoder(**kw,return_dict=True);h=self.drop(o.last_hidden_state[:,0,:]);return self.class_head(h),self.ev_head(h)
+          model=Joint(enc)
+          for p in model.encoder.parameters():p.requires_grad=False
+          core=getattr(model.encoder,'encoder',None)
+          if core is None and hasattr(model.encoder,'bert'):core=model.encoder.bert.encoder
+          if core is None:raise RuntimeError(type(model.encoder))
+          layers=getattr(core,'layer',None)
+          if layers is None:raise RuntimeError(type(core))
+          for layer in layers[-2:]:
+              for p in layer.parameters():p.requires_grad=True
+          params=[p for p in model.parameters() if p.requires_grad]
+
+          label_map={'Contradiction':0,'Entailment':1,'NotMentioned':2}
+          def words(s):return set(re.findall(r'[a-z0-9]+',s.lower()))
+          def overlap(a,b):
+              A=words(a);B=words(b);return len(A&B)/(len(A|B) or 1)
+          def partition(d):return 'cal' if int(hashlib.sha256(str(d['id']).encode()).hexdigest()[:8],16)%10==0 else 'build'
+          def span_texts(d):return [d['text'][a:b].strip() for a,b in d['spans']]
+          def target_context(spans,i,radius=2):
+              left=' '.join(spans[max(0,i-radius):i]);right=' '.join(spans[i+1:min(len(spans),i+radius+1)])
+              return ('TARGET SPAN:\n'+spans[i]+'\nSURROUNDING CONTEXT:\n'+left+' '+right)[:5000]
+
+          train_obj=json.load(open('contract-nli/train.json'));labels=train_obj['labels'];build=[]
+          for d in train_obj['documents']:
+              if partition(d)!='build':continue
+              spans=span_texts(d);anns=d['annotation_sets'][0]['annotations']
+              for hid in sorted(labels):
+                  h=labels[hid]['hypothesis'];a=anns[hid];gold=label_map[a['choice']];ev=set(a.get('spans') or [])
+                  if gold!=2:
+                      for i in sorted(ev)[:4]:
+                          if i<len(spans):build.append((target_context(spans,i),h,gold,1,hid))
+                  candidates=sorted(((overlap(s,h),i) for i,s in enumerate(spans) if i not in ev),reverse=True)
+                  take=4 if gold==2 else 3
+                  for _,i in candidates[:take]:build.append((target_context(spans,i),h,2,0,hid))
+          random.shuffle(build)
+          print('joint_v2_build_examples',len(build),'trainable_params',sum(p.numel() for p in params),'total_params',sum(p.numel() for p in model.parameters()),flush=True)
+
+          class DS(Dataset):
+              def __len__(self):return len(build)
+              def __getitem__(self,i):return build[i]
+          def collate(batch):
+              e=tok([x[0] for x in batch],[x[1] for x in batch],padding=True,truncation=True,max_length=256,return_tensors='pt')
+              return e,torch.tensor([x[2] for x in batch]),torch.tensor([x[3] for x in batch])
+          dl=DataLoader(DS(),batch_size=48,shuffle=True,collate_fn=collate,num_workers=0)
+          opt=torch.optim.AdamW(params,lr=2e-5,weight_decay=.01);ce=nn.CrossEntropyLoss();model.train();losses=[];t0=time.time()
+          for epoch in range(3):
+              tot=0.;n=0
+              for step,(e,y,yev) in enumerate(dl):
+                  opt.zero_grad(set_to_none=True);lc,le=model(**e);loss=ce(lc,y)+.8*ce(le,yev);loss.backward();torch.nn.utils.clip_grad_norm_(params,1.0);opt.step();tot+=float(loss.detach());n+=1
+                  if step and step%150==0:print('epoch',epoch+1,'step',step,'loss',round(tot/n,4),'elapsed',round(time.time()-t0,1),flush=True)
+              losses.append(tot/n);print('epoch_done',epoch+1,'loss',round(losses[-1],5),flush=True)
+
+          @torch.inference_mode()
+          def eval_docs(path,k,threshold,which=None):
+              obj=json.load(open(path));labs=obj['labels'];all_rows=[];model.eval()
+              for d in obj['documents']:
+                  if which and partition(d)!=which:continue
+                  spans=span_texts(d);anns=d['annotation_sets'][0]['annotations']
+                  for hid in sorted(labs):
+                      h=labs[hid]['hypothesis'];gold=label_map[anns[hid]['choice']]
+                      ranked=sorted(((overlap(s,h),i) for i,s in enumerate(spans)),reverse=True)[:k]
+                      segs=[target_context(spans,i) for _,i in ranked];classp=[];evp=[]
+                      for z in range(0,len(segs),64):
+                          batch=segs[z:z+64];e=tok(batch,[h]*len(batch),padding=True,truncation=True,max_length=256,return_tensors='pt');lc,le=model(**e);classp.extend(torch.softmax(lc,-1).tolist());evp.extend(torch.softmax(le,-1)[:,1].tolist())
+                      bestc=0.;bestlabel=2;besti=None
+                      for jj,(cp,ep) in enumerate(zip(classp,evp)):
+                          for lab in (0,1):
+                              s=ep*cp[lab]
+                              if s>bestc:bestc=s;bestlabel=lab;besti=jj
+                      pred=bestlabel if bestc>=threshold else 2
+                      all_rows.append({'doc':str(d['id']),'hid':hid,'gold':gold,'pred':pred,'score':bestc,'best_span_index':ranked[besti][1] if besti is not None else None,'gold_spans':anns[hid].get('spans') or []})
+              return all_rows
+          def metrics(rows):
+              y=[r['gold'] for r in rows];p=[r['pred'] for r in rows];nm=[i for i,v in enumerate(y) if v==2];pos=[i for i,v in enumerate(y) if v!=2]
+              evhit=sum(rows[i]['best_span_index'] in rows[i]['gold_spans'] for i in pos)/(len(pos) or 1)
+              return {'accuracy':sum(a==b for a,b in zip(y,p))/len(y),'macro_f1':float(f1_score(y,p,labels=[0,1,2],average='macro',zero_division=0)),'false_grounding_notmentioned':sum(p[i]!=2 for i in nm)/(len(nm) or 1),'positive_semantic_accuracy':sum(p[i]==y[i] for i in pos)/(len(pos) or 1),'selected_evidence_exact_span_recall':evhit,'n':len(y)}
+
+          settings=[]
+          for k in (24,32):
+              best=None
+              for th in [.10,.15,.20,.25,.30,.35,.40,.45,.50,.55,.60,.65,.70,.75,.80,.85,.90]:
+                  rows=eval_docs('contract-nli/train.json',k,th,'cal');m=metrics(rows);key=(m['false_grounding_notmentioned']<=.02,m['macro_f1'],m['accuracy'],m['selected_evidence_exact_span_recall'],-m['false_grounding_notmentioned'])
+                  if best is None or key>best[0]:best=(key,th,m)
+              _,th,cm=best;settings.append({'k':k,'threshold':th,'calibration':cm})
+          def choose(x):
+              m=x['calibration'];return (m['false_grounding_notmentioned']<=.02,m['macro_f1'],m['accuracy'],m['selected_evidence_exact_span_recall'],-x['k'])
+          chosen=max(settings,key=choose)
+          devrows=eval_docs('contract-nli/dev.json',chosen['k'],chosen['threshold']);dm=metrics(devrows)
+          by={hid:metrics([r for r in devrows if r['hid']==hid]) for hid in sorted({r['hid'] for r in devrows})}
+          out=Path('joint_span_nli_v2');out.mkdir();torch.save({'state_dict':model.state_dict(),'candidate_settings':settings,'chosen':chosen,'seed':SEED},out/'joint_span_nli_v2.pt')
+          bb=(out/'joint_span_nli_v2.pt').read_bytes();rep={'schema':'musitu.revenueguard.contractnli.joint_span_nli.v2','status':'DEV_RESEARCH_ONLY','source_encoder_artifact_sha256':'3d78d473ffde6f790b3919226d1069b81fa8426f0f139007d3ba8b9d9cf23055','contractnli_commit':'eced6528dd3c1d14d73f9a87df8f7bdbc03126f9','seed':SEED,'architecture':'explicit TARGET SPAN plus surrounding context; joint evidence probability and 3-way NLI; no hypothesis-specific heads','training_examples':len(build),'epoch_loss':losses,'candidate_settings':settings,'chosen_k':chosen['k'],'chosen_threshold':chosen['threshold'],'selection_rule':'K and threshold chosen exclusively on hash-held training calibration documents','dev':dm,'dev_by_hypothesis':by,'model_sha256':hashlib.sha256(bb).hexdigest(),'gate':{'accuracy_min':.90,'macro_f1_min':.88,'false_grounding_max':.02,'evidence_recall_min':.85,'pass':dm['accuracy']>=.90 and dm['macro_f1']>=.88 and dm['false_grounding_notmentioned']<=.02 and dm['selected_evidence_exact_span_recall']>=.85}}
+          rep['report_sha256']=hashlib.sha256(json.dumps(rep,sort_keys=True,separators=(',',':')).encode()).hexdigest();Path('CONTRACTNLI_JOINT_SPAN_NLI_V2_DEV_EVAL.json').write_text(json.dumps(rep,indent=2,sort_keys=True)+'\n');print(json.dumps(rep,indent=2,sort_keys=True))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: revenueguard-contractnli-joint-span-nli-v2-dev
+          path: |
+            joint_span_nli_v2/
+            CONTRACTNLI_JOINT_SPAN_NLI_V2_DEV_EVAL.json
+          if-no-files-found: error
+          retention-days: 30
