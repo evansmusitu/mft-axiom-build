@@ -1,0 +1,109 @@
+name: MUSITU Foundry FORGE Cloudflare Topology Audit
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/foundry-forge-cloudflare-topology-audit.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      CF_API: https://api.cloudflare.com/client/v4
+      EXPECTED_ZONE: mftintelligence.com
+      EXPECTED_ZONE_ID: 5b56528f03948ff5917a5e0cd9f7109e
+      EXPECTED_ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      FORGE_HOST: forge.mftintelligence.com
+    steps:
+      - name: Read FORGE custom-domain and DNS topology only
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$CLOUDFLARE_EMAIL"
+          test -n "$CLOUDFLARE_GLOBAL_API_KEY"
+          python - <<'PY'
+          import json, os, urllib.parse, urllib.request
+
+          base=os.environ['CF_API']
+          headers={
+            'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],
+            'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY'],
+            'Content-Type':'application/json',
+            'User-Agent':'MUSITU-Foundry-FORGE-Topology-Audit/1.0',
+          }
+          def get(path):
+            req=urllib.request.Request(base+path,headers=headers,method='GET')
+            with urllib.request.urlopen(req,timeout=30) as r:
+              body=json.load(r)
+              status=r.status
+            if status!=200 or not body.get('success'):
+              raise SystemExit(f'Fail-closed Cloudflare read: {path} HTTP {status}')
+            return body.get('result')
+
+          zones=get('/zones?name='+urllib.parse.quote(os.environ['EXPECTED_ZONE'])+'&status=active') or []
+          if len(zones)!=1:
+            raise SystemExit(f'Fail-closed: expected one active zone, got {len(zones)}')
+          zone=zones[0]
+          zid=zone.get('id')
+          aid=(zone.get('account') or {}).get('id')
+          if zid!=os.environ['EXPECTED_ZONE_ID'] or aid!=os.environ['EXPECTED_ACCOUNT_ID']:
+            raise SystemExit('Fail-closed: canonical zone/account identity mismatch')
+
+          host=os.environ['FORGE_HOST']
+          domains=get(f'/accounts/{aid}/workers/domains') or []
+          forge_domains=[
+            {k:d.get(k) for k in ('id','hostname','service','environment','zone_id') if d.get(k) is not None}
+            for d in domains
+            if str(d.get('hostname') or '').lower()==host.lower()
+          ]
+          forge_domains=sorted(forge_domains,key=lambda x:(str(x.get('service')),str(x.get('environment'))))
+
+          dns=get('/zones/'+zid+'/dns_records?name='+urllib.parse.quote(host)+'&per_page=100') or []
+          forge_dns=[
+            {k:d.get(k) for k in ('id','name','type','content','proxied','proxiable','ttl') if d.get(k) is not None}
+            for d in dns
+            if str(d.get('name') or '').lower()==host.lower()
+          ]
+          forge_dns=sorted(forge_dns,key=lambda x:(str(x.get('type')),str(x.get('content'))))
+
+          out={
+            'schema':'musitu.foundry_forge.cloudflare_topology_audit.v1',
+            'zone':{
+              'id':zid,
+              'name':zone.get('name'),
+              'status':zone.get('status'),
+              'account_id':aid,
+            },
+            'forge_host':host,
+            'worker_custom_domains':forge_domains,
+            'dns_records':forge_dns,
+            'worker_custom_domain_count':len(forge_domains),
+            'dns_record_count':len(forge_dns),
+            'forge_route_present':bool(forge_domains or forge_dns),
+            'write_performed':False,
+            'production_authorized':False,
+          }
+          open('foundry-forge-cloudflare-topology.json','w').write(
+            json.dumps(out,indent=2,sort_keys=True)+'\n'
+          )
+          print(json.dumps(out,sort_keys=True))
+          PY
+      - name: Seal topology evidence
+        shell: bash
+        run: sha256sum foundry-forge-cloudflare-topology.json > foundry-forge-cloudflare-topology.sha256
+      - uses: actions/upload-artifact@v4
+        with:
+          name: musitu-foundry-forge-cloudflare-topology
+          path: |
+            foundry-forge-cloudflare-topology.json
+            foundry-forge-cloudflare-topology.sha256
+          retention-days: 7
+          if-no-files-found: error
