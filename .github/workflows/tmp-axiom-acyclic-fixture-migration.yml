@@ -1,0 +1,68 @@
+name: TEMP Axiom Acyclic Fixture Migration
+
+on:
+  push:
+    branches:
+      - frontier/axiom-v5-level7-acyclic-governance-20260912
+
+permissions:
+  contents: write
+
+jobs:
+  migrate:
+    runs-on: ubuntu-24.04
+    if: github.event.head_commit.message == 'Add one-shot acyclic governance fixture migration'
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: true
+          fetch-depth: 0
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
+        with:
+          python-version: '3.12.14'
+      - name: Migrate valid rollback fixtures and self-remove
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          gap = Path('frontier_review_safe/tests/test_gap_closure.py')
+          text = gap.read_text(encoding='utf-8')
+          old = '''def longitudinal_refresh(\n    refresh_id, executed_at, candidate_sha, case_set_hash, baseline_registry_hash,\n    before_baseline_registry_hash=None,\n):'''
+          new = '''def longitudinal_refresh(\n    refresh_id, executed_at, candidate_sha, case_set_hash, baseline_registry_hash,\n    before_baseline_registry_hash=None,\n    governance_decision=None,\n):'''
+          assert text.count(old) == 1, text.count(old)
+          text = text.replace(old, new)
+          old = '''            generated_at=executed_at,\n            governance_before_hash=before_baseline_registry_hash,\n        ),'''
+          new = '''            generated_at=executed_at,\n            governance_before_hash=before_baseline_registry_hash,\n            governance_decision=governance_decision,\n        ),'''
+          assert text.count(old) == 1, text.count(old)
+          text = text.replace(old, new)
+          old = '''            (registry.fingerprint if i < 2 else "5"*64),\n        ) for i in range(3)]'''
+          new = '''            (registry.fingerprint if i < 2 else "5"*64),\n            governance_decision=("rollback" if i == 2 else None),\n        ) for i in range(3)]'''
+          assert text.count(old) == 2, text.count(old)
+          text = text.replace(old, new)
+          gap.write_text(text, encoding='utf-8')
+
+          anchor = Path('frontier_review_safe/tests/test_level7_baseline_registry_anchor.py')
+          text = anchor.read_text(encoding='utf-8')
+          old = '''    *,\n    before_hash: str | None = None,\n) -> LongitudinalRefreshRecord:'''
+          new = '''    *,\n    before_hash: str | None = None,\n    decision: str | None = None,\n) -> LongitudinalRefreshRecord:'''
+          assert text.count(old) == 1, text.count(old)
+          text = text.replace(old, new)
+          old = '''            generated_at=executed_at,\n            governance_before_hash=before_hash,\n        ),'''
+          new = '''            generated_at=executed_at,\n            governance_before_hash=before_hash,\n            governance_decision=decision,\n        ),'''
+          assert text.count(old) == 1, text.count(old)
+          text = text.replace(old, new)
+          old = '''            refresh("r3", 60, LEVEL5_REGISTRY_HASH, before_hash=replacement_hash),'''
+          new = '''            refresh("r3", 60, LEVEL5_REGISTRY_HASH, before_hash=replacement_hash, decision="rollback"),'''
+          assert text.count(old) == 1, text.count(old)
+          text = text.replace(old, new)
+          anchor.write_text(text, encoding='utf-8')
+
+          Path('.github/workflows/tmp-axiom-acyclic-fixture-migration.yml').unlink()
+          PY
+          git config user.name "evansmusitu"
+          git config user.email "evansmusitu5@gmail.com"
+          git add frontier_review_safe/tests/test_gap_closure.py frontier_review_safe/tests/test_level7_baseline_registry_anchor.py .github/workflows/tmp-axiom-acyclic-fixture-migration.yml
+          git commit -m "Migrate valid Level-7 fixtures to explicit rollback"
+          git push origin HEAD:frontier/axiom-v5-level7-acyclic-governance-20260912
