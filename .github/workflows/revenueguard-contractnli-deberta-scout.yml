@@ -1,0 +1,100 @@
+name: RevenueGuard ContractNLI DeBERTa Scout
+
+on:
+  push:
+    branches:
+      - revenueguard-axiom-governor-20260911
+    paths:
+      - '.github/workflows/revenueguard-contractnli-deberta-scout.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  scout:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - name: Evaluate pinned DeBERTa NLI representation before adaptation
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          python -m pip install --index-url https://download.pytorch.org/whl/cpu 'torch'
+          python -m pip install 'transformers==4.56.2' 'huggingface-hub==0.34.4' 'scikit-learn==1.9.1'
+          curl -fL --retry 4 --retry-delay 2 -o contract-nli.zip 'https://raw.githubusercontent.com/stanfordnlp/contract-nli/eced6528dd3c1d14d73f9a87df8f7bdbc03126f9/resources/contract-nli.zip'
+          unzip -q contract-nli.zip
+          python - <<'PY'
+          import json,re,hashlib
+          from pathlib import Path
+          import torch
+          from transformers import AutoTokenizer,AutoModelForSequenceClassification
+          from huggingface_hub import HfApi,snapshot_download
+          from sklearn.metrics import f1_score
+          torch.set_num_threads(2)
+          REPO='cross-encoder/nli-deberta-v3-small';REV=HfApi().model_info(REPO).sha
+          src=Path(snapshot_download(REPO,revision=REV,allow_patterns=['config.json','model.safetensors','tokenizer.json','tokenizer_config.json','special_tokens_map.json','spm.model']))
+          tok=AutoTokenizer.from_pretrained(src,local_files_only=True);model=AutoModelForSequenceClassification.from_pretrained(src,local_files_only=True);model.eval()
+          print('revision',REV,'id2label',model.config.id2label,'params',sum(p.numel() for p in model.parameters()),flush=True)
+          # Resolve native label ids semantically; never assume class order.
+          label_to_id={str(v).lower():int(k) for k,v in model.config.id2label.items()}
+          def native(name):
+              aliases={'Contradiction':['contradiction'],'Entailment':['entailment'],'NotMentioned':['neutral']}
+              for a in aliases[name]:
+                  if a in label_to_id:return label_to_id[a]
+              raise RuntimeError((name,model.config.id2label))
+          canonical_from_native={native('Contradiction'):0,native('Entailment'):1,native('NotMentioned'):2}
+          goldmap={'Contradiction':0,'Entailment':1,'NotMentioned':2}
+          def words(s):return set(re.findall(r'[a-z0-9]+',s.lower()))
+          def ov(a,b):A=words(a);B=words(b);return len(A&B)/(len(A|B) or 1)
+          def partition(d):return 'cal' if int(hashlib.sha256(str(d['id']).encode()).hexdigest()[:8],16)%10==0 else 'build'
+          def collect(path,which=None):
+              o=json.load(open(path));labs=o['labels'];rows=[]
+              for d in o['documents']:
+                  if which and partition(d)!=which:continue
+                  spans=[d['text'][a:b].strip() for a,b in d['spans']];anns=d['annotation_sets'][0]['annotations']
+                  for hid in sorted(labs):
+                      a=anns[hid];h=labs[hid]['hypothesis']
+                      if a['choice']!='NotMentioned' and a.get('spans'):prem=' '.join(spans[i] for i in a['spans'] if i<len(spans))[:4000]
+                      else:prem=(max(spans,key=lambda s:ov(s,h)) if spans else '')[:4000]
+                      rows.append((prem,h,goldmap[a['choice']],hid))
+              return rows
+          @torch.inference_mode()
+          def scores(rows):
+              out=[]
+              for i in range(0,len(rows),48):
+                  b=rows[i:i+48];e=tok([x[0] for x in b],[x[1] for x in b],padding=True,truncation=True,max_length=256,return_tensors='pt');raw=torch.softmax(model(**e).logits,-1).tolist()
+                  for r in raw:
+                      p=[0.,0.,0.]
+                      for native_id,val in enumerate(r):p[canonical_from_native[native_id]]=val
+                      out.append(p)
+              return out
+          def apply(P,t,m):
+              z=[]
+              for p in P:
+                  order=sorted(range(3),key=lambda j:p[j],reverse=True);a,b=order[:2]
+                  if a!=2 and (p[a]<t or p[a]-p[b]<m):a=2
+                  z.append(a)
+              return z
+          def metrics(y,p):
+              nm=[i for i,v in enumerate(y) if v==2];pos=[i for i,v in enumerate(y) if v!=2]
+              return {'accuracy':sum(a==b for a,b in zip(y,p))/len(y),'macro_f1':f1_score(y,p,labels=[0,1,2],average='macro',zero_division=0),'false_grounding_notmentioned':sum(p[i]!=2 for i in nm)/(len(nm) or 1),'positive_semantic_accuracy':sum(p[i]==y[i] for i in pos)/(len(pos) or 1),'n':len(y)}
+          cal=collect('contract-nli/train.json','cal');cy=[x[2] for x in cal];CP=scores(cal)
+          best=None
+          for t in [.34,.4,.45,.5,.55,.6,.65,.7,.75,.8,.85,.9,.93,.95]:
+              for m in [0,.05,.1,.15,.2,.25,.3,.35,.4]:
+                  mm=metrics(cy,apply(CP,t,m));key=(mm['false_grounding_notmentioned']<=.02,mm['macro_f1'],mm['accuracy'],-mm['false_grounding_notmentioned'])
+                  if best is None or key>best[0]:best=(key,t,m,mm)
+          _,t,m,cm=best
+          dev=collect('contract-nli/dev.json');dy=[x[2] for x in dev];DP=scores(dev);dm=metrics(dy,apply(DP,t,m));rawm=metrics(dy,[max(range(3),key=lambda j:p[j]) for p in DP])
+          rep={'schema':'musitu.revenueguard.contractnli.deberta_scout.v1','status':'DEV_RESEARCH_ONLY','repo':REPO,'revision':REV,'parameters':sum(p.numel() for p in model.parameters()),'calibration_threshold':t,'calibration_margin':m,'calibration':cm,'dev_fail_closed':dm,'dev_raw':rawm,'value_gate':{'must_beat_minilm_fail_closed_accuracy':0.7627772420443587,'must_reduce_false_grounding_below':0.07328605200945626,'pass':dm['accuracy']>0.7627772420443587 and dm['false_grounding_notmentioned']<0.07328605200945626}}
+          rep['report_sha256']=hashlib.sha256(json.dumps(rep,sort_keys=True,separators=(',',':')).encode()).hexdigest();Path('CONTRACTNLI_DEBERTA_SCOUT.json').write_text(json.dumps(rep,indent=2,sort_keys=True)+'\n');print(json.dumps(rep,indent=2,sort_keys=True))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: revenueguard-contractnli-deberta-scout
+          path: CONTRACTNLI_DEBERTA_SCOUT.json
+          if-no-files-found: error
+          retention-days: 30
