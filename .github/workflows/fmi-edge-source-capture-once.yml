@@ -1,0 +1,55 @@
+name: MUSITU FMI Edge Source Capture Once
+on:
+  push:
+    branches: [fmi-billing-binding-20260912-ephemeral]
+    paths: ['.github/workflows/fmi-edge-source-capture-once.yml']
+permissions:
+  contents: read
+jobs:
+  capture:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    env:
+      API: https://api.cloudflare.com/client/v4
+      AID: 93f395f5121954671f92fffa453d6b61
+      EDGE: mft-fmi-global-edge
+      EXPECTED_SHA256: 591f40e44a744655e439e5d8c154ccdd7e7379b47c7a583ce76f3a0b1c89572e
+    steps:
+      - name: Capture exact deployed source bytes
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_RUN_ATTEMPT" = 1
+          python - <<'PY'
+          import email,hashlib,json,os,urllib.parse,urllib.request,pathlib
+          API=os.environ['API'];AID=os.environ['AID'];EDGE=os.environ['EDGE'];EXP=os.environ['EXPECTED_SHA256']
+          H={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY']}
+          def get(path):
+            with urllib.request.urlopen(urllib.request.Request(API+path,headers=H),timeout=30) as r:return r.headers,r.read()
+          h,b=get(f'/accounts/{AID}/workers/scripts/{urllib.parse.quote(EDGE,safe="")}');ct=h.get('content-type','')
+          if 'multipart/' in ct.lower():
+            m=email.message_from_bytes((f'Content-Type: {ct}\r\nMIME-Version: 1.0\r\n\r\n').encode()+b);parts=[]
+            for x in m.walk():
+              if x.is_multipart():continue
+              d=x.get_payload(decode=True) or b''
+              if any(k in d for k in (b'export default',b'addEventListener',b'fetch(')):parts.append(d)
+            assert len(parts)==1,len(parts);src=parts[0]
+          else:src=b
+          sha=hashlib.sha256(src).hexdigest();assert sha==EXP,(sha,EXP)
+          pathlib.Path('fmi-edge-current.js').write_bytes(src)
+          _,s=get(f'/accounts/{AID}/workers/scripts/{urllib.parse.quote(EDGE,safe="")}/settings');pathlib.Path('fmi-edge-settings.json').write_bytes(s)
+          pathlib.Path('fmi-edge-current.sha256').write_text(f'{sha}  fmi-edge-current.js\n')
+          print(json.dumps({'gate':'PASS','edge_sha256':sha,'bytes':len(src),'secret_values_recorded':False},sort_keys=True))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: musitu-fmi-edge-source-${{ github.run_id }}
+          path: |
+            fmi-edge-current.js
+            fmi-edge-current.sha256
+            fmi-edge-settings.json
+          retention-days: 1
+          if-no-files-found: error
