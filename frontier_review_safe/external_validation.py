@@ -385,6 +385,15 @@ class ExternalEvidenceGate:
                 "reasons": ["external_provider_floor_below_required"],
                 "attestation_verified": False, "baseline_registry_verified": False,
             }
+        try:
+            required_provider_class_values = tuple(required_provider_classes)
+        except TypeError:
+            return {
+                "status": "FAIL", "level": 5,
+                "reason": "invalid_required_provider_classes",
+                "reasons": ["invalid_required_provider_classes"],
+                "attestation_verified": False, "baseline_registry_verified": False,
+            }
         if baseline_registry is not None and not isinstance(baseline_registry, BaselineRegistry):
             return {
                 "status": "FAIL", "level": 5,
@@ -425,7 +434,7 @@ class ExternalEvidenceGate:
         if baseline_registry is None:
             reasons.append("baseline_registry_missing")
         else:
-            coverage = baseline_registry.coverage(required_provider_classes=required_provider_classes)
+            coverage = baseline_registry.coverage(required_provider_classes=required_provider_class_values)
             if coverage["status"] != "PASS":
                 reasons.extend(coverage["missing_provider_classes"] and ["baseline_provider_class_coverage_incomplete"] or [])
 
@@ -509,7 +518,7 @@ class ExternalEvidenceGate:
             reasons.append("candidate_sha_not_identical")
         if len(independent_providers) < required_provider_orgs:
             reasons.append("insufficient_independent_providers")
-        if set(required_provider_classes) - provider_classes:
+        if set(required_provider_class_values) - provider_classes:
             reasons.append("baseline_provider_class_coverage_incomplete")
         reasons = sorted(set(reasons))
         passed = not reasons
@@ -1030,6 +1039,23 @@ class ClaimBoundary:
             trusted_issuers=trusted_issuers,
             min_refreshes=min_refreshes,
         )
+
+        if not isinstance(baseline_results_by_run, MappingABC):
+            max_level = 5 if level5.get("status") == "PASS" else 4
+            if level6.get("status") == "PASS":
+                max_level = 6
+            if level7.get("status") == "PASS":
+                max_level = 7
+            return {
+                "status": "DENY",
+                "max_evidence_level": max_level,
+                "reason": "invalid_baseline_results_by_run",
+                "verified_evidence_levels": {
+                    "level5": level5.get("status"),
+                    "level6": level6.get("status"),
+                    "level7": level7.get("status"),
+                },
+            }
 
         outcomes: list[ComparativeOutcome] = []
         comparison_error: str | None = None
