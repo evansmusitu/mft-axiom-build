@@ -58,9 +58,12 @@ def _organization_key(value: str) -> str:
 
 
 def _independence_organization_key(value: str) -> str:
-    return unicodedata.normalize("NFKC", " ".join(value.split())).translate(
-        _ORGANIZATION_CONFUSABLES
-    ).casefold()
+    compatible = unicodedata.normalize("NFKC", " ".join(value.split()))
+    visible = "".join(
+        char for char in compatible
+        if unicodedata.category(char) != "Cf"
+    )
+    return visible.translate(_ORGANIZATION_CONFUSABLES).casefold()
 
 
 def _runtime_mapping(value: Any) -> tuple[dict[Any, Any], bool]:
