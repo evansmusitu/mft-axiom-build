@@ -4,6 +4,7 @@ import { initOutcomeExecutionWorkspace } from './outcome_execution.js';
 import { initResearchWorkspace } from './research_claims.js';
 import { enhanceResearchWorkspace } from './research_quality.js';
 import { initArtifactWorkspace } from './artifacts.js';
+import { initObservabilityWorkspace } from './observability.js';
 
 const $ = (selector, root = document) => root.querySelector(selector);
 const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
@@ -18,8 +19,8 @@ const routeCopy = {
   live:['Live','Multimodal live work will preserve privacy, interruption and explicit action boundaries.'],
   agents:['Agents','Agents expose roles, scopes, tools, policy and dissent rather than hidden reasoning.'],
   evidence:['Evidence','Claims, attestations, evaluations and receipts remain linked to provenance.'],
-  observability:['Observability','Operational traces expose runs, tools, policy, latency, errors and recovery—not private chain-of-thought.'],
-  developer:['Developer','API, MCP, A2A, SDK, webhooks, usage and traces converge here.'],
+  observability:['Observability','Inspect linked traces, actors, tools, policy, latency, errors and recovery without exposing secrets or hidden reasoning.'],
+  developer:['Developer','Trace Explorer exposes operational developer evidence; API, MCP, A2A, SDK, webhooks and usage continue here.'],
   settings:['Settings','Control identity, privacy, memory, accessibility, notifications and policy preferences.']
 };
 const state = { verb:'Ask', theme:localStorage.getItem('axiom.ui.theme') || 'system', trace:[], proofOpen:false };
@@ -63,12 +64,12 @@ function installEvents(){
   $$('.tool-button').forEach(button=>button.addEventListener('click',()=>emit('composer.tool-preview',{control:button.dataset.tool,state:'surface-only'})));
   $$('#constraints select, #constraints input').forEach(el=>el.addEventListener('change',()=>{updateConstraintSummary();emit('composer.constraint',{control:el.id});}));
   $('#composer').addEventListener('submit',previewOutcome); $('#composer-input').addEventListener('input',saveDraft);
-  $$('#proof-drawer [role="tab"]').forEach(tab=>{ tab.addEventListener('click',()=>activateTab(tab)); tab.addEventListener('keydown',e=>{const tabs=$$('#proof-drawer [role="tab"]');let i=tabs.indexOf(tab);if(e.key==='ArrowRight')i=(i+1)%tabs.length;else if(e.key==='ArrowLeft')i=(i-1+tabs.length)%tabs.length;else return;e.preventDefault();activateTab(tabs[i]);tabs[i].focus();}); });
+  $$('#proof-drawer [role="tab"]').forEach(tab=>{ tab.addEventListener('click',()=>activateTab(tab)); tab.addEventListener('keydown',e=>{const tabs=$$('#proof-drawer [role="tab"]');let i=tabs.indexOf(tab);if(e.key==='ArrowRight')i=(i+1)%tabs.length;else if(e.key==='ArrowLeft')i=(i-1+tabs.length;else return;e.preventDefault();activateTab(tabs[i]);tabs[i].focus();}); });
   const dialog=$('#shortcuts-dialog'); $('#shortcuts-button').addEventListener('click',()=>dialog.showModal()); $('[data-close-dialog]').addEventListener('click',()=>dialog.close());
   document.addEventListener('keydown',e=>{ const mod=e.ctrlKey||e.metaKey; if(mod&&e.key.toLowerCase()==='k'){e.preventDefault();$('#composer-input').focus();emit('shortcut',{control:'composer-focus'});} if(mod&&e.shiftKey&&e.key.toLowerCase()==='p'){e.preventDefault();setProof(!state.proofOpen);} if(e.key==='?'&&!/INPUT|TEXTAREA|SELECT/.test(document.activeElement?.tagName)){e.preventDefault();if(!dialog.open)dialog.showModal();} if(e.key==='Escape'&&state.proofOpen)setProof(false); });
 }
 function registerServiceWorker(){ if('serviceWorker' in navigator && location.protocol!=='file:') navigator.serviceWorker.register('./sw.js',{scope:'./'}).then(()=>emit('pwa.service-worker',{state:'registered'})).catch(()=>emit('pwa.service-worker',{state:'registration-failed'})); }
 
-applyTheme(state.theme); restoreDraft(); installEvents(); syncRoute(); updateConstraintSummary(); updateNetwork(); registerServiceWorker(); emit('shell.ready',{state:'phase5'});
+applyTheme(state.theme); restoreDraft(); installEvents(); syncRoute(); updateConstraintSummary(); updateNetwork(); registerServiceWorker(); emit('shell.ready',{state:'phase6'});
 window.AxiomUI = Object.freeze({ emit, reportError, setProgress, setProof, getTrace:()=>structuredClone(state.trace) });
-initProjectWorkspace({emit}).then(async projects=>{const outcomes=await initOutcomeContractWorkspace({emit,projects});await initOutcomeExecutionWorkspace({emit,projects,outcomes});const research=await initResearchWorkspace({emit,projects});await enhanceResearchWorkspace({emit,research});await initArtifactWorkspace({emit,projects});emit('workspace.ready',{state:'phase5'});}).catch(error=>reportError({errorId:'AXIOM-WORKSPACE-INIT',component:'Workspace',impact:'Project, Work, Research or Create workspace unavailable',failed:error.message,recovery:'Reload the workspace and retry'}));
+initProjectWorkspace({emit}).then(async projects=>{const outcomes=await initOutcomeContractWorkspace({emit,projects});const observability=await initObservabilityWorkspace({emit,projects});await initOutcomeExecutionWorkspace({emit,projects,outcomes,observability});const research=await initResearchWorkspace({emit,projects});await enhanceResearchWorkspace({emit,research});await initArtifactWorkspace({emit,projects});emit('workspace.ready',{state:'phase6'});}).catch(error=>reportError({errorId:'AXIOM-WORKSPACE-INIT',component:'Workspace',impact:'Project, Work, Research, Create or Observability workspace unavailable',failed:error.message,recovery:'Reload the workspace and retry'}));
