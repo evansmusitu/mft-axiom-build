@@ -1,0 +1,16 @@
+{
+  "schema": "musitu.revenueguard.contractnli.epoch1_final_eval_trigger.v1",
+  "date": "2026-09-12",
+  "control": {
+    "run_id": 34697863465,
+    "artifact": "revenueguard-contractnli-control-epoch1-final",
+    "artifact_sha256": "b436bd2103ff2dc3a9bd04ad0d5e8c1500814deaddc0c51a47cf0fa595f89b1c"
+  },
+  "balanced": {
+    "run_id": 34697878064,
+    "artifact": "revenueguard-contractnli-balanced-epoch1-final",
+    "artifact_sha256": "0aabaf77ac57b90529432eded113d246780f379ba8014935d732770922fc0c7f"
+  },
+  "state_contract": {"next_chunk": 8, "global_steps": 615, "num_chunks": 8},
+  "evaluation_policy": "locked calibration-only K/threshold selection; untouched dev graded once"
+}
