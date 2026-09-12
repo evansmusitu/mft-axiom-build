@@ -1,0 +1,44 @@
+name: MUSITU FMI Real Payer Checkout Initiation
+
+on:
+  workflow_dispatch:
+    inputs:
+      plan:
+        description: Server-priced FMI plan to purchase
+        required: true
+        type: choice
+        options:
+          - FOUNDING
+          - PRO
+      payer_authorization:
+        description: "Exact phrase required: AUTHORIZE_FMI_FOUNDING_USD_49 or AUTHORIZE_FMI_PRO_USD_149"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  initiate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      FMI_PUBLIC_BASE: https://mft-fmi-global-edge.mft-education-nexus-93f395f5.workers.dev
+      FMI_PLAN: ${{ inputs.plan }}
+      FMI_PAYER_AUTHORIZATION: ${{ inputs.payer_authorization }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Create exactly one explicitly authorized provider checkout
+        run: python ops/fmi_real_payer_checkout_initiate.py
+      - name: Upload short-lived checkout handoff
+        uses: actions/upload-artifact@v4
+        with:
+          name: musitu-fmi-real-payer-checkout-${{ github.run_id }}
+          path: |
+            fmi-real-payer-checkout.json
+            fmi-real-payer-checkout.sha256
+          retention-days: 1
+          if-no-files-found: error
