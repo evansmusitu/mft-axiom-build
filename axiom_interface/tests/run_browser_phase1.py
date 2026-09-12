@@ -121,8 +121,11 @@ def main() -> None:
             assert mobile["project"]["displayed"] is False
             assert mobile["global"]["in_viewport"] is True
             assert mobile["proof"]["in_viewport"] is False
-            page.get_by_role("button", name="Proof").click()
-            assert page.get_by_role("complementary", name="Proof Drawer").is_visible()
+            page.get_by_role("button", name="Proof", exact=True).click()
+            proof_drawer = page.get_by_role("complementary", name="Proof Drawer")
+            assert proof_drawer.is_visible()
+            proof_box = proof_drawer.bounding_box()
+            assert proof_box is not None and proof_box["x"] < 390 and proof_box["x"] + proof_box["width"] > 0
             page.screenshot(path=str(ARTIFACT_DIR / "mobile.png"), full_page=True)
 
             page.evaluate("document.documentElement.dataset.theme='high-contrast'")
