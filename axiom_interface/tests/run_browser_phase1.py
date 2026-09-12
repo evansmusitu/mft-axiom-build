@@ -88,13 +88,23 @@ def main() -> None:
             assert "No consequential tool or external system has been invoked" in page.locator("#run-preview").inner_text()
             assert len(page.evaluate("window.AxiomUI.getTrace()")) > 0
 
-            # Reliability/recovery surface contains every mandatory field.
+            # Reliability/recovery surface verifies every required field structurally.
             page.evaluate("""window.AxiomUI.reportError({errorId:'AXIOM-TEST-500',component:'Research',impact:'Preview paused',succeeded:'Draft preserved',failed:'Source refresh',dataLost:'No',retryState:'Safe',recovery:'Retry source refresh',supportTrace:'#proof-drawer'})""")
-            error_text = page.locator("#error-region").inner_text()
-            for phrase in ["AXIOM-TEST-500", "Impact", "What succeeded", "What failed", "Data lost", "Retry state", "Recovery"]:
-                assert phrase in error_text
-            page.get_by_role("button", name="Retry").click()
-            assert page.locator("#error-region").is_hidden()
+            error = page.locator("#error-region")
+            assert error.is_visible()
+            assert error.locator("h3").inner_text() == "AXIOM-TEST-500 · Research"
+            observed_fields = error.locator(".error-grid > div").evaluate_all("""nodes => Object.fromEntries(nodes.map(node => [node.querySelector('strong').textContent.trim(), node.querySelector('span').textContent.trim()]))""")
+            expected_fields = {
+                "Impact": "Preview paused",
+                "What succeeded": "Draft preserved",
+                "What failed": "Source refresh",
+                "Data lost": "No",
+                "Retry state": "Safe",
+                "Recovery": "Retry source refresh",
+            }
+            assert observed_fields == expected_fields, {"expected": expected_fields, "observed": observed_fields}
+            error.get_by_role("button", name="Retry").click()
+            assert error.is_hidden()
 
             # Offline/recovery state remains understandable without color.
             context.set_offline(True)
