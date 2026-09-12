@@ -167,10 +167,15 @@ class BaselineRegistry:
             reasons.append("baseline_configuration_mismatch")
         if account_scope_hash != registration.account_scope_hash:
             reasons.append("baseline_account_scope_mismatch")
-        executed = parse_time(executed_at)
-        if executed < parse_time(registration.registered_at):
+        try:
+            executed = parse_time(executed_at)
+        except (AttributeError, TypeError, ValueError):
+            executed = None
+            reasons.append("baseline_execution_time_invalid")
+        if executed is not None and executed < parse_time(registration.registered_at):
             reasons.append("baseline_run_predates_registration")
-        if registration.valid_until is not None and executed >= parse_time(registration.valid_until):
+        if (executed is not None and registration.valid_until is not None
+                and executed >= parse_time(registration.valid_until)):
             reasons.append("baseline_registration_expired")
         return {
             "status": "PASS" if not reasons else "FAIL",
