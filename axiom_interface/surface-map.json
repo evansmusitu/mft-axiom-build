@@ -1,5 +1,5 @@
 {
-  "schema": "musitu.axiom.interface.surface-map.v6",
+  "schema": "musitu.axiom.interface.surface-map.v7",
   "authority": {
     "earned_track_b_sha": "73ecdbad38cb10020b6e30ebe42a9222a3bb6c55",
     "qualified_phase1_sha": "5b7233fd9e62b530ef9eb161b41010727d76bacb",
@@ -7,12 +7,13 @@
     "qualified_phase3_sha": "ddb8a97c394e7e5b4107c95110c426ebd19ca66c",
     "qualified_phase4_sha": "4ee9dec2f68dcc17f09457623f4a3c39aba98e88",
     "qualified_phase5_sha": "81c0c3c364d9d057a78203cc4fbcb8c767e92b18",
+    "qualified_phase6_sha": "db5eefa2982457c4045717a0b175bb5d0d9fc556",
     "blueprint_sha256": "e750039a9c88abc780d24f48c3e86e22fd9295fec99a1b0593668aa8dd9ac166"
   },
-  "phase": "PHASE_6_OBSERVABILITY_SUBSTRATE",
+  "phase": "PHASE_7_LIVE_MULTIMODALITY",
   "surfaces": [
     {"id":"flagship","target":"musitu.ai/axiom","state":"future-routing","access":"public"},
-    {"id":"app","target":"app","state":"shell-plus-project-graph-plus-work-plus-research-plus-artifacts-plus-observability","access":"authenticated"},
+    {"id":"app","target":"app","state":"shell-plus-project-graph-plus-work-plus-research-plus-artifacts-plus-observability-plus-live","access":"authenticated"},
     {"id":"developers","target":"developers","state":"trace-explorer-local-workspace","access":"mixed"},
     {"id":"docs","target":"docs","state":"existing-fragments","access":"public"},
     {"id":"research","target":"research","state":"claim-graph-local-workspace","access":"mixed"},
@@ -101,6 +102,26 @@
     "production_trace_and_actor_required": true,
     "cloud_telemetry_backend_claimed": false,
     "private_chain_of_thought_exposed": false
+  },
+  "live_substrate": {
+    "persistence": "INDEXEDDB_BROWSER_LOCAL_DEVICE",
+    "modalities": ["voice","camera","screen"],
+    "browser_media_apis": ["getUserMedia","getDisplayMedia","MediaRecorder"],
+    "explicit_permission_required": true,
+    "privacy_indicators": true,
+    "recording_controls": true,
+    "selectable_screen_region": "KEYBOARD_ACCESSIBLE_NORMALIZED_COORDINATES",
+    "annotation": true,
+    "artifact_capture": "PROJECT_LINKED_LOCAL_MEDIA_WITH_SHA256",
+    "project_linked_notes": true,
+    "transcript_evidence_log": "MANUAL_TRANSCRIPT_ONLY",
+    "interruption_target_ms": 250,
+    "interruption_measurement_scope": "LOCAL_UI_ACKNOWLEDGEMENT_ONLY",
+    "capture_integrity": "SHA256_LINKED_SESSION_EVENTS_AND_CAPTURE_METADATA",
+    "model_understanding_claimed": false,
+    "automated_transcription_claimed": false,
+    "cloud_media_upload_claimed": false,
+    "real_device_certification_claimed": false
   },
   "execution_boundary": "PREVIEW_ONLY_NO_EXTERNAL_CONSEQUENTIAL_ACTIONS"
 }
