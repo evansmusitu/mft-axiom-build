@@ -88,7 +88,10 @@ def _runtime_mapping(value: Any) -> tuple[dict[Any, Any], bool]:
         return {}, True
     if not isinstance(value, MappingABC):
         return {}, False
-    return dict(value), True
+    try:
+        return dict(value), True
+    except Exception:
+        return {}, False
 
 
 def _typed_records(values: Any, record_type: type) -> tuple[list[Any], bool]:
