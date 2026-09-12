@@ -1,16 +1,17 @@
 {
-  "schema": "musitu.axiom.interface.surface-map.v4",
+  "schema": "musitu.axiom.interface.surface-map.v5",
   "authority": {
     "earned_track_b_sha": "73ecdbad38cb10020b6e30ebe42a9222a3bb6c55",
     "qualified_phase1_sha": "5b7233fd9e62b530ef9eb161b41010727d76bacb",
     "qualified_phase2_sha": "0b22d9932b374555d11b0d5d23379d470a368f50",
     "qualified_phase3_sha": "ddb8a97c394e7e5b4107c95110c426ebd19ca66c",
+    "qualified_phase4_sha": "4ee9dec2f68dcc17f09457623f4a3c39aba98e88",
     "blueprint_sha256": "e750039a9c88abc780d24f48c3e86e22fd9295fec99a1b0593668aa8dd9ac166"
   },
-  "phase": "PHASE_4_RESEARCH_CLAIM_GRAPH",
+  "phase": "PHASE_5_UNIVERSAL_ARTIFACT_ENGINE",
   "surfaces": [
     {"id":"flagship","target":"musitu.ai/axiom","state":"future-routing","access":"public"},
-    {"id":"app","target":"app","state":"shell-plus-project-graph-plus-work-plus-research","access":"authenticated"},
+    {"id":"app","target":"app","state":"shell-plus-project-graph-plus-work-plus-research-plus-artifacts","access":"authenticated"},
     {"id":"developers","target":"developers","state":"registered-placeholder","access":"mixed"},
     {"id":"docs","target":"docs","state":"existing-fragments","access":"public"},
     {"id":"research","target":"research","state":"claim-graph-local-workspace","access":"mixed"},
@@ -65,6 +66,27 @@
     "missing_evidence_detection": true,
     "cloud_research_sync_claimed": false,
     "external_verification_claimed": false
+  },
+  "artifact_substrate": {
+    "persistence": "INDEXEDDB_BROWSER_LOCAL_DEVICE",
+    "first_class_types": ["document","sheet","presentation","website","dashboard"],
+    "stable_identity": true,
+    "project_linkage": "PROJECT_OBJECT_TYPE_ARTIFACT",
+    "editable_state": true,
+    "version_history": "IMMUTABLE_SHA256_LINKED_VERSIONS",
+    "diff": "DETERMINISTIC_STRUCTURED_JSON_DIFF",
+    "rollback": "NON_DESTRUCTIVE_NEW_VERSION_FROM_PRIOR_SNAPSHOT",
+    "comments": true,
+    "permissions": ["owner","editor","viewer"],
+    "sources": true,
+    "provenance": "VERSION_BOUND_ACTOR_SOURCE_TIMESTAMP",
+    "dependency_graph": "PROJECT_SCOPED_ACYCLIC_ARTIFACT_LINKS",
+    "machine_readable_metadata": true,
+    "export": "MACHINE_READABLE_BROWSER_LOCAL_JSON_BUNDLE",
+    "website_code_preview": "STATIC_DISPLAY_NO_SCRIPT_OR_EXTERNAL_RESOURCE_EXECUTION",
+    "cloud_collaboration_claimed": false,
+    "external_publication_claimed": false,
+    "deployment_claimed": false
   },
   "execution_boundary": "PREVIEW_ONLY_NO_EXTERNAL_CONSEQUENTIAL_ACTIONS"
 }
