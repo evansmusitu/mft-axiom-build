@@ -1,0 +1,74 @@
+name: MUSITU FMI Verified Inner Transport Preflight V2
+
+on:
+  push:
+    branches:
+      - fmi-commercial-launch-20260912-ephemeral
+    paths:
+      - '.github/workflows/fmi-inner-transport-preflight-v2.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  verify-inner-transport:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download and verify exact standalone FMI launch transport
+        shell: bash
+        run: |
+          set -euo pipefail
+          OUT=/tmp/MUSITU_FMI_COMMERCIAL_GLOBAL_LAUNCH_TRANSPORT_20260912.zip
+          URL='https://drive.usercontent.google.com/download?id=1UqkDfO5CZ_0F9fxdF-DAKEc-FB3n3e1Q&export=download&confirm=t'
+          EXPECTED_SIZE=333338
+          EXPECTED_SHA='c87009714befc99bf88c81d882aad98cd7dfa32f56daa1c8a5a38987f978152e'
+          ok=0
+          for attempt in 1 2 3 4 5; do
+            rm -f "$OUT"
+            curl -fL --retry 5 --retry-all-errors --retry-delay 2 --connect-timeout 20 --max-time 120 "$URL" -o "$OUT" || true
+            if [ -f "$OUT" ]; then
+              size="$(stat -c %s "$OUT")"
+              sha="$(sha256sum "$OUT" | awk '{print $1}')"
+              echo "attempt=$attempt size=$size sha256=$sha"
+              if [ "$size" = "$EXPECTED_SIZE" ] && [ "$sha" = "$EXPECTED_SHA" ]; then
+                ok=1
+                break
+              fi
+            fi
+            sleep 2
+          done
+          test "$ok" = 1
+          unzip -tq "$OUT"
+          rm -rf /tmp/fmi-launch && mkdir -p /tmp/fmi-launch
+          unzip -q "$OUT" -d /tmp/fmi-launch
+          test -f /tmp/fmi-launch/deploy/modal_fmi_commercial.py
+          test -f /tmp/fmi-launch/deploy/cloudflare_fmi_global.py
+          test -f /tmp/fmi-launch/edge/fmi-global/schema.sql
+          test -f /tmp/fmi-launch/edge/fmi-global/adapter.js
+          test -f /tmp/fmi-launch/edge/fmi-global/worker.js
+          python - <<'PY'
+          import json, pathlib
+          root=pathlib.Path('/tmp/fmi-launch')
+          m=json.loads((root/'MUSITU_FMI_COMMERCIAL_GLOBAL_LAUNCH_TRANSPORT_MANIFEST_20260912.json').read_text())
+          a=m['authority']
+          assert a['live_trading_authorized'] is False
+          assert a['model_authorized_trade_execution'] is False
+          assert a['production_model_authority'] is False
+          assert a['paper_shadow_only'] is True
+          modal=(root/'deploy/modal_fmi_commercial.py').read_text()
+          cf=(root/'deploy/cloudflare_fmi_global.py').read_text()
+          assert 'APP_NAME = "mft-fmi-commercial"' in modal
+          assert 'requires_proxy_auth=True' in modal
+          assert 'musitu-fmi-global' in cf
+          assert 'mft-fmi-modal-adapter' in cf
+          assert 'mft-fmi-global-edge' in cf
+          for forbidden in ['mft-axiom-prod','mft-axiom-modal-adapter','mft-axiom-modal-edge-stage']:
+              assert forbidden not in modal
+              assert forbidden not in cf
+          print('authority_lock_preflight=PASS')
+          PY
+          echo authoritative_inner_transport=PASS
+          echo inner_size=$EXPECTED_SIZE
+          echo inner_sha256=$EXPECTED_SHA
