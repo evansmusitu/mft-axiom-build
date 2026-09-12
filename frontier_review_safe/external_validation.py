@@ -26,6 +26,11 @@ _CLAIM_CONFUSABLES = str.maketrans({
     "а": "a", "с": "c", "е": "e", "і": "i", "ј": "j", "к": "k", "м": "m", "о": "o",
     "р": "p", "ѕ": "s", "х": "x", "у": "y",
 })
+_ORGANIZATION_CONFUSABLES = {
+    key: value
+    for key, value in _CLAIM_CONFUSABLES.items()
+    if chr(key) not in "013457"
+}
 
 
 def _valid_sha256(value: str) -> bool:
@@ -53,7 +58,9 @@ def _organization_key(value: str) -> str:
 
 
 def _independence_organization_key(value: str) -> str:
-    return unicodedata.normalize("NFKC", " ".join(value.split())).casefold()
+    return unicodedata.normalize("NFKC", " ".join(value.split())).translate(
+        _ORGANIZATION_CONFUSABLES
+    ).casefold()
 
 
 def _runtime_mapping(value: Any) -> tuple[dict[Any, Any], bool]:
@@ -307,15 +314,24 @@ class ExternalEvidenceGate:
     LEVEL7_REFRESH_FLOOR = 3
 
     @staticmethod
-    def _receipt_map(receipts: Sequence[ExternalAttestationReceipt], subject_type: str) -> dict[str, ExternalAttestationReceipt]:
+    def _receipt_map(
+        receipts: Sequence[ExternalAttestationReceipt],
+        subject_type: str,
+    ) -> tuple[dict[str, ExternalAttestationReceipt], bool, bool]:
         out: dict[str, ExternalAttestationReceipt] = {}
+        duplicate = False
+        invalid = False
         for receipt in receipts:
+            if not isinstance(receipt, ExternalAttestationReceipt):
+                invalid = True
+                continue
             if receipt.subject_type != subject_type:
                 continue
             if receipt.subject_id in out:
-                raise FrontierSafetyError(f"duplicate external attestation receipt for {receipt.subject_id}")
+                duplicate = True
+                continue
             out[receipt.subject_id] = receipt
-        return out
+        return out, duplicate, invalid
 
     @classmethod
     def level5(
@@ -349,10 +365,14 @@ class ExternalEvidenceGate:
                 "reason": "no_external_runs", "reasons": ["no_external_runs"],
                 "attestation_verified": False, "baseline_registry_verified": False,
             }
-        receipt_map = cls._receipt_map(receipts, "external_run")
+        receipt_map, duplicate_receipts, invalid_receipts = cls._receipt_map(receipts, "external_run")
         secrets, secrets_valid = _runtime_mapping(verifier_secrets)
         issuers, issuers_valid = _runtime_mapping(trusted_issuers)
         reasons: list[str] = []
+        if duplicate_receipts:
+            reasons.append("duplicate_external_run_attestation_receipt")
+        if invalid_receipts:
+            reasons.append("invalid_external_run_attestation_receipt")
         if not secrets_valid:
             reasons.append("external_verifier_secret_store_invalid")
         if not issuers_valid:
@@ -361,7 +381,7 @@ class ExternalEvidenceGate:
         receipt_hashes: dict[str, str] = {}
         provider_classes: set[str] = set()
         level5_provider_orgs = {
-            _organization_key(run.provider_org)
+            _independence_organization_key(run.provider_org)
             for run in runs
             if _nonblank(run.provider_org)
         }
@@ -431,7 +451,7 @@ class ExternalEvidenceGate:
             if not isinstance(receipt.issuer_org, str) or not receipt.issuer_org.strip():
                 reasons.append("external_attestation_issuer_identity_invalid")
                 continue
-            if _organization_key(receipt.issuer_org) in level5_provider_orgs:
+            if _independence_organization_key(receipt.issuer_org) in level5_provider_orgs:
                 reasons.append("external_attestation_issuer_overlaps_level5_provider")
                 continue
             verified.append(run)
@@ -441,6 +461,7 @@ class ExternalEvidenceGate:
         constraint_hashes = {r.constraint_hash for r in verified}
         candidate_shas = {r.candidate_sha for r in verified}
         providers = {_organization_key(r.provider_org) for r in verified}
+        independent_providers = {_independence_organization_key(r.provider_org) for r in verified}
         latest_external_run_at = max((parse_time(r.executed_at) for r in verified), default=None)
         if len(verified) != len(runs):
             reasons.append("not_all_external_runs_attested_and_registered")
@@ -450,7 +471,7 @@ class ExternalEvidenceGate:
             reasons.append("constraints_not_identical")
         if len(candidate_shas) != 1:
             reasons.append("candidate_sha_not_identical")
-        if len(providers) < required_provider_orgs:
+        if len(independent_providers) < required_provider_orgs:
             reasons.append("insufficient_independent_providers")
         if set(required_provider_classes) - provider_classes:
             reasons.append("baseline_provider_class_coverage_incomplete")
@@ -495,7 +516,11 @@ class ExternalEvidenceGate:
         if (level5.get("status") != "PASS" or level5.get("attestation_verified") is not True
                 or level5.get("baseline_registry_verified") is not True):
             reasons.append("level5_not_attested_registered_and_passed")
-        receipt_map = cls._receipt_map(receipts, "independent_validation")
+        receipt_map, duplicate_receipts, invalid_receipts = cls._receipt_map(receipts, "independent_validation")
+        if duplicate_receipts:
+            reasons.append("duplicate_independent_validation_attestation_receipt")
+        if invalid_receipts:
+            reasons.append("invalid_independent_validation_attestation_receipt")
         expected_candidate = level5.get("candidate_sha")
         expected_cases = level5.get("case_set_hash")
         identity_valid = _valid_git_sha(expected_candidate) and _valid_sha256(expected_cases)
@@ -503,6 +528,11 @@ class ExternalEvidenceGate:
             reasons.append("level5_identity_binding_invalid")
         level5_providers = {
             _organization_key(provider)
+            for provider in level5.get("provider_orgs", ())
+            if isinstance(provider, str) and provider.strip()
+        }
+        level5_provider_independence = {
+            _independence_organization_key(provider)
             for provider in level5.get("provider_orgs", ())
             if isinstance(provider, str) and provider.strip()
         }
@@ -531,7 +561,7 @@ class ExternalEvidenceGate:
             if validation.provenance_type != "independent_lab_record":
                 saw_nonindependent_provenance = True
                 continue
-            if _independence_organization_key(validation.validator_org) in level5_providers:
+            if _independence_organization_key(validation.validator_org) in level5_provider_independence:
                 saw_provider_overlap = True
                 continue
             if validation.candidate_sha != expected_candidate or validation.case_set_hash != expected_cases:
@@ -559,7 +589,7 @@ class ExternalEvidenceGate:
             if not isinstance(receipt.issuer_org, str) or not receipt.issuer_org.strip():
                 saw_attester_identity_invalid = True
                 continue
-            if _organization_key(receipt.issuer_org) in level5_providers:
+            if _independence_organization_key(receipt.issuer_org) in level5_provider_independence:
                 saw_attester_overlap = True
                 continue
             if _independence_organization_key(receipt.issuer_org) == _independence_organization_key(validation.validator_org):
@@ -644,6 +674,11 @@ class ExternalEvidenceGate:
             for provider in level6.get("level5_provider_orgs", ())
             if isinstance(provider, str) and provider.strip()
         }
+        level5_provider_independence = {
+            _independence_organization_key(provider)
+            for provider in level6.get("level5_provider_orgs", ())
+            if isinstance(provider, str) and provider.strip()
+        }
         latest_validation_raw = level6.get("latest_validation_at")
         latest_validation_at = None
         if latest_validation_raw is not None:
@@ -654,7 +689,11 @@ class ExternalEvidenceGate:
                     latest_validation_at = parse_time(latest_validation_raw)
                 except ValueError:
                     reasons.append("level6_validation_time_invalid")
-        receipt_map = cls._receipt_map(receipts, "longitudinal_refresh")
+        receipt_map, duplicate_receipts, invalid_receipts = cls._receipt_map(receipts, "longitudinal_refresh")
+        if duplicate_receipts:
+            reasons.append("duplicate_longitudinal_refresh_attestation_receipt")
+        if invalid_receipts:
+            reasons.append("invalid_longitudinal_refresh_attestation_receipt")
         passed_refreshes: list[LongitudinalRefreshRecord] = []
         receipt_hashes: list[str] = []
         seen_refresh_ids: set[str] = set()
@@ -686,7 +725,7 @@ class ExternalEvidenceGate:
             if not isinstance(refresh.executor_org, str) or not refresh.executor_org.strip():
                 saw_executor_identity_invalid = True
                 continue
-            if _independence_organization_key(refresh.executor_org) in level5_providers:
+            if _independence_organization_key(refresh.executor_org) in level5_provider_independence:
                 saw_executor_overlap = True
                 continue
             if latest_validation_at is not None and parse_time(refresh.executed_at) < latest_validation_at:
@@ -711,7 +750,10 @@ class ExternalEvidenceGate:
             if parse_time(receipt.issued_at) < parse_time(refresh.executed_at):
                 saw_attestation_time_reversal = True
                 continue
-            if _organization_key(receipt.issuer_org) in level5_providers:
+            if not isinstance(receipt.issuer_org, str) or not receipt.issuer_org.strip():
+                saw_attester_overlap = True
+                continue
+            if _independence_organization_key(receipt.issuer_org) in level5_provider_independence:
                 saw_attester_overlap = True
                 continue
             if _independence_organization_key(receipt.issuer_org) == _independence_organization_key(refresh.executor_org):
