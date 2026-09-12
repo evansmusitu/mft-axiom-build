@@ -555,6 +555,11 @@ class ExternalEvidenceGate:
         if not isinstance(level5, MappingABC):
             reasons.append("invalid_level5_assessment")
             level5 = {}
+        try:
+            level5_provider_values = tuple(level5.get("provider_orgs", ()))
+        except TypeError:
+            reasons.append("invalid_level5_provider_orgs")
+            level5_provider_values = ()
         typed_validations, invalid_validations = _typed_records(validations, IndependentValidationRecord)
         if invalid_validations:
             reasons.append("invalid_independent_validation_record")
@@ -579,12 +584,12 @@ class ExternalEvidenceGate:
             reasons.append("level5_identity_binding_invalid")
         level5_providers = {
             _organization_key(provider)
-            for provider in level5.get("provider_orgs", ())
+            for provider in level5_provider_values
             if isinstance(provider, str) and provider.strip()
         }
         level5_provider_independence = {
             _independence_organization_key(provider)
-            for provider in level5.get("provider_orgs", ())
+            for provider in level5_provider_values
             if isinstance(provider, str) and provider.strip()
         }
         latest_external_run_raw = level5.get("latest_external_run_at")
@@ -699,6 +704,11 @@ class ExternalEvidenceGate:
         if not isinstance(level6, MappingABC):
             reasons.append("invalid_level6_assessment")
             level6 = {}
+        try:
+            level6_provider_values = tuple(level6.get("level5_provider_orgs", ()))
+        except TypeError:
+            reasons.append("invalid_level6_provider_orgs")
+            level6_provider_values = ()
         typed_refreshes, invalid_refreshes = _typed_records(refreshes, LongitudinalRefreshRecord)
         if invalid_refreshes:
             reasons.append("invalid_longitudinal_refresh_record")
@@ -728,12 +738,12 @@ class ExternalEvidenceGate:
                 reasons.append("longitudinal_refresh_floor_below_required")
         level5_providers = {
             _organization_key(provider)
-            for provider in level6.get("level5_provider_orgs", ())
+            for provider in level6_provider_values
             if isinstance(provider, str) and provider.strip()
         }
         level5_provider_independence = {
             _independence_organization_key(provider)
-            for provider in level6.get("level5_provider_orgs", ())
+            for provider in level6_provider_values
             if isinstance(provider, str) and provider.strip()
         }
         latest_validation_raw = level6.get("latest_validation_at")
@@ -1156,12 +1166,23 @@ class ClaimBoundary:
         if not comparison_scope or not benchmark_hash or not _valid_sha256(benchmark_hash):
             return {"status": "DENY", "max_evidence_level": max_level, "reason": "comparison_scope_or_benchmark_missing"}
 
-        expected_providers = {_organization_key(str(x)) for x in level5.get("provider_orgs", [])}
-        expected_runs = {str(x) for x in level5.get("run_ids", [])}
+        try:
+            level5_provider_values = tuple(level5.get("provider_orgs", []))
+        except TypeError:
+            return {"status": "DENY", "max_evidence_level": max_level, "reason": "invalid_level5_provider_orgs"}
+        try:
+            level5_run_values = tuple(level5.get("run_ids", []))
+        except TypeError:
+            return {"status": "DENY", "max_evidence_level": max_level, "reason": "invalid_level5_run_ids"}
+        level5_receipt_values = level5.get("run_receipt_hashes", {})
+        if not isinstance(level5_receipt_values, MappingABC):
+            return {"status": "DENY", "max_evidence_level": max_level, "reason": "invalid_level5_run_receipt_hashes"}
+        expected_providers = {_organization_key(str(x)) for x in level5_provider_values}
+        expected_runs = {str(x) for x in level5_run_values}
         expected_candidate = level5.get("candidate_sha")
         expected_cases = level5.get("case_set_hash")
         expected_constraints = level5.get("constraint_hash")
-        expected_receipts = dict(level5.get("run_receipt_hashes", {}))
+        expected_receipts = dict(level5_receipt_values)
         if benchmark_hash != expected_cases:
             return {"status": "DENY", "max_evidence_level": max_level, "reason": "comparison_benchmark_hash_mismatch"}
         typed_outcomes, invalid_outcomes = _typed_records(comparative_outcomes, ComparativeOutcome)
