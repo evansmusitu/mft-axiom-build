@@ -1,0 +1,149 @@
+name: RevenueGuard ContractNLI Semantic Evaluation
+
+on:
+  push:
+    branches:
+      - revenueguard-axiom-governor-20260911
+    paths:
+      - '.github/workflows/revenueguard-contractnli-semantic-eval.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  evaluate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download exact adapted model artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: revenueguard-contractnli-adapted-model
+          path: adapted_bundle
+          repository: evansmusitu/mft-axiom-build
+          run-id: 34676990123
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Evaluate semantic decision layer with train-calibrated abstention
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          python -m pip install 'torch' 'transformers==4.56.2' 'scikit-learn'
+          curl -fL --retry 4 --retry-delay 2 -o contract-nli.zip 'https://raw.githubusercontent.com/stanfordnlp/contract-nli/eced6528dd3c1d14d73f9a87df8f7bdbc03126f9/resources/contract-nli.zip'
+          unzip -q contract-nli.zip
+          python - <<'PY'
+          import json, re, hashlib, math
+          from pathlib import Path
+          import torch
+          from transformers import AutoTokenizer, AutoModelForSequenceClassification
+          from sklearn.metrics import f1_score
+
+          torch.set_num_threads(2)
+          MODEL=Path('adapted_bundle/adapted_model')
+          assert MODEL.exists(), list(Path('adapted_bundle').rglob('*'))[:20]
+          tok=AutoTokenizer.from_pretrained(MODEL,local_files_only=True)
+          model=AutoModelForSequenceClassification.from_pretrained(MODEL,local_files_only=True)
+          model.eval()
+
+          def words(s): return set(re.findall(r'[a-z0-9]+',s.lower()))
+          def overlap(a,b):
+              A=words(a); B=words(b)
+              return len(A&B)/(len(A|B) or 1)
+          def partition(d):
+              x=int(hashlib.sha256(str(d['id']).encode()).hexdigest()[:8],16)
+              return 'cal' if x%10==0 else 'build'
+          def premise_for(d,hid,labels):
+              ann=d['annotation_sets'][0]['annotations'][hid]
+              spans=[d['text'][a:b].strip() for a,b in d['spans']]
+              if ann['choice']!='NotMentioned' and ann.get('spans'):
+                  chosen=[spans[i] for i in ann['spans'] if i < len(spans) and spans[i].strip()]
+                  return ' '.join(chosen)[:4000]
+              hyp=labels[hid]['hypothesis']
+              if not spans: return ''
+              return max(spans,key=lambda s:overlap(s,hyp))[:4000]
+          def gold(choice):
+              return {'Contradiction':0,'Entailment':1,'NotMentioned':2}[choice]
+          def collect(path, filter_fn=lambda d:True):
+              obj=json.load(open(path)); labels=obj['labels']; rows=[]
+              for d in obj['documents']:
+                  if not filter_fn(d): continue
+                  anns=d['annotation_sets'][0]['annotations']
+                  for hid in sorted(labels):
+                      a=anns[hid]
+                      rows.append((premise_for(d,hid,labels),labels[hid]['hypothesis'],gold(a['choice']),str(d['id']),hid))
+              return rows
+          @torch.inference_mode()
+          def score(rows,batch=96):
+              out=[]
+              for i in range(0,len(rows),batch):
+                  b=rows[i:i+batch]
+                  enc=tok([x[0] for x in b],[x[1] for x in b],padding=True,truncation=True,max_length=192,return_tensors='pt')
+                  p=torch.softmax(model(**enc).logits,dim=-1).cpu().tolist()
+                  out.extend(p)
+              return out
+          def apply(ps,thr,margin):
+              preds=[]
+              for p in ps:
+                  order=sorted(range(3),key=lambda j:p[j],reverse=True)
+                  top,second=order[0],order[1]
+                  if top!=2 and (p[top]<thr or p[top]-p[second]<margin): top=2
+                  preds.append(top)
+              return preds
+          def metrics(y,p):
+              n=len(y); acc=sum(a==b for a,b in zip(y,p))/n
+              macro=f1_score(y,p,labels=[0,1,2],average='macro',zero_division=0)
+              nm=[i for i,v in enumerate(y) if v==2]
+              fg=sum(p[i]!=2 for i in nm)/(len(nm) or 1)
+              pos=[i for i,v in enumerate(y) if v in (0,1)]
+              posacc=sum(p[i]==y[i] for i in pos)/(len(pos) or 1)
+              return {'accuracy':acc,'macro_f1':macro,'false_grounding_notmentioned':fg,'positive_semantic_accuracy':posacc,'n':n}
+
+          cal=collect('contract-nli/train.json',lambda d:partition(d)=='cal')
+          cal_y=[x[2] for x in cal]; cal_ps=score(cal)
+          best=None
+          for thr in [0.34,0.40,0.45,0.50,0.55,0.60,0.65,0.70,0.75,0.80,0.85,0.90]:
+              for margin in [0.0,0.05,0.10,0.15,0.20,0.25,0.30]:
+                  pred=apply(cal_ps,thr,margin); m=metrics(cal_y,pred)
+                  # Prefer <=2% false grounding; then macro-F1, then accuracy.
+                  key=(m['false_grounding_notmentioned']<=0.02,m['macro_f1'],m['accuracy'],-m['false_grounding_notmentioned'])
+                  if best is None or key>best[0]: best=(key,thr,margin,m)
+          _,thr,margin,cal_m=best
+
+          dev=collect('contract-nli/dev.json')
+          dev_y=[x[2] for x in dev]; dev_ps=score(dev); dev_p=apply(dev_ps,thr,margin); dev_m=metrics(dev_y,dev_p)
+          by={}
+          for hid in sorted({x[4] for x in dev}):
+              ix=[i for i,x in enumerate(dev) if x[4]==hid]
+              by[hid]=metrics([dev_y[i] for i in ix],[dev_p[i] for i in ix])
+          report={
+            'schema':'musitu.revenueguard.contractnli.semantic_eval.v1',
+            'status':'DEV_RESEARCH_ONLY',
+            'model_artifact_run':34676990123,
+            'model_artifact_sha256':'3d78d473ffde6f790b3919226d1069b81fa8426f0f139007d3ba8b9d9cf23055',
+            'contractnli_commit':'eced6528dd3c1d14d73f9a87df8f7bdbc03126f9',
+            'evaluation_mode':'gold evidence for positive labels; lexical distractor for NotMentioned; threshold calibrated on hash-held training documents only',
+            'calibration_threshold':thr,
+            'calibration_margin':margin,
+            'calibration':cal_m,
+            'dev':dev_m,
+            'dev_by_hypothesis':by,
+            'gate':{
+              'semantic_accuracy_min':0.90,
+              'macro_f1_min':0.88,
+              'false_grounding_max':0.02,
+              'pass': dev_m['accuracy']>=0.90 and dev_m['macro_f1']>=0.88 and dev_m['false_grounding_notmentioned']<=0.02
+            }
+          }
+          canon=json.dumps(report,sort_keys=True,separators=(',',':')).encode(); report['report_sha256']=hashlib.sha256(canon).hexdigest()
+          Path('CONTRACTNLI_SEMANTIC_DEV_EVAL.json').write_text(json.dumps(report,indent=2,sort_keys=True)+'\n')
+          print(json.dumps(report,indent=2,sort_keys=True))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: revenueguard-contractnli-semantic-dev-eval
+          path: CONTRACTNLI_SEMANTIC_DEV_EVAL.json
+          if-no-files-found: error
+          retention-days: 30
