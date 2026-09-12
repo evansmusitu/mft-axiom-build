@@ -1,0 +1,134 @@
+name: MUSITU Store 1.0.3 Signing Input Contract
+
+on:
+  push:
+    branches: [musitu-store-native-install-handoff-20260911]
+    paths:
+      - 'store/phase1/provenance/store-client-1.0.3-signing-input.json'
+      - 'store/phase2/reproducibility/store-1.0.3/verify_authorized_signed_apk.py'
+      - '.github/workflows/musitu-store-1.0.3-signing-input-contract.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify-contract:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Verify sealed 1.0.3 signing-input boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m py_compile store/phase2/reproducibility/store-1.0.3/verify_authorized_signed_apk.py
+          python - <<'PY'
+          import importlib.util
+          import json
+          from pathlib import Path
+
+          contract_path = Path('store/phase1/provenance/store-client-1.0.3-signing-input.json')
+          evidence_path = Path('evidence/musitu-store/MUSITU_STORE_1_0_3_UNSIGNED_REPRODUCIBILITY_BASELINE_20260912.json')
+          verifier_path = Path('store/phase2/reproducibility/store-1.0.3/verify_authorized_signed_apk.py')
+          historical_path = Path('store/phase2/reproducibility/store-1.0.3/reconstruct_signed_apk.py')
+
+          contract = json.loads(contract_path.read_text())
+          evidence = json.loads(evidence_path.read_text())
+
+          assert contract['schema'] == 'musitu.store.client_signing_input.v1'
+          assert contract['subject'] == {
+              'name': 'MUSITU Store',
+              'packageId': 'com.musitu.store',
+              'version': '1.0.3',
+              'versionCode': 10003,
+              'minSdk': 24,
+          }
+          boundary = contract['repositoryBoundary']
+          assert boundary['branch'] == 'musitu-store-native-install-handoff-20260911'
+          assert boundary['sourceAuthorityHead'] == 'afc0654d26f91a8fb88898e15a10ba5f52f416c8'
+          assert boundary['sourceAuthorityRootTree'] == 'de5d0be807f6effa29d698a1f8e9de87e03bd2ed'
+          assert boundary['unsignedReproducibilitySealHead'] == '6567b893e279ff53f1e0c271cc980a2511463e6e'
+          assert boundary['unsignedReproducibilitySealTree'] == '270ec981af62149d8bf081ec3f064a7def2c45f6'
+
+          proof = contract['sourceAndProof']
+          assert proof['sealedUnsignedWorkflowRunId'] == 34675592872
+          assert proof['sealedUnsignedArtifactId'] == 10292027543
+          assert proof['sealedUnsignedArtifactName'] == 'musitu-store-1.0.3-unsigned'
+          assert proof['sealedUnsignedArtifactArchiveSha256'] == '949e9ca0b16181802cb8c0880053fa3f72f7ce2860a6b5a7508209f6d904cad7'
+          assert proof['sealedUnsignedArtifactArchiveBytes'] == 2748125
+          assert proof['sealedUnsignedWorkflowResult'] == 'PASS'
+
+          unsigned = contract['unsignedInput']
+          assert unsigned['file'] == 'MUSITU_Store_1.0.3_UNSIGNED.apk'
+          assert unsigned['sha256'] == '808828892d6eaced0904b0a0e437853041f54d51f8dcdb695d2557e8c338c0da'
+          assert unsigned['bytes'] == 1679020
+          assert evidence['reproduced_baseline']['sha256'] == unsigned['sha256']
+          assert evidence['reproduced_baseline']['bytes'] == unsigned['bytes']
+          assert evidence['decision']['result'] == 'PASS_REPEATED_CURRENT_HEAD_REPRODUCIBILITY'
+
+          identity = contract['requiredExistingSigningIdentity']
+          assert identity['certificateSha256'] == '43695b6103d7ab57e89166c9a537f1810b7e33053e20332b1d4e7e2e1c612671'
+          assert identity['v1Required'] is False
+          assert identity['v2Required'] is True
+          assert identity['v3Required'] is True
+          assert identity['signerReplacementAuthorized'] is False
+
+          acceptance = contract['signedOutputAcceptance']
+          assert acceptance['packageIdMustEqual'] == 'com.musitu.store'
+          assert acceptance['versionMustEqual'] == '1.0.3'
+          assert acceptance['versionCodeMustEqual'] == 10003
+          assert acceptance['signingCertificateSha256MustEqual'] == identity['certificateSha256']
+          assert acceptance['v1MustVerify'] is False
+          assert acceptance['v2MustVerify'] is True
+          assert acceptance['v3MustVerify'] is True
+          assert acceptance['nonSignaturePayloadEntriesMustMatchUnsignedInput'] is True
+          assert acceptance['apkSignatureVerificationMustPass'] is True
+
+          obsolete = contract['obsoleteReconstructionBoundary']
+          assert obsolete['historicalUnsignedSha256'] == 'fabb197b0ffeac6c69041a93aa3fc9023dccd841758f817ffd28b7dacdf2559f'
+          assert obsolete['historicalSignedSha256'] == '9bbb97b928fcd9130a84f333f3ffe48f3829edec474ec19d18a36df289c36081'
+          assert obsolete['historicalUnsignedSha256'] != unsigned['sha256']
+          assert obsolete['mayBeAppliedToCurrentUnsignedInput'] is False
+
+          security = contract['securityBoundary']
+          assert security['privateSigningMaterialPresentInRepository'] is False
+          assert security['privateSigningMaterialMayBeLogged'] is False
+          assert security['privateSigningMaterialMayBeReturnedInResponses'] is False
+          assert security['signingMustUseAuthorizedOperatorPrivateMechanism'] is True
+          assert security['signerReplacementAuthorized'] is False
+
+          state = contract['state']
+          assert state['unsignedReproducibilitySealed'] is True
+          assert state['signingPerformed'] is False
+          assert state['currentPayloadSignedArtifactVerified'] is False
+          assert state['productionDeploymentPerformed'] is False
+          assert state['freshDeviceCertificationComplete'] is False
+
+          def load_module(path, name):
+              spec = importlib.util.spec_from_file_location(name, path)
+              module = importlib.util.module_from_spec(spec)
+              assert spec.loader is not None
+              spec.loader.exec_module(module)
+              return module
+
+          verifier = load_module(verifier_path, 'musitu_store_v103_authorized_verifier')
+          historical = load_module(historical_path, 'musitu_store_v103_historical_reconstructor')
+          assert verifier.UNSIGNED_SHA256 == unsigned['sha256']
+          assert verifier.UNSIGNED_BYTES == unsigned['bytes']
+          assert verifier.SIGNING_CERT_SHA256 == identity['certificateSha256']
+          assert verifier.PACKAGE_ID == 'com.musitu.store'
+          assert verifier.VERSION_NAME == '1.0.3'
+          assert verifier.VERSION_CODE == 10003
+          assert historical.UNSIGNED_SHA256 == obsolete['historicalUnsignedSha256']
+          assert historical.SIGNED_SHA256 == obsolete['historicalSignedSha256']
+          assert historical.UNSIGNED_SHA256 != verifier.UNSIGNED_SHA256
+
+          print('MUSITU_STORE_1_0_3_SIGNING_INPUT_CONTRACT=PASS')
+          print('CURRENT_UNSIGNED_SHA256=' + verifier.UNSIGNED_SHA256)
+          print('REQUIRED_SIGNER_SHA256=' + verifier.SIGNING_CERT_SHA256)
+          print('HISTORICAL_RECONSTRUCTION_REUSE=REJECTED')
+          PY
