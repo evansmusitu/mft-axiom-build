@@ -1,0 +1,61 @@
+{
+  "schema": "musitu.axiom.level5-execution-contract.v1",
+  "candidate_sha": "REPLACE_WITH_EXACT_40_HEX_CANDIDATE_SHA",
+  "registry_version": "level5-external-20260912-v1",
+  "created_at": "REPLACE_WITH_ISO8601",
+  "valid_until": "REPLACE_WITH_ISO8601",
+  "case_set_hash": "REPLACE_WITH_SHA256",
+  "constraint_hash": "REPLACE_WITH_SHA256",
+  "required_provider_orgs": 3,
+  "required_provider_classes": ["general_agent"],
+  "providers": [
+    {
+      "registration_id": "openai-01",
+      "provider_org": "OpenAI",
+      "provider_class": "general_agent",
+      "product": "GPT-6 Astra",
+      "exact_version": "gpt-6-astra",
+      "access_mode": "api",
+      "permissions_hash": "REPLACE_WITH_SHA256",
+      "configuration_hash": "REPLACE_WITH_SHA256",
+      "account_scope_hash": "REPLACE_WITH_SHA256",
+      "capabilities": ["sealed_eval", "reasoning", "coding"]
+    },
+    {
+      "registration_id": "anthropic-01",
+      "provider_org": "Anthropic",
+      "provider_class": "general_agent",
+      "product": "Claude Fable",
+      "exact_version": "claude-fable-5",
+      "access_mode": "api",
+      "permissions_hash": "REPLACE_WITH_SHA256",
+      "configuration_hash": "REPLACE_WITH_SHA256",
+      "account_scope_hash": "REPLACE_WITH_SHA256",
+      "capabilities": ["sealed_eval", "reasoning", "coding"]
+    },
+    {
+      "registration_id": "google-01",
+      "provider_org": "Google",
+      "provider_class": "general_agent",
+      "product": "Gemini 3.8 Flash",
+      "exact_version": "gemini-3.8-flash",
+      "access_mode": "api",
+      "permissions_hash": "REPLACE_WITH_SHA256",
+      "configuration_hash": "REPLACE_WITH_SHA256",
+      "account_scope_hash": "REPLACE_WITH_SHA256",
+      "capabilities": ["sealed_eval", "reasoning", "coding"]
+    },
+    {
+      "registration_id": "microsoft-01",
+      "provider_org": "Microsoft",
+      "provider_class": "general_agent",
+      "product": "MAI-Thinking-1",
+      "exact_version": "MAI-Thinking-1",
+      "access_mode": "api",
+      "permissions_hash": "REPLACE_WITH_SHA256",
+      "configuration_hash": "REPLACE_WITH_SHA256",
+      "account_scope_hash": "REPLACE_WITH_SHA256",
+      "capabilities": ["sealed_eval", "reasoning", "coding"]
+    }
+  ]
+}

@@ -1,0 +1,60 @@
+{
+  "schema": "musitu.axiom.level5-target-matrix.v1",
+  "as_of": "2026-09-12",
+  "earned_parent_sha": "a9dc4e5a01d1e285945c9e9578f840d25b49cfb7",
+  "selection_policy": "Use provider-reported exact model identity at execution time; public model labels are targeting hints, not evidence authority.",
+  "targets": [
+    {
+      "provider_org": "OpenAI",
+      "provider_class": "general_agent",
+      "product": "GPT-6 Astra",
+      "recommended_exact_version": "gpt-6-astra",
+      "current_release_label": "GPT-6 Astra",
+      "access_mode": "api",
+      "capabilities": ["reasoning", "coding", "agentic_workflows", "tool_use", "vision"],
+      "mandatory_for_global_claim": true,
+      "public_source": "https://developers.openai.com/api/docs/models",
+      "selection_reason": "OpenAI documents GPT-6 Astra as its flagship model for complex reasoning and coding.",
+      "availability_note": "Public API model; pin the model ID returned by the provider response."
+    },
+    {
+      "provider_org": "Anthropic",
+      "provider_class": "general_agent",
+      "product": "Claude Fable",
+      "recommended_exact_version": "claude-fable-5",
+      "current_release_label": "Claude Fable 5.1",
+      "access_mode": "api",
+      "capabilities": ["reasoning", "coding", "knowledge_work", "research"],
+      "mandatory_for_global_claim": true,
+      "public_source": "https://docs.anthropic.com/en/docs/about-claude/model-deprecations",
+      "selection_reason": "Anthropic lists claude-fable-5 as active; the September 2026 Fable 5.1 announcement is the newest Fable release.",
+      "availability_note": "Use the exact model identity reported by the Claude API response; do not infer a 5.1 API suffix."
+    },
+    {
+      "provider_org": "Google",
+      "provider_class": "general_agent",
+      "product": "Gemini 3.8 Flash",
+      "recommended_exact_version": "gemini-3.8-flash",
+      "current_release_label": "Gemini 3.8 Flash",
+      "access_mode": "api",
+      "capabilities": ["reasoning", "coding", "agentic_workflows", "multimodal"],
+      "mandatory_for_global_claim": true,
+      "public_source": "https://ai.google.dev/gemini-api/docs/changelog",
+      "selection_reason": "Google lists Gemini 3.8 Flash as GA and its newest high-end model for long-horizon software engineering, autonomous agents, and complex enterprise workflows.",
+      "availability_note": "Pin the exact model identifier and provider receipt/export metadata from the executed API path."
+    },
+    {
+      "provider_org": "Microsoft",
+      "provider_class": "general_agent",
+      "product": "MAI-Thinking-1",
+      "recommended_exact_version": "MAI-Thinking-1",
+      "current_release_label": "MAI-Thinking-1",
+      "access_mode": "api",
+      "capabilities": ["reasoning", "coding", "enterprise_workflows"],
+      "mandatory_for_global_claim": true,
+      "public_source": "https://microsoft.ai/models/",
+      "selection_reason": "Microsoft AI identifies MAI-Thinking-1 as its first-party reasoning model for complex problems and coding.",
+      "availability_note": "Foundry access may be restricted/private-preview. If unavailable, global frontier coverage remains incomplete; do not substitute another provider."
+    }
+  ]
+}
