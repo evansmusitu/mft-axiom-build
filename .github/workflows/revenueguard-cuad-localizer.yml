@@ -1,0 +1,155 @@
+name: RevenueGuard CUAD Learned Clause Localizer
+
+on:
+  push:
+    branches:
+      - revenueguard-axiom-governor-20260911
+    paths:
+      - '.github/workflows/revenueguard-cuad-localizer.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  train-evaluate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Train and evaluate on document-disjoint CUAD train split
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          python -m pip install 'scikit-learn==1.9.1' 'joblib'
+          curl -fL --retry 4 --retry-delay 2 -o cuad-data.zip 'https://raw.githubusercontent.com/The-Atticus-Project/cuad/67faa0e6023b04fcaae6cc09497ab00e5d63a2a2/data.zip'
+          unzip -q cuad-data.zip
+          python - <<'PY'
+          import json,re,hashlib,random,math
+          from pathlib import Path
+          from collections import defaultdict
+          import numpy as np
+          from sklearn.pipeline import FeatureUnion
+          from sklearn.feature_extraction.text import TfidfVectorizer
+          from sklearn.linear_model import SGDClassifier
+          from sklearn.metrics import precision_recall_fscore_support
+          import joblib
+
+          SEED=917331
+          random.seed(SEED); np.random.seed(SEED)
+          data=json.load(open('data/train_separate_questions.json'))['data']
+
+          def is_dev(title):
+              return int(hashlib.sha256(title.encode()).hexdigest()[:8],16)%10==0
+          def toks(s): return set(re.findall(r'[a-z0-9]+',s.lower()))
+          def lexical(q,w):
+              a=toks(q);b=toks(w);return len(a&b)/(len(a|b) or 1)
+          def windows(context,width=900,stride=450):
+              if len(context)<=width:return [(0,len(context),context)]
+              out=[]
+              for a in range(0,len(context),stride):
+                  b=min(len(context),a+width)
+                  out.append((a,b,context[a:b]))
+                  if b==len(context):break
+              return out
+          cache={}
+          def getwins(title,context):
+              k=(title,len(context))
+              if k not in cache:cache[k]=windows(context)
+              return cache[k]
+          def overlaps(win,ans_start,ans_text):
+              a,b,_=win; e=ans_start+len(ans_text)
+              return max(a,ans_start)<min(b,e)
+
+          train_text=[];train_y=[];dev_rows=[]
+          pos_count=neg_count=0
+          for contract in data:
+              title=contract.get('title','')
+              for para in contract['paragraphs']:
+                  ctx=para['context']; ws=getwins(title,ctx)
+                  for qa in para['qas']:
+                      q=qa['question']; answers=qa.get('answers',[])
+                      positives=[]
+                      for wi,w in enumerate(ws):
+                          if any(overlaps(w,a['answer_start'],a['text']) for a in answers): positives.append(wi)
+                      if is_dev(title):
+                          dev_rows.append((title,q,ctx,ws,answers,positives,qa['id']))
+                          continue
+                      # Positive windows, deduped. If impossible, none.
+                      for wi in sorted(set(positives)):
+                          train_text.append('QUESTION: '+q+'\nWINDOW: '+ws[wi][2]);train_y.append(1);pos_count+=1
+                      # Hard negatives: lexical-close windows not overlapping answers.
+                      candidates=[(lexical(q,w[2]),i) for i,w in enumerate(ws) if i not in positives]
+                      candidates.sort(reverse=True)
+                      take=max(2,min(5,2+len(positives)))
+                      for _,wi in candidates[:take]:
+                          train_text.append('QUESTION: '+q+'\nWINDOW: '+ws[wi][2]);train_y.append(0);neg_count+=1
+
+          vectorizer=FeatureUnion([
+            ('word',TfidfVectorizer(lowercase=True,ngram_range=(1,2),min_df=2,max_features=80000,sublinear_tf=True)),
+            ('char',TfidfVectorizer(lowercase=True,analyzer='char_wb',ngram_range=(3,5),min_df=2,max_features=120000,sublinear_tf=True)),
+          ])
+          X=vectorizer.fit_transform(train_text)
+          clf=SGDClassifier(loss='log_loss',alpha=2e-6,max_iter=35,tol=1e-4,class_weight='balanced',random_state=SEED,average=True)
+          clf.fit(X,train_y)
+
+          positive=[]; impossible=[]; rows=[]
+          for title,q,ctx,ws,answers,positives,qid in dev_rows:
+              texts=['QUESTION: '+q+'\nWINDOW: '+w[2] for w in ws]
+              sc=clf.predict_proba(vectorizer.transform(texts))[:,1]
+              order=np.argsort(-sc)
+              item={'id':qid,'title':title,'has_answer':bool(answers),'max_score':float(sc[order[0]]) if len(order) else 0.0}
+              if answers:
+                  pset=set(positives)
+                  item.update({f'top{k}_hit':bool(any(int(i) in pset for i in order[:k])) for k in [1,3,5,8]})
+                  positive.append(item)
+              else: impossible.append(item)
+              rows.append(item)
+
+          recall={f'top{k}':sum(x[f'top{k}_hit'] for x in positive)/(len(positive) or 1) for k in [1,3,5,8]}
+          # Calibrate an answer/no-answer threshold on dev for measurement only; this split will never be final certification evidence.
+          thresholds=sorted({round(x['max_score'],4) for x in rows})
+          best=None
+          for th in thresholds:
+              tp=sum(x['has_answer'] and x['max_score']>=th for x in rows)
+              fp=sum((not x['has_answer']) and x['max_score']>=th for x in rows)
+              fn=sum(x['has_answer'] and x['max_score']<th for x in rows)
+              prec=tp/(tp+fp or 1); rec=tp/(tp+fn or 1); f1=2*prec*rec/(prec+rec or 1)
+              key=(f1,prec,rec)
+              if best is None or key>best[0]: best=(key,th,{'precision':prec,'recall':rec,'f1':f1,'false_positive_rate':fp/(len(impossible) or 1)})
+          _,threshold,detection=best
+          by_category=defaultdict(lambda:{'n':0,'top5':0})
+          for x,(title,q,ctx,ws,answers,positives,qid) in zip(rows,dev_rows):
+              if answers:
+                  # Category is embedded in CUAD's stable qid suffix after '__' when present; otherwise hash question text as stable name.
+                  cat=q.split('Details:')[0].strip()
+                  by_category[cat]['n']+=1;by_category[cat]['top5']+=int(x.get('top5_hit',False))
+          by_category={k:{'n':v['n'],'top5_recall':v['top5']/(v['n'] or 1)} for k,v in by_category.items()}
+
+          out=Path('cuad_localizer');out.mkdir()
+          joblib.dump({'vectorizer':vectorizer,'classifier':clf,'threshold':threshold},out/'localizer.joblib',compress=3)
+          report={
+            'schema':'musitu.revenueguard.cuad_localizer.dev.v1',
+            'status':'DEV_RESEARCH_ONLY',
+            'cuad_commit':'67faa0e6023b04fcaae6cc09497ab00e5d63a2a2',
+            'seed':SEED,
+            'split':'document-disjoint hash split inside official train_separate_questions.json; official test.json unopened',
+            'training_examples':len(train_y),'positive_training_examples':pos_count,'negative_training_examples':neg_count,
+            'dev_positive_questions':len(positive),'dev_impossible_questions':len(impossible),
+            'retrieval_recall':recall,'detection':detection,'threshold':threshold,'by_category':by_category,
+            'gate':{'top5_min':0.85,'top8_min':0.90,'pass':recall['top5']>=0.85 and recall['top8']>=0.90}
+          }
+          b=(out/'localizer.joblib').read_bytes();report['model_sha256']=hashlib.sha256(b).hexdigest();report['model_bytes']=len(b)
+          report['report_sha256']=hashlib.sha256(json.dumps(report,sort_keys=True,separators=(',',':')).encode()).hexdigest()
+          Path('CUAD_LOCALIZER_DEV_EVAL.json').write_text(json.dumps(report,indent=2,sort_keys=True)+'\n')
+          print(json.dumps(report,indent=2,sort_keys=True))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: revenueguard-cuad-localizer-dev
+          path: |
+            cuad_localizer/
+            CUAD_LOCALIZER_DEV_EVAL.json
+          if-no-files-found: error
+          retention-days: 30
