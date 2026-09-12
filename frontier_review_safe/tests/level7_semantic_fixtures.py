@@ -15,7 +15,13 @@ def level7_artifact_fields(
     case_set_hash: str,
     baseline_registry_hash: str,
     generated_at: str,
+    governance_before_hash: str | None = None,
+    governance_decision: str | None = None,
 ) -> dict[str, object]:
+    before_hash = governance_before_hash or baseline_registry_hash
+    decision = governance_decision or (
+        "retain" if before_hash == baseline_registry_hash else "replace"
+    )
     retained_failure_corpus = {
         "schema": "musitu.axiom.retained-failure-corpus.v1",
         "candidate_sha": candidate_sha,
@@ -37,11 +43,11 @@ def level7_artifact_fields(
         "candidate_sha": candidate_sha,
         "case_set_hash": case_set_hash,
         "generated_at": generated_at,
-        "decision_id": f"retain:{baseline_registry_hash[:16]}:{generated_at}",
-        "decision": "retain",
-        "baseline_registry_hash_before": baseline_registry_hash,
+        "decision_id": f"{decision}:{before_hash[:8]}:{baseline_registry_hash[:8]}:{generated_at}",
+        "decision": decision,
+        "baseline_registry_hash_before": before_hash,
         "baseline_registry_hash_after": baseline_registry_hash,
-        "rationale": "Retain the observed baseline registry for this longitudinal refresh.",
+        "rationale": "Record the governed baseline transition for this longitudinal refresh.",
         "evidence_hash": "e" * 64,
     }
     corpus_json = _json_text(retained_failure_corpus)
