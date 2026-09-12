@@ -7,7 +7,7 @@ from pathlib import Path
 import shutil
 import threading
 
-from playwright.sync_api import sync_playwright
+from playwright.sync_api import expect, sync_playwright
 
 ROOT = Path(__file__).resolve().parents[1]
 ARTIFACT_DIR = Path(os.environ.get("AXIOM_PHASE2_ARTIFACT_DIR", "/tmp/axiom-interface-phase2"))
@@ -28,7 +28,7 @@ def main() -> None:
             context=browser.new_context(viewport={"width":1280,"height":900},reduced_motion="reduce")
             page=context.new_page(); requests=[]; page.on('request',lambda r:requests.append(r.url))
             page.goto(origin+'/index.html#/projects',wait_until='networkidle')
-            page.wait_for_function("window.AxiomProjects && window.AxiomProjects.store")
+            page.locator('#project-create-form').wait_for(state='visible')
             assert page.locator('#workspace-title').get_by_text('Projects', exact=True).is_visible()
             assert 'does not claim cloud or multi-device sync' in page.locator('.boundary-note').inner_text()
 
@@ -36,8 +36,9 @@ def main() -> None:
             page.locator('#project-goal').fill('Prove stable graph identity, provenance and cross-session recovery')
             page.locator('#project-memory').select_option('project-only')
             page.get_by_role('button',name='Create project').click()
-            page.wait_for_function("window.AxiomProjects.getCurrentProjectId() !== ''")
-            project_id=page.evaluate("window.AxiomProjects.getCurrentProjectId()")
+            project_select=page.locator('#project-select')
+            expect(project_select).not_to_have_value('')
+            project_id=project_select.input_value()
             assert project_id.startswith('prj_')
 
             for kind,title,source in [('source','Blueprint authority','authoritative-blueprint'),('artifact','Phase 2 evidence package','generated-interface')]:
@@ -63,7 +64,8 @@ def main() -> None:
             assert denied=='NotAllowedError', denied
 
             # Cross-session proof 1: hard reload retains stable graph IDs and provenance.
-            page.reload(wait_until='networkidle'); page.wait_for_function("window.AxiomProjects && window.AxiomProjects.store")
+            page.reload(wait_until='networkidle')
+            page.locator('#project-create-form').wait_for(state='visible')
             await_result=page.evaluate("pid => window.AxiomProjects.selectProject(pid).then(()=>window.AxiomProjects.store.graph(pid))",project_id)
             assert await_result['project']['project_id']==project_id
             assert {x['object_id'] for x in await_result['objects']}=={source_id,artifact_id}
@@ -72,7 +74,7 @@ def main() -> None:
             assert page.evaluate("pid => window.AxiomProjects.store.verifyEventChain(pid)",project_id) is True
 
             # Cross-session proof 2: a fresh page in the same browser profile/origin sees the same graph.
-            second=context.new_page(); second.goto(origin+'/index.html#/projects',wait_until='networkidle'); second.wait_for_function("window.AxiomProjects && window.AxiomProjects.store")
+            second=context.new_page(); second.goto(origin+'/index.html#/projects',wait_until='networkidle'); second.locator('#project-create-form').wait_for(state='visible')
             persisted=second.evaluate("pid => window.AxiomProjects.store.graph(pid)",project_id)
             assert persisted['project']['project_id']==project_id
             assert {x['object_id'] for x in persisted['objects']}=={source_id,artifact_id}
