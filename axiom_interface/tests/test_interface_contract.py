@@ -117,12 +117,14 @@ class InterfaceContractTests(unittest.TestCase):
         self.assertEqual(SURFACE_MAP["execution_boundary"], "PREVIEW_ONLY_NO_EXTERNAL_CONSEQUENTIAL_ACTIONS")
 
     def test_surface_map_matches_authority_and_phase(self):
-        self.assertEqual(SURFACE_MAP["authority"]["earned_track_b_sha"], "73ecdbad38cb10020b6e30ebe42a9222a3bb6c55")
-        self.assertEqual(SURFACE_MAP["authority"]["qualified_phase1_sha"], "5b7233fd9e62b530ef9eb161b41010727d76bacb")
-        self.assertEqual(SURFACE_MAP["authority"]["qualified_phase2_sha"], "0b22d9932b374555d11b0d5d23379d470a368f50")
-        self.assertEqual(SURFACE_MAP["authority"]["qualified_phase3_sha"], "ddb8a97c394e7e5b4107c95110c426ebd19ca66c")
-        self.assertEqual(SURFACE_MAP["authority"]["blueprint_sha256"], "e750039a9c88abc780d24f48c3e86e22fd9295fec99a1b0593668aa8dd9ac166")
-        self.assertEqual(SURFACE_MAP["phase"], "PHASE_4_RESEARCH_CLAIM_GRAPH")
+        authority=SURFACE_MAP["authority"]
+        self.assertEqual(authority["earned_track_b_sha"], "73ecdbad38cb10020b6e30ebe42a9222a3bb6c55")
+        self.assertEqual(authority["qualified_phase1_sha"], "5b7233fd9e62b530ef9eb161b41010727d76bacb")
+        self.assertEqual(authority["qualified_phase2_sha"], "0b22d9932b374555d11b0d5d23379d470a368f50")
+        self.assertEqual(authority["qualified_phase3_sha"], "ddb8a97c394e7e5b4107c95110c426ebd19ca66c")
+        self.assertEqual(authority["qualified_phase4_sha"], "4ee9dec2f68dcc17f09457623f4a3c39aba98e88")
+        self.assertEqual(authority["blueprint_sha256"], "e750039a9c88abc780d24f48c3e86e22fd9295fec99a1b0593668aa8dd9ac166")
+        self.assertEqual(SURFACE_MAP["phase"], "PHASE_5_UNIVERSAL_ARTIFACT_ENGINE")
         self.assertGreaterEqual(len(SURFACE_MAP["surfaces"]), 11)
         self.assertIn("observability", SURFACE_MAP["workspace_routes"])
         self.assertEqual(SURFACE_MAP["project_substrate"]["persistence"], "INDEXEDDB_BROWSER_LOCAL_DEVICE")
@@ -138,11 +140,18 @@ class InterfaceContractTests(unittest.TestCase):
         self.assertTrue(research["contradictions_preserved"])
         self.assertTrue(research["missing_evidence_detection"])
         self.assertFalse(research["external_verification_claimed"])
+        artifacts=SURFACE_MAP["artifact_substrate"]
+        self.assertEqual(artifacts["version_history"],"IMMUTABLE_SHA256_LINKED_VERSIONS")
+        self.assertEqual(artifacts["rollback"],"NON_DESTRUCTIVE_NEW_VERSION_FROM_PRIOR_SNAPSHOT")
+        self.assertEqual(artifacts["provenance"],"VERSION_BOUND_ACTOR_SOURCE_TIMESTAMP")
+        self.assertFalse(artifacts["cloud_collaboration_claimed"])
+        self.assertFalse(artifacts["external_publication_claimed"])
+        self.assertFalse(artifacts["deployment_claimed"])
 
     def test_service_worker_is_same_origin_and_shell_only(self):
         self.assertIn("event.request.method!=='GET'", SW)
         self.assertIn("self.location.origin", SW)
-        for asset in ["./index.html", "./projects.js", "./outcome_contracts.js", "./outcome_execution.js", "./research_claims.js", "./styles/research.css"]:
+        for asset in ["./index.html", "./projects.js", "./outcome_contracts.js", "./outcome_execution.js", "./research_claims.js", "./styles/research.css", "./artifacts.js", "./styles/artifacts.css"]:
             self.assertIn(asset, SW)
         self.assertNotIn("https://", SW)
 
@@ -159,6 +168,7 @@ class InterfaceContractTests(unittest.TestCase):
         self.assertIn("initOutcomeContractWorkspace", JS)
         self.assertIn("initOutcomeExecutionWorkspace", JS)
         self.assertIn("initResearchWorkspace", JS)
+        self.assertIn("initArtifactWorkspace", JS)
         self.assertIn('./styles/projects.css', HTML)
 
 
