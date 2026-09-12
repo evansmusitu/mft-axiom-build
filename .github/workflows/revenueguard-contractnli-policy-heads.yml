@@ -31,13 +31,13 @@ jobs:
         run: |
           set -euo pipefail
           python -m pip install --upgrade pip
-          python -m pip install 'torch' 'transformers==4.56.2' 'scikit-learn==1.9.1' 'joblib'
+          python -m pip install --index-url https://download.pytorch.org/whl/cpu 'torch'
+          python -m pip install 'transformers==4.56.2' 'scikit-learn==1.9.1' 'joblib'
           curl -fL --retry 4 --retry-delay 2 -o contract-nli.zip 'https://raw.githubusercontent.com/stanfordnlp/contract-nli/eced6528dd3c1d14d73f9a87df8f7bdbc03126f9/resources/contract-nli.zip'
           unzip -q contract-nli.zip
           python - <<'PY'
           import json,re,hashlib
           from pathlib import Path
-          from collections import defaultdict
           import numpy as np
           import torch
           from transformers import AutoTokenizer,AutoModelForSequenceClassification
@@ -94,8 +94,7 @@ jobs:
           heads={}
           for hid in sorted({x['hid'] for x in build}):
               ix=[i for i,x in enumerate(build) if x['hid']==hid]
-              # Balanced policy-specific probabilistic head over adapted semantic embedding + base logits.
-              h=make_pipeline(StandardScaler(),LogisticRegression(C=.25,max_iter=1000,class_weight='balanced',random_state=SEED,multi_class='auto'))
+              h=make_pipeline(StandardScaler(),LogisticRegression(C=.25,max_iter=1000,class_weight='balanced',random_state=SEED))
               h.fit(Xb[ix],yb[ix]);heads[hid]=h
           def probs(rows,X):
               P=np.zeros((len(rows),3),dtype=float)
