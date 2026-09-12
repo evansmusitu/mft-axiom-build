@@ -1,0 +1,131 @@
+name: RevenueGuard CUAD Evidence Span Adapter
+
+on:
+  push:
+    branches:
+      - revenueguard-axiom-governor-20260911
+    paths:
+      - '.github/workflows/revenueguard-cuad-span-adapt.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  adapt:
+    runs-on: ubuntu-latest
+    timeout-minutes: 70
+    steps:
+      - uses: actions/checkout@v4
+      - name: Train CUAD span extractor on official train data only
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          python -m pip install 'torch' 'transformers==4.56.2' 'huggingface-hub==0.34.4' 'safetensors'
+          curl -fL --retry 4 --retry-delay 2 -o cuad-data.zip 'https://raw.githubusercontent.com/The-Atticus-Project/cuad/67faa0e6023b04fcaae6cc09497ab00e5d63a2a2/data.zip'
+          unzip -q cuad-data.zip
+          python - <<'PY'
+          import json,re,hashlib,random,time
+          from pathlib import Path
+          from collections import Counter
+          import torch
+          from torch.utils.data import Dataset,DataLoader
+          from transformers import AutoTokenizer,AutoModelForQuestionAnswering
+          from huggingface_hub import HfApi,snapshot_download
+
+          SEED=733109
+          random.seed(SEED);torch.manual_seed(SEED);torch.set_num_threads(2)
+          BASE='deepset/minilm-uncased-squad2'
+          REV=HfApi().model_info(BASE).sha
+          src=Path(snapshot_download(BASE,revision=REV,allow_patterns=['config.json','model.safetensors','pytorch_model.bin','tokenizer_config.json','special_tokens_map.json','vocab.txt']))
+          tok=AutoTokenizer.from_pretrained(src,local_files_only=True,use_fast=True)
+          model=AutoModelForQuestionAnswering.from_pretrained(src,local_files_only=True)
+          for p in model.parameters():p.requires_grad=False
+          # MiniLM/BERT final two layers + QA head.
+          enc=getattr(model,'bert',None)
+          for layer in enc.encoder.layer[-2:]:
+              for p in layer.parameters():p.requires_grad=True
+          for p in model.qa_outputs.parameters():p.requires_grad=True
+
+          raw=json.load(open('data/train_separate_questions.json'))['data']
+          def is_dev(title):return int(hashlib.sha256(title.encode()).hexdigest()[:8],16)%10==0
+          def words(s):return set(re.findall(r'[a-z0-9]+',s.lower()))
+          def overlap(a,b):
+              A=words(a);B=words(b);return len(A&B)/(len(A|B) or 1)
+          def pos_context(ctx,start,text):
+              end=start+len(text);lo=max(0,start-700);hi=min(len(ctx),end+1100)
+              return ctx[lo:hi],start-lo,end-lo
+          def hard_negative(ctx,q,answers):
+              blocked=[]
+              for a in answers:blocked.append((a['answer_start'],a['answer_start']+len(a['text'])))
+              best=None
+              for lo in range(0,max(1,len(ctx)),900):
+                  hi=min(len(ctx),lo+1800)
+                  if any(max(lo,a)<min(hi,b) for a,b in blocked):continue
+                  s=overlap(q,ctx[lo:hi]);
+                  if best is None or s>best[0]:best=(s,ctx[lo:hi])
+                  if hi==len(ctx):break
+              return best[1] if best else ctx[:1800]
+
+          build=[];dev=[]
+          for c in raw:
+              title=c.get('title','');dest=dev if is_dev(title) else build
+              for para in c['paragraphs']:
+                  ctx=para['context']
+                  for qa in para['qas']:
+                      q=qa['question'];ans=qa.get('answers',[])
+                      for a in ans[:2]:
+                          sub,s,e=pos_context(ctx,a['answer_start'],a['text']);dest.append((q,sub,s,e,a['text'],False,qa['id']))
+                      neg=hard_negative(ctx,q,ans);dest.append((q,neg,None,None,'',True,qa['id']))
+          random.shuffle(build)
+          print('build_examples',len(build),'dev_examples',len(dev),'base_revision',REV,flush=True)
+
+          class QD(Dataset):
+              def __init__(self,rows):self.rows=rows
+              def __len__(self):return len(self.rows)
+              def __getitem__(self,i):return self.rows[i]
+          def collate(batch):
+              qs=[x[0] for x in batch];cs=[x[1] for x in batch]
+              encs=tok(qs,cs,padding=True,truncation='only_second',max_length=384,return_offsets_mapping=True,return_tensors='pt')
+              offsets=encs.pop('offset_mapping');starts=[];ends=[]
+              for bi,x in enumerate(batch):
+                  if x[5]:
+                      cls=(encs['input_ids'][bi]==tok.cls_token_id).nonzero(as_tuple=False)[0].item();starts.append(cls);ends.append(cls);continue
+                  s,e=x[2],x[3];seq=encs.sequence_ids(bi);st=en=None
+                  for j,(off0,off1) in enumerate(offsets[bi].tolist()):
+                      if seq[j]!=1:continue
+                      if st is None and off0<=s<off1:st=j
+                      if off0<e<=off1:en=j;break
+                  if st is None or en is None:
+                      cls=(encs['input_ids'][bi]==tok.cls_token_id).nonzero(as_tuple=False)[0].item();st=en=cls
+                  starts.append(st);ends.append(en)
+              encs['start_positions']=torch.tensor(starts);encs['end_positions']=torch.tensor(ends)
+              return encs
+          dl=DataLoader(QD(build),batch_size=24,shuffle=True,collate_fn=collate,num_workers=2)
+          params=[p for p in model.parameters() if p.requires_grad]
+          opt=torch.optim.AdamW(params,lr=3e-5,weight_decay=.01)
+          model.train();losses=[];t0=time.time()
+          for epoch in range(2):
+              tot=0.;n=0
+              for step,b in enumerate(dl):
+                  opt.zero_grad(set_to_none=True);o=model(**b);o.loss.backward();torch.nn.utils.clip_grad_norm_(params,1.0);opt.step();tot+=float(o.loss.detach());n+=1
+                  if step and step%200==0:print('epoch',epoch+1,'step',step,'loss',round(tot/n,4),'elapsed',round(time.time()-t0,1),flush=True)
+              losses.append(tot/n);print('epoch_done',epoch+1,'loss',losses[-1],flush=True)
+
+          out=Path('cuad_span_model');out.mkdir();model.save_pretrained(out,safe_serialization=True);tok.save_pretrained(out)
+          files=[]
+          for p in sorted(out.iterdir()):
+              if p.is_file():
+                  b=p.read_bytes();files.append({'path':p.name,'bytes':len(b),'sha256':hashlib.sha256(b).hexdigest()})
+          report={'schema':'musitu.revenueguard.cuad_span_adapter_train.v1','status':'DEV_RESEARCH_ONLY','base_repo':BASE,'base_revision':REV,'cuad_commit':'67faa0e6023b04fcaae6cc09497ab00e5d63a2a2','seed':SEED,'build_examples':len(build),'heldout_dev_examples':len(dev),'trainable_parameters':sum(p.numel() for p in params),'total_parameters':sum(p.numel() for p in model.parameters()),'epoch_loss':losses,'files':files}
+          report['report_sha256']=hashlib.sha256(json.dumps(report,sort_keys=True,separators=(',',':')).encode()).hexdigest();Path('CUAD_SPAN_TRAINING_REPORT.json').write_text(json.dumps(report,indent=2,sort_keys=True)+'\n');print(json.dumps(report,indent=2,sort_keys=True))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: revenueguard-cuad-span-adapted-model
+          path: |
+            cuad_span_model/
+            CUAD_SPAN_TRAINING_REPORT.json
+          if-no-files-found: error
+          retention-days: 30
