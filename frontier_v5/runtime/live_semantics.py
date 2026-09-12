@@ -4,7 +4,7 @@ This module adds real, offline semantic execution on top of the permissioned
 capture substrate. It deliberately scopes what is earned:
 - voice: Vosk ASR over a caller-supplied, digest-pinned model;
 - dialogue: persistent multi-turn transcript -> verified MCP specialist -> espeak speech;
-- camera/screen: Tesseract OCR plus OpenCV face/QR detectors, including selected regions;
+- camera/screen: Tesseract OCR plus OpenCV QR and optional face detection, including selected regions;
 - receipts: input/output digests, model/tool IDs, latency and interruption state.
 
 This is not a general-purpose vision-language model and makes no cloud-provider,
@@ -118,7 +118,7 @@ class SemanticReceipt:
 
 
 class VisualSemanticEngine:
-    """Real local OCR/face/QR semantics; intentionally not a general VLM."""
+    """Real local OCR/QR semantics with optional face detection; not a general VLM."""
 
     def __init__(self) -> None:
         import cv2
@@ -127,17 +127,21 @@ class VisualSemanticEngine:
         if not exe:
             raise LiveSemanticError("tesseract executable unavailable")
         self.tesseract = exe
-        cascade = Path(cv2.data.haarcascades) / "haarcascade_frontalface_default.xml"
-        if not cascade.is_file():
-            raise LiveSemanticError("OpenCV frontal-face cascade unavailable")
-        self.cascade_sha256 = _sha_bytes(cascade.read_bytes())
-        self.face = cv2.CascadeClassifier(str(cascade))
-        if self.face.empty():
-            raise LiveSemanticError("OpenCV face detector failed to load")
+        self.face = None
+        self.cascade_sha256 = None
+        cascade_dir = getattr(getattr(cv2, "data", None), "haarcascades", None)
+        if cascade_dir:
+            cascade = Path(cascade_dir) / "haarcascade_frontalface_default.xml"
+            if cascade.is_file():
+                candidate = cv2.CascadeClassifier(str(cascade))
+                if not candidate.empty():
+                    self.face = candidate
+                    self.cascade_sha256 = _sha_bytes(cascade.read_bytes())
         version = subprocess.run([exe, "--version"], check=True, capture_output=True, text=True).stdout.splitlines()[0].strip()
         self.engine_asset_sha256 = _sha_json({
             "tesseract": version,
             "opencv": cv2.__version__,
+            "face_detector_available": self.face is not None,
             "cascade_sha256": self.cascade_sha256,
         })
 
@@ -189,15 +193,18 @@ class VisualSemanticEngine:
 
         if interrupt and interrupt.is_set():
             raise LiveSemanticError("semantic execution interrupted")
-        gray = self.cv2.cvtColor(working, self.cv2.COLOR_BGR2GRAY)
-        faces = self.face.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=4)
         qr = self.cv2.QRCodeDetector()
         qr_text, _, _ = qr.detectAndDecode(working)
+        face_count = None
+        if self.face is not None:
+            gray = self.cv2.cvtColor(working, self.cv2.COLOR_BGR2GRAY)
+            face_count = int(len(self.face.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=4)))
         text = " ".join(proc.stdout.split())
         output = {
             "ocr_text": text,
             "ocr_text_sha256": _sha_bytes(text.encode("utf-8")),
-            "face_count": int(len(faces)),
+            "face_detector_available": self.face is not None,
+            "face_count": face_count,
             "qr_text": qr_text.strip(),
             "width": int(working.shape[1]),
             "height": int(working.shape[0]),
@@ -214,9 +221,9 @@ class VisualSemanticEngine:
             modality=modality,
             input_sha256=_sha_bytes(source),
             execution_id=_text(execution_id, "execution_id", 180),
-            engine="tesseract-ocr+opencv-face-qr",
+            engine="tesseract-ocr+opencv-qr+optional-face",
             engine_asset_sha256=self.engine_asset_sha256,
-            semantic_scope="OCR_TEXT_FACE_COUNT_QR_WITH_OPTIONAL_REGION_NOT_GENERAL_VLM",
+            semantic_scope="OCR_TEXT_QR_WITH_OPTIONAL_FACE_DETECTOR_AND_OPTIONAL_REGION_NOT_GENERAL_VLM",
             output=output,
             output_sha256=_sha_json(output),
             latency_ms=latency,
