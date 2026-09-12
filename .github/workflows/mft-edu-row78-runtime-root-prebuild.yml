@@ -1,0 +1,117 @@
+name: MFT Education Nexus Row78 Runtime Root Prebuild
+on:
+  push:
+    branches: [mft-edu-row678-builder-20260912]
+    paths: ['.github/workflows/mft-edu-row78-runtime-root-prebuild.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  runtime-root:
+    runs-on: windows-latest
+    timeout-minutes: 45
+    env:
+      FFMPEG_URL: https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-n9.0-latest-win64-gpl-9.0.zip
+      FFMPEG_SHA256: 87c4729f3193f3ba562bada0330a98338c9a858d25b15fc98338a1364667348b
+      TESSERACT_URL: https://github.com/UB-Mannheim/tesseract/releases/download/v5.4.0.20240606/tesseract-ocr-w64-setup-5.4.0.20240606.exe
+      TESSERACT_SHA256: c885fff6998e0608ba4bb8ab51436e1c6775c2bafc2559a19b423e18678b60c9
+      ESPEAK_URL: https://downloads.sourceforge.net/project/espeak/espeak/espeak-1.48/setup_espeak-1.48.04.exe
+      ESPEAK_SHA256: 875a2ae7634420b8653b70f7f555179fb4ce5746bbb5c2557bbe58f72439c58f
+    steps:
+      - uses: actions/checkout@v4
+      - name: Reconstruct pinned native runtime root
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          New-Item -ItemType Directory -Force work\downloads,work\runtime-root,work\runtime-support,out | Out-Null
+          $ffzip='work\downloads\ffmpeg.zip'
+          Invoke-WebRequest -UseBasicParsing -MaximumRedirection 10 -Uri $env:FFMPEG_URL -OutFile $ffzip
+          $ffsha=(Get-FileHash $ffzip -Algorithm SHA256).Hash.ToLowerInvariant()
+          if($ffsha -ne $env:FFMPEG_SHA256){throw "FFmpeg hash mismatch $ffsha"}
+          Expand-Archive $ffzip work\ffmpeg -Force
+          $ff=(Get-ChildItem work\ffmpeg -Recurse -Filter ffmpeg.exe -File | Select-Object -First 1).FullName
+          $fp=(Get-ChildItem work\ffmpeg -Recurse -Filter ffprobe.exe -File | Select-Object -First 1).FullName
+          if(!$ff -or !$fp){throw 'FFmpeg executables missing'}
+          Copy-Item $ff work\runtime-root\ffmpeg.exe
+          Copy-Item $fp work\runtime-root\ffprobe.exe
+
+          $tess='work\downloads\tesseract.exe'
+          Invoke-WebRequest -UseBasicParsing -MaximumRedirection 10 -Uri $env:TESSERACT_URL -OutFile $tess
+          $tsha=(Get-FileHash $tess -Algorithm SHA256).Hash.ToLowerInvariant()
+          if($tsha -ne $env:TESSERACT_SHA256){throw "Tesseract hash mismatch $tsha"}
+          $p=Start-Process -FilePath (Resolve-Path $tess) -ArgumentList '/S' -Wait -PassThru
+          if($p.ExitCode -ne 0){throw "Tesseract install failed $($p.ExitCode)"}
+          $troot=@('C:\Program Files\Tesseract-OCR','C:\Program Files (x86)\Tesseract-OCR') | Where-Object {Test-Path $_} | Select-Object -First 1
+          if(!$troot){throw 'Tesseract root missing'}
+          Copy-Item "$troot\*" work\runtime-root -Recurse -Force
+
+          $es='work\downloads\espeak.exe'
+          Invoke-WebRequest -UseBasicParsing -MaximumRedirection 10 -Headers @{'User-Agent'='MFT-Education-Nexus-Phase2'} -Uri $env:ESPEAK_URL -OutFile $es
+          $esha=(Get-FileHash $es -Algorithm SHA256).Hash.ToLowerInvariant()
+          if($esha -ne $env:ESPEAK_SHA256){throw "eSpeak hash mismatch $esha"}
+          $p=Start-Process -FilePath (Resolve-Path $es) -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART','/SP-' -Wait -PassThru
+          if($p.ExitCode -ne 0){throw "eSpeak install failed $($p.ExitCode)"}
+          $eexe=(Get-ChildItem 'C:\Program Files','C:\Program Files (x86)' -Recurse -Filter espeak.exe -File -ErrorAction SilentlyContinue | Select-Object -First 1).FullName
+          if(!$eexe){throw 'espeak.exe missing'}
+          $eroot=Split-Path $eexe -Parent
+          $edata=(Get-ChildItem (Split-Path $eroot -Parent) -Directory -Filter espeak-data -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1).FullName
+          if(!$edata){$edata=(Get-ChildItem $eroot -Directory -Filter espeak-data -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1).FullName}
+          if(!$edata){throw 'espeak-data missing'}
+          Copy-Item $eexe work\runtime-root\espeak.exe -Force
+          Copy-Item $edata work\runtime-root\espeak-data -Recurse -Force
+
+          foreach($required in @('ffmpeg.exe','ffprobe.exe','tesseract.exe','tessdata\eng.traineddata','espeak.exe','espeak-data')){if(!(Test-Path (Join-Path 'work\runtime-root' $required))){throw "runtime requirement missing: $required"}}
+          $dlls=@(Get-ChildItem work\runtime-root -File | Where-Object {$_.Extension -ieq '.dll'})
+          if($dlls.Count -lt 1){throw 'support DLL set empty'}
+          foreach($f in $dlls){Copy-Item $f.FullName work\runtime-support\$($f.Name) -Force}
+      - name: Exercise reconstructed runtime components
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $root=(Resolve-Path 'work\runtime-root').Path
+          $env:PATH="$root;$root\support;$env:PATH"
+          $env:TESSDATA_PREFIX=(Join-Path $root 'tessdata')
+          $env:ESPEAK_DATA_PATH=(Join-Path $root 'espeak-data')
+          & "$root\ffmpeg.exe" -hide_banner -loglevel error -f lavfi -i 'sine=frequency=523:duration=0.35' -c:a pcm_s16le -y work\ffmpeg.wav
+          if($LASTEXITCODE -ne 0){throw 'ffmpeg exercise failed'}
+          $duration=(& "$root\ffprobe.exe" -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 work\ffmpeg.wav).Trim()
+          if($LASTEXITCODE -ne 0 -or [double]$duration -lt 0.3){throw 'ffprobe exercise failed'}
+          $langs=& "$root\tesseract.exe" --list-langs 2>&1 | Out-String
+          if($LASTEXITCODE -ne 0 -or $langs -notmatch '(?m)^eng\s*$'){throw 'tesseract eng exercise failed'}
+          & "$root\espeak.exe" -w work\espeak.wav 'phase two runtime root qualification'
+          if($LASTEXITCODE -ne 0 -or (Get-Item work\espeak.wav).Length -le 44){throw 'espeak exercise failed'}
+          $files=Get-ChildItem work\runtime-root -File -Recurse | Sort-Object FullName
+          $support=Get-ChildItem work\runtime-support -File | Sort-Object Name
+          $manifest=[ordered]@{
+            schema='mft.education_nexus.phase2.row78.runtime_root_prebuild.v1'
+            mode='PRE_ADMISSION_ENGINEERING_ONLY'
+            builder_repository=$env:GITHUB_REPOSITORY
+            builder_run_id=[long]$env:GITHUB_RUN_ID
+            ffmpeg_input_sha256=$env:FFMPEG_SHA256
+            tesseract_input_sha256=$env:TESSERACT_SHA256
+            espeak_input_sha256=$env:ESPEAK_SHA256
+            runtime_file_count=$files.Count
+            support_dll_count=$support.Count
+            ffmpeg_exercised=$true
+            ffprobe_exercised=$true
+            tesseract_eng_exercised=$true
+            espeak_exercised=$true
+            row7_closed=$false
+            row8_closed=$false
+            reason_not_closed='Canonical row6 sidecar plus frozen stage-runtime and verify_runtime_stage remain required.'
+            official_phase2_credit=0
+            phase2_started=$false
+            phase1_frontier='112/114'
+            files=@($files | ForEach-Object {[ordered]@{path=$_.FullName.Substring((Resolve-Path 'work\runtime-root').Path.Length+1).Replace('\','/');bytes=$_.Length;sha256=(Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()}})
+            support=@($support | ForEach-Object {[ordered]@{name=$_.Name;bytes=$_.Length;sha256=(Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()}})
+          }
+          $manifest | ConvertTo-Json -Depth 8 | Set-Content -Encoding utf8 out\RUNTIME_ROOT_PREBUILD_RECEIPT.json
+          Compress-Archive -Path work\runtime-root\* -DestinationPath out\runtime-root.zip -Force
+          Compress-Archive -Path work\runtime-support\* -DestinationPath out\runtime-support.zip -Force
+      - name: Upload runtime root prebuild
+        uses: actions/upload-artifact@v4
+        with:
+          name: mft-edu-row78-runtime-root-prebuild-${{ github.run_id }}
+          path: out/
+          if-no-files-found: error
+          retention-days: 30
