@@ -1,0 +1,140 @@
+name: RevenueGuard ContractNLI One-Time Test Seal
+
+on:
+  push:
+    branches: [revenueguard-axiom-governor-20260911]
+    paths: ['research/revenueguard/CONTRACTNLI_EPOCH1_CANDIDATE_FREEZE.json']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  score:
+    strategy:
+      fail-fast: false
+      max-parallel: 8
+      matrix:
+        shard: [0,1,2,3,4,5,6,7]
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - name: Assert frozen candidate is test-eligible
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          p='research/revenueguard/CONTRACTNLI_EPOCH1_CANDIDATE_FREEZE.json'
+          o=json.load(open(p))
+          assert o['schema']=='musitu.revenueguard.contractnli.candidate_freeze.v1'
+          assert o['status']=='CANDIDATE_FROZEN_FOR_ONE_TIME_TEST'
+          c=o['candidate']; assert c
+          assert c['mode'] in {'control','balanced'}
+          assert c['chosen_k'] in {24,32}
+          assert c['completed_chunks']==8 and c['global_training_steps']==615
+          assert len(c['checkpoint_artifact_sha256'])==64
+          print({'mode':c['mode'],'k':c['chosen_k'],'threshold':c['chosen_threshold'],'source_dev_report_sha256':c['source_dev_report_sha256']})
+          PY
+      - name: Download exact adapted semantic encoder
+        uses: actions/download-artifact@v4
+        with:
+          name: revenueguard-contractnli-adapted-model
+          path: adapted_bundle
+          repository: evansmusitu/mft-axiom-build
+          run-id: 34676990123
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Download and verify exact frozen candidate checkpoint
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          eval "$(python - <<'PY'
+          import json,shlex
+          c=json.load(open('research/revenueguard/CONTRACTNLI_EPOCH1_CANDIDATE_FREEZE.json'))['candidate']
+          for k,v in [('RUN_ID',c['checkpoint_run_id']),('ART',c['checkpoint_artifact_name']),('EXPECTED',c['checkpoint_artifact_sha256'])]:
+              print(f'{k}={shlex.quote(str(v))}')
+          PY
+          )"
+          API="https://api.github.com/repos/evansmusitu/mft-axiom-build/actions/runs/${RUN_ID}/artifacts?name=${ART}"
+          META=$(curl -fsSL -H "Authorization: Bearer ${GH_TOKEN}" -H 'Accept: application/vnd.github+json' "$API")
+          export META ART EXPECTED
+          python - <<'PY' > artifact.env
+          import json,os,shlex
+          o=json.loads(os.environ['META'])
+          a=[x for x in o['artifacts'] if x['name']==os.environ['ART'] and not x['expired']]
+          assert len(a)==1,a
+          d=a[0].get('digest','')
+          assert d==f"sha256:{os.environ['EXPECTED']}",(d,os.environ['EXPECTED'])
+          print('ARTIFACT_ID='+shlex.quote(str(a[0]['id'])))
+          print('ARTIFACT_DIGEST='+shlex.quote(d))
+          PY
+          source artifact.env
+          mkdir -p final_checkpoint
+          curl -fsSL -L -H "Authorization: Bearer ${GH_TOKEN}" -H 'Accept: application/vnd.github+json' \
+            "https://api.github.com/repos/evansmusitu/mft-axiom-build/actions/artifacts/${ARTIFACT_ID}/zip" -o checkpoint.zip
+          unzip -q checkpoint.zip -d final_checkpoint
+          echo "verified ${ART} ${ARTIFACT_DIGEST}"
+      - name: Install pinned evaluator runtime and fetch sealed ContractNLI release
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          python -m pip install --index-url https://download.pytorch.org/whl/cpu torch
+          python -m pip install 'transformers==4.56.2' 'scikit-learn>=1.5,<2'
+          curl -fL --retry 4 --retry-delay 2 -o contract-nli.zip 'https://raw.githubusercontent.com/stanfordnlp/contract-nli/eced6528dd3c1d14d73f9a87df8f7bdbc03126f9/resources/contract-nli.zip'
+          unzip -q contract-nli.zip
+          test -f contract-nli/test.json
+      - name: Score sealed test shard once
+        shell: bash
+        run: |
+          set -euo pipefail
+          python research/revenueguard/contractnli_test_seal_shard.py \
+            --encoder adapted_bundle/adapted_model \
+            --state final_checkpoint/semantic_state.pt \
+            --test-json contract-nli/test.json \
+            --candidate-json research/revenueguard/CONTRACTNLI_EPOCH1_CANDIDATE_FREEZE.json \
+            --shard-index ${{ matrix.shard }} \
+            --num-shards 8 \
+            --out raw_test_${{ matrix.shard }}.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: revenueguard-contractnli-test-seal-shard-${{ matrix.shard }}
+          path: raw_test_${{ matrix.shard }}.json
+          if-no-files-found: error
+          retention-days: 90
+
+  aggregate:
+    needs: score
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: revenueguard-contractnli-test-seal-shard-*
+          path: shards
+          merge-multiple: true
+      - name: Install aggregation runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install 'scikit-learn>=1.5,<2'
+      - name: Aggregate immutable test seal
+        shell: bash
+        run: |
+          set -euo pipefail
+          python research/revenueguard/contractnli_test_seal_aggregate.py \
+            --shard-glob 'shards/raw_test_*.json' \
+            --expected-shards 8 \
+            --candidate-json research/revenueguard/CONTRACTNLI_EPOCH1_CANDIDATE_FREEZE.json \
+            --out CONTRACTNLI_EPOCH1_ONE_TIME_TEST_SEAL.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: revenueguard-contractnli-epoch1-one-time-test-seal
+          path: CONTRACTNLI_EPOCH1_ONE_TIME_TEST_SEAL.json
+          if-no-files-found: error
+          retention-days: 90
