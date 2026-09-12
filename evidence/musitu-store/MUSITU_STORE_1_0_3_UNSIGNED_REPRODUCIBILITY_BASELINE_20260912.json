@@ -1,0 +1,70 @@
+{
+  "schema": "musitu.store.v103.unsigned_reproducibility_baseline.v1",
+  "product": "MUSITU Store",
+  "version": "1.0.3",
+  "package_id": "com.musitu.store",
+  "repository": "evansmusitu/mft-axiom-build",
+  "branch": "musitu-store-native-install-handoff-20260911",
+  "source_authority": {
+    "head": "afc0654d26f91a8fb88898e15a10ba5f52f416c8",
+    "root_tree": "de5d0be807f6effa29d698a1f8e9de87e03bd2ed",
+    "workflow_path": ".github/workflows/musitu-store-1.0.3-unsigned-build.yml",
+    "workflow_blob_before_rebaseline": "6c0a72c05670288c0038fd6c2f0759fa05757076"
+  },
+  "stale_baseline": {
+    "sha256": "fabb197b0ffeac6c69041a93aa3fc9023dccd841758f817ffd28b7dacdf2559f",
+    "bytes": 1677040
+  },
+  "reproduced_baseline": {
+    "sha256": "808828892d6eaced0904b0a0e437853041f54d51f8dcdb695d2557e8c338c0da",
+    "bytes": 1679020,
+    "reproduction_count": 2
+  },
+  "reproductions": [
+    {
+      "run_id": 34640579854,
+      "run_attempt": 1,
+      "job_id": 103398968537,
+      "started_at": "2026-09-11T19:45:51Z",
+      "completed_at": "2026-09-11T19:47:48Z",
+      "runner": "GitHub-hosted ubuntu-24.04",
+      "source_head": "afc0654d26f91a8fb88898e15a10ba5f52f416c8",
+      "source_contract_pass": true,
+      "gradle_assemble_release_pass": true,
+      "actual_sha256": "808828892d6eaced0904b0a0e437853041f54d51f8dcdb695d2557e8c338c0da",
+      "actual_bytes": 1679020,
+      "job_conclusion": "failure",
+      "failure_boundary": "stale_expected_sha_assertion_after_successful_build"
+    },
+    {
+      "run_id": 34640579854,
+      "run_attempt": 2,
+      "job_id": 103504083004,
+      "started_at": "2026-09-12T05:20:34Z",
+      "completed_at": "2026-09-12T05:22:11Z",
+      "runner": "GitHub-hosted ubuntu-24.04",
+      "source_head": "afc0654d26f91a8fb88898e15a10ba5f52f416c8",
+      "source_contract_pass": true,
+      "gradle_assemble_release_pass": true,
+      "actual_sha256": "808828892d6eaced0904b0a0e437853041f54d51f8dcdb695d2557e8c338c0da",
+      "actual_bytes": 1679020,
+      "job_conclusion": "failure",
+      "failure_boundary": "stale_expected_sha_assertion_after_successful_build"
+    }
+  ],
+  "toolchain_contract": {
+    "runner": "ubuntu-24.04",
+    "java": "17",
+    "android_platform": "android-36",
+    "android_build_tools": "36.0.0",
+    "gradle": "8.11.1"
+  },
+  "decision": {
+    "result": "PASS_REPEATED_CURRENT_HEAD_REPRODUCIBILITY",
+    "authorized_change": "replace stale unsigned reproducibility baseline only",
+    "android_source_changed": false,
+    "signing_performed": false,
+    "production_deployment_performed": false,
+    "private_signing_material_present": false
+  }
+}

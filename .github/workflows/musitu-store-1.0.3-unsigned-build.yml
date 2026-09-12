@@ -5,6 +5,7 @@ on:
     branches: [musitu-store-native-install-handoff-20260911]
     paths:
       - 'store/phase1/android-client/**'
+      - 'evidence/musitu-store/MUSITU_STORE_1_0_3_UNSIGNED_REPRODUCIBILITY_BASELINE_20260912.json'
       - '.github/workflows/musitu-store-1.0.3-unsigned-build.yml'
   workflow_dispatch:
 
@@ -49,8 +50,11 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          EXPECTED_SHA='fabb197b0ffeac6c69041a93aa3fc9023dccd841758f817ffd28b7dacdf2559f'
-          EXPECTED_BYTES='1677040'
+          # Baseline re-established by two clean GitHub-hosted builds of Android source head
+          # afc0654d26f91a8fb88898e15a10ba5f52f416c8. Evidence:
+          # evidence/musitu-store/MUSITU_STORE_1_0_3_UNSIGNED_REPRODUCIBILITY_BASELINE_20260912.json
+          EXPECTED_SHA='808828892d6eaced0904b0a0e437853041f54d51f8dcdb695d2557e8c338c0da'
+          EXPECTED_BYTES='1679020'
           gradle --no-daemon --stacktrace :app:assembleRelease
           APK='app/build/outputs/apk/release/app-release-unsigned.apk'
           test -f "$APK"
