@@ -1,0 +1,71 @@
+{
+  "schema": "musitu.store.client_signing_input.v1",
+  "subject": {
+    "name": "MUSITU Store",
+    "packageId": "com.musitu.store",
+    "version": "1.0.3",
+    "versionCode": 10003,
+    "minSdk": 24
+  },
+  "repositoryBoundary": {
+    "branch": "musitu-store-native-install-handoff-20260911",
+    "sourceAuthorityHead": "afc0654d26f91a8fb88898e15a10ba5f52f416c8",
+    "sourceAuthorityRootTree": "de5d0be807f6effa29d698a1f8e9de87e03bd2ed",
+    "unsignedReproducibilitySealHead": "6567b893e279ff53f1e0c271cc980a2511463e6e",
+    "unsignedReproducibilitySealTree": "270ec981af62149d8bf081ec3f064a7def2c45f6"
+  },
+  "sourceAndProof": {
+    "reproducibilityEvidence": "evidence/musitu-store/MUSITU_STORE_1_0_3_UNSIGNED_REPRODUCIBILITY_BASELINE_20260912.json",
+    "sealedUnsignedWorkflowRunId": 34675592872,
+    "sealedUnsignedArtifactId": 10292027543,
+    "sealedUnsignedArtifactName": "musitu-store-1.0.3-unsigned",
+    "sealedUnsignedArtifactArchiveSha256": "949e9ca0b16181802cb8c0880053fa3f72f7ce2860a6b5a7508209f6d904cad7",
+    "sealedUnsignedArtifactArchiveBytes": 2748125,
+    "sealedUnsignedWorkflowResult": "PASS"
+  },
+  "unsignedInput": {
+    "file": "MUSITU_Store_1.0.3_UNSIGNED.apk",
+    "bytes": 1679020,
+    "sha256": "808828892d6eaced0904b0a0e437853041f54d51f8dcdb695d2557e8c338c0da"
+  },
+  "requiredExistingSigningIdentity": {
+    "certificateSha256": "43695b6103d7ab57e89166c9a537f1810b7e33053e20332b1d4e7e2e1c612671",
+    "v1Required": false,
+    "v2Required": true,
+    "v3Required": true,
+    "signerReplacementAuthorized": false
+  },
+  "signedOutputAcceptance": {
+    "packageIdMustEqual": "com.musitu.store",
+    "versionMustEqual": "1.0.3",
+    "versionCodeMustEqual": 10003,
+    "signingCertificateSha256MustEqual": "43695b6103d7ab57e89166c9a537f1810b7e33053e20332b1d4e7e2e1c612671",
+    "v1MustVerify": false,
+    "v2MustVerify": true,
+    "v3MustVerify": true,
+    "nonSignaturePayloadEntriesMustMatchUnsignedInput": true,
+    "apkSignatureVerificationMustPass": true,
+    "postSignVerifier": "store/phase2/reproducibility/store-1.0.3/verify_authorized_signed_apk.py"
+  },
+  "obsoleteReconstructionBoundary": {
+    "historicalWorkflow": ".github/workflows/musitu-store-1.0.3-signed-reconstruction-verify.yml",
+    "historicalUnsignedSha256": "fabb197b0ffeac6c69041a93aa3fc9023dccd841758f817ffd28b7dacdf2559f",
+    "historicalSignedSha256": "9bbb97b928fcd9130a84f333f3ffe48f3829edec474ec19d18a36df289c36081",
+    "historicalPatch": "store/phase2/reproducibility/store-1.0.3/signed-apk.zstdpatch.b64",
+    "mayBeAppliedToCurrentUnsignedInput": false
+  },
+  "securityBoundary": {
+    "privateSigningMaterialPresentInRepository": false,
+    "privateSigningMaterialMayBeLogged": false,
+    "privateSigningMaterialMayBeReturnedInResponses": false,
+    "signingMustUseAuthorizedOperatorPrivateMechanism": true,
+    "signerReplacementAuthorized": false
+  },
+  "state": {
+    "unsignedReproducibilitySealed": true,
+    "signingPerformed": false,
+    "currentPayloadSignedArtifactVerified": false,
+    "productionDeploymentPerformed": false,
+    "freshDeviceCertificationComplete": false
+  }
+}
