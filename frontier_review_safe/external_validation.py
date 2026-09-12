@@ -390,7 +390,7 @@ class ExternalEvidenceGate:
             }
         try:
             required_provider_class_values = tuple(required_provider_classes)
-        except TypeError:
+        except Exception:
             return {
                 "status": "FAIL", "level": 5,
                 "reason": "invalid_required_provider_classes",
@@ -560,7 +560,7 @@ class ExternalEvidenceGate:
             level5 = {}
         try:
             level5_provider_values = tuple(level5.get("provider_orgs", ()))
-        except TypeError:
+        except Exception:
             reasons.append("invalid_level5_provider_orgs")
             level5_provider_values = ()
         typed_validations, invalid_validations = _typed_records(validations, IndependentValidationRecord)
@@ -709,7 +709,7 @@ class ExternalEvidenceGate:
             level6 = {}
         try:
             level6_provider_values = tuple(level6.get("level5_provider_orgs", ()))
-        except TypeError:
+        except Exception:
             reasons.append("invalid_level6_provider_orgs")
             level6_provider_values = ()
         typed_refreshes, invalid_refreshes = _typed_records(refreshes, LongitudinalRefreshRecord)
@@ -1171,11 +1171,11 @@ class ClaimBoundary:
 
         try:
             level5_provider_values = tuple(level5.get("provider_orgs", []))
-        except TypeError:
+        except Exception:
             return {"status": "DENY", "max_evidence_level": max_level, "reason": "invalid_level5_provider_orgs"}
         try:
             level5_run_values = tuple(level5.get("run_ids", []))
-        except TypeError:
+        except Exception:
             return {"status": "DENY", "max_evidence_level": max_level, "reason": "invalid_level5_run_ids"}
         level5_receipt_values = level5.get("run_receipt_hashes", {})
         if not isinstance(level5_receipt_values, MappingABC):
@@ -1232,7 +1232,7 @@ class ClaimBoundary:
 
         try:
             required_provider_values = tuple(required_provider_orgs)
-        except TypeError:
+        except Exception:
             return {"status": "DENY", "max_evidence_level": max_level, "reason": "invalid_required_provider_orgs"}
         required = {_organization_key(str(x)) for x in required_provider_values}
         verified_scope = {

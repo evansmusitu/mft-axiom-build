@@ -198,7 +198,7 @@ class BaselineRegistry:
 
         try:
             required_org_values = tuple(required_provider_orgs)
-        except TypeError:
+        except Exception:
             required_org_values = ()
             reasons.append("invalid_required_provider_orgs")
         if any(not _canonical_provider_org(value) for value in required_org_values):
@@ -209,7 +209,7 @@ class BaselineRegistry:
 
         try:
             required_class_values = tuple(required_provider_classes)
-        except TypeError:
+        except Exception:
             required_class_values = ()
             reasons.append("invalid_required_provider_classes")
         required_classes = {str(x) for x in required_class_values}
