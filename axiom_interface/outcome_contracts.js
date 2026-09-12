@@ -10,7 +10,7 @@ const APPROVAL=new Set(['Before consequential action','Every tool action','Read-
 
 const clean=(value,max=1000)=>String(value??'').replace(/[\u0000-\u001f\u007f]/g,' ').trim().slice(0,max);
 const clone=value=>structuredClone(value);
-const lines=(value,max=20)=>clean(value,8000).split(/\r?\n/).map(x=>x.trim()).filter(Boolean).slice(0,max);
+const lines=(value,max=20)=>String(value??'').slice(0,8000).split(/\r?\n/).map(x=>clean(x,1000)).filter(Boolean).slice(0,max);
 function canonical(value){if(Array.isArray(value))return `[${value.map(canonical).join(',')}]`;if(value&&typeof value==='object'){return `{${Object.keys(value).sort().map(k=>`${JSON.stringify(k)}:${canonical(value[k])}`).join(',')}}`;}return JSON.stringify(value);}
 async function sha256(value){const bytes=new TextEncoder().encode(canonical(value));const digest=await crypto.subtle.digest('SHA-256',bytes);return [...new Uint8Array(digest)].map(x=>x.toString(16).padStart(2,'0')).join('');}
 function id(prefix){return `${prefix}_${crypto.randomUUID?.()||`${Date.now()}_${Math.random().toString(16).slice(2)}`}`;}
