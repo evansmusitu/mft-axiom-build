@@ -1,0 +1,48 @@
+name: RevenueGuard CUAD Matched-Window Geometry Audit
+
+on:
+  push:
+    branches: [revenueguard-axiom-governor-20260911]
+    paths: ['.github/workflows/revenueguard-cuad-matched-window-geometry-audit.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download exact failed epoch1 model for tokenizer geometry
+        uses: actions/download-artifact@v4
+        with:
+          name: revenueguard-cuad-epoch1-chunked-final
+          path: model_bundle
+          repository: evansmusitu/mft-axiom-build
+          run-id: 34683449126
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Install tokenizer runtime and fetch pinned CUAD
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install 'transformers==4.56.2'
+          curl -fL --retry 4 --retry-delay 2 -o cuad-data.zip 'https://raw.githubusercontent.com/The-Atticus-Project/cuad/67faa0e6023b04fcaae6cc09497ab00e5d63a2a2/data.zip'
+          unzip -q cuad-data.zip
+      - name: Audit exact matched-window curriculum geometry
+        shell: bash
+        run: |
+          set -euo pipefail
+          TRAIN=$(find . -name train_separate_questions.json -type f | head -n1)
+          python research/revenueguard/cuad_matched_window_geometry_audit.py \
+            --tokenizer model_bundle/cuad_epoch1_final \
+            --train-json "$TRAIN" \
+            --out CUAD_MATCHED_WINDOW_GEOMETRY_AUDIT.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: revenueguard-cuad-matched-window-geometry-audit
+          path: CUAD_MATCHED_WINDOW_GEOMETRY_AUDIT.json
+          if-no-files-found: error
+          retention-days: 30
