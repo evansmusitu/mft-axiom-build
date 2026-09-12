@@ -1,0 +1,63 @@
+name: MUSITU FMI Billing Post-Failure Readback
+
+on:
+  push:
+    branches: [fmi-billing-binding-20260912-ephemeral]
+    paths: ['.github/workflows/fmi-billing-postfailure-readback.yml']
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      API: https://api.cloudflare.com/client/v4
+      AID: 93f395f5121954671f92fffa453d6b61
+      DBID: a03dc12d-8206-47be-b904-1f24e4e37d91
+      AUTH: mft-phase8-external-authority
+      TRANSPORT: mft-paynow-transport-gateway
+      EDGE: mft-fmi-global-edge
+      BILLING: mft-fmi-billing
+      AUTH_SHA: b58ed574e496189a22cff20496ccc1b68b59cb94f001877cd4357eeab66e66ea
+      TRANSPORT_SHA: 03e6c04cf837f64c7f209a2c184993e13b2dd6249438f63f5864939b7cabc59b
+      EDGE_SHA: b1145126c6e4fcf1706144ba72ae37160620bb579d9ab89df0d515541abaa25d
+    steps:
+      - name: Read back live state
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import email,hashlib,json,os,urllib.parse,urllib.request
+          H={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY']}; API=os.environ['API']; AID=os.environ['AID']
+          def get(path):
+              with urllib.request.urlopen(urllib.request.Request(API+path,headers=H),timeout=30) as r:return r.headers,r.read()
+          def src(n):
+              h,b=get(f'/accounts/{AID}/workers/scripts/{urllib.parse.quote(n,safe="")}'); ct=h.get('content-type','')
+              if 'multipart/' not in ct.lower():return b
+              m=email.message_from_bytes((f'Content-Type: {ct}\r\nMIME-Version: 1.0\r\n\r\n').encode()+b); p=[]
+              for x in m.walk():
+                  if x.is_multipart():continue
+                  d=x.get_payload(decode=True) or b''
+                  if any(k in d for k in (b'export default',b'addEventListener',b'fetch(')):p.append(d)
+              if len(p)!=1:raise SystemExit('module count')
+              return p[0]
+          def settings(n):
+              _,b=get(f'/accounts/{AID}/workers/scripts/{urllib.parse.quote(n,safe="")}/settings'); return (json.loads(b).get('result') or {}).get('bindings') or []
+          assert hashlib.sha256(src(os.environ['AUTH'])).hexdigest()==os.environ['AUTH_SHA']
+          assert hashlib.sha256(src(os.environ['TRANSPORT'])).hexdigest()==os.environ['TRANSPORT_SHA']
+          assert hashlib.sha256(src(os.environ['EDGE'])).hexdigest()==os.environ['EDGE_SHA']
+          _,b=get(f'/accounts/{AID}/workers/scripts'); names={(x.get('id') or x.get('name')) for x in (json.loads(b).get('result') or [])}
+          assert os.environ['BILLING'] not in names
+          assert 'FMI_AUTHORITY_BRIDGE_TOKEN' not in {x.get('name') for x in settings(os.environ['AUTH']) if isinstance(x,dict)}
+          assert 'FMI_TRANSPORT_BRIDGE_TOKEN' not in {x.get('name') for x in settings(os.environ['TRANSPORT']) if isinstance(x,dict)}
+          assert 'FMI_BILLING' not in {x.get('name') for x in settings(os.environ['EDGE']) if isinstance(x,dict)}
+          q=json.dumps({'sql':"SELECT count(*) AS n FROM sqlite_master WHERE type='table' AND name='billing_checkout_intents';"}).encode(); hh=dict(H);hh['Content-Type']='application/json'
+          with urllib.request.urlopen(urllib.request.Request(f"{API}/accounts/{AID}/d1/database/{os.environ['DBID']}/query",headers=hh,method='POST',data=q),timeout=30) as r:x=json.load(r)
+          n=int((x['result'][0]['results'][0])['n']); assert n==0
+          print(json.dumps({'gate':'PASS','authority_source_unchanged':True,'transport_source_unchanged':True,'edge_source_unchanged':True,'billing_worker_absent':True,'fmi_bridge_secrets_absent':True,'fmi_billing_binding_absent':True,'billing_checkout_intents_table_absent':True,'mutation_from_failed_run':False},sort_keys=True))
+          PY
