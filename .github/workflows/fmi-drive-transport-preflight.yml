@@ -1,0 +1,35 @@
+name: MUSITU FMI Authoritative Drive Transport Preflight
+
+on:
+  push:
+    branches:
+      - fmi-commercial-launch-20260912-ephemeral
+    paths:
+      - '.github/workflows/fmi-drive-transport-preflight.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  verify-authoritative-transport:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download exact authoritative whole-product handoff from Drive
+        shell: bash
+        run: |
+          set -euo pipefail
+          OUTER=/tmp/MUSITU_FMI_WHOLE_CONTINUATION_HANDOFF_20260912_1518_AUTHORITATIVE.zip
+          URL='https://drive.usercontent.google.com/download?id=1NqGhfB_C6EP5l7n095FJrEgO5ZFH79Af&export=download&confirm=t'
+          curl -fL --retry 3 --retry-delay 2 "$URL" -o "$OUTER"
+          test "$(stat -c %s "$OUTER")" = '1778659'
+          test "$(sha256sum "$OUTER" | awk '{print $1}')" = '6e7be55958c8d228b145b2045cff79bde5e9f1fdbd04b7d60281de275165d7c6'
+          mkdir -p /tmp/fmi-handoff
+          unzip -q "$OUTER" -d /tmp/fmi-handoff
+          INNER=/tmp/fmi-handoff/02_DEPLOYMENT_TRANSPORTS/MUSITU_FMI_COMMERCIAL_GLOBAL_LAUNCH_TRANSPORT_20260912.zip
+          test "$(stat -c %s "$INNER")" = '333338'
+          test "$(sha256sum "$INNER" | awk '{print $1}')" = 'c87009714befc99bf88c81d882aad98cd7dfa32f56daa1c8a5a38987f978152e'
+          echo authoritative_drive_transport=PASS
+          echo outer_sha256=6e7be55958c8d228b145b2045cff79bde5e9f1fdbd04b7d60281de275165d7c6
+          echo inner_sha256=c87009714befc99bf88c81d882aad98cd7dfa32f56daa1c8a5a38987f978152e
