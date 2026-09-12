@@ -1,0 +1,51 @@
+name: RevenueGuard ContractNLI Joint Span NLI V4 Balanced
+
+on:
+  push:
+    branches:
+      - revenueguard-axiom-governor-20260911
+    paths:
+      - '.github/workflows/revenueguard-contractnli-joint-span-nli-v4.yml'
+      - 'research/revenueguard/contractnli_joint_train_v4.py'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  train-evaluate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 70
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download exact adapted MiniLM encoder
+        uses: actions/download-artifact@v4
+        with:
+          name: revenueguard-contractnli-adapted-model
+          path: adapted_bundle
+          repository: evansmusitu/mft-axiom-build
+          run-id: 34676990123
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Train class-balanced treatment and evaluate untouched dev
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          python -m pip install --index-url https://download.pytorch.org/whl/cpu 'torch'
+          python -m pip install 'transformers==4.56.2' 'scikit-learn==1.9.1'
+          curl -fL --retry 4 --retry-delay 2 -o contract-nli.zip 'https://raw.githubusercontent.com/stanfordnlp/contract-nli/eced6528dd3c1d14d73f9a87df8f7bdbc03126f9/resources/contract-nli.zip'
+          unzip -q contract-nli.zip
+          python research/revenueguard/contractnli_joint_train_v4.py \
+            --encoder adapted_bundle/adapted_model \
+            --train-json contract-nli/train.json \
+            --dev-json contract-nli/dev.json \
+            --out-dir joint_span_nli_v4
+      - uses: actions/upload-artifact@v4
+        with:
+          name: revenueguard-contractnli-joint-span-nli-v4-dev
+          path: |
+            joint_span_nli_v4/
+            CONTRACTNLI_JOINT_SPAN_NLI_V4_DEV_EVAL.json
+          if-no-files-found: error
+          retention-days: 30
