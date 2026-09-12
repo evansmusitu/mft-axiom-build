@@ -1,0 +1,50 @@
+RESUME MUSITU AXIOM FRONTIER V5 FROM THE EXACT CURRENT AUTHORITATIVE WHOLE-PRODUCT CONTINUATION HANDOFF.
+
+THIS IS A CONTINUATION — NOT A RESTART, REDESIGN, SUMMARY-ONLY EXERCISE, BRAINSTORMING SESSION, OR PERMISSION TO RECONSTRUCT FROM MEMORY OR CHAT HISTORY.
+
+Use my connected Google Drive and connected GitHub directly.
+
+Google Drive folder:
+MUSITU_AXIOM_HANDOFFS
+
+Retrieve the newest exact authoritative package created for the 2026-09-12 19:43 continuation checkpoint, named:
+MUSITU_AXIOM_FRONTIER_V5_WHOLE_CONTINUATION_HANDOFF_20260912_1943_AUTHORITATIVE.zip
+
+Verify its SHA-256 against the exact SHA-256 authority supplied alongside the package / in this handoff command. If the ZIP does not match, STOP immediately and report the mismatch. Do not continue from an unverified package.
+
+Extract the ZIP and READ FIRST, BEFORE ANY OTHER HANDOFF FILE:
+00_START_HERE/NEW_CHAT_START_HERE.md
+
+Then read:
+HANDOFF/CURRENT_WORK.md
+HANDOFF/EVIDENCE_AUTHORITY.md
+
+The package contains a complete clean source snapshot under PRODUCT_SOURCE from exact source commit:
+145968528ed31eced0a16a29b49b840082837d7c
+
+That commit is the current IN-PROGRESS Level-7 acyclic-governance successor, not yet earned Track B.
+
+Before ANY write, re-read connected GitHub repository `evansmusitu/mft-axiom-build` directly and verify protected anchors and current refs. Newer VERIFIED GitHub descendants may supersede package SHAs only if their evidence lineage is valid; do not silently substitute older or unrelated branches.
+
+Protected anchors MUST remain unchanged unless I explicitly authorize otherwise:
+- sealed main: d6a846f6bbe0bccac1758713eb4de167caf07113
+- frozen Track A: d9196774a9fff3150922e2cb681d16e2423651da
+- PR #1 must remain OPEN, DRAFT, UNMERGED, head Track A, base sealed main.
+
+Current earned canonical Track B before the unfinished acyclic successor:
+e7e5a5610bd1716dd80bf523cc031b619f8bbb0e
+Canonical successful CI run: 34708698087
+Canonical job: 103593372238
+475/475 tests PASS.
+
+CURRENT EXACT WORK TO CONTINUE:
+Continue Level-7 acyclic governance hardening on branch:
+frontier/axiom-v5-level7-acyclic-governance-20260912
+from current source SHA:
+145968528ed31eced0a16a29b49b840082837d7c
+
+The implementation change is already present. Add the missing adversarial regressions, migrate only valid fixtures, run the entire private suite plus dedicated semantic/governance/acyclic gates, then run the full re-earning scale/regression/degraded-experiment envelope. Only if the isolated successor fully passes may canonical Track B be fast-forwarded non-forcibly; then canonical CI itself must pass before the new SHA is called earned.
+
+Do not weaken evidence requirements. Do not fabricate provider identifiers. Do not claim world-best/global superiority. Google free execution remains missing a separate provider request ID; Anthropic remains credit/billing blocked; OpenAI remains insufficient-quota blocked; Microsoft remains untested.
+
+EXECUTE DIRECTLY. MINIMIZE NONESSENTIAL DISCUSSION. PRESERVE EVIDENCE INTEGRITY.
