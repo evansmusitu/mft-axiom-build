@@ -1,13 +1,14 @@
 {
-  "schema": "musitu.axiom.interface.surface-map.v1",
+  "schema": "musitu.axiom.interface.surface-map.v2",
   "authority": {
     "earned_track_b_sha": "73ecdbad38cb10020b6e30ebe42a9222a3bb6c55",
+    "qualified_phase1_sha": "5b7233fd9e62b530ef9eb161b41010727d76bacb",
     "blueprint_sha256": "e750039a9c88abc780d24f48c3e86e22fd9295fec99a1b0593668aa8dd9ac166"
   },
-  "phase": "PHASE_1_ISOLATED_SHELL",
+  "phase": "PHASE_2_PROJECT_GRAPH",
   "surfaces": [
     {"id":"flagship","target":"musitu.ai/axiom","state":"future-routing","access":"public"},
-    {"id":"app","target":"app","state":"shell-implemented","access":"authenticated"},
+    {"id":"app","target":"app","state":"shell-plus-project-graph","access":"authenticated"},
     {"id":"developers","target":"developers","state":"registered-placeholder","access":"mixed"},
     {"id":"docs","target":"docs","state":"existing-fragments","access":"public"},
     {"id":"research","target":"research","state":"registered-placeholder","access":"mixed"},
@@ -20,5 +21,16 @@
   ],
   "workspace_routes": ["home","projects","work","research","create","code","live","agents","evidence","observability","developer","settings"],
   "project_routes": ["overview","conversations","sources","agents","artifacts","runs","memory","settings"],
+  "project_substrate": {
+    "persistence": "INDEXEDDB_BROWSER_LOCAL_DEVICE",
+    "stores": ["projects","objects","edges","events"],
+    "stable_ids": true,
+    "provenance_chain": "SHA256_LINKED_EVENTS",
+    "version_history": true,
+    "permissions": ["owner","editor","viewer"],
+    "memory_scopes": ["private","project-only","organization-wide","temporary","permanent","do-not-use"],
+    "cloud_sync_claimed": false,
+    "multi_device_sync_claimed": false
+  },
   "execution_boundary": "PREVIEW_ONLY_NO_EXTERNAL_CONSEQUENTIAL_ACTIONS"
 }
