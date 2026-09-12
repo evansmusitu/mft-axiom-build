@@ -33,9 +33,6 @@ def _canonical_bytes(value: Any) -> bytes:
 def _canonical_api_key(value: str) -> str:
     if not isinstance(value, str):
         raise ValueError("ANTHROPIC_API_KEY must be a string")
-    # API keys are contiguous ASCII tokens. Clipboard/UI copy can inject line-wrap
-    # whitespace or invisible Unicode formatting/control marks. Remove only those
-    # impossible-in-key artifacts; reject every other non-ASCII mutation.
     normalized = "".join(
         ch for ch in value
         if not ch.isspace() and unicodedata.category(ch) not in {"Cf", "Cc"}
@@ -72,14 +69,16 @@ def _response_text(payload: Mapping[str, Any]) -> str:
 
 def run_probe(*, api_key: str, model: str = DEFAULT_MODEL, timeout_seconds: int = 45, opener=urlopen) -> dict[str, Any]:
     key = _canonical_api_key(api_key)
-    body_obj = {"model": model, "max_tokens": 64, "temperature": 0, "messages": [{"role": "user", "content": PROBE_TEXT}]}
+    # Claude 4.7+ (including Fable 5.1) rejects non-default sampling controls.
+    # Omit temperature/top_p/top_k entirely and let the provider use its supported defaults.
+    body_obj = {"model": model, "max_tokens": 64, "messages": [{"role": "user", "content": PROBE_TEXT}]}
     body = _canonical_bytes(body_obj)
     request_sha256 = _sha256_bytes(body)
     req = Request("https://api.anthropic.com/v1/messages", data=body, method="POST", headers={
         "content-type": "application/json",
         "x-api-key": key,
         "anthropic-version": "2023-06-01",
-        "user-agent": "MUSITU-Axiom-Level5-Provider-Probe/1.2",
+        "user-agent": "MUSITU-Axiom-Level5-Provider-Probe/1.3",
     })
     started_at = _now()
     try:
