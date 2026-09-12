@@ -6,6 +6,7 @@ import { enhanceResearchWorkspace } from './research_quality.js';
 import { initArtifactWorkspace } from './artifacts.js';
 import { initObservabilityWorkspace } from './observability.js';
 import { initLiveWorkspace } from './live.js';
+import { installLiveDurabilityGuard, attachLiveDurability } from './live_durability.js';
 
 const $ = (selector, root = document) => root.querySelector(selector);
 const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
@@ -72,6 +73,7 @@ function installEvents(){
 }
 function registerServiceWorker(){ if('serviceWorker' in navigator && location.protocol!=='file:') navigator.serviceWorker.register('./sw.js',{scope:'./'}).then(()=>emit('pwa.service-worker',{state:'registered'})).catch(()=>emit('pwa.service-worker',{state:'registration-failed'})); }
 
+installLiveDurabilityGuard();
 applyTheme(state.theme); restoreDraft(); installEvents(); syncRoute(); updateConstraintSummary(); updateNetwork(); registerServiceWorker(); emit('shell.ready',{state:'phase7'});
 window.AxiomUI = Object.freeze({ emit, reportError, setProgress, setProof, getTrace:()=>structuredClone(state.trace) });
-initProjectWorkspace({emit}).then(async projects=>{const outcomes=await initOutcomeContractWorkspace({emit,projects});const observability=await initObservabilityWorkspace({emit,projects});await initLiveWorkspace({emit,projects,observability});await initOutcomeExecutionWorkspace({emit,projects,outcomes,observability});const research=await initResearchWorkspace({emit,projects});await enhanceResearchWorkspace({emit,research});await initArtifactWorkspace({emit,projects});emit('workspace.ready',{state:'phase7'});}).catch(error=>reportError({errorId:'AXIOM-WORKSPACE-INIT',component:'Workspace',impact:'Project, Work, Research, Create, Live or Observability workspace unavailable',failed:error.message,recovery:'Reload the workspace and retry'}));
+initProjectWorkspace({emit}).then(async projects=>{const outcomes=await initOutcomeContractWorkspace({emit,projects});const observability=await initObservabilityWorkspace({emit,projects});const live=await initLiveWorkspace({emit,projects,observability});attachLiveDurability({api:live,emit});await initOutcomeExecutionWorkspace({emit,projects,outcomes,observability});const research=await initResearchWorkspace({emit,projects});await enhanceResearchWorkspace({emit,research});await initArtifactWorkspace({emit,projects});emit('workspace.ready',{state:'phase7'});}).catch(error=>reportError({errorId:'AXIOM-WORKSPACE-INIT',component:'Workspace',impact:'Project, Work, Research, Create, Live or Observability workspace unavailable',failed:error.message,recovery:'Reload the workspace and retry'}));
