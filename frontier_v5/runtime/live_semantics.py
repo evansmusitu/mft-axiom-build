@@ -54,6 +54,21 @@ def _text(value: Any, name: str, limit: int = 8000) -> str:
     return out
 
 
+def verify_file_sha256(path: str | Path, expected: str) -> str:
+    """Fail closed unless ``path`` matches the exact lowercase SHA-256 digest."""
+    p = Path(path)
+    expected = _text(expected, "expected_sha256", 64).lower()
+    if len(expected) != 64 or any(c not in "0123456789abcdef" for c in expected):
+        raise LiveSemanticError("expected_sha256 must be lowercase SHA-256")
+    try:
+        actual = _sha_bytes(p.read_bytes())
+    except OSError as exc:
+        raise LiveSemanticError(f"asset unavailable: {p.name}") from exc
+    if actual != expected:
+        raise LiveSemanticError(f"asset digest mismatch: {p.name}")
+    return actual
+
+
 def _normalized_region(value: Mapping[str, Any] | None) -> dict[str, float] | None:
     if value is None:
         return None
