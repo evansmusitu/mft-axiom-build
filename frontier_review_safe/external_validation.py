@@ -12,6 +12,7 @@ from .core import FrontierSafetyError, parse_time, sha256
 from .evaluation import SealedCaseResult, SealedEvaluation
 from .external_attestation import ExternalAttestationReceipt, ExternalAttestationService
 from .longitudinal_binding import LongitudinalIdentityBinding
+from .longitudinal_artifacts import validate_longitudinal_artifact_bundle
 
 
 TRUSTED_EXTERNAL_PROVENANCE = frozenset({"provider_export", "provider_api_receipt", "independent_lab_record"})
@@ -709,6 +710,7 @@ class ExternalEvidenceGate:
         receipts: Sequence[ExternalAttestationReceipt] = (),
         verifier_secrets: Mapping[str, bytes] | None = None,
         trusted_issuers: Mapping[str, frozenset[str]] | None = None,
+        semantic_artifacts: Mapping[str, Mapping[str, Any]] | None = None,
         min_refreshes: int = 3,
     ) -> dict[str, Any]:
         reasons = []
@@ -725,10 +727,13 @@ class ExternalEvidenceGate:
             reasons.append("invalid_longitudinal_refresh_record")
         secrets, secrets_valid = _runtime_mapping(verifier_secrets)
         issuers, issuers_valid = _runtime_mapping(trusted_issuers)
+        semantic_bundles, semantic_bundles_valid = _runtime_mapping(semantic_artifacts)
         if not secrets_valid:
             reasons.append("external_verifier_secret_store_invalid")
         if not issuers_valid:
             reasons.append("external_attestation_trust_root_invalid")
+        if not semantic_bundles_valid:
+            reasons.append("longitudinal_semantic_artifact_store_invalid")
         if level6.get("status") != "PASS" or level6.get("attestation_verified") is not True:
             reasons.append("level6_not_attested_and_passed")
         try:
@@ -784,6 +789,7 @@ class ExternalEvidenceGate:
         saw_attestation_time_reversal = False
         saw_identity_mismatch = False
         saw_provenance_mismatch = False
+        semantic_failure_reasons: list[str] = []
         for refresh in typed_refreshes:
             if refresh.refresh_id in seen_refresh_ids:
                 reasons.append("duplicate_longitudinal_refresh")
@@ -808,6 +814,12 @@ class ExternalEvidenceGate:
                 continue
             if latest_validation_at is not None and parse_time(refresh.executed_at) < latest_validation_at:
                 saw_predating_refresh = True
+                continue
+            semantic_check = validate_longitudinal_artifact_bundle(
+                refresh, semantic_bundles.get(refresh.refresh_id)
+            )
+            if semantic_check["status"] != "PASS":
+                semantic_failure_reasons.extend(semantic_check["reasons"])
                 continue
             receipt = receipt_map.get(refresh.refresh_id)
             if receipt is None:
@@ -860,6 +872,7 @@ class ExternalEvidenceGate:
                 reasons.append("longitudinal_refresh_identity_mismatch")
             if saw_provenance_mismatch:
                 reasons.append("longitudinal_refresh_provenance_type_mismatch")
+            reasons.extend(semantic_failure_reasons)
             reasons.append("insufficient_attested_longitudinal_refreshes")
         elif len(distinct_refresh_times) < effective_min_refreshes:
             reasons.append("insufficient_distinct_longitudinal_refresh_times")
@@ -882,6 +895,7 @@ class ExternalEvidenceGate:
             "level5_provider_orgs": sorted(level5_providers),
             "latest_validation_at": latest_validation_at.isoformat() if latest_validation_at is not None else None,
             "refresh_count": len(passed_refreshes),
+            "semantic_artifacts_verified": passed and len(passed_refreshes) >= effective_min_refreshes,
             "distinct_refresh_times": len(distinct_refresh_times),
             "refresh_executor_orgs": sorted({
                 _independence_organization_key(r.executor_org)
