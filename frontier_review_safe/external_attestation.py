@@ -194,15 +194,33 @@ class ExternalAttestationService:
         trusted_issuers: Mapping[str, frozenset[str]],
     ) -> dict[str, Any]:
         reasons: list[str] = []
+        if not isinstance(receipt, ExternalAttestationReceipt):
+            return {
+                "status": "FAIL",
+                "reasons": ["invalid_external_attestation_receipt"],
+                "issuer_org": None,
+                "verifier_key_id": None,
+                "provenance_type": None,
+                "receipt_sha256": None,
+            }
         if isinstance(trusted_issuers, MappingABC):
-            trust_root = trusted_issuers
-            if not _valid_trust_root(trust_root):
+            try:
+                trust_root = dict(trusted_issuers)
+            except Exception:
+                trust_root = {}
                 reasons.append("external_attestation_trust_root_invalid")
+            else:
+                if not _valid_trust_root(trust_root):
+                    reasons.append("external_attestation_trust_root_invalid")
         else:
             trust_root = {}
             reasons.append("external_attestation_trust_root_invalid")
         if isinstance(verifier_secrets, MappingABC):
-            secret_store = verifier_secrets
+            try:
+                secret_store = dict(verifier_secrets)
+            except Exception:
+                secret_store = {}
+                reasons.append("external_verifier_secret_store_invalid")
         else:
             secret_store = {}
             reasons.append("external_verifier_secret_store_invalid")
