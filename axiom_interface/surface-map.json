@@ -54,7 +54,13 @@
     "citation_binding": "EXACT_SOURCE_TEXT_SPAN_PLUS_SHA256",
     "claim_lineage": "PROJECT_SCOPED_ACYCLIC_DEPENDENCIES",
     "contradictions_preserved": true,
+    "contradiction_search": "EXPLICIT_GRAPH_STANCE_SEARCH_NOT_SEMANTIC_NLI",
     "freshness_basis": "SOURCE_AS_OF_NOT_RETRIEVAL_TIME",
+    "source_quality": {
+      "scorer": "DETERMINISTIC_WEIGHTED_SOURCE_PROFILE",
+      "calibration_boundary": "INTERNAL_HEURISTIC_NOT_EXTERNALLY_CALIBRATED",
+      "external_calibration_claimed": false
+    },
     "retrieved_instruction_authority": "DATA_ONLY",
     "missing_evidence_detection": true,
     "cloud_research_sync_claimed": false,
