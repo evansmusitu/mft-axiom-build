@@ -1,0 +1,10 @@
+RevenueGuard ContractNLI epoch1 final evaluation trigger
+Date: 2026-09-12
+Control run: 34697863465
+Control final artifact: revenueguard-contractnli-control-epoch1-final
+Control artifact SHA-256: b436bd2103ff2dc3a9bd04ad0d5e8c1500814deaddc0c51a47cf0fa595f89b1c
+Balanced run: 34697878064
+Balanced final artifact: revenueguard-contractnli-balanced-epoch1-final
+Balanced artifact SHA-256: 0aabaf77ac57b90529432eded113d246780f379ba8014935d732770922fc0c7f
+State contract: next_chunk=8; global_steps=615; num_chunks=8
+Evaluation policy: locked calibration-only K/threshold selection; untouched dev graded once.
