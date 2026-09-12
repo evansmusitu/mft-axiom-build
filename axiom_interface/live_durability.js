@@ -1,4 +1,5 @@
 import { LiveStore } from './live.js';
+import { attachLiveSemanticBridge } from './live_semantic_bridge.js';
 
 const WRAPPED = Symbol.for('musitu.axiom.live.durability.wrapped');
 const SESSION_ARG = Object.freeze({
@@ -67,6 +68,7 @@ export function attachLiveDurability({api,emit=()=>{},timeoutMs=10000}={}){
       captureBaseline.delete(modality);
       emit('live.capture.durable',{state:`${modality}:${settled.captures.length}`});
       await api.refresh();
+      await window.AxiomLiveSemantic?.refresh?.(sessionId);
       return settled;
     }
     return api.store.get(sessionId);
@@ -96,11 +98,13 @@ export function attachLiveDurability({api,emit=()=>{},timeoutMs=10000}={}){
         await api.store.end(sessionId);
         emit('live.session.ended',{state:'durable-ended'});
         await api.refresh();
+        await window.AxiomLiveSemantic?.refresh?.(sessionId);
       })().catch(error=>window.AxiomUI?.reportError?.({errorId:'AXIOM-LIVE-END-DURABILITY',component:'Axiom Live',impact:'Live session remains active until pending captures settle',failed:error.message,recovery:'Retry End session after the active capture finishes'})).finally(()=>api.refresh());
     },true);
   }
 
   const durability=Object.freeze({toggle,awaitCaptureAfterStop,getPendingBaselines:()=>Object.fromEntries(captureBaseline)});
   window.AxiomLiveDurability=durability;
+  void attachLiveSemanticBridge({api,emit}).catch(error=>window.AxiomUI?.reportError?.({errorId:'AXIOM-LIVE-SEMANTIC-BRIDGE',component:'Axiom Live',impact:'Local semantic runtime bridge unavailable; capture/control remains usable',failed:error.message,recovery:'Reconnect the local semantic host or continue with capture-only Live'}));
   return durability;
 }
