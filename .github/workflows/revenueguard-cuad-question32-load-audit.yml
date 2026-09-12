@@ -1,0 +1,47 @@
+name: RevenueGuard CUAD Question32 Load Audit
+
+on:
+  push:
+    branches: [revenueguard-axiom-governor-20260911]
+    paths: ['.github/workflows/revenueguard-cuad-question32-load-audit.yml']
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Measure exact question-shard workload
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fL --retry 4 --retry-delay 2 -o cuad-data.zip 'https://raw.githubusercontent.com/The-Atticus-Project/cuad/67faa0e6023b04fcaae6cc09497ab00e5d63a2a2/data.zip'
+          unzip -q cuad-data.zip
+          TRAIN=$(find . -name train_separate_questions.json -type f | head -n1)
+          python - "$TRAIN" <<'PY'
+          import sys,json,hashlib
+          from collections import defaultdict
+          from pathlib import Path
+          raw=json.load(open(sys.argv[1]))['data']; N=32
+          def held(t): return int(hashlib.sha256(t.encode()).hexdigest()[:8],16)%10==0
+          def shard(t,q): return int(hashlib.sha256((f'musitu-cuad-question-shard-v1|{t}|{q}').encode()).hexdigest()[:8],16)%N
+          d=defaultdict(lambda:{'questions':0,'context_chars':0,'titles':set(),'max_single_context_chars':0})
+          for c in raw:
+              t=c.get('title','')
+              if not held(t): continue
+              for p in c['paragraphs']:
+                  n=len(p['context'])
+                  for qa in p['qas']:
+                      s=shard(t,str(qa['id'])); x=d[s]; x['questions']+=1; x['context_chars']+=n; x['titles'].add(t); x['max_single_context_chars']=max(x['max_single_context_chars'],n)
+          shards={str(i):{**d[i],'titles':len(d[i]['titles'])} for i in range(N)}
+          rep={'schema':'musitu.revenueguard.cuad.question32_load.v1','total_questions':sum(x['questions'] for x in d.values()),'shards':shards,'max_questions':max(x['questions'] for x in d.values()),'max_context_chars':max(x['context_chars'] for x in d.values()),'min_questions':min(d[i]['questions'] for i in range(N)),'min_context_chars':min(d[i]['context_chars'] for i in range(N))}
+          rep['report_sha256']=hashlib.sha256(json.dumps(rep,sort_keys=True,separators=(',',':')).encode()).hexdigest(); Path('CUAD_QUESTION32_LOAD.json').write_text(json.dumps(rep,indent=2,sort_keys=True)+'\n'); print(json.dumps(rep,indent=2,sort_keys=True))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: revenueguard-cuad-question32-load-audit
+          path: CUAD_QUESTION32_LOAD.json
+          retention-days: 30
