@@ -118,6 +118,23 @@ def _valid_git_sha(value: str) -> bool:
     )
 
 
+@dataclass(frozen=True)
+class ProviderBoundExternalRunRecord(ExternalRunRecord):
+    """External run whose attested fingerprint includes provider receipt identity."""
+
+    provider_receipt_hash: str = ""
+    provider_request_id: str = ""
+    provider_response_id: str = ""
+
+    def __post_init__(self) -> None:
+        super().__post_init__()
+        if not _valid_sha256(self.provider_receipt_hash):
+            raise ValueError("provider receipt hash must be SHA-256")
+        receipt_ids = (self.provider_request_id, self.provider_response_id)
+        if not all(isinstance(value, str) and value.strip() for value in receipt_ids):
+            raise ValueError("provider request and response identities are required")
+
+
 class ProviderExecutionNormalizer:
     """Converts provider-origin evidence into a strictly registry-bound run.
 
@@ -157,7 +174,7 @@ class ProviderExecutionNormalizer:
         # `authenticated=True` here means a provider-origin receipt/export is
         # present and hash-bound. It is not trusted external evidence until the
         # evaluator-held attestation in ExternalEvidenceGate validates the run.
-        run = ExternalRunRecord(
+        run = ProviderBoundExternalRunRecord(
             run_id=evidence.run_id,
             provider_org=evidence.provider_org,
             product=evidence.product,
@@ -179,6 +196,9 @@ class ProviderExecutionNormalizer:
             baseline_registry_hash=evidence.baseline_registry_hash,
             baseline_registration_id=evidence.baseline_registration_id,
             baseline_registration_hash=evidence.baseline_registration_hash,
+            provider_receipt_hash=evidence.provider_receipt_hash,
+            provider_request_id=evidence.provider_request_id,
+            provider_response_id=evidence.provider_response_id,
         )
         receipt_binding = sha256({
             "provider_receipt_hash": evidence.provider_receipt_hash,
