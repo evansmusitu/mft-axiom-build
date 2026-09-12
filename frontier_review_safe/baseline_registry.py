@@ -191,14 +191,23 @@ class BaselineRegistry:
         classes = {r.provider_class for r in self.registrations}
         reasons: list[str] = []
 
-        required_org_values = tuple(required_provider_orgs)
+        try:
+            required_org_values = tuple(required_provider_orgs)
+        except TypeError:
+            required_org_values = ()
+            reasons.append("invalid_required_provider_orgs")
         if any(not _canonical_provider_org(value) for value in required_org_values):
             reasons.append("invalid_required_provider_orgs")
             required_orgs: set[str] = set()
         else:
             required_orgs = {_provider_key(value) for value in required_org_values}
 
-        required_classes = {str(x) for x in required_provider_classes}
+        try:
+            required_class_values = tuple(required_provider_classes)
+        except TypeError:
+            required_class_values = ()
+            reasons.append("invalid_required_provider_classes")
+        required_classes = {str(x) for x in required_class_values}
         missing_orgs = sorted(required_orgs - providers)
         missing_classes = sorted(required_classes - classes)
         if missing_orgs:
