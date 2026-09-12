@@ -1104,6 +1104,14 @@ class ClaimBoundary:
         comparative_outcomes: Sequence[ComparativeOutcome],
         required_provider_orgs: Sequence[str],
     ) -> dict[str, Any]:
+        if not _nonblank(requested_claim):
+            return {"status": "DENY", "max_evidence_level": 4, "reason": "invalid_requested_claim"}
+        if not isinstance(level5, MappingABC):
+            return {"status": "DENY", "max_evidence_level": 4, "reason": "invalid_level5_assessment"}
+        if not isinstance(level6, MappingABC):
+            return {"status": "DENY", "max_evidence_level": 4, "reason": "invalid_level6_assessment"}
+        if not isinstance(level7, MappingABC):
+            return {"status": "DENY", "max_evidence_level": 4, "reason": "invalid_level7_assessment"}
         broad = cls._is_broad_claim(requested_claim)
         named_frontier_providers = cls._named_frontier_providers(requested_claim)
         named_provider_only = cls._is_named_provider_comparison(requested_claim)
@@ -1130,14 +1138,17 @@ class ClaimBoundary:
         expected_receipts = dict(level5.get("run_receipt_hashes", {}))
         if benchmark_hash != expected_cases:
             return {"status": "DENY", "max_evidence_level": max_level, "reason": "comparison_benchmark_hash_mismatch"}
-        if not comparative_outcomes:
+        typed_outcomes, invalid_outcomes = _typed_records(comparative_outcomes, ComparativeOutcome)
+        if invalid_outcomes:
+            return {"status": "DENY", "max_evidence_level": max_level, "reason": "invalid_comparative_outcome"}
+        if not typed_outcomes:
             return {"status": "DENY", "max_evidence_level": max_level, "reason": "comparative_win_evidence_missing"}
 
         reasons = []
         positive_providers: set[str] = set()
         outcome_runs: set[str] = set()
         fingerprints: list[str] = []
-        for outcome in comparative_outcomes:
+        for outcome in typed_outcomes:
             provider = _organization_key(outcome.provider_org)
             fingerprints.append(outcome.fingerprint)
             outcome_runs.add(outcome.external_run_id)
