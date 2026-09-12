@@ -1,0 +1,54 @@
+name: RevenueGuard ContractNLI Training Balance Audit
+
+on:
+  push:
+    branches:
+      - revenueguard-axiom-governor-20260911
+    paths:
+      - '.github/workflows/revenueguard-contractnli-training-balance-audit.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Audit class and evidence balance
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fL --retry 4 --retry-delay 2 -o contract-nli.zip 'https://raw.githubusercontent.com/stanfordnlp/contract-nli/eced6528dd3c1d14d73f9a87df8f7bdbc03126f9/resources/contract-nli.zip'
+          unzip -q contract-nli.zip
+          python - <<'PY'
+          import json,re,hashlib
+          from collections import Counter,defaultdict
+          from pathlib import Path
+          def words(s):return set(re.findall(r'[a-z0-9]+',s.lower()))
+          def overlap(a,b):
+              A=words(a);B=words(b);return len(A&B)/(len(A|B) or 1)
+          def partition(d):return 'cal' if int(hashlib.sha256(str(d['id']).encode()).hexdigest()[:8],16)%10==0 else 'build'
+          obj=json.load(open('contract-nli/train.json'));labs=obj['labels'];counts=Counter();docs=Counter();by=defaultdict(Counter)
+          for d in obj['documents']:
+              if partition(d)!='build':continue
+              spans=[d['text'][a:b].strip() for a,b in d['spans']];anns=d['annotation_sets'][0]['annotations']
+              for hid in sorted(labs):
+                  a=anns[hid];gold=a['choice'];ev=set(a.get('spans') or []);h=labs[hid]['hypothesis'];docs[gold]+=1
+                  if gold!='NotMentioned':
+                      n=min(4,sum(1 for i in ev if i<len(spans)));counts[gold]+=n;by[hid][gold]+=n
+                  candidates=sorted(((overlap(s,h),i) for i,s in enumerate(spans) if i not in ev),reverse=True)
+                  take=min(len(candidates),4 if gold=='NotMentioned' else 3);counts['NotMentioned']+=take;by[hid]['NotMentioned']+=take
+          total=sum(counts.values());freq={k:v/total for k,v in counts.items()};weights={k:total/(3*v) for k,v in counts.items() if v}
+          rep={'schema':'musitu.revenueguard.contractnli.training_balance.v1','status':'TRAINING_DATA_AUDIT','document_labels':dict(docs),'sample_labels':dict(counts),'sample_fractions':freq,'inverse_frequency_class_weights':weights,'total_training_samples':total,'by_hypothesis':{k:dict(v) for k,v in by.items()}}
+          rep['notmentioned_fraction']=freq.get('NotMentioned',0.0);rep['severe_notmentioned_imbalance']=rep['notmentioned_fraction']>=.70
+          rep['report_sha256']=hashlib.sha256(json.dumps(rep,sort_keys=True,separators=(',',':')).encode()).hexdigest();Path('CONTRACTNLI_TRAINING_BALANCE.json').write_text(json.dumps(rep,indent=2,sort_keys=True)+'\n');print(json.dumps(rep,indent=2,sort_keys=True))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: revenueguard-contractnli-training-balance
+          path: CONTRACTNLI_TRAINING_BALANCE.json
+          if-no-files-found: error
+          retention-days: 30
