@@ -1,0 +1,70 @@
+name: RevenueGuard ContractNLI Lexical Ceiling Audit
+
+on:
+  push:
+    branches:
+      - revenueguard-axiom-governor-20260911
+    paths:
+      - '.github/workflows/revenueguard-contractnli-lexical-ceiling.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Measure lexical evidence ceiling
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fL --retry 4 --retry-delay 2 -o contract-nli.zip 'https://raw.githubusercontent.com/stanfordnlp/contract-nli/eced6528dd3c1d14d73f9a87df8f7bdbc03126f9/resources/contract-nli.zip'
+          unzip -q contract-nli.zip
+          python - <<'PY'
+          import json,re,hashlib
+          from collections import defaultdict
+          from pathlib import Path
+
+          KS=[1,3,5,8,14,24,32,48,64,96]
+          def words(s): return set(re.findall(r'[a-z0-9]+',s.lower()))
+          def overlap(a,b):
+              A=words(a);B=words(b);return len(A&B)/(len(A|B) or 1)
+          def partition(d):
+              return 'cal' if int(hashlib.sha256(str(d['id']).encode()).hexdigest()[:8],16)%10==0 else 'build'
+          def audit(path,which=None):
+              obj=json.load(open(path)); labs=obj['labels']; counts={k:0 for k in KS}; total=0
+              any_hit={k:0 for k in KS}; all_hit={k:0 for k in KS}; mean_cov={k:0.0 for k in KS}
+              by=defaultdict(lambda:{'n':0, **{f'any@{k}':0 for k in KS}})
+              for d in obj['documents']:
+                  if which and partition(d)!=which: continue
+                  spans=[d['text'][a:b].strip() for a,b in d['spans']]
+                  anns=d['annotation_sets'][0]['annotations']
+                  for hid in sorted(labs):
+                      a=anns[hid]; gold=set(a.get('spans') or [])
+                      if a['choice']=='NotMentioned' or not gold: continue
+                      h=labs[hid]['hypothesis']; ranked=[i for _,i in sorted(((overlap(s,h),i) for i,s in enumerate(spans)),reverse=True)]
+                      total+=1; by[hid]['n']+=1
+                      for k in KS:
+                          sel=set(ranked[:k]); inter=len(sel & gold)
+                          hit=inter>0; full=gold.issubset(sel)
+                          any_hit[k]+=int(hit); all_hit[k]+=int(full); mean_cov[k]+=inter/len(gold)
+                          by[hid][f'any@{k}']+=int(hit)
+              result={str(k):{'any_evidence_recall':any_hit[k]/total if total else 0.0,'all_evidence_recall':all_hit[k]/total if total else 0.0,'mean_gold_span_coverage':mean_cov[k]/total if total else 0.0} for k in KS}
+              byout={hid:{'n':v['n'], **{f'any@{k}':v[f'any@{k}']/v['n'] if v['n'] else 0.0 for k in KS}} for hid,v in by.items()}
+              return {'n_positive_pairs':total,'k_metrics':result,'by_hypothesis':byout}
+
+          rep={'schema':'musitu.revenueguard.contractnli.lexical_ceiling.v1','contractnli_commit':'eced6528dd3c1d14d73f9a87df8f7bdbc03126f9','status':'DEV_FAILURE_MINING_ONLY','train_cal':audit('contract-nli/train.json','cal'),'dev':audit('contract-nli/dev.json')}
+          rep['top14_can_meet_85pct_any_evidence_gate']=rep['dev']['k_metrics']['14']['any_evidence_recall']>=.85
+          rep['report_sha256']=hashlib.sha256(json.dumps(rep,sort_keys=True,separators=(',',':')).encode()).hexdigest()
+          Path('CONTRACTNLI_LEXICAL_CEILING.json').write_text(json.dumps(rep,indent=2,sort_keys=True)+'\n')
+          print(json.dumps(rep,indent=2,sort_keys=True))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: revenueguard-contractnli-lexical-ceiling
+          path: CONTRACTNLI_LEXICAL_CEILING.json
+          if-no-files-found: error
+          retention-days: 30
