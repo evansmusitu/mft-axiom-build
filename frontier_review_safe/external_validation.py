@@ -91,6 +91,15 @@ def _runtime_mapping(value: Any) -> tuple[dict[Any, Any], bool]:
     return dict(value), True
 
 
+def _typed_records(values: Any, record_type: type) -> tuple[list[Any], bool]:
+    try:
+        records = list(values)
+    except Exception:
+        return [], True
+    typed = [record for record in records if isinstance(record, record_type)]
+    return typed, len(typed) != len(records)
+
+
 @dataclass(frozen=True)
 class ExternalRunRecord:
     run_id: str
@@ -340,11 +349,8 @@ class ExternalEvidenceGate:
     ) -> tuple[dict[str, ExternalAttestationReceipt], bool, bool]:
         out: dict[str, ExternalAttestationReceipt] = {}
         duplicate = False
-        invalid = False
-        for receipt in receipts:
-            if not isinstance(receipt, ExternalAttestationReceipt):
-                invalid = True
-                continue
+        typed_receipts, invalid = _typed_records(receipts, ExternalAttestationReceipt)
+        for receipt in typed_receipts:
             if receipt.subject_type != subject_type:
                 continue
             if receipt.subject_id in out:
@@ -379,7 +385,8 @@ class ExternalEvidenceGate:
                 "reasons": ["external_provider_floor_below_required"],
                 "attestation_verified": False, "baseline_registry_verified": False,
             }
-        if not runs:
+        typed_runs, invalid_runs = _typed_records(runs, ExternalRunRecord)
+        if not typed_runs and not invalid_runs:
             return {
                 "status": "FAIL", "level": 5,
                 "reason": "no_external_runs", "reasons": ["no_external_runs"],
@@ -389,6 +396,8 @@ class ExternalEvidenceGate:
         secrets, secrets_valid = _runtime_mapping(verifier_secrets)
         issuers, issuers_valid = _runtime_mapping(trusted_issuers)
         reasons: list[str] = []
+        if invalid_runs:
+            reasons.append("invalid_external_run_record")
         if duplicate_receipts:
             reasons.append("duplicate_external_run_attestation_receipt")
         if invalid_receipts:
@@ -402,7 +411,7 @@ class ExternalEvidenceGate:
         provider_classes: set[str] = set()
         level5_provider_orgs = {
             _independence_organization_key(run.provider_org)
-            for run in runs
+            for run in typed_runs
             if _nonblank(run.provider_org)
         }
 
@@ -413,7 +422,7 @@ class ExternalEvidenceGate:
             if coverage["status"] != "PASS":
                 reasons.extend(coverage["missing_provider_classes"] and ["baseline_provider_class_coverage_incomplete"] or [])
 
-        for run in runs:
+        for run in typed_runs:
             if not run.declared_external_provenance:
                 reasons.append("untrusted_external_provenance")
                 continue
@@ -483,7 +492,7 @@ class ExternalEvidenceGate:
         providers = {_organization_key(r.provider_org) for r in verified}
         independent_providers = {_independence_organization_key(r.provider_org) for r in verified}
         latest_external_run_at = max((parse_time(r.executed_at) for r in verified), default=None)
-        if len(verified) != len(runs):
+        if len(verified) != len(typed_runs):
             reasons.append("not_all_external_runs_attested_and_registered")
         if len(case_hashes) != 1:
             reasons.append("case_sets_not_identical")
@@ -527,6 +536,9 @@ class ExternalEvidenceGate:
         trusted_issuers: Mapping[str, frozenset[str]] | None = None,
     ) -> dict[str, Any]:
         reasons = []
+        typed_validations, invalid_validations = _typed_records(validations, IndependentValidationRecord)
+        if invalid_validations:
+            reasons.append("invalid_independent_validation_record")
         secrets, secrets_valid = _runtime_mapping(verifier_secrets)
         issuers, issuers_valid = _runtime_mapping(trusted_issuers)
         if not secrets_valid:
@@ -575,7 +587,7 @@ class ExternalEvidenceGate:
         saw_attester_identity_invalid = False
         saw_attestation_time_reversal = False
         saw_predating_level5_run = False
-        for validation in validations:
+        for validation in typed_validations:
             if validation.passed is not True:
                 continue
             if validation.provenance_type != "independent_lab_record":
@@ -665,6 +677,9 @@ class ExternalEvidenceGate:
         min_refreshes: int = 3,
     ) -> dict[str, Any]:
         reasons = []
+        typed_refreshes, invalid_refreshes = _typed_records(refreshes, LongitudinalRefreshRecord)
+        if invalid_refreshes:
+            reasons.append("invalid_longitudinal_refresh_record")
         secrets, secrets_valid = _runtime_mapping(verifier_secrets)
         issuers, issuers_valid = _runtime_mapping(trusted_issuers)
         if not secrets_valid:
@@ -726,7 +741,7 @@ class ExternalEvidenceGate:
         saw_attestation_time_reversal = False
         saw_identity_mismatch = False
         saw_provenance_mismatch = False
-        for refresh in refreshes:
+        for refresh in typed_refreshes:
             if refresh.refresh_id in seen_refresh_ids:
                 reasons.append("duplicate_longitudinal_refresh")
                 continue
