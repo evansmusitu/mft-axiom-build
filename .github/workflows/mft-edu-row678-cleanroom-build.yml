@@ -1,0 +1,198 @@
+name: MFT Education Nexus Row678 Cleanroom Build
+
+on:
+  push:
+    branches: [mft-edu-row678-builder-20260912]
+    paths: ['.github/workflows/mft-edu-row678-cleanroom-build.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-row678:
+    runs-on: windows-latest
+    timeout-minutes: 90
+    env:
+      FROZEN_CANONICAL_SHA256: 3fb025b05128e36fa25a5ae298a56cb7fd9d8bba91787b0003436a0069738b64
+      FROZEN_CANONICAL_BYTES: '8526465'
+      FFMPEG_URL: https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-n9.0-latest-win64-gpl-9.0.zip
+      FFMPEG_SHA256: 87c4729f3193f3ba562bada0330a98338c9a858d25b15fc98338a1364667348b
+      TESSERACT_URL: https://github.com/UB-Mannheim/tesseract/releases/download/v5.4.0.20240606/tesseract-ocr-w64-setup-5.4.0.20240606.exe
+      TESSERACT_SHA256: c885fff6998e0608ba4bb8ab51436e1c6775c2bafc2559a19b423e18678b60c9
+      ESPEAK_URL: https://downloads.sourceforge.net/project/espeak/espeak/espeak-1.48/setup_espeak-1.48.04.exe
+      ESPEAK_SHA256: 875a2ae7634420b8653b70f7f555179fb4ce5746bbb5c2557bbe58f72439c58f
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Retrieve and bind frozen canonical source
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          New-Item -ItemType Directory -Force work,out | Out-Null
+          py -3 -m pip install --disable-pip-version-check -q gdown
+          $ids=@('1j3DeJLdTHR1IlDtJ6joaGwPuASCkEboA','1QyNEqp_6q7XdsQuOhWN9KOQiAAyS92MT')
+          $ok=$false
+          foreach($id in $ids){
+            Remove-Item work\canonical.zip -Force -ErrorAction SilentlyContinue
+            & py -3 -m gdown $id -O work\canonical.zip
+            if($LASTEXITCODE -eq 0 -and (Test-Path work\canonical.zip)){
+              $sha=(Get-FileHash work\canonical.zip -Algorithm SHA256).Hash.ToLowerInvariant()
+              $bytes=(Get-Item work\canonical.zip).Length
+              if($sha -eq $env:FROZEN_CANONICAL_SHA256 -and $bytes -eq [long]$env:FROZEN_CANONICAL_BYTES){$ok=$true;break}
+            }
+          }
+          if(!$ok){throw 'exact frozen canonical ZIP unavailable'}
+          Expand-Archive work\canonical.zip work\unpacked -Force
+          $release=Get-ChildItem work\unpacked -File -Recurse -Filter a14_release.py | Where-Object {$_.FullName -match 'CURRENT_CANONICAL_TREE\\tools\\a14_release\.py$'} | Select-Object -First 1
+          if(!$release){throw 'frozen a14_release.py not found'}
+          $src=Split-Path (Split-Path $release.FullName -Parent) -Parent
+          "MFT_CANONICAL_SRC=$src" | Out-File $env:GITHUB_ENV -Append -Encoding utf8
+          [ordered]@{
+            schema='mft.education_nexus.phase2.row678.cleanroom_source_binding.v1'
+            builder_repository=$env:GITHUB_REPOSITORY
+            builder_run_id=[long]$env:GITHUB_RUN_ID
+            canonical_zip_sha256=$sha
+            canonical_zip_bytes=$bytes
+            release_builder_sha256=(Get-FileHash (Join-Path $src 'tools\a14_release.py') -Algorithm SHA256).Hash.ToLowerInvariant()
+            release_contract_sha256=(Get-FileHash (Join-Path $src 'mft_education_nexus\a14\release_contract.py') -Algorithm SHA256).Hash.ToLowerInvariant()
+            sidecar_entry_sha256=(Get-FileHash (Join-Path $src 'mft_education_nexus\a14\sidecar_entry.py') -Algorithm SHA256).Hash.ToLowerInvariant()
+            phase2_sidecar_entry_sha256=(Get-FileHash (Join-Path $src 'mft_education_nexus\a14\phase2_sidecar_entry.py') -Algorithm SHA256).Hash.ToLowerInvariant()
+            requirements_lock_sha256=(Get-FileHash (Join-Path $src 'requirements.lock') -Algorithm SHA256).Hash.ToLowerInvariant()
+            candidate_repository_code_used=$false
+          } | ConvertTo-Json -Depth 8 | Set-Content -Encoding utf8 out\SOURCE_BINDING.json
+
+      - name: Reconstruct original native runtime root from pinned inputs
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          New-Item -ItemType Directory -Force work\downloads,work\runtime-root,work\runtime-support | Out-Null
+          $ffzip='work\downloads\ffmpeg.zip'
+          Invoke-WebRequest -UseBasicParsing -MaximumRedirection 10 -Uri $env:FFMPEG_URL -OutFile $ffzip
+          if((Get-FileHash $ffzip -Algorithm SHA256).Hash.ToLowerInvariant() -ne $env:FFMPEG_SHA256){throw 'FFmpeg hash mismatch'}
+          Expand-Archive $ffzip work\ffmpeg -Force
+          $ff=(Get-ChildItem work\ffmpeg -Recurse -Filter ffmpeg.exe -File | Select-Object -First 1).FullName
+          $fp=(Get-ChildItem work\ffmpeg -Recurse -Filter ffprobe.exe -File | Select-Object -First 1).FullName
+          if(!$ff -or !$fp){throw 'FFmpeg executables missing'}
+          Copy-Item $ff work\runtime-root\ffmpeg.exe
+          Copy-Item $fp work\runtime-root\ffprobe.exe
+
+          $tess='work\downloads\tesseract.exe'
+          Invoke-WebRequest -UseBasicParsing -MaximumRedirection 10 -Uri $env:TESSERACT_URL -OutFile $tess
+          if((Get-FileHash $tess -Algorithm SHA256).Hash.ToLowerInvariant() -ne $env:TESSERACT_SHA256){throw 'Tesseract hash mismatch'}
+          $p=Start-Process -FilePath (Resolve-Path $tess) -ArgumentList '/S' -Wait -PassThru
+          if($p.ExitCode -ne 0){throw "Tesseract install failed $($p.ExitCode)"}
+          $troot=@('C:\Program Files\Tesseract-OCR','C:\Program Files (x86)\Tesseract-OCR') | Where-Object {Test-Path $_} | Select-Object -First 1
+          if(!$troot){throw 'Tesseract root missing'}
+          Copy-Item "$troot\*" work\runtime-root -Recurse -Force
+
+          $es='work\downloads\espeak.exe'
+          Invoke-WebRequest -UseBasicParsing -MaximumRedirection 10 -Headers @{'User-Agent'='MFT-Education-Nexus-Phase2'} -Uri $env:ESPEAK_URL -OutFile $es
+          if((Get-FileHash $es -Algorithm SHA256).Hash.ToLowerInvariant() -ne $env:ESPEAK_SHA256){throw 'eSpeak hash mismatch'}
+          $p=Start-Process -FilePath (Resolve-Path $es) -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART','/SP-' -Wait -PassThru
+          if($p.ExitCode -ne 0){throw "eSpeak install failed $($p.ExitCode)"}
+          $exe=(Get-ChildItem 'C:\Program Files','C:\Program Files (x86)' -Recurse -Filter espeak.exe -File -ErrorAction SilentlyContinue | Select-Object -First 1).FullName
+          if(!$exe){throw 'espeak.exe missing'}
+          $data=(Get-ChildItem (Split-Path (Split-Path $exe -Parent) -Parent) -Directory -Filter espeak-data -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1).FullName
+          if(!$data){throw 'espeak-data missing'}
+          Copy-Item $exe work\runtime-root\espeak.exe -Force
+          Copy-Item $data work\runtime-root\espeak-data -Recurse -Force
+
+          foreach($p in @('ffmpeg.exe','ffprobe.exe','tesseract.exe','tessdata\eng.traineddata','espeak.exe','espeak-data')){if(!(Test-Path (Join-Path 'work\runtime-root' $p))){throw "runtime requirement missing: $p"}}
+          $dlls=@(Get-ChildItem work\runtime-root -File | Where-Object {$_.Extension -ieq '.dll'})
+          if($dlls.Count -lt 1){throw 'runtime root has no support DLLs'}
+          foreach($f in $dlls){Copy-Item $f.FullName work\runtime-support\$($f.Name) -Force}
+          [ordered]@{
+            schema='mft.education_nexus.phase2.row678.runtime_input_binding.v1'
+            ffmpeg_url=$env:FFMPEG_URL;ffmpeg_sha256=$env:FFMPEG_SHA256
+            tesseract_url=$env:TESSERACT_URL;tesseract_sha256=$env:TESSERACT_SHA256
+            espeak_url=$env:ESPEAK_URL;espeak_sha256=$env:ESPEAK_SHA256
+            support_dll_count=$dlls.Count
+          } | ConvertTo-Json -Depth 8 | Set-Content -Encoding utf8 out\RUNTIME_INPUT_BINDING.json
+
+      - name: Build canonical row6 executable and stage rows7-8
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $src=$env:MFT_CANONICAL_SRC
+          py -3 -m venv work\venv
+          $py=(Resolve-Path 'work\venv\Scripts\python.exe').Path
+          & $py -m pip install --disable-pip-version-check --upgrade pip
+          & $py -m pip install --disable-pip-version-check -r (Join-Path $src 'requirements.lock') 'pyinstaller==6.22.2'
+          if($LASTEXITCODE -ne 0){throw 'dependency installation failed'}
+          $pin=(& $py -c "import importlib.metadata;print(importlib.metadata.version('pyinstaller'))").Trim()
+          if($pin -ne '6.22.2'){throw "PyInstaller mismatch: $pin"}
+          $build=(Join-Path $pwd 'work\sidecar-build')
+          & $py (Join-Path $src 'tools\a14_release.py') build-sidecar --output $build | Tee-Object out\BUILD_OUTPUT.txt
+          if($LASTEXITCODE -ne 0){throw 'canonical build-sidecar failed'}
+          $exe=Join-Path $build 'dist\mft-nexus-core.exe'
+          if(!(Test-Path $exe)){throw 'row6 executable missing after build'}
+          $stage=Join-Path $src 'src-tauri\resources\runtime'
+          & $py (Join-Path $src 'tools\a14_release.py') stage-runtime --stage $stage --sidecar $exe --ffmpeg (Resolve-Path 'work\runtime-root\ffmpeg.exe') --ffprobe (Resolve-Path 'work\runtime-root\ffprobe.exe') --tesseract (Resolve-Path 'work\runtime-root\tesseract.exe') --tessdata (Resolve-Path 'work\runtime-root\tessdata') --espeak (Resolve-Path 'work\runtime-root\espeak.exe') --espeak-data (Resolve-Path 'work\runtime-root\espeak-data') --support (Resolve-Path 'work\runtime-support') | Tee-Object out\STAGE_OUTPUT.txt
+          if($LASTEXITCODE -ne 0){throw 'canonical stage-runtime failed'}
+          $verify=& $py -c "import json,sys;sys.path.insert(0,r'$src');from mft_education_nexus.a14.release_contract import verify_runtime_stage;print(json.dumps(verify_runtime_stage(r'$stage'),sort_keys=True))"
+          if($LASTEXITCODE -ne 0){throw 'frozen verify_runtime_stage failed'}
+          $verify | Set-Content -Encoding utf8 out\VERIFY_RUNTIME_STAGE.json
+          "MFT_STAGED_RUNTIME=$stage" | Out-File $env:GITHUB_ENV -Append -Encoding utf8
+          "MFT_PYINSTALLER=$pin" | Out-File $env:GITHUB_ENV -Append -Encoding utf8
+
+      - name: Exercise every discovered build product
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $stage=$env:MFT_STAGED_RUNTIME
+          $env:PATH="$stage;$stage\support;$env:PATH"
+          $env:TESSDATA_PREFIX=(Join-Path $stage 'tessdata')
+          $env:ESPEAK_DATA_PATH=(Join-Path $stage 'espeak-data')
+          & (Join-Path $stage 'ffmpeg.exe') -hide_banner -loglevel error -f lavfi -i 'sine=frequency=523:duration=0.35' -c:a pcm_s16le -y work\stage-ffmpeg.wav
+          if($LASTEXITCODE -ne 0){throw 'ffmpeg exercise failed'}
+          $duration=(& (Join-Path $stage 'ffprobe.exe') -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 work\stage-ffmpeg.wav).Trim()
+          if($LASTEXITCODE -ne 0 -or [double]$duration -lt 0.3){throw 'ffprobe exercise failed'}
+          $langs=& (Join-Path $stage 'tesseract.exe') --list-langs 2>&1 | Out-String
+          if($LASTEXITCODE -ne 0 -or $langs -notmatch '(?m)^eng\s*$'){throw 'tesseract exercise failed'}
+          & (Join-Path $stage 'espeak.exe') -w work\stage-espeak.wav 'phase two staged runtime exercise'
+          if($LASTEXITCODE -ne 0 -or (Get-Item work\stage-espeak.wav).Length -le 44){throw 'espeak exercise failed'}
+          $env:MFT_A14_PHASE1='1'
+          $env:MFT_NEXUS_HOME=(Join-Path $pwd 'work\smoke-home')
+          $env:MFT_KERNEL_CONTROL_SECRET=('C'*64)
+          $env:MFT_EDUCATION_CONTROL_TOKEN=('C'*64)
+          $env:MFT_OWNER_BOOTSTRAP_SECRET=('B'*64)
+          $env:MFT_KERNEL_GATEWAY_SECRET=('G'*64)
+          $env:MFT_KERNEL_NATIVE_CONTROL_SECRET=('N'*64)
+          $env:MFT_SOVEREIGN_EGRESS_LOCK='1'
+          New-Item -ItemType Directory -Force $env:MFT_NEXUS_HOME | Out-Null
+          $smoke=& (Join-Path $stage 'mft-nexus-core.exe') --port 43119 --qualification-status 2>&1 | Out-String
+          if($LASTEXITCODE -ne 0){$smoke;throw 'row6 sidecar exercise failed'}
+          $last=($smoke.Trim() -split "`r?`n")[-1]
+          $q=$last | ConvertFrom-Json
+          if([int]$q.phase -ne 1 -or $q.production_activation -ne $false){throw 'sidecar qualification contract mismatch'}
+          $manifest=Get-Content -Raw (Join-Path $stage 'RUNTIME_PAYLOAD_MANIFEST.json') | ConvertFrom-Json
+          $support=@($manifest.files | Where-Object {$_.role -eq 'support'})
+          if($support.Count -lt 1){throw 'row8 support role absent from manifest'}
+          $binding=Get-Content -Raw out\SOURCE_BINDING.json | ConvertFrom-Json
+          [ordered]@{schema='mft.education_nexus.phase2.row6.canonical_sidecar_receipt.cleanroom.v1';mode='PRE_ADMISSION_ENGINEERING_ONLY';phase=2;row=6;dependency='mft-nexus-core.exe sidecar binary';builder_repository=$env:GITHUB_REPOSITORY;builder_run_id=[long]$env:GITHUB_RUN_ID;canonical_zip_sha256=$binding.canonical_zip_sha256;pyinstaller_version=$env:MFT_PYINSTALLER;sidecar_sha256=(Get-FileHash (Join-Path $stage 'mft-nexus-core.exe') -Algorithm SHA256).Hash.ToLowerInvariant();sidecar_bytes=(Get-Item (Join-Path $stage 'mft-nexus-core.exe')).Length;present=$true;pinned_or_identified=$true;integrity_verified=$true;configured=$true;exercised=$true;official_phase2_credit=0;phase2_started=$false;phase1_frontier='112/114';thresholds_weakened=$false} | ConvertTo-Json -Depth 8 | Set-Content -Encoding utf8 out\ROW6_RECEIPT.json
+          [ordered]@{schema='mft.education_nexus.phase2.row7.runtime_payload_receipt.cleanroom.v1';mode='PRE_ADMISSION_ENGINEERING_ONLY';phase=2;row=7;dependency='staged src-tauri/resources/runtime payload';builder_repository=$env:GITHUB_REPOSITORY;builder_run_id=[long]$env:GITHUB_RUN_ID;canonical_zip_sha256=$binding.canonical_zip_sha256;runtime_manifest_sha256=(Get-FileHash (Join-Path $stage 'RUNTIME_PAYLOAD_MANIFEST.json') -Algorithm SHA256).Hash.ToLowerInvariant();runtime_file_count=@($manifest.files).Count;ffmpeg_exercised=$true;ffprobe_exercised=$true;tesseract_exercised=$true;espeak_exercised=$true;sidecar_exercised=$true;present=$true;pinned_or_identified=$true;integrity_verified=$true;configured=$true;exercised=$true;official_phase2_credit=0;phase2_started=$false;phase1_frontier='112/114';thresholds_weakened=$false} | ConvertTo-Json -Depth 8 | Set-Content -Encoding utf8 out\ROW7_RECEIPT.json
+          [ordered]@{schema='mft.education_nexus.phase2.row8.runtime_support_receipt.cleanroom.v1';mode='PRE_ADMISSION_ENGINEERING_ONLY';phase=2;row=8;dependency='runtime support directory';builder_repository=$env:GITHUB_REPOSITORY;builder_run_id=[long]$env:GITHUB_RUN_ID;support_file_count=$support.Count;support_files=@($support | ForEach-Object {$_.path});support_path_added_to_process_path=$true;tesseract_support_exercised=$true;present=$true;pinned_or_identified=$true;integrity_verified=$true;configured=$true;exercised=$true;official_phase2_credit=0;phase2_started=$false;phase1_frontier='112/114';thresholds_weakened=$false} | ConvertTo-Json -Depth 8 | Set-Content -Encoding utf8 out\ROW8_RECEIPT.json
+          $smoke | Set-Content -Encoding utf8 out\EXPLICIT_SMOKE_OUTPUT.txt
+          Copy-Item (Join-Path $stage 'mft-nexus-core.exe') out\mft-nexus-core.exe
+          Compress-Archive -Path "$stage\*" -DestinationPath out\ROW7_ROW8_STAGED_RUNTIME.zip -Force
+
+      - name: Upload clean-room row678 products and evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: mft-education-nexus-row678-cleanroom-${{ github.run_id }}
+          path: |
+            out/mft-nexus-core.exe
+            out/ROW7_ROW8_STAGED_RUNTIME.zip
+            out/ROW6_RECEIPT.json
+            out/ROW7_RECEIPT.json
+            out/ROW8_RECEIPT.json
+            out/SOURCE_BINDING.json
+            out/RUNTIME_INPUT_BINDING.json
+            out/VERIFY_RUNTIME_STAGE.json
+            out/BUILD_OUTPUT.txt
+            out/STAGE_OUTPUT.txt
+            out/EXPLICIT_SMOKE_OUTPUT.txt
+          if-no-files-found: error
+          retention-days: 30
