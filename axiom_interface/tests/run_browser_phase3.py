@@ -17,6 +17,11 @@ class QuietHandler(SimpleHTTPRequestHandler):
     def log_message(self,*_args): pass
 
 
+def wait_for_work_surface(page):
+    page.locator('#outcome-contract-space').wait_for(state='visible')
+    page.locator('#outcome-run-space').wait_for(state='visible')
+
+
 def select_work_project(page,project_id):
     page.locator('#outcome-project').select_option(project_id)
     page.locator('#outcome-refresh').click()
@@ -43,16 +48,18 @@ def main():
             project_id=project_select.input_value()
 
             page.goto(origin+'/index.html#/work',wait_until='networkidle')
-            page.wait_for_function('window.AxiomOutcomes && window.AxiomOutcomeRuns')
+            wait_for_work_surface(page)
             select_work_project(page,project_id)
             page.locator('#outcome-title').fill('Phase 3 resumability proof')
             page.locator('#outcome-goal').fill('Complete a durable local run with explicit acceptance')
             page.locator('#outcome-success').fill('Prepared checkpoint survives reload\nExecution checkpoint survives reload')
             page.get_by_role('button',name='Create contract').click()
-            page.wait_for_function("window.AxiomOutcomes.getCurrentContractId() !== ''")
-            contract_id=page.evaluate('window.AxiomOutcomes.getCurrentContractId()')
+            contract_row=page.locator('#outcome-list .outcome-contract').first
+            contract_row.wait_for(state='visible')
+            contract_id=contract_row.get_attribute('data-contract-id') or ''
             assert contract_id.startswith('oc_')
-            page.get_by_role('button',name='Approve contract').click();page.wait_for_timeout(100)
+            page.get_by_role('button',name='Approve contract').click()
+            expect(contract_row.locator('.claim-state')).to_contain_text('Approved')
             page.locator('#outcome-refresh').click();page.wait_for_timeout(100)
             page.locator('#outcome-run-contract').select_option(contract_id)
             page.get_by_role('button',name='Start / resume run').click();page.wait_for_timeout(80)
@@ -64,11 +71,9 @@ def main():
 
             # Cross-session restart: reload the app, reselect the same durable Project/contract,
             # and resume the same run rather than creating or replaying a new one.
-            page.reload(wait_until='networkidle');page.wait_for_function('window.AxiomOutcomes && window.AxiomOutcomeRuns')
+            page.reload(wait_until='networkidle');wait_for_work_surface(page)
             await_graph=page.evaluate('pid => window.AxiomProjects.selectProject(pid).then(()=>window.AxiomProjects.store.graph(pid))',project_id)
             assert await_graph['project']['project_id']==project_id
-            location=page.evaluate("location.hash='#/work'; location.hash")
-            assert location=='#/work';page.wait_for_timeout(100)
             select_work_project(page,project_id)
             page.locator('#outcome-run-contract').select_option(contract_id);page.wait_for_timeout(50)
             page.get_by_role('button',name='Start / resume run').click();page.wait_for_timeout(50)
@@ -81,13 +86,13 @@ def main():
             assert [x['step'] for x in awaiting['checkpoints']]==['PREPARED','EXECUTION_COMPLETE']
 
             checks=page.locator('#outcome-acceptance-criteria input[type=checkbox]')
-            assert checks.count()==2
+            expect(checks).to_have_count(2)
             for i in range(checks.count()): checks.nth(i).check()
             page.get_by_role('button',name='Record acceptance').click();page.wait_for_timeout(80)
             final=page.evaluate('rid => window.AxiomOutcomeRuns.store.get(rid)',run_id)
             assert final['status']=='SUCCEEDED' and all(x['status']=='COMPLETED' for x in final['plan'])
 
-            second=context.new_page();second.goto(origin+'/index.html#/work',wait_until='networkidle');second.wait_for_function('window.AxiomOutcomes && window.AxiomOutcomeRuns')
+            second=context.new_page();second.goto(origin+'/index.html#/work',wait_until='networkidle');wait_for_work_surface(second)
             persisted=second.evaluate('rid => window.AxiomOutcomeRuns.store.get(rid)',run_id)
             assert persisted['status']=='SUCCEEDED' and len(persisted['checkpoints'])==2
             second.close()
