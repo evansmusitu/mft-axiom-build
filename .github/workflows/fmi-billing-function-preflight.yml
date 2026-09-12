@@ -1,0 +1,66 @@
+name: MUSITU FMI Billing Function Preflight
+
+on:
+  push:
+    branches: [fmi-billing-binding-20260912-ephemeral]
+    paths: ['.github/workflows/fmi-billing-function-preflight.yml']
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      CF_API: https://api.cloudflare.com/client/v4
+      ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+    steps:
+      - name: Extract exact non-secret function structures
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import email,json,os,re,urllib.parse,urllib.request
+          api=os.environ['CF_API']; aid=os.environ['ACCOUNT_ID']; H={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY']}
+          def src(name):
+              with urllib.request.urlopen(urllib.request.Request(f'{api}/accounts/{aid}/workers/scripts/{urllib.parse.quote(name,safe="")}',headers=H),timeout=45) as r: raw=r.read(); ct=r.headers.get('content-type','')
+              if 'multipart/' not in ct.lower(): return raw.decode('utf-8','ignore')
+              msg=email.message_from_bytes((f'Content-Type: {ct}\r\nMIME-Version: 1.0\r\n\r\n').encode()+raw); parts=[]
+              for p in msg.walk():
+                  if p.is_multipart():continue
+                  d=p.get_payload(decode=True) or b''
+                  if any(x in d for x in (b'export default',b'addEventListener',b'fetch(')):parts.append(d)
+              if len(parts)!=1:raise SystemExit('module_count')
+              return parts[0].decode('utf-8','ignore')
+          def func(text,name):
+              m=re.search(r'(?:async\s+)?function\s+'+re.escape(name)+r'\s*\([^)]*\)\s*\{',text)
+              if not m: raise SystemExit('missing '+name)
+              b=text.find('{',m.start()); depth=0; quote=None; esc=False
+              for i in range(b,len(text)):
+                  c=text[i]
+                  if quote:
+                      if esc: esc=False
+                      elif c=='\\': esc=True
+                      elif c==quote: quote=None
+                      continue
+                  if c in ('"',"'",'`'): quote=c; continue
+                  if c=='{': depth+=1
+                  elif c=='}':
+                      depth-=1
+                      if depth==0:return text[m.start():i+1]
+              raise SystemExit('unmatched '+name)
+          a=src('mft-phase8-external-authority'); t=src('mft-paynow-transport-gateway')
+          obj={'chem_auth':func(a,'__mchemAuth'),'chem_sign':func(a,'__mchemSign'),'transport_authorized':func(t,'authorized')}
+          open('fmi-billing-function-preflight.json','w').write(json.dumps(obj,indent=2,sort_keys=True)+'\n')
+          print(json.dumps({'chem_auth_bytes':len(obj['chem_auth']),'chem_sign_bytes':len(obj['chem_sign']),'transport_authorized_bytes':len(obj['transport_authorized'])},sort_keys=True))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: musitu-fmi-billing-function-preflight-20260912
+          path: fmi-billing-function-preflight.json
+          retention-days: 1
+          if-no-files-found: error
