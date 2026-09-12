@@ -1,0 +1,45 @@
+name: RevenueGuard CUAD Heldout Evaluation
+
+# Staged only. Add a push trigger after an exact CUAD model artifact exists.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  evaluate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 70
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download exact CUAD model artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: revenueguard-cuad-span-adapted-model-v2
+          path: cuad_bundle
+          repository: evansmusitu/mft-axiom-build
+          run-id: 34680322952
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Evaluate document-disjoint heldout contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          python -m pip install --index-url https://download.pytorch.org/whl/cpu 'torch'
+          python -m pip install 'transformers==4.56.2'
+          curl -fL --retry 4 --retry-delay 2 -o cuad-data.zip 'https://raw.githubusercontent.com/The-Atticus-Project/cuad/67faa0e6023b04fcaae6cc09497ab00e5d63a2a2/data.zip'
+          unzip -q cuad-data.zip
+          TRAIN=$(find . -name train_separate_questions.json -type f | head -n 1)
+          test -n "$TRAIN"
+          python research/revenueguard/cuad_heldout_eval.py \
+            --model cuad_bundle/cuad_span_model \
+            --train-json "$TRAIN" \
+            --out CUAD_HELDOUT_EVAL.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: revenueguard-cuad-heldout-eval
+          path: CUAD_HELDOUT_EVAL.json
+          if-no-files-found: error
+          retention-days: 30
