@@ -1,0 +1,54 @@
+name: MUSITU Axiom Governance Fixture Migration Once
+
+on:
+  push:
+    branches:
+      - frontier/axiom-v5-level7-governance-chain-20260912
+
+permissions:
+  contents: write
+
+jobs:
+  migrate:
+    if: github.actor == 'evansmusitu'
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout immutable action
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: true
+          fetch-depth: 0
+      - name: Patch valid Level-7 integration chains and self-remove
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('frontier_review_safe/tests/test_gap_closure.py')
+          text = path.read_text(encoding='utf-8')
+
+          old_helper = '''def longitudinal_refresh(refresh_id, executed_at, candidate_sha, case_set_hash, baseline_registry_hash):\n    return LongitudinalRefreshRecord(\n        refresh_id=refresh_id,\n        executed_at=executed_at,\n        candidate_sha=candidate_sha,\n        case_set_hash=case_set_hash,\n        baseline_registry_hash=baseline_registry_hash,\n        passed=True,\n        executor_org="Independent Longitudinal Lab",\n        **level7_artifact_fields(\n            candidate_sha=candidate_sha,\n            case_set_hash=case_set_hash,\n            baseline_registry_hash=baseline_registry_hash,\n            generated_at=executed_at,\n        ),\n    )\n'''
+          new_helper = '''def longitudinal_refresh(\n    refresh_id, executed_at, candidate_sha, case_set_hash, baseline_registry_hash,\n    before_baseline_registry_hash=None,\n):\n    return LongitudinalRefreshRecord(\n        refresh_id=refresh_id,\n        executed_at=executed_at,\n        candidate_sha=candidate_sha,\n        case_set_hash=case_set_hash,\n        baseline_registry_hash=baseline_registry_hash,\n        passed=True,\n        executor_org="Independent Longitudinal Lab",\n        **level7_artifact_fields(\n            candidate_sha=candidate_sha,\n            case_set_hash=case_set_hash,\n            baseline_registry_hash=baseline_registry_hash,\n            generated_at=executed_at,\n            governance_before_hash=before_baseline_registry_hash,\n        ),\n    )\n'''
+          assert text.count(old_helper) == 1, 'helper anchor mismatch'
+          text = text.replace(old_helper, new_helper, 1)
+
+          old_a = '''        refreshes=[longitudinal_refresh(str(i),(NOW+timedelta(days=i*30)).isoformat(), EXTERNAL_CANDIDATE_SHA, H, (registry.fingerprint if i%2==0 else "5"*64)) for i in range(3)]'''
+          new_a = '''        refreshes=[longitudinal_refresh(\n            str(i), (NOW+timedelta(days=i*30)).isoformat(), EXTERNAL_CANDIDATE_SHA, H,\n            (registry.fingerprint if i%2==0 else "5"*64),\n            (registry.fingerprint if i < 2 else "5"*64),\n        ) for i in range(3)]'''
+          assert text.count(old_a) == 1, 'external-level chain anchor mismatch'
+          text = text.replace(old_a, new_a, 1)
+
+          old_b = '''        refreshes=[longitudinal_refresh(str(i),(NOW+timedelta(days=i*30)).isoformat(),EXTERNAL_CANDIDATE_SHA,case_set,\n                    (registry.fingerprint if i%2==0 else "5"*64)) for i in range(3)]'''
+          new_b = '''        refreshes=[longitudinal_refresh(\n            str(i), (NOW+timedelta(days=i*30)).isoformat(), EXTERNAL_CANDIDATE_SHA, case_set,\n            (registry.fingerprint if i%2==0 else "5"*64),\n            (registry.fingerprint if i < 2 else "5"*64),\n        ) for i in range(3)]'''
+          assert text.count(old_b) == 1, 'broad-claim chain anchor mismatch'
+          text = text.replace(old_b, new_b, 1)
+
+          path.write_text(text, encoding='utf-8')
+          Path('.github/workflows/axiom-level7-governance-fixture-migration-once.yml').unlink()
+          PY
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add frontier_review_safe/tests/test_gap_closure.py .github/workflows/axiom-level7-governance-fixture-migration-once.yml
+          git diff --cached --check
+          git commit -m 'Migrate valid Level-7 fixtures to continuous governance chains'
+          git push origin HEAD:frontier/axiom-v5-level7-governance-chain-20260912
