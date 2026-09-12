@@ -1,0 +1,47 @@
+name: RevenueGuard CUAD Shard Load Audit
+
+on:
+  push:
+    branches: [revenueguard-axiom-governor-20260911]
+    paths: ['.github/workflows/revenueguard-cuad-shard-load-audit.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Measure heldout shard workload
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fL --retry 4 --retry-delay 2 -o cuad-data.zip 'https://raw.githubusercontent.com/The-Atticus-Project/cuad/67faa0e6023b04fcaae6cc09497ab00e5d63a2a2/data.zip'
+          unzip -q cuad-data.zip
+          TRAIN=$(find . -name train_separate_questions.json -type f | head -n1)
+          python - "$TRAIN" <<'PY'
+          import sys,json,hashlib
+          from collections import defaultdict
+          from pathlib import Path
+          raw=json.load(open(sys.argv[1]))['data']
+          def held(t):return int(hashlib.sha256(t.encode()).hexdigest()[:8],16)%10==0
+          def shard(t):return int(hashlib.sha256(('musitu-cuad-eval-shard-v1|'+t).encode()).hexdigest()[:8],16)%8
+          a=defaultdict(lambda:{'titles':0,'qas':0,'context_chars_counted_per_qa':0,'unique_context_chars':0,'title_names':[]})
+          for c in raw:
+              t=c.get('title','')
+              if not held(t):continue
+              s=shard(t);a[s]['titles']+=1;a[s]['title_names'].append(t)
+              for p in c['paragraphs']:
+                  q=len(p['qas']);a[s]['qas']+=q;a[s]['context_chars_counted_per_qa']+=len(p['context'])*q;a[s]['unique_context_chars']+=len(p['context'])
+          rep={'schema':'musitu.revenueguard.cuad.shard_load.v1','shards':{str(i):a[i] for i in range(8)},'total_titles':sum(v['titles'] for v in a.values()),'total_qas':sum(v['qas'] for v in a.values())}
+          Path('CUAD_SHARD_LOAD.json').write_text(json.dumps(rep,indent=2,sort_keys=True)+'\n');print(json.dumps(rep,indent=2,sort_keys=True))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: revenueguard-cuad-shard-load-audit
+          path: CUAD_SHARD_LOAD.json
+          if-no-files-found: error
+          retention-days: 30
