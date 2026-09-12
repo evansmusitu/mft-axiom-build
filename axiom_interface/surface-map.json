@@ -1,18 +1,19 @@
 {
-  "schema": "musitu.axiom.interface.surface-map.v3",
+  "schema": "musitu.axiom.interface.surface-map.v4",
   "authority": {
     "earned_track_b_sha": "73ecdbad38cb10020b6e30ebe42a9222a3bb6c55",
     "qualified_phase1_sha": "5b7233fd9e62b530ef9eb161b41010727d76bacb",
     "qualified_phase2_sha": "0b22d9932b374555d11b0d5d23379d470a368f50",
+    "qualified_phase3_sha": "ddb8a97c394e7e5b4107c95110c426ebd19ca66c",
     "blueprint_sha256": "e750039a9c88abc780d24f48c3e86e22fd9295fec99a1b0593668aa8dd9ac166"
   },
-  "phase": "PHASE_3_WORK_OUTCOME_CONTRACTS",
+  "phase": "PHASE_4_RESEARCH_CLAIM_GRAPH",
   "surfaces": [
     {"id":"flagship","target":"musitu.ai/axiom","state":"future-routing","access":"public"},
-    {"id":"app","target":"app","state":"shell-plus-project-graph-plus-work","access":"authenticated"},
+    {"id":"app","target":"app","state":"shell-plus-project-graph-plus-work-plus-research","access":"authenticated"},
     {"id":"developers","target":"developers","state":"registered-placeholder","access":"mixed"},
     {"id":"docs","target":"docs","state":"existing-fragments","access":"public"},
-    {"id":"research","target":"research","state":"registered-placeholder","access":"mixed"},
+    {"id":"research","target":"research","state":"claim-graph-local-workspace","access":"mixed"},
     {"id":"evals","target":"evals","state":"registered-placeholder","access":"public"},
     {"id":"trust","target":"trust","state":"registered-placeholder","access":"public"},
     {"id":"status","target":"status","state":"registered-placeholder","access":"public"},
@@ -45,6 +46,19 @@
     "literal_multi_hour_wall_clock_soak": false,
     "cloud_scheduler_claimed": false,
     "external_consequential_actions_claimed": false
+  },
+  "research_substrate": {
+    "persistence": "INDEXEDDB_BROWSER_LOCAL_DEVICE",
+    "views": ["REPORT_VIEW","EVIDENCE_MAP","RESEARCH_TIMELINE"],
+    "source_controls": ["DOMAIN_ALLOW_DENY","DATE_WINDOW","SOURCE_TYPE"],
+    "citation_binding": "EXACT_SOURCE_TEXT_SPAN_PLUS_SHA256",
+    "claim_lineage": "PROJECT_SCOPED_ACYCLIC_DEPENDENCIES",
+    "contradictions_preserved": true,
+    "freshness_basis": "SOURCE_AS_OF_NOT_RETRIEVAL_TIME",
+    "retrieved_instruction_authority": "DATA_ONLY",
+    "missing_evidence_detection": true,
+    "cloud_research_sync_claimed": false,
+    "external_verification_claimed": false
   },
   "execution_boundary": "PREVIEW_ONLY_NO_EXTERNAL_CONSEQUENTIAL_ACTIONS"
 }
