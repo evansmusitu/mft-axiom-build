@@ -1,0 +1,135 @@
+name: MUSITU Store 1.0.3 Authorized Sign
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  sign-and-verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      EXPECTED_UNSIGNED_SHA256: 808828892d6eaced0904b0a0e437853041f54d51f8dcdb695d2557e8c338c0da
+      EXPECTED_UNSIGNED_BYTES: '1679020'
+      EXPECTED_SIGNER_SHA256: 43695b6103d7ab57e89166c9a537f1810b7e33053e20332b1d4e7e2e1c612671
+      SEALED_UNSIGNED_RUN_ID: '34675592872'
+      SEALED_UNSIGNED_ARTIFACT_ID: '10292027543'
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: android-actions/setup-android@v3
+
+      - name: Install Android signing verification tools
+        shell: bash
+        run: |
+          set -euo pipefail
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager 'build-tools;36.0.0'
+          "$ANDROID_HOME/build-tools/36.0.0/apksigner" --version
+          "$ANDROID_HOME/build-tools/36.0.0/aapt" version
+          "$ANDROID_HOME/build-tools/36.0.0/zipalign" -h >/dev/null 2>&1 || true
+
+      - name: Download sealed unsigned artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: musitu-store-1.0.3-unsigned
+          run-id: 34675592872
+          github-token: ${{ github.token }}
+          path: sealed-input
+
+      - name: Verify sealed unsigned input before signing
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK='sealed-input/MUSITU_Store_1.0.3_UNSIGNED.apk'
+          test -f "$APK"
+          ACTUAL_SHA="$(sha256sum "$APK" | awk '{print $1}')"
+          ACTUAL_BYTES="$(stat -c '%s' "$APK")"
+          test "$ACTUAL_SHA" = "$EXPECTED_UNSIGNED_SHA256"
+          test "$ACTUAL_BYTES" = "$EXPECTED_UNSIGNED_BYTES"
+          grep -Fxq "$EXPECTED_UNSIGNED_SHA256  MUSITU_Store_1.0.3_UNSIGNED.apk" sealed-input/MUSITU_Store_1.0.3_UNSIGNED.sha256
+          "$ANDROID_HOME/build-tools/36.0.0/zipalign" -c -P 16 -v 4 "$APK"
+          echo MUSITU_STORE_1_0_3_SEALED_UNSIGNED_INPUT=PASS
+
+      - name: Require authorized signing custody
+        shell: bash
+        env:
+          MUSITU_STORE_SIGNING_KEYSTORE_B64: ${{ secrets.MUSITU_STORE_SIGNING_KEYSTORE_B64 }}
+          MUSITU_STORE_SIGNING_KEYSTORE_PASSWORD: ${{ secrets.MUSITU_STORE_SIGNING_KEYSTORE_PASSWORD }}
+          MUSITU_STORE_SIGNING_KEY_ALIAS: ${{ secrets.MUSITU_STORE_SIGNING_KEY_ALIAS }}
+          MUSITU_STORE_SIGNING_KEY_PASSWORD: ${{ secrets.MUSITU_STORE_SIGNING_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          test -n "${MUSITU_STORE_SIGNING_KEYSTORE_B64:-}" || { echo '::error::Required secret MUSITU_STORE_SIGNING_KEYSTORE_B64 is not configured'; exit 20; }
+          test -n "${MUSITU_STORE_SIGNING_KEYSTORE_PASSWORD:-}" || { echo '::error::Required secret MUSITU_STORE_SIGNING_KEYSTORE_PASSWORD is not configured'; exit 21; }
+          test -n "${MUSITU_STORE_SIGNING_KEY_ALIAS:-}" || { echo '::error::Required secret MUSITU_STORE_SIGNING_KEY_ALIAS is not configured'; exit 22; }
+          echo MUSITU_STORE_1_0_3_AUTHORIZED_SIGNING_CUSTODY=AVAILABLE
+
+      - name: Sign sealed APK with authorized existing identity
+        shell: bash
+        env:
+          MUSITU_STORE_SIGNING_KEYSTORE_B64: ${{ secrets.MUSITU_STORE_SIGNING_KEYSTORE_B64 }}
+          MUSITU_STORE_SIGNING_KEYSTORE_PASSWORD: ${{ secrets.MUSITU_STORE_SIGNING_KEYSTORE_PASSWORD }}
+          MUSITU_STORE_SIGNING_KEY_ALIAS: ${{ secrets.MUSITU_STORE_SIGNING_KEY_ALIAS }}
+          MUSITU_STORE_SIGNING_KEY_PASSWORD: ${{ secrets.MUSITU_STORE_SIGNING_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          UNSIGNED="$GITHUB_WORKSPACE/sealed-input/MUSITU_Store_1.0.3_UNSIGNED.apk"
+          SIGNED="$GITHUB_WORKSPACE/MUSITU_Store_1.0.3_SIGNED.apk"
+          KEYSTORE="$RUNNER_TEMP/musitu-store-signing-keystore"
+          trap 'rm -f "$KEYSTORE"' EXIT
+          umask 077
+          printf '%s' "$MUSITU_STORE_SIGNING_KEYSTORE_B64" | base64 --decode > "$KEYSTORE"
+          test -s "$KEYSTORE"
+          export MUSITU_STORE_EFFECTIVE_KEY_PASSWORD="${MUSITU_STORE_SIGNING_KEY_PASSWORD:-$MUSITU_STORE_SIGNING_KEYSTORE_PASSWORD}"
+          "$ANDROID_HOME/build-tools/36.0.0/apksigner" sign \
+            --ks "$KEYSTORE" \
+            --ks-key-alias "$MUSITU_STORE_SIGNING_KEY_ALIAS" \
+            --ks-pass env:MUSITU_STORE_SIGNING_KEYSTORE_PASSWORD \
+            --key-pass env:MUSITU_STORE_EFFECTIVE_KEY_PASSWORD \
+            --v1-signing-enabled false \
+            --v2-signing-enabled true \
+            --v3-signing-enabled true \
+            --out "$SIGNED" \
+            "$UNSIGNED"
+          rm -f "$KEYSTORE"
+          trap - EXIT
+          test -s "$SIGNED"
+          echo MUSITU_STORE_1_0_3_SIGNING_OPERATION=COMPLETE
+
+      - name: Verify signed output against sealed contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p signed-proof
+          python store/phase2/reproducibility/store-1.0.3/verify_authorized_signed_apk.py \
+            --unsigned sealed-input/MUSITU_Store_1.0.3_UNSIGNED.apk \
+            --signed MUSITU_Store_1.0.3_SIGNED.apk \
+            --apksigner "$ANDROID_HOME/build-tools/36.0.0/apksigner" \
+            --aapt "$ANDROID_HOME/build-tools/36.0.0/aapt" \
+            --proof-output signed-proof/MUSITU_STORE_1_0_3_AUTHORIZED_SIGNED_VERIFICATION.json
+          SIGNED_SHA="$(sha256sum MUSITU_Store_1.0.3_SIGNED.apk | awk '{print $1}')"
+          SIGNED_BYTES="$(stat -c '%s' MUSITU_Store_1.0.3_SIGNED.apk)"
+          printf '%s  %s\n' "$SIGNED_SHA" 'MUSITU_Store_1.0.3_SIGNED.apk' > MUSITU_Store_1.0.3_SIGNED.sha256
+          echo "MUSITU_STORE_1_0_3_SIGNED_SHA256=$SIGNED_SHA"
+          echo "MUSITU_STORE_1_0_3_SIGNED_BYTES=$SIGNED_BYTES"
+          echo MUSITU_STORE_1_0_3_AUTHORIZED_SIGNED_OUTPUT=PASS
+
+      - name: Upload verified signed release candidate
+        uses: actions/upload-artifact@v4
+        with:
+          name: musitu-store-1.0.3-authorized-signed-candidate
+          path: |
+            MUSITU_Store_1.0.3_SIGNED.apk
+            MUSITU_Store_1.0.3_SIGNED.sha256
+            signed-proof/MUSITU_STORE_1_0_3_AUTHORIZED_SIGNED_VERIFICATION.json
+          retention-days: 30
+          if-no-files-found: error
