@@ -1,0 +1,11 @@
+{
+  "schema": "musitu.revenueguard.contractnli.decoupled_epoch2_trigger.v1",
+  "status": "AUTHORIZED_DEV_RESEARCH_TRAINING",
+  "source_encoder_run_id": 34676990123,
+  "source_encoder_artifact": "revenueguard-contractnli-adapted-model",
+  "source_encoder_artifact_sha256": "3d78d473ffde6f790b3919226d1069b81fa8426f0f139007d3ba8b9d9cf23055",
+  "corpus_commit": "eced6528dd3c1d14d73f9a87df8f7bdbc03126f9",
+  "num_chunks": 4,
+  "architecture": "decoupled evidence relevance head plus positive-only binary semantic head",
+  "policy": "ContractNLI build partition only for training. Hash-held train calibration remains selector-only. Exposed dev remains development evidence. ContractNLI test.json and MAUD remain sealed."
+}
