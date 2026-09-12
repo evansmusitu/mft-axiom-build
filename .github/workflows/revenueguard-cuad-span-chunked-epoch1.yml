@@ -1,0 +1,243 @@
+name: RevenueGuard CUAD Span Chunked Epoch 1
+
+on:
+  push:
+    branches: [revenueguard-axiom-governor-20260911]
+    paths:
+      - '.github/workflows/revenueguard-cuad-span-chunked-epoch1.yml'
+      - 'research/revenueguard/cuad_chunk_train.py'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  chunk0:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install runtime and fetch CUAD
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install --index-url https://download.pytorch.org/whl/cpu torch
+          python -m pip install 'transformers==4.56.2' 'huggingface-hub==0.34.4' safetensors
+          curl -fL --retry 4 --retry-delay 2 -o cuad-data.zip 'https://raw.githubusercontent.com/The-Atticus-Project/cuad/67faa0e6023b04fcaae6cc09497ab00e5d63a2a2/data.zip'
+          unzip -q cuad-data.zip
+      - name: Train chunk 0
+        run: |
+          TRAIN=$(find . -name train_separate_questions.json -type f | head -n1)
+          python research/revenueguard/cuad_chunk_train.py --train-json "$TRAIN" --chunk-index 0 --output-dir cuad_chunk_0 --state-out cuad_state_0.pt --report CUAD_CHUNK_0.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: revenueguard-cuad-chunk-0
+          path: |
+            cuad_chunk_0/
+            cuad_state_0.pt
+            CUAD_CHUNK_0.json
+          if-no-files-found: error
+          retention-days: 30
+
+  chunk1:
+    needs: chunk0
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with: {name: revenueguard-cuad-chunk-0, path: previous}
+      - name: Install runtime and fetch CUAD
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install --index-url https://download.pytorch.org/whl/cpu torch
+          python -m pip install 'transformers==4.56.2' 'huggingface-hub==0.34.4' safetensors
+          curl -fL --retry 4 --retry-delay 2 -o cuad-data.zip 'https://raw.githubusercontent.com/The-Atticus-Project/cuad/67faa0e6023b04fcaae6cc09497ab00e5d63a2a2/data.zip'
+          unzip -q cuad-data.zip
+      - name: Train chunk 1
+        run: |
+          TRAIN=$(find . -name train_separate_questions.json -type f | head -n1)
+          python research/revenueguard/cuad_chunk_train.py --train-json "$TRAIN" --chunk-index 1 --input-dir previous/cuad_chunk_0 --state-in previous/cuad_state_0.pt --output-dir cuad_chunk_1 --state-out cuad_state_1.pt --report CUAD_CHUNK_1.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: revenueguard-cuad-chunk-1
+          path: |
+            cuad_chunk_1/
+            cuad_state_1.pt
+            CUAD_CHUNK_1.json
+          if-no-files-found: error
+          retention-days: 30
+
+  chunk2:
+    needs: chunk1
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with: {name: revenueguard-cuad-chunk-1, path: previous}
+      - name: Install runtime and fetch CUAD
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install --index-url https://download.pytorch.org/whl/cpu torch
+          python -m pip install 'transformers==4.56.2' 'huggingface-hub==0.34.4' safetensors
+          curl -fL --retry 4 --retry-delay 2 -o cuad-data.zip 'https://raw.githubusercontent.com/The-Atticus-Project/cuad/67faa0e6023b04fcaae6cc09497ab00e5d63a2a2/data.zip'
+          unzip -q cuad-data.zip
+      - name: Train chunk 2
+        run: |
+          TRAIN=$(find . -name train_separate_questions.json -type f | head -n1)
+          python research/revenueguard/cuad_chunk_train.py --train-json "$TRAIN" --chunk-index 2 --input-dir previous/cuad_chunk_1 --state-in previous/cuad_state_1.pt --output-dir cuad_chunk_2 --state-out cuad_state_2.pt --report CUAD_CHUNK_2.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: revenueguard-cuad-chunk-2
+          path: |
+            cuad_chunk_2/
+            cuad_state_2.pt
+            CUAD_CHUNK_2.json
+          if-no-files-found: error
+          retention-days: 30
+
+  chunk3:
+    needs: chunk2
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with: {name: revenueguard-cuad-chunk-2, path: previous}
+      - name: Install runtime and fetch CUAD
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install --index-url https://download.pytorch.org/whl/cpu torch
+          python -m pip install 'transformers==4.56.2' 'huggingface-hub==0.34.4' safetensors
+          curl -fL --retry 4 --retry-delay 2 -o cuad-data.zip 'https://raw.githubusercontent.com/The-Atticus-Project/cuad/67faa0e6023b04fcaae6cc09497ab00e5d63a2a2/data.zip'
+          unzip -q cuad-data.zip
+      - name: Train chunk 3
+        run: |
+          TRAIN=$(find . -name train_separate_questions.json -type f | head -n1)
+          python research/revenueguard/cuad_chunk_train.py --train-json "$TRAIN" --chunk-index 3 --input-dir previous/cuad_chunk_2 --state-in previous/cuad_state_2.pt --output-dir cuad_chunk_3 --state-out cuad_state_3.pt --report CUAD_CHUNK_3.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: revenueguard-cuad-chunk-3
+          path: |
+            cuad_chunk_3/
+            cuad_state_3.pt
+            CUAD_CHUNK_3.json
+          if-no-files-found: error
+          retention-days: 30
+
+  chunk4:
+    needs: chunk3
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with: {name: revenueguard-cuad-chunk-3, path: previous}
+      - name: Install runtime and fetch CUAD
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install --index-url https://download.pytorch.org/whl/cpu torch
+          python -m pip install 'transformers==4.56.2' 'huggingface-hub==0.34.4' safetensors
+          curl -fL --retry 4 --retry-delay 2 -o cuad-data.zip 'https://raw.githubusercontent.com/The-Atticus-Project/cuad/67faa0e6023b04fcaae6cc09497ab00e5d63a2a2/data.zip'
+          unzip -q cuad-data.zip
+      - name: Train chunk 4
+        run: |
+          TRAIN=$(find . -name train_separate_questions.json -type f | head -n1)
+          python research/revenueguard/cuad_chunk_train.py --train-json "$TRAIN" --chunk-index 4 --input-dir previous/cuad_chunk_3 --state-in previous/cuad_state_3.pt --output-dir cuad_chunk_4 --state-out cuad_state_4.pt --report CUAD_CHUNK_4.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: revenueguard-cuad-chunk-4
+          path: |
+            cuad_chunk_4/
+            cuad_state_4.pt
+            CUAD_CHUNK_4.json
+          if-no-files-found: error
+          retention-days: 30
+
+  chunk5:
+    needs: chunk4
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with: {name: revenueguard-cuad-chunk-4, path: previous}
+      - name: Install runtime and fetch CUAD
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install --index-url https://download.pytorch.org/whl/cpu torch
+          python -m pip install 'transformers==4.56.2' 'huggingface-hub==0.34.4' safetensors
+          curl -fL --retry 4 --retry-delay 2 -o cuad-data.zip 'https://raw.githubusercontent.com/The-Atticus-Project/cuad/67faa0e6023b04fcaae6cc09497ab00e5d63a2a2/data.zip'
+          unzip -q cuad-data.zip
+      - name: Train chunk 5
+        run: |
+          TRAIN=$(find . -name train_separate_questions.json -type f | head -n1)
+          python research/revenueguard/cuad_chunk_train.py --train-json "$TRAIN" --chunk-index 5 --input-dir previous/cuad_chunk_4 --state-in previous/cuad_state_4.pt --output-dir cuad_chunk_5 --state-out cuad_state_5.pt --report CUAD_CHUNK_5.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: revenueguard-cuad-chunk-5
+          path: |
+            cuad_chunk_5/
+            cuad_state_5.pt
+            CUAD_CHUNK_5.json
+          if-no-files-found: error
+          retention-days: 30
+
+  chunk6:
+    needs: chunk5
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with: {name: revenueguard-cuad-chunk-5, path: previous}
+      - name: Install runtime and fetch CUAD
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install --index-url https://download.pytorch.org/whl/cpu torch
+          python -m pip install 'transformers==4.56.2' 'huggingface-hub==0.34.4' safetensors
+          curl -fL --retry 4 --retry-delay 2 -o cuad-data.zip 'https://raw.githubusercontent.com/The-Atticus-Project/cuad/67faa0e6023b04fcaae6cc09497ab00e5d63a2a2/data.zip'
+          unzip -q cuad-data.zip
+      - name: Train chunk 6
+        run: |
+          TRAIN=$(find . -name train_separate_questions.json -type f | head -n1)
+          python research/revenueguard/cuad_chunk_train.py --train-json "$TRAIN" --chunk-index 6 --input-dir previous/cuad_chunk_5 --state-in previous/cuad_state_5.pt --output-dir cuad_chunk_6 --state-out cuad_state_6.pt --report CUAD_CHUNK_6.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: revenueguard-cuad-chunk-6
+          path: |
+            cuad_chunk_6/
+            cuad_state_6.pt
+            CUAD_CHUNK_6.json
+          if-no-files-found: error
+          retention-days: 30
+
+  chunk7:
+    needs: chunk6
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with: {name: revenueguard-cuad-chunk-6, path: previous}
+      - name: Install runtime and fetch CUAD
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install --index-url https://download.pytorch.org/whl/cpu torch
+          python -m pip install 'transformers==4.56.2' 'huggingface-hub==0.34.4' safetensors
+          curl -fL --retry 4 --retry-delay 2 -o cuad-data.zip 'https://raw.githubusercontent.com/The-Atticus-Project/cuad/67faa0e6023b04fcaae6cc09497ab00e5d63a2a2/data.zip'
+          unzip -q cuad-data.zip
+      - name: Train chunk 7 and seal one epoch
+        run: |
+          TRAIN=$(find . -name train_separate_questions.json -type f | head -n1)
+          python research/revenueguard/cuad_chunk_train.py --train-json "$TRAIN" --chunk-index 7 --input-dir previous/cuad_chunk_6 --state-in previous/cuad_state_6.pt --output-dir cuad_epoch1_final --state-out cuad_epoch1_state.pt --report CUAD_EPOCH1_FINAL.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: revenueguard-cuad-epoch1-chunked-final
+          path: |
+            cuad_epoch1_final/
+            cuad_epoch1_state.pt
+            CUAD_EPOCH1_FINAL.json
+          if-no-files-found: error
+          retention-days: 30
