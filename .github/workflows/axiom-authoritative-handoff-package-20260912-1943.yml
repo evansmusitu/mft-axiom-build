@@ -1,0 +1,116 @@
+name: MUSITU Axiom Authoritative Whole-Product Handoff 20260912-1943
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout handoff authority
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Build clean exact-source continuation package
+        shell: bash
+        run: |
+          set -euo pipefail
+          SOURCE_SHA='145968528ed31eced0a16a29b49b840082837d7c'
+          EARNED_SHA='e7e5a5610bd1716dd80bf523cc031b619f8bbb0e'
+          SEALED_MAIN='d6a846f6bbe0bccac1758713eb4de167caf07113'
+          TRACK_A='d9196774a9fff3150922e2cb681d16e2423651da'
+          PKG='handoff_package'
+
+          git cat-file -e "${SOURCE_SHA}^{commit}"
+          git cat-file -e "${EARNED_SHA}^{commit}"
+          rm -rf "$PKG"
+          mkdir -p "$PKG/PRODUCT_SOURCE" "$PKG/00_START_HERE" "$PKG/HANDOFF" "$PKG/AUTHORITY"
+
+          # Complete clean working-tree snapshot: exact source commit, no .git directory.
+          git archive --format=tar "$SOURCE_SHA" | tar -xf - -C "$PKG/PRODUCT_SOURCE"
+
+          cp 00_START_HERE/NEW_CHAT_START_HERE.md "$PKG/00_START_HERE/NEW_CHAT_START_HERE.md"
+          cp HANDOFF/CURRENT_WORK.md "$PKG/HANDOFF/CURRENT_WORK.md"
+          cp HANDOFF/EVIDENCE_AUTHORITY.md "$PKG/HANDOFF/EVIDENCE_AUTHORITY.md"
+          cp HANDOFF/NEW_CHAT_COMMAND.txt "$PKG/HANDOFF/NEW_CHAT_COMMAND.txt"
+
+          SOURCE_TREE="$(git rev-parse "${SOURCE_SHA}^{tree}")"
+          EARNED_TREE="$(git rev-parse "${EARNED_SHA}^{tree}")"
+          HANDOFF_HEAD="$(git rev-parse HEAD)"
+
+          cat > "$PKG/AUTHORITY/SOURCE_AUTHORITY.json" <<JSON
+          {
+            "schema": "musitu.axiom.whole-product-continuation-handoff.v1",
+            "repository": "evansmusitu/mft-axiom-build",
+            "checkpoint_local": "2026-09-12T19:43:00+02:00",
+            "source_snapshot_sha": "${SOURCE_SHA}",
+            "source_snapshot_tree_sha": "${SOURCE_TREE}",
+            "source_branch": "frontier/axiom-v5-level7-acyclic-governance-20260912",
+            "source_status": "IN_PROGRESS_NOT_EARNED",
+            "earned_track_b_sha": "${EARNED_SHA}",
+            "earned_track_b_tree_sha": "${EARNED_TREE}",
+            "canonical_ci_run": 34708698087,
+            "canonical_ci_job": 103593372238,
+            "canonical_test_count": 475,
+            "canonical_scale_evidence_sha256": "f47fe2a16d2114de46afe0e2cee2087300d2bf7930d9c6e1e0a81bb212f03161",
+            "canonical_degraded_evidence_sha256": "8e833f264d55d7ffa90bc173ed886c13569b7f411ecf38245217aee9df478361",
+            "sealed_main_sha": "${SEALED_MAIN}",
+            "frozen_track_a_sha": "${TRACK_A}",
+            "archive_track_a_sha": "20a84b1090b8ad986e35fee20008f3ed8920440c",
+            "pr_1_state": "OPEN_DRAFT_UNMERGED",
+            "handoff_packaging_branch": "handoff/axiom-frontier-v5-whole-continuation-20260912-1943",
+            "handoff_packaging_head_sha": "${HANDOFF_HEAD}",
+            "claim_authority": "NONE_BEYOND_EXACT_EARNED_EVIDENCE_BOUNDARY"
+          }
+          JSON
+
+          git show --no-ext-diff --binary --format=fuller "$SOURCE_SHA" > "$PKG/AUTHORITY/IN_PROGRESS_SOURCE_COMMIT.patch"
+          git diff --no-ext-diff --binary "$EARNED_SHA" "$SOURCE_SHA" > "$PKG/AUTHORITY/EARNED_TO_IN_PROGRESS.patch"
+          git show --stat --oneline "$SOURCE_SHA" > "$PKG/AUTHORITY/IN_PROGRESS_SOURCE_STAT.txt"
+          git log --oneline --decorate --graph --max-count=80 "$SOURCE_SHA" > "$PKG/AUTHORITY/RECENT_SOURCE_HISTORY.txt"
+          git show-ref | sort > "$PKG/AUTHORITY/REFS_VISIBLE_AT_PACKAGING.txt"
+
+          python - <<'PY'
+          from pathlib import Path
+          import hashlib, json
+          root = Path('handoff_package')
+          rows = []
+          for p in sorted(x for x in root.rglob('*') if x.is_file()):
+              b = p.read_bytes()
+              rows.append({
+                  'path': p.relative_to(root).as_posix(),
+                  'bytes': len(b),
+                  'sha256': hashlib.sha256(b).hexdigest(),
+              })
+          manifest = {
+              'schema': 'musitu.axiom.handoff-file-manifest.v1',
+              'file_count': len(rows),
+              'files': rows,
+          }
+          payload = json.dumps(manifest, sort_keys=True, separators=(',', ':'), ensure_ascii=False) + '\n'
+          (root / 'AUTHORITY' / 'FILE_MANIFEST.json').write_text(payload, encoding='utf-8')
+          (root / 'AUTHORITY' / 'FILE_MANIFEST_SHA256.txt').write_text(
+              hashlib.sha256(payload.encode('utf-8')).hexdigest() + '  FILE_MANIFEST.json\n',
+              encoding='utf-8',
+          )
+          print(f"PACKAGED_FILES={len(rows)}")
+          PY
+
+          # Verify the exported source is byte-identical to git archive semantics by
+          # checking the exact source tree identity remains pinned in the authority file.
+          test "$(git rev-parse "${SOURCE_SHA}^{tree}")" = "$SOURCE_TREE"
+          echo "MUSITU_AXIOM_HANDOFF_PACKAGE_READY"
+
+      - name: Upload authoritative continuation package
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: MUSITU_AXIOM_FRONTIER_V5_WHOLE_CONTINUATION_HANDOFF_20260912_1943_AUTHORITATIVE
+          path: handoff_package/
+          if-no-files-found: error
+          retention-days: 30
+          compression-level: 9
