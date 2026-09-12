@@ -1,0 +1,185 @@
+name: MUSITU FMI Commercial Global Deploy V2
+
+on:
+  push:
+    branches: [fmi-commercial-launch-20260912-ephemeral]
+    paths: ['.github/workflows/fmi-commercial-global-deploy-v2.yml']
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      CLOUDFLARE_ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+      CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+      MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID }}
+      MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET }}
+      FMI_MODAL_APP: mft-fmi-commercial
+      FMI_D1_NAME: musitu-fmi-global
+      FMI_ADAPTER_WORKER: mft-fmi-modal-adapter
+      FMI_EDGE_WORKER: mft-fmi-global-edge
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.13'}
+
+      - name: Preflight credentials and dedicated namespace
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$CLOUDFLARE_EMAIL"; test -n "$CLOUDFLARE_GLOBAL_API_KEY"
+          test -n "$MODAL_TOKEN_ID"; test -n "$MODAL_TOKEN_SECRET"
+          pip install --disable-pip-version-check --quiet 'modal>=1.5,<2'
+          modal app list --json >/tmp/apps.json
+          python - <<'PY'
+          import json,os,urllib.request
+          x=json.load(open('/tmp/apps.json')); rows=x if isinstance(x,list) else x.get('apps',x.get('data',[]))
+          names={(r.get('name') or r.get('app_name')) for r in rows if isinstance(r,dict)}
+          if os.environ['FMI_MODAL_APP'] in names: raise SystemExit('FMI Modal app already exists')
+          b='https://api.cloudflare.com/client/v4'; a=os.environ['CLOUDFLARE_ACCOUNT_ID']
+          h={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY']}
+          def get(p):
+              with urllib.request.urlopen(urllib.request.Request(b+p,headers=h),timeout=30) as r: y=json.load(r)
+              if not y.get('success'): raise SystemExit('Cloudflare preflight failed')
+              return y.get('result') or []
+          db={r.get('name') for r in get(f'/accounts/{a}/d1/database') if isinstance(r,dict)}
+          wk={(r.get('id') or r.get('name')) for r in get(f'/accounts/{a}/workers/scripts') if isinstance(r,dict)}
+          if os.environ['FMI_D1_NAME'] in db or os.environ['FMI_ADAPTER_WORKER'] in wk or os.environ['FMI_EDGE_WORKER'] in wk:
+              raise SystemExit('Dedicated FMI Cloudflare namespace already exists')
+          if not {'mft-axiom-modal-adapter','mft-axiom-modal-edge-stage'}.issubset(wk):
+              raise SystemExit('Protected Axiom workers missing before deploy')
+          print('preflight=PASS')
+          PY
+
+      - name: Consume single-use Dropbox transport and verify
+        shell: bash
+        run: |
+          set -euo pipefail
+          URL="$(printf '%s' 'aHR0cHM6Ly91Y2IzMDZjNzY0NWFlMTRmOGVmOWRjMmRmMGMwLmRsLmRyb3Bib3h1c2VyY29udGVudC5jb20vY2QvMC9nZXQvREg5SVVKVDI4VUV5eVhNMERhOU8wVDI1b0ZjRjhIbW9rSFg5WmJiQ0NqeEhlbEFNQkxKd1dOMERjWnl1RV9zWEFBODh6RTZTVjRXQnN6RXhNYldtWHpqUmd4SmZVXzlwNzVncFJBdjNZWEZ1Sm9LNF9kQ2tOb1dsTkplSWlaSFFhMG1RVjhLRFFGVGpicXUtWml3aHE1b20wVXA0TW9iRURQblItZER3Z0ZzcWRBL2ZpbGU/Y19sdWlkPTI0NDFkZjc4' | base64 -d)"
+          curl -fL --connect-timeout 20 --max-time 120 "$URL" -o fmi-launch.zip
+          unset URL
+          test "$(stat -c %s fmi-launch.zip)" = 333338
+          test "$(sha256sum fmi-launch.zip | awk '{print $1}')" = c87009714befc99bf88c81d882aad98cd7dfa32f56daa1c8a5a38987f978152e
+          unzip -tq fmi-launch.zip
+          mkdir fmi-runtime && unzip -q fmi-launch.zip -d fmi-runtime
+          python - <<'PY'
+          import hashlib,json,pathlib
+          r=pathlib.Path('fmi-runtime'); m=json.loads((r/'MUSITU_FMI_COMMERCIAL_GLOBAL_LAUNCH_TRANSPORT_MANIFEST_20260912.json').read_text())
+          assert m['controlled_files']==168
+          a=m['authority']; assert a['paper_shadow_only'] is True and a['live_trading_authorized'] is False
+          assert a['production_model_authority'] is False and a['model_authorized_trade_execution'] is False
+          listed=set()
+          for f in m['files']:
+              p=r/f['path']; listed.add(f['path']); b=p.read_bytes()
+              if len(b)!=f['bytes'] or hashlib.sha256(b).hexdigest()!=f['sha256']: raise SystemExit('manifest mismatch '+f['path'])
+          actual={p.relative_to(r).as_posix() for p in r.rglob('*') if p.is_file()}
+          if actual != listed | {'MUSITU_FMI_COMMERCIAL_GLOBAL_LAUNCH_TRANSPORT_MANIFEST_20260912.json'}:
+              raise SystemExit('archive file set mismatch')
+          print('transport_gate=PASS')
+          PY
+          sha256sum fmi-launch.zip > fmi-launch.sha256
+          python -m compileall -q fmi-runtime/src
+
+      - name: Deploy and verify private Modal runtime
+        shell: bash
+        working-directory: fmi-runtime
+        run: |
+          set -euo pipefail
+          modal deploy deploy/modal_fmi_commercial.py --name "$FMI_MODAL_APP" --strategy recreate --tag MUSITU-FMI-COMMERCIAL-20260912 | tee ../modal-deploy.log
+          python - <<'PY' > ../modal-url.txt
+          import modal
+          u=modal.Function.from_name('mft-fmi-commercial','fmi_commercial').get_web_url()
+          if not u or not u.startswith('https://'): raise SystemExit('Modal URL missing')
+          print(u)
+          PY
+          code="$(curl -sS -o ../modal-unauth.txt -w '%{http_code}' "$(cat ../modal-url.txt)/healthz" || true)"
+          test "$code" = 401 -o "$code" = 403
+          python - <<'PY'
+          import json,modal
+          x=modal.Function.from_name('mft-fmi-commercial','contract_probe').remote()
+          assert x['app']=='mft-fmi-commercial'
+          assert x['build_class']=='OPERATIONAL_R0_COMMERCIAL_PAPER_SHADOW_READ_ONLY'
+          assert x['live_trading_authorized'] is False and x['production_model_authority'] is False and x['model_authorized_trade_execution'] is False
+          paths={r[1] for r in x['routes']}
+          assert {'/healthz','/v1/plans','/v1/signup','/v1/intelligence/analyze'}.issubset(paths)
+          open('../modal-contract-probe.json','w').write(json.dumps(x,indent=2,sort_keys=True)+'\n')
+          print('modal_gate=PASS')
+          PY
+
+      - name: Create private adapter credential and deploy dedicated Cloudflare edge
+        shell: bash
+        run: |
+          set -euo pipefail
+          modal workspace proxy-tokens create --json > proxy-token.json
+          python - <<'PY'
+          import json,pathlib
+          vals=[]
+          def walk(x):
+              if isinstance(x,dict):
+                  for v in x.values(): walk(v)
+              elif isinstance(x,list):
+                  for v in x: walk(v)
+              elif isinstance(x,str): vals.append(x)
+          walk(json.load(open('proxy-token.json')))
+          k=[v for v in vals if v.startswith('wk-')]; s=[v for v in vals if v.startswith('ws-')]
+          if len(k)!=1 or len(s)!=1: raise SystemExit('proxy token shape mismatch')
+          pathlib.Path('proxy-key.txt').write_text(k[0]); pathlib.Path('proxy-secret.txt').write_text(s[0])
+          PY
+          echo "::add-mask::$(cat proxy-key.txt)"; echo "::add-mask::$(cat proxy-secret.txt)"
+          export FMI_MODAL_ENDPOINT="$(cat modal-url.txt)"
+          export FMI_MODAL_KEY="$(cat proxy-key.txt)"
+          export FMI_MODAL_SECRET="$(cat proxy-secret.txt)"
+          export FMI_RUNTIME_ROOT="$PWD/fmi-runtime"
+          python fmi-runtime/deploy/cloudflare_fmi_global.py
+          touch deployment-success.flag
+          rm -f proxy-token.json proxy-key.txt proxy-secret.txt
+
+      - name: Seal deployment evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import hashlib,json,pathlib
+          cf=json.load(open('fmi-cloudflare-global-launch-evidence.json'))
+          modal=json.load(open('modal-contract-probe.json'))
+          out={
+            'schema':'musitu-fmi.commercial-global-deployment-evidence.v1','gate':'PASS',
+            'transport':{'bytes':333338,'sha256':'c87009714befc99bf88c81d882aad98cd7dfa32f56daa1c8a5a38987f978152e','source':'single_use_dropbox'},
+            'modal':{'app':'mft-fmi-commercial','endpoint':pathlib.Path('modal-url.txt').read_text().strip(),'requires_proxy_auth':True,'contract_probe':modal,'adapter_proxy_credential_bound':True,'credential_value_recorded':False},
+            'cloudflare':cf,
+            'billing':'FAIL_CLOSED_PENDING_PRODUCT_SPECIFIC_PAYMENT_CAPABILITY_BINDING',
+            'authority':{'paper_shadow_only':True,'live_trading_authorized':False,'production_model_authority':False,'model_authorized_trade_execution':False,'frontier':'NOT_YET_CERTIFIED'}
+          }
+          p=pathlib.Path('fmi-commercial-global-deployment-evidence.json'); p.write_text(json.dumps(out,indent=2,sort_keys=True)+'\n')
+          pathlib.Path('fmi-commercial-global-deployment-evidence.sha256').write_text(hashlib.sha256(p.read_bytes()).hexdigest()+'  '+p.name+'\n')
+          print(json.dumps({'deployment_gate':'PASS','public_base':cf['workers']['public_base']}))
+          PY
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: musitu-fmi-commercial-global-deployment-20260912
+          retention-days: 7
+          if-no-files-found: error
+          path: |
+            fmi-launch.sha256
+            modal-deploy.log
+            modal-url.txt
+            modal-contract-probe.json
+            fmi-cloudflare-global-launch-evidence.json
+            fmi-cloudflare-global-launch-evidence.sha256
+            fmi-commercial-global-deployment-evidence.json
+            fmi-commercial-global-deployment-evidence.sha256
+
+      - name: Delete unused proxy credential on failure
+        if: ${{ failure() }}
+        shell: bash
+        run: |
+          set +e
+          if [ -f proxy-key.txt ] && [ ! -f deployment-success.flag ]; then
+            modal workspace proxy-tokens delete -y "$(cat proxy-key.txt)" >/dev/null 2>&1 || true
+          fi
+          rm -f proxy-token.json proxy-key.txt proxy-secret.txt
