@@ -1,0 +1,58 @@
+name: RevenueGuard ContractNLI Negative Contamination Audit
+
+on:
+  push:
+    branches:
+      - revenueguard-axiom-governor-20260911
+    paths:
+      - '.github/workflows/revenueguard-contractnli-negative-contamination.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Measure hard-negative evidence contamination
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fL --retry 4 --retry-delay 2 -o contract-nli.zip 'https://raw.githubusercontent.com/stanfordnlp/contract-nli/eced6528dd3c1d14d73f9a87df8f7bdbc03126f9/resources/contract-nli.zip'
+          unzip -q contract-nli.zip
+          python - <<'PY'
+          import json,re,hashlib
+          from collections import defaultdict
+          from pathlib import Path
+          def words(s):return set(re.findall(r'[a-z0-9]+',s.lower()))
+          def overlap(a,b):
+              A=words(a);B=words(b);return len(A&B)/(len(A|B) or 1)
+          def partition(d):return 'cal' if int(hashlib.sha256(str(d['id']).encode()).hexdigest()[:8],16)%10==0 else 'build'
+          obj=json.load(open('contract-nli/train.json')); labs=obj['labels']
+          total=contam=0; by=defaultdict(lambda:[0,0]); examples=[]
+          for d in obj['documents']:
+              if partition(d)!='build':continue
+              spans=[d['text'][a:b].strip() for a,b in d['spans']]; anns=d['annotation_sets'][0]['annotations']
+              for hid in sorted(labs):
+                  h=labs[hid]['hypothesis']; a=anns[hid]; ev=set(a.get('spans') or []); gold=a['choice']
+                  candidates=sorted(((overlap(s,h),i) for i,s in enumerate(spans) if i not in ev),reverse=True)
+                  take=4 if gold=='NotMentioned' else 3
+                  for _,i in candidates[:take]:
+                      total+=1; by[hid][0]+=1
+                      contaminated=bool(ev & set(range(max(0,i-2),min(len(spans),i+3))))
+                      if contaminated:
+                          contam+=1; by[hid][1]+=1
+                          if len(examples)<30:examples.append({'doc':str(d['id']),'hid':hid,'center_span':i,'nearby_gold_spans':sorted(ev & set(range(max(0,i-2),min(len(spans),i+3))))})
+          rep={'schema':'musitu.revenueguard.contractnli.negative_contamination.v1','status':'TRAINING_DATA_AUDIT','total_selected_hard_negatives':total,'contaminated_negatives':contam,'contamination_rate':contam/(total or 1),'by_hypothesis':{k:{'n':v[0],'contaminated':v[1],'rate':v[1]/v[0] if v[0] else 0.0} for k,v in by.items()},'examples':examples}
+          rep['material_contamination']=rep['contamination_rate']>=.01
+          rep['report_sha256']=hashlib.sha256(json.dumps(rep,sort_keys=True,separators=(',',':')).encode()).hexdigest();Path('CONTRACTNLI_NEGATIVE_CONTAMINATION.json').write_text(json.dumps(rep,indent=2,sort_keys=True)+'\n');print(json.dumps(rep,indent=2,sort_keys=True))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: revenueguard-contractnli-negative-contamination
+          path: CONTRACTNLI_NEGATIVE_CONTAMINATION.json
+          if-no-files-found: error
+          retention-days: 30
