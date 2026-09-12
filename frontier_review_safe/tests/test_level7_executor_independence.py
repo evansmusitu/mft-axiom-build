@@ -6,6 +6,7 @@ import unittest
 
 from frontier_review_safe.external_attestation import ExternalAttestationService
 from frontier_review_safe.external_validation import ExternalEvidenceGate, LongitudinalRefreshRecord
+from frontier_review_safe.tests.level7_semantic_fixtures import level7_artifact_fields
 
 
 NOW = datetime(2026, 9, 11, 14, 20, tzinfo=timezone.utc)
@@ -30,18 +31,22 @@ def level6(provider_orgs=("OpenAI", "Anthropic", "Google")):
 
 
 def refresh(refresh_id: str, day: int, baseline_hash: str, executor_org: str | None):
+    executed_at = (NOW + timedelta(days=day)).isoformat()
     return LongitudinalRefreshRecord(
         refresh_id=refresh_id,
-        executed_at=(NOW + timedelta(days=day)).isoformat(),
+        executed_at=executed_at,
         candidate_sha=CANDIDATE_SHA,
         case_set_hash=CASE_SET_HASH,
         baseline_registry_hash=baseline_hash,
-        retained_failure_corpus_hash="1" * 64,
-        drift_report_hash="2" * 64,
-        replacement_governance_hash="3" * 64,
         passed=True,
         provenance_type="independent_lab_record",
         executor_org=executor_org,
+        **level7_artifact_fields(
+            candidate_sha=CANDIDATE_SHA,
+            case_set_hash=CASE_SET_HASH,
+            baseline_registry_hash=baseline_hash,
+            generated_at=executed_at,
+        ),
     )
 
 
@@ -127,6 +132,7 @@ class Level7ExecutorIndependenceTests(unittest.TestCase):
         self.assertEqual(result["status"], "PASS")
         self.assertEqual(result["refresh_count"], 3)
         self.assertEqual(result["refresh_executor_orgs"], ["independent longitudinal lab"])
+        self.assertTrue(result["semantic_artifacts_verified"])
 
     def test_provider_executed_extra_does_not_poison_complete_independent_set(self):
         good = [
