@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import io
 import json
 import unittest
+from urllib.error import HTTPError
 
 from frontier_review_safe.anthropic_free_probe import run_probe
 
@@ -24,7 +26,17 @@ class AnthropicFreeProbeTests(unittest.TestCase):
             self.assertNotIn("temperature", body)
             self.assertNotIn("top_p", body)
             self.assertNotIn("top_k", body)
+            self.assertEqual(body["max_tokens"], 1024)
+            self.assertEqual(body["output_config"], {"effort": "low"})
             return _Response(payload, headers=headers)
+        return _open
+
+    def error_opener(self, *, status, error_type, message, headers=None):
+        def _open(request, timeout=45):
+            body = json.loads(request.data.decode("utf-8"))
+            self.assertEqual(body["output_config"], {"effort": "low"})
+            raw = json.dumps({"type":"error","error":{"type":error_type,"message":message}}).encode("utf-8")
+            raise HTTPError(request.full_url, status, "provider error", headers or {}, io.BytesIO(raw))
         return _open
 
     def test_provider_ids_make_identity_ready(self):
@@ -60,6 +72,22 @@ class AnthropicFreeProbeTests(unittest.TestCase):
         self.assertEqual(result["status"], "FAIL")
         self.assertFalse(result["level5_identity_ready"])
         self.assertIn("provider_response_id_missing", result["reasons"])
+
+    def test_credit_denial_is_safely_classified_without_raw_message(self):
+        secret_message = "Your credit balance is too low; private diagnostic wording"
+        result = run_probe(
+            api_key="secret-key",
+            opener=self.error_opener(
+                status=400,
+                error_type="invalid_request_error",
+                message=secret_message,
+                headers={"request-id":"req_credit"},
+            ),
+        )
+        self.assertEqual(result["provider_error_category"], "credit_or_billing_limit")
+        self.assertEqual(result["provider_error_type"], "invalid_request_error")
+        self.assertEqual(result["provider_request_id"], "req_credit")
+        self.assertNotIn(secret_message, json.dumps(result))
 
 
 if __name__ == "__main__":
