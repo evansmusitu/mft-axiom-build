@@ -30,7 +30,7 @@ def main() -> None:
             page.goto(origin+'/index.html#/projects',wait_until='networkidle')
             page.locator('#project-create-form').wait_for(state='visible')
             assert page.locator('#workspace-title').get_by_text('Projects', exact=True).is_visible()
-            assert 'does not claim cloud or multi-device sync' in page.locator('.boundary-note').inner_text()
+            assert 'does not claim cloud or multi-device sync' in page.locator('#project-space .boundary-note').inner_text()
 
             page.locator('#project-name').fill('Phase 2 Persistence Proof')
             page.locator('#project-goal').fill('Prove stable graph identity, provenance and cross-session recovery')
