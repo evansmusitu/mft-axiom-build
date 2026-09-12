@@ -2,6 +2,10 @@ name: MUSITU Store 1.0.3 Authorized Sign
 
 on:
   workflow_dispatch:
+  push:
+    branches: [musitu-store-native-install-handoff-20260911]
+    paths:
+      - 'evidence/musitu-store/MUSITU_STORE_1_0_3_SIGNING_ACTIVATION_20260912.json'
 
 permissions:
   contents: read
@@ -19,6 +23,27 @@ jobs:
       SEALED_UNSIGNED_ARTIFACT_ID: '10292027543'
     steps:
       - uses: actions/checkout@v4
+
+      - name: Verify explicit signing activation
+        if: github.event_name == 'push'
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          p = Path('evidence/musitu-store/MUSITU_STORE_1_0_3_SIGNING_ACTIVATION_20260912.json')
+          a = json.loads(p.read_text())
+          assert a['schema'] == 'musitu.store.v103.signing_activation.v1'
+          assert a['activate'] is True
+          assert a['unsignedSha256'] == '808828892d6eaced0904b0a0e437853041f54d51f8dcdb695d2557e8c338c0da'
+          assert a['unsignedBytes'] == 1679020
+          assert a['requiredSignerSha256'] == '43695b6103d7ab57e89166c9a537f1810b7e33053e20332b1d4e7e2e1c612671'
+          assert a['signingInputContractHead'] == '224de809c5acc0f6058c84d2ea42fab73e3612bc'
+          assert a['deployAfterSigning'] is False
+          assert a['replaceSigner'] is False
+          print('MUSITU_STORE_1_0_3_SIGNING_ACTIVATION=PASS')
+          PY
 
       - uses: actions/setup-java@v4
         with:
