@@ -59,7 +59,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          python -m compileall -q frontier_review_safe frontier_v5/runtime/claim_graph.py frontier_v5/runtime/claim_graph_quality.py frontier_v5/runtime/artifact_engine.py frontier_v5/runtime/observability.py frontier_v5/runtime/live_session.py axiom_interface/tests
+          python -m compileall -q frontier_review_safe frontier_v5/runtime/claim_graph.py frontier_v5/runtime/claim_graph_quality.py frontier_v5/runtime/artifact_engine.py frontier_v5/runtime/observability.py frontier_v5/runtime/live_session.py frontier_v5/runtime/live_semantics.py frontier_v5/scripts/run_phase7_semantic_gate.py axiom_interface/tests
           PYTHONPATH=. python -m unittest discover -s axiom_interface/tests -p 'test_*.py' -v
           PYTHONPATH=. python frontier_v5/tests/test_durable_tasks.py
           PYTHONPATH=. python frontier_v5/tests/test_persistent_planner.py
@@ -110,7 +110,7 @@ jobs:
 
   browser-live-latency-interruption-privacy-accessibility:
     runs-on: ubuntu-24.04
-    timeout-minutes: 50
+    timeout-minutes: 60
     steps:
       - name: Checkout immutable action
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
@@ -125,13 +125,30 @@ jobs:
         run: |
           set -euo pipefail
           sudo apt-get update -qq
-          sudo apt-get install -y --no-install-recommends ffmpeg espeak-ng xvfb xdotool python3-tk scrot unzip ca-certificates
+          sudo apt-get install -y --no-install-recommends ffmpeg espeak-ng tesseract-ocr xvfb xdotool python3-tk scrot unzip ca-certificates curl
           python -m pip install 'pip==26.2.1'
           python -m pip install -r frontier_v5/requirements/fullstack.lock.txt
           python -m pip check
           python -m playwright install --with-deps chromium
           PYTHONPATH=. python frontier_v5/scripts/verify_supply_chain.py --output /tmp/musitu-interface-supply-chain.json | tee /tmp/interface-supply-chain.log
           grep -q 'MUSITU_AXIOM_FRONTIER_SUPPLY_CHAIN_LOCK_PASS' /tmp/interface-supply-chain.log
+      - name: Fetch and digest-verify pinned offline Vosk model
+        shell: bash
+        run: |
+          set -euo pipefail
+          model_zip=/tmp/vosk-model-small-en-us-0.15.zip
+          model_root=/tmp/axiom-vosk
+          rm -rf "$model_root" "$model_zip"
+          mkdir -p "$model_root"
+          curl --fail --silent --show-error --location --retry 3 --retry-all-errors \
+            https://alphacephei.com/vosk/models/vosk-model-small-en-us-0.15.zip \
+            --output "$model_zip"
+          echo '30f26242c4eb449f948e42cb302dd7a686cb29a3423a8367f99ff41780942498  /tmp/vosk-model-small-en-us-0.15.zip' | sha256sum --check --strict
+          unzip -q "$model_zip" -d "$model_root"
+          test -d "$model_root/vosk-model-small-en-us-0.15/am"
+          test -d "$model_root/vosk-model-small-en-us-0.15/conf"
+          test -d "$model_root/vosk-model-small-en-us-0.15/graph"
+          echo 'MUSITU_AXIOM_PHASE7_VOSK_MODEL_DIGEST_PASS'
       - name: Run deterministic full-stack and network regressions
         shell: bash
         run: |
@@ -140,6 +157,43 @@ jobs:
           grep -q 'MUSITU_AXIOM_FRONTIER_FULLSTACK_LOCAL_PASS' /tmp/interface-fullstack-local.log
           PYTHONPATH=. python frontier_v5/tests/test_browser_network_preflight.py | tee /tmp/interface-browser-preflight.log
           grep -q 'MUSITU_AXIOM_FRONTIER_BROWSER_NETWORK_PREFLIGHT_PASS' /tmp/interface-browser-preflight.log
+      - name: Run Phase 7 offline semantic dialogue vision tool and interruption gate
+        env:
+          AXIOM_VOSK_MODEL_DIR: /tmp/axiom-vosk/vosk-model-small-en-us-0.15
+          AXIOM_VOSK_MODEL_SHA256: 30f26242c4eb449f948e42cb302dd7a686cb29a3423a8367f99ff41780942498
+          AXIOM_PHASE7_SEMANTIC_ARTIFACT_DIR: /tmp/axiom-interface-phase7-semantic
+        shell: bash
+        run: |
+          set -euo pipefail
+          PYTHONPATH=. python frontier_v5/scripts/run_phase7_semantic_gate.py | tee /tmp/interface-phase7-semantic.log
+          grep -q 'MUSITU_AXIOM_INTERFACE_PHASE7_SEMANTIC_GATE_PASS' /tmp/interface-phase7-semantic.log
+          test -s /tmp/axiom-interface-phase7-semantic/phase7-semantic-evidence.json
+          python - <<'PY'
+          import json
+          e=json.load(open('/tmp/axiom-interface-phase7-semantic/phase7-semantic-evidence.json',encoding='utf-8'))
+          assert e['status']=='PASS'
+          assert e['qualification_scope']=='OFFLINE_SCOPED_LIVE_SEMANTICS'
+          assert e['voice']['model_archive_sha256']=='30f26242c4eb449f948e42cb302dd7a686cb29a3423a8367f99ff41780942498'
+          assert e['voice']['continuous_dialogue_verified'] is True
+          assert e['voice']['turn_count']==2
+          assert e['voice']['automated_asr_verified'] is True
+          assert e['voice']['tts_verified'] is True
+          assert e['camera']['semantic_understanding_verified'] is True
+          assert e['screen']['semantic_understanding_verified'] is True
+          assert e['screen']['selected_region_verified'] is True
+          assert e['tool_specialist_hooks']['mcp_2026_tools_call_verified'] is True
+          assert e['tool_specialist_hooks']['tool_call_count']==2
+          assert e['tool_specialist_hooks']['tool_receipts_verified'] is True
+          assert e['interruption']['scope']=='SEMANTIC_EXECUTION_END_TO_END_STOP'
+          assert e['interruption']['worker_stopped'] is True
+          assert e['interruption']['within_target'] is True
+          assert e['interruption']['stop_latency_ms']<=250.0
+          assert e['privacy_claims']['cloud_provider_used'] is False
+          assert e['privacy_claims']['hidden_reasoning_recorded'] is False
+          assert e['privacy_claims']['general_vlm_claimed'] is False
+          assert e['privacy_claims']['real_device_certification_claimed'] is False
+          print('MUSITU_AXIOM_PHASE7_SEMANTIC_EVIDENCE_PASS')
+          PY
       - name: Re-run qualified Phase 1 browser gate
         env:
           AXIOM_BROWSER_ARTIFACT_DIR: /tmp/axiom-interface-phase1
@@ -210,6 +264,7 @@ jobs:
         with:
           name: musitu-axiom-interface-phase7-live-evidence
           path: |
+            /tmp/axiom-interface-phase7-semantic/phase7-semantic-evidence.json
             /tmp/axiom-interface-phase7/phase7-live-evidence.json
             /tmp/axiom-interface-phase7/phase7-live-multimodality.png
             /tmp/axiom-interface-phase6/phase6-observability-evidence.json
