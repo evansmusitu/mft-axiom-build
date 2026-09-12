@@ -20,6 +20,10 @@ class AnthropicFreeProbeTests(unittest.TestCase):
     def opener(self, payload, headers=None):
         def _open(request, timeout=45):
             self.assertEqual(request.get_header("X-api-key"), "secret-key")
+            body = json.loads(request.data.decode("utf-8"))
+            self.assertNotIn("temperature", body)
+            self.assertNotIn("top_p", body)
+            self.assertNotIn("top_k", body)
             return _Response(payload, headers=headers)
         return _open
 
