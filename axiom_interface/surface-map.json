@@ -257,6 +257,8 @@
     "runtime_security_evidence_artifact_digest": "sha256:f202b1ab48405d19ba1c2121d3da9ee00e3cfb3c914022464b3c06291b25e95c",
     "evidence_metadata_source": "GITHUB_ACTIONS_RUN_ARTIFACTS_API",
     "evidence_metadata_verified": true,
+    "reseal_parent_sha": "dcaa96da2674364bc17749de436a3f7026c23f0f",
+    "seal_validation_scope": "COMPLETE_PHASE10_WORKFLOW_REQUIRED_AT_EXACT_HEAD",
     "persistence": "INDEXEDDB_BROWSER_LOCAL_DEVICE",
     "network_policy": "DENY_ALL_EXTERNAL_NETWORK",
     "secret_policy": "NO_SECRET_OR_HIDDEN_REASONING_STORAGE",
