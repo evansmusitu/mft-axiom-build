@@ -1,0 +1,126 @@
+name: RevenueGuard ContractNLI Decoupled V2 Relevance-Only Locked Dev Gate
+
+on:
+  push:
+    branches: [revenueguard-axiom-governor-20260911]
+    paths: ['research/revenueguard/TRIGGER_CONTRACTNLI_DECOUPLED_V2_LOCKED_DEV.json']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  score:
+    strategy:
+      fail-fast: false
+      max-parallel: 8
+      matrix:
+        shard: [0,1,2,3,4,5,6,7]
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download exact adapted semantic encoder
+        uses: actions/download-artifact@v4
+        with:
+          name: revenueguard-contractnli-adapted-model
+          path: adapted_bundle
+          repository: evansmusitu/mft-axiom-build
+          run-id: 34676990123
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Download exact completed decoupled candidate
+        uses: actions/download-artifact@v4
+        with:
+          name: revenueguard-contractnli-decoupled-epoch2-final
+          path: final_checkpoint
+          repository: evansmusitu/mft-axiom-build
+          run-id: 34748996731
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Install pinned evaluator runtime and corpus
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          python -m pip install --index-url https://download.pytorch.org/whl/cpu torch
+          python -m pip install 'transformers==4.56.2' 'scikit-learn>=1.5,<2'
+          curl -fL --retry 4 --retry-delay 2 -o contract-nli.zip 'https://raw.githubusercontent.com/stanfordnlp/contract-nli/eced6528dd3c1d14d73f9a87df8f7bdbc03126f9/resources/contract-nli.zip'
+          unzip -q contract-nli.zip
+          test -f contract-nli/train.json
+          test -f contract-nli/dev.json
+      - name: Assert exact complete candidate state and trainable fingerprint
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import hashlib,json,torch
+          st=torch.load('final_checkpoint/decoupled_epoch2_state.pt',map_location='cpu',weights_only=False)
+          assert st['schema']=='musitu.revenueguard.contractnli.decoupled_chunk_state.v1'
+          assert st['mode']=='decoupled' and st['num_chunks']==4 and st['next_chunk']==4 and st['global_steps']==615
+          keys=sorted(st['trainable_state'])
+          assert len(keys)==68
+          name_sha=hashlib.sha256(json.dumps(keys,separators=(',',':')).encode()).hexdigest()
+          shapes={k:list(st['trainable_state'][k].shape) for k in keys}
+          shape_sha=hashlib.sha256(json.dumps(shapes,sort_keys=True,separators=(',',':')).encode()).hexdigest()
+          assert name_sha=='a858e138760588bdb8c89cb440e75a0f9441d23f7a3a9993a1755a3dc8f77c05'
+          assert shape_sha=='185cd8b4100f27950ebc20206ccf407a01d2694f8e2a6f6fa8fe6d4f04250b27'
+          print({'global_steps':st['global_steps'],'trainable_tensors':len(keys),'name_sha':name_sha,'shape_sha':shape_sha})
+          PY
+      - name: Score duplicate-clean calibration and exposed dev shard
+        run: |
+          set -euo pipefail
+          python research/revenueguard/contractnli_decoupled_checkpoint_shard.py \
+            --encoder adapted_bundle/adapted_model \
+            --state final_checkpoint/decoupled_epoch2_state.pt \
+            --train-json contract-nli/train.json \
+            --dev-json contract-nli/dev.json \
+            --shard-index ${{ matrix.shard }} \
+            --num-shards 8 \
+            --out raw_decoupled_${{ matrix.shard }}.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: revenueguard-contractnli-decoupled-v2-eval-shard-${{ matrix.shard }}
+          path: raw_decoupled_${{ matrix.shard }}.json
+          if-no-files-found: error
+          retention-days: 30
+
+  aggregate:
+    needs: score
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: revenueguard-contractnli-decoupled-v2-eval-shard-*
+          path: shards
+          merge-multiple: true
+      - name: Install aggregation runtime
+        run: |
+          set -euo pipefail
+          python -m pip install 'scikit-learn>=1.5,<2'
+      - name: Bind exact final artifact digest and apply relevance-only calibration plus unchanged dev gate
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          RUN_ID=34748996731
+          ART='revenueguard-contractnli-decoupled-epoch2-final'
+          API="https://api.github.com/repos/evansmusitu/mft-axiom-build/actions/runs/${RUN_ID}/artifacts?name=${ART}"
+          DIGEST=$(curl -fsSL -H "Authorization: Bearer ${GH_TOKEN}" -H 'Accept: application/vnd.github+json' "$API" | python -c "import sys,json; o=json.load(sys.stdin); a=[x for x in o['artifacts'] if x['name']=='$ART' and not x['expired']]; assert len(a)==1,a; d=a[0].get('digest',''); assert d.startswith('sha256:'); print(d.split(':',1)[1])")
+          python research/revenueguard/contractnli_decoupled_checkpoint_aggregate.py \
+            --shard-glob 'shards/raw_decoupled_*.json' \
+            --expected-shards 8 \
+            --checkpoint-artifact-sha256 "$DIGEST" \
+            --out CONTRACTNLI_DECOUPLED_V2_RELEVANCE_ONLY_LOCKED_DEV_EVAL.json
+          python - <<'PY'
+          import json
+          o=json.load(open('CONTRACTNLI_DECOUPLED_V2_RELEVANCE_ONLY_LOCKED_DEV_EVAL.json'))
+          assert o['schema']=='musitu.revenueguard.contractnli.decoupled_checkpoint_eval.v2'
+          assert 'semantic-head labels or correctness do not participate' in o['calibration_contract']
+          print({'gate':o['gate'],'chosen_k':o['chosen_k'],'chosen_threshold':o['chosen_threshold'],'dev':o['dev']})
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: revenueguard-contractnli-decoupled-v2-relevance-only-locked-dev-eval
+          path: CONTRACTNLI_DECOUPLED_V2_RELEVANCE_ONLY_LOCKED_DEV_EVAL.json
+          if-no-files-found: error
+          retention-days: 90
