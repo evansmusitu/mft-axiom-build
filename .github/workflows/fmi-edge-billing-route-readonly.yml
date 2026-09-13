@@ -1,0 +1,42 @@
+name: MUSITU FMI Edge Billing Route Read-Only
+
+on:
+  push:
+    branches: [fmi-revenue-certification-20260913]
+    paths:
+      - '.github/workflows/fmi-edge-billing-route-readonly.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      CF_API: https://api.cloudflare.com/client/v4
+      ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+      CLOUDFLARE_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Require protected Cloudflare credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$CLOUDFLARE_EMAIL"
+          test -n "$CLOUDFLARE_API_KEY"
+      - name: Inspect FMI edge billing route literals read-only
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/fmi_edge_billing_route_probe.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: musitu-fmi-edge-billing-route-readonly
+          path: |
+            fmi-edge-billing-route.json
+            fmi-edge-billing-route.sha256
+          retention-days: 7
+          if-no-files-found: error
