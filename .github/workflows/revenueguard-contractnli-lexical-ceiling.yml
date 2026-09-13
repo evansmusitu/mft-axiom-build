@@ -68,3 +68,5 @@ jobs:
           path: CONTRACTNLI_LEXICAL_CEILING.json
           if-no-files-found: error
           retention-days: 30
+
+# 2026-09-13 dev-only rerun: quantify lexical candidate-pool recall ceiling while specialist training remains sealed from test/MAUD.
