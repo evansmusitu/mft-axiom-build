@@ -1,0 +1,27 @@
+{
+  "base64_sha256": "1b3d3fc434e1843498d351a34977f2d68e18e02aec1f8962539bc89c61f4b5e1",
+  "base64_size": 62396,
+  "chunks": [
+    {"file":"chunk_00.b64","sha256":"cb1e7b2f31e481d35b303fd0359b3faf60f687f47704fd82acca3c222c1a8353","size":8000},
+    {"file":"chunk_01.b64","sha256":"3c495a1669102b53d3e0c628b602c7041dba8991aa4e88ced1f6cdc55a8455cb","size":8000},
+    {"file":"chunk_02.b64","sha256":"74067c475229c9ac8656a8d7da20ecd01625e1530964acb73b5dd72764debcc1","size":8000},
+    {"file":"chunk_03.b64","sha256":"41d8c59d97813c3a3128f5ed416e22785898d07b1c22fb623033a0ce0d74c61d","size":8000},
+    {"file":"chunk_04.b64","sha256":"9217648d72768ff3d6d17dbea1d5303218f804ceaf4572104a4b9c379a1e0c22","size":8000},
+    {"file":"chunk_05.b64","sha256":"466c9d0d7606b61ed90369f88654dc445472dbc92340b4adbc28e6e81c4cc812","size":8000},
+    {"file":"chunk_06.b64","sha256":"188c159f34c38f4d2951f9c0a5a4ae6d36bcf17bdb418b421ca91031c5e73edb","size":8000},
+    {"file":"chunk_07a.b64","sha256":"fc758aa0bf0ce33b4e74bb756b616057f2b27f2421170cf1acf88d9eb8c9dd8b","size":3200},
+    {"file":"chunk_07b.b64","sha256":"5ad632b8f9c5d1adf04e1dbf141b5d04948dab16989a9faa89797339538deba2","size":3196}
+  ],
+  "payload_manifest": {
+    "files": [
+      {"path":"edge/fmi-global/worker.js","sha256":"a26e9c088e64df46a257f575f84f1274e9e26f6f669fc0a9c4ee810bf1179338","size":151555},
+      {"path":"edge/fmi-market-data/router.js","sha256":"2251c0867137a06f6caf4994c626361c54b67411857866afa75cd5748850cb34","size":15554},
+      {"path":"edge/fmi-market-data/providers/twelve-data-adapter.js","sha256":"4fb2104432df98bbb2d59bd8fc0c2f9de0482bec030e2217cfe99fc6eda0fbe1","size":11493},
+      {"path":"edge/fmi-market-data/RIGHTS_POLICY_CONTRACT.md","sha256":"03b3daee9ba8fba5340d6282f8cc1d2e573bca4636c3347df360daae5d0c8440","size":3148}
+    ],
+    "schema": "musitu.fmi.v9-4-control-payload.v1"
+  },
+  "schema": "musitu.fmi.v9-4-control-transport.v2",
+  "tar_gz_sha256": "338cd5cdcabbee1d76d3202b0fcf53a7794ff58e1f57e84010a3ba6183b2fbd9",
+  "tar_gz_size": 46796
+}
