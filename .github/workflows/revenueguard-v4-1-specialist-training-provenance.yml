@@ -1,0 +1,118 @@
+name: RevenueGuard V4.1 Specialist Training Provenance Seal
+
+on:
+  push:
+    branches: [revenueguard-axiom-governor-20260911]
+    paths: ['research/revenueguard/TRIGGER_V4_1_SPECIALIST_TRAINING_PROVENANCE.json']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  seal:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Resolve exact final training artifact digests
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json, os, urllib.request
+          repo='evansmusitu/mft-axiom-build'
+          specs=[
+            ('CN',34748996731,'revenueguard-contractnli-decoupled-epoch2-final'),
+            ('CUAD',34749003397,'revenueguard-cuad-matched-window-epoch2-final'),
+          ]
+          token=os.environ['GH_TOKEN']
+          out=[]
+          for prefix,run_id,name in specs:
+              req=urllib.request.Request(
+                  f'https://api.github.com/repos/{repo}/actions/runs/{run_id}/artifacts?name={name}',
+                  headers={'Authorization':f'Bearer {token}','Accept':'application/vnd.github+json'})
+              with urllib.request.urlopen(req) as r: obj=json.load(r)
+              arts=[a for a in obj['artifacts'] if a['name']==name and not a['expired']]
+              assert len(arts)==1,(prefix,arts)
+              digest=arts[0].get('digest','')
+              assert digest.startswith('sha256:') and len(digest)==71,(prefix,digest)
+              out.append(f'{prefix}_ARTIFACT_SHA={digest.split(":",1)[1]}')
+          with open(os.environ['GITHUB_ENV'],'a') as f:
+              f.write('\n'.join(out)+'\n')
+          print('exact final artifact identities resolved')
+          PY
+
+      - name: Download exact ContractNLI final training artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: revenueguard-contractnli-decoupled-epoch2-final
+          path: cn_final
+          repository: evansmusitu/mft-axiom-build
+          run-id: 34748996731
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Download exact CUAD final training artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: revenueguard-cuad-matched-window-epoch2-final
+          path: cuad_final
+          repository: evansmusitu/mft-axiom-build
+          run-id: 34749003397
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install state-validation runtime
+        run: |
+          set -euo pipefail
+          python -m pip install --index-url https://download.pytorch.org/whl/cpu torch
+
+      - name: Assert complete exact training states
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json, torch
+          cn=torch.load('cn_final/decoupled_epoch2_state.pt',map_location='cpu',weights_only=False)
+          assert cn['schema']=='musitu.revenueguard.contractnli.decoupled_chunk_state.v1'
+          assert cn['mode']=='decoupled'
+          assert cn['num_chunks']==4 and cn['next_chunk']==4
+          assert cn['global_steps']==615
+          required={'relevance_head.weight','relevance_head.bias','semantic_head.weight','semantic_head.bias'}
+          assert required.issubset(cn['trainable_state'])
+          cq=torch.load('cuad_final/cuad_matched_epoch2_state.pt',map_location='cpu',weights_only=False)
+          assert cq['schema']=='musitu.revenueguard.cuad.matched_window_state.v1'
+          assert cq['num_chunks']==4 and cq['next_chunk']==4
+          assert cq['train_sha256']=='7de21d2bb741ac939e2a839ef9640634a5e0f9f40ea2b82c6833baf7db33dab4'
+          assert cq['global_steps']>0
+          assert __import__('pathlib').Path('cuad_final/cuad_matched_epoch2_final/answer_head.pt').is_file()
+          cjr=json.load(open('cn_final/CONTRACTNLI_DECOUPLED_EPOCH2_FINAL.json'))
+          qjr=json.load(open('cuad_final/CUAD_MATCHED_EPOCH2_FINAL.json'))
+          assert cjr['global_steps']==615 and cjr['chunk_index']==3 and cjr['num_chunks']==4
+          assert qjr['chunk_index']==3 and qjr['num_chunks']==4
+          print({'contractnli_global_steps':cn['global_steps'],'cuad_global_steps':cq['global_steps']})
+          PY
+
+      - name: Build fail-closed specialist training provenance seal
+        shell: bash
+        run: |
+          set -euo pipefail
+          python research/revenueguard/specialist_training_provenance_seal.py \
+            --contractnli-final-report cn_final/CONTRACTNLI_DECOUPLED_EPOCH2_FINAL.json \
+            --contractnli-artifact-sha256 "$CN_ARTIFACT_SHA" \
+            --contractnli-run-id 34748996731 \
+            --cuad-final-report cuad_final/CUAD_MATCHED_EPOCH2_FINAL.json \
+            --cuad-artifact-sha256 "$CUAD_ARTIFACT_SHA" \
+            --cuad-run-id 34749003397 \
+            --cuad-geometry-report research/revenueguard/CUAD_TRAINER_GEOMETRY_ONEPASS_AUDIT_2026-09-13.json \
+            --out V4_1_SPECIALIST_TRAINING_PROVENANCE_SEAL.json
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: revenueguard-v4-1-specialist-training-provenance-seal
+          path: V4_1_SPECIALIST_TRAINING_PROVENANCE_SEAL.json
+          if-no-files-found: error
+          retention-days: 90
