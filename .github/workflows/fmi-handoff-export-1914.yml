@@ -1,0 +1,52 @@
+name: MUSITU FMI Exact Handoff Export 1914
+
+on:
+  push:
+    branches: [fmi-handoff-export-20260913-1914]
+    paths: ['.github/workflows/fmi-handoff-export-1914.yml']
+
+permissions:
+  contents: read
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Export exact authoritative snapshots
+        shell: bash
+        run: |
+          set -euo pipefail
+          REVENUE_SHA=6c8ab30bcc969c5851a110da03ab81d4b95f2d00
+          CONTROL_SHA=eab2bc6be3b62fd1d63be3ea8ba9e56446d61fe9
+          BASE_SHA=282cee0abe411012f0bc95b2d5eea5fd609cefb7
+          git cat-file -e "$REVENUE_SHA^{commit}"
+          git fetch --no-tags origin "$CONTROL_SHA"
+          git cat-file -e "$CONTROL_SHA^{commit}"
+          git cat-file -e "$BASE_SHA^{commit}"
+          mkdir -p fmi-handoff-git-snapshots
+          git archive --format=zip -o fmi-handoff-git-snapshots/AXIOM_REVENUE_BRANCH_6c8ab30bcc969c5851a110da03ab81d4b95f2d00.zip "$REVENUE_SHA"
+          git archive --format=zip -o fmi-handoff-git-snapshots/AXIOM_V9_CONTROL_BRANCH_eab2bc6be3b62fd1d63be3ea8ba9e56446d61fe9.zip "$CONTROL_SHA"
+          printf '%s  %s\n' "$(sha256sum fmi-handoff-git-snapshots/AXIOM_REVENUE_BRANCH_*.zip | cut -d' ' -f1)" "AXIOM_REVENUE_BRANCH_6c8ab30bcc969c5851a110da03ab81d4b95f2d00.zip" > fmi-handoff-git-snapshots/SHA256SUMS.txt
+          printf '%s  %s\n' "$(sha256sum fmi-handoff-git-snapshots/AXIOM_V9_CONTROL_BRANCH_*.zip | cut -d' ' -f1)" "AXIOM_V9_CONTROL_BRANCH_eab2bc6be3b62fd1d63be3ea8ba9e56446d61fe9.zip" >> fmi-handoff-git-snapshots/SHA256SUMS.txt
+          cat > fmi-handoff-git-snapshots/AUTHORITY.txt <<EOF
+          repository=evansmusitu/mft-axiom-build
+          v8_1_base_sha=$BASE_SHA
+          revenue_branch=fmi-revenue-certification-20260913
+          revenue_sha=$REVENUE_SHA
+          provider_control_branch=fmi-v9-1-market-data-provider-candidate-20260913
+          provider_control_sha=$CONTROL_SHA
+          sealed_main=d6a846f6bbe0bccac1758713eb4de167caf07113
+          export_branch_is_disposable=true
+          EOF
+          unzip -tq fmi-handoff-git-snapshots/AXIOM_REVENUE_BRANCH_*.zip
+          unzip -tq fmi-handoff-git-snapshots/AXIOM_V9_CONTROL_BRANCH_*.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: musitu-fmi-exact-git-snapshots-1914
+          path: fmi-handoff-git-snapshots/
+          retention-days: 30
+          if-no-files-found: error
