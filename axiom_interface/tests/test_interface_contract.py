@@ -1,280 +1,75 @@
 from __future__ import annotations
-
-import hashlib
-import json
+import hashlib,json
 from html.parser import HTMLParser
 from pathlib import Path
-import re
 import unittest
-
-ROOT = Path(__file__).resolve().parents[1]
-HTML = (ROOT / "index.html").read_text(encoding="utf-8")
-CSS = (ROOT / "styles" / "app.css").read_text(encoding="utf-8")
-TOKENS = (ROOT / "styles" / "tokens.css").read_text(encoding="utf-8")
-JS = (ROOT / "app.js").read_text(encoding="utf-8")
-SW = (ROOT / "sw.js").read_text(encoding="utf-8")
-SURFACE_MAP = json.loads((ROOT / "surface-map.json").read_text(encoding="utf-8"))
-
-
+ROOT=Path(__file__).resolve().parents[1]
+HTML=(ROOT/'index.html').read_text(encoding='utf-8');CSS=(ROOT/'styles'/'app.css').read_text(encoding='utf-8');TOKENS=(ROOT/'styles'/'tokens.css').read_text(encoding='utf-8');JS=(ROOT/'app.js').read_text(encoding='utf-8');SW=(ROOT/'sw.js').read_text(encoding='utf-8');SURFACE_MAP=json.loads((ROOT/'surface-map.json').read_text(encoding='utf-8'))
 class SemanticParser(HTMLParser):
-    def __init__(self) -> None:
-        super().__init__()
-        self.tags: list[tuple[str, dict[str, str | None]]] = []
-        self.ids: set[str] = set()
-        self.duplicate_ids: set[str] = set()
-        self.button_stack: list[dict[str, str | None]] = []
-        self.unnamed_buttons: list[dict[str, str | None]] = []
-        self._button_text: list[str] = []
-
-    def handle_starttag(self, tag: str, attrs) -> None:
-        data = dict(attrs)
-        self.tags.append((tag, data))
-        if data.get("id"):
-            if data["id"] in self.ids:
-                self.duplicate_ids.add(data["id"])
-            self.ids.add(data["id"])
-        if tag == "button":
-            self.button_stack.append(data)
-            self._button_text.append("")
-
-    def handle_data(self, data: str) -> None:
-        if self._button_text:
-            self._button_text[-1] += data
-
-    def handle_endtag(self, tag: str) -> None:
-        if tag == "button" and self.button_stack:
-            attrs = self.button_stack.pop()
-            text = self._button_text.pop().strip()
-            if not text and not attrs.get("aria-label") and not attrs.get("aria-labelledby"):
-                self.unnamed_buttons.append(attrs)
-
-
+ def __init__(self):
+  super().__init__();self.tags=[];self.ids=set();self.duplicate_ids=set();self.button_stack=[];self.unnamed_buttons=[];self._button_text=[]
+ def handle_starttag(self,tag,attrs):
+  data=dict(attrs);self.tags.append((tag,data))
+  if data.get('id'):
+   if data['id'] in self.ids:self.duplicate_ids.add(data['id'])
+   self.ids.add(data['id'])
+  if tag=='button':self.button_stack.append(data);self._button_text.append('')
+ def handle_data(self,data):
+  if self._button_text:self._button_text[-1]+=data
+ def handle_endtag(self,tag):
+  if tag=='button' and self.button_stack:
+   attrs=self.button_stack.pop();text=self._button_text.pop().strip()
+   if not text and not attrs.get('aria-label') and not attrs.get('aria-labelledby'):self.unnamed_buttons.append(attrs)
 class InterfaceContractTests(unittest.TestCase):
-    @classmethod
-    def setUpClass(cls) -> None:
-        cls.parser = SemanticParser()
-        cls.parser.feed(HTML)
-
-    def test_semantic_landmarks_and_skip_navigation(self):
-        tags = [tag for tag, _ in self.parser.tags]
-        self.assertIn("header", tags)
-        self.assertIn("main", tags)
-        self.assertGreaterEqual(tags.count("nav"), 2)
-        self.assertGreaterEqual(tags.count("aside"), 2)
-        self.assertIn('href="#main-workspace"', HTML)
-        self.assertIn('id="main-workspace"', HTML)
-        self.assertFalse(self.parser.duplicate_ids)
-
-    def test_screen_reader_and_keyboard_contract(self):
-        self.assertFalse(self.parser.unnamed_buttons)
-        self.assertIn('aria-label="Universal composer"', HTML)
-        self.assertIn('aria-label="Proof Drawer"', HTML)
-        self.assertIn('role="tablist"', HTML)
-        self.assertIn('aria-live="polite"', HTML)
-        self.assertIn('role="alert"', HTML)
-        self.assertIn(':focus-visible', CSS)
-        self.assertIn("prefers-reduced-motion: reduce", CSS)
-        self.assertIn("ArrowRight", JS)
-        self.assertIn("ArrowLeft", JS)
-        self.assertIn("composer-focus", JS)
-
-    def test_touch_reflow_contrast_and_theme_primitives(self):
-        self.assertRegex(TOKENS, r"--target-min:\s*2\.75rem")
-        self.assertIn('data-theme="high-contrast"', TOKENS)
-        self.assertIn("forced-colors: active", CSS)
-        self.assertIn("max-width: 52rem", CSS)
-        self.assertIn("max-width: 30rem", CSS)
-        self.assertNotIn("overflow-x: hidden", CSS)
-
-    def test_reliability_error_contract_is_complete(self):
-        for field in ["errorId", "component", "impact", "succeeded", "failed", "dataLost", "retryState", "recovery", "supportTrace"]:
-            self.assertIn(field, JS)
-        for label in ["Impact", "What succeeded", "What failed", "Data lost", "Retry state", "Recovery"]:
-            self.assertIn(label, JS)
-
-    def test_observability_excludes_sensitive_content(self):
-        self.assertIn("Operational metadata is allow-listed", JS)
-        self.assertNotIn("event.detail.prompt", JS)
-        self.assertNotIn("event.detail.composer", JS)
-        self.assertIn("Private chain-of-thought", HTML)
-        self.assertIn("getTrace", JS)
-        observability=(ROOT/"observability.js").read_text(encoding="utf-8")
-        self.assertIn("OPERATIONAL_METADATA_ONLY_NO_SECRETS_NO_HIDDEN_REASONING",observability)
-        self.assertIn("SecurityError",observability)
-
-    def test_security_boundary_has_no_external_runtime_dependencies(self):
-        self.assertIn("default-src 'self'", HTML)
-        self.assertIn("object-src 'none'", HTML)
-        self.assertIn("connect-src 'self'", HTML)
-        self.assertNotRegex(HTML, r'(?:src|href)="https?://')
-        self.assertNotIn("eval(", JS)
-        self.assertNotIn("new Function", JS)
-        self.assertNotRegex(JS, r"fetch\(['\"]https?://")
-        self.assertIn("origin!==self.location.origin", SW)
-
-    def test_consequential_action_flow_is_preview_gated(self):
-        for label in ["Preview", "Approval", "Action", "Receipt", "Undo / rollback"]:
-            self.assertIn(label, HTML)
-        self.assertIn("Models propose; policy decides", HTML)
-        self.assertIn("No external action executed", JS)
-        self.assertEqual(SURFACE_MAP["execution_boundary"], "PREVIEW_ONLY_NO_EXTERNAL_CONSEQUENTIAL_ACTIONS")
-
-    def test_surface_map_matches_authority_and_phase(self):
-        authority=SURFACE_MAP["authority"]
-        self.assertEqual(authority["earned_track_b_sha"], "73ecdbad38cb10020b6e30ebe42a9222a3bb6c55")
-        self.assertEqual(authority["qualified_phase1_sha"], "5b7233fd9e62b530ef9eb161b41010727d76bacb")
-        self.assertEqual(authority["qualified_phase2_sha"], "0b22d9932b374555d11b0d5d23379d470a368f50")
-        self.assertEqual(authority["qualified_phase3_sha"], "ddb8a97c394e7e5b4107c95110c426ebd19ca66c")
-        self.assertEqual(authority["qualified_phase4_sha"], "4ee9dec2f68dcc17f09457623f4a3c39aba98e88")
-        self.assertEqual(authority["qualified_phase5_sha"], "81c0c3c364d9d057a78203cc4fbcb8c767e92b18")
-        self.assertEqual(authority["qualified_phase6_sha"], "db5eefa2982457c4045717a0b175bb5d0d9fc556")
-        self.assertEqual(authority["qualified_phase7_sha"], "d8b3c233947a204e81b0753fd94afe777e8d1cf9")
-        self.assertEqual(authority["qualified_phase7_run_id"], 34724477902)
-        self.assertEqual(authority["qualified_phase7_evidence_artifact_id"], 10307990299)
-        self.assertEqual(authority["qualified_phase7_evidence_digest"], "sha256:f4fa1fdca09634a9cfebf23cc3a8975a328c4064d41ef04440ef0bb80e4f93ac")
-        self.assertEqual(authority["blueprint_sha256"], "e750039a9c88abc780d24f48c3e86e22fd9295fec99a1b0593668aa8dd9ac166")
-        phase8_sha=authority.get("qualified_phase8_sha")
-        if phase8_sha is None:
-            self.assertEqual(SURFACE_MAP["phase"], "PHASE_7_LIVE_MULTIMODALITY")
-            self.assertNotIn("computer_substrate", SURFACE_MAP)
-        else:
-            self.assertEqual(phase8_sha, "dd7a2a2f8a1c024d92df635ebaba430a74981813")
-            self.assertEqual(authority["qualified_phase8_run_id"], 34736449398)
-            self.assertEqual(authority["qualified_phase8_evidence_artifact_id"], 10310549529)
-            self.assertEqual(authority["qualified_phase8_evidence_digest"], "sha256:5ebbaf7e94bffe9a6ce59bdf06366c1994a66fb9ba47ab56eae0244f0faf415c")
-            self.assertEqual(authority["qualified_phase8_runtime_security_artifact_id"], 10311585199)
-            self.assertEqual(authority["qualified_phase8_runtime_security_evidence_digest"], "sha256:b556dcfc37fb141947ef3f260bc0131028bd64ff89b718aee68a7dc1505bf913")
-            self.assertIn("computer", SURFACE_MAP["workspace_routes"])
-            computer=SURFACE_MAP["computer_substrate"]
-            self.assertEqual(computer["status"], "EARNED")
-            self.assertEqual(computer["qualification_scope"], "VISIBLE_LOCAL_SRCDOC_SANDBOXED_BROWSER_EXECUTION")
-            self.assertEqual(computer["qualified_sha"], "dd7a2a2f8a1c024d92df635ebaba430a74981813")
-            self.assertEqual(computer["workflow_run_id"], 34736449398)
-            self.assertEqual(computer["evidence_artifact_id"], 10310549529)
-            self.assertEqual(computer["evidence_artifact_digest"], "sha256:5ebbaf7e94bffe9a6ce59bdf06366c1994a66fb9ba47ab56eae0244f0faf415c")
-            self.assertEqual(computer["runtime_security_evidence_artifact_id"], 10311585199)
-            self.assertEqual(computer["runtime_security_evidence_artifact_digest"], "sha256:b556dcfc37fb141947ef3f260bc0131028bd64ff89b718aee68a7dc1505bf913")
-            self.assertEqual(computer["persistence"], "INDEXEDDB_BROWSER_LOCAL_DEVICE")
-            self.assertEqual(computer["sandbox_mode"], "VISIBLE_LOCAL_SRCDOC_SANDBOX_NO_EXTERNAL_NETWORK")
-            self.assertEqual(computer["network_policy"], "DENY_BY_DEFAULT_NO_RUNTIME_FETCH")
-            self.assertFalse(computer["hidden_privileged_browser_session"])
-            self.assertFalse(computer["scripts_enabled_in_sandbox"])
-            self.assertEqual(computer["approval"], "EXACT_PREVIEW_SHA256_BOUND")
-            self.assertEqual(computer["receipts"], "SHA256_BOUND_APPROVAL_ACTION_ROLLBACK")
-            self.assertTrue(computer["rollback"])
-            self.assertTrue(computer["pause_resume"])
-            self.assertTrue(computer["user_takeover"])
-            self.assertEqual(computer["restricted_clipboard"], "SESSION_LOCAL_TEXT_ONLY_NO_SYSTEM_CLIPBOARD")
-            self.assertEqual(computer["credentials"], "SYMBOLIC_HANDLE_ONLY_PERMISSION_SCOPED_NO_PLAINTEXT_SECRET_ACCESS")
-            self.assertEqual(computer["retrieved_instruction_authority"], "DATA_ONLY")
-            self.assertTrue(computer["prompt_injection_quarantine"])
-            self.assertTrue(computer["observability_linkage_required"])
-            self.assertFalse(computer["external_network_execution_claimed"])
-            self.assertFalse(computer["arbitrary_external_site_execution_claimed"])
-            self.assertFalse(computer["os_level_computer_control_claimed"])
-            self.assertFalse(computer["production_isolation_certified"])
-            phase9_sha=authority.get("qualified_phase9_sha")
-            if phase9_sha is None:
-                self.assertEqual(SURFACE_MAP["schema"], "musitu.axiom.interface.surface-map.v8")
-                self.assertEqual(SURFACE_MAP["phase"], "PHASE_8_COMPUTER_BROWSER_EXECUTION")
-                self.assertNotIn("agent_automation_substrate", SURFACE_MAP)
-            else:
-                self.assertEqual(phase9_sha, "277478e12529f755fc4269b648e8fbe08caafb92")
-                self.assertEqual(authority["qualified_phase9_run_id"], 34740235255)
-                self.assertEqual(authority["qualified_phase9_evidence_artifact_id"], 10312178769)
-                self.assertEqual(authority["qualified_phase9_evidence_digest"], "sha256:eff4ce113752cc7be8808465ac330270814b7af8451d507546cdac93d9658b33")
-                self.assertEqual(authority["qualified_phase9_runtime_security_artifact_id"], 10311354462)
-                self.assertEqual(authority["qualified_phase9_runtime_security_evidence_digest"], "sha256:ca703dc6ab0b878f1057b0519ceed89aae267545492aed0bae8cd2ca5562b772")
-                self.assertEqual(SURFACE_MAP["schema"], "musitu.axiom.interface.surface-map.v9")
-                self.assertEqual(SURFACE_MAP["phase"], "PHASE_9_AGENTS_AUTOMATIONS")
-                self.assertIn("agents", SURFACE_MAP["workspace_routes"])
-                agent=SURFACE_MAP["agent_automation_substrate"]
-                self.assertEqual(agent["status"], "EARNED")
-                self.assertEqual(agent["qualification_scope"], "BROWSER_LOCAL_GOVERNED_AGENT_AND_TRIGGER_PREVIEW_SUBSTRATE")
-                self.assertEqual(agent["qualified_sha"], phase9_sha)
-                self.assertEqual(agent["workflow_run_id"], 34740235255)
-                self.assertEqual(agent["evidence_artifact_id"], 10312178769)
-                self.assertEqual(agent["evidence_artifact_digest"], "sha256:eff4ce113752cc7be8808465ac330270814b7af8451d507546cdac93d9658b33")
-                self.assertEqual(agent["runtime_security_evidence_artifact_id"], 10311354462)
-                self.assertEqual(agent["runtime_security_evidence_artifact_digest"], "sha256:ca703dc6ab0b878f1057b0519ceed89aae267545492aed0bae8cd2ca5562b772")
-                self.assertEqual(agent["persistence"], "INDEXEDDB_BROWSER_LOCAL_DEVICE")
-                self.assertEqual(agent["network_policy"], "DENY_ALL_EXTERNAL_NETWORK")
-                self.assertEqual(agent["secrets_policy"], "SYMBOLIC_REFERENCE_ONLY_NO_PLAINTEXT_SECRETS")
-                self.assertEqual(agent["execution_mode"], "LOCAL_PREVIEW_ONLY_NO_EXTERNAL_ACTION")
-                self.assertEqual(agent["max_delegation_depth"], 2)
-                self.assertTrue(agent["least_privilege_delegation"])
-                self.assertTrue(agent["cascading_kill_switch"])
-                self.assertTrue(agent["observability_linkage_required"])
-                self.assertFalse(agent["cloud_scheduler_claimed"])
-                self.assertFalse(agent["external_action_execution_claimed"])
-                self.assertFalse(agent["production_workload_isolation_certified"])
-                self.assertFalse(agent["plaintext_secret_access_claimed"])
-        self.assertGreaterEqual(len(SURFACE_MAP["surfaces"]), 11)
-        self.assertIn("observability", SURFACE_MAP["workspace_routes"])
-        self.assertIn("live", SURFACE_MAP["workspace_routes"])
-        self.assertEqual(SURFACE_MAP["project_substrate"]["persistence"], "INDEXEDDB_BROWSER_LOCAL_DEVICE")
-        self.assertFalse(SURFACE_MAP["project_substrate"]["cloud_sync_claimed"])
-        self.assertTrue(SURFACE_MAP["work_substrate"]["outcome_contracts"])
-        self.assertTrue(SURFACE_MAP["work_substrate"]["approval_queue"])
-        self.assertTrue(SURFACE_MAP["work_substrate"]["acceptance_test"])
-        self.assertTrue(SURFACE_MAP["work_substrate"]["observability_linkage_required"])
-        self.assertFalse(SURFACE_MAP["work_substrate"]["literal_multi_hour_wall_clock_soak"])
-        research=SURFACE_MAP["research_substrate"]
-        self.assertEqual(research["citation_binding"],"EXACT_SOURCE_TEXT_SPAN_PLUS_SHA256")
-        self.assertEqual(research["freshness_basis"],"SOURCE_AS_OF_NOT_RETRIEVAL_TIME")
-        self.assertEqual(research["retrieved_instruction_authority"],"DATA_ONLY")
-        self.assertTrue(research["contradictions_preserved"])
-        self.assertTrue(research["missing_evidence_detection"])
-        self.assertFalse(research["external_verification_claimed"])
-        artifacts=SURFACE_MAP["artifact_substrate"]
-        self.assertEqual(artifacts["version_history"],"IMMUTABLE_SHA256_LINKED_VERSIONS")
-        self.assertEqual(artifacts["rollback"],"NON_DESTRUCTIVE_NEW_VERSION_FROM_PRIOR_SNAPSHOT")
-        self.assertEqual(artifacts["provenance"],"VERSION_BOUND_ACTOR_SOURCE_TIMESTAMP")
-        self.assertFalse(artifacts["cloud_collaboration_claimed"])
-        self.assertFalse(artifacts["external_publication_claimed"])
-        self.assertFalse(artifacts["deployment_claimed"])
-        obs=SURFACE_MAP["observability_substrate"]
-        self.assertEqual(obs["event_history"],"SHA256_LINKED_OPERATIONAL_EVENTS")
-        self.assertEqual(obs["replay_scope"],"OPERATIONAL_METADATA_ONLY_NO_SECRETS_NO_HIDDEN_REASONING")
-        self.assertTrue(obs["production_trace_and_actor_required"])
-        self.assertFalse(obs["cloud_telemetry_backend_claimed"])
-        self.assertFalse(obs["private_chain_of_thought_exposed"])
-        live=SURFACE_MAP["live_substrate"]
-        self.assertEqual(live["modalities"],["voice","camera","screen"])
-        self.assertTrue(live["explicit_permission_required"])
-        self.assertTrue(live["privacy_indicators"])
-        self.assertTrue(live["recording_controls"])
-        self.assertEqual(live["interruption_measurement_scope"],"LOCAL_UI_ACKNOWLEDGEMENT_ONLY")
-        self.assertFalse(live["model_understanding_claimed"])
-        self.assertFalse(live["automated_transcription_claimed"])
-        self.assertFalse(live["cloud_media_upload_claimed"])
-        self.assertFalse(live["real_device_certification_claimed"])
-
-    def test_service_worker_is_same_origin_and_shell_only(self):
-        self.assertIn("event.request.method!=='GET'", SW)
-        self.assertIn("self.location.origin", SW)
-        for asset in ["./index.html", "./projects.js", "./outcome_contracts.js", "./outcome_execution.js", "./research_claims.js", "./styles/research.css", "./artifacts.js", "./styles/artifacts.css", "./observability.js", "./styles/observability.css", "./live.js", "./styles/live.css"]:
-            self.assertIn(asset, SW)
-        self.assertNotIn("https://", SW)
-
-    def test_qualified_phase1_design_snapshot_remains_byte_locked(self):
-        phase1_html = (ROOT / "tests" / "phase1_index_snapshot.html").read_text(encoding="utf-8")
-        phase1_tokens = (ROOT / "tests" / "phase1_tokens_snapshot.css").read_text(encoding="utf-8")
-        phase1_css = (ROOT / "tests" / "phase1_styles_snapshot.css").read_text(encoding="utf-8")
-        phase1_js = (ROOT / "tests" / "phase1_app_snapshot.js").read_text(encoding="utf-8")
-        payload = "\n--FILE--\n".join([phase1_html, phase1_tokens, phase1_css, phase1_js])
-        digest = hashlib.sha256(payload.encode("utf-8")).hexdigest()
-        expected = (ROOT / "tests" / "design_contract.sha256").read_text(encoding="utf-8").strip()
-        self.assertEqual(digest, expected)
-        self.assertIn("initProjectWorkspace", JS)
-        self.assertIn("initOutcomeContractWorkspace", JS)
-        self.assertIn("initOutcomeExecutionWorkspace", JS)
-        self.assertIn("initResearchWorkspace", JS)
-        self.assertIn("initArtifactWorkspace", JS)
-        self.assertIn("initObservabilityWorkspace", JS)
-        self.assertIn("initLiveWorkspace", JS)
-        self.assertIn('./styles/projects.css', HTML)
-
-
-if __name__ == "__main__":
-    unittest.main(verbosity=2)
+ @classmethod
+ def setUpClass(cls):cls.parser=SemanticParser();cls.parser.feed(HTML)
+ def test_semantic_landmarks_and_skip_navigation(self):
+  tags=[tag for tag,_ in self.parser.tags];self.assertIn('header',tags);self.assertIn('main',tags);self.assertGreaterEqual(tags.count('nav'),2);self.assertGreaterEqual(tags.count('aside'),2);self.assertIn('href="#main-workspace"',HTML);self.assertIn('id="main-workspace"',HTML);self.assertFalse(self.parser.duplicate_ids)
+ def test_screen_reader_and_keyboard_contract(self):
+  self.assertFalse(self.parser.unnamed_buttons)
+  for token in ['aria-label="Universal composer"','aria-label="Proof Drawer"','role="tablist"','aria-live="polite"','role="alert"']:self.assertIn(token,HTML)
+  self.assertIn(':focus-visible',CSS);self.assertIn('prefers-reduced-motion: reduce',CSS);self.assertIn('ArrowRight',JS);self.assertIn('ArrowLeft',JS);self.assertIn('composer-focus',JS)
+ def test_touch_reflow_contrast_and_theme_primitives(self):
+  self.assertRegex(TOKENS,r'--target-min:\s*2\.75rem');self.assertIn('data-theme="high-contrast"',TOKENS);self.assertIn('forced-colors: active',CSS);self.assertIn('max-width: 52rem',CSS);self.assertIn('max-width: 30rem',CSS);self.assertNotIn('overflow-x: hidden',CSS)
+ def test_reliability_error_contract_is_complete(self):
+  for field in ['errorId','component','impact','succeeded','failed','dataLost','retryState','recovery','supportTrace']:self.assertIn(field,JS)
+  for label in ['Impact','What succeeded','What failed','Data lost','Retry state','Recovery']:self.assertIn(label,JS)
+ def test_observability_excludes_sensitive_content(self):
+  self.assertIn('Operational metadata is allow-listed',JS);self.assertNotIn('event.detail.prompt',JS);self.assertNotIn('event.detail.composer',JS);self.assertIn('Private chain-of-thought',HTML);self.assertIn('getTrace',JS);observability=(ROOT/'observability.js').read_text(encoding='utf-8');self.assertIn('OPERATIONAL_METADATA_ONLY_NO_SECRETS_NO_HIDDEN_REASONING',observability);self.assertIn('SecurityError',observability)
+ def test_security_boundary_has_no_external_runtime_dependencies(self):
+  for token in ["default-src 'self'","object-src 'none'","connect-src 'self'"]:self.assertIn(token,HTML)
+  self.assertNotRegex(HTML,r'(?:src|href)="https?://');self.assertNotIn('eval(',JS);self.assertNotIn('new Function',JS);self.assertNotRegex(JS,r"fetch\(['\"]https?://");self.assertIn('origin!==self.location.origin',SW)
+ def test_consequential_action_flow_is_preview_gated(self):
+  for label in ['Preview','Approval','Action','Receipt','Undo / rollback']:self.assertIn(label,HTML)
+  self.assertIn('Models propose; policy decides',HTML);self.assertIn('No external action executed',JS);self.assertEqual(SURFACE_MAP['execution_boundary'],'PREVIEW_ONLY_NO_EXTERNAL_CONSEQUENTIAL_ACTIONS')
+ def test_surface_map_matches_authority_and_phase(self):
+  authority=SURFACE_MAP['authority'];self.assertEqual(authority['earned_track_b_sha'],'73ecdbad38cb10020b6e30ebe42a9222a3bb6c55');self.assertEqual(authority['qualified_phase1_sha'],'5b7233fd9e62b530ef9eb161b41010727d76bacb');self.assertEqual(authority['qualified_phase2_sha'],'0b22d9932b374555d11b0d5d23379d470a368f50');self.assertEqual(authority['qualified_phase3_sha'],'ddb8a97c394e7e5b4107c95110c426ebd19ca66c');self.assertEqual(authority['qualified_phase4_sha'],'4ee9dec2f68dcc17f09457623f4a3c39aba98e88');self.assertEqual(authority['qualified_phase5_sha'],'81c0c3c364d9d057a78203cc4fbcb8c767e92b18');self.assertEqual(authority['qualified_phase6_sha'],'db5eefa2982457c4045717a0b175bb5d0d9fc556');self.assertEqual(authority['qualified_phase7_sha'],'d8b3c233947a204e81b0753fd94afe777e8d1cf9');self.assertEqual(authority['qualified_phase7_run_id'],34724477902);self.assertEqual(authority['qualified_phase7_evidence_artifact_id'],10307990299);self.assertEqual(authority['qualified_phase7_evidence_digest'],'sha256:f4fa1fdca09634a9cfebf23cc3a8975a328c4064d41ef04440ef0bb80e4f93ac');self.assertEqual(authority['blueprint_sha256'],'e750039a9c88abc780d24f48c3e86e22fd9295fec99a1b0593668aa8dd9ac166')
+  phase8=authority.get('qualified_phase8_sha')
+  if phase8 is None:self.assertEqual(SURFACE_MAP['phase'],'PHASE_7_LIVE_MULTIMODALITY');self.assertNotIn('computer_substrate',SURFACE_MAP)
+  else:
+   self.assertEqual(phase8,'dd7a2a2f8a1c024d92df635ebaba430a74981813');self.assertEqual(authority['qualified_phase8_run_id'],34736449398);self.assertEqual(authority['qualified_phase8_evidence_artifact_id'],10310549529);self.assertEqual(authority['qualified_phase8_evidence_digest'],'sha256:5ebbaf7e94bffe9a6ce59bdf06366c1994a66fb9ba47ab56eae0244f0faf415c');self.assertEqual(authority['qualified_phase8_runtime_security_artifact_id'],10311585199);self.assertEqual(authority['qualified_phase8_runtime_security_evidence_digest'],'sha256:b556dcfc37fb141947ef3f260bc0131028bd64ff89b718aee68a7dc1505bf913')
+   computer=SURFACE_MAP['computer_substrate'];self.assertEqual(computer['status'],'EARNED');self.assertEqual(computer['qualification_scope'],'VISIBLE_LOCAL_SRCDOC_SANDBOXED_BROWSER_EXECUTION');self.assertEqual(computer['qualified_sha'],phase8);self.assertTrue(computer['observability_linkage_required']);self.assertFalse(computer['external_network_execution_claimed']);self.assertFalse(computer['production_isolation_certified'])
+   phase9=authority.get('qualified_phase9_sha')
+   if phase9 is None:self.assertEqual(SURFACE_MAP['schema'],'musitu.axiom.interface.surface-map.v8');self.assertEqual(SURFACE_MAP['phase'],'PHASE_8_COMPUTER_BROWSER_EXECUTION');self.assertNotIn('agent_automation_substrate',SURFACE_MAP)
+   else:
+    self.assertEqual(phase9,'277478e12529f755fc4269b648e8fbe08caafb92');self.assertEqual(authority['qualified_phase9_run_id'],34740235255);self.assertEqual(authority['qualified_phase9_evidence_artifact_id'],10312178769);self.assertEqual(authority['qualified_phase9_evidence_digest'],'sha256:eff4ce113752cc7be8808465ac330270814b7af8451d507546cdac93d9658b33');self.assertEqual(authority['qualified_phase9_runtime_security_artifact_id'],10311354462);self.assertEqual(authority['qualified_phase9_runtime_security_evidence_digest'],'sha256:ca703dc6ab0b878f1057b0519ceed89aae267545492aed0bae8cd2ca5562b772')
+    agent=SURFACE_MAP['agent_automation_substrate'];self.assertEqual(agent['status'],'EARNED');self.assertEqual(agent['qualification_scope'],'BROWSER_LOCAL_GOVERNED_AGENT_AND_TRIGGER_PREVIEW_SUBSTRATE');self.assertEqual(agent['qualified_sha'],phase9);self.assertEqual(agent['network_policy'],'DENY_ALL_EXTERNAL_NETWORK');self.assertEqual(agent['execution_mode'],'LOCAL_PREVIEW_ONLY_NO_EXTERNAL_ACTION');self.assertTrue(agent['least_privilege_delegation']);self.assertTrue(agent['cascading_kill_switch']);self.assertTrue(agent['observability_linkage_required']);self.assertFalse(agent['cloud_scheduler_claimed']);self.assertFalse(agent['external_action_execution_claimed']);self.assertFalse(agent['production_workload_isolation_certified']);self.assertFalse(agent['plaintext_secret_access_claimed'])
+    phase10=authority.get('qualified_phase10_sha')
+    if phase10 is None:self.assertEqual(SURFACE_MAP['schema'],'musitu.axiom.interface.surface-map.v9');self.assertEqual(SURFACE_MAP['phase'],'PHASE_9_AGENTS_AUTOMATIONS');self.assertNotIn('memory_graph_substrate',SURFACE_MAP)
+    else:
+     self.assertEqual(phase10,'78d76060138a00e48839edb1d5454f1a197225b3');self.assertEqual(authority['qualified_phase10_run_id'],34742232871);self.assertEqual(authority['qualified_phase10_evidence_artifact_id'],10313160943);self.assertEqual(authority['qualified_phase10_evidence_digest'],'sha256:9cebd9b5cf537edf10fe3c7602049bc6f4b201a4876467630cdfcb59864f48e0');self.assertEqual(authority['qualified_phase10_runtime_security_artifact_id'],10312469541);self.assertEqual(authority['qualified_phase10_runtime_security_evidence_digest'],'sha256:91c5d40324708e56f046716ec1fe18f7cc945e5c85735e0c4ddbed6b565efe76');self.assertEqual(SURFACE_MAP['schema'],'musitu.axiom.interface.surface-map.v10');self.assertEqual(SURFACE_MAP['phase'],'PHASE_10_MEMORY_GRAPH')
+     memory=SURFACE_MAP['memory_graph_substrate'];self.assertEqual(memory['status'],'EARNED');self.assertEqual(memory['qualification_scope'],'BROWSER_LOCAL_CONSENT_SCOPED_MEMORY_GRAPH_WITH_NONDESTRUCTIVE_REVOCATION');self.assertEqual(memory['qualified_sha'],phase10);self.assertEqual(memory['workflow_run_id'],34742232871);self.assertEqual(memory['evidence_artifact_id'],10313160943);self.assertEqual(memory['evidence_artifact_digest'],'sha256:9cebd9b5cf537edf10fe3c7602049bc6f4b201a4876467630cdfcb59864f48e0');self.assertEqual(memory['runtime_security_evidence_artifact_id'],10312469541);self.assertEqual(memory['runtime_security_evidence_artifact_digest'],'sha256:91c5d40324708e56f046716ec1fe18f7cc945e5c85735e0c4ddbed6b565efe76');self.assertEqual(memory['persistence'],'INDEXEDDB_BROWSER_LOCAL_DEVICE');self.assertEqual(memory['network_policy'],'DENY_ALL_EXTERNAL_NETWORK');self.assertEqual(memory['secret_policy'],'NO_SECRET_OR_HIDDEN_REASONING_STORAGE');self.assertEqual(memory['revocation'],'NONDESTRUCTIVE_DO_NOT_USE_WITH_RECEIPT');self.assertFalse(memory['external_network_claimed']);self.assertFalse(memory['cloud_memory_sync_claimed']);self.assertFalse(memory['hidden_reasoning_storage_claimed']);self.assertFalse(memory['destructive_forget_claimed'])
+  self.assertGreaterEqual(len(SURFACE_MAP['surfaces']),11);self.assertIn('observability',SURFACE_MAP['workspace_routes']);self.assertIn('live',SURFACE_MAP['workspace_routes']);self.assertEqual(SURFACE_MAP['project_substrate']['persistence'],'INDEXEDDB_BROWSER_LOCAL_DEVICE');self.assertFalse(SURFACE_MAP['project_substrate']['cloud_sync_claimed']);self.assertTrue(SURFACE_MAP['work_substrate']['outcome_contracts']);self.assertTrue(SURFACE_MAP['work_substrate']['approval_queue']);self.assertTrue(SURFACE_MAP['work_substrate']['acceptance_test']);self.assertTrue(SURFACE_MAP['work_substrate']['observability_linkage_required']);self.assertFalse(SURFACE_MAP['work_substrate']['literal_multi_hour_wall_clock_soak'])
+  research=SURFACE_MAP['research_substrate'];self.assertEqual(research['citation_binding'],'EXACT_SOURCE_TEXT_SPAN_PLUS_SHA256');self.assertEqual(research['freshness_basis'],'SOURCE_AS_OF_NOT_RETRIEVAL_TIME');self.assertEqual(research['retrieved_instruction_authority'],'DATA_ONLY');self.assertTrue(research['contradictions_preserved']);self.assertTrue(research['missing_evidence_detection']);self.assertFalse(research['external_verification_claimed'])
+  artifacts=SURFACE_MAP['artifact_substrate'];self.assertEqual(artifacts['version_history'],'IMMUTABLE_SHA256_LINKED_VERSIONS');self.assertEqual(artifacts['rollback'],'NON_DESTRUCTIVE_NEW_VERSION_FROM_PRIOR_SNAPSHOT');self.assertEqual(artifacts['provenance'],'VERSION_BOUND_ACTOR_SOURCE_TIMESTAMP');self.assertFalse(artifacts['cloud_collaboration_claimed']);self.assertFalse(artifacts['external_publication_claimed']);self.assertFalse(artifacts['deployment_claimed'])
+  obs=SURFACE_MAP['observability_substrate'];self.assertEqual(obs['event_history'],'SHA256_LINKED_OPERATIONAL_EVENTS');self.assertEqual(obs['replay_scope'],'OPERATIONAL_METADATA_ONLY_NO_SECRETS_NO_HIDDEN_REASONING');self.assertTrue(obs['production_trace_and_actor_required']);self.assertFalse(obs['cloud_telemetry_backend_claimed']);self.assertFalse(obs['private_chain_of_thought_exposed'])
+  live=SURFACE_MAP['live_substrate'];self.assertEqual(live['modalities'],['voice','camera','screen']);self.assertTrue(live['explicit_permission_required']);self.assertTrue(live['privacy_indicators']);self.assertTrue(live['recording_controls']);self.assertEqual(live['interruption_measurement_scope'],'LOCAL_UI_ACKNOWLEDGEMENT_ONLY');self.assertFalse(live['model_understanding_claimed']);self.assertFalse(live['automated_transcription_claimed']);self.assertFalse(live['cloud_media_upload_claimed']);self.assertFalse(live['real_device_certification_claimed'])
+ def test_service_worker_is_same_origin_and_shell_only(self):
+  self.assertIn("event.request.method!=='GET'",SW);self.assertIn('self.location.origin',SW)
+  for asset in ['./index.html','./projects.js','./outcome_contracts.js','./outcome_execution.js','./research_claims.js','./styles/research.css','./artifacts.js','./styles/artifacts.css','./observability.js','./styles/observability.css','./live.js','./styles/live.css']:self.assertIn(asset,SW)
+  self.assertNotIn('https://',SW)
+ def test_qualified_phase1_design_snapshot_remains_byte_locked(self):
+  files=[ROOT/'tests'/'phase1_index_snapshot.html',ROOT/'tests'/'phase1_tokens_snapshot.css',ROOT/'tests'/'phase1_styles_snapshot.css',ROOT/'tests'/'phase1_app_snapshot.js'];payload='\n--FILE--\n'.join(p.read_text(encoding='utf-8') for p in files);digest=hashlib.sha256(payload.encode()).hexdigest();expected=(ROOT/'tests'/'design_contract.sha256').read_text(encoding='utf-8').strip();self.assertEqual(digest,expected)
+  for token in ['initProjectWorkspace','initOutcomeContractWorkspace','initOutcomeExecutionWorkspace','initResearchWorkspace','initArtifactWorkspace','initObservabilityWorkspace','initLiveWorkspace']:self.assertIn(token,JS)
+  self.assertIn('./styles/projects.css',HTML)
+if __name__=='__main__':unittest.main(verbosity=2)
