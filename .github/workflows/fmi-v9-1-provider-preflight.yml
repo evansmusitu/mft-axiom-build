@@ -1,0 +1,150 @@
+name: MUSITU FMI V9.2 Provider Preflight
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [fmi-v9-1-market-data-provider-candidate-20260913]
+    paths:
+      - '.github/workflows/fmi-v9-1-provider-preflight.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  provider-preflight:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      CF_API: https://api.cloudflare.com/client/v4
+      CLOUDFLARE_ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+      CLOUDFLARE_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+      FMI_EDGE: mft-fmi-global-edge
+      FMI_ADAPTER: mft-fmi-modal-adapter
+      FMI_BILLING: mft-fmi-billing
+      FMI_DB_UUID: a03dc12d-8206-47be-b904-1f24e4e37d91
+      FMI_MARKET_ROUTER: mft-fmi-market-router
+      FMI_TWELVE_DATA_ADAPTER: mft-fmi-twelve-data-adapter
+      TWELVE_DATA_LICENSE_AUTHORIZED: ${{ secrets.TWELVE_DATA_LICENSE_AUTHORIZED }}
+      TWELVE_DATA_REDISTRIBUTION_AUTHORIZED: ${{ secrets.TWELVE_DATA_REDISTRIBUTION_AUTHORIZED }}
+      TWELVE_DATA_API_KEY: ${{ secrets.TWELVE_DATA_API_KEY }}
+      TWELVE_DATA_ENTITLEMENT_LABEL: ${{ secrets.TWELVE_DATA_ENTITLEMENT_LABEL }}
+      TWELVE_DATA_FRESHNESS_LABEL: ${{ secrets.TWELVE_DATA_FRESHNESS_LABEL }}
+      TWELVE_DATA_RIGHTS_REFERENCE: ${{ secrets.TWELVE_DATA_RIGHTS_REFERENCE }}
+      EXPECTED_TRANSPORT_SHA: eedd00e9de89d17cbb39e7d2f098544d84e16308b37928ea68f3122907af680e
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Require protected Cloudflare read authority
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$CLOUDFLARE_EMAIL"
+          test -n "$CLOUDFLARE_API_KEY"
+
+      - name: Reconstruct and verify immutable V9.1 payload
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import base64,hashlib,json,pathlib,tarfile
+          root=pathlib.Path('deploy_payload/fmi_v9_1_control')
+          manifest=json.loads((root/'TRANSPORT_MANIFEST.json').read_text())
+          chunks=[]
+          for row in manifest['chunks']:
+              p=root/row['file']; b=p.read_bytes()
+              if len(b)!=row['size'] or hashlib.sha256(b).hexdigest()!=row['sha256']:
+                  raise SystemExit('Fail-closed transport chunk mismatch: '+row['file'])
+              chunks.append(b)
+          encoded=b''.join(chunks)
+          if len(encoded)!=manifest['base64_size'] or hashlib.sha256(encoded).hexdigest()!=manifest['base64_sha256']:
+              raise SystemExit('Fail-closed reconstructed Base64 authority mismatch')
+          raw=base64.b64decode(encoded,validate=True)
+          if len(raw)!=manifest['tar_gz_size'] or hashlib.sha256(raw).hexdigest()!=manifest['tar_gz_sha256']:
+              raise SystemExit('Fail-closed V9.1 tar authority mismatch')
+          pathlib.Path('/tmp/fmi-v9-1-control.tar.gz').write_bytes(raw)
+          out=pathlib.Path('/tmp/fmi-v9-1-runtime'); out.mkdir(parents=True,exist_ok=True)
+          with tarfile.open('/tmp/fmi-v9-1-control.tar.gz','r:gz') as t:
+              for m in t.getmembers():
+                  q=(out/m.name).resolve()
+                  if out.resolve() not in q.parents and q!=out.resolve():
+                      raise SystemExit('Fail-closed unsafe tar path')
+              t.extractall(out)
+          inner=json.loads((out/'MANIFEST.json').read_text())
+          for row in inner['files']:
+              p=out/row['path']; b=p.read_bytes()
+              if len(b)!=row['size'] or hashlib.sha256(b).hexdigest()!=row['sha256']:
+                  raise SystemExit('Fail-closed payload file mismatch: '+row['path'])
+          print(json.dumps({'transport_gate':'PASS','tar_sha256':manifest['tar_gz_sha256'],'payload_files':len(inner['files'])},sort_keys=True))
+          PY
+          test "$(sha256sum /tmp/fmi-v9-1-control.tar.gz | awk '{print $1}')" = "$EXPECTED_TRANSPORT_SHA"
+          node --check /tmp/fmi-v9-1-runtime/edge/fmi-global/worker.js
+          node --check /tmp/fmi-v9-1-runtime/edge/fmi-market-data/router.js
+          node --check /tmp/fmi-v9-1-runtime/edge/fmi-market-data/providers/twelve-data-adapter.js
+
+      - name: Verify fail-closed promotion state machine
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import importlib.util,pathlib
+          p=pathlib.Path('scripts/fmi_v9_1_control_model.py')
+          s=importlib.util.spec_from_file_location('m',p); m=importlib.util.module_from_spec(s); s.loader.exec_module(m)
+          checks=[]
+          def ck(x): checks.append(x); assert x
+          ck(m.execute(m.State(False))['mutations']==0)
+          ck(m.execute(m.State(True,live_edge_exact=False))['mutations']==0)
+          ck(m.execute(m.State(True,private_names_safe=False))['mutations']==0)
+          happy=m.execute(m.State(True)); ck(happy['status']=='PROMOTED_VERIFIED'); ck(happy['ops'][0]=='deploy_provider_private'); ck(happy['ops'][-1]=='functional_market_context_probe')
+          ck(m.execute(m.State(True),fail_at='verify_public_edge_binding')['status']=='ROLLED_BACK_VERIFIED_REQUIRED')
+          ck(m.execute(m.State(True),fail_at='verify_edge_source_workspace_billing_adapter')['rollback'][0]=='restore_public_edge_source_exact_bytes')
+          ck(all('deploy_billing' not in x and 'deploy_adapter' not in x for x in happy['ops']))
+          print('control_model_checks='+str(len(checks)))
+          PY
+
+      - name: Execute read-only provider preflight
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/fmi_v9_1_provider_preflight.py --payload-root /tmp/fmi-v9-1-runtime --output fmi-v9-1-provider-preflight.json
+
+      - name: Enforce zero mutation and classify blockers
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          p='fmi-v9-1-provider-preflight.json'; x=json.load(open(p))
+          if x.get('mutation_performed') is not False: raise SystemExit('Fail-closed mutation flag')
+          if x.get('secret_values_logged') is not False: raise SystemExit('Fail-closed secret logging flag')
+          blockers=x.get('blockers') or []
+          non_rights=[b for b in blockers if not str(b).startswith('RIGHTS_GATE:')]
+          if non_rights: raise SystemExit('Non-rights preflight blockers: '+repr(non_rights))
+          summary={
+            'gate':'READ_ONLY_PREFLIGHT_PASS',
+            'promotion_ready':x.get('promotion_ready'),
+            'rights_blockers':blockers,
+            'mutation_performed':False,
+            'live_edge_sha256':x['live_readback']['edge_sha256'],
+            'billing_sha256':x['live_readback']['billing_sha256'],
+            'adapter_sha256':x['live_readback']['adapter_sha256'],
+            'planned_workers':x.get('planned_workers'),
+          }
+          open('fmi-v9-2-preflight-summary.json','w').write(json.dumps(summary,indent=2,sort_keys=True)+'\n')
+          print(json.dumps(summary,sort_keys=True))
+          PY
+
+      - uses: actions/upload-artifact@v4
+        if: ${{ always() }}
+        with:
+          name: musitu-fmi-v9-2-provider-preflight-evidence
+          path: |
+            fmi-v9-1-provider-preflight.json
+            fmi-v9-2-preflight-summary.json
+          if-no-files-found: warn
+          retention-days: 30
