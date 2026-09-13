@@ -1,0 +1,109 @@
+name: RevenueGuard CUAD Trainer Geometry Contract Audit
+
+on:
+  push:
+    branches: [revenueguard-axiom-governor-20260911]
+    paths: ['.github/workflows/revenueguard-cuad-training-geometry-contract-audit.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download exact epoch1 tokenizer source
+        uses: actions/download-artifact@v4
+        with:
+          name: revenueguard-cuad-epoch1-chunked-final
+          path: source
+          repository: evansmusitu/mft-axiom-build
+          run-id: 34683449126
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Download frozen geometry audit
+        uses: actions/download-artifact@v4
+        with:
+          name: revenueguard-cuad-matched-window-geometry-audit
+          path: geometry
+          repository: evansmusitu/mft-axiom-build
+          run-id: 34706691340
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Install pinned runtime and fetch pinned CUAD
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          python -m pip install --index-url https://download.pytorch.org/whl/cpu torch
+          python -m pip install 'transformers==4.56.2' safetensors
+          curl -fL --retry 4 --retry-delay 2 -o cuad-data.zip 'https://raw.githubusercontent.com/The-Atticus-Project/cuad/67faa0e6023b04fcaae6cc09497ab00e5d63a2a2/data.zip'
+          unzip -q cuad-data.zip
+      - name: Regenerate exact trainer curriculum and assert frozen geometry
+        shell: bash
+        run: |
+          set -euo pipefail
+          TRAIN=$(find . -name train_separate_questions.json -type f | head -n1)
+          python - "$TRAIN" <<'PY'
+          import hashlib, json, sys
+          from pathlib import Path
+          from transformers import AutoTokenizer
+          from research.revenueguard.cuad_matched_window_multitask_train import window_rows, heldout
+
+          train=Path(sys.argv[1])
+          assert hashlib.sha256(train.read_bytes()).hexdigest()=='7de21d2bb741ac939e2a839ef9640634a5e0f9f40ea2b82c6833baf7db33dab4'
+          frozen=json.load(open('geometry/CUAD_MATCHED_WINDOW_GEOMETRY_AUDIT.json'))
+          assert frozen['report_sha256']=='e14b667cc4e8ac96b35909741847d804505b3d7f0c4c79ddebb53ab07bee10e7'
+          tok=AutoTokenizer.from_pretrained('source/cuad_epoch1_final',local_files_only=True,use_fast=True)
+          raw=json.load(open(train))['data']
+
+          chunk_sizes=[]
+          canonical_stats=None
+          for chunk in range(4):
+              rows,stats=window_rows(raw,tok,chunk,4)
+              chunk_sizes.append(len(rows))
+              d=dict(stats)
+              if canonical_stats is None:
+                  canonical_stats=d
+              else:
+                  assert d==canonical_stats, (chunk,d,canonical_stats)
+
+          heldout_contracts=sum(1 for c in raw if heldout(c.get('title','')))
+          report={
+              'schema':'musitu.revenueguard.cuad.trainer_geometry_contract_audit.v1',
+              'status':'DEV_RESEARCH_ONLY_OFFICIAL_TEST_UNOPENED',
+              'train_sha256':hashlib.sha256(train.read_bytes()).hexdigest(),
+              'geometry_report_sha256':frozen['report_sha256'],
+              'chunk_sizes':chunk_sizes,
+              'chunk_size_sum':sum(chunk_sizes),
+              'trainer_stats':canonical_stats,
+              'heldout_contracts':heldout_contracts,
+              'expected':{
+                  'selected_training_windows':61659,
+                  'selected_positive_windows':12305,
+                  'selected_hard_negative_windows':49354,
+                  'heldout_questions':2461,
+                  'heldout_contracts':45,
+                  'build_questions':19989
+              }
+          }
+          assert heldout_contracts==45, heldout_contracts
+          assert canonical_stats['heldout_questions']==2461, canonical_stats
+          assert canonical_stats['build_questions']==19989, canonical_stats
+          assert canonical_stats['selected_positive']==12305, canonical_stats
+          assert canonical_stats['selected_negative']==49354, canonical_stats
+          assert canonical_stats['selected_total']==61659, canonical_stats
+          assert sum(chunk_sizes)==61659, chunk_sizes
+          report['pass']=True
+          report['report_sha256']=hashlib.sha256(json.dumps(report,sort_keys=True,separators=(',',':')).encode()).hexdigest()
+          Path('CUAD_TRAINER_GEOMETRY_CONTRACT_AUDIT.json').write_text(json.dumps(report,indent=2,sort_keys=True)+'\n')
+          print(json.dumps(report,indent=2,sort_keys=True))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: revenueguard-cuad-trainer-geometry-contract-audit
+          path: CUAD_TRAINER_GEOMETRY_CONTRACT_AUDIT.json
+          if-no-files-found: error
+          retention-days: 30
