@@ -1,0 +1,88 @@
+{
+  "schema": "musitu-fmi.v8.1-live-authority-evidence.v1",
+  "status": "LIVE_VERIFIED",
+  "date": "2026-09-13",
+  "product": "MUSITU Frontier Market Intelligence",
+  "public_base": "https://mft-fmi-global-edge.mft-education-nexus-93f395f5.workers.dev",
+  "deployment_control": {
+    "repository": "evansmusitu/mft-axiom-build",
+    "branch": "fmi-v8-live-promotion-20260913",
+    "workflow": ".github/workflows/fmi-v8-axiom-content-live-promotion.yml",
+    "workflow_run_id": 34742765135,
+    "workflow_head_sha": "ecd1591fbfd1fcd161c1a72fe0d5262e2730871e",
+    "mechanism": "AXIOM_CLOUDFLARE_WORKER_CONTENT_PUT_WITH_EXACT_ROLLBACK",
+    "wrangler_used_for_worker_content": false,
+    "superseded_wrangler_workflow_retired_commit": "bde61ad0d842526f6333de7df0f3011c386996af"
+  },
+  "candidate": {
+    "name": "UIUX_V8_1_EMBEDDED_ASSET_INTEGRITY",
+    "immutable_v8_base_bundle_sha256": "396c33c9b726e18faf255055c992794cb208d681097a5d8a68ea8a1f5f71a448",
+    "v8_base_edge_sha256": "00fa486ddf3f51f3c435b8db33c5ec1d1c42d6b175abc95f4e1ad9328e40f2b3",
+    "v8_1_edge_sha256": "27ea84793c78f24091e0154836d6330678f3386db97b43f864f117c28ebebcd9",
+    "workspace_source_and_served_sha256": "64accddb375d9f1c0f0d7fddd319e83a0242c9740ae1ae5bcc59185ac3ca7ec3",
+    "asset_integrity_fixes": [
+      "RAW_TAGGED_WORKSPACE_TEMPLATE",
+      "PRESERVE_FINAL_NEWLINE"
+    ]
+  },
+  "production_readback": {
+    "edge_sha256": "27ea84793c78f24091e0154836d6330678f3386db97b43f864f117c28ebebcd9",
+    "workspace_http": 200,
+    "workspace_sha256": "64accddb375d9f1c0f0d7fddd319e83a0242c9740ae1ae5bcc59185ac3ca7ec3",
+    "v8_monitor_routes_present": true,
+    "health_http": 200,
+    "d1_http": 200,
+    "edge_workers_dev": true,
+    "edge_previews_enabled": false,
+    "billing_worker_public": false,
+    "adapter_worker_public": false,
+    "billing_worker_sha256": "cd55b2b7b34bc5f73c394eddebd9edbc22690250b4ab7aff36a209064a3b9454",
+    "adapter_worker_sha256": "c5c4d059b245565bda0aa8bf2f8b8d6282fcb580187e6ce73bb1e1e38e569ed1",
+    "bindings": {
+      "FMI_DB": "a03dc12d-8206-47be-b904-1f24e4e37d91",
+      "FMI_KERNEL": "mft-fmi-modal-adapter",
+      "FMI_BILLING": "mft-fmi-billing",
+      "FMI_MARKET_DATA": "NOT_BOUND_MANUAL_FALLBACK"
+    }
+  },
+  "verification": {
+    "focused_edge_contract": "33/33 PASS",
+    "full_product": "647/647 PASS",
+    "python_compileall": "PASS",
+    "worker_node_check": "PASS",
+    "workspace_node_check": "PASS",
+    "evidence_delta_runtime_probe": "PASS",
+    "evidence_monitor_runtime_probe": "PASS",
+    "runtime_workspace_asset_identity": "PASS",
+    "security_headers": "PASS",
+    "unauthenticated_analysis_401": "PASS",
+    "free_signup_probe": "PASS_AND_CLEANED",
+    "live_kernel_analysis": "PASS",
+    "evidence_indexing": "PASS",
+    "evidence_monitor_creation": "PASS",
+    "evidence_monitor_evaluation": "PASS",
+    "monitor_delivery": "IN_APP_ON_NEW_EVIDENCE",
+    "background_market_polling": false,
+    "pixel_browser_acceptance": "NOT_EXECUTED_ENVIRONMENT_ADMIN_BLOCK"
+  },
+  "github_actions_artifact": {
+    "artifact_id": 10312502428,
+    "name": "musitu-fmi-v8-1-exact-content-promotion-evidence",
+    "digest_sha256": "c2330c11d8fa3fdadc9dc8676554603fdaa892babee9933c6909359f8ac181b7",
+    "promotion_evidence_claim_sha256": "3b53290f3f1d8cd618aa88bce7acab8922351c9fbbc9a55ed21ace30fc7724b1",
+    "promotion_evidence_file_sha256": "cf242d355c7224cf1be8e2376fa17b9084e91495f8d31f3d3a848b194bb4df45"
+  },
+  "authority_boundaries": {
+    "numeric_finance_risk_authority": "DETERMINISTIC_TOOL_ONLY",
+    "live_trading_authorized": false,
+    "trade_execution_authorized": false,
+    "production_model_authority": false,
+    "scaled_autonomy": false,
+    "profitability": "NOT_YET_CERTIFIED",
+    "superiority": "NOT_CERTIFIED",
+    "frontier": "NOT_YET_CERTIFIED",
+    "real_money_settlement": "NOT_CERTIFIED",
+    "payment_action_executed": false,
+    "secret_values_read_or_logged": false
+  }
+}
