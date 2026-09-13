@@ -1,0 +1,75 @@
+name: MUSITU FOUNDRY FORGE Runtime Transport Key Bootstrap
+
+on:
+  push:
+    branches:
+      - foundry-forge-runtime-transport-bootstrap-20260913
+    paths:
+      - '.github/workflows/foundry-forge-runtime-transport-key-bootstrap.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  bootstrap:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      TRANSPORT_WRAP_SECRET: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Generate FOUNDRY runtime transport keypair fail-closed
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$TRANSPORT_WRAP_SECRET" || { echo 'missing credentialed wrap authority' >&2; exit 1; }
+          umask 077
+          mkdir -p transport-key
+          openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:4096 -out /tmp/forge-runtime-transport-private.pem
+          openssl pkey -in /tmp/forge-runtime-transport-private.pem -pubout -out transport-key/FORGE_RUNTIME_TRANSPORT_PUBLIC.pem
+          openssl enc -aes-256-cbc -salt -pbkdf2 -iter 250000 \
+            -in /tmp/forge-runtime-transport-private.pem \
+            -out transport-key/FORGE_RUNTIME_TRANSPORT_PRIVATE.pem.enc \
+            -pass env:TRANSPORT_WRAP_SECRET
+          PUB_SHA="$(sha256sum transport-key/FORGE_RUNTIME_TRANSPORT_PUBLIC.pem | awk '{print $1}')"
+          ENC_SHA="$(sha256sum transport-key/FORGE_RUNTIME_TRANSPORT_PRIVATE.pem.enc | awk '{print $1}')"
+          PUB_FP="$(openssl pkey -pubin -in transport-key/FORGE_RUNTIME_TRANSPORT_PUBLIC.pem -outform DER | sha256sum | awk '{print $1}')"
+          python - <<'PY'
+          import json, os, pathlib
+          out={
+            'schema':'musitu.foundry_forge.runtime_transport_key_bootstrap.v1',
+            'repository':'evansmusitu/mft-axiom-build',
+            'branch':'foundry-forge-runtime-transport-bootstrap-20260913',
+            'purpose':'FOUNDRY + FORGE encrypted deployment payload transport only',
+            'algorithm':'RSA-4096-OAEP-SHA256 envelope key wrapping',
+            'private_key_at_rest':'AES-256-CBC PBKDF2-250000 under existing credentialed Cloudflare authority',
+            'public_key_sha256':os.environ['PUB_SHA'],
+            'public_key_der_fingerprint_sha256':os.environ['PUB_FP'],
+            'encrypted_private_key_sha256':os.environ['ENC_SHA'],
+            'plaintext_private_key_committed':False,
+            'private_product_bytes_included':False,
+          }
+          pathlib.Path('transport-key/FORGE_RUNTIME_TRANSPORT_KEY_MANIFEST.json').write_text(json.dumps(out,indent=2,sort_keys=True)+'\n')
+          PY
+          sha256sum transport-key/* > transport-key/SHA256SUMS.txt
+          rm -f /tmp/forge-runtime-transport-private.pem
+        env:
+          PUB_SHA: ${{ env.PUB_SHA }}
+          ENC_SHA: ${{ env.ENC_SHA }}
+          PUB_FP: ${{ env.PUB_FP }}
+
+      - name: Reverify no plaintext private key artifact
+        shell: bash
+        run: |
+          set -euo pipefail
+          ! grep -R -F 'BEGIN PRIVATE KEY' transport-key
+          test -s transport-key/FORGE_RUNTIME_TRANSPORT_PUBLIC.pem
+          test -s transport-key/FORGE_RUNTIME_TRANSPORT_PRIVATE.pem.enc
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: musitu-forge-runtime-transport-key-v1
+          path: transport-key
+          retention-days: 7
+          if-no-files-found: error
