@@ -1,0 +1,20 @@
+name: FOUNDRY FORGE Private Runner Allocation Probe
+
+on:
+  push:
+    branches:
+      - foundry-forge-runtime-transport-bootstrap-20260913
+    paths:
+      - '.github/workflows/foundry-forge-private-runner-allocation-probe.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Runner allocated
+        run: echo PRIVATE_RUNNER_ALLOCATION_PASS
