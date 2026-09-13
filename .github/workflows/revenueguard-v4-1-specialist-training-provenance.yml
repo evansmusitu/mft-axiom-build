@@ -26,12 +26,8 @@ jobs:
           python - <<'PY'
           import json, os, urllib.request
           repo='evansmusitu/mft-axiom-build'
-          specs=[
-            ('CN',34748996731,'revenueguard-contractnli-decoupled-epoch2-final'),
-            ('CUAD',34749003397,'revenueguard-cuad-matched-window-epoch2-final'),
-          ]
-          token=os.environ['GH_TOKEN']
-          out=[]
+          specs=[('CN',34748996731,'revenueguard-contractnli-decoupled-epoch2-final'),('CUAD',34749003397,'revenueguard-cuad-matched-window-epoch2-final')]
+          token=os.environ['GH_TOKEN']; out=[]
           for prefix,run_id,name in specs:
               req=urllib.request.Request(f'https://api.github.com/repos/{repo}/actions/runs/{run_id}/artifacts?name={name}',headers={'Authorization':f'Bearer {token}','Accept':'application/vnd.github+json'})
               with urllib.request.urlopen(req) as r: obj=json.load(r)
@@ -72,15 +68,21 @@ jobs:
         run: |
           set -euo pipefail
           python - <<'PY'
-          import json, torch
+          import hashlib, json, re, torch
           from pathlib import Path
           cn=torch.load('cn_final/decoupled_epoch2_state.pt',map_location='cpu',weights_only=False)
           assert cn['schema']=='musitu.revenueguard.contractnli.decoupled_chunk_state.v1'
           assert cn['mode']=='decoupled'
-          assert cn['num_chunks']==4 and cn['next_chunk']==4
-          assert cn['global_steps']==615
-          required={'relevance_head.weight','relevance_head.bias','semantic_head.weight','semantic_head.bias'}
-          assert required.issubset(cn['trainable_state'])
+          assert cn['num_chunks']==4 and cn['next_chunk']==4 and cn['global_steps']==615
+          keys=sorted(cn['trainable_state'])
+          assert len(keys)==68,len(keys)
+          name_sha=hashlib.sha256(json.dumps(keys,separators=(',',':')).encode()).hexdigest()
+          shapes={k:list(cn['trainable_state'][k].shape) for k in keys}
+          shape_sha=hashlib.sha256(json.dumps(shapes,sort_keys=True,separators=(',',':')).encode()).hexdigest()
+          assert name_sha=='a858e138760588bdb8c89cb440e75a0f9441d23f7a3a9993a1755a3dc8f77c05',name_sha
+          assert shape_sha=='185cd8b4100f27950ebc20206ccf407a01d2694f8e2a6f6fa8fe6d4f04250b27',shape_sha
+          layer_counts={i:sum(k.startswith(f'encoder.encoder.layer.{i}.') for k in keys) for i in range(6)}
+          assert layer_counts=={0:0,1:0,2:16,3:16,4:16,5:16},layer_counts
           cq=torch.load('cuad_final/cuad_matched_epoch2_state.pt',map_location='cpu',weights_only=False)
           assert cq['schema']=='musitu.revenueguard.cuad.matched_window_state.v1'
           assert cq['num_chunks']==4 and cq['next_chunk']==4
@@ -91,7 +93,7 @@ jobs:
           qjr=json.load(open('cuad_final/CUAD_MATCHED_EPOCH2_FINAL.json'))
           assert cjr['global_steps']==615 and cjr['chunk_index']==3 and cjr['num_chunks']==4
           assert qjr['global_steps']==2571 and qjr['chunk_index']==3 and qjr['num_chunks']==4
-          print({'contractnli_global_steps':cn['global_steps'],'cuad_global_steps':cq['global_steps']})
+          print({'contractnli_global_steps':cn['global_steps'],'contractnli_trainable_tensors':len(keys),'cuad_global_steps':cq['global_steps']})
           PY
 
       - name: Build fail-closed specialist training provenance seal
