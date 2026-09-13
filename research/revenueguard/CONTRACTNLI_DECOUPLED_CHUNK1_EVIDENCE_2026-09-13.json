@@ -1,0 +1,32 @@
+{
+  "schema": "musitu.revenueguard.contractnli.decoupled_chunk_evidence.v1",
+  "status": "DEV_RESEARCH_ONLY_NOT_CERTIFICATION",
+  "run_id": 34748996731,
+  "chunk_index": 1,
+  "artifact_id": 10316097913,
+  "artifact_sha256": "cc3b6c2aea82d58348321cf42be67177332f1213b11c946a0505dc64d3925f38",
+  "report_sha256": "3ce086568b4fcd10a096fea8954fb8e245d1efadac84039be5587c69956d0589",
+  "state_sha256": "862ed1bbd84e375d97fb6df6b7ec2e7e55544cf3cfbe2246a3a7a47c27d24764",
+  "chunk_samples": 7392,
+  "chunk_steps": 154,
+  "global_steps": 307,
+  "full_epoch_samples": 29488,
+  "full_epoch_steps": 615,
+  "chunk_loss": 0.7164257904151817,
+  "chunk_relevance_loss": 0.40571089408227373,
+  "chunk_semantic_loss": 0.24985827076212538,
+  "chunk0_comparison": {
+    "chunk_loss": 0.9423777036417543,
+    "chunk_relevance_loss": 0.5203104983357822,
+    "chunk_semantic_loss": 0.3440206441784801
+  },
+  "trainable_state_validation": {
+    "tensor_count": 68,
+    "sorted_trainable_name_list_sha256": "a858e138760588bdb8c89cb440e75a0f9441d23f7a3a9993a1755a3dc8f77c05",
+    "trainable_name_to_shape_map_sha256": "185cd8b4100f27950ebc20206ccf407a01d2694f8e2a6f6fa8fe6d4f04250b27",
+    "matches_frozen_chunk0_contract": true
+  },
+  "execution_contract_match": true,
+  "sealed_data_impact": "none; ContractNLI test and MAUD remain unopened",
+  "authority": "training checkpoint evidence only; grants no dev-gate, V4.1 assembly, test-opening, certification, or superiority authority"
+}
