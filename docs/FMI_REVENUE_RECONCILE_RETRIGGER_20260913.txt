@@ -1,0 +1,1 @@
+Retrigger marker for the isolated FMI real-money reconciliation verifier after correcting the verifier-only local-expiry guard. No checkout creation, no payment action, no production Worker deployment, and no sealed-main mutation are authorized by this marker.
