@@ -1,5 +1,5 @@
 {
-  "schema": "musitu.axiom.interface.surface-map.v10",
+  "schema": "musitu.axiom.interface.surface-map.v11",
   "authority": {
     "earned_track_b_sha": "73ecdbad38cb10020b6e30ebe42a9222a3bb6c55",
     "qualified_phase1_sha": "5b7233fd9e62b530ef9eb161b41010727d76bacb",
@@ -31,9 +31,16 @@
     "qualified_phase10_runtime_security_artifact_id": 10313540876,
     "qualified_phase10_runtime_security_evidence_digest": "sha256:f202b1ab48405d19ba1c2121d3da9ee00e3cfb3c914022464b3c06291b25e95c",
     "qualified_phase10_artifact_binding_verified": true,
+    "qualified_phase11_sha": "3952a9c41f6069f8f0f9427cd99779a95e0cd443",
+    "qualified_phase11_run_id": 34748687809,
+    "qualified_phase11_evidence_artifact_id": 10315500972,
+    "qualified_phase11_evidence_digest": "sha256:e9852d2eed21f196d21e8d823591b6e1b29f18969795d66648d362aebcf5fe53",
+    "qualified_phase11_runtime_security_artifact_id": 10315037000,
+    "qualified_phase11_runtime_security_evidence_digest": "sha256:a93111f638230ef697b8241cdc77703cf427e54a25d4b7ae034b2b9326051bed",
+    "qualified_phase11_artifact_binding_verified": true,
     "blueprint_sha256": "e750039a9c88abc780d24f48c3e86e22fd9295fec99a1b0593668aa8dd9ac166"
   },
-  "phase": "PHASE_10_MEMORY_GRAPH",
+  "phase": "PHASE_11_OPERATOR_ENTERPRISE_CONTROL_PLANE",
   "surfaces": [
     {"id":"flagship","target":"musitu.ai/axiom","state":"future-routing","access":"public"},
     {"id":"app","target":"app","state":"shell-plus-project-graph-plus-work-plus-research-plus-artifacts-plus-observability-plus-live-plus-computer","access":"authenticated"},
@@ -47,7 +54,7 @@
     {"id":"academy","target":"academy","state":"registered-placeholder","access":"mixed"},
     {"id":"community","target":"community","state":"registered-placeholder","access":"mixed"}
   ],
-  "workspace_routes": ["home","projects","work","research","create","code","live","computer","agents","evidence","observability","developer","settings"],
+  "workspace_routes": ["home","projects","work","research","create","code","live","computer","agents","operator","evidence","observability","developer","settings"],
   "project_routes": ["overview","conversations","sources","agents","artifacts","runs","memory","settings"],
   "project_substrate": {
     "persistence": "INDEXEDDB_BROWSER_LOCAL_DEVICE",
@@ -267,6 +274,34 @@
     "cloud_memory_sync_claimed": false,
     "hidden_reasoning_storage_claimed": false,
     "destructive_forget_claimed": false
+  },
+  "operator_enterprise_control_plane_substrate": {
+    "status": "EARNED",
+    "qualification_scope": "BROWSER_LOCAL_ENTERPRISE_OPERATOR_CONTROL_PLANE_PREVIEW",
+    "qualified_sha": "3952a9c41f6069f8f0f9427cd99779a95e0cd443",
+    "workflow_run_id": 34748687809,
+    "evidence_artifact_id": 10315500972,
+    "evidence_artifact_digest": "sha256:e9852d2eed21f196d21e8d823591b6e1b29f18969795d66648d362aebcf5fe53",
+    "runtime_security_evidence_artifact_id": 10315037000,
+    "runtime_security_evidence_artifact_digest": "sha256:a93111f638230ef697b8241cdc77703cf427e54a25d4b7ae034b2b9326051bed",
+    "evidence_metadata_source": "GITHUB_ACTIONS_RUN_ARTIFACTS_API",
+    "evidence_metadata_verified": true,
+    "persistence": "INDEXEDDB_BROWSER_LOCAL_DEVICE",
+    "roles": ["owner","admin","analyst","viewer"],
+    "network_policy": "DENY_ALL_EXTERNAL_NETWORK",
+    "control_plane_mode": "BROWSER_LOCAL_ADMIN_PREVIEW_ONLY_NO_PRODUCTION_MUTATION",
+    "identity_policy": "LOCAL_ENTERPRISE_PREVIEW_NOT_PRODUCTION_IDENTITY_PROVIDER",
+    "billing_policy": "NO_PAYMENT_PROCESSING_OR_SETTLEMENT",
+    "hidden_reasoning_policy": "NO_HIDDEN_REASONING_OR_SECRET_STORAGE",
+    "preview_integrity": "SHA256_BOUND_EXACT_ROLE_AND_POLICY_PREVIEWS",
+    "audit_integrity": "SHA256_LINKED_EVENTS_MEMBERS_RECEIPTS",
+    "posture_scope": "AGENTS_AUTOMATIONS_OBSERVABILITY_SLO_LOCAL_COMPUTE",
+    "production_identity_mutation_claimed": false,
+    "production_billing_claimed": false,
+    "cloud_control_plane_claimed": false,
+    "external_action_execution_claimed": false,
+    "hidden_reasoning_recorded": false,
+    "production_policy_enforcement_claimed": false
   },
   "execution_boundary": "PREVIEW_ONLY_NO_EXTERNAL_CONSEQUENTIAL_ACTIONS"
 }
