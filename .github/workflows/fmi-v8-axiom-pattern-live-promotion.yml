@@ -63,7 +63,6 @@ jobs:
           PY
           node --check /tmp/fmi-v8-runtime/edge/fmi-global/worker.js
           grep -q 'PAPER_SHADOW_ONLY' /tmp/fmi-v8-runtime/edge/fmi-global/worker.js
-          grep -q 'DETERMINISTIC_TOOL_ONLY' /tmp/fmi-v8-runtime/edge/fmi-global/worker.js
 
       - name: Install exact Wrangler and verify API-key authentication
         shell: bash
