@@ -64,7 +64,7 @@ jobs:
           PY
           source /tmp/d1-state
           if [ "${CREATE:-0}" = 1 ]; then
-            npx wrangler d1 create "$TRANSPORT_DB" --location eeur --json >/tmp/d1-create.json
+            npx wrangler d1 create "$TRANSPORT_DB" --location eeur >/tmp/d1-create.log
             npx wrangler d1 list --json >/tmp/d1-after.json
           else
             cp /tmp/d1.json /tmp/d1-after.json
