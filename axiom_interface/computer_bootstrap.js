@@ -1,0 +1,7 @@
+import { initComputerWorkspace } from './computer.js';
+
+const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
+async function waitForQualifiedDependencies(){for(let i=0;i<240;i++){if(window.AxiomProjects?.store&&window.AxiomObservability?.store)return {projects:window.AxiomProjects,observability:window.AxiomObservability};await sleep(25);}throw new Error('qualified Project/Observability APIs were not ready');}
+function installNavigation(){const nav=document.querySelector('.global-rail nav');if(!nav||nav.querySelector('[data-route="computer"]'))return;const link=document.createElement('a');link.className='nav-item';link.href='#/computer';link.dataset.route='computer';link.innerHTML='<span aria-hidden="true">▰</span><span>Computer</span>';const agents=nav.querySelector('[data-route="agents"]');nav.insertBefore(link,agents||null);link.addEventListener('click',()=>window.AxiomUI?.emit?.('nav.activate',{control:'computer'}));}
+async function boot(){installNavigation();const deps=await waitForQualifiedDependencies();const api=await initComputerWorkspace(deps);window.AxiomUI?.emit?.('workspace.phase8.ready',{state:'computer-visible-local-sandbox'});return api;}
+window.AxiomComputerBootstrap=boot().catch(error=>{window.AxiomUI?.reportError?.({errorId:'AXIOM-COMPUTER-INIT',component:'Computer',impact:'Computer sandbox unavailable',failed:error.message,recovery:'Reload the workspace and retry'});throw error;});

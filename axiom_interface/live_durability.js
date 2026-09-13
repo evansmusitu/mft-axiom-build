@@ -1,5 +1,6 @@
 import { LiveStore } from './live.js';
 import { attachLiveSemanticBridge } from './live_semantic_bridge.js';
+import './computer_bootstrap.js';
 
 const WRAPPED = Symbol.for('musitu.axiom.live.durability.wrapped');
 const SESSION_ARG = Object.freeze({
