@@ -3,11 +3,11 @@ import argparse, hashlib, json, re, string
 from collections import Counter, defaultdict
 from pathlib import Path
 
+EXPECTED_SCORING_MODE='explicit_answerability_margin_with_bound_span_localization'
 
 def norm(s):
     s=s.lower(); s=''.join(ch for ch in s if ch not in set(string.punctuation)); s=re.sub(r'\b(a|an|the)\b',' ',s)
     return ' '.join(s.split())
-
 def token_f1(a,b):
     A=norm(a).split(); B=norm(b).split()
     if not A and not B:return 1.0
@@ -15,20 +15,25 @@ def token_f1(a,b):
     n=sum((Counter(A)&Counter(B)).values())
     if not n:return 0.0
     p=n/len(A);r=n/len(B);return 2*p*r/(p+r)
-
 def overlap(a,b,c,d): return a is not None and b is not None and max(a,c)<min(b,d)
-
 def main():
     ap=argparse.ArgumentParser();ap.add_argument('--aggregate',required=True);ap.add_argument('--shard-glob',required=True);ap.add_argument('--out',required=True);args=ap.parse_args()
     agg=json.load(open(args.aggregate)); th=float(agg['threshold'])
-    files=sorted(Path('.').glob(args.shard_glob)); rows=[];seen=set()
+    if agg.get('schema')!='musitu.revenueguard.cuad.heldout_eval.v2_sharded':raise SystemExit('unexpected aggregate schema')
+    files=sorted(Path('.').glob(args.shard_glob)); rows=[];seen=set();modes=set();seen_shards=set();expected_shards=None
     for f in files:
         o=json.load(open(f))
         if o.get('schema')!='musitu.revenueguard.cuad.heldout_raw_shard.v1':raise SystemExit(f'bad shard schema {f}')
+        modes.add(o.get('scoring_mode'))
+        si=int(o['shard_index']);seen_shards.add(si)
+        expected_shards=int(o['num_shards']) if expected_shards is None else expected_shards
+        if int(o['num_shards'])!=expected_shards:raise SystemExit('mixed shard cardinality')
         for r in o['rows']:
             k=(r['title'],r['id'])
             if k in seen:raise SystemExit(f'duplicate row {k}')
             seen.add(k);rows.append(r)
+    if modes!={EXPECTED_SCORING_MODE}:raise SystemExit(f'unexpected or mixed scoring modes {modes}')
+    if seen_shards!=set(range(expected_shards or 0)):raise SystemExit('incomplete shard set')
     if len(rows)!=agg['heldout_rows']:raise SystemExit((len(rows),agg['heldout_rows']))
     eval_rows=[r for r in rows if r['split']=='evaluation']
     if len(eval_rows)!=agg['evaluation_rows']:raise SystemExit((len(eval_rows),agg['evaluation_rows']))
@@ -48,6 +53,6 @@ def main():
     def sample(rs):
         return [{'title':r['title'],'id':r['id'],'confidence':r['confidence'],'has_answer':r['has_answer'],'window_count':r.get('window_count')} for r in sorted(rs,key=lambda x:abs(x['confidence']-th),reverse=True)[:25]]
     counts={k:len(v) for k,v in sorted(fam.items())}
-    rep={'schema':'musitu.revenueguard.cuad.postgate_failure_mining.v1','status':'POST_GATE_DIAGNOSTIC_NOT_CERTIFICATION_EVIDENCE','source_aggregate_report_sha256':agg['report_sha256'],'model_artifact_sha256':agg['model_artifact_sha256'],'threshold_frozen_from_aggregate':th,'evaluation_rows':len(eval_rows),'gate_pass':agg['gate']['pass'],'failure_family_counts':counts,'failure_family_examples':{k:sample(v) for k,v in sorted(fam.items())},'rule':'No threshold, metric, split, model weight, or gate is changed. Output is curriculum for a future candidate only.'}
-    rep['report_sha256']=hashlib.sha256(json.dumps(rep,sort_keys=True,separators=(',',':')).encode()).hexdigest();Path(args.out).write_text(json.dumps(rep,indent=2,sort_keys=True)+'\n');print(json.dumps(rep,indent=2,sort_keys=True))
+    rep={'schema':'musitu.revenueguard.cuad.postgate_failure_mining.v2','status':'POST_GATE_DIAGNOSTIC_NOT_CERTIFICATION_EVIDENCE','source_aggregate_report_sha256':agg['report_sha256'],'model_artifact_sha256':agg['model_artifact_sha256'],'scoring_mode':EXPECTED_SCORING_MODE,'threshold_frozen_from_aggregate':th,'evaluation_rows':len(eval_rows),'gate_pass':agg['gate']['pass'],'failure_family_counts':counts,'failure_family_examples':{k:sample(v) for k,v in sorted(fam.items())},'rule':'No threshold, metric, split, model weight, or gate is changed. Output is curriculum for a future candidate only.','sealed_policy':'Official CUAD test remains unopened; this miner consumes only the locked title-hash heldout evaluation shards.'}
+    rep['report_sha256']=hashlib.sha256(json.dumps(rep,sort_keys=True,separators=(',',':')).encode()).hexdigest();Path(args.out).write_text(json.dumps(rep,indent=2,sort_keys=True)+'\n');print(json.dumps({k:v for k,v in rep.items() if k!='failure_family_examples'},indent=2,sort_keys=True))
 if __name__=='__main__':main()
