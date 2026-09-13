@@ -1,0 +1,20 @@
+{
+  "schema": "musitu.revenueguard.cuad.matched_window_chunk_execution_contract.v1",
+  "status": "DEV_RESEARCH_ONLY_NOT_CERTIFICATION",
+  "source_geometry_report_sha256": "d8820202835ae82499e96a8ee8895c175ac5ddc39e7ec66b7bbfd0367d3520a1",
+  "source_train_sha256": "7de21d2bb741ac939e2a839ef9640634a5e0f9f40ea2b82c6833baf7db33dab4",
+  "batch_size": 24,
+  "chunk_samples": [15436, 15462, 15380, 15381],
+  "chunk_steps": [644, 645, 641, 641],
+  "cumulative_global_steps_after_chunk": [644, 1289, 1930, 2571],
+  "selected_training_windows": 61659,
+  "selected_positive": 12305,
+  "selected_negative": 49354,
+  "heldout_questions_excluded": 2461,
+  "heldout_contracts_excluded": 45,
+  "max_length": 384,
+  "stride": 128,
+  "continuity_rule": "Chunk N>0 must load the exact immediately preceding chunk model directory plus state; state next_chunk must equal N, num_chunks must remain 4, train_sha256 must remain exact, and optimizer/answerability-head/RNG state must continue. Chunk reports must match the sample, step, and cumulative-global-step vectors above.",
+  "official_cuad_test_opened": false,
+  "certification": "NOT_CERTIFIED"
+}
