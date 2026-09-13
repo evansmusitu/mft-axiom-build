@@ -3,7 +3,7 @@ name: RevenueGuard ContractNLI Decoupled Epoch2 Locked Dev Eval
 on:
   push:
     branches: [revenueguard-axiom-governor-20260911]
-    paths: ['research/revenueguard/TRIGGER_CONTRACTNLI_EPOCH1_EVAL.json']
+    paths: ['.github/workflows/revenueguard-contractnli-epoch1-final-eval.yml']
   workflow_dispatch:
 
 permissions:
@@ -11,7 +11,33 @@ permissions:
   actions: read
 
 jobs:
+  await_candidate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 185
+    steps:
+      - name: Await exact decoupled training run and fail closed on any non-success
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          API='https://api.github.com/repos/evansmusitu/mft-axiom-build/actions/runs/34748996731'
+          for i in $(seq 1 360); do
+            J=$(curl -fsSL -H "Authorization: Bearer ${GH_TOKEN}" -H 'Accept: application/vnd.github+json' "$API")
+            STATUS=$(printf '%s' "$J" | python -c "import sys,json; print(json.load(sys.stdin)['status'])")
+            CONCLUSION=$(printf '%s' "$J" | python -c "import sys,json; print(json.load(sys.stdin).get('conclusion') or '')")
+            echo "training_status=${STATUS} conclusion=${CONCLUSION}"
+            if [ "$STATUS" = completed ]; then
+              [ "$CONCLUSION" = success ] || { echo 'bound training run did not succeed'; exit 1; }
+              exit 0
+            fi
+            sleep 30
+          done
+          echo 'bound training run did not complete inside fail-closed evaluation window'
+          exit 1
+
   score:
+    needs: await_candidate
     strategy:
       fail-fast: false
       max-parallel: 8
