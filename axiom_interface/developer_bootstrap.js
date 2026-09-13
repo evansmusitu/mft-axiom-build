@@ -1,0 +1,6 @@
+import {initDeveloperPlatform} from './developer_ui.js';
+const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
+function installStyles(){if(document.querySelector('link[data-axiom-developer-platform-style]'))return;const link=document.createElement('link');link.rel='stylesheet';link.href='./styles/developer.css';link.dataset.axiomDeveloperPlatformStyle='true';document.head.append(link);}
+async function dependency(){for(let attempt=0;attempt<400;attempt++){if(window.AxiomOperator?.store)return window.AxiomOperator;await sleep(25);}throw new Error('earned Operator control plane API was not ready');}
+async function boot(){installStyles();const operator=await dependency(),api=await initDeveloperPlatform({emit:window.AxiomUI?.emit,operator});window.AxiomUI?.emit?.('workspace.phase12.ready',{state:'developer-platform-browser-local-conformance'});return api;}
+window.AxiomDeveloperPlatformBootstrap=boot().catch(error=>{window.AxiomUI?.reportError?.({errorId:'AXIOM-DEVELOPER-INIT',component:'Developer platform',impact:'Developer platform preview unavailable; inherited workspaces remain available',failed:error.message,recovery:'Reload and retry the Developer surface'});throw error;});
