@@ -2,7 +2,7 @@
 import argparse, hashlib, json
 from pathlib import Path
 
-CN_SCHEMA='musitu.revenueguard.contractnli.decoupled_checkpoint_eval.v1'
+CN_SCHEMA='musitu.revenueguard.contractnli.decoupled_checkpoint_eval.v2'
 CUAD_SCHEMA='musitu.revenueguard.cuad.heldout_eval.v2_sharded'
 PROV_SCHEMA='musitu.revenueguard.v4_1.specialist_training_provenance_seal.v1'
 CN_GATE={'accuracy_min':0.90,'macro_f1_min':0.88,'false_grounding_max':0.02,'evidence_recall_min':0.85}
@@ -25,6 +25,7 @@ def main():
     cn=json.load(open(args.contractnli)); cq=json.load(open(args.cuad)); prov=json.load(open(args.training_provenance))
 
     if cn.get('schema')!=CN_SCHEMA or cn.get('mode')!='decoupled': raise SystemExit('ContractNLI eval identity mismatch')
+    if 'semantic-head labels or correctness do not participate' not in cn.get('calibration_contract',''): raise SystemExit('ContractNLI abstention was not relevance-only calibrated')
     if cq.get('schema')!=CUAD_SCHEMA: raise SystemExit('CUAD eval identity mismatch')
     if prov.get('schema')!=PROV_SCHEMA or prov.get('status')!='TRAINING_PROVENANCE_PASS_NOT_CERTIFICATION': raise SystemExit('training provenance absent')
     eq_gate(cn.get('gate') or {},CN_GATE,'ContractNLI'); eq_gate(cq.get('gate') or {},CUAD_GATE,'CUAD')
@@ -42,11 +43,11 @@ def main():
     if bool(cq['gate']['pass'])!=cq_pass: raise SystemExit('CUAD pass flag mismatch')
 
     rep={
-      'schema':'musitu.revenueguard.v4_1.specialist_dev_admission.v2',
+      'schema':'musitu.revenueguard.v4_1.specialist_dev_admission.v3',
       'status':'SPECIALISTS_ADMITTED_FOR_V4_1_ASSEMBLY' if cn_pass and cq_pass else 'SPECIALIST_DEV_GATE_FAILED_NO_V4_1_ASSEMBLY',
       'certification':'NOT_CERTIFIED',
       'training_provenance_report_sha256':prov['report_sha256'],
-      'contractnli':{'gate_pass':cn_pass,'report_sha256':cn['report_sha256'],'checkpoint_artifact_sha256':cn['checkpoint_artifact_sha256'],'chosen_k':cn['chosen_k'],'chosen_relevance_threshold':cn['chosen_threshold'],'dev':d},
+      'contractnli':{'gate_pass':cn_pass,'report_sha256':cn['report_sha256'],'checkpoint_artifact_sha256':cn['checkpoint_artifact_sha256'],'chosen_k':cn['chosen_k'],'chosen_relevance_threshold':cn['chosen_threshold'],'calibration_contract':cn['calibration_contract'],'dev':d},
       'cuad':{'gate_pass':cq_pass,'report_sha256':cq['report_sha256'],'model_artifact_sha256':cq['model_artifact_sha256'],'threshold':cq['threshold'],'evaluation':e,'trainer_geometry_report_sha256':prov['cuad']['geometry_report_sha256'],'global_steps':prov['cuad']['global_steps']},
       'frozen_v4_required_identity':{'archive_sha256':FROZEN_V4_SHA,'structured_money_regression_sha256':FROZEN_V4_REGRESSION_SHA,'regression_test_count':30},
       'sealed_datasets':{'contractnli_test_opened':False,'maud_opened':False,'cuad_official_test_opened':False},
