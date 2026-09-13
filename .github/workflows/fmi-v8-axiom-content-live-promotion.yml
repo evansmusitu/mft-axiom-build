@@ -1,4 +1,4 @@
-name: MUSITU FMI V8 Exact Axiom Content Promotion
+name: MUSITU FMI V8.1 Exact Axiom Content Promotion
 
 on:
   workflow_dispatch:
@@ -11,7 +11,7 @@ permissions:
   contents: read
 
 jobs:
-  promote-v8-exact:
+  promote-v8-1-exact:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
@@ -26,7 +26,8 @@ jobs:
       PUBLIC_BASE: https://mft-fmi-global-edge.mft-education-nexus-93f395f5.workers.dev
       EXPECTED_CURRENT_EDGE_SHA: d4d0e5660ab463960e93ca555cedcc65ee3e308d46b21224ed2e596383c6da10
       EXPECTED_PREV_EDGE_SHA: d4d0e5660ab463960e93ca555cedcc65ee3e308d46b21224ed2e596383c6da10
-      EXPECTED_V8_EDGE_SHA: 00fa486ddf3f51f3c435b8db33c5ec1d1c42d6b175abc95f4e1ad9328e40f2b3
+      EXPECTED_V8_BASE_EDGE_SHA: 00fa486ddf3f51f3c435b8db33c5ec1d1c42d6b175abc95f4e1ad9328e40f2b3
+      EXPECTED_V8_EDGE_SHA: 27ea84793c78f24091e0154836d6330678f3386db97b43f864f117c28ebebcd9
       EXPECTED_V8_WORKSPACE_SHA: 64accddb375d9f1c0f0d7fddd319e83a0242c9740ae1ae5bcc59185ac3ca7ec3
       EXPECTED_BILLING_SHA: cd55b2b7b34bc5f73c394eddebd9edbc22690250b4ab7aff36a209064a3b9454
       EXPECTED_ADAPTER_SHA: c5c4d059b245565bda0aa8bf2f8b8d6282fcb580187e6ce73bb1e1e38e569ed1
@@ -43,7 +44,7 @@ jobs:
           test -n "$CLOUDFLARE_EMAIL"
           test -n "$CLOUDFLARE_API_KEY"
 
-      - name: Reconstruct and verify exact V8 payload
+      - name: Reconstruct and verify immutable V8 base payload
         shell: bash
         run: |
           set -euo pipefail
@@ -58,11 +59,29 @@ jobs:
           for f in m['files']:
               p=r/f['path'];b=p.read_bytes() if p.is_file() else b''
               if not p.is_file() or len(b)!=f['size'] or hashlib.sha256(b).hexdigest()!=f['sha256']:bad.append(f['path'])
-          if bad:raise SystemExit('Fail-closed payload integrity: '+repr(bad))
+          if bad:raise SystemExit('Fail-closed base payload integrity: '+repr(bad))
           got=hashlib.sha256(pathlib.Path(os.environ['V8_SOURCE_PATH']).read_bytes()).hexdigest()
-          if got!=os.environ['EXPECTED_V8_EDGE_SHA']:raise SystemExit('Fail-closed V8 edge SHA '+got)
+          if got!=os.environ['EXPECTED_V8_BASE_EDGE_SHA']:raise SystemExit('Fail-closed V8 base edge SHA '+got)
           PY
+
+      - name: Derive exact V8.1 asset-integrity candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/fmi_v8_1_asset_integrity_patch.py
           node --check "$V8_SOURCE_PATH"
+          node - <<'NODE'
+          const fs=require('fs'),vm=require('vm'),crypto=require('crypto');
+          let s=fs.readFileSync(process.env.V8_SOURCE_PATH,'utf8');
+          s=s.replace('export default {async fetch(req,env)','globalThis.__worker={async fetch(req,env)');
+          s+='\nglobalThis.__workspace=workspaceJs();';
+          const ctx={}; vm.createContext(ctx); vm.runInContext(s,ctx);
+          const b=Buffer.from(ctx.__workspace,'utf8');
+          const got=crypto.createHash('sha256').update(b).digest('hex');
+          if(got!==process.env.EXPECTED_V8_WORKSPACE_SHA)throw new Error('runtime workspace SHA '+got);
+          if(b.length!==38153)throw new Error('runtime workspace length '+b.length);
+          console.log(JSON.stringify({gate:'RUNTIME_WORKSPACE_ASSET_PASS',sha256:got,size:b.length}));
+          NODE
 
       - name: Pre-mutation read-only production state capture
         shell: bash
@@ -78,7 +97,7 @@ jobs:
           set -euo pipefail
           python scripts/fmi_v8_axiom_content_swap.py promote
 
-      - name: Independent V8 live functional verification
+      - name: Independent V8.1 live functional verification
         id: verify
         shell: bash
         run: |
@@ -123,8 +142,9 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: ${{ always() }}
         with:
-          name: musitu-fmi-v8-exact-content-promotion-evidence
+          name: musitu-fmi-v8-1-exact-content-promotion-evidence
           path: |
+            fmi-v8-1-asset-integrity-patch-evidence.json
             fmi-v8-pre-content-state.json
             fmi-v8-content-swap-evidence.json
             fmi-v8-live-promotion-evidence.json
