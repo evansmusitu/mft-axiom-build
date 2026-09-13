@@ -195,6 +195,11 @@ def main() -> None:
             assert final_integrity["status"] == "PASS", final_integrity
             page.screenshot(path=str(ARTIFACT_DIR / "phase9-agents-automations.png"), full_page=True)
 
+            page.evaluate("()=>{location.hash='#/projects'}")
+            page.locator("#project-space").wait_for(state="visible")
+            assert page.locator("#agents-space").is_hidden()
+            assert page.locator("#app-shell").get_attribute("data-workspace-owner") is None
+
             foreign_requests = [url for url in requests if not url.startswith(origin + "/")]
             assert foreign_requests == [], foreign_requests
             evidence = {
@@ -223,6 +228,7 @@ def main() -> None:
                 "ctrl_k_inherited_focus_verified": True,
                 "cascading_kill_switch_verified": True,
                 "post_kill_execution_rejected": True,
+                "inherited_route_visibility_verified": True,
                 "network_policy": "DENY_ALL_EXTERNAL_NETWORK",
                 "foreign_requests": foreign_requests,
                 "cloud_scheduler_claimed": False,

@@ -86,6 +86,7 @@ class Phase9AgentAutomationContractTests(unittest.TestCase):
             self.assertIn(label, MARKUP + UI)
         self.assertIn('aria-live="polite"', MARKUP)
         self.assertIn("max-width:52rem", CSS)
+        self.assertIn('data-workspace-owner="agents"', CSS)
         self.assertIn("prefers-reduced-motion:reduce", CSS)
         self.assertIn("forced-colors:active", CSS)
         self.assertIn("AxiomProjects", BOOT)

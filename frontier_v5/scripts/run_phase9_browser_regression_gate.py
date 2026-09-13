@@ -44,6 +44,7 @@ def main() -> None:
         "ctrl_k_inherited_focus_verified",
         "cascading_kill_switch_verified",
         "post_kill_execution_rejected",
+        "inherited_route_visibility_verified",
     ]
     assert evidence["status"] == "PASS"
     assert all(evidence[field] is True for field in required)

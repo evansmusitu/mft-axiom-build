@@ -1,5 +1,6 @@
 .agents-space{display:grid;gap:var(--space-5)}
 .agents-space[hidden]{display:none}
+.app-shell[data-workspace-owner="agents"] .hero-card,.app-shell[data-workspace-owner="agents"] .run-stage{display:none!important}
 .agent-project-bar{display:grid;grid-template-columns:minmax(15rem,24rem) 1fr;gap:var(--space-4);align-items:end;padding:var(--space-4);border:1px solid var(--border);border-radius:var(--radius-lg);background:var(--surface)}
 .agent-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:var(--space-4)}
 .agent-list-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--space-4)}
