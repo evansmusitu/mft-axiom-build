@@ -1,5 +1,5 @@
 {
-  "schema": "musitu.axiom.interface.surface-map.v8",
+  "schema": "musitu.axiom.interface.surface-map.v9",
   "authority": {
     "earned_track_b_sha": "73ecdbad38cb10020b6e30ebe42a9222a3bb6c55",
     "qualified_phase1_sha": "5b7233fd9e62b530ef9eb161b41010727d76bacb",
@@ -18,9 +18,15 @@
     "qualified_phase8_evidence_digest": "sha256:5ebbaf7e94bffe9a6ce59bdf06366c1994a66fb9ba47ab56eae0244f0faf415c",
     "qualified_phase8_runtime_security_artifact_id": 10311585199,
     "qualified_phase8_runtime_security_evidence_digest": "sha256:b556dcfc37fb141947ef3f260bc0131028bd64ff89b718aee68a7dc1505bf913",
+    "qualified_phase9_sha": "277478e12529f755fc4269b648e8fbe08caafb92",
+    "qualified_phase9_run_id": 34740235255,
+    "qualified_phase9_evidence_artifact_id": 10312178769,
+    "qualified_phase9_evidence_digest": "sha256:eff4ce113752cc7be8808465ac330270814b7af8451d507546cdac93d9658b33",
+    "qualified_phase9_runtime_security_artifact_id": 10311354462,
+    "qualified_phase9_runtime_security_evidence_digest": "sha256:ca703dc6ab0b878f1057b0519ceed89aae267545492aed0bae8cd2ca5562b772",
     "blueprint_sha256": "e750039a9c88abc780d24f48c3e86e22fd9295fec99a1b0593668aa8dd9ac166"
   },
-  "phase": "PHASE_8_COMPUTER_BROWSER_EXECUTION",
+  "phase": "PHASE_9_AGENTS_AUTOMATIONS",
   "surfaces": [
     {"id":"flagship","target":"musitu.ai/axiom","state":"future-routing","access":"public"},
     {"id":"app","target":"app","state":"shell-plus-project-graph-plus-work-plus-research-plus-artifacts-plus-observability-plus-live-plus-computer","access":"authenticated"},
@@ -210,6 +216,28 @@
     "arbitrary_external_site_execution_claimed": false,
     "os_level_computer_control_claimed": false,
     "production_isolation_certified": false
+  },
+  "agent_automation_substrate": {
+    "status": "EARNED",
+    "qualification_scope": "BROWSER_LOCAL_GOVERNED_AGENT_AND_TRIGGER_PREVIEW_SUBSTRATE",
+    "qualified_sha": "277478e12529f755fc4269b648e8fbe08caafb92",
+    "workflow_run_id": 34740235255,
+    "evidence_artifact_id": 10312178769,
+    "evidence_artifact_digest": "sha256:eff4ce113752cc7be8808465ac330270814b7af8451d507546cdac93d9658b33",
+    "runtime_security_evidence_artifact_id": 10311354462,
+    "runtime_security_evidence_artifact_digest": "sha256:ca703dc6ab0b878f1057b0519ceed89aae267545492aed0bae8cd2ca5562b772",
+    "persistence": "INDEXEDDB_BROWSER_LOCAL_DEVICE",
+    "network_policy": "DENY_ALL_EXTERNAL_NETWORK",
+    "secrets_policy": "SYMBOLIC_REFERENCE_ONLY_NO_PLAINTEXT_SECRETS",
+    "execution_mode": "LOCAL_PREVIEW_ONLY_NO_EXTERNAL_ACTION",
+    "max_delegation_depth": 2,
+    "least_privilege_delegation": true,
+    "cascading_kill_switch": true,
+    "observability_linkage_required": true,
+    "cloud_scheduler_claimed": false,
+    "external_action_execution_claimed": false,
+    "production_workload_isolation_certified": false,
+    "plaintext_secret_access_claimed": false
   },
   "execution_boundary": "PREVIEW_ONLY_NO_EXTERNAL_CONSEQUENTIAL_ACTIONS"
 }
