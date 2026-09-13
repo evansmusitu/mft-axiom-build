@@ -34,5 +34,5 @@ class Phase6ObservabilityContractTests(unittest.TestCase):
      self.assertEqual(phase10,'78d76060138a00e48839edb1d5454f1a197225b3');self.assertEqual(SURFACE['memory_graph_substrate']['qualified_sha'],phase10)
      phase11=authority.get('qualified_phase11_sha')
      if phase11 is None:self.assertEqual(SURFACE['phase'],'PHASE_10_MEMORY_GRAPH')
-     else:self.assertEqual(phase11,PHASE11_SHA);self.assertEqual(SURFACE['phase'],'PHASE_11_OPERATOR_ENTERPRISE_CONTROL_PLANE');self.assertEqual(SURFACE['operator_enterprise_control_plane_substrate']['qualified_sha'],phase11)
+     else:self.assertEqual(phase11,PHASE11_SHA);self.assertEqual(SURFACE['phase'],'PHASE_12_DEVELOPER_PLATFORM_MARKETPLACE' if SURFACE['authority'].get('qualified_phase12_sha') else 'PHASE_11_OPERATOR_ENTERPRISE_CONTROL_PLANE');self.assertEqual(SURFACE['operator_enterprise_control_plane_substrate']['qualified_sha'],phase11)
 if __name__=='__main__':unittest.main(verbosity=2)

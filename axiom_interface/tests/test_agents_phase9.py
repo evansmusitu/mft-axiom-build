@@ -18,7 +18,7 @@ class Phase9AgentAutomationContractTests(unittest.TestCase):
    self.assertEqual(phase10,'78d76060138a00e48839edb1d5454f1a197225b3');self.assertEqual(SURFACE['memory_graph_substrate']['qualified_sha'],phase10);self.assertEqual(SURFACE['memory_graph_substrate']['status'],'EARNED')
    phase11=authority.get('qualified_phase11_sha')
    if phase11 is None:self.assertEqual(SURFACE['schema'],'musitu.axiom.interface.surface-map.v10');self.assertEqual(SURFACE['phase'],'PHASE_10_MEMORY_GRAPH');self.assertNotIn('operator_enterprise_control_plane_substrate',SURFACE)
-   else:self.assertEqual(phase11,PHASE11_SHA);self.assertEqual(SURFACE['schema'],'musitu.axiom.interface.surface-map.v11');self.assertEqual(SURFACE['phase'],'PHASE_11_OPERATOR_ENTERPRISE_CONTROL_PLANE');self.assertEqual(SURFACE['operator_enterprise_control_plane_substrate']['qualified_sha'],phase11);self.assertEqual(SURFACE['operator_enterprise_control_plane_substrate']['status'],'EARNED')
+   else:self.assertEqual(phase11,PHASE11_SHA);self.assertEqual(SURFACE['schema'],'musitu.axiom.interface.surface-map.v12' if SURFACE['authority'].get('qualified_phase12_sha') else 'musitu.axiom.interface.surface-map.v11');self.assertEqual(SURFACE['phase'],'PHASE_12_DEVELOPER_PLATFORM_MARKETPLACE' if SURFACE['authority'].get('qualified_phase12_sha') else 'PHASE_11_OPERATOR_ENTERPRISE_CONTROL_PLANE');self.assertEqual(SURFACE['operator_enterprise_control_plane_substrate']['qualified_sha'],phase11);self.assertEqual(SURFACE['operator_enterprise_control_plane_substrate']['status'],'EARNED')
  def test_persistent_registry_contains_agents_automations_events_and_receipts(self):
   self.assertIn('musitu-axiom-agents-v1',STORE)
   for name in ['agents','automations','events','receipts']:self.assertIn(f"'{name}'",STORE)

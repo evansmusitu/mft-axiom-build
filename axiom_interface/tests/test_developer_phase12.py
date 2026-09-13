@@ -63,9 +63,30 @@ class Phase12DeveloperPlatformContractTests(unittest.TestCase):
             self.assertEqual(SURFACE["operator_enterprise_control_plane_substrate"]["status"], "EARNED")
             self.assertNotIn("developer_platform_marketplace_substrate", SURFACE)
             return
+        self.assertEqual(phase12, "cabb5767157afa2f688ef5718eee9452b7d98177")
         self.assertEqual(SURFACE["schema"], "musitu.axiom.interface.surface-map.v12")
         self.assertEqual(SURFACE["phase"], "PHASE_12_DEVELOPER_PLATFORM_MARKETPLACE")
-        self.assertEqual(SURFACE["developer_platform_marketplace_substrate"]["status"], "EARNED")
+        authority = SURFACE["authority"]
+        self.assertEqual(authority["qualified_phase12_run_id"], 34750659969)
+        self.assertEqual(authority["qualified_phase12_evidence_artifact_id"], 10320127344)
+        self.assertEqual(authority["qualified_phase12_evidence_digest"], "sha256:3874ed2cb8b3081912ba8e09b6944b11a5f6d63628683f5a074582f8d84d6770")
+        self.assertEqual(authority["qualified_phase12_runtime_security_artifact_id"], 10321060112)
+        self.assertEqual(authority["qualified_phase12_runtime_security_evidence_digest"], "sha256:565648d88b14e1ce4b4d8bc319cadee65a1624219fae4be0d2bbf74b00b8754d")
+        self.assertTrue(authority["qualified_phase12_artifact_binding_verified"])
+        dev = SURFACE["developer_platform_marketplace_substrate"]
+        self.assertEqual(dev["status"], "EARNED")
+        self.assertEqual(dev["qualified_sha"], phase12)
+        self.assertEqual(dev["workflow_run_id"], 34750659969)
+        self.assertEqual(dev["workflow_run_attempt"], 9)
+        self.assertEqual(dev["evidence_artifact_id"], 10320127344)
+        self.assertEqual(dev["runtime_security_evidence_artifact_id"], 10321060112)
+        self.assertEqual(dev["network_policy"], "DENY_ALL_EXTERNAL_NETWORK")
+        self.assertEqual(dev["platform_mode"], "BROWSER_LOCAL_CONFORMANCE_AND_INSTALL_PREVIEW_ONLY")
+        self.assertFalse(dev["production_api_key_issued"])
+        self.assertFalse(dev["remote_mcp_binding_claimed"])
+        self.assertFalse(dev["outbound_webhook_delivery_claimed"])
+        self.assertFalse(dev["untrusted_package_code_executed"])
+        self.assertFalse(dev["external_conformance_certification_claimed"])
 
 
 if __name__ == "__main__":

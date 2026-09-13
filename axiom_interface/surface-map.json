@@ -1,5 +1,5 @@
 {
-  "schema": "musitu.axiom.interface.surface-map.v11",
+  "schema": "musitu.axiom.interface.surface-map.v12",
   "authority": {
     "earned_track_b_sha": "73ecdbad38cb10020b6e30ebe42a9222a3bb6c55",
     "qualified_phase1_sha": "5b7233fd9e62b530ef9eb161b41010727d76bacb",
@@ -38,32 +38,134 @@
     "qualified_phase11_runtime_security_artifact_id": 10315037000,
     "qualified_phase11_runtime_security_evidence_digest": "sha256:a93111f638230ef697b8241cdc77703cf427e54a25d4b7ae034b2b9326051bed",
     "qualified_phase11_artifact_binding_verified": true,
+    "qualified_phase12_sha": "cabb5767157afa2f688ef5718eee9452b7d98177",
+    "qualified_phase12_run_id": 34750659969,
+    "qualified_phase12_evidence_artifact_id": 10320127344,
+    "qualified_phase12_evidence_digest": "sha256:3874ed2cb8b3081912ba8e09b6944b11a5f6d63628683f5a074582f8d84d6770",
+    "qualified_phase12_runtime_security_artifact_id": 10321060112,
+    "qualified_phase12_runtime_security_evidence_digest": "sha256:565648d88b14e1ce4b4d8bc319cadee65a1624219fae4be0d2bbf74b00b8754d",
+    "qualified_phase12_artifact_binding_verified": true,
     "blueprint_sha256": "e750039a9c88abc780d24f48c3e86e22fd9295fec99a1b0593668aa8dd9ac166"
   },
-  "phase": "PHASE_11_OPERATOR_ENTERPRISE_CONTROL_PLANE",
+  "phase": "PHASE_12_DEVELOPER_PLATFORM_MARKETPLACE",
   "surfaces": [
-    {"id":"flagship","target":"musitu.ai/axiom","state":"future-routing","access":"public"},
-    {"id":"app","target":"app","state":"shell-plus-project-graph-plus-work-plus-research-plus-artifacts-plus-observability-plus-live-plus-computer","access":"authenticated"},
-    {"id":"developers","target":"developers","state":"trace-explorer-local-workspace","access":"mixed"},
-    {"id":"docs","target":"docs","state":"existing-fragments","access":"public"},
-    {"id":"research","target":"research","state":"claim-graph-local-workspace","access":"mixed"},
-    {"id":"evals","target":"evals","state":"registered-placeholder","access":"public"},
-    {"id":"trust","target":"trust","state":"registered-placeholder","access":"public"},
-    {"id":"status","target":"status","state":"registered-placeholder","access":"public"},
-    {"id":"support","target":"support","state":"registered-placeholder","access":"mixed"},
-    {"id":"academy","target":"academy","state":"registered-placeholder","access":"mixed"},
-    {"id":"community","target":"community","state":"registered-placeholder","access":"mixed"}
+    {
+      "id": "flagship",
+      "target": "musitu.ai/axiom",
+      "state": "future-routing",
+      "access": "public"
+    },
+    {
+      "id": "app",
+      "target": "app",
+      "state": "shell-plus-project-graph-plus-work-plus-research-plus-artifacts-plus-observability-plus-live-plus-computer",
+      "access": "authenticated"
+    },
+    {
+      "id": "developers",
+      "target": "developers",
+      "state": "trace-explorer-local-workspace",
+      "access": "mixed"
+    },
+    {
+      "id": "docs",
+      "target": "docs",
+      "state": "existing-fragments",
+      "access": "public"
+    },
+    {
+      "id": "research",
+      "target": "research",
+      "state": "claim-graph-local-workspace",
+      "access": "mixed"
+    },
+    {
+      "id": "evals",
+      "target": "evals",
+      "state": "registered-placeholder",
+      "access": "public"
+    },
+    {
+      "id": "trust",
+      "target": "trust",
+      "state": "registered-placeholder",
+      "access": "public"
+    },
+    {
+      "id": "status",
+      "target": "status",
+      "state": "registered-placeholder",
+      "access": "public"
+    },
+    {
+      "id": "support",
+      "target": "support",
+      "state": "registered-placeholder",
+      "access": "mixed"
+    },
+    {
+      "id": "academy",
+      "target": "academy",
+      "state": "registered-placeholder",
+      "access": "mixed"
+    },
+    {
+      "id": "community",
+      "target": "community",
+      "state": "registered-placeholder",
+      "access": "mixed"
+    }
   ],
-  "workspace_routes": ["home","projects","work","research","create","code","live","computer","agents","operator","evidence","observability","developer","settings"],
-  "project_routes": ["overview","conversations","sources","agents","artifacts","runs","memory","settings"],
+  "workspace_routes": [
+    "home",
+    "projects",
+    "work",
+    "research",
+    "create",
+    "code",
+    "live",
+    "computer",
+    "agents",
+    "operator",
+    "evidence",
+    "observability",
+    "developer",
+    "settings"
+  ],
+  "project_routes": [
+    "overview",
+    "conversations",
+    "sources",
+    "agents",
+    "artifacts",
+    "runs",
+    "memory",
+    "settings"
+  ],
   "project_substrate": {
     "persistence": "INDEXEDDB_BROWSER_LOCAL_DEVICE",
-    "stores": ["projects","objects","edges","events"],
+    "stores": [
+      "projects",
+      "objects",
+      "edges",
+      "events"
+    ],
     "stable_ids": true,
     "provenance_chain": "SHA256_LINKED_EVENTS",
     "version_history": true,
-    "permissions": ["owner","editor","viewer"],
-    "memory_scopes": ["private","project-only","organization-wide","temporary","permanent","do-not-use"],
+    "permissions": [
+      "owner",
+      "editor",
+      "viewer"
+    ],
+    "memory_scopes": [
+      "private",
+      "project-only",
+      "organization-wide",
+      "temporary",
+      "permanent",
+      "do-not-use"
+    ],
     "cloud_sync_claimed": false,
     "multi_device_sync_claimed": false
   },
@@ -83,8 +185,16 @@
   },
   "research_substrate": {
     "persistence": "INDEXEDDB_BROWSER_LOCAL_DEVICE",
-    "views": ["REPORT_VIEW","EVIDENCE_MAP","RESEARCH_TIMELINE"],
-    "source_controls": ["DOMAIN_ALLOW_DENY","DATE_WINDOW","SOURCE_TYPE"],
+    "views": [
+      "REPORT_VIEW",
+      "EVIDENCE_MAP",
+      "RESEARCH_TIMELINE"
+    ],
+    "source_controls": [
+      "DOMAIN_ALLOW_DENY",
+      "DATE_WINDOW",
+      "SOURCE_TYPE"
+    ],
     "citation_binding": "EXACT_SOURCE_TEXT_SPAN_PLUS_SHA256",
     "claim_lineage": "PROJECT_SCOPED_ACYCLIC_DEPENDENCIES",
     "contradictions_preserved": true,
@@ -102,7 +212,13 @@
   },
   "artifact_substrate": {
     "persistence": "INDEXEDDB_BROWSER_LOCAL_DEVICE",
-    "first_class_types": ["document","sheet","presentation","website","dashboard"],
+    "first_class_types": [
+      "document",
+      "sheet",
+      "presentation",
+      "website",
+      "dashboard"
+    ],
     "stable_identity": true,
     "project_linkage": "PROJECT_OBJECT_TYPE_ARTIFACT",
     "editable_state": true,
@@ -110,7 +226,11 @@
     "diff": "DETERMINISTIC_STRUCTURED_JSON_DIFF",
     "rollback": "NON_DESTRUCTIVE_NEW_VERSION_FROM_PRIOR_SNAPSHOT",
     "comments": true,
-    "permissions": ["owner","editor","viewer"],
+    "permissions": [
+      "owner",
+      "editor",
+      "viewer"
+    ],
     "sources": true,
     "provenance": "VERSION_BOUND_ACTOR_SOURCE_TIMESTAMP",
     "dependency_graph": "PROJECT_SCOPED_ACYCLIC_ARTIFACT_LINKS",
@@ -123,27 +243,61 @@
   },
   "observability_substrate": {
     "persistence": "INDEXEDDB_BROWSER_LOCAL_DEVICE",
-    "interfaces": ["USER_RUN_INSPECTOR","DEVELOPER_TRACE_EXPLORER","OPERATOR_CONTROL_PLANE"],
-    "required_run_identity": ["trace_id","actor_id","user_intent_id","project_id","run_id"],
-    "trace_linkage": ["user_intent_id","project_id","run_id","agent_id","model_execution_id","tool_call_id","policy_decision_id","source_id","artifact_id","verification_id","deployment_id"],
+    "interfaces": [
+      "USER_RUN_INSPECTOR",
+      "DEVELOPER_TRACE_EXPLORER",
+      "OPERATOR_CONTROL_PLANE"
+    ],
+    "required_run_identity": [
+      "trace_id",
+      "actor_id",
+      "user_intent_id",
+      "project_id",
+      "run_id"
+    ],
+    "trace_linkage": [
+      "user_intent_id",
+      "project_id",
+      "run_id",
+      "agent_id",
+      "model_execution_id",
+      "tool_call_id",
+      "policy_decision_id",
+      "source_id",
+      "artifact_id",
+      "verification_id",
+      "deployment_id"
+    ],
     "event_history": "SHA256_LINKED_OPERATIONAL_EVENTS",
     "replay_scope": "OPERATIONAL_METADATA_ONLY_NO_SECRETS_NO_HIDDEN_REASONING",
-    "error_taxonomy": ["VALIDATION","PERMISSION","POLICY","MODEL","TOOL","NETWORK","TIMEOUT","DEPENDENCY","INTEGRITY","USER_CANCELLED","INTERNAL"],
+    "error_taxonomy": [
+      "VALIDATION",
+      "PERMISSION",
+      "POLICY",
+      "MODEL",
+      "TOOL",
+      "NETWORK",
+      "TIMEOUT",
+      "DEPENDENCY",
+      "INTEGRITY",
+      "USER_CANCELLED",
+      "INTERNAL"
+    ],
     "production_trace_and_actor_required": true,
     "cloud_telemetry_backend_claimed": false,
     "private_chain_of_thought_exposed": false
   },
   "live_substrate": {
     "persistence": "INDEXEDDB_BROWSER_LOCAL_DEVICE",
-    "modalities": ["voice","camera","screen"],
-    "browser_media_apis": ["getUserMedia","getDisplayMedia","MediaRecorder"],
-    "explicit_permission_required": true,
-    "privacy_indicators": true,
-    "recording_controls": true,
-    "selectable_screen_region": "KEYBOARD_ACCESSIBLE_NORMALIZED_COORDINATES",
-    "annotation": true,
-    "artifact_capture": "PROJECT_LINKED_LOCAL_MEDIA_WITH_SHA256",
-    "project_linked_notes": true,
+    "modalities": [
+      "voice",
+      "camera",
+      "screen"
+    ],
+    "browser_media_apis": [
+      "getUserMedia",
+      "getDisplayMedia"
+    ],
     "transcript_evidence_log": "MANUAL_TRANSCRIPT_ONLY",
     "transcript_evidence_log_scope": "BASE_CAPTURE_CONTROL_LAYER_ONLY",
     "interruption_target_ms": 250,
@@ -289,7 +443,12 @@
     "reseal_parent_sha": "6cf6e50f9c530347656e5ea09d0bbb135cffa12a",
     "seal_validation_scope": "COMPLETE_PHASE11_WORKFLOW_REQUIRED_AT_EXACT_HEAD",
     "persistence": "INDEXEDDB_BROWSER_LOCAL_DEVICE",
-    "roles": ["owner","admin","analyst","viewer"],
+    "roles": [
+      "owner",
+      "admin",
+      "analyst",
+      "viewer"
+    ],
     "network_policy": "DENY_ALL_EXTERNAL_NETWORK",
     "control_plane_mode": "BROWSER_LOCAL_ADMIN_PREVIEW_ONLY_NO_PRODUCTION_MUTATION",
     "identity_policy": "LOCAL_ENTERPRISE_PREVIEW_NOT_PRODUCTION_IDENTITY_PROVIDER",
@@ -304,6 +463,34 @@
     "external_action_execution_claimed": false,
     "hidden_reasoning_recorded": false,
     "production_policy_enforcement_claimed": false
+  },
+  "developer_platform_marketplace_substrate": {
+    "status": "EARNED",
+    "qualification_scope": "BROWSER_LOCAL_DEVELOPER_PLATFORM_MARKETPLACE_CONFORMANCE_AND_ISOLATION",
+    "qualified_sha": "cabb5767157afa2f688ef5718eee9452b7d98177",
+    "workflow_run_id": 34750659969,
+    "workflow_run_attempt": 9,
+    "evidence_artifact_id": 10320127344,
+    "evidence_artifact_digest": "sha256:3874ed2cb8b3081912ba8e09b6944b11a5f6d63628683f5a074582f8d84d6770",
+    "runtime_security_evidence_artifact_id": 10321060112,
+    "runtime_security_evidence_artifact_digest": "sha256:565648d88b14e1ce4b4d8bc319cadee65a1624219fae4be0d2bbf74b00b8754d",
+    "evidence_metadata_source": "GITHUB_ACTIONS_RUN_ARTIFACTS_API",
+    "evidence_metadata_verified": true,
+    "seal_validation_scope": "COMPLETE_PHASE12_WORKFLOW_REQUIRED_AT_EXACT_HEAD",
+    "persistence": "INDEXEDDB_BROWSER_LOCAL_DEVICE",
+    "network_policy": "DENY_ALL_EXTERNAL_NETWORK",
+    "platform_mode": "BROWSER_LOCAL_CONFORMANCE_AND_INSTALL_PREVIEW_ONLY",
+    "credential_policy": "SYMBOLIC_HANDLE_ONLY_NO_PLAINTEXT_API_KEYS",
+    "webhook_policy": "DECLARATION_AND_LOCAL_SIGNED_FIXTURE_ONLY_NO_DELIVERY",
+    "mcp_policy": "MCP_2026_LOCAL_CONFORMANCE_ONLY_NO_REMOTE_BINDING",
+    "a2a_policy": "A2A_LOCAL_CAPABILITY_CARD_CONFORMANCE_ONLY",
+    "package_execution_policy": "STATIC_MANIFEST_VALIDATION_NO_UNTRUSTED_CODE_EXECUTION",
+    "marketplace_policy": "EXACT_PACKAGE_DIGEST_AND_LEAST_PRIVILEGE_INSTALL_APPROVAL",
+    "production_api_key_issued": false,
+    "remote_mcp_binding_claimed": false,
+    "outbound_webhook_delivery_claimed": false,
+    "untrusted_package_code_executed": false,
+    "external_conformance_certification_claimed": false
   },
   "execution_boundary": "PREVIEW_ONLY_NO_EXTERNAL_CONSEQUENTIAL_ACTIONS"
 }
