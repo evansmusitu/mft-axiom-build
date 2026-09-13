@@ -1,0 +1,208 @@
+name: MUSITU FOUNDRY FORGE Cloudflare Edge Live V2
+
+on:
+  push:
+    branches:
+      - foundry-forge-runtime-transport-bootstrap-20260913
+    paths:
+      - '.github/workflows/foundry-forge-cloudflare-edge-live-v2.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  deploy-edge:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID }}
+      MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET }}
+      CLOUDFLARE_ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+      CLOUDFLARE_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+      EDGE_WORKER: musitu-forge-edge
+      EDGE_DB: musitu-forge-edge
+      EDGE_HOST: forge.mftintelligence.com
+      FORGE_PROTOCOL_DIGEST: c9fe2c0dcbc51ed7329aeea8b8d9985c0ccfc70123ac181c755285f1a0fbf3de
+      FORGE_SOURCE_COMMIT: f0e805ae298b4720f9263dc15d10f4864b385669
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12.13'
+
+      - name: Verify exact source and control-plane credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          for n in MODAL_TOKEN_ID MODAL_TOKEN_SECRET CLOUDFLARE_EMAIL CLOUDFLARE_API_KEY; do test -n "${!n}"; done
+          test "$(git hash-object ops/foundry_forge_cloudflare_edge_v1.mjs)" = '918ec9ba828e367022c231f80344abf50a6210a1'
+          test "$(git hash-object ops/foundry_forge_cloudflare_edge_schema_v1.sql)" = 'c38f7a6cd829106d049b8c45e78194d5bdd5c7d7'
+          node --check ops/foundry_forge_cloudflare_edge_v1.mjs
+          python -m pip install --disable-pip-version-check --quiet 'modal==1.5.5'
+          modal app list --json >/dev/null
+          npm install --ignore-scripts --no-audit --no-fund wrangler@4.129.0
+          npx wrangler auth token --json >/tmp/cf-auth.json
+          python - <<'PY'
+          import json
+          x=json.load(open('/tmp/cf-auth.json'))
+          if x.get('type')!='api_key': raise SystemExit('cloudflare_auth_not_api_key')
+          PY
+
+      - name: Bind to exact private V4 pilot runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json,modal,pathlib
+          app='musitu-forge-private-staging'
+          url=modal.Function.from_name(app,'forge_custody').get_web_url()
+          probe=modal.Function.from_name(app,'runtime_probe').remote()
+          if not url or not url.startswith('https://'): raise SystemExit('modal_origin_missing')
+          if probe.get('source_commit')!='f0e805ae298b4720f9263dc15d10f4864b385669': raise SystemExit('modal_source_mismatch')
+          if probe.get('source_manifest_ok') is not True or probe.get('bad_files'): raise SystemExit('modal_source_manifest_failed')
+          if probe.get('protocol_digest')!='c9fe2c0dcbc51ed7329aeea8b8d9985c0ccfc70123ac181c755285f1a0fbf3de': raise SystemExit('modal_protocol_mismatch')
+          if probe.get('production_authorized') is not False or probe.get('release_signing_authority')!='MUSITU_STORE': raise SystemExit('modal_truth_boundary_failed')
+          pathlib.Path('/tmp/modal-origin.txt').write_text(url)
+          pathlib.Path('/tmp/modal-probe.json').write_text(json.dumps(probe,indent=2,sort_keys=True))
+          PY
+
+      - name: Create dedicated private Modal proxy credential
+        shell: bash
+        run: |
+          set -euo pipefail
+          modal workspace proxy-tokens create --json >/tmp/proxy.json
+          python - <<'PY'
+          import json,pathlib
+          x=json.load(open('/tmp/proxy.json')); vals=[]
+          def walk(v):
+              if isinstance(v,dict):
+                  for z in v.values(): walk(z)
+              elif isinstance(v,list):
+                  for z in v: walk(z)
+              elif isinstance(v,str): vals.append(v)
+          walk(x); keys=[v for v in vals if v.startswith('wk-')]; secs=[v for v in vals if v.startswith('ws-')]
+          if len(keys)!=1 or len(secs)!=1: raise SystemExit('proxy_token_shape_invalid')
+          pathlib.Path('/tmp/modal-key').write_text(keys[0]); pathlib.Path('/tmp/modal-secret').write_text(secs[0]); pathlib.Path('/tmp/keep-token').write_text('0')
+          PY
+          echo "::add-mask::$(cat /tmp/modal-key)"
+          echo "::add-mask::$(cat /tmp/modal-secret)"
+
+      - name: Resolve existing D1 and write repo-relative Wrangler config
+        id: d1
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx wrangler d1 list --json >/tmp/d1.json
+          python - <<'PY' >> "$GITHUB_OUTPUT"
+          import json,os
+          x=json.load(open('/tmp/d1.json')); rows=x if isinstance(x,list) else x.get('result',x.get('databases',[])); m=[r for r in rows if r.get('name')==os.environ['EDGE_DB']]
+          if len(m)!=1: raise SystemExit('expected_exactly_one_forge_edge_d1')
+          ident=m[0].get('uuid') or m[0].get('id')
+          if not ident: raise SystemExit('forge_edge_d1_id_missing')
+          print('database_id='+ident)
+          PY
+          MODAL_ORIGIN="$(cat /tmp/modal-origin.txt)" D1_ID="$(python - <<'PY'
+          import json,os
+          x=json.load(open('/tmp/d1.json')); rows=x if isinstance(x,list) else x.get('result',x.get('databases',[])); m=[r for r in rows if r.get('name')==os.environ['EDGE_DB']]; print(m[0].get('uuid') or m[0].get('id'))
+          PY
+          )" python - <<'PY'
+          import json,os
+          cfg={
+            '$schema':'node_modules/wrangler/config-schema.json',
+            'name':os.environ['EDGE_WORKER'],
+            'main':'ops/foundry_forge_cloudflare_edge_v1.mjs',
+            'compatibility_date':'2026-09-13',
+            'workers_dev':False,
+            'observability':{'enabled':True},
+            'routes':[{'pattern':os.environ['EDGE_HOST'],'custom_domain':True}],
+            'vars':{'MODAL_ORIGIN':os.environ['MODAL_ORIGIN'],'FORGE_PROTOCOL_DIGEST':os.environ['FORGE_PROTOCOL_DIGEST'],'FORGE_EDGE_RPM_LIMIT':'600'},
+            'd1_databases':[{'binding':'FORGE_DB','database_name':os.environ['EDGE_DB'],'database_id':os.environ['D1_ID']}]
+          }
+          open('forge-edge-wrangler.json','w').write(json.dumps(cfg,indent=2)+'\n')
+          PY
+          test -f ops/foundry_forge_cloudflare_edge_v1.mjs
+          test -f forge-edge-wrangler.json
+
+      - name: Reverify D1 schema and deploy Custom Domain edge
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx wrangler d1 execute "$EDGE_DB" --remote --file ops/foundry_forge_cloudflare_edge_schema_v1.sql --yes >/tmp/d1-schema-apply.log
+          npx wrangler deploy --config forge-edge-wrangler.json | tee /tmp/edge-deploy.log
+
+      - name: Install Cloudflare-held Modal proxy secrets
+        shell: bash
+        run: |
+          set -euo pipefail
+          printf '%s' "$(cat /tmp/modal-key)" | npx wrangler secret put MODAL_KEY --config forge-edge-wrangler.json >/tmp/key-secret.log
+          printf '%s' "$(cat /tmp/modal-secret)" | npx wrangler secret put MODAL_SECRET --config forge-edge-wrangler.json >/tmp/secret-secret.log
+
+      - name: Verify canonical domain and private-origin boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          URL="https://${EDGE_HOST}"; code=000
+          for i in $(seq 1 60); do
+            code="$(curl -sS -o /tmp/health.json -D /tmp/health.headers -w '%{http_code}' "$URL/v1/health" || true)"
+            [ "$code" = 200 ] && break
+            sleep 5
+          done
+          test "$code" = 200 || { echo "health_http_$code" >&2; cat /tmp/health.json >&2 || true; exit 1; }
+          grep -i '^x-musitu-edge: forge-cloudflare-modal-v1' /tmp/health.headers >/dev/null
+          python - <<'PY'
+          import json
+          h=json.load(open('/tmp/health.json'))
+          assert h['schema']=='musitu.forge.health.v1' and h['status']=='READY'
+          assert h['production_authorized'] is False and h['custody_uploads_ready'] is True
+          assert h['canonical_service_origin']=='https://forge.mftintelligence.com'
+          assert h['protocol_digest']=='c9fe2c0dcbc51ed7329aeea8b8d9985c0ccfc70123ac181c755285f1a0fbf3de'
+          PY
+          wrong="$(curl -sS -o /tmp/wrong.json -w '%{http_code}' -H 'X-MUSITU-Client-Protocol: 0000000000000000000000000000000000000000000000000000000000000000' "$URL/v1/field/assignments?technician_id=probe" || true)"
+          correct="$(curl -sS -o /tmp/correct.json -w '%{http_code}' -H "X-MUSITU-Client-Protocol: $FORGE_PROTOCOL_DIGEST" "$URL/v1/field/assignments?technician_id=probe" || true)"
+          test "$wrong" = 401 && test "$correct" = 401
+          python - <<'PY'
+          import json
+          if json.load(open('/tmp/wrong.json')).get('error')!='protocol_digest_mismatch': raise SystemExit('wrong_digest_not_rejected_at_edge')
+          if json.load(open('/tmp/correct.json')).get('error')!='bearer_required': raise SystemExit('correct_digest_not_forwarded_to_backend')
+          PY
+          DIRECT="$(cat /tmp/modal-origin.txt)"; d="$(curl -sS -o /tmp/direct.json -w '%{http_code}' "$DIRECT/v1/health" || true)"
+          if [ "$d" != 401 ] && [ "$d" != 403 ]; then echo "direct_modal_exposure_http_$d" >&2; exit 1; fi
+
+      - name: Seal edge evidence and retain dedicated proxy token
+        shell: bash
+        env:
+          D1_ID: ${{ steps.d1.outputs.database_id }}
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import hashlib,json,os,pathlib
+          probe=json.load(open('/tmp/modal-probe.json')); health=json.load(open('/tmp/health.json'))
+          e={'schema':'musitu.forge.cloudflare_modal_edge_deploy.v1','source_commit':os.environ['FORGE_SOURCE_COMMIT'],'edge_worker':os.environ['EDGE_WORKER'],'d1_database':os.environ['EDGE_DB'],'d1_database_id':os.environ['D1_ID'],'canonical_origin':'https://'+os.environ['EDGE_HOST'],'custom_domain_attached':True,'modal_app':'musitu-forge-private-staging','modal_origin_private':True,'modal_proxy_auth_required':True,'modal_proxy_token_retained_for_cloudflare':True,'worker_blob_sha1':'918ec9ba828e367022c231f80344abf50a6210a1','d1_schema_blob_sha1':'c38f7a6cd829106d049b8c45e78194d5bdd5c7d7','protocol_digest':os.environ['FORGE_PROTOCOL_DIGEST'],'persistent_state_id':probe['persistent_state']['state_id'],'assignment_authority':probe['assignment_authority'],'receipt_authority':probe['receipt_authority'],'release_signing_authority':'MUSITU_STORE','health':health,'backend_deployed':True,'forge_service_domain_provisioned':True,'production_authorized':False,'commercial_candidate_sealed':False,'superiority_certified':False,'gate':'PASS'}
+          raw=json.dumps(e,sort_keys=True,separators=(',',':')).encode(); e['evidence_sha256']=hashlib.sha256(raw).hexdigest(); pathlib.Path('foundry-forge-cloudflare-edge-evidence-v1.json').write_text(json.dumps(e,indent=2,sort_keys=True)+'\n')
+          PY
+          sha256sum foundry-forge-cloudflare-edge-evidence-v1.json > foundry-forge-cloudflare-edge-evidence-v1.sha256
+          echo 1 > /tmp/keep-token
+          rm -f /tmp/modal-key /tmp/modal-secret /tmp/proxy.json
+
+      - name: Cleanup proxy token on failure only
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          if [ "$(cat /tmp/keep-token 2>/dev/null)" != 1 ] && [ -s /tmp/modal-key ]; then modal workspace proxy-tokens delete -y "$(cat /tmp/modal-key)" >/dev/null 2>&1 || true; fi
+          rm -f /tmp/modal-key /tmp/modal-secret /tmp/proxy.json
+
+      - uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: musitu-forge-cloudflare-edge-live-v1
+          path: |
+            foundry-forge-cloudflare-edge-evidence-v1.json
+            foundry-forge-cloudflare-edge-evidence-v1.sha256
+            /tmp/health.json
+            /tmp/edge-deploy.log
+            /tmp/modal-probe.json
+          retention-days: 30
+          if-no-files-found: error
