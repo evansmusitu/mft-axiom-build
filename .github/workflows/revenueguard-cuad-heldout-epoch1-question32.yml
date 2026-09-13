@@ -3,7 +3,7 @@ name: RevenueGuard CUAD Matched-Window Epoch2 Locked Heldout Gate
 on:
   push:
     branches: [revenueguard-axiom-governor-20260911]
-    paths: ['.github/workflows/revenueguard-cuad-heldout-epoch1-question32.yml']
+    paths: ['research/revenueguard/TRIGGER_CUAD_MATCHED_WINDOW_EPOCH2_EVAL.json']
   workflow_dispatch:
 
 permissions:
@@ -13,7 +13,7 @@ permissions:
 jobs:
   await_candidate:
     runs-on: ubuntu-latest
-    timeout-minutes: 185
+    timeout-minutes: 355
     steps:
       - name: Await exact matched-window training run and fail closed on any non-success
         shell: bash
@@ -22,7 +22,7 @@ jobs:
         run: |
           set -euo pipefail
           API='https://api.github.com/repos/evansmusitu/mft-axiom-build/actions/runs/34749003397'
-          for i in $(seq 1 360); do
+          for i in $(seq 1 700); do
             J=$(curl -fsSL -H "Authorization: Bearer ${GH_TOKEN}" -H 'Accept: application/vnd.github+json' "$API")
             STATUS=$(printf '%s' "$J" | python -c "import sys,json; print(json.load(sys.stdin)['status'])")
             CONCLUSION=$(printf '%s' "$J" | python -c "import sys,json; print(json.load(sys.stdin).get('conclusion') or '')")
