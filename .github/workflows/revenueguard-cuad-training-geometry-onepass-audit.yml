@@ -1,0 +1,125 @@
+name: RevenueGuard CUAD Trainer Geometry One-Pass Audit
+
+on:
+  push:
+    branches: [revenueguard-axiom-governor-20260911]
+    paths: ['.github/workflows/revenueguard-cuad-training-geometry-onepass-audit.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: revenueguard-cuad-epoch1-chunked-final
+          path: source
+          repository: evansmusitu/mft-axiom-build
+          run-id: 34683449126
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+      - uses: actions/download-artifact@v4
+        with:
+          name: revenueguard-cuad-matched-window-geometry-audit
+          path: geometry
+          repository: evansmusitu/mft-axiom-build
+          run-id: 34706691340
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Install pinned runtime and fetch pinned CUAD
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          python -m pip install 'transformers==4.56.2'
+          curl -fL --retry 4 --retry-delay 2 -o cuad-data.zip 'https://raw.githubusercontent.com/The-Atticus-Project/cuad/67faa0e6023b04fcaae6cc09497ab00e5d63a2a2/data.zip'
+          unzip -q cuad-data.zip
+      - name: One-pass exact trainer geometry proof
+        shell: bash
+        run: |
+          set -euo pipefail
+          TRAIN=$(find . -name train_separate_questions.json -type f | head -n1)
+          python - "$TRAIN" <<'PY'
+          import hashlib,json,re,sys
+          from collections import Counter
+          from pathlib import Path
+          from transformers import AutoTokenizer
+
+          SEED=842771; MAX_LEN=384; STRIDE=128; NCH=4
+          def heldout(title): return int(hashlib.sha256(title.encode()).hexdigest()[:8],16)%10==0
+          def words(s): return set(re.findall(r'[a-z0-9]+',s.lower()))
+          def overlap(a,b):
+              A=words(a);B=words(b);return len(A&B)/(len(A|B) or 1)
+          def assign_chunk(title,qid,fi):
+              return int(hashlib.sha256(f'{SEED}|{title}|{qid}|{fi}'.encode()).hexdigest()[:8],16)%NCH
+
+          train=Path(sys.argv[1]); tsha=hashlib.sha256(train.read_bytes()).hexdigest()
+          assert tsha=='7de21d2bb741ac939e2a839ef9640634a5e0f9f40ea2b82c6833baf7db33dab4'
+          frozen=json.load(open('geometry/CUAD_MATCHED_WINDOW_GEOMETRY_AUDIT.json'))
+          assert frozen['report_sha256']=='e14b667cc4e8ac96b35909741847d804505b3d7f0c4c79ddebb53ab07bee10e7'
+          tok=AutoTokenizer.from_pretrained('source/cuad_epoch1_final',local_files_only=True,use_fast=True)
+          raw=json.load(open(train))['data']; stats=Counter(); chunks=Counter(); dropped_empty_context=0
+          held_titles=set()
+          for contract in raw:
+              title=contract.get('title','')
+              if heldout(title): held_titles.add(title)
+              for para in contract['paragraphs']:
+                  ctx=para['context']
+                  for qa in para['qas']:
+                      qid=str(qa['id']); q=qa['question']; answers=qa.get('answers',[]) or []
+                      if heldout(title): stats['heldout_questions']+=1; continue
+                      stats['build_questions']+=1
+                      enc=tok(q,ctx,truncation='only_second',max_length=MAX_LEN,stride=STRIDE,return_overflowing_tokens=True,return_offsets_mapping=True,padding=False)
+                      candidates=[]
+                      for fi in range(len(enc['input_ids'])):
+                          seq=enc.sequence_ids(fi); offs=enc['offset_mapping'][fi]
+                          spans=[(int(a),int(b)) for j,(a,b) in enumerate(offs) if seq[j]==1 and b>a]
+                          if not spans:
+                              dropped_empty_context+=1; continue
+                          lo=min(a for a,b in spans); hi=max(b for a,b in spans); text=ctx[lo:hi]
+                          contained=[a for a in answers if int(a['answer_start'])>=lo and int(a['answer_start'])+len(a['text'])<=hi]
+                          if contained:
+                              candidates.append((fi,True,overlap(q,text)))
+                          else:
+                              candidates.append((fi,False,overlap(q,text)))
+                      pos=[x for x in candidates if x[1]]
+                      neg=sorted((x for x in candidates if not x[1]),key=lambda x:(x[2],-x[0]),reverse=True)
+                      chosen=(pos+neg[:2]) if answers else neg[:3]
+                      stats['answerable_questions']+=int(bool(answers)); stats['impossible_questions']+=int(not answers)
+                      stats['selected_positive']+=sum(x[1] for x in chosen)
+                      stats['selected_negative']+=sum(not x[1] for x in chosen)
+                      stats['selected_total']+=len(chosen)
+                      for fi,_,_ in chosen: chunks[assign_chunk(title,qid,fi)]+=1
+          rep={
+            'schema':'musitu.revenueguard.cuad.trainer_geometry_onepass_audit.v1',
+            'status':'DEV_RESEARCH_ONLY_OFFICIAL_TEST_UNOPENED',
+            'train_sha256':tsha,
+            'geometry_report_sha256':frozen['report_sha256'],
+            'heldout_contracts':len(held_titles),
+            'dropped_empty_context_windows':dropped_empty_context,
+            'stats':dict(stats),
+            'chunk_sizes':[chunks[i] for i in range(NCH)],
+            'chunk_size_sum':sum(chunks.values())
+          }
+          assert len(held_titles)==45, len(held_titles)
+          assert stats['heldout_questions']==2461, stats
+          assert stats['build_questions']==19989, stats
+          assert stats['selected_positive']==12305, stats
+          assert stats['selected_negative']==49354, stats
+          assert stats['selected_total']==61659, stats
+          assert sum(chunks.values())==61659, chunks
+          rep['pass']=True
+          rep['report_sha256']=hashlib.sha256(json.dumps(rep,sort_keys=True,separators=(',',':')).encode()).hexdigest()
+          Path('CUAD_TRAINER_GEOMETRY_ONEPASS_AUDIT.json').write_text(json.dumps(rep,indent=2,sort_keys=True)+'\n')
+          print(json.dumps(rep,indent=2,sort_keys=True))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: revenueguard-cuad-trainer-geometry-onepass-audit
+          path: CUAD_TRAINER_GEOMETRY_ONEPASS_AUDIT.json
+          if-no-files-found: error
+          retention-days: 30
