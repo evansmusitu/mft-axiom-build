@@ -1,6 +1,20 @@
 import { LiveStore } from './live.js';
 import { attachLiveSemanticBridge } from './live_semantic_bridge.js';
-import './computer_bootstrap.js';
+
+// Phase 8 is progressive: the earned shell must finish evaluating and install
+// inherited keyboard/accessibility controls before the Computer feature graph
+// is loaded. A Computer module failure must not suppress Phase 1-7 shell
+// initialization. The Computer runtime still boots immediately afterward and
+// retains its own fail-closed initialization/error boundary.
+queueMicrotask(()=>{
+  void import('./computer_bootstrap.js').catch(error=>window.AxiomUI?.reportError?.({
+    errorId:'AXIOM-COMPUTER-MODULE',
+    component:'Computer',
+    impact:'Computer sandbox unavailable; inherited workspace controls remain available',
+    failed:error.message,
+    recovery:'Reload the workspace and retry the Computer surface',
+  }));
+});
 
 const WRAPPED = Symbol.for('musitu.axiom.live.durability.wrapped');
 const SESSION_ARG = Object.freeze({
