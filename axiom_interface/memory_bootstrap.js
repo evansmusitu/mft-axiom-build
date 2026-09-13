@@ -1,0 +1,5 @@
+import {initMemoryGraphWorkspace} from './memory_ui.js';
+const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
+async function dependencies(){for(let attempt=0;attempt<400;attempt++){if(window.AxiomProjects?.store&&window.AxiomObservability?.store&&window.AxiomAgents?.store)return {projects:window.AxiomProjects,observability:window.AxiomObservability};await sleep(25);}throw new Error('earned Phase 1-9 workspace APIs were not ready');}
+async function boot(){const deps=await dependencies(),api=await initMemoryGraphWorkspace({emit:window.AxiomUI?.emit,projects:deps.projects,observability:deps.observability});window.AxiomUI?.emit?.('workspace.phase10.ready',{state:'memory-graph-browser-local'});return api;}
+window.AxiomMemoryBootstrap=boot().catch(error=>{window.AxiomUI?.reportError?.({errorId:'AXIOM-MEMORY-INIT',component:'Memory Graph',impact:'Memory Graph unavailable; inherited workspace remains available',failed:error.message,recovery:'Reload the workspace and retry the project Memory route'});throw error;});
