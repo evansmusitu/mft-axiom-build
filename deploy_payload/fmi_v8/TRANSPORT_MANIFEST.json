@@ -1,0 +1,33 @@
+{
+  "base64_size": 52364,
+  "bundle": "fmi_v8_deploy_bundle.tar.gz",
+  "bundle_sha256": "396c33c9b726e18faf255055c992794cb208d681097a5d8a68ea8a1f5f71a448",
+  "bundle_size": 39273,
+  "chunks": [
+    {
+      "file": "chunk_00.b64",
+      "sha256": "a31eed499409cd0b3cf97683931f488c4c7f012e7900aa499d02d6f0f13664b8",
+      "size": 16000,
+      "source_file": "chunk_00"
+    },
+    {
+      "file": "chunk_01.b64",
+      "sha256": "a756e7565670f2f76ab5241b7d2c3211d1dfcd8716a702ebcdfb4a6949e8ff7c",
+      "size": 16000,
+      "source_file": "chunk_01"
+    },
+    {
+      "file": "chunk_02.b64",
+      "sha256": "c240b88fc32f9be041ed20322b6abf7b074ac6fd27678861a7371dd502407e72",
+      "size": 16000,
+      "source_file": "chunk_02"
+    },
+    {
+      "file": "chunk_03.b64",
+      "sha256": "3a26b1696b74bf3b73df7820abf387ee8c05d0e3fbfc7a244457bd9f81e1df6e",
+      "size": 4364,
+      "source_file": "chunk_03"
+    }
+  ],
+  "schema": "musitu-fmi.v8-github-transport.v1"
+}
