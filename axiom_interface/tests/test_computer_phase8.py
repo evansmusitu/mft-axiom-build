@@ -4,7 +4,7 @@ from pathlib import Path
 import unittest
 
 ROOT=Path(__file__).resolve().parents[1]
-JS='\n'.join((ROOT/name).read_text(encoding='utf-8') for name in ['computer.js','computer_security.js','computer_store.js','computer_store_actions.js','computer_ui_markup.js','computer_ui.js'])
+JS='\n'.join(p.read_text(encoding='utf-8') for p in sorted(ROOT.glob('computer*.js')))
 BOOT=(ROOT/'computer_bootstrap.js').read_text(encoding='utf-8')
 CSS=(ROOT/'styles'/'computer.css').read_text(encoding='utf-8')
 LIVE_DUR=(ROOT/'live_durability.js').read_text(encoding='utf-8')
