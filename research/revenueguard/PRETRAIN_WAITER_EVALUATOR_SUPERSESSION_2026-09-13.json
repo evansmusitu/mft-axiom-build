@@ -1,0 +1,28 @@
+{
+  "schema": "musitu.revenueguard.pretrain_waiter_evaluator_supersession.v1",
+  "status": "EXECUTION_EVIDENCE_ONLY_NOT_MODEL_GATE_NOT_CERTIFICATION",
+  "contractnli": {
+    "run_id": 34749231462,
+    "await_job_id": 103702568747,
+    "await_conclusion": "failure",
+    "score_conclusion": "skipped",
+    "aggregate_conclusion": "skipped",
+    "rows_scored": 0,
+    "reason": "The waiter observed the temporary non-success conclusion of training run 34748996731 before zero-step chunk2 infrastructure failure was retried. No development scoring executed.",
+    "additional_supersession": "This evaluator was launched with the superseded v1 calibration logic in which semantic-head outcomes could influence abstention selection. It cannot satisfy the authoritative ContractNLI development gate even if rerun.",
+    "authoritative_replacement": ".github/workflows/revenueguard-contractnli-decoupled-v2-locked-dev.yml"
+  },
+  "cuad": {
+    "run_id": 34749243341,
+    "await_job_id": 103702605986,
+    "await_conclusion": "failure",
+    "score_conclusion": "skipped",
+    "aggregate_conclusion": "skipped",
+    "rows_scored": 0,
+    "reason": "The waiter observed the temporary non-success conclusion of training run 34749003397 before zero-step chunk1 infrastructure failure was retried. No heldout scoring executed.",
+    "authoritative_replacement": ".github/workflows/revenueguard-cuad-matched-window-posttrain-heldout.yml"
+  },
+  "interpretation_rule": "These run failures are orchestration/waiter outcomes only. They are not ContractNLI or CUAD model-gate failures and provide no evidence of capability quality in either direction.",
+  "sealed_data_impact": "none; ContractNLI test, MAUD, and official CUAD test remain unopened",
+  "certification": "NOT_CERTIFIED"
+}
