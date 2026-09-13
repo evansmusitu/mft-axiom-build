@@ -1,0 +1,38 @@
+name: MUSITU FOUNDRY FORGE Private Source Access Probe
+
+on:
+  push:
+    branches:
+      - foundry-forge-runtime-transport-bootstrap-20260913
+    paths:
+      - '.github/workflows/foundry-forge-private-source-access-probe.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Probe cross-repository read without exposing credentials
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          code="$(curl -sS -o /tmp/body -w '%{http_code}' \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H 'Accept: application/vnd.github+json' \
+            'https://api.github.com/repos/evansmusitu/musitu-foundry-forge/contents/apps/musitu_forge_custody_server/server_main_v3.py?ref=f0e805ae298b4720f9263dc15d10f4864b385669')"
+          echo "cross_repo_http=$code"
+          if [ "$code" = 200 ]; then
+            python - <<'PY'
+          import json
+          x=json.load(open('/tmp/body'))
+          assert x['sha']=='eafef682ad8ad406cda530a60f93ed320aa7f7d9'
+          print('CROSS_REPO_EXACT_SOURCE_READ_PASS')
+          PY
+          else
+            echo 'CROSS_REPO_EXACT_SOURCE_READ_UNAVAILABLE'
+          fi
