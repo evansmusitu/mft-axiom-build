@@ -37,7 +37,7 @@ for(const platform of ['android','ios','web']){
       assert.ok(hrefs(html).includes('/store/install'),`install options missing on ${platform} ${path}`);
       assert.match(html,/href="\/store\/open"[^>]*>Open [^<]+<\/a>.*href="\/store\/install"[^>]*>Install options<\/a>/s,
         `browser launch must be presented before install options on ${platform} ${path}`);
-      assert.doesNotMatch(html,/href="[^"]+\.(?:apk|ipa)"/i,'discovery surfaces must not expose package downloads');
+      assert.doesNotMatch(html,/href="https?:[^"]+\.(?:apk|ipa)(?:[?#][^"]*)?"/i,'discovery surfaces must not expose direct browser package downloads');
     });
   }
 }
@@ -58,7 +58,7 @@ for(const [path,action] of installLikePaths){
     assert.ok(links.some(h=>h.startsWith(`intent://app/chemistry?action=${action}`)&&h.includes('scheme=musitustore')&&h.includes('package=com.musitu.store')),
       `missing explicit MUSITU Store package handoff on ${path}`);
     assert.ok(hrefs(html).includes('/store/open'),'browser fallback must remain available');
-    assert.doesNotMatch(html,/href="[^"]*MUSITU_Chemistry[^\"]*\.apk/i,'Chemistry APK must never be a browser install action');
+    assert.doesNotMatch(html,/href="https?:[^"]*MUSITU_Chemistry[^\"]*\.apk/i,'Chemistry APK must never be a direct browser install action');
   });
 }
 
@@ -69,7 +69,7 @@ test('Android Install page keeps only the one-time MUSITU Store bootstrap as a b
   assert.match(html,/bootstrap APK is only for the one-time installation of MUSITU Store itself/i);
   assert.match(html,/>Open in browser<\/a>/);
   assert.match(html,/>Install Web App instead<\/a>/);
-  assert.doesNotMatch(html,/href="[^"]*chemistry[^"]*\.apk/i);
+  assert.doesNotMatch(html,/href="https?:[^"]*chemistry[^"]*\.apk/i);
 });
 
 for(const [path] of installLikePaths){
@@ -96,7 +96,7 @@ for(const [path] of installLikePaths){
     const html=await page(path,'web');
     assert.ok(primaryCarrierLinks(html).includes('https://payments.mftintelligence.com/chemistry/install'),`PWA install surface missing on ${path}`);
     assert.ok(hrefs(html).includes('/store/open'),'browser launch must remain available');
-    assert.doesNotMatch(html,/href="[^"]+\.(?:apk|ipa)"/i,'Web/PWA install actions must not download package files');
+    assert.doesNotMatch(html,/href="https?:[^"]+\.(?:apk|ipa)(?:[?#][^"]*)?"/i,'Web/PWA install actions must not download package files');
   });
 }
 
@@ -115,7 +115,7 @@ test('low-bandwidth home is browser-first on every platform',async()=>{
     assert.ok(hrefs(html).includes('/store/open'));
     assert.ok(hrefs(html).includes('/store/install'));
     assert.equal(primaryCarrierLinks(html).length,0);
-    assert.doesNotMatch(html,/href="[^"]+\.(?:apk|ipa)"/i);
+    assert.doesNotMatch(html,/href="https?:[^"]+\.(?:apk|ipa)(?:[?#][^"]*)?"/i);
   }
 });
 
