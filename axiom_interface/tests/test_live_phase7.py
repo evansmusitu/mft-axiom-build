@@ -79,9 +79,22 @@ class Phase7LiveContractTests(unittest.TestCase):
         self.assertNotIn('WebSocket(',LIVE)
         self.assertNotIn('EventSource(',LIVE)
 
-    def test_phase7_authority_is_exact_earned_phase6_descendant(self):
-        self.assertEqual(SURFACE['authority']['qualified_phase6_sha'],'db5eefa2982457c4045717a0b175bb5d0d9fc556')
-        self.assertEqual(SURFACE['phase'],'PHASE_7_LIVE_MULTIMODALITY')
+    def test_phase7_authority_is_exact_earned_descendant(self):
+        authority=SURFACE['authority']
+        self.assertEqual(authority['qualified_phase6_sha'],'db5eefa2982457c4045717a0b175bb5d0d9fc556')
+        self.assertEqual(authority['qualified_phase7_sha'],'d8b3c233947a204e81b0753fd94afe777e8d1cf9')
+        self.assertEqual(authority['qualified_phase7_run_id'],34724477902)
+        self.assertEqual(authority['qualified_phase7_evidence_artifact_id'],10307990299)
+        self.assertEqual(authority['qualified_phase7_evidence_digest'],'sha256:f4fa1fdca09634a9cfebf23cc3a8975a328c4064d41ef04440ef0bb80e4f93ac')
+        self.assertEqual(SURFACE['live_substrate']['semantic_runtime_qualification']['qualified_sha'],authority['qualified_phase7_sha'])
+        phase8_sha=authority.get('qualified_phase8_sha')
+        if phase8_sha is None:
+            self.assertEqual(SURFACE['phase'],'PHASE_7_LIVE_MULTIMODALITY')
+        else:
+            self.assertEqual(phase8_sha,'dd7a2a2f8a1c024d92df635ebaba430a74981813')
+            self.assertEqual(SURFACE['phase'],'PHASE_8_COMPUTER_BROWSER_EXECUTION')
+            self.assertEqual(SURFACE['computer_substrate']['qualified_sha'],phase8_sha)
+            self.assertEqual(SURFACE['computer_substrate']['status'],'EARNED')
 
 
 if __name__=='__main__':
