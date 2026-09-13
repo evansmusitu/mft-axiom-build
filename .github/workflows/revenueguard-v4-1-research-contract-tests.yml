@@ -30,56 +30,103 @@ jobs:
             research/revenueguard/cuad_postgate_failure_miner.py \
             research/revenueguard/specialist_training_provenance_seal.py \
             research/revenueguard/v4_1_specialist_dev_admission.py
-      - name: Assert locked gates, exact training provenance, and sealed-data boundaries
+      - name: Assert authoritative gates, exact training provenance, and sealed-data boundaries
         shell: bash
         run: |
           set -euo pipefail
           python - <<'PY'
+          import ast
           from pathlib import Path
-          cn=Path('research/revenueguard/contractnli_decoupled_checkpoint_aggregate.py').read_text()
-          cq=Path('research/revenueguard/cuad_heldout_aggregate.py').read_text()
-          admit=Path('research/revenueguard/v4_1_specialist_dev_admission.py').read_text()
-          prov=Path('research/revenueguard/specialist_training_provenance_seal.py').read_text()
-          train_cn=Path('research/revenueguard/contractnli_decoupled_chunk_train.py').read_text()
-          train_cq=Path('research/revenueguard/cuad_matched_window_multitask_train.py').read_text()
-          cuad_miner=Path('research/revenueguard/cuad_postgate_failure_miner.py').read_text()
+
+          def text(p): return Path(p).read_text()
+          cn_path='research/revenueguard/contractnli_decoupled_checkpoint_aggregate.py'
+          shard_path='research/revenueguard/contractnli_decoupled_checkpoint_shard.py'
+          cq_path='research/revenueguard/cuad_heldout_aggregate.py'
+          admit_path='research/revenueguard/v4_1_specialist_dev_admission.py'
+          prov_path='research/revenueguard/specialist_training_provenance_seal.py'
+          train_cn_path='research/revenueguard/contractnli_decoupled_chunk_train.py'
+          train_cq_path='research/revenueguard/cuad_matched_window_multitask_train.py'
+          cn_miner_path='research/revenueguard/contractnli_decoupled_postgate_failure_miner.py'
+          cuad_miner_path='research/revenueguard/cuad_postgate_failure_miner.py'
+
+          cn=text(cn_path); shard=text(shard_path); cq=text(cq_path); admit=text(admit_path); prov=text(prov_path)
+          train_cn=text(train_cn_path); train_cq=text(train_cq_path); cn_miner=text(cn_miner_path); cuad_miner=text(cuad_miner_path)
+
+          # Locked development gates are unchanged.
           assert "'accuracy_min': .90" in cn and "'macro_f1_min': .88" in cn
           assert "'false_grounding_max': .02" in cn and "'evidence_recall_min': .85" in cn
           assert "'no_answer_false_positive_max':.02" in cq
           assert "'answer_detection_f1_min':.85" in cq
           assert "'localization_overlap_recall_min':.85" in cq
           assert "'answerable_token_f1_min':.80" in cq
-          assert 'MAX_LEN=384' in train_cq and 'STRIDE=128' in train_cq
+
+          # ContractNLI authoritative evaluator is v2 and abstention calibration is relevance-only.
+          assert "musitu.revenueguard.contractnli.decoupled_checkpoint_eval.v2" in cn
+          assert "EXPECTED_GLOBAL_STEPS = 615" in cn
+          assert "EXPECTED_EXCLUDED_DUPLICATE_CAL_DOCS = ('548',)" in cn
+          tree=ast.parse(cn)
+          fn=next(n for n in tree.body if isinstance(n,ast.FunctionDef) and n.name=='relevance_calibration_metrics')
+          fn_source=ast.get_source_segment(cn,fn)
+          assert fn_source and 'candidate_label' not in fn_source, fn_source
+          assert "r['gold'] != 2" in fn_source
+          assert "['score']" in fn_source
+          assert 'calibration_relevance_only' in cn
+          assert 'semantic-head labels or correctness do not participate' in cn
+
+          # Every ContractNLI scoring shard rejects partial checkpoints and duplicate leakage.
+          assert "musitu.revenueguard.contractnli.decoupled_raw_shard.v2" in shard
+          assert "EXPECTED_GLOBAL_STEPS = 615" in shard
+          assert "EXPECTED_TRAINABLE_COUNT = 68" in shard
+          assert "a858e138760588bdb8c89cb440e75a0f9441d23f7a3a9993a1755a3dc8f77c05" in shard
+          assert "185cd8b4100f27950ebc20206ccf407a01d2694f8e2a6f6fa8fe6d4f04250b27" in shard
+          assert "EXPECTED_DUPLICATE_CAL_DOCS = ['548']" in shard
+          assert "{0: 0, 1: 0, 2: 16, 3: 16, 4: 16, 5: 16}" in shard
+
+          # Training architecture/curriculum contracts remain exact.
           assert "semantic_head = nn.Linear(H, 2)" in train_cn
           assert "relevance_head = nn.Linear(H, 2)" in train_cn
           assert "rows.append((target_context(spans, i), h, 0, -100))" in train_cn
+          assert 'MAX_LEN=384' in train_cq and 'STRIDE=128' in train_cq and 'BATCH=24' in train_cq
+
+          # Provenance requires complete exact training, original CUAD ancestry, and zero dropped windows.
           assert 'CN_EXPECTED_STEPS=615' in prov and 'CN_EXPECTED_SAMPLES=29488' in prov
+          assert 'CUAD_EXPECTED_STEPS=2571' in prov
           assert "CUAD_TRAINER_ONEPASS_REPORT_SHA='d8820202835ae82499e96a8ee8895c175ac5ddc39e7ec66b7bbfd0367d3520a1'" in prov
           assert "CUAD_FROZEN_GEOMETRY_REPORT_SHA='e14b667cc4e8ac96b35909741847d804505b3d7f0c4c79ddebb53ab07bee10e7'" in prov
           assert 'CUAD_CHUNK_SIZES=[15436,15462,15380,15381]' in prov
           assert "if int(geom.get('dropped_empty_context_windows',-1))!=0" in prov
-          assert "if int(prov['contractnli']['completed_chunks'])!=4 or int(prov['contractnli']['global_steps'])!=615" in admit
-          assert "if int(prov['cuad']['completed_chunks'])!=4 or int(prov['cuad']['selected_training_windows'])!=61659" in admit
-          assert 'ContractNLI test.json and MAUD remain unopened.' in Path('research/revenueguard/contractnli_decoupled_postgate_failure_miner.py').read_text()
+
+          # Admission accepts only authoritative ContractNLI v2 + complete CUAD and remains non-certifying.
+          assert "CN_SCHEMA='musitu.revenueguard.contractnli.decoupled_checkpoint_eval.v2'" in admit
+          assert "'schema':'musitu.revenueguard.v4_1.specialist_dev_admission.v3'" in admit
+          assert "semantic-head labels or correctness do not participate" in admit
+          assert "global_steps'])!=615" in admit
+          assert "global_steps'])!=2571" in admit
+          assert "'certification':'NOT_CERTIFIED'" in admit
+
+          # Failure mining cannot silently change a gate or open sealed datasets.
+          assert "decoupled_postgate_failure_mining.v2" in cn_miner
+          assert 'ContractNLI test.json and MAUD remain unopened.' in cn_miner
           assert "EXPECTED_SCORING_MODE='explicit_answerability_margin_with_bound_span_localization'" in cuad_miner
           assert 'Official CUAD test remains unopened' in cuad_miner
-          assert "'contractnli_test_opened':False" in admit
-          assert "'maud_opened':False" in admit
-          assert "'cuad_official_test_opened':False" in admit
+
+          # Active training/evaluation code contains no sealed test path or MAUD access.
           active=[
-            'research/revenueguard/contractnli_decoupled_chunk_train.py',
-            'research/revenueguard/contractnli_decoupled_checkpoint_shard.py',
-            'research/revenueguard/contractnli_decoupled_checkpoint_aggregate.py',
-            'research/revenueguard/cuad_matched_window_multitask_train.py',
-            'research/revenueguard/cuad_heldout_question_shard.py',
-            'research/revenueguard/cuad_heldout_aggregate.py',
+            train_cn_path, shard_path, cn_path,
+            train_cq_path,
+            'research/revenueguard/cuad_heldout_question_shard.py', cq_path,
           ]
           for p in active:
-              s=Path(p).read_text().lower()
+              s=text(p).lower()
               assert 'contract-nli/test.json' not in s, p
               assert 'maud' not in s, p
               assert 'cuad/test.json' not in s and 'data/test.json' not in s, p
-          print('research contract tests PASS')
-          PY
 
-# Rerun after binding promotion to the exact CUAD trainer geometry proof.
+          # Admission record itself preserves all sealed-data and real-world boundaries.
+          assert "'contractnli_test_opened':False" in admit
+          assert "'maud_opened':False" in admit
+          assert "'cuad_official_test_opened':False" in admit
+          assert "'permissioned_companies':0" in admit
+          assert "'verified_recovered_cash_usd':0" in admit
+          print('authoritative V4.1 research contract tests PASS')
+          PY
