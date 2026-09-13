@@ -1,0 +1,25 @@
+{
+  "schema": "musitu.revenueguard.cuad.trainer_geometry_onepass_audit.v1",
+  "status": "DEV_RESEARCH_ONLY_OFFICIAL_TEST_UNOPENED",
+  "pass": true,
+  "train_sha256": "7de21d2bb741ac939e2a839ef9640634a5e0f9f40ea2b82c6833baf7db33dab4",
+  "geometry_report_sha256": "e14b667cc4e8ac96b35909741847d804505b3d7f0c4c79ddebb53ab07bee10e7",
+  "heldout_contracts": 45,
+  "dropped_empty_context_windows": 0,
+  "stats": {
+    "build_questions": 19989,
+    "heldout_questions": 2461,
+    "answerable_questions": 9972,
+    "impossible_questions": 10017,
+    "selected_positive": 12305,
+    "selected_negative": 49354,
+    "selected_total": 61659
+  },
+  "chunk_sizes": [15436, 15462, 15380, 15381],
+  "chunk_size_sum": 61659,
+  "report_sha256": "d8820202835ae82499e96a8ee8895c175ac5ddc39e7ec66b7bbfd0367d3520a1",
+  "source_run_id": 34750210596,
+  "source_artifact_id": 10315424328,
+  "source_artifact_sha256": "2bebd67c6a72270385c76ea2332f27946b196a38b9e804a99166c24257b61c48",
+  "frozen_rule": "Exact trainer selection regenerated once over the pinned real CUAD train corpus, with trainer chunk assignment applied to every selected row. Official CUAD test remained unopened."
+}
