@@ -29,11 +29,10 @@ def main():
     if prov.get('schema')!=PROV_SCHEMA or prov.get('status')!='TRAINING_PROVENANCE_PASS_NOT_CERTIFICATION': raise SystemExit('training provenance absent')
     eq_gate(cn.get('gate') or {},CN_GATE,'ContractNLI'); eq_gate(cq.get('gate') or {},CUAD_GATE,'CUAD')
 
-    # Bind evaluation reports to the exact fully completed training artifacts.
     if prov['contractnli']['artifact_sha256']!=cn['checkpoint_artifact_sha256']: raise SystemExit('ContractNLI eval/training artifact mismatch')
     if int(prov['contractnli']['completed_chunks'])!=4 or int(prov['contractnli']['global_steps'])!=615: raise SystemExit('ContractNLI incomplete training')
     if prov['cuad']['artifact_sha256']!=cq['model_artifact_sha256']: raise SystemExit('CUAD eval/training artifact mismatch')
-    if int(prov['cuad']['completed_chunks'])!=4 or int(prov['cuad']['selected_training_windows'])!=61659: raise SystemExit('CUAD incomplete training')
+    if int(prov['cuad']['completed_chunks'])!=4 or int(prov['cuad']['selected_training_windows'])!=61659 or int(prov['cuad']['global_steps'])!=2571: raise SystemExit('CUAD incomplete training')
 
     d=cn['dev']
     cn_pass=(float(d['accuracy'])>=.90 and float(d['macro_f1'])>=.88 and float(d['false_grounding_notmentioned'])<=.02 and float(d['selected_evidence_exact_span_recall'])>=.85)
@@ -48,7 +47,7 @@ def main():
       'certification':'NOT_CERTIFIED',
       'training_provenance_report_sha256':prov['report_sha256'],
       'contractnli':{'gate_pass':cn_pass,'report_sha256':cn['report_sha256'],'checkpoint_artifact_sha256':cn['checkpoint_artifact_sha256'],'chosen_k':cn['chosen_k'],'chosen_relevance_threshold':cn['chosen_threshold'],'dev':d},
-      'cuad':{'gate_pass':cq_pass,'report_sha256':cq['report_sha256'],'model_artifact_sha256':cq['model_artifact_sha256'],'threshold':cq['threshold'],'evaluation':e,'trainer_geometry_report_sha256':prov['cuad']['geometry_report_sha256']},
+      'cuad':{'gate_pass':cq_pass,'report_sha256':cq['report_sha256'],'model_artifact_sha256':cq['model_artifact_sha256'],'threshold':cq['threshold'],'evaluation':e,'trainer_geometry_report_sha256':prov['cuad']['geometry_report_sha256'],'global_steps':prov['cuad']['global_steps']},
       'frozen_v4_required_identity':{'archive_sha256':FROZEN_V4_SHA,'structured_money_regression_sha256':FROZEN_V4_REGRESSION_SHA,'regression_test_count':30},
       'sealed_datasets':{'contractnli_test_opened':False,'maud_opened':False,'cuad_official_test_opened':False},
       'real_world_boundary':{'permissioned_companies':0,'verified_recovered_cash_usd':0},
