@@ -1,0 +1,45 @@
+name: MUSITU FMI Revenue State Read-Only
+
+on:
+  push:
+    branches: [fmi-revenue-certification-20260913]
+    paths:
+      - '.github/workflows/fmi-revenue-state-readonly.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      CF_API: https://api.cloudflare.com/client/v4
+      ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      FMI_DB_UUID: a03dc12d-8206-47be-b904-1f24e4e37d91
+      PUBLIC_BASE: https://mft-fmi-global-edge.mft-education-nexus-93f395f5.workers.dev
+      TARGET_REFERENCE: FMI-MTYO41LA-CD6240DEB118
+      CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+      CLOUDFLARE_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Require protected Cloudflare credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$CLOUDFLARE_EMAIL"
+          test -n "$CLOUDFLARE_API_KEY"
+      - name: Inspect FMI revenue state read-only
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/fmi_revenue_state_probe.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: musitu-fmi-revenue-state-readonly
+          path: |
+            fmi-revenue-state-probe.json
+            fmi-revenue-state-probe.sha256
+          retention-days: 7
+          if-no-files-found: error
