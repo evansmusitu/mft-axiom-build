@@ -1,0 +1,37 @@
+{
+  "schema": "musitu.revenueguard.handoff_verification.v1",
+  "status": "PASS",
+  "authoritative_drive_file_id": "1LnszkOIFV_q58UXodPY6TiO0v1nLR4pl",
+  "handoff_zip": {
+    "name": "MUSITU_REVENUEGUARD_COMPLETE_HANDOFF_CLEAN_2026-09-12.zip",
+    "size_bytes": 142217,
+    "sha256": "e0dc025bcc881b03e0a1c811c5bfdc651af0c9d066bb7b70788662f93ba38a40",
+    "expected_sha256": "e0dc025bcc881b03e0a1c811c5bfdc651af0c9d066bb7b70788662f93ba38a40",
+    "sha256_match": true
+  },
+  "clean_file_manifest": {
+    "schema": "musitu.revenueguard.clean_handoff_manifest.v1",
+    "declared_file_count": 15,
+    "verified_file_count": 15,
+    "all_sha256_and_sizes_match": true
+  },
+  "pinned_handoff_head": "1e293bbab8d8f29698e760224def1c33e4b97cf4",
+  "frozen_v4": {
+    "path": "artifacts/core/MUSITU_REVENUEGUARD_SOVEREIGN_V4_0_CANDIDATE_2026-09-11.zip",
+    "sha256": "16ce77c048bc39990b9fe338f3090e430b2c8d7f2767efef11369bd3013be85d",
+    "internal_manifest_declared_files": 24,
+    "internal_manifest_verified_files": 24,
+    "all_internal_manifest_sha256_and_sizes_match": true,
+    "structured_money_regression_sha256": "b669e2756a7846fb04bf40671ed66f456917a94881fb993ceb4ad003b63f44e2",
+    "structured_money_regression_test_count": 30
+  },
+  "boundaries": {
+    "certification": "NOT_CERTIFIED",
+    "permissioned_real_companies": 0,
+    "verified_recovered_cash_usd": 0,
+    "contractnli_test_opened": false,
+    "cuad_official_test_opened": false,
+    "maud_opened": false
+  },
+  "rule": "This verification records identities only. It does not modify the frozen V4 artifact and does not authorize opening any sealed test."
+}
