@@ -2,10 +2,6 @@ name: MUSITU FMI V9.2 Provider Preflight
 
 on:
   workflow_dispatch:
-  push:
-    branches: [fmi-v9-1-market-data-provider-candidate-20260913]
-    paths:
-      - '.github/workflows/fmi-v9-1-provider-preflight.yml'
 
 permissions:
   contents: read
