@@ -17,7 +17,8 @@ const UA={
   ios:'Mozilla/5.0 (iPhone; CPU iPhone OS 18_6 like Mac OS X) AppleWebKit/605.1.15 Version/18.6 Mobile/15E148 Safari/604.1',
   web:'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/140 Safari/537.36'
 };
-const actionPaths=['/store','/store/apps/chemistry','/store/install','/store/update','/store/repair','/store/reinstall','/store/search?q=chemistry'];
+const discoveryPaths=['/store','/store/apps/chemistry','/store/search?q=chemistry'];
+const installLikePaths=[['/store/install','install'],['/store/update','update'],['/store/repair','repair'],['/store/reinstall','reinstall']];
 
 async function page(path,platform){
   const response=await worker.fetch(new Request('https://payments.mftintelligence.com'+path,{headers:{'user-agent':UA[platform]}}),{},{});
@@ -28,12 +29,34 @@ async function page(path,platform){
 function hrefs(html){return [...html.matchAll(/href="([^"]+)"/g)].map(m=>m[1])}
 function primaryCarrierLinks(html){return hrefs(html).filter(h=>h.startsWith('intent://')||h.startsWith('sidestore://')||h==='https://payments.mftintelligence.com/chemistry/install')}
 
-for(const path of actionPaths){
-  test(`Android ${path} routes install-like action directly to com.musitu.store`,async()=>{
+for(const platform of ['android','ios','web']){
+  for(const path of discoveryPaths){
+    test(`${platform} ${path} is browser-first and keeps installation as an explicit secondary path`,async()=>{
+      const html=await page(path,platform);
+      assert.ok(hrefs(html).includes('/store/open'),`browser launch missing on ${platform} ${path}`);
+      assert.ok(hrefs(html).includes('/store/install'),`install options missing on ${platform} ${path}`);
+      assert.equal(primaryCarrierLinks(html).length,0,`discovery surface must not auto-promote a platform install carrier on ${platform} ${path}`);
+      assert.doesNotMatch(html,/href="[^"]+\.(?:apk|ipa)"/i,'discovery surfaces must not expose package downloads');
+    });
+  }
+}
+
+test('/store/open redirects to the catalog web application and never to a package',async()=>{
+  const response=await worker.fetch(new Request('https://payments.mftintelligence.com/store/open'),{},{});
+  assert.equal(response.status,302);
+  const location=response.headers.get('location')||'';
+  assert.equal(location,'https://payments.mftintelligence.com/chemistry/app/');
+  assert.doesNotMatch(location,/\.(?:apk|ipa|zip|exe|msi)(?:$|\?)/i);
+  assert.equal(response.headers.get('content-disposition'),null);
+});
+
+for(const [path,action] of installLikePaths){
+  test(`Android ${action} routes explicitly to com.musitu.store`,async()=>{
     const html=await page(path,'android');
     const links=primaryCarrierLinks(html);
-    assert.ok(links.some(h=>h.startsWith('intent://app/chemistry?')&&h.includes('scheme=musitustore')&&h.includes('package=com.musitu.store')),
+    assert.ok(links.some(h=>h.startsWith(`intent://app/chemistry?action=${action}`)&&h.includes('scheme=musitustore')&&h.includes('package=com.musitu.store')),
       `missing explicit MUSITU Store package handoff on ${path}`);
+    assert.ok(hrefs(html).includes('/store/open'),'browser fallback must remain available');
     assert.doesNotMatch(html,/href="[^"]*MUSITU_Chemistry[^\"]*\.apk/i,'Chemistry APK must never be a browser install action');
   });
 }
@@ -48,18 +71,12 @@ test('Android Install page keeps only the one-time MUSITU Store bootstrap as a b
   assert.doesNotMatch(html,/href="[^"]*chemistry[^"]*\.apk/i);
 });
 
-for(const [path,action] of [['/store/install','install'],['/store/update','update'],['/store/repair','repair'],['/store/reinstall','reinstall']]){
-  test(`Android ${action} encodes the lifecycle action in the native Store intent`,async()=>{
-    const html=await page(path,'android');
-    assert.ok(hrefs(html).some(h=>h.startsWith(`intent://app/chemistry?action=${action}`)&&h.includes('package=com.musitu.store')));
-  });
-}
-
-for(const path of actionPaths){
-  test(`iOS ${path} uses SideStore as the native carrier and never a raw IPA browser action`,async()=>{
+for(const [path] of installLikePaths){
+  test(`iOS ${path} keeps SideStore as the explicit native carrier and never a raw IPA browser action`,async()=>{
     const html=await page(path,'ios');
     const links=primaryCarrierLinks(html);
     assert.ok(links.some(h=>h.startsWith('sidestore://install?url=')),`missing SideStore install handoff on ${path}`);
+    assert.ok(hrefs(html).includes('/store/open'),'browser fallback must remain available');
     assert.doesNotMatch(html,/href="https?:[^"]+\.ipa/i,'IPA must not be a browser-download primary action');
   });
 }
@@ -73,24 +90,32 @@ test('iOS Install page exposes SideStore source and Web/PWA/browser fallbacks as
   assert.doesNotMatch(html,/href="\/store\/ios\/source\.json"[^>]*>Open SideStore source<\/a>/);
 });
 
-for(const path of actionPaths){
-  test(`Web/PWA ${path} routes install-like action to the dedicated Chemistry install surface`,async()=>{
+for(const [path] of installLikePaths){
+  test(`Web/PWA ${path} keeps PWA installation explicit and package-download free`,async()=>{
     const html=await page(path,'web');
     assert.ok(primaryCarrierLinks(html).includes('https://payments.mftintelligence.com/chemistry/install'),`PWA install surface missing on ${path}`);
+    assert.ok(hrefs(html).includes('/store/open'),'browser launch must remain available');
     assert.doesNotMatch(html,/href="[^"]+\.(?:apk|ipa)"/i,'Web/PWA install actions must not download package files');
   });
 }
 
-test('Web/PWA Install page keeps Open in browser separate from Install Web App',async()=>{
+test('Web/PWA Install page presents browser launch before optional PWA install',async()=>{
   const html=await page('/store/install','web');
-  assert.match(html,/href="https:\/\/payments\.mftintelligence\.com\/chemistry\/install"[^>]*>Install Web App<\/a>/);
+  const openIndex=html.indexOf('href="/store/open"');
+  const installIndex=html.indexOf('href="https://payments.mftintelligence.com/chemistry/install"');
+  assert.ok(openIndex>=0 && installIndex>=0 && openIndex<installIndex,'Open in browser must precede optional PWA installation');
   assert.match(html,/>Open in browser<\/a>/);
+  assert.match(html,/>Install Web App<\/a>/);
 });
 
-test('low-bandwidth Android home uses the same explicit native Store handoff',async()=>{
-  const html=await page('/store?lite=1','android');
-  assert.ok(hrefs(html).some(h=>h.startsWith('intent://app/chemistry?')&&h.includes('package=com.musitu.store')));
-  assert.doesNotMatch(html,/href="[^"]*chemistry[^"]*\.apk/i);
+test('low-bandwidth home is browser-first on every platform',async()=>{
+  for(const platform of ['android','ios','web']){
+    const html=await page('/store?lite=1',platform);
+    assert.ok(hrefs(html).includes('/store/open'));
+    assert.ok(hrefs(html).includes('/store/install'));
+    assert.equal(primaryCarrierLinks(html).length,0);
+    assert.doesNotMatch(html,/href="[^"]+\.(?:apk|ipa)"/i);
+  }
 });
 
 test('native MUSITU Store declares a browsable handler for the Android handoff URI',()=>{
