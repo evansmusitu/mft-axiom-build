@@ -24,6 +24,27 @@ Object.defineProperty(navigator,'connection',{configurable:true,value:{effective
 """
 
 
+def emulate_constrained_network(session, *, offline: bool) -> None:
+    """Keep the explicit CDP profile aligned with Playwright's context state.
+
+    The Phase-14 matrix deliberately owns a page-level CDP session so it can
+    exercise constrained throughput.  Chromium treats that session's network
+    override independently from Playwright's browser-context override.  Apply
+    the same offline bit to both layers so neither can leave navigator.onLine
+    reporting an online state while requests are expected to fail closed.
+    """
+    session.send(
+        "Network.emulateNetworkConditions",
+        {
+            "offline": offline,
+            "latency": 0 if offline else 400,
+            "downloadThroughput": 0 if offline else 50 * 1024,
+            "uploadThroughput": 0 if offline else 20 * 1024,
+            "connectionType": "none" if offline else "cellular3g",
+        },
+    )
+
+
 def prepare_context(browser, viewport):
     context = browser.new_context(viewport=viewport, reduced_motion="reduce", accept_downloads=True)
     context.add_init_script(CONNECTION_OVERRIDE)
@@ -31,8 +52,8 @@ def prepare_context(browser, viewport):
     session = context.new_cdp_session(page)
     session.send("Emulation.setCPUThrottlingRate", {"rate": 4})
     session.send("Network.enable")
-    session.send("Network.emulateNetworkConditions", {"offline": False, "latency": 400, "downloadThroughput": 50 * 1024, "uploadThroughput": 20 * 1024, "connectionType": "cellular3g"})
-    return context, page
+    emulate_constrained_network(session, offline=False)
+    return context, page, session
 
 
 def main() -> None:
@@ -44,7 +65,7 @@ def main() -> None:
     try:
         with sync_playwright() as playwright:
             browser = playwright.chromium.launch(headless=True, executable_path=os.environ.get("AXIOM_CHROMIUM_EXECUTABLE") or shutil.which("chromium") or None)
-            context, page = prepare_context(browser, {"width": 390, "height": 844})
+            context, page, session = prepare_context(browser, {"width": 390, "height": 844})
             requests: list[str] = []
             page.on("request", lambda request: requests.append(request.url))
             page.goto(origin + "/index.html#/settings", wait_until="networkidle")
@@ -64,6 +85,7 @@ def main() -> None:
             matrix.append({"scenario": "mobile_constrained", "viewport_width": 390, "viewport_height": 844, "cpu_slowdown": 4, "latency_ms": 400, "downlink_kbps": 400, "shell_available": True, "project_available": True, "queue_integrity": True, "reconnect_replay": True, "real_device": False, "external_origin_authenticated": False})
 
             context.set_offline(True)
+            emulate_constrained_network(session, offline=True)
             page.reload(wait_until="domcontentloaded")
             page.wait_for_function("()=>Boolean(window.AxiomPwaHardeningBootstrap)")
             page.evaluate("()=>window.AxiomPwaHardeningBootstrap")
@@ -80,6 +102,7 @@ def main() -> None:
             matrix.append({"scenario": "offline_reload", "viewport_width": 390, "viewport_height": 844, "cpu_slowdown": 4, "latency_ms": 0, "downlink_kbps": 0, "shell_available": True, "project_available": True, "queue_integrity": True, "reconnect_replay": True, "real_device": False, "external_origin_authenticated": False})
 
             context.set_offline(False)
+            emulate_constrained_network(session, offline=False)
             page.evaluate("()=>window.dispatchEvent(new Event('online'))")
             page.wait_for_function("()=>window.AxiomPwaHardening.queue.listActions().then(rows=>rows.some(row=>row.status==='COMPLETED_LOCAL'))")
             completed = page.evaluate("()=>window.AxiomPwaHardening.queue.listActions()")
@@ -93,7 +116,7 @@ def main() -> None:
             page.screenshot(path=str(OUT / "phase14-pwa-mobile-constrained.png"), full_page=True)
             context.close()
 
-            tablet_context, tablet = prepare_context(browser, {"width": 768, "height": 1024})
+            tablet_context, tablet, _tablet_session = prepare_context(browser, {"width": 768, "height": 1024})
             tablet.goto(origin + "/index.html#/settings", wait_until="networkidle")
             tablet.wait_for_function("()=>Boolean(window.AxiomPwaHardeningBootstrap)")
             tablet.evaluate("()=>window.AxiomPwaHardeningBootstrap")
@@ -140,4 +163,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
