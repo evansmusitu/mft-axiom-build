@@ -33,17 +33,14 @@ jobs:
           token=os.environ['GH_TOKEN']
           out=[]
           for prefix,run_id,name in specs:
-              req=urllib.request.Request(
-                  f'https://api.github.com/repos/{repo}/actions/runs/{run_id}/artifacts?name={name}',
-                  headers={'Authorization':f'Bearer {token}','Accept':'application/vnd.github+json'})
+              req=urllib.request.Request(f'https://api.github.com/repos/{repo}/actions/runs/{run_id}/artifacts?name={name}',headers={'Authorization':f'Bearer {token}','Accept':'application/vnd.github+json'})
               with urllib.request.urlopen(req) as r: obj=json.load(r)
               arts=[a for a in obj['artifacts'] if a['name']==name and not a['expired']]
               assert len(arts)==1,(prefix,arts)
               digest=arts[0].get('digest','')
               assert digest.startswith('sha256:') and len(digest)==71,(prefix,digest)
               out.append(f'{prefix}_ARTIFACT_SHA={digest.split(":",1)[1]}')
-          with open(os.environ['GITHUB_ENV'],'a') as f:
-              f.write('\n'.join(out)+'\n')
+          with open(os.environ['GITHUB_ENV'],'a') as f: f.write('\n'.join(out)+'\n')
           print('exact final artifact identities resolved')
           PY
 
@@ -76,6 +73,7 @@ jobs:
           set -euo pipefail
           python - <<'PY'
           import json, torch
+          from pathlib import Path
           cn=torch.load('cn_final/decoupled_epoch2_state.pt',map_location='cpu',weights_only=False)
           assert cn['schema']=='musitu.revenueguard.contractnli.decoupled_chunk_state.v1'
           assert cn['mode']=='decoupled'
@@ -87,12 +85,12 @@ jobs:
           assert cq['schema']=='musitu.revenueguard.cuad.matched_window_state.v1'
           assert cq['num_chunks']==4 and cq['next_chunk']==4
           assert cq['train_sha256']=='7de21d2bb741ac939e2a839ef9640634a5e0f9f40ea2b82c6833baf7db33dab4'
-          assert cq['global_steps']>0
-          assert __import__('pathlib').Path('cuad_final/cuad_matched_epoch2_final/answer_head.pt').is_file()
+          assert cq['global_steps']==2571
+          assert Path('cuad_final/cuad_matched_epoch2_final/answer_head.pt').is_file()
           cjr=json.load(open('cn_final/CONTRACTNLI_DECOUPLED_EPOCH2_FINAL.json'))
           qjr=json.load(open('cuad_final/CUAD_MATCHED_EPOCH2_FINAL.json'))
           assert cjr['global_steps']==615 and cjr['chunk_index']==3 and cjr['num_chunks']==4
-          assert qjr['chunk_index']==3 and qjr['num_chunks']==4
+          assert qjr['global_steps']==2571 and qjr['chunk_index']==3 and qjr['num_chunks']==4
           print({'contractnli_global_steps':cn['global_steps'],'cuad_global_steps':cq['global_steps']})
           PY
 
