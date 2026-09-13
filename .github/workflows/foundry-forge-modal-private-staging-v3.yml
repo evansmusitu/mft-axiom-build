@@ -1,0 +1,262 @@
+name: MUSITU FOUNDRY FORGE Modal Private Staging V3
+
+on:
+  push:
+    branches:
+      - foundry-forge-runtime-transport-bootstrap-20260913
+    paths:
+      - 'deploy_payload/foundry_forge_v3/**'
+      - 'ops/foundry_forge_modal_staging_v3.py'
+      - '.github/workflows/foundry-forge-modal-private-staging-v3.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  deploy-private-staging:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID }}
+      MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET }}
+      CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+      FORGE_MODAL_APP: musitu-forge-private-staging
+      PAYLOAD_DIR: deploy_payload/foundry_forge_v3
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12.13'
+
+      - name: Require credentialed authorities
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$MODAL_TOKEN_ID"
+          test -n "$MODAL_TOKEN_SECRET"
+          test -n "$CLOUDFLARE_GLOBAL_API_KEY"
+
+      - name: Install Modal CLI and verify auth
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --disable-pip-version-check --quiet 'modal==1.5.5'
+          modal --version
+          modal app list --json >/dev/null
+          echo 'modal_auth=PASS'
+
+      - name: Reconstruct and decrypt compact FOUNDRY payload fail-closed
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat \
+            "$PAYLOAD_DIR/bundle.part.00.txt" \
+            "$PAYLOAD_DIR/bundle.part.01.txt" \
+            "$PAYLOAD_DIR/bundle.part.02.txt" \
+            "$PAYLOAD_DIR/bundle.part.03.00.txt" \
+            "$PAYLOAD_DIR/bundle.part.03.01.txt" \
+            "$PAYLOAD_DIR/bundle.part.03.02.txt" \
+            "$PAYLOAD_DIR/bundle.part.04.00a.txt" \
+            "$PAYLOAD_DIR/bundle.part.04.00b.txt" \
+            "$PAYLOAD_DIR/bundle.part.04.01.txt" \
+            "$PAYLOAD_DIR/bundle.part.04.02.correct.txt" \
+            > /tmp/FOUNDRY_PRIVATE_STAGING_TRANSPORT_V3.json
+          test "$(stat -c %s /tmp/FOUNDRY_PRIVATE_STAGING_TRANSPORT_V3.json)" = '72860'
+          test "$(sha256sum /tmp/FOUNDRY_PRIVATE_STAGING_TRANSPORT_V3.json | awk '{print $1}')" = '07aa7a330de816bb6a22e9954435fd4a26807eec6a124482c99ef35224253e86'
+          python - <<'PY'
+          import base64, hashlib, json, pathlib, hmac
+          p=pathlib.Path('/tmp/FOUNDRY_PRIVATE_STAGING_TRANSPORT_V3.json')
+          bundle=json.loads(p.read_text())
+          if bundle['schema']!='musitu.foundry_forge.private_payload_transport_bundle.v3': raise SystemExit('transport_bundle_schema_mismatch')
+          if bundle['source_commit']!='f0e805ae298b4720f9263dc15d10f4864b385669': raise SystemExit('transport_bundle_source_mismatch')
+          copy=dict(bundle); expected=copy.pop('bundle_content_sha256')
+          canonical=json.dumps(copy,sort_keys=True,separators=(',',':')).encode()
+          if hashlib.sha256(canonical).hexdigest()!=expected: raise SystemExit('transport_bundle_content_digest_mismatch')
+          m=bundle['envelope']
+          if m['schema']!='musitu.foundry_forge.rsa_enveloped_private_payload.v3' or m['production_authorized'] is not False: raise SystemExit('envelope_contract_mismatch')
+          cipher=base64.b64decode(bundle['ciphertext_base64'],validate=True)
+          wrapped=base64.b64decode(bundle['wrapped_master_secret_base64'],validate=True)
+          encpriv=base64.b64decode(bundle['transport_private_key_encrypted_base64'],validate=True)
+          if hashlib.sha256(cipher).hexdigest()!=m['ciphertext_sha256']: raise SystemExit('ciphertext_sha256_mismatch')
+          if hashlib.sha256(wrapped).hexdigest()!=m['wrapped_master_secret_sha256']: raise SystemExit('wrapped_master_secret_sha256_mismatch')
+          km=bundle['transport_key_manifest']
+          if km['schema']!='musitu.foundry_forge.runtime_transport_key_bootstrap.v1': raise SystemExit('transport_key_manifest_schema_mismatch')
+          if hashlib.sha256(encpriv).hexdigest()!=km['encrypted_private_key_sha256']: raise SystemExit('encrypted_private_key_sha256_mismatch')
+          pub=bundle['transport_public_key_pem'].encode()
+          if hashlib.sha256(pub).hexdigest()!=km['public_key_sha256']: raise SystemExit('transport_public_key_sha256_mismatch')
+          if km['plaintext_private_key_committed'] is not False or km['private_product_bytes_included'] is not False: raise SystemExit('transport_key_truth_boundary_mismatch')
+          if bundle['plaintext_source_committed'] is not False or bundle['private_signing_material_included'] is not False: raise SystemExit('transport_bundle_truth_boundary_mismatch')
+          pathlib.Path('/tmp/forge-payload.tar.gz.enc').write_bytes(cipher)
+          pathlib.Path('/tmp/forge-master.wrapped').write_bytes(wrapped)
+          pathlib.Path('/tmp/forge-transport-private.pem.enc').write_bytes(encpriv)
+          print('transport_bundle=PASS')
+          PY
+          openssl enc -d -aes-256-cbc -pbkdf2 -iter 250000 \
+            -in /tmp/forge-transport-private.pem.enc \
+            -out /tmp/forge-transport-private.pem \
+            -pass env:CLOUDFLARE_GLOBAL_API_KEY
+          chmod 600 /tmp/forge-transport-private.pem
+          openssl pkeyutl -decrypt \
+            -inkey /tmp/forge-transport-private.pem \
+            -pkeyopt rsa_padding_mode:oaep \
+            -pkeyopt rsa_oaep_md:sha256 \
+            -pkeyopt rsa_mgf1_md:sha256 \
+            -in /tmp/forge-master.wrapped \
+            -out /tmp/forge-master.secret
+          chmod 600 /tmp/forge-master.secret
+          python - <<'PY'
+          import hashlib,hmac,json,pathlib
+          bundle=json.loads(pathlib.Path('/tmp/FOUNDRY_PRIVATE_STAGING_TRANSPORT_V3.json').read_text())
+          m=bundle['envelope']; master=pathlib.Path('/tmp/forge-master.secret').read_bytes(); cipher=pathlib.Path('/tmp/forge-payload.tar.gz.enc').read_bytes()
+          if len(master)!=32: raise SystemExit('master_secret_size_invalid')
+          hkey=hashlib.sha256(b'musitu.foundry_forge.private_payload.hmac.v3\0'+master).digest()
+          if not hmac.compare_digest(hmac.new(hkey,cipher,hashlib.sha256).hexdigest(),m['ciphertext_hmac_sha256']): raise SystemExit('ciphertext_hmac_mismatch')
+          pathlib.Path('/tmp/forge-master.hex').write_text(master.hex())
+          print('ciphertext_hmac=PASS')
+          PY
+          MASTER_HEX="$(cat /tmp/forge-master.hex)"
+          openssl enc -d -aes-256-cbc -pbkdf2 -iter 250000 \
+            -in /tmp/forge-payload.tar.gz.enc \
+            -out /tmp/forge-runtime.tar.gz \
+            -pass pass:"$MASTER_HEX"
+          python - <<'PY'
+          import hashlib,json,pathlib
+          bundle=json.loads(pathlib.Path('/tmp/FOUNDRY_PRIVATE_STAGING_TRANSPORT_V3.json').read_text()); m=bundle['envelope']; b=pathlib.Path('/tmp/forge-runtime.tar.gz').read_bytes()
+          if len(b)!=m['plaintext_tar_gz_bytes'] or hashlib.sha256(b).hexdigest()!=m['plaintext_tar_gz_sha256']: raise SystemExit('plaintext_archive_integrity_mismatch')
+          print('plaintext_archive_integrity=PASS')
+          PY
+          mkdir runtime
+          tar -xzf /tmp/forge-runtime.tar.gz -C runtime
+          python - <<'PY'
+          import hashlib,json,pathlib
+          r=pathlib.Path('runtime'); m=json.loads((r/'FORGE_PRIVATE_RUNTIME_MANIFEST.json').read_text())
+          assert m['schema']=='musitu.foundry_forge.private_runtime_minimal_source.v3'
+          assert m['source_commit']=='f0e805ae298b4720f9263dc15d10f4864b385669'
+          assert m['target_runtime']['canonical_boot_health']=='PASS'
+          assert m['staging_truth_boundary']['production_authorized'] is False
+          problems=[]
+          for f in m['files']:
+              p=r/f['path']
+              if not p.is_file(): problems.append((f['path'],'missing')); continue
+              b=p.read_bytes()
+              if len(b)!=f['size'] or hashlib.sha256(b).hexdigest()!=f['sha256']: problems.append((f['path'],'integrity'))
+          if problems: raise SystemExit('internal_manifest_mismatch '+repr(problems))
+          if (r/'core/forge1/__init__.py').exists(): raise SystemExit('forbidden_eager_forge1_init_present')
+          print('internal_source_manifest=PASS')
+          PY
+          rm -f /tmp/forge-transport-private.pem /tmp/forge-transport-private.pem.enc /tmp/forge-master.secret /tmp/forge-master.hex /tmp/forge-master.wrapped /tmp/forge-payload.tar.gz.enc /tmp/forge-runtime.tar.gz
+
+      - name: Validate private Modal staging adapter
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m py_compile ops/foundry_forge_modal_staging_v3.py
+          grep -F "SOURCE_COMMIT='f0e805ae298b4720f9263dc15d10f4864b385669'" ops/foundry_forge_modal_staging_v3.py >/dev/null
+          grep -F "requires_proxy_auth=True" ops/foundry_forge_modal_staging_v3.py >/dev/null
+          echo 'modal_adapter_static=PASS'
+
+      - name: Deploy authenticated Modal staging backend
+        shell: bash
+        run: |
+          set -euo pipefail
+          modal deploy ops/foundry_forge_modal_staging_v3.py --name "$FORGE_MODAL_APP" --strategy recreate --tag 'FOUNDRY-V3-f0e805ae' | tee modal-deploy.log
+          echo 'modal_deploy=PASS'
+
+      - name: Verify private deployed runtime and proxy-auth boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY' > modal-url.txt
+          import modal
+          f=modal.Function.from_name('musitu-forge-private-staging','forge_custody')
+          u=f.get_web_url()
+          if not u or not u.startswith('https://'): raise SystemExit('private_staging_url_missing')
+          print(u)
+          PY
+          URL="$(cat modal-url.txt)"
+          code="$(curl -sS -o unauth-body.txt -w '%{http_code}' "$URL/v1/health" || true)"
+          if [ "$code" != 401 ] && [ "$code" != 403 ]; then echo "proxy_auth_boundary_failed_http_$code" >&2; exit 1; fi
+          python - <<'PY'
+          import json,modal
+          r=modal.Function.from_name('musitu-forge-private-staging','runtime_probe').remote()
+          if r.get('source_commit')!='f0e805ae298b4720f9263dc15d10f4864b385669': raise SystemExit('runtime_source_commit_mismatch')
+          if r.get('source_manifest_ok') is not True or r.get('bad_files'): raise SystemExit('runtime_source_manifest_failed')
+          if r.get('production_authorized') is not False: raise SystemExit('runtime_truth_boundary_failed')
+          open('modal-runtime-probe.json','w').write(json.dumps(r,indent=2,sort_keys=True))
+          print('modal_runtime_probe=PASS')
+          PY
+
+      - name: Authenticated health proof with ephemeral Modal proxy token
+        shell: bash
+        run: |
+          set -euo pipefail
+          URL="$(cat modal-url.txt)"
+          modal workspace proxy-tokens create --json > proxy-token.json
+          python - <<'PY'
+          import json,pathlib
+          obj=json.load(open('proxy-token.json')); vals=[]
+          def walk(x):
+              if isinstance(x,dict):
+                  for v in x.values(): walk(v)
+              elif isinstance(x,list):
+                  for v in x: walk(v)
+              elif isinstance(x,str): vals.append(x)
+          walk(obj); keys=[x for x in vals if x.startswith('wk-')]; secs=[x for x in vals if x.startswith('ws-')]
+          if len(keys)!=1 or len(secs)!=1: raise SystemExit('proxy_token_shape_invalid')
+          pathlib.Path('/tmp/proxy-key').write_text(keys[0]); pathlib.Path('/tmp/proxy-secret').write_text(secs[0])
+          PY
+          KEY="$(cat /tmp/proxy-key)"; SECRET="$(cat /tmp/proxy-secret)"
+          cleanup(){ modal workspace proxy-tokens delete -y "$KEY" >/dev/null 2>&1 || true; rm -f /tmp/proxy-key /tmp/proxy-secret proxy-token.json; }
+          trap cleanup EXIT
+          : > modal-health.json
+          ok=0
+          for attempt in $(seq 1 60); do
+            code="$(curl -sS -o /tmp/modal-health-attempt.json -w '%{http_code}' -H "Modal-Key: $KEY" -H "Modal-Secret: $SECRET" "$URL/v1/health" || true)"
+            if [ "$code" = '200' ]; then
+              mv /tmp/modal-health-attempt.json modal-health.json
+              ok=1
+              break
+            fi
+            if [ "$code" = '503' ]; then
+              sleep 2
+              continue
+            fi
+            echo "Fail-closed: authenticated health returned HTTP $code" >&2
+            cat /tmp/modal-health-attempt.json >&2 || true
+            exit 1
+          done
+          test "$ok" = 1 || { echo 'Fail-closed: authenticated health did not become ready' >&2; exit 1; }
+          rm -f /tmp/modal-health-attempt.json
+          python - <<'PY'
+          import json
+          h=json.load(open('modal-health.json'))
+          assert h['schema']=='musitu.forge.health.v1'
+          assert h['status']=='READY'
+          assert h['production_authorized'] is False
+          assert h['custody_uploads_ready'] is True
+          assert h['video_derivation_runtime_configured'] is False
+          assert h['field_dataset_admission_configured'] is False
+          assert h['expert_review_projection_configured'] is False
+          assert h['fault_episode_submission_configured'] is False
+          e={'schema':'musitu.forge.modal_private_staging_deploy.v3','source_commit':'f0e805ae298b4720f9263dc15d10f4864b385669','modal_app':'musitu-forge-private-staging','proxy_auth_required':True,'health':h,'production_authorized':False,'production_domain_provisioned':False,'production_signing_authority_connected':False,'deployment_state':'MODAL_PRIVATE_STAGING','gate':'PASS'}
+          open('modal-forge-staging-evidence.json','w').write(json.dumps(e,indent=2,sort_keys=True))
+          print('authenticated_health=PASS')
+          PY
+          modal workspace proxy-tokens delete -y "$KEY" >/dev/null
+          rm -f /tmp/proxy-key /tmp/proxy-secret proxy-token.json
+          trap - EXIT
+          sha256sum modal-forge-staging-evidence.json modal-runtime-probe.json > modal-forge-staging-evidence.sha256
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: musitu-forge-modal-private-staging-v3
+          path: |
+            modal-forge-staging-evidence.json
+            modal-forge-staging-evidence.sha256
+            modal-runtime-probe.json
+            modal-health.json
+            modal-deploy.log
+          retention-days: 7
+          if-no-files-found: error
