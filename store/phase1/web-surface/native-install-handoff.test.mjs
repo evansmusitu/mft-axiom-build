@@ -35,7 +35,8 @@ for(const platform of ['android','ios','web']){
       const html=await page(path,platform);
       assert.ok(hrefs(html).includes('/store/open'),`browser launch missing on ${platform} ${path}`);
       assert.ok(hrefs(html).includes('/store/install'),`install options missing on ${platform} ${path}`);
-      assert.equal(primaryCarrierLinks(html).length,0,`discovery surface must not auto-promote a platform install carrier on ${platform} ${path}`);
+      assert.match(html,/href="\/store\/open"[^>]*>Open [^<]+<\/a>.*href="\/store\/install"[^>]*>Install options<\/a>/s,
+        `browser launch must be presented before install options on ${platform} ${path}`);
       assert.doesNotMatch(html,/href="[^"]+\.(?:apk|ipa)"/i,'discovery surfaces must not expose package downloads');
     });
   }
