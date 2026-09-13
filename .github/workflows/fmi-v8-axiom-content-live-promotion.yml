@@ -1,0 +1,135 @@
+name: MUSITU FMI V8 Exact Axiom Content Promotion
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [fmi-v8-live-promotion-20260913]
+    paths:
+      - '.github/workflows/fmi-v8-axiom-content-live-promotion.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  promote-v8-exact:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      CF_API: https://api.cloudflare.com/client/v4
+      CLOUDFLARE_ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+      CLOUDFLARE_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+      FMI_DB_UUID: a03dc12d-8206-47be-b904-1f24e4e37d91
+      FMI_EDGE: mft-fmi-global-edge
+      FMI_ADAPTER: mft-fmi-modal-adapter
+      FMI_BILLING: mft-fmi-billing
+      PUBLIC_BASE: https://mft-fmi-global-edge.mft-education-nexus-93f395f5.workers.dev
+      EXPECTED_CURRENT_EDGE_SHA: d4d0e5660ab463960e93ca555cedcc65ee3e308d46b21224ed2e596383c6da10
+      EXPECTED_PREV_EDGE_SHA: d4d0e5660ab463960e93ca555cedcc65ee3e308d46b21224ed2e596383c6da10
+      EXPECTED_V8_EDGE_SHA: 00fa486ddf3f51f3c435b8db33c5ec1d1c42d6b175abc95f4e1ad9328e40f2b3
+      EXPECTED_V8_WORKSPACE_SHA: 64accddb375d9f1c0f0d7fddd319e83a0242c9740ae1ae5bcc59185ac3ca7ec3
+      EXPECTED_BILLING_SHA: cd55b2b7b34bc5f73c394eddebd9edbc22690250b4ab7aff36a209064a3b9454
+      EXPECTED_ADAPTER_SHA: c5c4d059b245565bda0aa8bf2f8b8d6282fcb580187e6ce73bb1e1e38e569ed1
+      EXPECTED_BUNDLE_SHA: 396c33c9b726e18faf255055c992794cb208d681097a5d8a68ea8a1f5f71a448
+      V8_SOURCE_PATH: /tmp/fmi-v8-runtime/edge/fmi-global/worker.js
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Require protected Cloudflare credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$CLOUDFLARE_EMAIL"
+          test -n "$CLOUDFLARE_API_KEY"
+
+      - name: Reconstruct and verify exact V8 payload
+        shell: bash
+        run: |
+          set -euo pipefail
+          P=deploy_payload/fmi_v8
+          cat "$P/chunk_00.b64" "$P/chunk_01.b64" "$P/chunk_02.b64" "$P/chunk_03.b64" | base64 -d > /tmp/fmi-v8.tar.gz
+          test "$(sha256sum /tmp/fmi-v8.tar.gz | awk '{print $1}')" = "$EXPECTED_BUNDLE_SHA"
+          rm -rf /tmp/fmi-v8-runtime && mkdir -p /tmp/fmi-v8-runtime
+          tar -xzf /tmp/fmi-v8.tar.gz -C /tmp/fmi-v8-runtime
+          python - <<'PY'
+          import hashlib,json,os,pathlib
+          r=pathlib.Path('/tmp/fmi-v8-runtime');m=json.loads((r/'MANIFEST.json').read_text());bad=[]
+          for f in m['files']:
+              p=r/f['path'];b=p.read_bytes() if p.is_file() else b''
+              if not p.is_file() or len(b)!=f['size'] or hashlib.sha256(b).hexdigest()!=f['sha256']:bad.append(f['path'])
+          if bad:raise SystemExit('Fail-closed payload integrity: '+repr(bad))
+          got=hashlib.sha256(pathlib.Path(os.environ['V8_SOURCE_PATH']).read_bytes()).hexdigest()
+          if got!=os.environ['EXPECTED_V8_EDGE_SHA']:raise SystemExit('Fail-closed V8 edge SHA '+got)
+          PY
+          node --check "$V8_SOURCE_PATH"
+
+      - name: Pre-mutation read-only production state capture
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/fmi_v8_state_probe.py
+          cp fmi-v8-current-state-probe.json fmi-v8-pre-content-state.json
+
+      - name: Exact Axiom-style Worker content swap
+        id: content_swap
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/fmi_v8_axiom_content_swap.py promote
+
+      - name: Independent V8 live functional verification
+        id: verify
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/fmi_v8_postverify.py
+
+      - name: Final read-only production state capture
+        if: ${{ success() }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/fmi_v8_state_probe.py
+          cp fmi-v8-current-state-probe.json fmi-v8-post-content-state.json
+          python - <<'PY'
+          import json,os
+          x=json.load(open('fmi-v8-post-content-state.json'))
+          if x.get('edge_sha256')!=os.environ['EXPECTED_V8_EDGE_SHA']:raise SystemExit('final edge SHA mismatch')
+          if x.get('workspace_sha256')!=os.environ['EXPECTED_V8_WORKSPACE_SHA']:raise SystemExit('final workspace SHA mismatch')
+          if x.get('edge_contains_v8_monitor_routes') is not True:raise SystemExit('final V8 route proof missing')
+          if x.get('health_http')!=200 or x.get('d1_http')!=200:raise SystemExit('final health/D1 readback failed')
+          PY
+
+      - name: Exact byte rollback on any post-snapshot failure
+        if: ${{ failure() }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -f /tmp/fmi-v8-content-swap-original.mjs ] && [ -f /tmp/fmi-v8-content-swap-original.json ]; then
+            python scripts/fmi_v8_axiom_content_swap.py rollback
+            python scripts/fmi_v8_state_probe.py
+            cp fmi-v8-current-state-probe.json fmi-v8-rollback-state.json
+            python - <<'PY'
+          import json,os
+          x=json.load(open('fmi-v8-rollback-state.json'))
+          if x.get('edge_sha256')!=os.environ['EXPECTED_CURRENT_EDGE_SHA']:raise SystemExit('rollback state SHA mismatch')
+          if x.get('health_http')!=200:raise SystemExit('rollback health failed')
+          PY
+          else
+            echo 'No content-swap snapshot exists; mutation did not begin.'
+          fi
+
+      - uses: actions/upload-artifact@v4
+        if: ${{ always() }}
+        with:
+          name: musitu-fmi-v8-exact-content-promotion-evidence
+          path: |
+            fmi-v8-pre-content-state.json
+            fmi-v8-content-swap-evidence.json
+            fmi-v8-live-promotion-evidence.json
+            fmi-v8-live-promotion-evidence.sha256
+            fmi-v8-post-content-state.json
+            fmi-v8-rollback-state.json
+          if-no-files-found: warn
+          retention-days: 30
