@@ -296,8 +296,16 @@
     ],
     "browser_media_apis": [
       "getUserMedia",
-      "getDisplayMedia"
+      "getDisplayMedia",
+      "MediaRecorder"
     ],
+    "explicit_permission_required": true,
+    "privacy_indicators": true,
+    "recording_controls": true,
+    "selectable_screen_region": "KEYBOARD_ACCESSIBLE_NORMALIZED_COORDINATES",
+    "annotation": true,
+    "artifact_capture": "PROJECT_LINKED_LOCAL_MEDIA_WITH_SHA256",
+    "project_linked_notes": true,
     "transcript_evidence_log": "MANUAL_TRANSCRIPT_ONLY",
     "transcript_evidence_log_scope": "BASE_CAPTURE_CONTROL_LAYER_ONLY",
     "interruption_target_ms": 250,
