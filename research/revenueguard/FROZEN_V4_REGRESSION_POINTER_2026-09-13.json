@@ -1,0 +1,24 @@
+{
+  "schema": "musitu.revenueguard.frozen_v4_regression_pointer.v1",
+  "status": "READ_ONLY_HANDOFF_IDENTITY_NOT_A_MODIFICATION",
+  "source_handoff_zip_sha256": "e0dc025bcc881b03e0a1c811c5bfdc651af0c9d066bb7b70788662f93ba38a40",
+  "frozen_v4_archive_path_in_handoff": "artifacts/core/MUSITU_REVENUEGUARD_SOVEREIGN_V4_0_CANDIDATE_2026-09-11.zip",
+  "frozen_v4_archive_sha256": "16ce77c048bc39990b9fe338f3090e430b2c8d7f2767efef11369bd3013be85d",
+  "frozen_v4_version": "4.0.0",
+  "frozen_v4_internal_manifest_sha256": "eb45cfbc21bff4b6815d054b1e33196c4c718783a33b78f256b8b8081c7f4013",
+  "frozen_v4_wheel_sha256": "84897748729168501bacbc35fa2724f9675e1c8ee085b9c26b46d1b4875bfe9b",
+  "structured_money_regression": {
+    "path": "test_revenueguard_v4.py",
+    "sha256": "b669e2756a7846fb04bf40671ed66f456917a94881fb993ceb4ad003b63f44e2",
+    "test_count": 30,
+    "frozen_candidate_evidence": "30 passed",
+    "replay_rule": "Replay this exact test file unchanged against any assembled V4.1 candidate before sealed public-transfer evaluation. Do not edit, regenerate, weaken, skip, or substitute tests."
+  },
+  "frozen_v4_status": "FROZEN_UNTOUCHED",
+  "certification": "NOT_CERTIFIED",
+  "sealed_policy": {
+    "contractnli_test_opened": false,
+    "maud_opened": false,
+    "cuad_official_test_opened": false
+  }
+}
