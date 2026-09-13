@@ -1,0 +1,29 @@
+{
+  "schema": "musitu.revenueguard.contractnli.decoupled_trainable_state_contract.v1",
+  "status": "DEV_RESEARCH_ONLY_NOT_CERTIFICATION",
+  "source_run_id": 34748996731,
+  "source_chunk": 0,
+  "source_artifact_sha256": "f91167014effaae91485bd4d16b026dddb775c3715bd55ce12d8f1915861472f",
+  "source_state_sha256": "fed2f785242d765b24c232c6eb13f0b80902abeabedf84264b08292210bac515",
+  "trainable_tensor_count": 68,
+  "encoder_layer_tensor_counts": {
+    "2": 16,
+    "3": 16,
+    "4": 16,
+    "5": 16
+  },
+  "head_tensors": [
+    "relevance_head.bias",
+    "relevance_head.weight",
+    "semantic_head.bias",
+    "semantic_head.weight"
+  ],
+  "sorted_trainable_name_list_sha256": "a858e138760588bdb8c89cb440e75a0f9441d23f7a3a9993a1755a3dc8f77c05",
+  "trainable_name_to_shape_map_sha256": "185cd8b4100f27950ebc20206ccf407a01d2694f8e2a6f6fa8fe6d4f04250b27",
+  "head_weight_shapes": {
+    "relevance_head.weight": [2, 768],
+    "semantic_head.weight": [2, 768]
+  },
+  "promotion_rule": "The final decoupled checkpoint must reproduce the exact 68-name trainable-state set and tensor-shape map. Missing encoder-layer tensors are a provenance failure even if evaluation code could otherwise fall back to base adapted weights through strict=False loading.",
+  "sealed_data_impact": "none"
+}
