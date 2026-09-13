@@ -1,0 +1,135 @@
+name: MUSITU FOUNDRY FORGE Cloudflare Ciphertext Ingress
+
+on:
+  push:
+    branches:
+      - foundry-forge-runtime-transport-bootstrap-20260913
+    paths:
+      - 'ops/foundry_forge_transport_ingress.mjs'
+      - '.github/workflows/foundry-forge-cloudflare-transport-ingress.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  deploy-ingress:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      CLOUDFLARE_ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+      CLOUDFLARE_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+      TRANSPORT_WORKER: musitu-forge-transport-20260913-2e824e7a
+      TRANSPORT_DB: musitu-forge-transport-20260913-2e824e7a
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Require protected Cloudflare authority
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$CLOUDFLARE_EMAIL"
+          test -n "$CLOUDFLARE_API_KEY"
+
+      - name: Install exact Wrangler
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --ignore-scripts --no-audit --no-fund wrangler@4.129.0
+          npx wrangler --version
+          npx wrangler auth token --json >/tmp/cf-auth.json
+          python - <<'PY'
+          import json
+          x=json.load(open('/tmp/cf-auth.json'))
+          if x.get('type')!='api_key': raise SystemExit('Cloudflare API-key authority not resolved')
+          print('cloudflare_auth=PASS')
+          PY
+          rm -f /tmp/cf-auth.json
+
+      - name: Resolve isolated transport D1
+        id: d1
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx wrangler d1 list --json >/tmp/d1.json
+          python - <<'PY' >/tmp/d1-state
+          import json,os
+          x=json.load(open('/tmp/d1.json'))
+          rows=x if isinstance(x,list) else x.get('result',x.get('databases',[]))
+          m=[r for r in rows if r.get('name')==os.environ['TRANSPORT_DB']]
+          if len(m)>1: raise SystemExit('multiple transport D1 databases')
+          if m: print('ID='+(m[0].get('uuid') or m[0].get('id') or ''))
+          else: print('CREATE=1')
+          PY
+          source /tmp/d1-state
+          if [ "${CREATE:-0}" = 1 ]; then
+            npx wrangler d1 create "$TRANSPORT_DB" --location eeur --json >/tmp/d1-create.json
+            npx wrangler d1 list --json >/tmp/d1-after.json
+          else
+            cp /tmp/d1.json /tmp/d1-after.json
+          fi
+          python - <<'PY' >> "$GITHUB_OUTPUT"
+          import json,os
+          x=json.load(open('/tmp/d1-after.json'))
+          rows=x if isinstance(x,list) else x.get('result',x.get('databases',[]))
+          m=[r for r in rows if r.get('name')==os.environ['TRANSPORT_DB']]
+          if len(m)!=1: raise SystemExit('transport D1 identity not unique')
+          ident=m[0].get('uuid') or m[0].get('id')
+          if not ident: raise SystemExit('transport D1 id unavailable')
+          print('database_id='+ident)
+          PY
+
+      - name: Initialize fail-closed transport schema
+        shell: bash
+        run: |
+          set -euo pipefail
+          SQL="CREATE TABLE IF NOT EXISTS transport_chunks(idx INTEGER PRIMARY KEY,data TEXT NOT NULL,sha256 TEXT NOT NULL,size_chars INTEGER NOT NULL); CREATE TABLE IF NOT EXISTS transport_state(id INTEGER PRIMARY KEY CHECK(id=1),finalized INTEGER NOT NULL DEFAULT 0,part_count INTEGER,total_chars INTEGER,base64_sha256 TEXT,bundle_sha256 TEXT); INSERT OR IGNORE INTO transport_state(id,finalized) VALUES(1,0);"
+          npx wrangler d1 execute "$TRANSPORT_DB" --remote --command "$SQL" --yes >/tmp/schema.log
+
+      - name: Generate workers.dev configuration
+        shell: bash
+        env:
+          D1_ID: ${{ steps.d1.outputs.database_id }}
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json,os
+          cfg={
+            'name':os.environ['TRANSPORT_WORKER'],
+            'main':'ops/foundry_forge_transport_ingress.mjs',
+            'compatibility_date':'2026-09-13',
+            'workers_dev':True,
+            'observability':{'enabled':True},
+            'd1_databases':[{'binding':'TRANSPORT_DB','database_name':os.environ['TRANSPORT_DB'],'database_id':os.environ['D1_ID']}],
+          }
+          open('forge-transport-wrangler.json','w').write(json.dumps(cfg,indent=2))
+          PY
+
+      - name: Deploy isolated ciphertext ingress
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx wrangler deploy --config forge-transport-wrangler.json 2>&1 | tee /tmp/deploy.log
+          URL="$(grep -Eo 'https://[^[:space:]]+\.workers\.dev' /tmp/deploy.log | tail -1)"
+          test -n "$URL" || { echo 'workers.dev URL not found' >&2; exit 1; }
+          printf '%s\n' "$URL" >/tmp/transport-url.txt
+          curl -fsS "$URL/health" >/tmp/health.json
+          python - <<'PY'
+          import json
+          x=json.load(open('/tmp/health.json'))
+          assert x['schema']=='musitu.forge.transport_ingress_health.v1'
+          assert x['status']=='READY'
+          assert x['finalized'] is False
+          print('transport_ingress=PASS')
+          PY
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: musitu-forge-ciphertext-ingress
+          path: |
+            /tmp/transport-url.txt
+            /tmp/health.json
+            /tmp/deploy.log
+          retention-days: 7
+          if-no-files-found: error
