@@ -14,7 +14,7 @@ def exercise_action_controls(page,session_id):
     frame_input=page.frame_locator('#computer-frame').locator('#name');expect(frame_input).to_have_value('Ada')
     page.get_by_role('button',name='Rollback last action').click();page.wait_for_timeout(120);expect(frame_input).to_have_value('');expect(page.locator('#computer-receipts')).to_contain_text('rollback:')
     page.get_by_role('button',name='Pause').click();page.wait_for_timeout(60);assert page.evaluate('id=>window.AxiomComputer.store.get(id)',session_id)['status']=='PAUSED'
-    page.get_by_role('button',name='Resume').click();page.wait_for_timeout(60);page.get_by_role('button',name='Take over').click();page.wait_for_timeout(60)
+    page.locator('#computer-resume').click();page.wait_for_timeout(60);page.get_by_role('button',name='Take over').click();page.wait_for_timeout(60)
     takeover=page.evaluate('id=>window.AxiomComputer.store.get(id)',session_id);assert takeover['takeover'] is True and takeover['status']=='PAUSED'
     blocked=page.evaluate("""async id=>{try{await window.AxiomComputer.store.propose(id,{actionType:'click',target:'#commit'});return 'ALLOWED'}catch(e){return e.name}}""",session_id);assert blocked=='InvalidStateError'
     page.get_by_role('button',name='Release takeover').click();page.wait_for_timeout(60)
