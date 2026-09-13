@@ -16,7 +16,9 @@ class Phase7LiveContractTests(unittest.TestCase):
   self.assertIn('privacy_indicator_active',LIVE);self.assertIn('Privacy indicators',LIVE)
  def test_screen_region_annotation_project_context_and_evidence_exist(self):
   for token in ['selected_screen_region','screen.region.selected','live-region-x','live-region-y','live-region-width','live-region-height','annotation','projects.store.addObject','project_object_id','capture_sha256','content_sha256','transcript']:self.assertIn(token,LIVE)
-  self.assertEqual(SURFACE['live_substrate']['interruption_target_ms'],250);self.assertEqual(SURFACE['live_substrate']['interruption_measurement_scope'],'LOCAL_UI_ACKNOWLEDGEMENT_ONLY');self.assertIn('SEMANTIC_EXECUTION_END_TO_END_STOP',BRIDGE);self.assertIn('max_semantic_stop_ms:250',BRIDGE)
+  self.assertEqual(SURFACE['live_substrate']['selectable_screen_region'],'KEYBOARD_ACCESSIBLE_NORMALIZED_COORDINATES');self.assertTrue(SURFACE['live_substrate']['project_linked_notes']);self.assertTrue(SURFACE['live_substrate']['annotation'])
+ def test_interruption_gate_is_explicitly_local_ui_measurement(self):
+  self.assertIn('INTERRUPTION_TARGET_MS=250',LIVE);self.assertIn('LOCAL_UI_ACKNOWLEDGEMENT_ONLY',LIVE);self.assertEqual(SURFACE['live_substrate']['interruption_target_ms'],250);self.assertEqual(SURFACE['live_substrate']['interruption_measurement_scope'],'LOCAL_UI_ACKNOWLEDGEMENT_ONLY');self.assertIn('SEMANTIC_EXECUTION_END_TO_END_STOP',BRIDGE);self.assertIn('max_semantic_stop_ms:250',BRIDGE)
  def test_accessibility_has_non_drag_controls_live_regions_and_responsive_layout(self):
   for token in ['type="number"','aria-live="polite"','aria-label="Live camera or screen preview"','Keyboard-accessible normalized coordinates']:self.assertIn(token,LIVE)
   for token in ['aria-live="polite"','Analyze selected capture','Interrupt semantic work','aria-label="Semantic receipts"']:self.assertIn(token,BRIDGE)
@@ -25,7 +27,7 @@ class Phase7LiveContractTests(unittest.TestCase):
   for token in ['local semantic host unavailable','receipt_sha256','output_sha256','engine_asset_sha256','input_sha256','tool_receipt_sha256','OFFLINE_ASR_VERIFIED_MCP_SPECIALIST_TTS_DIALOGUE','OCR_TEXT_','offline-vosk-asr','offline-mcp-2026-specialist','LOCAL_HOST_ONLY_NO_CLOUD_NO_HIDDEN_REASONING_NO_GENERAL_VLM_CLAIM']:self.assertIn(token,BRIDGE)
   self.assertIn("host_transport:'IN_PROCESS_HOST_ADAPTER'",BRIDGE);self.assertIn('fail_closed_without_host:true',BRIDGE);self.assertIn('cloud_provider_used!==false',BRIDGE);self.assertIn('hidden_reasoning_recorded!==false',BRIDGE);self.assertNotIn('fetch(',BRIDGE);self.assertNotIn('WebSocket(',BRIDGE);self.assertNotIn('EventSource(',BRIDGE)
  def test_truth_boundaries_remain_fail_closed(self):
-  live=SURFACEUl'live_substrate'];self.assertFalse(live['model_understanding_claimed']);self.assertFalse(live['automated_transcription_claimed']);self.assertFalse(live['cloud_media_upload_claimed']);self.assertFalse(live['real_device_certification_claimed'])
+  live=SURFACE['live_substrate'];self.assertFalse(live['model_understanding_claimed']);self.assertFalse(live['automated_transcription_claimed']);self.assertFalse(live['cloud_media_upload_claimed']);self.assertFalse(live['real_device_certification_claimed'])
   for token in ['model_understanding_claimed:false','automated_transcription_claimed:false','cloud_media_upload_claimed:false','real_device_certification_claimed:false','CAPTURE_AND_CONTEXT_SUBSTRATE_ONLY_NO_MODEL_UNDERSTANDING_CLAIM']:self.assertIn(token,LIVE)
   self.assertNotIn('fetch(',LIVE);self.assertNotIn('WebSocket(',LIVE);self.assertNotIn('EventSource(',LIVE)
  def test_phase7_authority_is_exact_earned_descendant(self):
