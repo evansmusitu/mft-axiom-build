@@ -1,0 +1,22 @@
+{
+  "schema": "musitu.revenueguard.contractnli.decoupled_curriculum_audit_evidence.v1",
+  "status": "DEV_RESEARCH_ONLY_TEST_AND_MAUD_UNOPENED",
+  "source_run_id": 34749992801,
+  "source_artifact_id": 10315367975,
+  "source_artifact_name": "revenueguard-contractnli-decoupled-curriculum-audit",
+  "source_artifact_zip_sha256": "c12642b7eb01622506a4f602b19720ce26a743c77ff5398d92d1dc45f8bd754a",
+  "source_report_sha256": "7b75db0056b6495761874ea45ab0148cecb49ea37f6811e05fd5b501a4d299fe",
+  "contractnli_commit": "eced6528dd3c1d14d73f9a87df8f7bdbc03126f9",
+  "pass": true,
+  "build_documents": 387,
+  "hash_held_calibration_documents": 36,
+  "duplicate_equivalent_calibration_doc_ids_excluded_at_eval": ["548"],
+  "total_training_rows": 29488,
+  "relevance_counts": {"relevant": 7155, "irrelevant": 22333},
+  "semantic_rows": 7155,
+  "semantic_counts": {"Contradiction": 1258, "Entailment": 5897},
+  "negative_rows_without_semantic_target": 22333,
+  "semantic_supervision_rule": "Only genuine evidence spans from Entailment or Contradiction examples receive semantic polarity supervision; relevance negatives receive no semantic label.",
+  "calibration_supervision_rule": "Hash-held calibration documents are excluded from training; duplicate-equivalent calibration documents are additionally excluded from calibration evaluation.",
+  "sealed_policy": "ContractNLI test.json and MAUD were not opened or used by this audit."
+}
