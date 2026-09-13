@@ -1,0 +1,72 @@
+name: RevenueGuard V4.1 Research Contract Tests
+
+on:
+  push:
+    branches: [revenueguard-axiom-governor-20260911]
+    paths: ['.github/workflows/revenueguard-v4-1-research-contract-tests.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  contracts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compile active research control code
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m py_compile \
+            research/revenueguard/contractnli_decoupled_chunk_train.py \
+            research/revenueguard/contractnli_decoupled_checkpoint_shard.py \
+            research/revenueguard/contractnli_decoupled_checkpoint_aggregate.py \
+            research/revenueguard/contractnli_decoupled_postgate_failure_miner.py \
+            research/revenueguard/cuad_matched_window_multitask_train.py \
+            research/revenueguard/cuad_heldout_question_shard.py \
+            research/revenueguard/cuad_heldout_aggregate.py \
+            research/revenueguard/cuad_postgate_failure_miner.py \
+            research/revenueguard/v4_1_specialist_dev_admission.py
+      - name: Assert locked gates and sealed-data boundaries in source
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          cn=Path('research/revenueguard/contractnli_decoupled_checkpoint_aggregate.py').read_text()
+          cq=Path('research/revenueguard/cuad_heldout_aggregate.py').read_text()
+          admit=Path('research/revenueguard/v4_1_specialist_dev_admission.py').read_text()
+          train_cn=Path('research/revenueguard/contractnli_decoupled_chunk_train.py').read_text()
+          train_cq=Path('research/revenueguard/cuad_matched_window_multitask_train.py').read_text()
+          assert "'accuracy_min': .90" in cn and "'macro_f1_min': .88" in cn
+          assert "'false_grounding_max': .02" in cn and "'evidence_recall_min': .85" in cn
+          assert "'no_answer_false_positive_max':.02" in cq
+          assert "'answer_detection_f1_min':.85" in cq
+          assert "'localization_overlap_recall_min':.85" in cq
+          assert "'answerable_token_f1_min':.80" in cq
+          assert 'MAX_LEN=384' in train_cq and 'STRIDE=128' in train_cq
+          assert "semantic_head = nn.Linear(H, 2)" in train_cn
+          assert "relevance_head = nn.Linear(H, 2)" in train_cn
+          assert "rows.append((target_context(spans, i), h, 0, -100))" in train_cn
+          assert 'ContractNLI test.json and MAUD remain unopened.' in Path('research/revenueguard/contractnli_decoupled_postgate_failure_miner.py').read_text()
+          assert "'contractnli_test_opened':False" in admit
+          assert "'maud_opened':False" in admit
+          assert "'cuad_official_test_opened':False" in admit
+          # Active development trainers/evaluators must not reference sealed files.
+          active=[
+            'research/revenueguard/contractnli_decoupled_chunk_train.py',
+            'research/revenueguard/contractnli_decoupled_checkpoint_shard.py',
+            'research/revenueguard/contractnli_decoupled_checkpoint_aggregate.py',
+            'research/revenueguard/cuad_matched_window_multitask_train.py',
+            'research/revenueguard/cuad_heldout_question_shard.py',
+            'research/revenueguard/cuad_heldout_aggregate.py',
+          ]
+          for p in active:
+              s=Path(p).read_text().lower()
+              assert 'contract-nli/test.json' not in s, p
+              assert 'maud' not in s, p
+              assert 'cuad/test.json' not in s and 'data/test.json' not in s, p
+          print('research contract tests PASS')
+          PY
