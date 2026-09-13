@@ -1,0 +1,35 @@
+name: MUSITU Store browser-first launch
+
+on:
+  push:
+    branches:
+      - musitu-store-browser-first-launch-20260913
+    paths:
+      - 'store/**'
+      - '.github/workflows/musitu-store-browser-first-launch.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  browser-first-launch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Use Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Syntax check Store renderer
+        run: node --check store/phase1/web-surface/render.mjs
+
+      - name: Syntax check Store worker
+        run: node --check store/phase1/web-surface/worker.mjs
+
+      - name: Run browser-first launch smoke contract
+        run: node store/phase2/browser-first-launch-smoke.mjs
