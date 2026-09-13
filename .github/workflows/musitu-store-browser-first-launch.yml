@@ -25,11 +25,17 @@ jobs:
         with:
           node-version: '22'
 
+      - name: Generate Store data from committed signed metadata
+        run: python3 store/phase1/web-surface/build_store_data.py
+
       - name: Syntax check Store renderer
         run: node --check store/phase1/web-surface/render.mjs
 
       - name: Syntax check Store worker
         run: node --check store/phase1/web-surface/worker.mjs
+
+      - name: Run existing Store web-surface tests
+        run: node --test store/phase1/web-surface/*.test.mjs
 
       - name: Run browser-first launch smoke contract
         run: node store/phase2/browser-first-launch-smoke.mjs
