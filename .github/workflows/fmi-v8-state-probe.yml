@@ -1,0 +1,49 @@
+name: MUSITU FMI V8 Read-Only State Probe
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [fmi-v8-live-promotion-20260913]
+    paths:
+      - '.github/workflows/fmi-v8-state-probe.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      CF_API: https://api.cloudflare.com/client/v4
+      CLOUDFLARE_ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+      CLOUDFLARE_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+      FMI_DB_UUID: a03dc12d-8206-47be-b904-1f24e4e37d91
+      FMI_EDGE: mft-fmi-global-edge
+      FMI_ADAPTER: mft-fmi-modal-adapter
+      FMI_BILLING: mft-fmi-billing
+      PUBLIC_BASE: https://mft-fmi-global-edge.mft-education-nexus-93f395f5.workers.dev
+      EXPECTED_PREV_EDGE_SHA: 8b96455c0237dad85312606dc0c984efa4d278726924edf94f4abab4c2b9e891
+      EXPECTED_V8_EDGE_SHA: 00fa486ddf3f51f3c435b8db33c5ec1d1c42d6b175abc95f4e1ad9328e40f2b3
+      EXPECTED_V8_WORKSPACE_SHA: 64accddb375d9f1c0f0d7fddd319e83a0242c9740ae1ae5bcc59185ac3ca7ec3
+    steps:
+      - uses: actions/checkout@v4
+      - name: Require protected Cloudflare credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$CLOUDFLARE_EMAIL"
+          test -n "$CLOUDFLARE_API_KEY"
+      - name: Execute read-only production state probe
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/fmi_v8_state_probe.py
+      - uses: actions/upload-artifact@v4
+        if: ${{ always() }}
+        with:
+          name: musitu-fmi-v8-current-state-probe
+          path: fmi-v8-current-state-probe.json
+          if-no-files-found: error
+          retention-days: 30
