@@ -1,0 +1,68 @@
+name: MUSITU FMI Public Funnel Preflight
+
+on:
+  push:
+    branches: [fmi-revenue-certification-20260913]
+    paths:
+      - '.github/workflows/fmi-public-funnel-preflight.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      PUBLIC_BASE: https://mft-fmi-global-edge.mft-education-nexus-93f395f5.workers.dev
+    steps:
+      - name: Verify anonymous customer funnel
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json, os, re, urllib.error, urllib.request
+          base=os.environ['PUBLIC_BASE'].rstrip('/')
+          def req(path):
+              q=urllib.request.Request(base+path,headers={'User-Agent':'MUSITU-FMI-Public-Funnel-Preflight/1.0','Accept':'*/*'})
+              try:
+                  with urllib.request.urlopen(q,timeout=30) as r:return r.status,{k.lower():v for k,v in r.headers.items()},r.read()
+              except urllib.error.HTTPError as e:return e.code,{k.lower():v for k,v in e.headers.items()},e.read()
+          hc,hh,hb=req('/healthz')
+          if hc!=200: raise SystemExit(f'health HTTP {hc}')
+          health=json.loads(hb or b'{}')
+          if health.get('status')!='ok' or health.get('authority')!='PAPER_SHADOW_ONLY': raise SystemExit('health authority mismatch')
+          rc,rh,rb=req('/')
+          if rc!=200: raise SystemExit(f'landing HTTP {rc}')
+          text=rb.decode('utf-8','ignore')
+          low=text.lower()
+          signup_visible=('/v1/signup' in text) or ('signup' in low) or ('sign up' in low) or ('get started' in low)
+          if not signup_visible: raise SystemExit('landing has no visible signup/get-started path')
+          cc,ch,cb=req('/v1/billing/catalog')
+          if cc!=200: raise SystemExit(f'catalog HTTP {cc}')
+          cat=json.loads(cb or b'{}'); plans=cat.get('plans') or {}
+          if int((plans.get('FOUNDING') or {}).get('amount_cents',-1))!=4900: raise SystemExit('FOUNDING price mismatch')
+          if int((plans.get('PRO') or {}).get('amount_cents',-1))!=14900: raise SystemExit('PRO price mismatch')
+          out={
+            'gate':'FMI_PUBLIC_FUNNEL_READY',
+            'landing_http':rc,
+            'health_http':hc,
+            'catalog_http':cc,
+            'signup_path_visible':True,
+            'authority':'PAPER_SHADOW_ONLY',
+            'plans':{'FOUNDING':{'amount_cents':4900,'currency':'USD'},'PRO':{'amount_cents':14900,'currency':'USD'}},
+            'public_base':base,
+            'live_trading_authorized':False,
+            'profitability':'NOT_YET_CERTIFIED',
+            'superiority':'NOT_CERTIFIED'
+          }
+          open('fmi-public-funnel-preflight.json','w').write(json.dumps(out,indent=2,sort_keys=True)+'\n')
+          print(json.dumps(out,sort_keys=True))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: musitu-fmi-public-funnel-preflight
+          path: fmi-public-funnel-preflight.json
+          retention-days: 30
+          if-no-files-found: error
