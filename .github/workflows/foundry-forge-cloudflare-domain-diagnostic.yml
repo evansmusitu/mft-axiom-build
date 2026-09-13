@@ -1,0 +1,51 @@
+name: MUSITU FOUNDRY FORGE Cloudflare Domain Diagnostic
+
+on:
+  push:
+    branches:
+      - foundry-forge-runtime-transport-bootstrap-20260913
+    paths:
+      - '.github/workflows/foundry-forge-cloudflare-domain-diagnostic.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      CLOUDFLARE_ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+      CLOUDFLARE_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+      EDGE_HOST: forge.mftintelligence.com
+    steps:
+      - name: Query Cloudflare Worker custom domains read-only
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json,os,urllib.request
+          url=f"https://api.cloudflare.com/client/v4/accounts/{os.environ['CLOUDFLARE_ACCOUNT_ID']}/workers/domains"
+          req=urllib.request.Request(url,headers={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_API_KEY']})
+          with urllib.request.urlopen(req,timeout=30) as r: x=json.load(r)
+          if not x.get('success'): raise SystemExit('cloudflare_workers_domains_query_failed')
+          rows=x.get('result') or []
+          match=[r for r in rows if r.get('hostname')==os.environ['EDGE_HOST']]
+          print(json.dumps({'matching_domain':match,'matching_count':len(match)},sort_keys=True))
+          if len(match)!=1: raise SystemExit('canonical_custom_domain_not_unique')
+          PY
+
+      - name: Probe canonical hostname with bounded curl
+        shell: bash
+        run: |
+          set +e
+          curl -sS --connect-timeout 5 --max-time 20 -D /tmp/h -o /tmp/b -w 'http_code=%{http_code}\nremote_ip=%{remote_ip}\nssl_verify=%{ssl_verify_result}\n' "https://${EDGE_HOST}/v1/health"
+          rc=$?
+          echo "curl_exit=$rc"
+          echo '--- headers ---'
+          cat /tmp/h 2>/dev/null || true
+          echo '--- body ---'
+          cat /tmp/b 2>/dev/null || true
+          exit 0
