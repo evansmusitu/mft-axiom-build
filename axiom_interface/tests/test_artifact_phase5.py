@@ -62,11 +62,20 @@ class Phase5ArtifactInterfaceContractTests(unittest.TestCase):
         self.assertIn('cloud_collaboration_claimed:false',ART)
         self.assertIn('external_publication_claimed:false',ART)
 
-    def test_phase5_authority_is_preserved_as_exact_earned_phase7_ancestor(self):
-        self.assertEqual(SURFACE['authority']['qualified_phase4_sha'],'4ee9dec2f68dcc17f09457623f4a3c39aba98e88')
-        self.assertEqual(SURFACE['authority']['qualified_phase5_sha'],'81c0c3c364d9d057a78203cc4fbcb8c767e92b18')
-        self.assertEqual(SURFACE['authority']['qualified_phase6_sha'],'db5eefa2982457c4045717a0b175bb5d0d9fc556')
-        self.assertEqual(SURFACE['phase'],'PHASE_7_LIVE_MULTIMODALITY')
+    def test_phase5_authority_is_preserved_as_exact_earned_descendant(self):
+        authority=SURFACE['authority']
+        self.assertEqual(authority['qualified_phase4_sha'],'4ee9dec2f68dcc17f09457623f4a3c39aba98e88')
+        self.assertEqual(authority['qualified_phase5_sha'],'81c0c3c364d9d057a78203cc4fbcb8c767e92b18')
+        self.assertEqual(authority['qualified_phase6_sha'],'db5eefa2982457c4045717a0b175bb5d0d9fc556')
+        self.assertEqual(authority['qualified_phase7_sha'],'d8b3c233947a204e81b0753fd94afe777e8d1cf9')
+        phase8_sha=authority.get('qualified_phase8_sha')
+        if phase8_sha is None:
+            self.assertEqual(SURFACE['phase'],'PHASE_7_LIVE_MULTIMODALITY')
+        else:
+            self.assertEqual(phase8_sha,'dd7a2a2f8a1c024d92df635ebaba430a74981813')
+            self.assertEqual(SURFACE['phase'],'PHASE_8_COMPUTER_BROWSER_EXECUTION')
+            self.assertEqual(SURFACE['computer_substrate']['status'],'EARNED')
+            self.assertEqual(SURFACE['computer_substrate']['qualified_sha'],phase8_sha)
         self.assertTrue(SURFACE['work_substrate']['observability_linkage_required'])
 
 
