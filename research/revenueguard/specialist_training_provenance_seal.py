@@ -4,13 +4,13 @@ from pathlib import Path
 
 CN_REPORT_SCHEMA='musitu.revenueguard.contractnli.decoupled_chunk_train.v1'
 CUAD_REPORT_SCHEMA='musitu.revenueguard.cuad.matched_window_train.v1'
-GEOM_SCHEMAS={
-    'musitu.revenueguard.cuad.trainer_geometry_contract_audit.v1',
-    'musitu.revenueguard.cuad.trainer_geometry_onepass_audit.v1',
-}
+GEOM_SCHEMA='musitu.revenueguard.cuad.trainer_geometry_onepass_audit.v1'
 CONTRACTNLI_COMMIT='eced6528dd3c1d14d73f9a87df8f7bdbc03126f9'
 CUAD_COMMIT='67faa0e6023b04fcaae6cc09497ab00e5d63a2a2'
 CUAD_TRAIN_SHA='7de21d2bb741ac939e2a839ef9640634a5e0f9f40ea2b82c6833baf7db33dab4'
+CUAD_FROZEN_GEOMETRY_REPORT_SHA='e14b667cc4e8ac96b35909741847d804505b3d7f0c4c79ddebb53ab07bee10e7'
+CUAD_TRAINER_ONEPASS_REPORT_SHA='d8820202835ae82499e96a8ee8895c175ac5ddc39e7ec66b7bbfd0367d3520a1'
+CUAD_CHUNK_SIZES=[15436,15462,15380,15381]
 CN_EXPECTED_SAMPLES=29488
 CN_EXPECTED_STEPS=615
 
@@ -55,14 +55,20 @@ def main():
     if int(counts.get('selected_total',-1))!=61659: raise SystemExit('CUAD selected total drift')
     if len(args.cuad_artifact_sha256)!=64: raise SystemExit('bad CUAD artifact digest')
 
-    if geom.get('schema') not in GEOM_SCHEMAS or not geom.get('pass'): raise SystemExit('CUAD trainer geometry seal absent')
+    if geom.get('schema')!=GEOM_SCHEMA or not geom.get('pass'): raise SystemExit('exact CUAD one-pass trainer geometry seal absent')
+    if geom.get('report_sha256')!=CUAD_TRAINER_ONEPASS_REPORT_SHA: raise SystemExit('CUAD one-pass geometry report identity drift')
+    if geom.get('geometry_report_sha256')!=CUAD_FROZEN_GEOMETRY_REPORT_SHA: raise SystemExit('frozen CUAD geometry ancestry drift')
     if geom.get('train_sha256')!=CUAD_TRAIN_SHA: raise SystemExit('geometry/train SHA mismatch')
-    # Accept the original four-pass or optimized one-pass audit field names, but require exact conservation.
-    gstats=geom.get('trainer_stats') or geom.get('stats') or {}
+    if int(geom.get('heldout_contracts',-1))!=45: raise SystemExit('CUAD heldout contract drift')
+    if int(geom.get('dropped_empty_context_windows',-1))!=0: raise SystemExit('CUAD trainer dropped context windows')
+    if list(geom.get('chunk_sizes') or [])!=CUAD_CHUNK_SIZES: raise SystemExit('CUAD exact chunk geometry drift')
+    if int(geom.get('chunk_size_sum',-1))!=61659: raise SystemExit('geometry chunk conservation mismatch')
+    gstats=geom.get('stats') or {}
+    if int(gstats.get('build_questions',-1))!=19989 or int(gstats.get('heldout_questions',-1))!=2461: raise SystemExit('geometry question-count drift')
+    if int(gstats.get('answerable_questions',-1))!=9972 or int(gstats.get('impossible_questions',-1))!=10017: raise SystemExit('geometry answerability-count drift')
     if int(gstats.get('selected_total',-1))!=61659: raise SystemExit('geometry selected total mismatch')
     if int(gstats.get('selected_positive',-1))!=12305: raise SystemExit('geometry positive mismatch')
     if int(gstats.get('selected_negative',-1))!=49354: raise SystemExit('geometry negative mismatch')
-    if int(geom.get('chunk_size_sum',-1))!=61659: raise SystemExit('geometry chunk conservation mismatch')
 
     rep={
       'schema':'musitu.revenueguard.v4_1.specialist_training_provenance_seal.v1',
@@ -87,7 +93,9 @@ def main():
         'global_steps':int(cq['global_steps']),
         'selected_training_windows':61659,
         'geometry_report_sha256':geom['report_sha256'],
+        'frozen_geometry_report_sha256':geom['geometry_report_sha256'],
         'chunk_sizes':geom['chunk_sizes'],
+        'dropped_empty_context_windows':geom['dropped_empty_context_windows'],
       },
       'sealed_policy':{'contractnli_test_opened':False,'maud_opened':False,'cuad_official_test_opened':False},
       'certification':'NOT_CERTIFIED'
