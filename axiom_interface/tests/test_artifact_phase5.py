@@ -4,6 +4,7 @@ from pathlib import Path
 import unittest
 ROOT=Path(__file__).resolve().parents[1]
 APP=(ROOT/'app.js').read_text(encoding='utf-8');ART=(ROOT/'artifacts.js').read_text(encoding='utf-8');SW=(ROOT/'sw.js').read_text(encoding='utf-8');SURFACE=json.loads((ROOT/'surface-map.json').read_text(encoding='utf-8'))
+PHASE11_SHA='3952a9c41f6069f8f0f9427cd99779a95e0cd443'
 class Phase5ArtifactInterfaceContractTests(unittest.TestCase):
  def test_phase5_is_wired_into_shell_and_offline_cache(self):
   self.assertIn("from './artifacts.js'",APP);self.assertIn('initArtifactWorkspace',APP);self.assertIn("state:'phase7'",APP);self.assertIn("initObservabilityWorkspace",APP);self.assertIn("initLiveWorkspace",APP);self.assertIn("'./artifacts.js'",SW);self.assertIn("'./styles/artifacts.css'",SW);self.assertIn("axiom-interface-phase7-v2",SW)
@@ -33,6 +34,10 @@ class Phase5ArtifactInterfaceContractTests(unittest.TestCase):
     self.assertEqual(phase9,'277478e12529f755fc4269b648e8fbe08caafb92');self.assertEqual(SURFACE['agent_automation_substrate']['status'],'EARNED');self.assertEqual(SURFACE['agent_automation_substrate']['qualified_sha'],phase9)
     phase10=authority.get('qualified_phase10_sha')
     if phase10 is None:self.assertEqual(SURFACE['phase'],'PHASE_9_AGENTS_AUTOMATIONS');self.assertNotIn('memory_graph_substrate',SURFACE)
-    else:self.assertEqual(phase10,'78d76060138a00e48839edb1d5454f1a197225b3');self.assertEqual(SURFACE['phase'],'PHASE_10_MEMORY_GRAPH');self.assertEqual(SURFACE['memory_graph_substrate']['status'],'EARNED');self.assertEqual(SURFACE['memory_graph_substrate']['qualified_sha'],phase10)
+    else:
+     self.assertEqual(phase10,'78d76060138a00e48839edb1d5454f1a197225b3');self.assertEqual(SURFACE['memory_graph_substrate']['status'],'EARNED');self.assertEqual(SURFACE['memory_graph_substrate']['qualified_sha'],phase10)
+     phase11=authority.get('qualified_phase11_sha')
+     if phase11 is None:self.assertEqual(SURFACE['phase'],'PHASE_10_MEMORY_GRAPH');self.assertNotIn('operator_enterprise_control_plane_substrate',SURFACE)
+     else:self.assertEqual(phase11,PHASE11_SHA);self.assertEqual(SURFACE['phase'],'PHASE_11_OPERATOR_ENTERPRISE_CONTROL_PLANE');self.assertEqual(SURFACE['operator_enterprise_control_plane_substrate']['status'],'EARNED');self.assertEqual(SURFACE['operator_enterprise_control_plane_substrate']['qualified_sha'],phase11)
   self.assertTrue(SURFACE['work_substrate']['observability_linkage_required'])
 if __name__=='__main__':unittest.main(verbosity=2)

@@ -4,6 +4,7 @@ import json
 import unittest
 ROOT=Path(__file__).resolve().parents[1]
 SECURITY=(ROOT/'agent_security.js').read_text(encoding='utf-8');STORE=(ROOT/'agent_store.js').read_text(encoding='utf-8');UI=(ROOT/'agent_ui.js').read_text(encoding='utf-8');MARKUP=(ROOT/'agent_ui_markup.js').read_text(encoding='utf-8');BOOT=(ROOT/'agents_bootstrap.js').read_text(encoding='utf-8');CSS=(ROOT/'styles'/'agents.css').read_text(encoding='utf-8');LIVE=(ROOT/'live_durability.js').read_text(encoding='utf-8');SW=(ROOT/'sw.js').read_text(encoding='utf-8');SURFACE=json.loads((ROOT/'surface-map.json').read_text(encoding='utf-8'))
+PHASE11_SHA='3952a9c41f6069f8f0f9427cd99779a95e0cd443'
 class Phase9AgentAutomationContractTests(unittest.TestCase):
  def test_phase9_remains_exact_and_is_preserved_under_phase10(self):
   authority=SURFACE['authority'];phase9=authority.get('qualified_phase9_sha')
@@ -13,7 +14,11 @@ class Phase9AgentAutomationContractTests(unittest.TestCase):
   substrate=SURFACE['agent_automation_substrate'];self.assertEqual(substrate['status'],'EARNED');self.assertEqual(substrate['qualified_sha'],phase9);self.assertEqual(substrate['qualification_scope'],'BROWSER_LOCAL_GOVERNED_AGENT_AND_TRIGGER_PREVIEW_SUBSTRATE');self.assertFalse(substrate['cloud_scheduler_claimed']);self.assertFalse(substrate['external_action_execution_claimed']);self.assertFalse(substrate['production_workload_isolation_certified']);self.assertFalse(substrate['plaintext_secret_access_claimed'])
   phase10=authority.get('qualified_phase10_sha')
   if phase10 is None:self.assertEqual(SURFACE['schema'],'musitu.axiom.interface.surface-map.v9');self.assertEqual(SURFACE['phase'],'PHASE_9_AGENTS_AUTOMATIONS');self.assertNotIn('memory_graph_substrate',SURFACE)
-  else:self.assertEqual(phase10,'78d76060138a00e48839edb1d5454f1a197225b3');self.assertEqual(SURFACE['schema'],'musitu.axiom.interface.surface-map.v10');self.assertEqual(SURFACE['phase'],'PHASE_10_MEMORY_GRAPH');self.assertEqual(SURFACE['memory_graph_substrate']['qualified_sha'],phase10);self.assertEqual(SURFACE['memory_graph_substrate']['status'],'EARNED')
+  else:
+   self.assertEqual(phase10,'78d76060138a00e48839edb1d5454f1a197225b3');self.assertEqual(SURFACE['memory_graph_substrate']['qualified_sha'],phase10);self.assertEqual(SURFACE['memory_graph_substrate']['status'],'EARNED')
+   phase11=authority.get('qualified_phase11_sha')
+   if phase11 is None:self.assertEqual(SURFACE['schema'],'musitu.axiom.interface.surface-map.v10');self.assertEqual(SURFACE['phase'],'PHASE_10_MEMORY_GRAPH');self.assertNotIn('operator_enterprise_control_plane_substrate',SURFACE)
+   else:self.assertEqual(phase11,PHASE11_SHA);self.assertEqual(SURFACE['schema'],'musitu.axiom.interface.surface-map.v11');self.assertEqual(SURFACE['phase'],'PHASE_11_OPERATOR_ENTERPRISE_CONTROL_PLANE');self.assertEqual(SURFACE['operator_enterprise_control_plane_substrate']['qualified_sha'],phase11);self.assertEqual(SURFACE['operator_enterprise_control_plane_substrate']['status'],'EARNED')
  def test_persistent_registry_contains_agents_automations_events_and_receipts(self):
   self.assertIn('musitu-axiom-agents-v1',STORE)
   for name in ['agents','automations','events','receipts']:self.assertIn(f"'{name}'",STORE)

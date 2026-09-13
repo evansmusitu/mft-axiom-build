@@ -4,6 +4,7 @@ from pathlib import Path
 import unittest
 ROOT=Path(__file__).resolve().parents[1]
 APP=(ROOT/'app.js').read_text(encoding='utf-8');LIVE=(ROOT/'live.js').read_text(encoding='utf-8');DURABILITY=(ROOT/'live_durability.js').read_text(encoding='utf-8');BRIDGE=(ROOT/'live_semantic_bridge.js').read_text(encoding='utf-8');CSS=(ROOT/'styles'/'live.css').read_text(encoding='utf-8');SW=(ROOT/'sw.js').read_text(encoding='utf-8');SURFACE=json.loads((ROOT/'surface-map.json').read_text(encoding='utf-8'))
+PHASE11_SHA='3952a9c41f6069f8f0f9427cd99779a95e0cd443'
 class Phase7LiveContractTests(unittest.TestCase):
  def test_live_is_wired_into_phase7_shell_and_offline_cache(self):
   self.assertIn("from './live.js'",APP);self.assertIn('initLiveWorkspace',APP);self.assertIn("state:'phase7'",APP);self.assertIn("from './live_semantic_bridge.js'",DURABILITY);self.assertIn('attachLiveSemanticBridge',DURABILITY)
@@ -41,5 +42,9 @@ class Phase7LiveContractTests(unittest.TestCase):
     self.assertEqual(phase9,'277478e12529f755fc4269b648e8fbe08caafb92');self.assertEqual(SURFACE['agent_automation_substrate']['qualified_sha'],phase9);self.assertEqual(SURFACE['agent_automation_substrate']['status'],'EARNED')
     phase10=authority.get('qualified_phase10_sha')
     if phase10 is None:self.assertEqual(SURFACE['phase'],'PHASE_9_AGENTS_AUTOMATIONS')
-    else:self.assertEqual(phase10,'78d76060138a00e48839edb1d5454f1a197225b3');self.assertEqual(SURFACE['phase'],'PHASE_10_MEMORY_GRAPH');self.assertEqual(SURFACE['memory_graph_substrate']['qualified_sha'],phase10);self.assertEqual(SURFACE['memory_graph_substrate']['status'],'EARNED')
+    else:
+     self.assertEqual(phase10,'78d76060138a00e48839edb1d5454f1a197225b3');self.assertEqual(SURFACE['memory_graph_substrate']['qualified_sha'],phase10);self.assertEqual(SURFACE['memory_graph_substrate']['status'],'EARNED')
+     phase11=authority.get('qualified_phase11_sha')
+     if phase11 is None:self.assertEqual(SURFACE['phase'],'PHASE_10_MEMORY_GRAPH')
+     else:self.assertEqual(phase11,PHASE11_SHA);self.assertEqual(SURFACE['phase'],'PHASE_11_OPERATOR_ENTERPRISE_CONTROL_PLANE');self.assertEqual(SURFACE['operator_enterprise_control_plane_substrate']['qualified_sha'],phase11);self.assertEqual(SURFACE['operator_enterprise_control_plane_substrate']['status'],'EARNED')
 if __name__=='__main__':unittest.main(verbosity=2)
