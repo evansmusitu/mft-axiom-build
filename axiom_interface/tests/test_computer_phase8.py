@@ -41,7 +41,10 @@ class Phase8ComputerContractTests(unittest.TestCase):
         self.assertIn('data-route="computer"',BOOT)
         self.assertIn('AxiomProjects',BOOT)
         self.assertIn('AxiomObservability',BOOT)
-        self.assertIn("import './computer_bootstrap.js';",LIVE_DUR)
+        self.assertIn('queueMicrotask',LIVE_DUR)
+        self.assertIn("import('./computer_bootstrap.js')",LIVE_DUR)
+        self.assertNotIn("import './computer_bootstrap.js';",LIVE_DUR)
+        self.assertIn('AXIOM-COMPUTER-MODULE',LIVE_DUR)
         self.assertIn('@media(max-width:62rem)',CSS)
         self.assertIn('prefers-reduced-motion:reduce',CSS)
 
