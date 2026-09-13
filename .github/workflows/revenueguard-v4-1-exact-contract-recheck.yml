@@ -1,0 +1,74 @@
+name: RevenueGuard V4.1 Exact Contract Recheck
+
+on:
+  push:
+    branches: [revenueguard-axiom-governor-20260911]
+    paths: ['.github/workflows/revenueguard-v4-1-exact-contract-recheck.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compile active research control code
+        run: |
+          set -euo pipefail
+          python -m py_compile \
+            research/revenueguard/contractnli_decoupled_chunk_train.py \
+            research/revenueguard/contractnli_decoupled_checkpoint_shard.py \
+            research/revenueguard/contractnli_decoupled_checkpoint_aggregate.py \
+            research/revenueguard/contractnli_decoupled_postgate_failure_miner.py \
+            research/revenueguard/cuad_matched_window_multitask_train.py \
+            research/revenueguard/cuad_heldout_question_shard.py \
+            research/revenueguard/cuad_heldout_aggregate.py \
+            research/revenueguard/cuad_postgate_failure_miner.py \
+            research/revenueguard/specialist_training_provenance_seal.py \
+            research/revenueguard/v4_1_specialist_dev_admission.py
+      - name: Verify exact locked research contract
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          prov=Path('research/revenueguard/specialist_training_provenance_seal.py').read_text()
+          admit=Path('research/revenueguard/v4_1_specialist_dev_admission.py').read_text()
+          cn=Path('research/revenueguard/contractnli_decoupled_checkpoint_aggregate.py').read_text()
+          cq=Path('research/revenueguard/cuad_heldout_aggregate.py').read_text()
+          cm=Path('research/revenueguard/contractnli_decoupled_postgate_failure_miner.py').read_text()
+          qm=Path('research/revenueguard/cuad_postgate_failure_miner.py').read_text()
+          assert "'accuracy_min': .90" in cn
+          assert "'macro_f1_min': .88" in cn
+          assert "'false_grounding_max': .02" in cn
+          assert "'evidence_recall_min': .85" in cn
+          assert "'no_answer_false_positive_max':.02" in cq
+          assert "'answer_detection_f1_min':.85" in cq
+          assert "'localization_overlap_recall_min':.85" in cq
+          assert "'answerable_token_f1_min':.80" in cq
+          assert "CUAD_TRAINER_ONEPASS_REPORT_SHA='d8820202835ae82499e96a8ee8895c175ac5ddc39e7ec66b7bbfd0367d3520a1'" in prov
+          assert "CUAD_FROZEN_GEOMETRY_REPORT_SHA='e14b667cc4e8ac96b35909741847d804505b3d7f0c4c79ddebb53ab07bee10e7'" in prov
+          assert 'CUAD_CHUNK_SIZES=[15436,15462,15380,15381]' in prov
+          assert "int(geom.get('dropped_empty_context_windows',-1))!=0" in prov
+          assert "int(prov['contractnli']['completed_chunks'])!=4" in admit
+          assert "int(prov['contractnli']['global_steps'])!=615" in admit
+          assert "int(prov['cuad']['completed_chunks'])!=4" in admit
+          assert "int(prov['cuad']['selected_training_windows'])!=61659" in admit
+          assert 'ContractNLI test.json and MAUD remain unopened.' in cm
+          assert "EXPECTED_SCORING_MODE='explicit_answerability_margin_with_bound_span_localization'" in qm
+          assert 'Official CUAD test remains unopened' in qm
+          for p in [
+              'research/revenueguard/contractnli_decoupled_chunk_train.py',
+              'research/revenueguard/contractnli_decoupled_checkpoint_shard.py',
+              'research/revenueguard/contractnli_decoupled_checkpoint_aggregate.py',
+              'research/revenueguard/cuad_matched_window_multitask_train.py',
+              'research/revenueguard/cuad_heldout_question_shard.py',
+              'research/revenueguard/cuad_heldout_aggregate.py']:
+              s=Path(p).read_text().lower()
+              assert 'contract-nli/test.json' not in s, p
+              assert 'maud' not in s, p
+              assert 'cuad/test.json' not in s and 'data/test.json' not in s, p
+          print('EXACT_RESEARCH_CONTRACT_PASS')
+          PY
