@@ -1,11 +1,10 @@
 import { LiveStore } from './live.js';
 import { attachLiveSemanticBridge } from './live_semantic_bridge.js';
 
-// Phase 8 is progressive: the earned shell must finish evaluating and install
-// inherited keyboard/accessibility controls before the Computer feature graph
-// is loaded. A Computer module failure must not suppress Phase 1-7 shell
-// initialization. The Computer runtime still boots immediately afterward and
-// retains its own fail-closed initialization/error boundary.
+// Progressive feature graphs load only after the earned shell has installed
+// inherited keyboard/accessibility controls. A later-phase module failure must
+// not suppress Phase 1-7 shell initialization; each module retains its own
+// fail-closed initialization and error boundary.
 queueMicrotask(()=>{
   void import('./computer_bootstrap.js').catch(error=>window.AxiomUI?.reportError?.({
     errorId:'AXIOM-COMPUTER-MODULE',
@@ -13,6 +12,16 @@ queueMicrotask(()=>{
     impact:'Computer sandbox unavailable; inherited workspace controls remain available',
     failed:error.message,
     recovery:'Reload the workspace and retry the Computer surface',
+  }));
+});
+
+queueMicrotask(()=>{
+  void import('./agents_bootstrap.js').catch(error=>window.AxiomUI?.reportError?.({
+    errorId:'AXIOM-AGENTS-MODULE',
+    component:'Agents & automations',
+    impact:'Agent registry unavailable; inherited workspace controls remain available',
+    failed:error.message,
+    recovery:'Reload the workspace and retry the Agents surface',
   }));
 });
 
