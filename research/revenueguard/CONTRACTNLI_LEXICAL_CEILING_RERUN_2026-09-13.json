@@ -1,0 +1,31 @@
+{
+  "schema": "musitu.revenueguard.contractnli.lexical_ceiling_rerun_evidence.v1",
+  "status": "DEV_FAILURE_MINING_ONLY_TEST_REMAINS_SEALED",
+  "source_run_id": 34749708607,
+  "source_commit": "38617586b03cef02903e0399578a3b9cdde7e62d",
+  "source_artifact_id": 10314898318,
+  "source_artifact_name": "revenueguard-contractnli-lexical-ceiling",
+  "source_artifact_zip_sha256": "f63107e2f2261d5a894cf5a7eacc110e9d6cf8aa9fa85e4dc64be43c2958d250",
+  "source_report_sha256": "66549c217821882bc6cc4b51731886878a2f070d716dcea0eb46de3e42714ca9",
+  "contractnli_commit": "eced6528dd3c1d14d73f9a87df8f7bdbc03126f9",
+  "dev_positive_pairs": 614,
+  "dev_candidate_pool": {
+    "top14_any_evidence_recall": 0.8094462540716613,
+    "top24_any_evidence_recall": 0.9234527687296417,
+    "top32_any_evidence_recall": 0.9592833876221498,
+    "top48_any_evidence_recall": 0.990228013029316,
+    "top32_all_evidence_recall": 0.7345276872964169,
+    "top32_mean_gold_span_coverage": 0.8556751202109508
+  },
+  "weak_top32_hypothesis_families": {
+    "nda-18": {"n": 11, "any_evidence_recall": 0.7272727272727273},
+    "nda-2": {"n": 50, "any_evidence_recall": 0.88},
+    "nda-17": {"n": 17, "any_evidence_recall": 0.8823529411764706}
+  },
+  "interpretation": [
+    "The current top-32 lexical candidate pool does not impose an aggregate ceiling below the locked 0.85 exact-evidence-recall development gate because it contains at least one gold evidence span in 95.93% of dev positive pairs.",
+    "The decoupled candidate must still learn to select the exact gold span from that candidate pool; candidate presence is not equivalent to selected-span recall.",
+    "If the decoupled selector fails, nda-18, nda-2 and nda-17 are preregistered high-value retrieval curriculum families because their lexical top-32 candidate presence is materially weaker than the aggregate.",
+    "ContractNLI test.json and MAUD were not used or opened by this audit."
+  ]
+}
