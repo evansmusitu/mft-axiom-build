@@ -34,8 +34,24 @@ jobs:
       - name: Syntax check Store worker
         run: node --check store/phase1/web-surface/worker.mjs
 
-      - name: Run existing Store web-surface tests
-        run: node --test store/phase1/web-surface/*.test.mjs
+      - name: Diagnose native-install handoff tests
+        continue-on-error: true
+        run: node --test store/phase1/web-surface/native-install-handoff.test.mjs
+
+      - name: Diagnose release-asset tests
+        continue-on-error: true
+        run: node --test store/phase1/web-surface/release-assets-v101.test.mjs
+
+      - name: Diagnose runtime-state tests
+        continue-on-error: true
+        run: node --test store/phase1/web-surface/runtime-state.test.mjs
+
+      - name: Diagnose storefront tests
+        continue-on-error: true
+        run: node --test store/phase1/web-surface/storefront.test.mjs
 
       - name: Run browser-first launch smoke contract
         run: node store/phase2/browser-first-launch-smoke.mjs
+
+      - name: Enforce complete Store web-surface suite
+        run: node --test store/phase1/web-surface/*.test.mjs
