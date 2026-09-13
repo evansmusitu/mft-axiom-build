@@ -1,0 +1,21 @@
+{
+  "schema": "musitu.revenueguard.contractnli.decoupled_chunk_execution_contract.v1",
+  "status": "DEV_RESEARCH_ONLY_NOT_CERTIFICATION",
+  "source_run_id": 34748996731,
+  "source_commit": "eced6528dd3c1d14d73f9a87df8f7bdbc03126f9",
+  "batch_size": 48,
+  "full_epoch_samples": 29488,
+  "full_epoch_steps": 615,
+  "chunk_batch_ranges": [[0,153],[153,307],[307,461],[461,615]],
+  "chunk_samples": [7344,7392,7392,7360],
+  "chunk_steps": [153,154,154,154],
+  "cumulative_global_steps_after_chunk": [153,307,461,615],
+  "relevance_counts": {"irrelevant":22333,"relevant":7155},
+  "semantic_counts": {"contradiction":1258,"entailment":5897},
+  "trainable_tensor_count": 68,
+  "trainable_names_sha256": "a858e138760588bdb8c89cb440e75a0f9441d23f7a3a9993a1755a3dc8f77c05",
+  "trainable_shapes_sha256": "185cd8b4100f27950ebc20206ccf407a01d2694f8e2a6f6fa8fe6d4f04250b27",
+  "continuity_rule": "Chunk N>0 must load the exact immediately preceding state, require previous next_chunk=N and num_chunks=4, restore optimizer plus torch/python/numpy RNG state, retain the exact 68-tensor trainable-state fingerprint, and finish at the sample/step/global-step vectors above.",
+  "sealed_policy": {"contractnli_test_opened":false,"maud_opened":false},
+  "certification": "NOT_CERTIFIED"
+}
