@@ -1,0 +1,49 @@
+name: MUSITU FMI Real Money Certification Checkout
+
+on:
+  push:
+    branches: [fmi-revenue-certification-20260913]
+    paths:
+      - '.github/workflows/fmi-real-money-certification-checkout.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: musitu-fmi-real-money-certification-checkout
+  cancel-in-progress: false
+
+jobs:
+  initiate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      CF_API: https://api.cloudflare.com/client/v4
+      ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      FMI_DB_UUID: a03dc12d-8206-47be-b904-1f24e4e37d91
+      PUBLIC_BASE: https://mft-fmi-global-edge.mft-education-nexus-93f395f5.workers.dev
+      CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+      CLOUDFLARE_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Require protected Cloudflare credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$CLOUDFLARE_EMAIL"
+          test -n "$CLOUDFLARE_API_KEY"
+      - name: Create exactly one controlled FMI Paynow checkout
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/fmi_revenue_checkout_initiate.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: musitu-fmi-real-money-certification-checkout
+          path: |
+            OPEN_PAYNOW_FMI_CERTIFICATION_CHECKOUT.txt
+            fmi-real-money-certification-checkout-initiation.json
+            fmi-real-money-certification-checkout-initiation.sha256
+          retention-days: 1
+          if-no-files-found: error
