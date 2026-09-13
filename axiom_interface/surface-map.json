@@ -1,5 +1,5 @@
 {
-  "schema": "musitu.axiom.interface.surface-map.v7",
+  "schema": "musitu.axiom.interface.surface-map.v8",
   "authority": {
     "earned_track_b_sha": "73ecdbad38cb10020b6e30ebe42a9222a3bb6c55",
     "qualified_phase1_sha": "5b7233fd9e62b530ef9eb161b41010727d76bacb",
@@ -12,12 +12,18 @@
     "qualified_phase7_run_id": 34724477902,
     "qualified_phase7_evidence_artifact_id": 10307990299,
     "qualified_phase7_evidence_digest": "sha256:f4fa1fdca09634a9cfebf23cc3a8975a328c4064d41ef04440ef0bb80e4f93ac",
+    "qualified_phase8_sha": "dd7a2a2f8a1c024d92df635ebaba430a74981813",
+    "qualified_phase8_run_id": 34736449398,
+    "qualified_phase8_evidence_artifact_id": 10310549529,
+    "qualified_phase8_evidence_digest": "sha256:5ebbaf7e94bffe9a6ce59bdf06366c1994a66fb9ba47ab56eae0244f0faf415c",
+    "qualified_phase8_runtime_security_artifact_id": 10311585199,
+    "qualified_phase8_runtime_security_evidence_digest": "sha256:b556dcfc37fb141947ef3f260bc0131028bd64ff89b718aee68a7dc1505bf913",
     "blueprint_sha256": "e750039a9c88abc780d24f48c3e86e22fd9295fec99a1b0593668aa8dd9ac166"
   },
-  "phase": "PHASE_7_LIVE_MULTIMODALITY",
+  "phase": "PHASE_8_COMPUTER_BROWSER_EXECUTION",
   "surfaces": [
     {"id":"flagship","target":"musitu.ai/axiom","state":"future-routing","access":"public"},
-    {"id":"app","target":"app","state":"shell-plus-project-graph-plus-work-plus-research-plus-artifacts-plus-observability-plus-live","access":"authenticated"},
+    {"id":"app","target":"app","state":"shell-plus-project-graph-plus-work-plus-research-plus-artifacts-plus-observability-plus-live-plus-computer","access":"authenticated"},
     {"id":"developers","target":"developers","state":"trace-explorer-local-workspace","access":"mixed"},
     {"id":"docs","target":"docs","state":"existing-fragments","access":"public"},
     {"id":"research","target":"research","state":"claim-graph-local-workspace","access":"mixed"},
@@ -28,7 +34,7 @@
     {"id":"academy","target":"academy","state":"registered-placeholder","access":"mixed"},
     {"id":"community","target":"community","state":"registered-placeholder","access":"mixed"}
   ],
-  "workspace_routes": ["home","projects","work","research","create","code","live","agents","evidence","observability","developer","settings"],
+  "workspace_routes": ["home","projects","work","research","create","code","live","computer","agents","evidence","observability","developer","settings"],
   "project_routes": ["overview","conversations","sources","agents","artifacts","runs","memory","settings"],
   "project_substrate": {
     "persistence": "INDEXEDDB_BROWSER_LOCAL_DEVICE",
@@ -175,6 +181,35 @@
         "real_device_certification_claimed": false
       }
     }
+  },
+  "computer_substrate": {
+    "status": "EARNED",
+    "qualification_scope": "VISIBLE_LOCAL_SRCDOC_SANDBOXED_BROWSER_EXECUTION",
+    "qualified_sha": "dd7a2a2f8a1c024d92df635ebaba430a74981813",
+    "workflow_run_id": 34736449398,
+    "evidence_artifact_id": 10310549529,
+    "evidence_artifact_digest": "sha256:5ebbaf7e94bffe9a6ce59bdf06366c1994a66fb9ba47ab56eae0244f0faf415c",
+    "runtime_security_evidence_artifact_id": 10311585199,
+    "runtime_security_evidence_artifact_digest": "sha256:b556dcfc37fb141947ef3f260bc0131028bd64ff89b718aee68a7dc1505bf913",
+    "persistence": "INDEXEDDB_BROWSER_LOCAL_DEVICE",
+    "sandbox_mode": "VISIBLE_LOCAL_SRCDOC_SANDBOX_NO_EXTERNAL_NETWORK",
+    "network_policy": "DENY_BY_DEFAULT_NO_RUNTIME_FETCH",
+    "hidden_privileged_browser_session": false,
+    "scripts_enabled_in_sandbox": false,
+    "approval": "EXACT_PREVIEW_SHA256_BOUND",
+    "receipts": "SHA256_BOUND_APPROVAL_ACTION_ROLLBACK",
+    "rollback": true,
+    "pause_resume": true,
+    "user_takeover": true,
+    "restricted_clipboard": "SESSION_LOCAL_TEXT_ONLY_NO_SYSTEM_CLIPBOARD",
+    "credentials": "SYMBOLIC_HANDLE_ONLY_PERMISSION_SCOPED_NO_PLAINTEXT_SECRET_ACCESS",
+    "retrieved_instruction_authority": "DATA_ONLY",
+    "prompt_injection_quarantine": true,
+    "observability_linkage_required": true,
+    "external_network_execution_claimed": false,
+    "arbitrary_external_site_execution_claimed": false,
+    "os_level_computer_control_claimed": false,
+    "production_isolation_certified": false
   },
   "execution_boundary": "PREVIEW_ONLY_NO_EXTERNAL_CONSEQUENTIAL_ACTIONS"
 }
