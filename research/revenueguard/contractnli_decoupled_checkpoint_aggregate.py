@@ -5,6 +5,8 @@ from sklearn.metrics import f1_score
 
 THRESHOLDS = [x / 100 for x in range(5, 96)]
 KS = (24, 32)
+EXPECTED_GLOBAL_STEPS = 615
+EXPECTED_EXCLUDED_DUPLICATE_CAL_DOCS = ('548',)
 
 
 def apply(rows, k, th):
@@ -15,7 +17,7 @@ def apply(rows, k, th):
     return out
 
 
-def metrics(rows):
+def dev_metrics(rows):
     y = [r['gold'] for r in rows]
     p = [r['pred'] for r in rows]
     if not y:
@@ -33,6 +35,38 @@ def metrics(rows):
     }
 
 
+def relevance_calibration_metrics(rows, k, th):
+    """Calibration contract: semantic polarity is deliberately absent.
+
+    Gold is only mentioned (Contradiction or Entailment) vs NotMentioned.
+    Prediction is only whether the relevance score crosses the threshold.
+    Evidence exact-span recall is a selector diagnostic and does not inspect
+    the semantic head's candidate label.
+    """
+    if not rows:
+        return {
+            'relevance_detection_f1': 0.0,
+            'relevance_accuracy': 0.0,
+            'false_grounding_notmentioned': 0.0,
+            'positive_relevance_recall': 0.0,
+            'selected_evidence_exact_span_recall': 0.0,
+            'n': 0,
+        }
+    gold_relevant = [r['gold'] != 2 for r in rows]
+    pred_relevant = [float(r['scores'][str(k)]['score']) >= th for r in rows]
+    nm = [i for i, v in enumerate(gold_relevant) if not v]
+    pos = [i for i, v in enumerate(gold_relevant) if v]
+    evhit = sum(r['scores'][str(k)]['best_span_index'] in r['gold_spans'] for r in (rows[i] for i in pos)) / (len(pos) or 1)
+    return {
+        'relevance_detection_f1': float(f1_score(gold_relevant, pred_relevant, pos_label=True, zero_division=0)),
+        'relevance_accuracy': sum(a == b for a, b in zip(gold_relevant, pred_relevant)) / len(rows),
+        'false_grounding_notmentioned': sum(pred_relevant[i] for i in nm) / (len(nm) or 1),
+        'positive_relevance_recall': sum(pred_relevant[i] for i in pos) / (len(pos) or 1),
+        'selected_evidence_exact_span_recall': evhit,
+        'n': len(rows),
+    }
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--shard-glob', required=True)
@@ -40,6 +74,8 @@ def main():
     ap.add_argument('--checkpoint-artifact-sha256', required=True)
     ap.add_argument('--out', required=True)
     args = ap.parse_args()
+    if len(args.checkpoint_artifact_sha256) != 64:
+        raise SystemExit('bad checkpoint artifact digest')
 
     files = sorted(Path('.').glob(args.shard_glob))
     if len(files) != args.expected_shards:
@@ -56,8 +92,8 @@ def main():
         if si in seen_shards:
             raise SystemExit(f'duplicate shard {si}')
         seen_shards.add(si)
-        steps.add(o['global_training_steps'])
-        next_chunks.add(o['next_chunk'])
+        steps.add(int(o['global_training_steps']))
+        next_chunks.add(int(o['next_chunk']))
         exclusion_sets.add(tuple(o.get('excluded_calibration_doc_ids', [])))
         for r in o['rows']:
             key = (r['corpus'], r['doc'], r['hid'])
@@ -67,12 +103,14 @@ def main():
             rows.append(r)
     if seen_shards != set(range(args.expected_shards)):
         raise SystemExit('missing shards')
-    if len(steps) != 1 or len(next_chunks) != 1 or next(iter(next_chunks)) != 4:
-        raise SystemExit('checkpoint identity mismatch')
+    if steps != {EXPECTED_GLOBAL_STEPS} or next_chunks != {4}:
+        raise SystemExit(f'checkpoint identity mismatch steps={steps} next_chunks={next_chunks}')
     if len(exclusion_sets) != 1:
         raise SystemExit('calibration exclusion mismatch')
+    excluded = tuple(next(iter(exclusion_sets)))
+    if excluded != EXPECTED_EXCLUDED_DUPLICATE_CAL_DOCS:
+        raise SystemExit(f'duplicate-clean calibration identity drift: {excluded}')
 
-    excluded = list(next(iter(exclusion_sets)))
     cal = [r for r in rows if r['corpus'] == 'train']
     dev = [r for r in rows if r['corpus'] == 'dev']
     if not cal or not dev:
@@ -84,35 +122,38 @@ def main():
     for k in KS:
         best = None
         for th in THRESHOLDS:
-            m = metrics(apply(cal, k, th))
+            m = relevance_calibration_metrics(cal, k, th)
             key = (
                 m['false_grounding_notmentioned'] <= .02,
-                m['macro_f1'],
-                m['accuracy'],
+                m['relevance_detection_f1'],
+                m['positive_relevance_recall'],
+                m['relevance_accuracy'],
                 m['selected_evidence_exact_span_recall'],
-                m['positive_semantic_accuracy'],
                 -m['false_grounding_notmentioned'],
+                -th,
             )
             if best is None or key > best[0]:
                 best = (key, th, m)
         _, th, cm = best
-        settings.append({'k': k, 'threshold': th, 'calibration': cm})
+        settings.append({'k': k, 'threshold': th, 'calibration_relevance_only': cm})
 
     def setting_key(x):
-        m = x['calibration']
+        m = x['calibration_relevance_only']
         return (
             m['false_grounding_notmentioned'] <= .02,
-            m['macro_f1'],
-            m['accuracy'],
+            m['relevance_detection_f1'],
+            m['positive_relevance_recall'],
+            m['relevance_accuracy'],
             m['selected_evidence_exact_span_recall'],
-            m['positive_semantic_accuracy'],
+            -m['false_grounding_notmentioned'],
             -x['k'],
+            -x['threshold'],
         )
 
     chosen = max(settings, key=setting_key)
     devrows = apply(dev, chosen['k'], chosen['threshold'])
-    dm = metrics(devrows)
-    by = {hid: metrics([r for r in devrows if r['hid'] == hid]) for hid in sorted({r['hid'] for r in devrows})}
+    dm = dev_metrics(devrows)
+    by = {hid: dev_metrics([r for r in devrows if r['hid'] == hid]) for hid in sorted({r['hid'] for r in devrows})}
     gate = {'accuracy_min': .90, 'macro_f1_min': .88, 'false_grounding_max': .02, 'evidence_recall_min': .85}
     gate['pass'] = (
         dm['accuracy'] >= gate['accuracy_min'] and
@@ -122,19 +163,20 @@ def main():
     )
 
     rep = {
-        'schema': 'musitu.revenueguard.contractnli.decoupled_checkpoint_eval.v1',
+        'schema': 'musitu.revenueguard.contractnli.decoupled_checkpoint_eval.v2',
         'status': 'DEV_RESEARCH_ONLY',
         'mode': 'decoupled',
         'checkpoint_artifact_sha256': args.checkpoint_artifact_sha256,
-        'global_training_steps': next(iter(steps)),
-        'completed_chunks': next(iter(next_chunks)),
+        'global_training_steps': EXPECTED_GLOBAL_STEPS,
+        'completed_chunks': 4,
         'calibration_rows': len(cal),
-        'excluded_duplicate_equivalent_calibration_doc_ids': excluded,
+        'excluded_duplicate_equivalent_calibration_doc_ids': list(excluded),
         'dev_rows': len(dev),
         'candidate_settings': settings,
         'chosen_k': chosen['k'],
         'chosen_threshold': chosen['threshold'],
-        'selection_rule': 'K and relevance threshold selected exclusively on hash-held training calibration documents; semantic polarity never controls abstention; official dev graded only after selection.',
+        'calibration_contract': 'K and abstention threshold are selected exclusively from relevance/evidence information on duplicate-clean hash-held training calibration documents. Contradiction-vs-Entailment semantic-head labels or correctness do not participate in selection.',
+        'selection_rule': 'First require NotMentioned false grounding <=2% when attainable; then maximize binary relevance F1, positive relevance recall, relevance accuracy, exact evidence-span recall; residual ties prefer lower K then lower threshold. Only after this freeze is the exposed dev scored with the unchanged three-class gate.',
         'dev': dm,
         'dev_by_hypothesis': by,
         'gate': gate,
