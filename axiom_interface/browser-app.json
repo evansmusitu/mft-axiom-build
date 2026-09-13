@@ -1,0 +1,65 @@
+{
+  "schema": "musitu.axiom.browser-application.v1",
+  "status": "IMPLEMENTED_NOT_DEPLOYED",
+  "deployment": {
+    "public_entry_url": "https://musitu.ai/axiom",
+    "production_app_origin": null,
+    "canonical_app_path": "/",
+    "default_route": "#/home",
+    "entry_url": "./#/home",
+    "origin_policy": "DEDICATED_APPLICATION_ORIGIN_REQUIRED",
+    "reserved_api_origin": "https://axiom.mftintelligence.com",
+    "production_deployment_claimed": false
+  },
+  "routing": {
+    "mode": "HASH_SPA",
+    "direct_deep_links": true,
+    "refresh_safe": true,
+    "host_navigation_fallback": "index.html",
+    "legacy_index_url_normalized": true
+  },
+  "hosting": {
+    "artifact_type": "STATIC_DIRECTORY",
+    "root_document": "index.html",
+    "root_content_type": "text/html; charset=utf-8",
+    "root_content_disposition": "inline",
+    "navigation_fallback": "index.html",
+    "session_cache_control": "no-store"
+  },
+  "session": {
+    "endpoint": "./.well-known/axiom-session",
+    "credential_transport": "HTTP_ONLY_SAME_ORIGIN_COOKIE",
+    "unauthenticated_mode": "GUEST_BROWSER_WORKSPACE",
+    "offline_authenticated_mode": "FAIL_CLOSED_TO_GUEST",
+    "browser_token_storage": false,
+    "automatic_sign_in_redirect": false
+  },
+  "actions": {
+    "open_browser": {
+      "href": "./#/home",
+      "target": "_self",
+      "media_type": "text/html",
+      "behavior": "INLINE_BROWSER_APPLICATION_NAVIGATION",
+      "download": false
+    },
+    "install_web_app": {
+      "behavior": "BROWSER_INSTALL_PROMPT_ONLY",
+      "native_binary": false
+    },
+    "install_android": {
+      "status": "NOT_CONFIGURED_IN_VERIFIED_AXIOM_SOURCE",
+      "href": null,
+      "separate_from_open_browser": true
+    },
+    "install_ios": {
+      "status": "NOT_CONFIGURED_IN_VERIFIED_AXIOM_SOURCE",
+      "href": null,
+      "separate_from_open_browser": true
+    },
+    "install_desktop": {
+      "status": "NOT_CONFIGURED_IN_VERIFIED_AXIOM_SOURCE",
+      "href": null,
+      "separate_from_open_browser": true
+    }
+  }
+}

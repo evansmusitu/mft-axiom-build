@@ -7,6 +7,8 @@ import { initArtifactWorkspace } from './artifacts.js';
 import { initObservabilityWorkspace } from './observability.js';
 import { initLiveWorkspace } from './live.js';
 import { installLiveDurabilityGuard, attachLiveDurability } from './live_durability.js';
+import { normalizeBrowserEntry } from './browser_app.js';
+import { initBrowserSession } from './browser_session.js';
 
 const $ = (selector, root = document) => root.querySelector(selector);
 const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
@@ -26,6 +28,7 @@ const routeCopy = {
   settings:['Settings','Control identity, privacy, memory, accessibility, notifications and policy preferences.']
 };
 const state = { verb:'Ask', theme:localStorage.getItem('axiom.ui.theme') || 'system', trace:[], proofOpen:false };
+const browserApplication = normalizeBrowserEntry();
 
 function newId(prefix='evt') { return `${prefix}_${crypto.randomUUID?.() || `${Date.now()}_${Math.random().toString(16).slice(2)}`}`; }
 function emit(type, detail={}) {
@@ -76,4 +79,6 @@ function registerServiceWorker(){ if('serviceWorker' in navigator && location.pr
 installLiveDurabilityGuard();
 applyTheme(state.theme); restoreDraft(); installEvents(); syncRoute(); updateConstraintSummary(); updateNetwork(); registerServiceWorker(); emit('shell.ready',{state:'phase7'});
 window.AxiomUI = Object.freeze({ emit, reportError, setProgress, setProof, getTrace:()=>structuredClone(state.trace) });
+initBrowserSession({emit});
+emit('browser.application-ready',{state:browserApplication.route});
 initProjectWorkspace({emit}).then(async projects=>{const outcomes=await initOutcomeContractWorkspace({emit,projects});const observability=await initObservabilityWorkspace({emit,projects});const live=await initLiveWorkspace({emit,projects,observability});attachLiveDurability({api:live,emit});await initOutcomeExecutionWorkspace({emit,projects,outcomes,observability});const research=await initResearchWorkspace({emit,projects});await enhanceResearchWorkspace({emit,research});await initArtifactWorkspace({emit,projects});emit('workspace.ready',{state:'phase7'});}).catch(error=>reportError({errorId:'AXIOM-WORKSPACE-INIT',component:'Workspace',impact:'Project, Work, Research, Create, Live or Observability workspace unavailable',failed:error.message,recovery:'Reload the workspace and retry'}));

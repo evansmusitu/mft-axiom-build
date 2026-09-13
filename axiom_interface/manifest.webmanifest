@@ -1,10 +1,13 @@
 {
   "name": "MUSITU Axiom Workspace",
   "short_name": "Axiom",
+  "id": "./",
   "description": "Evidence-native intelligence workspace shell.",
-  "start_url": "./index.html#/home",
+  "start_url": "./#/home",
   "scope": "./",
   "display": "standalone",
+  "display_override": ["window-controls-overlay", "standalone", "minimal-ui"],
+  "orientation": "any",
   "background_color": "#0b1020",
   "theme_color": "#0b1020",
   "lang": "en",
@@ -12,6 +15,14 @@
   "categories": [
     "productivity",
     "utilities"
+  ],
+  "launch_handler": {"client_mode": "navigate-existing"},
+  "handle_links": "preferred",
+  "prefer_related_applications": false,
+  "related_applications": [],
+  "shortcuts": [
+    {"name": "Projects", "short_name": "Projects", "url": "./#/projects", "icons": [{"src": "./icons/axiom.svg", "sizes": "any", "type": "image/svg+xml"}]},
+    {"name": "Evidence", "short_name": "Evidence", "url": "./#/evidence", "icons": [{"src": "./icons/axiom.svg", "sizes": "any", "type": "image/svg+xml"}]}
   ],
   "icons": [
     {

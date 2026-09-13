@@ -1,0 +1,126 @@
+name: MUSITU Axiom Browser Application Gate
+on:
+  push:
+    branches:
+      - frontier/axiom-v5-browser-first-application-20260913
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: musitu-axiom-browser-application-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  runtime-security-authority-and-regression:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 70
+    steps:
+      - name: Checkout immutable action
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Setup patch-pinned Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
+        with:
+          python-version: '3.12.14'
+      - name: Fetch exact protected AXIOM authorities
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --no-tags --force origin +refs/heads/main:refs/remotes/origin/main +refs/heads/frontier/axiom-v5-skill-fabric:refs/remotes/origin/frontier/axiom-v5-skill-fabric +refs/heads/archive/axiom-track-a-post-freeze-20260912:refs/remotes/origin/archive/axiom-track-a-post-freeze-20260912 +refs/heads/frontier/axiom-v5-world-top-tier-review-safe:refs/remotes/origin/frontier/axiom-v5-world-top-tier-review-safe
+      - name: Run complete inherited runtime security plus browser application contracts
+        env:
+          AXIOM_PHASE8_SECURITY_ARTIFACT_DIR: /tmp/axiom-interface-phase8-security
+          AXIOM_PHASE9_SECURITY_ARTIFACT_DIR: /tmp/axiom-interface-phase9-security
+          AXIOM_PHASE10_SECURITY_ARTIFACT_DIR: /tmp/axiom-interface-phase10-security
+          AXIOM_PHASE11_SECURITY_ARTIFACT_DIR: /tmp/axiom-interface-phase11-security
+          AXIOM_PHASE12_SECURITY_ARTIFACT_DIR: /tmp/axiom-interface-phase12-security
+          AXIOM_PHASE13_SECURITY_ARTIFACT_DIR: /tmp/axiom-interface-phase13-security
+          AXIOM_PHASE14_SECURITY_ARTIFACT_DIR: /tmp/axiom-interface-phase14-security
+        run: PYTHONPATH=. python frontier_v5/scripts/run_browser_application_regression_gate.py
+      - name: Build integrity-inventoried static application directory
+        run: python frontier_v5/scripts/build_browser_application.py --output /tmp/axiom-browser-application-dist
+      - name: Upload complete runtime security evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: musitu-axiom-browser-application-runtime-security-evidence
+          path: /tmp/axiom-interface-phase*-security/*.json
+          # The build is a deployment artifact for this isolated branch, never the Open/Launch target.
+          if-no-files-found: error
+      - name: Upload static application build
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: musitu-axiom-browser-application-static-build
+          path: /tmp/axiom-browser-application-dist/**
+          if-no-files-found: error
+  browser-launch-session-pwa-and-inherited-regression:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 115
+    steps:
+      - name: Checkout immutable action
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Setup patch-pinned Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
+        with:
+          python-version: '3.12.14'
+      - name: Install locked browser and semantic stack
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends ffmpeg espeak-ng tesseract-ocr xvfb xdotool python3-tk scrot unzip ca-certificates curl
+          python -m pip install 'pip==26.2.1'
+          python -m pip install -r frontier_v5/requirements/fullstack.lock.txt
+          python -m pip check
+          python -m playwright install --with-deps chromium
+          PYTHONPATH=. python frontier_v5/scripts/verify_supply_chain.py --output /tmp/musitu-interface-supply-chain.json
+      - name: Fetch digest-pinned offline speech model
+        shell: bash
+        run: |
+          set -euo pipefail
+          model_zip=/tmp/vosk-model-small-en-us-0.15.zip
+          model_root=/tmp/axiom-vosk
+          rm -rf "$model_root" "$model_zip"
+          mkdir -p "$model_root"
+          curl --fail --silent --show-error --location --retry 3 --retry-all-errors https://alphacephei.com/vosk/models/vosk-model-small-en-us-0.15.zip --output "$model_zip"
+          echo '30f26242c4eb449f948e42cb302dd7a686cb29a3423a8367f99ff41780942498  /tmp/vosk-model-small-en-us-0.15.zip' | sha256sum --check --strict
+          unzip -q "$model_zip" -d "$model_root"
+          test -d "$model_root/vosk-model-small-en-us-0.15/am"
+      - name: Fetch exact protected AXIOM authorities
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --no-tags --force origin +refs/heads/main:refs/remotes/origin/main +refs/heads/frontier/axiom-v5-skill-fabric:refs/remotes/origin/frontier/axiom-v5-skill-fabric +refs/heads/archive/axiom-track-a-post-freeze-20260912:refs/remotes/origin/archive/axiom-track-a-post-freeze-20260912 +refs/heads/frontier/axiom-v5-world-top-tier-review-safe:refs/remotes/origin/frontier/axiom-v5-world-top-tier-review-safe
+      - name: Run complete inherited browser envelope plus browser application matrix
+        env:
+          AXIOM_VOSK_MODEL_DIR: /tmp/axiom-vosk/vosk-model-small-en-us-0.15
+          AXIOM_VOSK_MODEL_SHA256: 30f26242c4eb449f948e42cb302dd7a686cb29a3423a8367f99ff41780942498
+          AXIOM_BROWSER_APPLICATION_ARTIFACT_DIR: /tmp/axiom-browser-application
+        run: PYTHONPATH=. python frontier_v5/scripts/run_browser_application_browser_regression_gate.py
+      - name: Upload complete inherited and browser application evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: musitu-axiom-browser-application-browser-evidence
+          path: |
+            /tmp/axiom-browser-application/**
+            /tmp/axiom-interface-phase14/**
+            /tmp/axiom-interface-phase13/**
+            /tmp/axiom-interface-phase12/**
+            /tmp/axiom-interface-phase11/**
+            /tmp/axiom-interface-phase10/**
+            /tmp/axiom-interface-phase9/**
+            /tmp/axiom-interface-phase8/**
+            /tmp/axiom-interface-phase7-semantic/**
+            /tmp/axiom-interface-phase7/**
+            /tmp/axiom-interface-phase6/**
+            /tmp/axiom-interface-phase5/**
+            /tmp/axiom-interface-phase4-quality/**
+            /tmp/axiom-interface-phase4/**
+            /tmp/axiom-interface-phase3/**
+            /tmp/axiom-interface-phase2/**
+            /tmp/axiom-interface-phase1/**
+            /tmp/musitu-interface-supply-chain.json
+          if-no-files-found: error

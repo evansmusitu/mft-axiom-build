@@ -5,12 +5,18 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#0b1020">
   <meta name="color-scheme" content="light dark">
+  <meta name="application-name" content="MUSITU Axiom">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Axiom">
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self'; media-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'">
   <meta name="description" content="MUSITU Axiom Workspace — evidence-native intelligence operating system shell.">
+  <link rel="canonical" href="./">
   <link rel="manifest" href="./manifest.webmanifest">
   <link rel="stylesheet" href="./styles/tokens.css">
   <link rel="stylesheet" href="./styles/app.css">
   <link rel="stylesheet" href="./styles/projects.css">
+  <link rel="stylesheet" href="./styles/browser-app.css">
   <title>MUSITU Axiom Workspace</title>
 </head>
 <body>
@@ -25,6 +31,7 @@
       </div>
       <div class="topbar-actions">
         <span id="connection-state" class="status-pill" data-state="online"><span class="status-dot" aria-hidden="true"></span><span>Online</span></span>
+        <button class="button secondary session-button" id="session-button" type="button" aria-haspopup="dialog" aria-controls="session-dialog" aria-label="Account: Checking session"><span class="session-avatar" aria-hidden="true">A</span><span id="session-name">Checking session</span></button>
         <button class="icon-button" id="shortcuts-button" type="button" aria-haspopup="dialog" aria-controls="shortcuts-dialog" aria-label="Keyboard shortcuts">?</button>
         <button class="button secondary" id="theme-button" type="button" aria-label="Change theme"><span aria-hidden="true">◐</span><span id="theme-label">System</span></button>
       </div>
@@ -174,6 +181,13 @@
   <dialog id="shortcuts-dialog" aria-labelledby="shortcuts-title">
     <div class="dialog-header"><h2 id="shortcuts-title">Keyboard shortcuts</h2><button class="icon-button" type="button" data-close-dialog aria-label="Close shortcuts">×</button></div>
     <dl class="shortcut-list"><div><dt><kbd>Ctrl/⌘</kbd> + <kbd>K</kbd></dt><dd>Focus composer</dd></div><div><dt><kbd>Ctrl/⌘</kbd> + <kbd>Shift</kbd> + <kbd>P</kbd></dt><dd>Toggle Proof Drawer</dd></div><div><dt><kbd>?</kbd></dt><dd>Open shortcuts</dd></div><div><dt><kbd>Esc</kbd></dt><dd>Close overlays</dd></div></dl>
+  </dialog>
+
+  <dialog id="session-dialog" aria-labelledby="session-title">
+    <div class="dialog-header"><h2 id="session-title">Account &amp; browser session</h2><button class="icon-button" id="session-close" type="button" aria-label="Close account session">×</button></div>
+    <p id="session-summary" class="session-copy" role="status" aria-live="polite">Checking the same-origin session.</p>
+    <p id="session-detail" class="session-copy">AXIOM never stores account bearer or refresh tokens in browser storage.</p>
+    <div class="session-actions"><a id="session-sign-in" class="button primary" hidden>Sign in</a><button id="session-refresh" class="button secondary" type="button">Refresh session</button></div>
   </dialog>
 
   <template id="preview-template">

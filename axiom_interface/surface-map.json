@@ -500,5 +500,25 @@
     "untrusted_package_code_executed": false,
     "external_conformance_certification_claimed": false
   },
+  "browser_application_substrate": {
+    "status": "IMPLEMENTED_NOT_DEPLOYED",
+    "public_entry_url": "https://musitu.ai/axiom",
+    "production_app_origin": null,
+    "canonical_app_path": "/",
+    "entry_url": "./#/home",
+    "origin_policy": "DEDICATED_APPLICATION_ORIGIN_REQUIRED",
+    "reserved_api_origin": "https://axiom.mftintelligence.com",
+    "routing_mode": "HASH_SPA_REFRESH_SAFE",
+    "browser_launch_implemented": true,
+    "normal_launch_download": false,
+    "authenticated_session_contract_implemented": true,
+    "session_credential_transport": "HTTP_ONLY_SAME_ORIGIN_COOKIE",
+    "browser_token_storage": false,
+    "guest_workspace_fallback": true,
+    "pwa_install_separate": true,
+    "native_distribution_links_configured": false,
+    "production_deployment_claimed": false,
+    "production_identity_integration_claimed": false
+  },
   "execution_boundary": "PREVIEW_ONLY_NO_EXTERNAL_CONSEQUENTIAL_ACTIONS"
 }
