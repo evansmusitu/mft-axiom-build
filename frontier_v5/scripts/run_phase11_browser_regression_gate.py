@@ -1,0 +1,6 @@
+#!/usr/bin/env python3
+from __future__ import annotations
+import json,os,subprocess,sys
+def main():
+ env=os.environ.copy();env['PYTHONPATH']='.';subprocess.check_call([sys.executable,'frontier_v5/scripts/run_phase10_browser_regression_gate.py'],env=env);root='/tmp/axiom-interface-phase11';env['AXIOM_PHASE11_ARTIFACT_DIR']=root;subprocess.check_call([sys.executable,'axiom_interface/tests/run_browser_phase11.py'],env=env);e=json.load(open(root+'/phase11-operator-browser-evidence.json',encoding='utf-8'));required=['rbac_unauthorized_denied','final_owner_safeguard_verified','exact_policy_digest_verified','stale_policy_digest_rejected','fleet_limit_breach_verified','cross_reload_persistence_verified','ctrl_k_inherited_focus_verified','integrity_verified'];assert e['status']=='PASS' and all(e[k] is True for k in required);assert e['foreign_requests']==[] and e['network_policy']=='DENY_ALL_EXTERNAL_NETWORK' and e['control_plane_mode']=='BROWSER_LOCAL_ADMIN_PREVIEW_ONLY_NO_PRODUCTION_MUTATION';assert e['production_identity_mutation_claimed'] is False and e['production_billing_claimed'] is False and e['cloud_control_plane_claimed'] is False and e['external_action_execution_claimed'] is False and e['hidden_reasoning_recorded'] is False;print('MUSITU_AXIOM_INTERFACE_PHASE11_BROWSER_REGRESSION_PASS')
+if __name__=='__main__':main()

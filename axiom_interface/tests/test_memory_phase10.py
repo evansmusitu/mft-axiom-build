@@ -3,6 +3,7 @@ import json, subprocess
 from pathlib import Path
 import unittest
 ROOT=Path(__file__).resolve().parents[1]
+PHASE10_SEAL='a8589d0295f3a3b9b88f9f0dd8251d7d43e1c143'
 SEC=(ROOT/'memory_security.js').read_text(encoding='utf-8');STORE=(ROOT/'memory_store.js').read_text(encoding='utf-8');UI=(ROOT/'memory_ui.js').read_text(encoding='utf-8');BOOT=(ROOT/'memory_bootstrap.js').read_text(encoding='utf-8');SW=(ROOT/'sw.js').read_text(encoding='utf-8');SURFACE=json.loads((ROOT/'surface-map.json').read_text(encoding='utf-8'))
 class Phase10MemoryContractTests(unittest.TestCase):
  def test_blueprint_memory_graph_is_user_facing_and_progressive(self):
@@ -31,5 +32,5 @@ class Phase10MemoryContractTests(unittest.TestCase):
    memory=SURFACE['memory_graph_substrate'];self.assertEqual(memory['status'],'EARNED');self.assertEqual(memory['qualification_scope'],'BROWSER_LOCAL_CONSENT_SCOPED_MEMORY_GRAPH_WITH_NONDESTRUCTIVE_REVOCATION');self.assertEqual(memory['qualified_sha'],phase10);self.assertEqual(memory['workflow_run_id'],34742232871);self.assertEqual(memory['evidence_artifact_id'],10313016075);self.assertEqual(memory['evidence_artifact_digest'],'sha256:0c07b97cd6c5640dbedd8b2d1cb63e8ce5f901304acaff970f254d0c38fdd1e4');self.assertEqual(memory['runtime_security_evidence_artifact_id'],10313540876);self.assertEqual(memory['runtime_security_evidence_artifact_digest'],'sha256:f202b1ab48405d19ba1c2121d3da9ee00e3cfb3c914022464b3c06291b25e95c');self.assertEqual(memory['evidence_metadata_source'],'GITHUB_ACTIONS_RUN_ARTIFACTS_API');self.assertTrue(memory['evidence_metadata_verified']);self.assertEqual(memory['persistence'],'INDEXEDDB_BROWSER_LOCAL_DEVICE');self.assertEqual(memory['network_policy'],'DENY_ALL_EXTERNAL_NETWORK');self.assertEqual(memory['secret_policy'],'NO_SECRET_OR_HIDDEN_REASONING_STORAGE');self.assertEqual(memory['revocation'],'NONDESTRUCTIVE_DO_NOT_USE_WITH_RECEIPT');self.assertFalse(memory['external_network_claimed']);self.assertFalse(memory['cloud_memory_sync_claimed']);self.assertFalse(memory['hidden_reasoning_storage_claimed']);self.assertFalse(memory['destructive_forget_claimed'])
    reseal_parent=memory.get('reseal_parent_sha')
    if reseal_parent is not None:
-    expected=subprocess.check_output(['git','rev-parse','HEAD^'],text=True).strip();self.assertEqual(reseal_parent,expected);self.assertEqual(memory['seal_validation_scope'],'COMPLETE_PHASE10_WORKFLOW_REQUIRED_AT_EXACT_HEAD')
+    expected=subprocess.check_output(['git','rev-parse',f'{PHASE10_SEAL}^'],text=True).strip();self.assertEqual(reseal_parent,expected);self.assertEqual(memory['seal_validation_scope'],'COMPLETE_PHASE10_WORKFLOW_REQUIRED_AT_EXACT_HEAD')
 if __name__=='__main__':unittest.main(verbosity=2)
