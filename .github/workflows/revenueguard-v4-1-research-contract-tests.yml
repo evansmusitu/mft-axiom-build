@@ -28,8 +28,9 @@ jobs:
             research/revenueguard/cuad_heldout_question_shard.py \
             research/revenueguard/cuad_heldout_aggregate.py \
             research/revenueguard/cuad_postgate_failure_miner.py \
+            research/revenueguard/specialist_training_provenance_seal.py \
             research/revenueguard/v4_1_specialist_dev_admission.py
-      - name: Assert locked gates and sealed-data boundaries in source
+      - name: Assert locked gates, complete-training admission, and sealed-data boundaries
         shell: bash
         run: |
           set -euo pipefail
@@ -38,6 +39,7 @@ jobs:
           cn=Path('research/revenueguard/contractnli_decoupled_checkpoint_aggregate.py').read_text()
           cq=Path('research/revenueguard/cuad_heldout_aggregate.py').read_text()
           admit=Path('research/revenueguard/v4_1_specialist_dev_admission.py').read_text()
+          prov=Path('research/revenueguard/specialist_training_provenance_seal.py').read_text()
           train_cn=Path('research/revenueguard/contractnli_decoupled_chunk_train.py').read_text()
           train_cq=Path('research/revenueguard/cuad_matched_window_multitask_train.py').read_text()
           cuad_miner=Path('research/revenueguard/cuad_postgate_failure_miner.py').read_text()
@@ -51,6 +53,10 @@ jobs:
           assert "semantic_head = nn.Linear(H, 2)" in train_cn
           assert "relevance_head = nn.Linear(H, 2)" in train_cn
           assert "rows.append((target_context(spans, i), h, 0, -100))" in train_cn
+          assert 'CN_EXPECTED_STEPS=615' in prov and 'CN_EXPECTED_SAMPLES=29488' in prov
+          assert "if int(counts.get('selected_total',-1))!=61659" in prov
+          assert "if int(prov['contractnli']['completed_chunks'])!=4 or int(prov['contractnli']['global_steps'])!=615" in admit
+          assert "if int(prov['cuad']['completed_chunks'])!=4 or int(prov['cuad']['selected_training_windows'])!=61659" in admit
           assert 'ContractNLI test.json and MAUD remain unopened.' in Path('research/revenueguard/contractnli_decoupled_postgate_failure_miner.py').read_text()
           assert "EXPECTED_SCORING_MODE='explicit_answerability_margin_with_bound_span_localization'" in cuad_miner
           assert 'Official CUAD test remains unopened' in cuad_miner
@@ -73,4 +79,4 @@ jobs:
           print('research contract tests PASS')
           PY
 
-# Rerun after explicit-answerability CUAD failure-miner hardening.
+# Rerun after complete-training provenance admission hardening.
