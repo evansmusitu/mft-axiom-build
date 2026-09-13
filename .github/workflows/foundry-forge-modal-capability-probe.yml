@@ -1,0 +1,51 @@
+name: MUSITU FOUNDRY FORGE Modal Capability Probe
+
+on:
+  push:
+    branches:
+      - foundry-forge-runtime-transport-bootstrap-20260913
+    paths:
+      - '.github/workflows/foundry-forge-modal-capability-probe.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID }}
+      MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET }}
+    steps:
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12.13'
+      - name: Probe Modal account capabilities read-only
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$MODAL_TOKEN_ID"
+          test -n "$MODAL_TOKEN_SECRET"
+          python -m pip install --disable-pip-version-check --quiet 'modal>=1.5,<2'
+          modal app list --json >/tmp/apps.json
+          modal secret list --json >/tmp/secrets.json
+          modal volume list --json >/tmp/volumes.json
+          python - <<'PY'
+          import json
+          def names(path):
+              x=json.load(open(path))
+              rows=x if isinstance(x,list) else next((v for v in x.values() if isinstance(v,list)),[])
+              out=[]
+              for r in rows:
+                  if isinstance(r,dict):
+                      for k in ('name','Name','app_name','label'):
+                          if isinstance(r.get(k),str): out.append(r[k]); break
+              return set(out)
+          apps=names('/tmp/apps.json'); secrets=names('/tmp/secrets.json'); volumes=names('/tmp/volumes.json')
+          print('modal_auth_pass=true')
+          print('forge_app_present='+str('musitu-forge-private-staging' in apps).lower())
+          print('forge_runtime_secret_present='+str('musitu-forge-runtime' in secrets).lower())
+          print('forge_state_volume_present='+str('musitu-forge-state' in volumes).lower())
+          print('axiom_modal_app_present='+str('mft-axiom-v3-modal-staging' in apps).lower())
+          PY
