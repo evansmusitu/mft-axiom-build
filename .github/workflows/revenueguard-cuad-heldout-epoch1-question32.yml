@@ -1,9 +1,9 @@
-name: RevenueGuard CUAD Epoch1 Question32 Heldout Gate
+name: RevenueGuard CUAD Matched-Window Epoch2 Locked Heldout Gate
 
 on:
   push:
     branches: [revenueguard-axiom-governor-20260911]
-    paths: ['.github/workflows/revenueguard-cuad-heldout-epoch1-question32.yml']
+    paths: ['research/revenueguard/TRIGGER_CUAD_MATCHED_WINDOW_MULTITASK.json']
   workflow_dispatch:
 
 permissions:
@@ -21,14 +21,29 @@ jobs:
     timeout-minutes: 40
     steps:
       - uses: actions/checkout@v4
-      - name: Download exact sealed epoch1 model
+      - name: Download exact matched-window epoch2 candidate
         uses: actions/download-artifact@v4
         with:
-          name: revenueguard-cuad-epoch1-chunked-final
+          name: revenueguard-cuad-matched-window-epoch2-final
           path: model_bundle
           repository: evansmusitu/mft-axiom-build
-          run-id: 34683449126
+          run-id: 34749003397
           github-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Assert candidate bundle shape
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -d model_bundle/cuad_matched_epoch2_final
+          test -f model_bundle/cuad_matched_epoch2_final/answer_head.pt
+          python - <<'PY'
+          import torch
+          st=torch.load('model_bundle/cuad_matched_epoch2_state.pt',map_location='cpu',weights_only=False)
+          assert st['schema']=='musitu.revenueguard.cuad.matched_window_state.v1', st.get('schema')
+          assert st['next_chunk']==4, st['next_chunk']
+          assert st['num_chunks']==4, st['num_chunks']
+          assert st['global_steps']>0, st['global_steps']
+          print({'next_chunk':st['next_chunk'],'global_steps':st['global_steps'],'train_sha256':st['train_sha256']})
+          PY
       - name: Install runtime and fetch pinned CUAD train corpus
         shell: bash
         run: |
@@ -38,20 +53,21 @@ jobs:
           python -m pip install 'transformers==4.56.2'
           curl -fL --retry 4 --retry-delay 2 -o cuad-data.zip 'https://raw.githubusercontent.com/The-Atticus-Project/cuad/67faa0e6023b04fcaae6cc09497ab00e5d63a2a2/data.zip'
           unzip -q cuad-data.zip
-      - name: Score heldout question shard
+      - name: Score locked heldout question shard using explicit answerability head
         shell: bash
         run: |
           set -euo pipefail
           TRAIN=$(find . -name train_separate_questions.json -type f | head -n1)
           python research/revenueguard/cuad_heldout_question_shard.py \
-            --model model_bundle/cuad_epoch1_final \
+            --model model_bundle/cuad_matched_epoch2_final \
+            --answer-head model_bundle/cuad_matched_epoch2_final/answer_head.pt \
             --train-json "$TRAIN" \
             --shard-index ${{ matrix.shard }} \
             --num-shards 32 \
             --out raw_shard_${{ matrix.shard }}.json
       - uses: actions/upload-artifact@v4
         with:
-          name: revenueguard-cuadq32-heldout-shard-${{ matrix.shard }}
+          name: revenueguard-cuad-matched-e2-heldout-shard-${{ matrix.shard }}
           path: raw_shard_${{ matrix.shard }}.json
           if-no-files-found: error
           retention-days: 30
@@ -64,7 +80,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with:
-          pattern: revenueguard-cuadq32-heldout-shard-*
+          pattern: revenueguard-cuad-matched-e2-heldout-shard-*
           path: shards
           merge-multiple: true
       - name: Install aggregation runtime and fetch pinned CUAD corpus
@@ -76,20 +92,26 @@ jobs:
           python -m pip install 'transformers==4.56.2'
           curl -fL --retry 4 --retry-delay 2 -o cuad-data.zip 'https://raw.githubusercontent.com/The-Atticus-Project/cuad/67faa0e6023b04fcaae6cc09497ab00e5d63a2a2/data.zip'
           unzip -q cuad-data.zip
-      - name: Aggregate exact complete heldout set
+      - name: Bind exact candidate artifact digest and apply unchanged locked heldout gate
         shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
+          RUN_ID=34749003397
+          ART='revenueguard-cuad-matched-window-epoch2-final'
+          API="https://api.github.com/repos/evansmusitu/mft-axiom-build/actions/runs/${RUN_ID}/artifacts?name=${ART}"
+          DIGEST=$(curl -fsSL -H "Authorization: Bearer ${GH_TOKEN}" -H 'Accept: application/vnd.github+json' "$API" | python -c "import sys,json; o=json.load(sys.stdin); a=[x for x in o['artifacts'] if x['name']=='$ART' and not x['expired']]; assert len(a)==1,a; d=a[0].get('digest',''); assert d.startswith('sha256:'); print(d.split(':',1)[1])")
           TRAIN=$(find . -name train_separate_questions.json -type f | head -n1)
           python research/revenueguard/cuad_heldout_aggregate.py \
             --train-json "$TRAIN" \
             --shard-glob 'shards/raw_shard_*.json' \
             --expected-shards 32 \
-            --model-artifact-sha256 a5684a5a8ed59909b46c93fd4729ce9ed0f8f672dc0be1474cf94a5e07d6e44b \
-            --out CUAD_EPOCH1_QUESTION32_HELDOUT_EVAL.json
+            --model-artifact-sha256 "$DIGEST" \
+            --out CUAD_MATCHED_WINDOW_EPOCH2_HELDOUT_EVAL.json
       - uses: actions/upload-artifact@v4
         with:
-          name: revenueguard-cuad-epoch1-question32-heldout-eval
-          path: CUAD_EPOCH1_QUESTION32_HELDOUT_EVAL.json
+          name: revenueguard-cuad-matched-window-epoch2-heldout-eval
+          path: CUAD_MATCHED_WINDOW_EPOCH2_HELDOUT_EVAL.json
           if-no-files-found: error
           retention-days: 30
