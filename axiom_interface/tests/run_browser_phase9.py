@@ -49,7 +49,7 @@ def main() -> None:
 
             page.goto(origin + "/index.html#/agents", wait_until="networkidle")
             page.locator("#agents-space").wait_for(state="visible")
-            expect(page.get_by_role("heading", name="Agents & automations")).to_be_visible()
+            expect(page.locator("#agents-title")).to_have_text("Agents & automations")
             expect(page.locator('[data-route="automations"]')).to_be_visible()
             assert page.locator(".hero-card").is_hidden()
             assert page.locator(".run-stage").is_hidden()
