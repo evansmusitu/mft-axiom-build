@@ -1,0 +1,59 @@
+{
+  "schema": "musitu.axiom.real_money_e2e_authority.v1",
+  "date": "2026-09-13",
+  "status": "AXIOM_REAL_MONEY_E2E_PASS",
+  "source_run": {
+    "workflow": ".github/workflows/axiom-real-money-certification-reconcile.yml",
+    "run_id": 34765842892,
+    "job_id": 103746530067,
+    "head_branch": "fmi-revenue-certification-20260913",
+    "head_sha": "f2edad531b5ed806ae339b1cf17f73ae26ece5c5",
+    "artifact_id": 10320676556,
+    "artifact_digest_sha256": "c1b04da307aff843d7a6bf46d461e46785874903c51b29015f46eb8f8e26c16c",
+    "evidence_file_sha256": "fd3142da6680e7e077d3d4b1978461bef4dbe78214cd8fcf88001d31700a3ecf"
+  },
+  "certified_path": {
+    "provider": "paynow",
+    "plan": "developer",
+    "price_id": "axiom-developer-monthly",
+    "amount_cents": 1900,
+    "currency": "USD",
+    "payment_status": "paid",
+    "intent_status": "paid",
+    "subscription_active": true,
+    "subscription_rows": 1,
+    "customer_entitlement_active": true,
+    "monthly_unit_limit": 1000,
+    "matching_verified_webhook_rows_minimum_one": true,
+    "production_compute_http": 200,
+    "operation": "arithmetic.evaluate",
+    "result_42_observed": true,
+    "receipt_or_signature_material_present": true,
+    "usage_event_delta": 1,
+    "usage_bucket_unit_delta": 1,
+    "usage_bucket_unit_limit": 1000,
+    "duplicate_subscription_provisioning": false,
+    "duplicate_usage_bucket_provisioning": false,
+    "active_api_keys_remaining": 0,
+    "temporary_reconcile_key_final_state": "revoked",
+    "raw_api_key_published": false,
+    "raw_reference_published": false,
+    "worker_secret_mutation": false,
+    "real_money_e2e_certified": true
+  },
+  "privacy": {
+    "raw_customer_id_included": false,
+    "raw_paynow_reference_included": false,
+    "raw_api_key_included": false,
+    "customer_id_sha256": "fd7664102dd41647cb2b2ded6f97e53e0b5bf02fe2270a484c8796f68e104885",
+    "reference_sha256": "44076a657bc96eb4179d031f14dc5ef172eab1085f56bb17a61512f916c09dab"
+  },
+  "boundaries": {
+    "profitability": "NOT_YET_CERTIFIED",
+    "superiority": "NOT_CERTIFIED",
+    "live_trading_authorized": false,
+    "trade_execution_authorized": false,
+    "provider_backed_market_lens_live": false,
+    "fmi_v9_4_promotion_ready": "NOT_EARNED"
+  }
+}
