@@ -8,9 +8,9 @@ class Phase10MemoryContractTests(unittest.TestCase):
  def test_blueprint_memory_graph_is_user_facing_and_progressive(self):
   self.assertIn("#/project/memory",UI);self.assertIn('AxiomMemoryBootstrap',BOOT);self.assertIn('AxiomAgents?.store',BOOT)
  def test_consent_scope_retention_and_viewers_are_fail_closed(self):
-  for token in ['consent source are required','invalid active memory scope','invalid memory retention','at least one authorized viewer','temporary memory requires a future expiry','permanent memory cannot have expiry']:self.assertIn(token,SEC)
+  for token in ['consent source are required','invalid active memory scope','invalid memory retention','at least one authorized viewer','temporary memory requires a future expiry','permanent memory cannot have expiry','authorized_viewers','expires_at']:self.assertIn(token,SEC)
   for scope in ['private','project','organization','shared','do_not_use']:self.assertIn(scope,SEC)
-  self.assertIn('authorized_viewers',STORE);self.assertIn('expires_at',STORE);self.assertIn('memoryVisible',STORE)
+  self.assertIn('memoryVisible',STORE)
  def test_revocation_is_nondestructive_and_receipted(self):
   for token in ['markDoNotUse','memory.do_not_use','prior_record_sha256','DO_NOT_USE','revocation_consent_source','receipt_sha256']:self.assertIn(token,STORE)
  def test_memory_is_project_graph_and_provenance_linked(self):
