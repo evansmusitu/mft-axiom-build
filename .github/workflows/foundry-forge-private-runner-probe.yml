@@ -1,0 +1,24 @@
+name: MUSITU FOUNDRY FORGE Private Runner Probe
+
+on:
+  push:
+    branches:
+      - foundry-forge-runtime-transport-bootstrap-20260913
+    paths:
+      - '.github/workflows/foundry-forge-private-runner-probe.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  runner-probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Confirm hosted runner execution
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo 'private_repo_hosted_runner=PASS'
+          uname -a
