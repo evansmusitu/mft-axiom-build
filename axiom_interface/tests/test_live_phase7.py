@@ -92,9 +92,16 @@ class Phase7LiveContractTests(unittest.TestCase):
             self.assertEqual(SURFACE['phase'],'PHASE_7_LIVE_MULTIMODALITY')
         else:
             self.assertEqual(phase8_sha,'dd7a2a2f8a1c024d92df635ebaba430a74981813')
-            self.assertEqual(SURFACE['phase'],'PHASE_8_COMPUTER_BROWSER_EXECUTION')
             self.assertEqual(SURFACE['computer_substrate']['qualified_sha'],phase8_sha)
             self.assertEqual(SURFACE['computer_substrate']['status'],'EARNED')
+            phase9_sha=authority.get('qualified_phase9_sha')
+            if phase9_sha is None:
+                self.assertEqual(SURFACE['phase'],'PHASE_8_COMPUTER_BROWSER_EXECUTION')
+            else:
+                self.assertEqual(phase9_sha,'277478e12529f755fc4269b648e8fbe08caafb92')
+                self.assertEqual(SURFACE['phase'],'PHASE_9_AGENTS_AUTOMATIONS')
+                self.assertEqual(SURFACE['agent_automation_substrate']['qualified_sha'],phase9_sha)
+                self.assertEqual(SURFACE['agent_automation_substrate']['status'],'EARNED')
 
 
 if __name__=='__main__':
