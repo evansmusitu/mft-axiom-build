@@ -4,6 +4,7 @@ from collections import Counter, defaultdict
 from pathlib import Path
 
 LABELS={0:'Contradiction',1:'Entailment',2:'NotMentioned'}
+EXPECTED_AGG_SCHEMA='musitu.revenueguard.contractnli.decoupled_checkpoint_eval.v2'
 
 
 def main():
@@ -14,9 +15,11 @@ def main():
     args=ap.parse_args()
 
     agg=json.load(open(args.aggregate))
-    if agg.get('schema')!='musitu.revenueguard.contractnli.decoupled_checkpoint_eval.v1':
-        raise SystemExit('unexpected aggregate schema')
+    if agg.get('schema')!=EXPECTED_AGG_SCHEMA:
+        raise SystemExit('unexpected aggregate schema; relevance-only calibration v2 required')
     if agg.get('mode')!='decoupled': raise SystemExit('not decoupled')
+    if 'semantic-head labels or correctness do not participate' not in agg.get('calibration_contract',''):
+        raise SystemExit('aggregate is not relevance-only calibrated')
     k=int(agg['chosen_k']); th=float(agg['chosen_threshold'])
 
     files=sorted(Path('.').glob(args.shard_glob))
@@ -73,10 +76,11 @@ def main():
         return out
 
     rep={
-      'schema':'musitu.revenueguard.contractnli.decoupled_postgate_failure_mining.v1',
+      'schema':'musitu.revenueguard.contractnli.decoupled_postgate_failure_mining.v2',
       'status':'POST_GATE_DEV_DIAGNOSTIC_TEST_AND_MAUD_REMAIN_SEALED',
       'source_aggregate_report_sha256':agg['report_sha256'],
       'checkpoint_artifact_sha256':agg['checkpoint_artifact_sha256'],
+      'calibration_contract':agg['calibration_contract'],
       'chosen_k_frozen':k,
       'chosen_relevance_threshold_frozen':th,
       'dev_rows':len(dev),
