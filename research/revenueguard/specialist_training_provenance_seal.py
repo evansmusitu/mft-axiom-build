@@ -7,6 +7,16 @@ CUAD_REPORT_SCHEMA='musitu.revenueguard.cuad.matched_window_train.v1'
 GEOM_SCHEMA='musitu.revenueguard.cuad.trainer_geometry_onepass_audit.v1'
 CONTRACTNLI_COMMIT='eced6528dd3c1d14d73f9a87df8f7bdbc03126f9'
 CUAD_COMMIT='67faa0e6023b04fcaae6cc09497ab00e5d63a2a2'
+CN_TRAINING_RUN_ID=34748996731
+CN_TRAINING_HEAD_SHA='9bde25dab82909ed40e4a9722fdbfb648896d220'
+CN_SOURCE_ENCODER_RUN_ID=34676990123
+CN_SOURCE_ENCODER_ARTIFACT_SHA='3d78d473ffde6f790b3919226d1069b81fa8426f0f139007d3ba8b9d9cf23055'
+CUAD_TRAINING_RUN_ID=34749003397
+CUAD_TRAINING_HEAD_SHA='302d36e9dd26af60464d0ecf4e3d2504f9591f52'
+CUAD_SOURCE_MODEL_RUN_ID=34683449126
+CUAD_SOURCE_MODEL_ARTIFACT_SHA='a5684a5a8ed59909b46c93fd4729ce9ed0f8f672dc0be1474cf94a5e07d6e44b'
+CUAD_GEOMETRY_RUN_ID=34706691340
+CUAD_GEOMETRY_ARTIFACT_SHA='7ff5e7ccd10aa3c4747136a0d5b67af2004edaf9777247155ce6e37812c56c04'
 CUAD_TRAIN_SHA='7de21d2bb741ac939e2a839ef9640634a5e0f9f40ea2b82c6833baf7db33dab4'
 CUAD_FROZEN_GEOMETRY_REPORT_SHA='e14b667cc4e8ac96b35909741847d804505b3d7f0c4c79ddebb53ab07bee10e7'
 CUAD_TRAINER_ONEPASS_REPORT_SHA='d8820202835ae82499e96a8ee8895c175ac5ddc39e7ec66b7bbfd0367d3520a1'
@@ -23,12 +33,25 @@ def main():
     ap.add_argument('--contractnli-final-report',required=True)
     ap.add_argument('--contractnli-artifact-sha256',required=True)
     ap.add_argument('--contractnli-run-id',type=int,required=True)
+    ap.add_argument('--contractnli-training-head-sha',required=True)
+    ap.add_argument('--contractnli-source-encoder-artifact-sha256',required=True)
     ap.add_argument('--cuad-final-report',required=True)
     ap.add_argument('--cuad-artifact-sha256',required=True)
     ap.add_argument('--cuad-run-id',type=int,required=True)
+    ap.add_argument('--cuad-training-head-sha',required=True)
+    ap.add_argument('--cuad-source-model-artifact-sha256',required=True)
+    ap.add_argument('--cuad-geometry-artifact-sha256',required=True)
     ap.add_argument('--cuad-geometry-report',required=True)
     ap.add_argument('--out',required=True)
     args=ap.parse_args()
+
+    if args.contractnli_run_id!=CN_TRAINING_RUN_ID: raise SystemExit('ContractNLI training run drift')
+    if args.contractnli_training_head_sha!=CN_TRAINING_HEAD_SHA: raise SystemExit('ContractNLI training workflow head drift')
+    if args.contractnli_source_encoder_artifact_sha256!=CN_SOURCE_ENCODER_ARTIFACT_SHA: raise SystemExit('ContractNLI source encoder artifact drift')
+    if args.cuad_run_id!=CUAD_TRAINING_RUN_ID: raise SystemExit('CUAD training run drift')
+    if args.cuad_training_head_sha!=CUAD_TRAINING_HEAD_SHA: raise SystemExit('CUAD training workflow head drift')
+    if args.cuad_source_model_artifact_sha256!=CUAD_SOURCE_MODEL_ARTIFACT_SHA: raise SystemExit('CUAD source model artifact drift')
+    if args.cuad_geometry_artifact_sha256!=CUAD_GEOMETRY_ARTIFACT_SHA: raise SystemExit('CUAD geometry artifact drift')
 
     cn=json.load(open(args.contractnli_final_report))
     cq=json.load(open(args.cuad_final_report))
@@ -73,23 +96,31 @@ def main():
     if int(gstats.get('selected_negative',-1))!=49354: raise SystemExit('geometry negative mismatch')
 
     rep={
-      'schema':'musitu.revenueguard.v4_1.specialist_training_provenance_seal.v1',
+      'schema':'musitu.revenueguard.v4_1.specialist_training_provenance_seal.v2',
       'status':'TRAINING_PROVENANCE_PASS_NOT_CERTIFICATION',
       'contractnli':{
-        'run_id':args.contractnli_run_id,
+        'run_id':CN_TRAINING_RUN_ID,
+        'training_head_sha':CN_TRAINING_HEAD_SHA,
         'artifact_sha256':args.contractnli_artifact_sha256,
         'final_report_sha256':cn['report_sha256'],
         'source_commit':CONTRACTNLI_COMMIT,
+        'source_encoder_run_id':CN_SOURCE_ENCODER_RUN_ID,
+        'source_encoder_artifact_sha256':CN_SOURCE_ENCODER_ARTIFACT_SHA,
         'mode':'decoupled',
         'completed_chunks':4,
         'global_steps':CN_EXPECTED_STEPS,
         'full_epoch_samples':CN_EXPECTED_SAMPLES,
       },
       'cuad':{
-        'run_id':args.cuad_run_id,
+        'run_id':CUAD_TRAINING_RUN_ID,
+        'training_head_sha':CUAD_TRAINING_HEAD_SHA,
         'artifact_sha256':args.cuad_artifact_sha256,
         'final_report_sha256':cq['report_sha256'],
         'source_commit':CUAD_COMMIT,
+        'source_model_run_id':CUAD_SOURCE_MODEL_RUN_ID,
+        'source_model_artifact_sha256':CUAD_SOURCE_MODEL_ARTIFACT_SHA,
+        'geometry_run_id':CUAD_GEOMETRY_RUN_ID,
+        'geometry_artifact_sha256':CUAD_GEOMETRY_ARTIFACT_SHA,
         'train_sha256':CUAD_TRAIN_SHA,
         'completed_chunks':4,
         'global_steps':CUAD_EXPECTED_STEPS,
