@@ -1,0 +1,17 @@
+name: MUSITU FOUNDRY FORGE Public Reusable Authority Probe
+
+on:
+  push:
+    branches:
+      - foundry-forge-runtime-transport-bootstrap-20260913
+    paths:
+      - '.github/workflows/foundry-forge-public-reusable-authority-probe.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  authority-probe:
+    uses: evansmusitu/aurora.com/.github/workflows/foundry-forge-reusable-authority-probe.yml@d7a80b8c6abccf29cae0286a8e7c9c5860804e85
+    secrets: inherit
