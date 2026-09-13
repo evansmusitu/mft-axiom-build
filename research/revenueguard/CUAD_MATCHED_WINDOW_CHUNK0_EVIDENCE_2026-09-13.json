@@ -1,0 +1,39 @@
+{
+  "schema": "musitu.revenueguard.cuad.matched_window_chunk_evidence.v1",
+  "status": "DEV_RESEARCH_ONLY_NOT_CERTIFICATION",
+  "run_id": 34749003397,
+  "chunk_index": 0,
+  "artifact_id": 10316628116,
+  "artifact_sha256": "7ce2f443c123f884544e555facc0181051911287801aa59ddd0c162e7dccc94f",
+  "report_sha256": "9034696a68c6525ee42c6222110b6f9c77cbc560784e2ef657b4ba8f2f5ce418",
+  "chunk_samples": 15436,
+  "chunk_steps": 644,
+  "global_steps": 644,
+  "chunk_loss": 1.424394626332366,
+  "max_length": 384,
+  "stride": 128,
+  "batch_size": 24,
+  "train_sha256": "7de21d2bb741ac939e2a839ef9640634a5e0f9f40ea2b82c6833baf7db33dab4",
+  "cuad_commit": "67faa0e6023b04fcaae6cc09497ab00e5d63a2a2",
+  "full_selected_counts": {
+    "heldout_questions": 2461,
+    "build_questions": 19989,
+    "answerable_questions": 9972,
+    "impossible_questions": 10017,
+    "selected_positive": 12305,
+    "selected_negative": 49354,
+    "selected_total": 61659
+  },
+  "state_validation": {
+    "schema": "musitu.revenueguard.cuad.matched_window_state.v1",
+    "next_chunk": 1,
+    "num_chunks": 4,
+    "global_steps": 644,
+    "answer_head_keys": ["bias", "weight"],
+    "optimizer_state_entries": 36,
+    "answer_head_file_sha256": "4d370b89ce7afcdd5c66702d0d5666e74561551aa00089893c430cb7f6b8b8cd"
+  },
+  "execution_contract_match": true,
+  "sealed_data_impact": "none; official CUAD test remains unopened",
+  "authority": "training checkpoint evidence only; grants no heldout-gate, V4.1 assembly, test-opening, certification, or superiority authority"
+}
