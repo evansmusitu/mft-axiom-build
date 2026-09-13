@@ -34,5 +34,14 @@ jobs:
       - name: Syntax check Store worker
         run: node --check store/phase1/web-surface/worker.mjs
 
-      - name: Run complete Store web-surface suite
-        run: node --test store/phase1/web-surface/*.test.mjs
+      - name: Verify native-install handoff and browser-first separation
+        run: node --test store/phase1/web-surface/native-install-handoff.test.mjs
+
+      - name: Verify release assets
+        run: node --test store/phase1/web-surface/release-assets-v101.test.mjs
+
+      - name: Verify runtime publication state
+        run: node --test store/phase1/web-surface/runtime-state.test.mjs
+
+      - name: Verify storefront, accessibility, PWA and browser launch
+        run: node --test store/phase1/web-surface/storefront.test.mjs
