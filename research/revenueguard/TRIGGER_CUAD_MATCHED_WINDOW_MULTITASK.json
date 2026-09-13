@@ -9,5 +9,6 @@
   "geometry_report_sha256": "e14b667cc4e8ac96b35909741847d804505b3d7f0c4c79ddebb53ab07bee10e7",
   "train_sha256": "7de21d2bb741ac939e2a839ef9640634a5e0f9f40ea2b82c6833baf7db33dab4",
   "num_chunks": 4,
-  "policy": "Real CUAD build-only matched-window curriculum. Frozen heldout title-hash split excluded. Official CUAD test unopened. No threshold tuning in training."
+  "policy": "Real CUAD build-only matched-window curriculum. Frozen heldout title-hash split excluded. Official CUAD test unopened. No threshold tuning in training.",
+  "execution_nonce": "2026-09-13T11:03+02:00-handoff-resume"
 }
