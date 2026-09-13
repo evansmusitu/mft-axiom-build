@@ -1,0 +1,31 @@
+{
+  "schema": "musitu.revenueguard.actions_scheduling_incident.v1",
+  "status": "INFRASTRUCTURE_INCIDENT_NOT_MODEL_OR_GATE_EVIDENCE",
+  "repository_visibility_at_observation": "private",
+  "observations": [
+    {
+      "workflow_run_id": 34750965353,
+      "workflow": "RevenueGuard V4.1 Research Contract Tests",
+      "attempts_observed": 2,
+      "result": "failure_before_step_creation",
+      "runner_assigned": false,
+      "steps_observed": 0
+    },
+    {
+      "workflow_run_id": 34751080165,
+      "workflow": "RevenueGuard V4.1 Exact Contract Recheck",
+      "job_id": 103707617177,
+      "result": "failure_before_step_creation",
+      "runner_id": 0,
+      "runner_name": "",
+      "steps_observed": 0,
+      "created_at": "2026-09-13T10:08:29Z",
+      "completed_at": "2026-09-13T10:08:31Z"
+    }
+  ],
+  "classification": "GitHub-hosted runner scheduling/execution infrastructure rejection. Specific account-side cause is not proven by available job metadata.",
+  "billing_note": "GitHub documents that hosted Actions jobs in private repositories are subject to included minutes/budgets and can be blocked when allowance/payment/budget conditions are not satisfied. This is a plausible explanation only, not established evidence for this incident.",
+  "evidence_policy": "Do not count these workflow failures against ContractNLI, CUAD, V4.1, model quality, locked development gates, or certification. Existing already-running training jobs continue to be evaluated only from their own run/job/artifact evidence.",
+  "sealed_data_impact": "none",
+  "certification": "NOT_CERTIFIED"
+}
