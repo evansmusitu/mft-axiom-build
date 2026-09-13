@@ -11,6 +11,7 @@ CUAD_TRAIN_SHA='7de21d2bb741ac939e2a839ef9640634a5e0f9f40ea2b82c6833baf7db33dab4
 CUAD_FROZEN_GEOMETRY_REPORT_SHA='e14b667cc4e8ac96b35909741847d804505b3d7f0c4c79ddebb53ab07bee10e7'
 CUAD_TRAINER_ONEPASS_REPORT_SHA='d8820202835ae82499e96a8ee8895c175ac5ddc39e7ec66b7bbfd0367d3520a1'
 CUAD_CHUNK_SIZES=[15436,15462,15380,15381]
+CUAD_EXPECTED_STEPS=2571
 CN_EXPECTED_SAMPLES=29488
 CN_EXPECTED_STEPS=615
 
@@ -44,6 +45,7 @@ def main():
 
     if cq.get('schema')!=CUAD_REPORT_SCHEMA: raise SystemExit('bad CUAD final report schema')
     if int(cq.get('chunk_index',-1))!=3 or int(cq.get('num_chunks',-1))!=4: raise SystemExit('CUAD final chunk identity mismatch')
+    if int(cq.get('global_steps',-1))!=CUAD_EXPECTED_STEPS: raise SystemExit(('CUAD incomplete steps',cq.get('global_steps')))
     if cq.get('train_sha256')!=CUAD_TRAIN_SHA: raise SystemExit('CUAD train corpus drift')
     if cq.get('cuad_commit')!=CUAD_COMMIT: raise SystemExit('CUAD source commit drift')
     if int(cq.get('max_length',-1))!=384 or int(cq.get('stride',-1))!=128: raise SystemExit('CUAD window geometry drift')
@@ -90,7 +92,7 @@ def main():
         'source_commit':CUAD_COMMIT,
         'train_sha256':CUAD_TRAIN_SHA,
         'completed_chunks':4,
-        'global_steps':int(cq['global_steps']),
+        'global_steps':CUAD_EXPECTED_STEPS,
         'selected_training_windows':61659,
         'geometry_report_sha256':geom['report_sha256'],
         'frozen_geometry_report_sha256':geom['geometry_report_sha256'],
