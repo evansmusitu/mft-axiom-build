@@ -1,0 +1,23 @@
+{
+  "schema": "musitu.revenueguard.contractnli.eval_supersession.v1",
+  "status": "V1_EVAL_NONAUTHORITATIVE_FOR_PROMOTION",
+  "superseded_workflow_run_id": 34749231462,
+  "superseded_workflow_head_sha": "8a776bbbc6129ea6c6dfd18cb82ce0a9f52455bb",
+  "superseded_aggregate_schema": "musitu.revenueguard.contractnli.decoupled_checkpoint_eval.v1",
+  "reason": "The v1 aggregate selected K and the relevance abstention threshold using calibration 3-class macro-F1/accuracy, so Contradiction-vs-Entailment semantic-head outcomes could influence abstention calibration. The authoritative handoff requires abstention calibrated only from relevance.",
+  "allowed_use_of_v1_output": "Development diagnostic/curriculum evidence only. It may not satisfy the ContractNLI locked development gate, specialist admission, V4.1 assembly authority, test-opening authority, or certification.",
+  "replacement_aggregate_schema": "musitu.revenueguard.contractnli.decoupled_checkpoint_eval.v2",
+  "replacement_aggregate_commit": "e1a244465bad3ebdd2b1cfec67bfbde074acdde4",
+  "replacement_contract": "K and threshold are selected only from mentioned-vs-NotMentioned relevance/evidence information on duplicate-clean hash-held training calibration documents. Semantic polarity labels/correctness do not participate. The exposed dev is scored only after this selection, with the unchanged original three-class gate.",
+  "locked_dev_gate_unchanged": {
+    "accuracy_min": 0.90,
+    "macro_f1_min": 0.88,
+    "false_grounding_max": 0.02,
+    "evidence_recall_min": 0.85
+  },
+  "sealed_policy": {
+    "contractnli_test_opened": false,
+    "maud_opened": false
+  },
+  "certification": "NOT_CERTIFIED"
+}
