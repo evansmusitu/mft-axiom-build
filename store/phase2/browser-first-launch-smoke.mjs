@@ -1,3 +1,4 @@
+// Browser-first launch contract. CI generates generated-data.mjs from committed signed Store metadata before this runs.
 import assert from 'node:assert/strict';
 import worker from '../phase1/web-surface/worker.mjs';
 import {renderHome, renderApp, renderInstall} from '../phase1/web-surface/render.mjs';
