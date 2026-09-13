@@ -37,13 +37,14 @@ for (const path of ['/store','/store/','/store/apps/chemistry','/store/install',
   });
 }
 
-test('home is catalog-driven and separates distribution from entitlement',async()=>{
+test('home is catalog-driven, browser-first and separates distribution from entitlement',async()=>{
   const r=await get('/store'); const t=await r.text();
   assert.match(t,/MUSITU Chemistry/);
   assert.match(t,/1\.3\.0/);
   assert.match(t,/Verified release/);
   assert.match(t,/Installing does not buy Premium/i);
-  assert.match(t,/Install/);
+  assert.match(t,/href="\/store\/open"/);
+  assert.match(t,/Install options/);
   assert.match(t,/Open/);
   assert.match(t,/Update/);
   assert.match(t,/Repair/);
@@ -79,18 +80,22 @@ test('iPhone and iPad use SideStore deep links plus explicit Web/PWA fallback wi
     assert.match(t,/sidestore:\/\/install\?url=/i);
     assert.match(t,/sidestore:\/\/source\?url=/i);
     assert.match(t,/Install Web App instead/i);
+    assert.match(t,/Open in browser/i);
     assert.match(t,/does not claim App Store privileges or silent installation/i);
     assert.doesNotMatch(t,/href="https?:[^"]+\.ipa/i);
   }
 });
 
-test('desktop/browser route recommends the dedicated Web/PWA install surface and does not claim a native desktop package',async()=>{
+test('desktop/browser route opens immediately and keeps PWA installation optional',async()=>{
   const r=await get('/store/install',{'user-agent':'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}); const t=await r.text();
-  assert.match(t,/Recommended for Web \/ PWA/);
+  assert.match(t,/Web \/ PWA/);
+  assert.match(t,/Open in browser/);
+  assert.match(t,/href="\/store\/open"/);
   assert.match(t,/Install Web App/);
   assert.match(t,/https:\/\/payments\.mftintelligence\.com\/chemistry\/install/);
-  assert.match(t,/Installable PWA/);
+  assert.match(t,/Installing the PWA is optional/i);
   assert.doesNotMatch(t,/Windows installer|\.exe|\.msi/);
+  assert.doesNotMatch(t,/href="[^"]+\.(?:apk|ipa)"/i);
 });
 
 test('search spans title, subjects, features and audience using catalog fields',async()=>{
@@ -98,6 +103,7 @@ test('search spans title, subjects, features and audience using catalog fields',
     const r=await get('/store/search?q='+encodeURIComponent(q)); const t=await r.text();
     assert.equal(r.status,200);
     assert.match(t,/MUSITU Chemistry/);
+    assert.match(t,/href="\/store\/open"/);
   }
   const none=await get('/store/search?q=astronomy');
   assert.match(await none.text(),/No matching apps/);
@@ -151,7 +157,7 @@ test('installable Store web shell uses only self-hosted script and manifest reso
   assert.match(m.start_url,/^\/store/);
 });
 
-test('service worker provides an offline public shell but never caches installers or commerce',async()=>{
+test('service worker provides an offline public shell but never caches installers, launch redirects or commerce',async()=>{
   const sw=await get('/store/sw.js');
   assert.equal(sw.status,200);
   assert.match(sw.headers.get('content-type')||'',/javascript/);
@@ -162,6 +168,7 @@ test('service worker provides an offline public shell but never caches installer
   assert.match(t,/\/store\/offline/);
   assert.match(t,/request\.method !== 'GET'/);
   assert.doesNotMatch(t,/MUSITU_Store_1\.0\.0\.apk|MUSITU_Chemistry_1\.3\.0\.ipa|\/chemistry\/checkout|\/chemistry\/catalog/);
+  assert.doesNotMatch(t,/PUBLIC_SHELL[^;]*\/store\/open/s,'launch redirect must not be pinned into the offline shell');
   const client=await get('/store/assets/store.js');
   assert.match(await client.text(),/serviceWorker\.register\('\/store\/sw\.js'/);
 });
@@ -178,7 +185,7 @@ test('offline route explains signed-cache and corruption recovery boundaries',as
   assert.match(t,/\/store\/catalog\.sig/);
 });
 
-test('Save-Data or lite=1 selects a smaller low-bandwidth HTML response',async()=>{
+test('Save-Data or lite=1 selects a smaller browser-first low-bandwidth HTML response',async()=>{
   const full=await get('/store'); const fullText=await full.text();
   const lite=await get('/store?lite=1'); const liteText=await lite.text();
   const save=await get('/store',{'save-data':'on'}); const saveText=await save.text();
@@ -187,21 +194,23 @@ test('Save-Data or lite=1 selects a smaller low-bandwidth HTML response',async()
   assert.ok(Buffer.byteLength(liteText)<Buffer.byteLength(fullText));
   assert.ok(Buffer.byteLength(saveText)<Buffer.byteLength(fullText));
   assert.match(liteText,/MUSITU Chemistry/);
-  assert.match(liteText,/Install/);
+  assert.match(liteText,/href="\/store\/open">Open app<\/a>/);
+  assert.match(liteText,/href="\/store\/install">Install options<\/a>/);
 });
 
-test('locale negotiation supports English, Shona and Ndebele with explicit fallback',async()=>{
+test('locale negotiation supports browser-first English, Shona and Ndebele titles with explicit fallback',async()=>{
   const cases=[
-    ['/store?lang=en','en',/Install MUSITU/],
-    ['/store?lang=sn','sn',/Isa MUSITU/],
-    ['/store?lang=nd','nd',/Faka i-MUSITU/],
-    ['/store?lang=fr','en',/Install MUSITU/]
+    ['/store?lang=en','en',/Open MUSITU instantly in your browser\./],
+    ['/store?lang=sn','sn',/Vhura MUSITU pakarepo mubrowser yako\./],
+    ['/store?lang=nd','nd',/Vula i-MUSITU khonokho kusiphequluli sakho\./],
+    ['/store?lang=fr','en',/Open MUSITU instantly in your browser\./]
   ];
   for(const [path,lang,needle] of cases){
     const r=await get(path); const t=await r.text();
     assert.equal(r.headers.get('content-language'),lang);
     assert.match(t,new RegExp(`<html lang="${lang}"`));
     assert.match(t,needle);
+    assert.match(t,/href="\/store\/open"/);
   }
   const locales=await get('/store/locales.json');
   assert.deepEqual(await locales.json(),{default:'en',supported:['en','sn','nd']});
