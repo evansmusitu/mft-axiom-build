@@ -17,7 +17,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Resolve exact final training artifact digests
+      - name: Resolve and verify exact training ancestry and final artifact digests
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -26,18 +26,51 @@ jobs:
           python - <<'PY'
           import json, os, urllib.request
           repo='evansmusitu/mft-axiom-build'
-          specs=[('CN',34748996731,'revenueguard-contractnli-decoupled-epoch2-final'),('CUAD',34749003397,'revenueguard-cuad-matched-window-epoch2-final')]
-          token=os.environ['GH_TOKEN']; out=[]
-          for prefix,run_id,name in specs:
-              req=urllib.request.Request(f'https://api.github.com/repos/{repo}/actions/runs/{run_id}/artifacts?name={name}',headers={'Authorization':f'Bearer {token}','Accept':'application/vnd.github+json'})
-              with urllib.request.urlopen(req) as r: obj=json.load(r)
+          token=os.environ['GH_TOKEN']
+          headers={'Authorization':f'Bearer {token}','Accept':'application/vnd.github+json'}
+          def get(url):
+              req=urllib.request.Request(url,headers=headers)
+              with urllib.request.urlopen(req) as r: return json.load(r)
+          def exact_artifact(run_id,name,expected):
+              obj=get(f'https://api.github.com/repos/{repo}/actions/runs/{run_id}/artifacts?name={name}')
               arts=[a for a in obj['artifacts'] if a['name']==name and not a['expired']]
-              assert len(arts)==1,(prefix,arts)
+              assert len(arts)==1,(run_id,name,arts)
               digest=arts[0].get('digest','')
-              assert digest.startswith('sha256:') and len(digest)==71,(prefix,digest)
-              out.append(f'{prefix}_ARTIFACT_SHA={digest.split(":",1)[1]}')
-          with open(os.environ['GITHUB_ENV'],'a') as f: f.write('\n'.join(out)+'\n')
-          print('exact final artifact identities resolved')
+              assert digest==f'sha256:{expected}',(run_id,name,digest)
+              return expected
+
+          cn_run=get(f'https://api.github.com/repos/{repo}/actions/runs/34748996731')
+          cq_run=get(f'https://api.github.com/repos/{repo}/actions/runs/34749003397')
+          assert cn_run['head_sha']=='9bde25dab82909ed40e4a9722fdbfb648896d220',cn_run['head_sha']
+          assert cq_run['head_sha']=='302d36e9dd26af60464d0ecf4e3d2504f9591f52',cq_run['head_sha']
+          assert cn_run['status']=='completed' and cn_run['conclusion']=='success',(cn_run['status'],cn_run['conclusion'])
+          assert cq_run['status']=='completed' and cq_run['conclusion']=='success',(cq_run['status'],cq_run['conclusion'])
+
+          cn_source=exact_artifact(34676990123,'revenueguard-contractnli-adapted-model','3d78d473ffde6f790b3919226d1069b81fa8426f0f139007d3ba8b9d9cf23055')
+          cq_source=exact_artifact(34683449126,'revenueguard-cuad-epoch1-chunked-final','a5684a5a8ed59909b46c93fd4729ce9ed0f8f672dc0be1474cf94a5e07d6e44b')
+          cq_geom=exact_artifact(34706691340,'revenueguard-cuad-matched-window-geometry-audit','7ff5e7ccd10aa3c4747136a0d5b67af2004edaf9777247155ce6e37812c56c04')
+
+          def final_artifact(run_id,name):
+              obj=get(f'https://api.github.com/repos/{repo}/actions/runs/{run_id}/artifacts?name={name}')
+              arts=[a for a in obj['artifacts'] if a['name']==name and not a['expired']]
+              assert len(arts)==1,(run_id,name,arts)
+              digest=arts[0].get('digest','')
+              assert digest.startswith('sha256:') and len(digest)==71,(run_id,name,digest)
+              return digest.split(':',1)[1]
+          cn_final=final_artifact(34748996731,'revenueguard-contractnli-decoupled-epoch2-final')
+          cq_final=final_artifact(34749003397,'revenueguard-cuad-matched-window-epoch2-final')
+          vals={
+            'CN_ARTIFACT_SHA':cn_final,
+            'CUAD_ARTIFACT_SHA':cq_final,
+            'CN_SOURCE_ENCODER_SHA':cn_source,
+            'CUAD_SOURCE_MODEL_SHA':cq_source,
+            'CUAD_GEOMETRY_ARTIFACT_SHA':cq_geom,
+            'CN_TRAINING_HEAD_SHA':cn_run['head_sha'],
+            'CUAD_TRAINING_HEAD_SHA':cq_run['head_sha'],
+          }
+          with open(os.environ['GITHUB_ENV'],'a') as f:
+              for k,v in vals.items(): f.write(f'{k}={v}\n')
+          print('exact specialist ancestry and final artifact identities PASS')
           PY
 
       - name: Download exact ContractNLI final training artifact
@@ -68,7 +101,7 @@ jobs:
         run: |
           set -euo pipefail
           python - <<'PY'
-          import hashlib, json, re, torch
+          import hashlib, json, torch
           from pathlib import Path
           cn=torch.load('cn_final/decoupled_epoch2_state.pt',map_location='cpu',weights_only=False)
           assert cn['schema']=='musitu.revenueguard.contractnli.decoupled_chunk_state.v1'
@@ -104,9 +137,14 @@ jobs:
             --contractnli-final-report cn_final/CONTRACTNLI_DECOUPLED_EPOCH2_FINAL.json \
             --contractnli-artifact-sha256 "$CN_ARTIFACT_SHA" \
             --contractnli-run-id 34748996731 \
+            --contractnli-training-head-sha "$CN_TRAINING_HEAD_SHA" \
+            --contractnli-source-encoder-artifact-sha256 "$CN_SOURCE_ENCODER_SHA" \
             --cuad-final-report cuad_final/CUAD_MATCHED_EPOCH2_FINAL.json \
             --cuad-artifact-sha256 "$CUAD_ARTIFACT_SHA" \
             --cuad-run-id 34749003397 \
+            --cuad-training-head-sha "$CUAD_TRAINING_HEAD_SHA" \
+            --cuad-source-model-artifact-sha256 "$CUAD_SOURCE_MODEL_SHA" \
+            --cuad-geometry-artifact-sha256 "$CUAD_GEOMETRY_ARTIFACT_SHA" \
             --cuad-geometry-report research/revenueguard/CUAD_TRAINER_GEOMETRY_ONEPASS_AUDIT_2026-09-13.json \
             --out V4_1_SPECIALIST_TRAINING_PROVENANCE_SEAL.json
 
