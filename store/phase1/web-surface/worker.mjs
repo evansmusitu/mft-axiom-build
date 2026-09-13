@@ -1,6 +1,6 @@
 import {CATALOG_RAW,CATALOG_SIG_RAW,IOS_SOURCE_RAW,WEB_ADAPTER_RAW,FDROID_INDEX_RAW,SBOM_RAW,DEPENDENCIES_RAW,CHANNELS_RAW,ROLLBACK_RAW,BOOTSTRAP_RAW,CATALOG} from './generated-data.mjs';
 import {STORE_CSS} from './assets.mjs';
-import {renderHome,renderApp,renderInstall,renderSearch,renderDeveloper,renderReleases,renderStatus,renderLifecycle,primaryInstallHref} from './render.mjs';
+import {renderHome,renderApp,renderInstall,renderSearch,renderDeveloper,renderReleases,renderStatus,renderLifecycle} from './render.mjs';
 
 const SECURITY={
   'Content-Security-Policy':"default-src 'none'; style-src 'self'; script-src 'self'; img-src 'self' data:; form-action 'self'; base-uri 'none'; frame-ancestors 'none'; connect-src 'self'; manifest-src 'self'",
@@ -8,8 +8,8 @@ const SECURITY={
   'Permissions-Policy':'camera=(), microphone=(), geolocation=(), payment=(), usb=(), bluetooth=()'
 };
 const LOCALES={default:'en',supported:['en','sn','nd']};
-const HOME_TITLE={en:'Install MUSITU with release truth you can verify.',sn:'Isa MUSITU nezvokwadi yekuburitswa yaunogona kuongorora.',nd:'Faka i-MUSITU ngeqiniso lokukhutshwa ongalihlola.'};
-const MANIFEST_RAW=JSON.stringify({name:'MUSITU Store',short_name:'MUSITU Store',id:'/store/',scope:'/store/',start_url:'/store',display:'standalone',background_color:'#f6f7fb',theme_color:'#0f172a',description:'Verified MUSITU software distribution.'})+'\n';
+const HOME_TITLE={en:'Open MUSITU instantly in your browser.',sn:'Vhura MUSITU pakarepo mubrowser yako.',nd:'Vula i-MUSITU khonokho kusiphequluli sakho.'};
+const MANIFEST_RAW=JSON.stringify({name:'MUSITU Store',short_name:'MUSITU Store',id:'/store/',scope:'/store/',start_url:'/store',display:'standalone',background_color:'#f6f7fb',theme_color:'#0f172a',description:'Browser-first verified MUSITU software distribution.'})+'\n';
 const STORE_JS=String.raw`'use strict';
 if ('serviceWorker' in navigator) {
   window.addEventListener('load',()=>{
@@ -79,12 +79,12 @@ function installShellAssets(html,lang){
 function htmlResponse(request,html,lang=localeFor(request),extra={}){return response(installShellAssets(html,lang),200,'text/html; charset=utf-8',{'Content-Language':lang,'Vary':'Save-Data, Accept-Language',...extra})}
 function liteHome(lang,request){
   const title=HOME_TITLE[lang]||HOME_TITLE.en;
-  return `<!doctype html><html lang="${lang}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>MUSITU Store</title><link rel="stylesheet" href="/store/assets/store.css"></head><body><a class="skip-link" href="#main">Skip to main content</a><main id="main" tabindex="-1" class="page"><div class="wrap"><span class="eyebrow">Low-bandwidth mode</span><h1>${title}</h1><p>MUSITU Chemistry 1.3.0 · verified stable release.</p><div class="actions"><a class="button" href="${primaryInstallHref(request,'install')}">Install</a><a class="button secondary" href="/store/apps/chemistry">Details</a></div><p class="micro"><a href="/store/offline">Offline &amp; recovery</a></p></div></main></body></html>`;
+  return `<!doctype html><html lang="${lang}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>MUSITU Store</title><link rel="stylesheet" href="/store/assets/store.css"></head><body><a class="skip-link" href="#main">Skip to main content</a><main id="main" tabindex="-1" class="page"><div class="wrap"><span class="eyebrow">Low-bandwidth mode</span><h1>${title}</h1><p>MUSITU Chemistry 1.3.0 · verified stable release.</p><div class="actions"><a class="button" href="/store/open">Open app</a><a class="button secondary" href="/store/install">Install options</a><a class="button tertiary" href="/store/apps/chemistry">Details</a></div><p class="micro"><a href="/store/offline">Offline &amp; recovery</a></p></div></main></body></html>`;
 }
 function homeResponse(request){
   const u=new URL(request.url); const lang=localeFor(request); const lite=u.searchParams.get('lite')==='1'||(request.headers.get('save-data')||'').toLowerCase()==='on';
   if(lite) return htmlResponse(request,liteHome(lang,request),lang,{'Cache-Control':'private, max-age=0'});
-  let html=renderHome(request).replace('Install MUSITU with release truth you can verify.',HOME_TITLE[lang]||HOME_TITLE.en);
+  let html=renderHome(request).replace('Open MUSITU instantly in your browser.',HOME_TITLE[lang]||HOME_TITLE.en);
   return htmlResponse(request,html,lang);
 }
 function offlinePage(){return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Offline & recovery · MUSITU Store</title><link rel="stylesheet" href="/store/assets/store.css"></head><body><a class="skip-link" href="#main">Skip to main content</a><main id="main" tabindex="-1" class="page"><div class="wrap"><h1>Offline &amp; recovery</h1><p>The public Store shell can use a cached catalog only with its detached signature. Verify <a href="/store/catalog.json">/store/catalog.json</a> together with <a href="/store/catalog.sig">/store/catalog.sig</a>.</p><p>Android recovery resumes interrupted downloads and rejects a release when its expected size, SHA-256, package identity or signing certificate does not match.</p><p>Repair or reinstall does not create Premium entitlement; commerce and entitlement remain separate from software distribution.</p></div></main></body></html>`}
