@@ -7,5 +7,6 @@
   "corpus_commit": "eced6528dd3c1d14d73f9a87df8f7bdbc03126f9",
   "num_chunks": 4,
   "architecture": "decoupled evidence relevance head plus positive-only binary semantic head",
-  "policy": "ContractNLI build partition only for training. Hash-held train calibration remains selector-only. Exposed dev remains development evidence. ContractNLI test.json and MAUD remain sealed."
+  "policy": "ContractNLI build partition only for training. Hash-held train calibration remains selector-only. Exposed dev remains development evidence. ContractNLI test.json and MAUD remain sealed.",
+  "execution_nonce": "2026-09-13T11:03+02:00-handoff-resume"
 }
