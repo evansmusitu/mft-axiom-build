@@ -5,6 +5,8 @@ on:
     branches: [fmi-revenue-certification-20260913]
     paths:
       - '.github/workflows/fmi-real-money-certification-reconcile.yml'
+      - 'scripts/fmi_revenue_reconcile.py'
+      - 'scripts/fmi_revenue_reconcile_v3.py'
   workflow_dispatch:
 
 permissions:
