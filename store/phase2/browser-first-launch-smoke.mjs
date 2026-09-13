@@ -9,7 +9,11 @@ const request = (path, ua = 'Mozilla/5.0') => new Request(`${origin}${path}`, {h
 const home = renderHome(request('/store'));
 assert.match(home, /href="\/store\/open"/);
 assert.match(home, /Open MUSITU Chemistry Mastery/);
-assert.ok(home.indexOf('/store/open') < home.indexOf('/store/install'), 'Open must precede install options on the Store home page');
+assert.match(
+  home,
+  /href="\/store\/open"[^>]*>Open MUSITU Chemistry Mastery<\/a>.*href="\/store\/install"[^>]*>Install options<\/a>/s,
+  'The customer-facing Store action group must present browser launch before install options'
+);
 
 const appPage = renderApp(request('/store/apps/chemistry'));
 assert.match(appPage, /href="\/store\/open"/);
