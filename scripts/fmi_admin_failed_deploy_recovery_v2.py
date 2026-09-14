@@ -1,6 +1,6 @@
 import json,os,urllib.error,urllib.parse,urllib.request
 API=os.environ['CF_API'].rstrip('/');AID=os.environ['ACCOUNT_ID'];DBID=os.environ['FMI_DB_UUID'];WORKER=os.environ['ADMIN_WORKER'];HOST=os.environ['ADMIN_HOST']
-H={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY'],'Accept':'application/json','User-Agent':'MUSITU-FMI-Admin-Recovery-V2/1.0'}
+H={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY'],'Accept':'application/json','User-Agent':'MUSITU-FMI-Admin-Recovery-V2/1.1'}
 def cf(path,method='GET',obj=None):
  h=dict(H);b=None
  if obj is not None:h['Content-Type']='application/json';b=json.dumps(obj,separators=(',',':')).encode()
@@ -27,6 +27,14 @@ tables={r.get('name') for r in d1("SELECT name FROM sqlite_master WHERE type='ta
 admin_tables=['fmi_admin_sessions','fmi_admin_credentials','fmi_admin_bootstrap_tokens','fmi_admin_audit_events','fmi_admin_login_events']
 for t in admin_tables:
  if t in tables:d1(f'DELETE FROM {t}')
+# Only remove identities created by the admin deployment smoke test. Child rows are verified ON DELETE CASCADE.
+synthetic_before=0
+if 'customers' in tables:
+ synthetic_before=int((d1("SELECT COUNT(*) AS n FROM customers WHERE email LIKE 'admin-e2e-%@example.invalid'")[0] or {}).get('n') or 0)
+ if synthetic_before:d1("DELETE FROM customers WHERE email LIKE 'admin-e2e-%@example.invalid'")
+ synthetic_after=int((d1("SELECT COUNT(*) AS n FROM customers WHERE email LIKE 'admin-e2e-%@example.invalid'")[0] or {}).get('n') or 0)
+ if synthetic_after!=0:raise RuntimeError('synthetic admin customer residue remains')
+else:synthetic_after=0
 counts={t:(int((d1(f'SELECT COUNT(*) AS n FROM {t}')[0] or {}).get('n') or 0) if t in tables else None) for t in admin_tables}
 if any(v not in (0,None) for v in counts.values()):raise RuntimeError('admin residue remains')
-print(json.dumps({'gate':'FMI_ADMIN_FAILED_DEPLOY_RECOVERY_V2_PASS','workers_dev_enabled':False,'previews_enabled':False,'admin_domain_count':0,'admin_table_counts':counts,'customer_tables_mutated':False,'secret_values_published':False},sort_keys=True))
+print(json.dumps({'gate':'FMI_ADMIN_FAILED_DEPLOY_RECOVERY_V2_PASS','workers_dev_enabled':False,'previews_enabled':False,'admin_domain_count':0,'admin_table_counts':counts,'synthetic_customer_rows_removed':synthetic_before,'synthetic_customer_rows_remaining':synthetic_after,'customer_mutation_scope':'SYNTHETIC_ADMIN_E2E_ONLY','secret_values_published':False},sort_keys=True))
