@@ -16,7 +16,7 @@ CF_HEADERS={
     'X-Auth-Key':os.environ['CLOUDFLARE_API_KEY'],
     'Accept':'application/json',
     'Content-Type':'application/json',
-    'User-Agent':'MUSITU-FMI-Free-Signup-E2E/1.0',
+    'User-Agent':'MUSITU-FMI-Free-Signup-E2E/1.1',
 }
 
 def http(url,method='GET',headers=None,body=None,timeout=45):
@@ -51,8 +51,18 @@ def sha(v):
     return hashlib.sha256(str(v).encode()).hexdigest() if v else None
 
 def post_signup(email_value,content_type,body):
-    headers={'Accept':'application/json','Content-Type':content_type,'User-Agent':'MUSITU-FMI-Free-Signup-E2E/1.0'}
+    headers={'Accept':'application/json','Content-Type':content_type,'User-Agent':'MUSITU-FMI-Free-Signup-E2E/1.1'}
     return http(PUBLIC_BASE+'/v1/signup','POST',headers,body,45)
+
+def deep_values(obj,key):
+    values=[]
+    if isinstance(obj,dict):
+        for k,v in obj.items():
+            if str(k).lower()==key.lower(): values.append(v)
+            values.extend(deep_values(v,key))
+    elif isinstance(obj,list):
+        for item in obj: values.extend(deep_values(item,key))
+    return values
 
 stamp=datetime.datetime.now(datetime.timezone.utc).strftime('%Y%m%d%H%M%S')
 nonce=secrets.token_hex(8)
@@ -104,24 +114,47 @@ try:
             raw_api_key=value
             print('::add-mask::'+raw_api_key)
             break
+    if not raw_api_key:
+        raise RuntimeError('signup did not return an API credential')
 
     key_rows=d1("SELECT id,key_hash,status,expires_at FROM api_keys WHERE customer_id=?1 ORDER BY created_at ASC",[customer_id])
     active_keys=[r for r in key_rows if str(r.get('status') or '').lower()=='active']
-    raw_key_matches_d1=None
-    if raw_api_key:
-        raw_hash=hashlib.sha256(raw_api_key.encode()).hexdigest()
-        raw_key_matches_d1=any(str(r.get('key_hash') or '')==raw_hash for r in active_keys)
-        if not raw_key_matches_d1: raise RuntimeError('returned credential does not match active D1 key')
+    raw_hash=hashlib.sha256(raw_api_key.encode()).hexdigest()
+    raw_key_matches_d1=any(str(r.get('key_hash') or '')==raw_hash for r in active_keys)
+    if not raw_key_matches_d1: raise RuntimeError('returned credential does not match active D1 key')
+
+    # Prove the credential is accepted by the live edge account endpoint.
+    me_headers={'Accept':'application/json','Authorization':'Bearer '+raw_api_key,'User-Agent':'MUSITU-FMI-Free-Signup-E2E/1.1'}
+    me_code,_,me_raw=http(PUBLIC_BASE+'/v1/me','GET',me_headers,None,45)
+    try: me_obj=json.loads(me_raw or b'{}')
+    except Exception: me_obj={}
+    if me_code!=200: raise RuntimeError(f'/v1/me HTTP {me_code}')
+    if not isinstance(me_obj,dict): raise RuntimeError('/v1/me did not return a JSON object')
+    observed_plans=[str(v).upper() for v in deep_values(me_obj,'plan') if v is not None]
+    observed_statuses=[str(v).lower() for v in deep_values(me_obj,'status') if v is not None]
+    observed_emails=[str(v).lower() for v in deep_values(me_obj,'email') if v is not None]
+    if observed_plans and 'FREE' not in observed_plans: raise RuntimeError('/v1/me plan mismatch')
+    if observed_statuses and 'active' not in observed_statuses: raise RuntimeError('/v1/me status mismatch')
+    if observed_emails and email_value.lower() not in observed_emails: raise RuntimeError('/v1/me email mismatch')
 
     signup_shape={
         'response_json':isinstance(response_obj,dict),
         'response_keys':sorted(k for k in response_obj.keys() if k not in ('api_key','key','token','customer_id','id')) if isinstance(response_obj,dict) else [],
-        'raw_api_key_returned':bool(raw_api_key),
-        'raw_api_key_matches_active_d1':raw_key_matches_d1,
+        'raw_api_key_returned':True,
+        'raw_api_key_matches_active_d1':True,
         'active_api_key_count':len(active_keys),
     }
+    account_access={
+        'me_http':me_code,
+        'me_json_object':True,
+        'me_response_keys':sorted(k for k in me_obj.keys() if str(k).lower() not in ('api_key','key','token','customer_id','id','email')),
+        'observed_free_plan':('FREE' in observed_plans) if observed_plans else None,
+        'observed_active_status':('active' in observed_statuses) if observed_statuses else None,
+        'observed_matching_email':(email_value.lower() in observed_emails) if observed_emails else None,
+        'credential_accepted':True,
+    }
 
-    # FREE signup must never create paid authority.
+    # FREE signup and authenticated account access must never create paid authority.
     subs=int(one("SELECT count(*) AS n FROM billing_subscriptions WHERE customer_id=?1 AND status='active'",[customer_id])['n'])
     acts=int(one("SELECT count(*) AS n FROM lifecycle_events WHERE customer_id=?1 AND event_name='PLAN_ACTIVATED'",[customer_id])['n'])
     checkouts=int(one('SELECT count(*) AS n FROM billing_checkout_intents WHERE customer_id=?1',[customer_id])['n'])
@@ -129,8 +162,8 @@ try:
         raise RuntimeError('FREE signup unexpectedly created paid/billing authority')
 
     evidence={
-        'schema':'musitu.fmi.free-signup-e2e.v1',
-        'gate':'FMI_FREE_CUSTOMER_SIGNUP_E2E_PASS',
+        'schema':'musitu.fmi.free-customer-access-e2e.v1',
+        'gate':'FMI_FREE_CUSTOMER_ACCESS_E2E_PASS',
         'public_base':PUBLIC_BASE,
         'signup_http':signup_code,
         'signup_transport':transport,
@@ -142,6 +175,7 @@ try:
         'plan_activated_event_count':acts,
         'checkout_intent_count':checkouts,
         'signup_shape':signup_shape,
+        'account_access':account_access,
         'paid_authority_created':False,
         'raw_identifiers_published':False,
         'raw_credentials_published':False,
@@ -162,7 +196,7 @@ finally:
     if not cleanup_verified: raise RuntimeError('synthetic customer cleanup failed')
 
 if 'evidence' not in globals():
-    raise RuntimeError('signup evidence was not earned')
+    raise RuntimeError('customer access evidence was not earned')
 evidence['synthetic_customer_deleted']=True
 evidence['residual_customer_rows']=0
 blob=(json.dumps(evidence,indent=2,sort_keys=True)+'\n').encode()
@@ -176,8 +210,10 @@ print(json.dumps({
     'customer_plan':evidence['customer_plan'],
     'customer_status':evidence['customer_status'],
     'active_api_key_count':evidence['signup_shape']['active_api_key_count'],
-    'raw_api_key_returned':evidence['signup_shape']['raw_api_key_returned'],
-    'raw_api_key_matches_active_d1':evidence['signup_shape']['raw_api_key_matches_active_d1'],
+    'raw_api_key_returned':True,
+    'raw_api_key_matches_active_d1':True,
+    'me_http':evidence['account_access']['me_http'],
+    'credential_accepted':evidence['account_access']['credential_accepted'],
     'paid_authority_created':False,
     'synthetic_customer_deleted':True,
     'residual_customer_rows':0,
