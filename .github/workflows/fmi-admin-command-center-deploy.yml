@@ -5,6 +5,7 @@ on:
     paths:
       - 'admin/fmi_admin_worker.mjs'
       - 'scripts/deploy_fmi_admin.py'
+      - 'scripts/deploy_fmi_admin_v2.py'
       - '.github/workflows/fmi-admin-command-center-deploy.yml'
   workflow_dispatch:
 
@@ -31,11 +32,11 @@ jobs:
       BOOTSTRAP_HASH: 3dfd2d74058edd2bbb91080c2f4a841e2dc17eadd7de1250a7892ee39d17ce88
     steps:
       - uses: actions/checkout@v4
-      - name: Validate admin source and deploy script
+      - name: Validate admin source and deploy scripts
         run: |
           set -euo pipefail
           node --check admin/fmi_admin_worker.mjs
-          python -m py_compile scripts/deploy_fmi_admin.py
+          python -m py_compile scripts/deploy_fmi_admin.py scripts/deploy_fmi_admin_v2.py
       - name: Deploy isolated FMI admin command center and run E2E safety proof
         env:
           CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
@@ -44,7 +45,7 @@ jobs:
           set -euo pipefail
           test -n "$CLOUDFLARE_EMAIL"
           test -n "$CLOUDFLARE_GLOBAL_API_KEY"
-          python scripts/deploy_fmi_admin.py
+          python scripts/deploy_fmi_admin_v2.py
       - uses: actions/upload-artifact@v4
         with:
           name: musitu-fmi-admin-command-center-deployment
