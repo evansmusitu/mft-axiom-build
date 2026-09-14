@@ -7,6 +7,7 @@ on:
     paths:
       - '.github/workflows/musitu-store-browser-first-production.yml'
       - 'store/phase2/deploy-browser-first-launch.py'
+      - 'store/phase2/verify-store-open-browser-app.py'
   workflow_dispatch:
 
 concurrency:
@@ -69,10 +70,14 @@ jobs:
           node --check "$CANDIDATE_MODULE_ROOT/assets.mjs"
           node --check "$CANDIDATE_MODULE_ROOT/generated-data.mjs"
           node store/phase2/verify-browser-first-candidate.mjs
+          python3 -m py_compile store/phase2/verify-store-open-browser-app.py
           cmp "$BASELINE_MODULE_ROOT/assets.mjs" "$CANDIDATE_MODULE_ROOT/assets.mjs"
           cmp "$BASELINE_MODULE_ROOT/generated-data.mjs" "$CANDIDATE_MODULE_ROOT/generated-data.mjs"
           test "$(sha256sum "$CANDIDATE_MODULE_ROOT/render.mjs" | awk '{print $1}')" = "$EXPECTED_BROWSER_FIRST_RENDER_SHA"
           echo 'MUSITU_STORE_BROWSER_FIRST_PREWRITE_GATE=PASS'
+
+      - name: Prove Store Open already reaches the real browser application before any write
+        run: python3 store/phase2/verify-store-open-browser-app.py
 
       - name: Pin this run to the freshly captured live baseline hashes
         shell: bash
@@ -89,6 +94,9 @@ jobs:
           CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
         run: python3 store/phase2/deploy-browser-first-launch.py
 
+      - name: Prove Store Open still ends in the real browser application after promotion
+        run: python3 store/phase2/verify-store-open-browser-app.py
+
       - name: Assert certified transaction evidence
         shell: bash
         run: |
@@ -96,8 +104,8 @@ jobs:
           python3 - <<'PY'
           import json, os
           from pathlib import Path
-          p=Path(os.environ['NATIVE_HANDOFF_EVIDENCE'])/'deployment.json'
-          d=json.loads(p.read_text(encoding='utf-8'))
+          root=Path(os.environ['NATIVE_HANDOFF_EVIDENCE'])
+          d=json.loads((root/'deployment.json').read_text(encoding='utf-8'))
           assert d['gate']=='MUSITU_STORE_BROWSER_FIRST_DEPLOY_AND_ROLLBACK_PASS', d
           s=d['state']
           assert s['candidate_deployed_once'] is True
@@ -108,7 +116,11 @@ jobs:
           assert s['emergency_baseline_restore_performed'] is False
           assert d['checks']['browser_first_public_contract'] is True
           assert d['checks']['production_only_worker_logic_preserved'] is True
+          e2e=json.loads((root/'browser-app-end-to-end.json').read_text(encoding='utf-8'))
+          assert e2e['gate']=='MUSITU_STORE_BROWSER_APP_END_TO_END_PASS', e2e
+          assert set(e2e['platforms'])=={'android-chrome','samsung','ios-safari','desktop-chrome'}
           print('MUSITU_STORE_BROWSER_FIRST_PRODUCTION_PROMOTION=PASS')
+          print('MUSITU_STORE_BROWSER_APP_END_TO_END_CERTIFICATION=PASS')
           PY
 
       - name: Upload production evidence
