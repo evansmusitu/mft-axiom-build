@@ -36,12 +36,12 @@ jobs:
           modal app list --json > /tmp/apps.json
           modal volume list --json > /tmp/volumes.json
 
-      - name: Resolve exact FORGE app and persistent volume without exposing workspace inventory
+      - name: Resolve exact FORGE app and persistent volume
         shell: bash
         run: |
           set -euo pipefail
           python - <<'PY'
-          import json, os, pathlib, re
+          import json, os, pathlib
 
           def walk(value):
               if isinstance(value, dict):
@@ -53,47 +53,49 @@ jobs:
                       yield from walk(child)
 
           def exact_record(doc, target):
-              candidates=[]
+              rows=[]
               for row in walk(doc):
-                  direct=[v for v in row.values() if isinstance(v,str)]
-                  if target in direct:
-                      candidates.append(row)
-              if len(candidates) != 1:
-                  raise SystemExit(f'exact_record_count_{target}_{len(candidates)}')
-              return candidates[0]
+                  if target in [v for v in row.values() if isinstance(v, str)]:
+                      rows.append(row)
+              if len(rows) != 1:
+                  raise SystemExit(f'exact_record_count_{target}_{len(rows)}')
+              return rows[0]
 
           def first_prefixed(value, prefix):
-              if isinstance(value,str) and value.startswith(prefix): return value
-              if isinstance(value,dict):
+              if isinstance(value, str) and value.startswith(prefix):
+                  return value
+              if isinstance(value, dict):
                   for child in value.values():
-                      hit=first_prefixed(child,prefix)
-                      if hit: return hit
-              if isinstance(value,list):
+                      hit=first_prefixed(child, prefix)
+                      if hit:
+                          return hit
+              if isinstance(value, list):
                   for child in value:
-                      hit=first_prefixed(child,prefix)
-                      if hit: return hit
+                      hit=first_prefixed(child, prefix)
+                      if hit:
+                          return hit
               return None
 
-          apps=json.load(open('/tmp/apps.json'))
-          volumes=json.load(open('/tmp/volumes.json'))
-          app=exact_record(apps,os.environ['TARGET_APP'])
-          volume=exact_record(volumes,os.environ['TARGET_VOLUME'])
-          app_id=first_prefixed(app,'ap-')
-          volume_id=first_prefixed(volume,'vo-')
-          if not app_id: raise SystemExit('target_app_id_not_found')
-          if not volume_id: raise SystemExit('target_volume_id_not_found')
+          app=exact_record(json.load(open('/tmp/apps.json')), os.environ['TARGET_APP'])
+          volume=exact_record(json.load(open('/tmp/volumes.json')), os.environ['TARGET_VOLUME'])
+          app_id=first_prefixed(app, 'ap-')
+          volume_id=first_prefixed(volume, 'vo-')
+          if not app_id:
+              raise SystemExit('target_app_id_not_found')
+          if not volume_id:
+              raise SystemExit('target_volume_id_not_found')
           pathlib.Path('/tmp/app-id').write_text(app_id)
           safe={
-            'schema':'musitu.foundry_forge.modal_runtime_topology_audit.v1',
-            'target_app':os.environ['TARGET_APP'],
-            'target_app_id':app_id,
-            'target_volume':os.environ['TARGET_VOLUME'],
-            'target_volume_id':volume_id,
-            'workspace_inventory_disclosed':False,
-            'write_performed':False,
+              'schema':'musitu.foundry_forge.modal_runtime_topology_audit.v1',
+              'target_app':os.environ['TARGET_APP'],
+              'target_app_id':app_id,
+              'target_volume':os.environ['TARGET_VOLUME'],
+              'target_volume_id':volume_id,
+              'workspace_inventory_disclosed':False,
+              'write_performed':False,
           }
-          pathlib.Path('/tmp/topology-base.json').write_text(json.dumps(safe,sort_keys=True))
-          print(json.dumps(safe,sort_keys=True))
+          pathlib.Path('/tmp/topology-base.json').write_text(json.dumps(safe, sort_keys=True))
+          print(json.dumps(safe, sort_keys=True))
           PY
 
       - name: Verify exact Modal origin identity and wake live FORGE container
@@ -102,74 +104,130 @@ jobs:
           set -euo pipefail
           python - <<'PY'
           import hashlib, json, modal, os, pathlib
-          url=modal.Function.from_name(os.environ['TARGET_APP'],os.environ['TARGET_FUNCTION']).get_web_url()
-          if not isinstance(url,str) or not url.startswith('https://'):
+          url=modal.Function.from_name(os.environ['TARGET_APP'], os.environ['TARGET_FUNCTION']).get_web_url()
+          if not isinstance(url, str) or not url.startswith('https://'):
               raise SystemExit('modal_function_url_missing')
           digest=hashlib.sha256(url.encode()).hexdigest()
           if digest != os.environ['EXPECTED_MODAL_ORIGIN_SHA256']:
               raise SystemExit('modal_origin_identity_mismatch')
           pathlib.Path('/tmp/modal-origin-sha').write_text(digest)
-          print(json.dumps({'modal_origin_sha256':digest,'modal_origin_matches_v46':True},sort_keys=True))
+          print(json.dumps({'modal_origin_sha256':digest,'modal_origin_matches_v46':True}, sort_keys=True))
           PY
           curl --fail --silent --show-error --max-time 30 "$PUBLIC_ORIGIN/v1/health" > /tmp/public-health.json
           python - <<'PY'
           import json
           h=json.load(open('/tmp/public-health.json'))
-          if h.get('schema')!='musitu.forge.health.v1' or h.get('status')!='READY': raise SystemExit('public_health_not_ready')
-          if h.get('production_authorized') is not False: raise SystemExit('production_authorization_boundary_changed')
+          if h.get('schema') != 'musitu.forge.health.v1' or h.get('status') != 'READY':
+              raise SystemExit('public_health_not_ready')
+          if h.get('production_authorized') is not False:
+              raise SystemExit('production_authorization_boundary_changed')
           print('PUBLIC_FORGE_WAKE_PASS')
           PY
 
-      - name: Inspect selected runtime readiness only
+      - name: Resolve active FORGE container
         shell: bash
         run: |
           set -euo pipefail
           APP_ID="$(cat /tmp/app-id)"
           modal container list --app-id "$APP_ID" --json > /tmp/containers.json
           python - <<'PY'
-          import json,pathlib,re
+          import json, pathlib, re
           doc=json.load(open('/tmp/containers.json'))
           found=[]
-          def walk(v):
-              if isinstance(v,str):
-                  if re.fullmatch(r'ta-[A-Za-z0-9_-]+',v): found.append(v)
-              elif isinstance(v,dict):
-                  for x in v.values(): walk(x)
-              elif isinstance(v,list):
-                  for x in v: walk(x)
+          def walk(value):
+              if isinstance(value, str) and re.fullmatch(r'ta-[A-Za-z0-9_-]+', value):
+                  found.append(value)
+              elif isinstance(value, dict):
+                  for child in value.values():
+                      walk(child)
+              elif isinstance(value, list):
+                  for child in value:
+                      walk(child)
           walk(doc)
           ids=[]
-          for x in found:
-              if x not in ids: ids.append(x)
-          if not ids: raise SystemExit('active_forge_container_not_found_after_wake')
+          for value in found:
+              if value not in ids:
+                  ids.append(value)
+          if not ids:
+              raise SystemExit('active_forge_container_not_found_after_wake')
           pathlib.Path('/tmp/container-id').write_text(ids[0])
           print('FORGE_CONTAINER_RESOLVED=true')
           PY
+
+      - name: Inspect selected runtime readiness only
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > /tmp/forge_probe.py <<'PY'
+          import hashlib
+          import json
+          import os
+          import pathlib
+
+          names=[
+              'FORGE_FIELD_DATASET_ROOT',
+              'FORGE_EXPERT_CREDENTIAL_CUSTODY_ROOT',
+              'FORGE_EXPERT_REVIEW_CUSTODY_ROOT',
+              'FORGE_FAULT_EPISODE_ROOT',
+              'FORGE_VIDEO_DERIVATION_ROOT',
+              'FORGE_VIDEO_DERIVATION_ADAPTER_SHA256',
+              'FORGE_FFMPEG_FILE',
+              'FORGE_FFMPEG_SHA256',
+              'FORGE_FFPROBE_FILE',
+              'FORGE_FFPROBE_SHA256',
+          ]
+          out={
+              'selected_env':{},
+              'persistent_mount_present':pathlib.Path('/var/lib/musitu-forge').is_dir(),
+              'runtime_manifest_present':pathlib.Path('/opt/forge/runtime/FORGE_DEPLOY_RUNTIME_MANIFEST.json').is_file(),
+              'media_candidates':[],
+          }
+          for name in names:
+              value=os.environ.get(name, '').strip()
+              row={'configured':bool(value)}
+              if name.endswith('_ROOT') and value:
+                  path=pathlib.Path(value).expanduser()
+                  text=str(path)
+                  row.update({
+                      'is_dir':path.is_dir(),
+                      'under_persistent_mount':text == '/var/lib/musitu-forge' or text.startswith('/var/lib/musitu-forge/'),
+                  })
+              if name in ('FORGE_FFMPEG_FILE','FORGE_FFPROBE_FILE') and value:
+                  path=pathlib.Path(value).expanduser()
+                  row['is_file']=path.is_file()
+                  if path.is_file():
+                      row.update({'sha256':hashlib.sha256(path.read_bytes()).hexdigest(),'size_bytes':path.stat().st_size})
+              out['selected_env'][name]=row
+
+          seen=set()
+          candidates=[pathlib.Path('/usr/bin/ffmpeg'),pathlib.Path('/usr/bin/ffprobe')]
+          runtime=pathlib.Path('/opt/forge/runtime')
+          if runtime.is_dir():
+              candidates += list(runtime.rglob('ffmpeg')) + list(runtime.rglob('ffprobe'))
+          for path in candidates:
+              try:
+                  if path.is_file():
+                      digest=hashlib.sha256(path.read_bytes()).hexdigest()
+                      key=(path.name,digest,path.stat().st_size)
+                      if key not in seen:
+                          seen.add(key)
+                          out['media_candidates'].append({'name':path.name,'sha256':digest,'size_bytes':path.stat().st_size})
+              except Exception:
+                  pass
+          print('FORGE_RUNTIME_PROBE_JSON='+json.dumps(out, sort_keys=True))
+          PY
+          PROBE_B64="$(base64 -w0 /tmp/forge_probe.py)"
           CID="$(cat /tmp/container-id)"
-          modal container exec --no-pty "$CID" python3 -c 'import hashlib,json,os,pathlib; names=["FORGE_FIELD_DATASET_ROOT","FORGE_EXPERT_CREDENTIAL_CUSTODY_ROOT","FORGE_EXPERT_REVIEW_CUSTODY_ROOT","FORGE_FAULT_EPISODE_ROOT","FORGE_VIDEO_DERIVATION_ROOT","FORGE_VIDEO_DERIVATION_ADAPTER_SHA256","FORGE_FFMPEG_FILE","FORGE_FFMPEG_SHA256","FORGE_FFPROBE_FILE","FORGE_FFPROBE_SHA256"]; out={"selected_env":{},"persistent_mount_present":pathlib.Path("/var/lib/musitu-forge").is_dir(),"runtime_manifest_present":pathlib.Path("/opt/forge/runtime/FORGE_DEPLOY_RUNTIME_MANIFEST.json").is_file(),"media_candidates":[]};
-for n in names:
- v=os.environ.get(n,"").strip(); row={"configured":bool(v)};
- if n.endswith("_ROOT") and v:
-  p=pathlib.Path(v).expanduser(); row.update({"is_dir":p.is_dir(),"under_persistent_mount":str(p).startswith("/var/lib/musitu-forge/") or str(p)=="/var/lib/musitu-forge"});
- if n in ("FORGE_FFMPEG_FILE","FORGE_FFPROBE_FILE") and v:
-  p=pathlib.Path(v).expanduser(); row["is_file"]=p.is_file();
-  if p.is_file(): row.update({"sha256":hashlib.sha256(p.read_bytes()).hexdigest(),"size_bytes":p.stat().st_size});
- out["selected_env"][n]=row;
-seen=set();
-for p in [pathlib.Path("/usr/bin/ffmpeg"),pathlib.Path("/usr/bin/ffprobe")]+list(pathlib.Path("/opt/forge/runtime").rglob("ffmpeg"))+list(pathlib.Path("/opt/forge/runtime").rglob("ffprobe")):
- try:
-  if p.is_file():
-   h=hashlib.sha256(p.read_bytes()).hexdigest(); k=(p.name,h,p.stat().st_size);
-   if k not in seen: seen.add(k); out["media_candidates"].append({"name":p.name,"sha256":h,"size_bytes":p.stat().st_size})
- except Exception: pass
-print("FORGE_RUNTIME_PROBE_JSON="+json.dumps(out,sort_keys=True))' | tee /tmp/container-probe.log
+          modal container exec --no-pty "$CID" python3 -c "import base64;exec(base64.b64decode('$PROBE_B64'))" | tee /tmp/container-probe.log
           grep '^FORGE_RUNTIME_PROBE_JSON=' /tmp/container-probe.log | tail -1 | sed 's/^FORGE_RUNTIME_PROBE_JSON=//' > /tmp/runtime-probe.json
           python - <<'PY'
           import json
-          p=json.load(open('/tmp/runtime-probe.json'))
-          if not p.get('persistent_mount_present'): raise SystemExit('persistent_mount_missing')
-          if not p.get('runtime_manifest_present'): raise SystemExit('runtime_manifest_missing')
-          print(json.dumps(p,sort_keys=True))
+          probe=json.load(open('/tmp/runtime-probe.json'))
+          if not probe.get('persistent_mount_present'):
+              raise SystemExit('persistent_mount_missing')
+          if not probe.get('runtime_manifest_present'):
+              raise SystemExit('runtime_manifest_missing')
+          print(json.dumps(probe, sort_keys=True))
           PY
 
       - name: Seal safe topology evidence
@@ -177,29 +235,29 @@ print("FORGE_RUNTIME_PROBE_JSON="+json.dumps(out,sort_keys=True))' | tee /tmp/co
         run: |
           set -euo pipefail
           python - <<'PY'
-          import json,os,pathlib
+          import json, pathlib
           base=json.load(open('/tmp/topology-base.json'))
           probe=json.load(open('/tmp/runtime-probe.json'))
           health=json.load(open('/tmp/public-health.json'))
           out={**base,
-            'modal_origin_sha256':pathlib.Path('/tmp/modal-origin-sha').read_text().strip(),
-            'modal_origin_matches_v46':True,
-            'persistent_mount_present':probe['persistent_mount_present'],
-            'runtime_manifest_present':probe['runtime_manifest_present'],
-            'selected_env':probe['selected_env'],
-            'media_candidates':probe['media_candidates'],
-            'public_health':{
-              'schema':health.get('schema'),
-              'status':health.get('status'),
-              'video_derivation_runtime_configured':health.get('video_derivation_runtime_configured'),
-              'field_dataset_admission_configured':health.get('field_dataset_admission_configured'),
-              'expert_review_projection_configured':health.get('expert_review_projection_configured'),
-              'fault_episode_submission_configured':health.get('fault_episode_submission_configured'),
-              'production_authorized':health.get('production_authorized'),
-            },
-            'result':'PASS',
+              'modal_origin_sha256':pathlib.Path('/tmp/modal-origin-sha').read_text().strip(),
+              'modal_origin_matches_v46':True,
+              'persistent_mount_present':probe['persistent_mount_present'],
+              'runtime_manifest_present':probe['runtime_manifest_present'],
+              'selected_env':probe['selected_env'],
+              'media_candidates':probe['media_candidates'],
+              'public_health':{
+                  'schema':health.get('schema'),
+                  'status':health.get('status'),
+                  'video_derivation_runtime_configured':health.get('video_derivation_runtime_configured'),
+                  'field_dataset_admission_configured':health.get('field_dataset_admission_configured'),
+                  'expert_review_projection_configured':health.get('expert_review_projection_configured'),
+                  'fault_episode_submission_configured':health.get('fault_episode_submission_configured'),
+                  'production_authorized':health.get('production_authorized'),
+              },
+              'result':'PASS',
           }
-          pathlib.Path('foundry-forge-modal-runtime-topology-audit.json').write_text(json.dumps(out,indent=2,sort_keys=True)+'\n')
+          pathlib.Path('foundry-forge-modal-runtime-topology-audit.json').write_text(json.dumps(out, indent=2, sort_keys=True)+'\n')
           PY
           sha256sum foundry-forge-modal-runtime-topology-audit.json > foundry-forge-modal-runtime-topology-audit.sha256
 
