@@ -1,0 +1,125 @@
+name: MUSITU Foundry FORGE Deployed Worker Audit
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/foundry-forge-worker-source-audit-20260914.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      CF_API: https://api.cloudflare.com/client/v4
+      ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      SERVICE: musitu-forge-edge
+    steps:
+      - name: Read deployed Worker metadata and sanitized source excerpt
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import hashlib, json, os, re, urllib.error, urllib.request
+          from datetime import datetime, timezone
+          from email.parser import BytesParser
+          from email.policy import default
+
+          base=os.environ['CF_API']; aid=os.environ['ACCOUNT_ID']; service=os.environ['SERVICE']
+          headers={
+            'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],
+            'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY'],
+            'User-Agent':'MUSITU-Foundry-FORGE-Deployed-Worker-Audit/1.0',
+          }
+          def get_json(path):
+            req=urllib.request.Request(base+path,headers=headers,method='GET')
+            with urllib.request.urlopen(req,timeout=30) as r:
+              body=json.load(r)
+              if r.status != 200 or not body.get('success'):
+                raise SystemExit('cloudflare_json_get_failed')
+              return body.get('result') or {}
+          def get_raw(path):
+            req=urllib.request.Request(base+path,headers=headers,method='GET')
+            with urllib.request.urlopen(req,timeout=30) as r:
+              return r.status, dict(r.headers.items()), r.read()
+
+          env=get_json(f'/accounts/{aid}/workers/services/{service}/environments/production')
+          status,hdr,raw=get_raw(f'/accounts/{aid}/workers/scripts/{service}')
+          if status != 200:
+            raise SystemExit('worker_script_get_failed')
+          ctype=hdr.get('Content-Type','')
+          candidates=[]
+          if 'multipart/' in ctype.lower():
+            msg=BytesParser(policy=default).parsebytes((f'Content-Type: {ctype}\r\nMIME-Version: 1.0\r\n\r\n').encode()+raw)
+            for part in msg.iter_parts():
+              payload=part.get_payload(decode=True) or b''
+              ptype=part.get_content_type()
+              name=part.get_param('name',header='content-disposition') or part.get_filename() or ''
+              if ptype in ('application/javascript','text/javascript','application/typescript','text/plain') or name.endswith(('.js','.mjs','.ts')):
+                candidates.append((name,ptype,payload))
+          else:
+            candidates=[('worker',ctype,raw)]
+          if not candidates:
+            raise SystemExit('worker_source_part_not_found')
+          name,ptype,code=max(candidates,key=lambda x:len(x[2]))
+          text=code.decode('utf-8','replace')
+          lines=text.splitlines()
+          keywords=re.compile(r'(modal|proxy|authorization|protocol|options|health|upstream|fetch\s*\(|MUSITU|bearer)',re.I)
+          selected=set()
+          for i,line in enumerate(lines):
+            if keywords.search(line):
+              for j in range(max(0,i-3),min(len(lines),i+4)):
+                selected.add(j)
+          def redact(line):
+            line=re.sub(r'(?i)(Bearer\s+)[A-Za-z0-9._~+/=-]{12,}',r'\1<REDACTED>',line)
+            line=re.sub(r'(?i)((?:TOKEN|SECRET|PASSWORD|API_KEY|PRIVATE_KEY)\w*\s*[:=]\s*[\"\'])[^\"\']+([\"\'])',r'\1<REDACTED>\2',line)
+            return line
+          excerpt='\n'.join(f'{i+1}: {redact(lines[i])}' for i in sorted(selected))+'\n'
+          open('forge-worker-routing-auth-excerpt.txt','w').write(excerpt)
+
+          bindings=[]
+          for b in env.get('bindings') or []:
+            bindings.append({'name':b.get('name'),'type':b.get('type'),'namespace_id':b.get('namespace_id'),'service':b.get('service'),'environment':b.get('environment')})
+          out={
+            'schema':'musitu.foundry_forge.deployed_worker_audit.v1',
+            'observed_at':datetime.now(timezone.utc).isoformat(),
+            'account_id':aid,
+            'service':service,
+            'environment':'production',
+            'environment_id':env.get('id'),
+            'script_name':env.get('script_name'),
+            'compatibility_date':env.get('compatibility_date'),
+            'compatibility_flags':env.get('compatibility_flags'),
+            'bindings':bindings,
+            'source_part_name':name,
+            'source_part_content_type':ptype,
+            'deployed_source_size_bytes':len(code),
+            'deployed_source_sha256':hashlib.sha256(code).hexdigest(),
+            'raw_worker_response_sha256':hashlib.sha256(raw).hexdigest(),
+            'raw_worker_content_type':ctype,
+            'excerpt_sha256':hashlib.sha256(excerpt.encode()).hexdigest(),
+            'write_performed':False,
+            'production_authorized':False,
+          }
+          open('forge-worker-deployed-audit.json','w').write(json.dumps(out,indent=2,sort_keys=True)+'\n')
+          print(json.dumps(out,sort_keys=True))
+          print('---SANITIZED_EXCERPT---')
+          print(excerpt)
+          PY
+      - name: Seal Worker audit evidence
+        run: sha256sum forge-worker-deployed-audit.json forge-worker-routing-auth-excerpt.txt > forge-worker-deployed-audit.sha256
+      - uses: actions/upload-artifact@v4
+        with:
+          name: musitu-foundry-forge-deployed-worker-audit-20260914
+          path: |
+            forge-worker-deployed-audit.json
+            forge-worker-routing-auth-excerpt.txt
+            forge-worker-deployed-audit.sha256
+          retention-days: 7
+          if-no-files-found: error
