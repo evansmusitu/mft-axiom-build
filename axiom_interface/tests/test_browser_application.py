@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import importlib.util
 import json
 from pathlib import Path
 import re
@@ -7,9 +8,11 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest import mock
 
 
 ROOT = Path(__file__).resolve().parents[1]
+REPOSITORY = ROOT.parent
 HTML = (ROOT / "index.html").read_text(encoding="utf-8")
 APP = (ROOT / "app.js").read_text(encoding="utf-8")
 PWA = (ROOT / "pwa_runtime.js").read_text(encoding="utf-8")
@@ -17,6 +20,13 @@ SW = (ROOT / "sw.js").read_text(encoding="utf-8")
 MANIFEST = json.loads((ROOT / "manifest.webmanifest").read_text(encoding="utf-8"))
 SURFACE = json.loads((ROOT / "surface-map.json").read_text(encoding="utf-8"))
 BROWSER_RUNNER = (ROOT / "tests/run_browser_application.py").read_text(encoding="utf-8")
+PRODUCTION_WORKER = (REPOSITORY / "ops/axiom_browser_application_worker.mjs").read_text(encoding="utf-8")
+PRODUCTION_DEPLOY = (REPOSITORY / "ops/axiom_browser_application_deploy.py").read_text(encoding="utf-8")
+PRODUCTION_WORKFLOW = (REPOSITORY / ".github/workflows/axiom-browser-application-gate.yml").read_text(encoding="utf-8")
+DEPLOY_SPEC = importlib.util.spec_from_file_location("axiom_browser_application_deploy", REPOSITORY / "ops/axiom_browser_application_deploy.py")
+assert DEPLOY_SPEC and DEPLOY_SPEC.loader
+DEPLOY = importlib.util.module_from_spec(DEPLOY_SPEC)
+DEPLOY_SPEC.loader.exec_module(DEPLOY)
 
 
 class BrowserApplicationContractTests(unittest.TestCase):
@@ -29,15 +39,20 @@ class BrowserApplicationContractTests(unittest.TestCase):
     def test_canonical_entry_is_truthful_and_does_not_repurpose_api_edge(self):
         deployment = self.contract["deployment"]
         self.assertEqual(self.contract["schema"], "musitu.axiom.browser-application.v1")
-        self.assertEqual(self.contract["status"], "IMPLEMENTED_NOT_DEPLOYED")
-        self.assertEqual(deployment["public_entry_url"], "https://musitu.ai/axiom")
-        self.assertIsNone(deployment["production_app_origin"])
+        self.assertIn(self.contract["status"], {"PRODUCTION_DEPLOYMENT_CANDIDATE", "PRODUCTION_DEPLOYED_VERIFIED"})
+        self.assertEqual(deployment["public_entry_url"], "https://mftintelligence.com/axiom")
+        self.assertEqual(deployment["integration_entry_url"], "https://mftintelligence.com/axiom")
+        self.assertEqual(deployment["production_app_origin"], "https://app.mftintelligence.com")
+        self.assertEqual(deployment["exact_browser_entry_url"], "https://app.mftintelligence.com/#/home")
         self.assertEqual(deployment["canonical_app_path"], "/")
         self.assertEqual(deployment["default_route"], "#/home")
         self.assertEqual(deployment["entry_url"], "./#/home")
-        self.assertEqual(deployment["origin_policy"], "DEDICATED_APPLICATION_ORIGIN_REQUIRED")
+        self.assertEqual(deployment["origin_policy"], "DEDICATED_APPLICATION_ORIGIN_WITH_APEX_ENTRY_BRIDGE")
         self.assertEqual(deployment["reserved_api_origin"], "https://axiom.mftintelligence.com")
-        self.assertFalse(deployment["production_deployment_claimed"])
+        self.assertEqual(
+            deployment["production_deployment_claimed"],
+            self.contract["status"] == "PRODUCTION_DEPLOYED_VERIFIED",
+        )
 
     def test_open_launch_is_inline_browser_navigation_never_a_download(self):
         action = self.contract["actions"]["open_browser"]
@@ -111,13 +126,92 @@ class BrowserApplicationContractTests(unittest.TestCase):
             "AUTHENTICATED_SAME_ORIGIN_SESSION",
             "rejectSecretFields",
             "sessionStorage",
+            "sign_in_path",
+            "sign_out_path",
         ]:
             self.assertIn(token, self.session)
         for forbidden in ["localStorage.setItem('access_token", "localStorage.setItem('refresh_token", "Authorization: Bearer"]:
             self.assertNotIn(forbidden, self.session)
         self.assertIn('id="session-button"', HTML)
         self.assertIn('id="session-dialog"', HTML)
+        self.assertIn('id="session-sign-in"', HTML)
+        self.assertIn('id="session-sign-out"', HTML)
         self.assertIn("initBrowserSession", APP)
+
+    def test_production_worker_is_path_isolated_and_account_session_is_server_side(self):
+        for token in [
+            "app.mftintelligence.com",
+            "mftintelligence.com",
+            "www.mftintelligence.com",
+            "/.well-known/axiom-session",
+            "/auth/start",
+            "/auth/session",
+            "/auth/sign-out",
+            "__Host-axiom_session",
+            "HttpOnly",
+            "SameSite=${sameSite}",
+            "setCookie(SESSION_COOKIE, sealed, SESSION_SECONDS, 'Lax')",
+            "AXIOM_DB",
+            "AUTH_RATE_LIMITER",
+            "AXIOM_BROWSER_SESSION_SECRET",
+            "env.ASSETS.fetch",
+        ]:
+            self.assertIn(token, PRODUCTION_WORKER)
+        self.assertNotIn('"https://axiom.mftintelligence.com"', PRODUCTION_WORKER)
+        self.assertNotRegex(PRODUCTION_WORKER, r"(?:access|refresh)[_-]?token")
+        for token in [
+            "needs:",
+            "app.mftintelligence.com",
+            "OPENAI_REVIEWER_ACCOUNT_KEY",
+            "CLOUDFLARE_GLOBAL_API_KEY",
+            "axiom-browser-application-production-deployment",
+        ]:
+            self.assertIn(token, PRODUCTION_WORKFLOW)
+        for token in [
+            '"mftintelligence.com/axiom"',
+            '"mftintelligence.com/axiom/*"',
+            '"www.mftintelligence.com/axiom"',
+            '"www.mftintelligence.com/axiom/*"',
+            "RESERVED_API_HOST = \"axiom.mftintelligence.com\"",
+            "existing_apex_origin_overridden",
+            "verify_identity",
+        ]:
+            self.assertIn(token, PRODUCTION_DEPLOY)
+
+    def test_production_topology_preflight_rejects_origin_and_route_conflicts(self):
+        reserved = {"id": "reserved-id", "hostname": DEPLOY.RESERVED_API_HOST, "service": "certified-api-edge", "zone_id": DEPLOY.ZONE_ID}
+        topology = {"domains": [reserved], "routes": [], "dns": []}
+        selected = DEPLOY.validate_target(topology)
+        self.assertEqual(selected["app_domain"], [])
+        self.assertEqual(selected["target_routes"], [])
+        self.assertEqual(selected["reserved_api_domain"][0]["service"], "certified-api-edge")
+        self.assertEqual(
+            DEPLOY.ROUTE_PATTERNS,
+            (
+                "mftintelligence.com/axiom",
+                "mftintelligence.com/axiom/*",
+                "www.mftintelligence.com/axiom",
+                "www.mftintelligence.com/axiom/*",
+            ),
+        )
+        with self.assertRaisesRegex(RuntimeError, "DNS records"):
+            DEPLOY.validate_target({**topology, "dns": [{"name": DEPLOY.APP_HOST, "type": "CNAME"}]})
+        with self.assertRaisesRegex(RuntimeError, "another Worker"):
+            DEPLOY.validate_target({**topology, "routes": [{"pattern": DEPLOY.ROUTE_PATTERNS[0], "script": "unrelated-service"}]})
+        with self.assertRaisesRegex(RuntimeError, "reserved production API domain"):
+            DEPLOY.validate_target({"domains": [], "routes": [], "dns": []})
+
+    def test_production_preflight_preserves_failure_evidence_without_writing(self):
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory) / "preflight.json"
+            with mock.patch.object(DEPLOY, "Cloudflare", side_effect=RuntimeError("credentials unavailable")):
+                with self.assertRaisesRegex(RuntimeError, "credentials unavailable"):
+                    DEPLOY.preflight(output, "0" * 40)
+            failure = json.loads((output.parent / "preflight-failure.json").read_text(encoding="utf-8"))
+            self.assertEqual(failure["status"], "FAIL")
+            self.assertEqual(failure["source_git_sha"], "0" * 40)
+            self.assertFalse(failure["write_performed"])
+            self.assertFalse(output.exists())
 
     def test_pwa_and_native_install_paths_remain_explicitly_separate(self):
         actions = self.contract["actions"]
@@ -136,19 +230,20 @@ class BrowserApplicationContractTests(unittest.TestCase):
     def test_service_worker_caches_app_shell_but_never_session_identity(self):
         for asset in ["./browser_app.js", "./browser_session.js", "./browser-app.json"]:
             self.assertIn(asset, SW)
-        for token in ["/.well-known/axiom-session", "cache:'no-store'", "response.ok", "text/html"]:
+        for token in ["/.well-known/axiom-session", "./auth/", "./health", "cache:'no-store'", "response.ok", "text/html"]:
             self.assertIn(token, SW)
         self.assertNotRegex(SW, r"SHELL\s*=\s*\[[^\]]*\.well-known/axiom-session")
 
     def test_candidate_truth_boundary_does_not_change_earned_phase_authority(self):
         browser = SURFACE["browser_application_substrate"]
         self.assertEqual(SURFACE["phase"], "PHASE_12_DEVELOPER_PLATFORM_MARKETPLACE")
-        self.assertEqual(browser["status"], "IMPLEMENTED_NOT_DEPLOYED")
-        self.assertEqual(browser["origin_policy"], "DEDICATED_APPLICATION_ORIGIN_REQUIRED")
+        self.assertIn(browser["status"], {"PRODUCTION_DEPLOYMENT_CANDIDATE", "PRODUCTION_DEPLOYED_VERIFIED"})
+        self.assertEqual(browser["origin_policy"], "DEDICATED_APPLICATION_ORIGIN_WITH_APEX_ENTRY_BRIDGE")
         self.assertTrue(browser["browser_launch_implemented"])
         self.assertTrue(browser["authenticated_session_contract_implemented"])
-        self.assertFalse(browser["production_deployment_claimed"])
-        self.assertFalse(browser["production_identity_integration_claimed"])
+        expected_claim = browser["status"] == "PRODUCTION_DEPLOYED_VERIFIED"
+        self.assertEqual(browser["production_deployment_claimed"], expected_claim)
+        self.assertEqual(browser["production_identity_integration_claimed"], expected_claim)
         self.assertNotIn("qualified_phase13_sha", SURFACE["authority"])
         self.assertNotIn("qualified_phase14_sha", SURFACE["authority"])
 

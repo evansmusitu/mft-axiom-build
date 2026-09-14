@@ -45,8 +45,8 @@ class AppHandler(BaseHTTPRequestHandler):
             cookies = SimpleCookie(self.headers.get("Cookie", ""))
             authenticated = cookies.get("axiom_session") and cookies["axiom_session"].value == "authenticated"
             if not authenticated:
-                payload = {"schema": "musitu.axiom.browser-session.v1", "authenticated": False}
-                self._send(HTTPStatus.UNAUTHORIZED, json.dumps(payload).encode(), "application/json", Cache_Control="no-store")
+                payload = {"schema": "musitu.axiom.browser-session.v1", "authenticated": False, "sign_in_path": "/auth/start"}
+                self._send(HTTPStatus.OK, json.dumps(payload).encode(), "application/json", Cache_Control="no-store")
                 return
             payload = {
                 "schema": "musitu.axiom.browser-session.v1",
@@ -56,8 +56,12 @@ class AppHandler(BaseHTTPRequestHandler):
                 "session_id": "session-browser-test",
                 "assurance": "TEST_SAME_ORIGIN_COOKIE",
                 "expires_at": "2099-01-01T00:00:00Z",
+                "sign_out_path": "/auth/sign-out",
             }
             self._send(HTTPStatus.OK, json.dumps(payload).encode(), "application/json", Cache_Control="no-store")
+            return
+        if path == "/auth/start":
+            self._send(HTTPStatus.OK, b"<!doctype html><title>Sign in to MUSITU Axiom</title>", "text/html", Cache_Control="no-store")
             return
         relative = path.lstrip("/")
         if path in ("/", "/index.html"):
@@ -75,6 +79,20 @@ class AppHandler(BaseHTTPRequestHandler):
         if candidate.suffix == ".webmanifest":
             content_type = "application/manifest+json"
         self._send(HTTPStatus.OK, candidate.read_bytes(), content_type, Cache_Control="no-cache")
+
+    def do_POST(self) -> None:
+        path = unquote(urlsplit(self.path).path)
+        self.__class__.request_paths.append(path)
+        if path == "/auth/sign-out":
+            self._send(
+                HTTPStatus.NO_CONTENT,
+                b"",
+                "application/json",
+                Cache_Control="no-store",
+                Set_Cookie="axiom_session=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax",
+            )
+            return
+        self._send(HTTPStatus.NOT_FOUND, b"not found", "text/plain")
 
 
 def session_state(page) -> dict:
@@ -110,6 +128,11 @@ def main() -> None:
             assert guest_state["mode"] == "GUEST_BROWSER_WORKSPACE"
             assert guest_state["authenticated"] is False
             assert guest.get_by_role("button", name="Account: Guest workspace").is_visible()
+            guest.get_by_role("button", name="Account: Guest workspace").click()
+            sign_in = guest.locator("#session-sign-in")
+            assert sign_in.is_visible()
+            assert sign_in.get_attribute("href") == origin + "/auth/start"
+            guest.locator("#session-close").click()
 
             guest.goto(origin + "/#/projects", wait_until="domcontentloaded")
             guest.wait_for_function("()=>document.querySelector('#workspace-title')?.textContent==='Projects'")
@@ -155,6 +178,9 @@ def main() -> None:
             assert first["mode"] == "AUTHENTICATED_SAME_ORIGIN_SESSION"
             assert first["displayName"] == "Axiom Test User"
             assert authenticated.get_by_role("button", name="Account: Axiom Test User").is_visible()
+            authenticated.get_by_role("button", name="Account: Axiom Test User").click()
+            assert authenticated.locator("#session-sign-out").is_visible()
+            authenticated.locator("#session-close").click()
             authenticated.reload(wait_until="domcontentloaded")
             restored = session_state(authenticated)
             assert restored["authenticated"] is True
@@ -163,6 +189,10 @@ def main() -> None:
             forbidden = re.compile(r"(?:access|refresh)[_-]?token|authorization|api[_-]?key|password|private[_-]?key", re.I)
             assert not [key for key in storage["local"] + storage["session"] if forbidden.search(key)]
             authenticated.screenshot(path=str(OUT / "browser-application-authenticated-desktop.png"), full_page=True)
+            authenticated.get_by_role("button", name="Account: Axiom Test User").click()
+            authenticated.locator("#session-sign-out").click()
+            authenticated.wait_for_function("()=>window.AxiomBrowserSession.getState().authenticated===false")
+            assert authenticated.get_by_role("button", name="Account: Guest workspace").is_visible()
             authenticated_context.close()
             browser.close()
 
@@ -172,9 +202,10 @@ def main() -> None:
         assert manifest["start_url"] == "./#/home"
         assert downloads == []
         assert foreign == []
+        production_claimed = bool(contract["deployment"]["production_deployment_claimed"])
         evidence = {
             "schema": "musitu.axiom.browser-application-evidence.v1",
-            "status": "IMPLEMENTATION_PASS_NOT_DEPLOYED",
+            "status": "PRODUCTION_SOURCE_CONTRACT_PASS" if production_claimed else "DEPLOYMENT_CANDIDATE_PASS",
             "canonical_app_path": "/",
             "entry_url": "./#/home",
             "root_inline_html_verified": True,
@@ -182,6 +213,7 @@ def main() -> None:
             "guest_launch_verified": True,
             "authenticated_cookie_session_verified": True,
             "authenticated_refresh_restore_verified": True,
+            "authenticated_sign_out_verified": True,
             "hash_deep_link_verified": True,
             "deep_link_refresh_verified": True,
             "legacy_index_normalized_without_reload": True,
@@ -191,8 +223,8 @@ def main() -> None:
             "native_paths_separate": True,
             "redirect_loop_absent": True,
             "foreign_requests": foreign,
-            "production_deployment_claimed": False,
-            "production_identity_integration_claimed": False,
+            "production_deployment_claimed": production_claimed,
+            "production_identity_integration_claimed": production_claimed,
             "request_paths": AppHandler.request_paths,
             "screenshots": ["browser-application-mobile.png", "browser-application-authenticated-desktop.png"],
         }
@@ -200,7 +232,7 @@ def main() -> None:
     finally:
         server.shutdown()
         server.server_close()
-    print("MUSITU_AXIOM_BROWSER_APPLICATION_IMPLEMENTATION_PASS_NOT_DEPLOYED")
+    print("MUSITU_AXIOM_BROWSER_APPLICATION_SOURCE_CONTRACT_PASS")
 
 
 if __name__ == "__main__":

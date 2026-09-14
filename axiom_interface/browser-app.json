@@ -1,13 +1,15 @@
 {
   "schema": "musitu.axiom.browser-application.v1",
-  "status": "IMPLEMENTED_NOT_DEPLOYED",
+  "status": "PRODUCTION_DEPLOYMENT_CANDIDATE",
   "deployment": {
-    "public_entry_url": "https://musitu.ai/axiom",
-    "production_app_origin": null,
+    "public_entry_url": "https://mftintelligence.com/axiom",
+    "integration_entry_url": "https://mftintelligence.com/axiom",
+    "production_app_origin": "https://app.mftintelligence.com",
+    "exact_browser_entry_url": "https://app.mftintelligence.com/#/home",
     "canonical_app_path": "/",
     "default_route": "#/home",
     "entry_url": "./#/home",
-    "origin_policy": "DEDICATED_APPLICATION_ORIGIN_REQUIRED",
+    "origin_policy": "DEDICATED_APPLICATION_ORIGIN_WITH_APEX_ENTRY_BRIDGE",
     "reserved_api_origin": "https://axiom.mftintelligence.com",
     "production_deployment_claimed": false
   },
@@ -20,6 +22,15 @@
   },
   "hosting": {
     "artifact_type": "STATIC_DIRECTORY",
+    "provider": "CLOUDFLARE_WORKERS_STATIC_ASSETS",
+    "application_hostname": "app.mftintelligence.com",
+    "integration_routes": [
+      "mftintelligence.com/axiom",
+      "mftintelligence.com/axiom/*",
+      "www.mftintelligence.com/axiom",
+      "www.mftintelligence.com/axiom/*"
+    ],
+    "apex_origin_outside_integration_routes": "PRESERVED",
     "root_document": "index.html",
     "root_content_type": "text/html; charset=utf-8",
     "root_content_disposition": "inline",
@@ -28,6 +39,10 @@
   },
   "session": {
     "endpoint": "./.well-known/axiom-session",
+    "sign_in_path": "./auth/start",
+    "sign_out_path": "./auth/sign-out",
+    "account_validation": "SERVER_SIDE_CANONICAL_AXIOM_D1_ACTIVE_KEY_AND_CUSTOMER",
+    "authentication_abuse_control": "CLOUDFLARE_WORKERS_RATE_LIMIT_PER_SOURCE_EDGE_LOCATION",
     "credential_transport": "HTTP_ONLY_SAME_ORIGIN_COOKIE",
     "unauthenticated_mode": "GUEST_BROWSER_WORKSPACE",
     "offline_authenticated_mode": "FAIL_CLOSED_TO_GUEST",

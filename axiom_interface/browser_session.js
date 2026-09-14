@@ -1,7 +1,8 @@
 const ENDPOINT = './.well-known/axiom-session';
 const GUEST_KEY = 'axiom.browser.guest-session.v1';
 const SESSION_SCHEMA = 'musitu.axiom.browser-session.v1';
-const ALLOWED_FIELDS = new Set(['schema','authenticated','subject','display_name','session_id','assurance','expires_at','sign_in_path']);
+const ALLOWED_FIELDS = new Set(['schema','authenticated','subject','display_name','session_id','assurance','expires_at','sign_in_path','sign_out_path']);
+const GUEST_FIELDS = new Set(['schema','authenticated','sign_in_path']);
 const SECRET_FIELD = /^(?:access|refresh|id)?_?token$|authorization|api_?key|password|private_?key|secret/i;
 const MODES = Object.freeze({guest:'GUEST_BROWSER_WORKSPACE', authenticated:'AUTHENTICATED_SAME_ORIGIN_SESSION'});
 
@@ -27,7 +28,7 @@ function guestId(storage) {
   }
 }
 
-function guestState(storage, reason = 'UNAUTHENTICATED') {
+function guestState(storage, reason = 'UNAUTHENTICATED', signInHref = null) {
   return {
     schema:'musitu.axiom.browser-session-state.v1',
     mode:MODES.guest,
@@ -37,7 +38,8 @@ function guestState(storage, reason = 'UNAUTHENTICATED') {
     sessionId:guestId(storage),
     assurance:'NONE',
     expiresAt:null,
-    signInHref:null,
+    signInHref,
+    signOutHref:null,
     reason,
   };
 }
@@ -68,8 +70,16 @@ function authenticatedState(payload) {
     assurance:clean(payload.assurance, 100) || 'SERVER_SESSION',
     expiresAt:expiresAt || null,
     signInHref:sameOriginHref(payload.sign_in_path),
+    signOutHref:sameOriginHref(payload.sign_out_path),
     reason:'RESTORED_FROM_SAME_ORIGIN_COOKIE',
   };
+}
+
+function unauthenticatedState(payload, storage) {
+  rejectSecretFields(payload);
+  if (Object.keys(payload).some(key => !GUEST_FIELDS.has(key))) throw new DOMException('guest session response contained unsupported fields', 'SecurityError');
+  if (payload.schema !== SESSION_SCHEMA || payload.authenticated !== false) throw new DOMException('invalid guest session response', 'SecurityError');
+  return guestState(storage, 'UNAUTHENTICATED', sameOriginHref(payload.sign_in_path));
 }
 
 async function readSession(storage) {
@@ -83,7 +93,8 @@ async function readSession(storage) {
     if (!response.ok || !(response.headers.get('content-type') || '').toLowerCase().includes('application/json')) throw new DOMException('session endpoint rejected', 'SecurityError');
     const text = await response.text();
     if (text.length > 8192) throw new DOMException('session response exceeded limit', 'SecurityError');
-    return authenticatedState(JSON.parse(text));
+    const payload = JSON.parse(text);
+    return payload?.authenticated === false ? unauthenticatedState(payload, storage) : authenticatedState(payload);
   } catch (error) {
     return guestState(storage, error?.name === 'SecurityError' ? 'SESSION_REJECTED' : 'SESSION_ENDPOINT_UNAVAILABLE');
   } finally {
@@ -97,6 +108,7 @@ function render(state) {
   const summary = document.querySelector('#session-summary');
   const detail = document.querySelector('#session-detail');
   const signIn = document.querySelector('#session-sign-in');
+  const signOut = document.querySelector('#session-sign-out');
   document.documentElement.dataset.sessionMode = state.authenticated ? 'authenticated' : 'guest';
   if (name) name.textContent = state.displayName;
   if (button) button.setAttribute('aria-label', `Account: ${state.displayName}`);
@@ -109,6 +121,7 @@ function render(state) {
     if (state.signInHref) signIn.href = state.signInHref;
     else signIn.removeAttribute('href');
   }
+  if (signOut) signOut.hidden = !state.signOutHref;
 }
 
 export function initBrowserSession({emit = () => {}, storage = window.sessionStorage} = {}) {
@@ -120,14 +133,27 @@ export function initBrowserSession({emit = () => {}, storage = window.sessionSto
     emit('session.restore', {state:state.authenticated ? 'authenticated' : 'guest'});
     return structuredClone(state);
   };
+  const signOut = async () => {
+    if (!state.signOutHref) return structuredClone(state);
+    try {
+      const response = await fetch(state.signOutHref, {method:'POST',credentials:'same-origin',cache:'no-store',redirect:'error',headers:{Accept:'application/json'}});
+      if (!response.ok) throw new DOMException('sign-out endpoint rejected', 'SecurityError');
+      emit('session.sign-out', {state:'completed'});
+      return refresh();
+    } catch {
+      emit('session.sign-out', {state:'rejected'});
+      return structuredClone(state);
+    }
+  };
   if (dialog && !dialog.dataset.sessionEvents) {
     dialog.dataset.sessionEvents = 'installed';
     document.querySelector('#session-button')?.addEventListener('click', () => dialog.showModal());
     document.querySelector('#session-close')?.addEventListener('click', () => dialog.close());
     document.querySelector('#session-refresh')?.addEventListener('click', () => { void refresh(); });
+    document.querySelector('#session-sign-out')?.addEventListener('click', () => { void signOut().then(() => dialog.close()); });
   }
   render(state);
-  const api = Object.freeze({refresh, getState:() => structuredClone(state), modes:MODES});
+  const api = Object.freeze({refresh, signOut, getState:() => structuredClone(state), modes:MODES});
   window.AxiomBrowserSession = api;
   window.AxiomBrowserSessionReady = refresh();
   return api;

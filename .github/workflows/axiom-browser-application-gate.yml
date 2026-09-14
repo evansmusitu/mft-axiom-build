@@ -3,9 +3,11 @@ on:
   push:
     branches:
       - frontier/axiom-v5-browser-first-application-20260913
+      - frontier/axiom-v5-browser-app-production-20260914
   workflow_dispatch:
 permissions:
   contents: read
+  pull-requests: read
 concurrency:
   group: musitu-axiom-browser-application-${{ github.ref }}
   cancel-in-progress: true
@@ -53,6 +55,170 @@ jobs:
           name: musitu-axiom-browser-application-static-build
           path: /tmp/axiom-browser-application-dist/**
           if-no-files-found: error
+  deploy-production-browser-application:
+    if: github.ref == 'refs/heads/frontier/axiom-v5-browser-app-production-20260914'
+    needs:
+      - runtime-security-authority-and-regression
+      - browser-launch-session-pwa-and-inherited-regression
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    env:
+      CLOUDFLARE_ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      CLOUDFLARE_ZONE_ID: 5b56528f03948ff5917a5e0cd9f7109e
+      AXIOM_D1_UUID: 504029cc-f9a5-495e-818f-63c6144b4ea4
+      AXIOM_D1_NAME: musitu-axiom-prod
+      AXIOM_BROWSER_WORKER: musitu-axiom-browser-application
+      AXIOM_APP_HOST: app.mftintelligence.com
+      AXIOM_DEPLOY_DIR: /tmp/axiom-browser-worker-deploy
+      AXIOM_DIST_DIR: /tmp/axiom-browser-application-dist
+      AXIOM_EVIDENCE_DIR: /tmp/axiom-browser-application-production
+      WRANGLER_ROOT: /tmp/axiom-wrangler
+    steps:
+      - name: Checkout exact qualified source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Setup patch-pinned Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
+        with:
+          python-version: '3.12.14'
+      - name: Re-read protected GitHub authorities and PR 1 immediately before deployment
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --no-tags --force origin +refs/heads/main:refs/remotes/origin/main +refs/heads/frontier/axiom-v5-skill-fabric:refs/remotes/origin/frontier/axiom-v5-skill-fabric +refs/heads/archive/axiom-track-a-post-freeze-20260912:refs/remotes/origin/archive/axiom-track-a-post-freeze-20260912 +refs/heads/frontier/axiom-v5-world-top-tier-review-safe:refs/remotes/origin/frontier/axiom-v5-world-top-tier-review-safe
+          test "$(git rev-parse refs/remotes/origin/main)" = d6a846f6bbe0bccac1758713eb4de167caf07113
+          test "$(git rev-parse refs/remotes/origin/frontier/axiom-v5-skill-fabric)" = d9196774a9fff3150922e2cb681d16e2423651da
+          test "$(git rev-parse refs/remotes/origin/archive/axiom-track-a-post-freeze-20260912)" = 20a84b1090b8ad986e35fee20008f3ed8920440c
+          test "$(git rev-parse refs/remotes/origin/frontier/axiom-v5-world-top-tier-review-safe)" = 73ecdbad38cb10020b6e30ebe42a9222a3bb6c55
+          python - <<'PY'
+          import json,os,urllib.request
+          base='https://api.github.com/repos/evansmusitu/mft-axiom-build'
+          headers={'Accept':'application/vnd.github+json','Authorization':'Bearer '+os.environ['GH_TOKEN'],'User-Agent':'MUSITU-Axiom-Browser-Deploy-Authority/1.0','X-GitHub-Api-Version':'2022-11-28'}
+          def get(path):
+              request=urllib.request.Request(base+path,headers=headers)
+              with urllib.request.urlopen(request,timeout=30) as response:return json.load(response)
+          pull=get('/pulls/1'); requested=get('/pulls/1/requested_reviewers'); reviews=get('/pulls/1/reviews')
+          if pull.get('state')!='open' or pull.get('draft') is not True or pull.get('merged') is not False:raise SystemExit('PR #1 state authority mismatch')
+          if (pull.get('base') or {}).get('ref')!='main' or (pull.get('base') or {}).get('sha')!='d6a846f6bbe0bccac1758713eb4de167caf07113':raise SystemExit('PR #1 base authority mismatch')
+          if (pull.get('head') or {}).get('ref')!='frontier/axiom-v5-skill-fabric' or (pull.get('head') or {}).get('sha')!='d9196774a9fff3150922e2cb681d16e2423651da':raise SystemExit('PR #1 head authority mismatch')
+          if requested.get('users') or requested.get('teams') or reviews:raise SystemExit('PR #1 reviewer authority mismatch')
+          print(json.dumps({'protected_authority':'PASS','pr_1':'OPEN_DRAFT_UNMERGED_NO_REVIEWERS','deployment_sha':os.environ['GITHUB_SHA']},sort_keys=True))
+          PY
+      - name: Fail-closed live Cloudflare topology preflight
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$AXIOM_EVIDENCE_DIR"
+          python ops/axiom_browser_application_deploy.py preflight --source-sha "$GITHUB_SHA" --output "$AXIOM_EVIDENCE_DIR/preflight.json"
+      - name: Build deterministic browser application and deployment bundle
+        shell: bash
+        run: |
+          set -euo pipefail
+          python frontier_v5/scripts/build_browser_application.py --output "$AXIOM_DIST_DIR"
+          rm -rf "$AXIOM_DEPLOY_DIR"
+          mkdir -p "$AXIOM_DEPLOY_DIR/public"
+          cp ops/axiom_browser_application_worker.mjs "$AXIOM_DEPLOY_DIR/worker.mjs"
+          cp -R "$AXIOM_DIST_DIR/." "$AXIOM_DEPLOY_DIR/public/"
+          python - <<'PY'
+          import json,os,pathlib
+          config={
+            'name':os.environ['AXIOM_BROWSER_WORKER'],
+            'main':'worker.mjs',
+            'compatibility_date':'2026-09-14',
+            'workers_dev':False,
+            'preview_urls':False,
+            'vars':{'BUILD_SHA':os.environ['GITHUB_SHA']},
+            'd1_databases':[{'binding':'AXIOM_DB','database_name':os.environ['AXIOM_D1_NAME'],'database_id':os.environ['AXIOM_D1_UUID']}],
+            'ratelimits':[{'name':'AUTH_RATE_LIMITER','namespace_id':'941260914','simple':{'limit':5,'period':60}}],
+            'assets':{'directory':'./public','binding':'ASSETS','run_worker_first':True},
+          }
+          pathlib.Path(os.environ['AXIOM_DEPLOY_DIR'],'wrangler.json').write_text(json.dumps(config,indent=2,sort_keys=True)+'\n')
+          PY
+          node --check "$AXIOM_DEPLOY_DIR/worker.mjs"
+          test "$(find "$AXIOM_DEPLOY_DIR/public" -type f | wc -l)" -ge 79
+          ! find "$AXIOM_DEPLOY_DIR/public" -type f \( -iname '*.apk' -o -iname '*.aab' -o -iname '*.ipa' -o -iname '*.dmg' -o -iname '*.pkg' -o -iname '*.exe' -o -iname '*.msi' -o -iname '*.zip' \) | grep -q .
+      - name: Install pinned Cloudflare deployment client
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --prefix "$WRANGLER_ROOT" --ignore-scripts --no-audit --no-fund wrangler@4.129.0
+          "$WRANGLER_ROOT/node_modules/.bin/wrangler" --version
+      - name: Deploy exact static application worker without moving domain authority
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$WRANGLER_ROOT/node_modules/.bin/wrangler" deploy --config "$AXIOM_DEPLOY_DIR/wrangler.json"
+      - name: Preserve or provision the HttpOnly session signing secret
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+          CLOUDFLARE_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY' > /tmp/axiom-session-secret-status
+          import json,os,urllib.parse,urllib.request
+          headers={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY'],'Accept':'application/json'}
+          service=urllib.parse.quote(os.environ['AXIOM_BROWSER_WORKER'],safe='')
+          request=urllib.request.Request(f"https://api.cloudflare.com/client/v4/accounts/{os.environ['CLOUDFLARE_ACCOUNT_ID']}/workers/scripts/{service}/settings",headers=headers)
+          with urllib.request.urlopen(request,timeout=30) as response:body=json.load(response)
+          if not body.get('success'):raise SystemExit('Worker settings read failed')
+          bindings=body.get('result',{}).get('bindings') or []
+          print('present' if any(row.get('name')=='AXIOM_BROWSER_SESSION_SECRET' and row.get('type') in ('secret_text','secret') for row in bindings) else 'missing')
+          PY
+          if grep -qx missing /tmp/axiom-session-secret-status; then
+            SESSION_VALUE="$(python -c 'import secrets; print(secrets.token_urlsafe(64))')"
+            echo "::add-mask::$SESSION_VALUE"
+            printf '%s' "$SESSION_VALUE" | "$WRANGLER_ROOT/node_modules/.bin/wrangler" secret put AXIOM_BROWSER_SESSION_SECRET --config "$AXIOM_DEPLOY_DIR/wrangler.json"
+          else
+            grep -qx present /tmp/axiom-session-secret-status
+            echo 'Existing AXIOM browser session secret preserved.'
+          fi
+      - name: Re-deploy exact source with the required-secret contract
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json,os,pathlib
+          path=pathlib.Path(os.environ['AXIOM_DEPLOY_DIR'],'wrangler.json')
+          config=json.loads(path.read_text())
+          config['secrets']={'required':['AXIOM_BROWSER_SESSION_SECRET']}
+          path.write_text(json.dumps(config,indent=2,sort_keys=True)+'\n')
+          PY
+          "$WRANGLER_ROOT/node_modules/.bin/wrangler" deploy --config "$AXIOM_DEPLOY_DIR/wrangler.json"
+      - name: Activate isolated domain routes and verify real account integration
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+          OPENAI_REVIEWER_ACCOUNT_KEY: ${{ secrets.OPENAI_REVIEWER_ACCOUNT_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$OPENAI_REVIEWER_ACCOUNT_KEY"
+          echo "::add-mask::$OPENAI_REVIEWER_ACCOUNT_KEY"
+          python ops/axiom_browser_application_deploy.py activate --source-sha "$GITHUB_SHA" --preflight "$AXIOM_EVIDENCE_DIR/preflight.json" --evidence-dir "$AXIOM_EVIDENCE_DIR"
+      - name: Upload production deployment evidence without erasing failures
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: musitu-axiom-browser-application-production-deployment
+          path: |
+            /tmp/axiom-browser-application-production/**
+            /tmp/axiom-browser-application-dist/build-manifest.json
+          retention-days: 30
+          if-no-files-found: warn
   browser-launch-session-pwa-and-inherited-regression:
     runs-on: ubuntu-24.04
     timeout-minutes: 115

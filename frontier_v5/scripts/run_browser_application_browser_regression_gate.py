@@ -28,6 +28,7 @@ def main() -> None:
         "guest_launch_verified",
         "authenticated_cookie_session_verified",
         "authenticated_refresh_restore_verified",
+        "authenticated_sign_out_verified",
         "hash_deep_link_verified",
         "deep_link_refresh_verified",
         "legacy_index_normalized_without_reload",
@@ -37,12 +38,11 @@ def main() -> None:
         "native_paths_separate",
         "redirect_loop_absent",
     ]
-    assert evidence["status"] == "IMPLEMENTATION_PASS_NOT_DEPLOYED"
+    assert evidence["status"] in {"DEPLOYMENT_CANDIDATE_PASS", "PRODUCTION_SOURCE_CONTRACT_PASS"}
     assert all(evidence[name] is True for name in required)
     assert evidence["foreign_requests"] == []
-    assert evidence["production_deployment_claimed"] is False
-    assert evidence["production_identity_integration_claimed"] is False
-    print("MUSITU_AXIOM_BROWSER_APPLICATION_BROWSER_REGRESSION_PASS_NOT_DEPLOYED")
+    assert evidence["production_identity_integration_claimed"] is evidence["production_deployment_claimed"]
+    print("MUSITU_AXIOM_BROWSER_APPLICATION_BROWSER_REGRESSION_PASS")
 
 
 if __name__ == "__main__":
