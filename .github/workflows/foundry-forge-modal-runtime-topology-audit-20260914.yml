@@ -26,72 +26,47 @@ jobs:
         with:
           python-version: '3.13'
 
-      - name: Install Modal CLI and authenticate read-only probe
+      - name: Install Modal CLI and authenticate targeted read-only probe
         shell: bash
         run: |
           set -euo pipefail
           test -n "$MODAL_TOKEN_ID"
           test -n "$MODAL_TOKEN_SECRET"
           python -m pip install --disable-pip-version-check --quiet 'modal>=1.5,<2'
-          modal app list --json > /tmp/apps.json
-          modal volume list --json > /tmp/volumes.json
+          modal app history "$TARGET_APP" --json > /tmp/app-history.json
+          modal volume ls "$TARGET_VOLUME" / --json > /tmp/volume-root.json
 
-      - name: Resolve exact FORGE app and persistent volume
+      - name: Resolve exact FORGE app without workspace inventory
         shell: bash
         run: |
           set -euo pipefail
           python - <<'PY'
-          import json, os, pathlib
+          import json, os, pathlib, re
 
+          doc=json.load(open('/tmp/app-history.json'))
+          ids=[]
           def walk(value):
-              if isinstance(value, dict):
-                  yield value
+              if isinstance(value, str) and re.fullmatch(r'ap-[A-Za-z0-9_-]+', value):
+                  if value not in ids:
+                      ids.append(value)
+              elif isinstance(value, dict):
                   for child in value.values():
-                      yield from walk(child)
+                      walk(child)
               elif isinstance(value, list):
                   for child in value:
-                      yield from walk(child)
-
-          def exact_record(doc, target):
-              rows=[]
-              for row in walk(doc):
-                  if target in [v for v in row.values() if isinstance(v, str)]:
-                      rows.append(row)
-              if len(rows) != 1:
-                  raise SystemExit(f'exact_record_count_{target}_{len(rows)}')
-              return rows[0]
-
-          def first_prefixed(value, prefix):
-              if isinstance(value, str) and value.startswith(prefix):
-                  return value
-              if isinstance(value, dict):
-                  for child in value.values():
-                      hit=first_prefixed(child, prefix)
-                      if hit:
-                          return hit
-              if isinstance(value, list):
-                  for child in value:
-                      hit=first_prefixed(child, prefix)
-                      if hit:
-                          return hit
-              return None
-
-          app=exact_record(json.load(open('/tmp/apps.json')), os.environ['TARGET_APP'])
-          volume=exact_record(json.load(open('/tmp/volumes.json')), os.environ['TARGET_VOLUME'])
-          app_id=first_prefixed(app, 'ap-')
-          volume_id=first_prefixed(volume, 'vo-')
-          if not app_id:
-              raise SystemExit('target_app_id_not_found')
-          if not volume_id:
-              raise SystemExit('target_volume_id_not_found')
+                      walk(child)
+          walk(doc)
+          if len(ids) != 1:
+              raise SystemExit(f'target_app_id_count_{len(ids)}')
+          app_id=ids[0]
           pathlib.Path('/tmp/app-id').write_text(app_id)
           safe={
               'schema':'musitu.foundry_forge.modal_runtime_topology_audit.v1',
               'target_app':os.environ['TARGET_APP'],
               'target_app_id':app_id,
               'target_volume':os.environ['TARGET_VOLUME'],
-              'target_volume_id':volume_id,
-              'workspace_inventory_disclosed':False,
+              'target_volume_resolved':True,
+              'workspace_inventory_read':False,
               'write_performed':False,
           }
           pathlib.Path('/tmp/topology-base.json').write_text(json.dumps(safe, sort_keys=True))
@@ -136,7 +111,8 @@ jobs:
           found=[]
           def walk(value):
               if isinstance(value, str) and re.fullmatch(r'ta-[A-Za-z0-9_-]+', value):
-                  found.append(value)
+                  if value not in found:
+                      found.append(value)
               elif isinstance(value, dict):
                   for child in value.values():
                       walk(child)
@@ -144,13 +120,9 @@ jobs:
                   for child in value:
                       walk(child)
           walk(doc)
-          ids=[]
-          for value in found:
-              if value not in ids:
-                  ids.append(value)
-          if not ids:
+          if not found:
               raise SystemExit('active_forge_container_not_found_after_wake')
-          pathlib.Path('/tmp/container-id').write_text(ids[0])
+          pathlib.Path('/tmp/container-id').write_text(found[0])
           print('FORGE_CONTAINER_RESOLVED=true')
           PY
 
