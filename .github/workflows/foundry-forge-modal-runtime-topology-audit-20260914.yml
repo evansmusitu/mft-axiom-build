@@ -1,4 +1,4 @@
-name: MUSITU Foundry FORGE Modal Runtime Topology Audit
+name: MUSITU Foundry FORGE Modal Namespace Audit
 
 on:
   workflow_dispatch:
@@ -28,37 +28,15 @@ jobs:
         with:
           python-version: '3.13'
 
-      - name: Resolve exact Modal objects
+      - name: Install Modal client
         shell: bash
         run: |
           set -euo pipefail
           test -n "$MODAL_TOKEN_ID"
           test -n "$MODAL_TOKEN_SECRET"
           python -m pip install --disable-pip-version-check --quiet 'modal>=1.5,<2'
-          python - <<'PY'
-          import json, modal, os, pathlib
-          app=modal.App.lookup(os.environ['TARGET_APP'], create_if_missing=False)
-          app_id=app.app_id
-          if not isinstance(app_id,str) or not app_id.startswith('ap-'):
-              raise SystemExit('target_app_id_missing')
-          volume=modal.Volume.from_name(os.environ['TARGET_VOLUME'], create_if_missing=False)
-          volume.hydrate()
-          volume_id=volume.object_id
-          if not isinstance(volume_id,str) or not volume_id.startswith('vo-'):
-              raise SystemExit('target_volume_id_missing')
-          pathlib.Path('/tmp/app-id').write_text(app_id)
-          pathlib.Path('/tmp/topology-base.json').write_text(json.dumps({
-              'schema':'musitu.foundry_forge.modal_runtime_topology_audit.v2',
-              'target_app':os.environ['TARGET_APP'],
-              'target_app_id':app_id,
-              'target_volume':os.environ['TARGET_VOLUME'],
-              'target_volume_id':volume_id,
-              'workspace_inventory_read':False,
-              'write_performed':False,
-          },sort_keys=True))
-          PY
 
-      - name: Collect hashed edge/function and public-health diagnostics
+      - name: Read current Cloudflare origin and public contract independently
         env:
           CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
           CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
@@ -66,175 +44,183 @@ jobs:
         run: |
           set -euo pipefail
           python - <<'PY'
-          import hashlib,json,modal,os,pathlib,ssl,urllib.error,urllib.request
-          out={'edge_modal_origin_matches_live_function':False,'public_health_pass':False}
-          try:
-              fn_url=modal.Function.from_name(os.environ['TARGET_APP'],os.environ['TARGET_FUNCTION']).get_web_url()
-              if not isinstance(fn_url,str) or not fn_url.startswith('https://'):
-                  raise RuntimeError('modal_function_url_missing')
-              fn_norm=fn_url.rstrip('/')
-              out['live_function_origin_sha256']=hashlib.sha256(fn_norm.encode()).hexdigest()
-              if not os.environ.get('CLOUDFLARE_EMAIL') or not os.environ.get('CLOUDFLARE_GLOBAL_API_KEY'):
-                  raise RuntimeError('cloudflare_credentials_missing')
-              settings=f"{os.environ['CF_API']}/accounts/{os.environ['CF_ACCOUNT_ID']}/workers/scripts/{os.environ['CF_WORKER_NAME']}/settings"
-              headers={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY']}
-              with urllib.request.urlopen(urllib.request.Request(settings,headers=headers),timeout=30) as response:
-                  body=json.load(response)
-              if not body.get('success'):
-                  raise RuntimeError('cloudflare_settings_read_failed')
-              matches=[]
-              for binding in (body.get('result') or {}).get('bindings') or []:
-                  if isinstance(binding,dict) and binding.get('name')=='MODAL_ORIGIN':
-                      value=binding.get('text') if binding.get('text') is not None else binding.get('value')
-                      if isinstance(value,str): matches.append(value.rstrip('/'))
-              out['edge_modal_origin_binding_count']=len(matches)
-              if len(matches)!=1:
-                  raise RuntimeError('modal_origin_binding_count_invalid')
-              out['edge_modal_origin_sha256']=hashlib.sha256(matches[0].encode()).hexdigest()
-              out['edge_modal_origin_matches_live_function']=(matches[0]==fn_norm)
-          except Exception as exc:
-              out['edge_probe_error']=type(exc).__name__+':'+str(exc)
-
-          try:
-              ctx=ssl.create_default_context()
-              req=urllib.request.Request(os.environ['PUBLIC_ORIGIN']+'/v1/health',headers={'Accept':'application/json','User-Agent':'MUSITU-FORGE-topology-audit/2'})
-              with urllib.request.urlopen(req,context=ctx,timeout=30) as response:
-                  raw=response.read(131073); status=response.status
-              if len(raw)>131072: raise RuntimeError('health_response_too_large')
-              health=json.loads(raw)
-              out['public_health_status']=status
-              out['public_health_body_sha256']=hashlib.sha256(raw).hexdigest()
-              out['public_health']={k:health.get(k) for k in (
-                  'schema','status','video_derivation_runtime_configured','field_dataset_admission_configured',
-                  'expert_review_projection_configured','fault_episode_submission_configured','production_authorized')}
-              out['public_health_pass']=(status==200 and health.get('schema')=='musitu.forge.health.v1' and health.get('status')=='READY' and health.get('production_authorized') is False)
-          except Exception as exc:
-              out['public_health_error']=type(exc).__name__+':'+str(exc)
-          pathlib.Path('/tmp/connectivity.json').write_text(json.dumps(out,sort_keys=True))
+          import hashlib,json,os,pathlib,ssl,urllib.request
+          test_email=os.environ.get('CLOUDFLARE_EMAIL','')
+          test_key=os.environ.get('CLOUDFLARE_GLOBAL_API_KEY','')
+          if not test_email or not test_key: raise SystemExit('cloudflare_credentials_missing')
+          settings=f"{os.environ['CF_API']}/accounts/{os.environ['CF_ACCOUNT_ID']}/workers/scripts/{os.environ['CF_WORKER_NAME']}/settings"
+          headers={'X-Auth-Email':test_email,'X-Auth-Key':test_key}
+          with urllib.request.urlopen(urllib.request.Request(settings,headers=headers),timeout=30) as response:
+              body=json.load(response)
+          if not body.get('success'): raise SystemExit('cloudflare_settings_read_failed')
+          vals=[]
+          for b in (body.get('result') or {}).get('bindings') or []:
+              if isinstance(b,dict) and b.get('name')=='MODAL_ORIGIN':
+                  value=b.get('text') if b.get('text') is not None else b.get('value')
+                  if isinstance(value,str): vals.append(value.rstrip('/'))
+          if len(vals)!=1: raise SystemExit(f'modal_origin_binding_count_{len(vals)}')
+          pathlib.Path('/tmp/edge-origin').write_text(vals[0])
+          edge_hash=hashlib.sha256(vals[0].encode()).hexdigest()
+          req=urllib.request.Request(os.environ['PUBLIC_ORIGIN']+'/v1/health',headers={'Accept':'application/json','User-Agent':'MUSITU-FORGE-namespace-audit/1'})
+          with urllib.request.urlopen(req,context=ssl.create_default_context(),timeout=30) as response:
+              raw=response.read(131073); status=response.status
+          if len(raw)>131072: raise SystemExit('public_health_too_large')
+          h=json.loads(raw)
+          public_ok=(status==200 and h.get('schema')=='musitu.forge.health.v1' and h.get('status')=='READY' and h.get('production_authorized') is False)
+          if not public_ok: raise SystemExit('public_health_contract_failed')
+          out={'edge_origin_sha256':edge_hash,'public_health_status':status,'public_health_body_sha256':hashlib.sha256(raw).hexdigest(),'public_health_contract_pass':True,'public_capability_flags':{k:h.get(k) for k in ('video_derivation_runtime_configured','field_dataset_admission_configured','expert_review_projection_configured','fault_episode_submission_configured','production_authorized')}}
+          pathlib.Path('/tmp/edge-public.json').write_text(json.dumps(out,sort_keys=True))
           print(json.dumps(out,sort_keys=True))
           PY
 
-      - name: Resolve active container without aborting diagnostics
+      - name: Discover exact Modal environment containing live function
         shell: bash
         run: |
-          set -uo pipefail
-          APP_ID="$(cat /tmp/app-id)"
-          if modal container list --app-id "$APP_ID" --json > /tmp/containers.json 2>/tmp/container-list.err; then
-            python - <<'PY'
-          import json,pathlib,re
-          doc=json.load(open('/tmp/containers.json'))
-          ids=[]
-          def walk(v):
-              if isinstance(v,str) and re.fullmatch(r'ta-[A-Za-z0-9_-]+',v):
-                  if v not in ids: ids.append(v)
-              elif isinstance(v,dict):
-                  for x in v.values(): walk(x)
-              elif isinstance(v,list):
-                  for x in v: walk(x)
-          walk(doc)
-          out={'container_list_command_pass':True,'active_container_count':len(ids),'active_container_resolved':bool(ids)}
-          if ids: pathlib.Path('/tmp/container-id').write_text(ids[0])
-          pathlib.Path('/tmp/container-resolution.json').write_text(json.dumps(out,sort_keys=True))
-          print(json.dumps(out,sort_keys=True))
-          PY
-          else
-            python - <<'PY'
-          import json,pathlib
-          out={'container_list_command_pass':False,'active_container_count':0,'active_container_resolved':False}
-          pathlib.Path('/tmp/container-resolution.json').write_text(json.dumps(out,sort_keys=True))
-          print(json.dumps(out,sort_keys=True))
-          PY
-          fi
-
-      - name: Probe selected runtime readiness if container is active
-        shell: bash
-        run: |
-          set -uo pipefail
-          if [ ! -s /tmp/container-id ]; then
-            printf '%s\n' '{"runtime_probe_executed":false,"runtime_probe_pass":false,"reason":"no_active_target_container"}' > /tmp/runtime-probe.json
-            exit 0
-          fi
-          cat > /tmp/forge_probe.py <<'PY'
-          import hashlib,json,os,pathlib
-          names=[
-              'FORGE_FIELD_DATASET_ROOT','FORGE_EXPERT_CREDENTIAL_CUSTODY_ROOT','FORGE_EXPERT_REVIEW_CUSTODY_ROOT',
-              'FORGE_FAULT_EPISODE_ROOT','FORGE_VIDEO_DERIVATION_ROOT','FORGE_VIDEO_DERIVATION_ADAPTER_SHA256',
-              'FORGE_FFMPEG_FILE','FORGE_FFMPEG_SHA256','FORGE_FFPROBE_FILE','FORGE_FFPROBE_SHA256',
-          ]
-          out={'runtime_probe_executed':True,'runtime_probe_pass':True,'selected_env':{},
-               'persistent_mount_present':pathlib.Path('/var/lib/musitu-forge').is_dir(),
-               'runtime_manifest_present':pathlib.Path('/opt/forge/runtime/FORGE_DEPLOY_RUNTIME_MANIFEST.json').is_file(),
-               'media_candidates':[]}
-          for name in names:
-              value=os.environ.get(name,'').strip(); row={'configured':bool(value)}
-              if name.endswith('_ROOT') and value:
-                  path=pathlib.Path(value).expanduser(); text=str(path)
-                  row.update({'is_dir':path.is_dir(),'under_persistent_mount':text=='/var/lib/musitu-forge' or text.startswith('/var/lib/musitu-forge/')})
-              if name in ('FORGE_FFMPEG_FILE','FORGE_FFPROBE_FILE') and value:
-                  path=pathlib.Path(value).expanduser(); row['is_file']=path.is_file()
-                  if path.is_file(): row.update({'sha256':hashlib.sha256(path.read_bytes()).hexdigest(),'size_bytes':path.stat().st_size})
-              out['selected_env'][name]=row
-          seen=set(); candidates=[pathlib.Path('/usr/bin/ffmpeg'),pathlib.Path('/usr/bin/ffprobe')]
-          runtime=pathlib.Path('/opt/forge/runtime')
-          if runtime.is_dir(): candidates += list(runtime.rglob('ffmpeg')) + list(runtime.rglob('ffprobe'))
-          for path in candidates:
+          set -euo pipefail
+          python - <<'PY'
+          import hashlib,json,modal,os,pathlib
+          edge=pathlib.Path('/tmp/edge-origin').read_text().strip().rstrip('/')
+          envs=modal.Environment.objects.list()
+          checked=[]; matches=[]; app_hits=[]
+          for obj in envs:
+              name=getattr(obj,'name',None)
+              if callable(name): name=name()
+              if not isinstance(name,str) or not name: continue
+              row={'environment':name,'app_present':False,'function_present':False,'origin_matches_edge':False}
               try:
-                  if path.is_file():
-                      digest=hashlib.sha256(path.read_bytes()).hexdigest(); key=(path.name,digest,path.stat().st_size)
-                      if key not in seen:
-                          seen.add(key); out['media_candidates'].append({'name':path.name,'sha256':digest,'size_bytes':path.stat().st_size})
-              except Exception: pass
-          print('FORGE_RUNTIME_PROBE_JSON='+json.dumps(out,sort_keys=True))
+                  app=modal.App.lookup(os.environ['TARGET_APP'],environment_name=name,create_if_missing=False)
+                  aid=app.app_id
+                  if isinstance(aid,str) and aid.startswith('ap-'):
+                      row['app_present']=True; row['app_id']=aid; app_hits.append(name)
+              except Exception as exc:
+                  row['app_lookup_error_type']=type(exc).__name__
+                  checked.append(row); continue
+              try:
+                  url=modal.Function.from_name(os.environ['TARGET_APP'],os.environ['TARGET_FUNCTION'],environment_name=name).get_web_url()
+                  if isinstance(url,str) and url.startswith('https://'):
+                      norm=url.rstrip('/'); row['function_present']=True; row['function_origin_sha256']=hashlib.sha256(norm.encode()).hexdigest(); row['origin_matches_edge']=(norm==edge)
+                      if row['origin_matches_edge']: matches.append(name)
+              except Exception as exc:
+                  row['function_lookup_error_type']=type(exc).__name__
+              checked.append(row)
+          out={'environment_count':len(envs),'target_app_environment_count':len(app_hits),'live_function_match_count':len(matches),'live_function_environment':matches[0] if len(matches)==1 else None,'environments':checked}
+          pathlib.Path('/tmp/environment-scan.json').write_text(json.dumps(out,sort_keys=True))
+          print(json.dumps(out,sort_keys=True))
           PY
-          PROBE_B64="$(base64 -w0 /tmp/forge_probe.py)"
-          CID="$(cat /tmp/container-id)"
-          if modal container exec --no-pty "$CID" python3 -c "import base64;exec(base64.b64decode('$PROBE_B64'))" > /tmp/container-probe.log 2>/tmp/container-probe.err; then
-            grep '^FORGE_RUNTIME_PROBE_JSON=' /tmp/container-probe.log | tail -1 | sed 's/^FORGE_RUNTIME_PROBE_JSON=//' > /tmp/runtime-probe.json
-            if [ ! -s /tmp/runtime-probe.json ]; then printf '%s\n' '{"runtime_probe_executed":true,"runtime_probe_pass":false,"reason":"probe_output_missing"}' > /tmp/runtime-probe.json; fi
-          else
-            printf '%s\n' '{"runtime_probe_executed":true,"runtime_probe_pass":false,"reason":"container_exec_failed"}' > /tmp/runtime-probe.json
-          fi
-          cat /tmp/runtime-probe.json
 
-      - name: Seal diagnostics before verdict
+      - name: Inspect deployment history only for environments containing target app
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json,pathlib,subprocess
+          scan=json.load(open('/tmp/environment-scan.json'))
+          result=[]
+          for row in scan.get('environments',[]):
+              if not row.get('app_present'): continue
+              env=row['environment']
+              p=subprocess.run(['modal','app','history','musitu-forge-private-staging','--env',env,'--json'],capture_output=True,text=True)
+              safe={'environment':env,'history_command_rc':p.returncode,'history_stdout_sha256':None,'candidate_versions':[]}
+              import hashlib
+              safe['history_stdout_sha256']=hashlib.sha256(p.stdout.encode()).hexdigest()
+              if p.returncode==0:
+                  try:
+                      doc=json.loads(p.stdout)
+                      versions=[]
+                      def walk(v,key=''):
+                          if isinstance(v,dict):
+                              for k,x in v.items():
+                                  lk=k.lower()
+                                  if isinstance(x,int) and ('version' in lk or lk in ('revision','revision_number')): versions.append(x)
+                                  walk(x,k)
+                          elif isinstance(v,list):
+                              for x in v: walk(x,key)
+                      walk(doc)
+                      safe['candidate_versions']=sorted(set(versions))
+                      safe['history_json_type']=type(doc).__name__
+                      safe['history_entry_count']=len(doc) if isinstance(doc,list) else None
+                  except Exception as exc: safe['history_parse_error_type']=type(exc).__name__
+              else:
+                  safe['history_error_sha256']=hashlib.sha256(p.stderr.encode()).hexdigest()
+              result.append(safe)
+          pathlib.Path('/tmp/history-scan.json').write_text(json.dumps({'app_histories':result},sort_keys=True))
+          print(pathlib.Path('/tmp/history-scan.json').read_text())
+          PY
+
+      - name: Resolve active container and classify exec behavior
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json,pathlib,subprocess,re,hashlib
+          scan=json.load(open('/tmp/environment-scan.json'))
+          rows=[]
+          for envrow in scan.get('environments',[]):
+              if not envrow.get('app_present'): continue
+              env=envrow['environment']; aid=envrow['app_id']
+              p=subprocess.run(['modal','container','list','--app-id',aid,'--env',env,'--json'],capture_output=True,text=True)
+              item={'environment':env,'list_rc':p.returncode,'container_count':0,'exec_true_pass':False}
+              if p.returncode==0:
+                  try:
+                      doc=json.loads(p.stdout); ids=[]
+                      def walk(v):
+                          if isinstance(v,str) and re.fullmatch(r'ta-[A-Za-z0-9_-]+',v):
+                              if v not in ids: ids.append(v)
+                          elif isinstance(v,dict):
+                              for x in v.values(): walk(x)
+                          elif isinstance(v,list):
+                              for x in v: walk(x)
+                      walk(doc); item['container_count']=len(ids)
+                      if ids:
+                          q=subprocess.run(['modal','container','exec','--no-pty',ids[0],'/bin/true'],capture_output=True,text=True)
+                          item['exec_true_pass']=(q.returncode==0); item['exec_rc']=q.returncode; item['exec_stderr_sha256']=hashlib.sha256(q.stderr.encode()).hexdigest()
+                          low=q.stderr.lower()
+                          categories=[]
+                          for token in ('not found','permission','forbidden','stopped','terminated','not running','sandbox','function','container'):
+                              if token in low: categories.append(token.replace(' ','_'))
+                          item['exec_error_categories']=categories
+                  except Exception as exc: item['parse_error_type']=type(exc).__name__
+              else: item['list_stderr_sha256']=hashlib.sha256(p.stderr.encode()).hexdigest()
+              rows.append(item)
+          pathlib.Path('/tmp/container-scan.json').write_text(json.dumps({'app_container_scans':rows},sort_keys=True))
+          print(pathlib.Path('/tmp/container-scan.json').read_text())
+          PY
+
+      - name: Seal namespace diagnostic
         if: always()
         shell: bash
         run: |
           set -euo pipefail
           python - <<'PY'
           import json,pathlib
-          def load(path,default):
-              try:return json.loads(pathlib.Path(path).read_text())
-              except Exception:return default
-          base=load('/tmp/topology-base.json',{'schema':'musitu.foundry_forge.modal_runtime_topology_audit.v2','write_performed':False})
-          connectivity=load('/tmp/connectivity.json',{})
-          containers=load('/tmp/container-resolution.json',{})
-          runtime=load('/tmp/runtime-probe.json',{})
-          strict_pass=bool(connectivity.get('edge_modal_origin_matches_live_function') and connectivity.get('public_health_pass') and containers.get('active_container_resolved') and runtime.get('runtime_probe_pass'))
-          out={**base,'connectivity':connectivity,'container_resolution':containers,'runtime_probe':runtime,'strict_topology_audit_pass':strict_pass,'result':'PASS' if strict_pass else 'DIAGNOSTIC_FAILURE'}
-          pathlib.Path('foundry-forge-modal-runtime-topology-audit.json').write_text(json.dumps(out,indent=2,sort_keys=True)+'\n')
+          def load(p,d):
+              try:return json.loads(pathlib.Path(p).read_text())
+              except Exception:return d
+          out={'schema':'musitu.foundry_forge.modal_namespace_audit.v1','write_performed':False,'edge_public':load('/tmp/edge-public.json',{}),'environment_scan':load('/tmp/environment-scan.json',{}),'history_scan':load('/tmp/history-scan.json',{}),'container_scan':load('/tmp/container-scan.json',{})}
+          out['live_namespace_resolved']=bool(out['environment_scan'].get('live_function_match_count')==1)
+          out['result']='PASS' if out['live_namespace_resolved'] else 'DIAGNOSTIC_FAILURE'
+          pathlib.Path('foundry-forge-modal-namespace-audit.json').write_text(json.dumps(out,indent=2,sort_keys=True)+'\n')
           PY
-          sha256sum foundry-forge-modal-runtime-topology-audit.json > foundry-forge-modal-runtime-topology-audit.sha256
+          sha256sum foundry-forge-modal-namespace-audit.json > foundry-forge-modal-namespace-audit.sha256
 
-      - name: Upload topology diagnostics
+      - name: Upload namespace diagnostic
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: musitu-foundry-forge-modal-runtime-topology-audit-20260914
+          name: musitu-foundry-forge-modal-namespace-audit-20260914
           path: |
-            foundry-forge-modal-runtime-topology-audit.json
-            foundry-forge-modal-runtime-topology-audit.sha256
+            foundry-forge-modal-namespace-audit.json
+            foundry-forge-modal-namespace-audit.sha256
           retention-days: 14
           if-no-files-found: error
 
-      - name: Enforce strict topology verdict
+      - name: Enforce namespace verdict
         if: always()
         shell: bash
         run: |
           python - <<'PY'
           import json
-          x=json.load(open('foundry-forge-modal-runtime-topology-audit.json'))
-          if x.get('strict_topology_audit_pass') is not True:
-              raise SystemExit('strict_topology_audit_not_passed')
-          print('STRICT_TOPOLOGY_AUDIT_PASS')
+          x=json.load(open('foundry-forge-modal-namespace-audit.json'))
+          if x.get('live_namespace_resolved') is not True: raise SystemExit('live_modal_namespace_not_resolved')
+          print('LIVE_MODAL_NAMESPACE_RESOLVED')
           PY
