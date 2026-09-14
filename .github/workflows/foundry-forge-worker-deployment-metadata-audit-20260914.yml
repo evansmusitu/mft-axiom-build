@@ -1,0 +1,103 @@
+name: MUSITU Foundry FORGE Worker Deployment Metadata Audit
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/foundry-forge-worker-deployment-metadata-audit-20260914.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      CF_API: https://api.cloudflare.com/client/v4
+      ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      WORKER_NAME: musitu-forge-edge
+      EXPECTED_SOURCE_SHA256: 76579eedd3736bbec43fee065c84ba9c553f982d36117c1cbe54a56671f12222
+    steps:
+      - name: Read script settings and multipart metadata safely
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import hashlib,json,os,urllib.request
+          from datetime import datetime,timezone
+          from email.parser import BytesParser
+          from email.policy import default
+
+          base=os.environ['CF_API']; aid=os.environ['ACCOUNT_ID']; name=os.environ['WORKER_NAME']
+          h={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY']}
+          root=f'{base}/accounts/{aid}/workers/scripts/{name}'
+          with urllib.request.urlopen(urllib.request.Request(root,headers=h),timeout=30) as r:
+            raw=r.read(); ctype=r.headers.get('Content-Type','')
+          with urllib.request.urlopen(urllib.request.Request(root+'/settings',headers=h),timeout=30) as r:
+            settings=json.load(r)
+          if not settings.get('success'): raise SystemExit('settings_read_failed')
+          sr=settings.get('result') or {}
+
+          meta=None; source=None; source_name=None
+          msg=BytesParser(policy=default).parsebytes((f'Content-Type: {ctype}\r\nMIME-Version: 1.0\r\n\r\n').encode()+raw)
+          for part in msg.iter_parts():
+            payload=part.get_payload(decode=True) or b''
+            pname=part.get_param('name',header='content-disposition') or part.get_filename() or ''
+            ptype=part.get_content_type()
+            if pname=='metadata':
+              meta=json.loads(payload.decode('utf-8'))
+            elif ptype in ('application/javascript','text/javascript','application/typescript','text/plain') or pname.endswith(('.js','.mjs','.ts')):
+              if source is None or len(payload)>len(source): source=payload; source_name=pname
+          if source is None: raise SystemExit('source_not_found')
+          got=hashlib.sha256(source).hexdigest()
+          if got!=os.environ['EXPECTED_SOURCE_SHA256']: raise SystemExit('source_sha_changed')
+          if not isinstance(meta,dict): raise SystemExit('multipart_metadata_missing')
+
+          def safe_binding(b):
+            out={'name':b.get('name'),'type':b.get('type')}
+            for k in ('namespace_id','database_id','bucket_name','service','environment'):
+              if b.get(k) is not None: out[k]=b.get(k)
+            if b.get('type') in ('plain_text','plain_text_blob'):
+              val=b.get('text') if b.get('text') is not None else b.get('value')
+              if isinstance(val,str): out['value_sha256']=hashlib.sha256(val.encode()).hexdigest(); out['value_length']=len(val)
+            return out
+          settings_bindings=sorted([safe_binding(b) for b in (sr.get('bindings') or []) if isinstance(b,dict)],key=lambda x:str(x.get('name')))
+          meta_bindings=sorted([safe_binding(b) for b in (meta.get('bindings') or []) if isinstance(b,dict)],key=lambda x:str(x.get('name')))
+          out={
+            'schema':'musitu.foundry_forge.worker_deployment_metadata_audit.v1',
+            'observed_at':datetime.now(timezone.utc).isoformat(),
+            'worker_name':name,
+            'source_name':source_name,
+            'source_sha256':got,
+            'source_size':len(source),
+            'settings_compatibility_date':sr.get('compatibility_date'),
+            'settings_compatibility_flags':sr.get('compatibility_flags'),
+            'settings_usage_model':sr.get('usage_model'),
+            'settings_bindings':settings_bindings,
+            'multipart_metadata_main_module':meta.get('main_module'),
+            'multipart_metadata_body_part':meta.get('body_part'),
+            'multipart_metadata_compatibility_date':meta.get('compatibility_date'),
+            'multipart_metadata_compatibility_flags':meta.get('compatibility_flags'),
+            'multipart_metadata_usage_model':meta.get('usage_model'),
+            'multipart_metadata_bindings':meta_bindings,
+            'multipart_metadata_keys':sorted(meta),
+            'write_performed':False,
+            'production_authorized':False,
+          }
+          open('foundry-forge-worker-deployment-metadata-audit.json','w').write(json.dumps(out,indent=2,sort_keys=True)+'\n')
+          print(json.dumps(out,sort_keys=True))
+          PY
+      - name: Seal metadata evidence
+        run: sha256sum foundry-forge-worker-deployment-metadata-audit.json > foundry-forge-worker-deployment-metadata-audit.sha256
+      - uses: actions/upload-artifact@v4
+        with:
+          name: musitu-foundry-forge-worker-deployment-metadata-audit-20260914
+          path: |
+            foundry-forge-worker-deployment-metadata-audit.json
+            foundry-forge-worker-deployment-metadata-audit.sha256
+          retention-days: 7
+          if-no-files-found: error
