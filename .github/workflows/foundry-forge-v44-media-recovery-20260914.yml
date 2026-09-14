@@ -1,0 +1,176 @@
+name: MUSITU Foundry FORGE V44 Media Recovery
+
+on:
+  push:
+    paths:
+      - '.github/workflows/foundry-forge-v44-media-recovery-20260914.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  recover:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      EXPECTED_FFMPEG_SHA256: e8a8d46f5225f3062cec7c07fb145d58ae73c603cb740dcd5bad34bfb54e455a
+      EXPECTED_FFPROBE_SHA256: cefc5f81c0b18429cdbf8fa5a89e1e9c759235e10f93f9b329ff1b2fdff26f46
+      EXPECTED_VERSION_SUBSTRING: 7.1.5-0+deb13u1
+      EXPECTED_NON_GLIBC_COUNT: '207'
+      SEALED_NON_GLIBC_INVENTORY_SHA256: c4ac0bf6c0b8010d80a5adf6ef9fec9b7b38d94d417d2f9c08f81faf5b0c66d3
+      SEALED_RESOLVED_PATH_INVENTORY_SHA256: 9cb93fb736ae9074b45f4ef3c85c67e1905b9034b169f0699829867fd165422c
+      SEALED_CLOSURE_MANIFEST_SHA256: 683920ab14d35838297969255ec23201974febef378a51eb13cfecef6ef1c620
+    steps:
+      - name: Recover exact Debian media package and closure candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p recovery
+          cat > /tmp/recover.sh <<'SH'
+          set -euo pipefail
+          export DEBIAN_FRONTEND=noninteractive
+          apt-get update
+          apt-cache policy ffmpeg | tee /work/apt-policy.txt
+          apt-get install -y --no-install-recommends ca-certificates python3 pax-utils "ffmpeg=7:7.1.5-0+deb13u1"
+          dpkg-query -W -f='${Package}\t${Version}\n' ffmpeg libavcodec61 libavdevice61 libavfilter10 libavformat61 libavutil59 libpostproc58 libswresample5 libswscale8 2>/dev/null | sort > /work/media-package-versions.tsv || true
+          ffmpeg -version | head -1 > /work/ffmpeg-version.txt
+          ffprobe -version | head -1 > /work/ffprobe-version.txt
+          sha256sum /usr/bin/ffmpeg /usr/bin/ffprobe > /work/media-executable-sha256.txt
+          python3 - <<'PY'
+          import hashlib,json,os,pathlib,subprocess,shutil
+          exp_ffmpeg=os.environ['EXPECTED_FFMPEG_SHA256']; exp_ffprobe=os.environ['EXPECTED_FFPROBE_SHA256']
+          exp_ver=os.environ['EXPECTED_VERSION_SUBSTRING']; exp_count=int(os.environ['EXPECTED_NON_GLIBC_COUNT'])
+          sealed_non=os.environ['SEALED_NON_GLIBC_INVENTORY_SHA256']; sealed_res=os.environ['SEALED_RESOLVED_PATH_INVENTORY_SHA256']; sealed_closure=os.environ['SEALED_CLOSURE_MANIFEST_SHA256']
+          def sha(p):
+              h=hashlib.sha256()
+              with open(p,'rb') as f:
+                  for c in iter(lambda:f.read(1024*1024),b''): h.update(c)
+              return h.hexdigest()
+          binaries={'ffmpeg':'/usr/bin/ffmpeg','ffprobe':'/usr/bin/ffprobe'}
+          observed={k:sha(v) for k,v in binaries.items()}
+          versions={k:subprocess.check_output([v,'-version'],text=True).splitlines()[0] for k,v in binaries.items()}
+          exact_binary_pins=(observed['ffmpeg']==exp_ffmpeg and observed['ffprobe']==exp_ffprobe and all(exp_ver in x for x in versions.values()))
+          glibc_names={'libc.so.6','libm.so.6','libresolv.so.2','ld-linux-x86-64.so.2'}
+          per={}; all_paths=set()
+          for name,p in binaries.items():
+              cp=subprocess.run(['lddtree','-l',p],capture_output=True,text=True,check=True)
+              paths=[]
+              for line in cp.stdout.splitlines():
+                  q=line.strip()
+                  if q and q.startswith('/') and os.path.exists(q) and os.path.realpath(q)!=os.path.realpath(p):
+                      paths.append(os.path.realpath(q))
+              per[name]=sorted(set(paths)); all_paths.update(paths)
+          resolved=sorted(all_paths)
+          non=[p for p in resolved if os.path.basename(p) not in glibc_names]
+          glibc=[p for p in resolved if os.path.basename(p) in glibc_names]
+          dest=pathlib.Path('/work/media-closure/opt/ffmpeg-libs'); dest.mkdir(parents=True,exist_ok=True)
+          collisions={}; copied=[]
+          for p in non:
+              base=os.path.basename(p); target=dest/base
+              if target.exists():
+                  if sha(target)!=sha(p): collisions.setdefault(base,[]).extend([str(target),p])
+              else: shutil.copy2(p,target)
+              copied.append({'source_path':p,'target_path':'/opt/ffmpeg-libs/'+base,'basename':base,'size_bytes':os.path.getsize(p),'sha256':sha(p)})
+          bindir=pathlib.Path('/work/media-closure/opt/ffmpeg-bin'); bindir.mkdir(parents=True,exist_ok=True)
+          shutil.copy2('/usr/bin/ffmpeg',bindir/'ffmpeg'); shutil.copy2('/usr/bin/ffprobe',bindir/'ffprobe')
+          copied=sorted(copied,key=lambda x:(x['target_path'],x['sha256']))
+          resolved_rows=sorted([{'path':p,'basename':os.path.basename(p),'size_bytes':os.path.getsize(p),'sha256':sha(p)} for p in resolved],key=lambda x:x['path'])
+          target_rows=sorted([{'path':x['target_path'],'size_bytes':x['size_bytes'],'sha256':x['sha256']} for x in copied],key=lambda x:x['path'])
+          def digest_json(v): return hashlib.sha256(json.dumps(v,sort_keys=True,separators=(',',':')).encode()).hexdigest()
+          def digest_lines(rows,fmt): return hashlib.sha256(''.join(fmt(r) for r in rows).encode()).hexdigest()
+          candidates={
+            'non_glibc_json_compact':digest_json(target_rows),
+            'non_glibc_sha_path_lines':digest_lines(target_rows,lambda r:f"{r['sha256']}  {r['path']}\n"),
+            'non_glibc_path_sha_size_tsv':digest_lines(target_rows,lambda r:f"{r['path']}\t{r['sha256']}\t{r['size_bytes']}\n"),
+            'non_glibc_sha_size_path_tsv':digest_lines(target_rows,lambda r:f"{r['sha256']}\t{r['size_bytes']}\t{r['path']}\n"),
+            'resolved_json_compact':digest_json(resolved_rows),
+            'resolved_sha_path_lines':digest_lines(resolved_rows,lambda r:f"{r['sha256']}  {r['path']}\n"),
+            'resolved_path_sha_size_tsv':digest_lines(resolved_rows,lambda r:f"{r['path']}\t{r['sha256']}\t{r['size_bytes']}\n"),
+          }
+          report={
+            'schema':'musitu.foundry_forge.v44_media_recovery.v1',
+            'package_requested':'ffmpeg=7:7.1.5-0+deb13u1',
+            'versions':versions,'executable_sha256':observed,'exact_binary_pins_match':exact_binary_pins,
+            'ffmpeg_and_ffprobe_resolve_same_paths':per['ffmpeg']==per['ffprobe'],
+            'resolved_loaded_path_count':len(resolved),'non_glibc_dependency_count':len(non),'glibc_component_count':len(glibc),
+            'copy_basename_collisions':collisions,'inventory_digest_candidates':candidates,
+            'sealed_reference':{'non_glibc_dependency_count':exp_count,'non_glibc_inventory_sha256':sealed_non,'resolved_path_inventory_sha256':sealed_res,'closure_manifest_sha256':sealed_closure},
+            'candidate_digest_matches':{k:(v in {sealed_non,sealed_res,sealed_closure}) for k,v in candidates.items()},
+            'fail_closed_gates':{
+              'exact_binary_pins':exact_binary_pins,
+              'same_recursive_dependency_paths':per['ffmpeg']==per['ffprobe'],
+              'non_glibc_count_matches_v44':len(non)==exp_count,
+              'no_copy_collisions':not collisions,
+            },
+            'claim_boundary':'Recovered bytes are only a deployment candidate unless every required V44 closure gate is independently reproduced; a version match alone is insufficient.'
+          }
+          pathlib.Path('/work/recovery-report.json').write_text(json.dumps(report,indent=2,sort_keys=True)+'\n')
+          pathlib.Path('/work/non-glibc-inventory.json').write_text(json.dumps(target_rows,indent=2,sort_keys=True)+'\n')
+          pathlib.Path('/work/resolved-path-inventory.json').write_text(json.dumps(resolved_rows,indent=2,sort_keys=True)+'\n')
+          print(json.dumps(report,sort_keys=True))
+          if not exact_binary_pins: raise SystemExit('V44_BINARY_PIN_MISMATCH')
+          if len(non)!=exp_count: raise SystemExit(f'V44_NON_GLIBC_COUNT_MISMATCH:{len(non)}')
+          if per['ffmpeg']!=per['ffprobe']: raise SystemExit('V44_RESOLVED_PATH_SET_MISMATCH_BETWEEN_EXECUTABLES')
+          if collisions: raise SystemExit('V44_LIBRARY_BASENAME_COLLISION')
+          PY
+          tar -C /work/media-closure -czf /work/v44-media-closure-candidate.tgz .
+          sha256sum /work/v44-media-closure-candidate.tgz > /work/v44-media-closure-candidate.tgz.sha256
+          SH
+          chmod +x /tmp/recover.sh
+          docker run --rm \
+            -e EXPECTED_FFMPEG_SHA256 -e EXPECTED_FFPROBE_SHA256 -e EXPECTED_VERSION_SUBSTRING -e EXPECTED_NON_GLIBC_COUNT \
+            -e SEALED_NON_GLIBC_INVENTORY_SHA256 -e SEALED_RESOLVED_PATH_INVENTORY_SHA256 -e SEALED_CLOSURE_MANIFEST_SHA256 \
+            -v "$PWD/recovery:/work" debian:13-slim bash /tmp/recover.sh || rc=$?
+          if [ "${rc:-0}" -ne 0 ]; then
+            echo "recovery_container_rc=${rc}" | tee recovery/RECOVERY_FAILURE.txt
+          fi
+          find recovery -maxdepth 3 -type f -printf '%P\t%s bytes\n' | sort
+
+      - name: Seal recovery evidence
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import hashlib,json,pathlib
+          root=pathlib.Path('recovery')
+          report=root/'recovery-report.json'
+          out={'schema':'musitu.foundry_forge.v44_media_recovery_evidence.v1','report_present':report.is_file(),'files':{},'write_performed_to_live_infrastructure':False,'deployment_performed':False}
+          for p in sorted(x for x in root.rglob('*') if x.is_file()):
+              out['files'][str(p.relative_to(root))]={'size_bytes':p.stat().st_size,'sha256':hashlib.sha256(p.read_bytes()).hexdigest()}
+          if report.is_file(): out['recovery']=json.loads(report.read_text())
+          pathlib.Path('foundry-forge-v44-media-recovery-evidence.json').write_text(json.dumps(out,indent=2,sort_keys=True)+'\n')
+          PY
+          sha256sum foundry-forge-v44-media-recovery-evidence.json > foundry-forge-v44-media-recovery-evidence.sha256
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: musitu-foundry-forge-v44-media-recovery-20260914
+          path: |
+            recovery/
+            foundry-forge-v44-media-recovery-evidence.json
+            foundry-forge-v44-media-recovery-evidence.sha256
+          retention-days: 14
+          if-no-files-found: error
+
+      - name: Enforce fail-closed recovery admission
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f recovery/recovery-report.json
+          test ! -f recovery/RECOVERY_FAILURE.txt
+          python - <<'PY'
+          import json
+          r=json.load(open('recovery/recovery-report.json'))
+          g=r['fail_closed_gates']
+          assert g['exact_binary_pins'] is True
+          assert g['same_recursive_dependency_paths'] is True
+          assert g['non_glibc_count_matches_v44'] is True
+          assert g['no_copy_collisions'] is True
+          assert r['resolved_loaded_path_count']==211
+          assert r['non_glibc_dependency_count']==207
+          print('V44_MEDIA_RECOVERY_BINARY_AND_COUNT_GATES_PASS')
+          print('NOTE: aggregate closure-digest equivalence remains a separate admission gate unless a candidate serialization matches the sealed V44 digests.')
+          PY
