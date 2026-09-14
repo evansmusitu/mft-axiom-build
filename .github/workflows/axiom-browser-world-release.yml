@@ -51,6 +51,8 @@ jobs:
             '.github/workflows/axiom-browser-world-release.yml',
             'ops/axiom_browser_world_release.py',
             'axiom_interface/browser-app.json',
+            'axiom_interface/app.js',
+            'axiom_interface/sw.js',
             'axiom_interface/tests/test_browser_application.py',
           }
           unexpected=sorted(changed-allowed)
@@ -97,6 +99,38 @@ jobs:
         run: python ops/axiom_browser_world_release.py selftest
       - name: Run browser application contract tests
         run: PYTHONPATH=. python axiom_interface/tests/test_browser_application.py
+      - name: Verify interactive shell wiring
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check axiom_interface/app.js
+          python - <<'PY'
+          from pathlib import Path
+          app=Path('axiom_interface/app.js').read_text(encoding='utf-8')
+          sw=Path('axiom_interface/sw.js').read_text(encoding='utf-8')
+          required=[
+              "./computer_bootstrap.js",
+              "./agents_bootstrap.js",
+              "./memory_bootstrap.js",
+              "./operator_bootstrap.js",
+              "./developer_bootstrap.js",
+              "./evidence_bootstrap.js",
+              "./pwa_bootstrap.js",
+              "openComposerTool",
+              "#/research",
+              "#/live",
+              "#/computer",
+              "composer.tool.open",
+          ]
+          missing=[token for token in required if token not in app]
+          if missing:
+              raise SystemExit('interactive shell wiring missing: '+', '.join(missing))
+          if "state:'surface-only'" in app or 'composer.tool-preview' in app:
+              raise SystemExit('surface-only composer tool handler remains')
+          if "const CACHE='axiom-interface-phase14-candidate-v2'" not in sw:
+              raise SystemExit('service-worker cache rotation missing')
+          print({'interactive_shell_wiring':'PASS','extended_bootstrap_chain':7,'composer_tools':'ROUTED','cache':'phase14-candidate-v2'})
+          PY
       - name: Run complete inherited runtime security regression envelope
         env:
           AXIOM_PHASE8_SECURITY_ARTIFACT_DIR: /tmp/axiom-interface-phase8-security
