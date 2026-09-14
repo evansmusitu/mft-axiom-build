@@ -1,0 +1,48 @@
+name: MUSITU FMI Admin Public Edge Health Verify V2
+
+on:
+  push:
+    branches: [fmi-revenue-certification-20260913]
+    paths:
+      - 'scripts/fmi_admin_public_edge_health_verify_v2.py'
+      - '.github/workflows/fmi-admin-public-edge-health-verify-v2.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    env:
+      CF_API: https://api.cloudflare.com/client/v4
+      ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      FMI_DB_UUID: a03dc12d-8206-47be-b904-1f24e4e37d91
+      ADMIN_HOST: admin.mftintelligence.com
+      ADMIN_WORKER: mft-fmi-admin
+      PUBLIC_BASE: https://mft-fmi-global-edge.mft-education-nexus-93f395f5.workers.dev
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate read-only verifier
+        run: |
+          set -euo pipefail
+          python -m py_compile scripts/fmi_admin_public_edge_health_verify_v2.py
+          ! grep -q '/d1/database' scripts/fmi_admin_public_edge_health_verify_v2.py
+      - name: Prove live monitor repair without mutations
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        run: |
+          set -euo pipefail
+          test -n "$CLOUDFLARE_EMAIL"
+          test -n "$CLOUDFLARE_GLOBAL_API_KEY"
+          python scripts/fmi_admin_public_edge_health_verify_v2.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: musitu-fmi-admin-public-edge-health-fix-v2
+          path: |
+            fmi-admin-public-edge-health-fix-v2.json
+            fmi-admin-public-edge-health-fix-v2.sha256
+          retention-days: 30
+          if-no-files-found: error
