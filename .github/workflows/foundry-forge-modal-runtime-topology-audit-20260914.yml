@@ -26,46 +26,31 @@ jobs:
         with:
           python-version: '3.13'
 
-      - name: Install Modal CLI and authenticate targeted read-only probe
+      - name: Install Modal CLI and resolve exact objects through SDK
         shell: bash
         run: |
           set -euo pipefail
           test -n "$MODAL_TOKEN_ID"
           test -n "$MODAL_TOKEN_SECRET"
           python -m pip install --disable-pip-version-check --quiet 'modal>=1.5,<2'
-          modal app history "$TARGET_APP" --json > /tmp/app-history.json
-          modal volume ls "$TARGET_VOLUME" / --json > /tmp/volume-root.json
-
-      - name: Resolve exact FORGE app without workspace inventory
-        shell: bash
-        run: |
-          set -euo pipefail
           python - <<'PY'
-          import json, os, pathlib, re
-
-          doc=json.load(open('/tmp/app-history.json'))
-          ids=[]
-          def walk(value):
-              if isinstance(value, str) and re.fullmatch(r'ap-[A-Za-z0-9_-]+', value):
-                  if value not in ids:
-                      ids.append(value)
-              elif isinstance(value, dict):
-                  for child in value.values():
-                      walk(child)
-              elif isinstance(value, list):
-                  for child in value:
-                      walk(child)
-          walk(doc)
-          if len(ids) != 1:
-              raise SystemExit(f'target_app_id_count_{len(ids)}')
-          app_id=ids[0]
+          import json, modal, os, pathlib
+          app=modal.App.lookup(os.environ['TARGET_APP'], create_if_missing=False)
+          app_id=app.app_id
+          if not isinstance(app_id,str) or not app_id.startswith('ap-'):
+              raise SystemExit('target_app_id_missing')
+          volume=modal.Volume.from_name(os.environ['TARGET_VOLUME'], create_if_missing=False)
+          volume.hydrate()
+          volume_id=volume.object_id
+          if not isinstance(volume_id,str) or not volume_id.startswith('vo-'):
+              raise SystemExit('target_volume_id_missing')
           pathlib.Path('/tmp/app-id').write_text(app_id)
           safe={
               'schema':'musitu.foundry_forge.modal_runtime_topology_audit.v1',
               'target_app':os.environ['TARGET_APP'],
               'target_app_id':app_id,
               'target_volume':os.environ['TARGET_VOLUME'],
-              'target_volume_resolved':True,
+              'target_volume_id':volume_id,
               'workspace_inventory_read':False,
               'write_performed':False,
           }
