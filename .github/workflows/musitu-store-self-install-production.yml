@@ -1,0 +1,164 @@
+name: MUSITU Store self-install production promotion
+
+on:
+  push:
+    branches:
+      - musitu-store-browser-first-launch-20260913
+    paths:
+      - '.github/workflows/musitu-store-self-install-production.yml'
+      - 'store/phase2/build-store-self-install-candidate.py'
+      - 'store/phase2/verify-store-self-install-candidate.mjs'
+      - 'store/phase2/deploy-store-self-install-behavior.py'
+      - 'store/phase2/verify-store-self-install-live.py'
+  workflow_dispatch:
+
+concurrency:
+  group: musitu-store-production
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+  ZONE_ID: 5b56528f03948ff5917a5e0cd9f7109e
+  ZONE_NAME: mftintelligence.com
+  PAYMENTS_HOST: payments.mftintelligence.com
+  PAYMENTS_ORIGIN: mft-paynow-transport-gateway
+  STORE_WORKER: musitu-store-phase1
+  STORE_ROUTE: payments.mftintelligence.com/store*
+  STORE_BUCKET: musitu-store-phase1-releases
+  EXPECTED_COMPATIBILITY_DATE: '2026-09-09'
+  STORE_SHA: 3a0c4b0f971ec84cd6167a137f8e3d75c7bb20e525c26ab533b3d88044cd0784
+  STORE_BYTES: '1679340'
+  CATALOG_SHA: 4fa31c5f9f84facc0d1fbf7a91a50b0adcaa5ef4c97b7d82abbe9657ea10b7f9
+  CATALOG_SIG_SHA: 9b854358f90368ceb5cc3baab8d99064d8ee94b79ead378a614f8cc1732b06a7
+  BASELINE_MODULE_ROOT: /tmp/musitu-store-self-install-production/baseline
+  CANDIDATE_MODULE_ROOT: /tmp/musitu-store-self-install-production/candidate
+  LIVE_MODULE_OUTPUT: /tmp/musitu-store-self-install-production/baseline
+  STORE_SELF_INSTALL_BUILD_REPORT: /tmp/musitu-store-self-install-production/candidate.json
+  NATIVE_HANDOFF_EVIDENCE: /tmp/musitu-store-self-install-production/evidence
+  EXPECTED_BROWSER_FIRST_ASSETS_SHA: 443e558c297d700bedc706ea56647c97162709e5178b80acd63d478054bba4b4
+  EXPECTED_BROWSER_FIRST_GENERATED_DATA_SHA: 27ab78a914019cb44844de51bd0f4be46dc53bdf4b928a8dff7944228ccce063
+  EXPECTED_BROWSER_FIRST_RENDER_SHA: d4d0b6aef8b1a8d887449c7be60c75190123e7fbb3183e4faf42d10f69be492c
+  EXPECTED_INSTALL_BUTTON_WORKER_SHA: 60fcba26dc4d104c6bb9cb0567c66c8e98d38b217c89217b89625947b9062782
+  EXPECTED_STORE_SELF_INSTALL_WORKER_SHA: c0c41c6de7b26ba25ebea6ef7eb5dcbf346a179737a4cc6c1a128e6fec4e7409
+
+jobs:
+  promote-store-self-install:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      NATIVE_HANDOFF_HEAD: ${{ github.sha }}
+    steps:
+      - name: Checkout isolated Store source
+        uses: actions/checkout@v4
+
+      - name: Use Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Capture exact current production baseline
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        run: python3 store/phase2/capture_live_store_worker_unpinned.py
+
+      - name: Classify exact live Store self-install state
+        id: live_state
+        shell: bash
+        run: |
+          set -euo pipefail
+          assets="$(sha256sum "$BASELINE_MODULE_ROOT/assets.mjs" | awk '{print $1}')"
+          generated="$(sha256sum "$BASELINE_MODULE_ROOT/generated-data.mjs" | awk '{print $1}')"
+          render="$(sha256sum "$BASELINE_MODULE_ROOT/render.mjs" | awk '{print $1}')"
+          worker="$(sha256sum "$BASELINE_MODULE_ROOT/worker.mjs" | awk '{print $1}')"
+          test "$assets" = "$EXPECTED_BROWSER_FIRST_ASSETS_SHA"
+          test "$generated" = "$EXPECTED_BROWSER_FIRST_GENERATED_DATA_SHA"
+          test "$render" = "$EXPECTED_BROWSER_FIRST_RENDER_SHA"
+          if [ "$worker" = "$EXPECTED_STORE_SELF_INSTALL_WORKER_SHA" ]; then
+            echo 'state=target' >> "$GITHUB_OUTPUT"
+            echo 'MUSITU_STORE_SELF_INSTALL_ALREADY_LIVE=TRUE'
+          elif [ "$worker" = "$EXPECTED_INSTALL_BUTTON_WORKER_SHA" ]; then
+            echo 'state=previous' >> "$GITHUB_OUTPUT"
+            echo 'MUSITU_STORE_SELF_INSTALL_ALREADY_LIVE=FALSE'
+          else
+            echo "Unexpected live worker SHA: $worker" >&2
+            exit 1
+          fi
+
+      - name: Build worker-only Store self-install candidate
+        if: steps.live_state.outputs.state == 'previous'
+        run: python3 store/phase2/build-store-self-install-candidate.py
+
+      - name: Verify Store self-install candidate before production write
+        if: steps.live_state.outputs.state == 'previous'
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check "$CANDIDATE_MODULE_ROOT/worker.mjs"
+          python3 -m py_compile store/phase2/deploy-store-self-install-behavior.py store/phase2/verify-store-self-install-live.py
+          node store/phase2/verify-store-self-install-candidate.mjs
+          cmp "$BASELINE_MODULE_ROOT/render.mjs" "$CANDIDATE_MODULE_ROOT/render.mjs"
+          cmp "$BASELINE_MODULE_ROOT/assets.mjs" "$CANDIDATE_MODULE_ROOT/assets.mjs"
+          cmp "$BASELINE_MODULE_ROOT/generated-data.mjs" "$CANDIDATE_MODULE_ROOT/generated-data.mjs"
+          test "$(sha256sum "$CANDIDATE_MODULE_ROOT/worker.mjs" | awk '{print $1}')" = "$EXPECTED_STORE_SELF_INSTALL_WORKER_SHA"
+          echo 'MUSITU_STORE_SELF_INSTALL_PREWRITE_GATE=PASS'
+
+      - name: Pin transaction to freshly captured baseline
+        if: steps.live_state.outputs.state == 'previous'
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "LIVE_WORKER_SHA=$(sha256sum "$BASELINE_MODULE_ROOT/worker.mjs" | awk '{print $1}')" >> "$GITHUB_ENV"
+          echo "LIVE_RENDER_SHA=$(sha256sum "$BASELINE_MODULE_ROOT/render.mjs" | awk '{print $1}')" >> "$GITHUB_ENV"
+          echo "LIVE_ASSETS_SHA=$(sha256sum "$BASELINE_MODULE_ROOT/assets.mjs" | awk '{print $1}')" >> "$GITHUB_ENV"
+          echo "LIVE_GENERATED_DATA_SHA=$(sha256sum "$BASELINE_MODULE_ROOT/generated-data.mjs" | awk '{print $1}')" >> "$GITHUB_ENV"
+
+      - name: Deploy, prove rollback, and promote Store self-install worker
+        if: steps.live_state.outputs.state == 'previous'
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        run: python3 store/phase2/deploy-store-self-install-behavior.py
+
+      - name: Verify exact live Store self-install behavior
+        run: python3 store/phase2/verify-store-self-install-live.py
+
+      - name: Assert Store self-install production evidence
+        shell: bash
+        env:
+          LIVE_STATE: ${{ steps.live_state.outputs.state }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json,os
+          from pathlib import Path
+          evidence=Path(os.environ['NATIVE_HANDOFF_EVIDENCE'])
+          live=json.loads((evidence/'store-self-install-live.json').read_text(encoding='utf-8'))
+          assert live['gate']=='MUSITU_STORE_SELF_INSTALL_LIVE_PASS',live
+          assert live['worker_sha256']==os.environ['EXPECTED_STORE_SELF_INSTALL_WORKER_SHA'],live
+          if os.environ['LIVE_STATE']=='previous':
+              dep=json.loads((evidence/'deployment.json').read_text(encoding='utf-8'))
+              assert dep['gate']=='MUSITU_STORE_BROWSER_FIRST_DEPLOY_AND_ROLLBACK_PASS',dep
+              assert dep['state']['rollback_drill_performed'] is True
+              assert dep['state']['rollback_drill_verified'] is True
+              assert dep['state']['candidate_redeployed_final'] is True
+              assert dep['state']['final_state_verified'] is True
+              assert dep['state']['emergency_baseline_restore_performed'] is False
+              assert dep['checks']['changed_modules']==['worker.mjs']
+              assert dep['checks']['install_button_public_contract'] is True
+              assert dep['checks']['store_self_install_public_contract'] is True
+              assert dep['checks']['store_self_install_worker_sha256']==os.environ['EXPECTED_STORE_SELF_INSTALL_WORKER_SHA']
+          print('MUSITU_STORE_SELF_INSTALL_PRODUCTION=PASS')
+          PY
+
+      - name: Upload Store self-install production evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: musitu-store-self-install-production-evidence
+          path: /tmp/musitu-store-self-install-production
+          if-no-files-found: warn
+          retention-days: 30
