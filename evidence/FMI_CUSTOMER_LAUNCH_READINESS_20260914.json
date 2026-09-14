@@ -1,6 +1,6 @@
 {
-  "schema": "musitu.fmi.customer-launch-readiness.v1",
-  "recorded_at": "2026-09-14T02:44:00Z",
+  "schema": "musitu.fmi.customer-launch-readiness.v2",
+  "recorded_at": "2026-09-14T02:46:00Z",
   "product": "MUSITU Frontier Market Intelligence",
   "public_base": "https://mft-fmi-global-edge.mft-education-nexus-93f395f5.workers.dev",
   "isolated_branch": "fmi-revenue-certification-20260913",
@@ -34,6 +34,21 @@
     "synthetic_customer_deleted": true,
     "residual_customer_rows": 0,
     "evidence_sha256": "0e2e4dc1c4fba8739bdf131fe08eab8408ea562fb741123dbe46b9e3baf79780"
+  },
+  "free_product_surfaces": {
+    "gate": "FMI_FREE_PRODUCT_SURFACES_E2E_PASS",
+    "workflow_run_id": 34800264684,
+    "signup_http": 201,
+    "credential_hash_matches_d1": true,
+    "surfaces": {
+      "/v1/me": {"http": 200, "json": true},
+      "/v1/history": {"http": 200, "json": true},
+      "/v1/watchlists": {"http": 200, "json": true}
+    },
+    "paid_authority_created": false,
+    "synthetic_customer_deleted": true,
+    "residual_customer_rows": 0,
+    "evidence_sha256": "f605e25c1884917bf0e1ec63f17c0ee58ccf82cd025d81aa7d13ff8c0ec6700c"
   },
   "customer_schema_cleanup_boundary": {
     "gate": "FMI_CUSTOMER_SCHEMA_READONLY_PASS",
@@ -85,6 +100,7 @@
   },
   "launch_decision": {
     "free_signup_and_authenticated_customer_access": "READY",
+    "free_account_product_surfaces": "READY",
     "public_customer_funnel": "READY",
     "paid_plan_entitlement_policy": "PROVIDER_VERIFIED_ONLY",
     "internal_real_money_certification": "NOT_EARNED",
