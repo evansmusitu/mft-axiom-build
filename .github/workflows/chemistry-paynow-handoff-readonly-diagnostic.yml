@@ -1,0 +1,126 @@
+name: MUSITU Chemistry Paynow handoff read-only diagnostic
+
+on:
+  push:
+    branches: [chemistry-paynow-handoff-fix-20260914]
+    paths: ['.github/workflows/chemistry-paynow-handoff-readonly-diagnostic.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    env:
+      CF_API: https://api.cloudflare.com/client/v4
+      ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      WORKER_NAME: musitu-chemistry-commerce
+      PUBLIC_BASE: https://payments.mftintelligence.com
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Capture exact live Commerce worker and inspect handoff contract
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/mchem-paynow-handoff evidence-out
+          python - <<'PY'
+          import email,hashlib,json,os,re,urllib.parse,urllib.request
+          from pathlib import Path
+          API=os.environ['CF_API']; A=os.environ['ACCOUNT_ID']; W=os.environ['WORKER_NAME']; BASE=os.environ['PUBLIC_BASE']
+          H={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY'],'User-Agent':'MUSITU-Paynow-Handoff-Diagnostic/1.0'}
+          q=urllib.request.Request(f'{API}/accounts/{A}/workers/scripts/{urllib.parse.quote(W,safe="")}',headers=H)
+          with urllib.request.urlopen(q,timeout=45) as r:
+              raw=r.read(); ct=r.headers.get('content-type','')
+          if 'multipart/' in ct.lower():
+              msg=email.message_from_bytes((f'Content-Type: {ct}\r\nMIME-Version: 1.0\r\n\r\n').encode()+raw)
+              parts=[]
+              for p in msg.walk():
+                  if p.is_multipart(): continue
+                  d=p.get_payload(decode=True) or b''
+                  if b'MUSITU Chemistry Commerce' in d: parts.append(d)
+              if len(parts)!=1: raise SystemExit(f'commerce module extraction mismatch: {len(parts)}')
+              source=parts[0]
+          else: source=raw
+          text=source.decode('utf-8')
+          Path('/tmp/mchem-paynow-handoff/live.mjs').write_bytes(source)
+          sha=hashlib.sha256(source).hexdigest()
+
+          route_hits=[m.start() for m in re.finditer(r'/chemistry/checkout/start',text)]
+          redirect_calls=re.findall(r'Response\.redirect\(([^\n;]{0,220})',text)
+          direct_active='MUSITU_DIRECT_PAYNOW_FALLBACK_V1' in text and 'DIRECT_PAYNOW_FALLBACK_ACTIVE=true' in text
+          direct_link='https://www.paynow.co.zw/payment/link/?q=' in text
+          creates_direct="status='direct_pending'" in text
+          create_order='function createOrder' in text
+          parse_form='parseForm' in text
+          form_action_values=sorted(set(re.findall(r"form-action\s+([^;'\"]+|'[^']*')",text,re.I)))
+          csp_self="form-action 'self'" in text
+
+          # Inspect the exact checkout routing window without publishing arbitrary source.
+          route_window=''
+          if route_hits:
+              i=route_hits[-1]
+              route_window=text[max(0,i-650):min(len(text),i+1300)]
+          route_signals={
+              'route_count':len(route_hits),
+              'mentions_POST_near_route':'POST' in route_window,
+              'mentions_createOrder_near_route':'createOrder' in route_window,
+              'mentions_browserUrl_near_route':'browserUrl' in route_window,
+              'mentions_Response_redirect_near_route':'Response.redirect' in route_window,
+              'mentions_Location_near_route':'Location' in route_window,
+              'mentions_303_near_route':'303' in route_window,
+              'mentions_302_near_route':'302' in route_window,
+          }
+
+          # Public GET headers reveal browser policy without creating an order.
+          u=BASE+'/chemistry/checkout/start?plan=term&__handoff_diag=1'
+          rq=urllib.request.Request(u,headers={'Accept':'text/html','Cache-Control':'no-cache, no-store','Pragma':'no-cache','User-Agent':'MUSITU-Paynow-Handoff-Diagnostic/1.0'})
+          with urllib.request.urlopen(rq,timeout=30) as r:
+              public_status=r.status
+              headers={k.lower():v for k,v in r.headers.items()}
+              body=r.read().decode('utf-8','replace')
+          public={
+              'status':public_status,
+              'content_type':headers.get('content-type'),
+              'content_security_policy':headers.get('content-security-policy'),
+              'form_present':'method="post" action="/chemistry/checkout/start"' in body,
+              'button_present':'Continue securely to Paynow' in body,
+              'fallback_copy_present':'Premium remains locked until MUSITU independently verifies settlement' in body,
+          }
+          result={
+              'schema':'musitu.chemistry.paynow_handoff.readonly_diagnostic.v1',
+              'production_mutation':False,
+              'payment_created':False,
+              'worker_sha256':sha,
+              'worker_bytes':len(source),
+              'direct_fallback_active_in_source':direct_active,
+              'direct_link_builder_present':direct_link,
+              'direct_pending_write_present':creates_direct,
+              'create_order_present':create_order,
+              'parse_form_present':parse_form,
+              'csp_form_action_self_in_source':csp_self,
+              'form_action_values':form_action_values,
+              'route_signals':route_signals,
+              'redirect_call_count':len(redirect_calls),
+              'public_checkout':public,
+          }
+          Path('evidence-out/diagnostic.json').write_text(json.dumps(result,indent=2,sort_keys=True)+'\n')
+          print(json.dumps(result,indent=2,sort_keys=True))
+          print('MUSITU_PAYNOW_HANDOFF_READONLY_DIAGNOSTIC=PASS')
+          PY
+
+      - name: Syntax check exact live Commerce worker
+        run: node --check /tmp/mchem-paynow-handoff/live.mjs
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: musitu-chemistry-paynow-handoff-readonly-diagnostic
+          path: evidence-out
+          retention-days: 30
+          if-no-files-found: warn
