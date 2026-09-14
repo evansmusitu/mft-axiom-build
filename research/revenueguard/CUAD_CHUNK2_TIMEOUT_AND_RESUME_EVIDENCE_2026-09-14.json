@@ -1,0 +1,38 @@
+{
+  "schema": "musitu.revenueguard.cuad.chunk2_timeout_resume_evidence.v1",
+  "status": "DEV_RESEARCH_ONLY_NOT_CERTIFICATION",
+  "original_training_run_id": 34749003397,
+  "original_training_head_sha": "302d36e9dd26af60464d0ecf4e3d2504f9591f52",
+  "original_run_terminal_conclusion": "cancelled",
+  "chunk2": {
+    "job_id": 103759243556,
+    "artifact_id": 10323636532,
+    "artifact_sha256": "2c31ed0f6ef65542d3a61ffd7dca529c1bf53e1ff0cb63fa68ec40bfbcf0d570",
+    "report_sha256": "d074e0575fc2f266c46332b3e707ebb82c955591892a4a82f4cde979428134ac",
+    "chunk_samples": 15380,
+    "chunk_steps": 641,
+    "global_steps": 1930,
+    "train_sha256": "7de21d2bb741ac939e2a839ef9640634a5e0f9f40ea2b82c6833baf7db33dab4"
+  },
+  "chunk3_timeout": {
+    "job_id": 103775396961,
+    "conclusion": "cancelled",
+    "historical_job_timeout_minutes": 120,
+    "last_observed_training_step_at_least": 560,
+    "expected_chunk_steps": 641,
+    "model_failure_evidence": false,
+    "data_contract_failure_evidence": false,
+    "classification": "ORCHESTRATION_TIMEOUT_DURING_HEALTHY_TRAINING"
+  },
+  "resume": {
+    "run_id": 34801041589,
+    "workflow_head_sha": "ad142345213d26e9ba8cc868e2aa6772b154ed6e",
+    "trainer_source_head_sha": "302d36e9dd26af60464d0ecf4e3d2504f9591f52",
+    "predecessor_artifact_id": 10323636532,
+    "predecessor_artifact_sha256": "2c31ed0f6ef65542d3a61ffd7dca529c1bf53e1ff0cb63fa68ec40bfbcf0d570",
+    "resume_scope": "chunk3_only_from_exact_chunk2_predecessor",
+    "timeout_minutes": 180
+  },
+  "correction_note": "An earlier planning-time transcription of the chunk2 artifact digest was rejected by the fail-closed resume assertion before any download or training. This record uses the digest returned by GitHub artifact metadata: 2c31ed0f6ef65542d3a61ffd7dca529c1bf53e1ff0cb63fa68ec40bfbcf0d570.",
+  "sealed_data_impact": "none"
+}
