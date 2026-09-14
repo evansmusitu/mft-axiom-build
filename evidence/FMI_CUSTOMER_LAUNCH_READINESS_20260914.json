@@ -1,6 +1,6 @@
 {
-  "schema": "musitu.fmi.customer-launch-readiness.v3",
-  "recorded_at": "2026-09-14T02:59:30Z",
+  "schema": "musitu.fmi.customer-launch-readiness.v4",
+  "recorded_at": "2026-09-14T03:03:30Z",
   "product": "MUSITU Frontier Market Intelligence",
   "public_base": "https://mft-fmi-global-edge.mft-education-nexus-93f395f5.workers.dev",
   "isolated_branch": "fmi-revenue-certification-20260913",
@@ -97,6 +97,15 @@
     "billing_worker_routes_gate": "FMI_BILLING_WORKER_ROUTES_READONLY_PASS",
     "billing_worker_routes_run_id": 34801014866,
     "billing_worker_source_sha256": "cd55b2b7b34bc5f73c394eddebd9edbc22690250b4ab7aff36a209064a3b9454",
+    "billing_checkout_handler_gate": "FMI_BILLING_CHECKOUT_HANDLER_READONLY_PASS",
+    "billing_checkout_handler_run_id": 34801187578,
+    "checkout_handler_validation_states_observed": [
+      "already_on_plan",
+      "invalid_paynow_hash",
+      "payment_provider_error",
+      "poll_provider_error",
+      "unknown_plan"
+    ],
     "public_internal_routes": [
       "/billing/catalog",
       "/billing/checkout",
@@ -112,8 +121,23 @@
       "/internal/paynow/verify-callback-fmi"
     ],
     "founding_and_pro_literals_observed_in_settlement_control": true,
-    "payment_intent_created_by_continuation": false,
+    "payment_intent_created_by_readonly_continuation": false,
     "provider_request_performed_by_readonly_probes": false
+  },
+  "checkout_failclosed_e2e": {
+    "gate": "FMI_CHECKOUT_FAILCLOSED_E2E_PASS",
+    "workflow_run_id": 34801239350,
+    "signup_http": 201,
+    "same_plan_checkout_http": 400,
+    "same_plan_checkout_error": "self_serve_plan_not_supported",
+    "checkout_intent_delta": 0,
+    "active_subscription_delta": 0,
+    "plan_activated_event_delta": 0,
+    "provider_payment_intent_observed": false,
+    "paid_authority_created": false,
+    "synthetic_customer_deleted": true,
+    "residual_customer_rows": 0,
+    "evidence_sha256": "9e2e32cd20e6fb88d51943e0741e8de5d306ab27c9a83e3742672c1268dc719c"
   },
   "real_money_certification": {
     "certified": false,
@@ -138,6 +162,7 @@
     "free_account_product_surfaces": "READY",
     "public_customer_funnel": "READY",
     "paid_checkout_topology": "READ_ONLY_VERIFIED",
+    "checkout_failclosed_behavior": "E2E_VERIFIED",
     "paid_checkout_initiation": "INTENTIONALLY_NOT_EXECUTED",
     "paid_plan_entitlement_policy": "PROVIDER_VERIFIED_ONLY",
     "internal_real_money_certification": "NOT_EARNED",
