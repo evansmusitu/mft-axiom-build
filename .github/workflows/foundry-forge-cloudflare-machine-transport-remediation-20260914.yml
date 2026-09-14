@@ -1,0 +1,146 @@
+name: MUSITU Foundry FORGE Cloudflare Machine Transport Remediation
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/foundry-forge-cloudflare-machine-transport-remediation-20260914.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  remediate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      CF_API: https://api.cloudflare.com/client/v4
+      ZONE_ID: 5b56528f03948ff5917a5e0cd9f7109e
+      ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      RULESET_ID: 8e8a2552a8ee4bb383abbe0d748e1da5
+      EXPECTED_RULESET_VERSION: '10'
+      EXPECTED_RULE_COUNT: '8'
+      FORGE_HOST: forge.mftintelligence.com
+      RULE_REF: musitu_forge_api_machine_transport
+    steps:
+      - name: Add exact-host machine-transport configuration rule
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$CLOUDFLARE_EMAIL"
+          test -n "$CLOUDFLARE_GLOBAL_API_KEY"
+          python - <<'PY'
+          import json, os, urllib.request
+          from datetime import datetime, timezone
+
+          base=os.environ['CF_API']; zid=os.environ['ZONE_ID']; rid=os.environ['RULESET_ID']
+          host=os.environ['FORGE_HOST']; ref=os.environ['RULE_REF']
+          headers={
+            'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],
+            'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY'],
+            'Content-Type':'application/json',
+            'User-Agent':'MUSITU-Foundry-FORGE-Machine-Transport/1.0',
+          }
+          def call(method,path,payload=None):
+            data=None if payload is None else json.dumps(payload,separators=(',',':')).encode()
+            req=urllib.request.Request(base+path,headers=headers,data=data,method=method)
+            with urllib.request.urlopen(req,timeout=30) as r:
+              body=json.load(r)
+              if r.status not in (200,201) or not body.get('success'):
+                raise SystemExit(f'cloudflare_{method.lower()}_failed')
+              return body.get('result') or {}
+
+          security_before=call('GET',f'/zones/{zid}/settings/security_level')
+          config_before=call('GET',f'/zones/{zid}/rulesets/phases/http_config_settings/entrypoint')
+          if security_before.get('value') != 'under_attack':
+            raise SystemExit('precondition_zone_security_level_changed')
+          if config_before.get('id') != rid:
+            raise SystemExit('precondition_ruleset_id_changed')
+          if str(config_before.get('version')) != os.environ['EXPECTED_RULESET_VERSION']:
+            raise SystemExit('precondition_ruleset_version_changed')
+          before_rules=config_before.get('rules') or []
+          if len(before_rules) != int(os.environ['EXPECTED_RULE_COUNT']):
+            raise SystemExit('precondition_rule_count_changed')
+          matches=[r for r in before_rules if r.get('ref')==ref or host.lower() in str(r.get('expression') or '').lower()]
+          if matches:
+            raise SystemExit('precondition_forge_rule_already_exists')
+
+          payload={
+            'ref':ref,
+            'expression':f'http.host eq "{host}"',
+            'description':'MUSITU FORGE production API machine transport: suppress interactive browser challenge only on canonical API hostname; FORGE protocol/auth/custody controls remain fail-closed',
+            'action':'set_config',
+            'action_parameters':{
+              'security_level':'essentially_off',
+              'bic':False,
+            },
+          }
+          created=call('POST',f'/zones/{zid}/rulesets/{rid}/rules',payload)
+
+          security_after=call('GET',f'/zones/{zid}/settings/security_level')
+          config_after=call('GET',f'/zones/{zid}/rulesets/phases/http_config_settings/entrypoint')
+          after_rules=config_after.get('rules') or []
+          matches=[r for r in after_rules if r.get('ref')==ref]
+          if security_after.get('value') != 'under_attack':
+            raise SystemExit('postcondition_global_security_level_changed')
+          if config_after.get('id') != rid:
+            raise SystemExit('postcondition_ruleset_id_changed')
+          if len(after_rules) != len(before_rules)+1:
+            raise SystemExit('postcondition_rule_count_invalid')
+          if len(matches) != 1:
+            raise SystemExit('postcondition_forge_rule_cardinality_invalid')
+          rule=matches[0]
+          if rule.get('action') != 'set_config':
+            raise SystemExit('postcondition_action_invalid')
+          if rule.get('expression') != f'http.host eq "{host}"':
+            raise SystemExit('postcondition_expression_invalid')
+          if rule.get('action_parameters') != {'bic':False,'security_level':'essentially_off'}:
+            raise SystemExit('postcondition_action_parameters_invalid')
+          if rule.get('enabled',True) is not True:
+            raise SystemExit('postcondition_rule_not_enabled')
+
+          out={
+            'schema':'musitu.foundry_forge.cloudflare_machine_transport_remediation.v1',
+            'observed_at':datetime.now(timezone.utc).isoformat(),
+            'zone_id':zid,
+            'account_id':os.environ['ACCOUNT_ID'],
+            'forge_host':host,
+            'ruleset_id':rid,
+            'ruleset_version_before':str(config_before.get('version')),
+            'ruleset_version_after':str(config_after.get('version')),
+            'rule_count_before':len(before_rules),
+            'rule_count_after':len(after_rules),
+            'global_security_level_before':security_before.get('value'),
+            'global_security_level_after':security_after.get('value'),
+            'created_rule':{
+              'id':rule.get('id'),
+              'ref':rule.get('ref'),
+              'action':rule.get('action'),
+              'action_parameters':rule.get('action_parameters'),
+              'expression':rule.get('expression'),
+              'description':rule.get('description'),
+              'enabled':rule.get('enabled',True),
+              'version':rule.get('version'),
+            },
+            'cloudflare_create_response_rule_id':created.get('id'),
+            'scope_exact_hostname_only':True,
+            'production_authorized':False,
+            'write_performed':True,
+            'result':'PASS',
+          }
+          open('foundry-forge-cloudflare-machine-transport-remediation.json','w').write(json.dumps(out,indent=2,sort_keys=True)+'\n')
+          print(json.dumps(out,sort_keys=True))
+          PY
+      - name: Seal remediation evidence
+        run: sha256sum foundry-forge-cloudflare-machine-transport-remediation.json > foundry-forge-cloudflare-machine-transport-remediation.sha256
+      - uses: actions/upload-artifact@v4
+        with:
+          name: musitu-foundry-forge-cloudflare-machine-transport-remediation-20260914
+          path: |
+            foundry-forge-cloudflare-machine-transport-remediation.json
+            foundry-forge-cloudflare-machine-transport-remediation.sha256
+          retention-days: 7
+          if-no-files-found: error
