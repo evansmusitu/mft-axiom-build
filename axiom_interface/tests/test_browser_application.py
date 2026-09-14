@@ -236,6 +236,18 @@ class BrowserApplicationContractTests(unittest.TestCase):
         self.assertEqual(request.call_count, 2)
         pause.assert_called_once_with(2)
 
+    def test_production_live_verifier_uses_browser_profile_and_safe_edge_signals(self):
+        self.assertTrue(DEPLOY.BROWSER_USER_AGENT.startswith("Mozilla/5.0"))
+        signal = DEPLOY.edge_failure_signal(
+            403,
+            {"content-type": "text/html", "server": "cloudflare", "cf-ray": "test-ray", "cf-mitigated": "challenge"},
+            b"<!doctype html><title>Just a moment...</title><script src='/cdn-cgi/challenge-platform/x'></script>",
+        )
+        self.assertEqual(signal["http_status"], 403)
+        self.assertTrue(signal["cf_ray_present"])
+        self.assertTrue(signal["challenge_page"])
+        self.assertNotIn("body", signal)
+
     def test_production_integration_retries_route_propagation_without_relaxing_redirects(self):
         correct = (308, {"location": f"{DEPLOY.APP_ORIGIN}/"}, b"")
         with (

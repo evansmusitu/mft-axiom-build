@@ -31,6 +31,10 @@ ROUTE_PATTERNS = (
     "www.mftintelligence.com/axiom",
     "www.mftintelligence.com/axiom/*",
 )
+BROWSER_USER_AGENT = (
+    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
+    "(KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36"
+)
 
 
 class Cloudflare:
@@ -84,7 +88,8 @@ def http(
     selected = urllib.request.build_opener() if follow_redirects else NO_REDIRECT
     request_headers = {
         "Accept": "*/*",
-        "User-Agent": "MUSITU-Axiom-Browser-Application-Verify/1.0",
+        "Accept-Language": "en-US,en;q=0.9",
+        "User-Agent": BROWSER_USER_AGENT,
         **(headers or {}),
     }
     request = urllib.request.Request(url, headers=request_headers, data=body, method=method)
@@ -216,6 +221,22 @@ def worker_settings(client: Cloudflare, source_sha: str) -> None:
         raise RuntimeError("browser application Worker exact build SHA binding mismatch")
 
 
+def edge_failure_signal(status: int, headers, body: bytes) -> dict:  # noqa: ANN001
+    lowered = body[:10000].lower()
+    return {
+        "http_status": status,
+        "content_type": (headers.get("content-type") or "")[:160],
+        "server": (headers.get("server") or "")[:80],
+        "cf_ray_present": bool(headers.get("cf-ray")),
+        "cf_mitigated": (headers.get("cf-mitigated") or "")[:80],
+        "body_bytes": len(body),
+        "body_sha256": hashlib.sha256(body).hexdigest(),
+        "access_page": b"cloudflare access" in lowered or b"cf_access" in lowered,
+        "challenge_page": b"challenge-platform" in lowered or b"cf-chl" in lowered or b"just a moment" in lowered,
+        "access_denied": b"access denied" in lowered or b"error 1020" in lowered,
+    }
+
+
 def wait_for_application(source_sha: str) -> dict:
     last = "unavailable"
     for _ in range(90):
@@ -241,7 +262,13 @@ def wait_for_application(source_sha: str) -> dict:
             and headers.get("x-axiom-browser-application") == "production"
         ):
             return payload
-        last = f"HTTP {status}; keys={sorted(payload) if isinstance(payload, dict) else []}"
+        last = json.dumps(
+            {
+                **edge_failure_signal(status, headers, body),
+                "json_keys": sorted(payload) if isinstance(payload, dict) else [],
+            },
+            sort_keys=True,
+        )
         time.sleep(2)
     raise RuntimeError(f"application health did not reach the exact deployment contract: {last}")
 
