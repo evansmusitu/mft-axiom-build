@@ -11,8 +11,13 @@ CN_TRAINING_RUN_ID=34748996731
 CN_TRAINING_HEAD_SHA='9bde25dab82909ed40e4a9722fdbfb648896d220'
 CN_SOURCE_ENCODER_RUN_ID=34676990123
 CN_SOURCE_ENCODER_ARTIFACT_SHA='3d78d473ffde6f790b3919226d1069b81fa8426f0f139007d3ba8b9d9cf23055'
-CUAD_TRAINING_RUN_ID=34749003397
-CUAD_TRAINING_HEAD_SHA='302d36e9dd26af60464d0ecf4e3d2504f9591f52'
+CUAD_ORIGINAL_TRAINING_RUN_ID=34749003397
+CUAD_ORIGINAL_TRAINING_HEAD_SHA='302d36e9dd26af60464d0ecf4e3d2504f9591f52'
+CUAD_PREDECESSOR_CHUNK2_ARTIFACT_ID=10323636532
+CUAD_PREDECESSOR_CHUNK2_ARTIFACT_SHA='2c31ed0f6ef65542d3a61ffd7dca529c1bf53e1ff0cb63fa68ec40bfbcf0d570'
+CUAD_RESUME_RUN_ID=34801041589
+CUAD_RESUME_WORKFLOW_HEAD_SHA='ad142345213d26e9ba8cc868e2aa6772b154ed6e'
+CUAD_RESUME_TRAINER_SOURCE_HEAD_SHA=CUAD_ORIGINAL_TRAINING_HEAD_SHA
 CUAD_SOURCE_MODEL_RUN_ID=34683449126
 CUAD_SOURCE_MODEL_ARTIFACT_SHA='a5684a5a8ed59909b46c93fd4729ce9ed0f8f672dc0be1474cf94a5e07d6e44b'
 CUAD_GEOMETRY_RUN_ID=34706691340
@@ -37,8 +42,13 @@ def main():
     ap.add_argument('--contractnli-source-encoder-artifact-sha256',required=True)
     ap.add_argument('--cuad-final-report',required=True)
     ap.add_argument('--cuad-artifact-sha256',required=True)
-    ap.add_argument('--cuad-run-id',type=int,required=True)
-    ap.add_argument('--cuad-training-head-sha',required=True)
+    ap.add_argument('--cuad-original-run-id',type=int,required=True)
+    ap.add_argument('--cuad-original-training-head-sha',required=True)
+    ap.add_argument('--cuad-predecessor-artifact-id',type=int,required=True)
+    ap.add_argument('--cuad-predecessor-artifact-sha256',required=True)
+    ap.add_argument('--cuad-resume-run-id',type=int,required=True)
+    ap.add_argument('--cuad-resume-workflow-head-sha',required=True)
+    ap.add_argument('--cuad-resume-trainer-source-head-sha',required=True)
     ap.add_argument('--cuad-source-model-artifact-sha256',required=True)
     ap.add_argument('--cuad-geometry-artifact-sha256',required=True)
     ap.add_argument('--cuad-geometry-report',required=True)
@@ -48,8 +58,13 @@ def main():
     if args.contractnli_run_id!=CN_TRAINING_RUN_ID: raise SystemExit('ContractNLI training run drift')
     if args.contractnli_training_head_sha!=CN_TRAINING_HEAD_SHA: raise SystemExit('ContractNLI training workflow head drift')
     if args.contractnli_source_encoder_artifact_sha256!=CN_SOURCE_ENCODER_ARTIFACT_SHA: raise SystemExit('ContractNLI source encoder artifact drift')
-    if args.cuad_run_id!=CUAD_TRAINING_RUN_ID: raise SystemExit('CUAD training run drift')
-    if args.cuad_training_head_sha!=CUAD_TRAINING_HEAD_SHA: raise SystemExit('CUAD training workflow head drift')
+    if args.cuad_original_run_id!=CUAD_ORIGINAL_TRAINING_RUN_ID: raise SystemExit('CUAD original training run drift')
+    if args.cuad_original_training_head_sha!=CUAD_ORIGINAL_TRAINING_HEAD_SHA: raise SystemExit('CUAD original training head drift')
+    if args.cuad_predecessor_artifact_id!=CUAD_PREDECESSOR_CHUNK2_ARTIFACT_ID: raise SystemExit('CUAD predecessor artifact id drift')
+    if args.cuad_predecessor_artifact_sha256!=CUAD_PREDECESSOR_CHUNK2_ARTIFACT_SHA: raise SystemExit('CUAD predecessor artifact digest drift')
+    if args.cuad_resume_run_id!=CUAD_RESUME_RUN_ID: raise SystemExit('CUAD resume run drift')
+    if args.cuad_resume_workflow_head_sha!=CUAD_RESUME_WORKFLOW_HEAD_SHA: raise SystemExit('CUAD resume workflow head drift')
+    if args.cuad_resume_trainer_source_head_sha!=CUAD_RESUME_TRAINER_SOURCE_HEAD_SHA: raise SystemExit('CUAD resume trainer source head drift')
     if args.cuad_source_model_artifact_sha256!=CUAD_SOURCE_MODEL_ARTIFACT_SHA: raise SystemExit('CUAD source model artifact drift')
     if args.cuad_geometry_artifact_sha256!=CUAD_GEOMETRY_ARTIFACT_SHA: raise SystemExit('CUAD geometry artifact drift')
 
@@ -68,6 +83,7 @@ def main():
 
     if cq.get('schema')!=CUAD_REPORT_SCHEMA: raise SystemExit('bad CUAD final report schema')
     if int(cq.get('chunk_index',-1))!=3 or int(cq.get('num_chunks',-1))!=4: raise SystemExit('CUAD final chunk identity mismatch')
+    if int(cq.get('chunk_samples',-1))!=15381 or int(cq.get('chunk_steps',-1))!=641: raise SystemExit('CUAD resumed final chunk execution drift')
     if int(cq.get('global_steps',-1))!=CUAD_EXPECTED_STEPS: raise SystemExit(('CUAD incomplete steps',cq.get('global_steps')))
     if cq.get('train_sha256')!=CUAD_TRAIN_SHA: raise SystemExit('CUAD train corpus drift')
     if cq.get('cuad_commit')!=CUAD_COMMIT: raise SystemExit('CUAD source commit drift')
@@ -96,7 +112,7 @@ def main():
     if int(gstats.get('selected_negative',-1))!=49354: raise SystemExit('geometry negative mismatch')
 
     rep={
-      'schema':'musitu.revenueguard.v4_1.specialist_training_provenance_seal.v2',
+      'schema':'musitu.revenueguard.v4_1.specialist_training_provenance_seal.v3',
       'status':'TRAINING_PROVENANCE_PASS_NOT_CERTIFICATION',
       'contractnli':{
         'run_id':CN_TRAINING_RUN_ID,
@@ -112,8 +128,6 @@ def main():
         'full_epoch_samples':CN_EXPECTED_SAMPLES,
       },
       'cuad':{
-        'run_id':CUAD_TRAINING_RUN_ID,
-        'training_head_sha':CUAD_TRAINING_HEAD_SHA,
         'artifact_sha256':args.cuad_artifact_sha256,
         'final_report_sha256':cq['report_sha256'],
         'source_commit':CUAD_COMMIT,
@@ -129,6 +143,17 @@ def main():
         'frozen_geometry_report_sha256':geom['geometry_report_sha256'],
         'chunk_sizes':geom['chunk_sizes'],
         'dropped_empty_context_windows':geom['dropped_empty_context_windows'],
+        'split_training_ancestry':{
+          'original_run_id':CUAD_ORIGINAL_TRAINING_RUN_ID,
+          'original_training_head_sha':CUAD_ORIGINAL_TRAINING_HEAD_SHA,
+          'original_run_terminal_conclusion':'cancelled_after_chunk3_timeout',
+          'predecessor_chunk2_artifact_id':CUAD_PREDECESSOR_CHUNK2_ARTIFACT_ID,
+          'predecessor_chunk2_artifact_sha256':CUAD_PREDECESSOR_CHUNK2_ARTIFACT_SHA,
+          'resume_run_id':CUAD_RESUME_RUN_ID,
+          'resume_workflow_head_sha':CUAD_RESUME_WORKFLOW_HEAD_SHA,
+          'resume_trainer_source_head_sha':CUAD_RESUME_TRAINER_SOURCE_HEAD_SHA,
+          'resume_scope':'chunk3_only_from_exact_chunk2_predecessor',
+        },
       },
       'sealed_policy':{'contractnli_test_opened':False,'maud_opened':False,'cuad_official_test_opened':False},
       'certification':'NOT_CERTIFIED'
