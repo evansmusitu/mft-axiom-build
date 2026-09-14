@@ -54,6 +54,7 @@ jobs:
             'axiom_interface/app.js',
             'axiom_interface/sw.js',
             'axiom_interface/tests/test_browser_application.py',
+            'axiom_interface/tests/run_interactive_button_contract.py',
           }
           unexpected=sorted(changed-allowed)
           if unexpected:
@@ -131,6 +132,16 @@ jobs:
               raise SystemExit('service-worker cache rotation missing')
           print({'interactive_shell_wiring':'PASS','extended_bootstrap_chain':7,'composer_tools':'ROUTED','cache':'phase14-candidate-v2'})
           PY
+      - name: Install pinned browser interaction harness
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install 'playwright==1.62.0'
+          python -m playwright install --with-deps chromium
+      - name: Exercise interactive controls in a real browser
+        env:
+          AXIOM_BROWSER_INTERACTION_ARTIFACT_DIR: /tmp/axiom-browser-interactions
+        run: python axiom_interface/tests/run_interactive_button_contract.py
       - name: Run complete inherited runtime security regression envelope
         env:
           AXIOM_PHASE8_SECURITY_ARTIFACT_DIR: /tmp/axiom-interface-phase8-security
@@ -149,6 +160,7 @@ jobs:
           name: musitu-axiom-browser-world-release-qualification
           path: |
             /tmp/axiom-interface-phase*-security/*.json
+            /tmp/axiom-browser-interactions/**
             /tmp/axiom-browser-world-release-dist/build-manifest.json
           retention-days: 30
           if-no-files-found: error
