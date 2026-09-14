@@ -1,0 +1,111 @@
+name: MUSITU Chemistry Paynow USD Regression Gate
+
+on:
+  push:
+    paths:
+      - '.github/workflows/chemistry-paynow-usd-regression-gate.yml'
+      - 'commerce/chemistry/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      CF_API: https://api.cloudflare.com/client/v4
+      ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      WORKER_NAME: musitu-chemistry-commerce
+      PUBLIC_BASE: https://payments.mftintelligence.com
+      PAYNOW_INTEGRATION_ID: '26343'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verify live secure USD Commerce contract without creating payment
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import base64,email,hashlib,json,os,re,secrets,urllib.parse,urllib.request
+
+          API=os.environ['CF_API']; A=os.environ['ACCOUNT_ID']; W=os.environ['WORKER_NAME']; BASE=os.environ['PUBLIC_BASE']; PID=os.environ['PAYNOW_INTEGRATION_ID']
+          AUTH={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY'],'User-Agent':'MUSITU-Chemistry-USD-Regression/1.0'}
+
+          def http(url,headers=None,timeout=30):
+              q=urllib.request.Request(url,headers=dict(headers or {}))
+              with urllib.request.urlopen(q,timeout=timeout) as r:
+                  return r.status,{k.lower():v for k,v in r.headers.items()},r.read()
+
+          # Public storefront contract. GET only; no order/payment creation.
+          nonce=secrets.token_hex(8)
+          h={'Accept':'text/html','Cache-Control':'no-cache, no-store','Pragma':'no-cache','User-Agent':'MUSITU-Chemistry-USD-Regression/'+nonce}
+          c,headers,body=http(BASE+'/chemistry/checkout/start?plan=term&__usd_regression='+nonce,h)
+          text=body.decode('utf-8','replace')
+          assert c==200
+          assert 'US$4.99' in text
+          assert 'Continue securely to Paynow' in text
+          assert 'secure Paynow payment step' in text
+          assert 'temporary direct-payment fallback' not in text
+          assert "form-action 'self' https://www.paynow.co.zw" in headers.get('content-security-policy','')
+
+          # Public health and pricing contract.
+          c,_,body=http(BASE+'/chemistry/healthz?__usd_regression='+nonce,{'Accept':'application/json','Cache-Control':'no-cache, no-store','Pragma':'no-cache','User-Agent':'MUSITU-Chemistry-USD-Regression/'+nonce})
+          health=json.loads(body or b'{}')
+          assert c==200 and health.get('ok') is True
+          assert health.get('direct_paynow_fallback_active') is False
+          assert health.get('direct_paynow_entitlement_mode')=='provider_verified_settlement_only'
+
+          c,_,body=http(BASE+'/chemistry/catalog?__usd_regression='+nonce,{'Accept':'application/json','Cache-Control':'no-cache, no-store','Pragma':'no-cache','User-Agent':'MUSITU-Chemistry-USD-Regression/'+nonce})
+          cat=json.loads(body or b'{}')
+          got={p['id']:(p.get('amount_cents'),p.get('seats'),p.get('months')) for p in cat.get('plans',[])}
+          want={'term':(499,1,4),'annual':(999,1,12),'lifetime':(1999,1,None),'family':(2499,4,12),'tutor':(3900,10,12),'school':(None,None,12)}
+          assert c==200 and got==want
+
+          # Exact live Worker semantics. Read-only Cloudflare API.
+          q=urllib.request.Request(f'{API}/accounts/{A}/workers/scripts/{urllib.parse.quote(W,safe="")}',headers=AUTH)
+          with urllib.request.urlopen(q,timeout=45) as r: raw=r.read(); ct=r.headers.get('content-type','')
+          source=raw
+          if 'multipart/' in ct.lower():
+              msg=email.message_from_bytes((f'Content-Type: {ct}\r\nMIME-Version: 1.0\r\n\r\n').encode()+raw); parts=[]
+              for p in msg.walk():
+                  if p.is_multipart(): continue
+                  d=p.get_payload(decode=True) or b''
+                  if b'MUSITU Chemistry Commerce' in d: parts.append(d)
+              assert len(parts)==1
+              source=parts[0]
+          src=source.decode('utf-8','strict')
+          required=[
+              "const DIRECT_PAYNOW_FALLBACK_ACTIVE=false;",
+              "async function initiateProvider(env,reference,q)",
+              "/internal/paynow/sign-initiate-chemistry",
+              "/internal/paynow/initiate",
+              "currency:'USD'",
+              "status:303,headers:{location:created.browserUrl",
+          ]
+          for marker in required: assert marker in src, marker
+          assert "const DIRECT_PAYNOW_FALLBACK_ACTIVE=true;" not in src
+          live_sha=hashlib.sha256(source).hexdigest()
+
+          # Read-only Paynow profile render for the public integration identity.
+          args=f'id={PID}&amount=4.99&l=1'
+          encoded=urllib.parse.quote(base64.b64encode(args.encode()).decode(),safe='')
+          c,_,body=http('https://www.paynow.co.zw/payment/billpaymentlink/?q='+encoded,{'Accept':'text/html','User-Agent':'MUSITU-Chemistry-USD-Profile-Regression/1.0'})
+          upper=body.decode('utf-8','replace').upper()
+          assert c==200
+          assert 'USD' in upper
+          assert 'ZWG' not in upper and 'ZWL' not in upper and 'ZIG' not in upper
+
+          print('LIVE_WORKER_SHA256='+live_sha)
+          print('PAYNOW_PROFILE_INTEGRATION='+PID)
+          print('PAYNOW_PROFILE_USD=TRUE')
+          print('DIRECT_PAYNOW_FALLBACK_ACTIVE=FALSE')
+          print('PRICING_CONTRACT=UNCHANGED')
+          print('PAYMENT_CREATED=FALSE')
+          print('PRODUCTION_MUTATION=FALSE')
+          print('MUSITU_CHEMISTRY_PAYNOW_USD_REGRESSION=PASS')
+          PY
