@@ -20,7 +20,9 @@ jobs:
       TARGET_FUNCTION: forge_authority
       TARGET_VOLUME: musitu-forge-state
       PUBLIC_ORIGIN: https://forge.mftintelligence.com
-      EXPECTED_MODAL_ORIGIN_SHA256: 68d869d065ea4d4fee0e28fc65f862f5e5b24cc2b71088a7201185e3d9e723bd
+      CF_API: https://api.cloudflare.com/client/v4
+      CF_ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      CF_WORKER_NAME: musitu-forge-edge
     steps:
       - uses: actions/setup-python@v5
         with:
@@ -58,20 +60,40 @@ jobs:
           print(json.dumps(safe, sort_keys=True))
           PY
 
-      - name: Verify exact Modal origin identity and wake live FORGE container
+      - name: Prove Cloudflare edge points to this exact Modal function and wake service
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
         shell: bash
         run: |
           set -euo pipefail
+          test -n "$CLOUDFLARE_EMAIL"
+          test -n "$CLOUDFLARE_GLOBAL_API_KEY"
           python - <<'PY'
-          import hashlib, json, modal, os, pathlib
-          url=modal.Function.from_name(os.environ['TARGET_APP'], os.environ['TARGET_FUNCTION']).get_web_url()
-          if not isinstance(url, str) or not url.startswith('https://'):
+          import hashlib, json, modal, os, pathlib, urllib.request
+          fn_url=modal.Function.from_name(os.environ['TARGET_APP'], os.environ['TARGET_FUNCTION']).get_web_url()
+          if not isinstance(fn_url,str) or not fn_url.startswith('https://'):
               raise SystemExit('modal_function_url_missing')
-          digest=hashlib.sha256(url.encode()).hexdigest()
-          if digest != os.environ['EXPECTED_MODAL_ORIGIN_SHA256']:
-              raise SystemExit('modal_origin_identity_mismatch')
+          settings=f"{os.environ['CF_API']}/accounts/{os.environ['CF_ACCOUNT_ID']}/workers/scripts/{os.environ['CF_WORKER_NAME']}/settings"
+          headers={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY']}
+          with urllib.request.urlopen(urllib.request.Request(settings,headers=headers),timeout=30) as response:
+              body=json.load(response)
+          if not body.get('success'):
+              raise SystemExit('cloudflare_settings_read_failed')
+          matches=[]
+          for binding in (body.get('result') or {}).get('bindings') or []:
+              if isinstance(binding,dict) and binding.get('name')=='MODAL_ORIGIN':
+                  value=binding.get('text') if binding.get('text') is not None else binding.get('value')
+                  if isinstance(value,str): matches.append(value)
+          if len(matches)!=1:
+              raise SystemExit(f'modal_origin_binding_count_{len(matches)}')
+          modal_norm=fn_url.rstrip('/')
+          edge_norm=matches[0].rstrip('/')
+          if modal_norm != edge_norm:
+              raise SystemExit('cloudflare_modal_origin_does_not_match_live_function')
+          digest=hashlib.sha256(modal_norm.encode()).hexdigest()
           pathlib.Path('/tmp/modal-origin-sha').write_text(digest)
-          print(json.dumps({'modal_origin_sha256':digest,'modal_origin_matches_v46':True}, sort_keys=True))
+          print(json.dumps({'edge_modal_origin_matches_live_function':True,'normalized_modal_origin_sha256':digest},sort_keys=True))
           PY
           curl --fail --silent --show-error --max-time 30 "$PUBLIC_ORIGIN/v1/health" > /tmp/public-health.json
           python - <<'PY'
@@ -197,8 +219,8 @@ jobs:
           probe=json.load(open('/tmp/runtime-probe.json'))
           health=json.load(open('/tmp/public-health.json'))
           out={**base,
-              'modal_origin_sha256':pathlib.Path('/tmp/modal-origin-sha').read_text().strip(),
-              'modal_origin_matches_v46':True,
+              'normalized_modal_origin_sha256':pathlib.Path('/tmp/modal-origin-sha').read_text().strip(),
+              'edge_modal_origin_matches_live_function':True,
               'persistent_mount_present':probe['persistent_mount_present'],
               'runtime_manifest_present':probe['runtime_manifest_present'],
               'selected_env':probe['selected_env'],
