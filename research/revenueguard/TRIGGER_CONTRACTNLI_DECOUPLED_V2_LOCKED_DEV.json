@@ -1,0 +1,13 @@
+{
+  "schema": "musitu.revenueguard.contractnli.decoupled_v2_locked_dev_trigger.v1",
+  "status": "DEV_RESEARCH_ONLY_NOT_CERTIFICATION",
+  "training_run_id": 34748996731,
+  "training_head_sha": "9bde25dab82909ed40e4a9722fdbfb648896d220",
+  "final_artifact_id": 10322340401,
+  "final_artifact_sha256": "3aa020ccd8c9d0fa784034e3d34fd57eba4e57c39f8eea2d7901f96bbd606951",
+  "adapted_encoder_run_id": 34676990123,
+  "adapted_encoder_artifact_sha256": "3d78d473ffde6f790b3919226d1069b81fa8426f0f139007d3ba8b9d9cf23055",
+  "evaluation_contract": "v2 relevance-only abstention calibration, duplicate-clean calibration, unchanged locked three-class dev gate",
+  "contractnli_test_opened": false,
+  "maud_opened": false
+}
