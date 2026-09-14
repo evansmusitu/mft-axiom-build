@@ -1,0 +1,43 @@
+name: MUSITU FMI Public Signup Contract Read-Only
+
+on:
+  push:
+    branches: [fmi-revenue-certification-20260913]
+    paths:
+      - '.github/workflows/fmi-public-signup-contract-readonly.yml'
+      - 'scripts/fmi_public_signup_contract_probe.py'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      CF_API: https://api.cloudflare.com/client/v4
+      ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+      CLOUDFLARE_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Require protected Cloudflare credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$CLOUDFLARE_EMAIL"
+          test -n "$CLOUDFLARE_API_KEY"
+      - name: Inspect live FMI public signup contract read-only
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/fmi_public_signup_contract_probe.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: musitu-fmi-public-signup-contract-readonly
+          path: |
+            fmi-public-signup-contract.json
+            fmi-public-signup-contract.sha256
+          retention-days: 7
+          if-no-files-found: error
