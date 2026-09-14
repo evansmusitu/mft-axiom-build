@@ -16,7 +16,7 @@ OUT.mkdir(parents=True, exist_ok=True)
 
 
 def wait_hash(page, route: str) -> None:
-    page.wait_for_function("route => location.hash === route", route)
+    page.wait_for_function("route => location.hash === route", arg=route)
 
 
 def click_route(page, route: str, selector: str | None = None) -> None:
@@ -91,7 +91,7 @@ def main() -> None:
                 page.locator("#live-space").wait_for(state="visible")
                 page.wait_for_function(
                     "tool => { const active=document.activeElement; return active?.id==='live-start' || active?.dataset?.permission===tool || active?.dataset?.record===tool; }",
-                    tool,
+                    arg=tool,
                 )
                 checks.append(f"composer_{tool}")
 
@@ -100,7 +100,7 @@ def main() -> None:
             page.wait_for_function("()=>Boolean(window.AxiomBrowserApplication)")
             before_theme = page.locator("html").get_attribute("data-theme")
             page.locator("#theme-button").click()
-            page.wait_for_function("before => document.documentElement.dataset.theme !== before", before_theme)
+            page.wait_for_function("before => document.documentElement.dataset.theme !== before", arg=before_theme)
             checks.append("theme_button")
 
             page.locator("#shortcuts-button").click()
