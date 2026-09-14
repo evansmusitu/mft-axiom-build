@@ -1,0 +1,40 @@
+name: MUSITU Store browser-first exact live capture
+
+on:
+  push:
+    branches:
+      - musitu-store-browser-first-launch-20260913
+    paths:
+      - '.github/workflows/musitu-store-browser-first-live-capture.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+  STORE_WORKER: musitu-store-phase1
+  EXPECTED_COMPATIBILITY_DATE: '2026-09-09'
+  LIVE_MODULE_OUTPUT: /tmp/musitu-store-browser-first-live-capture
+
+jobs:
+  exact-live-capture:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout isolated Store branch
+        uses: actions/checkout@v4
+
+      - name: Capture exact live Store Worker modules (GET only)
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        run: python3 store/phase2/capture_live_store_worker_unpinned.py
+
+      - name: Upload exact live capture evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: musitu-store-browser-first-exact-live-capture
+          path: /tmp/musitu-store-browser-first-live-capture
+          if-no-files-found: error
+          retention-days: 14
