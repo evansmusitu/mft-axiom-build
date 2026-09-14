@@ -219,7 +219,12 @@ def worker_settings(client: Cloudflare, source_sha: str) -> None:
 def wait_for_application(source_sha: str) -> dict:
     last = "unavailable"
     for _ in range(90):
-        status, headers, body = http(f"{APP_ORIGIN}/health")
+        try:
+            status, headers, body = http(f"{APP_ORIGIN}/health")
+        except (urllib.error.URLError, TimeoutError, OSError) as error:
+            last = f"{type(error).__name__}: application hostname is not reachable yet"
+            time.sleep(2)
+            continue
         try:
             payload = json.loads(body or b"{}")
         except Exception:
@@ -374,19 +379,30 @@ def verify_identity() -> dict:
 
 
 def verify_integration_routes() -> dict:
-    checks = []
-    for url in (
+    urls = (
         "https://mftintelligence.com/axiom",
         "https://mftintelligence.com/axiom/",
         "https://www.mftintelligence.com/axiom",
         "https://www.mftintelligence.com/axiom/",
-    ):
-        status, headers, _ = http(url, follow_redirects=False)
-        location = headers.get("location") or ""
-        if status != 308 or location != f"{APP_ORIGIN}/":
-            raise RuntimeError(f"apex integration route mismatch for {urllib.parse.urlsplit(url).netloc}{urllib.parse.urlsplit(url).path}")
-        checks.append({"entry": url, "http_status": status, "location": location})
-    return {"direct_redirects": checks, "redirect_loop_absent": True}
+    )
+    last = "unavailable"
+    for _ in range(90):
+        checks = []
+        for url in urls:
+            try:
+                status, headers, _ = http(url, follow_redirects=False)
+            except (urllib.error.URLError, TimeoutError, OSError) as error:
+                last = f"{type(error).__name__}: integration entry is not reachable yet"
+                break
+            location = headers.get("location") or ""
+            if status != 308 or location != f"{APP_ORIGIN}/":
+                last = f"HTTP {status}: route has not reached the exact redirect contract yet"
+                break
+            checks.append({"entry": url, "http_status": status, "location": location})
+        if len(checks) == len(urls):
+            return {"direct_redirects": checks, "redirect_loop_absent": True}
+        time.sleep(2)
+    raise RuntimeError(f"apex integration routes did not reach the exact redirect contract: {last}")
 
 
 def delete_created(client: Cloudflare, created_domain_id: str | None, created_route_ids: list[str]) -> dict:

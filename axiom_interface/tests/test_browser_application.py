@@ -213,6 +213,41 @@ class BrowserApplicationContractTests(unittest.TestCase):
             self.assertFalse(failure["write_performed"])
             self.assertFalse(output.exists())
 
+    def test_production_readiness_retries_transient_dns_without_relaxing_health(self):
+        expected = {
+            "ok": True,
+            "build_sha": "0" * 40,
+            "app_origin": DEPLOY.APP_ORIGIN,
+            "integration_entry": DEPLOY.INTEGRATION_ENTRY,
+            "reserved_api_origin_preserved": True,
+            "normal_launch_download": False,
+            "account_session_integration": True,
+        }
+        headers = {"x-axiom-browser-application": "production"}
+        with (
+            mock.patch.object(
+                DEPLOY,
+                "http",
+                side_effect=[DEPLOY.urllib.error.URLError("dns not propagated"), (200, headers, json.dumps(expected).encode())],
+            ) as request,
+            mock.patch.object(DEPLOY.time, "sleep") as pause,
+        ):
+            self.assertEqual(DEPLOY.wait_for_application("0" * 40), expected)
+        self.assertEqual(request.call_count, 2)
+        pause.assert_called_once_with(2)
+
+    def test_production_integration_retries_route_propagation_without_relaxing_redirects(self):
+        correct = (308, {"location": f"{DEPLOY.APP_ORIGIN}/"}, b"")
+        with (
+            mock.patch.object(DEPLOY, "http", side_effect=[(404, {}, b"")] + [correct] * 4) as request,
+            mock.patch.object(DEPLOY.time, "sleep") as pause,
+        ):
+            evidence = DEPLOY.verify_integration_routes()
+        self.assertTrue(evidence["redirect_loop_absent"])
+        self.assertEqual(len(evidence["direct_redirects"]), 4)
+        self.assertEqual(request.call_count, 5)
+        pause.assert_called_once_with(2)
+
     def test_pwa_and_native_install_paths_remain_explicitly_separate(self):
         actions = self.contract["actions"]
         self.assertEqual(actions["install_web_app"]["behavior"], "BROWSER_INSTALL_PROMPT_ONLY")
