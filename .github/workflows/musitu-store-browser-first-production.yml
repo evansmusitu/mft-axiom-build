@@ -36,7 +36,10 @@ env:
   LIVE_MODULE_OUTPUT: /tmp/musitu-store-browser-first-production/baseline
   BROWSER_FIRST_BUILD_REPORT: /tmp/musitu-store-browser-first-production/candidate.json
   NATIVE_HANDOFF_EVIDENCE: /tmp/musitu-store-browser-first-production/evidence
+  EXPECTED_BROWSER_FIRST_ASSETS_SHA: 443e558c297d700bedc706ea56647c97162709e5178b80acd63d478054bba4b4
+  EXPECTED_BROWSER_FIRST_GENERATED_DATA_SHA: 27ab78a914019cb44844de51bd0f4be46dc53bdf4b928a8dff7944228ccce063
   EXPECTED_BROWSER_FIRST_RENDER_SHA: d4d0b6aef8b1a8d887449c7be60c75190123e7fbb3183e4faf42d10f69be492c
+  EXPECTED_BROWSER_FIRST_WORKER_SHA: cba480184cd09a0a182309ba6429233f6ea7b4efdb492b25433b4506e1825e21
 
 jobs:
   promote-browser-first:
@@ -59,10 +62,63 @@ jobs:
           CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
         run: python3 store/phase2/capture_live_store_worker_unpinned.py
 
-      - name: Build browser-first candidate from exact live baseline
+      - name: Detect whether browser-first Store is already the exact live state
+        id: live_state
+        shell: bash
+        run: |
+          set -euo pipefail
+          assets="$(sha256sum "$BASELINE_MODULE_ROOT/assets.mjs" | awk '{print $1}')"
+          generated="$(sha256sum "$BASELINE_MODULE_ROOT/generated-data.mjs" | awk '{print $1}')"
+          render="$(sha256sum "$BASELINE_MODULE_ROOT/render.mjs" | awk '{print $1}')"
+          worker="$(sha256sum "$BASELINE_MODULE_ROOT/worker.mjs" | awk '{print $1}')"
+          if [ "$assets" = "$EXPECTED_BROWSER_FIRST_ASSETS_SHA" ] && [ "$generated" = "$EXPECTED_BROWSER_FIRST_GENERATED_DATA_SHA" ] && [ "$render" = "$EXPECTED_BROWSER_FIRST_RENDER_SHA" ] && [ "$worker" = "$EXPECTED_BROWSER_FIRST_WORKER_SHA" ]; then
+            echo 'current_browser_first=true' >> "$GITHUB_OUTPUT"
+            echo 'MUSITU_STORE_EXACT_BROWSER_FIRST_ALREADY_LIVE=TRUE'
+          else
+            echo 'current_browser_first=false' >> "$GITHUB_OUTPUT"
+            echo 'MUSITU_STORE_EXACT_BROWSER_FIRST_ALREADY_LIVE=FALSE'
+          fi
+
+      - name: Certify exact already-live Store modules locally
+        if: steps.live_state.outputs.current_browser_first == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check "$BASELINE_MODULE_ROOT/worker.mjs"
+          node --check "$BASELINE_MODULE_ROOT/render.mjs"
+          node --check "$BASELINE_MODULE_ROOT/assets.mjs"
+          node --check "$BASELINE_MODULE_ROOT/generated-data.mjs"
+          python3 -m py_compile store/phase2/verify-store-open-browser-app.py
+          mkdir -p "$NATIVE_HANDOFF_EVIDENCE"
+          python3 - <<'PY'
+          import hashlib,json,os
+          from pathlib import Path
+          root=Path(os.environ['BASELINE_MODULE_ROOT'])
+          names=('assets.mjs','generated-data.mjs','render.mjs','worker.mjs')
+          modules={n:hashlib.sha256((root/n).read_bytes()).hexdigest() for n in names}
+          expected={
+            'assets.mjs':os.environ['EXPECTED_BROWSER_FIRST_ASSETS_SHA'],
+            'generated-data.mjs':os.environ['EXPECTED_BROWSER_FIRST_GENERATED_DATA_SHA'],
+            'render.mjs':os.environ['EXPECTED_BROWSER_FIRST_RENDER_SHA'],
+            'worker.mjs':os.environ['EXPECTED_BROWSER_FIRST_WORKER_SHA'],
+          }
+          assert modules==expected,(modules,expected)
+          out={'schema':'musitu.store.browser_first.live_state.v1','gate':'MUSITU_STORE_EXACT_BROWSER_FIRST_LIVE_MODULES_PASS','modules':modules,'head':os.environ['NATIVE_HANDOFF_HEAD']}
+          p=Path(os.environ['NATIVE_HANDOFF_EVIDENCE']);p.mkdir(parents=True,exist_ok=True)
+          (p/'live-state.json').write_text(json.dumps(out,indent=2,sort_keys=True)+'\n',encoding='utf-8')
+          print(json.dumps(out,sort_keys=True))
+          PY
+
+      - name: Prove already-live Store Open reaches the real browser application
+        if: steps.live_state.outputs.current_browser_first == 'true'
+        run: python3 store/phase2/verify-store-open-browser-app.py
+
+      - name: Build browser-first candidate from an older live baseline
+        if: steps.live_state.outputs.current_browser_first != 'true'
         run: python3 store/phase2/build-browser-first-live-candidate.py
 
       - name: Syntax-check and locally verify candidate before any production write
+        if: steps.live_state.outputs.current_browser_first != 'true'
         run: |
           set -euo pipefail
           node --check "$CANDIDATE_MODULE_ROOT/worker.mjs"
@@ -74,12 +130,15 @@ jobs:
           cmp "$BASELINE_MODULE_ROOT/assets.mjs" "$CANDIDATE_MODULE_ROOT/assets.mjs"
           cmp "$BASELINE_MODULE_ROOT/generated-data.mjs" "$CANDIDATE_MODULE_ROOT/generated-data.mjs"
           test "$(sha256sum "$CANDIDATE_MODULE_ROOT/render.mjs" | awk '{print $1}')" = "$EXPECTED_BROWSER_FIRST_RENDER_SHA"
+          test "$(sha256sum "$CANDIDATE_MODULE_ROOT/worker.mjs" | awk '{print $1}')" = "$EXPECTED_BROWSER_FIRST_WORKER_SHA"
           echo 'MUSITU_STORE_BROWSER_FIRST_PREWRITE_GATE=PASS'
 
-      - name: Prove Store Open already reaches the real browser application before any write
+      - name: Prove downstream browser application before any Store write
+        if: steps.live_state.outputs.current_browser_first != 'true'
         run: python3 store/phase2/verify-store-open-browser-app.py
 
       - name: Pin this run to the freshly captured live baseline hashes
+        if: steps.live_state.outputs.current_browser_first != 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -89,37 +148,44 @@ jobs:
           echo "LIVE_GENERATED_DATA_SHA=$(sha256sum "$BASELINE_MODULE_ROOT/generated-data.mjs" | awk '{print $1}')" >> "$GITHUB_ENV"
 
       - name: Deploy candidate, prove rollback, then promote final candidate
+        if: steps.live_state.outputs.current_browser_first != 'true'
         env:
           CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
           CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
         run: python3 store/phase2/deploy-browser-first-launch.py
 
-      - name: Prove Store Open still ends in the real browser application after promotion
+      - name: Prove Store Open ends in the real browser application after promotion
+        if: steps.live_state.outputs.current_browser_first != 'true'
         run: python3 store/phase2/verify-store-open-browser-app.py
 
-      - name: Assert certified transaction evidence
+      - name: Assert production certification evidence
         shell: bash
         run: |
           set -euo pipefail
-          python3 - <<'PY'
+          CURRENT='${{ steps.live_state.outputs.current_browser_first }}' python3 - <<'PY'
           import json, os
           from pathlib import Path
           root=Path(os.environ['NATIVE_HANDOFF_EVIDENCE'])
-          d=json.loads((root/'deployment.json').read_text(encoding='utf-8'))
-          assert d['gate']=='MUSITU_STORE_BROWSER_FIRST_DEPLOY_AND_ROLLBACK_PASS', d
-          s=d['state']
-          assert s['candidate_deployed_once'] is True
-          assert s['rollback_drill_performed'] is True
-          assert s['rollback_drill_verified'] is True
-          assert s['candidate_redeployed_final'] is True
-          assert s['final_state_verified'] is True
-          assert s['emergency_baseline_restore_performed'] is False
-          assert d['checks']['browser_first_public_contract'] is True
-          assert d['checks']['production_only_worker_logic_preserved'] is True
           e2e=json.loads((root/'browser-app-end-to-end.json').read_text(encoding='utf-8'))
           assert e2e['gate']=='MUSITU_STORE_BROWSER_APP_END_TO_END_PASS', e2e
           assert set(e2e['platforms'])=={'android-chrome','samsung','ios-safari','desktop-chrome'}
-          print('MUSITU_STORE_BROWSER_FIRST_PRODUCTION_PROMOTION=PASS')
+          if os.environ['CURRENT']=='true':
+              live=json.loads((root/'live-state.json').read_text(encoding='utf-8'))
+              assert live['gate']=='MUSITU_STORE_EXACT_BROWSER_FIRST_LIVE_MODULES_PASS', live
+              print('MUSITU_STORE_CURRENT_PRODUCTION_CERTIFICATION=PASS')
+          else:
+              d=json.loads((root/'deployment.json').read_text(encoding='utf-8'))
+              assert d['gate']=='MUSITU_STORE_BROWSER_FIRST_DEPLOY_AND_ROLLBACK_PASS', d
+              s=d['state']
+              assert s['candidate_deployed_once'] is True
+              assert s['rollback_drill_performed'] is True
+              assert s['rollback_drill_verified'] is True
+              assert s['candidate_redeployed_final'] is True
+              assert s['final_state_verified'] is True
+              assert s['emergency_baseline_restore_performed'] is False
+              assert d['checks']['browser_first_public_contract'] is True
+              assert d['checks']['production_only_worker_logic_preserved'] is True
+              print('MUSITU_STORE_BROWSER_FIRST_PRODUCTION_PROMOTION=PASS')
           print('MUSITU_STORE_BROWSER_APP_END_TO_END_CERTIFICATION=PASS')
           PY
 
