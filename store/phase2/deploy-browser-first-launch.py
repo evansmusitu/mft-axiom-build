@@ -198,17 +198,41 @@ def verify_unchanged_routes()->None:
 
 
 def verify_discovery_contract()->None:
+    observations={}
+    pattern=re.compile(r'href="/store/open"[^>]*>Open [^<]+</a>.*?href="/store/install"[^>]*>Install options</a>',re.S)
+    direct_package=re.compile(r'href="https?:[^\"]+\.(?:apk|ipa)(?:[?#][^\"]*)?"',re.I)
     for platform in ('android','ios','web'):
         for path in ('/store','/store/apps/chemistry','/store/search?q=chemistry'):
-            text=html_probe(path,platform)
-            if not re.search(r'href="/store/open"[^>]*>Open [^<]+</a>.*?href="/store/install"[^>]*>Install options</a>',text,re.S):
-                raise RuntimeError(f'{platform} {path} is not browser-first')
-            assert_direct_package_free(text,f'{platform} {path}')
-        lite=html_probe('/store?lite=1',platform)
-        if 'href="/store/open">Open app</a>' not in lite or 'href="/store/install">Install options</a>' not in lite:
-            raise RuntimeError(f'{platform} low-bandwidth home is not browser-first')
-        if 'intent://' in lite or 'sidestore://' in lite:
-            raise RuntimeError(f'{platform} low-bandwidth home directly invokes a native carrier')
+            attempts=[]
+            for attempt in range(1,ATTEMPTS+1):
+                text=html_probe(path,platform)
+                ok=bool(pattern.search(text)) and direct_package.search(text) is None
+                attempts.append({'attempt':attempt,'sha256':digest(text.encode('utf-8')),'ok':ok})
+                if ok:
+                    break
+                if attempt<ATTEMPTS:
+                    time.sleep(DELAY_SECONDS)
+            else:
+                raise RuntimeError(f'{platform} {path} did not converge to browser-first: {attempts}')
+            observations[f'{platform} {path}']=attempts
+        attempts=[]
+        for attempt in range(1,ATTEMPTS+1):
+            lite=html_probe('/store?lite=1',platform)
+            ok=(
+                'href="/store/open">Open app</a>' in lite and
+                'href="/store/install">Install options</a>' in lite and
+                'intent://' not in lite and
+                'sidestore://' not in lite
+            )
+            attempts.append({'attempt':attempt,'sha256':digest(lite.encode('utf-8')),'ok':ok})
+            if ok:
+                break
+            if attempt<ATTEMPTS:
+                time.sleep(DELAY_SECONDS)
+        else:
+            raise RuntimeError(f'{platform} low-bandwidth home did not converge to browser-first: {attempts}')
+        observations[f'{platform} /store?lite=1']=attempts
+    base.checks['browser_first_discovery_convergence']=observations
 
 
 def verify_open_redirect()->None:
