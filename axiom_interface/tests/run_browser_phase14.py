@@ -88,9 +88,14 @@ def main() -> None:
             context.set_offline(True)
             emulate_constrained_network(session, offline=True)
             page.reload(wait_until="domcontentloaded")
+            # A navigation can replace the renderer document while the cached
+            # response remains correctly transport-offline. Reapply the
+            # navigator override to that new document before application boot.
+            emulate_constrained_network(session, offline=True)
+            assert page.evaluate("()=>navigator.onLine") is False
+            page.evaluate("()=>window.dispatchEvent(new Event('offline'))")
             page.wait_for_function("()=>Boolean(window.AxiomPwaHardeningBootstrap)")
             page.evaluate("()=>window.AxiomPwaHardeningBootstrap")
-            assert page.evaluate("()=>navigator.onLine") is False
             assert page.evaluate("()=>document.documentElement.dataset.networkProfile") == "offline"
             persisted = page.evaluate("()=>window.AxiomProjects.store.listProjects()")
             assert any(row["project_id"] == project["project_id"] for row in persisted)

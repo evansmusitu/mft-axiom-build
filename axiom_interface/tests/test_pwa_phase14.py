@@ -56,6 +56,8 @@ class Phase14PwaContractTests(unittest.TestCase):
         self.assertIn('"Network.emulateNetworkConditions"', BROWSER)
         self.assertIn('"Network.overrideNetworkState"', BROWSER)
         self.assertIn('assert page.evaluate("()=>navigator.onLine") is False', BROWSER)
+        self.assertGreaterEqual(BROWSER.count("emulate_constrained_network(session, offline=True)"), 2)
+        self.assertIn("window.dispatchEvent(new Event('offline'))", BROWSER)
 
     def test_real_device_boundary_is_fail_closed(self):
         for token in ["BROWSER_EMULATED_MID_TIER_AND_CONSTRAINED_NETWORK_CANDIDATE_ONLY", "AUTHENTICATED_REAL_MID_TIER_DEVICE_MATRIX_REQUIRED_FOR_PHASE14_SEAL", "real_device_certification_claimed:false", "phase14_earned:false"]:
