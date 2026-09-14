@@ -30,7 +30,7 @@ jobs:
             research/revenueguard/cuad_postgate_failure_miner.py \
             research/revenueguard/specialist_training_provenance_seal.py \
             research/revenueguard/v4_1_specialist_dev_admission.py
-      - name: Assert authoritative gates, exact ancestry, and sealed-data boundaries
+      - name: Assert authoritative gates, split ancestry, and sealed-data boundaries
         shell: bash
         run: |
           set -euo pipefail
@@ -48,8 +48,12 @@ jobs:
           cn_miner_path='research/revenueguard/contractnli_decoupled_postgate_failure_miner.py'
           cuad_miner_path='research/revenueguard/cuad_postgate_failure_miner.py'
           prov_wf_path='.github/workflows/revenueguard-v4-1-specialist-training-provenance.yml'
+          resume_wf_path='.github/workflows/revenueguard-cuad-matched-window-chunk3-resume.yml'
+          cuad_eval_wf_path='.github/workflows/revenueguard-cuad-matched-window-posttrain-heldout.yml'
+          cn_eval_wf_path='.github/workflows/revenueguard-contractnli-decoupled-v2-locked-dev.yml'
           cn=text(cn_path); shard=text(shard_path); cq=text(cq_path); admit=text(admit_path); prov=text(prov_path)
-          train_cn=text(train_cn_path); train_cq=text(train_cq_path); cn_miner=text(cn_miner_path); cuad_miner=text(cuad_miner_path); prov_wf=text(prov_wf_path)
+          train_cn=text(train_cn_path); train_cq=text(train_cq_path); cn_miner=text(cn_miner_path); cuad_miner=text(cuad_miner_path)
+          prov_wf=text(prov_wf_path); resume_wf=text(resume_wf_path); cuad_eval_wf=text(cuad_eval_wf_path); cn_eval_wf=text(cn_eval_wf_path)
 
           # Locked development gates are unchanged.
           assert "'accuracy_min': .90" in cn and "'macro_f1_min': .88" in cn
@@ -71,45 +75,72 @@ jobs:
           assert 'calibration_relevance_only' in cn
           assert 'semantic-head labels or correctness do not participate' in cn
 
-          # Every ContractNLI scoring shard rejects partial checkpoints and duplicate leakage.
+          # Every ContractNLI scoring shard rejects partial checkpoints and the workflow pins exact bytes.
           assert "musitu.revenueguard.contractnli.decoupled_raw_shard.v2" in shard
           assert "EXPECTED_GLOBAL_STEPS = 615" in shard and "EXPECTED_TRAINABLE_COUNT = 68" in shard
           assert "a858e138760588bdb8c89cb440e75a0f9441d23f7a3a9993a1755a3dc8f77c05" in shard
           assert "185cd8b4100f27950ebc20206ccf407a01d2694f8e2a6f6fa8fe6d4f04250b27" in shard
           assert "EXPECTED_DUPLICATE_CAL_DOCS = ['548']" in shard
           assert "{0: 0, 1: 0, 2: 16, 3: 16, 4: 16, 5: 16}" in shard
+          assert '3aa020ccd8c9d0fa784034e3d34fd57eba4e57c39f8eea2d7901f96bbd606951' in cn_eval_wf
+          assert '3d78d473ffde6f790b3919226d1069b81fa8426f0f139007d3ba8b9d9cf23055' in cn_eval_wf
 
           # Training architecture/curriculum contracts remain exact.
           assert "semantic_head = nn.Linear(H, 2)" in train_cn and "relevance_head = nn.Linear(H, 2)" in train_cn
           assert "rows.append((target_context(spans, i), h, 0, -100))" in train_cn
           assert 'MAX_LEN=384' in train_cq and 'STRIDE=128' in train_cq and 'BATCH=24' in train_cq
 
-          # Training provenance v2 requires exact causal ancestry and complete training.
-          assert "specialist_training_provenance_seal.v2" in prov
+          # CUAD resume changes only orchestration timeout and starts from exact chunk2 bytes using original trainer source.
+          assert 'timeout-minutes: 180' in resume_wf
+          assert 'ref: 302d36e9dd26af60464d0ecf4e3d2504f9591f52' in resume_wf
+          assert 'run-id: 34749003397' in resume_wf
+          assert 'revenueguard-cuad-matched-window-chunk-2' in resume_wf
+          assert '2c31ed0f6ef65542d3a61ffd7dca529c1bf53e1ff0cb63fa68ec40bfbcf0d570' in resume_wf
+          assert '--chunk-index 3 --num-chunks 4' in resume_wf
+          assert '--state-in previous/cuad_matched_state_2.pt' in resume_wf
+          assert "assert r['chunk_samples']==15381 and r['chunk_steps']==641" in resume_wf
+          assert "assert r['global_steps']==2571" in resume_wf
+
+          # Training provenance v3 requires exact split causal ancestry and complete training.
+          assert "specialist_training_provenance_seal.v3" in prov
           assert 'CN_EXPECTED_STEPS=615' in prov and 'CN_EXPECTED_SAMPLES=29488' in prov and 'CUAD_EXPECTED_STEPS=2571' in prov
           assert "CN_TRAINING_HEAD_SHA='9bde25dab82909ed40e4a9722fdbfb648896d220'" in prov
           assert "CN_SOURCE_ENCODER_ARTIFACT_SHA='3d78d473ffde6f790b3919226d1069b81fa8426f0f139007d3ba8b9d9cf23055'" in prov
-          assert "CUAD_TRAINING_HEAD_SHA='302d36e9dd26af60464d0ecf4e3d2504f9591f52'" in prov
+          assert "CUAD_ORIGINAL_TRAINING_RUN_ID=34749003397" in prov
+          assert "CUAD_ORIGINAL_TRAINING_HEAD_SHA='302d36e9dd26af60464d0ecf4e3d2504f9591f52'" in prov
+          assert "CUAD_PREDECESSOR_CHUNK2_ARTIFACT_ID=10323636532" in prov
+          assert "CUAD_PREDECESSOR_CHUNK2_ARTIFACT_SHA='2c31ed0f6ef65542d3a61ffd7dca529c1bf53e1ff0cb63fa68ec40bfbcf0d570'" in prov
+          assert "CUAD_RESUME_RUN_ID=34801041589" in prov
+          assert "CUAD_RESUME_WORKFLOW_HEAD_SHA='ad142345213d26e9ba8cc868e2aa6772b154ed6e'" in prov
           assert "CUAD_SOURCE_MODEL_ARTIFACT_SHA='a5684a5a8ed59909b46c93fd4729ce9ed0f8f672dc0be1474cf94a5e07d6e44b'" in prov
           assert "CUAD_GEOMETRY_ARTIFACT_SHA='7ff5e7ccd10aa3c4747136a0d5b67af2004edaf9777247155ce6e37812c56c04'" in prov
           assert "CUAD_TRAINER_ONEPASS_REPORT_SHA='d8820202835ae82499e96a8ee8895c175ac5ddc39e7ec66b7bbfd0367d3520a1'" in prov
           assert "CUAD_FROZEN_GEOMETRY_REPORT_SHA='e14b667cc4e8ac96b35909741847d804505b3d7f0c4c79ddebb53ab07bee10e7'" in prov
           assert 'CUAD_CHUNK_SIZES=[15436,15462,15380,15381]' in prov
           assert "if int(geom.get('dropped_empty_context_windows',-1))!=0" in prov
+          assert "'original_run_terminal_conclusion':'cancelled_after_chunk3_timeout'" in prov
 
-          # The sealing workflow independently re-reads GitHub run/artifact metadata before sealing.
+          # Sealing workflow independently re-reads original and resume GitHub metadata.
           for needle in [
-            "actions/runs/34748996731", "actions/runs/34749003397",
+            "actions/runs/34748996731", "actions/runs/34749003397", "actions/runs/34801041589",
             "revenueguard-contractnli-adapted-model", "revenueguard-cuad-epoch1-chunked-final",
-            "revenueguard-cuad-matched-window-geometry-audit",
-            "cn_run['status']=='completed'", "cq_run['status']=='completed'",
+            "revenueguard-cuad-matched-window-geometry-audit", "revenueguard-cuad-matched-window-chunk-2",
+            "cq_original['status']=='completed' and cq_original['conclusion']=='cancelled'",
+            "cq_resume['status']=='completed' and cq_resume['conclusion']=='success'",
           ]: assert needle in prov_wf, needle
 
-          # Admission v4 accepts only authoritative ContractNLI v2 + provenance v2 + complete CUAD.
-          assert "PROV_SCHEMA='musitu.revenueguard.v4_1.specialist_training_provenance_seal.v2'" in admit
-          assert "'schema':'musitu.revenueguard.v4_1.specialist_dev_admission.v4'" in admit
+          # CUAD authoritative heldout workflow must consume resumed final, never the timed-out run as final.
+          assert 'run-id: 34801041589' in cuad_eval_wf
+          assert 'actions/runs/34801041589' in cuad_eval_wf
+          assert 'actions/runs/34749003397' in cuad_eval_wf
+          assert '2c31ed0f6ef65542d3a61ffd7dca529c1bf53e1ff0cb63fa68ec40bfbcf0d570' in cuad_eval_wf
+
+          # Admission v5 accepts only authoritative ContractNLI v2 + provenance v3 + exact resumed CUAD chain.
+          assert "PROV_SCHEMA='musitu.revenueguard.v4_1.specialist_training_provenance_seal.v3'" in admit
+          assert "'schema':'musitu.revenueguard.v4_1.specialist_dev_admission.v5'" in admit
           assert "semantic-head labels or correctness do not participate" in admit
-          assert "ContractNLI training ancestry drift" in admit and "CUAD training ancestry drift" in admit
+          assert 'CUAD_PREDECESSOR_SHA' in admit and 'CUAD_RESUME_RUN_ID=34801041589' in admit
+          assert "CUAD resume ancestry drift" in admit and "CUAD predecessor checkpoint ancestry drift" in admit
           assert "global_steps'])!=615" in admit and "global_steps'])!=2571" in admit
           assert "'certification':'NOT_CERTIFIED'" in admit
 
@@ -130,5 +161,5 @@ jobs:
           assert "'maud_opened':False" in admit
           assert "'cuad_official_test_opened':False" in admit
           assert "'permissioned_companies':0" in admit and "'verified_recovered_cash_usd':0" in admit
-          print('authoritative V4.1 research contract tests PASS')
+          print('authoritative V4.1 split-ancestry research contract tests PASS')
           PY
