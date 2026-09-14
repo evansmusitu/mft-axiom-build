@@ -1,0 +1,67 @@
+{
+  "schema": "musitu.fmi.admin-public-edge-health-fix.evidence.v1",
+  "recorded_date": "2026-09-14",
+  "product": "MUSITU Frontier Market Intelligence",
+  "gate": "FMI_ADMIN_PUBLIC_EDGE_HEALTH_FIX_PASS",
+  "admin_host": "admin.mftintelligence.com",
+  "admin_worker": "mft-fmi-admin",
+  "source_branch": "fmi-revenue-certification-20260913",
+  "diagnosis": {
+    "reported_admin_status": "Public edge ATTENTION HTTP 404",
+    "root_cause": "ADMIN_MONITOR_PROBED_OBSOLETE_PUBLIC_HEALTH_PATH",
+    "obsolete_probe": "/health",
+    "obsolete_probe_http": 404,
+    "canonical_probe": "/healthz",
+    "canonical_probe_http": 200,
+    "public_status": "ok",
+    "public_authority": "PAPER_SHADOW_ONLY",
+    "public_outage": false
+  },
+  "repair": {
+    "runtime_only": true,
+    "deployed_monitor_probe": "/healthz",
+    "canonical_admin_source_directly_modified": false,
+    "d1_api_calls_performed": false,
+    "owner_credentials_modified": false,
+    "sessions_modified": false,
+    "bootstrap_tokens_modified": false,
+    "customer_rows_modified": false,
+    "billing_rows_modified": false
+  },
+  "successful_verification": {
+    "workflow_run_id": 34819891010,
+    "workflow_job_id": 103898804652,
+    "head_sha": "982e07b373bfd11cdad33b88ec542772242ee961",
+    "evidence_sha256": "0fcc34050cef377e09702dfc956c2bebc018ffefd3365f597e95b3c52f11baf7",
+    "artifact_id": 10337887022,
+    "artifact_zip_sha256": "f7e0ed3ee837d195dcae696cf4541a4c35039359f1dae5c71d42fa3bd0bd53f8",
+    "canonical_public_health_http": 200,
+    "obsolete_public_health_http": 404,
+    "admin_health_http": 200,
+    "unauthenticated_admin_system_http": 401,
+    "worker_content_v2_readback_http": 200,
+    "worker_content_contains_healthz_probe": true,
+    "worker_content_contains_obsolete_health_probe": false,
+    "mutation_performed_by_verifier": false
+  },
+  "preserved_failure_record": {
+    "workflow_run_id": 34819774757,
+    "workflow_job_id": 103898429966,
+    "head_sha": "3205532375d80cb329b926bd629e790332a293a9",
+    "failure_stage": "POST_DEPLOY_SCRIPT_CONTENT_READBACK",
+    "failure_reason": "Cloudflare legacy /content readback endpoint returned HTTP 405",
+    "repair_upload_completed_before_failure": true,
+    "live_admin_health_post_upload_http": 200,
+    "unauthenticated_admin_system_post_upload_http": 401,
+    "database_mutation_performed": false,
+    "replacement_verifier": "Cloudflare supported /content/v2 endpoint"
+  },
+  "authority_boundaries": {
+    "authority": "PAPER_SHADOW_ONLY",
+    "live_trading_authorized": false,
+    "manual_paid_entitlement": false,
+    "manual_payment_settlement": false,
+    "profitability": "NOT_YET_CERTIFIED",
+    "superiority": "NOT_CERTIFIED"
+  }
+}
