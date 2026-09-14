@@ -1,0 +1,41 @@
+name: MUSITU Chemistry Paynow USD profile read-only
+
+on:
+  push:
+    branches: [chemistry-paynow-usd-fix-20260914]
+    paths: ['.github/workflows/chemistry-paynow-usd-profile-readonly.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Render Paynow integration payment page read-only
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import base64,re,urllib.parse,urllib.request
+          integration='26343'
+          args=f'id={integration}&amount=4.99&l=1'
+          q=urllib.parse.quote(base64.b64encode(args.encode()).decode(),safe='')
+          url='https://www.paynow.co.zw/payment/billpaymentlink/?q='+q
+          req=urllib.request.Request(url,headers={'User-Agent':'Mozilla/5.0 MUSITU-Currency-Profile-Check/1.0','Accept':'text/html'})
+          with urllib.request.urlopen(req,timeout=30) as r:
+              status=r.status; final=r.geturl(); body=r.read().decode('utf-8','replace')
+          upper=body.upper()
+          currencies={c:upper.count(c) for c in ['USD','ZWG','ZWL','ZIG']}
+          amount_hits=[m.group(0) for m in re.finditer(r'(?i)(?:USD|ZWG|ZWL|ZIG|US\$|\$)\s*4\.99|4\.99\s*(?:USD|ZWG|ZWL|ZIG)',body)]
+          print('HTTP_STATUS='+str(status))
+          print('FINAL_HOST='+urllib.parse.urlparse(final).hostname)
+          print('CURRENCY_MARKER_COUNTS='+repr(currencies))
+          print('AMOUNT_CURRENCY_HITS='+repr(amount_hits[:20]))
+          print('HAS_USD_AMOUNT='+str(any('USD' in x.upper() or 'US$' in x.upper() or x.startswith('$') for x in amount_hits)).upper())
+          print('HAS_ZWG_AMOUNT='+str(any('ZWG' in x.upper() for x in amount_hits)).upper())
+          print('PAYMENT_CREATED=FALSE')
+          print('PRODUCTION_MUTATION=FALSE')
+          PY
