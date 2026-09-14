@@ -1,0 +1,43 @@
+name: MUSITU FMI Checkout Contract Read-Only
+
+on:
+  push:
+    branches: [fmi-revenue-certification-20260913]
+    paths:
+      - 'scripts/fmi_checkout_contract_readonly.py'
+      - '.github/workflows/fmi-checkout-contract-readonly.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      CF_API: https://api.cloudflare.com/client/v4
+      ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+      CLOUDFLARE_API_KEY: ${{ secrets.CLOUDFLARE_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Require protected Cloudflare credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$CLOUDFLARE_EMAIL"
+          test -n "$CLOUDFLARE_API_KEY"
+      - name: Inspect live FMI checkout contract read-only
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/fmi_checkout_contract_readonly.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: musitu-fmi-checkout-contract-readonly
+          path: |
+            fmi-checkout-contract-readonly.json
+            fmi-checkout-contract-readonly.sha256
+          retention-days: 30
+          if-no-files-found: error
