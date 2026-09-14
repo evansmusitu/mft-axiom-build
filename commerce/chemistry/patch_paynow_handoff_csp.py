@@ -1,11 +1,14 @@
 #!/usr/bin/env python3
 """Minimal exact-live patch for MUSITU Chemistry -> Paynow browser handoff.
 
-The checkout form posts only to MUSITU. The server then returns a 303 to the
-already-generated Paynow browser URL. Chrome applies the document's form-action
-policy to that redirect chain, so a self-only policy blocks the Paynow hop.
-This patch preserves every commerce behavior and only permits the exact Paynow
-HTTPS origin as an additional form-navigation destination.
+The live V3 checkout form posts only to MUSITU. checkoutPost then returns a 303
+to the already-generated Paynow browser URL. Chrome applies the initiating
+document's form-action policy to that redirect chain, so the storefront's
+self-only policy blocks the Paynow hop.
+
+This patch changes only STOREFRONT_PUBLIC_HEADERS. The legacy/simple HTML helper
+keeps form-action 'self'. Pricing, order creation, Paynow URL generation,
+entitlement, webhooks, and all non-CSP behavior remain byte-identical.
 """
 from __future__ import annotations
 
@@ -14,8 +17,9 @@ import hashlib
 from pathlib import Path
 
 EXPECTED_LIVE_SHA256 = "a2da15a78e6d685fe644d22fdc6f68a02e3dad3f7b3e263d360082e13afee4a5"
-OLD = "form-action 'self'"
-NEW = "form-action 'self' https://www.paynow.co.zw"
+OLD_STOREFRONT_CSP = "default-src 'none'; style-src 'self'; script-src 'self'; connect-src 'self'; img-src 'self' data:; font-src 'self'; manifest-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'"
+NEW_STOREFRONT_CSP = "default-src 'none'; style-src 'self'; script-src 'self'; connect-src 'self'; img-src 'self' data:; font-src 'self'; manifest-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'self' https://www.paynow.co.zw"
+LEGACY_CSP = "default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'"
 
 REQUIRED_PRESERVED = (
     "MUSITU_DIRECT_PAYNOW_FALLBACK_V1",
@@ -35,16 +39,20 @@ def sha256(data: bytes) -> str:
 
 
 def patch(text: str) -> str:
-    if text.count(OLD) != 1:
-        raise SystemExit(f"expected exactly one self-only form-action policy, found {text.count(OLD)}")
-    if NEW in text:
-        raise SystemExit("Paynow form-action origin already present; refusing double patch")
+    if text.count(OLD_STOREFRONT_CSP) != 1:
+        raise SystemExit(f"expected exactly one live storefront CSP anchor, found {text.count(OLD_STOREFRONT_CSP)}")
+    if text.count(LEGACY_CSP) != 1:
+        raise SystemExit(f"legacy CSP identity drift: found {text.count(LEGACY_CSP)}")
+    if NEW_STOREFRONT_CSP in text:
+        raise SystemExit("Paynow storefront form-action origin already present; refusing double patch")
     for token in REQUIRED_PRESERVED:
         if token not in text:
             raise SystemExit(f"required existing commerce behavior missing before patch: {token}")
-    out = text.replace(OLD, NEW, 1)
-    if out.count(NEW) != 1 or OLD in out.replace(NEW, "", 1):
-        raise SystemExit("CSP handoff patch did not converge exactly")
+    out = text.replace(OLD_STOREFRONT_CSP, NEW_STOREFRONT_CSP, 1)
+    if out.count(NEW_STOREFRONT_CSP) != 1:
+        raise SystemExit("storefront CSP handoff patch did not converge exactly")
+    if out.count(LEGACY_CSP) != 1:
+        raise SystemExit("legacy/simple CSP changed unexpectedly")
     for token in REQUIRED_PRESERVED:
         if token not in out:
             raise SystemExit(f"commerce behavior changed unexpectedly: {token}")
@@ -69,7 +77,8 @@ def main() -> None:
     print("INPUT_SHA256=" + got)
     print("OUTPUT_SHA256=" + sha256(out))
     print("OUTPUT_BYTES=" + str(len(out)))
-    print("CHANGED_SEMANTIC=form-action allow exact https://www.paynow.co.zw")
+    print("CHANGED_SEMANTIC=STOREFRONT_PUBLIC_HEADERS form-action adds exact https://www.paynow.co.zw")
+    print("LEGACY_CSP_PRESERVED=TRUE")
 
 
 if __name__ == "__main__":
