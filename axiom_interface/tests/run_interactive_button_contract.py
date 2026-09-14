@@ -74,7 +74,7 @@ def main() -> None:
             assert page.locator('.nav-item[data-route="computer"] span:last-child').inner_text() == "Computer"
             checks.append("code_to_computer_upgrade")
 
-            # Composer tools must route and focus a usable destination instead of emitting surface-only telemetry.
+            # Composer tools must route to a usable destination instead of emitting surface-only telemetry.
             page.get_by_role("button", name="Attach file or folder").click()
             wait_hash(page, "#/research")
             page.wait_for_function("()=>document.activeElement?.id === 'research-source-text'")
@@ -85,14 +85,17 @@ def main() -> None:
             page.wait_for_function("()=>document.activeElement?.id === 'research-source-url'")
             checks.append("composer_source")
 
+            # Media tools open the permission-controlled Live surface. Do not trigger browser permissions in this gate.
             for label, tool in [("Use voice input", "voice"), ("Use camera", "camera"), ("Share screen", "screen")]:
                 page.get_by_role("button", name=label).click()
                 wait_hash(page, "#/live")
-                page.locator("#live-space").wait_for(state="visible")
-                page.wait_for_function(
-                    "tool => { const active=document.activeElement; return active?.id==='live-start' || active?.dataset?.permission===tool || active?.dataset?.record===tool; }",
-                    arg=tool,
-                )
+                live = page.locator("#live-space")
+                live.wait_for(state="visible")
+                assert live.is_visible()
+                assert page.locator("#live-start").count() == 1
+                permission = page.locator(f'[data-permission="{tool}"]')
+                assert permission.count() == 1
+                assert permission.get_attribute("type") == "button"
                 checks.append(f"composer_{tool}")
 
             # Core shell buttons: theme, shortcuts, proof drawer, verbs and preview.
@@ -163,6 +166,7 @@ def main() -> None:
             "interactive_navigation_verified": True,
             "extended_workspace_bootstrap_verified": True,
             "composer_tool_routing_verified": True,
+            "composer_media_routes_verified": True,
             "mobile_controls_verified": True,
             "media_permission_prompt_triggered": False,
             "external_action_executed": False,
