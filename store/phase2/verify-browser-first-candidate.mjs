@@ -30,11 +30,11 @@ function assertNoDirectPackageDownload(text,label){
   assert.doesNotMatch(text,/href="https?:[^"]+\.(?:apk|ipa)(?:[?#][^"]*)?"/i,`${label} exposed a direct package download`);
 }
 function assertBrowserFirst(text,label){
-  const open=text.indexOf('href="/store/open"');
-  const install=text.indexOf('href="/store/install"');
-  assert.ok(open>=0,`${label} missing /store/open`);
-  assert.ok(install>=0,`${label} missing /store/install`);
-  assert.ok(open<install,`${label} must present Open before Install options`);
+  assert.match(
+    text,
+    /<div class="actions">[^<]*(?:<[^>]+>[^<]*<\/[^>]+>[^<]*)*?<a class="button" href="\/store\/open">Open [^<]+<\/a>.*?<a class="button secondary" href="\/store\/install">Install options<\/a>/s,
+    `${label} must present the primary Open action before Install options`
+  );
   assertNoDirectPackageDownload(text,label);
 }
 
@@ -44,7 +44,9 @@ for(const platform of ['android','ios','web']){
     assertBrowserFirst(text,`${platform} ${path}`);
   }
   const lite=await html('/store?lite=1',platform);
-  assertBrowserFirst(lite,`${platform} low-bandwidth home`);
+  assert.match(lite,/<div class="actions"><a class="button" href="\/store\/open">Open app<\/a><a class="button secondary" href="\/store\/install">Install options<\/a>/,
+    `${platform} low-bandwidth home must present Open before Install options`);
+  assertNoDirectPackageDownload(lite,`${platform} low-bandwidth home`);
   assert.equal(hrefs(lite).some(h=>h.startsWith('intent://')||h.startsWith('sidestore://')),false,'low-bandwidth home must not invoke a native carrier directly');
 }
 
