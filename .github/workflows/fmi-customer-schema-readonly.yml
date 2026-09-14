@@ -1,0 +1,44 @@
+name: MUSITU FMI Customer Schema Read-Only
+
+on:
+  push:
+    branches: [fmi-revenue-certification-20260913]
+    paths:
+      - '.github/workflows/fmi-customer-schema-readonly.yml'
+      - 'scripts/fmi_customer_schema_probe.py'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      CF_API: https://api.cloudflare.com/client/v4
+      ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      FMI_DB_UUID: a03dc12d-8206-47be-b904-1f24e4e37d91
+      CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+      CLOUDFLARE_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Require protected Cloudflare credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$CLOUDFLARE_EMAIL"
+          test -n "$CLOUDFLARE_API_KEY"
+      - name: Inspect customer-related D1 schema read-only
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/fmi_customer_schema_probe.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: musitu-fmi-customer-schema-readonly
+          path: |
+            fmi-customer-schema-probe.json
+            fmi-customer-schema-probe.sha256
+          retention-days: 7
+          if-no-files-found: error
