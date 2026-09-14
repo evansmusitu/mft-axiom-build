@@ -1,0 +1,65 @@
+name: RevenueGuard ContractNLI V2 Post-Gate Failure Mining
+
+on:
+  push:
+    branches: [revenueguard-axiom-governor-20260911]
+    paths: ['research/revenueguard/TRIGGER_CONTRACTNLI_V2_POSTGATE_FAILURE_MINING.json']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  mine:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download exact authoritative v2 aggregate
+        uses: actions/download-artifact@v4
+        with:
+          name: revenueguard-contractnli-decoupled-v2-relevance-only-locked-dev-eval
+          path: eval
+          repository: evansmusitu/mft-axiom-build
+          run-id: 34801092359
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Download exact authoritative v2 raw shards
+        uses: actions/download-artifact@v4
+        with:
+          pattern: revenueguard-contractnli-decoupled-v2-eval-shard-*
+          path: shards
+          merge-multiple: true
+          repository: evansmusitu/mft-axiom-build
+          run-id: 34801092359
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Assert diagnostic authority and failed gate only
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import glob,json
+          p='eval/CONTRACTNLI_DECOUPLED_V2_RELEVANCE_ONLY_LOCKED_DEV_EVAL.json'
+          o=json.load(open(p))
+          assert o['schema']=='musitu.revenueguard.contractnli.decoupled_checkpoint_eval.v2'
+          assert o['checkpoint_artifact_sha256']=='3aa020ccd8c9d0fa784034e3d34fd57eba4e57c39f8eea2d7901f96bbd606951'
+          assert 'semantic-head labels or correctness do not participate' in o['calibration_contract']
+          assert o['gate']['pass'] is False, 'failure mining is authorized only after an authoritative failed dev gate'
+          shards=glob.glob('shards/raw_decoupled_*.json')
+          assert len(shards)==8,len(shards)
+          print({'gate':o['gate'],'dev':o['dev'],'shards':len(shards)})
+          PY
+      - name: Mine dev-only failure families without changing any gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          python research/revenueguard/contractnli_decoupled_postgate_failure_miner.py \
+            --aggregate eval/CONTRACTNLI_DECOUPLED_V2_RELEVANCE_ONLY_LOCKED_DEV_EVAL.json \
+            --shard-glob 'shards/raw_decoupled_*.json' \
+            --out CONTRACTNLI_V2_POSTGATE_FAILURE_MINING.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: revenueguard-contractnli-v2-postgate-failure-mining
+          path: CONTRACTNLI_V2_POSTGATE_FAILURE_MINING.json
+          if-no-files-found: error
+          retention-days: 90
