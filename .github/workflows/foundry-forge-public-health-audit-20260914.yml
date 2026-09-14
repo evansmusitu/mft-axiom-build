@@ -1,0 +1,118 @@
+name: MUSITU Foundry FORGE Public Health Audit
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/foundry-forge-public-health-audit-20260914.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Verify certificate-validated public FORGE health and CORS contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import hashlib, json, socket, ssl, urllib.request
+          from datetime import datetime, timezone
+
+          origin='https://forge.mftintelligence.com'
+          web='https://mftintelligence.com'
+          health=origin+'/v1/health'
+          preflight=origin+'/v1/field/assignments'
+          protocol='c9fe2c0dcbc51ed7329aeea8b8d9985c0ccfc70123ac181c755285f1a0fbf3de'
+
+          def req(url, method='GET', headers=None):
+              h={'Accept':'application/json','User-Agent':'MUSITU-FORGE-public-health-audit/1'}
+              h.update(headers or {})
+              r=urllib.request.urlopen(urllib.request.Request(url,headers=h,method=method),timeout=20,context=ssl.create_default_context())
+              raw=r.read(131073)
+              if len(raw)>131072: raise SystemExit('response_too_large')
+              return r,raw
+
+          addresses=sorted({x[4][0] for x in socket.getaddrinfo('forge.mftintelligence.com',443,type=socket.SOCK_STREAM)})
+          r,raw=req(health,headers={'Origin':web})
+          if r.geturl()!=health: raise SystemExit('health_redirect_or_origin_mismatch')
+          if r.status!=200: raise SystemExit('health_http_status_invalid')
+          hdr=r.headers
+          checks={
+            'content_type':hdr.get('Content-Type','').lower().startswith('application/json'),
+            'cache_control':hdr.get('Cache-Control','')=='no-store',
+            'nosniff':hdr.get('X-Content-Type-Options','')=='nosniff',
+            'referrer_policy':hdr.get('Referrer-Policy','')=='no-referrer',
+            'cors_origin':hdr.get('Access-Control-Allow-Origin','')==web,
+            'cors_not_wildcard':hdr.get('Access-Control-Allow-Origin','')!='*',
+          }
+          if not all(checks.values()): raise SystemExit('health_header_contract_invalid')
+          payload=json.loads(raw)
+          if not isinstance(payload,dict): raise SystemExit('health_json_object_required')
+          if payload.get('schema')!='musitu.forge.health.v1': raise SystemExit('health_schema_invalid')
+          if payload.get('status')!='READY': raise SystemExit('health_status_not_ready')
+          if payload.get('canonical_service_origin')!=origin: raise SystemExit('canonical_service_origin_mismatch')
+          if payload.get('protocol_digest')!=protocol: raise SystemExit('protocol_digest_mismatch')
+          if payload.get('custody_uploads_ready') is not True: raise SystemExit('custody_uploads_not_ready')
+          if payload.get('production_authorized') is not False: raise SystemExit('unearned_production_claim')
+
+          p,praw=req(preflight,method='OPTIONS',headers={
+            'Origin':web,
+            'Access-Control-Request-Method':'GET',
+            'Access-Control-Request-Headers':'authorization, content-type, x-musitu-client-protocol',
+          })
+          if p.geturl()!=preflight: raise SystemExit('preflight_redirect_or_origin_mismatch')
+          if p.status!=204: raise SystemExit('preflight_http_status_invalid')
+          if praw!=b'': raise SystemExit('preflight_body_must_be_empty')
+          ph=p.headers
+          methods={x.strip().upper() for x in ph.get('Access-Control-Allow-Methods','').split(',') if x.strip()}
+          allowed={x.strip().lower() for x in ph.get('Access-Control-Allow-Headers','').split(',') if x.strip()}
+          required={'authorization','content-type','x-musitu-client-protocol'}
+          preflight_checks={
+            'cors_origin':ph.get('Access-Control-Allow-Origin','')==web,
+            'cors_not_wildcard':ph.get('Access-Control-Allow-Origin','')!='*',
+            'methods':{'GET','POST','PUT'}.issubset(methods),
+            'headers':required.issubset(allowed),
+            'cache_control':ph.get('Cache-Control','')=='no-store',
+            'nosniff':ph.get('X-Content-Type-Options','')=='nosniff',
+            'referrer_policy':ph.get('Referrer-Policy','')=='no-referrer',
+          }
+          if not all(preflight_checks.values()): raise SystemExit('preflight_contract_invalid')
+
+          out={
+            'schema':'musitu.foundry_forge.public_health_audit.v1',
+            'observed_at':datetime.now(timezone.utc).isoformat(),
+            'canonical_origin':origin,
+            'resolved_addresses':addresses,
+            'health_url':health,
+            'health_status':r.status,
+            'health_body_sha256':hashlib.sha256(raw).hexdigest(),
+            'health_headers_verified':True,
+            'preflight_status':p.status,
+            'preflight_verified':True,
+            'protocol_digest':protocol,
+            'custody_uploads_ready':payload.get('custody_uploads_ready') is True,
+            'video_derivation_runtime_configured':payload.get('video_derivation_runtime_configured') is True,
+            'expert_review_projection_configured':payload.get('expert_review_projection_configured') is True,
+            'field_dataset_admission_configured':payload.get('field_dataset_admission_configured') is True,
+            'fault_episode_submission_configured':payload.get('fault_episode_submission_configured') is True,
+            'production_authorized':False,
+            'result':'PASS',
+            'write_performed':False,
+          }
+          open('foundry-forge-public-health-audit.json','w').write(json.dumps(out,indent=2,sort_keys=True)+'\n')
+          print(json.dumps(out,sort_keys=True))
+          PY
+      - name: Seal health evidence
+        run: sha256sum foundry-forge-public-health-audit.json > foundry-forge-public-health-audit.sha256
+      - uses: actions/upload-artifact@v4
+        with:
+          name: musitu-foundry-forge-public-health-audit-20260914
+          path: |
+            foundry-forge-public-health-audit.json
+            foundry-forge-public-health-audit.sha256
+          retention-days: 7
+          if-no-files-found: error
