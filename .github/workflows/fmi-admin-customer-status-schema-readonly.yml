@@ -1,0 +1,31 @@
+name: MUSITU FMI Admin Customer Status Schema Read-Only
+
+on:
+  push:
+    paths:
+      - 'scripts/fmi_admin_customer_status_schema.py'
+      - '.github/workflows/fmi-admin-customer-status-schema-readonly.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      CF_API: https://api.cloudflare.com/client/v4
+      ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      FMI_DB_UUID: a03dc12d-8206-47be-b904-1f24e4e37d91
+    steps:
+      - uses: actions/checkout@v4
+      - name: Inspect customer status contract read-only
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        run: |
+          set -euo pipefail
+          test -n "$CLOUDFLARE_EMAIL"
+          test -n "$CLOUDFLARE_GLOBAL_API_KEY"
+          python scripts/fmi_admin_customer_status_schema.py
