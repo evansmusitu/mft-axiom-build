@@ -1,6 +1,6 @@
 {
   "schema": "musitu.axiom.browser-application.v1",
-  "status": "PRODUCTION_DEPLOYMENT_CANDIDATE",
+  "status": "PRODUCTION_DEPLOYED_VERIFIED",
   "deployment": {
     "public_entry_url": "https://app.mftintelligence.com/",
     "integration_entry_url": "https://app.mftintelligence.com/",
@@ -11,7 +11,8 @@
     "entry_url": "./#/home",
     "origin_policy": "DEDICATED_APPLICATION_ORIGIN",
     "reserved_api_origin": "https://axiom.mftintelligence.com",
-    "production_deployment_claimed": false
+    "production_deployment_claimed": true,
+    "production_identity_integration_claimed": true
   },
   "routing": {
     "mode": "HASH_SPA",
@@ -90,5 +91,83 @@
       "href": null,
       "separate_from_open_browser": true
     }
+  },
+  "evidence": {
+    "artifacts": {
+      "browser_evidence": {
+        "digest": "sha256:53051f7d0ad0bc13ab7823a9f5e6025029b127c559544c7a02ee15e55193865e",
+        "id": 10350131025,
+        "name": "musitu-axiom-browser-application-browser-evidence",
+        "size_in_bytes": 15873764
+      },
+      "production_deployment": {
+        "digest": "sha256:79154a2a5cae1776bde9b6fdd86a1494dfe47a61c5383271946d1e0ff7283422",
+        "id": 10349527480,
+        "name": "musitu-axiom-browser-application-production-deployment",
+        "size_in_bytes": 7153
+      },
+      "runtime_security": {
+        "digest": "sha256:33ba4e568fa5e55c199be70d3e6765e61fe1489fb460fa8d030e330cf1b0a64e",
+        "id": 10350275509,
+        "name": "musitu-axiom-browser-application-runtime-security-evidence",
+        "size_in_bytes": 4987
+      },
+      "static_build": {
+        "digest": "sha256:7144194dbf3f055912dfaa01885acc3a6559c0dbf9c29854b1ee8d33976e6176",
+        "id": 10350250610,
+        "name": "musitu-axiom-browser-application-static-build",
+        "size_in_bytes": 180852
+      }
+    },
+    "authority_boundary": {
+      "earned_phase": "PHASE_12_DEVELOPER_PLATFORM_MARKETPLACE",
+      "phase13_earned_claimed": false,
+      "phase14_earned_claimed": false
+    },
+    "digest_provenance": {
+      "artifact_api_and_upload_log_match": true,
+      "source": "GITHUB_ACTIONS_ARTIFACTS_API_AND_PINNED_JOB_LOGS",
+      "verification_scope": "PROVIDER_REPORTED_GITHUB_ACTIONS_ARCHIVE_DIGESTS_CROSS_CHECKED_WITH_UPLOAD_LOGS"
+    },
+    "hosted_browser_regression_verified": true,
+    "implementation_git_sha": "5fc86d83efd650de0ca2a0ce9a3973ebd7278b52",
+    "live_http_verification": {
+      "application_url": "https://app.mftintelligence.com/",
+      "exact_browser_entry_url": "https://app.mftintelligence.com/#/home",
+      "guest_session_contract_verified": true,
+      "health_build_sha": "5fc86d83efd650de0ca2a0ce9a3973ebd7278b52",
+      "health_contract_verified": true,
+      "normal_launch_download": false,
+      "root_inline_application_verified": true,
+      "account_session_integration_reported_by_health": true
+    },
+    "production_deployment_evidence_sha256": "288ac1d23817214f0f80b86a4f0046eeaf79e1f514de7c615a1c1730ee2dd0ce",
+    "schema": "musitu.axiom.browser-application.production-deployment-evidence.v1",
+    "workflow": {
+      "browser_job": {
+        "conclusion": "success",
+        "id": 103993918471,
+        "name": "browser-launch-session-pwa-and-inherited-regression"
+      },
+      "conclusion": "success",
+      "deployment_job": {
+        "conclusion": "success",
+        "id": 103995376067,
+        "name": "deploy-production-browser-application"
+      },
+      "event": "push",
+      "head_branch": "frontier/axiom-v5-browser-app-production-20260914",
+      "head_sha": "5fc86d83efd650de0ca2a0ce9a3973ebd7278b52",
+      "run_attempt": 1,
+      "run_id": 34849605955,
+      "runtime_security_job": {
+        "conclusion": "success",
+        "id": 103993918558,
+        "name": "runtime-security-authority-and-regression"
+      },
+      "status": "completed"
+    },
+    "implementation_git_tree_sha": "d6a68e684fbd5f050014bafb283871199eb1298f",
+    "seal_validation_scope": "COMPLETE_BROWSER_APPLICATION_WORKFLOW_AND_PRODUCTION_DEPLOYMENT_REQUIRED_AT_EXACT_SEAL_HEAD"
   }
 }

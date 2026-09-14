@@ -21,6 +21,16 @@ Open `http://127.0.0.1:4173/#/home`. The root serves the full application direct
 
 The machine-readable contract is `browser-app.json`.
 
+
+## Production deployment evidence
+
+Status: **PRODUCTION_DEPLOYED_VERIFIED**.
+
+The green implementation head is `5fc86d83efd650de0ca2a0ce9a3973ebd7278b52`. GitHub Actions run `34849605955` completed the full runtime/security, inherited browser-regression, static-build, and production-deployment envelope successfully. The deployment evidence SHA-256 is `288ac1d23817214f0f80b86a4f0046eeaf79e1f514de7c615a1c1730ee2dd0ce`; exact job, artifact, size, and provider-reported ZIP-digest bindings are recorded in `browser-app.json` and `surface-map.json`.
+
+Live HTTP verification bound the application root, health contract, and guest session contract to the green implementation SHA. The hosted browser job verified browser launch, deep-link/refresh behavior, responsive viewports, PWA behavior, session boundaries, security regressions, and inherited Phase 1–14 candidate coverage. This production seal does not add `qualified_phase13_sha` or `qualified_phase14_sha`, and it does not claim either phase earned.
+
+
 The tracked Cloudflare Worker in `ops/axiom_browser_application_worker.mjs` owns only the dedicated app hostname. Deployment is fail-closed on any existing DNS or Worker-domain conflict and runs only after the inherited browser/runtime qualification jobs pass.
 
 Build an integrity-inventoried static deployment directory (the build output is not a user launch download):

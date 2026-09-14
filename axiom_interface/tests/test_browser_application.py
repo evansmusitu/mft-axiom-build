@@ -39,7 +39,7 @@ class BrowserApplicationContractTests(unittest.TestCase):
     def test_canonical_entry_is_truthful_and_does_not_repurpose_api_edge(self):
         deployment = self.contract["deployment"]
         self.assertEqual(self.contract["schema"], "musitu.axiom.browser-application.v1")
-        self.assertIn(self.contract["status"], {"PRODUCTION_DEPLOYMENT_CANDIDATE", "PRODUCTION_DEPLOYED_VERIFIED"})
+        self.assertEqual(self.contract["status"], "PRODUCTION_DEPLOYED_VERIFIED")
         self.assertEqual(deployment["public_entry_url"], "https://app.mftintelligence.com/")
         self.assertEqual(deployment["integration_entry_url"], "https://app.mftintelligence.com/")
         self.assertEqual(deployment["production_app_origin"], "https://app.mftintelligence.com")
@@ -51,6 +51,10 @@ class BrowserApplicationContractTests(unittest.TestCase):
         self.assertEqual(deployment["reserved_api_origin"], "https://axiom.mftintelligence.com")
         self.assertEqual(
             deployment["production_deployment_claimed"],
+            self.contract["status"] == "PRODUCTION_DEPLOYED_VERIFIED",
+        )
+        self.assertEqual(
+            deployment["production_identity_integration_claimed"],
             self.contract["status"] == "PRODUCTION_DEPLOYED_VERIFIED",
         )
 
@@ -413,19 +417,72 @@ class BrowserApplicationContractTests(unittest.TestCase):
         self.assertFalse(MANIFEST["prefer_related_applications"])
         self.assertEqual(MANIFEST["related_applications"], [])
 
+    def test_production_deployment_evidence_is_exact_and_does_not_elevate_phase_authority(self):
+        evidence = self.contract["evidence"]
+        surface_evidence = SURFACE["browser_application_substrate"]["production_deployment_evidence"]
+        self.assertEqual(self.contract["status"], "PRODUCTION_DEPLOYED_VERIFIED")
+        self.assertEqual(evidence, surface_evidence)
+        self.assertEqual(evidence["schema"], "musitu.axiom.browser-application.production-deployment-evidence.v1")
+        self.assertEqual(evidence["implementation_git_sha"], "5fc86d83efd650de0ca2a0ce9a3973ebd7278b52")
+        self.assertEqual(evidence["implementation_git_tree_sha"], "d6a68e684fbd5f050014bafb283871199eb1298f")
+        self.assertEqual(evidence["workflow"]["run_id"], 34849605955)
+        self.assertEqual(evidence["workflow"]["head_sha"], evidence["implementation_git_sha"])
+        self.assertEqual(evidence["workflow"]["conclusion"], "success")
+        self.assertEqual(evidence["workflow"]["runtime_security_job"]["id"], 103993918558)
+        self.assertEqual(evidence["workflow"]["browser_job"]["id"], 103993918471)
+        self.assertEqual(evidence["workflow"]["deployment_job"]["id"], 103995376067)
+        expected_artifacts = {
+            "runtime_security": (10350275509, "sha256:33ba4e568fa5e55c199be70d3e6765e61fe1489fb460fa8d030e330cf1b0a64e"),
+            "static_build": (10350250610, "sha256:7144194dbf3f055912dfaa01885acc3a6559c0dbf9c29854b1ee8d33976e6176"),
+            "browser_evidence": (10350131025, "sha256:53051f7d0ad0bc13ab7823a9f5e6025029b127c559544c7a02ee15e55193865e"),
+            "production_deployment": (10349527480, "sha256:79154a2a5cae1776bde9b6fdd86a1494dfe47a61c5383271946d1e0ff7283422"),
+        }
+        for name, (artifact_id, digest) in expected_artifacts.items():
+            self.assertEqual(evidence["artifacts"][name]["id"], artifact_id)
+            self.assertEqual(evidence["artifacts"][name]["digest"], digest)
+        self.assertEqual(
+            evidence["production_deployment_evidence_sha256"],
+            "288ac1d23817214f0f80b86a4f0046eeaf79e1f514de7c615a1c1730ee2dd0ce",
+        )
+        self.assertEqual(evidence["live_http_verification"]["health_build_sha"], evidence["implementation_git_sha"])
+        self.assertTrue(evidence["live_http_verification"]["root_inline_application_verified"])
+        self.assertTrue(evidence["live_http_verification"]["health_contract_verified"])
+        self.assertTrue(evidence["live_http_verification"]["guest_session_contract_verified"])
+        self.assertTrue(evidence["live_http_verification"]["account_session_integration_reported_by_health"])
+        self.assertFalse(evidence["live_http_verification"]["normal_launch_download"])
+        self.assertTrue(evidence["hosted_browser_regression_verified"])
+        self.assertTrue(evidence["digest_provenance"]["artifact_api_and_upload_log_match"])
+        self.assertEqual(
+            evidence["digest_provenance"]["verification_scope"],
+            "PROVIDER_REPORTED_GITHUB_ACTIONS_ARCHIVE_DIGESTS_CROSS_CHECKED_WITH_UPLOAD_LOGS",
+        )
+        self.assertEqual(
+            evidence["digest_provenance"]["source"],
+            "GITHUB_ACTIONS_ARTIFACTS_API_AND_PINNED_JOB_LOGS",
+        )
+        self.assertEqual(evidence["authority_boundary"]["earned_phase"], "PHASE_12_DEVELOPER_PLATFORM_MARKETPLACE")
+        self.assertFalse(evidence["authority_boundary"]["phase13_earned_claimed"])
+        self.assertFalse(evidence["authority_boundary"]["phase14_earned_claimed"])
+        self.assertEqual(
+            evidence["seal_validation_scope"],
+            "COMPLETE_BROWSER_APPLICATION_WORKFLOW_AND_PRODUCTION_DEPLOYMENT_REQUIRED_AT_EXACT_SEAL_HEAD",
+        )
+        self.assertNotIn("qualified_phase13_sha", SURFACE["authority"])
+        self.assertNotIn("qualified_phase14_sha", SURFACE["authority"])
+
     def test_service_worker_caches_app_shell_but_never_session_identity(self):
         self.assertIn("const CACHE='axiom-interface-phase14-candidate-v1'", SW)
-        self.assertIn("const SHELL_REVISION='axiom-browser-application-production-candidate-v1'", SW)
+        self.assertIn("const SHELL_REVISION='axiom-browser-application-production-seal-v1'", SW)
         for asset in ["./browser_app.js", "./browser_session.js", "./browser-app.json"]:
             self.assertIn(asset, SW)
         for token in ["/.well-known/axiom-session", "./auth/", "./health", "cache:'no-store'", "response.ok", "text/html"]:
             self.assertIn(token, SW)
         self.assertNotRegex(SW, r"SHELL\s*=\s*\[[^\]]*\.well-known/axiom-session")
 
-    def test_candidate_truth_boundary_does_not_change_earned_phase_authority(self):
+    def test_production_truth_boundary_does_not_change_earned_phase_authority(self):
         browser = SURFACE["browser_application_substrate"]
         self.assertEqual(SURFACE["phase"], "PHASE_12_DEVELOPER_PLATFORM_MARKETPLACE")
-        self.assertIn(browser["status"], {"PRODUCTION_DEPLOYMENT_CANDIDATE", "PRODUCTION_DEPLOYED_VERIFIED"})
+        self.assertEqual(browser["status"], "PRODUCTION_DEPLOYED_VERIFIED")
         self.assertEqual(browser["origin_policy"], "DEDICATED_APPLICATION_ORIGIN")
         self.assertTrue(browser["browser_launch_implemented"])
         self.assertTrue(browser["authenticated_session_contract_implemented"])
