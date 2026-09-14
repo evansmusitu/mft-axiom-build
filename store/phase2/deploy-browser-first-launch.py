@@ -252,23 +252,63 @@ def verify_open_redirect()->None:
 
 def verify_install_carriers()->None:
     carrier_checks={}
+    convergence={}
     for action in ('install','update','repair','reinstall'):
         path='/store/install' if action=='install' else '/store/'+action
-        android=html_probe(path,'android')
-        if not re.search(r'intent://app/chemistry\?action='+re.escape(action)+r'[^\"]*package=com\.musitu\.store',android):
-            raise RuntimeError(f'Android {action} native MUSITU Store handoff lost')
-        if 'href="/store/open"' not in android:
-            raise RuntimeError(f'Android {action} browser fallback lost')
-        ios=html_probe(path,'ios')
-        if 'sidestore://install?url=' not in ios or 'href="/store/open"' not in ios:
-            raise RuntimeError(f'iOS {action} SideStore/browser separation lost')
-        assert_direct_package_free(ios,f'iOS {action}')
-        web=html_probe(path,'web')
-        if f'href="{PWA_INSTALL}"' not in web or 'href="/store/open"' not in web:
-            raise RuntimeError(f'Web {action} PWA/browser separation lost')
-        assert_direct_package_free(web,f'Web {action}')
+
+        attempts=[]
+        for attempt in range(1,ATTEMPTS+1):
+            android=html_probe(path,'android')
+            ok=(
+                re.search(r'intent://app/chemistry\?action='+re.escape(action)+r'[^\"]*package=com\.musitu\.store',android) is not None and
+                'href="/store/open"' in android
+            )
+            attempts.append({'attempt':attempt,'sha256':digest(android.encode('utf-8')),'ok':ok})
+            if ok:
+                break
+            if attempt<ATTEMPTS:
+                time.sleep(DELAY_SECONDS)
+        else:
+            raise RuntimeError(f'Android {action} native MUSITU Store/browser handoff did not converge: {attempts}')
+        convergence[f'android {action}']=attempts
+
+        attempts=[]
+        for attempt in range(1,ATTEMPTS+1):
+            ios=html_probe(path,'ios')
+            ok=(
+                'sidestore://install?url=' in ios and
+                'href="/store/open"' in ios and
+                re.search(r'href="https?:[^\"]+\.(?:apk|ipa)(?:[?#][^\"]*)?"',ios,re.I) is None
+            )
+            attempts.append({'attempt':attempt,'sha256':digest(ios.encode('utf-8')),'ok':ok})
+            if ok:
+                break
+            if attempt<ATTEMPTS:
+                time.sleep(DELAY_SECONDS)
+        else:
+            raise RuntimeError(f'iOS {action} SideStore/browser separation did not converge: {attempts}')
+        convergence[f'ios {action}']=attempts
+
+        attempts=[]
+        for attempt in range(1,ATTEMPTS+1):
+            web=html_probe(path,'web')
+            ok=(
+                f'href="{PWA_INSTALL}"' in web and
+                'href="/store/open"' in web and
+                re.search(r'href="https?:[^\"]+\.(?:apk|ipa)(?:[?#][^\"]*)?"',web,re.I) is None
+            )
+            attempts.append({'attempt':attempt,'sha256':digest(web.encode('utf-8')),'ok':ok})
+            if ok:
+                break
+            if attempt<ATTEMPTS:
+                time.sleep(DELAY_SECONDS)
+        else:
+            raise RuntimeError(f'Web {action} PWA/browser separation did not converge: {attempts}')
+        convergence[f'web {action}']=attempts
+
         carrier_checks[action]={'android':'MUSITU Store intent','ios':'SideStore','web':'PWA','browser_fallback':'/store/open'}
     base.checks['install_carrier_separation']=carrier_checks
+    base.checks['install_carrier_convergence']=convergence
 
 
 def verify_manifest()->None:
