@@ -1,0 +1,87 @@
+name: MUSITU Foundry FORGE Modal History Safe Projection
+
+on:
+  push:
+    paths:
+      - '.github/workflows/foundry-forge-modal-history-safe-projection-20260914.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  project:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID }}
+      MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET }}
+      TARGET_APP: musitu-forge-private-staging
+    steps:
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Read exact app history and emit allowlisted projection only
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$MODAL_TOKEN_ID"; test -n "$MODAL_TOKEN_SECRET"
+          python -m pip install --disable-pip-version-check --quiet 'modal>=1.5,<2'
+          modal app list --json >/dev/null
+          modal app history "$TARGET_APP" --json >/tmp/history.json
+          python - <<'PY'
+          import hashlib,json,pathlib,re
+          raw=pathlib.Path('/tmp/history.json').read_bytes(); doc=json.loads(raw)
+          allow_exact={
+            'app_id','application_id','id','version','version_number','app_version','revision','revision_id','deployment_id','deployment_uuid',
+            'state','status','tag','name','app_name','environment','environment_name','created_at','created','started_at','started','stopped_at','stopped',
+            'deployed_at','deployment_time','client_version','modal_version','runtime','runtime_version','active','current','description','source'
+          }
+          sensitive_fragments=('secret','token','credential','password','private_key','api_key','auth')
+          def urlhash(s): return {'url_sha256':hashlib.sha256(s.rstrip('/').encode()).hexdigest(),'length':len(s)}
+          def scalar(k,v):
+            kl=(k or '').lower()
+            if any(x in kl for x in sensitive_fragments): return {'present':v not in (None,'',False,[],{})}
+            if isinstance(v,str):
+              if v.startswith(('http://','https://')): return urlhash(v)
+              if kl in allow_exact or kl.endswith('_id') or kl.endswith('_version') or kl.endswith('_at') or kl.endswith('_time') or kl in ('type','kind'):
+                return v[:500]
+              return {'sha256':hashlib.sha256(v.encode()).hexdigest(),'length':len(v)}
+            if isinstance(v,(int,float,bool)) or v is None: return v
+            return v
+          def scrub(v,key=''):
+            if isinstance(v,dict):
+              return {str(k):scrub(x,str(k)) for k,x in sorted(v.items(),key=lambda kv:str(kv[0]))}
+            if isinstance(v,list): return [scrub(x,key) for x in v]
+            return scalar(key,v)
+          safe=scrub(doc)
+          out={
+            'schema':'musitu.foundry_forge.modal_history_safe_projection.v1',
+            'target_app':'musitu-forge-private-staging',
+            'raw_history_sha256':hashlib.sha256(raw).hexdigest(),
+            'raw_history_uploaded':False,
+            'safe_projection':safe,
+            'secret_values_exposed':False,
+            'raw_urls_exposed':False,
+            'write_performed':False,
+          }
+          pathlib.Path('foundry-forge-modal-history-safe-projection.json').write_text(json.dumps(out,indent=2,sort_keys=True)+'\n')
+          print('SAFE_HISTORY_PROJECTION_READY')
+          PY
+          sha256sum foundry-forge-modal-history-safe-projection.json >foundry-forge-modal-history-safe-projection.sha256
+      - uses: actions/upload-artifact@v4
+        with:
+          name: musitu-foundry-forge-modal-history-safe-projection-20260914
+          path: |
+            foundry-forge-modal-history-safe-projection.json
+            foundry-forge-modal-history-safe-projection.sha256
+          retention-days: 14
+          if-no-files-found: error
+      - name: Enforce read-only projection boundary
+        run: |
+          python - <<'PY'
+          import json
+          x=json.load(open('foundry-forge-modal-history-safe-projection.json'))
+          assert x['raw_history_uploaded'] is False and x['secret_values_exposed'] is False and x['raw_urls_exposed'] is False and x['write_performed'] is False
+          print('MODAL_HISTORY_SAFE_PROJECTION_PASS')
+          PY
