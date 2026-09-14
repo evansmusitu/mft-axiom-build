@@ -1,0 +1,110 @@
+name: RevenueGuard CUAD Matched-Window Chunk3 Exact Resume
+
+on:
+  push:
+    branches: [revenueguard-axiom-governor-20260911]
+    paths: ['research/revenueguard/TRIGGER_CUAD_MATCHED_WINDOW_CHUNK3_RESUME.json']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  chunk3_resume:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    steps:
+      - name: Checkout exact original CUAD training source
+        uses: actions/checkout@v4
+        with:
+          ref: 302d36e9dd26af60464d0ecf4e3d2504f9591f52
+
+      - name: Assert exact validated chunk2 predecessor artifact
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          curl -fsSL -H "Authorization: Bearer $GH_TOKEN" -H 'Accept: application/vnd.github+json' \
+            'https://api.github.com/repos/evansmusitu/mft-axiom-build/actions/runs/34749003397/artifacts?name=revenueguard-cuad-matched-window-chunk-2' > predecessor_meta.json
+          python - <<'PY'
+          import json
+          o=json.load(open('predecessor_meta.json'))
+          a=[x for x in o['artifacts'] if x['name']=='revenueguard-cuad-matched-window-chunk-2' and not x['expired']]
+          assert len(a)==1,a
+          assert a[0]['id']==10323636532,a[0]['id']
+          assert a[0]['digest']=='sha256:2c31ed0f8b14a438486beca6cb4b5adc95537ff496d51143a6a4d995ce71d570',a[0]['digest']
+          print('exact chunk2 predecessor identity PASS')
+          PY
+
+      - name: Download exact validated chunk2 predecessor
+        uses: actions/download-artifact@v4
+        with:
+          name: revenueguard-cuad-matched-window-chunk-2
+          path: previous
+          repository: evansmusitu/mft-axiom-build
+          run-id: 34749003397
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install exact runtime and fetch pinned CUAD corpus
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          python -m pip install --index-url https://download.pytorch.org/whl/cpu torch
+          python -m pip install 'transformers==4.56.2' safetensors
+          curl -fL --retry 4 --retry-delay 2 -o cuad-data.zip 'https://raw.githubusercontent.com/The-Atticus-Project/cuad/67faa0e6023b04fcaae6cc09497ab00e5d63a2a2/data.zip'
+          unzip -q cuad-data.zip
+
+      - name: Resume exact matched-window chunk 3 of 4
+        shell: bash
+        run: |
+          set -euo pipefail
+          TRAIN=$(find . -name train_separate_questions.json -type f | head -n1)
+          test -n "$TRAIN"
+          python research/revenueguard/cuad_matched_window_multitask_train.py \
+            --model-in previous/cuad_matched_chunk_2 \
+            --train-json "$TRAIN" \
+            --chunk-index 3 --num-chunks 4 \
+            --state-in previous/cuad_matched_state_2.pt \
+            --model-out cuad_matched_epoch2_final \
+            --state-out cuad_matched_epoch2_state.pt \
+            --report CUAD_MATCHED_EPOCH2_FINAL.json
+
+      - name: Assert exact completed CUAD training contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json, torch
+          from pathlib import Path
+          r=json.load(open('CUAD_MATCHED_EPOCH2_FINAL.json'))
+          assert r['schema']=='musitu.revenueguard.cuad.matched_window_train.v1'
+          assert r['chunk_index']==3 and r['num_chunks']==4
+          assert r['chunk_samples']==15381 and r['chunk_steps']==641
+          assert r['global_steps']==2571
+          assert r['max_length']==384 and r['stride']==128 and r['batch_size']==24
+          assert r['train_sha256']=='7de21d2bb741ac939e2a839ef9640634a5e0f9f40ea2b82c6833baf7db33dab4'
+          assert r['cuad_commit']=='67faa0e6023b04fcaae6cc09497ab00e5d63a2a2'
+          c=r['full_selected_counts']
+          assert c['heldout_questions']==2461 and c['build_questions']==19989
+          assert c['selected_positive']==12305 and c['selected_negative']==49354 and c['selected_total']==61659
+          s=torch.load('cuad_matched_epoch2_state.pt',map_location='cpu',weights_only=False)
+          assert s['schema']=='musitu.revenueguard.cuad.matched_window_state.v1'
+          assert s['num_chunks']==4 and s['next_chunk']==4 and s['global_steps']==2571
+          assert s['train_sha256']=='7de21d2bb741ac939e2a839ef9640634a5e0f9f40ea2b82c6833baf7db33dab4'
+          assert Path('cuad_matched_epoch2_final/answer_head.pt').is_file()
+          print('exact completed CUAD training contract PASS')
+          PY
+
+      - name: Upload canonical completed CUAD specialist artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: revenueguard-cuad-matched-window-epoch2-final
+          path: |
+            cuad_matched_epoch2_final/
+            cuad_matched_epoch2_state.pt
+            CUAD_MATCHED_EPOCH2_FINAL.json
+          if-no-files-found: error
+          retention-days: 30
