@@ -95,5 +95,28 @@
       "href": null,
       "separate_from_open_browser": true
     }
+  },
+  "world_release": {
+    "delivery_status": "PUBLIC_DIRECT_ORIGIN_VERIFIED",
+    "public_entry_url": "https://app.mftintelligence.com/",
+    "exact_browser_entry_url": "https://app.mftintelligence.com/#/home",
+    "delivery_origin_policy": "DEDICATED_APPLICATION_ORIGIN_DIRECT_PUBLIC_ENTRY",
+    "apex_bridge_required": false,
+    "apex_bridge_status": "OPTIONAL_NOT_REQUIRED_FOR_WORLD_RELEASE",
+    "apex_routes_created_by_world_release": false,
+    "reserved_api_origin_preserved": true,
+    "worker_security_and_authentication_preserved": true,
+    "initial_activation_evidence": {
+      "workflow_run_id": 34834474710,
+      "source_git_sha": "0d15e15fd16000329139bd037f7f1bfd198535aa",
+      "evidence_sha256": "690802639e64ecd7e0f61fc691d6c66f01ee97c5cd439e3de44ce43d74d0c0f2",
+      "artifact_id": 10343880578,
+      "artifact_sha256": "05a0646f7a86e9530639a8673036146923acad31a6400da2314873cff9538a16"
+    },
+    "qualification_truth": {
+      "phase13_earned": false,
+      "phase14_earned": false,
+      "production_delivery_is_not_a_phase13_or_phase14_promotion_claim": true
+    }
   }
 }
