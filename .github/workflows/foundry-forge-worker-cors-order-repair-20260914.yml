@@ -1,0 +1,304 @@
+name: MUSITU Foundry FORGE Worker CORS Ordering Repair
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/foundry-forge-worker-cors-order-repair-20260914.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      CF_API: https://api.cloudflare.com/client/v4
+      ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      WORKER_NAME: musitu-forge-edge
+      EXPECTED_SOURCE_SHA256: 76579eedd3736bbec43fee065c84ba9c553f982d36117c1cbe54a56671f12222
+      PUBLIC_ORIGIN: https://forge.mftintelligence.com
+      PROTOCOL_DIGEST: c9fe2c0dcbc51ed7329aeea8b8d9985c0ccfc70123ac181c755285f1a0fbf3de
+    steps:
+      - name: Download exact deployed Worker, patch only OPTIONS ordering, and fingerprint settings
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import hashlib,json,os,pathlib,urllib.request
+          from email.parser import BytesParser
+          from email.policy import default
+
+          base=os.environ['CF_API']; aid=os.environ['ACCOUNT_ID']; name=os.environ['WORKER_NAME']
+          h={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY']}
+          root=f'{base}/accounts/{aid}/workers/scripts/{name}'
+
+          def get_raw():
+              with urllib.request.urlopen(urllib.request.Request(root,headers=h),timeout=30) as r:
+                  return r.read(),r.headers.get('Content-Type','')
+          def get_settings():
+              with urllib.request.urlopen(urllib.request.Request(root+'/settings',headers=h),timeout=30) as r:x=json.load(r)
+              if not x.get('success'): raise SystemExit('settings_read_failed')
+              return x.get('result') or {}
+          def extract_source(raw,ctype):
+              msg=BytesParser(policy=default).parsebytes((f'Content-Type: {ctype}\r\nMIME-Version: 1.0\r\n\r\n').encode()+raw)
+              candidates=[]
+              for part in msg.iter_parts():
+                  payload=part.get_payload(decode=True) or b''
+                  pname=part.get_param('name',header='content-disposition') or part.get_filename() or ''
+                  ptype=part.get_content_type()
+                  if ptype in ('application/javascript','text/javascript','application/typescript','text/plain','application/javascript+module','text/javascript+module') or pname.endswith(('.js','.mjs','.ts')):
+                      candidates.append((pname,ptype,payload))
+              if not candidates: raise SystemExit('source_part_not_found')
+              return max(candidates,key=lambda x:len(x[2]))
+          def safe_settings(sr):
+              rows=[]
+              for b in sr.get('bindings') or []:
+                  if not isinstance(b,dict): continue
+                  row={'name':b.get('name'),'type':b.get('type')}
+                  for k in ('namespace_id','database_id','bucket_name','service','environment'):
+                      if b.get(k) is not None: row[k]=b.get(k)
+                  if b.get('type') in ('plain_text','plain_text_blob'):
+                      v=b.get('text') if b.get('text') is not None else b.get('value')
+                      if isinstance(v,str): row['value_sha256']=hashlib.sha256(v.encode()).hexdigest(); row['value_length']=len(v)
+                  rows.append(row)
+              return {
+                  'bindings':sorted(rows,key=lambda x:str(x.get('name'))),
+                  'compatibility_date':sr.get('compatibility_date'),
+                  'compatibility_flags':sr.get('compatibility_flags'),
+                  'usage_model':sr.get('usage_model'),
+                  'logpush':sr.get('logpush'),
+                  'tail_consumers':sr.get('tail_consumers'),
+                  'placement':sr.get('placement'),
+                  'limits':sr.get('limits'),
+                  'observability':sr.get('observability'),
+              }
+
+          raw,ctype=get_raw(); source_name,source_type,source=extract_source(raw,ctype)
+          got=hashlib.sha256(source).hexdigest()
+          if got!=os.environ['EXPECTED_SOURCE_SHA256']: raise SystemExit('precondition_worker_source_changed')
+          if source_name!='foundry_forge_cloudflare_edge_v1.js': raise SystemExit('precondition_source_part_name_changed')
+          pathlib.Path('/tmp/worker-before.mjs').write_bytes(source)
+
+          settings=safe_settings(get_settings())
+          names={x.get('name') for x in settings['bindings']}
+          required={'FORGE_DB','FORGE_EDGE_RPM_LIMIT','FORGE_PROTOCOL_DIGEST','MODAL_KEY','MODAL_ORIGIN','MODAL_SECRET'}
+          if names!=required: raise SystemExit('precondition_binding_names_changed:'+repr(sorted(names)))
+          pathlib.Path('/tmp/settings-before.json').write_text(json.dumps(settings,sort_keys=True,separators=(',',':')))
+
+          text=source.decode('utf-8')
+          needle='''    const url = new URL(request.url);\n    if (!url.pathname.startsWith("/v1/")) return json({ schema: EDGE_SCHEMA, error: "route_not_found" }, 404);\n    if (url.pathname !== "/v1/health") {'''
+          replacement='''    const url = new URL(request.url);\n    if (!url.pathname.startsWith("/v1/")) return json({ schema: EDGE_SCHEMA, error: "route_not_found" }, 404);\n    if (request.method === "OPTIONS") {\n      const origin = request.headers.get("origin") || "";\n      const allowedOrigins = /* @__PURE__ */ new Set(["https://mftintelligence.com", "https://forge.mftintelligence.com"]);\n      const allowedPreflightMethods = /* @__PURE__ */ new Set(["GET", "POST", "PUT"]);\n      const allowedPreflightHeaders = /* @__PURE__ */ new Set(["accept", "authorization", "content-type", "x-musitu-client-protocol", "x-musitu-chunk-sha256"]);\n      if (!origin) return json({ schema: EDGE_SCHEMA, error: "cors_origin_required" }, 400);\n      if (!allowedOrigins.has(origin)) return json({ schema: EDGE_SCHEMA, error: "cors_origin_denied" }, 403);\n      const requestedMethod = (request.headers.get("access-control-request-method") || "").trim().toUpperCase();\n      if (!allowedPreflightMethods.has(requestedMethod)) return json({ schema: EDGE_SCHEMA, error: "cors_method_denied" }, 405);\n      const requestedHeaders = (request.headers.get("access-control-request-headers") || "").split(",").map((value) => value.trim().toLowerCase()).filter(Boolean);\n      if (requestedHeaders.some((name) => !allowedPreflightHeaders.has(name))) return json({ schema: EDGE_SCHEMA, error: "cors_header_denied" }, 403);\n      const responseHeaders = new Headers({\n        "content-length": "0",\n        "cache-control": "no-store",\n        "x-content-type-options": "nosniff",\n        "referrer-policy": "no-referrer",\n        "access-control-allow-origin": origin,\n        "vary": "Origin",\n        "access-control-allow-methods": "GET, POST, PUT",\n        "access-control-max-age": "600"\n      });\n      if (requestedHeaders.length) responseHeaders.set("access-control-allow-headers", [...new Set(requestedHeaders)].sort().join(", "));\n      return new Response(null, { status: 204, headers: responseHeaders });\n    }\n    if (url.pathname !== "/v1/health") {'''
+          if text.count(needle)!=1: raise SystemExit('patch_anchor_cardinality_invalid')
+          patched=text.replace(needle,replacement,1)
+          if patched==text: raise SystemExit('patch_noop')
+          pathlib.Path('/tmp/worker-patched.mjs').write_text(patched)
+          out={
+              'source_name':source_name,
+              'source_type':source_type,
+              'source_before_sha256':got,
+              'source_after_sha256':hashlib.sha256(patched.encode()).hexdigest(),
+              'source_before_size':len(source),
+              'source_after_size':len(patched.encode()),
+              'settings_before_sha256':hashlib.sha256(pathlib.Path('/tmp/settings-before.json').read_bytes()).hexdigest(),
+              'patch_anchor_count':1,
+          }
+          pathlib.Path('/tmp/patch-meta.json').write_text(json.dumps(out,sort_keys=True))
+          print(json.dumps(out,sort_keys=True))
+          PY
+
+      - name: Run focused Worker contract regression before deployment
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > /tmp/test-worker.mjs <<'JS'
+          import worker from './worker-patched.mjs';
+          import fs from 'node:fs';
+          const env={FORGE_PROTOCOL_DIGEST:process.env.PROTOCOL_DIGEST};
+          const base='https://forge.mftintelligence.com';
+          async function call(path,{method='GET',headers={}}={}){return worker.fetch(new Request(base+path,{method,headers}),env);}
+          function eq(actual,expected,label){if(actual!==expected)throw new Error(`${label}: ${actual} !== ${expected}`);}
+          function has(actual,expected,label){if(!actual.includes(expected))throw new Error(`${label}: ${actual} missing ${expected}`);}
+          let passed=0;
+          {
+            const r=await call('/v1/field/assignments',{method:'OPTIONS',headers:{
+              Origin:'https://mftintelligence.com',
+              'Access-Control-Request-Method':'GET',
+              'Access-Control-Request-Headers':'authorization, content-type, x-musitu-client-protocol'
+            }});
+            eq(r.status,204,'allowed preflight status');
+            eq(await r.text(),'','allowed preflight body');
+            eq(r.headers.get('access-control-allow-origin'),'https://mftintelligence.com','allow origin');
+            eq(r.headers.get('access-control-allow-methods'),'GET, POST, PUT','allow methods');
+            eq(r.headers.get('access-control-allow-headers'),'authorization, content-type, x-musitu-client-protocol','allow headers');
+            eq(r.headers.get('access-control-max-age'),'600','max age');
+            eq(r.headers.get('cache-control'),'no-store','cache control');
+            eq(r.headers.get('x-content-type-options'),'nosniff','nosniff');
+            eq(r.headers.get('referrer-policy'),'no-referrer','referrer');
+            eq(r.headers.get('vary'),'Origin','vary');
+            eq(r.headers.get('content-length'),'0','content length');
+            passed++;
+          }
+          { const r=await call('/v1/field/assignments',{method:'OPTIONS',headers:{'Access-Control-Request-Method':'GET'}}); eq(r.status,400,'missing origin'); passed++; }
+          { const r=await call('/v1/field/assignments',{method:'OPTIONS',headers:{Origin:'https://evil.invalid','Access-Control-Request-Method':'GET'}}); eq(r.status,403,'bad origin'); passed++; }
+          { const r=await call('/v1/field/assignments',{method:'OPTIONS',headers:{Origin:'https://mftintelligence.com','Access-Control-Request-Method':'DELETE'}}); eq(r.status,405,'bad method'); passed++; }
+          { const r=await call('/v1/field/assignments',{method:'OPTIONS',headers:{Origin:'https://mftintelligence.com','Access-Control-Request-Method':'GET','Access-Control-Request-Headers':'x-evil'}}); eq(r.status,403,'bad header'); passed++; }
+          { const r=await call('/v1/field/assignments'); eq(r.status,401,'ordinary request still protocol gated'); has(await r.text(),'protocol_digest_mismatch','protocol gate body'); passed++; }
+          { const r=await call('/'); eq(r.status,404,'root remains route-not-found'); passed++; }
+          { const r=await call('/v1/field/assignments',{method:'OPTIONS',headers:{Origin:'https://forge.mftintelligence.com','Access-Control-Request-Method':'PUT','Access-Control-Request-Headers':'X-MUSITU-CHUNK-SHA256, Accept'}}); eq(r.status,204,'canonical-origin preflight'); eq(r.headers.get('access-control-allow-headers'),'accept, x-musitu-chunk-sha256','sorted allowed headers'); passed++; }
+          console.log(JSON.stringify({focused_worker_tests:passed,result:'PASS'}));
+          JS
+          cp /tmp/worker-patched.mjs /tmp/worker-patched.mjs.tmp
+          mv /tmp/worker-patched.mjs.tmp /tmp/worker-patched.mjs
+          (cd /tmp && PROTOCOL_DIGEST="$PROTOCOL_DIGEST" node test-worker.mjs)
+
+      - name: Content-only deploy with settings preservation postcondition
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          SOURCE_NAME="$(python -c "import json;print(json.load(open('/tmp/patch-meta.json'))['source_name'])")"
+          PATCH_SHA="$(python -c "import json;print(json.load(open('/tmp/patch-meta.json'))['source_after_sha256'])")"
+          curl -sS --fail-with-body -X PUT \
+            "$CF_API/accounts/$ACCOUNT_ID/workers/scripts/$WORKER_NAME/content" \
+            -H "X-Auth-Email: $CLOUDFLARE_EMAIL" \
+            -H "X-Auth-Key: $CLOUDFLARE_GLOBAL_API_KEY" \
+            -F "metadata={\"main_module\":\"$SOURCE_NAME\"};type=application/json" \
+            -F "$SOURCE_NAME=@/tmp/worker-patched.mjs;filename=$SOURCE_NAME;type=application/javascript+module" \
+            > /tmp/deploy-response.json
+          python - <<'PY'
+          import hashlib,json,os,pathlib,urllib.request
+          from email.parser import BytesParser
+          from email.policy import default
+          response=json.load(open('/tmp/deploy-response.json'))
+          if not response.get('success'): raise SystemExit('content_only_deploy_api_failed')
+          base=os.environ['CF_API']; aid=os.environ['ACCOUNT_ID']; name=os.environ['WORKER_NAME']
+          h={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY']}
+          root=f'{base}/accounts/{aid}/workers/scripts/{name}'
+          with urllib.request.urlopen(urllib.request.Request(root,headers=h),timeout=30) as r:
+              raw=r.read(); ctype=r.headers.get('Content-Type','')
+          msg=BytesParser(policy=default).parsebytes((f'Content-Type: {ctype}\r\nMIME-Version: 1.0\r\n\r\n').encode()+raw)
+          candidates=[]
+          for part in msg.iter_parts():
+              payload=part.get_payload(decode=True) or b''
+              pname=part.get_param('name',header='content-disposition') or part.get_filename() or ''
+              ptype=part.get_content_type()
+              if ptype in ('application/javascript','text/javascript','application/typescript','text/plain','application/javascript+module','text/javascript+module') or pname.endswith(('.js','.mjs','.ts')):
+                  candidates.append((pname,payload))
+          if not candidates: raise SystemExit('postdeploy_source_not_found')
+          pname,code=max(candidates,key=lambda x:len(x[1]))
+          meta=json.load(open('/tmp/patch-meta.json')); got=hashlib.sha256(code).hexdigest()
+          if got!=meta['source_after_sha256']: raise SystemExit('postdeploy_source_sha_mismatch')
+          if pname!=meta['source_name']: raise SystemExit('postdeploy_source_name_changed')
+          with urllib.request.urlopen(urllib.request.Request(root+'/settings',headers=h),timeout=30) as r:x=json.load(r)
+          if not x.get('success'): raise SystemExit('postdeploy_settings_read_failed')
+          sr=x.get('result') or {}
+          rows=[]
+          for b in sr.get('bindings') or []:
+              if not isinstance(b,dict): continue
+              row={'name':b.get('name'),'type':b.get('type')}
+              for k in ('namespace_id','database_id','bucket_name','service','environment'):
+                  if b.get(k) is not None: row[k]=b.get(k)
+              if b.get('type') in ('plain_text','plain_text_blob'):
+                  v=b.get('text') if b.get('text') is not None else b.get('value')
+                  if isinstance(v,str): row['value_sha256']=hashlib.sha256(v.encode()).hexdigest(); row['value_length']=len(v)
+              rows.append(row)
+          safe={
+              'bindings':sorted(rows,key=lambda x:str(x.get('name'))),
+              'compatibility_date':sr.get('compatibility_date'),
+              'compatibility_flags':sr.get('compatibility_flags'),
+              'usage_model':sr.get('usage_model'),
+              'logpush':sr.get('logpush'),
+              'tail_consumers':sr.get('tail_consumers'),
+              'placement':sr.get('placement'),
+              'limits':sr.get('limits'),
+              'observability':sr.get('observability'),
+          }
+          after=json.dumps(safe,sort_keys=True,separators=(',',':')).encode()
+          before=pathlib.Path('/tmp/settings-before.json').read_bytes()
+          if after!=before: raise SystemExit('postdeploy_settings_fingerprint_changed')
+          out={
+              'schema':'musitu.foundry_forge.worker_cors_order_repair.v1',
+              'source_before_sha256':meta['source_before_sha256'],
+              'source_after_sha256':got,
+              'source_name':pname,
+              'settings_fingerprint_sha256':hashlib.sha256(after).hexdigest(),
+              'settings_preserved_exactly':True,
+              'focused_worker_tests':8,
+              'content_only_deploy':True,
+              'production_authorized':False,
+              'result':'DEPLOYED_PENDING_PUBLIC_CONTRACT',
+          }
+          pathlib.Path('foundry-forge-worker-cors-order-repair.json').write_text(json.dumps(out,indent=2,sort_keys=True)+'\n')
+          print(json.dumps(out,sort_keys=True))
+          PY
+
+      - name: Verify public health and preflight contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          for i in $(seq 1 30); do
+            health="$(curl -sS --max-time 20 -D /tmp/health.headers -o /tmp/health.body -w '%{http_code}' "$PUBLIC_ORIGIN/v1/health" -H 'Origin: https://mftintelligence.com' || true)"
+            preflight="$(curl -sS --max-time 20 -D /tmp/preflight.headers -o /tmp/preflight.body -w '%{http_code}' -X OPTIONS "$PUBLIC_ORIGIN/v1/field/assignments" -H 'Origin: https://mftintelligence.com' -H 'Access-Control-Request-Method: GET' -H 'Access-Control-Request-Headers: authorization, content-type, x-musitu-client-protocol' || true)"
+            [ "$health" = 200 ] && [ "$preflight" = 204 ] && break
+            sleep 2
+          done
+          export HEALTH_CODE="$health" PREFLIGHT_CODE="$preflight"
+          python - <<'PY'
+          import hashlib,json,os,pathlib
+          health=int(os.environ['HEALTH_CODE']); preflight=int(os.environ['PREFLIGHT_CODE'])
+          hb=pathlib.Path('/tmp/health.body').read_bytes(); pb=pathlib.Path('/tmp/preflight.body').read_bytes()
+          if health!=200: raise SystemExit(f'public_health_status_{health}')
+          x=json.loads(hb)
+          expected={'schema':'musitu.forge.health.v1','status':'READY','canonical_service_origin':os.environ['PUBLIC_ORIGIN'],'protocol_digest':os.environ['PROTOCOL_DIGEST'],'custody_uploads_ready':True,'production_authorized':False}
+          bad={k:(x.get(k),v) for k,v in expected.items() if x.get(k)!=v}
+          if bad: raise SystemExit('public_health_contract_mismatch:'+repr(bad))
+          if preflight!=204 or pb!=b'': raise SystemExit(f'public_preflight_contract_failed:{preflight}:{pb!r}')
+          def headers(path):
+              out={}
+              for line in pathlib.Path(path).read_text(errors='replace').splitlines():
+                  if ':' in line:
+                      k,v=line.split(':',1);out[k.strip().lower()]=v.strip()
+              return out
+          hh=headers('/tmp/health.headers'); ph=headers('/tmp/preflight.headers')
+          for h in (hh,ph):
+              if h.get('cache-control')!='no-store': raise SystemExit('cache_control_invalid')
+              if h.get('x-content-type-options')!='nosniff': raise SystemExit('nosniff_invalid')
+              if h.get('referrer-policy')!='no-referrer': raise SystemExit('referrer_policy_invalid')
+              if h.get('access-control-allow-origin')!='https://mftintelligence.com': raise SystemExit('cors_origin_invalid')
+          if ph.get('access-control-allow-methods')!='GET, POST, PUT': raise SystemExit('preflight_methods_invalid')
+          if ph.get('access-control-allow-headers')!='authorization, content-type, x-musitu-client-protocol': raise SystemExit('preflight_headers_invalid')
+          if ph.get('access-control-max-age')!='600': raise SystemExit('preflight_max_age_invalid')
+          if ph.get('content-length')!='0': raise SystemExit('preflight_content_length_invalid')
+          if ph.get('vary')!='Origin': raise SystemExit('preflight_vary_invalid')
+          doc=json.load(open('foundry-forge-worker-cors-order-repair.json'))
+          doc.update({
+              'public_health_status':health,
+              'public_health_body_sha256':hashlib.sha256(hb).hexdigest(),
+              'public_health_contract_pass':True,
+              'public_preflight_status':preflight,
+              'public_preflight_contract_pass':True,
+              'production_authorized':False,
+              'result':'PASS'
+          })
+          pathlib.Path('foundry-forge-worker-cors-order-repair.json').write_text(json.dumps(doc,indent=2,sort_keys=True)+'\n')
+          print(json.dumps(doc,sort_keys=True))
+          PY
+
+      - name: Seal repair evidence
+        run: sha256sum foundry-forge-worker-cors-order-repair.json > foundry-forge-worker-cors-order-repair.sha256
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: musitu-foundry-forge-worker-cors-order-repair-20260914
+          path: |
+            foundry-forge-worker-cors-order-repair.json
+            foundry-forge-worker-cors-order-repair.sha256
+          retention-days: 14
+          if-no-files-found: error
