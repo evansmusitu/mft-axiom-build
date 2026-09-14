@@ -1,0 +1,95 @@
+{
+  "schema": "musitu.fmi.customer-launch-readiness.v1",
+  "recorded_at": "2026-09-14T02:44:00Z",
+  "product": "MUSITU Frontier Market Intelligence",
+  "public_base": "https://mft-fmi-global-edge.mft-education-nexus-93f395f5.workers.dev",
+  "isolated_branch": "fmi-revenue-certification-20260913",
+  "customer_access_launch_ready": true,
+  "public_funnel": {
+    "gate": "FMI_PUBLIC_FUNNEL_READY",
+    "workflow_run_id": 34768538204,
+    "health_http": 200,
+    "landing_http": 200,
+    "catalog_http": 200,
+    "signup_path_visible": true,
+    "authority": "PAPER_SHADOW_ONLY",
+    "plans": {
+      "FOUNDING": {"amount_cents": 4900, "currency": "USD"},
+      "PRO": {"amount_cents": 14900, "currency": "USD"}
+    }
+  },
+  "free_customer_access": {
+    "gate": "FMI_FREE_CUSTOMER_ACCESS_E2E_PASS",
+    "workflow_run_id": 34800141686,
+    "signup_http": 201,
+    "signup_transport": "json",
+    "customer_plan": "FREE",
+    "customer_status": "active",
+    "active_api_key_count": 1,
+    "raw_api_key_returned": true,
+    "raw_api_key_matches_active_d1": true,
+    "me_http": 200,
+    "credential_accepted": true,
+    "paid_authority_created": false,
+    "synthetic_customer_deleted": true,
+    "residual_customer_rows": 0,
+    "evidence_sha256": "0e2e4dc1c4fba8739bdf131fe08eab8408ea562fb741123dbe46b9e3baf79780"
+  },
+  "customer_schema_cleanup_boundary": {
+    "gate": "FMI_CUSTOMER_SCHEMA_READONLY_PASS",
+    "workflow_run_id": 34799985416,
+    "customer_owned_tables_use_delete_cascade": true,
+    "row_data_read": false,
+    "evidence_sha256": "1be31b990ab8ea932376504dbb09acdcc0a858a9f592f0296b86aea1315236d3"
+  },
+  "live_route_inventory": {
+    "gate": "FMI_LIVE_ROUTE_INVENTORY_READONLY_PASS",
+    "workflow_run_id": 34800097473,
+    "route_count": 20,
+    "source_sha256": "27ea84793c78f24091e0154836d6330678f3386db97b43f864f117c28ebebcd9",
+    "customer_routes_observed": [
+      "/v1/signup",
+      "/v1/me",
+      "/v1/market/context",
+      "/v1/market/search",
+      "/v1/intelligence/analyze",
+      "/v1/history",
+      "/v1/watchlists",
+      "/v1/watchlists/items",
+      "/v1/evidence/delta",
+      "/v1/evidence/monitors",
+      "/v1/evidence/monitor-events",
+      "/v1/share",
+      "/v1/billing/catalog",
+      "/v1/billing/checkout",
+      "/v1/billing/poll"
+    ]
+  },
+  "real_money_certification": {
+    "certified": false,
+    "latest_reconcile_run_id": 34776077757,
+    "existing_founding_intent_count": 2,
+    "paid_intent_count": 0,
+    "older_intent_provider_status": "cancelled",
+    "certification_intent_provider_status": "created",
+    "paid_entitlements_fail_closed": true,
+    "duplicate_checkout_created": false
+  },
+  "authority": {
+    "live_trading_authorized": false,
+    "profitability": "NOT_YET_CERTIFIED",
+    "superiority": "NOT_CERTIFIED",
+    "real_money_e2e_certified": false,
+    "pr_merge_authorized": false,
+    "sealed_main_change_authorized": false
+  },
+  "launch_decision": {
+    "free_signup_and_authenticated_customer_access": "READY",
+    "public_customer_funnel": "READY",
+    "paid_plan_entitlement_policy": "PROVIDER_VERIFIED_ONLY",
+    "internal_real_money_certification": "NOT_EARNED",
+    "live_trading": "NOT_AUTHORIZED"
+  },
+  "raw_credentials_published": false,
+  "raw_customer_identifiers_published": false
+}
