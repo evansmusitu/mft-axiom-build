@@ -1,0 +1,168 @@
+name: MUSITU Foundry FORGE Modal Version Origin Resolution
+
+on:
+  push:
+    paths:
+      - '.github/workflows/foundry-forge-modal-version-origin-resolution-20260914.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  resolve:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID }}
+      MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET }}
+      CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+      CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+      CF_ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      CF_WORKER_NAME: musitu-forge-edge
+      TARGET_APP: musitu-forge-private-staging
+      TARGET_FUNCTION: forge_authority
+      EXPECTED_ORIGIN_SHA256: 68d869d065ea4d4fee0e28fc65f862f5e5b24cc2b71088a7201185e3d9e723bd
+      PUBLIC_ORIGIN: https://forge.mftintelligence.com
+      PROTOCOL_DIGEST: c9fe2c0dcbc51ed7329aeea8b8d9985c0ccfc70123ac181c755285f1a0fbf3de
+    steps:
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Authenticate Modal and verify live edge preconditions
+        shell: bash
+        run: |
+          set -euo pipefail
+          for n in MODAL_TOKEN_ID MODAL_TOKEN_SECRET CLOUDFLARE_EMAIL CLOUDFLARE_GLOBAL_API_KEY; do test -n "${!n}" || { echo "missing_$n" >&2; exit 1; }; done
+          python -m pip install --disable-pip-version-check --quiet 'modal>=1.5,<2'
+          modal app list --json >/dev/null
+          python - <<'PY'
+          import hashlib,json,os,pathlib,ssl,urllib.request
+          headers={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY']}
+          url=f"https://api.cloudflare.com/client/v4/accounts/{os.environ['CF_ACCOUNT_ID']}/workers/scripts/{os.environ['CF_WORKER_NAME']}/settings"
+          with urllib.request.urlopen(urllib.request.Request(url,headers=headers),timeout=30) as r: body=json.load(r)
+          if not body.get('success'): raise SystemExit('cloudflare_settings_read_failed')
+          values=[]
+          for b in (body.get('result') or {}).get('bindings') or []:
+              if isinstance(b,dict) and b.get('name')=='MODAL_ORIGIN':
+                  v=b.get('text') if b.get('text') is not None else b.get('value')
+                  if isinstance(v,str): values.append(v.rstrip('/'))
+          if len(values)!=1: raise SystemExit('modal_origin_binding_count_invalid:'+str(len(values)))
+          got=hashlib.sha256(values[0].encode()).hexdigest()
+          if got!=os.environ['EXPECTED_ORIGIN_SHA256']: raise SystemExit('cloudflare_modal_origin_hash_changed:'+got)
+          req=urllib.request.Request(os.environ['PUBLIC_ORIGIN']+'/v1/health',headers={'Accept':'application/json','User-Agent':'MUSITU-FORGE-version-origin-resolution/1'})
+          with urllib.request.urlopen(req,context=ssl.create_default_context(),timeout=30) as r:
+              health_raw=r.read(131073); status=r.status
+          if len(health_raw)>131072: raise SystemExit('health_response_too_large')
+          health=json.loads(health_raw)
+          if status!=200 or health.get('schema')!='musitu.forge.health.v1' or health.get('status')!='READY' or health.get('protocol_digest')!=os.environ['PROTOCOL_DIGEST'] or health.get('production_authorized') is not False:
+              raise SystemExit('public_v46_health_precondition_failed')
+          out={'cloudflare_modal_origin_sha256':got,'cloudflare_origin_hash_matches_expected':True,'public_health_status':status,'public_health_body_sha256':hashlib.sha256(health_raw).hexdigest(),'public_health_pass':True,'write_performed':False}
+          pathlib.Path('/tmp/preconditions.json').write_text(json.dumps(out,sort_keys=True))
+          print(json.dumps(out,sort_keys=True))
+          PY
+
+      - name: Capture exact app history without exposing unrelated workspace inventory
+        shell: bash
+        run: |
+          set -euo pipefail
+          modal app history "$TARGET_APP" --json >/tmp/app-history.json
+          python - <<'PY'
+          import hashlib,json,pathlib
+          raw=pathlib.Path('/tmp/app-history.json').read_bytes()
+          x=json.loads(raw)
+          def count_entries(v):
+              if isinstance(v,list): return len(v)
+              if isinstance(v,dict):
+                  for k in ('history','entries','deployments','versions','items','data'):
+                      if isinstance(v.get(k),list): return len(v[k])
+              return None
+          out={'history_json_sha256':hashlib.sha256(raw).hexdigest(),'history_entry_count':count_entries(x),'raw_history_not_uploaded':True}
+          pathlib.Path('/tmp/history-summary.json').write_text(json.dumps(out,sort_keys=True))
+          print(json.dumps(out,sort_keys=True))
+          PY
+
+      - name: Resolve historical function versions by hash only
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import hashlib,json,modal,os,pathlib
+          expected=os.environ['EXPECTED_ORIGIN_SHA256']
+          rows=[]; matches=[]
+          for version in range(1,101):
+              row={'version':version,'lookup_success':False,'web_url_present':False,'origin_sha256':None,'matches_cloudflare_origin':False,'error_type':None}
+              try:
+                  fn=modal.Function.from_name(os.environ['TARGET_APP'],os.environ['TARGET_FUNCTION'],version=version)
+                  url=fn.get_web_url()
+                  row['lookup_success']=True
+                  if isinstance(url,str) and url.startswith('https://'):
+                      norm=url.rstrip('/')
+                      digest=hashlib.sha256(norm.encode()).hexdigest()
+                      row.update(web_url_present=True,origin_sha256=digest,matches_cloudflare_origin=(digest==expected))
+                      if digest==expected: matches.append(version)
+              except Exception as exc:
+                  row['error_type']=type(exc).__name__
+              rows.append(row)
+          successful=[r for r in rows if r['lookup_success']]
+          web=[r for r in rows if r['web_url_present']]
+          # Keep the evidence compact: preserve all successful/historical rows plus error-type distribution, never raw URLs or exception messages.
+          errors={}
+          for r in rows:
+              if r['error_type']: errors[r['error_type']]=errors.get(r['error_type'],0)+1
+          out={
+              'schema':'musitu.foundry_forge.modal_version_origin_resolution.v1',
+              'target_app':os.environ['TARGET_APP'],
+              'target_function':os.environ['TARGET_FUNCTION'],
+              'environment':'main',
+              'expected_cloudflare_origin_sha256':expected,
+              'versions_scanned':{'first':1,'last':100,'count':100},
+              'lookup_success_count':len(successful),
+              'web_url_present_count':len(web),
+              'matching_versions':matches,
+              'match_count':len(matches),
+              'successful_versions':successful,
+              'error_type_counts':errors,
+              'raw_private_origin_exposed':False,
+              'write_performed':False,
+          }
+          pathlib.Path('/tmp/version-resolution.json').write_text(json.dumps(out,indent=2,sort_keys=True)+'\n')
+          print(json.dumps({k:out[k] for k in ('lookup_success_count','web_url_present_count','matching_versions','match_count','error_type_counts')},sort_keys=True))
+          PY
+
+      - name: Seal resolution evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json,pathlib
+          pre=json.loads(pathlib.Path('/tmp/preconditions.json').read_text())
+          hist=json.loads(pathlib.Path('/tmp/history-summary.json').read_text())
+          res=json.loads(pathlib.Path('/tmp/version-resolution.json').read_text())
+          out={'schema':'musitu.foundry_forge.modal_live_origin_identity_audit.v1','preconditions':pre,'history_summary':hist,'version_resolution':res,'secret_values_exposed':False,'raw_private_origin_exposed':False,'write_performed':False,'result':'PASS' if res['match_count']==1 else 'UNRESOLVED'}
+          pathlib.Path('foundry-forge-modal-version-origin-resolution.json').write_text(json.dumps(out,indent=2,sort_keys=True)+'\n')
+          PY
+          sha256sum foundry-forge-modal-version-origin-resolution.json >foundry-forge-modal-version-origin-resolution.sha256
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: musitu-foundry-forge-modal-version-origin-resolution-20260914
+          path: |
+            foundry-forge-modal-version-origin-resolution.json
+            foundry-forge-modal-version-origin-resolution.sha256
+          retention-days: 14
+          if-no-files-found: error
+
+      - name: Enforce exact identity verdict
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          x=json.load(open('foundry-forge-modal-version-origin-resolution.json'))
+          assert x['write_performed'] is False and x['secret_values_exposed'] is False and x['raw_private_origin_exposed'] is False
+          assert x['preconditions']['cloudflare_origin_hash_matches_expected'] is True and x['preconditions']['public_health_pass'] is True
+          if x['version_resolution']['match_count']!=1: raise SystemExit('exact_live_modal_version_not_resolved')
+          print('EXACT_LIVE_MODAL_VERSION_RESOLVED='+str(x['version_resolution']['matching_versions'][0]))
+          PY
