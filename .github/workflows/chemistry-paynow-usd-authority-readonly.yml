@@ -1,0 +1,78 @@
+name: MUSITU Chemistry Paynow USD authority read-only
+
+on:
+  push:
+    branches: [chemistry-paynow-usd-fix-20260914]
+    paths: ['.github/workflows/chemistry-paynow-usd-authority-readonly.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    env:
+      CF_API: https://api.cloudflare.com/client/v4
+      ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+    steps:
+      - uses: actions/checkout@v4
+      - name: Inspect authority and transport contracts without reading secret values
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import email,hashlib,json,os,re,urllib.parse,urllib.request
+          API=os.environ['CF_API']; A=os.environ['ACCOUNT_ID']
+          H={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY'],'User-Agent':'MUSITU-Paynow-USD-Authority-Audit/1.0'}
+          def get(path):
+              q=urllib.request.Request(API+path,headers=H)
+              with urllib.request.urlopen(q,timeout=45) as r:return r.read(),r.headers.get('content-type','')
+          def source(name):
+              raw,ct=get(f'/accounts/{A}/workers/scripts/{urllib.parse.quote(name,safe="")}')
+              if 'multipart/' not in ct.lower():return raw
+              msg=email.message_from_bytes((f'Content-Type: {ct}\r\nMIME-Version: 1.0\r\n\r\n').encode()+raw); parts=[]
+              for p in msg.walk():
+                  if p.is_multipart():continue
+                  d=p.get_payload(decode=True) or b''
+                  if any(x in d for x in (b'fetch(',b'export default',b'addEventListener')):parts.append(d)
+              if not parts:raise RuntimeError(name+' module extraction mismatch')
+              return max(parts,key=len)
+          for name in ['mft-phase8-external-authority','mft-paynow-transport-gateway']:
+              src=source(name); text=src.decode('utf-8','ignore')
+              print('--- '+name+' ---')
+              print('SHA256='+hashlib.sha256(src).hexdigest())
+              markers={
+                'usd_literal': bool(re.search(r'\bUSD\b',text)),
+                'initiate_transaction': 'initiatetransaction' in text.lower(),
+                'paynow_integration_id_symbol': 'PAYNOW_INTEGRATION_ID' in text,
+                'paynow_integration_key_symbol': 'PAYNOW_INTEGRATION_KEY' in text,
+                'chemistry_sign_route': '/internal/paynow/sign-initiate-chemistry' in text,
+                'transport_initiate_route': '/internal/paynow/initiate' in text,
+                'transport_poll_route': '/internal/paynow/poll' in text,
+                'payment_methods_words': sorted(set(x.lower() for x in re.findall(r'(?i)\b(ecocash|visa|mastercard|onemoney|omari|innbucks|vpayments)\b',text))),
+              }
+              print('MARKERS='+json.dumps(markers,sort_keys=True))
+              for token in ['sign-initiate-chemistry','PAYNOW_INTEGRATION_ID','initiatetransaction','USD']:
+                  i=text.find(token)
+                  if i<0:continue
+                  w=text[max(0,i-700):min(len(text),i+1800)]
+                  w=re.sub(r'(?i)(PAYNOW_INTEGRATION_KEY\s*[=:]\s*)[^,;\n}]+',r'\1<redacted>',w)
+                  w=re.sub(r'(?i)(TOKEN\s*[=:]\s*)[^,;\n}]+',r'\1<redacted>',w)
+                  w=re.sub(r'[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}','<email>',w)
+                  w=re.sub(r'(?i)\b[0-9a-f]{40,}\b','<hex>',w)
+                  print('CONTEXT_'+token.replace('/','_').replace('-','_')+'='+w.replace('\n',' '))
+              try:
+                  raw,_=get(f'/accounts/{A}/workers/scripts/{urllib.parse.quote(name,safe="")}/settings')
+                  d=json.loads(raw or b'{}').get('result') or {}
+                  bindings=[{'name':b.get('name'),'type':b.get('type'),'service':b.get('service'),'environment':b.get('environment')} for b in (d.get('bindings') or [])]
+                  print('BINDINGS='+json.dumps(bindings,sort_keys=True))
+              except Exception as e:print('BINDINGS_UNAVAILABLE='+type(e).__name__)
+          print('SECRET_VALUES_EMITTED=FALSE')
+          print('PRODUCTION_MUTATION=FALSE')
+          print('PAYMENT_CREATED=FALSE')
+          PY
