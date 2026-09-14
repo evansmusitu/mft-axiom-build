@@ -1,0 +1,181 @@
+name: MUSITU Foundry FORGE Live Deployment Verification
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/foundry-forge-live-deployment-verify-20260914.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      CF_API: https://api.cloudflare.com/client/v4
+      ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      WORKER_NAME: musitu-forge-edge
+      EXPECTED_SOURCE_SHA256: fa5c9e21800e31689c86a6059cf540a50f591318d082429b891bd91eb9dc9504
+      EXPECTED_SETTINGS_SHA256: 9dce7897c3ad0ed332c9f39e6a0c238e142c36dcd2db6b5d52e35ec914656b5e
+      PUBLIC_ORIGIN: https://forge.mftintelligence.com
+      WEB_ORIGIN: https://mftintelligence.com
+      PROTOCOL_DIGEST: c9fe2c0dcbc51ed7329aeea8b8d9985c0ccfc70123ac181c755285f1a0fbf3de
+    steps:
+      - name: Verify exact deployed source and preserved settings
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import hashlib,json,os,pathlib,urllib.request
+          from email.parser import BytesParser
+          from email.policy import default
+          base=os.environ['CF_API']; aid=os.environ['ACCOUNT_ID']; name=os.environ['WORKER_NAME']
+          h={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY']}
+          root=f'{base}/accounts/{aid}/workers/scripts/{name}'
+          with urllib.request.urlopen(urllib.request.Request(root,headers=h),timeout=30) as r:
+              raw=r.read(); ctype=r.headers.get('Content-Type','')
+          msg=BytesParser(policy=default).parsebytes((f'Content-Type: {ctype}\r\nMIME-Version: 1.0\r\n\r\n').encode()+raw)
+          candidates=[]
+          for part in msg.iter_parts():
+              payload=part.get_payload(decode=True) or b''
+              pname=part.get_param('name',header='content-disposition') or part.get_filename() or ''
+              ptype=part.get_content_type()
+              if ptype in ('application/javascript','text/javascript','application/typescript','text/plain','application/javascript+module','text/javascript+module') or pname.endswith(('.js','.mjs','.ts')):
+                  candidates.append((pname,payload))
+          if not candidates: raise SystemExit('source_not_found')
+          pname,source=max(candidates,key=lambda x:len(x[1]))
+          source_sha=hashlib.sha256(source).hexdigest()
+          if source_sha!=os.environ['EXPECTED_SOURCE_SHA256']: raise SystemExit('deployed_source_sha_mismatch')
+          if pname!='foundry_forge_cloudflare_edge_v1.js': raise SystemExit('deployed_source_name_mismatch')
+          pathlib.Path('/tmp/live-worker.mjs').write_bytes(source)
+
+          with urllib.request.urlopen(urllib.request.Request(root+'/settings',headers=h),timeout=30) as r:x=json.load(r)
+          if not x.get('success'): raise SystemExit('settings_read_failed')
+          sr=x.get('result') or {}; rows=[]
+          for b in sr.get('bindings') or []:
+              if not isinstance(b,dict): continue
+              row={'name':b.get('name'),'type':b.get('type')}
+              for k in ('namespace_id','database_id','bucket_name','service','environment'):
+                  if b.get(k) is not None: row[k]=b.get(k)
+              if b.get('type') in ('plain_text','plain_text_blob'):
+                  v=b.get('text') if b.get('text') is not None else b.get('value')
+                  if isinstance(v,str): row['value_sha256']=hashlib.sha256(v.encode()).hexdigest(); row['value_length']=len(v)
+              rows.append(row)
+          safe={
+              'bindings':sorted(rows,key=lambda x:str(x.get('name'))),
+              'compatibility_date':sr.get('compatibility_date'),
+              'compatibility_flags':sr.get('compatibility_flags'),
+              'usage_model':sr.get('usage_model'),
+              'logpush':sr.get('logpush'),
+              'tail_consumers':sr.get('tail_consumers'),
+              'placement':sr.get('placement'),
+              'limits':sr.get('limits'),
+              'observability':sr.get('observability'),
+          }
+          settings_bytes=json.dumps(safe,sort_keys=True,separators=(',',':')).encode()
+          settings_sha=hashlib.sha256(settings_bytes).hexdigest()
+          if settings_sha!=os.environ['EXPECTED_SETTINGS_SHA256']: raise SystemExit('settings_fingerprint_mismatch')
+          names={x.get('name') for x in safe['bindings']}
+          required={'FORGE_DB','FORGE_EDGE_RPM_LIMIT','FORGE_PROTOCOL_DIGEST','MODAL_KEY','MODAL_ORIGIN','MODAL_SECRET'}
+          if names!=required: raise SystemExit('binding_names_mismatch')
+          pathlib.Path('/tmp/live-config.json').write_text(json.dumps({'source_sha256':source_sha,'settings_sha256':settings_sha,'binding_names':sorted(names)},sort_keys=True))
+          print(json.dumps({'deployed_source_sha256':source_sha,'settings_fingerprint_sha256':settings_sha,'binding_names':sorted(names),'result':'PASS'},sort_keys=True))
+          PY
+
+      - name: Run live public positive and negative contract matrix
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import hashlib,json,os,ssl,urllib.error,urllib.request
+          from datetime import datetime,timezone
+          origin=os.environ['PUBLIC_ORIGIN']; web=os.environ['WEB_ORIGIN']; protocol=os.environ['PROTOCOL_DIGEST']
+          ctx=ssl.create_default_context()
+          class NoRedirect(urllib.request.HTTPRedirectHandler):
+              def redirect_request(self,req,fp,code,msg,headers,newurl): return None
+          opener=urllib.request.build_opener(urllib.request.HTTPSHandler(context=ctx),NoRedirect())
+          def call(name,path,method='GET',headers=None):
+              h={'Accept':'application/json','User-Agent':'MUSITU-FORGE-live-deployment-verify/1'};h.update(headers or {})
+              req=urllib.request.Request(origin+path,headers=h,method=method)
+              try:r=opener.open(req,timeout=20); status=r.status; rh=r.headers; raw=r.read(131073)
+              except urllib.error.HTTPError as e:status=e.code;rh=e.headers;raw=e.read(131073)
+              if len(raw)>131072: raise SystemExit(name+'_response_too_large')
+              selected={k.lower():v for k,v in rh.items() if k.lower() in {
+                  'content-type','content-length','cache-control','x-content-type-options','referrer-policy','vary',
+                  'access-control-allow-origin','access-control-allow-methods','access-control-allow-headers','access-control-max-age','server','cf-mitigated'
+              }}
+              return {'name':name,'status':status,'headers':selected,'body':raw,'body_sha256':hashlib.sha256(raw).hexdigest()}
+
+          obs=[]
+          health=call('health','/v1/health',headers={'Origin':web});obs.append(health)
+          if health['status']!=200: raise SystemExit('health_status_invalid')
+          payload=json.loads(health['body'])
+          expected={'schema':'musitu.forge.health.v1','status':'READY','canonical_service_origin':origin,'protocol_digest':protocol,'custody_uploads_ready':True,'production_authorized':False}
+          if {k:(payload.get(k),v) for k,v in expected.items() if payload.get(k)!=v}: raise SystemExit('health_payload_invalid')
+          hh=health['headers']
+          if hh.get('access-control-allow-origin')!=web or hh.get('cache-control')!='no-store' or hh.get('x-content-type-options')!='nosniff' or hh.get('referrer-policy')!='no-referrer': raise SystemExit('health_headers_invalid')
+
+          good=call('preflight_good','/v1/field/assignments','OPTIONS',{'Origin':web,'Access-Control-Request-Method':'GET','Access-Control-Request-Headers':'authorization, content-type, x-musitu-client-protocol'});obs.append(good)
+          if good['status']!=204 or good['body']!=b'': raise SystemExit('preflight_good_status_body_invalid')
+          ph=good['headers']
+          if ph.get('access-control-allow-origin')!=web: raise SystemExit('preflight_origin_invalid')
+          if {x.strip().upper() for x in ph.get('access-control-allow-methods','').split(',') if x.strip()}!={'GET','POST','PUT'}: raise SystemExit('preflight_methods_invalid')
+          if {x.strip().lower() for x in ph.get('access-control-allow-headers','').split(',') if x.strip()}!={'authorization','content-type','x-musitu-client-protocol'}: raise SystemExit('preflight_headers_invalid')
+          if ph.get('access-control-max-age')!='600' or ph.get('cache-control')!='no-store' or ph.get('x-content-type-options')!='nosniff' or ph.get('referrer-policy')!='no-referrer' or ph.get('vary')!='Origin': raise SystemExit('preflight_security_headers_invalid')
+          # RFC 9110 section 8.6: 204 MUST NOT carry Content-Length on the wire.
+          if 'content-length' in ph: raise SystemExit('preflight_204_content_length_must_be_absent')
+
+          matrix=[
+              ('preflight_missing_origin',call('preflight_missing_origin','/v1/field/assignments','OPTIONS',{'Access-Control-Request-Method':'GET'}),400),
+              ('preflight_bad_origin',call('preflight_bad_origin','/v1/field/assignments','OPTIONS',{'Origin':'https://evil.invalid','Access-Control-Request-Method':'GET'}),403),
+              ('preflight_bad_method',call('preflight_bad_method','/v1/field/assignments','OPTIONS',{'Origin':web,'Access-Control-Request-Method':'DELETE'}),405),
+              ('preflight_bad_header',call('preflight_bad_header','/v1/field/assignments','OPTIONS',{'Origin':web,'Access-Control-Request-Method':'GET','Access-Control-Request-Headers':'x-evil'}),403),
+              ('protocol_required',call('protocol_required','/v1/field/assignments','GET'),401),
+              ('root_not_found',call('root_not_found','/','GET'),404),
+          ]
+          for name,item,want in matrix:
+              obs.append(item)
+              if item['status']!=want: raise SystemExit(f'{name}_status_{item["status"]}_expected_{want}')
+          if b'protocol_digest_mismatch' not in matrix[4][1]['body']: raise SystemExit('protocol_gate_body_invalid')
+
+          safe_obs=[]
+          for x in obs:
+              safe_obs.append({'name':x['name'],'status':x['status'],'headers':x['headers'],'body_sha256':x['body_sha256'],'body_size':len(x['body'])})
+          config=json.load(open('/tmp/live-config.json'))
+          out={
+              'schema':'musitu.foundry_forge.live_deployment_verification.v1',
+              'observed_at':datetime.now(timezone.utc).isoformat(),
+              'canonical_origin':origin,
+              'protocol_digest':protocol,
+              'deployed_source_sha256':config['source_sha256'],
+              'settings_fingerprint_sha256':config['settings_sha256'],
+              'binding_names':config['binding_names'],
+              'health_contract_pass':True,
+              'cors_preflight_contract_pass':True,
+              'negative_contract_cases_passed':6,
+              'rfc9110_204_content_length_absent':True,
+              'production_authorized':False,
+              'write_performed':False,
+              'observations':safe_obs,
+              'result':'PASS',
+          }
+          open('foundry-forge-live-deployment-verification.json','w').write(json.dumps(out,indent=2,sort_keys=True)+'\n')
+          print(json.dumps(out,sort_keys=True))
+          PY
+
+      - name: Seal verification evidence
+        run: sha256sum foundry-forge-live-deployment-verification.json > foundry-forge-live-deployment-verification.sha256
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: musitu-foundry-forge-live-deployment-verification-20260914
+          path: |
+            foundry-forge-live-deployment-verification.json
+            foundry-forge-live-deployment-verification.sha256
+          retention-days: 14
+          if-no-files-found: error
