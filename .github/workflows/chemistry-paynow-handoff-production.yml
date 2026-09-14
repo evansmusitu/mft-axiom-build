@@ -1,0 +1,214 @@
+name: MUSITU Chemistry Paynow handoff production
+
+on:
+  push:
+    branches: [chemistry-paynow-handoff-fix-20260914]
+    paths:
+      - '.github/workflows/chemistry-paynow-handoff-production.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: musitu-chemistry-commerce-production
+  cancel-in-progress: false
+
+jobs:
+  promote:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    env:
+      CF_API: https://api.cloudflare.com/client/v4
+      ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      WORKER_NAME: musitu-chemistry-commerce
+      PUBLIC_BASE: https://payments.mftintelligence.com
+      BASELINE_SHA: a2da15a78e6d685fe644d22fdc6f68a02e3dad3f7b3e263d360082e13afee4a5
+      TARGET_SHA: 9461afb5c86667574ea3e10bfdffdd22788db3e19ee28915f5d0f44b1808a830
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Capture exact current live Commerce worker
+        id: live
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/mchem-paynow-handoff-prod evidence-out
+          python - <<'PY'
+          import email,hashlib,os,urllib.parse,urllib.request
+          from pathlib import Path
+          API=os.environ['CF_API']; A=os.environ['ACCOUNT_ID']; W=os.environ['WORKER_NAME']
+          H={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY'],'User-Agent':'MUSITU-Paynow-Handoff-Production/1.0'}
+          q=urllib.request.Request(f'{API}/accounts/{A}/workers/scripts/{urllib.parse.quote(W,safe="")}',headers=H)
+          with urllib.request.urlopen(q,timeout=45) as r: raw=r.read(); ct=r.headers.get('content-type','')
+          if 'multipart/' in ct.lower():
+              msg=email.message_from_bytes((f'Content-Type: {ct}\r\nMIME-Version: 1.0\r\n\r\n').encode()+raw); parts=[]
+              for p in msg.walk():
+                  if p.is_multipart(): continue
+                  d=p.get_payload(decode=True) or b''
+                  if b'MUSITU Chemistry Commerce' in d: parts.append(d)
+              if len(parts)!=1: raise SystemExit('module extraction mismatch')
+              source=parts[0]
+          else: source=raw
+          sha=hashlib.sha256(source).hexdigest()
+          if sha not in (os.environ['BASELINE_SHA'],os.environ['TARGET_SHA']): raise SystemExit('unexpected live Worker drift '+sha)
+          Path('/tmp/mchem-paynow-handoff-prod/live.mjs').write_bytes(source)
+          print('LIVE_WORKER_SHA256='+sha)
+          print('state=' + ('target' if sha==os.environ['TARGET_SHA'] else 'baseline'))
+          with open(os.environ['GITHUB_OUTPUT'],'a') as f:f.write('state='+('target' if sha==os.environ['TARGET_SHA'] else 'baseline')+'\n')
+          PY
+
+      - name: Build exact CSP-only candidate
+        if: steps.live.outputs.state == 'baseline'
+        shell: bash
+        run: |
+          set -euo pipefail
+          python commerce/chemistry/patch_paynow_handoff_csp.py --input /tmp/mchem-paynow-handoff-prod/live.mjs --output /tmp/mchem-paynow-handoff-prod/candidate.mjs | tee evidence-out/build.txt
+          node --check /tmp/mchem-paynow-handoff-prod/candidate.mjs
+          test "$(sha256sum /tmp/mchem-paynow-handoff-prod/candidate.mjs | awk '{print $1}')" = "$TARGET_SHA"
+          python - <<'PY'
+          from pathlib import Path
+          a=Path('/tmp/mchem-paynow-handoff-prod/live.mjs').read_text(); b=Path('/tmp/mchem-paynow-handoff-prod/candidate.mjs').read_text()
+          old="default-src 'none'; style-src 'self'; script-src 'self'; connect-src 'self'; img-src 'self' data:; font-src 'self'; manifest-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'"
+          new=old+" https://www.paynow.co.zw"
+          legacy="default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'"
+          assert a.count(old)==1 and a.count(legacy)==1
+          assert b.count(new)==1 and b.count(legacy)==1
+          assert b.replace(new,old,1)==a
+          for t in ["return new Response(null,{status:303,headers:{location:created.browserUrl","DIRECT_PAYNOW_FALLBACK_ACTIVE=true","status='direct_pending'","manual_verified_settlement_only"]: assert t in b,t
+          print('MUSITU_PAYNOW_HANDOFF_PREWRITE_GATE=PASS')
+          PY
+
+      - name: Guarded deploy, rollback drill, and final promotion
+        if: steps.live.outputs.state == 'baseline'
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import email,hashlib,json,os,secrets,time,urllib.error,urllib.parse,urllib.request
+          from pathlib import Path
+          API=os.environ['CF_API']; A=os.environ['ACCOUNT_ID']; W=os.environ['WORKER_NAME']; BASE=os.environ['PUBLIC_BASE']; OLD=os.environ['BASELINE_SHA']; NEW=os.environ['TARGET_SHA']
+          AUTH={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY'],'User-Agent':'MUSITU-Paynow-Handoff-Production/1.0'}
+          original=Path('/tmp/mchem-paynow-handoff-prod/live.mjs').read_bytes(); candidate=Path('/tmp/mchem-paynow-handoff-prod/candidate.mjs').read_bytes()
+          assert hashlib.sha256(original).hexdigest()==OLD
+          assert hashlib.sha256(candidate).hexdigest()==NEW
+          def req(url,method='GET',headers=None,body=None,timeout=60,follow=True):
+              q=urllib.request.Request(url,method=method,headers=dict(headers or {}),data=body)
+              opener=urllib.request.build_opener() if follow else urllib.request.build_opener(NoRedirect())
+              try:
+                  with opener.open(q,timeout=timeout) as r:return r.status,{k.lower():v for k,v in r.headers.items()},r.read()
+              except urllib.error.HTTPError as e:return e.code,{k.lower():v for k,v in e.headers.items()},e.read()
+          class NoRedirect(urllib.request.HTTPRedirectHandler):
+              def redirect_request(self,req,fp,code,msg,headers,newurl): return None
+          def extract(raw,ctype):
+              if 'multipart/' not in (ctype or '').lower():return raw
+              msg=email.message_from_bytes((f'Content-Type: {ctype}\r\nMIME-Version: 1.0\r\n\r\n').encode()+raw); parts=[]
+              for p in msg.walk():
+                  if p.is_multipart():continue
+                  d=p.get_payload(decode=True) or b''
+                  if b'MUSITU Chemistry Commerce' in d:parts.append(d)
+              if len(parts)!=1:raise RuntimeError('module extraction mismatch')
+              return parts[0]
+          def live_source():
+              c,h,b=req(f'{API}/accounts/{A}/workers/scripts/{urllib.parse.quote(W,safe="")}',headers=AUTH)
+              if c!=200:raise RuntimeError('worker read HTTP '+str(c))
+              return extract(b,h.get('content-type',''))
+          def live_hash():return hashlib.sha256(live_source()).hexdigest()
+          def upload(source):
+              boundary='----MUSITU'+secrets.token_hex(16); meta=json.dumps({'main_module':'index.mjs'},separators=(',',':'))
+              body=(f'--{boundary}\r\nContent-Disposition: form-data; name="metadata"\r\nContent-Type: application/json\r\n\r\n{meta}\r\n--{boundary}\r\nContent-Disposition: form-data; name="index.mjs"; filename="index.mjs"\r\nContent-Type: application/javascript+module\r\n\r\n').encode()+source+f'\r\n--{boundary}--\r\n'.encode()
+              h=dict(AUTH);h['Content-Type']='multipart/form-data; boundary='+boundary
+              c,_,b=req(f'{API}/accounts/{A}/workers/scripts/{urllib.parse.quote(W,safe="")}/content','PUT',h,body)
+              if not 200<=c<300:raise RuntimeError('worker upload HTTP '+str(c)+': '+b[:200].decode('utf-8','ignore'))
+          def wait_hash(target,allowed,seconds=75):
+              end=time.time()+seconds
+              while time.time()<end:
+                  got=live_hash()
+                  if got==target:return
+                  if got not in allowed:raise RuntimeError('unexpected live hash '+got)
+                  time.sleep(1)
+              raise RuntimeError('hash convergence timeout '+target)
+          def public_contract(expect_target):
+              nonce=secrets.token_hex(8)
+              c,h,b=req(BASE+'/chemistry/checkout/start?plan=term&__handoff='+nonce,headers={'Accept':'text/html','Cache-Control':'no-cache, no-store','Pragma':'no-cache','User-Agent':'MUSITU-Paynow-Handoff-Public/'+nonce})
+              if c!=200:return False,'checkout_http_'+str(c)
+              t=b.decode('utf-8','replace'); csp=h.get('content-security-policy','')
+              if 'Continue securely to Paynow' not in t or 'Premium remains locked until MUSITU independently verifies settlement' not in t:return False,'checkout_copy'
+              if 'method="post" action="/chemistry/checkout/start"' not in t:return False,'checkout_form'
+              if expect_target:
+                  if "form-action 'self' https://www.paynow.co.zw" not in csp:return False,'target_csp_missing'
+              else:
+                  if "form-action 'self'" not in csp or 'https://www.paynow.co.zw' in csp:return False,'baseline_csp_mismatch'
+              c,_,b=req(BASE+'/chemistry/healthz?__handoff='+nonce,headers={'Accept':'application/json','Cache-Control':'no-cache, no-store','Pragma':'no-cache','User-Agent':'MUSITU-Paynow-Handoff-Public/'+nonce})
+              d=json.loads(b or b'{}')
+              if c!=200 or d.get('ok') is not True or d.get('direct_paynow_fallback_active') is not True or d.get('direct_paynow_entitlement_mode')!='manual_verified_settlement_only':return False,'health'
+              c,_,b=req(BASE+'/chemistry/catalog?__handoff='+nonce,headers={'Accept':'application/json','Cache-Control':'no-cache, no-store','Pragma':'no-cache','User-Agent':'MUSITU-Paynow-Handoff-Public/'+nonce})
+              cat=json.loads(b or b'{}'); got={p['id']:(p.get('amount_cents'),p.get('seats'),p.get('months')) for p in cat.get('plans',[])}
+              want={'term':(499,1,4),'annual':(999,1,12),'lifetime':(1999,1,None),'family':(2499,4,12),'tutor':(3900,10,12),'school':(None,None,12)}
+              if c!=200 or got!=want:return False,'pricing'
+              return True,'pass'
+          def wait_public(expect_target,streak_needed=3,seconds=60):
+              streak=0; attempts=[]; end=time.time()+seconds
+              while time.time()<end and streak<streak_needed:
+                  ok,why=public_contract(expect_target); attempts.append({'ok':ok,'reason':why})
+                  streak=streak+1 if ok else 0
+                  if streak<streak_needed:time.sleep(1)
+              if streak<streak_needed:raise RuntimeError('public convergence failed '+repr(attempts[-8:]))
+              return attempts
+          if live_hash()!=OLD:raise SystemExit('prewrite live drift')
+          ok,why=public_contract(False)
+          if not ok:raise SystemExit('baseline public contract failed '+why)
+          state={'candidate_deployed':False,'rollback_verified':False,'candidate_redeployed_final':False,'emergency_restore':False}
+          try:
+              upload(candidate);state['candidate_deployed']=True;wait_hash(NEW,{OLD,NEW});candidate_checks=wait_public(True)
+              upload(original);wait_hash(OLD,{OLD,NEW});rollback_checks=wait_public(False,2);state['rollback_verified']=True
+              upload(candidate);wait_hash(NEW,{OLD,NEW});final_checks=wait_public(True,4);state['candidate_redeployed_final']=True
+              if live_hash()!=NEW:raise RuntimeError('final live hash drift')
+          except BaseException:
+              state['emergency_restore']=True
+              upload(original);wait_hash(OLD,{OLD,NEW});wait_public(False,2)
+              raise
+          result={'schema':'musitu.chemistry.paynow_handoff.production.v1','gate':'MUSITU_PAYNOW_HANDOFF_PRODUCTION_PASS','baseline_sha256':OLD,'production_sha256':NEW,'semantic_delta':"STOREFRONT_PUBLIC_HEADERS form-action adds exact https://www.paynow.co.zw",'pricing_changed':False,'entitlement_changed':False,'payment_created_by_verification':False,'state':state,'candidate_public_checks':candidate_checks,'rollback_public_checks':rollback_checks,'final_public_checks':final_checks}
+          Path('evidence-out/production.json').write_text(json.dumps(result,indent=2,sort_keys=True)+'\n')
+          print(json.dumps(result,sort_keys=True))
+          print('MUSITU_PAYNOW_HANDOFF_PRODUCTION=PASS')
+          PY
+
+      - name: Independent final live verification
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json,secrets,time,urllib.request
+          BASE='https://payments.mftintelligence.com'; end=time.time()+60; last='not_started'
+          while time.time()<end:
+              try:
+                  nonce=secrets.token_hex(8)
+                  q=urllib.request.Request(BASE+'/chemistry/checkout/start?plan=term&__final='+nonce,headers={'Accept':'text/html','Cache-Control':'no-cache, no-store','Pragma':'no-cache','User-Agent':'MUSITU-Paynow-Handoff-Final/'+nonce})
+                  with urllib.request.urlopen(q,timeout=20) as r:
+                      h={k.lower():v for k,v in r.headers.items()}; t=r.read().decode('utf-8','replace')
+                  csp=h.get('content-security-policy','')
+                  q=urllib.request.Request(BASE+'/chemistry/healthz?__final='+nonce,headers={'Accept':'application/json','Cache-Control':'no-cache, no-store','Pragma':'no-cache','User-Agent':'MUSITU-Paynow-Handoff-Final/'+nonce})
+                  with urllib.request.urlopen(q,timeout=20) as r:d=json.loads(r.read() or b'{}')
+                  ok=("form-action 'self' https://www.paynow.co.zw" in csp and 'Continue securely to Paynow' in t and 'method="post" action="/chemistry/checkout/start"' in t and d.get('direct_paynow_fallback_active') is True and d.get('direct_paynow_entitlement_mode')=='manual_verified_settlement_only')
+                  if ok:
+                      print('FINAL_PUBLIC_PAYNOW_HANDOFF=PASS');break
+                  last='contract_not_visible'
+              except Exception as e:last=type(e).__name__+':'+str(e)
+              time.sleep(1)
+          else:raise SystemExit('final public verification timeout '+last)
+          PY
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: musitu-chemistry-paynow-handoff-production-evidence
+          path: evidence-out
+          retention-days: 90
+          if-no-files-found: warn
