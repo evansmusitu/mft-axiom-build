@@ -1,0 +1,53 @@
+name: MUSITU Chemistry Paynow CSP context read-only
+on:
+  push:
+    branches: [chemistry-paynow-handoff-fix-20260914]
+    paths: ['.github/workflows/chemistry-paynow-csp-context-readonly.yml']
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    env:
+      CF_API: https://api.cloudflare.com/client/v4
+      ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      WORKER_NAME: musitu-chemistry-commerce
+      EXPECTED_LIVE_SHA: a2da15a78e6d685fe644d22fdc6f68a02e3dad3f7b3e263d360082e13afee4a5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Inspect self-only form-action contexts
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import email,hashlib,os,re,urllib.parse,urllib.request
+          API=os.environ['CF_API']; A=os.environ['ACCOUNT_ID']; W=os.environ['WORKER_NAME']
+          H={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY'],'User-Agent':'MUSITU-Paynow-CSP-Context/1.0'}
+          q=urllib.request.Request(f'{API}/accounts/{A}/workers/scripts/{urllib.parse.quote(W,safe="")}',headers=H)
+          with urllib.request.urlopen(q,timeout=45) as r: raw=r.read(); ct=r.headers.get('content-type','')
+          if 'multipart/' in ct.lower():
+              msg=email.message_from_bytes((f'Content-Type: {ct}\r\nMIME-Version: 1.0\r\n\r\n').encode()+raw); parts=[]
+              for p in msg.walk():
+                  if p.is_multipart(): continue
+                  d=p.get_payload(decode=True) or b''
+                  if b'MUSITU Chemistry Commerce' in d: parts.append(d)
+              if len(parts)!=1: raise SystemExit('module extraction mismatch')
+              source=parts[0]
+          else: source=raw
+          sha=hashlib.sha256(source).hexdigest()
+          if sha!=os.environ['EXPECTED_LIVE_SHA']: raise SystemExit('live drift '+sha)
+          text=source.decode()
+          token="form-action 'self'"; hits=[m.start() for m in re.finditer(re.escape(token),text)]
+          print('FORM_ACTION_SELF_COUNT='+str(len(hits)))
+          for n,i in enumerate(hits,1):
+              w=text[max(0,i-850):min(len(text),i+850)]
+              w=re.sub(r'[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}','<email>',w)
+              w=re.sub(r'(?i)\b[0-9a-f]{40,}\b','<hex>',w).replace('\n',' ')
+              print(f'--- FORM_ACTION_CONTEXT_{n} ---')
+              print(w)
+          print('PRODUCTION_MUTATION=FALSE')
+          PY
