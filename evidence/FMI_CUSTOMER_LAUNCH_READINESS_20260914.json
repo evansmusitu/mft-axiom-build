@@ -1,6 +1,6 @@
 {
-  "schema": "musitu.fmi.customer-launch-readiness.v2",
-  "recorded_at": "2026-09-14T02:46:00Z",
+  "schema": "musitu.fmi.customer-launch-readiness.v3",
+  "recorded_at": "2026-09-14T02:59:30Z",
   "product": "MUSITU Frontier Market Intelligence",
   "public_base": "https://mft-fmi-global-edge.mft-education-nexus-93f395f5.workers.dev",
   "isolated_branch": "fmi-revenue-certification-20260913",
@@ -61,7 +61,7 @@
     "gate": "FMI_LIVE_ROUTE_INVENTORY_READONLY_PASS",
     "workflow_run_id": 34800097473,
     "route_count": 20,
-    "source_sha256": "27ea84793c78f24091e0154836d6330678f3386db97b43f864f117c28ebebcd9",
+    "edge_source_sha256": "27ea84793c78f24091e0154836d6330678f3386db97b43f864f117c28ebebcd9",
     "customer_routes_observed": [
       "/v1/signup",
       "/v1/me",
@@ -79,6 +79,41 @@
       "/v1/billing/checkout",
       "/v1/billing/poll"
     ]
+  },
+  "paid_checkout_readonly": {
+    "checkout_contract_gate": "FMI_CHECKOUT_CONTRACT_READONLY_PASS",
+    "checkout_contract_run_id": 34800922449,
+    "edge_source_sha256": "27ea84793c78f24091e0154836d6330678f3386db97b43f864f117c28ebebcd9",
+    "edge_route": "/v1/billing/checkout",
+    "edge_auth_signal_observed": true,
+    "edge_plan_literals_observed": ["FREE", "FOUNDING", "PRO"],
+    "billing_topology_gate": "FMI_BILLING_TOPOLOGY_READONLY_PASS",
+    "billing_topology_run_id": 34800975056,
+    "service_binding": {
+      "binding_name": "FMI_BILLING",
+      "service": "mft-fmi-billing",
+      "environment": "production"
+    },
+    "billing_worker_routes_gate": "FMI_BILLING_WORKER_ROUTES_READONLY_PASS",
+    "billing_worker_routes_run_id": 34801014866,
+    "billing_worker_source_sha256": "cd55b2b7b34bc5f73c394eddebd9edbc22690250b4ab7aff36a209064a3b9454",
+    "public_internal_routes": [
+      "/billing/catalog",
+      "/billing/checkout",
+      "/billing/healthz",
+      "/billing/poll",
+      "/billing/return",
+      "/billing/webhooks/paynow"
+    ],
+    "protected_internal_paynow_routes": [
+      "/internal/paynow/initiate",
+      "/internal/paynow/poll",
+      "/internal/paynow/sign-initiate-fmi",
+      "/internal/paynow/verify-callback-fmi"
+    ],
+    "founding_and_pro_literals_observed_in_settlement_control": true,
+    "payment_intent_created_by_continuation": false,
+    "provider_request_performed_by_readonly_probes": false
   },
   "real_money_certification": {
     "certified": false,
@@ -102,6 +137,8 @@
     "free_signup_and_authenticated_customer_access": "READY",
     "free_account_product_surfaces": "READY",
     "public_customer_funnel": "READY",
+    "paid_checkout_topology": "READ_ONLY_VERIFIED",
+    "paid_checkout_initiation": "INTENTIONALLY_NOT_EXECUTED",
     "paid_plan_entitlement_policy": "PROVIDER_VERIFIED_ONLY",
     "internal_real_money_certification": "NOT_EARNED",
     "live_trading": "NOT_AUTHORIZED"
