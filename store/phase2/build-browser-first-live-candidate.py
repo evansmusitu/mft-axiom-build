@@ -10,9 +10,9 @@ import shutil
 MODULES=("worker.mjs","render.mjs","assets.mjs","generated-data.mjs")
 BASELINE=Path(os.environ["BASELINE_MODULE_ROOT"])
 CANDIDATE=Path(os.environ["CANDIDATE_MODULE_ROOT"])
-SOURCE_RENDER=Path(os.environ.get("BROWSER_FIRST_RENDER_SOURCE","store/phase1/web-surface/render.mjs"))
-EXPECTED_RENDER_SOURCE_SHA=os.environ.get("EXPECTED_BROWSER_FIRST_RENDER_SHA","d4d0b6aef8b1a8d887449c7be60c75190123e7fbb3183e4faf42d10f69be492c")
-REPORT=Path(os.environ.get("BROWSER_FIRST_BUILD_REPORT","/tmp/musitu-store-browser-first-candidate.json"))
+REPORT=Path(os.environ.get("BROWSER_FIRST_BUILD_REPORT","/tmp/musitu-store-install-button-candidate.json"))
+EXPECTED_BASELINE_RENDER_SHA=os.environ.get("EXPECTED_BROWSER_FIRST_RENDER_SHA","d4d0b6aef8b1a8d887449c7be60c75190123e7fbb3183e4faf42d10f69be492c")
+EXPECTED_CANDIDATE_WORKER_SHA=os.environ.get("EXPECTED_INSTALL_BUTTON_WORKER_SHA","60fcba26dc4d104c6bb9cb0567c66c8e98d38b217c89217b89625947b9062782")
 
 INSTALL_CONTROLLER_OLD="""const STORE_JS=String.raw`'use strict';
 if ('serviceWorker' in navigator) {
@@ -24,7 +24,6 @@ if ('serviceWorker' in navigator) {
 INSTALL_CONTROLLER_NEW="""const STORE_JS=String.raw`'use strict';
 const MUSITU_PWA_INSTALL='https://payments.mftintelligence.com/chemistry/install';
 const MUSITU_PWA_HELP='https://payments.mftintelligence.com/chemistry/app/#help';
-const musituInstallTargets=new WeakMap();
 let musituInstallPrompt=null;
 
 window.addEventListener('beforeinstallprompt',event=>{
@@ -33,13 +32,15 @@ window.addEventListener('beforeinstallprompt',event=>{
 });
 window.addEventListener('appinstalled',()=>{musituInstallPrompt=null;});
 
-function musituNativeInstallTarget(target){
-  return target.startsWith('intent://app/chemistry') || target.startsWith('sidestore://install?') || target.startsWith('sidestore://source?');
+function musituChemistryManifestActive(){
+  const manifest=document.querySelector('link[rel="manifest"]');
+  if(!manifest) return false;
+  try{return new URL(manifest.getAttribute('href')||'',location.href).pathname==='/chemistry/app/manifest.webmanifest';}
+  catch{return false;}
 }
-function musituPwaInstallTarget(target){return target===MUSITU_PWA_INSTALL;}
 async function musituActivateInstall(target){
-  if(musituPwaInstallTarget(target)){
-    if(musituInstallPrompt){
+  if(target===MUSITU_PWA_INSTALL){
+    if(musituChemistryManifestActive() && musituInstallPrompt){
       const prompt=musituInstallPrompt;
       musituInstallPrompt=null;
       await prompt.prompt();
@@ -51,19 +52,15 @@ async function musituActivateInstall(target){
   window.location.assign(target);
 }
 function musituBindInstallControl(control){
-  const target=control.getAttribute('href')||'';
-  if(!musituNativeInstallTarget(target) && !musituPwaInstallTarget(target)) return;
-  musituInstallTargets.set(control,target);
-  control.setAttribute('href','#');
-  control.setAttribute('data-musitu-install-control','true');
+  const target=control.getAttribute('data-musitu-install-target')||'';
+  if(!target) return;
   control.addEventListener('click',event=>{
     event.preventDefault();
-    const saved=musituInstallTargets.get(control);
-    if(saved) void musituActivateInstall(saved);
+    void musituActivateInstall(target);
   });
 }
 window.addEventListener('DOMContentLoaded',()=>{
-  document.querySelectorAll('a[href]').forEach(musituBindInstallControl);
+  document.querySelectorAll('[data-musitu-install-target]').forEach(musituBindInstallControl);
 });
 
 if ('serviceWorker' in navigator) {
@@ -72,6 +69,28 @@ if ('serviceWorker' in navigator) {
   });
 }
 `;"""
+
+INSTALL_SHELL_OLD="""function installShellAssets(html,lang){
+  let out=html.replace(/<html lang=\"[^\"]+\">/,`<html lang=\"${lang}\">`);
+  if(!out.includes('/store/manifest.webmanifest')) out=out.replace('</head>','<link rel=\"manifest\" href=\"/store/manifest.webmanifest\"><script src=\"/store/assets/store.js\" defer></script></head>');
+  return out;
+}
+function htmlResponse(request,html,lang=localeFor(request),extra={}){return response(installShellAssets(html,lang),200,'text/html; charset=utf-8',{'Content-Language':lang,'Vary':'Save-Data, Accept-Language',...extra})}"""
+INSTALL_SHELL_NEW="""function installSurface(pathname){return ['/store/install','/store/update','/store/repair','/store/reinstall'].includes(pathname)}
+function escapeInstallTarget(value){return String(value).replace(/[&\"<>]/g,c=>({'&':'&amp;','\"':'&quot;','<':'&lt;','>':'&gt;'}[c]))}
+function installControlButtons(html){
+  const carrier=/(?:intent:\/\/app\/chemistry[^\"]*|sidestore:\/\/install\?[^\"]*|https:\/\/payments\.mftintelligence\.com\/chemistry\/install)/;
+  return html.replace(/<a class=\"([^\"]+)\" href=\"([^\"]+)\">([\\s\\S]*?)<\\/a>/g,(whole,klass,target,label)=>carrier.test(target)?`<button type=\"button\" class=\"${klass}\" data-musitu-install-target=\"${escapeInstallTarget(target)}\">${label}</button>`:whole);
+}
+function installShellAssets(html,lang,request){
+  const pathname=new URL(request.url).pathname;
+  let out=html.replace(/<html lang=\"[^\"]+\">/,`<html lang=\"${lang}\">`);
+  if(installSurface(pathname)) out=installControlButtons(out);
+  const manifest=installSurface(pathname)?'/chemistry/app/manifest.webmanifest':'/store/manifest.webmanifest';
+  if(!out.includes('rel=\"manifest\"')) out=out.replace('</head>',`<link rel=\"manifest\" href=\"${manifest}\"><script src=\"/store/assets/store.js\" defer></script></head>`);
+  return out;
+}
+function htmlResponse(request,html,lang=localeFor(request),extra={}){return response(installShellAssets(html,lang,request),200,'text/html; charset=utf-8',{'Content-Language':lang,'Vary':'Save-Data, Accept-Language',...extra})}"""
 
 
 def sha256(raw:bytes)->str:
@@ -91,10 +110,8 @@ def main()->None:
         if not path.is_file():
             raise RuntimeError(f"missing exact live baseline module: {name}")
 
-    render_raw=SOURCE_RENDER.read_bytes()
-    render_sha=sha256(render_raw)
-    if render_sha!=EXPECTED_RENDER_SOURCE_SHA:
-        raise RuntimeError(f"verified browser-first render drift: {render_sha} != {EXPECTED_RENDER_SOURCE_SHA}")
+    if sha256((BASELINE/'render.mjs').read_bytes())!=EXPECTED_BASELINE_RENDER_SHA:
+        raise RuntimeError('current live render is not the verified browser-first renderer')
 
     if CANDIDATE.exists():
         shutil.rmtree(CANDIDATE)
@@ -102,116 +119,72 @@ def main()->None:
     for name in MODULES:
         shutil.copyfile(BASELINE/name,CANDIDATE/name)
 
-    # Keep the already-verified browser-first renderer byte-identical. On an
-    # older baseline this upgrades render.mjs; on the current live baseline it
-    # is deliberately idempotent so the install-button fix remains worker-only.
-    (CANDIDATE/"render.mjs").write_bytes(render_raw)
-
-    worker_path=CANDIDATE/"worker.mjs"
-    worker=worker_path.read_text(encoding="utf-8")
+    worker_path=CANDIDATE/'worker.mjs'
+    worker=worker_path.read_text(encoding='utf-8')
     live_only_tokens=(
-        "const MACHINE_ENDPOINT_INFO=",
-        "function machineDataResponse(",
+        'const MACHINE_ENDPOINT_INFO=',
+        'function machineDataResponse(',
         "'/store/android/repo/index-v1.jar'",
         "'/store/bootstrap/MUSITU_Store_1.0.2.apk'",
+        'Open MUSITU instantly in your browser.',
+        'Browser-first verified MUSITU software distribution.',
+        'href="/store/open">Open app</a>',
+        "case '/store/open': r=Response.redirect(CATALOG.apps[0].releases[0].web.appURL,302);",
     )
     for token in live_only_tokens:
         if token not in worker:
-            raise RuntimeError(f"current live-only production behavior missing before patch: {token}")
+            raise RuntimeError(f"current production behavior missing before patch: {token}")
 
-    # These replacements are needed only when starting from the pre-browser-first
-    # production baseline. If the current live baseline is already browser-first,
-    # leave those exact bytes alone and apply only the install-button controller.
-    browser_first_replacements=(
-        (
-            "import {renderHome,renderApp,renderInstall,renderSearch,renderDeveloper,renderReleases,renderStatus,renderLifecycle,primaryInstallHref} from './render.mjs';",
-            "import {renderHome,renderApp,renderInstall,renderSearch,renderDeveloper,renderReleases,renderStatus,renderLifecycle} from './render.mjs';",
-            "worker renderer import",
-        ),
-        (
-            "const HOME_TITLE={en:'Install MUSITU with release truth you can verify.',sn:'Isa MUSITU nezvokwadi yekuburitswa yaunogona kuongorora.',nd:'Faka i-MUSITU ngeqiniso lokukhutshwa ongalihlola.'};",
-            "const HOME_TITLE={en:'Open MUSITU instantly in your browser.',sn:'Vhura MUSITU pakarepo mubrowser yako.',nd:'Vula i-MUSITU khonokho kusiphequluli sakho.'};",
-            "localized home title",
-        ),
-        (
-            "description:'Verified MUSITU software distribution.'",
-            "description:'Browser-first verified MUSITU software distribution.'",
-            "PWA manifest description",
-        ),
-        (
-            "<div class=\"actions\"><a class=\"button\" href=\"${primaryInstallHref(request,'install')}\">Install</a><a class=\"button secondary\" href=\"/store/apps/chemistry\">Details</a></div>",
-            "<div class=\"actions\"><a class=\"button\" href=\"/store/open\">Open app</a><a class=\"button secondary\" href=\"/store/install\">Install options</a><a class=\"button tertiary\" href=\"/store/apps/chemistry\">Details</a></div>",
-            "low-bandwidth primary action",
-        ),
-        (
-            "renderHome(request).replace('Install MUSITU with release truth you can verify.',HOME_TITLE[lang]||HOME_TITLE.en);",
-            "renderHome(request).replace('Open MUSITU instantly in your browser.',HOME_TITLE[lang]||HOME_TITLE.en);",
-            "localized rendered-home replacement",
-        ),
+    worker=replace_once(worker,INSTALL_CONTROLLER_OLD,INSTALL_CONTROLLER_NEW,'install controller')
+    worker=replace_once(worker,INSTALL_SHELL_OLD,INSTALL_SHELL_NEW,'install surface transform')
+    worker_path.write_text(worker,encoding='utf-8')
+
+    final_worker=worker_path.read_text(encoding='utf-8')
+    required=(
+        'beforeinstallprompt',
+        'data-musitu-install-target',
+        '/chemistry/app/manifest.webmanifest',
+        'function installControlButtons(',
+        'function musituChemistryManifestActive()',
+        'window.location.assign(target)',
+        'window.location.assign(MUSITU_PWA_HELP)',
     )
-    for old,new,label in browser_first_replacements:
-        if old in worker:
-            worker=replace_once(worker,old,new,label)
-        elif new not in worker:
-            raise RuntimeError(f"{label}: neither legacy nor browser-first form found")
-
-    worker=replace_once(worker,INSTALL_CONTROLLER_OLD,INSTALL_CONTROLLER_NEW,"install-button controller")
-    worker_path.write_text(worker,encoding="utf-8")
-
-    # Fail closed if the production-only browser presentation/release assets were lost.
-    final_worker=worker_path.read_text(encoding="utf-8")
-    for token in live_only_tokens:
+    for token in (*live_only_tokens,*required):
         if token not in final_worker:
-            raise RuntimeError(f"candidate lost current live-only production behavior: {token}")
-    required_browser_first=(
-        "Open MUSITU instantly in your browser.",
-        "Browser-first verified MUSITU software distribution.",
-        'href="/store/open">Open app</a>',
-        'href="/store/install">Install options</a>',
-        "case '/store/open': r=Response.redirect(CATALOG.apps[0].releases[0].web.appURL,302);",
-        "beforeinstallprompt",
-        "data-musitu-install-control",
-        "window.location.assign(MUSITU_PWA_HELP)",
-        "window.location.assign(target)",
-    )
-    for token in required_browser_first:
-        if token not in final_worker:
-            raise RuntimeError(f"candidate missing browser-first/install-button worker behavior: {token}")
+            raise RuntimeError(f"candidate missing required behavior: {token}")
 
-    # Assets and signed/generated live metadata are deliberately not rebuilt or replaced.
-    for name in ("assets.mjs","generated-data.mjs"):
-        if (CANDIDATE/name).read_bytes()!=(BASELINE/name).read_bytes():
-            raise RuntimeError(f"candidate changed protected live module: {name}")
+    changed=[]
+    for name in MODULES:
+        before=(BASELINE/name).read_bytes(); after=(CANDIDATE/name).read_bytes()
+        if before!=after: changed.append(name)
+    if changed!=['worker.mjs']:
+        raise RuntimeError(f"install-button fix must be worker-only, observed {changed}")
 
-    if (CANDIDATE/"worker.mjs").read_bytes()==(BASELINE/"worker.mjs").read_bytes():
-        raise RuntimeError("candidate worker.mjs did not change")
-
-    changed=[name for name in MODULES if (BASELINE/name).read_bytes()!=(CANDIDATE/name).read_bytes()]
-    if "worker.mjs" not in changed:
-        raise RuntimeError("install-button candidate must change worker.mjs")
+    candidate_worker_sha=sha256((CANDIDATE/'worker.mjs').read_bytes())
+    if candidate_worker_sha!=EXPECTED_CANDIDATE_WORKER_SHA:
+        raise RuntimeError(f"candidate worker hash drift: {candidate_worker_sha} != {EXPECTED_CANDIDATE_WORKER_SHA}")
 
     report={
-        "schema":"musitu.store.browser_first.live_candidate.v1",
-        "result":"PASS_CANDIDATE_BUILT_FROM_EXACT_LIVE",
-        "changed_modules":changed,
-        "protected_modules":["assets.mjs","generated-data.mjs"],
-        "modules":{},
-        "preserved_live_only_tokens":list(live_only_tokens),
-        "install_button_controller":True,
+        'schema':'musitu.store.install_button.live_candidate.v1',
+        'result':'PASS_WORKER_ONLY_INSTALL_BUTTON_CANDIDATE',
+        'changed_modules':changed,
+        'protected_modules':['render.mjs','assets.mjs','generated-data.mjs'],
+        'candidate_worker_sha256':candidate_worker_sha,
+        'modules':{},
     }
     for name in MODULES:
         before=(BASELINE/name).read_bytes(); after=(CANDIDATE/name).read_bytes()
-        report["modules"][name]={
-            "baseline_sha256":sha256(before),
-            "candidate_sha256":sha256(after),
-            "baseline_bytes":len(before),
-            "candidate_bytes":len(after),
-            "changed":before!=after,
+        report['modules'][name]={
+            'baseline_sha256':sha256(before),
+            'candidate_sha256':sha256(after),
+            'baseline_bytes':len(before),
+            'candidate_bytes':len(after),
+            'changed':before!=after,
         }
     REPORT.parent.mkdir(parents=True,exist_ok=True)
-    REPORT.write_text(json.dumps(report,indent=2,sort_keys=True)+"\n",encoding="utf-8")
+    REPORT.write_text(json.dumps(report,indent=2,sort_keys=True)+'\n',encoding='utf-8')
     print(json.dumps(report,indent=2,sort_keys=True))
 
 
-if __name__=="__main__":
+if __name__=='__main__':
     main()
