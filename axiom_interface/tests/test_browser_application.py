@@ -173,6 +173,8 @@ class BrowserApplicationContractTests(unittest.TestCase):
             '"www.mftintelligence.com/axiom"',
             '"www.mftintelligence.com/axiom/*"',
             "RESERVED_API_HOST = \"axiom.mftintelligence.com\"",
+            "CONFIG_RULE_REF = \"musitu_axiom_browser_application_direct_browser_v1\"",
+            "starts_with(http.request.uri.path, \"/axiom/\")",
             "existing_apex_origin_overridden",
             "verify_identity",
         ]:
@@ -180,10 +182,18 @@ class BrowserApplicationContractTests(unittest.TestCase):
 
     def test_production_topology_preflight_rejects_origin_and_route_conflicts(self):
         reserved = {"id": "reserved-id", "hostname": DEPLOY.RESERVED_API_HOST, "service": "certified-api-edge", "zone_id": DEPLOY.ZONE_ID}
-        topology = {"domains": [reserved], "routes": [], "dns": []}
+        configuration_ruleset = {"id": "configuration-ruleset-id", "phase": "http_config_settings", "kind": "zone"}
+        topology = {
+            "domains": [reserved],
+            "routes": [],
+            "dns": [],
+            "configuration_ruleset": configuration_ruleset,
+            "configuration_rules": [],
+        }
         selected = DEPLOY.validate_target(topology)
         self.assertEqual(selected["app_domain"], [])
         self.assertEqual(selected["target_routes"], [])
+        self.assertEqual(selected["application_configuration_rule"], [])
         self.assertEqual(selected["reserved_api_domain"][0]["service"], "certified-api-edge")
         self.assertEqual(
             DEPLOY.ROUTE_PATTERNS,
@@ -199,7 +209,51 @@ class BrowserApplicationContractTests(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, "another Worker"):
             DEPLOY.validate_target({**topology, "routes": [{"pattern": DEPLOY.ROUTE_PATTERNS[0], "script": "unrelated-service"}]})
         with self.assertRaisesRegex(RuntimeError, "reserved production API domain"):
-            DEPLOY.validate_target({"domains": [], "routes": [], "dns": []})
+            DEPLOY.validate_target({**topology, "domains": []})
+
+    def test_production_browser_challenge_exception_is_exact_host_and_fail_closed_on_drift(self):
+        reserved = {"id": "reserved-id", "hostname": DEPLOY.RESERVED_API_HOST, "service": "certified-api-edge"}
+        configuration_ruleset = {"id": "configuration-ruleset-id", "phase": "http_config_settings", "kind": "zone"}
+        exact_rule = {
+            "id": "browser-rule-id",
+            "ref": DEPLOY.CONFIG_RULE_REF,
+            "action": "set_config",
+            "action_parameters": {"security_level": "essentially_off", "bic": False},
+            "expression": DEPLOY.CONFIG_RULE_EXPRESSION,
+            "enabled": True,
+        }
+        topology = {
+            "domains": [reserved],
+            "routes": [],
+            "dns": [],
+            "configuration_ruleset": configuration_ruleset,
+            "configuration_rules": [exact_rule],
+        }
+        selected = DEPLOY.validate_target(topology)
+        self.assertEqual(selected["application_configuration_rule"][0]["id"], "browser-rule-id")
+        self.assertEqual(
+            DEPLOY.CONFIG_RULE_EXPRESSION,
+            '(http.host eq "app.mftintelligence.com") or '
+            '((http.host in {"mftintelligence.com" "www.mftintelligence.com"}) and '
+            '(http.request.uri.path eq "/axiom" or starts_with(http.request.uri.path, "/axiom/")))',
+        )
+        edge = self.contract["edge_security"]
+        self.assertEqual(edge["global_zone_policy"], "PRESERVED")
+        self.assertEqual(
+            edge["browser_application_routes_configuration"]["scope"],
+            "DEDICATED_APP_HOST_AND_EXACT_APEX_AXIOM_PATHS_ONLY",
+        )
+        self.assertTrue(edge["worker_security_and_authentication_preserved"])
+        with self.assertRaisesRegex(RuntimeError, "differs from the exact direct-browser contract"):
+            DEPLOY.validate_target({
+                **topology,
+                "configuration_rules": [{**exact_rule, "action_parameters": {"security_level": "high", "bic": False}}],
+            })
+        with self.assertRaisesRegex(RuntimeError, "different configuration rule"):
+            DEPLOY.validate_target({
+                **topology,
+                "configuration_rules": [{**exact_rule, "ref": "unrelated-rule"}],
+            })
 
     def test_production_preflight_preserves_failure_evidence_without_writing(self):
         with tempfile.TemporaryDirectory() as directory:

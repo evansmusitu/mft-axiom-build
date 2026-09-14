@@ -25,6 +25,12 @@ APP_HOST = "app.mftintelligence.com"
 APP_ORIGIN = f"https://{APP_HOST}"
 INTEGRATION_ENTRY = "https://mftintelligence.com/axiom"
 RESERVED_API_HOST = "axiom.mftintelligence.com"
+CONFIG_RULE_REF = "musitu_axiom_browser_application_direct_browser_v1"
+CONFIG_RULE_EXPRESSION = (
+    f'(http.host eq "{APP_HOST}") or '
+    f'((http.host in {{"{ZONE_NAME}" "www.{ZONE_NAME}"}}) and '
+    '(http.request.uri.path eq "/axiom" or starts_with(http.request.uri.path, "/axiom/")))'
+)
 ROUTE_PATTERNS = (
     "mftintelligence.com/axiom",
     "mftintelligence.com/axiom/*",
@@ -116,6 +122,14 @@ def public_route(row: dict) -> dict:
     return {key: row.get(key) for key in ("id", "pattern", "script") if row.get(key) is not None}
 
 
+def public_configuration_rule(row: dict) -> dict:
+    return {
+        key: row.get(key)
+        for key in ("id", "ref", "expression", "action", "action_parameters", "enabled")
+        if row.get(key) is not None
+    }
+
+
 def live_topology(client: Cloudflare) -> dict:
     zones = client.call("/zones?" + urllib.parse.urlencode({"name": ZONE_NAME, "status": "active", "per_page": 50})) or []
     if len(zones) != 1:
@@ -126,13 +140,63 @@ def live_topology(client: Cloudflare) -> dict:
     domains = client.call(f"/accounts/{ACCOUNT_ID}/workers/domains") or []
     routes = client.call(f"/zones/{ZONE_ID}/workers/routes") or []
     dns = client.call(f"/zones/{ZONE_ID}/dns_records?per_page=500") or []
-    return {"zone": zone, "domains": domains, "routes": routes, "dns": dns}
+    rulesets = client.call(f"/zones/{ZONE_ID}/rulesets") or []
+    configuration_rulesets = [
+        row
+        for row in rulesets
+        if isinstance(row, dict) and row.get("phase") == "http_config_settings" and row.get("kind") == "zone"
+    ]
+    if len(configuration_rulesets) != 1 or not configuration_rulesets[0].get("id"):
+        raise RuntimeError("zone configuration ruleset is missing or duplicated")
+    configuration_ruleset = configuration_rulesets[0]
+    configuration_detail = client.call(f"/zones/{ZONE_ID}/rulesets/{configuration_ruleset['id']}") or {}
+    configuration_rules = configuration_detail.get("rules") or []
+    return {
+        "zone": zone,
+        "domains": domains,
+        "routes": routes,
+        "dns": dns,
+        "configuration_ruleset": configuration_ruleset,
+        "configuration_rules": configuration_rules,
+    }
 
 
 def validate_target(topology: dict) -> dict:
     domains = topology["domains"]
     routes = topology["routes"]
     dns = topology["dns"]
+    configuration_ruleset = topology.get("configuration_ruleset") or {}
+    configuration_rules = topology.get("configuration_rules") or []
+    if (
+        not configuration_ruleset.get("id")
+        or configuration_ruleset.get("phase") != "http_config_settings"
+        or configuration_ruleset.get("kind") != "zone"
+    ):
+        raise RuntimeError("canonical zone configuration ruleset identity mismatch")
+    by_ref = [row for row in configuration_rules if isinstance(row, dict) and row.get("ref") == CONFIG_RULE_REF]
+    if len(by_ref) > 1:
+        raise RuntimeError("duplicate browser application configuration rules")
+    same_expression = [
+        row for row in configuration_rules if isinstance(row, dict) and row.get("expression") == CONFIG_RULE_EXPRESSION
+    ]
+    if same_expression and not (
+        len(same_expression) == 1
+        and len(by_ref) == 1
+        and same_expression[0].get("id") == by_ref[0].get("id")
+    ):
+        raise RuntimeError("application hostname already has a different configuration rule")
+    if by_ref:
+        rule = by_ref[0]
+        parameters = rule.get("action_parameters") or {}
+        if (
+            rule.get("action") != "set_config"
+            or rule.get("expression") != CONFIG_RULE_EXPRESSION
+            or parameters.get("security_level") != "essentially_off"
+            or parameters.get("bic") is not False
+            or rule.get("enabled") is False
+            or not rule.get("id")
+        ):
+            raise RuntimeError("browser application configuration rule differs from the exact direct-browser contract")
     app_domains = records_by_name(domains, APP_HOST)
     if len(app_domains) > 1:
         raise RuntimeError("duplicate application custom-domain rows")
@@ -162,6 +226,12 @@ def validate_target(topology: dict) -> dict:
         ],
         "target_routes": [public_route(row) for row in target_routes],
         "reserved_api_domain": [public_domain(row) for row in reserved],
+        "configuration_ruleset": {
+            key: configuration_ruleset.get(key)
+            for key in ("id", "phase", "kind")
+            if configuration_ruleset.get(key) is not None
+        },
+        "application_configuration_rule": [public_configuration_rule(row) for row in by_ref],
     }
 
 
@@ -179,6 +249,8 @@ def preflight(output: Path, source_sha: str) -> None:
             "application_hostname": APP_HOST,
             "integration_entry": INTEGRATION_ENTRY,
             "integration_route_patterns": list(ROUTE_PATTERNS),
+            "application_configuration_rule_ref": CONFIG_RULE_REF,
+            "application_configuration_rule_expression": CONFIG_RULE_EXPRESSION,
             "target_before": selected,
             "existing_apex_origin_override_authorized": False,
             "reserved_api_origin_repurpose_authorized": False,
@@ -432,8 +504,14 @@ def verify_integration_routes() -> dict:
     raise RuntimeError(f"apex integration routes did not reach the exact redirect contract: {last}")
 
 
-def delete_created(client: Cloudflare, created_domain_id: str | None, created_route_ids: list[str]) -> dict:
-    result = {"domain_deleted": False, "routes_deleted": [], "errors": []}
+def delete_created(
+    client: Cloudflare,
+    created_domain_id: str | None,
+    created_route_ids: list[str],
+    configuration_ruleset_id: str,
+    created_configuration_rule_id: str | None,
+) -> dict:
+    result = {"domain_deleted": False, "routes_deleted": [], "configuration_rule_deleted": False, "errors": []}
     for route_id in reversed(created_route_ids):
         try:
             client.call(f"/zones/{ZONE_ID}/workers/routes/{route_id}", "DELETE")
@@ -446,6 +524,19 @@ def delete_created(client: Cloudflare, created_domain_id: str | None, created_ro
             result["domain_deleted"] = True
         except Exception as error:  # pragma: no cover - live failure path
             result["errors"].append(f"domain:{type(error).__name__}")
+    if created_configuration_rule_id:
+        try:
+            client.call(
+                f"/zones/{ZONE_ID}/rulesets/{configuration_ruleset_id}/rules/{created_configuration_rule_id}",
+                "DELETE",
+            )
+            current = live_topology(client)
+            result["configuration_rule_deleted"] = not any(
+                isinstance(row, dict) and row.get("ref") == CONFIG_RULE_REF
+                for row in current["configuration_rules"]
+            )
+        except Exception as error:  # pragma: no cover - live failure path
+            result["errors"].append(f"configuration_rule:{type(error).__name__}")
     return result
 
 
@@ -467,9 +558,37 @@ def activate(preflight_path: Path, evidence_dir: Path, source_sha: str) -> None:
     before = validate_target(live_topology(client))
     if before != prior.get("target_before"):
         raise RuntimeError("Cloudflare target topology changed after preflight")
+    configuration_ruleset_id = before["configuration_ruleset"]["id"]
+    created_configuration_rule_id: str | None = None
     created_domain_id: str | None = None
     created_route_ids: list[str] = []
     try:
+        if not before["application_configuration_rule"]:
+            created_rule = client.call(f"/zones/{ZONE_ID}/rulesets/{configuration_ruleset_id}/rules", "POST", {
+                "action": "set_config",
+                "action_parameters": {"security_level": "essentially_off", "bic": False},
+                "expression": CONFIG_RULE_EXPRESSION,
+                "description": (
+                    "MUSITU Axiom direct browser application: suppress the zone interstitial only on the dedicated "
+                    "application host and exact apex Axiom routes; Worker security and authentication remain fail-closed"
+                ),
+                "enabled": True,
+                "ref": CONFIG_RULE_REF,
+            }) or {}
+            created_configuration_rule_id = created_rule.get("id")
+            current_topology = live_topology(client)
+            created_matches = [
+                row
+                for row in current_topology["configuration_rules"]
+                if isinstance(row, dict) and row.get("ref") == CONFIG_RULE_REF
+            ]
+            if not created_configuration_rule_id and len(created_matches) == 1:
+                created_configuration_rule_id = created_matches[0].get("id")
+            current = validate_target(current_topology)
+            if len(current["application_configuration_rule"]) != 1:
+                raise RuntimeError("browser application configuration rule creation readback failed")
+            if not created_configuration_rule_id:
+                raise RuntimeError("browser application configuration rule id is missing after creation")
         if not before["app_domain"]:
             client.call(f"/accounts/{ACCOUNT_ID}/workers/domains", "PUT", {
                 "hostname": APP_HOST,
@@ -501,6 +620,8 @@ def activate(preflight_path: Path, evidence_dir: Path, source_sha: str) -> None:
             raise RuntimeError("path-isolated apex integration route readback mismatch")
         if after["reserved_api_domain"] != before["reserved_api_domain"]:
             raise RuntimeError("reserved production API domain changed during browser deployment")
+        if len(after["application_configuration_rule"]) != 1:
+            raise RuntimeError("browser application configuration rule final readback mismatch")
         integration = verify_integration_routes()
         evidence = {
             "schema": "musitu.axiom.browser-application.production-deployment.v1",
@@ -517,6 +638,10 @@ def activate(preflight_path: Path, evidence_dir: Path, source_sha: str) -> None:
             "reserved_api_origin_preserved": True,
             "existing_apex_origin_overridden": False,
             "apex_routes_path_isolated": True,
+            "application_configuration_rule": after["application_configuration_rule"][0],
+            "configuration_rule_scope": "DEDICATED_APP_HOST_AND_EXACT_APEX_AXIOM_PATHS_ONLY",
+            "global_security_policy_mutated": False,
+            "worker_security_and_authentication_preserved": True,
             "worker_health": health,
             "static_application": static,
             "identity_integration": identity,
@@ -529,7 +654,13 @@ def activate(preflight_path: Path, evidence_dir: Path, source_sha: str) -> None:
         digest = write_evidence(evidence_dir, "axiom-browser-application-production-deployment.json", evidence)
         print(json.dumps({"deployment": "PASS", "application_url": evidence["application_url"], "integration_entry_url": INTEGRATION_ENTRY, "evidence_sha256": digest}, sort_keys=True))
     except Exception as error:
-        rollback = delete_created(client, created_domain_id, created_route_ids)
+        rollback = delete_created(
+            client,
+            created_domain_id,
+            created_route_ids,
+            configuration_ruleset_id,
+            created_configuration_rule_id,
+        )
         failure = {
             "schema": "musitu.axiom.browser-application.production-deployment.failure.v1",
             "status": "FAIL",
