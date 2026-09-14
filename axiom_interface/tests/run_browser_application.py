@@ -99,9 +99,10 @@ def main() -> None:
             guest = guest_context.new_page()
             guest.on("download", lambda download: downloads.append(download.suggested_filename))
             guest.on("request", lambda request: foreign.append(request.url) if not request.url.startswith(origin + "/") else None)
-            response = guest.goto(origin + "/", wait_until="networkidle")
+            response = guest.goto(origin + "/", wait_until="domcontentloaded")
             assert response is not None and response.ok
             assert response.headers.get("content-disposition") == "inline"
+            guest.wait_for_function("()=>Boolean(window.AxiomBrowserApplication)")
             assert guest.url == origin + "/#/home", guest.url
             assert guest.locator("#app-shell").is_visible()
             assert guest.get_by_role("form", name="Universal composer").is_visible()
@@ -110,17 +111,20 @@ def main() -> None:
             assert guest_state["authenticated"] is False
             assert guest.get_by_role("button", name="Account: Guest workspace").is_visible()
 
-            guest.goto(origin + "/#/projects", wait_until="networkidle")
+            guest.goto(origin + "/#/projects", wait_until="domcontentloaded")
+            guest.wait_for_function("()=>document.querySelector('#workspace-title')?.textContent==='Projects'")
             assert guest.locator("#workspace-title").inner_text() == "Projects"
-            guest.reload(wait_until="networkidle")
+            guest.reload(wait_until="domcontentloaded")
+            guest.wait_for_function("()=>document.querySelector('#workspace-title')?.textContent==='Projects'")
             assert guest.url == origin + "/#/projects"
             assert guest.locator("#workspace-title").inner_text() == "Projects"
 
-            guest.goto(origin + "/index.html#/research", wait_until="networkidle")
+            guest.goto(origin + "/index.html#/research", wait_until="domcontentloaded")
+            guest.wait_for_function("()=>document.querySelector('#workspace-title')?.textContent==='Research'")
             assert guest.url == origin + "/#/research", guest.url
             assert guest.locator("#workspace-title").inner_text() == "Research"
 
-            guest.goto(origin + "/#/settings", wait_until="networkidle")
+            guest.goto(origin + "/#/settings", wait_until="domcontentloaded")
             guest.wait_for_function("()=>Boolean(window.AxiomPwaHardeningBootstrap)")
             guest.evaluate("()=>window.AxiomPwaHardeningBootstrap")
             guest.locator("#pwa-native-space").wait_for(state="visible")
@@ -145,13 +149,13 @@ def main() -> None:
             authenticated_context = browser.new_context(viewport={"width": 1280, "height": 900}, reduced_motion="reduce")
             authenticated_context.add_cookies([{"name": "axiom_session", "value": "authenticated", "url": origin, "httpOnly": True, "sameSite": "Lax"}])
             authenticated = authenticated_context.new_page()
-            authenticated.goto(origin + "/#/home", wait_until="networkidle")
+            authenticated.goto(origin + "/#/home", wait_until="domcontentloaded")
             first = session_state(authenticated)
             assert first["authenticated"] is True
             assert first["mode"] == "AUTHENTICATED_SAME_ORIGIN_SESSION"
             assert first["displayName"] == "Axiom Test User"
             assert authenticated.get_by_role("button", name="Account: Axiom Test User").is_visible()
-            authenticated.reload(wait_until="networkidle")
+            authenticated.reload(wait_until="domcontentloaded")
             restored = session_state(authenticated)
             assert restored["authenticated"] is True
             assert restored["sessionId"] == first["sessionId"] == "session-browser-test"

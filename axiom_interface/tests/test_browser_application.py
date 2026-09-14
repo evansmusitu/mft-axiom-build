@@ -16,6 +16,7 @@ PWA = (ROOT / "pwa_runtime.js").read_text(encoding="utf-8")
 SW = (ROOT / "sw.js").read_text(encoding="utf-8")
 MANIFEST = json.loads((ROOT / "manifest.webmanifest").read_text(encoding="utf-8"))
 SURFACE = json.loads((ROOT / "surface-map.json").read_text(encoding="utf-8"))
+BROWSER_RUNNER = (ROOT / "tests/run_browser_application.py").read_text(encoding="utf-8")
 
 
 class BrowserApplicationContractTests(unittest.TestCase):
@@ -82,6 +83,17 @@ class BrowserApplicationContractTests(unittest.TestCase):
         for shortcut in MANIFEST["shortcuts"]:
             self.assertTrue(shortcut["url"].startswith("./#/"), shortcut)
             self.assertNotIn("index.html", shortcut["url"])
+
+    def test_browser_acceptance_uses_application_readiness_not_network_quiescence(self):
+        self.assertNotIn('wait_until="networkidle"', BROWSER_RUNNER)
+        for token in [
+            'wait_until="domcontentloaded"',
+            "window.AxiomBrowserApplication",
+            "window.AxiomBrowserSessionReady",
+            "window.AxiomPwaHardeningBootstrap",
+            "#workspace-title",
+        ]:
+            self.assertIn(token, BROWSER_RUNNER)
 
     def test_session_is_same_origin_cookie_backed_and_fails_closed_to_guest(self):
         session = self.contract["session"]
