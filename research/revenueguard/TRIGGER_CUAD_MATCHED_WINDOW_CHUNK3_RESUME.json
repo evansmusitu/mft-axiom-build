@@ -1,0 +1,13 @@
+{
+  "schema": "musitu.revenueguard.cuad.matched_window_chunk3_resume_trigger.v1",
+  "status": "DEV_RESEARCH_ONLY_NOT_CERTIFICATION",
+  "original_training_run_id": 34749003397,
+  "original_training_head_sha": "302d36e9dd26af60464d0ecf4e3d2504f9591f52",
+  "predecessor_artifact_id": 10323636532,
+  "predecessor_artifact_sha256": "2c31ed0f8b14a438486beca6cb4b5adc95537ff496d51143a6a4d995ce71d570",
+  "resume_chunk_index": 3,
+  "num_chunks": 4,
+  "expected_final_global_steps": 2571,
+  "reason": "Original chunk3 was cancelled solely by the historical 120-minute job timeout after progressing through at least step 560/641. Resume uses the exact validated chunk2 checkpoint and original trainer source; only the job timeout is expanded to 180 minutes.",
+  "sealed_data_impact": "none"
+}
