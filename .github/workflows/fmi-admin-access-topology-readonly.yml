@@ -1,0 +1,42 @@
+name: MUSITU FMI Admin Access Topology Read-Only
+
+on:
+  push:
+    paths:
+      - 'scripts/fmi_admin_access_topology_readonly.py'
+      - '.github/workflows/fmi-admin-access-topology-readonly.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      CF_API: https://api.cloudflare.com/client/v4
+      ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+    steps:
+      - uses: actions/checkout@v4
+      - name: Require protected Cloudflare credentials
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        run: |
+          set -euo pipefail
+          test -n "$CLOUDFLARE_EMAIL"
+          test -n "$CLOUDFLARE_GLOBAL_API_KEY"
+      - name: Inspect Access topology without identity disclosure
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        run: python scripts/fmi_admin_access_topology_readonly.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: musitu-fmi-admin-access-topology-readonly
+          path: |
+            fmi-admin-access-topology-readonly.json
+            fmi-admin-access-topology-readonly.sha256
+          retention-days: 14
+          if-no-files-found: error
