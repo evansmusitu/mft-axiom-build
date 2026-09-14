@@ -1,0 +1,71 @@
+name: MUSITU Store browser-first production preflight
+
+on:
+  push:
+    branches:
+      - musitu-store-browser-first-launch-20260913
+    paths:
+      - '.github/workflows/musitu-store-browser-first-production-preflight.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+  STORE_WORKER: musitu-store-phase1
+  EXPECTED_COMPATIBILITY_DATE: '2026-09-09'
+  BASELINE_MODULE_ROOT: /tmp/musitu-store-browser-first-preflight/baseline
+  CANDIDATE_MODULE_ROOT: /tmp/musitu-store-browser-first-preflight/candidate
+  LIVE_MODULE_OUTPUT: /tmp/musitu-store-browser-first-preflight/baseline
+  BROWSER_FIRST_BUILD_REPORT: /tmp/musitu-store-browser-first-preflight/candidate.json
+  EXPECTED_BROWSER_FIRST_RENDER_SHA: d4d0b6aef8b1a8d887449c7be60c75190123e7fbb3183e4faf42d10f69be492c
+
+jobs:
+  preflight:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout isolated Store branch
+        uses: actions/checkout@v4
+
+      - name: Use Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Capture current production modules (GET only)
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        run: python3 store/phase2/capture_live_store_worker_unpinned.py
+
+      - name: Build candidate from exact live production baseline
+        run: python3 store/phase2/build-browser-first-live-candidate.py
+
+      - name: Syntax check candidate modules
+        run: |
+          node --check "$CANDIDATE_MODULE_ROOT/worker.mjs"
+          node --check "$CANDIDATE_MODULE_ROOT/render.mjs"
+          node --check "$CANDIDATE_MODULE_ROOT/assets.mjs"
+          node --check "$CANDIDATE_MODULE_ROOT/generated-data.mjs"
+
+      - name: Verify browser-first candidate locally
+        run: node store/phase2/verify-browser-first-candidate.mjs
+
+      - name: Assert protected live modules remain byte-identical
+        shell: bash
+        run: |
+          set -euo pipefail
+          cmp "$BASELINE_MODULE_ROOT/assets.mjs" "$CANDIDATE_MODULE_ROOT/assets.mjs"
+          cmp "$BASELINE_MODULE_ROOT/generated-data.mjs" "$CANDIDATE_MODULE_ROOT/generated-data.mjs"
+          test "$(sha256sum "$CANDIDATE_MODULE_ROOT/render.mjs" | awk '{print $1}')" = "$EXPECTED_BROWSER_FIRST_RENDER_SHA"
+          echo 'MUSITU_STORE_BROWSER_FIRST_PREFLIGHT=PASS'
+
+      - name: Upload preflight evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: musitu-store-browser-first-production-preflight
+          path: /tmp/musitu-store-browser-first-preflight
+          if-no-files-found: error
+          retention-days: 14
