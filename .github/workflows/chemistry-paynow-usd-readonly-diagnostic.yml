@@ -1,0 +1,71 @@
+name: MUSITU Chemistry Paynow USD read-only diagnostic
+
+on:
+  push:
+    branches: [chemistry-paynow-usd-fix-20260914]
+    paths: ['.github/workflows/chemistry-paynow-usd-readonly-diagnostic.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    env:
+      CF_API: https://api.cloudflare.com/client/v4
+      ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      WORKER_NAME: musitu-chemistry-commerce
+      EXPECTED_LIVE_SHA: 9461afb5c86667574ea3e10bfdffdd22788db3e19ee28915f5d0f44b1808a830
+    steps:
+      - uses: actions/checkout@v4
+      - name: Inspect exact live provider path and binding types
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import email,hashlib,json,os,re,urllib.parse,urllib.request
+          API=os.environ['CF_API']; A=os.environ['ACCOUNT_ID']; W=os.environ['WORKER_NAME']
+          H={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY'],'User-Agent':'MUSITU-Paynow-USD-Diagnostic/1.0'}
+          def get(url):
+              q=urllib.request.Request(url,headers=H)
+              with urllib.request.urlopen(q,timeout=45) as r:return r.read(),r.headers.get('content-type','')
+          raw,ct=get(f'{API}/accounts/{A}/workers/scripts/{urllib.parse.quote(W,safe="")}')
+          if 'multipart/' in ct.lower():
+              msg=email.message_from_bytes((f'Content-Type: {ct}\r\nMIME-Version: 1.0\r\n\r\n').encode()+raw); parts=[]
+              for p in msg.walk():
+                  if p.is_multipart():continue
+                  d=p.get_payload(decode=True) or b''
+                  if b'MUSITU Chemistry Commerce' in d:parts.append(d)
+              if len(parts)!=1:raise SystemExit('module extraction mismatch')
+              source=parts[0]
+          else:source=raw
+          sha=hashlib.sha256(source).hexdigest()
+          if sha!=os.environ['EXPECTED_LIVE_SHA']:raise SystemExit('live worker drift '+sha)
+          text=source.decode('utf-8')
+          print('LIVE_WORKER_SHA256='+sha)
+          for name in ['initiateProvider','pollProvider','safeProviderUrl','createOrder','validatePaid']:
+              m=re.search(r'(?:async\s+)?function\s+'+re.escape(name)+r'\s*\(',text)
+              print('--- '+name+' ---')
+              if not m: print('MISSING'); continue
+              w=text[m.start():min(len(text),m.start()+3600)]
+              w=re.sub(r'[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}','<email>',w)
+              w=re.sub(r'(?i)\b[0-9a-f]{40,}\b','<hex>',w)
+              print(w.replace('\n',' '))
+          try:
+              raw,_=get(f'{API}/accounts/{A}/workers/scripts/{urllib.parse.quote(W,safe="")}/settings')
+              data=json.loads(raw or b'{}')
+              result=data.get('result') or {}
+              bindings=[]
+              for b in result.get('bindings') or []:
+                  bindings.append({'name':b.get('name'),'type':b.get('type'),'service':b.get('service'),'environment':b.get('environment')})
+              print('BINDINGS='+json.dumps(bindings,sort_keys=True))
+          except Exception as e:
+              print('BINDINGS_METADATA_UNAVAILABLE='+type(e).__name__)
+          print('PRODUCTION_MUTATION=FALSE')
+          print('PAYMENT_CREATED=FALSE')
+          PY
