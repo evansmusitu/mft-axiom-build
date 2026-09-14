@@ -34,7 +34,7 @@ jobs:
           a=[x for x in o['artifacts'] if x['name']=='revenueguard-cuad-matched-window-chunk-2' and not x['expired']]
           assert len(a)==1,a
           assert a[0]['id']==10323636532,a[0]['id']
-          assert a[0]['digest']=='sha256:2c31ed0f8b14a438486beca6cb4b5adc95537ff496d51143a6a4d995ce71d570',a[0]['digest']
+          assert a[0]['digest']=='sha256:2c31ed0f6ef65542d3a61ffd7dca529c1bf53e1ff0cb63fa68ec40bfbcf0d570',a[0]['digest']
           print('exact chunk2 predecessor identity PASS')
           PY
 
