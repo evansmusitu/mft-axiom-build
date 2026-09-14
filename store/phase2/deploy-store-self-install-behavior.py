@@ -17,10 +17,11 @@ base=install.base
 
 EXPECTED_WORKER=os.environ.get('EXPECTED_STORE_SELF_INSTALL_WORKER_SHA','c0c41c6de7b26ba25ebea6ef7eb5dcbf346a179737a4cc6c1a128e6fec4e7409')
 install.EXPECTED_WORKER=EXPECTED_WORKER
+ORIGINAL_LOCAL_VERIFY=install.verify_local_roots
 
 
 def verify_local_roots()->None:
-    install.verify_local_roots()
+    ORIGINAL_LOCAL_VERIFY()
     worker=(base.CANDIDATE/'worker.mjs').read_text(encoding='utf-8')
     required=(
         "case '/store/self-install': r=storeSelfInstallPage(request); break;",
