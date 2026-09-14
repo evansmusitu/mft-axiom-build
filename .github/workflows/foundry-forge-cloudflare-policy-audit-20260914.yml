@@ -41,7 +41,7 @@ jobs:
             'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],
             'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY'],
             'Content-Type':'application/json',
-            'User-Agent':'MUSITU-Foundry-FORGE-Policy-Audit/1.0',
+            'User-Agent':'MUSITU-Foundry-FORGE-Policy-Audit/1.1',
           }
 
           def get(path):
@@ -75,6 +75,7 @@ jobs:
             'custom_rules_entrypoint':f'/zones/{zid}/rulesets/phases/http_request_firewall_custom/entrypoint',
             'managed_rules_entrypoint':f'/zones/{zid}/rulesets/phases/http_request_firewall_managed/entrypoint',
             'rate_limit_entrypoint':f'/zones/{zid}/rulesets/phases/http_ratelimit/entrypoint',
+            'config_rules_entrypoint':f'/zones/{zid}/rulesets/phases/http_config_settings/entrypoint',
             'transform_entrypoint':f'/zones/{zid}/rulesets/phases/http_request_late_transform/entrypoint',
           }
           raw={name:get(path) for name,path in paths.items()}
@@ -109,9 +110,10 @@ jobs:
                   'description':desc,
                   'expression':expr,
                   'ref':rule.get('ref'),
+                  'action_parameters':rule.get('action_parameters'),
                 })
 
-          for name in ('legacy_firewall_rules','custom_rules_entrypoint','managed_rules_entrypoint','rate_limit_entrypoint'):
+          for name in ('legacy_firewall_rules','custom_rules_entrypoint','managed_rules_entrypoint','rate_limit_entrypoint','config_rules_entrypoint'):
             resp=raw[name]
             if resp.get('success'):
               collect_rules(name,resp.get('result'))
@@ -131,7 +133,7 @@ jobs:
             }
 
           out={
-            'schema':'musitu.foundry_forge.cloudflare_policy_audit.v1',
+            'schema':'musitu.foundry_forge.cloudflare_policy_audit.v1_1',
             'observed_at':datetime.now(timezone.utc).isoformat(),
             'zone':{'id':zid,'account_id':aid,'name':os.environ['EXPECTED_ZONE']},
             'forge_host':host,
