@@ -20,6 +20,7 @@ const routeCopy = {
   research:['Research','Build synchronized reports, evidence maps and timelines from exact source-bound claims, contradictions, lineage and freshness.'],
   create:['Create','Build first-class documents, sheets, presentations, website/code previews and dashboards with versioning, diff, rollback and provenance.'],
   code:['Code','Code work stays inspectable, sandboxed and policy-bounded.'],
+  computer:['Computer','Visible sandboxed browser execution with explicit approvals, takeover, receipts and rollback where supported.'],
   live:['Live','Permissioned voice, camera and screen capture with interruption, annotation, project context and evidence logs.'],
   agents:['Agents','Agents expose roles, scopes, tools, policy and dissent rather than hidden reasoning.'],
   evidence:['Evidence','Claims, attestations, evaluations and receipts remain linked to provenance.'],
@@ -43,7 +44,7 @@ function renderTrace() {
   for(const event of state.trace){ const li=document.createElement('li'); const time=document.createElement('time'); time.dateTime=event.at; time.textContent=new Date(event.at).toLocaleTimeString(); const body=document.createElement('span'); body.textContent=`${event.type} · ${Object.entries(event.detail).map(([k,v])=>`${k}=${v}`).join(' · ') || 'operational'}`; li.append(time,body); list.append(li); }
 }
 function setRoute(route){ const [title,description]=routeCopy[route] || [route,'This surface is registered but not yet implemented.']; $('#workspace-title').textContent=title; $('#workspace-description').textContent=description; $$('.nav-item').forEach(a=>{ const active=a.dataset.route===route; a.classList.toggle('active',active); if(active)a.setAttribute('aria-current','page');else a.removeAttribute('aria-current');}); emit('route.change',{state:route}); }
-function syncRoute(){ const route=(location.hash.match(/^#\/([^/]+)/)||[])[1] || 'home'; if(route==='project') return; setRoute(route); }
+function syncRoute(){ const route=(location.hash.match(/^#\/([^/]+)/)||[])[1] || 'home'; if(route==='project') return; if(route==='code'){ location.hash='#/computer'; return; } setRoute(route); }
 
 function applyTheme(theme){ state.theme=theme; document.documentElement.dataset.theme=theme; localStorage.setItem('axiom.ui.theme',theme); $('#theme-label').textContent=theme==='high-contrast'?'High contrast':theme[0].toUpperCase()+theme.slice(1); emit('theme.change',{theme}); }
 function cycleTheme(){ const themes=['system','light','dark','high-contrast']; applyTheme(themes[(themes.indexOf(state.theme)+1)%themes.length]); }
@@ -62,12 +63,50 @@ function saveDraft(){ const value=$('#composer-input').value; try{ if(value) loc
 function restoreDraft(){ try{ const draft=localStorage.getItem('axiom.ui.draft'); if(draft) $('#composer-input').value=draft; }catch{} }
 function updateNetwork(){ const online=navigator.onLine; const badge=$('#connection-state'); badge.dataset.state=online?'online':'offline'; badge.lastElementChild.textContent=online?'Online':'Offline'; const banner=$('#network-banner'); banner.hidden=online; banner.textContent=online?'':'Offline: local draft and cached shell remain available. Consequential actions are unavailable.'; emit('network.change',{state:online?'online':'offline'}); }
 
+function upgradeComputerNavigation(){
+  const link=$('.nav-item[data-route="code"]');
+  if(!link)return;
+  link.dataset.route='computer';
+  link.href='#/computer';
+  const label=link.querySelector('span:last-child');
+  if(label)label.textContent='Computer';
+}
+const sleep=milliseconds=>new Promise(resolve=>setTimeout(resolve,milliseconds));
+async function waitForControl(selector,timeoutMs=4000){
+  const attempts=Math.max(1,Math.ceil(timeoutMs/25));
+  for(let attempt=0;attempt<attempts;attempt++){
+    const control=$(selector);
+    if(control)return control;
+    await sleep(25);
+  }
+  return null;
+}
+async function openComposerTool(tool){
+  const routes={attach:'#/research',source:'#/research',voice:'#/live',camera:'#/live',screen:'#/live'};
+  const route=routes[tool];
+  if(!route)throw new TypeError(`unsupported composer tool: ${tool}`);
+  if(location.hash!==route)location.hash=route;
+  let control=null;
+  if(tool==='attach')control=await waitForControl('#research-source-text');
+  else if(tool==='source')control=await waitForControl('#research-source-url');
+  else {
+    const permission=await waitForControl(`[data-permission="${tool}"]`);
+    const record=$(`[data-record="${tool}"]`);
+    control=permission&&!permission.disabled?permission:record&&!record.disabled?record:$('#live-start')||permission||record;
+  }
+  if(!control)throw new DOMException(`${tool} workspace control unavailable`,'NotFoundError');
+  control.scrollIntoView?.({block:'center',behavior:'smooth'});
+  control.focus?.();
+  const stateName=tool==='attach'?'research-source-text':tool==='source'?'research-source-url':`live-${tool}`;
+  emit('composer.tool.open',{control:tool,state:stateName});
+}
+
 function installEvents(){
   window.addEventListener('hashchange',syncRoute); window.addEventListener('online',updateNetwork); window.addEventListener('offline',updateNetwork);
   $('#theme-button').addEventListener('click',cycleTheme); $('#proof-mobile-button').addEventListener('click',()=>setProof(!state.proofOpen)); $('#proof-close-button').addEventListener('click',()=>setProof(false));
   $$('.nav-item').forEach(a=>a.addEventListener('click',()=>emit('nav.activate',{control:a.dataset.route})));
   $$('.verb').forEach(button=>button.addEventListener('click',()=>{ state.verb=button.dataset.verb; $$('.verb').forEach(v=>{const active=v===button;v.classList.toggle('active',active);v.setAttribute('aria-pressed',String(active));}); emit('composer.verb',{verb:state.verb}); }));
-  $$('.tool-button').forEach(button=>button.addEventListener('click',()=>emit('composer.tool-preview',{control:button.dataset.tool,state:'surface-only'})));
+  $$('.tool-button').forEach(button=>button.addEventListener('click',()=>{void openComposerTool(button.dataset.tool).catch(error=>reportError({errorId:'AXIOM-COMPOSER-TOOL',component:'Universal composer',impact:'Requested tool surface did not open',failed:error.message,recovery:'Reload the workspace and retry the tool'}));}));
   $$('#constraints select, #constraints input').forEach(el=>el.addEventListener('change',()=>{updateConstraintSummary();emit('composer.constraint',{control:el.id});}));
   $('#composer').addEventListener('submit',previewOutcome); $('#composer-input').addEventListener('input',saveDraft);
   $$('#proof-drawer [role="tab"]').forEach(tab=>{ tab.addEventListener('click',()=>activateTab(tab)); tab.addEventListener('keydown',e=>{const tabs=$$('#proof-drawer [role="tab"]');let i=tabs.indexOf(tab);if(e.key==='ArrowRight')i=(i+1)%tabs.length;else if(e.key==='ArrowLeft')i=(i-1+tabs.length)%tabs.length;else return;e.preventDefault();activateTab(tabs[i]);tabs[i].focus();}); });
@@ -75,10 +114,29 @@ function installEvents(){
   document.addEventListener('keydown',e=>{ const mod=e.ctrlKey||e.metaKey; if(mod&&e.key.toLowerCase()==='k'){e.preventDefault();$('#composer-input').focus();emit('shortcut',{control:'composer-focus'});} if(mod&&e.shiftKey&&e.key.toLowerCase()==='p'){e.preventDefault();setProof(!state.proofOpen);} if(e.key==='?'&&!/INPUT|TEXTAREA|SELECT/.test(document.activeElement?.tagName)){e.preventDefault();if(!dialog.open)dialog.showModal();} if(e.key==='Escape'&&state.proofOpen)setProof(false); });
 }
 function registerServiceWorker(){ if('serviceWorker' in navigator && location.protocol!=='file:') navigator.serviceWorker.register('./sw.js',{scope:'./'}).then(()=>emit('pwa.service-worker',{state:'registered'})).catch(()=>emit('pwa.service-worker',{state:'registration-failed'})); }
+async function bootExtendedWorkspaces(){
+  const chain=[
+    ['./computer_bootstrap.js','AxiomComputerBootstrap'],
+    ['./agents_bootstrap.js','AxiomAgentsBootstrap'],
+    ['./memory_bootstrap.js','AxiomMemoryBootstrap'],
+    ['./operator_bootstrap.js','AxiomOperatorBootstrap'],
+    ['./developer_bootstrap.js','AxiomDeveloperPlatformBootstrap'],
+    ['./evidence_bootstrap.js','AxiomEvidenceObservatoryBootstrap'],
+    ['./pwa_bootstrap.js','AxiomPwaHardeningBootstrap'],
+  ];
+  for(const [modulePath,promiseName] of chain){
+    await import(modulePath);
+    const readiness=window[promiseName];
+    if(!readiness?.then)throw new Error(`${promiseName} readiness promise unavailable`);
+    await readiness;
+  }
+  emit('workspace.extended-ready',{state:'phase12-earned-plus-phase13-14-candidate'});
+}
 
 installLiveDurabilityGuard();
+upgradeComputerNavigation();
 applyTheme(state.theme); restoreDraft(); installEvents(); syncRoute(); updateConstraintSummary(); updateNetwork(); registerServiceWorker(); emit('shell.ready',{state:'phase7'});
 window.AxiomUI = Object.freeze({ emit, reportError, setProgress, setProof, getTrace:()=>structuredClone(state.trace) });
 initBrowserSession({emit});
 emit('browser.application-ready',{state:browserApplication.route});
-initProjectWorkspace({emit}).then(async projects=>{const outcomes=await initOutcomeContractWorkspace({emit,projects});const observability=await initObservabilityWorkspace({emit,projects});const live=await initLiveWorkspace({emit,projects,observability});attachLiveDurability({api:live,emit});await initOutcomeExecutionWorkspace({emit,projects,outcomes,observability});const research=await initResearchWorkspace({emit,projects});await enhanceResearchWorkspace({emit,research});await initArtifactWorkspace({emit,projects});emit('workspace.ready',{state:'phase7'});}).catch(error=>reportError({errorId:'AXIOM-WORKSPACE-INIT',component:'Workspace',impact:'Project, Work, Research, Create, Live or Observability workspace unavailable',failed:error.message,recovery:'Reload the workspace and retry'}));
+initProjectWorkspace({emit}).then(async projects=>{const outcomes=await initOutcomeContractWorkspace({emit,projects});const observability=await initObservabilityWorkspace({emit,projects});const live=await initLiveWorkspace({emit,projects,observability});attachLiveDurability({api:live,emit});await initOutcomeExecutionWorkspace({emit,projects,outcomes,observability});const research=await initResearchWorkspace({emit,projects});await enhanceResearchWorkspace({emit,research});await initArtifactWorkspace({emit,projects});emit('workspace.ready',{state:'phase7'});try{await bootExtendedWorkspaces();}catch(error){reportError({errorId:'AXIOM-EXTENDED-WORKSPACE-INIT',component:'Extended workspace',impact:'Computer, Agents, Memory, Operator, Developer, Evidence or PWA surface may be unavailable',succeeded:'Project, Work, Research, Create, Live and Observability remain available',failed:error.message,dataLost:'No',retryState:'Reload available',recovery:'Reload the workspace and retry the affected surface'});}}).catch(error=>reportError({errorId:'AXIOM-WORKSPACE-INIT',component:'Workspace',impact:'Project, Work, Research, Create, Live or Observability workspace unavailable',failed:error.message,recovery:'Reload the workspace and retry'}));
