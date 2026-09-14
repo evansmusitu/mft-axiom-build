@@ -60,7 +60,6 @@ def main() -> None:
             )
             checks.append("extended_workspace_bootstrap")
 
-            # Projects: create persistent browser-local state and prove graph controls mutate it.
             route(page, "projects", "#project-space")
             page.locator("#project-name").fill("Interactive contract project")
             page.locator("#project-goal").fill("Verify safe local browser controls execute intended actions")
@@ -70,23 +69,26 @@ def main() -> None:
             assert project_id
             checks.append("project_create")
 
-            for object_type, title in (("task", "Button audit task"), ("source", "Button audit source")):
+            for expected, (object_type, title) in enumerate((("task", "Button audit task"), ("source", "Button audit source")), start=1):
                 page.locator("#object-type").select_option(object_type)
                 page.locator("#object-name").fill(title)
                 page.locator("#object-source").fill("interactive-button-contract")
                 page.locator("#object-form button[type=submit]").click()
-            page.wait_for_function("()=>document.querySelectorAll('#project-graph .project-object').length >= 2")
+                page.wait_for_function(
+                    "count => document.querySelectorAll('#project-graph .project-object').length >= count",
+                    arg=expected,
+                )
             edge_values = page.locator("#edge-from option").evaluate_all("options => options.map(option => option.value)")
             assert len(edge_values) >= 2
             page.locator("#edge-from").select_option(edge_values[0])
             page.locator("#edge-to").select_option(edge_values[1])
             page.locator("#edge-relation").fill("supports")
             page.locator("#edge-form button[type=submit]").click()
+            page.wait_for_function("()=>document.querySelector('#project-graph')?.innerText.includes('linked relation')")
             page.locator("#project-refresh").click()
             page.locator("#project-controls").wait_for(state="visible")
             checks.append("project_graph_controls")
 
-            # Every primary rail item must activate its real workspace.
             for name, selector in (
                 ("research", "#research-space"),
                 ("create", "#artifact-space"),
@@ -104,7 +106,6 @@ def main() -> None:
             assert page.locator('.nav-item[data-route="computer"]').get_attribute("href") == "#/computer"
             checks.append("computer_nav_upgrade")
 
-            # Research controls: source, claim, exact citation, synchronized views.
             route(page, "research", "#research-space")
             page.locator("#research-project").select_option(project_id)
             page.locator("#research-source-title").fill("Interactive evidence")
@@ -132,7 +133,6 @@ def main() -> None:
                 assert page.locator(panel).is_visible()
             checks.append("research_controls")
 
-            # Artifact controls: create, version, diff, comment, export.
             route(page, "create", "#artifact-space")
             page.locator("#artifact-project").select_option(project_id)
             page.locator("#artifact-type").select_option("document")
@@ -152,7 +152,6 @@ def main() -> None:
             assert artifact_download.value.suggested_filename.endswith("-artifact-export.json")
             checks.append("artifact_controls")
 
-            # Live local controls. Media permission prompts are intentionally excluded from CI.
             route(page, "live", "#live-space")
             page.locator("#live-project").select_option(project_id)
             page.locator("#live-start").click()
@@ -167,7 +166,6 @@ def main() -> None:
             page.wait_for_function("()=>document.querySelector('#live-session-state')?.innerText.includes('ENDED')")
             checks.append("live_controls")
 
-            # Computer controls: safe local srcdoc fixture, takeover and approval lifecycle.
             route(page, "computer", "#computer-space")
             page.locator("#computer-project").select_option(project_id)
             page.locator("#computer-fixture").select_option("safe")
@@ -194,7 +192,6 @@ def main() -> None:
             page.locator("#computer-stop").click()
             checks.append("computer_controls")
 
-            # Agent and automation buttons: least-privilege local preview only.
             route(page, "agents", "#agents-space")
             page.locator("#agents-project").select_option(project_id)
             page.locator("#agent-name").fill("Interaction verifier")
@@ -218,7 +215,6 @@ def main() -> None:
             page.locator("#agents-refresh").click()
             checks.append("agent_automation_controls")
 
-            # Observability controls must expose the run generated above in all three views.
             route(page, "observability", "#observability-space")
             page.locator("#obs-refresh").click()
             page.wait_for_function("()=>[...document.querySelectorAll('#obs-run-select option')].some(option => option.value)")
@@ -228,7 +224,6 @@ def main() -> None:
                 assert page.locator(panel).is_visible()
             checks.append("observability_controls")
 
-            # Operator controls: browser-local org/RBAC/policy only.
             route(page, "operator", "#operator-space")
             page.locator("#operator-org-form button[type=submit]").click()
             page.wait_for_function("()=>Boolean(document.querySelector('#operator-org')?.value)")
@@ -245,7 +240,6 @@ def main() -> None:
             page.locator("#operator-refresh").click()
             checks.append("operator_controls")
 
-            # Developer controls: symbolic/local previews only, never external delivery.
             route(page, "developer", "#developer-platform-space")
             page.locator("#developer-org").select_option(org_id)
             page.locator("#developer-credential-form button[type=submit]").click()
@@ -262,7 +256,6 @@ def main() -> None:
             page.wait_for_function("()=>document.querySelector('#developer-webhooks')?.innerText.includes('Audit preview')")
             checks.append("developer_controls")
 
-            # Evidence buttons: claim boundary inspection and local export.
             route(page, "evidence", "#evidence-observatory-space")
             page.locator("#evidence-check-claim").click()
             page.wait_for_function("()=>document.querySelector('#evidence-claim-result')?.innerText.includes('authorized')")
@@ -271,7 +264,6 @@ def main() -> None:
             assert evidence_download.value.suggested_filename.startswith("axiom-evidence-review-")
             checks.append("evidence_controls")
 
-            # PWA buttons: browser-local refresh, queue/replay and storage request.
             route(page, "settings", "#pwa-native-space")
             page.locator("#pwa-refresh").click()
             page.wait_for_function("()=>document.querySelector('#pwa-project-state')?.innerText.includes('browser-local project')")
@@ -282,7 +274,6 @@ def main() -> None:
             page.locator("#pwa-storage").click()
             checks.append("pwa_controls")
 
-            # Composer tools must open usable real surfaces rather than telemetry-only no-ops.
             page.goto(origin + "/#/home", wait_until="domcontentloaded")
             page.wait_for_function("()=>Boolean(window.AxiomPwaHardening)")
             page.get_by_role("button", name="Attach file or folder").click()
@@ -298,7 +289,6 @@ def main() -> None:
                 assert page.locator(f'[data-permission="{tool}"]').count() == 1
             checks.append("composer_tool_routes")
 
-            # Core shell buttons: theme, shortcuts, verb, preview, mobile proof drawer.
             page.goto(origin + "/#/home", wait_until="domcontentloaded")
             page.wait_for_function("()=>Boolean(window.AxiomBrowserApplication)")
             before_theme = page.locator("html").get_attribute("data-theme")
