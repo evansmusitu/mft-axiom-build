@@ -219,9 +219,21 @@ def main() -> None:
             page.locator("#obs-refresh").click()
             page.wait_for_function("()=>[...document.querySelectorAll('#obs-run-select option')].some(option => option.value)")
             page.locator("#obs-run-select").select_option(first_value(page, "#obs-run-select"))
-            for tab, panel in (("developer", "#obs-developer-panel"), ("operator", "#obs-operator-panel"), ("user", "#obs-user-panel")):
+            for tab, panel, ready in (
+                ("developer", "#obs-developer-panel", "run_id"),
+                ("operator", "#obs-operator-panel", "Runs"),
+                ("user", "#obs-user-panel", "run.started"),
+            ):
                 page.locator(f'[data-obs-tab="{tab}"]').click()
-                assert page.locator(panel).is_visible()
+                page.wait_for_function(
+                    "selector => { const el=document.querySelector(selector); return Boolean(el && !el.hidden); }",
+                    arg=panel,
+                )
+                page.wait_for_function(
+                    "args => (document.querySelector(args.selector)?.innerText || '').includes(args.ready)",
+                    arg={"selector": panel, "ready": ready},
+                )
+                assert page.locator(f'[data-obs-tab="{tab}"]').get_attribute("aria-selected") == "true"
             checks.append("observability_controls")
 
             route(page, "operator", "#operator-space")
