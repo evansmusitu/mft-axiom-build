@@ -21,13 +21,39 @@ jobs:
     timeout-minutes: 40
     steps:
       - uses: actions/checkout@v4
-      - name: Download exact completed matched-window candidate
+      - name: Assert exact split training ancestry and resumed final identity
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json,os,urllib.request
+          repo='evansmusitu/mft-axiom-build'; token=os.environ['GH_TOKEN']
+          headers={'Authorization':f'Bearer {token}','Accept':'application/vnd.github+json'}
+          def get(url):
+              req=urllib.request.Request(url,headers=headers)
+              with urllib.request.urlopen(req) as r:return json.load(r)
+          old=get(f'https://api.github.com/repos/{repo}/actions/runs/34749003397')
+          new=get(f'https://api.github.com/repos/{repo}/actions/runs/34801041589')
+          assert old['head_sha']=='302d36e9dd26af60464d0ecf4e3d2504f9591f52' and old['conclusion']=='cancelled'
+          assert new['head_sha']=='ad142345213d26e9ba8cc868e2aa6772b154ed6e' and new['status']=='completed' and new['conclusion']=='success'
+          obj=get(f'https://api.github.com/repos/{repo}/actions/runs/34749003397/artifacts?name=revenueguard-cuad-matched-window-chunk-2')
+          a=[x for x in obj['artifacts'] if x['name']=='revenueguard-cuad-matched-window-chunk-2' and not x['expired']]
+          assert len(a)==1 and a[0]['id']==10323636532
+          assert a[0]['digest']=='sha256:2c31ed0f6ef65542d3a61ffd7dca529c1bf53e1ff0cb63fa68ec40bfbcf0d570'
+          obj=get(f'https://api.github.com/repos/{repo}/actions/runs/34801041589/artifacts?name=revenueguard-cuad-matched-window-epoch2-final')
+          a=[x for x in obj['artifacts'] if x['name']=='revenueguard-cuad-matched-window-epoch2-final' and not x['expired']]
+          assert len(a)==1 and a[0].get('digest','').startswith('sha256:')
+          print({'resume_final_artifact_id':a[0]['id'],'resume_final_digest':a[0]['digest']})
+          PY
+      - name: Download exact resumed matched-window candidate
         uses: actions/download-artifact@v4
         with:
           name: revenueguard-cuad-matched-window-epoch2-final
           path: model_bundle
           repository: evansmusitu/mft-axiom-build
-          run-id: 34749003397
+          run-id: 34801041589
           github-token: ${{ secrets.GITHUB_TOKEN }}
       - name: Install pinned runtime and fetch pinned CUAD train corpus
         run: |
@@ -101,12 +127,12 @@ jobs:
           python -m pip install 'transformers==4.56.2'
           curl -fL --retry 4 --retry-delay 2 -o cuad-data.zip 'https://raw.githubusercontent.com/The-Atticus-Project/cuad/67faa0e6023b04fcaae6cc09497ab00e5d63a2a2/data.zip'
           unzip -q cuad-data.zip
-      - name: Bind exact model artifact digest and apply unchanged heldout gate
+      - name: Bind exact resumed model artifact digest and apply unchanged heldout gate
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-          RUN_ID=34749003397
+          RUN_ID=34801041589
           ART='revenueguard-cuad-matched-window-epoch2-final'
           API="https://api.github.com/repos/evansmusitu/mft-axiom-build/actions/runs/${RUN_ID}/artifacts?name=${ART}"
           DIGEST=$(curl -fsSL -H "Authorization: Bearer ${GH_TOKEN}" -H 'Accept: application/vnd.github+json' "$API" | python -c "import sys,json; o=json.load(sys.stdin); a=[x for x in o['artifacts'] if x['name']=='$ART' and not x['expired']]; assert len(a)==1,a; d=a[0].get('digest',''); assert d.startswith('sha256:'); print(d.split(':',1)[1])")
