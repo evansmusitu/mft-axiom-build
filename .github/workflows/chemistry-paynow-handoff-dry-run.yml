@@ -1,0 +1,108 @@
+name: MUSITU Chemistry Paynow handoff dry-run
+
+on:
+  push:
+    branches: [chemistry-paynow-handoff-fix-20260914]
+    paths:
+      - '.github/workflows/chemistry-paynow-handoff-dry-run.yml'
+      - 'commerce/chemistry/patch_paynow_handoff_csp.py'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  qualify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    env:
+      CF_API: https://api.cloudflare.com/client/v4
+      ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      WORKER_NAME: musitu-chemistry-commerce
+      EXPECTED_LIVE_SHA: a2da15a78e6d685fe644d22fdc6f68a02e3dad3f7b3e263d360082e13afee4a5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Capture exact live Commerce worker read-only
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/mchem-paynow-handoff evidence-out
+          python - <<'PY'
+          import email,hashlib,os,urllib.parse,urllib.request
+          from pathlib import Path
+          API=os.environ['CF_API']; A=os.environ['ACCOUNT_ID']; W=os.environ['WORKER_NAME']
+          H={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY'],'User-Agent':'MUSITU-Paynow-Handoff-DryRun/1.0'}
+          q=urllib.request.Request(f'{API}/accounts/{A}/workers/scripts/{urllib.parse.quote(W,safe="")}',headers=H)
+          with urllib.request.urlopen(q,timeout=45) as r: raw=r.read(); ct=r.headers.get('content-type','')
+          if 'multipart/' in ct.lower():
+              msg=email.message_from_bytes((f'Content-Type: {ct}\r\nMIME-Version: 1.0\r\n\r\n').encode()+raw); parts=[]
+              for p in msg.walk():
+                  if p.is_multipart(): continue
+                  d=p.get_payload(decode=True) or b''
+                  if b'MUSITU Chemistry Commerce' in d: parts.append(d)
+              if len(parts)!=1: raise SystemExit('module extraction mismatch')
+              source=parts[0]
+          else: source=raw
+          sha=hashlib.sha256(source).hexdigest()
+          if sha!=os.environ['EXPECTED_LIVE_SHA']: raise SystemExit('live Worker drift '+sha)
+          Path('/tmp/mchem-paynow-handoff/live.mjs').write_bytes(source)
+          print('LIVE_WORKER_SHA256='+sha)
+          print('PRODUCTION_MUTATION=FALSE')
+          PY
+      - name: Build exact worker candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          python commerce/chemistry/patch_paynow_handoff_csp.py --input /tmp/mchem-paynow-handoff/live.mjs --output /tmp/mchem-paynow-handoff/candidate.mjs | tee evidence-out/build.txt
+          node --check /tmp/mchem-paynow-handoff/candidate.mjs
+      - name: Prove CSP-only semantic delta
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import hashlib,json
+          from pathlib import Path
+          a=Path('/tmp/mchem-paynow-handoff/live.mjs').read_text()
+          b=Path('/tmp/mchem-paynow-handoff/candidate.mjs').read_text()
+          old="form-action 'self'"; new="form-action 'self' https://www.paynow.co.zw"
+          assert a.count(old)==1 and new not in a
+          assert b.count(new)==1
+          reconstructed=b.replace(new,old,1)
+          assert reconstructed==a, 'candidate differs outside exact CSP replacement'
+          required=[
+            "return new Response(null,{status:303,headers:{location:created.browserUrl",
+            "if(req.method==='POST'&&p==='/chemistry/checkout/start')return checkoutPost(req,env)",
+            "DIRECT_PAYNOW_FALLBACK_ACTIVE=true",
+            "https://www.paynow.co.zw/payment/link/?q=",
+            "status='direct_pending'",
+            "manual_verified_settlement_only",
+          ]
+          for token in required: assert token in b, token
+          report={
+            'schema':'musitu.chemistry.paynow_handoff.candidate.v1',
+            'result':'PASS_CSP_ONLY',
+            'baseline_sha256':hashlib.sha256(a.encode()).hexdigest(),
+            'candidate_sha256':hashlib.sha256(b.encode()).hexdigest(),
+            'baseline_bytes':len(a.encode()),
+            'candidate_bytes':len(b.encode()),
+            'semantic_delta':"form-action 'self' -> form-action 'self' https://www.paynow.co.zw",
+            'checkout_post_303_preserved':True,
+            'direct_paynow_url_builder_preserved':True,
+            'pricing_changed':False,
+            'entitlement_changed':False,
+            'production_mutation':False,
+          }
+          Path('evidence-out/candidate.json').write_text(json.dumps(report,indent=2,sort_keys=True)+'\n')
+          print(json.dumps(report,sort_keys=True))
+          print('MUSITU_PAYNOW_HANDOFF_DRY_RUN=PASS')
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: musitu-chemistry-paynow-handoff-dry-run
+          path: evidence-out
+          retention-days: 30
+          if-no-files-found: error
