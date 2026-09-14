@@ -1,0 +1,41 @@
+name: MUSITU FMI Admin Failed Deploy Recovery
+
+on:
+  push:
+    paths:
+      - 'scripts/fmi_admin_failed_deploy_recovery.py'
+      - '.github/workflows/fmi-admin-failed-deploy-recovery.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  recover:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      CF_API: https://api.cloudflare.com/client/v4
+      ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      FMI_DB_UUID: a03dc12d-8206-47be-b904-1f24e4e37d91
+      ADMIN_HOST: admin.mftintelligence.com
+      ADMIN_WORKER: mft-fmi-admin
+    steps:
+      - uses: actions/checkout@v4
+      - name: Disable temporary exposure and clear unactivated smoke residue
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        run: |
+          set -euo pipefail
+          test -n "$CLOUDFLARE_EMAIL"
+          test -n "$CLOUDFLARE_GLOBAL_API_KEY"
+          python scripts/fmi_admin_failed_deploy_recovery.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: musitu-fmi-admin-failed-deploy-recovery
+          path: |
+            fmi-admin-recovery.json
+            fmi-admin-recovery.sha256
+          retention-days: 14
+          if-no-files-found: error
