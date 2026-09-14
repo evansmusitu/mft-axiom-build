@@ -1,0 +1,43 @@
+name: MUSITU FMI Admin Under Attack Host Exception
+
+on:
+  push:
+    paths:
+      - 'scripts/fmi_admin_under_attack_exception.py'
+      - '.github/workflows/fmi-admin-under-attack-exception.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: musitu-fmi-admin-command-center
+  cancel-in-progress: false
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      CF_API: https://api.cloudflare.com/client/v4
+      ZONE_ID: 5b56528f03948ff5917a5e0cd9f7109e
+      ADMIN_HOST: admin.mftintelligence.com
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate scoped exception script
+        run: python -m py_compile scripts/fmi_admin_under_attack_exception.py
+      - name: Add only the admin-host browser-challenge exception and verify health
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        run: |
+          set -euo pipefail
+          test -n "$CLOUDFLARE_EMAIL"
+          test -n "$CLOUDFLARE_GLOBAL_API_KEY"
+          python scripts/fmi_admin_under_attack_exception.py | tee fmi-admin-under-attack-exception.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: musitu-fmi-admin-under-attack-exception
+          path: fmi-admin-under-attack-exception.json
+          retention-days: 30
+          if-no-files-found: error
