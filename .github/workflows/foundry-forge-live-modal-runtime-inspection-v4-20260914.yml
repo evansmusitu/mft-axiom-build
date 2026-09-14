@@ -1,0 +1,215 @@
+name: MUSITU Foundry FORGE Live Modal Runtime Inspection V4
+
+on:
+  push:
+    paths:
+      - '.github/workflows/foundry-forge-live-modal-runtime-inspection-v4-20260914.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID }}
+      MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET }}
+      TARGET_APP: musitu-forge-private-staging
+      TARGET_FUNCTION: forge_custody
+      EXPECTED_APP_ID: ap-z7WRANm7UV1LM9MvlTzXcr
+      EXPECTED_FUNCTION_ID: fu-C2d2Xnk3K4nbqIcPC7L6Jj
+      EXPECTED_ORIGIN_SHA256: 68d869d065ea4d4fee0e28fc65f862f5e5b24cc2b71088a7201185e3d9e723bd
+      PUBLIC_ORIGIN: https://forge.mftintelligence.com
+      PROTOCOL_DIGEST: c9fe2c0dcbc51ed7329aeea8b8d9985c0ccfc70123ac181c755285f1a0fbf3de
+      V44_FFMPEG_SHA256: e8a8d46f5225f3062cec7c07fb145d58ae73c603cb740dcd5bad34bfb54e455a
+      V44_FFPROBE_SHA256: cefc5f81c0b18429cdbf8fa5a89e1e9c759235e10f93f9b329ff1b2fdff26f46
+      V44_ADAPTER_SHA256: 2b72d255e314ec9091f13ecc5c7affdb7702ab5f1ec387179dfdfbbbfd017953
+    steps:
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Authenticate Modal and verify exact live function identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$MODAL_TOKEN_ID"; test -n "$MODAL_TOKEN_SECRET"
+          python -m pip install --disable-pip-version-check --quiet 'modal>=1.5,<2'
+          modal app list --json >/dev/null
+          python - <<'PY'
+          import hashlib,json,os,pathlib
+          import modal
+          app=modal.App.lookup(os.environ['TARGET_APP'],create_if_missing=False)
+          if app.app_id != os.environ['EXPECTED_APP_ID']:
+              raise SystemExit('app_id_changed')
+          fn=modal.Function.from_name(os.environ['TARGET_APP'],os.environ['TARGET_FUNCTION'])
+          fn.hydrate()
+          if fn.object_id != os.environ['EXPECTED_FUNCTION_ID']:
+              raise SystemExit('function_id_changed')
+          url=fn.get_web_url()
+          if not url:
+              raise SystemExit('target_function_has_no_web_url')
+          digest=hashlib.sha256(url.rstrip('/').encode()).hexdigest()
+          if digest != os.environ['EXPECTED_ORIGIN_SHA256']:
+              raise SystemExit('target_function_origin_hash_changed:'+digest)
+          out={'app_name':os.environ['TARGET_APP'],'function_name':os.environ['TARGET_FUNCTION'],'app_id':app.app_id,'function_id':fn.object_id,'web_url_sha256':digest,'matches_sealed_cloudflare_origin':True,'raw_private_url_exposed':False,'write_performed':False}
+          pathlib.Path('/tmp/exact-function.json').write_text(json.dumps(out,sort_keys=True))
+          print(json.dumps(out,sort_keys=True))
+          PY
+
+      - name: Wake public V46 and bind unique active task to exact function
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json,os,ssl,urllib.request
+          with urllib.request.urlopen(urllib.request.Request(os.environ['PUBLIC_ORIGIN']+'/v1/health',headers={'Accept':'application/json','User-Agent':'MUSITU-FORGE-runtime-probe-v4/1'}),context=ssl.create_default_context(),timeout=30) as r:
+              x=json.load(r); status=r.status
+          assert status==200 and x['schema']=='musitu.forge.health.v1' and x['status']=='READY'
+          assert x['protocol_digest']==os.environ['PROTOCOL_DIGEST'] and x['production_authorized'] is False
+          assert x['video_derivation_runtime_configured'] is False
+          print('PUBLIC_V46_WAKE_PASS')
+          PY
+          rm -f /tmp/cid /tmp/function-stats.json
+          for n in $(seq 1 20); do
+            python - <<'PY' >/tmp/function-stats.json
+          import json,os,modal
+          fn=modal.Function.from_name(os.environ['TARGET_APP'],os.environ['TARGET_FUNCTION']); fn.hydrate()
+          s=fn.get_current_stats()
+          print(json.dumps({'function_id':fn.object_id,'num_total_runners':s.num_total_runners,'num_running_inputs':s.num_running_inputs,'backlog':s.backlog},sort_keys=True))
+          PY
+            modal container list --app-id "$EXPECTED_APP_ID" --json >/tmp/containers.json
+            if python - <<'PY'
+          import json,pathlib,re,sys
+          stats=json.load(open('/tmp/function-stats.json'))
+          tasks=json.load(open('/tmp/containers.json'))
+          ids=[]
+          def walk(v):
+              if isinstance(v,str) and re.fullmatch(r'ta-[A-Za-z0-9_-]+',v):
+                  if v not in ids: ids.append(v)
+              elif isinstance(v,dict):
+                  for z in v.values(): walk(z)
+              elif isinstance(v,list):
+                  for z in v: walk(z)
+          walk(tasks)
+          if stats.get('function_id') != 'fu-C2d2Xnk3K4nbqIcPC7L6Jj' or stats.get('num_total_runners') != 1 or len(ids) != 1:
+              sys.exit(1)
+          pathlib.Path('/tmp/cid').write_text(ids[0])
+          print('UNIQUE_ACTIVE_TASK_BOUND_TO_EXACT_FUNCTION')
+          PY
+            then break; fi
+            sleep 2
+          done
+          test -s /tmp/cid
+          python - <<'PY'
+          import json,pathlib
+          s=json.load(open('/tmp/function-stats.json'))
+          out={'function_id_matches_expected':s['function_id']=='fu-C2d2Xnk3K4nbqIcPC7L6Jj','num_total_runners':s['num_total_runners'],'num_running_inputs':s['num_running_inputs'],'backlog':s['backlog'],'active_app_task_count':1,'unique_task_binding_earned':True}
+          pathlib.Path('/tmp/task-binding.json').write_text(json.dumps(out,sort_keys=True))
+          print(json.dumps(out,sort_keys=True))
+          PY
+
+      - name: Run non-secret provenance probe in exact live custody container
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat >/tmp/probe.py <<'PY'
+          import hashlib,json,os,pathlib,platform,stat,subprocess
+          STATE='/var/lib/musitu-forge'; ROOT=pathlib.Path('/opt/forge/runtime')
+          V44={'ffmpeg':'e8a8d46f5225f3062cec7c07fb145d58ae73c603cb740dcd5bad34bfb54e455a','ffprobe':'cefc5f81c0b18429cdbf8fa5a89e1e9c759235e10f93f9b329ff1b2fdff26f46','adapter':'2b72d255e314ec9091f13ecc5c7affdb7702ab5f1ec387179dfdfbbbfd017953'}
+          def H(p):
+              h=hashlib.sha256()
+              with p.open('rb') as f:
+                  for c in iter(lambda:f.read(1048576),b''): h.update(c)
+              return h.hexdigest()
+          def P(name,kind):
+              raw=os.environ.get(name,'').strip(); d={'configured':bool(raw)}
+              if not raw:return d
+              p=pathlib.Path(raw).expanduser(); d.update(exists=p.exists(),is_symlink=p.is_symlink(),under_persistent_mount=(str(p)==STATE or str(p).startswith(STATE+'/')))
+              if p.exists():
+                  mode=stat.S_IMODE(p.stat().st_mode); d.update(mode_octal=format(mode,'04o'),owner_only_permissions=((mode&0o077)==0))
+              d['is_file' if kind=='file' else 'is_dir']=p.is_file() if kind=='file' else p.is_dir(); return d
+          out={'schema':'musitu.foundry_forge.live_modal_runtime_inspection.v4','write_performed':False,'secret_values_exposed':False,
+               'runtime':{'python':platform.python_version(),'machine':platform.machine(),'libc':platform.libc_ver(),'persistent_mount_present':pathlib.Path(STATE).is_dir(),'runtime_root_present':ROOT.is_dir()},
+               'modal_identity_presence':{},'authority_presence':{},'base_paths':{},'capability_roots':{},'media':{},'qualified_core_bindings':{}}
+          for n,expected in (('MODAL_FUNCTION_ID','fu-C2d2Xnk3K4nbqIcPC7L6Jj'),('MODAL_TASK_ID','')):
+              v=os.environ.get(n,'').strip(); out['modal_identity_presence'][n]={'configured':bool(v),'matches_expected':bool(v) and (not expected or v==expected)}
+          p1=pathlib.Path('/proc/1/cmdline')
+          if p1.is_file(): out['runtime']['pid1_cmdline_sha256']=H(p1)
+          man=ROOT/'FORGE_DEPLOY_RUNTIME_MANIFEST.json'; out['runtime']['manifest_present']=man.is_file()
+          if man.is_file():
+              b=man.read_bytes(); out['runtime']['manifest_sha256']=hashlib.sha256(b).hexdigest()
+              try:
+                  m=json.loads(b); out['runtime']['manifest_safe_projection']={k:m.get(k) for k in ('schema','python','glibc','protocol_digest','private_signing_material_included','application_commit','source_commit') if k in m}
+              except Exception as e: out['runtime']['manifest_parse_error']=type(e).__name__
+          ent=ROOT/'entrypoint.sh'; out['runtime']['entrypoint_present']=ent.is_file()
+          if ent.is_file(): out['runtime'].update(entrypoint_sha256=H(ent),entrypoint_size_bytes=ent.stat().st_size)
+          for n,k in (('FORGE_RELEASE_ROOT','directory'),('FORGE_FIELD_CUSTODY_ROOT','directory'),('FORGE_ACTIVATION_REGISTRY','file'),('FORGE_SESSION_STATE_ROOT','directory'),('FORGE_UPLOAD_STATE_ROOT','directory'),('FORGE_QUALIFIED_CORE_ROOT','directory')): out['base_paths'][n]=P(n,k)
+          for n in ('FORGE_ASSIGNMENT_SIGNING_KEY_ID','FORGE_RECEIPT_SIGNING_KEY_ID'): out['authority_presence'][n]={'configured':bool(os.environ.get(n,'').strip())}
+          for n in ('FORGE_ASSIGNMENT_SIGNING_KEY_FILE','FORGE_RECEIPT_SIGNING_KEY_FILE'): out['authority_presence'][n]=P(n,'file')
+          for n in ('FORGE_FIELD_DATASET_ROOT','FORGE_EXPERT_CREDENTIAL_CUSTODY_ROOT','FORGE_EXPERT_REVIEW_CUSTODY_ROOT','FORGE_FAULT_EPISODE_ROOT','FORGE_VIDEO_DERIVATION_ROOT'): out['capability_roots'][n]=P(n,'directory')
+          for n in ('FORGE_QUALIFIED_CORE_FIELD_PILOT_SHA256','FORGE_QUALIFIED_CORE_REVIEW_FIELD_PILOT_SHA256','FORGE_QUALIFIED_CORE_REVIEW_FIELD_DATASET_SHA256','FORGE_QUALIFIED_CORE_FIELD_DATASET_SHA256','FORGE_QUALIFIED_CORE_FAULT_FIELD_PILOT_SHA256'):
+              v=os.environ.get(n,'').strip().lower(); out['qualified_core_bindings'][n]={'configured':bool(v),'valid_sha256_shape':bool(v) and len(v)==64 and all(c in '0123456789abcdef' for c in v)}
+          av=os.environ.get('FORGE_VIDEO_DERIVATION_ADAPTER_SHA256','').strip().lower(); out['media']['adapter']={'configured':bool(av),'matches_v44':bool(av) and av==V44['adapter']}
+          for en,label in (('FORGE_FFMPEG_FILE','ffmpeg'),('FORGE_FFPROBE_FILE','ffprobe')):
+              raw=os.environ.get(en,'').strip(); r={'configured':bool(raw)}
+              if raw:
+                  p=pathlib.Path(raw).expanduser(); r['is_file']=p.is_file()
+                  if p.is_file():
+                      r.update(sha256=H(p),size_bytes=p.stat().st_size); r['matches_v44']=r['sha256']==V44[label]
+                      cp=subprocess.run([str(p),'-version'],capture_output=True,text=True,timeout=10,check=False); r['version_first_line']=((cp.stdout or cp.stderr).splitlines() or [''])[0][:300]
+              out['media'][label+'_configured_path']=r
+          for label in ('ffmpeg','ffprobe'):
+              p=pathlib.Path('/usr/bin/'+label); r={'is_file':p.is_file()}
+              if p.is_file():
+                  r.update(sha256=H(p),size_bytes=p.stat().st_size); r['matches_v44']=r['sha256']==V44[label]
+                  cp=subprocess.run([str(p),'-version'],capture_output=True,text=True,timeout=10,check=False); r['version_first_line']=((cp.stdout or cp.stderr).splitlines() or [''])[0][:300]
+              out['media']['system_'+label]=r
+          print('FORGE_SAFE_RUNTIME_JSON='+json.dumps(out,sort_keys=True))
+          PY
+          B64="$(base64 -w0 /tmp/probe.py)"; CID="$(cat /tmp/cid)"
+          set +e
+          modal container exec --no-pty "$CID" -- python3 -c "import base64;exec(base64.b64decode('$B64'))" >/tmp/probe.out 2>/tmp/probe.err
+          rc=$?
+          set -e
+          if [ "$rc" -ne 0 ]; then echo "modal_exec_rc=$rc" >&2; sed -n '1,40p' /tmp/probe.err >&2; exit "$rc"; fi
+          grep '^FORGE_SAFE_RUNTIME_JSON=' /tmp/probe.out | tail -1 | sed 's/^FORGE_SAFE_RUNTIME_JSON=//' >live-runtime-v4.json
+          test -s live-runtime-v4.json
+          python -m json.tool live-runtime-v4.json
+
+      - name: Seal exact-function read-only audit
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json,pathlib
+          out={'schema':'musitu.foundry_forge.live_modal_runtime_provenance_audit.v4','exact_function_identity':json.load(open('/tmp/exact-function.json')),'task_binding':json.load(open('/tmp/task-binding.json')),'runtime_inspection':json.load(open('live-runtime-v4.json')),'write_performed':False,'private_key_material_exposed':False,'secret_values_exposed':False,'result':'PASS'}
+          pathlib.Path('foundry-forge-live-modal-runtime-inspection-v4.json').write_text(json.dumps(out,indent=2,sort_keys=True)+'\n')
+          PY
+          sha256sum foundry-forge-live-modal-runtime-inspection-v4.json >foundry-forge-live-modal-runtime-inspection-v4.sha256
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: musitu-foundry-forge-live-modal-runtime-inspection-v4-20260914
+          path: |
+            foundry-forge-live-modal-runtime-inspection-v4.json
+            foundry-forge-live-modal-runtime-inspection-v4.sha256
+          retention-days: 14
+          if-no-files-found: error
+
+      - name: Enforce exact identity and non-mutating verdict
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          x=json.load(open('foundry-forge-live-modal-runtime-inspection-v4.json')); r=x['runtime_inspection']; i=x['exact_function_identity']; b=x['task_binding']
+          assert i['matches_sealed_cloudflare_origin'] is True and i['function_id']=='fu-C2d2Xnk3K4nbqIcPC7L6Jj'
+          assert b['unique_task_binding_earned'] is True and b['num_total_runners']==1 and b['active_app_task_count']==1
+          assert x['write_performed'] is False and x['private_key_material_exposed'] is False and x['secret_values_exposed'] is False
+          assert r['write_performed'] is False and r['secret_values_exposed'] is False
+          assert r['runtime']['persistent_mount_present'] is True
+          print('LIVE_MODAL_RUNTIME_INSPECTION_V4_EXACT_FUNCTION_PASS')
+          PY
