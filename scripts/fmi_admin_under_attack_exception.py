@@ -46,17 +46,11 @@ full=cf(f'/zones/{ZONE_ID}/rulesets/{rsid}') or {}
 rules=full.get('rules') or []
 
 description='MUSITU FMI owner command center: disable browser challenge only on admin hostname; Worker owner auth remains fail-closed'
+expression=f'(http.host eq "{ADMIN_HOST}")'
 existing=[r for r in rules if isinstance(r,dict) and r.get('description')==description]
 created=False
-rule_id=None
 if existing:
     if len(existing)!=1:raise RuntimeError('duplicate FMI admin config exception rules exist')
-    ex=existing[0]
-    if ex.get('expression') != f'(http.host eq "{ADMIN_HOST}")':raise RuntimeError('existing FMI admin exception expression drift')
-    ap=ex.get('action_parameters') or {}
-    if ap.get('security_level')!='essentially_off' or ap.get('bic') is not False:raise RuntimeError('existing FMI admin exception action drift')
-    if ex.get('action')!='set_config' or ex.get('enabled',True) is not True:raise RuntimeError('existing FMI admin exception state drift')
-    rule_id=ex.get('id')
 else:
     templates=[]
     for r in rules:
@@ -66,37 +60,36 @@ else:
         if ap.get('security_level')=='essentially_off' and ap.get('bic') is False and ('machine transport' in desc.lower() or 'disable under attack' in desc.lower() or 'disable browser challenge' in desc.lower()):
             templates.append(r)
     if not templates:raise RuntimeError('no established machine-transport config template with security_level=essentially_off and bic=false')
-    template=templates[0]
     payload={
       'action':'set_config',
       'action_parameters':{'security_level':'essentially_off','bic':False},
-      'expression':f'(http.host eq "{ADMIN_HOST}")',
+      'expression':expression,
       'description':description,
       'enabled':True,
     }
-    result=cf(f'/zones/{ZONE_ID}/rulesets/{rsid}/rules','POST',payload) or {}
-    rule_id=result.get('id')
-    if not rule_id:raise RuntimeError('Cloudflare did not return created rule id')
+    cf(f'/zones/{ZONE_ID}/rulesets/{rsid}/rules','POST',payload)
     created=True
 
-# Verify exact rule persisted and no duplicate was introduced.
+# Cloudflare's add-rule endpoint may return the updated ruleset rather than the created rule.
+# Re-read canonical state and derive the rule id from the persisted exact description.
 full2=cf(f'/zones/{ZONE_ID}/rulesets/{rsid}') or {}
 rules2=full2.get('rules') or []
 matches=[r for r in rules2 if isinstance(r,dict) and r.get('description')==description]
 if len(matches)!=1:raise RuntimeError(f'expected one FMI admin exception after mutation, found {len(matches)}')
-r=matches[0]; ap=r.get('action_parameters') or {}
-if r.get('id')!=rule_id or r.get('action')!='set_config' or r.get('expression')!=f'(http.host eq "{ADMIN_HOST}")' or ap.get('security_level')!='essentially_off' or ap.get('bic') is not False or r.get('enabled',True) is not True:
+r=matches[0]
+rule_id=r.get('id')
+ap=r.get('action_parameters') or {}
+if not rule_id or r.get('action')!='set_config' or r.get('expression')!=expression or ap.get('security_level')!='essentially_off' or ap.get('bic') is not False or r.get('enabled',True) is not True:
     raise RuntimeError('persisted FMI admin exception failed exact verification')
 
 hc,hh,ho=probe_health()
 if hc!=200:
     # Roll back only the rule created by this execution. Existing pre-authorized rule state is never deleted.
-    if created:
+    if created and rule_id:
         cf(f'/zones/{ZONE_ID}/rulesets/{rsid}/rules/{rule_id}','DELETE')
     mitigated=str(hh.get('cf-mitigated') or hh.get('Cf-Mitigated') or '')
     raise RuntimeError(f'admin health did not clear edge challenge: HTTP {hc}, cf-mitigated={mitigated}')
 
-# Confirm zone-level Under Attack remains enabled globally: only the admin hostname is exempted.
 setting=cf(f'/zones/{ZONE_ID}/settings/security_level') or {}
 if setting.get('value')!='under_attack':raise RuntimeError('global Under Attack setting changed unexpectedly')
 
@@ -107,7 +100,7 @@ out={
  'ruleset_id':rsid,
  'rule_id':rule_id,
  'rule_created':created,
- 'expression':f'(http.host eq "{ADMIN_HOST}")',
+ 'expression':expression,
  'action':'set_config',
  'action_parameters':{'security_level':'essentially_off','bic':False},
  'health_http':hc,
