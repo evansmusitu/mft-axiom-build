@@ -19,7 +19,7 @@ jobs:
       CF_API: https://api.cloudflare.com/client/v4
       ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
       CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
-      CLOUDFLARE_API_KEY: ${{ secrets.CLOUDFLARE_API_KEY }}
+      CLOUDFLARE_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
     steps:
       - uses: actions/checkout@v4
       - name: Require protected Cloudflare credentials
@@ -34,6 +34,7 @@ jobs:
           set -euo pipefail
           python scripts/fmi_checkout_contract_readonly.py
       - uses: actions/upload-artifact@v4
+        if: success()
         with:
           name: musitu-fmi-checkout-contract-readonly
           path: |
