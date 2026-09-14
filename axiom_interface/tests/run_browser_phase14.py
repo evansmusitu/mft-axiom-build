@@ -110,12 +110,20 @@ def main() -> None:
             context.set_offline(False)
             emulate_constrained_network(session, offline=False)
             page.evaluate("()=>window.dispatchEvent(new Event('online'))")
-            page.wait_for_function("()=>window.AxiomPwaHardening.queue.listActions().then(rows=>rows.some(row=>row.status==='COMPLETED_LOCAL'))")
+            page.wait_for_function(
+                "actionId=>window.AxiomPwaHardening.queue.listReceipts().then(rows=>rows.some(row=>row.action_id===actionId&&row.status==='COMPLETED_LOCAL_NO_EXTERNAL_SIDE_EFFECT'))",
+                arg=action["action_id"],
+            )
             completed = page.evaluate("()=>window.AxiomPwaHardening.queue.listActions()")
-            assert completed[0]["status"] == "COMPLETED_LOCAL"
+            completed_target = [row for row in completed if row["action_id"] == action["action_id"]]
+            assert len(completed_target) == 1, completed
+            assert completed_target[0]["status"] == "COMPLETED_LOCAL", completed_target[0]
+            assert all(row["status"] == "COMPLETED_LOCAL" for row in completed), completed
             receipts = page.evaluate("()=>window.AxiomPwaHardening.queue.listReceipts()")
-            assert receipts[0]["status"] == "COMPLETED_LOCAL_NO_EXTERNAL_SIDE_EFFECT"
-            assert receipts[0]["external_side_effect"] is False
+            target_receipts = [row for row in receipts if row["action_id"] == action["action_id"]]
+            assert len(target_receipts) == 1, receipts
+            assert target_receipts[0]["status"] == "COMPLETED_LOCAL_NO_EXTERNAL_SIDE_EFFECT", target_receipts[0]
+            assert target_receipts[0]["external_side_effect"] is False
             matrix.append({"scenario": "reconnect_queue", "viewport_width": 390, "viewport_height": 844, "cpu_slowdown": 4, "latency_ms": 400, "downlink_kbps": 400, "shell_available": True, "project_available": True, "queue_integrity": True, "reconnect_replay": True, "real_device": False, "external_origin_authenticated": False})
             page.keyboard.press("Control+K")
             assert page.locator("#composer-input").evaluate("el=>el===document.activeElement")
