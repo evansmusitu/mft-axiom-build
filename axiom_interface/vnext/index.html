@@ -21,112 +21,40 @@
         <span class="brand-mark" aria-hidden="true">A</span>
         <span class="brand-copy"><strong>MUSITU AXIOM</strong><small>vNext workspace</small></span>
       </a>
-
       <button class="project-switcher" id="project-switcher" type="button" aria-haspopup="listbox" aria-expanded="false">
-        <span class="muted">Project</span>
-        <strong id="active-project-name">No project selected</strong>
-        <span aria-hidden="true">⌄</span>
+        <span class="muted">Project</span><strong id="active-project-name">No project selected</strong><span aria-hidden="true">⌄</span>
       </button>
-
       <button class="command-trigger" id="command-trigger" type="button" aria-haspopup="dialog" aria-controls="command-dialog">
         <span aria-hidden="true">⌕</span><span>Search or command</span><kbd>⌘K</kbd>
       </button>
-
       <div class="top-actions">
         <span id="connection-state" class="connection"><i></i><span>Online</span></span>
         <button class="icon-button" id="inspector-toggle" type="button" aria-controls="inspector" aria-expanded="true" title="Toggle inspector">◫</button>
-        <button class="account-button" id="session-button" type="button" aria-haspopup="dialog" aria-controls="session-dialog">
-          <span class="avatar" aria-hidden="true">A</span><span id="session-name">Checking session</span>
-        </button>
+        <button class="account-button" id="session-button" type="button" aria-haspopup="dialog" aria-controls="session-dialog"><span class="avatar" aria-hidden="true">A</span><span id="session-name">Checking session</span></button>
       </div>
     </header>
-
     <aside class="nav-rail" aria-label="Primary navigation">
       <nav>
-        <a href="#/home" data-route="home" aria-current="page"><span>⌂</span><b>Home</b></a>
-        <a href="#/projects" data-route="projects"><span>▦</span><b>Projects</b></a>
-        <a href="#/work" data-route="work"><span>✓</span><b>Work</b></a>
-        <a href="#/agents" data-route="agents"><span>◇</span><b>Agents</b></a>
-        <a href="#/artifacts" data-route="artifacts"><span>▤</span><b>Artifacts</b></a>
-        <a href="#/research" data-route="research"><span>⌕</span><b>Research</b></a>
-        <a href="#/analyze" data-route="analyze"><span>∿</span><b>Analyze</b></a>
-        <a href="#/build" data-route="build"><span>‹›</span><b>Build</b></a>
-        <a href="#/create" data-route="create"><span>✦</span><b>Create</b></a>
-        <a href="#/live" data-route="live"><span>◉</span><b>Live</b></a>
-        <a href="#/computer" data-route="computer"><span>▣</span><b>Computer</b></a>
-        <a href="#/automations" data-route="automations"><span>↻</span><b>Automations</b></a>
+        <a href="#/home" data-route="home" aria-current="page"><span>⌂</span><b>Home</b></a><a href="#/projects" data-route="projects"><span>▦</span><b>Projects</b></a><a href="#/work" data-route="work"><span>✓</span><b>Work</b></a><a href="#/agents" data-route="agents"><span>◇</span><b>Agents</b></a><a href="#/artifacts" data-route="artifacts"><span>▤</span><b>Artifacts</b></a><a href="#/research" data-route="research"><span>⌕</span><b>Research</b></a><a href="#/analyze" data-route="analyze"><span>∿</span><b>Analyze</b></a><a href="#/build" data-route="build"><span>‹›</span><b>Build</b></a><a href="#/create" data-route="create"><span>✦</span><b>Create</b></a><a href="#/live" data-route="live"><span>◉</span><b>Live</b></a><a href="#/computer" data-route="computer"><span>▣</span><b>Computer</b></a><a href="#/automations" data-route="automations"><span>↻</span><b>Automations</b></a>
       </nav>
-      <nav class="nav-secondary" aria-label="Platform">
-        <a href="#/developer" data-route="developer"><span>{ }</span><b>Developer</b></a>
-        <a href="#/trust" data-route="trust"><span>⌁</span><b>Trust</b></a>
-        <a href="#/settings" data-route="settings"><span>⚙</span><b>Settings</b></a>
-      </nav>
+      <nav class="nav-secondary" aria-label="Platform"><a href="#/developer" data-route="developer"><span>{ }</span><b>Developer</b></a><a href="#/trust" data-route="trust"><span>⌁</span><b>Trust</b></a><a href="#/settings" data-route="settings"><span>⚙</span><b>Settings</b></a></nav>
     </aside>
-
-    <main id="workspace" class="workspace" tabindex="-1">
-      <div id="workspace-root"></div>
-    </main>
-
+    <main id="workspace" class="workspace" tabindex="-1"><div id="workspace-root"></div></main>
     <aside id="inspector" class="inspector" aria-label="Inspector">
-      <div class="inspector-head">
-        <div><small class="eyebrow">Inspect</small><h2 id="inspector-title">Context</h2></div>
-        <button class="icon-button mobile-only" id="inspector-close" type="button" aria-label="Close inspector">×</button>
-      </div>
-      <div class="tablist" role="tablist" aria-label="Inspector views">
-        <button type="button" role="tab" aria-selected="true" data-inspector-tab="context">Context</button>
-        <button type="button" role="tab" aria-selected="false" data-inspector-tab="evidence">Evidence</button>
-        <button type="button" role="tab" aria-selected="false" data-inspector-tab="activity">Activity</button>
-      </div>
+      <div class="inspector-head"><div><small class="eyebrow">Inspect</small><h2 id="inspector-title">Context</h2></div><button class="icon-button mobile-only" id="inspector-close" type="button" aria-label="Close inspector">×</button></div>
+      <div class="tablist" role="tablist" aria-label="Inspector views"><button type="button" role="tab" aria-selected="true" data-inspector-tab="context">Context</button><button type="button" role="tab" aria-selected="false" data-inspector-tab="evidence">Evidence</button><button type="button" role="tab" aria-selected="false" data-inspector-tab="activity">Activity</button></div>
       <div id="inspector-body" class="inspector-body"></div>
     </aside>
-
     <form id="composer" class="composer" novalidate>
-      <div class="composer-main">
-        <button class="add-button" id="composer-add" type="button" aria-label="Add files, data or media">＋</button>
-        <label class="sr-only" for="composer-input">Ask AXIOM or delegate an outcome</label>
-        <textarea id="composer-input" rows="1" placeholder="Ask AXIOM or delegate an outcome…"></textarea>
-        <button class="voice-button" id="composer-voice" type="button" aria-label="Voice input">◉</button>
-        <button class="execute-button" type="submit">Execute <span aria-hidden="true">→</span></button>
-      </div>
-      <div class="composer-controls">
-        <button type="button" class="control-chip" id="control-chip">Policy-bounded · Private · Verified</button>
-        <span id="composer-status" class="composer-status">Planning preview only in vNext foundation</span>
-      </div>
+      <div class="composer-main"><button class="add-button" id="composer-add" type="button" aria-label="Add files, data or media">＋</button><label class="sr-only" for="composer-input">Ask AXIOM or delegate an outcome</label><textarea id="composer-input" rows="1" placeholder="Ask AXIOM or delegate an outcome…"></textarea><button class="voice-button" id="composer-voice" type="button" aria-label="Voice input">◉</button><button class="execute-button" type="submit">Execute <span aria-hidden="true">→</span></button></div>
+      <div class="composer-controls"><button type="button" class="control-chip" id="control-chip">Policy-bounded · Private · Verified</button><span id="composer-status" class="composer-status">Planning preview only in vNext foundation</span></div>
     </form>
   </div>
-
-  <dialog id="command-dialog" class="command-dialog" aria-labelledby="command-title">
-    <div class="command-box">
-      <h2 id="command-title" class="sr-only">Search or command</h2>
-      <label class="sr-only" for="command-input">Search AXIOM</label>
-      <input id="command-input" autocomplete="off" placeholder="Search projects, work, agents, artifacts, capabilities or commands…">
-      <div id="command-results" role="listbox" aria-label="Command results"></div>
-      <footer><span>Enter to open</span><span>Esc to close</span></footer>
-    </div>
-  </dialog>
-
-  <dialog id="session-dialog" aria-labelledby="session-title">
-    <div class="dialog-head"><h2 id="session-title">Account</h2><button class="icon-button" id="session-close" type="button" aria-label="Close account">×</button></div>
-    <p id="session-summary">Checking same-origin session.</p>
-    <p id="session-detail" class="muted">AXIOM does not store bearer or refresh tokens in browser storage.</p>
-    <div class="dialog-actions">
-      <a id="session-sign-in" class="button primary" hidden>Sign in</a>
-      <button id="session-sign-out" class="button secondary" type="button" hidden>Sign out</button>
-      <button id="session-refresh" class="button secondary" type="button">Refresh</button>
-    </div>
-  </dialog>
-
-  <dialog id="control-dialog" aria-labelledby="control-title">
-    <div class="dialog-head"><h2 id="control-title">Execution controls</h2><button class="icon-button" data-close-control type="button" aria-label="Close execution controls">×</button></div>
-    <div class="control-grid">
-      <label>Autonomy<select id="control-autonomy"><option>Policy-bounded</option><option>Preview only</option><option>Approval each action</option></select></label>
-      <label>Privacy<select id="control-privacy"><option>Private</option><option>Project</option><option>Organization</option></select></label>
-      <label>Evidence<select id="control-evidence"><option>Verified</option><option>Standard</option><option>Independent validation</option></select></label>
-      <label>Budget<input id="control-budget" type="number" min="0" placeholder="Optional"></label>
-    </div>
-    <div class="dialog-actions"><button class="button primary" data-save-control type="button">Apply</button></div>
-  </dialog>
-
+  <dialog id="command-dialog" class="command-dialog" aria-labelledby="command-title"><div class="command-box"><h2 id="command-title" class="sr-only">Search or command</h2><label class="sr-only" for="command-input">Search AXIOM</label><input id="command-input" autocomplete="off" placeholder="Search projects, work, agents, artifacts, capabilities or commands…"><div id="command-results" role="listbox" aria-label="Command results"></div><footer><span>Enter to open</span><span>Esc to close</span></footer></div></dialog>
+  <dialog id="session-dialog" aria-labelledby="session-title"><div class="dialog-head"><h2 id="session-title">Account</h2><button class="icon-button" id="session-close" type="button" aria-label="Close account">×</button></div><p id="session-summary">Checking same-origin session.</p><p id="session-detail" class="muted">AXIOM does not store bearer or refresh tokens in browser storage.</p><div class="dialog-actions"><a id="session-sign-in" class="button primary" hidden>Sign in</a><button id="session-sign-out" class="button secondary" type="button" hidden>Sign out</button><button id="session-refresh" class="button secondary" type="button">Refresh</button></div></dialog>
+  <dialog id="control-dialog" aria-labelledby="control-title"><div class="dialog-head"><h2 id="control-title">Execution controls</h2><button class="icon-button" data-close-control type="button" aria-label="Close execution controls">×</button></div><div class="control-grid"><label>Autonomy<select id="control-autonomy"><option>Policy-bounded</option><option>Preview only</option><option>Approval each action</option></select></label><label>Privacy<select id="control-privacy"><option>Private</option><option>Project</option><option>Organization</option></select></label><label>Evidence<select id="control-evidence"><option>Verified</option><option>Standard</option><option>Independent validation</option></select></label><label>Budget<input id="control-budget" type="number" min="0" placeholder="Optional"></label></div><div class="dialog-actions"><button class="button primary" data-save-control type="button">Apply</button></div></dialog>
+  <dialog id="project-dialog" aria-labelledby="project-dialog-title"><form id="project-form"><div class="dialog-head"><h2 id="project-dialog-title">Create project</h2><button class="icon-button" data-close-project type="button" aria-label="Close project form">×</button></div><div class="control-grid"><label style="grid-column:1/-1">Name<input id="project-name" maxlength="120" required placeholder="Project name"></label><label style="grid-column:1/-1">Goal<textarea id="project-goal" rows="4" maxlength="2000" placeholder="What should AXIOM accomplish in this project?"></textarea></label><label style="grid-column:1/-1">Memory scope<select id="project-memory-scope"><option value="project-only">Project only</option><option value="private">Private</option><option value="temporary">Temporary</option><option value="permanent">Permanent</option><option value="do-not-use">Do not use</option></select></label></div><p id="project-form-error" class="muted" role="alert" hidden></p><div class="dialog-actions"><button class="button secondary" data-close-project type="button">Cancel</button><button class="button primary" type="submit">Create project</button></div></form></dialog>
+  <dialog id="work-dialog" aria-labelledby="work-dialog-title"><form id="work-form"><div class="dialog-head"><h2 id="work-dialog-title">Create Outcome Contract</h2><button class="icon-button" data-close-work type="button" aria-label="Close work form">×</button></div><p class="muted">Creates an immutable browser-local contract and linked Project task. It does not execute consequential action.</p><div class="control-grid"><label style="grid-column:1/-1">Title<input id="work-title" maxlength="180" required placeholder="Short outcome title"></label><label style="grid-column:1/-1">Desired outcome<textarea id="work-outcome" rows="4" maxlength="4000" required></textarea></label><label style="grid-column:1/-1">Success criteria<textarea id="work-success" rows="4" required placeholder="One criterion per line"></textarea></label><label>Privacy<select id="work-privacy"><option>Project</option><option>Private</option><option>Organization</option></select></label><label>Evidence<select id="work-evidence"><option>Standard</option><option>Strict</option><option>Independent validation</option></select></label><label>Autonomy<select id="work-autonomy"><option>Preview only</option><option>Approval each action</option><option>Policy-bounded</option></select></label><label>Approval<select id="work-approval"><option>Before consequential action</option><option>Every tool action</option><option>Read-only auto, writes approved</option></select></label><label>Deadline<input id="work-deadline" type="datetime-local"></label><label>Compute budget<input id="work-budget" type="number" min="0" placeholder="Optional"></label></div><p id="work-form-error" class="muted" role="alert" hidden></p><div class="dialog-actions"><button class="button secondary" data-close-work type="button">Cancel</button><button class="button primary" type="submit">Create contract</button></div></form></dialog>
   <script type="module" src="./app.js"></script>
 </body>
 </html>
