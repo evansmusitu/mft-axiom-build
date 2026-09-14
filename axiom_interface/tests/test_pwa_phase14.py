@@ -58,7 +58,7 @@ class Phase14PwaContractTests(unittest.TestCase):
         self.assertIn('assert page.evaluate("()=>navigator.onLine") is False', BROWSER)
         self.assertGreaterEqual(BROWSER.count("emulate_constrained_network(session, offline=True)"), 2)
         self.assertIn("window.dispatchEvent(new Event('offline'))", BROWSER)
-        self.assertIn("row.action_id===actionId", BROWSER)
+        self.assertIn("safe local action(s) replayed", BROWSER)
         self.assertIn('row["action_id"] == action["action_id"]', BROWSER)
 
     def test_real_device_boundary_is_fail_closed(self):

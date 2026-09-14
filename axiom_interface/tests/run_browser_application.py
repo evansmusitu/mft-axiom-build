@@ -7,6 +7,7 @@ import json
 import mimetypes
 import os
 from pathlib import Path
+import re
 import shutil
 import threading
 from urllib.parse import unquote, urlsplit

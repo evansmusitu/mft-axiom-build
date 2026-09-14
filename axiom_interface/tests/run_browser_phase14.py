@@ -110,9 +110,12 @@ def main() -> None:
             context.set_offline(False)
             emulate_constrained_network(session, offline=False)
             page.evaluate("()=>window.dispatchEvent(new Event('online'))")
+            # wait_for_function predicates must be synchronous: returning the
+            # IndexedDB Promise itself is truthy before its Boolean resolves.
+            # The status is written only after drain, refresh, and receipt
+            # persistence finish; exact action/receipt identity is checked next.
             page.wait_for_function(
-                "actionId=>window.AxiomPwaHardening.queue.listReceipts().then(rows=>rows.some(row=>row.action_id===actionId&&row.status==='COMPLETED_LOCAL_NO_EXTERNAL_SIDE_EFFECT'))",
-                arg=action["action_id"],
+                "()=>document.querySelector('#pwa-status')?.textContent.includes('safe local action(s) replayed')"
             )
             completed = page.evaluate("()=>window.AxiomPwaHardening.queue.listActions()")
             completed_target = [row for row in completed if row["action_id"] == action["action_id"]]
