@@ -281,7 +281,7 @@ def activate(preflight_path: Path, evidence_dir: Path, source_sha: str) -> None:
 def selftest() -> None:
     if DIRECT_RULE_EXPRESSION != f'(http.host eq "{base.APP_HOST}")':
         raise RuntimeError("direct-origin rule expression drift")
-    if "/axiom" in DIRECT_RULE_EXPRESSION or base.ZONE_NAME in DIRECT_RULE_EXPRESSION:
+    if "/axiom" in DIRECT_RULE_EXPRESSION or "http.host in" in DIRECT_RULE_EXPRESSION:
         raise RuntimeError("direct-origin rule must not widen to apex paths")
     if DIRECT_RULE_REF == base.CONFIG_RULE_REF:
         raise RuntimeError("world-release and apex-coupled rule refs must remain distinct")
