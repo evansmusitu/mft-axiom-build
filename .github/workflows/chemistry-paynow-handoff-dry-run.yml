@@ -58,7 +58,7 @@ jobs:
           set -euo pipefail
           python commerce/chemistry/patch_paynow_handoff_csp.py --input /tmp/mchem-paynow-handoff/live.mjs --output /tmp/mchem-paynow-handoff/candidate.mjs | tee evidence-out/build.txt
           node --check /tmp/mchem-paynow-handoff/candidate.mjs
-      - name: Prove CSP-only semantic delta
+      - name: Prove storefront-only CSP semantic delta
         shell: bash
         run: |
           set -euo pipefail
@@ -67,11 +67,14 @@ jobs:
           from pathlib import Path
           a=Path('/tmp/mchem-paynow-handoff/live.mjs').read_text()
           b=Path('/tmp/mchem-paynow-handoff/candidate.mjs').read_text()
-          old="form-action 'self'"; new="form-action 'self' https://www.paynow.co.zw"
+          old="default-src 'none'; style-src 'self'; script-src 'self'; connect-src 'self'; img-src 'self' data:; font-src 'self'; manifest-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'"
+          new=old+" https://www.paynow.co.zw"
+          legacy="default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'"
           assert a.count(old)==1 and new not in a
-          assert b.count(new)==1
+          assert a.count(legacy)==1
+          assert b.count(new)==1 and b.count(legacy)==1
           reconstructed=b.replace(new,old,1)
-          assert reconstructed==a, 'candidate differs outside exact CSP replacement'
+          assert reconstructed==a, 'candidate differs outside exact storefront CSP replacement'
           required=[
             "return new Response(null,{status:303,headers:{location:created.browserUrl",
             "if(req.method==='POST'&&p==='/chemistry/checkout/start')return checkoutPost(req,env)",
@@ -83,12 +86,13 @@ jobs:
           for token in required: assert token in b, token
           report={
             'schema':'musitu.chemistry.paynow_handoff.candidate.v1',
-            'result':'PASS_CSP_ONLY',
+            'result':'PASS_STOREFRONT_CSP_ONLY',
             'baseline_sha256':hashlib.sha256(a.encode()).hexdigest(),
             'candidate_sha256':hashlib.sha256(b.encode()).hexdigest(),
             'baseline_bytes':len(a.encode()),
             'candidate_bytes':len(b.encode()),
-            'semantic_delta':"form-action 'self' -> form-action 'self' https://www.paynow.co.zw",
+            'semantic_delta':"STOREFRONT_PUBLIC_HEADERS form-action adds exact https://www.paynow.co.zw",
+            'legacy_csp_preserved':True,
             'checkout_post_303_preserved':True,
             'direct_paynow_url_builder_preserved':True,
             'pricing_changed':False,
