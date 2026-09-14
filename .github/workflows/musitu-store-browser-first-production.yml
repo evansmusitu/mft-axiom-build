@@ -6,6 +6,7 @@ on:
       - musitu-store-browser-first-launch-20260913
     paths:
       - '.github/workflows/musitu-store-browser-first-production.yml'
+      - 'store/phase2/deploy-browser-first-launch.py'
   workflow_dispatch:
 
 concurrency:
