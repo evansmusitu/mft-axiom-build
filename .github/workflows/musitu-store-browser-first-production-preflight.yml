@@ -6,6 +6,10 @@ on:
       - musitu-store-browser-first-launch-20260913
     paths:
       - '.github/workflows/musitu-store-browser-first-production-preflight.yml'
+      - 'store/phase2/build-browser-first-live-candidate.py'
+      - 'store/phase2/verify-browser-first-candidate.mjs'
+      - 'store/phase2/deploy-browser-first-launch.py'
+      - 'store/phase1/web-surface/render.mjs'
   workflow_dispatch:
 
 permissions:
