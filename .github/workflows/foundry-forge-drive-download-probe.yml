@@ -1,0 +1,32 @@
+name: FOUNDRY FORGE Drive Download Probe
+
+on:
+  push:
+    branches:
+      - foundry-forge-handoff-packager-20260914
+    paths:
+      - '.github/workflows/foundry-forge-drive-download-probe.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Probe exact Drive status file without changing sharing
+        shell: bash
+        run: |
+          set -euo pipefail
+          URL='https://drive.usercontent.google.com/download?id=1y0OQUcgCncF_dQa5F-vlhNlm1jyX-Bl1&export=download&confirm=t'
+          code="$(curl -L -sS -o /tmp/probe.bin -w '%{http_code}' "$URL" || true)"
+          echo "http_code=$code"
+          echo "bytes=$(wc -c </tmp/probe.bin 2>/dev/null || echo 0)"
+          file /tmp/probe.bin || true
+          if grep -a -q 'CURRENT AUTHORITATIVE' /tmp/probe.bin 2>/dev/null; then
+            echo 'drive_direct_download=true'
+          else
+            echo 'drive_direct_download=false'
+          fi
