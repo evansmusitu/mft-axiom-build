@@ -17,7 +17,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Resolve and verify exact training ancestry and final artifact digests
+      - name: Resolve and verify exact split training ancestry and final artifact digests
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -31,46 +31,50 @@ jobs:
           def get(url):
               req=urllib.request.Request(url,headers=headers)
               with urllib.request.urlopen(req) as r: return json.load(r)
-          def exact_artifact(run_id,name,expected):
+          def artifact(run_id,name):
               obj=get(f'https://api.github.com/repos/{repo}/actions/runs/{run_id}/artifacts?name={name}')
               arts=[a for a in obj['artifacts'] if a['name']==name and not a['expired']]
               assert len(arts)==1,(run_id,name,arts)
-              digest=arts[0].get('digest','')
-              assert digest==f'sha256:{expected}',(run_id,name,digest)
-              return expected
+              d=arts[0].get('digest','')
+              assert d.startswith('sha256:') and len(d)==71,(run_id,name,d)
+              return arts[0]['id'],d.split(':',1)[1]
+          def exact_artifact(run_id,name,expected_sha,expected_id=None):
+              aid,d=artifact(run_id,name)
+              assert d==expected_sha,(run_id,name,d)
+              if expected_id is not None: assert aid==expected_id,(run_id,name,aid)
+              return d
 
           cn_run=get(f'https://api.github.com/repos/{repo}/actions/runs/34748996731')
-          cq_run=get(f'https://api.github.com/repos/{repo}/actions/runs/34749003397')
+          cq_original=get(f'https://api.github.com/repos/{repo}/actions/runs/34749003397')
+          cq_resume=get(f'https://api.github.com/repos/{repo}/actions/runs/34801041589')
           assert cn_run['head_sha']=='9bde25dab82909ed40e4a9722fdbfb648896d220',cn_run['head_sha']
-          assert cq_run['head_sha']=='302d36e9dd26af60464d0ecf4e3d2504f9591f52',cq_run['head_sha']
           assert cn_run['status']=='completed' and cn_run['conclusion']=='success',(cn_run['status'],cn_run['conclusion'])
-          assert cq_run['status']=='completed' and cq_run['conclusion']=='success',(cq_run['status'],cq_run['conclusion'])
+          assert cq_original['head_sha']=='302d36e9dd26af60464d0ecf4e3d2504f9591f52',cq_original['head_sha']
+          assert cq_original['status']=='completed' and cq_original['conclusion']=='cancelled',(cq_original['status'],cq_original['conclusion'])
+          assert cq_resume['head_sha']=='ad142345213d26e9ba8cc868e2aa6772b154ed6e',cq_resume['head_sha']
+          assert cq_resume['status']=='completed' and cq_resume['conclusion']=='success',(cq_resume['status'],cq_resume['conclusion'])
 
           cn_source=exact_artifact(34676990123,'revenueguard-contractnli-adapted-model','3d78d473ffde6f790b3919226d1069b81fa8426f0f139007d3ba8b9d9cf23055')
           cq_source=exact_artifact(34683449126,'revenueguard-cuad-epoch1-chunked-final','a5684a5a8ed59909b46c93fd4729ce9ed0f8f672dc0be1474cf94a5e07d6e44b')
           cq_geom=exact_artifact(34706691340,'revenueguard-cuad-matched-window-geometry-audit','7ff5e7ccd10aa3c4747136a0d5b67af2004edaf9777247155ce6e37812c56c04')
-
-          def final_artifact(run_id,name):
-              obj=get(f'https://api.github.com/repos/{repo}/actions/runs/{run_id}/artifacts?name={name}')
-              arts=[a for a in obj['artifacts'] if a['name']==name and not a['expired']]
-              assert len(arts)==1,(run_id,name,arts)
-              digest=arts[0].get('digest','')
-              assert digest.startswith('sha256:') and len(digest)==71,(run_id,name,digest)
-              return digest.split(':',1)[1]
-          cn_final=final_artifact(34748996731,'revenueguard-contractnli-decoupled-epoch2-final')
-          cq_final=final_artifact(34749003397,'revenueguard-cuad-matched-window-epoch2-final')
+          cq_chunk2=exact_artifact(34749003397,'revenueguard-cuad-matched-window-chunk-2','2c31ed0f6ef65542d3a61ffd7dca529c1bf53e1ff0cb63fa68ec40bfbcf0d570',10323636532)
+          cn_final=exact_artifact(34748996731,'revenueguard-contractnli-decoupled-epoch2-final','3aa020ccd8c9d0fa784034e3d34fd57eba4e57c39f8eea2d7901f96bbd606951',10322340401)
+          _,cq_final=artifact(34801041589,'revenueguard-cuad-matched-window-epoch2-final')
           vals={
             'CN_ARTIFACT_SHA':cn_final,
             'CUAD_ARTIFACT_SHA':cq_final,
             'CN_SOURCE_ENCODER_SHA':cn_source,
             'CUAD_SOURCE_MODEL_SHA':cq_source,
             'CUAD_GEOMETRY_ARTIFACT_SHA':cq_geom,
+            'CUAD_PREDECESSOR_SHA':cq_chunk2,
             'CN_TRAINING_HEAD_SHA':cn_run['head_sha'],
-            'CUAD_TRAINING_HEAD_SHA':cq_run['head_sha'],
+            'CUAD_ORIGINAL_HEAD_SHA':cq_original['head_sha'],
+            'CUAD_RESUME_HEAD_SHA':cq_resume['head_sha'],
+            'CUAD_TRAINER_SOURCE_HEAD_SHA':'302d36e9dd26af60464d0ecf4e3d2504f9591f52',
           }
           with open(os.environ['GITHUB_ENV'],'a') as f:
               for k,v in vals.items(): f.write(f'{k}={v}\n')
-          print('exact specialist ancestry and final artifact identities PASS')
+          print('exact split specialist ancestry and final artifact identities PASS')
           PY
 
       - name: Download exact ContractNLI final training artifact
@@ -82,13 +86,13 @@ jobs:
           run-id: 34748996731
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Download exact CUAD final training artifact
+      - name: Download exact resumed CUAD final training artifact
         uses: actions/download-artifact@v4
         with:
           name: revenueguard-cuad-matched-window-epoch2-final
           path: cuad_final
           repository: evansmusitu/mft-axiom-build
-          run-id: 34749003397
+          run-id: 34801041589
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Install state-validation runtime
@@ -126,6 +130,7 @@ jobs:
           qjr=json.load(open('cuad_final/CUAD_MATCHED_EPOCH2_FINAL.json'))
           assert cjr['global_steps']==615 and cjr['chunk_index']==3 and cjr['num_chunks']==4
           assert qjr['global_steps']==2571 and qjr['chunk_index']==3 and qjr['num_chunks']==4
+          assert qjr['chunk_samples']==15381 and qjr['chunk_steps']==641
           print({'contractnli_global_steps':cn['global_steps'],'contractnli_trainable_tensors':len(keys),'cuad_global_steps':cq['global_steps']})
           PY
 
@@ -141,8 +146,13 @@ jobs:
             --contractnli-source-encoder-artifact-sha256 "$CN_SOURCE_ENCODER_SHA" \
             --cuad-final-report cuad_final/CUAD_MATCHED_EPOCH2_FINAL.json \
             --cuad-artifact-sha256 "$CUAD_ARTIFACT_SHA" \
-            --cuad-run-id 34749003397 \
-            --cuad-training-head-sha "$CUAD_TRAINING_HEAD_SHA" \
+            --cuad-original-run-id 34749003397 \
+            --cuad-original-training-head-sha "$CUAD_ORIGINAL_HEAD_SHA" \
+            --cuad-predecessor-artifact-id 10323636532 \
+            --cuad-predecessor-artifact-sha256 "$CUAD_PREDECESSOR_SHA" \
+            --cuad-resume-run-id 34801041589 \
+            --cuad-resume-workflow-head-sha "$CUAD_RESUME_HEAD_SHA" \
+            --cuad-resume-trainer-source-head-sha "$CUAD_TRAINER_SOURCE_HEAD_SHA" \
             --cuad-source-model-artifact-sha256 "$CUAD_SOURCE_MODEL_SHA" \
             --cuad-geometry-artifact-sha256 "$CUAD_GEOMETRY_ARTIFACT_SHA" \
             --cuad-geometry-report research/revenueguard/CUAD_TRAINER_GEOMETRY_ONEPASS_AUDIT_2026-09-13.json \
