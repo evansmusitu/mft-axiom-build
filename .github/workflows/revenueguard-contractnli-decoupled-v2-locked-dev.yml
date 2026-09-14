@@ -21,6 +21,28 @@ jobs:
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
+      - name: Assert exact encoder and completed candidate artifact identities
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json, os, urllib.request
+          repo='evansmusitu/mft-axiom-build'
+          token=os.environ['GH_TOKEN']
+          specs=[
+            (34676990123,'revenueguard-contractnli-adapted-model','3d78d473ffde6f790b3919226d1069b81fa8426f0f139007d3ba8b9d9cf23055'),
+            (34748996731,'revenueguard-contractnli-decoupled-epoch2-final','3aa020ccd8c9d0fa784034e3d34fd57eba4e57c39f8eea2d7901f96bbd606951'),
+          ]
+          for run_id,name,expected in specs:
+              req=urllib.request.Request(f'https://api.github.com/repos/{repo}/actions/runs/{run_id}/artifacts?name={name}',headers={'Authorization':f'Bearer {token}','Accept':'application/vnd.github+json'})
+              with urllib.request.urlopen(req) as r: o=json.load(r)
+              a=[x for x in o['artifacts'] if x['name']==name and not x['expired']]
+              assert len(a)==1,(name,a)
+              assert a[0].get('digest')=='sha256:'+expected,(name,a[0].get('digest'))
+          print('exact ContractNLI encoder and final artifact identities PASS')
+          PY
       - name: Download exact adapted semantic encoder
         uses: actions/download-artifact@v4
         with:
@@ -104,8 +126,9 @@ jobs:
           set -euo pipefail
           RUN_ID=34748996731
           ART='revenueguard-contractnli-decoupled-epoch2-final'
+          EXPECTED='3aa020ccd8c9d0fa784034e3d34fd57eba4e57c39f8eea2d7901f96bbd606951'
           API="https://api.github.com/repos/evansmusitu/mft-axiom-build/actions/runs/${RUN_ID}/artifacts?name=${ART}"
-          DIGEST=$(curl -fsSL -H "Authorization: Bearer ${GH_TOKEN}" -H 'Accept: application/vnd.github+json' "$API" | python -c "import sys,json; o=json.load(sys.stdin); a=[x for x in o['artifacts'] if x['name']=='$ART' and not x['expired']]; assert len(a)==1,a; d=a[0].get('digest',''); assert d.startswith('sha256:'); print(d.split(':',1)[1])")
+          DIGEST=$(curl -fsSL -H "Authorization: Bearer ${GH_TOKEN}" -H 'Accept: application/vnd.github+json' "$API" | python -c "import sys,json; o=json.load(sys.stdin); a=[x for x in o['artifacts'] if x['name']=='$ART' and not x['expired']]; assert len(a)==1,a; d=a[0].get('digest',''); assert d=='sha256:$EXPECTED',d; print(d.split(':',1)[1])")
           python research/revenueguard/contractnli_decoupled_checkpoint_aggregate.py \
             --shard-glob 'shards/raw_decoupled_*.json' \
             --expected-shards 8 \
@@ -115,6 +138,7 @@ jobs:
           import json
           o=json.load(open('CONTRACTNLI_DECOUPLED_V2_RELEVANCE_ONLY_LOCKED_DEV_EVAL.json'))
           assert o['schema']=='musitu.revenueguard.contractnli.decoupled_checkpoint_eval.v2'
+          assert o['checkpoint_artifact_sha256']=='3aa020ccd8c9d0fa784034e3d34fd57eba4e57c39f8eea2d7901f96bbd606951'
           assert 'semantic-head labels or correctness do not participate' in o['calibration_contract']
           print({'gate':o['gate'],'chosen_k':o['chosen_k'],'chosen_threshold':o['chosen_threshold'],'dev':o['dev']})
           PY
