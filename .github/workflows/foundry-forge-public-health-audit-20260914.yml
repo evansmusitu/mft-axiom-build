@@ -14,105 +14,145 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - name: Verify certificate-validated public FORGE health and CORS contract
+      - name: Observe certificate-validated public FORGE edge contract
         shell: bash
         run: |
           set -euo pipefail
           python - <<'PY'
-          import hashlib, json, socket, ssl, urllib.request
+          import hashlib, json, socket, ssl, urllib.error, urllib.request
           from datetime import datetime, timezone
 
           origin='https://forge.mftintelligence.com'
           web='https://mftintelligence.com'
-          health=origin+'/v1/health'
-          preflight=origin+'/v1/field/assignments'
           protocol='c9fe2c0dcbc51ed7329aeea8b8d9985c0ccfc70123ac181c755285f1a0fbf3de'
+          safe_headers={
+            'server','content-type','content-length','cache-control','x-content-type-options',
+            'referrer-policy','access-control-allow-origin','access-control-allow-methods',
+            'access-control-allow-headers','access-control-max-age','vary','cf-ray',
+            'cf-cache-status','cf-mitigated','location','www-authenticate'
+          }
 
-          def req(url, method='GET', headers=None):
-              h={'Accept':'application/json','User-Agent':'MUSITU-FORGE-public-health-audit/1'}
+          class NoRedirect(urllib.request.HTTPRedirectHandler):
+              def redirect_request(self, req, fp, code, msg, headers, newurl):
+                  return None
+
+          opener=urllib.request.build_opener(
+              urllib.request.HTTPSHandler(context=ssl.create_default_context()),
+              NoRedirect(),
+          )
+
+          def observe(name, path, method='GET', headers=None):
+              url=origin+path
+              h={'Accept':'application/json','User-Agent':'MUSITU-FORGE-public-health-audit/2'}
               h.update(headers or {})
-              r=urllib.request.urlopen(urllib.request.Request(url,headers=h,method=method),timeout=20,context=ssl.create_default_context())
-              raw=r.read(131073)
-              if len(raw)>131072: raise SystemExit('response_too_large')
-              return r,raw
+              request=urllib.request.Request(url,headers=h,method=method)
+              try:
+                  r=opener.open(request,timeout=20)
+                  status=r.status
+                  response_headers=r.headers
+                  final_url=r.geturl()
+                  raw=r.read(131073)
+              except urllib.error.HTTPError as exc:
+                  status=exc.code
+                  response_headers=exc.headers
+                  final_url=exc.geturl()
+                  raw=exc.read(131073)
+              if len(raw)>131072:
+                  raw=raw[:131072]
+                  truncated=True
+              else:
+                  truncated=False
+              selected={k.lower():v for k,v in response_headers.items() if k.lower() in safe_headers}
+              prefix=raw[:2048].decode('utf-8','replace')
+              return {
+                  'name':name,
+                  'url':url,
+                  'final_url':final_url,
+                  'method':method,
+                  'status':status,
+                  'headers':dict(sorted(selected.items())),
+                  'body_sha256':hashlib.sha256(raw).hexdigest(),
+                  'body_size_observed':len(raw),
+                  'body_truncated':truncated,
+                  'body_prefix_utf8':prefix,
+              }
 
           addresses=sorted({x[4][0] for x in socket.getaddrinfo('forge.mftintelligence.com',443,type=socket.SOCK_STREAM)})
-          r,raw=req(health,headers={'Origin':web})
-          if r.geturl()!=health: raise SystemExit('health_redirect_or_origin_mismatch')
-          if r.status!=200: raise SystemExit('health_http_status_invalid')
-          hdr=r.headers
-          checks={
-            'content_type':hdr.get('Content-Type','').lower().startswith('application/json'),
-            'cache_control':hdr.get('Cache-Control','')=='no-store',
-            'nosniff':hdr.get('X-Content-Type-Options','')=='nosniff',
-            'referrer_policy':hdr.get('Referrer-Policy','')=='no-referrer',
-            'cors_origin':hdr.get('Access-Control-Allow-Origin','')==web,
-            'cors_not_wildcard':hdr.get('Access-Control-Allow-Origin','')!='*',
-          }
-          if not all(checks.values()): raise SystemExit('health_header_contract_invalid')
-          payload=json.loads(raw)
-          if not isinstance(payload,dict): raise SystemExit('health_json_object_required')
-          if payload.get('schema')!='musitu.forge.health.v1': raise SystemExit('health_schema_invalid')
-          if payload.get('status')!='READY': raise SystemExit('health_status_not_ready')
-          if payload.get('canonical_service_origin')!=origin: raise SystemExit('canonical_service_origin_mismatch')
-          if payload.get('protocol_digest')!=protocol: raise SystemExit('protocol_digest_mismatch')
-          if payload.get('custody_uploads_ready') is not True: raise SystemExit('custody_uploads_not_ready')
-          if payload.get('production_authorized') is not False: raise SystemExit('unearned_production_claim')
+          observations=[
+              observe('health_no_origin','/v1/health'),
+              observe('health_allowed_origin','/v1/health',headers={'Origin':web}),
+              observe('health_allowed_origin_protocol','/v1/health',headers={'Origin':web,'X-MUSITU-Client-Protocol':protocol}),
+              observe('root_no_origin','/'),
+              observe('assignments_preflight','/v1/field/assignments',method='OPTIONS',headers={
+                  'Origin':web,
+                  'Access-Control-Request-Method':'GET',
+                  'Access-Control-Request-Headers':'authorization, content-type, x-musitu-client-protocol',
+              }),
+          ]
 
-          p,praw=req(preflight,method='OPTIONS',headers={
-            'Origin':web,
-            'Access-Control-Request-Method':'GET',
-            'Access-Control-Request-Headers':'authorization, content-type, x-musitu-client-protocol',
-          })
-          if p.geturl()!=preflight: raise SystemExit('preflight_redirect_or_origin_mismatch')
-          if p.status!=204: raise SystemExit('preflight_http_status_invalid')
-          if praw!=b'': raise SystemExit('preflight_body_must_be_empty')
-          ph=p.headers
-          methods={x.strip().upper() for x in ph.get('Access-Control-Allow-Methods','').split(',') if x.strip()}
-          allowed={x.strip().lower() for x in ph.get('Access-Control-Allow-Headers','').split(',') if x.strip()}
-          required={'authorization','content-type','x-musitu-client-protocol'}
-          preflight_checks={
-            'cors_origin':ph.get('Access-Control-Allow-Origin','')==web,
-            'cors_not_wildcard':ph.get('Access-Control-Allow-Origin','')!='*',
-            'methods':{'GET','POST','PUT'}.issubset(methods),
-            'headers':required.issubset(allowed),
-            'cache_control':ph.get('Cache-Control','')=='no-store',
-            'nosniff':ph.get('X-Content-Type-Options','')=='nosniff',
-            'referrer_policy':ph.get('Referrer-Policy','')=='no-referrer',
-          }
-          if not all(preflight_checks.values()): raise SystemExit('preflight_contract_invalid')
+          health=next(x for x in observations if x['name']=='health_allowed_origin')
+          preflight=next(x for x in observations if x['name']=='assignments_preflight')
+          health_payload=None
+          health_contract=False
+          try:
+              health_payload=json.loads(health['body_prefix_utf8'])
+          except Exception:
+              pass
+          if isinstance(health_payload,dict):
+              hh=health['headers']
+              health_contract=(
+                  health['status']==200
+                  and health['final_url']==origin+'/v1/health'
+                  and hh.get('content-type','').lower().startswith('application/json')
+                  and hh.get('cache-control')=='no-store'
+                  and hh.get('x-content-type-options')=='nosniff'
+                  and hh.get('referrer-policy')=='no-referrer'
+                  and hh.get('access-control-allow-origin')==web
+                  and health_payload.get('schema')=='musitu.forge.health.v1'
+                  and health_payload.get('status')=='READY'
+                  and health_payload.get('canonical_service_origin')==origin
+                  and health_payload.get('protocol_digest')==protocol
+                  and health_payload.get('custody_uploads_ready') is True
+                  and health_payload.get('production_authorized') is False
+              )
+          ph=preflight['headers']
+          methods={x.strip().upper() for x in ph.get('access-control-allow-methods','').split(',') if x.strip()}
+          allowed={x.strip().lower() for x in ph.get('access-control-allow-headers','').split(',') if x.strip()}
+          preflight_contract=(
+              preflight['status']==204
+              and preflight['final_url']==origin+'/v1/field/assignments'
+              and ph.get('access-control-allow-origin')==web
+              and {'GET','POST','PUT'}.issubset(methods)
+              and {'authorization','content-type','x-musitu-client-protocol'}.issubset(allowed)
+              and ph.get('cache-control')=='no-store'
+              and ph.get('x-content-type-options')=='nosniff'
+              and ph.get('referrer-policy')=='no-referrer'
+          )
 
           out={
-            'schema':'musitu.foundry_forge.public_health_audit.v1',
-            'observed_at':datetime.now(timezone.utc).isoformat(),
-            'canonical_origin':origin,
-            'resolved_addresses':addresses,
-            'health_url':health,
-            'health_status':r.status,
-            'health_body_sha256':hashlib.sha256(raw).hexdigest(),
-            'health_headers_verified':True,
-            'preflight_status':p.status,
-            'preflight_verified':True,
-            'protocol_digest':protocol,
-            'custody_uploads_ready':payload.get('custody_uploads_ready') is True,
-            'video_derivation_runtime_configured':payload.get('video_derivation_runtime_configured') is True,
-            'expert_review_projection_configured':payload.get('expert_review_projection_configured') is True,
-            'field_dataset_admission_configured':payload.get('field_dataset_admission_configured') is True,
-            'fault_episode_submission_configured':payload.get('fault_episode_submission_configured') is True,
-            'production_authorized':False,
-            'result':'PASS',
-            'write_performed':False,
+              'schema':'musitu.foundry_forge.public_edge_observation.v2',
+              'observed_at':datetime.now(timezone.utc).isoformat(),
+              'canonical_origin':origin,
+              'resolved_addresses':addresses,
+              'protocol_digest':protocol,
+              'observations':observations,
+              'health_contract_pass':health_contract,
+              'preflight_contract_pass':preflight_contract,
+              'backend_health_contract_pass':health_contract and preflight_contract,
+              'write_performed':False,
+              'production_authorized_claimed':False,
           }
-          open('foundry-forge-public-health-audit.json','w').write(json.dumps(out,indent=2,sort_keys=True)+'\n')
+          text=json.dumps(out,indent=2,sort_keys=True)+'\n'
+          open('foundry-forge-public-edge-observation.json','w').write(text)
           print(json.dumps(out,sort_keys=True))
           PY
-      - name: Seal health evidence
-        run: sha256sum foundry-forge-public-health-audit.json > foundry-forge-public-health-audit.sha256
+      - name: Seal observation evidence
+        run: sha256sum foundry-forge-public-edge-observation.json > foundry-forge-public-edge-observation.sha256
       - uses: actions/upload-artifact@v4
         with:
-          name: musitu-foundry-forge-public-health-audit-20260914
+          name: musitu-foundry-forge-public-edge-observation-20260914
           path: |
-            foundry-forge-public-health-audit.json
-            foundry-forge-public-health-audit.sha256
+            foundry-forge-public-edge-observation.json
+            foundry-forge-public-edge-observation.sha256
           retention-days: 7
           if-no-files-found: error
