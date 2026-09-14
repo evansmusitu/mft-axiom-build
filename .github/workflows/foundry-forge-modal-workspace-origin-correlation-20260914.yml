@@ -1,0 +1,272 @@
+name: MUSITU Foundry FORGE Modal Workspace Origin Correlation
+
+on:
+  push:
+    paths:
+      - '.github/workflows/foundry-forge-modal-workspace-origin-correlation-20260914.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  correlate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID }}
+      MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET }}
+      CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+      CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+      CF_ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      CF_WORKER_NAME: musitu-forge-edge
+      EXPECTED_ORIGIN_SHA256: 68d869d065ea4d4fee0e28fc65f862f5e5b24cc2b71088a7201185e3d9e723bd
+      PUBLIC_ORIGIN: https://forge.mftintelligence.com
+      PROTOCOL_DIGEST: c9fe2c0dcbc51ed7329aeea8b8d9985c0ccfc70123ac181c755285f1a0fbf3de
+    steps:
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Install authenticated Modal client and verify immutable edge preconditions
+        shell: bash
+        run: |
+          set -euo pipefail
+          for n in MODAL_TOKEN_ID MODAL_TOKEN_SECRET CLOUDFLARE_EMAIL CLOUDFLARE_GLOBAL_API_KEY; do
+            test -n "${!n}" || { echo "missing_$n" >&2; exit 1; }
+          done
+          python -m pip install --disable-pip-version-check --quiet 'modal>=1.5,<2'
+          modal app list --json >/dev/null
+          python - <<'PY'
+          import hashlib,json,os,pathlib,ssl,urllib.request
+          headers={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY']}
+          settings=f"https://api.cloudflare.com/client/v4/accounts/{os.environ['CF_ACCOUNT_ID']}/workers/scripts/{os.environ['CF_WORKER_NAME']}/settings"
+          with urllib.request.urlopen(urllib.request.Request(settings,headers=headers),timeout=30) as r:
+              body=json.load(r)
+          if not body.get('success'):
+              raise SystemExit('cloudflare_settings_read_failed')
+          values=[]
+          for b in (body.get('result') or {}).get('bindings') or []:
+              if isinstance(b,dict) and b.get('name')=='MODAL_ORIGIN':
+                  v=b.get('text') if b.get('text') is not None else b.get('value')
+                  if isinstance(v,str): values.append(v.rstrip('/'))
+          if len(values)!=1:
+              raise SystemExit('modal_origin_binding_count_invalid:'+str(len(values)))
+          got=hashlib.sha256(values[0].encode()).hexdigest()
+          if got!=os.environ['EXPECTED_ORIGIN_SHA256']:
+              raise SystemExit('cloudflare_modal_origin_hash_changed:'+got)
+          req=urllib.request.Request(os.environ['PUBLIC_ORIGIN']+'/v1/health',headers={'Accept':'application/json','User-Agent':'MUSITU-FORGE-modal-origin-correlation/1'})
+          with urllib.request.urlopen(req,context=ssl.create_default_context(),timeout=30) as r:
+              raw=r.read(131073); status=r.status
+          if len(raw)>131072: raise SystemExit('health_response_too_large')
+          health=json.loads(raw)
+          if status!=200 or health.get('schema')!='musitu.forge.health.v1' or health.get('status')!='READY' or health.get('protocol_digest')!=os.environ['PROTOCOL_DIGEST'] or health.get('production_authorized') is not False:
+              raise SystemExit('public_v46_health_precondition_failed')
+          out={
+              'cloudflare_modal_origin_sha256':got,
+              'cloudflare_origin_hash_matches_expected':True,
+              'public_health_status':status,
+              'public_health_body_sha256':hashlib.sha256(raw).hexdigest(),
+              'public_health_pass':True,
+              'raw_cloudflare_origin_exposed':False,
+              'write_performed':False,
+          }
+          pathlib.Path('/tmp/preconditions.json').write_text(json.dumps(out,sort_keys=True))
+          print(json.dumps(out,sort_keys=True))
+          PY
+
+      - name: Correlate workspace app objects to sealed origin by hash only
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import asyncio,hashlib,json,os,pathlib,re
+          from google.protobuf.json_format import MessageToDict
+          from modal._environments import ensure_env
+          from modal._object import _get_environment_name
+          from modal.client import _Client
+          from modal_proto import api_pb2
+
+          EXPECTED=os.environ['EXPECTED_ORIGIN_SHA256']
+          RELEVANT=re.compile(r'(musitu|foundry|forge)',re.I)
+
+          def hash_url(value):
+              norm=value.rstrip('/')
+              return hashlib.sha256(norm.encode()).hexdigest()
+
+          def walk_urls(value,path=''):
+              found=[]
+              if isinstance(value,dict):
+                  for k,v in value.items():
+                      found.extend(walk_urls(v,f'{path}.{k}' if path else str(k)))
+              elif isinstance(value,list):
+                  for i,v in enumerate(value):
+                      found.extend(walk_urls(v,f'{path}[{i}]'))
+              elif isinstance(value,str) and value.startswith(('https://','http://')):
+                  found.append((path,value))
+              return found
+
+          async def main():
+              client=await _Client.from_env()
+              env=ensure_env(None)
+              env_name=_get_environment_name(env)
+              apps_resp=await client.stub.AppList(api_pb2.AppListRequest(environment_name=env_name))
+              app_rows=[]
+              matches=[]
+              scanned_ids=set()
+              layout_errors={}
+              relevant_apps=[]
+              total_url_fields=0
+
+              for stats in apps_resp.apps:
+                  app_id=str(stats.app_id)
+                  if not app_id or app_id in scanned_ids:
+                      continue
+                  scanned_ids.add(app_id)
+                  app_name=str(stats.description or '')
+                  app_relevant=bool(RELEVANT.search(app_name))
+                  row={
+                      'app_id':app_id,
+                      'app_name':app_name if app_relevant else None,
+                      'state':int(stats.state),
+                      'relevant_name':app_relevant,
+                      'object_count':0,
+                      'url_field_count':0,
+                      'matching_object_count':0,
+                      'layout_read':False,
+                      'error_type':None,
+                  }
+                  try:
+                      layout_resp=await client.stub.AppGetLayout(api_pb2.AppGetLayoutRequest(app_id=app_id))
+                      layout=layout_resp.app_layout
+                      row['layout_read']=True
+                      row['object_count']=len(layout.objects)
+                      reverse_tags={}
+                      for tag,obj_id in layout.function_ids.items():
+                          reverse_tags.setdefault(str(obj_id),[]).append(str(tag))
+                      for tag,obj_id in layout.class_ids.items():
+                          reverse_tags.setdefault(str(obj_id),[]).append(str(tag))
+                      for obj in layout.objects:
+                          oneof=obj.WhichOneof('handle_metadata_oneof')
+                          if not oneof:
+                              continue
+                          metadata=getattr(obj,oneof)
+                          doc=MessageToDict(metadata,preserving_proto_field_name=True)
+                          urls=walk_urls(doc)
+                          if urls:
+                              row['url_field_count']+=len(urls)
+                              total_url_fields+=len(urls)
+                          object_matched=False
+                          for field_path,raw_url in urls:
+                              digest=hash_url(raw_url)
+                              if digest==EXPECTED:
+                                  object_matched=True
+                                  match={
+                                      'app_id':app_id,
+                                      'app_name':app_name,
+                                      'app_state':int(stats.state),
+                                      'object_id':str(obj.object_id),
+                                      'object_tags':sorted(reverse_tags.get(str(obj.object_id),[])),
+                                      'metadata_type':oneof,
+                                      'url_field_path':field_path,
+                                      'origin_sha256':digest,
+                                      'matches_cloudflare_origin':True,
+                                  }
+                                  # function_name is non-secret identity metadata when present; never emit arbitrary metadata fields.
+                                  function_name=getattr(metadata,'function_name','') if hasattr(metadata,'function_name') else ''
+                                  if isinstance(function_name,str) and function_name:
+                                      match['function_name']=function_name
+                                  matches.append(match)
+                          if object_matched:
+                              row['matching_object_count']+=1
+                  except Exception as exc:
+                      row['error_type']=type(exc).__name__
+                      layout_errors[row['error_type']]=layout_errors.get(row['error_type'],0)+1
+                  if app_relevant or row['matching_object_count']:
+                      relevant_apps.append(row)
+                  app_rows.append(row)
+
+              # Do not expose unrelated app names. Preserve only aggregate workspace counts plus relevant/matching identities.
+              out={
+                  'schema':'musitu.foundry_forge.modal_workspace_origin_correlation.v1',
+                  'environment':env_name,
+                  'expected_cloudflare_origin_sha256':EXPECTED,
+                  'workspace_app_count':len(app_rows),
+                  'apps_layout_read_count':sum(1 for r in app_rows if r['layout_read']),
+                  'apps_layout_error_count':sum(1 for r in app_rows if r['error_type']),
+                  'layout_error_type_counts':layout_errors,
+                  'total_url_fields_hashed':total_url_fields,
+                  'relevant_apps':relevant_apps,
+                  'origin_matches':matches,
+                  'match_count':len(matches),
+                  'raw_private_urls_exposed':False,
+                  'unrelated_app_names_exposed':False,
+                  'secret_values_exposed':False,
+                  'remote_functions_invoked':False,
+                  'write_performed':False,
+              }
+              pathlib.Path('/tmp/workspace-correlation.json').write_text(json.dumps(out,indent=2,sort_keys=True)+'\n')
+              print(json.dumps({
+                  'environment':env_name,
+                  'workspace_app_count':out['workspace_app_count'],
+                  'apps_layout_read_count':out['apps_layout_read_count'],
+                  'apps_layout_error_count':out['apps_layout_error_count'],
+                  'total_url_fields_hashed':total_url_fields,
+                  'relevant_app_count':len(relevant_apps),
+                  'match_count':len(matches),
+                  'matching_identities':[{k:v for k,v in m.items() if k!='origin_sha256'} for m in matches],
+              },sort_keys=True))
+
+          asyncio.run(main())
+          PY
+
+      - name: Seal read-only correlation evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json,pathlib
+          pre=json.loads(pathlib.Path('/tmp/preconditions.json').read_text())
+          corr=json.loads(pathlib.Path('/tmp/workspace-correlation.json').read_text())
+          result='PASS_EXACT_IDENTITY' if corr['match_count']==1 else ('UNRESOLVED_NO_MATCH' if corr['match_count']==0 else 'AMBIGUOUS_MULTIPLE_MATCHES')
+          out={
+              'schema':'musitu.foundry_forge.modal_live_origin_workspace_identity_audit.v1',
+              'preconditions':pre,
+              'workspace_correlation':corr,
+              'result':result,
+              'secret_values_exposed':False,
+              'raw_private_origin_exposed':False,
+              'write_performed':False,
+          }
+          pathlib.Path('foundry-forge-modal-workspace-origin-correlation.json').write_text(json.dumps(out,indent=2,sort_keys=True)+'\n')
+          PY
+          sha256sum foundry-forge-modal-workspace-origin-correlation.json >foundry-forge-modal-workspace-origin-correlation.sha256
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: musitu-foundry-forge-modal-workspace-origin-correlation-20260914
+          path: |
+            foundry-forge-modal-workspace-origin-correlation.json
+            foundry-forge-modal-workspace-origin-correlation.sha256
+          retention-days: 14
+          if-no-files-found: error
+
+      - name: Enforce exact identity and read-only boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          x=json.load(open('foundry-forge-modal-workspace-origin-correlation.json'))
+          c=x['workspace_correlation']
+          assert x['write_performed'] is False and x['secret_values_exposed'] is False and x['raw_private_origin_exposed'] is False
+          assert c['write_performed'] is False and c['secret_values_exposed'] is False and c['raw_private_urls_exposed'] is False and c['unrelated_app_names_exposed'] is False and c['remote_functions_invoked'] is False
+          assert x['preconditions']['cloudflare_origin_hash_matches_expected'] is True and x['preconditions']['public_health_pass'] is True
+          if c['match_count']!=1:
+              raise SystemExit('exact_live_modal_origin_identity_not_resolved:'+str(c['match_count']))
+          m=c['origin_matches'][0]
+          print('EXACT_LIVE_MODAL_ORIGIN_IDENTITY_RESOLVED')
+          print('APP_NAME='+m['app_name'])
+          print('FUNCTION_NAME='+str(m.get('function_name','')))
+          print('OBJECT_TAGS='+','.join(m.get('object_tags',[])))
+          PY
