@@ -1,0 +1,49 @@
+name: MUSITU Store post-failure exact baseline safety check
+
+on:
+  push:
+    branches:
+      - musitu-store-browser-first-launch-20260913
+    paths:
+      - '.github/workflows/musitu-store-post-failure-safety-check.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+  STORE_WORKER: musitu-store-phase1
+  EXPECTED_COMPATIBILITY_DATE: '2026-09-09'
+  LIVE_MODULE_OUTPUT: /tmp/musitu-store-post-failure-safety
+
+jobs:
+  exact-baseline-safety:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Capture current production modules GET-only
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        run: python3 store/phase2/capture_live_store_worker_unpinned.py
+
+      - name: Require exact pre-attempt production module hashes
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(sha256sum "$LIVE_MODULE_OUTPUT/worker.mjs" | awk '{print $1}')" = 'ef6fc4c57f1cd869ef541b2d8c4e7e8baa4977b2f5063678c44c12b14bc36551'
+          test "$(sha256sum "$LIVE_MODULE_OUTPUT/render.mjs" | awk '{print $1}')" = '174e8b9eb903d4de98212f3c865eb22e694cf58dd34f375fb5cb66b25b0d4694'
+          test "$(sha256sum "$LIVE_MODULE_OUTPUT/assets.mjs" | awk '{print $1}')" = '443e558c297d700bedc706ea56647c97162709e5178b80acd63d478054bba4b4'
+          test "$(sha256sum "$LIVE_MODULE_OUTPUT/generated-data.mjs" | awk '{print $1}')" = '27ab78a914019cb44844de51bd0f4be46dc53bdf4b928a8dff7944228ccce063'
+          echo 'MUSITU_STORE_POST_FAILURE_EXACT_BASELINE=PASS'
+
+      - name: Upload safety evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: musitu-store-post-failure-exact-baseline
+          path: /tmp/musitu-store-post-failure-safety
+          if-no-files-found: error
+          retention-days: 14
