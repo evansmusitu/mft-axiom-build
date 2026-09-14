@@ -1,0 +1,41 @@
+name: MUSITU Axiom vNext Gate
+
+on:
+  push:
+    branches:
+      - 'frontier/axiom-v5-final-app-vnext-*'
+    paths:
+      - 'axiom_interface/vnext/**'
+      - 'axiom_interface/projects.js'
+      - 'axiom_interface/outcome_contracts.js'
+      - 'axiom_interface/browser_session.js'
+      - '.github/workflows/axiom-vnext-gate.yml'
+  pull_request:
+    paths:
+      - 'axiom_interface/vnext/**'
+      - 'axiom_interface/projects.js'
+      - 'axiom_interface/outcome_contracts.js'
+      - 'axiom_interface/browser_session.js'
+      - '.github/workflows/axiom-vnext-gate.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  vnext-static-gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Use Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Syntax checks
+        run: |
+          node --check axiom_interface/vnext/app.js
+          node --check axiom_interface/vnext/capability_registry.js
+          node --check axiom_interface/vnext/data_adapters.js
+      - name: vNext boundary and registry tests
+        run: node --test axiom_interface/vnext/tests/vnext_static.test.mjs
