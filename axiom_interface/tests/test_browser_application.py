@@ -40,14 +40,14 @@ class BrowserApplicationContractTests(unittest.TestCase):
         deployment = self.contract["deployment"]
         self.assertEqual(self.contract["schema"], "musitu.axiom.browser-application.v1")
         self.assertIn(self.contract["status"], {"PRODUCTION_DEPLOYMENT_CANDIDATE", "PRODUCTION_DEPLOYED_VERIFIED"})
-        self.assertEqual(deployment["public_entry_url"], "https://mftintelligence.com/axiom")
-        self.assertEqual(deployment["integration_entry_url"], "https://mftintelligence.com/axiom")
+        self.assertEqual(deployment["public_entry_url"], "https://app.mftintelligence.com/")
+        self.assertEqual(deployment["integration_entry_url"], "https://app.mftintelligence.com/")
         self.assertEqual(deployment["production_app_origin"], "https://app.mftintelligence.com")
         self.assertEqual(deployment["exact_browser_entry_url"], "https://app.mftintelligence.com/#/home")
         self.assertEqual(deployment["canonical_app_path"], "/")
         self.assertEqual(deployment["default_route"], "#/home")
         self.assertEqual(deployment["entry_url"], "./#/home")
-        self.assertEqual(deployment["origin_policy"], "DEDICATED_APPLICATION_ORIGIN_WITH_APEX_ENTRY_BRIDGE")
+        self.assertEqual(deployment["origin_policy"], "DEDICATED_APPLICATION_ORIGIN")
         self.assertEqual(deployment["reserved_api_origin"], "https://axiom.mftintelligence.com")
         self.assertEqual(
             deployment["production_deployment_claimed"],
@@ -141,8 +141,6 @@ class BrowserApplicationContractTests(unittest.TestCase):
     def test_production_worker_is_path_isolated_and_account_session_is_server_side(self):
         for token in [
             "app.mftintelligence.com",
-            "mftintelligence.com",
-            "www.mftintelligence.com",
             "/.well-known/axiom-session",
             "/auth/start",
             "/auth/session",
@@ -168,14 +166,12 @@ class BrowserApplicationContractTests(unittest.TestCase):
         ]:
             self.assertIn(token, PRODUCTION_WORKFLOW)
         for token in [
-            '"mftintelligence.com/axiom"',
-            '"mftintelligence.com/axiom/*"',
-            '"www.mftintelligence.com/axiom"',
-            '"www.mftintelligence.com/axiom/*"',
+            "PUBLIC_ENTRY = f\"{APP_ORIGIN}/\"",
+            "UNDEPLOYED_APEX_ROUTE_PATTERNS",
             "RESERVED_API_HOST = \"axiom.mftintelligence.com\"",
             "CONFIG_RULE_REF = \"musitu_axiom_browser_application_direct_browser_v1\"",
-            "starts_with(http.request.uri.path, \"/axiom/\")",
-            "existing_apex_origin_overridden",
+            "configuration_rule_migration_required",
+            "apex_entry_bridge_deployed",
             "verify_identity",
         ]:
             self.assertIn(token, PRODUCTION_DEPLOY)
@@ -195,19 +191,17 @@ class BrowserApplicationContractTests(unittest.TestCase):
         self.assertEqual(selected["target_routes"], [])
         self.assertEqual(selected["application_configuration_rule"], [])
         self.assertEqual(selected["reserved_api_domain"][0]["service"], "certified-api-edge")
-        self.assertEqual(
-            DEPLOY.ROUTE_PATTERNS,
-            (
-                "mftintelligence.com/axiom",
-                "mftintelligence.com/axiom/*",
-                "www.mftintelligence.com/axiom",
-                "www.mftintelligence.com/axiom/*",
-            ),
-        )
+        self.assertEqual(selected["target_routes"], [])
         with self.assertRaisesRegex(RuntimeError, "DNS records"):
             DEPLOY.validate_target({**topology, "dns": [{"name": DEPLOY.APP_HOST, "type": "CNAME"}]})
-        with self.assertRaisesRegex(RuntimeError, "another Worker"):
-            DEPLOY.validate_target({**topology, "routes": [{"pattern": DEPLOY.ROUTE_PATTERNS[0], "script": "unrelated-service"}]})
+        for pattern in DEPLOY.UNDEPLOYED_APEX_ROUTE_PATTERNS:
+            with self.subTest(pattern=pattern), self.assertRaisesRegex(RuntimeError, "unclaimed AXIOM apex routes"):
+                DEPLOY.validate_target({**topology, "routes": [{"pattern": pattern, "script": DEPLOY.SERVICE}]})
+        unrelated_routes = [
+            {"pattern": pattern, "script": "unrelated-apex-service"}
+            for pattern in DEPLOY.UNDEPLOYED_APEX_ROUTE_PATTERNS
+        ]
+        self.assertEqual(DEPLOY.validate_target({**topology, "routes": unrelated_routes})["target_routes"], [])
         with self.assertRaisesRegex(RuntimeError, "reserved production API domain"):
             DEPLOY.validate_target({**topology, "domains": []})
 
@@ -231,17 +225,13 @@ class BrowserApplicationContractTests(unittest.TestCase):
         }
         selected = DEPLOY.validate_target(topology)
         self.assertEqual(selected["application_configuration_rule"][0]["id"], "browser-rule-id")
-        self.assertEqual(
-            DEPLOY.CONFIG_RULE_EXPRESSION,
-            '(http.host eq "app.mftintelligence.com") or '
-            '((http.host in {"mftintelligence.com" "www.mftintelligence.com"}) and '
-            '(http.request.uri.path eq "/axiom" or starts_with(http.request.uri.path, "/axiom/")))',
-        )
+        self.assertFalse(selected["configuration_rule_migration_required"])
+        self.assertEqual(DEPLOY.CONFIG_RULE_EXPRESSION, 'http.host eq "app.mftintelligence.com"')
         edge = self.contract["edge_security"]
         self.assertEqual(edge["global_zone_policy"], "PRESERVED")
         self.assertEqual(
             edge["browser_application_routes_configuration"]["scope"],
-            "DEDICATED_APP_HOST_AND_EXACT_APEX_AXIOM_PATHS_ONLY",
+            "EXACT_APPLICATION_HOSTNAME_ONLY",
         )
         self.assertTrue(edge["worker_security_and_authentication_preserved"])
         with self.assertRaisesRegex(RuntimeError, "differs from the exact direct-browser contract"):
@@ -254,6 +244,113 @@ class BrowserApplicationContractTests(unittest.TestCase):
                 **topology,
                 "configuration_rules": [{**exact_rule, "ref": "unrelated-rule"}],
             })
+        legacy = DEPLOY.validate_target({
+            **topology,
+            "configuration_rules": [{**exact_rule, "expression": DEPLOY.LEGACY_APEX_CONFIG_RULE_EXPRESSION}],
+        })
+        self.assertTrue(legacy["configuration_rule_migration_required"])
+        with self.assertRaisesRegex(RuntimeError, "different configuration rule"):
+            DEPLOY.validate_target({
+                **topology,
+                "configuration_rules": [
+                    exact_rule,
+                    {
+                        **exact_rule,
+                        "id": "unrelated-legacy-rule-id",
+                        "ref": "unrelated-legacy-rule",
+                        "expression": DEPLOY.LEGACY_APEX_CONFIG_RULE_EXPRESSION,
+                    },
+                ],
+            })
+        with self.assertRaisesRegex(RuntimeError, "different configuration rule"):
+            DEPLOY.validate_target({
+                **topology,
+                "configuration_rules": [{
+                    **exact_rule,
+                    "ref": "unrelated-legacy-rule",
+                    "expression": DEPLOY.LEGACY_APEX_CONFIG_RULE_EXPRESSION,
+                }],
+            })
+        with self.assertRaisesRegex(RuntimeError, "differs from the exact direct-browser contract"):
+            DEPLOY.validate_target({
+                **topology,
+                "configuration_rules": [{**exact_rule, "expression": 'http.host eq "www.mftintelligence.com"'}],
+            })
+        for drift in (
+            {"enabled": False},
+            {"enabled": None},
+            {"action_parameters": {"security_level": "essentially_off", "bic": False, "polish": "off"}},
+        ):
+            with self.subTest(drift=drift), self.assertRaisesRegex(
+                RuntimeError, "differs from the exact direct-browser contract"
+            ):
+                DEPLOY.validate_target({**topology, "configuration_rules": [{**exact_rule, **drift}]})
+
+    def test_configuration_rule_rollback_deletes_created_rule_by_ref(self):
+        ruleset_id = "configuration-ruleset-id"
+        rule_id = "browser-rule-id"
+        client = mock.Mock()
+        client.call.side_effect = [
+            {"rules": [{"id": rule_id, "ref": DEPLOY.CONFIG_RULE_REF}]},
+            {},
+            {"rules": []},
+        ]
+        result = DEPLOY.delete_created(client, False, None, [], ruleset_id, True, None, None)
+        self.assertTrue(result["configuration_rule_deleted"])
+        self.assertEqual(result["errors"], [])
+        self.assertEqual(
+            client.call.call_args_list[1],
+            mock.call(f"/zones/{DEPLOY.ZONE_ID}/rulesets/{ruleset_id}/rules/{rule_id}", "DELETE"),
+        )
+
+    def test_configuration_rule_rollback_restores_legacy_scope_with_patch(self):
+        ruleset_id = "configuration-ruleset-id"
+        rule_id = "browser-rule-id"
+        previous = {
+            "id": rule_id,
+            "ref": DEPLOY.CONFIG_RULE_REF,
+            "action": "set_config",
+            "action_parameters": {"security_level": "essentially_off", "bic": False},
+            "expression": DEPLOY.LEGACY_APEX_CONFIG_RULE_EXPRESSION,
+            "description": "legacy exact Axiom scope",
+            "enabled": True,
+        }
+        client = mock.Mock()
+        client.call.side_effect = [
+            {},
+            {"rules": [previous]},
+        ]
+        result = DEPLOY.delete_created(client, False, None, [], ruleset_id, False, None, previous)
+        self.assertTrue(result["configuration_rule_restored"])
+        self.assertEqual(result["errors"], [])
+        update = client.call.call_args_list[0]
+        self.assertEqual(update.args[0], f"/zones/{DEPLOY.ZONE_ID}/rulesets/{ruleset_id}/rules/{rule_id}")
+        self.assertEqual(update.args[1], "PATCH")
+        self.assertEqual(update.args[2]["expression"], DEPLOY.LEGACY_APEX_CONFIG_RULE_EXPRESSION)
+
+    def test_custom_domain_rollback_discovers_a_committed_domain(self):
+        client = mock.Mock()
+        client.call.side_effect = [
+            [{"id": "application-domain-id", "hostname": DEPLOY.APP_HOST, "service": DEPLOY.SERVICE}],
+            {},
+            [],
+        ]
+        result = DEPLOY.delete_created(
+            client,
+            True,
+            None,
+            [],
+            "configuration-ruleset-id",
+            False,
+            None,
+            None,
+        )
+        self.assertTrue(result["domain_deleted"])
+        self.assertEqual(result["errors"], [])
+        self.assertEqual(
+            client.call.call_args_list[1],
+            mock.call(f"/accounts/{DEPLOY.ACCOUNT_ID}/workers/domains/application-domain-id", "DELETE"),
+        )
 
     def test_production_preflight_preserves_failure_evidence_without_writing(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -272,7 +369,7 @@ class BrowserApplicationContractTests(unittest.TestCase):
             "ok": True,
             "build_sha": "0" * 40,
             "app_origin": DEPLOY.APP_ORIGIN,
-            "integration_entry": DEPLOY.INTEGRATION_ENTRY,
+            "integration_entry": DEPLOY.PUBLIC_ENTRY,
             "reserved_api_origin_preserved": True,
             "normal_launch_download": False,
             "account_session_integration": True,
@@ -302,18 +399,6 @@ class BrowserApplicationContractTests(unittest.TestCase):
         self.assertTrue(signal["challenge_page"])
         self.assertNotIn("body", signal)
 
-    def test_production_integration_retries_route_propagation_without_relaxing_redirects(self):
-        correct = (308, {"location": f"{DEPLOY.APP_ORIGIN}/"}, b"")
-        with (
-            mock.patch.object(DEPLOY, "http", side_effect=[(404, {}, b"")] + [correct] * 4) as request,
-            mock.patch.object(DEPLOY.time, "sleep") as pause,
-        ):
-            evidence = DEPLOY.verify_integration_routes()
-        self.assertTrue(evidence["redirect_loop_absent"])
-        self.assertEqual(len(evidence["direct_redirects"]), 4)
-        self.assertEqual(request.call_count, 5)
-        pause.assert_called_once_with(2)
-
     def test_pwa_and_native_install_paths_remain_explicitly_separate(self):
         actions = self.contract["actions"]
         self.assertEqual(actions["install_web_app"]["behavior"], "BROWSER_INSTALL_PROMPT_ONLY")
@@ -329,6 +414,8 @@ class BrowserApplicationContractTests(unittest.TestCase):
         self.assertEqual(MANIFEST["related_applications"], [])
 
     def test_service_worker_caches_app_shell_but_never_session_identity(self):
+        self.assertIn("const CACHE='axiom-browser-application-production-candidate-v1'", SW)
+        self.assertIn("const LEGACY_PHASE14_CACHE='axiom-interface-phase14-candidate-v1'", SW)
         for asset in ["./browser_app.js", "./browser_session.js", "./browser-app.json"]:
             self.assertIn(asset, SW)
         for token in ["/.well-known/axiom-session", "./auth/", "./health", "cache:'no-store'", "response.ok", "text/html"]:
@@ -339,7 +426,7 @@ class BrowserApplicationContractTests(unittest.TestCase):
         browser = SURFACE["browser_application_substrate"]
         self.assertEqual(SURFACE["phase"], "PHASE_12_DEVELOPER_PLATFORM_MARKETPLACE")
         self.assertIn(browser["status"], {"PRODUCTION_DEPLOYMENT_CANDIDATE", "PRODUCTION_DEPLOYED_VERIFIED"})
-        self.assertEqual(browser["origin_policy"], "DEDICATED_APPLICATION_ORIGIN_WITH_APEX_ENTRY_BRIDGE")
+        self.assertEqual(browser["origin_policy"], "DEDICATED_APPLICATION_ORIGIN")
         self.assertTrue(browser["browser_launch_implemented"])
         self.assertTrue(browser["authenticated_session_contract_implemented"])
         expected_claim = browser["status"] == "PRODUCTION_DEPLOYED_VERIFIED"

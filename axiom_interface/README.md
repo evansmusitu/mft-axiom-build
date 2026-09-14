@@ -12,16 +12,16 @@ Open `http://127.0.0.1:4173/#/home`. The root serves the full application direct
 
 ## Browser launch contract
 
-- The production application origin is `https://app.mftintelligence.com`; the exact in-app entry is `https://app.mftintelligence.com/#/home`, and hash deep links survive refresh without a host-specific rewrite.
-- `https://mftintelligence.com/axiom` is the public integration entry. Its path-isolated edge route redirects directly to the dedicated application origin while the existing apex site remains unchanged outside `/axiom` and `/axiom/*`.
+- The canonical public application URL is `https://app.mftintelligence.com/`; the exact in-app entry is `https://app.mftintelligence.com/#/home`, and hash deep links survive refresh without a host-specific rewrite.
+- No apex route is claimed by this isolated AXIOM workstream. The unrelated `mftintelligence.com` apex authority remains unchanged; Open/Launch targets the canonical application subdomain directly.
 - `https://axiom.mftintelligence.com` remains the protected API edge and must not be repurposed as the static application host.
-- The global Cloudflare zone security policy remains unchanged. One configuration rule is scoped only to `app.mftintelligence.com` and the exact `/axiom` path family on the apex and `www` hosts, suppressing the zone-level browser interstitial only where the browser application must load or redirect. The Worker's active-account validation, per-source authentication rate limiting, CSRF checks, signed Secure HttpOnly session, response hardening and API-origin isolation remain enforced.
+- The global Cloudflare zone security policy remains unchanged. One configuration rule is scoped exactly to `app.mftintelligence.com`, suppressing the zone-level browser interstitial only where the browser application must load. The Worker's active-account validation, per-source authentication rate limiting, CSRF checks, signed Secure HttpOnly session, response hardening and API-origin isolation remain enforced.
 - Identity is restored only from `/.well-known/axiom-session` on the dedicated application origin using a signed, Secure, HttpOnly cookie. Account keys are checked server-side against active canonical AXIOM D1 account records behind a per-source Cloudflare Worker rate-limit binding and are never returned to browser JavaScript or stored in the session cookie. Missing, offline, malformed, redirected, cross-origin or secret-bearing responses fail closed to a usable guest workspace.
 - Open/Launch is inline HTML navigation. PWA installation uses only the browser install pathway. No verified Android, iOS or desktop distribution URL exists in this source, so none is fabricated.
 
 The machine-readable contract is `browser-app.json`.
 
-The tracked Cloudflare Worker in `ops/axiom_browser_application_worker.mjs` owns only the dedicated app hostname and the exact apex integration routes. Deployment is fail-closed on any existing DNS, Worker-domain, or route conflict and runs only after the inherited browser/runtime qualification jobs pass.
+The tracked Cloudflare Worker in `ops/axiom_browser_application_worker.mjs` owns only the dedicated app hostname. Deployment is fail-closed on any existing DNS or Worker-domain conflict and runs only after the inherited browser/runtime qualification jobs pass.
 
 Build an integrity-inventoried static deployment directory (the build output is not a user launch download):
 

@@ -52,6 +52,6 @@ export const BROWSER_APPLICATION_POLICY = Object.freeze({
   defaultRoute:DEFAULT_ROUTE,
   entryUrl:'./#/home',
   routingMode:'HASH_SPA',
-  originPolicy:'DEDICATED_APPLICATION_ORIGIN_WITH_APEX_ENTRY_BRIDGE',
+  originPolicy:'DEDICATED_APPLICATION_ORIGIN',
   normalLaunchDownload:false,
 });

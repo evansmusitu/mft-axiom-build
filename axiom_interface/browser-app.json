@@ -2,14 +2,14 @@
   "schema": "musitu.axiom.browser-application.v1",
   "status": "PRODUCTION_DEPLOYMENT_CANDIDATE",
   "deployment": {
-    "public_entry_url": "https://mftintelligence.com/axiom",
-    "integration_entry_url": "https://mftintelligence.com/axiom",
+    "public_entry_url": "https://app.mftintelligence.com/",
+    "integration_entry_url": "https://app.mftintelligence.com/",
     "production_app_origin": "https://app.mftintelligence.com",
     "exact_browser_entry_url": "https://app.mftintelligence.com/#/home",
     "canonical_app_path": "/",
     "default_route": "#/home",
     "entry_url": "./#/home",
-    "origin_policy": "DEDICATED_APPLICATION_ORIGIN_WITH_APEX_ENTRY_BRIDGE",
+    "origin_policy": "DEDICATED_APPLICATION_ORIGIN",
     "reserved_api_origin": "https://axiom.mftintelligence.com",
     "production_deployment_claimed": false
   },
@@ -24,13 +24,8 @@
     "artifact_type": "STATIC_DIRECTORY",
     "provider": "CLOUDFLARE_WORKERS_STATIC_ASSETS",
     "application_hostname": "app.mftintelligence.com",
-    "integration_routes": [
-      "mftintelligence.com/axiom",
-      "mftintelligence.com/axiom/*",
-      "www.mftintelligence.com/axiom",
-      "www.mftintelligence.com/axiom/*"
-    ],
-    "apex_origin_outside_integration_routes": "PRESERVED",
+    "integration_routes": [],
+    "apex_entry_bridge": "NOT_DEPLOYED_UNRELATED_APEX_AUTHORITY_PRESERVED",
     "root_document": "index.html",
     "root_content_type": "text/html; charset=utf-8",
     "root_content_disposition": "inline",
@@ -40,11 +35,11 @@
   "edge_security": {
     "global_zone_policy": "PRESERVED",
     "browser_application_routes_configuration": {
-      "scope": "DEDICATED_APP_HOST_AND_EXACT_APEX_AXIOM_PATHS_ONLY",
-      "expression": "(http.host eq \"app.mftintelligence.com\") or ((http.host in {\"mftintelligence.com\" \"www.mftintelligence.com\"}) and (http.request.uri.path eq \"/axiom\" or starts_with(http.request.uri.path, \"/axiom/\")))",
+      "scope": "EXACT_APPLICATION_HOSTNAME_ONLY",
+      "expression": "http.host eq \"app.mftintelligence.com\"",
       "security_level": "essentially_off",
       "browser_integrity_check": false,
-      "purpose": "DIRECT_BROWSER_APPLICATION_AND_PATH_ISOLATED_ENTRY_WITHOUT_ZONE_INTERSTITIAL"
+      "purpose": "DIRECT_BROWSER_APPLICATION_WITHOUT_ZONE_INTERSTITIAL"
     },
     "worker_security_and_authentication_preserved": true,
     "worker_controls": [

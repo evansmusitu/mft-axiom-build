@@ -65,16 +65,14 @@ function cookieValue(setCookie, name) {
   return match[1];
 }
 
-test('apex integration entry redirects to the dedicated application origin only', async () => {
+test('worker is fail-closed to the dedicated application hostname', async () => {
   const env = await environment();
-  const response = await worker.fetch(new Request('https://mftintelligence.com/axiom?campaign=launch'), env);
-  assert.equal(response.status, 308);
-  assert.equal(response.headers.get('location'), `${APP_ORIGIN}/?campaign=launch`);
-  const doubleSlash = await worker.fetch(new Request('https://mftintelligence.com/axiom//example.net/phish'), env);
-  assert.equal(doubleSlash.status, 308);
-  assert.equal(doubleSlash.headers.get('location'), `${APP_ORIGIN}//example.net/phish`);
-  const unrelated = await worker.fetch(new Request('https://mftintelligence.com/axiomatic'), env);
-  assert.equal(unrelated.status, 404);
+  const apex = await worker.fetch(new Request('https://mftintelligence.com/axiom'), env);
+  assert.equal(apex.status, 404);
+  const www = await worker.fetch(new Request('https://www.mftintelligence.com/axiom'), env);
+  assert.equal(www.status, 404);
+  const reservedApi = await worker.fetch(new Request('https://axiom.mftintelligence.com/'), env);
+  assert.equal(reservedApi.status, 404);
 });
 
 test('guest session advertises a same-origin sign-in path without credential material', async () => {

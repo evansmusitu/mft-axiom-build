@@ -1,7 +1,5 @@
 const APP_HOST = 'app.mftintelligence.com';
 const APP_ORIGIN = `https://${APP_HOST}`;
-const INTEGRATION_HOSTS = new Set(['mftintelligence.com', 'www.mftintelligence.com']);
-const INTEGRATION_PREFIX = '/axiom';
 const SESSION_SCHEMA = 'musitu.axiom.browser-session.v1';
 const SESSION_COOKIE = '__Host-axiom_session';
 const CSRF_COOKIE = '__Host-axiom_login_csrf';
@@ -225,24 +223,6 @@ function signOut(request) {
   });
 }
 
-function integrationRedirect(request, url) {
-  const validPath = url.pathname === INTEGRATION_PREFIX || url.pathname.startsWith(`${INTEGRATION_PREFIX}/`);
-  if (!validPath) return json(404, {error:'not_found'});
-  if (!['GET', 'HEAD'].includes(request.method)) return json(405, {error:'method_not_allowed'}, {allow:'GET, HEAD'});
-  const suffix = url.pathname.slice(INTEGRATION_PREFIX.length) || '/';
-  const target = new URL(APP_ORIGIN);
-  target.pathname = suffix;
-  target.search = url.search;
-  return new Response(null, {
-    status:308,
-    headers:{
-      ...COMMON_HEADERS,
-      'cache-control':'public, max-age=300',
-      'location':target.toString(),
-    },
-  });
-}
-
 function hardenedAsset(response, path) {
   const headers = new Headers(response.headers);
   for (const [name, value] of Object.entries(COMMON_HEADERS)) headers.set(name, value);
@@ -275,7 +255,7 @@ async function application(request, env, url) {
       service:'MUSITU Axiom browser application',
       build_sha:String(env.BUILD_SHA || ''),
       app_origin:APP_ORIGIN,
-      integration_entry:'https://mftintelligence.com/axiom',
+      integration_entry:`${APP_ORIGIN}/`,
       reserved_api_origin_preserved:true,
       normal_launch_download:false,
       account_session_integration:configured,
@@ -292,7 +272,6 @@ async function application(request, env, url) {
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
-    if (INTEGRATION_HOSTS.has(url.hostname)) return integrationRedirect(request, url);
     if (url.hostname !== APP_HOST) return json(404, {error:'not_found'});
     return application(request, env, url);
   },
