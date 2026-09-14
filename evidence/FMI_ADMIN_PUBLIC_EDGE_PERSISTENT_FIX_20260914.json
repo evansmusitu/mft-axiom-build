@@ -1,0 +1,49 @@
+{
+  "schema": "musitu.fmi.admin-public-edge-persistent-fix.evidence.v1",
+  "recorded_date": "2026-09-14",
+  "product": "MUSITU Frontier Market Intelligence",
+  "gate": "FMI_ADMIN_PUBLIC_EDGE_PERSISTENT_FIX_PASS",
+  "admin_host": "admin.mftintelligence.com",
+  "admin_worker": "mft-fmi-admin",
+  "source_branch": "fmi-revenue-certification-20260913",
+  "canonical_source_commit": "1bdeb2d5da327744adb5f4921b0aaff11c845407",
+  "canonical_source_change": {
+    "public_health_probe": "/healthz",
+    "obsolete_probe_removed": "/health",
+    "public_edge_diagnostic_route": "/health/public-edge",
+    "system_request_cache_buster": true
+  },
+  "successful_verification": {
+    "workflow_run_id": 34822838064,
+    "workflow_job_id": 103908096486,
+    "gate": "FMI_ADMIN_PUBLIC_EDGE_PERSISTENT_FIX_PASS",
+    "canonical_public_health_http": 200,
+    "admin_worker_to_public_edge_http": 200,
+    "admin_public_edge_diagnostic_http": 200,
+    "admin_health_http": 200,
+    "unauthenticated_api_system_http": 401,
+    "worker_content_v2_http": 200,
+    "release_source_sha256": "4c7deb81e2877b7bf9b7c5734d63e4c964bb2ba85f40ea171ba9543ea28a8a6a",
+    "evidence_sha256": "b7aac950c31b086f98f9d33ea8f900e8bb8ca2ba1dbd2b17d11558a5d9229b3f",
+    "artifact_id": 10339127006,
+    "artifact_zip_sha256": "1dce74946564d4eacb84fc23b344cc9fc177b02a8cf8107d1c5acd12b56bdb1c"
+  },
+  "runtime_state_preservation": {
+    "d1_api_calls_performed": false,
+    "owner_credentials_modified": false,
+    "sessions_modified": false,
+    "bootstrap_tokens_modified": false,
+    "customer_rows_modified": false,
+    "billing_rows_modified": false,
+    "workers_dev_enabled": false,
+    "previews_enabled": false
+  },
+  "authority_boundaries": {
+    "authority": "PAPER_SHADOW_ONLY",
+    "live_trading_authorized": false,
+    "manual_paid_entitlement": false,
+    "manual_payment_settlement": false,
+    "profitability": "NOT_YET_CERTIFIED",
+    "superiority": "NOT_CERTIFIED"
+  }
+}
