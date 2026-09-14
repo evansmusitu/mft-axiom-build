@@ -1,0 +1,163 @@
+name: MUSITU Foundry FORGE Cloudflare Policy Audit
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/foundry-forge-cloudflare-policy-audit-20260914.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      CF_API: https://api.cloudflare.com/client/v4
+      EXPECTED_ZONE: mftintelligence.com
+      EXPECTED_ZONE_ID: 5b56528f03948ff5917a5e0cd9f7109e
+      EXPECTED_ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      FORGE_HOST: forge.mftintelligence.com
+    steps:
+      - name: Read Cloudflare security policy only
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$CLOUDFLARE_EMAIL"
+          test -n "$CLOUDFLARE_GLOBAL_API_KEY"
+          python - <<'PY'
+          import json, os, urllib.error, urllib.parse, urllib.request
+          from datetime import datetime, timezone
+
+          base=os.environ['CF_API']
+          zid=os.environ['EXPECTED_ZONE_ID']
+          aid=os.environ['EXPECTED_ACCOUNT_ID']
+          host=os.environ['FORGE_HOST']
+          headers={
+            'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],
+            'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY'],
+            'Content-Type':'application/json',
+            'User-Agent':'MUSITU-Foundry-FORGE-Policy-Audit/1.0',
+          }
+
+          def get(path):
+            req=urllib.request.Request(base+path,headers=headers,method='GET')
+            try:
+              with urllib.request.urlopen(req,timeout=30) as r:
+                body=json.load(r)
+                status=r.status
+            except urllib.error.HTTPError as exc:
+              raw=exc.read()
+              try:
+                body=json.loads(raw.decode('utf-8','replace'))
+              except Exception:
+                body={'success':False,'errors':[{'message':'non_json_error'}]}
+              return {'http_status':exc.code,'success':False,'errors':body.get('errors',[])}
+            return {'http_status':status,'success':bool(body.get('success')),'result':body.get('result'),'errors':body.get('errors',[])}
+
+          zones=get('/zones?name='+urllib.parse.quote(os.environ['EXPECTED_ZONE'])+'&status=active')
+          if not zones.get('success') or len(zones.get('result') or []) != 1:
+            raise SystemExit('canonical_zone_lookup_failed')
+          zone=zones['result'][0]
+          if zone.get('id') != zid or (zone.get('account') or {}).get('id') != aid:
+            raise SystemExit('canonical_zone_identity_mismatch')
+
+          paths={
+            'security_level':f'/zones/{zid}/settings/security_level',
+            'browser_check':f'/zones/{zid}/settings/browser_check',
+            'challenge_ttl':f'/zones/{zid}/settings/challenge_ttl',
+            'bot_management':f'/zones/{zid}/bot_management',
+            'legacy_firewall_rules':f'/zones/{zid}/firewall/rules?per_page=100',
+            'custom_rules_entrypoint':f'/zones/{zid}/rulesets/phases/http_request_firewall_custom/entrypoint',
+            'managed_rules_entrypoint':f'/zones/{zid}/rulesets/phases/http_request_firewall_managed/entrypoint',
+            'rate_limit_entrypoint':f'/zones/{zid}/rulesets/phases/http_ratelimit/entrypoint',
+            'transform_entrypoint':f'/zones/{zid}/rulesets/phases/http_request_late_transform/entrypoint',
+          }
+          raw={name:get(path) for name,path in paths.items()}
+
+          def compact_setting(resp):
+            if not resp.get('success'):
+              return {'http_status':resp.get('http_status'),'success':False,'errors':resp.get('errors',[])}
+            r=resp.get('result') or {}
+            return {'success':True,'id':r.get('id'),'value':r.get('value'),'editable':r.get('editable')}
+
+          challenge_actions={'challenge','managed_challenge','js_challenge','block'}
+          candidate_rules=[]
+
+          def collect_rules(source, result):
+            if isinstance(result,dict):
+              rules=result.get('rules') or []
+            elif isinstance(result,list):
+              rules=result
+            else:
+              rules=[]
+            for rule in rules:
+              action=str(rule.get('action') or '').lower()
+              expr=str(rule.get('expression') or rule.get('filter',{}).get('expression') or '')
+              desc=rule.get('description') or rule.get('name') or ''
+              enabled=rule.get('enabled', True)
+              if action in challenge_actions or host.lower() in expr.lower() or 'forge' in str(desc).lower():
+                candidate_rules.append({
+                  'source':source,
+                  'id':rule.get('id'),
+                  'action':action,
+                  'enabled':enabled,
+                  'description':desc,
+                  'expression':expr,
+                  'ref':rule.get('ref'),
+                })
+
+          for name in ('legacy_firewall_rules','custom_rules_entrypoint','managed_rules_entrypoint','rate_limit_entrypoint'):
+            resp=raw[name]
+            if resp.get('success'):
+              collect_rules(name,resp.get('result'))
+
+          bot=raw['bot_management']
+          bot_summary={'success':False,'http_status':bot.get('http_status'),'errors':bot.get('errors',[])}
+          if bot.get('success'):
+            r=bot.get('result') or {}
+            bot_summary={
+              'success':True,
+              'fight_mode':r.get('fight_mode'),
+              'sbfm_definitely_automated':r.get('sbfm_definitely_automated'),
+              'sbfm_likely_automated':r.get('sbfm_likely_automated'),
+              'sbfm_verified_bots':r.get('sbfm_verified_bots'),
+              'optimize_wordpress':r.get('optimize_wordpress'),
+              'using_latest_model':r.get('using_latest_model'),
+            }
+
+          out={
+            'schema':'musitu.foundry_forge.cloudflare_policy_audit.v1',
+            'observed_at':datetime.now(timezone.utc).isoformat(),
+            'zone':{'id':zid,'account_id':aid,'name':os.environ['EXPECTED_ZONE']},
+            'forge_host':host,
+            'settings':{
+              'security_level':compact_setting(raw['security_level']),
+              'browser_check':compact_setting(raw['browser_check']),
+              'challenge_ttl':compact_setting(raw['challenge_ttl']),
+            },
+            'bot_management':bot_summary,
+            'candidate_challenge_or_forge_rules':candidate_rules,
+            'endpoint_status':{name:{'http_status':resp.get('http_status'),'success':resp.get('success')} for name,resp in raw.items()},
+            'write_performed':False,
+            'production_authorized':False,
+          }
+          text=json.dumps(out,indent=2,sort_keys=True)+'\n'
+          open('foundry-forge-cloudflare-policy-audit.json','w').write(text)
+          print(json.dumps(out,sort_keys=True))
+          PY
+      - name: Seal policy evidence
+        shell: bash
+        run: sha256sum foundry-forge-cloudflare-policy-audit.json > foundry-forge-cloudflare-policy-audit.sha256
+      - uses: actions/upload-artifact@v4
+        with:
+          name: musitu-foundry-forge-cloudflare-policy-audit-20260914
+          path: |
+            foundry-forge-cloudflare-policy-audit.json
+            foundry-forge-cloudflare-policy-audit.sha256
+          retention-days: 7
+          if-no-files-found: error
