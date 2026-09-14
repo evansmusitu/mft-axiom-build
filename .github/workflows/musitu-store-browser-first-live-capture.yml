@@ -41,7 +41,7 @@ jobs:
           set -euo pipefail
           git fetch --no-tags --depth=1 origin "$STORE_BASE_SHA"
           mkdir -p /tmp/musitu-store-sealed-base
-          for name in worker.mjs render.mjs assets.mjs generated-data.mjs; do
+          for name in worker.mjs render.mjs assets.mjs; do
             git show "$STORE_BASE_SHA:store/phase1/web-surface/$name" > "/tmp/musitu-store-sealed-base/$name"
           done
           python3 - <<'PY'
@@ -49,22 +49,28 @@ jobs:
           import hashlib, json
 
           names = ('worker.mjs','render.mjs','assets.mjs','generated-data.mjs')
-          roots = {
-              'live': Path('/tmp/musitu-store-browser-first-live-capture'),
-              'base': Path('/tmp/musitu-store-sealed-base'),
-              'candidate': Path('store/phase1/web-surface'),
-          }
+          live_root = Path('/tmp/musitu-store-browser-first-live-capture')
+          base_root = Path('/tmp/musitu-store-sealed-base')
+          candidate_root = Path('store/phase1/web-surface')
           out = {}
           for name in names:
-              row = {}
-              blobs = {}
-              for label, root in roots.items():
-                  raw = (root / name).read_bytes()
-                  blobs[label] = raw
-                  row[label] = {'sha256': hashlib.sha256(raw).hexdigest(), 'bytes': len(raw)}
-              row['live_equals_base'] = blobs['live'] == blobs['base']
-              row['live_equals_candidate'] = blobs['live'] == blobs['candidate']
-              row['base_equals_candidate'] = blobs['base'] == blobs['candidate']
+              live = (live_root / name).read_bytes()
+              candidate = (candidate_root / name).read_bytes()
+              row = {
+                  'live': {'sha256': hashlib.sha256(live).hexdigest(), 'bytes': len(live)},
+                  'candidate': {'sha256': hashlib.sha256(candidate).hexdigest(), 'bytes': len(candidate)},
+                  'live_equals_candidate': live == candidate,
+              }
+              base_path = base_root / name
+              if base_path.exists():
+                  base = base_path.read_bytes()
+                  row['base'] = {'sha256': hashlib.sha256(base).hexdigest(), 'bytes': len(base)}
+                  row['live_equals_base'] = live == base
+                  row['base_equals_candidate'] = base == candidate
+              else:
+                  row['base'] = None
+                  row['live_equals_base'] = None
+                  row['base_equals_candidate'] = None
               out[name] = row
           Path('/tmp/musitu-store-browser-first-live-capture/comparison.json').write_text(
               json.dumps(out, indent=2, sort_keys=True) + '\n', encoding='utf-8')
