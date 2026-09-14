@@ -414,8 +414,8 @@ class BrowserApplicationContractTests(unittest.TestCase):
         self.assertEqual(MANIFEST["related_applications"], [])
 
     def test_service_worker_caches_app_shell_but_never_session_identity(self):
-        self.assertIn("const CACHE='axiom-browser-application-production-candidate-v1'", SW)
-        self.assertIn("const LEGACY_PHASE14_CACHE='axiom-interface-phase14-candidate-v1'", SW)
+        self.assertIn("const CACHE='axiom-interface-phase14-candidate-v1'", SW)
+        self.assertIn("const SHELL_REVISION='axiom-browser-application-production-candidate-v1'", SW)
         for asset in ["./browser_app.js", "./browser_session.js", "./browser-app.json"]:
             self.assertIn(asset, SW)
         for token in ["/.well-known/axiom-session", "./auth/", "./health", "cache:'no-store'", "response.ok", "text/html"]:
