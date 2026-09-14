@@ -27,7 +27,7 @@ jobs:
       ADMIN_HOST: admin.mftintelligence.com
       ADMIN_WORKER: mft-fmi-admin
       PUBLIC_BASE: https://mft-fmi-global-edge.mft-education-nexus-93f395f5.workers.dev
-      BOOTSTRAP_HASH: 3dfd2d74058edd2bbb91080c2f4a841e2dc17eadd7de1250a7892ee39d17ce88
+      BOOTSTRAP_HASH: e65673ab2f27740c609ae78b1db9a88c706ab01d303c300984f5a6a125abb109
     steps:
       - uses: actions/checkout@v4
       - name: Validate finalizer
