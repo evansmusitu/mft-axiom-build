@@ -1,0 +1,58 @@
+name: MUSITU FMI Admin Route Diagnostic
+
+on:
+  push:
+    paths:
+      - '.github/workflows/fmi-admin-route-diagnostic.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      CF_API: https://api.cloudflare.com/client/v4
+      ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      ADMIN_WORKER: mft-fmi-admin
+    steps:
+      - uses: actions/checkout@v4
+      - name: Probe admin route admission and close temporary endpoint
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json,os,urllib.error,urllib.parse,urllib.request
+          api=os.environ['CF_API'].rstrip('/');aid=os.environ['ACCOUNT_ID'];worker=os.environ['ADMIN_WORKER']
+          h={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY'],'Content-Type':'application/json'}
+          def cf(path,method='GET',obj=None):
+              body=json.dumps(obj,separators=(',',':')).encode() if obj is not None else None
+              req=urllib.request.Request(api+path,headers=h,method=method,data=body)
+              with urllib.request.urlopen(req,timeout=45) as r:return json.loads(r.read() or b'{}').get('result')
+          def get(url):
+              req=urllib.request.Request(url,headers={'Accept':'application/json','User-Agent':'MUSITU-FMI-Admin-Route-Diagnostic/1.0'})
+              try:
+                  with urllib.request.urlopen(req,timeout=30) as r:return r.status,r.read()
+              except urllib.error.HTTPError as e:return e.code,e.read()
+          path=f'/accounts/{aid}/workers/scripts/{urllib.parse.quote(worker,safe="")}/subdomain'
+          try:
+              cf(path,'POST',{'enabled':True,'previews_enabled':False})
+              sub=cf(f'/accounts/{aid}/workers/subdomain') or {};name=str(sub.get('subdomain') or '')
+              if not name:raise RuntimeError('workers subdomain missing')
+              base=f'https://{worker}.{name}.workers.dev'
+              out={}
+              for p in ('/health','/api/session','/api/overview','/api/customers','/api/revenue','/api/usage','/api/system','/api/audit'):
+                  c,b=get(base+p)
+                  try:o=json.loads(b or b'{}')
+                  except Exception:o={}
+                  out[p]={'http':c,'error':o.get('error') if isinstance(o,dict) else None}
+              print(json.dumps({'gate':'FMI_ADMIN_ROUTE_DIAGNOSTIC_PASS','routes':out},sort_keys=True))
+          finally:
+              cf(path,'POST',{'enabled':False,'previews_enabled':False})
+              s=cf(path) or {}
+              if s.get('enabled') is not False or s.get('previews_enabled') is not False:raise RuntimeError('failed to close temporary endpoint')
+          PY
