@@ -1,0 +1,295 @@
+name: MUSITU Foundry FORGE Live Modal Runtime Inspection
+
+on:
+  push:
+    paths:
+      - '.github/workflows/foundry-forge-live-modal-runtime-inspection-20260914.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID }}
+      MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET }}
+      TARGET_APP: musitu-forge-private-staging
+      PUBLIC_ORIGIN: https://forge.mftintelligence.com
+      EXPECTED_PROTOCOL_DIGEST: c9fe2c0dcbc51ed7329aeea8b8d9985c0ccfc70123ac181c755285f1a0fbf3de
+      EXPECTED_FFMPEG_SHA256: e8a8d46f5225f3062cec7c07fb145d58ae73c603cb740dcd5bad34bfb54e455a
+      EXPECTED_FFPROBE_SHA256: cefc5f81c0b18429cdbf8fa5a89e1e9c759235e10f93f9b329ff1b2fdff26f46
+      EXPECTED_ADAPTER_SHA256: 2b72d255e314ec9091f13ecc5c7affdb7702ab5f1ec387179dfdfbbbfd017953
+    steps:
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Install Modal client and resolve exact active container
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$MODAL_TOKEN_ID"
+          test -n "$MODAL_TOKEN_SECRET"
+          python -m pip install --disable-pip-version-check --quiet 'modal>=1.5,<2'
+          python - <<'PY'
+          import modal, os, pathlib
+          app=modal.App.lookup(os.environ['TARGET_APP'], create_if_missing=False)
+          app_id=app.app_id
+          if not isinstance(app_id,str) or not app_id.startswith('ap-'):
+              raise SystemExit('target_app_id_missing')
+          pathlib.Path('/tmp/app-id').write_text(app_id)
+          PY
+          APP_ID="$(cat /tmp/app-id)"
+          modal container list --app-id "$APP_ID" --json > /tmp/containers.json
+          python - <<'PY'
+          import json,pathlib,re
+          doc=json.load(open('/tmp/containers.json'))
+          ids=[]
+          def walk(v):
+              if isinstance(v,str) and re.fullmatch(r'ta-[A-Za-z0-9_-]+',v):
+                  if v not in ids: ids.append(v)
+              elif isinstance(v,dict):
+                  for x in v.values(): walk(x)
+              elif isinstance(v,list):
+                  for x in v: walk(x)
+          walk(doc)
+          if len(ids)!=1:
+              raise SystemExit('expected_exactly_one_active_target_container:'+str(len(ids)))
+          pathlib.Path('/tmp/container-id').write_text(ids[0])
+          print('ACTIVE_TARGET_CONTAINER_RESOLVED=true')
+          PY
+
+      - name: Verify public V46 health remains intact before probe
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import hashlib,json,os,pathlib,ssl,urllib.request
+          req=urllib.request.Request(os.environ['PUBLIC_ORIGIN']+'/v1/health',headers={'Accept':'application/json','User-Agent':'MUSITU-FORGE-live-runtime-inspection/1'})
+          with urllib.request.urlopen(req,context=ssl.create_default_context(),timeout=30) as r:
+              raw=r.read(131073); status=r.status
+          if len(raw)>131072: raise SystemExit('health_response_too_large')
+          x=json.loads(raw)
+          expected={
+              'schema':'musitu.forge.health.v1',
+              'status':'READY',
+              'canonical_service_origin':os.environ['PUBLIC_ORIGIN'],
+              'protocol_digest':os.environ['EXPECTED_PROTOCOL_DIGEST'],
+              'production_authorized':False,
+          }
+          bad={k:(x.get(k),v) for k,v in expected.items() if x.get(k)!=v}
+          if status!=200 or bad: raise SystemExit('public_health_precondition_failed:'+repr({'status':status,'bad':bad}))
+          safe={k:x.get(k) for k in (
+              'schema','status','canonical_service_origin','protocol_digest','custody_uploads_ready',
+              'video_derivation_runtime_configured','field_dataset_admission_configured',
+              'expert_review_projection_configured','fault_episode_submission_configured','production_authorized')}
+          out={'status':status,'body_sha256':hashlib.sha256(raw).hexdigest(),'safe_health':safe,'pass':True}
+          pathlib.Path('/tmp/public-health-before.json').write_text(json.dumps(out,sort_keys=True))
+          print(json.dumps(out,sort_keys=True))
+          PY
+
+      - name: Inspect live container without exposing secret values
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > /tmp/forge_live_probe.py <<'PY'
+          import hashlib,json,os,pathlib,platform,stat,subprocess,sys
+
+          STATE_PREFIX='/var/lib/musitu-forge'
+          RUNTIME_ROOT=pathlib.Path('/opt/forge/runtime')
+
+          def sha(path):
+              h=hashlib.sha256()
+              with path.open('rb') as f:
+                  for chunk in iter(lambda:f.read(1024*1024),b''): h.update(chunk)
+              return h.hexdigest()
+
+          def configured(name):
+              return bool(os.environ.get(name,'').strip())
+
+          def path_meta(name, kind):
+              raw=os.environ.get(name,'').strip()
+              row={'configured':bool(raw)}
+              if not raw: return row
+              p=pathlib.Path(raw).expanduser()
+              row['exists']=p.exists()
+              row['is_symlink']=p.is_symlink()
+              row['under_persistent_mount']=(str(p)==STATE_PREFIX or str(p).startswith(STATE_PREFIX+'/'))
+              if p.exists():
+                  mode=stat.S_IMODE(p.stat().st_mode)
+                  row['owner_only_permissions']=((mode & 0o077)==0)
+                  row['mode_octal']=format(mode,'04o')
+              if kind=='file': row['is_file']=p.is_file()
+              if kind=='directory': row['is_dir']=p.is_dir()
+              return row
+
+          out={
+              'schema':'musitu.foundry_forge.live_modal_runtime_inspection.v1',
+              'write_performed':False,
+              'runtime':{
+                  'python':platform.python_version(),
+                  'machine':platform.machine(),
+                  'system':platform.system(),
+                  'libc':platform.libc_ver(),
+                  'runtime_root_present':RUNTIME_ROOT.is_dir(),
+                  'persistent_mount_present':pathlib.Path(STATE_PREFIX).is_dir(),
+              },
+              'authority_presence':{},
+              'base_paths':{},
+              'capability_roots':{},
+              'media':{},
+              'qualified_core_bindings':{},
+          }
+
+          manifest=RUNTIME_ROOT/'FORGE_DEPLOY_RUNTIME_MANIFEST.json'
+          out['runtime']['manifest_present']=manifest.is_file()
+          if manifest.is_file():
+              raw=manifest.read_bytes()
+              out['runtime']['manifest_sha256']=hashlib.sha256(raw).hexdigest()
+              try:
+                  m=json.loads(raw)
+                  out['runtime']['manifest_safe_projection']={k:m.get(k) for k in (
+                      'schema','python','glibc','protocol_digest','private_signing_material_included','application_commit','source_commit') if k in m}
+              except Exception as exc:
+                  out['runtime']['manifest_parse_error']=type(exc).__name__
+
+          entry=RUNTIME_ROOT/'entrypoint.sh'
+          out['runtime']['entrypoint_present']=entry.is_file()
+          if entry.is_file():
+              out['runtime']['entrypoint_sha256']=sha(entry)
+              out['runtime']['entrypoint_size_bytes']=entry.stat().st_size
+
+          if RUNTIME_ROOT.is_dir():
+              rows=[]
+              for p in sorted(RUNTIME_ROOT.rglob('*')):
+                  if p.is_file() and not p.is_symlink():
+                      rel=p.relative_to(RUNTIME_ROOT).as_posix()
+                      rows.append((rel,p.stat().st_size,sha(p)))
+              digest=hashlib.sha256('\n'.join(f'{a}\t{b}\t{c}' for a,b,c in rows).encode()).hexdigest()
+              out['runtime']['regular_file_count']=len(rows)
+              out['runtime']['regular_file_inventory_sha256']=digest
+
+          for name,kind in (
+              ('FORGE_RELEASE_ROOT','directory'),('FORGE_FIELD_CUSTODY_ROOT','directory'),
+              ('FORGE_ACTIVATION_REGISTRY','file'),('FORGE_SESSION_STATE_ROOT','directory'),
+              ('FORGE_UPLOAD_STATE_ROOT','directory'),('FORGE_QUALIFIED_CORE_ROOT','directory')):
+              out['base_paths'][name]=path_meta(name,kind)
+
+          for name in ('FORGE_ASSIGNMENT_SIGNING_KEY_ID','FORGE_RECEIPT_SIGNING_KEY_ID'):
+              out['authority_presence'][name]={'configured':configured(name)}
+          for name in ('FORGE_ASSIGNMENT_SIGNING_KEY_FILE','FORGE_RECEIPT_SIGNING_KEY_FILE'):
+              out['authority_presence'][name]=path_meta(name,'file')
+
+          for name in (
+              'FORGE_FIELD_DATASET_ROOT','FORGE_EXPERT_CREDENTIAL_CUSTODY_ROOT',
+              'FORGE_EXPERT_REVIEW_CUSTODY_ROOT','FORGE_FAULT_EPISODE_ROOT','FORGE_VIDEO_DERIVATION_ROOT'):
+              out['capability_roots'][name]=path_meta(name,'directory')
+
+          for name in (
+              'FORGE_QUALIFIED_CORE_FIELD_PILOT_SHA256','FORGE_QUALIFIED_CORE_REVIEW_FIELD_PILOT_SHA256',
+              'FORGE_QUALIFIED_CORE_REVIEW_FIELD_DATASET_SHA256','FORGE_QUALIFIED_CORE_FIELD_DATASET_SHA256',
+              'FORGE_QUALIFIED_CORE_FAULT_FIELD_PILOT_SHA256'):
+              value=os.environ.get(name,'').strip().lower()
+              out['qualified_core_bindings'][name]={'configured':bool(value),'valid_sha256_shape':len(value)==64 and all(c in '0123456789abcdef' for c in value) if value else False}
+
+          out['media']['adapter_sha256_configured']=configured('FORGE_VIDEO_DERIVATION_ADAPTER_SHA256')
+          if configured('FORGE_VIDEO_DERIVATION_ADAPTER_SHA256'):
+              out['media']['adapter_matches_v44']=(os.environ['FORGE_VIDEO_DERIVATION_ADAPTER_SHA256'].strip().lower()==os.environ.get('EXPECTED_ADAPTER_SHA256_INTERNAL',''))
+
+          for env_name,label,expected_env in (
+              ('FORGE_FFMPEG_FILE','ffmpeg','EXPECTED_FFMPEG_SHA256_INTERNAL'),
+              ('FORGE_FFPROBE_FILE','ffprobe','EXPECTED_FFPROBE_SHA256_INTERNAL')):
+              raw=os.environ.get(env_name,'').strip()
+              row={'configured':bool(raw)}
+              if raw:
+                  p=pathlib.Path(raw).expanduser()
+                  row['is_file']=p.is_file()
+                  if p.is_file():
+                      row['sha256']=sha(p); row['size_bytes']=p.stat().st_size
+                      row['matches_v44']=row['sha256']==os.environ.get(expected_env,'')
+                      try:
+                          cp=subprocess.run([str(p),'-version'],capture_output=True,text=True,timeout=10,check=False)
+                          row['version_first_line']=(cp.stdout or cp.stderr).splitlines()[0][:300] if (cp.stdout or cp.stderr) else ''
+                          row['version_rc']=cp.returncode
+                      except Exception as exc:
+                          row['version_probe_error']=type(exc).__name__
+              out['media'][label+'_configured_path']=row
+
+          for p,label,expected in (
+              (pathlib.Path('/usr/bin/ffmpeg'),'ffmpeg',os.environ.get('EXPECTED_FFMPEG_SHA256_INTERNAL','')),
+              (pathlib.Path('/usr/bin/ffprobe'),'ffprobe',os.environ.get('EXPECTED_FFPROBE_SHA256_INTERNAL',''))):
+              row={'is_file':p.is_file()}
+              if p.is_file():
+                  row['sha256']=sha(p); row['size_bytes']=p.stat().st_size; row['matches_v44']=row['sha256']==expected
+                  try:
+                      cp=subprocess.run([str(p),'-version'],capture_output=True,text=True,timeout=10,check=False)
+                      row['version_first_line']=(cp.stdout or cp.stderr).splitlines()[0][:300] if (cp.stdout or cp.stderr) else ''
+                  except Exception as exc: row['version_probe_error']=type(exc).__name__
+              out['media']['system_'+label]=row
+
+          print('FORGE_LIVE_RUNTIME_INSPECTION_JSON='+json.dumps(out,sort_keys=True))
+          PY
+          # Expected public qualification hashes are injected only as non-secret constants for comparison.
+          python - <<'PY'
+          import base64,pathlib
+          p=pathlib.Path('/tmp/forge_live_probe.py')
+          text=p.read_text()
+          text=text.replace("import hashlib,json,os,pathlib,platform,stat,subprocess,sys", "import hashlib,json,os,pathlib,platform,stat,subprocess,sys\nos.environ['EXPECTED_FFMPEG_SHA256_INTERNAL']='e8a8d46f5225f3062cec7c07fb145d58ae73c603cb740dcd5bad34bfb54e455a'\nos.environ['EXPECTED_FFPROBE_SHA256_INTERNAL']='cefc5f81c0b18429cdbf8fa5a89e1e9c759235e10f93f9b329ff1b2fdff26f46'\nos.environ['EXPECTED_ADAPTER_SHA256_INTERNAL']='2b72d255e314ec9091f13ecc5c7affdb7702ab5f1ec387179dfdfbbbfd017953'")
+          p.write_text(text)
+          pathlib.Path('/tmp/probe.b64').write_text(base64.b64encode(text.encode()).decode())
+          PY
+          CID="$(cat /tmp/container-id)"
+          PROBE_B64="$(cat /tmp/probe.b64)"
+          modal container exec --no-pty "$CID" python3 -c "import base64;exec(base64.b64decode('$PROBE_B64'))" > /tmp/container-probe.log 2>/tmp/container-probe.err
+          grep '^FORGE_LIVE_RUNTIME_INSPECTION_JSON=' /tmp/container-probe.log | tail -1 | sed 's/^FORGE_LIVE_RUNTIME_INSPECTION_JSON=//' > /tmp/live-runtime.json
+          test -s /tmp/live-runtime.json
+          python -m json.tool /tmp/live-runtime.json
+
+      - name: Seal safe diagnostic artifact
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import hashlib,json,pathlib
+          health=json.loads(pathlib.Path('/tmp/public-health-before.json').read_text())
+          runtime=json.loads(pathlib.Path('/tmp/live-runtime.json').read_text())
+          out={
+              'schema':'musitu.foundry_forge.live_modal_runtime_provenance_audit.v1',
+              'public_health_precondition':health,
+              'runtime_inspection':runtime,
+              'write_performed':False,
+              'private_key_material_exposed':False,
+              'secret_values_exposed':False,
+              'result':'PASS',
+          }
+          pathlib.Path('foundry-forge-live-modal-runtime-inspection.json').write_text(json.dumps(out,indent=2,sort_keys=True)+'\n')
+          PY
+          sha256sum foundry-forge-live-modal-runtime-inspection.json > foundry-forge-live-modal-runtime-inspection.sha256
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: musitu-foundry-forge-live-modal-runtime-inspection-20260914
+          path: |
+            foundry-forge-live-modal-runtime-inspection.json
+            foundry-forge-live-modal-runtime-inspection.sha256
+          retention-days: 14
+          if-no-files-found: error
+
+      - name: Enforce non-mutating inspection verdict
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          x=json.load(open('foundry-forge-live-modal-runtime-inspection.json'))
+          assert x['write_performed'] is False
+          assert x['private_key_material_exposed'] is False
+          assert x['secret_values_exposed'] is False
+          assert x['public_health_precondition']['pass'] is True
+          r=x['runtime_inspection']
+          assert r['runtime']['persistent_mount_present'] is True
+          print('LIVE_MODAL_RUNTIME_INSPECTION_PASS')
+          PY
