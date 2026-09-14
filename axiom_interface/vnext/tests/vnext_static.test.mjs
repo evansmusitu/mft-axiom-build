@@ -49,6 +49,7 @@ test('vNext shell has unique ids and the five-object outcome-first surfaces', as
   assert.match(html, /What do you want accomplished|Ask AXIOM or delegate an outcome/);
   assert.match(html, /project-dialog/);
   assert.match(html, /work-dialog/);
+  assert.match(html, /agent_runtime_ui\.js/);
 });
 
 test('vNext project/work adapter reuses earned stores and keeps fail-closed local boundaries', async () => {
@@ -63,9 +64,22 @@ test('vNext project/work adapter reuses earned stores and keeps fail-closed loca
   assert.doesNotMatch(source, /XMLHttpRequest/);
 });
 
+test('vNext governed agent extension binds earned local stores without widening network authority', async () => {
+  const source = await read('agent_runtime_ui.js');
+  assert.match(source, /ProjectStore/);
+  assert.match(source, /ObservabilityStore/);
+  assert.match(source, /AgentAutomationStore/);
+  assert.match(source, /LOCAL_PREVIEW_ONLY_NO_EXTERNAL_ACTION/);
+  assert.match(source, /toolScopes:\['project\.read'\]/);
+  assert.match(source, /dataScopes:\['project\.metadata'\]/);
+  assert.doesNotMatch(source, /\bfetch\s*\(/);
+  assert.doesNotMatch(source, /XMLHttpRequest/);
+  assert.doesNotMatch(source, /WebSocket\s*\(/);
+});
+
 test('vNext application does not introduce direct network execution', async () => {
-  const [app, adapter, registry] = await Promise.all([read('app.js'), read('data_adapters.js'), read('capability_registry.js')]);
-  for (const [name, source] of [['app.js',app],['data_adapters.js',adapter],['capability_registry.js',registry]]) {
+  const [app, adapter, registry, agents] = await Promise.all([read('app.js'), read('data_adapters.js'), read('capability_registry.js'), read('agent_runtime_ui.js')]);
+  for (const [name, source] of [['app.js',app],['data_adapters.js',adapter],['capability_registry.js',registry],['agent_runtime_ui.js',agents]]) {
     assert.doesNotMatch(source, /\bfetch\s*\(/, `${name} introduced direct fetch`);
     assert.doesNotMatch(source, /XMLHttpRequest/, `${name} introduced XHR`);
     assert.doesNotMatch(source, /WebSocket\s*\(/, `${name} introduced WebSocket`);

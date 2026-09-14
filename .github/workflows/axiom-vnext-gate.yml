@@ -9,6 +9,9 @@ on:
       - 'axiom_interface/projects.js'
       - 'axiom_interface/outcome_contracts.js'
       - 'axiom_interface/browser_session.js'
+      - 'axiom_interface/agent_store.js'
+      - 'axiom_interface/agent_security.js'
+      - 'axiom_interface/observability.js'
       - '.github/workflows/axiom-vnext-gate.yml'
   pull_request:
     paths:
@@ -16,6 +19,9 @@ on:
       - 'axiom_interface/projects.js'
       - 'axiom_interface/outcome_contracts.js'
       - 'axiom_interface/browser_session.js'
+      - 'axiom_interface/agent_store.js'
+      - 'axiom_interface/agent_security.js'
+      - 'axiom_interface/observability.js'
       - '.github/workflows/axiom-vnext-gate.yml'
 
 permissions:
@@ -37,5 +43,6 @@ jobs:
           node --check axiom_interface/vnext/app.js
           node --check axiom_interface/vnext/capability_registry.js
           node --check axiom_interface/vnext/data_adapters.js
+          node --check axiom_interface/vnext/agent_runtime_ui.js
       - name: vNext boundary and registry tests
         run: node --test axiom_interface/vnext/tests/vnext_static.test.mjs
