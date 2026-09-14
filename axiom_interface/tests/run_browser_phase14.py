@@ -33,16 +33,17 @@ def emulate_constrained_network(session, *, offline: bool) -> None:
     the same offline bit to both layers so neither can leave navigator.onLine
     reporting an online state while requests are expected to fail closed.
     """
-    session.send(
-        "Network.emulateNetworkConditions",
-        {
-            "offline": offline,
-            "latency": 0 if offline else 400,
-            "downloadThroughput": 0 if offline else 50 * 1024,
-            "uploadThroughput": 0 if offline else 20 * 1024,
-            "connectionType": "none" if offline else "cellular3g",
-        },
-    )
+    conditions = {
+        "offline": offline,
+        "latency": 0 if offline else 400,
+        "downloadThroughput": 0 if offline else 50 * 1024,
+        "uploadThroughput": 0 if offline else 20 * 1024,
+        "connectionType": "none" if offline else "cellular3g",
+    }
+    # Chromium split request throttling from navigator state.  Exercise both:
+    # requests must fail offline and the application must observe onLine=false.
+    session.send("Network.emulateNetworkConditions", conditions)
+    session.send("Network.overrideNetworkState", conditions)
 
 
 def prepare_context(browser, viewport):

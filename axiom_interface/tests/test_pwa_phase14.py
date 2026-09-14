@@ -14,6 +14,7 @@ CSS = (ROOT / "styles/pwa.css").read_text(encoding="utf-8")
 SW = (ROOT / "sw.js").read_text(encoding="utf-8")
 MANIFEST = json.loads((ROOT / "manifest.webmanifest").read_text(encoding="utf-8"))
 SURFACE = json.loads((ROOT / "surface-map.json").read_text(encoding="utf-8"))
+BROWSER = (ROOT / "tests/run_browser_phase14.py").read_text(encoding="utf-8")
 
 
 class Phase14PwaContractTests(unittest.TestCase):
@@ -50,6 +51,12 @@ class Phase14PwaContractTests(unittest.TestCase):
         self.assertIn("min-height:3rem", CSS)
         self.assertIn("prefers-reduced-motion:reduce", CSS)
 
+    def test_browser_matrix_aligns_transport_and_navigator_offline_state(self):
+        self.assertIn('context.set_offline(True)', BROWSER)
+        self.assertIn('"Network.emulateNetworkConditions"', BROWSER)
+        self.assertIn('"Network.overrideNetworkState"', BROWSER)
+        self.assertIn('assert page.evaluate("()=>navigator.onLine") is False', BROWSER)
+
     def test_real_device_boundary_is_fail_closed(self):
         for token in ["BROWSER_EMULATED_MID_TIER_AND_CONSTRAINED_NETWORK_CANDIDATE_ONLY", "AUTHENTICATED_REAL_MID_TIER_DEVICE_MATRIX_REQUIRED_FOR_PHASE14_SEAL", "real_device_certification_claimed:false", "phase14_earned:false"]:
             self.assertIn(token, SEC + RUNTIME)
@@ -81,4 +88,3 @@ class Phase14PwaContractTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
-
