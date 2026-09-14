@@ -16,6 +16,7 @@ env:
   STORE_WORKER: musitu-store-phase1
   EXPECTED_COMPATIBILITY_DATE: '2026-09-09'
   LIVE_MODULE_OUTPUT: /tmp/musitu-store-browser-first-live-capture
+  STORE_BASE_SHA: 124f025aaab0cd9c02a3a5dc26b4a4a8fa5091ec
 
 jobs:
   exact-live-capture:
@@ -30,6 +31,50 @@ jobs:
           CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
           CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
         run: python3 store/phase2/capture_live_store_worker_unpinned.py
+
+      - name: Build current verified Store data
+        run: python3 store/phase1/web-surface/build_store_data.py
+
+      - name: Compare live bytes with sealed base and browser-first candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --no-tags --depth=1 origin "$STORE_BASE_SHA"
+          mkdir -p /tmp/musitu-store-sealed-base
+          for name in worker.mjs render.mjs assets.mjs generated-data.mjs; do
+            git show "$STORE_BASE_SHA:store/phase1/web-surface/$name" > "/tmp/musitu-store-sealed-base/$name"
+          done
+          python3 - <<'PY'
+          from pathlib import Path
+          import hashlib, json
+
+          names = ('worker.mjs','render.mjs','assets.mjs','generated-data.mjs')
+          roots = {
+              'live': Path('/tmp/musitu-store-browser-first-live-capture'),
+              'base': Path('/tmp/musitu-store-sealed-base'),
+              'candidate': Path('store/phase1/web-surface'),
+          }
+          out = {}
+          for name in names:
+              row = {}
+              blobs = {}
+              for label, root in roots.items():
+                  raw = (root / name).read_bytes()
+                  blobs[label] = raw
+                  row[label] = {'sha256': hashlib.sha256(raw).hexdigest(), 'bytes': len(raw)}
+              row['live_equals_base'] = blobs['live'] == blobs['base']
+              row['live_equals_candidate'] = blobs['live'] == blobs['candidate']
+              row['base_equals_candidate'] = blobs['base'] == blobs['candidate']
+              out[name] = row
+          Path('/tmp/musitu-store-browser-first-live-capture/comparison.json').write_text(
+              json.dumps(out, indent=2, sort_keys=True) + '\n', encoding='utf-8')
+          print(json.dumps(out, indent=2, sort_keys=True))
+          PY
+
+          for name in worker.mjs render.mjs; do
+            echo "===== SEALED BASE -> CURRENT LIVE DIFF: $name ====="
+            diff -u "/tmp/musitu-store-sealed-base/$name" "$LIVE_MODULE_OUTPUT/$name" | head -n 300 || true
+          done
 
       - name: Upload exact live capture evidence
         uses: actions/upload-artifact@v4
