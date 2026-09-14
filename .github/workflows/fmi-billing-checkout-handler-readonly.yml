@@ -1,0 +1,44 @@
+name: MUSITU FMI Billing Checkout Handler Read-Only
+
+on:
+  push:
+    branches: [fmi-revenue-certification-20260913]
+    paths:
+      - 'scripts/fmi_billing_checkout_handler_readonly.py'
+      - '.github/workflows/fmi-billing-checkout-handler-readonly.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      CF_API: https://api.cloudflare.com/client/v4
+      ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+      CLOUDFLARE_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Require protected Cloudflare credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$CLOUDFLARE_EMAIL"
+          test -n "$CLOUDFLARE_API_KEY"
+      - name: Resolve live FMI billing checkout handler read-only
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/fmi_billing_checkout_handler_readonly.py
+      - uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: musitu-fmi-billing-checkout-handler-readonly
+          path: |
+            fmi-billing-checkout-handler-readonly.json
+            fmi-billing-checkout-handler-readonly.sha256
+          retention-days: 30
+          if-no-files-found: error
