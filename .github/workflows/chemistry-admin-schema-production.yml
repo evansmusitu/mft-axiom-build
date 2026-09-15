@@ -1,0 +1,103 @@
+name: MUSITU Chemistry Admin Schema Production
+
+on:
+  push:
+    paths:
+      - '.github/workflows/chemistry-admin-schema-production.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      CF_API: https://api.cloudflare.com/client/v4
+      ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      DB_ID: e148cbce-1b00-4d07-bb58-c1d56a4af0c7
+      COMMERCE_WORKER: musitu-chemistry-commerce
+      EXPECTED_WORKER_SHA: d6ad30d11205a0bfaff008aeb3e9ae46075518186e7c717ba82b5a9e6c3bc567
+      EXPECTED_SCHEMA_SHA: a45e7b4c2c1f5972240429aad2303b625f1ff7012f2a5941f3ca0161290f6c88
+    steps:
+      - uses: actions/checkout@v4
+      - name: Apply fail-closed additive migration
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p evidence-out
+          python - <<'PY'
+          import email,hashlib,json,os,re,sqlite3,urllib.error,urllib.parse,urllib.request
+          from pathlib import Path
+          API=os.environ['CF_API'];A=os.environ['ACCOUNT_ID'];DB=os.environ['DB_ID'];W=os.environ['COMMERCE_WORKER']
+          H={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY'],'Content-Type':'application/json','User-Agent':'MUSITU-Admin-Schema-Production/1.0'}
+          def call(path,method='GET',obj=None):
+              data=None if obj is None else json.dumps(obj).encode();q=urllib.request.Request(API+path,method=method,headers=H,data=data)
+              try:
+                  with urllib.request.urlopen(q,timeout=45) as r:return r.status,r.headers.get('content-type',''),r.read()
+              except urllib.error.HTTPError as e:return e.code,e.headers.get('content-type',''),e.read()
+          def d1(sql):
+              c,_,raw=call(f'/accounts/{A}/d1/database/{DB}/query','POST',{'sql':sql})
+              if c!=200:raise RuntimeError(f'D1 HTTP {c}: {raw[:300]!r}')
+              d=json.loads(raw or b'{}');res=d.get('result') or []
+              if d.get('success') is False or not res or not all(x.get('success') is True for x in res):raise RuntimeError('D1 statement failed: '+repr(d)[:1000])
+              rows=[]
+              for x in res:rows.extend(x.get('results') or [])
+              return rows
+          # Pin production Worker before touching its database.
+          c,ct,raw=call(f'/accounts/{A}/workers/scripts/{urllib.parse.quote(W,safe="")}')
+          if c!=200:raise SystemExit('Commerce Worker read failed')
+          if 'multipart/' in ct.lower():
+              msg=email.message_from_bytes((f'Content-Type: {ct}\r\nMIME-Version: 1.0\r\n\r\n').encode()+raw);parts=[]
+              for p in msg.walk():
+                  if p.is_multipart():continue
+                  b=p.get_payload(decode=True) or b''
+                  if b'MUSITU Chemistry Commerce' in b:parts.append(b)
+              if len(parts)!=1:raise SystemExit('Commerce module extraction mismatch')
+              raw=parts[0]
+          worker_sha=hashlib.sha256(raw).hexdigest()
+          if worker_sha!=os.environ['EXPECTED_WORKER_SHA']:raise SystemExit('Commerce Worker drift '+worker_sha)
+          sql=Path('commerce/chemistry/admin_schema_v1.sql').read_text();schema_sha=hashlib.sha256(sql.encode()).hexdigest()
+          if schema_sha!=os.environ['EXPECTED_SCHEMA_SHA']:raise SystemExit('Admin schema source drift '+schema_sha)
+          for pat in [r'\bDROP\b',r'\bALTER\b',r'\bDELETE\b',r'\bUPDATE\b',r'\bTRUNCATE\b']:
+              if re.search(pat,sql,re.I):raise SystemExit('destructive migration token '+pat)
+          base=['chemistry_orders','chemistry_seats','chemistry_provider_events','chemistry_field_aggregate']
+          before={t:d1(f'PRAGMA table_info({t})') for t in base}
+          if any(not v for v in before.values()):raise SystemExit('baseline Commerce table missing')
+          before_tables=[x.get('name') for x in d1("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' AND name NOT LIKE '_cf_%' ORDER BY name")]
+          # sqlite3.complete_statement understands the trigger BEGIN/END body and avoids unsafe semicolon splitting.
+          statements=[];buf=''
+          for line in sql.splitlines(True):
+              buf+=line
+              if sqlite3.complete_statement(buf):
+                  st=buf.strip();buf=''
+                  if st:statements.append(st)
+          if buf.strip():raise SystemExit('incomplete SQL statement tail')
+          if not statements or len(statements)>80:raise SystemExit('unexpected migration statement count '+str(len(statements)))
+          executed=[]
+          for i,st in enumerate(statements,1):
+              d1(st);executed.append({'index':i,'sha256':hashlib.sha256(st.encode()).hexdigest(),'prefix':st.splitlines()[0][:80]})
+          after={t:d1(f'PRAGMA table_info({t})') for t in base}
+          if before!=after:raise SystemExit('existing Commerce schema changed')
+          after_tables=[x.get('name') for x in d1("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' AND name NOT LIKE '_cf_%' ORDER BY name")]
+          required={'chemistry_admin_schema','chemistry_admin_users','chemistry_customers','chemistry_customer_orders','chemistry_cash_sessions','chemistry_payments','chemistry_receipts','chemistry_support_notes','chemistry_device_events','chemistry_adjustments','chemistry_access_controls','chemistry_admin_audit'}
+          if required-set(after_tables):raise SystemExit('required admin tables missing '+repr(sorted(required-set(after_tables))))
+          version=d1('SELECT version,applied_at FROM chemistry_admin_schema WHERE version=1')
+          if len(version)!=1:raise SystemExit('admin schema version not sealed')
+          trigger=d1("SELECT name,sql FROM sqlite_master WHERE type='trigger' AND name='trg_chem_admin_audit_chain'")
+          if len(trigger)!=1 or 'audit_chain_conflict' not in str(trigger[0].get('sql') or ''):raise SystemExit('audit chain trigger missing')
+          counts={t:int((d1(f'SELECT count(*) n FROM {t}') or [{}])[0].get('n') or 0) for t in required if t!='chemistry_admin_schema'}
+          report={'schema':'musitu.chemistry.admin.schema_production.v1','gate':'MUSITU_ADMIN_SCHEMA_PRODUCTION_PASS','commerce_worker_sha256':worker_sha,'schema_sha256':schema_sha,'database_id':DB,'before_tables':before_tables,'after_tables':after_tables,'baseline_tables_unchanged':True,'required_admin_tables':sorted(required),'audit_chain_trigger':True,'statement_count':len(statements),'statement_digests':executed,'admin_row_counts_after':counts,'production_mutation':True,'existing_customer_rows_modified':False}
+          Path('evidence-out/production-schema.json').write_text(json.dumps(report,indent=2,sort_keys=True)+'\n');Path('evidence-out/SHA256SUMS.txt').write_text(hashlib.sha256(Path('evidence-out/production-schema.json').read_bytes()).hexdigest()+'  production-schema.json\n')
+          print(json.dumps(report,sort_keys=True));print('MUSITU_ADMIN_SCHEMA_PRODUCTION=PASS')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: musitu-chemistry-admin-schema-production-evidence
+          path: evidence-out
+          retention-days: 90
+          if-no-files-found: error
