@@ -1,0 +1,80 @@
+name: MUSITU FOUNDRY FORGE Sealed CPython 3.12.13 Core Recovery
+
+on:
+  push:
+    branches:
+      - foundry-forge-v44-modal-candidate-20260915
+    paths:
+      - '.github/workflows/foundry-forge-cpython31213-core-recovery-20260915.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  recover-sealed-core:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12.13'
+
+      - name: Verify sealed executable core and package it
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROOT=/opt/hostedtoolcache/Python/3.12.13/x64
+          test -x "$ROOT/bin/python3.12"
+          test "$($ROOT/bin/python3.12 -c 'import platform; print(platform.python_version())')" = '3.12.13'
+          python - <<'PY'
+          import hashlib,json,os,pathlib,stat
+          root=pathlib.Path('/opt/hostedtoolcache/Python/3.12.13/x64')
+          paths=[]
+          for p in root.rglob('*'):
+              rel=p.relative_to(root).as_posix()
+              ok=(rel=='bin/python3.12' or rel=='lib/libpython3.12.so.1.0' or rel.startswith('lib/python3.12/'))
+              if not ok: continue
+              if rel=='lib/python3.12/site-packages' or rel.startswith('lib/python3.12/site-packages/'): continue
+              if '/__pycache__/' in rel or rel.endswith('/__pycache__') or rel.endswith('.pyc'): continue
+              paths.append(p)
+          rows=[]; total=files=dirs=syms=0
+          for p in sorted(paths,key=lambda x:x.as_posix()):
+              rel=p.relative_to(root).as_posix(); st=p.lstat(); mode=stat.S_IMODE(st.st_mode)
+              if p.is_symlink(): rows.append({'p':rel,'t':'l','m':mode,'v':os.readlink(p)}); syms+=1
+              elif p.is_file():
+                  h=hashlib.sha256()
+                  with p.open('rb') as fh:
+                      for b in iter(lambda:fh.read(1<<20),b''): h.update(b)
+                  rows.append({'p':rel,'t':'f','m':mode,'s':st.st_size,'h':h.hexdigest()}); total+=st.st_size; files+=1
+              elif p.is_dir(): rows.append({'p':rel,'t':'d','m':mode}); dirs+=1
+          raw=json.dumps(rows,sort_keys=True,separators=(',',':')).encode(); digest=hashlib.sha256(raw).hexdigest()
+          actual={'entry_count':len(rows),'file_count':files,'directory_count':dirs,'symlink_count':syms,'file_bytes':total,'manifest_sha256':digest}
+          expected={'entry_count':2678,'file_count':2482,'directory_count':196,'symlink_count':0,'file_bytes':157489890,'manifest_sha256':'54b1c9b33274d26c38d94239e41e183efc476c7fcfc559909bb099dea4fb954b'}
+          core={'bin/python3.12':'edcdaf07e49bb241cbccb0f18fdb2c8f2e6e1be36a583fce9fc703894d814238','lib/libpython3.12.so.1.0':'5aa44491272f12bef15eff72c37b94f58898e00876712f991684bb4258010339'}
+          for rel,exp in core.items():
+              got=hashlib.sha256((root/rel).read_bytes()).hexdigest()
+              if got!=exp: raise SystemExit('sealed_core_hash_mismatch:'+rel+':'+got)
+          if actual!=expected: raise SystemExit('sealed_core_manifest_mismatch:'+json.dumps(actual,sort_keys=True))
+          report={'schema':'musitu.forge.cpython31213_sealed_core_recovery.v1','python_version':'3.12.13','expected':expected,'actual':actual,'core_sha256':core,'site_packages_included':False,'gate':'PASS'}
+          pathlib.Path('cpython31213-core-report.json').write_text(json.dumps(report,indent=2,sort_keys=True)+'\n')
+          pathlib.Path('/tmp/core-files.txt').write_text('\n'.join(r['p'] for r in rows if r['t']=='f')+'\n')
+          pathlib.Path('/tmp/core-dirs.txt').write_text('\n'.join(r['p'] for r in rows if r['t']=='d')+'\n')
+          PY
+          mkdir -p cpython-core/x64
+          while IFS= read -r d; do mkdir -p "cpython-core/x64/$d"; done < /tmp/core-dirs.txt
+          while IFS= read -r f; do mkdir -p "cpython-core/x64/$(dirname "$f")"; cp -a "$ROOT/$f" "cpython-core/x64/$f"; done < /tmp/core-files.txt
+          tar -C cpython-core -czf cpython31213-sealed-core.tgz x64
+          sha256sum cpython31213-sealed-core.tgz > cpython31213-sealed-core.tgz.sha256
+          echo 'CPYTHON31213_SEALED_CORE=PASS'
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: musitu-forge-cpython31213-sealed-core-20260915
+          path: |
+            cpython31213-sealed-core.tgz
+            cpython31213-sealed-core.tgz.sha256
+            cpython31213-core-report.json
+          retention-days: 14
+          if-no-files-found: error
