@@ -1,0 +1,301 @@
+name: MUSITU FOUNDRY FORGE V47 Edge Cutover Preflight
+
+on:
+  push:
+    branches:
+      - foundry-forge-v44-modal-candidate-20260915
+    paths:
+      - '.github/workflows/foundry-forge-v47-edge-cutover-preflight-20260915.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  preflight:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      CF_API: https://api.cloudflare.com/client/v4
+      CLOUDFLARE_ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+      CLOUDFLARE_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+      MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID }}
+      MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET }}
+      WORKER_NAME: musitu-forge-edge
+      PUBLIC_ORIGIN: https://forge.mftintelligence.com
+      CANDIDATE_APP: musitu-forge-v44-media-candidate
+      EXPECTED_WORKER_SOURCE_SHA256: fa5c9e21800e31689c86a6059cf540a50f591318d082429b891bd91eb9dc9504
+      EXPECTED_OLD_MODAL_ORIGIN_SHA256: 68d869d065ea4d4fee0e28fc65f862f5e5b24cc2b71088a7201185e3d9e723bd
+      PROTOCOL_DIGEST: c9fe2c0dcbc51ed7329aeea8b8d9985c0ccfc70123ac181c755285f1a0fbf3de
+      SOURCE_COMMIT: f0e805ae298b4720f9263dc15d10f4864b385669
+      CPYTHON_CORE_MANIFEST_SHA256: 54b1c9b33274d26c38d94239e41e183efc476c7fcfc559909bb099dea4fb954b
+      CPYTHON_BIN_SHA256: edcdaf07e49bb241cbccb0f18fdb2c8f2e6e1be36a583fce9fc703894d814238
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12.13'
+
+      - name: Install read-only control-plane client
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$CLOUDFLARE_EMAIL"
+          test -n "$CLOUDFLARE_API_KEY"
+          test -n "$MODAL_TOKEN_ID"
+          test -n "$MODAL_TOKEN_SECRET"
+          python -m pip install --disable-pip-version-check --quiet 'modal==1.5.5'
+          modal app list --json >/dev/null
+
+      - name: Snapshot exact live Worker and settings without writing
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import hashlib,json,os,pathlib,urllib.request
+          from email.parser import BytesParser
+          from email.policy import default
+
+          h={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_API_KEY']}
+          root=f"{os.environ['CF_API']}/accounts/{os.environ['CLOUDFLARE_ACCOUNT_ID']}/workers/scripts/{os.environ['WORKER_NAME']}"
+          with urllib.request.urlopen(urllib.request.Request(root,headers=h),timeout=30) as r:
+              raw=r.read(); ctype=r.headers.get('Content-Type','')
+          if 'multipart/' not in ctype.lower(): raise SystemExit('worker_not_multipart')
+          msg=BytesParser(policy=default).parsebytes((f'Content-Type: {ctype}\r\nMIME-Version: 1.0\r\n\r\n').encode()+raw)
+          candidates=[]
+          for part in msg.iter_parts():
+              payload=part.get_payload(decode=True) or b''
+              name=part.get_param('name',header='content-disposition') or part.get_filename() or ''
+              ptype=part.get_content_type()
+              if ptype in ('application/javascript','text/javascript','application/typescript','text/plain','application/javascript+module','text/javascript+module') or name.endswith(('.js','.mjs','.ts')):
+                  candidates.append((name,ptype,payload))
+          if not candidates: raise SystemExit('worker_source_part_not_found')
+          source_name,source_type,source=max(candidates,key=lambda x:len(x[2]))
+          source_sha=hashlib.sha256(source).hexdigest()
+          if source_sha!=os.environ['EXPECTED_WORKER_SOURCE_SHA256']:
+              raise SystemExit('worker_source_precondition_changed:'+source_sha)
+
+          with urllib.request.urlopen(urllib.request.Request(root+'/settings',headers=h),timeout=30) as r:
+              obj=json.load(r)
+          if not obj.get('success'): raise SystemExit('worker_settings_read_failed')
+          sr=obj.get('result') or {}; rows=sr.get('bindings') or []
+          by={b.get('name'):b for b in rows if isinstance(b,dict) and b.get('name')}
+          required={'FORGE_DB','FORGE_EDGE_RPM_LIMIT','FORGE_PROTOCOL_DIGEST','MODAL_KEY','MODAL_ORIGIN','MODAL_SECRET'}
+          if set(by)!=required: raise SystemExit('worker_binding_set_changed:'+repr(sorted(by)))
+          if by['FORGE_DB'].get('type') not in ('d1','d1_database'): raise SystemExit('forge_db_binding_type_changed')
+          dbid=by['FORGE_DB'].get('id') or by['FORGE_DB'].get('database_id') or by['FORGE_DB'].get('namespace_id')
+          if not dbid: raise SystemExit('forge_db_id_missing')
+          if by['MODAL_KEY'].get('type') not in ('secret_text','secret') or by['MODAL_SECRET'].get('type') not in ('secret_text','secret'):
+              raise SystemExit('modal_secret_binding_type_changed')
+          def text(name):
+              b=by[name]; return b.get('text') if b.get('text') is not None else b.get('value')
+          origin=text('MODAL_ORIGIN')
+          protocol=text('FORGE_PROTOCOL_DIGEST')
+          rpm=text('FORGE_EDGE_RPM_LIMIT')
+          if not isinstance(origin,str) or not origin.startswith('https://'): raise SystemExit('modal_origin_missing')
+          origin_sha=hashlib.sha256(origin.encode()).hexdigest()
+          if origin_sha!=os.environ['EXPECTED_OLD_MODAL_ORIGIN_SHA256']: raise SystemExit('old_modal_origin_changed:'+origin_sha)
+          if protocol!=os.environ['PROTOCOL_DIGEST']: raise SystemExit('edge_protocol_digest_changed')
+          if str(rpm)!='600': raise SystemExit('edge_rpm_limit_changed:'+repr(rpm))
+          pathlib.Path('/tmp/old-modal-origin').write_text(origin)
+          os.chmod('/tmp/old-modal-origin',0o600)
+          safe_bindings=[]
+          for name in sorted(by):
+              b=by[name]; row={'name':name,'type':b.get('type')}
+              if name=='FORGE_DB': row['database_id']=dbid
+              elif name in ('FORGE_EDGE_RPM_LIMIT','FORGE_PROTOCOL_DIGEST','MODAL_ORIGIN'):
+                  v=text(name); row['value_sha256']=hashlib.sha256(str(v).encode()).hexdigest(); row['value_length']=len(str(v))
+              safe_bindings.append(row)
+          safe_settings={
+              'bindings':safe_bindings,
+              'compatibility_date':sr.get('compatibility_date'),
+              'compatibility_flags':sr.get('compatibility_flags'),
+              'usage_model':sr.get('usage_model'),
+              'logpush':sr.get('logpush'),
+              'tail_consumers':sr.get('tail_consumers'),
+              'placement':sr.get('placement'),
+              'limits':sr.get('limits'),
+              'observability':sr.get('observability'),
+          }
+          raw_safe=json.dumps(safe_settings,sort_keys=True,separators=(',',':')).encode()
+          out={
+              'worker_source_name':source_name,
+              'worker_source_type':source_type,
+              'worker_source_sha256':source_sha,
+              'worker_source_size':len(source),
+              'worker_raw_sha256':hashlib.sha256(raw).hexdigest(),
+              'settings_fingerprint_sha256':hashlib.sha256(raw_safe).hexdigest(),
+              'settings':safe_settings,
+              'old_modal_origin_sha256':origin_sha,
+              'd1_database_id':dbid,
+          }
+          pathlib.Path('/tmp/live-edge-snapshot.json').write_text(json.dumps(out,indent=2,sort_keys=True)+'\n')
+          print(json.dumps({'worker_source_sha256':source_sha,'settings_fingerprint_sha256':out['settings_fingerprint_sha256'],'old_modal_origin_sha256':origin_sha,'binding_names':sorted(by),'precondition':'PASS'},sort_keys=True))
+          PY
+
+      - name: Resolve and verify exact-target isolated candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import hashlib,json,modal,os,pathlib
+          url=modal.Function.from_name(os.environ['CANDIDATE_APP'],'forge_custody').get_web_url()
+          if not url or not url.startswith('https://'): raise SystemExit('candidate_url_missing')
+          r=modal.Function.from_name(os.environ['CANDIDATE_APP'],'runtime_probe').remote()
+          if r.get('source_commit')!=os.environ['SOURCE_COMMIT']: raise SystemExit('candidate_source_commit_mismatch')
+          if r.get('source_manifest_ok') is not True or r.get('bad_files'): raise SystemExit('candidate_source_manifest_failed')
+          if r.get('protocol_digest')!=os.environ['PROTOCOL_DIGEST']: raise SystemExit('candidate_protocol_mismatch')
+          if r.get('production_authorized') is not False: raise SystemExit('candidate_truth_boundary_failed')
+          b=r.get('backend_python') or {}
+          if b.get('python')!='3.12.13' or b.get('machine')!='x86_64' or list(b.get('libc') or [])!=['glibc','2.39']:
+              raise SystemExit('candidate_exact_backend_mismatch:'+repr(b))
+          if b.get('packages')!={'cryptography':'50.0.1','cffi':'2.1.1','pycparser':'3.0'}:
+              raise SystemExit('candidate_backend_packages_mismatch:'+repr(b.get('packages')))
+          overlay=r.get('candidate_overlay_git_blobs') or {}
+          if overlay!={
+              'derived_field_dataset_admission.py':'f570400ea59c8fa9426c247a4345299b6db1c020',
+              'derived_upload_custody.py':'00a36b90604c93d39ca67fdfa579393a266fd868',
+              'video_derivation_v2.py':'6f85e82ea447d3e9ebc4c77feaa55a6a6a684f1f',
+          }: raise SystemExit('candidate_overlay_mismatch')
+          media=r.get('candidate_media') or {}
+          if media.get('ffmpeg_sha256')!='e8a8d46f5225f3062cec7c07fb145d58ae73c603cb740dcd5bad34bfb54e455a': raise SystemExit('candidate_ffmpeg_mismatch')
+          if media.get('ffprobe_sha256')!='cefc5f81c0b18429cdbf8fa5a89e1e9c759235e10f93f9b329ff1b2fdff26f46': raise SystemExit('candidate_ffprobe_mismatch')
+          pathlib.Path('/tmp/candidate-origin').write_text(url); os.chmod('/tmp/candidate-origin',0o600)
+          pathlib.Path('/tmp/candidate-probe.json').write_text(json.dumps(r,indent=2,sort_keys=True)+'\n')
+          print(json.dumps({'candidate_origin_sha256':hashlib.sha256(url.encode()).hexdigest(),'backend_python':b,'candidate_probe':'PASS'},sort_keys=True))
+          PY
+
+      - name: Create ephemeral workspace proxy token and prove both origins
+        shell: bash
+        run: |
+          set -euo pipefail
+          modal workspace proxy-tokens create --json >/tmp/proxy.json
+          python - <<'PY'
+          import json,pathlib
+          obj=json.load(open('/tmp/proxy.json')); vals=[]
+          def walk(x):
+              if isinstance(x,dict):
+                  for v in x.values(): walk(v)
+              elif isinstance(x,list):
+                  for v in x: walk(v)
+              elif isinstance(x,str): vals.append(x)
+          walk(obj); keys=[x for x in vals if x.startswith('wk-')]; secs=[x for x in vals if x.startswith('ws-')]
+          if len(keys)!=1 or len(secs)!=1: raise SystemExit('proxy_token_shape_invalid')
+          pathlib.Path('/tmp/proxy-key').write_text(keys[0]); pathlib.Path('/tmp/proxy-secret').write_text(secs[0])
+          PY
+          chmod 600 /tmp/proxy-key /tmp/proxy-secret
+          echo "::add-mask::$(cat /tmp/proxy-key)"
+          echo "::add-mask::$(cat /tmp/proxy-secret)"
+          echo PROXY_CREATED=1 >> "$GITHUB_ENV"
+          KEY="$(cat /tmp/proxy-key)"; SECRET="$(cat /tmp/proxy-secret)"
+          OLD="$(cat /tmp/old-modal-origin)"; CAND="$(cat /tmp/candidate-origin)"
+          for spec in old candidate; do
+            if [ "$spec" = old ]; then URL="$OLD"; else URL="$CAND"; fi
+            anon="$(curl -sS --max-time 30 -o "/tmp/${spec}-anon.body" -w '%{http_code}' "$URL/v1/health" || true)"
+            if [ "$anon" != 401 ] && [ "$anon" != 403 ]; then echo "${spec}_anonymous_boundary_failed_http_${anon}" >&2; exit 1; fi
+            code=000
+            for i in $(seq 1 45); do
+              code="$(curl -sS --max-time 30 -o "/tmp/${spec}-health.json" -w '%{http_code}' -H "Modal-Key: $KEY" -H "Modal-Secret: $SECRET" "$URL/v1/health" || true)"
+              [ "$code" = 200 ] && break
+              [ "$code" = 503 ] || { echo "${spec}_authenticated_health_http_${code}" >&2; cat "/tmp/${spec}-health.json" >&2 || true; exit 1; }
+              sleep 2
+            done
+            test "$code" = 200
+          done
+          python - <<'PY'
+          import json
+          old=json.load(open('/tmp/old-health.json')); cand=json.load(open('/tmp/candidate-health.json'))
+          for label,h in [('old',old),('candidate',cand)]:
+              if h.get('schema')!='musitu.forge.health.v1' or h.get('status')!='READY': raise SystemExit(label+'_health_not_ready')
+              if h.get('protocol_digest')!='c9fe2c0dcbc51ed7329aeea8b8d9985c0ccfc70123ac181c755285f1a0fbf3de': raise SystemExit(label+'_protocol_mismatch')
+              if h.get('production_authorized') is not False or h.get('custody_uploads_ready') is not True: raise SystemExit(label+'_truth_boundary_failed')
+          if old.get('video_derivation_runtime_configured') is not False: raise SystemExit('old_video_gate_unexpectedly_changed')
+          if cand.get('video_derivation_runtime_configured') is not True: raise SystemExit('candidate_video_gate_not_ready')
+          for k in ('field_dataset_admission_configured','expert_review_projection_configured','fault_episode_submission_configured'):
+              if old.get(k) is not False or cand.get(k) is not False: raise SystemExit('nonvideo_gate_changed:'+k)
+          print('workspace_proxy_dual_origin=PASS')
+          PY
+
+      - name: Verify canonical public edge remains unchanged before cutover
+        shell: bash
+        run: |
+          set -euo pipefail
+          code="$(curl -sS --max-time 30 -D /tmp/public.headers -o /tmp/public-health.json -w '%{http_code}' -H 'Origin: https://mftintelligence.com' "$PUBLIC_ORIGIN/v1/health" || true)"
+          test "$code" = 200
+          python - <<'PY'
+          import hashlib,json,pathlib
+          h=json.load(open('/tmp/public-health.json'))
+          if h.get('schema')!='musitu.forge.health.v1' or h.get('status')!='READY': raise SystemExit('public_health_not_ready')
+          if h.get('protocol_digest')!='c9fe2c0dcbc51ed7329aeea8b8d9985c0ccfc70123ac181c755285f1a0fbf3de': raise SystemExit('public_protocol_mismatch')
+          if h.get('video_derivation_runtime_configured') is not False: raise SystemExit('public_origin_already_changed')
+          if h.get('production_authorized') is not False: raise SystemExit('public_production_truth_changed')
+          hdr={}
+          for line in pathlib.Path('/tmp/public.headers').read_text(errors='replace').splitlines():
+              if ':' in line:
+                  k,v=line.split(':',1); hdr[k.strip().lower()]=v.strip()
+          if hdr.get('access-control-allow-origin')!='https://mftintelligence.com': raise SystemExit('public_cors_changed')
+          if hdr.get('cache-control')!='no-store' or hdr.get('x-content-type-options')!='nosniff' or hdr.get('referrer-policy')!='no-referrer': raise SystemExit('public_security_headers_changed')
+          print(json.dumps({'public_health_sha256':hashlib.sha256(pathlib.Path('/tmp/public-health.json').read_bytes()).hexdigest(),'public_edge':'PASS'},sort_keys=True))
+          PY
+
+      - name: Seal read-only cutover preflight evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import hashlib,json,pathlib
+          edge=json.load(open('/tmp/live-edge-snapshot.json'))
+          probe=json.load(open('/tmp/candidate-probe.json'))
+          old=json.load(open('/tmp/old-health.json')); cand=json.load(open('/tmp/candidate-health.json')); pub=json.load(open('/tmp/public-health.json'))
+          curl=lambda p: hashlib.sha256(pathlib.Path(p).read_bytes()).hexdigest()
+          candidate_origin=pathlib.Path('/tmp/candidate-origin').read_text()
+          out={
+            'schema':'musitu.forge.v47_edge_cutover_preflight.v1',
+            'candidate_only':True,
+            'cloudflare_write_performed':False,
+            'live_cutover_performed':False,
+            'worker_source_sha256':edge['worker_source_sha256'],
+            'worker_source_size':edge['worker_source_size'],
+            'settings_fingerprint_sha256':edge['settings_fingerprint_sha256'],
+            'd1_database_id':edge['d1_database_id'],
+            'old_modal_origin_sha256':edge['old_modal_origin_sha256'],
+            'candidate_modal_origin_sha256':hashlib.sha256(candidate_origin.encode()).hexdigest(),
+            'candidate_backend_python':probe['backend_python'],
+            'cpython_core_manifest_sha256':'54b1c9b33274d26c38d94239e41e183efc476c7fcfc559909bb099dea4fb954b',
+            'cpython_bin_sha256':'edcdaf07e49bb241cbccb0f18fdb2c8f2e6e1be36a583fce9fc703894d814238',
+            'old_health_sha256':curl('/tmp/old-health.json'),
+            'candidate_health_sha256':curl('/tmp/candidate-health.json'),
+            'public_health_sha256':curl('/tmp/public-health.json'),
+            'old_video_derivation_runtime_configured':old['video_derivation_runtime_configured'],
+            'candidate_video_derivation_runtime_configured':cand['video_derivation_runtime_configured'],
+            'public_video_derivation_runtime_configured':pub['video_derivation_runtime_configured'],
+            'production_authorized':False,
+            'ephemeral_workspace_proxy_proved_both_origins':True,
+            'gate':'PASS',
+          }
+          raw=json.dumps(out,indent=2,sort_keys=True).encode(); pathlib.Path('foundry-forge-v47-edge-cutover-preflight.json').write_bytes(raw)
+          pathlib.Path('foundry-forge-v47-edge-cutover-preflight.sha256').write_text(hashlib.sha256(raw).hexdigest()+'  foundry-forge-v47-edge-cutover-preflight.json\n')
+          print(json.dumps(out,sort_keys=True))
+          PY
+
+      - name: Revoke ephemeral workspace proxy token
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          if [ "${PROXY_CREATED:-0}" = 1 ] && [ -s /tmp/proxy-key ]; then
+            modal workspace proxy-tokens delete -y "$(cat /tmp/proxy-key)" >/dev/null 2>&1 || true
+          fi
+          rm -f /tmp/proxy.json /tmp/proxy-key /tmp/proxy-secret /tmp/old-modal-origin /tmp/candidate-origin
+
+      - uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: musitu-forge-v47-edge-cutover-preflight-20260915
+          path: |
+            foundry-forge-v47-edge-cutover-preflight.json
+            foundry-forge-v47-edge-cutover-preflight.sha256
+          retention-days: 14
+          if-no-files-found: error
