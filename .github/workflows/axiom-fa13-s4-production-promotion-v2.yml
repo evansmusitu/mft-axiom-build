@@ -223,7 +223,7 @@ jobs:
           JS
           python - <<'PY'
           import json,os
-          json.dump({'name':os.environ['WRAPPER_SERVICE'],'main':'worker.js','compatibility_date':'2026-09-16','workers_dev':True,
+          json.dump({'name':os.environ['WRAPPER_SERVICE'],'main':'worker.js','compatibility_date':'2026-09-15','workers_dev':True,
             'observability':{'enabled':True},'assets':{'directory':'./public','binding':'ASSETS','run_worker_first':True},
             'services':[{'binding':'AXIOM_RUNTIME','service':os.environ['ORIGINAL_SERVICE']}]},open('/tmp/fa13prod/wrangler.json','w'),indent=2)
           PY
@@ -235,7 +235,10 @@ jobs:
         run: |
           set -euo pipefail
           npm install --no-save --ignore-scripts --no-audit --no-fund wrangler@4.129.0 >/dev/null
-          (cd /tmp/fa13prod && npx wrangler deploy --config wrangler.json > "$GITHUB_WORKSPACE/release-evidence/wrapper-deploy.log" 2>&1) || { tail -200 release-evidence/wrapper-deploy.log; exit 1; }
+          WRANGLER="$GITHUB_WORKSPACE/node_modules/.bin/wrangler"
+          test -x "$WRANGLER"
+          test "$($WRANGLER --version | tail -1)" = '4.129.0'
+          (cd /tmp/fa13prod && "$WRANGLER" deploy --config wrangler.json > "$GITHUB_WORKSPACE/release-evidence/wrapper-deploy.log" 2>&1) || { tail -200 release-evidence/wrapper-deploy.log; exit 1; }
           python - <<'PY'
           import json,os,time,urllib.error,urllib.parse,urllib.request
           api=os.environ['CF_API']; aid=os.environ['ACCOUNT_ID']; hdr={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_API_KEY'],'Accept':'application/json'}
@@ -286,7 +289,10 @@ jobs:
           import json
           p='/tmp/fa13prod/wrangler.json'; c=json.load(open(p)); c['workers_dev']=False; json.dump(c,open(p,'w'),indent=2)
           PY
-          (cd /tmp/fa13prod && npx wrangler deploy --config wrangler.json > "$GITHUB_WORKSPACE/release-evidence/wrapper-private-redeploy.log" 2>&1) || { tail -200 release-evidence/wrapper-private-redeploy.log; exit 1; }
+          WRANGLER="$GITHUB_WORKSPACE/node_modules/.bin/wrangler"
+          test -x "$WRANGLER"
+          test "$($WRANGLER --version | tail -1)" = '4.129.0'
+          (cd /tmp/fa13prod && "$WRANGLER" deploy --config wrangler.json > "$GITHUB_WORKSPACE/release-evidence/wrapper-private-redeploy.log" 2>&1) || { tail -200 release-evidence/wrapper-private-redeploy.log; exit 1; }
 
       - name: Promote smoke rollback restore and monitor
         shell: bash
