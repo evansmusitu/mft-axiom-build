@@ -1,0 +1,55 @@
+name: MUSITU Chemistry Admin Route Precedence Read-Only
+
+on:
+  push:
+    paths:
+      - '.github/workflows/chemistry-admin-route-precedence-readonly.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 6
+    env:
+      CF_API: https://api.cloudflare.com/client/v4
+      ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      ZONE_ID: 5b56528f03948ff5917a5e0cd9f7109e
+      HOST: payments.mftintelligence.com
+    steps:
+      - uses: actions/checkout@v4
+      - name: Resolve custom-domain and route precedence without mutation
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json,os,urllib.parse,urllib.request
+          API=os.environ['CF_API']; A=os.environ['ACCOUNT_ID']; Z=os.environ['ZONE_ID']; HST=os.environ['HOST']
+          H={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY'],'User-Agent':'MUSITU-Admin-Route-Precedence/1.0'}
+          def get(path):
+            q=urllib.request.Request(API+path,headers=H)
+            with urllib.request.urlopen(q,timeout=45) as r:x=json.loads(r.read() or b'{}')
+            if x.get('success') is not True: raise SystemExit('Cloudflare read failed '+path)
+            return x.get('result')
+          domains=get(f'/accounts/{A}/workers/domains') or []
+          custom=[{k:d.get(k) for k in ('id','hostname','service','environment','zone_id') if d.get(k) is not None} for d in domains if d.get('hostname')==HST]
+          routes=get(f'/zones/{Z}/workers/routes') or []
+          host_routes=[]
+          for r in routes:
+            p=str(r.get('pattern') or '')
+            if HST in p:
+              host_routes.append({'id':r.get('id'),'pattern':p,'script':r.get('script')})
+          # Inventory settings for only scripts actually bound to this hostname.
+          names=sorted({r.get('script') for r in host_routes if r.get('script')}|{d.get('service') for d in custom if d.get('service')})
+          workers=[]
+          for name in names:
+            qname=urllib.parse.quote(name,safe='')
+            settings=get(f'/accounts/{A}/workers/scripts/{qname}/settings') or {}
+            workers.append({'name':name,'compatibility_date':settings.get('compatibility_date'),'usage_model':settings.get('usage_model'),'binding_names':sorted([b.get('name') for b in settings.get('bindings') or [] if isinstance(b,dict) and b.get('name')])})
+          out={'gate':'MUSITU_ADMIN_ROUTE_PRECEDENCE_READ_PASS','custom_domains':custom,'hostname_routes':host_routes,'bound_workers':workers,'production_mutation':False,'secret_values_captured':False}
+          print(json.dumps(out,indent=2,sort_keys=True))
+          PY
