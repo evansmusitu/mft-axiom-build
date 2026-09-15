@@ -31,13 +31,14 @@ jobs:
           from pathlib import Path
           js=Path('/tmp/admin2-runtime.js').read_text()
           css=Path('/tmp/admin2-runtime.css').read_text()
-          required_js=["go('dashboard')","dashboard().catch(show)","/chemistry/admin/api/","#global-search"]
+          required_js=["go('dashboard')","dashboard().catch(show)","/chemistry/admin/api/","#global-search","SAVE THIS CREDENTIAL NOW — IT IS SHOWN ONCE:\\n"]
           for x in required_js:
-              if x not in js: raise SystemExit('missing browser JS invariant: '+x)
-          required_css=['.view{display:none}', '.view.active{display:block}', '@media(max-width:780px)']
+              if x not in js: raise SystemExit('missing browser JS invariant: '+repr(x))
+          required_css=['.view{display:none}', '.view.active{display:block}', '@media(max-width:780px)', '.app{grid-template-columns:1fr;grid-template-rows:auto auto;min-height:0;align-content:start}']
           for x in required_css:
-              if x not in css: raise SystemExit('missing browser CSS invariant: '+x)
+              if x not in css: raise SystemExit('missing browser CSS invariant: '+repr(x))
           print('MUSITU_ADMIN_BROWSER_JS_SYNTAX=PASS')
           print('MUSITU_ADMIN_BROWSER_UI_CONTRACT=PASS')
+          print('MUSITU_ADMIN_MOBILE_LAYOUT=PASS')
           print('PRODUCTION_MUTATION=FALSE')
           PY
