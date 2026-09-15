@@ -1,0 +1,56 @@
+name: MUSITU FMI Customer App V1 Deploy
+
+on:
+  push:
+    branches:
+      - fmi-customer-app-v1-20260915
+    paths:
+      - 'app/fmi_app_worker.mjs'
+      - 'scripts/deploy_fmi_app.py'
+      - '.github/workflows/fmi-customer-app-v1-deploy.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: musitu-fmi-customer-app-v1
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      CF_API: https://api.cloudflare.com/client/v4
+      ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      ZONE_ID: 5b56528f03948ff5917a5e0cd9f7109e
+      ZONE_NAME: mftintelligence.com
+      APP_HOST: app.mftintelligence.com
+      APP_WORKER: mft-fmi-app
+      PUBLIC_BASE: https://mft-fmi-global-edge.mft-education-nexus-93f395f5.workers.dev
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate app source and deployer
+        run: |
+          set -euo pipefail
+          node --check app/fmi_app_worker.mjs
+          python -m py_compile scripts/deploy_fmi_app.py
+          ! grep -q '/d1/database' scripts/deploy_fmi_app.py
+      - name: Deploy and verify real MUSITU FMI app
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        run: |
+          set -euo pipefail
+          test -n "$CLOUDFLARE_EMAIL"
+          test -n "$CLOUDFLARE_GLOBAL_API_KEY"
+          python scripts/deploy_fmi_app.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: musitu-fmi-customer-app-v1-deployment
+          path: |
+            fmi-customer-app-v1-deployment.json
+            fmi-customer-app-v1-deployment.sha256
+          retention-days: 30
+          if-no-files-found: error
