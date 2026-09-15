@@ -1,0 +1,37 @@
+name: MUSITU FMI App Client Boot Diagnose
+
+on:
+  push:
+    paths:
+      - '.github/workflows/fmi-app-client-boot-diagnose.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fetch and syntax-check live browser bundle
+        run: |
+          set -euo pipefail
+          curl -fsS --max-time 20 -D /tmp/appjs.headers https://app.mftintelligence.com/app.js -o /tmp/app.js
+          echo '=== APP.JS HEADERS ==='
+          cat /tmp/appjs.headers
+          echo '=== APP.JS BYTES ==='
+          wc -c /tmp/app.js
+          echo '=== NODE SYNTAX CHECK ==='
+          node --check /tmp/app.js
+          echo '=== MODERN BOOT TOKENS ==='
+          grep -oE 'sessionStorage|localStorage|replaceAll|\?\.|\?\?|beforeinstallprompt' /tmp/app.js | sort | uniq -c || true
+      - name: Prove static shell and health
+        run: |
+          set -euo pipefail
+          curl -fsS --max-time 20 https://app.mftintelligence.com/healthz | tee /tmp/health.json
+          echo
+          curl -fsS --max-time 20 https://app.mftintelligence.com/app -o /tmp/app.html
+          grep -q 'Opening intelligence workspace' /tmp/app.html
+          grep -q '<script src="/app.js" defer></script>' /tmp/app.html
