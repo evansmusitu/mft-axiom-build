@@ -1,0 +1,175 @@
+name: MUSITU FOUNDRY FORGE V44 Candidate Exact CPython 3.12.13
+
+on:
+  push:
+    branches:
+      - foundry-forge-v44-modal-candidate-20260915
+    paths:
+      - '.github/workflows/foundry-forge-v44-modal-candidate-exact-python-20260915.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  repair-and-verify-exact-backend:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    env:
+      MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID }}
+      MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET }}
+      CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+      GITHUB_TOKEN: ${{ github.token }}
+      CPYTHON_CORE_ARTIFACT_ID: '10398691214'
+      CPYTHON_CORE_ARTIFACT_BYTES: '47502123'
+      CPYTHON_CORE_ARTIFACT_SHA256: '74855a1b81303d66f53ba33215481272c2c77b8f3dc6aec7fa122e0e4693b7fd'
+      CPYTHON_CORE_TGZ_SHA256: 'c99e122ec5dada581b1a1a376410ec335cf0603a1d4f5a9a593cbb07a9871075'
+      CPYTHON_CORE_MANIFEST_SHA256: '54b1c9b33274d26c38d94239e41e183efc476c7fcfc559909bb099dea4fb954b'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12.13'
+
+      - name: Prepare exact encrypted V44 activation overlay shim
+        shell: bash
+        run: bash ops/prepare_foundry_forge_v44_overlay_shim.sh
+
+      - name: Recover and reverify sealed CPython 3.12.13 backend core
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf cpython-core /tmp/cpython-core-artifact /tmp/cpython-core.zip
+          curl --fail --silent --show-error --location \
+            -H "Authorization: Bearer $GITHUB_TOKEN" \
+            -H 'X-GitHub-Api-Version: 2022-11-28' \
+            "https://api.github.com/repos/evansmusitu/mft-axiom-build/actions/artifacts/$CPYTHON_CORE_ARTIFACT_ID/zip" \
+            -o /tmp/cpython-core.zip
+          test "$(stat -c %s /tmp/cpython-core.zip)" = "$CPYTHON_CORE_ARTIFACT_BYTES"
+          test "$(sha256sum /tmp/cpython-core.zip | awk '{print $1}')" = "$CPYTHON_CORE_ARTIFACT_SHA256"
+          mkdir /tmp/cpython-core-artifact
+          unzip -q /tmp/cpython-core.zip -d /tmp/cpython-core-artifact
+          test "$(sha256sum /tmp/cpython-core-artifact/cpython31213-sealed-core.tgz | awk '{print $1}')" = "$CPYTHON_CORE_TGZ_SHA256"
+          python - <<'PY'
+          import json,os,pathlib
+          r=json.loads(pathlib.Path('/tmp/cpython-core-artifact/cpython31213-core-report.json').read_text())
+          if r.get('gate')!='PASS' or r.get('python_version')!='3.12.13': raise SystemExit('sealed_core_report_failed')
+          a=r.get('actual') or {}; e=r.get('expected') or {}
+          if a!=e: raise SystemExit('sealed_core_report_actual_expected_mismatch')
+          if a.get('manifest_sha256')!=os.environ['CPYTHON_CORE_MANIFEST_SHA256']: raise SystemExit('sealed_core_manifest_report_mismatch')
+          if a.get('entry_count')!=2678 or a.get('file_count')!=2482 or a.get('directory_count')!=196 or a.get('symlink_count')!=0 or a.get('file_bytes')!=157489890: raise SystemExit('sealed_core_shape_report_mismatch')
+          core=r.get('core_sha256') or {}
+          if core.get('bin/python3.12')!='edcdaf07e49bb241cbccb0f18fdb2c8f2e6e1be36a583fce9fc703894d814238': raise SystemExit('sealed_python_hash_report_mismatch')
+          if core.get('lib/libpython3.12.so.1.0')!='5aa44491272f12bef15eff72c37b94f58898e00876712f991684bb4258010339': raise SystemExit('sealed_libpython_hash_report_mismatch')
+          PY
+          mkdir cpython-core
+          tar -xzf /tmp/cpython-core-artifact/cpython31213-sealed-core.tgz -C cpython-core
+          python - <<'PY'
+          import hashlib,json,os,pathlib,stat
+          root=pathlib.Path('cpython-core/x64'); rows=[]; total=files=dirs=syms=0
+          for p in sorted(root.rglob('*'),key=lambda x:x.as_posix()):
+              rel=p.relative_to(root).as_posix(); st=p.lstat(); mode=stat.S_IMODE(st.st_mode)
+              if p.is_symlink(): rows.append({'p':rel,'t':'l','m':mode,'v':os.readlink(p)}); syms+=1
+              elif p.is_file():
+                  h=hashlib.sha256()
+                  with p.open('rb') as fh:
+                      for b in iter(lambda:fh.read(1<<20),b''): h.update(b)
+                  rows.append({'p':rel,'t':'f','m':mode,'s':st.st_size,'h':h.hexdigest()}); total+=st.st_size; files+=1
+              elif p.is_dir(): rows.append({'p':rel,'t':'d','m':mode}); dirs+=1
+          digest=hashlib.sha256(json.dumps(rows,sort_keys=True,separators=(',',':')).encode()).hexdigest()
+          if (len(rows),files,dirs,syms,total)!=(2678,2482,196,0,157489890): raise SystemExit('extracted_sealed_core_shape_mismatch')
+          if digest!=os.environ['CPYTHON_CORE_MANIFEST_SHA256']: raise SystemExit('extracted_sealed_core_manifest_mismatch:'+digest)
+          if hashlib.sha256((root/'bin/python3.12').read_bytes()).hexdigest()!='edcdaf07e49bb241cbccb0f18fdb2c8f2e6e1be36a583fce9fc703894d814238': raise SystemExit('extracted_python_hash_mismatch')
+          PY
+          LD_LIBRARY_PATH="$PWD/cpython-core/x64/lib" cpython-core/x64/bin/python3.12 - <<'PY'
+          import platform
+          assert platform.python_version()=='3.12.13'
+          assert platform.machine()=='x86_64'
+          PY
+          echo 'SEALED_CPYTHON31213_CORE=PASS'
+
+      - name: Prepare exact-backend Modal deploy shim
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/musitu-forge-exact-python-shim
+          mkdir -p /tmp/musitu-forge-exact-python-shim/bin
+          cat > /tmp/musitu-forge-exact-python-shim/patch_candidate.py <<'PY'
+          from pathlib import Path
+          import sys
+          p=Path(sys.argv[1]); s=p.read_text()
+          def one(old,new,label):
+              global s
+              if s.count(old)!=1: raise SystemExit(f'exact_python_patch_anchor_{label}_count_{s.count(old)}')
+              s=s.replace(old,new)
+          one("STATE_ROOT = pathlib.Path('/var/lib/musitu-forge')", "STATE_ROOT = pathlib.Path('/var/lib/musitu-forge')\nTARGET_PYTHON = '/opt/hostedtoolcache/Python/3.12.13/x64/bin/python3.12'", 'target_constant')
+          one("    .add_local_dir('media-closure', '/opt/forge/media', copy=True)\n)", "    .add_local_dir('media-closure', '/opt/forge/media', copy=True)\n    .add_local_dir('cpython-core/x64', '/opt/hostedtoolcache/Python/3.12.13/x64', copy=True)\n)", 'image_core')
+          one("            'PYTHONPATH': '/opt/forge/runtime',", "            'PYTHONPATH': '/opt/forge/runtime:' + ':'.join(x for x in sys.path if 'site-packages' in x),", 'backend_pythonpath')
+          one("            [sys.executable, '-m', 'apps.musitu_forge_custody_server'],", "            [TARGET_PYTHON, '-m', 'apps.musitu_forge_custody_server'],", 'backend_exec')
+          helper='''\n\ndef _backend_python_probe():\n    code = (\n        "import importlib.metadata,json,platform;"\n        "names=('cryptography','cffi','pycparser');"\n        "print(json.dumps({'python':platform.python_version(),'machine':platform.machine(),'libc':platform.libc_ver(),'packages':{n:importlib.metadata.version(n) for n in names}},sort_keys=True))"\n    )\n    return json.loads(subprocess.check_output([TARGET_PYTHON, '-c', code], env=_backend_env(), text=True))\n'''
+          one("\n\n@app.function(\n    image=image,\n    name='runtime_probe',", helper+"\n@app.function(\n    image=image,\n    name='runtime_probe',", 'backend_probe_helper')
+          one("        'python': platform.python_version(),", "        'python': platform.python_version(),\n        'backend_python': _backend_python_probe(),", 'backend_probe_field')
+          p.write_text(s)
+          PY
+          cat > /tmp/musitu-forge-exact-python-shim/bin/modal <<'SH'
+          #!/usr/bin/env bash
+          set -euo pipefail
+          REAL_MODAL='/opt/hostedtoolcache/Python/3.12.13/x64/bin/modal'
+          test -x "$REAL_MODAL"
+          if [ "${1:-}" = deploy ] && [ "${2:-}" = 'ops/foundry_forge_modal_candidate_v47_repair.py' ]; then
+            python /tmp/musitu-forge-exact-python-shim/patch_candidate.py "$2"
+            python -m py_compile "$2"
+          fi
+          exec "$REAL_MODAL" "$@"
+          SH
+          chmod 700 /tmp/musitu-forge-exact-python-shim/bin/modal
+
+      - name: Execute existing fail-closed candidate repair with exact backend
+        shell: bash
+        run: PATH="/tmp/musitu-forge-exact-python-shim/bin:/tmp/musitu-forge-v44-overlay-shim/bin:$PATH" bash ops/run_foundry_forge_v44_candidate_repair.sh
+
+      - name: Require exact CPython 3.12.13 in serving backend child
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import hashlib,json,os,pathlib
+          r=json.load(open('modal-candidate-repair-runtime-probe.json'))
+          h=json.load(open('modal-candidate-repair-health.json'))
+          b=r.get('backend_python') or {}
+          if b.get('python')!='3.12.13': raise SystemExit('backend_python_not_exact:'+repr(b))
+          if b.get('machine')!='x86_64': raise SystemExit('backend_machine_mismatch:'+repr(b))
+          if list(b.get('libc') or [])!=['glibc','2.39']: raise SystemExit('backend_libc_mismatch:'+repr(b))
+          expected_packages={'cryptography':'50.0.1','cffi':'2.1.1','pycparser':'3.0'}
+          if b.get('packages')!=expected_packages: raise SystemExit('backend_package_versions_mismatch:'+repr(b.get('packages')))
+          if h.get('status')!='READY' or h.get('video_derivation_runtime_configured') is not True: raise SystemExit('candidate_health_video_gate_failed')
+          if any(h.get(k) is not False for k in ('field_dataset_admission_configured','expert_review_projection_configured','fault_episode_submission_configured','production_authorized')): raise SystemExit('candidate_truth_boundary_changed')
+          base=json.load(open('modal-v44-media-candidate-repair-evidence.json'))
+          if base.get('gate')!='PASS' or base.get('live_cutover_performed') is not False or base.get('cloudflare_write_performed') is not False: raise SystemExit('base_candidate_evidence_invalid')
+          e={'schema':'musitu.forge.modal_v44_media_candidate_exact_python.v1','candidate_only':True,'live_cutover_performed':False,'cloudflare_write_performed':False,'cpython_core_artifact_id':int(os.environ['CPYTHON_CORE_ARTIFACT_ID']),'cpython_core_artifact_sha256':os.environ['CPYTHON_CORE_ARTIFACT_SHA256'],'cpython_core_tgz_sha256':os.environ['CPYTHON_CORE_TGZ_SHA256'],'cpython_core_manifest_sha256':os.environ['CPYTHON_CORE_MANIFEST_SHA256'],'backend_python':b,'outer_modal_python':r.get('python'),'health':h,'production_authorized':False,'gate':'PASS'}
+          raw=json.dumps(e,indent=2,sort_keys=True).encode(); pathlib.Path('modal-v44-media-candidate-exact-python-evidence.json').write_bytes(raw); pathlib.Path('modal-v44-media-candidate-exact-python-evidence.sha256').write_text(hashlib.sha256(raw).hexdigest()+'  modal-v44-media-candidate-exact-python-evidence.json\n')
+          print('EXACT_BACKEND_CPYTHON31213=PASS')
+          PY
+
+      - name: Remove ephemeral decrypted and patch material
+        if: always()
+        shell: bash
+        run: rm -rf /tmp/musitu-forge-v44-overlay-shim /tmp/musitu-forge-exact-python-shim cpython-core /tmp/cpython-core-artifact /tmp/cpython-core.zip
+
+      - uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: musitu-forge-v44-modal-candidate-exact-python-20260915
+          path: |
+            modal-v44-media-candidate-repair-evidence.json
+            modal-v44-media-candidate-repair-evidence.sha256
+            modal-v44-media-candidate-exact-python-evidence.json
+            modal-v44-media-candidate-exact-python-evidence.sha256
+            modal-candidate-repair-runtime-probe.json
+            modal-candidate-repair-health.json
+            modal-candidate-repair-deploy.log
+          retention-days: 14
+          if-no-files-found: error
