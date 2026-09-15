@@ -1,0 +1,74 @@
+name: MUSITU FOUNDRY FORGE V44 Candidate Runtime Log Diagnostic
+
+on:
+  push:
+    branches:
+      - foundry-forge-v44-modal-candidate-20260915
+    paths:
+      - '.github/workflows/foundry-forge-v44-candidate-runtime-log-diagnostic-20260915.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  inspect-candidate-runtime:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    env:
+      MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID }}
+      MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET }}
+      FORGE_MODAL_APP: musitu-forge-v44-media-candidate
+    steps:
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12.13'
+
+      - name: Fetch candidate app/container diagnostics read-only
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$MODAL_TOKEN_ID"
+          test -n "$MODAL_TOKEN_SECRET"
+          python -m pip install --disable-pip-version-check --quiet 'modal==1.5.5'
+          modal app list --json >/tmp/apps.json
+          modal app logs "$FORGE_MODAL_APP" --tail 300 --timestamps >/tmp/app.log 2>&1 || true
+          python - <<'PY'
+          import hashlib,json,pathlib,re,subprocess
+          raw=pathlib.Path('/tmp/app.log').read_text(errors='replace')
+          sanitized=re.sub(r'\b(?:wk|ws|ak|as)-[A-Za-z0-9._-]+\b','<redacted-token>',raw)
+          sanitized=re.sub(r'(?i)(modal-key|modal-secret|authorization)(\s*[:=]\s*)\S+',r'\1\2<redacted>',sanitized)
+          pathlib.Path('candidate-runtime-sanitized.log').write_text(sanitized)
+          apps=json.loads(pathlib.Path('/tmp/apps.json').read_text())
+          target=[]
+          def walk(x):
+              if isinstance(x,dict):
+                  if x.get('Description')=='musitu-forge-v44-media-candidate' or x.get('name')=='musitu-forge-v44-media-candidate':
+                      target.append({k:v for k,v in x.items() if str(k).lower() in {'id','appid','app_id','description','name','state','status','created_at','stopped_at'}})
+                  for v in x.values(): walk(v)
+              elif isinstance(x,list):
+                  for v in x: walk(v)
+          walk(apps)
+          result={
+            'schema':'musitu.forge.candidate_runtime_log_diagnostic.v1',
+            'candidate_app':'musitu-forge-v44-media-candidate',
+            'log_sha256':hashlib.sha256(raw.encode()).hexdigest(),
+            'log_bytes':len(raw.encode()),
+            'sanitized_log_sha256':hashlib.sha256(sanitized.encode()).hexdigest(),
+            'target_app_records':target,
+            'write_performed':False,
+          }
+          pathlib.Path('candidate-runtime-diagnostic.json').write_text(json.dumps(result,indent=2,sort_keys=True)+'\n')
+          print(json.dumps(result,sort_keys=True))
+          print('--- sanitized candidate runtime log ---')
+          print(sanitized)
+          PY
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: musitu-forge-v44-candidate-runtime-log-diagnostic-20260915
+          path: |
+            candidate-runtime-diagnostic.json
+            candidate-runtime-sanitized.log
+          retention-days: 14
+          if-no-files-found: error
