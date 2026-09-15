@@ -1,0 +1,57 @@
+name: MUSITU FOUNDRY FORGE Transport Public Key Export
+
+on:
+  push:
+    branches:
+      - foundry-forge-v44-modal-candidate-20260915
+    paths:
+      - '.github/workflows/foundry-forge-transport-public-key-export-20260915.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  export-public-key:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Reconstruct bundle and export public key only
+        shell: bash
+        run: |
+          set -euo pipefail
+          d='deploy_payload/foundry_forge_v3'
+          cat \
+            "$d/bundle.part.00.txt" \
+            "$d/bundle.part.01.txt" \
+            "$d/bundle.part.02.txt" \
+            "$d/bundle.part.03.00.txt" \
+            "$d/bundle.part.03.01.txt" \
+            "$d/bundle.part.03.02.txt" \
+            "$d/bundle.part.04.00a.txt" \
+            "$d/bundle.part.04.00b.txt" \
+            "$d/bundle.part.04.01.txt" \
+            "$d/bundle.part.04.02.correct.txt" \
+            > /tmp/bundle.json
+          test "$(stat -c %s /tmp/bundle.json)" = '72860'
+          test "$(sha256sum /tmp/bundle.json | awk '{print $1}')" = '07aa7a330de816bb6a22e9954435fd4a26807eec6a124482c99ef35224253e86'
+          python - <<'PY'
+          import hashlib,json,pathlib
+          b=json.load(open('/tmp/bundle.json'))
+          pem=b['transport_public_key_pem']
+          expected=b['transport_key_manifest']['public_key_sha256']
+          actual=hashlib.sha256(pem.encode()).hexdigest()
+          if actual!=expected: raise SystemExit('public_key_hash_mismatch')
+          pathlib.Path('forge-transport-public-key.pem').write_text(pem)
+          pathlib.Path('forge-transport-public-key.sha256').write_text(actual+'  forge-transport-public-key.pem\n')
+          print('public_key_sha256='+actual)
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: musitu-forge-transport-public-key-20260915
+          path: |
+            forge-transport-public-key.pem
+            forge-transport-public-key.sha256
+          retention-days: 1
+          if-no-files-found: error
