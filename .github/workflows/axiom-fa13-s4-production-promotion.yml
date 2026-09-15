@@ -30,7 +30,7 @@ env:
   ENTERPRISE_RUN_ID: "35029410542"
   VERIFIER_RUN_ID: "35035332996"
   VERIFIER_ARTIFACT_ID: "10422578056"
-  VERIFIER_ARTIFACT_DIGEST: sha256:faec7d23f4d3e0a746034a39391303572d8e4cd092551c1a91b8491783ecf790
+  VERIFIER_ARTIFACT_DIGEST: sha256:916b0e1e3219d0d3a60eb1c41f09bbb99a6ef916993dbf57340a80a9c32e0765
   VERIFIER_ATTESTATION_SHA256: eb21d7348b57e2e7bb93305491b381594957089001fb4cba38a02c2933aba5e7
   CF_API: https://api.cloudflare.com/client/v4
   ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
@@ -611,6 +611,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          mkdir -p release-evidence
           python - <<'PY'
           import json,os,pathlib,urllib.error,urllib.request
           api=os.environ["CF_API"]; aid=os.environ["ACCOUNT_ID"]; host=os.environ["PROD_HOST"]
