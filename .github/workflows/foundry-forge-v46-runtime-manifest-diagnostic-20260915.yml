@@ -1,0 +1,108 @@
+name: MUSITU FOUNDRY FORGE V46 Runtime Manifest Diagnostic
+
+on:
+  push:
+    branches:
+      - foundry-forge-v44-modal-candidate-20260915
+    paths:
+      - '.github/workflows/foundry-forge-v46-runtime-manifest-diagnostic-20260915.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  inspect-runtime-manifest:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+      PAYLOAD_DIR: deploy_payload/foundry_forge_v3
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Reconstruct encrypted runtime and emit verified manifest metadata only
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$CLOUDFLARE_GLOBAL_API_KEY"
+          cat \
+            "$PAYLOAD_DIR/bundle.part.00.txt" \
+            "$PAYLOAD_DIR/bundle.part.01.txt" \
+            "$PAYLOAD_DIR/bundle.part.02.txt" \
+            "$PAYLOAD_DIR/bundle.part.03.00.txt" \
+            "$PAYLOAD_DIR/bundle.part.03.01.txt" \
+            "$PAYLOAD_DIR/bundle.part.03.02.txt" \
+            "$PAYLOAD_DIR/bundle.part.04.00a.txt" \
+            "$PAYLOAD_DIR/bundle.part.04.00b.txt" \
+            "$PAYLOAD_DIR/bundle.part.04.01.txt" \
+            "$PAYLOAD_DIR/bundle.part.04.02.correct.txt" \
+            > /tmp/transport.json
+          test "$(stat -c %s /tmp/transport.json)" = '72860'
+          test "$(sha256sum /tmp/transport.json | awk '{print $1}')" = '07aa7a330de816bb6a22e9954435fd4a26807eec6a124482c99ef35224253e86'
+          python - <<'PY'
+          import base64,hashlib,hmac,json,pathlib
+          b=json.loads(pathlib.Path('/tmp/transport.json').read_text())
+          if b['schema']!='musitu.foundry_forge.private_payload_transport_bundle.v3': raise SystemExit('bundle_schema_mismatch')
+          if b['source_commit']!='f0e805ae298b4720f9263dc15d10f4864b385669': raise SystemExit('source_commit_mismatch')
+          c=dict(b); expected=c.pop('bundle_content_sha256')
+          if hashlib.sha256(json.dumps(c,sort_keys=True,separators=(',',':')).encode()).hexdigest()!=expected: raise SystemExit('bundle_content_digest_mismatch')
+          m=b['envelope']; km=b['transport_key_manifest']
+          cipher=base64.b64decode(b['ciphertext_base64'],validate=True)
+          wrapped=base64.b64decode(b['wrapped_master_secret_base64'],validate=True)
+          encpriv=base64.b64decode(b['transport_private_key_encrypted_base64'],validate=True)
+          if hashlib.sha256(cipher).hexdigest()!=m['ciphertext_sha256']: raise SystemExit('ciphertext_mismatch')
+          if hashlib.sha256(wrapped).hexdigest()!=m['wrapped_master_secret_sha256']: raise SystemExit('wrapped_secret_mismatch')
+          if hashlib.sha256(encpriv).hexdigest()!=km['encrypted_private_key_sha256']: raise SystemExit('encrypted_private_key_mismatch')
+          pathlib.Path('/tmp/payload.enc').write_bytes(cipher)
+          pathlib.Path('/tmp/master.wrapped').write_bytes(wrapped)
+          pathlib.Path('/tmp/private.pem.enc').write_bytes(encpriv)
+          PY
+          openssl enc -d -aes-256-cbc -pbkdf2 -iter 250000 -in /tmp/private.pem.enc -out /tmp/private.pem -pass env:CLOUDFLARE_GLOBAL_API_KEY
+          chmod 600 /tmp/private.pem
+          openssl pkeyutl -decrypt -inkey /tmp/private.pem -pkeyopt rsa_padding_mode:oaep -pkeyopt rsa_oaep_md:sha256 -pkeyopt rsa_mgf1_md:sha256 -in /tmp/master.wrapped -out /tmp/master.secret
+          python - <<'PY'
+          import hashlib,hmac,json,pathlib
+          b=json.loads(pathlib.Path('/tmp/transport.json').read_text()); m=b['envelope']
+          master=pathlib.Path('/tmp/master.secret').read_bytes(); cipher=pathlib.Path('/tmp/payload.enc').read_bytes()
+          if len(master)!=32: raise SystemExit('master_secret_size_invalid')
+          hkey=hashlib.sha256(b'musitu.foundry_forge.private_payload.hmac.v3\0'+master).digest()
+          if not hmac.compare_digest(hmac.new(hkey,cipher,hashlib.sha256).hexdigest(),m['ciphertext_hmac_sha256']): raise SystemExit('ciphertext_hmac_mismatch')
+          pathlib.Path('/tmp/master.hex').write_text(master.hex())
+          PY
+          MASTER_HEX="$(cat /tmp/master.hex)"
+          openssl enc -d -aes-256-cbc -pbkdf2 -iter 250000 -in /tmp/payload.enc -out /tmp/runtime.tar.gz -pass pass:"$MASTER_HEX"
+          mkdir /tmp/runtime
+          tar -xzf /tmp/runtime.tar.gz -C /tmp/runtime
+          python - <<'PY'
+          import hashlib,json,pathlib
+          root=pathlib.Path('/tmp/runtime')
+          m=json.loads((root/'FORGE_PRIVATE_RUNTIME_MANIFEST.json').read_text())
+          if m['schema']!='musitu.foundry_forge.private_runtime_minimal_source.v3': raise SystemExit('manifest_schema_mismatch')
+          if m['source_commit']!='f0e805ae298b4720f9263dc15d10f4864b385669': raise SystemExit('manifest_source_mismatch')
+          files=[]; bad=[]
+          for f in m['files']:
+              p=root/f['path']; data=p.read_bytes() if p.is_file() else b''
+              ok=p.is_file() and len(data)==f['size'] and hashlib.sha256(data).hexdigest()==f['sha256']
+              if not ok: bad.append(f['path'])
+              files.append({'path':f['path'],'size':f['size'],'sha256':f['sha256']})
+          if bad: raise SystemExit('runtime_manifest_verification_failed:'+repr(bad))
+          out={
+              'schema':'musitu.forge.runtime_manifest_metadata_diagnostic.v1',
+              'source_commit':m['source_commit'],
+              'file_count':len(files),
+              'files':files,
+              'plaintext_source_emitted':False,
+              'write_performed':False,
+          }
+          pathlib.Path('verified-runtime-manifest-metadata.json').write_text(json.dumps(out,indent=2,sort_keys=True)+'\n')
+          print(json.dumps(out,sort_keys=True))
+          PY
+          rm -rf /tmp/private.pem /tmp/private.pem.enc /tmp/master.secret /tmp/master.hex /tmp/master.wrapped /tmp/payload.enc /tmp/runtime.tar.gz /tmp/runtime
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: musitu-forge-v46-runtime-manifest-metadata-20260915
+          path: verified-runtime-manifest-metadata.json
+          retention-days: 14
+          if-no-files-found: error
