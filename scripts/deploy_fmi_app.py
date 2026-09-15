@@ -53,12 +53,10 @@ subprocess.run(['node','--check',str(SOURCE_PATH)],check=True)
 text=SOURCE.decode('utf-8')
 for required in ('MUSITU_FMI_APP_V1_20260915','/manifest.webmanifest','/sw.js','PAPER_SHADOW_ONLY','/v1/intelligence/analyze'):
     if required not in text:raise RuntimeError('app source invariant missing: '+required)
-if 'live_trading_authorized:false' not in text.replace(' ',''):
-    raise RuntimeError('authority boundary missing')
+if 'live_trading_authorized:false' not in text.replace(' ',''):raise RuntimeError('authority boundary missing')
 
 zones=cf('/zones?name='+urllib.parse.quote(ZONE)+'&status=active') or []
 if len(zones)!=1 or zones[0].get('id')!=ZID or (zones[0].get('account') or {}).get('id')!=AID:raise RuntimeError('zone/account mismatch')
-
 domains=cf(f'/accounts/{AID}/workers/domains') or []
 matching=[d for d in domains if isinstance(d,dict) and d.get('hostname')==HOST]
 if len(matching)>1:raise RuntimeError('duplicate app custom-domain rows')
@@ -72,29 +70,38 @@ if not matching:
 bd,body=multipart();h=dict(AUTH);h['Content-Type']='multipart/form-data; boundary='+bd
 c,_,b=raw(f'{API}/accounts/{AID}/workers/scripts/{urllib.parse.quote(WORKER,safe="")}', 'PUT',h,body,60)
 if not 200<=c<300:raise RuntimeError('app Worker upload HTTP '+str(c)+' '+b[:400].decode('utf-8','ignore'))
-settings=cf(f'/accounts/{AID}/workers/scripts/{urllib.parse.quote(WORKER,safe="")}/settings') or {}
+try:upload_obj=json.loads(b or b'{}')
+except Exception:upload_obj={}
+if isinstance(upload_obj,dict) and upload_obj.get('success') is False:raise RuntimeError('app Worker upload success=false '+str(upload_obj.get('errors'))[:500])
+
+# New Worker creation can be eventually consistent. Do not weaken readback: retry exact settings until it exists.
+settings=None;settings_error=None
+for _ in range(30):
+    try:
+        settings=cf(f'/accounts/{AID}/workers/scripts/{urllib.parse.quote(WORKER,safe="")}/settings') or {};settings_error=None;break
+    except RuntimeError as e:
+        settings_error=e
+        if 'HTTP 404' not in str(e):raise
+        time.sleep(1)
+if settings is None:raise RuntimeError('new Worker settings never became readable: '+str(settings_error))
 bindings={x.get('name'):x for x in settings.get('bindings') or [] if isinstance(x,dict)}
 if set(bindings)!={'PUBLIC_BASE'} or bindings['PUBLIC_BASE'].get('text')!=PUBLIC_BASE:raise RuntimeError('app binding readback mismatch')
 
 cf(f'/accounts/{AID}/workers/scripts/{urllib.parse.quote(WORKER,safe="")}/subdomain','POST',{'enabled':True,'previews_enabled':False})
 substate=cf(f'/accounts/{AID}/workers/scripts/{urllib.parse.quote(WORKER,safe="")}/subdomain') or {}
 if substate.get('enabled') is not True or substate.get('previews_enabled') is not False:raise RuntimeError('app workers.dev exposure policy mismatch')
-account_sub=cf(f'/accounts/{AID}/workers/subdomain') or {}
-subname=str(account_sub.get('subdomain') or '')
+account_sub=cf(f'/accounts/{AID}/workers/subdomain') or {};subname=str(account_sub.get('subdomain') or '')
 if not subname:raise RuntimeError('workers account subdomain missing')
 fallback=f'https://{WORKER}.{subname}.workers.dev'
 
-if not matching:
-    cf(f'/accounts/{AID}/workers/domains','PUT',{'hostname':HOST,'service':WORKER,'zone_id':ZID,'zone_name':ZONE,'override_existing_origin':True})
+if not matching:cf(f'/accounts/{AID}/workers/domains','PUT',{'hostname':HOST,'service':WORKER,'zone_id':ZID,'zone_name':ZONE,'override_existing_origin':True})
 after=[d for d in (cf(f'/accounts/{AID}/workers/domains') or []) if isinstance(d,dict) and d.get('hostname')==HOST]
 if len(after)!=1 or after[0].get('service')!=WORKER:raise RuntimeError('app custom-domain mapping failed')
 
-base=fallback
-health=None
+base=fallback;health=None
 for _ in range(35):
     hc,hh,ho,_=json_probe(base+'/healthz?ts='+str(time.time_ns()))
-    if hc==200 and isinstance(ho,dict) and ho.get('ok') is True and ho.get('authority')=='PAPER_SHADOW_ONLY' and ((ho.get('upstream') or {}).get('status')==200):
-        health=(hc,hh,ho);break
+    if hc==200 and isinstance(ho,dict) and ho.get('ok') is True and ho.get('authority')=='PAPER_SHADOW_ONLY' and ((ho.get('upstream') or {}).get('status')==200):health=(hc,hh,ho);break
     time.sleep(1)
 if health is None:raise RuntimeError('app workers.dev health acceptance failed')
 
@@ -118,21 +125,12 @@ if ac!=401:raise RuntimeError(f'unauthenticated app analysis expected 401 got {a
 
 cc,_,cb=raw(f'{API}/accounts/{AID}/workers/scripts/{urllib.parse.quote(WORKER,safe="")}/content/v2',headers=AUTH,timeout=60)
 if cc!=200 or b'MUSITU_FMI_APP_V1_20260915' not in cb:raise RuntimeError('app content/v2 readback mismatch')
-
 custom={}
 for path in ('/healthz','/app','/manifest.webmanifest'):
     qc,qh,qb=raw('https://'+HOST+path+'?ts='+str(time.time_ns()),headers={'user-agent':'MUSITU-FMI-App-Acceptance/1.0','accept':'*/*'},timeout=30)
     custom[path]={'http':qc,'content_type':qh.get('content-type'),'cf_mitigated':qh.get('cf-mitigated')}
 
-out={
- 'schema':'musitu.fmi.customer-app-v1.deployment.v1','gate':'FMI_CUSTOMER_APP_V1_READY','worker':WORKER,'host':HOST,'workers_dev_url':fallback,
- 'source_sha256':SOURCE_SHA,'build':'MUSITU_FMI_APP_V1_20260915','upstream':PUBLIC_BASE,'workers_dev_enabled':True,'previews_enabled':False,
- 'custom_domain_service':after[0].get('service'),'custom_domain_id':after[0].get('id'),'workers_dev_health_http':health[0],
- 'upstream_health_http':(health[2].get('upstream') or {}).get('status'),'authority':health[2].get('authority'),'live_trading_authorized':False,
- 'static_assets':static,'proxy_health_http':pc,'unauthenticated_me_http':mc,'unauthenticated_analysis_http':ac,'content_v2_http':cc,'custom_domain_probe':custom,
- 'state_preservation':{'d1_api_calls_performed':False,'customer_rows_modified':False,'billing_rows_modified':False,'payment_provider_called':False,'checkout_initiated':False,'admin_worker_modified':False,'public_edge_worker_modified':False},
- 'certification_boundaries':{'authority':'PAPER_SHADOW_ONLY','profitability':'NOT_YET_CERTIFIED','superiority':'NOT_CERTIFIED','real_money_settlement':'NOT_CERTIFIED'}
-}
+out={'schema':'musitu.fmi.customer-app-v1.deployment.v1','gate':'FMI_CUSTOMER_APP_V1_READY','worker':WORKER,'host':HOST,'workers_dev_url':fallback,'source_sha256':SOURCE_SHA,'build':'MUSITU_FMI_APP_V1_20260915','upstream':PUBLIC_BASE,'workers_dev_enabled':True,'previews_enabled':False,'custom_domain_service':after[0].get('service'),'custom_domain_id':after[0].get('id'),'workers_dev_health_http':health[0],'upstream_health_http':(health[2].get('upstream') or {}).get('status'),'authority':health[2].get('authority'),'live_trading_authorized':False,'static_assets':static,'proxy_health_http':pc,'unauthenticated_me_http':mc,'unauthenticated_analysis_http':ac,'content_v2_http':cc,'custom_domain_probe':custom,'state_preservation':{'d1_api_calls_performed':False,'customer_rows_modified':False,'billing_rows_modified':False,'payment_provider_called':False,'checkout_initiated':False,'admin_worker_modified':False,'public_edge_worker_modified':False},'certification_boundaries':{'authority':'PAPER_SHADOW_ONLY','profitability':'NOT_YET_CERTIFIED','superiority':'NOT_CERTIFIED','real_money_settlement':'NOT_CERTIFIED'}}
 blob=(json.dumps(out,indent=2,sort_keys=True)+'\n').encode();pathlib.Path('fmi-customer-app-v1-deployment.json').write_bytes(blob)
 dg=hashlib.sha256(blob).hexdigest();pathlib.Path('fmi-customer-app-v1-deployment.sha256').write_text(dg+'  fmi-customer-app-v1-deployment.json\n')
 print(json.dumps({'gate':out['gate'],'worker':WORKER,'host':HOST,'workers_dev_url':fallback,'workers_dev_health_http':health[0],'proxy_health_http':pc,'unauthenticated_me_http':mc,'unauthenticated_analysis_http':ac,'custom_domain_probe':custom,'source_sha256':SOURCE_SHA,'evidence_sha256':dg,'d1_api_calls_performed':False,'checkout_initiated':False},sort_keys=True))
