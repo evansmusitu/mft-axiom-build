@@ -150,9 +150,19 @@ jobs:
                   time.sleep(2)
               else: raise SystemExit(f'{label} build identity unavailable: {last}')
               for path,needle in [('/vnext/index.html',b'MUSITU AXIOM'),('/vnext/engineering_workspace_runtime.js',b'EngineeringWorkspaceRuntime')]:
-                  request=urllib.request.Request(target+path,headers={'User-Agent':'MUSITU-AXIOM-GITHUB-ACTIONS-QUALIFICATION/1.0'})
-                  with urllib.request.urlopen(request,timeout=30) as response: body=response.read()
-                  if needle not in body: raise SystemExit(f'{label} asset contract missing {needle!r} at {path}; bytes={len(body)}')
+                  asset_last=None
+                  for asset_attempt in range(1,31):
+                      try:
+                          query=urllib.parse.urlencode({'commit':os.environ['GITHUB_SHA'],'attempt':asset_attempt})
+                          request=urllib.request.Request(target+path+'?'+query,headers={'User-Agent':'MUSITU-AXIOM-GITHUB-ACTIONS-QUALIFICATION/1.0'})
+                          with urllib.request.urlopen(request,timeout=30) as response: body=response.read()
+                          if needle in body: break
+                          asset_last=f'contract missing {needle!r}; bytes={len(body)}'
+                      except urllib.error.HTTPError as error:
+                          asset_last=f'HTTP {error.code}; body={error.read(256)!r}'
+                      except Exception as error: asset_last=repr(error)
+                      time.sleep(2)
+                  else: raise SystemExit(f'{label} asset unavailable at {path}: {asset_last}')
               print(f'fa13_{label}_asset_smoke_pass=true')
           PY
           echo 'fa13_staging_smoke_pass=true'
