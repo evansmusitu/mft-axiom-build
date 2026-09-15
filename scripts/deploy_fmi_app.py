@@ -51,7 +51,7 @@ def json_probe(url,method='GET',obj=None,headers=None,follow=True):
 
 subprocess.run(['node','--check',str(SOURCE_PATH)],check=True)
 text=SOURCE.decode('utf-8')
-for required in ('MUSITU_FMI_APP_V1_20260915','/manifest.webmanifest','/sw.js','PAPER_SHADOW_ONLY','/api/v1/intelligence/analyze'):
+for required in ('MUSITU_FMI_APP_V1_20260915','/manifest.webmanifest','/sw.js','PAPER_SHADOW_ONLY','/v1/intelligence/analyze'):
     if required not in text:raise RuntimeError('app source invariant missing: '+required)
 if 'live_trading_authorized:false' not in text.replace(' ',''):
     raise RuntimeError('authority boundary missing')
