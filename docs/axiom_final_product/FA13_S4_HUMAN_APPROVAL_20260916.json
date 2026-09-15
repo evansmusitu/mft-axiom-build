@@ -1,0 +1,21 @@
+{
+  "schema": "musitu.axiom.s4-human-release-approval.v1",
+  "role": "HUMAN_RELEASE_APPROVER",
+  "authority": "USER_FINAL_PRODUCT_AUTHORITY",
+  "approval_channel": "direct_user_instruction",
+  "approval_date": "2026-09-16",
+  "exact_confirmation": "APPROVE FA13 S4 PRODUCTION PROMOTION",
+  "granted": true,
+  "source_commit": "4c99c4ccbc4a9e34f4e446f30c31f4d428359818",
+  "candidate_artifact_sha256": "0f7dcedf90de1fe1bae9da50f672bb74f56ce9fbfb3b3e6e742ffae2bf7b634f",
+  "s4_approval_request_logical_sha256": "bc8ad232eed3dc69cc63c5210fc758b8e3d7d1bbdaeecc762af627270659e9a8",
+  "rollback_origin_commit": "4b818f04cd722f1e2e620e0e42da7200def1897c",
+  "scope": "FA13_S4_EXACT_CANDIDATE_PRODUCTION_PROMOTION_ONLY",
+  "production_target": "axiom.mftintelligence.com",
+  "distinct_independent_verifier_required": true,
+  "may_substitute_for_independent_verifier": false,
+  "main_merge_authorized": false,
+  "pr1_merge_authorized": false,
+  "superiority_claim_authorized": false,
+  "wolfram_parity_claim_authorized": false
+}
