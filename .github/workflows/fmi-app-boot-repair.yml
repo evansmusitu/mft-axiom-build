@@ -1,0 +1,104 @@
+name: MUSITU FMI App Boot Repair
+
+on:
+  push:
+    branches:
+      - fmi-customer-app-v1-20260915
+    paths:
+      - '.github/workflows/fmi-app-boot-repair.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: musitu-fmi-app-boot-repair
+  cancel-in-progress: false
+
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    env:
+      CF_API: https://api.cloudflare.com/client/v4
+      ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      ZONE_ID: 5b56528f03948ff5917a5e0cd9f7109e
+      ZONE_NAME: mftintelligence.com
+      APP_HOST: app.mftintelligence.com
+      APP_WORKER: mft-fmi-app
+      PUBLIC_BASE: https://mft-fmi-global-edge.mft-education-nexus-93f395f5.workers.dev
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fmi-customer-app-v1-20260915
+          fetch-depth: 0
+      - name: Repair browser global identifier collision
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          import re
+          p=Path('app/fmi_app_worker.mjs')
+          s=p.read_text()
+          if "function top(" not in s:
+              raise SystemExit('expected browser-colliding function top() not found')
+          before=len(re.findall(r'\btop\(',s))
+          if before < 2:
+              raise SystemExit(f'unexpected top() occurrence count {before}')
+          s=s.replace('function top(', 'function appHeader(', 1)
+          s,n=re.subn(r'\btop\(', 'appHeader(', s)
+          if n < 1:
+              raise SystemExit('no top() call sites replaced')
+          if re.search(r'\btop\(',s):
+              raise SystemExit('browser-colliding top() call remains')
+          if 'function appHeader(' not in s:
+              raise SystemExit('appHeader replacement missing')
+          p.write_text(s)
+          print({'top_occurrences_before':before,'call_sites_replaced':n,'collision_removed':True})
+          PY
+          node --check app/fmi_app_worker.mjs
+      - name: Commit canonical source repair
+        run: |
+          set -euo pipefail
+          git config user.name 'evansmusitu'
+          git config user.email 'evansmusitu5@gmail.com'
+          git add app/fmi_app_worker.mjs
+          git diff --cached --check
+          git commit -m 'fix(fmi-app): remove browser global top collision'
+          git push origin HEAD:fmi-customer-app-v1-20260915
+      - name: Deploy repaired app
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        run: |
+          set -euo pipefail
+          test -n "$CLOUDFLARE_EMAIL"
+          test -n "$CLOUDFLARE_GLOBAL_API_KEY"
+          python scripts/deploy_fmi_app.py
+      - name: Real-browser boot acceptance
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/fmi-chrome
+          google-chrome --headless=new --no-sandbox --disable-gpu \
+            --user-data-dir=/tmp/fmi-chrome \
+            --virtual-time-budget=5000 \
+            --enable-logging=stderr \
+            --dump-dom \
+            'https://app.mftintelligence.com/app?boot_repair=1' \
+            > /tmp/dom.html 2> /tmp/chrome.log
+          echo '=== FINAL DOM MARKERS ==='
+          grep -Eo 'Opening intelligence workspace|Create free account|Use access key|Market intelligence, as an app' /tmp/dom.html | sort | uniq -c || true
+          echo '=== BROWSER CONSOLE ==='
+          grep 'CONSOLE' /tmp/chrome.log || true
+          grep -q 'Create free account' /tmp/dom.html
+          grep -q 'Use access key' /tmp/dom.html
+          ! grep -q 'Opening intelligence workspace' /tmp/dom.html
+          ! grep -q "Identifier 'top' has already been declared" /tmp/chrome.log
+      - uses: actions/upload-artifact@v4
+        with:
+          name: musitu-fmi-app-boot-repair
+          path: |
+            fmi-customer-app-v1-deployment.json
+            fmi-customer-app-v1-deployment.sha256
+          retention-days: 30
+          if-no-files-found: error
