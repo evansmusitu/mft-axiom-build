@@ -1,0 +1,85 @@
+{
+  "schema": "musitu.fmi.customer-app-v1.ready.evidence.v1",
+  "recorded_date": "2026-09-15",
+  "product": "MUSITU Frontier Market Intelligence",
+  "gate": "FMI_CUSTOMER_APP_V1_READY",
+  "canonical_url": "https://app.mftintelligence.com/app",
+  "canonical_host": "app.mftintelligence.com",
+  "worker": "mft-fmi-app",
+  "build": "MUSITU_FMI_APP_V1_20260915",
+  "source_branch": "fmi-customer-app-v1-20260915",
+  "source_parent_authority_commit": "f62ca8aeb37e87db0d1c503fe4b235ebefcc9de5",
+  "successful_deployment_commit": "4833e40c913df3b334d2dba6a3da9cd3ea47949d",
+  "successful_workflow": {
+    "run_id": 34941096990,
+    "job_id": 104289739605,
+    "conclusion": "success",
+    "canonical_health_http": 200,
+    "upstream_health_http": 200,
+    "proxy_health_http": 200,
+    "unauthenticated_me_http": 401,
+    "unauthenticated_analysis_http": 401,
+    "workers_dev_enabled": false,
+    "previews_enabled": false,
+    "source_sha256": "5b53d6891beceee05d3a4a55e7e03ea885c36502ed288a559b8346226fa760b0",
+    "evidence_sha256": "bf68083f476209ff97c992195903f070b456bc7517a5e82503a79d706acf5cf8",
+    "artifact_id": 10385266444,
+    "artifact_zip_sha256": "09ccfb74c8370250743e28e15bde453bf2f1ced8910f14561e766e3923f3019e"
+  },
+  "app_capabilities": {
+    "installable_pwa": true,
+    "mobile_first": true,
+    "free_account_creation": true,
+    "existing_access_key_login": true,
+    "real_account_state": true,
+    "market_search": true,
+    "market_context": true,
+    "intelligence_analysis": true,
+    "evidence_monitor_creation": true,
+    "evidence_monitor_events": true,
+    "watchlists_read": true,
+    "history_read": true,
+    "billing_catalog": true,
+    "checkout_requires_explicit_user_confirmation": true,
+    "service_worker": true,
+    "same_origin_api_proxy": true
+  },
+  "runtime_state_preservation": {
+    "d1_api_calls_performed": false,
+    "customer_rows_modified_by_deployment": false,
+    "billing_rows_modified_by_deployment": false,
+    "payment_provider_called_by_deployment": false,
+    "checkout_initiated_by_deployment": false,
+    "admin_worker_modified": false,
+    "public_edge_worker_modified": false
+  },
+  "authority_boundaries": {
+    "authority": "PAPER_SHADOW_ONLY",
+    "live_trading_authorized": false,
+    "production_model_authority": false,
+    "profitability": "NOT_YET_CERTIFIED",
+    "superiority": "NOT_CERTIFIED",
+    "real_money_settlement": "NOT_CERTIFIED"
+  },
+  "preserved_failure_records": [
+    {
+      "run_id": 34940629924,
+      "job_id": 104288273023,
+      "reason": "DEPLOYER_SOURCE_INVARIANT_LITERAL_MISMATCH",
+      "production_mutation_before_failure": false
+    },
+    {
+      "run_id": 34940722170,
+      "job_id": 104288562855,
+      "reason": "NEW_WORKER_SETTINGS_READBACK_EVENTUAL_CONSISTENCY",
+      "customer_or_billing_mutation": false
+    },
+    {
+      "run_id": 34940818199,
+      "job_id": 104288858867,
+      "reason": "WORKERS_DEV_SAME_ACCOUNT_UPSTREAM_HEALTH_404",
+      "diagnosis": "CUSTOM_DOMAIN_HEALTH_AND_UPSTREAM_WERE_HTTP_200; WORKERS_DEV_REMOVED_AS_CANONICAL_ORIGIN",
+      "customer_or_billing_mutation": false
+    }
+  ]
+}
