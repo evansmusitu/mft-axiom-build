@@ -6,6 +6,9 @@ on:
       - frontier/axiom-final-product-fa13-20260915
     paths:
       - '.github/workflows/axiom-fa13-cloudflare-enterprise-qualification.yml'
+      - 'axiom_interface/vnext/engineering_command_center_*.js'
+      - 'axiom_interface/vnext/engineering_workspace_runtime.js'
+      - 'axiom_interface/vnext/tests/fa13_*.test.mjs'
   workflow_dispatch:
 
 permissions:
