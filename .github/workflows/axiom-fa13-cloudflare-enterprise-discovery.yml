@@ -2,26 +2,22 @@ name: MUSITU Axiom FA-13 Cloudflare Enterprise Discovery
 
 on:
   push:
-    branches:
-      - frontier/axiom-final-product-fa13-20260915
-    paths:
-      - '.github/workflows/axiom-fa13-cloudflare-enterprise-discovery.yml'
+    branches: [frontier/axiom-final-product-fa13-20260915]
+    paths: ['.github/workflows/axiom-fa13-cloudflare-enterprise-discovery.yml']
   workflow_dispatch:
 
 permissions:
   contents: read
 
 jobs:
-  discover-enterprise-identity:
+  diagnose-enterprise-token:
     runs-on: ubuntu-24.04
-    timeout-minutes: 12
+    timeout-minutes: 10
     env:
       CF_API: https://api.cloudflare.com/client/v4
-      ZONE_NAME: mftintelligence.com
       EXPECTED_ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
     steps:
-      - name: Checkout exact FA-13 head without persisted credentials
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
           persist-credentials: false
           fetch-depth: 0
@@ -35,9 +31,8 @@ jobs:
           grep -q 'Status: AUTHORITY_FROZEN_FOR_IMPLEMENTATION' docs/axiom_final_product/FA13_PREWRITE_INTENT.md
           grep -q 'Do not invent SSO/organization provider integration' docs/axiom_final_product/FA13_PREWRITE_INTENT.md
           git merge-base --is-ancestor 4b818f04cd722f1e2e620e0e42da7200def1897c HEAD
-          echo 'fa13_enterprise_authority_reasserted=true'
 
-      - name: Read Cloudflare Access identity providers applications groups and policies
+      - name: Probe token capabilities without exposing responses
         env:
           CLOUDFLARE_ACCESS_API_TOKEN: ${{ secrets.CLOUDFLARE_ACCESS_API_TOKEN }}
         shell: bash
@@ -45,204 +40,77 @@ jobs:
           set -euo pipefail
           test -n "$CLOUDFLARE_ACCESS_API_TOKEN"
           python - <<'PY'
-          import hashlib,json,os,urllib.parse,urllib.request,urllib.error,pathlib
+          import hashlib,json,os,pathlib,urllib.error,urllib.request
+          api=os.environ['CF_API']; aid=os.environ['EXPECTED_ACCOUNT_ID']
+          token=os.environ['CLOUDFLARE_ACCESS_API_TOKEN']
+          headers={'Authorization':'Bearer '+token,'Content-Type':'application/json'}
 
-          API=os.environ['CF_API']
-          account_id=os.environ['EXPECTED_ACCOUNT_ID']
-          headers={
-            'Authorization':'Bearer '+os.environ['CLOUDFLARE_ACCESS_API_TOKEN'],
-            'Content-Type':'application/json',
-          }
-          def call(path, allow=(200,)):
-              req=urllib.request.Request(API+path,headers=headers,method='GET')
+          def probe(label,path):
+              req=urllib.request.Request(api+path,headers=headers,method='GET')
               try:
                   with urllib.request.urlopen(req,timeout=30) as r:
                       raw=r.read(); code=r.status
               except urllib.error.HTTPError as e:
                   raw=e.read(); code=e.code
-              if code not in allow:
-                  raise SystemExit(f'Cloudflare read failed path={path} http={code} body_sha256={hashlib.sha256(raw).hexdigest()}')
-              if not raw: return code,{}
-              data=json.loads(raw)
-              if code==200 and isinstance(data,dict) and data.get('success') is False:
-                  raise SystemExit(f'Cloudflare API success=false path={path}')
-              return code,data
+              parsed=None
+              try: parsed=json.loads(raw) if raw else {}
+              except Exception: parsed={}
+              row={'endpoint':label,'http_status':code,'body_sha256':hashlib.sha256(raw).hexdigest(),'api_success':bool(isinstance(parsed,dict) and parsed.get('success') is True)}
+              return row,parsed if code==200 and row['api_success'] else {}
 
-          # Account identity is frozen by authoritative project configuration; this workflow
-          # intentionally does not require unrelated Zone permissions from the scoped Access token.
-          _,idps=call(f'/accounts/{account_id}/access/identity_providers?per_page=100')
-          provider_rows=[]; provider_ids=set()
-          for x in (idps or {}).get('result') or []:
-              pid=str(x.get('id') or '')
-              if pid: provider_ids.add(pid)
-              provider_rows.append({
-                'id':pid,
-                'name':str(x.get('name') or ''),
-                'type':str(x.get('type') or ''),
-                'has_config':bool(x.get('config')),
-                'config_keys':sorted(str(k) for k in (x.get('config') or {}).keys() if k not in {'client_secret','secret','certificate','private_key'}),
-              })
-          provider_rows.sort(key=lambda x:(x['type'],x['name'],x['id']))
+          rows=[]
+          r,_=probe('token_verify','/user/tokens/verify'); rows.append(r)
+          r,idps=probe('identity_providers',f'/accounts/{aid}/access/identity_providers?per_page=100'); rows.append(r)
+          r,groups=probe('groups',f'/accounts/{aid}/access/groups?per_page=100'); rows.append(r)
+          r,apps=probe('apps',f'/accounts/{aid}/access/apps?per_page=100'); rows.append(r)
 
-          # Groups are read only as policy-graph metadata. Members/emails are never emitted.
-          group_rows=[]
-          try:
-              _,groups=call(f'/accounts/{account_id}/access/groups?per_page=100')
-              for g in (groups or {}).get('result') or []:
-                  group_rows.append({
-                    'id':str(g.get('id') or ''),
-                    'name':str(g.get('name') or ''),
-                    'include_rule_types':sorted({str(k) for r in (g.get('include') or []) if isinstance(r,dict) for k in r.keys()}),
-                    'exclude_rule_types':sorted({str(k) for r in (g.get('exclude') or []) if isinstance(r,dict) for k in r.keys()}),
-                    'require_rule_types':sorted({str(k) for r in (g.get('require') or []) if isinstance(r,dict) for k in r.keys()}),
-                  })
-          except SystemExit as e:
-              # Group-read is useful but must not obscure stronger IdP/app/policy evidence.
-              group_rows=[{'read_status':'UNAVAILABLE','reason_sha256':hashlib.sha256(str(e).encode()).hexdigest()}]
-
-          _,apps=call(f'/accounts/{account_id}/access/apps?per_page=100')
-          relevant=[]
-          for app in (apps or {}).get('result') or []:
-              name=str(app.get('name') or '')
-              domain=str(app.get('domain') or '')
-              hay=(name+' '+domain).lower()
-              if 'axiom' not in hay and 'mftintelligence.com' not in hay and 'mft' not in hay:
-                  continue
-              app_id=str(app.get('id') or '')
-              if not app_id: continue
-              _,policies=call(f'/accounts/{account_id}/access/apps/{app_id}/policies?per_page=100')
-              safe_policies=[]
-              for p in (policies or {}).get('result') or []:
-                  def rule_shape(v):
-                      return sorted({str(k) for r in (v or []) if isinstance(r,dict) for k in r.keys()})
-                  safe_policies.append({
-                    'id':str(p.get('id') or ''),
-                    'name':str(p.get('name') or ''),
-                    'decision':str(p.get('decision') or ''),
-                    'precedence':p.get('precedence'),
-                    'include_rule_types':rule_shape(p.get('include')),
-                    'exclude_rule_types':rule_shape(p.get('exclude')),
-                    'require_rule_types':rule_shape(p.get('require')),
-                  })
-              allowed=[str(x) for x in (app.get('allowed_idps') or [])]
-              relevant.append({
-                'id':app_id,
-                'name':name,
-                'domain':domain,
-                'type':str(app.get('type') or ''),
-                'allowed_idps':sorted(allowed),
-                'allowed_idps_resolve':all(x in provider_ids for x in allowed),
-                'auto_redirect_to_identity':bool(app.get('auto_redirect_to_identity')),
-                'session_duration':app.get('session_duration'),
-                'policy_count':len(safe_policies),
-                'policies':safe_policies,
-              })
-          relevant.sort(key=lambda x:(x['domain'],x['name'],x['id']))
-
-          external_sso_types={'github','google','azuread','okta','onelogin','oidc','saml','pingone'}
-          configured_external_sso=[p for p in provider_rows if p['type'].lower() in external_sso_types]
-          bindings=[]
-          for a in relevant:
-              bound=set(a['allowed_idps'])
-              matched=[p['id'] for p in configured_external_sso if (not bound or p['id'] in bound)]
-              if matched and a['policy_count']>0:
-                  bindings.append({'app_id':a['id'],'domain':a['domain'],'provider_ids':matched,'policy_count':a['policy_count']})
-
-          out={
-            'schema':'musitu.axiom.fa13.cloudflare-enterprise-discovery.v2',
-            'source_commit':os.environ['GITHUB_SHA'],
-            'account_id':account_id,
-            'zone_name':os.environ['ZONE_NAME'],
-            'identity_providers':provider_rows,
-            'configured_external_sso_provider_count':len(configured_external_sso),
-            'access_groups':group_rows,
-            'relevant_apps':relevant,
-            'bound_external_sso_apps':bindings,
-            'configuration_candidate_for_enterprise_qualification':bool(bindings),
-            'interactive_sso_login_proven':False,
-            'rbac_enforcement_proven':False,
-            'denied_or_revoked_identity_proven':False,
-            'admin_lifecycle_proven':False,
-            'project_tenant_isolation_proven':False,
-            'write_performed':False,
-            'enterprise_row_promoted':False,
-          }
-          pathlib.Path('fa13-cloudflare-enterprise-discovery.json').write_text(json.dumps(out,indent=2,sort_keys=True)+'\n')
-          print(json.dumps({
-            'configured_external_sso_provider_count':len(configured_external_sso),
-            'relevant_app_count':len(relevant),
-            'bound_external_sso_app_count':len(bindings),
-            'configuration_candidate_for_enterprise_qualification':bool(bindings),
-            'enterprise_row_promoted':False,
-          },sort_keys=True))
+          safe={'schema':'musitu.axiom.fa13.cloudflare-token-capability-diagnostic.v1','source_commit':os.environ['GITHUB_SHA'],'account_id':aid,'probes':rows,'write_performed':False,'enterprise_row_promoted':False}
+          if apps:
+              result=apps.get('result') or []
+              safe['access_app_count']=len(result)
+              relevant=[]
+              for app in result:
+                  name=str(app.get('name') or ''); domain=str(app.get('domain') or '')
+                  if any(x in (name+' '+domain).lower() for x in ('axiom','mftintelligence.com','mft')):
+                      app_id=str(app.get('id') or '')
+                      if app_id:
+                          pr,_=probe('app_policies',f'/accounts/{aid}/access/apps/{app_id}/policies?per_page=100')
+                          rows.append(pr)
+                          relevant.append({'id':app_id,'name':name,'domain':domain,'policy_probe_http_status':pr['http_status'],'policy_probe_api_success':pr['api_success']})
+              safe['relevant_apps']=relevant
+          safe['required_read_capabilities_pass']=all(x['http_status']==200 and x['api_success'] for x in rows if x['endpoint'] in {'identity_providers','groups','apps','app_policies'})
+          pathlib.Path('fa13-cloudflare-token-diagnostic.json').write_text(json.dumps(safe,indent=2,sort_keys=True)+'\n')
+          print(json.dumps({'probe_statuses':[{k:r[k] for k in ('endpoint','http_status','api_success')} for r in rows],'required_read_capabilities_pass':safe['required_read_capabilities_pass']},sort_keys=True))
+          if token.encode() in pathlib.Path('fa13-cloudflare-token-diagnostic.json').read_bytes():
+              raise SystemExit('Fail-closed: token material detected in evidence')
           PY
 
-      - name: Probe relevant Access domains without authentication
+      - name: Seal diagnostic
+        if: always()
         shell: bash
         run: |
           set -euo pipefail
-          python - <<'PY'
-          import json,pathlib,urllib.parse,urllib.request,urllib.error
-          data=json.loads(pathlib.Path('fa13-cloudflare-enterprise-discovery.json').read_text())
-          probes=[]
-          class NoRedirect(urllib.request.HTTPRedirectHandler):
-              def redirect_request(self,req,fp,code,msg,headers,newurl): return None
-          opener=urllib.request.build_opener(NoRedirect)
-          for app in data.get('relevant_apps') or []:
-              domain=app.get('domain') or ''
-              if not domain or '*' in domain: continue
-              host=domain.split('/')[0].rstrip('/')
-              if not host: continue
-              url='https://'+host+'/'
-              req=urllib.request.Request(url,headers={'User-Agent':'MUSITU-Axiom-FA13-Enterprise-Discovery/2.0'},method='GET')
-              try:
-                  with opener.open(req,timeout=20) as r:
-                      code=r.status; loc=r.headers.get('Location','')
-              except urllib.error.HTTPError as e:
-                  code=e.code; loc=e.headers.get('Location','')
-              except Exception as e:
-                  probes.append({'domain':domain,'status':'TRANSPORT_ERROR','error_type':type(e).__name__}); continue
-              redirect_host=urllib.parse.urlparse(loc).hostname if loc else None
-              probes.append({
-                'domain':domain,
-                'http_status':code,
-                'redirect_host':redirect_host,
-                'access_redirect_observed':bool(loc and ('cloudflareaccess.com' in loc or '/cdn-cgi/access/' in loc)),
-              })
-          data['unauthenticated_domain_probes']=probes
-          data['live_access_enforcement_observed']=any(p.get('access_redirect_observed') for p in probes)
-          pathlib.Path('fa13-cloudflare-enterprise-discovery.json').write_text(json.dumps(data,indent=2,sort_keys=True)+'\n')
-          print(json.dumps({'probe_count':len(probes),'live_access_enforcement_observed':data['live_access_enforcement_observed']},sort_keys=True))
-          PY
+          test -f fa13-cloudflare-token-diagnostic.json
+          sha256sum fa13-cloudflare-token-diagnostic.json > fa13-cloudflare-token-diagnostic.sha256
 
-      - name: Prove discovery evidence contains no Cloudflare token
-        env:
-          CLOUDFLARE_ACCESS_API_TOKEN: ${{ secrets.CLOUDFLARE_ACCESS_API_TOKEN }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          python - <<'PY'
-          import os,pathlib
-          data=pathlib.Path('fa13-cloudflare-enterprise-discovery.json').read_bytes()
-          secret=os.environ.get('CLOUDFLARE_ACCESS_API_TOKEN','')
-          if secret and secret.encode() in data:
-              raise SystemExit('Fail-closed: Cloudflare token material detected in discovery evidence')
-          print('fa13_enterprise_discovery_secret_absence_pass=true')
-          PY
-
-      - name: Seal read-only discovery evidence
-        shell: bash
-        run: |
-          set -euo pipefail
-          sha256sum fa13-cloudflare-enterprise-discovery.json > fa13-cloudflare-enterprise-discovery.sha256
-          git diff --check
-
-      - name: Upload sanitized discovery evidence
+      - name: Upload sanitized diagnostic
+        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: musitu-axiom-fa13-cloudflare-enterprise-discovery
+          name: musitu-axiom-fa13-cloudflare-token-diagnostic
           path: |
-            fa13-cloudflare-enterprise-discovery.json
-            fa13-cloudflare-enterprise-discovery.sha256
+            fa13-cloudflare-token-diagnostic.json
+            fa13-cloudflare-token-diagnostic.sha256
           if-no-files-found: error
           retention-days: 14
+
+      - name: Fail closed unless required Access reads are authorized
+        shell: bash
+        run: |
+          python - <<'PY'
+          import json,pathlib
+          d=json.loads(pathlib.Path('fa13-cloudflare-token-diagnostic.json').read_text())
+          if not d.get('required_read_capabilities_pass'):
+              raise SystemExit('Cloudflare Access read capability set incomplete; see sanitized artifact')
+          print('fa13_cloudflare_access_read_capability_pass=true')
+          PY
