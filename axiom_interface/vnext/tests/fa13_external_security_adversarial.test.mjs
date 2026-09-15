@@ -17,11 +17,18 @@ const authority={
 const workspace=()=>EngineeringWorkspaceRuntime.create({projectId,authority,files:{'index.html':'<h1>safe</h1>\n','app.js':'export const safe=true;\n','axiom.tests.json':JSON.stringify({checks:[{kind:'contains',path:'index.html',value:'safe'}]})}});
 
 test('attack: external qualification package includes governed workflow fixtures',()=>{
+  const enterpriseWorkflow=new URL('../../../.github/workflows/axiom-fa13-cloudflare-enterprise-qualification.yml',import.meta.url);
   for(const path of [
     '../../../.github/workflows/axiom-fa13-cloudflare-preproduction-qualification.yml',
     '../../../.github/workflows/cloudflare-access-audit.yml',
     '../../../.github/workflows/axiom-fa13-cloudflare-enterprise-qualification.yml',
   ])assert.equal(fs.existsSync(new URL(path,import.meta.url)),true,`missing governed external fixture ${path}`);
+  const workflow=fs.readFileSync(enterpriseWorkflow,'utf8');
+  for(const watched of [
+    'axiom_interface/vnext/engineering_command_center_*.js',
+    'axiom_interface/vnext/engineering_workspace_runtime.js',
+    'axiom_interface/vnext/tests/fa13_*.test.mjs',
+  ])assert.equal(workflow.includes(`- '${watched}'`),true,`Enterprise qualification trigger missing governed path ${watched}`);
 });
 
 test('attack: cross-project authority is rejected before workspace creation',async()=>{
