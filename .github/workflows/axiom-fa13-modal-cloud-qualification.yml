@@ -233,11 +233,11 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          cat > /tmp/fa13-bind-cloud.mjs <<'JS'
+          cat > fa13-bind-cloud.mjs <<'JS'
           import fs from 'node:fs/promises';
-          import {BREADTH_SURFACES,SYSTEM_GRAPH_LAYERS,sealCheckpoint,sha256} from `${process.cwd()}/axiom_interface/vnext/engineering_command_center_security.js`;
-          import {makeEngineeringSnapshot} from `${process.cwd()}/axiom_interface/vnext/engineering_command_center_adapters.js`;
-          import {verifyEngineeringCommandCenter} from `${process.cwd()}/axiom_interface/vnext/engineering_command_center_verifier.js`;
+          import {BREADTH_SURFACES,SYSTEM_GRAPH_LAYERS,sealCheckpoint,sha256} from './axiom_interface/vnext/engineering_command_center_security.js';
+          import {makeEngineeringSnapshot} from './axiom_interface/vnext/engineering_command_center_adapters.js';
+          import {verifyEngineeringCommandCenter} from './axiom_interface/vnext/engineering_command_center_verifier.js';
           const projectId=process.env.FA13_PROJECT_ID,commit=process.env.GITHUB_SHA;
           const receipt=JSON.parse(await fs.readFile('fa13-modal-execution-receipt.json','utf8'));
           const qualification=JSON.parse(await fs.readFile('fa13-modal-external-qualification.json','utf8'));
@@ -274,7 +274,7 @@ jobs:
           console.log('fa13_cloud_rows_qualified=true');
           console.log('fa13_remaining_blockers='+expected.join(','));
           JS
-          node /tmp/fa13-bind-cloud.mjs
+          node fa13-bind-cloud.mjs
 
       - name: Prove evidence contains no configured secret values
         shell: bash
