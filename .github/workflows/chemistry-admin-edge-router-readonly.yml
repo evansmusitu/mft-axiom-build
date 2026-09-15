@@ -1,0 +1,94 @@
+name: MUSITU Chemistry Admin Edge Router Read-Only
+
+on:
+  push:
+    paths:
+      - '.github/workflows/chemistry-admin-edge-router-readonly.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    env:
+      CF_API: https://api.cloudflare.com/client/v4
+      ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      ZONE_ID: 5b56528f03948ff5917a5e0cd9f7109e
+      HOST: payments.mftintelligence.com
+    steps:
+      - uses: actions/checkout@v4
+      - name: Trace payments front door without mutation
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import email,hashlib,json,os,re,urllib.error,urllib.parse,urllib.request
+          API=os.environ['CF_API']; A=os.environ['ACCOUNT_ID']; HST=os.environ['HOST']
+          H={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY'],'User-Agent':'MUSITU-Admin-Edge-Trace/1.0'}
+          def cf(path):
+            q=urllib.request.Request(API+path,headers=H,method='GET')
+            try:
+              with urllib.request.urlopen(q,timeout=45) as r: raw=r.read(); code=r.status; ct=r.headers.get('content-type','')
+            except urllib.error.HTTPError as e: raw=e.read(); code=e.code; ct=e.headers.get('content-type','')
+            if code!=200: raise SystemExit(f'Cloudflare GET failed {code}: {path}')
+            x=json.loads(raw or b'{}')
+            if x.get('success') is not True: raise SystemExit(f'Cloudflare success=false: {path}')
+            return x.get('result'),ct
+          domains,_=cf(f'/accounts/{A}/workers/domains')
+          rows=[d for d in (domains or []) if d.get('hostname')==HST]
+          if len(rows)!=1: raise SystemExit('payments domain not unique')
+          service=rows[0].get('service')
+          if not service: raise SystemExit('payments domain service missing')
+          settings,_=cf(f'/accounts/{A}/workers/scripts/{urllib.parse.quote(service,safe="")}/settings')
+          safe=[]
+          for b in (settings or {}).get('bindings') or []:
+            if isinstance(b,dict): safe.append({k:b.get(k) for k in ('name','type','service','environment','namespace_id','id') if b.get(k) is not None})
+          q=urllib.request.Request(f'{API}/accounts/{A}/workers/scripts/{urllib.parse.quote(service,safe="")}',headers=H,method='GET')
+          with urllib.request.urlopen(q,timeout=45) as r: raw=r.read(); ct=r.headers.get('content-type','')
+          if 'multipart/' in ct.lower():
+            msg=email.message_from_bytes((f'Content-Type: {ct}\r\nMIME-Version: 1.0\r\n\r\n').encode()+raw)
+            parts=[]
+            for p in msg.walk():
+              if p.is_multipart(): continue
+              d=p.get_payload(decode=True) or b''
+              if b'export default' in d or b'fetch(' in d: parts.append(d)
+            if not parts: raise SystemExit('front worker module extraction failed')
+            source=max(parts,key=len)
+          else: source=raw
+          sha=hashlib.sha256(source).hexdigest(); text=source.decode('utf-8','replace')
+          def context(token,span=1800):
+            out=[]; start=0
+            while True:
+              i=text.find(token,start)
+              if i<0: break
+              s=text[max(0,i-span):min(len(text),i+span)].replace('\n',' ')
+              s=re.sub(r'(?i)(secret|token|key)\s*[:=]\s*["\'][^"\']+["\']',r'\1=<redacted>',s)
+              out.append(s); start=i+len(token)
+            return out[:8]
+          def probe(method,path,body=None,headers=None):
+            hh={'User-Agent':'MUSITU-Admin-Edge-Trace/1.0','Accept':'text/html,application/json'}; hh.update(headers or {})
+            q=urllib.request.Request('https://'+HST+path,data=body,headers=hh,method=method)
+            try:
+              op=urllib.request.build_opener(urllib.request.HTTPHandler())
+              with op.open(q,timeout=30) as r:return {'method':method,'path':path,'status':r.status,'location':r.headers.get('location'),'content_type':r.headers.get('content-type')}
+            except urllib.error.HTTPError as e:return {'method':method,'path':path,'status':e.code,'location':e.headers.get('location'),'content_type':e.headers.get('content-type')}
+          invalid=urllib.parse.urlencode({'token':'INVALID-EDGE-TRACE-CREDENTIAL'}).encode()
+          probes=[probe('GET','/chemistry/admin'),probe('GET','/chemistry/admin/login'),probe('POST','/chemistry/admin/login',invalid,{'Content-Type':'application/x-www-form-urlencoded'}),probe('POST','/chemistry/checkout/start',b'',{'Content-Type':'application/x-www-form-urlencoded'})]
+          out={'gate':'MUSITU_ADMIN_EDGE_ROUTER_READ_PASS','host':HST,'service':service,'environment':rows[0].get('environment'),'source_sha256':sha,'source_bytes':len(source),'bindings':safe,'admin_context':context('/chemistry/admin'),'checkout_context':context('/chemistry/checkout'),'chemistry_context':context('/chemistry/'),'probes':probes,'production_mutation':False,'payment_created':False,'secret_values_captured':False}
+          open('admin-edge-router-readonly.json','w').write(json.dumps(out,indent=2,sort_keys=True)+'\n')
+          print(json.dumps({'gate':out['gate'],'service':service,'source_sha256':sha,'source_bytes':len(source),'bindings':safe,'admin_context_count':len(out['admin_context']),'checkout_context_count':len(out['checkout_context']),'probes':probes,'production_mutation':False},sort_keys=True))
+          for i,c in enumerate(out['admin_context'],1): print(f'--- ADMIN_CONTEXT_{i} ---\n{c}')
+          for i,c in enumerate(out['checkout_context'],1): print(f'--- CHECKOUT_CONTEXT_{i} ---\n{c}')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: musitu-chemistry-admin-edge-router-readonly
+          path: admin-edge-router-readonly.json
+          retention-days: 30
+          if-no-files-found: error
