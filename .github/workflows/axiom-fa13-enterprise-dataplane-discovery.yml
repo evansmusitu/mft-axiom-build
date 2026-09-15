@@ -1,0 +1,224 @@
+name: MUSITU Axiom FA-13 Enterprise Dataplane Discovery
+
+on:
+  push:
+    branches:
+      - frontier/axiom-final-product-fa13-20260915
+    paths:
+      - '.github/workflows/axiom-fa13-enterprise-dataplane-discovery.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  discover-enterprise-dataplane:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    env:
+      CF_API: https://api.cloudflare.com/client/v4
+      ZONE_NAME: mftintelligence.com
+      EXPECTED_ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+    steps:
+      - name: Checkout exact FA-13 head without persisted credentials
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Reassert frozen FA-13 authority
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF_NAME" = 'frontier/axiom-final-product-fa13-20260915'
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          grep -q 'Status: AUTHORITY_FROZEN_FOR_IMPLEMENTATION' docs/axiom_final_product/FA13_PREWRITE_INTENT.md
+          grep -q 'Do not invent SSO/organization provider integration' docs/axiom_final_product/FA13_PREWRITE_INTENT.md
+          git merge-base --is-ancestor 4b818f04cd722f1e2e620e0e42da7200def1897c HEAD
+          echo 'fa13_enterprise_authority_reasserted=true'
+
+      - name: Probe live enterprise dataplane with existing AXIOM Cloudflare secret pair
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$CLOUDFLARE_EMAIL"
+          test -n "$CLOUDFLARE_GLOBAL_API_KEY"
+          python - <<'PY'
+          import hashlib,json,os,pathlib,re,urllib.error,urllib.parse,urllib.request
+
+          cf_headers={
+            'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],
+            'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY'],
+            'Accept':'application/json',
+            'User-Agent':'MUSITU-Axiom-FA13-Enterprise-Dataplane/1.0',
+          }
+          def cf(path):
+              req=urllib.request.Request(os.environ['CF_API']+path,headers=cf_headers,method='GET')
+              try:
+                  with urllib.request.urlopen(req,timeout=30) as r:
+                      raw=r.read(); code=r.status
+              except urllib.error.HTTPError as e:
+                  raw=e.read(); code=e.code
+              try:data=json.loads(raw or b'{}')
+              except Exception:data={}
+              return code,data,hashlib.sha256(raw).hexdigest()
+
+          zcode,zones,zsha=cf('/zones?name='+urllib.parse.quote(os.environ['ZONE_NAME'])+'&status=active')
+          rows=(zones or {}).get('result') or []
+          if zcode!=200 or len(rows)!=1:
+              raise SystemExit('Fail-closed: existing Cloudflare credential cannot resolve exact active zone')
+          zone=rows[0]; account_id=str((zone.get('account') or {}).get('id') or '')
+          if account_id!=os.environ['EXPECTED_ACCOUNT_ID']:
+              raise SystemExit('Fail-closed: Cloudflare account ID mismatch')
+
+          access_code,access_body,access_sha=cf(f'/accounts/{account_id}/access/apps?per_page=100')
+          management={
+            'access_apps_http':access_code,
+            'access_apps_authorized':access_code==200 and bool((access_body or {}).get('success',True)),
+            'response_sha256':access_sha,
+          }
+
+          class NoRedirect(urllib.request.HTTPRedirectHandler):
+              def redirect_request(self,req,fp,code,msg,headers,newurl): return None
+          no_redirect=urllib.request.build_opener(NoRedirect)
+          def fetch(url, follow=False, limit=65536):
+              opener=urllib.request.build_opener() if follow else no_redirect
+              req=urllib.request.Request(url,headers={'Accept':'text/html,application/json','User-Agent':'MUSITU-Axiom-FA13-Enterprise-Dataplane/1.0'},method='GET')
+              try:
+                  with opener.open(req,timeout=30) as r:
+                      body=r.read(limit); code=r.status; headers=r.headers
+              except urllib.error.HTTPError as e:
+                  body=e.read(limit); code=e.code; headers=e.headers
+              except Exception as e:
+                  return {'transport_error':type(e).__name__}
+              loc=str(headers.get('Location') or '')
+              parsed=urllib.parse.urlparse(loc) if loc else None
+              return {
+                'http_status':code,
+                'location_host':parsed.hostname if parsed else None,
+                'location_path':parsed.path if parsed else None,
+                'server':str(headers.get('Server') or ''),
+                'cf_ray_present':bool(headers.get('CF-Ray')),
+                'body':body,
+                'location':loc,
+              }
+
+          candidates=[
+            ('axiom_stage','https://axiom-stage.mftintelligence.com/health'),
+            ('auth_root','https://auth.mftintelligence.com/'),
+            ('mcp_root','https://mcp.mftintelligence.com/'),
+          ]
+          probes=[]
+          provider_markers=['github','google','microsoft','azure','okta','onelogin','saml','oidc','one-time pin']
+          for name,url in candidates:
+              p=fetch(url,follow=False)
+              if 'transport_error' in p:
+                  probes.append({'name':name,'url':url,'transport_error':p['transport_error']}); continue
+              loc=p.pop('location',''); body=p.pop('body',b'')
+              access_redirect=bool(loc and ('cloudflareaccess.com' in loc.lower() or '/cdn-cgi/access/' in loc.lower()))
+              row={**p,'name':name,'url':url,'access_redirect_observed':access_redirect,'login_provider_markers':[]}
+              if access_redirect:
+                  lp=fetch(loc,follow=False)
+                  if 'transport_error' not in lp:
+                      lbody=lp.pop('body',b'').decode('utf-8','replace').lower(); lloc=lp.pop('location','')
+                      row['access_login_http']=lp.get('http_status')
+                      row['access_login_redirect_host']=urllib.parse.urlparse(lloc).hostname if lloc else None
+                      row['login_provider_markers']=sorted([x for x in provider_markers if x in lbody or (lloc and x in lloc.lower())])
+              probes.append(row)
+
+          oidc=fetch('https://auth.mftintelligence.com/.well-known/openid-configuration',follow=True)
+          oidc_safe={'transport_error':oidc.get('transport_error')} if 'transport_error' in oidc else {'http_status':oidc.get('http_status')}
+          if oidc_safe.get('http_status')==200:
+              try:
+                  doc=json.loads(oidc.get('body',b'{}'))
+              except Exception: doc={}
+              oidc_safe.update({
+                'issuer':doc.get('issuer'),
+                'authorization_endpoint_present':bool(doc.get('authorization_endpoint')),
+                'token_endpoint_present':bool(doc.get('token_endpoint')),
+                'revocation_endpoint_present':bool(doc.get('revocation_endpoint')),
+                'userinfo_endpoint_present':bool(doc.get('userinfo_endpoint')),
+                'jwks_uri_present':bool(doc.get('jwks_uri')),
+                'pkce_s256': 'S256' in (doc.get('code_challenge_methods_supported') or []),
+                'openid_scope': 'openid' in (doc.get('scopes_supported') or []),
+                'email_scope': 'email' in (doc.get('scopes_supported') or []),
+              })
+
+          health=fetch('https://auth.mftintelligence.com/health',follow=True)
+          health_safe={'transport_error':health.get('transport_error')} if 'transport_error' in health else {'http_status':health.get('http_status')}
+          if health_safe.get('http_status')==200:
+              try:hdoc=json.loads(health.get('body',b'{}'))
+              except Exception:hdoc={}
+              health_safe.update({
+                'ok':hdoc.get('ok') is True,
+                'service':str(hdoc.get('service') or ''),
+                'oidc':hdoc.get('oidc') is True,
+                'userinfo':hdoc.get('userinfo') is True,
+                'pkce_s256':hdoc.get('pkce_s256') is True,
+              })
+
+          live_access=any(x.get('access_redirect_observed') for x in probes)
+          provider_marker_count=sum(len(x.get('login_provider_markers') or []) for x in probes)
+          out={
+            'schema':'musitu.axiom.fa13.enterprise-dataplane-discovery.v1',
+            'source_commit':os.environ['GITHUB_SHA'],
+            'zone':{'name':zone.get('name'),'status':zone.get('status'),'account_id':account_id,'lookup_http':zcode,'lookup_body_sha256':zsha},
+            'cloudflare_access_management':management,
+            'dataplane_probes':probes,
+            'live_access_enforcement_observed':live_access,
+            'access_login_provider_marker_count':provider_marker_count,
+            'axiom_oidc':oidc_safe,
+            'axiom_auth_health':health_safe,
+            'interactive_sso_login_proven':False,
+            'admin_lifecycle_proven':False,
+            'enterprise_row_promoted':False,
+            'write_performed':False,
+            'production_authority':False,
+          }
+          pathlib.Path('fa13-enterprise-dataplane-discovery.json').write_text(json.dumps(out,indent=2,sort_keys=True)+'\n')
+          print(json.dumps({
+            'cloudflare_access_management_http':access_code,
+            'live_access_enforcement_observed':live_access,
+            'access_login_provider_marker_count':provider_marker_count,
+            'oidc_http':oidc_safe.get('http_status'),
+            'oidc_revocation_endpoint_present':oidc_safe.get('revocation_endpoint_present'),
+            'interactive_sso_login_proven':False,
+            'enterprise_row_promoted':False,
+          },sort_keys=True))
+          PY
+
+      - name: Prove evidence contains no configured secret material
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import os,pathlib
+          data=pathlib.Path('fa13-enterprise-dataplane-discovery.json').read_bytes()
+          for value in (os.environ.get('CLOUDFLARE_EMAIL',''),os.environ.get('CLOUDFLARE_GLOBAL_API_KEY','')):
+              if value and value.encode() in data:
+                  raise SystemExit('Fail-closed: configured secret material present in evidence')
+          print('fa13_enterprise_dataplane_secret_absence_pass=true')
+          PY
+
+      - name: Seal discovery evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          sha256sum fa13-enterprise-dataplane-discovery.json > fa13-enterprise-dataplane-discovery.sha256
+          git diff --check
+
+      - name: Upload sanitized discovery evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: musitu-axiom-fa13-enterprise-dataplane-discovery
+          path: |
+            fa13-enterprise-dataplane-discovery.json
+            fa13-enterprise-dataplane-discovery.sha256
+          if-no-files-found: error
+          retention-days: 14
