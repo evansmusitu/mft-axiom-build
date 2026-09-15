@@ -29,7 +29,7 @@ jobs:
           python - <<'PY'
           import email,hashlib,json,os,re,urllib.error,urllib.parse,urllib.request
           API=os.environ['CF_API'];A=os.environ['ACCOUNT_ID'];W=os.environ['COMMERCE_WORKER']
-          H={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY'],'Content-Type':'application/json','User-Agent':'MUSITU-Admin-Discovery/1.1'}
+          H={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY'],'Content-Type':'application/json','User-Agent':'MUSITU-Admin-Discovery/1.2'}
           def call(path,method='GET',obj=None):
               data=None if obj is None else json.dumps(obj).encode()
               q=urllib.request.Request(API+path,method=method,headers=H,data=data)
@@ -58,7 +58,6 @@ jobs:
           candidate=str(db[0].get('id') or db[0].get('database_id') or '')
           matches=[x for x in dbs if str(x.get('uuid'))==candidate or str(x.get('name'))==candidate]
           if len(matches)!=1:
-              # Some Worker settings expose a binding UUID under a differently named key. Fail closed but report only non-secret D1 metadata.
               available=[{'name':x.get('name'),'uuid':x.get('uuid')} for x in dbs]
               raise SystemExit('CHEMISTRY_DB resolution mismatch binding='+repr(binding)+' available='+repr(available))
           dbid=matches[0].get('uuid');dbname=matches[0].get('name')
@@ -79,7 +78,22 @@ jobs:
           route_literals=sorted(set(re.findall(r"['\"](/chemistry/[A-Za-z0-9_?&=./:-]+)['\"]",text)))
           fn=sorted(set(re.findall(r'\b(?:async\s+)?function\s+([A-Za-z0-9_]+)\s*\(',text)))
           markers={'issueLicense':'issueLicense' in fn,'fulfil':'fulfil' in fn,'createOrder':'createOrder' in fn,'orderByReference':'orderByReference' in fn,'quote':'quote' in fn,'secure_usd':"currency:'USD'" in text and 'const DIRECT_PAYNOW_FALLBACK_ACTIVE=false;' in text,'paynow_authority':'/internal/paynow/sign-initiate-chemistry' in text}
-          out={'schema':'musitu.chemistry.admin.discovery.v1','commerce_worker_sha256':hashlib.sha256(source).hexdigest(),'database_name':dbname,'database_uuid':dbid,'database_binding':binding,'tables':tables,'table_schema':schema,'route_literals':route_literals[:200],'function_markers':markers,'production_mutation':False,'customer_rows_read':False,'secret_values_read':False,'gate':'MUSITU_CHEMISTRY_ADMIN_DISCOVERY_PASS'}
+          def snippet(token,before=900,after=3200):
+              i=text.find(token)
+              if i<0:return None
+              s=text[max(0,i-before):min(len(text),i+after)]
+              s=re.sub(r'(?i)(authorization\s*[:=]\s*["\']?Bearer\s+)[A-Za-z0-9._~-]+',r'\1<redacted>',s)
+              s=re.sub(r'(?i)(TOKEN\s*[=:]\s*)[^,;\n}]+',r'\1<redacted>',s)
+              s=re.sub(r'(?i)(KEY\s*[=:]\s*)[^,;\n}]+',r'\1<redacted>',s)
+              return s
+          snippets={
+            'claim_route':snippet("p==='/chemistry/claim'"),
+            'claim_function':snippet('function claim'),
+            'issue_license':snippet('function issueLicense'),
+            'fulfil':snippet('function fulfil'),
+            'checkout_route':snippet("p==='/chemistry/checkout/start'"),
+          }
+          out={'schema':'musitu.chemistry.admin.discovery.v2','commerce_worker_sha256':hashlib.sha256(source).hexdigest(),'database_name':dbname,'database_uuid':dbid,'database_binding':binding,'tables':tables,'table_schema':schema,'route_literals':route_literals[:200],'function_markers':markers,'snippets':snippets,'production_mutation':False,'customer_rows_read':False,'secret_values_read':False,'gate':'MUSITU_CHEMISTRY_ADMIN_DISCOVERY_PASS'}
           print(json.dumps(out,sort_keys=True))
           open('admin-discovery.json','w').write(json.dumps(out,indent=2,sort_keys=True)+'\n')
           PY
