@@ -1,0 +1,30 @@
+name: MUSITU FMI App Live Diagnose
+
+on:
+  push:
+    branches: [fmi-customer-app-v1-20260915]
+    paths: ['.github/workflows/fmi-app-live-diagnose.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Read-only live probes
+        shell: bash
+        run: |
+          set -u
+          for url in \
+            'https://mft-fmi-app.mft-education-nexus-93f395f5.workers.dev/healthz' \
+            'https://mft-fmi-app.mft-education-nexus-93f395f5.workers.dev/app' \
+            'https://app.mftintelligence.com/healthz' \
+            'https://app.mftintelligence.com/app'
+          do
+            echo "=== $url ==="
+            curl -sS --max-time 20 -D - "$url" -o /tmp/body || true
+            head -c 1200 /tmp/body 2>/dev/null || true
+            echo
+          done
