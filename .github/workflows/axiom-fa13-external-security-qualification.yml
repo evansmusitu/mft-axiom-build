@@ -55,7 +55,11 @@ jobs:
           test -n "$MODAL_TOKEN_SECRET"
           python -m pip install --disable-pip-version-check --quiet 'modal>=1.5,<2'
           modal app list --json >/dev/null
-          tar -czf fa13-security-package.tgz axiom_interface/vnext
+          tar -czf fa13-security-package.tgz \
+            axiom_interface/vnext \
+            .github/workflows/axiom-fa13-cloudflare-preproduction-qualification.yml \
+            .github/workflows/cloudflare-access-audit.yml \
+            .github/workflows/axiom-fa13-cloudflare-enterprise-qualification.yml
           sha256sum fa13-security-package.tgz > fa13-security-package.sha256
 
       - name: Execute adversarial suite in isolated external Modal container
@@ -81,9 +85,9 @@ jobs:
                           path=pathlib.PurePosixPath(member.name)
                           if path.is_absolute() or '..' in path.parts: raise RuntimeError('unsafe archive path')
                       tf.extractall(root,filter='data')
-                  # The candidate archive intentionally contains only the bounded vNext
-                  # attack surface. Declare its module type explicitly so the provider's
-                  # distro Node runtime evaluates the same ESM contract as repository CI.
+                  # The candidate archive intentionally contains the bounded vNext attack
+                  # surface plus only the exact governed workflow fixtures read by the
+                  # repository contract tests. No repository credentials are included.
                   pathlib.Path(root,'package.json').write_text('{"type":"module"}\n')
                   command=['node','--experimental-global-webcrypto','--test',
                     'axiom_interface/vnext/tests/fa13_engineering_command_center.test.mjs',
