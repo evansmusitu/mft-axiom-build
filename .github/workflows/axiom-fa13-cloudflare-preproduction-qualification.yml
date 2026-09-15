@@ -133,7 +133,7 @@ jobs:
           npx wrangler deploy --name "$STAGING_WORKER" --compatibility-date 2026-09-15 --assets /tmp/fa13-assets > candidate-deploy.log 2>&1 || { tail -200 candidate-deploy.log; exit 1; }
           npx wrangler deploy --name "$CANARY_WORKER" --compatibility-date 2026-09-15 --assets /tmp/fa13-assets > canary-deploy.log 2>&1 || { tail -200 canary-deploy.log; exit 1; }
           python - <<'PY'
-          import json,os,time,urllib.parse,urllib.request
+          import json,os,time,urllib.error,urllib.parse,urllib.request
           for label,target in [('staging',os.environ['STAGING_URL']),('canary',os.environ['CANARY_URL'])]:
               last=None
               for attempt in range(1,31):
@@ -141,6 +141,10 @@ jobs:
                       with urllib.request.urlopen(target+'/vnext/fa13-build.json?attempt='+str(attempt),timeout=30) as response: build=json.load(response)
                       if build.get('source_commit')==os.environ['GITHUB_SHA']: break
                       last='stale source_commit '+repr(build.get('source_commit'))
+                  except urllib.error.HTTPError as error:
+                      body=error.read(512)
+                      diagnostic_headers={key:value for key,value in error.headers.items() if key.lower() not in {'set-cookie','cf-access-jwt-assertion'}}
+                      last=f'HTTP {error.code}; headers={diagnostic_headers!r}; body={body!r}'
                   except Exception as error: last=repr(error)
                   time.sleep(2)
               else: raise SystemExit(f'{label} build identity unavailable: {last}')

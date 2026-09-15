@@ -81,6 +81,10 @@ jobs:
                           path=pathlib.PurePosixPath(member.name)
                           if path.is_absolute() or '..' in path.parts: raise RuntimeError('unsafe archive path')
                       tf.extractall(root,filter='data')
+                  # The candidate archive intentionally contains only the bounded vNext
+                  # attack surface. Declare its module type explicitly so the provider's
+                  # distro Node runtime evaluates the same ESM contract as repository CI.
+                  pathlib.Path(root,'package.json').write_text('{"type":"module"}\n')
                   command=['node','--test',
                     'axiom_interface/vnext/tests/fa13_engineering_command_center.test.mjs',
                     'axiom_interface/vnext/tests/fa13_engineering_command_center_contract.test.mjs',
