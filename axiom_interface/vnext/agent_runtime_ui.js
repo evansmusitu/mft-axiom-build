@@ -1,10 +1,11 @@
+import './mission_control_ui.js';
 import {ProjectStore} from '../projects.js';
 import {ObservabilityStore} from '../observability.js';
 import {AgentAutomationStore} from '../agent_store.js';
 
 const $=(selector,root=document)=>root.querySelector(selector);
 const clean=(value,max=1000)=>String(value??'').replace(/[\u0000-\u001f\u007f]/g,'').trim().slice(0,max);
-const esc=value=>String(value??'').replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+const esc=value=>String(value??'').replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot',"'":'&#39;'}[ch]));
 const activeProjectId=()=>{try{return localStorage.getItem('axiom.vnext.active-project')||''}catch{return ''}};
 const route=()=>((location.hash.match(/^#\/([^/?#]+)/)||[])[1]||'home');
 
