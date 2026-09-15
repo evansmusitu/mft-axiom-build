@@ -1,0 +1,149 @@
+name: MUSITU Chemistry Admin Command Center Qualification
+
+on:
+  push:
+    paths:
+      - 'commerce/chemistry/admin_command_center_module.mjs'
+      - 'commerce/chemistry/admin_schema_v1.sql'
+      - 'commerce/chemistry/patch_admin_command_center.py'
+      - '.github/workflows/chemistry-admin-command-center-qualify.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  qualify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      CF_API: https://api.cloudflare.com/client/v4
+      ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      COMMERCE_WORKER: musitu-chemistry-commerce
+      EXPECTED_LIVE_SHA: d6ad30d11205a0bfaff008aeb3e9ae46075518186e7c717ba82b5a9e6c3bc567
+    steps:
+      - uses: actions/checkout@v4
+      - name: Capture exact live Commerce Worker read-only
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/mchem-admin evidence-out
+          python - <<'PY'
+          import email,hashlib,os,urllib.parse,urllib.request
+          from pathlib import Path
+          api=os.environ['CF_API'];aid=os.environ['ACCOUNT_ID'];w=os.environ['COMMERCE_WORKER']
+          h={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY'],'User-Agent':'MUSITU-Admin-Qualification/1.0'}
+          q=urllib.request.Request(f'{api}/accounts/{aid}/workers/scripts/{urllib.parse.quote(w,safe="")}',headers=h)
+          with urllib.request.urlopen(q,timeout=45) as r: raw=r.read();ct=r.headers.get('content-type','')
+          if 'multipart/' in ct.lower():
+              msg=email.message_from_bytes((f'Content-Type: {ct}\r\nMIME-Version: 1.0\r\n\r\n').encode()+raw);parts=[]
+              for p in msg.walk():
+                  if p.is_multipart():continue
+                  d=p.get_payload(decode=True) or b''
+                  if b'MUSITU Chemistry Commerce' in d:parts.append(d)
+              if len(parts)!=1:raise SystemExit('module extraction mismatch')
+              raw=parts[0]
+          got=hashlib.sha256(raw).hexdigest()
+          if got!=os.environ['EXPECTED_LIVE_SHA']:raise SystemExit('live worker drift '+got)
+          Path('/tmp/mchem-admin/live.mjs').write_bytes(raw)
+          print('LIVE_WORKER_SHA256='+got)
+          print('PRODUCTION_MUTATION=FALSE')
+          PY
+      - name: Build exact Admin candidate and prove reversible delta
+        shell: bash
+        run: |
+          set -euo pipefail
+          python commerce/chemistry/patch_admin_command_center.py --input /tmp/mchem-admin/live.mjs --output /tmp/mchem-admin/candidate.mjs | tee evidence-out/build.txt
+          node --check /tmp/mchem-admin/candidate.mjs
+          python - <<'PY'
+          import hashlib,json
+          from pathlib import Path
+          import importlib.util
+          spec=importlib.util.spec_from_file_location('patcher','commerce/chemistry/patch_admin_command_center.py');m=importlib.util.module_from_spec(spec);spec.loader.exec_module(m)
+          original=Path('/tmp/mchem-admin/live.mjs').read_text();candidate=Path('/tmp/mchem-admin/candidate.mjs').read_text();module=Path('commerce/chemistry/admin_command_center_module.mjs').read_text().strip()+'\n\n'
+          if candidate.count(module)!=1:raise SystemExit('module not inserted exactly once')
+          r=candidate.replace(m.ROUTE_INSERT,'',1).replace(module,'',1)
+          if r!=original:raise SystemExit('candidate differs outside exact Admin insertion')
+          required=['/chemistry/admin','adminCashSale','adminPaynowOrder','adminTransferDevice','adminRefund','adminCreateUser','chemistry_admin_audit','CHEMISTRY_ADMIN_OWNER_TOKEN']
+          for x in required:
+              if x not in candidate:raise SystemExit('missing '+x)
+          forbidden=['DIRECT_PAYNOW_FALLBACK_ACTIVE=true']
+          for x in forbidden:
+              if x in candidate:raise SystemExit('forbidden regression '+x)
+          preserved=["const DIRECT_PAYNOW_FALLBACK_ACTIVE=false;","currency:'USD'","/internal/paynow/sign-initiate-chemistry","/chemistry/webhooks/paynow","/chemistry/install","/chemistry/app"]
+          for x in preserved:
+              if x not in candidate:raise SystemExit('preserved contract missing '+x)
+          report={'schema':'musitu.chemistry.admin.candidate.v1','result':'PASS','baseline_sha256':hashlib.sha256(original.encode()).hexdigest(),'candidate_sha256':hashlib.sha256(candidate.encode()).hexdigest(),'candidate_bytes':len(candidate.encode()),'exact_reversible_delta':True,'existing_commerce_preserved':True,'secure_usd_paynow_preserved':True,'production_mutation':False}
+          Path('evidence-out/candidate.json').write_text(json.dumps(report,indent=2,sort_keys=True)+'\n')
+          print(json.dumps(report,sort_keys=True));print('MUSITU_ADMIN_CANDIDATE=PASS')
+          PY
+      - name: Qualify additive database schema locally
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import hashlib,json,re,sqlite3
+          from pathlib import Path
+          sql=Path('commerce/chemistry/admin_schema_v1.sql').read_text()
+          # Hard fail on destructive migrations.
+          for pat in [r'\bDROP\b',r'\bALTER\b',r'\bDELETE\b',r'\bUPDATE\b',r'\bTRUNCATE\b']:
+              if re.search(pat,sql,re.I):raise SystemExit('destructive migration token '+pat)
+          con=sqlite3.connect(':memory:')
+          con.executescript('''
+          CREATE TABLE chemistry_orders(reference TEXT PRIMARY KEY,client_secret_sha256 TEXT NOT NULL,plan TEXT NOT NULL,holder TEXT NOT NULL,email TEXT,seats INTEGER NOT NULL,amount_cents INTEGER NOT NULL,currency TEXT NOT NULL,status TEXT NOT NULL,browser_url TEXT,poll_url TEXT,paynow_reference TEXT,licence_id TEXT,created_at TEXT NOT NULL,updated_at TEXT NOT NULL,paid_at TEXT);
+          CREATE TABLE chemistry_seats(reference TEXT NOT NULL,seat_no INTEGER NOT NULL,device_id TEXT,licence_token TEXT,issued_at TEXT,PRIMARY KEY(reference,seat_no));
+          CREATE TABLE chemistry_provider_events(provider TEXT NOT NULL,digest TEXT NOT NULL,reference TEXT,received_at TEXT NOT NULL,processed_at TEXT,outcome TEXT,PRIMARY KEY(provider,digest));
+          CREATE TABLE chemistry_field_aggregate(day TEXT NOT NULL,kind TEXT NOT NULL,name TEXT NOT NULL,route TEXT NOT NULL,detail TEXT NOT NULL,viewport TEXT NOT NULL,bucket TEXT NOT NULL,count INTEGER NOT NULL,PRIMARY KEY(day,kind,name,route,detail,viewport,bucket));
+          ''')
+          baseline={t:con.execute(f'PRAGMA table_info({t})').fetchall() for t in ['chemistry_orders','chemistry_seats','chemistry_provider_events','chemistry_field_aggregate']}
+          con.executescript(sql);con.executescript(sql)
+          after={t:con.execute(f'PRAGMA table_info({t})').fetchall() for t in baseline}
+          if baseline!=after:raise SystemExit('baseline Commerce schema changed')
+          tables={r[0] for r in con.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+          required={'chemistry_admin_schema','chemistry_admin_users','chemistry_customers','chemistry_customer_orders','chemistry_cash_sessions','chemistry_payments','chemistry_receipts','chemistry_support_notes','chemistry_device_events','chemistry_adjustments','chemistry_access_controls','chemistry_admin_audit'}
+          missing=sorted(required-tables)
+          if missing:raise SystemExit('missing admin tables '+repr(missing))
+          v=con.execute('SELECT version FROM chemistry_admin_schema').fetchall()
+          if v!=[(1,)]:raise SystemExit('schema version mismatch '+repr(v))
+          # Constraints that protect financial semantics.
+          try:con.execute("INSERT INTO chemistry_cash_sessions(session_id,cashier_id,currency,opening_cents,status,opened_at) VALUES('x','a','ZWG',0,'open','now')");raise SystemExit('ZWG accepted')
+          except sqlite3.IntegrityError:pass
+          report={'schema':'musitu.chemistry.admin.schema_qualification.v1','result':'PASS','schema_sha256':hashlib.sha256(sql.encode()).hexdigest(),'idempotent':True,'baseline_tables_unchanged':True,'required_admin_tables':sorted(required),'usd_cash_enforced':True,'production_mutation':False}
+          Path('evidence-out/schema.json').write_text(json.dumps(report,indent=2,sort_keys=True)+'\n');print(json.dumps(report,sort_keys=True));print('MUSITU_ADMIN_SCHEMA=PASS')
+          PY
+      - name: Qualify RBAC and dangerous-operation contracts statically
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          s=Path('commerce/chemistry/admin_command_center_module.mjs').read_text()
+          checks={
+            'owner_wildcard':"owner:new Set(['*'])" in s,
+            'cashier_cash_sales':"cashier:new Set(['dashboard','search','customers:read','customers:write','payments:read','cash','sales'" in s,
+            'auditor_read_only':"auditor:new Set(['dashboard','search','customers:read','payments:read','audit:read','support:read','plans:read'])" in s,
+            'revoke_owner_only':"action==='revoke'&&ctx.role!=='owner'" in s,
+            'grant_owner_only':"ctx?.role!=='owner'" in s and 'adminGrantAccess' in s,
+            'paynow_refund_not_faked':"provider_refund_required" in s and 'MUSITU recorded the refund request' in s,
+            'cash_refund_reversal':"direction,amount_cents" in s and "'cash','debit'" in s,
+            'hash_chain':"prev_hash" in s and "event_hash" in s and 'adminAuditStatement' in s,
+            'server_quote_reused':'q=quote(plan,seatsInput)' in s,
+            'server_signer_reused':'issueLicense(env' in s,
+            'admin_cookie_secure':'HttpOnly; Secure; SameSite=Strict' in s,
+            'admin_secret_required':'CHEMISTRY_ADMIN_OWNER_TOKEN' in s,
+          }
+          bad=[k for k,v in checks.items() if not v]
+          if bad:raise SystemExit('contract checks failed '+repr(bad))
+          Path('evidence-out/contracts.json').write_text(json.dumps({'schema':'musitu.chemistry.admin.contracts.v1','result':'PASS','checks':checks,'production_mutation':False},indent=2,sort_keys=True)+'\n')
+          print('MUSITU_ADMIN_CONTRACTS=PASS')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: musitu-chemistry-admin-command-center-qualification
+          path: evidence-out
+          retention-days: 60
+          if-no-files-found: error
