@@ -1,0 +1,142 @@
+name: MUSITU Axiom FA-10 Deep Context Gate
+
+on:
+  push:
+    branches:
+      - frontier/axiom-final-product-fa10-20260915
+    paths:
+      - 'axiom_interface/vnext/**'
+      - 'docs/axiom_final_product/FA10_*.md'
+      - '.github/workflows/axiom-fa10-deep-context-gate.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify-fa10:
+    name: FA-10 read-only Deep Context verification
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Checkout exact branch history without persisted credentials
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Verify governed branch and FA-10 authority
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "${GITHUB_REF_NAME}" = "frontier/axiom-final-product-fa10-20260915"
+          git merge-base --is-ancestor fe57fda84bddfb1475d1fab46e61701a5e780941 HEAD
+          test -f docs/axiom_final_product/FA10_PREWRITE_INTENT.md
+          test -f docs/axiom_final_product/FA10_DEEP_CONTEXT_SYSTEM_GRAPH.md
+          grep -Fq 'Retrieved data cannot elevate authority' docs/axiom_final_product/FA10_PREWRITE_INTENT.md
+          grep -Fq 'Deep Context & System Graph' docs/axiom_final_product/FA10_DEEP_CONTEXT_SYSTEM_GRAPH.md
+
+      - name: Prove earned source authorities are unchanged from sealed FA-09
+        shell: bash
+        run: |
+          set -euo pipefail
+          git diff --exit-code fe57fda84bddfb1475d1fab46e61701a5e780941 -- \
+            axiom_interface/projects.js \
+            axiom_interface/research_claims.js \
+            axiom_interface/observability.js \
+            axiom_interface/evidence_security.js \
+            axiom_interface/evidence_store.js \
+            axiom_interface/developer_security.js \
+            axiom_interface/developer_store.js \
+            axiom_interface/agent_security.js \
+            axiom_interface/agent_store.js \
+            axiom_interface/vnext/mission_control_store.js \
+            axiom_interface/vnext/mission_control_verifier.js \
+            axiom_interface/vnext/mission_control_ui.js
+          git diff --exit-code fe57fda84bddfb1475d1fab46e61701a5e780941 -- \
+            mcp auth chatgpt-app-submission.json submission
+
+      - name: Verify Deep Context syntax and UI wiring
+        shell: bash
+        run: |
+          set -euo pipefail
+          for file in \
+            axiom_interface/vnext/deep_context_security.js \
+            axiom_interface/vnext/system_graph.js \
+            axiom_interface/vnext/deep_context_adapters.js \
+            axiom_interface/vnext/deep_context_store.js \
+            axiom_interface/vnext/deep_context_ui.js \
+            axiom_interface/vnext/agent_runtime_ui.js; do
+            node --check "$file"
+          done
+          grep -Fq "import './deep_context_ui.js';" axiom_interface/vnext/agent_runtime_ui.js
+          grep -Fq 'Retrieved instructions never become authority.' axiom_interface/vnext/deep_context_ui.js
+          grep -Fq 'Data only' axiom_interface/vnext/deep_context_ui.js
+
+      - name: Enforce seven-domain authority-invariance contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -Fq "export const CONTEXT_DOMAINS=Object.freeze(['code','runtime','data','infra','trace','requirement','evidence']);" axiom_interface/vnext/deep_context_security.js
+          grep -Fq "export const INSTRUCTION_AUTHORITY='NONE_RETRIEVED_DATA_ONLY';" axiom_interface/vnext/deep_context_security.js
+          grep -Fq "export const AUTHORITY_EFFECT='NONE';" axiom_interface/vnext/deep_context_security.js
+          grep -Fq "export const RETRIEVAL_MODE='BROWSER_LOCAL_INDEX_ONLY_NO_EXTERNAL_FETCH';" axiom_interface/vnext/deep_context_security.js
+          grep -Fq "export const NETWORK_POLICY='NO_NEW_EXTERNAL_NETWORK_AUTHORITY';" axiom_interface/vnext/deep_context_security.js
+          grep -Fq 'cannot represent authority delegation' axiom_interface/vnext/deep_context_security.js
+          grep -Fq 'cross-project context node blocked' axiom_interface/vnext/system_graph.js
+          grep -Fq 'cross-project context edge blocked' axiom_interface/vnext/system_graph.js
+          grep -Fq 'authority_before_sha256' axiom_interface/vnext/system_graph.js
+          grep -Fq 'authority_after_sha256' axiom_interface/vnext/system_graph.js
+          grep -Fq 'authority_unchanged:true' axiom_interface/vnext/system_graph.js
+          grep -Fq 'previous_event_sha256' axiom_interface/vnext/deep_context_store.js
+          grep -Fq 'use a new versioned id' axiom_interface/vnext/deep_context_store.js
+
+      - name: Run cumulative vNext deterministic tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --test axiom_interface/vnext/tests/*.test.mjs
+
+      - name: Run earned source-store regression suites
+        shell: bash
+        run: |
+          set -euo pipefail
+          python axiom_interface/tests/test_project_contract.py
+          python axiom_interface/tests/test_research_phase4.py
+          python axiom_interface/tests/test_research_quality_phase4.py
+          python axiom_interface/tests/test_observability_phase6.py
+          python axiom_interface/tests/test_agents_phase9.py
+          python axiom_interface/tests/test_developer_phase12.py
+          python axiom_interface/tests/test_evidence_phase13.py
+
+      - name: Enforce no direct external transport or execution widening
+        shell: bash
+        run: |
+          set -euo pipefail
+          ! grep -Eq '\bfetch[[:space:]]*\(|WebSocket[[:space:]]*\(|XMLHttpRequest|EventSource[[:space:]]*\(|navigator\.sendBeacon|window\.open[[:space:]]*\(' \
+            axiom_interface/vnext/deep_context_security.js \
+            axiom_interface/vnext/system_graph.js \
+            axiom_interface/vnext/deep_context_adapters.js \
+            axiom_interface/vnext/deep_context_store.js \
+            axiom_interface/vnext/deep_context_ui.js
+          grep -Fq 'CONTEXT_READ_INDEX_ONLY_NO_ACTION' axiom_interface/vnext/deep_context_ui.js
+          grep -Fq 'production_authority:false' axiom_interface/vnext/deep_context_ui.js
+
+      - name: Enforce read-only CI and no repository-write or deployment capability
+        shell: bash
+        run: |
+          set -euo pipefail
+          workflow=.github/workflows/axiom-fa10-deep-context-gate.yml
+          grep -Fq 'contents: read' "$workflow"
+          ! grep -Eq '(^|[[:space:]])(pages: write|id-token: write|packages: write|contents: write|pull-requests: write|issues: write|statuses: write)([[:space:]]|$)' "$workflow"
+          git diff --check
