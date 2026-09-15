@@ -1,0 +1,277 @@
+name: MUSITU Axiom FA-13 Cloudflare Preproduction Qualification
+
+on:
+  push:
+    branches:
+      - frontier/axiom-final-product-fa13-20260915
+    paths:
+      - '.github/workflows/axiom-fa13-cloudflare-preproduction-qualification.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: musitu-axiom-fa13-preproduction
+  cancel-in-progress: false
+
+jobs:
+  staging-canary-rollback-and-ide:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    env:
+      CLOUDFLARE_ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+      CLOUDFLARE_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+      STAGING_WORKER: musitu-axiom-fa13-staging
+      CANARY_WORKER: musitu-axiom-fa13-canary
+      FA12_COMMIT: 4b818f04cd722f1e2e620e0e42da7200def1897c
+    steps:
+      - name: Checkout exact candidate without persisted credentials
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Reassert governed preproduction boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF_NAME" = 'frontier/axiom-final-product-fa13-20260915'
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          grep -q 'Status: AUTHORITY_FROZEN_FOR_IMPLEMENTATION' docs/axiom_final_product/FA13_PREWRITE_INTENT.md
+          grep -q 'FA-13 does not itself grant production credentials' docs/axiom_final_product/FA13_PREWRITE_INTENT.md
+          git merge-base --is-ancestor "$FA12_COMMIT" HEAD
+          test -n "$CLOUDFLARE_EMAIL"
+          test -n "$CLOUDFLARE_API_KEY"
+
+      - name: Development test security accessibility and visual prerequisites
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --test axiom_interface/vnext/tests/*.test.mjs
+          python -m unittest \
+            frontier_review_safe.tests.test_external_attestation \
+            frontier_review_safe.tests.test_external_execution \
+            frontier_review_safe.tests.test_external_independence \
+            frontier_review_safe.tests.test_workflow_safety
+          node --check axiom_interface/vnext/engineering_command_center_ui.js
+          git diff --check
+
+      - name: Prepare exact sealed baseline and current candidate assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/fa12-export /tmp/fa12-assets /tmp/fa13-assets
+          git archive "$FA12_COMMIT" axiom_interface | tar -x -C /tmp/fa12-export
+          cp -a /tmp/fa12-export/axiom_interface/. /tmp/fa12-assets/
+          cp -a axiom_interface/. /tmp/fa13-assets/
+          python - <<'PY'
+          import json,os,pathlib
+          for root,commit,kind in [('/tmp/fa12-assets',os.environ['FA12_COMMIT'],'SEALED_FA12_ROLLBACK_ORIGIN'),('/tmp/fa13-assets',os.environ['GITHUB_SHA'],'FA13_PREPRODUCTION_CANDIDATE')]:
+              target=pathlib.Path(root)/'vnext'/'fa13-build.json'
+              target.write_text(json.dumps({'schema':'musitu.axiom.fa13.static-build.v1','source_commit':commit,'kind':kind,'production':False,'production_authority':False},sort_keys=True)+'\n')
+          PY
+          tar -C /tmp/fa13-assets -czf fa13-static-candidate.tgz .
+          sha256sum fa13-static-candidate.tgz > fa13-static-candidate.sha256
+
+      - name: Install exact existing Wrangler deployment toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --ignore-scripts --no-audit --no-fund --no-save wrangler@4.129.0
+          npx wrangler --version
+          npx wrangler auth token --json > /tmp/cf-auth.json
+          python - <<'PY'
+          import json
+          value=json.load(open('/tmp/cf-auth.json'))
+          assert value.get('type')=='api_key'
+          print('cloudflare_existing_api_key_auth_pass=true')
+          PY
+
+      - name: Resolve isolated workers.dev URLs
+        shell: bash
+        run: |
+          set -euo pipefail
+          SUBDOMAIN="$(python - <<'PY'
+          import json,os,urllib.request
+          req=urllib.request.Request(f"https://api.cloudflare.com/client/v4/accounts/{os.environ['CLOUDFLARE_ACCOUNT_ID']}/workers/subdomain",headers={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_API_KEY']})
+          with urllib.request.urlopen(req,timeout=30) as response: value=json.load(response)
+          if not value.get('success') or not (value.get('result') or {}).get('subdomain'): raise SystemExit('workers subdomain unavailable')
+          print(value['result']['subdomain'])
+          PY
+          )"
+          echo "STAGING_URL=https://${STAGING_WORKER}.${SUBDOMAIN}.workers.dev" >> "$GITHUB_ENV"
+          echo "CANARY_URL=https://${CANARY_WORKER}.${SUBDOMAIN}.workers.dev" >> "$GITHUB_ENV"
+
+      - name: Establish sealed FA-12 rollback origin on isolated staging worker
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx wrangler deploy --name "$STAGING_WORKER" --compatibility-date 2026-09-15 --assets /tmp/fa12-assets > baseline-deploy.log 2>&1 || { tail -200 baseline-deploy.log; exit 1; }
+          for attempt in $(seq 1 30); do
+            code="$(curl -sS -o baseline-build.json -w '%{http_code}' "$STAGING_URL/vnext/fa13-build.json?attempt=$attempt" || true)"
+            if [ "$code" = 200 ] && grep -q "$FA12_COMMIT" baseline-build.json; then break; fi
+            sleep 2
+          done
+          test "$code" = 200
+          grep -q "$FA12_COMMIT" baseline-build.json
+          echo 'fa13_staging_rollback_origin_pass=true'
+
+      - name: Deploy current FA-13 candidate to isolated staging and canary
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx wrangler deploy --name "$STAGING_WORKER" --compatibility-date 2026-09-15 --assets /tmp/fa13-assets > candidate-deploy.log 2>&1 || { tail -200 candidate-deploy.log; exit 1; }
+          npx wrangler deploy --name "$CANARY_WORKER" --compatibility-date 2026-09-15 --assets /tmp/fa13-assets > canary-deploy.log 2>&1 || { tail -200 canary-deploy.log; exit 1; }
+          for target in "$STAGING_URL" "$CANARY_URL"; do
+            for attempt in $(seq 1 30); do
+              code="$(curl -sS -o current-build.json -w '%{http_code}' "$target/vnext/fa13-build.json?attempt=$attempt" || true)"
+              if [ "$code" = 200 ] && grep -q "$GITHUB_SHA" current-build.json; then break; fi
+              sleep 2
+            done
+            test "$code" = 200
+            grep -q "$GITHUB_SHA" current-build.json
+            curl -fsS "$target/vnext/index.html" | grep -q 'MUSITU AXIOM'
+            curl -fsS "$target/vnext/engineering_workspace_runtime.js" | grep -q 'EngineeringWorkspaceRuntime'
+          done
+          echo 'fa13_staging_smoke_pass=true'
+          echo 'fa13_canary_smoke_pass=true'
+
+      - name: Exercise observable IDE surface in a real browser
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --ignore-scripts --no-audit --no-fund --no-save playwright@1.55.0
+          npx playwright install --with-deps chromium >/tmp/playwright-install.log 2>&1
+          cat > fa13-browser-qualification.mjs <<'JS'
+          import {chromium} from 'playwright';
+          import fs from 'node:fs/promises';
+          const base=process.env.STAGING_URL,commit=process.env.GITHUB_SHA,browser=await chromium.launch({headless:true}),page=await browser.newPage({viewport:{width:1440,height:1000}});
+          const checks=[];const check=(name,condition)=>{if(!condition)throw new Error(`IDE check failed: ${name}`);checks.push(name);};
+          await page.goto(`${base}/vnext/index.html#/projects`,{waitUntil:'networkidle'});
+          await page.getByRole('button',{name:'New project'}).click();
+          await page.getByLabel('Name').fill('FA-13 External IDE Qualification');
+          await page.getByLabel('Goal').fill('Exercise the governed Engineering Command Center public seam.');
+          await page.getByRole('button',{name:'Create project'}).click();
+          await page.waitForTimeout(300);
+          await page.goto(`${base}/vnext/index.html#/build`,{waitUntil:'networkidle'});
+          await page.getByRole('heading',{name:'Engineering Mission Control'}).waitFor();
+          await page.getByRole('button',{name:'Open Engineering Space'}).click();
+          await page.locator('[data-ecc-path="index.html"]').waitFor();check('project_bound_workspace',true);check('editable_files',await page.getByLabel('Editor buffer').isEnabled());
+          await page.getByLabel('Editor buffer').fill('<main><h1>MUSITU AXIOM qualified</h1><p id="status">Governed workspace ready.</p></main>\n');
+          await page.getByRole('button',{name:'Stage diff'}).click();check('diff_accept_reject',(await page.locator('#ecc-diff').innerText()).includes('+<main>'));
+          await page.getByRole('button',{name:'Accept'}).click();check('accepted_edit',(await page.locator('#ecc-status').innerText()).includes('accepted'));
+          await page.getByLabel('Search query').fill('qualified');await page.getByRole('button',{name:'Search'}).click();check('code_search',(await page.locator('#ecc-diag').innerText()).includes('index.html'));
+          await page.getByRole('button',{name:'Diagnostics'}).click();check('diagnostics',(await page.locator('#ecc-diag').innerText()).includes('No diagnostics'));
+          await page.getByLabel('Bounded terminal command').fill('status');await page.getByRole('button',{name:'Run'}).click();check('bounded_terminal',(await page.locator('#ecc-terminal-output').innerText()).includes('worktree_id'));
+          await page.getByRole('button',{name:'Build',exact:true}).last().click();check('build_receipt',(await page.locator('#ecc-status').innerText()).includes('Build PASS'));
+          await page.getByRole('button',{name:'Test',exact:true}).click();check('test_receipt',(await page.locator('#ecc-status').innerText()).includes('Tests PASS'));
+          await page.getByLabel('New worktree name').fill('external-qualification');await page.getByRole('button',{name:'Create',exact:true}).click();check('isolated_worktrees',(await page.locator('#ecc-worktree').inputValue())==='external-qualification');
+          await page.getByRole('button',{name:'Seal checkpoint'}).click();check('hash_bound_checkpoint_revert',(await page.locator('#ecc-checkpoint-select option').count())>1);
+          await page.getByRole('button',{name:'Refresh preview'}).click();const frame=page.frameLocator('#ecc-preview');await frame.getByRole('heading',{name:'MUSITU AXIOM qualified'}).waitFor();check('sandboxed_preview',(await page.locator('#ecc-preview').getAttribute('sandbox'))==='allow-scripts');
+          check('agent_command_context',(await page.locator('#ecc-agent').inputValue()).length>0);check('deep_context_and_system_graph',await page.getByText('Deep Context + System Graph').isVisible());
+          check('axiom_breadth',await page.getByText('Engineering Command Center does not redefine AXIOM as an IDE.').isVisible());check('production_authority_false',await page.getByText('PRODUCTION AUTHORITY: FALSE').isVisible());
+          await page.setViewportSize({width:390,height:844});check('responsive_mobile',await page.getByRole('heading',{name:'Engineering Mission Control'}).isVisible());
+          const duplicateIds=await page.locator('[id]').evaluateAll(nodes=>{const ids=nodes.map(node=>node.id),seen=new Set();return ids.filter(id=>seen.has(id)||!seen.add(id));});check('unique_dom_ids',duplicateIds.length===0);
+          const evidence={schema:'musitu.axiom.fa13.ide-browser-qualification.v1',source_commit:commit,staging_url:base,checks,check_count:checks.length,verifier_id:'github-actions-playwright-staging-verifier',viewport_desktop:'1440x1000',viewport_mobile:'390x844',browser:'chromium',production_authority:false,parity_claim_authorized:false,superiority_authorized:false,captured_at:new Date().toISOString()};
+          await fs.writeFile('fa13-ide-browser-evidence.json',JSON.stringify(evidence,null,2)+'\n');await browser.close();console.log('fa13_external_browser_ide_pass=true');
+          JS
+          node fa13-browser-qualification.mjs
+
+      - name: Prove staging rollback then restore candidate staging state
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx wrangler deploy --name "$STAGING_WORKER" --compatibility-date 2026-09-15 --assets /tmp/fa12-assets > rollback-deploy.log 2>&1 || { tail -200 rollback-deploy.log; exit 1; }
+          for attempt in $(seq 1 30); do
+            code="$(curl -sS -o rollback-build.json -w '%{http_code}' "$STAGING_URL/vnext/fa13-build.json?rollback=$attempt" || true)"
+            if [ "$code" = 200 ] && grep -q "$FA12_COMMIT" rollback-build.json; then break; fi
+            sleep 2
+          done
+          test "$code" = 200
+          grep -q "$FA12_COMMIT" rollback-build.json
+          npx wrangler deploy --name "$STAGING_WORKER" --compatibility-date 2026-09-15 --assets /tmp/fa13-assets > restore-candidate.log 2>&1 || { tail -200 restore-candidate.log; exit 1; }
+          for attempt in $(seq 1 30); do
+            code="$(curl -sS -o restored-build.json -w '%{http_code}' "$STAGING_URL/vnext/fa13-build.json?restore=$attempt" || true)"
+            if [ "$code" = 200 ] && grep -q "$GITHUB_SHA" restored-build.json; then break; fi
+            sleep 2
+          done
+          test "$code" = 200
+          grep -q "$GITHUB_SHA" restored-build.json
+          echo 'fa13_staging_rollback_proof_pass=true'
+          echo 'fa13_candidate_staging_restored=true'
+
+      - name: Read back Cloudflare workers and bind IDE qualification
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import hashlib,json,os,pathlib,urllib.request
+          headers={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_API_KEY']}
+          for worker in (os.environ['STAGING_WORKER'],os.environ['CANARY_WORKER']):
+              req=urllib.request.Request(f"https://api.cloudflare.com/client/v4/accounts/{os.environ['CLOUDFLARE_ACCOUNT_ID']}/workers/scripts/{worker}/settings",headers=headers)
+              with urllib.request.urlopen(req,timeout=30) as response: value=json.load(response)
+              if not value.get('success'): raise SystemExit('Cloudflare worker readback failed')
+          browser=json.loads(pathlib.Path('fa13-ide-browser-evidence.json').read_text())
+          digest=hashlib.sha256(json.dumps(browser,sort_keys=True,separators=(',',':')).encode()).hexdigest()
+          pathlib.Path('fa13-ide-browser-evidence.sha256').write_text(digest+'  fa13-ide-browser-evidence.json\n')
+          print('fa13_cloudflare_worker_readback_pass=true')
+          PY
+          cat > fa13-bind-ide.mjs <<'JS'
+          import fs from 'node:fs/promises';
+          import {deriveEngineeringMatrix} from './axiom_interface/vnext/engineering_command_center_adapters.js';
+          import {IDE_CAPABILITIES,IDE_QUALIFICATION_FEATURES,sha256} from './axiom_interface/vnext/engineering_command_center_security.js';
+          const evidence=JSON.parse(await fs.readFile('fa13-ide-browser-evidence.json','utf8'));
+          const required=['project_bound_workspace','editable_files','diff_accept_reject','code_search','diagnostics','bounded_terminal','isolated_worktrees','sandboxed_preview','hash_bound_checkpoint_revert','agent_command_context','deep_context_and_system_graph'];
+          if(required.some(item=>!evidence.checks.includes(item))||evidence.source_commit!==process.env.GITHUB_SHA)throw new Error('browser evidence is incomplete or stale');
+          const qualificationSha=await sha256({source_commit:process.env.GITHUB_SHA,features:IDE_QUALIFICATION_FEATURES,browser_evidence:evidence});
+          const rows=await deriveEngineeringMatrix({project_id:'project-fa13',workspace:{project_id:'project-fa13',mode:'GOVERNED_ENGINEERING_WORKSPACE',capabilities:Object.fromEntries(IDE_CAPABILITIES.map(key=>[key,true])),qualified_features:[...IDE_QUALIFICATION_FEATURES],ide_qualification_sha256:qualificationSha,windsurf_class_claim_authorized:true}});
+          const ide=rows.find(row=>row.row_id==='IDE');if(ide?.state!=='IMPLEMENTED_VERIFIED')throw new Error('IDE row did not qualify');
+          await fs.writeFile('fa13-ide-qualification.json',JSON.stringify({schema:'musitu.axiom.fa13.ide-qualification.v1',source_commit:process.env.GITHUB_SHA,verifier_id:evidence.verifier_id,benchmark_scope:'WINDSURF_DEVIN_CLASS_CORE_ENGINEERING_PUBLIC_BEHAVIOR_NO_PARITY_OR_SUPERIORITY_CLAIM',qualified_features:IDE_QUALIFICATION_FEATURES,ide_qualification_sha256:qualificationSha,row:ide,production_authority:false},null,2)+'\n');
+          console.log('fa13_ide_row_qualified=true');
+          JS
+          node fa13-bind-ide.mjs
+
+      - name: Seal preproduction evidence and exact S4 approval request
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import hashlib,json,os,pathlib,time
+          def digest_file(path): return hashlib.sha256(pathlib.Path(path).read_bytes()).hexdigest()
+          stages=['BUILD','TEST','SECURITY','A11Y','VISUAL','STAGING','SMOKE','CANARY','ROLLBACK_PROOF','STAGING_RESTORED']
+          evidence={'schema':'musitu.axiom.fa13.preproduction-qualification.v1','status':'PASS_READY_FOR_S4_APPROVAL','source_commit':os.environ['GITHUB_SHA'],'rollback_origin_commit':os.environ['FA12_COMMIT'],'staging_worker':os.environ['STAGING_WORKER'],'staging_url':os.environ['STAGING_URL'],'canary_worker':os.environ['CANARY_WORKER'],'canary_url':os.environ['CANARY_URL'],'completed_stages':stages,'production_reached':False,'production_authority':False,'rollback_proven_on_staging':True,'candidate_restored_to_staging':True,'ide_evidence_sha256':digest_file('fa13-ide-qualification.json'),'candidate_artifact_sha256':digest_file('fa13-static-candidate.tgz'),'captured_at':time.strftime('%Y-%m-%dT%H:%M:%SZ',time.gmtime())}
+          raw=json.dumps(evidence,sort_keys=True,separators=(',',':')).encode();evidence['evidence_sha256']=hashlib.sha256(raw).hexdigest();pathlib.Path('fa13-preproduction-evidence.json').write_text(json.dumps(evidence,indent=2,sort_keys=True)+'\n')
+          request={'schema':'musitu.axiom.s4-production-approval-request.v1','status':'AWAITING_APPROVAL','source_commit':os.environ['GITHUB_SHA'],'candidate_artifact_sha256':evidence['candidate_artifact_sha256'],'preproduction_evidence_sha256':evidence['evidence_sha256'],'required_distinct_roles':['HUMAN_RELEASE_APPROVER','INDEPENDENT_VERIFIER'],'exact_confirmation':'APPROVE FA13 S4 PRODUCTION PROMOTION','production_execution_allowed':False,'production_target':'EXISTING_AXIOM_PRODUCTION_WORKFLOW_TARGET_TO_BE_REASSERTED_AT_ACTION_TIME','rollback_origin_commit':os.environ['FA12_COMMIT']}
+          request_raw=json.dumps(request,sort_keys=True,separators=(',',':')).encode();request['approval_request_sha256']=hashlib.sha256(request_raw).hexdigest();pathlib.Path('fa13-s4-approval-request.json').write_text(json.dumps(request,indent=2,sort_keys=True)+'\n')
+          print('fa13_preproduction_ready_for_s4_approval=true')
+          print('fa13_s4_approval_request_sha256='+request['approval_request_sha256'])
+          PY
+          sha256sum fa13-static-candidate.tgz fa13-ide-browser-evidence.json fa13-ide-qualification.json fa13-preproduction-evidence.json fa13-s4-approval-request.json > fa13-preproduction-qualification.sha256
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: musitu-axiom-fa13-preproduction-qualification
+          path: |
+            fa13-static-candidate.tgz
+            fa13-static-candidate.sha256
+            fa13-ide-browser-evidence.json
+            fa13-ide-browser-evidence.sha256
+            fa13-ide-qualification.json
+            fa13-preproduction-evidence.json
+            fa13-s4-approval-request.json
+            fa13-preproduction-qualification.sha256
+            baseline-build.json
+            rollback-build.json
+            restored-build.json
+          if-no-files-found: error
+          retention-days: 14

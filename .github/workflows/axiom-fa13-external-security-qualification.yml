@@ -1,0 +1,220 @@
+name: MUSITU Axiom FA-13 External Security Qualification
+
+on:
+  push:
+    branches:
+      - frontier/axiom-final-product-fa13-20260915
+    paths:
+      - '.github/workflows/axiom-fa13-external-security-qualification.yml'
+      - 'axiom_interface/vnext/engineering_command_center_*.js'
+      - 'axiom_interface/vnext/engineering_workspace_runtime.js'
+      - 'axiom_interface/vnext/tests/fa13_external_security_adversarial.test.mjs'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  modal-external-attack-executor:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID }}
+      MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET }}
+    steps:
+      - name: Checkout exact candidate without persisted credentials
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Reassert FA-13 authority and attack contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF_NAME" = 'frontier/axiom-final-product-fa13-20260915'
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          grep -q 'Status: AUTHORITY_FROZEN_FOR_IMPLEMENTATION' docs/axiom_final_product/FA13_PREWRITE_INTENT.md
+          grep -q 'independent security authority/red team' docs/axiom_final_product/FA13_PREWRITE_INTENT.md
+          git merge-base --is-ancestor 4b818f04cd722f1e2e620e0e42da7200def1897c HEAD
+          node --test axiom_interface/vnext/tests/fa13_external_security_adversarial.test.mjs
+
+      - name: Authenticate existing Modal broker and package exact candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$MODAL_TOKEN_ID"
+          test -n "$MODAL_TOKEN_SECRET"
+          python -m pip install --disable-pip-version-check --quiet 'modal>=1.5,<2'
+          modal app list --json >/dev/null
+          tar -czf fa13-security-package.tgz axiom_interface/vnext
+          sha256sum fa13-security-package.tgz > fa13-security-package.sha256
+
+      - name: Execute adversarial suite in isolated external Modal container
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > fa13_modal_security.py <<'PY'
+          import hashlib,json,pathlib,re,subprocess,tarfile,tempfile,time,uuid
+          import modal
+
+          app=modal.App('musitu-axiom-fa13-external-security')
+          image=modal.Image.debian_slim(python_version='3.13').apt_install('nodejs','npm')
+          def canonical(value): return json.dumps(value,sort_keys=True,separators=(',',':'),ensure_ascii=False).encode()
+
+          @app.function(image=image,timeout=180,max_containers=1,cpu=(0.5,1.0),memory=(256,1024),block_network=True,restrict_modal_access=True,single_use_containers=True,retries=0)
+          def attack(package_bytes,expected_sha,source_commit):
+              if hashlib.sha256(package_bytes).hexdigest()!=expected_sha: raise RuntimeError('candidate package digest mismatch')
+              with tempfile.TemporaryDirectory() as root:
+                  archive=pathlib.Path(root)/'candidate.tgz'; archive.write_bytes(package_bytes)
+                  with tarfile.open(archive,'r:gz') as tf:
+                      members=tf.getmembers()
+                      for member in members:
+                          path=pathlib.PurePosixPath(member.name)
+                          if path.is_absolute() or '..' in path.parts: raise RuntimeError('unsafe archive path')
+                      tf.extractall(root,filter='data')
+                  command=['node','--test',
+                    'axiom_interface/vnext/tests/fa13_engineering_command_center.test.mjs',
+                    'axiom_interface/vnext/tests/fa13_engineering_command_center_contract.test.mjs',
+                    'axiom_interface/vnext/tests/fa13_engineering_workspace_runtime.test.mjs',
+                    'axiom_interface/vnext/tests/fa13_external_security_adversarial.test.mjs']
+                  run=subprocess.run(command,cwd=root,text=True,capture_output=True,timeout=150,env={'PATH':'/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin','NODE_DISABLE_COLORS':'1'})
+                  output=run.stdout+'\n'+run.stderr
+                  def count(label):
+                      match=re.search(r'(?:#|ℹ) '+label+r' (\d+)',output)
+                      return int(match.group(1)) if match else -1
+                  tests,passed,failed=count('tests'),count('pass'),count('fail')
+                  if run.returncode!=0 or tests<30 or passed!=tests or failed!=0: raise RuntimeError('external adversarial suite failed: '+output[-3000:])
+                  body={'schema':'musitu.axiom.fa13.external-security-attack-receipt.v1','status':'PASS','provider':'MODAL','source_commit':source_commit,'candidate_package_sha256':expected_sha,'tests':tests,'passed':passed,'failed':failed,'stdout_sha256':hashlib.sha256(output.encode()).hexdigest(),'attack_scopes':['authorization-bypass','cross-project-isolation','secret-handling','network-policy','S0-S5-escalation','checkpoint-tampering','deployment-bypass','agent-identity-abuse','evidence-forgery','instruction-provenance'],'network_blocked':True,'modal_access_restricted':True,'single_use_container':True,'repository_credentials_received':False,'production_authority':False,'execution_nonce':str(uuid.uuid4()),'executed_at':time.strftime('%Y-%m-%dT%H:%M:%SZ',time.gmtime())}
+                  return {**body,'remote_receipt_sha256':hashlib.sha256(canonical(body)).hexdigest()}
+
+          @app.local_entrypoint()
+          def main():
+              package=pathlib.Path('fa13-security-package.tgz').read_bytes(); digest=hashlib.sha256(package).hexdigest(); commit=pathlib.Path('.git/HEAD').read_text().strip()
+              import os
+              commit=os.environ['GITHUB_SHA']
+              call=attack.spawn(package,digest,commit); receipt=call.get(timeout=200)
+              body={k:v for k,v in receipt.items() if k!='remote_receipt_sha256'}
+              if hashlib.sha256(canonical(body)).hexdigest()!=receipt['remote_receipt_sha256']: raise RuntimeError('remote receipt integrity failure')
+              envelope_body={'schema':'musitu.axiom.fa13.modal-security-envelope.v1','provider':'MODAL','provider_call_id':call.object_id,'remote_receipt':receipt}
+              envelope={**envelope_body,'external_evidence_sha256':hashlib.sha256(canonical(envelope_body)).hexdigest()}
+              pathlib.Path('fa13-modal-security-receipt.json').write_text(json.dumps(envelope,indent=2,sort_keys=True)+'\n')
+              print('fa13_modal_external_attack_pass=true')
+          PY
+          modal run fa13_modal_security.py
+
+      - name: Ensure evidence excludes configured secret values
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import os,pathlib
+          data=pathlib.Path('fa13-modal-security-receipt.json').read_bytes()
+          for name in ('MODAL_TOKEN_ID','MODAL_TOKEN_SECRET'):
+              value=os.environ.get(name,'').encode()
+              if value and value in data: raise SystemExit('configured secret leaked into evidence')
+          print('fa13_security_evidence_secret_absence_pass=true')
+          PY
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: musitu-axiom-fa13-modal-external-security-receipt
+          path: fa13-modal-security-receipt.json
+          if-no-files-found: error
+          retention-days: 14
+
+  independent-github-verifier:
+    needs: modal-external-attack-executor
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Checkout exact candidate without persisted credentials
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: musitu-axiom-fa13-modal-external-security-receipt
+
+      - name: Verify provider receipt independently without Modal credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -z "${MODAL_TOKEN_ID:-}"
+          test -z "${MODAL_TOKEN_SECRET:-}"
+          python - <<'PY'
+          import hashlib,json,os,pathlib
+          def canonical(value): return json.dumps(value,sort_keys=True,separators=(',',':'),ensure_ascii=False).encode()
+          envelope=json.loads(pathlib.Path('fa13-modal-security-receipt.json').read_text())
+          body={k:v for k,v in envelope.items() if k!='external_evidence_sha256'}
+          assert hashlib.sha256(canonical(body)).hexdigest()==envelope['external_evidence_sha256']
+          assert envelope['provider']=='MODAL' and envelope['provider_call_id']
+          receipt=envelope['remote_receipt']; remote={k:v for k,v in receipt.items() if k!='remote_receipt_sha256'}
+          assert hashlib.sha256(canonical(remote)).hexdigest()==receipt['remote_receipt_sha256']
+          assert receipt['status']=='PASS' and receipt['source_commit']==os.environ['GITHUB_SHA']
+          assert receipt['tests']>=30 and receipt['passed']==receipt['tests'] and receipt['failed']==0
+          assert receipt['network_blocked'] is True and receipt['modal_access_restricted'] is True and receipt['single_use_container'] is True
+          assert receipt['repository_credentials_received'] is False and receipt['production_authority'] is False
+          required={'authorization-bypass','cross-project-isolation','secret-handling','network-policy','S0-S5-escalation','checkpoint-tampering','deployment-bypass','agent-identity-abuse','evidence-forgery','instruction-provenance'}
+          assert required==set(receipt['attack_scopes'])
+          print('fa13_independent_provider_receipt_verification_pass=true')
+          PY
+
+      - name: Reuse external-evaluation and adversarial verifier machinery
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --test axiom_interface/vnext/tests/fa13_external_security_adversarial.test.mjs
+          python -m unittest \
+            frontier_review_safe.tests.test_external_attestation \
+            frontier_review_safe.tests.test_external_execution \
+            frontier_review_safe.tests.test_external_independence \
+            frontier_review_safe.tests.test_external_producer_attester_separation \
+            frontier_review_safe.tests.test_workflow_safety
+
+      - name: Bind exact external evidence to the FA-13 security row
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > fa13-bind-security.mjs <<'JS'
+          import fs from 'node:fs/promises';
+          import {deriveEngineeringMatrix} from './axiom_interface/vnext/engineering_command_center_adapters.js';
+          const envelope=JSON.parse(await fs.readFile('fa13-modal-security-receipt.json','utf8')),receipt=envelope.remote_receipt,projectId='project-fa13';
+          const qualification={status:'VERIFIED',verifier_id:'github-actions-fa13-independent-security-verifier',source_id:`modal:${envelope.provider_call_id}`,evidence_sha256:envelope.external_evidence_sha256,captured_at:receipt.executed_at};
+          const rows=await deriveEngineeringMatrix({project_id:projectId,security:{project_id:projectId,independent_security_authority:true,builder_self_certifies:false,independent_verifier:true,fail_closed:true,red_team_status:'VERIFIED',external_qualification:qualification}});
+          const security=rows.find(row=>row.row_id==='security');
+          if(security?.state!=='IMPLEMENTED_VERIFIED'||security.external_qualification?.verifier_id==='fa13-engineering-builder')throw new Error('security row failed independent qualification');
+          const evidence={schema:'musitu.axiom.fa13.security-qualification.v1',source_commit:process.env.GITHUB_SHA,builder_id:'fa13-engineering-builder',security_row:security,provider_receipt_sha256:receipt.remote_receipt_sha256,external_evidence_sha256:envelope.external_evidence_sha256,level5_authorized:false,superiority_authorized:false,production_authority:false};
+          await fs.writeFile('fa13-security-qualification.json',JSON.stringify(evidence,null,2)+'\n');
+          console.log('fa13_security_row_qualified=true');
+          JS
+          node fa13-bind-security.mjs
+          sha256sum fa13-modal-security-receipt.json fa13-security-qualification.json > fa13-security-qualification.sha256
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: musitu-axiom-fa13-independent-security-qualification
+          path: |
+            fa13-modal-security-receipt.json
+            fa13-security-qualification.json
+            fa13-security-qualification.sha256
+          if-no-files-found: error
+          retention-days: 14
