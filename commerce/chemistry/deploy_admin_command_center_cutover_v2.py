@@ -21,9 +21,7 @@ m = load_cutover()
 
 def corrected_admin_readonly_certification():
     # The Admin router intentionally serves the credential form directly at
-    # /chemistry/admin for an unauthenticated browser. That protected login
-    # surface is HTTP 200; authentication state is represented only by the
-    # signed HttpOnly session cookie created after a successful POST.
+    # /chemistry/admin. /chemistry/admin/login is POST-only.
     code, headers, body = m.public_request('/chemistry/admin', no_redirect=True)
     ctype = str(headers.get('content-type', '')).lower()
     cache = str(headers.get('cache-control', '')).lower()
@@ -43,13 +41,11 @@ def corrected_admin_readonly_certification():
     if 'mchem_admin=' in unauth_cookie.lower():
         raise RuntimeError('unauthenticated Admin unexpectedly issued a session cookie')
 
-    login_code, login_headers, login_body = m.public_request('/chemistry/admin/login', no_redirect=True)
-    if login_code != 200 or b'Admin Command Center' not in login_body:
-        raise RuntimeError('Admin login page contract failed')
-    if 'text/html' not in str(login_headers.get('content-type', '')).lower():
-        raise RuntimeError('Admin login content type mismatch')
-    if 'mchem_admin=' in str(login_headers.get('set-cookie', '')).lower():
-        raise RuntimeError('Admin login GET unexpectedly issued a session cookie')
+    # The credential endpoint is deliberately POST-only. A direct GET must not
+    # expose a second login surface.
+    login_get_code, _, _ = m.public_request('/chemistry/admin/login', no_redirect=True)
+    if login_get_code != 404:
+        raise RuntimeError(f'Admin login GET should be not-found, got HTTP {login_get_code}')
 
     bad = urllib.parse.urlencode({'token': 'INVALID-ADMIN-CREDENTIAL-DO-NOT-USE'}).encode()
     bad_code, bad_headers, _ = m.public_request(
@@ -102,7 +98,7 @@ def corrected_admin_readonly_certification():
         'unauthenticated_http': code,
         'unauthenticated_login_surface': True,
         'unauthenticated_session_cookie': False,
-        'login_page_http': login_code,
+        'login_get_http': login_get_code,
         'invalid_credential_http': bad_code,
         'invalid_credential_session_cookie': False,
         'owner_login_http': good_code,
@@ -110,7 +106,7 @@ def corrected_admin_readonly_certification():
         'secure_cookie': True,
         'dashboard_http': dash_code,
         'dashboard_markers': True,
-        'login_body_sha256': m.sha(login_body),
+        'login_body_sha256': m.sha(body),
         'dashboard_body_sha256': m.sha(dash_body),
     }
 
