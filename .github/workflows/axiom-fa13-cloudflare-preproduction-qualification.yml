@@ -140,8 +140,10 @@ jobs:
             done
             test "$code" = 200
             grep -q "$GITHUB_SHA" current-build.json
-            curl -fsS "$target/vnext/index.html" | grep -q 'MUSITU AXIOM'
-            curl -fsS "$target/vnext/engineering_workspace_runtime.js" | grep -q 'EngineeringWorkspaceRuntime'
+            curl -fsS -o current-index.html "$target/vnext/index.html"
+            curl -fsS -o current-workspace.js "$target/vnext/engineering_workspace_runtime.js"
+            grep -q 'MUSITU AXIOM' current-index.html
+            grep -q 'EngineeringWorkspaceRuntime' current-workspace.js
           done
           echo 'fa13_staging_smoke_pass=true'
           echo 'fa13_canary_smoke_pass=true'
