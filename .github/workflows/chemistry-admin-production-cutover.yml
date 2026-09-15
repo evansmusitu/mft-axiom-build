@@ -1,0 +1,60 @@
+name: MUSITU Chemistry Admin Production Cutover
+
+on:
+  push:
+    paths:
+      - '.github/workflows/chemistry-admin-production-cutover.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: musitu-chemistry-admin-production-cutover
+  cancel-in-progress: false
+
+jobs:
+  cutover:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      CF_API: https://api.cloudflare.com/client/v4
+      ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      COMMERCE_WORKER: musitu-chemistry-commerce
+      DB_ID: e148cbce-1b00-4d07-bb58-c1d56a4af0c7
+      BASE_URL: https://payments.mftintelligence.com
+      BASELINE_SHA: d6ad30d11205a0bfaff008aeb3e9ae46075518186e7c717ba82b5a9e6c3bc567
+      TARGET_SHA: f3d73cb03e8c4b6ed642e232025594220aad89c43ec302d4f5cb14a62b015531
+      EVIDENCE_DIR: evidence-out
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Syntax-check production cutover machinery
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m py_compile commerce/chemistry/deploy_admin_command_center.py
+          python -m py_compile commerce/chemistry/patch_admin_command_center.py
+          node --check commerce/chemistry/admin_command_center_module.mjs
+          node --check commerce/chemistry/admin_command_center_ui_v2.mjs
+          echo MUSITU_ADMIN_CUTOVER_MACHINERY_SYNTAX=PASS
+
+      - name: Promote, rollback-drill, and certify exact Admin candidate
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+          CHEMISTRY_ADMIN_OWNER_TOKEN: ${{ secrets.CHEMISTRY_ADMIN_OWNER_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$EVIDENCE_DIR"
+          python commerce/chemistry/deploy_admin_command_center.py
+
+      - name: Upload production cutover evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: musitu-chemistry-admin-production-cutover-evidence
+          path: evidence-out
+          retention-days: 90
+          if-no-files-found: ignore
