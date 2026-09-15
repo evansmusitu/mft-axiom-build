@@ -37,6 +37,7 @@ jobs:
           node --check app/fmi_app_worker.mjs
           python -m py_compile scripts/deploy_fmi_app.py
           ! grep -q '/d1/database' scripts/deploy_fmi_app.py
+          ! grep -q 'function top(' app/fmi_app_worker.mjs
       - name: Deploy and verify real MUSITU FMI app
         env:
           CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
@@ -46,6 +47,25 @@ jobs:
           test -n "$CLOUDFLARE_EMAIL"
           test -n "$CLOUDFLARE_GLOBAL_API_KEY"
           python scripts/deploy_fmi_app.py
+      - name: Real-browser boot acceptance
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/fmi-chrome
+          google-chrome --headless=new --no-sandbox --disable-gpu \
+            --user-data-dir=/tmp/fmi-chrome \
+            --virtual-time-budget=5000 \
+            --enable-logging=stderr \
+            --dump-dom \
+            'https://app.mftintelligence.com/app?deploy_browser_gate=1' \
+            > /tmp/dom.html 2> /tmp/chrome.log
+          echo '=== FINAL DOM MARKERS ==='
+          grep -Eo 'Opening intelligence workspace|Create free account|Use access key|Market intelligence, as an app' /tmp/dom.html | sort | uniq -c || true
+          echo '=== BROWSER CONSOLE ==='
+          grep 'CONSOLE' /tmp/chrome.log || true
+          grep -q 'Create free account' /tmp/dom.html
+          grep -q 'Use access key' /tmp/dom.html
+          ! grep -q 'Opening intelligence workspace' /tmp/dom.html
+          ! grep -q "Identifier 'top' has already been declared" /tmp/chrome.log
       - uses: actions/upload-artifact@v4
         with:
           name: musitu-fmi-customer-app-v1-deployment
