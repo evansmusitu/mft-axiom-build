@@ -19,7 +19,7 @@ jobs:
       DB_ID: e148cbce-1b00-4d07-bb58-c1d56a4af0c7
       COMMERCE_WORKER: musitu-chemistry-commerce
       EXPECTED_WORKER_SHA: d6ad30d11205a0bfaff008aeb3e9ae46075518186e7c717ba82b5a9e6c3bc567
-      EXPECTED_SCHEMA_SHA: a45e7b4c2c1f5972240429aad2303b625f1ff7012f2a5941f3ca0161290f6c88
+      EXPECTED_SCHEMA_SHA: 9e27058350a68e4046dcd008403b62c47d8606807d958bb9c392760db3fe26da
     steps:
       - uses: actions/checkout@v4
       - name: Apply fail-closed additive migration
@@ -34,7 +34,7 @@ jobs:
           import email,hashlib,json,os,re,sqlite3,urllib.error,urllib.parse,urllib.request
           from pathlib import Path
           API=os.environ['CF_API'];A=os.environ['ACCOUNT_ID'];DB=os.environ['DB_ID'];W=os.environ['COMMERCE_WORKER']
-          H={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY'],'Content-Type':'application/json','User-Agent':'MUSITU-Admin-Schema-Production/1.0'}
+          H={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY'],'Content-Type':'application/json','User-Agent':'MUSITU-Admin-Schema-Production/1.1'}
           def call(path,method='GET',obj=None):
               data=None if obj is None else json.dumps(obj).encode();q=urllib.request.Request(API+path,method=method,headers=H,data=data)
               try:
@@ -48,7 +48,7 @@ jobs:
               rows=[]
               for x in res:rows.extend(x.get('results') or [])
               return rows
-          # Pin production Worker before touching its database.
+          # Pin the customer-facing Worker before mutating only its additive Admin schema.
           c,ct,raw=call(f'/accounts/{A}/workers/scripts/{urllib.parse.quote(W,safe="")}')
           if c!=200:raise SystemExit('Commerce Worker read failed')
           if 'multipart/' in ct.lower():
@@ -69,7 +69,6 @@ jobs:
           before={t:d1(f'PRAGMA table_info({t})') for t in base}
           if any(not v for v in before.values()):raise SystemExit('baseline Commerce table missing')
           before_tables=[x.get('name') for x in d1("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' AND name NOT LIKE '_cf_%' ORDER BY name")]
-          # sqlite3.complete_statement understands the trigger BEGIN/END body and avoids unsafe semicolon splitting.
           statements=[];buf=''
           for line in sql.splitlines(True):
               buf+=line
@@ -88,10 +87,10 @@ jobs:
           if required-set(after_tables):raise SystemExit('required admin tables missing '+repr(sorted(required-set(after_tables))))
           version=d1('SELECT version,applied_at FROM chemistry_admin_schema WHERE version=1')
           if len(version)!=1:raise SystemExit('admin schema version not sealed')
-          trigger=d1("SELECT name,sql FROM sqlite_master WHERE type='trigger' AND name='trg_chem_admin_audit_chain'")
-          if len(trigger)!=1 or 'audit_chain_conflict' not in str(trigger[0].get('sql') or ''):raise SystemExit('audit chain trigger missing')
+          idx=d1("SELECT name,sql FROM sqlite_master WHERE type='index' AND name='idx_chem_admin_audit_prev_hash'")
+          if len(idx)!=1 or 'UNIQUE INDEX' not in str(idx[0].get('sql') or '').upper():raise SystemExit('audit prev-hash unique index missing')
           counts={t:int((d1(f'SELECT count(*) n FROM {t}') or [{}])[0].get('n') or 0) for t in required if t!='chemistry_admin_schema'}
-          report={'schema':'musitu.chemistry.admin.schema_production.v1','gate':'MUSITU_ADMIN_SCHEMA_PRODUCTION_PASS','commerce_worker_sha256':worker_sha,'schema_sha256':schema_sha,'database_id':DB,'before_tables':before_tables,'after_tables':after_tables,'baseline_tables_unchanged':True,'required_admin_tables':sorted(required),'audit_chain_trigger':True,'statement_count':len(statements),'statement_digests':executed,'admin_row_counts_after':counts,'production_mutation':True,'existing_customer_rows_modified':False}
+          report={'schema':'musitu.chemistry.admin.schema_production.v2','gate':'MUSITU_ADMIN_SCHEMA_PRODUCTION_PASS','commerce_worker_sha256':worker_sha,'schema_sha256':schema_sha,'database_id':DB,'before_tables':before_tables,'after_tables':after_tables,'baseline_tables_unchanged':True,'required_admin_tables':sorted(required),'audit_fork_guard':'unique_prev_hash_index','statement_count':len(statements),'statement_digests':executed,'admin_row_counts_after':counts,'production_mutation':True,'existing_customer_rows_modified':False}
           Path('evidence-out/production-schema.json').write_text(json.dumps(report,indent=2,sort_keys=True)+'\n');Path('evidence-out/SHA256SUMS.txt').write_text(hashlib.sha256(Path('evidence-out/production-schema.json').read_bytes()).hexdigest()+'  production-schema.json\n')
           print(json.dumps(report,sort_keys=True));print('MUSITU_ADMIN_SCHEMA_PRODUCTION=PASS')
           PY
