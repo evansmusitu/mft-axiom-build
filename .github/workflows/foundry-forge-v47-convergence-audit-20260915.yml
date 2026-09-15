@@ -1,0 +1,107 @@
+name: MUSITU FOUNDRY FORGE V47 Convergence Audit
+
+on:
+  push:
+    branches:
+      - foundry-forge-v44-modal-candidate-20260915
+    paths:
+      - '.github/workflows/foundry-forge-v47-convergence-audit-20260915.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      CF_API: https://api.cloudflare.com/client/v4
+      CLOUDFLARE_ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+      CLOUDFLARE_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+      WORKER_NAME: musitu-forge-edge
+      PUBLIC_ORIGIN: https://forge.mftintelligence.com
+      EXPECTED_WORKER_SOURCE_SHA256: fa5c9e21800e31689c86a6059cf540a50f591318d082429b891bd91eb9dc9504
+      EXPECTED_D1_DATABASE_ID: 2571795a-80fe-4f63-9b95-07948b4cefdb
+      OLD_ORIGIN_SHA256: 68d869d065ea4d4fee0e28fc65f862f5e5b24cc2b71088a7201185e3d9e723bd
+      CANDIDATE_ORIGIN_SHA256: 5b47c738cf61a4ece82f1f475d00c6742f1e73e50f4521b8e17c6c084e504f8f
+      PROTOCOL_DIGEST: c9fe2c0dcbc51ed7329aeea8b8d9985c0ccfc70123ac181c755285f1a0fbf3de
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Read Cloudflare control plane
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import hashlib,json,os,pathlib,urllib.request
+          from email.parser import BytesParser
+          from email.policy import default
+          h={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_API_KEY']}
+          root=f"{os.environ['CF_API']}/accounts/{os.environ['CLOUDFLARE_ACCOUNT_ID']}/workers/scripts/{os.environ['WORKER_NAME']}"
+          with urllib.request.urlopen(urllib.request.Request(root,headers=h),timeout=30) as r:
+              raw=r.read(); ctype=r.headers.get('Content-Type','')
+          msg=BytesParser(policy=default).parsebytes((f'Content-Type: {ctype}\r\nMIME-Version: 1.0\r\n\r\n').encode()+raw)
+          src=[]
+          for part in msg.iter_parts():
+              b=part.get_payload(decode=True) or b''; n=part.get_param('name',header='content-disposition') or part.get_filename() or ''; t=part.get_content_type()
+              if t in ('application/javascript','text/javascript','application/javascript+module','text/javascript+module','text/plain') or n.endswith(('.js','.mjs','.ts')): src.append(b)
+          if not src: raise SystemExit('worker_source_missing')
+          source=max(src,key=len); source_sha=hashlib.sha256(source).hexdigest()
+          if source_sha!=os.environ['EXPECTED_WORKER_SOURCE_SHA256']: raise SystemExit('worker_source_changed:'+source_sha)
+          with urllib.request.urlopen(urllib.request.Request(root+'/settings',headers=h),timeout=30) as r: obj=json.load(r)
+          if not obj.get('success'): raise SystemExit('settings_read_failed')
+          rows=(obj.get('result') or {}).get('bindings') or []; by={x.get('name'):x for x in rows if isinstance(x,dict)}
+          if set(by)!={'FORGE_DB','FORGE_EDGE_RPM_LIMIT','FORGE_PROTOCOL_DIGEST','MODAL_KEY','MODAL_ORIGIN','MODAL_SECRET'}: raise SystemExit('binding_set_changed')
+          def text(n): return by[n].get('text') if by[n].get('text') is not None else by[n].get('value')
+          db=by['FORGE_DB']; dbid=db.get('database_id') or db.get('id') or db.get('namespace_id')
+          if dbid!=os.environ['EXPECTED_D1_DATABASE_ID']: raise SystemExit('d1_changed')
+          if str(text('FORGE_PROTOCOL_DIGEST'))!=os.environ['PROTOCOL_DIGEST'] or str(text('FORGE_EDGE_RPM_LIMIT'))!='600': raise SystemExit('plain_binding_changed')
+          origin=str(text('MODAL_ORIGIN')); oh=hashlib.sha256(origin.encode()).hexdigest()
+          state='old' if oh==os.environ['OLD_ORIGIN_SHA256'] else ('candidate' if oh==os.environ['CANDIDATE_ORIGIN_SHA256'] else 'unknown')
+          if state=='unknown': raise SystemExit('unknown_control_plane_origin:'+oh)
+          out={'worker_source_sha256':source_sha,'d1_database_id':dbid,'control_plane_origin_state':state,'control_plane_origin_sha256':oh}
+          pathlib.Path('/tmp/control.json').write_text(json.dumps(out,indent=2,sort_keys=True)+'\n')
+          print(json.dumps(out,sort_keys=True))
+          PY
+
+      - name: Require stable public-plane convergence
+        shell: bash
+        run: |
+          set -euo pipefail
+          : > /tmp/samples.ndjson
+          for i in $(seq 1 8); do
+            code="$(curl -sS --max-time 30 -D /tmp/hdr -o /tmp/body -w '%{http_code}' -H 'Origin: https://mftintelligence.com' "$PUBLIC_ORIGIN/v1/health?convergence_probe=$i-$(date +%s%N)" || true)"
+            CODE="$code" SAMPLE="$i" python - <<'PY' >> /tmp/samples.ndjson
+          import hashlib,json,os,pathlib
+          code=int(os.environ['CODE']) if os.environ['CODE'].isdigit() else 0
+          body=pathlib.Path('/tmp/body').read_bytes() if pathlib.Path('/tmp/body').exists() else b''
+          try: h=json.loads(body) if body else {}
+          except Exception: h={}
+          ok=code==200 and h.get('schema')=='musitu.forge.health.v1' and h.get('status')=='READY' and h.get('protocol_digest')=='c9fe2c0dcbc51ed7329aeea8b8d9985c0ccfc70123ac181c755285f1a0fbf3de' and h.get('production_authorized') is False
+          state='candidate' if ok and h.get('video_derivation_runtime_configured') is True else ('old' if ok and h.get('video_derivation_runtime_configured') is False else 'invalid')
+          print(json.dumps({'sample':int(os.environ['SAMPLE']),'http':code,'state':state,'body_sha256':hashlib.sha256(body).hexdigest()},sort_keys=True))
+          PY
+            sleep 2
+          done
+          python - <<'PY'
+          import json,pathlib
+          control=json.load(open('/tmp/control.json')); rows=[json.loads(x) for x in pathlib.Path('/tmp/samples.ndjson').read_text().splitlines() if x.strip()]
+          states=[r['state'] for r in rows]
+          if len(rows)!=8 or any(s=='invalid' for s in states): raise SystemExit('public_sample_invalid:'+repr(states))
+          if len(set(states))!=1: raise SystemExit('public_not_converged:'+repr(states))
+          public=states[0]
+          if public!=control['control_plane_origin_state']: raise SystemExit('control_public_divergence:'+repr({'control':control['control_plane_origin_state'],'public':public}))
+          out={'schema':'musitu.forge.v47_convergence_audit.v1','write_performed':False,'control_plane_origin_state':control['control_plane_origin_state'],'control_plane_origin_sha256':control['control_plane_origin_sha256'],'public_plane_state':public,'consecutive_samples':8,'samples':rows,'gate':'PASS'}
+          pathlib.Path('foundry-forge-v47-convergence-audit.json').write_text(json.dumps(out,indent=2,sort_keys=True)+'\n')
+          print(json.dumps({'gate':'PASS','settled_state':public,'consecutive_samples':8},sort_keys=True))
+          PY
+
+      - uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: musitu-forge-v47-convergence-audit-20260915
+          path: foundry-forge-v47-convergence-audit.json
+          retention-days: 14
+          if-no-files-found: error
