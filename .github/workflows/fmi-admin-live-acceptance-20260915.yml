@@ -1,0 +1,93 @@
+name: MUSITU FMI Admin Live Acceptance 20260915
+
+on:
+  push:
+    branches: [fmi-admin-live-acceptance-20260915]
+    paths:
+      - '.github/workflows/fmi-admin-live-acceptance-20260915.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Verify live admin public-edge acceptance
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json, urllib.error, urllib.request
+
+          admin='https://admin.mftintelligence.com'
+          public='https://mft-fmi-global-edge.mft-education-nexus-93f395f5.workers.dev'
+
+          def req(url, accept='*/*'):
+              q=urllib.request.Request(url,headers={'User-Agent':'MUSITU-FMI-Live-Acceptance/20260915','Accept':accept})
+              try:
+                  with urllib.request.urlopen(q,timeout=30) as r:
+                      return r.status,{k.lower():v for k,v in r.headers.items()},r.read()
+              except urllib.error.HTTPError as e:
+                  return e.code,{k.lower():v for k,v in e.headers.items()},e.read()
+
+          pc,ph,pb=req(public+'/healthz','application/json')
+          if pc!=200: raise SystemExit(f'public healthz HTTP {pc}')
+          pobj=json.loads(pb or b'{}')
+          if pobj.get('status')!='ok' or pobj.get('authority')!='PAPER_SHADOW_ONLY':
+              raise SystemExit('public healthz authority mismatch')
+
+          dc,dh,db=req(admin+'/health/public-edge','application/json')
+          if dc!=200: raise SystemExit(f'admin public-edge diagnostic HTTP {dc}')
+          dobj=json.loads(db or b'{}')
+          edge=dobj.get('public_edge') or {}
+          if dobj.get('ok') is not True or edge.get('ok') is not True or int(edge.get('status') or 0)!=200:
+              raise SystemExit('admin Worker does not report public edge HTTP 200')
+          body=edge.get('body') or {}
+          if body.get('status')!='ok' or body.get('authority')!='PAPER_SHADOW_ONLY':
+              raise SystemExit('admin Worker public-edge body mismatch')
+
+          ac,ah,ab=req(admin+'/admin.js','application/javascript,*/*')
+          if ac!=200: raise SystemExit(f'admin.js HTTP {ac}')
+          text=ab.decode('utf-8','ignore')
+          if "api('/api/system?ts='+Date.now())" not in text:
+              raise SystemExit('served admin.js lacks cache-busted System request')
+          if 'no-store' not in (ah.get('cache-control') or '').lower():
+              raise SystemExit('admin.js missing cache-control no-store')
+
+          hc,hh,hb=req(admin+'/health','application/json')
+          if hc!=200: raise SystemExit(f'admin health HTTP {hc}')
+          hobj=json.loads(hb or b'{}')
+          if hobj.get('ok') is not True or hobj.get('surface')!='admin':
+              raise SystemExit('admin health body mismatch')
+
+          uc,uh,ub=req(admin+'/api/system','application/json')
+          if uc!=401: raise SystemExit(f'unauthenticated api/system expected 401, got {uc}')
+          try:uobj=json.loads(ub or b'{}')
+          except Exception:uobj={}
+          if uobj.get('error')!='unauthorized': raise SystemExit('api/system fail-closed body mismatch')
+
+          out={
+            'gate':'FMI_ADMIN_LIVE_ACCEPTANCE_20260915_PASS',
+            'public_healthz_http':pc,
+            'admin_public_edge_diagnostic_http':dc,
+            'admin_worker_to_public_edge_http':edge.get('status'),
+            'admin_js_http':ac,
+            'admin_js_cache_control':ah.get('cache-control'),
+            'admin_health_http':hc,
+            'unauthenticated_api_system_http':uc,
+            'authority':'PAPER_SHADOW_ONLY',
+            'live_trading_authorized':False,
+            'mutation_performed':False,
+          }
+          print(json.dumps(out,sort_keys=True))
+          open('fmi-admin-live-acceptance-20260915.json','w').write(json.dumps(out,indent=2,sort_keys=True)+'\n')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: musitu-fmi-admin-live-acceptance-20260915
+          path: fmi-admin-live-acceptance-20260915.json
+          retention-days: 30
+          if-no-files-found: error
