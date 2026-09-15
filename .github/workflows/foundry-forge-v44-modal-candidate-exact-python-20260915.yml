@@ -70,8 +70,11 @@ jobs:
           python - <<'PY'
           import hashlib,json,os,pathlib,stat
           root=pathlib.Path('cpython-core/x64'); rows=[]; total=files=dirs=syms=0
+          synthetic={'bin','lib','lib/python3.12'}
           for p in sorted(root.rglob('*'),key=lambda x:x.as_posix()):
-              rel=p.relative_to(root).as_posix(); st=p.lstat(); mode=stat.S_IMODE(st.st_mode)
+              rel=p.relative_to(root).as_posix()
+              if p.is_dir() and rel in synthetic: continue
+              st=p.lstat(); mode=stat.S_IMODE(st.st_mode)
               if p.is_symlink(): rows.append({'p':rel,'t':'l','m':mode,'v':os.readlink(p)}); syms+=1
               elif p.is_file():
                   h=hashlib.sha256()
