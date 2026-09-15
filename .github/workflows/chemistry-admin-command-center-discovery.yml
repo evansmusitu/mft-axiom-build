@@ -1,0 +1,88 @@
+name: MUSITU Chemistry Admin Command Center Discovery
+
+on:
+  push:
+    paths:
+      - '.github/workflows/chemistry-admin-command-center-discovery.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  discover:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    env:
+      CF_API: https://api.cloudflare.com/client/v4
+      ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      COMMERCE_WORKER: musitu-chemistry-commerce
+    steps:
+      - uses: actions/checkout@v4
+      - name: Inventory exact live Commerce schema and authority surfaces read-only
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import email,hashlib,json,os,re,urllib.parse,urllib.request
+          API=os.environ['CF_API'];A=os.environ['ACCOUNT_ID'];W=os.environ['COMMERCE_WORKER']
+          H={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY'],'User-Agent':'MUSITU-Admin-Discovery/1.0'}
+          def call(path,method='GET',obj=None):
+              body=None; h=dict(H)
+              if obj is not None:
+                  body=json.dumps(obj).encode();h['content-type']='application/json'
+              q=urllib.request.Request(API+path,method=method,headers=h,data=body)
+              with urllib.request.urlopen(q,timeout=45) as r:return r.read(),r.headers.get('content-type','')
+          raw,ct=call(f'/accounts/{A}/workers/scripts/{urllib.parse.quote(W,safe="")}')
+          if 'multipart/' in ct.lower():
+              msg=email.message_from_bytes((f'Content-Type: {ct}\r\nMIME-Version: 1.0\r\n\r\n').encode()+raw);parts=[]
+              for p in msg.walk():
+                  if p.is_multipart():continue
+                  d=p.get_payload(decode=True) or b''
+                  if b'MUSITU Chemistry Commerce' in d:parts.append(d)
+              if len(parts)!=1:raise SystemExit('commerce module extraction mismatch')
+              source=parts[0]
+          else: source=raw
+          text=source.decode('utf-8','ignore')
+          settings=json.loads(call(f'/accounts/{A}/workers/scripts/{urllib.parse.quote(W,safe="")}/settings')[0] or b'{}').get('result') or {}
+          bindings=settings.get('bindings') or []
+          db=[b for b in bindings if b.get('name')=='CHEMISTRY_DB']
+          if len(db)!=1:raise SystemExit('CHEMISTRY_DB binding mismatch')
+          dbid=db[0].get('id') or db[0].get('database_id')
+          if not dbid:raise SystemExit('CHEMISTRY_DB id unavailable')
+          def d1(sql):
+              raw,_=call(f'/accounts/{A}/d1/database/{urllib.parse.quote(str(dbid),safe="")}/query','POST',{'sql':sql})
+              d=json.loads(raw or b'{}')
+              if not d.get('success'):raise SystemExit('D1 query failed')
+              result=d.get('result') or []
+              if not result:return []
+              return result[0].get('results') or []
+          tables=[r.get('name') for r in d1("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name")]
+          schema={}
+          for name in tables:
+              if not re.fullmatch(r'[A-Za-z0-9_]+',str(name)):continue
+              schema[name]=[{k:r.get(k) for k in ('name','type','notnull','pk')} for r in d1(f'PRAGMA table_info({name})')]
+          route_literals=sorted(set(re.findall(r"['\"](/chemistry/[A-Za-z0-9_?&=./:-]+)['\"]",text)))
+          fn=sorted(set(re.findall(r'\b(?:async\s+)?function\s+([A-Za-z0-9_]+)\s*\(',text)))
+          markers={
+            'issueLicense':'issueLicense' in fn,
+            'fulfil':'fulfil' in fn,
+            'createOrder':'createOrder' in fn,
+            'orderByReference':'orderByReference' in fn,
+            'quote':'quote' in fn,
+            'secure_usd':"currency:'USD'" in text and 'const DIRECT_PAYNOW_FALLBACK_ACTIVE=false;' in text,
+            'paynow_authority':'/internal/paynow/sign-initiate-chemistry' in text,
+          }
+          out={'schema':'musitu.chemistry.admin.discovery.v1','commerce_worker_sha256':hashlib.sha256(source).hexdigest(),'database_binding_type':db[0].get('type'),'tables':tables,'table_schema':schema,'route_literals':route_literals[:200],'function_markers':markers,'production_mutation':False,'customer_rows_read':False,'secret_values_read':False,'gate':'MUSITU_CHEMISTRY_ADMIN_DISCOVERY_PASS'}
+          print(json.dumps(out,sort_keys=True))
+          open('admin-discovery.json','w').write(json.dumps(out,indent=2,sort_keys=True)+'\n')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: musitu-chemistry-admin-discovery
+          path: admin-discovery.json
+          retention-days: 30
+          if-no-files-found: error
