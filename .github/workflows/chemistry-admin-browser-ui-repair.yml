@@ -1,0 +1,71 @@
+name: MUSITU Chemistry Admin Browser UI Repair
+
+on:
+  push:
+    paths:
+      - '.github/workflows/chemistry-admin-browser-ui-repair.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: chemistry-admin-command-center-20260915
+          fetch-depth: 1
+      - name: Apply exact browser-runtime and mobile-layout repair
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('commerce/chemistry/admin_command_center_ui_v2.mjs')
+          s=p.read_text(encoding='utf-8')
+          old_js='SAVE THIS CREDENTIAL NOW — IT IS SHOWN ONCE:\\n'
+          new_js='SAVE THIS CREDENTIAL NOW — IT IS SHOWN ONCE:\\\\n'
+          old_css='.app{grid-template-columns:1fr}'
+          new_css='.app{grid-template-columns:1fr;grid-template-rows:auto auto;min-height:0;align-content:start}'
+          if s.count(old_js)!=1:
+              raise SystemExit(f'credential newline anchor count={s.count(old_js)}')
+          if s.count(old_css)!=1:
+              raise SystemExit(f'mobile app anchor count={s.count(old_css)}')
+          s=s.replace(old_js,new_js,1).replace(old_css,new_css,1)
+          p.write_text(s,encoding='utf-8')
+          print('EXACT_SOURCE_PATCH=PASS')
+          PY
+
+          node --check commerce/chemistry/admin_command_center_ui_v2.mjs
+          cp commerce/chemistry/admin_command_center_ui_v2.mjs /tmp/admin-ui-eval.js
+          cat >> /tmp/admin-ui-eval.js <<'EOF'
+          require('fs').writeFileSync('/tmp/admin2-runtime.js', ADMIN2_JS, 'utf8');
+          require('fs').writeFileSync('/tmp/admin2-runtime.css', ADMIN2_CSS, 'utf8');
+          EOF
+          node /tmp/admin-ui-eval.js
+          node --check /tmp/admin2-runtime.js
+          python - <<'PY'
+          from pathlib import Path
+          js=Path('/tmp/admin2-runtime.js').read_text(encoding='utf-8')
+          css=Path('/tmp/admin2-runtime.css').read_text(encoding='utf-8')
+          for token in ("go('dashboard')","dashboard().catch(show)","/chemistry/admin/api/","SAVE THIS CREDENTIAL NOW — IT IS SHOWN ONCE:\\n"):
+              if token not in js: raise SystemExit('runtime JS invariant missing: '+repr(token))
+          for token in ('.view{display:none}', '.view.active{display:block}', '.app{grid-template-columns:1fr;grid-template-rows:auto auto;min-height:0;align-content:start}'):
+              if token not in css: raise SystemExit('runtime CSS invariant missing: '+repr(token))
+          print('MUSITU_ADMIN_BROWSER_JS_SYNTAX=PASS')
+          print('MUSITU_ADMIN_MOBILE_LAYOUT_REPAIR=PASS')
+          PY
+      - name: Commit repaired authoritative UI source
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'MUSITU Chemistry CI'
+          git config user.email 'actions@users.noreply.github.com'
+          git add commerce/chemistry/admin_command_center_ui_v2.mjs
+          git diff --cached --check
+          git diff --cached --quiet && { echo 'No repair delta found'; exit 1; }
+          git commit -m 'fix(chemistry): repair admin browser runtime and mobile layout'
+          git push origin HEAD:chemistry-admin-command-center-20260915
