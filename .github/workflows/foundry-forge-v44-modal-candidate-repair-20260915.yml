@@ -1,0 +1,46 @@
+name: MUSITU FOUNDRY FORGE V44 Modal Candidate Repair
+
+on:
+  push:
+    branches:
+      - foundry-forge-v44-modal-candidate-20260915
+    paths:
+      - '.github/workflows/foundry-forge-v44-modal-candidate-repair-20260915.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  repair-and-verify-isolated-candidate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID }}
+      MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET }}
+      CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+      GITHUB_TOKEN: ${{ github.token }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12.13'
+
+      - name: Execute fail-closed isolated candidate repair
+        shell: bash
+        run: bash ops/run_foundry_forge_v44_candidate_repair.sh
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: musitu-forge-v44-modal-candidate-repair-20260915
+          path: |
+            modal-v44-media-candidate-repair-evidence.json
+            modal-v44-media-candidate-repair-evidence.sha256
+            modal-candidate-repair-runtime-probe.json
+            modal-candidate-repair-health.json
+            modal-candidate-repair-deploy.log
+          retention-days: 14
+          if-no-files-found: error
