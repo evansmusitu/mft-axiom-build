@@ -1,0 +1,72 @@
+name: MUSITU Chemistry Admin Production Preflight
+
+on:
+  push:
+    paths:
+      - '.github/workflows/chemistry-admin-production-preflight.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  preflight:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    env:
+      CF_API: https://api.cloudflare.com/client/v4
+      ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      COMMERCE_WORKER: musitu-chemistry-commerce
+      BASELINE_SHA: d6ad30d11205a0bfaff008aeb3e9ae46075518186e7c717ba82b5a9e6c3bc567
+      TARGET_SHA: f3d73cb03e8c4b6ed642e232025594220aad89c43ec302d4f5cb14a62b015531
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify exact production state and private owner credential availability
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+          CHEMISTRY_ADMIN_OWNER_TOKEN: ${{ secrets.CHEMISTRY_ADMIN_OWNER_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/mchem-admin-preflight
+          python - <<'PY'
+          import email,hashlib,json,os,urllib.parse,urllib.request
+          from pathlib import Path
+          API=os.environ['CF_API'];A=os.environ['ACCOUNT_ID'];W=os.environ['COMMERCE_WORKER'];BASE=os.environ['BASELINE_SHA'];TARGET=os.environ['TARGET_SHA']
+          owner=os.environ.get('CHEMISTRY_ADMIN_OWNER_TOKEN','')
+          # Credential value is never printed. Only a boolean availability gate is emitted.
+          available=len(owner)>=32
+          H={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY'],'User-Agent':'MUSITU-Admin-Production-Preflight/1.0'}
+          def get(path):
+              q=urllib.request.Request(API+path,headers=H)
+              with urllib.request.urlopen(q,timeout=45) as r:return r.read(),r.headers.get('content-type','')
+          raw,ct=get(f'/accounts/{A}/workers/scripts/{urllib.parse.quote(W,safe="")}')
+          if 'multipart/' in ct.lower():
+              msg=email.message_from_bytes((f'Content-Type: {ct}\r\nMIME-Version: 1.0\r\n\r\n').encode()+raw);parts=[]
+              for p in msg.walk():
+                  if p.is_multipart():continue
+                  d=p.get_payload(decode=True) or b''
+                  if b'MUSITU Chemistry Commerce' in d:parts.append(d)
+              if len(parts)!=1:raise SystemExit('module extraction mismatch')
+              raw=parts[0]
+          live=hashlib.sha256(raw).hexdigest()
+          if live not in (BASE,TARGET):raise SystemExit('unexpected live Commerce drift '+live)
+          Path('/tmp/mchem-admin-preflight/live.mjs').write_bytes(raw)
+          settings=json.loads(get(f'/accounts/{A}/workers/scripts/{urllib.parse.quote(W,safe="")}/settings')[0] or b'{}').get('result') or {}
+          bindings=sorted({'name':b.get('name'),'type':b.get('type'),'service':b.get('service'),'environment':b.get('environment'),'id':b.get('id')} for b in (settings.get('bindings') or []),key=lambda x:str(x['name']))
+          names={x['name'] for x in bindings}
+          required={'CHEMISTRY_DB','CHEMISTRY_LICENSE_KEY_ID','CHEMISTRY_LICENSE_PKCS8_B64','CHEMISTRY_AUTHORITY_BRIDGE_TOKEN','CHEMISTRY_TRANSPORT_BRIDGE_TOKEN','PAYMENT_AUTHORITY','PAYNOW_TRANSPORT'}
+          if not required.issubset(names):raise SystemExit('required Commerce binding missing '+repr(sorted(required-names)))
+          # Rebuild target only from baseline. An already-live target is allowed and simply verified.
+          if live==BASE:
+              import subprocess
+              subprocess.run(['python','commerce/chemistry/patch_admin_command_center.py','--input','/tmp/mchem-admin-preflight/live.mjs','--output','/tmp/mchem-admin-preflight/candidate.mjs'],check=True)
+              got=hashlib.sha256(Path('/tmp/mchem-admin-preflight/candidate.mjs').read_bytes()).hexdigest()
+              if got!=TARGET:raise SystemExit('target candidate hash mismatch '+got)
+          owner_binding='CHEMISTRY_ADMIN_OWNER_TOKEN' in names
+          report={'schema':'musitu.chemistry.admin.production_preflight.v1','gate':'MUSITU_ADMIN_PRODUCTION_PREFLIGHT_PASS' if available else 'MUSITU_ADMIN_OWNER_SECRET_REQUIRED','live_source_sha256':live,'state':'target' if live==TARGET else 'baseline','candidate_sha256':TARGET,'owner_secret_actions_available':available,'owner_secret_worker_binding_present':owner_binding,'required_existing_bindings_present':True,'binding_names':sorted(names),'production_mutation':False,'secret_value_emitted':False}
+          print(json.dumps(report,sort_keys=True))
+          if not available:raise SystemExit('CHEMISTRY_ADMIN_OWNER_TOKEN is not configured as a GitHub Actions secret (minimum 32 characters). No production write was attempted.')
+          print('MUSITU_ADMIN_PRODUCTION_PREFLIGHT=PASS')
+          PY
