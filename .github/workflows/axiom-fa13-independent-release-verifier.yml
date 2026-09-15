@@ -1,0 +1,286 @@
+name: MUSITU Axiom FA13 Independent Release Verifier
+
+on:
+  push:
+    branches:
+      - governance/axiom-fa13-s4-release-verifier-20260916
+    paths:
+      - .github/workflows/axiom-fa13-independent-release-verifier.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: axiom-fa13-independent-release-verifier
+  cancel-in-progress: false
+
+env:
+  SOURCE_COMMIT: 4c99c4ccbc4a9e34f4e446f30c31f4d428359818
+  MAIN_COMMIT: d6a846f6bbe0bccac1758713eb4de167caf07113
+  FA13_BRANCH: frontier/axiom-final-product-fa13-20260915
+  ROLLBACK_ORIGIN: 4b818f04cd722f1e2e620e0e42da7200def1897c
+  CANDIDATE_ARTIFACT_SHA256: 0f7dcedf90de1fe1bae9da50f672bb74f56ce9fbfb3b3e6e742ffae2bf7b634f
+  PREPRODUCTION_EVIDENCE_LOGICAL_SHA256: 2ee27228c6a48089abce90b6f30124fc83a3f20fc85efa081fbf9704f80647e4
+  S4_APPROVAL_REQUEST_LOGICAL_SHA256: bc8ad232eed3dc69cc63c5210fc758b8e3d7d1bbdaeecc762af627270659e9a8
+  S4_APPROVAL_REQUEST_FILE_SHA256: 6e1556936a6aff038287fe51ec7f1b764922011c6541b171564fc3c33e81e5d9
+  INTEGRITY_RUN_ID: "35029410669"
+  SECURITY_RUN_ID: "35029410632"
+  PREPROD_RUN_ID: "35029410435"
+  ENTERPRISE_RUN_ID: "35029410542"
+  SECURITY_ARTIFACT_ID: "10420702881"
+  ENTERPRISE_ARTIFACT_ID: "10420999898"
+  PREPROD_ARTIFACT_ID: "10421176209"
+
+jobs:
+  independent-release-verifier:
+    name: Credential-free independent S4 release verifier
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Prove immutable repository and qualification-run state
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json, os, urllib.parse, urllib.request
+
+          repo = os.environ["GITHUB_REPOSITORY"]
+          token = os.environ["GH_TOKEN"]
+          source = os.environ["SOURCE_COMMIT"]
+          main = os.environ["MAIN_COMMIT"]
+          branch = os.environ["FA13_BRANCH"]
+
+          def api(path):
+              req = urllib.request.Request(
+                  f"https://api.github.com/repos/{repo}{path}",
+                  headers={
+                      "Authorization": f"Bearer {token}",
+                      "Accept": "application/vnd.github+json",
+                      "X-GitHub-Api-Version": "2022-11-28",
+                      "User-Agent": "musitu-axiom-fa13-independent-release-verifier",
+                  },
+              )
+              with urllib.request.urlopen(req, timeout=30) as r:
+                  return json.load(r)
+
+          main_obj = api("/branches/main")
+          assert main_obj["commit"]["sha"] == main, main_obj["commit"]["sha"]
+
+          fa13_obj = api("/branches/" + urllib.parse.quote(branch, safe=""))
+          assert fa13_obj["commit"]["sha"] == source, fa13_obj["commit"]["sha"]
+
+          pr = api("/pulls/1")
+          assert pr["state"] == "open"
+          assert pr["draft"] is True
+          assert pr["merged_at"] is None
+          assert pr["base"]["ref"] == "main"
+
+          expected_runs = {
+              os.environ["INTEGRITY_RUN_ID"]: "integrity",
+              os.environ["SECURITY_RUN_ID"]: "security",
+              os.environ["PREPROD_RUN_ID"]: "preproduction",
+              os.environ["ENTERPRISE_RUN_ID"]: "enterprise",
+          }
+          verified_runs = {}
+          for run_id, lane in expected_runs.items():
+              run = api(f"/actions/runs/{run_id}")
+              assert run["head_sha"] == source, (lane, run["head_sha"])
+              assert run["status"] == "completed", (lane, run["status"])
+              assert run["conclusion"] == "success", (lane, run["conclusion"])
+              verified_runs[lane] = {
+                  "run_id": int(run_id),
+                  "head_sha": run["head_sha"],
+                  "conclusion": run["conclusion"],
+                  "workflow_id": run["workflow_id"],
+              }
+
+          artifacts = {
+              os.environ["SECURITY_ARTIFACT_ID"]: ("security", "musitu-axiom-fa13-independent-security-qualification", int(os.environ["SECURITY_RUN_ID"])),
+              os.environ["ENTERPRISE_ARTIFACT_ID"]: ("enterprise", "musitu-axiom-fa13-independent-enterprise-qualification", int(os.environ["ENTERPRISE_RUN_ID"])),
+              os.environ["PREPROD_ARTIFACT_ID"]: ("preproduction", "musitu-axiom-fa13-preproduction-qualification", int(os.environ["PREPROD_RUN_ID"])),
+          }
+          verified_artifacts = {}
+          for artifact_id, (lane, expected_name, expected_run) in artifacts.items():
+              artifact = api(f"/actions/artifacts/{artifact_id}")
+              assert artifact["name"] == expected_name, (lane, artifact["name"])
+              assert artifact["expired"] is False, lane
+              assert artifact["workflow_run"]["id"] == expected_run, (lane, artifact["workflow_run"]["id"])
+              assert artifact["workflow_run"]["head_sha"] == source, (lane, artifact["workflow_run"]["head_sha"])
+              verified_artifacts[lane] = {
+                  "artifact_id": int(artifact_id),
+                  "name": artifact["name"],
+                  "workflow_run_id": artifact["workflow_run"]["id"],
+                  "head_sha": artifact["workflow_run"]["head_sha"],
+                  "expired": artifact["expired"],
+              }
+
+          os.makedirs("release-verifier", exist_ok=True)
+          with open("release-verifier/github-live-state.json", "w", encoding="utf-8") as f:
+              json.dump({
+                  "schema": "musitu.axiom.fa13.release-verifier-live-state.v1",
+                  "source_commit": source,
+                  "main_commit": main,
+                  "fa13_branch": branch,
+                  "pr1_open": True,
+                  "pr1_draft": True,
+                  "pr1_unmerged": True,
+                  "runs": verified_runs,
+                  "artifacts": verified_artifacts,
+              }, f, indent=2, sort_keys=True)
+          PY
+
+      - name: Download exact qualification artifacts without provider credentials
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p release-verifier/downloads
+          for spec in \
+            "${SECURITY_ARTIFACT_ID}:security.zip" \
+            "${ENTERPRISE_ARTIFACT_ID}:enterprise.zip" \
+            "${PREPROD_ARTIFACT_ID}:preproduction.zip"; do
+            id="${spec%%:*}"
+            file="${spec#*:}"
+            curl --fail --silent --show-error --location \
+              -H "Authorization: Bearer ${GH_TOKEN}" \
+              -H "Accept: application/vnd.github+json" \
+              -H "X-GitHub-Api-Version: 2022-11-28" \
+              "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/artifacts/${id}/zip" \
+              -o "release-verifier/downloads/${file}"
+          done
+          mkdir -p release-verifier/security release-verifier/enterprise release-verifier/preproduction
+          unzip -q release-verifier/downloads/security.zip -d release-verifier/security
+          unzip -q release-verifier/downloads/enterprise.zip -d release-verifier/enterprise
+          unzip -q release-verifier/downloads/preproduction.zip -d release-verifier/preproduction
+
+      - name: Independently bind exact evidence to the S4 verifier role
+        shell: bash
+        run: |
+          set -euo pipefail
+          (cd release-verifier/security && sha256sum -c fa13-security-qualification.sha256)
+          (cd release-verifier/enterprise && sha256sum -c fa13-enterprise-qualification.sha256)
+          (cd release-verifier/preproduction && sha256sum -c fa13-preproduction-qualification.sha256)
+          python - <<'PY'
+          import hashlib, json, os
+          from pathlib import Path
+
+          root = Path("release-verifier")
+          source = os.environ["SOURCE_COMMIT"]
+          rollback = os.environ["ROLLBACK_ORIGIN"]
+          candidate_sha = os.environ["CANDIDATE_ARTIFACT_SHA256"]
+          preprod_logical_sha = os.environ["PREPRODUCTION_EVIDENCE_LOGICAL_SHA256"]
+          request_logical_sha = os.environ["S4_APPROVAL_REQUEST_LOGICAL_SHA256"]
+          request_file_sha = os.environ["S4_APPROVAL_REQUEST_FILE_SHA256"]
+
+          def load(path):
+              return json.loads(path.read_text(encoding="utf-8"))
+
+          def sha256(path):
+              h = hashlib.sha256()
+              with path.open("rb") as f:
+                  for chunk in iter(lambda: f.read(1024 * 1024), b""):
+                      h.update(chunk)
+              return h.hexdigest()
+
+          security = load(root / "security/fa13-security-qualification.json")
+          assert security["source_commit"] == source
+          assert security["security_row"]["state"] == "IMPLEMENTED_VERIFIED"
+          assert security["security_row"]["external_qualification"]["status"] == "VERIFIED"
+          assert security["security_row"]["external_qualification"]["verifier_id"] == "github-actions-fa13-independent-security-verifier"
+          assert security["production_authority"] is False
+          assert security["level5_authorized"] is False
+          assert security["superiority_authorized"] is False
+
+          enterprise = load(root / "enterprise/fa13-enterprise-qualification.json")
+          assert enterprise["source_commit"] == source
+          assert enterprise["row"]["state"] == "IMPLEMENTED_VERIFIED"
+          assert enterprise["external_qualification"]["status"] == "VERIFIED"
+          assert enterprise["external_qualification"]["verifier_id"] == "github-actions-independent-enterprise-verifier"
+          assert enterprise["production_authority"] is False
+
+          preprod_path = root / "preproduction/fa13-preproduction-evidence.json"
+          preprod = load(preprod_path)
+          assert preprod["source_commit"] == source
+          assert preprod["status"] == "PASS_READY_FOR_S4_APPROVAL"
+          assert preprod["candidate_artifact_sha256"] == candidate_sha
+          assert preprod["evidence_sha256"] == preprod_logical_sha
+          assert preprod["rollback_origin_commit"] == rollback
+          assert preprod["rollback_proven_on_staging"] is True
+          assert preprod["candidate_restored_to_staging"] is True
+          assert preprod["production_authority"] is False
+          assert preprod["production_reached"] is False
+
+          request_path = root / "preproduction/fa13-s4-approval-request.json"
+          request = load(request_path)
+          assert sha256(request_path) == request_file_sha
+          assert request["schema"] == "musitu.axiom.s4-production-approval-request.v1"
+          assert request["source_commit"] == source
+          assert request["candidate_artifact_sha256"] == candidate_sha
+          assert request["preproduction_evidence_sha256"] == preprod_logical_sha
+          assert request["approval_request_sha256"] == request_logical_sha
+          assert request["rollback_origin_commit"] == rollback
+          assert request["status"] == "AWAITING_APPROVAL"
+          assert request["production_execution_allowed"] is False
+          assert request["exact_confirmation"] == "APPROVE FA13 S4 PRODUCTION PROMOTION"
+          assert request["required_distinct_roles"] == ["HUMAN_RELEASE_APPROVER", "INDEPENDENT_VERIFIER"]
+          assert request["production_target"] == "EXISTING_AXIOM_PRODUCTION_WORKFLOW_TARGET_TO_BE_REASSERTED_AT_ACTION_TIME"
+
+          live = load(root / "github-live-state.json")
+          assert live["source_commit"] == source
+          assert live["main_commit"] == os.environ["MAIN_COMMIT"]
+          assert live["pr1_open"] and live["pr1_draft"] and live["pr1_unmerged"]
+
+          attestation = {
+              "schema": "musitu.axiom.fa13.independent-release-verifier-attestation.v1",
+              "status": "INDEPENDENT_VERIFIER_APPROVED_FOR_S4_HUMAN_GATE",
+              "source_commit": source,
+              "candidate_artifact_sha256": candidate_sha,
+              "s4_approval_request_sha256": request_logical_sha,
+              "rollback_origin_commit": rollback,
+              "verifier_role": "INDEPENDENT_VERIFIER",
+              "verifier_identity": "github-actions-fa13-independent-release-verifier",
+              "builder_identity": "fa13-engineering-builder",
+              "builder_and_verifier_distinct": True,
+              "qualification_lanes": {
+                  "integrity": {"run_id": int(os.environ["INTEGRITY_RUN_ID"]), "verified_success": True},
+                  "security": {"run_id": int(os.environ["SECURITY_RUN_ID"]), "artifact_id": int(os.environ["SECURITY_ARTIFACT_ID"]), "verified_success": True},
+                  "preproduction": {"run_id": int(os.environ["PREPROD_RUN_ID"]), "artifact_id": int(os.environ["PREPROD_ARTIFACT_ID"]), "verified_success": True},
+                  "enterprise": {"run_id": int(os.environ["ENTERPRISE_RUN_ID"]), "artifact_id": int(os.environ["ENTERPRISE_ARTIFACT_ID"]), "verified_success": True},
+              },
+              "release_role_approval": True,
+              "release_scope": "EXACT_FA13_S4_REQUEST_ONLY",
+              "human_release_approver_still_required": True,
+              "required_exact_human_confirmation": "APPROVE FA13 S4 PRODUCTION PROMOTION",
+              "production_target_reassertion_still_required": True,
+              "production_credentials_present": False,
+              "repository_write_authority_present": False,
+              "production_execution_authorized": False,
+              "production_authority": False,
+              "superiority_authorized": False,
+              "notes": "This attestation satisfies the distinct INDEPENDENT_VERIFIER role for the exact immutable FA-13 S4 request. It does not grant deployment credentials or replace the separate HUMAN_RELEASE_APPROVER gate.",
+          }
+          out = root / "fa13-independent-release-verifier-attestation.json"
+          out.write_text(json.dumps(attestation, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+          digest = sha256(out)
+          (root / "fa13-independent-release-verifier-attestation.sha256").write_text(
+              f"{digest}  {out.name}\n", encoding="utf-8"
+          )
+          print(json.dumps(attestation, indent=2, sort_keys=True))
+          print("attestation_sha256=" + digest)
+          PY
+
+      - name: Upload immutable independent release-verifier evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: musitu-axiom-fa13-independent-release-verifier-attestation
+          path: |
+            release-verifier/fa13-independent-release-verifier-attestation.json
+            release-verifier/fa13-independent-release-verifier-attestation.sha256
+            release-verifier/github-live-state.json
+          if-no-files-found: error
+          retention-days: 90
