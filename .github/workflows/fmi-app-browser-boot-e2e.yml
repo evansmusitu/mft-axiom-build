@@ -1,0 +1,37 @@
+name: MUSITU FMI Browser Boot E2E
+
+on:
+  push:
+    paths:
+      - '.github/workflows/fmi-app-browser-boot-e2e.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Execute live app in Chrome
+        run: |
+          set -euo pipefail
+          google-chrome --version
+          rm -rf /tmp/fmi-chrome
+          google-chrome \
+            --headless=new \
+            --no-sandbox \
+            --disable-gpu \
+            --user-data-dir=/tmp/fmi-chrome \
+            --virtual-time-budget=5000 \
+            --enable-logging=stderr \
+            --dump-dom \
+            'https://app.mftintelligence.com/app?browser_e2e=1' \
+            > /tmp/dom.html 2> /tmp/chrome.log || { cat /tmp/chrome.log; exit 1; }
+          echo '=== FINAL DOM MARKERS ==='
+          grep -Eo 'Opening intelligence workspace|Create free account|Use access key|Market intelligence, as an app' /tmp/dom.html | sort | uniq -c || true
+          echo '=== CHROME LOG ==='
+          tail -n 120 /tmp/chrome.log || true
+          grep -q 'Create free account' /tmp/dom.html
+          ! grep -q 'Opening intelligence workspace' /tmp/dom.html
