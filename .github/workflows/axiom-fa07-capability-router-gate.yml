@@ -1,0 +1,89 @@
+name: MUSITU Axiom FA-07 Capability Router Gate
+
+on:
+  push:
+    branches:
+      - frontier/axiom-final-product-fa07-20260915
+    paths:
+      - 'axiom_interface/vnext/capability_registry.js'
+      - 'axiom_interface/vnext/capability_router_v2.js'
+      - 'axiom_interface/vnext/capability_guard.js'
+      - 'axiom_interface/vnext/data_adapters.js'
+      - 'axiom_interface/vnext/tests/**'
+      - 'docs/axiom_final_product/FA07_CAPABILITY_ROUTER_V2.md'
+      - '.github/workflows/axiom-fa07-capability-router-gate.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: axiom-fa07-router-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  router:
+    name: FA-07 fail-closed router tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout exact commit
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Verify governed branch and phase authority
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "${GITHUB_REF_NAME}" = "frontier/axiom-final-product-fa07-20260915"
+          test -f docs/axiom_final_product/FA07_CAPABILITY_ROUTER_V2.md
+          grep -Fq 'DISCOVERED_CANDIDATE' docs/axiom_final_product/FA07_CAPABILITY_ROUTER_V2.md
+          grep -Fq 'NOT_CERTIFIED' docs/axiom_final_product/FA07_CAPABILITY_ROUTER_V2.md
+
+      - name: Run cumulative deterministic tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --test axiom_interface/vnext/tests/*.test.mjs
+
+      - name: Enforce locked capability truth and fail-closed classes
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          import assert from 'node:assert/strict';
+          import {
+            CAPABILITY_TRUTH,
+            QUALIFICATION_CLASSES,
+            classifyCapabilityReference,
+            routeCapabilityV2,
+          } from './axiom_interface/vnext/capability_router_v2.js';
+
+          assert.equal(CAPABILITY_TRUTH.certified_atomic_runtime_operations, 74);
+          assert.equal(CAPABILITY_TRUTH.public_axiom_plugin_tools, 108);
+          assert.equal(CAPABILITY_TRUTH.registered_native_derived_compositions, 2400);
+          assert.equal(CAPABILITY_TRUTH.discovered_candidate_dags, 2235);
+          assert.deepEqual(QUALIFICATION_CLASSES, [
+            'CERTIFIED_ATOMIC',
+            'REGISTERED_DERIVED',
+            'DISCOVERED_CANDIDATE',
+            'FRONTIER_EXPERIMENTAL',
+            'TARGET_ONLY',
+          ]);
+          assert.equal(classifyCapabilityReference('AXD-0001').qualification_class, 'DISCOVERED_CANDIDATE');
+          assert.equal(classifyCapabilityReference('AXD-2235').qualification_class, 'DISCOVERED_CANDIDATE');
+          assert.equal(routeCapabilityV2('use AXD-0001').policy.decision, 'DENY');
+          assert.equal(routeCapabilityV2('use TARGET-001').policy.decision, 'DENY');
+          NODE
+
+      - name: Enforce no deployment or write capability in this gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          ! grep -Eq '(^|[[:space:]])(deploy|pages: write|id-token: write|packages: write|contents: write)([[:space:]]|$)' .github/workflows/axiom-fa07-capability-router-gate.yml
