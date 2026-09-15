@@ -132,19 +132,23 @@ jobs:
           set -euo pipefail
           npx wrangler deploy --name "$STAGING_WORKER" --compatibility-date 2026-09-15 --assets /tmp/fa13-assets > candidate-deploy.log 2>&1 || { tail -200 candidate-deploy.log; exit 1; }
           npx wrangler deploy --name "$CANARY_WORKER" --compatibility-date 2026-09-15 --assets /tmp/fa13-assets > canary-deploy.log 2>&1 || { tail -200 canary-deploy.log; exit 1; }
-          for target in "$STAGING_URL" "$CANARY_URL"; do
-            for attempt in $(seq 1 30); do
-              code="$(curl -sS -o current-build.json -w '%{http_code}' "$target/vnext/fa13-build.json?attempt=$attempt" || true)"
-              if [ "$code" = 200 ] && grep -q "$GITHUB_SHA" current-build.json; then break; fi
-              sleep 2
-            done
-            test "$code" = 200
-            grep -q "$GITHUB_SHA" current-build.json
-            curl -fsS -o current-index.html "$target/vnext/index.html"
-            curl -fsS -o current-workspace.js "$target/vnext/engineering_workspace_runtime.js"
-            grep -q 'MUSITU AXIOM' current-index.html
-            grep -q 'EngineeringWorkspaceRuntime' current-workspace.js
-          done
+          python - <<'PY'
+          import json,os,time,urllib.parse,urllib.request
+          for label,target in [('staging',os.environ['STAGING_URL']),('canary',os.environ['CANARY_URL'])]:
+              last=None
+              for attempt in range(1,31):
+                  try:
+                      with urllib.request.urlopen(target+'/vnext/fa13-build.json?attempt='+str(attempt),timeout=30) as response: build=json.load(response)
+                      if build.get('source_commit')==os.environ['GITHUB_SHA']: break
+                      last='stale source_commit '+repr(build.get('source_commit'))
+                  except Exception as error: last=repr(error)
+                  time.sleep(2)
+              else: raise SystemExit(f'{label} build identity unavailable: {last}')
+              for path,needle in [('/vnext/index.html',b'MUSITU AXIOM'),('/vnext/engineering_workspace_runtime.js',b'EngineeringWorkspaceRuntime')]:
+                  with urllib.request.urlopen(target+path,timeout=30) as response: body=response.read()
+                  if needle not in body: raise SystemExit(f'{label} asset contract missing {needle!r} at {path}; bytes={len(body)}')
+              print(f'fa13_{label}_asset_smoke_pass=true')
+          PY
           echo 'fa13_staging_smoke_pass=true'
           echo 'fa13_canary_smoke_pass=true'
 
