@@ -29,9 +29,18 @@ jobs:
         with:
           python-version: '3.12.13'
 
+      - name: Prepare exact encrypted V44 activation overlay shim
+        shell: bash
+        run: bash ops/prepare_foundry_forge_v44_overlay_shim.sh
+
       - name: Execute fail-closed isolated candidate repair
         shell: bash
-        run: bash ops/run_foundry_forge_v44_candidate_repair.sh
+        run: PATH="/tmp/musitu-forge-v44-overlay-shim/bin:$PATH" bash ops/run_foundry_forge_v44_candidate_repair.sh
+
+      - name: Remove decrypted overlay material
+        if: always()
+        shell: bash
+        run: rm -rf /tmp/musitu-forge-v44-overlay-shim
 
       - uses: actions/upload-artifact@v4
         with:
