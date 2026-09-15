@@ -1,0 +1,68 @@
+name: MUSITU Chemistry Admin Edge Source Context
+
+on:
+  push:
+    paths:
+      - '.github/workflows/chemistry-admin-edge-source-context.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 6
+    env:
+      CF_API: https://api.cloudflare.com/client/v4
+      ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      WORKER_NAME: mft-paynow-transport-gateway
+      EXPECTED_SHA: e3c6db1ced0ab7e8e9844364b69777dfc7a15c8c2daf08b5bd330e035979f4ac
+    steps:
+      - uses: actions/checkout@v4
+      - name: Read routing contexts only
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import email,hashlib,os,re,urllib.parse,urllib.request
+          API=os.environ['CF_API']; A=os.environ['ACCOUNT_ID']; W=os.environ['WORKER_NAME']
+          H={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY'],'User-Agent':'MUSITU-Admin-Edge-Context/1.0'}
+          q=urllib.request.Request(f'{API}/accounts/{A}/workers/scripts/{urllib.parse.quote(W,safe="")}',headers=H)
+          with urllib.request.urlopen(q,timeout=45) as r: raw=r.read(); ct=r.headers.get('content-type','')
+          if 'multipart/' in ct.lower():
+            msg=email.message_from_bytes((f'Content-Type: {ct}\r\nMIME-Version: 1.0\r\n\r\n').encode()+raw); parts=[]
+            for p in msg.walk():
+              if p.is_multipart(): continue
+              d=p.get_payload(decode=True) or b''
+              if b'export default' in d or b'fetch(' in d: parts.append(d)
+            source=max(parts,key=len)
+          else: source=raw
+          sha=hashlib.sha256(source).hexdigest()
+          if sha!=os.environ['EXPECTED_SHA']: raise SystemExit('edge source drift '+sha)
+          text=source.decode('utf-8','replace')
+          def scrub(s):
+            s=re.sub(r'(?i)(secret|token|key)\s*[:=]\s*["\'][^"\']+["\']',r'\1=<redacted>',s)
+            s=re.sub(r'(?i)(authorization|x-[a-z0-9-]*token)["\']?\s*[:,]\s*["\'][^"\']+["\']',r'\1:<redacted>',s)
+            return s
+          tokens=['CHEMISTRY_TRANSPORT_BRIDGE_TOKEN','chemistry','checkout','pathname','request.method','req.method','method===','method ===','fetch(','new URL(','404','not_found','not found']
+          print('EDGE_SOURCE_SHA256='+sha)
+          print('EDGE_SOURCE_BYTES='+str(len(source)))
+          emitted=set()
+          for tok in tokens:
+            start=0;n=0
+            while True:
+              i=text.lower().find(tok.lower(),start)
+              if i<0: break
+              a=max(0,i-1100); b=min(len(text),i+2200); key=(a//200,b//200)
+              start=i+len(tok)
+              if key in emitted: continue
+              emitted.add(key); n+=1
+              print(f'--- TOKEN {tok!r} CONTEXT {n} ---')
+              print(scrub(text[a:b]))
+              if n>=5: break
+          print('PRODUCTION_MUTATION=FALSE')
+          print('SECRET_VALUES_EMITTED=FALSE')
+          PY
