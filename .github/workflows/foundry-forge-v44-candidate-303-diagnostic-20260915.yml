@@ -1,0 +1,122 @@
+name: MUSITU FOUNDRY FORGE V44 Candidate 303 Diagnostic
+
+on:
+  push:
+    branches:
+      - foundry-forge-v44-modal-candidate-20260915
+    paths:
+      - '.github/workflows/foundry-forge-v44-candidate-303-diagnostic-20260915.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose-redirect:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID }}
+      MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET }}
+      FORGE_MODAL_APP: musitu-forge-v44-media-candidate
+    steps:
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12.13'
+
+      - name: Install Modal and resolve exact candidate URL
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$MODAL_TOKEN_ID"
+          test -n "$MODAL_TOKEN_SECRET"
+          python -m pip install --disable-pip-version-check --quiet 'modal==1.5.5'
+          python - <<'PY' > /tmp/candidate-url
+          import modal
+          u=modal.Function.from_name('musitu-forge-v44-media-candidate','forge_custody').get_web_url()
+          if not u or not u.startswith('https://'):
+              raise SystemExit('candidate_url_missing')
+          print(u.rstrip('/'))
+          PY
+
+      - name: Capture authenticated first non-503 response without following redirect
+        shell: bash
+        run: |
+          set -euo pipefail
+          URL="$(cat /tmp/candidate-url)"
+          modal workspace proxy-tokens create --json > /tmp/proxy-token.json
+          python - <<'PY'
+          import json,pathlib
+          obj=json.load(open('/tmp/proxy-token.json')); vals=[]
+          def walk(x):
+              if isinstance(x,dict):
+                  for v in x.values(): walk(v)
+              elif isinstance(x,list):
+                  for v in x: walk(v)
+              elif isinstance(x,str): vals.append(x)
+          walk(obj)
+          keys=[x for x in vals if x.startswith('wk-')]
+          secs=[x for x in vals if x.startswith('ws-')]
+          if len(keys)!=1 or len(secs)!=1: raise SystemExit('proxy_token_shape_invalid')
+          pathlib.Path('/tmp/proxy-key').write_text(keys[0])
+          pathlib.Path('/tmp/proxy-secret').write_text(secs[0])
+          PY
+          KEY="$(cat /tmp/proxy-key)"; SECRET="$(cat /tmp/proxy-secret)"
+          cleanup(){ modal workspace proxy-tokens delete -y "$KEY" >/dev/null 2>&1 || true; rm -f /tmp/proxy-key /tmp/proxy-secret /tmp/proxy-token.json; }
+          trap cleanup EXIT
+          code=000
+          for attempt in $(seq 1 45); do
+            : > /tmp/headers.txt
+            : > /tmp/body.bin
+            code="$(curl -sS --max-time 20 -D /tmp/headers.txt -o /tmp/body.bin -w '%{http_code}' -H "Modal-Key: $KEY" -H "Modal-Secret: $SECRET" "$URL/v1/health" || true)"
+            if [ "$code" != 503 ] && [ "$code" != 000 ]; then break; fi
+            sleep 2
+          done
+          export OBSERVED_CODE="$code"
+          export CANDIDATE_URL="$URL"
+          python - <<'PY'
+          import hashlib,json,os,pathlib,urllib.parse
+          headers=pathlib.Path('/tmp/headers.txt').read_text(errors='replace').splitlines()
+          status_lines=[x.strip() for x in headers if x.startswith('HTTP/')]
+          location=''
+          content_type=''
+          for line in headers:
+              k,sep,v=line.partition(':')
+              if not sep: continue
+              if k.lower()=='location': location=v.strip()
+              elif k.lower()=='content-type': content_type=v.strip()
+          src=urllib.parse.urlsplit(os.environ['CANDIDATE_URL'])
+          loc=urllib.parse.urlsplit(location) if location else None
+          result={
+              'schema':'musitu.forge.candidate_redirect_diagnostic.v1',
+              'candidate_app':'musitu-forge-v44-media-candidate',
+              'request_path':'/v1/health',
+              'http_code':os.environ['OBSERVED_CODE'],
+              'status_lines':status_lines,
+              'content_type':content_type,
+              'body_sha256':hashlib.sha256(pathlib.Path('/tmp/body.bin').read_bytes()).hexdigest(),
+              'body_bytes':pathlib.Path('/tmp/body.bin').stat().st_size,
+              'location_present':bool(location),
+              'location_scheme':loc.scheme if loc else '',
+              'location_host':loc.hostname if loc else '',
+              'location_port':loc.port if loc else None,
+              'location_path':loc.path if loc else '',
+              'location_query_present':bool(loc.query) if loc else False,
+              'location_fragment_present':bool(loc.fragment) if loc else False,
+              'same_host':bool(loc and loc.hostname==src.hostname),
+              'source_host':src.hostname,
+              'write_performed':False,
+              'redirect_followed':False,
+          }
+          pathlib.Path('candidate-303-diagnostic.json').write_text(json.dumps(result,indent=2,sort_keys=True)+'\n')
+          print(json.dumps(result,sort_keys=True))
+          PY
+          cleanup
+          trap - EXIT
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: musitu-forge-v44-candidate-303-diagnostic-20260915
+          path: candidate-303-diagnostic.json
+          retention-days: 14
+          if-no-files-found: error
