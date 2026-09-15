@@ -1,0 +1,52 @@
+name: MUSITU Chemistry Admin UI Live Diagnostic
+
+on:
+  push:
+    paths:
+      - '.github/workflows/chemistry-admin-ui-live-diagnostic.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check embedded and live authenticated Admin script
+        env:
+          CHEMISTRY_ADMIN_OWNER_TOKEN: ${{ secrets.CHEMISTRY_ADMIN_OWNER_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import html,re,urllib.parse,urllib.request,urllib.error,http.cookiejar,os,pathlib,hashlib,json
+          src=pathlib.Path('commerce/chemistry/admin_command_center_ui_v2.mjs').read_text()
+          m=re.search(r"const ADMIN2_JS=`([\s\S]*?)`;\nfunction adminAppPageV2",src)
+          if not m: raise SystemExit('ADMIN2_JS extraction failed')
+          embedded=m.group(1)
+          pathlib.Path('/tmp/admin2-embedded.js').write_text(embedded)
+          token=os.environ['CHEMISTRY_ADMIN_OWNER_TOKEN']
+          if len(token)<32: raise SystemExit('owner token unavailable')
+          cj=http.cookiejar.CookieJar(); op=urllib.request.build_opener(urllib.request.HTTPCookieProcessor(cj))
+          body=urllib.parse.urlencode({'token':token}).encode()
+          req=urllib.request.Request('https://payments.mftintelligence.com/chemistry/admin/login',data=body,headers={'Content-Type':'application/x-www-form-urlencoded','User-Agent':'MUSITU-Admin-UI-Diagnostic/1.0'},method='POST')
+          try:
+            r=op.open(req,timeout=30); r.read()
+          except urllib.error.HTTPError as e:
+            raise SystemExit(f'login failed {e.code}')
+          req=urllib.request.Request('https://payments.mftintelligence.com/chemistry/admin/',headers={'User-Agent':'MUSITU-Admin-UI-Diagnostic/1.0'})
+          with op.open(req,timeout=30) as r:
+            live=r.read().decode('utf-8','replace'); hdr=dict(r.headers); code=r.status
+          scripts=re.findall(r'<script>([\s\S]*?)</script>',live,re.I)
+          if len(scripts)!=1: raise SystemExit(f'live inline script count {len(scripts)}')
+          pathlib.Path('/tmp/admin2-live.js').write_text(scripts[0])
+          print(json.dumps({'http':code,'body_bytes':len(live.encode()),'embedded_js_bytes':len(embedded.encode()),'live_js_bytes':len(scripts[0].encode()),'embedded_js_sha256':hashlib.sha256(embedded.encode()).hexdigest(),'live_js_sha256':hashlib.sha256(scripts[0].encode()).hexdigest(),'view_count':len(re.findall(r'class="view(?: |")',live)),'active_view_static_count':len(re.findall(r'class="view active',live)),'csp':hdr.get('Content-Security-Policy') or hdr.get('content-security-policy'),'production_mutation':False},sort_keys=True))
+          PY
+          echo '--- EMBEDDED JS SYNTAX ---'
+          node --check /tmp/admin2-embedded.js
+          echo '--- LIVE JS SYNTAX ---'
+          node --check /tmp/admin2-live.js
+          echo MUSITU_ADMIN_UI_SCRIPT_SYNTAX=PASS
