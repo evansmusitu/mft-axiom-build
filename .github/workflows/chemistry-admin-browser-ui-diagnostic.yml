@@ -1,0 +1,43 @@
+name: MUSITU Chemistry Admin Browser UI Diagnostic
+
+on:
+  push:
+    paths:
+      - '.github/workflows/chemistry-admin-browser-ui-diagnostic.yml'
+      - 'commerce/chemistry/admin_command_center_ui_v2.mjs'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  browser-contract:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v4
+      - name: Extract and syntax-check exact browser script
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp commerce/chemistry/admin_command_center_ui_v2.mjs /tmp/admin-ui-eval.js
+          cat >> /tmp/admin-ui-eval.js <<'EOF'
+          require('fs').writeFileSync('/tmp/admin2-runtime.js', ADMIN2_JS, 'utf8');
+          require('fs').writeFileSync('/tmp/admin2-runtime.css', ADMIN2_CSS, 'utf8');
+          EOF
+          node /tmp/admin-ui-eval.js
+          node --check /tmp/admin2-runtime.js
+          python - <<'PY'
+          from pathlib import Path
+          js=Path('/tmp/admin2-runtime.js').read_text()
+          css=Path('/tmp/admin2-runtime.css').read_text()
+          required_js=["go('dashboard')","dashboard().catch(show)","/chemistry/admin/api/","#global-search"]
+          for x in required_js:
+              if x not in js: raise SystemExit('missing browser JS invariant: '+x)
+          required_css=['.view{display:none}', '.view.active{display:block}', '@media(max-width:780px)']
+          for x in required_css:
+              if x not in css: raise SystemExit('missing browser CSS invariant: '+x)
+          print('MUSITU_ADMIN_BROWSER_JS_SYNTAX=PASS')
+          print('MUSITU_ADMIN_BROWSER_UI_CONTRACT=PASS')
+          print('PRODUCTION_MUTATION=FALSE')
+          PY
