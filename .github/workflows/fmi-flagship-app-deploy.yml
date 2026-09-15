@@ -7,6 +7,7 @@ on:
     paths:
       - 'app/flagship/**'
       - 'scripts/build_fmi_flagship_worker.py'
+      - 'scripts/verify_fmi_flagship_v2_assets.py'
       - 'scripts/deploy_fmi_flagship_v2.py'
       - '.github/workflows/fmi-flagship-app-deploy.yml'
   workflow_dispatch:
@@ -34,12 +35,16 @@ jobs:
       FLAGSHIP_WORKER_OUT: /tmp/fmi_flagship_worker.mjs
     steps:
       - uses: actions/checkout@v4
+      - name: Prove byte-exact V2 asset transport
+        run: |
+          set -euo pipefail
+          python scripts/verify_fmi_flagship_v2_assets.py
       - name: Build and validate flagship V2 source
         run: |
           set -euo pipefail
           python scripts/build_fmi_flagship_worker.py
           node --check /tmp/fmi_flagship_worker.mjs
-          python -m py_compile scripts/build_fmi_flagship_worker.py scripts/deploy_fmi_flagship_v2.py
+          python -m py_compile scripts/build_fmi_flagship_worker.py scripts/verify_fmi_flagship_v2_assets.py scripts/deploy_fmi_flagship_v2.py
           grep -q 'MUSITU_FMI_FLAGSHIP_V2_20260916' /tmp/fmi_flagship_worker.mjs
           grep -q 'FEDERATED_OPEN_WEIGHT' /tmp/fmi_flagship_worker.mjs
           grep -q 'Market discovery' /tmp/fmi_flagship_worker.mjs
