@@ -108,12 +108,19 @@ if not required_headers.issubset(set(health[1])):raise RuntimeError('canonical f
 static={}
 assets=[('/app','text/html'),('/app.css','text/css'),('/app.js','application/javascript'),('/sw.js','application/javascript'),('/manifest.webmanifest','application/manifest+json'),('/icon.svg','image/svg+xml'),('/architecture.json','application/json')]
 for path,ctype in assets:
-    sc,sh,sb=raw(base+path+'?ts='+str(time.time_ns()),headers={'user-agent':'MUSITU-FMI-Flagship-Acceptance/1.0'},timeout=30)
-    if sc!=200 or ctype not in (sh.get('content-type') or ''):raise RuntimeError(f'flagship asset {path} acceptance failed HTTP {sc} type={sh.get("content-type")}')
-    if (sh.get('cache-control') or '').lower()!='no-store':raise RuntimeError('flagship asset missing no-store '+path)
-    if not required_headers.issubset(set(sh)):raise RuntimeError('flagship asset security headers incomplete '+path)
+    accepted=None; last=None
+    for _ in range(30):
+        sc,sh,sb=raw(base+path+'?ts='+str(time.time_ns()),headers={'user-agent':'MUSITU-FMI-Flagship-Acceptance/1.0'},timeout=30)
+        last=(sc,sh,sb)
+        marker_ok=(path!='/app.js' or BUILD.encode() in sb)
+        if sc==200 and ctype in (sh.get('content-type') or '') and (sh.get('cache-control') or '').lower()=='no-store' and required_headers.issubset(set(sh)) and marker_ok:
+            accepted=(sc,sh,sb); break
+        time.sleep(1)
+    if accepted is None:
+        sc,sh,sb=last or (0,{},b'')
+        raise RuntimeError(f'flagship asset {path} acceptance failed after propagation wait HTTP {sc} type={sh.get("content-type")} marker={BUILD.encode() in sb}')
+    sc,sh,sb=accepted
     static[path]={'http':sc,'content_type':sh.get('content-type'),'bytes':len(sb)}
-    if path=='/app.js' and BUILD.encode() not in sb:raise RuntimeError('served app.js build marker missing')
     if path=='/manifest.webmanifest':
         mo=json.loads(sb or b'{}')
         if mo.get('display')!='standalone' or mo.get('start_url')!='/app' or not mo.get('icons'):raise RuntimeError('PWA manifest contract mismatch')
