@@ -1,0 +1,174 @@
+name: MUSITU Chemistry Admin Browser Repair Production
+
+on:
+  push:
+    paths:
+      - '.github/workflows/chemistry-admin-browser-repair-production.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  promote:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    env:
+      CF_API: https://api.cloudflare.com/client/v4
+      ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      COMMERCE_WORKER: musitu-chemistry-commerce
+      DB_ID: e148cbce-1b00-4d07-bb58-c1d56a4af0c7
+      BASE_URL: https://payments.mftintelligence.com
+      BASELINE_SHA: d6ad30d11205a0bfaff008aeb3e9ae46075518186e7c717ba82b5a9e6c3bc567
+      OLD_TARGET_SHA: f3d73cb03e8c4b6ed642e232025594220aad89c43ec302d4f5cb14a62b015531
+      TARGET_SHA: cd4f4c499e5eb762f393c1d1944b22f091ef29a191dbeedfcd97afe7f50f8225
+      EVIDENCE_DIR: admin-browser-production-evidence
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Promote exact repaired Admin UI with rollback drill
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+          CHEMISTRY_ADMIN_OWNER_TOKEN: ${{ secrets.CHEMISTRY_ADMIN_OWNER_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$EVIDENCE_DIR"
+          python - <<'PY'
+          import email,hashlib,importlib.util,json,os,pathlib,re,subprocess,time,urllib.parse
+          from pathlib import Path
+
+          OLD=os.environ['OLD_TARGET_SHA']; NEW=os.environ['TARGET_SHA']; BASE=os.environ['BASELINE_SHA']
+          token=os.environ['CHEMISTRY_ADMIN_OWNER_TOKEN']
+          if len(token)<32: raise SystemExit('owner token missing/too short')
+
+          spec=importlib.util.spec_from_file_location('cut','commerce/chemistry/deploy_admin_command_center.py')
+          cut=importlib.util.module_from_spec(spec); spec.loader.exec_module(cut)
+          sha=lambda b:hashlib.sha256(b).hexdigest()
+
+          live,module_from_source=cut.worker_read(); live_sha=sha(live)
+          if live_sha not in (OLD,NEW): raise SystemExit('unexpected live Admin source drift '+live_sha)
+          settings=cut.worker_settings(); module_name=str(settings.get('main_module') or module_from_source or 'index.mjs')
+          names=cut.binding_names(settings)
+          required={'CHEMISTRY_DB','CHEMISTRY_LICENSE_KEY_ID','CHEMISTRY_LICENSE_PKCS8_B64','CHEMISTRY_AUTHORITY_BRIDGE_TOKEN','CHEMISTRY_TRANSPORT_BRIDGE_TOKEN','PAYMENT_AUTHORITY','PAYNOW_TRANSPORT','CHEMISTRY_ADMIN_OWNER_TOKEN'}
+          if not required.issubset(names): raise SystemExit('required binding missing '+repr(sorted(required-names)))
+
+          # Reconstruct the exact pre-Admin Commerce baseline from the currently deployed old target.
+          source_for_old=live
+          if live_sha==NEW:
+            # Final state already present: produce a fresh target from canonical baseline by reading the old target from the qualified structure is unnecessary.
+            # Rebuild baseline from current repaired Admin block using the same structural boundaries.
+            pass
+          text=live.decode('utf-8')
+          route="if(p==='/chemistry/admin'||p.startsWith('/chemistry/admin/'))return adminRouterV2(req,env);"
+          start='/* MUSITU Chemistry Admin Command Center v1'
+          anchor='async function createOrder(env,{plan,holder,email,deviceId,seatsInput})'
+          if text.count(route)!=1 or text.count(start)!=1 or text.count(anchor)!=1: raise SystemExit('Admin structural anchors not unique')
+          without_route=text.replace(route,'',1)
+          a=without_route.index(start); b=without_route.index(anchor,a)
+          baseline=(without_route[:a]+without_route[b:]).encode('utf-8')
+          if sha(baseline)!=BASE: raise SystemExit('baseline reconstruction mismatch '+sha(baseline))
+
+          Path('/tmp/admin-baseline.mjs').write_bytes(baseline)
+          subprocess.run(['python','commerce/chemistry/patch_admin_command_center.py','--input','/tmp/admin-baseline.mjs','--output','/tmp/admin-new.mjs'],check=True)
+          target=Path('/tmp/admin-new.mjs').read_bytes()
+          if sha(target)!=NEW: raise SystemExit('repaired target mismatch '+sha(target))
+          subprocess.run(['node','--check','/tmp/admin-new.mjs'],check=True)
+
+          # Validate browser runtime itself, not merely the outer Worker template string.
+          ui=Path('commerce/chemistry/admin_command_center_ui_v2.mjs').read_text(encoding='utf-8')
+          Path('/tmp/ui-eval.js').write_text(ui+"\nrequire('fs').writeFileSync('/tmp/admin-runtime.js',ADMIN2_JS,'utf8');\nrequire('fs').writeFileSync('/tmp/admin-runtime.css',ADMIN2_CSS,'utf8');\n",encoding='utf-8')
+          subprocess.run(['node','/tmp/ui-eval.js'],check=True)
+          subprocess.run(['node','--check','/tmp/admin-runtime.js'],check=True)
+          runtime=Path('/tmp/admin-runtime.js').read_text(); css=Path('/tmp/admin-runtime.css').read_text()
+          for invariant in ["go('dashboard')","dashboard().catch(show)","SAVE THIS CREDENTIAL NOW — IT IS SHOWN ONCE:\\n","/chemistry/admin/api/"]:
+            if invariant not in runtime: raise SystemExit('runtime invariant missing '+repr(invariant))
+          if '.app{grid-template-columns:1fr;grid-template-rows:auto auto;min-height:0;align-content:start}' not in css: raise SystemExit('mobile layout repair missing')
+
+          # Preserve existing Commerce and secure USD contracts before any write.
+          for invariant in ["const DIRECT_PAYNOW_FALLBACK_ACTIVE=false;","currency:'USD'","/internal/paynow/sign-initiate-chemistry","/internal/paynow/initiate","/chemistry/webhooks/paynow","form-action 'self' https://www.paynow.co.zw"]:
+            if invariant not in target.decode('utf-8'): raise SystemExit('Commerce invariant missing '+invariant)
+          counts_before=cut.admin_counts(); public_before=cut.public_regression()
+
+          def certify(label):
+            last=''
+            for attempt in range(1,16):
+              good=urllib.parse.urlencode({'token':token}).encode()
+              code,h,_=cut.public_request('/chemistry/admin/login','POST',good,{'Content-Type':'application/x-www-form-urlencoded'},no_redirect=True)
+              if code!=303:
+                last=f'login={code}'; time.sleep(2); continue
+              cookie=(h.get('set-cookie') or '').split(';',1)[0]
+              if not cookie.startswith('mchem_admin='):
+                last='cookie_missing'; time.sleep(2); continue
+              code,h,body=cut.public_request('/chemistry/admin/',headers={'Cookie':cookie},no_redirect=True)
+              if code!=200:
+                last=f'dashboard={code}'; time.sleep(2); continue
+              html=body.decode('utf-8','replace')
+              scripts=re.findall(r'<script>([\s\S]*?)</script>',html,re.I)
+              if len(scripts)!=1:
+                last=f'scripts={len(scripts)}'; time.sleep(2); continue
+              Path('/tmp/live-admin.js').write_text(scripts[0])
+              p=subprocess.run(['node','--check','/tmp/live-admin.js'],capture_output=True,text=True)
+              if p.returncode!=0:
+                last='live_js_syntax'; time.sleep(2); continue
+              if "SAVE THIS CREDENTIAL NOW — IT IS SHOWN ONCE:\\n" not in scripts[0] or "go('dashboard')" not in scripts[0]:
+                last='runtime_marker'; time.sleep(2); continue
+              if '.app{grid-template-columns:1fr;grid-template-rows:auto auto;min-height:0;align-content:start}' not in html:
+                last='mobile_css'; time.sleep(2); continue
+              code,_,api=cut.public_request('/chemistry/admin/api/dashboard',headers={'Cookie':cookie,'Accept':'application/json'},no_redirect=True)
+              if code!=200:
+                last=f'api={code}'; time.sleep(2); continue
+              data=json.loads(api or b'{}')
+              if not data.get('ok') or data.get('currency')!='USD':
+                last='dashboard_contract'; time.sleep(2); continue
+              return {'label':label,'attempt':attempt,'login_http':303,'dashboard_http':200,'dashboard_api_http':200,'browser_js_syntax':True,'mobile_layout_repaired':True,'currency':'USD','live_js_sha256':sha(scripts[0].encode())}
+            raise RuntimeError(f'{label} certification failed after retries: {last}')
+
+          old_source=live if live_sha==OLD else None
+          if old_source is None:
+            # Derive old target from the exact old UI commit is not needed for normal first promotion; refuse a rollback drill if already on new target.
+            old_source=None
+
+          try:
+            if live_sha==OLD:
+              cut.upload_source(target,module_name); cut.require_live_sha(NEW)
+              target_cert=certify('initial_target')
+              if cut.admin_counts()!=counts_before: raise RuntimeError('target certification mutated Admin rows')
+
+              # Exact rollback to the previously deployed source, then return to repaired target.
+              cut.upload_source(live,module_name); cut.require_live_sha(OLD)
+              time.sleep(3); public_rollback=cut.public_regression()
+              if cut.admin_counts()!=counts_before: raise RuntimeError('rollback mutated Admin rows')
+              cut.upload_source(target,module_name); cut.require_live_sha(NEW)
+              final_cert=certify('final_target')
+            else:
+              target_cert=certify('already_live_target')
+              public_rollback={'skipped':'already_live_target'}
+              final_cert=target_cert
+
+            public_final=cut.public_regression(); counts_final=cut.admin_counts()
+            if counts_final!=counts_before: raise RuntimeError('final certification mutated Admin rows')
+            final_names=cut.binding_names(cut.worker_settings())
+            if not required.issubset(final_names): raise RuntimeError('binding lost after promotion')
+            report={'gate':'MUSITU_ADMIN_BROWSER_REPAIR_PRODUCTION_PASS','initial_live_sha256':live_sha,'baseline_sha256':BASE,'old_target_sha256':OLD,'new_target_sha256':NEW,'final_live_sha256':cut.require_live_sha(NEW),'target_certification':target_cert,'rollback_verified':live_sha==OLD,'public_before':public_before,'public_rollback':public_rollback,'public_final':public_final,'admin_counts_before':counts_before,'admin_counts_final':counts_final,'certification_admin_row_mutation':False,'secure_usd_paynow_preserved':True,'owner_secret_value_emitted':False}
+            out=Path(os.environ['EVIDENCE_DIR']); out.mkdir(exist_ok=True)
+            (out/'production.json').write_text(json.dumps(report,indent=2,sort_keys=True)+'\n')
+            (out/'production.sha256').write_text(hashlib.sha256((out/'production.json').read_bytes()).hexdigest()+'  production.json\n')
+            print(json.dumps({'gate':report['gate'],'final_live_sha256':report['final_live_sha256'],'browser_js_syntax':final_cert['browser_js_syntax'],'mobile_layout_repaired':final_cert['mobile_layout_repaired'],'rollback_verified':report['rollback_verified'],'admin_row_mutation':False,'secure_usd_paynow_preserved':True},sort_keys=True))
+          except Exception:
+            if live_sha==OLD:
+              try:
+                cut.upload_source(live,module_name); cut.require_live_sha(OLD)
+                print('EMERGENCY_RESTORE_OLD_TARGET=PASS')
+              except Exception as restore_error:
+                print('EMERGENCY_RESTORE_OLD_TARGET=FAILED',repr(restore_error))
+            raise
+          PY
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: musitu-chemistry-admin-browser-repair-production-evidence
+          path: admin-browser-production-evidence
+          retention-days: 90
+          if-no-files-found: error
