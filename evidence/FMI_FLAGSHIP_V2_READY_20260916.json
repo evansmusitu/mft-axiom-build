@@ -1,0 +1,111 @@
+{
+  "schema": "musitu.fmi.flagship-app-v2.ready-evidence.v1",
+  "product": "MUSITU Frontier Market Intelligence",
+  "recorded_at": "2026-09-15T23:06:42Z",
+  "isolated_branch": "fmi-flagship-app-20260915",
+  "release_source_commit": "691a455c3af16160abc80ebd62bec9ebfb83e9e2",
+  "deployment": {
+    "gate": "FMI_FLAGSHIP_V2_READY",
+    "build": "MUSITU_FMI_FLAGSHIP_V2_20260916",
+    "canonical_url": "https://app.mftintelligence.com/app",
+    "source_sha256": "64eafc85054abf1ca17bba1a32e8ad2656ba9fe5f68116b7f145e0fd1c814eed",
+    "evidence_sha256": "769765e24ea40a44e0e4b5e350a9ef46f6191c4bd314e9afad937a5ee0302e85",
+    "canonical_health_http": 200,
+    "upstream_health_http": 200,
+    "proxy_health_http": 200,
+    "content_v2_http": 200,
+    "unauthenticated_me_http": 401,
+    "unauthenticated_analysis_http": 401,
+    "model_architecture": "FEDERATED_OPEN_WEIGHT",
+    "architecture_counts": {
+      "pinned_models": 9,
+      "world_models": 13,
+      "specialists": 17
+    }
+  },
+  "asset_integrity": {
+    "gate": "FMI_FLAGSHIP_V2_ASSET_INTEGRITY_PASS",
+    "chunk_count": 4,
+    "v2_app_js_sha256": "76ac97a3c2dd44343b599ac836bca2d815e78dee841fa583b0bacae1f76f373f",
+    "chunks": {
+      "v2_assets.part00": "04fc82a0243e03a2fe297ef5b54e0240482a40d39b10068f80b51dd65c478de8",
+      "v2_assets.part01": "621dd6bf0fb7fcea2c807db6c2a6a131cef22620272262095dd495bb251ec08d",
+      "v2_assets.part02": "bc21f6797195a10ccd8ba22303a752f8dfe61f2a36259fa447d93c08b26a707f",
+      "v2_assets.part03": "3ef1c8b88a81c1a10a6f098f6fcde48930a156dfb70f20c3f88c8b295bb37530"
+    }
+  },
+  "workflow": {
+    "name": "MUSITU FMI Flagship V2 Deploy",
+    "run_id": 35034134838,
+    "job_id": 104599200470,
+    "conclusion": "success"
+  },
+  "browser_acceptance": {
+    "command_center": "PASS",
+    "market_workspace": "PASS",
+    "governed_intelligence": "PASS",
+    "intelligence_fabric": "PASS",
+    "world_models_mobile_390x844": "PASS",
+    "fatal_console_errors": "NONE_MATCHED"
+  },
+  "artifact": {
+    "id": 10423085738,
+    "name": "musitu-fmi-flagship-v2-deployment",
+    "zip_sha256": "bd03a75559646231f06f6858369b16b69591c809c1be9da6a8bb657d16f74a8d",
+    "payload_sha256": "769765e24ea40a44e0e4b5e350a9ef46f6191c4bd314e9afad937a5ee0302e85"
+  },
+  "functional_depth": {
+    "command_center": true,
+    "market_search_and_context": true,
+    "verified_market_canvas_only": true,
+    "fabricated_chart_data": false,
+    "observed_return_analysis": true,
+    "evidence_monitoring": true,
+    "monitor_creation": true,
+    "watchlists_read": true,
+    "research_history_read": true,
+    "global_command_interface": true,
+    "open_model_federation_visibility": true,
+    "world_model_visibility": true,
+    "specialist_visibility": true,
+    "foundry_and_evidence_lab_boundaries": true
+  },
+  "authority": {
+    "authority": "PAPER_SHADOW_ONLY",
+    "production_model_authority": false,
+    "live_trading_authorized": false,
+    "trade_execution_authorized": false,
+    "profitability": "NOT_YET_CERTIFIED",
+    "superiority": "NOT_CERTIFIED",
+    "real_money_settlement": "NOT_CERTIFIED"
+  },
+  "state_preservation": {
+    "d1_management_api_calls_performed": false,
+    "customer_rows_modified": false,
+    "billing_rows_modified": false,
+    "payment_provider_called": false,
+    "checkout_initiated": false,
+    "admin_worker_modified": false,
+    "public_edge_worker_modified": false
+  },
+  "preserved_failure_records": [
+    {
+      "run_id": 35033851453,
+      "job_id": 104598323351,
+      "reason": "V2_ASSET_PACK_BASE64_PADDING_FAILURE",
+      "deployment_reached": false
+    },
+    {
+      "run_id": 35034070235,
+      "job_id": 104599000741,
+      "reason": "CLOUDFLARE_COMPATIBILITY_DATE_AHEAD_OF_CONTROL_PLANE_UTC_DATE",
+      "worker_update_accepted": false
+    }
+  ],
+  "preserved_authority": {
+    "certified_branch": "fmi-revenue-certification-20260913",
+    "expected_certified_head": "f62ca8aeb37e87db0d1c503fe4b235ebefcc9de5",
+    "pr_9_merge_authorized": false,
+    "sealed_main_change_authorized": false
+  }
+}
