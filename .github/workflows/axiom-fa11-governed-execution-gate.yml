@@ -1,0 +1,144 @@
+name: MUSITU Axiom FA-11 Governed Execution Gate
+
+on:
+  push:
+    branches:
+      - frontier/axiom-final-product-fa11-20260915
+    paths:
+      - 'axiom_interface/vnext/**'
+      - 'docs/axiom_final_product/FA11_*.md'
+      - '.github/workflows/axiom-fa11-governed-execution-gate.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify-fa11:
+    name: FA-11 read-only governed execution verification
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Checkout exact branch history without persisted credentials
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Verify governed branch and FA-11 authority
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "${GITHUB_REF_NAME}" = "frontier/axiom-final-product-fa11-20260915"
+          git merge-base --is-ancestor 1b38f3ed9c1a106e0b4a142bba5196fd614acd35 HEAD
+          test -f docs/axiom_final_product/FA11_PREWRITE_INTENT.md
+          test -f docs/axiom_final_product/FA11_GOVERNED_EXECUTION_SUBSTRATE.md
+          grep -Fq 'S0-S5 enforced' docs/axiom_final_product/FA11_PREWRITE_INTENT.md
+          grep -Fq 'IMPLEMENTED_PENDING_REPOSITORY_VERIFICATION' docs/axiom_final_product/FA11_GOVERNED_EXECUTION_SUBSTRATE.md
+
+      - name: Prove earned source authorities are unchanged from sealed FA-10
+        shell: bash
+        run: |
+          set -euo pipefail
+          git diff --exit-code 1b38f3ed9c1a106e0b4a142bba5196fd614acd35 -- \
+            axiom_interface/projects.js \
+            axiom_interface/observability.js \
+            axiom_interface/agent_security.js \
+            axiom_interface/agent_store.js \
+            axiom_interface/computer_security.js \
+            axiom_interface/computer_store_execution.js \
+            axiom_interface/computer_store_control.js \
+            axiom_interface/vnext/mission_control_store.js \
+            axiom_interface/vnext/mission_control_verifier.js \
+            axiom_interface/vnext/mission_control_ui.js \
+            axiom_interface/vnext/deep_context_security.js \
+            axiom_interface/vnext/system_graph.js \
+            axiom_interface/vnext/deep_context_adapters.js \
+            axiom_interface/vnext/deep_context_store.js \
+            axiom_interface/vnext/deep_context_ui.js
+          git diff --exit-code 1b38f3ed9c1a106e0b4a142bba5196fd614acd35 -- \
+            mcp auth chatgpt-app-submission.json submission
+
+      - name: Verify FA-11 syntax and Build wiring
+        shell: bash
+        run: |
+          set -euo pipefail
+          for file in \
+            axiom_interface/vnext/execution_security.js \
+            axiom_interface/vnext/authorization_gateway.js \
+            axiom_interface/vnext/execution_store.js \
+            axiom_interface/vnext/execution_ui.js \
+            axiom_interface/vnext/agent_runtime_ui.js; do
+            node --check "$file"
+          done
+          grep -Fq "import './execution_ui.js';" axiom_interface/vnext/agent_runtime_ui.js
+          grep -Fq 'S0–S5 enforced' axiom_interface/vnext/execution_ui.js
+          grep -Fq 'No host shell, direct external network, plaintext secret or production deploy' axiom_interface/vnext/execution_ui.js
+
+      - name: Enforce S0-S5 authorization contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -Fq "export const RISK_CLASSES=Object.freeze(['S0','S1','S2','S3','S4','S5']);" axiom_interface/vnext/execution_security.js
+          grep -Fq "'publish.deploy':{risk:'S4'" axiom_interface/vnext/execution_security.js
+          grep -Fq "'secret.use':{risk:'S5'" axiom_interface/vnext/execution_security.js
+          grep -Fq 'caller cannot understate computed risk' axiom_interface/vnext/execution_security.js
+          grep -Fq 'retrieved data cannot authorize side effects' axiom_interface/vnext/authorization_gateway.js
+          grep -Fq 'requester cannot self-approve consequential action' axiom_interface/vnext/authorization_gateway.js
+          grep -Fq 'S4/S5 approvals require distinct approvers' axiom_interface/vnext/authorization_gateway.js
+          grep -Fq 'unknown operation fails closed at S5' axiom_interface/vnext/authorization_gateway.js
+          grep -Fq 'QUALIFIED_EXTERNAL_EXECUTOR_REQUIRED' axiom_interface/vnext/execution_store.js
+          grep -Fq 'cross-project sandbox execution blocked' axiom_interface/vnext/execution_store.js
+          grep -Fq 'plaintext_secret_access:false' axiom_interface/vnext/execution_store.js
+          grep -Fq 'network_request_performed:false' axiom_interface/vnext/execution_store.js
+
+      - name: Run cumulative vNext deterministic and adversarial tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --test axiom_interface/vnext/tests/*.test.mjs
+
+      - name: Run earned source-store regression suites
+        shell: bash
+        run: |
+          set -euo pipefail
+          python axiom_interface/tests/test_project_contract.py
+          python axiom_interface/tests/test_observability_phase6.py
+          python axiom_interface/tests/test_computer_phase8.py
+          python axiom_interface/tests/test_agents_phase9.py
+          python axiom_interface/tests/test_developer_phase12.py
+          python axiom_interface/tests/test_evidence_phase13.py
+
+      - name: Enforce no direct transport host shell or production executor
+        shell: bash
+        run: |
+          set -euo pipefail
+          ! grep -Eq '\bfetch[[:space:]]*\(|WebSocket[[:space:]]*\(|XMLHttpRequest|EventSource[[:space:]]*\(|navigator\.sendBeacon|child_process|spawn[[:space:]]*\(|exec[[:space:]]*\(' \
+            axiom_interface/vnext/execution_security.js \
+            axiom_interface/vnext/authorization_gateway.js \
+            axiom_interface/vnext/execution_store.js \
+            axiom_interface/vnext/execution_ui.js
+          grep -Fq 'DENY_ALL_EXTERNAL_NETWORK' axiom_interface/vnext/execution_security.js
+          grep -Fq 'BOUNDED_VIRTUAL_TERMINAL_NO_HOST_SHELL' axiom_interface/vnext/execution_security.js
+          grep -Fq 'external_action_executed:false' axiom_interface/vnext/execution_store.js
+          grep -Fq 'host_shell_executed:false' axiom_interface/vnext/execution_store.js
+
+      - name: Enforce read-only CI and no repository-write or deployment capability
+        shell: bash
+        run: |
+          set -euo pipefail
+          workflow=.github/workflows/axiom-fa11-governed-execution-gate.yml
+          grep -Fq 'contents: read' "$workflow"
+          ! grep -Eq '(^|[[:space:]])(pages: write|id-token: write|packages: write|contents: write|pull-requests: write|issues: write|statuses: write)([[:space:]]|$)' "$workflow"
+          ! grep -Eq '\b(git push|gh pr merge|npm publish|docker push|kubectl apply|terraform apply)\b' "$workflow"
+          git diff --check

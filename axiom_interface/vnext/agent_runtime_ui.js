@@ -1,5 +1,6 @@
 import './deep_context_ui.js';
 import './mission_control_ui.js';
+import './execution_ui.js';
 import {ProjectStore} from '../projects.js';
 import {ObservabilityStore} from '../observability.js';
 import {AgentAutomationStore} from '../agent_store.js';
