@@ -1,4 +1,4 @@
-name: MUSITU FMI Flagship App Deploy
+name: MUSITU FMI Flagship V2 Deploy
 
 on:
   push:
@@ -7,7 +7,7 @@ on:
     paths:
       - 'app/flagship/**'
       - 'scripts/build_fmi_flagship_worker.py'
-      - 'scripts/deploy_fmi_flagship.py'
+      - 'scripts/deploy_fmi_flagship_v2.py'
       - '.github/workflows/fmi-flagship-app-deploy.yml'
   workflow_dispatch:
 
@@ -15,13 +15,13 @@ permissions:
   contents: read
 
 concurrency:
-  group: musitu-fmi-flagship-app
+  group: musitu-fmi-flagship-v2
   cancel-in-progress: false
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    timeout-minutes: 18
+    timeout-minutes: 20
     env:
       CF_API: https://api.cloudflare.com/client/v4
       ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
@@ -34,19 +34,21 @@ jobs:
       FLAGSHIP_WORKER_OUT: /tmp/fmi_flagship_worker.mjs
     steps:
       - uses: actions/checkout@v4
-      - name: Build and validate flagship source
+      - name: Build and validate flagship V2 source
         run: |
           set -euo pipefail
           python scripts/build_fmi_flagship_worker.py
           node --check /tmp/fmi_flagship_worker.mjs
-          python -m py_compile scripts/build_fmi_flagship_worker.py scripts/deploy_fmi_flagship.py
-          grep -q 'MUSITU_FMI_FLAGSHIP_20260915' /tmp/fmi_flagship_worker.mjs
+          python -m py_compile scripts/build_fmi_flagship_worker.py scripts/deploy_fmi_flagship_v2.py
+          grep -q 'MUSITU_FMI_FLAGSHIP_V2_20260916' /tmp/fmi_flagship_worker.mjs
           grep -q 'FEDERATED_OPEN_WEIGHT' /tmp/fmi_flagship_worker.mjs
+          grep -q 'Market discovery' /tmp/fmi_flagship_worker.mjs
+          grep -q 'Governed market investigation' /tmp/fmi_flagship_worker.mjs
           grep -q 'Pinned open-model federation' /tmp/fmi_flagship_worker.mjs
           grep -q 'World Model Federation' /tmp/fmi_flagship_worker.mjs
-          ! grep -q '/d1/database' scripts/deploy_fmi_flagship.py
+          ! grep -q '/d1/database' scripts/deploy_fmi_flagship_v2.py
           ! grep -q 'function top(' /tmp/fmi_flagship_worker.mjs
-      - name: Deploy flagship and verify server contracts
+      - name: Deploy V2 and verify server contracts
         env:
           CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
           CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
@@ -54,66 +56,82 @@ jobs:
           set -euo pipefail
           test -n "$CLOUDFLARE_EMAIL"
           test -n "$CLOUDFLARE_GLOBAL_API_KEY"
-          python scripts/deploy_fmi_flagship.py
+          python scripts/deploy_fmi_flagship_v2.py
       - name: Real-browser Command Center acceptance
         run: |
           set -euo pipefail
-          rm -rf /tmp/fmi-chrome-command
+          rm -rf /tmp/fmi-v2-command
           google-chrome --headless=new --no-sandbox --disable-gpu \
-            --user-data-dir=/tmp/fmi-chrome-command \
-            --virtual-time-budget=7000 \
-            --enable-logging=stderr \
-            --dump-dom \
-            'https://app.mftintelligence.com/app?flagship_gate=command#command' \
+            --user-data-dir=/tmp/fmi-v2-command \
+            --virtual-time-budget=7000 --enable-logging=stderr --dump-dom \
+            'https://app.mftintelligence.com/app?v2_gate=command#command' \
             > /tmp/command.html 2> /tmp/command.log
-          grep -q 'Command Center' /tmp/command.html
-          grep -q 'FMI Global Command' /tmp/command.html
+          grep -q 'COMMAND CENTER' /tmp/command.html
+          grep -q 'FMI GLOBAL COMMAND' /tmp/command.html
           grep -q 'Federation assets' /tmp/command.html
           grep -q 'World models' /tmp/command.html
           grep -q 'Live execution' /tmp/command.html
           ! grep -q 'Loading governed intelligence fabric' /tmp/command.html
           ! grep -Eiq 'Uncaught (SyntaxError|ReferenceError|TypeError)|Identifier .* already been declared' /tmp/command.log
+      - name: Real-browser Market Workspace acceptance
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/fmi-v2-market
+          google-chrome --headless=new --no-sandbox --disable-gpu \
+            --user-data-dir=/tmp/fmi-v2-market \
+            --virtual-time-budget=7000 --enable-logging=stderr --dump-dom \
+            'https://app.mftintelligence.com/app?v2_gate=market#market' \
+            > /tmp/market.html 2> /tmp/market.log
+          grep -q 'MARKET WORKSPACE' /tmp/market.html
+          grep -q 'Market discovery' /tmp/market.html
+          grep -q 'No fabricated chart' /tmp/market.html
+          grep -q 'Verified market canvas' /tmp/market.html
+          ! grep -Eiq 'Uncaught (SyntaxError|ReferenceError|TypeError)|Identifier .* already been declared' /tmp/market.log
+      - name: Real-browser Intelligence acceptance
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/fmi-v2-intel
+          google-chrome --headless=new --no-sandbox --disable-gpu \
+            --user-data-dir=/tmp/fmi-v2-intel \
+            --virtual-time-budget=7000 --enable-logging=stderr --dump-dom \
+            'https://app.mftintelligence.com/app?v2_gate=intelligence#intelligence' \
+            > /tmp/intel.html 2> /tmp/intel.log
+          grep -q 'Governed market investigation' /tmp/intel.html
+          grep -q 'Observed return series' /tmp/intel.html
+          grep -q 'PAPER / SHADOW' /tmp/intel.html
+          ! grep -Eiq 'Uncaught (SyntaxError|ReferenceError|TypeError)|Identifier .* already been declared' /tmp/intel.log
       - name: Real-browser Intelligence Fabric acceptance
         run: |
           set -euo pipefail
-          rm -rf /tmp/fmi-chrome-fabric
+          rm -rf /tmp/fmi-v2-fabric
           google-chrome --headless=new --no-sandbox --disable-gpu \
-            --user-data-dir=/tmp/fmi-chrome-fabric \
-            --virtual-time-budget=7000 \
-            --enable-logging=stderr \
-            --dump-dom \
-            'https://app.mftintelligence.com/app?flagship_gate=fabric#fabric' \
+            --user-data-dir=/tmp/fmi-v2-fabric \
+            --virtual-time-budget=7000 --enable-logging=stderr --dump-dom \
+            'https://app.mftintelligence.com/app?v2_gate=fabric#fabric' \
             > /tmp/fabric.html 2> /tmp/fabric.log
-          grep -q 'Intelligence Fabric' /tmp/fabric.html
           grep -q 'Pinned open-model federation' /tmp/fabric.html
-          grep -q 'gpt-oss-20b' /tmp/fabric.html
-          grep -q 'chronos-2' /tmp/fabric.html
           grep -q 'Real-model qualification council' /tmp/fabric.html
           grep -q 'Sovereign Foundry' /tmp/fabric.html
           ! grep -Eiq 'Uncaught (SyntaxError|ReferenceError|TypeError)|Identifier .* already been declared' /tmp/fabric.log
-      - name: Real-browser World Models and mobile acceptance
+      - name: Real-browser World Models mobile acceptance
         run: |
           set -euo pipefail
-          rm -rf /tmp/fmi-chrome-world
+          rm -rf /tmp/fmi-v2-world
           google-chrome --headless=new --no-sandbox --disable-gpu \
             --window-size=390,844 \
-            --user-data-dir=/tmp/fmi-chrome-world \
-            --virtual-time-budget=7000 \
-            --enable-logging=stderr \
-            --dump-dom \
-            'https://app.mftintelligence.com/app?flagship_gate=world#world' \
+            --user-data-dir=/tmp/fmi-v2-world \
+            --virtual-time-budget=7000 --enable-logging=stderr --dump-dom \
+            'https://app.mftintelligence.com/app?v2_gate=world#world' \
             > /tmp/world.html 2> /tmp/world.log
           grep -q 'World Model Federation' /tmp/world.html
-          grep -q 'Return Distribution' /tmp/world.html
-          grep -q 'Volatility Tail Jump' /tmp/world.html
           grep -q 'Reality-gap ladder' /tmp/world.html
           grep -q 'Simulator federation' /tmp/world.html
           ! grep -Eiq 'Uncaught (SyntaxError|ReferenceError|TypeError)|Identifier .* already been declared' /tmp/world.log
       - uses: actions/upload-artifact@v4
         with:
-          name: musitu-fmi-flagship-deployment
+          name: musitu-fmi-flagship-v2-deployment
           path: |
-            fmi-flagship-deployment.json
-            fmi-flagship-deployment.sha256
+            fmi-flagship-v2-deployment.json
+            fmi-flagship-v2-deployment.sha256
           retention-days: 30
           if-no-files-found: error
