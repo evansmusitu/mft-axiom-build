@@ -4,6 +4,11 @@ on:
   push:
     paths:
       - '.github/workflows/chemistry-admin-production-cutover.yml'
+      - 'commerce/chemistry/deploy_admin_command_center.py'
+      - 'commerce/chemistry/deploy_admin_command_center_cutover_v2.py'
+      - 'commerce/chemistry/patch_admin_command_center.py'
+      - 'commerce/chemistry/admin_command_center_module.mjs'
+      - 'commerce/chemistry/admin_command_center_ui_v2.mjs'
   workflow_dispatch:
 
 permissions:
@@ -34,6 +39,7 @@ jobs:
         run: |
           set -euo pipefail
           python -m py_compile commerce/chemistry/deploy_admin_command_center.py
+          python -m py_compile commerce/chemistry/deploy_admin_command_center_cutover_v2.py
           python -m py_compile commerce/chemistry/patch_admin_command_center.py
           node --check commerce/chemistry/admin_command_center_module.mjs
           node --check commerce/chemistry/admin_command_center_ui_v2.mjs
@@ -48,7 +54,7 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p "$EVIDENCE_DIR"
-          python commerce/chemistry/deploy_admin_command_center.py
+          python commerce/chemistry/deploy_admin_command_center_cutover_v2.py
 
       - name: Upload production cutover evidence
         if: always()
