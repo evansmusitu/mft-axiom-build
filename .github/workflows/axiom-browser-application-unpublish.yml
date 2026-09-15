@@ -1,0 +1,416 @@
+name: MUSITU Axiom Browser Application Unpublish
+
+on:
+  push:
+    branches:
+      - ops/axiom-browser-application-unpublish-20260915
+
+permissions:
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: musitu-axiom-browser-application-unpublish
+  cancel-in-progress: false
+
+jobs:
+  unpublish-exact-browser-application:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      TARGET_BUILD_SHA: c13bee58c350c82bb47ba58136458240f28f13ee
+      AXIOM_BROWSER_WORKER: musitu-axiom-browser-application
+      AXIOM_APP_HOST: app.mftintelligence.com
+      AXIOM_UNPUBLISH_EVIDENCE_DIR: /tmp/axiom-browser-application-unpublish
+    steps:
+      - name: Checkout immutable action
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Setup patch-pinned Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
+        with:
+          python-version: '3.12.14'
+
+      - name: Verify exact deployed source, protected authorities, and PR 1
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD^)" = "$TARGET_BUILD_SHA"
+          git fetch --no-tags --force origin \
+            +refs/heads/main:refs/remotes/origin/main \
+            +refs/heads/frontier/axiom-v5-skill-fabric:refs/remotes/origin/frontier/axiom-v5-skill-fabric \
+            +refs/heads/archive/axiom-track-a-post-freeze-20260912:refs/remotes/origin/archive/axiom-track-a-post-freeze-20260912 \
+            +refs/heads/frontier/axiom-v5-world-top-tier-review-safe:refs/remotes/origin/frontier/axiom-v5-world-top-tier-review-safe \
+            +refs/heads/frontier/axiom-v5-browser-app-production-20260914:refs/remotes/origin/frontier/axiom-v5-browser-app-production-20260914
+          test "$(git rev-parse refs/remotes/origin/main)" = d6a846f6bbe0bccac1758713eb4de167caf07113
+          test "$(git rev-parse refs/remotes/origin/frontier/axiom-v5-skill-fabric)" = d9196774a9fff3150922e2cb681d16e2423651da
+          test "$(git rev-parse refs/remotes/origin/archive/axiom-track-a-post-freeze-20260912)" = 20a84b1090b8ad986e35fee20008f3ed8920440c
+          test "$(git rev-parse refs/remotes/origin/frontier/axiom-v5-world-top-tier-review-safe)" = 73ecdbad38cb10020b6e30ebe42a9222a3bb6c55
+          test "$(git rev-parse refs/remotes/origin/frontier/axiom-v5-browser-app-production-20260914)" = "$TARGET_BUILD_SHA"
+          python - <<'PY'
+          import json, os, urllib.request
+          base = 'https://api.github.com/repos/evansmusitu/mft-axiom-build'
+          headers = {
+              'Accept': 'application/vnd.github+json',
+              'Authorization': 'Bearer ' + os.environ['GH_TOKEN'],
+              'User-Agent': 'MUSITU-Axiom-Browser-Unpublish-Authority/1.0',
+              'X-GitHub-Api-Version': '2022-11-28',
+          }
+          def get(path):
+              request = urllib.request.Request(base + path, headers=headers)
+              with urllib.request.urlopen(request, timeout=30) as response:
+                  return json.load(response)
+          pull = get('/pulls/1')
+          requested = get('/pulls/1/requested_reviewers')
+          reviews = get('/pulls/1/reviews')
+          if pull.get('state') != 'open' or pull.get('draft') is not True or pull.get('merged') is not False:
+              raise SystemExit('PR #1 state authority mismatch')
+          if (pull.get('base') or {}).get('ref') != 'main' or (pull.get('base') or {}).get('sha') != 'd6a846f6bbe0bccac1758713eb4de167caf07113':
+              raise SystemExit('PR #1 base authority mismatch')
+          if (pull.get('head') or {}).get('ref') != 'frontier/axiom-v5-skill-fabric' or (pull.get('head') or {}).get('sha') != 'd9196774a9fff3150922e2cb681d16e2423651da':
+              raise SystemExit('PR #1 head authority mismatch')
+          if requested.get('users') or requested.get('teams') or reviews:
+              raise SystemExit('PR #1 reviewer authority mismatch')
+          print(json.dumps({
+              'protected_authority': 'PASS',
+              'pr_1': 'OPEN_DRAFT_UNMERGED_NO_REVIEWERS',
+              'target_build_sha': os.environ['TARGET_BUILD_SHA'],
+              'operation_sha': os.environ['GITHUB_SHA'],
+          }, sort_keys=True))
+          PY
+
+      - name: Unpublish only the exact AXIOM browser deployment
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$AXIOM_UNPUBLISH_EVIDENCE_DIR"
+          PYTHONPATH=. python - <<'PY'
+          import hashlib
+          import importlib.util
+          import json
+          import os
+          from pathlib import Path
+          import time
+          import urllib.error
+          import urllib.parse
+          import urllib.request
+
+          module_path = Path('ops/axiom_browser_application_deploy.py')
+          spec = importlib.util.spec_from_file_location('axiom_browser_application_deploy', module_path)
+          if not spec or not spec.loader:
+              raise SystemExit('cannot load exact browser deployment authority')
+          deploy = importlib.util.module_from_spec(spec)
+          spec.loader.exec_module(deploy)
+
+          evidence_dir = Path(os.environ['AXIOM_UNPUBLISH_EVIDENCE_DIR'])
+          evidence_dir.mkdir(parents=True, exist_ok=True)
+          target_sha = os.environ['TARGET_BUILD_SHA']
+          operation_sha = os.environ['GITHUB_SHA']
+          client = deploy.Cloudflare()
+          operations = []
+          before_public = None
+          after_public = None
+
+          def write_json(name, value):
+              path = evidence_dir / name
+              path.write_text(json.dumps(value, indent=2, sort_keys=True) + '\n', encoding='utf-8')
+              return path
+
+          def public_topology(topology, selected):
+              rules = [
+                  deploy.public_configuration_rule(row)
+                  for row in (topology.get('configuration_rules') or [])
+                  if isinstance(row, dict)
+              ]
+              return {
+                  'application_domain': selected.get('app_domain') or [],
+                  'application_dns': selected.get('app_dns') or [],
+                  'application_routes': selected.get('target_routes') or [],
+                  'reserved_api_domain': selected.get('reserved_api_domain') or [],
+                  'application_configuration_rule': selected.get('application_configuration_rule') or [],
+                  'other_configuration_rules': sorted(
+                      [row for row in rules if row.get('ref') != deploy.CONFIG_RULE_REF],
+                      key=lambda row: str(row.get('id') or ''),
+                  ),
+                  'configuration_ruleset': selected.get('configuration_ruleset') or {},
+              }
+
+          def cloudflare_status(path):
+              request = urllib.request.Request(
+                  deploy.CF_API + path,
+                  headers=client.headers,
+                  method='GET',
+              )
+              try:
+                  with urllib.request.urlopen(request, timeout=40) as response:
+                      raw = response.read()
+                      return response.status, json.loads(raw or b'{}')
+              except urllib.error.HTTPError as error:
+                  raw = error.read()
+                  try:
+                      body = json.loads(raw or b'{}')
+                  except Exception:
+                      body = {}
+                  return error.code, body
+
+          def live_health():
+              request = urllib.request.Request(
+                  deploy.APP_ORIGIN + '/health',
+                  headers={'Accept': 'application/json', 'User-Agent': deploy.BROWSER_USER_AGENT},
+              )
+              try:
+                  with urllib.request.urlopen(request, timeout=20) as response:
+                      raw = response.read()
+                      try:
+                          body = json.loads(raw or b'{}')
+                      except Exception:
+                          body = {}
+                      return response.status, body
+              except urllib.error.HTTPError as error:
+                  return error.code, {}
+              except urllib.error.URLError:
+                  return 0, {}
+
+          try:
+              topology = deploy.live_topology(client)
+              selected = deploy.validate_target(topology)
+              before_public = public_topology(topology, selected)
+
+              if len(selected['app_domain']) != 1:
+                  raise RuntimeError('expected exactly one deployed application custom domain')
+              domain = selected['app_domain'][0]
+              if domain.get('hostname') != deploy.APP_HOST or domain.get('service') != deploy.SERVICE or not domain.get('id'):
+                  raise RuntimeError('application custom-domain identity mismatch')
+              if selected['target_routes']:
+                  raise RuntimeError('browser Worker owns unexpected apex routes; refusing broad deletion')
+              owned_routes = [
+                  deploy.public_route(row)
+                  for row in (topology.get('routes') or [])
+                  if isinstance(row, dict) and row.get('script') == deploy.SERVICE
+              ]
+              if owned_routes:
+                  raise RuntimeError('browser Worker owns unexpected routes; refusing broad deletion')
+              if len(selected['application_configuration_rule']) != 1:
+                  raise RuntimeError('exact application configuration rule missing or duplicated')
+              rule = selected['application_configuration_rule'][0]
+              if (
+                  rule.get('ref') != deploy.CONFIG_RULE_REF
+                  or rule.get('expression') != deploy.CONFIG_RULE_EXPRESSION
+                  or rule.get('action') != 'set_config'
+                  or rule.get('action_parameters') != {'security_level': 'essentially_off', 'bic': False}
+                  or rule.get('enabled') is not True
+                  or not rule.get('id')
+              ):
+                  raise RuntimeError('application configuration rule identity mismatch')
+              if len(selected['reserved_api_domain']) != 1 or selected['reserved_api_domain'][0].get('service') == deploy.SERVICE:
+                  raise RuntimeError('reserved AXIOM API authority mismatch')
+
+              deploy.worker_settings(client, target_sha)
+              health_status, health = live_health()
+              if health_status != 200 or health.get('ok') is not True or health.get('build_sha') != target_sha:
+                  raise RuntimeError('live application is not the exact authorized target build')
+
+              preflight = {
+                  'schema': 'musitu.axiom.browser-application.unpublish-preflight.v1',
+                  'status': 'PASS',
+                  'operation_git_sha': operation_sha,
+                  'target_deployed_build_sha': target_sha,
+                  'exact_worker_service': deploy.SERVICE,
+                  'exact_application_hostname': deploy.APP_HOST,
+                  'before': before_public,
+                  'live_health_before': health,
+                  'deletion_scope': [
+                      'EXACT_APPLICATION_CUSTOM_DOMAIN',
+                      'EXACT_APPLICATION_CONFIGURATION_RULE',
+                      'EXACT_APPLICATION_WORKER_SCRIPT',
+                  ],
+                  'preserved': [
+                      'GIT_HISTORY_AND_EVIDENCE',
+                      'PRODUCTION_D1_DATABASE',
+                      'RESERVED_AXIOM_API_ORIGIN',
+                      'GLOBAL_ZONE_SECURITY_POLICY_EXCEPT_EXACT_APP_RULE_REMOVAL',
+                      'PROTECTED_GIT_REFS_AND_PR_1',
+                  ],
+              }
+              write_json('preflight.json', preflight)
+              print(json.dumps({
+                  'unpublish_preflight': 'PASS',
+                  'target_build_sha': target_sha,
+                  'domain_id': domain['id'],
+                  'configuration_rule_id': rule['id'],
+                  'worker_service': deploy.SERVICE,
+              }, sort_keys=True))
+
+              deletion_errors = []
+              def attempt(name, action):
+                  try:
+                      action()
+                      operations.append({'operation': name, 'status': 'PASS'})
+                  except Exception as error:
+                      operations.append({
+                          'operation': name,
+                          'status': 'ERROR_REQUIRES_FINAL_STATE_CHECK',
+                          'error_type': type(error).__name__,
+                      })
+                      deletion_errors.append(name)
+
+              domain_id = str(domain['id'])
+              rule_id = str(rule['id'])
+              ruleset_id = str((selected.get('configuration_ruleset') or {}).get('id') or '')
+              if not ruleset_id:
+                  raise RuntimeError('configuration ruleset identity missing')
+
+              attempt(
+                  'DELETE_EXACT_APPLICATION_CUSTOM_DOMAIN',
+                  lambda: client.call(
+                      f"/accounts/{deploy.ACCOUNT_ID}/workers/domains/{urllib.parse.quote(domain_id, safe='')}",
+                      'DELETE',
+                  ),
+              )
+              attempt(
+                  'DELETE_EXACT_APPLICATION_CONFIGURATION_RULE',
+                  lambda: client.call(
+                      f"/zones/{deploy.ZONE_ID}/rulesets/{urllib.parse.quote(ruleset_id, safe='')}/rules/{urllib.parse.quote(rule_id, safe='')}",
+                      'DELETE',
+                  ),
+              )
+              attempt(
+                  'DELETE_EXACT_APPLICATION_WORKER_SCRIPT',
+                  lambda: client.call(
+                      f"/accounts/{deploy.ACCOUNT_ID}/workers/scripts/{urllib.parse.quote(deploy.SERVICE, safe='')}",
+                      'DELETE',
+                  ),
+              )
+
+              after_topology = None
+              after_selected = None
+              last_topology_error = None
+              for _ in range(12):
+                  try:
+                      after_topology = deploy.live_topology(client)
+                      after_selected = deploy.validate_target(after_topology)
+                      after_public = public_topology(after_topology, after_selected)
+                      break
+                  except RuntimeError as error:
+                      last_topology_error = str(error)
+                      time.sleep(5)
+              if after_topology is None or after_selected is None or after_public is None:
+                  raise RuntimeError('unpublish topology did not settle: ' + str(last_topology_error))
+
+              remnants = []
+              if after_selected['app_domain']:
+                  remnants.append('application_custom_domain')
+              if after_selected['app_dns']:
+                  remnants.append('application_dns')
+              if after_selected['target_routes']:
+                  remnants.append('application_routes')
+              if after_selected['application_configuration_rule']:
+                  remnants.append('application_configuration_rule')
+              if after_public['other_configuration_rules'] != before_public['other_configuration_rules']:
+                  remnants.append('unrelated_configuration_rule_drift')
+              if after_selected['reserved_api_domain'] != selected['reserved_api_domain']:
+                  remnants.append('reserved_api_domain_drift')
+
+              settings_status = None
+              worker_list_absent = False
+              for _ in range(12):
+                  settings_status, _ = cloudflare_status(
+                      f"/accounts/{deploy.ACCOUNT_ID}/workers/scripts/{urllib.parse.quote(deploy.SERVICE, safe='')}/settings"
+                  )
+                  scripts = client.call(f"/accounts/{deploy.ACCOUNT_ID}/workers/scripts") or []
+                  worker_list_absent = not any(
+                      isinstance(row, dict) and row.get('id') == deploy.SERVICE
+                      for row in scripts
+                  )
+                  if settings_status == 404 and worker_list_absent:
+                      break
+                  time.sleep(5)
+              if settings_status != 404:
+                  remnants.append(f'worker_settings_http_{settings_status}')
+              if not worker_list_absent:
+                  remnants.append('worker_script')
+
+              live_absent = False
+              final_live_status = None
+              for _ in range(12):
+                  final_live_status, final_health = live_health()
+                  if final_live_status != 200 or final_health.get('build_sha') != target_sha:
+                      live_absent = True
+                      break
+                  time.sleep(5)
+              if not live_absent:
+                  remnants.append('live_target_build_still_served')
+
+              if remnants:
+                  raise RuntimeError('unpublish final-state verification failed: ' + ','.join(remnants))
+
+              evidence = {
+                  'schema': 'musitu.axiom.browser-application.unpublish-evidence.v1',
+                  'status': 'PASS',
+                  'operation_git_sha': operation_sha,
+                  'target_deployed_build_sha': target_sha,
+                  'exact_worker_service_deleted': deploy.SERVICE,
+                  'exact_application_hostname_unpublished': deploy.APP_HOST,
+                  'exact_application_configuration_rule_deleted': deploy.CONFIG_RULE_REF,
+                  'operations': operations,
+                  'before': before_public,
+                  'after': after_public,
+                  'worker_settings_after_http_status': settings_status,
+                  'live_target_build_absent': live_absent,
+                  'live_health_after_http_status': final_live_status,
+                  'reserved_api_origin_preserved': True,
+                  'production_d1_database_deleted': False,
+                  'production_d1_database_mutated': False,
+                  'unrelated_configuration_rules_preserved': True,
+                  'protected_git_refs_mutated': False,
+                  'pr_1_mutated': False,
+                  'git_history_and_deployment_evidence_preserved': True,
+                  'recovery_path': 'REDEPLOY_FROM_VERIFIED_GIT_HISTORY_AFTER_NEW_APPLICATION_DESIGN_APPROVAL',
+                  'deletion_api_warnings_resolved_by_final_state': deletion_errors,
+              }
+              canonical = json.dumps(evidence, sort_keys=True, separators=(',', ':')).encode()
+              digest = hashlib.sha256(canonical).hexdigest()
+              evidence['evidence_sha256'] = digest
+              write_json('unpublish-evidence.json', evidence)
+              print(json.dumps({
+                  'unpublish': 'PASS',
+                  'application_hostname': deploy.APP_HOST,
+                  'worker_service': deploy.SERVICE,
+                  'target_build_sha': target_sha,
+                  'evidence_sha256': digest,
+              }, sort_keys=True))
+          except Exception as error:
+              failure = {
+                  'schema': 'musitu.axiom.browser-application.unpublish-failure.v1',
+                  'status': 'FAIL',
+                  'operation_git_sha': operation_sha,
+                  'target_deployed_build_sha': target_sha,
+                  'error_type': type(error).__name__,
+                  'error': str(error),
+                  'operations': operations,
+                  'before': before_public,
+                  'after': after_public,
+                  'production_d1_database_delete_authorized': False,
+                  'reserved_api_origin_mutation_authorized': False,
+                  'protected_git_ref_mutation_authorized': False,
+              }
+              write_json('unpublish-failure.json', failure)
+              raise
+          PY
+
+      - name: Upload unpublish evidence without erasing failures
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: musitu-axiom-browser-application-unpublish-evidence
+          path: /tmp/axiom-browser-application-unpublish/**
+          if-no-files-found: error
+          retention-days: 90
