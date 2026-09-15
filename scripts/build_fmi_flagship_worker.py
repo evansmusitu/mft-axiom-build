@@ -7,18 +7,31 @@ if HERE.parent.name == 'scripts':
 else:
     ASSET_DIR = Path('/mnt/data/fmi_flagship/parts')
 OUT = Path(os.environ.get('FLAGSHIP_WORKER_OUT', '/tmp/fmi_flagship_worker.mjs'))
+BUILD = 'MUSITU_FMI_FLAGSHIP_V2_20260916'
+
 parts=sorted(ASSET_DIR.glob('assets.pack.part*'))
 if not parts: raise SystemExit('flagship asset pack parts missing')
 pack = json.loads(''.join(p.read_text(encoding='utf-8') for p in parts))
 
-def asset(name):
-    return gzip.decompress(base64.b64decode(pack[name])).decode('utf-8')
+def decode(src, name):
+    return gzip.decompress(base64.b64decode(src[name])).decode('utf-8')
 def js(value):
     return json.dumps(value, ensure_ascii=False)
 
-html=asset('index.html'); css=asset('app.css'); appjs=asset('app.js'); arch=asset('architecture.json')
-manifest=asset('manifest.json'); icon=asset('icon.svg'); sw=asset('sw.js')
-src=f'''const BUILD='MUSITU_FMI_FLAGSHIP_20260915';
+html=decode(pack,'index.html'); css=decode(pack,'app.css'); appjs=decode(pack,'app.js'); arch=decode(pack,'architecture.json')
+manifest=decode(pack,'manifest.json'); icon=decode(pack,'icon.svg'); sw=decode(pack,'sw.js')
+
+v2parts=sorted(ASSET_DIR.glob('v2_assets.part*'))
+if v2parts:
+    v2=json.loads(''.join(p.read_text(encoding='utf-8') for p in v2parts))
+    html=decode(v2,'v2_index.html')
+    css=decode(v2,'v2_app.css')
+    appjs=decode(v2,'v2_app.js')
+
+# Keep a server-visible release marker even when the browser bundle is independently versioned.
+appjs = f"const FLAGSHIP_RELEASE='{BUILD}';\n" + appjs
+
+src=f'''const BUILD='{BUILD}';
 const PRODUCT='MUSITU Frontier Market Intelligence';
 const securityHeaders={{
 'x-content-type-options':'nosniff','x-frame-options':'DENY','referrer-policy':'no-referrer',
@@ -33,7 +46,7 @@ async function proxy(request,env,url){{
  const upstream=String(env.PUBLIC_BASE||'').replace(/\\/$/,'');if(!upstream)return json({{ok:false,error:'upstream_not_configured'}},503);
  const target=new URL(upstream+url.pathname.slice(4)+url.search);const headers=new Headers(request.headers);
  for(const h of ['host','cf-connecting-ip','cf-ipcountry','cf-ray','x-forwarded-for'])headers.delete(h);
- headers.set('accept',headers.get('accept')||'application/json');headers.set('user-agent','MUSITU-FMI-Flagship/1.0');
+ headers.set('accept',headers.get('accept')||'application/json');headers.set('user-agent','MUSITU-FMI-Flagship-V2/1.0');
  const init={{method:request.method,headers,redirect:'manual'}};if(!['GET','HEAD'].includes(request.method))init.body=await request.arrayBuffer();
  let r;try{{r=await fetch(target.toString(),init)}}catch{{return json({{ok:false,error:'upstream_unavailable'}},502)}}
  const rh=new Headers(r.headers);rh.delete('set-cookie');for(const [k,v] of Object.entries(securityHeaders))rh.set(k,v);rh.set('cache-control','no-store');rh.set('x-musitu-fmi-app-build',BUILD);
@@ -41,7 +54,7 @@ async function proxy(request,env,url){{
 }}
 export default{{async fetch(request,env){{
  const url=new URL(request.url);
- if(url.pathname==='/healthz'){{let upstream={{ok:false,status:null}};try{{const r=await fetch(String(env.PUBLIC_BASE).replace(/\\/$/,'')+'/healthz',{{headers:{{accept:'application/json','user-agent':'MUSITU-FMI-Flagship/1.0'}}}});upstream.status=r.status;upstream.ok=r.ok;if((r.headers.get('content-type')||'').includes('json'))upstream.body=await r.json()}}catch{{upstream.error='fetch_error'}}return json({{ok:upstream.ok,product:PRODUCT,surface:'flagship_customer_app',build:BUILD,installable:true,upstream,authority:'PAPER_SHADOW_ONLY',model_architecture:'FEDERATED_OPEN_WEIGHT',production_model_authority:false,live_trading_authorized:false,trade_execution_authorized:false}},upstream.ok?200:503)}}
+ if(url.pathname==='/healthz'){{let upstream={{ok:false,status:null}};try{{const r=await fetch(String(env.PUBLIC_BASE).replace(/\\/$/,'')+'/healthz',{{headers:{{accept:'application/json','user-agent':'MUSITU-FMI-Flagship-V2/1.0'}}}});upstream.status=r.status;upstream.ok=r.ok;if((r.headers.get('content-type')||'').includes('json'))upstream.body=await r.json()}}catch{{upstream.error='fetch_error'}}return json({{ok:upstream.ok,product:PRODUCT,surface:'flagship_customer_app_v2',build:BUILD,installable:true,upstream,authority:'PAPER_SHADOW_ONLY',model_architecture:'FEDERATED_OPEN_WEIGHT',production_model_authority:false,live_trading_authorized:false,trade_execution_authorized:false}},upstream.ok?200:503)}}
  if(url.pathname.startsWith('/api/'))return proxy(request,env,url);if(request.method!=='GET')return json({{ok:false,error:'method_not_allowed'}},405);
  if(url.pathname==='/'||url.pathname==='/app'||url.pathname==='/app/')return reply(HTML,200,'text/html; charset=utf-8');
  if(url.pathname==='/app.css')return reply(CSS,200,'text/css; charset=utf-8');if(url.pathname==='/app.js')return reply(JS,200,'application/javascript; charset=utf-8');
@@ -50,4 +63,4 @@ export default{{async fetch(request,env){{
 }}}};
 '''
 OUT.write_text(src,encoding='utf-8')
-print(json.dumps({'worker':str(OUT),'bytes':len(src.encode()),'build':'MUSITU_FMI_FLAGSHIP_20260915'},sort_keys=True))
+print(json.dumps({'worker':str(OUT),'bytes':len(src.encode()),'build':BUILD,'v2_override':bool(v2parts)},sort_keys=True))
