@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
 
 import {createApproval,evaluateAuthorization,finalizeAuthorization,normalizeActionRequest} from '../authorization_gateway.js';
 import {deriveEngineeringMatrix} from '../engineering_command_center_adapters.js';
@@ -14,6 +15,14 @@ const authority={
   usage:{compute_units:0},incident_posture:'NORMAL',jurisdiction:'MODAL_ISOLATED_ATTACK_RUNNER',
 };
 const workspace=()=>EngineeringWorkspaceRuntime.create({projectId,authority,files:{'index.html':'<h1>safe</h1>\n','app.js':'export const safe=true;\n','axiom.tests.json':JSON.stringify({checks:[{kind:'contains',path:'index.html',value:'safe'}]})}});
+
+test('attack: external qualification package includes governed workflow fixtures',()=>{
+  for(const path of [
+    '../../../.github/workflows/axiom-fa13-cloudflare-preproduction-qualification.yml',
+    '../../../.github/workflows/cloudflare-access-audit.yml',
+    '../../../.github/workflows/axiom-fa13-cloudflare-enterprise-qualification.yml',
+  ])assert.equal(fs.existsSync(new URL(path,import.meta.url)),true,`missing governed external fixture ${path}`);
+});
 
 test('attack: cross-project authority is rejected before workspace creation',async()=>{
   await assert.rejects(()=>EngineeringWorkspaceRuntime.create({projectId:'other-project',authority,files:{}}),/project mismatch/i);
