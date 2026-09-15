@@ -1,0 +1,136 @@
+name: MUSITU Axiom FA-13 Engineering Command Center Integrity
+on:
+  push:
+    branches:
+      - frontier/axiom-final-product-fa13-20260915
+    paths:
+      - 'axiom_interface/vnext/**'
+      - 'docs/axiom_final_product/FA13_*.md'
+      - '.github/workflows/axiom-fa13-engineering-command-center-integrity.yml'
+permissions:
+  contents: read
+jobs:
+  verify-fa13-integrity:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout exact branch history without persisted credentials
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Verify governed branch and frozen FA-13 authority
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "${GITHUB_REF_NAME}" = "frontier/axiom-final-product-fa13-20260915"
+          git merge-base --is-ancestor 4b818f04cd722f1e2e620e0e42da7200def1897c HEAD
+          test -f docs/axiom_final_product/FA13_PREWRITE_INTENT.md
+          test -f docs/axiom_final_product/FA13_ENGINEERING_COMMAND_CENTER.md
+          grep -Fq 'Must pass acceptance matrix' docs/axiom_final_product/FA13_PREWRITE_INTENT.md
+          grep -Fq 'Acceptance matrix' docs/axiom_final_product/FA13_ENGINEERING_COMMAND_CENTER.md
+          grep -Fq 'IMPLEMENTED_LOCALLY_PENDING_REPOSITORY_INTEGRITY_VERIFICATION_ACCEPTANCE_MATRIX_BLOCKED' docs/axiom_final_product/FA13_ENGINEERING_COMMAND_CENTER.md
+      - name: Prove sealed FA-09 through FA-12 authorities unchanged
+        shell: bash
+        run: |
+          set -euo pipefail
+          git diff --exit-code 4b818f04cd722f1e2e620e0e42da7200def1897c -- \
+            axiom_interface/projects.js \
+            axiom_interface/observability.js \
+            axiom_interface/agent_security.js \
+            axiom_interface/agent_store.js \
+            axiom_interface/browser_session.js \
+            axiom_interface/computer_security.js \
+            axiom_interface/computer_store_execution.js \
+            axiom_interface/computer_store_control.js \
+            axiom_interface/vnext/mission_control_store.js \
+            axiom_interface/vnext/mission_control_verifier.js \
+            axiom_interface/vnext/mission_control_ui.js \
+            axiom_interface/vnext/deep_context_security.js \
+            axiom_interface/vnext/system_graph.js \
+            axiom_interface/vnext/deep_context_adapters.js \
+            axiom_interface/vnext/deep_context_store.js \
+            axiom_interface/vnext/deep_context_ui.js \
+            axiom_interface/vnext/execution_security.js \
+            axiom_interface/vnext/authorization_gateway.js \
+            axiom_interface/vnext/execution_store.js \
+            axiom_interface/vnext/execution_ui.js \
+            axiom_interface/vnext/product_reality_security.js \
+            axiom_interface/vnext/product_reality_verifier.js \
+            axiom_interface/vnext/product_reality_adapters.js \
+            axiom_interface/vnext/product_reality_store.js \
+            axiom_interface/vnext/product_reality_ui.js
+          git diff --exit-code 4b818f04cd722f1e2e620e0e42da7200def1897c -- mcp auth chatgpt-app-submission.json submission
+      - name: Verify FA-13 syntax and application wiring
+        shell: bash
+        run: |
+          set -euo pipefail
+          for file in \
+            axiom_interface/vnext/engineering_command_center_security.js \
+            axiom_interface/vnext/engineering_command_center_verifier.js \
+            axiom_interface/vnext/engineering_command_center_adapters.js \
+            axiom_interface/vnext/engineering_command_center_store.js \
+            axiom_interface/vnext/engineering_command_center_ui.js; do
+            node --check "$file"
+          done
+          grep -Fq "import './engineering_command_center_ui.js';" axiom_interface/vnext/agent_runtime_ui.js
+      - name: Enforce frozen 14-row matrix and blocker truth
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -Fq "id:'IDE'" axiom_interface/vnext/engineering_command_center_security.js
+          grep -Fq "id:'agent_fleet'" axiom_interface/vnext/engineering_command_center_security.js
+          grep -Fq "id:'cloud_handoff'" axiom_interface/vnext/engineering_command_center_security.js
+          grep -Fq "id:'deployment'" axiom_interface/vnext/engineering_command_center_security.js
+          grep -Fq "id:'enterprise'" axiom_interface/vnext/engineering_command_center_security.js
+          grep -Fq "id:'security'" axiom_interface/vnext/engineering_command_center_security.js
+          grep -Fq 'cannot self-promote without independent external qualification' axiom_interface/vnext/engineering_command_center_security.js
+          grep -Fq 'matrix_external_builder_self_verification' axiom_interface/vnext/engineering_command_center_verifier.js
+          grep -Fq "matrix_status=row_results.every(row=>row.satisfied)?'PASS':'BLOCKED'" axiom_interface/vnext/engineering_command_center_verifier.js
+          grep -Fq 'No parity, cloud execution, production deployment, SSO or red-team qualification is inferred from UI presence' axiom_interface/vnext/engineering_command_center_ui.js
+      - name: Run cumulative vNext deterministic and adversarial tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --test axiom_interface/vnext/tests/*.test.mjs
+      - name: Run selected earned legacy regression suites
+        shell: bash
+        run: |
+          set -euo pipefail
+          python axiom_interface/tests/test_project_contract.py
+          python axiom_interface/tests/test_observability_phase6.py
+          python axiom_interface/tests/test_computer_phase8.py
+          python axiom_interface/tests/test_agents_phase9.py
+          python axiom_interface/tests/test_developer_phase12.py
+          # Legacy Phase-13 evidence test is regression coverage only; it is not an earned Phase-13 claim.
+          python axiom_interface/tests/test_evidence_phase13.py
+      - name: Enforce no direct transport host shell or deployment executor widening
+        shell: bash
+        run: |
+          set -euo pipefail
+          ! grep -Eq '\bfetch[[:space:]]*\(|WebSocket[[:space:]]*\(|XMLHttpRequest|EventSource[[:space:]]*\(|navigator\.sendBeacon|child_process|spawn[[:space:]]*\(|exec[[:space:]]*\(|docker[[:space:]]+push|kubectl[[:space:]]+apply|terraform[[:space:]]+apply' \
+            axiom_interface/vnext/engineering_command_center_security.js \
+            axiom_interface/vnext/engineering_command_center_verifier.js \
+            axiom_interface/vnext/engineering_command_center_adapters.js \
+            axiom_interface/vnext/engineering_command_center_store.js \
+            axiom_interface/vnext/engineering_command_center_ui.js
+          grep -Fq "status:'BLOCKED_EXTERNAL'" axiom_interface/vnext/engineering_command_center_store.js
+          grep -Fq "production_authority:false" axiom_interface/vnext/engineering_command_center_store.js
+          grep -Fq "routes:[]" axiom_interface/vnext/engineering_command_center_store.js
+      - name: Enforce read-only CI and no repository-write or deploy authority
+        shell: bash
+        run: |
+          set -euo pipefail
+          workflow=.github/workflows/axiom-fa13-engineering-command-center-integrity.yml
+          grep -Fq 'contents: read' "$workflow"
+          ! grep -Eq '(^|[[:space:]])(pages: write|id-token: write|packages: write|contents: write|pull-requests: write|issues: write|statuses: write)([[:space:]]|$)' "$workflow"
+          ! grep -Eq '\b(git push|gh pr merge|npm publish|docker push|kubectl apply|terraform apply)\b' "$workflow"
+          git diff --check
