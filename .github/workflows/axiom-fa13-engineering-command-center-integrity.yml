@@ -36,7 +36,7 @@ jobs:
           test -f docs/axiom_final_product/FA13_PREWRITE_INTENT.md
           test -f docs/axiom_final_product/FA13_ENGINEERING_COMMAND_CENTER.md
           grep -Fq 'Must pass acceptance matrix' docs/axiom_final_product/FA13_PREWRITE_INTENT.md
-          grep -Fq 'Acceptance matrix' docs/axiom_final_product/FA13_ENGINEERING_COMMAND_CENTER.md
+          grep -Fq 'acceptance matrix' docs/axiom_final_product/FA13_ENGINEERING_COMMAND_CENTER.md
           grep -Fq 'IMPLEMENTED_LOCALLY_PENDING_REPOSITORY_INTEGRITY_VERIFICATION_ACCEPTANCE_MATRIX_BLOCKED' docs/axiom_final_product/FA13_ENGINEERING_COMMAND_CENTER.md
       - name: Prove sealed FA-09 through FA-12 authorities unchanged
         shell: bash
