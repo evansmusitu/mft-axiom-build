@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  BREADTH_SURFACES,DEPLOYMENT_STAGES,MATRIX_ROWS,SYSTEM_GRAPH_LAYERS,
+  BREADTH_SURFACES,DEPLOYMENT_STAGES,IDE_CAPABILITIES,IDE_QUALIFICATION_FEATURES,MATRIX_ROWS,SYSTEM_GRAPH_LAYERS,
   normalizeRowEvidence,routeModel,sealCheckpoint,sha256,validateDeploymentHistory,verifyCheckpoint
 } from '../engineering_command_center_security.js';
 import {deriveEngineeringMatrix,makeEngineeringSnapshot} from '../engineering_command_center_adapters.js';
@@ -13,7 +13,7 @@ const independent=async(verifier='external-verifier')=>({status:'VERIFIED',verif
 async function checkpoint(){const d=await digest('component');return sealCheckpoint({project_id:projectId,checkpoint_id:'cp-1',worktree_id:'main',components:{git_tree:d,dependencies:{state:'NOT_PROVEN'},migration_state:{state:'NOT_PROVEN'},environment:d,plan:d,acceptance:d,tests:d,browser_snapshot:{state:'NOT_PROVEN'},security:d,artifacts:d,evidence:d}});}
 function localBase(cp){return {
   project_id:projectId,builder_id:'local-builder',
-  workspace:{project_id:projectId,mode:'GOVERNED_ENGINEERING_WORKSPACE',capabilities:{file_tree:true,editor:true,diff:true,diagnostics:true,search:true,tests:true,preview:true},windsurf_class_claim_authorized:false},
+  workspace:{project_id:projectId,mode:'GOVERNED_ENGINEERING_WORKSPACE',capabilities:Object.fromEntries(IDE_CAPABILITIES.map(key=>[key,true])),qualified_features:[],ide_qualification_sha256:null,windsurf_class_claim_authorized:false},
   agent_fleet:{project_id:projectId,mission_control_integrity:'PASS',separate_workload_identities:true,least_privilege:true,budgets_enforced:true,kill_controls:true,independent_verifier:true,cloud_execution_receipt_sha256:null},
   engineering_space:{project_id:projectId,project_graph_integrity:'PASS',full_project_graph:true,sessions:true,files:true,context:true},
   deep_context:{project_id:projectId,status:'PASS',authority_unchanged:true,domains:['code','runtime','data','infra','trace','requirement','evidence']},
@@ -29,7 +29,7 @@ function localBase(cp){return {
   breadth:{routes:[...BREADTH_SURFACES],home_outcome_first:true,engineering_redefines_product:false},
 };}
 async function blockedSnapshot(){const base=localBase(await checkpoint());return makeEngineeringSnapshot(base);}
-async function fullSnapshot({verifier='external-verifier'}={}){const cp=await checkpoint(),ext=await independent(verifier),receipt=await digest('cloud receipt'),release=await digest('release receipt'),history=[];for(const stage of DEPLOYMENT_STAGES)history.push({stage,evidence_sha256:await digest({stage})});const base=localBase(cp);base.workspace.windsurf_class_claim_authorized=true;base.agent_fleet.cloud_qualification=ext;base.agent_fleet.cloud_execution_receipt_sha256=receipt;base.cloud_handoff={...base.cloud_handoff,status:'VERIFIED',external_qualification:ext,external_execution_receipt_sha256:receipt};base.deployment={...base.deployment,history,release_receipt_sha256:release,external_qualification:ext};base.enterprise={...base.enterprise,sso_status:'VERIFIED',external_qualification:ext};base.security={...base.security,red_team_status:'VERIFIED',external_qualification:ext};return makeEngineeringSnapshot(base);}
+async function fullSnapshot({verifier='external-verifier'}={}){const cp=await checkpoint(),ext=await independent(verifier),receipt=await digest('cloud receipt'),release=await digest('release receipt'),history=[];for(const stage of DEPLOYMENT_STAGES)history.push({stage,evidence_sha256:await digest({stage})});const base=localBase(cp);base.workspace.windsurf_class_claim_authorized=true;base.workspace.qualified_features=[...IDE_QUALIFICATION_FEATURES];base.workspace.ide_qualification_sha256=await digest({scope:'fa13-ide',features:IDE_QUALIFICATION_FEATURES});base.agent_fleet.cloud_qualification=ext;base.agent_fleet.cloud_execution_receipt_sha256=receipt;base.cloud_handoff={...base.cloud_handoff,status:'VERIFIED',external_qualification:ext,external_execution_receipt_sha256:receipt};base.deployment={...base.deployment,history,release_receipt_sha256:release,external_qualification:ext};base.enterprise={...base.enterprise,sso_status:'VERIFIED',external_qualification:ext};base.security={...base.security,red_team_status:'VERIFIED',external_qualification:ext};return makeEngineeringSnapshot(base);}
 
 test('FA-13 acceptance matrix is exactly the frozen 14 rows',()=>{assert.equal(MATRIX_ROWS.length,14);assert.deepEqual(MATRIX_ROWS.map(r=>r.id),['IDE','agent_fleet','spaces','context','maps','terminal','checkpoints','preview','cloud_handoff','models','deployment','enterprise','security','breadth']);});
 test('FA-13 local implementation stays integrity-valid while external acceptance remains BLOCKED',async()=>{const snap=await blockedSnapshot(),v=await verifyEngineeringCommandCenter(snap);assert.equal(v.status,'PASS');assert.equal(v.matrix_status,'BLOCKED');assert.deepEqual(v.unsatisfied_rows.sort(),['IDE','agent_fleet','cloud_handoff','deployment','enterprise','security'].sort());});

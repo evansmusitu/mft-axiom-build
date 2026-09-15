@@ -235,7 +235,7 @@ jobs:
           set -euo pipefail
           cat > fa13-bind-cloud.mjs <<'JS'
           import fs from 'node:fs/promises';
-          import {BREADTH_SURFACES,SYSTEM_GRAPH_LAYERS,sealCheckpoint,sha256} from './axiom_interface/vnext/engineering_command_center_security.js';
+          import {BREADTH_SURFACES,IDE_CAPABILITIES,SYSTEM_GRAPH_LAYERS,sealCheckpoint,sha256} from './axiom_interface/vnext/engineering_command_center_security.js';
           import {makeEngineeringSnapshot} from './axiom_interface/vnext/engineering_command_center_adapters.js';
           import {verifyEngineeringCommandCenter} from './axiom_interface/vnext/engineering_command_center_verifier.js';
           const projectId=process.env.FA13_PROJECT_ID,commit=process.env.GITHUB_SHA;
@@ -247,7 +247,7 @@ jobs:
           const cp=await sealCheckpoint({project_id:projectId,checkpoint_id:`fa13-cloud-${commit.slice(0,12)}`,worktree_id:'fa13-qualification',components:{git_tree:component,dependencies:{state:'NOT_PROVEN'},migration_state:{state:'NOT_PROVEN'},environment:component,plan:component,acceptance:component,tests:component,browser_snapshot:{state:'NOT_PROVEN'},security:component,artifacts:evidenceSha,evidence:evidenceSha}});
           const input={
             project_id:projectId,builder_id:'fa13-engineering-builder',
-            workspace:{project_id:projectId,mode:'GOVERNED_ENGINEERING_WORKSPACE',capabilities:{file_tree:true,editor:true,diff:true,diagnostics:true,search:true,tests:true,preview:true},windsurf_class_claim_authorized:false},
+            workspace:{project_id:projectId,mode:'GOVERNED_ENGINEERING_WORKSPACE',capabilities:Object.fromEntries(IDE_CAPABILITIES.map(key=>[key,true])),qualified_features:[],ide_qualification_sha256:null,windsurf_class_claim_authorized:false},
             agent_fleet:{project_id:projectId,mission_control_integrity:'PASS',separate_workload_identities:true,least_privilege:true,budgets_enforced:true,kill_controls:true,independent_verifier:true,cloud_qualification:qualification,cloud_execution_receipt_sha256:evidenceSha},
             engineering_space:{project_id:projectId,project_graph_integrity:'PASS',full_project_graph:true,sessions:true,files:true,context:true},
             deep_context:{project_id:projectId,status:'PASS',authority_unchanged:true,domains:['code','runtime','data','infra','trace','requirement','evidence']},

@@ -1,11 +1,11 @@
-import {BREADTH_SURFACES,ECC_MODE,MATRIX_ROWS,SYSTEM_GRAPH_LAYERS,clean,normalizeRowEvidence,requireBreadth,routeModel,sha256,validateDeploymentHistory} from './engineering_command_center_security.js';
+import {BREADTH_SURFACES,ECC_MODE,IDE_CAPABILITIES,IDE_QUALIFICATION_FEATURES,MATRIX_ROWS,SYSTEM_GRAPH_LAYERS,clean,normalizeRowEvidence,requireBreadth,routeModel,sha256,validateDeploymentHistory} from './engineering_command_center_security.js';
 const hasDigest=value=>/^[0-9a-f]{64}$/.test(String(value||'').toLowerCase());
 const all=(obj,keys)=>keys.every(key=>obj?.[key]===true);
 async function row(projectId,rowId,state,evidenceRefs=[],externalQualification=null,claimBoundary='IMPLEMENTATION_SCOPE_ONLY_NO_PRODUCTION_OR_SUPERIORITY_CLAIM'){return normalizeRowEvidence({row_id:rowId,project_id:projectId,state,evidence_refs:evidenceRefs,external_qualification:externalQualification,claim_boundary:claimBoundary,updated_at:new Date().toISOString()},{projectId});}
 export async function deriveEngineeringMatrix(snapshot={}){
   const projectId=clean(snapshot.project_id,180);if(!projectId)throw new TypeError('project id required');const rows=[];
-  const w=snapshot.workspace||{},workspaceReady=w.mode==='GOVERNED_ENGINEERING_WORKSPACE'&&all(w.capabilities,['file_tree','editor','diff','diagnostics','search','tests','preview']);
-  rows.push(await row(projectId,'IDE',workspaceReady&&w.windsurf_class_claim_authorized===true?'IMPLEMENTED_VERIFIED':workspaceReady?'PARTIAL':'NOT_PROVEN',['engineering-workspace']));
+  const w=snapshot.workspace||{},workspaceReady=w.mode==='GOVERNED_ENGINEERING_WORKSPACE'&&all(w.capabilities,IDE_CAPABILITIES),qualifiedFeatures=new Set(w.qualified_features||[]),qualificationBound=hasDigest(w.ide_qualification_sha256)&&IDE_QUALIFICATION_FEATURES.every(x=>qualifiedFeatures.has(x));
+  rows.push(await row(projectId,'IDE',workspaceReady&&qualificationBound&&w.windsurf_class_claim_authorized===true?'IMPLEMENTED_VERIFIED':workspaceReady?'PARTIAL':'NOT_PROVEN',['engineering-workspace','external-ide-qualification']));
   const fleet=snapshot.agent_fleet||{},fleetLocal=fleet.mission_control_integrity==='PASS'&&fleet.separate_workload_identities===true&&fleet.least_privilege===true&&fleet.budgets_enforced===true&&fleet.kill_controls===true&&fleet.independent_verifier===true;
   const fleetCloud=fleet.cloud_qualification&&hasDigest(fleet.cloud_execution_receipt_sha256);rows.push(await row(projectId,'agent_fleet',fleetLocal&&fleetCloud?'IMPLEMENTED_VERIFIED':fleetLocal?'IMPLEMENTED_BLOCKED_EXTERNAL':'NOT_PROVEN',['mission-control','workload-identities'],fleetCloud?fleet.cloud_qualification:null));
   const s=snapshot.engineering_space||{};rows.push(await row(projectId,'spaces',s.project_graph_integrity==='PASS'&&s.full_project_graph===true&&s.sessions===true&&s.files===true&&s.context===true?'IMPLEMENTED_VERIFIED':'NOT_PROVEN',['project-graph','engineering-space']));

@@ -6,6 +6,8 @@ export const DEPLOYMENT_STAGES=Object.freeze(['BUILD','TEST','SECURITY','A11Y','
 export const SYSTEM_GRAPH_LAYERS=Object.freeze(['CODE','RUNTIME','DATA','NETWORK','SECURITY','DEPENDENCIES','DEPLOYMENT','CLAIMS','TESTS','OWNERSHIP','INCIDENTS']);
 export const SPECIALIST_ROLES=Object.freeze(['PLANNER','ARCHITECT','FRONTEND','BACKEND','DATA','TEST','SECURITY','PERFORMANCE','ACCESSIBILITY','UX_QA','INTEGRATION','DEPLOYMENT','INDEPENDENT_VERIFIER','INCIDENT']);
 export const BREADTH_SURFACES=Object.freeze(['home','projects','work','agents','research','analyze','twin','artifacts','create','build','computer','live','automations','evidence','trust','developer','marketplace','enterprise']);
+export const IDE_CAPABILITIES=Object.freeze(['file_tree','editor','diff','diagnostics','search','tests','preview','worktrees','bounded_terminal','checkpoint_revert','build_receipts','test_receipts']);
+export const IDE_QUALIFICATION_FEATURES=Object.freeze(['project_bound_workspace','editable_files','diff_accept_reject','code_search','diagnostics','bounded_terminal','isolated_worktrees','build_and_test_receipts','sandboxed_preview','hash_bound_checkpoint_revert','agent_command_context','deep_context_and_system_graph']);
 export const MATRIX_ROWS=Object.freeze([
   Object.freeze({id:'IDE',baseline:'Windsurf-class',axiom:'AXIOM project/evidence context',external:false}),
   Object.freeze({id:'agent_fleet',baseline:'local+cloud command center',axiom:'workload identities/budgets/scopes/evidence',external:true}),
