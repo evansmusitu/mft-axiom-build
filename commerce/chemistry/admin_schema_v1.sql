@@ -154,4 +154,16 @@ CREATE TABLE IF NOT EXISTS chemistry_admin_audit (
 CREATE INDEX IF NOT EXISTS idx_chem_admin_audit_target ON chemistry_admin_audit(target_type,target_id,seq);
 CREATE INDEX IF NOT EXISTS idx_chem_admin_audit_actor ON chemistry_admin_audit(actor_id,seq);
 
+-- Serializes the tamper-evident chain at the database boundary. If two admin
+-- actions race after reading the same previous hash, only the first valid link
+-- is accepted; the other action fails closed and can be retried.
+CREATE TRIGGER IF NOT EXISTS trg_chem_admin_audit_chain
+BEFORE INSERT ON chemistry_admin_audit
+BEGIN
+  SELECT CASE
+    WHEN NEW.prev_hash != COALESCE((SELECT event_hash FROM chemistry_admin_audit ORDER BY seq DESC LIMIT 1),'GENESIS')
+    THEN RAISE(ABORT,'audit_chain_conflict')
+  END;
+END;
+
 INSERT OR IGNORE INTO chemistry_admin_schema(version,applied_at) VALUES(1,strftime('%Y-%m-%dT%H:%M:%fZ','now'));
