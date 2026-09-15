@@ -30,7 +30,7 @@ def probe(url,method='GET',obj=None):
 def multipart():
     bd='----MUSITU'+secrets.token_hex(18); p=[]
     def add(x):p.append(x.encode() if isinstance(x,str) else x)
-    meta={'main_module':'index.mjs','compatibility_date':'2026-09-16','bindings':[{'type':'plain_text','name':'PUBLIC_BASE','text':PUBLIC_BASE}]}
+    meta={'main_module':'index.mjs','compatibility_date':'2026-09-15','bindings':[{'type':'plain_text','name':'PUBLIC_BASE','text':PUBLIC_BASE}]}
     add(f'--{bd}\r\nContent-Disposition: form-data; name="metadata"\r\nContent-Type: application/json\r\n\r\n');add(json.dumps(meta,separators=(',',':')));add('\r\n')
     add(f'--{bd}\r\nContent-Disposition: form-data; name="index.mjs"; filename="index.mjs"\r\nContent-Type: application/javascript+module\r\n\r\n');add(SOURCE);add('\r\n');add(f'--{bd}--\r\n')
     return bd,b''.join(p)
