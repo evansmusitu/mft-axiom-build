@@ -1,0 +1,102 @@
+name: MUSITU Axiom FA-08 Project Work Memory Gate
+
+on:
+  push:
+    branches:
+      - frontier/axiom-final-product-fa08-20260915
+    paths:
+      - 'axiom_interface/vnext/**'
+      - 'axiom_interface/projects.js'
+      - 'axiom_interface/outcome_contracts.js'
+      - 'axiom_interface/memory_store.js'
+      - 'axiom_interface/memory_security.js'
+      - 'axiom_interface/tests/test_project_contract.py'
+      - 'axiom_interface/tests/test_outcome_contract_phase3.py'
+      - 'axiom_interface/tests/test_memory_phase10.py'
+      - 'docs/axiom_final_product/FA08_PREWRITE_INTENT.md'
+      - 'docs/axiom_final_product/FA08_PROJECT_WORK_MEMORY.md'
+      - '.github/workflows/axiom-fa08-project-work-memory-gate.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: axiom-fa08-provenance-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  provenance:
+    name: FA-08 provenance preservation tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - name: Checkout exact commit with predecessor history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Verify governed branch and phase authority
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "${GITHUB_REF_NAME}" = "frontier/axiom-final-product-fa08-20260915"
+          test -f docs/axiom_final_product/FA08_PREWRITE_INTENT.md
+          test -f docs/axiom_final_product/FA08_PROJECT_WORK_MEMORY.md
+          grep -Fq 'PRESERVE_PROVENANCE' axiom_interface/vnext/project_work_memory_bridge.js
+          grep -Fq 'Missing or inconsistent evidence remains FAIL' docs/axiom_final_product/FA08_PROJECT_WORK_MEMORY.md
+
+      - name: Prove earned Project Work Memory authorities are unchanged
+        shell: bash
+        run: |
+          set -euo pipefail
+          git diff --exit-code 66cea47ab4b5e8fabf056a10990bd4f7cfa44af0 -- \
+            axiom_interface/projects.js \
+            axiom_interface/outcome_contracts.js \
+            axiom_interface/memory_store.js \
+            axiom_interface/memory_security.js
+
+      - name: Run cumulative vNext deterministic tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --test axiom_interface/vnext/tests/*.test.mjs
+
+      - name: Run earned Project Outcome Memory regression suites
+        shell: bash
+        run: |
+          set -euo pipefail
+          python axiom_interface/tests/test_project_contract.py
+          python axiom_interface/tests/test_outcome_contract_phase3.py
+          python axiom_interface/tests/test_memory_phase10.py
+
+      - name: Enforce FA-08 no-network and provenance boundaries
+        shell: bash
+        run: |
+          set -euo pipefail
+          ! grep -Eq '\bfetch[[:space:]]*\(|WebSocket[[:space:]]*\(|XMLHttpRequest|EventSource[[:space:]]*\(' \
+            axiom_interface/vnext/provenance_verifier.js \
+            axiom_interface/vnext/project_work_memory_bridge.js \
+            axiom_interface/vnext/memory_runtime_ui.js
+          grep -Fq 'DENY_ALL_EXTERNAL_NETWORK' axiom_interface/memory_security.js
+          grep -Fq 'NO_SECRET_OR_HIDDEN_REASONING_STORAGE' axiom_interface/memory_security.js
+          grep -Fq "relation:'derived-from'" axiom_interface/memory_store.js
+          grep -Fq 'verifyEventChain' axiom_interface/projects.js
+          grep -Fq 'contract_sha256' axiom_interface/outcome_contracts.js
+
+      - name: Enforce no deployment or repository-write capability in this gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          ! grep -Eq '(^|[[:space:]])(deploy|pages: write|id-token: write|packages: write|contents: write)([[:space:]]|$)' .github/workflows/axiom-fa08-project-work-memory-gate.yml
