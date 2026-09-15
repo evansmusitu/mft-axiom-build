@@ -3,6 +3,8 @@ name: MUSITU Axiom Cloudflare Access Audit
 on:
   workflow_dispatch:
   push:
+    branches:
+      - frontier/axiom-final-product-fa13-20260915
     paths:
       - '.github/workflows/cloudflare-access-audit.yml'
 
@@ -15,47 +17,154 @@ jobs:
     timeout-minutes: 10
     env:
       CF_API: https://api.cloudflare.com/client/v4
+      ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
     steps:
-      - name: Resolve account and inspect relevant Access applications read-only
+      - name: Verify required Cloudflare Access permissions read-only
         env:
-          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
-          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+          CLOUDFLARE_ACCESS_API_TOKEN: ${{ secrets.CLOUDFLARE_ACCESS_API_TOKEN }}
+        shell: bash
         run: |
           set -euo pipefail
           python - <<'PY'
-          import json,os,urllib.request,urllib.parse
-          h={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY']}
-          base=os.environ['CF_API']
-          req=urllib.request.Request(base+'/zones?name='+urllib.parse.quote('mftintelligence.com')+'&status=active',headers=h)
-          with urllib.request.urlopen(req,timeout=30) as r:z=json.load(r)
-          rows=z.get('result') or []
-          if not z.get('success') or len(rows)!=1: raise SystemExit('zone invariant failed')
-          aid=(rows[0].get('account') or {}).get('id')
-          req=urllib.request.Request(base+f'/accounts/{aid}/access/apps?per_page=100',headers=h)
-          try:
-            with urllib.request.urlopen(req,timeout=30) as r:a=json.load(r)
-          except Exception as e:
-            json.dump({'schema':'musitu.axiom.cloudflare.access_audit.v1','access_apps_endpoint_ok':False,'error_type':type(e).__name__,'write_performed':False},open('cloudflare-access-audit.json','w'),indent=2,sort_keys=True)
-            raise
-          if not a.get('success'): raise SystemExit('access apps read failed')
-          relevant=[]
-          for app in a.get('result') or []:
-            domain=str(app.get('domain') or '')
-            name=str(app.get('name') or '')
-            if 'workers.dev' in domain or 'mftintelligence.com' in domain or 'axiom' in name.lower() or 'mft' in name.lower():
-              relevant.append({'id':app.get('id'),'name':name,'domain':domain,'type':app.get('type'),'self_hosted_domains':app.get('self_hosted_domains') or []})
-          out={'schema':'musitu.axiom.cloudflare.access_audit.v1','access_apps_endpoint_ok':True,'relevant_apps':relevant,'relevant_app_count':len(relevant),'write_performed':False}
-          json.dump(out,open('cloudflare-access-audit.json','w'),indent=2,sort_keys=True)
-          print(json.dumps({'access_apps_endpoint_ok':True,'relevant_app_count':len(relevant)}))
+          import json, os, urllib.error, urllib.request
+
+          base = os.environ['CF_API']
+          account_id = os.environ['ACCOUNT_ID']
+          token = os.environ.get('CLOUDFLARE_ACCESS_API_TOKEN', '')
+          if not token:
+              raise SystemExit('CLOUDFLARE_ACCESS_API_TOKEN is not configured')
+
+          headers = {
+              'Authorization': 'Bearer ' + token,
+              'Accept': 'application/json',
+              'User-Agent': 'MUSITU-Axiom-FA13-Cloudflare-Access-Qualification/1.0',
+          }
+
+          def probe(name, path):
+              req = urllib.request.Request(base + path, headers=headers, method='GET')
+              status = 0
+              payload = None
+              error_type = None
+              try:
+                  with urllib.request.urlopen(req, timeout=30) as response:
+                      status = response.status
+                      raw = response.read()
+                  try:
+                      payload = json.loads(raw or b'{}')
+                  except Exception:
+                      payload = None
+              except urllib.error.HTTPError as exc:
+                  status = exc.code
+                  error_type = type(exc).__name__
+                  raw = exc.read()
+                  try:
+                      payload = json.loads(raw or b'{}')
+                  except Exception:
+                      payload = None
+              except Exception as exc:
+                  error_type = type(exc).__name__
+
+              success = bool(200 <= status < 300 and isinstance(payload, dict) and payload.get('success') is not False)
+              result = payload.get('result') if isinstance(payload, dict) else None
+              count = len(result) if isinstance(result, list) else (1 if isinstance(result, dict) else None)
+              errors = []
+              if isinstance(payload, dict):
+                  for item in payload.get('errors') or []:
+                      if isinstance(item, dict):
+                          errors.append({'code': item.get('code'), 'message': item.get('message')})
+              return {
+                  'name': name,
+                  'method': 'GET',
+                  'path': path,
+                  'http_status': status,
+                  'success': success,
+                  'result_count': count,
+                  'error_type': error_type,
+                  'errors': errors,
+              }, result
+
+          checks = []
+          verify, _ = probe('token_verify', '/user/tokens/verify')
+          checks.append(verify)
+
+          apps, app_rows = probe('access_apps', f'/accounts/{account_id}/access/apps?per_page=100')
+          checks.append(apps)
+
+          idps, _ = probe('access_identity_providers', f'/accounts/{account_id}/access/identity_providers')
+          checks.append(idps)
+
+          groups, _ = probe('access_groups', f'/accounts/{account_id}/access/groups?per_page=100')
+          checks.append(groups)
+
+          policy_check = {
+              'name': 'access_application_policies',
+              'method': 'GET',
+              'path': '/accounts/<account_id>/access/apps/<app_id>/policies',
+              'http_status': None,
+              'success': None,
+              'result_count': None,
+              'error_type': None,
+              'errors': [],
+              'not_run_reason': 'NO_ACCESS_APPLICATION_AVAILABLE',
+          }
+          if apps['success'] and isinstance(app_rows, list) and app_rows:
+              app_id = next((str(row.get('id')) for row in app_rows if isinstance(row, dict) and row.get('id')), None)
+              if app_id:
+                  policy_check, _ = probe('access_application_policies', f'/accounts/{account_id}/access/apps/{app_id}/policies')
+                  policy_check['path'] = '/accounts/<account_id>/access/apps/<app_id>/policies'
+                  policy_check['not_run_reason'] = None
+          checks.append(policy_check)
+
+          apps_policies_read = bool(apps['success'] and (policy_check['success'] is True or policy_check.get('not_run_reason') == 'NO_ACCESS_APPLICATION_AVAILABLE'))
+          org_idp_groups_read = bool(idps['success'] and groups['success'])
+          token_active = bool(verify['success'])
+          all_required = bool(token_active and apps_policies_read and org_idp_groups_read)
+
+          evidence = {
+              'schema': 'musitu.axiom.cloudflare.access_permission_probe.v2',
+              'provider': 'cloudflare',
+              'qualification': 'FA-13 enterprise permission preflight',
+              'required_permission_families': [
+                  'Access: Apps and Policies Read (or stronger accepted permission)',
+                  'Access: Organizations, Identity Providers, and Groups Read (or stronger accepted permission)',
+              ],
+              'token_active': token_active,
+              'apps_and_policies_read_access': apps_policies_read,
+              'organizations_identity_providers_groups_read_access': org_idp_groups_read,
+              'all_required_read_permissions': all_required,
+              'checks': checks,
+              'cloudflare_write_performed': False,
+              'secret_value_recorded': False,
+              'enterprise_row_promoted': False,
+              'note': 'Permission success is a preflight only; FA-13 enterprise still requires the frozen SSO/RBAC/admin and AXIOM policy-graph evidence.',
+          }
+          with open('cloudflare-access-permission-probe.json', 'w', encoding='utf-8') as handle:
+              json.dump(evidence, handle, indent=2, sort_keys=True)
+          print(json.dumps({
+              'token_active': token_active,
+              'apps_and_policies_read_access': apps_policies_read,
+              'organizations_identity_providers_groups_read_access': org_idp_groups_read,
+              'all_required_read_permissions': all_required,
+              'cloudflare_write_performed': False,
+          }, sort_keys=True))
+          if not all_required:
+              raise SystemExit('required Cloudflare Access read permissions are not all proven')
           PY
+
       - name: Seal evidence
-        run: sha256sum cloudflare-access-audit.json > cloudflare-access-audit.sha256
+        if: always()
+        run: |
+          if test -f cloudflare-access-permission-probe.json; then
+            sha256sum cloudflare-access-permission-probe.json > cloudflare-access-permission-probe.sha256
+          fi
+
       - name: Upload evidence
+        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: musitu-axiom-cloudflare-access-audit
+          name: musitu-axiom-cloudflare-access-permission-probe
           path: |
-            cloudflare-access-audit.json
-            cloudflare-access-audit.sha256
+            cloudflare-access-permission-probe.json
+            cloudflare-access-permission-probe.sha256
           retention-days: 7
           if-no-files-found: error
