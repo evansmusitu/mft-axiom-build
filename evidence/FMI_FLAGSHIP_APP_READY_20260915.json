@@ -1,0 +1,85 @@
+{
+  "artifact": {
+    "id": 10416139949,
+    "name": "musitu-fmi-flagship-deployment",
+    "payload_sha256": "1242740f2053d65f6986b438d0d49b8d257ac755edbcdd7353088392cd62bfbb",
+    "zip_sha256": "0320aa9554948ba8a58f743bdd51d020e81c0e905ea8e8bd87c44e8f20cc3a08"
+  },
+  "browser_acceptance": {
+    "command_center": "PASS",
+    "fatal_console_errors": "NONE_MATCHED",
+    "intelligence_fabric": "PASS",
+    "world_models_mobile_390x844": "PASS"
+  },
+  "deployment": {
+    "architecture_counts": {
+      "pinned_models": 9,
+      "specialists": 17,
+      "world_models": 13
+    },
+    "authority": "PAPER_SHADOW_ONLY",
+    "build": "MUSITU_FMI_FLAGSHIP_20260915",
+    "canonical_health_http": 200,
+    "canonical_url": "https://app.mftintelligence.com/app",
+    "certification_boundaries": {
+      "authority": "PAPER_SHADOW_ONLY",
+      "production_model_authority": false,
+      "profitability": "NOT_YET_CERTIFIED",
+      "real_money_settlement": "NOT_CERTIFIED",
+      "superiority": "NOT_CERTIFIED"
+    },
+    "content_v2_http": 200,
+    "custom_domain_service": "mft-fmi-app",
+    "gate": "FMI_FLAGSHIP_APP_READY",
+    "host": "app.mftintelligence.com",
+    "live_trading_authorized": false,
+    "model_architecture": "FEDERATED_OPEN_WEIGHT",
+    "previews_enabled": false,
+    "production_model_authority": false,
+    "proxy_health_http": 200,
+    "schema": "musitu.fmi.flagship-app.deployment.v1",
+    "source_sha256": "7233815dbf9136e68ece5b70b4951085e87c6d6bd4f4ea74370dbf198a5e3a17",
+    "state_preservation": {
+      "admin_worker_modified": false,
+      "billing_rows_modified": false,
+      "checkout_initiated": false,
+      "customer_rows_modified": false,
+      "d1_management_api_calls_performed": false,
+      "payment_provider_called": false,
+      "public_edge_worker_modified": false
+    },
+    "static_assets": {
+      "/app": {"bytes": 1266, "content_type": "text/html; charset=utf-8", "http": 200},
+      "/app.css": {"bytes": 21479, "content_type": "text/css; charset=utf-8", "http": 200},
+      "/app.js": {"bytes": 56484, "content_type": "application/javascript; charset=utf-8", "http": 200},
+      "/architecture.json": {"bytes": 11026, "content_type": "application/json; charset=utf-8", "http": 200},
+      "/icon.svg": {"bytes": 363, "content_type": "image/svg+xml; charset=utf-8", "http": 200},
+      "/manifest.webmanifest": {"bytes": 430, "content_type": "application/manifest+json; charset=utf-8", "http": 200},
+      "/sw.js": {"bytes": 815, "content_type": "application/javascript; charset=utf-8", "http": 200}
+    },
+    "trade_execution_authorized": false,
+    "unauthenticated_analysis_http": 401,
+    "unauthenticated_me_http": 401,
+    "upstream": "https://mft-fmi-global-edge.mft-education-nexus-93f395f5.workers.dev",
+    "upstream_health_http": 200,
+    "worker": "mft-fmi-app",
+    "workers_dev_enabled": false
+  },
+  "isolated_branch": "fmi-flagship-app-20260915",
+  "preserved_authority": {
+    "certified_branch": "fmi-revenue-certification-20260913",
+    "expected_certified_head": "f62ca8aeb37e87db0d1c503fe4b235ebefcc9de5",
+    "pr_9_merge_authorized": false,
+    "sealed_main_change_authorized": false
+  },
+  "product": "MUSITU Frontier Market Intelligence",
+  "recorded_at": "2026-09-15T20:20:19Z",
+  "release_source_commit": "742f9e4838d9b4849be5a2aabc3f73fe87e3ecf6",
+  "schema": "musitu.fmi.flagship-app.ready-evidence.v1",
+  "workflow": {
+    "conclusion": "success",
+    "job_id": 104549456076,
+    "name": "MUSITU FMI Flagship App Deploy",
+    "run_id": 35018960279
+  }
+}
