@@ -27,15 +27,17 @@ jobs:
         run: |
           set -euo pipefail
           python - <<'PY'
-          import email,hashlib,json,os,re,urllib.parse,urllib.request
+          import email,hashlib,json,os,re,urllib.error,urllib.parse,urllib.request
           API=os.environ['CF_API'];A=os.environ['ACCOUNT_ID'];W=os.environ['COMMERCE_WORKER']
-          H={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY'],'User-Agent':'MUSITU-Admin-Discovery/1.0'}
+          H={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY'],'Content-Type':'application/json','User-Agent':'MUSITU-Admin-Discovery/1.1'}
           def call(path,method='GET',obj=None):
-              body=None; h=dict(H)
-              if obj is not None:
-                  body=json.dumps(obj).encode();h['content-type']='application/json'
-              q=urllib.request.Request(API+path,method=method,headers=h,data=body)
-              with urllib.request.urlopen(q,timeout=45) as r:return r.read(),r.headers.get('content-type','')
+              data=None if obj is None else json.dumps(obj).encode()
+              q=urllib.request.Request(API+path,method=method,headers=H,data=data)
+              try:
+                  with urllib.request.urlopen(q,timeout=45) as r:raw=r.read();ct=r.headers.get('content-type','');code=r.status
+              except urllib.error.HTTPError as e:raw=e.read();ct=e.headers.get('content-type','');code=e.code
+              if not 200<=code<300:raise SystemExit(f'Cloudflare API failure http={code} path={path} body={raw[:300]!r}')
+              return raw,ct
           raw,ct=call(f'/accounts/{A}/workers/scripts/{urllib.parse.quote(W,safe="")}')
           if 'multipart/' in ct.lower():
               msg=email.message_from_bytes((f'Content-Type: {ct}\r\nMIME-Version: 1.0\r\n\r\n').encode()+raw);parts=[]
@@ -51,32 +53,33 @@ jobs:
           bindings=settings.get('bindings') or []
           db=[b for b in bindings if b.get('name')=='CHEMISTRY_DB']
           if len(db)!=1:raise SystemExit('CHEMISTRY_DB binding mismatch')
-          dbid=db[0].get('id') or db[0].get('database_id')
-          if not dbid:raise SystemExit('CHEMISTRY_DB id unavailable')
+          binding={k:db[0].get(k) for k in ('name','type','id','database_id') if db[0].get(k) is not None}
+          dbs=json.loads(call(f'/accounts/{A}/d1/database?per_page=100')[0] or b'{}').get('result') or []
+          candidate=str(db[0].get('id') or db[0].get('database_id') or '')
+          matches=[x for x in dbs if str(x.get('uuid'))==candidate or str(x.get('name'))==candidate]
+          if len(matches)!=1:
+              # Some Worker settings expose a binding UUID under a differently named key. Fail closed but report only non-secret D1 metadata.
+              available=[{'name':x.get('name'),'uuid':x.get('uuid')} for x in dbs]
+              raise SystemExit('CHEMISTRY_DB resolution mismatch binding='+repr(binding)+' available='+repr(available))
+          dbid=matches[0].get('uuid');dbname=matches[0].get('name')
           def d1(sql):
               raw,_=call(f'/accounts/{A}/d1/database/{urllib.parse.quote(str(dbid),safe="")}/query','POST',{'sql':sql})
               d=json.loads(raw or b'{}')
-              if not d.get('success'):raise SystemExit('D1 query failed')
+              if d.get('success') is False:raise SystemExit('D1 API success=false')
               result=d.get('result') or []
-              if not result:return []
-              return result[0].get('results') or []
-          tables=[r.get('name') for r in d1("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name")]
+              if not result or not all(x.get('success') is True for x in result):raise SystemExit('D1 SELECT result failed')
+              rows=[]
+              for chunk in result:rows.extend(chunk.get('results') or [])
+              return rows
+          tables=[r.get('name') for r in d1("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' AND name NOT LIKE '_cf_%' ORDER BY name")]
           schema={}
           for name in tables:
               if not re.fullmatch(r'[A-Za-z0-9_]+',str(name)):continue
               schema[name]=[{k:r.get(k) for k in ('name','type','notnull','pk')} for r in d1(f'PRAGMA table_info({name})')]
           route_literals=sorted(set(re.findall(r"['\"](/chemistry/[A-Za-z0-9_?&=./:-]+)['\"]",text)))
           fn=sorted(set(re.findall(r'\b(?:async\s+)?function\s+([A-Za-z0-9_]+)\s*\(',text)))
-          markers={
-            'issueLicense':'issueLicense' in fn,
-            'fulfil':'fulfil' in fn,
-            'createOrder':'createOrder' in fn,
-            'orderByReference':'orderByReference' in fn,
-            'quote':'quote' in fn,
-            'secure_usd':"currency:'USD'" in text and 'const DIRECT_PAYNOW_FALLBACK_ACTIVE=false;' in text,
-            'paynow_authority':'/internal/paynow/sign-initiate-chemistry' in text,
-          }
-          out={'schema':'musitu.chemistry.admin.discovery.v1','commerce_worker_sha256':hashlib.sha256(source).hexdigest(),'database_binding_type':db[0].get('type'),'tables':tables,'table_schema':schema,'route_literals':route_literals[:200],'function_markers':markers,'production_mutation':False,'customer_rows_read':False,'secret_values_read':False,'gate':'MUSITU_CHEMISTRY_ADMIN_DISCOVERY_PASS'}
+          markers={'issueLicense':'issueLicense' in fn,'fulfil':'fulfil' in fn,'createOrder':'createOrder' in fn,'orderByReference':'orderByReference' in fn,'quote':'quote' in fn,'secure_usd':"currency:'USD'" in text and 'const DIRECT_PAYNOW_FALLBACK_ACTIVE=false;' in text,'paynow_authority':'/internal/paynow/sign-initiate-chemistry' in text}
+          out={'schema':'musitu.chemistry.admin.discovery.v1','commerce_worker_sha256':hashlib.sha256(source).hexdigest(),'database_name':dbname,'database_uuid':dbid,'database_binding':binding,'tables':tables,'table_schema':schema,'route_literals':route_literals[:200],'function_markers':markers,'production_mutation':False,'customer_rows_read':False,'secret_values_read':False,'gate':'MUSITU_CHEMISTRY_ADMIN_DISCOVERY_PASS'}
           print(json.dumps(out,sort_keys=True))
           open('admin-discovery.json','w').write(json.dumps(out,indent=2,sort_keys=True)+'\n')
           PY
