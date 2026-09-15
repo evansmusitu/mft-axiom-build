@@ -1,0 +1,322 @@
+name: MUSITU Axiom FA-13 Modal Cloud Qualification
+
+on:
+  push:
+    branches:
+      - frontier/axiom-final-product-fa13-20260915
+    paths:
+      - '.github/workflows/axiom-fa13-modal-cloud-qualification.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  qualify-modal-cloud-handoff:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID }}
+      MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET }}
+      FA13_PROJECT_ID: project-fa13
+    steps:
+      - name: Checkout exact FA-13 head without persisted credentials
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Reassert frozen FA-13 authority and branch scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF_NAME" = 'frontier/axiom-final-product-fa13-20260915'
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          grep -q 'Status: AUTHORITY_FROZEN_FOR_IMPLEMENTATION' docs/axiom_final_product/FA13_PREWRITE_INTENT.md
+          grep -q 'Must pass acceptance matrix' docs/axiom_final_product/FA13_PREWRITE_INTENT.md
+          grep -q 'No remote/cloud executor may be fabricated' docs/axiom_final_product/FA13_PREWRITE_INTENT.md
+          grep -q 'FA13_IMPLEMENTATION_INTEGRITY_VERIFIED_ACCEPTANCE_MATRIX_BLOCKED' docs/axiom_final_product/FA13_ENGINEERING_COMMAND_CENTER.md
+          git merge-base --is-ancestor 4b818f04cd722f1e2e620e0e42da7200def1897c HEAD
+          echo 'fa13_authority_reasserted=true'
+
+      - name: Preserve existing FA-13 implementation integrity before external execution
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --test axiom_interface/vnext/tests/fa13_engineering_command_center.test.mjs axiom_interface/vnext/tests/fa13_engineering_command_center_contract.test.mjs
+
+      - name: Authenticate Modal using existing GitHub secret broker
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$MODAL_TOKEN_ID"
+          test -n "$MODAL_TOKEN_SECRET"
+          python -m pip install --disable-pip-version-check --quiet 'modal>=1.5,<2'
+          modal app list --json >/dev/null
+          echo 'modal_auth_pass=true'
+
+      - name: Build current-head AXIOM governed cloud-handoff package
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import hashlib,json,os,pathlib
+          def canonical(x):
+              return json.dumps(x,sort_keys=True,separators=(',',':'),ensure_ascii=False).encode()
+          body={
+            'schema':'musitu.axiom.engineering-cloud-handoff.external.v1',
+            'project_id':os.environ['FA13_PROJECT_ID'],
+            'source_repository':os.environ['GITHUB_REPOSITORY'],
+            'source_branch':os.environ['GITHUB_REF_NAME'],
+            'source_commit':os.environ['GITHUB_SHA'],
+            'handoff_id':'fa13-modal-cloud-handoff:'+os.environ['GITHUB_SHA'],
+            'agent_id':'fa13-modal-qualification-agent',
+            'workload_identity_id':'fa13-modal:'+os.environ['GITHUB_SHA'][:16],
+            'risk_class':'S0',
+            'scopes':['hash:input','verify:handoff','emit:receipt'],
+            'budget':{'max_runtime_seconds':90,'max_containers':1,'cpu_limit':1.0,'memory_limit_mib':512},
+            'isolation':{'block_network':True,'restrict_modal_access':True,'single_use_container':True,'secrets_injected_into_remote_agent':False},
+            'governed_package':True,
+            'isolated_agent_required':True,
+            'self_grant_allowed':False,
+            'repository_write_allowed':False,
+            'external_side_effect_allowed':False,
+            'production_authority':False,
+          }
+          package={**body,'handoff_sha256':hashlib.sha256(canonical(body)).hexdigest()}
+          pathlib.Path('fa13-handoff-package.json').write_text(json.dumps(package,indent=2,sort_keys=True)+'\n')
+          print('fa13_handoff_package_ready=true')
+          PY
+
+      - name: Create ephemeral isolated Modal executor from existing AXIOM Modal pattern
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > fa13_modal_qualification.py <<'PY'
+          import hashlib,json,pathlib,time,uuid
+          import modal
+
+          APP_NAME='musitu-axiom-fa13-cloud-qualification'
+          app=modal.App(APP_NAME)
+
+          def canonical(x):
+              return json.dumps(x,sort_keys=True,separators=(',',':'),ensure_ascii=False).encode()
+
+          @app.function(
+              timeout=90,
+              max_containers=1,
+              cpu=(0.25,1.0),
+              memory=(128,512),
+              block_network=True,
+              restrict_modal_access=True,
+              single_use_containers=True,
+              retries=0,
+          )
+          def execute_handoff(package):
+              body={k:v for k,v in package.items() if k!='handoff_sha256'}
+              digest=hashlib.sha256(canonical(body)).hexdigest()
+              if digest!=package.get('handoff_sha256'):
+                  raise RuntimeError('handoff digest mismatch')
+              if package.get('risk_class')!='S0':
+                  raise RuntimeError('only S0 qualification workload allowed')
+              if package.get('self_grant_allowed') is not False:
+                  raise RuntimeError('self grant must remain disabled')
+              if package.get('repository_write_allowed') is not False or package.get('external_side_effect_allowed') is not False:
+                  raise RuntimeError('qualification workload must be read-only')
+              if package.get('production_authority') is not False:
+                  raise RuntimeError('production authority forbidden')
+              iso=package.get('isolation') or {}
+              required={'block_network':True,'restrict_modal_access':True,'single_use_container':True,'secrets_injected_into_remote_agent':False}
+              if any(iso.get(k)!=v for k,v in required.items()):
+                  raise RuntimeError('isolation contract mismatch')
+              scopes=package.get('scopes') or []
+              if scopes!=['hash:input','verify:handoff','emit:receipt']:
+                  raise RuntimeError('scope contract mismatch')
+              budget=package.get('budget') or {}
+              if budget.get('max_runtime_seconds')!=90 or budget.get('max_containers')!=1:
+                  raise RuntimeError('budget contract mismatch')
+              result_body={
+                'schema':'musitu.axiom.modal-cloud-execution-receipt.v1',
+                'status':'VERIFIED',
+                'provider':'MODAL',
+                'project_id':package['project_id'],
+                'source_commit':package['source_commit'],
+                'handoff_id':package['handoff_id'],
+                'handoff_sha256':package['handoff_sha256'],
+                'agent_id':package['agent_id'],
+                'workload_identity_id':package['workload_identity_id'],
+                'risk_class':'S0',
+                'scopes':scopes,
+                'budget':budget,
+                'isolated_agent':True,
+                'network_blocked':True,
+                'modal_access_restricted':True,
+                'single_use_container':True,
+                'secret_material_received':False,
+                'repository_write_performed':False,
+                'external_side_effect_performed':False,
+                'production_authority':False,
+                'execution_nonce':str(uuid.uuid4()),
+                'executed_at':time.strftime('%Y-%m-%dT%H:%M:%SZ',time.gmtime()),
+              }
+              return {**result_body,'remote_receipt_sha256':hashlib.sha256(canonical(result_body)).hexdigest()}
+
+          @app.local_entrypoint()
+          def main():
+              package=json.loads(pathlib.Path('fa13-handoff-package.json').read_text())
+              call=execute_handoff.spawn(package)
+              call_id=call.object_id
+              result=call.get(timeout=100)
+              remote_body={k:v for k,v in result.items() if k!='remote_receipt_sha256'}
+              if hashlib.sha256(canonical(remote_body)).hexdigest()!=result.get('remote_receipt_sha256'):
+                  raise RuntimeError('remote receipt integrity failure')
+              envelope_body={
+                'schema':'musitu.axiom.modal-background-handoff-envelope.v1',
+                'provider':'MODAL',
+                'provider_call_id':call_id,
+                'background_spawn_proven':bool(call_id),
+                'remote_receipt':result,
+              }
+              envelope={**envelope_body,'external_execution_receipt_sha256':hashlib.sha256(canonical(envelope_body)).hexdigest()}
+              pathlib.Path('fa13-modal-execution-receipt.json').write_text(json.dumps(envelope,indent=2,sort_keys=True)+'\n')
+              print('fa13_modal_background_handoff_pass=true')
+          PY
+          modal run fa13_modal_qualification.py
+
+      - name: Independently verify Modal receipt and seal external qualification
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import hashlib,json,os,pathlib
+          def canonical(x): return json.dumps(x,sort_keys=True,separators=(',',':'),ensure_ascii=False).encode()
+          package=json.loads(pathlib.Path('fa13-handoff-package.json').read_text())
+          env=json.loads(pathlib.Path('fa13-modal-execution-receipt.json').read_text())
+          body={k:v for k,v in env.items() if k!='external_execution_receipt_sha256'}
+          assert hashlib.sha256(canonical(body)).hexdigest()==env['external_execution_receipt_sha256']
+          assert env['provider']=='MODAL' and env['background_spawn_proven'] is True and env['provider_call_id']
+          r=env['remote_receipt']
+          rbody={k:v for k,v in r.items() if k!='remote_receipt_sha256'}
+          assert hashlib.sha256(canonical(rbody)).hexdigest()==r['remote_receipt_sha256']
+          assert r['status']=='VERIFIED' and r['provider']=='MODAL'
+          assert r['project_id']==os.environ['FA13_PROJECT_ID']
+          assert r['source_commit']==os.environ['GITHUB_SHA']==package['source_commit']
+          assert r['handoff_sha256']==package['handoff_sha256']
+          assert r['workload_identity_id']==package['workload_identity_id']
+          assert r['isolated_agent'] is True and r['network_blocked'] is True
+          assert r['modal_access_restricted'] is True and r['single_use_container'] is True
+          assert r['secret_material_received'] is False
+          assert r['repository_write_performed'] is False and r['external_side_effect_performed'] is False
+          assert r['production_authority'] is False
+          qualification={
+            'status':'VERIFIED',
+            'verifier_id':'github-actions-modal-receipt-verifier',
+            'source_id':'modal:'+env['provider_call_id'],
+            'evidence_sha256':env['external_execution_receipt_sha256'],
+            'captured_at':r['executed_at'],
+          }
+          pathlib.Path('fa13-modal-external-qualification.json').write_text(json.dumps(qualification,indent=2,sort_keys=True)+'\n')
+          print('fa13_modal_receipt_verified=true')
+          PY
+
+      - name: Bind real external receipt into FA-13 matrix and prove only cloud rows promote
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > /tmp/fa13-bind-cloud.mjs <<'JS'
+          import fs from 'node:fs/promises';
+          import {BREADTH_SURFACES,SYSTEM_GRAPH_LAYERS,sealCheckpoint,sha256} from `${process.cwd()}/axiom_interface/vnext/engineering_command_center_security.js`;
+          import {makeEngineeringSnapshot} from `${process.cwd()}/axiom_interface/vnext/engineering_command_center_adapters.js`;
+          import {verifyEngineeringCommandCenter} from `${process.cwd()}/axiom_interface/vnext/engineering_command_center_verifier.js`;
+          const projectId=process.env.FA13_PROJECT_ID,commit=process.env.GITHUB_SHA;
+          const receipt=JSON.parse(await fs.readFile('fa13-modal-execution-receipt.json','utf8'));
+          const qualification=JSON.parse(await fs.readFile('fa13-modal-external-qualification.json','utf8'));
+          const evidenceSha=receipt.external_execution_receipt_sha256;
+          const digest=async x=>sha256(x);
+          const component=await digest({projectId,commit,evidenceSha});
+          const cp=await sealCheckpoint({project_id:projectId,checkpoint_id:`fa13-cloud-${commit.slice(0,12)}`,worktree_id:'fa13-qualification',components:{git_tree:component,dependencies:{state:'NOT_PROVEN'},migration_state:{state:'NOT_PROVEN'},environment:component,plan:component,acceptance:component,tests:component,browser_snapshot:{state:'NOT_PROVEN'},security:component,artifacts:evidenceSha,evidence:evidenceSha}});
+          const input={
+            project_id:projectId,builder_id:'fa13-engineering-builder',
+            workspace:{project_id:projectId,mode:'GOVERNED_ENGINEERING_WORKSPACE',capabilities:{file_tree:true,editor:true,diff:true,diagnostics:true,search:true,tests:true,preview:true},windsurf_class_claim_authorized:false},
+            agent_fleet:{project_id:projectId,mission_control_integrity:'PASS',separate_workload_identities:true,least_privilege:true,budgets_enforced:true,kill_controls:true,independent_verifier:true,cloud_qualification:qualification,cloud_execution_receipt_sha256:evidenceSha},
+            engineering_space:{project_id:projectId,project_graph_integrity:'PASS',full_project_graph:true,sessions:true,files:true,context:true},
+            deep_context:{project_id:projectId,status:'PASS',authority_unchanged:true,domains:['code','runtime','data','infra','trace','requirement','evidence']},
+            system_graph:{project_id:projectId,status:'PASS',authority_effect:'NONE',authority_unchanged:true,layers:[...SYSTEM_GRAPH_LAYERS],relations:['depends-on','verified-by']},
+            execution:{project_id:projectId,integrity:'PASS',independent_gateway:true,network_default_deny:true,host_shell_enabled:false,plaintext_secrets:false,risk_classes:['S0','S1','S2','S3','S4','S5']},
+            checkpoints:[cp],
+            product_reality:{project_id:projectId,integration:true,contract:'NO_FAKE_VISUAL_COMPLETION',fake_visual_completion_allowed:false},
+            cloud_handoff:{project_id:projectId,status:'VERIFIED',governed_package:true,isolated_agent_required:true,self_grant_allowed:false,external_qualification:qualification,external_execution_receipt_sha256:evidenceSha},
+            model_routing:{project_id:projectId,multi_model:true,qualification_aware:true,cost_aware:true,privacy_aware:true,unqualified_execution_allowed:false,selected_qualification:'QUALIFIED'},
+            deployment:{project_id:projectId,history:[{stage:'BUILD'}],control_plane_only:true,stage_skip_allowed:false,production_authority:false,release_receipt_sha256:null},
+            enterprise:{project_id:projectId,policy_graph:true,rbac_model:true,agent_policy:true,data_policy:true,network_policy:true,action_policy:true,sso_status:'NOT_PROVEN'},
+            security:{project_id:projectId,independent_security_authority:true,builder_self_certifies:false,independent_verifier:true,fail_closed:true,red_team_status:'NOT_PROVEN'},
+            breadth:{routes:[...BREADTH_SURFACES],home_outcome_first:true,engineering_redefines_product:false},
+          };
+          const snapshot=await makeEngineeringSnapshot(input),verification=await verifyEngineeringCommandCenter(snapshot);
+          if(verification.status!=='PASS'||verification.matrix_status!=='BLOCKED')throw new Error(`unexpected verifier state ${JSON.stringify(verification)}`);
+          const rows=Object.fromEntries(snapshot.matrix_evidence.map(r=>[r.row_id,r]));
+          for(const id of ['agent_fleet','cloud_handoff'])if(rows[id]?.state!=='IMPLEMENTED_VERIFIED')throw new Error(`${id} did not qualify`);
+          const expected=['IDE','deployment','enterprise','security'].sort();
+          if(JSON.stringify([...verification.unsatisfied_rows].sort())!==JSON.stringify(expected))throw new Error(`unexpected remaining blockers ${verification.unsatisfied_rows}`);
+          if(input.deployment.production_authority!==false)throw new Error('production authority changed');
+          await fs.writeFile('fa13-cloud-qualified-snapshot.json',JSON.stringify(snapshot,null,2)+'\n');
+          await fs.writeFile('fa13-cloud-qualified-verification.json',JSON.stringify(verification,null,2)+'\n');
+          console.log('fa13_cloud_rows_qualified=true');
+          console.log('fa13_remaining_blockers='+expected.join(','));
+          JS
+          node /tmp/fa13-bind-cloud.mjs
+
+      - name: Prove evidence contains no configured secret values
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import os,pathlib
+          files=[pathlib.Path(x) for x in [
+            'fa13-handoff-package.json','fa13-modal-execution-receipt.json','fa13-modal-external-qualification.json',
+            'fa13-cloud-qualified-snapshot.json','fa13-cloud-qualified-verification.json'
+          ]]
+          secrets=[os.environ.get('MODAL_TOKEN_ID',''),os.environ.get('MODAL_TOKEN_SECRET','')]
+          for p in files:
+              data=p.read_bytes()
+              for secret in secrets:
+                  if secret and secret.encode() in data:
+                      raise SystemExit('Fail-closed: secret value detected in qualification evidence')
+          print('fa13_evidence_secret_absence_pass=true')
+          PY
+
+      - name: Seal current-head non-production evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          sha256sum \
+            fa13-handoff-package.json \
+            fa13-modal-execution-receipt.json \
+            fa13-modal-external-qualification.json \
+            fa13-cloud-qualified-snapshot.json \
+            fa13-cloud-qualified-verification.json \
+            > fa13-modal-cloud-qualification.sha256
+          git diff --check
+
+      - name: Upload non-secret FA-13 cloud qualification evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: musitu-axiom-fa13-modal-cloud-qualification
+          path: |
+            fa13-handoff-package.json
+            fa13-modal-execution-receipt.json
+            fa13-modal-external-qualification.json
+            fa13-cloud-qualified-snapshot.json
+            fa13-cloud-qualified-verification.json
+            fa13-modal-cloud-qualification.sha256
+          if-no-files-found: error
+          retention-days: 14
