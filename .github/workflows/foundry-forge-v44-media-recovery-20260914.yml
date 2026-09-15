@@ -121,7 +121,7 @@ jobs:
           docker run --rm \
             -e EXPECTED_FFMPEG_SHA256 -e EXPECTED_FFPROBE_SHA256 -e EXPECTED_VERSION_SUBSTRING -e EXPECTED_NON_GLIBC_COUNT \
             -e SEALED_NON_GLIBC_INVENTORY_SHA256 -e SEALED_RESOLVED_PATH_INVENTORY_SHA256 -e SEALED_CLOSURE_MANIFEST_SHA256 \
-            -v "$PWD/recovery:/work" debian:13-slim bash /tmp/recover.sh || rc=$?
+            -v "$PWD/recovery:/work" -v "/tmp/recover.sh:/tmp/recover.sh:ro" debian:13-slim bash /tmp/recover.sh || rc=$?
           if [ "${rc:-0}" -ne 0 ]; then
             echo "recovery_container_rc=${rc}" | tee recovery/RECOVERY_FAILURE.txt
           fi
