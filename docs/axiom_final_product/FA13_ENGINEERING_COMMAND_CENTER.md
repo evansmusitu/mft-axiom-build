@@ -1,74 +1,105 @@
 # FA-13 — Engineering Command Center
 
-Status: IMPLEMENTED_LOCALLY_PENDING_REPOSITORY_INTEGRITY_VERIFICATION_ACCEPTANCE_MATRIX_BLOCKED
+Status: FA13_IMPLEMENTATION_INTEGRITY_VERIFIED_ACCEPTANCE_MATRIX_BLOCKED
 
 ## Frozen gate
 FA-13 is governed by the authoritative 14-row Engineering Command Center acceptance matrix. The phase rule is: **reject if below Windsurf/Devin-class core engineering or if AXIOM breadth is weakened.**
 
-Passing implementation tests is not equivalent to passing the acceptance matrix.
+Passing implementation-integrity tests is not equivalent to passing the acceptance matrix. This record therefore seals only the repository implementation-integrity evidence. **FA-13 itself remains unsealed and blocked.**
 
 ## Additive implementation
-The staged FA-13 slice adds:
+FA-13 adds:
 - `engineering_command_center_security.js` — exact 14-row registry, non-interchangeable row states, independent-evidence normalization, model qualification router, checkpoint sealing and deployment-stage validation;
 - `engineering_command_center_verifier.js` — row-by-row fail-closed verification, whole-snapshot hash binding, external-builder self-verification rejection, breadth preservation and separate implementation-integrity vs matrix status;
 - `engineering_command_center_adapters.js` — truthful matrix derivation and Command Center snapshot composition;
 - `engineering_command_center_store.js` — Project-scoped Engineering Spaces, checkpoints, model routes, blocked cloud handoffs, deployment control plans, incidents, matrix evidence and hash-linked events;
 - `engineering_command_center_ui.js` — Engineering Mission Control, governed browser-local IDE/workspace controls, bounded terminal, checkpoints, matrix truth, agent fleet, Deep Context/System Graph, model-routing state, cloud-handoff state, release lane, enterprise/security truth and retained AXIOM breadth;
-- deterministic/adversarial FA-13 tests.
+- deterministic/adversarial FA-13 tests;
+- a read-only GitHub integrity workflow.
 
-FA-13 composes sealed FA-09 Mission Control, FA-10 Deep Context/System Graph, FA-11 S0-S5 execution and FA-12 Product Reality rather than rewriting those authorities.
+FA-13 composes sealed FA-09 Mission Control, FA-10 Deep Context/System Graph, FA-11 S0–S5 execution and FA-12 Product Reality rather than rewriting those authorities.
 
 ## Engineering workspace truth
-The browser-local Engineering Space exposes a serious governed workspace contract for file tree/editor/diff/diagnostics/search/tests/preview and can use the FA-11 virtual worktree for governed file read/write, build/test and bounded terminal actions.
+The browser-local Engineering Space exposes a governed workspace contract for file tree/editor/diff/diagnostics/search/tests/preview and composes with the FA-11 virtual worktree for governed file read/write, build/test and bounded terminal actions.
 
-It remains explicitly **not a native host shell**. External repository mutation, cloud-agent execution and production deployment are not fabricated.
+It remains explicitly **not a native host shell**. External repository mutation, cloud-agent execution and production deployment are not fabricated. The UI explicitly states `PRODUCTION AUTHORITY: FALSE` and does not infer parity, cloud execution, deployment, SSO or red-team qualification from UI presence.
 
-## Preserved local hardening failures
-Before repository write, three truth-boundary weaknesses were identified and fixed:
-1. the first Engineering Store snapshot could have returned the complete AXIOM breadth list without requiring the runtime to prove those routes were actually registered;
-2. the first verifier draft did not verify the hash of the complete Engineering Command Center snapshot;
+## Preserved hardening failures
+Before repository write, three truth-boundary weaknesses were found and fixed:
+1. the first Engineering Store snapshot could have returned the complete AXIOM breadth list without requiring runtime proof that those routes were actually registered;
+2. the first verifier draft did not bind the complete Engineering Command Center snapshot hash;
 3. syntactically valid external evidence did not yet reject an external verifier identical to the builder.
 
-All three are now regressions. The store defaults breadth to unproven until the UI supplies actual registered routes; the verifier fails on whole-snapshot tampering; and independently qualified external rows reject builder self-verification.
+All three are now regression tests. The store defaults breadth to unproven until actual routes are supplied; whole-snapshot tampering fails closed; and externally qualified rows reject builder self-verification.
+
+A byte-integrity check also rejected an older staged store variant containing a deployment digest typo before it reached the branch. The selected repository store uses the tested `deployment_sha256` field.
 
 ## Local isolated verification
-Current isolated FA-13 harness: **18/18 PASS**.
+The isolated FA-13 harness passed **18/18** before repository attachment. It exercised the exact matrix, blocked external truth, snapshot/checkpoint tamper detection, cross-project rejection, deployment ordering, model qualification, System Graph authority invariance, breadth preservation and absence of direct external transport/host-shell/deployment-executor primitives.
 
-It proves at minimum:
-- exact 14-row matrix;
-- local implementation may have integrity `PASS` while matrix truth remains `BLOCKED`;
-- a fully synthetic independently-qualified fixture can exercise the evaluator's `PASS` path without being treated as real-world evidence;
-- whole-snapshot and checkpoint tampering fail closed;
-- external rows cannot self-promote and builder self-verification fails;
-- cross-project evidence fails closed;
-- deployment stage skipping fails;
-- unqualified model candidates are never selected;
-- authority-delegating System Graph relations fail;
-- removing a permanent AXIOM breadth surface fails;
-- default cloud/deployment/enterprise/security truth remains blocked;
-- new FA-13 modules contain no direct external transport, host-shell or deployment-executor primitive.
+Local evidence alone was not treated as repository qualification.
 
-This local result is not independent repository verification and does not satisfy the real external acceptance blockers below.
+## Preserved first repository-gate failure
+The first repository integrity run is intentionally preserved:
+- run: `34958246082`
+- job: `104345390146`
+- exact head: `703fd6a27519a8ebbaf4dd42fbb2e86593c30f84`
+- result: **FAILURE**
+
+The failure occurred in the first authority/document assertion because the workflow searched for capitalized `Acceptance matrix` while this record used lowercase `acceptance matrix`. Branch ancestry, read-only token permissions and checkout succeeded; product tests did not run because the fail-closed assertion stopped the job.
+
+The repair changed only that brittle case-sensitive assertion. It did not weaken the acceptance matrix, blocker truth, security checks, authority protection or test scope.
+
+## Earned repository implementation-integrity evidence
+The repaired exact-head repository run is:
+- run: `34958479454`
+- job: `104346136639`
+- exact head: `f5fb3490919b4acbcb57fcc7d22fc0e81ead729e`
+- result: **SUCCESS**
+
+Raw job evidence proves:
+- cumulative vNext: **104/104 PASS**, 0 fail, 0 skipped/cancelled/todo;
+- selected earned legacy regressions: **39/39 PASS**;
+  - Project contract: 7/7;
+  - Observability Phase 6: 6/6;
+  - Computer Phase 8: 4/4;
+  - Agents Phase 9: 7/7;
+  - Developer Phase 12: 7/7;
+  - legacy Phase-13 Evidence Observatory: 8/8 regression coverage only, **not** an earned legacy Phase-13 claim;
+- GitHub token permissions: `Contents: read`, `Metadata: read`;
+- checkout: `persist-credentials: false`;
+- sealed FA-09 through FA-12 authority files unchanged from sealed FA-12 head `4b818f04cd722f1e2e620e0e42da7200def1897c`;
+- protected `mcp/`, `auth/`, `chatgpt-app-submission.json` and `submission/` unchanged;
+- FA-13 module syntax and runtime wiring pass;
+- frozen 14-row blocker truth and no-self-promotion checks pass;
+- no new direct `fetch`, WebSocket, XHR, EventSource, sendBeacon, host process spawn/exec, Docker push, kubectl apply or Terraform apply primitive in the FA-13 modules;
+- `status:'BLOCKED_EXTERNAL'`, `production_authority:false` and unproven breadth defaults remain enforced;
+- workflow has no repository-write, OIDC, Pages, package, PR, issue, status or deployment authority;
+- `git diff --check` passes.
+
+Project tests ran under Node `v22.23.2`; Python regression tests ran under CPython `3.12.14`.
+
+The runner emitted upstream action-runtime warnings because `actions/checkout@v4`, `actions/setup-node@v4` and `actions/setup-python@v5` target deprecated Node 20 internals and GitHub forced those actions to Node 24. Setup actions also emitted a `punycode` deprecation warning. These warnings did not fail the integrity gate and are not represented as product qualification evidence.
 
 ## Current acceptance blockers
-The implementation must **not** be sealed as FA-13 complete while these remain unproven:
+The implementation must **not** be sealed as FA-13 complete while these rows remain unsatisfied:
 
 1. `IDE` — governed IDE/workspace implementation exists, but Windsurf-class minimum qualification has not yet been independently evidenced for the implemented product. State: `PARTIAL`.
 2. `agent_fleet` — local Mission Control/workload-identity semantics exist; independently qualified cloud-agent execution receipt is absent. State: `IMPLEMENTED_BLOCKED_EXTERNAL`.
 3. `cloud_handoff` — governed handoff package exists; no qualified external background executor/receipt is bound. State: `IMPLEMENTED_BLOCKED_EXTERNAL`.
-4. `deployment` — exact deployment control-plane sequence exists, but qualified STAGING/CANARY/PRODUCTION/ROLLBACK execution evidence and release receipt are absent. State: `IMPLEMENTED_BLOCKED_EXTERNAL`.
+4. `deployment` — the exact deployment control-plane sequence exists, but qualified STAGING/CANARY/PRODUCTION/ROLLBACK execution evidence and a release receipt are absent. State: `IMPLEMENTED_BLOCKED_EXTERNAL`.
 5. `enterprise` — RBAC/policy-graph model exists; external SSO/admin-provider qualification is absent. State: `IMPLEMENTED_BLOCKED_EXTERNAL`.
 6. `security` — independent authorization/security roles are preserved; independent external red-team qualification is absent. State: `IMPLEMENTED_BLOCKED_EXTERNAL`.
 
-The implementation also requires real runtime project data to populate checkpoints/model routes when used; empty runtime state is not silently converted into evidence.
+The other matrix rows can have repository implementation evidence without converting the overall frozen gate to PASS. Empty runtime state is never converted into evidence.
 
 ## Breadth preservation
-Engineering remains one subsystem. Home remains outcome-first. The FA-13 UI retains navigable placeholders for Twin/Scenario, Evidence Observatory, Marketplace and Enterprise surfaces that are explicitly labeled as retained/not-self-certified; their dedicated functionality is not claimed complete before FA-14/FA-15.
+Engineering remains one subsystem. Home remains outcome-first. The FA-13 UI retains Twin/Scenario, Evidence Observatory, Marketplace and Enterprise as broader AXIOM surfaces without self-certifying later dedicated functionality.
 
 ## Claim boundary
-A successful repository **integrity** workflow may prove that the FA-13 implementation obeys its contracts, preserves prior authorities, passes deterministic/adversarial tests and truthfully reports blockers.
+The repository integrity evidence above authorizes the statement **FA-13 implementation integrity verified** only. It does **not** authorize `FA-13 PASSED`, `FA-13 SEALED`, Windsurf/Devin parity, production deployment, live cloud-agent execution, external Enterprise SSO, independent external red-team validation, legacy Phase 13/14/15, Wolfram parity or superiority.
 
-It will **not** authorize changing this phase status to acceptance-matrix PASS while any required row above remains blocked/not proven. It does not prove production deployment, live cloud-agent execution, external SSO, independent external red-team validation, legacy Phase 13/14/15, Wolfram parity or superiority.
+The authoritative FA-13 phase remains **ACCEPTANCE_MATRIX_BLOCKED / UNSEALED** until all required rows are genuinely satisfied and independently evidenced.
 
 ## Governance incident record
-During connector selection before the FA-13 implementation commit, two unintended draft pull requests were opened against `main`: PR #6 (`noop`) and PR #7 (`noop2`). Both were immediately closed, remained unmerged, and carried no code changes. PR #1 remained untouched, OPEN, DRAFT and UNMERGED. This incident is preserved here as regression/governance evidence rather than omitted.
+During connector selection before the FA-13 implementation commit, two unintended draft pull requests were opened against `main`: PR #6 (`noop`) and PR #7 (`noop2`). Both were immediately closed, remained unmerged and carried no code changes. PR #1 remained untouched, OPEN, DRAFT and UNMERGED. This incident remains preserved as governance/regression evidence rather than omitted.
