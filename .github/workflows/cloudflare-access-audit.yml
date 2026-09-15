@@ -90,7 +90,7 @@ jobs:
           apps, app_rows = probe('access_apps', f'/accounts/{account_id}/access/apps?per_page=100')
           checks.append(apps)
 
-          idps, _ = probe('access_identity_providers', f'/accounts/{account_id}/access/identity_providers')
+          idps, idp_rows = probe('access_identity_providers', f'/accounts/{account_id}/access/identity_providers')
           checks.append(idps)
 
           groups, _ = probe('access_groups', f'/accounts/{account_id}/access/groups?per_page=100')
@@ -119,6 +119,16 @@ jobs:
           org_idp_groups_read = bool(idps['success'] and groups['success'])
           token_active = bool(verify['success'])
           all_required = bool(token_active and apps_policies_read and org_idp_groups_read)
+          identity_provider_inventory = []
+          if isinstance(idp_rows, list):
+              for row in idp_rows:
+                  if not isinstance(row, dict) or not row.get('id'):
+                      continue
+                  identity_provider_inventory.append({
+                      'id': str(row.get('id')),
+                      'name': str(row.get('name') or ''),
+                      'type': str(row.get('type') or ''),
+                  })
 
           evidence = {
               'schema': 'musitu.axiom.cloudflare.access_permission_probe.v2',
@@ -131,6 +141,7 @@ jobs:
               'token_active': token_active,
               'apps_and_policies_read_access': apps_policies_read,
               'organizations_identity_providers_groups_read_access': org_idp_groups_read,
+              'identity_provider_inventory': identity_provider_inventory,
               'all_required_read_permissions': all_required,
               'checks': checks,
               'cloudflare_write_performed': False,
@@ -144,6 +155,7 @@ jobs:
               'token_active': token_active,
               'apps_and_policies_read_access': apps_policies_read,
               'organizations_identity_providers_groups_read_access': org_idp_groups_read,
+              'identity_provider_types': sorted({row['type'] for row in identity_provider_inventory}),
               'all_required_read_permissions': all_required,
               'cloudflare_write_performed': False,
           }, sort_keys=True))
