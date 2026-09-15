@@ -84,7 +84,7 @@ jobs:
               }, result
 
           checks = []
-          verify, _ = probe('token_verify', '/user/tokens/verify')
+          verify, _ = probe('token_verify', f'/accounts/{account_id}/tokens/verify')
           checks.append(verify)
 
           apps, app_rows = probe('access_apps', f'/accounts/{account_id}/access/apps?per_page=100')
@@ -148,6 +148,7 @@ jobs:
               'cloudflare_write_performed': False,
           }, sort_keys=True))
           if not all_required:
+              print(json.dumps({'checks': checks}, sort_keys=True))
               raise SystemExit('required Cloudflare Access read permissions are not all proven')
           PY
 
