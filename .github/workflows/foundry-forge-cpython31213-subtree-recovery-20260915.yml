@@ -1,0 +1,74 @@
+name: MUSITU FOUNDRY FORGE Exact CPython 3.12.13 Subtree Recovery
+
+on:
+  push:
+    branches:
+      - foundry-forge-v44-modal-candidate-20260915
+    paths:
+      - '.github/workflows/foundry-forge-cpython31213-subtree-recovery-20260915.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  recover-exact-cpython:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12.13'
+
+      - name: Verify exact sealed CPython subtree and package it
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROOT=/opt/hostedtoolcache/Python/3.12.13/x64
+          test -x "$ROOT/bin/python3.12"
+          test "$($ROOT/bin/python3.12 -c 'import platform; print(platform.python_version())')" = '3.12.13'
+          python - <<'PY'
+          import hashlib,json,os,pathlib,stat
+          root=pathlib.Path('/opt/hostedtoolcache/Python/3.12.13/x64')
+          rows=[]; total=0; files=syms=dirs=0
+          for p in sorted(root.rglob('*'), key=lambda x:x.as_posix()):
+              rel=p.relative_to(root).as_posix(); st=p.lstat(); mode=stat.S_IMODE(st.st_mode)
+              if p.is_symlink():
+                  rows.append({'p':rel,'t':'l','m':mode,'v':os.readlink(p)}); syms+=1
+              elif p.is_file():
+                  h=hashlib.sha256()
+                  with p.open('rb') as fh:
+                      for b in iter(lambda:fh.read(1<<20),b''): h.update(b)
+                  rows.append({'p':rel,'t':'f','m':mode,'s':st.st_size,'h':h.hexdigest()}); total+=st.st_size; files+=1
+              elif p.is_dir():
+                  rows.append({'p':rel,'t':'d','m':mode}); dirs+=1
+          raw=json.dumps(rows,sort_keys=True,separators=(',',':')).encode()
+          digest=hashlib.sha256(raw).hexdigest()
+          expected='676da6bee0a3c320eed8ead5c2ffef5b640b67ef3f0ba47a6aea46540575e487'
+          if len(rows)!=9397 or files!=8926 or syms!=0 or dirs!=471 or total!=336454851: raise SystemExit('target_subtree_shape_mismatch')
+          if digest!=expected: raise SystemExit('target_subtree_manifest_mismatch:'+digest)
+          core={
+            'bin/python3.12':'edcdaf07e49bb241cbccb0f18fdb2c8f2e6e1be36a583fce9fc703894d814238',
+            'lib/libpython3.12.so.1.0':'5aa44491272f12bef15eff72c37b94f58898e00876712f991684bb4258010339',
+            'lib/python3.12/os.py':'54c43a1fc69c979c70d8f7d097174cee163bfe59937723ee353043dd4a0211e1',
+            'lib/python3.12/site.py':'b39ab288cc7a6d0cb3bb2655179221411340b22418e4efdee4c20175537a5fa2',
+          }
+          for rel,exp in core.items():
+              if hashlib.sha256((root/rel).read_bytes()).hexdigest()!=exp: raise SystemExit('target_core_hash_mismatch:'+rel)
+          report={'schema':'musitu.forge.cpython31213_subtree_recovery.v1','source':'github_actions_setup_python_ubuntu2404','python_version':'3.12.13','manifest_sha256':digest,'entry_count':len(rows),'file_count':files,'directory_count':dirs,'symlink_count':syms,'file_bytes':total,'core_sha256':core,'gate':'PASS'}
+          pathlib.Path('cpython31213-subtree-report.json').write_text(json.dumps(report,indent=2,sort_keys=True)+'\n')
+          PY
+          tar -C /opt/hostedtoolcache/Python/3.12.13 -czf cpython31213-x64-exact.tgz x64
+          sha256sum cpython31213-x64-exact.tgz > cpython31213-x64-exact.tgz.sha256
+          echo 'CPYTHON31213_EXACT_SUBTREE=PASS'
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: musitu-forge-cpython31213-exact-subtree-20260915
+          path: |
+            cpython31213-x64-exact.tgz
+            cpython31213-x64-exact.tgz.sha256
+            cpython31213-subtree-report.json
+          retention-days: 14
+          if-no-files-found: error
