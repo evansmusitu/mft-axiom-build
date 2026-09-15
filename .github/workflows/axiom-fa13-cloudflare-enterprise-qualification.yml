@@ -1,0 +1,281 @@
+name: MUSITU Axiom FA-13 Cloudflare Enterprise Qualification
+
+on:
+  push:
+    branches:
+      - frontier/axiom-final-product-fa13-20260915
+    paths:
+      - '.github/workflows/axiom-fa13-cloudflare-enterprise-qualification.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: musitu-axiom-fa13-enterprise-qualification
+  cancel-in-progress: false
+
+jobs:
+  cloudflare-external-sso-executor:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      CF_API: https://api.cloudflare.com/client/v4
+      ENT_WORKER: musitu-axiom-fa13-ent-${{ github.run_id }}
+    steps:
+      - name: Checkout exact candidate without persisted credentials
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Reassert frozen Enterprise authority
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF_NAME" = 'frontier/axiom-final-product-fa13-20260915'
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          grep -q 'Status: AUTHORITY_FROZEN_FOR_IMPLEMENTATION' docs/axiom_final_product/FA13_PREWRITE_INTENT.md
+          grep -q 'enterprise.*SSO/RBAC/admin' docs/axiom_final_product/FA13_PREWRITE_INTENT.md
+          grep -q 'Do not invent SSO/organization provider integration' docs/axiom_final_product/FA13_PREWRITE_INTENT.md
+          git merge-base --is-ancestor 4b818f04cd722f1e2e620e0e42da7200def1897c HEAD
+          node --test axiom_interface/vnext/tests/fa13_engineering_command_center_contract.test.mjs
+
+      - name: Deploy exact isolated Enterprise qualification target
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$CLOUDFLARE_EMAIL"
+          test -n "$CLOUDFLARE_API_KEY"
+          cp -R axiom_interface /tmp/fa13-enterprise-assets
+          python - <<'PY'
+          import json,os,pathlib,urllib.request
+          path=pathlib.Path('/tmp/fa13-enterprise-assets/vnext/fa13-build.json')
+          path.write_text(json.dumps({'schema':'musitu.axiom.fa13.enterprise-build.v1','source_commit':os.environ['GITHUB_SHA'],'production_authority':False},sort_keys=True)+'\n')
+          headers={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_API_KEY'],'Accept':'application/json','User-Agent':'MUSITU-Axiom-FA13-Enterprise-Qualification/1.0'}
+          request=urllib.request.Request(f"https://api.cloudflare.com/client/v4/accounts/{os.environ['ACCOUNT_ID']}/workers/subdomain",headers=headers)
+          with urllib.request.urlopen(request,timeout=30) as response: result=json.load(response).get('result') or {}
+          subdomain=str(result.get('subdomain') or '')
+          if not subdomain: raise SystemExit('Cloudflare workers.dev subdomain unavailable')
+          with open(os.environ['GITHUB_ENV'],'a',encoding='utf-8') as handle: handle.write('CF_SUBDOMAIN='+subdomain+'\n')
+          PY
+          npm install --ignore-scripts --no-audit --no-fund --no-save wrangler@4.20.0
+          npx wrangler deploy --name "$ENT_WORKER" --compatibility-date 2026-09-15 --assets /tmp/fa13-enterprise-assets > enterprise-worker-deploy.log 2>&1 || { tail -200 enterprise-worker-deploy.log; exit 1; }
+
+      - name: Create deny-by-default Access app and await real external SSO
+        env:
+          CLOUDFLARE_ACCESS_API_TOKEN: ${{ secrets.CLOUDFLARE_ACCESS_API_TOKEN }}
+          ENTERPRISE_SUBJECT_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$CLOUDFLARE_ACCESS_API_TOKEN"
+          test -n "$ENTERPRISE_SUBJECT_EMAIL"
+          python - <<'PY'
+          import datetime,hashlib,json,os,pathlib,time,urllib.error,urllib.parse,urllib.request
+
+          api=os.environ['CF_API'];account=os.environ['ACCOUNT_ID'];token=os.environ['CLOUDFLARE_ACCESS_API_TOKEN'];subject=os.environ['ENTERPRISE_SUBJECT_EMAIL'].strip().lower()
+          worker=os.environ['ENT_WORKER'];domain=f"{worker}.{os.environ['CF_SUBDOMAIN']}.workers.dev";target='https://'+domain
+          headers={'Authorization':'Bearer '+token,'Accept':'application/json','User-Agent':'MUSITU-Axiom-FA13-Enterprise-Qualification/1.0'}
+
+          def call(path,method='GET',body=None,expected=range(200,300)):
+              request_headers=dict(headers);raw=None
+              if body is not None:
+                  request_headers['Content-Type']='application/json';raw=json.dumps(body,separators=(',',':')).encode()
+              request=urllib.request.Request(api+path,headers=request_headers,method=method,data=raw)
+              try:
+                  with urllib.request.urlopen(request,timeout=30) as response: status=response.status;payload=json.load(response)
+              except urllib.error.HTTPError as error:
+                  status=error.code
+                  try: payload=json.loads(error.read() or b'{}')
+                  except Exception: payload={}
+              if status not in expected or not isinstance(payload,dict) or payload.get('success') is False:
+                  safe_errors=[{'code':row.get('code'),'message':row.get('message')} for row in payload.get('errors',[]) if isinstance(row,dict)] if isinstance(payload,dict) else []
+                  raise RuntimeError(f'Cloudflare API {method} {path.split("?")[0]} failed HTTP {status}: {safe_errors!r}')
+              return status,payload.get('result')
+
+          # Prove every required read permission before creating any resource.
+          _,verify=call(f'/accounts/{account}/tokens/verify')
+          _,idps=call(f'/accounts/{account}/access/identity_providers')
+          call(f'/accounts/{account}/access/logs/access_requests?limit=1&fields=allowed,app_uid,created_at')
+          candidates=[row for row in (idps or []) if isinstance(row,dict) and row.get('id') and row.get('type')=='cloudflare']
+          if len(candidates)!=1: raise RuntimeError('exactly one Cloudflare external identity provider is required')
+          idp=candidates[0];idp_id=str(idp['id']);started=datetime.datetime.now(datetime.timezone.utc).replace(microsecond=0).isoformat().replace('+00:00','Z')
+
+          app_body={'type':'self_hosted','name':f'MUSITU AXIOM FA13 Enterprise {os.environ["GITHUB_RUN_ID"]}','domain':domain,'session_duration':'15m','allowed_idps':[idp_id],'auto_redirect_to_identity':True,'app_launcher_visible':False,'skip_interstitial':True}
+          _,app=call(f'/accounts/{account}/access/apps','POST',app_body,expected={201})
+          app_id=str((app or {}).get('id') or '')
+          if not app_id: raise RuntimeError('Cloudflare Access app id missing')
+          pathlib.Path('fa13-enterprise-state.json').write_text(json.dumps({'app_id':app_id,'worker':worker,'domain':domain,'source_commit':os.environ['GITHUB_SHA']},sort_keys=True)+'\n')
+
+          policy_body={'name':'FA13 exact subject through Cloudflare IdP','decision':'allow','precedence':1,'include':[{'email':{'email':subject}}],'require':[{'login_method':{'id':idp_id}}]}
+          _,policy=call(f'/accounts/{account}/access/apps/{app_id}/policies','POST',policy_body,expected={201})
+          policy_id=str((policy or {}).get('id') or '')
+          if not policy_id: raise RuntimeError('Cloudflare Access policy id missing')
+          state=json.loads(pathlib.Path('fa13-enterprise-state.json').read_text());state['policy_id']=policy_id;pathlib.Path('fa13-enterprise-state.json').write_text(json.dumps(state,sort_keys=True)+'\n')
+
+          _,readback=call(f'/accounts/{account}/access/apps/{app_id}')
+          _,policies=call(f'/accounts/{account}/access/apps/{app_id}/policies')
+          if (readback or {}).get('domain')!=domain or not any(str(row.get('id'))==policy_id for row in (policies or []) if isinstance(row,dict)):
+              raise RuntimeError('Access app/policy readback mismatch')
+
+          class NoRedirect(urllib.request.HTTPRedirectHandler):
+              def redirect_request(self,req,fp,code,msg,response_headers,newurl): return None
+          opener=urllib.request.build_opener(NoRedirect)
+          anonymous_status=0;anonymous_location=''
+          for anonymous_attempt in range(1,31):
+              request=urllib.request.Request(target+'/vnext/fa13-build.json?anonymous='+str(anonymous_attempt),headers={'User-Agent':'MUSITU-Axiom-FA13-Enterprise-Anonymous/1.0'})
+              try:
+                  with opener.open(request,timeout=30) as response: anonymous_status=response.status;anonymous_location=str(response.headers.get('Location') or '')
+              except urllib.error.HTTPError as error: anonymous_status=error.code;anonymous_location=str(error.headers.get('Location') or '')
+              if anonymous_status in {302,303,401,403}: break
+              time.sleep(2)
+          if anonymous_status not in {302,303,401,403}: raise RuntimeError(f'anonymous Access deny failed with HTTP {anonymous_status}')
+
+          print('fa13_enterprise_sso_waiting=true')
+          print('fa13_enterprise_login_url='+target+'/vnext/fa13-build.json')
+          event=None
+          for attempt in range(1,145):
+              query=urllib.parse.urlencode({'limit':100,'direction':'desc','since':started,'email':subject,'email_exact':'true','fields':'allowed,app_uid,created_at,ray_id,user_email'})
+              _,rows=call(f'/accounts/{account}/access/logs/access_requests?{query}')
+              event=next((row for row in (rows or []) if isinstance(row,dict) and str(row.get('app_uid'))==app_id and row.get('allowed') is True and str(row.get('user_email') or '').strip().lower()==subject),None)
+              if event: break
+              time.sleep(5)
+          if not event: raise RuntimeError('no independently recorded Cloudflare SSO allow event arrived before timeout')
+
+          revoke_status,_=call(f'/accounts/{account}/access/apps/{app_id}/revoke_tokens','POST',{},expected={202})
+          print('fa13_enterprise_app_tokens_revoked=true')
+          time.sleep(90)
+          call(f'/accounts/{account}/access/apps/{app_id}/policies/{policy_id}','DELETE',expected={202})
+          call(f'/accounts/{account}/access/apps/{app_id}','DELETE',expected={202})
+          state['access_resources_deleted']=True;pathlib.Path('fa13-enterprise-state.json').write_text(json.dumps(state,sort_keys=True)+'\n')
+          deleted_request=urllib.request.Request(api+f'/accounts/{account}/access/apps/{app_id}',headers=headers,method='GET')
+          try:
+              urllib.request.urlopen(deleted_request,timeout=30).read()
+              raise RuntimeError('deleted Access app remained readable')
+          except urllib.error.HTTPError as error:
+              if error.code!=404: raise RuntimeError(f'deleted Access app readback returned HTTP {error.code}')
+
+          subject_hash=hashlib.sha256(subject.encode()).hexdigest();ray_hash=hashlib.sha256(str(event.get('ray_id') or '').encode()).hexdigest()
+          evidence={'schema':'musitu.axiom.fa13.cloudflare-enterprise-provider-evidence.v1','status':'VERIFIED','source_commit':os.environ['GITHUB_SHA'],'provider':'cloudflare-access','external_identity_provider_type':'cloudflare','interactive_sso_login_proven':True,'anonymous_deny_proven':True,'rbac_exact_subject_policy_proven':True,'admin_app_policy_readback_proven':True,'application_token_revocation_proven':revoke_status==202,'access_resource_cleanup_proven':True,'isolated_worker':worker,'target_domain':domain,'app_uid':app_id,'policy_id':policy_id,'subject_email_sha256':subject_hash,'access_log':{'allowed':True,'app_uid':app_id,'created_at':event.get('created_at'),'ray_id_sha256':ray_hash},'cloudflare_token_active':bool((verify or {}).get('status')=='active'),'secret_value_recorded':False,'production_authority':False,'captured_at':datetime.datetime.now(datetime.timezone.utc).replace(microsecond=0).isoformat().replace('+00:00','Z')}
+          raw=json.dumps(evidence,sort_keys=True,separators=(',',':')).encode();evidence['evidence_sha256']=hashlib.sha256(raw).hexdigest();pathlib.Path('fa13-enterprise-provider-evidence.json').write_text(json.dumps(evidence,indent=2,sort_keys=True)+'\n')
+          print('fa13_enterprise_provider_qualification_pass=true')
+          PY
+
+      - name: Prove provider evidence contains no configured secret material
+        if: success()
+        env:
+          CLOUDFLARE_ACCESS_API_TOKEN: ${{ secrets.CLOUDFLARE_ACCESS_API_TOKEN }}
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import os,pathlib
+          data=pathlib.Path('fa13-enterprise-provider-evidence.json').read_bytes()
+          for name in ('CLOUDFLARE_ACCESS_API_TOKEN','CLOUDFLARE_EMAIL','CLOUDFLARE_GLOBAL_API_KEY'):
+              value=os.environ.get(name,'')
+              if value and value.encode() in data: raise SystemExit('configured secret material present in provider evidence')
+          print('fa13_enterprise_provider_secret_absence_pass=true')
+          PY
+          sha256sum fa13-enterprise-provider-evidence.json > fa13-enterprise-provider-evidence.sha256
+
+      - name: Upload sanitized provider evidence
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: musitu-axiom-fa13-cloudflare-enterprise-provider-evidence
+          path: |
+            fa13-enterprise-provider-evidence.json
+            fa13-enterprise-provider-evidence.sha256
+          retention-days: 14
+          if-no-files-found: error
+
+      - name: Clean exact temporary Access and Worker resources
+        if: always()
+        env:
+          CLOUDFLARE_ACCESS_API_TOKEN: ${{ secrets.CLOUDFLARE_ACCESS_API_TOKEN }}
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        shell: bash
+        run: |
+          set +e
+          python - <<'PY'
+          import json,os,pathlib,urllib.request
+          path=pathlib.Path('fa13-enterprise-state.json')
+          if path.exists():
+              state=json.loads(path.read_text());app_id=str(state.get('app_id') or '');policy_id=str(state.get('policy_id') or '')
+              headers={'Authorization':'Bearer '+os.environ.get('CLOUDFLARE_ACCESS_API_TOKEN',''),'Content-Type':'application/json','User-Agent':'MUSITU-Axiom-FA13-Enterprise-Cleanup/1.0'}
+              for suffix in ([f'/policies/{policy_id}'] if policy_id else [])+['']:
+                  if app_id:
+                      try: urllib.request.urlopen(urllib.request.Request(f"https://api.cloudflare.com/client/v4/accounts/{os.environ['ACCOUNT_ID']}/access/apps/{app_id}{suffix}",headers=headers,method='DELETE'),timeout=30).read()
+                      except Exception: pass
+          PY
+          npx wrangler delete --name "$ENT_WORKER" --force >/tmp/fa13-enterprise-worker-delete.log 2>&1
+          echo 'fa13_enterprise_temporary_resources_cleanup_attempted=true'
+
+  independent-enterprise-verifier:
+    needs: cloudflare-external-sso-executor
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout exact candidate without persisted credentials
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Download provider evidence without provider credentials
+        uses: actions/download-artifact@v4
+        with:
+          name: musitu-axiom-fa13-cloudflare-enterprise-provider-evidence
+
+      - name: Independently bind Enterprise acceptance row
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          sha256sum -c fa13-enterprise-provider-evidence.sha256
+          cat > fa13-bind-enterprise.mjs <<'JS'
+          import fs from 'node:fs/promises';
+          import {deriveEngineeringMatrix} from './axiom_interface/vnext/engineering_command_center_adapters.js';
+          import {sha256} from './axiom_interface/vnext/engineering_command_center_security.js';
+          const evidence=JSON.parse(await fs.readFile('fa13-enterprise-provider-evidence.json','utf8'));
+          const raw={...evidence};delete raw.evidence_sha256;const digest=await sha256(raw);
+          if(evidence.source_commit!==process.env.GITHUB_SHA||evidence.status!=='VERIFIED'||!evidence.interactive_sso_login_proven||!evidence.anonymous_deny_proven||!evidence.rbac_exact_subject_policy_proven||!evidence.admin_app_policy_readback_proven||!evidence.application_token_revocation_proven||!evidence.access_resource_cleanup_proven||evidence.production_authority!==false||evidence.secret_value_recorded!==false)throw new Error('Enterprise provider evidence incomplete or stale');
+          if(evidence.evidence_sha256!==digest)throw new Error('Enterprise provider evidence digest mismatch');
+          const qualification={status:'VERIFIED',verifier_id:'github-actions-independent-enterprise-verifier',source_id:`cloudflare-access:${evidence.app_uid}`,evidence_sha256:evidence.evidence_sha256,captured_at:evidence.captured_at};
+          const project_id='project-fa13',rows=await deriveEngineeringMatrix({project_id,enterprise:{project_id,policy_graph:true,rbac_model:true,agent_policy:true,data_policy:true,network_policy:true,action_policy:true,sso_status:'VERIFIED',external_qualification:qualification}}),row=rows.find(item=>item.row_id==='enterprise');
+          if(row?.state!=='IMPLEMENTED_VERIFIED')throw new Error('Enterprise row did not qualify');
+          await fs.writeFile('fa13-enterprise-qualification.json',JSON.stringify({schema:'musitu.axiom.fa13.enterprise-qualification.v1',source_commit:process.env.GITHUB_SHA,provider_evidence_sha256:evidence.evidence_sha256,external_qualification:qualification,row,production_authority:false},null,2)+'\n');
+          console.log('fa13_enterprise_row_qualified=true');
+          JS
+          node fa13-bind-enterprise.mjs
+          sha256sum fa13-enterprise-qualification.json > fa13-enterprise-qualification.sha256
+
+      - name: Upload independent Enterprise qualification
+        uses: actions/upload-artifact@v4
+        with:
+          name: musitu-axiom-fa13-independent-enterprise-qualification
+          path: |
+            fa13-enterprise-qualification.json
+            fa13-enterprise-qualification.sha256
+          retention-days: 14
+          if-no-files-found: error
