@@ -1,0 +1,146 @@
+name: MUSITU Axiom FA20 Release Control
+
+on:
+  push:
+    branches:
+      - frontier/axiom-final-product-fa20-20260916
+    paths:
+      - 'docs/axiom_final_product/FA20_*'
+      - 'axiom_interface/vnext/fa20_*'
+      - 'axiom_interface/vnext/tests/fa20_*'
+      - '.github/scripts/axiom_fa20_*'
+      - '.github/workflows/axiom-fa20-*'
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  release-control-test-and-attack:
+    runs-on: ubuntu-24.04
+    outputs:
+      release_evidence_sha256: ${{ steps.release-evidence.outputs.release_evidence_sha256 }}
+      release_evidence_b64: ${{ steps.release-evidence.outputs.release_evidence_b64 }}
+    steps:
+      - name: Checkout exact candidate without persisted credentials
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Freeze source scope rollback origin and authority boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          SOURCE=9de2da15d9e532eff9f992354d25995ff9a76c7a
+          test "$GITHUB_REF_NAME" = 'frontier/axiom-final-product-fa20-20260916'
+          test "$(git merge-base "$SOURCE" HEAD)" = "$SOURCE"
+          grep -q 'Status: AUTHORITY_FROZEN_FOR_RELEASE_CONTROL_QUALIFICATION' docs/axiom_final_product/FA20_PREWRITE_INTENT.md
+          test ! -e docs/axiom_final_product/FA20_STAGE_AUTHORITY.json
+          python - <<'PY'
+          import json,subprocess
+          source='9de2da15d9e532eff9f992354d25995ff9a76c7a'
+          changed=set(subprocess.check_output(['git','diff','--name-only',f'{source}..HEAD'],text=True).splitlines())
+          allowed=lambda p:(p.startswith('docs/axiom_final_product/FA20_') or p.startswith('axiom_interface/vnext/fa20_') or p.startswith('axiom_interface/vnext/tests/fa20_') or p.startswith('.github/scripts/axiom_fa20_') or p.startswith('.github/workflows/axiom-fa20-'))
+          bad=sorted(path for path in changed if not allowed(path))
+          if bad: raise SystemExit('FA20 change escaped frozen scope: '+repr(bad))
+          matrix=json.load(open('docs/axiom_final_product/FA20_RELEASE_MATRIX.json'))
+          expected={
+            'source_commit':source,
+            'release_policy_sha256':'d606db7b63576a275619ece77ad26f087919bede32f0025934ed6c2dc7598cff',
+            'candidate_state':'RELEASE_CONTROL_PENDING_INDEPENDENT_QUALIFICATION',
+            'current_production_source_candidate':'4c99c4ccbc4a9e34f4e446f30c31f4d428359818',
+            'current_production_evidence_sha256':'d82dae88d967a5c466c03dd5698ec575f05c5434230494d2fa39fb7bfba4afa8',
+            'old_app_retained':True,'release_control_qualification_earned':False,
+            'staging_authority_present':False,'staging_executed':False,'canary_executed':False,
+            'production_executed':False,'phase_exit_earned':False,
+            'fa16_tablet_evidence':'DEFERRED_PENDING_FUTURE_CUSTOMER',
+            'fa19_external_comparison':'DEFERRED_NO_PAID_PROVIDER_ACCESS',
+            'world_best_authorized':False,'general_superiority_authorized':False,
+            'repository_write_authority_present':False,'production_credentials_present':False,
+            'production_authority':False,'wolfram_parity':'NOT_CERTIFIED','superiority':'NOT_CERTIFIED',
+          }
+          drift={key:(matrix.get(key),value) for key,value in expected.items() if matrix.get(key)!=value}
+          if drift: raise SystemExit('FA20 truth boundary drift: '+repr(drift))
+          PY
+      - name: Full final-app regression and FA20 adversarial tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check axiom_interface/vnext/fa20_release_orchestrator.mjs
+          node --check .github/scripts/axiom_fa20_release_evaluate.mjs
+          node --test axiom_interface/vnext/tests/*.test.mjs
+          git diff --check
+      - name: Prove fail-closed release-control boundary
+        id: release-evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p fa20-release-control-evidence
+          node .github/scripts/axiom_fa20_release_evaluate.mjs \
+            --role builder \
+            --candidate-commit "$GITHUB_SHA" \
+            --output fa20-release-control-evidence/fa20-release-control.json
+          (cd fa20-release-control-evidence && sha256sum fa20-release-control.json > fa20-release-control.sha256)
+          test "$(jq -r .status fa20-release-control-evidence/fa20-release-control.json)" = FA20_RELEASE_CONTROL_VERIFIED_STAGING_AUTHORITY_PENDING
+          test "$(jq -r .release_control_qualification_earned fa20-release-control-evidence/fa20-release-control.json)" = true
+          test "$(jq -r .staging_authority_present fa20-release-control-evidence/fa20-release-control.json)" = false
+          test "$(jq -r .staging_executed fa20-release-control-evidence/fa20-release-control.json)" = false
+          test "$(jq -r .canary_executed fa20-release-control-evidence/fa20-release-control.json)" = false
+          test "$(jq -r .production_executed fa20-release-control-evidence/fa20-release-control.json)" = false
+          test "$(jq -r .old_app_retained fa20-release-control-evidence/fa20-release-control.json)" = true
+          test "$(jq -r .phase_exit_earned fa20-release-control-evidence/fa20-release-control.json)" = false
+          test "$(jq -r .production_authority fa20-release-control-evidence/fa20-release-control.json)" = false
+          echo "release_evidence_sha256=$(sha256sum fa20-release-control-evidence/fa20-release-control.json | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
+          echo "release_evidence_b64=$(base64 -w0 fa20-release-control-evidence/fa20-release-control.json)" >> "$GITHUB_OUTPUT"
+      - name: Credential-free security review
+        shell: bash
+        run: |
+          set -euo pipefail
+          python .github/scripts/axiom_fa17_security_scan.py --output /tmp/fa20-security-scan.json
+          test "$(jq -r .status /tmp/fa20-security-scan.json)" = PASS_NO_OPEN_HIGH_SEVERITY
+          test "$(jq -r .high_or_critical_open /tmp/fa20-security-scan.json)" = 0
+          python .github/scripts/axiom_fa17_isolated_dast.py --self-test
+          python - <<'PY'
+          import pathlib,re
+          files=['.github/workflows/axiom-fa20-release-control.yml','.github/workflows/axiom-fa20-independent-verifier.yml']
+          text='\n'.join(pathlib.Path(path).read_text() for path in files)
+          if re.search(r'(?m)^\s*(?:contents|actions|deployments|packages|id-token):\s*write\s*$',text): raise SystemExit('FA20 qualification workflow has write authority')
+          if re.search(r'uses:\s*[^\s#]+@(?![0-9a-f]{40}(?:\s|$))',text): raise SystemExit('FA20 qualification action is not immutable')
+          for token in ['wrangler '+'deploy','kubectl '+'apply','terraform '+'apply','git '+'push','gh pr '+'merge']:
+              if token in text: raise SystemExit('FA20 qualification workflow contains deploy/write command')
+          PY
+      - name: Upload release-control evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: musitu-axiom-fa20-release-control-evidence
+          path: fa20-release-control-evidence/
+          retention-days: 90
+
+  separate-security-review:
+    runs-on: ubuntu-24.04
+    needs: release-control-test-and-attack
+    steps:
+      - name: Checkout exact candidate without persisted credentials
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Release-specific adversarial review
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --test axiom_interface/vnext/tests/fa20_*.test.mjs
+          python .github/scripts/axiom_fa17_security_scan.py --output /tmp/fa20-security-review.json
+          test "$(jq -r .high_or_critical_open /tmp/fa20-security-review.json)" = 0
+
+  independent-verifier:
+    needs: [release-control-test-and-attack, separate-security-review]
+    uses: ./.github/workflows/axiom-fa20-independent-verifier.yml
+    with:
+      candidate_sha: ${{ github.sha }}
+      builder_run_id: ${{ github.run_id }}
+      release_evidence_sha256: ${{ needs.release-control-test-and-attack.outputs.release_evidence_sha256 }}
+      release_evidence_b64: ${{ needs.release-control-test-and-attack.outputs.release_evidence_b64 }}
+    permissions:
+      contents: read
+      actions: read
