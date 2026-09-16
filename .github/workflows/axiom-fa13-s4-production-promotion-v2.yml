@@ -176,7 +176,7 @@ jobs:
           import json,os,urllib.error,urllib.request
           base='https://'+os.environ['PROD_HOST']
           def q(path,method='GET',body=None):
-            data=None if body is None else json.dumps(body,separators=(',',':')).encode(); h={'Accept':'application/json','User-Agent':'MUSITU-Axiom-S4-v2-preflight'}
+            data=None if body is None else json.dumps(body,separators=(',',':')).encode(); h={'Accept':'application/json','Accept-Encoding':'identity','User-Agent':'MUSITU-Axiom-S4-v2-preflight'}
             if data is not None:h['Content-Type']='application/json'
             req=urllib.request.Request(base+path,headers=h,data=data,method=method)
             try:
@@ -200,12 +200,24 @@ jobs:
           mkdir -p /tmp/fa13prod/public
           cp -a axiom_interface/. /tmp/fa13prod/public/
           python - <<'PY'
-          import json,os,pathlib
+          import hashlib,json,os,pathlib
           pathlib.Path('/tmp/fa13prod/public/vnext/fa13-build.json').write_text(json.dumps({
             'schema':'musitu.axiom.fa13.static-build.v1','source_commit':os.environ['FA13_COMMIT'],
             'kind':'FA13_S4_PRODUCTION_UI_CANDIDATE','production':True,'release_authorized':True,
             'production_authority':False,'runtime_delegation':'CLOUDFLARE_SERVICE_BINDING_TO_PROTECTED_AXIOM_RUNTIME',
             'wolfram_parity':'NOT_CERTIFIED','superiority':'NOT_CERTIFIED'},sort_keys=True)+'\n')
+          checks={
+            'vnext/index.html':[b'MUSITU AXIOM'],
+            'vnext/app.js':[b'What do you want accomplished?',b'AXIOM builds AXIOM'],
+            'vnext/engineering_command_center_ui.js':[b'Engineering Mission Control'],
+          }
+          manifest={}
+          for rel,needles in checks.items():
+            p=pathlib.Path('/tmp/fa13prod/public')/rel; b=p.read_bytes()
+            missing=[n.decode() for n in needles if n not in b]
+            if missing: raise SystemExit('immutable UI source marker missing '+rel+': '+repr(missing))
+            manifest['/'+rel]={'sha256':hashlib.sha256(b).hexdigest(),'bytes':len(b)}
+          pathlib.Path('release-evidence/ui-asset-manifest.json').write_text(json.dumps(manifest,indent=2,sort_keys=True)+'\n')
           PY
           cat >/tmp/fa13prod/worker.js <<'JS'
           async function fwd(request,binding,path){
@@ -240,7 +252,7 @@ jobs:
           test "$($WRANGLER --version | tail -1)" = '4.129.0'
           (cd /tmp/fa13prod && "$WRANGLER" deploy --config wrangler.json > "$GITHUB_WORKSPACE/release-evidence/wrapper-deploy.log" 2>&1) || { tail -200 release-evidence/wrapper-deploy.log; exit 1; }
           python - <<'PY'
-          import json,os,time,urllib.error,urllib.parse,urllib.request
+          import hashlib,json,os,pathlib,time,urllib.error,urllib.parse,urllib.request
           api=os.environ['CF_API']; aid=os.environ['ACCOUNT_ID']; hdr={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_API_KEY'],'Accept':'application/json'}
           def cf(p):
             req=urllib.request.Request(api+p,headers=hdr)
@@ -254,7 +266,7 @@ jobs:
           if any(str(b.get('type','')).lower() in {'secret','secret_text','secret_key'} for b in bindings):raise SystemExit('wrapper contains copied secrets')
           base=f"https://{os.environ['WRAPPER_SERVICE']}.{sub}.workers.dev"
           def q(path,method='GET',body=None):
-            data=None if body is None else json.dumps(body,separators=(',',':')).encode(); h={'Accept':'application/json','User-Agent':'MUSITU-Axiom-S4-v2-wrapper'}
+            data=None if body is None else json.dumps(body,separators=(',',':')).encode(); h={'Accept':'*/*','Accept-Encoding':'identity','User-Agent':'MUSITU-Axiom-S4-v2-wrapper'}
             if data is not None:h['Content-Type']='application/json'
             req=urllib.request.Request(base+path,headers=h,data=data,method=method)
             try:
@@ -269,16 +281,20 @@ jobs:
             except Exception as e:last=repr(e)
             time.sleep(2)
           else:raise SystemExit('exact wrapper marker unavailable '+repr(last))
-          for path,needles in [('/vnext/index.html',[b'MUSITU AXIOM']),('/vnext/app.js',[b'What do you want accomplished?',b'AXIOM builds AXIOM']),('/vnext/engineering_command_center_ui.js',[b'Engineering Mission Control'])]:
-            s,b=q(path+'?candidate='+os.environ['FA13_COMMIT']);
-            if s!=200 or any(n not in b for n in needles):raise SystemExit('wrapper UI asset failed '+path)
+          expected=json.load(open('release-evidence/ui-asset-manifest.json'))
+          live={}
+          for path,meta in expected.items():
+            s,b=q(path+'?candidate='+os.environ['FA13_COMMIT']); actual=hashlib.sha256(b).hexdigest(); live[path]={'status':s,'sha256':actual,'bytes':len(b)}
+            if s!=200 or actual!=meta['sha256'] or len(b)!=meta['bytes']:
+              raise SystemExit('wrapper UI exact-byte mismatch '+path+' expected='+repr(meta)+' actual='+repr(live[path]))
+          pathlib.Path('release-evidence/ui-live-prequalification.json').write_text(json.dumps(live,indent=2,sort_keys=True)+'\n')
           s,b=q('/health'); h=json.loads(b or b'{}')
           if s!=200 or h.get('ok') is not True or h.get('build_id')!=os.environ['EXPECTED_RUNTIME_BUILD'] or int(h.get('operation_count') or -1)!=74:raise SystemExit('wrapper health delegation failed status='+str(s)+' body='+repr(h))
           s,b=q('/v1/tools'); t=json.loads(b or b'{}')
           if s!=200 or int(t.get('operation_count') or -1)!=74 or len(t.get('tools') or [])!=74:raise SystemExit('wrapper tools delegation failed status='+str(s)+' body='+repr(t))
           s,_=q('/v1/compute','POST',{'operation':'arithmetic.evaluate','args':{'expression':'40+2'}})
           if s!=401:raise SystemExit('wrapper unauth compute gate failed status='+str(s))
-          json.dump({'schema':'musitu.axiom.fa13.wrapper-prequalification.v2','source_commit':os.environ['FA13_COMMIT'],'status':'PASS','operation_count':74,'runtime_binding_service':os.environ['ORIGINAL_LEGACY_BACKEND'],'production_mutated':False,'secret_copy_performed':False},open('release-evidence/wrapper-prequalification.json','w'),indent=2,sort_keys=True)
+          json.dump({'schema':'musitu.axiom.fa13.wrapper-prequalification.v2','source_commit':os.environ['FA13_COMMIT'],'status':'PASS','operation_count':74,'runtime_binding_service':os.environ['ORIGINAL_LEGACY_BACKEND'],'ui_exact_byte_match':True,'production_mutated':False,'secret_copy_performed':False},open('release-evidence/wrapper-prequalification.json','w'),indent=2,sort_keys=True)
           PY
 
       - name: Disable workers.dev exposure before cutover
@@ -303,6 +319,7 @@ jobs:
           import hashlib,json,os,pathlib,time,urllib.error,urllib.request
           api=os.environ['CF_API']; aid=os.environ['ACCOUNT_ID']; host=os.environ['PROD_HOST']; old=os.environ['ORIGINAL_SERVICE']; new=os.environ['WRAPPER_SERVICE']
           hdr={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_API_KEY'],'Accept':'application/json','Content-Type':'application/json'}
+          ui_expected=json.load(open('release-evidence/ui-asset-manifest.json'))
           def cf(path,method='GET',body=None):
             data=None if body is None else json.dumps(body,separators=(',',':')).encode(); req=urllib.request.Request(api+path,headers=hdr,data=data,method=method)
             try:
@@ -320,7 +337,7 @@ jobs:
             cf(f'/accounts/{aid}/workers/domains','PUT',{'hostname':host,'service':service,'zone_id':os.environ['ZONE_ID'],'zone_name':os.environ['ZONE_NAME'],'override_existing_origin':True})
             if row().get('service')!=service:raise RuntimeError('domain attach readback failed')
           def q(path,method='GET',body=None):
-            data=None if body is None else json.dumps(body,separators=(',',':')).encode(); h={'Accept':'application/json','User-Agent':'MUSITU-Axiom-S4-v2-prod'}
+            data=None if body is None else json.dumps(body,separators=(',',':')).encode(); h={'Accept':'*/*','Accept-Encoding':'identity','User-Agent':'MUSITU-Axiom-S4-v2-prod'}
             if data is not None:h['Content-Type']='application/json'
             req=urllib.request.Request('https://'+host+path,headers=h,data=data,method=method)
             try:
@@ -335,13 +352,14 @@ jobs:
             if s!=200 or int(t.get('operation_count') or -1)!=74 or len(t.get('tools') or [])!=74:raise RuntimeError('tool registry failed')
             s,_=q('/v1/compute','POST',{'operation':'arithmetic.evaluate','args':{'expression':'40+2'}})
             if s!=401:raise RuntimeError('unauth compute gate failed')
+            ui_hashes={}
             if ui:
               s,b=q('/vnext/fa13-build.json?prod='+str(time.time_ns())); m=json.loads(b or b'{}')
               if s!=200 or m.get('source_commit')!=os.environ['FA13_COMMIT'] or m.get('production') is not True:raise RuntimeError('FA13 marker failed')
-              for p,need in [('/vnext/index.html',b'MUSITU AXIOM'),('/vnext/app.js',b'What do you want accomplished?'),('/vnext/engineering_command_center_ui.js',b'Engineering Mission Control')]:
-                ss,bb=q(p+'?prod='+str(time.time_ns()));
-                if ss!=200 or need not in bb:raise RuntimeError('FA13 UI failed '+p)
-            return {'service':service,'health_http':200,'operation_count':74,'unauthenticated_compute_http':401,'fa13_ui':ui}
+              for p,meta in ui_expected.items():
+                ss,bb=q(p+'?prod='+str(time.time_ns())); actual=hashlib.sha256(bb).hexdigest(); ui_hashes[p]=actual
+                if ss!=200 or actual!=meta['sha256'] or len(bb)!=meta['bytes']:raise RuntimeError('FA13 UI exact-byte mismatch '+p)
+            return {'service':service,'health_http':200,'operation_count':74,'unauthenticated_compute_http':401,'fa13_ui':ui,'ui_sha256':ui_hashes}
           if row().get('service')!=old:raise RuntimeError('origin moved after preflight')
           promoted=False
           try:
@@ -352,10 +370,10 @@ jobs:
             for i in range(5):
               samples.append(verify(new,True))
               if i<4:time.sleep(12)
-            req=urllib.request.Request('https://'+os.environ['BILLING_HOST']+'/billing/healthz',headers={'Accept':'application/json','User-Agent':'MUSITU-Axiom-S4-v2-monitor'})
+            req=urllib.request.Request('https://'+os.environ['BILLING_HOST']+'/billing/healthz',headers={'Accept':'application/json','Accept-Encoding':'identity','User-Agent':'MUSITU-Axiom-S4-v2-monitor'})
             with urllib.request.urlopen(req,timeout=30) as r:billing=json.load(r); bs=r.status
             if bs!=200 or billing.get('ok') is not True:raise RuntimeError('billing health failed')
-            out={'schema':'musitu.axiom.fa13.s4-production-promotion.v2','status':'PASS_PRODUCTION_PROMOTED_AND_MONITORED','source_candidate':os.environ['FA13_COMMIT'],'release_branch_head':os.environ['GITHUB_SHA'],'human_release_approval':True,'independent_verifier_run_id':int(os.environ['VERIFIER_RUN_ID']),'independent_verifier_artifact_id':int(os.environ['VERIFIER_ARTIFACT_ID']),'independent_verifier_attestation_sha256':os.environ['VERIFIER_ATTESTATION_SHA256'],'production_hostname':host,'original_service':old,'production_service':new,'runtime_delegation_preserved':True,'runtime_binding_service':os.environ['ORIGINAL_LEGACY_BACKEND'],'production_runtime_build':os.environ['EXPECTED_RUNTIME_BUILD'],'operation_count':74,'initial_smoke':initial,'rollback_proof':rollback,'candidate_restored_after_rollback':restored,'monitor_samples':samples,'monitor_sample_count':len(samples),'billing_health':'PASS','workers_dev_exposure_after_cutover':False,'production_secret_copy_performed':False,'main_modified':False,'pr1_modified':False,'rollback_origin_commit':os.environ['ROLLBACK_ORIGIN'],'wolfram_parity':'NOT_CERTIFIED','superiority':'NOT_CERTIFIED'}
+            out={'schema':'musitu.axiom.fa13.s4-production-promotion.v2','status':'PASS_PRODUCTION_PROMOTED_AND_MONITORED','source_candidate':os.environ['FA13_COMMIT'],'release_branch_head':os.environ['GITHUB_SHA'],'human_release_approval':True,'independent_verifier_run_id':int(os.environ['VERIFIER_RUN_ID']),'independent_verifier_artifact_id':int(os.environ['VERIFIER_ARTIFACT_ID']),'independent_verifier_attestation_sha256':os.environ['VERIFIER_ATTESTATION_SHA256'],'production_hostname':host,'original_service':old,'production_service':new,'runtime_delegation_preserved':True,'runtime_binding_service':os.environ['ORIGINAL_LEGACY_BACKEND'],'production_runtime_build':os.environ['EXPECTED_RUNTIME_BUILD'],'operation_count':74,'ui_exact_byte_match':True,'ui_asset_manifest':ui_expected,'initial_smoke':initial,'rollback_proof':rollback,'candidate_restored_after_rollback':restored,'monitor_samples':samples,'monitor_sample_count':len(samples),'billing_health':'PASS','workers_dev_exposure_after_cutover':False,'production_secret_copy_performed':False,'main_modified':False,'pr1_modified':False,'rollback_origin_commit':os.environ['ROLLBACK_ORIGIN'],'wolfram_parity':'NOT_CERTIFIED','superiority':'NOT_CERTIFIED'}
             p=pathlib.Path('release-evidence/fa13-production-promotion.json');p.write_text(json.dumps(out,indent=2,sort_keys=True)+'\n');d=hashlib.sha256(p.read_bytes()).hexdigest();pathlib.Path('release-evidence/fa13-production-promotion.sha256').write_text(d+'  '+p.name+'\n');pathlib.Path('release-evidence/production-promotion-complete').write_text('PASS\n')
             print(json.dumps({'status':out['status'],'hostname':host,'service':new,'operation_count':74,'evidence_sha256':d},sort_keys=True))
           except Exception:
@@ -391,7 +409,7 @@ jobs:
             with urllib.request.urlopen(req,timeout=35) as r:rows=json.load(r).get('result') or []
             m=[x for x in rows if x.get('hostname')==host]
             if len(m)!=1 or m[0].get('service')!=old:raise SystemExit('emergency rollback readback failed')
-            req=urllib.request.Request('https://'+host+'/health',headers={'Accept':'application/json','User-Agent':'MUSITU-Axiom-S4-v2-rollback'})
+            req=urllib.request.Request('https://'+host+'/health',headers={'Accept':'application/json','Accept-Encoding':'identity','User-Agent':'MUSITU-Axiom-S4-v2-rollback'})
             with urllib.request.urlopen(req,timeout=30) as r:h=json.load(r);code=r.status
             if code!=200 or h.get('ok') is not True or h.get('build_id')!=os.environ['EXPECTED_RUNTIME_BUILD'] or int(h.get('operation_count') or -1)!=74:raise SystemExit('emergency rollback health failed')
             rolled=True
