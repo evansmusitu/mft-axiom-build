@@ -36,9 +36,10 @@ jobs:
         run: |
           set -euo pipefail
           test "$GITHUB_REF_NAME" = 'governance/axiom-fa20-s4-release-verifier-20260916'
-          test "$(git rev-parse HEAD^)" = "$AUTHORITY_COMMIT"
+          test "$(git merge-base "$AUTHORITY_COMMIT" HEAD)" = "$AUTHORITY_COMMIT"
+          test "$(git rev-list --count "$AUTHORITY_COMMIT"..HEAD)" = 2
           test "$(git merge-base "$CANDIDATE_COMMIT" HEAD)" = "$CANDIDATE_COMMIT"
-          mapfile -t changed < <(git diff --name-only HEAD^..HEAD)
+          mapfile -t changed < <(git diff --name-only "$AUTHORITY_COMMIT"..HEAD)
           test "${#changed[@]}" = 3
           printf '%s\n' "${changed[@]}" | sort -u > /tmp/fa20-verifier-changed.txt
           diff -u <(printf '%s\n' \
