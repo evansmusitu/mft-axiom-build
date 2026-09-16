@@ -1,0 +1,143 @@
+name: MUSITU Axiom FA20 Independent S4 Release Verifier
+
+on:
+  push:
+    branches:
+      - governance/axiom-fa20-s4-release-verifier-20260916
+    paths:
+      - '.github/scripts/axiom_fa20_s4_verify.mjs'
+      - '.github/scripts/axiom_fa20_s4_verify.test.mjs'
+      - '.github/workflows/axiom-stage-fa20-independent-release-verifier.yml'
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  independent-s4-release-verifier:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      AUTHORITY_COMMIT: 21d087f0fdebffd4cfb4065286aa16696fcec9c0
+      CANDIDATE_COMMIT: 3de5cfd39e66577f70ccf0bc47af157525d44537
+      PREPRODUCTION_RUN_ID: '35083289098'
+      PREPRODUCTION_ARTIFACT_ID: '10441201458'
+      PREPRODUCTION_ARTIFACT_NAME: musitu-axiom-fa20-preproduction-evidence-v3
+      PREPRODUCTION_ARTIFACT_ZIP_SHA256: 637485c03b50a3b8eea54adaa3e3eaa62814b629d0dd8220a95ffefbf3d810e6
+      PREPRODUCTION_EVALUATOR_COMMIT: e5940a2ca92b3669f912f402c20a83af113fd026
+    steps:
+      - name: Checkout credential-free verifier branch
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Prove isolated verifier ancestry and bounded change
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF_NAME" = 'governance/axiom-fa20-s4-release-verifier-20260916'
+          test "$(git rev-parse HEAD^)" = "$AUTHORITY_COMMIT"
+          test "$(git merge-base "$CANDIDATE_COMMIT" HEAD)" = "$CANDIDATE_COMMIT"
+          mapfile -t changed < <(git diff --name-only HEAD^..HEAD)
+          test "${#changed[@]}" = 3
+          printf '%s\n' "${changed[@]}" | sort -u > /tmp/fa20-verifier-changed.txt
+          diff -u <(printf '%s\n' \
+            .github/scripts/axiom_fa20_s4_verify.mjs \
+            .github/scripts/axiom_fa20_s4_verify.test.mjs \
+            .github/workflows/axiom-stage-fa20-independent-release-verifier.yml | sort -u) /tmp/fa20-verifier-changed.txt
+          test -z "$(git diff --name-only "$CANDIDATE_COMMIT".."$AUTHORITY_COMMIT" -- axiom_interface)"
+      - name: Download exact immutable FA20 preproduction artifact
+        shell: bash
+        env:
+          GH_READ_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json,os,urllib.request
+          headers={'Authorization':'Bearer '+os.environ['GH_READ_TOKEN'],'Accept':'application/vnd.github+json','X-GitHub-Api-Version':'2022-11-28'}
+          def get(url):
+              request=urllib.request.Request(url,headers=headers)
+              with urllib.request.urlopen(request,timeout=30) as response: return json.load(response)
+          base=f"https://api.github.com/repos/{os.environ['GITHUB_REPOSITORY']}"
+          run=get(base+'/actions/runs/'+os.environ['PREPRODUCTION_RUN_ID'])
+          expected_run={'id':int(os.environ['PREPRODUCTION_RUN_ID']),'head_sha':os.environ['PREPRODUCTION_EVALUATOR_COMMIT'],'head_branch':'release/axiom-fa20-staging-v3-20260916','name':'MUSITU Axiom FA20 Isolated Staging Canary V3','status':'completed','conclusion':'success'}
+          drift={key:(run.get(key),value) for key,value in expected_run.items() if run.get(key)!=value}
+          if drift: raise SystemExit('preproduction run drift: '+repr(drift))
+          artifact=get(base+'/actions/artifacts/'+os.environ['PREPRODUCTION_ARTIFACT_ID'])
+          expected_artifact={'id':int(os.environ['PREPRODUCTION_ARTIFACT_ID']),'name':os.environ['PREPRODUCTION_ARTIFACT_NAME'],'expired':False,'digest':'sha256:'+os.environ['PREPRODUCTION_ARTIFACT_ZIP_SHA256']}
+          drift={key:(artifact.get(key),value) for key,value in expected_artifact.items() if artifact.get(key)!=value}
+          if drift: raise SystemExit('preproduction artifact drift: '+repr(drift))
+          workflow=artifact.get('workflow_run') or {}
+          if workflow.get('id')!=int(os.environ['PREPRODUCTION_RUN_ID']) or workflow.get('head_sha')!=os.environ['PREPRODUCTION_EVALUATOR_COMMIT']:
+              raise SystemExit('artifact workflow binding drift')
+          request=urllib.request.Request(artifact['archive_download_url'],headers=headers)
+          with urllib.request.urlopen(request,timeout=60) as response,open('/tmp/fa20-preproduction.zip','wb') as output: output.write(response.read())
+          PY
+          test "$(sha256sum /tmp/fa20-preproduction.zip | cut -d' ' -f1)" = "$PREPRODUCTION_ARTIFACT_ZIP_SHA256"
+          mkdir -p /tmp/fa20-preproduction-v3
+          unzip -q /tmp/fa20-preproduction.zip -d /tmp/fa20-preproduction-v3
+          (cd /tmp/fa20-preproduction-v3 && sha256sum -c fa20-preproduction.sha256)
+      - name: Requalify exact candidate and attack verifier boundaries
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --test axiom_interface/vnext/tests/*.test.mjs
+          FA20_PREPRODUCTION_DIR=/tmp/fa20-preproduction-v3 node --test .github/scripts/axiom_fa20_s4_verify.test.mjs
+          python .github/scripts/axiom_fa17_security_scan.py --output /tmp/fa20-s4-verifier-security.json
+          test "$(jq -r .high_or_critical_open /tmp/fa20-s4-verifier-security.json)" = 0
+          python - <<'PY'
+          import pathlib
+          paths=[
+              '.github/scripts/axiom_fa20_s4_verify.mjs',
+              '.github/scripts/axiom_fa20_s4_verify.test.mjs',
+              '.github/workflows/axiom-stage-fa20-independent-release-verifier.yml',
+          ]
+          forbidden=[
+              'wrangler'+' deploy',
+              'publish'+'.deploy',
+              'CLOUDFLARE_'+'API',
+              'CLOUDFLARE_'+'EMAIL',
+              'secrets'+'.',
+          ]
+          for path in paths:
+              value=pathlib.Path(path).read_text()
+              hits=[token for token in forbidden if token in value]
+              if hits: raise SystemExit(path+' contains deployment or credential token: '+repr(hits))
+          PY
+      - name: Issue exact-scope independent verifier attestation
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir fa20-s4-verifier-evidence
+          node .github/scripts/axiom_fa20_s4_verify.mjs \
+            --evidence /tmp/fa20-preproduction-v3/fa20-preproduction-evidence.json \
+            --request /tmp/fa20-preproduction-v3/fa20-s4-approval-request.json \
+            --artifact /tmp/fa20-preproduction-v3/fa20-static-candidate.tgz \
+            --verifier-commit "$GITHUB_SHA" \
+            --verifier-identity github-actions-independent-fa20-s4-verifier \
+            --preproduction-run-id "$PREPRODUCTION_RUN_ID" \
+            --preproduction-artifact-id "$PREPRODUCTION_ARTIFACT_ID" \
+            --artifact-zip-sha256 "$PREPRODUCTION_ARTIFACT_ZIP_SHA256" \
+            --output fa20-s4-verifier-evidence/fa20-independent-s4-verifier.json
+          jq -e '
+            .status == "INDEPENDENT_VERIFIER_APPROVED_FOR_FA20_S4_HUMAN_GATE" and
+            .release_role == "INDEPENDENT_VERIFIER" and
+            .release_role_approval == true and
+            .builder_and_verifier_distinct == true and
+            .exact_artifact_replay_verified == true and
+            .human_release_approval_present == false and
+            .production_execution_authorized == false and
+            .repository_write_authority_present == false and
+            .production_credentials_present == false and
+            .production_authority == false and
+            .tablet_evidence == "DEFERRED_PENDING_FUTURE_CUSTOMER" and
+            .external_comparison == "DEFERRED_NO_PAID_PROVIDER_ACCESS" and
+            .superiority == "NOT_CERTIFIED"
+          ' fa20-s4-verifier-evidence/fa20-independent-s4-verifier.json
+          (cd fa20-s4-verifier-evidence && sha256sum fa20-independent-s4-verifier.json > fa20-independent-s4-verifier.sha256)
+      - name: Upload immutable independent S4 verifier attestation
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: musitu-axiom-fa20-independent-s4-release-verifier-attestation
+          path: fa20-s4-verifier-evidence/
+          retention-days: 90
