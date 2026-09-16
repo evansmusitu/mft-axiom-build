@@ -7,9 +7,10 @@ import {fileURLToPath} from 'node:url';
 const here=path.dirname(fileURLToPath(import.meta.url));const vnext=path.resolve(here,'..');const root=path.resolve(vnext,'../..');
 const read=relative=>fs.readFileSync(path.join(root,relative),'utf8');
 
-test('repository truth preserves the physical-device blocker',()=>{
+test('repository truth preserves phone evidence and the tablet-only blocker',()=>{
   const matrix=JSON.parse(read('docs/axiom_final_product/FA16_ACCEPTANCE_MATRIX.json'));
-  assert.equal(matrix.real_device,'NOT_PROVEN');assert.equal(matrix.phase_exit_earned,false);assert.equal(matrix.software_implementation_verified,false);assert.equal(matrix.production_authority,false);assert.equal(matrix.external_offline_execution,false);assert.equal(matrix.legacy_phase_14_unchanged,true);
+  assert.equal(matrix.real_device,'REAL_PHONE_EVIDENCED_TABLET_PENDING_CUSTOMER');assert.equal(matrix.real_phone_evidence,'EVIDENCED');assert.equal(matrix.tablet_evidence,'DEFERRED_PENDING_FUTURE_CUSTOMER');assert.equal(matrix.phase_exit_earned,false);assert.equal(matrix.phase_progression_authorized,true);assert.equal(matrix.software_implementation_verified,false);assert.equal(matrix.production_authority,false);assert.equal(matrix.external_offline_execution,false);assert.equal(matrix.legacy_phase_14_unchanged,true);
+  assert.equal(matrix.phone_evidence_sha256,'03478e2f17eb82f68417c826e86c29a1fed716d57d5fbe1e81f4d5f1c49a42f6');
 });
 
 test('service worker keeps sensitive surfaces network-only and requires explicit update activation',()=>{
@@ -29,7 +30,7 @@ test('manifest and application shell expose bounded PWA integration',()=>{
 
 test('offline engine has no external executor or device self-certification path',()=>{
   const engine=read('axiom_interface/vnext/fa16_pwa_engine.js');
-  for(const marker of ["externalOfflineExecution:false","realDeviceStatus:'NOT_PROVEN'","phaseExitEarned:false","emulation_may_substitute:false","typeof verifyAttestation!=='function'"])assert.ok(engine.includes(marker),`truth marker missing ${marker}`);
+  for(const marker of ["externalOfflineExecution:false","realDeviceStatus:'REAL_PHONE_EVIDENCED_TABLET_PENDING_CUSTOMER'","tabletEvidence:'DEFERRED_PENDING_FUTURE_CUSTOMER'","phoneEvidenceSha256:PREEXISTING_PHONE_EVIDENCE.evidence_sha256",'phaseExitEarned:false','emulation_may_substitute:false',"typeof verifyAttestation!=='function'"])assert.ok(engine.includes(marker),`truth marker missing ${marker}`);
   for(const forbidden of ['wrangler deploy','kubectl apply','terraform apply','productionAuthority:true','phaseExitEarned:true'])assert.equal(engine.includes(forbidden),false,`forbidden authority marker ${forbidden}`);
 });
 

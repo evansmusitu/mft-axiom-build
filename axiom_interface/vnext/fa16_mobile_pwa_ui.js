@@ -2,7 +2,7 @@ import {FA16_BOUNDARY,FA16OfflineQueue,FA16ReconnectSupervisor,evaluatePWAInstal
 
 const DB_NAME='musitu-axiom-fa16-local';const DB_VERSION=1;let installPrompt=null;let installConfirmed=false;let rendering=false;
 const queue=new FA16OfflineQueue();
-const state={connection:'UNKNOWN',queued:0,lastMessage:'Initializing mobile supervision.',install:evaluatePWAInstallState(),device:{status:'REAL_DEVICE_NOT_PROVEN',phase_exit_earned:false}};
+const state={connection:'UNKNOWN',queued:0,lastMessage:'Initializing mobile supervision.',install:evaluatePWAInstallState(),device:{status:FA16_BOUNDARY.realDeviceStatus,tablet_evidence:FA16_BOUNDARY.tabletEvidence,phase_exit_earned:false}};
 
 function openDB(){return new Promise((resolve,reject)=>{const request=indexedDB.open(DB_NAME,DB_VERSION);request.onupgradeneeded=()=>{const db=request.result;if(!db.objectStoreNames.contains('queue'))db.createObjectStore('queue',{keyPath:'action_id'});if(!db.objectStoreNames.contains('receipts'))db.createObjectStore('receipts',{keyPath:'receipt_id'});};request.onsuccess=()=>resolve(request.result);request.onerror=()=>reject(request.error);});}
 async function store(mode,name,value){const db=await openDB();return new Promise((resolve,reject)=>{const tx=db.transaction(name,mode);const request=mode==='readonly'?tx.objectStore(name).getAll():tx.objectStore(name).put(value);request.onsuccess=()=>resolve(request.result);request.onerror=()=>reject(request.error);tx.oncomplete=()=>db.close();});}
@@ -20,7 +20,7 @@ function updatePanel(){
   panel.querySelector('[data-fa16-queue]').textContent=String(state.queued);
   panel.querySelector('[data-fa16-status]').textContent=state.lastMessage;
   const install=panel.querySelector('[data-fa16-install]');install.textContent=installLabel();install.disabled=!state.install.prompt_allowed||state.install.installed;
-  panel.querySelector('[data-fa16-device]').textContent=`Physical-device gate: ${state.device.status}. Phase exit: ${state.device.phase_exit_earned?'earned':'blocked'}.`;
+  panel.querySelector('[data-fa16-device]').textContent=`Device evidence: real phone preserved. Tablet: ${state.device.tablet_evidence==='EXTERNALLY_VERIFIED'?'verified':'pending future customer'}. FA-16 exit: ${state.device.phase_exit_earned?'earned':'open'}; later qualification may continue.`;
 }
 
 function renderPanel(){

@@ -1,16 +1,21 @@
 {
-  "schema": "musitu.axiom.fa16.acceptance-matrix.v1",
+  "schema": "musitu.axiom.fa16.acceptance-matrix.v2",
   "phase": "FA-16",
   "title": "Mobile / PWA / Offline / Reconnect",
   "parent_commit": "ab96c4347cd8ffd2a694c791d40932f175eb880d",
-  "candidate_state": "IMPLEMENTED_PENDING_INDEPENDENT_VERIFICATION",
+  "candidate_state": "RECONCILED_PENDING_INDEPENDENT_VERIFICATION",
   "software_implementation_verified": false,
   "phase_exit_earned": false,
   "production_authority": false,
   "external_offline_execution": false,
   "pwa_install": "IMPLEMENTED_PENDING_BROWSER_QUALIFICATION",
   "offline_reconnect": "IMPLEMENTED_PENDING_INDEPENDENT_VERIFICATION",
-  "real_device": "NOT_PROVEN",
+  "real_device": "REAL_PHONE_EVIDENCED_TABLET_PENDING_CUSTOMER",
+  "real_phone_evidence": "EVIDENCED",
+  "phone_evidence_sha256": "03478e2f17eb82f68417c826e86c29a1fed716d57d5fbe1e81f4d5f1c49a42f6",
+  "phone_evidence_source_candidate": "e88a14e12b68fffb95e2dff59493c2ef15e11d11",
+  "tablet_evidence": "DEFERRED_PENDING_FUTURE_CUSTOMER",
+  "phase_progression_authorized": true,
   "legacy_phase_14_unchanged": true,
   "wolfram_parity": "NOT_CERTIFIED",
   "superiority": "NOT_CERTIFIED",
@@ -21,8 +26,7 @@
     {"id":"offline_queue","requirement":"Only allow-listed local S0/S1 drafts may persist offline","gate":"NO_EXTERNAL_PUBLIC_DESTRUCTIVE_SECRET_OR_HIGH_RISK_QUEUE"},
     {"id":"integrity","requirement":"Queue payload, authority and replay receipts are SHA-256 bound","gate":"TAMPER_OR_STALE_PREVIEW_FAILS_CLOSED"},
     {"id":"reconnect","requirement":"Origin reachability and current policy must be revalidated before idempotent local replay","gate":"ONLINE_SIGNAL_IS_NOT_REACHABILITY_OR_AUTHORITY"},
-    {"id":"device_truth","requirement":"Physical phone/tablet/offline/reconnect evidence requires distinct external attestation","gate":"NEVER_FAKE_TABLET"},
-    {"id":"phase_exit","requirement":"Software evidence cannot satisfy missing physical-device evidence","gate":"REAL_DEVICE_NOT_PROVEN_PHASE_EXIT_FALSE"}
+    {"id":"device_truth","requirement":"Preserve the authoritative real-phone/offline/reconnect evidence and require distinct external attestation for the future-customer tablet row","gate":"NEVER_FAKE_TABLET"},
+    {"id":"phase_exit","requirement":"The tablet deferral permits later qualification work but cannot earn the FA-16 phase exit","gate":"TABLET_PENDING_PHASE_EXIT_FALSE"}
   ]
 }
-

@@ -33,6 +33,17 @@ FA-15 verification does not authorize FA-16 production, publication, external ex
 11. Emulation, viewport size, user agent and CI are software evidence only. They cannot satisfy `REAL_DEVICE`.
 12. Physical-device phase exit requires all required scenarios plus a distinct external attestation verifier.
 
+## Evidence reconciliation — 2026-09-16
+
+The verified final-product authority already records the real-phone subset as evidenced and identifies only `tablet_constrained` as missing. Preserve rather than discard that evidence:
+
+- source candidate: `e88a14e12b68fffb95e2dff59493c2ef15e11d11`;
+- phone evidence SHA-256: `03478e2f17eb82f68417c826e86c29a1fed716d57d5fbe1e81f4d5f1c49a42f6`;
+- preserved scenarios: phone portrait, offline reload and reconnect replay;
+- deferred scenario: physical tablet, to be collected from a future customer with distinct external attestation.
+
+The product authority explicitly permits subsequent qualification work to continue with the tablet row deferred. This is not an FA-16 phase-exit waiver and does not authorize production.
+
 ## Security boundary
 
 Offline data is not authority. Stale approvals, retrieved content and queued records cannot widen scope. Service-worker caches may contain only non-sensitive same-origin application-shell resources. Tokens, cookies, secret values, API responses, user sessions, enterprise data and billing data are never deliberate cache inputs.
@@ -43,13 +54,16 @@ The candidate contains no deployment credentials, repository-write token, produc
 
 This implementation may earn:
 
-`SOFTWARE_IMPLEMENTATION_VERIFIED_PHASE_EXIT_BLOCKED_REAL_DEVICE`
+`SOFTWARE_IMPLEMENTATION_VERIFIED_PHONE_EVIDENCE_PRESERVED_TABLET_DEFERRED`
 
 It may not earn the full FA-16 phase exit without genuine physical-device evidence. The repository truth is therefore:
 
 - `PWA_INSTALL=IMPLEMENTED_PENDING_BROWSER_QUALIFICATION`
 - `OFFLINE_RECONNECT=IMPLEMENTED_PENDING_INDEPENDENT_VERIFICATION`
-- `REAL_DEVICE=NOT_PROVEN`
+- `REAL_DEVICE=REAL_PHONE_EVIDENCED_TABLET_PENDING_CUSTOMER`
+- `REAL_PHONE_EVIDENCE=EVIDENCED`
+- `TABLET_EVIDENCE=DEFERRED_PENDING_FUTURE_CUSTOMER`
+- `phase_progression_authorized=true`
 - `phase_exit_earned=false`
 - `production_authority=false`
 
@@ -60,4 +74,3 @@ Historical legacy Phase 14 remains unchanged/incomplete. `WOLFRAM_PARITY=NOT_CER
 `BUILDER → TESTS → SECURITY/ADVERSARIAL REVIEW → INDEPENDENT VERIFIER → POLICY GATE`
 
 The independent verifier must be credential-free and read-only. It may verify the software implementation, but it must preserve the real-device blocker and may not authorize production.
-

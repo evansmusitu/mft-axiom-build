@@ -7,6 +7,14 @@ const OFFLINE_ACTIONS=Object.freeze({
   INTERRUPTION_REQUEST_DRAFT:Object.freeze({scope:'mobile.interruption.draft',fields:Object.freeze(['work_id','reason'])})
 });
 const DEVICE_SCENARIOS=Object.freeze(['PHONE_PORTRAIT','TABLET_PORTRAIT','OFFLINE_RELOAD','RECONNECT_REPLAY']);
+const PREEXISTING_PHONE_SCENARIOS=Object.freeze(['PHONE_PORTRAIT','OFFLINE_RELOAD','RECONNECT_REPLAY']);
+const PREEXISTING_PHONE_EVIDENCE=Object.freeze({
+  status:'EVIDENCED',
+  evidence_sha256:'03478e2f17eb82f68417c826e86c29a1fed716d57d5fbe1e81f4d5f1c49a42f6',
+  source_candidate:'e88a14e12b68fffb95e2dff59493c2ef15e11d11',
+  authority_handoff_sha256:'75a0d2a51ef6351c06809caae509afd681c04b29763fb6e30170234eaf414669',
+  verified_scenarios:PREEXISTING_PHONE_SCENARIOS
+});
 const SECRET_KEY=/(authorization|cookie|credential|password|passwd|secret|token|api[_-]?key|private[_-]?key)/i;
 const SECRET_VALUE=/(?:\bBearer\s+[A-Za-z0-9._~+\/-]+=*|-----BEGIN [A-Z ]*PRIVATE KEY-----|\b(?:sk|pk|rk)[-_][A-Za-z0-9_-]{12,})/i;
 
@@ -33,7 +41,11 @@ export const FA16_BOUNDARY=Object.freeze({
   offlineQueueMaxRisk:'S1',
   externalOfflineExecution:false,
   serviceWorkerSensitiveDataCaching:false,
-  realDeviceStatus:'NOT_PROVEN',
+  realDeviceStatus:'REAL_PHONE_EVIDENCED_TABLET_PENDING_CUSTOMER',
+  realPhoneEvidence:'EVIDENCED',
+  tabletEvidence:'DEFERRED_PENDING_FUTURE_CUSTOMER',
+  phoneEvidenceSha256:PREEXISTING_PHONE_EVIDENCE.evidence_sha256,
+  phaseProgressionAuthorized:true,
   phaseExitEarned:false,
   productionAuthority:false,
   legacyPhase14Unchanged:true,
@@ -221,9 +233,10 @@ export class FA16ReconnectSupervisor{
 
 export async function evaluateRealDeviceEvidence(rows=[],{verifyAttestation}={}){
   const byScenario=new Map((Array.isArray(rows)?rows:[]).map(row=>[clean(row?.scenario,80).toUpperCase(),row]));
-  const missing=DEVICE_SCENARIOS.filter(scenario=>!byScenario.has(scenario));
-  const rejected=[];const verified=[];
-  for(const scenario of DEVICE_SCENARIOS){
+  const outstanding=DEVICE_SCENARIOS.filter(scenario=>!PREEXISTING_PHONE_SCENARIOS.includes(scenario));
+  const missing=outstanding.filter(scenario=>!byScenario.has(scenario));
+  const rejected=[];const verified=[...PREEXISTING_PHONE_SCENARIOS];
+  for(const scenario of outstanding){
     const row=byScenario.get(scenario);if(!row)continue;
     const structural=row.evidence_origin==='PHYSICAL_DEVICE'&&row.capture_mode==='DIRECT_DEVICE_CAPTURE'&&row.emulated===false&&/^[a-f0-9]{64}$/.test(clean(row.artifact_sha256,64))&&Boolean(clean(row.device_pseudonym,180))&&Boolean(clean(row.observed_at,80));
     if(!structural||typeof verifyAttestation!=='function'){rejected.push(scenario);continue;}
@@ -232,9 +245,10 @@ export async function evaluateRealDeviceEvidence(rows=[],{verifyAttestation}={})
   }
   const earned=missing.length===0&&rejected.length===0&&verified.length===DEVICE_SCENARIOS.length;
   return Object.freeze({
-    status:earned?'REAL_DEVICE_MATRIX_EXTERNALLY_VERIFIED':'REAL_DEVICE_NOT_PROVEN',required_scenarios:Object.freeze([...DEVICE_SCENARIOS]),
+    status:earned?'REAL_DEVICE_MATRIX_EXTERNALLY_VERIFIED':'REAL_PHONE_EVIDENCED_TABLET_PENDING_CUSTOMER',required_scenarios:Object.freeze([...DEVICE_SCENARIOS]),
     verified_scenarios:Object.freeze(verified),missing_scenarios:Object.freeze(missing),rejected_scenarios:Object.freeze(rejected),
-    emulation_may_substitute:false,phase_exit_earned:earned,production_authority:false
+    preserved_phone_evidence:PREEXISTING_PHONE_EVIDENCE,tablet_evidence:earned?'EXTERNALLY_VERIFIED':'DEFERRED_PENDING_FUTURE_CUSTOMER',
+    phase_progression_authorized:true,emulation_may_substitute:false,phase_exit_earned:earned,production_authority:false
   });
 }
 
@@ -246,3 +260,4 @@ export function evaluatePWAInstallState({standalone=false,prompt_available=false
 
 export const FA16_OFFLINE_ACTIONS=OFFLINE_ACTIONS;
 export const FA16_DEVICE_SCENARIOS=DEVICE_SCENARIOS;
+export const FA16_PREEXISTING_PHONE_EVIDENCE=PREEXISTING_PHONE_EVIDENCE;

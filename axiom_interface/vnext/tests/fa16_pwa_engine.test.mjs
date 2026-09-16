@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {FA16BoundaryError,FA16OfflineQueue,FA16ReconnectSupervisor,evaluatePWAInstallState,evaluateRealDeviceEvidence,sha256} from '../fa16_pwa_engine.js';
+import {FA16_BOUNDARY,FA16_PREEXISTING_PHONE_EVIDENCE,FA16BoundaryError,FA16OfflineQueue,FA16ReconnectSupervisor,evaluatePWAInstallState,evaluateRealDeviceEvidence,sha256} from '../fa16_pwa_engine.js';
 
 const instant=new Date('2026-09-16T06:00:00.000Z');
 const queue=()=>new FA16OfflineQueue({clock:()=>instant,idFactory:prefix=>`${prefix}:fixed`});
@@ -64,10 +64,19 @@ test('PWA installation is not claimed from service-worker control or prompt avai
   assert.equal(evaluatePWAInstallState({appinstalled_event:true}).installed,true);
 });
 
-test('emulation and self-declared physical-device rows cannot earn the device gate',async()=>{
-  const scenarios=['PHONE_PORTRAIT','TABLET_PORTRAIT','OFFLINE_RELOAD','RECONNECT_REPLAY'];
-  const rows=scenarios.map(scenario=>({scenario,evidence_origin:'PHYSICAL_DEVICE',capture_mode:'DIRECT_DEVICE_CAPTURE',emulated:false,artifact_sha256:'a'.repeat(64),device_pseudonym:'device-1',observed_at:'2026-09-16T06:00:00Z'}));
-  const noVerifier=await evaluateRealDeviceEvidence(rows);assert.equal(noVerifier.status,'REAL_DEVICE_NOT_PROVEN');assert.equal(noVerifier.phase_exit_earned,false);assert.deepEqual(noVerifier.rejected_scenarios,scenarios);
-  const externallyVerified=await evaluateRealDeviceEvidence(rows,{verifyAttestation:async()=>true});assert.equal(externallyVerified.status,'REAL_DEVICE_MATRIX_EXTERNALLY_VERIFIED');assert.equal(externallyVerified.phase_exit_earned,true);
+test('authoritative phone evidence is preserved while tablet remains customer-deferred',async()=>{
+  assert.equal(FA16_BOUNDARY.realDeviceStatus,'REAL_PHONE_EVIDENCED_TABLET_PENDING_CUSTOMER');
+  assert.equal(FA16_BOUNDARY.phoneEvidenceSha256,'03478e2f17eb82f68417c826e86c29a1fed716d57d5fbe1e81f4d5f1c49a42f6');
+  assert.equal(FA16_PREEXISTING_PHONE_EVIDENCE.status,'EVIDENCED');
+  const result=await evaluateRealDeviceEvidence([]);
+  assert.equal(result.status,'REAL_PHONE_EVIDENCED_TABLET_PENDING_CUSTOMER');assert.equal(result.phase_exit_earned,false);assert.equal(result.phase_progression_authorized,true);
+  assert.deepEqual(result.verified_scenarios,['PHONE_PORTRAIT','OFFLINE_RELOAD','RECONNECT_REPLAY']);assert.deepEqual(result.missing_scenarios,['TABLET_PORTRAIT']);
+  assert.equal(result.tablet_evidence,'DEFERRED_PENDING_FUTURE_CUSTOMER');
 });
 
+test('emulated or self-declared tablet evidence cannot close the deferred gate',async()=>{
+  const tablet={scenario:'TABLET_PORTRAIT',evidence_origin:'PHYSICAL_DEVICE',capture_mode:'DIRECT_DEVICE_CAPTURE',emulated:false,artifact_sha256:'a'.repeat(64),device_pseudonym:'customer-tablet-1',observed_at:'2026-09-16T06:00:00Z'};
+  const noVerifier=await evaluateRealDeviceEvidence([tablet]);assert.equal(noVerifier.status,'REAL_PHONE_EVIDENCED_TABLET_PENDING_CUSTOMER');assert.equal(noVerifier.phase_exit_earned,false);assert.deepEqual(noVerifier.rejected_scenarios,['TABLET_PORTRAIT']);
+  const emulated=await evaluateRealDeviceEvidence([{...tablet,emulated:true}],{verifyAttestation:async()=>true});assert.equal(emulated.phase_exit_earned,false);assert.deepEqual(emulated.rejected_scenarios,['TABLET_PORTRAIT']);
+  const externallyVerified=await evaluateRealDeviceEvidence([tablet],{verifyAttestation:async()=>true});assert.equal(externallyVerified.status,'REAL_DEVICE_MATRIX_EXTERNALLY_VERIFIED');assert.equal(externallyVerified.phase_exit_earned,true);assert.equal(externallyVerified.tablet_evidence,'EXTERNALLY_VERIFIED');
+});
