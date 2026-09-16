@@ -37,7 +37,7 @@ jobs:
           set -euo pipefail
           test "$GITHUB_REF_NAME" = 'governance/axiom-fa20-s4-release-verifier-20260916'
           test "$(git merge-base "$AUTHORITY_COMMIT" HEAD)" = "$AUTHORITY_COMMIT"
-          test "$(git rev-list --count "$AUTHORITY_COMMIT"..HEAD)" = 3
+          test "$(git rev-list --count "$AUTHORITY_COMMIT"..HEAD)" = 4
           test "$(git merge-base "$CANDIDATE_COMMIT" HEAD)" = "$CANDIDATE_COMMIT"
           mapfile -t changed < <(git diff --name-only "$AUTHORITY_COMMIT"..HEAD)
           test "${#changed[@]}" = 3
@@ -71,9 +71,12 @@ jobs:
           workflow=artifact.get('workflow_run') or {}
           if workflow.get('id')!=int(os.environ['PREPRODUCTION_RUN_ID']) or workflow.get('head_sha')!=os.environ['PREPRODUCTION_EVALUATOR_COMMIT']:
               raise SystemExit('artifact workflow binding drift')
-          request=urllib.request.Request(artifact['archive_download_url'],headers=headers)
-          with urllib.request.urlopen(request,timeout=60) as response,open('/tmp/fa20-preproduction.zip','wb') as output: output.write(response.read())
           PY
+          curl --fail --silent --show-error --location \
+            --header "Authorization: Bearer $GH_READ_TOKEN" \
+            --header 'Accept: application/vnd.github+json' \
+            "https://api.github.com/repos/$GITHUB_REPOSITORY/actions/artifacts/$PREPRODUCTION_ARTIFACT_ID/zip" \
+            --output /tmp/fa20-preproduction.zip
           test "$(sha256sum /tmp/fa20-preproduction.zip | cut -d' ' -f1)" = "$PREPRODUCTION_ARTIFACT_ZIP_SHA256"
           mkdir -p /tmp/fa20-preproduction-v3
           unzip -q /tmp/fa20-preproduction.zip -d /tmp/fa20-preproduction-v3
