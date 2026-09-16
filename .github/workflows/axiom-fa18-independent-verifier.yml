@@ -66,7 +66,7 @@ jobs:
           test "$(jq -r .repository_write_authority_present fa18-independent-evidence/fa18-independent-verifier.json)" = false
           test "$(jq -r .production_authority fa18-independent-evidence/fa18-independent-verifier.json)" = false
           printf '%s\n' "$BUILDER_RUN_ID" > fa18-independent-evidence/builder-run-id.txt
-          sha256sum fa18-independent-evidence/fa18-independent-verifier.json > fa18-independent-evidence/fa18-independent-verifier.sha256
+          (cd fa18-independent-evidence && sha256sum fa18-independent-verifier.json > fa18-independent-verifier.sha256)
       - name: Upload independent build-challenge evidence
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:

@@ -66,7 +66,7 @@ jobs:
             --role builder \
             --candidate-commit "$GITHUB_SHA" \
             --output fa18-builder-evidence/fa18-builder-evidence.json
-          sha256sum fa18-builder-evidence/fa18-builder-evidence.json > fa18-builder-evidence/fa18-builder-evidence.sha256
+          (cd fa18-builder-evidence && sha256sum fa18-builder-evidence.json > fa18-builder-evidence.sha256)
           test "$(jq -r .status fa18-builder-evidence/fa18-builder-evidence.json)" = AXIOM_BUILDER_CANDIDATE_PASS_PENDING_INDEPENDENT_VERIFICATION
           test "$(jq -r .injected_failure_observed fa18-builder-evidence/fa18-builder-evidence.json)" = true
           test "$(jq -r .baseline_tests fa18-builder-evidence/fa18-builder-evidence.json)" = FAIL

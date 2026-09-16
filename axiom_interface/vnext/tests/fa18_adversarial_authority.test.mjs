@@ -74,3 +74,13 @@ test('FA-18 implementation has no network transport host executor deployment or 
   for(const pattern of [/\bfetch\s*\(/,/WebSocket\s*\(/,/XMLHttpRequest/,/child_process/,/\bspawn\s*\(/,/\bexec\s*\(/,/wrangler\s+deploy/,/kubectl\s+apply/,/terraform\s+apply/])assert.equal(pattern.test(source),false,String(pattern));
   for(const text of ["benchmark_only:true","sole_builder:false","production_authority:false","superiority:'NOT_CERTIFIED'","tablet_evidence:'DEFERRED_PENDING_FUTURE_CUSTOMER'"])assert.ok(source.includes(text),text);
 });
+
+test('FA-18 artifacts use portable internal checksum paths',()=>{
+  const root=new URL('../../../',import.meta.url);
+  const builder=fs.readFileSync(new URL('.github/workflows/axiom-fa18-build-challenge.yml',root),'utf8');
+  const verifier=fs.readFileSync(new URL('.github/workflows/axiom-fa18-independent-verifier.yml',root),'utf8');
+  assert.ok(builder.includes('(cd fa18-builder-evidence && sha256sum fa18-builder-evidence.json > fa18-builder-evidence.sha256)'));
+  assert.ok(verifier.includes('(cd fa18-independent-evidence && sha256sum fa18-independent-verifier.json > fa18-independent-verifier.sha256)'));
+  assert.equal(builder.includes('  fa18-builder-evidence/fa18-builder-evidence.json'),false);
+  assert.equal(verifier.includes('  fa18-independent-evidence/fa18-independent-verifier.json'),false);
+});
