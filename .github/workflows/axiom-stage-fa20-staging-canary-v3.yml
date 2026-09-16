@@ -1,0 +1,251 @@
+name: MUSITU Axiom FA20 Isolated Staging Canary V3
+
+on:
+  push:
+    branches:
+      - release/axiom-fa20-staging-v3-20260916
+    paths:
+      - '.github/workflows/axiom-stage-fa20-staging-canary-v3.yml'
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: musitu-axiom-fa20-isolated-preproduction
+  cancel-in-progress: false
+
+jobs:
+  staging-canary-rollback:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    env:
+      CLOUDFLARE_ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+      CLOUDFLARE_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+      STAGING_WORKER: musitu-axiom-fa20-staging
+      CANARY_WORKER: musitu-axiom-fa20-canary
+      ROLLBACK_SOURCE: 4c99c4ccbc4a9e34f4e446f30c31f4d428359818
+      RELEASE_POLICY_SHA256: d606db7b63576a275619ece77ad26f087919bede32f0025934ed6c2dc7598cff
+      AUTHORITY_COMMIT: 21d087f0fdebffd4cfb4065286aa16696fcec9c0
+      FAILED_RUN_IDS: '35082342750,35082972066'
+    steps:
+      - name: Checkout evaluator-only retry without persisted credentials
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Rebind unchanged candidate authority and qualification
+        shell: bash
+        env:
+          GH_READ_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF_NAME" = 'release/axiom-fa20-staging-v3-20260916'
+          test "$(git rev-parse HEAD^)" = "$AUTHORITY_COMMIT"
+          test "$(git diff --name-only HEAD^..HEAD)" = .github/workflows/axiom-stage-fa20-staging-canary-v3.yml
+          python - <<'PY'
+          import json,os,re,urllib.request
+          value=json.load(open('docs/axiom_final_product/FA20_STAGE_AUTHORITY.json'))
+          expected={'schema':'musitu.axiom.fa20.staging-authority.v1','confirmation':'START FA20 STAGING AND CANARY','qualified_candidate_sha':'3de5cfd39e66577f70ccf0bc47af157525d44537','qualification_run_id':35079635798,'production_authority':False}
+          drift={key:(value.get(key),wanted) for key,wanted in expected.items() if value.get(key)!=wanted}
+          if drift: raise SystemExit('staging authority drift: '+repr(drift))
+          for key in ('builder_evidence_sha256','independent_attestation_sha256'):
+              if not re.fullmatch(r'[0-9a-f]{64}',str(value.get(key,''))): raise SystemExit(key+' required')
+          request=urllib.request.Request(
+              f"https://api.github.com/repos/{os.environ['GITHUB_REPOSITORY']}/actions/runs/{value['qualification_run_id']}",
+              headers={'Authorization':'Bearer '+os.environ['GH_READ_TOKEN'],'Accept':'application/vnd.github+json','X-GitHub-Api-Version':'2022-11-28'},
+          )
+          with urllib.request.urlopen(request,timeout=30) as response: run=json.load(response)
+          if run.get('head_sha')!=value['qualified_candidate_sha'] or run.get('conclusion')!='success' or run.get('name')!='MUSITU Axiom FA20 Release Control': raise SystemExit('exact-candidate qualification is not successful')
+          with open(os.environ['GITHUB_ENV'],'a') as env: env.write('QUALIFIED_CANDIDATE='+value['qualified_candidate_sha']+'\n')
+          PY
+          test -n "$CLOUDFLARE_EMAIL"
+          test -n "$CLOUDFLARE_API_KEY"
+      - name: Requalify exact candidate and prepare candidate plus rollback assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git merge-base 9de2da15d9e532eff9f992354d25995ff9a76c7a "$QUALIFIED_CANDIDATE")" = 9de2da15d9e532eff9f992354d25995ff9a76c7a
+          node --test axiom_interface/vnext/tests/*.test.mjs
+          python .github/scripts/axiom_fa17_security_scan.py --output /tmp/fa20-stage-v2-security.json
+          test "$(jq -r .high_or_critical_open /tmp/fa20-stage-v2-security.json)" = 0
+          mkdir -p /tmp/fa20-v2-candidate-export /tmp/fa20-v2-candidate-assets /tmp/fa20-v2-rollback-export /tmp/fa20-v2-rollback-assets
+          git archive "$QUALIFIED_CANDIDATE" axiom_interface | tar -x -C /tmp/fa20-v2-candidate-export
+          git archive "$ROLLBACK_SOURCE" axiom_interface | tar -x -C /tmp/fa20-v2-rollback-export
+          cp -a /tmp/fa20-v2-candidate-export/axiom_interface/. /tmp/fa20-v2-candidate-assets/
+          cp -a /tmp/fa20-v2-rollback-export/axiom_interface/. /tmp/fa20-v2-rollback-assets/
+          python - <<'PY'
+          import json,os,pathlib
+          for root,commit,kind in [('/tmp/fa20-v2-candidate-assets',os.environ['QUALIFIED_CANDIDATE'],'FA20_ISOLATED_PREPRODUCTION_CANDIDATE'),('/tmp/fa20-v2-rollback-assets',os.environ['ROLLBACK_SOURCE'],'SEALED_CURRENT_PRODUCTION_ROLLBACK_ORIGIN')]:
+              target=pathlib.Path(root)/'vnext'/'fa20-build.json'
+              target.write_text(json.dumps({'schema':'musitu.axiom.fa20.static-build.v1','source_commit':commit,'kind':kind,'production':False,'production_authority':False},sort_keys=True)+'\n')
+          PY
+          tar -C /tmp/fa20-v2-candidate-assets -czf fa20-static-candidate.tgz .
+          sha256sum fa20-static-candidate.tgz > fa20-static-candidate.sha256
+      - name: Install pinned staging and browser toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --ignore-scripts --no-audit --no-fund --no-save wrangler@4.129.0 playwright@1.55.0
+          npx playwright install --with-deps chromium >/tmp/fa20-v2-playwright-install.log 2>&1
+          test "$(npx wrangler --version)" = 4.129.0
+      - name: Resolve isolated URLs
+        shell: bash
+        run: |
+          set -euo pipefail
+          SUBDOMAIN="$(python - <<'PY'
+          import json,os,urllib.request
+          request=urllib.request.Request(f"https://api.cloudflare.com/client/v4/accounts/{os.environ['CLOUDFLARE_ACCOUNT_ID']}/workers/subdomain",headers={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_API_KEY']})
+          with urllib.request.urlopen(request,timeout=30) as response: value=json.load(response)
+          if not value.get('success') or not (value.get('result') or {}).get('subdomain'): raise SystemExit('workers subdomain unavailable')
+          print(value['result']['subdomain'])
+          PY
+          )"
+          echo "STAGING_URL=https://${STAGING_WORKER}.${SUBDOMAIN}.workers.dev" >> "$GITHUB_ENV"
+          echo "CANARY_URL=https://${CANARY_WORKER}.${SUBDOMAIN}.workers.dev" >> "$GITHUB_ENV"
+      - name: Deploy and explicitly enable only isolated workers.dev seams
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx wrangler deploy --name "$STAGING_WORKER" --compatibility-date 2026-09-16 --assets /tmp/fa20-v2-rollback-assets > fa20-v2-baseline-deploy.log 2>&1
+          npx wrangler deploy --name "$STAGING_WORKER" --compatibility-date 2026-09-16 --assets /tmp/fa20-v2-candidate-assets > fa20-v2-staging-deploy.log 2>&1
+          npx wrangler deploy --name "$CANARY_WORKER" --compatibility-date 2026-09-16 --assets /tmp/fa20-v2-candidate-assets > fa20-v2-canary-deploy.log 2>&1
+          python - <<'PY'
+          import json,os,urllib.parse,urllib.request
+          headers={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_API_KEY'],'Content-Type':'application/json'}
+          for worker in (os.environ['STAGING_WORKER'],os.environ['CANARY_WORKER']):
+              url=f"https://api.cloudflare.com/client/v4/accounts/{os.environ['CLOUDFLARE_ACCOUNT_ID']}/workers/scripts/{urllib.parse.quote(worker,safe='')}/subdomain"
+              request=urllib.request.Request(url,method='POST',headers=headers,data=json.dumps({'enabled':True,'previews_enabled':False}).encode())
+              with urllib.request.urlopen(request,timeout=30) as response: value=json.load(response)
+              if not value.get('success'): raise SystemExit('isolated workers.dev enable failed')
+              request=urllib.request.Request(url,headers=headers)
+              with urllib.request.urlopen(request,timeout=30) as response: readback=json.load(response)
+              result=readback.get('result') or {}
+              if not readback.get('success') or result.get('enabled') is not True or result.get('previews_enabled') is not False: raise SystemExit('isolated workers.dev readback failed')
+          PY
+      - name: Prove staging canary and PWA asset smoke
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json,os,time,urllib.request
+          for label,base in [('staging',os.environ['STAGING_URL']),('canary',os.environ['CANARY_URL'])]:
+              last=None
+              for attempt in range(1,46):
+                  try:
+                      request=urllib.request.Request(base+'/vnext/fa20-build.json?attempt='+str(attempt),headers={'User-Agent':'MUSITU-AXIOM-FA20-STAGING-V2/1.0'})
+                      with urllib.request.urlopen(request,timeout=30) as response: marker=json.load(response)
+                      if marker.get('source_commit')==os.environ['QUALIFIED_CANDIDATE']: break
+                      last='stale marker '+repr(marker)
+                  except Exception as error: last=repr(error)
+                  time.sleep(2)
+              else: raise SystemExit(label+' candidate marker unavailable: '+str(last))
+              for path,needle in [('/vnext/index.html',b'MUSITU AXIOM'),('/vnext/manifest.webmanifest',b'MUSITU Axiom'),('/vnext/fa16_service_worker.js',b'CACHE_PREFIX')]:
+                  asset_last=None
+                  for asset_attempt in range(1,46):
+                      try:
+                          request=urllib.request.Request(base+path+'?candidate='+os.environ['QUALIFIED_CANDIDATE']+'&attempt='+str(asset_attempt),headers={'User-Agent':'MUSITU-AXIOM-FA20-STAGING-V3/1.0'})
+                          with urllib.request.urlopen(request,timeout=30) as response: body=response.read()
+                          if needle in body: break
+                          asset_last='required marker absent; bytes='+str(len(body))
+                      except Exception as error: asset_last=repr(error)
+                      time.sleep(2)
+                  else: raise SystemExit(label+' smoke contract failed at '+path+': '+str(asset_last))
+                  print('fa20_'+label+'_asset_pass='+path)
+          PY
+      - name: Render exact staging candidate on desktop and mobile Chromium
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'JS'
+          import {chromium} from 'playwright';
+          import fs from 'node:fs/promises';
+          const browser=await chromium.launch({headless:true}),checks=[];
+          for(const [name,viewport] of [['desktop',{width:1440,height:1000}],['mobile',{width:390,height:844}]]){
+            const page=await browser.newPage({viewport});
+            await page.goto(`${process.env.STAGING_URL}/vnext/index.html?candidate=${process.env.QUALIFIED_CANDIDATE}`,{waitUntil:'networkidle'});
+            if(!(await page.title()).includes('MUSITU Axiom'))throw new Error(`${name} title smoke failed`);
+            if(!(await page.locator('body').isVisible()))throw new Error(`${name} body smoke failed`);
+            checks.push(`${name}_rendered`);await page.close();
+          }
+          await browser.close();
+          await fs.writeFile('fa20-v2-browser-smoke.json',JSON.stringify({schema:'musitu.axiom.fa20.browser-smoke.v3',candidate_commit:process.env.QUALIFIED_CANDIDATE,checks,production_authority:false},null,2)+'\n');
+          JS
+      - name: Prove rollback then restore exact candidate on isolated staging
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx wrangler deploy --name "$STAGING_WORKER" --compatibility-date 2026-09-16 --assets /tmp/fa20-v2-rollback-assets > fa20-v2-rollback-deploy.log 2>&1
+          python - <<'PY'
+          import json,os,time,urllib.request
+          def wait_for(commit,label):
+              for attempt in range(1,46):
+                  try:
+                      request=urllib.request.Request(os.environ['STAGING_URL']+'/vnext/fa20-build.json?'+label+'='+str(attempt),headers={'User-Agent':'MUSITU-AXIOM-FA20-STAGING-V2/1.0'})
+                      with urllib.request.urlopen(request,timeout=30) as response: value=json.load(response)
+                      if value.get('source_commit')==commit: return
+                  except Exception: pass
+                  time.sleep(2)
+              raise SystemExit(label+' marker unavailable')
+          wait_for(os.environ['ROLLBACK_SOURCE'],'rollback')
+          PY
+          npx wrangler deploy --name "$STAGING_WORKER" --compatibility-date 2026-09-16 --assets /tmp/fa20-v2-candidate-assets > fa20-v2-restore-deploy.log 2>&1
+          python - <<'PY'
+          import json,os,time,urllib.request
+          for attempt in range(1,46):
+              try:
+                  request=urllib.request.Request(os.environ['STAGING_URL']+'/vnext/fa20-build.json?restore='+str(attempt),headers={'User-Agent':'MUSITU-AXIOM-FA20-STAGING-V2/1.0'})
+                  with urllib.request.urlopen(request,timeout=30) as response: value=json.load(response)
+                  if value.get('source_commit')==os.environ['QUALIFIED_CANDIDATE']: break
+              except Exception: pass
+              time.sleep(2)
+          else: raise SystemExit('candidate restoration marker unavailable')
+          PY
+      - name: Clean isolated workers after proof
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx wrangler delete --name "$CANARY_WORKER" --force > fa20-v2-canary-cleanup.log 2>&1
+          npx wrangler delete --name "$STAGING_WORKER" --force > fa20-v2-staging-cleanup.log 2>&1
+      - name: Seal v2 preproduction evidence and exact S4 request
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p fa20-v2-preproduction-evidence
+          cp fa20-static-candidate.tgz fa20-static-candidate.sha256 fa20-v2-browser-smoke.json fa20-v2-*-cleanup.log fa20-v2-preproduction-evidence/
+          node --input-type=module <<'JS'
+          import fs from 'node:fs/promises';
+          import {createHash} from 'node:crypto';
+          import {createProductionApprovalRequest,createReleasePlan,advanceRelease,sealStageReceipt} from './axiom_interface/vnext/fa20_release_orchestrator.mjs';
+          import {sha256} from './axiom_interface/vnext/execution_security.js';
+          const candidate=process.env.QUALIFIED_CANDIDATE,artifactBytes=await fs.readFile('fa20-static-candidate.tgz');
+          const artifactSha=createHash('sha256').update(artifactBytes).digest('hex');
+          let plan=await createReleasePlan({candidateCommit:candidate,artifactSha256:artifactSha,createdAt:new Date().toISOString()});
+          const stageEvidence=await sha256({candidate,browser:JSON.parse(await fs.readFile('fa20-v2-browser-smoke.json','utf8')),failed_run_ids:process.env.FAILED_RUN_IDS});
+          for(const stage of ['TESTS','ADVERSARIAL','STAGING','SMOKE','CANARY','ROLLBACK_REHEARSAL','STAGING_RESTORED']){
+            const external=['STAGING','SMOKE','CANARY','ROLLBACK_REHEARSAL','STAGING_RESTORED'].includes(stage);
+            const body={schema:'musitu.axiom.fa20.stage-receipt.v1',release_id:plan.release_id,candidate_commit:candidate,candidate_artifact_sha256:artifactSha,release_policy_sha256:process.env.RELEASE_POLICY_SHA256,stage,status:'PASS',actor_identity:'github-actions-fa20-staging-v2-runner',verifier_identity:'github-actions-fa20-v2-readback-verifier',evidence_sha256:stageEvidence,observed_at:new Date().toISOString(),secrets_recorded:false,external_execution:external,environment:stage==='STAGING'?'ISOLATED_STAGING':stage==='CANARY'?'ISOLATED_CANARY':'QUALIFIED_CONTROL',all_required_checks_passed:stage==='SMOKE',rollback_succeeded:stage==='ROLLBACK_REHEARSAL',rollback_source_commit:stage==='ROLLBACK_REHEARSAL'?process.env.ROLLBACK_SOURCE:null,candidate_restored:stage==='STAGING_RESTORED',monitoring_samples:0,unsupported_claims_published:false,production_authority_proven:false};
+            plan=await advanceRelease(plan,await sealStageReceipt(body));
+          }
+          const request=await createProductionApprovalRequest(plan);
+          const evidence={schema:'musitu.axiom.fa20.preproduction-evidence.v3',status:'PASS_READY_FOR_EXACT_S4_APPROVAL',candidate_commit:candidate,candidate_artifact_sha256:artifactSha,release_plan_sha256:plan.plan_sha256,authority_commit:process.env.AUTHORITY_COMMIT,evaluator_commit:process.env.GITHUB_SHA,failed_attempts_preserved:process.env.FAILED_RUN_IDS.split(',').map(Number),failed_attempt_causes:['ISOLATED_WORKERS_DEV_SUBDOMAIN_NOT_EXPLICITLY_ENABLED','ASSET_PROBE_DID_NOT_RETRY_PROPAGATION_404'],rollback_origin_commit:process.env.ROLLBACK_SOURCE,staging_executed:true,canary_executed:true,browser_desktop_mobile_pass:true,rollback_rehearsal_passed:true,candidate_restored_before_cleanup:true,isolated_workers_cleaned:true,production_executed:false,old_app_retained:true,tablet_evidence:'DEFERRED_PENDING_FUTURE_CUSTOMER',external_comparison:'DEFERRED_NO_PAID_PROVIDER_ACCESS',production_authority:false};
+          const sealed={...evidence,evidence_sha256:await sha256(evidence)};
+          await fs.writeFile('fa20-v2-preproduction-evidence/fa20-preproduction-evidence.json',JSON.stringify(sealed,null,2)+'\n');
+          await fs.writeFile('fa20-v2-preproduction-evidence/fa20-s4-approval-request.json',JSON.stringify(request,null,2)+'\n');
+          JS
+          (cd fa20-v2-preproduction-evidence && sha256sum fa20-static-candidate.tgz fa20-static-candidate.sha256 fa20-v2-browser-smoke.json fa20-v2-canary-cleanup.log fa20-v2-staging-cleanup.log fa20-preproduction-evidence.json fa20-s4-approval-request.json > fa20-preproduction.sha256)
+      - name: Upload sealed v2 preproduction evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: musitu-axiom-fa20-preproduction-evidence-v3
+          path: fa20-v2-preproduction-evidence/
+          retention-days: 90
+      - name: Fail-closed cleanup on any earlier failure
+        if: always()
+        shell: bash
+        run: |
+          if [ -x node_modules/.bin/wrangler ] && [ -n "${CLOUDFLARE_EMAIL:-}" ] && [ -n "${CLOUDFLARE_API_KEY:-}" ]; then
+            npx wrangler delete --name "$CANARY_WORKER" --force >/tmp/fa20-v2-final-canary-cleanup.log 2>&1 || true
+            npx wrangler delete --name "$STAGING_WORKER" --force >/tmp/fa20-v2-final-staging-cleanup.log 2>&1 || true
+          fi
