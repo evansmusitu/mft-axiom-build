@@ -36,7 +36,7 @@ jobs:
           import json,subprocess
           source='4c99c4ccbc4a9e34f4e446f30c31f4d428359818'
           changed=set(subprocess.check_output(['git','diff','--name-only',f'{source}..HEAD'],text=True).splitlines())
-          allowed=lambda p:(p.startswith('docs/axiom_final_product/FA14_') or p.startswith('axiom_interface/vnext/fa14_') or p=='axiom_interface/vnext/index.html' or p.startswith('.github/workflows/axiom-fa14-'))
+          allowed=lambda p:(p.startswith('docs/axiom_final_product/FA14_') or p.startswith('axiom_interface/vnext/fa14_') or p.startswith('axiom_interface/vnext/tests/fa14_') or p=='axiom_interface/vnext/index.html' or p.startswith('.github/workflows/axiom-fa14-'))
           bad=sorted(p for p in changed if not allowed(p))
           if bad: raise SystemExit('FA14 source drift outside bounded scope: '+repr(bad))
           protected=[p for p in changed if p.startswith(('mcp/','auth/','submission/')) or p=='chatgpt-app-submission.json']
