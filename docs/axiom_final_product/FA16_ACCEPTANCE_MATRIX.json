@@ -1,0 +1,28 @@
+{
+  "schema": "musitu.axiom.fa16.acceptance-matrix.v1",
+  "phase": "FA-16",
+  "title": "Mobile / PWA / Offline / Reconnect",
+  "parent_commit": "ab96c4347cd8ffd2a694c791d40932f175eb880d",
+  "candidate_state": "IMPLEMENTED_PENDING_INDEPENDENT_VERIFICATION",
+  "software_implementation_verified": false,
+  "phase_exit_earned": false,
+  "production_authority": false,
+  "external_offline_execution": false,
+  "pwa_install": "IMPLEMENTED_PENDING_BROWSER_QUALIFICATION",
+  "offline_reconnect": "IMPLEMENTED_PENDING_INDEPENDENT_VERIFICATION",
+  "real_device": "NOT_PROVEN",
+  "legacy_phase_14_unchanged": true,
+  "wolfram_parity": "NOT_CERTIFIED",
+  "superiority": "NOT_CERTIFIED",
+  "rows": [
+    {"id":"mobile","requirement":"Supervision-first mobile IA with Home, Projects, Work, Agents and You; heavy Build authoring remains desktop-first","gate":"MOBILE_IS_NOT_COMPRESSED_DESKTOP"},
+    {"id":"pwa","requirement":"Same-origin manifest, controlled install lifecycle and scoped service worker","gate":"INSTALLATION_CLAIM_REQUIRES_BROWSER_CONFIRMATION"},
+    {"id":"cache","requirement":"Only non-sensitive app-shell resources may be cached","gate":"AUTH_API_SESSION_BILLING_HEALTH_NETWORK_ONLY"},
+    {"id":"offline_queue","requirement":"Only allow-listed local S0/S1 drafts may persist offline","gate":"NO_EXTERNAL_PUBLIC_DESTRUCTIVE_SECRET_OR_HIGH_RISK_QUEUE"},
+    {"id":"integrity","requirement":"Queue payload, authority and replay receipts are SHA-256 bound","gate":"TAMPER_OR_STALE_PREVIEW_FAILS_CLOSED"},
+    {"id":"reconnect","requirement":"Origin reachability and current policy must be revalidated before idempotent local replay","gate":"ONLINE_SIGNAL_IS_NOT_REACHABILITY_OR_AUTHORITY"},
+    {"id":"device_truth","requirement":"Physical phone/tablet/offline/reconnect evidence requires distinct external attestation","gate":"NEVER_FAKE_TABLET"},
+    {"id":"phase_exit","requirement":"Software evidence cannot satisfy missing physical-device evidence","gate":"REAL_DEVICE_NOT_PROVEN_PHASE_EXIT_FALSE"}
+  ]
+}
+

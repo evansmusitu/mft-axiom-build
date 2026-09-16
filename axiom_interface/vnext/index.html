@@ -6,10 +6,16 @@
   <meta name="theme-color" content="#111827">
   <meta name="color-scheme" content="light dark">
   <meta name="application-name" content="MUSITU Axiom">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="icon" href="./axiom-icon.svg" type="image/svg+xml">
   <meta name="description" content="MUSITU Axiom vNext — persistent, evidence-native intelligence workspace.">
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self'; media-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'">
   <link rel="stylesheet" href="./styles.css">
   <link rel="stylesheet" href="./fa15_advanced_surfaces.css">
+  <link rel="stylesheet" href="./fa16_mobile_pwa.css">
   <title>MUSITU Axiom — vNext</title>
 </head>
 <body>
@@ -36,7 +42,7 @@
     </header>
     <aside class="nav-rail" aria-label="Primary navigation">
       <nav>
-        <a href="#/home" data-route="home" aria-current="page"><span>⌂</span><b>Home</b></a><a href="#/projects" data-route="projects"><span>▦</span><b>Projects</b></a><a href="#/work" data-route="work"><span>✓</span><b>Work</b></a><a href="#/agents" data-route="agents"><span>◇</span><b>Agents</b></a><a href="#/artifacts" data-route="artifacts"><span>▤</span><b>Artifacts</b></a><a href="#/research" data-route="research"><span>⌕</span><b>Research</b></a><a href="#/analyze" data-route="analyze"><span>∿</span><b>Analyze</b></a><a href="#/build" data-route="build"><span>‹›</span><b>Build</b></a><a href="#/create" data-route="create"><span>✦</span><b>Create</b></a><a href="#/live" data-route="live"><span>◉</span><b>Live</b></a><a href="#/computer" data-route="computer"><span>▣</span><b>Computer</b></a><a href="#/automations" data-route="automations"><span>↻</span><b>Automations</b></a>
+        <a href="#/home" data-route="home" aria-current="page"><span>⌂</span><b>Home</b></a><a href="#/projects" data-route="projects"><span>▦</span><b>Projects</b></a><a href="#/work" data-route="work"><span>✓</span><b>Work</b></a><a href="#/agents" data-route="agents"><span>◇</span><b>Agents</b></a><a href="#/artifacts" data-route="artifacts"><span>▤</span><b>Artifacts</b></a><a href="#/research" data-route="research"><span>⌕</span><b>Research</b></a><a href="#/analyze" data-route="analyze"><span>∿</span><b>Analyze</b></a><a href="#/build" data-route="build"><span>‹›</span><b>Build</b></a><a href="#/create" data-route="create"><span>✦</span><b>Create</b></a><a href="#/live" data-route="live"><span>◉</span><b>Live</b></a><a href="#/computer" data-route="computer"><span>▣</span><b>Computer</b></a><a href="#/automations" data-route="automations"><span>↻</span><b>Automations</b></a><a href="#/settings" data-route="settings" class="fa16-mobile-you"><span>◎</span><b>You</b></a>
       </nav>
       <nav class="nav-secondary" aria-label="Platform"><a href="#/developer" data-route="developer"><span>{ }</span><b>Developer</b></a><a href="#/trust" data-route="trust"><span>⌁</span><b>Trust</b></a><a href="#/settings" data-route="settings"><span>⚙</span><b>Settings</b></a></nav>
     </aside>
@@ -61,5 +67,7 @@
   <script type="module" src="./product_reality_ui.js"></script>
   <script type="module" src="./fa14_workspace_ui.js"></script>
   <script type="module" src="./fa15_advanced_surfaces_ui.js"></script>
+  <script type="module" src="./fa16_mobile_pwa_ui.js"></script>
 </body>
 </html>
+
