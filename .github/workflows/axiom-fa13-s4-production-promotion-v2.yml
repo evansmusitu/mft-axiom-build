@@ -204,7 +204,7 @@ jobs:
           pathlib.Path('/tmp/fa13prod/public/vnext/fa13-build.json').write_text(json.dumps({
             'schema':'musitu.axiom.fa13.static-build.v1','source_commit':os.environ['FA13_COMMIT'],
             'kind':'FA13_S4_PRODUCTION_UI_CANDIDATE','production':True,'release_authorized':True,
-            'production_authority':False,'runtime_delegation':'CLOUDFLARE_SERVICE_BINDING_TO_EXISTING_AXIOM_RUNTIME',
+            'production_authority':False,'runtime_delegation':'CLOUDFLARE_SERVICE_BINDING_TO_PROTECTED_AXIOM_RUNTIME',
             'wolfram_parity':'NOT_CERTIFIED','superiority':'NOT_CERTIFIED'},sort_keys=True)+'\n')
           PY
           cat >/tmp/fa13prod/worker.js <<'JS'
@@ -225,7 +225,7 @@ jobs:
           import json,os
           json.dump({'name':os.environ['WRAPPER_SERVICE'],'main':'worker.js','compatibility_date':'2026-09-15','workers_dev':True,
             'observability':{'enabled':True},'assets':{'directory':'./public','binding':'ASSETS','run_worker_first':True},
-            'services':[{'binding':'AXIOM_RUNTIME','service':os.environ['ORIGINAL_SERVICE']}]},open('/tmp/fa13prod/wrangler.json','w'),indent=2)
+            'services':[{'binding':'AXIOM_RUNTIME','service':os.environ['ORIGINAL_LEGACY_BACKEND']}]},open('/tmp/fa13prod/wrangler.json','w'),indent=2)
           PY
           tar -C /tmp/fa13prod/public -czf release-evidence/fa13-production-ui-assets.tgz .
           sha256sum release-evidence/fa13-production-ui-assets.tgz > release-evidence/fa13-production-ui-assets.sha256
@@ -250,7 +250,7 @@ jobs:
           sub=(cf(f'/accounts/{aid}/workers/subdomain') or {}).get('subdomain');
           if not sub:raise SystemExit('workers.dev subdomain unavailable')
           settings=cf(f'/accounts/{aid}/workers/scripts/{urllib.parse.quote(os.environ["WRAPPER_SERVICE"],safe="")}/settings') or {}; bindings=settings.get('bindings') or []
-          if not any(b.get('type')=='service' and b.get('service')==os.environ['ORIGINAL_SERVICE'] for b in bindings):raise SystemExit('wrapper runtime service binding failed')
+          if not any(b.get('type')=='service' and b.get('service')==os.environ['ORIGINAL_LEGACY_BACKEND'] for b in bindings):raise SystemExit('wrapper protected-backend service binding failed')
           if any(str(b.get('type','')).lower() in {'secret','secret_text','secret_key'} for b in bindings):raise SystemExit('wrapper contains copied secrets')
           base=f"https://{os.environ['WRAPPER_SERVICE']}.{sub}.workers.dev"
           def q(path,method='GET',body=None):
@@ -273,12 +273,12 @@ jobs:
             s,b=q(path+'?candidate='+os.environ['FA13_COMMIT']);
             if s!=200 or any(n not in b for n in needles):raise SystemExit('wrapper UI asset failed '+path)
           s,b=q('/health'); h=json.loads(b or b'{}')
-          if s!=200 or h.get('ok') is not True or h.get('build_id')!=os.environ['EXPECTED_RUNTIME_BUILD'] or int(h.get('operation_count') or -1)!=74:raise SystemExit('wrapper health delegation failed')
+          if s!=200 or h.get('ok') is not True or h.get('build_id')!=os.environ['EXPECTED_RUNTIME_BUILD'] or int(h.get('operation_count') or -1)!=74:raise SystemExit('wrapper health delegation failed status='+str(s)+' body='+repr(h))
           s,b=q('/v1/tools'); t=json.loads(b or b'{}')
-          if s!=200 or int(t.get('operation_count') or -1)!=74 or len(t.get('tools') or [])!=74:raise SystemExit('wrapper tools delegation failed')
+          if s!=200 or int(t.get('operation_count') or -1)!=74 or len(t.get('tools') or [])!=74:raise SystemExit('wrapper tools delegation failed status='+str(s)+' body='+repr(t))
           s,_=q('/v1/compute','POST',{'operation':'arithmetic.evaluate','args':{'expression':'40+2'}})
-          if s!=401:raise SystemExit('wrapper unauth compute gate failed')
-          json.dump({'schema':'musitu.axiom.fa13.wrapper-prequalification.v2','source_commit':os.environ['FA13_COMMIT'],'status':'PASS','operation_count':74,'production_mutated':False,'secret_copy_performed':False},open('release-evidence/wrapper-prequalification.json','w'),indent=2,sort_keys=True)
+          if s!=401:raise SystemExit('wrapper unauth compute gate failed status='+str(s))
+          json.dump({'schema':'musitu.axiom.fa13.wrapper-prequalification.v2','source_commit':os.environ['FA13_COMMIT'],'status':'PASS','operation_count':74,'runtime_binding_service':os.environ['ORIGINAL_LEGACY_BACKEND'],'production_mutated':False,'secret_copy_performed':False},open('release-evidence/wrapper-prequalification.json','w'),indent=2,sort_keys=True)
           PY
 
       - name: Disable workers.dev exposure before cutover
@@ -355,7 +355,7 @@ jobs:
             req=urllib.request.Request('https://'+os.environ['BILLING_HOST']+'/billing/healthz',headers={'Accept':'application/json','User-Agent':'MUSITU-Axiom-S4-v2-monitor'})
             with urllib.request.urlopen(req,timeout=30) as r:billing=json.load(r); bs=r.status
             if bs!=200 or billing.get('ok') is not True:raise RuntimeError('billing health failed')
-            out={'schema':'musitu.axiom.fa13.s4-production-promotion.v2','status':'PASS_PRODUCTION_PROMOTED_AND_MONITORED','source_candidate':os.environ['FA13_COMMIT'],'release_branch_head':os.environ['GITHUB_SHA'],'human_release_approval':True,'independent_verifier_run_id':int(os.environ['VERIFIER_RUN_ID']),'independent_verifier_artifact_id':int(os.environ['VERIFIER_ARTIFACT_ID']),'independent_verifier_attestation_sha256':os.environ['VERIFIER_ATTESTATION_SHA256'],'production_hostname':host,'original_service':old,'production_service':new,'runtime_delegation_preserved':True,'production_runtime_build':os.environ['EXPECTED_RUNTIME_BUILD'],'operation_count':74,'initial_smoke':initial,'rollback_proof':rollback,'candidate_restored_after_rollback':restored,'monitor_samples':samples,'monitor_sample_count':len(samples),'billing_health':'PASS','workers_dev_exposure_after_cutover':False,'production_secret_copy_performed':False,'main_modified':False,'pr1_modified':False,'rollback_origin_commit':os.environ['ROLLBACK_ORIGIN'],'wolfram_parity':'NOT_CERTIFIED','superiority':'NOT_CERTIFIED'}
+            out={'schema':'musitu.axiom.fa13.s4-production-promotion.v2','status':'PASS_PRODUCTION_PROMOTED_AND_MONITORED','source_candidate':os.environ['FA13_COMMIT'],'release_branch_head':os.environ['GITHUB_SHA'],'human_release_approval':True,'independent_verifier_run_id':int(os.environ['VERIFIER_RUN_ID']),'independent_verifier_artifact_id':int(os.environ['VERIFIER_ARTIFACT_ID']),'independent_verifier_attestation_sha256':os.environ['VERIFIER_ATTESTATION_SHA256'],'production_hostname':host,'original_service':old,'production_service':new,'runtime_delegation_preserved':True,'runtime_binding_service':os.environ['ORIGINAL_LEGACY_BACKEND'],'production_runtime_build':os.environ['EXPECTED_RUNTIME_BUILD'],'operation_count':74,'initial_smoke':initial,'rollback_proof':rollback,'candidate_restored_after_rollback':restored,'monitor_samples':samples,'monitor_sample_count':len(samples),'billing_health':'PASS','workers_dev_exposure_after_cutover':False,'production_secret_copy_performed':False,'main_modified':False,'pr1_modified':False,'rollback_origin_commit':os.environ['ROLLBACK_ORIGIN'],'wolfram_parity':'NOT_CERTIFIED','superiority':'NOT_CERTIFIED'}
             p=pathlib.Path('release-evidence/fa13-production-promotion.json');p.write_text(json.dumps(out,indent=2,sort_keys=True)+'\n');d=hashlib.sha256(p.read_bytes()).hexdigest();pathlib.Path('release-evidence/fa13-production-promotion.sha256').write_text(d+'  '+p.name+'\n');pathlib.Path('release-evidence/production-promotion-complete').write_text('PASS\n')
             print(json.dumps({'status':out['status'],'hostname':host,'service':new,'operation_count':74,'evidence_sha256':d},sort_keys=True))
           except Exception:
