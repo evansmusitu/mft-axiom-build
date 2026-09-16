@@ -1,0 +1,498 @@
+name: MUSITU Axiom FA20 S4 Production Promotion
+
+on:
+  push:
+    branches:
+      - release/axiom-fa20-s4-production-20260916
+    paths:
+      - '.github/workflows/axiom-fa20-s4-production-promotion.yml'
+      - 'docs/axiom_final_product/FA20_S4_HUMAN_APPROVAL_20260916.json'
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: musitu-axiom-fa20-s4-production
+  cancel-in-progress: false
+
+env:
+  CANDIDATE_COMMIT: 3de5cfd39e66577f70ccf0bc47af157525d44537
+  AUTHORITY_COMMIT: 21d087f0fdebffd4cfb4065286aa16696fcec9c0
+  MAIN_COMMIT: d6a846f6bbe0bccac1758713eb4de167caf07113
+  RELEASE_BRANCH: release/axiom-fa20-s4-production-20260916
+  HUMAN_APPROVAL_FILE: docs/axiom_final_product/FA20_S4_HUMAN_APPROVAL_20260916.json
+  HUMAN_APPROVAL_SHA256: fa21761e1c9f1a9b34ba43827dcd91547eab252186439fb2a2599da27ba0c594
+  CANDIDATE_ARTIFACT_SHA256: 7ea8273c4028102e00a427148cf52d13ebb2191d12bfec4b0235601e5d0d9a89
+  RELEASE_PLAN_SHA256: 537c5fe20e32f28beccf5f20157e3dbb7d30d95089acb1b6ac8bd64fd529dd6b
+  RELEASE_POLICY_SHA256: d606db7b63576a275619ece77ad26f087919bede32f0025934ed6c2dc7598cff
+  S4_REQUEST_SHA256: ca3cad148121cc12e2ce141dec062cb2604c0c4134b741c9e78688c7d0b4a7cd
+  PREPRODUCTION_EVIDENCE_SHA256: d256dc115b4638f90861ddcfeba91cb1dee2b65419f8fd8f7749b7ba2ca3e24f
+  QUALIFICATION_RUN_ID: '35079635798'
+  BUILDER_ARTIFACT_ID: '10439289421'
+  BUILDER_ARTIFACT_DIGEST: sha256:6dc57b422e42499a32de2daf1cb61292bb36dc0e89bd8ce4e003d668aa821933
+  QUALIFICATION_VERIFIER_ARTIFACT_ID: '10439284444'
+  QUALIFICATION_VERIFIER_ARTIFACT_DIGEST: sha256:95be767a076c1ddcd58db7064931d740725a2604ee3d04d8fe689f86360cbf46
+  PREPRODUCTION_RUN_ID: '35083289098'
+  PREPRODUCTION_EVALUATOR_COMMIT: e5940a2ca92b3669f912f402c20a83af113fd026
+  PREPRODUCTION_ARTIFACT_ID: '10441201458'
+  PREPRODUCTION_ARTIFACT_DIGEST: sha256:637485c03b50a3b8eea54adaa3e3eaa62814b629d0dd8220a95ffefbf3d810e6
+  S4_VERIFIER_RUN_ID: '35112563109'
+  S4_VERIFIER_COMMIT: 3b5b15ca76af02c77d6e4fa8ee3bdc1f02a03d41
+  S4_VERIFIER_ARTIFACT_ID: '10452433469'
+  S4_VERIFIER_ARTIFACT_DIGEST: sha256:9ad9b72ba4eaf1f42d85fc1e444ffe0578063f7acb2152f7c1eff25ab25b3c00
+  S4_VERIFIER_ATTESTATION_SHA256: badc2bd876d9bca631c1d574d400bf8d8134cc13bf09ca3ec12a10542883dca7
+  S4_VERIFIER_JSON_SHA256: b4abc47ace17917faf201cf7ebbb4da71cd9d297d130e4f4779658cb8f1dc837
+  ROLLBACK_RUN_ID: '35052550238'
+  ROLLBACK_RELEASE_COMMIT: ce84dca45b9822eed04fad855f93b8dde5344080
+  ROLLBACK_ARTIFACT_ID: '10429552855'
+  ROLLBACK_ARTIFACT_DIGEST: sha256:d0905ffc31c3ba91c89e243cdffee00595690b6858f0ef9282dfb2b2de5cac83
+  ROLLBACK_EVIDENCE_SHA256: d82dae88d967a5c466c03dd5698ec575f05c5434230494d2fa39fb7bfba4afa8
+  ROLLBACK_CANDIDATE: 4c99c4ccbc4a9e34f4e446f30c31f4d428359818
+  CF_API: https://api.cloudflare.com/client/v4
+  ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+  ZONE_ID: 5b56528f03948ff5917a5e0cd9f7109e
+  ZONE_NAME: mftintelligence.com
+  PROD_HOST: axiom.mftintelligence.com
+  BILLING_HOST: payments.mftintelligence.com
+  ROLLBACK_SERVICE: musitu-axiom-fa13-production-ui-edge
+  RUNTIME_SERVICE: mft-axiom-modal-edge-stage
+  PRODUCTION_SERVICE: musitu-axiom-fa20-production-ui-edge
+  EXPECTED_RUNTIME_BUILD: MFT-AXIOM-V3-FULL-SELF-CONTAINED-20260904
+
+jobs:
+  promote:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+      CLOUDFLARE_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+      GH_READ_TOKEN: ${{ github.token }}
+    steps:
+      - name: Checkout isolated release branch without persisted credentials
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Reassert exact human authority qualifications and immutable artifacts
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p release-evidence
+          test "$GITHUB_REF_NAME" = "$RELEASE_BRANCH"
+          test "$(git merge-base "$AUTHORITY_COMMIT" HEAD)" = "$AUTHORITY_COMMIT"
+          test "$(git rev-list --count "$AUTHORITY_COMMIT"..HEAD)" = 1
+          test "$(git merge-base "$CANDIDATE_COMMIT" HEAD)" = "$CANDIDATE_COMMIT"
+          mapfile -t changed < <(git diff --name-only "$AUTHORITY_COMMIT"..HEAD)
+          test "${#changed[@]}" = 2
+          printf '%s\n' "${changed[@]}" | sort -u > /tmp/fa20-production-changed.txt
+          diff -u <(printf '%s\n' \
+            .github/workflows/axiom-fa20-s4-production-promotion.yml \
+            docs/axiom_final_product/FA20_S4_HUMAN_APPROVAL_20260916.json | sort -u) /tmp/fa20-production-changed.txt
+          node --input-type=module <<'JS'
+          import fs from 'node:fs/promises';
+          import {sha256} from './axiom_interface/vnext/execution_security.js';
+          const value=JSON.parse(await fs.readFile(process.env.HUMAN_APPROVAL_FILE,'utf8'));
+          const seal=value.approval_sha256;delete value.approval_sha256;
+          if(seal!==process.env.HUMAN_APPROVAL_SHA256||await sha256(value)!==seal)throw new Error('human approval seal drift');
+          const expected={schema:'musitu.axiom.fa20.s4-human-release-approval.v1',role:'HUMAN_RELEASE_APPROVER',authority:'USER_FINAL_PRODUCT_AUTHORITY',exact_confirmation:'APPROVE FA20 S4 PRODUCTION PROMOTION',granted:true,scope:'EXACT_FA20_S4_REQUEST_ONLY',source_commit:process.env.CANDIDATE_COMMIT,candidate_artifact_sha256:process.env.CANDIDATE_ARTIFACT_SHA256,release_plan_sha256:process.env.RELEASE_PLAN_SHA256,release_policy_sha256:process.env.RELEASE_POLICY_SHA256,s4_approval_request_sha256:process.env.S4_REQUEST_SHA256,preproduction_evidence_sha256:process.env.PREPRODUCTION_EVIDENCE_SHA256,preproduction_run_id:Number(process.env.PREPRODUCTION_RUN_ID),preproduction_artifact_id:Number(process.env.PREPRODUCTION_ARTIFACT_ID),preproduction_artifact_digest:process.env.PREPRODUCTION_ARTIFACT_DIGEST,independent_verifier_run_id:Number(process.env.S4_VERIFIER_RUN_ID),independent_verifier_artifact_id:Number(process.env.S4_VERIFIER_ARTIFACT_ID),independent_verifier_artifact_digest:process.env.S4_VERIFIER_ARTIFACT_DIGEST,independent_verifier_attestation_sha256:process.env.S4_VERIFIER_ATTESTATION_SHA256,production_target:process.env.PROD_HOST,rollback_origin_service:process.env.ROLLBACK_SERVICE,rollback_origin_candidate:process.env.ROLLBACK_CANDIDATE,rollback_origin_evidence_sha256:process.env.ROLLBACK_EVIDENCE_SHA256,distinct_independent_verifier_required:true,may_substitute_for_independent_verifier:false,production_promotion_authorized:true,main_merge_authorized:false,pr1_merge_authorized:false,superiority_claim_authorized:false,wolfram_parity_claim_authorized:false,tablet_evidence:'DEFERRED_PENDING_FUTURE_CUSTOMER',external_comparison:'DEFERRED_NO_PAID_PROVIDER_ACCESS'};
+          for(const [key,wanted] of Object.entries(expected))if(JSON.stringify(value[key])!==JSON.stringify(wanted))throw new Error(`human approval mismatch: ${key}`);
+          JS
+          python - <<'PY'
+          import json,os,urllib.parse,urllib.request
+          repo=os.environ['GITHUB_REPOSITORY'];token=os.environ['GH_READ_TOKEN']
+          def api(path):
+              request=urllib.request.Request('https://api.github.com/repos/'+repo+path,headers={'Authorization':'Bearer '+token,'Accept':'application/vnd.github+json','X-GitHub-Api-Version':'2022-11-28','User-Agent':'MUSITU-Axiom-FA20-S4'})
+              with urllib.request.urlopen(request,timeout=30) as response:return json.load(response)
+          if api('/branches/main')['commit']['sha']!=os.environ['MAIN_COMMIT']:raise SystemExit('main drift')
+          candidate=api('/branches/'+urllib.parse.quote('frontier/axiom-final-product-fa20-20260916',safe=''))
+          if candidate['commit']['sha']!=os.environ['AUTHORITY_COMMIT']:raise SystemExit('FA20 authority drift')
+          verifier=api('/branches/'+urllib.parse.quote('governance/axiom-fa20-s4-release-verifier-20260916',safe=''))
+          if verifier['commit']['sha']!=os.environ['S4_VERIFIER_COMMIT']:raise SystemExit('S4 verifier branch drift')
+          pr=api('/pulls/1')
+          if pr['state']!='open' or pr['draft'] is not True or pr['merged_at'] is not None or pr['base']['ref']!='main' or pr['base']['sha']!=os.environ['MAIN_COMMIT']:raise SystemExit('PR #1 governance drift')
+          runs={
+              'qualification':(os.environ['QUALIFICATION_RUN_ID'],os.environ['CANDIDATE_COMMIT'],'MUSITU Axiom FA20 Release Control'),
+              'preproduction':(os.environ['PREPRODUCTION_RUN_ID'],os.environ['PREPRODUCTION_EVALUATOR_COMMIT'],'MUSITU Axiom FA20 Isolated Staging Canary V3'),
+              's4_verifier':(os.environ['S4_VERIFIER_RUN_ID'],os.environ['S4_VERIFIER_COMMIT'],'MUSITU Axiom FA20 Independent S4 Release Verifier'),
+              'rollback':(os.environ['ROLLBACK_RUN_ID'],os.environ['ROLLBACK_RELEASE_COMMIT'],'MUSITU Axiom FA13 S4 Production Promotion v3'),
+          }
+          for label,(run_id,head,name) in runs.items():
+              value=api('/actions/runs/'+run_id)
+              if value.get('head_sha')!=head or value.get('name')!=name or value.get('status')!='completed' or value.get('conclusion')!='success':raise SystemExit(label+' run drift')
+          artifacts={
+              os.environ['BUILDER_ARTIFACT_ID']:('musitu-axiom-fa20-release-control-evidence',os.environ['BUILDER_ARTIFACT_DIGEST'],int(os.environ['QUALIFICATION_RUN_ID'])),
+              os.environ['QUALIFICATION_VERIFIER_ARTIFACT_ID']:('musitu-axiom-fa20-independent-release-control-verifier-evidence',os.environ['QUALIFICATION_VERIFIER_ARTIFACT_DIGEST'],int(os.environ['QUALIFICATION_RUN_ID'])),
+              os.environ['PREPRODUCTION_ARTIFACT_ID']:('musitu-axiom-fa20-preproduction-evidence-v3',os.environ['PREPRODUCTION_ARTIFACT_DIGEST'],int(os.environ['PREPRODUCTION_RUN_ID'])),
+              os.environ['S4_VERIFIER_ARTIFACT_ID']:('musitu-axiom-fa20-independent-s4-release-verifier-attestation',os.environ['S4_VERIFIER_ARTIFACT_DIGEST'],int(os.environ['S4_VERIFIER_RUN_ID'])),
+              os.environ['ROLLBACK_ARTIFACT_ID']:('musitu-axiom-fa13-s4-production-promotion-v3',os.environ['ROLLBACK_ARTIFACT_DIGEST'],int(os.environ['ROLLBACK_RUN_ID'])),
+          }
+          for artifact_id,(name,digest,run_id) in artifacts.items():
+              value=api('/actions/artifacts/'+artifact_id);workflow=value.get('workflow_run') or {}
+              if value.get('name')!=name or value.get('digest')!=digest or value.get('expired') is not False or workflow.get('id')!=run_id:raise SystemExit('artifact drift: '+artifact_id)
+          PY
+
+      - name: Download and cryptographically bind preproduction verifier and rollback evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          download() {
+            curl --fail --silent --show-error --location \
+              --header "Authorization: Bearer $GH_READ_TOKEN" \
+              --header 'Accept: application/vnd.github+json' \
+              "https://api.github.com/repos/$GITHUB_REPOSITORY/actions/artifacts/$1/zip" \
+              --output "$2"
+          }
+          download "$PREPRODUCTION_ARTIFACT_ID" /tmp/fa20-preproduction.zip
+          download "$S4_VERIFIER_ARTIFACT_ID" /tmp/fa20-s4-verifier.zip
+          download "$ROLLBACK_ARTIFACT_ID" /tmp/fa13-production.zip
+          test "$(sha256sum /tmp/fa20-preproduction.zip | cut -d' ' -f1)" = "${PREPRODUCTION_ARTIFACT_DIGEST#sha256:}"
+          test "$(sha256sum /tmp/fa20-s4-verifier.zip | cut -d' ' -f1)" = "${S4_VERIFIER_ARTIFACT_DIGEST#sha256:}"
+          test "$(sha256sum /tmp/fa13-production.zip | cut -d' ' -f1)" = "${ROLLBACK_ARTIFACT_DIGEST#sha256:}"
+          mkdir -p /tmp/fa20-preproduction /tmp/fa20-s4-verifier /tmp/fa13-production
+          unzip -q /tmp/fa20-preproduction.zip -d /tmp/fa20-preproduction
+          unzip -q /tmp/fa20-s4-verifier.zip -d /tmp/fa20-s4-verifier
+          unzip -q /tmp/fa13-production.zip -d /tmp/fa13-production
+          (cd /tmp/fa20-preproduction && sha256sum -c fa20-preproduction.sha256)
+          (cd /tmp/fa20-s4-verifier && sha256sum -c fa20-independent-s4-verifier.sha256)
+          (cd /tmp/fa13-production && sha256sum -c fa13-production-promotion-v3.sha256)
+          test "$(sha256sum /tmp/fa20-preproduction/fa20-static-candidate.tgz | cut -d' ' -f1)" = "$CANDIDATE_ARTIFACT_SHA256"
+          test "$(sha256sum /tmp/fa20-s4-verifier/fa20-independent-s4-verifier.json | cut -d' ' -f1)" = "$S4_VERIFIER_JSON_SHA256"
+          test "$(sha256sum /tmp/fa13-production/fa13-production-promotion-v3.json | cut -d' ' -f1)" = "$ROLLBACK_EVIDENCE_SHA256"
+          node --input-type=module <<'JS'
+          import fs from 'node:fs/promises';
+          import {sha256} from './axiom_interface/vnext/execution_security.js';
+          const evidence=JSON.parse(await fs.readFile('/tmp/fa20-preproduction/fa20-preproduction-evidence.json','utf8'));
+          const evidenceSeal=evidence.evidence_sha256;delete evidence.evidence_sha256;
+          if(evidenceSeal!==process.env.PREPRODUCTION_EVIDENCE_SHA256||await sha256(evidence)!==evidenceSeal)throw new Error('preproduction evidence seal drift');
+          const request=JSON.parse(await fs.readFile('/tmp/fa20-preproduction/fa20-s4-approval-request.json','utf8'));
+          const requestSeal=request.approval_request_sha256;delete request.approval_request_sha256;
+          if(requestSeal!==process.env.S4_REQUEST_SHA256||await sha256(request)!==requestSeal)throw new Error('S4 request seal drift');
+          const verifier=JSON.parse(await fs.readFile('/tmp/fa20-s4-verifier/fa20-independent-s4-verifier.json','utf8'));
+          const verifierSeal=verifier.attestation_sha256;delete verifier.attestation_sha256;
+          if(verifierSeal!==process.env.S4_VERIFIER_ATTESTATION_SHA256||await sha256(verifier)!==verifierSeal)throw new Error('S4 verifier seal drift');
+          JS
+          jq -e --arg c "$CANDIDATE_COMMIT" --arg a "$CANDIDATE_ARTIFACT_SHA256" --arg p "$RELEASE_PLAN_SHA256" '
+            .status == "PASS_READY_FOR_EXACT_S4_APPROVAL" and .candidate_commit == $c and
+            .candidate_artifact_sha256 == $a and .release_plan_sha256 == $p and
+            .staging_executed == true and .canary_executed == true and
+            .browser_desktop_mobile_pass == true and .rollback_rehearsal_passed == true and
+            .candidate_restored_before_cleanup == true and .isolated_workers_cleaned == true and
+            .production_executed == false and .old_app_retained == true and .production_authority == false and
+            .tablet_evidence == "DEFERRED_PENDING_FUTURE_CUSTOMER" and
+            .external_comparison == "DEFERRED_NO_PAID_PROVIDER_ACCESS"
+          ' /tmp/fa20-preproduction/fa20-preproduction-evidence.json
+          jq -e --arg c "$CANDIDATE_COMMIT" --arg r "$S4_REQUEST_SHA256" '
+            .status == "INDEPENDENT_VERIFIER_APPROVED_FOR_FA20_S4_HUMAN_GATE" and
+            .candidate_commit == $c and .approval_request_sha256 == $r and
+            .release_role == "INDEPENDENT_VERIFIER" and .release_role_approval == true and
+            .builder_and_verifier_distinct == true and .exact_artifact_replay_verified == true and
+            .human_release_approval_present == false and .production_execution_authorized == false and
+            .production_credentials_present == false and .production_authority == false
+          ' /tmp/fa20-s4-verifier/fa20-independent-s4-verifier.json
+          jq -e --arg c "$ROLLBACK_CANDIDATE" --arg s "$ROLLBACK_SERVICE" '
+            .status == "PASS_PRODUCTION_PROMOTED_AND_MONITORED" and .source_candidate == $c and
+            .production_service == $s and .runtime_binding_service == "mft-axiom-modal-edge-stage" and
+            .operation_count == 74 and .rollback_proof == "PASS" and
+            .workers_dev_exposure_after_cutover == false and .production_secret_copy_performed == false
+          ' /tmp/fa13-production/fa13-production-promotion-v3.json
+
+      - name: Reassert current FA13 production origin before mutation
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$CLOUDFLARE_EMAIL"
+          test -n "$CLOUDFLARE_API_KEY"
+          python - <<'PY'
+          import json,os,urllib.parse,urllib.request
+          headers={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_API_KEY'],'Accept':'application/json'}
+          def cf(path):
+              request=urllib.request.Request(os.environ['CF_API']+path,headers=headers)
+              with urllib.request.urlopen(request,timeout=30) as response:value=json.load(response)
+              if value.get('success') is False:raise RuntimeError(path+' success=false')
+              return value.get('result')
+          rows=[row for row in (cf(f"/accounts/{os.environ['ACCOUNT_ID']}/workers/domains") or []) if row.get('hostname')==os.environ['PROD_HOST']]
+          if len(rows)!=1 or rows[0].get('service')!=os.environ['ROLLBACK_SERVICE']:raise SystemExit('canonical production service drift')
+          settings=cf(f"/accounts/{os.environ['ACCOUNT_ID']}/workers/scripts/{urllib.parse.quote(os.environ['ROLLBACK_SERVICE'],safe='')}/settings") or {}
+          if not any(binding.get('type')=='service' and binding.get('service')==os.environ['RUNTIME_SERVICE'] for binding in settings.get('bindings') or []):raise SystemExit('rollback runtime binding drift')
+          PY
+          python - <<'PY'
+          import json,os,urllib.error,urllib.request
+          base='https://'+os.environ['PROD_HOST']
+          def query(path,method='GET',body=None):
+              data=None if body is None else json.dumps(body,separators=(',',':')).encode();headers={'Accept':'application/json','Accept-Encoding':'identity','Cache-Control':'no-cache','User-Agent':'MUSITU-Axiom-FA20-S4-preflight'}
+              if data is not None:headers['Content-Type']='application/json'
+              request=urllib.request.Request(base+path,headers=headers,data=data,method=method)
+              try:
+                  with urllib.request.urlopen(request,timeout=30) as response:return response.status,response.read()
+              except urllib.error.HTTPError as error:return error.code,error.read()
+          status,body=query('/health');health=json.loads(body or b'{}')
+          if status!=200 or health.get('ok') is not True or health.get('build_id')!=os.environ['EXPECTED_RUNTIME_BUILD'] or int(health.get('operation_count') or -1)!=74:raise SystemExit('production runtime health failed')
+          status,body=query('/v1/tools');tools=json.loads(body or b'{}')
+          if status!=200 or int(tools.get('operation_count') or -1)!=74 or len(tools.get('tools') or [])!=74:raise SystemExit('production tools failed')
+          status,_=query('/v1/compute','POST',{'operation':'arithmetic.evaluate','args':{'expression':'40+2'}})
+          if status!=401:raise SystemExit('production unauthorized compute gate failed')
+          status,body=query('/vnext/fa13-build.json');marker=json.loads(body or b'{}')
+          if status!=200 or marker.get('source_commit')!=os.environ['ROLLBACK_CANDIDATE'] or marker.get('production') is not True:raise SystemExit('FA13 rollback marker failed')
+          PY
+
+      - name: Build exact-artifact FA20 production wrapper
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/fa20-production/public
+          tar --no-same-owner -xzf /tmp/fa20-preproduction/fa20-static-candidate.tgz -C /tmp/fa20-production/public
+          python - <<'PY'
+          import base64,hashlib,json,os,pathlib
+          root=pathlib.Path('/tmp/fa20-production/public')
+          marker=json.loads((root/'vnext/fa20-build.json').read_text())
+          if marker.get('source_commit')!=os.environ['CANDIDATE_COMMIT'] or marker.get('production') is not False:raise SystemExit('candidate artifact marker drift')
+          checks={
+              '/vnext/index.html':('text/html; charset=utf-8',[b'MUSITU AXIOM',b'vNext workspace']),
+              '/vnext/app.js':('text/javascript; charset=utf-8',[b'What do you want accomplished?',b'AXIOM builds AXIOM']),
+              '/vnext/manifest.webmanifest':('application/manifest+json',[b'MUSITU Axiom']),
+              '/vnext/fa16_service_worker.js':('text/javascript; charset=utf-8',[b'CACHE_PREFIX',b'SENSITIVE_PATH']),
+              '/vnext/fa15_advanced_surfaces_ui.js':('text/javascript; charset=utf-8',[b'advanced']),
+              '/vnext/fa16_mobile_pwa_ui.js':('text/javascript; charset=utf-8',[b'offline']),
+          }
+          manifest={};critical={}
+          for path,(content_type,needles) in checks.items():
+              data=(root/path.lstrip('/')).read_bytes();missing=[needle.decode() for needle in needles if needle not in data]
+              if missing:raise SystemExit('immutable marker missing '+path+': '+repr(missing))
+              digest=hashlib.sha256(data).hexdigest();manifest[path]={'sha256':digest,'bytes':len(data),'content_type':content_type};critical[path]={'sha256':digest,'content_type':content_type,'base64':base64.b64encode(data).decode()}
+          build={'schema':'musitu.axiom.fa20.static-build.v1','source_commit':os.environ['CANDIDATE_COMMIT'],'candidate_artifact_sha256':os.environ['CANDIDATE_ARTIFACT_SHA256'],'release_plan_sha256':os.environ['RELEASE_PLAN_SHA256'],'s4_approval_request_sha256':os.environ['S4_REQUEST_SHA256'],'human_approval_sha256':os.environ['HUMAN_APPROVAL_SHA256'],'independent_verifier_attestation_sha256':os.environ['S4_VERIFIER_ATTESTATION_SHA256'],'kind':'FA20_S4_PRODUCTION_UI_CANDIDATE','production':True,'release_authorized':True,'runtime_delegation':'CLOUDFLARE_SERVICE_BINDING_TO_PROTECTED_AXIOM_RUNTIME','tablet_evidence':'DEFERRED_PENDING_FUTURE_CUSTOMER','external_comparison':'DEFERRED_NO_PAID_PROVIDER_ACCESS','wolfram_parity':'NOT_CERTIFIED','superiority':'NOT_CERTIFIED'}
+          pathlib.Path('release-evidence/ui-asset-manifest.json').write_text(json.dumps(manifest,indent=2,sort_keys=True)+'\n')
+          pathlib.Path('release-evidence/fa20-production-build.json').write_text(json.dumps(build,indent=2,sort_keys=True)+'\n')
+          worker='''const CRITICAL=__CRITICAL__;const BUILD=__BUILD__;
+          function bytes64(value){const raw=atob(value),bytes=new Uint8Array(raw.length);for(let index=0;index<raw.length;index++)bytes[index]=raw.charCodeAt(index);return bytes;}
+          function noStore(headers=new Headers()){headers.set('Cache-Control','no-store, no-transform');headers.set('CDN-Cache-Control','no-store');headers.set('Cloudflare-CDN-Cache-Control','no-store');headers.set('X-Axiom-FA20-Source','__SOURCE__');return headers;}
+          function critical(path,head){const value=CRITICAL[path];if(!value)return null;const headers=noStore(new Headers({'Content-Type':value.content_type,'X-Axiom-Source-SHA256':value.sha256}));return new Response(head?null:bytes64(value.base64),{status:200,headers});}
+          function build(head){const body=JSON.stringify(BUILD)+'\\n';return new Response(head?null:body,{status:200,headers:noStore(new Headers({'Content-Type':'application/json; charset=utf-8'}))});}
+          async function forward(request,binding,path){const url=new URL(request.url),headers=new Headers(request.headers);for(const name of ['host','content-length','transfer-encoding','connection'])headers.delete(name);const init={method:request.method,headers,redirect:'manual'};if(request.method!=='GET'&&request.method!=='HEAD'){const body=await request.arrayBuffer();if(body.byteLength)init.body=body;}return binding.fetch('http://legacy'+(path||url.pathname)+url.search,init);}
+          export default {async fetch(request,env){const url=new URL(request.url),head=request.method==='HEAD';if((request.method==='GET'||head)&&url.pathname==='/')return Response.redirect(new URL('/vnext/index.html#/home',url.origin),302);if((request.method==='GET'||head)&&url.pathname==='/vnext/fa20-build.json')return build(head);if((request.method==='GET'||head)&&CRITICAL[url.pathname])return critical(url.pathname,head);if(url.pathname==='/vnext/.well-known/axiom-session')return forward(request,env.AXIOM_RUNTIME,'/.well-known/axiom-session');if(request.method==='GET'||head){const response=await env.ASSETS.fetch(request);if(response.status!==404)return new Response(head?null:response.body,{status:response.status,statusText:response.statusText,headers:noStore(new Headers(response.headers))});}return forward(request,env.AXIOM_RUNTIME);}};
+          '''.replace('__CRITICAL__',json.dumps(critical,separators=(',',':'))).replace('__BUILD__',json.dumps(build,separators=(',',':'))).replace('__SOURCE__',os.environ['CANDIDATE_COMMIT'])
+          pathlib.Path('/tmp/fa20-production/worker.js').write_text(worker)
+          config={'name':os.environ['PRODUCTION_SERVICE'],'main':'worker.js','compatibility_date':'2026-09-16','workers_dev':True,'observability':{'enabled':True},'assets':{'directory':'./public','binding':'ASSETS','run_worker_first':True},'services':[{'binding':'AXIOM_RUNTIME','service':os.environ['RUNTIME_SERVICE']}]}
+          pathlib.Path('/tmp/fa20-production/wrangler.json').write_text(json.dumps(config,indent=2)+'\n')
+          PY
+          cp /tmp/fa20-preproduction/fa20-static-candidate.tgz release-evidence/
+          sha256sum release-evidence/fa20-static-candidate.tgz > release-evidence/fa20-static-candidate.sha256
+
+      - name: Deploy and qualify isolated FA20 wrapper
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --no-save --ignore-scripts --no-audit --no-fund wrangler@4.129.0 >/dev/null
+          WRANGLER="$GITHUB_WORKSPACE/node_modules/.bin/wrangler"
+          test -x "$WRANGLER"
+          test "$($WRANGLER --version | tail -1)" = 4.129.0
+          (cd /tmp/fa20-production && "$WRANGLER" deploy --config wrangler.json > "$GITHUB_WORKSPACE/release-evidence/wrapper-deploy.log" 2>&1) || { tail -200 release-evidence/wrapper-deploy.log; exit 1; }
+          python - <<'PY'
+          import hashlib,json,os,pathlib,time,urllib.error,urllib.parse,urllib.request
+          headers={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_API_KEY'],'Accept':'application/json','Content-Type':'application/json'}
+          def cf(path,method='GET',body=None):
+              data=None if body is None else json.dumps(body,separators=(',',':')).encode();request=urllib.request.Request(os.environ['CF_API']+path,headers=headers,data=data,method=method)
+              with urllib.request.urlopen(request,timeout=30) as response:value=json.load(response)
+              if value.get('success') is False:raise RuntimeError(path+' success=false')
+              return value.get('result')
+          account=os.environ['ACCOUNT_ID'];worker=urllib.parse.quote(os.environ['PRODUCTION_SERVICE'],safe='')
+          subdomain=(cf(f'/accounts/{account}/workers/subdomain') or {}).get('subdomain')
+          if not subdomain:raise SystemExit('workers.dev subdomain unavailable')
+          cf(f'/accounts/{account}/workers/scripts/{worker}/subdomain','POST',{'enabled':True,'previews_enabled':False})
+          readback=cf(f'/accounts/{account}/workers/scripts/{worker}/subdomain') or {}
+          if readback.get('enabled') is not True or readback.get('previews_enabled') is not False:raise SystemExit('isolated workers.dev readback failed')
+          settings=cf(f'/accounts/{account}/workers/scripts/{worker}/settings') or {};bindings=settings.get('bindings') or []
+          if not any(binding.get('type')=='service' and binding.get('service')==os.environ['RUNTIME_SERVICE'] for binding in bindings):raise SystemExit('protected runtime binding missing')
+          if any(str(binding.get('type','')).lower() in {'secret','secret_text','secret_key'} for binding in bindings):raise SystemExit('production wrapper copied secret')
+          base=f"https://{os.environ['PRODUCTION_SERVICE']}.{subdomain}.workers.dev";expected=json.load(open('release-evidence/ui-asset-manifest.json'))
+          def query(path,method='GET',body=None):
+              data=None if body is None else json.dumps(body,separators=(',',':')).encode();request_headers={'Accept':'*/*','Accept-Encoding':'identity','Cache-Control':'no-cache','User-Agent':'MUSITU-Axiom-FA20-S4-isolated'}
+              if data is not None:request_headers['Content-Type']='application/json'
+              request=urllib.request.Request(base+path,headers=request_headers,data=data,method=method)
+              try:
+                  with urllib.request.urlopen(request,timeout=30) as response:return response.status,response.read(),dict(response.headers.items())
+              except urllib.error.HTTPError as error:return error.code,error.read(),dict(error.headers.items())
+          for attempt in range(1,46):
+              status,body,_=query('/vnext/fa20-build.json?attempt='+str(attempt))
+              try:marker=json.loads(body or b'{}')
+              except Exception:marker={}
+              if status==200 and marker.get('source_commit')==os.environ['CANDIDATE_COMMIT'] and marker.get('production') is True:break
+              time.sleep(2)
+          else:raise SystemExit('isolated FA20 marker unavailable')
+          proof={}
+          for path,metadata in expected.items():
+              status,body,response_headers=query(path+'?t='+str(time.time_ns()));actual=hashlib.sha256(body).hexdigest();source=response_headers.get('X-Axiom-Source-SHA256') or response_headers.get('x-axiom-source-sha256')
+              proof[path]={'status':status,'sha256':actual,'bytes':len(body),'source_header':source}
+              if status!=200 or actual!=metadata['sha256'] or len(body)!=metadata['bytes'] or source!=metadata['sha256']:raise SystemExit('isolated immutable asset failed '+path+' '+repr(proof[path]))
+          status,body,_=query('/health');health=json.loads(body or b'{}')
+          if status!=200 or health.get('ok') is not True or health.get('build_id')!=os.environ['EXPECTED_RUNTIME_BUILD'] or int(health.get('operation_count') or -1)!=74:raise SystemExit('isolated runtime health failed')
+          status,body,_=query('/v1/tools');tools=json.loads(body or b'{}')
+          if status!=200 or int(tools.get('operation_count') or -1)!=74 or len(tools.get('tools') or [])!=74:raise SystemExit('isolated tool registry failed')
+          status,_,_=query('/v1/compute','POST',{'operation':'arithmetic.evaluate','args':{'expression':'40+2'}})
+          if status!=401:raise SystemExit('isolated auth gate failed')
+          pathlib.Path('release-evidence/isolated-wrapper-proof.json').write_text(json.dumps({'schema':'musitu.axiom.fa20.isolated-production-wrapper-proof.v1','status':'PASS','source_commit':os.environ['CANDIDATE_COMMIT'],'operation_count':74,'assets':proof,'production_mutated':False},indent=2,sort_keys=True)+'\n')
+          PY
+
+      - name: Disable workers.dev and reassert release head before canonical mutation
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          path='/tmp/fa20-production/wrangler.json';value=json.load(open(path));value['workers_dev']=False;json.dump(value,open(path,'w'),indent=2)
+          PY
+          WRANGLER="$GITHUB_WORKSPACE/node_modules/.bin/wrangler"
+          test "$($WRANGLER --version | tail -1)" = 4.129.0
+          (cd /tmp/fa20-production && "$WRANGLER" deploy --config wrangler.json > "$GITHUB_WORKSPACE/release-evidence/wrapper-private-redeploy.log" 2>&1) || { tail -200 release-evidence/wrapper-private-redeploy.log; exit 1; }
+          python - <<'PY'
+          import json,os,urllib.parse,urllib.request
+          cf_headers={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_API_KEY'],'Accept':'application/json','Content-Type':'application/json'}
+          account=os.environ['ACCOUNT_ID'];worker=urllib.parse.quote(os.environ['PRODUCTION_SERVICE'],safe='');path=f'/accounts/{account}/workers/scripts/{worker}/subdomain'
+          request=urllib.request.Request(os.environ['CF_API']+path,headers=cf_headers,data=json.dumps({'enabled':False,'previews_enabled':False}).encode(),method='POST')
+          with urllib.request.urlopen(request,timeout=30) as response:value=json.load(response)
+          if value.get('success') is False:raise SystemExit('workers.dev disable failed')
+          request=urllib.request.Request(os.environ['CF_API']+path,headers=cf_headers)
+          with urllib.request.urlopen(request,timeout=30) as response:value=json.load(response)
+          result=value.get('result') or {}
+          if value.get('success') is False or result.get('enabled') is not False or result.get('previews_enabled') is not False:raise SystemExit('workers.dev disable readback failed')
+          gh_headers={'Authorization':'Bearer '+os.environ['GH_READ_TOKEN'],'Accept':'application/vnd.github+json','X-GitHub-Api-Version':'2022-11-28'}
+          branch=urllib.parse.quote(os.environ['RELEASE_BRANCH'],safe='');request=urllib.request.Request(f"https://api.github.com/repos/{os.environ['GITHUB_REPOSITORY']}/branches/{branch}",headers=gh_headers)
+          with urllib.request.urlopen(request,timeout=30) as response:value=json.load(response)
+          if value['commit']['sha']!=os.environ['GITHUB_SHA']:raise SystemExit('release branch advanced before production mutation')
+          PY
+
+      - name: Promote rollback restore and monitor canonical FA20 production
+        shell: bash
+        run: |
+          set -euo pipefail
+          touch release-evidence/production-mutation-started
+          python - <<'PY'
+          import hashlib,json,os,pathlib,time,urllib.error,urllib.request
+          api=os.environ['CF_API'];account=os.environ['ACCOUNT_ID'];host=os.environ['PROD_HOST'];rollback=os.environ['ROLLBACK_SERVICE'];production=os.environ['PRODUCTION_SERVICE'];expected=json.load(open('release-evidence/ui-asset-manifest.json'))
+          headers={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_API_KEY'],'Accept':'application/json','Content-Type':'application/json'}
+          def cf(path,method='GET',body=None):
+              data=None if body is None else json.dumps(body,separators=(',',':')).encode();request=urllib.request.Request(api+path,headers=headers,data=data,method=method)
+              try:
+                  with urllib.request.urlopen(request,timeout=35) as response:raw=response.read();code=response.status
+              except urllib.error.HTTPError as error:raw=error.read();code=error.code
+              if not 200<=code<300:raise RuntimeError(f'Cloudflare HTTP {code} {method} {path}')
+              value=json.loads(raw or b'{}')
+              if value.get('success') is False:raise RuntimeError('Cloudflare success=false '+path)
+              return value.get('result')
+          def domain_row():
+              rows=[row for row in (cf(f'/accounts/{account}/workers/domains') or []) if row.get('hostname')==host]
+              if len(rows)!=1:raise RuntimeError('production domain cardinality')
+              return rows[0]
+          def attach(service):
+              cf(f'/accounts/{account}/workers/domains','PUT',{'hostname':host,'service':service,'zone_id':os.environ['ZONE_ID'],'zone_name':os.environ['ZONE_NAME'],'override_existing_origin':True})
+              if domain_row().get('service')!=service:raise RuntimeError('production attach readback failed')
+          def query(path,method='GET',body=None):
+              data=None if body is None else json.dumps(body,separators=(',',':')).encode();request_headers={'Accept':'*/*','Accept-Encoding':'identity','Cache-Control':'no-cache','Pragma':'no-cache','User-Agent':'MUSITU-Axiom-FA20-S4-production'}
+              if data is not None:request_headers['Content-Type']='application/json'
+              request=urllib.request.Request('https://'+host+path,headers=request_headers,data=data,method=method)
+              try:
+                  with urllib.request.urlopen(request,timeout=30) as response:return response.status,response.read(),dict(response.headers.items())
+              except urllib.error.HTTPError as error:return error.code,error.read(),dict(error.headers.items())
+          def header(values,name):return values.get(name) or values.get(name.lower())
+          def candidate_visible():
+              try:
+                  status,body,_=query('/vnext/fa20-build.json?t='+str(time.time_ns()));marker=json.loads(body or b'{}')
+                  return status==200 and marker.get('source_commit')==os.environ['CANDIDATE_COMMIT'] and marker.get('production') is True and marker.get('human_approval_sha256')==os.environ['HUMAN_APPROVAL_SHA256']
+              except Exception:return False
+          def rollback_visible():
+              try:
+                  status,body,_=query('/vnext/fa13-build.json?t='+str(time.time_ns()));marker=json.loads(body or b'{}')
+                  return status==200 and marker.get('source_commit')==os.environ['ROLLBACK_CANDIDATE'] and marker.get('production') is True
+              except Exception:return False
+          def wait_for(check,label):
+              for _ in range(45):
+                  if check():return
+                  time.sleep(2)
+              raise RuntimeError(label+' did not converge')
+          def verify_runtime():
+              status,body,_=query('/health');health=json.loads(body or b'{}')
+              if status!=200 or health.get('ok') is not True or health.get('build_id')!=os.environ['EXPECTED_RUNTIME_BUILD'] or int(health.get('operation_count') or -1)!=74:raise RuntimeError('runtime health failed')
+              if health.get('wolfram_parity')!='NOT_CERTIFIED' or health.get('superiority')!='NOT_CERTIFIED':raise RuntimeError('claim boundary drift')
+              status,body,_=query('/v1/tools');tools=json.loads(body or b'{}')
+              if status!=200 or int(tools.get('operation_count') or -1)!=74 or len(tools.get('tools') or [])!=74:raise RuntimeError('tool registry failed')
+              status,_,_=query('/v1/compute','POST',{'operation':'arithmetic.evaluate','args':{'expression':'40+2'}})
+              if status!=401:raise RuntimeError('auth gate failed')
+          def verify_candidate():
+              verify_runtime();proof={}
+              for path,metadata in expected.items():
+                  status,body,response_headers=query(path+'?t='+str(time.time_ns()));actual=hashlib.sha256(body).hexdigest();source=header(response_headers,'X-Axiom-Source-SHA256')
+                  proof[path]={'status':status,'sha256':actual,'bytes':len(body),'source_header':source,'content_encoding':header(response_headers,'Content-Encoding')}
+                  if status!=200 or actual!=metadata['sha256'] or len(body)!=metadata['bytes'] or source!=metadata['sha256']:raise RuntimeError('production immutable asset mismatch '+path+' '+repr(proof[path]))
+              if not candidate_visible():raise RuntimeError('FA20 build marker disappeared')
+              return proof
+          if domain_row().get('service')!=rollback:raise RuntimeError('production origin moved before cutover')
+          promoted=False
+          try:
+              attach(production);promoted=True;wait_for(candidate_visible,'FA20 production edge');initial=verify_candidate()
+              attach(rollback);wait_for(rollback_visible,'FA13 rollback edge');verify_runtime();pathlib.Path('release-evidence/rollback-drill-pass').write_text('PASS\n')
+              attach(production);wait_for(candidate_visible,'FA20 restored edge');restored=verify_candidate()
+              samples=[]
+              for index in range(5):
+                  samples.append({'at':time.time(),'assets':verify_candidate()})
+                  if index<4:time.sleep(12)
+              request=urllib.request.Request('https://'+os.environ['BILLING_HOST']+'/billing/healthz',headers={'Accept':'application/json','Accept-Encoding':'identity','User-Agent':'MUSITU-Axiom-FA20-S4-monitor'})
+              with urllib.request.urlopen(request,timeout=30) as response:billing=json.load(response);billing_status=response.status
+              if billing_status!=200 or billing.get('ok') is not True:raise RuntimeError('billing health failed')
+              evidence={'schema':'musitu.axiom.fa20.s4-production-promotion.v1','status':'PASS_PRODUCTION_PROMOTED_AND_MONITORED','source_candidate':os.environ['CANDIDATE_COMMIT'],'candidate_artifact_sha256':os.environ['CANDIDATE_ARTIFACT_SHA256'],'release_plan_sha256':os.environ['RELEASE_PLAN_SHA256'],'s4_approval_request_sha256':os.environ['S4_REQUEST_SHA256'],'human_approval_sha256':os.environ['HUMAN_APPROVAL_SHA256'],'independent_verifier_attestation_sha256':os.environ['S4_VERIFIER_ATTESTATION_SHA256'],'release_branch_head':os.environ['GITHUB_SHA'],'human_release_approval':True,'independent_verifier_release_approval':True,'production_promotion_authorized':True,'production_hostname':host,'rollback_service':rollback,'production_service':production,'runtime_binding_service':os.environ['RUNTIME_SERVICE'],'runtime_build':os.environ['EXPECTED_RUNTIME_BUILD'],'operation_count':74,'initial_smoke_assets':initial,'rollback_proof':'PASS','candidate_restored_after_rollback_assets':restored,'monitor_samples':samples,'monitor_sample_count':len(samples),'billing_health':'PASS','workers_dev_exposure_after_cutover':False,'production_secret_copy_performed':False,'old_fa13_wrapper_retained_for_rollback':True,'main_modified':False,'pr1_modified':False,'tablet_evidence':'DEFERRED_PENDING_FUTURE_CUSTOMER','external_comparison':'DEFERRED_NO_PAID_PROVIDER_ACCESS','wolfram_parity':'NOT_CERTIFIED','superiority':'NOT_CERTIFIED'}
+              path=pathlib.Path('release-evidence/fa20-production-promotion.json');path.write_text(json.dumps(evidence,indent=2,sort_keys=True)+'\n');digest=hashlib.sha256(path.read_bytes()).hexdigest();pathlib.Path('release-evidence/fa20-production-promotion.sha256').write_text(digest+'  '+path.name+'\n');pathlib.Path('release-evidence/production-promotion-complete').write_text('PASS\n');print(json.dumps({'status':evidence['status'],'evidence_sha256':digest,'service':production},sort_keys=True))
+          except Exception:
+              if promoted:
+                  try:
+                      attach(rollback);wait_for(rollback_visible,'automatic FA13 rollback edge');verify_runtime();pathlib.Path('release-evidence/automatic-rollback-pass').write_text('PASS\n')
+                  except Exception as rollback_error:pathlib.Path('release-evidence/automatic-rollback-failed').write_text(type(rollback_error).__name__+': '+str(rollback_error)+'\n')
+              raise
+          PY
+
+      - name: Upload sealed FA20 production evidence
+        if: success()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: musitu-axiom-fa20-s4-production-promotion
+          path: release-evidence/
+          if-no-files-found: error
+          retention-days: 90
+
+      - name: Fail-closed restore FA13 and clean FA20 wrapper
+        if: failure()
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json,os,pathlib,urllib.error,urllib.request
+          api=os.environ['CF_API'];account=os.environ['ACCOUNT_ID'];host=os.environ['PROD_HOST'];rollback=os.environ['ROLLBACK_SERVICE'];headers={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_API_KEY'],'Accept':'application/json','Content-Type':'application/json'}
+          started=pathlib.Path('release-evidence/production-mutation-started').exists();restored=False
+          if started:
+              data=json.dumps({'hostname':host,'service':rollback,'zone_id':os.environ['ZONE_ID'],'zone_name':os.environ['ZONE_NAME'],'override_existing_origin':True}).encode();request=urllib.request.Request(api+f'/accounts/{account}/workers/domains',headers=headers,data=data,method='PUT')
+              with urllib.request.urlopen(request,timeout=35) as response:value=json.load(response)
+              if value.get('success') is False:raise SystemExit('emergency FA13 attach failed')
+              request=urllib.request.Request(api+f'/accounts/{account}/workers/domains',headers=headers)
+              with urllib.request.urlopen(request,timeout=35) as response:rows=json.load(response).get('result') or []
+              matches=[row for row in rows if row.get('hostname')==host]
+              if len(matches)!=1 or matches[0].get('service')!=rollback:raise SystemExit('emergency FA13 readback failed')
+              request=urllib.request.Request('https://'+host+'/health',headers={'Accept':'application/json','Accept-Encoding':'identity','User-Agent':'MUSITU-Axiom-FA20-S4-rollback'})
+              with urllib.request.urlopen(request,timeout=30) as response:health=json.load(response);code=response.status
+              if code!=200 or health.get('ok') is not True or health.get('build_id')!=os.environ['EXPECTED_RUNTIME_BUILD'] or int(health.get('operation_count') or -1)!=74:raise SystemExit('emergency FA13 health failed')
+              restored=True
+          request=urllib.request.Request(api+f"/accounts/{account}/workers/scripts/{os.environ['PRODUCTION_SERVICE']}",headers=headers,method='DELETE')
+          try:
+              with urllib.request.urlopen(request,timeout=35) as response:delete_code=response.status
+          except urllib.error.HTTPError as error:delete_code=error.code
+          if delete_code not in (200,204,404):raise SystemExit('FA20 wrapper cleanup HTTP '+str(delete_code))
+          pathlib.Path('release-evidence/emergency-rollback.json').write_text(json.dumps({'schema':'musitu.axiom.fa20.s4-emergency-rollback.v1','status':'PASS_SAFE_FAILURE_STATE','production_mutation_started':started,'restored_to_fa13_production':restored,'hostname':host,'rollback_service':rollback,'fa20_wrapper_deleted':True,'source_candidate':os.environ['CANDIDATE_COMMIT']},indent=2,sort_keys=True)+'\n')
+          PY
+
+      - name: Preserve FA20 production diagnostics
+        if: always()
+        continue-on-error: true
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: musitu-axiom-fa20-s4-production-diagnostics
+          path: release-evidence/
+          if-no-files-found: warn
+          retention-days: 90
