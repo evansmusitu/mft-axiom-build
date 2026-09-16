@@ -61,7 +61,17 @@ jobs:
           grep -q "SIMULATED_SCENARIO" axiom_interface/vnext/fa14_evidence_native_engine.js
           grep -q "legacyPhase14Unchanged:true" axiom_interface/vnext/fa14_evidence_native_engine.js
           grep -q "fa14_workspace_ui.js" axiom_interface/vnext/index.html
-          ! grep -R -E 'wrangler deploy|kubectl|terraform apply|gh pr merge|git push|contents: write|deployments: write' .github/workflows/axiom-fa14-*.yml
+          python - <<'PY'
+          import pathlib,re
+          files=sorted(pathlib.Path('.github/workflows').glob('axiom-fa14-*.yml'))
+          text='\n'.join(p.read_text() for p in files)
+          forbidden=['wrangler'+' deploy','kubectl'+' ','terraform'+' apply','gh pr'+' merge','git'+' push']
+          found=[term for term in forbidden if term in text]
+          if found: raise SystemExit('FA14 workflow execution authority widening: '+repr(found))
+          write_patterns=[r'(?m)^\s*contents:\s*write\s*$',r'(?m)^\s*actions:\s*write\s*$',r'(?m)^\s*deployments:\s*write\s*$',r'(?m)^\s*packages:\s*write\s*$']
+          hits=[pat for pat in write_patterns if re.search(pat,text)]
+          if hits: raise SystemExit('FA14 workflow write permission detected: '+repr(hits))
+          PY
       - name: Build candidate evidence
         shell: bash
         run: |
