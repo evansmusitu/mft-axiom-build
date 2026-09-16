@@ -59,7 +59,7 @@ env:
   RUNTIME_SERVICE: mft-axiom-modal-edge-stage
   PRODUCTION_SERVICE: musitu-axiom-fa20-production-ui-edge
   EXPECTED_RUNTIME_BUILD: MFT-AXIOM-V3-FULL-SELF-CONTAINED-20260904
-  FAILED_RUN_IDS: '35116079557'
+  FAILED_RUN_IDS: '35116079557,35116402832'
 
 jobs:
   promote:
@@ -83,7 +83,7 @@ jobs:
           mkdir -p release-evidence
           test "$GITHUB_REF_NAME" = "$RELEASE_BRANCH"
           test "$(git merge-base "$AUTHORITY_COMMIT" HEAD)" = "$AUTHORITY_COMMIT"
-          test "$(git rev-list --count "$AUTHORITY_COMMIT"..HEAD)" = 2
+          test "$(git rev-list --count "$AUTHORITY_COMMIT"..HEAD)" = 3
           test "$(git merge-base "$CANDIDATE_COMMIT" HEAD)" = "$CANDIDATE_COMMIT"
           mapfile -t changed < <(git diff --name-only "$AUTHORITY_COMMIT"..HEAD)
           test "${#changed[@]}" = 2
@@ -323,9 +323,15 @@ jobs:
           else:raise SystemExit('isolated FA20 marker unavailable')
           proof={}
           for path,metadata in expected.items():
-              status,body,response_headers=query(path+'?t='+str(time.time_ns()));actual=hashlib.sha256(body).hexdigest();source=response_headers.get('X-Axiom-Source-SHA256') or response_headers.get('x-axiom-source-sha256')
-              proof[path]={'status':status,'sha256':actual,'bytes':len(body),'source_header':source}
-              if status!=200 or actual!=metadata['sha256'] or len(body)!=metadata['bytes'] or source!=metadata['sha256']:raise SystemExit('isolated immutable asset failed '+path+' '+repr(proof[path]))
+              last=None
+              for asset_attempt in range(1,46):
+                  status,body,response_headers=query(path+'?t='+str(time.time_ns())+'&attempt='+str(asset_attempt));actual=hashlib.sha256(body).hexdigest();source=response_headers.get('X-Axiom-Source-SHA256') or response_headers.get('x-axiom-source-sha256')
+                  last={'status':status,'sha256':actual,'bytes':len(body),'source_header':source,'attempt':asset_attempt}
+                  if status==200 and actual==metadata['sha256'] and len(body)==metadata['bytes'] and source==metadata['sha256']:
+                      proof[path]=last
+                      break
+                  time.sleep(2)
+              else:raise SystemExit('isolated immutable asset did not converge '+path+' '+repr(last))
           status,body,_=query('/health');health=json.loads(body or b'{}')
           if status!=200 or health.get('ok') is not True or health.get('build_id')!=os.environ['EXPECTED_RUNTIME_BUILD'] or int(health.get('operation_count') or -1)!=74:raise SystemExit('isolated runtime health failed')
           status,body,_=query('/v1/tools');tools=json.loads(body or b'{}')
@@ -430,9 +436,15 @@ jobs:
           def verify_candidate():
               verify_runtime();proof={}
               for path,metadata in expected.items():
-                  status,body,response_headers=query(path+'?t='+str(time.time_ns()));actual=hashlib.sha256(body).hexdigest();source=header(response_headers,'X-Axiom-Source-SHA256')
-                  proof[path]={'status':status,'sha256':actual,'bytes':len(body),'source_header':source,'content_encoding':header(response_headers,'Content-Encoding')}
-                  if status!=200 or actual!=metadata['sha256'] or len(body)!=metadata['bytes'] or source!=metadata['sha256']:raise RuntimeError('production immutable asset mismatch '+path+' '+repr(proof[path]))
+                  last=None
+                  for asset_attempt in range(1,46):
+                      status,body,response_headers=query(path+'?t='+str(time.time_ns())+'&attempt='+str(asset_attempt));actual=hashlib.sha256(body).hexdigest();source=header(response_headers,'X-Axiom-Source-SHA256')
+                      last={'status':status,'sha256':actual,'bytes':len(body),'source_header':source,'content_encoding':header(response_headers,'Content-Encoding'),'attempt':asset_attempt}
+                      if status==200 and actual==metadata['sha256'] and len(body)==metadata['bytes'] and source==metadata['sha256']:
+                          proof[path]=last
+                          break
+                      time.sleep(2)
+                  else:raise RuntimeError('production immutable asset did not converge '+path+' '+repr(last))
               if not candidate_visible():raise RuntimeError('FA20 build marker disappeared')
               return proof
           if domain_row().get('service')!=rollback:raise RuntimeError('production origin moved before cutover')
@@ -448,7 +460,7 @@ jobs:
               request=urllib.request.Request('https://'+os.environ['BILLING_HOST']+'/billing/healthz',headers={'Accept':'application/json','Accept-Encoding':'identity','User-Agent':'MUSITU-Axiom-FA20-S4-monitor'})
               with urllib.request.urlopen(request,timeout=30) as response:billing=json.load(response);billing_status=response.status
               if billing_status!=200 or billing.get('ok') is not True:raise RuntimeError('billing health failed')
-              evidence={'schema':'musitu.axiom.fa20.s4-production-promotion.v1','status':'PASS_PRODUCTION_PROMOTED_AND_MONITORED','source_candidate':os.environ['CANDIDATE_COMMIT'],'candidate_artifact_sha256':os.environ['CANDIDATE_ARTIFACT_SHA256'],'release_plan_sha256':os.environ['RELEASE_PLAN_SHA256'],'s4_approval_request_sha256':os.environ['S4_REQUEST_SHA256'],'human_approval_sha256':os.environ['HUMAN_APPROVAL_SHA256'],'independent_verifier_attestation_sha256':os.environ['S4_VERIFIER_ATTESTATION_SHA256'],'release_branch_head':os.environ['GITHUB_SHA'],'failed_attempts_preserved':[int(value) for value in os.environ['FAILED_RUN_IDS'].split(',') if value],'failed_attempt_cause':'CANONICAL_AUTH_GATE_FIRST_PROBE_DID_NOT_RETURN_EXPECTED_401','human_release_approval':True,'independent_verifier_release_approval':True,'production_promotion_authorized':True,'production_hostname':host,'rollback_service':rollback,'production_service':production,'runtime_binding_service':os.environ['RUNTIME_SERVICE'],'runtime_build':os.environ['EXPECTED_RUNTIME_BUILD'],'operation_count':74,'initial_smoke_assets':initial,'rollback_proof':'PASS','candidate_restored_after_rollback_assets':restored,'monitor_samples':samples,'monitor_sample_count':len(samples),'billing_health':'PASS','workers_dev_exposure_after_cutover':False,'production_secret_copy_performed':False,'old_fa13_wrapper_retained_for_rollback':True,'main_modified':False,'pr1_modified':False,'tablet_evidence':'DEFERRED_PENDING_FUTURE_CUSTOMER','external_comparison':'DEFERRED_NO_PAID_PROVIDER_ACCESS','wolfram_parity':'NOT_CERTIFIED','superiority':'NOT_CERTIFIED'}
+              evidence={'schema':'musitu.axiom.fa20.s4-production-promotion.v1','status':'PASS_PRODUCTION_PROMOTED_AND_MONITORED','source_candidate':os.environ['CANDIDATE_COMMIT'],'candidate_artifact_sha256':os.environ['CANDIDATE_ARTIFACT_SHA256'],'release_plan_sha256':os.environ['RELEASE_PLAN_SHA256'],'s4_approval_request_sha256':os.environ['S4_REQUEST_SHA256'],'human_approval_sha256':os.environ['HUMAN_APPROVAL_SHA256'],'independent_verifier_attestation_sha256':os.environ['S4_VERIFIER_ATTESTATION_SHA256'],'release_branch_head':os.environ['GITHUB_SHA'],'failed_attempts_preserved':[int(value) for value in os.environ['FAILED_RUN_IDS'].split(',') if value],'failed_attempt_causes':['CANONICAL_AUTH_GATE_FIRST_PROBE_DID_NOT_RETURN_EXPECTED_401','ISOLATED_ASSET_PROPAGATION_404_NOT_RETRIED'],'human_release_approval':True,'independent_verifier_release_approval':True,'production_promotion_authorized':True,'production_hostname':host,'rollback_service':rollback,'production_service':production,'runtime_binding_service':os.environ['RUNTIME_SERVICE'],'runtime_build':os.environ['EXPECTED_RUNTIME_BUILD'],'operation_count':74,'initial_smoke_assets':initial,'rollback_proof':'PASS','candidate_restored_after_rollback_assets':restored,'monitor_samples':samples,'monitor_sample_count':len(samples),'billing_health':'PASS','workers_dev_exposure_after_cutover':False,'production_secret_copy_performed':False,'old_fa13_wrapper_retained_for_rollback':True,'main_modified':False,'pr1_modified':False,'tablet_evidence':'DEFERRED_PENDING_FUTURE_CUSTOMER','external_comparison':'DEFERRED_NO_PAID_PROVIDER_ACCESS','wolfram_parity':'NOT_CERTIFIED','superiority':'NOT_CERTIFIED'}
               path=pathlib.Path('release-evidence/fa20-production-promotion.json');path.write_text(json.dumps(evidence,indent=2,sort_keys=True)+'\n');digest=hashlib.sha256(path.read_bytes()).hexdigest();pathlib.Path('release-evidence/fa20-production-promotion.sha256').write_text(digest+'  '+path.name+'\n');pathlib.Path('release-evidence/production-promotion-complete').write_text('PASS\n');print(json.dumps({'status':evidence['status'],'evidence_sha256':digest,'service':production},sort_keys=True))
           except Exception:
               if promoted:
