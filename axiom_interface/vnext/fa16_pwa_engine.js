@@ -16,7 +16,7 @@ const PREEXISTING_PHONE_EVIDENCE=Object.freeze({
   verified_scenarios:PREEXISTING_PHONE_SCENARIOS
 });
 const SECRET_KEY=/(authorization|cookie|credential|password|passwd|secret|token|api[_-]?key|private[_-]?key)/i;
-const SECRET_VALUE=/(?:\bBearer\s+[A-Za-z0-9._~+\/-]+=*|-----BEGIN [A-Z ]*PRIVATE KEY-----|\b(?:sk|pk|rk)[-_][A-Za-z0-9_-]{12,})/i;
+const SECRET_VALUE=/(?:\bBearer\s+[A-Za-z0-9._~+\/-]+=*|-----BEGIN [A-Z ]*PRIVATE KEY-----|\b(?:sk|pk|rk|ghp|gho|ghu|ghs|ghr)[-_][A-Za-z0-9_-]{12,}|\bgithub_pat_[A-Za-z0-9_]{20,}|\bAKIA[0-9A-Z]{16}\b|\bxox[baprs]-[A-Za-z0-9-]{20,})/i;
 
 const clean=(value,limit=4000)=>String(value??'').replace(/[\u0000-\u001f\u007f]/g,' ').trim().slice(0,limit);
 const unique=value=>[...new Set((Array.isArray(value)?value:[]).map(item=>clean(item,240)).filter(Boolean))].sort();

@@ -24,6 +24,7 @@ test('queue rejects high-risk, external, public, destructive, unknown-field and 
   await rejectsCode(()=>q.prepare({...input(),destructive:true}),'CONSEQUENTIAL_OFFLINE_ACTION');
   await rejectsCode(()=>q.prepare({...input(),payload:{...input().payload,url:'https://example.test'}}),'PAYLOAD_FIELDS');
   await rejectsCode(()=>q.prepare({...input(),payload:{work_id:'work-1',note:'Bearer abc.def.ghi'}}),'SECRET_VALUE');
+  await rejectsCode(()=>q.prepare({...input(),payload:{work_id:'work-1',note:'github_pat_1234567890abcdefghijklmnopqrstuvwxyz1234567890'}}),'SECRET_VALUE');
 });
 
 test('stale preview and tampered queue records fail closed',async()=>{
