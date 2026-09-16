@@ -59,7 +59,7 @@ env:
   RUNTIME_SERVICE: mft-axiom-modal-edge-stage
   PRODUCTION_SERVICE: musitu-axiom-fa20-production-ui-edge
   EXPECTED_RUNTIME_BUILD: MFT-AXIOM-V3-FULL-SELF-CONTAINED-20260904
-  FAILED_RUN_IDS: '35116079557,35116402832'
+  FAILED_RUN_IDS: '35116079557,35116402832,35116974613'
 
 jobs:
   promote:
@@ -83,7 +83,7 @@ jobs:
           mkdir -p release-evidence
           test "$GITHUB_REF_NAME" = "$RELEASE_BRANCH"
           test "$(git merge-base "$AUTHORITY_COMMIT" HEAD)" = "$AUTHORITY_COMMIT"
-          test "$(git rev-list --count "$AUTHORITY_COMMIT"..HEAD)" = 3
+          test "$(git rev-list --count "$AUTHORITY_COMMIT"..HEAD)" = 4
           test "$(git merge-base "$CANDIDATE_COMMIT" HEAD)" = "$CANDIDATE_COMMIT"
           mapfile -t changed < <(git diff --name-only "$AUTHORITY_COMMIT"..HEAD)
           test "${#changed[@]}" = 2
@@ -314,6 +314,22 @@ jobs:
               try:
                   with urllib.request.urlopen(request,timeout=30) as response:return response.status,response.read(),dict(response.headers.items())
               except urllib.error.HTTPError as error:return error.code,error.read(),dict(error.headers.items())
+          def verify_runtime():
+              last={}
+              for runtime_attempt in range(1,31):
+                  health_status,health_body,_=query('/health?t='+str(time.time_ns()))
+                  tools_status,tools_body,_=query('/v1/tools?t='+str(time.time_ns()))
+                  auth_status,auth_body,_=query('/v1/compute','POST',{'operation':'arithmetic.evaluate','args':{'expression':'40+2'}})
+                  try:health=json.loads(health_body or b'{}')
+                  except Exception:health={}
+                  try:tools=json.loads(tools_body or b'{}')
+                  except Exception:tools={}
+                  last={'attempt':runtime_attempt,'health_status':health_status,'health_build':health.get('build_id'),'health_operations':health.get('operation_count'),'tools_status':tools_status,'tools_operations':tools.get('operation_count'),'tools_length':len(tools.get('tools') or []),'auth_status':auth_status,'auth_body_prefix':auth_body[:200].decode(errors='replace')}
+                  health_ok=health_status==200 and health.get('ok') is True and health.get('build_id')==os.environ['EXPECTED_RUNTIME_BUILD'] and int(health.get('operation_count') or -1)==74 and health.get('wolfram_parity')=='NOT_CERTIFIED' and health.get('superiority')=='NOT_CERTIFIED'
+                  tools_ok=tools_status==200 and int(tools.get('operation_count') or -1)==74 and len(tools.get('tools') or [])==74
+                  if health_ok and tools_ok and auth_status==401:return last
+                  time.sleep(2)
+              raise SystemExit('isolated runtime contract did not converge '+repr(last))
           for attempt in range(1,46):
               status,body,_=query('/vnext/fa20-build.json?attempt='+str(attempt))
               try:marker=json.loads(body or b'{}')
@@ -332,13 +348,8 @@ jobs:
                       break
                   time.sleep(2)
               else:raise SystemExit('isolated immutable asset did not converge '+path+' '+repr(last))
-          status,body,_=query('/health');health=json.loads(body or b'{}')
-          if status!=200 or health.get('ok') is not True or health.get('build_id')!=os.environ['EXPECTED_RUNTIME_BUILD'] or int(health.get('operation_count') or -1)!=74:raise SystemExit('isolated runtime health failed')
-          status,body,_=query('/v1/tools');tools=json.loads(body or b'{}')
-          if status!=200 or int(tools.get('operation_count') or -1)!=74 or len(tools.get('tools') or [])!=74:raise SystemExit('isolated tool registry failed')
-          status,_,_=query('/v1/compute','POST',{'operation':'arithmetic.evaluate','args':{'expression':'40+2'}})
-          if status!=401:raise SystemExit('isolated auth gate failed')
-          pathlib.Path('release-evidence/isolated-wrapper-proof.json').write_text(json.dumps({'schema':'musitu.axiom.fa20.isolated-production-wrapper-proof.v1','status':'PASS','source_commit':os.environ['CANDIDATE_COMMIT'],'operation_count':74,'assets':proof,'production_mutated':False},indent=2,sort_keys=True)+'\n')
+          runtime=verify_runtime()
+          pathlib.Path('release-evidence/isolated-wrapper-proof.json').write_text(json.dumps({'schema':'musitu.axiom.fa20.isolated-production-wrapper-proof.v1','status':'PASS','source_commit':os.environ['CANDIDATE_COMMIT'],'operation_count':74,'assets':proof,'runtime_contract':runtime,'production_mutated':False},indent=2,sort_keys=True)+'\n')
           PY
 
       - name: Disable workers.dev and reassert release head before canonical mutation
@@ -460,7 +471,7 @@ jobs:
               request=urllib.request.Request('https://'+os.environ['BILLING_HOST']+'/billing/healthz',headers={'Accept':'application/json','Accept-Encoding':'identity','User-Agent':'MUSITU-Axiom-FA20-S4-monitor'})
               with urllib.request.urlopen(request,timeout=30) as response:billing=json.load(response);billing_status=response.status
               if billing_status!=200 or billing.get('ok') is not True:raise RuntimeError('billing health failed')
-              evidence={'schema':'musitu.axiom.fa20.s4-production-promotion.v1','status':'PASS_PRODUCTION_PROMOTED_AND_MONITORED','source_candidate':os.environ['CANDIDATE_COMMIT'],'candidate_artifact_sha256':os.environ['CANDIDATE_ARTIFACT_SHA256'],'release_plan_sha256':os.environ['RELEASE_PLAN_SHA256'],'s4_approval_request_sha256':os.environ['S4_REQUEST_SHA256'],'human_approval_sha256':os.environ['HUMAN_APPROVAL_SHA256'],'independent_verifier_attestation_sha256':os.environ['S4_VERIFIER_ATTESTATION_SHA256'],'release_branch_head':os.environ['GITHUB_SHA'],'failed_attempts_preserved':[int(value) for value in os.environ['FAILED_RUN_IDS'].split(',') if value],'failed_attempt_causes':['CANONICAL_AUTH_GATE_FIRST_PROBE_DID_NOT_RETURN_EXPECTED_401','ISOLATED_ASSET_PROPAGATION_404_NOT_RETRIED'],'human_release_approval':True,'independent_verifier_release_approval':True,'production_promotion_authorized':True,'production_hostname':host,'rollback_service':rollback,'production_service':production,'runtime_binding_service':os.environ['RUNTIME_SERVICE'],'runtime_build':os.environ['EXPECTED_RUNTIME_BUILD'],'operation_count':74,'initial_smoke_assets':initial,'rollback_proof':'PASS','candidate_restored_after_rollback_assets':restored,'monitor_samples':samples,'monitor_sample_count':len(samples),'billing_health':'PASS','workers_dev_exposure_after_cutover':False,'production_secret_copy_performed':False,'old_fa13_wrapper_retained_for_rollback':True,'main_modified':False,'pr1_modified':False,'tablet_evidence':'DEFERRED_PENDING_FUTURE_CUSTOMER','external_comparison':'DEFERRED_NO_PAID_PROVIDER_ACCESS','wolfram_parity':'NOT_CERTIFIED','superiority':'NOT_CERTIFIED'}
+              evidence={'schema':'musitu.axiom.fa20.s4-production-promotion.v1','status':'PASS_PRODUCTION_PROMOTED_AND_MONITORED','source_candidate':os.environ['CANDIDATE_COMMIT'],'candidate_artifact_sha256':os.environ['CANDIDATE_ARTIFACT_SHA256'],'release_plan_sha256':os.environ['RELEASE_PLAN_SHA256'],'s4_approval_request_sha256':os.environ['S4_REQUEST_SHA256'],'human_approval_sha256':os.environ['HUMAN_APPROVAL_SHA256'],'independent_verifier_attestation_sha256':os.environ['S4_VERIFIER_ATTESTATION_SHA256'],'release_branch_head':os.environ['GITHUB_SHA'],'failed_attempts_preserved':[int(value) for value in os.environ['FAILED_RUN_IDS'].split(',') if value],'failed_attempt_causes':['CANONICAL_AUTH_GATE_FIRST_PROBE_DID_NOT_RETURN_EXPECTED_401','ISOLATED_ASSET_PROPAGATION_404_NOT_RETRIED','ISOLATED_RUNTIME_TOOLS_PROBE_EMPTY_NON_JSON'],'human_release_approval':True,'independent_verifier_release_approval':True,'production_promotion_authorized':True,'production_hostname':host,'rollback_service':rollback,'production_service':production,'runtime_binding_service':os.environ['RUNTIME_SERVICE'],'runtime_build':os.environ['EXPECTED_RUNTIME_BUILD'],'operation_count':74,'initial_smoke_assets':initial,'rollback_proof':'PASS','candidate_restored_after_rollback_assets':restored,'monitor_samples':samples,'monitor_sample_count':len(samples),'billing_health':'PASS','workers_dev_exposure_after_cutover':False,'production_secret_copy_performed':False,'old_fa13_wrapper_retained_for_rollback':True,'main_modified':False,'pr1_modified':False,'tablet_evidence':'DEFERRED_PENDING_FUTURE_CUSTOMER','external_comparison':'DEFERRED_NO_PAID_PROVIDER_ACCESS','wolfram_parity':'NOT_CERTIFIED','superiority':'NOT_CERTIFIED'}
               path=pathlib.Path('release-evidence/fa20-production-promotion.json');path.write_text(json.dumps(evidence,indent=2,sort_keys=True)+'\n');digest=hashlib.sha256(path.read_bytes()).hexdigest();pathlib.Path('release-evidence/fa20-production-promotion.sha256').write_text(digest+'  '+path.name+'\n');pathlib.Path('release-evidence/production-promotion-complete').write_text('PASS\n');print(json.dumps({'status':evidence['status'],'evidence_sha256':digest,'service':production},sort_keys=True))
           except Exception:
               if promoted:
