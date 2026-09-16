@@ -1,0 +1,75 @@
+name: MUSITU Axiom FA18 Independent Build Verifier
+
+on:
+  workflow_call:
+    inputs:
+      candidate_sha:
+        required: true
+        type: string
+      builder_run_id:
+        required: true
+        type: string
+      builder_evidence_sha256:
+        required: true
+        type: string
+      builder_candidate_tree_sha256:
+        required: true
+        type: string
+      builder_evidence_b64:
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout immutable candidate without persisted credentials
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ inputs.candidate_sha }}
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Independently replay frozen challenge and verify builder evidence
+        shell: bash
+        env:
+          CANDIDATE_SHA: ${{ inputs.candidate_sha }}
+          BUILDER_RUN_ID: ${{ inputs.builder_run_id }}
+          BUILDER_EVIDENCE_SHA256: ${{ inputs.builder_evidence_sha256 }}
+          BUILDER_CANDIDATE_TREE_SHA256: ${{ inputs.builder_candidate_tree_sha256 }}
+          BUILDER_EVIDENCE_B64: ${{ inputs.builder_evidence_b64 }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$CANDIDATE_SHA"
+          test "$(git merge-base 410bb43063a9bb8fd3ab3f44ca28dd7192d4508f HEAD)" = 410bb43063a9bb8fd3ab3f44ca28dd7192d4508f
+          mkdir -p fa18-independent-evidence
+          printf '%s' "$BUILDER_EVIDENCE_B64" | base64 -d > fa18-independent-evidence/fa18-builder-evidence.json
+          test "$(sha256sum fa18-independent-evidence/fa18-builder-evidence.json | cut -d' ' -f1)" = "$BUILDER_EVIDENCE_SHA256"
+          test "$(jq -r .candidate_commit fa18-independent-evidence/fa18-builder-evidence.json)" = "$CANDIDATE_SHA"
+          test "$(jq -r .candidate_tree_sha256 fa18-independent-evidence/fa18-builder-evidence.json)" = "$BUILDER_CANDIDATE_TREE_SHA256"
+          node --test axiom_interface/vnext/tests/*.test.mjs
+          node .github/scripts/axiom_fa18_run_challenge.mjs \
+            --role verifier \
+            --candidate-commit "$CANDIDATE_SHA" \
+            --builder-evidence fa18-independent-evidence/fa18-builder-evidence.json \
+            --output fa18-independent-evidence/fa18-independent-verifier.json
+          test "$(jq -r .status fa18-independent-evidence/fa18-independent-verifier.json)" = INDEPENDENT_VERIFIED_FA18_BUILD_CHALLENGE_PASS
+          test "$(jq -r .builder_evidence_sha256 fa18-independent-evidence/fa18-independent-verifier.json)" = "$(jq -r .evidence_sha256 fa18-independent-evidence/fa18-builder-evidence.json)"
+          test "$(jq -r .candidate_tree_sha256 fa18-independent-evidence/fa18-independent-verifier.json)" = "$BUILDER_CANDIDATE_TREE_SHA256"
+          test "$(jq -r .builder_verifier_human_distinct fa18-independent-evidence/fa18-independent-verifier.json)" = true
+          test "$(jq -r .qualification_earned fa18-independent-evidence/fa18-independent-verifier.json)" = true
+          test "$(jq -r .sole_builder fa18-independent-evidence/fa18-independent-verifier.json)" = false
+          test "$(jq -r .production_credentials_present fa18-independent-evidence/fa18-independent-verifier.json)" = false
+          test "$(jq -r .repository_write_authority_present fa18-independent-evidence/fa18-independent-verifier.json)" = false
+          test "$(jq -r .production_authority fa18-independent-evidence/fa18-independent-verifier.json)" = false
+          printf '%s\n' "$BUILDER_RUN_ID" > fa18-independent-evidence/builder-run-id.txt
+          sha256sum fa18-independent-evidence/fa18-independent-verifier.json > fa18-independent-evidence/fa18-independent-verifier.sha256
+      - name: Upload independent build-challenge evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: musitu-axiom-fa18-independent-build-verifier-evidence
+          path: fa18-independent-evidence/
+          retention-days: 90
