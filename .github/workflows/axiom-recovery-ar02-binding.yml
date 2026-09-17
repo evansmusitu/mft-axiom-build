@@ -60,6 +60,57 @@ jobs:
           python recovery/ar02/provider_inventory_readonly.py --self-test
           git diff --check
 
+      - name: Builder-test provider preflight ordering and fail-closed contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          workflow = Path('.github/workflows/axiom-recovery-ar02-provider-readonly.yml').read_text(encoding='utf-8')
+          preflight = workflow.index('- name: Fail-closed provider-binding preflight')
+          collector = workflow.index('- name: Collect redacted provider evidence with separated read-only identities')
+          assert preflight < collector
+          preflight_text = workflow[preflight:collector]
+          assert '${{ secrets.' not in preflight_text
+          for marker in (
+              'READ_ONLY_PROVIDER_INVENTORY',
+              'PASS_FAIL_CLOSED_PREFLIGHT',
+              'receipt_sha256',
+              'timestamp_utc',
+              'workflow_sha256',
+              'contract_sha256',
+              '--remote',
+              ' wrangler deploy',
+              ' deploy ',
+              ' publish ',
+              ' d1 execute ',
+              ' insert into ',
+              ' delete from ',
+              ' drop table ',
+              ' alter table ',
+              ' create table ',
+              'required_non_production_bindings',
+              '{"staging", "canary"}',
+              'production_denylist',
+              'provider_readback_status',
+              'NOT_PROVEN',
+          ):
+              assert marker in preflight_text, marker
+          collector_text = workflow[collector:]
+          receipt_check = collector_text.index('preflight receipt hash mismatch')
+          provider_call = collector_text.index('python recovery/ar02/provider_inventory_readonly.py')
+          assert receipt_check < provider_call
+          assert 'preflight receipt is stale' in collector_text
+
+          contract = json.loads(Path('recovery/ar02/cloud_binding_contract.json').read_text(encoding='utf-8'))
+          assert set(contract['required_non_production_bindings']) == {'staging', 'canary'}
+          assert contract['state'] == 'UNBOUND_PROVIDER_INVENTORY_REQUIRED'
+          assert contract['claim_boundary']['cloud_isolation'] == 'NOT_PROVEN'
+          assert contract['claim_boundary']['production_mutated'] is False
+          PY
+
       - name: Execute synthetic non-destructive restore drill
         shell: bash
         run: |
@@ -100,6 +151,36 @@ jobs:
         with:
           persist-credentials: false
           fetch-depth: 0
+
+      - name: Independently verify provider preflight cannot be skipped in workflow
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          workflow = Path('.github/workflows/axiom-recovery-ar02-provider-readonly.yml').read_text(encoding='utf-8')
+          preflight = workflow.index('- name: Fail-closed provider-binding preflight')
+          collector = workflow.index('- name: Collect redacted provider evidence with separated read-only identities')
+          assert preflight < collector
+          preflight_text = workflow[preflight:collector]
+          assert 'if operation != "READ_ONLY_PROVIDER_INVENTORY"' in preflight_text
+          assert 'command != "python recovery/ar02/provider_inventory_readonly.py"' in preflight_text
+          assert 'set(bindings) != {"staging", "canary"}' in preflight_text
+          assert 'matches production denylist' in preflight_text
+          assert 'cannot be trusted before provider readback' in preflight_text
+          assert 'receipt_sha256' in preflight_text
+          assert 'timestamp_utc' in preflight_text
+          assert 'provider_readback": "NOT_PERFORMED_BY_PREFLIGHT"' in preflight_text
+          collector_text = workflow[collector:]
+          hash_check = collector_text.index('preflight receipt hash mismatch')
+          source_check = collector_text.index('preflight source commit does not match HEAD')
+          stale_check = collector_text.index('preflight receipt is stale')
+          provider_call = collector_text.index('python recovery/ar02/provider_inventory_readonly.py')
+          assert max(hash_check, source_check, stale_check) < provider_call
+          assert 'wrangler deploy' not in collector_text
+          assert 'd1 execute' not in collector_text
+          PY
 
       - name: Run independent repository verifier
         shell: bash
