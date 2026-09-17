@@ -21,6 +21,7 @@ REPOSITORY = "evansmusitu/mft-axiom-build"
 SEALED_MAIN = "d6a846f6bbe0bccac1758713eb4de167caf07113"
 RUNTIME_SOURCE = "216ee7d15f01a3fb558452cc4b906a055001ccdd"
 RECOVERY_PARENT = "48689a9e4b652f13c9a8acabfb0b9484a671c7d6"
+QUALIFIED_TWO_IDENTITY_HARNESS = "d5fba44847e149470ed765b30ea10a841a0c7c81"
 GATE_PATH = ROOT / "docs" / "axiom_recovery" / "AR02_REPOSITORY_PROVIDER_GATE.json"
 CREDENTIAL_PATH = ROOT / "docs" / "axiom_recovery" / "AR02_CLOUDFLARE_CREDENTIAL_CONTRACT.json"
 PROVIDER_WORKFLOW = ROOT / ".github" / "workflows" / "axiom-recovery-ar02-provider-readonly.yml"
@@ -52,7 +53,7 @@ def github_get(path: str) -> Any:
         url,
         headers={
             "Accept": "application/vnd.github+json",
-            "User-Agent": "musitu-axiom-ar02-governance-verifier/1.0",
+            "User-Agent": "musitu-axiom-ar02-governance-verifier/2.0",
             "X-GitHub-Api-Version": "2022-11-28",
         },
         method="GET",
@@ -73,22 +74,23 @@ def verify_no_provider_secret_context() -> None:
         "CLOUDFLARE_API_KEY",
         "CLOUDFLARE_API_TOKEN",
         "CLOUDFLARE_AR02_READ_TOKEN",
-        "CLOUDFLARE_AR02_TOKEN_ID",
         "CLOUDFLARE_AR02_TOKEN_AUDITOR_TOKEN",
         "CLOUDFLARE_AR02_INVENTORY_TOKEN_ID",
+        "CLOUDFLARE_AR02_TOKEN_ID",
     ):
         check(not os.environ.get(name), f"provider credential or identifier unexpectedly present in governance verifier: {name}")
 
 
 def verify_gate_contract() -> dict[str, Any]:
     gate = load_json(GATE_PATH)
-    check(gate.get("schema") == "musitu.axiom.recovery.ar02-repository-provider-gate.v1", "gate schema mismatch")
+    check(gate.get("schema") == "musitu.axiom.recovery.ar02-repository-provider-gate.v2", "gate schema mismatch")
     check(gate.get("phase") == "AR-02", "gate phase mismatch")
 
     authority = gate.get("authority", {})
     check(authority.get("sealed_main_commit") == SEALED_MAIN, "sealed main authority mismatch")
     check(authority.get("runtime_source_commit") == RUNTIME_SOURCE, "runtime source authority mismatch")
     check(authority.get("recovery_parent_commit") == RECOVERY_PARENT, "recovery parent authority mismatch")
+    check(authority.get("qualified_two_identity_harness_commit") == QUALIFIED_TWO_IDENTITY_HARNESS, "qualified two-identity harness anchor mismatch")
     check(authority.get("pr_1_required_state") == "OPEN_DRAFT_UNMERGED", "PR #1 required state weakened")
 
     observed = gate.get("observed_repository_state", {})
@@ -102,7 +104,10 @@ def verify_gate_contract() -> dict[str, Any]:
     decision = gate.get("decision", {})
     check(decision.get("repository_privacy_requirement") == "PRIVATE_REQUIRED_BEFORE_PROVIDER_SECRET_WORKFLOW", "private-repository provider gate missing")
     check(decision.get("main_protection_requirement") == "PROTECTION_OR_EQUIVALENT_RULESET_REQUIRED_BEFORE_RELEASE_PATH", "main protection gate missing")
-    check(decision.get("provider_identity_requirement") == "DEDICATED_AXIOM_AR02_READ_ONLY_CREDENTIAL_REQUIRED", "dedicated AR-02 read identity gate missing")
+    check(decision.get("provider_identity_requirement") == "TWO_SEPARATE_DEDICATED_READ_ONLY_IDENTITIES_REQUIRED", "two-identity provider gate missing")
+    check(decision.get("inventory_identity_purpose") == "RESOURCE_PLAN_AND_SELF_STATUS_READBACK_ONLY", "inventory identity purpose drifted")
+    check(decision.get("auditor_identity_purpose") == "INDEPENDENT_INVENTORY_TOKEN_POLICY_READBACK_ONLY", "auditor identity purpose drifted")
+    check(decision.get("inventory_and_auditor_secret_reuse") == "FORBIDDEN", "inventory/auditor secret reuse was not forbidden")
     check(decision.get("cross_product_secret_reuse") == "FORBIDDEN", "cross-product secret reuse was not forbidden")
     check(decision.get("global_api_key_substitution_for_ar02_read_identity") == "FORBIDDEN", "broad global key substitution was not forbidden")
     check(decision.get("provider_workflow_execution") == "BLOCKED_FAIL_CLOSED", "provider workflow was prematurely authorized")
@@ -111,14 +116,45 @@ def verify_gate_contract() -> dict[str, Any]:
     provider = gate.get("provider_workflow", {})
     check(provider.get("path") == ".github/workflows/axiom-recovery-ar02-provider-readonly.yml", "provider workflow path mismatch")
     check(provider.get("required_repository_visibility") == "PRIVATE", "provider workflow does not require private repository")
-    check(set(provider.get("required_secret_names", [])) == {"CLOUDFLARE_ACCOUNT_ID", "CLOUDFLARE_AR02_READ_TOKEN"}, "provider required-secret contract mismatch")
-    check(provider.get("optional_secret_names") == ["CLOUDFLARE_AR02_TOKEN_ID"], "provider optional-secret contract mismatch")
+    expected_secrets = {
+        "CLOUDFLARE_ACCOUNT_ID",
+        "CLOUDFLARE_AR02_READ_TOKEN",
+        "CLOUDFLARE_AR02_TOKEN_AUDITOR_TOKEN",
+        "CLOUDFLARE_AR02_INVENTORY_TOKEN_ID",
+    }
+    check(set(provider.get("required_secret_names", [])) == expected_secrets, "provider required-secret contract mismatch")
+    check(provider.get("optional_secret_names") == [], "provider optional-secret contract must be empty")
+    check(provider.get("same_inventory_and_auditor_token_allowed") is False, "provider gate permits identity-secret reuse")
     check(provider.get("allowed_http_methods") == ["GET"], "provider workflow is not GET-only")
     check(provider.get("provider_mutation_enabled") is False, "provider mutation was enabled")
+    check(provider.get("raw_provider_evidence_persisted_as_github_artifact") is False, "raw provider evidence persistence enabled")
+    check(provider.get("manual_dispatch_only") is True, "provider workflow is not manual-dispatch only")
+
+    separation = gate.get("credential_separation", {})
+    check(separation.get("repository_harness_implemented") is True, "two-identity repository harness not recorded")
+    check(separation.get("inventory_identity_product_endpoint_allowlist") == "QUALIFIED", "inventory endpoint allowlist not qualified")
+    check(separation.get("inventory_identity_token_policy_endpoint_access") == "FORBIDDEN", "inventory identity may read token policy")
+    check(separation.get("auditor_identity_product_endpoint_access") == "FORBIDDEN", "auditor identity may read product resources")
+    check(separation.get("auditor_identity_inventory_token_policy_endpoint_only") is True, "auditor endpoint confinement missing")
+    check(separation.get("same_token_reuse_rejected") is True, "same-token reuse rejection missing")
+    for key in (
+        "live_inventory_credential_provisioned",
+        "live_auditor_credential_provisioned",
+        "credentials_brokered_to_github",
+        "live_inventory_token_scope_verified",
+        "live_auditor_token_scope_verified",
+    ):
+        check(separation.get(key) is False, f"live credential state overstated: {key}")
 
     earned = gate.get("earned_evidence", {})
-    check(earned.get("provider_readonly_harness_repository_gate") == "PASS", "qualified provider harness result missing")
-    check(earned.get("independent_repository_verifier") == "PASS", "independent repository verifier result missing")
+    for key in (
+        "provider_readonly_harness_repository_gate",
+        "two_identity_provider_harness",
+        "builder_contract_and_restore",
+        "independent_repository_verifier",
+        "independent_acceptance_truth",
+    ):
+        check(earned.get(key) == "PASS", f"qualified repository evidence missing: {key}")
     for key in (
         "provider_control_plane_inventory",
         "account_plan",
@@ -129,13 +165,22 @@ def verify_gate_contract() -> dict[str, Any]:
     ):
         check(earned.get(key) == "NOT_PROVEN", f"external provider claim overstated: {key}")
     check(earned.get("cloud_restore_drill") == "NOT_PERFORMED", "cloud restore drill overstated")
+    check(earned.get("external_independent_verification") == "NOT_PERFORMED", "external independent verification overstated")
 
     boundary = gate.get("claim_boundary", {})
     check(boundary.get("ar02_complete") is False, "AR-02 completion overstated")
+    check(boundary.get("credential_harness_implemented") is True, "credential harness implementation result missing")
+    for key in (
+        "credentials_provisioned",
+        "credentials_brokered_to_github",
+        "credential_scope_verified_live",
+        "provider_inventory_executed",
+        "runtime_rebound_off_production_d1",
+        "production_mutated",
+        "billing_mutated",
+    ):
+        check(boundary.get(key) is False, f"claim boundary must keep {key}=false")
     check(boundary.get("cloud_isolation") == "NOT_PROVEN", "cloud isolation overstated")
-    check(boundary.get("runtime_rebound_off_production_d1") is False, "runtime rebound overstated")
-    check(boundary.get("production_mutated") is False, "production mutation claim invalid")
-    check(boundary.get("billing_mutated") is False, "billing mutation claim invalid")
     check(boundary.get("full_product_connection") == "NOT_PROVEN", "full-product connection overstated")
     check(boundary.get("superiority") == "NOT_CERTIFIED", "superiority overstated")
     return gate
@@ -158,29 +203,14 @@ def verify_credential_contract() -> None:
 
     inventory = contract.get("inventory_identity", {})
     check(inventory.get("github_secret_name") == "CLOUDFLARE_AR02_READ_TOKEN", "inventory secret binding mismatch")
-    required_inventory = {
-        "D1 Read",
-        "Workers R2 Storage Read",
-        "Queues Read",
-        "Workers Scripts Read",
-        "Billing Read",
-    }
+    required_inventory = {"D1 Read", "Workers R2 Storage Read", "Queues Read", "Workers Scripts Read", "Billing Read"}
     check(set(inventory.get("required_account_permissions_exact", [])) == required_inventory, "inventory token permissions are not the exact frozen read-only set")
     check("Account API Tokens Read" not in set(inventory.get("required_account_permissions_exact", [])), "inventory token improperly contains token-policy read permission")
     forbidden = set(inventory.get("forbidden_permission_classes", []))
     for marker in (
-        "D1 Write",
-        "D1 Edit",
-        "Workers R2 Storage Write",
-        "Workers R2 Storage Edit",
-        "Queues Write",
-        "Queues Edit",
-        "Workers Scripts Write",
-        "Workers Scripts Edit",
-        "Billing Write",
-        "Billing Edit",
-        "Account API Tokens Write",
-        "Account API Tokens Edit",
+        "D1 Write", "D1 Edit", "Workers R2 Storage Write", "Workers R2 Storage Edit",
+        "Queues Write", "Queues Edit", "Workers Scripts Write", "Workers Scripts Edit",
+        "Billing Write", "Billing Edit", "Account API Tokens Write", "Account API Tokens Edit",
     ):
         check(marker in forbidden, f"missing forbidden inventory permission: {marker}")
     inventory_ttl = inventory.get("ttl_policy", {})
@@ -230,8 +260,24 @@ def verify_credential_contract() -> None:
     check(endpoint_permissions == required_endpoint_permissions, "credential endpoint/permission map drifted")
 
     transition = contract.get("current_harness_transition", {})
+    check(transition.get("inventory_identity_binding") == "CLOUDFLARE_AR02_READ_TOKEN", "inventory identity binding mismatch")
+    check(transition.get("auditor_identity_binding") == "CLOUDFLARE_AR02_TOKEN_AUDITOR_TOKEN", "auditor identity binding mismatch")
+    check(transition.get("inventory_token_id_binding") == "CLOUDFLARE_AR02_INVENTORY_TOKEN_ID", "inventory token-id binding mismatch")
     check(transition.get("self_introspection_with_inventory_identity_allowed") is False, "inventory identity may self-certify its permission policy")
-    check(transition.get("required_change_before_scope_certification") == "MOVE_TOKEN_POLICY_READBACK_TO_A_SEPARATE_AUDITOR_IDENTITY", "separate token-policy auditor migration requirement missing")
+    for key in (
+        "two_identity_harness_implemented",
+        "same_token_reuse_rejected",
+        "inventory_product_endpoint_allowlist_enforced",
+        "auditor_single_token_policy_endpoint_allowlist_enforced",
+    ):
+        check(transition.get(key) is True, f"qualified harness invariant missing: {key}")
+    check(transition.get("repository_qualification_commit") == QUALIFIED_TWO_IDENTITY_HARNESS, "credential harness qualification commit mismatch")
+    check(transition.get("repository_builder_gate") == "PASS", "credential harness builder qualification missing")
+    check(transition.get("repository_independent_verifier") == "PASS", "credential harness independent qualification missing")
+    check(transition.get("required_change_before_scope_certification") == "NONE_AT_REPOSITORY_HARNESS_LAYER_PROVIDER_PROVISIONING_AND_LIVE_SCOPE_READBACK_STILL_REQUIRED", "credential transition requirement drifted")
+    check(transition.get("credentials_provisioned") is False, "credentials prematurely marked provisioned")
+    check(transition.get("credentials_brokered_to_github") is False, "credentials prematurely marked brokered")
+    check(transition.get("credential_scope_verified_live") is False, "credential scope prematurely marked live-verified")
     check(transition.get("provider_execution_currently_blocked_by_public_repository") is True, "public-repository provider block was removed")
 
     headroom = contract.get("headroom_boundary", {})
@@ -254,9 +300,18 @@ def verify_provider_workflow_source() -> None:
     except OSError as exc:
         errors.append(f"cannot read provider workflow: {exc}")
         return
+    check("workflow_dispatch:" in source, "provider workflow is not manual-dispatch only")
     check("github.event.repository.private" in source, "provider workflow lacks private-repository fail-close")
-    check("CLOUDFLARE_AR02_READ_TOKEN" in source, "provider workflow lacks dedicated AR-02 read token")
-    check("CLOUDFLARE_ACCOUNT_ID" in source, "provider workflow lacks explicit account binding")
+    for marker in (
+        "CLOUDFLARE_ACCOUNT_ID",
+        "CLOUDFLARE_AR02_READ_TOKEN",
+        "CLOUDFLARE_AR02_TOKEN_AUDITOR_TOKEN",
+        "CLOUDFLARE_AR02_INVENTORY_TOKEN_ID",
+    ):
+        check(marker in source, f"provider workflow lacks required binding: {marker}")
+    check("CLOUDFLARE_AR02_TOKEN_ID" not in source, "provider workflow retains obsolete self-introspection token ID")
+    check('test "$CLOUDFLARE_AR02_READ_TOKEN" != "$CLOUDFLARE_AR02_TOKEN_AUDITOR_TOKEN"' in source, "provider workflow does not reject reused inventory/auditor secret")
+    check('assert evidence["credential_scope_verifier_identity"] == "SEPARATE_AUDITOR"' in source, "provider workflow does not require separate-auditor proof")
     check("CLOUDFLARE_GLOBAL_API_KEY" not in source, "provider workflow accepts broad global API key")
     check("CLOUDFLARE_EMAIL" not in source, "provider workflow accepts global-key email identity")
     check("wrangler deploy" not in source, "provider workflow contains deployment surface")
@@ -309,6 +364,7 @@ def main() -> int:
     print(f"AR-02 REPOSITORY/PROVIDER GOVERNANCE GATE: PASS ({checks} checks)")
     print("verification_scope=INTERNAL_INDEPENDENT_GOVERNANCE_READ_ONLY")
     print("credential_design=TWO_IDENTITY_LEAST_PRIVILEGE_FROZEN_NOT_PROVISIONED")
+    print("credential_harness=TWO_IDENTITY_IMPLEMENTED_AND_REPOSITORY_QUALIFIED")
     print("repository_visibility=PUBLIC")
     print("main_protected=false")
     print("provider_workflow_execution=BLOCKED_FAIL_CLOSED")
