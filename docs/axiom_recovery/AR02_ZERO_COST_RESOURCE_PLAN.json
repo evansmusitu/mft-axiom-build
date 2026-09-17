@@ -52,6 +52,7 @@
       }
     }
   ],
+  "provider_identity_note": "Cloudflare D1 and Workflows expose UUIDs, Queues expose a queue ID, and R2 buckets use canonical bucket name as the provider-native identity. No R2 bucket UUID may be fabricated.",
   "proposed_non_production_resources": {
     "development": {
       "mode": "LOCAL_ONLY",
@@ -89,7 +90,7 @@
     "CURRENT_ACCOUNT_WIDE_USAGE_LEAVES_CONSERVATIVE_BUDGET_HEADROOM",
     "NO_RESOURCE_NAME_OR_IDENTIFIER_MATCHES_PRODUCTION",
     "NO_PRODUCTION_DATABASE_SERVICE_SECRET_ROUTE_OR_IDENTITY_BINDING",
-    "RESOURCE_CREATION_IS_IDEMPOTENT_AND_READ_BACK_BY_EXACT_ID",
+    "RESOURCE_CREATION_IS_IDEMPOTENT_AND_READ_BACK_BY_EXACT_PROVIDER_NATIVE_IDENTITY",
     "BILLING_OR_PLAN_UPGRADE_IS_NOT_PERFORMED",
     "ROLLBACK_DELETES_ONLY_RESOURCES_CREATED_BY_THE_EXACT_AR02_RUN"
   ],
