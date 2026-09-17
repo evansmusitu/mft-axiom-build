@@ -1,0 +1,189 @@
+{
+  "schema": "musitu.axiom.recovery.ar02-external-unblock-contract.v1",
+  "phase": "AR-02",
+  "recorded_on": "2026-09-17",
+  "branch": "frontier/axiom-recovery-ar02-governed-contracts-20260917",
+  "qualified_governed_contract_head": "0dbc63c270fe37a2da0bc156782b7d013deba201",
+  "sealed_main_commit": "d6a846f6bbe0bccac1758713eb4de167caf07113",
+  "runtime_source_commit": "216ee7d15f01a3fb558452cc4b906a055001ccdd",
+  "purpose": "Define the exact repository-admin, authorization, provider-readback, credential, resource-isolation, restore, and independent-verification evidence required before AR-02 may perform or certify remote nonproduction mutation.",
+  "current_repository_evidence": {
+    "visibility": "PUBLIC",
+    "main_protected": false,
+    "repository_rulesets": [],
+    "branch_protection_detail_endpoint": "RESOURCE_NOT_ACCESSIBLE_BY_INTEGRATION",
+    "provider_secret_workflow_allowed_while_public": false,
+    "repository_admin_mutation_performed_by_this_contract": false
+  },
+  "consequential_admin_boundary": {
+    "repository_visibility_change": {
+      "risk_class": "S5_SECURITY_POLICY",
+      "current_state": "PUBLIC",
+      "required_state": "PRIVATE_OR_EQUIVALENT_SECRET_EXECUTION_BOUNDARY",
+      "execution_authorized_by_this_contract": false,
+      "explicit_human_approval_required": true
+    },
+    "main_protection_or_ruleset_change": {
+      "risk_class": "S5_SECURITY_POLICY",
+      "current_state": "UNPROTECTED_AND_NO_RULESETS_OBSERVED",
+      "required_state": "PROTECTED_BY_BRANCH_PROTECTION_OR_EQUIVALENT_RULESET",
+      "execution_authorized_by_this_contract": false,
+      "explicit_human_approval_required": true,
+      "minimum_policy": {
+        "force_pushes_allowed": false,
+        "deletions_allowed": false,
+        "pull_request_required": true,
+        "independent_review_required": true,
+        "required_status_checks_before_merge": true,
+        "conversation_resolution_required": true,
+        "bypass_for_builders_allowed": false
+      }
+    },
+    "production_environment_policy": {
+      "risk_class": "S5_SECURITY_POLICY",
+      "required": true,
+      "required_reviewers": true,
+      "builder_self_approval_allowed": false,
+      "production_branch_or_tag_restriction_required": true,
+      "execution_authorized_by_this_contract": false,
+      "explicit_human_approval_required": true
+    }
+  },
+  "provider_identity_contract": {
+    "inventory_identity": {
+      "purpose": "Read account plan, D1, R2, Queues, Workflows and other AR-02 resource inventory needed for evidence.",
+      "methods": ["GET"],
+      "mutation_permission_allowed": false,
+      "production_mutation_allowed": false,
+      "must_be_distinct_from_auditor": true,
+      "provisioned": false,
+      "scope_readback": "NOT_PROVEN"
+    },
+    "token_policy_auditor_identity": {
+      "purpose": "Independently inspect the inventory identity policy without granting the inventory identity permission to inspect or modify its own policy.",
+      "methods": ["GET"],
+      "product_resource_mutation_allowed": false,
+      "must_be_distinct_from_inventory_identity": true,
+      "provisioned": false,
+      "scope_readback": "NOT_PROVEN"
+    },
+    "future_staging_mutator_identity": {
+      "purpose": "Create or mutate only dedicated AR-02 staging resources after provider inventory/headroom and repository gates pass.",
+      "risk_class": "S3",
+      "short_lived_operation_scoped_required": true,
+      "production_resource_scope_allowed": false,
+      "technical_production_denial_required": true,
+      "provisioned": false,
+      "authorized_for_use_now": false
+    },
+    "future_canary_mutator_identity": {
+      "purpose": "Create or mutate only dedicated AR-02 canary resources after provider inventory/headroom and repository gates pass.",
+      "risk_class": "S3",
+      "short_lived_operation_scoped_required": true,
+      "production_resource_scope_allowed": false,
+      "technical_production_denial_required": true,
+      "provisioned": false,
+      "authorized_for_use_now": false
+    },
+    "global_api_key": {
+      "allowed": false,
+      "cross_product_reuse_allowed": false
+    }
+  },
+  "provider_evidence_sequence": [
+    {
+      "order": 1,
+      "gate": "REPOSITORY_SECRET_BOUNDARY",
+      "required_result": "PASS",
+      "current_result": "FAIL_CURRENT_STATE_PUBLIC",
+      "remote_provider_mutation_before_pass": false
+    },
+    {
+      "order": 2,
+      "gate": "MAIN_PROTECTION_OR_EQUIVALENT_RULESET",
+      "required_result": "PASS",
+      "current_result": "FAIL_CURRENT_STATE_UNPROTECTED",
+      "remote_provider_mutation_before_pass": false
+    },
+    {
+      "order": 3,
+      "gate": "SEPARATE_READ_ONLY_INVENTORY_AND_POLICY_AUDITOR_IDENTITIES",
+      "required_result": "PROVISIONED_AND_SCOPE_READ_BACK",
+      "current_result": "NOT_PROVEN",
+      "remote_provider_mutation_before_pass": false
+    },
+    {
+      "order": 4,
+      "gate": "CLOUDFLARE_ACCOUNT_PLAN_AND_RESOURCE_INVENTORY",
+      "required_result": "READ_BACK_WITH_EXACT_PROVIDER_IDENTITIES",
+      "current_result": "NOT_PROVEN",
+      "remote_provider_mutation_before_pass": false
+    },
+    {
+      "order": 5,
+      "gate": "ACCOUNT_WIDE_FREE_TIER_HEADROOM",
+      "required_result": "PROVEN_SUFFICIENT_WITHOUT_BILLING_UPGRADE",
+      "current_result": "NOT_PROVEN",
+      "remote_provider_mutation_before_pass": false
+    },
+    {
+      "order": 6,
+      "gate": "DEDICATED_STAGING_AND_CANARY_RESOURCES",
+      "required_result": "EXACT_IDS_CREATED_OR_IDENTIFIED_AND_PROVIDER_READ_BACK",
+      "current_result": "NOT_PROVEN",
+      "production_resource_reuse_allowed": false
+    },
+    {
+      "order": 7,
+      "gate": "NONPRODUCTION_MUTATOR_CREDENTIAL_ISOLATION",
+      "required_result": "TECHNICALLY_UNABLE_TO_MUTATE_PRODUCTION",
+      "current_result": "NOT_PROVEN",
+      "production_scope_allowed": false
+    },
+    {
+      "order": 8,
+      "gate": "CLOUD_SYNTHETIC_RESTORE_AND_ROLLBACK",
+      "required_result": "PASS_ON_DEDICATED_NONPRODUCTION_RESOURCES",
+      "current_result": "NOT_PERFORMED",
+      "production_data_allowed": false
+    },
+    {
+      "order": 9,
+      "gate": "EXTERNAL_INDEPENDENT_VERIFICATION",
+      "required_result": "PASS",
+      "current_result": "NOT_PERFORMED",
+      "builder_self_certification_allowed": false
+    }
+  ],
+  "execution_admission": {
+    "read_only_provider_inventory": "BLOCKED_UNTIL_REPOSITORY_SECRET_BOUNDARY_AND_SEPARATE_IDENTITIES_EXIST",
+    "staging_mutation": "BLOCKED",
+    "canary_mutation": "BLOCKED",
+    "production_mutation": "NOT_AUTHORIZED",
+    "billing_upgrade": "NOT_AUTHORIZED",
+    "repository_visibility_mutation": "REQUIRES_EXPLICIT_HUMAN_APPROVAL",
+    "repository_security_policy_mutation": "REQUIRES_EXPLICIT_HUMAN_APPROVAL"
+  },
+  "claim_boundary": {
+    "external_unblock_contract_frozen": true,
+    "repository_private": false,
+    "main_protected": false,
+    "ruleset_present": false,
+    "provider_identities_provisioned": false,
+    "provider_inventory_executed": false,
+    "provider_headroom_proven": false,
+    "dedicated_cloud_resources_proven": false,
+    "nonproduction_credentials_production_denial_proven": false,
+    "cloud_restore_performed": false,
+    "external_independent_verification_performed": false,
+    "provider_execution_performed": false,
+    "production_mutated": false,
+    "production_authority": false,
+    "cloud_isolation": "NOT_PROVEN",
+    "repository_wide_release_surface_hardened": false,
+    "ar02_complete": false,
+    "ar03_started": false,
+    "full_product_connection": "NOT_PROVEN",
+    "superiority": "NOT_CERTIFIED"
+  }
+}
