@@ -83,7 +83,7 @@ jobs:
               '.github/workflows/axiom-runtime-connection-staging-canary.yml',
           ]
           forbidden=(
-              '${{ secrets.',
+              '$' + '{{ secrets.',
               'uses:',
               'curl ',
               'npx ',
@@ -181,11 +181,12 @@ jobs:
               '.github/workflows/cloudflare-axiom-bootstrap-enable.yml',
               '.github/workflows/axiom-runtime-connection-staging-canary.yml',
           ]
+          expression_open='$' + '{{'
           for path in quarantine_paths:
               text=Path(path).read_text(encoding='utf-8')
               if text.count('jobs:')!=1 or text.count('quarantined:')!=1:
                   raise SystemExit(f'{path}: quarantine job shape mismatch')
-              if '${{' in text or 'env:' in text or 'uses:' in text:
+              if expression_open in text or 'env:' in text or 'uses:' in text:
                   raise SystemExit(f'{path}: secret/action/environment surface remains')
               if any(token in text for token in ('wrangler ','curl ','urllib','--remote')):
                   raise SystemExit(f'{path}: provider execution primitive remains')
