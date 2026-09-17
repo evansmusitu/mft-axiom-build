@@ -204,13 +204,15 @@ jobs:
             await page.locator('#composer .execute-button').click();
             await page.locator('#runtime-execution-panel .runtime-state[data-runtime-state="complete"]').waitFor({timeout:120000});
             const text=await page.locator('#runtime-execution-panel').innerText();
-            if(!text.includes('42')||!text.includes('74 operations')||!text.includes('Metered')||!text.includes('Receipt'))throw new Error(label+' full execution evidence missing');
+            const markers={value_42:text.includes('42'),operation_count_74:text.includes('74 operations'),metered:text.includes('Metered'),receipt:text.includes('Receipt')};
+            console.log(label+' visible task markers '+JSON.stringify(markers)+' panel '+JSON.stringify(text));
+            await page.screenshot({path:`${process.env.EVIDENCE_ROOT}/${label}-completed-task.png`,fullPage:true});
+            if(!Object.values(markers).every(Boolean))throw new Error(label+' full execution evidence missing: '+JSON.stringify(markers));
             if(label==='canary'&&!text.includes('Sources'))throw new Error('canary cited-source output missing');
             if(errors.length)throw new Error(label+' page errors: '+errors.join(' | '));
             const runtime=await page.evaluate(async()=>fetch('./api/runtime',{cache:'no-store'}).then(response=>response.json()));
             if(runtime.fully_connected!==true||runtime.operation_count!==74)throw new Error(label+' partial runtime connection');
-            await page.screenshot({path:`${process.env.EVIDENCE_ROOT}/${label}-completed-task.png`,fullPage:true});
-            runs.push({label,base,objective,runtime,visible_markers:{value_42:true,operation_count_74:true,metered:true,receipt:true,sources:label==='canary'},page_errors:errors,production:false});
+            runs.push({label,base,objective,runtime,visible_markers:{...markers,sources:label==='canary'},page_errors:errors,production:false});
             await page.close();
           }
           await browser.close();
