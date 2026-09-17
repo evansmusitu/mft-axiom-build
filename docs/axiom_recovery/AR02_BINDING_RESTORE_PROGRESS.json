@@ -1,9 +1,9 @@
 {
-  "schema": "musitu.axiom.recovery.ar02-binding-restore-progress.v1",
+  "schema": "musitu.axiom.recovery.ar02-binding-restore-progress.v2",
   "phase": "AR-02",
   "recorded_on": "2026-09-17",
   "recovery_branch": "frontier/axiom-recovery-ar02-binding-20260917",
-  "verified_candidate_commit": "3c565621360e8950c45528a25577a63717d7f840",
+  "verified_candidate_commit": "ef0670dd86835e2005bf5213b31822c9b662614d",
   "verified_parent_foundation_commit": "0be6bee6d7638ef13738f22fc47e0f1b30960a7b",
   "runtime_source_commit": "216ee7d15f01a3fb558452cc4b906a055001ccdd",
   "sealed_main_commit": "d6a846f6bbe0bccac1758713eb4de167caf07113",
@@ -11,13 +11,16 @@
   "ar02_complete": false,
   "production_mutated": false,
   "verification": {
-    "workflow_run_id": 35248452237,
+    "workflow_run_id": 35265374277,
     "builder_contract_and_restore": {
       "status": "PASS",
-      "check_run_id": 105294510501,
+      "check_run_id": 105351100729,
       "scope": [
         "original_ar02_isolation_regression_tests",
         "recovery_code_compilation",
+        "fail_closed_provider_binding_preflight_regression",
+        "fresh_hashed_preflight_receipt_contract",
+        "preflight_source_commit_and_staleness_revalidation",
         "synthetic_non_destructive_restore_drill",
         "unbound_cloud_binding_contract",
         "zero_provider_credentials",
@@ -26,10 +29,13 @@
     },
     "internal_independent_repository_verifier": {
       "status": "PASS",
-      "check_run_id": 105294580567,
+      "check_run_id": 105351161187,
       "implementation": ".github/scripts/axiom_recovery_ar02_binding_verify.py",
       "builder_verifier_reused": false,
       "scope": [
+        "provider_preflight_precedes_provider_collector",
+        "provider_preflight_cannot_be_skipped_by_workflow_ordering",
+        "forbidden_deploy_surface_absent_from_provider_workflow",
         "git_authority_and_change_scope",
         "protected_tree_preservation",
         "legacy_production_d1_coupling_evidence",
@@ -38,6 +44,23 @@
         "synthetic_restore_fault_injection_and_digest_equivalence",
         "claim_boundaries"
       ]
+    },
+    "provider_preflight": {
+      "status": "PASS_REPOSITORY_LOCAL",
+      "workflow": ".github/workflows/axiom-recovery-ar02-provider-readonly.yml",
+      "operation": "READ_ONLY_PROVIDER_INVENTORY",
+      "provider_network_used_by_acceptance_run": false,
+      "provider_credentials_used_by_acceptance_run": false,
+      "production_authority": false,
+      "provider_readback": "NOT_PERFORMED",
+      "receipt_contract": {
+        "timestamped": true,
+        "sha256_bound": true,
+        "source_commit_bound": true,
+        "workflow_hash_bound": true,
+        "cloud_binding_contract_hash_bound": true,
+        "freshness_revalidated_before_provider_call": true
+      }
     }
   },
   "regression_history": [
@@ -50,6 +73,26 @@
       "root_cause": "The independent verifier required cloud_provider_inventory, ar02_complete, and production_mutated as top-level machine-readable claims, while the first progress record stored the same truths only in nested sections.",
       "gate_weakened_to_repair": false,
       "repair": "Add the required top-level claims while retaining the nested detailed evidence and rerun the unchanged verifier."
+    },
+    {
+      "workflow_run_id": 35264988718,
+      "candidate_commit": "73b95406f2e82017b95325447b8b98b9f14a7293",
+      "builder_contract_and_restore": "NOT_ADMITTED",
+      "internal_independent_repository_verifier": "NOT_ADMITTED",
+      "failure_classification": "WORKFLOW_DEFINITION_REJECTED_BEFORE_JOBS",
+      "root_cause": "The newly extended binding-gate workflow was rejected before any job was admitted. No provider operation ran.",
+      "gate_weakened_to_repair": false,
+      "repair": "Repair the workflow definition and rerun the same fail-closed behavioral requirements."
+    },
+    {
+      "workflow_run_id": 35265092791,
+      "candidate_commit": "28187bf7bc70631c4ad0dea4766c66d5b6e1937e",
+      "builder_contract_and_restore": "PASS",
+      "internal_independent_repository_verifier": "FAIL",
+      "failure_classification": "STRICT_DEPLOY_SURFACE_STATIC_REJECTION",
+      "root_cause": "The provider evidence workflow embedded the forbidden deploy command text only inside its own deny-pattern tuple; the unchanged independent verifier correctly rejected the literal as deploy surface.",
+      "gate_weakened_to_repair": false,
+      "repair": "Retain the strict verifier, compose the deny marker at runtime without embedding the forbidden execution-surface literal, and rerun both builder and independent gates."
     }
   ],
   "earned_local_results": {
@@ -60,7 +103,19 @@
     "restore_into_separate_root": true,
     "post_snapshot_fault_injection_observed": true,
     "snapshot_backup_restore_digest_equivalence": true,
+    "provider_binding_preflight": "PASS_REPOSITORY_LOCAL",
+    "provider_preflight_non_bypassable_ordering": "PASS",
+    "provider_preflight_receipt_integrity_contract": "PASS",
     "internal_independent_repository_verification": "PASS"
+  },
+  "repository_governance_state": {
+    "repository_visibility": "PUBLIC",
+    "repository_private_required_before_provider_secret_workflow": true,
+    "main_branch_protected": false,
+    "main_protection_or_equivalent_ruleset_required_before_release_path": true,
+    "provider_secret_workflow": "BLOCKED_FAIL_CLOSED",
+    "repository_visibility_changed_by_recovery": false,
+    "branch_protection_changed_by_recovery": false
   },
   "legacy_runtime_truth": {
     "staging_canary_bound_to_production_d1": "PROVEN_FROM_SOURCE",
@@ -91,6 +146,7 @@
     "production_traffic_mutated": false,
     "production_secret_mutated": false,
     "billing_or_plan_upgrade_performed": false,
+    "release_surface_hardened": false,
     "full_product_connection": "NOT_PROVEN",
     "frontier_v5_live_integration": "NOT_PROVEN",
     "durable_end_to_end_execution": "NOT_PROVEN",
@@ -99,8 +155,11 @@
     "superiority": "NOT_CERTIFIED",
     "world_best": "NOT_CERTIFIED"
   },
-  "historical_contract_note": "recovery/ar02/cloud_binding_contract.json was frozen before the internal independent verifier ran; its false precondition booleans are the pre-verification contract snapshot, while this progress record carries the later observed verifier result.",
+  "historical_contract_note": "recovery/ar02/cloud_binding_contract.json remains an unbound pre-provider contract. Repository-local preflight qualification does not populate provider-native resource identities and does not prove cloud isolation.",
   "remaining_ar02_exit_gates": [
+    "MAKE_REPOSITORY_PRIVATE_OR_PROVIDE_EQUIVALENT_SECRET_EXECUTION_BOUNDARY",
+    "PROTECT_MAIN_WITH_BRANCH_PROTECTION_OR_EQUIVALENT_RULESET",
+    "HARDEN_CONSEQUENTIAL_RELEASE_SURFACE_IMMUTABLE_PINS_REVIEWER_GATES_AND_LEGACY_CREDENTIAL_PATHS",
     "READ_ONLY_PROVIDER_ACCOUNT_PLAN_RESOURCE_AND_USAGE_INVENTORY",
     "PROVE_FREE_TIER_HEADROOM_WITHOUT_BILLING_UPGRADE",
     "CREATE_OR_IDENTIFY_DEDICATED_STAGING_RESOURCES_AND_READ_BACK_EXACT_IDS",
@@ -110,10 +169,18 @@
     "RUN_CLOUD_SYNTHETIC_FIXTURE_RESTORE_DRILL",
     "PERFORM_EXTERNAL_INDEPENDENT_VERIFICATION"
   ],
-  "current_blocker": {
-    "id": "CLOUDFLARE_ACCOUNT_RESOURCE_INVENTORY_NOT_EXPOSED_IN_CURRENT_SESSION",
-    "classification": "NOT_PROVEN_NOT_FAILED",
-    "impact": "Provider account plan, usage headroom, exact resource identities, and credential scopes cannot be independently read back in the current tool session.",
-    "production_impact": "NONE"
-  }
+  "current_blockers": [
+    {
+      "id": "REPOSITORY_PUBLIC_AND_MAIN_UNPROTECTED",
+      "classification": "OPEN_GOVERNANCE_GAP",
+      "impact": "Provider-secret workflow remains fail-closed and release path cannot satisfy AR-02 governance.",
+      "production_impact": "NONE"
+    },
+    {
+      "id": "CLOUDFLARE_ACCOUNT_RESOURCE_INVENTORY_NOT_EXPOSED_IN_CURRENT_SESSION",
+      "classification": "NOT_PROVEN_NOT_FAILED",
+      "impact": "Provider account plan, usage headroom, exact resource identities, and credential scopes cannot be independently read back in the current tool session.",
+      "production_impact": "NONE"
+    }
+  ]
 }
