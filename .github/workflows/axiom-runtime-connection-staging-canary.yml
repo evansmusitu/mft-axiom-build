@@ -136,7 +136,7 @@ jobs:
               host=urllib.parse.urlparse(url).hostname
               config={
                   'name':worker,'main':'ops/axiom_browser_application_worker.mjs','compatibility_date':'2026-09-17','workers_dev':True,'preview_urls':False,
-                  'vars':{'BUILD_SHA':os.environ['GITHUB_SHA'],'APP_HOST':host,'APP_ORIGIN':url,'APP_ENTRY':'/vnext/index.html#/home','APP_ASSET_ENTRY':'/vnext/index.html','RUNTIME_CONNECTION_REQUIRED':'true','AI_MODEL':'@cf/google/gemma-4-26b-a4b-it'},
+                  'vars':{'BUILD_SHA':os.environ['GITHUB_SHA'],'APP_HOST':host,'APP_ORIGIN':url,'APP_ENTRY':'/vnext/#/home','APP_ASSET_ENTRY':'/vnext/index.html','RUNTIME_CONNECTION_REQUIRED':'true','AI_MODEL':'@cf/google/gemma-4-26b-a4b-it'},
                   'd1_databases':[{'binding':'AXIOM_DB','database_name':os.environ['D1_NAME'],'database_id':os.environ['D1_UUID']}],
                   'services':[{'binding':'AXIOM_RUNTIME','service':os.environ['PROTECTED_RUNTIME']}],
                   'ai':{'binding':'AI'},
@@ -196,7 +196,10 @@ jobs:
             page.on('pageerror',error=>errors.push(String(error)));
             await page.goto(base+'/auth/start',{waitUntil:'domcontentloaded'});
             await page.locator('#account-key').fill(process.env.RUNTIME_UI_ACCOUNT_KEY);
-            await Promise.all([page.waitForURL(/\/vnext\/index\.html#\/home/),page.locator('button[type="submit"]').click()]);
+            await Promise.all([
+              page.waitForURL(value=>{const url=new URL(value);return url.pathname.startsWith('/vnext/')&&url.hash==='#/home';}),
+              page.locator('button[type="submit"]').click(),
+            ]);
             await page.locator('#composer-input').fill(objective);
             await page.locator('#composer .execute-button').click();
             await page.locator('#runtime-execution-panel .runtime-state[data-runtime-state="complete"]').waitFor({timeout:120000});
