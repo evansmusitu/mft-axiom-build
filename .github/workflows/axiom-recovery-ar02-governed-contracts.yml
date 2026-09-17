@@ -6,6 +6,7 @@ on:
       - frontier/axiom-recovery-ar02-governed-contracts-20260917
     paths:
       - 'docs/axiom_recovery/AR02_GOVERNED_REPLACEMENT_CONTRACTS.json'
+      - 'docs/axiom_recovery/AR02_EXTERNAL_UNBLOCK_CONTRACT.json'
       - '.github/workflows/axiom-recovery-ar02-governed-contracts.yml'
   workflow_dispatch:
 
@@ -43,7 +44,7 @@ jobs:
           test -z "${ANTHROPIC_API_KEY:-}"
           git diff --check
 
-      - name: Builder verify exact two-file contract scope
+      - name: Builder verify exact three-file contract scope
         shell: bash
         run: |
           set -euo pipefail
@@ -52,12 +53,13 @@ jobs:
           base='a2fcf339a82d831c36afdb279c1e479e7126b7c3'
           expected={
               'docs/axiom_recovery/AR02_GOVERNED_REPLACEMENT_CONTRACTS.json',
+              'docs/axiom_recovery/AR02_EXTERNAL_UNBLOCK_CONTRACT.json',
               '.github/workflows/axiom-recovery-ar02-governed-contracts.yml',
           }
           changed=set(subprocess.check_output(['git','diff','--name-only',f'{base}..HEAD'],text=True).splitlines())
           if changed != expected:
               raise SystemExit(f'governed-contract delta mismatch missing={sorted(expected-changed)!r} extra={sorted(changed-expected)!r}')
-          print('governed_contract_exact_two_file_scope=PASS')
+          print('governed_contract_exact_three_file_scope=PASS')
           PY
 
       - name: Builder verify five governed replacement contracts
@@ -67,8 +69,7 @@ jobs:
           python - <<'PY'
           import json
           from pathlib import Path
-          p=Path('docs/axiom_recovery/AR02_GOVERNED_REPLACEMENT_CONTRACTS.json')
-          data=json.loads(p.read_text(encoding='utf-8'))
+          data=json.loads(Path('docs/axiom_recovery/AR02_GOVERNED_REPLACEMENT_CONTRACTS.json').read_text(encoding='utf-8'))
           assert data['schema']=='musitu.axiom.recovery.ar02-governed-replacement-contracts.v1'
           assert data['base_release_surface_head']=='a2fcf339a82d831c36afdb279c1e479e7126b7c3'
           assert data['sealed_main_commit']=='d6a846f6bbe0bccac1758713eb4de167caf07113'
@@ -83,7 +84,6 @@ jobs:
           assert inv['nonproduction_credentials_must_be_proven_unable_to_mutate_production'] is True
           assert inv['builder_self_certification_forbidden'] is True
           assert inv['independent_verifier_required'] is True
-
           expected={
               'AR02-RC-01':('.github/workflows/axiom-musitu-modal-backend-cutover.yml','567a6aa3ac467303ae9389d3ac57ff48d731eb33'),
               'AR02-RC-02':('.github/workflows/axiom-modal-stage-domain-auth-final-v2.yml','2b88332102f98572d03483b4f067c5cd8b4876b3'),
@@ -101,12 +101,9 @@ jobs:
               assert row['source_disposition']=='REPLACE_WITH_GOVERNED_CONTRACT'
               assert row['release_eligibility']=='BLOCKED'
               assert row['blockers']
-              assert 'independent_verifier' in row and row['independent_verifier'].startswith('REQUIRED')
-              assert row['credential_model']
-              assert row['network_policy']
-              assert row['approval_policy']
-              assert row['evidence_required']
-              assert row['rollback_or_revocation']
+              assert row['independent_verifier'].startswith('REQUIRED')
+              assert row['credential_model'] and row['network_policy'] and row['approval_policy']
+              assert row['evidence_required'] and row['rollback_or_revocation']
           print('five_governed_replacement_contracts=PASS')
           PY
 
@@ -118,8 +115,7 @@ jobs:
           import json, subprocess
           from pathlib import Path
           runtime='216ee7d15f01a3fb558452cc4b906a055001ccdd'
-          def show(path):
-              return subprocess.check_output(['git','show',f'{runtime}:{path}'],text=True)
+          def show(path): return subprocess.check_output(['git','show',f'{runtime}:{path}'],text=True)
           mcp=show('.github/workflows/axiom-mcp-production-deploy-v2.yml')
           admission=show('.github/workflows/axiom-production-admission-gate.yml')
           compat=show('.github/workflows/axiom-musitu-cloudflare-compat-aliases.yml')
@@ -133,16 +129,57 @@ jobs:
           assert "kb[0].get('service')!=os.environ['PROTECTED_ADAPTER']" in admission
           assert 'MUSITU_ADAPTER: musitu-axiom-modal-adapter' in compat
           assert 'MUSITU_EDGE: musitu-axiom-modal-edge-stage' in compat
-
-          data=json.loads(Path('docs/axiom_recovery/AR02_GOVERNED_REPLACEMENT_CONTRACTS.json').read_text())
-          proof=data['compatibility_alias_role_proof']
-          assert proof['sealed_main_source_blob_sha']=='f3aa11f2fe24b385c709966fd301247ccee805bb'
+          proof=json.loads(Path('docs/axiom_recovery/AR02_GOVERNED_REPLACEMENT_CONTRACTS.json').read_text())['compatibility_alias_role_proof']
           conclusion=proof['conclusion']
+          assert proof['sealed_main_source_blob_sha']=='f3aa11f2fe24b385c709966fd301247ccee805bb'
           assert conclusion['musitu_edge_facade']=='REQUIRED_BY_AUTHORITATIVE_RUNTIME_SOURCE'
           assert conclusion['musitu_adapter_facade']=='NOT_PROVEN_REQUIRED'
           assert conclusion['workflow_as_authored_safe_to_execute'] is False
           assert conclusion['workflow_safe_to_retire_wholesale'] is False
           print('compatibility_runtime_role_rederived=PASS')
+          PY
+
+      - name: Builder verify external unblock contract remains fail closed
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          d=json.load(open('docs/axiom_recovery/AR02_EXTERNAL_UNBLOCK_CONTRACT.json'))
+          assert d['schema']=='musitu.axiom.recovery.ar02-external-unblock-contract.v1'
+          repo=d['current_repository_evidence']
+          assert repo['visibility']=='PUBLIC'
+          assert repo['main_protected'] is False
+          assert repo['repository_rulesets']==[]
+          assert repo['branch_protection_detail_endpoint']=='RESOURCE_NOT_ACCESSIBLE_BY_INTEGRATION'
+          assert repo['provider_secret_workflow_allowed_while_public'] is False
+          admin=d['consequential_admin_boundary']
+          for key in ('repository_visibility_change','main_protection_or_ruleset_change','production_environment_policy'):
+              assert admin[key]['execution_authorized_by_this_contract'] is False
+              assert admin[key]['explicit_human_approval_required'] is True
+          ids=d['provider_identity_contract']
+          assert ids['inventory_identity']['provisioned'] is False
+          assert ids['token_policy_auditor_identity']['provisioned'] is False
+          assert ids['future_staging_mutator_identity']['authorized_for_use_now'] is False
+          assert ids['future_canary_mutator_identity']['authorized_for_use_now'] is False
+          assert ids['global_api_key']['allowed'] is False
+          sequence=d['provider_evidence_sequence']
+          assert [x['order'] for x in sequence]==list(range(1,10))
+          assert sequence[0]['current_result']=='FAIL_CURRENT_STATE_PUBLIC'
+          assert sequence[1]['current_result']=='FAIL_CURRENT_STATE_UNPROTECTED'
+          assert all(x['current_result'] in {'FAIL_CURRENT_STATE_PUBLIC','FAIL_CURRENT_STATE_UNPROTECTED','NOT_PROVEN','NOT_PERFORMED'} for x in sequence)
+          admission=d['execution_admission']
+          assert admission['staging_mutation']=='BLOCKED'
+          assert admission['canary_mutation']=='BLOCKED'
+          assert admission['production_mutation']=='NOT_AUTHORIZED'
+          assert admission['billing_upgrade']=='NOT_AUTHORIZED'
+          b=d['claim_boundary']
+          assert b['external_unblock_contract_frozen'] is True
+          for key in ('repository_private','main_protected','ruleset_present','provider_identities_provisioned','provider_inventory_executed','provider_headroom_proven','dedicated_cloud_resources_proven','nonproduction_credentials_production_denial_proven','cloud_restore_performed','external_independent_verification_performed','provider_execution_performed','production_mutated','production_authority','repository_wide_release_surface_hardened','ar02_complete','ar03_started'):
+              assert b[key] is False, key
+          assert b['cloud_isolation']=='NOT_PROVEN'
+          assert b['superiority']=='NOT_CERTIFIED'
+          print('external_unblock_contract_fail_closed=PASS')
           PY
 
       - name: Builder preserve AR-02 claim boundary
@@ -151,8 +188,7 @@ jobs:
           set -euo pipefail
           python - <<'PY'
           import json
-          data=json.load(open('docs/axiom_recovery/AR02_GOVERNED_REPLACEMENT_CONTRACTS.json'))
-          b=data['claim_boundary']
+          b=json.load(open('docs/axiom_recovery/AR02_GOVERNED_REPLACEMENT_CONTRACTS.json'))['claim_boundary']
           assert b['contracts_frozen'] is True
           for key in ('replacement_implementations_built','provider_execution_performed','provider_inventory_executed','credentials_provisioned','credentials_brokered','runtime_rebound','staging_deployed','canary_deployed','production_mutated','production_authority','repository_wide_release_surface_hardened','ar02_complete','ar03_started'):
               assert b[key] is False, key
@@ -173,7 +209,7 @@ jobs:
           persist-credentials: false
           fetch-depth: 0
 
-      - name: Independent verify contract set and runtime role evidence
+      - name: Independent verify contracts role proof and external blockers
         shell: bash
         run: |
           set -euo pipefail
@@ -187,48 +223,36 @@ jobs:
           base='a2fcf339a82d831c36afdb279c1e479e7126b7c3'
           expected_delta={
               'docs/axiom_recovery/AR02_GOVERNED_REPLACEMENT_CONTRACTS.json',
+              'docs/axiom_recovery/AR02_EXTERNAL_UNBLOCK_CONTRACT.json',
               '.github/workflows/axiom-recovery-ar02-governed-contracts.yml',
           }
           changed=set(subprocess.check_output(['git','diff','--name-only',f'{base}..HEAD'],text=True).splitlines())
-          if changed!=expected_delta:
-              raise SystemExit('independent two-file scope mismatch')
+          if changed!=expected_delta: raise SystemExit('independent three-file scope mismatch')
           data=json.loads(Path('docs/axiom_recovery/AR02_GOVERNED_REPLACEMENT_CONTRACTS.json').read_text())
           rows=data.get('replacement_contracts',[])
-          if len(rows)!=5 or len({r.get('source_path') for r in rows})!=5:
-              raise SystemExit('independent replacement contract cardinality mismatch')
-          if any(r.get('release_eligibility')!='BLOCKED' for r in rows):
-              raise SystemExit('replacement implementation incorrectly release eligible')
-          if any(not r.get('blockers') for r in rows):
-              raise SystemExit('replacement contract lost blockers')
-          forbidden='CLOUDFLARE_GLOBAL_API_KEY'
-          if data['global_invariants']['global_cloudflare_api_key_allowed'] is not False:
-              raise SystemExit('global credential unexpectedly allowed')
-
+          if len(rows)!=5 or len({r.get('source_path') for r in rows})!=5: raise SystemExit('replacement contract cardinality mismatch')
+          if any(r.get('release_eligibility')!='BLOCKED' or not r.get('blockers') for r in rows): raise SystemExit('replacement contract improperly admitted')
+          if data['global_invariants']['global_cloudflare_api_key_allowed'] is not False: raise SystemExit('global credential unexpectedly allowed')
           runtime='216ee7d15f01a3fb558452cc4b906a055001ccdd'
           mcp=subprocess.check_output(['git','show',f'{runtime}:.github/workflows/axiom-mcp-production-deploy-v2.yml'],text=True)
           adm=subprocess.check_output(['git','show',f'{runtime}:.github/workflows/axiom-production-admission-gate.yml'],text=True)
-          edge='musitu-axiom-modal-edge-stage'
-          legacy_adapter='mft-axiom-modal-adapter'
-          if f'AXIOM_SERVICE: {edge}' not in mcp:
-              raise SystemExit('independent edge role evidence absent from MCP source')
-          if f'PUBLIC_EDGE: {edge}' not in adm:
-              raise SystemExit('independent edge role evidence absent from admission source')
-          if f'PROTECTED_ADAPTER: {legacy_adapter}' not in adm:
-              raise SystemExit('independent adapter role evidence drift')
+          if 'AXIOM_SERVICE: musitu-axiom-modal-edge-stage' not in mcp: raise SystemExit('edge role absent from MCP source')
+          if 'PUBLIC_EDGE: musitu-axiom-modal-edge-stage' not in adm: raise SystemExit('edge role absent from admission source')
+          if 'PROTECTED_ADAPTER: mft-axiom-modal-adapter' not in adm: raise SystemExit('adapter role evidence drift')
           conclusion=data['compatibility_alias_role_proof']['conclusion']
-          if conclusion['musitu_edge_facade']!='REQUIRED_BY_AUTHORITATIVE_RUNTIME_SOURCE':
-              raise SystemExit('edge role underclaimed or drifted')
-          if conclusion['musitu_adapter_facade']!='NOT_PROVEN_REQUIRED':
-              raise SystemExit('adapter role overclaimed')
-          if conclusion['workflow_safe_to_retire_wholesale'] is not False:
-              raise SystemExit('unsafe whole-workflow retirement authorized')
+          if conclusion['musitu_edge_facade']!='REQUIRED_BY_AUTHORITATIVE_RUNTIME_SOURCE': raise SystemExit('edge role drift')
+          if conclusion['musitu_adapter_facade']!='NOT_PROVEN_REQUIRED': raise SystemExit('adapter role overclaim')
+          if conclusion['workflow_safe_to_retire_wholesale'] is not False: raise SystemExit('unsafe retirement admitted')
 
-          b=data['claim_boundary']
-          if b['ar02_complete'] is not False or b['production_mutated'] is not False or b['provider_execution_performed'] is not False:
-              raise SystemExit('AR-02 claim boundary overstated')
-          if b['cloud_isolation']!='NOT_PROVEN' or b['superiority']!='NOT_CERTIFIED':
-              raise SystemExit('external claim boundary overstated')
-          print('AR-02 GOVERNED CONTRACTS INDEPENDENT VERIFIER: PASS')
+          ext=json.loads(Path('docs/axiom_recovery/AR02_EXTERNAL_UNBLOCK_CONTRACT.json').read_text())
+          repo=ext['current_repository_evidence']
+          if repo['visibility']!='PUBLIC' or repo['main_protected'] is not False or repo['repository_rulesets']!=[]: raise SystemExit('repository blocker evidence drift')
+          if ext['execution_admission']['production_mutation']!='NOT_AUTHORIZED': raise SystemExit('production mutation authorized')
+          if ext['execution_admission']['staging_mutation']!='BLOCKED' or ext['execution_admission']['canary_mutation']!='BLOCKED': raise SystemExit('nonproduction mutation prematurely admitted')
+          eb=ext['claim_boundary']
+          if eb['ar02_complete'] is not False or eb['provider_execution_performed'] is not False or eb['production_mutated'] is not False: raise SystemExit('external claim boundary overstated')
+          if eb['cloud_isolation']!='NOT_PROVEN' or eb['superiority']!='NOT_CERTIFIED': raise SystemExit('external certification overstated')
+          print('AR-02 GOVERNED CONTRACTS + EXTERNAL UNBLOCK INDEPENDENT VERIFIER: PASS')
           PY
 
       - name: Independent authority readback
