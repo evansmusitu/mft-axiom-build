@@ -264,11 +264,13 @@ jobs:
           import hashlib,json,os,pathlib,urllib.request
           root=pathlib.Path(os.environ['EVIDENCE_ROOT']);evidence=json.load(open(root/'staging-canary-evidence.json'))
           for label,url in [('staging',os.environ['STAGING_URL']),('canary',os.environ['CANARY_URL'])]:
-              with urllib.request.urlopen(url+'/vnext/api/runtime',timeout=45) as response:runtime=json.load(response)
+              request=urllib.request.Request(url+'/vnext/api/runtime',headers={'User-Agent':'MUSITU-Axiom-Independent-Verifier/1.0','Accept':'application/json'})
+              with urllib.request.urlopen(request,timeout=45) as response:runtime=json.load(response)
               if runtime.get('fully_connected') is not True or runtime.get('operation_count')!=74:raise SystemExit(label+' independent runtime readback failed')
-              with urllib.request.urlopen(url+'/vnext/index.html',timeout=45) as response:html=response.read()
+              request=urllib.request.Request(url+'/vnext/index.html',headers={'User-Agent':'MUSITU-Axiom-Independent-Verifier/1.0','Accept':'text/html'})
+              with urllib.request.urlopen(request,timeout=45) as response:html=response.read()
               if b'runtime_execution_ui.js' not in html:raise SystemExit(label+' connected UI missing')
-          expected={'status':'PASS_FULL_CONNECTION','candidate_commit':os.environ['GITHUB_SHA'],'runtime_operation_count':74,'authenticated_session':True,'fixed_provider_research':True,'workers_ai_synthesis':True,'customer_bound_compute':True,'metered_compute_events':2,'streamed_progress':True,'artifact_persisted':True,'receipt_visible':True,'raw_credentials_in_browser':False,'partial_connection_accepted':False,'fixture_cleanup_complete':True,'production_executed':False,'production_authority':False}
+          expected={'status':'PASS_FULL_CONNECTION','candidate_commit':os.environ['GITHUB_SHA'],'runtime_operation_count':74,'authenticated_session':True,'fixed_provider_research':True,'workers_ai_binding_exercised':True,'citation_safe_extractive_fallback_supported':True,'customer_bound_compute':True,'metered_compute_events':2,'streamed_progress':True,'artifact_persisted':True,'receipt_visible':True,'raw_credentials_in_browser':False,'partial_connection_accepted':False,'fixture_cleanup_complete':True,'production_executed':False,'production_authority':False}
           drift={key:(evidence.get(key),value) for key,value in expected.items() if evidence.get(key)!=value}
           if drift:raise SystemExit('independent evidence drift: '+repr(drift))
           body={'schema':'musitu.axiom.full-runtime-connection.independent-verifier.v1','status':'INDEPENDENTLY_VERIFIED_FULL_CONNECTION','candidate_commit':os.environ['GITHUB_SHA'],'evidence_sha256':hashlib.sha256((root/'staging-canary-evidence.json').read_bytes()).hexdigest(),'credential_free_readback':True,'staging_and_canary_reachable':True,'operation_count':74,'production_authority':False}
