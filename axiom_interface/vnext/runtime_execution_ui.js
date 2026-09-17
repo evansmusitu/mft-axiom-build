@@ -66,6 +66,7 @@ function renderResult(panel,result){
   const facts=el('aside',{className:'runtime-proof'});facts.append(el('small',{className:'eyebrow',text:'EXECUTION PROOF'}),el('h3',{text:'Full connection verified'}));
   addLabeled(facts,'Runtime',`${result.runtime?.operation_count||0} operations · ${clean(result.runtime?.build_id,100)}`);
   addLabeled(facts,'Operation',result.execution?.operation||'No quantitative operation required');
+  addLabeled(facts,'Synthesis',artifact.synthesis_mode||'GOVERNED_SYNTHESIS');
   addLabeled(facts,'Metered',result.execution?.receipt?.customer_metered===true?'Yes · customer-bound':'Not applicable');
   addLabeled(facts,'Task',result.task_id||'');addLabeled(facts,'Receipt',result.receipt?.receipt_sha256||'');
   const download=el('button',{className:'button',text:'Download artifact + receipt',attrs:{type:'button'}});download.addEventListener('click',()=>{const blob=new Blob([JSON.stringify({artifact:result.artifact,receipt:result.receipt},null,2)+'\n'],{type:'application/json'}),url=URL.createObjectURL(blob),anchor=el('a',{attrs:{href:url,download:`${result.task_id||'axiom-task'}.json`}});anchor.click();setTimeout(()=>URL.revokeObjectURL(url),1000);});facts.append(download);

@@ -54,9 +54,30 @@ test('task pipeline completes research, protected compute, synthesis, persistenc
   assert.equal(result.runtime.operation_count,74);
   assert.equal(result.execution.result.value,42);
   assert.equal(result.artifact.citations[0].source_id,'SRC-1');
+  assert.equal(result.artifact.synthesis_mode,'WORKERS_AI_GROUNDED');
   assert.match(result.receipt.receipt_sha256,/^[0-9a-f]{64}$/);
   assert.deepEqual(stored.map(([kind])=>kind),['create','complete']);
   assert.doesNotMatch(JSON.stringify(result),/bearer|api[_-]?key|authorization/i);
+});
+
+test('ungrounded model output is discarded for a source-bound extractive brief',async()=>{
+  const result=await executeRuntimeTask({
+    objective:'Research the meaning of 42, calculate 40+2, and provide a cited brief.',
+    customer:{customer_id:'customer_1',display_name:'owner@example.com'},
+    runtime:{
+      inspect:async()=>runtimeCatalog,
+      execute:async input=>({operation:input.operation,request_id:input.request_id,http_status:200,result:{value:42},receipt:{result_sha256:'c'.repeat(64),compute_units:1}}),
+    },
+    research:async()=>[{source_id:'SRC-42',title:'42 (number)',url:'https://en.wikipedia.org/wiki/42_(number)',publisher:'Wikipedia',published_at:null,excerpt:'42 is the natural number that follows 41 and precedes 43.'}],
+    model:async()=>({title:'Ungrounded draft',summary:'Unsupported claim from model.',findings:['Unsupported.'],limitations:[],citations:[]}),
+    store:{create:async()=>{},complete:async()=>{},fail:async()=>{}},
+    emit:()=>{},
+  });
+  assert.equal(result.artifact.synthesis_mode,'EXTRACTIVE_SOURCE_BOUND_FALLBACK');
+  assert.deepEqual(result.artifact.citations.map(item=>item.source_id),['SRC-42']);
+  assert.match(result.artifact.findings.join(' '),/natural number that follows 41/i);
+  assert.match(result.artifact.findings.join(' '),/"value":42/);
+  assert.doesNotMatch(JSON.stringify(result.artifact),/Unsupported claim from model|Unsupported\./);
 });
 
 test('unknown model-selected operation fails before protected execution',async()=>{
