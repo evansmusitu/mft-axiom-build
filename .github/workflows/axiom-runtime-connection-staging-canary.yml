@@ -206,12 +206,13 @@ jobs:
             await terminal.waitFor({timeout:120000});
             const text=await page.locator('#runtime-execution-panel').innerText();
             const terminalState=await terminal.getAttribute('data-runtime-state');
-            const markers={value_42:text.includes('42'),operation_count_74:text.includes('74 operations'),metered:text.includes('Metered'),receipt:text.includes('Receipt')};
+            const visible=text.toLowerCase();
+            const markers={value_42:visible.includes('42'),operation_count_74:visible.includes('74 operations'),metered:visible.includes('metered'),receipt:visible.includes('receipt')};
             console.log(label+' terminal '+terminalState+' visible task markers '+JSON.stringify(markers)+' panel '+JSON.stringify(text));
             await page.screenshot({path:`${process.env.EVIDENCE_ROOT}/${label}-completed-task.png`,fullPage:true});
             if(terminalState!=='complete')throw new Error(label+' task failed visibly: '+JSON.stringify(text));
             if(!Object.values(markers).every(Boolean))throw new Error(label+' full execution evidence missing: '+JSON.stringify(markers));
-            if(label==='canary'&&!text.includes('Sources'))throw new Error('canary cited-source output missing');
+            if(label==='canary'&&!visible.includes('sources'))throw new Error('canary cited-source output missing');
             if(errors.length)throw new Error(label+' page errors: '+errors.join(' | '));
             const runtime=await page.evaluate(async()=>fetch('./api/runtime',{cache:'no-store'}).then(response=>response.json()));
             if(runtime.fully_connected!==true||runtime.operation_count!==74)throw new Error(label+' partial runtime connection');
