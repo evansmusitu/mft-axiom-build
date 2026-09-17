@@ -186,7 +186,7 @@ CREATE TABLE axiom_approval_grants (
   approver_role TEXT NOT NULL,
   tool_id TEXT NOT NULL,
   arguments_sha256 TEXT NOT NULL CHECK (length(arguments_sha256) = 64),
-  risk_class TEXT NOT NULL CHECK (risk_class IN ('S0', 'S1', 'S2', 'S3', 'S4')),
+  risk_class TEXT NOT NULL CHECK (risk_class IN ('S0', 'S1', 'S2', 'S3', 'S4', 'S5')),
   issued_at TEXT NOT NULL,
   expires_at TEXT NOT NULL,
   revoked_at TEXT,
