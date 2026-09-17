@@ -202,11 +202,14 @@ jobs:
             ]);
             await page.locator('#composer-input').fill(objective);
             await page.locator('#composer .execute-button').click();
-            await page.locator('#runtime-execution-panel .runtime-state[data-runtime-state="complete"]').waitFor({timeout:120000});
+            const terminal=page.locator('#runtime-execution-panel .runtime-state[data-runtime-state="complete"], #runtime-execution-panel .runtime-state[data-runtime-state="failed"]');
+            await terminal.waitFor({timeout:120000});
             const text=await page.locator('#runtime-execution-panel').innerText();
+            const terminalState=await terminal.getAttribute('data-runtime-state');
             const markers={value_42:text.includes('42'),operation_count_74:text.includes('74 operations'),metered:text.includes('Metered'),receipt:text.includes('Receipt')};
-            console.log(label+' visible task markers '+JSON.stringify(markers)+' panel '+JSON.stringify(text));
+            console.log(label+' terminal '+terminalState+' visible task markers '+JSON.stringify(markers)+' panel '+JSON.stringify(text));
             await page.screenshot({path:`${process.env.EVIDENCE_ROOT}/${label}-completed-task.png`,fullPage:true});
+            if(terminalState!=='complete')throw new Error(label+' task failed visibly: '+JSON.stringify(text));
             if(!Object.values(markers).every(Boolean))throw new Error(label+' full execution evidence missing: '+JSON.stringify(markers));
             if(label==='canary'&&!text.includes('Sources'))throw new Error('canary cited-source output missing');
             if(errors.length)throw new Error(label+' page errors: '+errors.join(' | '));
