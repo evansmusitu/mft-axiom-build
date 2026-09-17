@@ -1,0 +1,88 @@
+{
+  "schema": "musitu.axiom.recovery.version-compatibility-matrix.v1",
+  "canonical_product_name": "MUSITU Axiom",
+  "canonical_platform_id": "MUSITU_AXIOM_UNIFIED_V1",
+  "canonical_contract_namespace": "musitu.axiom.unified",
+  "version_policy": {
+    "marketing_version_invented": false,
+    "call_target_v6": false,
+    "component_versions_remain_visible": true,
+    "compatibility_over_rebranding": true
+  },
+  "components": [
+    {
+      "component": "SEALED_MAIN_V4",
+      "version_anchor": "d6a846f6bbe0bccac1758713eb4de167caf07113",
+      "current_role": "sealed repository authority and historical stable baseline",
+      "canonical_role": "baseline and rollback authority",
+      "compatibility": "PRESERVE",
+      "retirement_gate": "NEVER_DELETE; retain immutable reference"
+    },
+    {
+      "component": "V3_QUANTITATIVE_RUNTIME",
+      "version_anchor": "MFT-AXIOM-V3-FULL-SELF-CONTAINED-20260904",
+      "current_role": "protected 74-operation production runtime",
+      "canonical_role": "quantitative execution plane",
+      "compatibility": "ADAPTER_REQUIRED",
+      "retirement_gate": "typed operation parity, replay evidence, rollback proof, and production approval"
+    },
+    {
+      "component": "FRONTIER_V5",
+      "version_anchor": "d9196774a9fff3150922e2cb681d16e2423651da",
+      "current_role": "development capability fabric",
+      "canonical_role": "qualified tool and cross-cutting capability providers",
+      "compatibility": "ADAPTER_AND_PER_CAPABILITY_QUALIFICATION_REQUIRED",
+      "retirement_gate": "none; source retained even after adapters become canonical"
+    },
+    {
+      "component": "LEGACY_BROWSER_PHASE_12",
+      "version_anchor": "axiom_interface/surface-map.json",
+      "current_role": "earned browser/product surface authority with local stores",
+      "canonical_role": "experience layer and offline replica client",
+      "compatibility": "SERVER_SYNC_ADAPTER_REQUIRED",
+      "retirement_gate": "route-by-route equivalence, data export/import, cross-device tests, and user rollback"
+    },
+    {
+      "component": "FINAL_APP_FA06_FA20",
+      "version_anchor": "21d087f0fdebffd4cfb4065286aa16696fcec9c0",
+      "current_role": "final-app features, policy gates, evidence, and release assets",
+      "canonical_role": "experience controls plus reusable policy/evidence modules",
+      "compatibility": "CONTRACT_REBIND_REQUIRED",
+      "retirement_gate": "per-feature parity and original claim boundary retained"
+    },
+    {
+      "component": "RUNTIME_CONNECTION_CANDIDATE",
+      "version_anchor": "216ee7d15f01a3fb558452cc4b906a055001ccdd",
+      "current_role": "limited research/quantitative task transport in isolated staging/canary",
+      "canonical_role": "reference adapter behavior only; not canonical orchestrator",
+      "compatibility": "SUPERSEDE_WITH_DURABLE_CONTRACT_WHILE_RETAINING_TESTS",
+      "retirement_gate": "full-connection trace, failure recovery, and transport regression proof"
+    },
+    {
+      "component": "MCP_AND_DEVELOPER_SURFACES",
+      "version_anchor": "mcp and developer platform sources at recovery base",
+      "current_role": "separate integration surface",
+      "canonical_role": "additional clients of the same Task API and governed Tool Fabric",
+      "compatibility": "SHARED_CONTRACT_REQUIRED",
+      "retirement_gate": "no separate authority or receipt semantics remain"
+    }
+  ],
+  "canonical_layers": [
+    {"ordinal": 1, "id": "EXPERIENCE_LAYER", "owns": ["browser", "mobile_pwa", "developer", "mcp"], "must_not_own": ["execution_truth", "production_authority"]},
+    {"ordinal": 2, "id": "IDENTITY_TASK_GATEWAY", "owns": ["session", "actor", "tenant", "project_scope", "task_admission", "rate_limit"]},
+    {"ordinal": 3, "id": "PROJECT_WORK_GRAPH", "owns": ["projects", "objects", "edges", "memory", "artifacts", "versioning", "sync"]},
+    {"ordinal": 4, "id": "DURABLE_ORCHESTRATOR", "owns": ["plans", "steps", "leases", "checkpoints", "retry", "pause_resume", "dead_letter"]},
+    {"ordinal": 5, "id": "QUALIFIED_MODEL_ROUTER", "owns": ["planning_route", "model_policy", "budget", "fallback", "abstention"]},
+    {"ordinal": 6, "id": "GOVERNED_TOOL_FABRIC", "owns": ["registry", "schemas", "policy", "approval", "idempotency", "qualification"]},
+    {"ordinal": 7, "id": "EXECUTION_PLANES", "owns": ["v3_quantitative", "frontier_v5", "research", "artifacts", "computer_live", "connectors"]},
+    {"ordinal": 8, "id": "EVIDENCE_OBSERVABILITY", "owns": ["receipts", "lineage", "traces", "evals", "audit", "slo", "cost"]}
+  ],
+  "environment_contract": {
+    "development": "isolated local/test stores only",
+    "staging": "dedicated non-production identity, queues, object storage, secrets, and database",
+    "canary": "dedicated non-production data plane or read-only sanitized replica; never production D1 write authority",
+    "production": "separate bindings and explicit release authority",
+    "cross_environment_identity_reuse": false,
+    "cross_environment_database_reuse": false
+  }
+}

@@ -1,0 +1,161 @@
+{
+  "schema": "musitu.axiom.recovery.contract-catalog.v1",
+  "namespace": "musitu.axiom.unified",
+  "contract_version": 1,
+  "implementation_status": "DESIGN_ONLY",
+  "global_requirements": [
+    "schema_and_version",
+    "trace_id",
+    "actor_id",
+    "tenant_id",
+    "project_id",
+    "created_at",
+    "source_commit_or_build",
+    "policy_context_digest"
+  ],
+  "contracts": [
+    {
+      "id": "IDENTITY_CONTEXT",
+      "schema": "musitu.axiom.unified.identity-context.v1",
+      "producer": "IDENTITY_TASK_GATEWAY",
+      "consumers": ["PROJECT_WORK_GRAPH", "DURABLE_ORCHESTRATOR", "GOVERNED_TOOL_FABRIC", "EVIDENCE_OBSERVABILITY"],
+      "required_fields": ["actor_id", "tenant_id", "roles", "session_id", "auth_strength", "expires_at"],
+      "compatibility": "ADDITIVE_FIELDS_ONLY_WITH_UNKNOWN_FIELD_TOLERANCE",
+      "failure_mode": "DENY"
+    },
+    {
+      "id": "PROJECT_CONTEXT",
+      "schema": "musitu.axiom.unified.project-context.v1",
+      "producer": "PROJECT_WORK_GRAPH",
+      "consumers": ["EXPERIENCE_LAYER", "DURABLE_ORCHESTRATOR", "QUALIFIED_MODEL_ROUTER", "GOVERNED_TOOL_FABRIC"],
+      "required_fields": ["project_id", "tenant_id", "version", "object_refs", "memory_policy", "data_classification", "permissions_digest"],
+      "compatibility": "VERSIONED_OPTIMISTIC_CONCURRENCY",
+      "failure_mode": "FAIL_ON_STALE_OR_UNAUTHORIZED_VERSION"
+    },
+    {
+      "id": "TASK_REQUEST",
+      "schema": "musitu.axiom.unified.task-request.v1",
+      "producer": "EXPERIENCE_LAYER",
+      "consumers": ["IDENTITY_TASK_GATEWAY", "DURABLE_ORCHESTRATOR"],
+      "required_fields": ["task_id", "user_intent_id", "project_id", "objective", "inputs", "constraints", "acceptance_tests", "idempotency_key"],
+      "compatibility": "V1_ACCEPTED_UNTIL_EXPLICIT_DEPRECATION_WINDOW_CLOSES",
+      "failure_mode": "REJECT_WITH_STRUCTURED_ADMISSION_ERROR"
+    },
+    {
+      "id": "EXECUTION_PLAN",
+      "schema": "musitu.axiom.unified.execution-plan.v1",
+      "producer": "DURABLE_ORCHESTRATOR_WITH_QUALIFIED_MODEL_ROUTER",
+      "consumers": ["GOVERNED_TOOL_FABRIC", "EXPERIENCE_LAYER", "EVIDENCE_OBSERVABILITY"],
+      "required_fields": ["plan_id", "task_id", "plan_version", "steps", "dependencies", "risk_classes", "estimated_cost", "approval_points", "acceptance_mapping"],
+      "compatibility": "IMMUTABLE_PLAN_VERSIONS_WITH_SUPERSEDES_LINK",
+      "failure_mode": "NO_STEP_EXECUTION_WITHOUT_VALIDATED_PLAN"
+    },
+    {
+      "id": "MODEL_ROUTE_DECISION",
+      "schema": "musitu.axiom.unified.model-route-decision.v1",
+      "producer": "QUALIFIED_MODEL_ROUTER",
+      "consumers": ["DURABLE_ORCHESTRATOR", "EVIDENCE_OBSERVABILITY"],
+      "required_fields": ["route_id", "purpose", "provider", "model", "qualification_state", "cost_ceiling", "fallback_chain", "input_digest", "decision_reasons"],
+      "compatibility": "PROVIDER_NEUTRAL",
+      "failure_mode": "DETERMINISTIC_FALLBACK_OR_EXPLICIT_BLOCKED"
+    },
+    {
+      "id": "TOOL_DESCRIPTOR",
+      "schema": "musitu.axiom.unified.tool-descriptor.v1",
+      "producer": "GOVERNED_TOOL_FABRIC",
+      "consumers": ["DURABLE_ORCHESTRATOR", "QUALIFIED_MODEL_ROUTER", "DEVELOPER_SURFACE"],
+      "required_fields": ["tool_id", "version", "input_schema", "output_schema", "risk_class", "required_scopes", "idempotency", "qualification_state", "execution_plane"],
+      "compatibility": "SEMVER_WITH_SCHEMA_DIFF_GATE",
+      "failure_mode": "UNQUALIFIED_TOOLS_NOT_EXECUTABLE"
+    },
+    {
+      "id": "TOOL_INVOCATION",
+      "schema": "musitu.axiom.unified.tool-invocation.v1",
+      "producer": "DURABLE_ORCHESTRATOR",
+      "consumers": ["GOVERNED_TOOL_FABRIC", "EXECUTION_PLANES"],
+      "required_fields": ["invocation_id", "task_id", "plan_id", "step_id", "tool_id", "tool_version", "arguments", "arguments_digest", "idempotency_key", "deadline", "approval_ref"],
+      "compatibility": "EXACT_TOOL_VERSION_BOUND",
+      "failure_mode": "DENY_ON_SCHEMA_POLICY_OR_APPROVAL_MISMATCH"
+    },
+    {
+      "id": "APPROVAL_GRANT",
+      "schema": "musitu.axiom.unified.approval-grant.v1",
+      "producer": "AUTHORIZED_HUMAN_OR_POLICY_APPROVER",
+      "consumers": ["GOVERNED_TOOL_FABRIC", "DURABLE_ORCHESTRATOR", "EVIDENCE_OBSERVABILITY"],
+      "required_fields": ["approval_id", "approver_id", "role", "task_id", "step_id", "tool_id", "arguments_digest", "risk_class", "issued_at", "expires_at", "signature"],
+      "compatibility": "NON_TRANSFERABLE_EXACT_SCOPE",
+      "failure_mode": "DENY_ON_REUSE_EXPIRY_OR_SCOPE_CHANGE"
+    },
+    {
+      "id": "STEP_STATE",
+      "schema": "musitu.axiom.unified.step-state.v1",
+      "producer": "DURABLE_ORCHESTRATOR",
+      "consumers": ["EXPERIENCE_LAYER", "GOVERNED_TOOL_FABRIC", "EVIDENCE_OBSERVABILITY"],
+      "required_fields": ["task_id", "plan_id", "step_id", "attempt", "state", "lease_owner", "lease_expires_at", "checkpoint_ref", "updated_at"],
+      "compatibility": "MONOTONIC_STATE_MACHINE",
+      "failure_mode": "INVALID_TRANSITIONS_REJECTED_AND_RECORDED"
+    },
+    {
+      "id": "TOOL_RECEIPT",
+      "schema": "musitu.axiom.unified.tool-receipt.v1",
+      "producer": "EXECUTION_PLANES",
+      "consumers": ["DURABLE_ORCHESTRATOR", "EVIDENCE_OBSERVABILITY", "EXPERIENCE_LAYER"],
+      "required_fields": ["receipt_id", "invocation_id", "status", "started_at", "finished_at", "output_digest", "artifact_refs", "provider_receipt", "error_class", "redaction_manifest"],
+      "compatibility": "APPEND_ONLY_CORRECTIONS_BY_SUPERSEDES_LINK",
+      "failure_mode": "MISSING_RECEIPT_MEANS_STEP_NOT_PROVEN_COMPLETE"
+    },
+    {
+      "id": "ARTIFACT_MANIFEST",
+      "schema": "musitu.axiom.unified.artifact-manifest.v1",
+      "producer": "ARTIFACT_EXECUTION_PLANE",
+      "consumers": ["PROJECT_WORK_GRAPH", "EXPERIENCE_LAYER", "EVIDENCE_OBSERVABILITY"],
+      "required_fields": ["artifact_id", "project_id", "task_id", "type", "version", "content_digest", "storage_ref", "source_receipts", "created_by", "permissions"],
+      "compatibility": "IMMUTABLE_VERSIONS_NON_DESTRUCTIVE_ROLLBACK",
+      "failure_mode": "UNVERIFIED_DIGEST_NOT_PUBLISHED"
+    },
+    {
+      "id": "EVIDENCE_ENVELOPE",
+      "schema": "musitu.axiom.unified.evidence-envelope.v1",
+      "producer": "EVIDENCE_OBSERVABILITY",
+      "consumers": ["EXPERIENCE_LAYER", "EVALS", "AUDIT", "RELEASE_CONTROLS"],
+      "required_fields": ["evidence_id", "task_id", "trace_id", "plan_digest", "receipt_chain", "artifact_digests", "approval_refs", "claims", "limitations", "envelope_digest"],
+      "compatibility": "HASH_LINKED_APPEND_ONLY",
+      "failure_mode": "CLAIM_REMAINS_NOT_PROVEN"
+    },
+    {
+      "id": "TASK_EVENT",
+      "schema": "musitu.axiom.unified.task-event.v1",
+      "producer": "DURABLE_ORCHESTRATOR",
+      "consumers": ["EXPERIENCE_LAYER", "EVIDENCE_OBSERVABILITY", "AUTOMATIONS"],
+      "required_fields": ["event_id", "task_id", "sequence", "event_type", "step_id", "state", "timestamp", "payload_digest"],
+      "compatibility": "ORDERED_AT_LEAST_ONCE_WITH_DEDUPLICATION",
+      "failure_mode": "CLIENT_RESUMES_FROM_LAST_ACKNOWLEDGED_SEQUENCE"
+    },
+    {
+      "id": "SYNC_CHANGESET",
+      "schema": "musitu.axiom.unified.sync-changeset.v1",
+      "producer": "EXPERIENCE_LAYER_OR_PROJECT_WORK_GRAPH",
+      "consumers": ["PROJECT_WORK_GRAPH", "EXPERIENCE_LAYER"],
+      "required_fields": ["changeset_id", "project_id", "device_id", "base_version", "operations", "client_timestamp", "digest"],
+      "compatibility": "VERSIONED_MERGE_WITH_EXPLICIT_CONFLICTS",
+      "failure_mode": "NO_SILENT_LAST_WRITER_WINS_FOR_GOVERNED_OBJECTS"
+    },
+    {
+      "id": "PROMOTION_ATTESTATION",
+      "schema": "musitu.axiom.unified.promotion-attestation.v1",
+      "producer": "INDEPENDENT_VERIFIER",
+      "consumers": ["RELEASE_CONTROLS"],
+      "required_fields": ["candidate_commit", "artifact_digests", "environment", "qualification_results", "verifier_identity", "production_authority", "attestation_digest"],
+      "compatibility": "EXACT_COMMIT_AND_ARTIFACT_BOUND",
+      "failure_mode": "NO_PROMOTION"
+    }
+  ],
+  "forbidden_shortcuts": [
+    "DIRECT_UI_TO_EXECUTION_PLANE_CALL_WITHOUT_TASK_ADMISSION",
+    "MODEL_GENERATED_TOOL_CALL_WITHOUT_SCHEMA_AND_POLICY_VALIDATION",
+    "SIDE_EFFECT_WITHOUT_IDEMPOTENCY_KEY",
+    "SUCCESS_WITHOUT_TOOL_RECEIPT_AND_ACCEPTANCE_RESULT",
+    "CLIENT_LOCAL_STATE_PRESENTED_AS_SERVER_DURABILITY",
+    "CROSS_ENVIRONMENT_DATABASE_BINDING"
+  ]
+}

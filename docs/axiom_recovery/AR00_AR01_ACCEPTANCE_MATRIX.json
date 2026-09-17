@@ -1,0 +1,52 @@
+{
+  "schema": "musitu.axiom.recovery.ar00-ar01-acceptance.v1",
+  "program": "AXIOM_RECOVERY_BLUEPRINT_V1",
+  "candidate_base_commit": "216ee7d15f01a3fb558452cc4b906a055001ccdd",
+  "verification_command": "python .github/scripts/axiom_recovery_ar00_ar01_verify.py",
+  "status": "LOCAL_DESIGN_VERIFIED",
+  "local_verification": {
+    "result": "PASS",
+    "checks": 188,
+    "command": "python .github/scripts/axiom_recovery_ar00_ar01_verify.py",
+    "external_or_independent": false
+  },
+  "criteria": [
+    {"id": "AR00_AUTHORITY_ANCHORED", "required": true, "artifact": "AR00_AUTHORITY_FREEZE.json", "expected": "exact repository, branch, commit, tree, file digest, authority, environment, and claim boundaries"},
+    {"id": "AR00_CURRENT_TRUTH_EXPLICIT", "required": true, "artifact": "AR00_SYSTEM_TRUTH_REGISTRY.json", "expected": "limited and broken connections are distinguished from proven behavior"},
+    {"id": "AR00_NO_MUTATION_AUTHORITY", "required": true, "artifact": "AR00_AUTHORITY_FREEZE.json", "expected": "implementation, push, deployment, database, and production authority all false"},
+    {"id": "AR01_FRONTIER_V5_PRESERVED", "required": true, "artifact": "AR01_FRONTIER_PRESERVATION_MATRIX.json", "expected": "exact frozen tree, all 110 registry rows, 18 submission skills, 12 frontier skills, and runtime families retained"},
+    {"id": "AR01_PHASE_1_15_PRESERVED", "required": true, "artifact": "AR01_FRONTIER_PRESERVATION_MATRIX.json", "expected": "all legacy phase assets retained without upgrading phases 13-15 authority"},
+    {"id": "AR01_FINAL_APP_PRESERVED", "required": true, "artifact": "AR01_FRONTIER_PRESERVATION_MATRIX.json", "expected": "FA-06 through FA-20 assets retained with original claim boundaries"},
+    {"id": "AR01_VERSION_ROLES_CONVERGED", "required": true, "artifact": "AR01_VERSION_COMPATIBILITY_MATRIX.json", "expected": "V3, V5, browser, FA20, MCP, and runtime candidate each have one canonical role"},
+    {"id": "AR01_CONTRACTS_DEFINED", "required": true, "artifact": "AR01_CONTRACT_CATALOG.json", "expected": "identity, project, task, plan, routing, tool, approval, durability, receipt, artifact, evidence, events, sync, and promotion contracts"},
+    {"id": "AR01_ARCHITECTURE_COMPLETE", "required": true, "artifact": "AR01_CANONICAL_ARCHITECTURE.md", "expected": "all eight layers and the full-connection trace are explicit"},
+    {"id": "AR01_ENVIRONMENT_ISOLATION", "required": true, "artifact": "AR01_CANONICAL_ARCHITECTURE.md", "expected": "non-production never shares the production database or identity/bindings"},
+    {"id": "AR01_ZERO_COST_CORE_ROUTE", "required": true, "artifact": "AR01_CANONICAL_ARCHITECTURE.md", "expected": "core path works without customer-funded model keys and fails explicitly when no route exists"},
+    {"id": "AR01_MIGRATION_AND_ROLLBACK", "required": true, "artifact": "AR01_MIGRATION_ROLLBACK_PLAN.md", "expected": "staged migration, equivalence ledger, fault campaigns, rollback hierarchy, and AR-02 information needs"},
+    {"id": "AR01_CLAIMS_FAIL_CLOSED", "required": true, "artifact": "all", "expected": "full connection, parity, superiority, world-best, tablet completion, and production authority remain unclaimed"}
+  ],
+  "phase_result_after_successful_local_verification": {
+    "ar00_design_freeze": "COMPLETE_LOCAL_UNCOMMITTED",
+    "ar01_architecture_freeze": "COMPLETE_LOCAL_UNCOMMITTED",
+    "implementation_started": false,
+    "ar02_authorized": false,
+    "commit_or_push_authorized": false,
+    "external_independent_verification": "NOT_PERFORMED",
+    "staging_or_canary_mutated": false,
+    "production_mutated": false,
+    "full_product_connection": "NOT_PROVEN",
+    "superiority": "NOT_CERTIFIED"
+  },
+  "next_authority_boundary": {
+    "phase": "AR-02",
+    "purpose": "environment and data-plane isolation plus canonical schema implementation",
+    "requires_new_explicit_authorization": true,
+    "must_include": [
+      "chosen_non_production_resource_plan",
+      "cost_ceiling",
+      "data_and_identity_boundaries",
+      "first_vertical_slice_acceptance_test",
+      "rollback_target"
+    ]
+  }
+}

@@ -1,0 +1,85 @@
+{
+  "schema": "musitu.axiom.recovery.authority-freeze.v1",
+  "program": "AXIOM_RECOVERY_BLUEPRINT_V1",
+  "phases": ["AR-00", "AR-01"],
+  "recorded_on": "2026-09-17",
+  "human_approval": {
+    "exact_confirmation": "APPROVE AXIOM RECOVERY BLUEPRINT V1 — START AR-00 AND AR-01",
+    "scope": "DESIGN_FREEZE_ONLY",
+    "ar02_authorized": false,
+    "implementation_authorized": false,
+    "commit_or_push_authorized": false,
+    "staging_authorized": false,
+    "canary_authorized": false,
+    "production_authorized": false,
+    "database_mutation_authorized": false
+  },
+  "source_authority": {
+    "repository": "evansmusitu/mft-axiom-build",
+    "sealed_main_commit": "d6a846f6bbe0bccac1758713eb4de167caf07113",
+    "fa20_source_branch": "frontier/axiom-final-product-fa20-20260916",
+    "fa20_source_commit": "21d087f0fdebffd4cfb4065286aa16696fcec9c0",
+    "recovery_base_branch": "frontier/axiom-runtime-connection-20260916",
+    "recovery_base_commit": "216ee7d15f01a3fb558452cc4b906a055001ccdd",
+    "frontier_v5_branch": "frontier/axiom-v5-skill-fabric",
+    "frontier_v5_commit": "d9196774a9fff3150922e2cb681d16e2423651da",
+    "existing_pr_number": 1,
+    "existing_pr_required_state": "OPEN_DRAFT_UNMERGED",
+    "recovery_branch": "frontier/axiom-recovery-ar00-ar01-20260917",
+    "recovery_branch_mode": "LOCAL_UNCOMMITTED_DESIGN_WORKTREE"
+  },
+  "frozen_git_trees": {
+    "recovery_base_root": "733ae3eaa12578747708f0a83127bbc090c74c4c",
+    "axiom_interface": "c9aa15f2cde244e1669f75ca314fcfb4ae8e8da2",
+    "axiom_interface_vnext": "7b9a3f6d485a03b17945e7fd12e120631c56a257",
+    "frontier_v5": "b4478c2e462126568dbf34f1f5b40ecc29da24ed",
+    "frontier_review_safe": "5c8bda7a41af7f9eb7b4b0a9e1c5cd9ab0207423",
+    "mcp": "1ca86d943145df743d5eff5e58a8c46052478de0",
+    "auth": "d2814277d6b3a9c12bb0332e4acfd44ccfc9dcd4",
+    "ops": "ff8527fbc7864fe880745db3813499fb67adab5c",
+    "final_product_docs": "dac3acb632c1772d0377b93e41e37c02af63539d",
+    "github_workflows": "208e1b5725a355a8d927af40c3dca98193641edc"
+  },
+  "frozen_file_sha256": {
+    "frontier_v5/CAPABILITY_TARGETS.json": "cf2f78a98c474366139c23697badd63097c21f3b8e8d4399a7c1fbbb6f064a02",
+    "frontier_v5/MANIFEST.json": "a788a056cbf4c98f8a97eb754081dde4f7eb29a5692512c213bb60d3a9531358",
+    "frontier_v5/EVAL_CONTRACT.json": "9a425e36ae8873065a777d0bcd03708b5b65c78886a380a308c4e7bb86ab8524",
+    "frontier_v5/PROMOTION_GATE.json": "1ab06b6d0700f7eaa17a3a94fd72465ab67abdffcae712519229d107fb0d0756",
+    "docs/axiom_final_product/FA20_RUNTIME_CONNECTION_ACCEPTANCE.json": "c6ef50559f21b7a76ad65705e267d04d1b228af96bafb18ccd4c9a2b523d3100",
+    "axiom_interface/surface-map.json": "8f0a5c7a4ff0aac7e0d0aa50e1a29a4f9eb0b091cb31accab3212e1113f68bf7",
+    "axiom_interface/browser-app.json": "04e3b88bd5758ded8f79ec55196b8ac9c6a8c5665d8d45535e82efd7e9a258ae",
+    "docs/axiom_final_product/FA14_ACCEPTANCE_MATRIX.json": "f8eda41d560fc1b2654daa35cd1fb1bb2803ea4f7fc0c083f5bb3971be9c7406",
+    "docs/axiom_final_product/FA15_ACCEPTANCE_MATRIX.json": "b93d9ae4df189a0c4421dd2e056478e9a381ccb531c52f1167ce3f2e5f08629c",
+    "docs/axiom_final_product/FA16_ACCEPTANCE_MATRIX.json": "98ed9fcfca558d14ed62c4d5ef57a59d13f2e4511867855a0ef757ada8c3870f",
+    "docs/axiom_final_product/FA19_COMPARISON_PROTOCOL.json": "8bd03dfc4d424903ab83686f690f243bbee69bb42593af88272af37544d399af",
+    "docs/axiom_final_product/FA20_RELEASE_MATRIX.json": "83e3efae984ef98667694d4b827b779a1469b08e22f80169b6c9c53dcf7a8555"
+  },
+  "environment_freeze": {
+    "production_hostname": "axiom.mftintelligence.com",
+    "production_runtime_build": "MFT-AXIOM-V3-FULL-SELF-CONTAINED-20260904",
+    "new_recovery_runtime_deployed": false,
+    "staging_and_canary_must_not_use_production_database": true,
+    "production_database_mutation_allowed": false,
+    "production_traffic_mutation_allowed": false
+  },
+  "claim_freeze": {
+    "quantitative_runtime_transport": "CANDIDATE_VERIFIED_LIMITED_SCOPE",
+    "full_product_connection": "NOT_PROVEN",
+    "frontier_v5_live_integration": "NOT_PROVEN",
+    "durable_end_to_end_execution": "NOT_PROVEN",
+    "cross_device_project_continuity": "NOT_PROVEN",
+    "tablet_evidence": "DEFERRED_PENDING_FUTURE_CUSTOMER",
+    "wolfram_parity": "NOT_CERTIFIED",
+    "superiority": "NOT_CERTIFIED",
+    "world_best": "NOT_CERTIFIED"
+  },
+  "fail_closed_rules": [
+    "NO_RUNTIME_OR_UI_IMPLEMENTATION_IN_AR00_AR01",
+    "NO_VERSION_LABEL_MAY_UPGRADE_CAPABILITY_TRUTH",
+    "NO_FRONTIER_OR_PHASE_ASSET_REMOVAL_WITHOUT_EQUIVALENCE_EVIDENCE",
+    "NO_STAGE_OR_CANARY_AGAINST_PRODUCTION_DATA",
+    "NO_PROVIDER_KEY_MAY_BECOME_THE_ONLY_EXECUTION_PATH",
+    "NO_PRODUCTION_PROMOTION_FROM_DESIGN_APPROVAL",
+    "NO_SUPERIORITY_CLAIM_WITHOUT_EXTERNAL_COMPARATIVE_EVIDENCE"
+  ]
+}

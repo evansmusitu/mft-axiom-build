@@ -1,0 +1,176 @@
+{
+  "schema": "musitu.axiom.recovery.system-truth-registry.v1",
+  "as_of_source_commit": "216ee7d15f01a3fb558452cc4b906a055001ccdd",
+  "status": "RECOVERY_REQUIRED",
+  "summary": {
+    "valuable_assets_exist": true,
+    "single_coherent_product_runtime_exists": false,
+    "full_product_connection_proven": false,
+    "safe_to_promote_current_candidate_as_complete_product": false
+  },
+  "components": [
+    {
+      "id": "PUBLIC_BROWSER_APP",
+      "location": "axiom_interface",
+      "observed_truth": "Production-deployed static browser application with broad local-first surfaces and a reserved API origin.",
+      "authority": "PHASE_12_EARNED_WITH_LATER_ASSETS_NOT_AUTOMATICALLY_EARNED",
+      "persistence": "INDEXEDDB_BROWSER_LOCAL_DEVICE",
+      "target_disposition": "PRESERVE_AND_ADAPT_TO_SERVER_WORK_GRAPH"
+    },
+    {
+      "id": "VNEXT_FINAL_APP",
+      "location": "axiom_interface/vnext",
+      "observed_truth": "FA-06 through FA-20 implementation, evidence, release-control, and runtime-connection assets; several surfaces remain preview/control-plane oriented.",
+      "authority": "MIXED_BY_PHASE_AND_MATRIX",
+      "target_disposition": "PRESERVE_UI_AND_POLICY_LOGIC_REBIND_TO_UNIFIED_CONTRACTS"
+    },
+    {
+      "id": "V3_QUANTITATIVE_RUNTIME",
+      "location": "protected deployed runtime plus ops adapters",
+      "observed_truth": "Certified 74-operation quantitative execution plane behind the protected runtime.",
+      "authority": "PRODUCTION_RUNTIME_COMPONENT_NOT_COMPLETE_PRODUCT",
+      "target_disposition": "PRESERVE_AS_QUANTITATIVE_EXECUTION_PLANE"
+    },
+    {
+      "id": "RUNTIME_CONNECTION_CANDIDATE",
+      "location": "axiom_interface/vnext/runtime_task_service.mjs and associated worker/workflow assets",
+      "observed_truth": "Request/SSE-bound task transport can perform fixed-source research and route at most one quantitative operation per objective.",
+      "authority": "NON_PRODUCTION_CANDIDATE",
+      "target_disposition": "REPLACE_REQUEST_LIFETIME_WITH_DURABLE_ORCHESTRATOR_ADAPTER"
+    },
+    {
+      "id": "FRONTIER_V5_FABRIC",
+      "location": "frontier_v5",
+      "observed_truth": "Large development capability fabric with 110 mapped targets, 18 submission skills, 12 frontier skills, tests, gates, and runtime modules.",
+      "authority": "DEVELOPMENT; REGISTRY_PRESENCE_IS_NOT_IMPLEMENTATION_PROOF",
+      "target_disposition": "PRESERVE_AND_CONNECT_THROUGH_QUALIFIED_TOOL_ADAPTERS"
+    },
+    {
+      "id": "MCP_SURFACE",
+      "location": "mcp",
+      "observed_truth": "Separate MCP-facing integration surface exists but is not the canonical browser task pipeline.",
+      "authority": "SEPARATE_INTERFACE",
+      "target_disposition": "ADAPT_TO_SAME_TOOL_FABRIC_AND_RECEIPT_CONTRACTS"
+    },
+    {
+      "id": "IDENTITY_AND_AUTH",
+      "location": "auth and edge session integration",
+      "observed_truth": "Authentication and session controls exist, but canonical tenant/project authority is not propagated through every execution layer.",
+      "authority": "PARTIAL_END_TO_END_PROPAGATION",
+      "target_disposition": "MAKE_ACTOR_TENANT_PROJECT_CONTEXT_MANDATORY_ON_EVERY_CONTRACT"
+    },
+    {
+      "id": "RELEASE_AND_EVIDENCE_CONTROLS",
+      "location": "docs/axiom_final_product, workflows, and vNext verifier modules",
+      "observed_truth": "Strong phase-specific fail-closed evidence patterns exist, but they do not prove product-wide runtime integration.",
+      "authority": "EVIDENCE_SCOPE_SPECIFIC",
+      "target_disposition": "REUSE_AS_UNIFIED_RECEIPT_AND_PROMOTION_GATES"
+    }
+  ],
+  "connections": [
+    {
+      "id": "CONN_BROWSER_TO_PROJECT_GRAPH",
+      "from": "PUBLIC_BROWSER_APP",
+      "to": "SERVER_PROJECT_WORK_GRAPH",
+      "state": "BROKEN",
+      "evidence": "The authoritative project substrate is browser-local IndexedDB and does not claim cloud or multi-device sync.",
+      "required_resolution": "Versioned server Project/Work Graph contracts plus offline synchronization and conflict policy."
+    },
+    {
+      "id": "CONN_VNEXT_TO_DURABLE_ORCHESTRATOR",
+      "from": "VNEXT_FINAL_APP",
+      "to": "DURABLE_ORCHESTRATOR",
+      "state": "BROKEN",
+      "evidence": "The runtime candidate is request/SSE-bound and has no queue, workflow engine, or Durable Object execution ownership.",
+      "required_resolution": "Persist task and step state before execution, lease work, checkpoint every transition, and resume idempotently."
+    },
+    {
+      "id": "CONN_ORCHESTRATOR_TO_FRONTIER_V5",
+      "from": "RUNTIME_CONNECTION_CANDIDATE",
+      "to": "FRONTIER_V5_FABRIC",
+      "state": "BROKEN",
+      "evidence": "The live task service does not import or dispatch the Frontier V5 fabric/runtime capability router.",
+      "required_resolution": "A versioned capability adapter registry with qualification state, policy scope, cost, and receipt bindings."
+    },
+    {
+      "id": "CONN_ORCHESTRATOR_TO_V3",
+      "from": "RUNTIME_CONNECTION_CANDIDATE",
+      "to": "V3_QUANTITATIVE_RUNTIME",
+      "state": "LIMITED",
+      "evidence": "Transport and 74-operation discovery exist, but each objective routes to at most one quantitative operation and is not a general multi-tool plan.",
+      "required_resolution": "Expose V3 operations as typed tools in the governed fabric and allow policy-bounded multi-step composition."
+    },
+    {
+      "id": "CONN_MODEL_TO_EXECUTION",
+      "from": "MODEL_ROUTER",
+      "to": "DURABLE_ORCHESTRATOR",
+      "state": "ABSENT",
+      "evidence": "No canonical qualified model router owns planning, fallback, budget, and evidence for the full task path.",
+      "required_resolution": "Provider-neutral plan contract with a zero/low-cost default route, optional paid providers, and deterministic fallback."
+    },
+    {
+      "id": "CONN_APPROVAL_TO_SIDE_EFFECT",
+      "from": "APPROVAL_POLICY",
+      "to": "EXECUTION_PLANES",
+      "state": "FRAGMENTED",
+      "evidence": "Phase-specific approval logic exists, but a single enforceable side-effect boundary is not shared by every tool and plane.",
+      "required_resolution": "Central policy decision and approval token bound to actor, project, task, step, tool, arguments digest, expiry, and risk."
+    },
+    {
+      "id": "CONN_EXECUTION_TO_EVIDENCE",
+      "from": "EXECUTION_PLANES",
+      "to": "EVIDENCE_LEDGER",
+      "state": "FRAGMENTED",
+      "evidence": "Strong specialized evidence modules exist, but no mandatory product-wide step receipt links plans, calls, outputs, artifacts, approvals, and retries.",
+      "required_resolution": "Append-only, hash-linked receipts for every step and artifact with redaction and replay boundaries."
+    },
+    {
+      "id": "CONN_STAGING_TO_DATA",
+      "from": "STAGING_AND_CANARY",
+      "to": "PRODUCTION_D1",
+      "state": "UNSAFE_COUPLING",
+      "evidence": "The runtime connection workflow binds staging/canary to the production D1 database.",
+      "required_resolution": "Dedicated staging and canary databases populated only with synthetic or explicitly scrubbed fixtures."
+    },
+    {
+      "id": "CONN_UI_TO_REAL_TASK_COMPLETION",
+      "from": "PUBLIC_BROWSER_APP",
+      "to": "ALL_EXECUTION_PLANES",
+      "state": "BROKEN",
+      "evidence": "The user can see broad surfaces, but a general prompt is not proven to create a durable plan, call multiple qualified tools, survive interruption, and return a sealed artifact.",
+      "required_resolution": "One canonical Task API and event stream used by every supported surface, backed by the durable orchestrator."
+    }
+  ],
+  "critical_risks": [
+    {
+      "id": "RISK_FALSE_COMPLETENESS",
+      "severity": "CRITICAL",
+      "condition": "A successful narrow transport test is presented as full product connection.",
+      "control": "Require the full-connection acceptance trace defined by AR-01."
+    },
+    {
+      "id": "RISK_FEATURE_LOSS",
+      "severity": "CRITICAL",
+      "condition": "Recovery rewrites replace Frontier V5 or Phase 1–15 assets without an equivalence map.",
+      "control": "No-delete preservation matrix and contract adapters before replacement."
+    },
+    {
+      "id": "RISK_PRODUCTION_DATA_EXPOSURE",
+      "severity": "CRITICAL",
+      "condition": "Non-production runtimes continue to use production D1.",
+      "control": "Environment-isolated data bindings are a precondition for execution work."
+    },
+    {
+      "id": "RISK_EPHEMERAL_TASK_LOSS",
+      "severity": "HIGH",
+      "condition": "Request termination, deploy, or disconnect loses plan/step state.",
+      "control": "Durable state transitions, leases, idempotency, checkpoint, retry, and dead-letter handling."
+    },
+    {
+      "id": "RISK_PROVIDER_LOCKOUT",
+      "severity": "HIGH",
+      "condition": "A paid key is required for the only usable plan route.",
+      "control": "Credential-free deterministic tools and a zero/low-cost model route remain first-class."
+    }
+  ]
+}

@@ -1,0 +1,129 @@
+{
+  "schema": "musitu.axiom.recovery.frontier-preservation-matrix.v1",
+  "source_commit": "216ee7d15f01a3fb558452cc4b906a055001ccdd",
+  "policy": {
+    "mode": "PRESERVE_ADAPT_PROVE_BEFORE_REPLACE",
+    "source_deletion_allowed": false,
+    "silent_capability_narrowing_allowed": false,
+    "registry_presence_counts_as_runtime_proof": false,
+    "unearned_phase_may_be_relabelled_as_earned": false,
+    "replacement_requires": [
+      "PATH_LEVEL_INVENTORY",
+      "CONTRACT_EQUIVALENCE_MAP",
+      "BEHAVIORAL_REGRESSION_EVIDENCE",
+      "DATA_MIGRATION_AND_ROLLBACK_PROOF",
+      "CLAIM_AUTHORITY_REVIEW"
+    ]
+  },
+  "protected_source_groups": [
+    {
+      "id": "FRONTIER_V5",
+      "path": "frontier_v5",
+      "git_tree": "b4478c2e462126568dbf34f1f5b40ecc29da24ed",
+      "inventory": {"files": 206, "lines": 33385, "registry_rows": 110, "submission_skills": 18, "frontier_skills": 12},
+      "preservation": "EXACT_TREE_FROZEN_AT_AR00; FUTURE_CHANGES_REQUIRE_EXPLICIT_MIGRATION_RECORD"
+    },
+    {
+      "id": "FRONTIER_REVIEW_SAFE",
+      "path": "frontier_review_safe",
+      "git_tree": "5c8bda7a41af7f9eb7b4b0a9e1c5cd9ab0207423",
+      "inventory": {"files": 143, "lines": 25982},
+      "preservation": "EXACT_TREE_FROZEN_AT_AR00"
+    },
+    {
+      "id": "LEGACY_INTERFACE_PHASES",
+      "path": "axiom_interface",
+      "git_tree": "c9aa15f2cde244e1669f75ca314fcfb4ae8e8da2",
+      "inventory": {"files": 216, "lines": 15356},
+      "preservation": "ALL_PHASE_ASSETS_PRESERVED_WITH_ORIGINAL_AUTHORITY"
+    },
+    {
+      "id": "FINAL_APP_PHASES",
+      "path": "axiom_interface/vnext",
+      "git_tree": "7b9a3f6d485a03b17945e7fd12e120631c56a257",
+      "inventory": {"files": 93, "lines": 7823},
+      "preservation": "FA06_THROUGH_FA20_ASSETS_PRESERVED_WITH_EXISTING_CLAIM_BOUNDARIES"
+    },
+    {
+      "id": "INTEGRATION_SURFACES",
+      "paths": ["mcp", "auth", "ops"],
+      "git_trees": {
+        "mcp": "1ca86d943145df743d5eff5e58a8c46052478de0",
+        "auth": "d2814277d6b3a9c12bb0332e4acfd44ccfc9dcd4",
+        "ops": "ff8527fbc7864fe880745db3813499fb67adab5c"
+      },
+      "preservation": "ADAPTERS_MAY_EXTEND_BUT_NOT_REMOVE_EXISTING_CONTRACTS_WITHOUT_EQUIVALENCE"
+    }
+  ],
+  "frontier_v5_capability_families": [
+    {
+      "id": "SUBMISSION_SKILLS",
+      "count": 18,
+      "members": [
+        "musitu-command-center", "musitu-company-intelligence", "musitu-financial-modeling",
+        "musitu-risk-stress", "musitu-time-series-forecasting", "musitu-statistics-experiments",
+        "musitu-optimization", "musitu-data-quality", "musitu-kpi-metric-diagnostics",
+        "musitu-market-sizing", "musitu-cfo-fpa", "musitu-credit-treasury",
+        "musitu-ma-diligence", "musitu-research-synthesis", "musitu-report-builder",
+        "musitu-model-verifier", "musitu-scenario-factory", "musitu-commercial-expansion"
+      ],
+      "target_role": "GOVERNED_TOOL_PACKAGES"
+    },
+    {
+      "id": "FRONTIER_SKILLS",
+      "count": 12,
+      "members": [
+        "musitu-proof-ledger", "musitu-temporal-memory", "musitu-causal-counterfactual",
+        "musitu-digital-twin", "musitu-agent-society", "musitu-uncertainty-calibration",
+        "musitu-instruction-firewall", "musitu-adversarial-simulation",
+        "musitu-self-evolving-evals", "musitu-continual-learning",
+        "musitu-capability-router", "musitu-governance"
+      ],
+      "target_role": "CROSS_CUTTING_PLATFORM_CAPABILITIES"
+    },
+    {
+      "id": "RUNTIME_MODULES",
+      "required_families": [
+        "artifact_and_report_generation", "claims_and_evidence", "causal_and_scenario_reasoning",
+        "computer_and_live_execution", "durable_tasks_and_planning", "enterprise_identity",
+        "external_claim_boundaries", "governance_and_security", "incident_and_disaster_recovery",
+        "model_provider_fallback", "observability_and_slo", "privacy_and_data_lifecycle",
+        "research_and_retrieval", "spend_and_licensing", "developer_and_plugin_platform"
+      ],
+      "target_role": "QUALIFIED_CAPABILITY_PROVIDERS"
+    },
+    {
+      "id": "TARGET_REGISTRY",
+      "counts": {"public_skill_packages": 44, "public_role_workflows": 36, "proprietary_targets": 30, "total": 110},
+      "target_role": "DISCOVERY_ONLY_UNTIL_IMPLEMENTATION_AND_EVIDENCE_PROVE_EACH_ENTRY"
+    }
+  ],
+  "legacy_phase_preservation": [
+    {"phase": 1, "authority": "QUALIFIED", "action": "PRESERVE_SOURCE_TESTS_AND_EVIDENCE"},
+    {"phase": 2, "authority": "QUALIFIED", "action": "PRESERVE_SOURCE_TESTS_AND_EVIDENCE"},
+    {"phase": 3, "authority": "QUALIFIED", "action": "PRESERVE_SOURCE_TESTS_AND_EVIDENCE"},
+    {"phase": 4, "authority": "QUALIFIED", "action": "PRESERVE_SOURCE_TESTS_AND_EVIDENCE"},
+    {"phase": 5, "authority": "QUALIFIED", "action": "PRESERVE_SOURCE_TESTS_AND_EVIDENCE"},
+    {"phase": 6, "authority": "QUALIFIED", "action": "PRESERVE_SOURCE_TESTS_AND_EVIDENCE"},
+    {"phase": 7, "authority": "QUALIFIED", "action": "PRESERVE_SOURCE_TESTS_AND_EVIDENCE"},
+    {"phase": 8, "authority": "QUALIFIED", "action": "PRESERVE_SOURCE_TESTS_AND_EVIDENCE"},
+    {"phase": 9, "authority": "QUALIFIED", "action": "PRESERVE_SOURCE_TESTS_AND_EVIDENCE"},
+    {"phase": 10, "authority": "QUALIFIED", "action": "PRESERVE_SOURCE_TESTS_AND_EVIDENCE"},
+    {"phase": 11, "authority": "QUALIFIED", "action": "PRESERVE_SOURCE_TESTS_AND_EVIDENCE"},
+    {"phase": 12, "authority": "QUALIFIED_CURRENT_LEGACY_AUTHORITY", "action": "PRESERVE_SOURCE_TESTS_EVIDENCE_AND_PRODUCTION_BROWSER_CONTRACT"},
+    {"phase": 13, "authority": "ASSETS_PRESENT_PHASE_UNEARNED", "action": "PRESERVE_WITHOUT_PROMOTION"},
+    {"phase": 14, "authority": "ASSETS_PRESENT_PHASE_INCOMPLETE", "action": "PRESERVE_WITHOUT_PROMOTION"},
+    {"phase": 15, "authority": "UNEARNED", "action": "PRESERVE_ANY_RELATED_ASSETS_WITHOUT_PROMOTION"}
+  ],
+  "final_app_preservation": [
+    {"range": "FA-06..FA-08", "families": ["capability-routing", "projects", "work", "memory"], "action": "PRESERVE_AND_SERVER_ADAPT"},
+    {"range": "FA-09..FA-10", "families": ["agents", "mission-control", "deep-context", "system-graph"], "action": "PRESERVE_AND_ORCHESTRATOR_ADAPT"},
+    {"range": "FA-11..FA-13", "families": ["governed-execution", "product-reality", "engineering-command-center"], "action": "PRESERVE_AND_ENFORCE_AT_SERVER_BOUNDARY"},
+    {"range": "FA-14..FA-15", "families": ["research-analyze-create", "computer", "live", "automations", "developer", "marketplace", "enterprise"], "action": "PRESERVE; EXTERNAL_EXECUTION_REMAINS_FALSE_UNTIL_QUALIFIED"},
+    {"range": "FA-16", "families": ["mobile", "pwa", "offline", "reconnect"], "action": "PRESERVE_PHONE_EVIDENCE_AND_KEEP_TABLET_DEFERRED"},
+    {"range": "FA-17..FA-18", "families": ["security-red-team", "human-authority", "build-challenge"], "action": "PRESERVE_FAIL_CLOSED_CONTROLS"},
+    {"range": "FA-19", "families": ["external-comparison"], "action": "PRESERVE_ZERO_OF_TWENTY_RESULT_AND_NO_SUPERIORITY_CLAIM"},
+    {"range": "FA-20", "families": ["release-orchestration", "runtime-connection"], "action": "PRESERVE_EVIDENCE_AND_LIMITED_SCOPE_TRUTH; DO_NOT_PROMOTE_AS_FULL_PRODUCT"}
+  ],
+  "migration_invariant": "Every protected family must appear in the compatibility ledger as PRESERVED, ADAPTED_WITH_EQUIVALENCE, or EXPLICITLY_DEFERRED_WITH_NO_LOSS before any legacy path can be retired."
+}
