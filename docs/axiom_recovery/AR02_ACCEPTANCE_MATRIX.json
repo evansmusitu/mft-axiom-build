@@ -8,7 +8,7 @@
   "sealed_main_commit": "d6a846f6bbe0bccac1758713eb4de167caf07113",
   "reconciled_from_recovery_head": "9cd5cd413622425e05695777f4fa47ce27da1e22",
   "latest_qualified_repository_governance_head": "0befcc9e546a4c7b24b863f77e78b6946d2c2e13",
-  "candidate_state": "LOCAL_AND_REPOSITORY_GOVERNANCE_QUALIFIED_PROVIDER_ISOLATION_PENDING",
+  "candidate_state": "LOCAL_RECOVERY_CONTROLS_QUALIFIED_RELEASE_SURFACE_AND_PROVIDER_GATES_OPEN",
   "scope": "AR02_SECURITY_AND_ENVIRONMENT_ISOLATION",
   "earned_verification": {
     "local_environment_isolation": "PASS",
@@ -20,6 +20,7 @@
     "two_identity_provider_harness": "PASS",
     "repository_provider_governance_gate": "PASS",
     "latest_repository_provider_governance_head": "0befcc9e546a4c7b24b863f77e78b6946d2c2e13",
+    "release_surface_security": "FAILED_SOURCE",
     "external_independent_verification": "NOT_PERFORMED"
   },
   "zero_cost_resource_plan": {
@@ -70,7 +71,61 @@
     "repository_rulesets_observed": [],
     "main_protection_or_equivalent_ruleset_required_before_release_path": true,
     "current_github_integration_branch_protection_admin_endpoint": "RESOURCE_NOT_ACCESSIBLE_BY_INTEGRATION",
+    "github_environments_api_in_current_integration": "NOT_ACCESSIBLE",
     "provider_workflow_execution": "BLOCKED_FAIL_CLOSED"
+  },
+  "release_surface_security": {
+    "status": "FAILED_SOURCE",
+    "immutable_action_pins": {
+      "status": "FAILED_SOURCE",
+      "recovery_ar02_workflows_full_sha_pinned": true,
+      "release_or_build_workflows_with_floating_action_tags_present": true,
+      "evidence": [
+        ".github/workflows/build-axiom-accelerators.yml uses actions/checkout@v6, actions/setup-python@v5, actions/upload-artifact@v4",
+        ".github/workflows/axiom-musitu-d1-live-cutover.yml uses actions/checkout@v4 and actions/upload-artifact@v4",
+        ".github/workflows/cloudflare-axiom-bootstrap-enable.yml uses actions/upload-artifact@v4"
+      ]
+    },
+    "production_reviewer_gate": {
+      "status": "FAILED_SOURCE",
+      "live_cutover_workflow_has_environment_binding": false,
+      "bootstrap_enable_workflow_has_environment_binding": false,
+      "repository_code_search_environment_binding_found": false,
+      "live_github_environment_reviewer_configuration": "NOT_PROVEN",
+      "reason": "Consequential retained workflows do not bind their mutation jobs to a protected GitHub environment, so an environment reviewer gate cannot govern those jobs from workflow source even if an environment exists elsewhere."
+    },
+    "legacy_credential_surface": {
+      "status": "FAILED_SOURCE",
+      "global_cloudflare_key_paths_present": true,
+      "examples": [
+        ".github/workflows/axiom-musitu-d1-live-cutover.yml",
+        ".github/workflows/cloudflare-axiom-bootstrap-enable.yml",
+        ".github/workflows/axiom-runtime-connection-staging-canary.yml"
+      ]
+    },
+    "retained_workers_dev_surface": {
+      "source_mutation_paths_present": true,
+      "source_explicit_public_bootstrap_enable_present": true,
+      "source_runtime_staging_canary_workers_dev_true": true,
+      "source_live_cutover_workers_dev_true": true,
+      "live_provider_exposure": "NOT_PROVEN",
+      "access_protection_live_state": "NOT_PROVEN",
+      "status": "SOURCE_RISK_PRESENT_LIVE_STATE_NOT_PROVEN"
+    },
+    "consequential_trigger_surface": {
+      "status": "FAILED_SOURCE",
+      "live_cutover_workflow_dispatch_present": true,
+      "live_cutover_push_trigger_present": true,
+      "bootstrap_enable_workflow_dispatch_present": true,
+      "bootstrap_enable_push_trigger_present": true
+    },
+    "remediation_boundary": {
+      "recovery_branch_edits_alone_protect_default_branch": false,
+      "main_modified_by_recovery": false,
+      "legacy_workflows_modified_by_recovery": false,
+      "requires_default_branch_or_repository_admin_remediation": true,
+      "production_mutation_authorized": false
+    }
   },
   "implemented_contracts": [
     "DISTINCT_DATABASE_OBJECT_QUEUE_AND_IDENTITY_NAMESPACES",
@@ -91,6 +146,10 @@
   "external_exit_gates": {
     "repository_private_or_equivalent_secret_execution_boundary": false,
     "main_branch_protected_or_equivalent_ruleset": false,
+    "immutable_action_pins_across_consequential_release_paths": false,
+    "production_reviewer_gate_on_consequential_mutation_workflows": false,
+    "retained_preview_workers_removed_or_access_protected": false,
+    "legacy_global_cloudflare_credentials_removed_from_consequential_paths": false,
     "dedicated_cloudflare_inventory_identity_brokered": false,
     "dedicated_cloudflare_token_auditor_identity_brokered": false,
     "cloudflare_account_plan_read_back": false,
@@ -112,6 +171,7 @@
   "claim_boundary": {
     "ar02_complete": false,
     "credential_harness_implemented": true,
+    "release_surface_hardened": false,
     "credentials_provisioned": false,
     "credentials_brokered_to_github": false,
     "credential_scope_verified_live": false,
@@ -128,5 +188,5 @@
     "wolfram_parity": "NOT_CERTIFIED",
     "superiority": "NOT_CERTIFIED"
   },
-  "next_safe_action": "OBTAIN_PROVIDER_AND_REPOSITORY_ADMIN_BOUNDARIES_THEN_BROKER_TWO_DISTINCT_BOUNDED_READ_ONLY_IDENTITIES_AND_RUN_PROVIDER_READBACK_BEFORE_ANY_RESOURCE_CREATION_OR_RUNTIME_REBIND"
+  "next_safe_action": "HARDEN_DEFAULT_BRANCH_RELEASE_SURFACE_WITH_REPOSITORY_ADMIN_CONTROLS_AND_IMMUTABLE_PINS_THEN_OBTAIN_PROVIDER_READBACK_BEFORE ANY RESOURCE CREATION OR RUNTIME REBIND"
 }
