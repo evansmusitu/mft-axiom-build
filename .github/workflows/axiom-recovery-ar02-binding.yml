@@ -73,7 +73,7 @@ jobs:
           collector = workflow.index('- name: Collect redacted provider evidence with separated read-only identities')
           assert preflight < collector
           preflight_text = workflow[preflight:collector]
-          assert '${{ secrets.' not in preflight_text
+          assert ('${' + '{ secrets.') not in preflight_text
           for marker in (
               'READ_ONLY_PROVIDER_INVENTORY',
               'PASS_FAIL_CLOSED_PREFLIGHT',
