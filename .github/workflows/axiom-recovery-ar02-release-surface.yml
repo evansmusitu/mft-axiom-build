@@ -8,6 +8,15 @@ on:
       - '.github/workflows/axiom-musitu-d1-live-cutover.yml'
       - '.github/workflows/cloudflare-axiom-bootstrap-enable.yml'
       - '.github/workflows/axiom-runtime-connection-staging-canary.yml'
+      - '.github/workflows/axiom-kernel-exception-diagnostic.yml'
+      - '.github/workflows/axiom-modal-adapter-repair-probe.yml'
+      - '.github/workflows/axiom-service-binding-runtime-shape.yml'
+      - '.github/workflows/cloudflare-service-fetch-signature-probe.yml'
+      - '.github/workflows/axiom-modal-adapter-exact-request-probe.yml'
+      - '.github/workflows/axiom-modal-edge-service-compat-patch.yml'
+      - '.github/workflows/axiom-canonical-kernel-payload-capture.yml'
+      - '.github/workflows/axiom-service-binding-request-object-probe.yml'
+      - '.github/workflows/axiom-modal-adapter-transport-diagnostic.yml'
       - '.github/workflows/build-axiom-accelerators.yml'
       - '.github/workflows/axiom-recovery-ar02-release-surface.yml'
       - 'docs/axiom_recovery/AR02_ACCEPTANCE_MATRIX.json'
@@ -44,41 +53,46 @@ jobs:
           test -z "${CLOUDFLARE_API_KEY:-}"
           test -z "${CLOUDFLARE_EMAIL:-}"
           test -z "${CLOUDFLARE_AR02_READ_TOKEN:-}"
+          test -z "${OPENAI_API_KEY:-}"
+          test -z "${ANTHROPIC_API_KEY:-}"
           git diff --check
 
-      - name: Builder verify exact recovery-branch scope
+      - name: Builder verify exact sixteen-file recovery scope
         shell: bash
         run: |
           set -euo pipefail
           python - <<'PY'
           import subprocess
           base='ef0670dd86835e2005bf5213b31822c9b662614d'
-          required={
+          expected={
               '.github/workflows/axiom-musitu-d1-live-cutover.yml',
               '.github/workflows/cloudflare-axiom-bootstrap-enable.yml',
               '.github/workflows/axiom-runtime-connection-staging-canary.yml',
+              '.github/workflows/axiom-kernel-exception-diagnostic.yml',
+              '.github/workflows/axiom-modal-adapter-repair-probe.yml',
+              '.github/workflows/axiom-service-binding-runtime-shape.yml',
+              '.github/workflows/cloudflare-service-fetch-signature-probe.yml',
+              '.github/workflows/axiom-modal-adapter-exact-request-probe.yml',
+              '.github/workflows/axiom-modal-edge-service-compat-patch.yml',
+              '.github/workflows/axiom-canonical-kernel-payload-capture.yml',
+              '.github/workflows/axiom-service-binding-request-object-probe.yml',
+              '.github/workflows/axiom-modal-adapter-transport-diagnostic.yml',
               '.github/workflows/build-axiom-accelerators.yml',
               '.github/workflows/axiom-recovery-ar02-release-surface.yml',
-          }
-          allowed=required | {
               'docs/axiom_recovery/AR02_ACCEPTANCE_MATRIX.json',
               'docs/axiom_recovery/AR02_MUTATION_WORKFLOW_CLASSIFICATION.json',
           }
           changed=set(subprocess.check_output(['git','diff','--name-only',f'{base}..HEAD'],text=True).splitlines())
-          missing=sorted(required-changed)
-          escaped=sorted(changed-allowed)
-          if missing:
-              raise SystemExit('AR-02 release-surface required delta missing: '+repr(missing))
-          if escaped:
-              raise SystemExit('AR-02 release-surface scope escape: '+repr(escaped))
+          if changed != expected:
+              raise SystemExit(f'AR-02 release-surface delta mismatch missing={sorted(expected-changed)!r} extra={sorted(changed-expected)!r}')
           protected=('mcp/','auth/','axiom_interface/','frontier_v5/','ops/')
           leaked=sorted(path for path in changed if path.startswith(protected))
           if leaked:
               raise SystemExit('protected product/runtime tree changed: '+repr(leaked))
-          print('release_surface_scope=PASS')
+          print('release_surface_exact_16_file_scope=PASS')
           PY
 
-      - name: Builder prove mutating legacy workflows are quarantined
+      - name: Builder verify all twelve quarantine stubs
         shell: bash
         run: |
           set -euo pipefail
@@ -88,10 +102,22 @@ jobs:
               '.github/workflows/axiom-musitu-d1-live-cutover.yml',
               '.github/workflows/cloudflare-axiom-bootstrap-enable.yml',
               '.github/workflows/axiom-runtime-connection-staging-canary.yml',
+              '.github/workflows/axiom-kernel-exception-diagnostic.yml',
+              '.github/workflows/axiom-modal-adapter-repair-probe.yml',
+              '.github/workflows/axiom-service-binding-runtime-shape.yml',
+              '.github/workflows/cloudflare-service-fetch-signature-probe.yml',
+              '.github/workflows/axiom-modal-adapter-exact-request-probe.yml',
+              '.github/workflows/axiom-modal-edge-service-compat-patch.yml',
+              '.github/workflows/axiom-canonical-kernel-payload-capture.yml',
+              '.github/workflows/axiom-service-binding-request-object-probe.yml',
+              '.github/workflows/axiom-modal-adapter-transport-diagnostic.yml',
           ]
+          expression_open='$' + '{{'
           forbidden=(
-              '$' + '{{ secrets.',
+              expression_open,
+              'env:',
               'uses:',
+              'wrangler ',
               'curl ',
               'npx ',
               'urllib',
@@ -107,12 +133,14 @@ jobs:
                   raise SystemExit(f'{path}: quarantine marker missing')
               if 'workflow_dispatch:' not in text or '\n  push:' in text:
                   raise SystemExit(f'{path}: quarantine trigger is not manual-only')
-              if 'exit 1' not in text:
-                  raise SystemExit(f'{path}: fail-closed exit missing')
+              if text.count('jobs:') != 1 or text.count('quarantined:') != 1:
+                  raise SystemExit(f'{path}: quarantine job shape mismatch')
+              if text.count('exit 1') != 1:
+                  raise SystemExit(f'{path}: exact fail-closed exit cardinality mismatch')
               for marker in forbidden:
                   if marker in text:
                       raise SystemExit(f'{path}: forbidden executable/provider surface remains: {marker}')
-          print('legacy_mutation_workflow_quarantine=PASS')
+          print('all_12_quarantine_stubs=PASS')
           PY
 
       - name: Builder prove accelerator action pins are immutable
@@ -122,23 +150,21 @@ jobs:
           python - <<'PY'
           import re
           from pathlib import Path
-          path=Path('.github/workflows/build-axiom-accelerators.yml')
-          text=path.read_text(encoding='utf-8')
+          text=Path('.github/workflows/build-axiom-accelerators.yml').read_text(encoding='utf-8')
           expected={
               'actions/checkout':'d23441a48e516b6c34aea4fa41551a30e30af803',
               'actions/setup-python':'a26af69be951a213d495a4c3e4e4022e16d87065',
               'actions/upload-artifact':'ea165f8d65b6e75b540449e92b4886f43607fa02',
           }
           for action,sha in expected.items():
-              marker=f'{action}@{sha}'
-              if text.count(marker)!=1:
+              if text.count(f'{action}@{sha}') != 1:
                   raise SystemExit(f'immutable action pin mismatch: {action}')
           if re.search(r'uses:\s*actions/[^\s]+@v\d',text):
               raise SystemExit('floating GitHub action major tag remains in accelerator workflow')
           print('accelerator_immutable_action_pins=PASS')
           PY
 
-      - name: Builder verify acceptance claim boundary remains fail closed
+      - name: Builder preserve acceptance and classification boundaries
         shell: bash
         run: |
           set -euo pipefail
@@ -147,11 +173,12 @@ jobs:
           from pathlib import Path
           matrix=json.loads(Path('docs/axiom_recovery/AR02_ACCEPTANCE_MATRIX.json').read_text(encoding='utf-8'))
           boundary=matrix['claim_boundary']
-          assert boundary['ar02_complete'] is False
-          assert boundary['production_mutated'] is False
-          assert boundary['production_authority'] is False
-          assert boundary['provider_inventory_executed'] is False
-          assert boundary['runtime_rebound_off_production_d1'] is False
+          required_false=(
+              'ar02_complete','production_mutated','production_authority',
+              'provider_inventory_executed','runtime_rebound_off_production_d1',
+          )
+          for key in required_false:
+              assert boundary[key] is False, key
           assert boundary['cloud_isolation']=='NOT_PROVEN'
           gates=matrix['external_exit_gates']
           for key in (
@@ -167,21 +194,8 @@ jobs:
               'external_independent_verifier',
           ):
               assert gates[key] is False, key
-          print('acceptance_claim_boundary=PASS')
-          PY
 
-      - name: Builder verify 16-workflow mutation classification
-        shell: bash
-        run: |
-          set -euo pipefail
-          python - <<'PY'
-          import json
-          from pathlib import Path
-          path=Path('docs/axiom_recovery/AR02_MUTATION_WORKFLOW_CLASSIFICATION.json')
-          if not path.is_file():
-              print('classification_artifact=NOT_YET_PRESENT')
-              raise SystemExit(0)
-          data=json.loads(path.read_text(encoding='utf-8'))
+          data=json.loads(Path('docs/axiom_recovery/AR02_MUTATION_WORKFLOW_CLASSIFICATION.json').read_text(encoding='utf-8'))
           assert data['schema']=='musitu.axiom.recovery.ar02-mutation-workflow-classification.v1'
           assert data['sealed_main_commit']=='d6a846f6bbe0bccac1758713eb4de167caf07113'
           rows=data['workflows']
@@ -196,22 +210,22 @@ jobs:
               assert row['wrangler_deploy'] is True
               assert row['disposition'] in allowed
               assert row['production_mutation_authorized'] is False
-          boundary=data['claim_boundary']
-          assert boundary['classification_complete'] is True
-          assert boundary['repository_wide_hardening_complete'] is False
-          assert boundary['production_mutated'] is False
-          assert boundary['provider_execution_performed'] is False
-          assert boundary['ar02_complete'] is False
-          print('mutation_workflow_classification=PASS')
+          cb=data['claim_boundary']
+          assert cb['classification_complete'] is True
+          assert cb['repository_wide_hardening_complete'] is False
+          assert cb['production_mutated'] is False
+          assert cb['provider_execution_performed'] is False
+          assert cb['ar02_complete'] is False
+          print('acceptance_and_classification_boundaries=PASS')
           PY
 
       - name: Preserve candidate-only claim boundary
         shell: bash
         run: |
           set -euo pipefail
-          echo 'AR-02 release-surface source remediation candidate verified.'
+          echo 'AR-02 release-surface quarantine candidate verified on its isolated branch.'
           echo 'Default branch hardening remains NOT PROVEN because main is unchanged.'
-          echo 'Repository privacy, branch protection, protected production environment reviewers, provider readback, cloud isolation, and AR-02 completion remain NOT PROVEN.'
+          echo 'Repository privacy, main protection, production environment reviewers, provider readback, cloud isolation, external verification, and AR-02 completion remain NOT PROVEN.'
 
   independent-release-surface-verifier:
     needs: builder-release-surface-verification
@@ -224,13 +238,14 @@ jobs:
           persist-credentials: false
           fetch-depth: 0
 
-      - name: Independent static release-surface verification
+      - name: Independent verify exact delta and all quarantines
         shell: bash
         run: |
           set -euo pipefail
           test -z "${CLOUDFLARE_API_TOKEN:-}"
           test -z "${CLOUDFLARE_API_KEY:-}"
           test -z "${CLOUDFLARE_EMAIL:-}"
+          test -z "${CLOUDFLARE_AR02_READ_TOKEN:-}"
           python - <<'PY'
           import json
           import re
@@ -238,51 +253,59 @@ jobs:
           from pathlib import Path
 
           base='ef0670dd86835e2005bf5213b31822c9b662614d'
-          required={
+          quarantine_paths={
               '.github/workflows/axiom-musitu-d1-live-cutover.yml',
               '.github/workflows/cloudflare-axiom-bootstrap-enable.yml',
               '.github/workflows/axiom-runtime-connection-staging-canary.yml',
+              '.github/workflows/axiom-kernel-exception-diagnostic.yml',
+              '.github/workflows/axiom-modal-adapter-repair-probe.yml',
+              '.github/workflows/axiom-service-binding-runtime-shape.yml',
+              '.github/workflows/cloudflare-service-fetch-signature-probe.yml',
+              '.github/workflows/axiom-modal-adapter-exact-request-probe.yml',
+              '.github/workflows/axiom-modal-edge-service-compat-patch.yml',
+              '.github/workflows/axiom-canonical-kernel-payload-capture.yml',
+              '.github/workflows/axiom-service-binding-request-object-probe.yml',
+              '.github/workflows/axiom-modal-adapter-transport-diagnostic.yml',
+          }
+          expected=quarantine_paths | {
               '.github/workflows/build-axiom-accelerators.yml',
               '.github/workflows/axiom-recovery-ar02-release-surface.yml',
-          }
-          allowed=required | {
               'docs/axiom_recovery/AR02_ACCEPTANCE_MATRIX.json',
               'docs/axiom_recovery/AR02_MUTATION_WORKFLOW_CLASSIFICATION.json',
           }
           changed=set(subprocess.check_output(['git','diff','--name-only',f'{base}..HEAD'],text=True).splitlines())
-          missing=sorted(required-changed)
-          extra=sorted(changed-allowed)
-          if missing or extra:
-              raise SystemExit(f'release-surface delta mismatch missing={missing!r} extra={extra!r}')
+          if changed != expected:
+              raise SystemExit(f'independent delta mismatch missing={sorted(expected-changed)!r} extra={sorted(changed-expected)!r}')
 
-          quarantine_paths=[
-              '.github/workflows/axiom-musitu-d1-live-cutover.yml',
-              '.github/workflows/cloudflare-axiom-bootstrap-enable.yml',
-              '.github/workflows/axiom-runtime-connection-staging-canary.yml',
-          ]
           expression_open='$' + '{{'
-          for path in quarantine_paths:
+          forbidden=(
+              expression_open,'env:','uses:','wrangler ','curl ','npx ','urllib','--remote',
+              'musitu-axiom-prod','mft-axiom-prod',
+              '504029cc-f9a5-495e-818f-63c6144b4ea4','4a62b374-7232-4103-b201-34443c467382',
+          )
+          for path in sorted(quarantine_paths):
               text=Path(path).read_text(encoding='utf-8')
-              if text.count('jobs:')!=1 or text.count('quarantined:')!=1:
-                  raise SystemExit(f'{path}: quarantine job shape mismatch')
-              if expression_open in text or 'env:' in text or 'uses:' in text:
-                  raise SystemExit(f'{path}: secret/action/environment surface remains')
-              if any(token in text for token in ('wrangler ','curl ','urllib','--remote')):
-                  raise SystemExit(f'{path}: provider execution primitive remains')
-              if text.count('exit 1')!=1:
-                  raise SystemExit(f'{path}: exact fail-closed exit cardinality mismatch')
+              if 'QUARANTINED BY AR-02' not in text:
+                  raise SystemExit(f'{path}: independent quarantine marker missing')
+              if 'workflow_dispatch:' not in text or '\n  push:' in text:
+                  raise SystemExit(f'{path}: independent manual-only trigger check failed')
+              if text.count('jobs:')!=1 or text.count('quarantined:')!=1 or text.count('exit 1')!=1:
+                  raise SystemExit(f'{path}: independent fail-closed shape mismatch')
+              for marker in forbidden:
+                  if marker in text:
+                      raise SystemExit(f'{path}: independent forbidden surface remains: {marker}')
 
           accelerator=Path('.github/workflows/build-axiom-accelerators.yml').read_text(encoding='utf-8')
-          refs=re.findall(r'uses:\s*(actions/[^@\s]+)@([0-9a-f]{40})',accelerator)
-          expected={
+          refs=set(re.findall(r'uses:\s*(actions/[^@\s]+)@([0-9a-f]{40})',accelerator))
+          pins={
               ('actions/checkout','d23441a48e516b6c34aea4fa41551a30e30af803'),
               ('actions/setup-python','a26af69be951a213d495a4c3e4e4022e16d87065'),
               ('actions/upload-artifact','ea165f8d65b6e75b540449e92b4886f43607fa02'),
           }
-          if set(refs)!=expected:
+          if refs != pins:
               raise SystemExit('independent immutable action set mismatch')
           if re.search(r'uses:\s*[^\s]+@(?![0-9a-f]{40}(?:\s|$))',accelerator):
-              raise SystemExit('non-immutable action reference remains')
+              raise SystemExit('independent non-immutable action reference remains')
 
           matrix=json.loads(Path('docs/axiom_recovery/AR02_ACCEPTANCE_MATRIX.json').read_text(encoding='utf-8'))
           if matrix['claim_boundary']['ar02_complete'] is not False:
@@ -292,16 +315,14 @@ jobs:
           if matrix['claim_boundary']['cloud_isolation']!='NOT_PROVEN':
               raise SystemExit('cloud isolation overstated')
 
-          classification=Path('docs/axiom_recovery/AR02_MUTATION_WORKFLOW_CLASSIFICATION.json')
-          if classification.is_file():
-              data=json.loads(classification.read_text(encoding='utf-8'))
-              rows=data.get('workflows',[])
-              if len(rows)!=16 or len({r.get('path') for r in rows})!=16:
-                  raise SystemExit('independent classification cardinality mismatch')
-              if data.get('claim_boundary',{}).get('repository_wide_hardening_complete') is not False:
-                  raise SystemExit('classification overstated repository hardening')
-              if data.get('claim_boundary',{}).get('production_mutated') is not False:
-                  raise SystemExit('classification overstated production mutation')
+          data=json.loads(Path('docs/axiom_recovery/AR02_MUTATION_WORKFLOW_CLASSIFICATION.json').read_text(encoding='utf-8'))
+          rows=data.get('workflows',[])
+          if len(rows)!=16 or len({r.get('path') for r in rows})!=16:
+              raise SystemExit('independent classification cardinality mismatch')
+          if data.get('claim_boundary',{}).get('repository_wide_hardening_complete') is not False:
+              raise SystemExit('classification overstated repository hardening')
+          if data.get('claim_boundary',{}).get('production_mutated') is not False:
+              raise SystemExit('classification overstated production mutation')
           print('AR-02 RELEASE-SURFACE INDEPENDENT VERIFIER: PASS')
           PY
 
