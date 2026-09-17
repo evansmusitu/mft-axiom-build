@@ -1,5 +1,7 @@
-const APP_HOST = 'app.mftintelligence.com';
-const APP_ORIGIN = `https://${APP_HOST}`;
+import {handleRuntimeTaskApi} from './axiom_runtime_task_api.mjs';
+
+const DEFAULT_APP_HOST = 'app.mftintelligence.com';
+const DEFAULT_APP_ORIGIN = `https://${DEFAULT_APP_HOST}`;
 const SESSION_SCHEMA = 'musitu.axiom.browser-session.v1';
 const SESSION_COOKIE = '__Host-axiom_session';
 const CSRF_COOKIE = '__Host-axiom_login_csrf';
@@ -18,6 +20,19 @@ const COMMON_HEADERS = Object.freeze({
 
 const APPLICATION_CSP = "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self'; media-src 'self' blob:; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests";
 const AUTH_CSP = "default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'";
+
+function applicationConfig(env) {
+  const host=String(env.APP_HOST||DEFAULT_APP_HOST).trim().toLowerCase();
+  const origin=String(env.APP_ORIGIN||`https://${host}`).replace(/\/$/,'');
+  if (!/^[a-z0-9.-]+$/.test(host)||new URL(origin).hostname!==host||new URL(origin).protocol!=='https:') throw new Error('browser_application_origin_invalid');
+  return Object.freeze({
+    host,
+    origin,
+    entry:String(env.APP_ENTRY||'/#/home'),
+    assetEntry:String(env.APP_ASSET_ENTRY||'/index.html'),
+    connectedRuntime:env.RUNTIME_CONNECTION_REQUIRED==='true',
+  });
+}
 
 function json(status, body, extra = {}) {
   return new Response(JSON.stringify(body), {
@@ -140,15 +155,22 @@ function guestSession(extraHeaders = {}) {
   }, extraHeaders);
 }
 
-async function sessionResponse(request, env) {
+async function authenticatedSession(request,env) {
   let session = null;
   try { session = await openSession(cookie(request, SESSION_COOKIE), env.AXIOM_BROWSER_SESSION_SECRET); } catch {}
-  if (!session || !env.AXIOM_DB) return guestSession();
+  if (!session || !env.AXIOM_DB) return null;
   const row = await env.AXIOM_DB
-    .prepare("SELECT id,email FROM customers WHERE id=?1 AND status='active' LIMIT 1")
+    .prepare("SELECT id,email,plan FROM customers WHERE id=?1 AND status='active' LIMIT 1")
     .bind(session.cid)
     .first();
-  if (!row?.id || !row.email) return guestSession({'set-cookie':setCookie(SESSION_COOKIE, '', 0, 'Lax')});
+  if (!row?.id || !row.email) return null;
+  return {session,row};
+}
+
+async function sessionResponse(request, env) {
+  const restored=await authenticatedSession(request,env);
+  if (!restored) return guestSession({'set-cookie':setCookie(SESSION_COOKIE, '', 0, 'Lax')});
+  const {session,row}=restored;
   return json(200, {
     schema:SESSION_SCHEMA,
     authenticated:true,
@@ -171,8 +193,8 @@ async function startLogin(env) {
   });
 }
 
-async function createSession(request, env) {
-  if (request.headers.get('origin') !== APP_ORIGIN) return json(403, {error:'origin_rejected'});
+async function createSession(request, env, config) {
+  if (request.headers.get('origin') !== config.origin) return json(403, {error:'origin_rejected'});
   if (!env.AUTH_RATE_LIMITER?.limit) return json(503, {error:'authentication_rate_limit_unavailable'});
   const source = request.headers.get('cf-connecting-ip') || 'unknown';
   const limited = await env.AUTH_RATE_LIMITER.limit({key:`axiom-browser-login:${await sha256Hex(source)}`});
@@ -203,7 +225,7 @@ async function createSession(request, env) {
   const headers = new Headers({
     ...COMMON_HEADERS,
     'cache-control':'no-store',
-    'location':'/#/home',
+    'location':config.entry,
     'pragma':'no-cache',
   });
   headers.append('set-cookie', setCookie(SESSION_COOKIE, sealed, SESSION_SECONDS, 'Lax'));
@@ -211,8 +233,8 @@ async function createSession(request, env) {
   return new Response(null, {status:303, headers});
 }
 
-function signOut(request) {
-  if (request.headers.get('origin') !== APP_ORIGIN) return json(403, {error:'origin_rejected'});
+function signOut(request,config) {
+  if (request.headers.get('origin') !== config.origin) return json(403, {error:'origin_rejected'});
   return new Response(null, {
     status:204,
     headers:{
@@ -235,44 +257,57 @@ function hardenedAsset(response, path) {
   return new Response(response.body, {status:response.status, statusText:response.statusText, headers});
 }
 
-async function staticApplication(request, env, url) {
+async function staticApplication(request, env, url,config) {
   if (!['GET', 'HEAD'].includes(request.method)) return json(405, {error:'method_not_allowed'}, {allow:'GET, HEAD'});
   if (!env.ASSETS?.fetch) return json(503, {error:'application_assets_unavailable'});
   let response = await env.ASSETS.fetch(request);
   const acceptsHtml = (request.headers.get('accept') || '').toLowerCase().includes('text/html');
   if (response.status === 404 && (request.mode === 'navigate' || acceptsHtml)) {
-    response = await env.ASSETS.fetch(new Request(`${APP_ORIGIN}/index.html`, request));
+    response = await env.ASSETS.fetch(new Request(`${config.origin}${config.assetEntry}`, request));
   }
   return hardenedAsset(response, url.pathname);
 }
 
-async function application(request, env, url) {
-  if (url.pathname === '/health' && ['GET', 'HEAD'].includes(request.method)) {
-    const configured = Boolean(env.ASSETS?.fetch && env.AXIOM_DB && env.AUTH_RATE_LIMITER?.limit && typeof env.AXIOM_BROWSER_SESSION_SECRET === 'string');
+async function application(request, env, url,config) {
+  const appHealthPath=config.connectedRuntime?'/vnext/health':'/health';
+  if (url.pathname === appHealthPath && ['GET', 'HEAD'].includes(request.method)) {
+    const runtimeBindings=!config.connectedRuntime||Boolean(env.AXIOM_RUNTIME?.fetch&&env.TASK_RATE_LIMITER?.limit);
+    const configured = Boolean(env.ASSETS?.fetch && env.AXIOM_DB && env.AUTH_RATE_LIMITER?.limit && typeof env.AXIOM_BROWSER_SESSION_SECRET === 'string'&&runtimeBindings);
     return json(configured ? 200 : 503, {
-      schema:'musitu.axiom.browser-application.production-health.v1',
+      schema:config.connectedRuntime?'musitu.axiom.connected-browser-application.health.v1':'musitu.axiom.browser-application.production-health.v1',
       ok:configured,
       service:'MUSITU Axiom browser application',
       build_sha:String(env.BUILD_SHA || ''),
-      app_origin:APP_ORIGIN,
-      integration_entry:`${APP_ORIGIN}/`,
-      reserved_api_origin_preserved:true,
+      app_origin:config.origin,
+      integration_entry:`${config.origin}${config.entry}`,
+      reserved_api_origin_preserved:!config.connectedRuntime,
       normal_launch_download:false,
       account_session_integration:configured,
+      protected_runtime_binding:Boolean(env.AXIOM_RUNTIME?.fetch),
+      task_execution_pipeline:Boolean(config.connectedRuntime&&env.TASK_RATE_LIMITER?.limit),
     });
   }
-  if (url.pathname === '/.well-known/axiom-session' && request.method === 'GET') return sessionResponse(request, env);
+  if (config.connectedRuntime&&url.pathname==='/health'&&['GET','HEAD'].includes(request.method)) return env.AXIOM_RUNTIME.fetch(request);
+  if (['/.well-known/axiom-session','/vnext/.well-known/axiom-session'].includes(url.pathname) && request.method === 'GET') return sessionResponse(request, env);
   if (url.pathname === '/auth/start' && request.method === 'GET') return startLogin(env);
-  if (url.pathname === '/auth/session' && request.method === 'POST') return createSession(request, env);
-  if (url.pathname === '/auth/sign-out' && request.method === 'POST') return signOut(request);
+  if (url.pathname === '/auth/session' && request.method === 'POST') return createSession(request, env,config);
+  if (url.pathname === '/auth/sign-out' && request.method === 'POST') return signOut(request,config);
+  if (config.connectedRuntime&&url.pathname.startsWith('/vnext/api/')) {
+    const restored=await authenticatedSession(request,env);
+    const response=await handleRuntimeTaskApi(request,env,{customer:restored?{customer_id:String(restored.row.id),display_name:String(restored.row.email),plan:String(restored.row.plan||'')}:null,origin:config.origin});
+    if (response) return response;
+  }
+  if (config.connectedRuntime&&(url.pathname.startsWith('/v1/')||url.pathname.startsWith('/billing/'))) return env.AXIOM_RUNTIME.fetch(request);
   if (url.pathname.startsWith('/auth/') || url.pathname.startsWith('/.well-known/')) return json(404, {error:'not_found'});
-  return staticApplication(request, env, url);
+  return staticApplication(request, env, url,config);
 }
 
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
-    if (url.hostname !== APP_HOST) return json(404, {error:'not_found'});
-    return application(request, env, url);
+    let config;
+    try { config=applicationConfig(env); } catch { return json(503,{error:'application_configuration_invalid'}); }
+    if (url.hostname !== config.host) return json(404, {error:'not_found'});
+    return application(request, env, url,config);
   },
 };

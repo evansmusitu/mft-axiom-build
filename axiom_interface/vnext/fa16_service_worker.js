@@ -1,8 +1,8 @@
 const CACHE_PREFIX='musitu-axiom-fa16-shell-';
-const CACHE_NAME=`${CACHE_PREFIX}v1`;
+const CACHE_NAME=`${CACHE_PREFIX}v2`;
 const SHELL_FILES=Object.freeze([
-  './index.html','./manifest.webmanifest','./styles.css','./fa14_workspace.css','./fa15_advanced_surfaces.css','./fa16_mobile_pwa.css','./axiom-icon.svg',
-  './app.js','./agent_runtime_ui.js','./product_reality_ui.js','./fa14_workspace_ui.js','./fa15_advanced_surfaces_ui.js','./fa16_mobile_pwa_ui.js',
+  './index.html','./manifest.webmanifest','./styles.css','./fa14_workspace.css','./fa15_advanced_surfaces.css','./fa16_mobile_pwa.css','./runtime_execution.css','./axiom-icon.svg',
+  './app.js','./agent_runtime_ui.js','./product_reality_ui.js','./fa14_workspace_ui.js','./fa15_advanced_surfaces_ui.js','./fa16_mobile_pwa_ui.js','./runtime_execution_client.mjs','./runtime_task_service.mjs','./runtime_execution_ui.js',
   './fa16_pwa_engine.js','./authorization_gateway.js','./capability_guard.js','./capability_registry.js','./capability_router_v2.js','./data_adapters.js',
   './data_adapters_base.js','./deep_context_adapters.js','./deep_context_security.js','./deep_context_store.js','./deep_context_ui.js',
   './engineering_command_center_adapters.js','./engineering_command_center_security.js','./engineering_command_center_store.js','./engineering_command_center_ui.js',
