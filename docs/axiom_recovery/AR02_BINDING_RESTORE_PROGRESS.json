@@ -7,6 +7,9 @@
   "verified_parent_foundation_commit": "0be6bee6d7638ef13738f22fc47e0f1b30960a7b",
   "runtime_source_commit": "216ee7d15f01a3fb558452cc4b906a055001ccdd",
   "sealed_main_commit": "d6a846f6bbe0bccac1758713eb4de167caf07113",
+  "cloud_provider_inventory": "NOT_PROVEN",
+  "ar02_complete": false,
+  "production_mutated": false,
   "verification": {
     "workflow_run_id": 35248452237,
     "builder_contract_and_restore": {
@@ -37,6 +40,18 @@
       ]
     }
   },
+  "regression_history": [
+    {
+      "workflow_run_id": 35248654929,
+      "candidate_commit": "65488b3c28699ac9fda8fffb3bf5f875bf3f57f5",
+      "builder_contract_and_restore": "PASS",
+      "internal_independent_repository_verifier": "FAIL",
+      "failure_classification": "EVIDENCE_SCHEMA_MISMATCH",
+      "root_cause": "The independent verifier required cloud_provider_inventory, ar02_complete, and production_mutated as top-level machine-readable claims, while the first progress record stored the same truths only in nested sections.",
+      "gate_weakened_to_repair": false,
+      "repair": "Add the required top-level claims while retaining the nested detailed evidence and rerun the unchanged verifier."
+    }
+  ],
   "earned_local_results": {
     "local_environment_isolation": "PASS",
     "s0_s5_approval_schema_alignment": "PASS",
