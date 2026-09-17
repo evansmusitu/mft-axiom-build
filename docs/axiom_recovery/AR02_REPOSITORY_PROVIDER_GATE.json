@@ -1,11 +1,12 @@
 {
-  "schema": "musitu.axiom.recovery.ar02-repository-provider-gate.v1",
+  "schema": "musitu.axiom.recovery.ar02-repository-provider-gate.v2",
   "recorded_on": "2026-09-17",
   "phase": "AR-02",
   "authority": {
     "sealed_main_commit": "d6a846f6bbe0bccac1758713eb4de167caf07113",
     "runtime_source_commit": "216ee7d15f01a3fb558452cc4b906a055001ccdd",
     "recovery_parent_commit": "48689a9e4b652f13c9a8acabfb0b9484a671c7d6",
+    "qualified_two_identity_harness_commit": "d5fba44847e149470ed765b30ea10a841a0c7c81",
     "pr_1_required_state": "OPEN_DRAFT_UNMERGED"
   },
   "observed_repository_state": {
@@ -19,7 +20,10 @@
   "decision": {
     "repository_privacy_requirement": "PRIVATE_REQUIRED_BEFORE_PROVIDER_SECRET_WORKFLOW",
     "main_protection_requirement": "PROTECTION_OR_EQUIVALENT_RULESET_REQUIRED_BEFORE_RELEASE_PATH",
-    "provider_identity_requirement": "DEDICATED_AXIOM_AR02_READ_ONLY_CREDENTIAL_REQUIRED",
+    "provider_identity_requirement": "TWO_SEPARATE_DEDICATED_READ_ONLY_IDENTITIES_REQUIRED",
+    "inventory_identity_purpose": "RESOURCE_PLAN_AND_SELF_STATUS_READBACK_ONLY",
+    "auditor_identity_purpose": "INDEPENDENT_INVENTORY_TOKEN_POLICY_READBACK_ONLY",
+    "inventory_and_auditor_secret_reuse": "FORBIDDEN",
     "cross_product_secret_reuse": "FORBIDDEN",
     "global_api_key_substitution_for_ar02_read_identity": "FORBIDDEN",
     "provider_workflow_execution": "BLOCKED_FAIL_CLOSED",
@@ -30,35 +34,67 @@
     "required_repository_visibility": "PRIVATE",
     "required_secret_names": [
       "CLOUDFLARE_ACCOUNT_ID",
-      "CLOUDFLARE_AR02_READ_TOKEN"
+      "CLOUDFLARE_AR02_READ_TOKEN",
+      "CLOUDFLARE_AR02_TOKEN_AUDITOR_TOKEN",
+      "CLOUDFLARE_AR02_INVENTORY_TOKEN_ID"
     ],
-    "optional_secret_names": [
-      "CLOUDFLARE_AR02_TOKEN_ID"
-    ],
+    "optional_secret_names": [],
+    "same_inventory_and_auditor_token_allowed": false,
     "allowed_http_methods": ["GET"],
-    "provider_mutation_enabled": false
+    "provider_mutation_enabled": false,
+    "raw_provider_evidence_persisted_as_github_artifact": false,
+    "manual_dispatch_only": true
+  },
+  "credential_separation": {
+    "repository_harness_implemented": true,
+    "inventory_identity_product_endpoint_allowlist": "QUALIFIED",
+    "inventory_identity_token_policy_endpoint_access": "FORBIDDEN",
+    "auditor_identity_product_endpoint_access": "FORBIDDEN",
+    "auditor_identity_inventory_token_policy_endpoint_only": true,
+    "same_token_reuse_rejected": true,
+    "live_inventory_credential_provisioned": false,
+    "live_auditor_credential_provisioned": false,
+    "credentials_brokered_to_github": false,
+    "live_inventory_token_scope_verified": false,
+    "live_auditor_token_scope_verified": false
   },
   "earned_evidence": {
     "provider_readonly_harness_repository_gate": "PASS",
+    "two_identity_provider_harness": "PASS",
+    "builder_contract_and_restore": "PASS",
     "independent_repository_verifier": "PASS",
+    "independent_acceptance_truth": "PASS",
     "provider_control_plane_inventory": "NOT_PROVEN",
     "account_plan": "NOT_PROVEN",
     "account_wide_free_tier_headroom": "NOT_PROVEN",
     "staging_provider_identities": "NOT_PROVEN",
     "canary_provider_identities": "NOT_PROVEN",
     "nonproduction_credential_cannot_mutate_production": "NOT_PROVEN",
-    "cloud_restore_drill": "NOT_PERFORMED"
+    "cloud_restore_drill": "NOT_PERFORMED",
+    "external_independent_verification": "NOT_PERFORMED"
   },
   "remaining_external_actions": [
     "MAKE_REPOSITORY_PRIVATE_OR_PROVIDE_AN_EQUIVALENT_SECRET_EXECUTION_BOUNDARY",
     "PROTECT_MAIN_WITH_BRANCH_PROTECTION_OR_REPOSITORY_RULESET",
-    "BROKER_A_DEDICATED_AXIOM_AR02_READ_ONLY_CLOUDFLARE_CREDENTIAL_IN_GITHUB_SECRETS",
+    "BROKER_DEDICATED_AXIOM_AR02_INVENTORY_READ_TOKEN_WITH_FROZEN_EXACT_PERMISSIONS",
+    "BROKER_SEPARATE_AXIOM_AR02_TOKEN_POLICY_AUDITOR_TOKEN_WITH_ONLY_ACCOUNT_API_TOKENS_READ",
+    "BROKER_EXACT_INVENTORY_TOKEN_ID_FOR_AUDITOR_POLICY_READBACK",
     "RUN_PROVIDER_READ_ONLY_WORKFLOW_AND_CAPTURE_REDACTED_READBACK",
+    "PROVE_LIVE_INVENTORY_AND_AUDITOR_SCOPE_SEPARATION",
     "PROVE_ACCOUNT_PLAN_AND_FREE_TIER_HEADROOM",
-    "CREATE_OR_IDENTIFY_DEDICATED_STAGING_AND_CANARY_RESOURCES_ONLY_AFTER_PRECREATION_GATES_PASS"
+    "CREATE_OR_IDENTIFY_DEDICATED_STAGING_AND_CANARY_RESOURCES_ONLY_AFTER_PRECREATION_GATES_PASS",
+    "PROVE_NON_PRODUCTION_CREDENTIALS_CANNOT_MUTATE_PRODUCTION",
+    "REBIND_NON_PRODUCTION_RUNTIME_AWAY_FROM_PRODUCTION_D1_ONLY_AFTER_PROVIDER_GATES_PASS",
+    "RUN_CLOUD_SYNTHETIC_FIXTURE_RESTORE_DRILL",
+    "PERFORM_EXTERNAL_INDEPENDENT_VERIFICATION"
   ],
   "claim_boundary": {
     "ar02_complete": false,
+    "credential_harness_implemented": true,
+    "credentials_provisioned": false,
+    "credentials_brokered_to_github": false,
+    "credential_scope_verified_live": false,
+    "provider_inventory_executed": false,
     "cloud_isolation": "NOT_PROVEN",
     "runtime_rebound_off_production_d1": false,
     "production_mutated": false,
