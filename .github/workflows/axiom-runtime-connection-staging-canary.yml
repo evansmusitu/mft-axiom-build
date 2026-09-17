@@ -188,18 +188,32 @@ jobs:
           import {chromium} from 'playwright';
           import fs from 'node:fs/promises';
           const browser=await chromium.launch({headless:true}),runs=[];
+          async function signInAcrossConvergedEdge(page,base){
+            await page.waitForTimeout(8000);
+            for(let attempt=1;attempt<=2;attempt+=1){
+              await page.goto(base+'/auth/start',{waitUntil:'domcontentloaded'});
+              await page.locator('#account-key').fill(process.env.RUNTIME_UI_ACCOUNT_KEY);
+              await Promise.all([
+                page.waitForURL(value=>{const url=new URL(value);return url.pathname.startsWith('/vnext/')&&url.hash==='#/home';}),
+                page.locator('button[type="submit"]').click(),
+              ]);
+              await page.waitForTimeout(3000);
+              const session=await page.evaluate(async()=>fetch('/vnext/.well-known/axiom-session',{cache:'no-store'}).then(response=>response.json()));
+              if(session.authenticated===true){
+                await page.goto(base+'/vnext/#/home',{waitUntil:'domcontentloaded'});
+                await page.locator('#composer-input').waitFor({timeout:30000});
+                return;
+              }
+            }
+            throw new Error('authenticated session did not converge across the deployed edge');
+          }
           for(const [label,base,objective] of [
             ['staging',process.env.STAGING_URL,'Calculate 40+2 and explain the verified result.'],
             ['canary',process.env.CANARY_URL,'Research 42 (number), calculate 40+2, and provide a cited executive brief.'],
           ]){
             const page=await browser.newPage({viewport:{width:1440,height:1000}}),errors=[];
             page.on('pageerror',error=>errors.push(String(error)));
-            await page.goto(base+'/auth/start',{waitUntil:'domcontentloaded'});
-            await page.locator('#account-key').fill(process.env.RUNTIME_UI_ACCOUNT_KEY);
-            await Promise.all([
-              page.waitForURL(value=>{const url=new URL(value);return url.pathname.startsWith('/vnext/')&&url.hash==='#/home';}),
-              page.locator('button[type="submit"]').click(),
-            ]);
+            await signInAcrossConvergedEdge(page,base);
             await page.locator('#composer-input').fill(objective);
             await page.locator('#composer .execute-button').click();
             const terminal=page.locator('#runtime-execution-panel .runtime-state[data-runtime-state="complete"], #runtime-execution-panel .runtime-state[data-runtime-state="failed"]');
