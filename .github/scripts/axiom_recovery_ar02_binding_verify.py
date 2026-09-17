@@ -3,8 +3,9 @@
 
 This verifier intentionally does not call the AR-02 builder verifier. It checks
 frozen Git authority, the unbound cloud contract, the historical unsafe workflow,
-canonical S0-S5 schema truth, and executes the synthetic restore drill directly.
-It is internal independent verification only, not external certification.
+canonical S0-S5 schema truth, the read-only provider evidence harness, and
+executes the synthetic restore drill directly. It is internal independent
+verification only, not external certification.
 """
 
 from __future__ import annotations
@@ -24,12 +25,16 @@ SEALED_MAIN = "d6a846f6bbe0bccac1758713eb4de167caf07113"
 ALLOWED = (
     ".github/scripts/axiom_recovery_ar02_binding_verify.py",
     ".github/workflows/axiom-recovery-ar02-binding.yml",
+    ".github/workflows/axiom-recovery-ar02-provider-readonly.yml",
     "docs/axiom_recovery/AR02_BINDING_RESTORE_PROGRESS.json",
+    "docs/axiom_recovery/AR02_ZERO_COST_RESOURCE_PLAN.json",
     "recovery/ar02/cloud_binding_contract.json",
+    "recovery/ar02/provider_inventory_readonly.py",
     "recovery/ar02/restore_drill.py",
 )
 
 sys.path.insert(0, str(ROOT))
+from recovery.ar02.provider_inventory_readonly import self_test as provider_self_test  # noqa: E402
 from recovery.ar02.restore_drill import run_restore_drill  # noqa: E402
 
 errors: list[str] = []
@@ -113,6 +118,13 @@ def verify_binding_contract() -> None:
         check(truth.get(key) is True, f"legacy risk truth missing: {key}")
     check(truth.get("legacy_workflow_reuse_allowed_for_ar02") is False, "legacy unsafe workflow was re-authorized")
 
+    semantics = contract.get("provider_identity_semantics", {})
+    check(semantics.get("d1_database", {}).get("identity_kind") == "UUID", "D1 identity semantics must be UUID")
+    check(semantics.get("r2_bucket", {}).get("identity_kind") == "NAME", "R2 identity semantics must be canonical name")
+    check(semantics.get("queue", {}).get("identity_kind") == "ID", "Queue identity semantics must be ID")
+    check(semantics.get("workflow", {}).get("identity_kind") == "UUID", "Workflow identity semantics must be UUID")
+    check("must not fabricate" in semantics.get("r2_bucket", {}).get("note", ""), "R2 no-fabricated-ID rule missing")
+
     bindings = contract.get("required_non_production_bindings", {})
     check(set(bindings) == {"staging", "canary"}, "binding environments must be staging and canary")
     seen_names: set[str] = set()
@@ -124,6 +136,8 @@ def verify_binding_contract() -> None:
         check(row.get("workflow_name") == expected_prefix + "-orchestrator", f"{environment} workflow name mismatch")
         check(row.get("identity_audience") == f"urn:musitu:axiom:ar02:{environment}", f"{environment} audience mismatch")
         check(row.get("provider_readback_status") == "NOT_PROVEN", f"{environment} provider readback overstated")
+        check(row.get("artifact_bucket_provider_identity_kind") == "NAME", f"{environment} R2 identity kind mismatch")
+        check(row.get("artifact_bucket_provider_identity_value") is None, f"{environment} R2 provider identity must remain null before readback")
         for field in ("database_id", "artifact_bucket_id", "queue_id", "workflow_id"):
             check(row.get(field) is None, f"{environment} {field} must remain null until provider readback")
         for field in ("database_name", "artifact_bucket_name", "queue_name", "workflow_name", "identity_audience"):
@@ -131,6 +145,9 @@ def verify_binding_contract() -> None:
             check(isinstance(value, str) and value not in seen_names, f"duplicate or invalid binding value: {field}")
             if isinstance(value, str):
                 seen_names.add(value)
+
+    invariants = set(contract.get("binding_invariants", []))
+    check("R2_BUCKET_IDENTITY_IS_CANONICAL_NAME_AND_NO_BUCKET_UUID_MAY_BE_FABRICATED" in invariants, "R2 provider identity invariant missing")
 
     deny = contract.get("production_denylist", {})
     rendered_bindings = json.dumps(bindings).casefold()
@@ -144,6 +161,21 @@ def verify_binding_contract() -> None:
     check(boundary.get("cloud_isolation") == "NOT_PROVEN", "cloud isolation overstated")
     for key in ("runtime_rebound_off_production_d1", "staging_deployed", "canary_deployed", "production_mutated", "ar02_complete"):
         check(boundary.get(key) is False, f"claim boundary must keep {key}=false")
+
+
+def verify_provider_readonly_harness() -> None:
+    source = (ROOT / "recovery" / "ar02" / "provider_inventory_readonly.py").read_text(encoding="utf-8")
+    workflow = (ROOT / ".github" / "workflows" / "axiom-recovery-ar02-provider-readonly.yml").read_text(encoding="utf-8")
+    for prohibited in ('method="POST"', 'method="PUT"', 'method="PATCH"', 'method="DELETE"', "wrangler deploy", "wrangler d1 execute", "upload-artifact"):
+        check(prohibited not in source, f"provider evidence harness contains mutation/persistence surface: {prohibited}")
+    check('method="GET"' in source, "provider evidence harness must pin HTTP GET")
+    check("CLOUDFLARE_AR02_READ_TOKEN" in source, "dedicated read-token variable missing")
+    check("PASS_READ_ONLY_PROVIDER_HARNESS_SELF_TEST" == provider_self_test().get("status"), "provider evidence harness self-test failed")
+    check("github.event.repository.private" in workflow, "provider workflow does not fail closed on public repository")
+    check("workflow_dispatch:" in workflow, "provider workflow must be manually dispatched")
+    check("upload-artifact" not in workflow, "provider workflow must not persist raw provider evidence as GitHub artifact")
+    check("wrangler deploy" not in workflow, "provider evidence workflow contains deploy surface")
+    check("CLOUDFLARE_AR02_READ_TOKEN" in workflow, "provider workflow does not use dedicated read-only token name")
 
 
 def verify_schema_and_restore() -> None:
@@ -166,6 +198,14 @@ def verify_schema_and_restore() -> None:
         check(evidence.get("cloud_isolation") == "NOT_PROVEN", "restore drill overstated cloud isolation")
 
 
+def verify_zero_cost_plan() -> None:
+    plan = load_json("docs/axiom_recovery/AR02_ZERO_COST_RESOURCE_PLAN.json")
+    gates = set(plan.get("precreation_gates", []))
+    check("RESOURCE_CREATION_IS_IDEMPOTENT_AND_READ_BACK_BY_EXACT_PROVIDER_NATIVE_IDENTITY" in gates, "zero-cost plan still requires fabricated generic IDs")
+    check(plan.get("resources_created") is False, "zero-cost plan overstated resource creation")
+    check(plan.get("billing_mutation_authorized") is False, "zero-cost plan authorized billing mutation")
+
+
 def verify_progress_claims() -> None:
     path = ROOT / "docs" / "axiom_recovery" / "AR02_BINDING_RESTORE_PROGRESS.json"
     if not path.exists():
@@ -181,7 +221,9 @@ def main() -> int:
     verify_git_authority()
     verify_legacy_truth()
     verify_binding_contract()
+    verify_provider_readonly_harness()
     verify_schema_and_restore()
+    verify_zero_cost_plan()
     verify_progress_claims()
     if errors:
         print(f"AR-02 BINDING/RESTORE INDEPENDENT REPOSITORY GATE: FAIL ({len(errors)} errors across {checks} checks)")
@@ -190,6 +232,7 @@ def main() -> int:
         return 1
     print(f"AR-02 BINDING/RESTORE INDEPENDENT REPOSITORY GATE: PASS ({checks} checks)")
     print("verification_scope=INTERNAL_INDEPENDENT_REPOSITORY_JOB")
+    print("provider_readonly_harness=QUALIFIED_NOT_EXECUTED")
     print("external_independent_verification=NOT_PERFORMED")
     print("provider_inventory=NOT_PROVEN")
     print("cloud_isolation=NOT_PROVEN")
