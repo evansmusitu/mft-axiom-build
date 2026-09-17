@@ -1,0 +1,71 @@
+name: MUSITU Axiom AR-02 Provider Read-Only Evidence
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: musitu-axiom-ar02-provider-readonly
+  cancel-in-progress: false
+
+jobs:
+  provider-readonly-evidence:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Fail closed unless repository is private
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "${{ github.event.repository.private }}" = "true"
+
+      - name: Checkout exact recovery branch without persisted credentials
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: frontier/axiom-recovery-ar02-binding-20260917
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Reassert source authority before provider read
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git ls-remote origin refs/heads/main | awk '{print $1}')" = d6a846f6bbe0bccac1758713eb4de167caf07113
+          test "$(git ls-remote origin refs/heads/frontier/axiom-runtime-connection-20260916 | awk '{print $1}')" = 216ee7d15f01a3fb558452cc4b906a055001ccdd
+          python recovery/ar02/provider_inventory_readonly.py --self-test
+
+      - name: Collect redacted provider evidence with read-only token
+        shell: bash
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_AR02_READ_TOKEN: ${{ secrets.CLOUDFLARE_AR02_READ_TOKEN }}
+          CLOUDFLARE_AR02_TOKEN_ID: ${{ secrets.CLOUDFLARE_AR02_TOKEN_ID }}
+        run: |
+          set -euo pipefail
+          test -n "${CLOUDFLARE_ACCOUNT_ID:-}"
+          test -n "${CLOUDFLARE_AR02_READ_TOKEN:-}"
+          out="$RUNNER_TEMP/ar02-provider-redacted.json"
+          python recovery/ar02/provider_inventory_readonly.py \
+            --account-id "$CLOUDFLARE_ACCOUNT_ID" \
+            --output "$out" >/dev/null
+          python - "$out" <<'PY'
+          import json, pathlib, sys
+          p = pathlib.Path(sys.argv[1])
+          evidence = json.loads(p.read_text())
+          assert evidence["production_mutated"] is False
+          assert evidence["billing_mutated"] is False
+          assert evidence["provider_mutation_enabled"] is False
+          assert evidence["http_methods_used"] == ["GET"]
+          assert evidence["ar02_complete"] is False
+          print(json.dumps(evidence, indent=2, sort_keys=True))
+          PY
+          rm -f "$out"
+
+      - name: Preserve claim boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo 'This workflow is S2 read-only evidence collection.'
+          echo 'It does not create resources, rebind runtime, deploy staging/canary, mutate billing, or certify AR-02.'
