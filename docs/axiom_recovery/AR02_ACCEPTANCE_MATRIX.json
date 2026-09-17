@@ -1,60 +1,116 @@
 {
-  "schema": "musitu.axiom.recovery.ar02-acceptance.v1",
+  "schema": "musitu.axiom.recovery.ar02-acceptance.v2",
   "phase": "AR-02",
-  "authority_confirmation": "APPROVE AR-00/AR-01 COMMIT AND PUSH — START AR-02 WITH ZERO-COST NON-PRODUCTION ISOLATION",
-  "parent_commit": "87c105608ae658bd5b1f50bc718523ace54a5f5c",
-  "candidate_state": "LOCAL_FOUNDATION_IMPLEMENTED_CLOUD_ISOLATION_PENDING",
-  "scope": "ZERO_COST_NON_PRODUCTION_ISOLATION",
-  "local_verification": {
-    "gate": "PASS",
-    "gate_checks": 60,
-    "behavioral_tests": 8,
-    "external_or_independent": false
+  "recorded_on": "2026-09-17",
+  "newest_user_authority": "APPROVE AXIOM RECOVERY BLUEPRINT V1 — START AR-00 , AR-01, AR-02",
+  "historical_authority_confirmation_preserved": "APPROVE AR-00/AR-01 COMMIT AND PUSH — START AR-02 WITH ZERO-COST NON-PRODUCTION ISOLATION",
+  "runtime_source_commit": "216ee7d15f01a3fb558452cc4b906a055001ccdd",
+  "sealed_main_commit": "d6a846f6bbe0bccac1758713eb4de167caf07113",
+  "reconciled_from_recovery_head": "9cd5cd413622425e05695777f4fa47ce27da1e22",
+  "candidate_state": "LOCAL_AND_REPOSITORY_GOVERNANCE_QUALIFIED_PROVIDER_ISOLATION_PENDING",
+  "scope": "AR02_SECURITY_AND_ENVIRONMENT_ISOLATION",
+  "earned_verification": {
+    "local_environment_isolation": "PASS",
+    "s0_s5_approval_schema_alignment": "PASS",
+    "synthetic_non_destructive_restore_drill": "PASS",
+    "snapshot_backup_restore_digest_equivalence": "PASS",
+    "builder_contract_and_restore_gate": "PASS",
+    "internal_independent_repository_verifier": "PASS",
+    "repository_provider_governance_gate": "PASS",
+    "latest_repository_provider_governance_head": "9cd5cd413622425e05695777f4fa47ce27da1e22",
+    "external_independent_verification": "NOT_PERFORMED"
   },
   "zero_cost_resource_plan": {
     "artifact": "docs/axiom_recovery/AR02_ZERO_COST_RESOURCE_PLAN.json",
     "official_limits_checked_on": "2026-09-17",
-    "account_plan_and_headroom_verified": false,
-    "resources_created": false
+    "account_plan_verified": false,
+    "account_wide_free_tier_headroom_verified": false,
+    "dedicated_cloud_resources_created": false,
+    "billing_upgrade_authorized": false,
+    "billing_mutated": false
   },
   "local_foundation": {
     "environment_manifest": "recovery/ar02/environment_manifest.json",
     "canonical_schema": "recovery/ar02/schema/0001_project_work_graph.sql",
     "provision_and_verify_tool": "recovery/ar02/isolation.py",
+    "restore_drill_tool": "recovery/ar02/restore_drill.py",
     "environments": ["development", "staging", "canary"],
     "physical_database_separation_required": true,
     "synthetic_data_only": true,
-    "network_required": false,
-    "provider_api_key_required": false,
+    "provider_network_required_for_local_gate": false,
+    "provider_api_key_required_for_local_gate": false,
     "estimated_external_cost_usd": 0
+  },
+  "provider_readonly_foundation": {
+    "credential_contract": "docs/axiom_recovery/AR02_CLOUDFLARE_CREDENTIAL_CONTRACT.json",
+    "repository_provider_gate": "docs/axiom_recovery/AR02_REPOSITORY_PROVIDER_GATE.json",
+    "provider_inventory_tool": "recovery/ar02/provider_inventory_readonly.py",
+    "provider_workflow": ".github/workflows/axiom-recovery-ar02-provider-readonly.yml",
+    "http_methods_allowed": ["GET"],
+    "production_authority": false,
+    "global_api_key_use": "FORBIDDEN",
+    "cross_product_secret_reuse": "FORBIDDEN",
+    "inventory_identity_provisioned": false,
+    "auditor_identity_provisioned": false,
+    "provider_inventory_executed": false
+  },
+  "repository_governance_state": {
+    "repository_visibility": "PUBLIC",
+    "repository_private_required_before_provider_secret_workflow": true,
+    "main_branch_protected": false,
+    "repository_rulesets_observed": [],
+    "main_protection_or_equivalent_ruleset_required_before_release_path": true,
+    "current_github_integration_branch_protection_admin_endpoint": "RESOURCE_NOT_ACCESSIBLE_BY_INTEGRATION",
+    "provider_workflow_execution": "BLOCKED_FAIL_CLOSED"
   },
   "implemented_contracts": [
     "DISTINCT_DATABASE_OBJECT_QUEUE_AND_IDENTITY_NAMESPACES",
     "PRODUCTION_IDENTIFIER_DENYLIST",
     "PATH_ESCAPE_REJECTION",
     "NON_DESTRUCTIVE_EXISTING_DATABASE_VERIFICATION",
-    "CANONICAL_PROJECT_WORK_TASK_RECEIPT_SCHEMA",
+    "CANONICAL_PROJECT_WORK_TASK_APPROVAL_RECEIPT_ARTIFACT_SCHEMA",
     "IDEMPOTENT_LOCAL_PROVISION_AND_VERIFY",
-    "ZERO_NETWORK_ZERO_PROVIDER_KEY_EXECUTION"
+    "ZERO_NETWORK_ZERO_PROVIDER_KEY_LOCAL_EXECUTION",
+    "FAIL_CLOSED_UNBOUND_CLOUD_RESOURCE_CONTRACT",
+    "NON_DESTRUCTIVE_RESTORE_INTO_SEPARATE_ROOT",
+    "SEPARATE_READ_ONLY_PROVIDER_INVENTORY_IDENTITY",
+    "SEPARATE_TOKEN_POLICY_AUDITOR_IDENTITY",
+    "PUBLIC_REPOSITORY_PROVIDER_SECRET_WORKFLOW_BLOCK"
   ],
   "external_exit_gates": {
-    "cloudflare_free_tier_quota_confirmed": false,
-    "dedicated_staging_resources_created": false,
-    "dedicated_canary_resources_created": false,
+    "repository_private_or_equivalent_secret_execution_boundary": false,
+    "main_branch_protected_or_equivalent_ruleset": false,
+    "dedicated_cloudflare_inventory_identity_brokered": false,
+    "dedicated_cloudflare_token_auditor_identity_brokered": false,
+    "cloudflare_account_plan_read_back": false,
+    "cloudflare_account_wide_free_tier_headroom_confirmed": false,
+    "dedicated_staging_resources_created_and_exact_ids_read_back": false,
+    "dedicated_canary_resources_created_and_exact_ids_read_back": false,
+    "nonproduction_credentials_proven_unable_to_mutate_production": false,
     "legacy_runtime_workflow_rebound_off_production_d1": false,
-    "synthetic_fixture_restore_drill": false,
-    "independent_verifier": false
+    "cloud_synthetic_fixture_restore_drill": false,
+    "external_independent_verifier": false
+  },
+  "known_legacy_runtime_defect": {
+    "staging_canary_bound_to_production_d1": "PROVEN_FROM_SOURCE",
+    "remote_schema_execution_against_production_d1": "PROVEN_FROM_SOURCE",
+    "disposable_customer_api_key_fixture_mutation_against_production_d1": "PROVEN_FROM_SOURCE",
+    "legacy_runtime_workflow_modified_by_recovery": false,
+    "legacy_runtime_workflow_reused_for_ar02": false
   },
   "claim_boundary": {
     "ar02_complete": false,
+    "cloud_isolation": "NOT_PROVEN",
     "runtime_connection_modified": false,
+    "runtime_rebound_off_production_d1": false,
     "staging_deployed": false,
     "canary_deployed": false,
-    "production_data_accessed": false,
     "production_mutated": false,
     "production_authority": false,
     "full_product_connection": "NOT_PROVEN",
+    "frontier_v5_live_integration": "NOT_PROVEN",
+    "wolfram_parity": "NOT_CERTIFIED",
     "superiority": "NOT_CERTIFIED"
   },
-  "next_safe_action": "READ_ONLY_FREE_TIER_RESOURCE_INVENTORY_THEN_DEDICATED_NON_PRODUCTION_RESOURCE_PLAN"
+  "next_safe_action": "OBTAIN_PROVIDER_AND_REPOSITORY_ADMIN_BOUNDARIES_THEN_RUN_READ_ONLY_PROVIDER_INVENTORY_BEFORE_ANY_RESOURCE_CREATION_OR_RUNTIME_REBIND"
 }
