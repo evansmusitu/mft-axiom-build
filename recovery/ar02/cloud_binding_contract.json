@@ -16,12 +16,37 @@
     "database_ids": ["504029cc-f9a5-495e-818f-63c6144b4ea4", "4a62b374-7232-4103-b201-34443c467382"],
     "hostnames": ["axiom.mftintelligence.com", "app.mftintelligence.com"]
   },
+  "provider_identity_semantics": {
+    "d1_database": {
+      "identity_kind": "UUID",
+      "provider_field": "uuid_or_id",
+      "readback_required": true
+    },
+    "r2_bucket": {
+      "identity_kind": "NAME",
+      "provider_field": "name",
+      "readback_required": true,
+      "note": "Cloudflare R2 bucket list/get APIs expose the canonical bucket name rather than a separate bucket UUID; AR-02 must not fabricate an artifact bucket ID."
+    },
+    "queue": {
+      "identity_kind": "ID",
+      "provider_field": "queue_id_or_id",
+      "readback_required": true
+    },
+    "workflow": {
+      "identity_kind": "UUID",
+      "provider_field": "id",
+      "readback_required": true
+    }
+  },
   "required_non_production_bindings": {
     "staging": {
       "database_name": "musitu-axiom-ar02-staging",
       "database_id": null,
       "artifact_bucket_name": "musitu-axiom-ar02-staging-artifacts",
       "artifact_bucket_id": null,
+      "artifact_bucket_provider_identity_kind": "NAME",
+      "artifact_bucket_provider_identity_value": null,
       "queue_name": "musitu-axiom-ar02-staging-tasks",
       "queue_id": null,
       "workflow_name": "musitu-axiom-ar02-staging-orchestrator",
@@ -34,6 +59,8 @@
       "database_id": null,
       "artifact_bucket_name": "musitu-axiom-ar02-canary-artifacts",
       "artifact_bucket_id": null,
+      "artifact_bucket_provider_identity_kind": "NAME",
+      "artifact_bucket_provider_identity_value": null,
       "queue_name": "musitu-axiom-ar02-canary-tasks",
       "queue_id": null,
       "workflow_name": "musitu-axiom-ar02-canary-orchestrator",
@@ -43,14 +70,15 @@
     }
   },
   "binding_invariants": [
-    "STAGING_AND_CANARY_RESOURCE_IDS_MUST_BE_NON_NULL_BEFORE_REMOTE_EXECUTION",
-    "EVERY_RESOURCE_ID_MUST_BE_PROVIDER_READ_BACK_BY_EXACT_ID",
-    "STAGING_AND_CANARY_RESOURCE_IDS_MUST_BE_PAIRWISE_DISTINCT",
+    "STAGING_AND_CANARY_PROVIDER_NATIVE_IDENTITIES_MUST_BE_NON_NULL_BEFORE_REMOTE_EXECUTION",
+    "EVERY_PROVIDER_NATIVE_IDENTITY_MUST_BE_READ_BACK_EXACTLY_USING_PROVIDER_SEMANTICS",
+    "R2_BUCKET_IDENTITY_IS_CANONICAL_NAME_AND_NO_BUCKET_UUID_MAY_BE_FABRICATED",
+    "STAGING_AND_CANARY_PROVIDER_NATIVE_IDENTITIES_MUST_BE_PAIRWISE_DISTINCT",
     "NO_RESOURCE_NAME_ID_HOST_OR_IDENTITY_AUDIENCE_MAY_MATCH_PRODUCTION_DENYLIST",
     "NO_PRODUCTION_DATABASE_MAY_BE_BOUND_READ_WRITE_OR_USED_AS_A_FIXTURE_SOURCE",
     "STAGING_AND_CANARY_USE_SYNTHETIC_OR_EXPLICITLY_SCRUBBED_DATA_ONLY",
     "NO_BILLING_OR_PLAN_UPGRADE_IS_AUTHORIZED",
-    "NO_DEPLOYMENT_MAY_OCCUR WHILE_STATE_IS_UNBOUND_PROVIDER_INVENTORY_REQUIRED",
+    "NO_DEPLOYMENT_MAY_OCCUR_WHILE_STATE_IS_UNBOUND_PROVIDER_INVENTORY_REQUIRED",
     "LEGACY_UNSAFE_WORKFLOW_MAY_BE_USED_ONLY_AS_HISTORICAL_EVIDENCE_NOT_AS_AR02_EXECUTION_PATH"
   ],
   "promotion_preconditions": {
