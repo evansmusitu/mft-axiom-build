@@ -1,0 +1,63 @@
+name: MUSITU Axiom AR-02 Acceptance Truth Gate
+
+on:
+  push:
+    branches:
+      - frontier/axiom-recovery-ar02-binding-20260917
+    paths:
+      - 'docs/axiom_recovery/AR02_ACCEPTANCE_MATRIX.json'
+      - 'docs/axiom_recovery/AR02_BINDING_RESTORE_PROGRESS.json'
+      - 'docs/axiom_recovery/AR02_REPOSITORY_PROVIDER_GATE.json'
+      - 'docs/axiom_recovery/AR02_CLOUDFLARE_CREDENTIAL_CONTRACT.json'
+      - '.github/scripts/axiom_recovery_ar02_acceptance_verify.py'
+      - '.github/workflows/axiom-recovery-ar02-acceptance.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: musitu-axiom-ar02-acceptance-truth-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  independent-acceptance-truth:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout exact candidate without persisted credentials
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Reassert zero-provider and zero-production context
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF_NAME" = frontier/axiom-recovery-ar02-binding-20260917
+          test -z "${CLOUDFLARE_EMAIL:-}"
+          test -z "${CLOUDFLARE_GLOBAL_API_KEY:-}"
+          test -z "${CLOUDFLARE_API_KEY:-}"
+          test -z "${CLOUDFLARE_API_TOKEN:-}"
+          test -z "${CLOUDFLARE_AR02_READ_TOKEN:-}"
+          test -z "${CLOUDFLARE_AR02_TOKEN_AUDITOR_TOKEN:-}"
+
+      - name: Run independent acceptance truth verifier
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m py_compile .github/scripts/axiom_recovery_ar02_acceptance_verify.py
+          python .github/scripts/axiom_recovery_ar02_acceptance_verify.py
+          git diff --check
+
+      - name: Preserve claim boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo 'acceptance-truth verification is repository-local and read-only'
+          echo 'provider inventory remains NOT_PROVEN'
+          echo 'cloud isolation remains NOT_PROVEN'
+          echo 'external independent verification remains NOT_PERFORMED'
+          echo 'AR-02 remains incomplete'
+          echo 'production authority remains false'
