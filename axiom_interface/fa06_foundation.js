@@ -127,6 +127,7 @@ export const RUNTIME_AUTHORITY_BOUNDARY = Object.freeze({
 
 const SESSION_MODES = Object.freeze(['guest', 'authenticated']);
 const ID_RX = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/;
+const SENSITIVE_OBJECT_KEY_RX = /^(?:api[_ -]?key|access[_ -]?token|refresh[_ -]?token|password|private[_ -]?key|authorization|secret|client[_ -]?secret)$/i;
 
 function invariant(condition, message, ErrorType = TypeError) {
   if (!condition) throw new ErrorType(message);
@@ -137,6 +138,22 @@ function plainRecord(value, label) {
   const proto = Object.getPrototypeOf(value);
   invariant(proto === Object.prototype || proto === null, `${label} must be a plain object`);
   return value;
+}
+
+function rejectSensitiveObjectKeys(value, label = 'value', seen = new WeakSet()) {
+  if (!value || typeof value !== 'object') return;
+  if (seen.has(value)) {
+    throw new DOMException(`${label} contains cyclic object data`, 'SecurityError');
+  }
+
+  seen.add(value);
+  for (const [key, child] of Object.entries(value)) {
+    if (SENSITIVE_OBJECT_KEY_RX.test(key.trim())) {
+      throw new DOMException(`${label} contains forbidden secret-bearing key`, 'SecurityError');
+    }
+    rejectSensitiveObjectKeys(child, `${label}.${key}`, seen);
+  }
+  seen.delete(value);
 }
 
 function normalizeId(value, label) {
@@ -174,6 +191,7 @@ function cloneAndFreeze(value) {
 export function createPermanentObject(type, payload, metadata = {}) {
   invariant(PERMANENT_OBJECT_TYPES.includes(type), `unknown permanent object type: ${String(type)}`);
   plainRecord(payload, `${type} payload`);
+  rejectSensitiveObjectKeys(payload, `${type} payload`);
   rejectSecretLike(payload, `${type} payload`);
 
   const missing = OBJECT_FIELDS[type].filter(field => !Object.prototype.hasOwnProperty.call(payload, field));
@@ -198,6 +216,7 @@ export function createPermanentObject(type, payload, metadata = {}) {
  */
 export function normalizeIdentitySession(raw = {}) {
   plainRecord(raw, 'session');
+  rejectSensitiveObjectKeys(raw, 'session');
   rejectSecretLike(raw, 'session');
 
   const mode = clean(raw.mode ?? 'guest', 24).toLowerCase();
