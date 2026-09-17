@@ -31,7 +31,7 @@
     "ar00_ar01_branch": "frontier/axiom-recovery-ar00-ar01-20260917",
     "ar00_ar01_commit": "87c105608ae658bd5b1f50bc718523ace54a5f5c",
     "ar02_branch": "frontier/axiom-recovery-ar02-20260917",
-    "ar02_parent_commit_before_this_record": "1d2c40d096d16a041a28dbec6a233e09896ea3cb",
+    "ar02_schema_alignment_commit": "fa80d432a3eba26133c1358544b2356beae4b74f",
     "main_modified": false,
     "pr_1_modified": false,
     "production_modified": false
@@ -52,10 +52,10 @@
       "non_production_environment_and_data_isolation",
       "canonical_non_production_schema_and_isolation_tests",
       "security_and_credential_boundary_design",
-      "read_only_account_and_resource_inventory_when_authorized_connector_access_exists",
-      "dedicated_staging_and_canary_resource creation only after every precreation gate passes",
-      "rebind_non_production_execution away from production data only after exact resource identities are proven",
-      "non_production_restore_and isolation drills"
+      "read_only account and resource inventory when authorized connector access exists",
+      "dedicated staging and canary resource creation only after every precreation gate passes",
+      "rebind non-production execution away from production data only after exact resource identities are proven",
+      "non_production_restore_and_isolation_drills"
     ]
   },
   "authorization_limits": {
@@ -74,6 +74,7 @@
   "verified_recovery_state": {
     "ar00_ar01_design": "LOCALLY_VERIFIED_AND_COMMITTED_ON_ISOLATED_BRANCH",
     "ar02_local_isolation_foundation": "VERIFIED_BY_GITHUB_ACTIONS",
+    "ar02_risk_class_contract": "ALIGNED_S0_THROUGH_S5_AND_GATE_PASS",
     "ar02_cloud_isolation": "NOT_PROVEN",
     "full_product_connection": "NOT_PROVEN",
     "frontier_v5_live_integration": "NOT_PROVEN",
@@ -101,8 +102,9 @@
     },
     {
       "id": "RISK_CLASS_CONTRACT_REVIEW",
-      "state": "REVIEW_REQUIRED",
-      "detail": "The current AR-02 approval schema encodes S0 through S4 while project governance defines S0 through S5. The mismatch must be resolved explicitly rather than silently upgraded."
+      "state": "RESOLVED",
+      "resolution_commit": "fa80d432a3eba26133c1358544b2356beae4b74f",
+      "detail": "The AR-02 approval schema now encodes the governed S0 through S5 risk classes; the isolation gate passed on the resolving commit."
     }
   ],
   "current_session_blocker": {
@@ -113,9 +115,7 @@
   },
   "next_safe_actions": [
     "keep historical recovery records immutable and append superseding authority only",
-    "re-run AR-02 fail-closed verification on this exact branch head",
     "perform read-only provider account plan/resource/usage inventory when supported connected access is available",
-    "close the S0-S5 contract mismatch explicitly",
     "create or bind only dedicated non-production resources after every precreation gate passes",
     "prove staging credentials are technically incapable of mutating production before AR-02 can complete"
   ]
