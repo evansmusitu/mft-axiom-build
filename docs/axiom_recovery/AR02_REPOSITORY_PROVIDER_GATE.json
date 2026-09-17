@@ -1,0 +1,69 @@
+{
+  "schema": "musitu.axiom.recovery.ar02-repository-provider-gate.v1",
+  "recorded_on": "2026-09-17",
+  "phase": "AR-02",
+  "authority": {
+    "sealed_main_commit": "d6a846f6bbe0bccac1758713eb4de167caf07113",
+    "runtime_source_commit": "216ee7d15f01a3fb558452cc4b906a055001ccdd",
+    "recovery_parent_commit": "48689a9e4b652f13c9a8acabfb0b9484a671c7d6",
+    "pr_1_required_state": "OPEN_DRAFT_UNMERGED"
+  },
+  "observed_repository_state": {
+    "visibility": "PUBLIC",
+    "main_branch_protected": false,
+    "repository_rulesets": [],
+    "pr_1_open": true,
+    "pr_1_draft": true,
+    "pr_1_merged": false
+  },
+  "decision": {
+    "repository_privacy_requirement": "PRIVATE_REQUIRED_BEFORE_PROVIDER_SECRET_WORKFLOW",
+    "main_protection_requirement": "PROTECTION_OR_EQUIVALENT_RULESET_REQUIRED_BEFORE_RELEASE_PATH",
+    "provider_identity_requirement": "DEDICATED_AXOM_AR02_READ_ONLY_CREDENTIAL_REQUIRED",
+    "cross_product_secret_reuse": "FORBIDDEN",
+    "global_api_key_substitution_for_ar02_read_identity": "FORBIDDEN",
+    "provider_workflow_execution": "BLOCKED_FAIL_CLOSED",
+    "production_authority": false
+  },
+  "provider_workflow": {
+    "path": ".github/workflows/axiom-recovery-ar02-provider-readonly.yml",
+    "required_repository_visibility": "PRIVATE",
+    "required_secret_names": [
+      "CLOUDFLARE_ACCOUNT_ID",
+      "CLOUDFLARE_AR02_READ_TOKEN"
+    ],
+    "optional_secret_names": [
+      "CLOUDFLARE_AR02_TOKEN_ID"
+    ],
+    "allowed_http_methods": ["GET"],
+    "provider_mutation_enabled": false
+  },
+  "earned_evidence": {
+    "provider_readonly_harness_repository_gate": "PASS",
+    "independent_repository_verifier": "PASS",
+    "provider_control_plane_inventory": "NOT_PROVEN",
+    "account_plan": "NOT_PROVEN",
+    "account_wide_free_tier_headroom": "NOT_PROVEN",
+    "staging_provider_identities": "NOT_PROVEN",
+    "canary_provider_identities": "NOT_PROVEN",
+    "nonproduction_credential_cannot_mutate_production": "NOT_PROVEN",
+    "cloud_restore_drill": "NOT_PERFORMED"
+  },
+  "remaining_external_actions": [
+    "MAKE_REPOSITORY_PRIVATE_OR_PROVIDE_AN_EQUIVALENT_SECRET_EXECUTION_BOUNDARY",
+    "PROTECT_MAIN_WITH_BRANCH_PROTECTION_OR_REPOSITORY_RULESET",
+    "BROKER_A_DEDICATED_AXOM_AR02_READ_ONLY_CLOUDFLARE_CREDENTIAL_IN_GITHUB_SECRETS",
+    "RUN_PROVIDER_READ_ONLY_WORKFLOW_AND_CAPTURE_REDACTED_READBACK",
+    "PROVE_ACCOUNT_PLAN_AND_FREE_TIER_HEADROOM",
+    "CREATE_OR_IDENTIFY_DEDICATED_STAGING_AND_CANARY_RESOURCES_ONLY_AFTER_PRECREATION_GATES_PASS"
+  ],
+  "claim_boundary": {
+    "ar02_complete": false,
+    "cloud_isolation": "NOT_PROVEN",
+    "runtime_rebound_off_production_d1": false,
+    "production_mutated": false,
+    "billing_mutated": false,
+    "full_product_connection": "NOT_PROVEN",
+    "superiority": "NOT_CERTIFIED"
+  }
+}
