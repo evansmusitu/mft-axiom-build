@@ -120,7 +120,7 @@ function deterministicArtifact({objective,execution,title}){
 }
 
 function extractiveResearchArtifact({objective,sources,execution,title}){
-  const cited=sources.slice(0,3);
+  const cited=sources.slice(0,2);
   return {
     title:title||'Evidence-bound executive brief',
     summary:`Retrieved ${cited.length} fixed-provider source${cited.length===1?'':'s'} and completed the protected runtime calculation. The findings below are extractive because the generative draft did not return a valid supplied citation.`,
