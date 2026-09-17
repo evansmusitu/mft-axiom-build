@@ -1,0 +1,97 @@
+{
+  "schema": "musitu.axiom.recovery.ar02-zero-cost-resource-plan.v1",
+  "checked_on": "2026-09-17",
+  "status": "OFFICIAL_LIMITS_VERIFIED_ACCOUNT_HEADROOM_PENDING",
+  "production_authority": false,
+  "resources_created": false,
+  "billing_mutation_authorized": false,
+  "sources": [
+    {
+      "product": "Cloudflare D1",
+      "url": "https://developers.cloudflare.com/d1/platform/pricing/",
+      "source_last_updated": "2026-04-21",
+      "free_limits": {
+        "rows_read_per_day": 5000000,
+        "rows_written_per_day": 100000,
+        "storage_gb_total": 5,
+        "egress_charge": false
+      }
+    },
+    {
+      "product": "Cloudflare R2 Standard",
+      "url": "https://developers.cloudflare.com/r2/pricing/",
+      "source_last_updated": "2026-08-07",
+      "free_limits": {
+        "storage_gb_month_per_month": 10,
+        "class_a_operations_per_month": 1000000,
+        "class_b_operations_per_month": 10000000,
+        "egress_charge": false
+      },
+      "constraint": "FREE_TIER_APPLIES_TO_STANDARD_STORAGE_ONLY"
+    },
+    {
+      "product": "Cloudflare Queues",
+      "url": "https://developers.cloudflare.com/queues/platform/pricing/",
+      "source_last_updated": "2026-04-21",
+      "free_limits": {
+        "standard_operations_per_day": 10000,
+        "message_retention_hours": 24
+      },
+      "accounting_note": "A normal delivered message generally consumes write, read, and delete operations; retries consume additional reads."
+    },
+    {
+      "product": "Cloudflare Workflows",
+      "url": "https://developers.cloudflare.com/workflows/reference/pricing/",
+      "source_last_updated": "2026-07-21",
+      "free_limits": {
+        "requests_per_day_shared_with_workers": 100000,
+        "cpu_ms_per_invocation": 10,
+        "storage_gb_month": 1,
+        "steps_per_day": 3000,
+        "default_retention_days": 3
+      }
+    }
+  ],
+  "proposed_non_production_resources": {
+    "development": {
+      "mode": "LOCAL_ONLY",
+      "database": "SQLite isolated by recovery/ar02/environment_manifest.json",
+      "objects": "local filesystem fixture store",
+      "queue": "local filesystem fixture queue"
+    },
+    "staging": {
+      "d1": "musitu-axiom-ar02-staging",
+      "r2_standard": "musitu-axiom-ar02-staging-artifacts",
+      "queue": "musitu-axiom-ar02-staging-tasks",
+      "workflow": "musitu-axiom-ar02-staging-orchestrator",
+      "identity_audience": "urn:musitu:axiom:ar02:staging"
+    },
+    "canary": {
+      "d1": "musitu-axiom-ar02-canary",
+      "r2_standard": "musitu-axiom-ar02-canary-artifacts",
+      "queue": "musitu-axiom-ar02-canary-tasks",
+      "workflow": "musitu-axiom-ar02-canary-orchestrator",
+      "identity_audience": "urn:musitu:axiom:ar02:canary"
+    }
+  },
+  "conservative_test_budget": {
+    "d1_rows_read_per_day_all_ar02": 250000,
+    "d1_rows_written_per_day_all_ar02": 10000,
+    "r2_storage_gb_month_all_ar02": 1,
+    "r2_class_a_operations_per_month_all_ar02": 50000,
+    "r2_class_b_operations_per_month_all_ar02": 250000,
+    "queue_operations_per_day_all_ar02": 6000,
+    "workflow_steps_per_day_all_ar02": 1200,
+    "budget_policy": "STOP_BEFORE_PROVIDER_FREE_LIMIT; NO_PAID_OVERAGE_AUTHORITY"
+  },
+  "precreation_gates": [
+    "ACCOUNT_PLAN_IS_WORKERS_FREE_OR_EQUIVALENT_NO_CHARGE",
+    "CURRENT_ACCOUNT_WIDE_USAGE_LEAVES_CONSERVATIVE_BUDGET_HEADROOM",
+    "NO_RESOURCE_NAME_OR_IDENTIFIER_MATCHES_PRODUCTION",
+    "NO_PRODUCTION_DATABASE_SERVICE_SECRET_ROUTE_OR_IDENTITY_BINDING",
+    "RESOURCE_CREATION_IS_IDEMPOTENT_AND_READ_BACK_BY_EXACT_ID",
+    "BILLING_OR_PLAN_UPGRADE_IS_NOT_PERFORMED",
+    "ROLLBACK_DELETES_ONLY_RESOURCES_CREATED_BY_THE_EXACT_AR02_RUN"
+  ],
+  "next_action": "READ_ONLY_ACCOUNT_PLAN_RESOURCE_AND_USAGE_INVENTORY"
+}

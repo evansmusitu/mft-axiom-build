@@ -1,0 +1,60 @@
+{
+  "schema": "musitu.axiom.recovery.ar02-acceptance.v1",
+  "phase": "AR-02",
+  "authority_confirmation": "APPROVE AR-00/AR-01 COMMIT AND PUSH — START AR-02 WITH ZERO-COST NON-PRODUCTION ISOLATION",
+  "parent_commit": "87c105608ae658bd5b1f50bc718523ace54a5f5c",
+  "candidate_state": "LOCAL_FOUNDATION_IMPLEMENTED_CLOUD_ISOLATION_PENDING",
+  "scope": "ZERO_COST_NON_PRODUCTION_ISOLATION",
+  "local_verification": {
+    "gate": "PASS",
+    "gate_checks": 60,
+    "behavioral_tests": 8,
+    "external_or_independent": false
+  },
+  "zero_cost_resource_plan": {
+    "artifact": "docs/axiom_recovery/AR02_ZERO_COST_RESOURCE_PLAN.json",
+    "official_limits_checked_on": "2026-09-17",
+    "account_plan_and_headroom_verified": false,
+    "resources_created": false
+  },
+  "local_foundation": {
+    "environment_manifest": "recovery/ar02/environment_manifest.json",
+    "canonical_schema": "recovery/ar02/schema/0001_project_work_graph.sql",
+    "provision_and_verify_tool": "recovery/ar02/isolation.py",
+    "environments": ["development", "staging", "canary"],
+    "physical_database_separation_required": true,
+    "synthetic_data_only": true,
+    "network_required": false,
+    "provider_api_key_required": false,
+    "estimated_external_cost_usd": 0
+  },
+  "implemented_contracts": [
+    "DISTINCT_DATABASE_OBJECT_QUEUE_AND_IDENTITY_NAMESPACES",
+    "PRODUCTION_IDENTIFIER_DENYLIST",
+    "PATH_ESCAPE_REJECTION",
+    "NON_DESTRUCTIVE_EXISTING_DATABASE_VERIFICATION",
+    "CANONICAL_PROJECT_WORK_TASK_RECEIPT_SCHEMA",
+    "IDEMPOTENT_LOCAL_PROVISION_AND_VERIFY",
+    "ZERO_NETWORK_ZERO_PROVIDER_KEY_EXECUTION"
+  ],
+  "external_exit_gates": {
+    "cloudflare_free_tier_quota_confirmed": false,
+    "dedicated_staging_resources_created": false,
+    "dedicated_canary_resources_created": false,
+    "legacy_runtime_workflow_rebound_off_production_d1": false,
+    "synthetic_fixture_restore_drill": false,
+    "independent_verifier": false
+  },
+  "claim_boundary": {
+    "ar02_complete": false,
+    "runtime_connection_modified": false,
+    "staging_deployed": false,
+    "canary_deployed": false,
+    "production_data_accessed": false,
+    "production_mutated": false,
+    "production_authority": false,
+    "full_product_connection": "NOT_PROVEN",
+    "superiority": "NOT_CERTIFIED"
+  },
+  "next_safe_action": "READ_ONLY_FREE_TIER_RESOURCE_INVENTORY_THEN_DEDICATED_NON_PRODUCTION_RESOURCE_PLAN"
+}

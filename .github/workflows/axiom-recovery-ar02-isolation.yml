@@ -1,0 +1,54 @@
+name: MUSITU Axiom AR-02 Local Isolation Gate
+
+on:
+  push:
+    branches:
+      - frontier/axiom-recovery-ar02-20260917
+    paths:
+      - 'recovery/ar02/**'
+      - 'docs/axiom_recovery/AR02_*.json'
+      - '.github/scripts/axiom_recovery_ar02_verify.py'
+      - '.github/workflows/axiom-recovery-ar02-isolation.yml'
+permissions:
+  contents: read
+
+concurrency:
+  group: musitu-axiom-ar02-local-isolation-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  local-zero-cost-isolation:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout without persisted credentials
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Verify exact parent and local-only authority
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git merge-base 87c105608ae658bd5b1f50bc718523ace54a5f5c HEAD)" = 87c105608ae658bd5b1f50bc718523ace54a5f5c
+          test -z "${CLOUDFLARE_API_TOKEN:-}"
+          test -z "${CLOUDFLARE_API_KEY:-}"
+          test -z "${OPENAI_API_KEY:-}"
+          test -z "${ANTHROPIC_API_KEY:-}"
+          python .github/scripts/axiom_recovery_ar02_verify.py
+
+      - name: Execute isolation and adversarial contract tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m unittest recovery.ar02.tests.test_ar02_isolation -v
+          python -m py_compile recovery/ar02/isolation.py .github/scripts/axiom_recovery_ar02_verify.py
+          git diff --check
+
+      - name: Assert no deployment surface is present
+        shell: bash
+        run: |
+          set -euo pipefail
+          ! rg -n 'wrangler deploy|custom_domains|routes[[:space:]]*=|api.cloudflare.com' recovery/ar02 docs/axiom_recovery/AR02_*.json
+          ! rg -n '504029cc-f9a5-495e-818f-63c6144b4ea4|4a62b374-7232-4103-b201-34443c467382|musitu-axiom-prod|mft-axiom-prod' recovery/ar02 --glob '!environment_manifest.json'
