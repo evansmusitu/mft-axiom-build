@@ -6,9 +6,9 @@
   "runtime_source_commit": "216ee7d15f01a3fb558452cc4b906a055001ccdd",
   "sealed_main_commit": "d6a846f6bbe0bccac1758713eb4de167caf07113",
   "latest_qualified_binding_head": "ef0670dd86835e2005bf5213b31822c9b662614d",
-  "latest_qualified_release_surface_gate_head_before_this_record": "7ea58b3580a59efb789e7c34b9ee95eef97ed3b7",
+  "latest_qualified_release_surface_gate_head_before_this_record": "14e4c6fa7a7a960b59c11c3fd7092fb40de90691",
   "candidate_branch": "frontier/axiom-recovery-ar02-release-surface-20260917",
-  "candidate_state": "SELECTED_RELEASE_SURFACE_QUARANTINE_QUALIFIED_REPOSITORY_WIDE_GLOBAL_CREDENTIAL_RISK_REMAINS",
+  "candidate_state": "TWELVE_RELEASE_SURFACE_QUARANTINES_QUALIFIED_SIX_GOVERNED_REPLACEMENT_OR_ROLE_PROOF_PATHS_OPEN",
   "scope": "AR02_SECURITY_AND_ENVIRONMENT_ISOLATION",
   "earned_verification": {
     "local_environment_isolation": "PASS",
@@ -20,8 +20,14 @@
     "two_identity_provider_harness": "PASS",
     "repository_provider_governance_gate": "PASS",
     "provider_binding_preflight": "PASS",
-    "selected_release_surface_builder_gate": "PASS",
-    "selected_release_surface_independent_verifier": "PASS",
+    "twelve_workflow_release_surface_builder_gate": "PASS",
+    "twelve_workflow_release_surface_independent_verifier": "PASS",
+    "twelve_workflow_release_surface_run_id": 35270032770,
+    "twelve_workflow_release_surface_builder_check_run_id": 105366746165,
+    "twelve_workflow_release_surface_independent_check_run_id": 105366783635,
+    "classified_mutation_paths_quarantined_on_candidate": 10,
+    "classified_mutation_paths_requiring_governed_replacement": 5,
+    "classified_mutation_paths_requiring_runtime_role_proof": 1,
     "repository_wide_release_surface_security": "FAILED_SOURCE",
     "external_independent_verification": "NOT_PERFORMED"
   },
@@ -76,16 +82,33 @@
     "provider_workflow_execution": "BLOCKED_FAIL_CLOSED"
   },
   "selected_candidate_remediation": {
-    "status": "PASS_SELECTED_PATHS_ONLY",
+    "status": "PASS_TWELVE_QUARANTINE_PATHS_ONLY",
     "qualified_branch": "frontier/axiom-recovery-ar02-release-surface-20260917",
-    "qualified_gate_parent_head": "7ea58b3580a59efb789e7c34b9ee95eef97ed3b7",
+    "qualified_gate_head_before_this_record": "14e4c6fa7a7a960b59c11c3fd7092fb40de90691",
+    "qualified_workflow_run_id": 35270032770,
     "provider_execution_performed": false,
     "production_mutated": false,
     "quarantined_workflows": [
       ".github/workflows/axiom-musitu-d1-live-cutover.yml",
       ".github/workflows/cloudflare-axiom-bootstrap-enable.yml",
-      ".github/workflows/axiom-runtime-connection-staging-canary.yml"
+      ".github/workflows/axiom-runtime-connection-staging-canary.yml",
+      ".github/workflows/axiom-kernel-exception-diagnostic.yml",
+      ".github/workflows/axiom-modal-adapter-repair-probe.yml",
+      ".github/workflows/axiom-service-binding-runtime-shape.yml",
+      ".github/workflows/cloudflare-service-fetch-signature-probe.yml",
+      ".github/workflows/axiom-modal-adapter-exact-request-probe.yml",
+      ".github/workflows/axiom-modal-edge-service-compat-patch.yml",
+      ".github/workflows/axiom-canonical-kernel-payload-capture.yml",
+      ".github/workflows/axiom-service-binding-request-object-probe.yml",
+      ".github/workflows/axiom-modal-adapter-transport-diagnostic.yml"
     ],
+    "classified_16_path_status": {
+      "quarantined_on_candidate": 10,
+      "replace_with_governed_contract": 5,
+      "replace_or_retire_after_runtime_role_proof": 1,
+      "all_16_disabled_on_candidate": false,
+      "all_16_disabled_on_main": false
+    },
     "accelerator_immutable_action_pins": {
       "actions/checkout": "d23441a48e516b6c34aea4fa41551a30e30af803",
       "actions/setup-python": "a26af69be951a213d495a4c3e4e4022e16d87065",
@@ -99,24 +122,26 @@
     "workflow_files_referencing_global_cloudflare_key": 154,
     "workflow_files_with_global_cloudflare_key_and_wrangler_deploy": 16,
     "search_incomplete": false,
-    "interpretation": "The 154 matches are credential-exposure candidates requiring classification; they are not all proven mutation paths. The 16 combined global-key plus Wrangler-deploy matches are mutation-capable source surfaces and require individual quarantine or governed replacement. The selected candidate remediates only explicitly listed paths and inherits the remaining repository surface.",
-    "representative_mutation_capable_paths": [
+    "proven_mutation_path_classification_complete": true,
+    "proven_mutation_paths_quarantined_on_candidate": 10,
+    "proven_mutation_paths_with_governed_replacement_open": 5,
+    "proven_mutation_paths_with_runtime_role_proof_open": 1,
+    "interpretation": "All 16 sealed-main workflows proven by source search to combine the global Cloudflare key with Wrangler deployment are classified. The isolated candidate has fail-closed quarantined 10 of those 16. Five legitimate capabilities require governed replacement contracts and one compatibility facade requires runtime-role proof. The additional 154 global-key references remain credential-exposure candidates and are not relabelled as proven mutation paths without evidence.",
+    "open_governed_replacement_paths": [
+      ".github/workflows/axiom-musitu-modal-backend-cutover.yml",
+      ".github/workflows/axiom-modal-stage-domain-auth-final-v2.yml",
       ".github/workflows/axiom-cloudflare-staging-deploy.yml",
       ".github/workflows/axiom-modal-edge-isolated-deploy.yml",
-      ".github/workflows/axiom-kernel-exception-diagnostic.yml",
-      ".github/workflows/axiom-service-binding-runtime-shape.yml",
-      ".github/workflows/cloudflare-service-fetch-signature-probe.yml",
-      ".github/workflows/axiom-canonical-kernel-payload-capture.yml",
-      ".github/workflows/axiom-modal-adapter-exact-request-probe.yml",
-      ".github/workflows/axiom-service-binding-request-object-probe.yml",
-      ".github/workflows/axiom-musitu-cloudflare-compat-aliases.yml",
       ".github/workflows/axiom-modal-edge-transport-repair.yml"
-    ]
+    ],
+    "open_runtime_role_proof_path": ".github/workflows/axiom-musitu-cloudflare-compat-aliases.yml"
   },
   "release_surface_security": {
     "status": "FAILED_SOURCE",
-    "selected_candidate_paths": "PASS",
+    "selected_candidate_paths": "PASS_12_QUARANTINES",
     "repository_wide_hardening": "FAILED_SOURCE",
+    "proven_16_mutation_paths_fully_classified": true,
+    "proven_16_mutation_paths_fully_remediated": false,
     "immutable_action_pins": {
       "selected_accelerator_workflow": "PASS",
       "across_all_consequential_release_paths": "NOT_PROVEN"
@@ -140,7 +165,8 @@
       "recovery_branch_edits_alone_protect_default_branch": false,
       "main_modified_by_recovery": false,
       "selected_legacy_workflows_modified_by_recovery_candidate": true,
-      "repository_wide_mutation_paths_fully_classified": false,
+      "repository_wide_mutation_paths_fully_classified": true,
+      "repository_wide_mutation_paths_fully_remediated": false,
       "requires_default_branch_or_repository_admin_remediation": true,
       "production_mutation_authorized": false
     }
@@ -161,7 +187,8 @@
     "PROVIDER_ENDPOINT_ALLOWLIST_SEPARATION",
     "PUBLIC_REPOSITORY_PROVIDER_SECRET_WORKFLOW_BLOCK",
     "FAIL_CLOSED_PROVIDER_BINDING_PREFLIGHT_RECEIPT",
-    "SELECTED_LEGACY_MUTATION_WORKFLOW_QUARANTINE",
+    "TWELVE_LEGACY_MUTATION_WORKFLOW_QUARANTINES",
+    "EXACT_SIXTEEN_FILE_RELEASE_SURFACE_SCOPE_GATE",
     "SELECTED_ACCELERATOR_IMMUTABLE_ACTION_PINS"
   ],
   "external_exit_gates": {
@@ -212,5 +239,5 @@
     "wolfram_parity": "NOT_CERTIFIED",
     "superiority": "NOT_CERTIFIED"
   },
-  "next_safe_action": "CLASSIFY_REPOSITORY_WIDE_MUTATION_CAPABLE_GLOBAL_CREDENTIAL_WORKFLOWS_AND_QUARANTINE_OR_REPLACE_UNGOVERNED_PATHS; THEN OBTAIN REPOSITORY_ADMIN_AND_PROVIDER_READBACK EVIDENCE BEFORE ANY RUNTIME REBIND"
+  "next_safe_action": "FREEZE_GOVERNED_REPLACEMENT_CONTRACTS_FOR_THE_5_LEGITIMATE_RELEASE_REPAIR_PATHS_AND_PROVE_THE_RUNTIME_ROLE_OF_THE_COMPATIBILITY_ALIAS_PATH; THEN OBTAIN_REPOSITORY_ADMIN_AND_PROVIDER_READBACK_EVIDENCE_BEFORE_ANY_RUNTIME_REBIND"
 }
