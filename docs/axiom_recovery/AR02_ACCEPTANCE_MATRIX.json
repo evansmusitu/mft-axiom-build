@@ -7,6 +7,7 @@
   "runtime_source_commit": "216ee7d15f01a3fb558452cc4b906a055001ccdd",
   "sealed_main_commit": "d6a846f6bbe0bccac1758713eb4de167caf07113",
   "reconciled_from_recovery_head": "9cd5cd413622425e05695777f4fa47ce27da1e22",
+  "latest_qualified_repository_governance_head": "0befcc9e546a4c7b24b863f77e78b6946d2c2e13",
   "candidate_state": "LOCAL_AND_REPOSITORY_GOVERNANCE_QUALIFIED_PROVIDER_ISOLATION_PENDING",
   "scope": "AR02_SECURITY_AND_ENVIRONMENT_ISOLATION",
   "earned_verification": {
@@ -16,8 +17,9 @@
     "snapshot_backup_restore_digest_equivalence": "PASS",
     "builder_contract_and_restore_gate": "PASS",
     "internal_independent_repository_verifier": "PASS",
+    "two_identity_provider_harness": "PASS",
     "repository_provider_governance_gate": "PASS",
-    "latest_repository_provider_governance_head": "9cd5cd413622425e05695777f4fa47ce27da1e22",
+    "latest_repository_provider_governance_head": "0befcc9e546a4c7b24b863f77e78b6946d2c2e13",
     "external_independent_verification": "NOT_PERFORMED"
   },
   "zero_cost_resource_plan": {
@@ -50,8 +52,15 @@
     "production_authority": false,
     "global_api_key_use": "FORBIDDEN",
     "cross_product_secret_reuse": "FORBIDDEN",
+    "two_identity_harness_implemented": true,
+    "inventory_identity_binding": "CLOUDFLARE_AR02_READ_TOKEN",
+    "auditor_identity_binding": "CLOUDFLARE_AR02_TOKEN_AUDITOR_TOKEN",
+    "inventory_token_id_binding": "CLOUDFLARE_AR02_INVENTORY_TOKEN_ID",
+    "same_token_reuse_allowed": false,
     "inventory_identity_provisioned": false,
     "auditor_identity_provisioned": false,
+    "credentials_brokered_to_github": false,
+    "credential_scope_verified_live": false,
     "provider_inventory_executed": false
   },
   "repository_governance_state": {
@@ -75,6 +84,8 @@
     "NON_DESTRUCTIVE_RESTORE_INTO_SEPARATE_ROOT",
     "SEPARATE_READ_ONLY_PROVIDER_INVENTORY_IDENTITY",
     "SEPARATE_TOKEN_POLICY_AUDITOR_IDENTITY",
+    "INVENTORY_AND_AUDITOR_TOKEN_REUSE_REJECTION",
+    "PROVIDER_ENDPOINT_ALLOWLIST_SEPARATION",
     "PUBLIC_REPOSITORY_PROVIDER_SECRET_WORKFLOW_BLOCK"
   ],
   "external_exit_gates": {
@@ -100,6 +111,11 @@
   },
   "claim_boundary": {
     "ar02_complete": false,
+    "credential_harness_implemented": true,
+    "credentials_provisioned": false,
+    "credentials_brokered_to_github": false,
+    "credential_scope_verified_live": false,
+    "provider_inventory_executed": false,
     "cloud_isolation": "NOT_PROVEN",
     "runtime_connection_modified": false,
     "runtime_rebound_off_production_d1": false,
@@ -112,5 +128,5 @@
     "wolfram_parity": "NOT_CERTIFIED",
     "superiority": "NOT_CERTIFIED"
   },
-  "next_safe_action": "OBTAIN_PROVIDER_AND_REPOSITORY_ADMIN_BOUNDARIES_THEN_RUN_READ_ONLY_PROVIDER_INVENTORY_BEFORE_ANY_RESOURCE_CREATION_OR_RUNTIME_REBIND"
+  "next_safe_action": "OBTAIN_PROVIDER_AND_REPOSITORY_ADMIN_BOUNDARIES_THEN_BROKER_TWO_DISTINCT_BOUNDED_READ_ONLY_IDENTITIES_AND_RUN_PROVIDER_READBACK_BEFORE_ANY_RESOURCE_CREATION_OR_RUNTIME_REBIND"
 }
