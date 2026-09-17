@@ -21,7 +21,8 @@ PROGRESS = ROOT / "docs" / "axiom_recovery" / "AR02_BINDING_RESTORE_PROGRESS.jso
 
 SEALED_MAIN = "d6a846f6bbe0bccac1758713eb4de167caf07113"
 RUNTIME_SOURCE = "216ee7d15f01a3fb558452cc4b906a055001ccdd"
-RECONCILED_HEAD = "9cd5cd413622425e05695777f4fa47ce27da1e22"
+HISTORICAL_RECONCILIATION_HEAD = "9cd5cd413622425e05695777f4fa47ce27da1e22"
+LATEST_QUALIFIED_GOVERNANCE_HEAD = "0befcc9e546a4c7b24b863f77e78b6946d2c2e13"
 
 errors: list[str] = []
 checks = 0
@@ -54,7 +55,8 @@ def main() -> int:
     check(acceptance.get("phase") == "AR-02", "acceptance phase mismatch")
     check(acceptance.get("sealed_main_commit") == SEALED_MAIN, "acceptance sealed main mismatch")
     check(acceptance.get("runtime_source_commit") == RUNTIME_SOURCE, "acceptance runtime source mismatch")
-    check(acceptance.get("reconciled_from_recovery_head") == RECONCILED_HEAD, "acceptance reconciliation anchor mismatch")
+    check(acceptance.get("reconciled_from_recovery_head") == HISTORICAL_RECONCILIATION_HEAD, "historical acceptance reconciliation anchor mismatch")
+    check(acceptance.get("latest_qualified_repository_governance_head") == LATEST_QUALIFIED_GOVERNANCE_HEAD, "latest qualified governance anchor mismatch")
     check(acceptance.get("candidate_state") == "LOCAL_AND_REPOSITORY_GOVERNANCE_QUALIFIED_PROVIDER_ISOLATION_PENDING", "candidate state overstated or drifted")
 
     earned = acceptance.get("earned_verification", {})
@@ -65,10 +67,11 @@ def main() -> int:
         "snapshot_backup_restore_digest_equivalence",
         "builder_contract_and_restore_gate",
         "internal_independent_repository_verifier",
+        "two_identity_provider_harness",
         "repository_provider_governance_gate",
     ):
         check(earned.get(key) == "PASS", f"earned verification missing: {key}")
-    check(earned.get("latest_repository_provider_governance_head") == RECONCILED_HEAD, "governance head mismatch")
+    check(earned.get("latest_repository_provider_governance_head") == LATEST_QUALIFIED_GOVERNANCE_HEAD, "latest governance head mismatch")
     check(earned.get("external_independent_verification") == "NOT_PERFORMED", "external verification overstated")
 
     plan = acceptance.get("zero_cost_resource_plan", {})
@@ -83,9 +86,19 @@ def main() -> int:
     check(provider.get("production_authority") is False, "provider foundation claims production authority")
     check(provider.get("global_api_key_use") == "FORBIDDEN", "global API key use not forbidden")
     check(provider.get("cross_product_secret_reuse") == "FORBIDDEN", "cross-product secret reuse not forbidden")
-    check(provider.get("inventory_identity_provisioned") is False, "inventory identity prematurely claimed provisioned")
-    check(provider.get("auditor_identity_provisioned") is False, "auditor identity prematurely claimed provisioned")
-    check(provider.get("provider_inventory_executed") is False, "provider inventory prematurely claimed executed")
+    check(provider.get("two_identity_harness_implemented") is True, "two-identity provider harness not recorded")
+    check(provider.get("inventory_identity_binding") == "CLOUDFLARE_AR02_READ_TOKEN", "inventory identity binding mismatch")
+    check(provider.get("auditor_identity_binding") == "CLOUDFLARE_AR02_TOKEN_AUDITOR_TOKEN", "auditor identity binding mismatch")
+    check(provider.get("inventory_token_id_binding") == "CLOUDFLARE_AR02_INVENTORY_TOKEN_ID", "inventory token ID binding mismatch")
+    check(provider.get("same_token_reuse_allowed") is False, "inventory/auditor token reuse allowed")
+    for key in (
+        "inventory_identity_provisioned",
+        "auditor_identity_provisioned",
+        "credentials_brokered_to_github",
+        "credential_scope_verified_live",
+        "provider_inventory_executed",
+    ):
+        check(provider.get(key) is False, f"provider foundation prematurely claimed {key}")
 
     repo = acceptance.get("repository_governance_state", {})
     check(repo.get("repository_visibility") == "PUBLIC", "acceptance repository visibility must reflect observed public state")
@@ -97,8 +110,19 @@ def main() -> int:
     check(repo.get("provider_workflow_execution") == "BLOCKED_FAIL_CLOSED", "provider workflow prematurely enabled")
 
     external = acceptance.get("external_exit_gates", {})
+    check(bool(external), "external exit gates missing")
     for key, value in external.items():
         check(value is False, f"external exit gate prematurely passed: {key}")
+
+    implemented = set(acceptance.get("implemented_contracts", []))
+    for marker in (
+        "SEPARATE_READ_ONLY_PROVIDER_INVENTORY_IDENTITY",
+        "SEPARATE_TOKEN_POLICY_AUDITOR_IDENTITY",
+        "INVENTORY_AND_AUDITOR_TOKEN_REUSE_REJECTION",
+        "PROVIDER_ENDPOINT_ALLOWLIST_SEPARATION",
+        "PUBLIC_REPOSITORY_PROVIDER_SECRET_WORKFLOW_BLOCK",
+    ):
+        check(marker in implemented, f"implemented contract missing: {marker}")
 
     legacy = acceptance.get("known_legacy_runtime_defect", {})
     for key in (
@@ -111,8 +135,13 @@ def main() -> int:
     check(legacy.get("legacy_runtime_workflow_reused_for_ar02") is False, "legacy runtime workflow reuse claim invalid")
 
     boundary = acceptance.get("claim_boundary", {})
+    check(boundary.get("credential_harness_implemented") is True, "credential harness implementation claim missing")
     for key in (
         "ar02_complete",
+        "credentials_provisioned",
+        "credentials_brokered_to_github",
+        "credential_scope_verified_live",
+        "provider_inventory_executed",
         "runtime_connection_modified",
         "runtime_rebound_off_production_d1",
         "staging_deployed",
@@ -127,18 +156,45 @@ def main() -> int:
     check(boundary.get("wolfram_parity") == "NOT_CERTIFIED", "Wolfram parity overstated")
     check(boundary.get("superiority") == "NOT_CERTIFIED", "superiority overstated")
 
-    # Cross-artifact truth consistency.
+    # Cross-artifact repository truth consistency.
+    check(gate.get("schema") == "musitu.axiom.recovery.ar02-repository-provider-gate.v2", "repository provider gate schema mismatch")
     observed = gate.get("observed_repository_state", {})
     check(observed.get("visibility") == repo.get("repository_visibility"), "repository visibility disagreement across artifacts")
     check(observed.get("main_branch_protected") == repo.get("main_branch_protected"), "main protection disagreement across artifacts")
     check(observed.get("repository_rulesets") == repo.get("repository_rulesets_observed"), "ruleset disagreement across artifacts")
 
+    gate_decision = gate.get("decision", {})
+    check(gate_decision.get("provider_identity_requirement") == "TWO_SEPARATE_DEDICATED_READ_ONLY_IDENTITIES_REQUIRED", "repository gate no longer requires separated provider identities")
+    gate_provider = gate.get("provider_workflow", {})
+    expected_secrets = {
+        "CLOUDFLARE_ACCOUNT_ID",
+        "CLOUDFLARE_AR02_READ_TOKEN",
+        "CLOUDFLARE_AR02_TOKEN_AUDITOR_TOKEN",
+        "CLOUDFLARE_AR02_INVENTORY_TOKEN_ID",
+    }
+    check(set(gate_provider.get("required_secret_names", [])) == expected_secrets, "repository gate required secret set drifted")
+    check(gate_provider.get("optional_secret_names") == [], "repository gate optional secrets must remain empty")
+    check(gate_provider.get("same_inventory_and_auditor_token_allowed") is False, "repository gate permits token reuse")
+
+    gate_boundary = gate.get("claim_boundary", {})
+    check(gate_boundary.get("credential_harness_implemented") is True, "repository gate missing qualified harness result")
+    for key in ("credentials_provisioned", "credentials_brokered_to_github", "credential_scope_verified_live", "provider_inventory_executed", "ar02_complete", "production_mutated"):
+        check(gate_boundary.get(key) is False, f"repository gate overstates {key}")
+
+    # Cross-artifact credential truth consistency.
     credential_boundary = credential.get("claim_boundary", {})
     check(credential_boundary.get("credentials_created") is False, "credential contract says credentials created")
     check(credential_boundary.get("credentials_brokered_to_github") is False, "credential contract says credentials brokered")
+    check(credential_boundary.get("credential_scope_verified") is False, "credential contract says credential scope verified")
     check(credential_boundary.get("provider_inventory_executed") is False, "credential contract says provider inventory executed")
     check(credential_boundary.get("ar02_complete") is False, "credential contract says AR-02 complete")
     check(credential_boundary.get("production_mutated") is False, "credential contract says production mutated")
+    transition = credential.get("current_harness_transition", {})
+    check(transition.get("two_identity_harness_implemented") is True, "credential contract does not record two-identity harness")
+    check(transition.get("same_token_reuse_rejected") is True, "credential contract does not reject token reuse")
+    check(transition.get("credentials_provisioned") is False, "credential contract prematurely provisioned")
+    check(transition.get("credentials_brokered_to_github") is False, "credential contract prematurely brokered")
+    check(transition.get("credential_scope_verified_live") is False, "credential contract prematurely live-verified")
 
     progress_boundary = progress.get("authority_and_claim_boundary", {})
     check(progress_boundary.get("ar02_complete") is False, "progress artifact says AR-02 complete")
@@ -155,7 +211,9 @@ def main() -> int:
 
     print(f"AR-02 ACCEPTANCE TRUTH GATE: PASS ({checks} checks)")
     print("local_and_repository_evidence=QUALIFIED")
+    print("two_identity_provider_harness=QUALIFIED_NOT_PROVISIONED")
     print("provider_inventory=NOT_PROVEN")
+    print("credential_scope=NOT_PROVEN")
     print("cloud_isolation=NOT_PROVEN")
     print("external_independent_verification=NOT_PERFORMED")
     print("ar02_complete=false")
