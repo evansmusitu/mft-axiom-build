@@ -1,0 +1,99 @@
+name: MUSITU Axiom AR-02 Binding Restore Gate
+
+on:
+  push:
+    branches:
+      - frontier/axiom-recovery-ar02-binding-20260917
+    paths:
+      - 'recovery/ar02/cloud_binding_contract.json'
+      - 'recovery/ar02/restore_drill.py'
+      - 'docs/axiom_recovery/AR02_BINDING_RESTORE_PROGRESS.json'
+      - '.github/scripts/axiom_recovery_ar02_binding_verify.py'
+      - '.github/workflows/axiom-recovery-ar02-binding.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: musitu-axiom-ar02-binding-restore-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  builder-contract-and-restore:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout exact candidate without persisted credentials
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Reassert recovery authority and zero-provider boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF_NAME" = frontier/axiom-recovery-ar02-binding-20260917
+          git merge-base --is-ancestor 0be6bee6d7638ef13738f22fc47e0f1b30960a7b HEAD
+          test "$(git ls-remote origin refs/heads/main | awk '{print $1}')" = d6a846f6bbe0bccac1758713eb4de167caf07113
+          test "$(git ls-remote origin refs/heads/frontier/axiom-runtime-connection-20260916 | awk '{print $1}')" = 216ee7d15f01a3fb558452cc4b906a055001ccdd
+          test -z "${CLOUDFLARE_API_TOKEN:-}"
+          test -z "${CLOUDFLARE_API_KEY:-}"
+          test -z "${CLOUDFLARE_EMAIL:-}"
+          test -z "${OPENAI_API_KEY:-}"
+          test -z "${ANTHROPIC_API_KEY:-}"
+
+      - name: Run original AR-02 behavioral tests and compile recovery code
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m unittest recovery.ar02.tests.test_ar02_isolation -v
+          python -m py_compile recovery/ar02/isolation.py recovery/ar02/restore_drill.py .github/scripts/axiom_recovery_ar02_binding_verify.py
+          git diff --check
+
+      - name: Execute synthetic non-destructive restore drill
+        shell: bash
+        run: |
+          set -euo pipefail
+          workspace="$(mktemp -d /tmp/axiom-ar02-restore-XXXXXX)"
+          python -m recovery.ar02.restore_drill --workspace "$workspace" | tee /tmp/ar02-restore-evidence.json
+          test "$(python -c 'import json; print(json.load(open("/tmp/ar02-restore-evidence.json"))["status"])')" = PASS_SYNTHETIC_NON_DESTRUCTIVE_RESTORE
+          test "$(python -c 'import json; print(str(json.load(open("/tmp/ar02-restore-evidence.json"))["production_authority"]).lower())')" = false
+
+      - name: Prove binding contract remains unbound and non-deploying
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          c=json.load(open('recovery/ar02/cloud_binding_contract.json'))
+          assert c['state']=='UNBOUND_PROVIDER_INVENTORY_REQUIRED'
+          assert c['claim_boundary']['cloud_isolation']=='NOT_PROVEN'
+          assert c['claim_boundary']['runtime_rebound_off_production_d1'] is False
+          assert all(v is False for v in c['promotion_preconditions'].values())
+          for row in c['required_non_production_bindings'].values():
+              assert row['provider_readback_status']=='NOT_PROVEN'
+              for key in ('database_id','artifact_bucket_id','queue_id','workflow_id'):
+                  assert row[key] is None
+          PY
+          ! rg -n 'wrangler deploy|api.cloudflare.com|d1 execute .*--remote' recovery/ar02/restore_drill.py
+
+  independent-repository-verifier:
+    needs: builder-contract-and-restore
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout independently without persisted credentials
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Run independent repository verifier
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -z "${CLOUDFLARE_API_TOKEN:-}"
+          test -z "${CLOUDFLARE_API_KEY:-}"
+          test -z "${CLOUDFLARE_EMAIL:-}"
+          python .github/scripts/axiom_recovery_ar02_binding_verify.py
