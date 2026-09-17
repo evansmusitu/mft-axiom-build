@@ -1,0 +1,122 @@
+{
+  "schema": "musitu.axiom.recovery.ar02-current-authority.v1",
+  "program": "AXIOM_RECOVERY_BLUEPRINT_V1",
+  "recorded_on": "2026-09-17",
+  "authority_order": [
+    "NEWEST_EXPLICIT_USER_INSTRUCTION",
+    "FRESHLY_VERIFIED_LIVE_GITHUB_DRIVE_PRODUCTION_STATE",
+    "CURRENT_PROJECT_GOVERNANCE_AND_AUTHORITATIVE_HANDOFF",
+    "CURRENT_PHASE_SPECS_GATES_AND_EVIDENCE",
+    "OLDER_VERIFIED_HANDOFFS",
+    "CHAT_MEMORY_NON_AUTHORITATIVE"
+  ],
+  "superseding_human_authorization": {
+    "exact_confirmation": "APPROVE AXIOM RECOVERY BLUEPRINT V1 — START AR-00 , AR-01, AR-02",
+    "authorized_phases": ["AR-00", "AR-01", "AR-02"],
+    "supersedes_earlier_scope_for_future_actions": true,
+    "historical_authority_records_remain_immutable": true
+  },
+  "historical_records_preserved": [
+    "docs/axiom_recovery/AR00_AUTHORITY_FREEZE.json",
+    "docs/axiom_recovery/AR00_AR01_ACCEPTANCE_MATRIX.json",
+    "docs/axiom_recovery/AR02_ACCEPTANCE_MATRIX.json"
+  ],
+  "live_source_reconciliation_before_this_record": {
+    "repository": "evansmusitu/mft-axiom-build",
+    "sealed_main_commit": "d6a846f6bbe0bccac1758713eb4de167caf07113",
+    "pr_1_state": "OPEN_DRAFT_UNMERGED",
+    "frontier_v5_pr_head": "d9196774a9fff3150922e2cb681d16e2423651da",
+    "runtime_connection_source_branch": "frontier/axiom-runtime-connection-20260916",
+    "runtime_connection_source_commit": "216ee7d15f01a3fb558452cc4b906a055001ccdd",
+    "ar00_ar01_branch": "frontier/axiom-recovery-ar00-ar01-20260917",
+    "ar00_ar01_commit": "87c105608ae658bd5b1f50bc718523ace54a5f5c",
+    "ar02_branch": "frontier/axiom-recovery-ar02-20260917",
+    "ar02_parent_commit_before_this_record": "1d2c40d096d16a041a28dbec6a233e09896ea3cb",
+    "main_modified": false,
+    "pr_1_modified": false,
+    "production_modified": false
+  },
+  "current_authorized_scope": {
+    "ar00": [
+      "truth_and_authority_reconciliation",
+      "capability_and_connection_inventory",
+      "claim_correction_and_drift_reporting"
+    ],
+    "ar01": [
+      "version_convergence_contracts",
+      "canonical_architecture_and_data_contracts",
+      "frontier_and_phase_preservation",
+      "migration_and_rollback_design"
+    ],
+    "ar02": [
+      "non_production_environment_and_data_isolation",
+      "canonical_non_production_schema_and_isolation_tests",
+      "security_and_credential_boundary_design",
+      "read_only_account_and_resource_inventory_when_authorized_connector_access_exists",
+      "dedicated_staging_and_canary_resource creation only after every precreation gate passes",
+      "rebind_non_production_execution away from production data only after exact resource identities are proven",
+      "non_production_restore_and isolation drills"
+    ]
+  },
+  "authorization_limits": {
+    "main_mutation_authorized": false,
+    "pr_1_merge_or_close_authorized": false,
+    "production_deployment_authorized": false,
+    "production_database_mutation_authorized": false,
+    "production_traffic_mutation_authorized": false,
+    "production_secret_mutation_authorized": false,
+    "billing_or_plan_upgrade_authorized": false,
+    "repository_visibility_change_authorized": false,
+    "force_push_authorized": false,
+    "destructive_cleanup_outside_exact_ar02_created_resources_authorized": false,
+    "superiority_claim_authorized": false
+  },
+  "verified_recovery_state": {
+    "ar00_ar01_design": "LOCALLY_VERIFIED_AND_COMMITTED_ON_ISOLATED_BRANCH",
+    "ar02_local_isolation_foundation": "VERIFIED_BY_GITHUB_ACTIONS",
+    "ar02_cloud_isolation": "NOT_PROVEN",
+    "full_product_connection": "NOT_PROVEN",
+    "frontier_v5_live_integration": "NOT_PROVEN",
+    "durable_end_to_end_execution": "NOT_PROVEN",
+    "cross_device_project_continuity": "NOT_PROVEN",
+    "wolfram_parity": "NOT_CERTIFIED",
+    "superiority": "NOT_CERTIFIED",
+    "world_best": "NOT_CERTIFIED"
+  },
+  "governance_gaps_observed": [
+    {
+      "id": "REPOSITORY_PUBLIC",
+      "state": "OPEN_DECISION",
+      "detail": "The live repository is public. AR-02 requires an explicit repository privacy decision; no visibility mutation is authorized by this record."
+    },
+    {
+      "id": "MAIN_UNPROTECTED",
+      "state": "OPEN_CONTROL_GAP",
+      "detail": "The live main branch is not protected. This must be closed through repository governance before production promotion."
+    },
+    {
+      "id": "AR02_CLOUD_ACCOUNT_HEADROOM",
+      "state": "NOT_PROVEN",
+      "detail": "Account plan, account-wide free-tier headroom, and exact dedicated staging/canary cloud resource identities have not been verified."
+    },
+    {
+      "id": "RISK_CLASS_CONTRACT_REVIEW",
+      "state": "REVIEW_REQUIRED",
+      "detail": "The current AR-02 approval schema encodes S0 through S4 while project governance defines S0 through S5. The mismatch must be resolved explicitly rather than silently upgraded."
+    }
+  ],
+  "current_session_blocker": {
+    "id": "CLOUDFLARE_ACCOUNT_RESOURCE_INVENTORY_NOT_EXPOSED_IN_CURRENT_SESSION",
+    "classification": "NOT_PROVEN_NOT_FAILED",
+    "impact": "Cannot yet prove account free-tier headroom or read back exact dedicated staging/canary resource identities from the provider account.",
+    "production_impact": "NONE"
+  },
+  "next_safe_actions": [
+    "keep historical recovery records immutable and append superseding authority only",
+    "re-run AR-02 fail-closed verification on this exact branch head",
+    "perform read-only provider account plan/resource/usage inventory when supported connected access is available",
+    "close the S0-S5 contract mismatch explicitly",
+    "create or bind only dedicated non-production resources after every precreation gate passes",
+    "prove staging credentials are technically incapable of mutating production before AR-02 can complete"
+  ]
+}
