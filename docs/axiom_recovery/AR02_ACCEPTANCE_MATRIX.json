@@ -1,15 +1,15 @@
 {
-  "schema": "musitu.axiom.recovery.ar02-acceptance.v3",
+  "schema": "musitu.axiom.recovery.ar02-acceptance.v2",
   "phase": "AR-02",
   "recorded_on": "2026-09-17",
   "newest_user_authority": "APPROVE AXIOM RECOVERY BLUEPRINT V1 — START AR-00 , AR-01, AR-02",
   "historical_authority_confirmation_preserved": "APPROVE AR-00/AR-01 COMMIT AND PUSH — START AR-02 WITH ZERO-COST NON-PRODUCTION ISOLATION",
   "runtime_source_commit": "216ee7d15f01a3fb558452cc4b906a055001ccdd",
   "sealed_main_commit": "d6a846f6bbe0bccac1758713eb4de167caf07113",
-  "reconciled_from_recovery_head": "769991a0c9e7194ff14e0f10f10bcf92cd99f0ff",
+  "reconciled_from_recovery_head": "9cd5cd413622425e05695777f4fa47ce27da1e22",
   "latest_qualified_provider_preflight_head": "ef0670dd86835e2005bf5213b31822c9b662614d",
   "latest_qualified_repository_governance_head": "0befcc9e546a4c7b24b863f77e78b6946d2c2e13",
-  "candidate_state": "LOCAL_RECOVERY_AND_PROVIDER_PREFLIGHT_QUALIFIED_RELEASE_SURFACE_AND_PROVIDER_GATES_OPEN",
+  "candidate_state": "LOCAL_RECOVERY_CONTROLS_QUALIFIED_RELEASE_SURFACE_AND_PROVIDER_GATES_OPEN",
   "scope": "AR02_SECURITY_AND_ENVIRONMENT_ISOLATION",
   "earned_verification": {
     "local_environment_isolation": "PASS",
@@ -23,6 +23,7 @@
     "provider_preflight_fresh_hashed_provenance_receipt": "PASS",
     "two_identity_provider_harness": "PASS",
     "repository_provider_governance_gate": "PASS",
+    "latest_repository_provider_governance_head": "0befcc9e546a4c7b24b863f77e78b6946d2c2e13",
     "provider_preflight_final_workflow_run_id": 35265374277,
     "provider_preflight_final_builder_check_run_id": 105351100729,
     "provider_preflight_final_independent_check_run_id": 105351161187,
@@ -45,6 +46,14 @@
       "independent_verifier": "FAIL",
       "provider_operation_executed": false,
       "gate_weakened": false
+    },
+    {
+      "workflow_run_id": 35269078818,
+      "candidate_commit": "b51f4e2aeebf9a2ed47b47a33c54363be4ffa305",
+      "classification": "FROZEN_ACCEPTANCE_FIELD_DRIFT",
+      "provider_operation_executed": false,
+      "gate_weakened": false,
+      "repair": "Restore exact frozen acceptance anchors and admin-access blocker strings while retaining newly earned provider-preflight evidence only as additive fields."
     }
   ],
   "zero_cost_resource_plan": {
@@ -103,8 +112,8 @@
     "main_branch_protected": false,
     "repository_rulesets_observed": [],
     "main_protection_or_equivalent_ruleset_required_before_release_path": true,
-    "current_github_integration_branch_protection_admin_endpoint": "RESOURCE_NOT_ACCESSIBLE_BY_INTEGRATION_OR_NOT_EXPOSED_FOR_WRITE",
-    "github_environments_api_in_current_integration": "NOT_ACCESSIBLE_FOR_REQUIRED_ADMIN_REMEDIATION",
+    "current_github_integration_branch_protection_admin_endpoint": "RESOURCE_NOT_ACCESSIBLE_BY_INTEGRATION",
+    "github_environments_api_in_current_integration": "NOT_ACCESSIBLE",
     "provider_workflow_execution": "BLOCKED_FAIL_CLOSED",
     "repository_visibility_changed_by_recovery": false,
     "main_protection_changed_by_recovery": false
@@ -228,5 +237,5 @@
     "wolfram_parity": "NOT_CERTIFIED",
     "superiority": "NOT_CERTIFIED"
   },
-  "next_safe_action": "HARDEN_DEFAULT_BRANCH_RELEASE_SURFACE_WITH_REPOSITORY_ADMIN_CONTROLS_AND_IMMUTABLE_PINS_THEN_OBTAIN_PROVIDER_READBACK_BEFORE ANY RESOURCE CREATION_OR_RUNTIME_REBIND"
+  "next_safe_action": "HARDEN_DEFAULT_BRANCH_RELEASE_SURFACE_WITH_REPOSITORY_ADMIN_CONTROLS_AND_IMMUTABLE_PINS_THEN_OBTAIN_PROVIDER_READBACK_BEFORE ANY_RESOURCE_CREATION_OR_RUNTIME_REBIND"
 }
