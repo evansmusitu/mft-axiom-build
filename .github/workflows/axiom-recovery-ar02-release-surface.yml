@@ -11,6 +11,7 @@ on:
       - '.github/workflows/build-axiom-accelerators.yml'
       - '.github/workflows/axiom-recovery-ar02-release-surface.yml'
       - 'docs/axiom_recovery/AR02_ACCEPTANCE_MATRIX.json'
+      - 'docs/axiom_recovery/AR02_MUTATION_WORKFLOW_CLASSIFICATION.json'
   workflow_dispatch:
 
 permissions:
@@ -59,7 +60,10 @@ jobs:
               '.github/workflows/build-axiom-accelerators.yml',
               '.github/workflows/axiom-recovery-ar02-release-surface.yml',
           }
-          allowed=required | {'docs/axiom_recovery/AR02_ACCEPTANCE_MATRIX.json'}
+          allowed=required | {
+              'docs/axiom_recovery/AR02_ACCEPTANCE_MATRIX.json',
+              'docs/axiom_recovery/AR02_MUTATION_WORKFLOW_CLASSIFICATION.json',
+          }
           changed=set(subprocess.check_output(['git','diff','--name-only',f'{base}..HEAD'],text=True).splitlines())
           missing=sorted(required-changed)
           escaped=sorted(changed-allowed)
@@ -166,6 +170,41 @@ jobs:
           print('acceptance_claim_boundary=PASS')
           PY
 
+      - name: Builder verify 16-workflow mutation classification
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          path=Path('docs/axiom_recovery/AR02_MUTATION_WORKFLOW_CLASSIFICATION.json')
+          if not path.is_file():
+              print('classification_artifact=NOT_YET_PRESENT')
+              raise SystemExit(0)
+          data=json.loads(path.read_text(encoding='utf-8'))
+          assert data['schema']=='musitu.axiom.recovery.ar02-mutation-workflow-classification.v1'
+          assert data['sealed_main_commit']=='d6a846f6bbe0bccac1758713eb4de167caf07113'
+          rows=data['workflows']
+          assert len(rows)==16
+          assert len({r['path'] for r in rows})==16
+          assert len({r['source_blob_sha'] for r in rows})==16
+          allowed={'ALREADY_QUARANTINED','QUARANTINE_PENDING_REPLACEMENT','REPLACE_WITH_GOVERNED_CONTRACT','REPLACE_OR_RETIRE_AFTER_RUNTIME_ROLE_PROOF'}
+          for row in rows:
+              assert row['path'].startswith('.github/workflows/')
+              assert len(row['source_blob_sha'])==40
+              assert row['global_cloudflare_key'] is True
+              assert row['wrangler_deploy'] is True
+              assert row['disposition'] in allowed
+              assert row['production_mutation_authorized'] is False
+          boundary=data['claim_boundary']
+          assert boundary['classification_complete'] is True
+          assert boundary['repository_wide_hardening_complete'] is False
+          assert boundary['production_mutated'] is False
+          assert boundary['provider_execution_performed'] is False
+          assert boundary['ar02_complete'] is False
+          print('mutation_workflow_classification=PASS')
+          PY
+
       - name: Preserve candidate-only claim boundary
         shell: bash
         run: |
@@ -206,7 +245,10 @@ jobs:
               '.github/workflows/build-axiom-accelerators.yml',
               '.github/workflows/axiom-recovery-ar02-release-surface.yml',
           }
-          allowed=required | {'docs/axiom_recovery/AR02_ACCEPTANCE_MATRIX.json'}
+          allowed=required | {
+              'docs/axiom_recovery/AR02_ACCEPTANCE_MATRIX.json',
+              'docs/axiom_recovery/AR02_MUTATION_WORKFLOW_CLASSIFICATION.json',
+          }
           changed=set(subprocess.check_output(['git','diff','--name-only',f'{base}..HEAD'],text=True).splitlines())
           missing=sorted(required-changed)
           extra=sorted(changed-allowed)
@@ -249,6 +291,17 @@ jobs:
               raise SystemExit('production mutation overstated')
           if matrix['claim_boundary']['cloud_isolation']!='NOT_PROVEN':
               raise SystemExit('cloud isolation overstated')
+
+          classification=Path('docs/axiom_recovery/AR02_MUTATION_WORKFLOW_CLASSIFICATION.json')
+          if classification.is_file():
+              data=json.loads(classification.read_text(encoding='utf-8'))
+              rows=data.get('workflows',[])
+              if len(rows)!=16 or len({r.get('path') for r in rows})!=16:
+                  raise SystemExit('independent classification cardinality mismatch')
+              if data.get('claim_boundary',{}).get('repository_wide_hardening_complete') is not False:
+                  raise SystemExit('classification overstated repository hardening')
+              if data.get('claim_boundary',{}).get('production_mutated') is not False:
+                  raise SystemExit('classification overstated production mutation')
           print('AR-02 RELEASE-SURFACE INDEPENDENT VERIFIER: PASS')
           PY
 
