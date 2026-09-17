@@ -42,13 +42,23 @@ export function createFixedResearch(fetchImpl=globalThis.fetch){
     if (!query) return [];
     const wikipedia=new URL('https://en.wikipedia.org/w/api.php');
     wikipedia.search=new URLSearchParams({action:'query',generator:'search',gsrsearch:query,gsrlimit:'5',prop:'extracts|info',exintro:'1',explaintext:'1',inprop:'url',format:'json',origin:'*'});
+    const wikipediaRest=new URL('https://en.wikipedia.org/w/rest.php/v1/search/page');
+    wikipediaRest.search=new URLSearchParams({q:query,limit:'5'});
     const gdelt=new URL('https://api.gdeltproject.org/api/v2/doc/doc');
     gdelt.search=new URLSearchParams({query,mode:'ArtList',maxrecords:'5',format:'json',sort:'HybridRel'});
-    const [wiki,news]=await Promise.allSettled([boundedJson(fetchImpl,wikipedia),boundedJson(fetchImpl,gdelt)]);
+    const [wiki,wikiRest,news]=await Promise.allSettled([boundedJson(fetchImpl,wikipedia),boundedJson(fetchImpl,wikipediaRest),boundedJson(fetchImpl,gdelt)]);
     const sources=[];
     if (wiki.status==='fulfilled') {
       const pages=Object.values(wiki.value?.query?.pages||{}).sort((left,right)=>Number(left.index||0)-Number(right.index||0));
       for (const page of pages.slice(0,5)) if (page?.fullurl) sources.push({source_id:`WIKI-${sources.length+1}`,title:page.title,url:page.fullurl,publisher:'Wikipedia',published_at:null,excerpt:clean(page.extract,1800)});
+    }
+    if (!sources.length&&wikiRest.status==='fulfilled') {
+      for (const page of (wikiRest.value?.pages||[]).slice(0,5)) {
+        const key=clean(page?.key||page?.title,240).replace(/\s+/g,'_');
+        if (!key) continue;
+        const excerpt=String(page?.excerpt||page?.description||'').replace(/<[^>]*>/g,' ').replace(/&quot;/g,'"').replace(/&#39;|&apos;/g,"'").replace(/&amp;/g,'&');
+        sources.push({source_id:`WIKI-${sources.length+1}`,title:page.title||key.replaceAll('_',' '),url:`https://en.wikipedia.org/wiki/${encodeURIComponent(key).replaceAll('%2F','/')}`,publisher:'Wikipedia',published_at:null,excerpt:clean(excerpt,1800)});
+      }
     }
     if (news.status==='fulfilled') {
       for (const article of (news.value?.articles||[]).slice(0,5)) {
@@ -58,7 +68,10 @@ export function createFixedResearch(fetchImpl=globalThis.fetch){
         sources.push({source_id:`NEWS-${sources.length+1}`,title:article.title||url.hostname,url:url.href,publisher:article.domain||url.hostname,published_at:article.seendate||null,excerpt:clean(article.title,600)});
       }
     }
-    if (!sources.length) throw new DOMException('all fixed research providers were unavailable','NetworkError');
+    if (!sources.length) {
+      const diagnostic=[['wikipedia-action',wiki],['wikipedia-rest',wikiRest],['gdelt',news]].map(([label,result])=>`${label}:${result.status==='rejected'?clean(result.reason?.message||result.reason?.name||'failed',100):'empty'}`).join(', ');
+      throw new DOMException(`all fixed research providers were unavailable (${diagnostic})`,'NetworkError');
+    }
     return sources.slice(0,10);
   };
 }

@@ -22,6 +22,21 @@ test('research transport can contact only fixed HTTPS providers',async()=>{
   assert.equal(sources[0].url,'https://en.wikipedia.org/wiki/Result');
 });
 
+test('research uses the bounded same-host Wikimedia REST fallback without a paid key',async()=>{
+  const seen=[];
+  const research=createFixedResearch(async url=>{
+    const target=new URL(url);seen.push(target);
+    if(target.pathname==='/w/rest.php/v1/search/page')return Response.json({pages:[{key:'42_(number)',title:'42 (number)',description:'Natural number',excerpt:'42 is the natural number after 41.'}]});
+    return new Response('unavailable',{status:503});
+  });
+  const sources=await research('meaning of 42');
+  assert.equal(sources.length,1);
+  assert.equal(sources[0].url,'https://en.wikipedia.org/wiki/42_(number)');
+  assert.match(sources[0].excerpt,/natural number after 41/i);
+  assert.deepEqual([...new Set(seen.map(url=>url.hostname))].sort(),['api.gdeltproject.org','en.wikipedia.org']);
+  assert.ok(seen.every(url=>url.protocol==='https:'));
+});
+
 test('same-origin API requires session rate limit and complete runtime while browser has no credential path',()=>{
   const api=read('ops/axiom_runtime_task_api.mjs'),bridge=read('ops/axiom_runtime_bridge.mjs'),client=read('axiom_interface/vnext/runtime_execution_client.mjs'),ui=read('axiom_interface/vnext/runtime_execution_ui.js');
   for(const marker of ['authenticated_session_required','origin_rejected','TASK_RATE_LIMITER','operation_count===74','fixed_research_origins'])assert.ok(api.includes(marker),`API missing ${marker}`);
