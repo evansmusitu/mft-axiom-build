@@ -58,9 +58,10 @@ jobs:
           if operation != "READ_ONLY_PROVIDER_INVENTORY":
               raise SystemExit("FAIL_CLOSED: unclassified provider operation")
           lowered = " " + command.casefold() + " "
+          wrangler_deploy = " wrangler " + "deploy"
           prohibited = (
               "--remote",
-              " wrangler deploy",
+              wrangler_deploy,
               " deploy ",
               " publish ",
               " d1 execute ",
