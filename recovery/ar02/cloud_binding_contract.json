@@ -1,0 +1,74 @@
+{
+  "schema": "musitu.axiom.recovery.ar02-cloud-binding-contract.v1",
+  "phase": "AR-02",
+  "state": "UNBOUND_PROVIDER_INVENTORY_REQUIRED",
+  "source_runtime_branch": "frontier/axiom-runtime-connection-20260916",
+  "source_runtime_commit": "216ee7d15f01a3fb558452cc4b906a055001ccdd",
+  "legacy_unsafe_workflow": ".github/workflows/axiom-runtime-connection-staging-canary.yml",
+  "legacy_binding_truth": {
+    "staging_and_canary_share_production_d1": true,
+    "legacy_workflow_executes_schema_against_production_d1": true,
+    "legacy_workflow_creates_disposable_customer_and_api_key_fixtures_in_production_d1": true,
+    "legacy_workflow_reuse_allowed_for_ar02": false
+  },
+  "production_denylist": {
+    "database_names": ["musitu-axiom-prod", "mft-axiom-prod"],
+    "database_ids": ["504029cc-f9a5-495e-818f-63c6144b4ea4", "4a62b374-7232-4103-b201-34443c467382"],
+    "hostnames": ["axiom.mftintelligence.com", "app.mftintelligence.com"]
+  },
+  "required_non_production_bindings": {
+    "staging": {
+      "database_name": "musitu-axiom-ar02-staging",
+      "database_id": null,
+      "artifact_bucket_name": "musitu-axiom-ar02-staging-artifacts",
+      "artifact_bucket_id": null,
+      "queue_name": "musitu-axiom-ar02-staging-tasks",
+      "queue_id": null,
+      "workflow_name": "musitu-axiom-ar02-staging-orchestrator",
+      "workflow_id": null,
+      "identity_audience": "urn:musitu:axiom:ar02:staging",
+      "provider_readback_status": "NOT_PROVEN"
+    },
+    "canary": {
+      "database_name": "musitu-axiom-ar02-canary",
+      "database_id": null,
+      "artifact_bucket_name": "musitu-axiom-ar02-canary-artifacts",
+      "artifact_bucket_id": null,
+      "queue_name": "musitu-axiom-ar02-canary-tasks",
+      "queue_id": null,
+      "workflow_name": "musitu-axiom-ar02-canary-orchestrator",
+      "workflow_id": null,
+      "identity_audience": "urn:musitu:axiom:ar02:canary",
+      "provider_readback_status": "NOT_PROVEN"
+    }
+  },
+  "binding_invariants": [
+    "STAGING_AND_CANARY_RESOURCE_IDS_MUST_BE_NON_NULL_BEFORE_REMOTE_EXECUTION",
+    "EVERY_RESOURCE_ID_MUST_BE_PROVIDER_READ_BACK_BY_EXACT_ID",
+    "STAGING_AND_CANARY_RESOURCE_IDS_MUST_BE_PAIRWISE_DISTINCT",
+    "NO_RESOURCE_NAME_ID_HOST_OR_IDENTITY_AUDIENCE_MAY_MATCH_PRODUCTION_DENYLIST",
+    "NO_PRODUCTION_DATABASE_MAY_BE_BOUND_READ_WRITE_OR_USED_AS_A_FIXTURE_SOURCE",
+    "STAGING_AND_CANARY_USE_SYNTHETIC_OR_EXPLICITLY_SCRUBBED_DATA_ONLY",
+    "NO_BILLING_OR_PLAN_UPGRADE_IS_AUTHORIZED",
+    "NO_DEPLOYMENT_MAY_OCCUR WHILE_STATE_IS_UNBOUND_PROVIDER_INVENTORY_REQUIRED",
+    "LEGACY_UNSAFE_WORKFLOW_MAY_BE_USED_ONLY_AS_HISTORICAL_EVIDENCE_NOT_AS_AR02_EXECUTION_PATH"
+  ],
+  "promotion_preconditions": {
+    "account_plan_no_charge_verified": false,
+    "account_wide_free_tier_headroom_verified": false,
+    "staging_exact_resource_ids_read_back": false,
+    "canary_exact_resource_ids_read_back": false,
+    "production_reachability_denied_by_credential_scope": false,
+    "restore_drill_passed": false,
+    "independent_repository_verifier_passed": false,
+    "external_independent_verifier_passed": false
+  },
+  "claim_boundary": {
+    "cloud_isolation": "NOT_PROVEN",
+    "runtime_rebound_off_production_d1": false,
+    "staging_deployed": false,
+    "canary_deployed": false,
+    "production_mutated": false,
+    "ar02_complete": false
+  }
+}
