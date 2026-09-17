@@ -2,13 +2,20 @@
 """Read-only Cloudflare evidence collector for MUSITU Axiom AR-02.
 
 This utility is intentionally incapable of provider mutation. It issues only
-HTTP GET requests, keeps raw provider identifiers in memory, and emits a
-redacted evidence summary containing only booleans, names already frozen in
-AR-02 contracts, counts, and SHA-256 fingerprints of provider identifiers.
+HTTP GET requests, keeps raw provider identifiers and credential material in
+memory, and emits a redacted evidence summary containing only booleans, names
+already frozen in AR-02 contracts, counts, and SHA-256 fingerprints of provider
+identifiers.
 
-It does not deploy, create, update, delete, query D1 data, change billing, or
-claim AR-02 completion. Cloud isolation and free-tier headroom remain NOT_PROVEN
-until their dedicated gates are independently satisfied.
+Provider/resource inventory and inventory-token policy verification use two
+separate identities. The inventory identity can read only the frozen product,
+subscription, and self-verification endpoints. The auditor identity can read
+only the exact inventory-token policy endpoint. The identities must be
+distinct and neither path can mutate Cloudflare.
+
+The utility does not deploy, create, update, delete, query D1 data, change
+billing, or claim AR-02 completion. Cloud isolation and free-tier headroom
+remain NOT_PROVEN until their dedicated gates are independently satisfied.
 """
 
 from __future__ import annotations
@@ -25,7 +32,8 @@ from pathlib import Path
 from typing import Any
 
 API_ROOT = "https://api.cloudflare.com/client/v4"
-USER_AGENT = "musitu-axiom-ar02-readonly-evidence/1.0"
+INVENTORY_USER_AGENT = "musitu-axiom-ar02-readonly-inventory/2.0"
+AUDITOR_USER_AGENT = "musitu-axiom-ar02-token-policy-auditor/1.0"
 
 EXPECTED = {
     "staging": {
@@ -108,21 +116,25 @@ def _provider_id(row: dict[str, Any], fields: tuple[str, ...], context: str) -> 
     raise EvidenceError(f"{context} did not expose a provider identifier")
 
 
-class CloudflareReadClient:
-    def __init__(self, account_id: str, token: str, timeout_seconds: int = 20):
+class _CloudflareGetClient:
+    """Base GET-only client. Subclasses narrow the authorized path set."""
+
+    def __init__(self, account_id: str, token: str, *, user_agent: str, timeout_seconds: int = 20):
         if not account_id or len(account_id) != 32:
             raise EvidenceError("Cloudflare account ID must be a 32-character identifier")
         if not token:
-            raise EvidenceError("CLOUDFLARE_AR02_READ_TOKEN is required")
+            raise EvidenceError("a bounded Cloudflare API token is required")
         self.account_id = account_id
         self._token = token
+        self._user_agent = user_agent
         self.timeout_seconds = timeout_seconds
         self.requests_made: list[str] = []
 
+    def _authorize_path(self, path: str) -> None:
+        raise NotImplementedError
+
     def get(self, path: str, query: dict[str, Any] | None = None) -> dict[str, Any]:
-        expected_prefix = f"/accounts/{self.account_id}/"
-        if not path.startswith(expected_prefix):
-            raise EvidenceError("provider path escaped the authorized account scope")
+        self._authorize_path(path)
         query_string = urllib.parse.urlencode(query or {}, doseq=True)
         url = API_ROOT + path + ("?" + query_string if query_string else "")
         request = urllib.request.Request(
@@ -130,7 +142,7 @@ class CloudflareReadClient:
             headers={
                 "Authorization": f"Bearer {self._token}",
                 "Accept": "application/json",
-                "User-Agent": USER_AGENT,
+                "User-Agent": self._user_agent,
             },
             method="GET",
         )
@@ -147,6 +159,54 @@ class CloudflareReadClient:
         if payload.get("success") is not True:
             raise EvidenceError(f"Cloudflare GET {path} returned success!=true")
         return payload
+
+
+class CloudflareInventoryReadClient(_CloudflareGetClient):
+    """Resource/plan identity; cannot inspect another token's policy."""
+
+    def __init__(self, account_id: str, token: str, timeout_seconds: int = 20):
+        super().__init__(
+            account_id,
+            token,
+            user_agent=INVENTORY_USER_AGENT,
+            timeout_seconds=timeout_seconds,
+        )
+
+    def _authorize_path(self, path: str) -> None:
+        prefix = f"/accounts/{self.account_id}"
+        allowed_exact = {
+            f"{prefix}/d1/database",
+            f"{prefix}/r2/buckets",
+            f"{prefix}/queues",
+            f"{prefix}/workflows",
+            f"{prefix}/subscriptions",
+            f"{prefix}/tokens/verify",
+        }
+        if path not in allowed_exact:
+            raise EvidenceError("inventory identity attempted an endpoint outside its frozen GET allowlist")
+
+
+class CloudflareTokenPolicyAuditor(_CloudflareGetClient):
+    """Independent auditor; may inspect only the exact inventory-token policy."""
+
+    def __init__(self, account_id: str, token: str, inventory_token_id: str, timeout_seconds: int = 20):
+        if not inventory_token_id:
+            raise EvidenceError("CLOUDFLARE_AR02_INVENTORY_TOKEN_ID is required for token-policy audit")
+        self.inventory_token_id = inventory_token_id
+        super().__init__(
+            account_id,
+            token,
+            user_agent=AUDITOR_USER_AGENT,
+            timeout_seconds=timeout_seconds,
+        )
+
+    @property
+    def policy_path(self) -> str:
+        return f"/accounts/{self.account_id}/tokens/{self.inventory_token_id}"
+
+    def _authorize_path(self, path: str) -> None:
+        if path != self.policy_path:
+            raise EvidenceError("token-policy auditor attempted an endpoint outside its single frozen GET allowlist")
 
 
 def _subscription_status(rows: list[dict[str, Any]]) -> dict[str, Any]:
@@ -181,14 +241,22 @@ def _subscription_status(rows: list[dict[str, Any]]) -> dict[str, Any]:
     }
 
 
-def _token_scope_status(client: CloudflareReadClient, token_id: str | None) -> dict[str, Any]:
-    if not token_id:
-        return {"status": "NOT_PROVEN", "reason": "CLOUDFLARE_AR02_TOKEN_ID_NOT_SUPPLIED"}
-    payload = client.get(f"/accounts/{client.account_id}/tokens/{token_id}")
+def _token_scope_status(auditor: CloudflareTokenPolicyAuditor | None) -> dict[str, Any]:
+    if auditor is None:
+        return {
+            "status": "NOT_PROVEN",
+            "reason": "SEPARATE_TOKEN_POLICY_AUDITOR_NOT_SUPPLIED",
+            "verifier_identity": "SEPARATE_AUDITOR_REQUIRED",
+        }
+    payload = auditor.get(auditor.policy_path)
     token = _json_object(payload.get("result"), "token details result")
     policies = token.get("policies")
     if not isinstance(policies, list) or not policies:
-        return {"status": "NOT_PROVEN", "reason": "TOKEN_POLICIES_NOT_RETURNED"}
+        return {
+            "status": "NOT_PROVEN",
+            "reason": "TOKEN_POLICIES_NOT_RETURNED",
+            "verifier_identity": "SEPARATE_AUDITOR",
+        }
     allow_names: list[str] = []
     for policy in policies:
         if not isinstance(policy, dict) or policy.get("effect") != "allow":
@@ -209,34 +277,38 @@ def _token_scope_status(client: CloudflareReadClient, token_id: str | None) -> d
         "allow_permission_names": sorted(set(allow_names)),
         "mutation_permission_observed": mutation_capable,
         "token_status": token.get("status"),
+        "verifier_identity": "SEPARATE_AUDITOR",
     }
 
 
-def collect(client: CloudflareReadClient, token_id: str | None = None) -> dict[str, Any]:
+def collect(
+    inventory_client: CloudflareInventoryReadClient,
+    auditor: CloudflareTokenPolicyAuditor | None = None,
+) -> dict[str, Any]:
     raw: dict[str, dict[str, str]] = {}
     environments: dict[str, Any] = {}
 
     for environment, expected in EXPECTED.items():
-        d1_payload = client.get(
-            f"/accounts/{client.account_id}/d1/database",
+        d1_payload = inventory_client.get(
+            f"/accounts/{inventory_client.account_id}/d1/database",
             {"name": expected["d1"], "per_page": 100},
         )
         d1 = _exact_one(_result_list(d1_payload, "D1"), "name", expected["d1"], "D1")
         d1_id = _provider_id(d1, ("uuid", "id"), "D1")
 
-        r2_payload = client.get(
-            f"/accounts/{client.account_id}/r2/buckets",
+        r2_payload = inventory_client.get(
+            f"/accounts/{inventory_client.account_id}/r2/buckets",
             {"name_contains": expected["r2"], "per_page": 100},
         )
         r2 = _exact_one(_r2_buckets(r2_payload), "name", expected["r2"], "R2")
         r2_identity = str(r2["name"])
 
-        queue_payload = client.get(f"/accounts/{client.account_id}/queues")
+        queue_payload = inventory_client.get(f"/accounts/{inventory_client.account_id}/queues")
         queue = _exact_one(_result_list(queue_payload, "Queues"), "queue_name", expected["queue"], "Queues")
         queue_id = _provider_id(queue, ("queue_id", "id"), "Queue")
 
-        workflow_payload = client.get(
-            f"/accounts/{client.account_id}/workflows",
+        workflow_payload = inventory_client.get(
+            f"/accounts/{inventory_client.account_id}/workflows",
             {"search": expected["workflow"], "per_page": 100},
         )
         workflow = _exact_one(
@@ -279,26 +351,29 @@ def collect(client: CloudflareReadClient, token_id: str | None = None) -> dict[s
     )
 
     subscriptions = _result_list(
-        client.get(f"/accounts/{client.account_id}/subscriptions"),
+        inventory_client.get(f"/accounts/{inventory_client.account_id}/subscriptions"),
         "Subscriptions",
     )
     plan = _subscription_status(subscriptions)
-    token_scope = _token_scope_status(client, token_id)
+    token_scope = _token_scope_status(auditor)
 
     resource_readback_passed = all(pairwise_distinct.values()) and production_denylist_clear
     return {
-        "schema": "musitu.axiom.recovery.ar02-provider-readonly-evidence.v1",
-        "mode": "READ_ONLY_PROVIDER_EVIDENCE",
+        "schema": "musitu.axiom.recovery.ar02-provider-readonly-evidence.v2",
+        "mode": "READ_ONLY_PROVIDER_EVIDENCE_TWO_IDENTITY",
         "status": "PASS_PROVIDER_RESOURCE_READBACK" if resource_readback_passed else "FAIL_PROVIDER_RESOURCE_READBACK",
-        "account_id_sha256": fingerprint(client.account_id),
+        "account_id_sha256": fingerprint(inventory_client.account_id),
         "http_methods_used": ["GET"],
-        "request_count": len(client.requests_made),
+        "inventory_request_count": len(inventory_client.requests_made),
+        "auditor_request_count": len(auditor.requests_made) if auditor else 0,
         "environments": environments,
         "pairwise_distinct_provider_identities": pairwise_distinct,
         "production_denylist_clear": production_denylist_clear,
         "account_plan": plan,
         "account_wide_free_tier_headroom": "NOT_PROVEN",
         "credential_scope": token_scope,
+        "credential_scope_certified": token_scope.get("status") == "READ_ONLY_PROVEN",
+        "credential_scope_verifier_identity": token_scope.get("verifier_identity"),
         "cloud_isolation": "NOT_PROVEN",
         "runtime_rebound_off_production_d1": False,
         "cloud_restore_drill": "NOT_PERFORMED",
@@ -308,6 +383,14 @@ def collect(client: CloudflareReadClient, token_id: str | None = None) -> dict[s
         "provider_mutation_enabled": False,
         "ar02_complete": False,
     }
+
+
+def _assert_rejected(callable_obj: Any, message: str) -> None:
+    try:
+        callable_obj()
+    except EvidenceError:
+        return
+    raise AssertionError(message)
 
 
 def self_test() -> dict[str, Any]:
@@ -321,6 +404,23 @@ def self_test() -> dict[str, Any]:
     assert _provider_id(_exact_one(_result_list(workflows, "Workflows"), "name", EXPECTED["staging"]["workflow"], "Workflows"), ("id",), "Workflow") == "w" * 36
     assert _subscription_status([{"price": 0, "rate_plan": {"id": "free"}}])["status"] == "PROVEN_ZERO_PRICE_SUBSCRIPTIONS"
     assert _subscription_status([{"price": 1, "rate_plan": {"id": "paid"}}])["status"] == "NONZERO_PRICE_OBSERVED"
+
+    account_id = "a" * 32
+    inventory = CloudflareInventoryReadClient(account_id, "inventory-test-token")
+    inventory._authorize_path(f"/accounts/{account_id}/d1/database")
+    inventory._authorize_path(f"/accounts/{account_id}/tokens/verify")
+    _assert_rejected(
+        lambda: inventory._authorize_path(f"/accounts/{account_id}/tokens/inventory-token-id"),
+        "inventory identity unexpectedly allowed token-policy endpoint",
+    )
+    auditor = CloudflareTokenPolicyAuditor(account_id, "auditor-test-token", "inventory-token-id")
+    auditor._authorize_path(auditor.policy_path)
+    _assert_rejected(
+        lambda: auditor._authorize_path(f"/accounts/{account_id}/d1/database"),
+        "auditor identity unexpectedly allowed product endpoint",
+    )
+    assert _token_scope_status(None)["status"] == "NOT_PROVEN"
+
     return {
         "status": "PASS_READ_ONLY_PROVIDER_HARNESS_SELF_TEST",
         "network_used": False,
@@ -328,7 +428,27 @@ def self_test() -> dict[str, Any]:
         "production_authority": False,
         "r2_provider_identity_kind": "NAME",
         "provider_mutation_enabled": False,
+        "inventory_identity_token_policy_access": "FORBIDDEN",
+        "auditor_identity_product_access": "FORBIDDEN",
+        "separate_auditor_required_for_scope_certification": True,
     }
+
+
+def _build_clients(
+    account_id: str,
+    inventory_token: str,
+    auditor_token: str | None,
+    inventory_token_id: str | None,
+) -> tuple[CloudflareInventoryReadClient, CloudflareTokenPolicyAuditor | None]:
+    inventory_client = CloudflareInventoryReadClient(account_id, inventory_token)
+    if not auditor_token and not inventory_token_id:
+        return inventory_client, None
+    if not auditor_token or not inventory_token_id:
+        raise EvidenceError("auditor token and inventory token ID must be supplied together")
+    if auditor_token == inventory_token:
+        raise EvidenceError("inventory and token-policy auditor identities must use distinct token secrets")
+    auditor = CloudflareTokenPolicyAuditor(account_id, auditor_token, inventory_token_id)
+    return inventory_client, auditor
 
 
 def main() -> int:
@@ -342,11 +462,18 @@ def main() -> int:
         print(json.dumps(self_test(), sort_keys=True))
         return 0
 
-    token = os.environ.get("CLOUDFLARE_AR02_READ_TOKEN", "")
-    token_id = os.environ.get("CLOUDFLARE_AR02_TOKEN_ID")
+    inventory_token = os.environ.get("CLOUDFLARE_AR02_READ_TOKEN", "")
+    auditor_token = os.environ.get("CLOUDFLARE_AR02_TOKEN_AUDITOR_TOKEN")
+    inventory_token_id = os.environ.get("CLOUDFLARE_AR02_INVENTORY_TOKEN_ID")
     if not args.account_id:
         raise EvidenceError("--account-id or CLOUDFLARE_ACCOUNT_ID is required")
-    evidence = collect(CloudflareReadClient(args.account_id, token), token_id=token_id)
+    inventory_client, auditor = _build_clients(
+        args.account_id,
+        inventory_token,
+        auditor_token,
+        inventory_token_id,
+    )
+    evidence = collect(inventory_client, auditor=auditor)
     rendered = json.dumps(evidence, indent=2, sort_keys=True)
     if args.output:
         args.output.write_text(rendered + "\n", encoding="utf-8")
