@@ -10,6 +10,7 @@ on:
       - '.github/workflows/axiom-runtime-connection-staging-canary.yml'
       - '.github/workflows/build-axiom-accelerators.yml'
       - '.github/workflows/axiom-recovery-ar02-release-surface.yml'
+      - 'docs/axiom_recovery/AR02_ACCEPTANCE_MATRIX.json'
   workflow_dispatch:
 
 permissions:
@@ -51,17 +52,19 @@ jobs:
           python - <<'PY'
           import subprocess
           base='ef0670dd86835e2005bf5213b31822c9b662614d'
-          allowed={
+          required={
               '.github/workflows/axiom-musitu-d1-live-cutover.yml',
               '.github/workflows/cloudflare-axiom-bootstrap-enable.yml',
               '.github/workflows/axiom-runtime-connection-staging-canary.yml',
               '.github/workflows/build-axiom-accelerators.yml',
               '.github/workflows/axiom-recovery-ar02-release-surface.yml',
           }
+          allowed=required | {'docs/axiom_recovery/AR02_ACCEPTANCE_MATRIX.json'}
           changed=set(subprocess.check_output(['git','diff','--name-only',f'{base}..HEAD'],text=True).splitlines())
-          if not changed:
-              raise SystemExit('AR-02 release-surface candidate has no delta')
+          missing=sorted(required-changed)
           escaped=sorted(changed-allowed)
+          if missing:
+              raise SystemExit('AR-02 release-surface required delta missing: '+repr(missing))
           if escaped:
               raise SystemExit('AR-02 release-surface scope escape: '+repr(escaped))
           protected=('mcp/','auth/','axiom_interface/','frontier_v5/','ops/')
@@ -131,6 +134,38 @@ jobs:
           print('accelerator_immutable_action_pins=PASS')
           PY
 
+      - name: Builder verify acceptance claim boundary remains fail closed
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          matrix=json.loads(Path('docs/axiom_recovery/AR02_ACCEPTANCE_MATRIX.json').read_text(encoding='utf-8'))
+          boundary=matrix['claim_boundary']
+          assert boundary['ar02_complete'] is False
+          assert boundary['production_mutated'] is False
+          assert boundary['production_authority'] is False
+          assert boundary['provider_inventory_executed'] is False
+          assert boundary['runtime_rebound_off_production_d1'] is False
+          assert boundary['cloud_isolation']=='NOT_PROVEN'
+          gates=matrix['external_exit_gates']
+          for key in (
+              'repository_private_or_equivalent_secret_execution_boundary',
+              'main_branch_protected_or_equivalent_ruleset',
+              'production_reviewer_gate_on_consequential_mutation_workflows',
+              'dedicated_cloudflare_inventory_identity_brokered',
+              'dedicated_cloudflare_token_auditor_identity_brokered',
+              'dedicated_staging_resources_created_and_exact_ids_read_back',
+              'dedicated_canary_resources_created_and_exact_ids_read_back',
+              'nonproduction_credentials_proven_unable_to_mutate_production',
+              'legacy_runtime_workflow_rebound_off_production_d1',
+              'external_independent_verifier',
+          ):
+              assert gates[key] is False, key
+          print('acceptance_claim_boundary=PASS')
+          PY
+
       - name: Preserve candidate-only claim boundary
         shell: bash
         run: |
@@ -158,23 +193,25 @@ jobs:
           test -z "${CLOUDFLARE_API_KEY:-}"
           test -z "${CLOUDFLARE_EMAIL:-}"
           python - <<'PY'
+          import json
           import re
           import subprocess
           from pathlib import Path
 
           base='ef0670dd86835e2005bf5213b31822c9b662614d'
-          required_changes={
+          required={
               '.github/workflows/axiom-musitu-d1-live-cutover.yml',
               '.github/workflows/cloudflare-axiom-bootstrap-enable.yml',
               '.github/workflows/axiom-runtime-connection-staging-canary.yml',
               '.github/workflows/build-axiom-accelerators.yml',
               '.github/workflows/axiom-recovery-ar02-release-surface.yml',
           }
+          allowed=required | {'docs/axiom_recovery/AR02_ACCEPTANCE_MATRIX.json'}
           changed=set(subprocess.check_output(['git','diff','--name-only',f'{base}..HEAD'],text=True).splitlines())
-          missing=sorted(required_changes-changed)
-          extra=sorted(changed-required_changes)
+          missing=sorted(required-changed)
+          extra=sorted(changed-allowed)
           if missing or extra:
-              raise SystemExit(f'exact release-surface delta mismatch missing={missing!r} extra={extra!r}')
+              raise SystemExit(f'release-surface delta mismatch missing={missing!r} extra={extra!r}')
 
           quarantine_paths=[
               '.github/workflows/axiom-musitu-d1-live-cutover.yml',
@@ -204,6 +241,14 @@ jobs:
               raise SystemExit('independent immutable action set mismatch')
           if re.search(r'uses:\s*[^\s]+@(?![0-9a-f]{40}(?:\s|$))',accelerator):
               raise SystemExit('non-immutable action reference remains')
+
+          matrix=json.loads(Path('docs/axiom_recovery/AR02_ACCEPTANCE_MATRIX.json').read_text(encoding='utf-8'))
+          if matrix['claim_boundary']['ar02_complete'] is not False:
+              raise SystemExit('AR-02 completion overstated')
+          if matrix['claim_boundary']['production_mutated'] is not False:
+              raise SystemExit('production mutation overstated')
+          if matrix['claim_boundary']['cloud_isolation']!='NOT_PROVEN':
+              raise SystemExit('cloud isolation overstated')
           print('AR-02 RELEASE-SURFACE INDEPENDENT VERIFIER: PASS')
           PY
 
