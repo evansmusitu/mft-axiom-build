@@ -1,0 +1,217 @@
+name: MUSITU Axiom AR-02 Release Surface Recovery Gate
+
+on:
+  push:
+    branches:
+      - frontier/axiom-recovery-ar02-release-surface-20260917
+    paths:
+      - '.github/workflows/axiom-musitu-d1-live-cutover.yml'
+      - '.github/workflows/cloudflare-axiom-bootstrap-enable.yml'
+      - '.github/workflows/axiom-runtime-connection-staging-canary.yml'
+      - '.github/workflows/build-axiom-accelerators.yml'
+      - '.github/workflows/axiom-recovery-ar02-release-surface.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: musitu-axiom-ar02-release-surface-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  builder-release-surface-verification:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout exact candidate without persisted credentials
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Reassert authority and zero-provider boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF_NAME" = frontier/axiom-recovery-ar02-release-surface-20260917
+          git merge-base --is-ancestor ef0670dd86835e2005bf5213b31822c9b662614d HEAD
+          test "$(git ls-remote origin refs/heads/main | awk '{print $1}')" = d6a846f6bbe0bccac1758713eb4de167caf07113
+          test "$(git ls-remote origin refs/heads/frontier/axiom-runtime-connection-20260916 | awk '{print $1}')" = 216ee7d15f01a3fb558452cc4b906a055001ccdd
+          test -z "${CLOUDFLARE_API_TOKEN:-}"
+          test -z "${CLOUDFLARE_API_KEY:-}"
+          test -z "${CLOUDFLARE_EMAIL:-}"
+          test -z "${CLOUDFLARE_AR02_READ_TOKEN:-}"
+          git diff --check
+
+      - name: Builder verify exact recovery-branch scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import subprocess
+          base='ef0670dd86835e2005bf5213b31822c9b662614d'
+          allowed={
+              '.github/workflows/axiom-musitu-d1-live-cutover.yml',
+              '.github/workflows/cloudflare-axiom-bootstrap-enable.yml',
+              '.github/workflows/axiom-runtime-connection-staging-canary.yml',
+              '.github/workflows/build-axiom-accelerators.yml',
+              '.github/workflows/axiom-recovery-ar02-release-surface.yml',
+          }
+          changed=set(subprocess.check_output(['git','diff','--name-only',f'{base}..HEAD'],text=True).splitlines())
+          if not changed:
+              raise SystemExit('AR-02 release-surface candidate has no delta')
+          escaped=sorted(changed-allowed)
+          if escaped:
+              raise SystemExit('AR-02 release-surface scope escape: '+repr(escaped))
+          protected=('mcp/','auth/','axiom_interface/','frontier_v5/','ops/')
+          leaked=sorted(path for path in changed if path.startswith(protected))
+          if leaked:
+              raise SystemExit('protected product/runtime tree changed: '+repr(leaked))
+          print('release_surface_scope=PASS')
+          PY
+
+      - name: Builder prove mutating legacy workflows are quarantined
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          paths=[
+              '.github/workflows/axiom-musitu-d1-live-cutover.yml',
+              '.github/workflows/cloudflare-axiom-bootstrap-enable.yml',
+              '.github/workflows/axiom-runtime-connection-staging-canary.yml',
+          ]
+          forbidden=(
+              '${{ secrets.',
+              'uses:',
+              'curl ',
+              'npx ',
+              'urllib',
+              '--remote',
+              'musitu-axiom-prod',
+              'mft-axiom-prod',
+              '504029cc-f9a5-495e-818f-63c6144b4ea4',
+              '4a62b374-7232-4103-b201-34443c467382',
+          )
+          for path in paths:
+              text=Path(path).read_text(encoding='utf-8')
+              if 'QUARANTINED BY AR-02' not in text:
+                  raise SystemExit(f'{path}: quarantine marker missing')
+              if 'workflow_dispatch:' not in text or '\n  push:' in text:
+                  raise SystemExit(f'{path}: quarantine trigger is not manual-only')
+              if 'exit 1' not in text:
+                  raise SystemExit(f'{path}: fail-closed exit missing')
+              for marker in forbidden:
+                  if marker in text:
+                      raise SystemExit(f'{path}: forbidden executable/provider surface remains: {marker}')
+          print('legacy_mutation_workflow_quarantine=PASS')
+          PY
+
+      - name: Builder prove accelerator action pins are immutable
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import re
+          from pathlib import Path
+          path=Path('.github/workflows/build-axiom-accelerators.yml')
+          text=path.read_text(encoding='utf-8')
+          expected={
+              'actions/checkout':'d23441a48e516b6c34aea4fa41551a30e30af803',
+              'actions/setup-python':'a26af69be951a213d495a4c3e4e4022e16d87065',
+              'actions/upload-artifact':'ea165f8d65b6e75b540449e92b4886f43607fa02',
+          }
+          for action,sha in expected.items():
+              marker=f'{action}@{sha}'
+              if text.count(marker)!=1:
+                  raise SystemExit(f'immutable action pin mismatch: {action}')
+          if re.search(r'uses:\s*actions/[^\s]+@v\d',text):
+              raise SystemExit('floating GitHub action major tag remains in accelerator workflow')
+          print('accelerator_immutable_action_pins=PASS')
+          PY
+
+      - name: Preserve candidate-only claim boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo 'AR-02 release-surface source remediation candidate verified.'
+          echo 'Default branch hardening remains NOT PROVEN because main is unchanged.'
+          echo 'Repository privacy, branch protection, protected production environment reviewers, provider readback, cloud isolation, and AR-02 completion remain NOT PROVEN.'
+
+  independent-release-surface-verifier:
+    needs: builder-release-surface-verification
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout independently without persisted credentials
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Independent static release-surface verification
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -z "${CLOUDFLARE_API_TOKEN:-}"
+          test -z "${CLOUDFLARE_API_KEY:-}"
+          test -z "${CLOUDFLARE_EMAIL:-}"
+          python - <<'PY'
+          import re
+          import subprocess
+          from pathlib import Path
+
+          base='ef0670dd86835e2005bf5213b31822c9b662614d'
+          required_changes={
+              '.github/workflows/axiom-musitu-d1-live-cutover.yml',
+              '.github/workflows/cloudflare-axiom-bootstrap-enable.yml',
+              '.github/workflows/axiom-runtime-connection-staging-canary.yml',
+              '.github/workflows/build-axiom-accelerators.yml',
+              '.github/workflows/axiom-recovery-ar02-release-surface.yml',
+          }
+          changed=set(subprocess.check_output(['git','diff','--name-only',f'{base}..HEAD'],text=True).splitlines())
+          missing=sorted(required_changes-changed)
+          extra=sorted(changed-required_changes)
+          if missing or extra:
+              raise SystemExit(f'exact release-surface delta mismatch missing={missing!r} extra={extra!r}')
+
+          quarantine_paths=[
+              '.github/workflows/axiom-musitu-d1-live-cutover.yml',
+              '.github/workflows/cloudflare-axiom-bootstrap-enable.yml',
+              '.github/workflows/axiom-runtime-connection-staging-canary.yml',
+          ]
+          for path in quarantine_paths:
+              text=Path(path).read_text(encoding='utf-8')
+              if text.count('jobs:')!=1 or text.count('quarantined:')!=1:
+                  raise SystemExit(f'{path}: quarantine job shape mismatch')
+              if '${{' in text or 'env:' in text or 'uses:' in text:
+                  raise SystemExit(f'{path}: secret/action/environment surface remains')
+              if any(token in text for token in ('wrangler ','curl ','urllib','--remote')):
+                  raise SystemExit(f'{path}: provider execution primitive remains')
+              if text.count('exit 1')!=1:
+                  raise SystemExit(f'{path}: exact fail-closed exit cardinality mismatch')
+
+          accelerator=Path('.github/workflows/build-axiom-accelerators.yml').read_text(encoding='utf-8')
+          refs=re.findall(r'uses:\s*(actions/[^@\s]+)@([0-9a-f]{40})',accelerator)
+          expected={
+              ('actions/checkout','d23441a48e516b6c34aea4fa41551a30e30af803'),
+              ('actions/setup-python','a26af69be951a213d495a4c3e4e4022e16d87065'),
+              ('actions/upload-artifact','ea165f8d65b6e75b540449e92b4886f43607fa02'),
+          }
+          if set(refs)!=expected:
+              raise SystemExit('independent immutable action set mismatch')
+          if re.search(r'uses:\s*[^\s]+@(?![0-9a-f]{40}(?:\s|$))',accelerator):
+              raise SystemExit('non-immutable action reference remains')
+          print('AR-02 RELEASE-SURFACE INDEPENDENT VERIFIER: PASS')
+          PY
+
+      - name: Independent authority readback
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git ls-remote origin refs/heads/main | awk '{print $1}')" = d6a846f6bbe0bccac1758713eb4de167caf07113
+          test "$(git ls-remote origin refs/heads/frontier/axiom-runtime-connection-20260916 | awk '{print $1}')" = 216ee7d15f01a3fb558452cc4b906a055001ccdd
+          echo 'production_mutated=false'
+          echo 'provider_execution_performed=false'
+          echo 'default_branch_hardened=NOT_PROVEN'
