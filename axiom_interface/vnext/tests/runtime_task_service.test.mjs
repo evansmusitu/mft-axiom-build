@@ -27,9 +27,10 @@ test('task pipeline completes research, protected compute, synthesis, persistenc
         return {operation:input.operation,request_id:input.request_id,http_status:200,result:{value:42},receipt:{result_sha256:'a'.repeat(64),compute_units:1}};
       },
     },
-    research:async query=>[
-      {source_id:'SRC-1',title:'Primary source',url:'https://example.org/primary',publisher:'Example',published_at:'2026-09-01',excerpt:`Evidence for ${query}`},
-    ],
+    research:async query=>{
+      assert.equal(query,'the operating context');
+      return [{source_id:'SRC-1',title:'Primary source',url:'https://example.org/primary',publisher:'Example',published_at:'2026-09-01',excerpt:`Evidence for ${query}`}];
+    },
     model:async input=>{
       assert.equal(input.stage,'synthesis');
       assert.equal(input.sources[0].source_id,'SRC-1');

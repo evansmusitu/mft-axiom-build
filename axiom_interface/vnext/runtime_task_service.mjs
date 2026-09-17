@@ -19,12 +19,17 @@ function taskId(factory){
 
 function requestId(id){return `MUSITU-UI-${id.replace(/[^A-Za-z0-9]/g,'').slice(0,48).toUpperCase()}`;}
 
+function researchQuery(objective){
+  const scoped=objective.match(/\bresearch\s+(.+?)(?=\s*[,;]\s*(?:calculate|compute|evaluate)\b|\s+and\s+(?:calculate|compute|evaluate)\b|$)/i)?.[1];
+  return clean(scoped||objective,300);
+}
+
 function arithmeticPlan(objective){
   const match=objective.match(/(?:calculate|compute|evaluate|what\s+is)\s+([0-9eE.()+\-*/%^\s]{3,120})(?=\s*(?:,|;|\.|\band\b|\bthen\b|$))/i);
   if (!match) return null;
   const expression=match[1].trim();
   if (!/[0-9]/.test(expression)||!/^[0-9eE.()+\-*/%^\s]+$/.test(expression)) return null;
-  return {title:'Protected quantitative execution',needs_research:/\b(research|source|cited|evidence|market|company|news|context)\b/i.test(objective),search_query:objective,operation:'arithmetic.evaluate',operation_args:{expression}};
+  return {title:'Protected quantitative execution',needs_research:/\b(research|source|cited|evidence|market|company|news|context)\b/i.test(objective),search_query:researchQuery(objective),operation:'arithmetic.evaluate',operation_args:{expression}};
 }
 
 function normalizePlan(value,objective){
@@ -115,12 +120,12 @@ function deterministicArtifact({objective,execution,title}){
 }
 
 function extractiveResearchArtifact({objective,sources,execution,title}){
-  const cited=sources.slice(0,5);
+  const cited=sources.slice(0,3);
   return {
     title:title||'Evidence-bound executive brief',
     summary:`Retrieved ${cited.length} fixed-provider source${cited.length===1?'':'s'} and completed the protected runtime calculation. The findings below are extractive because the generative draft did not return a valid supplied citation.`,
     findings:[
-      ...cited.map(source=>`${source.title}: ${clean(source.excerpt,900)}`),
+      ...cited.map(source=>`${source.title}: ${clean(source.excerpt,520)}`),
       ...(execution?[`Verified runtime response: ${clean(JSON.stringify(execution.result),1200)}`]:[]),
     ],
     limitations:['The ungrounded generative draft was discarded; no claim from it is included.','Source excerpts may omit context; follow the cited links for the full material.'],

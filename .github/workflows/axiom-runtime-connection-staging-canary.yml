@@ -190,7 +190,7 @@ jobs:
           const browser=await chromium.launch({headless:true}),runs=[];
           for(const [label,base,objective] of [
             ['staging',process.env.STAGING_URL,'Calculate 40+2 and explain the verified result.'],
-            ['canary',process.env.CANARY_URL,'Research the meaning of the number 42, calculate 40+2, and provide a cited executive brief.'],
+            ['canary',process.env.CANARY_URL,'Research 42 (number), calculate 40+2, and provide a cited executive brief.'],
           ]){
             const page=await browser.newPage({viewport:{width:1440,height:1000}}),errors=[];
             page.on('pageerror',error=>errors.push(String(error)));
