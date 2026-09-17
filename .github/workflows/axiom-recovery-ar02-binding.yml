@@ -82,7 +82,7 @@ jobs:
               'workflow_sha256',
               'contract_sha256',
               '--remote',
-              ' wrangler deploy',
+              'wrangler_deploy = " wrangler " + "deploy"',
               ' deploy ',
               ' publish ',
               ' d1 execute ',
@@ -98,6 +98,7 @@ jobs:
               'NOT_PROVEN',
           ):
               assert marker in preflight_text, marker
+          assert 'wrangler deploy' not in preflight_text
           collector_text = workflow[collector:]
           receipt_check = collector_text.index('preflight receipt hash mismatch')
           provider_call = collector_text.index('python recovery/ar02/provider_inventory_readonly.py')
