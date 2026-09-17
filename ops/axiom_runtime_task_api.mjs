@@ -25,7 +25,8 @@ async function boundedJson(fetchImpl,url,{timeoutMs=6000,maxBytes=180000}={}){
   if (!['en.wikipedia.org','api.gdeltproject.org'].includes(target.hostname)||target.protocol!=='https:') throw new DOMException('research destination rejected','SecurityError');
   const controller=new AbortController(),timeout=setTimeout(()=>controller.abort(),timeoutMs);
   try {
-    const response=await fetchImpl(target.href,{method:'GET',redirect:'error',headers:{accept:'application/json','user-agent':'MUSITU-Axiom-Research/1.0'},signal:controller.signal});
+    const response=await fetchImpl(target.href,{method:'GET',redirect:'manual',headers:{accept:'application/json','user-agent':'MUSITU-Axiom-Research/1.0'},signal:controller.signal});
+    if (response.status>=300&&response.status<400) throw new DOMException('research provider redirect rejected','SecurityError');
     if (!response.ok) throw new DOMException(`research provider HTTP ${response.status}`,'NetworkError');
     const length=Number(response.headers.get('content-length')||0);
     if (length>maxBytes) throw new DOMException('research response exceeded limit','QuotaExceededError');

@@ -37,6 +37,14 @@ test('research uses the bounded same-host Wikimedia REST fallback without a paid
   assert.ok(seen.every(url=>url.protocol==='https:'));
 });
 
+test('research rejects provider redirects instead of following them to an untrusted host',async()=>{
+  const research=createFixedResearch(async (_url,init)=>{
+    assert.equal(init.redirect,'manual');
+    return new Response(null,{status:302,headers:{location:'http://169.254.169.254/latest/meta-data'}});
+  });
+  await assert.rejects(()=>research('redirect attack'),/redirect rejected/i);
+});
+
 test('same-origin API requires session rate limit and complete runtime while browser has no credential path',()=>{
   const api=read('ops/axiom_runtime_task_api.mjs'),bridge=read('ops/axiom_runtime_bridge.mjs'),client=read('axiom_interface/vnext/runtime_execution_client.mjs'),ui=read('axiom_interface/vnext/runtime_execution_ui.js');
   for(const marker of ['authenticated_session_required','origin_rejected','TASK_RATE_LIMITER','operation_count===74','fixed_research_origins'])assert.ok(api.includes(marker),`API missing ${marker}`);
