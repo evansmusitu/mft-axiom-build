@@ -1,0 +1,109 @@
+{
+  "schema": "musitu.axiom.recovery.ar02-gitlab-free-mirror-bootstrap.v1",
+  "phase": "AR-02",
+  "recorded_on": "2026-09-18",
+  "status": "BOOTSTRAP_PREPARED_GITLAB_PROJECT_NOT_CREATED_NO_CONNECTED_GITLAB_ACTION_SURFACE",
+  "authority": {
+    "source_repository": "evansmusitu/mft-axiom-build",
+    "source_repository_visibility": "PRIVATE",
+    "sealed_main_commit": "d6a846f6bbe0bccac1758713eb4de167caf07113",
+    "runtime_source_commit": "216ee7d15f01a3fb558452cc4b906a055001ccdd",
+    "ar02_v3_commit": "3cc0bd96d5aceb1737cda8b9f789394519cf9678",
+    "bootstrap_branch": "frontier/axiom-recovery-ar02-gitlab-mirror-bootstrap-20260918",
+    "github_pr1_state": "OPEN_DRAFT_UNMERGED"
+  },
+  "purpose": "Zero-cost private protected release-authority mirror and cloud CI path for AR-02 after GitHub Free hosted Actions minutes were exhausted and private branch protection was unavailable.",
+  "gitlab_free_capabilities_verified": {
+    "private_projects": true,
+    "protected_branches": true,
+    "no_direct_push_by_setting_allowed_to_push_and_merge_no_one": true,
+    "force_push_disabled_by_default_on_protected_branch": true,
+    "repository_by_url_import": true,
+    "pipelines_must_succeed_merge_check": true,
+    "required_merge_request_approval_rules_enforceable": false
+  },
+  "exact_import_target": {
+    "platform": "GitLab.com",
+    "visibility": "PRIVATE",
+    "suggested_project_name": "mft-axiom-build-protected-mirror",
+    "import_method_preference": "Repository by URL or GitHub OAuth importer",
+    "source_git_url": "https://github.com/evansmusitu/mft-axiom-build.git",
+    "private_source_auth": "Use GitHub OAuth/import authorization or a short-lived source token entered directly in GitLab. Never paste source tokens into ChatGPT or commit them.",
+    "import_all_repository_refs_required": true
+  },
+  "post_import_ref_gate": {
+    "required_refs": {
+      "main": "d6a846f6bbe0bccac1758713eb4de167caf07113",
+      "frontier/axiom-runtime-connection-20260916": "216ee7d15f01a3fb558452cc4b906a055001ccdd",
+      "frontier/axiom-recovery-ar02-gitlab-mirror-bootstrap-20260918": "TO_BE_REPLACED_BY_FINAL_BOOTSTRAP_HEAD_AFTER_FILES_ARE_COMMITTED"
+    },
+    "fail_closed_on_missing_or_mismatched_ref": true,
+    "imported_project_not_authoritative_until_ref_gate_passes": true
+  },
+  "branch_protection_target": {
+    "branches": [
+      "main",
+      "frontier/axiom-recovery-ar02-gitlab-mirror-bootstrap-20260918"
+    ],
+    "allowed_to_push_and_merge": "No one",
+    "allowed_to_merge": "Maintainers",
+    "force_push": false,
+    "require_merge_request": true,
+    "pipelines_must_succeed": true,
+    "skipped_pipelines_considered_successful": false
+  },
+  "free_tier_limitations": {
+    "required_approval_rules": "NOT_ENFORCEABLE_ON_GITLAB_FREE",
+    "code_owner_required_approval": "PAID_TIER",
+    "human_release_authority": "USER_REMAINS_FINAL_APPROVER_OUTSIDE_AUTOMATED_SELF_CERTIFICATION",
+    "independent_verifier_meaning": "Separate verifier implementation/job is required, but GitLab Free does not itself enforce a second human reviewer."
+  },
+  "ci_target": {
+    "config": ".gitlab-ci.yml",
+    "runtime_image": "python:3.12-slim-bookworm@sha256:782412e85d0f0984994c290652577d4018aff08145c85b262bb63dc0c7522254",
+    "dependency_installation": false,
+    "provider_credentials": false,
+    "provider_api_calls": false,
+    "production_mutation": false,
+    "pipeline_sources": [
+      "merge_request_event",
+      "protected refs",
+      "exact bootstrap branch for initial qualification"
+    ],
+    "jobs": [
+      "ar02-builder",
+      "ar02-independent-verifier"
+    ]
+  },
+  "authority_transition": {
+    "github_remains_historical_source_authority": true,
+    "gitlab_is_initially": "PROTECTED_MIRROR_CANDIDATE",
+    "gitlab_may_become_release_authority_only_after": [
+      "EXACT_REF_READBACK_PASS",
+      "PRIVATE_VISIBILITY_READBACK_PASS",
+      "BRANCH_PROTECTION_READBACK_PASS",
+      "PIPELINES_MUST_SUCCEED_READBACK_PASS",
+      "FRESH_AR02_BUILDER_PASS",
+      "FRESH_AR02_INDEPENDENT_VERIFIER_PASS",
+      "USER_APPROVAL"
+    ],
+    "github_main_modified": false,
+    "github_pr1_modified": false,
+    "production_modified": false
+  },
+  "connected_tool_boundary": {
+    "gitlab_plugin_search_result": "NO_GITLAB_PLUGIN_AVAILABLE_IN_THIS_CHAT",
+    "gitlab_project_created": false,
+    "reason": "No connected GitLab action/browser surface is available in the current chat, so account/project creation cannot be performed truthfully from here."
+  },
+  "claim_boundary": {
+    "gitlab_project_exists": "NOT_PROVEN",
+    "gitlab_branch_protection_enforced": false,
+    "gitlab_ci_executed": false,
+    "ar02_complete": false,
+    "ar03_started": false,
+    "full_product_connection": "NOT_PROVEN",
+    "production_mutated": false,
+    "superiority": "NOT_CERTIFIED"
+  }
+}
