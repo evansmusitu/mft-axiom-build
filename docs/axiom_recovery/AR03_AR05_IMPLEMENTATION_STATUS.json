@@ -1,0 +1,98 @@
+{
+  "schema": "musitu.axiom.recovery.ar03-ar05-implementation-status.v1",
+  "recorded_on": "2026-09-18",
+  "authority": {
+    "sealed_main_commit": "d6a846f6bbe0bccac1758713eb4de167caf07113",
+    "runtime_source_commit": "216ee7d15f01a3fb558452cc4b906a055001ccdd",
+    "recovery_branch": "frontier/axiom-recovery-ar03-11-20260918",
+    "recovery_head": "c96732a2b41e93bdcb1326cba760f3890003890f"
+  },
+  "ar03": {
+    "implementation": "LOCAL_PROVIDER_INDEPENDENT_FOUNDATION_IMPLEMENTED",
+    "locally_executed_tests": {
+      "status": "PASS",
+      "count": 3,
+      "coverage": [
+        "signup -> organization owner -> entitlements -> automatic first project -> login",
+        "OAuth-link record -> one-time API key secret with hash-only persistence -> S0 safe task -> audit history -> recovery",
+        "cross-tenant project access denied and entitlement revocation enforced",
+        "database/schema self-provisions and reopen is idempotent"
+      ]
+    },
+    "source_files": {
+      "recovery/ar03/identity_authority.py": "87ac49c21e9c177b00dbd363c816cdf67960083c",
+      "recovery/ar03/tests/test_identity_onboarding.py": "573968d451c1b2bf72bc91f38312b2127095d8fe"
+    },
+    "gate": "NOT_EARNED",
+    "blockers": [
+      "AR-02 inherited qualification incomplete",
+      "not yet bound to authoritative cloud/server runtime",
+      "no independent GitLab CI qualification yet"
+    ]
+  },
+  "ar04": {
+    "implementation": "LOCAL_SERVER_SHAPED_PROJECT_WORK_GRAPH_FOUNDATION_IMPLEMENTED",
+    "locally_executed_tests": {
+      "status": "PASS",
+      "count": 2,
+      "coverage": [
+        "Project, Work, Artifact, Agent, Memory, Source, Approval object types",
+        "two independent device cursors converge to identical project event stream",
+        "append-only provenance chain verifies",
+        "cross-tenant access denied",
+        "browser/local-store import idempotent and conflict-aware"
+      ]
+    },
+    "source_files": {
+      "recovery/ar04/project_work_graph.py": "48dd81b78a1cc8e105fc1364f71bbb7e88c446d0",
+      "recovery/ar04/tests/test_project_work_graph.py": "b0dfc28a9d1de3eb212948a8f0b36dc19a7c670a"
+    },
+    "gate": "NOT_EARNED",
+    "blockers": [
+      "AR-02 and AR-03 inherited qualification incomplete",
+      "two-device proof is local simulated clients, not two real devices/cloud authority",
+      "cloud persistence not yet bound"
+    ]
+  },
+  "ar05": {
+    "implementation": "LOCAL_DURABLE_KERNEL_FOUNDATION_IMPLEMENTED",
+    "locally_executed_tests": {
+      "status": "PASS",
+      "count": 2,
+      "defects_found_and_fixed": [
+        "step insert shape mismatch",
+        "transient-injection marker rolled back and retriggered forever"
+      ],
+      "coverage": [
+        "persistent state survives close/reopen",
+        "injected timeout retries",
+        "post-side-effect transient failure resumes without duplicate side effect",
+        "idempotent tool receipts",
+        "approval pause for S3",
+        "budget exhaustion",
+        "cancellation",
+        "event stream"
+      ]
+    },
+    "source_files": {
+      "recovery/ar05/durable_kernel.py": "5c3027365f844121eff7713ffc8f091afc0863a1",
+      "recovery/ar05/tests/test_durable_kernel.py": "8aac0c2838c3e4479a0de3314ead386977369171"
+    },
+    "gate": "NOT_EARNED",
+    "blockers": [
+      "AR-02/AR-03/AR-04 inherited qualification incomplete",
+      "queue/workflow provider binding not yet implemented",
+      "no browser/Worker/cloud restart qualification yet",
+      "no independent GitLab CI qualification yet"
+    ]
+  },
+  "claim_boundary": {
+    "ar02_complete": false,
+    "ar03_earned": false,
+    "ar04_earned": false,
+    "ar05_earned": false,
+    "production_mutated": false,
+    "full_product_connection": "NOT_PROVEN",
+    "superiority": "NOT_CERTIFIED"
+  }
+}
