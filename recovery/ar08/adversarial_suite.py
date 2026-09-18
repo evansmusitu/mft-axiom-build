@@ -61,7 +61,7 @@ def run_suite():
             raise AssertionError("cross-tenant graph access succeeded")
         except TenantIsolationError:
             pass
-        graph.db.execute("UPDATE graph_events SET event_sha256='0' || substr(event_sha256,2) WHERE tenant_id='tenant-a' AND project_id='project-a'")
+        graph.db.execute("UPDATE graph_events SET event_sha256=CASE WHEN substr(event_sha256,1,1)='0' THEN '1' ELSE '0' END || substr(event_sha256,2) WHERE tenant_id='tenant-a' AND project_id='project-a'")
         graph.db.commit()
         _assert(graph.verify_provenance("tenant-a","project-a") is False,"tampered provenance chain still verified")
         results.append(_pass("provenance_tampering","Hash-chain tampering is detected."))
