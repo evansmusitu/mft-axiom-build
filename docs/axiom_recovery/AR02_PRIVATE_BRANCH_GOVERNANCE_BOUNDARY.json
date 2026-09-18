@@ -1,0 +1,72 @@
+{
+  "schema": "musitu.axiom.recovery.ar02-private-branch-governance-boundary.v1",
+  "phase": "AR-02",
+  "recorded_on": "2026-09-18",
+  "status": "PRIVATE_REPOSITORY_PROTECTION_BLOCKED_BY_PLAN_OR_ADMIN_SURFACE",
+  "authority": {
+    "repository": "evansmusitu/mft-axiom-build",
+    "repository_visibility": "PRIVATE",
+    "sealed_main_commit": "d6a846f6bbe0bccac1758713eb4de167caf07113",
+    "runtime_source_commit": "216ee7d15f01a3fb558452cc4b906a055001ccdd",
+    "recovery_branch": "frontier/axiom-recovery-ar02-credential-triage-20260918",
+    "recovery_parent_head": "46cecbefb9f3ab136840620db0d884c9da6f4ede",
+    "pr1_state": "OPEN_DRAFT_UNMERGED"
+  },
+  "live_github_readback": {
+    "main_protected": false,
+    "rulesets_endpoint": {
+      "status": 403,
+      "message": "Upgrade to GitHub Pro or make this repository public to enable this feature."
+    },
+    "branch_protection_detail_endpoint": {
+      "status": 403,
+      "message": "Resource not accessible by integration",
+      "interpretation": "The connected GitHub App cannot read detailed branch-protection configuration because that endpoint requires Administration-read permission. This connector limitation is not evidence of protection."
+    }
+  },
+  "current_product_boundary": {
+    "private_branch_protection_supported_on": [
+      "GitHub Pro",
+      "GitHub Team",
+      "GitHub Enterprise Cloud",
+      "GitHub Enterprise Server"
+    ],
+    "github_free_private_repository_branch_protection_supported": false,
+    "public_repository_fallback_rejected": true,
+    "reason_public_fallback_rejected": "AR-02 requires private-source governance and the repository was intentionally moved private; publicizing it to gain free branch protection or free Actions minutes would weaken the security posture."
+  },
+  "required_server_side_controls_after_supported_plan_or_equivalent_authority_is_available": [
+    "Protect main from force pushes and deletion.",
+    "Require pull-request based changes to main.",
+    "Require independently qualified AR-02/production status checks before merge where the release model applies.",
+    "Require conversation resolution and appropriate approving review for consequential release changes.",
+    "Disallow bypass where operationally possible, including administrator bypass for release-critical protections unless emergency policy explicitly governs it.",
+    "Preserve PR #1 as draft/unmerged until explicit user authorization."
+  ],
+  "rejected_substitutes": [
+    "MAKE_REPOSITORY_PUBLIC",
+    "RELY_ON_DOCUMENTED_CONVENTION_WITHOUT_SERVER_SIDE_ENFORCEMENT",
+    "RELY_ON_ACTIONS_AUTO_REVERT_AFTER_UNAUTHORIZED_MAIN_MUTATION",
+    "RELY_ON_CONNECTED_GITHUB_APP_LACK_OF_MAIN_WRITE_AS_BRANCH_PROTECTION",
+    "ARCHIVE_REPOSITORY_AS_A_NORMAL_DEVELOPMENT_CONTROL"
+  ],
+  "acceptable_unblock": {
+    "preferred": "Upgrade the user-owned private repository to GitHub Pro or move it under a GitHub Team/Enterprise governance boundary, then enable branch protection/rulesets and independently verify the effective rules.",
+    "alternative": "Another server-side repository host/control may qualify only if it genuinely prevents unauthorized main mutation and is independently verifiable; no such alternative is currently implemented or proven.",
+    "requires_user_account_or_billing_action": true,
+    "assistant_performed_plan_change": false
+  },
+  "verification": {
+    "github_docs_verified_on": "2026-09-18",
+    "provider_execution_performed": false,
+    "production_mutated": false
+  },
+  "claim_boundary": {
+    "main_protection_enforced": false,
+    "ruleset_enforced": false,
+    "ar02_complete": false,
+    "ar03_started": false,
+    "full_product_connection": "NOT_PROVEN",
+    "superiority": "NOT_CERTIFIED"
+  }
+}
