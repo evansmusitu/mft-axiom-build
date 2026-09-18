@@ -1,0 +1,133 @@
+{
+  "schema": "musitu.axiom.recovery.ar10-sealed-benchmark-contract.v1",
+  "recorded_on": "2026-09-18",
+  "status": "SCORING_AND_ADMISSION_FROZEN_TASK_CONTENT_NOT_EXTERNALLY_SEALED",
+  "authority": {
+    "sealed_main_commit": "d6a846f6bbe0bccac1758713eb4de167caf07113",
+    "runtime_source_commit": "216ee7d15f01a3fb558452cc4b906a055001ccdd",
+    "recovery_branch": "frontier/axiom-recovery-ar03-11-20260918"
+  },
+  "law": {
+    "benchmark_task_content_may_be_used_for_future_tuning": false,
+    "benchmark_scoring_may_be_changed_after_results": false,
+    "failures_must_be_retained": true,
+    "baseline_versions_and_dates_must_be_recorded": true,
+    "equivalent_tool_data_time_and_budget_required": true,
+    "independent_reproduction_required": true,
+    "safety_authorization_non_regression_required": true
+  },
+  "baseline_families": [
+    "Astra/Gemini Live",
+    "Google DeepMind/Gemini",
+    "Claude Code",
+    "Anthropic computer use",
+    "Microsoft Copilot Studio",
+    "strong finance/quant systems plus human experts",
+    "AXIOM-specific independent controls"
+  ],
+  "benchmark_strata": [
+    {
+      "id": "B01",
+      "name": "quantitative correctness",
+      "minimum_unseen_tasks": 30
+    },
+    {
+      "id": "B02",
+      "name": "deep research and provenance",
+      "minimum_unseen_tasks": 20
+    },
+    {
+      "id": "B03",
+      "name": "artifact production",
+      "minimum_unseen_tasks": 20
+    },
+    {
+      "id": "B04",
+      "name": "coding and engineering mission",
+      "minimum_unseen_tasks": 20
+    },
+    {
+      "id": "B05",
+      "name": "browser/computer governed execution",
+      "minimum_unseen_tasks": 20
+    },
+    {
+      "id": "B06",
+      "name": "durable long-running task recovery",
+      "minimum_unseen_tasks": 15
+    },
+    {
+      "id": "B07",
+      "name": "project memory and cross-device continuity",
+      "minimum_unseen_tasks": 15
+    },
+    {
+      "id": "B08",
+      "name": "agent/automation governance",
+      "minimum_unseen_tasks": 15
+    },
+    {
+      "id": "B09",
+      "name": "live multimodal collaboration",
+      "minimum_unseen_tasks": 15
+    },
+    {
+      "id": "B10",
+      "name": "security and authorization adversarial",
+      "minimum_unseen_tasks": 30
+    }
+  ],
+  "recorded_metrics": [
+    "task_success",
+    "verified_correctness",
+    "completion_time",
+    "cost",
+    "human_interventions",
+    "injected_failure_recovery",
+    "citation_provenance",
+    "unauthorized_action_rate",
+    "artifact_quality",
+    "user_preference"
+  ],
+  "comparison_admission": {
+    "same_task_or_predeclared_equivalent_task": true,
+    "same_point_in_time_data": true,
+    "same_external_tool_policy": true,
+    "same_or_disclosed_compute_budget": true,
+    "baseline_current_at_test_time": true,
+    "blind_or_independent_scoring_for_subjective_outputs": true,
+    "minimum_sample_and_statistical_method_must_be_predeclared": true,
+    "no_comparison_claim_from_single_demo": true
+  },
+  "superiority_claim_gate": {
+    "statistically_significant_authorized_win_required": true,
+    "no_worse_safety_or_authorization_required": true,
+    "independent_reproduction_required": true,
+    "cost_and_latency_disclosure_required": true,
+    "external_superiority_authorized_now": false,
+    "wolfram_parity_authorized_now": false
+  },
+  "task_sealing": {
+    "external_unseen_task_package_created": false,
+    "external_custodian_assigned": false,
+    "task_package_sha256": "NOT_AVAILABLE",
+    "scoring_package_sha256": "NOT_AVAILABLE",
+    "reason": "Creating visible task content inside the implementation repository would contaminate the unseen benchmark. Only the benchmark law, strata and metrics are frozen here."
+  },
+  "gate": {
+    "ar10_earned": false,
+    "blocker": [
+      "AR-02 through AR-09 inherited gates not earned",
+      "unseen task package not externally sealed",
+      "current equivalent baselines not executed",
+      "independent reproduction not performed",
+      "statistical result not available"
+    ]
+  },
+  "claim_boundary": {
+    "wolfram_parity": "NOT_CERTIFIED",
+    "superiority": "NOT_CERTIFIED",
+    "full_product_connection": "NOT_PROVEN",
+    "production_mutated": false
+  }
+}
