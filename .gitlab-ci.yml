@@ -1,0 +1,36 @@
+default:
+  image: python:3.12-slim-bookworm@sha256:782412e85d0f0984994c290652577d4018aff08145c85b262bb63dc0c7522254
+  interruptible: false
+  before_script:
+    - python --version
+
+variables:
+  GIT_DEPTH: "0"
+  GIT_STRATEGY: fetch
+
+workflow:
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    - if: '$CI_COMMIT_REF_PROTECTED == "true"'
+    - if: '$CI_COMMIT_BRANCH == "frontier/axiom-recovery-ar02-gitlab-mirror-bootstrap-20260918"'
+    - when: never
+
+stages:
+  - builder
+  - verifier
+
+ar02-builder:
+  stage: builder
+  timeout: 10m
+  allow_failure: false
+  script:
+    - python recovery/ar02/verify_gitlab_mirror_builder.py
+
+ar02-independent-verifier:
+  stage: verifier
+  timeout: 10m
+  allow_failure: false
+  needs:
+    - ar02-builder
+  script:
+    - python recovery/ar02/verify_gitlab_mirror_independent.py
