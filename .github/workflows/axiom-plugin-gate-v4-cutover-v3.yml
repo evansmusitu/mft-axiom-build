@@ -5,6 +5,7 @@ on:
   push:
     paths:
       - '.github/workflows/axiom-plugin-gate-v4-cutover-v3.yml'
+      - 'mcp/musitu_axiom_plugin_gate_v4.mjs'
 
 permissions:
   contents: read
