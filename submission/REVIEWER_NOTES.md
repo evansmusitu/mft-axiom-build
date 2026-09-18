@@ -11,7 +11,7 @@
 - Privacy policy: https://mcp.mftintelligence.com/privacy
 - Terms of use: https://mcp.mftintelligence.com/terms
 - Product documentation: https://mcp.mftintelligence.com/docs
-- Support: https://github.com/evansmusitu/mft-axiom-build/issues
+- Support: https://mcp.mftintelligence.com/support
 
 ## Reviewer authentication
 
