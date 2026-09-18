@@ -35,10 +35,12 @@
     "required_refs": {
       "main": "d6a846f6bbe0bccac1758713eb4de167caf07113",
       "frontier/axiom-runtime-connection-20260916": "216ee7d15f01a3fb558452cc4b906a055001ccdd",
-      "frontier/axiom-recovery-ar02-gitlab-mirror-bootstrap-20260918": "TO_BE_REPLACED_BY_FINAL_BOOTSTRAP_HEAD_AFTER_FILES_ARE_COMMITTED"
+      "frontier/axiom-recovery-ar02-gitlab-mirror-bootstrap-20260918": "LIVE_SOURCE_HEAD_MUST_EQUAL_IMPORTED_DESTINATION_HEAD_AT_IMPORT_TIME"
     },
     "fail_closed_on_missing_or_mismatched_ref": true,
-    "imported_project_not_authoritative_until_ref_gate_passes": true
+    "imported_project_not_authoritative_until_ref_gate_passes": true,
+    "bootstrap_head_verification": "Read the bootstrap branch SHA from live GitHub immediately before import/readback, then require the GitLab destination branch to match exactly. Do not store a self-referential final commit SHA inside this file.",
+    "source_head_must_be_read_fresh": true
   },
   "branch_protection_target": {
     "branches": [
