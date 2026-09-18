@@ -10,9 +10,9 @@ variables:
 
 workflow:
   rules:
-    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
-    - if: '$CI_COMMIT_REF_PROTECTED == "true"'
     - if: '$CI_COMMIT_BRANCH == "frontier/axiom-recovery-ar02-gitlab-mirror-bootstrap-20260918"'
+    - if: '$CI_COMMIT_BRANCH == "frontier/axiom-recovery-ar03-11-20260918"'
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event" && $CI_MERGE_REQUEST_TARGET_BRANCH_NAME == "frontier/axiom-recovery-ar03-11-20260918"'
     - when: never
 
 stages:
@@ -23,6 +23,9 @@ ar02-builder:
   stage: builder
   timeout: 10m
   allow_failure: false
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "frontier/axiom-recovery-ar02-gitlab-mirror-bootstrap-20260918"'
+    - when: never
   script:
     - python recovery/ar02/verify_gitlab_mirror_builder.py
 
@@ -30,7 +33,38 @@ ar02-independent-verifier:
   stage: verifier
   timeout: 10m
   allow_failure: false
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "frontier/axiom-recovery-ar02-gitlab-mirror-bootstrap-20260918"'
+    - when: never
   needs:
     - ar02-builder
   script:
     - python recovery/ar02/verify_gitlab_mirror_independent.py
+
+ar03-11-builder:
+  stage: builder
+  timeout: 15m
+  allow_failure: false
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "frontier/axiom-recovery-ar03-11-20260918"'
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event" && $CI_MERGE_REQUEST_TARGET_BRANCH_NAME == "frontier/axiom-recovery-ar03-11-20260918"'
+    - when: never
+  script:
+    - python -m unittest recovery.ar03.tests.test_identity_onboarding recovery.ar04.tests.test_project_work_graph recovery.ar05.tests.test_durable_kernel recovery.ar06.tests.test_unified_fabric recovery.ar11.tests.test_rollout_controller -v
+    - python recovery/ar08/adversarial_suite.py
+    - python -c "from recovery.ar09.local_reliability import run_local_matrix; r=run_local_matrix(20); assert r['local_measured_targets_pass'] is True; assert r['ar09_gate_earned'] is False; print(r)"
+    - python -m py_compile recovery/ar03/identity_authority.py recovery/ar04/project_work_graph.py recovery/ar05/durable_kernel.py recovery/ar06/unified_fabric.py recovery/ar08/adversarial_suite.py recovery/ar09/local_reliability.py recovery/ar11/rollout_controller.py recovery/ar03_11_independent_verifier.py
+    - git diff --check
+
+ar03-11-independent-verifier:
+  stage: verifier
+  timeout: 15m
+  allow_failure: false
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "frontier/axiom-recovery-ar03-11-20260918"'
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event" && $CI_MERGE_REQUEST_TARGET_BRANCH_NAME == "frontier/axiom-recovery-ar03-11-20260918"'
+    - when: never
+  needs:
+    - ar03-11-builder
+  script:
+    - python recovery/ar03_11_independent_verifier.py
