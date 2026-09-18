@@ -8,7 +8,7 @@
     "category": "FINANCE",
     "logo_repository_path": "branding/musitu-axiom-app-icon.svg",
     "website_url": "https://mcp.mftintelligence.com/docs",
-    "support_url": "https://github.com/evansmusitu/mft-axiom-build/issues",
+    "support_url": "https://mcp.mftintelligence.com/support",
     "privacy_policy_url": "https://mcp.mftintelligence.com/privacy",
     "terms_of_use_url": "https://mcp.mftintelligence.com/terms"
   },
@@ -36,14 +36,13 @@
     "authorization_handoff": "HTTP_200_MOBILE_SAFE_CHATGPT_CALLBACK_DOCUMENT",
     "ui_resources_exposed": false,
     "screenshots_required": false,
-    "widget_csp": "NOT_APPLICABLE_NO_WIDGET_RESOURCES_EXPOSED"
+    "widget_csp": "NOT_APPLICABLE_NO_WIDGET_RESOURCES_EXPOSED",
+    "offline_access_supported": true
   },
   "starter_prompts": [
     "Use MUSITU Axiom to analyze this time series for trend, volatility, and structural changes.",
     "Use MUSITU Axiom to solve this constrained optimization problem and explain the optimum.",
-    "Use MUSITU Axiom to compare Monte Carlo and closed-form results for this quantitative model.",
-    "Use MUSITU Axiom to verify this quantitative result independently and show the calculation.",
-    "Use MUSITU Axiom to evaluate the risk and return characteristics of these cash flows."
+    "Use MUSITU Axiom to compare Monte Carlo and closed-form results for this quantitative model."
   ],
   "release_notes": "Initial public MUSITU Axiom ChatGPT submission: 108 public tools backed by 74 certified runtime operations and 30 business-facing quantitative products; OAuth 2.1 account linking with PKCE, refresh/revocation, OpenID Connect RS256 ID tokens, JWKS and UserInfo support for explicitly verified email identities, mobile-safe ChatGPT callback handoff, metered execution for existing entitled accounts, response minimization, and no digital-subscription commerce on the public ChatGPT surface.",
   "review": {
