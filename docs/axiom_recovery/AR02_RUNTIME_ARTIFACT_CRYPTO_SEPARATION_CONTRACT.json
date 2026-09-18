@@ -1,0 +1,171 @@
+{
+  "schema": "musitu.axiom.recovery.ar02-runtime-artifact-crypto-separation-contract.v1",
+  "phase": "AR-02",
+  "status": "DESIGN_FROZEN_NOT_IMPLEMENTED",
+  "recorded_on": "2026-09-18",
+  "authority": {
+    "sealed_main_commit": "d6a846f6bbe0bccac1758713eb4de167caf07113",
+    "runtime_source_commit": "216ee7d15f01a3fb558452cc4b906a055001ccdd",
+    "inventory_ref": "docs/axiom_recovery/AR02_RUNTIME_ARTIFACT_CRYPTO_REUSE_INVENTORY.json",
+    "inventory_commit": "3b6a6c727d123581cecaa328eb73261ac544425d",
+    "affected_file_count": 51,
+    "affected_hmac_file_count": 29
+  },
+  "security_decision": {
+    "provider_api_credentials_may_be_artifact_encryption_keys": false,
+    "provider_api_credentials_may_be_artifact_mac_keys": false,
+    "artifact_crypto_keys_may_be_provider_api_credentials": false,
+    "encryption_and_signing_authority_must_be_separate": true,
+    "builder_self_certification_allowed": false,
+    "plaintext_runtime_source_in_git_or_ci_artifacts_allowed": false,
+    "long_lived_keys_in_prompts_logs_or_ordinary_context_allowed": false,
+    "retrieved_content_may_change_key_policy": false
+  },
+  "target_artifact_format": {
+    "schema": "musitu.axiom.runtime-artifact.envelope.v1",
+    "confidentiality": {
+      "algorithm": "AES-256-GCM",
+      "data_key": "FRESH_RANDOM_256_BIT_DEK_PER_ARTIFACT",
+      "nonce": "UNIQUE_96_BIT_NONCE_PER_ENCRYPTION",
+      "aad_required": [
+        "artifact_schema",
+        "artifact_id",
+        "source_commit",
+        "build_id",
+        "manifest_sha256",
+        "key_version"
+      ]
+    },
+    "key_wrapping": {
+      "production_model": "INDEPENDENT_VAULT_OR_SECRET_BROKER_KEK; WRAP_DEK; RELEASE_UNWRAP_ONLY_TO_AUTHORIZED_OPERATION_SCOPED_WORKLOAD_IDENTITY",
+      "test_model": "DEDICATED_NONPRODUCTION_ARTIFACT_KEK_IN_ISOLATED_SECRET_STORE",
+      "raw_kek_export_allowed": false,
+      "cloudflare_credential_reuse_allowed": false,
+      "provider_specific_kms_mandatory": false,
+      "note": "The contract stays provider-neutral. Production must use an independent vault/broker or equivalent enforceable key boundary; a Cloudflare API credential can never substitute for that boundary."
+    },
+    "provenance_and_authenticity": {
+      "algorithm": "Ed25519",
+      "signing_private_key_scope": "ARTIFACT_BUILD_AUTHORITY_ONLY",
+      "verifier_material": "PUBLIC_KEY_ONLY_BY_DEFAULT",
+      "signing_key_may_equal_encryption_key": false,
+      "manifest_fields": [
+        "artifact_id",
+        "schema",
+        "source_commit",
+        "build_id",
+        "ciphertext_sha256",
+        "plaintext_archive_sha256",
+        "encryption_algorithm",
+        "wrapped_dek",
+        "key_version",
+        "created_at",
+        "builder_identity",
+        "policy_version"
+      ],
+      "signature_covers": "CANONICAL_MANIFEST_WITHOUT_SIGNATURE_FIELD"
+    }
+  },
+  "identity_separation": {
+    "cloudflare_inventory_identity": "CLOUDFLARE_AR02_READ_TOKEN",
+    "cloudflare_token_policy_auditor_identity": "CLOUDFLARE_AR02_TOKEN_AUDITOR_TOKEN",
+    "cloudflare_future_mutation_identity": "SEPARATE_OPERATION_SCOPED_TOKEN_PER_APPROVED_S3_S4_S5_OPERATION",
+    "artifact_decryption_identity": "SEPARATE_WORKLOAD_IDENTITY_WITH_UNWRAP_ONLY_FOR_EXACT_ARTIFACT_AND_OPERATION",
+    "artifact_build_signing_identity": "SEPARATE_BUILD_IDENTITY",
+    "independent_verifier_identity": "SEPARATE_VERIFIER_IDENTITY_WITH_PUBLIC_SIGNING_KEY_AND_NO_PROVIDER_WRITE_AUTHORITY",
+    "all_identities_must_be_distinct": true
+  },
+  "legacy_migration": {
+    "current_legacy_artifact": "runtime.tar.gz.enc",
+    "historical_ciphertext_sha256": "b82448d6b4b34b302748815af976b535d69922c197d4b7a9056fc2f91a9e12cf",
+    "historical_plaintext_archive_sha256": "b4d5a0266446523969a619f5e9bb5a04d9b815c78a2ab82ed046ef5e23d53663",
+    "migration_authority_class": "S5",
+    "explicit_human_s5_approval_required": true,
+    "migration_performed": false,
+    "migration_environment": {
+      "isolated_sandbox_required": true,
+      "default_deny_network_egress": true,
+      "ephemeral_filesystem_or_tmpfs_required": true,
+      "provider_api_calls_required": false,
+      "plaintext_logging_forbidden": true,
+      "plaintext_artifact_upload_forbidden": true
+    },
+    "required_sequence": [
+      "READ_AND_PIN_LEGACY_CIPHERTEXT_AND_EXPECTED_HASHES",
+      "LEASE_LEGACY_KEY_MATERIAL_ONLY_UNDER_EXPLICIT_S5_AUTHORITY",
+      "VERIFY_LEGACY_CIPHERTEXT_HASH_AND_HMAC_WHERE_APPLICABLE",
+      "DECRYPT_IN_ISOLATED_EPHEMERAL_SANDBOX",
+      "VERIFY_LEGACY_PLAINTEXT_ARCHIVE_SHA256",
+      "GENERATE_FRESH_PER_ARTIFACT_DEK_AND_ARTIFACT_ID",
+      "ENCRYPT_WITH_AES_256_GCM_AND_BOUND_AAD",
+      "WRAP_DEK_UNDER_DEDICATED_ARTIFACT_KEK",
+      "CREATE_AND_ED25519_SIGN_CANONICAL_MANIFEST",
+      "INDEPENDENT_VERIFIER_CHECK_SIGNATURE_HASHES_TAMPER_FAILURE_AND_CONTROL_BOUNDARIES",
+      "MIGRATE_ALL_51_CONSUMERS_TO_NEW_LOADER_CONTRACT",
+      "PROVE_ZERO_PROVIDER_CREDENTIAL_USE_IN_ARTIFACT_CRYPTO",
+      "DESTROY_EPHEMERAL_PLAINTEXT_AND_END_LEGACY_KEY_LEASE",
+      "ONLY_THEN_REQUEST_SEPARATE_S5_AUTHORITY_FOR_PROVIDER_CREDENTIAL_ROTATION_OR_REVOCATION"
+    ],
+    "historical_sealed_main_must_remain_unchanged": true,
+    "compatibility_bridge": "LEGACY_DECRYPTION_ALLOWED_ONLY_INSIDE_ONE_TIME_GOVERNED_MIGRATION; NEVER_AS_NORMAL_RUNTIME_OR_CI_BEHAVIOR"
+  },
+  "loader_contract": {
+    "fail_closed_on": [
+      "MISSING_OR_INVALID_SIGNATURE",
+      "CIPHERTEXT_SHA_MISMATCH",
+      "AEAD_TAG_FAILURE",
+      "AAD_MISMATCH",
+      "SOURCE_COMMIT_MISMATCH",
+      "BUILD_ID_MISMATCH",
+      "ARTIFACT_ID_OR_KEY_VERSION_MISMATCH",
+      "UNAUTHORIZED_KEY_UNWRAP",
+      "PROVIDER_CREDENTIAL_PRESENT_AS_CRYPTO_INPUT",
+      "PLAINTEXT_PERSISTENCE_OUTSIDE_EPHEMERAL_SANDBOX"
+    ],
+    "required_negative_tests": [
+      "BIT_FLIP_CIPHERTEXT_REJECTED",
+      "TAMPERED_MANIFEST_REJECTED",
+      "WRONG_DEK_REJECTED",
+      "WRONG_AAD_REJECTED",
+      "WRONG_SOURCE_COMMIT_REJECTED",
+      "WRONG_SIGNATURE_REJECTED",
+      "REPLAY_OF_WRONG_ARTIFACT_ID_REJECTED",
+      "CLOUDFLARE_TOKEN_AS_DECRYPTION_KEY_REJECTED"
+    ]
+  },
+  "promotion_gates": {
+    "code_migration_gate": "ALL_51_CONSUMERS_USE_NEW_ARTIFACT_LOADER_AND_ZERO_MATCHES_FOR_PROVIDER_CREDENTIAL_AS_HMAC_OR_DECRYPT_PASSPHRASE",
+    "builder_tests": "REQUIRED",
+    "security_adversarial_review": "REQUIRED",
+    "independent_verifier": "REQUIRED",
+    "provider_scope_proof": "REQUIRED_SEPARATELY_FOR_PROVIDER_IDENTITIES",
+    "rollback_proof": "REQUIRED",
+    "production_promotion_authority": "NOT_GRANTED_BY_THIS_CONTRACT"
+  },
+  "current_blockers": [
+    "GITHUB_ACTIONS_RUNNER_ADMISSION_FAILED_EXTERNAL_ADMISSION",
+    "PRIVATE_MAIN_BRANCH_PROTECTION_OR_RULESET_NOT_ENFORCEABLE_ON_CURRENT_PLAN",
+    "ARTIFACT_VAULT_OR_BROKER_NOT_PROVISIONED",
+    "DEDICATED_ARTIFACT_KEYS_NOT_PROVISIONED",
+    "EXPLICIT_S5_LEGACY_KEY_MIGRATION_AUTHORITY_NOT_GRANTED",
+    "CLOUDFLARE_READ_ONLY_IDENTITIES_NOT_PROVISIONED_OR_LIVE_VERIFIED"
+  ],
+  "verification": {
+    "design_review_status": "FROZEN_SOURCE_GROUNDED",
+    "independent_ci_for_new_contract": "NOT_PERFORMED_DUE_GITHUB_ACTIONS_ADMISSION_FAILURE",
+    "provider_execution_performed": false,
+    "production_mutated": false,
+    "secret_value_read_or_exposed": false
+  },
+  "claim_boundary": {
+    "new_crypto_implemented": false,
+    "legacy_artifact_rewrapped": false,
+    "cloudflare_key_rotated": false,
+    "production_runtime_changed": false,
+    "ar02_complete": false,
+    "ar03_started": false,
+    "full_product_connection": "NOT_PROVEN",
+    "wolfram_parity": "NOT_CERTIFIED",
+    "superiority": "NOT_CERTIFIED"
+  }
+}
