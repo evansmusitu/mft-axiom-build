@@ -11,6 +11,7 @@ import {AR08_ATTACK_DOMAINS,buildDefaultAttackFixtures,runAr08CandidateGate} fro
 import {AR09_TARGETS,runAr09CandidateGate} from '../reliability_qualification.mjs';
 import {runAr10CandidateGate} from '../benchmark_program.mjs';
 import {AR11_STAGES,runAr11CandidateGate} from '../rollout_control.mjs';
+import {AUTHORITATIVE_RUNTIME_BLOBS} from '../runtime_convergence.mjs';
 
 const quantitative=Array.from({length:74},(_,i)=>i===0?'arithmetic.evaluate':`quant.op.${String(i+1).padStart(2,'0')}`);
 
@@ -23,6 +24,10 @@ function fullFabric(){
 async function identityFixture(){
   const identity=new IdentityOnboardingKernel();await identity.createOrganization({organization_id:'org-a',name:'Axiom Org',owner_subject:'owner-a'});await identity.register({subject:'user-a',display_name:'User A',organization_id:'org-a',roles:['owner'],entitlements:['axiom.safe.execute']});return identity;
 }
+
+test('runtime convergence contract pins all authoritative vNext control-plane blobs',()=>{
+  assert.equal(Object.keys(AUTHORITATIVE_RUNTIME_BLOBS).length,10);assert.equal(AUTHORITATIVE_RUNTIME_BLOBS['axiom_interface/vnext/runtime_task_service.mjs'],'dc847eef5d2907d4d3826f7802050ea4e388ad1c');assert.equal(AUTHORITATIVE_RUNTIME_BLOBS['axiom_interface/vnext/fa20_release_orchestrator.mjs'],'11912c1d6a3eac3c568f1f3fa9aaa9d12ddd0887');
+});
 
 test('program contract preserves AR-03 through AR-11 order and fail-closed dependency',()=>{
   assert.deepEqual(phaseOrder(),['AR-03','AR-04','AR-05','AR-06','AR-07','AR-08','AR-09','AR-10','AR-11']);

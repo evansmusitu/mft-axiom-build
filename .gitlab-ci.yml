@@ -37,6 +37,7 @@ ar03-ar11-builder:
     - node --check recovery/ar03_11/benchmark_program.mjs
     - node --check recovery/ar03_11/rollout_control.mjs
     - node --check recovery/ar03_11/independent_verify.mjs
+    - node --check recovery/ar03_11/runtime_convergence.mjs
     - node --check recovery/ar03_11/tests/recovery_ar03_ar11.test.mjs
 
 ar03-ar11-independent-verifier:

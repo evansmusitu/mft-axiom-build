@@ -6,6 +6,7 @@ import {AR08_ATTACK_DOMAINS} from './adversarial_qualification.mjs';
 import {AR09_TARGETS} from './reliability_qualification.mjs';
 import {AR10_DOMAINS,AR10_METRICS} from './benchmark_program.mjs';
 import {AR11_STAGES} from './rollout_control.mjs';
+import {AUTHORITATIVE_RUNTIME_BLOBS,loadAuthoritativeRuntimeBindings,runRuntimeConvergenceGate} from './runtime_convergence.mjs';
 
 const BASE='7f8b51ddd426aa6c4b7684a67be1960db42028ee';
 const SEALED_MAIN='d6a846f6bbe0bccac1758713eb4de167caf07113';
@@ -25,6 +26,13 @@ function verifyGitBoundary(){
   const changed=git('diff','--name-only',`${BASE}..HEAD`).split(/\r?\n/).filter(Boolean);
   for(const path of changed)assert(ALLOWED.some(prefix=>path===prefix||path.startsWith(prefix)),`scope escape: ${path}`);
   assert(changed.length>=14,'expected recovery programme files missing');
+}
+
+function verifyAuthoritativeRuntimeBlobs(){
+  for(const [path,expected] of Object.entries(AUTHORITATIVE_RUNTIME_BLOBS)){
+    const actual=git('rev-parse',`HEAD:${path}`);
+    assert(actual===expected,`authoritative runtime blob drift: ${path} ${actual} != ${expected}`);
+  }
 }
 
 function verifyProgramme(){
@@ -62,6 +70,9 @@ function verifyNoDirectProductionSurface(){
 }
 
 verifyGitBoundary();
+verifyAuthoritativeRuntimeBlobs();
+const convergence=await runRuntimeConvergenceGate(await loadAuthoritativeRuntimeBindings());
+assert(convergence.status==='SOURCE_RUNTIME_CONVERGENCE_PASS','runtime convergence gate failed');
 verifyProgramme();
 verifyStatusLedger();
 verifyNoDirectProductionSurface();
