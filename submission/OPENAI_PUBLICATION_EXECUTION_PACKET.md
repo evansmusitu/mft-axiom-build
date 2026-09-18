@@ -80,7 +80,7 @@ Use these values; do not rename the product or substitute the unrelated public p
 - Category: `FINANCE`
 - Logo source in repository: `branding/musitu-axiom-app-icon.svg`
 - Website: `https://mcp.mftintelligence.com/docs`
-- Support: `https://github.com/evansmusitu/mft-axiom-build/issues`
+- Support: `https://mcp.mftintelligence.com/support`
 - Privacy policy: `https://mcp.mftintelligence.com/privacy`
 - Terms of use: `https://mcp.mftintelligence.com/terms`
 
