@@ -1,0 +1,172 @@
+{
+  "schema": "musitu.axiom.recovery.ar02-workers-dev-exposure-matrix.v1",
+  "phase": "AR-02",
+  "recorded_on": "2026-09-18",
+  "status": "SOURCE_EXPOSURE_DISPOSITIONS_FROZEN_NOT_PROVIDER_STATE_PROOF",
+  "authority": {
+    "sealed_main_commit": "d6a846f6bbe0bccac1758713eb4de167caf07113",
+    "runtime_source_commit": "216ee7d15f01a3fb558452cc4b906a055001ccdd",
+    "recovery_branch": "frontier/axiom-recovery-ar02-credential-triage-20260918",
+    "recovery_parent_head": "04a2e697ddc35438a7fb9eb7a939eb30854afa26",
+    "release_surface_registry": "docs/axiom_recovery/AR02_MUTATION_WORKFLOW_CLASSIFICATION.json",
+    "compound_matrix": "docs/axiom_recovery/AR02_COMPOUND_SECRET_REUSE_PRIORITY_MATRIX.json"
+  },
+  "counts": {
+    "public_workers_dev_exposure_or_activation_paths": 19,
+    "explicit_workers_dev_true_paths": 16,
+    "dynamic_workers_dev_false_to_true_paths": 1,
+    "explicit_subdomain_enable_true_paths": 1,
+    "public_bootstrap_deploy_verify_paths": 1,
+    "previously_dispositioned_paths": 17,
+    "newly_dispositioned_paths": 2,
+    "all_identified_paths_have_ar02_disposition": true
+  },
+  "rows": [
+    {
+      "path": ".github/workflows/axiom-canonical-kernel-payload-capture.yml",
+      "exposure_mode": "EXPLICIT_WORKERS_DEV_TRUE",
+      "existing_disposition": "COVERED_BY_AR02_MUTATION_WORKFLOW_CLASSIFICATION",
+      "action": "PRESERVE_EXISTING_QUARANTINE_OR_GOVERNED_REPLACEMENT"
+    },
+    {
+      "path": ".github/workflows/axiom-cloudflare-staging-deploy.yml",
+      "exposure_mode": "EXPLICIT_WORKERS_DEV_TRUE",
+      "existing_disposition": "COVERED_BY_AR02_MUTATION_WORKFLOW_CLASSIFICATION",
+      "action": "PRESERVE_EXISTING_QUARANTINE_OR_GOVERNED_REPLACEMENT"
+    },
+    {
+      "path": ".github/workflows/axiom-kernel-exception-diagnostic.yml",
+      "exposure_mode": "EXPLICIT_WORKERS_DEV_TRUE",
+      "existing_disposition": "COVERED_BY_AR02_MUTATION_WORKFLOW_CLASSIFICATION",
+      "action": "PRESERVE_EXISTING_QUARANTINE_OR_GOVERNED_REPLACEMENT"
+    },
+    {
+      "path": ".github/workflows/axiom-modal-adapter-exact-request-probe.yml",
+      "exposure_mode": "EXPLICIT_WORKERS_DEV_TRUE",
+      "existing_disposition": "COVERED_BY_AR02_MUTATION_WORKFLOW_CLASSIFICATION",
+      "action": "PRESERVE_EXISTING_QUARANTINE_OR_GOVERNED_REPLACEMENT"
+    },
+    {
+      "path": ".github/workflows/axiom-modal-adapter-repair-probe.yml",
+      "exposure_mode": "EXPLICIT_WORKERS_DEV_TRUE",
+      "existing_disposition": "COVERED_BY_AR02_MUTATION_WORKFLOW_CLASSIFICATION",
+      "action": "PRESERVE_EXISTING_QUARANTINE_OR_GOVERNED_REPLACEMENT"
+    },
+    {
+      "path": ".github/workflows/axiom-modal-adapter-transport-diagnostic.yml",
+      "exposure_mode": "EXPLICIT_WORKERS_DEV_TRUE",
+      "existing_disposition": "COVERED_BY_AR02_MUTATION_WORKFLOW_CLASSIFICATION",
+      "action": "PRESERVE_EXISTING_QUARANTINE_OR_GOVERNED_REPLACEMENT"
+    },
+    {
+      "path": ".github/workflows/axiom-modal-edge-service-compat-patch.yml",
+      "exposure_mode": "EXPLICIT_WORKERS_DEV_TRUE",
+      "existing_disposition": "COVERED_BY_AR02_MUTATION_WORKFLOW_CLASSIFICATION",
+      "action": "PRESERVE_EXISTING_QUARANTINE_OR_GOVERNED_REPLACEMENT"
+    },
+    {
+      "path": ".github/workflows/axiom-modal-edge-transport-repair.yml",
+      "exposure_mode": "EXPLICIT_WORKERS_DEV_TRUE",
+      "existing_disposition": "COVERED_BY_AR02_MUTATION_WORKFLOW_CLASSIFICATION",
+      "action": "PRESERVE_EXISTING_QUARANTINE_OR_GOVERNED_REPLACEMENT"
+    },
+    {
+      "path": ".github/workflows/axiom-modal-stage-domain-auth-final-v2.yml",
+      "exposure_mode": "EXPLICIT_WORKERS_DEV_TRUE",
+      "existing_disposition": "COVERED_BY_AR02_MUTATION_WORKFLOW_CLASSIFICATION",
+      "action": "PRESERVE_EXISTING_QUARANTINE_OR_GOVERNED_REPLACEMENT"
+    },
+    {
+      "path": ".github/workflows/axiom-musitu-cloudflare-compat-aliases.yml",
+      "exposure_mode": "EXPLICIT_WORKERS_DEV_TRUE",
+      "existing_disposition": "COVERED_BY_AR02_MUTATION_WORKFLOW_CLASSIFICATION",
+      "action": "PRESERVE_EXISTING_QUARANTINE_OR_GOVERNED_REPLACEMENT"
+    },
+    {
+      "path": ".github/workflows/axiom-musitu-d1-live-cutover.yml",
+      "exposure_mode": "EXPLICIT_WORKERS_DEV_TRUE",
+      "existing_disposition": "COVERED_BY_AR02_MUTATION_WORKFLOW_CLASSIFICATION",
+      "action": "PRESERVE_EXISTING_QUARANTINE_OR_GOVERNED_REPLACEMENT"
+    },
+    {
+      "path": ".github/workflows/axiom-musitu-modal-backend-cutover.yml",
+      "exposure_mode": "EXPLICIT_WORKERS_DEV_TRUE",
+      "existing_disposition": "COVERED_BY_AR02_MUTATION_WORKFLOW_CLASSIFICATION",
+      "action": "PRESERVE_EXISTING_QUARANTINE_OR_GOVERNED_REPLACEMENT"
+    },
+    {
+      "path": ".github/workflows/axiom-service-binding-request-object-probe.yml",
+      "exposure_mode": "EXPLICIT_WORKERS_DEV_TRUE",
+      "existing_disposition": "COVERED_BY_AR02_MUTATION_WORKFLOW_CLASSIFICATION",
+      "action": "PRESERVE_EXISTING_QUARANTINE_OR_GOVERNED_REPLACEMENT"
+    },
+    {
+      "path": ".github/workflows/axiom-service-binding-runtime-shape.yml",
+      "exposure_mode": "EXPLICIT_WORKERS_DEV_TRUE",
+      "existing_disposition": "COVERED_BY_AR02_MUTATION_WORKFLOW_CLASSIFICATION",
+      "action": "PRESERVE_EXISTING_QUARANTINE_OR_GOVERNED_REPLACEMENT"
+    },
+    {
+      "path": ".github/workflows/cloudflare-service-fetch-signature-probe.yml",
+      "exposure_mode": "EXPLICIT_WORKERS_DEV_TRUE",
+      "existing_disposition": "COVERED_BY_AR02_MUTATION_WORKFLOW_CLASSIFICATION",
+      "action": "PRESERVE_EXISTING_QUARANTINE_OR_GOVERNED_REPLACEMENT"
+    },
+    {
+      "path": "scripts/axiom-staging-deploy.sh",
+      "exposure_mode": "EXPLICIT_WORKERS_DEV_TRUE",
+      "existing_disposition": "QUARANTINE_PENDING_STAGING_REPLACEMENT",
+      "action": "PRESERVE_EXISTING_QUARANTINE_OR_GOVERNED_REPLACEMENT"
+    },
+    {
+      "path": ".github/workflows/axiom-modal-edge-isolated-deploy.yml",
+      "exposure_mode": "DYNAMIC_WORKERS_DEV_FALSE_TO_TRUE_REDEPLOY",
+      "existing_disposition": "REPLACE_WITH_GOVERNED_CONTRACT",
+      "source_finding": "Workflow deploys privately with workers_dev=false, then rewrites wrangler config to workers_dev=true and redeploys a public workers.dev endpoint while bound to the production D1.",
+      "action": "PRESERVE_GOVERNED_REPLACEMENT_ONLY"
+    },
+    {
+      "path": ".github/workflows/cloudflare-axiom-bootstrap-enable.yml",
+      "exposure_mode": "CLOUDFLARE_SUBDOMAIN_API_ENABLE_TRUE",
+      "existing_disposition": null,
+      "source_finding": "POSTs {enabled:true,previews_enabled:false} to the Worker subdomain endpoint using the global Cloudflare key.",
+      "action": "QUARANTINE_PENDING_NONPUBLIC_BOOTSTRAP_REPLACEMENT"
+    },
+    {
+      "path": ".github/workflows/cloudflare-axiom-bootstrap.yml",
+      "exposure_mode": "PUBLIC_WORKERS_DEV_BOOTSTRAP_DEPLOY_AND_HEALTH_VERIFY",
+      "existing_disposition": null,
+      "source_finding": "Deploys bootstrap Worker and verifies public health via https://<worker>.<subdomain>.workers.dev/health.",
+      "action": "QUARANTINE_PENDING_NONPUBLIC_BOOTSTRAP_REPLACEMENT"
+    }
+  ],
+  "target_state": {
+    "production_workers_dev": false,
+    "production_preview_urls": false,
+    "staging_public_workers_dev_default": false,
+    "canary_public_workers_dev_default": false,
+    "diagnostic_public_workers_dev_default": false,
+    "preferred_nonproduction_access": "Access-protected custom hostname or private service binding with explicit authorized test identity",
+    "raw_workers_dev_publication_allowed_only_by_exception": false,
+    "exception_authority": "Explicit separately approved S4/S5 security exception with expiry, narrow scope, independent review, and teardown proof"
+  },
+  "source_vs_provider_truth": {
+    "source_exposure_capability_proven": true,
+    "current_live_cloudflare_exposure": "NOT_PROVEN",
+    "live_teardown_or_access_protection": "NOT_PROVEN",
+    "reason": "No authenticated Cloudflare provider readback is available in this continuation."
+  },
+  "verification": {
+    "provider_execution_performed": false,
+    "production_mutated": false,
+    "independent_ci_for_new_record": "NOT_PERFORMED_DUE_GITHUB_ACTIONS_PRE_RUNNER_ADMISSION_FAILURE"
+  },
+  "claim_boundary": {
+    "workers_dev_live_exposure_removed": false,
+    "cloudflare_access_protection_verified": false,
+    "ar02_complete": false,
+    "ar03_started": false,
+    "full_product_connection": "NOT_PROVEN",
+    "superiority": "NOT_CERTIFIED"
+  }
+}
