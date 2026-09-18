@@ -1,0 +1,217 @@
+{
+  "schema": "musitu.axiom.recovery.ar03-ar11-program-contract.v1",
+  "recorded_on": "2026-09-18",
+  "authority": {
+    "repository": "evansmusitu/mft-axiom-build",
+    "sealed_main_commit": "d6a846f6bbe0bccac1758713eb4de167caf07113",
+    "runtime_source_commit": "216ee7d15f01a3fb558452cc4b906a055001ccdd",
+    "ar02_bootstrap_source_commit": "7f8b51ddd426aa6c4b7684a67be1960db42028ee",
+    "branch": "frontier/axiom-recovery-ar03-11-20260918",
+    "pr1_state": "OPEN_DRAFT_UNMERGED"
+  },
+  "authorization": {
+    "user_authorized_ar03_through_ar11": true,
+    "implementation_ahead_of_qualification_allowed": true,
+    "inherited_gate_bypass_allowed": false,
+    "production_promotion_authority_granted": false,
+    "s5_secret_or_security_policy_authority_granted": false,
+    "rule": "Later stages may be implemented and tested in isolation, but no stage may be marked EARNED until all inherited prerequisite gates and its own gate pass with evidence."
+  },
+  "stage_sequence": [
+    {
+      "stage": "AR-03",
+      "name": "Identity and onboarding",
+      "deliverables": [
+        "signup/login",
+        "organization and role model",
+        "entitlements",
+        "key management",
+        "OAuth/MCP linkage",
+        "account recovery",
+        "audit history"
+      ],
+      "gate": "A new customer registers, enters AXIOM, creates a project, and runs an entitled safe task without manual database provisioning."
+    },
+    {
+      "stage": "AR-04",
+      "name": "Cloud Project and Work Graph",
+      "deliverables": [
+        "server-backed Project",
+        "server-backed Work",
+        "server-backed Artifact",
+        "server-backed Agent",
+        "server-backed Memory",
+        "server-backed Source",
+        "server-backed Approval",
+        "offline cache and reconciliation",
+        "import current local stores",
+        "provenance",
+        "tenant isolation"
+      ],
+      "gate": "The same project opens correctly on two devices without provenance loss or cross-tenant exposure."
+    },
+    {
+      "stage": "AR-05",
+      "name": "Durable execution kernel",
+      "deliverables": [
+        "persistent task state machine",
+        "step planner",
+        "queue/workflow executor",
+        "cancellation",
+        "retry and resume",
+        "idempotency",
+        "budgets",
+        "approval pauses",
+        "complete event stream"
+      ],
+      "gate": "A task survives browser closure, Worker restart, injected timeout, and transient tool failure without duplicate side effects."
+    },
+    {
+      "stage": "AR-06",
+      "name": "Ordered full tool-fabric connection",
+      "ordered_connection": [
+        "74 certified quantitative operations",
+        "Frontier V5 research/source",
+        "artifact engine",
+        "code/file sandbox",
+        "browser/computer",
+        "project memory/context",
+        "agents/mission control",
+        "automations/schedules",
+        "MCP/enterprise connectors",
+        "live/multimodal channels"
+      ],
+      "gate": "Every registered tool executes successfully through the same production-shaped orchestrator; no UI uses separate local simulation."
+    },
+    {
+      "stage": "AR-07",
+      "name": "Unified application",
+      "deliverables": [
+        "one task composer",
+        "real plan/progress timeline",
+        "live tool/action visibility",
+        "approval cards",
+        "artifact workspace",
+        "project memory",
+        "retry/cancel/redirect",
+        "clear limitations",
+        "mobile supervision",
+        "voice/camera/screen"
+      ],
+      "gate": "Five unfamiliar users complete priority tasks without developer assistance."
+    },
+    {
+      "stage": "AR-08",
+      "name": "Adversarial qualification",
+      "attacks": [
+        "prompt/instruction injection",
+        "cross-tenant access",
+        "scope escalation",
+        "approval bypass",
+        "secret extraction",
+        "SSRF/redirect abuse",
+        "browser escape",
+        "tampering",
+        "replay and duplicate side effects",
+        "dependency compromise",
+        "evaluator manipulation"
+      ],
+      "gate": "Zero open critical/high findings; every consequential action requires exact authorization; independent verifier reproduces the verdict."
+    },
+    {
+      "stage": "AR-09",
+      "name": "Reliability and scale qualification",
+      "release_targets": {
+        "gateway_availability_min_pct": 99.9,
+        "injected_transient_failure_recovery_min_pct": 95,
+        "duplicate_consequential_actions_max": 0,
+        "task_state_reconciliation_pct": 100,
+        "material_artifact_provenance_pct": 100,
+        "cross_tenant_leakage_max": 0
+      },
+      "tests": [
+        "concurrency",
+        "soak",
+        "queue saturation",
+        "provider outage",
+        "D1/R2 latency",
+        "browser disconnect",
+        "workflow restart",
+        "partial tool outage",
+        "corrupted event",
+        "model timeout",
+        "rollback/restoration"
+      ],
+      "gate": "All release targets hold under the defined reliability/scale test matrix with retained failures and reproducible evidence."
+    },
+    {
+      "stage": "AR-10",
+      "name": "Sealed frontier benchmarks",
+      "rule": "Seal benchmark tasks/scoring before implementation tuning; no sealed benchmark may be used for tuning afterward.",
+      "baselines": [
+        "Astra/Gemini Live",
+        "Google DeepMind/Gemini",
+        "Claude Code",
+        "Anthropic computer use",
+        "Microsoft Copilot Studio",
+        "strong finance/quant systems plus human experts",
+        "AXIOM-specific independent controls"
+      ],
+      "record": [
+        "success",
+        "verified correctness",
+        "completion time",
+        "cost",
+        "human interventions",
+        "injected-failure recovery",
+        "citation/provenance",
+        "unauthorized-action rate",
+        "artifact quality",
+        "user preference"
+      ],
+      "gate": "Use unseen/equivalent tasks, predefined scoring, retained failures, independent reproduction, statistically significant AXIOM win on authorized comparison claims, no worse safety/authorization, and disclosed cost/latency. No superiority/parity claim is authorized without this evidence."
+    },
+    {
+      "stage": "AR-11",
+      "name": "Staged production rollout",
+      "sequence": [
+        "isolated staging",
+        "internal shadow traffic",
+        "independent verification",
+        "canary customer cohort",
+        "rollback rehearsal",
+        "human production approval",
+        "gradual production cutover",
+        "monitoring hold",
+        "candidate restoration test",
+        "continuous regression"
+      ],
+      "gate": "Production release may proceed only after the full sequence passes at the exact candidate head with rollback proof and explicit human production approval."
+    }
+  ],
+  "inherited_release_law": [
+    "AR-02 remains incomplete until its external GitLab/provider/security gates are actually earned.",
+    "AR-03 through AR-11 may be implemented in isolation but remain NOT_EARNED while an inherited prerequisite is incomplete.",
+    "No later-stage implementation may weaken AR-02 security or rewrite missing evidence as PASS.",
+    "No production deployment, secret rotation, repository authority transition, or public comparative claim is authorized by this contract."
+  ],
+  "current_state": {
+    "ar02": "INCOMPLETE_EXTERNAL_GATES_OPEN",
+    "ar03": "AUTHORIZED_IMPLEMENTATION_NOT_STARTED_AT_CONTRACT_FREEZE",
+    "ar04": "AUTHORIZED_NOT_STARTED",
+    "ar05": "AUTHORIZED_NOT_STARTED",
+    "ar06": "AUTHORIZED_NOT_STARTED",
+    "ar07": "AUTHORIZED_NOT_STARTED",
+    "ar08": "AUTHORIZED_NOT_STARTED",
+    "ar09": "AUTHORIZED_NOT_STARTED",
+    "ar10": "AUTHORIZED_NOT_STARTED",
+    "ar11": "AUTHORIZED_NOT_STARTED",
+    "production_mutated": false
+  },
+  "claim_boundary": {
+    "full_product_connection": "NOT_PROVEN",
+    "frontier_v5_live_integration": "NOT_PROVEN",
+    "wolfram_parity": "NOT_CERTIFIED",
+    "superiority": "NOT_CERTIFIED"
+  }
+}
