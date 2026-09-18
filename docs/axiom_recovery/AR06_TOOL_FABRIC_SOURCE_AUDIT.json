@@ -1,0 +1,198 @@
+{
+  "schema": "musitu.axiom.recovery.ar06-tool-fabric-source-audit.v1",
+  "recorded_on": "2026-09-18",
+  "authority": {
+    "sealed_main_commit": "d6a846f6bbe0bccac1758713eb4de167caf07113",
+    "runtime_source_commit": "216ee7d15f01a3fb558452cc4b906a055001ccdd",
+    "recovery_branch": "frontier/axiom-recovery-ar03-11-20260918",
+    "capability_registry_path": "axiom_interface/vnext/capability_registry.js",
+    "capability_registry_blob_sha": "abc22e83dcd21be3441113cc0a0fcd4b95c83b1f"
+  },
+  "atomic_registry": {
+    "count": 74,
+    "operations": [
+      "algebra.expand",
+      "algebra.factor",
+      "algebra.polynomial_roots",
+      "algebra.simplify",
+      "algebra.solve",
+      "arithmetic.evaluate",
+      "calculus.diff",
+      "calculus.integrate",
+      "calculus.limit",
+      "calculus.product",
+      "calculus.series",
+      "calculus.sum",
+      "combinatorics.binomial",
+      "combinatorics.factorial",
+      "finance.beta",
+      "finance.black_scholes",
+      "finance.bond_price",
+      "finance.bond_yield",
+      "finance.compound",
+      "finance.cvar_historical",
+      "finance.drawdown",
+      "finance.duration",
+      "finance.greeks",
+      "finance.implied_vol",
+      "finance.monte_carlo_gbm",
+      "finance.npv",
+      "finance.portfolio_metrics",
+      "finance.returns",
+      "finance.var_historical",
+      "finance.var_parametric",
+      "geometry.area_circle",
+      "geometry.distance",
+      "geometry.volume_sphere",
+      "knowledge.constant",
+      "knowledge.element",
+      "linear.det",
+      "linear.eigen",
+      "linear.inv",
+      "linear.solve",
+      "numbertheory.factorint",
+      "numbertheory.gcd",
+      "numbertheory.isprime",
+      "numbertheory.lcm",
+      "numeric.integrate",
+      "numeric.interpolate",
+      "numeric.least_squares",
+      "numeric.ode",
+      "numeric.optimize_scalar",
+      "numeric.root",
+      "optimization.linear_program",
+      "optimization.quadratic",
+      "probability.binomial_pmf",
+      "probability.chi2_cdf",
+      "probability.exponential_cdf",
+      "probability.normal_cdf",
+      "probability.normal_ppf",
+      "probability.poisson_pmf",
+      "statistics.correlation",
+      "statistics.covariance",
+      "statistics.describe",
+      "statistics.normal_fit",
+      "statistics.quantile",
+      "statistics.regression",
+      "statistics.ttest_ind",
+      "statistics.zscore",
+      "timeseries.ewma",
+      "timeseries.moving_average",
+      "timeseries.rolling_volatility",
+      "transforms.fft",
+      "transforms.ifft",
+      "units.convert",
+      "verified.interval_eval",
+      "verify.crosscheck",
+      "verify.evaluate"
+    ],
+    "status": "CERTIFIED_ATOMIC_REGISTRY_SOURCE_PRESENT"
+  },
+  "ordered_lanes": [
+    {
+      "order": 1,
+      "lane": "74 certified quantitative operations",
+      "source_present": true,
+      "live_unified_orchestrator_execution": "NOT_PROVEN"
+    },
+    {
+      "order": 2,
+      "lane": "Frontier V5 research/source",
+      "source_present": true,
+      "evidence": [
+        "frontier_v5/runtime/secure_research.py",
+        "frontier_v5/runtime/freshness.py"
+      ],
+      "live_unified_orchestrator_execution": "NOT_PROVEN"
+    },
+    {
+      "order": 3,
+      "lane": "artifact engine",
+      "source_present": true,
+      "evidence": [
+        "frontier_v5/runtime/artifact_engine.py"
+      ],
+      "live_unified_orchestrator_execution": "NOT_PROVEN"
+    },
+    {
+      "order": 4,
+      "lane": "code/file sandbox",
+      "source_present": true,
+      "evidence": [
+        "frontier_v5/runtime/developer_platform.py",
+        "frontier_v5/runtime/malicious_file_guard.py"
+      ],
+      "live_unified_orchestrator_execution": "NOT_PROVEN"
+    },
+    {
+      "order": 5,
+      "lane": "browser/computer",
+      "source_present": true,
+      "evidence": [
+        "frontier_v5/runtime/computer_execution.py"
+      ],
+      "live_unified_orchestrator_execution": "NOT_PROVEN"
+    },
+    {
+      "order": 6,
+      "lane": "project memory/context",
+      "source_present": true,
+      "evidence": [
+        "axiom_interface/vnext/project_work_memory_bridge.js"
+      ],
+      "live_unified_orchestrator_execution": "NOT_PROVEN"
+    },
+    {
+      "order": 7,
+      "lane": "agents/mission control",
+      "source_present": true,
+      "evidence": [
+        "frontier_v5/runtime/agent_automation.py"
+      ],
+      "live_unified_orchestrator_execution": "NOT_PROVEN"
+    },
+    {
+      "order": 8,
+      "lane": "automations/schedules",
+      "source_present": true,
+      "evidence": [
+        "frontier_v5/runtime/agent_automation.py"
+      ],
+      "live_unified_orchestrator_execution": "NOT_PROVEN"
+    },
+    {
+      "order": 9,
+      "lane": "MCP/enterprise connectors",
+      "source_present": true,
+      "evidence": [
+        "frontier_v5/runtime/mcp_2026.py",
+        "frontier_v5/runtime/enterprise_contracts.py"
+      ],
+      "live_unified_orchestrator_execution": "NOT_PROVEN"
+    },
+    {
+      "order": 10,
+      "lane": "live/multimodal channels",
+      "source_present": true,
+      "evidence": [
+        "frontier_v5/runtime/live_session.py",
+        "frontier_v5/runtime/live_semantics.py"
+      ],
+      "live_unified_orchestrator_execution": "NOT_PROVEN"
+    }
+  ],
+  "gate": "Every registered tool executes successfully through the same production-shaped orchestrator; no UI uses separate local simulation.",
+  "implementation_decision": {
+    "unified_invocation_contract_required": true,
+    "unbound_lane_behavior": "FAIL_CLOSED",
+    "local_simulation_may_satisfy_gate": false,
+    "source_presence_may_satisfy_gate": false,
+    "lane_specific_ui_bypass_allowed": false
+  },
+  "state": {
+    "implementation": "STARTING",
+    "gate": "NOT_EARNED",
+    "inherited_ar02_ar05_gates": "OPEN",
+    "production_mutated": false
+  }
+}
