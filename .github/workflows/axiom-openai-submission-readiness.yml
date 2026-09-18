@@ -51,7 +51,7 @@ jobs:
           if server.get('server_type')!='UNIVERSAL' or server.get('production_url')!=mcp_url or server.get('execution_scope')!='axiom.execute':raise RuntimeError('MCP portal material drift')
           if server.get('userinfo_endpoint')!=issuer+'/oauth/userinfo' or server.get('identity_scopes')!=['openid','email']:raise RuntimeError('identity portal material drift')
           prompts=portal.get('starter_prompts') or []
-          if len(prompts)<4 or len(set(prompts))!=len(prompts) or any(len(p)<25 for p in prompts):raise RuntimeError('starter prompts incomplete')
+          if not 1<=len(prompts)<=3 or len(set(prompts))!=len(prompts) or any(len(p)<25 or len(p)>128 for p in prompts):raise RuntimeError('starter prompts violate current listing limits')
           if len(str(portal.get('release_notes') or ''))<120:raise RuntimeError('release notes incomplete')
 
           logo=pathlib.Path(listing['logo_repository_path'])
@@ -85,11 +85,11 @@ jobs:
           if lc!=200 or len(tools)!=108 or len(mapped)!=74 or len(business)!=30 or ({t.get('name') for t in tools}&hidden):raise RuntimeError('live public tool surface drift')
 
           dc,_,db=request(issuer+'/.well-known/oauth-authorization-server');discovery=json.loads(db or b'{}');scopes=set(discovery.get('scopes_supported') or [])
-          if dc!=200 or discovery.get('userinfo_endpoint')!=issuer+'/oauth/userinfo' or not {'axiom.execute','openid','email'}.issubset(scopes) or 'S256' not in (discovery.get('code_challenge_methods_supported') or []):raise RuntimeError('live OAuth metadata drift')
+          if dc!=200 or discovery.get('userinfo_endpoint')!=issuer+'/oauth/userinfo' or not {'axiom.execute','openid','email','offline_access'}.issubset(scopes) or 'refresh_token' not in (discovery.get('grant_types_supported') or []) or 'S256' not in (discovery.get('code_challenge_methods_supported') or []):raise RuntimeError('live OAuth metadata drift')
           uc,_,ub=request(issuer+'/oauth/userinfo');uo=json.loads(ub or b'{}')
           if uc!=401 or uo.get('error')!='invalid_token':raise RuntimeError('UserInfo does not fail closed without bearer')
 
-          for page in ('/privacy','/terms','/docs'):
+          for page in ('/','/docs','/support','/privacy','/terms'):
             pc,ph,pb=request(mcp_base+page,headers={'Accept':'text/html'})
             if pc!=200 or len(pb)<200 or 'text/html' not in str(ph.get('Content-Type') or ''):raise RuntimeError(page+' is not publication-ready')
           sc,_,sb=request(listing['support_url'],headers={'Accept':'text/html'})
