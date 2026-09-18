@@ -1,0 +1,25 @@
+name: MUSITU Axiom AR-02 Actions Admission Probe
+
+on:
+  push:
+    branches:
+      - frontier/axiom-recovery-ar02-actions-admission-probe-20260918
+    paths:
+      - '.github/workflows/axiom-recovery-ar02-actions-admission-probe.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  admission-probe:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
+    steps:
+      - name: Prove runner admission only
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo 'AR02_ACTIONS_ADMISSION_PROBE=PASS'
+          echo 'PROVIDER_EXECUTION_PERFORMED=false'
+          echo 'PRODUCTION_MUTATED=false'
