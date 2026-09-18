@@ -2,7 +2,7 @@
   "schema": "musitu.axiom.recovery.ar02-gitlab-free-mirror-bootstrap.v1",
   "phase": "AR-02",
   "recorded_on": "2026-09-18",
-  "status": "BOOTSTRAP_PREPARED_GITLAB_PROJECT_NOT_CREATED_NO_CONNECTED_GITLAB_ACTION_SURFACE",
+  "status": "SOURCE_BOOTSTRAP_COMPLETE_GITLAB_PROJECT_NOT_CREATED_NO_CONNECTED_GITLAB_ACTION_SURFACE",
   "authority": {
     "source_repository": "evansmusitu/mft-axiom-build",
     "source_repository_visibility": "PRIVATE",
@@ -107,5 +107,22 @@
     "full_product_connection": "NOT_PROVEN",
     "production_mutated": false,
     "superiority": "NOT_CERTIFIED"
+  },
+  "source_bootstrap_validation": {
+    "exact_file_delta": [
+      ".gitlab-ci.yml",
+      "docs/axiom_recovery/AR02_GITLAB_FREE_MIRROR_BOOTSTRAP.json",
+      "recovery/ar02/verify_gitlab_mirror_builder.py",
+      "recovery/ar02/verify_gitlab_mirror_independent.py"
+    ],
+    "pinned_python_image": true,
+    "provider_mutation_surface_in_ci": false,
+    "environment_secret_binding_in_ci": false,
+    "ci_artifacts_enabled": false,
+    "ci_cache_enabled": false,
+    "builder_verifier_present": true,
+    "independent_verifier_recomputes_forensic_counts": true,
+    "source_bootstrap_complete": true,
+    "gitlab_execution_qualification": "NOT_PERFORMED"
   }
 }
