@@ -1,17 +1,11 @@
 # MUSITU Axiom Support
 
-For MUSITU Axiom app support, bug reports, or account-linking issues, open a GitHub issue in this repository:
+Public support: https://mcp.mftintelligence.com/support
 
-https://github.com/evansmusitu/mft-axiom-build/issues
+Email: evans@mftintelligence.com
 
-Please include the problem you observed and the approximate time it occurred.
-Do not post API keys, OAuth tokens, account keys, payment credentials, private financial information, or other secrets in a public issue.
+Use the support channel for account access, OAuth connection issues, product questions, privacy/data-rights requests, security reports, and service incidents.
 
-For security-sensitive reports, do not disclose exploit details or credentials publicly. Use the repository owner's private contact channel rather than a public issue.
+Include a concise description of the issue, the approximate time it occurred, and the affected capability when known.
 
-Public service references:
-
-- MCP: https://mcp.mftintelligence.com/mcp
-- Privacy: https://mcp.mftintelligence.com/privacy
-- Terms: https://mcp.mftintelligence.com/terms
-- Documentation: https://mcp.mftintelligence.com/docs
+Do **not** send MUSITU account keys, API keys, OAuth access or refresh tokens, passwords, payment credentials, or private financial information. Support will never ask you to send raw credentials by email.
