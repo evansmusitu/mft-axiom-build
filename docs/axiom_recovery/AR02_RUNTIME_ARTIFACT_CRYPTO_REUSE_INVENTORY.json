@@ -1,0 +1,322 @@
+{
+  "schema": "musitu.axiom.recovery.ar02-runtime-artifact-crypto-reuse-inventory.v1",
+  "phase": "AR-02",
+  "recorded_on": "2026-09-18",
+  "authority": {
+    "sealed_main_commit": "d6a846f6bbe0bccac1758713eb4de167caf07113",
+    "runtime_source_commit": "216ee7d15f01a3fb558452cc4b906a055001ccdd",
+    "repository_visibility": "PRIVATE"
+  },
+  "finding": {
+    "classification": "CROSS_PURPOSE_GLOBAL_KEY_SECRET_REUSE",
+    "risk_class": "S5_SOURCE_SURFACE",
+    "provider_credential": "CLOUDFLARE_GLOBAL_API_KEY",
+    "misuse_modes": [
+      "AES_256_CBC_PBKDF2_RUNTIME_ARCHIVE_DECRYPTION_PASSPHRASE",
+      "HMAC_SHA256_RUNTIME_ARCHIVE_AUTHENTICITY_KEY"
+    ],
+    "decrypt_passphrase_file_count": 51,
+    "hmac_key_file_count": 29,
+    "decrypt_only_file_count": 22,
+    "union_file_count": 51,
+    "summary": "A Cloudflare provider-administration credential is reused as runtime artifact cryptographic key material. Compromise therefore crosses provider authority and protected-source confidentiality/authenticity boundaries, and rotation of either concern is coupled to the other."
+  },
+  "search_provenance": {
+    "repository": "evansmusitu/mft-axiom-build",
+    "ref": "sealed main",
+    "exact_queries": [
+      "pass env:CLOUDFLARE_GLOBAL_API_KEY",
+      "hmac.new os.environ CLOUDFLARE_GLOBAL_API_KEY",
+      "runtime.tar.gz.enc CLOUDFLARE_GLOBAL_API_KEY"
+    ],
+    "independent_archive_query_reproduced_same_51_file_set": true,
+    "result_set_truncation_detected": false
+  },
+  "files": [
+    {
+      "path": ".github/workflows/axiom-admin-auth-contract.yml",
+      "uses_global_key_as_decrypt_passphrase": true,
+      "uses_global_key_as_hmac_key": false
+    },
+    {
+      "path": ".github/workflows/axiom-admin-create-customer-contract.yml",
+      "uses_global_key_as_decrypt_passphrase": true,
+      "uses_global_key_as_hmac_key": false
+    },
+    {
+      "path": ".github/workflows/axiom-admin-key-regex-routes.yml",
+      "uses_global_key_as_decrypt_passphrase": true,
+      "uses_global_key_as_hmac_key": false
+    },
+    {
+      "path": ".github/workflows/axiom-api-key-issuance-contract.yml",
+      "uses_global_key_as_decrypt_passphrase": true,
+      "uses_global_key_as_hmac_key": false
+    },
+    {
+      "path": ".github/workflows/axiom-auth-metering-contract.yml",
+      "uses_global_key_as_decrypt_passphrase": true,
+      "uses_global_key_as_hmac_key": false
+    },
+    {
+      "path": ".github/workflows/axiom-billing-provider-contract.yml",
+      "uses_global_key_as_decrypt_passphrase": true,
+      "uses_global_key_as_hmac_key": false
+    },
+    {
+      "path": ".github/workflows/axiom-canonical-kernel-payload-capture.yml",
+      "uses_global_key_as_decrypt_passphrase": true,
+      "uses_global_key_as_hmac_key": true
+    },
+    {
+      "path": ".github/workflows/axiom-cloudflare-staging-deploy.yml",
+      "uses_global_key_as_decrypt_passphrase": true,
+      "uses_global_key_as_hmac_key": true
+    },
+    {
+      "path": ".github/workflows/axiom-customer-provision-contract.yml",
+      "uses_global_key_as_decrypt_passphrase": true,
+      "uses_global_key_as_hmac_key": false
+    },
+    {
+      "path": ".github/workflows/axiom-d1-canonical-migration.yml",
+      "uses_global_key_as_decrypt_passphrase": true,
+      "uses_global_key_as_hmac_key": true
+    },
+    {
+      "path": ".github/workflows/axiom-d1-musitu-parallel-clone.yml",
+      "uses_global_key_as_decrypt_passphrase": true,
+      "uses_global_key_as_hmac_key": true
+    },
+    {
+      "path": ".github/workflows/axiom-dynamic-admin-route-auth-contract.yml",
+      "uses_global_key_as_decrypt_passphrase": true,
+      "uses_global_key_as_hmac_key": false
+    },
+    {
+      "path": ".github/workflows/axiom-edge-write-preflight.yml",
+      "uses_global_key_as_decrypt_passphrase": true,
+      "uses_global_key_as_hmac_key": true
+    },
+    {
+      "path": ".github/workflows/axiom-internal-principal-contract.yml",
+      "uses_global_key_as_decrypt_passphrase": true,
+      "uses_global_key_as_hmac_key": false
+    },
+    {
+      "path": ".github/workflows/axiom-kernel-binding-trace.yml",
+      "uses_global_key_as_decrypt_passphrase": true,
+      "uses_global_key_as_hmac_key": true
+    },
+    {
+      "path": ".github/workflows/axiom-kernel-exception-diagnostic.yml",
+      "uses_global_key_as_decrypt_passphrase": true,
+      "uses_global_key_as_hmac_key": true
+    },
+    {
+      "path": ".github/workflows/axiom-kernel-forward-contract.yml",
+      "uses_global_key_as_decrypt_passphrase": true,
+      "uses_global_key_as_hmac_key": true
+    },
+    {
+      "path": ".github/workflows/axiom-kernel-payload-contract.yml",
+      "uses_global_key_as_decrypt_passphrase": true,
+      "uses_global_key_as_hmac_key": false
+    },
+    {
+      "path": ".github/workflows/axiom-kernel-payload-shape.yml",
+      "uses_global_key_as_decrypt_passphrase": true,
+      "uses_global_key_as_hmac_key": true
+    },
+    {
+      "path": ".github/workflows/axiom-kernel-request-contract.yml",
+      "uses_global_key_as_decrypt_passphrase": true,
+      "uses_global_key_as_hmac_key": true
+    },
+    {
+      "path": ".github/workflows/axiom-kernel-response-contract.yml",
+      "uses_global_key_as_decrypt_passphrase": true,
+      "uses_global_key_as_hmac_key": false
+    },
+    {
+      "path": ".github/workflows/axiom-kernel-selection-binding-readback.yml",
+      "uses_global_key_as_decrypt_passphrase": true,
+      "uses_global_key_as_hmac_key": true
+    },
+    {
+      "path": ".github/workflows/axiom-kernel-timeout-contract.yml",
+      "uses_global_key_as_decrypt_passphrase": true,
+      "uses_global_key_as_hmac_key": true
+    },
+    {
+      "path": ".github/workflows/axiom-local-match-regex-routes.yml",
+      "uses_global_key_as_decrypt_passphrase": true,
+      "uses_global_key_as_hmac_key": false
+    },
+    {
+      "path": ".github/workflows/axiom-metering-write-contract-readonly.yml",
+      "uses_global_key_as_decrypt_passphrase": true,
+      "uses_global_key_as_hmac_key": false
+    },
+    {
+      "path": ".github/workflows/axiom-modal-auth-source-preflight.yml",
+      "uses_global_key_as_decrypt_passphrase": true,
+      "uses_global_key_as_hmac_key": true
+    },
+    {
+      "path": ".github/workflows/axiom-modal-edge-adapter-preflight.yml",
+      "uses_global_key_as_decrypt_passphrase": true,
+      "uses_global_key_as_hmac_key": true
+    },
+    {
+      "path": ".github/workflows/axiom-modal-edge-isolated-deploy.yml",
+      "uses_global_key_as_decrypt_passphrase": true,
+      "uses_global_key_as_hmac_key": true
+    },
+    {
+      "path": ".github/workflows/axiom-modal-edge-service-compat-patch.yml",
+      "uses_global_key_as_decrypt_passphrase": true,
+      "uses_global_key_as_hmac_key": true
+    },
+    {
+      "path": ".github/workflows/axiom-modal-kernel-contract.yml",
+      "uses_global_key_as_decrypt_passphrase": true,
+      "uses_global_key_as_hmac_key": true
+    },
+    {
+      "path": ".github/workflows/axiom-modal-musitu-parallel-deploy.yml",
+      "uses_global_key_as_decrypt_passphrase": true,
+      "uses_global_key_as_hmac_key": true
+    },
+    {
+      "path": ".github/workflows/axiom-modal-private-deploy.yml",
+      "uses_global_key_as_decrypt_passphrase": true,
+      "uses_global_key_as_hmac_key": true
+    },
+    {
+      "path": ".github/workflows/axiom-modal-production-deploy.yml",
+      "uses_global_key_as_decrypt_passphrase": true,
+      "uses_global_key_as_hmac_key": true
+    },
+    {
+      "path": ".github/workflows/axiom-modal-runtime-reconstruction-gate.yml",
+      "uses_global_key_as_decrypt_passphrase": true,
+      "uses_global_key_as_hmac_key": true
+    },
+    {
+      "path": ".github/workflows/axiom-modal-stage-domain-auth-final-v2.yml",
+      "uses_global_key_as_decrypt_passphrase": true,
+      "uses_global_key_as_hmac_key": true
+    },
+    {
+      "path": ".github/workflows/axiom-musitu-d1-live-cutover.yml",
+      "uses_global_key_as_decrypt_passphrase": true,
+      "uses_global_key_as_hmac_key": true
+    },
+    {
+      "path": ".github/workflows/axiom-pathname-match-arguments.yml",
+      "uses_global_key_as_decrypt_passphrase": true,
+      "uses_global_key_as_hmac_key": false
+    },
+    {
+      "path": ".github/workflows/axiom-paynow-billing-contract-readonly.yml",
+      "uses_global_key_as_decrypt_passphrase": true,
+      "uses_global_key_as_hmac_key": true
+    },
+    {
+      "path": ".github/workflows/axiom-private-edge-implementation-contract.yml",
+      "uses_global_key_as_decrypt_passphrase": true,
+      "uses_global_key_as_hmac_key": true
+    },
+    {
+      "path": ".github/workflows/axiom-provision-response-shape.yml",
+      "uses_global_key_as_decrypt_passphrase": true,
+      "uses_global_key_as_hmac_key": false
+    },
+    {
+      "path": ".github/workflows/axiom-record-usage-ast-contract.yml",
+      "uses_global_key_as_decrypt_passphrase": true,
+      "uses_global_key_as_hmac_key": false
+    },
+    {
+      "path": ".github/workflows/axiom-record-usage-scheduling-contract.yml",
+      "uses_global_key_as_decrypt_passphrase": true,
+      "uses_global_key_as_hmac_key": false
+    },
+    {
+      "path": ".github/workflows/axiom-router-and-auth-literals.yml",
+      "uses_global_key_as_decrypt_passphrase": true,
+      "uses_global_key_as_hmac_key": false
+    },
+    {
+      "path": ".github/workflows/axiom-runtime-arithmetic-ast-contract.yml",
+      "uses_global_key_as_decrypt_passphrase": true,
+      "uses_global_key_as_hmac_key": false
+    },
+    {
+      "path": ".github/workflows/axiom-runtime-arithmetic-evaluate-contract.yml",
+      "uses_global_key_as_decrypt_passphrase": true,
+      "uses_global_key_as_hmac_key": false
+    },
+    {
+      "path": ".github/workflows/axiom-runtime-transport-gate.yml",
+      "uses_global_key_as_decrypt_passphrase": true,
+      "uses_global_key_as_hmac_key": true
+    },
+    {
+      "path": ".github/workflows/axiom-secret-requirement-contract.yml",
+      "uses_global_key_as_decrypt_passphrase": true,
+      "uses_global_key_as_hmac_key": true
+    },
+    {
+      "path": ".github/workflows/axiom-select-kernel-health-contract.yml",
+      "uses_global_key_as_decrypt_passphrase": true,
+      "uses_global_key_as_hmac_key": false
+    },
+    {
+      "path": ".github/workflows/axiom-worker-kernel-schema-alignment.yml",
+      "uses_global_key_as_decrypt_passphrase": true,
+      "uses_global_key_as_hmac_key": false
+    },
+    {
+      "path": ".github/workflows/axiom-worker-private-contract.yml",
+      "uses_global_key_as_decrypt_passphrase": true,
+      "uses_global_key_as_hmac_key": true
+    },
+    {
+      "path": "scripts/axiom-staging-deploy.sh",
+      "uses_global_key_as_decrypt_passphrase": true,
+      "uses_global_key_as_hmac_key": true
+    }
+  ],
+  "historical_artifact_context": {
+    "encrypted_runtime_archive": "runtime.tar.gz.enc",
+    "historical_transport_algorithm": "AES-256-CBC with PBKDF2, plus SHA-256/HMAC checks in applicable consumers",
+    "legacy_ciphertext_sha256_observed_in_source": "b82448d6b4b34b302748815af976b535d69922c197d4b7a9056fc2f91a9e12cf",
+    "legacy_plaintext_archive_sha256_observed_in_source": "b4d5a0266446523969a619f5e9bb5a04d9b815c78a2ab82ed046ef5e23d53663",
+    "plaintext_source_committed_by_this_audit": false,
+    "secret_value_read_or_exposed_by_this_audit": false
+  },
+  "disposition": {
+    "historical_sealed_main_changed": false,
+    "current_usage_acceptable_under_ar02": false,
+    "provider_api_credential_may_be_used_as_artifact_crypto_key": false,
+    "one_time_migration_requires_explicit_s5_secret_authority": true,
+    "execution_before_migration": "FAIL_CLOSED"
+  },
+  "verification": {
+    "source_inventory_status": "PASS_SOURCE_INVENTORY",
+    "independent_ci_for_new_record": "NOT_PERFORMED_DUE_GITHUB_ACTIONS_ADMISSION_FAILURE",
+    "provider_execution_performed": false,
+    "production_mutated": false
+  },
+  "claim_boundary": {
+    "crypto_migration_performed": false,
+    "cloudflare_key_rotated": false,
+    "new_artifact_key_provisioned": false,
+    "ar02_complete": false,
+    "ar03_started": false,
+    "full_product_connection": "NOT_PROVEN",
+    "superiority": "NOT_CERTIFIED"
+  }
+}
