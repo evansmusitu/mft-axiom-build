@@ -1,0 +1,105 @@
+{
+  "schema": "musitu.axiom.recovery.ar02-recovery-workflow-dependency-audit.v1",
+  "phase": "AR-02",
+  "recorded_on": "2026-09-18",
+  "status": "PASS_SOURCE_AUDIT_NOT_CI_REQUALIFICATION",
+  "authority": {
+    "sealed_main_commit": "d6a846f6bbe0bccac1758713eb4de167caf07113",
+    "runtime_source_commit": "216ee7d15f01a3fb558452cc4b906a055001ccdd",
+    "recovery_branch": "frontier/axiom-recovery-ar02-credential-triage-20260918"
+  },
+  "scope": {
+    "ar02_workflow_count": 8,
+    "external_action_reference_count": 12,
+    "mutable_action_reference_count": 0,
+    "all_external_actions_full_40_char_sha": true,
+    "github_write_permission_references": 0,
+    "all_workflows_have_contents_read": true
+  },
+  "workflows": [
+    {
+      "path": ".github/workflows/axiom-recovery-ar02-acceptance.yml",
+      "action_refs": 1,
+      "global_key_literal_present": true,
+      "global_key_secret_binding": false
+    },
+    {
+      "path": ".github/workflows/axiom-recovery-ar02-binding.yml",
+      "action_refs": 2,
+      "global_key_literal_present": false,
+      "global_key_secret_binding": false
+    },
+    {
+      "path": ".github/workflows/axiom-recovery-ar02-credential-surface-audit.yml",
+      "action_refs": 2,
+      "global_key_literal_present": true,
+      "global_key_secret_binding": false
+    },
+    {
+      "path": ".github/workflows/axiom-recovery-ar02-governance.yml",
+      "action_refs": 1,
+      "global_key_literal_present": true,
+      "global_key_secret_binding": false
+    },
+    {
+      "path": ".github/workflows/axiom-recovery-ar02-governed-contracts.yml",
+      "action_refs": 2,
+      "global_key_literal_present": false,
+      "global_key_secret_binding": false
+    },
+    {
+      "path": ".github/workflows/axiom-recovery-ar02-isolation.yml",
+      "action_refs": 1,
+      "global_key_literal_present": false,
+      "global_key_secret_binding": false
+    },
+    {
+      "path": ".github/workflows/axiom-recovery-ar02-provider-readonly.yml",
+      "action_refs": 1,
+      "global_key_literal_present": false,
+      "global_key_secret_binding": false,
+      "secret_refs": [
+        "CLOUDFLARE_ACCOUNT_ID",
+        "CLOUDFLARE_AR02_INVENTORY_TOKEN_ID",
+        "CLOUDFLARE_AR02_READ_TOKEN",
+        "CLOUDFLARE_AR02_TOKEN_AUDITOR_TOKEN"
+      ]
+    },
+    {
+      "path": ".github/workflows/axiom-recovery-ar02-release-surface.yml",
+      "action_refs": 2,
+      "global_key_literal_present": false,
+      "global_key_secret_binding": false
+    }
+  ],
+  "credential_semantics": {
+    "actual_secret_refs_across_ar02_workflows": [
+      "CLOUDFLARE_ACCOUNT_ID",
+      "CLOUDFLARE_AR02_INVENTORY_TOKEN_ID",
+      "CLOUDFLARE_AR02_READ_TOKEN",
+      "CLOUDFLARE_AR02_TOKEN_AUDITOR_TOKEN"
+    ],
+    "cloudflare_global_api_key_secret_ref_count": 0,
+    "global_key_literal_occurrences_in_audit_or_deny_logic_are_not_credentials": true,
+    "provider_readonly_workflow_uses_only_frozen_two_identity_contract_bindings": true
+  },
+  "action_pin": {
+    "action": "actions/checkout",
+    "pinned_commit": "d23441a48e516b6c34aea4fa41551a30e30af803",
+    "all_12_references_full_sha": true
+  },
+  "verification": {
+    "source_readback": "PASS",
+    "github_actions_execution": "NOT_PERFORMED_DUE_EXTERNAL_ADMISSION_FAILURE",
+    "provider_execution_performed": false,
+    "production_mutated": false
+  },
+  "claim_boundary": {
+    "historical_main_workflows_immutable_pins_complete": false,
+    "ar02_recovery_path_source_pins_pass": true,
+    "ar02_complete": false,
+    "ar03_started": false,
+    "full_product_connection": "NOT_PROVEN",
+    "superiority": "NOT_CERTIFIED"
+  }
+}
