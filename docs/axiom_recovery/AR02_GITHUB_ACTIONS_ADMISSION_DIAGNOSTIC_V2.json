@@ -1,0 +1,85 @@
+{
+  "schema": "musitu.axiom.recovery.ar02-github-actions-admission-diagnostic.v2",
+  "phase": "AR-02",
+  "recorded_on": "2026-09-18",
+  "status": "FAILED_PRE_RUNNER_ADMISSION_EXACT_ACCOUNT_CAUSE_NOT_PROVEN",
+  "authority": {
+    "repository": "evansmusitu/mft-axiom-build",
+    "repository_visibility": "PRIVATE",
+    "sealed_main_commit": "d6a846f6bbe0bccac1758713eb4de167caf07113",
+    "runtime_source_commit": "216ee7d15f01a3fb558452cc4b906a055001ccdd",
+    "recovery_branch": "frontier/axiom-recovery-ar02-credential-triage-20260918",
+    "recovery_parent_head": "cbb720f10bb6fb23e3a7ad7f58cecc1010cd0bcd",
+    "pr1_state": "OPEN_DRAFT_UNMERGED"
+  },
+  "observations": {
+    "ar02_audit_run": {
+      "run_id": 35303130193,
+      "attempts": 2,
+      "jobs_observed": 4,
+      "billable_ubuntu_total_ms": 0,
+      "run_duration_ms": 5000,
+      "executed_steps": 0,
+      "runner_allocated": false
+    },
+    "minimal_zero_secret_probe": {
+      "run_id": 35306832413,
+      "job_id": 105480635997,
+      "workflow_scope": "one ubuntu-24.04 job; one echo-only step; contents:read; no checkout; no secrets; no provider access",
+      "billable_ubuntu_total_ms": 0,
+      "job_duration_ms": 0,
+      "run_duration_ms": 3000,
+      "executed_steps": 0,
+      "runner_allocated": false,
+      "job_log_blob_present": false,
+      "job_steps_api_result": []
+    },
+    "connected_repository_permission": {
+      "admin": true,
+      "maintain": true,
+      "push": true,
+      "pull": true
+    }
+  },
+  "classification": {
+    "immediate_failure_layer": "GITHUB_PRE_RUNNER_ADMISSION",
+    "axiom_workflow_step_failure": false,
+    "axiom_source_failure": "NOT_PROVEN",
+    "standard_ubuntu_24_04_supported_for_private_repositories": true,
+    "repository_actions_enabled_or_limited_setting": "NOT_PROVEN",
+    "private_repo_included_minutes_remaining": "NOT_PROVEN",
+    "payment_or_budget_block": "NOT_PROVEN",
+    "exact_account_cause": "NOT_PROVEN",
+    "note": "The run objects are created, but GitHub reports zero billable runner milliseconds, zero executed steps, and no runner assignment. This proves failure before runner execution, while the account-level reason remains inaccessible to the connected GitHub integration."
+  },
+  "current_github_documentation_boundary": {
+    "private_standard_runner_usage": "Private repositories consume included plan minutes and may incur usage charges beyond allowance.",
+    "free_plan_included_minutes_per_month": 2000,
+    "no_valid_payment_method_after_quota_exhaustion": "GitHub documents that usage is blocked once included quota is exhausted if no valid payment method is on file.",
+    "repository_actions_can_be_disabled_or_policy_limited": true,
+    "docs_verified_on": "2026-09-18"
+  },
+  "required_human_account_check": [
+    "GitHub repository Settings -> Actions -> General: confirm Actions is enabled and actions from required public publishers are allowed.",
+    "GitHub Billing & licensing / metered usage: check remaining GitHub Actions minutes and whether a spending budget with stop-usage behavior has been reached.",
+    "If included minutes are exhausted, add a valid payment method or wait for the billing-cycle allowance reset; do not make the repository public as a workaround.",
+    "After restoring admission, rerun the minimal zero-secret probe first, then rerun the exact AR-02 builder and independent verifier."
+  ],
+  "prohibited_workarounds": [
+    "MAKE_PRIVATE_REPOSITORY_PUBLIC_TO_GET_FREE_STANDARD_RUNNERS",
+    "WEAKEN_OR_REMOVE_AR02_SECURITY_GATES",
+    "CLAIM_EXTERNAL_ADMISSION_FAILURE_AS_AXION_TEST_PASS",
+    "USE_PROVIDER_CREDENTIALS_IN_DIAGNOSTIC_WORKFLOWS",
+    "PROMOTE_TO_AR03_WITHOUT_EXACT_AR02_QUALIFICATION"
+  ],
+  "claim_boundary": {
+    "actions_admission_restored": false,
+    "exact_account_cause": "NOT_PROVEN",
+    "provider_execution_performed": false,
+    "production_mutated": false,
+    "ar02_complete": false,
+    "ar03_started": false,
+    "full_product_connection": "NOT_PROVEN",
+    "superiority": "NOT_CERTIFIED"
+  }
+}
