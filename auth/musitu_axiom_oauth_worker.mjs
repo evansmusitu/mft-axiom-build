@@ -1,6 +1,6 @@
 const ISSUER_DEFAULT = "https://auth.mftintelligence.com";
 const RESOURCE_DEFAULT = "https://mcp.mftintelligence.com";
-const SCOPES = new Set(["axiom.execute", "billing.read", "billing.write", "openid", "email"]);
+const SCOPES = new Set(["axiom.execute", "billing.read", "billing.write", "openid", "email", "offline_access"]);
 const OIDC_SIGNING_ALG = "RS256";
 const OIDC_ACTIVE_KID = "musitu_oidc_rs256_20260909";
 const JSON_HEADERS = {
