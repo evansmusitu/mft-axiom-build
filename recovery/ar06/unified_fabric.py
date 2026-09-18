@@ -17,8 +17,8 @@ class Binding:
     lane:str
     adapter_id:str
     adapter:Callable[[str,Mapping[str,Any],Mapping[str,Any]],Any]
-    production_proven:bool=False
     external:bool=False
+    qualification:str='LOCAL_CONTRACT_ONLY_NOT_PRODUCTION_PROOF'
 
 def _json(v): return json.dumps(v,sort_keys=True,separators=(',',':'),default=str)
 def _sha(v): return hashlib.sha256(_json(v).encode()).hexdigest()
@@ -28,12 +28,14 @@ class UnifiedToolFabric:
         self._bindings={}
         self._quant=frozenset(ATOMIC_OPERATIONS)
         self._lanes={name:order for name,order in LANES}
-    def bind(self,lane,adapter_id,adapter,*,production_proven=False,external=False):
+    def bind(self,lane,adapter_id,adapter,*,external=False,production_proven=False):
+        if production_proven:
+            raise CapabilityPolicyError('local binding cannot self-certify production qualification')
         if lane not in self._lanes: raise CapabilityPolicyError('unknown lane')
         if not adapter_id or not callable(adapter): raise CapabilityPolicyError('invalid binding')
-        self._bindings[lane]=Binding(lane,adapter_id,adapter,bool(production_proven),bool(external))
+        self._bindings[lane]=Binding(lane,adapter_id,adapter,bool(external))
     def status(self):
-        return [{'lane':lane,'order':order,'bound':lane in self._bindings,'adapter_id':self._bindings[lane].adapter_id if lane in self._bindings else None,'production_proven':self._bindings[lane].production_proven if lane in self._bindings else False} for lane,order in LANES]
+        return [{'lane':lane,'order':order,'bound':lane in self._bindings,'adapter_id':self._bindings[lane].adapter_id if lane in self._bindings else None,'qualification':self._bindings[lane].qualification if lane in self._bindings else 'UNBOUND'} for lane,order in LANES]
     def resolve_lane(self,capability):
         if capability in self._quant:return 'quantitative'
         prefix=capability.split('.',1)[0]
@@ -52,11 +54,15 @@ class UnifiedToolFabric:
         request={'schema':'musitu.axiom.tool-invocation.v1','capability':capability,'lane':lane,'adapter_id':binding.adapter_id,'args':dict(args or {}),'tenant_id':context['tenant_id'],'project_id':context['project_id'],'actor_id':context['actor_id'],'task_id':context['task_id']}
         req_sha=_sha(request)
         result=binding.adapter(capability,dict(args or {}),dict(context))
-        receipt={'schema':'musitu.axiom.tool-receipt.v1','receipt_id':'trc_'+uuid.uuid4().hex,'request_sha256':req_sha,'capability':capability,'lane':lane,'adapter_id':binding.adapter_id,'production_proven':binding.production_proven,'external':binding.external,'result':result,'created_at_ms':int(time.time()*1000)}
+        receipt={'schema':'musitu.axiom.tool-receipt.v1','receipt_id':'trc_'+uuid.uuid4().hex,'request_sha256':req_sha,'capability':capability,'lane':lane,'adapter_id':binding.adapter_id,'qualification':binding.qualification,'external':binding.external,'result':result,'created_at_ms':int(time.time()*1000)}
         receipt['receipt_sha256']=_sha({k:v for k,v in receipt.items() if k!='receipt_sha256'})
         return receipt
     @property
     def gate_state(self):
-        all_bound=all(name in self._bindings for name,_ in LANES)
-        all_prod=all(self._bindings.get(name) and self._bindings[name].production_proven for name,_ in LANES)
-        return {'all_lanes_bound':all_bound,'all_lanes_production_proven':all_prod,'ar06_gate_earned':bool(all_bound and all_prod)}
+        return {
+            'all_lanes_bound':all(name in self._bindings for name,_ in LANES),
+            'independent_production_qualification_authority_bound':False,
+            'all_lanes_production_proven':False,
+            'ar06_gate_earned':False,
+            'reason':'local fabric cannot self-certify production qualification'
+        }
