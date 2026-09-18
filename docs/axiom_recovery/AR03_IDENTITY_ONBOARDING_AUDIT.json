@@ -1,0 +1,91 @@
+{
+  "schema": "musitu.axiom.recovery.ar03-identity-onboarding-audit.v1",
+  "recorded_on": "2026-09-18",
+  "authority": {
+    "sealed_main_commit": "d6a846f6bbe0bccac1758713eb4de167caf07113",
+    "runtime_source_commit": "216ee7d15f01a3fb558452cc4b906a055001ccdd",
+    "recovery_branch": "frontier/axiom-recovery-ar03-11-20260918",
+    "program_contract": "docs/axiom_recovery/AR03_AR11_PROGRAM_CONTRACT.json"
+  },
+  "ar03_gate": "A new customer registers, enters AXIOM, creates a project, and runs an entitled safe task without manual database provisioning.",
+  "reusable_runtime_evidence": [
+    {
+      "capability": "OAuth/MCP linkage",
+      "status": "REUSE",
+      "evidence": [
+        "auth/musitu_axiom_oauth_worker.mjs exposes OAuth discovery, dynamic client registration, authorize, token, userinfo, revoke.",
+        "Authorization currently authenticates an existing MUSITU account key and issues access/refresh credentials."
+      ]
+    },
+    {
+      "capability": "Customer provisioning",
+      "status": "PARTIAL_REUSE",
+      "evidence": [
+        ".github/workflows/axiom-customer-provision-contract.yml proves a /v1/admin/customers provisioning route exists in protected runtime.",
+        ".github/workflows/axiom-admin-create-customer-contract.yml proves an adminCreateCustomer runtime function exists."
+      ],
+      "gap": "Admin/protected provisioning is not self-service signup."
+    },
+    {
+      "capability": "Key management",
+      "status": "PARTIAL_REUSE",
+      "evidence": [
+        ".github/workflows/axiom-api-key-issuance-contract.yml proves adminIssueKey/adminRotateKey/adminRevokeKey behavior.",
+        "OAuth worker revokes access/refresh-linked API keys."
+      ],
+      "gap": "No customer-facing key-handle lifecycle or recovery-safe UI authority is proven."
+    },
+    {
+      "capability": "Entitlements",
+      "status": "PARTIAL_REUSE",
+      "evidence": [
+        "OAuth/plugin surfaces reference existing account entitlement.",
+        "Production entitlement workflows and customer metering contracts exist."
+      ],
+      "gap": "No server-backed onboarding entitlement assignment contract is proven for a newly registered user."
+    },
+    {
+      "capability": "Approval/authorization policy",
+      "status": "REUSE_FOR_LATER_STAGE",
+      "evidence": [
+        "axiom_interface/vnext/authorization_gateway.js binds project/workload/agent identity, budgets, S0-S5 risk, and independent approvals."
+      ],
+      "gap": "Browser-side authority is not a complete server identity authority."
+    },
+    {
+      "capability": "Project creation",
+      "status": "NOT_AR03_READY",
+      "evidence": [
+        "axiom_interface/vnext/project_work_memory_bridge.js opens browser/local ProjectStore, OutcomeContractStore, and MemoryGraphStore."
+      ],
+      "gap": "No server-backed first-project creation tied to a new account is proven."
+    }
+  ],
+  "missing_or_not_proven": [
+    "Self-service signup",
+    "Ordinary login/session authority independent from account-key OAuth consent",
+    "Organization creation and membership",
+    "Role assignment",
+    "Customer entitlement assignment at signup",
+    "Customer-facing symbolic key handle lifecycle",
+    "Account recovery flow",
+    "Server audit history for identity lifecycle",
+    "Automatic first project creation",
+    "Entitled S0 task execution from a newly registered account without manual DB provisioning"
+  ],
+  "implementation_decision": {
+    "path": "Build an isolated, provider-independent AR-03 identity/onboarding authority under recovery/ar03 using SQLite and explicit server-shaped contracts.",
+    "production_binding": false,
+    "cloud_provider_required": false,
+    "secrets_required": false,
+    "manual_database_provisioning_allowed": false,
+    "default_data": "synthetic only",
+    "reuse_policy": "Admit existing OAuth/MCP and authorization contracts later through adapters; do not copy protected encrypted runtime source or global credentials."
+  },
+  "state": {
+    "implementation": "STARTING",
+    "gate": "NOT_EARNED",
+    "inherited_ar02_gate": "OPEN",
+    "production_mutated": false
+  }
+}
