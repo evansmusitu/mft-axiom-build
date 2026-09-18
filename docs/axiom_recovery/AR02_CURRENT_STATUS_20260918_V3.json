@@ -1,0 +1,149 @@
+{
+  "schema": "musitu.axiom.recovery.ar02-current-status.v3",
+  "phase": "AR-02",
+  "recorded_on": "2026-09-18",
+  "status": "REPOSITORY_EVIDENCE_RECONCILED_EXTERNAL_PLAN_ACCOUNT_PROVIDER_AND_S5_GATES_OPEN",
+  "authority": {
+    "repository": "evansmusitu/mft-axiom-build",
+    "repository_visibility": "PRIVATE",
+    "sealed_main_commit": "d6a846f6bbe0bccac1758713eb4de167caf07113",
+    "main_protected": false,
+    "runtime_source_commit": "216ee7d15f01a3fb558452cc4b906a055001ccdd",
+    "pr1_head": "d9196774a9fff3150922e2cb681d16e2423651da",
+    "pr1_state": "OPEN_DRAFT_UNMERGED",
+    "recovery_branch": "frontier/axiom-recovery-ar02-credential-triage-20260918",
+    "reconciliation_parent_head": "c9725dddbe2bd34557293d40b976c7509641dc36"
+  },
+  "earned": {
+    "repository_private": true,
+    "local_environment_isolation_foundation": true,
+    "synthetic_backup_restore_drill": true,
+    "provider_binding_preflight_repository_gate": true,
+    "release_surface_quarantine_candidate": true,
+    "governed_replacement_contracts": true,
+    "qualified_sealed_main_workflow_credential_audit": {
+      "status": "PASS",
+      "commit": "6c423553a3ea100a78acac8f9d8d10d40271db9e",
+      "run_id": 35271270868,
+      "builder_job_id": 105371022896,
+      "independent_job_id": 105371074175,
+      "canonical_report_sha256": "16992fcf6234e90ad4552c2c40c9164b6a2b10281b45643d89e91c846d29dfa3"
+    },
+    "repository_wide_source_reconciliation": {
+      "explicit_global_key_files": 164,
+      "global_key_workflows": 158,
+      "nonworkflow_global_key_files": 6,
+      "source_confirmed_mutation_secret_or_deploy": 58,
+      "runtime_artifact_crypto_reuse_files": 51,
+      "runtime_artifact_hmac_reuse_files": 29,
+      "compound_crypto_and_mutation_files": 10,
+      "all_compound_paths_have_ar02_disposition": true
+    },
+    "recovery_workflow_source_security": {
+      "workflow_count": 8,
+      "external_action_refs": 12,
+      "mutable_action_refs": 0,
+      "github_write_permissions": 0,
+      "cloudflare_global_key_secret_bindings": 0,
+      "status": "PASS_SOURCE_AUDIT"
+    },
+    "workers_dev_source_disposition": {
+      "public_exposure_or_activation_paths": 19,
+      "previously_dispositioned": 17,
+      "newly_dispositioned": 2,
+      "all_identified_paths_have_ar02_disposition": true,
+      "live_provider_teardown": "NOT_PROVEN"
+    },
+    "runtime_artifact_crypto_separation_design": "FROZEN",
+    "artifact_crypto_no_regression_guard": "IMPLEMENTED_CANDIDATE_NOT_INDEPENDENTLY_QUALIFIED",
+    "github_actions_failure_layer": "PRE_RUNNER_ADMISSION_PROVEN"
+  },
+  "evidence_refs": [
+    "docs/axiom_recovery/AR02_CREDENTIAL_SURFACE_TRIAGE_V2.json",
+    "docs/axiom_recovery/AR02_EXTERNAL_BOUNDARY_STATUS_20260918.json",
+    "docs/axiom_recovery/AR02_RUNTIME_ARTIFACT_CRYPTO_REUSE_INVENTORY.json",
+    "docs/axiom_recovery/AR02_RUNTIME_ARTIFACT_CRYPTO_SEPARATION_CONTRACT.json",
+    "docs/axiom_recovery/AR02_CREDENTIAL_SURFACE_REPOSITORY_WIDE_V3.json",
+    "docs/axiom_recovery/AR02_COMPOUND_SECRET_REUSE_PRIORITY_MATRIX.json",
+    "docs/axiom_recovery/AR02_RECOVERY_WORKFLOW_DEPENDENCY_AUDIT.json",
+    "docs/axiom_recovery/AR02_GITHUB_ACTIONS_ADMISSION_DIAGNOSTIC_V2.json",
+    "docs/axiom_recovery/AR02_PRIVATE_BRANCH_GOVERNANCE_BOUNDARY.json",
+    "docs/axiom_recovery/AR02_WORKERS_DEV_EXPOSURE_MATRIX.json",
+    "docs/axiom_recovery/AR02_PROVIDER_ENVIRONMENT_BOUNDARY.json",
+    "recovery/ar02/verify_artifact_crypto_separation.py"
+  ],
+  "open_gates": {
+    "github_actions_runner_admission": {
+      "status": "FAILED_PRE_RUNNER_ADMISSION",
+      "exact_account_cause": "NOT_PROVEN",
+      "minimal_zero_secret_probe_run_id": 35306832413,
+      "billable_ubuntu_total_ms": 0,
+      "runner_allocated": false,
+      "executed_steps": 0,
+      "account_actions_setting": "NOT_PROVEN",
+      "included_minutes_remaining": "NOT_PROVEN",
+      "payment_or_budget_block": "NOT_PROVEN"
+    },
+    "private_main_enforceable_protection": {
+      "status": "BLOCKED_BY_GITHUB_PRIVATE_REPOSITORY_PLAN_BOUNDARY",
+      "main_protected": false,
+      "rulesets_endpoint_response": "403 Upgrade to GitHub Pro or make this repository public to enable this feature.",
+      "public_repository_workaround_allowed": false
+    },
+    "github_private_environment_boundary": {
+      "provider_job_environment_binding_present": false,
+      "environment_presence": "NOT_PROVEN",
+      "environment_api_readable_through_connector": false,
+      "private_environment_configuration_requires_pro_team_or_enterprise": true,
+      "repository_level_provider_secret_brokering_allowed": false
+    },
+    "cloudflare_provider_inventory": "NOT_PROVEN",
+    "cloudflare_inventory_identity_scope": "NOT_PROVEN",
+    "cloudflare_auditor_identity_scope": "NOT_PROVEN",
+    "staging_resource_identity": "NOT_PROVEN",
+    "canary_resource_identity": "NOT_PROVEN",
+    "nonproduction_credentials_cannot_mutate_production": "NOT_PROVEN",
+    "account_free_tier_headroom": "NOT_PROVEN",
+    "live_workers_dev_teardown_or_access_protection": "NOT_PROVEN",
+    "cloud_backup_restore": "NOT_PERFORMED",
+    "provider_external_independent_verification": "NOT_PERFORMED",
+    "artifact_crypto_migration": {
+      "status": "NOT_PERFORMED",
+      "explicit_s5_human_authority_required": true,
+      "dedicated_vault_or_broker": "NOT_PROVISIONED",
+      "dedicated_artifact_keys": "NOT_PROVISIONED"
+    }
+  },
+  "required_next_sequence": [
+    "RESTORE_PRIVATE_REPOSITORY_GITHUB_ACTIONS_PRE_RUNNER_ADMISSION_BY_CHECKING_ACTIONS_POLICY_AND_PRIVATE_REPO_USAGE_BUDGET_OR_PAYMENT_STATE",
+    "UPGRADE_OR_MOVE_TO_A_GITHUB_PLAN_SUPPORTING_PRIVATE_BRANCH_PROTECTION_WITHOUT_MAKING_THE_REPOSITORY_PUBLIC",
+    "ENABLE_AND_VERIFY_SERVER_SIDE_MAIN_PROTECTION_OR_RULESET",
+    "CREATE_AND_VERIFY_AR02_PROVIDER_READONLY_ENVIRONMENT_BEFORE_ADDING_WORKFLOW_ENVIRONMENT_BINDING",
+    "STORE_ONLY_SHORT_LIVED_GET_ONLY_PROVIDER_AND_AUDITOR_IDENTITIES_IN_THAT_ENVIRONMENT; NO_REPOSITORY_LEVEL_DUPLICATES",
+    "ADD_EXACT_PROVIDER_JOB_ENVIRONMENT_BINDING_AND_REQUALIFY_STATIC_GATES",
+    "EXECUTE_GET_ONLY_CLOUDFLARE_PROVIDER_INVENTORY_AND_INDEPENDENT_TOKEN_POLICY_READBACK",
+    "PROVE_DEDICATED_STAGING_AND_CANARY_RESOURCE_IDENTITIES_AND TECHNICAL_PRODUCTION_DENIAL",
+    "VERIFY_OR_REMOVE_ACCESS_TO_LIVE_RAW_WORKERS_DEV_ENDPOINTS",
+    "PERFORM_CLOUD_RESTORE_PROOF",
+    "OBTAIN_EXPLICIT_S5_AUTHORITY_BEFORE_LEGACY_ARTIFACT_KEY_REWRAP_OR_PROVIDER_SECRET_ROTATION",
+    "RUN_BUILDER_SECURITY_ADVERSARIAL_AND_INDEPENDENT_VERIFICATION_ON_EXACT_FINAL_AR02_HEAD"
+  ],
+  "reconciled_assertions": {
+    "cross_record_authority_consistent": true,
+    "cross_record_counts_consistent": true,
+    "compound_dispositions_complete": true,
+    "workers_dev_dispositions_complete_at_source_level": true,
+    "production_unchanged": true,
+    "provider_execution_not_performed": true,
+    "source_findings_not_promoted_to_runtime_execution_claims": true
+  },
+  "claim_boundary": {
+    "ar02_complete": false,
+    "ar03_started": false,
+    "full_product_connection": "NOT_PROVEN",
+    "frontier_v5_live_integration": "NOT_PROVEN",
+    "wolfram_parity": "NOT_CERTIFIED",
+    "superiority": "NOT_CERTIFIED",
+    "production_mutated": false
+  }
+}
