@@ -1,0 +1,105 @@
+{
+  "schema": "musitu.axiom.recovery.ar03-ar11-status.v1",
+  "recorded_on": "2026-09-18",
+  "programme": "AXIOM Recovery & Frontier Blueprint v1.0",
+  "branch": "frontier/axiom-recovery-ar03-ar11-20260918",
+  "authority": {
+    "sealed_main_commit": "d6a846f6bbe0bccac1758713eb4de167caf07113",
+    "runtime_source_commit": "216ee7d15f01a3fb558452cc4b906a055001ccdd",
+    "ar02_bootstrap_parent_commit": "7f8b51ddd426aa6c4b7684a67be1960db42028ee",
+    "pr1_state": "OPEN_DRAFT_UNMERGED",
+    "production_authority": false,
+    "production_mutated": false
+  },
+  "dependency_truth": {
+    "ar02_complete": false,
+    "ar02_external_gates_open": true,
+    "later_phase_candidates_allowed_by_user": true,
+    "later_phase_earned_credit_before_ar02": false
+  },
+  "local_qualification": {
+    "node_version": "22.16.0",
+    "test_suite": "recovery/ar03_11/tests/recovery_ar03_ar11.test.mjs",
+    "tests_passed": 12,
+    "tests_failed": 0,
+    "node_check": "PASS",
+    "provider_execution_performed": false,
+    "network_required": false,
+    "production_mutated": false
+  },
+  "phases": {
+    "AR-03": {
+      "candidate_implementation": "PRESENT",
+      "candidate_gate": "LOCAL_PASS",
+      "earned": false,
+      "blocker": "AR02_NOT_EARNED_AND_LIVE_NEW_CUSTOMER_SELF_SERVICE_EVIDENCE_PENDING"
+    },
+    "AR-04": {
+      "candidate_implementation": "PRESENT",
+      "candidate_gate": "LOCAL_PASS",
+      "earned": false,
+      "blocker": "AR03_NOT_EARNED_AND_REAL_TWO_DEVICE_CLOUD_PERSISTENCE_EVIDENCE_PENDING"
+    },
+    "AR-05": {
+      "candidate_implementation": "PRESENT",
+      "candidate_gate": "LOCAL_PASS",
+      "earned": false,
+      "blocker": "AR04_NOT_EARNED_AND_PRODUCTION_SHAPED_DURABLE_BACKEND_RESTART_EVIDENCE_PENDING"
+    },
+    "AR-06": {
+      "candidate_implementation": "PRESENT",
+      "candidate_gate": "LOCAL_PASS",
+      "earned": false,
+      "blocker": "AR05_NOT_EARNED_AND_ALL_REGISTERED_REAL_TOOLS_NOT_YET_EXECUTED_THROUGH_LIVE_UNIFIED_ORCHESTRATOR"
+    },
+    "AR-07": {
+      "candidate_implementation": "PRESENT",
+      "candidate_gate": "CANDIDATE_PASS_REAL_USER_GATE_PENDING",
+      "earned": false,
+      "blocker": "FIVE_UNFAMILIAR_REAL_USERS_WITHOUT_DEVELOPER_HELP_REQUIRED"
+    },
+    "AR-08": {
+      "candidate_implementation": "PRESENT",
+      "candidate_gate": "CANDIDATE_PASS_INDEPENDENT_REPRODUCTION_PENDING",
+      "earned": false,
+      "blocker": "DISTINCT_INDEPENDENT_VERIFIER_AND_REAL_ATTACK_SURFACE_REQUIRED"
+    },
+    "AR-09": {
+      "candidate_implementation": "PRESENT",
+      "candidate_gate": "CANDIDATE_PASS_LIVE_SLO_EVIDENCE_PENDING",
+      "earned": false,
+      "blocker": "LIVE_REPRESENTATIVE_SLO_AND_SCALE_EVIDENCE_REQUIRED"
+    },
+    "AR-10": {
+      "candidate_implementation": "PRESENT",
+      "candidate_gate": "CANDIDATE_PASS_EXTERNAL_BENCHMARK_RUNS_PENDING",
+      "earned": false,
+      "blocker": "SEALED_EXTERNAL_BASELINE_RUNS_AND_INDEPENDENT_REPRODUCTION_REQUIRED",
+      "superiority": "NOT_CERTIFIED"
+    },
+    "AR-11": {
+      "candidate_implementation": "PRESENT",
+      "candidate_gate": "CANDIDATE_PASS_STOPPED_AT_S4_APPROVAL_BOUNDARY",
+      "earned": false,
+      "blocker": "EXTERNAL_STAGING_SHADOW_CANARY_EVIDENCE_AND_EXACT_LIVE_S4_HUMAN_PRODUCTION_APPROVAL_REQUIRED",
+      "production_cutover_executed": false
+    }
+  },
+  "claim_boundary": {
+    "ar02_complete": false,
+    "ar03_earned": false,
+    "ar04_earned": false,
+    "ar05_earned": false,
+    "ar06_earned": false,
+    "ar07_earned": false,
+    "ar08_earned": false,
+    "ar09_earned": false,
+    "ar10_earned": false,
+    "ar11_earned": false,
+    "full_product_connection": "NOT_PROVEN",
+    "frontier_v5_live_integration": "NOT_PROVEN",
+    "wolfram_parity": "NOT_CERTIFIED",
+    "superiority": "NOT_CERTIFIED",
+    "production_mutated": false
+  }
+}

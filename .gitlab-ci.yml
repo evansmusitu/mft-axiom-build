@@ -1,8 +1,6 @@
 default:
-  image: python:3.12-slim-bookworm@sha256:782412e85d0f0984994c290652577d4018aff08145c85b262bb63dc0c7522254
+  image: node:22.16.0-bookworm-slim@sha256:048ed02c5fd52e86fda6fbd2f6a76cf0d4492fd6c6fee9e2c463ed5108da0e34
   interruptible: false
-  before_script:
-    - python --version
 
 variables:
   GIT_DEPTH: "0"
@@ -12,25 +10,40 @@ workflow:
   rules:
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
     - if: '$CI_COMMIT_REF_PROTECTED == "true"'
-    - if: '$CI_COMMIT_BRANCH == "frontier/axiom-recovery-ar02-gitlab-mirror-bootstrap-20260918"'
+    - if: '$CI_COMMIT_BRANCH == "frontier/axiom-recovery-ar03-ar11-20260918"'
     - when: never
 
 stages:
   - builder
   - verifier
 
-ar02-builder:
+ar03-ar11-builder:
   stage: builder
   timeout: 10m
   allow_failure: false
   script:
-    - python recovery/ar02/verify_gitlab_mirror_builder.py
+    - node --version
+    - node --test recovery/ar03_11/tests/recovery_ar03_ar11.test.mjs
+    - node --check recovery/ar03_11/common.mjs
+    - node --check recovery/ar03_11/program_contract.mjs
+    - node --check recovery/ar03_11/identity_onboarding.mjs
+    - node --check recovery/ar03_11/project_work_graph.mjs
+    - node --check recovery/ar03_11/durable_kernel.mjs
+    - node --check recovery/ar03_11/tool_fabric.mjs
+    - node --check recovery/ar03_11/unified_orchestrator.mjs
+    - node --check recovery/ar03_11/unified_application.mjs
+    - node --check recovery/ar03_11/adversarial_qualification.mjs
+    - node --check recovery/ar03_11/reliability_qualification.mjs
+    - node --check recovery/ar03_11/benchmark_program.mjs
+    - node --check recovery/ar03_11/rollout_control.mjs
+    - node --check recovery/ar03_11/independent_verify.mjs
+    - node --check recovery/ar03_11/tests/recovery_ar03_ar11.test.mjs
 
-ar02-independent-verifier:
+ar03-ar11-independent-verifier:
   stage: verifier
   timeout: 10m
   allow_failure: false
   needs:
-    - ar02-builder
+    - ar03-ar11-builder
   script:
-    - python recovery/ar02/verify_gitlab_mirror_independent.py
+    - node recovery/ar03_11/independent_verify.mjs
