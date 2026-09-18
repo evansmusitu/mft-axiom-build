@@ -1,0 +1,71 @@
+{
+  "schema": "musitu.axiom.recovery.ar02-external-boundary-status.v1",
+  "recorded_on": "2026-09-18",
+  "phase": "AR-02",
+  "authority": {
+    "repository": "evansmusitu/mft-axiom-build",
+    "sealed_main_commit": "d6a846f6bbe0bccac1758713eb4de167caf07113",
+    "runtime_source_commit": "216ee7d15f01a3fb558452cc4b906a055001ccdd",
+    "credential_contract": "docs/axiom_recovery/AR02_CLOUDFLARE_CREDENTIAL_CONTRACT.json",
+    "credential_contract_status": "HISTORICAL_DESIGN_FROZEN_RECORD_PRESERVED"
+  },
+  "superseding_status": {
+    "repository_visibility": {
+      "previous": "PUBLIC",
+      "current": "PRIVATE",
+      "blocker_closed": true
+    },
+    "main_branch_protection": {
+      "current": false,
+      "blocker_closed": false,
+      "current_plan_support": "NOT_AVAILABLE_ON_CURRENT_PRIVATE_REPO_PLAN",
+      "observed_rulesets_error": "403: Upgrade to GitHub Pro or make this repository public to enable this feature.",
+      "detailed_branch_protection_endpoint": "NOT_AVAILABLE_TO_CONNECTED_INTEGRATION"
+    },
+    "github_actions_admission": {
+      "status": "FAILED_EXTERNAL_ADMISSION",
+      "audit_run_id": 35303130193,
+      "audit_attempts_failed_before_runner": 2,
+      "minimal_probe_run_id": 35306832413,
+      "minimal_probe_job_id": 105480635997,
+      "minimal_probe_runner_allocated": false,
+      "minimal_probe_executed_steps": 0,
+      "exact_account_cause": "NOT_PROVEN"
+    },
+    "cloudflare_provider_access": {
+      "connected_plugin_or_provider_tool_available": false,
+      "inventory_identity_provisioned": "NOT_PROVEN",
+      "auditor_identity_provisioned": "NOT_PROVEN",
+      "credentials_brokered_to_github": false,
+      "credential_scope_verified_live": false,
+      "provider_inventory_executed": false,
+      "staging_canary_resource_ids": "NOT_PROVEN",
+      "nonproduction_credential_production_denial": "NOT_PROVEN",
+      "cloud_restore_proof": "NOT_PERFORMED"
+    },
+    "credential_surface": {
+      "global_key_workflows": 158,
+      "source_confirmed_mutation_secret_or_deploy": 52,
+      "least_privilege_migration_required_for_all_global_key_references": true,
+      "source_triage_ref": "docs/axiom_recovery/AR02_CREDENTIAL_SURFACE_TRIAGE_V2.json"
+    }
+  },
+  "next_external_unblocks_in_order": [
+    "Restore GitHub Actions runner admission for the private repository without making the repository public.",
+    "Enable private-repository branch protection/rulesets via GitHub Pro/Team/Enterprise or another governance mechanism that is genuinely enforceable and independently verifiable.",
+    "Provision the two read-only Cloudflare identities defined by AR02_CLOUDFLARE_CREDENTIAL_CONTRACT.json.",
+    "Broker only those short-lived read-only identities to the provider-readback harness.",
+    "Execute GET-only provider inventory and independent token-policy readback.",
+    "Only after provider identity/resource proof, create or bind dedicated staging/canary resources under separate nonproduction credentials and prove production denial."
+  ],
+  "claim_boundary": {
+    "production_mutated": false,
+    "provider_execution_performed": false,
+    "cloud_isolation": "NOT_PROVEN",
+    "ar02_complete": false,
+    "ar03_started": false,
+    "full_product_connection": "NOT_PROVEN",
+    "wolfram_parity": "NOT_CERTIFIED",
+    "superiority": "NOT_CERTIFIED"
+  }
+}
