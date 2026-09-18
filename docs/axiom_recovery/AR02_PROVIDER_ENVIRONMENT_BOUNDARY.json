@@ -1,0 +1,107 @@
+{
+  "schema": "musitu.axiom.recovery.ar02-provider-environment-boundary.v1",
+  "phase": "AR-02",
+  "recorded_on": "2026-09-18",
+  "status": "DESIGN_FROZEN_ENVIRONMENT_NOT_PROVEN_OR_BOUND",
+  "authority": {
+    "repository": "evansmusitu/mft-axiom-build",
+    "repository_visibility": "PRIVATE",
+    "sealed_main_commit": "d6a846f6bbe0bccac1758713eb4de167caf07113",
+    "runtime_source_commit": "216ee7d15f01a3fb558452cc4b906a055001ccdd",
+    "recovery_branch": "frontier/axiom-recovery-ar02-credential-triage-20260918",
+    "recovery_parent_head": "c817be0049a3108d3df8f8c65597e73c1239029d",
+    "provider_workflow": ".github/workflows/axiom-recovery-ar02-provider-readonly.yml"
+  },
+  "current_source_truth": {
+    "ar02_recovery_workflows_scanned": 8,
+    "workflows_with_environment_binding": 0,
+    "provider_readonly_environment_binding_present": false,
+    "provider_secret_refs": [
+      "CLOUDFLARE_ACCOUNT_ID",
+      "CLOUDFLARE_AR02_INVENTORY_TOKEN_ID",
+      "CLOUDFLARE_AR02_READ_TOKEN",
+      "CLOUDFLARE_AR02_TOKEN_AUDITOR_TOKEN"
+    ],
+    "provider_credentials_provisioned": false,
+    "provider_credentials_brokered": false
+  },
+  "github_product_boundary": {
+    "private_repository_environment_configuration_requires": [
+      "GitHub Pro",
+      "GitHub Team",
+      "GitHub Enterprise"
+    ],
+    "github_free_private_repository_environment_configuration_available": false,
+    "private_repository_environment_secrets_require": [
+      "GitHub Pro",
+      "GitHub Team",
+      "GitHub Enterprise"
+    ],
+    "private_repository_required_reviewers_on_free_pro_team_available": false,
+    "enterprise_private_required_reviewers_may_be_used_where_supported": true,
+    "unsafe_behavior": "Referencing a nonexistent environment from a workflow can create it without protection rules or secrets; AR-02 forbids using that as implicit provisioning."
+  },
+  "target_s2_readonly_environment": {
+    "name": "ar02-provider-readonly",
+    "purpose": "S2_GET_ONLY_CLOUDFLARE_RESOURCE_AND_TOKEN_POLICY_READBACK",
+    "deployment_object_required": false,
+    "job_binding_required": true,
+    "environment_secret_scope_required": true,
+    "allowed_secret_names": [
+      "CLOUDFLARE_ACCOUNT_ID",
+      "CLOUDFLARE_AR02_INVENTORY_TOKEN_ID",
+      "CLOUDFLARE_AR02_READ_TOKEN",
+      "CLOUDFLARE_AR02_TOKEN_AUDITOR_TOKEN"
+    ],
+    "repository_level_duplicate_provider_secrets_forbidden": true,
+    "branch_policy": "ALLOW_ONLY_EXACT_GOVERNED_AR02_PROVIDER_EVIDENCE_BRANCH_OR_EXACT_VERIFIED_COMMIT_DISPATCH",
+    "inventory_token": "GET_ONLY_SHORT_LIVED_PER_AR02_CLOUDFLARE_CREDENTIAL_CONTRACT",
+    "auditor_token": "SEPARATE_GET_ONLY_TOKEN_POLICY_AUDITOR_IDENTITY",
+    "human_required_reviewer": "NOT_REQUIRED_FOR_S2_WHEN_TOKENS_ARE_TECHNICALLY_GET_ONLY_SHORT_LIVED_AND_USER_HAS_AUTHORIZED_AR02",
+    "note": "S2 provider inventory is read-only. Human approval is not substituted for technical least privilege."
+  },
+  "higher_risk_boundary": {
+    "s3_s4_s5_may_use_same_s2_environment": false,
+    "required_authority": "INDEPENDENT_SECURITY_AUTHORIZATION_GATEWAY",
+    "required_credential_model": "SEPARATE_OPERATION_SCOPED_IDENTITY",
+    "production_release_authority_granted_by_github_environment": false,
+    "self_approval_by_axiom": false
+  },
+  "admission_sequence": [
+    "UPGRADE_OR_MOVE_TO_A_GITHUB_PLAN_SUPPORTING_PRIVATE_ENVIRONMENTS_WITHOUT_MAKING_REPOSITORY_PUBLIC",
+    "CREATE_AR02_PROVIDER_READONLY_ENVIRONMENT_OUTSIDE_WORKFLOW_IMPLICIT_CREATION",
+    "CONFIGURE_DEPLOYMENT_BRANCH_POLICY_FOR_GOVERNED_AR02_SOURCE",
+    "STORE_ONLY_THE_FOUR_READONLY_PROVIDER_BINDINGS_AS_ENVIRONMENT_SECRETS",
+    "VERIFY_REPOSITORY_LEVEL_DUPLICATES_ARE_ABSENT",
+    "READ_BACK_ENVIRONMENT_CONFIGURATION_USING_ADMIN_CAPABLE_CHANNEL",
+    "THEN_ADD_EXACT_PROVIDER_JOB_ENVIRONMENT_BINDING_WITH_DEPLOYMENT_FALSE",
+    "REQUALIFY_PROVIDER_WORKFLOW_STATIC_GATES",
+    "RESTORE_ACTIONS_ADMISSION",
+    "EXECUTE_GET_ONLY_PROVIDER_AND_AUDITOR_READBACK"
+  ],
+  "prohibited_shortcuts": [
+    "ADD_ENVIRONMENT_NAME_TO_WORKFLOW_BEFORE_ENVIRONMENT_IS_CONFIGURED_AND_VERIFIED",
+    "USE_REPOSITORY_LEVEL_CLOUDFLARE_PROVIDER_TOKENS",
+    "USE_CLOUDFLARE_GLOBAL_API_KEY",
+    "MAKE_REPOSITORY_PUBLIC_TO_UNLOCK_ENVIRONMENT_FEATURES",
+    "USE_S2_ENVIRONMENT_FOR_S3_S4_S5_MUTATION"
+  ],
+  "connector_boundary": {
+    "environment_api_readable_through_connected_github_tool": false,
+    "observed_connector_response": "Environment endpoints are not in the connected GitHub fetch allowlist.",
+    "environment_presence": "NOT_PROVEN",
+    "environment_secret_presence": "NOT_PROVEN",
+    "deployment_branch_policy": "NOT_PROVEN"
+  },
+  "claim_boundary": {
+    "environment_created": false,
+    "workflow_environment_bound": false,
+    "provider_credentials_brokered": false,
+    "provider_execution_performed": false,
+    "production_mutated": false,
+    "ar02_complete": false,
+    "ar03_started": false,
+    "full_product_connection": "NOT_PROVEN",
+    "superiority": "NOT_CERTIFIED"
+  }
+}
