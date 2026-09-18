@@ -1,0 +1,67 @@
+{
+  "schema": "musitu.axiom.recovery.ar02-actions-admission-forensics.v1",
+  "authority": {
+    "repository": "evansmusitu/mft-axiom-build",
+    "main_commit": "d6a846f6bbe0bccac1758713eb4de167caf07113",
+    "runtime_source_commit": "216ee7d15f01a3fb558452cc4b906a055001ccdd",
+    "probe_branch": "frontier/axiom-recovery-ar02-actions-admission-probe-20260918",
+    "probe_commit": "8588f1dc454b6e08d9a15835488e8f6eac03967e",
+    "repository_visibility": "private",
+    "main_protected": false,
+    "pr1_state": "OPEN_DRAFT_UNMERGED"
+  },
+  "observations": {
+    "audit_workflow_run": {
+      "run_id": 35303130193,
+      "attempt_1": {
+        "builder_job_id": 105469769144,
+        "conclusion": "failure",
+        "runner_name": "",
+        "executed_steps": 0,
+        "independent_job": "skipped"
+      },
+      "attempt_2": {
+        "builder_job_id": 105480488474,
+        "conclusion": "failure",
+        "runner_name": "",
+        "executed_steps": 0,
+        "independent_job": "skipped"
+      }
+    },
+    "minimal_admission_probe": {
+      "run_id": 35306832413,
+      "job_id": 105480635997,
+      "workflow_scope": "one ubuntu-24.04 job; one echo-only step; contents:read; no checkout; no secrets; no provider access",
+      "conclusion": "failure",
+      "runner_name": "",
+      "executed_steps": 0,
+      "provider_execution_performed": false,
+      "production_mutated": false
+    },
+    "repository_rulesets": {
+      "status": "BLOCKED_BY_CURRENT_GITHUB_PLAN_FOR_PRIVATE_REPO",
+      "observed_error": "403: Upgrade to GitHub Pro or make this repository public to enable this feature."
+    },
+    "branch_protection": {
+      "main_protected": false,
+      "detailed_endpoint_readback": "NOT_AVAILABLE_TO_CONNECTED_INTEGRATION",
+      "observed_error": "403: Resource not accessible by integration"
+    }
+  },
+  "classification": {
+    "github_actions_admission": "FAILED_EXTERNAL_ADMISSION",
+    "exact_account_cause": "NOT_PROVEN",
+    "workflow_logic_failure": "NOT_PROVEN",
+    "private_repo_intrinsically_disables_standard_actions": false,
+    "note": "A minimal zero-secret standard-runner workflow also failed before runner allocation. This proves the immediate failure is outside AXIOM test-step logic, but does not identify whether the external cause is quota, budget, payment, or an Actions account/repository setting."
+  },
+  "claim_boundary": {
+    "provider_execution_performed": false,
+    "cloudflare_readback_performed": false,
+    "production_mutated": false,
+    "ar02_complete": false,
+    "ar03_started": false,
+    "full_product_connection": "NOT_PROVEN",
+    "superiority": "NOT_CERTIFIED"
+  }
+}
