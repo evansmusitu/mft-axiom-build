@@ -1,0 +1,151 @@
+name: MUSITU Kimi K3 Phase 1 Bootstrap
+on:
+  workflow_dispatch:
+  push:
+    branches: [infra/musitu-kimi-k3-phase1-20260919]
+    paths: ['.github/workflows/musitu-kimi-k3-phase1.yml']
+permissions:
+  contents: read
+jobs:
+  bootstrap:
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    env:
+      MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID }}
+      MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET }}
+      CF_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+      CF_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+      CF_ACCOUNT: 93f395f5121954671f92fffa453d6b61
+      CF_ZONE: 5b56528f03948ff5917a5e0cd9f7109e
+      ENDPOINT: musitu-frontier-k3-phase1
+      MODEL: moonshotai/Kimi-K3
+      ADAPTER: musitu-model-modal-adapter
+      EDGE: musitu-model-edge-stage
+      HOST: models-stage.mftintelligence.com
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.13'}
+      - name: Authenticate and create dedicated endpoint
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$MODAL_TOKEN_ID"; test -n "$MODAL_TOKEN_SECRET"; test -n "$CF_EMAIL"; test -n "$CF_KEY"
+          python -m pip install -q 'modal>=1.5.1,<2'
+          npm install --no-save --ignore-scripts --no-audit --no-fund wrangler@4.129.0 >/dev/null
+          modal app list --json >/dev/null
+          modal endpoint list --json >/tmp/endpoints.json
+          if ! grep -q '"musitu-frontier-k3-phase1"' /tmp/endpoints.json; then
+            modal endpoint create --name "$ENDPOINT" --model "$MODEL"
+            echo CREATED_ENDPOINT=1 >> "$GITHUB_ENV"
+          else
+            echo CREATED_ENDPOINT=0 >> "$GITHUB_ENV"
+          fi
+          for i in $(seq 1 90); do
+            modal endpoint list --json >/tmp/endpoints.json
+            python - <<'PY' >/tmp/endpoint-url || true
+          import json,os,re
+          x=json.load(open('/tmp/endpoints.json')); name=os.environ['ENDPOINT']
+          def scan(v):
+            if isinstance(v,dict):
+              blob=json.dumps(v)
+              if name in blob:
+                u=re.findall(r'https://[^" ]+?\.modal\.(?:direct|run)',blob)
+                if u: print(u[0]); raise SystemExit
+              for y in v.values(): scan(y)
+            elif isinstance(v,list):
+              for y in v: scan(y)
+          scan(x)
+          PY
+            [ -s /tmp/endpoint-url ] && break
+            sleep 20
+          done
+          test -s /tmp/endpoint-url
+          MURL="$(cat /tmp/endpoint-url)"; echo "MURL=$MURL" >> "$GITHUB_ENV"
+          code="$(curl -sS -o /dev/null -w '%{http_code}' "$MURL/v1/models" || true)"
+          { [ "$code" = 401 ] || [ "$code" = 403 ]; }
+          echo modal_private_endpoint=PASS
+      - name: Create proxy auth and deploy Cloudflare chain
+        shell: bash
+        run: |
+          set -euo pipefail
+          modal workspace proxy-tokens create --json >/tmp/proxy.json
+          python - <<'PY'
+          import json,pathlib
+          x=json.load(open('/tmp/proxy.json')); vals=[]
+          def w(v):
+            if isinstance(v,dict):
+              for y in v.values(): w(y)
+            elif isinstance(v,list):
+              for y in v: w(y)
+            elif isinstance(v,str): vals.append(v)
+          w(x); k=[v for v in vals if v.startswith('wk-')]; s=[v for v in vals if v.startswith('ws-')]
+          if len(k)!=1 or len(s)!=1: raise SystemExit('proxy token shape')
+          pathlib.Path('/tmp/pk').write_text(k[0]); pathlib.Path('/tmp/ps').write_text(s[0])
+          PY
+          PK="$(cat /tmp/pk)"; PS="$(cat /tmp/ps)"; echo "::add-mask::$PK"; echo "::add-mask::$PS"; echo "PK=$PK" >> "$GITHUB_ENV"
+          mkdir -p /tmp/adapter /tmp/edge
+          cp company_model_hosting/kimi_k3_phase1/adapter.js /tmp/adapter/adapter.js
+          cp company_model_hosting/kimi_k3_phase1/edge.js /tmp/edge/edge.js
+          python - <<'PY'
+          import json,os
+          json.dump({'name':os.environ['ADAPTER'],'main':'adapter.js','compatibility_date':'2026-09-19','workers_dev':False,'vars':{'MODAL_BASE_URL':os.environ['MURL']}},open('/tmp/adapter/wrangler.json','w'))
+          json.dump({'name':os.environ['EDGE'],'main':'edge.js','compatibility_date':'2026-09-19','workers_dev':True,'services':[{'binding':'MODEL_ADAPTER','service':os.environ['ADAPTER']}]},open('/tmp/edge/wrangler.json','w'))
+          PY
+          (cd /tmp/adapter && npx wrangler deploy --config wrangler.json >/dev/null)
+          printf %s "$PK" | (cd /tmp/adapter && npx wrangler secret put MODAL_PROXY_KEY --config wrangler.json >/dev/null)
+          printf %s "$PS" | (cd /tmp/adapter && npx wrangler secret put MODAL_PROXY_SECRET --config wrangler.json >/dev/null)
+          CK="$(openssl rand -hex 32)"; echo "::add-mask::$CK"; printf %s "$CK" >/tmp/ck
+          (cd /tmp/edge && npx wrangler deploy --config wrangler.json >/dev/null)
+          printf %s "$CK" | (cd /tmp/edge && npx wrangler secret put MUSITU_MODEL_API_KEY --config wrangler.json >/dev/null)
+          echo cloudflare_chain=PASS
+      - name: Attach stage domain and verify real inference
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json,os,urllib.request,urllib.error
+          base='https://api.cloudflare.com/client/v4'; h={'X-Auth-Email':os.environ['CF_EMAIL'],'X-Auth-Key':os.environ['CF_KEY'],'Content-Type':'application/json'}
+          def call(path,method='GET',body=None):
+            q=urllib.request.Request(base+path,headers=h,method=method,data=None if body is None else json.dumps(body).encode())
+            try:
+              with urllib.request.urlopen(q,timeout=30) as r: return r.status,json.load(r)
+            except urllib.error.HTTPError as e: return e.code,json.loads(e.read() or b'{}')
+          c,x=call(f'/accounts/{os.environ["CF_ACCOUNT"]}/workers/domains'); f=[d for d in x.get('result',[]) if d.get('hostname')==os.environ['HOST']]
+          if f and f[0].get('service')!=os.environ['EDGE']: raise SystemExit('hostname collision')
+          if not f:
+            c,x=call(f'/accounts/{os.environ["CF_ACCOUNT"]}/workers/domains','PUT',{'hostname':os.environ['HOST'],'service':os.environ['EDGE'],'zone_id':os.environ['CF_ZONE']})
+            if c not in (200,201) or not x.get('success'): raise SystemExit('domain attach failed')
+          PY
+          for i in $(seq 1 36); do H="$(curl -sS -o /tmp/h -w '%{http_code}' "https://$HOST/healthz" || true)"; [ "$H" = 200 ] && break; sleep 5; done
+          test "$H" = 200
+          CK="$(cat /tmp/ck)"
+          test "$(curl -sS -o /dev/null -w '%{http_code}' -X POST "https://$HOST/v1/chat/completions" -H 'content-type: application/json' --data '{"model":"musitu-frontier","messages":[{"role":"user","content":"ping"}],"max_tokens":1}')" = 401
+          cat >/tmp/q.json <<'JSON'
+          {"model":"musitu-frontier","messages":[{"role":"user","content":"Reply briefly that MUSITU model hosting is online."}],"reasoning_effort":"low","max_tokens":32}
+          JSON
+          code="$(curl -sS --max-time 1200 -o /tmp/r.json -w '%{http_code}' -X POST "https://$HOST/v1/chat/completions" -H "Authorization: Bearer $CK" -H 'content-type: application/json' --data-binary @/tmp/q.json)"
+          test "$code" = 200
+          python - <<'PY'
+          import hashlib,json,os,pathlib,subprocess
+          x=json.load(open('/tmp/r.json')); ch=x.get('choices') or []
+          if not ch or not ((ch[0].get('message') or {}).get('content') or '').strip(): raise SystemExit('empty completion')
+          content=(ch[0].get('message') or {})['content']
+          ev={'schema':'musitu.kimi_k3.phase1.v1','gate':'PHASE1_CORE_PASS','branch':'infra/musitu-kimi-k3-phase1-20260919','commit':subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip(),'hostname':os.environ['HOST'],'model_alias':'musitu-frontier','backend_model':os.environ['MODEL'],'modal_endpoint':os.environ['ENDPOINT'],'raw_modal_public':False,'adapter_public':False,'unauth_401':True,'real_inference':True,'content_sha256':hashlib.sha256(content.encode()).hexdigest(),'secrets_exported':False,'next_verification':['streaming','tool_calling','vision','workers_dev_disable','security_rule']}
+          raw=(json.dumps(ev,indent=2,sort_keys=True)+'\n').encode(); pathlib.Path('phase1-core-evidence.json').write_bytes(raw); pathlib.Path('phase1-core-evidence.sha256').write_text(hashlib.sha256(raw).hexdigest()+'  phase1-core-evidence.json\n')
+          print('PHASE1_CORE_PASS')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: musitu-kimi-k3-phase1-core
+          path: |
+            phase1-core-evidence.json
+            phase1-core-evidence.sha256
+          retention-days: 30
+      - name: Stop newly-created endpoint on failure
+        if: ${{ failure() }}
+        shell: bash
+        run: |
+          set +e
+          [ "${CREATED_ENDPOINT:-0}" = 1 ] && modal endpoint stop -y "$ENDPOINT" >/dev/null 2>&1 || true
+          [ -n "${PK:-}" ] && modal workspace proxy-tokens delete -y "$PK" >/dev/null 2>&1 || true
