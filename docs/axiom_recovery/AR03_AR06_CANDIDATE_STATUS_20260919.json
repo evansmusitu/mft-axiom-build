@@ -1,0 +1,160 @@
+{
+  "schema": "musitu.axiom.recovery.ar03-ar06-candidate-status.v1",
+  "recorded_on": "2026-09-19",
+  "authority": {
+    "repository": "evansmusitu/mft-axiom-build",
+    "sealed_main_commit": "d6a846f6bbe0bccac1758713eb4de167caf07113",
+    "runtime_source_commit": "216ee7d15f01a3fb558452cc4b906a055001ccdd",
+    "ar02_bootstrap_parent_commit": "7f8b51ddd426aa6c4b7684a67be1960db42028ee",
+    "candidate_branch": "frontier/axiom-recovery-ar03-ar06-candidate-20260919",
+    "pr1": {
+      "state": "OPEN",
+      "draft": true,
+      "merged": false,
+      "head_commit": "d9196774a9fff3150922e2cb681d16e2423651da"
+    },
+    "authorized_scope": "AR-03 THROUGH AR-06 CANDIDATE TRACK ONLY",
+    "production_authority": false,
+    "s4_or_s5_authority": false
+  },
+  "reconciliation": {
+    "strategy": "FRESH_BRANCH_FROM_COMMON_AR02_PARENT",
+    "prior_python_candidate": {
+      "branch": "frontier/axiom-recovery-ar03-11-20260918",
+      "observed_head": "ba547d07edf4d5fa29d0deea485390ed7ae503cd",
+      "reused_concepts": [
+        "provider-independent SQLite foundations",
+        "durable retry and idempotency test shape",
+        "explicit NOT_EARNED phase accounting"
+      ],
+      "merged_wholesale": false
+    },
+    "prior_javascript_candidate": {
+      "branch": "frontier/axiom-recovery-ar03-ar11-20260918",
+      "observed_head": "75be7533754994dc69268bba1bd94579409b9e2d",
+      "reused_concepts": [
+        "authoritative vNext runtime source binding",
+        "unified lane and receipt contract",
+        "fail-closed runtime convergence truth"
+      ],
+      "merged_wholesale": false
+    },
+    "result": "ONE_INTEGRATED_AR03_AR06_PROVIDER_INDEPENDENT_CANDIDATE"
+  },
+  "local_verification": {
+    "python": "3.12",
+    "test_command": "python -m unittest discover -s recovery/ar03_06/tests -p 'test_*.py' -v",
+    "tests_passed": 16,
+    "tests_failed": 0,
+    "provider_execution_performed": false,
+    "network_required": false,
+    "production_mutated": false,
+    "gitlab_pipeline": "NOT_PERFORMED"
+  },
+  "phases": {
+    "AR-03": {
+      "candidate_implementation": "PRESENT",
+      "local_contract": "PASS",
+      "implemented": [
+        "self-service signup and login",
+        "automatic organization owner and first project",
+        "live entitlements and API-key scopes",
+        "hash-only session, API-key, and recovery credentials",
+        "OAuth linkage metadata without provider token material",
+        "recovery revokes sessions and API keys",
+        "tamper-evident identity audit chain",
+        "HMAC-attested and live-revalidated authority contexts"
+      ],
+      "formal_gate": "NOT_EARNED",
+      "blockers": [
+        "AR-02 is not earned",
+        "no authoritative cloud identity/runtime binding",
+        "no live new-customer qualification"
+      ]
+    },
+    "AR-04": {
+      "candidate_implementation": "PRESENT",
+      "local_contract": "PASS",
+      "implemented": [
+        "Project, Work, Artifact, Agent, Memory, Source, and Approval entity model",
+        "canonical body and provenance hashes",
+        "per-project tamper-evident event chain",
+        "two independent local clients over a shared durable store",
+        "atomic idempotent local-store import",
+        "tenant isolation"
+      ],
+      "formal_gate": "NOT_EARNED",
+      "blockers": [
+        "AR-03 is not earned",
+        "SQLite is not a qualified cloud Project/Work authority",
+        "two physical devices and offline/cloud reconciliation were not exercised"
+      ]
+    },
+    "AR-05": {
+      "candidate_implementation": "PRESENT",
+      "local_contract": "PASS",
+      "implemented": [
+        "persistent task and step state machine",
+        "leases, retry, resume, cancellation, and budgets",
+        "stable invocation IDs and durable unified receipts",
+        "HMAC-bound S3 approval pauses",
+        "tamper-before-execute input binding",
+        "restart recovery without duplicate injected side effect",
+        "tamper-evident task event stream"
+      ],
+      "formal_gate": "NOT_EARNED",
+      "blockers": [
+        "AR-04 is not earned",
+        "no qualified cloud queue/workflow provider",
+        "no browser closure plus Worker/provider restart qualification"
+      ]
+    },
+    "AR-06": {
+      "candidate_implementation": "PRESENT",
+      "local_contract": "PASS",
+      "registry": {
+        "certified_atomic_operations": 74,
+        "registered_candidate_entry_points": 90,
+        "ordered_lanes": 10,
+        "synthetic_unified_receipt_executions": 90,
+        "default_real_local_bindings": [
+          "arithmetic.evaluate"
+        ]
+      },
+      "controls": [
+        "one invocation and receipt schema",
+        "unbound operations deny",
+        "retrieved data cannot authorize side effects",
+        "external lanes require exact server-HMAC authorization and HTTPS allowlist",
+        "candidate bindings cannot self-certify production qualification"
+      ],
+      "formal_gate": "NOT_EARNED",
+      "blockers": [
+        "AR-05 is not earned",
+        "all registered real tools were not executed",
+        "source presence and synthetic bindings are not live production evidence",
+        "no proof that every UI surface uses this candidate orchestrator"
+      ]
+    }
+  },
+  "runtime_convergence": {
+    "authoritative_vnext_blob_count": 10,
+    "exact_blob_identity_required_by_independent_verifier": true,
+    "protected_vnext_files_modified_by_candidate": false,
+    "production_rollback_origin_preserved": true
+  },
+  "claim_boundary": {
+    "ar02_complete": false,
+    "ar03_earned": false,
+    "ar04_earned": false,
+    "ar05_earned": false,
+    "ar06_earned": false,
+    "full_product_connection": "NOT_PROVEN",
+    "frontier_v5_live_integration": "NOT_PROVEN",
+    "wolfram_parity": "NOT_CERTIFIED",
+    "superiority": "NOT_CERTIFIED",
+    "main_mutated": false,
+    "pr1_mutated": false,
+    "provider_or_production_mutated": false
+  }
+}
