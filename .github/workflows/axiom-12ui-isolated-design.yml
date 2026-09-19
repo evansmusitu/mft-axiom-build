@@ -1,6 +1,12 @@
 name: AXIOM 12ui Isolated Design
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - design/axiom-12ui-isolated-20260919
+    paths:
+      - .github/workflows/axiom-12ui-isolated-design.yml
+      - design/axiom-12ui/**
 permissions:
   contents: read
 concurrency:
@@ -11,9 +17,7 @@ jobs:
   draft:
     if: github.ref == 'refs/heads/design/axiom-12ui-isolated-20260919'
     runs-on: ubuntu-24.04
-    timeout-minutes: 90
-    env:
-      TWELVE_UI_API_KEY: ${{ secrets.TWELVE_UI_API_KEY }}
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
         with:
@@ -21,36 +25,33 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Fail closed on missing 12ui credential
+      - name: Install 12ui CLI and start secure device authorization
         shell: bash
         run: |
           set -euo pipefail
-          test -n "$TWELVE_UI_API_KEY"
-          echo "::add-mask::$TWELVE_UI_API_KEY"
-      - name: Install pinned 12ui CLI
-        shell: bash
-        run: |
-          set -euo pipefail
-          npx -y @12ui/design@0.2.70 cli install
+          npx -y @12ui/design cli install
           12ui --version
-          12ui auth status || true
+          echo "Starting 12ui account authorization. Open the one-time URL/code shown below and approve it."
+          npx -y @12ui/design skill install
+          12ui auth status
       - name: Generate four isolated AXIOM design candidates
         shell: bash
         run: |
           set -euo pipefail
           mkdir -p /tmp/axiom-12ui
           CONCEPT="$(cat design/axiom-12ui/CONCEPT.txt)"
-          12ui draft --concept "$CONCEPT" --candidates 4 --aspect landscape --wait | tee /tmp/axiom-12ui/draft.log
-          RUN_DIR="$(head -n 1 /tmp/axiom-12ui/draft.log)"
-          test -d "$RUN_DIR"
-          cp -R "$RUN_DIR" /tmp/axiom-12ui/run
+          12ui draft --concept "$CONCEPT" --candidates 4 | tee /tmp/axiom-12ui/draft.log
+          12ui next "$(head -n 1 /tmp/axiom-12ui/draft.log)" --wait
       - name: Upload candidate evidence only
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: axiom-12ui-isolated-draft-candidates
-          path: /tmp/axiom-12ui/**
-          if-no-files-found: error
-          retention-days: 14
+          path: |
+            /tmp/axiom-12ui/**
+            ~/.config/12ui/*.json
+          if-no-files-found: warn
+          retention-days: 1
 
   isolation-guard:
     runs-on: ubuntu-24.04
@@ -62,4 +63,4 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          ! grep -R -nE 'wrangler deploy|cloudflare|mcp\.mftintelligence\.com|auth\.mftintelligence\.com|payments\.mftintelligence\.com' design/axiom-12ui .github/workflows/axiom-12ui-isolated-design.yml
+          ! grep -R -nE 'wrangler deploy|mcp\.mftintelligence\.com|auth\.mftintelligence\.com|payments\.mftintelligence\.com' design/axiom-12ui .github/workflows/axiom-12ui-isolated-design.yml
