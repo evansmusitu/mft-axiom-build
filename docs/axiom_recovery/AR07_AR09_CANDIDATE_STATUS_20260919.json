@@ -1,0 +1,149 @@
+{
+  "schema": "musitu.axiom.recovery.ar07-ar09-candidate-status.v1",
+  "recorded_on": "2026-09-19",
+  "authority": {
+    "repository": "evansmusitu/mft-axiom-build",
+    "sealed_main_commit": "d6a846f6bbe0bccac1758713eb4de167caf07113",
+    "runtime_source_commit": "216ee7d15f01a3fb558452cc4b906a055001ccdd",
+    "ar03_ar06_parent_commit": "1ee13cc8683f5b3ad5267432e6f45a22491be8ac",
+    "candidate_branch": "frontier/axiom-recovery-ar07-ar09-candidate-20260919",
+    "pr1": {
+      "state": "OPEN",
+      "draft": true,
+      "merged": false,
+      "head_commit": "d9196774a9fff3150922e2cb681d16e2423651da"
+    },
+    "authorized_scope": "AR-07 THROUGH AR-09 CANDIDATE TRACK ONLY",
+    "production_authority": false,
+    "s4_or_s5_authority": false,
+    "design_orchestration": {
+      "orchestrator": "MUSITU_AXIOM",
+      "external_design_providers": "OPTIONAL_BOUNDED_CAPABILITIES",
+      "single_vendor_dependency": false,
+      "user_authorized_on": "2026-09-19"
+    }
+  },
+  "local_verification": {
+    "python": "3.13.5",
+    "new_test_command": "python -m unittest discover -s recovery/ar07_09/tests -p 'test_*.py' -v",
+    "new_tests_passed": 6,
+    "full_recovery_tests_passed": 22,
+    "tests_failed": 0,
+    "provider_execution_performed": false,
+    "network_required": false,
+    "production_mutated": false,
+    "gitlab_pipeline": "NOT_PERFORMED",
+    "browser_http_navigation": "ENVIRONMENT_BLOCKED_BY_ADMINISTRATOR",
+    "render_verification": "PLAYWRIGHT_SET_CONTENT_EXACT_CLIENT_BYTES",
+    "builder_verifier": "PASS",
+    "independent_verifier": "PASS_LOCAL_SOURCE_CONTEXT",
+    "accessibility_verification": {
+      "status": "PASS_LOCAL_BROWSER_SCOPE",
+      "labels_and_accessible_names": "PASS",
+      "keyboard_auth_tabs": "PASS",
+      "pre_session_escape_fail_closed": "PASS",
+      "visible_focus_indicator": "PASS",
+      "mobile_375_no_horizontal_overflow": "PASS",
+      "narrow_320_no_horizontal_overflow": "PASS",
+      "reduced_motion_rule": "PASS",
+      "forced_colors_rule": "PASS",
+      "chromium_accessibility_tree": "PASS",
+      "manual_screen_reader_session": "NOT_PERFORMED_ENVIRONMENT_LIMITATION",
+      "wcag_conformance_claim": "NOT_MADE"
+    },
+    "security_verification": {
+      "status": "PASS_LOCAL_SCOPE",
+      "csp": "PASS",
+      "same_origin_csrf": "PASS",
+      "httponly_samesite_cookie": "PASS",
+      "camera_microphone_geolocation_permissions": "DENIED",
+      "x_frame_options": "DENY",
+      "cache_control": "NO_STORE",
+      "browser_token_storage": "ABSENT",
+      "dynamic_code_execution": "ABSENT"
+    },
+    "ar08_controlled_adversarial": "PASS_11_OF_11_DOMAINS",
+    "ar09_controlled_reliability": "PASS_12_SAMPLE_CONTROLLED_LOCAL_ONLY"
+  },
+  "phases": {
+    "AR-07": {
+      "candidate_implementation": "PRESENT",
+      "local_contract": "PASS",
+      "surface_count": 10,
+      "implemented": [
+        "one same-origin authenticated composer over the durable candidate kernel",
+        "persisted task-event progress timeline",
+        "durable tool-receipt visibility",
+        "kernel-backed approval cards and approval action",
+        "provenance-bearing artifact workspace",
+        "project-scoped memory",
+        "kernel-backed retry and cancel with fail-closed redirect",
+        "always-visible limitation state",
+        "responsive supervision surface",
+        "explicitly blocked unconnected voice, camera, and screen capability"
+      ],
+      "formal_gate": "NOT_EARNED",
+      "blockers": [
+        "AR-06 is not earned",
+        "five unfamiliar users have not completed priority tasks without developer assistance",
+        "voice, camera, screen, browser, research, enterprise, and automation adapters are not connected"
+      ]
+    },
+    "AR-08": {
+      "candidate_implementation": "PRESENT",
+      "local_contract": "PASS",
+      "controlled_attack_domains": 11,
+      "local_critical_findings": 0,
+      "local_high_findings": 0,
+      "formal_gate": "NOT_EARNED",
+      "blockers": [
+        "AR-07 is not earned",
+        "controlled local probes are not independent real-attack-surface reproduction",
+        "no deployed provider or browser-computer surface was attacked"
+      ]
+    },
+    "AR-09": {
+      "candidate_implementation": "PRESENT",
+      "local_contract": "PASS",
+      "controlled_sample": {
+        "parallel_task_count": 12,
+        "transient_fault_count": 12,
+        "transient_recovery_rate": 1.0,
+        "duplicate_consequential_actions": 0,
+        "task_reconciliation_rate": 1.0,
+        "material_provenance_rate": 1.0,
+        "cross_tenant_leakage": 0
+      },
+      "formal_gate": "NOT_EARNED",
+      "blockers": [
+        "AR-08 is not earned",
+        "gateway availability was not observed in a live environment",
+        "local samples do not establish production SLOs",
+        "no production saturation, provider outage, or multi-region restoration exercise was performed"
+      ]
+    }
+  },
+  "runtime_convergence": {
+    "authoritative_vnext_blob_count": 10,
+    "exact_blob_identity_required_by_independent_verifier": true,
+    "protected_vnext_files_modified_by_candidate": false,
+    "production_rollback_origin_preserved": true
+  },
+  "claim_boundary": {
+    "ar02_complete": false,
+    "ar03_earned": false,
+    "ar04_earned": false,
+    "ar05_earned": false,
+    "ar06_earned": false,
+    "ar07_earned": false,
+    "ar08_earned": false,
+    "ar09_earned": false,
+    "full_product_connection": "NOT_PROVEN",
+    "frontier_v5_live_integration": "NOT_PROVEN",
+    "wolfram_parity": "NOT_CERTIFIED",
+    "superiority": "NOT_CERTIFIED",
+    "main_mutated": false,
+    "pr1_mutated": false,
+    "provider_or_production_mutated": false
+  }
+}

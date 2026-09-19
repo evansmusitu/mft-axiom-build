@@ -14,6 +14,7 @@ workflow:
     - if: '$CI_COMMIT_REF_PROTECTED == "true"'
     - if: '$CI_COMMIT_BRANCH == "frontier/axiom-recovery-ar02-gitlab-mirror-bootstrap-20260918"'
     - if: '$CI_COMMIT_BRANCH == "frontier/axiom-recovery-ar03-ar06-candidate-20260919"'
+    - if: '$CI_COMMIT_BRANCH == "frontier/axiom-recovery-ar07-ar09-candidate-20260919"'
     - when: never
 
 stages:
@@ -67,3 +68,27 @@ ar03-ar06-candidate-independent-verifier:
     - ar03-ar06-candidate-builder
   script:
     - python recovery/ar03_06/verify_candidate_independent.py
+
+ar07-ar09-candidate-builder:
+  stage: builder
+  timeout: 10m
+  allow_failure: false
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "frontier/axiom-recovery-ar07-ar09-candidate-20260919"'
+    - if: '$CI_MERGE_REQUEST_SOURCE_BRANCH_NAME == "frontier/axiom-recovery-ar07-ar09-candidate-20260919"'
+    - when: never
+  script:
+    - python recovery/ar07_09/verify_candidate_builder.py
+
+ar07-ar09-candidate-independent-verifier:
+  stage: verifier
+  timeout: 10m
+  allow_failure: false
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "frontier/axiom-recovery-ar07-ar09-candidate-20260919"'
+    - if: '$CI_MERGE_REQUEST_SOURCE_BRANCH_NAME == "frontier/axiom-recovery-ar07-ar09-candidate-20260919"'
+    - when: never
+  needs:
+    - ar07-ar09-candidate-builder
+  script:
+    - python recovery/ar07_09/verify_candidate_independent.py
