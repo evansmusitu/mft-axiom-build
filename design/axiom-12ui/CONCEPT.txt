@@ -1,0 +1,13 @@
+MUSITU Axiom — isolated frontier intelligence workspace redesign.
+
+Product: a model-independent, evidence-native execution and intelligence system. Audience: professionals who need conversation, research, market/quant analysis, durable work, agent execution, artifacts, browser/computer work, automation, developer tools, and provable evidence in one interface.
+
+Reference architecture: current ChatGPT web app patterns for conversation focus, sidebar/history, Projects, files/library, plugins/tools, deep research, work/task execution, responsive behavior, and clean progressive disclosure. Do not copy OpenAI branding, logos, colors, proprietary assets, or exact screen layouts.
+
+AXIOM-specific structure: Home, Projects, Work, Agents, Artifacts, Research, Analyze, Build, Create, Live, Computer, Automations, Developer, Trust, Settings; global search/command; session/account; persistent composer; Context/Evidence/Activity inspector; approvals, provenance, policy, privacy, budget, and evidence controls.
+
+Goal: make AXIOM feel calmer, faster, more coherent, more trustworthy, and more powerful than the current dense vNext shell. Conversation should remain primary while advanced tools appear contextually. Evidence and consequential actions must be visible without overwhelming normal use. Strong information hierarchy, refined spacing, original AXIOM visual language, excellent mobile behavior, accessibility, dark/light support, and clear states for empty/loading/running/approval/success/error.
+
+Personality: precise, premium, futuristic but restrained; institutional-grade rather than sci-fi decoration; evidence-native; globally credible.
+
+Deliverable: desktop-first first viewport candidates suitable for branching into a complete multi-route web application.
