@@ -47,9 +47,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: axiom-12ui-isolated-draft-candidates
-          path: |
-            /tmp/axiom-12ui/**
-            ~/.config/12ui/*.json
+          path: /tmp/axiom-12ui/**
           if-no-files-found: warn
           retention-days: 1
 
