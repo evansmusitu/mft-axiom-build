@@ -90,7 +90,7 @@ jobs:
           python - <<'PY'
           import json,os
           json.dump({'name':os.environ['ADAPTER'],'main':'adapter.js','compatibility_date':'2026-09-19','workers_dev':False,'vars':{'MODAL_BASE_URL':os.environ['MURL']}},open('/tmp/adapter/wrangler.json','w'))
-          json.dump({'name':os.environ['EDGE'],'main':'edge.js','compatibility_date':'2026-09-19','workers_dev':True,'services':[{'binding':'MODEL_ADAPTER','service':os.environ['ADAPTER']}]},open('/tmp/edge/wrangler.json','w'))
+          json.dump({'name':os.environ['EDGE'],'main':'edge.js','compatibility_date':'2026-09-19','workers_dev':False,'services':[{'binding':'MODEL_ADAPTER','service':os.environ['ADAPTER']}]},open('/tmp/edge/wrangler.json','w'))
           PY
           (cd /tmp/adapter && npx wrangler deploy --config wrangler.json >/dev/null)
           printf %s "$PK" | (cd /tmp/adapter && npx wrangler secret put MODAL_PROXY_KEY --config wrangler.json >/dev/null)
@@ -99,6 +99,38 @@ jobs:
           (cd /tmp/edge && npx wrangler deploy --config wrangler.json >/dev/null)
           printf %s "$CK" | (cd /tmp/edge && npx wrangler secret put MUSITU_MODEL_API_KEY --config wrangler.json >/dev/null)
           echo cloudflare_chain=PASS
+      - name: Install narrow Cloudflare machine-transport rule
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json,os,urllib.request,urllib.error
+          base='https://api.cloudflare.com/client/v4'; h={'X-Auth-Email':os.environ['CF_EMAIL'],'X-Auth-Key':os.environ['CF_KEY'],'Content-Type':'application/json'}
+          def call(path,method='GET',body=None):
+            q=urllib.request.Request(base+path,headers=h,method=method,data=None if body is None else json.dumps(body).encode())
+            try:
+              with urllib.request.urlopen(q,timeout=30) as r: return r.status,json.load(r)
+            except urllib.error.HTTPError as e: return e.code,json.loads(e.read() or b'{}')
+          c,x=call(f'/zones/{os.environ["CF_ZONE"]}/rulesets')
+          rows=[r for r in x.get('result',[]) if r.get('phase')=='http_config_settings' and r.get('kind')=='zone']
+          if c!=200 or len(rows)!=1: raise SystemExit('configuration ruleset invariant failed')
+          rid=rows[0]['id']; c,x=call(f'/zones/{os.environ["CF_ZONE"]}/rulesets/{rid}')
+          ref='musitu_model_stage_machine_transport'; expr='http.host eq "models-stage.mftintelligence.com"'
+          matches=[r for r in (x.get('result') or {}).get('rules',[]) if r.get('ref')==ref]
+          if len(matches)>1: raise SystemExit('duplicate machine-transport rule')
+          if matches:
+            r=matches[0]; ap=r.get('action_parameters') or {}
+            if r.get('action')!='set_config' or r.get('expression')!=expr or ap.get('security_level')!='essentially_off' or ap.get('bic') is not False or r.get('enabled') is False:
+              raise SystemExit('existing machine-transport rule mismatch')
+          else:
+            body={'action':'set_config','action_parameters':{'security_level':'essentially_off','bic':False},'expression':expr,'description':'MUSITU model staging machine transport only','enabled':True,'ref':ref}
+            c,y=call(f'/zones/{os.environ["CF_ZONE"]}/rulesets/{rid}/rules','POST',body)
+            if c not in (200,201) or not y.get('success'): raise SystemExit('machine-transport rule write failed')
+          c,x=call(f'/zones/{os.environ["CF_ZONE"]}/rulesets/{rid}')
+          matches=[r for r in (x.get('result') or {}).get('rules',[]) if r.get('ref')==ref]
+          if len(matches)!=1: raise SystemExit('machine-transport readback failed')
+          print('cloudflare_machine_transport=PASS')
+          PY
       - name: Attach stage domain and verify real inference
         shell: bash
         run: |
@@ -131,7 +163,7 @@ jobs:
           x=json.load(open('/tmp/r.json')); ch=x.get('choices') or []
           if not ch or not ((ch[0].get('message') or {}).get('content') or '').strip(): raise SystemExit('empty completion')
           content=(ch[0].get('message') or {})['content']
-          ev={'schema':'musitu.kimi_k3.phase1.v1','gate':'PHASE1_CORE_PASS','branch':'infra/musitu-kimi-k3-phase1-20260919','commit':subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip(),'hostname':os.environ['HOST'],'model_alias':'musitu-frontier','backend_model':os.environ['MODEL'],'modal_endpoint':os.environ['ENDPOINT'],'raw_modal_public':False,'adapter_public':False,'unauth_401':True,'real_inference':True,'content_sha256':hashlib.sha256(content.encode()).hexdigest(),'secrets_exported':False,'next_verification':['streaming','tool_calling','vision','workers_dev_disable','security_rule']}
+          ev={'schema':'musitu.kimi_k3.phase1.v1','gate':'PHASE1_CORE_PASS','branch':'infra/musitu-kimi-k3-phase1-20260919','commit':subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip(),'hostname':os.environ['HOST'],'model_alias':'musitu-frontier','backend_model':os.environ['MODEL'],'modal_endpoint':os.environ['ENDPOINT'],'raw_modal_public':False,'adapter_public':False,'unauth_401':True,'real_inference':True,'content_sha256':hashlib.sha256(content.encode()).hexdigest(),'secrets_exported':False,'workers_dev_public':False,'security_rule':'PASS','next_verification':['streaming','tool_calling','vision']}
           raw=(json.dumps(ev,indent=2,sort_keys=True)+'\n').encode(); pathlib.Path('phase1-core-evidence.json').write_bytes(raw); pathlib.Path('phase1-core-evidence.sha256').write_text(hashlib.sha256(raw).hexdigest()+'  phase1-core-evidence.json\n')
           print('PHASE1_CORE_PASS')
           PY
