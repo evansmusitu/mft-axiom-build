@@ -45,13 +45,26 @@ class OpenAIAdapter:
             "tools": invocation.metadata.get("tools", []),
         }
         status, _, data, elapsed = post_json(
-            self.base_url + "/responses",
-            payload,
-            {"authorization": "Bearer " + key},
-            invocation.timeout_ms / 1000,
+            self.base_url + "/responses", payload,
+            {"authorization":"Bearer "+key}, invocation.timeout_ms / 1000,
         )
         usage = data.get("usage", {}) if isinstance(data,dict) else {}
-        return InvocationResult(
-            self.provider, invocation.case_id, "ok" if status < 400 else "error",
-            data, None if status < 400 else f"HTTP_{status}", elapsed, usage
+        return InvocationResult(self.provider, invocation.case_id,
+            "ok" if status < 400 else "error", data,
+            None if status < 400 else f"HTTP_{status}", elapsed, usage)
+
+    def invoke_with_frontier_mcp(self, invocation: Invocation, mcp_url: str) -> InvocationResult:
+        payload = self.build_responses_mcp_request(
+            invocation.metadata.get("prompt",""), mcp_url,
+            invocation.metadata.get("require_approval","never")
         )
+        key = require_secret("OPENAI_API_KEY")
+        status, _, data, elapsed = post_json(
+            self.base_url + "/responses", payload,
+            {"authorization":"Bearer "+key}, invocation.timeout_ms / 1000,
+        )
+        usage = data.get("usage", {}) if isinstance(data,dict) else {}
+        return InvocationResult(self.provider, invocation.case_id,
+            "ok" if status < 400 else "error", data,
+            None if status < 400 else f"HTTP_{status}", elapsed, usage,
+            {"mcp_endpoint": mcp_url})
