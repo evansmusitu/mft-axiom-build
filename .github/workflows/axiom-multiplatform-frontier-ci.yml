@@ -1,0 +1,52 @@
+name: MUSITU Axiom Multi-Provider Frontier CI
+
+on:
+  push:
+    branches:
+      - frontier/axiom-multiplatform-frontier
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  isolation-and-local-validation:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository with full history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Verify OpenAI review freeze
+        run: python multiplatform/review_guard.py
+
+      - name: Verify sealed caseset
+        run: python multiplatform/evaluate.py
+
+      - name: Verify 30-capability matrix
+        run: python multiplatform/matrix.py
+
+      - name: Run provider and boundary tests
+        run: python -m unittest discover -s multiplatform/tests -v
+
+      - name: Run static production-boundary security guard
+        run: python multiplatform/security/static_guard.py
+
+      - name: Syntax-check MCPB bridge
+        run: node --check multiplatform/anthropic/mcpb/server/index.js
+
+      - name: Build MCPB package
+        run: python multiplatform/anthropic/build_mcpb.py
+
+      - name: Validate MCPB archive
+        run: unzip -t multiplatform/anthropic/dist/musitu-axiom-frontier.mcpb
+
+      - name: Assert no deployment stage exists in this workflow
+        run: |
+          ! grep -Eiq 'wrangler deploy|cloudflare.*(api|secret)|secrets\.(CLOUDFLARE|OPENAI_APPS_CHALLENGE)' .github/workflows/axiom-multiplatform-frontier-ci.yml
