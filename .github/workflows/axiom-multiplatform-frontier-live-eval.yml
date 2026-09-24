@@ -1,0 +1,55 @@
+name: MUSITU Axiom Live Multi-Provider Evaluation
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  live-evaluation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      OPENAI_MODEL: ${{ vars.OPENAI_MODEL }}
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      ANTHROPIC_MODEL: ${{ vars.ANTHROPIC_MODEL }}
+      META_MODEL_API_KEY: ${{ secrets.META_MODEL_API_KEY }}
+      META_MODEL: ${{ vars.META_MODEL }}
+      META_MODEL_API_BASE_URL: ${{ vars.META_MODEL_API_BASE_URL }}
+      AXIOM_FRONTIER_MCP_URL: ${{ vars.AXIOM_FRONTIER_MCP_URL }}
+      AXIOM_FRONTIER_OAUTH_TOKEN: ${{ secrets.AXIOM_FRONTIER_OAUTH_TOKEN }}
+    steps:
+      - name: Checkout isolated Frontier branch
+        uses: actions/checkout@v4
+        with:
+          ref: frontier/axiom-multiplatform-frontier
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Re-run review freeze guard
+        run: python multiplatform/review_guard.py
+
+      - name: Require an isolated Frontier endpoint
+        run: |
+          test -n "$AXIOM_FRONTIER_MCP_URL"
+          test "$AXIOM_FRONTIER_MCP_URL" != "https://mcp.mftintelligence.com/mcp"
+
+      - name: Run same sealed cases across accessible providers
+        run: python multiplatform/live_eval.py --composite --out-dir evidence
+
+      - name: Upload immutable evaluation evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: musitu-axiom-multiplatform-evidence
+          path: evidence/
+          if-no-files-found: error
+
+      - name: Assert no production deployment operation exists
+        run: |
+          ! grep -Eiq 'wrangler deploy|cloudflare.*(api|secret)|OPENAI_APPS_CHALLENGE|AUTH_SECRET' .github/workflows/axiom-multiplatform-frontier-ci.yml .github/workflows/axiom-multiplatform-frontier-live-eval.yml
