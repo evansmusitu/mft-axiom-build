@@ -1,0 +1,28 @@
+{
+  "$schema":"https://raw.githubusercontent.com/modelcontextprotocol/mcpb/main/schemas/mcpb-manifest-v0.3.schema.json",
+  "manifest_version":"0.3",
+  "name":"com.mftintelligence.musitu-axiom-frontier",
+  "display_name":"MUSITU Axiom Frontier",
+  "version":"0.1.0",
+  "description":"Local MCP Bundle bridge for an isolated MUSITU Axiom Frontier MCP endpoint.",
+  "author":{"name":"MUSITU Intelligence"},
+  "repository":{"type":"git","url":"https://github.com/evansmusitu/mft-axiom-build"},
+  "homepage":"https://mcp.mftintelligence.com/docs",
+  "support":"https://github.com/evansmusitu/mft-axiom-build/issues",
+  "server":{
+    "type":"node",
+    "entry_point":"server/index.js",
+    "mcp_config":{
+      "command":"node",
+      "args":["$"+"{__dirname}/server/index.js"],
+      "env":{
+        "AXIOM_FRONTIER_MCP_URL":"$"+"{user_config.frontier_mcp_url}",
+        "AXIOM_FRONTIER_OAUTH_TOKEN":"$"+"{user_config.frontier_oauth_token}"
+      }
+    }
+  },
+  "user_config":{
+    "frontier_mcp_url":{"type":"string","title":"Frontier MCP URL","description":"HTTPS URL for isolated Frontier staging only; the bridge rejects the current production MUSITU MCP URL.","required":true,"sensitive":false},
+    "frontier_oauth_token":{"type":"string","title":"Frontier OAuth token","description":"Optional OAuth bearer token for the isolated Frontier staging MCP server.","required":false,"sensitive":true}
+  }
+}
