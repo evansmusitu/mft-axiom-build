@@ -72,7 +72,8 @@ jobs:
           python - <<'PY'
           import hashlib,json,os,time,urllib.error,urllib.parse,urllib.request
           api=os.environ['CF_API']; aid=os.environ['ACCOUNT_ID']; title=os.environ['KV_TITLE']; key=os.environ['KV_KEY']; path=os.environ['VIDEO_PATH']
-          admin={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY'],'Accept':'application/json','User-Agent':'MUSITU-Axiom-Reviewer-Demo-KV-V2/1.0'}
+          legacy_admin={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY'],'Accept':'application/json','User-Agent':'MUSITU-Axiom-Reviewer-Demo-KV-V2/1.0'}
+          bearer_admin={'Authorization':'Bearer '+os.environ['CLOUDFLARE_GLOBAL_API_KEY'],'Accept':'application/json','User-Agent':'MUSITU-Axiom-Reviewer-Demo-KV-V2/1.0'}
           expected_sha=os.environ['EXPECTED_SHA256']; expected_size=int(os.environ['EXPECTED_SIZE'])
           payload=open(path,'rb').read()
           if len(payload)!=expected_size or hashlib.sha256(payload).hexdigest()!=expected_sha:
@@ -82,6 +83,13 @@ jobs:
               try:
                   with urllib.request.urlopen(req,timeout=timeout) as r:return r.status,r.headers,r.read()
               except urllib.error.HTTPError as e:return e.code,e.headers,e.read()
+          def choose_admin():
+              for candidate in (bearer_admin, legacy_admin):
+                  c,_,_=raw(f'{api}/accounts/{aid}', 'GET', candidate)
+                  if 200<=c<300: return candidate
+              raise RuntimeError('Cloudflare credential rejected under both Bearer-token and X-Auth-Key authentication')
+          admin=choose_admin()
+
           def cf(path,method='GET',obj=None):
               h=dict(admin); b=None
               if obj is not None:
