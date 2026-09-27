@@ -144,3 +144,4 @@ jobs:
           if-no-files-found: warn
 
 # Force redeployment/reconciliation after public endpoint drift investigation (2026-09-27).
+# 2026-09-27 recovery trigger: redeploy private v2 MCP core before the 108-tool public gate cutover.
