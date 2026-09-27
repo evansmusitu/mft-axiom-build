@@ -3,8 +3,9 @@ set -euo pipefail
 
 : "${CLOUDFLARE_ACCOUNT_ID:?}"
 : "${CLOUDFLARE_EMAIL:?}"
-: "${CLOUDFLARE_API_KEY:?}"
-: "${CLOUDFLARE_GLOBAL_API_KEY:?}"
+: "${CLOUDFLARE_API_TOKEN:-}"
+: "${CLOUDFLARE_API_KEY:-}"
+: "${CLOUDFLARE_GLOBAL_API_KEY:-}"
 STAGING_WORKER="${STAGING_WORKER:-mft-axiom-claude-staging-20260927}"
 STAGING_DB="${STAGING_DB:-mft-axiom-claude-staging-20260927}"
 DEPLOY_BUILD_ID="${DEPLOY_BUILD_ID:-MFT-AXIOM-V3-RUNTIME-RECONSTRUCTION-20260904}"
@@ -77,8 +78,9 @@ npx wrangler auth token --json >/tmp/cf-auth.json
 python - <<'PY'
 import json
 x=json.load(open('/tmp/cf-auth.json'))
-if x.get('type')!='api_key': raise SystemExit('Wrangler did not resolve API-key authentication')
+if x.get('type') not in {'api_key','api_token','oauth_token'}: raise SystemExit('Wrangler did not resolve a recognized authentication mode')
 print('wrangler_auth=PASS')
+print('wrangler_auth_type='+str(x.get('type')))
 PY
 rm -f /tmp/cf-auth.json
 
