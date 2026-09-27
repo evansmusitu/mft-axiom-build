@@ -327,3 +327,4 @@ jobs:
           if-no-files-found: error
 
 # Endpoint incident-recovery trigger: reconcile public edge/custom-domain state after endpoint drift.
+# Force redeployment/reconciliation after public endpoint drift investigation (2026-09-27).
