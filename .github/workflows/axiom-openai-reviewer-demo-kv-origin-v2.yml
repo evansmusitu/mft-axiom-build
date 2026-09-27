@@ -338,9 +338,13 @@ jobs:
           git diff --check
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-          git add "$WRAPPER_PATH"
-          git commit -m 'Serve reviewer demo from Cloudflare KV origin'
-          git push origin HEAD:"$TARGET_BRANCH"
+          if git diff --quiet -- "$WRAPPER_PATH"; then
+            echo 'Reviewer demo wrapper already matches the proven KV-backed candidate; no source commit required.'
+          else
+            git add "$WRAPPER_PATH"
+            git commit -m 'Serve reviewer demo from Cloudflare KV origin'
+            git push origin HEAD:"$TARGET_BRANCH"
+          fi
 
       - name: Upload sealed KV-origin production proof
         uses: actions/upload-artifact@v4
