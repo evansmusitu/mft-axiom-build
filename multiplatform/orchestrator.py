@@ -23,6 +23,7 @@ from frontier_v5.runtime.provider_fallback import (
     ProviderFallbackRouter,
     ProviderRequest,
     ProviderResponse,
+    ProviderTimeoutError,
 )
 from multiplatform.evaluation_runner import build as build_manifest
 from multiplatform.providers.contracts import Invocation, InvocationResult, Provider
@@ -150,8 +151,8 @@ class _BoundProvider:
         started = time.perf_counter()
         try:
             result = self.binding.adapter.invoke(invocation)
-        except TimeoutError:
-            raise
+        except TimeoutError as exc:
+            raise ProviderTimeoutError(str(exc)) from exc
         except Exception as exc:
             elapsed = int(max(0, round((time.perf_counter() - started) * 1000)))
             return ProviderResponse(
