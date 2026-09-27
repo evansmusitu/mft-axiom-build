@@ -137,34 +137,6 @@ assert c['containers'][0]['max_instances']==4
 print('staging_config=PASS')
 PY
 
-D1_ID="$(cat /tmp/d1-id)"
-test -n "$D1_ID"
-echo 'd1_identity=PASS'
-
-D1_ID="$D1_ID" python - <<'PY'
-import json,os
-cfg={
- '$schema':'node_modules/wrangler/config-schema.json',
- 'name':os.environ['STAGING_WORKER'],
- 'main':'worker/src/cloudflare.js',
- 'compatibility_date':'2026-09-04',
- 'workers_dev':True,
- 'observability':{'enabled':True},
- 'containers':[{'class_name':'AxiomKernel','image':'./kernel/Dockerfile','max_instances':4,'instance_type':'basic','image_build_context':'.','name':'mft-axiom-staging-kernel'}],
- 'durable_objects':{'bindings':[{'name':'AXIOM_KERNEL','class_name':'AxiomKernel'}]},
- 'migrations':[{'tag':'axiom-staging-v1','new_sqlite_classes':['AxiomKernel']}],
- 'd1_databases':[{'binding':'AXIOM_DB','database_name':os.environ['STAGING_DB'],'database_id':os.environ['D1_ID']}]
-}
-open('wrangler.json','w').write(json.dumps(cfg,indent=2))
-PY
-python - <<'PY'
-import json,os
-c=json.load(open('wrangler.json'))
-assert c['name']==os.environ['STAGING_WORKER'] and c['workers_dev'] is True
-assert c['d1_databases'][0]['binding']=='AXIOM_DB' and c['containers'][0]['max_instances']==4
-print('staging_config=PASS')
-PY
-
 npx wrangler d1 execute "$STAGING_DB" --remote --file migrations/0001_revenue_core.sql --yes
 npx wrangler d1 execute "$STAGING_DB" --remote --command "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name" --json > schema-check.json
 python - <<'PY'
@@ -209,9 +181,9 @@ bad={k:(h.get(k),v) for k,v in expected.items() if h.get(k)!=v}
 if bad: raise SystemExit('Fail-closed health mismatch: '+repr(bad))
 print('health=PASS')
 PY
-unauth="$(curl -sS -o unauth.json -w '%{http_code}' -X POST "$URL/v1/compute" -H 'content-type: application/json' --data '{"operation":"arithmetic.evaluate","args":{"expression":"40+2"}}')"
+unauth="$(curl -sS -o unauth.json -w '%{http_code}' -X POST "$STAGING_URL/v1/compute" -H 'content-type: application/json' --data '{"operation":"arithmetic.evaluate","args":{"expression":"40+2"}}')"
 [ "$unauth" = 401 ] || { echo "Fail-closed: unauth compute expected 401 got $unauth"; exit 1; }
-curl -sS "$URL/v1/tools" > tools.json
+curl -sS "$STAGING_URL/v1/tools" > tools.json
 python - <<'PY'
 import json
 x=json.load(open('tools.json'))
@@ -220,7 +192,7 @@ print('public_security_and_tools=PASS')
 PY
 
 CONTROL="$(cat /tmp/musitu-control-secret)"
-code="$(curl -sS -o compute.json -w '%{http_code}' -X POST "$URL/v1/compute" -H "x-mft-control: $CONTROL" -H 'content-type: application/json' --data '{"operation":"arithmetic.evaluate","args":{"expression":"40+2"},"verify":true}')"
+code="$(curl -sS -o compute.json -w '%{http_code}' -X POST "$STAGING_URL/v1/compute" -H "x-mft-control: $CONTROL" -H 'content-type: application/json' --data '{"operation":"arithmetic.evaluate","args":{"expression":"40+2"},"verify":true}')"
 [ "$code" = 200 ] || { cat compute.json; echo "Fail-closed: authenticated compute HTTP $code"; exit 1; }
 python - <<'PY'
 import json
