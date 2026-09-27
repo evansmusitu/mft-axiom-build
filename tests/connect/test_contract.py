@@ -1,6 +1,7 @@
 import unittest
 from connect.mining import normalize_mining_rows, optimize_interventions
-from connect.core import CanonicalEnvelope
+from connect.core import CanonicalEnvelope, IntegrationGate
+from connect.registry import AdapterRegistry, AdapterSpec
 
 SCENARIO=[
  {"hazard":"Ground collapse","exposure":0.54,"severity":10,"likelihood":0.62,"cost":18000,"benefit":0.34},
@@ -18,11 +19,24 @@ class ConnectContractTests(unittest.TestCase):
         self.assertEqual(len(envelope.records),4)
         self.assertEqual(envelope.records[0]["hazard"],"Ground collapse")
 
+    def test_registry_is_domain_agnostic(self):
+        registry=AdapterRegistry()
+        registry.register(AdapterSpec(name='Mining Adapter',domain='mining',version='1.0.0'))
+        registry.register(AdapterSpec(name='Finance Adapter',domain='finance',version='1.0.0'))
+        self.assertEqual([x.domain for x in registry.list()],['finance','mining'])
+        self.assertEqual(registry.get('Mining Adapter').domain,'mining')
+
     def test_optimizer_respects_hard_budget(self):
         envelope=normalize_mining_rows(SCENARIO)
         result=optimize_interventions(envelope,budget=50000)
         self.assertLessEqual(result.spend,50000)
         self.assertTrue(result.selected)
         self.assertEqual(result.gate,"LOCKED")
+
+    def test_invalid_input_is_rejected(self):
+        with self.assertRaises(ValueError): normalize_mining_rows([{'hazard':'x'}])
+
+    def test_axiom_gate_is_fail_closed(self):
+        with self.assertRaisesRegex(RuntimeError,'AXIOM_INTEGRATION_BLOCKED'): IntegrationGate().assert_open()
 
 if __name__=="__main__": unittest.main()
