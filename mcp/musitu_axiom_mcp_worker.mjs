@@ -83,7 +83,7 @@ function cfg(env) {
 
 function bearer(request) {
   const h = request.headers.get("authorization") || "";
-  return h.startsWith("Bearer ") && h.length > 12 ? h : "";
+  return h.startsWith("Bearer ") && h.length > 12 ? h.slice(7) : "";
 }
 
 function oauthChallenge(c, scope = "axiom.execute", error = "invalid_token", description = "Connect your MUSITU account to continue") {
