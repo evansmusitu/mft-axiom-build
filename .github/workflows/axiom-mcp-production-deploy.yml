@@ -24,6 +24,7 @@ jobs:
       MCP_RULE_REF: musitu_axiom_mcp_machine_transport
       AXIOM_BASE: https://axiom.mftintelligence.com
       BILLING_BASE: https://payments.mftintelligence.com
+      BILLING_WORKER: mft-axiom-billing-ingress
       EXPECTED_BUILD: MFT-AXIOM-V3-FULL-SELF-CONTAINED-20260904
       EXPECTED_OPERATIONS: '74'
     steps:
@@ -133,6 +134,7 @@ jobs:
                       {'type':'plain_text','name':'AXIOM_BASE','text':os.environ['AXIOM_BASE']},
                       {'type':'plain_text','name':'BILLING_BASE','text':os.environ['BILLING_BASE']},
                       {'type':'plain_text','name':'MCP_PUBLIC_BASE','text':'https://'+host},
+                      {'type':'service','name':'AXIOM_BILLING','service':os.environ['BILLING_WORKER']},
                   ],
               }
               boundary,body=mp(metadata,'index.mjs',source); h=dict(auth); h['Content-Type']='multipart/form-data; boundary='+boundary
@@ -180,6 +182,8 @@ jobs:
           bindings={b.get('name'):b for b in settings.get('bindings') or [] if isinstance(b,dict)}
           for name,value in [('AXIOM_BASE',os.environ['AXIOM_BASE']),('BILLING_BASE',os.environ['BILLING_BASE']),('MCP_PUBLIC_BASE','https://'+host)]:
               if bindings.get(name,{}).get('text')!=value:raise RuntimeError('MCP Worker binding readback mismatch '+name)
+          service_bindings={b.get('name'):b for b in settings.get('bindings') or [] if isinstance(b,dict) and b.get('type')=='service'}
+          if service_bindings.get('AXIOM_BILLING',{}).get('service')!=os.environ['BILLING_WORKER']:raise RuntimeError('MCP billing service binding readback mismatch')
           sub=cf(f'/accounts/{aid}/workers/scripts/{urllib.parse.quote(worker,safe="")}/subdomain') or {}
           if sub.get('enabled') is not False or sub.get('previews_enabled') is not False:raise RuntimeError('MCP workers.dev exposure not disabled')
 
