@@ -130,6 +130,24 @@ class OrchestratorTests(unittest.TestCase):
         self.assertIn("openai:ineligible_policy", report["error"])
         self.assertIn("anthropic:ineligible_policy", report["error"])
 
+    def test_run_cases_binds_orchestration_to_sealed_evaluation_manifest(self):
+        providers = {
+            "openai": ProviderBinding(FixtureProvider("openai", "372", 1.0)),
+            "anthropic": ProviderBinding(FixtureProvider("anthropic", "372", 1.0)),
+        }
+        orchestrator = AxiomFrontierOrchestrator(providers, breakers("openai", "anthropic"))
+        report = orchestrator.run_cases(
+            "multiplatform/cases/cases.jsonl",
+            preferred_provider="openai",
+            max_cases=1,
+            min_quality=0.8,
+        )
+        self.assertEqual(report["orchestrator"], "MUSITU_AXIOM")
+        self.assertEqual(report["manifest"]["case_count"], 1)
+        self.assertEqual(report["manifest"]["passed"], 1)
+        self.assertEqual(len(report["manifest_sha256"]), 64)
+        self.assertEqual(len(report["manifest"]["run_evidence_sha256"]), 64)
+
     def test_production_endpoint_cannot_enter_orchestration_fixture(self):
         from multiplatform.providers.axiom import AxiomFrontierAdapter
 
