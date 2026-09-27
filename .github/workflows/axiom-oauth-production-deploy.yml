@@ -259,6 +259,7 @@ jobs:
               rid='MUSITU-OAUTH-MCP-E2E-'+uuid.uuid4().hex.upper();before=int(d1('SELECT count(*) AS n FROM usage_events WHERE customer_id=?1',[customer])[0]['n'])
               mc,mh,mo,mraw=http_json(mcp+'/mcp','POST',{'jsonrpc':'2.0','id':9,'method':'tools/call','params':{'name':'musitu_axiom_execute','arguments':{'operation':'arithmetic.evaluate','args':{'expression':'40+2'}}}},{'Authorization':'Bearer '+access,'x-musitu-request-id':rid})
               print(json.dumps({'mcp_compute_http':mc,'mcp_compute_headers':{k:v for k,v in mh.items() if k.lower() in ('content-type','www-authenticate','server','cf-ray')},'mcp_compute_body':(mraw[:1200].decode('utf-8','replace') if isinstance(mraw,bytes) else str(mraw)[:1200])},sort_keys=True))
+              print(json.dumps({'mcp_compute_http':mc,'mcp_compute_headers':{k:v for k,v in mh.items() if k.lower() in ('content-type','www-authenticate','server','cf-ray')},'mcp_compute_body':(mraw[:1200].decode('utf-8','replace') if isinstance(mraw,bytes) else str(mraw)[:1200])},sort_keys=True))
               mr=mo.get('result') or {};ser=json.dumps(mo,separators=(',',':'),sort_keys=True)
               if mc!=200 or mr.get('isError') is True or not re.search(r'(?<![0-9])42(?:\.0+)?(?![0-9])',ser):raise RuntimeError('OAuth access token failed MCP compute')
               ev=d1('SELECT request_id,compute_units,http_status,result_sha256,key_id FROM usage_events WHERE customer_id=?1 ORDER BY created_at DESC',[customer])
