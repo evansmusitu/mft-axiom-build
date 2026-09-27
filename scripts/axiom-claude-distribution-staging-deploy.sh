@@ -82,30 +82,42 @@ print('wrangler_auth_type='+str(x.get('type')))
 PY
 rm -f /tmp/cf-auth.json
 
-# Resolve/create the isolated D1 database through authenticated Wrangler CLI.
-npx wrangler d1 list --json > d1-list.json
-python - <<'PY' > /tmp/d1-name
-import json,os
-raw=json.load(open('d1-list.json'))
-rows=raw if isinstance(raw,list) else raw.get('result',raw.get('databases',[]))
+# Resolve/create the isolated D1 database through the Cloudflare REST API using the scoped token.
+python - <<'PY' > d1-state.json
+import json,os,urllib.request,urllib.parse
+base='https://api.cloudflare.com/client/v4'
+account=os.environ['CLOUDFLARE_ACCOUNT_ID']
+token=os.environ['CLOUDFLARE_API_TOKEN']
+headers={'Authorization':'Bearer '+token,'Content-Type':'application/json','User-Agent':'MUSITU-Axiom-Claude-Staging/1.0'}
+def call(method,path,body=None):
+    data=None if body is None else json.dumps(body).encode()
+    req=urllib.request.Request(base+path,headers=headers,data=data,method=method)
+    try:
+        with urllib.request.urlopen(req,timeout=45) as r:
+            raw=r.read().decode()
+            obj=json.loads(raw or '{}')
+    except Exception as e:
+        raise SystemExit(f'Cloudflare API failure: {e}')
+    if not obj.get('success'):
+        raise SystemExit('Cloudflare API returned success=false')
+    return obj.get('result')
+rows=call('GET',f"/accounts/{account}/d1/database?name={urllib.parse.quote(os.environ['STAGING_DB'])}&per_page=100") or []
 m=[r for r in rows if r.get('name')==os.environ['STAGING_DB']]
 if len(m)>1: raise SystemExit('Fail-closed: multiple isolated D1 databases')
-print('EXISTS' if m else 'CREATE')
-PY
-D1_STATE="$(cat /tmp/d1-name)"
-if [ "$D1_STATE" = "CREATE" ]; then
-  npx wrangler d1 create "$STAGING_DB" --location eeur --json > d1-create.json
-fi
-npx wrangler d1 list --json > d1-list-after.json
-D1_ID="$(python - <<'PY'
-import json,os
-raw=json.load(open('d1-list-after.json'))
-rows=raw if isinstance(raw,list) else raw.get('result',raw.get('databases',[]))
-m=[r for r in rows if r.get('name')==os.environ['STAGING_DB']]
+if not m:
+    created=call('POST',f"/accounts/{account}/d1/database",{'name':os.environ['STAGING_DB'],'primary_location_hint':'eeur','read_replication':{'mode':'disabled'}})
+    if not created: raise SystemExit('Cloudflare did not return the new D1 object')
+    rows=call('GET',f"/accounts/{account}/d1/database?name={urllib.parse.quote(os.environ['STAGING_DB'])}&per_page=100") or []
+    m=[r for r in rows if r.get('name')==os.environ['STAGING_DB']]
 if len(m)!=1: raise SystemExit(f'Fail-closed: expected exactly one isolated D1, got {len(m)}')
 ident=m[0].get('uuid') or m[0].get('id')
 if not ident: raise SystemExit('Fail-closed: isolated D1 identifier unavailable')
-print(ident)
+print(json.dumps({'id':ident,'name':os.environ['STAGING_DB']}))
+PY
+D1_ID="$(python - <<'PY'
+import json
+x=json.load(open('d1-state.json'))
+print(x['id'])
 PY
 )"
 test -n "$D1_ID"
