@@ -1,5 +1,8 @@
 import baseWorker from "./musitu_axiom_mcp_worker_v2.mjs";
 
+const PRODUCTION_MCP = "https://mcp.mftintelligence.com/mcp";
+const PRODUCTION_BASE = "https://mcp.mftintelligence.com";
+
 const HIDDEN_STATIC_TOOLS = new Set([
   "search",
   "fetch",
@@ -25,6 +28,16 @@ const BLOCKED_PATTERNS = [
   /send[_-]?money/i,
   /financial[_-]?transaction/i
 ];
+
+function assertIsolatedEnv(env) {
+  const configured = String(env?.MCP_PUBLIC_BASE || "");
+  if (!configured || configured === PRODUCTION_BASE || configured === PRODUCTION_MCP) {
+    throw new Error("ANTHROPIC_DISTRIBUTION_REQUIRES_ISOLATED_ENDPOINT");
+  }
+  if (!configured.startsWith("https://")) {
+    throw new Error("ANTHROPIC_DISTRIBUTION_ENDPOINT_MUST_BE_HTTPS");
+  }
+}
 
 function blockedName(name) {
   const value = String(name || "");
@@ -70,7 +83,52 @@ async function filterToolList(response) {
 
 export default {
   async fetch(request, env, ctx) {
+    assertIsolatedEnv(env);
     const url = new URL(request.url);
+
+    if (url.pathname === "/health" && request.method === "GET") {
+      return new Response(JSON.stringify({
+        ok: true,
+        service: "MUSITU Axiom — Claude distribution",
+        distribution_surface: "anthropic",
+        isolated_endpoint_required: true,
+        financial_transactions_exposed: false,
+        billing_tools_exposed: false
+      }), {
+        status: 200,
+        headers: {
+          "content-type": "application/json; charset=utf-8",
+          "cache-control": "no-store",
+          "x-content-type-options": "nosniff"
+        }
+      });
+    }
+
+    if (url.pathname === "/docs" && request.method === "GET") {
+      return new Response(JSON.stringify({
+        service: "MUSITU Axiom — Claude distribution",
+        endpoint: url.origin + "/mcp",
+        authentication: "OAuth 2.0",
+        purpose: "Quantitative analysis, statistics, optimization, time-series analysis, numerical verification, and evidence-backed analytical workflows.",
+        excluded_capabilities: [
+          "checkout",
+          "payment",
+          "money transfer",
+          "cryptocurrency transfer",
+          "financial-asset transfer",
+          "trade/order execution",
+          "liquidation",
+          "subscription-plan discovery"
+        ]
+      }), {
+        status: 200,
+        headers: {
+          "content-type": "application/json; charset=utf-8",
+          "cache-control": "public, max-age=300",
+          "x-content-type-options": "nosniff"
+        }
+      });
+    }
 
     if (url.pathname !== "/mcp" || request.method !== "POST") {
       return baseWorker.fetch(request, env, ctx);
