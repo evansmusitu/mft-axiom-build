@@ -32,6 +32,7 @@ jobs:
       - name: Diagnose Cloudflare credential authentication scheme
         env:
           CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
         shell: bash
         run: |
@@ -42,7 +43,7 @@ jobs:
           paths=["/user/tokens/verify","/zones/5b56528f03948ff5917a5e0cd9f7109e"]
           schemes=[
             ("x_auth_key",{"X-Auth-Email":os.environ["CLOUDFLARE_EMAIL"],"X-Auth-Key":os.environ["CLOUDFLARE_GLOBAL_API_KEY"]}),
-            ("bearer",{"Authorization":"Bearer "+os.environ["CLOUDFLARE_GLOBAL_API_KEY"]}),
+            ("bearer_api_token",{"Authorization":"Bearer "+os.environ.get("CLOUDFLARE_API_TOKEN","")}),
           ]
           out={}
           for s,h in schemes:
