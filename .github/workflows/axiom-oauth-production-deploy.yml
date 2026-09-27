@@ -46,6 +46,7 @@ jobs:
       - name: Migrate D1, deploy OAuth Worker, and prove OAuth-to-MCP E2E
         env:
           CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
         shell: bash
         run: |
@@ -58,8 +59,9 @@ jobs:
           api=os.environ['CF_API']; aid=os.environ['ACCOUNT_ID']; zid=os.environ['ZONE_ID']; dbid=os.environ['D1_UUID']
           host=os.environ['AUTH_HOST']; worker=os.environ['AUTH_WORKER']; rule_ref=os.environ['AUTH_RULE_REF']; issuer=os.environ['OAUTH_ISSUER']; resource=os.environ['MCP_RESOURCE']; mcp=os.environ['MCP_BASE']
           source_path=pathlib.Path('auth/musitu_axiom_oauth_worker.mjs'); source=source_path.read_bytes(); source_sha=hashlib.sha256(source).hexdigest()
+          api_token=os.environ.get('CLOUDFLARE_API_TOKEN','').strip()
           legacy_CFH={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY'],'Accept':'application/json','User-Agent':'MUSITU-Axiom-OAuth-Deploy/1.0'}
-          bearer_CFH={'Authorization':'Bearer '+os.environ['CLOUDFLARE_GLOBAL_API_KEY'],'Accept':'application/json','User-Agent':'MUSITU-Axiom-OAuth-Deploy/1.0'}
+          bearer_CFH={'Authorization':'Bearer '+api_token,'Accept':'application/json','User-Agent':'MUSITU-Axiom-OAuth-Deploy/1.0'}
 
           def raw(url,method='GET',headers=None,body=None,timeout=45,follow=True):
               req=urllib.request.Request(url,headers=dict(headers or {}),method=method,data=body)
@@ -70,10 +72,13 @@ jobs:
               except urllib.error.URLError:return 0,{},b''
 
           def choose_auth():
-              for candidate in (bearer_CFH, legacy_CFH):
+              candidates=[]
+              if api_token: candidates.append(('api_token',bearer_CFH))
+              if os.environ.get('CLOUDFLARE_GLOBAL_API_KEY','').strip(): candidates.append(('legacy_global_key',legacy_CFH))
+              for _,candidate in candidates:
                   c,_,_=raw(api+f'/zones/{zid}', 'GET', candidate)
                   if 200<=c<300: return candidate
-              raise RuntimeError('Cloudflare credential rejected under both Bearer-token and X-Auth-Key authentication')
+              raise RuntimeError('No valid Cloudflare credential: set CLOUDFLARE_API_TOKEN to a valid API token with the required account/zone permissions')
           CFH=choose_auth()
 
           def cf(path,method='GET',obj=None,expected=None):
