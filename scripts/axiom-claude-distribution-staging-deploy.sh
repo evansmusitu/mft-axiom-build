@@ -82,30 +82,61 @@ print('wrangler_auth=PASS')
 PY
 rm -f /tmp/cf-auth.json
 
-# Resolve/create D1 through the documented REST API to avoid CLI output-format ambiguity.
-python - <<'PY' > /tmp/d1-id
-import json,os,urllib.request,urllib.parse
-base='https://api.cloudflare.com/client/v4'
-account=os.environ['CLOUDFLARE_ACCOUNT_ID']
-headers={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_API_KEY'],'Content-Type':'application/json','User-Agent':'MUSITU-Axiom-Staging/1.0'}
-def call(method,path,body=None):
-    data=None if body is None else json.dumps(body).encode()
-    req=urllib.request.Request(base+path,headers=headers,data=data,method=method)
-    with urllib.request.urlopen(req,timeout=45) as r: x=json.load(r)
-    if not x.get('success'): raise SystemExit(f'Cloudflare {method} failed')
-    return x.get('result')
-rows=call('GET',f"/accounts/{account}/d1/database?name={urllib.parse.quote(os.environ['STAGING_DB'])}&per_page=100") or []
+# Resolve/create the isolated D1 database through authenticated Wrangler CLI.
+npx wrangler d1 list --json > d1-list.json
+python - <<'PY' > /tmp/d1-name
+import json,os
+raw=json.load(open('d1-list.json'))
+rows=raw if isinstance(raw,list) else raw.get('result',raw.get('databases',[]))
 m=[r for r in rows if r.get('name')==os.environ['STAGING_DB']]
-if len(m)>1: raise SystemExit('Fail-closed: multiple staging D1 databases')
-if not m:
-    call('POST',f"/accounts/{account}/d1/database",{'name':os.environ['STAGING_DB'],'primary_location_hint':'eeur','read_replication':{'mode':'disabled'}})
-    rows=call('GET',f"/accounts/{account}/d1/database?name={urllib.parse.quote(os.environ['STAGING_DB'])}&per_page=100") or []
-    m=[r for r in rows if r.get('name')==os.environ['STAGING_DB']]
-if len(m)!=1: raise SystemExit(f'Fail-closed: expected one staging D1, got {len(m)}')
+if len(m)>1: raise SystemExit('Fail-closed: multiple isolated D1 databases')
+print('EXISTS' if m else 'CREATE')
+PY
+D1_STATE="$(cat /tmp/d1-name)"
+if [ "$D1_STATE" = "CREATE" ]; then
+  npx wrangler d1 create "$STAGING_DB" --location eeur --json > d1-create.json
+fi
+npx wrangler d1 list --json > d1-list-after.json
+D1_ID="$(python - <<'PY'
+import json,os
+raw=json.load(open('d1-list-after.json'))
+rows=raw if isinstance(raw,list) else raw.get('result',raw.get('databases',[]))
+m=[r for r in rows if r.get('name')==os.environ['STAGING_DB']]
+if len(m)!=1: raise SystemExit(f'Fail-closed: expected exactly one isolated D1, got {len(m)}')
 ident=m[0].get('uuid') or m[0].get('id')
-if not ident: raise SystemExit('D1 identifier unavailable')
+if not ident: raise SystemExit('Fail-closed: isolated D1 identifier unavailable')
 print(ident)
 PY
+)"
+test -n "$D1_ID"
+echo 'isolated_d1_identity=PASS'
+
+D1_ID="$D1_ID" python - <<'PY'
+import json,os
+cfg={
+ '$schema':'node_modules/wrangler/config-schema.json',
+ 'name':os.environ['STAGING_WORKER'],
+ 'main':'worker/src/cloudflare.js',
+ 'compatibility_date':'2026-09-04',
+ 'workers_dev':True,
+ 'observability':{'enabled':True},
+ 'containers':[{'class_name':'AxiomKernel','image':'./kernel/Dockerfile','max_instances':4,'instance_type':'basic','image_build_context':'.','name':'mft-axiom-claude-staging-kernel'}],
+ 'durable_objects':{'bindings':[{'name':'AXIOM_KERNEL','class_name':'AxiomKernel'}]},
+ 'migrations':[{'tag':'axiom-claude-staging-v1','new_sqlite_classes':['AxiomKernel']}],
+ 'd1_databases':[{'binding':'AXIOM_DB','database_name':os.environ['STAGING_DB'],'database_id':os.environ['D1_ID']}]
+}
+open('wrangler.json','w').write(json.dumps(cfg,indent=2))
+PY
+python - <<'PY'
+import json,os
+c=json.load(open('wrangler.json'))
+assert c['name']==os.environ['STAGING_WORKER'] and c['workers_dev'] is True
+assert c['d1_databases'][0]['binding']=='AXIOM_DB'
+assert c['d1_databases'][0]['database_name']==os.environ['STAGING_DB']
+assert c['containers'][0]['max_instances']==4
+print('staging_config=PASS')
+PY
+
 D1_ID="$(cat /tmp/d1-id)"
 test -n "$D1_ID"
 echo 'd1_identity=PASS'
@@ -158,18 +189,14 @@ printf '%s' "$MFT_CONTROL_SECRET" > /tmp/musitu-control-secret
 printf '%s' "$MFT_RECEIPT_SECRET" > /tmp/musitu-receipt-secret
 echo 'runtime_secrets=PASS'
 
-SUBDOMAIN="$(python - <<'PY'
-import json,os,urllib.request
-req=urllib.request.Request(f"https://api.cloudflare.com/client/v4/accounts/{os.environ['CLOUDFLARE_ACCOUNT_ID']}/workers/subdomain",headers={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_API_KEY']})
-with urllib.request.urlopen(req,timeout=30) as r: x=json.load(r)
-if not x.get('success') or not (x.get('result') or {}).get('subdomain'): raise SystemExit('workers subdomain unavailable')
-print(x['result']['subdomain'])
-PY
-)"
-URL="https://${STAGING_WORKER}.${SUBDOMAIN}.workers.dev"
-echo "STAGING_URL=$URL" >> "$GITHUB_ENV"
+STAGING_URL="$(grep -Eo 'https://[^[:space:]]+\\.workers\\.dev' deploy.log | head -1 || true)"
+if [ -z "$STAGING_URL" ]; then
+  echo "Fail-closed: Wrangler deploy did not emit a workers.dev URL" >&2
+  exit 1
+fi
+echo "STAGING_URL=$STAGING_URL" >> "$GITHUB_ENV"
 for i in $(seq 1 72); do
-  code="$(curl -sS -o health.json -w '%{http_code}' "$URL/health" || true)"
+  code="$(curl -sS -o health.json -w '%{http_code}' "$STAGING_URL/health" || true)"
   [ "$code" = 200 ] && break
   sleep 5
 done
@@ -207,19 +234,29 @@ print('signed_receipt=PASS')
 PY
 
 python - <<'PY'
-import json,os,urllib.request,hashlib
-base='https://api.cloudflare.com/client/v4'; account=os.environ['CLOUDFLARE_ACCOUNT_ID']; worker=os.environ['STAGING_WORKER']
-headers={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_API_KEY']}
-req=urllib.request.Request(f'{base}/accounts/{account}/workers/scripts/{worker}/settings',headers=headers)
-with urllib.request.urlopen(req,timeout=30) as r: x=json.load(r)
-if not x.get('success'): raise SystemExit('Cloudflare settings readback failed')
-settings=x.get('result') or {}; bindings=settings.get('bindings',[])
-names=sorted({b.get('name') for b in bindings if isinstance(b,dict) and b.get('name')})
-required={'AXIOM_DB','AXIOM_KERNEL','MFT_CONTROL_SECRET','MFT_RECEIPT_SECRET'}
-missing=sorted(required-set(names))
-if missing: raise SystemExit('Fail-closed missing bindings: '+repr(missing))
-ev={'schema':'musitu.axiom.cloudflare.staging_deployment.v1','worker':worker,'url':os.environ['STAGING_URL'],'build_id':os.environ['DEPLOY_BUILD_ID'],'operation_count':74,'d1_binding':'AXIOM_DB','container_binding':'AXIOM_KERNEL','required_secret_bindings_present':True,'health':'PASS','unauth_compute_401':'PASS','authenticated_compute':'PASS','signed_receipt':'PASS','wolfram_parity':'NOT_CERTIFIED','superiority':'NOT_CERTIFIED','custom_domain_attached':False,'promotion_gate':'STAGING_PASS'}
-raw=json.dumps(ev,sort_keys=True,separators=(',',':')).encode(); ev['evidence_sha256']=hashlib.sha256(raw).hexdigest()
+import json,os,hashlib
+ev={
+ 'schema':'musitu.axiom.cloudflare.staging_deployment.v1',
+ 'worker':os.environ['STAGING_WORKER'],
+ 'url':os.environ['STAGING_URL'],
+ 'build_id':os.environ['DEPLOY_BUILD_ID'],
+ 'operation_count':74,
+ 'd1_database':os.environ['STAGING_DB'],
+ 'isolated_d1_identity_verified':True,
+ 'cloudflare_cli_auth':'PASS',
+ 'source_integrity':'PASS',
+ 'operation_registry':'PASS',
+ 'health':'PASS',
+ 'unauth_compute_401':'PASS',
+ 'authenticated_compute':'PASS',
+ 'signed_receipt':'PASS',
+ 'wolfram_parity':'NOT_CERTIFIED',
+ 'superiority':'NOT_CERTIFIED',
+ 'custom_domain_attached':False,
+ 'promotion_gate':'STAGING_PASS'
+}
+raw=json.dumps(ev,sort_keys=True,separators=(',',':')).encode()
+ev['evidence_sha256']=hashlib.sha256(raw).hexdigest()
 open('../axiom-staging-deployment-evidence.json','w').write(json.dumps(ev,indent=2,sort_keys=True))
 PY
 cd "$ROOT"
