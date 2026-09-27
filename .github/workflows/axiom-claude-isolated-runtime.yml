@@ -4,7 +4,9 @@ name: AXIOM Claude isolated runtime
 
 on:
   workflow_dispatch:
-  push:
+  pull_request:
+    branches:
+      - frontier/axiom-orchestrator-integration-20260927
     paths:
       - '.github/workflows/axiom-claude-isolated-runtime.yml'
       - 'scripts/axiom-claude-distribution-staging-deploy.sh'
