@@ -1,6 +1,6 @@
 name: AXIOM Claude isolated runtime
 # Distribution-only non-production runtime; never uses the production MCP endpoint.
-# Trigger revision: validate current scoped Cloudflare authentication path.
+# Trigger revision: validate current Claude distribution head.
 
 on:
   workflow_dispatch:
