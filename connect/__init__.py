@@ -6,6 +6,8 @@ from .security import SignedEnvelope, canonical_bytes, sign, verify
 from .fabric import ConnectFabric, FabricRun
 from .adapters import AdapterCatalog, AdapterContract
 from .storage import AnalyticalStore
+from .spatial import PostGISStore
+from .observability import ConnectTelemetry
 from .axiom_gateway import AxiomGateway
 from .workflows import DurableWorkflowBoundary
 
@@ -13,5 +15,6 @@ __all__=[
     "CanonicalEnvelope","IntegrationGate","InterventionPlan","normalize_mining_rows",
     "optimize_interventions","AdapterRegistry","AdapterSpec","SignedEnvelope",
     "canonical_bytes","sign","verify","ConnectFabric","FabricRun","AdapterCatalog",
-    "AdapterContract","AnalyticalStore","AxiomGateway","DurableWorkflowBoundary",
+    "AdapterContract","AnalyticalStore","PostGISStore","ConnectTelemetry","AxiomGateway",
+    "DurableWorkflowBoundary",
 ]
