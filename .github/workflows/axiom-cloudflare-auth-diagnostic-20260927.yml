@@ -20,7 +20,7 @@ jobs:
       ZONE_NAME: mftintelligence.com
     steps:
       - uses: actions/checkout@v4
-      - name: Probe Cloudflare authentication without exposing credentials
+      - name: Probe Cloudflare authentication without exposing credentials (retry)
         env:
           CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
           CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
