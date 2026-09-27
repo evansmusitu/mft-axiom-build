@@ -23,6 +23,7 @@ jobs:
       - name: Probe Cloudflare authentication without exposing credentials (retry)
         env:
           CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
         shell: bash
         run: |
@@ -33,7 +34,7 @@ jobs:
           import json, os, urllib.request, urllib.error
           api=os.environ["CF_API"]; aid=os.environ["ACCOUNT_ID"]; zid=os.environ["ZONE_ID"]
           legacy={"X-Auth-Email":os.environ["CLOUDFLARE_EMAIL"],"X-Auth-Key":os.environ["CLOUDFLARE_GLOBAL_API_KEY"],"Accept":"application/json","User-Agent":"MUSITU-Axiom-CF-Credential-Diagnostic/2.0"}
-          bearer={"Authorization":"Bearer "+os.environ["CLOUDFLARE_GLOBAL_API_KEY"],"Accept":"application/json","User-Agent":"MUSITU-Axiom-CF-Credential-Diagnostic/2.0"}
+          bearer={"Authorization":"Bearer "+os.environ.get("CLOUDFLARE_API_TOKEN",""),"Accept":"application/json","User-Agent":"MUSITU-Axiom-CF-Credential-Diagnostic/2.0"}
           paths=[
             ("verify","/user/tokens/verify"),
             ("zone","/zones/"+zid),
