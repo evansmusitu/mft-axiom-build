@@ -55,7 +55,8 @@ jobs:
           }
 
           paths = [
-              ("verify", "/user/tokens/verify"),
+              ("user_verify", "/user/tokens/verify"),
+              ("account_verify", "/accounts/" + account_id + "/tokens/verify"),
               ("zone", "/zones/" + zone_id),
               ("zone_lookup", "/zones?name=" + urllib.parse.quote(zone_name) + "&status=active"),
               ("workers_domains", "/accounts/" + account_id + "/workers/domains"),
@@ -106,20 +107,36 @@ jobs:
 
           print(json.dumps(results, indent=2, sort_keys=True))
 
+          verification_names = ("user_verify", "account_verify")
+          token_verified = any(
+              results[name].get("http") == 200 and results[name].get("success") is True
+              for name in verification_names
+          )
+          resource_names = ("zone", "zone_lookup", "workers_domains", "kv_namespaces")
           failures = {
-              name: value
-              for name, value in results.items()
-              if value.get("http") != 200 or value.get("success") is not True
+              name: results[name]
+              for name in resource_names
+              if results[name].get("http") != 200 or results[name].get("success") is not True
           }
 
-          if failures:
-              print("CLOUDFLARE_API_TOKEN_DIAGNOSTIC_FAIL", file=sys.stderr)
-              print(json.dumps(failures, indent=2, sort_keys=True), file=sys.stderr)
-              sys.exit(1)
+          print(json.dumps({
+              "token_verification_passed": token_verified,
+              "verification_scheme": (
+                  "account_api_token"
+                  if results["account_verify"].get("http") == 200 and results["account_verify"].get("success") is True
+                  else "user_api_token"
+                  if results["user_verify"].get("http") == 200 and results["user_verify"].get("success") is True
+                  else "none"
+              ),
+              "resource_failures": sorted(failures),
+          }, sort_keys=True))
 
-          zone_matches = results["zone_lookup"].get("success") is True
-          if not zone_matches:
-              print("Cloudflare zone lookup did not succeed.", file=sys.stderr)
+          if not token_verified or failures:
+              print("CLOUDFLARE_API_TOKEN_DIAGNOSTIC_FAIL", file=sys.stderr)
+              if not token_verified:
+                  print("Neither Cloudflare User API-token verification nor Account API-token verification succeeded.", file=sys.stderr)
+              if failures:
+                  print(json.dumps(failures, indent=2, sort_keys=True), file=sys.stderr)
               sys.exit(1)
 
           print("MUSITU_AXIOM_CLOUDFLARE_API_TOKEN_DIAGNOSTIC_PASS")

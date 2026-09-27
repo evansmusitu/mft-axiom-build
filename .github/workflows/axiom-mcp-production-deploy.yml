@@ -82,7 +82,7 @@ jobs:
           test -n "$CLOUDFLARE_EMAIL"
           test -n "${CLOUDFLARE_API_TOKEN:-$CLOUDFLARE_GLOBAL_API_KEY}"
           python - <<'PY'
-          import email,hashlib,json,os,pathlib,secrets,time,urllib.error,urllib.parse,urllib.request
+          import email,hashlib,json,os,pathlib,secrets,socket,time,urllib.error,urllib.parse,urllib.request
 
           api=os.environ['CF_API']; aid=os.environ['ACCOUNT_ID']; zid=os.environ['ZONE_ID']; zone=os.environ['ZONE_NAME']
           host=os.environ['MCP_HOST']; worker=os.environ['MCP_WORKER']; rule_ref=os.environ['MCP_RULE_REF']
@@ -210,15 +210,31 @@ jobs:
               cf(f'/accounts/{aid}/workers/domains','PUT',{'hostname':host,'service':worker,'zone_id':zid,'zone_name':zone,'override_existing_origin':True})
           after=[d for d in (cf(f'/accounts/{aid}/workers/domains') or []) if isinstance(d,dict) and d.get('hostname')==host]
           if len(after)!=1 or after[0].get('service')!=worker:raise RuntimeError('MCP custom-domain mapping readback failed')
+          print(json.dumps({
+              'custom_domain_id':after[0].get('id'),
+              'custom_domain_cert_id':after[0].get('cert_id'),
+              'custom_domain_hostname':after[0].get('hostname'),
+              'custom_domain_service':after[0].get('service'),
+          },sort_keys=True))
 
-          # Wait for the custom domain and execute the MCP protocol contract.
+          # Wait longer for DNS/TLS/custom-domain propagation and emit resolver/probe evidence on failure.
           base='https://'+host; final_health=None
-          for _ in range(60):
+          try:
+              addrs=sorted({entry[4][0] for entry in socket.getaddrinfo(host,443,type=socket.SOCK_STREAM)})
+              print(json.dumps({'mcp_dns_resolution':'ok','addresses':addrs},sort_keys=True))
+          except Exception as exc:
+              print(json.dumps({'mcp_dns_resolution':'error','error':str(exc)[:240]},sort_keys=True))
+
+          last_probe={}
+          for attempt in range(150):
               c,_,x=http_json(base+'/health')
+              last_probe={'attempt':attempt+1,'http':c,'payload':x}
               if c==200 and x.get('ok') is True and int(x.get('operation_count') or -1)==int(os.environ['EXPECTED_OPERATIONS']) and x.get('build_id')==os.environ['EXPECTED_BUILD'] and x.get('catalog_configured') is True and x.get('checkout_enabled') is True:
                   final_health=x;break
               time.sleep(2)
-          if final_health is None:raise RuntimeError('MCP health did not reach exact production contract')
+          if final_health is None:
+              print(json.dumps({'mcp_health_last_probe':last_probe},sort_keys=True))
+              raise RuntimeError('MCP health did not reach exact production contract within 5 minutes')
 
           init={'jsonrpc':'2.0','id':1,'method':'initialize','params':{'protocolVersion':'2025-06-18','capabilities':{},'clientInfo':{'name':'musitu-deploy-verifier','version':'1.0'}}}
           ic,_,io=http_json(base+'/mcp','POST',init)
@@ -278,3 +294,4 @@ jobs:
 
 # Endpoint incident-recovery trigger: reconcile public edge/custom-domain state after endpoint drift.
 # Force redeployment/reconciliation after public endpoint drift investigation (2026-09-27).
+# 2026-09-27: extend custom-domain readiness window and record resolver/probe evidence.

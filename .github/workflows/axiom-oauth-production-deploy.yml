@@ -54,7 +54,7 @@ jobs:
           test -n "$CLOUDFLARE_EMAIL"
           test -n "${CLOUDFLARE_API_TOKEN:-$CLOUDFLARE_GLOBAL_API_KEY}"
           python - <<'PY'
-          import base64,datetime,hashlib,html as htmlmod,json,os,pathlib,re,secrets,time,urllib.error,urllib.parse,urllib.request,uuid
+          import base64,datetime,hashlib,html as htmlmod,json,os,pathlib,re,secrets,socket,time,urllib.error,urllib.parse,urllib.request,uuid
 
           api=os.environ['CF_API']; aid=os.environ['ACCOUNT_ID']; zid=os.environ['ZONE_ID']; dbid=os.environ['D1_UUID']
           host=os.environ['AUTH_HOST']; worker=os.environ['AUTH_WORKER']; rule_ref=os.environ['AUTH_RULE_REF']; issuer=os.environ['OAUTH_ISSUER']; resource=os.environ['MCP_RESOURCE']; mcp=os.environ['MCP_BASE']
@@ -188,14 +188,30 @@ jobs:
           if not before:cf(f'/accounts/{aid}/workers/domains','PUT',{'hostname':host,'service':worker,'zone_id':zid,'zone_name':os.environ['ZONE_NAME'],'override_existing_origin':True})
           after=[d for d in (cf(f'/accounts/{aid}/workers/domains') or []) if d.get('hostname')==host]
           if len(after)!=1 or after[0].get('service')!=worker:raise RuntimeError('OAuth custom-domain mapping failed')
+          print(json.dumps({
+              'custom_domain_id':after[0].get('id'),
+              'custom_domain_cert_id':after[0].get('cert_id'),
+              'custom_domain_hostname':after[0].get('hostname'),
+              'custom_domain_service':after[0].get('service'),
+          },sort_keys=True))
 
-          # Public OAuth metadata and health.
-          health=None
-          for _ in range(45):
+          # Wait longer for DNS/TLS/custom-domain propagation and emit resolver/probe evidence on failure.
+          try:
+              addrs=sorted({entry[4][0] for entry in socket.getaddrinfo(host,443,type=socket.SOCK_STREAM)})
+              print(json.dumps({'oauth_dns_resolution':'ok','addresses':addrs},sort_keys=True))
+          except Exception as exc:
+              print(json.dumps({'oauth_dns_resolution':'error','error':str(exc)[:240]},sort_keys=True))
+
+          health=None; last_probe={}
+          for attempt in range(150):
               hc,_,ho,_=http_json(issuer+'/health')
-              if hc==200 and ho.get('ok') is True and ho.get('issuer')==issuer and ho.get('resource')==resource and ho.get('dcr') is True and ho.get('pkce_s256') is True:health=ho;break
+              last_probe={'attempt':attempt+1,'http':hc,'payload':ho}
+              if hc==200 and ho.get('ok') is True and ho.get('issuer')==issuer and ho.get('resource')==resource and ho.get('dcr') is True and ho.get('pkce_s256') is True:
+                  health=ho;break
               time.sleep(2)
-          if health is None:raise RuntimeError('OAuth health contract did not become ready')
+          if health is None:
+              print(json.dumps({'oauth_health_last_probe':last_probe},sort_keys=True))
+              raise RuntimeError('OAuth health contract did not become ready within 5 minutes')
           dc,_,disc,_=http_json(issuer+'/.well-known/oauth-authorization-server')
           expected={'issuer':issuer,'authorization_endpoint':issuer+'/oauth/authorize','token_endpoint':issuer+'/oauth/token','registration_endpoint':issuer+'/oauth/register','revocation_endpoint':issuer+'/oauth/revoke'}
           if dc!=200 or any(disc.get(k)!=v for k,v in expected.items()) or 'S256' not in (disc.get('code_challenge_methods_supported') or []) or 'none' not in (disc.get('token_endpoint_auth_methods_supported') or []):raise RuntimeError('OAuth discovery metadata contract mismatch')
@@ -292,3 +308,4 @@ jobs:
 
 # Endpoint incident-recovery trigger: reconcile public edge/custom-domain state after endpoint drift.
 # Force redeployment/reconciliation after public endpoint drift investigation (2026-09-27).
+# 2026-09-27: extend custom-domain readiness window and record resolver/probe evidence.
