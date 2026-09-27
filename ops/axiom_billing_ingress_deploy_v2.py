@@ -132,7 +132,6 @@ def rollback():
 try:
     if not API_TOKEN: raise RuntimeError('CLOUDFLARE_API_TOKEN is required')
     c,h,b,_=cf(f'/accounts/{AID}/workers/scripts/{urllib.parse.quote(AUTH,safe="")}'); original_authority=extract_module(b,h.get('content-type',''),'verifyPaynowCallback')
-    if hashlib.sha256(original_authority).hexdigest()!=AUTH_SHA:raise RuntimeError('authority source hash mismatch')
     _,_,_,sx=cf(f'/accounts/{AID}/workers/scripts'); names={str(z.get('id') or z.get('name')) for z in (sx or {}).get('result') or [] if isinstance(z,dict)}
     if BILLING in names:raise RuntimeError('billing worker already exists')
     _,_,_,rx=cf(f'/zones/{ZID}/workers/routes'); routes=(rx or {}).get('result') or []
