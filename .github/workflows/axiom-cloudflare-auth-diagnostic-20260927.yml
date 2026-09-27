@@ -1,0 +1,62 @@
+name: MUSITU Axiom Cloudflare Credential Diagnostic 20260927
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/axiom-cloudflare-auth-diagnostic-20260927.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      CF_API: https://api.cloudflare.com/client/v4
+      ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      ZONE_ID: 5b56528f03948ff5917a5e0cd9f7109e
+      ZONE_NAME: mftintelligence.com
+    steps:
+      - uses: actions/checkout@v4
+      - name: Probe Cloudflare authentication without exposing credentials
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$CLOUDFLARE_EMAIL"
+          test -n "$CLOUDFLARE_GLOBAL_API_KEY"
+          python - <<'PY'
+          import json, os, urllib.request, urllib.error
+          api=os.environ["CF_API"]; aid=os.environ["ACCOUNT_ID"]; zid=os.environ["ZONE_ID"]
+          h={"X-Auth-Email":os.environ["CLOUDFLARE_EMAIL"],"X-Auth-Key":os.environ["CLOUDFLARE_GLOBAL_API_KEY"],"Accept":"application/json","User-Agent":"MUSITU-Axiom-CF-Credential-Diagnostic/1.0"}
+          paths=[
+            ("verify","/user/tokens/verify"),
+            ("zone","/zones/"+zid),
+            ("zone_lookup","/zones?name="+os.environ["ZONE_NAME"]+"&status=active"),
+            ("workers_domains","/accounts/"+aid+"/workers/domains"),
+            ("kv_namespaces","/accounts/"+aid+"/storage/kv/namespaces?per_page=1"),
+          ]
+          out={}
+          for name,path in paths:
+            req=urllib.request.Request(api+path,headers=h,method="GET")
+            try:
+              with urllib.request.urlopen(req,timeout=30) as r:
+                body=r.read(4096); code=r.status
+            except urllib.error.HTTPError as e:
+              body=e.read(4096); code=e.code
+            try: obj=json.loads(body or b"{}")
+            except Exception: obj={}
+            errs=obj.get("errors") if isinstance(obj,dict) else []
+            msgs=obj.get("messages") if isinstance(obj,dict) else []
+            out[name]={
+              "http":code,
+              "success":obj.get("success"),
+              "errors":[{"code":e.get("code"),"message":e.get("message")} for e in errs if isinstance(e,dict)],
+              "messages":[{"code":m.get("code"),"message":m.get("message")} for m in msgs if isinstance(m,dict)]
+            }
+          print(json.dumps(out,indent=2,sort_keys=True))
+          PY
