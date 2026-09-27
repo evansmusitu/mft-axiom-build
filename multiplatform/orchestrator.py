@@ -43,6 +43,13 @@ class ProviderBinding:
             raise TypeError("descriptor must be ProviderDescriptor")
         if self.descriptor.provider_id not in {p.value for p in Provider}:
             raise ValueError(f"unsupported provider contract identity: {self.descriptor.provider_id}")
+        adapter_provider = getattr(self.adapter, "provider", None)
+        if adapter_provider is not None:
+            adapter_id = getattr(adapter_provider, "value", adapter_provider)
+            if adapter_id != self.descriptor.provider_id:
+                raise ValueError(
+                    f"provider identity mismatch: adapter={adapter_id!r} descriptor={self.descriptor.provider_id!r}"
+                )
         if isinstance(self.cost_per_1k_tokens, bool) or not isinstance(self.cost_per_1k_tokens, (int, float)):
             raise TypeError("cost_per_1k_tokens must be numeric")
         if self.cost_per_1k_tokens < 0:
