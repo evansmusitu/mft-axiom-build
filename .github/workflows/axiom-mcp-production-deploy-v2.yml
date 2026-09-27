@@ -49,6 +49,12 @@ jobs:
           legacy_ah={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY'],'Accept':'application/json','User-Agent':'MUSITU-Axiom-MCP-V2-Deploy/1.0'}
           bearer_ah={'Authorization':'Bearer '+api_token,'Accept':'application/json','User-Agent':'MUSITU-Axiom-MCP-V2-Deploy/1.0'}
           candidates=[bearer_ah] if api_token else []
+          def raw(url,method='GET',headers=None,body=None,timeout=45):
+            q=urllib.request.Request(url,headers=dict(headers or {}),method=method,data=body)
+            try:
+              with urllib.request.urlopen(q,timeout=timeout) as r:return r.status,r.headers,r.read()
+            except urllib.error.HTTPError as e:return e.code,e.headers,e.read()
+            except urllib.error.URLError:return 0,{},b''
           if os.environ.get('CLOUDFLARE_GLOBAL_API_KEY','').strip(): candidates.append(legacy_ah)
           ah=None
           for candidate in candidates:
@@ -57,12 +63,6 @@ jobs:
               ah=candidate
               break
           if ah is None: raise RuntimeError('No valid Cloudflare credential: set CLOUDFLARE_API_TOKEN')
-          def raw(url,method='GET',headers=None,body=None,timeout=45):
-            q=urllib.request.Request(url,headers=dict(headers or {}),method=method,data=body)
-            try:
-              with urllib.request.urlopen(q,timeout=timeout) as r:return r.status,r.headers,r.read()
-            except urllib.error.HTTPError as e:return e.code,e.headers,e.read()
-            except urllib.error.URLError:return 0,{},b''
           def cf(path,method='GET',obj=None):
             h=dict(ah);b=None
             if obj is not None:h['Content-Type']='application/json';b=json.dumps(obj,separators=(',',':')).encode()
