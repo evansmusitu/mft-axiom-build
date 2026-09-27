@@ -309,3 +309,4 @@ jobs:
 # Endpoint incident-recovery trigger: reconcile public edge/custom-domain state after endpoint drift.
 # Force redeployment/reconciliation after public endpoint drift investigation (2026-09-27).
 # 2026-09-27: extend custom-domain readiness window and record resolver/probe evidence.
+# 2026-09-27 final edge recovery proof: re-run OAuth-to-public-MCP E2E after MCP wrapper restoration.
