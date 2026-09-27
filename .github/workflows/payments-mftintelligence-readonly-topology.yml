@@ -50,6 +50,10 @@ jobs:
           if len(payment_domains)!=1: raise SystemExit('Fail-closed: payments custom domain not unique')
           pd=payment_domains[0]; service=pd.get('service')
           if not service: raise SystemExit('Fail-closed: payments domain has no Worker service')
+          scripts=cf(f'/accounts/{aid}/workers/scripts') or []
+          script_names=sorted(str(x.get('id') or x.get('name')) for x in scripts if isinstance(x,dict) and (x.get('id') or x.get('name')))
+          required_workers={'mft-paynow-transport-gateway','mft-axiom-billing-ingress','mft-phase8-external-authority'}
+          worker_presence={name:(name in script_names) for name in sorted(required_workers)}
           settings=cf(f'/accounts/{aid}/workers/scripts/{service}/settings') or {}
           safe_bindings=[]
           for b in settings.get('bindings') or []:
@@ -77,11 +81,11 @@ jobs:
               with urllib.request.urlopen(req,timeout=30) as r: return {'method':method,'path':path,'status':r.status,'content_type':r.headers.get('content-type'),'server':r.headers.get('server')}
             except urllib.error.HTTPError as e: return {'method':method,'path':path,'status':e.code,'content_type':e.headers.get('content-type'),'server':e.headers.get('server')}
             except Exception as e: return {'method':method,'path':path,'status':None,'transport_error':type(e).__name__}
-          probes=[external('GET','/'),external('GET','/health'),external('GET','/v1/billing/webhooks/stripe'),external('OPTIONS','/v1/billing/webhooks/stripe')]
-          out={'schema':'musitu.axiom.payments_topology.v1','zone':os.environ['EXPECTED_ZONE'],'account_id':aid,'hostname':host,'custom_domain':{'service':service,'environment':pd.get('environment')},'worker_binding_metadata':safe_bindings,'hostname_worker_routes':host_routes,'hostname_scoped_security_rules':scoped_rules,'external_safe_probes':probes,'write_performed':False,'secret_values_captured':False,'gate':'PAYMENTS_MFTINTELLIGENCE_TOPOLOGY_READ_PASS'}
+          probes=[external('GET','/'),external('GET','/health'),external('GET','/billing/healthz'),external('GET','/billing/catalog'),external('GET','/v1/billing/webhooks/stripe'),external('OPTIONS','/v1/billing/webhooks/stripe')]
+          out={'schema':'musitu.axiom.payments_topology.v2','zone':os.environ['EXPECTED_ZONE'],'account_id':aid,'hostname':host,'custom_domain':{'service':service,'environment':pd.get('environment')},'worker_presence':worker_presence,'worker_binding_metadata':safe_bindings,'hostname_worker_routes':host_routes,'hostname_scoped_security_rules':scoped_rules,'external_safe_probes':probes,'write_performed':False,'secret_values_captured':False,'gate':'PAYMENTS_MFTINTELLIGENCE_TOPOLOGY_READ_PASS'}
           raw=(json.dumps(out,indent=2,sort_keys=True)+'\n').encode(); open('payments-topology.json','wb').write(raw)
           digest=hashlib.sha256(raw).hexdigest(); open('payments-topology.sha256','w').write(digest+'  payments-topology.json\n')
-          print(json.dumps({'gate':out['gate'],'hostname':host,'service':service,'binding_names':sorted([x.get('name') for x in safe_bindings if x.get('name')]),'host_routes':host_routes,'scoped_rule_count':len(scoped_rules),'probes':probes,'write_performed':False,'sha256':digest},sort_keys=True))
+          print(json.dumps({'gate':out['gate'],'hostname':host,'service':service,'worker_presence':worker_presence,'binding_names':sorted([x.get('name') for x in safe_bindings if x.get('name')]),'host_routes':host_routes,'scoped_rule_count':len(scoped_rules),'probes':probes,'write_performed':False,'sha256':digest},sort_keys=True))
           PY
       - uses: actions/upload-artifact@v4
         with:
