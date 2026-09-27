@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+import re
 
 from multiplatform.distribution.anthropic_policy import (
     is_anthropic_operation_allowed,
@@ -10,6 +11,7 @@ from multiplatform.distribution.anthropic_policy import (
 
 ROOT = Path(__file__).resolve().parents[2]
 PROFILE = ROOT / "distribution" / "anthropic" / "CLAUDE_PLUGIN_PROFILE.json"
+FACADE = ROOT / "mcp" / "musitu_axiom_mcp_worker_anthropic.mjs"
 
 
 def test_profile_is_fail_closed_for_endpoint_and_monetization():
@@ -20,6 +22,15 @@ def test_profile_is_fail_closed_for_endpoint_and_monetization():
     assert "https://mcp.mftintelligence.com/mcp" in profile["endpoint"]["forbidden_exact"]
     assert "checkout" in profile["excluded_capability_classes"]
     assert "money_transfer" in profile["excluded_capability_classes"]
+
+
+def test_claude_facade_is_production_fail_closed_and_sanitized():
+    source = FACADE.read_text(encoding="utf-8")
+    assert "ANTHROPIC_DISTRIBUTION_REQUIRES_ISOLATED_ENDPOINT" in source
+    assert "PRODUCTION_MCP = \"https://mcp.mftintelligence.com/mcp\"" in source
+    assert "billing_tools_exposed: false" in source
+    assert "subscription-plan discovery" in source
+    assert not re.search(r'url\.pathname === "/health"[\\s\\S]{0,1500}billingBase', source)
 
 
 def test_financial_analysis_remains_allowed_but_transactions_do_not():
