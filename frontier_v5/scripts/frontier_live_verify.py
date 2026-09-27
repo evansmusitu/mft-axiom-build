@@ -55,9 +55,10 @@ def raw(url,method="GET",headers=None,body=None,follow=True,timeout=45):
 
 
 def main():
-    email=os.environ.get("CLOUDFLARE_EMAIL",""); key=os.environ.get("CLOUDFLARE_GLOBAL_API_KEY","")
-    if not email or not key: raise SystemExit("Cloudflare credentials required")
-    cfh={"X-Auth-Email":email,"X-Auth-Key":key,"Accept":"application/json","User-Agent":"MUSITU-Axiom-Frontier-Live-Verify/5.0"}
+    email=os.environ.get("CLOUDFLARE_EMAIL",""); key=os.environ.get("CLOUDFLARE_GLOBAL_API_KEY",""); token=os.environ.get("CLOUDFLARE_API_TOKEN","")
+    if not token and (not email or not key): raise SystemExit("Cloudflare credentials required")
+    cfh=({"Authorization":"Bearer "+token,"Accept":"application/json","User-Agent":"MUSITU-Axiom-Frontier-Live-Verify/5.0"} if token
+         else {"X-Auth-Email":email,"X-Auth-Key":key,"Accept":"application/json","User-Agent":"MUSITU-Axiom-Frontier-Live-Verify/5.0"})
 
     def cf(path,method="GET",obj=None):
         h=dict(cfh); body=None
@@ -90,7 +91,7 @@ def main():
         created=cf(f"/accounts/{ACCOUNT_ID}/d1/database","POST",{"name":FRONTIER_DB_NAME}) or {}
         frontier_id=created.get("uuid")
     if not frontier_id or frontier_id==SEALED_D1: raise RuntimeError("frontier D1 isolation failure")
-    store=CloudflareD1ProductionStore(ACCOUNT_ID,frontier_id,email,key); store.migrate()
+    store=CloudflareD1ProductionStore(ACCOUNT_ID,frontier_id,email,key,token); store.migrate()
     rid="live_"+uuid.uuid4().hex
     store.query("INSERT INTO frontier_eval_events(event_id,suite,payload_json,created_at) VALUES(?1,?2,?3,?4)",[rid,"persistence-smoke",canonical({"ok":True}),datetime.datetime.now(datetime.timezone.utc).isoformat()])
     rr=store.query("SELECT suite,payload_json FROM frontier_eval_events WHERE event_id=?1",[rid])
