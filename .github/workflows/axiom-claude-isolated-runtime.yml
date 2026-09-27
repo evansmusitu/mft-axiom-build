@@ -20,6 +20,7 @@ jobs:
       CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
       CLOUDFLARE_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
       CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       STAGING_WORKER: mft-axiom-claude-staging-20260927
       STAGING_DB: mft-axiom-claude-staging-20260927
       DEPLOY_BUILD_ID: MFT-AXIOM-V3-CLAUDE-DISTRIBUTION-20260927
@@ -30,6 +31,7 @@ jobs:
           test "$STAGING_WORKER" = "mft-axiom-claude-staging-20260927"
           test "$STAGING_DB" = "mft-axiom-claude-staging-20260927"
           ! grep -R "mcp.mftintelligence.com" scripts/axiom-claude-distribution-staging-deploy.sh
+          test -n "${CLOUDFLARE_API_TOKEN:-}" || test -n "${CLOUDFLARE_GLOBAL_API_KEY:-}"
       - name: Deploy sealed isolated runtime
         run: bash scripts/axiom-claude-distribution-staging-deploy.sh
       - name: Upload runtime evidence
