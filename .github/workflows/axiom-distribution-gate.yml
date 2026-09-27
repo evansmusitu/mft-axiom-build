@@ -13,11 +13,38 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Runtime versions
+      - name: Repository shape
+        run: |
+          test -f distribution/anthropic/CLAUDE_PLUGIN_PROFILE.json
+          test -f distribution/anthropic/CLAUDE_SUBMISSION_PACKET.md
+          test -f distribution/meta/META_CONNECTOR_APPLICATION.md
+          test -f multiplatform/distribution/anthropic_policy.py
+          test -f mcp/musitu_axiom_mcp_worker_anthropic.mjs
+      - name: Python policy verification
         run: |
           python3 --version
+          PYTHONPATH="$GITHUB_WORKSPACE" python3 - <<'PY'
+          import json
+          from pathlib import Path
+          from multiplatform.distribution.anthropic_policy import (
+              is_anthropic_operation_allowed,
+              filter_tool_definition,
+          )
+          profile = json.loads(
+              Path("distribution/anthropic/CLAUDE_PLUGIN_PROFILE.json").read_text()
+          )
+          assert profile["endpoint"]["production_forbidden"] is True
+          assert is_anthropic_operation_allowed("finance.npv")
+          assert is_anthropic_operation_allowed("statistics.regression")
+          assert not is_anthropic_operation_allowed("wallet.transfer")
+          assert not filter_tool_definition({
+              "name": "musitu_axiom_start_checkout",
+              "description": "Create a checkout."
+          })
+          print("MUSITU_AXIOM_DISTRIBUTION_PROFILE_PASS")
+          PY
+      - name: JavaScript syntax verification
+        run: |
           node --version
-      - name: Python distribution-policy tests
-        run: PYTHONPATH=. python3 -m multiplatform.tests.test_distribution_profiles
-      - name: JavaScript gateway syntax
-        run: node --check mcp/musitu_axiom_mcp_worker_anthropic.mjs
+          node --check mcp/musitu_axiom_mcp_worker_anthropic.mjs
+          echo "MUSITU_AXIOM_ANTHROPIC_GATE_SYNTAX_PASS"
