@@ -95,7 +95,7 @@ def patch_authority(src):
     extra='''\nasync function authorized(request, env) {\n  if (await authorizedLegacy(request, env)) return true;\n  const expected = env.BILLING_BRIDGE_CAPABILITY_TOKEN;\n  const header = request.headers.get("authorization") || "";\n  if (!expected || !header.startsWith("Bearer ")) return false;\n  const provided = header.slice(7); const enc = new TextEncoder();\n  const a = enc.encode(provided), b = enc.encode(expected); let diff = a.length ^ b.length;\n  const n = Math.max(a.length, b.length); for (let i=0;i<n;i++) diff |= (a[i] || 0) ^ (b[i] || 0);\n  return diff === 0;\n}\n'''
     patched=text[:m.start()]+renamed+extra+text[end:]
     if patched.count('BILLING_BRIDGE_CAPABILITY_TOKEN')!=1:raise RuntimeError('bridge reference mismatch')
-    return patched.encode()
+    return patched.encode(), True
 
 BILLING_SOURCE=r'''const H={"content-type":"application/json; charset=utf-8","cache-control":"no-store"};
 const out=(s,b)=>new Response(JSON.stringify(b),{status:s,headers:H});
