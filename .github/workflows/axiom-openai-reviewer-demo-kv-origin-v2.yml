@@ -213,6 +213,7 @@ jobs:
         id: prove
         env:
           CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
           KV_NAMESPACE_ID: ${{ steps.kv.outputs.namespace_id }}
         shell: bash
