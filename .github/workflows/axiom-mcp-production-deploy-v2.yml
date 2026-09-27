@@ -130,3 +130,5 @@ jobs:
             musitu-axiom-mcp-production-deploy-v2.sha256
           retention-days: 30
           if-no-files-found: warn
+
+# Force redeployment/reconciliation after public endpoint drift investigation (2026-09-27).
