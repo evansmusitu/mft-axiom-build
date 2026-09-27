@@ -1,0 +1,61 @@
+openapi: 3.2.1
+info:
+  title: MUSITU Connect
+  version: 1.0.0
+  description: General-purpose enterprise interoperability and adapter platform.
+servers:
+  - url: https://connect.musitu.com
+paths:
+  /api/mining/plan:
+    post:
+      operationId: planMiningInterventions
+      summary: Compute a constrained Mining Adapter plan
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [rows, budget]
+              properties:
+                rows:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/MiningRecord'
+                budget:
+                  type: number
+                  minimum: 0
+      responses:
+        '200':
+          description: Deterministic adapter-native plan
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MiningPlan'
+        '400':
+          description: Invalid input
+        '422':
+          description: Schema validation failure
+components:
+  schemas:
+    MiningRecord:
+      type: object
+      required: [hazard, exposure, severity, likelihood, cost, benefit]
+      properties:
+        hazard: {type: string, minLength: 1}
+        exposure: {type: number, minimum: 0, maximum: 1}
+        severity: {type: number, minimum: 0, maximum: 10}
+        likelihood: {type: number, minimum: 0, maximum: 1}
+        cost: {type: number, minimum: 0}
+        benefit: {type: number, minimum: 0}
+      additionalProperties: false
+    MiningPlan:
+      type: object
+      required: [baselineRisk, residualRisk, spend, selected, gate, trace]
+      properties:
+        baselineRisk: {type: number}
+        residualRisk: {type: number}
+        spend: {type: number, minimum: 0}
+        selected: {type: array, items: {type: string}}
+        gate: {const: LOCKED}
+        trace: {type: string, minLength: 1}
