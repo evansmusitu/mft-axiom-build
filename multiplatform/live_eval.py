@@ -41,6 +41,24 @@ def extract_output(provider,data):
     if provider=="meta":
         try:return data["choices"][0]["message"]["content"]
         except Exception: pass
+    if provider=="google":
+        if isinstance(data.get("output_text"),str):
+            return data["output_text"]
+        parts=[]
+        for step in data.get("steps",[]):
+            for block in step.get("content",[]) if isinstance(step,dict) else []:
+                if isinstance(block,dict) and isinstance(block.get("text"),str):
+                    parts.append(block["text"])
+        return "\n".join(parts)
+    if provider=="xai":
+        if isinstance(data.get("output_text"),str):
+            return data["output_text"]
+        parts=[]
+        for item in data.get("output",[]):
+            for block in item.get("content",[]) if isinstance(item,dict) else []:
+                if isinstance(block,dict) and isinstance(block.get("text"),str):
+                    parts.append(block["text"])
+        return "\n".join(parts)
     return json.dumps(data,ensure_ascii=False,sort_keys=True)
 
 def run_provider(name,cases,composite):
