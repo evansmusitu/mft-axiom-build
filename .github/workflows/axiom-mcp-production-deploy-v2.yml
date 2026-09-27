@@ -36,6 +36,7 @@ jobs:
       - name: Deploy service-bound gateway and prove full commercial surface
         env:
           CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
         shell: bash
         run: |
@@ -44,7 +45,18 @@ jobs:
           import hashlib,json,os,pathlib,secrets,time,urllib.error,urllib.parse,urllib.request
           api=os.environ['CF_API'];aid=os.environ['ACCOUNT_ID'];zid=os.environ['ZONE_ID'];host=os.environ['MCP_HOST'];worker=os.environ['MCP_WORKER']
           src=pathlib.Path('mcp/musitu_axiom_mcp_worker_v2.mjs').read_bytes();sha=hashlib.sha256(src).hexdigest()
-          ah={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY'],'Accept':'application/json','User-Agent':'MUSITU-Axiom-MCP-V2-Deploy/1.0'}
+          api_token=os.environ.get('CLOUDFLARE_API_TOKEN','').strip()
+          legacy_ah={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY'],'Accept':'application/json','User-Agent':'MUSITU-Axiom-MCP-V2-Deploy/1.0'}
+          bearer_ah={'Authorization':'Bearer '+api_token,'Accept':'application/json','User-Agent':'MUSITU-Axiom-MCP-V2-Deploy/1.0'}
+          candidates=[bearer_ah] if api_token else []
+          if os.environ.get('CLOUDFLARE_GLOBAL_API_KEY','').strip(): candidates.append(legacy_ah)
+          ah=None
+          for candidate in candidates:
+            ctest,_,_=raw(api+f'/zones/{zid}', 'GET', candidate)
+            if 200<=ctest<300:
+              ah=candidate
+              break
+          if ah is None: raise RuntimeError('No valid Cloudflare credential: set CLOUDFLARE_API_TOKEN')
           def raw(url,method='GET',headers=None,body=None,timeout=45):
             q=urllib.request.Request(url,headers=dict(headers or {}),method=method,data=body)
             try:
