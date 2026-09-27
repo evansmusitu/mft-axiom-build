@@ -9,7 +9,7 @@ permissions:
 jobs:
   qualify:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -23,12 +23,34 @@ jobs:
         run: python -m pip install --disable-pip-version-check -r infra/qualification/requirements.txt
       - name: Security qualification
         run: python infra/qualification/security_smoke.py
-      - name: Wait for services
-        run: sleep 10
+      - name: Build open62541 1.5.8
+        run: |
+          git clone --depth 1 --branch v1.5.8 https://github.com/open62541/open62541.git /tmp/open62541
+          cmake -S /tmp/open62541 -B /tmp/open62541-build -DUA_BUILD_EXAMPLES=OFF -DUA_BUILD_TESTS=OFF
+          cmake --build /tmp/open62541-build --parallel 2
+      - name: Start OPC UA qualification server
+        run: |
+          python infra/qualification/opcua_server.py > /tmp/opcua.log 2>&1 &
+          echo $! > /tmp/opcua.pid
+          sleep 5
+      - name: Build and run open62541 interoperability client
+        run: |
+          cmake -S infra/qualification/opcua_client -B /tmp/connect-opcua-client
+          cmake --build /tmp/connect-opcua-client --parallel 2
+          /tmp/connect-opcua-client/musitu_opcua_client
+          kill $(cat /tmp/opcua.pid)
       - name: Data plane qualification
         run: python infra/qualification/smoke.py
+      - name: OpenTelemetry qualification
+        run: python infra/qualification/otel_smoke.py
       - name: Durable workflow qualification
         run: python infra/qualification/temporal_smoke.py
+      - name: Infrastructure recovery qualification
+        run: |
+          docker compose -f infra/qualification/docker-compose.yml restart mqtt postgres temporal-db temporal otel
+          sleep 15
+          python infra/qualification/smoke.py
+          python infra/qualification/temporal_smoke.py
       - name: Archive qualification evidence
         uses: actions/upload-artifact@v4
         with:
