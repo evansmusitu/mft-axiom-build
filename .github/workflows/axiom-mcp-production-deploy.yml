@@ -29,6 +29,37 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Diagnose Cloudflare credential authentication scheme
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json, os, urllib.request, urllib.error
+          api="https://api.cloudflare.com/client/v4"
+          paths=["/user/tokens/verify","/zones/5b56528f03948ff5917a5e0cd9f7109e"]
+          schemes=[
+            ("x_auth_key",{"X-Auth-Email":os.environ["CLOUDFLARE_EMAIL"],"X-Auth-Key":os.environ["CLOUDFLARE_GLOBAL_API_KEY"]}),
+            ("bearer",{"Authorization":"Bearer "+os.environ["CLOUDFLARE_GLOBAL_API_KEY"]}),
+          ]
+          out={}
+          for s,h in schemes:
+            out[s]={}
+            for path in paths:
+              req=urllib.request.Request(api+path,headers={"Accept":"application/json","User-Agent":"MUSITU-Axiom-CF-Auth-Diagnostic/1.0",**h},method="GET")
+              try:
+                with urllib.request.urlopen(req,timeout=30) as r:
+                  body=r.read(4096); code=r.status
+              except urllib.error.HTTPError as e:
+                body=e.read(4096); code=e.code
+              try: obj=json.loads(body or b"{}")
+              except: obj={}
+              out[s][path]={"http":code,"success":obj.get("success"),"errors":[{"code":x.get("code"),"message":x.get("message")} for x in (obj.get("errors") or []) if isinstance(x,dict)]}
+          print(json.dumps(out,indent=2,sort_keys=True))
+          PY
+
       - name: Validate MCP gateway source
         shell: bash
         run: |
