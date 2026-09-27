@@ -1,0 +1,57 @@
+{
+  "schema": "musitu.axiom.distribution.anthropic.claude-plugin.v1",
+  "status": "READY_PENDING_ISOLATED_ENDPOINT",
+  "product_name": "MUSITU Axiom",
+  "type": "single_remote_mcp_connector",
+  "purpose": "Expose MUSITU Axiom's quantitative analysis and evidence-native execution capabilities to Claude without exposing payment, subscription, money-transfer, trading-order, or financial-transaction tools.",
+  "server_name": "musitu-axiom",
+  "endpoint": {
+    "required": true,
+    "scheme": "https",
+    "production_forbidden": true,
+    "forbidden_exact": "https://mcp.mftintelligence.com/mcp",
+    "value": "REQUIRES_ISOLATED_STAGING_ENDPOINT"
+  },
+  "auth": {
+    "protocol": "OAuth 2.0",
+    "requirement": "recognized_certificate_authority",
+    "scopes": [
+      "axiom.execute",
+      "openid",
+      "email"
+    ]
+  },
+  "safe_capability_classes": [
+    "quantitative_analysis",
+    "statistics",
+    "optimization",
+    "time_series",
+    "verification",
+    "research_support",
+    "artifact_generation"
+  ],
+  "excluded_capability_classes": [
+    "checkout",
+    "payment",
+    "money_transfer",
+    "crypto_transfer",
+    "financial_asset_transfer",
+    "trade_order_execution",
+    "withdrawal",
+    "deposit",
+    "liquidation"
+  ],
+  "directory_readiness_gates": [
+    "isolated_public_https_endpoint",
+    "secure_oauth",
+    "privacy_policy",
+    "support_channel",
+    "documentation",
+    "testing_account_with_sample_data",
+    "three_working_examples",
+    "endpoint_control_proof",
+    "tool_annotations",
+    "streamable_http"
+  ],
+  "monetization_note": "Anthropic's connector/plugin directory is a distribution surface; this profile does not assert a per-use Anthropic payout. Any MUSITU billing remains outside the Claude connector's prohibited transaction surface."
+}

@@ -1,0 +1,46 @@
+name: AXIOM Claude isolated runtime
+# Distribution-only non-production runtime; never uses the production MCP endpoint.
+# Trigger revision: validate latest D1 Bearer-token implementation.
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches:
+      - frontier/axiom-orchestrator-integration-20260927
+    paths:
+      - '.github/workflows/axiom-claude-isolated-runtime.yml'
+      - 'scripts/axiom-claude-distribution-staging-deploy.sh'
+
+permissions:
+  contents: read
+
+jobs:
+  deploy-isolated-runtime:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      CLOUDFLARE_ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      STAGING_WORKER: mft-axiom-claude-staging-20260927
+      STAGING_DB: mft-axiom-claude-staging-20260927
+      DEPLOY_BUILD_ID: MFT-AXIOM-V3-CLAUDE-DISTRIBUTION-20260927
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify isolated names
+        run: |
+          test "$STAGING_WORKER" = "mft-axiom-claude-staging-20260927"
+          test "$STAGING_DB" = "mft-axiom-claude-staging-20260927"
+          ! grep -R "mcp.mftintelligence.com" scripts/axiom-claude-distribution-staging-deploy.sh
+          test -n "${CLOUDFLARE_API_TOKEN:-}" || test -n "${CLOUDFLARE_GLOBAL_API_KEY:-}"
+      - name: Deploy sealed isolated runtime
+        run: bash scripts/axiom-claude-distribution-staging-deploy.sh
+      - name: Upload runtime evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: axiom-claude-isolated-runtime
+          path: |
+            axiom-staging-deployment-evidence.json
+            axiom-staging-deployment-evidence.sha256
+          if-no-files-found: error
+          retention-days: 14
