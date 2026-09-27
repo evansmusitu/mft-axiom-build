@@ -23,17 +23,15 @@ jobs:
       - uses: actions/checkout@v4
       - name: Read Cloudflare payments topology without mutation
         env:
-          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
-          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
         shell: bash
         run: |
           set -euo pipefail
-          test -n "$CLOUDFLARE_EMAIL"
-          test -n "$CLOUDFLARE_GLOBAL_API_KEY"
+          test -n "$CLOUDFLARE_API_TOKEN"
           python - <<'PY'
           import hashlib,json,os,urllib.error,urllib.parse,urllib.request
           base=os.environ['CF_API']; zid=os.environ['EXPECTED_ZONE_ID']; aid=os.environ['EXPECTED_ACCOUNT_ID']; host=os.environ['PAYMENTS_HOST']
-          headers={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY'],'Content-Type':'application/json','User-Agent':'MUSITU-Payments-Topology-Audit/1.0'}
+          headers={'Authorization':'Bearer '+os.environ['CLOUDFLARE_API_TOKEN'].strip(),'Content-Type':'application/json','User-Agent':'MUSITU-Payments-Topology-Audit/2.0'}
           def cf(path):
             req=urllib.request.Request(base+path,headers=headers,method='GET')
             try:
