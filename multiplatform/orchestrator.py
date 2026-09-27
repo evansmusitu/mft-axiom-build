@@ -161,7 +161,7 @@ class _BoundProvider:
         )
         started = time.perf_counter()
         try:
-            if self.mcp_url and self.provider_id in {"openai", "anthropic"} and hasattr(self.binding.adapter, "invoke_with_frontier_mcp"):
+            if self.mcp_url and self.provider_id in {"openai", "anthropic", "google", "xai"} and hasattr(self.binding.adapter, "invoke_with_frontier_mcp"):
                 invocation = Invocation(
                     case_id=invocation.case_id,
                     provider=invocation.provider,
