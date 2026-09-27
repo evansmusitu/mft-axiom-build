@@ -131,6 +131,23 @@ class OrchestratorTests(unittest.TestCase):
         self.assertIn("openai:ineligible_policy", report["error"])
         self.assertIn("anthropic:ineligible_policy", report["error"])
 
+    def test_provider_descriptor_cannot_claim_another_adapter_identity(self):
+        fixture = FixtureProvider("openai", "372", 1.0)
+        descriptor = ProviderDescriptor(
+            provider_id="anthropic",
+            domains=frozenset({"*"}),
+            modalities=frozenset({"text"}),
+            required_scopes=frozenset(),
+            allowed_jurisdictions=frozenset({"*"}),
+            policy_tags=frozenset({"successful_execution"}),
+            advertised_quality=1.0,
+            advertised_latency_ms=1000,
+            advertised_cost_units=1.0,
+            verified=True,
+        )
+        with self.assertRaisesRegex(ValueError, "provider identity mismatch"):
+            ProviderBinding(fixture, descriptor)
+
     def test_run_cases_binds_orchestration_to_sealed_evaluation_manifest(self):
         providers = {
             "openai": binding("openai", "372", 1.0),
