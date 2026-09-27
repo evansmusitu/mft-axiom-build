@@ -52,7 +52,7 @@ jobs:
         run: |
           set -euo pipefail
           test -n "$CLOUDFLARE_EMAIL"
-          test -n "$CLOUDFLARE_GLOBAL_API_KEY"
+          test -n "${CLOUDFLARE_API_TOKEN:-$CLOUDFLARE_GLOBAL_API_KEY}"
           python - <<'PY'
           import base64,datetime,hashlib,html as htmlmod,json,os,pathlib,re,secrets,time,urllib.error,urllib.parse,urllib.request,uuid
 
