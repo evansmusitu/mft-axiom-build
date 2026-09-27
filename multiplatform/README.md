@@ -1,6 +1,6 @@
 # MUSITU Axiom Multi-Provider Frontier
 
-This is an isolated interoperability, distribution-preparation, security, and evaluation lane. It does not replace or modify the OpenAI review snapshot.
+This is an isolated interoperability, distribution-preparation, security, and evaluation lane. It does not replace or modify the OpenAI review snapshot. AXIOM is the control-plane orchestrator; external models are replaceable execution backends.
 
 ## Hard boundaries
 
@@ -16,6 +16,10 @@ cases/cases.jsonl is the single sealed caseset. Its SHA-256 is emitted by evalua
 ## Distribution
 
 Anthropic: remote MCP connector and Messages API MCP connector are primary routes; an MCPB package is prepared for local Claude Desktop distribution.
+
+Google: Gemini Interactions API is the primary isolated route, including Remote MCP via an mcp_server tool.
+
+xAI: Responses API is the primary isolated route, including Remote MCP via the mcp tool.
 
 Meta: the evaluation lane targets the Meta Model API where available. Meta's official Business Messaging MCP is treated as a separate Meta-provided business-messaging surface, not as proof of a general third-party MCP directory.
 
