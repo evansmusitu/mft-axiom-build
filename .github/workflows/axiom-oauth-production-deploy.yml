@@ -276,3 +276,5 @@ jobs:
             musitu-axiom-oauth-production-e2e.sha256
           retention-days: 30
           if-no-files-found: warn
+
+# Endpoint incident-recovery trigger: reconcile public edge/custom-domain state after endpoint drift.

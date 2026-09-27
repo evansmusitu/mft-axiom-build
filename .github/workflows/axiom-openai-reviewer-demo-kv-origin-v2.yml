@@ -325,3 +325,5 @@ jobs:
           path: /tmp/musitu-axiom-reviewer-demo-kv-proof.json
           retention-days: 30
           if-no-files-found: error
+
+# Endpoint incident-recovery trigger: reconcile public edge/custom-domain state after endpoint drift.
