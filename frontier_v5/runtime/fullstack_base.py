@@ -276,21 +276,24 @@ class CloudflareD1ProductionStore:
 
     SEALED_AXIOM_DB = "504029cc-f9a5-495e-818f-63c6144b4ea4"
 
-    def __init__(self, account_id: str, database_id: str, email: str, global_api_key: str) -> None:
+    def __init__(self, account_id: str, database_id: str, email: str = "", global_api_key: str = "", api_token: str = "") -> None:
         if database_id == self.SEALED_AXIOM_DB:
             raise AuthorizationError("frontier persistence must not use the sealed Axiom production DB")
-        if not all((account_id, database_id, email, global_api_key)):
+        if not account_id or not database_id or not (api_token or (email and global_api_key)):
             raise ValueError("Cloudflare D1 credentials and IDs required")
         self.account_id = account_id
         self.database_id = database_id
         self.base = "https://api.cloudflare.com/client/v4"
         self.headers = {
-            "X-Auth-Email": email,
-            "X-Auth-Key": global_api_key,
             "Accept": "application/json",
             "Content-Type": "application/json",
             "User-Agent": "MUSITU-Axiom-Frontier-Persistence/5.0",
         }
+        if api_token:
+            self.headers["Authorization"] = f"Bearer {api_token}"
+        else:
+            self.headers["X-Auth-Email"] = email
+            self.headers["X-Auth-Key"] = global_api_key
 
     def query(self, sql: str, params: Sequence[Any] | None = None) -> list[dict[str, Any]]:
         obj: dict[str, Any] = {"sql": sql}
