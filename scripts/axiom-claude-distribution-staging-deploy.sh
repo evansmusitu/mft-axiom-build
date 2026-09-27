@@ -5,7 +5,7 @@ set -euo pipefail
 : "${CLOUDFLARE_EMAIL:?}"
 : "${CLOUDFLARE_API_KEY:?}"
 : "${CLOUDFLARE_GLOBAL_API_KEY:?}"
-STAGING_WORKER="${STAGING_WORKER:-${CLAUDE_STAGING_DB}}"
+STAGING_WORKER="${STAGING_WORKER:-mft-axiom-claude-staging-20260927}"
 STAGING_DB="${STAGING_DB:-mft-axiom-claude-staging-20260927}"
 DEPLOY_BUILD_ID="${DEPLOY_BUILD_ID:-MFT-AXIOM-V3-RUNTIME-RECONSTRUCTION-20260904}"
 ROOT="$PWD"
@@ -84,7 +84,7 @@ rm -f /tmp/cf-auth.json
 
 # Resolve/create D1 through the documented REST API to avoid CLI output-format ambiguity.
 python - <<'PY' > /tmp/d1-id
-import json,os,urllib.request
+import json,os,urllib.request,urllib.parse
 base='https://api.cloudflare.com/client/v4'
 account=os.environ['CLOUDFLARE_ACCOUNT_ID']
 headers={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_API_KEY'],'Content-Type':'application/json','User-Agent':'MUSITU-Axiom-Staging/1.0'}
@@ -94,13 +94,13 @@ def call(method,path,body=None):
     with urllib.request.urlopen(req,timeout=45) as r: x=json.load(r)
     if not x.get('success'): raise SystemExit(f'Cloudflare {method} failed')
     return x.get('result')
-rows=call('GET',f'/accounts/{account}/d1/database?name=${CLAUDE_STAGING_DB}&per_page=100') or []
-m=[r for r in rows if r.get('name')==os.environ['STAGING_DB']]
+rows=call('GET',f"/accounts/{account}/d1/database?name={urllib.parse.quote(os.environ['STAGING_DB'])}&per_page=100") or []
+m=[r for r in rows if r.get('name')=='mft-axiom-staging']
 if len(m)>1: raise SystemExit('Fail-closed: multiple staging D1 databases')
 if not m:
-    call('POST',f'/accounts/{account}/d1/database',{'name':os.environ['STAGING_DB'],'primary_location_hint':'eeur','read_replication':{'mode':'disabled'}})
-    rows=call('GET',f'/accounts/{account}/d1/database?name=${CLAUDE_STAGING_DB}&per_page=100') or []
-    m=[r for r in rows if r.get('name')==os.environ['STAGING_DB']]
+    call('POST',f"/accounts/{account}/d1/database",{'name':os.environ['STAGING_DB'],'primary_location_hint':'eeur','read_replication':{'mode':'disabled'}})
+    rows=call('GET',f"/accounts/{account}/d1/database?name={urllib.parse.quote(os.environ['STAGING_DB'])}&per_page=100") or []
+    m=[r for r in rows if r.get('name')=='mft-axiom-staging']
 if len(m)!=1: raise SystemExit(f'Fail-closed: expected one staging D1, got {len(m)}')
 ident=m[0].get('uuid') or m[0].get('id')
 if not ident: raise SystemExit('D1 identifier unavailable')
@@ -119,17 +119,17 @@ cfg={
  'compatibility_date':'2026-09-04',
  'workers_dev':True,
  'observability':{'enabled':True},
- 'containers':[{'class_name':'AxiomKernel','image':'./kernel/Dockerfile','max_instances':4,'instance_type':'basic','image_build_context':'.','name':'${CLAUDE_STAGING_DB}-kernel'}],
+ 'containers':[{'class_name':'AxiomKernel','image':'./kernel/Dockerfile','max_instances':4,'instance_type':'basic','image_build_context':'.','name':'mft-axiom-staging-kernel'}],
  'durable_objects':{'bindings':[{'name':'AXIOM_KERNEL','class_name':'AxiomKernel'}]},
  'migrations':[{'tag':'axiom-staging-v1','new_sqlite_classes':['AxiomKernel']}],
- 'd1_databases':[{'binding':'AXIOM_DB','database_name':os.environ['STAGING_DB'],'database_id':os.environ['D1_ID']}]
+ 'd1_databases':[{'binding':'AXIOM_DB','database_name':'mft-axiom-staging','database_id':os.environ['D1_ID']}]
 }
 open('wrangler.json','w').write(json.dumps(cfg,indent=2))
 PY
 python - <<'PY'
-import json
+import json,os
 c=json.load(open('wrangler.json'))
-assert c['name']==os.environ['STAGING_DB'] and c['workers_dev'] is True
+assert c['name']==os.environ['STAGING_WORKER'] and c['workers_dev'] is True
 assert c['d1_databases'][0]['binding']=='AXIOM_DB' and c['containers'][0]['max_instances']==4
 print('staging_config=PASS')
 PY
