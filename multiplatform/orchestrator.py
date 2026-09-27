@@ -226,6 +226,48 @@ class _BoundProvider:
         )
 
 
+
+def select_initial_provider(
+    providers: Mapping[str, ProviderBinding],
+    *,
+    case: Mapping[str, Any],
+    min_quality: float,
+    max_latency_ms: int,
+    max_cost_units: float,
+    available_scopes: frozenset[str],
+    jurisdiction: str,
+    required_policy_tags: frozenset[str],
+) -> tuple[str, str]:
+    """AXIOM's deterministic initial routing choice under unchanged constraints."""
+    request = ProviderRequest(
+        domain=str(case.get("category", "general")),
+        modality="text",
+        available_scopes=available_scopes,
+        jurisdiction=jurisdiction,
+        min_quality=float(min_quality),
+        max_latency_ms=int(max_latency_ms),
+        max_cost_units=float(max_cost_units),
+        required_policy_tags=frozenset({"successful_execution", *required_policy_tags}),
+    )
+    eligible = [
+        binding.descriptor
+        for binding in providers.values()
+        if ProviderFallbackRouter._eligible(binding.descriptor, request)
+    ]
+    if not eligible:
+        raise NoViableProviderError("no provider satisfies the initial routing envelope")
+    chosen = sorted(
+        eligible,
+        key=lambda d: (
+            -float(d.advertised_quality),
+            int(d.advertised_latency_ms),
+            float(d.advertised_cost_units),
+            d.provider_id,
+        ),
+    )[0]
+    return chosen.provider_id, "quality_floor_then_latency_then_cost"
+
+
 def default_breakers(provider_ids: Sequence[str]) -> CircuitBreakerFabric:
     policy = CircuitBreakerPolicy(
         failure_threshold=2,
@@ -258,7 +300,7 @@ class AxiomFrontierOrchestrator:
         self,
         case: Mapping[str, Any],
         *,
-        preferred_provider: str,
+        preferred_provider: str | None = None,
         min_quality: float = 0.0,
         max_latency_ms: int = 30_000,
         max_cost_units: float = 100.0,
@@ -270,7 +312,7 @@ class AxiomFrontierOrchestrator:
         require_approval: str = "never",
         now_epoch: float | None = None,
     ) -> dict[str, Any]:
-        if preferred_provider not in self.providers:
+        if preferred_provider is not None and preferred_provider not in self.providers:
             raise ValueError(f"preferred provider is not configured: {preferred_provider}")
         if min_quality < 0 or min_quality > 1:
             raise ValueError("min_quality must be from 0 to 1")
@@ -283,6 +325,19 @@ class AxiomFrontierOrchestrator:
         if mcp_url is not None and mcp_url.rstrip("/") == "https://mcp.mftintelligence.com/mcp":
             raise ValueError("PRODUCTION_ENDPOINT_FORBIDDEN")
 
+        if preferred_provider is None:
+            preferred_provider, routing_basis = select_initial_provider(
+                self.providers,
+                case=case,
+                min_quality=min_quality,
+                max_latency_ms=max_latency_ms,
+                max_cost_units=max_cost_units,
+                available_scopes=available_scopes,
+                jurisdiction=jurisdiction,
+                required_policy_tags=required_policy_tags,
+            )
+        else:
+            routing_basis = "caller_constrained_initial_provider"
         request = ProviderRequest(
             domain=str(case.get("category", "general")),
             modality="text",
@@ -325,6 +380,7 @@ class AxiomFrontierOrchestrator:
                 "routing_feedback": {
                     "preferred_provider": preferred_provider,
                     "accepted_provider": None,
+                    "routing_basis": routing_basis,
                     "min_quality_preserved": float(min_quality),
                     "regret_signal": True,
                     "reason": "no_viable_provider",
@@ -385,7 +441,7 @@ class AxiomFrontierOrchestrator:
         self,
         cases_path: str | Path,
         *,
-        preferred_provider: str,
+        preferred_provider: str | None = None,
         max_cases: int | None = None,
         min_quality: float = 0.0,
         max_latency_ms: int = 30_000,
