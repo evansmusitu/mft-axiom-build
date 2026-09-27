@@ -25,15 +25,14 @@ jobs:
     steps:
       - name: Read live MCP state and probe safely
         env:
-          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
-          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
         shell: bash
         run: |
           set -euo pipefail
           python - <<'PY'
           import json,os,pathlib,urllib.error,urllib.parse,urllib.request
           api=os.environ['CF_API']; aid=os.environ['ACCOUNT_ID']; zid=os.environ['ZONE_ID']; host=os.environ['MCP_HOST']; worker=os.environ['MCP_WORKER']
-          h={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY'],'Accept':'application/json','User-Agent':'MUSITU-Axiom-MCP-Diagnostic/1.0'}
+          h={'Authorization':'Bearer '+os.environ['CLOUDFLARE_API_TOKEN'].strip(),'Accept':'application/json','User-Agent':'MUSITU-Axiom-MCP-Diagnostic/2.0'}
           def raw(url,method='GET',headers=None,body=None):
               req=urllib.request.Request(url,headers=dict(headers or {}),method=method,data=body)
               try:
@@ -91,3 +90,4 @@ jobs:
           path: musitu-axiom-mcp-diagnostic.json
           retention-days: 7
           if-no-files-found: error
+# 2026-09-27: use dedicated Cloudflare API token for live MCP topology diagnostic.
