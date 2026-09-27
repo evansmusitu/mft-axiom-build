@@ -73,8 +73,8 @@ class OrchestratorTests(unittest.TestCase):
 
     def test_axiom_orchestrates_preferred_provider_and_emits_trace(self):
         providers = {
-            "openai": ProviderBinding(FixtureProvider("openai", "372", 1.0)),
-            "anthropic": ProviderBinding(FixtureProvider("anthropic", "0", 0.2)),
+            "openai": binding("openai", "372", 1.0),
+            "anthropic": binding("anthropic", "0", 0.2),
         }
         orchestrator = AxiomFrontierOrchestrator(providers, breakers("openai", "anthropic"))
         report = orchestrator.run_case(
@@ -93,8 +93,8 @@ class OrchestratorTests(unittest.TestCase):
 
     def test_quality_failure_falls_back_without_lowering_the_floor(self):
         providers = {
-            "openai": ProviderBinding(FixtureProvider("openai", "0", 0.2)),
-            "anthropic": ProviderBinding(FixtureProvider("anthropic", "372", 1.0)),
+            "openai": binding("openai", "0", 0.2),
+            "anthropic": binding("anthropic", "372", 1.0),
         }
         orchestrator = AxiomFrontierOrchestrator(providers, breakers("openai", "anthropic"))
         report = orchestrator.run_case(
@@ -112,14 +112,10 @@ class OrchestratorTests(unittest.TestCase):
         self.assertTrue(report["routing_feedback"]["regret_signal"])
 
     def test_unverified_provider_is_denied_before_execution(self):
-        fixture = FixtureProvider("openai", "372", 1.0, verified=False)
         providers = {
-            "openai": ProviderBinding(fixture),
-            "anthropic": ProviderBinding(FixtureProvider("anthropic", "372", 1.0)),
+            "openai": binding("openai", "372", 1.0, verified=False),
+            "anthropic": binding("anthropic", "372", 1.0, verified=False),
         }
-        providers["anthropic"] = ProviderBinding(
-            FixtureProvider("anthropic", "372", 1.0, verified=False)
-        )
         orchestrator = AxiomFrontierOrchestrator(providers, breakers("openai", "anthropic"))
 
         report = orchestrator.run_case(self.case, preferred_provider="openai")
