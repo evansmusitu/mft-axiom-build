@@ -1,0 +1,39 @@
+schema: musitu.connect.infrastructure_versions.v1
+policy:
+  release_channel: stable
+  prerelease_allowed: false
+  pin_mode: exact
+components:
+  opcua:
+    implementation: open62541
+    version: 1.5.8
+  mqtt:
+    broker: eclipse-mosquitto
+    version: 2.1.2
+    client: paho-mqtt-python
+    client_version: 2.1.0
+  arrow:
+    version: 25.0.1
+  parquet:
+    implementation: pyarrow
+    version: 25.0.1
+  duckdb:
+    version: 1.5.5
+  postgresql:
+    version: 18.6
+  postgis:
+    version: 3.6.4
+  openlineage:
+    version: 1.53.0
+  opentelemetry_collector:
+    version: 0.161.0
+  temporal_server:
+    version: 1.32.0
+  temporal_python_sdk:
+    version: 1.32.0
+  iceberg:
+    version: 1.11.0
+qualification:
+  axioms_integration_allowed: false
+  external_services_required: false
+  evidence_artifact: qualification/infrastructure_report.json
