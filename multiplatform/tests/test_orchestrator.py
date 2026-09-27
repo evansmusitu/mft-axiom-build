@@ -51,6 +51,11 @@ class FixtureProvider:
         )
 
 
+def binding(provider_id: str, output: str, quality: float, *, verified: bool = True, fail: bool = False) -> ProviderBinding:
+    fixture = FixtureProvider(provider_id, output, quality, verified=verified, fail=fail)
+    return ProviderBinding(fixture, fixture.descriptor)
+
+
 def breakers(*provider_ids: str) -> CircuitBreakerFabric:
     policy = CircuitBreakerPolicy(
         failure_threshold=2,
@@ -128,8 +133,8 @@ class OrchestratorTests(unittest.TestCase):
 
     def test_run_cases_binds_orchestration_to_sealed_evaluation_manifest(self):
         providers = {
-            "openai": ProviderBinding(FixtureProvider("openai", "372", 1.0)),
-            "anthropic": ProviderBinding(FixtureProvider("anthropic", "372", 1.0)),
+            "openai": binding("openai", "372", 1.0),
+            "anthropic": binding("anthropic", "372", 1.0),
         }
         orchestrator = AxiomFrontierOrchestrator(providers, breakers("openai", "anthropic"))
         report = orchestrator.run_cases(
