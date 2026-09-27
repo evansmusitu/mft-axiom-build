@@ -32,7 +32,8 @@ jobs:
           python - <<'PY'
           import json, os, urllib.request, urllib.error
           api=os.environ["CF_API"]; aid=os.environ["ACCOUNT_ID"]; zid=os.environ["ZONE_ID"]
-          h={"X-Auth-Email":os.environ["CLOUDFLARE_EMAIL"],"X-Auth-Key":os.environ["CLOUDFLARE_GLOBAL_API_KEY"],"Accept":"application/json","User-Agent":"MUSITU-Axiom-CF-Credential-Diagnostic/1.0"}
+          legacy={"X-Auth-Email":os.environ["CLOUDFLARE_EMAIL"],"X-Auth-Key":os.environ["CLOUDFLARE_GLOBAL_API_KEY"],"Accept":"application/json","User-Agent":"MUSITU-Axiom-CF-Credential-Diagnostic/2.0"}
+          bearer={"Authorization":"Bearer "+os.environ["CLOUDFLARE_GLOBAL_API_KEY"],"Accept":"application/json","User-Agent":"MUSITU-Axiom-CF-Credential-Diagnostic/2.0"}
           paths=[
             ("verify","/user/tokens/verify"),
             ("zone","/zones/"+zid),
@@ -40,23 +41,28 @@ jobs:
             ("workers_domains","/accounts/"+aid+"/workers/domains"),
             ("kv_namespaces","/accounts/"+aid+"/storage/kv/namespaces?per_page=1"),
           ]
-          out={}
-          for name,path in paths:
-            req=urllib.request.Request(api+path,headers=h,method="GET")
-            try:
-              with urllib.request.urlopen(req,timeout=30) as r:
-                body=r.read(4096); code=r.status
-            except urllib.error.HTTPError as e:
-              body=e.read(4096); code=e.code
-            try: obj=json.loads(body or b"{}")
-            except Exception: obj={}
-            errs=obj.get("errors") if isinstance(obj,dict) else []
-            msgs=obj.get("messages") if isinstance(obj,dict) else []
-            out[name]={
-              "http":code,
-              "success":obj.get("success"),
-              "errors":[{"code":e.get("code"),"message":e.get("message")} for e in errs if isinstance(e,dict)],
-              "messages":[{"code":m.get("code"),"message":m.get("message")} for m in msgs if isinstance(m,dict)]
-            }
-          print(json.dumps(out,indent=2,sort_keys=True))
+          def probe(headers):
+            out={}
+            for name,path in paths:
+              req=urllib.request.Request(api+path,headers=headers,method="GET")
+              try:
+                with urllib.request.urlopen(req,timeout=30) as r:
+                  body=r.read(4096); code=r.status
+              except urllib.error.HTTPError as e:
+                body=e.read(4096); code=e.code
+              except urllib.error.URLError as e:
+                body=str(e).encode(); code=0
+              try: obj=json.loads(body or b"{}")
+              except Exception: obj={}
+              errs=obj.get("errors") if isinstance(obj,dict) else []
+              msgs=obj.get("messages") if isinstance(obj,dict) else []
+              out[name]={
+                "http":code,
+                "success":obj.get("success"),
+                "errors":[{"code":e.get("code"),"message":e.get("message")} for e in errs if isinstance(e,dict)],
+                "messages":[{"code":m.get("code"),"message":m.get("message")} for m in msgs if isinstance(m,dict)]
+              }
+            return out
+          legacy_out=probe(legacy); bearer_out=probe(bearer)
+          print(json.dumps({"legacy_x_auth":legacy_out,"bearer_token":bearer_out},indent=2,sort_keys=True))
           PY
