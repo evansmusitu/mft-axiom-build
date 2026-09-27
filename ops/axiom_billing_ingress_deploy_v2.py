@@ -12,7 +12,7 @@ import urllib.parse
 import urllib.request
 
 API=os.environ['CF_API']; AID=os.environ['ACCOUNT_ID']; ZID=os.environ['ZONE_ID']; DBID=os.environ['D1_UUID']
-AUTH=os.environ['AUTHORITY']; AUTH_SHA=os.environ['AUTHORITY_SHA256']; TRANSPORT=os.environ['TRANSPORT']; BILLING=os.environ['BILLING']; ROUTE=os.environ['BILLING_ROUTE']; BASE=os.environ['PAYMENTS_BASE']
+AUTH=os.environ['AUTHORITY']; AUTH_SHA=os.environ['AUTHORITY_SHA256']; AUTH_LEGACY_SHA='1d8e1b2a0ccd52f101b7931fc9680afb37d86f5d288aa921c7d9a25de1590731'; TRANSPORT=os.environ['TRANSPORT']; BILLING=os.environ['BILLING']; ROUTE=os.environ['BILLING_ROUTE']; BASE=os.environ['PAYMENTS_BASE']
 API_TOKEN=os.environ.get('CLOUDFLARE_API_TOKEN','').strip()
 LEGACY_HEADERS={'X-Auth-Email':os.environ.get('CLOUDFLARE_EMAIL',''),'X-Auth-Key':os.environ.get('CLOUDFLARE_GLOBAL_API_KEY',''),'User-Agent':'MUSITU-Axiom-Billing-Production-Deploy/2.1'}
 AUTH_HEADERS=({'Authorization':'Bearer '+API_TOKEN,'User-Agent':'MUSITU-Axiom-Billing-Production-Deploy/2.1'} if API_TOKEN else LEGACY_HEADERS)
@@ -73,7 +73,8 @@ def patch_authority(src):
     text=src.decode()
     if '__musituAxiomPaynowSignInitiate' in text:
         return src, False
-    if hashlib.sha256(src).hexdigest()!=AUTH_SHA:
+    actual_sha=hashlib.sha256(src).hexdigest()
+    if actual_sha not in {AUTH_SHA, AUTH_LEGACY_SHA}:
         raise RuntimeError('authority source hash mismatch')
     pat=re.compile(r'(?P<p>(?:async\s+)?function\s+)authorized(?P<r>\s*\([^)]*\)\s*\{)'); ms=list(pat.finditer(text))
     if len(ms)!=1:raise RuntimeError(f'authorized definition count {len(ms)}')

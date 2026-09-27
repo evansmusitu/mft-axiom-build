@@ -56,3 +56,4 @@ jobs:
             commercial-enable-evidence.sha256
           retention-days: 30
           if-no-files-found: error
+# 2026-09-27 recovery trigger: retry commercial billing enable after edge credential restoration.
