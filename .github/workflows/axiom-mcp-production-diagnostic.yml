@@ -60,6 +60,7 @@ jobs:
                   if not isinstance(b,dict):continue
                   row={'name':b.get('name'),'type':b.get('type')}
                   if b.get('type')=='plain_text':row['text']=b.get('text')
+                  if b.get('type')=='service':row['service']=b.get('service')
                   bindings.append(row)
           subc,sub=cf(f'/accounts/{aid}/workers/scripts/{urllib.parse.quote(worker,safe="")}/subdomain')
           _,rs=cf(f'/zones/{zid}/rulesets'); matches=[]
@@ -91,3 +92,4 @@ jobs:
           retention-days: 7
           if-no-files-found: error
 # 2026-09-27: use dedicated Cloudflare API token for live MCP topology diagnostic.
+# 2026-09-27: verify MCP billing service binding after production deployment.
