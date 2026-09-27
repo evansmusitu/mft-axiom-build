@@ -73,6 +73,7 @@ function cfg(env) {
   return {
     axiomBase: env.AXIOM_BASE || DEFAULTS.axiomBase,
     billingBase: env.BILLING_BASE || DEFAULTS.billingBase,
+    billingService: env.AXIOM_BILLING || null,
     publicBase: env.MCP_PUBLIC_BASE || DEFAULTS.publicBase,
     authIssuer: env.AUTH_ISSUER || "",
     serverName: DEFAULTS.serverName,
@@ -107,6 +108,24 @@ async function fetchJson(url, init = {}) {
   let obj = {};
   try { obj = JSON.parse(text || "{}"); } catch {}
   return { status: r.status, obj, text };
+}
+
+async function fetchBindingJson(binding, path, init = {}) {
+  if (!binding) return { status: 0, obj: {}, text: "service_binding_missing" };
+  let r;
+  try {
+    r = await binding.fetch(new Request(`https://billing.internal${path}`, init));
+  } catch (e) {
+    return { status: 0, obj: {}, text: String(e) };
+  }
+  const text = await r.text();
+  let obj = {};
+  try { obj = JSON.parse(text || "{}"); } catch {}
+  return { status: r.status, obj, text };
+}
+
+async function billingJson(c, path, init = {}) {
+  return fetchBindingJson(c.billingService, path, init);
 }
 
 function genericObjectSchema() {
@@ -203,7 +222,7 @@ function protectedScheme(scope = "axiom.execute") {
 }
 
 async function planCatalog(c) {
-  const { status, obj } = await fetchJson(`${c.billingBase}/billing/catalog`, { headers: { accept: "application/json", "user-agent": "MUSITU-Axiom-MCP/1.0" } });
+  const { status, obj } = await billingJson(c, "/billing/catalog", { headers: { accept: "application/json", "user-agent": "MUSITU-Axiom-MCP/1.0" } });
   if (status !== 200) throw new Error(`Billing catalog unavailable HTTP ${status}`);
   return obj;
 }
@@ -365,7 +384,7 @@ async function handleToolCall(request, c, name, args) {
     if (args?.confirm_create_checkout !== true) return textResult("Checkout creation requires explicit confirmation.", { checkout_created: false }, undefined, true);
     const plan = String(args?.plan || "");
     if (!["developer", "pro", "enterprise"].includes(plan)) return textResult("Invalid MUSITU Axiom plan.", { checkout_created: false }, undefined, true);
-    const { status, obj } = await fetchJson(`${c.billingBase}/billing/checkout`, {
+    const { status, obj } = await billingJson(c, "/billing/checkout", {
       method: "POST",
       headers: { authorization: auth, "content-type": "application/json", accept: "application/json", "user-agent": "MUSITU-Axiom-MCP/1.0" },
       body: JSON.stringify({ plan }),
@@ -379,7 +398,7 @@ async function handleToolCall(request, c, name, args) {
     if (!auth) return authRequired(c, "billing.read", "Connect your MUSITU account to check checkout status.");
     const reference = String(args?.reference || "");
     if (!reference) return textResult("Checkout reference is required.", {}, undefined, true);
-    const { status, obj } = await fetchJson(`${c.billingBase}/billing/checkout/${encodeURIComponent(reference)}`, {
+    const { status, obj } = await billingJson(c, `/billing/checkout/${encodeURIComponent(reference)}`, {
       headers: { authorization: auth, accept: "application/json", "user-agent": "MUSITU-Axiom-MCP/1.0" },
     });
     if (status === 401 || status === 403) return authRequired(c, "billing.read", "Your MUSITU authorization cannot read this checkout.");
@@ -396,7 +415,7 @@ async function health(c) {
   const [rh, rt, bc] = await Promise.all([
     fetchJson(`${c.axiomBase}/health`, { headers: { accept: "application/json", "user-agent": "MUSITU-Axiom-MCP/1.0" } }),
     registry(c).catch((e) => ({ error: String(e) })),
-    fetchJson(`${c.billingBase}/billing/healthz`, { headers: { accept: "application/json", "user-agent": "MUSITU-Axiom-MCP/1.0" } }),
+    billingJson(c, "/billing/healthz", { headers: { accept: "application/json", "user-agent": "MUSITU-Axiom-MCP/1.0" } }),
   ]);
   const ok = rh.status === 200 && !rt.error && bc.status === 200;
   return {
@@ -407,6 +426,7 @@ async function health(c) {
     operation_count: rt.operationCount || null,
     build_id: rt.buildId || rh.obj?.build_id || null,
     billing_health_http: bc.status,
+    billing_service_binding_configured: Boolean(c.billingService),
     catalog_configured: bc.obj?.catalog_configured === true,
     checkout_enabled: bc.obj?.checkout_enabled === true,
     oauth_provider_configured: Boolean(c.authIssuer),
