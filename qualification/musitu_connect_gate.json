@@ -8,8 +8,9 @@
     "reason": "independent infrastructure qualification required"
   },
   "tests": {
-    "repository_contract_tests": 5,
-    "independent_recheck": "PASS"
+    "repository_contract_tests": 10,
+    "independent_recheck": "PASS",
+    "runtime_recheck": "PASS"
   },
   "demonstrated": [
     "canonical mining envelope",
@@ -26,5 +27,5 @@
     "mine-specific predictive accuracy",
     "production Axiom integration"
   ],
-  "gate_state": "CONNECT_LIVE__AXIOM_BLOCKED"
+  "gate_state": "CONNECT_LIVE__INFRA_QUALIFICATION_PENDING__AXIOM_BLOCKED"
 }
