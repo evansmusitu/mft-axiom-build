@@ -7,6 +7,8 @@ from multiplatform.providers.axiom import AxiomFrontierAdapter
 from multiplatform.providers.anthropic import AnthropicAdapter
 from multiplatform.providers.openai import OpenAIAdapter
 from multiplatform.providers.meta import MetaModelAdapter
+from multiplatform.providers.google import GoogleGeminiAdapter
+from multiplatform.providers.xai import XAIAdapter
 
 def load_cases(path):
     return [json.loads(line) for line in Path(path).read_text(encoding="utf-8").splitlines() if line.strip()]
@@ -42,7 +44,7 @@ def extract_output(provider,data):
     return json.dumps(data,ensure_ascii=False,sort_keys=True)
 
 def run_provider(name,cases,composite):
-    adapter={"openai":OpenAIAdapter(),"anthropic":AnthropicAdapter(),"meta":MetaModelAdapter()}[name]
+    adapter={"openai":OpenAIAdapter(),"anthropic":AnthropicAdapter(),"meta":MetaModelAdapter(),"google":GoogleGeminiAdapter(),"xai":XAIAdapter()}[name]
     model=adapter.model
     rows=[]
     mcp_url=os.getenv("AXIOM_FRONTIER_MCP_URL")
@@ -51,9 +53,7 @@ def run_provider(name,cases,composite):
         try:
             from multiplatform.providers.contracts import Invocation,Provider
             inv=Invocation(case["case_id"],Provider(name),None,{},metadata={"prompt":case["prompt"]})
-            if composite and name=="openai" and mcp_url:
-                result=adapter.invoke_with_frontier_mcp(inv,mcp_url); invocation_type="axiom+mcp"
-            elif composite and name=="anthropic" and mcp_url:
+            if composite and mcp_url and hasattr(adapter, "invoke_with_frontier_mcp"):
                 result=adapter.invoke_with_frontier_mcp(inv,mcp_url); invocation_type="axiom+mcp"
             else:
                 result=adapter.invoke(inv)
@@ -74,8 +74,8 @@ def main():
         tools=AxiomFrontierAdapter().discover_tools()
         (Path(args.out_dir)/"axiom-discovery.json").write_text(json.dumps({"tool_count":len(tools),"tool_names_sha256":__import__("hashlib").sha256("\n".join(sorted(t.name for t in tools)).encode()).hexdigest()},sort_keys=True,indent=2))
     outputs=[]
-    for name in ("openai","anthropic","meta"):
-        required={"openai":"OPENAI_API_KEY","anthropic":"ANTHROPIC_API_KEY","meta":"META_MODEL_API_KEY"}[name]
+    for name in ("openai","anthropic","google","xai","meta"):
+        required={"openai":"OPENAI_API_KEY","anthropic":"ANTHROPIC_API_KEY","google":"GOOGLE_GEMINI_API_KEY","xai":"XAI_API_KEY","meta":"META_MODEL_API_KEY"}[name]
         if not os.getenv(required):
             outputs.append({"provider":name,"status":"SKIPPED","reason":"MISSING_PROVIDER_SECRET:"+required}); continue
         rows,model=run_provider(name,cases,args.composite)
