@@ -1,0 +1,44 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://musitu.com/connect/schemas/mining-record/v1",
+  "title": "MUSITU Connect Mining Record v1",
+  "type": "object",
+  "required": [
+    "hazard",
+    "exposure",
+    "severity",
+    "likelihood",
+    "cost",
+    "benefit"
+  ],
+  "properties": {
+    "hazard": {
+      "type": "string",
+      "minLength": 1
+    },
+    "exposure": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1
+    },
+    "severity": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 10
+    },
+    "likelihood": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1
+    },
+    "cost": {
+      "type": "number",
+      "minimum": 0
+    },
+    "benefit": {
+      "type": "number",
+      "minimum": 0
+    }
+  },
+  "additionalProperties": false
+}
