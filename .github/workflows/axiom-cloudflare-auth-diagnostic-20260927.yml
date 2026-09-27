@@ -18,52 +18,109 @@ jobs:
       ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
       ZONE_ID: 5b56528f03948ff5917a5e0cd9f7109e
       ZONE_NAME: mftintelligence.com
+
     steps:
       - uses: actions/checkout@v4
-      - name: Probe Cloudflare authentication without exposing credentials (retry)
+
+      - name: Fail-closed Cloudflare API-token diagnostic
         env:
-          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
         shell: bash
         run: |
           set -euo pipefail
-          test -n "$CLOUDFLARE_EMAIL"
-          test -n "$CLOUDFLARE_GLOBAL_API_KEY"
+
+          test -n "$CLOUDFLARE_API_TOKEN" || {
+            echo "CLOUDFLARE_API_TOKEN is missing."
+            echo "The public custom-domain deployment cannot be repaired without a valid Cloudflare API token."
+            exit 20
+          }
+
           python - <<'PY'
-          import json, os, urllib.request, urllib.error
-          api=os.environ["CF_API"]; aid=os.environ["ACCOUNT_ID"]; zid=os.environ["ZONE_ID"]
-          legacy={"X-Auth-Email":os.environ["CLOUDFLARE_EMAIL"],"X-Auth-Key":os.environ["CLOUDFLARE_GLOBAL_API_KEY"],"Accept":"application/json","User-Agent":"MUSITU-Axiom-CF-Credential-Diagnostic/2.0"}
-          bearer={"Authorization":"Bearer "+os.environ.get("CLOUDFLARE_API_TOKEN",""),"Accept":"application/json","User-Agent":"MUSITU-Axiom-CF-Credential-Diagnostic/2.0"}
-          paths=[
-            ("verify","/user/tokens/verify"),
-            ("zone","/zones/"+zid),
-            ("zone_lookup","/zones?name="+os.environ["ZONE_NAME"]+"&status=active"),
-            ("workers_domains","/accounts/"+aid+"/workers/domains"),
-            ("kv_namespaces","/accounts/"+aid+"/storage/kv/namespaces?per_page=1"),
+          import json
+          import os
+          import sys
+          import urllib.error
+          import urllib.parse
+          import urllib.request
+
+          api = os.environ["CF_API"]
+          account_id = os.environ["ACCOUNT_ID"]
+          zone_id = os.environ["ZONE_ID"]
+          zone_name = os.environ["ZONE_NAME"]
+
+          headers = {
+              "Authorization": "Bearer " + os.environ["CLOUDFLARE_API_TOKEN"].strip(),
+              "Accept": "application/json",
+              "User-Agent": "MUSITU-Axiom-CF-Credential-Diagnostic/3.0",
+          }
+
+          paths = [
+              ("verify", "/user/tokens/verify"),
+              ("zone", "/zones/" + zone_id),
+              ("zone_lookup", "/zones?name=" + urllib.parse.quote(zone_name) + "&status=active"),
+              ("workers_domains", "/accounts/" + account_id + "/workers/domains"),
+              ("kv_namespaces", "/accounts/" + account_id + "/storage/kv/namespaces?per_page=1"),
           ]
-          def probe(headers):
-            out={}
-            for name,path in paths:
-              req=urllib.request.Request(api+path,headers=headers,method="GET")
+
+          results = {}
+
+          for name, path in paths:
+              request = urllib.request.Request(
+                  api + path,
+                  headers=headers,
+                  method="GET",
+              )
               try:
-                with urllib.request.urlopen(req,timeout=30) as r:
-                  body=r.read(4096); code=r.status
-              except urllib.error.HTTPError as e:
-                body=e.read(4096); code=e.code
-              except urllib.error.URLError as e:
-                body=str(e).encode(); code=0
-              try: obj=json.loads(body or b"{}")
-              except Exception: obj={}
-              errs=obj.get("errors") if isinstance(obj,dict) else []
-              msgs=obj.get("messages") if isinstance(obj,dict) else []
-              out[name]={
-                "http":code,
-                "success":obj.get("success"),
-                "errors":[{"code":e.get("code"),"message":e.get("message")} for e in errs if isinstance(e,dict)],
-                "messages":[{"code":m.get("code"),"message":m.get("message")} for m in msgs if isinstance(m,dict)]
+                  with urllib.request.urlopen(request, timeout=30) as response:
+                      body = response.read(4096)
+                      status = response.status
+              except urllib.error.HTTPError as error:
+                  body = error.read(4096)
+                  status = error.code
+              except urllib.error.URLError as error:
+                  body = str(error).encode()
+                  status = 0
+
+              try:
+                  payload = json.loads(body or b"{}")
+              except Exception:
+                  payload = {}
+
+              errors = payload.get("errors") if isinstance(payload, dict) else []
+              messages = payload.get("messages") if isinstance(payload, dict) else []
+
+              results[name] = {
+                  "http": status,
+                  "success": payload.get("success") if isinstance(payload, dict) else None,
+                  "errors": [
+                      {"code": item.get("code"), "message": item.get("message")}
+                      for item in errors
+                      if isinstance(item, dict)
+                  ],
+                  "messages": [
+                      {"code": item.get("code"), "message": item.get("message")}
+                      for item in messages
+                      if isinstance(item, dict)
+                  ],
               }
-            return out
-          legacy_out=probe(legacy); bearer_out=probe(bearer)
-          print(json.dumps({"legacy_x_auth":legacy_out,"bearer_token":bearer_out},indent=2,sort_keys=True))
+
+          print(json.dumps(results, indent=2, sort_keys=True))
+
+          failures = {
+              name: value
+              for name, value in results.items()
+              if value.get("http") != 200 or value.get("success") is not True
+          }
+
+          if failures:
+              print("CLOUDFLARE_API_TOKEN_DIAGNOSTIC_FAIL", file=sys.stderr)
+              print(json.dumps(failures, indent=2, sort_keys=True), file=sys.stderr)
+              sys.exit(1)
+
+          zone_matches = results["zone_lookup"].get("success") is True
+          if not zone_matches:
+              print("Cloudflare zone lookup did not succeed.", file=sys.stderr)
+              sys.exit(1)
+
+          print("MUSITU_AXIOM_CLOUDFLARE_API_TOKEN_DIAGNOSTIC_PASS")
           PY
