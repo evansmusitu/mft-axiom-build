@@ -131,12 +131,15 @@ jobs:
         env:
           CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
           CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           FRONTIER_EVIDENCE_PATH: /tmp/musitu-frontier-live-evidence.json
         shell: bash
         run: |
           set -euo pipefail
-          test -n "$CLOUDFLARE_EMAIL"
-          test -n "$CLOUDFLARE_GLOBAL_API_KEY"
+          if [ -z "$CLOUDFLARE_API_TOKEN" ] && { [ -z "$CLOUDFLARE_EMAIL" ] || [ -z "$CLOUDFLARE_GLOBAL_API_KEY" ]; }; then
+            echo "Cloudflare credentials are not configured"
+            exit 1
+          fi
           PYTHONPATH=. python frontier_v5/scripts/frontier_live_verify.py
 
       - name: Run longitudinal no-regression gate
