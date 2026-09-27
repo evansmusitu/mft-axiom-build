@@ -326,16 +326,42 @@ class AxiomFrontierOrchestrator:
             raise ValueError("PRODUCTION_ENDPOINT_FORBIDDEN")
 
         if preferred_provider is None:
-            preferred_provider, routing_basis = select_initial_provider(
-                self.providers,
-                case=case,
-                min_quality=min_quality,
-                max_latency_ms=max_latency_ms,
-                max_cost_units=max_cost_units,
-                available_scopes=available_scopes,
-                jurisdiction=jurisdiction,
-                required_policy_tags=required_policy_tags,
-            )
+            try:
+                preferred_provider, routing_basis = select_initial_provider(
+                    self.providers,
+                    case=case,
+                    min_quality=min_quality,
+                    max_latency_ms=max_latency_ms,
+                    max_cost_units=max_cost_units,
+                    available_scopes=available_scopes,
+                    jurisdiction=jurisdiction,
+                    required_policy_tags=required_policy_tags,
+                )
+            except NoViableProviderError as exc:
+                return {
+                    "schema": "musitu.axiom.orchestration-result.v1",
+                    "orchestrator": "MUSITU_AXIOM",
+                    "case_id": case["case_id"],
+                    "status": "blocked",
+                    "provider": None,
+                    "mode": "fail_closed",
+                    "passed": False,
+                    "quality_score": None,
+                    "quality_source": "NOT_AVAILABLE",
+                    "output": "",
+                    "attempts": [],
+                    "error": str(exc),
+                    "evidence_sha256": _json_sha256({"case": case, "error": str(exc)}),
+                    "routing_feedback": {
+                        "preferred_provider": None,
+                        "accepted_provider": None,
+                        "routing_basis": "AXIOM_CONSTRAINT_SELECTION",
+                        "min_quality_preserved": float(min_quality),
+                        "regret_signal": True,
+                        "reason": "no_initial_provider",
+                        "promotion_status": "OBSERVATION_ONLY",
+                    },
+                }
         else:
             routing_basis = "caller_constrained_initial_provider"
         request = ProviderRequest(
@@ -405,6 +431,7 @@ class AxiomFrontierOrchestrator:
             "case_id": case["case_id"],
             "preferred_provider": preferred_provider,
             "accepted_provider": accepted,
+            "routing_basis": routing_basis,
             "mode": result.mode,
             "min_quality": float(min_quality),
             "attempts": attempts,
@@ -430,6 +457,7 @@ class AxiomFrontierOrchestrator:
             "routing_feedback": {
                 "preferred_provider": preferred_provider,
                 "accepted_provider": accepted,
+                "routing_basis": routing_basis,
                 "min_quality_preserved": float(min_quality),
                 "regret_signal": regret,
                 "reason": "preferred_accepted" if accepted == preferred_provider and not regret else "preferred_rejected_or_regret",
