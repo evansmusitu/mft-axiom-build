@@ -95,12 +95,12 @@ def call(method,path,body=None):
     if not x.get('success'): raise SystemExit(f'Cloudflare {method} failed')
     return x.get('result')
 rows=call('GET',f"/accounts/{account}/d1/database?name={urllib.parse.quote(os.environ['STAGING_DB'])}&per_page=100") or []
-m=[r for r in rows if r.get('name')=='mft-axiom-staging']
+m=[r for r in rows if r.get('name')==os.environ['STAGING_DB']]
 if len(m)>1: raise SystemExit('Fail-closed: multiple staging D1 databases')
 if not m:
     call('POST',f"/accounts/{account}/d1/database",{'name':os.environ['STAGING_DB'],'primary_location_hint':'eeur','read_replication':{'mode':'disabled'}})
     rows=call('GET',f"/accounts/{account}/d1/database?name={urllib.parse.quote(os.environ['STAGING_DB'])}&per_page=100") or []
-    m=[r for r in rows if r.get('name')=='mft-axiom-staging']
+    m=[r for r in rows if r.get('name')==os.environ['STAGING_DB']]
 if len(m)!=1: raise SystemExit(f'Fail-closed: expected one staging D1, got {len(m)}')
 ident=m[0].get('uuid') or m[0].get('id')
 if not ident: raise SystemExit('D1 identifier unavailable')
@@ -122,7 +122,7 @@ cfg={
  'containers':[{'class_name':'AxiomKernel','image':'./kernel/Dockerfile','max_instances':4,'instance_type':'basic','image_build_context':'.','name':'mft-axiom-staging-kernel'}],
  'durable_objects':{'bindings':[{'name':'AXIOM_KERNEL','class_name':'AxiomKernel'}]},
  'migrations':[{'tag':'axiom-staging-v1','new_sqlite_classes':['AxiomKernel']}],
- 'd1_databases':[{'binding':'AXIOM_DB','database_name':'mft-axiom-staging','database_id':os.environ['D1_ID']}]
+ 'd1_databases':[{'binding':'AXIOM_DB','database_name':os.environ['STAGING_DB'],'database_id':os.environ['D1_ID']}]
 }
 open('wrangler.json','w').write(json.dumps(cfg,indent=2))
 PY
