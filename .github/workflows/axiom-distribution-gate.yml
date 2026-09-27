@@ -1,0 +1,19 @@
+name: AXIOM distribution gate
+
+on:
+  pull_request:
+    branches:
+      - frontier/axiom-orchestrator-integration-20260927
+
+jobs:
+  distribution-gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Python distribution-policy tests
+        run: PYTHONPATH=. python -m multiplatform.tests.test_distribution_profiles
+      - name: JavaScript gateway syntax
+        run: node --check mcp/musitu_axiom_mcp_worker_anthropic.mjs
