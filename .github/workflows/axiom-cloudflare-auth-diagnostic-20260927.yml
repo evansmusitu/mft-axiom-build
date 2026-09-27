@@ -87,8 +87,8 @@ jobs:
               except Exception:
                   payload = {}
 
-              errors = payload.get("errors") if isinstance(payload, dict) else []
-              messages = payload.get("messages") if isinstance(payload, dict) else []
+              errors = (payload.get("errors") or []) if isinstance(payload, dict) else []
+              messages = (payload.get("messages") or []) if isinstance(payload, dict) else []
 
               results[name] = {
                   "http": status,
