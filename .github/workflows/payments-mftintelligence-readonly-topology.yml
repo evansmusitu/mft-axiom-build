@@ -95,3 +95,4 @@ jobs:
             payments-topology.sha256
           retention-days: 14
           if-no-files-found: error
+# 2026-09-27 recovery probe: inspect live payments edge after billing-worker discovery.
