@@ -1,0 +1,6 @@
+MUSITU Axiom OpenAI submission readiness rerun trigger.
+Reason: the proven /docs HTML promotion was committed by github-actions[bot], so GitHub correctly suppressed recursive workflow triggering from GITHUB_TOKEN.
+Production behavior changed by this file: none.
+Expected live docs source commit: 326407d028cfa57f6adf6dbb1a0faba14c798f4b
+WOLFRAM_PARITY=NOT_CERTIFIED
+SUPERIORITY=NOT_CERTIFIED

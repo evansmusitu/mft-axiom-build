@@ -1,0 +1,72 @@
+name: MUSITU Axiom Checkout Persistence Diagnostic
+
+on:
+  push:
+    paths:
+      - '.github/workflows/axiom-billing-checkout-persistence-diagnostic.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      CF_API: https://api.cloudflare.com/client/v4
+      ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      D1_UUID: 504029cc-f9a5-495e-818f-63c6144b4ea4
+    steps:
+      - uses: actions/checkout@v4
+      - name: Rehearse exact checkout D1 writes and clean fixture
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import datetime,hashlib,json,os,urllib.error,urllib.request,uuid
+          api=os.environ['CF_API'];aid=os.environ['ACCOUNT_ID'];dbid=os.environ['D1_UUID']
+          H={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY'],'Accept':'application/json','User-Agent':'MUSITU-Axiom-Checkout-Persistence-Diagnostic/1.0'}
+          def call(path,obj):
+              q=urllib.request.Request(api+path,headers={**H,'Content-Type':'application/json'},method='POST',data=json.dumps(obj,separators=(',',':')).encode())
+              try:
+                  with urllib.request.urlopen(q,timeout=35) as r:return r.status,json.loads(r.read() or b'{}')
+              except urllib.error.HTTPError as e:return e.code,json.loads(e.read() or b'{}')
+          def d1(sql,params=None):
+              obj={'sql':sql}
+              if params is not None:obj['params']=params
+              c,x=call(f'/accounts/{aid}/d1/database/{dbid}/query',obj)
+              if c!=200 or x.get('success') is not True:raise RuntimeError('D1 HTTP/API failure '+str(c)+' '+str(x.get('errors'))[:300])
+              rr=x.get('result') or []
+              if not rr or rr[0].get('success') is not True:raise RuntimeError('D1 statement failure '+str(rr)[:500])
+              return rr[0].get('results') or []
+          s=uuid.uuid4().hex;customer='diag_customer_'+s;key='diag_key_'+s;ref='AXIOM-DIAG-'+s[:16].upper();now=datetime.datetime.now(datetime.timezone.utc).isoformat().replace('+00:00','Z');exp=(datetime.datetime.now(datetime.timezone.utc)+datetime.timedelta(minutes=30)).isoformat().replace('+00:00','Z')
+          evidence={'schema':'musitu.axiom.checkout_persistence_diagnostic.v1','provider_call_performed':False,'real_checkout_created':False};inserted=False;intent=False
+          try:
+              stale=d1("SELECT count(*) AS n FROM customers WHERE email LIKE 'axiom-checkout-fixture-%@invalid.example'");evidence['stale_prior_fixture_customers']=int(stale[0]['n'])
+              d1('INSERT INTO customers(id,email,name,plan,status,monthly_unit_override,created_at,updated_at) VALUES(?1,?2,?3,?4,?5,NULL,?6,?6)',[customer,'diag-'+s+'@invalid.example','MUSITU checkout diagnostic','developer','active',now]);inserted=True
+              d1('INSERT INTO api_keys(id,customer_id,key_hash,key_prefix,label,status,created_at,last_used_at,expires_at,revoked_at) VALUES(?1,?2,?3,?4,?5,?6,?7,NULL,?8,NULL)',[key,customer,hashlib.sha256(('dummy-'+s).encode()).hexdigest(),'dummy-'+s[:10],'checkout-persistence-diagnostic','active',now,exp])
+              d1("INSERT INTO billing_checkout_intents(reference,customer_id,plan,amount_cents,currency,monthly_unit_limit,status,browser_url,poll_url,paynow_reference,created_at,expires_at,updated_at,completed_at) VALUES(?1,?2,?3,?4,?5,?6,'initiating',NULL,NULL,NULL,?7,?8,?7,NULL)",[ref,customer,'developer',1900,'USD',1000,now,exp]);intent=True
+              rows=d1('SELECT plan,amount_cents,currency,monthly_unit_limit,status FROM billing_checkout_intents WHERE reference=?1',[ref]);evidence['persisted_row']=rows[0] if rows else None
+              if evidence['persisted_row']!={'plan':'developer','amount_cents':1900,'currency':'USD','monthly_unit_limit':1000,'status':'initiating'}:raise RuntimeError('persisted intent mismatch')
+              evidence['exact_checkout_insert_pass']=True;evidence['gate']='AXIOM_CHECKOUT_PERSISTENCE_DIAGNOSTIC_PASS'
+          finally:
+              if intent:d1('DELETE FROM billing_checkout_intents WHERE reference=?1',[ref])
+              if inserted:
+                  d1('DELETE FROM api_keys WHERE id=?1',[key]);d1('DELETE FROM customers WHERE id=?1',[customer])
+              rem=d1('SELECT (SELECT count(*) FROM customers WHERE id=?1)+(SELECT count(*) FROM api_keys WHERE id=?2)+(SELECT count(*) FROM billing_checkout_intents WHERE reference=?3) AS n',[customer,key,ref]);evidence['fixture_rows_remaining']=int(rem[0]['n'])
+          if evidence.get('gate')!='AXIOM_CHECKOUT_PERSISTENCE_DIAGNOSTIC_PASS' or evidence['fixture_rows_remaining']!=0:raise RuntimeError('diagnostic gate or cleanup failed')
+          raw=(json.dumps(evidence,indent=2,sort_keys=True)+'\n').encode();open('checkout-persistence-diagnostic.json','wb').write(raw);dg=hashlib.sha256(raw).hexdigest();open('checkout-persistence-diagnostic.sha256','w').write(dg+'  checkout-persistence-diagnostic.json\n')
+          print(json.dumps({'gate':evidence['gate'],'exact_checkout_insert_pass':True,'stale_prior_fixture_customers':evidence['stale_prior_fixture_customers'],'fixture_rows_remaining':0,'provider_call_performed':False,'evidence_sha256':dg},sort_keys=True))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: musitu-axiom-checkout-persistence-diagnostic
+          path: |
+            checkout-persistence-diagnostic.json
+            checkout-persistence-diagnostic.sha256
+          retention-days: 14
+          if-no-files-found: error

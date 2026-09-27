@@ -1,0 +1,66 @@
+name: MUSITU Axiom arithmetic.evaluate Contract Read-Only
+
+on:
+  push:
+    paths:
+      - '.github/workflows/axiom-arithmetic-evaluate-contract-readonly.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    env:
+      CF_API: https://api.cloudflare.com/client/v4
+      ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      BACKEND: mft-axiom-modal-edge-stage
+    steps:
+      - uses: actions/checkout@v4
+      - name: Extract argument identifiers only
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import email,hashlib,json,os,re,urllib.parse,urllib.request
+          api=os.environ['CF_API'];aid=os.environ['ACCOUNT_ID'];w=os.environ['BACKEND']
+          H={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY'],'User-Agent':'MUSITU-Axiom-Arithmetic-Evaluate-Contract/1.0'}
+          q=urllib.request.Request(f'{api}/accounts/{aid}/workers/scripts/{urllib.parse.quote(w,safe="")}',headers=H)
+          with urllib.request.urlopen(q,timeout=45) as r:raw=r.read();ct=r.headers.get('content-type','')
+          src=raw
+          if 'multipart/' in ct.lower():
+              msg=email.message_from_bytes((f'Content-Type: {ct}\r\nMIME-Version: 1.0\r\n\r\n').encode()+raw);parts=[]
+              for p in msg.walk():
+                  if p.is_multipart():continue
+                  d=p.get_payload(decode=True) or b''
+                  if b'arithmetic.evaluate' in d:parts.append(d)
+              if len(parts)!=1:raise SystemExit(f'Fail-closed module count {len(parts)}')
+              src=parts[0]
+          text=src.decode('utf-8','ignore');positions=[m.start() for m in re.finditer(r'arithmetic\.evaluate',text)]
+          if not positions:raise SystemExit('Fail-closed operation absent')
+          wins='\n'.join(text[max(0,i-3500):min(len(text),i+6500)] for i in positions)
+          props=sorted(set(re.findall(r'\bargs\.([A-Za-z_$][A-Za-z0-9_$]*)',wins)))
+          bracket=sorted(set(re.findall(r'\bargs\[["\']([A-Za-z_$][A-Za-z0-9_$]*)["\']\]',wins)))
+          destruct=[]
+          for m in re.finditer(r'\{([^{}]{1,800})\}\s*=\s*args\b',wins,re.S):
+              for p in m.group(1).split(','):
+                  k=p.strip().split(':',1)[0].split('=',1)[0].strip()
+                  if re.fullmatch(r'[A-Za-z_$][A-Za-z0-9_$]*',k):destruct.append(k)
+          literals=sorted(set(re.findall(r'["\']([A-Za-z_$][A-Za-z0-9_$]{1,60})["\']\s+in\s+args',wins)))
+          out={'schema':'musitu.axiom.arithmetic_evaluate_contract.v1','operation':'arithmetic.evaluate','arg_property_names':sorted(set(props+bracket+destruct+literals)),'operation_occurrences':len(positions),'source_sha256':hashlib.sha256(src).hexdigest(),'source_published':False,'secret_values_read':False,'mutation_performed':False,'gate':'AXIOM_ARITHMETIC_EVALUATE_CONTRACT_READ_PASS'}
+          raw=(json.dumps(out,indent=2,sort_keys=True)+'\n').encode();open('arithmetic-evaluate-contract.json','wb').write(raw);dg=hashlib.sha256(raw).hexdigest();open('arithmetic-evaluate-contract.sha256','w').write(dg+'  arithmetic-evaluate-contract.json\n')
+          print(json.dumps({**out,'evidence_sha256':dg},sort_keys=True))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: musitu-axiom-arithmetic-evaluate-contract
+          path: |
+            arithmetic-evaluate-contract.json
+            arithmetic-evaluate-contract.sha256
+          retention-days: 14
+          if-no-files-found: error

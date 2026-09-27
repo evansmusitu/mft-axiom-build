@@ -1,0 +1,29 @@
+{
+  "version": "v5.0-dev",
+  "required_suites": [
+    "metadata",
+    "packaging",
+    "proof-envelope",
+    "scenario-grid",
+    "promotion-fail-closed"
+  ],
+  "negative_tests": [
+    "missing proof fields must fail",
+    "promotion missing any required PASS must fail",
+    "unknown skill requested for packaging must fail",
+    "self-attested comparative evidence must not become Evidence Level 5",
+    "structural external-comparison readiness must not authorize a leadership or superiority claim"
+  ],
+  "comparative_evidence": {
+    "structural_gate": "frontier_v5/runtime/external_comparative.py::ExternalComparativeGate",
+    "claim_boundary": "frontier_v5/runtime/external_claim_boundary.py::ExternalComparativeClaimBoundary",
+    "baseline_registry": "frontier_v5/evals/EXTERNAL_BASELINE_REGISTRY.json",
+    "level_5_rule": "Requires authenticated external execution evidence from strong current systems on the same sealed unseen cases and materially comparable constraints. Repository-local labels, hashes, URLs, synthetic fixtures and self-attested booleans are insufficient.",
+    "level_6_rule": "Requires independent end-to-end reproduction or validation in addition to Level 5 evidence.",
+    "level_7_rule": "Requires continuing longitudinal frontier maintenance with refreshed baselines, failure retention, drift detection and governed replacement.",
+    "current_level_5": "NOT_VERIFIED",
+    "current_level_6": "NOT_VERIFIED",
+    "current_level_7": "NOT_VERIFIED"
+  },
+  "claims": "No parity, superiority, global-frontier, world-best or five-calendar-year-leadership claim is authorized by repository-local CI alone. Such claims require the evidence level appropriate to the exact claim."
+}

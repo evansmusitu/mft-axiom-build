@@ -1,0 +1,154 @@
+name: MUSITU Axiom Paynow Billing Contract Read-Only
+
+on:
+  push:
+    paths:
+      - '.github/workflows/axiom-paynow-billing-contract-readonly.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      CF_API: https://api.cloudflare.com/client/v4
+      ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      ZONE_ID: 5b56528f03948ff5917a5e0cd9f7109e
+      PAYMENTS_HOST: payments.mftintelligence.com
+      PAYNOW_WORKER: mft-paynow-transport-gateway
+    steps:
+      - uses: actions/checkout@v4
+      - name: Reconstruct authoritative runtime and inspect billing contracts read-only
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$CLOUDFLARE_EMAIL"
+          test -n "$CLOUDFLARE_GLOBAL_API_KEY"
+          P=deploy_payload/runtime_min
+          cat "$P/chunk_00.b64" "$P/chunk_01_02.b64" "$P/chunk_03_04.b64" "$P/chunk_05_06.b64" "$P/chunk_07_08.b64" "$P/chunk_09.b64" > runtime.enc.b64
+          base64 -d runtime.enc.b64 > runtime.tar.gz.enc
+          test "$(sha256sum runtime.tar.gz.enc | awk '{print $1}')" = 'b82448d6b4b34b302748815af976b535d69922c197d4b7a9056fc2f91a9e12cf'
+          python - <<'PY'
+          import hashlib,hmac,os
+          data=open('runtime.tar.gz.enc','rb').read()
+          got=hmac.new(os.environ['CLOUDFLARE_GLOBAL_API_KEY'].encode(),data,hashlib.sha256).hexdigest()
+          if not hmac.compare_digest(got,'1a3193d4f3271d61d151e6ebd7cf4576d8ab86c2e79b84eff4ad0f635fe7ab47'):
+              raise SystemExit('Fail-closed: ciphertext HMAC mismatch')
+          PY
+          openssl enc -d -aes-256-cbc -pbkdf2 -iter 250000 -in runtime.tar.gz.enc -out runtime.tar.gz -pass env:CLOUDFLARE_GLOBAL_API_KEY
+          test "$(sha256sum runtime.tar.gz | awk '{print $1}')" = 'b4d5a0266446523969a619f5e9bb5a04d9b815c78a2ab82ed046ef5e23d53663'
+          mkdir runtime
+          tar -xzf runtime.tar.gz -C runtime
+          test "$(sha256sum runtime/migrations/0001_revenue_core.sql | awk '{print $1}')" = 'efc2817e42fbba2efa0471ca5a10758b858540beff819ef6c054edd87ab93379'
+          python - <<'PY'
+          import hashlib,json,os,re,sqlite3,urllib.error,urllib.request
+
+          # Derive the authoritative D1 schema locally from the sealed migration.
+          con=sqlite3.connect(':memory:')
+          migration=open('runtime/migrations/0001_revenue_core.sql',encoding='utf-8').read()
+          con.executescript(migration)
+          tables=['customers','api_keys','billing_subscriptions','webhook_events','usage_events','usage_buckets']
+          columns={t:[r[1] for r in con.execute(f'PRAGMA table_info("{t}")').fetchall()] for t in tables}
+          fks={t:[{'from':r[3],'to_table':r[2],'to':r[4]} for r in con.execute(f'PRAGMA foreign_key_list("{t}")').fetchall()] for t in tables}
+          indexes=sorted(r[0] for r in con.execute("SELECT name FROM sqlite_master WHERE type='index' AND name NOT LIKE 'sqlite_%' ORDER BY name").fetchall())
+
+          # Inspect sealed runtime only for non-secret route/provider interface metadata.
+          billing_files=[]; runtime_routes=set(); env_names=set()
+          for root,_,files in os.walk('runtime'):
+              for fn in files:
+                  if not fn.endswith(('.py','.js','.ts','.mjs','.cjs')): continue
+                  p=os.path.join(root,fn)
+                  try: txt=open(p,encoding='utf-8').read()
+                  except Exception: continue
+                  low=txt.lower()
+                  if 'stripe' in low or '/v1/billing' in low or 'billing_subscriptions' in low:
+                      billing_files.append(os.path.relpath(p,'runtime'))
+                      runtime_routes.update(re.findall(r"['\"](\/v1\/billing[^'\"\s]*)['\"]",txt))
+                      env_names.update(re.findall(r"\b(?:STRIPE|AXIOM)_[A-Z0-9_]+\b",txt))
+
+          api=os.environ['CF_API']; aid=os.environ['ACCOUNT_ID']; zid=os.environ['ZONE_ID']; worker=os.environ['PAYNOW_WORKER']
+          headers={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY'],'User-Agent':'MUSITU-Axiom-Paynow-Contract-Audit/1.0'}
+          def cf(path):
+              q=urllib.request.Request(api+path,headers=headers,method='GET')
+              try:
+                  with urllib.request.urlopen(q,timeout=45) as r: return r.status,r.headers,r.read()
+              except urllib.error.HTTPError as e: return e.code,e.headers,e.read()
+          code,hdr,raw=cf(f'/accounts/{aid}/workers/scripts/{worker}/settings')
+          if code!=200: raise SystemExit(f'Fail-closed Paynow settings HTTP {code}')
+          settings=json.loads(raw or b'{}')
+          if settings.get('success') is not True: raise SystemExit('Fail-closed Paynow settings success=false')
+          bindings=(settings.get('result') or {}).get('bindings') or []
+          binding_names=sorted(str(b.get('name')) for b in bindings if isinstance(b,dict) and b.get('name'))
+          binding_types=sorted({str(b.get('type')) for b in bindings if isinstance(b,dict) and b.get('type')})
+
+          code,hdr,script=cf(f'/accounts/{aid}/workers/scripts/{worker}')
+          if code!=200: raise SystemExit(f'Fail-closed Paynow script HTTP {code}')
+          text=script.decode('utf-8','ignore')
+          # Only report path-like literals and HTTP method tokens; never report arbitrary literals or source.
+          path_candidates=sorted({m for m in re.findall(r"['\"](\/[A-Za-z0-9_./{}:-]{1,100})['\"]",text) if not m.startswith('//')})
+          method_tokens=sorted(set(re.findall(r"\b(GET|POST|PUT|PATCH|DELETE|OPTIONS|HEAD)\b",text)))
+          provider_tokens=sorted(set(x.lower() for x in re.findall(r"\b(Paynow|EcoCash|OneMoney|Visa|Mastercard)\b",text,re.I)))
+
+          # Confirm custom-domain ownership and existing hostname behavior without mutation.
+          code,hdr,raw=cf(f'/accounts/{aid}/workers/domains')
+          if code!=200: raise SystemExit(f'Fail-closed workers domains HTTP {code}')
+          domains=json.loads(raw or b'{}')
+          matches=[d for d in (domains.get('result') or []) if d.get('hostname')==os.environ['PAYMENTS_HOST']]
+          if len(matches)!=1 or matches[0].get('service')!=worker:
+              raise SystemExit('Fail-closed payments hostname mapping drift')
+
+          public_probe={}
+          for p in ['/','/health']:
+              req=urllib.request.Request('https://'+os.environ['PAYMENTS_HOST']+p,headers={'Accept':'application/json','User-Agent':'MUSITU-Axiom-Paynow-Contract-Audit/1.0'},method='GET')
+              try:
+                  with urllib.request.urlopen(req,timeout=30) as r: body=r.read(); status=r.status
+              except urllib.error.HTTPError as e: body=e.read(); status=e.code
+              keys=[]
+              try:
+                  obj=json.loads(body or b'{}')
+                  if isinstance(obj,dict): keys=sorted(str(k) for k in obj.keys())
+              except Exception: pass
+              public_probe[p]={'status':status,'json_keys':keys}
+
+          out={
+              'schema':'musitu.axiom.paynow_billing_contract_readonly.v1',
+              'payments_host':os.environ['PAYMENTS_HOST'],
+              'paynow_worker':worker,
+              'custom_domain_mapping':'PASS',
+              'paynow_binding_names':binding_names,
+              'paynow_binding_types':binding_types,
+              'paynow_path_candidates':path_candidates,
+              'paynow_http_method_tokens':method_tokens,
+              'paynow_provider_tokens':provider_tokens,
+              'public_get_probe':public_probe,
+              'axiom_billing_files':sorted(set(billing_files)),
+              'axiom_billing_routes':sorted(runtime_routes),
+              'axiom_billing_env_names':sorted(env_names),
+              'd1_table_columns':columns,
+              'd1_foreign_keys':fks,
+              'd1_index_names':indexes,
+              'source_code_published':False,
+              'secret_values_read_or_logged':False,
+              'mutation_performed':False,
+              'gate':'AXIOM_PAYNOW_BILLING_CONTRACT_READ_PASS'
+          }
+          raw=(json.dumps(out,indent=2,sort_keys=True)+'\n').encode()
+          open('axiom-paynow-billing-contract.json','wb').write(raw)
+          digest=hashlib.sha256(raw).hexdigest()
+          open('axiom-paynow-billing-contract.sha256','w').write(digest+'  axiom-paynow-billing-contract.json\n')
+          print(json.dumps({'gate':out['gate'],'payments_host':out['payments_host'],'paynow_worker':worker,'paynow_binding_names':binding_names,'paynow_binding_types':binding_types,'paynow_path_candidates':path_candidates,'paynow_http_method_tokens':method_tokens,'paynow_provider_tokens':provider_tokens,'public_get_probe':public_probe,'axiom_billing_routes':out['axiom_billing_routes'],'axiom_billing_env_names':out['axiom_billing_env_names'],'d1_table_columns':columns,'d1_foreign_keys':fks,'d1_index_names':indexes,'source_code_published':False,'secret_values_logged':False,'mutation_performed':False,'sha256':digest},sort_keys=True))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: musitu-axiom-paynow-billing-contract-readonly
+          path: |
+            axiom-paynow-billing-contract.json
+            axiom-paynow-billing-contract.sha256
+          retention-days: 14
+          if-no-files-found: error

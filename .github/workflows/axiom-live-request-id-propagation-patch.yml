@@ -1,0 +1,146 @@
+name: MUSITU Axiom Live Request ID Propagation Patch
+
+on:
+  push:
+    paths:
+      - '.github/workflows/axiom-live-request-id-propagation-patch.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: musitu-axiom-live-request-id-propagation-patch
+  cancel-in-progress: false
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    env:
+      CF_API: https://api.cloudflare.com/client/v4
+      ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      BACKEND: mft-axiom-modal-edge-stage
+      EDGE: https://axiom-stage.mftintelligence.com
+      EXPECTED_BUILD: MFT-AXIOM-V3-FULL-SELF-CONTAINED-20260904
+      EXPECTED_SOURCE_SHA256: a19212c5efc5651c8551ad6ed72370b7cc6da51009f9de6c8c9442fd04d61c13
+      MAIN_MODULE: musitu.js
+    steps:
+      - uses: actions/checkout@v4
+      - name: Apply one-literal request ID propagation patch with rollback protection
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import email,hashlib,json,os,re,secrets,subprocess,time,urllib.error,urllib.parse,urllib.request
+          api=os.environ['CF_API'];aid=os.environ['ACCOUNT_ID'];worker=os.environ['BACKEND'];edge=os.environ['EDGE'];build=os.environ['EXPECTED_BUILD'];expected=os.environ['EXPECTED_SOURCE_SHA256'];main=os.environ['MAIN_MODULE']
+          H={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY'],'Accept':'application/json','User-Agent':'MUSITU-Axiom-Request-ID-Propagation-Patch/1.0'}
+          def req(url,method='GET',headers=None,body=None,timeout=45):
+              q=urllib.request.Request(url,headers=dict(headers or {}),method=method,data=body)
+              try:
+                  with urllib.request.urlopen(q,timeout=timeout) as r:return r.status,r.headers,r.read()
+              except urllib.error.HTTPError as e:return e.code,e.headers,e.read()
+          def script_get():
+              c,h,b=req(f'{api}/accounts/{aid}/workers/scripts/{urllib.parse.quote(worker,safe="")}',headers=H)
+              if not 200<=c<300:raise RuntimeError(f'worker GET HTTP {c}')
+              return b,h.get('content-type','')
+          def extract_module(raw,ctype):
+              if 'multipart/' not in (ctype or '').lower():return raw,None
+              msg=email.message_from_bytes((f'Content-Type: {ctype}\r\nMIME-Version: 1.0\r\n\r\n').encode()+raw);parts=[]
+              for p in msg.walk():
+                  if p.is_multipart():continue
+                  d=p.get_payload(decode=True) or b'';name=p.get_param('name',header='Content-Disposition')
+                  if b'recordUsage' in d and b'/v1/compute' in d:parts.append((d,name))
+              if len(parts)!=1:raise RuntimeError('expected exactly one executable module, got '+str(len(parts)))
+              return parts[0]
+          def multipart(source):
+              boundary='----MUSITU'+secrets.token_hex(18);p=[]
+              def add(v):p.append(v.encode() if isinstance(v,str) else v)
+              add(f'--{boundary}\r\nContent-Disposition: form-data; name="metadata"\r\nContent-Type: application/json\r\n\r\n')
+              add(json.dumps({'main_module':main},separators=(',',':')));add('\r\n')
+              add(f'--{boundary}\r\nContent-Disposition: form-data; name="{main}"; filename="{main}"\r\nContent-Type: application/javascript+module\r\n\r\n')
+              add(source);add('\r\n');add(f'--{boundary}--\r\n')
+              return boundary,b''.join(p)
+          def upload_content(source):
+              boundary,body=multipart(source);h=dict(H);h['Content-Type']='multipart/form-data; boundary='+boundary
+              c,_,b=req(f'{api}/accounts/{aid}/workers/scripts/{urllib.parse.quote(worker,safe="")}/content','PUT',h,body)
+              if not 200<=c<300:raise RuntimeError(f'content PUT HTTP {c}: '+b[:300].decode('utf-8','ignore'))
+          def binding_shape():
+              c,_,b=req(f'{api}/accounts/{aid}/workers/scripts/{urllib.parse.quote(worker,safe="")}/settings',headers=H)
+              if not 200<=c<300:raise RuntimeError(f'settings HTTP {c}')
+              x=json.loads(b or b'{}');r=x.get('result') or {};bs=r.get('bindings') or []
+              return sorted((str(z.get('name') or ''),str(z.get('type') or ''),str(z.get('service') or ''),str(z.get('id') or '')) for z in bs if isinstance(z,dict))
+          def public(path,method='GET',body=None,headers=None):
+              h={'Accept':'application/json','User-Agent':'MUSITU-Axiom-Request-ID-Propagation-Patch/1.0'};h.update(headers or {})
+              if body is not None:h['Content-Type']='application/json'
+              c,hh,b=req(edge+path,method,h,body,30)
+              try:o=json.loads(b or b'{}')
+              except:o={}
+              return c,hh,o
+          original_raw,ctype=script_get();original_module,live_name=extract_module(original_raw,ctype);original_sha=hashlib.sha256(original_module).hexdigest()
+          if original_sha!=expected:raise RuntimeError('live source hash changed; refusing stale patch')
+          if live_name!=main:raise RuntimeError('live module name changed; refusing stale patch')
+          before_bindings=binding_shape();text=original_module.decode('utf-8')
+          decls=[]
+          for m in re.finditer(r'\b(?:const|let|var)\s+requestId\s*=\s*([^;\n]+)',text):
+              rhs=m.group(1)
+              if re.search(r'crypto\s*\.\s*randomUUID\s*\(',rhs):decls.append((m,rhs))
+          if len(decls)!=1:raise RuntimeError('requestId UUID-bearing declaration count '+str(len(decls)))
+          decl,rhs=decls[0]
+          legacy=list(re.finditer(r'\brequest\s*\.\s*headers\s*\.\s*get\s*\(\s*(["\'])x-request-id\1\s*\)',rhs,re.I))
+          canonical=list(re.finditer(r'\brequest\s*\.\s*headers\s*\.\s*get\s*\(\s*(["\'])x-musitu-request-id\1\s*\)',rhs,re.I))
+          if len(legacy)!=1 or canonical:raise RuntimeError(f'unexpected requestId header contract legacy={len(legacy)} canonical={len(canonical)}')
+          lm=legacy[0];rhs2=rhs[:lm.start()]+re.sub(r'x-request-id','x-musitu-request-id',lm.group(0),count=1,flags=re.I)+rhs[lm.end():]
+          patched_text=text[:decl.start(1)]+rhs2+text[decl.end(1):]
+          if patched_text.count('x-musitu-request-id')!=text.count('x-musitu-request-id')+1:raise RuntimeError('canonical header literal delta mismatch')
+          # Prove only the initializer RHS changed semantically.
+          changed=[i for i,(a,b) in enumerate(zip(text,patched_text)) if a!=b]
+          if not changed:raise RuntimeError('no source change produced')
+          patched_module=patched_text.encode();open('patched-live-module.mjs','wb').write(patched_module)
+          subprocess.run(['node','--check','patched-live-module.mjs'],check=True,stdout=subprocess.DEVNULL,stderr=subprocess.PIPE)
+          # Structural post-patch proof before deployment.
+          post_decls=[]
+          for m in re.finditer(r'\b(?:const|let|var)\s+requestId\s*=\s*([^;\n]+)',patched_text):
+              rr=m.group(1)
+              if re.search(r'crypto\s*\.\s*randomUUID\s*\(',rr):post_decls.append(rr)
+          if len(post_decls)!=1:raise RuntimeError('post-patch requestId declaration count mismatch')
+          prhs=post_decls[0]
+          if len(re.findall(r'\brequest\s*\.\s*headers\s*\.\s*get\s*\(\s*(["\'])x-musitu-request-id\1\s*\)',prhs,re.I))!=1:raise RuntimeError('canonical header not present exactly once in initializer')
+          if re.search(r'\brequest\s*\.\s*headers\s*\.\s*get\s*\(\s*(["\'])x-request-id\1\s*\)',prhs,re.I):raise RuntimeError('legacy request header remains in initializer')
+          patched_sha=hashlib.sha256(patched_module).hexdigest();mutated=False;evidence={}
+          try:
+              upload_content(patched_module);mutated=True;time.sleep(2)
+              live_raw,live_ct=script_get();live_module,post_name=extract_module(live_raw,live_ct);live_sha=hashlib.sha256(live_module).hexdigest()
+              if post_name!=main or live_sha!=patched_sha:raise RuntimeError('post-PUT source verification failed')
+              ltext=live_module.decode('utf-8');live_decls=[]
+              for m in re.finditer(r'\b(?:const|let|var)\s+requestId\s*=\s*([^;\n]+)',ltext):
+                  rr=m.group(1)
+                  if re.search(r'crypto\s*\.\s*randomUUID\s*\(',rr):live_decls.append(rr)
+              if len(live_decls)!=1 or 'x-musitu-request-id' not in live_decls[0].lower() or 'x-request-id' in live_decls[0].lower().replace('x-musitu-request-id',''):raise RuntimeError('live requestId contract verification failed')
+              if binding_shape()!=before_bindings:raise RuntimeError('binding shape changed during content-only patch')
+              c,_,health=public('/health')
+              if c!=200 or health.get('ok') is not True or health.get('build_id')!=build or int(health.get('operation_count') or -1)!=74:raise RuntimeError('stage health regression after patch')
+              uc,_,_=public('/v1/compute','POST',json.dumps({'operation':'arithmetic.evaluate','args':{'expression':'40+2'}},separators=(',',':')).encode(),{'x-musitu-request-id':'MUSITU-REQUEST-ID-PATCH-UNAUTH'})
+              if uc!=401:raise RuntimeError('unauth compute contract regression HTTP '+str(uc))
+              evidence={'schema':'musitu.axiom.live_request_id_propagation_patch.v1','gate':'AXIOM_LIVE_REQUEST_ID_PROPAGATION_PATCH_PASS','worker':worker,'main_module':main,'original_source_sha256':original_sha,'patched_source_sha256':patched_sha,'request_id_initializer_reads':'x-musitu-request-id','random_uuid_fallback_preserved':True,'legacy_x_request_id_removed_from_initializer':True,'binding_shape_preserved':True,'worker_secret_mutation':False,'binding_mutation':False,'stage_health_http':c,'build_id':health.get('build_id'),'operation_count':health.get('operation_count'),'unauth_compute_http':uc,'rollback_performed':False,'plaintext_source_published':False,'secret_values_published':False}
+          except Exception:
+              if mutated:
+                  upload_content(original_module);time.sleep(1)
+                  rb_raw,rb_ct=script_get();rb_module,rb_name=extract_module(rb_raw,rb_ct)
+                  if rb_name!=main or hashlib.sha256(rb_module).hexdigest()!=original_sha:raise RuntimeError('rollback source verification failed')
+                  if binding_shape()!=before_bindings:raise RuntimeError('rollback binding verification failed')
+              raise
+          raw=(json.dumps(evidence,indent=2,sort_keys=True)+'\n').encode();open('request-id-propagation-patch.json','wb').write(raw);dg=hashlib.sha256(raw).hexdigest();open('request-id-propagation-patch.sha256','w').write(dg+'  request-id-propagation-patch.json\n')
+          print(json.dumps({**evidence,'evidence_sha256':dg},sort_keys=True))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: musitu-axiom-live-request-id-propagation-patch
+          path: |
+            request-id-propagation-patch.json
+            request-id-propagation-patch.sha256
+          retention-days: 30
+          if-no-files-found: error

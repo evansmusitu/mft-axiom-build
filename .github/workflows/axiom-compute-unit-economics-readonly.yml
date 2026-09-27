@@ -1,0 +1,77 @@
+name: MUSITU Axiom Compute Unit Economics Read-Only
+
+on:
+  push:
+    paths:
+      - '.github/workflows/axiom-compute-unit-economics-readonly.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      CF_API: https://api.cloudflare.com/client/v4
+      ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      BACKEND: mft-axiom-modal-edge-stage
+    steps:
+      - uses: actions/checkout@v4
+      - name: Extract metering formula metadata only
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import email,hashlib,json,os,re,urllib.parse,urllib.request
+          api=os.environ['CF_API']; aid=os.environ['ACCOUNT_ID']; w=os.environ['BACKEND']
+          H={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY'],'User-Agent':'MUSITU-Axiom-Compute-Unit-Economics/1.0'}
+          q=urllib.request.Request(f'{api}/accounts/{aid}/workers/scripts/{urllib.parse.quote(w,safe="")}',headers=H)
+          with urllib.request.urlopen(q,timeout=45) as r:raw=r.read();ct=r.headers.get('content-type','')
+          src=raw
+          if 'multipart/' in ct.lower():
+              msg=email.message_from_bytes((f'Content-Type: {ct}\r\nMIME-Version: 1.0\r\n\r\n').encode()+raw);parts=[]
+              for p in msg.walk():
+                  if p.is_multipart():continue
+                  d=p.get_payload(decode=True) or b''
+                  if any(x in d for x in (b'fetch(',b'export default',b'addEventListener')):parts.append(d)
+              if len(parts)!=1:raise SystemExit(f'Fail-closed executable module count {len(parts)}')
+              src=parts[0]
+          text=src.decode('utf-8','ignore');low=text.lower();windows=[]
+          for needle in ('compute_units','used_units','unit_limit'):
+              start=0
+              while True:
+                  i=low.find(needle,start)
+                  if i<0:break
+                  windows.append(text[max(0,i-1200):min(len(text),i+1800)]);start=i+len(needle)
+          joined='\n'.join(windows)
+          # Only structural/numeric metadata; never publish code or secrets.
+          numeric_assignments=[]
+          for m in re.finditer(r'\b([A-Za-z_][A-Za-z0-9_]*(?:unit|units|cost|weight)[A-Za-z0-9_]*)\s*=\s*(\d{1,9})\b',joined,re.I):
+              numeric_assignments.append({'symbol':m.group(1),'value':int(m.group(2))})
+          object_pairs=[]
+          for m in re.finditer(r'["\']?([A-Za-z][A-Za-z0-9_.:-]{1,80})["\']?\s*:\s*(\d{1,7})',joined):
+              k=m.group(1);v=int(m.group(2))
+              if any(x in k.lower() for x in ('arithmetic','matrix','statistics','finance','market','compute','default','unit','tool','operation')):object_pairs.append({'key':k,'value':v})
+          formulas={
+            'has_constant_one_compute_unit':bool(re.search(r'compute_units\s*[:=]\s*1\b',joined,re.I)),
+            'increments_used_by_compute_units':bool(re.search(r'used_units[^;\n]{0,180}\+[^;\n]{0,80}compute_units',joined,re.I)),
+            'uses_operation_weight_mapping':bool(re.search(r'(?:operation|tool)[A-Za-z0-9_]*\s*\[',joined,re.I) or re.search(r'(?:weight|cost)[A-Za-z0-9_]*\s*\[',joined,re.I)),
+            'monthly_override_supported':'monthly_unit_override' in low,
+          }
+          out={'schema':'musitu.axiom.compute_unit_economics.v1','source_sha256':hashlib.sha256(src).hexdigest(),'numeric_assignments':numeric_assignments[:50],'mapping_pairs':object_pairs[:100],'formula_flags':formulas,'secret_values_read':False,'mutation_performed':False,'source_published':False,'gate':'AXIOM_COMPUTE_UNIT_ECONOMICS_READ_PASS'}
+          blob=(json.dumps(out,indent=2,sort_keys=True)+'\n').encode();open('compute-unit-economics.json','wb').write(blob);dg=hashlib.sha256(blob).hexdigest();open('compute-unit-economics.sha256','w').write(dg+'  compute-unit-economics.json\n')
+          print(json.dumps({**out,'evidence_sha256':dg},sort_keys=True))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: musitu-axiom-compute-unit-economics
+          path: |
+            compute-unit-economics.json
+            compute-unit-economics.sha256
+          retention-days: 14
+          if-no-files-found: error

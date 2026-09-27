@@ -1,0 +1,71 @@
+name: MUSITU Axiom Phase-8 Dispatch Shape Read-Only
+
+on:
+  push:
+    paths:
+      - '.github/workflows/axiom-phase8-dispatch-shape-readonly.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      CF_API: https://api.cloudflare.com/client/v4
+      ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      AUTHORITY: mft-phase8-external-authority
+    steps:
+      - uses: actions/checkout@v4
+      - name: Classify dispatch syntax without publishing source
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import email,hashlib,json,os,re,urllib.parse,urllib.request
+          api=os.environ['CF_API'];aid=os.environ['ACCOUNT_ID'];w=os.environ['AUTHORITY']
+          H={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY'],'User-Agent':'MUSITU-Axiom-Dispatch-Shape/1.0'}
+          q=urllib.request.Request(f'{api}/accounts/{aid}/workers/scripts/{urllib.parse.quote(w,safe="")}',headers=H)
+          with urllib.request.urlopen(q,timeout=45) as r:raw=r.read();ct=r.headers.get('content-type','')
+          src=raw
+          if 'multipart/' in ct.lower():
+              msg=email.message_from_bytes((f'Content-Type: {ct}\r\nMIME-Version: 1.0\r\n\r\n').encode()+raw);parts=[]
+              for p in msg.walk():
+                  if p.is_multipart():continue
+                  d=p.get_payload(decode=True) or b''
+                  if b'/internal/paynow/verify-callback' in d:parts.append(d)
+              if len(parts)!=1:raise SystemExit(f'Fail-closed module count {len(parts)}')
+              src=parts[0]
+          text=src.decode('utf-8','ignore')
+          funcs=sorted(set(re.findall(r'(?:async\s+)?function\s+([A-Za-z_$][A-Za-z0-9_$]*)\s*\(([^)]*)\)',text)))
+          safe_funcs=[{'name':n,'argc':len([x for x in a.split(',') if x.strip()])} for n,a in funcs if n.lower() in {'fetch','handlerequest','handle','router','route','dispatch','authorized','authorizedlegacy'} or 'request' in n.lower() or 'dispatch' in n.lower()]
+          shapes={
+            'method_async_fetch':bool(re.search(r'async\s+fetch\s*\(',text)),
+            'property_fetch_async_arrow':bool(re.search(r'fetch\s*:\s*async\s*\(',text)),
+            'property_fetch_function':bool(re.search(r'fetch\s*:\s*(?:async\s+)?function\s*\(',text)),
+            'export_default_fetch_identifier':bool(re.search(r'export\s+default\s*\{[^}]*\bfetch\s*:',text,re.S)),
+            'add_event_listener_fetch':bool(re.search(r'addEventListener\s*\(\s*["\']fetch["\']',text)),
+            'route_literal_count':text.count('/internal/paynow/verify-callback'),
+            'new_url_request_count':len(re.findall(r'new\s+URL\s*\([^)]*\.url\s*\)',text)),
+          }
+          # Capture only parameter counts / variable-name-neutral route predicates.
+          predicates=[]
+          for pat,name in [(r'([A-Za-z_$][A-Za-z0-9_$]*)\.pathname\s*===?\s*["\']/internal/paynow/verify-callback["\']','url_var_pathname'),(r'new\s+URL\s*\([^)]*\.url\s*\)\.pathname\s*===?\s*["\']/internal/paynow/verify-callback["\']','inline_new_url')]:
+              if re.search(pat,text):predicates.append(name)
+          out={'schema':'musitu.axiom.phase8_dispatch_shape.v1','worker':w,'source_sha256':hashlib.sha256(src).hexdigest(),'shapes':shapes,'safe_function_shapes':safe_funcs,'route_predicate_shapes':predicates,'secret_values_read':False,'source_published':False,'mutation_performed':False,'gate':'AXIOM_PHASE8_DISPATCH_SHAPE_READ_PASS'}
+          blob=(json.dumps(out,indent=2,sort_keys=True)+'\n').encode();open('dispatch-shape.json','wb').write(blob);dg=hashlib.sha256(blob).hexdigest();open('dispatch-shape.sha256','w').write(dg+'  dispatch-shape.json\n')
+          print(json.dumps({**out,'evidence_sha256':dg},sort_keys=True))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: musitu-axiom-phase8-dispatch-shape
+          path: |
+            dispatch-shape.json
+            dispatch-shape.sha256
+          retention-days: 14
+          if-no-files-found: error

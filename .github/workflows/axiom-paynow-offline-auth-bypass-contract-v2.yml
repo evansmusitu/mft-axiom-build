@@ -1,0 +1,75 @@
+name: MUSITU Axiom Paynow Offline Local Auth-Bypass Contract v2
+
+on:
+  push:
+    paths:
+      - '.github/workflows/axiom-paynow-offline-auth-bypass-contract-v2.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      CF_API: https://api.cloudflare.com/client/v4
+      ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      PAYNOW_WORKER: mft-paynow-transport-gateway
+    steps:
+      - uses: actions/checkout@v4
+      - name: Execute locally with only negative auth call sites bypassed
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import email,hashlib,os,re,urllib.request
+          api=os.environ['CF_API']; aid=os.environ['ACCOUNT_ID']; worker=os.environ['PAYNOW_WORKER']
+          h={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY'],'User-Agent':'MUSITU-Axiom-Offline-Bypass-v2/1.0'}
+          q=urllib.request.Request(f'{api}/accounts/{aid}/workers/scripts/{worker}',headers=h,method='GET')
+          with urllib.request.urlopen(q,timeout=45) as r: raw=r.read(); ctype=r.headers.get('content-type','')
+          src=raw
+          if 'multipart/' in ctype.lower():
+              msg=email.message_from_bytes((f'Content-Type: {ctype}\r\nMIME-Version: 1.0\r\n\r\n').encode()+raw); parts=[]
+              for p in msg.walk():
+                  if p.is_multipart(): continue
+                  d=p.get_payload(decode=True) or b''
+                  if b'handleInitiate' in d and b'handlePoll' in d: parts.append(d)
+              if not parts: raise SystemExit('Fail-closed no module source')
+              src=max(parts,key=len)
+          text=src.decode('utf-8'); original=hashlib.sha256(src).hexdigest()
+          patched,n=re.subn(r'!\s*authorized\s*\(\s*request\s*,\s*env\s*\)', 'false /* LOCAL_ONLY_AUTH_BYPASS */', text)
+          if n < 2 or n > 6: raise SystemExit(f'Fail-closed auth-negative-call count {n}')
+          if 'function authorized' not in patched: raise SystemExit('authorized function definition was altered')
+          patched+='\nexport { handleInitiate as __init, handlePoll as __poll };\n'
+          open('gateway-local.mjs','w').write(patched); open('original.sha256','w').write(original+'\n'); open('replacement-count.txt','w').write(str(n)+'\n')
+          PY
+          node --check gateway-local.mjs
+          cat > run.mjs <<'JS'
+          import {pathToFileURL} from 'node:url';import fs from 'node:fs';import crypto from 'node:crypto';
+          const m=await import(pathToFileURL(process.cwd()+'/gateway-local.mjs').href+'?'+Date.now());
+          const safeUrl=x=>{try{const u=new URL(String(x));return{host:u.host,path:u.pathname,query_keys:[...u.searchParams.keys()].sort()}}catch{return{opaque:true}}};
+          async function bodyShape(r){let t='';try{t=await r.clone().text()}catch{}let keys=[];try{const o=JSON.parse(t);if(o&&typeof o==='object')keys=Object.keys(o).sort()}catch{try{keys=[...new URLSearchParams(t).keys()].sort()}catch{}}return{keys,bytes:Buffer.byteLength(t),sha256:crypto.createHash('sha256').update(t).digest('hex')}}
+          function env(){return{MFT_GATEWAY_CAPABILITY_TOKEN:'local-unused',CONTROL_RATE_LIMITER:{async limit(){return{success:true}}},PUBLIC_CALLBACK_RATE_LIMITER:{async limit(){return{success:true}}},CALLBACK_VAULT:{idFromName(){return'mock'},get(){return{async fetch(){return new Response('{}',{status:200,headers:{'content-type':'application/json'}})}}}}}}
+          function mockNet(){const calls=[];return{calls,fn:async(input,init={})=>{const r=input instanceof Request?input:new Request(String(input),init);calls.push({url:safeUrl(r.url),method:r.method,headers:[...r.headers.keys()].sort(),body:await bodyShape(r)});const u=new URL(r.url);const txt=u.pathname.toLowerCase().includes('checkpayment')?'status=Paid&reference=mock-reference&paynowreference=mock-provider-reference&amount=1.00&hash=mockhash':'status=Ok&browserurl=https%3A%2F%2Fexample.invalid%2Fpay&pollurl=https%3A%2F%2Fwww.paynow.co.zw%2FInterface%2FCheckPayment%2F%3Fguid%3Dmock&hash=mockhash';return new Response(txt,{status:200,headers:{'content-type':'application/x-www-form-urlencoded'}})}}}
+          async function exec(handler,path,payload){const net=mockNet();const req=new Request('https://local.invalid'+path,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(payload)});let res,err=null;try{res=await handler(req,env(),net.fn)}catch(e){err={name:e?.name,message:String(e?.message||e).slice(0,140)}}let text='';if(res)text=await res.clone().text().catch(()=> '');let keys=[];try{const o=JSON.parse(text);if(o&&typeof o==='object')keys=Object.keys(o).sort()}catch{}return{input_keys:Object.keys(payload).sort(),http_status:res?.status??null,error:err,response_keys:keys,response_sha256:crypto.createHash('sha256').update(text).digest('hex'),fetch_calls:net.calls}}
+          const initPayloads=[{}, {order_id:'mock-order'}, {reference:'mock-reference',amount:'1.00',email:'billing-test@example.invalid',additionalinfo:'MUSITU Axiom test',returnurl:'https://example.invalid/return',resulturl:'https://example.invalid/result'}, {order_id:'mock-order',reference:'mock-reference',amount:'1.00',email:'billing-test@example.invalid',additionalinfo:'MUSITU Axiom test',returnurl:'https://example.invalid/return',resulturl:'https://example.invalid/result'}];
+          const pollPayloads=[{}, {poll_url:'https://www.paynow.co.zw/Interface/CheckPayment/?guid=mock'}, {pollurl:'https://www.paynow.co.zw/Interface/CheckPayment/?guid=mock'}];
+          const initiates=[];for(const x of initPayloads)initiates.push(await exec(m.__init,'/internal/paynow/initiate',x));const polls=[];for(const x of pollPayloads)polls.push(await exec(m.__poll,'/internal/paynow/poll',x));
+          const out={schema:'musitu.axiom.paynow_offline_local_auth_bypass_contract.v2',local_copy_only:true,live_worker_modified:false,network_mode:'FULLY_MOCKED_NO_PROVIDER_CALLS',production_mutation_performed:false,auth_negative_call_replacements:Number(fs.readFileSync('replacement-count.txt','utf8').trim()),initiates,polls,gate:'AXIOM_PAYNOW_OFFLINE_LOCAL_AUTH_BYPASS_V2_PASS'};const raw=JSON.stringify(out,null,2)+'\n';fs.writeFileSync('contract.json',raw);const d=crypto.createHash('sha256').update(raw).digest('hex');fs.writeFileSync('contract.sha256',d+'  contract.json\n');console.log(JSON.stringify({...out,artifact_sha256:d}));
+          JS
+          node run.mjs
+      - uses: actions/upload-artifact@v4
+        with:
+          name: musitu-axiom-paynow-offline-local-auth-bypass-v2
+          path: |
+            contract.json
+            contract.sha256
+            original.sha256
+            replacement-count.txt
+          retention-days: 14
+          if-no-files-found: error

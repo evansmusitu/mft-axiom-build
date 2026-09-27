@@ -1,0 +1,202 @@
+name: MUSITU Axiom Stage Protocol Cutover V5.1
+on:
+  workflow_dispatch:
+  push:
+    paths: ['.github/workflows/axiom-modal-stage-domain-auth-final-v2.yml']
+permissions:
+  contents: read
+jobs:
+  final:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      ZONE_ID: 5b56528f03948ff5917a5e0cd9f7109e
+      HOSTNAME: axiom-stage.mftintelligence.com
+      EDGE_WORKER: musitu-axiom-modal-edge-stage
+      BACKEND_WORKER: mft-axiom-modal-edge-stage
+      ADAPTER_WORKER: mft-axiom-modal-adapter
+      MUSITU_D1: musitu-axiom-prod
+      MUSITU_MODAL_URL: https://evansmusitu--musitu-axiom-v3-modal-staging-axiom-kernel.modal.run
+      BUILD_ID: MFT-AXIOM-V3-FULL-SELF-CONTAINED-20260904
+      CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+      CLOUDFLARE_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+      CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Precondition MUSITU infrastructure and resolve D1
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json,os,pathlib,urllib.parse,urllib.request
+          B='https://api.cloudflare.com/client/v4';A=os.environ['ACCOUNT_ID'];H={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_API_KEY']}
+          def g(p):
+              q=urllib.request.Request(B+p,headers=H)
+              with urllib.request.urlopen(q,timeout=30) as r:x=json.load(r)
+              if not x.get('success'):raise SystemExit('Cloudflare read failed')
+              return x.get('result') or []
+          d=[x for x in g(f'/accounts/{A}/workers/domains') if x.get('hostname')==os.environ['HOSTNAME']]
+          if len(d)!=1 or d[0].get('service')!=os.environ['EDGE_WORKER']:raise SystemExit('public edge precondition')
+          db=[x for x in g(f'/accounts/{A}/d1/database?name='+urllib.parse.quote(os.environ['MUSITU_D1'])) if x.get('name')==os.environ['MUSITU_D1']]
+          if len(db)!=1:raise SystemExit('MUSITU D1 resolve')
+          did=db[0].get('uuid') or db[0].get('id');pathlib.Path('/tmp/d1id').write_text(did)
+          s=g(f'/accounts/{A}/workers/scripts/{os.environ["BACKEND_WORKER"]}/settings');bs=s.get('bindings',[]) if isinstance(s,dict) else []
+          n={b.get('name') for b in bs if isinstance(b,dict)}
+          if not {'AXIOM_DB','AXIOM_KERNEL','MFT_CONTROL_SECRET','MFT_RECEIPT_SECRET'}.issubset(n):raise SystemExit('rollback protocol precondition')
+          if [b for b in bs if b.get('name')=='AXIOM_DB'][0].get('id')!=did:raise SystemExit('D1 drift')
+          if [b for b in bs if b.get('name')=='AXIOM_KERNEL'][0].get('service')!=os.environ['ADAPTER_WORKER']:raise SystemExit('adapter drift')
+          a=g(f'/accounts/{A}/workers/scripts/{os.environ["ADAPTER_WORKER"]}/settings');ab=a.get('bindings',[]) if isinstance(a,dict) else []
+          m=[b for b in ab if b.get('name')=='MODAL_BASE_URL']
+          if len(m)!=1 or m[0].get('text')!=os.environ['MUSITU_MODAL_URL']:raise SystemExit('Modal drift')
+          print('precondition=PASS')
+          PY
+      - name: Reconstruct sealed source and build rollback plus MUSITU protocol bundles
+        shell: bash
+        run: |
+          set -euo pipefail
+          P=deploy_payload/runtime_min
+          cat "$P/chunk_00.b64" "$P/chunk_01_02.b64" "$P/chunk_03_04.b64" "$P/chunk_05_06.b64" "$P/chunk_07_08.b64" "$P/chunk_09.b64" > runtime.enc.b64
+          base64 -d runtime.enc.b64 > runtime.tar.gz.enc
+          test "$(sha256sum runtime.tar.gz.enc|awk '{print $1}')" = b82448d6b4b34b302748815af976b535d69922c197d4b7a9056fc2f91a9e12cf
+          python - <<'PY'
+          import hashlib,hmac,os
+          b=open('runtime.tar.gz.enc','rb').read();g=hmac.new(os.environ['CLOUDFLARE_GLOBAL_API_KEY'].encode(),b,hashlib.sha256).hexdigest()
+          if not hmac.compare_digest(g,'1a3193d4f3271d61d151e6ebd7cf4576d8ab86c2e79b84eff4ad0f635fe7ab47'):raise SystemExit('HMAC mismatch')
+          PY
+          openssl enc -d -aes-256-cbc -pbkdf2 -iter 250000 -in runtime.tar.gz.enc -out runtime.tar.gz -pass env:CLOUDFLARE_GLOBAL_API_KEY
+          test "$(sha256sum runtime.tar.gz|awk '{print $1}')" = b4d5a0266446523969a619f5e9bb5a04d9b815c78a2ab82ed046ef5e23d53663
+          mkdir runtime && tar -xzf runtime.tar.gz -C runtime
+          python - <<'PY'
+          from pathlib import Path
+          import hashlib,json,os
+          R=Path('runtime/worker/src');p=R/'index.js';s=p.read_text();tok='kernel.fetch(new Request('
+          if s.count(tok)!=1:raise SystemExit('request wrapper count')
+          pos=s.index(tok);start=pos+len('kernel.fetch(new Request');d=0;q=None;e=False;end=None
+          for i in range(start,len(s)):
+              c=s[i]
+              if q:
+                  if e:e=False
+                  elif c=='\\':e=True
+                  elif c==q:q=None
+                  continue
+              if c in "'\"`":q=c;continue
+              if c=='(':d+=1
+              elif c==')':
+                  d-=1
+                  if d==0:end=i;break
+          if end is None:raise SystemExit('unbalanced Request')
+          s=s[:pos+len('kernel.fetch(')]+s[pos+len('kernel.fetch(new Request('):end]+s[end+1:]
+          old="if(typeof binding.fetch==='function'&&typeof binding.getByName!=='function'&&typeof binding.idFromName!=='function')return binding;"
+          if s.count(old)!=1:raise SystemExit('selector count')
+          p.write_text(s.replace(old,"if(typeof binding.fetch==='function')return binding;"))
+          c=R/'catalog.js';x=c.read_text();ids=['MFT-AXIOM-V3-SELF-CONTAINED-20260904','MFT-AXIOM-V3-RUNTIME-RECONSTRUCTION-20260904','MFT-AXIOM-V3-FULL-SELF-CONTAINED-20260904'];f=[v for v in ids if v in x]
+          if len(f)!=1:raise SystemExit('build id count')
+          c.write_text(x.replace(f[0],os.environ['BUILD_ID']))
+          rb=Path('/tmp/legacy-src');rb.mkdir(parents=True,exist_ok=True)
+          for z in R.rglob('*.js'):
+              t=rb/z.relative_to(R);t.parent.mkdir(parents=True,exist_ok=True);t.write_text(z.read_text())
+          M={'MFT_CONTROL_SECRET':'MUSITU_CONTROL_SECRET','MFT_RECEIPT_SECRET':'MUSITU_RECEIPT_SECRET','x-mft-control':'x-musitu-control','x-mft-request-id':'x-musitu-request-id','x-mft-axiom-version':'x-musitu-axiom-version','mft-internal':'musitu-internal'}
+          E={'MFT_CONTROL_SECRET':4,'MFT_RECEIPT_SECRET':2,'x-mft-control':2,'x-mft-request-id':1,'x-mft-axiom-version':1,'mft-internal':3}
+          C={k:sum(z.read_text().count(k) for z in R.rglob('*.js')) for k in M}
+          if C!=E:raise SystemExit('protocol counts '+repr(C))
+          for z in R.rglob('*.js'):
+              t=z.read_text()
+              for a,b in M.items():t=t.replace(a,b)
+              z.write_text(t)
+          if any(sum(z.read_text().count(k) for z in R.rglob('*.js')) for k in M):raise SystemExit('legacy symbol remained')
+          H={str(z.relative_to(R)):hashlib.sha256(z.read_bytes()).hexdigest() for z in sorted(R.rglob('*.js'))}
+          json.dump({'schema':'musitu.axiom.protocol_transform.v1','replacement_counts':C,'transformed_file_sha256':H,'plaintext_source_committed':False},open('/tmp/transform.json','w'),indent=2,sort_keys=True)
+          PY
+          npm install --no-save --ignore-scripts --no-audit --no-fund wrangler@4.129.0 esbuild@0.25.9 >/dev/null
+          mkdir -p /tmp/p
+          npx esbuild runtime/worker/src/index.js --bundle --format=esm --platform=browser --target=es2022 --outfile=/tmp/p/musitu.js --log-level=warning
+          npx esbuild /tmp/legacy-src/index.js --bundle --format=esm --platform=browser --target=es2022 --outfile=/tmp/p/legacy.js --log-level=warning
+          node --check /tmp/p/musitu.js;node --check /tmp/p/legacy.js
+      - name: Install transition secrets and deploy MUSITU protocol
+        shell: bash
+        run: |
+          set -euo pipefail
+          C="$(openssl rand -hex 32)";R="$(openssl rand -hex 32)";echo "::add-mask::$C";echo "::add-mask::$R";printf '%s' "$C">/tmp/control;printf '%s' "$R">/tmp/receipt
+          for k in MFT_CONTROL_SECRET MUSITU_CONTROL_SECRET;do printf '%s' "$C"|npx wrangler secret put "$k" --name "$BACKEND_WORKER" >/dev/null;done
+          for k in MFT_RECEIPT_SECRET MUSITU_RECEIPT_SECRET;do printf '%s' "$R"|npx wrangler secret put "$k" --name "$BACKEND_WORKER" >/dev/null;done
+          DID="$(cat /tmp/d1id)";MAIN=musitu.js DID="$DID" python - <<'PY'
+          import json,os
+          json.dump({'name':os.environ['BACKEND_WORKER'],'main':os.environ['MAIN'],'compatibility_date':'2026-09-04','workers_dev':True,'d1_databases':[{'binding':'AXIOM_DB','database_name':os.environ['MUSITU_D1'],'database_id':os.environ['DID']}],'services':[{'binding':'AXIOM_KERNEL','service':os.environ['ADAPTER_WORKER']}]},open('/tmp/p/wrangler.json','w'),indent=2)
+          PY
+          (cd /tmp/p&&npx wrangler deploy --config wrangler.json >/tmp/deploy.log 2>&1)||{ tail -120 /tmp/deploy.log;exit 1; }
+      - name: Wait for MUSITU protocol convergence, retire old bindings, and prove persistence
+        shell: bash
+        run: |
+          set -euo pipefail
+          DID="$(cat /tmp/d1id)";C="$(cat /tmp/control)";R="$(cat /tmp/receipt)";BASE="https://${HOSTNAME}"
+          rollback(){
+            echo protocol_rollback_started
+            printf '%s' "$C"|npx wrangler secret put MFT_CONTROL_SECRET --name "$BACKEND_WORKER" >/dev/null||true
+            printf '%s' "$R"|npx wrangler secret put MFT_RECEIPT_SECRET --name "$BACKEND_WORKER" >/dev/null||true
+            MAIN=legacy.js DID="$DID" python - <<'PY'
+          import json,os
+          json.dump({'name':os.environ['BACKEND_WORKER'],'main':os.environ['MAIN'],'compatibility_date':'2026-09-04','workers_dev':True,'d1_databases':[{'binding':'AXIOM_DB','database_name':os.environ['MUSITU_D1'],'database_id':os.environ['DID']}],'services':[{'binding':'AXIOM_KERNEL','service':os.environ['ADAPTER_WORKER']}]},open('/tmp/p/wrangler.json','w'),indent=2)
+          PY
+            (cd /tmp/p&&npx wrangler deploy --config wrangler.json >/tmp/rollback.log 2>&1)||true
+            echo legacy_protocol_rollback_attempted=PASS
+          }
+          trap 'rollback' ERR
+          new=000;old=000;anon=000
+          for i in $(seq 1 30);do
+            anon="$(curl -sS --max-time 30 -o /tmp/a.json -w '%{http_code}' -X POST "$BASE/v1/compute" -H 'content-type: application/json' --data '{"operation":"arithmetic.evaluate","args":{"expression":"40+2"}}'||true)"
+            new="$(curl -sS --max-time 90 -o /tmp/n.json -w '%{http_code}' -X POST "$BASE/v1/compute" -H "x-musitu-control: $C" -H 'x-musitu-request-id: cutover-1' -H 'x-musitu-axiom-version: 3.0.0' -H 'content-type: application/json' --data '{"operation":"arithmetic.evaluate","args":{"expression":"40+2"},"verify":true}'||true)"
+            old="$(curl -sS --max-time 30 -o /tmp/o.json -w '%{http_code}' -X POST "$BASE/v1/compute" -H "x-mft-control: $C" -H 'content-type: application/json' --data '{"operation":"arithmetic.evaluate","args":{"expression":"40+2"}}'||true)"
+            if [ "$anon" = 401 ]&&[ "$new" = 200 ]&&[ "$old" = 401 ];then break;fi
+            sleep 2
+          done
+          echo "protocol_convergence anon=$anon musitu=$new legacy=$old"
+          test "$anon" = 401;test "$new" = 200;test "$old" = 401
+          python - <<'PY'
+          import json
+          from decimal import Decimal
+          x=json.load(open('/tmp/n.json'));r=x.get('receipt') or {}
+          if x.get('ok') is not True or Decimal(str(x.get('result'))) != Decimal(42):raise SystemExit('MUSITU compute')
+          if r.get('signature_alg')!='HMAC-SHA256' or not all(r.get(k) for k in ('signature','request_sha256','result_sha256')):raise SystemExit('receipt')
+          PY
+          admin=000
+          for i in $(seq 1 8);do admin="$(curl -sS -o /tmp/admin.json -w '%{http_code}' -X POST "$BASE/v1/admin/customers" -H "x-musitu-control: $C" -H 'x-musitu-axiom-version: 3.0.0' -H 'content-type: application/json' --data '{}'||true)";[ "$admin" != 403 ]&&break;sleep 2;done
+          echo "musitu_admin_validation_http=$admin"
+          if [ "$admin" != 400 ]&&[ "$admin" != 422 ];then exit 1;fi
+          printf '{"MFT_CONTROL_SECRET":null,"MFT_RECEIPT_SECRET":null}'|npx wrangler secret bulk --name "$BACKEND_WORKER" >/dev/null
+          post=000
+          for i in $(seq 1 12);do post="$(curl -sS --max-time 90 -o /tmp/post.json -w '%{http_code}' -X POST "$BASE/v1/compute" -H "x-musitu-control: $C" -H 'x-musitu-request-id: cutover-2' -H 'x-musitu-axiom-version: 3.0.0' -H 'content-type: application/json' --data '{"operation":"arithmetic.evaluate","args":{"expression":"40+2"},"verify":true}'||true)";[ "$post" = 200 ]&&break;sleep 2;done
+          echo "post_legacy_secret_delete_musitu_http=$post";test "$post" = 200
+          python - <<'PY'
+          import json,os,urllib.request
+          from decimal import Decimal
+          x=json.load(open('/tmp/post.json'))
+          if x.get('ok') is not True or Decimal(str(x.get('result'))) != Decimal(42):raise SystemExit('post-delete compute')
+          B='https://api.cloudflare.com/client/v4';H={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_API_KEY']};q=urllib.request.Request(f"{B}/accounts/{os.environ['ACCOUNT_ID']}/workers/scripts/{os.environ['BACKEND_WORKER']}/settings",headers=H)
+          with urllib.request.urlopen(q,timeout=30) as r:s=json.load(r)
+          n={b.get('name') for b in (s.get('result') or {}).get('bindings',[]) if isinstance(b,dict)}
+          if not {'MUSITU_CONTROL_SECRET','MUSITU_RECEIPT_SECRET','AXIOM_DB','AXIOM_KERNEL'}.issubset(n):raise SystemExit('successor binding readback')
+          if {'MFT_CONTROL_SECRET','MFT_RECEIPT_SECRET'} & n:raise SystemExit('legacy secret remains')
+          PY
+          trap - ERR
+          echo MUSITU_PROTOCOL_ONLY_ACTIVE=PASS
+      - name: Seal protocol cutover evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import hashlib,json,os,pathlib
+          t=json.load(open('/tmp/transform.json'))
+          o={'schema':'musitu.axiom.protocol_cutover.v1','hostname':os.environ['HOSTNAME'],'public_edge':os.environ['EDGE_WORKER'],'protected_backend':os.environ['BACKEND_WORKER'],'d1':'musitu-axiom-prod','modal_app':'musitu-axiom-v3-modal-staging','build_id':os.environ['BUILD_ID'],'protocol_transform':t,'active_control_secret':'MUSITU_CONTROL_SECRET','active_receipt_secret':'MUSITU_RECEIPT_SECRET','active_control_header':'x-musitu-control','active_request_id_header':'x-musitu-request-id','active_version_header':'x-musitu-axiom-version','active_internal_principal':'musitu-internal','legacy_control_header_rejected_401':True,'legacy_secret_bindings_removed':True,'admin_internal_validation':'PASS','authenticated_compute_42_high_precision':'PASS','signed_receipt_hmac_sha256':'PASS','operation_count':74,'legacy_worker_handles_retained_for_next_cutover':True,'plaintext_source_committed':False,'billing':'NOT_CONFIGURED','wolfram_parity':'NOT_CERTIFIED','superiority':'NOT_CERTIFIED','gate':'MUSITU_PROTOCOL_ONLY_ACTIVE_VERIFIED'}
+          raw=json.dumps(o,sort_keys=True,separators=(',',':')).encode();o['evidence_sha256']=hashlib.sha256(raw).hexdigest();pathlib.Path('musitu-protocol-cutover.json').write_text(json.dumps(o,indent=2,sort_keys=True))
+          print('MUSITU_PROTOCOL_ONLY_ACTIVE_VERIFIED')
+          PY
+          sha256sum musitu-protocol-cutover.json > musitu-protocol-cutover.sha256
+      - uses: actions/upload-artifact@v4
+        with:
+          name: musitu-axiom-protocol-cutover
+          path: |
+            musitu-protocol-cutover.json
+            musitu-protocol-cutover.sha256
+          retention-days: 30
+          if-no-files-found: error

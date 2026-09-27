@@ -1,0 +1,164 @@
+name: MUSITU Axiom MCP OAuth Gate V3 Cutover V3
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/axiom-mcp-oauth-gate-v3-cutover-v3.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: musitu-axiom-mcp-v3-cutover
+  cancel-in-progress: false
+
+jobs:
+  cutover:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    env:
+      CF_API: https://api.cloudflare.com/client/v4
+      ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      D1_UUID: 504029cc-f9a5-495e-818f-63c6144b4ea4
+      MCP_HOST: mcp.mftintelligence.com
+      MCP_PUBLIC_WORKER: musitu-axiom-mcp
+      MCP_CORE_WORKER: musitu-axiom-mcp-core
+      AXIOM_SERVICE: musitu-axiom-modal-edge-stage
+      BILLING_SERVICE: mft-axiom-billing-ingress
+      AXIOM_BASE: https://axiom.mftintelligence.com
+      BILLING_BASE: https://payments.mftintelligence.com
+      AUTH_ISSUER: https://auth.mftintelligence.com
+      EXPECTED_BUILD: MFT-AXIOM-V3-FULL-SELF-CONTAINED-20260904
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate MCP sources
+        run: |
+          set -euo pipefail
+          node --check mcp/musitu_axiom_mcp_worker_v2.mjs
+          node --check mcp/musitu_axiom_mcp_oauth_gate_v3.mjs
+      - name: Converge public MCP onto OAuth v3 and seal evidence
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import datetime,hashlib,json,os,pathlib,secrets,time,urllib.error,urllib.parse,urllib.request,uuid
+          api=os.environ['CF_API'];aid=os.environ['ACCOUNT_ID'];dbid=os.environ['D1_UUID'];host=os.environ['MCP_HOST'];pub=os.environ['MCP_PUBLIC_WORKER'];core=os.environ['MCP_CORE_WORKER'];issuer=os.environ['AUTH_ISSUER'];resource='https://'+host
+          v2=pathlib.Path('mcp/musitu_axiom_mcp_worker_v2.mjs').read_bytes();v3=pathlib.Path('mcp/musitu_axiom_mcp_oauth_gate_v3.mjs').read_bytes();v2sha=hashlib.sha256(v2).hexdigest();v3sha=hashlib.sha256(v3).hexdigest()
+          H={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY'],'Accept':'application/json','User-Agent':'MUSITU-Axiom-MCP-V3-Converge/1.0'}
+          def raw(url,method='GET',headers=None,body=None,timeout=45):
+            q=urllib.request.Request(url,headers=dict(headers or {}),method=method,data=body)
+            try:
+              with urllib.request.urlopen(q,timeout=timeout) as r:return r.status,r.headers,r.read()
+            except urllib.error.HTTPError as e:return e.code,e.headers,e.read()
+            except urllib.error.URLError:return 0,{},b''
+          def cf(path,method='GET',obj=None):
+            h=dict(H);b=None
+            if obj is not None:h['Content-Type']='application/json';b=json.dumps(obj,separators=(',',':')).encode()
+            c,_,r=raw(api+path,method,h,b)
+            if not 200<=c<300:raise RuntimeError(f'CF HTTP {c} {method} {path}')
+            o=json.loads(r or b'{}')
+            if o.get('success') is False:raise RuntimeError('CF success=false '+path)
+            return o.get('result')
+          def d1(sql,params=None):
+            o={'sql':sql}
+            if params is not None:o['params']=params
+            rr=cf(f'/accounts/{aid}/d1/database/{dbid}/query','POST',o) or [];rows=[]
+            if not rr or not all(x.get('success') is True for x in rr):raise RuntimeError('D1 failed')
+            for x in rr:rows.extend(x.get('results') or [])
+            return rows
+          def multipart(source,bindings):
+            bd='----MUSITU'+secrets.token_hex(16);p=[]
+            def a(x):p.append(x.encode() if isinstance(x,str) else x)
+            meta={'main_module':'index.mjs','compatibility_date':'2026-09-05','bindings':bindings}
+            a(f'--{bd}\r\nContent-Disposition: form-data; name="metadata"\r\nContent-Type: application/json\r\n\r\n');a(json.dumps(meta,separators=(',',':')));a('\r\n')
+            a(f'--{bd}\r\nContent-Disposition: form-data; name="index.mjs"; filename="index.mjs"\r\nContent-Type: application/javascript+module\r\n\r\n');a(source);a('\r\n');a(f'--{bd}--\r\n')
+            return bd,b''.join(p)
+          def upload(source,bindings):
+            bd,body=multipart(source,bindings);h=dict(H);h['Content-Type']='multipart/form-data; boundary='+bd
+            c,_,b=raw(f'{api}/accounts/{aid}/workers/scripts/{urllib.parse.quote(pub,safe="")}', 'PUT',h,body)
+            if not 200<=c<300:raise RuntimeError('public worker upload HTTP '+str(c)+' '+b[:160].decode('utf-8','ignore'))
+            cf(f'/accounts/{aid}/workers/scripts/{urllib.parse.quote(pub,safe="")}/subdomain','POST',{'enabled':False,'previews_enabled':False})
+          def probe(path,method='GET',obj=None,token=None):
+            h={'Accept':'application/json','User-Agent':'MUSITU-Axiom-MCP-V3-Converge/1.0'};b=None
+            if obj is not None:h['Content-Type']='application/json';b=json.dumps(obj,separators=(',',':')).encode()
+            if token:h['Authorization']='Bearer '+token
+            c,_,r=raw(resource+path,method,h,b)
+            try:o=json.loads(r or b'{}')
+            except:o={}
+            return c,o
+          core_bind=[{'type':'plain_text','name':'AXIOM_BASE','text':os.environ['AXIOM_BASE']},{'type':'plain_text','name':'BILLING_BASE','text':os.environ['BILLING_BASE']},{'type':'plain_text','name':'MCP_PUBLIC_BASE','text':resource},{'type':'plain_text','name':'AUTH_ISSUER','text':issuer},{'type':'service','name':'AXIOM_SERVICE','service':os.environ['AXIOM_SERVICE']},{'type':'service','name':'BILLING_SERVICE','service':os.environ['BILLING_SERVICE']}]
+          v3_bind=[{'type':'d1','name':'AXIOM_DB','id':dbid},{'type':'plain_text','name':'AUTH_ISSUER','text':issuer},{'type':'plain_text','name':'MCP_PUBLIC_BASE','text':resource},{'type':'service','name':'MCP_CORE','service':core}]
+          domains=[x for x in (cf(f'/accounts/{aid}/workers/domains') or []) if x.get('hostname')==host]
+          if len(domains)!=1 or domains[0].get('service')!=pub:raise RuntimeError('canonical MCP domain drift')
+          cs=cf(f'/accounts/{aid}/workers/scripts/{urllib.parse.quote(core,safe="")}/settings') or {};cb={x.get('name'):x for x in cs.get('bindings') or [] if isinstance(x,dict)}
+          if cb.get('AXIOM_SERVICE',{}).get('service')!=os.environ['AXIOM_SERVICE'] or cb.get('BILLING_SERVICE',{}).get('service')!=os.environ['BILLING_SERVICE']:raise RuntimeError('private core bindings drift')
+          csub=cf(f'/accounts/{aid}/workers/scripts/{urllib.parse.quote(core,safe="")}/subdomain') or {}
+          if csub.get('enabled') is not False or csub.get('previews_enabled') is not False:raise RuntimeError('private core public exposure')
+          pc,pre=probe('/health')
+          if pc!=200 or pre.get('ok') is not True or int(pre.get('operation_count') or -1)!=74:raise RuntimeError('pre-cutover v2 not healthy')
+          ac,_,ab=raw(issuer+'/health',headers={'Accept':'application/json','User-Agent':'MUSITU-Axiom-MCP-V3-Converge/1.0'})
+          try:authh=json.loads(ab or b'{}')
+          except:authh={}
+          if ac!=200 or authh.get('ok') is not True or authh.get('resource')!=resource:raise RuntimeError('OAuth issuer not ready')
+          mutated=False;customer=None
+          try:
+            upload(v3,v3_bind);mutated=True
+            converged=None
+            for attempt in range(40):
+              hc,ho=probe('/health');lc,lo=probe('/mcp','POST',{'jsonrpc':'2.0','id':100+attempt,'method':'tools/list','params':{}});tools=(lo.get('result') or {}).get('tools') or []
+              co=ho.get('core') or {};mapped={((t.get('_meta') or {}).get('musitu/operation')) for t in tools if isinstance(t,dict)}-{None};biz=[t for t in tools if (t.get('_meta') or {}).get('musitu/business_product') is True]
+              metadata_ok=bool(tools) and all(isinstance(t.get('outputSchema'),dict) and all(k in (t.get('annotations') or {}) for k in ('readOnlyHint','openWorldHint','destructiveHint')) for t in tools)
+              if hc==200 and ho.get('ok') is True and ho.get('oauth_enforced') is True and ho.get('auth_issuer')==issuer and ho.get('resource')==resource and ho.get('oauth_db_ready') is True and co.get('build_id')==os.environ['EXPECTED_BUILD'] and int(co.get('operation_count') or -1)==74 and co.get('catalog_configured') is True and co.get('checkout_enabled') is True and lc==200 and len(tools)==112 and len(mapped)==74 and len(biz)==30 and metadata_ok:
+                converged=(ho,tools);break
+              time.sleep(2)
+            if converged is None:raise RuntimeError('v3 global convergence not reached')
+            ho,tools=converged;by={t.get('name'):t for t in tools}
+            if (by['musitu_axiom_checkout_status'].get('annotations') or {}).get('readOnlyHint') is not False:raise RuntimeError('checkout status annotation drift')
+            if (by['musitu_axiom_start_checkout'].get('annotations') or {}).get('openWorldHint') is not True:raise RuntimeError('checkout creation annotation drift')
+            if not any(s.get('type')=='oauth2' and 'billing.write' in (s.get('scopes') or []) for s in by['musitu_axiom_start_checkout'].get('securitySchemes') or []):raise RuntimeError('checkout billing.write scope absent')
+            mc,meta=probe('/.well-known/oauth-protected-resource')
+            if mc!=200 or meta.get('resource')!=resource or meta.get('authorization_servers')!=[issuer] or set(meta.get('scopes_supported') or [])!={'axiom.execute','billing.read','billing.write'}:raise RuntimeError('protected-resource metadata drift')
+            qc,qo=probe('/mcp','POST',{'jsonrpc':'2.0','id':4,'method':'tools/call','params':{'name':'musitu_axiom_plans','arguments':{}}});cat=((qo.get('result') or {}).get('structuredContent') or {}).get('catalog') or {};plans=cat.get('plans') or []
+            econ=sorted((p.get('id'),p.get('amount_cents'),p.get('currency'),p.get('monthly_unit_limit')) for p in plans)
+            if qc!=200 or econ!=sorted([('developer',1900,'USD',1000),('pro',4900,'USD',5000),('enterprise',14900,'USD',25000)]):raise RuntimeError('pricing drift')
+            uc,uo=probe('/mcp','POST',{'jsonrpc':'2.0','id':5,'method':'tools/call','params':{'name':'investment_npv','arguments':{'args':{}}}});ur=uo.get('result') or {};challenge=' '.join((ur.get('_meta') or {}).get('mcp/www_authenticate') or []);expected=resource+'/.well-known/oauth-protected-resource'
+            if uc!=200 or ur.get('isError') is not True or ((ur.get('structuredContent') or {}).get('authenticated') is not False) or expected not in challenge:raise RuntimeError('OAuth challenge contract failed')
+            suffix=uuid.uuid4().hex;customer='fixture_mcp_v3_direct_'+suffix;key='fixture_mcp_v3_direct_key_'+suffix;direct='musitu_axiom_direct_fixture_'+secrets.token_urlsafe(40);print('::add-mask::'+direct)
+            now=datetime.datetime.now(datetime.timezone.utc);created=now.isoformat().replace('+00:00','Z');expires=(now+datetime.timedelta(hours=1)).isoformat().replace('+00:00','Z')
+            d1('INSERT INTO customers(id,email,name,plan,status,monthly_unit_override,created_at,updated_at) VALUES(?1,?2,?3,?4,?5,?6,?7,?7)',[customer,customer+'@invalid.example','MUSITU direct bearer rejection fixture','developer','active',100,created])
+            d1('INSERT INTO api_keys(id,customer_id,key_hash,key_prefix,label,status,created_at,last_used_at,expires_at,revoked_at) VALUES(?1,?2,?3,?4,?5,?6,?7,NULL,?8,NULL)',[key,customer,hashlib.sha256(direct.encode()).hexdigest(),direct[:16],'mcp-v3-direct-reject','active',created,expires])
+            before=int(d1('SELECT count(*) AS n FROM usage_events WHERE customer_id=?1',[customer])[0]['n']);dc,do=probe('/mcp','POST',{'jsonrpc':'2.0','id':6,'method':'tools/call','params':{'name':'musitu_axiom_execute','arguments':{'operation':'arithmetic.evaluate','args':{'expression':'40+2'}}}},direct);dr=do.get('result') or {};after=int(d1('SELECT count(*) AS n FROM usage_events WHERE customer_id=?1',[customer])[0]['n'])
+            if dc!=200 or dr.get('isError') is not True or ((dr.get('structuredContent') or {}).get('authenticated') is not False) or after!=before:raise RuntimeError('direct bearer bypass detected')
+            psub=cf(f'/accounts/{aid}/workers/scripts/{urllib.parse.quote(pub,safe="")}/subdomain') or {}
+            if psub.get('enabled') is not False or psub.get('previews_enabled') is not False:raise RuntimeError('public workers.dev exposure')
+            evidence={'schema':'musitu.axiom.mcp.oauth_gate_v3_cutover.v3','gate':'MUSITU_AXIOM_MCP_OAUTH_GATE_V3_CUTOVER_PASS','hostname':host,'mcp_endpoint':resource+'/mcp','v3_source_sha256':v3sha,'private_core_source_sha256':v2sha,'oauth_enforced':True,'oauth_resource_challenge_verified':True,'legacy_direct_bearer_rejected':True,'legacy_direct_bearer_usage_delta':0,'operation_count':74,'unique_axiom_operations_wired':74,'business_product_count':30,'advertised_tool_count':112,'pricing_catalog_verified':True,'checkout_billing_write_scope_verified':True,'all_tools_explicit_annotations':True,'all_tools_output_schema_present':True,'checkout_status_reconciliation_readonly_false':True,'checkout_creation_open_world_true':True,'protected_resource_metadata_verified':True,'private_core_workers_dev_disabled':True,'public_workers_dev_disabled':True,'kernel_mutated':False,'billing_worker_mutated':False,'raw_modal_public_exposure_added':False,'secret_values_logged':False,'wolfram_parity':'NOT_CERTIFIED','superiority':'NOT_CERTIFIED'}
+          except Exception:
+            if mutated:
+              try:upload(v2,core_bind)
+              except:pass
+            raise
+          finally:
+            if customer:
+              try:d1('DELETE FROM usage_events WHERE customer_id=?1',[customer]);d1('DELETE FROM usage_buckets WHERE customer_id=?1',[customer]);d1('DELETE FROM api_keys WHERE customer_id=?1',[customer]);d1('DELETE FROM customers WHERE id=?1',[customer])
+              except:pass
+          if customer:
+            rr=d1('SELECT (SELECT count(*) FROM customers WHERE id=?1)+(SELECT count(*) FROM api_keys WHERE customer_id=?1)+(SELECT count(*) FROM usage_events WHERE customer_id=?1)+(SELECT count(*) FROM usage_buckets WHERE customer_id=?1) AS n',[customer])
+            if not rr or int(rr[0]['n'])!=0:raise RuntimeError('fixture cleanup failed')
+          evidence['cleanup_complete']=True;evidence['fixture_rows_remaining']=0
+          p=pathlib.Path('musitu-axiom-mcp-v3-cutover-v3.json');p.write_text(json.dumps(evidence,indent=2,sort_keys=True)+'\n');dg=hashlib.sha256(p.read_bytes()).hexdigest();pathlib.Path('musitu-axiom-mcp-v3-cutover-v3.sha256').write_text(dg+'  '+p.name+'\n')
+          print(json.dumps({'gate':evidence['gate'],'oauth_enforced':True,'operation_count':74,'business_product_count':30,'advertised_tool_count':112,'pricing_catalog_verified':True,'legacy_direct_bearer_rejected':True,'evidence_sha256':dg},sort_keys=True))
+          PY
+      - name: Upload sealed v3 evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: musitu-axiom-mcp-v3-cutover-v3
+          path: |
+            musitu-axiom-mcp-v3-cutover-v3.json
+            musitu-axiom-mcp-v3-cutover-v3.sha256
+          retention-days: 30
+          if-no-files-found: warn

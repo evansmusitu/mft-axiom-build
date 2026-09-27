@@ -1,0 +1,104 @@
+name: MUSITU.com Production Topology Audit
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/musitu-com-production-topology-audit.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      CF_API: https://api.cloudflare.com/client/v4
+      EXPECTED_ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      ZONE_NAME: musitu.com
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - name: Read musitu.com DNS and Worker domain topology
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import hashlib,json,os,urllib.parse,urllib.request,urllib.error
+          base=os.environ['CF_API']; aid=os.environ['EXPECTED_ACCOUNT_ID']; zone_name=os.environ['ZONE_NAME']
+          h={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY'],'Content-Type':'application/json','User-Agent':'MUSITU-Production-Topology-Audit/1.0'}
+          def get(path):
+            req=urllib.request.Request(base+path,headers=h,method='GET')
+            try:
+              with urllib.request.urlopen(req,timeout=30) as r: raw=r.read(); code=r.status
+            except urllib.error.HTTPError as e: raw=e.read(); code=e.code
+            if code!=200: raise SystemExit(f'Fail-closed Cloudflare read HTTP {code}: {path}')
+            x=json.loads(raw or b'{}')
+            if x.get('success') is not True: raise SystemExit(f'Fail-closed Cloudflare success=false: {path}')
+            return x.get('result')
+
+          zones=get('/zones?'+urllib.parse.urlencode({'name':zone_name,'account.id':aid,'status':'active'})) or []
+          if len(zones)!=1: raise SystemExit(f'Fail-closed: {zone_name} active zone count={len(zones)}')
+          z=zones[0]; zid=z.get('id')
+          if (z.get('account') or {}).get('id')!=aid: raise SystemExit('Fail-closed: account mismatch')
+
+          dns=[]; page=1
+          while True:
+            req=urllib.request.Request(base+f'/zones/{zid}/dns_records?'+urllib.parse.urlencode({'per_page':100,'page':page,'order':'name','direction':'asc'}),headers=h,method='GET')
+            with urllib.request.urlopen(req,timeout=30) as r: body=json.load(r)
+            if body.get('success') is not True: raise SystemExit('Fail-closed DNS read')
+            dns.extend(body.get('result') or [])
+            info=body.get('result_info') or {}
+            if page>=int(info.get('total_pages') or 1): break
+            page+=1
+          safe_dns=[]
+          for d in dns:
+            safe_dns.append({k:d.get(k) for k in ('id','name','type','content','proxied','proxiable','ttl') if d.get(k) is not None})
+          safe_dns=sorted(safe_dns,key=lambda x:(str(x.get('name') or ''),str(x.get('type') or ''),str(x.get('content') or '')))
+
+          worker_domains=get(f'/accounts/{aid}/workers/domains') or []
+          zone_worker_domains=[]
+          for d in worker_domains:
+            host=str(d.get('hostname') or '')
+            if d.get('zone_id')==zid or host==zone_name or host.endswith('.'+zone_name):
+              zone_worker_domains.append({k:d.get(k) for k in ('id','hostname','service','environment','zone_id') if d.get(k) is not None})
+          zone_worker_domains=sorted(zone_worker_domains,key=lambda x:(str(x.get('hostname') or ''),str(x.get('service') or '')))
+
+          candidate='axiom.'+zone_name
+          conflicts=[x for x in safe_dns if x.get('name')==candidate]
+          worker_conflicts=[x for x in zone_worker_domains if x.get('hostname')==candidate]
+          out={
+            'schema':'musitu.axiom.production_topology_audit.v1',
+            'account_id':aid,
+            'zone':{'id':zid,'name':zone_name,'status':z.get('status'),'paused':z.get('paused'),'type':z.get('type')},
+            'dns_records':safe_dns,
+            'worker_custom_domains':zone_worker_domains,
+            'canonical_candidate':candidate,
+            'candidate_dns_conflicts':conflicts,
+            'candidate_worker_conflicts':worker_conflicts,
+            'candidate_is_unoccupied':not conflicts and not worker_conflicts,
+            'write_performed':False,
+            'gate':'MUSITU_COM_TOPOLOGY_AUDIT_PASS'
+          }
+          raw=(json.dumps(out,indent=2,sort_keys=True)+'\n').encode()
+          open('musitu-com-production-topology.json','wb').write(raw)
+          digest=hashlib.sha256(raw).hexdigest()
+          open('musitu-com-production-topology.sha256','w').write(digest+'  musitu-com-production-topology.json\n')
+          print(json.dumps({
+            'gate':out['gate'],'zone_id':zid,'zone_status':z.get('status'),'dns_record_count':len(safe_dns),'worker_custom_domain_count':len(zone_worker_domains),'worker_custom_domains':[{'hostname':x.get('hostname'),'service':x.get('service')} for x in zone_worker_domains],'canonical_candidate':candidate,'candidate_is_unoccupied':out['candidate_is_unoccupied'],'candidate_dns_conflict_count':len(conflicts),'candidate_worker_conflict_count':len(worker_conflicts),'write_performed':False,'sha256':digest
+          },sort_keys=True))
+          PY
+      - name: Upload sealed topology evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: musitu-com-production-topology
+          path: |
+            musitu-com-production-topology.json
+            musitu-com-production-topology.sha256
+          retention-days: 30
+          if-no-files-found: error

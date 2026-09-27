@@ -1,0 +1,57 @@
+name: MUSITU Axiom Live Usage Schema Read-Only
+
+on:
+  push:
+    paths:
+      - '.github/workflows/axiom-live-usage-schema-readonly.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    env:
+      CF_API: https://api.cloudflare.com/client/v4
+      ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      D1_UUID: 504029cc-f9a5-495e-818f-63c6144b4ea4
+    steps:
+      - uses: actions/checkout@v4
+      - name: Read usage columns and fixture residue only
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import hashlib,json,os,urllib.request
+          api=os.environ['CF_API'];aid=os.environ['ACCOUNT_ID'];dbid=os.environ['D1_UUID']
+          H={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY'],'Content-Type':'application/json','User-Agent':'MUSITU-Axiom-Live-Usage-Schema/1.0'}
+          def q(sql):
+              req=urllib.request.Request(f'{api}/accounts/{aid}/d1/database/{dbid}/query',headers=H,data=json.dumps({'sql':sql}).encode(),method='POST')
+              with urllib.request.urlopen(req,timeout=40) as r:x=json.loads(r.read() or b'{}')
+              if x.get('success') is False:raise SystemExit('Fail-closed D1 query failure')
+              rows=[]
+              for z in x.get('result') or []:
+                  if z.get('success') is not True:raise SystemExit('Fail-closed D1 statement failure')
+                  rows.extend(z.get('results') or [])
+              return rows
+          tables={}
+          for t in ('usage_events','usage_buckets','customers','api_keys'):
+              rows=q(f'PRAGMA table_info({t});');tables[t]=[r.get('name') for r in rows]
+          residue=q("SELECT (SELECT count(*) FROM customers WHERE id LIKE 'fixture_compute_customer_%')+(SELECT count(*) FROM api_keys WHERE id LIKE 'fixture_compute_key_%')+(SELECT count(*) FROM usage_events WHERE customer_id LIKE 'fixture_compute_customer_%')+(SELECT count(*) FROM usage_buckets WHERE customer_id LIKE 'fixture_compute_customer_%') AS n;")
+          out={'schema':'musitu.axiom.live_usage_schema.v1','columns':tables,'fixture_residue_count':int(residue[0]['n']) if residue else -1,'mutation_performed':False,'secret_values_read':False,'gate':'AXIOM_LIVE_USAGE_SCHEMA_READ_PASS'}
+          raw=(json.dumps(out,indent=2,sort_keys=True)+'\n').encode();open('live-usage-schema.json','wb').write(raw);dg=hashlib.sha256(raw).hexdigest();open('live-usage-schema.sha256','w').write(dg+'  live-usage-schema.json\n')
+          print(json.dumps({**out,'evidence_sha256':dg},sort_keys=True))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: musitu-axiom-live-usage-schema
+          path: |
+            live-usage-schema.json
+            live-usage-schema.sha256
+          retention-days: 14
+          if-no-files-found: error

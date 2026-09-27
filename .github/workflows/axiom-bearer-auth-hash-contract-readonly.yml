@@ -1,0 +1,75 @@
+name: MUSITU Axiom Bearer Auth Hash Contract Read-Only
+
+on:
+  push:
+    paths:
+      - '.github/workflows/axiom-bearer-auth-hash-contract-readonly.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      CF_API: https://api.cloudflare.com/client/v4
+      ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      BACKEND: mft-axiom-modal-edge-stage
+    steps:
+      - uses: actions/checkout@v4
+      - name: Extract Bearer authentication metadata only
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import email,hashlib,json,os,re,urllib.parse,urllib.request
+          api=os.environ['CF_API'];aid=os.environ['ACCOUNT_ID'];worker=os.environ['BACKEND']
+          H={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY'],'User-Agent':'MUSITU-Axiom-Bearer-Auth-Contract/1.0'}
+          q=urllib.request.Request(f'{api}/accounts/{aid}/workers/scripts/{urllib.parse.quote(worker,safe="")}',headers=H)
+          with urllib.request.urlopen(q,timeout=45) as r:raw=r.read();ct=r.headers.get('content-type','')
+          src=raw
+          if 'multipart/' in ct.lower():
+              msg=email.message_from_bytes((f'Content-Type: {ct}\r\nMIME-Version: 1.0\r\n\r\n').encode()+raw);parts=[]
+              for p in msg.walk():
+                  if p.is_multipart():continue
+                  d=p.get_payload(decode=True) or b''
+                  if b'api_keys' in d and b'authorization' in d.lower():parts.append(d)
+              if len(parts)!=1:raise SystemExit(f'Fail-closed auth module count {len(parts)}')
+              src=parts[0]
+          text=src.decode('utf-8','ignore'); lower=text.lower()
+          anchors=['api_keys','key_hash','authorization','bearer ']
+          windows=[]
+          for a in anchors:
+              start=0
+              while True:
+                  i=lower.find(a,start)
+                  if i<0:break
+                  windows.append(text[max(0,i-1400):min(len(text),i+2200)]);start=i+len(a)
+          win='\n'.join(windows)
+          algorithms=sorted(set(x.upper() for x in re.findall(r'["\']((?:SHA|HMAC)[-_]?(?:1|224|256|384|512))["\']',win,re.I)))
+          fn_names=sorted(set(re.findall(r'(?:async\s+)?function\s+([A-Za-z_$][A-Za-z0-9_$]{2,100})\s*\(',win)))
+          relevant_fns=[x for x in fn_names if any(k in x.lower() for k in ('auth','key','hash','sha','bearer','customer'))]
+          db_columns=sorted(set(x for x in re.findall(r'\b(key_hash|key_prefix|customer_id|status|expires_at|revoked_at|last_used_at)\b',win,re.I)))
+          uses_subtle_digest='crypto.subtle.digest' in win
+          uses_textencoder='TextEncoder' in win
+          bearer_slice=bool(re.search(r'(?:slice|substring)\s*\(\s*7\s*\)',win))
+          lower_hex=bool(re.search(r'toString\s*\(\s*16\s*\).*padStart\s*\(\s*2',win,re.S))
+          key_prefix_len=[]
+          for m in re.finditer(r'(?:slice|substring)\s*\(\s*0\s*,\s*(\d{1,3})\s*\)',win):key_prefix_len.append(int(m.group(1)))
+          out={'schema':'musitu.axiom.bearer_auth_hash_contract.v1','backend':worker,'source_sha256':hashlib.sha256(src).hexdigest(),'algorithm_literals':algorithms,'uses_crypto_subtle_digest':uses_subtle_digest,'uses_text_encoder':uses_textencoder,'bearer_prefix_removed_by_7_chars':bearer_slice,'lowercase_hex_pattern':lower_hex,'key_prefix_lengths':sorted(set(key_prefix_len)),'db_columns':db_columns,'relevant_function_names':relevant_fns,'secret_values_read':False,'source_published':False,'mutation_performed':False,'gate':'AXIOM_BEARER_AUTH_HASH_CONTRACT_READ_PASS'}
+          blob=(json.dumps(out,indent=2,sort_keys=True)+'\n').encode();open('bearer-auth-contract.json','wb').write(blob);dg=hashlib.sha256(blob).hexdigest();open('bearer-auth-contract.sha256','w').write(dg+'  bearer-auth-contract.json\n')
+          print(json.dumps({**out,'evidence_sha256':dg},sort_keys=True))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: musitu-axiom-bearer-auth-hash-contract
+          path: |
+            bearer-auth-contract.json
+            bearer-auth-contract.sha256
+          retention-days: 14
+          if-no-files-found: error

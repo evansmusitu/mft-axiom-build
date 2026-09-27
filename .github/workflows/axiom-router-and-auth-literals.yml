@@ -1,0 +1,70 @@
+name: MUSITU Axiom Router and Auth Literals
+
+on:
+  push:
+    paths:
+      - '.github/workflows/axiom-router-and-auth-literals.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Reconstruct protected source
+        env:
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          P=deploy_payload/runtime_min
+          cat "$P/chunk_00.b64" "$P/chunk_01_02.b64" "$P/chunk_03_04.b64" "$P/chunk_05_06.b64" "$P/chunk_07_08.b64" "$P/chunk_09.b64" > runtime.enc.b64
+          base64 -d runtime.enc.b64 > runtime.tar.gz.enc
+          test "$(sha256sum runtime.tar.gz.enc | awk '{print $1}')" = 'b82448d6b4b34b302748815af976b535d69922c197d4b7a9056fc2f91a9e12cf'
+          openssl enc -d -aes-256-cbc -pbkdf2 -iter 250000 -in runtime.tar.gz.enc -out runtime.tar.gz -pass env:CLOUDFLARE_GLOBAL_API_KEY
+          test "$(sha256sum runtime.tar.gz | awk '{print $1}')" = 'b4d5a0266446523969a619f5e9bb5a04d9b815c78a2ab82ed046ef5e23d53663'
+          mkdir runtime && tar -xzf runtime.tar.gz -C runtime
+      - name: Emit exact protocol symbol inventory only
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json,pathlib
+          root=pathlib.Path('runtime/worker/src')
+          files={str(p.relative_to(root)):p.read_text(errors='replace') for p in root.rglob('*.js')}
+          legacy={
+            'control_secret':'MFT_CONTROL_SECRET',
+            'receipt_secret':'MFT_RECEIPT_SECRET',
+            'control_header':'x-mft-control',
+            'request_id_header':'x-mft-request-id',
+            'version_header':'x-mft-axiom-version',
+            'internal_principal':'mft-internal',
+          }
+          successor={
+            'control_secret':'MUSITU_CONTROL_SECRET',
+            'receipt_secret':'MUSITU_RECEIPT_SECRET',
+            'control_header':'x-musitu-control',
+            'request_id_header':'x-musitu-request-id',
+            'version_header':'x-musitu-axiom-version',
+            'internal_principal':'musitu-internal',
+          }
+          inventory={}
+          for key,tok in legacy.items():
+              per={name:text.count(tok) for name,text in files.items() if text.count(tok)}
+              inventory[key]={'legacy':tok,'successor':successor[key],'count':sum(per.values()),'files':per}
+          # Fail closed: these are the only protocol symbols authorized for this migration pass.
+          if inventory['control_secret']['count']<1 or inventory['receipt_secret']['count']<1 or inventory['control_header']['count']<1:
+              raise SystemExit('required protocol symbols not found')
+          out={'schema':'musitu.axiom.protocol_symbol_inventory.v1','source_build':'MFT-AXIOM-V3-FULL-SELF-CONTAINED-20260904','inventory':inventory,'rewrite_performed':False,'plaintext_source_committed':False}
+          pathlib.Path('musitu-protocol-symbol-inventory.json').write_text(json.dumps(out,indent=2,sort_keys=True))
+          print(json.dumps(out,sort_keys=True))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: musitu-axiom-protocol-symbol-inventory
+          path: musitu-protocol-symbol-inventory.json
+          retention-days: 14
+          if-no-files-found: error

@@ -1,0 +1,50 @@
+name: MUSITU Axiom Billing Ingress Production Deploy
+
+on:
+  push:
+    paths:
+      - '.github/workflows/axiom-billing-ingress-production-deploy.yml'
+      - 'ops/axiom_billing_ingress_deploy_v2.py'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      CF_API: https://api.cloudflare.com/client/v4
+      ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      ZONE_ID: 5b56528f03948ff5917a5e0cd9f7109e
+      D1_UUID: 504029cc-f9a5-495e-818f-63c6144b4ea4
+      AUTHORITY: mft-phase8-external-authority
+      AUTHORITY_SHA256: 4f332c901334f6f7fa66d6ea3c7cb3d3c91819da020328845510a1cc6ba7d05e
+      TRANSPORT: mft-paynow-transport-gateway
+      BILLING: mft-axiom-billing-ingress
+      BILLING_ROUTE: payments.mftintelligence.com/billing/*
+      PAYMENTS_BASE: https://payments.mftintelligence.com
+    steps:
+      - uses: actions/checkout@v4
+      - name: Syntax-check deployment program
+        run: python -m py_compile ops/axiom_billing_ingress_deploy_v2.py
+      - name: Require dedicated Cloudflare API token
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: test -n "$CLOUDFLARE_API_TOKEN"
+
+      - name: Deploy isolated fail-closed billing ingress with rollback
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        run: python ops/axiom_billing_ingress_deploy_v2.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: musitu-axiom-billing-ingress-production-deploy
+          path: |
+            billing-ingress-deploy-evidence.json
+            billing-ingress-deploy-evidence.sha256
+          retention-days: 30
+          if-no-files-found: error

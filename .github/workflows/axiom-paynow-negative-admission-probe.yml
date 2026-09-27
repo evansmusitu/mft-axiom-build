@@ -1,0 +1,52 @@
+name: MUSITU Axiom Paynow Negative Admission Probe
+
+on:
+  push:
+    paths:
+      - '.github/workflows/axiom-paynow-negative-admission-probe.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - name: Send malformed non-transactional requests only
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import hashlib,json,urllib.error,urllib.request
+          base='https://payments.mftintelligence.com'
+          routes=['/internal/paynow/initiate','/internal/paynow/poll']
+          results={}
+          for route in routes:
+              req=urllib.request.Request(base+route,data=b'{}',headers={'Content-Type':'application/json','Accept':'application/json','User-Agent':'MUSITU-Axiom-Negative-Admission-Probe/1.0'},method='POST')
+              try:
+                  with urllib.request.urlopen(req,timeout=30) as r: raw=r.read(); status=r.status
+              except urllib.error.HTTPError as e: raw=e.read(); status=e.code
+              parsed={}
+              try:
+                  obj=json.loads(raw or b'{}')
+                  if isinstance(obj,dict):
+                      parsed={'keys':sorted(str(k) for k in obj.keys()),'error_code':obj.get('code') or obj.get('error_code'),'status_value':obj.get('status') if isinstance(obj.get('status'),(str,int,bool)) else None}
+              except Exception:
+                  parsed={'keys':[],'error_code':None,'status_value':None}
+              results[route]={'http_status':status,**parsed,'body_sha256':hashlib.sha256(raw).hexdigest()}
+          out={'schema':'musitu.axiom.paynow_negative_admission_probe.v1','request_body':'EMPTY_JSON_ONLY','valid_payment_fields_supplied':False,'transaction_intent_created':False,'results':results,'gate':'AXIOM_PAYNOW_NEGATIVE_ADMISSION_PROBE_PASS'}
+          blob=(json.dumps(out,indent=2,sort_keys=True)+'\n').encode(); open('paynow-negative-admission-probe.json','wb').write(blob)
+          digest=hashlib.sha256(blob).hexdigest(); open('paynow-negative-admission-probe.sha256','w').write(digest+'  paynow-negative-admission-probe.json\n')
+          print(json.dumps({'gate':out['gate'],'results':results,'valid_payment_fields_supplied':False,'transaction_intent_created':False,'sha256':digest},sort_keys=True))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: musitu-axiom-paynow-negative-admission-probe
+          path: |
+            paynow-negative-admission-probe.json
+            paynow-negative-admission-probe.sha256
+          retention-days: 14
+          if-no-files-found: error

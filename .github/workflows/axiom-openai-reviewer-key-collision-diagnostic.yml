@@ -1,0 +1,107 @@
+name: MUSITU Axiom OpenAI Reviewer Key Collision Diagnostic
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/axiom-openai-reviewer-key-collision-diagnostic.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    env:
+      CF_API: https://api.cloudflare.com/client/v4
+      ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      D1_UUID: 504029cc-f9a5-495e-818f-63c6144b4ea4
+      REVIEWER_CUSTOMER_ID: openai_reviewer_demo
+      REVIEWER_KEY_ID: openai_reviewer_demo_source
+      REVIEWER_KEY: ${{ secrets.OPENAI_REVIEWER_ACCOUNT_KEY }}
+      CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+      CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Classify reviewer-key collision without exposing credential material
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import hashlib,json,os,re,urllib.error,urllib.request
+
+          API=os.environ['CF_API']; AID=os.environ['ACCOUNT_ID']; DBID=os.environ['D1_UUID']
+          CUSTOMER=os.environ['REVIEWER_CUSTOMER_ID']; KEY_ID=os.environ['REVIEWER_KEY_ID']
+          raw_key=os.environ.get('REVIEWER_KEY','')
+          print('::add-mask::'+raw_key)
+          key=re.sub(r'^[\s\u200E\u200F\u202A-\u202E\u2066-\u2069]+|[\s\u200E\u200F\u202A-\u202E\u2066-\u2069]+$','',raw_key)
+          if len(key)<48: raise SystemExit('Fail-closed: reviewer secret missing or too short after boundary normalization')
+          print('::add-mask::'+key)
+          key_hash=hashlib.sha256(key.encode()).hexdigest()
+
+          headers={
+            'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],
+            'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY'],
+            'Content-Type':'application/json',
+            'Accept':'application/json',
+            'User-Agent':'MUSITU-Axiom-Reviewer-Key-Diagnostic/1.0',
+          }
+          def d1(sql,params=None):
+            body={'sql':sql}
+            if params is not None: body['params']=params
+            req=urllib.request.Request(API+f'/accounts/{AID}/d1/database/{DBID}/query',headers=headers,data=json.dumps(body,separators=(',',':')).encode(),method='POST')
+            try:
+              with urllib.request.urlopen(req,timeout=45) as r: code=r.status; raw=r.read()
+            except urllib.error.HTTPError as e:
+              code=e.code; raw=e.read()
+            if not 200<=code<300: raise RuntimeError('Cloudflare D1 diagnostic query failed HTTP '+str(code))
+            obj=json.loads(raw or b'{}')
+            if obj.get('success') is False: raise RuntimeError('Cloudflare diagnostic success=false')
+            rows=[]
+            for chunk in obj.get('result') or []:
+              if chunk.get('success') is not True: raise RuntimeError('D1 diagnostic statement failed')
+              rows.extend(chunk.get('results') or [])
+            return rows
+
+          # First prove that the current private reviewer secret maps exactly to the
+          # persistent reviewer source key. Then inspect *other* api_keys rows for
+          # collisions. The source row is intentionally excluded from the latter.
+          source=d1('''SELECT k.id,k.customer_id,k.status,k.expires_at,k.revoked_at,c.status AS customer_status
+                       FROM api_keys k JOIN customers c ON c.id=k.customer_id
+                       WHERE k.id=?1 AND k.customer_id=?2 AND k.key_hash=?3''',[KEY_ID,CUSTOMER,key_hash])
+          exact_source_match=len(source)
+          source_active=bool(source and source[0].get('status')=='active' and source[0].get('customer_status')=='active' and not source[0].get('revoked_at') and source[0].get('expires_at') is None)
+
+          rows=d1('''SELECT
+            count(*) AS total,
+            sum(CASE WHEN customer_id=?2 THEN 1 ELSE 0 END) AS reviewer_owned,
+            sum(CASE WHEN customer_id<>?2 THEN 1 ELSE 0 END) AS non_reviewer_owned,
+            sum(CASE WHEN customer_id=?2 AND label='openai-reviewer-demo' THEN 1 ELSE 0 END) AS reviewer_label_match,
+            sum(CASE WHEN customer_id=?2 AND id LIKE 'openai_reviewer_demo%' THEN 1 ELSE 0 END) AS reviewer_id_family,
+            sum(CASE WHEN customer_id=?2 AND id LIKE 'oauth_access_%' THEN 1 ELSE 0 END) AS reviewer_oauth_access_id,
+            sum(CASE WHEN customer_id=?2 AND status='active' THEN 1 ELSE 0 END) AS reviewer_active,
+            sum(CASE WHEN customer_id=?2 AND status='revoked' THEN 1 ELSE 0 END) AS reviewer_revoked
+          FROM api_keys WHERE key_hash=?1 AND id<>?3''',[key_hash,CUSTOMER,KEY_ID])
+          if len(rows)!=1: raise RuntimeError('reviewer key collision classification failed')
+          r=rows[0]
+          out={k:int(r.get(k) or 0) for k in ('total','reviewer_owned','non_reviewer_owned','reviewer_label_match','reviewer_id_family','reviewer_oauth_access_id','reviewer_active','reviewer_revoked')}
+          out['exact_source_match_count']=exact_source_match
+          out['exact_source_active']=source_active
+
+          access_refs=d1('SELECT count(*) AS n FROM oauth_access_tokens WHERE api_key_id IN (SELECT id FROM api_keys WHERE key_hash=?1 AND id<>?2 AND customer_id=?3)',[key_hash,KEY_ID,CUSTOMER])
+          refresh_refs=d1('SELECT count(*) AS n FROM oauth_refresh_tokens WHERE api_key_id IN (SELECT id FROM api_keys WHERE key_hash=?1 AND id<>?2 AND customer_id=?3)',[key_hash,KEY_ID,CUSTOMER])
+          usage_refs=d1('SELECT count(*) AS n FROM usage_events WHERE key_id IN (SELECT id FROM api_keys WHERE key_hash=?1 AND id<>?2 AND customer_id=?3)',[key_hash,KEY_ID,CUSTOMER])
+          out['reviewer_oauth_access_token_refs']=int((access_refs[0] if access_refs else {}).get('n') or 0)
+          out['reviewer_oauth_refresh_token_refs']=int((refresh_refs[0] if refresh_refs else {}).get('n') or 0)
+          out['reviewer_usage_event_refs']=int((usage_refs[0] if usage_refs else {}).get('n') or 0)
+          out['credential_material_exposed']=False
+          print(json.dumps(out,sort_keys=True))
+
+          if exact_source_match!=1 or not source_active:
+            raise RuntimeError('Fail-closed: current reviewer secret does not map uniquely to the active persistent reviewer source key')
+          if out['non_reviewer_owned']:
+            raise RuntimeError('Fail-closed: reviewer secret collides with a non-reviewer production credential')
+          if out['total']!=0 or out['reviewer_owned']!=0:
+            raise RuntimeError('Fail-closed: current reviewer secret is duplicated into another api_keys row')
+          PY

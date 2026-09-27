@@ -1,0 +1,45 @@
+name: MUSITU Brand Guard
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  brand-guard:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Enforce MUSITU canonical branding
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import pathlib,re,subprocess
+          protected=pathlib.Path('deploy_payload/runtime_min')
+          tracked=[pathlib.Path(x.decode()) for x in subprocess.check_output(['git','ls-files','-z']).split(b'\0') if x]
+          binary={'.zip','.gz','.tgz','.png','.jpg','.jpeg','.gif','.webp','.pdf','.pyc','.so','.dll','.exe','.bin','.enc'}
+          violations=[]
+          for p in tracked:
+              s=str(p)
+              if p==protected or protected in p.parents:
+                  continue
+              if '/mft-' in '/'+s.lower() or s.lower().startswith('mft-'):
+                  violations.append(f'RETIRED_NAMESPACE_IN_PATH:{s}')
+              if not p.is_file() or p.suffix.lower() in binary: continue
+              try:t=p.read_text(encoding='utf-8')
+              except Exception:continue
+              forbidden=[r'\bMFT\s+Axiom\b',r'\bmft\.axiom\b']
+              for pat in forbidden:
+                  if re.search(pat,t,re.I): violations.append(f'RETIRED_BRAND_CONTENT:{s}:{pat}')
+          if violations:
+              print('\n'.join(sorted(set(violations))))
+              raise SystemExit('MUSITU brand guard failed')
+          print('MUSITU_BRAND_GUARD_PASS')
+          PY

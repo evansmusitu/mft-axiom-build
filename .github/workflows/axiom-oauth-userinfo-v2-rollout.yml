@@ -1,0 +1,75 @@
+name: MUSITU Axiom OAuth UserInfo V2 Rollout
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/axiom-oauth-userinfo-v2-rollout.yml'
+      - 'scripts/patch_oauth_userinfo.py'
+      - 'scripts/rollout_oauth_userinfo.py'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: musitu-axiom-oauth-production
+  cancel-in-progress: false
+
+jobs:
+  rollout:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Build and statically validate additive OAuth candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m py_compile scripts/patch_oauth_userinfo.py scripts/rollout_oauth_userinfo.py
+          python scripts/patch_oauth_userinfo.py auth/musitu_axiom_oauth_worker.mjs /tmp/musitu_axiom_oauth_worker_v2.mjs
+          node --check auth/musitu_axiom_oauth_worker.mjs
+          node --check /tmp/musitu_axiom_oauth_worker_v2.mjs
+          grep -q 'userinfo_endpoint' /tmp/musitu_axiom_oauth_worker_v2.mjs
+          grep -q 'email_verified' /tmp/musitu_axiom_oauth_worker_v2.mjs
+          grep -q '"openid","email"' /tmp/musitu_axiom_oauth_worker_v2.mjs
+
+      - name: Deploy candidate and prove UserInfo, scope isolation, refresh, revoke, and metering
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$CLOUDFLARE_EMAIL"
+          test -n "$CLOUDFLARE_GLOBAL_API_KEY"
+          python scripts/rollout_oauth_userinfo.py auth/musitu_axiom_oauth_worker.mjs /tmp/musitu_axiom_oauth_worker_v2.mjs
+
+      - name: Promote proven OAuth source into canonical repository file
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp /tmp/musitu_axiom_oauth_worker_v2.mjs auth/musitu_axiom_oauth_worker.mjs
+          node --check auth/musitu_axiom_oauth_worker.mjs
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add auth/musitu_axiom_oauth_worker.mjs
+          if git diff --cached --quiet; then
+            echo "Canonical OAuth source already current"
+          else
+            git commit -m "Promote verified OAuth UserInfo support"
+            git push origin HEAD:main
+          fi
+
+      - name: Upload sealed OAuth UserInfo evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: musitu-axiom-oauth-userinfo-v2
+          path: |
+            musitu-axiom-oauth-userinfo-v2.json
+            musitu-axiom-oauth-userinfo-v2.sha256
+          retention-days: 30
+          if-no-files-found: warn

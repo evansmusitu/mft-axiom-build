@@ -1,0 +1,53 @@
+name: MUSITU Axiom OIDC Domain Restriction Repair V4
+
+on:
+  push:
+    paths:
+      - '.github/workflows/axiom-oidc-domain-restriction-repair-v4.yml'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: musitu-axiom-publication-repair
+  cancel-in-progress: false
+
+jobs:
+  repair:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: frontier/axiom-v5-skill-fabric
+          fetch-depth: 0
+
+      - name: Apply reviewed V3 transformation with whitespace normalization
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          test "$(git merge-base 'd6a846f6bbe0bccac1758713eb4de167caf07113' refs/remotes/origin/main)" = 'd6a846f6bbe0bccac1758713eb4de167caf07113'
+          git diff --exit-code 'd6a846f6bbe0bccac1758713eb4de167caf07113' refs/remotes/origin/main --
+          python - <<'PY'
+          from pathlib import Path
+          import textwrap
+          source=Path('.github/workflows/axiom-oidc-domain-restriction-repair-v3.yml').read_text()
+          marker="          python - <<'PY'\n"
+          if marker not in source or '\n          PY\n' not in source:
+              raise SystemExit('reviewed V3 transformation block missing')
+          body=source.split(marker,1)[1].split('\n          PY\n',1)[0]
+          exec(compile(textwrap.dedent(body),'<reviewed-oidc-v3>','exec'),{})
+          gate=Path('.github/workflows/axiom-frontier-v5-skill-gate.yml')
+          gate.write_text('\n'.join(line.rstrip() for line in gate.read_text().splitlines())+'\n')
+          PY
+          node --check auth/musitu_axiom_oauth_worker.mjs
+          git diff --check
+          grep -q '/.well-known/openid-configuration' auth/musitu_axiom_oauth_worker.mjs
+          grep -q 'oidc_discovery_verified' .github/workflows/axiom-oauth-production-deploy.yml
+          grep -q "mcp/musitu_axiom_plugin_gate_v4.mjs)' = '4a1ad37a5e7df0e4d3966e8b5f9f0e8f2db69167'" .github/workflows/axiom-frontier-v5-skill-gate.yml
+          git config user.name 'evansmusitu'
+          git config user.email 'evansmusitu5@gmail.com'
+          git add auth/musitu_axiom_oauth_worker.mjs .github/workflows/axiom-oauth-production-deploy.yml .github/workflows/axiom-frontier-v5-skill-gate.yml
+          git commit -m 'Enable OIDC discovery for enterprise domain restrictions'
+          git push origin HEAD:frontier/axiom-v5-skill-fabric

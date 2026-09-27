@@ -1,0 +1,113 @@
+name: MUSITU Cloudflare Zone Inventory
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/musitu-cloudflare-zone-inventory.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  inventory:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      CF_API: https://api.cloudflare.com/client/v4
+      EXPECTED_ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - name: Read all zones owned by the canonical account
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$CLOUDFLARE_EMAIL"
+          test -n "$CLOUDFLARE_GLOBAL_API_KEY"
+          python - <<'PY'
+          import hashlib,json,os,urllib.parse,urllib.request,urllib.error
+
+          base=os.environ['CF_API']; aid=os.environ['EXPECTED_ACCOUNT_ID']
+          headers={
+            'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],
+            'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY'],
+            'Content-Type':'application/json',
+            'User-Agent':'MUSITU-Cloudflare-Zone-Inventory/1.0',
+          }
+          zones=[]; page=1
+          while True:
+            qs=urllib.parse.urlencode({'account.id':aid,'per_page':50,'page':page,'order':'name','direction':'asc'})
+            req=urllib.request.Request(base+'/zones?'+qs,headers=headers,method='GET')
+            try:
+              with urllib.request.urlopen(req,timeout=30) as r:
+                raw=r.read(); code=r.status
+            except urllib.error.HTTPError as e:
+              raw=e.read(); code=e.code
+            if code!=200:
+              raise SystemExit(f'Fail-closed: Cloudflare zones read HTTP {code}')
+            body=json.loads(raw or b'{}')
+            if body.get('success') is not True:
+              raise SystemExit('Fail-closed: Cloudflare zones success=false')
+            batch=body.get('result') or []
+            zones.extend(batch)
+            info=body.get('result_info') or {}
+            total_pages=int(info.get('total_pages') or 1)
+            if page>=total_pages: break
+            page+=1
+
+          safe=[]
+          for z in zones:
+            account=(z.get('account') or {})
+            if account.get('id')!=aid:
+              raise SystemExit('Fail-closed: zone returned outside canonical account')
+            safe.append({
+              'id':z.get('id'),
+              'name':z.get('name'),
+              'status':z.get('status'),
+              'paused':z.get('paused'),
+              'type':z.get('type'),
+              'account_id':account.get('id'),
+              'account_name':account.get('name'),
+            })
+          safe=sorted(safe,key=lambda x:(str(x.get('name') or ''),str(x.get('id') or '')))
+          names=[str(x.get('name') or '') for x in safe]
+          musitu_candidates=[x for x in safe if 'musitu' in str(x.get('name') or '').lower()]
+          out={
+            'schema':'musitu.cloudflare.zone_inventory.v1',
+            'account_id':aid,
+            'zone_count':len(safe),
+            'zones':safe,
+            'musitu_named_owned_zones':musitu_candidates,
+            'musitu_named_owned_zone_count':len(musitu_candidates),
+            'mftintelligence_present':'mftintelligence.com' in names,
+            'write_performed':False,
+            'gate':'CLOUDFLARE_ZONE_INVENTORY_PASS',
+          }
+          raw=(json.dumps(out,indent=2,sort_keys=True)+'\n').encode()
+          open('musitu-cloudflare-zone-inventory.json','wb').write(raw)
+          digest=hashlib.sha256(raw).hexdigest()
+          open('musitu-cloudflare-zone-inventory.sha256','w').write(digest+'  musitu-cloudflare-zone-inventory.json\n')
+          print(json.dumps({
+            'gate':out['gate'],
+            'account_id':aid,
+            'zone_count':len(safe),
+            'zone_names':names,
+            'musitu_named_owned_zone_count':len(musitu_candidates),
+            'write_performed':False,
+            'sha256':digest,
+          },sort_keys=True))
+          PY
+      - name: Upload sealed zone inventory
+        uses: actions/upload-artifact@v4
+        with:
+          name: musitu-cloudflare-zone-inventory
+          path: |
+            musitu-cloudflare-zone-inventory.json
+            musitu-cloudflare-zone-inventory.sha256
+          retention-days: 30
+          if-no-files-found: error

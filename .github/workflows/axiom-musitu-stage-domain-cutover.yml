@@ -1,0 +1,160 @@
+name: MUSITU Axiom Stage Domain Cutover
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/axiom-musitu-stage-domain-cutover.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  cutover:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      ZONE_ID: 5b56528f03948ff5917a5e0cd9f7109e
+      ZONE_NAME: mftintelligence.com
+      HOSTNAME: axiom-stage.mftintelligence.com
+      OLD_SERVICE: mft-axiom-modal-edge-stage
+      NEW_SERVICE: musitu-axiom-modal-edge-stage
+      BUILD_ID: MFT-AXIOM-V3-FULL-SELF-CONTAINED-20260904
+      CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+      CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Preverify MUSITU alias and cut over with automatic rollback
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json,os,time,urllib.request,urllib.error,pathlib
+          base='https://api.cloudflare.com/client/v4'; aid=os.environ['ACCOUNT_ID']; host=os.environ['HOSTNAME']
+          hdr={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY'],'Content-Type':'application/json','User-Agent':'MUSITU-Axiom-Domain-Cutover/1.0'}
+          def call(path,method='GET',body=None):
+              data=None if body is None else json.dumps(body).encode()
+              req=urllib.request.Request(base+path,headers=hdr,data=data,method=method)
+              try:
+                  with urllib.request.urlopen(req,timeout=30) as r: raw=r.read(); code=r.status
+              except urllib.error.HTTPError as e:
+                  raw=e.read(); code=e.code
+              if not 200<=code<300: raise RuntimeError(f'Cloudflare HTTP {code}: {raw[:300]!r}')
+              x=json.loads(raw or b'{}')
+              if isinstance(x,dict) and x.get('success') is False: raise RuntimeError('Cloudflare success=false')
+              return x
+          def domains(): return call(f'/accounts/{aid}/workers/domains').get('result') or []
+          def domain_row():
+              rows=[x for x in domains() if x.get('hostname')==host]
+              if len(rows)!=1: raise RuntimeError(f'expected exactly one staging custom domain, got {len(rows)}')
+              return rows[0]
+          def attach(service):
+              return call(f'/accounts/{aid}/workers/domains','PUT',{
+                  'hostname':host,
+                  'service':service,
+                  'zone_id':os.environ['ZONE_ID'],
+                  'zone_name':os.environ['ZONE_NAME'],
+                  'override_existing_origin':True,
+              })
+          def http_json(url,method='GET',body=None):
+              data=None if body is None else json.dumps(body).encode()
+              headers={'accept':'application/json','User-Agent':'MUSITU-Axiom-Domain-Cutover/1.0'}
+              if data is not None: headers['content-type']='application/json'
+              req=urllib.request.Request(url,headers=headers,data=data,method=method)
+              try:
+                  with urllib.request.urlopen(req,timeout=30) as r:
+                      raw=r.read(); return r.status,json.loads(raw or b'{}')
+              except urllib.error.HTTPError as e:
+                  raw=e.read()
+                  try: parsed=json.loads(raw or b'{}')
+                  except Exception: parsed={}
+                  return e.code,parsed
+          # Exact current-target precondition prevents accidental overwrite of another deployment.
+          before=domain_row()
+          if before.get('service')!=os.environ['OLD_SERVICE']:
+              raise RuntimeError('old-service precondition failed: '+repr(before.get('service')))
+          # Resolve workers.dev subdomain and prove successor before touching custom-domain routing.
+          sub=(call(f'/accounts/{aid}/workers/subdomain').get('result') or {}).get('subdomain')
+          if not sub: raise RuntimeError('workers.dev subdomain unavailable')
+          new_url=f"https://{os.environ['NEW_SERVICE']}.{sub}.workers.dev"
+          hs,hj=http_json(new_url+'/health')
+          if hs!=200 or hj.get('ok') is not True or hj.get('build_id')!=os.environ['BUILD_ID'] or int(hj.get('operation_count') or -1)!=74:
+              raise RuntimeError('MUSITU successor pre-cutover health failed')
+          ts,tj=http_json(new_url+'/v1/tools')
+          if ts!=200 or tj.get('operation_count')!=74 or len(tj.get('tools') or [])!=74:
+              raise RuntimeError('MUSITU successor pre-cutover tools failed')
+          us,_=http_json(new_url+'/v1/compute','POST',{'operation':'arithmetic.evaluate','args':{'expression':'40+2'}})
+          if us!=401: raise RuntimeError(f'MUSITU successor pre-cutover unauth expected 401 got {us}')
+          print('musitu_successor_pre_cutover=PASS')
+          promoted=False
+          try:
+              attach(os.environ['NEW_SERVICE']); promoted=True
+              after=domain_row()
+              if after.get('service')!=os.environ['NEW_SERVICE']:
+                  raise RuntimeError('custom-domain readback did not move to MUSITU service')
+              print('musitu_domain_mapping_readback=PASS')
+              last=None; final_health=None
+              for _ in range(45):
+                  hs,hj=http_json('https://'+host+'/health')
+                  if hs==200 and hj.get('ok') is True and hj.get('build_id')==os.environ['BUILD_ID'] and int(hj.get('operation_count') or -1)==74 and hj.get('state')=='D1' and hj.get('wolfram_parity')=='NOT_CERTIFIED' and hj.get('superiority')=='NOT_CERTIFIED':
+                      final_health=hj; break
+                  last={'status':hs,'body':hj}; time.sleep(2)
+              if final_health is None: raise RuntimeError('custom-domain FULL health not reached: '+repr(last))
+              ts,tj=http_json('https://'+host+'/v1/tools')
+              if ts!=200 or tj.get('operation_count')!=74 or len(tj.get('tools') or [])!=74:
+                  raise RuntimeError('custom-domain 74-tools gate failed')
+              us,_=http_json('https://'+host+'/v1/compute','POST',{'operation':'arithmetic.evaluate','args':{'expression':'40+2'},'verify':True})
+              if us!=401: raise RuntimeError(f'custom-domain unauth expected 401 got {us}')
+              # Confirm hostname-scoped security rule still exists; do not mutate it.
+              rulesets=call(f'/zones/{os.environ["ZONE_ID"]}/rulesets').get('result') or []
+              stage_expr='http.host eq "'+host+'"'
+              scoped_rule=False
+              for rs in rulesets:
+                  rid=rs.get('id')
+                  if not rid: continue
+                  try: detail=call(f'/zones/{os.environ["ZONE_ID"]}/rulesets/{rid}').get('result') or {}
+                  except Exception: continue
+                  for rule in detail.get('rules') or []:
+                      if stage_expr in str(rule.get('expression') or ''): scoped_rule=True
+              if not scoped_rule: raise RuntimeError('staging hostname-scoped security rule not found after cutover')
+              out={
+                  'schema':'musitu.axiom.stage_domain_cutover.v1',
+                  'hostname':host,
+                  'old_service':os.environ['OLD_SERVICE'],
+                  'new_service':os.environ['NEW_SERVICE'],
+                  'build_id':os.environ['BUILD_ID'],
+                  'health':'PASS',
+                  'operation_count':74,
+                  'unauthenticated_compute_401':'PASS',
+                  'scoped_security_rule':'PASS',
+                  'rollback_required':False,
+                  'compatibility_facade':True,
+                  'legacy_backend_retained':True,
+                  'production_admission':'NOT_CHANGED',
+                  'wolfram_parity':'NOT_CERTIFIED',
+                  'superiority':'NOT_CERTIFIED',
+                  'gate':'MUSITU_STAGE_DOMAIN_PUBLIC_PASS',
+              }
+              pathlib.Path('musitu-stage-domain-cutover.json').write_text(json.dumps(out,indent=2,sort_keys=True))
+              pathlib.Path('musitu-stage-health.json').write_text(json.dumps(final_health,indent=2,sort_keys=True))
+              print('MUSITU_STAGE_DOMAIN_PUBLIC_PASS')
+          except Exception:
+              if promoted:
+                  attach(os.environ['OLD_SERVICE'])
+                  rb=domain_row()
+                  if rb.get('service')!=os.environ['OLD_SERVICE']:
+                      raise RuntimeError('rollback readback failed')
+                  print('rollback_to_legacy_edge=PASS')
+              raise
+          PY
+          sha256sum musitu-stage-domain-cutover.json musitu-stage-health.json > musitu-stage-domain-cutover.sha256
+      - uses: actions/upload-artifact@v4
+        with:
+          name: musitu-axiom-stage-domain-cutover
+          path: |
+            musitu-stage-domain-cutover.json
+            musitu-stage-domain-cutover.sha256
+            musitu-stage-health.json
+          retention-days: 14
+          if-no-files-found: error

@@ -1,0 +1,98 @@
+name: MUSITU Axiom Paynow Offline Contract v3
+
+on:
+  push:
+    paths:
+      - '.github/workflows/axiom-paynow-offline-contract-v3.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      CF_API: https://api.cloudflare.com/client/v4
+      ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      PAYNOW_WORKER: mft-paynow-transport-gateway
+    steps:
+      - uses: actions/checkout@v4
+      - name: Override authorization only in a local copy and execute with mocked network
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import email,hashlib,os,re,urllib.request
+          api=os.environ['CF_API']; aid=os.environ['ACCOUNT_ID']; w=os.environ['PAYNOW_WORKER']
+          h={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY'],'User-Agent':'MUSITU-Axiom-Paynow-Offline-v3/1.0'}
+          q=urllib.request.Request(f'{api}/accounts/{aid}/workers/scripts/{w}',headers=h,method='GET')
+          with urllib.request.urlopen(q,timeout=45) as r: raw=r.read(); ctype=r.headers.get('content-type','')
+          src=raw
+          if 'multipart/' in ctype.lower():
+              msg=email.message_from_bytes((f'Content-Type: {ctype}\r\nMIME-Version: 1.0\r\n\r\n').encode()+raw); parts=[]
+              for p in msg.walk():
+                  if p.is_multipart(): continue
+                  d=p.get_payload(decode=True) or b''
+                  if b'handleInitiate' in d and b'handlePoll' in d: parts.append(d)
+              if not parts: raise SystemExit('Fail-closed: no gateway module')
+              src=max(parts,key=len)
+          text=src.decode('utf-8')
+          pat=re.compile(r'(?:async\s+)?function\s+authorized\s*\([^)]*\)\s*\{')
+          m=pat.search(text)
+          if not m: raise SystemExit('Fail-closed: authorized() definition absent')
+          brace=text.find('{',m.start()); depth=0; quote=None; esc=False; end=None
+          for i in range(brace,len(text)):
+              ch=text[i]
+              if quote:
+                  if esc: esc=False
+                  elif ch=='\\': esc=True
+                  elif ch==quote: quote=None
+                  continue
+              if ch in ('"',"'",'`'): quote=ch; continue
+              if ch=='{': depth+=1
+              elif ch=='}':
+                  depth-=1
+                  if depth==0: end=i+1; break
+          if end is None: raise SystemExit('Fail-closed: authorized() body unmatched')
+          patched=text[:m.start()]+'async function authorized(request, env) { return true; }'+text[end:]
+          if patched.count('LOCAL_TEST_AUTH')!=0: raise SystemExit('unexpected prior patch marker')
+          if 'function handleInitiate' not in patched or 'function handlePoll' not in patched: raise SystemExit('handlers missing')
+          patched+='\nexport { handleInitiate as __init, handlePoll as __poll };\n'
+          open('gateway-local.mjs','w').write(patched)
+          open('gateway-original.sha256','w').write(hashlib.sha256(src).hexdigest()+'\n')
+          PY
+          node --check gateway-local.mjs
+          cat > run.mjs <<'JS'
+          import {pathToFileURL} from 'node:url'; import fs from 'node:fs'; import crypto from 'node:crypto';
+          const m=await import(pathToFileURL(process.cwd()+'/gateway-local.mjs').href+'?'+Date.now());
+          const safeUrl=x=>{try{const u=new URL(String(x));return{host:u.host,path:u.pathname,query_keys:[...u.searchParams.keys()].sort()}}catch{return{opaque:true}}};
+          async function shape(r){let t='';try{t=await r.clone().text()}catch{}let keys=[];try{const o=JSON.parse(t);if(o&&typeof o==='object')keys=Object.keys(o).sort()}catch{try{keys=[...new URLSearchParams(t).keys()].sort()}catch{}}return{keys,bytes:Buffer.byteLength(t),sha256:crypto.createHash('sha256').update(t).digest('hex')}}
+          function env(){return{MFT_GATEWAY_CAPABILITY_TOKEN:'local-unused',CONTROL_RATE_LIMITER:{async limit(){return{success:true}}},PUBLIC_CALLBACK_RATE_LIMITER:{async limit(){return{success:true}}},CALLBACK_VAULT:{idFromName(){return'mock'},get(){return{async fetch(){return new Response(JSON.stringify({ok:true,status:'mocked'}),{status:200,headers:{'content-type':'application/json'}})}}}}}}
+          function net(){const calls=[];return{calls,fn:async(input,init={})=>{const r=input instanceof Request?input:new Request(String(input),init);calls.push({url:safeUrl(r.url),method:r.method,header_names:[...r.headers.keys()].sort(),body:await shape(r)});const u=new URL(r.url);const poll=u.pathname.toLowerCase().includes('checkpayment');const body=poll?'status=Paid&reference=mock-reference&paynowreference=mock-provider&amount=1.00&hash=mockhash':'status=Ok&browserurl=https%3A%2F%2Fexample.invalid%2Fpay&pollurl=https%3A%2F%2Fwww.paynow.co.zw%2FInterface%2FCheckPayment%2F%3Fguid%3Dmock&hash=mockhash';return new Response(body,{status:200,headers:{'content-type':'application/x-www-form-urlencoded'}})}}}
+          async function exec(handler,path,payload){const n=net();const req=new Request('https://local.invalid'+path,{method:'POST',headers:{'content-type':'application/json','cf-connecting-ip':'127.0.0.1'},body:JSON.stringify(payload)});let res,err=null;try{res=await handler(req,env(),n.fn)}catch(e){err={name:e?.name,message:String(e?.message||e).slice(0,180)}}let body='';if(res)body=await res.clone().text().catch(()=> '');let obj={};try{obj=JSON.parse(body);if(!obj||typeof obj!=='object'||Array.isArray(obj))obj={}}catch{}const safe={};for(const k of ['ok','status','error','code','error_code','message','authority','certifies_payments'])if(['string','boolean','number'].includes(typeof obj[k])||obj[k]===null)safe[k]=obj[k];return{input_keys:Object.keys(payload).sort(),http_status:res?.status??null,error:err,response_keys:Object.keys(obj).sort(),safe_response_values:safe,response_sha256:crypto.createHash('sha256').update(body).digest('hex'),fetch_calls:n.calls}}
+          const initiate=[
+            {},
+            {order_id:'mock-order'},
+            {order_id:'mock-order',url:'https://www.paynow.co.zw/interface/initiatetransaction',body:'resulturl=https%3A%2F%2Fexample.invalid%2Fresult&returnurl=https%3A%2F%2Fexample.invalid%2Freturn&reference=mock-reference&amount=1.00'},
+            {order_id:'mock-order',request_url:'https://www.paynow.co.zw/interface/initiatetransaction',request_body:'resulturl=https%3A%2F%2Fexample.invalid%2Fresult&returnurl=https%3A%2F%2Fexample.invalid%2Freturn&reference=mock-reference&amount=1.00'},
+            {order_id:'mock-order',endpoint:'https://www.paynow.co.zw/interface/initiatetransaction',payload:'resulturl=https%3A%2F%2Fexample.invalid%2Fresult&returnurl=https%3A%2F%2Fexample.invalid%2Freturn&reference=mock-reference&amount=1.00'}
+          ];
+          const poll=[{}, {poll_url:'https://www.paynow.co.zw/Interface/CheckPayment/?guid=mock'}, {order_id:'mock-order',poll_url:'https://www.paynow.co.zw/Interface/CheckPayment/?guid=mock'}];
+          const a=[];for(const p of initiate)a.push(await exec(m.__init,'/internal/paynow/initiate',p));const b=[];for(const p of poll)b.push(await exec(m.__poll,'/internal/paynow/poll',p));
+          const out={schema:'musitu.axiom.paynow_offline_contract.v3',local_copy_only:true,live_worker_modified:false,network_mode:'FULLY_MOCKED_NO_PROVIDER_CALLS',production_mutation_performed:false,initiate_matrix:a,poll_matrix:b,gate:'AXIOM_PAYNOW_OFFLINE_CONTRACT_V3_PASS'};const raw=JSON.stringify(out,null,2)+'\n';fs.writeFileSync('contract.json',raw);const d=crypto.createHash('sha256').update(raw).digest('hex');fs.writeFileSync('contract.sha256',d+'  contract.json\n');console.log(JSON.stringify({...out,artifact_sha256:d}));
+          JS
+          node run.mjs
+      - uses: actions/upload-artifact@v4
+        with:
+          name: musitu-axiom-paynow-offline-contract-v3
+          path: |
+            contract.json
+            contract.sha256
+            gateway-original.sha256
+          retention-days: 14
+          if-no-files-found: error

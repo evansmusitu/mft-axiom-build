@@ -1,0 +1,190 @@
+name: MUSITU Education Nexus Phase5 Public Runtime Publication
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/musitu-education-nexus-phase5-public-runtime-publication.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  publish-runtime-candidates:
+    runs-on: windows-latest
+    timeout-minutes: 120
+    env:
+      RELEASE_TAG: mft-education-nexus-phase5-runtime-publication-20260905-v1
+      RUST_ASSET: rust-toolchain-1.82.0-x86_64-pc-windows-msvc.zip
+      CHROMIUM_ASSET: playwright-1.62.0-chromium-windows-x64.zip
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12.10'
+          architecture: 'x64'
+
+      - name: Build and independently exercise exact Rust 1.82 public candidate
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          function OK([string]$label){if($LASTEXITCODE -ne 0){throw "$label failed exit $LASTEXITCODE"}}
+          New-Item -ItemType Directory -Force out/runtime,out/evidence,tmp/rust-verify,tmp/rust-smoke/src | Out-Null
+          rustup toolchain install 1.82.0-x86_64-pc-windows-msvc --profile minimal; OK 'rust toolchain acquisition'
+          $rustc=(rustup which --toolchain 1.82.0-x86_64-pc-windows-msvc rustc); OK 'rustup which rustc'
+          $bin=Split-Path $rustc -Parent
+          $root=Split-Path $bin -Parent
+          $rv=& "$bin\rustc.exe" --version
+          $cv=& "$bin\cargo.exe" --version
+          if($rv -notmatch '^rustc 1\.82\.0 '){throw "unexpected rustc $rv"}
+          if($cv -notmatch '^cargo 1\.82\.0 '){throw "unexpected cargo $cv"}
+          7z a -tzip -mx=1 "out/runtime/$env:RUST_ASSET" "$root\*" | Out-Null; OK 'rust toolchain archive'
+          $archive=(Resolve-Path "out/runtime/$env:RUST_ASSET").Path
+          $sha=(Get-FileHash -Algorithm SHA256 $archive).Hash.ToLowerInvariant()
+          $bytes=(Get-Item $archive).Length
+          7z x -y $archive '-otmp/rust-verify' | Out-Null; OK 'rust toolchain rehydrate'
+          $rr=& "$PWD\tmp\rust-verify\bin\rustc.exe" --version
+          if($LASTEXITCODE -ne 0 -or $rr -ne $rv){throw 'rehydrated rustc mismatch'}
+          $cc=& "$PWD\tmp\rust-verify\bin\cargo.exe" --version
+          if($LASTEXITCODE -ne 0 -or $cc -ne $cv){throw 'rehydrated cargo mismatch'}
+          @'
+          [package]
+          name = "mft_public_rust_toolchain_smoke"
+          version = "0.0.0"
+          edition = "2021"
+          '@ | Set-Content -Encoding ascii tmp/rust-smoke/Cargo.toml
+          'fn main(){println!("MFT_PUBLIC_RUST_TOOLCHAIN_OFFLINE_SMOKE_PASS");}' | Set-Content -Encoding ascii tmp/rust-smoke/src/main.rs
+          Push-Location tmp/rust-smoke
+          $env:CARGO_NET_OFFLINE='true'
+          & "$PWD\..\rust-verify\bin\cargo.exe" build --offline; OK 'rehydrated cargo offline build'
+          & '.\target\debug\mft_public_rust_toolchain_smoke.exe' | Set-Content -Encoding ascii ..\..\out\evidence\RUST_PUBLIC_TOOLCHAIN_SMOKE.txt; OK 'rehydrated rust smoke run'
+          Pop-Location
+          @{
+            schema='mft.education_nexus.phase5.public_runtime.rust_toolchain_receipt.v1';
+            dependency_id='phase3:rust-toolchain';
+            rust_toolchain='1.82.0-x86_64-pc-windows-msvc';
+            rustc_version=$rv; cargo_version=$cv;
+            asset_filename=$env:RUST_ASSET; asset_sha256=$sha; asset_bytes=$bytes;
+            archive_rehydrated=$true; offline_build_exercised=$true; network_required_at_cleanroom=$false;
+            approved=$false; phase5_approved=$false
+          } | ConvertTo-Json -Depth 6 | Set-Content -Encoding utf8 out/evidence/RUST_PUBLIC_RUNTIME_RECEIPT.json
+          Write-Host "RUST_PUBLIC_ASSET_SHA256=$sha"
+          Write-Host "RUST_PUBLIC_ASSET_BYTES=$bytes"
+
+      - name: Build and independently exercise exact Playwright Chromium public candidate
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          function OK([string]$label){if($LASTEXITCODE -ne 0){throw "$label failed exit $LASTEXITCODE"}}
+          New-Item -ItemType Directory -Force out/browsers,tmp/browser-verify,tmp/pw-venv | Out-Null
+          python -m venv tmp/pw-venv; OK 'playwright venv'
+          $py='tmp/pw-venv/Scripts/python.exe'
+          & $py -m pip install --disable-pip-version-check 'playwright==1.62.0'; OK 'install exact Playwright 1.62.0'
+          $env:PLAYWRIGHT_BROWSERS_PATH=(Resolve-Path out/browsers).Path
+          & $py -m playwright install chromium; OK 'Playwright Chromium acquisition'
+          @'
+          import json,pathlib,playwright
+          p=pathlib.Path(playwright.__file__).resolve().parent/'driver'/'package'/'browsers.json'
+          data=json.loads(p.read_text())
+          rows=[x for x in data['browsers'] if x['name'] in ('chromium','chromium-headless-shell','ffmpeg')]
+          chromium=next(x for x in rows if x['name']=='chromium')
+          assert str(chromium['revision'])=='1234', chromium
+          assert chromium.get('browserVersion')=='151.0.7922.34', chromium
+          pathlib.Path('out/evidence/PLAYWRIGHT_PUBLIC_BROWSER_PIN.json').write_text(json.dumps({'playwright':'1.62.0','entries':rows},indent=2))
+          '@ | Set-Content -Encoding utf8 tmp/read_browser_pin.py
+          & $py tmp/read_browser_pin.py; OK 'verify Playwright browser pin'
+          @'
+          from playwright.sync_api import sync_playwright
+          from pathlib import Path
+          with sync_playwright() as p:
+              b=p.chromium.launch(headless=True)
+              pg=b.new_page()
+              pg.set_content('<title>MFT Public Chromium Offline Exercise</title><main id="ok">pass</main>')
+              assert pg.title()=='MFT Public Chromium Offline Exercise'
+              assert pg.locator('#ok').inner_text()=='pass'
+              version=b.version
+              assert version=='151.0.7922.34', version
+              b.close()
+          Path('out/evidence/PLAYWRIGHT_PUBLIC_CHROMIUM_EXERCISE.txt').write_text('PLAYWRIGHT_PUBLIC_CHROMIUM_EXERCISE_PASS\nversion='+version+'\n')
+          '@ | Set-Content -Encoding utf8 tmp/exercise_chromium.py
+          & $py tmp/exercise_chromium.py; OK 'Chromium role exercise'
+          7z a -tzip -mx=1 "out/runtime/$env:CHROMIUM_ASSET" '.\out\browsers\*' | Out-Null; OK 'Chromium archive'
+          $archive=(Resolve-Path "out/runtime/$env:CHROMIUM_ASSET").Path
+          $sha=(Get-FileHash -Algorithm SHA256 $archive).Hash.ToLowerInvariant()
+          $bytes=(Get-Item $archive).Length
+          7z x -y $archive '-otmp/browser-verify' | Out-Null; OK 'Chromium archive rehydrate'
+          $old=$env:PLAYWRIGHT_BROWSERS_PATH
+          $env:PLAYWRIGHT_BROWSERS_PATH=(Resolve-Path tmp/browser-verify).Path
+          & $py tmp/exercise_chromium.py; OK 'rehydrated Chromium role exercise'
+          $env:PLAYWRIGHT_BROWSERS_PATH=$old
+          $pin=Get-Content -Raw out/evidence/PLAYWRIGHT_PUBLIC_BROWSER_PIN.json | ConvertFrom-Json
+          @{
+            schema='mft.education_nexus.phase5.public_runtime.chromium_receipt.v1';
+            dependency_id='phase3:chromium-runtime'; playwright_version='1.62.0'; browser_version='151.0.7922.34'; browser_pin=$pin;
+            asset_filename=$env:CHROMIUM_ASSET; asset_sha256=$sha; asset_bytes=$bytes;
+            archive_rehydrated=$true; role_exercised=$true; network_required_at_cleanroom=$false;
+            approved=$false; phase5_approved=$false
+          } | ConvertTo-Json -Depth 12 | Set-Content -Encoding utf8 out/evidence/CHROMIUM_PUBLIC_RUNTIME_RECEIPT.json
+          Write-Host "CHROMIUM_PUBLIC_ASSET_SHA256=$sha"
+          Write-Host "CHROMIUM_PUBLIC_ASSET_BYTES=$bytes"
+
+      - name: Create immutable public GitHub release without approval claim
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $repo=$env:GITHUB_REPOSITORY
+          $tag=$env:RELEASE_TAG
+          $rust=Get-Content -Raw out/evidence/RUST_PUBLIC_RUNTIME_RECEIPT.json | ConvertFrom-Json
+          $chrom=Get-Content -Raw out/evidence/CHROMIUM_PUBLIC_RUNTIME_RECEIPT.json | ConvertFrom-Json
+          if($rust.approved -ne $false -or $chrom.approved -ne $false){throw 'candidate attempted self-approval'}
+          $publication=@{
+            schema='mft.education_nexus.phase5.public_runtime_publication.v1';
+            release_tag=$tag; repository=$repo;
+            reference_private_validation_run=33955474006;
+            approved=$false; phase5_approved=$false;
+            assets=@(
+              @{dependency_id='phase3:rust-toolchain'; filename=$rust.asset_filename; sha256=$rust.asset_sha256; bytes=$rust.asset_bytes; url="https://github.com/$repo/releases/download/$tag/$($rust.asset_filename)"},
+              @{dependency_id='phase3:chromium-runtime'; filename=$chrom.asset_filename; sha256=$chrom.asset_sha256; bytes=$chrom.asset_bytes; url="https://github.com/$repo/releases/download/$tag/$($chrom.asset_filename)"}
+            )
+          }
+          $publication | ConvertTo-Json -Depth 10 | Set-Content -Encoding utf8 out/evidence/PHASE5_PUBLIC_RUNTIME_PUBLICATION.json
+          gh release view $tag --repo $repo *> $null
+          if($LASTEXITCODE -eq 0){throw "release tag already exists: $tag"}
+          gh release create $tag --repo $repo --title 'MFT Education Nexus Phase5 runtime candidates v1' --notes 'Public immutable transport for hash-pinned Phase5 runtime candidates. This release does not assert Phase5 approval.' "out/runtime/$env:RUST_ASSET" "out/runtime/$env:CHROMIUM_ASSET" 'out/evidence/RUST_PUBLIC_RUNTIME_RECEIPT.json' 'out/evidence/CHROMIUM_PUBLIC_RUNTIME_RECEIPT.json' 'out/evidence/PHASE5_PUBLIC_RUNTIME_PUBLICATION.json'
+          if($LASTEXITCODE -ne 0){throw 'release publication failed'}
+
+      - name: Anonymous allowlisted public retrieval and exact hash verification
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          New-Item -ItemType Directory -Force tmp/public-fetch | Out-Null
+          $repo=$env:GITHUB_REPOSITORY
+          $tag=$env:RELEASE_TAG
+          $pub=Get-Content -Raw out/evidence/PHASE5_PUBLIC_RUNTIME_PUBLICATION.json | ConvertFrom-Json
+          foreach($a in $pub.assets){
+            $uri=[Uri]$a.url
+            if($uri.Scheme -ne 'https' -or $uri.Host -ne 'github.com'){throw "non-allowlisted publication URL $($a.url)"}
+            $dest=Join-Path 'tmp/public-fetch' $a.filename
+            Invoke-WebRequest -UseBasicParsing -MaximumRedirection 10 -Uri $a.url -OutFile $dest
+            $got=(Get-FileHash -Algorithm SHA256 $dest).Hash.ToLowerInvariant()
+            $bytes=(Get-Item $dest).Length
+            if($got -ne $a.sha256){throw "public retrieval SHA mismatch for $($a.filename): $got"}
+            if($bytes -ne $a.bytes){throw "public retrieval size mismatch for $($a.filename): $bytes"}
+          }
+          @{
+            schema='mft.education_nexus.phase5.public_runtime_transport_verification.v1';
+            release_tag=$tag; anonymous_public_retrieval_verified=$true; initial_url_host='github.com';
+            exact_sha256_verified=$true; exact_bytes_verified=$true;
+            approved=$false; phase5_approved=$false
+          } | ConvertTo-Json -Depth 6 | Set-Content -Encoding utf8 out/evidence/PHASE5_PUBLIC_RUNTIME_TRANSPORT_VERIFICATION.json
+
+      - name: Attach public transport verification receipt
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          gh release upload $env:RELEASE_TAG --repo $env:GITHUB_REPOSITORY 'out/evidence/PHASE5_PUBLIC_RUNTIME_TRANSPORT_VERIFICATION.json'
+          if($LASTEXITCODE -ne 0){throw 'verification receipt upload failed'}

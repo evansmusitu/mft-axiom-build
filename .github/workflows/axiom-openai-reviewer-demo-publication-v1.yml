@@ -1,0 +1,186 @@
+name: MUSITU Axiom OpenAI Reviewer Demo Publication V1
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - frontier/axiom-v5-skill-fabric
+    paths:
+      - '.github/workflows/axiom-openai-reviewer-demo-publication-v1.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: musitu-axiom-public-plugin-cutover
+  cancel-in-progress: false
+
+jobs:
+  publish-reviewer-demo:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      CF_API: https://api.cloudflare.com/client/v4
+      ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      D1_UUID: 504029cc-f9a5-495e-818f-63c6144b4ea4
+      MCP_HOST: mcp.mftintelligence.com
+      MCP_PUBLIC_WORKER: musitu-axiom-mcp
+      MCP_CORE_WORKER: musitu-axiom-mcp-core
+      AUTH_ISSUER: https://auth.mftintelligence.com
+      VIDEO_PATH: submission/reviewer/MUSITU_Axiom_OpenAI_Reviewer_Demo_FINAL.mp4
+      WRAPPER_PATH: mcp/musitu_axiom_plugin_gate_v4_demo.mjs
+      EXPECTED_SHA256: 779be1d7948f0971f673d54d99572a6dada168104f10388cc3139a4cd423e5d3
+      EXPECTED_SIZE: '6325952'
+
+    steps:
+      - name: Checkout immutable reviewer asset source
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+
+      - name: Verify committed asset and wrapper are self-contained
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f "$VIDEO_PATH"
+          test -f "$WRAPPER_PATH"
+          test "$(stat -c%s "$VIDEO_PATH")" = "$EXPECTED_SIZE"
+          test "$(sha256sum "$VIDEO_PATH" | awk '{print $1}')" = "$EXPECTED_SHA256"
+          node --check mcp/musitu_axiom_plugin_gate_v4.mjs
+          node --check "$WRAPPER_PATH"
+          grep -Fq "$EXPECTED_SHA256" "$WRAPPER_PATH"
+          grep -Fq "raw.githubusercontent.com/evansmusitu/mft-axiom-build/" "$WRAPPER_PATH"
+          ! grep -Eqi 'dropbox|dl\.dropboxusercontent|RELAY_URL' "$WRAPPER_PATH"
+          ! grep -Eqi 'dropbox|dl\.dropboxusercontent|RELAY_URL' .github/workflows/axiom-openai-reviewer-demo-publication-v1.yml
+          python - <<'PY'
+          import os
+          b=open(os.environ['VIDEO_PATH'],'rb').read(32)
+          if len(b)<12 or b[4:8] != b'ftyp':
+              raise SystemExit('Fail-closed: MP4 signature missing')
+          print('committed_reviewer_asset=PASS')
+          PY
+
+      - name: Deploy durable wrapper and prove production contract
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import hashlib,json,os,pathlib,secrets,time,urllib.error,urllib.parse,urllib.request
+          api=os.environ['CF_API']; aid=os.environ['ACCOUNT_ID']; dbid=os.environ['D1_UUID']
+          host=os.environ['MCP_HOST']; pub=os.environ['MCP_PUBLIC_WORKER']; core=os.environ['MCP_CORE_WORKER']
+          issuer=os.environ['AUTH_ISSUER']; resource='https://'+host
+          expected_sha=os.environ['EXPECTED_SHA256']; expected_size=int(os.environ['EXPECTED_SIZE'])
+          wrapper=pathlib.Path(os.environ['WRAPPER_PATH']).read_bytes()
+          canonical=pathlib.Path('mcp/musitu_axiom_plugin_gate_v4.mjs').read_bytes()
+          admin={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY'],'Accept':'application/json','User-Agent':'MUSITU-Axiom-Reviewer-Demo-Durable/1.0'}
+          hidden={'musitu_axiom_plans','musitu_axiom_recommend_plan','musitu_axiom_start_checkout','musitu_axiom_checkout_status'}
+          scopes=['openid','email','axiom.execute']
+
+          def raw(url,method='GET',headers=None,body=None,timeout=90):
+              req=urllib.request.Request(url,headers=dict(headers or {}),method=method,data=body)
+              try:
+                  with urllib.request.urlopen(req,timeout=timeout) as r:return r.status,r.headers,r.read()
+              except urllib.error.HTTPError as e:return e.code,e.headers,e.read()
+              except urllib.error.URLError as e:return 0,{},str(e).encode()
+
+          def multipart(main_source,include_canonical):
+              bindings=[
+                  {'type':'d1','name':'AXIOM_DB','id':dbid},
+                  {'type':'plain_text','name':'AUTH_ISSUER','text':issuer},
+                  {'type':'plain_text','name':'MCP_PUBLIC_BASE','text':resource},
+                  {'type':'service','name':'MCP_CORE','service':core},
+              ]
+              meta={'main_module':'index.mjs','compatibility_date':'2026-09-05','bindings':bindings}
+              bd='----MUSITU'+secrets.token_hex(16); parts=[]
+              def add(x):parts.append(x.encode() if isinstance(x,str) else x)
+              add(f'--{bd}\r\nContent-Disposition: form-data; name="metadata"\r\nContent-Type: application/json\r\n\r\n'); add(json.dumps(meta,separators=(',',':'))); add('\r\n')
+              add(f'--{bd}\r\nContent-Disposition: form-data; name="index.mjs"; filename="index.mjs"\r\nContent-Type: application/javascript+module\r\n\r\n'); add(main_source); add('\r\n')
+              if include_canonical:
+                  add(f'--{bd}\r\nContent-Disposition: form-data; name="musitu_axiom_plugin_gate_v4.mjs"; filename="musitu_axiom_plugin_gate_v4.mjs"\r\nContent-Type: application/javascript+module\r\n\r\n'); add(canonical); add('\r\n')
+              add(f'--{bd}--\r\n')
+              return bd,b''.join(parts)
+
+          def upload(main_source,include_canonical):
+              bd,body=multipart(main_source,include_canonical); h=dict(admin); h['Content-Type']='multipart/form-data; boundary='+bd
+              c,_,b=raw(f'{api}/accounts/{aid}/workers/scripts/{urllib.parse.quote(pub,safe="")}', 'PUT',h,body)
+              if not 200<=c<300: raise RuntimeError('Worker upload failed '+str(c)+' '+b[:180].decode('utf-8','ignore'))
+
+          def probe(path,method='GET',headers=None,body=None):
+              h={'User-Agent':'MUSITU-Axiom-Reviewer-Demo-Durable-Verify/1.0','Accept':'*/*'}
+              if headers:h.update(headers)
+              return raw(resource+path,method,h,body)
+
+          def rpc(method,params=None,id=1):
+              body=json.dumps({'jsonrpc':'2.0','id':id,'method':method,'params':params or {}},separators=(',',':')).encode()
+              c,h,b=probe('/mcp','POST',{'content-type':'application/json','accept':'application/json'},body)
+              try:o=json.loads(b or b'{}')
+              except:o={}
+              return c,h,o
+
+          def verify_core():
+              hc,_,hb=probe('/health')
+              if hc!=200: raise RuntimeError('health HTTP '+str(hc))
+              h=json.loads(hb or b'{}')
+              if h.get('ok') is not True or h.get('oauth_enforced') is not True or h.get('server_version')!='4.0.1': raise RuntimeError('health contract drift')
+              lc,_,lo=rpc('tools/list',id=91); tools=(lo.get('result') or {}).get('tools') or []; names={t.get('name') for t in tools if isinstance(t,dict)}
+              if lc!=200 or len(tools)!=108 or names&hidden: raise RuntimeError('public tool surface drift')
+              mc,_,mb=probe('/.well-known/oauth-protected-resource')
+              meta=json.loads(mb or b'{}') if mc==200 else {}
+              if mc!=200 or meta.get('resource')!=resource or meta.get('authorization_servers')!=[issuer] or meta.get('scopes_supported')!=scopes: raise RuntimeError('OAuth protected-resource metadata drift')
+              dc,_,do=rpc('server/discover',id=92)
+              if dc!=200 or (do.get('result') or {}).get('resultType')!='complete': raise RuntimeError('modern MCP discovery drift')
+
+          verify_core(); mutated=False
+          try:
+              upload(wrapper,True); mutated=True
+              ready=False
+              for _ in range(40):
+                  try:
+                      verify_core()
+                      hc,hh,_=probe('/demo.mp4','HEAD')
+                      if hc==200 and str(hh.get('content-type','')).lower().startswith('video/mp4') and hh.get('x-musitu-demo-sha256')==expected_sha:
+                          ready=True; break
+                  except Exception: pass
+                  time.sleep(2)
+              if not ready: raise RuntimeError('durable demo route did not converge')
+              gc,gh,gb=probe('/demo.mp4','GET')
+              if gc!=200 or not str(gh.get('content-type','')).lower().startswith('video/mp4'): raise RuntimeError('demo GET/content-type failed')
+              if len(gb)!=expected_size or hashlib.sha256(gb).hexdigest()!=expected_sha: raise RuntimeError('demo exact-byte verification failed')
+              rc,rh,rb=probe('/demo.mp4','GET',{'Range':'bytes=0-1023'})
+              if rc!=206 or len(rb)!=1024 or not str(rh.get('content-range','')).startswith(f'bytes 0-1023/{expected_size}'): raise RuntimeError('demo byte-range failed')
+              hc,hh,_=probe('/demo.mp4','HEAD')
+              if hc!=200 or hh.get('x-musitu-demo-sha256')!=expected_sha or hh.get('x-musitu-demo-size')!=str(expected_size): raise RuntimeError('demo HEAD integrity failed')
+              verify_core()
+              evidence={
+                  'ok':True,'public_url':resource+'/demo.mp4','sha256':expected_sha,'size':expected_size,
+                  'http_get':gc,'http_range':rc,'http_head':hc,'content_type':gh.get('content-type'),
+                  'content_range':rh.get('content-range'),'tool_count':108,'oauth_scopes':scopes,
+                  'hidden_commerce_tools_exposed':False,'mcp_modern_discovery':'PASS','relay_dependency':False,
+                  'source_commit':os.environ['GITHUB_SHA']
+              }
+              pathlib.Path('/tmp/musitu-axiom-reviewer-demo-production-proof.json').write_text(json.dumps(evidence,indent=2,sort_keys=True)+'\n')
+              print('MUSITU_AXIOM_REVIEWER_DEMO_DURABLE_PUBLICATION_PASS')
+              print(json.dumps(evidence,sort_keys=True))
+          except Exception:
+              if mutated:
+                  try:
+                      upload(canonical,False)
+                      for _ in range(30):
+                          try: verify_core(); print('MUSITU_AXIOM_REVIEWER_DEMO_ROLLBACK_PASS'); break
+                          except Exception: time.sleep(2)
+                  except Exception as rollback_error:
+                      print('ROLLBACK_ERROR',repr(rollback_error))
+              raise
+          PY
+
+      - name: Upload durable reviewer demo proof
+        uses: actions/upload-artifact@v4
+        with:
+          name: musitu-axiom-reviewer-demo-durable-production-proof
+          path: /tmp/musitu-axiom-reviewer-demo-production-proof.json
+          retention-days: 30
+          if-no-files-found: error

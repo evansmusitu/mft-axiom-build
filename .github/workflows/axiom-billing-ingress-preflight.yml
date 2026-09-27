@@ -1,0 +1,104 @@
+name: MUSITU Axiom Billing Ingress Preflight
+
+on:
+  push:
+    paths:
+      - '.github/workflows/axiom-billing-ingress-preflight.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  preflight:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    env:
+      CF_API: https://api.cloudflare.com/client/v4
+      ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      ZONE_ID: 5b56528f03948ff5917a5e0cd9f7109e
+      D1_UUID: 504029cc-f9a5-495e-818f-63c6144b4ea4
+      AUTHORITY: mft-phase8-external-authority
+      TRANSPORT: mft-paynow-transport-gateway
+      BILLING: mft-axiom-billing-ingress
+    steps:
+      - uses: actions/checkout@v4
+      - name: Read exact deployment topology without mutation
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import email,hashlib,json,os,urllib.error,urllib.parse,urllib.request
+          api=os.environ['CF_API']; aid=os.environ['ACCOUNT_ID']; zid=os.environ['ZONE_ID']; dbid=os.environ['D1_UUID']; authority=os.environ['AUTHORITY']
+          headers={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY'],'Accept':'application/json','User-Agent':'MUSITU-Axiom-Billing-Preflight/1.0'}
+          def raw(path,method='GET',body=None,ctype=None):
+              h=dict(headers)
+              if ctype: h['Content-Type']=ctype
+              q=urllib.request.Request(api+path,headers=h,method=method,data=body)
+              try:
+                  with urllib.request.urlopen(q,timeout=45) as r:return r.status,r.headers,r.read()
+              except urllib.error.HTTPError as e:return e.code,e.headers,e.read()
+          def cf(path):
+              c,h,b=raw(path)
+              if not 200<=c<300: raise SystemExit(f'Fail-closed CF HTTP {c} {path}')
+              x=json.loads(b or b'{}')
+              if isinstance(x,dict) and x.get('success') is False: raise SystemExit('Fail-closed CF success=false '+path)
+              return x.get('result') if isinstance(x,dict) else None
+          # Exact D1 column names only.
+          qbody=json.dumps({'sql':'SELECT name, sql FROM sqlite_master WHERE type=\'table\' AND name IN (\'customers\',\'api_keys\',\'billing_subscriptions\',\'webhook_events\',\'usage_events\',\'usage_buckets\') ORDER BY name;'}).encode()
+          c,h,b=raw(f'/accounts/{aid}/d1/database/{dbid}/query','POST',qbody,'application/json')
+          if not 200<=c<300: raise SystemExit(f'D1 schema HTTP {c}')
+          dx=json.loads(b); rows=[]
+          for rr in dx.get('result') or []: rows.extend(rr.get('results') or [])
+          table_sql={r.get('name'):r.get('sql') for r in rows if r.get('name') and r.get('sql')}
+          columns={}
+          for t in sorted(table_sql):
+              qb=json.dumps({'sql':f'PRAGMA table_info("{t}");'}).encode(); cc,hh,bb=raw(f'/accounts/{aid}/d1/database/{dbid}/query','POST',qb,'application/json')
+              if not 200<=cc<300: raise SystemExit('PRAGMA failed '+t)
+              xo=json.loads(bb); vals=[]
+              for rr in xo.get('result') or []: vals.extend(rr.get('results') or [])
+              columns[t]=[{'name':r.get('name'),'type':r.get('type'),'notnull':r.get('notnull'),'pk':r.get('pk')} for r in vals]
+          routes=cf(f'/zones/{zid}/workers/routes') or []
+          payment_routes=[{'id':r.get('id'),'pattern':r.get('pattern'),'script':r.get('script')} for r in routes if isinstance(r,dict) and ('payments.mftintelligence.com' in str(r.get('pattern') or '') or r.get('script') in (os.environ['TRANSPORT'],os.environ['BILLING']))]
+          scripts=cf(f'/accounts/{aid}/workers/scripts') or []
+          script_names=sorted(str(x.get('id') or x.get('name')) for x in scripts if isinstance(x,dict) and (x.get('id') or x.get('name')))
+          authority_settings=cf(f'/accounts/{aid}/workers/scripts/{urllib.parse.quote(authority,safe="")}/settings') or {}
+          safe_bindings=[]
+          for x in authority_settings.get('bindings') or []:
+              if not isinstance(x,dict): continue
+              item={'name':x.get('name'),'type':x.get('type')}
+              if x.get('type')=='service': item['service']=x.get('service'); item['environment']=x.get('environment')
+              safe_bindings.append(item)
+          c,h,b=raw(f'/accounts/{aid}/workers/scripts/{urllib.parse.quote(authority,safe="")}')
+          if c!=200: raise SystemExit(f'authority source HTTP {c}')
+          ctype=h.get('content-type',''); parts=[]; metadata_keys=[]; metadata_safe={}
+          if 'multipart/' in ctype.lower():
+              msg=email.message_from_bytes((f'Content-Type: {ctype}\r\nMIME-Version: 1.0\r\n\r\n').encode()+b)
+              for p in msg.walk():
+                  if p.is_multipart(): continue
+                  d=p.get_payload(decode=True) or b''; name=p.get_param('name',header='content-disposition') or p.get_filename() or ''
+                  item={'name':name,'content_type':p.get_content_type(),'filename':p.get_filename(),'bytes':len(d),'sha256':hashlib.sha256(d).hexdigest(),'looks_executable':any(tok in d for tok in (b'export default',b'fetch(',b'addEventListener',b'verifyPaynowCallback'))}
+                  parts.append(item)
+                  if name=='metadata' or p.get_content_type()=='application/json':
+                      try:
+                          m=json.loads(d); metadata_keys=sorted(m.keys()) if isinstance(m,dict) else []
+                          if isinstance(m,dict):
+                              for k in ('main_module','body_part','compatibility_date','compatibility_flags','usage_model'):
+                                  if k in m: metadata_safe[k]=m[k]
+                              if isinstance(m.get('bindings'),list): metadata_safe['binding_names_types']=[{'name':z.get('name'),'type':z.get('type')} for z in m['bindings'] if isinstance(z,dict)]
+                      except Exception: pass
+          out={'schema':'musitu.axiom.billing_ingress_preflight.v1','d1_columns':columns,'payments_routes':payment_routes,'billing_worker_exists':os.environ['BILLING'] in script_names,'authority_settings_bindings':sorted(safe_bindings,key=lambda x:str(x.get('name'))),'authority_response_content_type':ctype,'authority_multipart_parts':parts,'authority_metadata_keys':metadata_keys,'authority_metadata_safe':metadata_safe,'secret_values_read':False,'mutation_performed':False,'gate':'AXIOM_BILLING_INGRESS_PREFLIGHT_PASS'}
+          blob=(json.dumps(out,indent=2,sort_keys=True)+'\n').encode(); open('preflight.json','wb').write(blob); d=hashlib.sha256(blob).hexdigest(); open('preflight.sha256','w').write(d+'  preflight.json\n')
+          print(json.dumps({'gate':out['gate'],'d1_columns':columns,'payments_routes':payment_routes,'billing_worker_exists':out['billing_worker_exists'],'authority_settings_bindings':out['authority_settings_bindings'],'authority_response_content_type':ctype,'authority_multipart_parts':parts,'authority_metadata_keys':metadata_keys,'authority_metadata_safe':metadata_safe,'secret_values_read':False,'mutation_performed':False,'sha256':d},sort_keys=True))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: musitu-axiom-billing-ingress-preflight
+          path: |
+            preflight.json
+            preflight.sha256
+          retention-days: 14
+          if-no-files-found: error

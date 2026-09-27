@@ -1,0 +1,117 @@
+name: MUSITU Axiom D1 Read-Only Schema Audit
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/axiom-d1-readonly-schema-audit.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      CF_API: https://api.cloudflare.com/client/v4
+      ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      D1_NAME: mft-axiom-prod
+      D1_UUID: 4a62b374-7232-4103-b201-34443c467382
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify canonical D1 schema with SELECT-only queries
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$CLOUDFLARE_EMAIL"
+          test -n "$CLOUDFLARE_GLOBAL_API_KEY"
+          python - <<'PY'
+          import hashlib,json,os,urllib.error,urllib.parse,urllib.request
+
+          base=os.environ['CF_API']
+          aid=os.environ['ACCOUNT_ID']
+          expected_name=os.environ['D1_NAME']
+          expected_uuid=os.environ['D1_UUID']
+          headers={
+              'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],
+              'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY'],
+              'Content-Type':'application/json',
+          }
+
+          def call(path,method='GET',body=None):
+              data=None if body is None else json.dumps(body).encode()
+              req=urllib.request.Request(base+path,headers=headers,method=method,data=data)
+              try:
+                  with urllib.request.urlopen(req,timeout=45) as r:
+                      raw=r.read(); code=r.status
+              except urllib.error.HTTPError as e:
+                  raw=e.read(); code=e.code
+              if code < 200 or code >= 300:
+                  raise SystemExit(f'Cloudflare API failure http={code} path={path} body={raw[:300]!r}')
+              obj=json.loads(raw) if raw else {}
+              if isinstance(obj,dict) and obj.get('success') is False:
+                  raise SystemExit('Cloudflare API success=false')
+              return obj
+
+          dbs=call(f'/accounts/{aid}/d1/database?name='+urllib.parse.quote(expected_name))
+          rows=[x for x in dbs.get('result',[]) if x.get('name')==expected_name]
+          if len(rows)!=1:
+              raise SystemExit(f'Fail-closed: expected exactly one {expected_name!r} D1 database, got {len(rows)}')
+          actual_uuid=rows[0].get('uuid')
+          if actual_uuid != expected_uuid:
+              raise SystemExit(f'Fail-closed: D1 UUID mismatch: {actual_uuid!r}')
+
+          # This workflow is deliberately SELECT-only. No DDL/DML statements are sent.
+          inventory_sql="SELECT type,name,tbl_name FROM sqlite_master WHERE type IN ('table','index') AND name NOT LIKE 'sqlite_%' AND name NOT LIKE '_cf_%' ORDER BY type,name;"
+          qpath=f'/accounts/{aid}/d1/database/{actual_uuid}/query'
+          result=call(qpath,'POST',{'sql':inventory_sql}).get('result') or []
+          if not result or not all(x.get('success') is True for x in result):
+              raise SystemExit('Fail-closed: D1 SELECT result not successful')
+          inventory=[]
+          for chunk in result:
+              inventory.extend(chunk.get('results') or [])
+
+          tables=sorted(x['name'] for x in inventory if x.get('type')=='table')
+          indexes=sorted(x['name'] for x in inventory if x.get('type')=='index')
+          expected_tables=sorted(['customers','api_keys','usage_buckets','usage_events','billing_subscriptions','webhook_events'])
+          required_indexes=sorted(['idx_api_keys_customer','idx_usage_events_customer_time','idx_usage_events_request'])
+          if tables != expected_tables:
+              raise SystemExit('Fail-closed: canonical user-table set mismatch '+repr(tables))
+          missing=[x for x in required_indexes if x not in indexes]
+          if missing:
+              raise SystemExit('Fail-closed: missing canonical D1 indexes '+repr(missing))
+
+          db=call(f'/accounts/{aid}/d1/database/{actual_uuid}').get('result') or {}
+          out={
+              'schema':'musitu.axiom.d1_readonly_schema_audit.v1',
+              'database_name':expected_name,
+              'database_uuid':actual_uuid,
+              'query_mode':'SELECT_ONLY',
+              'mutation_performed':False,
+              'cloudflare_internal_tables_ignored':True,
+              'tables':tables,
+              'required_indexes_verified':required_indexes,
+              'database_num_tables':db.get('num_tables'),
+              'database_file_size':db.get('file_size'),
+              'gate':'PASS',
+              'truth_boundary':{'wolfram_parity':'NOT_CERTIFIED','superiority':'NOT_CERTIFIED'},
+          }
+          raw=(json.dumps(out,indent=2,sort_keys=True)+'\n').encode()
+          open('d1-readonly-schema-audit.json','wb').write(raw)
+          digest=hashlib.sha256(raw).hexdigest()
+          open('d1-readonly-schema-audit.sha256','w').write(digest+'  d1-readonly-schema-audit.json\n')
+          print(json.dumps({'gate':'PASS','query_mode':'SELECT_ONLY','mutation_performed':False,'table_count':len(tables),'required_index_count':len(required_indexes),'sha256':digest},sort_keys=True))
+          PY
+      - name: Upload sealed D1 read-only evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: musitu-axiom-d1-readonly-schema-audit
+          path: |
+            d1-readonly-schema-audit.json
+            d1-readonly-schema-audit.sha256
+          retention-days: 30
+          if-no-files-found: error
