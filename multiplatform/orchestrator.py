@@ -135,11 +135,15 @@ class _BoundProvider:
         binding: ProviderBinding,
         case: Mapping[str, Any],
         scorer: QualityScorer,
+        mcp_url: str | None = None,
+        require_approval: str = "never",
     ) -> None:
         self.descriptor = binding.descriptor
         self.binding = binding
         self.case = case
         self.scorer = scorer
+        self.mcp_url = mcp_url
+        self.require_approval = require_approval
 
     @property
     def provider_id(self) -> str:
@@ -157,7 +161,18 @@ class _BoundProvider:
         )
         started = time.perf_counter()
         try:
-            result = self.binding.adapter.invoke(invocation)
+            if self.mcp_url and self.provider_id in {"openai", "anthropic"} and hasattr(self.binding.adapter, "invoke_with_frontier_mcp"):
+                invocation = Invocation(
+                    case_id=invocation.case_id,
+                    provider=invocation.provider,
+                    tool_name=invocation.tool_name,
+                    arguments=invocation.arguments,
+                    timeout_ms=invocation.timeout_ms,
+                    metadata={**invocation.metadata, "require_approval": self.require_approval},
+                )
+                result = self.binding.adapter.invoke_with_frontier_mcp(invocation, self.mcp_url)
+            else:
+                result = self.binding.adapter.invoke(invocation)
         except TimeoutError as exc:
             raise ProviderTimeoutError(str(exc)) from exc
         except Exception as exc:
@@ -251,6 +266,8 @@ class AxiomFrontierOrchestrator:
         jurisdiction: str = "global",
         required_policy_tags: frozenset[str] = frozenset(),
         quality_scorer: QualityScorer = default_quality_score,
+        mcp_url: str | None = None,
+        require_approval: str = "never",
         now_epoch: float | None = None,
     ) -> dict[str, Any]:
         if preferred_provider not in self.providers:
@@ -259,6 +276,12 @@ class AxiomFrontierOrchestrator:
             raise ValueError("min_quality must be from 0 to 1")
         if max_latency_ms < 0 or max_cost_units < 0:
             raise ValueError("latency and cost budgets must be non-negative")
+        if require_approval not in {"always", "never"}:
+            raise ValueError("require_approval must be 'always' or 'never'")
+        if mcp_url is not None and not mcp_url.startswith("https://"):
+            raise ValueError("mcp_url must use HTTPS")
+        if mcp_url is not None and mcp_url.rstrip("/") == "https://mcp.mftintelligence.com/mcp":
+            raise ValueError("PRODUCTION_ENDPOINT_FORBIDDEN")
 
         request = ProviderRequest(
             domain=str(case.get("category", "general")),
@@ -272,7 +295,7 @@ class AxiomFrontierOrchestrator:
         )
         current_epoch = float(time.time() if now_epoch is None else now_epoch)
         bindings = [
-            _BoundProvider(binding, case, quality_scorer)
+            _BoundProvider(binding, case, quality_scorer, mcp_url=mcp_url, require_approval=require_approval)
             for binding in self.providers.values()
         ]
         router = ProviderFallbackRouter(bindings, self.breakers)
@@ -305,6 +328,7 @@ class AxiomFrontierOrchestrator:
                     "min_quality_preserved": float(min_quality),
                     "regret_signal": True,
                     "reason": "no_viable_provider",
+                    "promotion_status": "OBSERVATION_ONLY",
                 },
             }
 
@@ -353,6 +377,7 @@ class AxiomFrontierOrchestrator:
                 "min_quality_preserved": float(min_quality),
                 "regret_signal": regret,
                 "reason": "preferred_accepted" if accepted == preferred_provider and not regret else "preferred_rejected_or_regret",
+                "promotion_status": "OBSERVATION_ONLY",
             },
         }
 
@@ -366,6 +391,8 @@ class AxiomFrontierOrchestrator:
         max_latency_ms: int = 30_000,
         max_cost_units: float = 100.0,
         quality_scorer: QualityScorer = default_quality_score,
+        mcp_url: str | None = None,
+        require_approval: str = "never",
     ) -> dict[str, Any]:
         cases = load_cases(cases_path)
         if max_cases is not None:
@@ -378,6 +405,8 @@ class AxiomFrontierOrchestrator:
                 max_latency_ms=max_latency_ms,
                 max_cost_units=max_cost_units,
                 quality_scorer=quality_scorer,
+                mcp_url=mcp_url,
+                require_approval=require_approval,
             )
             for case in cases
         ]
