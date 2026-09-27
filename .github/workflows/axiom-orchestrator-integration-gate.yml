@@ -1,0 +1,58 @@
+name: MUSITU Axiom Orchestrator Integration Gate
+
+on:
+  push:
+    branches:
+      - frontier/axiom-orchestrator-integration-20260927
+  pull_request:
+    branches:
+      - frontier/axiom-multiplatform-frontier
+
+permissions:
+  contents: read
+
+jobs:
+  orchestrator-gate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout full history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Verify frozen review boundary
+        run: python multiplatform/review_guard.py
+
+      - name: Run focused orchestrator test
+        run: python -m unittest multiplatform.tests.test_orchestrator -v
+
+      - name: Run full multi-provider unit suite
+        run: python -m unittest discover -s multiplatform/tests -v
+
+      - name: Run multi-provider static security guard
+        run: python multiplatform/security/static_guard.py
+
+      - name: Run FA-20 release-control regression suite
+        run: node --test axiom_interface/vnext/tests/fa20_release_orchestrator.test.mjs
+
+      - name: Assert no protected deployment surfaces were changed
+        run: |
+          python - <<'PY'
+          import json
+          import subprocess
+          m=json.load(open("frontier_review_safe/review_snapshot_manifest.json",encoding="utf-8"))
+          changed=subprocess.check_output(
+              ["git","diff","--name-only",f'{m["authoritative_frontier_sha"]}..HEAD'],
+              text=True,
+          ).splitlines()
+          protected=tuple(m["protected_paths"])
+          bad=[p for p in changed if any(p==q or p.startswith(q.rstrip("/")+"/") for q in protected)]
+          if bad:
+              raise SystemExit("PROTECTED_PATH_CHANGED:" + ",".join(bad))
+          print("MUSITU_AXIOM_PROTECTED_SURFACES_PASS")
+          PY

@@ -8,6 +8,8 @@ class Provider(str, Enum):
     OPENAI = "openai"
     ANTHROPIC = "anthropic"
     META = "meta"
+    GOOGLE = "google"
+    XAI = "xai"
 
 @dataclass(frozen=True)
 class ToolDef:
