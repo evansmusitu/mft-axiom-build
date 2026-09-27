@@ -1,5 +1,6 @@
 name: AXIOM Claude isolated runtime
 # Distribution-only non-production runtime; never uses the production MCP endpoint.
+# Trigger revision: validate scoped Cloudflare authentication.
 
 on:
   workflow_dispatch:
