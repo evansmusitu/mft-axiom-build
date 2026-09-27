@@ -1,4 +1,17 @@
-"""MUSITU Connect enterprise interoperability core."""
+"""MUSITU Connect enterprise interoperability platform."""
 from .core import CanonicalEnvelope, IntegrationGate
-from .mining import normalize_mining_rows, optimize_interventions
-__all__=["CanonicalEnvelope","IntegrationGate","normalize_mining_rows","optimize_interventions"]
+from .mining import InterventionPlan, normalize_mining_rows, optimize_interventions
+from .registry import AdapterRegistry, AdapterSpec
+from .security import SignedEnvelope, canonical_bytes, sign, verify
+from .fabric import ConnectFabric, FabricRun
+from .adapters import AdapterCatalog, AdapterContract
+from .storage import AnalyticalStore
+from .axiom_gateway import AxiomGateway
+from .workflows import DurableWorkflowBoundary
+
+__all__=[
+    "CanonicalEnvelope","IntegrationGate","InterventionPlan","normalize_mining_rows",
+    "optimize_interventions","AdapterRegistry","AdapterSpec","SignedEnvelope",
+    "canonical_bytes","sign","verify","ConnectFabric","FabricRun","AdapterCatalog",
+    "AdapterContract","AnalyticalStore","AxiomGateway","DurableWorkflowBoundary",
+]
