@@ -1,0 +1,30 @@
+{
+  "schema": "musitu.connect.qualification_gate.v1",
+  "product": "MUSITU Connect",
+  "branch": "feat/musitu-connect-frontier",
+  "adapter": "Mining Adapter",
+  "axioms": {
+    "integration_allowed": false,
+    "reason": "independent infrastructure qualification required"
+  },
+  "tests": {
+    "repository_contract_tests": 5,
+    "independent_recheck": "PASS"
+  },
+  "demonstrated": [
+    "canonical mining envelope",
+    "domain-agnostic adapter registry",
+    "budget-constrained deterministic planner",
+    "invalid-input rejection",
+    "fail-closed Axiom boundary",
+    "persistent live product surface"
+  ],
+  "not_yet_demonstrated": [
+    "independent infrastructure E2E qualification",
+    "production mining-system connectors",
+    "independent comparative benchmarking",
+    "mine-specific predictive accuracy",
+    "production Axiom integration"
+  ],
+  "gate_state": "CONNECT_LIVE__AXIOM_BLOCKED"
+}
