@@ -70,7 +70,12 @@ def del_secret(script,name):
     except Exception:pass
 
 def patch_authority(src):
-    text=src.decode(); pat=re.compile(r'(?P<p>(?:async\s+)?function\s+)authorized(?P<r>\s*\([^)]*\)\s*\{)'); ms=list(pat.finditer(text))
+    text=src.decode()
+    if '__musituAxiomPaynowSignInitiate' in text:
+        return src, False
+    if hashlib.sha256(src).hexdigest()!=AUTH_SHA:
+        raise RuntimeError('authority source hash mismatch')
+    pat=re.compile(r'(?P<p>(?:async\s+)?function\s+)authorized(?P<r>\s*\([^)]*\)\s*\{)'); ms=list(pat.finditer(text))
     if len(ms)!=1:raise RuntimeError(f'authorized definition count {len(ms)}')
     m=ms[0]; brace=text.find('{',m.start()); depth=0; quote=None; esc=False; end=None
     for i in range(brace,len(text)):
@@ -133,8 +138,9 @@ try:
     if any(r.get('pattern')==ROUTE for r in routes if isinstance(r,dict)):raise RuntimeError('billing route already exists')
     _,_,_,dx=cf(f'/accounts/{AID}/workers/domains'); matches=[d for d in (dx or {}).get('result') or [] if isinstance(d,dict) and d.get('hostname')=='payments.mftintelligence.com']
     if len(matches)!=1 or matches[0].get('service')!=TRANSPORT:raise RuntimeError('payments Custom Domain owner mismatch')
-    patched=patch_authority(original_authority); syntax('authority-patched.mjs',patched); syntax('billing-index.mjs',BILLING_SOURCE)
-    upload_content(AUTH,patched); mut['authority_content']=True
+    patched, authority_source_changed=patch_authority(original_authority); syntax('authority-patched.mjs',patched); syntax('billing-index.mjs',BILLING_SOURCE)
+    if authority_source_changed:
+        upload_content(AUTH,patched); mut['authority_content']=True
     put_secret(AUTH,'BILLING_BRIDGE_CAPABILITY_TOKEN',bridge); mut['authority_secret']=True
     _,_,_,aset=cf(f'/accounts/{AID}/workers/scripts/{urllib.parse.quote(AUTH,safe="")}/settings'); an={z.get('name') for z in ((aset or {}).get('result') or {}).get('bindings') or [] if isinstance(z,dict)}
     if not {'AUTHORITY_CAPABILITY_TOKEN','PAYNOW_INTEGRATION_KEY','BILLING_BRIDGE_CAPABILITY_TOKEN'}.issubset(an):raise RuntimeError('authority binding preservation failed')
@@ -172,7 +178,7 @@ try:
     if len(exact)!=1:raise RuntimeError('final route verification failed')
     _,_,_,sub=cf(f'/accounts/{AID}/workers/scripts/{urllib.parse.quote(BILLING,safe="")}/subdomain'); sr=(sub or {}).get('result') or {}
     if sr.get('enabled') is not False or sr.get('previews_enabled') is not False:raise RuntimeError('workers.dev not disabled')
-    ev={'schema':'musitu.axiom.billing_ingress_production_deploy.v2','billing_worker':BILLING,'route':ROUTE,'route_id':rid,'authority_worker':AUTH,'transport_worker':TRANSPORT,'d1_uuid':DBID,'authority_original_sha256':AUTH_SHA,'authority_patched_sha256':hashlib.sha256(patched).hexdigest(),'billing_source_sha256':hashlib.sha256(BILLING_SOURCE).hexdigest(),'authority_envelope':'json.raw_body_base64','authority_callback_digest_crosscheck':True,'catalog_configured':False,'charges_enabled':False,'subscription_activation_enabled':False,'bridge_secret_generated_in_ci':True,'bridge_secret_exposed':False,'workers_dev_enabled':False,'preview_urls_enabled':False,'invalid_webhook_state_mutation':False,'legacy_transport_internal_unauthorized_http':401,'gate':'AXIOM_BILLING_INGRESS_PRODUCTION_FAIL_CLOSED_PASS'}
+    ev={'schema':'musitu.axiom.billing_ingress_production_deploy.v3','billing_worker':BILLING,'route':ROUTE,'route_id':rid,'authority_worker':AUTH,'transport_worker':TRANSPORT,'d1_uuid':DBID,'authority_original_sha256':AUTH_SHA,'authority_patched_sha256':hashlib.sha256(patched).hexdigest(),'billing_source_sha256':hashlib.sha256(BILLING_SOURCE).hexdigest(),'authority_envelope':'json.raw_body_base64','authority_source_already_patched':not authority_source_changed,'authority_callback_digest_crosscheck':True,'catalog_configured':False,'charges_enabled':False,'subscription_activation_enabled':False,'bridge_secret_generated_in_ci':True,'bridge_secret_exposed':False,'workers_dev_enabled':False,'preview_urls_enabled':False,'invalid_webhook_state_mutation':False,'legacy_transport_internal_unauthorized_http':401,'gate':'AXIOM_BILLING_INGRESS_PRODUCTION_FAIL_CLOSED_PASS'}
     raw=(json.dumps(ev,indent=2,sort_keys=True)+'\n').encode();open('billing-ingress-deploy-evidence.json','wb').write(raw);dg=hashlib.sha256(raw).hexdigest();open('billing-ingress-deploy-evidence.sha256','w').write(dg+'  billing-ingress-deploy-evidence.json\n')
     print(json.dumps({'gate':ev['gate'],'billing_worker':BILLING,'route':ROUTE,'authority_envelope':ev['authority_envelope'],'catalog_configured':False,'charges_enabled':False,'subscription_activation_enabled':False,'bridge_secret_exposed':False,'workers_dev_enabled':False,'invalid_webhook_state_mutation':False,'legacy_transport_internal_unauthorized_http':401,'evidence_sha256':dg},sort_keys=True))
 except Exception as e:

@@ -324,8 +324,8 @@ try:
     original['authority']=read_script(AUTH,'verifyPaynowCallback')
     original['transport']=read_script(TRANSPORT,'/internal/paynow/initiate')
     original['billing']=read_script(BILLING,'/billing/healthz')
-    if '__musituAxiomPaynowSignInitiate' in original['authority'].decode():raise RuntimeError('authority signer already present; refusing ambiguous reapply')
-    if 'BILLING_TRANSPORT_CAPABILITY_TOKEN' in original['transport'].decode():raise RuntimeError('transport bridge already present; refusing ambiguous reapply')
+    authority_already_patched='__musituAxiomPaynowSignInitiate' in original['authority'].decode()
+    transport_already_patched='BILLING_TRANSPORT_CAPABILITY_TOKEN' in original['transport'].decode()
     btext=original['billing'].decode()
     if 'catalog_fail_closed' not in btext or 'catalog_not_configured' not in btext:raise RuntimeError('billing source is not expected fail-closed predecessor')
     _,_,_,rx=cf(f'/zones/{ZID}/workers/routes'); exact=[r for r in (rx or {}).get('result') or [] if isinstance(r,dict) and r.get('pattern')==ROUTE and r.get('script')==BILLING]
