@@ -1,4 +1,5 @@
 name: AXIOM Claude isolated runtime
+# Distribution-only non-production runtime; never uses the production MCP endpoint.
 
 on:
   workflow_dispatch:
