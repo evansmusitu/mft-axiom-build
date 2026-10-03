@@ -354,6 +354,7 @@ export default {
   async fetch(req, env) {
     const c = cfg(env), u = new URL(req.url);
     if (!c.db) return j(503, { error: "database_unavailable" });
+    if (u.pathname === "/" && req.method === "GET") return j(200, { service: "MUSITU Axiom OAuth 2.1 + OpenID Connect", issuer: c.issuer, resource: c.resource, authorization_endpoint: c.issuer + "/oauth/authorize", token_endpoint: c.issuer + "/oauth/token", registration_endpoint: c.issuer + "/oauth/register", userinfo_endpoint: c.issuer + "/oauth/userinfo", openid_configuration: c.issuer + "/.well-known/openid-configuration", health: c.issuer + "/health" });
     if (u.pathname === "/.well-known/openid-configuration" && req.method === "GET") return oidcDiscovery(c);
     if (u.pathname === "/.well-known/oauth-authorization-server" && req.method === "GET") return discovery(c);
     if (u.pathname === "/.well-known/jwks.json" && req.method === "GET") return jwks(c);
