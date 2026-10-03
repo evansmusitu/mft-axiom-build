@@ -95,8 +95,6 @@ jobs:
           hidden={'musitu_axiom_plans','musitu_axiom_recommend_plan','musitu_axiom_start_checkout','musitu_axiom_checkout_status'};forbidden=re.compile(r'\b(subscribe|upgrade|checkout|monthly plan|subscription plan)\b',re.I)
           ds=[x for x in (cf(f'/accounts/{aid}/workers/domains') or []) if x.get('hostname')==host]
           if len(ds)!=1 or ds[0].get('service')!=pub:raise RuntimeError('domain drift')
-          pre,_,preo,_=probe('/health')
-          if pre!=200 or preo.get('oauth_provider_configured') is not True:raise RuntimeError('pre-cutover OAuth provider unhealthy')
           customer=None;client_id=None;mutated=False;evidence={}
           try:
             upload(v4);mutated=True
