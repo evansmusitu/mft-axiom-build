@@ -49,12 +49,13 @@ jobs:
           if 'Payment verification in progress' not in rt: raise SystemExit('current pending status UI missing')
           if 'No licence has been issued yet' not in rt: raise SystemExit('fail-closed no-licence UI missing')
           if 'Your activation licence:' in rt or 'Signed activation licence' in rt or 'MUSITU1.' in rt: raise SystemExit('FAIL CLOSED VIOLATION: licence issued without payment')
-          sm=re.search(r'Status:\\s*([^.<]+)',rt,re.I);status=sm.group(1).strip() if sm else 'unpaid_or_pending'
+          sm=re.search(r'Status:\s*([^.<]+)',rt,re.I);status=sm.group(1).strip() if sm else 'unpaid_or_pending'
           ev={'schema':'musitu.chemistry.no_charge_checkout_verify.v2','checkout_http':code,'provider_host':u.hostname,'reference':reference,'return_http':rc,'observed_payment_status':status,'payment_submitted':False,'money_moved':False,'licence_issued':False,'production_mutation':'one_unpaid_checkout_intent','gate':'MUSITU_CHEMISTRY_NO_CHARGE_CHECKOUT_PASS'}
           raw=(json.dumps(ev,indent=2,sort_keys=True)+'\n').encode();open('chemistry-no-charge-checkout.json','wb').write(raw);open('chemistry-no-charge-checkout.sha256','w').write(hashlib.sha256(raw).hexdigest()+'  chemistry-no-charge-checkout.json\n')
           print(json.dumps(ev,sort_keys=True))
           PY
       - uses: actions/upload-artifact@v4
+        continue-on-error: true
         with:
           name: musitu-chemistry-no-charge-checkout-verify-v2
           path: |
