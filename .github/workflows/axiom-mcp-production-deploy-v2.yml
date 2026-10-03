@@ -93,6 +93,7 @@ jobs:
             {'type':'plain_text','name':'AXIOM_BASE','text':os.environ['AXIOM_BASE']},
             {'type':'plain_text','name':'BILLING_BASE','text':os.environ['BILLING_BASE']},
             {'type':'plain_text','name':'MCP_PUBLIC_BASE','text':'https://'+host},
+            {'type':'plain_text','name':'AUTH_ISSUER','text':'https://auth.mftintelligence.com'},
             {'type':'service','name':'AXIOM_SERVICE','service':os.environ['AXIOM_SERVICE']},
             {'type':'service','name':'BILLING_SERVICE','service':os.environ['BILLING_SERVICE']},
           ]}
