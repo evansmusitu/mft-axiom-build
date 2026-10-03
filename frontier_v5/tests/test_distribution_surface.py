@@ -13,6 +13,7 @@ CONSTITUTION = DIST / "DISTRIBUTION_CONSTITUTION.json"
 CLAUDE = DIST / "providers" / "claude.json"
 OAUTH_SCHEMA = DIST / "oauth" / "schema.sql"
 OAUTH_WORKER = DIST / "oauth" / "musitu_axiom_distribution_oauth_worker.mjs"
+CLAUDE_WORKER = DIST / "claude" / "musitu_axiom_claude_mcp_worker.mjs"
 
 EXPECTED_OPERATIONS = {
     "finance.npv", "finance.compound", "finance.black_scholes", "finance.greeks",
@@ -117,6 +118,53 @@ class DistributionSurfaceTests(unittest.TestCase):
                     "if(validateRedirect(bad)) process.exit(12);}"
                     "if(normalizeScopes('axiom.execute')!=='axiom.execute') process.exit(13);"
                     "if(normalizeScopes('axiom.execute billing.read')!==null) process.exit(14);"
+                ),
+            ],
+            cwd=ROOT, capture_output=True, text=True, check=False,
+        )
+        self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
+
+    def test_claude_mcp_facade_is_curated_fail_closed_and_token_frugal(self) -> None:
+        self.assertTrue(CLAUDE_WORKER.exists(), f"missing required distribution artifact: {CLAUDE_WORKER.relative_to(ROOT)}")
+        source = CLAUDE_WORKER.read_text(encoding="utf-8")
+        lowered = source.lower()
+        for forbidden in (
+            "checkout", "billing.write", "billing.read", "musitu_axiom_execute",
+            "payment", "transfer", "withdraw", "deposit",
+        ):
+            self.assertNotIn(forbidden, lowered)
+        for required in (
+            "/mcp", "tools/list", "tools/call", "initialize", "ping",
+            "/.well-known/oauth-protected-resource", "axiom.execute",
+        ):
+            self.assertIn(required, source)
+
+        proc = subprocess.run(
+            [
+                "node", "--input-type=module", "-e",
+                (
+                    "import { claudeToolDefinitions, resolveTool, missingOperations } from "
+                    "'./frontier_v5/distribution/claude/musitu_axiom_claude_mcp_worker.mjs';"
+                    "const defs=claudeToolDefinitions();"
+                    "if(defs.length!==30) process.exit(21);"
+                    "if(new Set(defs.map(x=>x.name)).size!==30) process.exit(22);"
+                    "for(const t of defs){"
+                    "if(t.name.length>64||!t.title||!t.annotations||"
+                    "t.annotations.readOnlyHint!==true||t.annotations.destructiveHint!==false||"
+                    "t.annotations.openWorldHint!==false) process.exit(23);"
+                    "const s=t.securitySchemes||[];"
+                    "if(s.length!==1||s[0].type!=='oauth2'||JSON.stringify(s[0].scopes)!==JSON.stringify(['axiom.execute'])) process.exit(24);"
+                    "}"
+                    "if(resolveTool('musitu_axiom_execute')!==null) process.exit(25);"
+                    "const ops=defs.map(x=>x._meta['musitu/operation']);"
+                    "if(missingOperations(ops).length!==0) process.exit(26);"
+                    "if(missingOperations(ops.slice(1)).length!==1) process.exit(27);"
+                    "const npv=defs.find(x=>x.name==='investment_npv');"
+                    "if(!npv.inputSchema.properties.args.properties.rate||!npv.inputSchema.properties.args.properties.cashflows) process.exit(28);"
+                    "const vr=defs.find(x=>x.name==='parametric_var');"
+                    "if(!vr.inputSchema.properties.args.properties.alpha||!vr.inputSchema.properties.args.properties.returns) process.exit(29);"
+                    "const reg=defs.find(x=>x.name==='regression_analysis');"
+                    "if(!reg.inputSchema.properties.args.properties.x||!reg.inputSchema.properties.args.properties.y) process.exit(30);"
                 ),
             ],
             cwd=ROOT, capture_output=True, text=True, check=False,
