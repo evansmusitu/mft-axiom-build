@@ -1,0 +1,31 @@
+{
+  "schema_version": "1.0",
+  "source_frontier_sha": "8fc1fbb7c5ebbcc1604ecf24c5f4594f2d5667e3",
+  "purpose": "Provider-neutral distribution without mutation of frozen OpenAI surfaces.",
+  "openai_surface": {
+    "mutation_policy": "FORBIDDEN",
+    "protected_paths": [
+      "auth/",
+      "mcp/",
+      "submission/",
+      "chatgpt-app-submission.json"
+    ]
+  },
+  "provider_rules": {
+    "one_core": true,
+    "provider_specific_kernel_forks": false,
+    "capability_semantics_source": "canonical Axiom runtime registry",
+    "claims_must_remain_evidence_bounded": true,
+    "commerce_may_be_excluded_by_provider_policy": true
+  },
+  "claude_v1": {
+    "transport": "streamable_http",
+    "authentication": "oauth_dcr_pkce_s256",
+    "oauth_scope": [
+      "axiom.execute"
+    ],
+    "profile": "analysis_only",
+    "generic_execute": false,
+    "deployment_authorized": false
+  }
+}
