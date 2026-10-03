@@ -1,0 +1,404 @@
+{
+  "schema_version": "1.0",
+  "provider": "claude",
+  "surface_name": "MUSITU Axiom",
+  "profile": "analysis_only",
+  "transport": "streamable_http",
+  "oauth_mode": "dynamic_client_registration_pkce_s256",
+  "oauth_scopes": [
+    "axiom.execute"
+  ],
+  "generic_execute_exposed": false,
+  "tools": [
+    {
+      "name": "investment_npv",
+      "title": "Investment NPV",
+      "operation": "finance.npv",
+      "description": "Run the MUSITU Axiom investment npv analytical capability using supplied inputs and return a reproducible quantitative result.",
+      "annotations": {
+        "title": "Investment NPV",
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "openWorldHint": false,
+        "idempotentHint": true
+      }
+    },
+    {
+      "name": "compound_growth",
+      "title": "Compound Growth",
+      "operation": "finance.compound",
+      "description": "Run the MUSITU Axiom compound growth analytical capability using supplied inputs and return a reproducible quantitative result.",
+      "annotations": {
+        "title": "Compound Growth",
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "openWorldHint": false,
+        "idempotentHint": true
+      }
+    },
+    {
+      "name": "option_black_scholes",
+      "title": "Black-Scholes Option Value",
+      "operation": "finance.black_scholes",
+      "description": "Run the MUSITU Axiom black-scholes option value analytical capability using supplied inputs and return a reproducible quantitative result.",
+      "annotations": {
+        "title": "Black-Scholes Option Value",
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "openWorldHint": false,
+        "idempotentHint": true
+      }
+    },
+    {
+      "name": "option_greeks",
+      "title": "Option Greeks",
+      "operation": "finance.greeks",
+      "description": "Run the MUSITU Axiom option greeks analytical capability using supplied inputs and return a reproducible quantitative result.",
+      "annotations": {
+        "title": "Option Greeks",
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "openWorldHint": false,
+        "idempotentHint": true
+      }
+    },
+    {
+      "name": "implied_volatility",
+      "title": "Implied Volatility",
+      "operation": "finance.implied_vol",
+      "description": "Run the MUSITU Axiom implied volatility analytical capability using supplied inputs and return a reproducible quantitative result.",
+      "annotations": {
+        "title": "Implied Volatility",
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "openWorldHint": false,
+        "idempotentHint": true
+      }
+    },
+    {
+      "name": "historical_var",
+      "title": "Historical VaR",
+      "operation": "finance.var_historical",
+      "description": "Run the MUSITU Axiom historical var analytical capability using supplied inputs and return a reproducible quantitative result.",
+      "annotations": {
+        "title": "Historical VaR",
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "openWorldHint": false,
+        "idempotentHint": true
+      }
+    },
+    {
+      "name": "parametric_var",
+      "title": "Parametric VaR",
+      "operation": "finance.var_parametric",
+      "description": "Run the MUSITU Axiom parametric var analytical capability using supplied inputs and return a reproducible quantitative result.",
+      "annotations": {
+        "title": "Parametric VaR",
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "openWorldHint": false,
+        "idempotentHint": true
+      }
+    },
+    {
+      "name": "historical_cvar",
+      "title": "Historical CVaR",
+      "operation": "finance.cvar_historical",
+      "description": "Run the MUSITU Axiom historical cvar analytical capability using supplied inputs and return a reproducible quantitative result.",
+      "annotations": {
+        "title": "Historical CVaR",
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "openWorldHint": false,
+        "idempotentHint": true
+      }
+    },
+    {
+      "name": "portfolio_metrics",
+      "title": "Portfolio Metrics",
+      "operation": "finance.portfolio_metrics",
+      "description": "Run the MUSITU Axiom portfolio metrics analytical capability using supplied inputs and return a reproducible quantitative result.",
+      "annotations": {
+        "title": "Portfolio Metrics",
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "openWorldHint": false,
+        "idempotentHint": true
+      }
+    },
+    {
+      "name": "returns_analysis",
+      "title": "Returns Analysis",
+      "operation": "finance.returns",
+      "description": "Run the MUSITU Axiom returns analysis analytical capability using supplied inputs and return a reproducible quantitative result.",
+      "annotations": {
+        "title": "Returns Analysis",
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "openWorldHint": false,
+        "idempotentHint": true
+      }
+    },
+    {
+      "name": "market_beta",
+      "title": "Market Beta",
+      "operation": "finance.beta",
+      "description": "Run the MUSITU Axiom market beta analytical capability using supplied inputs and return a reproducible quantitative result.",
+      "annotations": {
+        "title": "Market Beta",
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "openWorldHint": false,
+        "idempotentHint": true
+      }
+    },
+    {
+      "name": "drawdown_analysis",
+      "title": "Drawdown Analysis",
+      "operation": "finance.drawdown",
+      "description": "Run the MUSITU Axiom drawdown analysis analytical capability using supplied inputs and return a reproducible quantitative result.",
+      "annotations": {
+        "title": "Drawdown Analysis",
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "openWorldHint": false,
+        "idempotentHint": true
+      }
+    },
+    {
+      "name": "monte_carlo_scenario",
+      "title": "Monte Carlo Scenario",
+      "operation": "finance.monte_carlo_gbm",
+      "description": "Run the MUSITU Axiom monte carlo scenario analytical capability using supplied inputs and return a reproducible quantitative result.",
+      "annotations": {
+        "title": "Monte Carlo Scenario",
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "openWorldHint": false,
+        "idempotentHint": false
+      }
+    },
+    {
+      "name": "bond_price",
+      "title": "Bond Price",
+      "operation": "finance.bond_price",
+      "description": "Run the MUSITU Axiom bond price analytical capability using supplied inputs and return a reproducible quantitative result.",
+      "annotations": {
+        "title": "Bond Price",
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "openWorldHint": false,
+        "idempotentHint": true
+      }
+    },
+    {
+      "name": "bond_yield",
+      "title": "Bond Yield",
+      "operation": "finance.bond_yield",
+      "description": "Run the MUSITU Axiom bond yield analytical capability using supplied inputs and return a reproducible quantitative result.",
+      "annotations": {
+        "title": "Bond Yield",
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "openWorldHint": false,
+        "idempotentHint": true
+      }
+    },
+    {
+      "name": "bond_duration",
+      "title": "Bond Duration",
+      "operation": "finance.duration",
+      "description": "Run the MUSITU Axiom bond duration analytical capability using supplied inputs and return a reproducible quantitative result.",
+      "annotations": {
+        "title": "Bond Duration",
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "openWorldHint": false,
+        "idempotentHint": true
+      }
+    },
+    {
+      "name": "rolling_volatility",
+      "title": "Rolling Volatility",
+      "operation": "timeseries.rolling_volatility",
+      "description": "Run the MUSITU Axiom rolling volatility analytical capability using supplied inputs and return a reproducible quantitative result.",
+      "annotations": {
+        "title": "Rolling Volatility",
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "openWorldHint": false,
+        "idempotentHint": true
+      }
+    },
+    {
+      "name": "moving_average",
+      "title": "Moving Average",
+      "operation": "timeseries.moving_average",
+      "description": "Run the MUSITU Axiom moving average analytical capability using supplied inputs and return a reproducible quantitative result.",
+      "annotations": {
+        "title": "Moving Average",
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "openWorldHint": false,
+        "idempotentHint": true
+      }
+    },
+    {
+      "name": "ewma_forecast",
+      "title": "EWMA Forecast",
+      "operation": "timeseries.ewma",
+      "description": "Run the MUSITU Axiom ewma forecast analytical capability using supplied inputs and return a reproducible quantitative result.",
+      "annotations": {
+        "title": "EWMA Forecast",
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "openWorldHint": false,
+        "idempotentHint": true
+      }
+    },
+    {
+      "name": "regression_analysis",
+      "title": "Regression Analysis",
+      "operation": "statistics.regression",
+      "description": "Run the MUSITU Axiom regression analysis analytical capability using supplied inputs and return a reproducible quantitative result.",
+      "annotations": {
+        "title": "Regression Analysis",
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "openWorldHint": false,
+        "idempotentHint": true
+      }
+    },
+    {
+      "name": "correlation_analysis",
+      "title": "Correlation Analysis",
+      "operation": "statistics.correlation",
+      "description": "Run the MUSITU Axiom correlation analysis analytical capability using supplied inputs and return a reproducible quantitative result.",
+      "annotations": {
+        "title": "Correlation Analysis",
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "openWorldHint": false,
+        "idempotentHint": true
+      }
+    },
+    {
+      "name": "covariance_analysis",
+      "title": "Covariance Analysis",
+      "operation": "statistics.covariance",
+      "description": "Run the MUSITU Axiom covariance analysis analytical capability using supplied inputs and return a reproducible quantitative result.",
+      "annotations": {
+        "title": "Covariance Analysis",
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "openWorldHint": false,
+        "idempotentHint": true
+      }
+    },
+    {
+      "name": "descriptive_statistics",
+      "title": "Descriptive Statistics",
+      "operation": "statistics.describe",
+      "description": "Run the MUSITU Axiom descriptive statistics analytical capability using supplied inputs and return a reproducible quantitative result.",
+      "annotations": {
+        "title": "Descriptive Statistics",
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "openWorldHint": false,
+        "idempotentHint": true
+      }
+    },
+    {
+      "name": "quantile_analysis",
+      "title": "Quantile Analysis",
+      "operation": "statistics.quantile",
+      "description": "Run the MUSITU Axiom quantile analysis analytical capability using supplied inputs and return a reproducible quantitative result.",
+      "annotations": {
+        "title": "Quantile Analysis",
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "openWorldHint": false,
+        "idempotentHint": true
+      }
+    },
+    {
+      "name": "zscore_analysis",
+      "title": "Z-Score Analysis",
+      "operation": "statistics.zscore",
+      "description": "Run the MUSITU Axiom z-score analysis analytical capability using supplied inputs and return a reproducible quantitative result.",
+      "annotations": {
+        "title": "Z-Score Analysis",
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "openWorldHint": false,
+        "idempotentHint": true
+      }
+    },
+    {
+      "name": "linear_optimization",
+      "title": "Linear Optimization",
+      "operation": "optimization.linear_program",
+      "description": "Run the MUSITU Axiom linear optimization analytical capability using supplied inputs and return a reproducible quantitative result.",
+      "annotations": {
+        "title": "Linear Optimization",
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "openWorldHint": false,
+        "idempotentHint": true
+      }
+    },
+    {
+      "name": "quadratic_optimization",
+      "title": "Quadratic Optimization",
+      "operation": "optimization.quadratic",
+      "description": "Run the MUSITU Axiom quadratic optimization analytical capability using supplied inputs and return a reproducible quantitative result.",
+      "annotations": {
+        "title": "Quadratic Optimization",
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "openWorldHint": false,
+        "idempotentHint": true
+      }
+    },
+    {
+      "name": "least_squares",
+      "title": "Least Squares",
+      "operation": "numeric.least_squares",
+      "description": "Run the MUSITU Axiom least squares analytical capability using supplied inputs and return a reproducible quantitative result.",
+      "annotations": {
+        "title": "Least Squares",
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "openWorldHint": false,
+        "idempotentHint": true
+      }
+    },
+    {
+      "name": "interpolate_series",
+      "title": "Interpolate Series",
+      "operation": "numeric.interpolate",
+      "description": "Run the MUSITU Axiom interpolate series analytical capability using supplied inputs and return a reproducible quantitative result.",
+      "annotations": {
+        "title": "Interpolate Series",
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "openWorldHint": false,
+        "idempotentHint": true
+      }
+    },
+    {
+      "name": "verify_calculation",
+      "title": "Verify Calculation",
+      "operation": "verify.crosscheck",
+      "description": "Run the MUSITU Axiom verify calculation analytical capability using supplied inputs and return a reproducible quantitative result.",
+      "annotations": {
+        "title": "Verify Calculation",
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "openWorldHint": false,
+        "idempotentHint": true
+      }
+    }
+  ]
+}
