@@ -13,7 +13,8 @@ CONSTITUTION = DIST / "DISTRIBUTION_CONSTITUTION.json"
 CLAUDE = DIST / "providers" / "claude.json"
 OAUTH_SCHEMA = DIST / "oauth" / "schema.sql"
 OAUTH_WORKER = DIST / "oauth" / "musitu_axiom_distribution_oauth_worker.mjs"
-CLAUDE_WORKER = DIST / "claude" / "musitu_axiom_claude_mcp_worker.mjs"\nSUBMISSION_PACKET = DIST / "claude" / "SUBMISSION_PACKET.md"
+CLAUDE_WORKER = DIST / "claude" / "musitu_axiom_claude_mcp_worker.mjs"
+SUBMISSION_PACKET = DIST / "claude" / "SUBMISSION_PACKET.md"
 
 EXPECTED_OPERATIONS = {
     "finance.npv", "finance.compound", "finance.black_scholes", "finance.greeks",
