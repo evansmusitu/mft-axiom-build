@@ -41,7 +41,10 @@ class AxiomMcpExecutor:
         result=decoded["result"]
         if result.get("isError") is True:
             raise RuntimeError("AXIOM_REMOTE_ERROR")
-        return result["structuredContent"]
+        structured=result["structuredContent"]
+        if structured.get("request_id")!=request_id:
+            raise RuntimeError("AXIOM_REQUEST_ID_MISMATCH")
+        return structured
 
 class AxiomGateway:
     def __init__(self, gate: IntegrationGate, executor: Callable[...,Any] | None = None) -> None:
