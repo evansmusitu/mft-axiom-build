@@ -1,6 +1,7 @@
 name: MUSITU Axiom Universal Distribution Gate
 
 on:
+  workflow_dispatch:
   push:
     branches:
       - 'distribution/**'
