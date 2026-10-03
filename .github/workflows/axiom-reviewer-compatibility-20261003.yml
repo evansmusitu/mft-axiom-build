@@ -1,4 +1,4 @@
-name: MUSITU Axiom Reviewer Compatibility Preflight 20261003
+name: MUSITU Axiom Reviewer Code Only Deployment 20261003
 on:
   push:
     branches: [reviewer/mcp-compatibility-20261003]
@@ -14,7 +14,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 8
     steps:
-      - name: Capture safe rollback and verify exact live baseline
+      - name: Verify and deploy only reviewed public MCP protocol changes
         env:
           CF_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CF_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
@@ -100,7 +100,79 @@ jobs:
           tests=json.loads(pathlib.Path('COMPATIBILITY_TEST_RESULTS.json').read_text())
           report['compatibility_checks']=tests
           report['source_baseline_match']='All protocol patch anchors exact; live support/policy changes preserved'
-          report['status']='PASS';seal()
+          report['mode']='AUTHORIZED_CODE_ONLY_DEPLOYMENT'
+          if os.environ.get('CF_TOKEN','')=='':stop('API token required for production code-only update')
+          if report['patched_source_sha256']!='48c87d308255a2c91fa4280ab007e743b8621174a8f9c10f7b25315895e054de':stop('Patched source hash invariant failed')
+          def mutate(path,method,data,content_type):
+              h=dict(auth);h['Content-Type']=content_type
+              try:
+                  with urllib.request.urlopen(urllib.request.Request(base+path,headers=h,data=data,method=method),timeout=45) as r:obj=json.load(r)
+              except urllib.error.HTTPError as e:raise RuntimeError('Cloudflare code write HTTP '+str(e.code)) from None
+              except Exception:raise RuntimeError('Cloudflare code write transport outcome uncertain') from None
+              if not obj.get('success'):raise RuntimeError('Cloudflare code write success=false')
+              return obj.get('result')
+          def public(path,payload=None,headers=None):
+              h={'Accept':'application/json, text/event-stream','User-Agent':'MUSITU-Axiom-Reviewer-Code-Only-Verification/1'};h.update(headers or {})
+              data=None
+              if payload is not None:h['Content-Type']='application/json';data=json.dumps(payload).encode()
+              with urllib.request.urlopen(urllib.request.Request('https://mcp.mftintelligence.com'+path,headers=h,data=data),timeout=25) as r:return r.status,r.read()
+          def rpc(method,params=None,modern=False):
+              headers={'MCP-Protocol-Version':'2026-07-28','Mcp-Method':method} if modern else {}
+              status,body=public('/mcp',{'jsonrpc':'2.0','id':'reviewer-verification','method':method,'params':params or {}},headers)
+              if status!=200:raise RuntimeError('Public RPC HTTP invariant')
+              return json.loads(body)
+          page_paths=['/privacy','/terms','/support','/.well-known/openai-apps-challenge','/.well-known/oauth-protected-resource']
+          pages={}
+          for path in page_paths:
+              try:status,body=public(path);pages[path]=(status,hashlib.sha256(body).hexdigest())
+              except urllib.error.HTTPError as e:pages[path]=(e.code,hashlib.sha256(e.read()).hexdigest())
+          before_registry=rpc('tools/list')['result']['tools']
+          bd='axiom-reviewed-code-only-20261003'
+          body=(f'--{bd}\r\nContent-Disposition: form-data; name="metadata"\r\nContent-Type: application/json\r\n\r\n'+json.dumps({'main_module':'index.mjs'})+f'\r\n--{bd}\r\nContent-Disposition: form-data; name="index.mjs"; filename="index.mjs"\r\nContent-Type: application/javascript+module\r\n\r\n').encode()+patched.encode()+f'\r\n--{bd}--\r\n'.encode()
+          report['production_writes']=1;seal()
+          try:
+              mutate('/scripts/musitu-axiom-mcp/content','PUT',body,'multipart/form-data; boundary='+bd)
+              after_settings=cf('/scripts/musitu-axiom-mcp/settings')
+              after_script_settings=cf('/scripts/musitu-axiom-mcp/script-settings')
+              if after_settings!=settings or after_script_settings!=script_settings:raise RuntimeError('Worker configuration readback differs')
+              report['configuration_preserved']=True
+              for path in page_paths:
+                  try:status,body=public(path);after=(status,hashlib.sha256(body).hexdigest())
+                  except urllib.error.HTTPError as e:after=(e.code,hashlib.sha256(e.read()).hexdigest())
+                  if after!=pages[path]:raise RuntimeError('Public page or discovery metadata changed unexpectedly')
+              report['policy_support_domain_challenge_oauth_metadata_preserved']=True
+              initialized=rpc('initialize',{'protocolVersion':'2025-06-18','capabilities':{},'clientInfo':{'name':'reviewer-verification','version':'1'}})['result']
+              if initialized.get('serverInfo',{}).get('version')!='4.0.1':raise RuntimeError('Legacy server version readback failed')
+              discovered=rpc('server/discover',modern=True)['result']
+              if discovered.get('resultType')!='complete' or discovered.get('supportedVersions')!=['2026-07-28']:raise RuntimeError('Modern discovery contract failed')
+              if discovered.get('cacheScope')!='public' or discovered.get('ttlMs')!=60000:raise RuntimeError('Modern discovery cache contract failed')
+              legacy=rpc('tools/list')['result']
+              modern=rpc('tools/list',modern=True)['result']
+              if legacy['tools']!=before_registry or modern['tools']!=before_registry:raise RuntimeError('Live descriptors changed')
+              if modern.get('resultType')!='complete' or modern.get('cacheScope')!='public' or modern.get('ttlMs')!=60000:raise RuntimeError('Modern list envelope failed')
+              tools=modern['tools'];names={t['name'] for t in tools}
+              ops={t.get('_meta',{}).get('musitu/operation') for t in tools}-{None}
+              business=sum(t.get('_meta',{}).get('musitu/business_product') is True for t in tools)
+              if (len(tools),len(ops),business)!=(108,74,30):raise RuntimeError('Registry counts changed')
+              hidden={'musitu_axiom_plans','musitu_axiom_recommend_plan','musitu_axiom_start_checkout','musitu_axiom_checkout_status'}
+              if names&hidden:raise RuntimeError('Commerce exposed')
+              for name in hidden:
+                  if rpc('tools/call',{'name':name,'arguments':{}},True).get('error',{}).get('code')!=-32601:raise RuntimeError('Hidden commerce invocation allowed')
+              unauth=rpc('tools/call',{'name':'axiom_arithmetic_evaluate','arguments':{'args':{'expression':'40+2'}}},True)['result']
+              if unauth.get('isError') is not True or unauth.get('structuredContent',{}).get('authenticated') is not False:raise RuntimeError('Unauthenticated execution boundary failed')
+              report['post_deploy_checks']={'legacy_initialize':'PASS','modern_discover':'PASS','legacy_and_modern_exact_descriptor_preservation':'PASS','tool_count':len(tools),'operation_count':len(ops),'business_product_count':business,'commerce_tools_absent':'PASS','four_hidden_commerce_invocations_rejected':'PASS','unauthenticated_execution_blocked':'PASS'}
+              deployments=cf('/scripts/musitu-axiom-mcp/deployments')
+              rows=deployments.get('deployments',[]) if isinstance(deployments,dict) else deployments
+              active=rows[0];report['new_deployment_id']=active.get('id');report['new_version_id']=active['versions'][0]['version_id']
+              report['status']='DEPLOYED_PROTOCOL_CHECKS_PASS';seal()
+          except Exception as error:
+              report['post_deploy_failure']=str(error)
+              rollback={'strategy':'percentage','versions':[{'version_id':report['rollback_version_id'],'percentage':100}]}
+              try:
+                  mutate('/scripts/musitu-axiom-mcp/deployments','POST',json.dumps(rollback).encode(),'application/json')
+                  report['production_writes']+=1;report['rollback_status']='PASS';report['status']='ROLLED_BACK'
+              except Exception as rollback_error:report['rollback_status']='UNVERIFIED';report['rollback_failure']=str(rollback_error);report['status']='DEPLOYMENT_FAILED_ROLLBACK_UNVERIFIED'
+              seal();raise SystemExit(report['status'])
           print(json.dumps(report,sort_keys=True))
           PY
       - name: Report sanitized preflight evidence
