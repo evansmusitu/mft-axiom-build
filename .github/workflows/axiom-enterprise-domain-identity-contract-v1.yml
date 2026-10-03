@@ -91,6 +91,7 @@ jobs:
 
       - name: Deploy candidate, prove complete OIDC identity chain, and commit only on success
         env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
           CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
         shell: bash
@@ -105,7 +106,15 @@ jobs:
           expected_scopes=['openid','email','axiom.execute']; expected_scope_text=' '.join(expected_scopes)
           source=pathlib.Path('mcp/musitu_axiom_plugin_gate_v4.mjs').read_bytes(); old_source=pathlib.Path('/tmp/musitu_axiom_plugin_gate_v4.before.mjs').read_bytes()
           source_sha=hashlib.sha256(source).hexdigest(); old_sha=hashlib.sha256(old_source).hexdigest()
-          admin={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY'],'Accept':'application/json','User-Agent':'MUSITU-Axiom-Enterprise-OIDC-Scope-V1/1.0'}
+          token=os.environ.get('CLOUDFLARE_API_TOKEN','').strip()
+          email=os.environ.get('CLOUDFLARE_EMAIL','').strip()
+          key=os.environ.get('CLOUDFLARE_GLOBAL_API_KEY','').strip()
+          if token:
+            admin={'Authorization':'Bearer '+token,'Accept':'application/json','User-Agent':'MUSITU-Axiom-Enterprise-OIDC-Scope-V1/1.0'}
+          elif email and key:
+            admin={'X-Auth-Email':email,'X-Auth-Key':key,'Accept':'application/json','User-Agent':'MUSITU-Axiom-Enterprise-OIDC-Scope-V1/1.0'}
+          else:
+            raise RuntimeError('No valid Cloudflare credential: set CLOUDFLARE_API_TOKEN')
           hidden={'musitu_axiom_plans','musitu_axiom_recommend_plan','musitu_axiom_start_checkout','musitu_axiom_checkout_status'}
 
           def raw(url,method='GET',headers=None,body=None,timeout=45,follow=True):
