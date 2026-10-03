@@ -1,8 +1,10 @@
+import hashlib
 from dataclasses import dataclass
 from typing import Any, Iterable
 from .adapters import AdapterCatalog
 from .axiom_gateway import AxiomGateway
 from .fabric import ConnectFabric, FabricRun
+from .security import canonical_bytes
 
 @dataclass(frozen=True)
 class EnterpriseRun:
@@ -25,3 +27,22 @@ class ConnectRuntime:
 
     def execute_downstream(self, request:dict[str,Any]) -> Any:
         return self.axiom.execute(request)
+
+    def execute_mining_risk(self, run: EnterpriseRun, record_index: int = 0) -> Any:
+        if run.canonical.domain!="mining":
+            raise ValueError("domain_mismatch")
+        row=run.canonical.records[record_index]
+        payload={
+            "contract":run.canonical.contract,
+            "domain":run.canonical.domain,
+            "records":[dict(item) for item in run.canonical.records],
+            "run_id":run.fabric.run_id
+        }
+        canonical_sha256=hashlib.sha256(canonical_bytes(payload)).hexdigest()
+        expression=f'{row["exposure"]}*{row["severity"]}*{row["likelihood"]}'
+        return self.execute_downstream({
+            "operation":"arithmetic.evaluate",
+            "args":{"expression":expression},
+            "run_id":run.fabric.run_id,
+            "canonical_sha256":canonical_sha256
+        })
