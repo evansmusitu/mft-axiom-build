@@ -35,8 +35,7 @@ jobs:
           node --check mcp/musitu_axiom_mcp_oauth_gate_v3.mjs
       - name: Deploy, converge every public path, and prove Plugin v4
         env:
-          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
-          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
         shell: bash
         run: |
           set -euo pipefail
@@ -44,7 +43,7 @@ jobs:
           import base64,datetime,hashlib,json,os,pathlib,re,secrets,time,urllib.error,urllib.parse,urllib.request,uuid
           api=os.environ['CF_API'];aid=os.environ['ACCOUNT_ID'];dbid=os.environ['D1_UUID'];host=os.environ['MCP_HOST'];pub=os.environ['MCP_PUBLIC_WORKER'];core=os.environ['MCP_CORE_WORKER'];issuer=os.environ['AUTH_ISSUER'];resource='https://'+host
           v3=pathlib.Path('mcp/musitu_axiom_mcp_oauth_gate_v3.mjs').read_bytes();v4=pathlib.Path('mcp/musitu_axiom_plugin_gate_v4.mjs').read_bytes();v4sha=hashlib.sha256(v4).hexdigest()
-          admin={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY'],'Accept':'application/json','User-Agent':'MUSITU-Axiom-Plugin-V4-V2/1.0'}
+          admin={'Authorization':'Bearer '+os.environ['CLOUDFLARE_API_TOKEN'],'Accept':'application/json','User-Agent':'MUSITU-Axiom-Plugin-V4-V2-Token/1.0'}
           def raw(url,method='GET',headers=None,body=None,timeout=45,follow=True):
             q=urllib.request.Request(url,headers=dict(headers or {}),method=method,data=body)
             opener=urllib.request.build_opener() if follow else urllib.request.build_opener(type('NoRedirect',(urllib.request.HTTPRedirectHandler,),{'redirect_request':lambda self,req,fp,code,msg,headers,newurl:None})())
