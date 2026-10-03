@@ -1,0 +1,90 @@
+name: MUSITU Axiom Reviewer Compatibility Preflight 20261003
+on:
+  push:
+    branches: [reviewer/mcp-compatibility-20261003]
+    paths: [.github/workflows/axiom-reviewer-compatibility-20261003.yml]
+permissions:
+  contents: read
+concurrency:
+  group: musitu-axiom-mcp-code-only
+  cancel-in-progress: false
+jobs:
+  preflight:
+    if: github.ref == 'refs/heads/reviewer/mcp-compatibility-20261003'
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Capture safe rollback and verify exact live baseline
+        env:
+          CF_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CF_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CF_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import email.policy,email.parser,hashlib,json,os,pathlib,urllib.request,urllib.error
+          out=pathlib.Path('evidence');out.mkdir(exist_ok=True)
+          report={'worker':'musitu-axiom-mcp','mode':'READ_ONLY_PREFLIGHT','production_writes':0}
+          def seal():
+              out.joinpath('preflight.json').write_text(json.dumps(report,indent=2,sort_keys=True)+'\n')
+          def stop(reason):
+              report['status']='BLOCKED';report['reason']=reason;seal();raise SystemExit(reason)
+          token=os.environ.get('CF_TOKEN','')
+          if token:
+              auth={'Authorization':'Bearer '+token};report['credential_method']='repository_api_token'
+          elif os.environ.get('CF_EMAIL') and os.environ.get('CF_KEY'):
+              auth={'X-Auth-Email':os.environ['CF_EMAIL'],'X-Auth-Key':os.environ['CF_KEY']};report['credential_method']='existing_repository_credential'
+          else: stop('Repository Cloudflare credential unavailable')
+          base='https://api.cloudflare.com/client/v4/accounts/93f395f5121954671f92fffa453d6b61/workers'
+          def request(path):
+              try:
+                  with urllib.request.urlopen(urllib.request.Request(base+path,headers=auth),timeout=30) as r:
+                      return r.read(),dict(r.headers)
+              except urllib.error.HTTPError as e: stop('Cloudflare read failed HTTP '+str(e.code))
+              except Exception: stop('Cloudflare read transport failed')
+          def cf(path):
+              raw,_=request(path)
+              try: obj=json.loads(raw)
+              except Exception: stop('Invalid Cloudflare JSON response')
+              if not obj.get('success'):stop('Cloudflare read success=false')
+              return obj.get('result')
+          settings=cf('/scripts/musitu-axiom-mcp/settings')
+          script_settings=cf('/scripts/musitu-axiom-mcp/script-settings')
+          report['settings_sha256']=hashlib.sha256(json.dumps(settings,sort_keys=True).encode()).hexdigest()
+          report['script_settings_sha256']=hashlib.sha256(json.dumps(script_settings,sort_keys=True).encode()).hexdigest()
+          bindings=settings.get('bindings',[])
+          report['binding_metadata']=[{'name':b.get('name'),'type':b.get('type')} for b in bindings]
+          if not any(b.get('name')=='MCP_CORE' and b.get('type')=='service' and b.get('service')=='musitu-axiom-mcp-core' for b in bindings):stop('MCP_CORE binding invariant failed')
+          deployments=cf('/scripts/musitu-axiom-mcp/deployments')
+          rows=deployments.get('deployments',[]) if isinstance(deployments,dict) else deployments
+          if not rows:stop('No rollback deployment available')
+          active=rows[0];versions=active.get('versions',[])
+          if len(versions)!=1 or versions[0].get('percentage')!=100:stop('Active deployment is not one version at 100 percent')
+          report['rollback_version_id']=versions[0]['version_id']
+          report['active_deployment_id']=active.get('id')
+          raw,headers=request('/scripts/musitu-axiom-mcp/content/v2')
+          ctype=next((v for k,v in headers.items() if k.lower()=='content-type'),'')
+          if 'multipart/' in ctype:
+              message=email.parser.BytesParser(policy=email.policy.default).parsebytes(('Content-Type: '+ctype+'\r\nMIME-Version: 1.0\r\n\r\n').encode()+raw)
+              modules=[]
+              for part in message.iter_parts():
+                  data=part.get_payload(decode=True)
+                  if data is None:stop('Non-binary source module')
+                  modules.append({'name':part.get_filename() or part.get_param('name',header='content-disposition'),'bytes':data})
+          else:modules=[{'name':'worker.js','bytes':raw}]
+          report['modules']=[{'name':m['name'],'sha256':hashlib.sha256(m['bytes']).hexdigest(),'size':len(m['bytes'])} for m in modules]
+          expected='eaaa24b56d58c71cc5afba8d88e7773e9e399b77a7d73b5c5bef0bee624b50ae'
+          if len(modules)!=1 or report['modules'][0]['sha256']!=expected:stop('Live source differs from reviewed sealed 4.0.0 baseline')
+          report['source_baseline_match']=True
+          report['status']='PASS';seal()
+          print(json.dumps(report,sort_keys=True))
+          PY
+      - name: Save sanitized preflight evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: axiom-reviewer-code-only-preflight-20261003
+          path: evidence/preflight.json
+          retention-days: 30
+          if-no-files-found: error
