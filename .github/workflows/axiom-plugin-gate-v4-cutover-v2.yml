@@ -147,9 +147,14 @@ jobs:
             state='st_'+secrets.token_urlsafe(20);aq={'response_type':'code','client_id':client_id,'redirect_uri':callback,'scope':'axiom.execute','state':state,'code_challenge':ch,'code_challenge_method':'S256','resource':resource};ac,ah,ab=raw(issuer+'/oauth/authorize?'+urllib.parse.urlencode(aq),headers={'Accept':'text/html'});page=ab.decode('utf-8','replace');fm=re.search(r'name="flow_id" value="([^"]+)"',page);cookie=str(ah.get('Set-Cookie') or '').split(';',1)[0]
             if ac!=200 or not fm or not cookie:raise RuntimeError('authorize page failed')
             pc,ph,pb=form(issuer+'/oauth/authorize',{'flow_id':fm.group(1),'musitu_account_key':account},{'Accept':'text/html','Cookie':cookie},False)
-            ploc=str(ph.get('Location') or '');qp=urllib.parse.parse_qs(urllib.parse.urlparse(ploc).query);code=(qp.get('code') or [''])[0];state_returned=(qp.get('state') or [''])[0]
-            print(json.dumps({'authorize_post_status':pc,'location_path':urllib.parse.urlparse(ploc).path,'has_code':bool(code),'state_match':state_returned==state,'error_body':pb.decode('utf-8','replace')[:180] if not code else ''},sort_keys=True))
-            if pc!=302 or not code or state_returned!=state:raise RuntimeError('authorization redirect failed')
+            ploc=str(ph.get('Location') or '')
+            if pc==200 and not ploc:
+              page_html=pb.decode('utf-8','replace')
+              mm=re.search(r'<meta[^>]+http-equiv=["\\']refresh["\\'][^>]+content=["\\']\\s*\\d+\\s*;\\s*url=([^"\\']+)["\\']',page_html,re.I)
+              if mm: ploc=mm.group(1).replace('&amp;','&')
+            qp=urllib.parse.parse_qs(urllib.parse.urlparse(ploc).query);code=(qp.get('code') or [''])[0];state_returned=(qp.get('state') or [''])[0]
+            print(json.dumps({'authorize_post_status':pc,'location_path':urllib.parse.urlparse(ploc).path,'has_code':bool(code),'state_match':state_returned==state,'used_meta_refresh':pc==200 and bool(code)},sort_keys=True))
+            if (pc not in (200,302)) or not code or state_returned!=state:raise RuntimeError('authorization redirect failed')
             print('::add-mask::'+code)
             tc,_,tb=form(issuer+'/oauth/token',{'grant_type':'authorization_code','code':code,'code_verifier':verifier,'client_id':client_id,'redirect_uri':callback,'resource':resource});tok=json.loads(tb or b'{}');access=str(tok.get('access_token') or '')
             if tc!=200 or not access or tok.get('scope')!='axiom.execute':raise RuntimeError('single-scope token failed');print('::add-mask::'+access)
