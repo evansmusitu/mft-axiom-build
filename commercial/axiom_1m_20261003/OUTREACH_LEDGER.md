@@ -14,7 +14,7 @@ No Gmail message IDs, private credentials, or non-public personal data are store
 | Ecobank | businessassist@ecobank.com | SENT 2026-10-03 | Finance/risk/data-AI enterprise proof | Await routing/reply |
 | Old Mutual Zimbabwe | contactus@oldmutual.co.zw | SENT 2026-10-03 | Investment/risk/finance proof-of-value | Await routing/reply |
 | Safaricom Business | business@safaricom.co.ke | SENT 2026-10-03 | Enterprise finance/M-PESA/planning intelligence | Await routing/reply |
-| Stanbic Bank Zimbabwe | zimccc@stanbic.com | SENT 2026-10-03 | Finance/Risk/CIB/innovation proof | Await routing/reply |
+| Stanbic Bank Zimbabwe | zimccc@stanbic.com | ROUTING 2026-10-03 | Finance/Risk/CIB/innovation proof | Query 70226028 acknowledged; customer-care agent handling; progress report promised within 24 working hours |
 | Absa CIB | rsc.corpprc@absa.co.za | SENT 2026-10-03 | CIB finance/risk/portfolio analytical layer | Await routing/reply |
 | MTN Business | mtnbusiness.marketing@mtn.com | SENT 2026-10-03 | Enterprise co-create/OEM intelligence | Await routing/reply |
 
@@ -78,3 +78,10 @@ Never collapse these states.
 - Commercial closing pack: complete and visually verified; includes $50k POV, $350k enterprise, $1m OEM paths, economic value gate, meeting-close script, and working-session decision record.
 - Primary calendar check: no events found 08:00-18:00 Africa/Harare on 5-7 October 2026, so meeting slots can be offered immediately if a buyer qualifies.
 - No substantive top-five buyer reply recorded after the named-routing wave at the latest inbox check; Liquid remains ROUTING rather than QUALIFIED.
+
+## Live routing update - Stanbic
+
+- Stanbic acknowledged the named routing message for Dr Alfred Musarurwa / Samuel Chivaura.
+- Query reference: 70226028.
+- Stanbic states a customer-care agent is handling the query and will send a progress report within 24 working hours.
+- Pipeline state remains ROUTING until a relevant business/technology owner, meeting, evidence request, procurement path, or explicit commercial interest is produced.
