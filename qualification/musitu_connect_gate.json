@@ -3,26 +3,39 @@
   "product": "MUSITU Connect",
   "branch": "feat/musitu-connect-frontier",
   "adapter": "Mining Adapter",
-  "axioms": {
-    "integration_allowed": true,
+  "axiom": {
+    "controlled_integration_allowed": true,
+    "production_integration_allowed": false,
     "scope": "controlled qualification integration only",
-    "reason": "independent infrastructure E2E qualification passed"
+    "reason": "independent infrastructure E2E qualification passed on the qualified source commit; production credentialed Connect-to-Axiom E2E remains pending"
   },
   "tests": {
-    "repository_contract_tests": 11,
+    "repository_contract_tests": 15,
     "independent_recheck": "PASS",
     "runtime_recheck": "PASS",
     "infrastructure_e2e": "PASS",
     "recovery_recheck": "PASS",
-    "evidence_validation": "PASS"
+    "evidence_validation": "PASS",
+    "axiom_bridge_contract": "PASS",
+    "axiom_response_correlation": "PASS"
   },
   "qualification_evidence": {
-    "source_commit": "43a1b774a97f5f242b63e0a2df9c4e17c6e698b8",
-    "workflow_run_id": 37138513584,
-    "workflow_run_url": "https://github.com/evansmusitu/mft-axiom-build/actions/runs/37138513584",
-    "report_sha256": "28297d101766c68df656bfd60311181935af965ede2b2e6d1a65905031c770ea",
+    "source_commit": "c6f6617fdf17a18afbfa21b1aefd6b055ba0ecc2",
+    "workflow_run_id": 37139727285,
+    "workflow_run_url": "https://github.com/evansmusitu/mft-axiom-build/actions/runs/37139727285",
+    "report_sha256": "ccd5eda8a672b8ae25fb2719de0703cc888a535b265f43eafe869d473e26f255",
     "artifact_available": false,
-    "artifact_note": "GitHub artifact storage quota prevented upload; validated report and SHA-256 remain in the successful workflow log and step summary."
+    "artifact_note": "GitHub artifact storage quota prevented upload; the validated report, source commit, workflow run ID, and SHA-256 remain in the successful workflow log and step summary."
+  },
+  "controlled_axiom_evidence": {
+    "live_probe": {
+      "operation": "arithmetic.evaluate",
+      "expression": "0.54*10*0.62",
+      "result": "3.3480000000000003090860900556435808539390563964844",
+      "valid_request": "PASS",
+      "malformed_request": "REJECTED_HTTP_422",
+      "note": "Live Axiom compute was exercised separately through the connected Axiom capability. The repository bridge contract verifies OAuth/MCP transport and Connect request correlation at a mocked external boundary; a credentialed live Connect-generated request-id E2E is not yet demonstrated."
+    }
   },
   "demonstrated": [
     "canonical mining envelope",
@@ -37,14 +50,20 @@
     "Arrow Parquet DuckDB analytical path",
     "PostgreSQL 18 and PostGIS geometry path",
     "OpenTelemetry OTLP export",
-    "Temporal durable workflow and recovery",
-    "qualification evidence validation"
+    "Temporal durable workflow and recovery with deterministic worker teardown",
+    "qualification evidence validation",
+    "Connect-generated provenance-bound Axiom request IDs",
+    "OAuth MCP Axiom transport contract without bearer-token body leakage",
+    "canonical Mining run to Axiom arithmetic request derivation",
+    "Axiom response request-id correlation rejection",
+    "separate live Axiom arithmetic success and malformed-request rejection"
   ],
   "not_yet_demonstrated": [
     "production mining-system connectors",
     "independent comparative benchmarking",
     "mine-specific predictive accuracy",
+    "credentialed live Connect-to-Axiom E2E using a Connect-generated request ID",
     "production Axiom integration"
   ],
-  "gate_state": "CONNECT_INFRA_QUALIFIED__CONTROLLED_AXIOM_INTEGRATION_AUTHORIZED"
+  "gate_state": "CONNECT_INFRA_QUALIFIED__CONTROLLED_AXIOM_BRIDGE_QUALIFIED__PRODUCTION_AXIOM_BLOCKED"
 }
