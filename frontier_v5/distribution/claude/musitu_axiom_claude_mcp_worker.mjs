@@ -57,6 +57,7 @@ function cfg(env) {
     axiomBase: env.AXIOM_BASE || DEFAULTS.axiomBase,
     publicBase: env.MCP_PUBLIC_BASE || DEFAULTS.publicBase,
     authIssuer: env.AUTH_ISSUER || DEFAULTS.authIssuer,
+    supportContact: String(env.SUPPORT_CONTACT || "").trim(),
     axiomService: env.AXIOM_SERVICE || null,
   };
 }
@@ -94,6 +95,119 @@ async function jsonFetch(service, url, init = {}) {
   } catch (error) {
     return { status: 0, body: {}, text: String(error) };
   }
+}
+
+function esc(value) {
+  return String(value ?? "").replace(
+    /[&<>"']/g,
+    (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[ch],
+  );
+}
+
+function htmlPage(title, body) {
+  return new Response(
+    `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(title)}</title><style>body{font-family:system-ui,-apple-system,sans-serif;margin:0;background:#f6f7f8;color:#111}.c{max-width:820px;margin:5vh auto;background:white;border:1px solid #ddd;border-radius:18px;padding:32px;line-height:1.55}h1{margin-top:0}code{background:#f0f1f2;padding:.1rem .3rem;border-radius:5px}a{color:#1648a8}</style></head><body><main class="c"><h1>${esc(title)}</h1>${body}</main></body></html>`,
+    {
+      status: 200,
+      headers: {
+        "content-type": "text/html; charset=utf-8",
+        "cache-control": "public, max-age=300",
+        "x-content-type-options": "nosniff",
+        "content-security-policy": "default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; frame-ancestors 'none'",
+        "referrer-policy": "no-referrer",
+      },
+    },
+  );
+}
+
+function supportLink(c) {
+  if (!c.supportContact) return "";
+  if (/^https:\/\//i.test(c.supportContact)) {
+    return `<a href="${esc(c.supportContact)}">${esc(c.supportContact)}</a>`;
+  }
+  if (/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(c.supportContact)) {
+    return `<a href="mailto:${esc(c.supportContact)}">${esc(c.supportContact)}</a>`;
+  }
+  return esc(c.supportContact);
+}
+
+function docsPage(c) {
+  return htmlPage(
+    "MUSITU Axiom Documentation",
+    `<p>MUSITU Axiom provides a curated remote MCP surface for quantitative finance, risk, forecasting, time-series analysis, statistics, optimization and calculation verification.</p>
+    <h2>Connect</h2>
+    <p>MCP endpoint: <code>${esc(c.publicBase + "/mcp")}</code></p>
+    <p>Authentication uses OAuth dynamic client registration with PKCE S256. The only requested execution scope is <code>axiom.execute</code>.</p>
+    <h2>Capability boundary</h2>
+    <p>This profile is analysis-only. It does not execute financial transactions, place trades or orders, move assets, or expose subscription checkout.</p>
+    <h2>Example inputs</h2>
+    <ul>
+      <li><strong>Investment NPV:</strong> <code>{"args":{"rate":0.12,"cashflows":[-1000000,300000,350000,400000,450000]}}</code></li>
+      <li><strong>Parametric VaR:</strong> use <code>alpha</code> for confidence probability, for example <code>0.95</code>.</li>
+      <li><strong>Regression:</strong> provide equally sized numeric arrays <code>x</code> and <code>y</code>.</li>
+    </ul>
+    <h2>Troubleshooting</h2>
+    <ul>
+      <li>Authentication errors: reconnect the MUSITU Axiom account.</li>
+      <li>A 503 health response means the facade has failed closed because the approved upstream operation registry cannot be verified.</li>
+      <li>Calculation errors should be checked against the tool's declared input schema.</li>
+    </ul>
+    <h2>Policies and help</h2>
+    <p><a href="${esc(c.publicBase + "/privacy")}">Privacy policy</a> · <a href="${esc(c.publicBase + "/terms")}">Terms of use</a> · <a href="${esc(c.publicBase + "/support")}">Support</a></p>`,
+  );
+}
+
+function privacyPage(c) {
+  return htmlPage(
+    "MUSITU Axiom Privacy Policy",
+    `<p>This policy describes data handled by the MUSITU Axiom provider-neutral remote MCP connection and account-linking service.</p>
+    <h2>Data processed</h2>
+    <ul>
+      <li><strong>Account and entitlement data:</strong> the existing MUSITU customer record associated with the account you connect.</li>
+      <li><strong>OAuth security data:</strong> registered client identifiers, requested scope, authorization-flow and code metadata, hashed access and refresh tokens, expiry and revocation state.</li>
+      <li><strong>Usage and audit data:</strong> requested Axiom operation, compute usage, status, timing, internal request identifier, and cryptographic request/result evidence where produced by the underlying service.</li>
+      <li><strong>Calculation inputs:</strong> only the operation arguments sent to the selected analytical tool. The connector does not independently request an entire assistant conversation history.</li>
+    </ul>
+    <h2>Why it is processed</h2>
+    <p>To authenticate the connected MUSITU account, execute requested analytical operations, enforce entitlements and quotas, meter usage, prevent abuse, troubleshoot failures, and preserve security/audit integrity.</p>
+    <h2>Service providers</h2>
+    <p>Data may be processed by MUSITU and infrastructure providers used to operate the service, including Cloudflare and private compute-hosting infrastructure. MUSITU does not sell connector user data to advertisers. This analysis-only profile does not collect card data or initiate subscription checkout.</p>
+    <h2>Retention</h2>
+    <p>Authorization flows expire after approximately 10 minutes, authorization codes after approximately 5 minutes, access tokens after approximately 1 hour, and refresh tokens after approximately 30 days. Security, entitlement, metering and audit records may be retained longer where reasonably necessary for account operation, security, fraud prevention, accounting, dispute resolution or legal obligations.</p>
+    <h2>Your controls</h2>
+    <p>OAuth access can be revoked independently of the original MUSITU account credential. Requests concerning access, correction or deletion of account-linked personal data can be made through <a href="${esc(c.publicBase + "/support")}">Support</a>, subject to applicable retention obligations.</p>`,
+  );
+}
+
+function termsPage(c) {
+  return htmlPage(
+    "MUSITU Axiom Terms of Use",
+    `<p>MUSITU Axiom provides quantitative calculation and analytical tools. Outputs are informational, may contain errors, and are not a guarantee of investment performance, financial advice, or an instruction to transact.</p>
+    <h2>Existing account access</h2>
+    <p>The remote MCP service connects an existing MUSITU Axiom account through OAuth and may use that account's existing entitlement when an analytical capability is invoked.</p>
+    <h2>Analysis-only boundary</h2>
+    <p>This profile does not execute financial transactions, transfer money or other financial assets, place investment trades or orders, or complete subscription purchases.</p>
+    <h2>Acceptable use</h2>
+    <p>Do not use the service for unlawful activity, fraud, market manipulation, credential sharing, or attempts to bypass authentication, quotas, security controls or provider policies.</p>
+    <h2>Verification</h2>
+    <p>Independently verify material financial and operational decisions before acting on analytical output.</p>
+    <h2>Contact</h2>
+    <p>Use <a href="${esc(c.publicBase + "/support")}">Support</a> for account, privacy or service questions.</p>`,
+  );
+}
+
+function supportPage(c) {
+  if (!c.supportContact) {
+    return response(503, {
+      error: "support_contact_not_configured",
+      message: "A verified support contact must be configured before public distribution.",
+    });
+  }
+  return htmlPage(
+    "MUSITU Axiom Support",
+    `<p>For account-linking, connector, privacy, security or service questions, contact: ${supportLink(c)}</p>
+    <p>When reporting a calculation issue, include the operation name and non-secret request identifier when available. Never send account keys, OAuth codes, access tokens, refresh tokens or other credentials in a support request.</p>`,
+  );
 }
 
 function authorizationHeader(req) {
@@ -481,15 +595,10 @@ export default {
       });
     }
 
-    if (url.pathname === "/docs" && req.method === "GET") {
-      return response(200, {
-        service: "MUSITU Axiom Claude MCP",
-        endpoint: c.publicBase + "/mcp",
-        profile: "analysis_only",
-        authentication: "OAuth with dynamic client registration and PKCE S256",
-        tool_count: SAFE_TOOLS.length,
-      });
-    }
+    if (url.pathname === "/docs" && req.method === "GET") return docsPage(c);
+    if (url.pathname === "/privacy" && req.method === "GET") return privacyPage(c);
+    if (url.pathname === "/terms" && req.method === "GET") return termsPage(c);
+    if (url.pathname === "/support" && req.method === "GET") return supportPage(c);
 
     if (url.pathname === "/health" && req.method === "GET") {
       const result = await health(c);
