@@ -1,4 +1,5 @@
 name: MUSITU Axiom Public Plugin Gate V4 Cutover V3
+# OpenAI v4 public-surface restoration run; sealed main remains untouched.
 
 on:
   workflow_dispatch:
