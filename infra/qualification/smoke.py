@@ -1,4 +1,5 @@
 import json, os, time, uuid
+from datetime import datetime, timezone
 from pathlib import Path
 
 RESULTS=[]
@@ -65,10 +66,11 @@ def postgis_smoke():
     with psycopg.connect(f"host={host} port=5432 dbname=connect user=postgres password=postgres",connect_timeout=5) as conn:
         with conn.cursor() as cur:
             cur.execute("create extension if not exists postgis")
-            cur.execute("select postgis_version(), st_astext(st_point(31.05,-17.83))")
-            version,wkt=cur.fetchone()
+            cur.execute("select current_setting('server_version'), postgis_version(), st_astext(st_point(31.05,-17.83))")
+            pg_version,version,wkt=cur.fetchone()
+            assert pg_version.startswith("18."), pg_version
             assert version and wkt=="POINT(31.05 -17.83)"
-    return {"postgis_version":version,"geometry":"POINT(31.05 -17.83)"}
+    return {"postgresql_version":pg_version,"postgis_version":version,"geometry":"POINT(31.05 -17.83)"}
 
 def lineage_smoke():
     event={"eventType":"COMPLETE","eventTime":"2026-09-27T00:00:00Z","run":{"runId":str(uuid.uuid4()),"facets":{}},"job":{"namespace":"musitu.connect","name":"qualification","facets":{}},"producer":"https://openlineage.io","inputs":[],"outputs":[]}
@@ -76,7 +78,15 @@ def lineage_smoke():
     return {"eventType":event["eventType"],"schema":"OpenLineage-compatible envelope"}
 
 def report():
-    out={"schema":"musitu.connect.infrastructure_report.v1","generated_at":"2026-09-27","results":RESULTS,"all_passed":all(x["status"]=="PASS" for x in RESULTS),"axiom_integration_allowed":False}
+    out={
+        "schema":"musitu.connect.infrastructure_report.v1",
+        "generated_at":datetime.now(timezone.utc).isoformat().replace("+00:00","Z"),
+        "source_commit":os.getenv("GITHUB_SHA"),
+        "workflow_run_id":os.getenv("GITHUB_RUN_ID"),
+        "results":RESULTS,
+        "all_passed":all(x["status"]=="PASS" for x in RESULTS),
+        "axiom_integration_allowed":False
+    }
     Path("qualification").mkdir(parents=True,exist_ok=True)
     Path("qualification/infrastructure_report.json").write_text(json.dumps(out,indent=2)+"\n")
     print(json.dumps(out,indent=2))

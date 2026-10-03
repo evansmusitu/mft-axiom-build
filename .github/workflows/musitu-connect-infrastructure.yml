@@ -63,8 +63,26 @@ jobs:
           docker compose -f infra/qualification/docker-compose.yml restart temporal
           sleep 10
           python infra/qualification/smoke.py
+          python infra/qualification/otel_smoke.py
           python infra/qualification/temporal_smoke.py
+      - name: Validate qualification evidence
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          p=Path("qualification/infrastructure_report.json")
+          data=json.loads(p.read_text())
+          assert data["all_passed"] is True
+          assert data["axiom_integration_allowed"] is False
+          assert data["source_commit"]
+          assert data["workflow_run_id"]
+          print("QUALIFICATION_EVIDENCE_VALID=PASS")
+          PY
+          sha256sum qualification/infrastructure_report.json
+          echo "### MUSITU Connect infrastructure evidence" >> "$GITHUB_STEP_SUMMARY"
+          cat qualification/infrastructure_report.json >> "$GITHUB_STEP_SUMMARY"
       - name: Archive qualification evidence
+        continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
           name: musitu-connect-infrastructure-evidence
