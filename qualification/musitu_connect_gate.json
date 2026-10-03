@@ -4,13 +4,25 @@
   "branch": "feat/musitu-connect-frontier",
   "adapter": "Mining Adapter",
   "axioms": {
-    "integration_allowed": false,
-    "reason": "independent infrastructure qualification required"
+    "integration_allowed": true,
+    "scope": "controlled qualification integration only",
+    "reason": "independent infrastructure E2E qualification passed"
   },
   "tests": {
     "repository_contract_tests": 11,
     "independent_recheck": "PASS",
-    "runtime_recheck": "PASS"
+    "runtime_recheck": "PASS",
+    "infrastructure_e2e": "PASS",
+    "recovery_recheck": "PASS",
+    "evidence_validation": "PASS"
+  },
+  "qualification_evidence": {
+    "source_commit": "43a1b774a97f5f242b63e0a2df9c4e17c6e698b8",
+    "workflow_run_id": 37138513584,
+    "workflow_run_url": "https://github.com/evansmusitu/mft-axiom-build/actions/runs/37138513584",
+    "report_sha256": "28297d101766c68df656bfd60311181935af965ede2b2e6d1a65905031c770ea",
+    "artifact_available": false,
+    "artifact_note": "GitHub artifact storage quota prevented upload; validated report and SHA-256 remain in the successful workflow log and step summary."
   },
   "demonstrated": [
     "canonical mining envelope",
@@ -18,14 +30,21 @@
     "budget-constrained deterministic planner",
     "invalid-input rejection",
     "fail-closed Axiom boundary",
-    "persistent live product surface"
+    "persistent live product surface",
+    "independent infrastructure E2E qualification",
+    "MQTT pubsub and restart recovery",
+    "open62541 OPC-UA interoperability",
+    "Arrow Parquet DuckDB analytical path",
+    "PostgreSQL 18 and PostGIS geometry path",
+    "OpenTelemetry OTLP export",
+    "Temporal durable workflow and recovery",
+    "qualification evidence validation"
   ],
   "not_yet_demonstrated": [
-    "independent infrastructure E2E qualification",
     "production mining-system connectors",
     "independent comparative benchmarking",
     "mine-specific predictive accuracy",
     "production Axiom integration"
   ],
-  "gate_state": "CONNECT_LIVE__INFRA_QUALIFICATION_PENDING__AXIOM_BLOCKED"
+  "gate_state": "CONNECT_INFRA_QUALIFIED__CONTROLLED_AXIOM_INTEGRATION_AUTHORIZED"
 }
