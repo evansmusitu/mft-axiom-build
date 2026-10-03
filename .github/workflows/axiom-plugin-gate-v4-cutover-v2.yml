@@ -96,7 +96,7 @@ jobs:
           ds=[x for x in (cf(f'/accounts/{aid}/workers/domains') or []) if x.get('hostname')==host]
           if len(ds)!=1 or ds[0].get('service')!=pub:raise RuntimeError('domain drift')
           pre,_,preo,_=probe('/health')
-          if pre!=200 or preo.get('oauth_enforced') is not True:raise RuntimeError('pre-cutover OAuth MCP unhealthy')
+          if pre!=200 or preo.get('oauth_provider_configured') is not True:raise RuntimeError('pre-cutover OAuth provider unhealthy')
           customer=None;client_id=None;mutated=False;evidence={}
           try:
             upload(v4);mutated=True
