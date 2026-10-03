@@ -8,7 +8,7 @@
     "reason": "independent infrastructure qualification required"
   },
   "tests": {
-    "repository_contract_tests": 10,
+    "repository_contract_tests": 11,
     "independent_recheck": "PASS",
     "runtime_recheck": "PASS"
   },
