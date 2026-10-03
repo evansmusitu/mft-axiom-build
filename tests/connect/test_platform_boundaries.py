@@ -24,6 +24,17 @@ class PlatformBoundaryTests(unittest.TestCase):
     def test_axiom_gateway_fails_closed(self):
         with self.assertRaisesRegex(RuntimeError,"AXIOM_INTEGRATION_BLOCKED"):
             AxiomGateway(IntegrationGate()).execute({"operation":"algebra_simplify"})
+    def test_axiom_gateway_binds_request_id_to_run_and_canonical_hash(self):
+        seen=[]
+        gateway=AxiomGateway(IntegrationGate(allowed=True,reason="qualified"),executor=lambda request: seen.append(request) or {"ok":True})
+        result=gateway.execute({
+            "operation":"arithmetic.evaluate",
+            "args":{"expression":"0.54*10*0.62"},
+            "run_id":"mining-q1",
+            "canonical_sha256":"a"*64
+        })
+        self.assertEqual(result,{"ok":True})
+        self.assertEqual(seen[0]["request_id"],"MUSITU-CONNECT-mining-q1-aaaaaaaaaaaaaaaa")
     def test_lineage_event_has_required_openlineage_shape(self):
         e=event(namespace="musitu.connect",job_name="test",run_id="r")
         self.assertEqual(e["eventType"],"COMPLETE")
