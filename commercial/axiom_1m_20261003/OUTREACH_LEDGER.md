@@ -8,7 +8,7 @@ No Gmail message IDs, private credentials, or non-public personal data are store
 |---|---|---|---|---|
 | Temenos | partners@temenos.com | SENT 2026-10-03 | Banking technology/OEM integration | Await routing/reply |
 | FactSet | sales@factset.com | SENT 2026-10-03 | Evidence-bound quantitative layer for financial workflows | Await routing/reply |
-| Liquid Intelligent Technologies | startups@liquid.tech, cc existing Zimbabwe sales channel | SENT 2026-10-03 | Africa co-sell/OEM enterprise intelligence | Await routing/reply |
+| Liquid Intelligent Technologies | startups@liquid.tech, cc existing Zimbabwe sales channel | ROUTING 2026-10-03 | Africa co-sell/OEM enterprise intelligence | Case CS11171479 opened; explicit request sent to route to Innovation Partnerships / Enterprise Solutions / AI-Cloud / strategic partnerships |
 | S&P Global Market Intelligence | market.intelligence@spglobal.com | SENT 2026-10-03 | Governed analytical execution adjacent to trusted data | Await routing/reply |
 | nCino KYC Africa | kycafrica.sales@ncino.com | SENT 2026-10-03 | Governed banking decision/verification layer | Await routing/reply |
 | Ecobank | businessassist@ecobank.com | SENT 2026-10-03 | Finance/risk/data-AI enterprise proof | Await routing/reply |
@@ -23,7 +23,8 @@ No Gmail message IDs, private credentials, or non-public personal data are store
 - Gmail send actions returned sent-message records for all 11 entries.
 - All 11 messages are labeled `MUSITU Axiom Enterprise Outreach`.
 - An immediate Gmail search after the expanded wave found no matching bounce or undeliverable notice.
-- This does not prove final delivery, reading, routing, qualification or commercial interest.
+- Liquid generated case CS11171479 and therefore has advanced only to ROUTING; no named business owner or commercial interest is confirmed.
+- This does not prove final delivery, reading, qualification or commercial interest for the other targets.
 
 ## Qualification rule on reply
 
@@ -67,3 +68,4 @@ Never collapse these states.
 
 - Econet Wireless Zimbabwe is excluded from a partnership pitch because its current public contact page states that it does not accept partnership proposals. A separate lawful customer/vendor procurement route would be needed.
 - LSEG remains high-value, but its current public partner path is form/MyAccount based in this environment; do not guess an email address.
+- Standard Bank and Vodacom currently expose verified business/support contacts in the searched public material, but no sufficiently targeted AI/partnership route was verified for this wave; do not degrade the campaign by using support desks for a strategic proposal.
