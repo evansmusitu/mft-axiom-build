@@ -1,10 +1,19 @@
+import json
 import unittest
+from unittest.mock import patch
 from connect.security import sign,verify,canonical_bytes
 from connect.lineage import event
 from connect.fabric import ConnectFabric
 from connect.core import IntegrationGate
 from connect.workflows import DurableWorkflowBoundary
 from connect.axiom_gateway import AxiomGateway
+
+class _FakeHttpResponse:
+    def __init__(self, payload, status=200):
+        self.payload=payload
+        self.status=status
+    def read(self):
+        return json.dumps(self.payload).encode("utf-8")
 
 class PlatformBoundaryTests(unittest.TestCase):
     def test_signed_canonical_payload_roundtrips(self):
@@ -35,6 +44,37 @@ class PlatformBoundaryTests(unittest.TestCase):
         })
         self.assertEqual(result,{"ok":True})
         self.assertEqual(seen[0]["request_id"],"MUSITU-CONNECT-mining-q1-aaaaaaaaaaaaaaaa")
+    def test_axiom_mcp_executor_forwards_oauth_and_connect_request_id(self):
+        from connect.axiom_gateway import AxiomMcpExecutor
+        response={
+            "jsonrpc":"2.0",
+            "id":"MUSITU-CONNECT-mining-q1-aaaaaaaaaaaaaaaa",
+            "result":{
+                "structuredContent":{
+                    "operation":"arithmetic.evaluate",
+                    "request_id":"MUSITU-CONNECT-mining-q1-aaaaaaaaaaaaaaaa",
+                    "result":{"ok":True,"result":"3.348"}
+                }
+            }
+        }
+        with patch("urllib.request.urlopen",return_value=_FakeHttpResponse(response)) as call:
+            executor=AxiomMcpExecutor("https://axiom.example/mcp","secret-token")
+            result=executor({
+                "operation":"arithmetic.evaluate",
+                "args":{"expression":"0.54*10*0.62"},
+                "run_id":"mining-q1",
+                "canonical_sha256":"a"*64,
+                "request_id":"MUSITU-CONNECT-mining-q1-aaaaaaaaaaaaaaaa"
+            })
+        request=call.call_args.args[0]
+        body=json.loads(request.data.decode("utf-8"))
+        self.assertEqual(request.get_header("Authorization"),"Bearer secret-token")
+        self.assertEqual(request.get_header("X-musitu-request-id"),"MUSITU-CONNECT-mining-q1-aaaaaaaaaaaaaaaa")
+        self.assertEqual(body["method"],"tools/call")
+        self.assertEqual(body["params"]["name"],"musitu_axiom_execute")
+        self.assertEqual(body["params"]["arguments"]["operation"],"arithmetic.evaluate")
+        self.assertNotIn("secret-token",request.data.decode("utf-8"))
+        self.assertEqual(result["result"]["result"],"3.348")
     def test_lineage_event_has_required_openlineage_shape(self):
         e=event(namespace="musitu.connect",job_name="test",run_id="r")
         self.assertEqual(e["eventType"],"COMPLETE")
