@@ -10,6 +10,7 @@ components:
   mqtt:
     broker: eclipse-mosquitto
     version: 2.1.2
+    image_tag: 2.1.2-alpine
     client: paho-mqtt-python
     client_version: 2.1.0
   arrow:
@@ -27,7 +28,14 @@ components:
     version: 1.53.0
   opentelemetry_collector:
     version: 0.161.0
+  opentelemetry_python_sdk:
+    version: 1.45.0
+  opentelemetry_otlp_http_exporter:
+    version: 1.45.0
   temporal_server:
+    version: 1.32.0
+    image: temporalio/server
+  temporal_admin_tools:
     version: 1.32.0
   temporal_python_sdk:
     version: 1.32.0
