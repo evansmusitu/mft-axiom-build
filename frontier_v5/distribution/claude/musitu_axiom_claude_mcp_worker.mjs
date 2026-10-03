@@ -139,7 +139,7 @@ function docsPage(c) {
     <p>MCP endpoint: <code>${esc(c.publicBase + "/mcp")}</code></p>
     <p>Authentication uses OAuth dynamic client registration with PKCE S256. The only requested execution scope is <code>axiom.execute</code>.</p>
     <h2>Capability boundary</h2>
-    <p>This profile is analysis-only. It does not execute financial transactions, place trades or orders, move assets, or expose subscription checkout.</p>
+    <p>This profile is analysis-only. It does not execute financial transactions, place trades or orders, move assets, or initiate digital-subscription purchases.</p>
     <h2>Example inputs</h2>
     <ul>
       <li><strong>Investment NPV:</strong> <code>{"args":{"rate":0.12,"cashflows":[-1000000,300000,350000,400000,450000]}}</code></li>
@@ -171,7 +171,7 @@ function privacyPage(c) {
     <h2>Why it is processed</h2>
     <p>To authenticate the connected MUSITU account, execute requested analytical operations, enforce entitlements and quotas, meter usage, prevent abuse, troubleshoot failures, and preserve security/audit integrity.</p>
     <h2>Service providers</h2>
-    <p>Data may be processed by MUSITU and infrastructure providers used to operate the service, including Cloudflare and private compute-hosting infrastructure. MUSITU does not sell connector user data to advertisers. This analysis-only profile does not collect card data or initiate subscription checkout.</p>
+    <p>Data may be processed by MUSITU and infrastructure providers used to operate the service, including Cloudflare and private compute-hosting infrastructure. MUSITU does not sell connector user data to advertisers. This analysis-only profile does not collect card data or initiate digital-subscription purchases.</p>
     <h2>Retention</h2>
     <p>Authorization flows expire after approximately 10 minutes, authorization codes after approximately 5 minutes, access tokens after approximately 1 hour, and refresh tokens after approximately 30 days. Security, entitlement, metering and audit records may be retained longer where reasonably necessary for account operation, security, fraud prevention, accounting, dispute resolution or legal obligations.</p>
     <h2>Your controls</h2>
@@ -186,7 +186,7 @@ function termsPage(c) {
     <h2>Existing account access</h2>
     <p>The remote MCP service connects an existing MUSITU Axiom account through OAuth and may use that account's existing entitlement when an analytical capability is invoked.</p>
     <h2>Analysis-only boundary</h2>
-    <p>This profile does not execute financial transactions, transfer money or other financial assets, place investment trades or orders, or complete subscription purchases.</p>
+    <p>This profile does not execute financial transactions, move money or other financial assets, place investment trades or orders, or complete subscription purchases.</p>
     <h2>Acceptable use</h2>
     <p>Do not use the service for unlawful activity, fraud, market manipulation, credential sharing, or attempts to bypass authentication, quotas, security controls or provider policies.</p>
     <h2>Verification</h2>
