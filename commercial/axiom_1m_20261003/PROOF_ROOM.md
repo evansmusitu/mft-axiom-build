@@ -72,20 +72,33 @@ Actual connected Axiom result:
 - stderr: 0.038332593900001384
 - kernel_version: 1.0.0
 
-### Demo C — parametric VaR contract issue identified
+### Demo C — parametric VaR parameter contract verified
 
-Requested input included confidence = 0.95.
-Actual result returned:
+Initial exploratory input used `confidence: 0.95`; the operation ignored that unknown field and returned its default `alpha: 0.99`.
+
+Follow-up live calls established that the supported parameter is `alpha`:
+
+Input:
+- returns: [0.012,-0.007,0.004,0.016,-0.011,0.006,0.009,-0.004,0.013,-0.008]
+- alpha: 0.95
+
+Actual connected Axiom result:
 - operation: finance.var_parametric
-- var: 0.01976706441714249
-- alpha: 0.99
+- var: 0.013097544524382339
+- alpha: 0.95
 - method: normal
+- kernel_version: 1.0.0
+- compute_units: 3
 
-This mismatch is **not hidden**. Before this operation is used in a buyer proof, the parameter contract must be inspected and either:
-1. corrected so the requested confidence is honored; or
-2. documented so the public schema exposes the actual supported parameter name/default.
+A second call using `confidence_level: 0.95` again returned the default `alpha: 0.99`.
 
-This is evidence of the proof-room standard: failures and discrepancies are retained, not edited out.
+Conclusion:
+- the numerical path responds correctly to the supported `alpha` field;
+- `confidence` / `confidence_level` are not supported aliases;
+- buyer demos must use `alpha`;
+- the public argument contract should be documented explicitly before presenting this tool as accepting a generic "confidence" field.
+
+This is retained as proof-room evidence rather than hidden.
 
 ## 4. Security / governance evidence available
 
@@ -140,7 +153,7 @@ A serious buyer should receive evidence in this order:
 ## 7. Proof-room blockers before an external buyer demo
 
 Required:
-- resolve/document VaR confidence parameter contract;
+- document `alpha` as the VaR confidence parameter in buyer-facing demo instructions;
 - rerun current-HEAD verification gates if claims depend on current head rather than the historical cited head;
 - prepare one buyer-specific dataset/case that is legally authorized for demo use;
 - clearly mark synthetic/demo inputs;
