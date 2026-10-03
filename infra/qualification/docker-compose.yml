@@ -1,10 +1,11 @@
 services:
   mqtt:
-    image: eclipse-mosquitto:2.1.2
+    image: eclipse-mosquitto:2.1.2-alpine
     command: ["mosquitto","-c","/mosquitto/config/mosquitto.conf"]
     ports: ["1883:1883"]
     volumes:
       - ./mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+
   postgres:
     image: postgis/postgis:18-3.6
     environment:
@@ -16,28 +17,73 @@ services:
       interval: 3s
       timeout: 3s
       retries: 20
+
   temporal-db:
     image: postgres:16.11
     environment:
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: temporal
+      POSTGRES_USER: temporal
+      POSTGRES_PASSWORD: temporal
     healthcheck:
-      test: ["CMD-SHELL","pg_isready -U postgres -d temporal"]
+      test: ["CMD-SHELL","pg_isready -U temporal"]
       interval: 3s
       timeout: 3s
       retries: 20
-  temporal:
-    image: temporalio/auto-setup:1.32.0
+
+  temporal-admin-tools:
+    image: temporalio/admin-tools:1.32.0
+    restart: on-failure:6
     depends_on:
       temporal-db:
         condition: service_healthy
     environment:
       DB: postgres12
       DB_PORT: 5432
-      POSTGRES_USER: postgres
-      POSTGRES_PWD: postgres
+      POSTGRES_USER: temporal
+      POSTGRES_PWD: temporal
       POSTGRES_SEEDS: temporal-db
-    ports: ["7233:7233","8233:8233"]
+      SQL_PASSWORD: temporal
+    volumes:
+      - ./temporal-scripts:/scripts:ro
+    entrypoint: ["/bin/sh"]
+    command: /scripts/setup-postgres.sh
+
+  temporal:
+    image: temporalio/server:1.32.0
+    depends_on:
+      temporal-admin-tools:
+        condition: service_completed_successfully
+    environment:
+      DB: postgres12
+      DB_PORT: 5432
+      POSTGRES_USER: temporal
+      POSTGRES_PWD: temporal
+      POSTGRES_SEEDS: temporal-db
+      BIND_ON_IP: 0.0.0.0
+      DYNAMIC_CONFIG_FILE_PATH: config/dynamicconfig/development-sql.yaml
+    ports: ["7233:7233"]
+    volumes:
+      - ./dynamicconfig:/etc/temporal/config/dynamicconfig:ro
+    healthcheck:
+      test: ["CMD","nc","-z","localhost","7233"]
+      interval: 5s
+      timeout: 3s
+      start_period: 30s
+      retries: 60
+
+  temporal-create-namespace:
+    image: temporalio/admin-tools:1.32.0
+    restart: on-failure:5
+    depends_on:
+      temporal:
+        condition: service_healthy
+    environment:
+      TEMPORAL_ADDRESS: temporal:7233
+      DEFAULT_NAMESPACE: default
+    volumes:
+      - ./temporal-scripts:/scripts:ro
+    entrypoint: ["/bin/sh"]
+    command: /scripts/create-namespace.sh
+
   otel:
     image: otel/opentelemetry-collector-contrib:0.161.0
     command: ["--config=/etc/otelcol-contrib/config.yaml"]

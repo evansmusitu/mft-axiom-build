@@ -18,7 +18,10 @@ jobs:
       - name: Install Docker Compose prerequisites
         run: docker compose version
       - name: Start isolated infrastructure
-        run: docker compose -f infra/qualification/docker-compose.yml up -d
+        run: |
+          docker compose -f infra/qualification/docker-compose.yml up -d
+          docker compose -f infra/qualification/docker-compose.yml wait temporal-create-namespace
+          docker compose -f infra/qualification/docker-compose.yml ps
       - name: Install qualification dependencies
         run: python -m pip install --disable-pip-version-check -r infra/qualification/requirements.txt
       - name: Security qualification
@@ -49,8 +52,16 @@ jobs:
         run: python infra/qualification/temporal_smoke.py
       - name: Infrastructure recovery qualification
         run: |
-          docker compose -f infra/qualification/docker-compose.yml restart mqtt postgres temporal-db temporal otel
-          sleep 15
+          docker compose -f infra/qualification/docker-compose.yml restart mqtt postgres otel
+          docker compose -f infra/qualification/docker-compose.yml restart temporal-db
+          for i in $(seq 1 30); do
+            if docker compose -f infra/qualification/docker-compose.yml exec -T temporal-db pg_isready -U temporal; then
+              break
+            fi
+            sleep 2
+          done
+          docker compose -f infra/qualification/docker-compose.yml restart temporal
+          sleep 10
           python infra/qualification/smoke.py
           python infra/qualification/temporal_smoke.py
       - name: Archive qualification evidence
