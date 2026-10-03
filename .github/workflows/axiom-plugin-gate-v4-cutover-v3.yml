@@ -3,6 +3,7 @@ name: MUSITU Axiom Public Plugin Gate V4 Cutover V3
 
 on:
   workflow_dispatch:
+  pull_request:
   push:
     paths:
       - '.github/workflows/axiom-plugin-gate-v4-cutover-v3.yml'
