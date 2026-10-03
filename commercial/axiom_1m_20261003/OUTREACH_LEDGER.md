@@ -6,11 +6,11 @@ No Gmail message IDs, private credentials, or non-public personal data are store
 
 | Organization | Public channel used | Status | Primary proposition | Next state |
 |---|---|---|---|---|
-| Temenos | partners@temenos.com | SENT 2026-10-03 | Banking technology/OEM integration | Await routing/reply |
-| FactSet | sales@factset.com | SENT 2026-10-03 | Evidence-bound quantitative layer for financial workflows | Await routing/reply |
-| Liquid Intelligent Technologies | startups@liquid.tech, cc existing Zimbabwe sales channel | ROUTING 2026-10-03 | Africa co-sell/OEM enterprise intelligence | Case CS11171479 opened; explicit request sent to route to Innovation Partnerships / Enterprise Solutions / AI-Cloud / strategic partnerships |
-| S&P Global Market Intelligence | market.intelligence@spglobal.com | SENT 2026-10-03 | Governed analytical execution adjacent to trusted data | Await routing/reply |
-| nCino KYC Africa | kycafrica.sales@ncino.com | SENT 2026-10-03 | Governed banking decision/verification layer | Await routing/reply |
+| Temenos | partners@temenos.com | SENT - NAMED ROUTING 2026-10-03 | Banking technology/OEM integration | Asked routing to Cormac Flanagan (CPO) / Tony Coleman (CTO) |
+| FactSet | sales@factset.com | SENT - NAMED ROUTING 2026-10-03 | Evidence-bound quantitative layer for financial workflows | Asked routing to Kate Stepp (Chief AI Officer) |
+| Liquid Intelligent Technologies | startups@liquid.tech, cc existing Zimbabwe sales channel | ROUTING 2026-10-03 | Africa co-sell/OEM enterprise intelligence | Cases CS11171479 and CS11171552 opened; latest named routing asks for Lorreta Songola / Ahmed El Beheiry or appropriate enterprise/AI partnership owner |
+| S&P Global Market Intelligence | market.intelligence@spglobal.com | SENT - NAMED ROUTING 2026-10-03 | Governed analytical execution adjacent to trusted data | Asked routing to Justine Iverson / Krishna Vinjamuri |
+| nCino KYC Africa | kycafrica.sales@ncino.com | SENT - NAMED ROUTING 2026-10-03 | Governed banking decision/verification layer | Asked routing to Chris Gufford / Joaquín de Valenzuela |
 | Ecobank | businessassist@ecobank.com | SENT 2026-10-03 | Finance/risk/data-AI enterprise proof | Await routing/reply |
 | Old Mutual Zimbabwe | contactus@oldmutual.co.zw | SENT 2026-10-03 | Investment/risk/finance proof-of-value | Await routing/reply |
 | Safaricom Business | business@safaricom.co.ke | SENT 2026-10-03 | Enterprise finance/M-PESA/planning intelligence | Await routing/reply |
@@ -69,3 +69,12 @@ Never collapse these states.
 - Econet Wireless Zimbabwe is excluded from a partnership pitch because its current public contact page states that it does not accept partnership proposals. A separate lawful customer/vendor procurement route would be needed.
 - LSEG remains high-value, but its current public partner path is form/MyAccount based in this environment; do not guess an email address.
 - Standard Bank and Vodacom currently expose verified business/support contacts in the searched public material, but no sufficiently targeted AI/partnership route was verified for this wave; do not degrade the campaign by using support desks for a strategic proposal.
+
+## Closing readiness update - 2026-10-03
+
+- External buyer package: complete and visually verified.
+- Top-five economic proof cards: complete and visually verified.
+- Platform distribution readiness package: complete and visually verified.
+- Commercial closing pack: complete and visually verified; includes $50k POV, $350k enterprise, $1m OEM paths, economic value gate, meeting-close script, and working-session decision record.
+- Primary calendar check: no events found 08:00-18:00 Africa/Harare on 5-7 October 2026, so meeting slots can be offered immediately if a buyer qualifies.
+- No substantive top-five buyer reply recorded after the named-routing wave at the latest inbox check; Liquid remains ROUTING rather than QUALIFIED.
