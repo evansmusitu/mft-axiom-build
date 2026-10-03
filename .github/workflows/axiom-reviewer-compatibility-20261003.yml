@@ -80,11 +80,6 @@ jobs:
           report['status']='PASS';seal()
           print(json.dumps(report,sort_keys=True))
           PY
-      - name: Save sanitized preflight evidence
+      - name: Report sanitized preflight evidence
         if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: axiom-reviewer-code-only-preflight-20261003
-          path: evidence/preflight.json
-          retention-days: 30
-          if-no-files-found: error
+        run: cat evidence/preflight.json
