@@ -13,7 +13,7 @@ CONSTITUTION = DIST / "DISTRIBUTION_CONSTITUTION.json"
 CLAUDE = DIST / "providers" / "claude.json"
 OAUTH_SCHEMA = DIST / "oauth" / "schema.sql"
 OAUTH_WORKER = DIST / "oauth" / "musitu_axiom_distribution_oauth_worker.mjs"
-CLAUDE_WORKER = DIST / "claude" / "musitu_axiom_claude_mcp_worker.mjs"
+CLAUDE_WORKER = DIST / "claude" / "musitu_axiom_claude_mcp_worker.mjs"\nSUBMISSION_PACKET = DIST / "claude" / "SUBMISSION_PACKET.md"
 
 EXPECTED_OPERATIONS = {
     "finance.npv", "finance.compound", "finance.black_scholes", "finance.greeks",
@@ -170,6 +170,40 @@ class DistributionSurfaceTests(unittest.TestCase):
             cwd=ROOT, capture_output=True, text=True, check=False,
         )
         self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
+
+
+    def test_claude_submission_packet_and_provider_neutral_legal_routes(self) -> None:
+        self.assertTrue(SUBMISSION_PACKET.exists(), f"missing required distribution artifact: {SUBMISSION_PACKET.relative_to(ROOT)}")
+        packet = SUBMISSION_PACKET.read_text(encoding="utf-8")
+        worker = CLAUDE_WORKER.read_text(encoding="utf-8")
+        for route in ("/docs", "/privacy", "/terms", "/support"):
+            self.assertIn(route, worker)
+        self.assertIn("SUPPORT_CONTACT", worker)
+        self.assertNotIn("Connect from ChatGPT", worker)
+        self.assertNotIn("openai", worker.lower())
+        for required in (
+            "Single MCP connector",
+            "MUSITU Axiom",
+            "axiom.execute",
+            "Register automatically",
+            "PKCE S256",
+            "BLOCKED_REAL_STANDARD_TEST_ACCOUNT_REQUIRED",
+            "Privacy policy",
+            "Support",
+            "Documentation",
+            "Example prompt 1",
+            "Example prompt 2",
+            "Example prompt 3",
+            "finance.npv",
+            "finance.var_parametric",
+            "statistics.regression",
+            "No financial transaction execution",
+            "MCP_PUBLIC_BASE",
+            "OAUTH_ISSUER",
+        ):
+            self.assertIn(required, packet)
+        self.assertNotIn("best in the world", packet.lower())
+        self.assertNotIn("SUBMITTED_TO_ANTHROPIC", packet)
 
     def test_branch_has_no_frozen_surface_diff(self) -> None:
         if not (ROOT / ".git").exists():
