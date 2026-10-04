@@ -6,9 +6,6 @@ on:
       - "distribution/claude-remote-mcp-20261004"
     paths:
       - "submission/claude/real-claude-origin-evidence.json"
-      - "frontier_v5/scripts/verify_real_claude_origin.py"
-      - "frontier_v5/tests/test_verify_real_claude_origin.py"
-      - ".github/workflows/axiom-claude-real-origin-finalization.yml"
   workflow_dispatch:
 
 permissions:
