@@ -75,6 +75,17 @@ jobs:
               m=re.search(r'(?:async\s+)?function\s+'+re.escape(name)+r'\s*\(([^)]*)\)',src)
               return [x.strip().split('=')[0].strip() for x in m.group(1).split(',') if x.strip()] if m else []
 
+          def property_names(b):
+              names=set(re.findall(r'(?:\?\.|\.)\s*([A-Za-z_$][\w$]*)',b))
+              names.update(re.findall(r'\[\s*["\']([A-Za-z_$][\w$]*)["\']\s*\]',b))
+              return sorted(names)
+
+          def object_keys(b):
+              return sorted(set(re.findall(r'(?<![?\w$])([A-Za-z_$][\w$]*)\s*:',b)))
+
+          def call_names(b):
+              return sorted(set(re.findall(r'\b([A-Za-z_$][\w$]*)\s*\(',b)))
+
           def return_keys(b):
               out=[]
               for m in re.finditer(r'\breturn\s+json\s*\(\s*\{([^{}]{0,1800})\}',b,re.S):
@@ -121,6 +132,9 @@ jobs:
                   'signature_params':signature('adminCreateCustomer'),
                   'body_properties':props(customer),
                   'destructured_names':destructured(customer),
+                  'property_names':property_names(customer),
+                  'object_keys':object_keys(customer),
+                  'call_names':[x for x in call_names(customer) if re.search(r'customer|email|plan|json|auth|internal|create|id|now',x,re.I)],
                   'return_object_key_sets':return_keys(customer),
                   'safe_literals':literals(customer),
               },
@@ -129,6 +143,9 @@ jobs:
                   'signature_params':signature('adminIssueKey'),
                   'body_properties':props(issue),
                   'destructured_names':destructured(issue),
+                  'property_names':property_names(issue),
+                  'object_keys':object_keys(issue),
+                  'call_names':[x for x in call_names(issue) if re.search(r'key|json|auth|internal|issue|id|now',x,re.I)],
                   'return_object_key_sets':return_keys(issue),
                   'safe_literals':literals(issue),
               },
