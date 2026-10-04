@@ -97,7 +97,8 @@ def test_publication_domain_uses_hostname_scoped_config_rules_via_phase_entrypoi
     assert "_create_machine_rule(" in main
     assert "AUTH_RULE_REF" in main
     assert "MCP_RULE_REF" in main
-    assert 'rules_headers = _ruleset_headers()' not in main
+    assert 'rules_headers = _ruleset_headers()' in main
+    assert "CLOUDFLARE_RULESETS_API_TOKEN" in src
 
     assert '"action": "set_config"' in src
     assert '"security_level": "essentially_off"' in src
@@ -126,5 +127,8 @@ def test_publication_security_exception_is_two_hostname_rules_not_zone_global_se
     assert "MCP_RULE_REF" in main
     assert '"/settings/security_level"' not in main
     assert '"/settings/browser_check"' not in main
-    assert "_ruleset_headers()" not in main
+    assert "_ruleset_headers()" in main
+    assert "CLOUDFLARE_RULESETS_API_TOKEN" in src
+    workflow = WORKFLOW.read_text(encoding="utf-8")
+    assert 'CLOUDFLARE_RULESETS_API_TOKEN: ${{ secrets.CLOUDFLARE_RULESETS_API_TOKEN }}' in workflow
     assert '"global_security_policy_mutated": False' in src
