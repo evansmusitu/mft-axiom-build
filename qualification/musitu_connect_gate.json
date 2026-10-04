@@ -7,7 +7,7 @@
     "controlled_integration_allowed": true,
     "production_integration_allowed": false,
     "scope": "controlled qualification integration only",
-    "reason": "infrastructure, credentialed request-id E2E, composed OAuth authorization-code/PKCE, and isolated operational canary rehearsal passed; production integration remains blocked pending a non-fixture production Axiom identity, explicit promotion authorization, and a separate runtime-enable action"
+    "reason": "all technical controls except non-fixture production Axiom identity are qualified; read-only identity preflight found active non-fixture Axiom identities but no dedicated Connect credential or admin control secret in CI. Production integration remains blocked pending supported identity assignment, then explicit promotion authorization and a separate runtime-enable action"
   },
   "tests": {
     "repository_contract_tests": 21,
@@ -33,7 +33,8 @@
     "secret_rotation_recovery": "PASS_ISOLATED_CANARY",
     "rollback_rehearsal": "PASS_ISOLATED_CANARY",
     "observability_alerting_slo": "PASS_SYNTHETIC_CANARY_SIGNAL",
-    "canary": "PASS_ISOLATED_WORKERS_DEV"
+    "canary": "PASS_ISOLATED_WORKERS_DEV",
+    "non_fixture_identity_preflight": "BLOCKED_EXPECTED_NO_DEDICATED_CREDENTIAL"
   },
   "qualification_evidence": {
     "source_commit": "c6f6617fdf17a18afbfa21b1aefd6b055ba0ecc2",
@@ -88,7 +89,9 @@
     "known-bad canary candidate detection and real code rollback to last-known-good baseline",
     "bounded canary latency/error SLO window with exact request-ID echo correlation",
     "synthetic alert signal emitted on injected canary HTTP 503",
-    "ephemeral canary cleanup after operational rehearsal"
+    "ephemeral canary cleanup after operational rehearsal",
+    "read-only production identity inventory confirming active non-fixture Axiom customers and API keys without publishing identifiers",
+    "self-closing non-fixture identity preflight that requires live canonical Connect-to-Axiom execution and exact usage-ledger request-ID correlation when a dedicated credential is assigned"
   ],
   "not_yet_demonstrated": [
     "production mining-system connectors",
@@ -99,7 +102,7 @@
     "external production paging / on-call alert delivery",
     "rollback of an actual production-host Connect deployment"
   ],
-  "gate_state": "CONNECT_INFRA_QUALIFIED__CONTROLLED_AXIOM_BRIDGE_QUALIFIED__CREDENTIALED_AXIOM_E2E_QUALIFIED__OAUTH_PKCE_COMPOSED_QUALIFIED__OPERATIONAL_CANARY_REHEARSAL_QUALIFIED__PRODUCTION_ADMISSION_POLICY_ENFORCED__PRODUCTION_AXIOM_BLOCKED",
+  "gate_state": "CONNECT_INFRA_QUALIFIED__CONTROLLED_AXIOM_BRIDGE_QUALIFIED__CREDENTIALED_AXIOM_E2E_QUALIFIED__OAUTH_PKCE_COMPOSED_QUALIFIED__OPERATIONAL_CANARY_REHEARSAL_QUALIFIED__NON_FIXTURE_IDENTITY_BLOCKER_CONFIRMED__PRODUCTION_ADMISSION_POLICY_ENFORCED__PRODUCTION_AXIOM_BLOCKED",
   "credentialed_axiom_e2e": {
     "schema": "musitu.connect.axiom_credentialed_e2e.v2",
     "source_commit": "ebe9d6c86fd6a69366f85afebca19ceb0fb57ad7",
@@ -262,5 +265,29 @@
       "no production hostname or production route was mutated",
       "this rehearsal does not demonstrate a non-fixture production Axiom identity"
     ]
+  },
+  "non_fixture_identity_preflight": {
+    "schema": "musitu.connect.non_fixture_identity_preflight.v2",
+    "source_commit": "2a8f052945fba24d5956674d22c5129f3ab5659b",
+    "workflow_run_id": 37184200227,
+    "workflow_run_url": "https://github.com/evansmusitu/mft-axiom-build/actions/runs/37184200227",
+    "evidence_sha256": "a3ff6ce0b6967575abf5a83aa19bec676cc21b54ba92de3436a7120a75a988ff",
+    "gate": "MUSITU_CONNECT_NON_FIXTURE_IDENTITY_BLOCKED",
+    "mcp_health_verified": true,
+    "active_non_fixture_customer_count": 5,
+    "active_non_fixture_api_key_count": 5,
+    "dedicated_account_key_secret_present": false,
+    "dedicated_bearer_secret_present": false,
+    "admin_control_secret_present": false,
+    "live_identity_proof_executed": false,
+    "non_fixture_identity_control_ready": false,
+    "identity_records_created_or_modified": false,
+    "database_mutated": false,
+    "production_axiom_integration_enabled": false,
+    "direct_production_d1_identity_creation_prohibited": true,
+    "self_closing_behavior": "If a dedicated Connect credential is installed in CI and matches an active non-fixture api_keys row, the preflight executes one canonical Connect-to-Axiom MCP request and requires exact Axiom usage-ledger request-ID correlation before reporting QUALIFIED.",
+    "required_assignment": "Assign an authorized dedicated non-fixture Axiom credential to MUSITU Connect through the supported identity/provisioning path; do not bypass the control plane with direct D1 insertion.",
+    "artifact_available": false,
+    "artifact_note": "Evidence JSON and SHA-256 were emitted in the successful workflow log/step summary. Immediate artifact availability is not required for the blocker claim."
   }
 }
