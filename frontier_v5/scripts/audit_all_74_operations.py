@@ -108,7 +108,7 @@ def main():
     must("algebra.solve",{"equations":["x+y-3","x-y-1"],"symbols":["x","y"]},lambda r:any("2" in str(z.get("x","")) and "1" in str(z.get("y","")) for z in r if isinstance(z,dict)),"2x2 symbolic solve failed")
     must("calculus.diff",{"expression":"sin(x)","symbol":"x"},lambda r:str(r)=="cos(x)","derivative identity failed")
     must("calculus.integrate",{"expression":"2*x","symbol":"x","bounds":[0,3]},lambda r:approx(float(r),9,1e-12),"definite integral failed")
-    must("calculus.limit",{"expression":"(1-cos(x))/x^2","symbol":"x","to":0},lambda r:approx(float(r),.5,1e-12),"limit identity failed")
+    must("calculus.limit",{"expression":"(1-cos(x))/x^2","symbol":"x","to":0},lambda r:str(r) in {"1/2","0.5","0.500000000000000"},"limit identity failed")
     must("calculus.sum",{"expression":"k","symbol":"k","start":1,"end":100},lambda r:int(r)==5050,"finite sum failed")
     must("calculus.product",{"expression":"k","symbol":"k","start":1,"end":6},lambda r:int(r)==720,"finite product failed")
     must("numeric.root",{"expression":"cos(x)-x","symbol":"x","guess":.7},lambda r:abs(float(r)-0.7390851332151607)<1e-10,"numeric root accuracy failed")
