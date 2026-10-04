@@ -256,6 +256,14 @@ def main():
     pathlib.Path(ns.out).write_text(json.dumps(out,indent=2,sort_keys=True,allow_nan=False)+"\n")
     print("MUSITU_AXIOM_EXHAUSTIVE_AUDIT_COMPLETE")
     print(json.dumps({"operation_count":len(fixtures),"finding_count":len(findings),"severity_counts":summary,"category_counts":cats},sort_keys=True))
+    for i,f in enumerate(findings,1):
+        print("AXIOM_FINDING|%03d|%s|%s|%s|%s" % (
+            i,
+            str(f.get("severity") or "").replace("|","/"),
+            str(f.get("category") or "").replace("|","/"),
+            str(f.get("operation") or "").replace("|","/"),
+            str(f.get("detail") or "").replace("|","/").replace("\n"," "),
+        ))
     return 0
 
 if __name__=="__main__":
