@@ -10,7 +10,7 @@ from __future__ import annotations
 import base64
 import datetime as dt
 import hashlib
-import http.client
+import http.client as http_client
 import json
 import os
 from pathlib import Path
@@ -123,7 +123,7 @@ def direct_form_no_redirect(
     if headers:
         h.update(headers)
     body=urllib.parse.urlencode(fields).encode("utf-8")
-    conn=http.client.HTTPSConnection(parsed.hostname,parsed.port or 443,timeout=50)
+    conn=http_client.HTTPSConnection(parsed.hostname,parsed.port or 443,timeout=50)
     try:
         conn.request("POST",path,body=body,headers=h)
         response=conn.getresponse()
