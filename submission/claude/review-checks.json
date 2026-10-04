@@ -102,7 +102,11 @@
     "proposed_publication_auth_issuer": "https://claude-auth.mftintelligence.com",
     "deployed": false,
     "reason": "Anthropic review criteria says the MCP server domain should match the submitting service.",
-    "source": "https://claude.com/docs/connectors/building/review-criteria"
+    "source": "https://claude.com/docs/connectors/building/review-criteria",
+    "preflight_passed": true,
+    "preflight_run": 37174975719,
+    "topology_free": true,
+    "deployment_prepared": true
   },
   "official_mcp_inspector": {
     "passed": true,
@@ -118,5 +122,21 @@
     "fixture_rows_remaining": 0,
     "openai_surface_unchanged": true,
     "evidence_sha256": "a1d8c3ee01666c776fd94f02aee07ab11ddbd6221215ea61c551283ce62e17eb"
+  },
+  "publication_domain_preflight": {
+    "passed": true,
+    "github_actions_run": 37174975719,
+    "job": 111355607218,
+    "proposed_auth_host": "claude-auth.mftintelligence.com",
+    "proposed_mcp_host": "claude-mcp.mftintelligence.com",
+    "publication_workers_present": false,
+    "auth_custom_domain_rows": 0,
+    "mcp_custom_domain_rows": 0,
+    "auth_dns_records": 0,
+    "mcp_dns_records": 0,
+    "publication_surface_free": true,
+    "openai_surface_unchanged": true,
+    "write_performed": false,
+    "evidence_sha256": "56a7a4f79d10596dc33daadcc4644dcbe0a5d1813ba14a85a37e04921b32c7b3"
   }
 }
