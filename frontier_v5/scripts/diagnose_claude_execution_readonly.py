@@ -62,7 +62,7 @@ def main():
         entitlement = read_query(headers, "SELECT plan,status,monthly_unit_override FROM customers WHERE id IN (" + recent + ")", params)
         if "status" in schemas["billing_subscriptions"] and "customer_id" in schemas["billing_subscriptions"]:
             subscription = read_query(headers, "SELECT status,COUNT(*) AS count FROM billing_subscriptions WHERE customer_id IN (" + recent + ") GROUP BY status", params)
-        safe_usage = [x for x in ("period", "month", "bucket", "units_used", "compute_units", "used_units", "units") if x in schemas["usage_buckets"]]
+        safe_usage = [x for x in ("month", "units_used", "compute_units", "used_units", "units", "unit_limit") if x in schemas["usage_buckets"]]
         if safe_usage and "customer_id" in schemas["usage_buckets"]:
             usage = read_query(headers, "SELECT " + ",".join(safe_usage) + " FROM usage_buckets WHERE customer_id IN (" + recent + ")", params)
     modes = read_query(headers, "SELECT CASE WHEN client_id LIKE 'musitu_dcr_%' THEN 'dynamic_client_registration' ELSE 'other' END AS oauth_client_mode,COUNT(*) AS token_count FROM oauth_access_tokens WHERE issuer=?1 AND resource=?2 AND created_at>=?3 GROUP BY oauth_client_mode", params)
@@ -91,6 +91,9 @@ def main():
         contexts.append({"error_labels": labels,
                          "quota_reference": bool(re.search(r"quota|unitLimit|unitsUsed|unit_limit|units_used", window, re.I)),
                          "subscription_reference": "subscription" in window.lower()})
+    plan_limits = []
+    for m in re.finditer(r"[\"']?(free|starter|developer|pro|enterprise)[\"']?\s*:\s*(\d{1,12})", text):
+        plan_limits.append({"plan": m.group(1), "numeric_mapping": int(m.group(2))})
     after = canonical_digest(snapshot_openai_surface())
     if after != before:
         raise RuntimeError("frozen OpenAI surface drifted during read-only diagnosis")
@@ -105,6 +108,7 @@ def main():
         "oauth_client_modes": modes, "schema_columns": schemas,
         "upstream_source_sha256": hashlib.sha256(source).hexdigest(),
         "http_402_rejection_metadata": contexts,
+        "plan_numeric_mappings": plan_limits,
         "publication_tool_count": publication["tool_count"],
         "openai_surface_unchanged": True, "openai_surface_sha256": after,
         "credential_values_read": False, "mutations_performed": False,
