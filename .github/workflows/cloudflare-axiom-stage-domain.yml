@@ -56,3 +56,5 @@ jobs:
             musitu-axiom-claude-publication-domain-evidence.json
             musitu-axiom-claude-publication-domain-evidence.sha256
           retention-days: 30
+
+# retry 2026-10-04 after adding exact-host machine-transport rules
