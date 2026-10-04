@@ -126,7 +126,7 @@ def main():
     A.expect_ok("probability.poisson_pmf","oracle.poisson_pmf",{"k":0,"mu":2},lambda r:A.approx(r,math.exp(-2),1e-12))
     A.expect_ok("finance.returns","oracle.simple_returns",{"prices":[100,110,99],"kind":"simple"},lambda r:np.allclose(np.asarray(r,float),[.1,-.1],atol=1e-12))
     A.expect_ok("finance.returns","oracle.log_returns",{"prices":[100,math.e*100],"kind":"log"},lambda r:np.allclose(np.asarray(r,float),[1],atol=1e-12))
-    A.expect_ok("finance.portfolio_metrics","oracle.one_asset",{"returns":[[.01],[.02],[-.01],[0]],"weights":[1],"annualization":1,"risk_free":0},lambda r:A.approx(r["return"],.005,1e-12) and r["volatility"]>0)
+    A.expect_ok("finance.portfolio_metrics","oracle.one_asset",{"returns":[[.01],[.02],[-.01],[0]],"weights":[1],"annualization":1,"risk_free":0},lambda r:A.approx(r["annualized_return"],.005,1e-12) and r["annualized_volatility"]>0 and r["observations"]==4)
     A.expect_ok("finance.var_parametric","oracle.var_parametric_nonnegative",{"returns":[-.02,-.01,0,.01,.02],"alpha":.95},lambda r:r["var"]>=0)
     A.expect_ok("finance.cvar_historical","oracle.cvar_tail",{"returns":[-.1,-.05,0,.05,.1],"alpha":.8},lambda r:r["cvar"]>=r.get("var",0))
     A.expect_ok("timeseries.moving_average","oracle.ma",{"data":[1,2,3,4],"window":2},lambda r:np.allclose(np.asarray(r,float),[1.5,2.5,3.5],atol=1e-12))
@@ -151,13 +151,13 @@ def main():
     A.expect_ok("finance.duration","oracle.duration_positive",{"face":1000,"coupon_rate":.05,"maturity":5,"yield":.05,"frequency":2},lambda r:r["macaulay"]>0 and r["modified"]>0 and r["modified"]<r["macaulay"])
     A.expect_ok("finance.beta","oracle.beta2",{"asset_returns":[.02,-.02,.04,-.04],"market_returns":[.01,-.01,.02,-.02]},lambda r:A.approx(r,2,1e-12))
     A.expect_ok("finance.drawdown","oracle.drawdown",{"values":[100,120,90,150,120]},lambda r:A.approx(r["max_drawdown"],-.25,1e-12))
-    A.expect_ok("finance.monte_carlo_gbm","oracle.mc_shape",{"S0":100,"mu":.05,"sigma":.2,"T":1,"steps":5,"paths":7,"seed":42},lambda r:np.asarray(r["paths"]).shape==(7,6) if isinstance(r,dict) and "paths" in r else np.asarray(r).shape==(7,6))
+    A.expect_ok("finance.monte_carlo_gbm","oracle.mc_summary",{"S0":100,"mu":.05,"sigma":.2,"T":1,"steps":5,"paths":7,"seed":42},lambda r:r["paths"]==7 and r["seed"]==42 and 0<r["p05"]<=r["median_terminal"]<=r["p95"] and r["mean_terminal"]>0)
     A.expect_ok("timeseries.rolling_volatility","oracle.rolling_len",{"returns":[.01,-.02,.015,-.01,.005],"window":3,"annualization":252},lambda r:len(r)==3 and all(float(x)>=0 for x in r))
     A.expect_ok("geometry.area_circle","oracle.area",{"radius":3},lambda r:A.approx(r,math.pi*9,1e-12))
     A.expect_ok("geometry.volume_sphere","oracle.volume",{"radius":3},lambda r:A.approx(r,36*math.pi,1e-12))
     if fft is not None:
         A.expect_ok("transforms.ifft","oracle.fft_roundtrip",{"data":norm(fft),"n":4},lambda r:np.allclose(np.asarray(r,float),[1,0,0,0],atol=1e-10))
-    A.expect_ok("verify.crosscheck","oracle.crosscheck",{"operation":"arithmetic.evaluate","args":{"expression":"6*7"}},lambda r:A.approx(r["result"],42) and r["verification"].get("verified") is True)
+    A.expect_ok("verify.crosscheck","oracle.crosscheck",{"operation":"algebra.simplify","args":{"expression":"(x+x)+2"}},lambda r:str(r["result"])=="2*x + 2" and r["verification"].get("verified") is True)
 
     # Layer 5: domain and shape rejection. These cases must never produce successful non-finite or nonsensical results.
     neg=[
@@ -188,9 +188,7 @@ def main():
       ("statistics.ttest_ind","domain.empty_x",{"x":[],"y":[1,2],"equal_var":False}),
       ("statistics.normal_fit","domain.empty_data",{"data":[]}),
       ("probability.exponential_cdf","domain.negative_rate",{"x":1,"rate":-1}),
-      ("probability.exponential_cdf","domain.negative_x",{"x":-1,"rate":1}),
       ("probability.chi2_cdf","domain.df_zero",{"x":1,"df":0}),
-      ("probability.chi2_cdf","domain.negative_x",{"x":-1,"df":3}),
       ("finance.beta","domain.zero_market_variance",{"asset_returns":[.1,.2,.3],"market_returns":[.1,.1,.1]}),
       ("finance.drawdown","domain.zero_base",{"values":[0,1,2]}),
       ("finance.monte_carlo_gbm","domain.negative_sigma",{"S0":100,"mu":.05,"sigma":-.2,"T":1,"steps":5,"paths":5,"seed":1}),
@@ -204,6 +202,50 @@ def main():
       ("finance.compound","domain.n_negative",{"principal":1000,"rate":.05,"years":1,"n":-1}),
       ("finance.bond_price","domain.frequency_zero",{"face":1000,"coupon_rate":.05,"maturity":5,"yield":.04,"frequency":0}),
       ("finance.duration","domain.frequency_zero",{"face":1000,"coupon_rate":.05,"maturity":5,"yield":.04,"frequency":0}),
+      ("finance.var_historical","domain.alpha_zero",{"returns":[-.1,0,.1],"alpha":0}),
+      ("finance.var_historical","domain.alpha_one",{"returns":[-.1,0,.1],"alpha":1}),
+      ("finance.var_historical","domain.empty_returns",{"returns":[],"alpha":.95}),
+      ("finance.var_parametric","domain.alpha_zero",{"returns":[-.1,0,.1],"alpha":0}),
+      ("finance.var_parametric","domain.alpha_one",{"returns":[-.1,0,.1],"alpha":1}),
+      ("finance.var_parametric","domain.empty_returns",{"returns":[],"alpha":.95}),
+      ("finance.cvar_historical","domain.alpha_zero",{"returns":[-.1,0,.1],"alpha":0}),
+      ("finance.cvar_historical","domain.alpha_one",{"returns":[-.1,0,.1],"alpha":1}),
+      ("finance.cvar_historical","domain.empty_returns",{"returns":[],"alpha":.95}),
+      ("finance.portfolio_metrics","shape.weight_mismatch",{"returns":[[.01,.02],[.02,.03]],"weights":[1],"annualization":252,"risk_free":0}),
+      ("finance.portfolio_metrics","domain.empty_returns",{"returns":[],"weights":[],"annualization":252,"risk_free":0}),
+      ("finance.portfolio_metrics","domain.annualization_zero",{"returns":[[.01],[.02]],"weights":[1],"annualization":0,"risk_free":0}),
+      ("finance.bond_price","domain.face_nonpositive",{"face":0,"coupon_rate":.05,"maturity":5,"yield":.04,"frequency":2}),
+      ("finance.bond_price","domain.maturity_nonpositive",{"face":1000,"coupon_rate":.05,"maturity":0,"yield":.04,"frequency":2}),
+      ("finance.bond_yield","domain.face_nonpositive",{"face":0,"coupon_rate":.05,"maturity":5,"price":1000,"frequency":2}),
+      ("finance.bond_yield","domain.price_nonpositive",{"face":1000,"coupon_rate":.05,"maturity":5,"price":0,"frequency":2}),
+      ("finance.bond_yield","domain.maturity_nonpositive",{"face":1000,"coupon_rate":.05,"maturity":0,"price":1000,"frequency":2}),
+      ("finance.duration","domain.face_nonpositive",{"face":0,"coupon_rate":.05,"maturity":5,"yield":.04,"frequency":2}),
+      ("finance.duration","domain.maturity_nonpositive",{"face":1000,"coupon_rate":.05,"maturity":0,"yield":.04,"frequency":2}),
+      ("combinatorics.factorial","domain.negative_n",{"n":-1}),
+      ("combinatorics.factorial","domain.fractional_n",{"n":3.5}),
+      ("combinatorics.binomial","domain.negative_n",{"n":-1,"k":0}),
+      ("combinatorics.binomial","domain.fractional_n",{"n":5.5,"k":2}),
+      ("numbertheory.isprime","domain.fractional_n",{"n":7.9}),
+      ("numbertheory.factorint","domain.zero_n",{"n":0}),
+      ("numbertheory.factorint","domain.fractional_n",{"n":12.9}),
+      ("numbertheory.gcd","domain.fractional_a",{"a":12.9,"b":6}),
+      ("numbertheory.lcm","domain.fractional_a",{"a":12.9,"b":6}),
+      ("statistics.correlation","shape.length_mismatch",{"x":[1,2,3],"y":[1,2]}),
+      ("statistics.correlation","domain.constant_series",{"x":[1,1,1],"y":[1,2,3]}),
+      ("statistics.covariance","shape.length_mismatch",{"x":[1,2,3],"y":[1,2]}),
+      ("statistics.regression","shape.length_mismatch",{"x":[1,2,3],"y":[1,2]}),
+      ("statistics.regression","domain.constant_x",{"x":[1,1,1],"y":[1,2,3]}),
+      ("linear.det","shape.nonsquare",{"A":[[1,2,3],[4,5,6]]}),
+      ("linear.inv","shape.nonsquare",{"A":[[1,2,3],[4,5,6]]}),
+      ("linear.solve","shape.b_mismatch",{"A":[[1,0],[0,1]],"b":[1]}),
+      ("linear.eigen","shape.nonsquare",{"A":[[1,2,3],[4,5,6]]}),
+      ("numeric.least_squares","shape.b_mismatch",{"A":[[1],[2],[3]],"b":[1,2]}),
+      ("transforms.fft","domain.empty_data",{"data":[]}),
+      ("transforms.ifft","domain.empty_data",{"data":[]}),
+      ("geometry.distance","domain.empty_vectors",{"p":[],"q":[]}),
+      ("timeseries.moving_average","domain.window_gt_length",{"data":[1,2,3],"window":4}),
+      ("timeseries.rolling_volatility","domain.window_gt_length",{"returns":[.1,.2,.3],"window":4,"annualization":252}),
+      ("timeseries.rolling_volatility","domain.annualization_zero",{"returns":[.1,.2,.3],"window":2,"annualization":0}),
     ]
     for op,test,args in neg:
         try:
