@@ -250,9 +250,15 @@ def main():
     if "_validate_operation_args(op,a)" in s[body_pos:body_pos+200]: raise SystemExit('validator already present')
     s=s[:body_pos]+"    _validate_operation_args(op,a)\\n"+s[body_pos:]
 
-    verify_anchor="        if op=='optimization.quadratic':\\n            return _quadratic_verify(a,result)\\n    except Exception as e:"
-    if s.count(verify_anchor)!=1: raise SystemExit('verification insertion anchor mismatch')
-    s=s.replace(verify_anchor,"        if op=='optimization.quadratic':\\n            return _quadratic_verify(a,result)\\n"+VERIFY_INSERT+"    except Exception as e:",1)
+    qverify="        if op=='optimization.quadratic':"
+    qpos=s.find(qverify)
+    if qpos<0: raise SystemExit('quadratic verification branch missing')
+    epos=s.find("    except Exception as e:",qpos)
+    if epos<0: raise SystemExit('verification except boundary missing')
+    verify_region=s[qpos:epos]
+    if "return _quadratic_verify(a,result)" not in verify_region: raise SystemExit('quadratic verification return missing')
+    if "higher-precision-recompute" in verify_region: raise SystemExit('verification patch already present')
+    s=s[:epos]+VERIFY_INSERT+s[epos:]
 
     old_compute="    try: result=dispatch(req.operation,req.args,req.precision)\\n    except Exception as e: raise HTTPException(status_code=422,detail={'error':type(e).__name__,'message':str(e)[:500]})\\n    out={'ok':True,'kernel_version':VERSION,'operation':req.operation,'result':encode(result),'verified':None,'elapsed_ms':round((time.perf_counter()-t)*1000,3)}"
     new_compute="    try:\\n        result=dispatch(req.operation,req.args,req.precision)\\n        encoded=encode(result)\\n    except Exception as e: raise HTTPException(status_code=422,detail={'error':type(e).__name__,'message':str(e)[:500]})\\n    out={'ok':True,'kernel_version':VERSION,'operation':req.operation,'result':encoded,'verified':None,'elapsed_ms':round((time.perf_counter()-t)*1000,3)}"
