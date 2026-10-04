@@ -79,14 +79,20 @@ Verified by GitHub Actions run `37169862332`:
 - frozen OpenAI live surface before/after SHA-256 identical: `1515ae38afc222de1d29e9dbfc49830aa22ca6350bf94d84d8e506239fe7d29d`;
 - canonical OpenAI auth/MCP source blobs remained pinned.
 
+Server-side callback E2E is also verified by GitHub Actions run `37170153704` using a disposable synthetic account:
+- exact callback: `https://claude.ai/api/mcp/auth_callback`;
+- DCR + PKCE S256 + authorization-code token exchange passed;
+- authenticated `arithmetic.evaluate` call returned 42;
+- metering passed;
+- zero fixture rows remained after cleanup;
+- OpenAI live surface remained unchanged.
+
 Still required:
-1. Add the live remote MCP candidate URL to Claude as a custom Web connector.
-2. Confirm Claude detects OAuth.
-3. Complete authorization through the Claude callback and token exchange.
-4. Confirm Claude tools/list is usable in an actual Claude conversation.
-5. Execute at least one authenticated quantitative Axiom tool call from Claude.
-6. Re-read the frozen OpenAI surface once more after the Claude OAuth/tool test.
-7. Submit the live connector through Claude's developer directory portal.
+1. Add the live remote MCP candidate URL to Claude as a custom connector.
+2. Complete OAuth from an actual Claude session.
+3. Execute at least one authenticated quantitative Axiom tool call from that Claude session.
+4. Re-read the frozen OpenAI surface once more after the Claude-origin test.
+5. Submit the connector through Claude's directory developer portal.
 
 The GitHub Actions artifact upload failed only because the repository's artifact-storage quota was exhausted; the deploy/verification step itself passed and its evidence is recorded in `submission/claude/workers-dev-live-evidence.json`.
 
