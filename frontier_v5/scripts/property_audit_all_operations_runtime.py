@@ -174,7 +174,8 @@ def main():
         y2=float(p.call("finance.bond_yield",{"face":face,"coupon_rate":coupon,"maturity":mat,"price":price,"frequency":freq}))
         p.check(f"bond_inverse.{i}",abs(y2-y)<2e-7,{"got":y2,"ref":y})
         dur=p.call("finance.duration",{"face":face,"coupon_rate":coupon,"maturity":mat,"yield":y,"frequency":freq})
-        p.check(f"duration.{i}",dur["macaulay"]>0 and dur["modified"]>0 and dur["modified"]<=dur["macaulay"])
+        refmod=dur["macaulay"]/(1+y/freq)
+        p.check(f"duration.{i}",dur["macaulay"]>0 and dur["modified"]>0 and abs(dur["modified"]-refmod)<1e-10,{"got":dur,"ref_modified":refmod})
     for i in range(20):
         rts=np_rng.normal(loc=.0005,scale=.02,size=50)
         alpha=rng.uniform(.8,.995)
