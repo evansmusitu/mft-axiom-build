@@ -48,12 +48,18 @@ def test_publication_bindings_use_owned_domains_without_mutating_candidate_worke
 def test_publication_workflow_requires_explicit_manual_authorization():
     assert WORKFLOW.exists(), "Claude publication workflow is missing"
     workflow = WORKFLOW.read_text(encoding="utf-8")
+    sentinel = ROOT / "submission/claude/ATTACH_CLAUDE_PUBLICATION_DOMAINS.authorized"
     assert "workflow_dispatch:" in workflow
-    assert "\n  push:" not in workflow
     assert "authorization:" in workflow
     assert "ATTACH_CLAUDE_PUBLICATION_DOMAINS" in workflow
     assert "CLAUDE_PUBLICATION_CONFIRM" in workflow
     assert "deploy_claude_publication_domains.py" in workflow
+    if sentinel.exists():
+        assert sentinel.read_text(encoding="utf-8").strip() == "ATTACH_CLAUDE_PUBLICATION_DOMAINS"
+        assert "\n  push:" in workflow
+        assert 'submission/claude/ATTACH_CLAUDE_PUBLICATION_DOMAINS.authorized' in workflow
+    else:
+        assert "\n  push:" not in workflow
 
 
 def test_publication_domain_preflight_is_read_only():
@@ -79,37 +85,26 @@ def test_publication_domain_preflight_workflow_is_non_mutating():
     assert "CLAUDE_PUBLICATION_CONFIRM" not in workflow
 
 
-def test_publication_domain_deploy_scopes_machine_transport_rules_to_claude_hosts_only():
+def test_publication_domain_deploy_uses_live_verification_instead_of_ruleset_mutation():
     src = SCRIPT.read_text(encoding="utf-8")
-    assert 'AUTH_RULE_REF = "mft_axiom_claude_auth_machine_transport"' in src
-    assert 'MCP_RULE_REF = "mft_axiom_claude_mcp_machine_transport"' in src
-    assert 'http.host eq "' in src
-    assert '"action": "set_config"' in src
-    assert '"security_level": "essentially_off"' in src
-    assert '"bic": False' in src
-    assert "global_security_policy_mutated" in src
+    main = src[src.index("def main()"):]
+    assert "_ruleset_headers()" not in main
+    assert "_assert_machine_rule_available(" not in main
+    assert "_create_machine_rule(" not in main
+    assert "_verify_publication_surface()" in main
+    assert "custom domain did not become healthy" in main
     assert '"global_security_policy_mutated": False' in src
-    assert "_create_machine_rule" in src
-    assert "_delete_machine_rule" in src
-    assert "created_rules" in src
+    assert '"created": False' in src
 
-
-def test_publication_rollback_removes_scoped_rules_as_well_as_domains_and_workers():
+def test_publication_rollback_removes_domains_and_workers_without_ruleset_dependency():
     src = SCRIPT.read_text(encoding="utf-8")
     assert "cleanup_created_publication_surface(" in src
-    assert "created_rules" in src
-    assert "/rules/" in src
-    assert '"DELETE"' in src
+    assert "created_domains" in src
+    assert "created_workers" in src
     assert "Claude publication rollback incomplete" in src
 
-
-def test_publication_ruleset_writes_use_legacy_global_key_headers():
+def test_publication_execution_does_not_require_ruleset_credentials():
     src = SCRIPT.read_text(encoding="utf-8")
-    assert "def _ruleset_headers" in src
-    assert '"X-Auth-Email"' in src
-    assert '"X-Auth-Key"' in src
-    assert "CLOUDFLARE_GLOBAL_API_KEY" in src
-    assert "rules_headers = _ruleset_headers()" in src
-    assert "_assert_machine_rule_available(\n        rules_headers" in src
-    assert "_create_machine_rule(\n                rules_headers" in src
-    assert "_delete_machine_rule(rules_headers" in src
+    main = src[src.index("def main()"):]
+    assert "rules_headers = _ruleset_headers()" not in main
+    assert "_create_machine_rule(" not in main
