@@ -103,25 +103,30 @@ Still required:
 2. Complete OAuth from an actual Claude session.
 3. Execute at least one authenticated quantitative Axiom tool call from that Claude session.
 4. Re-read the frozen OpenAI surface once more after the Claude-origin test.
-5. Submit the connector through Claude's directory developer portal.
+5. Submit the connector through Claude.ai organization admin settings using a Team/Enterprise organization with Directory-management access.
 
 The GitHub Actions artifact upload failed only because the repository's artifact-storage quota was exhausted; the deploy/verification step itself passed and its evidence is recorded in `submission/claude/workers-dev-live-evidence.json`.
 
-## Current Anthropic program facts captured 2026-10-04
+## Current Anthropic submission requirements captured 2026-10-04
 
-Anthropic currently exposes three related but distinct paths:
+Anthropic's **current** remote-MCP submission guide, updated this week, is authoritative for this package:
 
-1. **Public directory developer portal:** Anthropic's September 25, 2026 announcement says the submission portal is open to developers on **paid Claude plans**. A single remote MCP connector can be submitted by pointing Anthropic to the remote MCP server.
-2. **Custom remote-MCP testing:** Claude's current help documentation says custom remote connectors are available on **Free, Pro, Max, Team, and Enterprise** plans; Free users are limited to one custom connector.
-3. **In-app organization Directory management:** the separate Organization settings → Directory workflow is for **Team and Enterprise** organizations and requires the relevant Admin/Owner or delegated Directory-management permissions.
+- remote MCP submissions happen inside Claude.ai organization admin settings;
+- submission requires a **Team or Enterprise organization**;
+- Directory-management access is required;
+- by default Owners / Primary Owners manage directory listings;
+- Enterprise can delegate Directory or Libraries permission via a custom role;
+- the portal requires the HTTPS server URL, transport, listing metadata, use cases, company details, authentication details, data handling disclosures, test-account instructions and compliance acknowledgements;
+- before submitting, Anthropic requires developers to exercise every tool through MCP Inspector and as a custom connector in Claude;
+- reviewers expect successful valid-parameter responses, actionable validation errors, applicable annotations, titles, and tool names no longer than 64 characters.
 
-Therefore a Team/Enterprise upgrade is not recorded as a requirement for the public developer-portal route unless Anthropic changes the portal's eligibility rules or the intended submission path changes to organization-level in-app directory management.
-
-Official source pages used for this package:
-- https://claude.com/blog/build-plugins-for-claude
-- https://claude.com/blog/observability-for-developers-building-connectors
+Current official sources:
+- https://claude.com/docs/connectors/building/submission
+- https://claude.com/docs/connectors/building/review-criteria
 - https://support.claude.com/en/articles/11175166-get-started-with-custom-connectors-using-remote-mcp
-- https://support.claude.com/en/articles/13930452-manage-custom-roles-on-enterprise-plans
+- https://support.claude.com/en/articles/13145358-anthropic-software-directory-policy
+
+The September 25, 2026 announcement described a paid-plan developer portal, but the newer submission guide now places remote-MCP directory submissions in organization admin settings with Team/Enterprise access. This package follows the newer guide.
 
 ## Explicit blocker
 
