@@ -1,0 +1,18 @@
+{
+  "schema": "musitu.axiom.claude_publication_domain_preflight.v1",
+  "recorded_from_github_actions_run": 37174975719,
+  "recorded_from_job": 111355607218,
+  "gate": "MUSITU_AXIOM_CLAUDE_PUBLICATION_DOMAIN_PREFLIGHT_PASS",
+  "proposed_auth_host": "claude-auth.mftintelligence.com",
+  "proposed_mcp_host": "claude-mcp.mftintelligence.com",
+  "testing_workers_present": true,
+  "publication_workers_present": false,
+  "auth_custom_domain_rows": 0,
+  "mcp_custom_domain_rows": 0,
+  "auth_dns_records": 0,
+  "mcp_dns_records": 0,
+  "publication_surface_free": true,
+  "openai_surface_unchanged": true,
+  "write_performed": false,
+  "evidence_sha256": "56a7a4f79d10596dc33daadcc4644dcbe0a5d1813ba14a85a37e04921b32c7b3"
+}
