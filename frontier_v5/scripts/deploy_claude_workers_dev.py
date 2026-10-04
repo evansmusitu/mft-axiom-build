@@ -403,6 +403,40 @@ def main() -> int:
                 f"isolated Claude tool surface mismatch: tools={len(tools)} operations={len(mapped)} business={len(business)} hidden={sorted(names & hidden)}"
             )
 
+        descriptor_issues = []
+        seen_names = set()
+        for tool in tools:
+            if not isinstance(tool, dict):
+                descriptor_issues.append("non_object_tool")
+                continue
+            name = str(tool.get("name") or "")
+            title = str(tool.get("title") or "")
+            description = str(tool.get("description") or "")
+            annotations = tool.get("annotations") if isinstance(tool.get("annotations"), dict) else {}
+            if not name:
+                descriptor_issues.append("missing_name")
+            elif len(name) > 64:
+                descriptor_issues.append(f"name_too_long:{name}:{len(name)}")
+            elif name in seen_names:
+                descriptor_issues.append(f"duplicate_name:{name}")
+            seen_names.add(name)
+            if not title.strip():
+                descriptor_issues.append(f"missing_title:{name}")
+            if not description.strip():
+                descriptor_issues.append(f"missing_description:{name}")
+            if not isinstance(tool.get("inputSchema"), dict):
+                descriptor_issues.append(f"missing_input_schema:{name}")
+            if not isinstance(tool.get("outputSchema"), dict):
+                descriptor_issues.append(f"missing_output_schema:{name}")
+            if annotations.get("readOnlyHint") is not True:
+                descriptor_issues.append(f"read_only_hint_not_true:{name}")
+            if annotations.get("destructiveHint") is not False:
+                descriptor_issues.append(f"destructive_hint_not_false:{name}")
+            if annotations.get("openWorldHint") is not False:
+                descriptor_issues.append(f"open_world_hint_not_false:{name}")
+        if descriptor_issues:
+            raise RuntimeError("Claude directory tool-descriptor contract failed: " + repr(descriptor_issues[:25]))
+
         after = snapshot_openai_surface()
         after_digest = canonical_digest(after)
         openai_surface_unchanged = before_digest == after_digest
@@ -426,6 +460,15 @@ def main() -> int:
             "operation_count": len(mapped),
             "business_product_count": len(business),
             "commerce_tools_exposed": False,
+            "all_tool_names_unique": True,
+            "all_tool_names_max_64": True,
+            "all_tools_have_titles": True,
+            "all_tools_have_descriptions": True,
+            "all_tools_have_input_schemas": True,
+            "all_tools_have_output_schemas": True,
+            "all_tools_read_only_hint_true": True,
+            "all_tools_destructive_hint_false": True,
+            "all_tools_open_world_hint_false": True,
             "openai_surface_before_sha256": before_digest,
             "openai_surface_after_sha256": after_digest,
             "openai_surface_unchanged": openai_surface_unchanged,
