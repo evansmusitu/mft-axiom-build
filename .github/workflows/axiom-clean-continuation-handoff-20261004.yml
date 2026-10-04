@@ -1,0 +1,429 @@
+name: Axiom Clean Continuation Handoff 20261004
+
+on:
+  push:
+    branches:
+      - "distribution/claude-remote-mcp-20261004"
+    paths:
+      - ".github/workflows/axiom-clean-continuation-handoff-20261004.yml"
+
+permissions:
+  contents: read
+  pull-requests: read
+  actions: read
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Fetch complete repository refs
+        run: |
+          set -euo pipefail
+          git fetch --force --prune --tags origin '+refs/heads/*:refs/remotes/origin/*'
+
+      - name: Build authoritative whole-product handoff
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          NAME="MUSITU_AXIOM_CLEAN_CONTINUATION_HANDOFF_20261004_0734CAT"
+          ROOT="$RUNNER_TEMP/$NAME"
+          mkdir -p "$ROOT"/{00_START_HERE,AUTHORITY,HANDOFF,REFERENCE,PRODUCT_SOURCE,REPOSITORY_BUNDLE,ANCESTRY}
+
+          HEAD_SHA="$(git rev-parse HEAD)"
+          TREE_SHA="$(git rev-parse HEAD^{tree})"
+          MAIN_SHA="$(git rev-parse refs/remotes/origin/main)"
+          FRONTIER_SHA="$(git rev-parse refs/remotes/origin/frontier/axiom-v5-skill-fabric)"
+          COMMERCIAL_SHA="$(git rev-parse refs/remotes/origin/commercial/axiom-1m-enterprise-pack-20261003 2>/dev/null || true)"
+          BRANCH_NAME="${GITHUB_REF_NAME}"
+          PACKAGED_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+
+          gh api repos/${GITHUB_REPOSITORY}/pulls/1 > "$ROOT/AUTHORITY/PR1_LIVE_AT_PACKAGING.json"
+
+          git archive --format=zip --output="$ROOT/PRODUCT_SOURCE/mft-axiom-build-active-head.zip" HEAD
+          SOURCE_SHA256="$(sha256sum "$ROOT/PRODUCT_SOURCE/mft-axiom-build-active-head.zip" | awk '{print $1}')"
+          SOURCE_SIZE="$(stat -c %s "$ROOT/PRODUCT_SOURCE/mft-axiom-build-active-head.zip")"
+
+          git bundle create "$ROOT/REPOSITORY_BUNDLE/mft-axiom-build-all-refs.bundle" --all
+          BUNDLE_SHA256="$(sha256sum "$ROOT/REPOSITORY_BUNDLE/mft-axiom-build-all-refs.bundle" | awk '{print $1}')"
+          BUNDLE_SIZE="$(stat -c %s "$ROOT/REPOSITORY_BUNDLE/mft-axiom-build-all-refs.bundle")"
+          git bundle verify "$ROOT/REPOSITORY_BUNDLE/mft-axiom-build-all-refs.bundle" > "$ROOT/REPOSITORY_BUNDLE/BUNDLE_VERIFY.txt" 2>&1
+
+          git for-each-ref --sort=refname --format='%(refname) %(objectname)' refs/remotes/origin > "$ROOT/AUTHORITY/ALL_REMOTE_REFS.txt"
+          git log -1 --format=fuller HEAD > "$ROOT/AUTHORITY/ACTIVE_HEAD_COMMIT.txt"
+
+          cat > "$ROOT/AUTHORITY/CURRENT_SOURCE_AUTHORITY.json" <<JSON
+          {
+            "schema": "musitu.axiom.clean_continuation.source_authority.v1",
+            "packaged_at_utc": "$PACKAGED_AT",
+            "repository": "$GITHUB_REPOSITORY",
+            "active_branch": "$BRANCH_NAME",
+            "active_head": "$HEAD_SHA",
+            "active_tree": "$TREE_SHA",
+            "sealed_main": "$MAIN_SHA",
+            "frontier_branch": "frontier/axiom-v5-skill-fabric",
+            "frontier_head": "$FRONTIER_SHA",
+            "commercial_branch": "commercial/axiom-1m-enterprise-pack-20261003",
+            "commercial_head": "$COMMERCIAL_SHA",
+            "source_archive": "PRODUCT_SOURCE/mft-axiom-build-active-head.zip",
+            "source_archive_sha256": "$SOURCE_SHA256",
+            "source_archive_size": $SOURCE_SIZE,
+            "repository_bundle": "REPOSITORY_BUNDLE/mft-axiom-build-all-refs.bundle",
+            "repository_bundle_sha256": "$BUNDLE_SHA256",
+            "repository_bundle_size": $BUNDLE_SIZE,
+            "live_github_overrides_packaged_snapshot": true
+          }
+          JSON
+
+          python - <<'PY'
+          import json
+          p="'"$ROOT"'/AUTHORITY/PR1_LIVE_AT_PACKAGING.json"
+          x=json.load(open(p))
+          out={
+            "number":x.get("number"),
+            "state":x.get("state"),
+            "draft":x.get("draft"),
+            "merged":x.get("merged",False),
+            "base":(x.get("base") or {}).get("ref"),
+            "base_sha":(x.get("base") or {}).get("sha"),
+            "head":(x.get("head") or {}).get("ref"),
+            "head_sha":(x.get("head") or {}).get("sha"),
+            "html_url":x.get("html_url")
+          }
+          json.dump(out,open("'"$ROOT"'/AUTHORITY/PROTECTED_REFS_AND_PR1.json","w"),indent=2,sort_keys=True)
+          PY
+
+          cat > "$ROOT/AUTHORITY/CURRENT_CI.json" <<'JSON'
+          {
+            "schema": "musitu.axiom.clean_continuation.ci.v1",
+            "verified_runs": {
+              "claude_distribution_candidate": {
+                "run_id": 37175083165,
+                "result": "SUCCESS",
+                "evidence": "33 passed; MUSITU_AXIOM_CLAUDE_DISTRIBUTION_CANDIDATE_PASS"
+              },
+              "claude_workers_dev_deployment": {
+                "run_id": 37175065889,
+                "result": "SUCCESS",
+                "evidence": "108 tools / 74 operations / 30 business products; commerce hidden; docs/privacy/terms 200; OAuth 401; OpenAI before/after hash identical"
+              },
+              "claude_oauth_and_official_inspector": {
+                "run_id": 37174144402,
+                "result": "SUCCESS",
+                "evidence": "74/74 operations; official MCP Inspector 2.5.0 108/108 tools; 105 protected metered tools; zero failures; no token publication; OpenAI unchanged; claude_origin_verified=false"
+              },
+              "claude_publication_domain_readonly_preflight": {
+                "run_id": 37174975719,
+                "result": "SUCCESS",
+                "evidence": "0 auth DNS records; 0 MCP DNS records; 0 Worker-domain rows; publication workers absent; test workers present; write_performed=false; OpenAI unchanged"
+              }
+            },
+            "known_non_blocking_environment_issue": "GitHub artifact upload quota can fail after successful technical verification; do not reinterpret as product regression."
+          }
+          JSON
+
+          cat > "$ROOT/00_START_HERE/NEW_CHAT_START_HERE.md" <<'EOF'
+          # MUSITU Axiom — Clean New-Chat Continuation Start
+
+          This package is the authoritative chat-shift handoff for the current MUSITU Axiom product/distribution work.
+
+          ## Non-negotiable intake rule
+
+          1. Verify the OUTER ZIP SHA-256 against the exact value supplied with this package in the originating chat.
+          2. Extract into a clean directory.
+          3. Run: `python VERIFY_HANDOFF.py`.
+          4. Require `HANDOFF VERIFIED` before using embedded source/evidence.
+          5. Read in this order:
+             - AUTHORITY/CURRENT_SOURCE_AUTHORITY.json
+             - AUTHORITY/PROTECTED_REFS_AND_PR1.json
+             - AUTHORITY/CURRENT_CI.json
+             - HANDOFF/CURRENT_WORK.md
+             - HANDOFF/EVIDENCE_AUTHORITY.md
+             - HANDOFF/EXACT_NEW_CHAT_COMMAND.txt
+             - ANCESTRY/DRIVE_HANDOFF_REFERENCES.md
+          6. Re-read connected GitHub **before any write**. Newer valid live GitHub state overrides packaged SHAs. Never roll back newer valid work to this package.
+
+          The package contains both an exact-head active source ZIP and a full Git bundle of repository refs. The bundle is recovery substrate, not permission to overwrite newer connected GitHub state.
+          EOF
+
+          cat > "$ROOT/HANDOFF/CURRENT_WORK.md" <<'EOF'
+          # Current Work — Claude Remote MCP Distribution
+
+          ## Active mission
+          Publish MUSITU Axiom as the first non-OpenAI platform distribution through Claude remote MCP, while keeping the frozen OpenAI submission/runtime surface completely unchanged.
+
+          ## Active branch
+          `distribution/claude-remote-mcp-20261004`
+
+          ## Frozen OpenAI invariants
+          - sealed production main: `d6a846f6bbe0bccac1758713eb4de167caf07113`
+          - PR #1 must remain OPEN / DRAFT / UNMERGED
+          - canonical OpenAI auth worker blob pinned: `8ba0dbc1b6dd1533c6c26bff23991429e03a71a5`
+          - canonical OpenAI v4 MCP gate blob pinned: `4a1ad37a5e7df0e4d3966e8b5f9f0e8f2db69167`
+
+          ## Claude candidate already proven
+          - isolated auth candidate worker:
+            `https://musitu-axiom-claude-auth-candidate.mft-education-nexus-93f395f5.workers.dev`
+          - isolated MCP candidate:
+            `https://musitu-axiom-claude-mcp-candidate.mft-education-nexus-93f395f5.workers.dev/mcp`
+          - exact OAuth resource includes `/mcp`
+          - HTTP 401 + WWW-Authenticate discovery passes
+          - OAuth 2.1 authorization-code + PKCE S256 + DCR path passes
+          - 108 exposed tools / 74 runtime operations / 30 business products
+          - commerce, checkout, trade execution and money movement are excluded
+          - 74/74 canonical operation fixtures pass
+          - official MCP Inspector 2.5.0: 108/108 tools pass; 105 protected tools metered; 0 failures
+          - docs/privacy/terms live on the isolated candidate
+          - OpenAI before/after surface hash remained identical
+
+          ## Explicit authorization carried into the new chat
+          The user explicitly authorized the sentinel:
+          `ATTACH_CLAUDE_PUBLICATION_DOMAINS`
+
+          This authorization is ONLY for the prepared Claude publication surface:
+          - `claude-auth.mftintelligence.com`
+          - `claude-mcp.mftintelligence.com`
+
+          It is NOT authorization to change:
+          - `auth.mftintelligence.com`
+          - `mcp.mftintelligence.com`
+          - sealed main
+          - PR #1
+          - frozen OpenAI submission
+          - existing OpenAI production DNS/Cloudflare routes
+
+          ## Publication-domain status
+          Read-only preflight proved:
+          - 0 existing DNS records for both proposed Claude hosts
+          - 0 existing Worker custom-domain mappings
+          - no publication workers currently present
+          - testing workers present
+          - write_performed=false
+          - OpenAI surface unchanged
+
+          The prepared manual deployment code is:
+          - `frontier_v5/scripts/deploy_claude_publication_domains.py`
+          - `.github/workflows/axiom-frontier-v5-claude-publication-domain.yml`
+          - `frontier_v5/tests/test_claude_publication_domain_contract.py`
+
+          The prior chat could not execute the final domain attach only because the available GitHub connector could not workflow_dispatch a branch-only workflow and there was no Cloudflare connector. Do not reinterpret this as an Axiom technical failure.
+
+          ## Exact next action
+          Recover the previously used Cloudflare execution method from connected Drive/GitHub history and use the already-authorized publication deployment safely. Prefer an existing proven execution path over inventing a new secret-bearing trigger.
+
+          After publication domains are live:
+          1. verify OAuth discovery and protected-resource metadata;
+          2. verify HTTP 401 WWW-Authenticate;
+          3. verify 108/74/30 and commerce hidden;
+          4. verify docs/privacy/terms;
+          5. prove OpenAI before/after surface hash identical;
+          6. perform one real Claude-origin custom connector OAuth session;
+          7. perform one authenticated Axiom call from Claude;
+          8. re-read OpenAI surface again;
+          9. complete Claude directory submission through the current Team/Enterprise organization admin flow with Directory-management access.
+
+          ## Remaining external listing items
+          - real Claude-origin validation remains unproven (`claude_origin_verified=false`);
+          - a real public MUSITU support contact must be designated; do not fabricate one or publish a personal Gmail by default;
+          - Claude directory submission requires Team/Enterprise organization + Directory-management access under the current Anthropic guide;
+          - reviewer/test credentials must be entered only through the secure Claude portal, never committed to source.
+          EOF
+
+          cat > "$ROOT/HANDOFF/EVIDENCE_AUTHORITY.md" <<'EOF'
+          # Evidence Authority
+
+          Use evidence-level language exactly.
+
+          ## Proven
+          - static Claude distribution contract
+          - isolated workers.dev auth/MCP deployment
+          - 108/74/30 safe tool boundary
+          - OAuth 2.1 / PKCE S256 / DCR server-side chain
+          - exact Claude callback contract
+          - 74/74 operation functional preflight
+          - official MCP Inspector 108/108 full tool-surface preflight
+          - metering for protected Inspector calls
+          - zero commerce exposure
+          - provider-accurate public policy pages
+          - publication-domain topology preflight with zero writes
+          - frozen OpenAI source blobs and live OpenAI surface unchanged in the cited verification runs
+
+          ## Not yet proven
+          - real Claude product originated the OAuth session
+          - real Claude product executed the authenticated Axiom tool call
+          - publication custom domains are attached/live
+          - Claude directory listing has been submitted/approved
+          - public support contact has been designated
+          - any global-superiority/best-in-world claim
+          - any new customer/OEM contract, invoice, or cash from this technical distribution work
+
+          Never promote an unproven item by inference.
+          EOF
+
+          cat > "$ROOT/ANCESTRY/DRIVE_HANDOFF_REFERENCES.md" <<'EOF'
+          # Prior Proven Drive Handoff Pattern
+
+          Connected Google Drive folder:
+          - name: `MUSITU_AXIOM_HANDOFFS`
+          - folder ID: `12PNIoIwajg3uPgFrklVUwLoBGw6o5D6b`
+
+          Important ancestry:
+          - `MUSITU_AXIOM_FRONTIER_V5_WHOLE_CONTINUATION_HANDOFF_20260913_0310_AUTHORITATIVE.zip`
+          - expected historical size: 14,907,137 bytes
+          - expected historical SHA-256: `75a0d2a51ef6351c06809caae509afd681c04b29763fb6e30170234eaf414669`
+          - exact prior command: `MUSITU_AXIOM_FRONTIER_V5_EXACT_NEW_CHAT_COMMAND_20260913_0310.txt`
+          - older deployment ancestry: `MUSITU_AXIOM_WHOLE_DEPLOYMENT_HANDOFF_20260907.zip`
+
+          The historical handoffs established the continuation discipline used here:
+          verify outer hash -> extract -> read START_HERE -> verify internal manifest -> read authority/current-work files -> re-read live GitHub -> continue only from the newest valid state.
+
+          Historical SHAs are ancestry only. Current connected GitHub wins when it contains newer valid continuation work.
+          EOF
+
+          cat > "$ROOT/HANDOFF/EXACT_NEW_CHAT_COMMAND.txt" <<'EOF'
+          RESUME MUSITU AXIOM FROM THE EXACT CURRENT AUTHORITATIVE WHOLE-PRODUCT CLEAN CONTINUATION HANDOFF.
+
+          THIS IS A CONTINUATION — NOT A RESTART, REDESIGN, SUMMARY-ONLY EXERCISE, OR PERMISSION TO RECONSTRUCT STATE FROM CHAT MEMORY.
+
+          Use my connected Google Drive and connected GitHub directly.
+
+          In connected Drive folder `MUSITU_AXIOM_HANDOFFS` (folder ID `12PNIoIwajg3uPgFrklVUwLoBGw6o5D6b`), retrieve:
+          `MUSITU_AXIOM_CLEAN_CONTINUATION_HANDOFF_20261004_0734CAT.zip`
+
+          Verify the downloaded outer ZIP SHA-256 against the exact value I provide with this command. If it does not match, STOP.
+
+          Extract the ZIP and read first:
+          `00_START_HERE/NEW_CHAT_START_HERE.md`
+
+          Run:
+          `python VERIFY_HANDOFF.py`
+          and require:
+          `HANDOFF VERIFIED`
+
+          Then read the authority/current-work files in the order specified by START_HERE.
+
+          BEFORE ANY WRITE, re-read live connected GitHub repository:
+          `evansmusitu/mft-axiom-build`
+
+          A newer valid live descendant overrides the packaged snapshot; never roll back newer valid work.
+
+          Preserve absolutely:
+          - sealed main `d6a846f6bbe0bccac1758713eb4de167caf07113`
+          - PR #1 OPEN / DRAFT / UNMERGED
+          - frozen OpenAI auth/MCP/source/submission surfaces
+          - no OpenAI DNS/Cloudflare mutation from this Claude continuation
+          - no unsupported global-superiority claims
+
+          ACTIVE MISSION:
+          Continue the Claude remote-MCP distribution track on `distribution/claude-remote-mcp-20261004`.
+
+          The user explicitly authorizes:
+          `ATTACH_CLAUDE_PUBLICATION_DOMAINS`
+
+          This authorization is limited to the prepared new Claude-only publication hosts:
+          - `claude-auth.mftintelligence.com`
+          - `claude-mcp.mftintelligence.com`
+
+          Recover and reuse the proven prior Cloudflare/deployment execution pattern from the connected Drive handoffs/GitHub history rather than inventing an unsafe new secret-bearing path.
+
+          Verify before mutation that the publication hosts still have zero conflicting DNS records/custom-domain mappings. Then execute the already-prepared rollback-safe Claude publication deployment. After it runs, prove:
+          - OAuth discovery;
+          - exact `/mcp` resource;
+          - HTTP 401 + WWW-Authenticate;
+          - 108 tools / 74 operations / 30 business products;
+          - commerce hidden;
+          - docs/privacy/terms;
+          - OpenAI before/after surface hash identical.
+
+          Then perform the first REAL CLAUDE-ORIGIN custom-connector flow. Do not mark `claude_origin_verified=true` until Claude itself originates OAuth and executes an authenticated Axiom call.
+
+          After that, complete Claude directory submission under the CURRENT Anthropic requirements. Re-check official Anthropic docs first; the packaged state records Team/Enterprise organization + Directory-management access as the current directory submission requirement.
+
+          Do not fabricate a support contact or reviewer credential. Use a legitimate public MUSITU support contact and transmit reviewer credentials only through secure platform fields.
+
+          DO NOT STOP AT A ROADMAP. Continue execution from the newest verified state until a genuine external/account-authentication boundary is reached.
+          EOF
+
+          cat > "$ROOT/HANDOFF_INDEX.json" <<JSON
+          {
+            "schema": "musitu.axiom.clean_continuation_handoff.v1",
+            "package_name": "$NAME",
+            "packaged_at_utc": "$PACKAGED_AT",
+            "repository": "$GITHUB_REPOSITORY",
+            "active_branch": "$BRANCH_NAME",
+            "active_head": "$HEAD_SHA",
+            "sealed_main": "$MAIN_SHA",
+            "primary_start_file": "00_START_HERE/NEW_CHAT_START_HERE.md",
+            "verification_script": "VERIFY_HANDOFF.py",
+            "internal_checksum_manifest": "SHA256SUMS.txt",
+            "contains_exact_head_source_zip": true,
+            "contains_full_git_bundle": true,
+            "live_github_overrides_snapshot": true,
+            "outer_zip_sha256_supplied_out_of_band_after_artifact_download": true
+          }
+          JSON
+
+          cat > "$ROOT/VERIFY_HANDOFF.py" <<'PY'
+          from __future__ import annotations
+          import hashlib, json
+          from pathlib import Path
+
+          root=Path(__file__).resolve().parent
+          manifest=root/"SHA256SUMS.txt"
+          if not manifest.is_file():
+              raise SystemExit("HANDOFF VERIFY FAIL: SHA256SUMS.txt missing")
+          bad=[]
+          count=0
+          for raw in manifest.read_text(encoding="utf-8").splitlines():
+              if not raw.strip():
+                  continue
+              expected, rel=raw.split("  ",1)
+              p=root/rel
+              count+=1
+              if not p.is_file():
+                  bad.append((rel,"MISSING"))
+                  continue
+              got=hashlib.sha256(p.read_bytes()).hexdigest()
+              if got!=expected:
+                  bad.append((rel,got))
+          auth=json.loads((root/"AUTHORITY/CURRENT_SOURCE_AUTHORITY.json").read_text())
+          source=root/auth["source_archive"]
+          bundle=root/auth["repository_bundle"]
+          if hashlib.sha256(source.read_bytes()).hexdigest()!=auth["source_archive_sha256"]:
+              bad.append((auth["source_archive"],"SOURCE_SHA_MISMATCH"))
+          if source.stat().st_size!=auth["source_archive_size"]:
+              bad.append((auth["source_archive"],"SOURCE_SIZE_MISMATCH"))
+          if hashlib.sha256(bundle.read_bytes()).hexdigest()!=auth["repository_bundle_sha256"]:
+              bad.append((auth["repository_bundle"],"BUNDLE_SHA_MISMATCH"))
+          if bundle.stat().st_size!=auth["repository_bundle_size"]:
+              bad.append((auth["repository_bundle"],"BUNDLE_SIZE_MISMATCH"))
+          if bad:
+              print("HANDOFF VERIFY FAIL")
+              for x in bad:
+                  print(x)
+              raise SystemExit(1)
+          print(f"HANDOFF VERIFIED: {count} manifest entries")
+          PY
+
+          (
+            cd "$ROOT"
+            find . -type f ! -name SHA256SUMS.txt -print0 | sort -z | xargs -0 sha256sum | sed 's#  \./#  #' > SHA256SUMS.txt
+            python VERIFY_HANDOFF.py
+          )
+
+          mkdir -p "$GITHUB_WORKSPACE/handoff-output"
+          cp -a "$ROOT"/. "$GITHUB_WORKSPACE/handoff-output/"
+
+      - name: Upload clean handoff transport
+        uses: actions/upload-artifact@v4
+        with:
+          name: MUSITU_AXIOM_CLEAN_CONTINUATION_HANDOFF_20261004_0734CAT
+          path: handoff-output/**
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 30
