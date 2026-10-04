@@ -1,0 +1,55 @@
+name: Axiom Claude Publication Binding Read-Only 20261004
+
+on:
+  push:
+    branches:
+      - distribution/claude-remote-mcp-20261004
+    paths:
+      - '.github/workflows/axiom-claude-publication-binding-readonly-20261004.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Print sanitized publication binding metadata
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json, urllib.parse
+          from frontier_v5.scripts.deploy_claude_workers_dev import ACCOUNT_ID, cf, cloudflare_headers
+          worker="musitu-axiom-claude-mcp-publication"
+          headers=cloudflare_headers()
+          settings,_=cf(headers,f"/accounts/{ACCOUNT_ID}/workers/scripts/{urllib.parse.quote(worker,safe='')}/settings")
+          if not isinstance(settings,dict):
+              raise SystemExit("settings unavailable")
+          rows=[]
+          for item in settings.get("bindings") or []:
+              if not isinstance(item,dict): continue
+              typ=str(item.get("type") or "")
+              name=str(item.get("name") or "")
+              # Only known non-secret publication bindings may be emitted.
+              if name not in {"AXIOM_DB","AUTH_ISSUER","MCP_PUBLIC_BASE","MCP_OAUTH_RESOURCE","MCP_CORE"}:
+                  rows.append({"name":name,"type":typ,"unexpected":True})
+                  continue
+              row={"name":name,"type":typ}
+              for k in ("text","id","service","environment","namespace_id"):
+                  if item.get(k) is not None:
+                      row[k]=item.get(k)
+              rows.append(row)
+          print("SANITIZED_BINDINGS="+json.dumps(sorted(rows,key=lambda x:x["name"]),sort_keys=True))
+          print("compatibility_date="+str(settings.get("compatibility_date")))
+          print("mutation_performed=false")
+          PY
