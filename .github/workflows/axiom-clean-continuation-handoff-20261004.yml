@@ -80,23 +80,17 @@ jobs:
           }
           JSON
 
-          python - <<'PY'
-          import json
-          p="'"$ROOT"'/AUTHORITY/PR1_LIVE_AT_PACKAGING.json"
-          x=json.load(open(p))
-          out={
-            "number":x.get("number"),
-            "state":x.get("state"),
-            "draft":x.get("draft"),
-            "merged":x.get("merged",False),
-            "base":(x.get("base") or {}).get("ref"),
-            "base_sha":(x.get("base") or {}).get("sha"),
-            "head":(x.get("head") or {}).get("ref"),
-            "head_sha":(x.get("head") or {}).get("sha"),
-            "html_url":x.get("html_url")
-          }
-          json.dump(out,open("'"$ROOT"'/AUTHORITY/PROTECTED_REFS_AND_PR1.json","w"),indent=2,sort_keys=True)
-          PY
+          jq '{
+            number,
+            state,
+            draft,
+            merged: (.merged // false),
+            base: .base.ref,
+            base_sha: .base.sha,
+            head: .head.ref,
+            head_sha: .head.sha,
+            html_url
+          }' "$ROOT/AUTHORITY/PR1_LIVE_AT_PACKAGING.json" > "$ROOT/AUTHORITY/PROTECTED_REFS_AND_PR1.json"
 
           cat > "$ROOT/AUTHORITY/CURRENT_CI.json" <<'JSON'
           {
@@ -121,6 +115,16 @@ jobs:
                 "run_id": 37174975719,
                 "result": "SUCCESS",
                 "evidence": "0 auth DNS records; 0 MCP DNS records; 0 Worker-domain rows; publication workers absent; test workers present; write_performed=false; OpenAI unchanged"
+              },
+              "authorized_publication_attempt": {
+                "run_id": 37179737957,
+                "result": "FAILURE",
+                "evidence": "19 safety tests passed; deployment reached Cloudflare then failed with HTTP 403 on POST /zones/5b56528f03948ff5917a5e0cd9f7109e/rulesets/8e8a2552a8ee4bb383abbe0d748e1da5/rules while creating the hostname-scoped security exception. Do not classify as Axiom runtime failure."
+              },
+              "latest_cloudflare_security_readonly_diagnostic": {
+                "run_id": 37179852331,
+                "result": "SUCCESS",
+                "evidence": "publication surface still free; write_performed=false; zone security_level=under_attack; browser_check=on; config-rules entrypoint readable; custom-rules entrypoint unavailable; page-rules endpoint rejects account-owned tokens; OpenAI unchanged"
               }
             },
             "known_non_blocking_environment_issue": "GitHub artifact upload quota can fail after successful technical verification; do not reinterpret as product regression."
@@ -198,23 +202,35 @@ jobs:
           - existing OpenAI production DNS/Cloudflare routes
 
           ## Publication-domain status
-          Read-only preflight proved:
-          - 0 existing DNS records for both proposed Claude hosts
-          - 0 existing Worker custom-domain mappings
-          - no publication workers currently present
-          - testing workers present
-          - write_performed=false
-          - OpenAI surface unchanged
+          The user-authorized publication deployment WAS attempted.
 
-          The prepared manual deployment code is:
+          Latest authoritative events:
+          - run `37179737957`: publication-domain workflow FAILURE
+            - the publication safety contract passed 19/19 tests;
+            - the deployment reached Cloudflare with the authorization sentinel;
+            - it failed at Cloudflare with HTTP 403 on:
+              `POST /zones/5b56528f03948ff5917a5e0cd9f7109e/rulesets/8e8a2552a8ee4bb383abbe0d748e1da5/rules`
+            - the failed action was creation of the hostname-scoped security/challenge exception needed for the Claude publication hosts.
+          - run `37179852331`: latest read-only Cloudflare diagnostic SUCCESS
+            - 0 existing DNS records for both proposed Claude hosts;
+            - 0 existing Worker custom-domain mappings;
+            - no publication workers currently present;
+            - testing workers present;
+            - write_performed=false;
+            - OpenAI surface unchanged;
+            - zone `security_level=under_attack`;
+            - `browser_check=on`;
+            - configuration-rules entrypoint is readable;
+            - custom-rules entrypoint is unavailable in the observed credential/API path;
+            - legacy page-rules endpoint reports that account-owned tokens are unsupported.
+
+          The prepared deployment code remains:
           - `frontier_v5/scripts/deploy_claude_publication_domains.py`
           - `.github/workflows/axiom-frontier-v5-claude-publication-domain.yml`
           - `frontier_v5/tests/test_claude_publication_domain_contract.py`
 
-          The prior chat could not execute the final domain attach only because the available GitHub connector could not workflow_dispatch a branch-only workflow and there was no Cloudflare connector. Do not reinterpret this as an Axiom technical failure.
-
           ## Exact next action
-          Recover the previously used Cloudflare execution method from connected Drive/GitHub history and use the already-authorized publication deployment safely. Prefer an existing proven execution path over inventing a new secret-bearing trigger.
+          Recover the previously proven Cloudflare execution/authentication method from connected Drive/GitHub history and determine the legitimate credential/API route that has authority to create the required hostname-scoped ruleset exception. Do not weaken zone security globally and do not remove Under Attack Mode merely to make Claude work. Preserve the scoped-hostname design and rerun the authorized publication workflow only after the ruleset-write authority path is genuinely available.
 
           After publication domains are live:
           1. verify OAuth discovery and protected-resource metadata;
@@ -331,7 +347,9 @@ jobs:
 
           Recover and reuse the proven prior Cloudflare/deployment execution pattern from the connected Drive handoffs/GitHub history rather than inventing an unsafe new secret-bearing path.
 
-          Verify before mutation that the publication hosts still have zero conflicting DNS records/custom-domain mappings. Then execute the already-prepared rollback-safe Claude publication deployment. After it runs, prove:
+          IMPORTANT CURRENT BLOCKER: the authorized publication workflow already ran and failed with Cloudflare HTTP 403 while POSTing a hostname-scoped rule to the zone ruleset. The latest diagnostic shows the zone is in Under Attack Mode and the current observed credential/API path lacks the required custom-rules write authority. Do not globally lower Cloudflare security. Resolve the scoped ruleset-write authority using a legitimate previously proven credential/API path, then rerun the prepared publication workflow.
+
+          Verify before mutation that the publication hosts still have zero conflicting DNS records/custom-domain mappings. After the repaired authorized deployment runs, prove:
           - OAuth discovery;
           - exact `/mcp` resource;
           - HTTP 401 + WWW-Authenticate;
