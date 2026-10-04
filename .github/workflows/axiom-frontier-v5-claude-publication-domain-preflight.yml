@@ -50,3 +50,5 @@ jobs:
 # final rollback verification after ruleset-permission blocker
 
 # verify rollback after authorized one-shot publication attempt
+
+# concurrent topology observation during diagnostic publication attempt
