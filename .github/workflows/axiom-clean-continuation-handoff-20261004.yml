@@ -445,3 +445,4 @@ jobs:
           include-hidden-files: true
           if-no-files-found: error
           retention-days: 30
+# Authorized handoff regeneration trigger: 2026-10-04T05:34Z
