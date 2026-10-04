@@ -88,3 +88,5 @@ jobs:
           name: musitu-axiom-api-key-issuance-contract
           path: api-key-issuance-contract.json
           retention-days: 7
+
+# Trigger-only contract extraction 2026-10-04
