@@ -8,6 +8,9 @@ import os
 import pathlib
 import re
 import secrets
+import shutil
+import subprocess
+import tempfile
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -104,6 +107,179 @@ def d1(headers: dict, sql: str, params: list | None = None) -> list[dict]:
     for item in result:
         rows.extend(item.get("results") or [])
     return rows
+
+
+
+INSPECTOR_PACKAGE = "@modelcontextprotocol/inspector@2.5.0"
+
+
+def _parse_inspector_json(stdout: str) -> dict:
+    text = str(stdout or "").strip()
+    if not text:
+        raise RuntimeError("MCP Inspector returned empty output")
+    try:
+        value = json.loads(text)
+        if isinstance(value, dict):
+            return value
+    except Exception:
+        pass
+    start = text.find("{")
+    end = text.rfind("}")
+    if start >= 0 and end > start:
+        try:
+            value = json.loads(text[start : end + 1])
+            if isinstance(value, dict):
+                return value
+        except Exception:
+            pass
+    raise RuntimeError("MCP Inspector returned non-JSON output")
+
+
+def _inspector_call(base: list[str], extra: list[str], *, timeout: int = 60) -> dict:
+    env = dict(os.environ)
+    env["NO_COLOR"] = "1"
+    proc = subprocess.run(
+        base + extra,
+        text=True,
+        capture_output=True,
+        timeout=timeout,
+        check=False,
+        env=env,
+    )
+    if proc.returncode != 0:
+        detail = (proc.stderr or proc.stdout or "").strip().replace("\n", " ")[:800]
+        raise RuntimeError(f"MCP Inspector exit {proc.returncode}: {detail}")
+    return _parse_inspector_json(proc.stdout)
+
+
+def run_mcp_inspector_preflight(access_token: str, fixtures: dict) -> dict:
+    inspector = shutil.which("mcp-inspector")
+    if not inspector:
+        raise RuntimeError(
+            f"MCP Inspector CLI is unavailable; expected pinned package {INSPECTOR_PACKAGE}"
+        )
+
+    with tempfile.TemporaryDirectory(prefix="musitu-claude-inspector-") as td:
+        config_path = pathlib.Path(td) / "mcp-inspector.json"
+        config_path.write_text(
+            json.dumps(
+                {
+                    "mcpServers": {
+                        "axiom": {
+                            "type": "http",
+                            "url": MCP_RESOURCE,
+                            "headers": {"Authorization": "Bearer " + access_token},
+                        }
+                    }
+                },
+                separators=(",", ":"),
+            ),
+            encoding="utf-8",
+        )
+        os.chmod(config_path, 0o600)
+
+        base = [
+            inspector,
+            "--cli",
+            "--config",
+            str(config_path),
+            "--server",
+            "axiom",
+            "--stored-auth-only",
+            "--format",
+            "json",
+        ]
+        listing = _inspector_call(base, ["--method", "tools/list"], timeout=90)
+        tools = ((listing.get("result") or {}).get("tools") or [])
+        inspector_tool_count = len(tools)
+        if inspector_tool_count != 108:
+            raise RuntimeError(
+                f"MCP Inspector expected 108 exposed tools, got {inspector_tool_count}"
+            )
+
+        failures: dict[str, dict] = {}
+        protected_count = 0
+
+        for tool in tools:
+            if not isinstance(tool, dict):
+                failures["<non-object>"] = {"reason": "tool_descriptor_not_object"}
+                continue
+            name = str(tool.get("name") or "")
+            meta = tool.get("_meta") if isinstance(tool.get("_meta"), dict) else {}
+            op = str(meta.get("musitu/operation") or "")
+            arguments: dict
+
+            if name == "search":
+                arguments = {"query": "finance"}
+            elif name == "fetch":
+                arguments = {"id": "tool:axiom_arithmetic_evaluate"}
+            elif name == "musitu_axiom_capabilities":
+                arguments = {}
+            elif name == "musitu_axiom_execute":
+                protected_count += 1
+                arguments = {
+                    "operation": "arithmetic.evaluate",
+                    "args": fixtures["arithmetic.evaluate"],
+                }
+            else:
+                protected_count += 1
+                if not op or op not in fixtures:
+                    failures[name] = {
+                        "reason": "missing_canonical_fixture",
+                        "operation": op or None,
+                    }
+                    continue
+                arguments = {"args": fixtures[op]}
+
+            extra = ["--method", "tools/call", "--tool-name", name]
+            for key, value in arguments.items():
+                if isinstance(value, (dict, list, bool, int, float)) or value is None:
+                    encoded = json.dumps(value, separators=(",", ":"))
+                else:
+                    encoded = str(value)
+                extra.extend(["--tool-arg", f"{key}={encoded}"])
+
+            try:
+                payload = _inspector_call(base, extra, timeout=90)
+                if payload.get("error"):
+                    failures[name] = {
+                        "reason": "jsonrpc_error",
+                        "error": payload.get("error"),
+                    }
+                    continue
+                result = payload.get("result")
+                if not isinstance(result, dict):
+                    failures[name] = {"reason": "missing_result"}
+                    continue
+                if result.get("isError") is True:
+                    failures[name] = {
+                        "reason": "tool_is_error",
+                        "content": result.get("content"),
+                    }
+            except Exception as exc:
+                failures[name] = {"reason": "inspector_exception", "detail": str(exc)[:800]}
+
+        inspector_tool_failures = failures
+        inspector_tool_pass_count = inspector_tool_count - len(inspector_tool_failures)
+        if protected_count != 105:
+            raise RuntimeError(
+                f"MCP Inspector expected 105 protected tools, got {protected_count}"
+            )
+        if inspector_tool_pass_count != 108:
+            raise RuntimeError(
+                "MCP Inspector full-surface preflight failed: "
+                + json.dumps(inspector_tool_failures, sort_keys=True)[:8000]
+            )
+
+        return {
+            "inspector_package": INSPECTOR_PACKAGE,
+            "inspector_tool_count": inspector_tool_count,
+            "inspector_tool_pass_count": inspector_tool_pass_count,
+            "inspector_tool_failures": inspector_tool_failures,
+            "inspector_protected_tool_count": protected_count,
+            "raw_inspector_access_token_published": False,
+            "temporary_inspector_config_deleted_on_exit": True,
+        }
 
 
 def main() -> int:
@@ -396,6 +572,21 @@ def main() -> int:
                 f"Claude all-operation metering mismatch: missing={len(missing_metering)} invalid={len(invalid_metering)}"
             )
 
+        inspector_usage_before = int(
+            d1(headers, "SELECT count(*) AS n FROM usage_events WHERE customer_id=?1", [customer])[0]["n"]
+        )
+        inspector_evidence = run_mcp_inspector_preflight(access, fixtures)
+        inspector_usage_after = int(
+            d1(headers, "SELECT count(*) AS n FROM usage_events WHERE customer_id=?1", [customer])[0]["n"]
+        )
+        inspector_metering_rows_delta = inspector_usage_after - inspector_usage_before
+        if inspector_metering_rows_delta != inspector_evidence["inspector_protected_tool_count"]:
+            raise RuntimeError(
+                "MCP Inspector metering mismatch: "
+                f"expected={inspector_evidence['inspector_protected_tool_count']} "
+                f"actual={inspector_metering_rows_delta}"
+            )
+
         after = snapshot_openai_surface()
         after_digest = canonical_digest(after)
         if after_digest != before_digest:
@@ -423,6 +614,15 @@ def main() -> int:
             "functional_operation_failures": functional_operation_failures,
             "functional_operation_metering_rows": len(new_usage),
             "all_74_operations_mcp_preflight_passed": functional_operation_pass_count == 74,
+            "mcp_inspector_preflight_passed": inspector_evidence["inspector_tool_pass_count"] == 108,
+            "inspector_package": inspector_evidence["inspector_package"],
+            "inspector_tool_count": inspector_evidence["inspector_tool_count"],
+            "inspector_tool_pass_count": inspector_evidence["inspector_tool_pass_count"],
+            "inspector_tool_failures": inspector_evidence["inspector_tool_failures"],
+            "inspector_protected_tool_count": inspector_evidence["inspector_protected_tool_count"],
+            "inspector_metering_rows_delta": inspector_metering_rows_delta,
+            "raw_inspector_access_token_published": False,
+            "temporary_inspector_config_deleted_on_exit": True,
             "metering_verified": True,
             "synthetic_account_only": True,
             "raw_fixture_key_published": False,
@@ -497,6 +697,12 @@ def main() -> int:
         "functional_operation_failures": evidence.get("functional_operation_failures"),
         "functional_operation_metering_rows": evidence.get("functional_operation_metering_rows"),
         "all_74_operations_mcp_preflight_passed": evidence.get("all_74_operations_mcp_preflight_passed"),
+        "mcp_inspector_preflight_passed": evidence.get("mcp_inspector_preflight_passed"),
+        "inspector_tool_count": evidence.get("inspector_tool_count"),
+        "inspector_tool_pass_count": evidence.get("inspector_tool_pass_count"),
+        "inspector_tool_failures": evidence.get("inspector_tool_failures"),
+        "inspector_metering_rows_delta": evidence.get("inspector_metering_rows_delta"),
+        "raw_inspector_access_token_published": False,
         "metering_verified": True,
         "openai_surface_unchanged": True,
         "fixture_rows_remaining": 0,
