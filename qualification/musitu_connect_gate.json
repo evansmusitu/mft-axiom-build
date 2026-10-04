@@ -7,7 +7,7 @@
     "controlled_integration_allowed": true,
     "production_integration_allowed": false,
     "scope": "controlled qualification integration only",
-    "reason": "infrastructure, credentialed request-id E2E, and composed OAuth authorization-code/PKCE qualification passed; production integration remains blocked pending non-fixture identity, production credential rotation/recovery, rollback, observability/SLO, canary, explicit promotion authorization, and a separate runtime-enable action"
+    "reason": "infrastructure, credentialed request-id E2E, composed OAuth authorization-code/PKCE, and isolated operational canary rehearsal passed; production integration remains blocked pending a non-fixture production Axiom identity, explicit promotion authorization, and a separate runtime-enable action"
   },
   "tests": {
     "repository_contract_tests": 21,
@@ -28,7 +28,12 @@
     "oauth_authorization_code_pkce": "PASS_COMPOSED",
     "oauth_sealed_evidence_validation": "PASS",
     "oauth_current_core_compatibility": "PASS",
-    "oauth_current_live_consent": "PASS"
+    "oauth_current_live_consent": "PASS",
+    "operational_canary_rehearsal": "PASS",
+    "secret_rotation_recovery": "PASS_ISOLATED_CANARY",
+    "rollback_rehearsal": "PASS_ISOLATED_CANARY",
+    "observability_alerting_slo": "PASS_SYNTHETIC_CANARY_SIGNAL",
+    "canary": "PASS_ISOLATED_WORKERS_DEV"
   },
   "qualification_evidence": {
     "source_commit": "c6f6617fdf17a18afbfa21b1aefd6b055ba0ecc2",
@@ -77,20 +82,24 @@
     "sealed full OAuth authorization-code / S256 PKCE proof with DCR, one-time codes, refresh rotation, revocation, MCP compute, metering, and cleanup",
     "current live OAuth DCR and consent authentication creating a correctly bound S256 authorization-code row",
     "byte-identical current core OAuth register/authorize/mint/token/revoke functions relative to the sealed proven version",
-    "composed Connect OAuth authorization-code / PKCE admission qualification"
+    "composed Connect OAuth authorization-code / PKCE admission qualification",
+    "isolated Workers.dev production-admission canary with no custom domain or production route mutation",
+    "canary secret rotation with old-secret rejection and new-secret recovery",
+    "known-bad canary candidate detection and real code rollback to last-known-good baseline",
+    "bounded canary latency/error SLO window with exact request-ID echo correlation",
+    "synthetic alert signal emitted on injected canary HTTP 503",
+    "ephemeral canary cleanup after operational rehearsal"
   ],
   "not_yet_demonstrated": [
     "production mining-system connectors",
     "independent comparative benchmarking",
     "mine-specific predictive accuracy",
     "production non-fixture Axiom identity",
-    "production credential rotation and recovery rehearsal",
-    "production rollback rehearsal",
-    "production observability alerting and SLO verification",
-    "production canary verification",
-    "production Axiom integration"
+    "production Axiom integration",
+    "external production paging / on-call alert delivery",
+    "rollback of an actual production-host Connect deployment"
   ],
-  "gate_state": "CONNECT_INFRA_QUALIFIED__CONTROLLED_AXIOM_BRIDGE_QUALIFIED__CREDENTIALED_AXIOM_E2E_QUALIFIED__OAUTH_PKCE_COMPOSED_QUALIFIED__PRODUCTION_ADMISSION_POLICY_ENFORCED__PRODUCTION_AXIOM_BLOCKED",
+  "gate_state": "CONNECT_INFRA_QUALIFIED__CONTROLLED_AXIOM_BRIDGE_QUALIFIED__CREDENTIALED_AXIOM_E2E_QUALIFIED__OAUTH_PKCE_COMPOSED_QUALIFIED__OPERATIONAL_CANARY_REHEARSAL_QUALIFIED__PRODUCTION_ADMISSION_POLICY_ENFORCED__PRODUCTION_AXIOM_BLOCKED",
   "credentialed_axiom_e2e": {
     "schema": "musitu.connect.axiom_credentialed_e2e.v2",
     "source_commit": "ebe9d6c86fd6a69366f85afebca19ceb0fb57ad7",
@@ -130,18 +139,14 @@
       "credentialed_request_id_e2e": true,
       "non_fixture_identity": false,
       "oauth_authorization_code_pkce": true,
-      "secret_rotation_recovery": false,
-      "rollback_rehearsal": false,
-      "observability_alerting_slo": false,
-      "canary": false
+      "secret_rotation_recovery": true,
+      "rollback_rehearsal": true,
+      "observability_alerting_slo": true,
+      "canary": true
     },
     "technical_ready": false,
     "missing_controls": [
-      "non_fixture_identity",
-      "secret_rotation_recovery",
-      "rollback_rehearsal",
-      "observability_alerting_slo",
-      "canary"
+      "non_fixture_identity"
     ],
     "promotion": {
       "authorized": false,
@@ -207,5 +212,55 @@
     "artifact_note": "The successful composed-qualification run emitted evidence and SHA-256 in logs/step summary. Immediate artifact listing was empty, so downloadable current-run artifact availability is not claimed. The sealed baseline artifact was independently downloaded and checksum-verified before being preserved under qualification/evidence/.",
     "production_axiom_integration_enabled": false,
     "limitation": "A fresh single-run headless redirect/token exchange is not claimed because the public edge transforms the worker's successful 302 after code mint into a 200 HTML response for this headless client."
+  },
+  "operational_admission_rehearsal": {
+    "schema": "musitu.connect.operational_admission_rehearsal.v1",
+    "source_commit": "95870f3cdc350fd506105aed6889125a0055b0f7",
+    "workflow_run_id": 37183885300,
+    "workflow_run_url": "https://github.com/evansmusitu/mft-axiom-build/actions/runs/37183885300",
+    "evidence_sha256": "bc21000edca3d4426cf6ef31ea2a787870aa1f0a88798a60dd4b65118b8076a2",
+    "gate": "MUSITU_CONNECT_OPERATIONAL_CANARY_REHEARSAL_PASS",
+    "surface": "ephemeral workers.dev canary",
+    "custom_domain_attached": false,
+    "production_route_mutated": false,
+    "production_axiom_integration_enabled": false,
+    "secret_rotation_recovery": {
+      "pass": true,
+      "old_secret_rejected": true,
+      "new_secret_accepted": true,
+      "secret_values_published": false
+    },
+    "canary": {
+      "pass": true,
+      "bounded_slo_window": true,
+      "request_id_echo_correlation": true,
+      "fail_closed_before_secret": true
+    },
+    "observability_alerting_slo": {
+      "control_qualified": true,
+      "workers_observability_configured": true,
+      "synthetic_request_metrics_collected": true,
+      "slo_window_pass": true,
+      "injected_failure_detected": true,
+      "alert_signal_channel": "GitHub Actions workflow annotation",
+      "external_alert_delivery_verified": false
+    },
+    "rollback_rehearsal": {
+      "pass": true,
+      "known_bad_candidate_http": 503,
+      "alert_signal_emitted": true,
+      "last_known_good_code_redeployed": true,
+      "rotated_secret_survived_rollback": true,
+      "post_rollback_probe_http": 200
+    },
+    "cleanup_complete": true,
+    "ephemeral_worker_deleted": true,
+    "artifact_available": false,
+    "artifact_note": "Evidence JSON and SHA-256 were emitted in the successful workflow log/step summary. Immediate artifact listing was empty, so downloadable artifact availability is not claimed.",
+    "limitations": [
+      "external paging/on-call delivery is not demonstrated",
+      "no production hostname or production route was mutated",
+      "this rehearsal does not demonstrate a non-fixture production Axiom identity"
+    ]
   }
 }
