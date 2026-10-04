@@ -40,3 +40,13 @@ def test_fixture_e2e_uses_exact_mcp_resource_and_proves_http_401_challenge():
     assert "unauth_code != 401" in src
     assert "WWW-Authenticate" in src
     assert 'scope="axiom.execute"' in src
+
+
+def test_fixture_e2e_executes_all_canonical_operation_fixtures_through_claude_mcp():
+    src = SCRIPT.read_text(encoding="utf-8")
+    assert 'submission/claude/operation-fixtures.json' in src
+    assert 'operation_count") != 74' in src or "operation_count') != 74" in src
+    assert "functional_operation_pass_count" in src
+    assert "functional_operation_failures" in src
+    assert "for operation, args in sorted(fixtures.items())" in src
+    assert '"name": "musitu_axiom_execute"' in src
