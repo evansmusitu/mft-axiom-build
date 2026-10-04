@@ -58,3 +58,5 @@ jobs:
           retention-days: 30
 
 # retry 2026-10-04 after adding exact-host machine-transport rules
+
+# retry 2026-10-04 with Global API Key for ruleset writes
