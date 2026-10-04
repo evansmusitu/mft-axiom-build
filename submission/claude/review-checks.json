@@ -20,8 +20,8 @@
     "openai_surface_unchanged_reverified": true
   },
   "blockers": [
-    "real Claude custom-connector OAuth has not been completed",
-    "authenticated Claude tool invocation has not been executed",
+    "real Claude custom-connector OAuth has not been completed from Claude",
+    "authenticated Claude-originated Axiom tool invocation has not been executed",
     "developer-portal directory submission has not been performed"
   ],
   "live_endpoint_evidence": {
@@ -33,5 +33,16 @@
     "business_product_count": 30,
     "commerce_tools_exposed": false,
     "openai_surface_sha256": "1515ae38afc222de1d29e9dbfc49830aa22ca6350bf94d84d8e506239fe7d29d"
+  },
+  "server_side_oauth_e2e": {
+    "passed": true,
+    "github_actions_run": 37170153704,
+    "callback": "https://claude.ai/api/mcp/auth_callback",
+    "authenticated_axiom_compute_http": 200,
+    "result_42_observed": true,
+    "metering_verified": true,
+    "fixture_rows_remaining": 0,
+    "claude_origin_verified": false,
+    "evidence_sha256": "65aff9eef2884ae956b47e9c0c04afb3b72161ab2eb91df432d945464aa51733"
   }
 }
