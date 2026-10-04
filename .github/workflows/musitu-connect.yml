@@ -16,3 +16,5 @@ jobs:
           python-version: '3.12'
       - name: Run Connect tests
         run: python -m unittest discover -s tests/connect -p 'test_*.py' -v
+      - name: Enforce production admission guard
+        run: python qualification/validate_production_admission.py
