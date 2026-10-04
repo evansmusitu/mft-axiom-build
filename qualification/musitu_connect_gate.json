@@ -7,7 +7,7 @@
     "controlled_integration_allowed": true,
     "production_integration_allowed": false,
     "scope": "controlled qualification integration only",
-    "reason": "independent infrastructure E2E qualification and credentialed live Connect-to-Axiom request-id correlation passed; production admission policy is enforced, but production integration remains separately blocked pending all admission controls plus explicit promotion authorization and a separate runtime-enable action"
+    "reason": "infrastructure, credentialed request-id E2E, and composed OAuth authorization-code/PKCE qualification passed; production integration remains blocked pending non-fixture identity, production credential rotation/recovery, rollback, observability/SLO, canary, explicit promotion authorization, and a separate runtime-enable action"
   },
   "tests": {
     "repository_contract_tests": 21,
@@ -24,7 +24,11 @@
     "malformed_authenticated_live_axiom": "PASS",
     "mismatched_id_negative": "PASS",
     "production_admission_policy": "PASS",
-    "production_admission_guard": "PASS"
+    "production_admission_guard": "PASS",
+    "oauth_authorization_code_pkce": "PASS_COMPOSED",
+    "oauth_sealed_evidence_validation": "PASS",
+    "oauth_current_core_compatibility": "PASS",
+    "oauth_current_live_consent": "PASS"
   },
   "qualification_evidence": {
     "source_commit": "c6f6617fdf17a18afbfa21b1aefd6b055ba0ecc2",
@@ -69,21 +73,24 @@
     "credentialed live unauthorized and malformed-request rejection",
     "credentialed E2E lineage evidence and zero-row fixture cleanup",
     "fail-closed production admission policy-as-code",
-    "separate technical-readiness, promotion-authorization, and runtime-enablement states"
+    "separate technical-readiness, promotion-authorization, and runtime-enablement states",
+    "sealed full OAuth authorization-code / S256 PKCE proof with DCR, one-time codes, refresh rotation, revocation, MCP compute, metering, and cleanup",
+    "current live OAuth DCR and consent authentication creating a correctly bound S256 authorization-code row",
+    "byte-identical current core OAuth register/authorize/mint/token/revoke functions relative to the sealed proven version",
+    "composed Connect OAuth authorization-code / PKCE admission qualification"
   ],
   "not_yet_demonstrated": [
     "production mining-system connectors",
     "independent comparative benchmarking",
     "mine-specific predictive accuracy",
     "production non-fixture Axiom identity",
-    "full OAuth authorization-code / PKCE consent flow as part of the Connect qualification",
     "production credential rotation and recovery rehearsal",
     "production rollback rehearsal",
     "production observability alerting and SLO verification",
     "production canary verification",
     "production Axiom integration"
   ],
-  "gate_state": "CONNECT_INFRA_QUALIFIED__CONTROLLED_AXIOM_BRIDGE_QUALIFIED__CREDENTIALED_AXIOM_E2E_QUALIFIED__PRODUCTION_ADMISSION_POLICY_ENFORCED__PRODUCTION_AXIOM_BLOCKED",
+  "gate_state": "CONNECT_INFRA_QUALIFIED__CONTROLLED_AXIOM_BRIDGE_QUALIFIED__CREDENTIALED_AXIOM_E2E_QUALIFIED__OAUTH_PKCE_COMPOSED_QUALIFIED__PRODUCTION_ADMISSION_POLICY_ENFORCED__PRODUCTION_AXIOM_BLOCKED",
   "credentialed_axiom_e2e": {
     "schema": "musitu.connect.axiom_credentialed_e2e.v2",
     "source_commit": "ebe9d6c86fd6a69366f85afebca19ceb0fb57ad7",
@@ -122,7 +129,7 @@
     "technical_evidence": {
       "credentialed_request_id_e2e": true,
       "non_fixture_identity": false,
-      "oauth_authorization_code_pkce": false,
+      "oauth_authorization_code_pkce": true,
       "secret_rotation_recovery": false,
       "rollback_rehearsal": false,
       "observability_alerting_slo": false,
@@ -131,7 +138,6 @@
     "technical_ready": false,
     "missing_controls": [
       "non_fixture_identity",
-      "oauth_authorization_code_pkce",
       "secret_rotation_recovery",
       "rollback_rehearsal",
       "observability_alerting_slo",
@@ -145,5 +151,61 @@
     "state": "PRODUCTION_ADMISSION_BLOCKED",
     "enablement_permitted": false,
     "runtime_enablement_boundary": "separate explicit implementation and authorization required after admission"
+  },
+  "oauth_pkce_qualification": {
+    "schema": "musitu.connect.oauth_pkce_composed_qualification.v1",
+    "source_commit": "11bd0dce3b9f541cec7ebaa5aaf510f2fcae160c",
+    "workflow_run_id": 37183253028,
+    "workflow_run_url": "https://github.com/evansmusitu/mft-axiom-build/actions/runs/37183253028",
+    "evidence_sha256": "65407fe3f90aac4a570b60eb6f694ce723efe83eeb6027a0920aca8c4c0fbe3d",
+    "qualification_mode": "current_live_consent_plus_sealed_full_flow_plus_core_compatibility",
+    "control_qualified": true,
+    "sealed_full_flow": {
+      "source_commit": "e4bb32fda174ceba1c81238bf838d5b56c783ace",
+      "workflow_run_id": 33993096141,
+      "artifact_id": 9977729938,
+      "artifact_zip_digest": "sha256:3df15f8b9d8e92b0e60be1002ac90274701b6fa624052431f8e19e0684393768",
+      "evidence_sha256": "a77e285665af5b7ca7cd6dfd63ab7f1b35ff04a8d3d2be39ef09d96cdce06d43",
+      "gate": "MUSITU_AXIOM_OAUTH_E2E_PASS",
+      "authorization_code_flow": true,
+      "dynamic_client_registration": true,
+      "pkce_s256": true,
+      "authorization_code_one_time": true,
+      "refresh_token_rotation": true,
+      "revocation_verified": true,
+      "oauth_to_mcp_authenticated_compute_http": 200,
+      "metering_verified": true,
+      "cleanup_complete": true,
+      "fixture_rows_remaining": 0
+    },
+    "current_core_functions_unchanged": [
+      "register",
+      "authorizeGet",
+      "authorizePost",
+      "mint",
+      "token",
+      "revoke"
+    ],
+    "current_live": {
+      "oauth_health_verified": true,
+      "oauth_discovery_verified": true,
+      "invalid_redirect_rejected": true,
+      "dynamic_client_registration": true,
+      "authorization_page_served": true,
+      "account_key_authenticated": true,
+      "authorization_flow_consumed": true,
+      "authorization_code_row_created": true,
+      "authorization_code_bound_to_s256_challenge": true,
+      "authorization_code_unused_after_consent": true,
+      "consent_http_status": 200,
+      "redirect_observation_mode": "INTERMEDIARY_TRANSFORMED_200_AFTER_CODE_MINT",
+      "fresh_raw_authorization_code_observed": false
+    },
+    "cleanup_complete": true,
+    "fixture_rows_remaining": 0,
+    "artifact_available": false,
+    "artifact_note": "The successful composed-qualification run emitted evidence and SHA-256 in logs/step summary. Immediate artifact listing was empty, so downloadable current-run artifact availability is not claimed. The sealed baseline artifact was independently downloaded and checksum-verified before being preserved under qualification/evidence/.",
+    "production_axiom_integration_enabled": false,
+    "limitation": "A fresh single-run headless redirect/token exchange is not claimed because the public edge transforms the worker's successful 302 after code mint into a 200 HTML response for this headless client."
   }
 }
