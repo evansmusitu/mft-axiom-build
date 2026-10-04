@@ -1,0 +1,624 @@
+{
+  "schema": "musitu.axiom.claude_operation_fixtures.v1",
+  "generated_from": "sealed runtime source + empirically validated cases",
+  "operation_count": 74,
+  "claim_boundary": "Fixtures provide valid, bounded quantitative inputs for Anthropic directory preflight. They do not establish comparative superiority.",
+  "fixtures": {
+    "arithmetic.evaluate": {
+      "expression": "40+2"
+    },
+    "algebra.simplify": {
+      "expression": "(x+x)+2"
+    },
+    "algebra.expand": {
+      "expression": "(x+1)^2"
+    },
+    "algebra.factor": {
+      "expression": "x^2-1"
+    },
+    "algebra.solve": {
+      "equations": [
+        "x^2-4"
+      ],
+      "symbols": [
+        "x"
+      ]
+    },
+    "calculus.diff": {
+      "expression": "x^3",
+      "symbol": "x"
+    },
+    "calculus.integrate": {
+      "expression": "x^2",
+      "symbol": "x"
+    },
+    "calculus.limit": {
+      "expression": "sin(x)/x",
+      "symbol": "x",
+      "to": 0
+    },
+    "calculus.series": {
+      "expression": "exp(x)",
+      "symbol": "x",
+      "at": 0,
+      "order": 5
+    },
+    "numeric.root": {
+      "expression": "x^2-2",
+      "symbol": "x",
+      "guess": 1
+    },
+    "numeric.integrate": {
+      "expression": "x^2",
+      "a": 0,
+      "b": 1
+    },
+    "numeric.ode": {
+      "rhs": "-y",
+      "t0": 0,
+      "t1": 1,
+      "y0": 1
+    },
+    "numeric.optimize_scalar": {
+      "expression": "(x-2)^2",
+      "a": 0,
+      "b": 4
+    },
+    "linear.det": {
+      "A": [
+        [
+          1,
+          2
+        ],
+        [
+          3,
+          4
+        ]
+      ]
+    },
+    "linear.inv": {
+      "A": [
+        [
+          1,
+          2
+        ],
+        [
+          3,
+          4
+        ]
+      ]
+    },
+    "linear.solve": {
+      "A": [
+        [
+          2,
+          1
+        ],
+        [
+          1,
+          3
+        ]
+      ],
+      "b": [
+        3,
+        4
+      ]
+    },
+    "linear.eigen": {
+      "A": [
+        [
+          2,
+          0
+        ],
+        [
+          0,
+          3
+        ]
+      ]
+    },
+    "statistics.describe": {
+      "data": [
+        1,
+        2,
+        3,
+        4,
+        5
+      ]
+    },
+    "statistics.correlation": {
+      "x": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "y": [
+        2,
+        4,
+        5,
+        8
+      ]
+    },
+    "statistics.regression": {
+      "x": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6
+      ],
+      "y": [
+        1.9,
+        4.2,
+        5.8,
+        8.1,
+        10.1,
+        12.2
+      ]
+    },
+    "statistics.quantile": {
+      "data": [
+        1,
+        2,
+        3,
+        4,
+        5
+      ],
+      "q": 0.5
+    },
+    "probability.normal_cdf": {
+      "x": 0,
+      "mu": 0,
+      "sigma": 1
+    },
+    "probability.normal_ppf": {
+      "p": 0.95,
+      "mu": 0,
+      "sigma": 1
+    },
+    "finance.compound": {
+      "principal": 1000,
+      "rate": 0.05,
+      "years": 10,
+      "n": 1
+    },
+    "finance.npv": {
+      "cashflows": [
+        -1000,
+        300,
+        400,
+        500
+      ],
+      "rate": 0.1
+    },
+    "finance.black_scholes": {
+      "S": 100,
+      "K": 100,
+      "T": 1,
+      "r": 0.05,
+      "sigma": 0.2,
+      "kind": "call"
+    },
+    "finance.greeks": {
+      "S": 100,
+      "K": 100,
+      "T": 1,
+      "r": 0.05,
+      "sigma": 0.2,
+      "kind": "call"
+    },
+    "finance.var_historical": {
+      "returns": [
+        0.01,
+        -0.02,
+        0.015,
+        -0.01,
+        0.005,
+        -0.03,
+        0.02
+      ],
+      "alpha": 0.95
+    },
+    "units.convert": {
+      "value": 1,
+      "from": "m",
+      "to": "cm"
+    },
+    "verify.evaluate": {
+      "lhs": "(x+1)^2",
+      "rhs": "x^2+2*x+1"
+    },
+    "knowledge.constant": {
+      "name": "c"
+    },
+    "combinatorics.factorial": {
+      "n": 6
+    },
+    "combinatorics.binomial": {
+      "n": 10,
+      "k": 3
+    },
+    "numbertheory.isprime": {
+      "n": 101
+    },
+    "numbertheory.factorint": {
+      "n": 84
+    },
+    "numbertheory.gcd": {
+      "a": 84,
+      "b": 30
+    },
+    "numbertheory.lcm": {
+      "a": 12,
+      "b": 18
+    },
+    "transforms.fft": {
+      "data": [
+        1,
+        2,
+        3,
+        4
+      ]
+    },
+    "statistics.covariance": {
+      "x": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "y": [
+        2,
+        4,
+        5,
+        8
+      ]
+    },
+    "statistics.zscore": {
+      "data": [
+        1,
+        2,
+        3,
+        4,
+        5
+      ]
+    },
+    "probability.binomial_pmf": {
+      "k": 3,
+      "n": 10,
+      "p": 0.4
+    },
+    "probability.poisson_pmf": {
+      "k": 3,
+      "mu": 2.5
+    },
+    "finance.returns": {
+      "prices": [
+        100,
+        102,
+        101,
+        105
+      ],
+      "kind": "simple"
+    },
+    "finance.portfolio_metrics": {
+      "returns": [
+        [
+          0.01,
+          0.02
+        ],
+        [
+          -0.01,
+          0.005
+        ],
+        [
+          0.015,
+          0.01
+        ],
+        [
+          0,
+          -0.005
+        ]
+      ],
+      "weights": [
+        0.6,
+        0.4
+      ],
+      "annualization": 252,
+      "risk_free": 0
+    },
+    "finance.var_parametric": {
+      "returns": [
+        0.01,
+        -0.02,
+        0.015,
+        -0.01,
+        0.005,
+        -0.03,
+        0.02
+      ],
+      "alpha": 0.95
+    },
+    "finance.cvar_historical": {
+      "returns": [
+        0.01,
+        -0.02,
+        0.015,
+        -0.01,
+        0.005,
+        -0.03,
+        0.02
+      ],
+      "alpha": 0.95
+    },
+    "timeseries.moving_average": {
+      "data": [
+        1,
+        2,
+        3,
+        4,
+        5
+      ],
+      "window": 3
+    },
+    "timeseries.ewma": {
+      "data": [
+        1,
+        2,
+        3,
+        4,
+        5
+      ],
+      "alpha": 0.3
+    },
+    "geometry.distance": {
+      "p": [
+        0,
+        0
+      ],
+      "q": [
+        3,
+        4
+      ]
+    },
+    "knowledge.element": {
+      "symbol": "Fe"
+    },
+    "algebra.polynomial_roots": {
+      "expression": "x^2-4",
+      "symbol": "x"
+    },
+    "calculus.sum": {
+      "expression": "k",
+      "symbol": "k",
+      "start": 1,
+      "end": 10
+    },
+    "calculus.product": {
+      "expression": "k",
+      "symbol": "k",
+      "start": 1,
+      "end": 5
+    },
+    "numeric.least_squares": {
+      "A": [
+        [
+          1
+        ],
+        [
+          2
+        ],
+        [
+          3
+        ]
+      ],
+      "b": [
+        2,
+        4,
+        6
+      ]
+    },
+    "numeric.interpolate": {
+      "x": [
+        0,
+        1,
+        2
+      ],
+      "y": [
+        0,
+        1,
+        4
+      ],
+      "at": [
+        0.5,
+        1.5
+      ]
+    },
+    "verified.interval_eval": {
+      "expression": "x^2",
+      "symbol": "x",
+      "interval": [
+        1,
+        2
+      ]
+    },
+    "optimization.linear_program": {
+      "c": [
+        1,
+        1
+      ],
+      "A_ub": [
+        [
+          -1,
+          -1
+        ]
+      ],
+      "b_ub": [
+        -1
+      ],
+      "bounds": [
+        [
+          0,
+          null
+        ],
+        [
+          0,
+          null
+        ]
+      ]
+    },
+    "optimization.quadratic": {
+      "Q": [
+        [
+          2,
+          0
+        ],
+        [
+          0,
+          2
+        ]
+      ],
+      "c": [
+        -2,
+        -4
+      ]
+    },
+    "statistics.ttest_ind": {
+      "x": [
+        1,
+        2,
+        3,
+        4,
+        5
+      ],
+      "y": [
+        2,
+        3,
+        4,
+        5,
+        6
+      ],
+      "equal_var": false
+    },
+    "statistics.normal_fit": {
+      "data": [
+        1,
+        2,
+        3,
+        4,
+        5
+      ]
+    },
+    "probability.exponential_cdf": {
+      "x": 2,
+      "rate": 0.5
+    },
+    "probability.chi2_cdf": {
+      "x": 5,
+      "df": 3
+    },
+    "finance.implied_vol": {
+      "price": 10,
+      "S": 100,
+      "K": 100,
+      "T": 1,
+      "r": 0.05,
+      "kind": "call"
+    },
+    "finance.bond_price": {
+      "face": 1000,
+      "coupon_rate": 0.05,
+      "maturity": 5,
+      "yield": 0.04,
+      "frequency": 2
+    },
+    "finance.bond_yield": {
+      "face": 1000,
+      "coupon_rate": 0.05,
+      "maturity": 5,
+      "price": 1044.91,
+      "frequency": 2
+    },
+    "finance.duration": {
+      "face": 1000,
+      "coupon_rate": 0.05,
+      "maturity": 5,
+      "yield": 0.04,
+      "frequency": 2
+    },
+    "finance.beta": {
+      "asset_returns": [
+        0.01,
+        -0.02,
+        0.015,
+        0.01
+      ],
+      "market_returns": [
+        0.008,
+        -0.015,
+        0.012,
+        0.006
+      ]
+    },
+    "finance.drawdown": {
+      "values": [
+        100,
+        110,
+        105,
+        120,
+        90,
+        95
+      ]
+    },
+    "finance.monte_carlo_gbm": {
+      "S0": 100,
+      "mu": 0.05,
+      "sigma": 0.2,
+      "T": 1,
+      "steps": 10,
+      "paths": 100,
+      "seed": 42
+    },
+    "timeseries.rolling_volatility": {
+      "returns": [
+        0.01,
+        -0.02,
+        0.015,
+        -0.01,
+        0.005
+      ],
+      "window": 3,
+      "annualization": 252
+    },
+    "geometry.area_circle": {
+      "radius": 3
+    },
+    "geometry.volume_sphere": {
+      "radius": 3
+    },
+    "transforms.ifft": {
+      "data": [
+        {
+          "re": 10,
+          "im": 0
+        },
+        {
+          "re": -2,
+          "im": 2
+        },
+        {
+          "re": -2,
+          "im": 0
+        }
+      ],
+      "n": 4
+    },
+    "verify.crosscheck": {
+      "operation": "arithmetic.evaluate",
+      "args": {
+        "expression": "40+2"
+      }
+    }
+  }
+}
