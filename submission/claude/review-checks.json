@@ -25,28 +25,43 @@
     "developer-portal directory submission has not been performed"
   ],
   "live_endpoint_evidence": {
-    "github_actions_run": 37169862332,
+    "github_actions_run": 37173130982,
     "auth_url": "https://musitu-axiom-claude-auth-candidate.mft-education-nexus-93f395f5.workers.dev",
     "mcp_url": "https://musitu-axiom-claude-mcp-candidate.mft-education-nexus-93f395f5.workers.dev",
+    "oauth_resource": "https://musitu-axiom-claude-mcp-candidate.mft-education-nexus-93f395f5.workers.dev/mcp",
     "tool_count": 108,
     "operation_count": 74,
     "business_product_count": 30,
     "commerce_tools_exposed": false,
+    "unauthenticated_protected_call_http": 401,
+    "all_tool_names_unique": true,
+    "all_tool_names_max_64": true,
+    "all_tools_have_titles": true,
+    "all_tools_have_descriptions": true,
+    "all_tools_have_input_schemas": true,
+    "all_tools_have_output_schemas": true,
+    "all_tools_read_only_hint_true": true,
+    "all_tools_destructive_hint_false": true,
+    "all_tools_open_world_hint_false": true,
     "openai_surface_sha256": "1515ae38afc222de1d29e9dbfc49830aa22ca6350bf94d84d8e506239fe7d29d"
   },
   "server_side_oauth_e2e": {
     "passed": true,
-    "github_actions_run": 37170153704,
+    "github_actions_run": 37173358086,
     "callback": "https://claude.ai/api/mcp/auth_callback",
     "authenticated_axiom_compute_http": 200,
     "result_42_observed": true,
+    "all_74_operations_mcp_preflight_passed": true,
+    "functional_operation_pass_count": 74,
+    "functional_operation_failures": {},
+    "functional_operation_metering_rows": 74,
     "metering_verified": true,
     "fixture_rows_remaining": 0,
     "claude_origin_verified": false,
-    "evidence_sha256": "65aff9eef2884ae956b47e9c0c04afb3b72161ab2eb91df432d945464aa51733"
+    "evidence_sha256": "2bffbb3891b2cfa6bc5ede18a23f42e658c72292b9ee33614289138077b09a72"
   },
   "server_side_evidence": {
-    "github_actions_run": 37170153704,
+    "github_actions_run": 37173358086,
     "gate": "MUSITU_AXIOM_CLAUDE_SERVER_OAUTH_E2E_PASS",
     "server_side_claude_callback_e2e": true,
     "claude_origin_verified": false,
@@ -54,13 +69,18 @@
     "dynamic_client_registration": true,
     "pkce_s256": true,
     "authorization_response_http": 302,
+    "unauthenticated_protected_call_http": 401,
     "authenticated_axiom_compute_http": 200,
     "arithmetic_40_plus_2_result_42": true,
+    "all_74_operations_mcp_preflight_passed": true,
+    "functional_operation_pass_count": 74,
+    "functional_operation_failures": {},
+    "functional_operation_metering_rows": 74,
     "metering_verified": true,
     "synthetic_account_only": true,
     "cleanup_complete": true,
     "fixture_rows_remaining": 0,
     "openai_surface_unchanged": true,
-    "evidence_sha256": "65aff9eef2884ae956b47e9c0c04afb3b72161ab2eb91df432d945464aa51733"
+    "evidence_sha256": "2bffbb3891b2cfa6bc5ede18a23f42e658c72292b9ee33614289138077b09a72"
   }
 }
