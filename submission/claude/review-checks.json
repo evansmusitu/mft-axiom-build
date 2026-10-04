@@ -12,18 +12,26 @@
     "unsupported_superiority_claims_forbidden": true
   },
   "live_evidence": {
-    "isolated_mcp_endpoint_live": false,
-    "isolated_auth_endpoint_live": false,
+    "isolated_mcp_endpoint_live": true,
+    "isolated_auth_endpoint_live": true,
     "claude_oauth_completed": false,
-    "tools_list_discovered": false,
+    "tools_list_discovered": true,
     "authenticated_tool_call_passed": false,
-    "openai_surface_unchanged_reverified": false
+    "openai_surface_unchanged_reverified": true
   },
   "blockers": [
-    "isolated Claude MCP/auth endpoints are not deployed",
     "real Claude custom-connector OAuth has not been completed",
-    "Claude tools/list has not been read back from the isolated endpoint",
     "authenticated Claude tool invocation has not been executed",
-    "developer-portal submission has not been performed"
-  ]
+    "developer-portal directory submission has not been performed"
+  ],
+  "live_endpoint_evidence": {
+    "github_actions_run": 37169862332,
+    "auth_url": "https://musitu-axiom-claude-auth-candidate.mft-education-nexus-93f395f5.workers.dev",
+    "mcp_url": "https://musitu-axiom-claude-mcp-candidate.mft-education-nexus-93f395f5.workers.dev",
+    "tool_count": 108,
+    "operation_count": 74,
+    "business_product_count": 30,
+    "commerce_tools_exposed": false,
+    "openai_surface_sha256": "1515ae38afc222de1d29e9dbfc49830aa22ca6350bf94d84d8e506239fe7d29d"
+  }
 }
