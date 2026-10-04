@@ -44,7 +44,8 @@ class AxiomMcpExecutor:
         if result.get("isError") is True:
             raise RuntimeError("AXIOM_REMOTE_ERROR")
         structured=result["structuredContent"]
-        if structured.get("request_id")!=request_id:
+        structured_request_id=structured.get("request_id")
+        if structured_request_id is not None and structured_request_id!=request_id:
             raise RuntimeError("AXIOM_REQUEST_ID_MISMATCH")
         return structured
 
