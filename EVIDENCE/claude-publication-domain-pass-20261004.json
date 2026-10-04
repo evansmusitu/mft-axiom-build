@@ -1,0 +1,25 @@
+{
+  "schema": "musitu.axiom.claude_publication_run_evidence.v1",
+  "recorded_at_utc": "2026-10-04T08:01:50Z",
+  "source_branch": "distribution/claude-remote-mcp-20261004",
+  "source_commit": "b5fd2c775860aa89538c054811b14f8f16b457ce",
+  "github_actions_run": 37187577016,
+  "github_actions_job": 111392694490,
+  "deployment_step_conclusion": "success",
+  "gate": "MUSITU_AXIOM_CLAUDE_PUBLICATION_DOMAIN_PASS",
+  "auth_url": "https://claude-auth.mftintelligence.com",
+  "mcp_resource": "https://claude-mcp.mftintelligence.com/mcp",
+  "tool_count": 108,
+  "operation_count": 74,
+  "business_product_count": 30,
+  "machine_transport_rules_created": 1,
+  "testing_workers_unchanged": true,
+  "global_security_policy_mutated": false,
+  "openai_surface_unchanged": true,
+  "runtime_evidence_sha256": "7e369bf7d900afd98b607c029836bfebb5afc139cacb1d0dbed87489114a627c",
+  "artifact_upload": {
+    "conclusion": "failure",
+    "reason": "GitHub Actions artifact storage quota reached; deployment itself completed successfully"
+  },
+  "claude_origin_verified": false
+}
