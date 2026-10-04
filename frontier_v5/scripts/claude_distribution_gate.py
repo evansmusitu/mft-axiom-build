@@ -47,8 +47,16 @@ def evaluate_candidate(root: str | Path) -> dict:
         raise ValueError("Claude auth candidate is not isolated")
     if "chatgpt.com" in auth or "connector_platform_oauth_redirect" in auth:
         raise ValueError("OpenAI callback leaked into Claude auth candidate")
-    if "status: 302" not in auth and "status:302" not in auth:
-        raise ValueError("Claude auth candidate must return 302 on OAuth callback handoff")
+    callback_requirements = (
+        "return html(200, callbackPage(url), extra)",
+        'http-equiv="refresh"', 'data-oauth-callback=',
+        "form-action 'self'", "default-src 'none'",
+        '"referrer-policy": "no-referrer"',
+    )
+    if any(requirement not in auth for requirement in callback_requirements):
+        raise ValueError("Claude callback must complete the POST with a strict-CSP 200 navigation document")
+    if "<script" in auth:
+        raise ValueError("Claude callback must not depend on inline scripts")
 
     mcp = mcp_path.read_text(encoding="utf-8")
     if "https://claude-auth.mftintelligence.com" not in mcp or "https://claude-mcp.mftintelligence.com" not in mcp:

@@ -24,7 +24,10 @@ def make_repo(tmp_path: Path, *, status="blocked_pending_isolated_endpoint_deplo
     (tmp_path / "frontier_v5/distribution/claude/musitu_axiom_oauth_worker_claude_candidate.mjs").write_text(
         'https://claude-auth.mftintelligence.com https://claude-mcp.mftintelligence.com '
         'u.hostname !== "claude.ai" && u.hostname !== "claude.com" '
-        'u.pathname !== "/api/mcp/auth_callback" status: 302'
+        'u.pathname !== "/api/mcp/auth_callback" '
+        'return html(200, callbackPage(url), extra) http-equiv="refresh" data-oauth-callback= '
+        "form-action 'self' default-src 'none' "
+        '\"referrer-policy\": \"no-referrer\"'
     )
     (tmp_path / "frontier_v5/distribution/claude/musitu_axiom_mcp_gate_claude_candidate.mjs").write_text(
         "https://claude-auth.mftintelligence.com https://claude-mcp.mftintelligence.com"
@@ -44,6 +47,20 @@ def test_static_candidate_passes_while_live_submission_stays_blocked(tmp_path):
 def test_ready_status_is_rejected_without_live_claude_evidence(tmp_path):
     with pytest.raises(ValueError, match="live Claude evidence"):
         evaluate_candidate(make_repo(tmp_path, status="ready"))
+
+
+def test_cross_origin_post_redirect_and_relaxed_form_policy_are_rejected(tmp_path):
+    root = make_repo(tmp_path)
+    auth = root / "frontier_v5/distribution/claude/musitu_axiom_oauth_worker_claude_candidate.mjs"
+    source = auth.read_text()
+    for invalid in (
+        source.replace("return html(200, callbackPage(url), extra)", "status: 302"),
+        source.replace("form-action 'self'", "form-action *"),
+        source + "<script>window.location.replace(url)</script>",
+    ):
+        auth.write_text(invalid)
+        with pytest.raises(ValueError, match="Claude callback"):
+            evaluate_candidate(root)
 
 
 def test_ready_status_requires_all_live_evidence(tmp_path):

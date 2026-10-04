@@ -29,9 +29,40 @@ def test_claude_auth_candidate_is_isolated_and_uses_exact_callback_contract():
     assert 'u.hostname !== "claude.ai"' in src
     assert '"claude.com"' not in src
     assert 'u.pathname !== "/api/mcp/auth_callback"' in src
-    assert "status: 302" in src or "status:302" in src
+    assert "return html(200, callbackPage(url), extra)" in src
     assert "chatgpt.com" not in src
     assert "connector_platform_oauth_redirect" not in src
+
+
+def test_claude_callback_completes_post_before_cross_origin_navigation():
+    import subprocess
+    script = r'''
+import fs from 'node:fs';
+import assert from 'node:assert/strict';
+const src = fs.readFileSync(process.argv[1], 'utf8');
+const module = await import('data:text/javascript;base64,' + Buffer.from(src + '\nexport { callbackResponse };').toString('base64'));
+// Placeholders only: no account credential, OAuth transaction or database.
+const url = 'https://claude.ai/api/mcp/auth_callback?code=test-only-placeholder&state=test-only-placeholder';
+const response = module.callbackResponse(url);
+assert.equal(response.status, 200);
+assert.equal(response.headers.has('location'), false);
+assert.equal(response.headers.get('referrer-policy'), 'no-referrer');
+assert.equal(response.headers.get('cache-control'), 'no-store');
+const csp = response.headers.get('content-security-policy');
+assert.ok(csp.includes("form-action 'self'"));
+assert.ok(csp.includes("default-src 'none'"));
+assert.ok(!csp.includes('script-src'));
+const body = await response.text();
+const escaped = url.replaceAll('&', '&amp;');
+assert.ok(body.includes('http-equiv="refresh" content="0;url=' + escaped + '"'));
+assert.ok(body.includes('href="' + escaped + '"'));
+assert.ok(!body.includes('<script'));
+assert.ok(!body.includes('<form'));
+'''
+    subprocess.run([
+        "node", "--input-type=module", "-e", script,
+        str(CLAUDE / "musitu_axiom_oauth_worker_claude_candidate.mjs"),
+    ], check=True, capture_output=True, text=True)
 
 
 def test_claude_mcp_candidate_has_no_openai_only_surface():

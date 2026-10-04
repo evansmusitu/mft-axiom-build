@@ -3,6 +3,7 @@ from __future__ import annotations
 import base64
 import datetime as dt
 import hashlib
+import html
 import json
 import os
 import pathlib
@@ -416,7 +417,7 @@ def main() -> int:
         print("::add-mask::" + flow_id)
         print("::add-mask::" + flow_nonce)
 
-        pc, ph, _ = form(
+        pc, ph, callback_body = form(
             AUTH_URL + "/oauth/authorize",
             {
                 "flow_id": flow_id,
@@ -426,9 +427,22 @@ def main() -> int:
             {"Accept": "text/html"},
             follow=False,
         )
-        if pc != 302:
-            raise RuntimeError(f"Claude authorization consent POST expected 302, got {pc}")
-        location = str(ph.get("Location") or "")
+        if pc == 302:
+            # Existing candidate Workers retain the prior transport until deployed.
+            location = str(ph.get("Location") or "")
+        elif pc == 200:
+            page = callback_body.decode("utf-8")
+            anchor = re.search(r'data-oauth-callback="([^"]+)"', page)
+            if not anchor:
+                raise RuntimeError("Claude authorization callback document missing")
+            location = html.unescape(anchor.group(1))
+            escaped = html.escape(location, quote=True)
+            if f'http-equiv="refresh" content="0;url={escaped}"' not in page:
+                raise RuntimeError("Claude callback refresh/anchor mismatch")
+            if "<form" in page or "<script" in page:
+                raise RuntimeError("Claude callback must contain no forms or scripts")
+        else:
+            raise RuntimeError(f"Claude authorization consent POST HTTP {pc}")
         parsed = urllib.parse.urlparse(location)
         callback_query = urllib.parse.parse_qs(parsed.query)
         code = (callback_query.get("code") or [""])[0]
@@ -602,7 +616,7 @@ def main() -> int:
             "resource": MCP_RESOURCE,
             "dynamic_client_registration": True,
             "pkce_s256": True,
-            "authorization_response_http": 302,
+            "authorization_response_http": pc,
             "authorization_code_flow": True,
             "opaque_access_token": True,
             "unauthenticated_protected_call_http": 401,
@@ -713,3 +727,4 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
+

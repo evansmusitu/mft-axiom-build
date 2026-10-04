@@ -1,0 +1,40 @@
+name: Axiom Claude OAuth Callback Content Repair
+
+on:
+  push:
+    branches: ["distribution/claude-remote-mcp-20261004"]
+    paths: [".github/workflows/axiom-claude-oauth-callback-repair.yml"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: musitu-axiom-claude-publication-domain
+  cancel-in-progress: false
+
+jobs:
+  callback-content-repair:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22.19.0"
+      - name: Verify strict callback and frozen-source contracts
+        run: |
+          python -m pip install --disable-pip-version-check pytest
+          PYTHONPATH=. python -m pytest -q frontier_v5/tests/test_claude_worker_isolation_contract.py frontier_v5/tests/test_claude_publication_domain_contract.py
+      - name: Repair only Claude publication auth script content and verify boundaries
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+          CLAUDE_CALLBACK_REPAIR_CONFIRM: REPAIR_CLAUDE_CALLBACK_DOCUMENT
+        run: PYTHONPATH=. python frontier_v5/scripts/repair_claude_oauth_callback.py

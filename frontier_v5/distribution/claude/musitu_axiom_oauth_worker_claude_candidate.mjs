@@ -24,6 +24,7 @@ function html(status, body, extra = {}) {
       "x-content-type-options": "nosniff",
       "content-security-policy": "default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'",
       "referrer-policy": "no-referrer",
+      "referrer-policy": "no-referrer",
       ...extra,
     },
   });
@@ -64,22 +65,15 @@ function consentPage(flow, scopeText) {
 
 function callbackPage(url) {
   const h = esc(url);
-  const js = jsString(url);
-  return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="refresh" content="0;url=${h}"><title>Returning to Claude</title><style>body{font-family:system-ui;margin:0;background:#f6f7f8;color:#111}.c{max-width:560px;margin:8vh auto;background:#fff;border:1px solid #ddd;border-radius:16px;padding:28px}h1{margin-top:0}.b{display:block;box-sizing:border-box;margin-top:20px;width:100%;padding:13px;border-radius:10px;background:#111;color:#fff;text-align:center;text-decoration:none;font-weight:700}.m{color:#555}</style></head><body><main class="c"><h1>Authorization approved</h1><p>Returning to Claude…</p><p class="m">If Claude does not reopen automatically, use the button below. You do not need to authorize again.</p><a id="continue-chatgpt" data-oauth-callback="${h}" class="b" href="${h}" rel="noreferrer">Continue to Claude</a></main><script>window.location.replace(${js});</script></body></html>`;
+  return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="refresh" content="0;url=${h}"><title>Returning to Claude</title><style>body{font-family:system-ui;margin:0;background:#f6f7f8;color:#111}.c{max-width:560px;margin:8vh auto;background:#fff;border:1px solid #ddd;border-radius:16px;padding:28px}h1{margin-top:0}.b{display:block;box-sizing:border-box;margin-top:20px;width:100%;padding:13px;border-radius:10px;background:#111;color:#fff;text-align:center;text-decoration:none;font-weight:700}.m{color:#555}</style></head><body><main class="c"><h1>Authorization approved</h1><p>Returning to Claude…</p><p class="m">If Claude does not reopen automatically, use the button below. You do not need to authorize again.</p><a id="continue-chatgpt" data-oauth-callback="${h}" class="b" href="${h}" rel="noreferrer">Continue to Claude</a></main></body></html>`;
 }
 
 function callbackResponse(url, extra = {}) {
-  return new Response(null, {
-    status: 302,
-    headers: {
-      "location": url,
-      "cache-control": "no-store",
-      "pragma": "no-cache",
-      "x-content-type-options": "nosniff",
-      "referrer-policy": "no-referrer",
-      ...extra,
-    },
-  });
+  // A cross-origin HTTP redirect after this credential POST is blocked by
+  // Chrome's form-action 'self' policy. Complete the POST with an HTML document
+  // so only a subsequent GET navigation carries the one-time code to Claude.
+  // Keep the strict form policy; no credential form is sent to Claude.
+  return html(200, callbackPage(url), extra);
 }
 function claudeCallback(flow, code) {
   const r = new URL(flow.redirect_uri);
@@ -247,8 +241,8 @@ async function authorizePost(req, c) {
 
   // Android Claude's embedded browser has repeatedly failed to complete server-side
   // redirect chains after the credential POST. Return a real 200 document instead,
-  // carrying three independent top-level navigation paths to the exact registered
-  // Claude callback: JS replace, meta refresh, and a user-tappable anchor. The code
+  // carrying meta refresh and a user-tappable link to the exact registered
+  // Claude callback. Inline scripts remain disallowed by CSP. The code
   // remains one-time and the account credential never leaves MUSITU.
   return callbackResponse(claudeCallback(flow, rawCode), {
     "set-cookie": "musitu_oauth_flow=; Path=/oauth/authorize; Max-Age=0; HttpOnly; Secure; SameSite=Lax",
