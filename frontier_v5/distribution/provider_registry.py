@@ -53,7 +53,9 @@ def load_provider_profile(path: str | Path) -> dict:
     submission = data["submission"]
     if not isinstance(submission, dict):
         raise ValueError("submission must be an object")
-    if not isinstance(submission.get("portal_requires_paid_plan"), bool):
-        raise ValueError("submission.portal_requires_paid_plan must be boolean")
+    if not isinstance(submission.get("portal_requires_team_or_enterprise"), bool):
+        raise ValueError("submission.portal_requires_team_or_enterprise must be boolean")
+    if not isinstance(submission.get("directory_management_access_required"), bool):
+        raise ValueError("submission.directory_management_access_required must be boolean")
 
     return data
