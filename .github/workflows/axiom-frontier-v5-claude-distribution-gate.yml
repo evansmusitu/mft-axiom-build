@@ -10,6 +10,7 @@ on:
       - "frontier_v5/tests/test_distribution_oauth_policy.py"
       - "frontier_v5/tests/test_claude_worker_isolation_contract.py"
       - "frontier_v5/tests/test_claude_distribution_gate.py"
+      - "frontier_v5/tests/test_claude_workers_dev_deploy_contract.py"
       - "submission/claude/**"
       - ".github/workflows/axiom-frontier-v5-claude-distribution-gate.yml"
   pull_request:
@@ -19,6 +20,7 @@ on:
       - "frontier_v5/tests/test_distribution_oauth_policy.py"
       - "frontier_v5/tests/test_claude_worker_isolation_contract.py"
       - "frontier_v5/tests/test_claude_distribution_gate.py"
+      - "frontier_v5/tests/test_claude_workers_dev_deploy_contract.py"
       - "submission/claude/**"
   workflow_dispatch:
 
@@ -41,6 +43,7 @@ jobs:
           PYTHONPATH=. python -m pytest -q \
             frontier_v5/tests/test_distribution_oauth_policy.py \
             frontier_v5/tests/test_claude_worker_isolation_contract.py \
-            frontier_v5/tests/test_claude_distribution_gate.py
+            frontier_v5/tests/test_claude_distribution_gate.py \
+            frontier_v5/tests/test_claude_workers_dev_deploy_contract.py
       - name: Run static Claude candidate gate
         run: PYTHONPATH=. python frontier_v5/scripts/claude_distribution_gate.py
