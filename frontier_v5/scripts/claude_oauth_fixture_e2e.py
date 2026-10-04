@@ -302,68 +302,30 @@ def main() -> int:
         ):
             raise RuntimeError("Claude OAuth access ledger mismatch")
 
-        request_id = "MUSITU-CLAUDE-OAUTH-E2E-" + uuid.uuid4().hex.upper()
-        usage_before = int(d1(headers, "SELECT count(*) AS n FROM usage_events WHERE customer_id=?1", [customer])[0]["n"])
-        mc, _, result, raw_result = json_http(
-            MCP_URL + "/mcp",
-            "POST",
-            {
-                "jsonrpc": "2.0",
-                "id": 42,
-                "method": "tools/call",
-                "params": {
-                    "name": "musitu_axiom_execute",
-                    "arguments": {
-                        "operation": "arithmetic.evaluate",
-                        "args": {"expression": "40+2"},
-                    },
-                },
-            },
-            {
-                "Authorization": "Bearer " + access,
-                "x-musitu-request-id": request_id,
-            },
-        )
-        serialized = json.dumps(result, sort_keys=True, separators=(",", ":"))
-        if mc != 200 or (result.get("result") or {}).get("isError") is True:
-            raise RuntimeError("Claude fixture access token failed Axiom MCP call")
-        if not re.search(r"(?<![0-9])42(?:\.0+)?(?![0-9])", serialized):
-            raise RuntimeError("Claude fixture Axiom result did not contain 42")
-
-        usage = d1(
-            headers,
-            "SELECT request_id,compute_units,http_status,result_sha256 FROM usage_events "
-            "WHERE customer_id=?1 ORDER BY created_at DESC",
-            [customer],
-        )
-        if (
-            len(usage) != usage_before + 1
-            or usage[0].get("request_id") != request_id
-            or int(usage[0].get("compute_units") or 0) <= 0
-            or int(usage[0].get("http_status") or 0) != 200
-            or len(str(usage[0].get("result_sha256") or "")) < 32
-        ):
-            raise RuntimeError("Claude fixture metering evidence mismatch")
-
         fixture_path = ROOT / "submission/claude/operation-fixtures.json"
         fixture_doc = json.loads(fixture_path.read_text(encoding="utf-8"))
         if fixture_doc.get("operation_count") != 74:
-            raise RuntimeError("Claude operation fixture corpus must declare exactly 74 operations")
+            raise RuntimeError("Claude operation fixture count must be exactly 74")
         fixtures = fixture_doc.get("fixtures") or {}
         if len(fixtures) != 74:
-            raise RuntimeError(f"Claude operation fixture corpus cardinality mismatch: {len(fixtures)}")
+            raise RuntimeError("Claude operation fixture map must contain exactly 74 operations")
 
-        functional_operation_failures = []
-        functional_operation_pass_count = 0
-        functional_request_prefix = "MUSITU-CLAUDE-74OP-" + uuid.uuid4().hex.upper() + "-"
+        usage_before = int(
+            d1(headers, "SELECT count(*) AS n FROM usage_events WHERE customer_id=?1", [customer])[0]["n"]
+        )
+        functional_operation_failures: dict[str, dict] = {}
+        functional_request_ids: list[str] = []
+        arithmetic_42_observed = False
+
         for operation, args in sorted(fixtures.items()):
-            rid = functional_request_prefix + re.sub(r"[^A-Z0-9]+", "-", operation.upper()).strip("-")
-            fc, _, fpayload, _ = json_http(
+            request_id = "MUSITU-CLAUDE-ALL-OPS-" + uuid.uuid4().hex.upper()
+            functional_request_ids.append(request_id)
+            mc, _, result, _ = json_http(
                 MCP_URL + "/mcp",
                 "POST",
                 {
                     "jsonrpc": "2.0",
-                    "id": rid,
+                    "id": operation,
                     "method": "tools/call",
                     "params": {
                         "name": "musitu_axiom_execute",
@@ -375,44 +337,64 @@ def main() -> int:
                 },
                 {
                     "Authorization": "Bearer " + access,
-                    "x-musitu-request-id": rid,
+                    "x-musitu-request-id": request_id,
                 },
             )
-            tool_result = fpayload.get("result") if isinstance(fpayload, dict) else None
-            is_error = isinstance(tool_result, dict) and tool_result.get("isError") is True
-            has_rpc_error = isinstance(fpayload, dict) and isinstance(fpayload.get("error"), dict)
-            if fc != 200 or is_error or has_rpc_error:
-                functional_operation_failures.append({
-                    "operation": operation,
-                    "http_status": fc,
-                    "is_error": bool(is_error),
-                    "rpc_error_code": (fpayload.get("error") or {}).get("code") if has_rpc_error else None,
-                })
-            else:
-                functional_operation_pass_count += 1
+            tool_result = result.get("result") if isinstance(result, dict) else None
+            failure = None
+            if mc != 200:
+                failure = {"http": mc, "reason": "non_200"}
+            elif isinstance(result, dict) and result.get("error"):
+                failure = {"http": mc, "reason": "jsonrpc_error", "error": result.get("error")}
+            elif not isinstance(tool_result, dict):
+                failure = {"http": mc, "reason": "missing_tool_result"}
+            elif tool_result.get("isError") is True:
+                failure = {
+                    "http": mc,
+                    "reason": "tool_is_error",
+                    "content": tool_result.get("content"),
+                    "structuredContent": tool_result.get("structuredContent"),
+                }
+            if failure is not None:
+                functional_operation_failures[operation] = failure
+                continue
 
-        if functional_operation_failures or functional_operation_pass_count != 74:
+            if operation == "arithmetic.evaluate":
+                serialized = json.dumps(result, sort_keys=True, separators=(",", ":"))
+                arithmetic_42_observed = bool(
+                    re.search(r"(?<![0-9])42(?:\\.0+)?(?![0-9])", serialized)
+                )
+
+        functional_operation_pass_count = len(fixtures) - len(functional_operation_failures)
+        if functional_operation_pass_count != 74:
             raise RuntimeError(
                 "Claude 74-operation functional preflight failed: "
-                + json.dumps({
-                    "pass_count": functional_operation_pass_count,
-                    "failures": functional_operation_failures,
-                }, sort_keys=True)
+                + json.dumps(functional_operation_failures, sort_keys=True)[:6000]
             )
+        if not arithmetic_42_observed:
+            raise RuntimeError("Claude all-operation preflight did not observe arithmetic result 42")
 
-        functional_usage = d1(
+        usage = d1(
             headers,
             "SELECT request_id,compute_units,http_status,result_sha256 FROM usage_events "
-            "WHERE customer_id=?1 AND request_id LIKE ?2 ORDER BY created_at ASC",
-            [customer, functional_request_prefix + "%"],
+            "WHERE customer_id=?1 ORDER BY created_at ASC",
+            [customer],
         )
-        if (
-            len(functional_usage) != 74
-            or any(int(row.get("compute_units") or 0) <= 0 for row in functional_usage)
-            or any(int(row.get("http_status") or 0) != 200 for row in functional_usage)
-            or any(len(str(row.get("result_sha256") or "")) < 32 for row in functional_usage)
-        ):
-            raise RuntimeError("Claude 74-operation functional metering evidence mismatch")
+        new_usage = usage[usage_before:]
+        by_request = {str(row.get("request_id") or ""): row for row in new_usage}
+        missing_metering = [rid for rid in functional_request_ids if rid not in by_request]
+        invalid_metering = [
+            rid for rid in functional_request_ids
+            if rid in by_request and (
+                int(by_request[rid].get("compute_units") or 0) <= 0
+                or int(by_request[rid].get("http_status") or 0) != 200
+                or len(str(by_request[rid].get("result_sha256") or "")) < 32
+            )
+        ]
+        if missing_metering or invalid_metering:
+            raise RuntimeError(
+                f"Claude all-operation metering mismatch: missing={len(missing_metering)} invalid={len(invalid_metering)}"
+            )
 
         after = snapshot_openai_surface()
         after_digest = canonical_digest(after)
@@ -436,7 +418,11 @@ def main() -> int:
             "www_authenticate_resource_metadata": MCP_URL + "/.well-known/oauth-protected-resource",
             "unauthenticated_protected_call_http": 401,
         "authenticated_axiom_compute_http": 200,
-            "arithmetic_40_plus_2_result_42": True,
+            "arithmetic_40_plus_2_result_42": arithmetic_42_observed,
+            "functional_operation_fixture_count": len(fixtures),
+            "functional_operation_pass_count": functional_operation_pass_count,
+            "functional_operation_failures": functional_operation_failures,
+            "all_74_operations_mcp_preflight_passed": functional_operation_pass_count == 74,
             "metering_verified": True,
             "functional_operation_fixture_count": 74,
             "functional_operation_pass_count": functional_operation_pass_count,
@@ -510,7 +496,10 @@ def main() -> int:
         "server_side_claude_callback_e2e": True,
         "claude_origin_verified": False,
         "authenticated_axiom_compute_http": 200,
-        "result_42_observed": True,
+        "result_42_observed": evidence.get("arithmetic_40_plus_2_result_42") is True,
+        "functional_operation_pass_count": evidence.get("functional_operation_pass_count"),
+        "functional_operation_failures": evidence.get("functional_operation_failures"),
+        "all_74_operations_mcp_preflight_passed": evidence.get("all_74_operations_mcp_preflight_passed"),
         "metering_verified": True,
         "functional_operation_pass_count": evidence.get("functional_operation_pass_count"),
         "functional_operation_failures": evidence.get("functional_operation_failures"),
