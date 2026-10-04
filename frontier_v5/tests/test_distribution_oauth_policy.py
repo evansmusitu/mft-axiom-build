@@ -33,21 +33,27 @@ def test_provider_mismatch_fails_closed():
     assert not is_allowed_redirect("https://claude.ai/api/mcp/auth_callback", provider="unknown")
 
 
-def test_claude_profile_is_single_remote_mcp_and_submission_blocked_until_isolated_endpoint_is_live():
+def test_claude_profile_is_live_single_remote_mcp_but_blocked_until_execution_and_submission_gates_pass():
     root = Path(__file__).resolve().parents[1]
     profile = load_provider_profile(root / "distribution" / "providers" / "claude.json")
     assert profile["provider_id"] == "claude"
     assert profile["distribution_mode"] == "single_remote_mcp"
     assert profile["oauth"]["callback_uris"] == ["https://claude.ai/api/mcp/auth_callback"]
-    assert profile["submission"]["status"] == "blocked_pending_real_claude_origin_and_cloudflare_ruleset_permission"
-    assert profile["submission"]["portal_requires_paid_plan"] is False
+    assert profile["submission"]["status"] == "blocked_pending_authenticated_claude_execution_and_submission_requirements"
+    assert profile["submission"]["portal_requires_paid_plan"] is True
     assert profile["submission"]["team_enterprise_org_connector_admin_controls"] is True
-    assert profile["submission"]["remote_mcp_directory_submission_requires_team_or_enterprise"] is True
+    assert profile["submission"]["remote_mcp_directory_submission_requires_team_or_enterprise"] is False
     assert profile["submission"]["directory_management_access_required"] is True
     assert profile["mcp"]["canonical_upstream"] == "https://mcp.mftintelligence.com/mcp"
     assert profile["mcp"]["submission_url"] != profile["mcp"]["canonical_upstream"]
     assert profile["mcp"]["submission_url"].endswith("/mcp")
     assert profile["oauth"]["issuer"].startswith("https://")
+    assert profile["mcp"]["submission_url"] == "https://claude-mcp.mftintelligence.com/mcp"
+    assert profile["oauth"]["issuer"] == "https://claude-auth.mftintelligence.com"
+    assert profile["submission"]["publication_domain_deployment_succeeded"] is True
+    assert profile["submission"]["claude_oauth_completed"] is True
+    assert profile["submission"]["authenticated_tool_call_passed"] is False
+    assert profile["submission"]["claude_origin_verified"] is False
 
 
 def test_profile_validation_rejects_wildcard_redirects(tmp_path):

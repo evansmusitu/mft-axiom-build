@@ -1,6 +1,6 @@
 # Real Claude-Origin Verification Checklist
 
-Status: **REQUIRED — last pre-submission external-origin gate**
+Status: **PARTIAL — OAuth and Gate A passed in real Claude; Gates B/C failed with HTTP 402.**
 
 This checklist is deliberately separate from the server-side E2E evidence. The server-side Claude callback/OAuth/Axiom path has already passed; this gate proves that Anthropic's actual Claude product can connect, authenticate, discover the tools, and execute Axiom.
 
@@ -53,7 +53,7 @@ Pass criteria:
 
 Ask Claude:
 
-> Use MUSITU Axiom to calculate the NPV at a 12% discount rate for cash flows -1000000, 300000, 350000, 400000, 450000. Return the numerical result and the MUSITU Axiom operation actually used.
+> Use MUSITU Axiom to calculate the NPV at a 12% discount rate for cash flows -1000000, 300000, 350000, 400000, 450000. Make an actual MUSITU Axiom tool call rather than calculating it yourself. Report the MUSITU Axiom operation actually used and its numerical result.
 
 Pass criteria:
 - Axiom tool invocation is visible;
@@ -92,8 +92,8 @@ After the real Claude-origin tool call:
 2. Verify the OpenAI source blobs remain:
    - auth: `8ba0dbc1b6dd1533c6c26bff23991429e03a71a5`
    - v4 MCP: `4a1ad37a5e7df0e4d3966e8b5f9f0e8f2db69167`
-3. Mark `claude_oauth_completed=true` and `authenticated_tool_call_passed=true` only with real Claude-origin evidence.
-4. Only then advance the provider profile to `ready`.
+3. Mark each flag true only when that individual requirement has actual Claude-origin proof. OAuth/discovery success alone does not establish authenticated execution success.
+4. Advance the provider profile to `ready` only after all three real Claude gates and documented submission requirements pass.
 5. Submit the single remote MCP connector through Anthropic's directory developer portal.
 
 ## Current verified evidence
@@ -106,4 +106,9 @@ After the real Claude-origin tool call:
 - Current isolated Claude worker deployment with exact `/mcp` OAuth resource, HTTP 401 discovery challenge, all 108 tool descriptors validated, 74 operations / 30 business products, commerce hidden, and frozen OpenAI surface unchanged: GitHub Actions run `37173130982`.
 - Disposable synthetic OAuth E2E with exact Claude callback, DCR + PKCE + token exchange, authenticated `40+2 → 42`, **74/74 canonical operation fixtures passed through the Claude MCP**, 74 metering rows, zero functional failures, zero fixture residue, and OpenAI unchanged: GitHub Actions run `37173358086`; evidence SHA-256 `2bffbb3891b2cfa6bc5ede18a23f42e658c72292b9ee33614289138077b09a72`.
 - Publication custom-domain deployment: **PASS** — GitHub Actions run `37187577016`; deployment step succeeded with 108 tools / 74 operations / 30 business products, one hostname-scoped configuration rule covering only the two authorized Claude hosts, testing workers unchanged, and frozen OpenAI surface unchanged. Runtime evidence SHA-256: `7e369bf7d900afd98b607c029836bfebb5afc139cacb1d0dbed87489114a627c`.
-- Real Claude-origin evidence: **not yet completed**.
+- Real Claude OAuth and discovery: **PASS** on the publication URL; 108 tools discovered, musitu_axiom_capabilities actually invoked, commerce absent.
+- Gate B: actual axiom_arithmetic_evaluate / arithmetic.evaluate returned **HTTP 402**, no numerical result.
+- Gate C: actual axiom_finance_npv and investment_npv / finance.npv returned **HTTP 402**, no numerical result.
+- No reconnect loop or secret exposure observed.
+- Read-only diagnostic run `37205474595`: active linked account, monthly compute limit **0**, usage **0**; upstream rejection checks quota. No billing/entitlement changes or credential reads.
+- Evidence: `submission/claude/real-claude-origin-evidence.json`. `claude_oauth_completed=true`, `authenticated_tool_call_passed=false`, `claude_origin_verified=false`; provider remains blocked.

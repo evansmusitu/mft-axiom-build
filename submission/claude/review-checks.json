@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-10-04",
+  "generated_at": "2026-10-04T13:27:42.560Z",
   "provider": "claude",
   "route": "developer_portal_single_remote_mcp",
   "static_candidate": {
@@ -14,19 +14,21 @@
   "live_evidence": {
     "isolated_mcp_endpoint_live": true,
     "isolated_auth_endpoint_live": true,
-    "claude_oauth_completed": false,
+    "claude_oauth_completed": true,
     "tools_list_discovered": true,
     "authenticated_tool_call_passed": false,
     "openai_surface_unchanged_reverified": true,
-    "official_mcp_inspector_full_surface_passed": true
+    "official_mcp_inspector_full_surface_passed": true,
+    "claude_origin_verified": false,
+    "representative_npv_tool_call_passed": false
   },
   "blockers": [
-    "real Claude custom-connector OAuth session has not yet originated from Claude",
-    "authenticated Axiom tool invocation has not yet originated from Claude",
-    "Cloudflare Zone Configuration Rules permission is required before the two branded Claude publication hostnames can be deployed without browser challenge",
-    "public directory submission has not been performed",
-    "Team/Enterprise Claude organization with Directory-management access must be available for directory submission",
-    "a verified public MUSITU support contact must be supplied for directory review"
+    "actual Claude arithmetic.evaluate and finance.npv calls returned HTTP 402; the connected account monthly compute limit is 0 units",
+    "all real Claude execution gates must pass before READY",
+    "signed-in Claude Free account cannot submit; Pro/Max/Team/Enterprise is required",
+    "a legitimate public MUSITU support contact has not been designated",
+    "dedicated reviewer credentials must be supplied directly through the secure portal",
+    "directory validation, publisher compliance acknowledgements and final submission remain pending"
   ],
   "live_endpoint_evidence": {
     "github_actions_run": 37173130982,
@@ -88,19 +90,19 @@
     "evidence_sha256": "2bffbb3891b2cfa6bc5ede18a23f42e658c72292b9ee33614289138077b09a72"
   },
   "portal_eligibility": {
-    "remote_mcp_directory_submission": "Team or Enterprise organization required",
-    "directory_management_access": "Owner/Primary Owner by default; delegated Directory or Libraries permission supported on Enterprise",
-    "submission_location": "Claude.ai organization admin settings",
-    "custom_remote_mcp_testing": "Custom connector testing remains distinct from directory submission eligibility",
+    "remote_mcp_directory_submission": "Pro, Max, Team or Enterprise; Free cannot submit",
+    "directory_management_access": "Pro/Max own account; Team/Enterprise Owner, or Enterprise custom role with Directory permission",
+    "submission_location": "https://claude.ai/directory/manage",
+    "observed_account_plan": "free",
     "verified_from_official_anthropic_docs_on": "2026-10-04",
-    "source": "https://claude.com/docs/connectors/building/submission"
+    "source": "https://claude.com/docs/directory/publish"
   },
   "publication_domain": {
     "testing_mcp_url": "https://musitu-axiom-claude-mcp-candidate.mft-education-nexus-93f395f5.workers.dev/mcp",
     "testing_auth_issuer": "https://musitu-axiom-claude-auth-candidate.mft-education-nexus-93f395f5.workers.dev",
     "proposed_publication_mcp_url": "https://claude-mcp.mftintelligence.com/mcp",
     "proposed_publication_auth_issuer": "https://claude-auth.mftintelligence.com",
-    "deployed": false,
+    "deployed": true,
     "reason": "Anthropic review criteria says the MCP server domain should match the submitting service.",
     "source": "https://claude.com/docs/connectors/building/review-criteria",
     "preflight_passed": true,
@@ -110,19 +112,25 @@
     "authorized": true,
     "deployment_attempted": true,
     "rollback_verified": true,
-    "final_rollback_preflight_run": 37177997579,
-    "final_rollback_state": {
-      "auth_dns_records": 0,
-      "mcp_dns_records": 0,
-      "auth_domain_rows": 0,
-      "mcp_domain_rows": 0,
-      "publication_workers_present": false,
-      "testing_workers_present": true,
-      "openai_surface_unchanged": true,
-      "write_performed": false
-    },
-    "blocker": "Cloudflare credentials available to the repo can manage Workers/custom domains but do not currently have Zone Configuration Rules permission required for exact-host machine-transport challenge suppression.",
-    "real_claude_origin_test_url": "https://musitu-axiom-claude-mcp-candidate.mft-education-nexus-93f395f5.workers.dev/mcp"
+    "blocker": null,
+    "real_claude_origin_test_url": "https://claude-mcp.mftintelligence.com/mcp",
+    "publication_mcp_url": "https://claude-mcp.mftintelligence.com/mcp",
+    "publication_auth_issuer": "https://claude-auth.mftintelligence.com",
+    "deployment_run": 37187577016,
+    "evidence_sha256": "7e369bf7d900afd98b607c029836bfebb5afc139cacb1d0dbed87489114a627c",
+    "historical_rollback_preflight": {
+      "run": 37177997579,
+      "state": {
+        "auth_dns_records": 0,
+        "mcp_dns_records": 0,
+        "auth_domain_rows": 0,
+        "mcp_domain_rows": 0,
+        "publication_workers_present": false,
+        "testing_workers_present": true,
+        "openai_surface_unchanged": true,
+        "write_performed": false
+      }
+    }
   },
   "official_mcp_inspector": {
     "passed": true,
@@ -154,5 +162,19 @@
     "openai_surface_unchanged": true,
     "write_performed": false,
     "evidence_sha256": "56a7a4f79d10596dc33daadcc4644dcbe0a5d1813ba14a85a37e04921b32c7b3"
+  },
+  "real_claude_origin": {
+    "evidence_file": "submission/claude/real-claude-origin-evidence.json",
+    "oauth_completed": true,
+    "oauth_client_mode": "dynamic_client_registration",
+    "tools_discovered": true,
+    "discovered_tool_count": 108,
+    "gate_a_passed": true,
+    "gate_b_passed": false,
+    "gate_c_passed": false,
+    "no_secrets_exposed": true,
+    "claude_origin_verified": false,
+    "execution_http_status": 402,
+    "post_test_openai_reverification_run": 37205474595
   }
 }

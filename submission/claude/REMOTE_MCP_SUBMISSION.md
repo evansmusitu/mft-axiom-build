@@ -1,133 +1,45 @@
-# MUSITU Axiom — Claude Remote MCP Submission Candidate
+# MUSITU Axiom — Claude Remote MCP Submission
 
-Status: **BLOCKED — isolated endpoint and server OAuth→Axiom E2E are proven; real Claude-origin OAuth/tool validation remains required**
+Status: **BLOCKED — publication live, real Claude OAuth/discovery passed, execution returned HTTP 402.**
 
-This package is for the Claude developer portal **single remote MCP connector** route. It does not alter the frozen OpenAI submission or its production OAuth/MCP surface.
+This package is for the single remote MCP connector submission route. The frozen OpenAI surface is protected.
 
 ## Listing identity
+- Name: MUSITU Axiom
+- Tagline: Governed quantitative analysis and verification
+- Publisher: MUSITU
+- MCP: https://claude-mcp.mftintelligence.com/mcp
+- OAuth issuer: https://claude-auth.mftintelligence.com
+- Website: https://axiom.mftintelligence.com
+- Documentation: https://claude-mcp.mftintelligence.com/docs
+- Privacy: https://claude-mcp.mftintelligence.com/privacy
+- Terms: https://claude-mcp.mftintelligence.com/terms
+- Public support contact: not yet designated; never fabricate.
 
-**Name:** MUSITU Axiom  
-**Publisher:** MUSITU  
-**Live remote MCP candidate URL:** `https://musitu-axiom-claude-mcp-candidate.mft-education-nexus-93f395f5.workers.dev/mcp`  
-**Live authorization issuer candidate:** `https://musitu-axiom-claude-auth-candidate.mft-education-nexus-93f395f5.workers.dev`
+## Connection contract
+Streamable HTTP; OAuth authorization-code flow with PKCE S256 and DCR; exact callback https://claude.ai/api/mcp/auth_callback. No request headers, bearer headers or API-key headers are added in Claude. The existing redirect allowlist and OAuth validation remain strict.
 
-**Short description:**  
-Governed quantitative analysis for finance, risk, statistics, forecasting, optimization and verification, with evidence and authorization boundaries for users with an existing MUSITU Axiom entitlement.
+The connector exposes 108 tools: 74 quantitative runtime operations, 30 business aliases and discovery/execution utilities. Private commerce tools are absent. It does not execute trades, transfer money or expose subscription checkout. No superiority claim is made.
 
-## Claude integration mode
+## Verified evidence
+- Publication deployment step succeeded in run `37187577016`; the final artifact upload failed due to GitHub artifact-storage quota. This was not publication failure.
+- Publication runtime evidence SHA-256: `7e369bf7d900afd98b607c029836bfebb5afc139cacb1d0dbed87489114a627c`.
+- Content-only Claude OAuth callback repair deployed successfully in run `37192021652`, preserving strict CSP, redirect validation, Worker settings and frozen OpenAI state.
+- Actual Claude web session completed OAuth and invoked musitu_axiom_capabilities. Claude discovered 108 tools with commerce absent.
+- Actual axiom_arithmetic_evaluate call for 40+2 returned HTTP 402; no Axiom result was returned.
+- Actual axiom_finance_npv and investment_npv calls for the requested cash flows and 12% rate returned HTTP 402; no Axiom NPV was returned.
+- Read-only diagnostic run `37205474595` confirmed one recent Claude-linked active account with monthly compute limit 0 and usage 0; upstream rejection code checks quota. No credentials read, entitlement writes or billing changes occurred.
+- Frozen main, PR #1 state, OpenAI source blobs and live surface were reverified after the real Claude test.
+- Real evidence: `submission/claude/real-claude-origin-evidence.json`.
 
-- Submission route: single remote MCP connector.
-- Transport: Streamable HTTP / MCP 2.0 candidate.
-- Authentication: OAuth 2.1 authorization-code flow with PKCE S256.
-- Supported Claude callback URI:
-  - `https://claude.ai/api/mcp/auth_callback`
-- Preferred portal client option for live testing: **Use Claude's published identity**.
-- Compatibility fallback: **Register automatically** using Dynamic Client Registration.
-- No wildcard OAuth redirects.
+Historical synthetic server OAuth preflight (run `37173358086`, 74/74 operations) and Inspector preflight (run `37174144402`, 108/108 tools) remain separate evidence. They do not establish successful execution from Claude.
 
-## Capability boundary
-
-The Claude candidate is derived from the public v4 Axiom plugin-gate boundary, not from private/internal Axiom controls.
-
-Included:
-- quantitative finance;
-- statistics;
-- forecasting and time-series analysis;
-- optimization;
-- risk analysis;
-- verification;
-- research-supporting quantitative operations exposed by the public profile.
-
-Excluded from this directory candidate:
-- subscription checkout;
-- money movement;
-- trade execution;
-- arbitrary computer control;
-- deployment or engineering operations;
-- private provider integrations;
-- unsupported regulated decision delegation.
-
-MUSITU does not make a leadership/comparative-performance claim in this submission.
-
-## Three reviewer/demo prompts
-
-1. **Investment appraisal**  
-   "Use MUSITU Axiom to calculate the NPV at a 12% discount rate for cash flows -1000000, 300000, 350000, 400000, 450000. Return the numerical result and the operation used."
-
-2. **Risk calculation**  
-   "Use MUSITU Axiom to calculate 95% parametric VaR for returns [0.012,-0.007,0.004,0.016,-0.011,0.006,0.009,-0.004,0.013,-0.008] using alpha 0.95. Report the method and alpha actually used."
-
-3. **Statistical verification**  
-   "Use MUSITU Axiom to run linear regression for x=[1,2,3,4,5,6] and y=[1.9,4.2,5.8,8.1,10.1,12.2]. Report slope, intercept, r-value, p-value and standard error."
-
-These prompts are designed around operations already demonstrated through the connected Axiom surface. They are not customer ROI claims.
-
-## Reviewer account
-
-If Anthropic requires a reviewer account, provision it through the existing MUSITU account/reviewer process and transmit the credential only through the portal's secure reviewer-credential field. Do not place account keys, access tokens, authorization codes, client secrets or API keys in this repository.
-
-## Live validation status before portal submission
-
-Verified by GitHub Actions run `37169862332`:
-- isolated workers.dev OAuth endpoint live and healthy;
-- isolated workers.dev MCP endpoint live and healthy;
-- OAuth discovery + protected-resource metadata served;
-- safe MCP tools/list discovered: 108 tools / 74 runtime operations / 30 business products;
-- commerce tools absent;
-- no DNS or custom-domain mutation;
-- frozen OpenAI live surface before/after SHA-256 identical: `1515ae38afc222de1d29e9dbfc49830aa22ca6350bf94d84d8e506239fe7d29d`;
-- canonical OpenAI auth/MCP source blobs remained pinned.
-
-Current live Claude worker deployment is verified by GitHub Actions run `37173130982`:
-- exact OAuth resource includes `/mcp`;
-- unauthenticated protected calls return HTTP 401 with `WWW-Authenticate` discovery;
-- 108 tools / 74 runtime operations / 30 business products;
-- all tool names unique and ≤64 characters;
-- all tools have titles, descriptions, input/output schemas and read-only/non-destructive annotations;
-- commerce tools remain hidden;
-- frozen OpenAI live surface is unchanged.
-
-Server-side callback and full operation E2E is verified by GitHub Actions run `37173358086` using a disposable synthetic account:
-- exact callback: `https://claude.ai/api/mcp/auth_callback`;
-- DCR + PKCE S256 + authorization-code token exchange passed;
-- authenticated `arithmetic.evaluate` returned 42;
-- all **74/74 canonical operation fixtures** passed through the isolated Claude MCP;
-- 74 metering rows were verified;
-- functional failures: 0;
-- zero fixture rows remained after cleanup;
-- OpenAI live surface remained unchanged;
-- evidence SHA-256: `2bffbb3891b2cfa6bc5ede18a23f42e658c72292b9ee33614289138077b09a72`.
-
-Still required:
-1. Add the live remote MCP candidate URL to Claude as a custom connector.
-2. Complete OAuth from an actual Claude session.
-3. Execute at least one authenticated quantitative Axiom tool call from that Claude session.
-4. Re-read the frozen OpenAI surface once more after the Claude-origin test.
-5. Submit the connector through Claude.ai organization admin settings using a Team/Enterprise organization with Directory-management access.
-
-The GitHub Actions artifact upload failed only because the repository's artifact-storage quota was exhausted; the deploy/verification step itself passed and its evidence is recorded in `submission/claude/workers-dev-live-evidence.json`.
-
-## Current Anthropic submission requirements captured 2026-10-04
-
-Anthropic's **current** remote-MCP submission guide, updated this week, is authoritative for this package:
-
-- remote MCP submissions happen inside Claude.ai organization admin settings;
-- submission requires a **Team or Enterprise organization**;
-- Directory-management access is required;
-- by default Owners / Primary Owners manage directory listings;
-- Enterprise can delegate Directory or Libraries permission via a custom role;
-- the portal requires the HTTPS server URL, transport, listing metadata, use cases, company details, authentication details, data handling disclosures, test-account instructions and compliance acknowledgements;
-- before submitting, Anthropic requires developers to exercise every tool through MCP Inspector and as a custom connector in Claude;
-- reviewers expect successful valid-parameter responses, actionable validation errors, applicable annotations, titles, and tool names no longer than 64 characters.
-
-Current official sources:
+## Current Anthropic process
+Official pages re-read on 2026-10-04:
+- https://claude.com/docs/directory/publish
 - https://claude.com/docs/connectors/building/submission
 - https://claude.com/docs/connectors/building/review-criteria
-- https://support.claude.com/en/articles/11175166-get-started-with-custom-connectors-using-remote-mcp
-- https://support.claude.com/en/articles/13145358-anthropic-software-directory-policy
 
-The September 25, 2026 announcement described a paid-plan developer portal, but the newer submission guide now places remote-MCP directory submissions in organization admin settings with Team/Enterprise access. This package follows the newer guide.
+Use https://claude.ai/directory/manage → Submit new → MCP connector. Pro, Max, Team or Enterprise is required; Free cannot submit. Pro/Max use their own account; Team/Enterprise needs an Owner or appropriate Enterprise Directory permission. Prior organization-only instructions are superseded by the current official process.
 
-## Explicit blocker
-
-This package is **not yet submitted**. The isolated workers.dev endpoints are live, every exposed tool descriptor has passed the directory-readiness audit, and all 74 canonical runtime operations have passed through the disposable server-side OAuth→MCP→Axiom path using the exact Claude callback contract. The remaining blocker is external-origin only: no OAuth session or authenticated Axiom call has yet been originated by the real Claude product. Submission readiness remains blocked until that Claude-origin proof passes.
+The observed account is Free. No submission portal validation or final submission has been performed. Follow `PORTAL_PACKET.md` only after execution gates pass. A legitimate public support contact, secure reviewer account entry and truthful publisher compliance acknowledgements are still required. Never commit credentials.

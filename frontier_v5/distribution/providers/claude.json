@@ -4,12 +4,12 @@
   "distribution_mode": "single_remote_mcp",
   "mcp": {
     "canonical_upstream": "https://mcp.mftintelligence.com/mcp",
-    "submission_url": "https://musitu-axiom-claude-mcp-candidate.mft-education-nexus-93f395f5.workers.dev/mcp",
+    "submission_url": "https://claude-mcp.mftintelligence.com/mcp",
     "transport": "streamable_http",
     "mcp_generation": "2.0",
     "testing_url": "https://musitu-axiom-claude-mcp-candidate.mft-education-nexus-93f395f5.workers.dev/mcp",
     "publication_url": "https://claude-mcp.mftintelligence.com/mcp",
-    "publication_url_status": "prepared_collision_free_not_deployed"
+    "publication_url_status": "live_verified"
   },
   "oauth": {
     "registration": "dcr_or_published_identity",
@@ -17,22 +17,22 @@
     "callback_uris": [
       "https://claude.ai/api/mcp/auth_callback"
     ],
-    "issuer": "https://musitu-axiom-claude-auth-candidate.mft-education-nexus-93f395f5.workers.dev",
+    "issuer": "https://claude-auth.mftintelligence.com",
     "testing_issuer": "https://musitu-axiom-claude-auth-candidate.mft-education-nexus-93f395f5.workers.dev",
     "publication_issuer": "https://claude-auth.mftintelligence.com",
-    "publication_issuer_status": "prepared_collision_free_not_deployed"
+    "publication_issuer_status": "live_verified"
   },
   "submission": {
-    "status": "blocked_pending_real_claude_origin_and_cloudflare_ruleset_permission",
+    "status": "blocked_pending_authenticated_claude_execution_and_submission_requirements",
     "route": "developer_portal_single_remote_mcp",
     "live_endpoint_verified": true,
     "live_endpoint_evidence_run": 37173130982,
     "server_oauth_e2e_verified": true,
     "server_oauth_e2e_run": 37173358086,
-    "portal_requires_paid_plan": false,
+    "portal_requires_paid_plan": true,
     "team_enterprise_org_connector_admin_controls": true,
     "all_74_operations_server_preflight": true,
-    "public_directory_developer_portal_requires_paid_plan": false,
+    "public_directory_developer_portal_requires_paid_plan": true,
     "custom_connector_testing_plans": [
       "free",
       "pro",
@@ -42,10 +42,10 @@
     ],
     "free_custom_connector_limit": 1,
     "in_app_organization_directory_management_requires_team_or_enterprise": true,
-    "remote_mcp_directory_submission_requires_team_or_enterprise": true,
+    "remote_mcp_directory_submission_requires_team_or_enterprise": false,
     "directory_management_access_required": true,
-    "submission_location": "Claude.ai organization admin settings",
-    "eligibility_source": "https://claude.com/docs/connectors/building/submission",
+    "submission_location": "https://claude.ai/directory/manage",
+    "eligibility_source": "https://claude.com/docs/directory/publish",
     "eligibility_verified_on": "2026-10-04",
     "publication_domain_must_match_service": true,
     "publication_domain_source": "https://claude.com/docs/connectors/building/review-criteria",
@@ -55,10 +55,27 @@
     "publication_domain_deployment_prepared": true,
     "publication_domain_deployment_authorized": true,
     "publication_domain_deployment_attempted": true,
-    "publication_domain_deployment_succeeded": false,
+    "publication_domain_deployment_succeeded": true,
     "publication_domain_rollback_verified": true,
     "publication_domain_final_rollback_preflight_run": 37177997579,
-    "publication_domain_blocker": "current Cloudflare credentials lack Zone Configuration Rules access required to suppress browser challenge only on the two Claude machine-to-machine hostnames",
-    "real_claude_origin_test_endpoint": "https://musitu-axiom-claude-mcp-candidate.mft-education-nexus-93f395f5.workers.dev/mcp"
+    "publication_domain_blocker": null,
+    "real_claude_origin_test_endpoint": "https://claude-mcp.mftintelligence.com/mcp",
+    "eligible_submission_plans": [
+      "pro",
+      "max",
+      "team",
+      "enterprise"
+    ],
+    "publication_domain_evidence_run": 37187577016,
+    "publication_domain_evidence_sha256": "7e369bf7d900afd98b607c029836bfebb5afc139cacb1d0dbed87489114a627c",
+    "claude_oauth_completed": true,
+    "tools_discovered": true,
+    "authenticated_tool_call_passed": false,
+    "claude_origin_verified": false,
+    "real_claude_origin_evidence": "submission/claude/real-claude-origin-evidence.json",
+    "real_claude_execution_blocker": "Actual Claude arithmetic and NPV calls returned HTTP 402. Linked account has zero monthly compute-unit limit; entitlement must be legitimately resolved.",
+    "legitimate_public_support_contact_present": false,
+    "dedicated_reviewer_credentials_securely_provided": false,
+    "observed_claude_plan": "free"
   }
 }

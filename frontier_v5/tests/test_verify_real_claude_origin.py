@@ -14,13 +14,20 @@ def base():
         "claude_surface": "claude.ai web",
         "connector_name": "MUSITU Axiom",
         "remote_mcp_url": mod.EXPECTED_MCP_URL,
-        "oauth_client_mode": "dcr",
+        "oauth_client_mode": "dynamic_client_registration",
         "oauth_completed": True,
         "tools_discovered": True,
         "commerce_tools_absent": True,
         "arithmetic_tool_name": "musitu_axiom_execute",
         "arithmetic_result_42": True,
+        "arithmetic_tool_invoked": True,
+        "arithmetic_operation": "arithmetic.evaluate",
+        "arithmetic_result": 42,
         "npv_tool_call_passed": True,
+        "npv_tool_invoked": True,
+        "npv_tool_name": "axiom_finance_npv",
+        "npv_operation": "finance.npv",
+        "npv_result": 117570.2344,
         "no_secrets_exposed": True,
         "notes": "",
     }
@@ -54,3 +61,20 @@ def test_real_origin_evidence_fails_if_openai_surface_drifted(tmp_path, monkeypa
     monkeypatch.setattr(mod, "canonical_digest", lambda _: "0" * 64)
     with pytest.raises(ValueError, match="OpenAI live surface drifted"):
         mod.evaluate(p)
+
+
+@pytest.mark.parametrize("change,match", [
+    ({"arithmetic_result": None}, "arithmetic_result"),
+    ({"arithmetic_result": True}, "arithmetic_result"),
+    ({"npv_result": None}, "npv_result"),
+    ({"npv_tool_invoked": False}, "npv_tool_invoked"),
+    ({"arithmetic_http_status": 402}, "failed execution"),
+    ({"npv_http_status": 402}, "failed execution"),
+    ({"remote_mcp_url": "https://musitu-axiom-claude-mcp-candidate.mft-education-nexus-93f395f5.workers.dev/mcp"}, "URL mismatch"),
+])
+def test_real_origin_rejects_missing_results_errors_and_candidate_endpoint(tmp_path, change, match):
+    evidence = {**base(), **change}
+    path = tmp_path / "evidence.json"
+    path.write_text(json.dumps(evidence))
+    with pytest.raises(ValueError, match=match):
+        mod.evaluate(path)

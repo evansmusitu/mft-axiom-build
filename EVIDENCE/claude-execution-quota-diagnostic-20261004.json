@@ -1,0 +1,100 @@
+{
+  "account_entitlement": [
+    {
+      "monthly_unit_override": null,
+      "plan": "developer",
+      "status": "active"
+    }
+  ],
+  "claude_execution_pass_claimed": false,
+  "credential_values_read": false,
+  "github_actions_run": "37205474595",
+  "http_402_rejection_metadata": [
+    {
+      "error_labels": [
+        "quota exhausted"
+      ],
+      "quota_reference": true,
+      "subscription_reference": false
+    },
+    {
+      "error_labels": [
+        "quota_exhausted",
+        "quota_store_unavailable"
+      ],
+      "quota_reference": true,
+      "subscription_reference": false
+    }
+  ],
+  "mutations_performed": false,
+  "oauth_client_modes": [
+    {
+      "oauth_client_mode": "dynamic_client_registration",
+      "token_count": 1
+    }
+  ],
+  "openai_surface_sha256": "1515ae38afc222de1d29e9dbfc49830aa22ca6350bf94d84d8e506239fe7d29d",
+  "openai_surface_unchanged": true,
+  "plan_numeric_mappings": [],
+  "publication_tool_count": 108,
+  "recent_claude_customer_count": 1,
+  "schema": "musitu.axiom.claude_execution_readonly_diagnostic.v1",
+  "schema_columns": {
+    "billing_subscriptions": [
+      "customer_id",
+      "provider",
+      "provider_customer_id",
+      "provider_subscription_id",
+      "status",
+      "price_id",
+      "current_period_end",
+      "updated_at"
+    ],
+    "customers": [
+      "id",
+      "email",
+      "name",
+      "plan",
+      "status",
+      "monthly_unit_override",
+      "created_at",
+      "updated_at"
+    ],
+    "oauth_access_tokens": [
+      "token_hash",
+      "api_key_id",
+      "client_id",
+      "customer_id",
+      "issuer",
+      "resource",
+      "scope",
+      "created_at",
+      "expires_at",
+      "revoked_at"
+    ],
+    "usage_buckets": [
+      "customer_id",
+      "month",
+      "used_units",
+      "unit_limit",
+      "updated_at"
+    ]
+  },
+  "source_branch": "distribution/claude-remote-mcp-20261004",
+  "source_commit": "4858896a17eae1c94811cb14b198781a409fdaf1",
+  "subscription_status_counts": [],
+  "timestamp_utc": "2026-10-04T13:24:07.451801+00:00",
+  "upstream_source_sha256": "abd8468f26514c59da090d960443ea8d01209736ebfa308edfda2ab04d616a2e",
+  "usage_buckets": [
+    {
+      "month": "2026-09",
+      "unit_limit": 0,
+      "used_units": 0
+    },
+    {
+      "month": "2026-10",
+      "unit_limit": 0,
+      "used_units": 0
+    }
+  ]
+}

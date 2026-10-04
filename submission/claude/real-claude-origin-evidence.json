@@ -1,0 +1,115 @@
+{
+  "schema": "musitu.axiom.claude_real_origin_evidence.v1",
+  "timestamp_utc": "2026-10-04T13:27:42.560Z",
+  "claude_surface": "claude.ai web, Sonnet 5.5 Medium, fresh conversation",
+  "connector_name": "MUSITU Axiom",
+  "remote_mcp_url": "https://claude-mcp.mftintelligence.com/mcp",
+  "oauth_client_mode": "dynamic_client_registration",
+  "oauth_completed": true,
+  "tools_discovered": true,
+  "commerce_tools_absent": true,
+  "arithmetic_tool_name": "axiom_arithmetic_evaluate",
+  "arithmetic_result_42": false,
+  "npv_tool_call_passed": false,
+  "no_secrets_exposed": true,
+  "notes": "OAuth and discovery passed in real Claude. Arithmetic and NPV tool calls visibly invoked MUSITU Axiom but returned HTTP 402 with no numerical result. No pass or READY status is claimed. No reconnect loop was observed. A legitimate account with non-zero compute entitlement is required before retry.",
+  "claude_oauth_completed": true,
+  "authenticated_tool_call_passed": false,
+  "claude_origin_verified": false,
+  "discovered_tool_count": 108,
+  "arithmetic_operation": "arithmetic.evaluate",
+  "arithmetic_result": null,
+  "arithmetic_tool_invoked": true,
+  "arithmetic_http_status": 402,
+  "npv_tool_name": "axiom_finance_npv",
+  "npv_operation": "finance.npv",
+  "npv_result": null,
+  "npv_tool_invoked": true,
+  "npv_http_status": 402,
+  "source_branch": "distribution/claude-remote-mcp-20261004",
+  "source_commit": "ac789b5c2872bbcaf156d41de4ff3294af19e8c9",
+  "publication_run": 37187577016,
+  "publication_evidence_sha256": "7e369bf7d900afd98b607c029836bfebb5afc139cacb1d0dbed87489114a627c",
+  "gate_a": {
+    "passed": true,
+    "timestamp_utc": "2026-10-04T13:08:51.971Z",
+    "connector_name": "MUSITU Axiom",
+    "oauth_completed": true,
+    "tools_discovered": true,
+    "discovered_tool_count": 108,
+    "capabilities_tool": "musitu_axiom_capabilities",
+    "actual_capabilities_result": "MUSITU Axiom exposes 74 certified quantitative runtime operations and 30 business-facing quantitative products through this plugin.",
+    "commerce_tools_absent": true,
+    "claude_chat_url": "https://claude.ai/chat/cabd0391-ade5-4f2d-9cf5-e0ffac290dc6",
+    "source_commit": "ac789b5c2872bbcaf156d41de4ff3294af19e8c9"
+  },
+  "gate_b": {
+    "timestamp_utc": "2026-10-04T13:16:20.015Z",
+    "tool_name": "axiom_arithmetic_evaluate",
+    "operation": "arithmetic.evaluate",
+    "arguments": {
+      "args": {
+        "expression": "40+2"
+      }
+    },
+    "http_status": 402,
+    "error": "Axiom operation failed HTTP 402.",
+    "result": null,
+    "passed": false
+  },
+  "gate_c": {
+    "timestamp_utc": "2026-10-04T13:16:20.015Z",
+    "tool_name": "axiom_finance_npv",
+    "operation": "finance.npv",
+    "arguments": {
+      "args": {
+        "rate": 0.12,
+        "cashflows": [
+          -1000000,
+          300000,
+          350000,
+          400000,
+          450000
+        ]
+      }
+    },
+    "http_status": 402,
+    "error": "Axiom operation failed HTTP 402.",
+    "result": null,
+    "passed": false,
+    "fallback_tool": "investment_npv",
+    "fallback_http_status": 402
+  },
+  "connector_configuration": {
+    "request_headers": [],
+    "selected_oauth_option": "Use Claude published identity (Recommended)",
+    "actual_oauth_mode": "dynamic_client_registration",
+    "actual_oauth_mode_verified_by": "real browser authorization client class and sanitized ledger diagnostic run 37205474595",
+    "duplicate_connector_created": false
+  },
+  "claude_chat_url": "https://claude.ai/chat/cabd0391-ade5-4f2d-9cf5-e0ffac290dc6",
+  "post_test_protected_boundary": {
+    "main": "d6a846f6bbe0bccac1758713eb4de167caf07113",
+    "pr_1": {
+      "state": "open",
+      "draft": true,
+      "merged": false
+    },
+    "auth_blob": "8ba0dbc1b6dd1533c6c26bff23991429e03a71a5",
+    "mcp_v4_blob": "4a1ad37a5e7df0e4d3966e8b5f9f0e8f2db69167",
+    "openai_surface_sha256": "1515ae38afc222de1d29e9dbfc49830aa22ca6350bf94d84d8e506239fe7d29d",
+    "read_only_verification_run": 37205474595
+  },
+  "nonsecret_screenshot": {
+    "filename": "musitu-claude-real-execution-402-20261004.jpg",
+    "sha256": "b80e924d0af55dbbe8de076cbde37018514a1ad8ea0d9174b9153c85f61c8762"
+  },
+  "blockers": [
+    "actual Claude arithmetic.evaluate and finance.npv calls returned HTTP 402; the connected account monthly compute limit is 0 units",
+    "all real Claude execution gates must pass before READY",
+    "signed-in Claude Free account cannot submit; Pro/Max/Team/Enterprise is required",
+    "a legitimate public MUSITU support contact has not been designated",
+    "dedicated reviewer credentials must be supplied directly through the secure portal",
+    "directory validation, publisher compliance acknowledgements and final submission remain pending"
+  ]
+}
