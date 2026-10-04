@@ -1,0 +1,21 @@
+{
+  "schema": "musitu.axiom.claude_oauth_fixture_e2e.v1",
+  "recorded_from_github_actions_run": 37170153704,
+  "recorded_from_job": 111341303566,
+  "gate": "MUSITU_AXIOM_CLAUDE_SERVER_OAUTH_E2E_PASS",
+  "server_side_claude_callback_e2e": true,
+  "claude_origin_verified": false,
+  "callback": "https://claude.ai/api/mcp/auth_callback",
+  "issuer": "https://musitu-axiom-claude-auth-candidate.mft-education-nexus-93f395f5.workers.dev",
+  "resource": "https://musitu-axiom-claude-mcp-candidate.mft-education-nexus-93f395f5.workers.dev",
+  "dynamic_client_registration": true,
+  "pkce_s256": true,
+  "authenticated_axiom_compute_http": 200,
+  "arithmetic_40_plus_2_result_42": true,
+  "metering_verified": true,
+  "synthetic_account_only": true,
+  "openai_surface_unchanged": true,
+  "fixture_rows_remaining": 0,
+  "cleanup_complete": true,
+  "evidence_sha256": "65aff9eef2884ae956b47e9c0c04afb3b72161ab2eb91df432d945464aa51733"
+}
