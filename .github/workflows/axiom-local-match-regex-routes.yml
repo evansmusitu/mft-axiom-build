@@ -64,5 +64,3 @@ jobs:
           pathlib.Path('local-match-regex-routes.json').write_text(json.dumps(out,indent=2,sort_keys=True))
           print(json.dumps(out,sort_keys=True))
           PY
-
-# Trigger-only contract extraction 2026-10-04
