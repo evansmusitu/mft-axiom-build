@@ -38,6 +38,8 @@ class AxiomMcpExecutor:
         )
         response=urllib.request.urlopen(outbound,timeout=self.timeout)
         decoded=json.loads(response.read().decode("utf-8"))
+        if str(decoded.get("id"))!=request_id:
+            raise RuntimeError("AXIOM_REQUEST_ID_MISMATCH")
         result=decoded["result"]
         if result.get("isError") is True:
             raise RuntimeError("AXIOM_REMOTE_ERROR")
