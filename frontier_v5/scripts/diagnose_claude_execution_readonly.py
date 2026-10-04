@@ -118,8 +118,17 @@ def main():
     reserve_start = text.index("async function reserveUnits(")
     reserve_end = text.index("__name(reserveUnits,", reserve_start)
     reserve_body = text[reserve_start:reserve_end]
-    reservation_sql = re.findall(r'prepare\("((?:\\.|[^"\\])*)"\)', reserve_body)
+    reservation_sql = [m[1] for m in re.findall(r'''prepare\(\s*([`"'])(.*?)\1\s*\)''', reserve_body, re.S)]
     reservation_sql = [sql for sql in reservation_sql if "usage_buckets" in sql and not re.search(r"token|key|password|email", sql, re.I)]
+    catalog_status, _, catalog_body = raw("https://payments.mftintelligence.com/billing/catalog", headers={"Accept": "application/json"})
+    if catalog_status != 200:
+        raise RuntimeError("public billing catalog unavailable for entitlement comparison")
+    catalog = json.loads(catalog_body)
+    catalog_units = [{"plan": p.get("id"), "monthly_units": p.get("monthly_unit_limit")} for p in catalog.get("plans", [])]
+    developer_consistent = any(p == {"plan": "developer", "monthly_units": 1000} for p in runtime_plan_limits) and any(p == {"plan": "developer", "monthly_units": 1000} for p in catalog_units)
+    account_matches = len(entitlement) == 1 and entitlement[0] == {
+        "plan": "developer", "status": "active", "monthly_unit_override": None,
+        "created_at": "2026-09-06T10:52:40.082822Z", "updated_at": "2026-09-06T10:52:40.082822Z"}
     null_override_coercion = "if (Number.isFinite(Number(principal.monthly_unit_override))) return Number(principal.monthly_unit_override);" in text
     print("CLAUDE_SANITIZED_QUOTA_POLICY_CONTEXT=" + json.dumps(sanitized_policy_context(text), sort_keys=True))
     after = canonical_digest(snapshot_openai_surface())
@@ -140,6 +149,8 @@ def main():
         "runtime_plan_monthly_units": runtime_plan_limits,
         "unguarded_null_override_number_coercion_present": null_override_coercion,
         "reservation_static_sql": reservation_sql,
+        "public_catalog_monthly_units": catalog_units,
+        "proposed_single_account_override": {"value": 1000, "eligible_at_read_time": bool(count == 1 and account_matches and developer_consistent), "applied": False, "requires_explicit_account_data_authorization": True},
         "publication_tool_count": publication["tool_count"],
         "openai_surface_unchanged": True, "openai_surface_sha256": after,
         "credential_values_read": False, "mutations_performed": False,
