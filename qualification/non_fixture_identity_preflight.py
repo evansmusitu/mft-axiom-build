@@ -36,9 +36,11 @@ ACCOUNT_ID=os.environ["ACCOUNT_ID"]
 D1_UUID=os.environ["D1_UUID"]
 CF_TOKEN=os.environ["CLOUDFLARE_API_TOKEN"]
 MCP_BASE=os.environ.get("MCP_BASE","https://mcp.mftintelligence.com").rstrip("/")
+AXIOM_ADMIN_BASE=os.environ.get("AXIOM_ADMIN_BASE","https://axiom.mftintelligence.com").rstrip("/")
 ACCOUNT_KEY=os.environ.get("MUSITU_CONNECT_AXIOM_ACCOUNT_KEY","").strip()
 BEARER=os.environ.get("MUSITU_CONNECT_AXIOM_BEARER_TOKEN","").strip()
-CONTROL=os.environ.get("MFT_CONTROL_SECRET","").strip()
+MUSITU_CONTROL=os.environ.get("MUSITU_CONTROL_SECRET","").strip()
+LEGACY_CONTROL=os.environ.get("MFT_CONTROL_SECRET","").strip()
 
 def call(url: str, method: str="GET", headers=None, body: bytes | None=None):
     req=urllib.request.Request(url,headers=dict(headers or {}),method=method,data=body)
@@ -73,6 +75,34 @@ def d1(sql: str, params=None):
     for item in result:
         rows.extend(item.get("results") or [])
     return rows
+
+def probe_admin_control(secret: str, header_name: str):
+    if not secret:
+        return None
+    status,raw=call(
+        AXIOM_ADMIN_BASE+"/v1/admin/customers",
+        "POST",
+        {
+            header_name:secret,
+            "x-musitu-axiom-version":"3.0.0",
+            "Accept":"application/json",
+            "Content-Type":"application/json",
+            "User-Agent":"MUSITU-Connect-Identity-Preflight/3.0",
+        },
+        b"{}",
+    )
+    try:
+        body=json.loads(raw or b"{}")
+    except Exception:
+        body={}
+    authenticated_validation=status in (400,422)
+    return {
+        "header":header_name,
+        "http_status":status,
+        "authenticated_validation_reached":authenticated_validation,
+        "response_json":isinstance(body,dict),
+        "mutation_performed":False,
+    }
 
 def credential_match(raw_credential: str):
     if not raw_credential:
@@ -191,8 +221,10 @@ def main():
         print("::add-mask::"+ACCOUNT_KEY)
     if BEARER:
         print("::add-mask::"+BEARER)
-    if CONTROL:
-        print("::add-mask::"+CONTROL)
+    if MUSITU_CONTROL:
+        print("::add-mask::"+MUSITU_CONTROL)
+    if LEGACY_CONTROL:
+        print("::add-mask::"+LEGACY_CONTROL)
 
     hs,raw=call(
         MCP_BASE+"/health",
@@ -212,6 +244,14 @@ def main():
     )
     if len(counts)!=1:
         raise RuntimeError("non-fixture identity inventory query failed")
+
+    successor_admin_probe=probe_admin_control(MUSITU_CONTROL,"x-musitu-control")
+    legacy_admin_probe=probe_admin_control(LEGACY_CONTROL,"x-mft-control")
+    supported_admin_probe=None
+    if (successor_admin_probe or {}).get("authenticated_validation_reached"):
+        supported_admin_probe=successor_admin_probe
+    elif (legacy_admin_probe or {}).get("authenticated_validation_reached"):
+        supported_admin_probe=legacy_admin_probe
 
     account_match=credential_match(ACCOUNT_KEY)
     bearer_match=credential_match(BEARER)
@@ -241,7 +281,13 @@ def main():
         "active_non_fixture_api_key_count":int(counts[0].get("api_keys") or 0),
         "dedicated_account_key_secret_present":bool(ACCOUNT_KEY),
         "dedicated_bearer_secret_present":bool(BEARER),
-        "admin_control_secret_present":bool(CONTROL),
+        "successor_admin_control_secret_present":bool(MUSITU_CONTROL),
+        "legacy_admin_control_secret_present":bool(LEGACY_CONTROL),
+        "admin_control_secret_present":bool(MUSITU_CONTROL or LEGACY_CONTROL),
+        "successor_admin_control_probe":successor_admin_probe,
+        "legacy_admin_control_probe":legacy_admin_probe,
+        "supported_admin_provisioning_validation_reached":supported_admin_probe is not None,
+        "supported_admin_control_header":supported_admin_probe.get("header") if supported_admin_probe else None,
         "dedicated_account_key_matches_active_non_fixture_identity":bool((account_match or {}).get("active_non_fixture")),
         "dedicated_bearer_matches_active_non_fixture_identity":bool((bearer_match or {}).get("active_non_fixture")),
         "selected_credential_kind":selected_kind,
@@ -272,7 +318,11 @@ def main():
         "active_non_fixture_api_key_count":evidence["active_non_fixture_api_key_count"],
         "dedicated_account_key_secret_present":evidence["dedicated_account_key_secret_present"],
         "dedicated_bearer_secret_present":evidence["dedicated_bearer_secret_present"],
+        "successor_admin_control_secret_present":evidence["successor_admin_control_secret_present"],
+        "legacy_admin_control_secret_present":evidence["legacy_admin_control_secret_present"],
         "admin_control_secret_present":evidence["admin_control_secret_present"],
+        "supported_admin_provisioning_validation_reached":evidence["supported_admin_provisioning_validation_reached"],
+        "supported_admin_control_header":evidence["supported_admin_control_header"],
         "live_identity_proof_executed":live_proof is not None,
         "non_fixture_identity_control_ready":ready,
         "identity_records_created_or_modified":False,
