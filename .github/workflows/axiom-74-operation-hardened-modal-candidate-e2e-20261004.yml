@@ -1,0 +1,170 @@
+name: Axiom 74-Operation Hardened Modal Candidate E2E 20261004
+on:
+  push:
+    branches: [fix/axiom-74-operation-hardening-20261004]
+    paths: ['.github/workflows/axiom-74-operation-hardened-modal-candidate-e2e-20261004.yml']
+permissions:
+  contents: read
+jobs:
+  e2e:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    env:
+      MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID }}
+      MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET }}
+      CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+      CANDIDATE_APP: musitu-axiom-v3-all74-candidate-20261004
+      PATCH_ID: MFT-AXIOM-ALL74-HARDENED-20261004
+      HARDENED_SHA256: 3290448414f8e812faef60a67c71a62655382183c940154aaacfe75060ac422b
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.13'}
+      - name: Reconstruct hardened runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          P=deploy_payload/runtime_min
+          cat "$P/chunk_00.b64" "$P/chunk_01_02.b64" "$P/chunk_03_04.b64" "$P/chunk_05_06.b64" "$P/chunk_07_08.b64" "$P/chunk_09.b64" > runtime.enc.b64
+          base64 -d runtime.enc.b64 > runtime.tar.gz.enc
+          test "$(sha256sum runtime.tar.gz.enc | awk '{print $1}')" = 'b82448d6b4b34b302748815af976b535d69922c197d4b7a9056fc2f91a9e12cf'
+          python - <<'PY'
+          import hashlib,hmac,os
+          b=open('runtime.tar.gz.enc','rb').read()
+          got=hmac.new(os.environ['CLOUDFLARE_GLOBAL_API_KEY'].encode(),b,hashlib.sha256).hexdigest()
+          if not hmac.compare_digest(got,'1a3193d4f3271d61d151e6ebd7cf4576d8ab86c2e79b84eff4ad0f635fe7ab47'):raise SystemExit('HMAC mismatch')
+          PY
+          openssl enc -d -aes-256-cbc -pbkdf2 -iter 250000 -in runtime.tar.gz.enc -out runtime.tar.gz -pass env:CLOUDFLARE_GLOBAL_API_KEY
+          test "$(sha256sum runtime.tar.gz | awk '{print $1}')" = 'b4d5a0266446523969a619f5e9bb5a04d9b815c78a2ab82ed046ef5e23d53663'
+          mkdir runtime && tar -xzf runtime.tar.gz -C runtime
+          test "$(sha256sum runtime/kernel/app/main.py | awk '{print $1}')" = '9389e4a501cd2385afe3820da685e97790e723da3bc5871a6dc2565b19f8fa3f'
+          python frontier_v5/scripts/patch_quadratic_constraints_runtime.py runtime/kernel/app/main.py
+          test "$(sha256sum runtime/kernel/app/main.py | awk '{print $1}')" = 'cfa39f0f17c56a183c5024a600086aba4644ec925343129245a62e18294f7c47'
+          python frontier_v5/scripts/patch_all_74_hardening_runtime.py runtime/kernel/app/main.py
+          test "$(sha256sum runtime/kernel/app/main.py | awk '{print $1}')" = "$HARDENED_SHA256"
+      - name: Install Modal
+        run: |
+          python -m pip install --disable-pip-version-check --quiet 'modal>=1.5,<2'
+          modal app list --json >/dev/null
+      - name: Build private candidate wrapper
+        shell: bash
+        run: |
+          python - <<'PY'
+          import os,pathlib
+          s=r'''import importlib,sys,modal
+          APP_NAME=__APP__
+          PATCH_ID=__PATCH__
+          SHA=__SHA__
+          roots=["fastapi==0.128.2","uvicorn[standard]==0.38.0","sympy==1.14.0","numpy==2.3.5","scipy==1.17.0","mpmath==1.3.0","duckdb==1.5.5","pyarrow==25.0.1","Pint==0.25.3","cvxpy==1.9.2","highspy==1.15.1","QuantLib==1.43","python-flint==0.9.0","z3-solver==5.1.0.0"]
+          image=(modal.Image.debian_slim(python_version="3.13").pip_install(*roots).add_local_dir("runtime/kernel","/opt/axiom/kernel",copy=True))
+          app=modal.App(APP_NAME,include_source=True)
+          @app.function(image=image,name="axiom_kernel",min_containers=0,max_containers=10,scaledown_window=300,timeout=300)
+          @modal.asgi_app(requires_proxy_auth=True)
+          def axiom_kernel():
+              sys.path.insert(0,"/opt/axiom/kernel")
+              from app.main import app as kernel_app
+              return kernel_app
+          @app.function(image=image,name="runtime_probe",min_containers=0,max_containers=1,scaledown_window=30,timeout=120)
+          def runtime_probe():
+              sys.path.insert(0,"/opt/axiom/kernel")
+              m=importlib.import_module("app.main")
+              return {"runtime_patch":PATCH_ID,"main_sha256":SHA,"operation_count":len(m.V3_OPERATIONS)}
+          '''
+          s=s.replace('__APP__',repr(os.environ['CANDIDATE_APP'])).replace('__PATCH__',repr(os.environ['PATCH_ID'])).replace('__SHA__',repr(os.environ['HARDENED_SHA256']))
+          pathlib.Path('modal_candidate.py').write_text(s)
+          PY
+          python -m py_compile modal_candidate.py
+      - name: Deploy candidate
+        run: |
+          modal deploy modal_candidate.py --name "$CANDIDATE_APP" --strategy recreate --tag "$PATCH_ID" >/tmp/deploy.log 2>&1 || { tail -160 /tmp/deploy.log; exit 1; }
+          python - <<'PY'
+          import modal,os,json
+          r=modal.Function.from_name(os.environ['CANDIDATE_APP'],'runtime_probe').remote()
+          print('CANDIDATE_PROBE='+json.dumps(r,sort_keys=True))
+          if r.get('runtime_patch')!=os.environ['PATCH_ID'] or r.get('main_sha256')!=os.environ['HARDENED_SHA256'] or r.get('operation_count')!=74:raise SystemExit('candidate probe mismatch')
+          u=modal.Function.from_name(os.environ['CANDIDATE_APP'],'axiom_kernel').get_web_url()
+          if not u:raise SystemExit('candidate URL unavailable')
+          open('/tmp/url','w').write(u)
+          PY
+          modal workspace proxy-tokens create --json >/tmp/proxy.json
+          python - <<'PY'
+          import json,pathlib
+          vals=[]
+          def walk(x):
+              if isinstance(x,dict):
+                  for v in x.values():walk(v)
+              elif isinstance(x,list):
+                  for v in x:walk(v)
+              elif isinstance(x,str): vals.append(x)
+          walk(json.load(open('/tmp/proxy.json')))
+          ks=[x for x in vals if x.startswith('wk-')];ss=[x for x in vals if x.startswith('ws-')]
+          if len(ks)!=1 or len(ss)!=1:raise SystemExit('proxy token shape')
+          pathlib.Path('/tmp/key').write_text(ks[0]);pathlib.Path('/tmp/secret').write_text(ss[0])
+          PY
+          echo "::add-mask::$(cat /tmp/key)"
+          echo "::add-mask::$(cat /tmp/secret)"
+      - name: Exercise all 74 over HTTPS and fail-closed probes
+        shell: bash
+        run: |
+          python - <<'PY'
+          import copy,json,pathlib,time,urllib.request,urllib.error
+          base=pathlib.Path('/tmp/url').read_text().strip().rstrip('/')
+          h={'Modal-Key':pathlib.Path('/tmp/key').read_text(),'Modal-Secret':pathlib.Path('/tmp/secret').read_text(),'content-type':'application/json','accept':'application/json'}
+          def request(op,args,verify=True):
+              data=json.dumps({'operation':op,'args':args,'verify':verify}).encode()
+              q=urllib.request.Request(base+'/v1/compute',data=data,headers=h,method='POST')
+              try:
+                  with urllib.request.urlopen(q,timeout=120) as r:return r.status,json.loads(r.read() or b'{}')
+              except urllib.error.HTTPError as e:
+                  try:o=json.loads(e.read() or b'{}')
+                  except:o={}
+                  return e.code,o
+          # readiness
+          for _ in range(60):
+              q=urllib.request.Request(base+'/health',headers={k:v for k,v in h.items() if k!='content-type'},method='GET')
+              try:
+                  with urllib.request.urlopen(q,timeout=30) as r:
+                      if r.status==200:break
+              except Exception:pass
+              time.sleep(2)
+          else:raise SystemExit('candidate readiness timeout')
+          fx=json.load(open('submission/claude/operation-fixtures.json'))['fixtures']
+          failures={}
+          for op,args in fx.items():
+              code,o=request(op,args,True)
+              if code!=200 or o.get('ok') is not True or o.get('operation')!=op:
+                  failures[op]=['canonical',code,o]
+          if failures:raise SystemExit('canonical HTTPS failures '+json.dumps(failures,sort_keys=True)[:7000])
+          unknown=[]
+          for op,args in fx.items():
+              bad=copy.deepcopy(args);bad['__unknown_https_probe__']=1
+              code,o=request(op,bad,True)
+              if code!=422:unknown.append([op,code,o])
+          if unknown:raise SystemExit('unknown-key HTTP failures '+json.dumps(unknown)[:7000])
+          # Known serialization regressions.
+          code,sol=request('algebra.solve',{'equations':['x+y-3','x-y-1'],'symbols':['x','y']})
+          if code!=200 or not any(z.get('x')=='2' and z.get('y')=='1' for z in sol.get('result',[])):raise SystemExit('algebra.solve transport regression '+repr((code,sol))[:2500])
+          code,eig=request('linear.eigen',{'A':[[0,-1],[1,0]]})
+          if code!=200:raise SystemExit('complex eigen transport regression '+repr((code,eig))[:2500])
+          # Invalid domains should be 422, never 500.
+          bads=[
+            ('statistics.correlation',{'x':[1,1,1],'y':[1,2,3]}),
+            ('probability.normal_cdf',{'x':0,'sigma':0}),
+            ('finance.greeks',{'S':100,'K':100,'T':1,'r':.05,'sigma':.2,'kind':'typo'}),
+            ('finance.var_parametric',{'returns':[.1],'alpha':.95}),
+            ('finance.beta',{'asset_returns':[.1,.2,.3],'market_returns':[.2,.2,.2]}),
+            ('finance.drawdown',{'values':[0,1,2]}),
+            ('finance.monte_carlo_gbm',{'S0':100,'mu':.05,'sigma':.2,'T':1,'steps':0,'paths':10}),
+            ('geometry.area_circle',{'radius':-1}),
+            ('numeric.interpolate',{'x':[0,2,1],'y':[0,4,1],'at':[1.5]}),
+          ]
+          for op,args in bads:
+              code,o=request(op,args,True)
+              if code!=422:raise SystemExit(f'{op} invalid-domain HTTP={code} '+repr(o)[:1500])
+          # Verify flag is wired.
+          code,o=request('linear.solve',{'A':[[2,1],[1,3]],'b':[3,4]},True)
+          if code!=200 or not isinstance(o.get('verified'),dict) or o['verified'].get('verified') is not True:raise SystemExit('verify=true not wired over HTTPS')
+          code,o=request('linear.solve',{'A':[[2,1],[1,3]],'b':[3,4]},False)
+          if code!=200 or not isinstance(o.get('verified'),dict) or o['verified'].get('method')!='disabled':raise SystemExit('verify=false contract failure')
+          print(json.dumps({'gate':'MUSITU_AXIOM_ALL74_HARDENED_MODAL_E2E_PASS','canonical_pass':74,'unknown_key_rejection_pass':74,'invalid_domain_422_pass':len(bads),'serialization_regressions_pass':2,'verify_flag_pass':True},sort_keys=True))
+          PY
