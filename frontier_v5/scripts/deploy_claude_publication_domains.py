@@ -282,6 +282,26 @@ def cleanup_created_publication_surface(
         raise RuntimeError("Claude publication rollback incomplete: " + "; ".join(errors))
 
 
+def _probe_failure_detail(probe) -> str:
+    if not probe:
+        return "no_response"
+    try:
+        code, headers, payload, data = probe
+    except Exception:
+        return "unreadable_probe"
+    get = headers.get if hasattr(headers, "get") else (lambda *_: None)
+    content_type = str(get("content-type") or get("Content-Type") or "")
+    mitigated = str(get("cf-mitigated") or get("CF-Mitigated") or "")
+    server = str(get("server") or get("Server") or "")
+    location = str(get("location") or get("Location") or "")
+    body = bytes(data or b"")[:240].decode("utf-8", "replace").replace("\n", " ")
+    # Health bodies contain no credentials; keep this bounded for diagnosis.
+    return (
+        f"http={code} content_type={content_type!r} cf_mitigated={mitigated!r} "
+        f"server={server!r} location={location!r} body_prefix={body!r}"
+    )
+
+
 def _verify_publication_surface() -> dict:
     ah, _, auth_health, _ = parse_json_response(PUBLIC_AUTH_URL + "/health")
     if ah != 200 or auth_health.get("ok") is not True:
@@ -467,11 +487,14 @@ def main() -> int:
             and payload.get("ok") is True
             and payload.get("issuer") == PUBLIC_AUTH_URL
             and payload.get("resource") == PUBLIC_MCP_RESOURCE,
-            attempts=60,
+            attempts=180,
             delay=2.0,
         )
         if not auth_probe or auth_probe[0] != 200:
-            raise RuntimeError("Claude publication auth custom domain did not become healthy")
+            raise RuntimeError(
+                "Claude publication auth custom domain did not become healthy: "
+                + _probe_failure_detail(auth_probe)
+            )
 
         mcp_probe = wait_json(
             PUBLIC_MCP_URL + "/health",
@@ -479,11 +502,14 @@ def main() -> int:
             and payload.get("ok") is True
             and payload.get("auth_issuer") == PUBLIC_AUTH_URL
             and payload.get("resource") == PUBLIC_MCP_RESOURCE,
-            attempts=60,
+            attempts=180,
             delay=2.0,
         )
         if not mcp_probe or mcp_probe[0] != 200:
-            raise RuntimeError("Claude publication MCP custom domain did not become healthy")
+            raise RuntimeError(
+                "Claude publication MCP custom domain did not become healthy: "
+                + _probe_failure_detail(mcp_probe)
+            )
 
         publication = _verify_publication_surface()
 
