@@ -22,7 +22,7 @@ Submission type: **Remote MCP server**.
 - Commerce tools exposed: **No**
 - All exposed tools have titles, schemas and read-only/non-destructive annotations.
 - Canonical server functional preflight: **74/74 PASS**
-- Official MCP Inspector full-surface test: **pending current CI**
+- Official MCP Inspector full-surface test: **108/108 PASS** (run `37174144402`)
 - Real Claude custom-connector test: **pending**
 
 ## 4. Listing
@@ -75,7 +75,7 @@ The connector reads user-supplied analytical inputs. It does **not** write to ex
 - Dedicated reviewer credential: **SECURE PORTAL ENTRY ONLY — never commit**
 - 74/74 certified operations: **PASS**
 - OpenAI frozen surface: **reverified unchanged**
-- Official MCP Inspector: **pending current CI**
+- Official MCP Inspector: **108/108 PASS** (run `37174144402`)
 - Real Claude-origin OAuth/tool call: **pending**
 
 ## 10. Compliance
@@ -95,7 +95,7 @@ Do **not** press Submit until:
 3. a public support contact is designated;
 4. a dedicated reviewer credential is provisioned securely;
 5. Team/Enterprise Directory-management access is available;
-6. official MCP Inspector full-surface preflight is green.
+6. official MCP Inspector full-surface preflight is green — **completed: 108/108 PASS**.
 
 Official current requirements:
 - https://claude.com/docs/connectors/building/submission
