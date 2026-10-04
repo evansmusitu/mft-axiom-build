@@ -48,3 +48,5 @@ jobs:
 # rollback-verification trigger after scoped-rule credential failure
 
 # final rollback verification after ruleset-permission blocker
+
+# verify rollback after authorized one-shot publication attempt
