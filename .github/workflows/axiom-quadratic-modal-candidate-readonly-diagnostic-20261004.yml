@@ -1,0 +1,85 @@
+name: Axiom Quadratic Modal Candidate Read-Only Diagnostic 20261004
+on:
+  push:
+    branches: [fix/axiom-quadratic-constraints-20261004]
+    paths: ['.github/workflows/axiom-quadratic-modal-candidate-readonly-diagnostic-20261004.yml']
+permissions:
+  contents: read
+jobs:
+  diagnose:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID }}
+      MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET }}
+      CANDIDATE_APP: musitu-axiom-v3-qp-candidate-20261004
+    steps:
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.13'}
+      - name: Install Modal and probe candidate function directly
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --disable-pip-version-check --quiet 'modal>=1.5,<2'
+          modal app list --json >/dev/null
+          python - <<'PY'
+          import json,modal,os
+          f=modal.Function.from_name(os.environ['CANDIDATE_APP'],'runtime_probe')
+          r=f.remote()
+          safe={k:r.get(k) for k in ('build_id','runtime_patch','main_sha256','routes') if isinstance(r,dict)}
+          print('CANDIDATE_RUNTIME_PROBE='+json.dumps(safe,sort_keys=True))
+          PY
+      - name: Probe candidate public ASGI paths with fresh proxy token
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY' > /tmp/candidate-url
+          import modal,os
+          f=modal.Function.from_name(os.environ['CANDIDATE_APP'],'axiom_kernel')
+          u=f.get_web_url()
+          if not u:raise SystemExit('candidate URL unavailable')
+          print(u)
+          PY
+          modal workspace proxy-tokens create --json >/tmp/proxy.json
+          python - <<'PY'
+          import json,pathlib
+          vals=[]
+          def walk(x):
+              if isinstance(x,dict):
+                  for v in x.values():walk(v)
+              elif isinstance(x,list):
+                  for v in x:walk(v)
+              elif isinstance(x,str):vals.append(x)
+          walk(json.load(open('/tmp/proxy.json')))
+          ks=[x for x in vals if x.startswith('wk-')]; ss=[x for x in vals if x.startswith('ws-')]
+          if len(ks)!=1 or len(ss)!=1:raise SystemExit('proxy token shape')
+          pathlib.Path('/tmp/modal-key').write_text(ks[0]);pathlib.Path('/tmp/modal-secret').write_text(ss[0])
+          PY
+          echo "::add-mask::$(cat /tmp/modal-key)"; echo "::add-mask::$(cat /tmp/modal-secret)"
+          python - <<'PY'
+          import json,pathlib,urllib.request,urllib.error,time
+          base=pathlib.Path('/tmp/candidate-url').read_text().strip().rstrip('/')
+          h={'Modal-Key':pathlib.Path('/tmp/modal-key').read_text(),'Modal-Secret':pathlib.Path('/tmp/modal-secret').read_text(),'accept':'application/json'}
+          portfolio={'Q':[[0.04,0.006,0.012,0],[0.006,0.09,0.018,0.009],[0.012,0.018,0.16,0.03],[0,0.009,0.03,0.0625]],'c':[0,0,0,0],'A_eq':[[1,1,1,1],[0.06,0.09,0.14,0.07]],'b_eq':[1,0.09],'bounds':[[0,1],[0,1],[0,1],[0,1]]}
+          cases=[
+            ('health','GET','/health',None),
+            ('tools','GET','/v3/tools',None),
+            ('arithmetic','POST','/v1/compute',{'operation':'arithmetic.evaluate','args':{'expression':'40+2'},'verify':True}),
+            ('qp','POST','/v1/compute',{'operation':'optimization.quadratic','args':portfolio,'verify':True}),
+          ]
+          for name,method,path,obj in cases:
+              hh=dict(h); data=None
+              if obj is not None:
+                  hh['content-type']='application/json';data=json.dumps(obj).encode()
+              req=urllib.request.Request(base+path,data=data,headers=hh,method=method)
+              try:
+                  with urllib.request.urlopen(req,timeout=120) as r:
+                      body=r.read().decode('utf-8','replace');code=r.status;headers=dict(r.headers)
+              except urllib.error.HTTPError as e:
+                  body=e.read().decode('utf-8','replace');code=e.code;headers=dict(e.headers)
+              safe_body=body[:1800]
+              print('HTTP_PROBE='+json.dumps({'name':name,'code':code,'content_type':headers.get('Content-Type') or headers.get('content-type'),'body':safe_body},sort_keys=True))
+          PY
+      - name: Show Modal logs command contract only
+        shell: bash
+        run: modal app logs --help | head -120 || true
