@@ -1,0 +1,206 @@
+{
+  "schema": "musitu.axiom.quadratic_constraints_core_fix.v1",
+  "date_utc": "2026-10-04",
+  "authorization": {
+    "scope": "shared Axiom core optimization.quadratic behavior change",
+    "explicitly_authorized_by_user": true,
+    "authorized_changes": [
+      "equality constraints",
+      "inequality constraints",
+      "box bounds",
+      "strict schema validation",
+      "unknown arguments fail closed",
+      "post-solve residual/KKT verification",
+      "permanent exact portfolio regression"
+    ],
+    "unrelated_surfaces_not_authorized": true
+  },
+  "defect": {
+    "reproduced_live_pre_fix": true,
+    "pre_fix_result": {
+      "x": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "fun": 0,
+      "success": true
+    },
+    "root_cause": "optimization.quadratic used unconstrained scipy.optimize.minimize(..., method='BFGS') and consumed only Q,c,x0; constraint keys were silently ignored",
+    "pre_fix_runtime_main_sha256": "9389e4a501cd2385afe3820da685e97790e723da3bc5871a6dc2565b19f8fa3f",
+    "source_inspection_run": 37214701921,
+    "source_inspection_job": 111472738758
+  },
+  "tdd": {
+    "red": {
+      "run": 37215340109,
+      "job": 111474583890,
+      "expected_failure_observed": true,
+      "decisive_failure": "AssertionError on zero-vector result for exact constrained portfolio"
+    },
+    "green": {
+      "run": 37215625267,
+      "job": 111475416518,
+      "regression_passed": true,
+      "all_74_operation_fixture_smoke_passed": true,
+      "patch_before_sha256": "9389e4a501cd2385afe3820da685e97790e723da3bc5871a6dc2565b19f8fa3f",
+      "patch_after_sha256": "cfa39f0f17c56a183c5024a600086aba4644ec925343129245a62e18294f7c47"
+    }
+  },
+  "implementation": {
+    "solver": "SciPy SLSQP",
+    "canonical_supported_keys": [
+      "Q",
+      "c",
+      "x0",
+      "A_eq",
+      "b_eq",
+      "A_ub",
+      "b_ub",
+      "bounds"
+    ],
+    "unsupported_aliases_fail_closed": [
+      "Aeq",
+      "beq",
+      "lb",
+      "ub"
+    ],
+    "validation": [
+      "Q required, square, finite, symmetric",
+      "c dimension and finiteness",
+      "x0 dimension and finiteness",
+      "A_eq/b_eq paired and dimension checked",
+      "A_ub/b_ub paired and dimension checked",
+      "bounds cardinality/order/finiteness checked",
+      "unknown argument rejection"
+    ],
+    "verification_method": "constraint-and-stationarity-residual",
+    "verification_metrics": [
+      "equality_residual",
+      "inequality_violation",
+      "bounds_violation",
+      "stationarity_residual",
+      "dual_violation",
+      "complementarity_residual"
+    ],
+    "solver_success_is_fail_closed_on_verification_failure": true,
+    "permanent_regression_script": "frontier_v5/scripts/verify_quadratic_constraints_runtime.py",
+    "deterministic_patcher": "frontier_v5/scripts/patch_quadratic_constraints_runtime.py"
+  },
+  "deployment": {
+    "live_modal_app": "musitu-axiom-v3-modal-staging",
+    "live_modal_url": "https://evansmusitu--musitu-axiom-v3-modal-staging-axiom-kernel.modal.run",
+    "runtime_patch_id": "MFT-AXIOM-QP-CONSTRAINED-20261004",
+    "patched_main_sha256": "cfa39f0f17c56a183c5024a600086aba4644ec925343129245a62e18294f7c47",
+    "rollout_run": 37216430095,
+    "rollout_job": 111477764769,
+    "candidate_step_passed": true,
+    "live_deploy_and_direct_verify_step_passed": true,
+    "candidate_result": {
+      "x": [
+        0.3041873734721165,
+        0.25477423525473725,
+        0.25637698613752014,
+        0.18466140513562626
+      ],
+      "fun": 0.015515771304726308,
+      "unknown_args_rejected": true
+    },
+    "live_direct_result": {
+      "x": [
+        0.3041873734721162,
+        0.25477423525473725,
+        0.2563769861375202,
+        0.18466140513562634
+      ],
+      "fun": 0.015515771304726308,
+      "unknown_args_rejected": true
+    },
+    "synthetic_workers_dev_probe": {
+      "passed": false,
+      "http_status": 403,
+      "authoritative_for_compute_correctness": false,
+      "note": "temporary workers.dev probe surface was access-blocked; production live direct verification had already passed"
+    },
+    "postdeploy_readonly_attestation": {
+      "run": 37216673445,
+      "job": 111478479809,
+      "passed": true,
+      "live_patch_marker_passed": true,
+      "live_kernel_digest_passed": true,
+      "shared_core_binding_chain_passed": true,
+      "protected_repo_invariants_passed": true
+    }
+  },
+  "connected_axiom_postdeploy_proof": {
+    "exact_portfolio": {
+      "passed": true,
+      "x": [
+        0.3041873734721162,
+        0.25477423525473725,
+        0.2563769861375202,
+        0.18466140513562634
+      ],
+      "fun": 0.015515771304726308,
+      "success": true,
+      "verification": {
+        "verified": true,
+        "method": "constraint-and-stationarity-residual",
+        "equality_residual": 0,
+        "inequality_violation": 0,
+        "bounds_violation": 0,
+        "stationarity_residual": 6.004796118674882e-9,
+        "dual_violation": 0,
+        "complementarity_residual": 0
+      }
+    },
+    "unsupported_aliases": {
+      "rejected": true,
+      "transport_error": "HTTP 422 surfaced through MCP INVALID_ARGUMENT"
+    },
+    "box_bounds": {
+      "passed": true,
+      "x": [
+        1
+      ],
+      "fun": -3,
+      "verification_verified": true
+    },
+    "inequality_constraints": {
+      "passed": true,
+      "x": [
+        1.000000000000001
+      ],
+      "fun": 1.0000000000000022,
+      "verification_verified": true,
+      "stationarity_residual": 8.881784197001252e-16,
+      "complementarity_residual": 2.2204460492503147e-15
+    },
+    "arithmetic_regression": {
+      "passed": true,
+      "result": "42.000000000000000000000000000000000000000000000000"
+    },
+    "npv_regression": {
+      "passed": true,
+      "result": 117570.23440753826
+    }
+  },
+  "protected_invariants": {
+    "main_sha": "d6a846f6bbe0bccac1758713eb4de167caf07113",
+    "pr1_state": "open",
+    "pr1_draft": true,
+    "pr1_merged": false,
+    "frozen_openai_auth_blob": "8ba0dbc1b6dd1533c6c26bff23991429e03a71a5",
+    "frozen_openai_mcp_blob": "4a1ad37a5e7df0e4d3966e8b5f9f0e8f2db69167",
+    "dns_changed": false,
+    "oauth_source_changed": false,
+    "openai_gateway_source_changed": false
+  },
+  "truth_boundary": {
+    "core_fix_deployed": true,
+    "constrained_quadratic_live_verified": true,
+    "claude_origin_verified": false,
+    "note": "Claude-origin certification remains a separate gate and must be rerun/sealed after this shared-core change."
+  }
+}
