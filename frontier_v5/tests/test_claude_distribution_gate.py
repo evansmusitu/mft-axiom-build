@@ -18,7 +18,7 @@ def make_repo(tmp_path: Path, *, status="blocked_pending_isolated_endpoint_deplo
     (tmp_path / "frontier_v5/distribution/providers/claude.json").write_text(json.dumps({
         "provider_id":"claude","display_name":"Claude","distribution_mode":"single_remote_mcp",
         "mcp":{"canonical_upstream":"https://mcp.mftintelligence.com/mcp","submission_url":"https://claude-mcp.mftintelligence.com/mcp"},
-        "oauth":{"registration":"dcr_or_published_identity","pkce":"S256","callback_uris":["https://claude.ai/api/mcp/auth_callback","https://claude.com/api/mcp/auth_callback"]},
+        "oauth":{"registration":"dcr_or_published_identity","pkce":"S256","callback_uris":["https://claude.ai/api/mcp/auth_callback"]},
         "submission":{"status":status,"portal_requires_paid_plan":True,"route":"developer_portal_single_remote_mcp"}
     }))
     (tmp_path / "frontier_v5/distribution/claude/musitu_axiom_oauth_worker_claude_candidate.mjs").write_text(
