@@ -20,10 +20,11 @@
     "status": "blocked_pending_real_claude_origin_validation",
     "route": "developer_portal_single_remote_mcp",
     "live_endpoint_verified": true,
-    "live_endpoint_evidence_run": 37169862332,
+    "live_endpoint_evidence_run": 37173130982,
     "server_oauth_e2e_verified": true,
-    "server_oauth_e2e_run": 37170153704,
+    "server_oauth_e2e_run": 37173358086,
     "portal_requires_paid_plan": true,
-    "team_enterprise_org_connector_admin_controls": true
+    "team_enterprise_org_connector_admin_controls": true,
+    "all_74_operations_server_preflight": true
   }
 }
