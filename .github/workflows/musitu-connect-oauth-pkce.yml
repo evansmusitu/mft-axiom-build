@@ -6,6 +6,9 @@ on:
     branches: ['feat/musitu-connect-frontier']
     paths:
       - 'qualification/oauth_pkce_qualification.py'
+      - 'qualification/evidence/musitu_axiom_oauth_production_e2e_2026-09-05.json'
+      - 'qualification/evidence/musitu_axiom_oauth_production_e2e_2026-09-05.sha256'
+      - 'auth/musitu_axiom_oauth_worker.mjs'
       - '.github/workflows/musitu-connect-oauth-pkce.yml'
 
 permissions:
@@ -27,6 +30,8 @@ jobs:
       MCP_BASE: https://mcp.mftintelligence.com
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
