@@ -68,7 +68,7 @@ jobs:
             'finance.compound','finance.bond_price','finance.duration',
             'finance.portfolio_metrics','finance.drawdown','geometry.distance',
             'knowledge.constant','knowledge.element','algebra.polynomial_roots',
-            'verify.evaluate','verify.crosscheck'
+            'verify.evaluate','verify.crosscheck','optimization.quadratic'
           }
           hits=[]
           for p in root.rglob('*.py'):
@@ -94,3 +94,5 @@ jobs:
           sed -n '145,245p' /tmp/axiom-runtime/kernel/app/main.py
           echo '=== AXIOM DISPATCH CONTRACT LINES 311-390 ==='
           sed -n '311,390p' /tmp/axiom-runtime/kernel/app/main.py
+          echo '=== OPTIMIZATION.QUADRATIC SOURCE CONTEXT ==='
+          grep -R -n -C 35 --include='*.py' 'optimization.quadratic' /tmp/axiom-runtime || true
