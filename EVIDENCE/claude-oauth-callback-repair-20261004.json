@@ -1,0 +1,33 @@
+{
+  "schema": "musitu.axiom.claude_callback_content_repair.v1",
+  "timestamp_utc": "2026-10-04T09:24:20.255585+00:00",
+  "source_commit": "acbfcdc4358ca77724a449649ac2d18d92e4ddd2",
+  "source_branch": "distribution/claude-remote-mcp-20261004",
+  "github_actions_run": "37192021652",
+  "worker_updated": "musitu-axiom-claude-auth-publication",
+  "source_before_sha256": "a439da1bf26eb3ab1b2c28b8a33756d65cb23021c4a60650c3d17c36539612c2",
+  "source_after_sha256": "6b0ca0170008730275ead8c10bbe07b4f989535776f48ff6ed48aa9565327583",
+  "callback_response_http": 200,
+  "strict_form_csp_preserved": true,
+  "worker_settings_unchanged": true,
+  "testing_workers_unchanged": true,
+  "dns_write_performed": false,
+  "security_policy_write_performed": false,
+  "openai_surface_unchanged": true,
+  "openai_surface_sha256": "1515ae38afc222de1d29e9dbfc49830aa22ca6350bf94d84d8e506239fe7d29d",
+  "tool_count": 108,
+  "operation_count": 74,
+  "business_product_count": 30,
+  "claude_origin_verified": false,
+  "observed_real_browser_error": "Authorization session expired or invalid.",
+  "diagnosis_status": "source_defect_verified_real_origin_retest_pending",
+  "publication_run": 37187577016,
+  "publication_runtime_evidence_sha256": "7e369bf7d900afd98b607c029836bfebb5afc139cacb1d0dbed87489114a627c",
+  "claude_oauth_completed": false,
+  "authenticated_tool_call_passed": false,
+  "notes": [
+    "The deployment verification does not establish real Claude-origin OAuth or authenticated execution.",
+    "Existing push triggers also ran candidate deployment 37191885766 and disposable fixture run 37191885825. Candidate deployment passed with unchanged frozen OpenAI digest. Automatic triggers were then removed; fixture cleanup is being checked.",
+    "testing_workers_unchanged describes the content-only publication repair, not the earlier automatically triggered candidate deployment."
+  ]
+}
