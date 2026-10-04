@@ -414,7 +414,6 @@ def main() -> int:
         raise RuntimeError("frozen OpenAI MCP v4 source drifted")
 
     headers = cloudflare_headers()
-    rules_headers = _ruleset_headers()
     zone = _zone(headers)
     zone_id = str(zone["id"])
 
@@ -430,15 +429,6 @@ def main() -> int:
 
     _assert_domain_available(headers, zone_id, PUBLIC_AUTH_HOST, PUBLIC_AUTH_WORKER)
     _assert_domain_available(headers, zone_id, PUBLIC_MCP_HOST, PUBLIC_MCP_WORKER)
-    auth_ruleset_id = _assert_machine_rule_available(
-        rules_headers, zone_id, PUBLIC_AUTH_HOST, AUTH_RULE_REF
-    )
-    mcp_ruleset_id = _assert_machine_rule_available(
-        rules_headers, zone_id, PUBLIC_MCP_HOST, MCP_RULE_REF
-    )
-    if auth_ruleset_id != mcp_ruleset_id:
-        raise RuntimeError("Claude machine-transport ruleset mismatch")
-
     before = snapshot_openai_surface()
     before_digest = canonical_digest(before)
     created_workers: list[str] = []
@@ -463,19 +453,6 @@ def main() -> int:
         ]
         upload_worker(headers, PUBLIC_MCP_WORKER, MCP_SOURCE.read_bytes(), mcp_bindings)
         created_workers.append(PUBLIC_MCP_WORKER)
-
-        created_rules.append((
-            auth_ruleset_id,
-            _create_machine_rule(
-                rules_headers, zone_id, auth_ruleset_id, PUBLIC_AUTH_HOST, AUTH_RULE_REF
-            ),
-        ))
-        created_rules.append((
-            mcp_ruleset_id,
-            _create_machine_rule(
-                rules_headers, zone_id, mcp_ruleset_id, PUBLIC_MCP_HOST, MCP_RULE_REF
-            ),
-        ))
 
         created_domains.append(
             _attach_domain(headers, zone_id, PUBLIC_AUTH_HOST, PUBLIC_AUTH_WORKER)
@@ -532,18 +509,8 @@ def main() -> int:
             },
             "testing_workers_unchanged": True,
             "machine_transport_rules": {
-                "auth": {
-                    "ref": AUTH_RULE_REF,
-                    "scope": f'http.host eq "{PUBLIC_AUTH_HOST}"',
-                    "security_level": "essentially_off",
-                    "bic": False,
-                },
-                "mcp": {
-                    "ref": MCP_RULE_REF,
-                    "scope": f'http.host eq "{PUBLIC_MCP_HOST}"',
-                    "security_level": "essentially_off",
-                    "bic": False,
-                },
+                "created": False,
+                "reason": "not required; publication hosts must pass direct external health/OAuth verification or rollback"
             },
             "global_security_policy_mutated": False,
             "openai_surface_before_sha256": before_digest,
@@ -576,7 +543,7 @@ def main() -> int:
     except Exception:
         cleanup_created_publication_surface(
             headers,
-            rules_headers,
+            {},
             zone_id,
             created_domains,
             created_rules,
