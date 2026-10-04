@@ -50,3 +50,24 @@ def test_fixture_e2e_executes_all_canonical_operation_fixtures_through_claude_mc
     assert "functional_operation_failures" in src
     assert "for operation, args in sorted(fixtures.items())" in src
     assert '"name": "musitu_axiom_execute"' in src
+
+
+def test_fixture_e2e_runs_official_mcp_inspector_across_all_exposed_tools():
+    src = SCRIPT.read_text(encoding="utf-8")
+    assert "run_mcp_inspector_preflight" in src
+    assert "@modelcontextprotocol/inspector@2.5.0" in src
+    assert "mcp-inspector" in src
+    assert "tempfile.TemporaryDirectory" in src
+    assert "inspector_tool_count" in src
+    assert "inspector_tool_pass_count" in src
+    assert "inspector_tool_failures" in src
+    assert "inspector_tool_count != 108" in src
+    assert "raw_inspector_access_token_published" in src
+    assert '"raw_inspector_access_token_published": False' in src
+
+
+def test_oauth_workflow_pins_supported_node_and_inspector_version():
+    workflow = (ROOT / ".github/workflows/axiom-frontier-v5-claude-oauth-fixture-e2e.yml").read_text(encoding="utf-8")
+    assert "actions/setup-node@v4" in workflow
+    assert 'node-version: "22.19.0"' in workflow
+    assert "@modelcontextprotocol/inspector@2.5.0" in workflow
