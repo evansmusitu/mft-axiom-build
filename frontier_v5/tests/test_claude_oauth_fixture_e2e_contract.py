@@ -71,3 +71,10 @@ def test_oauth_workflow_pins_supported_node_and_inspector_version():
     assert "actions/setup-node@v4" in workflow
     assert 'node-version: "22.19.0"' in workflow
     assert "@modelcontextprotocol/inspector@2.5.0" in workflow
+
+
+def test_fixture_e2e_requires_arithmetic_result_in_text_content_for_claude():
+    src = SCRIPT.read_text(encoding="utf-8")
+    assert "arithmetic_text_42_observed" in src
+    assert "Claude arithmetic result 42 is absent from MCP text content" in src
+    assert '"arithmetic_40_plus_2_text_result_42"' in src

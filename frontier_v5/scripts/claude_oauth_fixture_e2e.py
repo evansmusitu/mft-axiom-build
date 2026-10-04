@@ -506,6 +506,7 @@ def main() -> int:
         functional_operation_failures: dict[str, dict] = {}
         functional_request_ids: list[str] = []
         arithmetic_42_observed = False
+        arithmetic_text_42_observed = False
 
         for operation, args in sorted(fixtures.items()):
             request_id = "MUSITU-CLAUDE-ALL-OPS-" + uuid.uuid4().hex.upper()
@@ -554,6 +555,15 @@ def main() -> int:
                 arithmetic_42_observed = bool(
                     re.search(r"(?<![0-9])42(?:\\.0+)?(?![0-9])", serialized)
                 )
+                text_parts = [
+                    str(item.get("text") or "")
+                    for item in (tool_result.get("content") or [])
+                    if isinstance(item, dict) and item.get("type") == "text"
+                ]
+                arithmetic_text_42_observed = any(
+                    re.search(r"(?<![0-9])42(?:\\.0+)?(?![0-9])", part)
+                    for part in text_parts
+                )
 
         functional_operation_pass_count = len(fixtures) - len(functional_operation_failures)
         if functional_operation_pass_count != 74:
@@ -563,6 +573,8 @@ def main() -> int:
             )
         if not arithmetic_42_observed:
             raise RuntimeError("Claude all-operation preflight did not observe arithmetic result 42")
+        if not arithmetic_text_42_observed:
+            raise RuntimeError("Claude arithmetic result 42 is absent from MCP text content")
 
         usage = d1(
             headers,
@@ -623,6 +635,7 @@ def main() -> int:
             "www_authenticate_resource_metadata": MCP_URL + "/.well-known/oauth-protected-resource",
             "authenticated_axiom_compute_http": 200,
             "arithmetic_40_plus_2_result_42": arithmetic_42_observed,
+            "arithmetic_40_plus_2_text_result_42": arithmetic_text_42_observed,
             "functional_operation_fixture_count": len(fixtures),
             "functional_operation_pass_count": functional_operation_pass_count,
             "functional_operation_failures": functional_operation_failures,
