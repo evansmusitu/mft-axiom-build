@@ -45,17 +45,16 @@ MCP_RULE_REF = "mft_axiom_claude_mcp_machine_transport"
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 
 def _ruleset_headers() -> dict:
-    email = os.environ.get("CLOUDFLARE_EMAIL", "").strip()
-    key = os.environ.get("CLOUDFLARE_GLOBAL_API_KEY", "").strip()
-    if not email or not key:
+    token = os.environ.get("CLOUDFLARE_RULESETS_API_TOKEN", "").strip()
+    if not token:
         raise RuntimeError(
-            "Cloudflare Global API Key headers are required for zone ruleset writes"
+            "CLOUDFLARE_RULESETS_API_TOKEN is required for hostname-scoped "
+            "Cloudflare Configuration Rules writes"
         )
     return {
-        "X-Auth-Email": email,
-        "X-Auth-Key": key,
+        "Authorization": "Bearer " + token,
         "Accept": "application/json",
-        "User-Agent": "MUSITU-Axiom-Claude-Publication-Rules/1.0",
+        "User-Agent": "MUSITU-Axiom-Claude-Publication-Rules/1.1",
     }
 
 
@@ -430,6 +429,7 @@ def main() -> int:
         raise RuntimeError("frozen OpenAI MCP v4 source drifted")
 
     headers = cloudflare_headers()
+    rules_headers = _ruleset_headers()
     zone = _zone(headers)
     zone_id = str(zone["id"])
 
@@ -446,10 +446,10 @@ def main() -> int:
     _assert_domain_available(headers, zone_id, PUBLIC_AUTH_HOST, PUBLIC_AUTH_WORKER)
     _assert_domain_available(headers, zone_id, PUBLIC_MCP_HOST, PUBLIC_MCP_WORKER)
     auth_ruleset_id = _assert_machine_rule_available(
-        headers, zone_id, PUBLIC_AUTH_HOST, AUTH_RULE_REF
+        rules_headers, zone_id, PUBLIC_AUTH_HOST, AUTH_RULE_REF
     )
     mcp_ruleset_id = _assert_machine_rule_available(
-        headers, zone_id, PUBLIC_MCP_HOST, MCP_RULE_REF
+        rules_headers, zone_id, PUBLIC_MCP_HOST, MCP_RULE_REF
     )
     if auth_ruleset_id != mcp_ruleset_id:
         raise RuntimeError("Claude machine-transport ruleset mismatch")
@@ -464,13 +464,13 @@ def main() -> int:
         created_rules.append((
             auth_ruleset_id,
             _create_machine_rule(
-                headers, zone_id, auth_ruleset_id, PUBLIC_AUTH_HOST, AUTH_RULE_REF
+                rules_headers, zone_id, auth_ruleset_id, PUBLIC_AUTH_HOST, AUTH_RULE_REF
             ),
         ))
         created_rules.append((
             mcp_ruleset_id,
             _create_machine_rule(
-                headers, zone_id, mcp_ruleset_id, PUBLIC_MCP_HOST, MCP_RULE_REF
+                rules_headers, zone_id, mcp_ruleset_id, PUBLIC_MCP_HOST, MCP_RULE_REF
             ),
         ))
 
@@ -599,7 +599,7 @@ def main() -> int:
     except Exception:
         cleanup_created_publication_surface(
             headers,
-            headers,
+            rules_headers,
             zone_id,
             created_domains,
             created_rules,
