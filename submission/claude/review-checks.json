@@ -20,10 +20,11 @@
     "openai_surface_unchanged_reverified": true,
     "official_mcp_inspector_full_surface_passed": true,
     "claude_origin_verified": false,
-    "representative_npv_tool_call_passed": false
+    "representative_npv_tool_call_passed": false,
+    "entitlement_correction_passed": true
   },
   "blockers": [
-    "Real Claude execution returned HTTP 402 because the live quota code treats a null override as zero; the guarded single-account 1000-unit developer correction is prepared, not authorized or applied.",
+    "The linked Developer entitlement defect is corrected and verified; the real Claude arithmetic and NPV execution gates must now be rerun.",
     "all real Claude execution gates must pass before READY",
     "signed-in Claude Free account cannot submit; Pro/Max/Team/Enterprise is required",
     "a legitimate public MUSITU support contact has not been designated",
@@ -174,8 +175,23 @@
     "gate_c_passed": false,
     "no_secrets_exposed": true,
     "claude_origin_verified": false,
-    "execution_http_status": 402,
+    "execution_http_status": null,
     "post_test_openai_reverification_run": 37205474595
   },
-  "entitlement_root_cause_evidence": "EVIDENCE/claude-entitlement-root-cause-20261004.json"
+  "entitlement_root_cause_evidence": "EVIDENCE/claude-entitlement-root-cause-20261004.json",
+  "entitlement_correction_evidence": "EVIDENCE/claude-entitlement-correction-20261004.json",
+  "entitlement_correction": {
+    "passed": true,
+    "github_actions_run": 37209332065,
+    "run_attempt": 2,
+    "job": 111459225856,
+    "gate": "MUSITU_AXIOM_CLAUDE_SINGLE_ACCOUNT_ENTITLEMENT_CORRECTION_PASS",
+    "affected_customer_rows": 1,
+    "monthly_unit_override_before": null,
+    "monthly_unit_override_after": 1000,
+    "other_customer_rows_changed": 0,
+    "usage_bucket_unchanged": true,
+    "oauth_metadata_unchanged": true,
+    "subscription_state_unchanged": true
+  }
 }

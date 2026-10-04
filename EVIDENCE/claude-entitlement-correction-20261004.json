@@ -1,0 +1,31 @@
+{
+  "schema": "musitu.axiom.claude_entitlement_correction.v1",
+  "timestamp_utc": "2026-10-04T14:39:28.491Z",
+  "source_branch": "distribution/claude-remote-mcp-20261004",
+  "source_commit": "90234a746546184686b40965170ad0708bd6cb84",
+  "github_actions_run": 37209332065,
+  "github_actions_attempt": 2,
+  "github_actions_job": 111459225856,
+  "gate": "MUSITU_AXIOM_CLAUDE_SINGLE_ACCOUNT_ENTITLEMENT_CORRECTION_PASS",
+  "authorization": "explicit_user_authorization_in_chat",
+  "correction": {
+    "affected_customer_rows": 1,
+    "plan": "developer",
+    "status": "active",
+    "monthly_unit_override_before": null,
+    "monthly_unit_override_after": 1000,
+    "other_customer_rows_changed": 0
+  },
+  "invariants": {
+    "usage_bucket_unchanged": true,
+    "oauth_metadata_unchanged": true,
+    "subscription_state_unchanged": true,
+    "credentials_read_or_exposed": false,
+    "customer_identifier_exposed": false,
+    "main_unchanged": true,
+    "pr1_open_draft_unmerged": true,
+    "openai_source_blobs_unchanged": true
+  },
+  "next_required_gate": "real_claude_origin_arithmetic_and_npv_retest",
+  "claude_origin_verified": false
+}
