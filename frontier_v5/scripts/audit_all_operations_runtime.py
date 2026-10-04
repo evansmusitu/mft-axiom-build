@@ -17,7 +17,8 @@ def norm(v):
     if isinstance(v,complex): return {"re":v.real,"im":v.imag}
     if isinstance(v,dict): return {str(k):norm(x) for k,x in sorted(v.items(),key=lambda z:str(z[0]))}
     if isinstance(v,(list,tuple)): return [norm(x) for x in v]
-    return v
+    if v is None or isinstance(v,(str,int,float,bool)): return v
+    return str(v)
 
 class Audit:
     def __init__(self,m,fixtures):
