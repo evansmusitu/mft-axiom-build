@@ -195,25 +195,50 @@ def _create_machine_rule(
     ref: str,
 ) -> str:
     expression = f'http.host eq "{hostname}"'
-    cf(
-        headers,
-        f"/zones/{zone_id}/rulesets/{ruleset_id}/rules",
-        "POST",
-        {
-            "action": "set_config",
-            "action_parameters": {
-                "security_level": "essentially_off",
-                "bic": False,
-            },
-            "expression": expression,
-            "description": (
-                "MUSITU Axiom Claude machine transport: disable browser challenge "
-                "only on this Claude API hostname; OAuth/Worker auth remains fail-closed"
-            ),
-            "enabled": True,
-            "ref": ref,
+    payload = {
+        "action": "set_config",
+        "action_parameters": {
+            "security_level": "essentially_off",
+            "bic": False,
         },
+        "expression": expression,
+        "description": (
+            "MUSITU Axiom Claude machine transport: disable browser challenge "
+            "only on this Claude API hostname; OAuth/Worker auth remains fail-closed"
+        ),
+        "enabled": True,
+        "ref": ref,
+    }
+    request_headers = dict(headers)
+    request_headers["Content-Type"] = "application/json"
+    code, _, data = raw(
+        "https://api.cloudflare.com/client/v4"
+        + f"/zones/{zone_id}/rulesets/{ruleset_id}/rules",
+        method="POST",
+        headers=request_headers,
+        body=json.dumps(payload, separators=(",", ":")).encode(),
     )
+    if not 200 <= code < 300:
+        try:
+            response = json.loads(data or b"{}")
+        except Exception:
+            response = {}
+        safe_errors = []
+        for item in (response.get("errors") or []) if isinstance(response, dict) else []:
+            if isinstance(item, dict):
+                safe_errors.append({
+                    "code": item.get("code"),
+                    "message": item.get("message"),
+                })
+        raise RuntimeError(
+            "Cloudflare configuration-rule create failed "
+            + json.dumps({
+                "http": code,
+                "hostname": hostname,
+                "ref": ref,
+                "errors": safe_errors,
+            }, sort_keys=True)
+        )
     detail, _ = cf(headers, f"/zones/{zone_id}/rulesets/{ruleset_id}")
     matches = [
         r for r in ((detail or {}).get("rules") or [])
