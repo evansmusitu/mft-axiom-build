@@ -1,0 +1,113 @@
+{
+  "schema": "musitu.axiom.claude_directory_portal_fields.v1",
+  "generated_on": "2026-10-04",
+  "authoritative_submission_guide": "https://claude.com/docs/connectors/building/submission",
+  "review_criteria": "https://claude.com/docs/connectors/building/review-criteria",
+  "portal_access": {
+    "requirement": "Team or Enterprise Claude organization with Directory-management access",
+    "location": "Claude.ai organization admin settings",
+    "status": "external_account_requirement"
+  },
+  "step_2_connection": {
+    "server_url": "https://claude-mcp.mftintelligence.com/mcp",
+    "testing_url": "https://musitu-axiom-claude-mcp-candidate.mft-education-nexus-93f395f5.workers.dev/mcp",
+    "transport": "Streamable HTTP",
+    "per_user_url": false,
+    "publication_url_status": "not_deployed"
+  },
+  "step_3_tools": {
+    "exposed_tool_count": 108,
+    "certified_operation_count": 74,
+    "business_product_alias_count": 30,
+    "public_no_auth_tools": [
+      "search",
+      "fetch",
+      "musitu_axiom_capabilities"
+    ],
+    "commerce_tools_exposed": false,
+    "annotations": "all exposed tools have title, readOnlyHint=true, destructiveHint=false, openWorldHint=false",
+    "functional_server_preflight": "74/74 certified operations passed",
+    "official_mcp_inspector_preflight": "pending_current_ci_run",
+    "real_claude_custom_connector_preflight": "pending"
+  },
+  "step_4_listing": {
+    "server_name": "MUSITU Axiom",
+    "tagline": "Governed quantitative analysis and verification",
+    "description": "MUSITU Axiom provides governed quantitative finance, statistics, optimization, time-series, verification, and mathematical computation through an existing Axiom account. It is designed for reproducible analytical workflows with explicit operation boundaries and metering. The Claude connector is read-only with respect to external user systems: it does not execute trades, transfer money, expose subscription checkout, or create financial transactions. Users authenticate through OAuth and invoke certified quantitative operations using their existing MUSITU Axiom entitlement.",
+    "preferred_categories": [
+      "Finance",
+      "Data & analytics"
+    ],
+    "categories_note": "Confirm exact portal category enum at submission; choose one to five relevant categories only.",
+    "documentation_url": "https://claude-mcp.mftintelligence.com/docs",
+    "privacy_policy_url": "https://claude-mcp.mftintelligence.com/privacy",
+    "terms_url": "https://claude-mcp.mftintelligence.com/terms",
+    "support_contact": "REQUIRED_PUBLIC_SUPPORT_CONTACT_NOT_YET_DESIGNATED",
+    "icon_repository_path": "branding/musitu-axiom-app-icon.svg",
+    "proposed_slug": "musitu-axiom",
+    "slug_note": "Permanent once published; verify availability and approve in portal before final submission."
+  },
+  "step_5_use_cases": {
+    "primary": [
+      "Investment appraisal and quantitative finance calculations without trade execution.",
+      "Risk, statistics, time-series, and scenario analysis.",
+      "Optimization and numerical analysis for decision-support workflows.",
+      "Independent calculation verification and reproducible quantitative checks."
+    ],
+    "prerequisites": "An existing MUSITU Axiom account entitlement is required for authenticated compute.",
+    "reads_data": true,
+    "writes_external_user_data": false,
+    "internal_state_note": "The service records bounded entitlement, metering, OAuth, security, and audit state."
+  },
+  "step_6_company": {
+    "company_name": "MUSITU",
+    "company_website": "https://axiom.mftintelligence.com",
+    "primary_contact": "PREFILLED_FROM_CLAUDE_ORGANIZATION_ACCOUNT"
+  },
+  "step_7_authentication": {
+    "mode": "OAuth 2.0",
+    "registration": "Dynamic Client Registration supported; Claude published identity can be tested in the real custom connector flow.",
+    "pkce": "S256",
+    "callback": "https://claude.ai/api/mcp/auth_callback",
+    "publication_issuer": "https://claude-auth.mftintelligence.com",
+    "testing_issuer": "https://musitu-axiom-claude-auth-candidate.mft-education-nexus-93f395f5.workers.dev"
+  },
+  "step_8_data_handling": {
+    "api_ownership": "First-party MUSITU Axiom API",
+    "personal_health_data": false,
+    "sponsored_content": false,
+    "conversation_collection": "Only operation arguments intentionally sent to the connector; the connector does not request full Claude conversation history.",
+    "third_party_infrastructure": "Cloudflare and the private compute hosting layer are used to operate the service.",
+    "financial_transaction_execution": false
+  },
+  "step_9_test_launch": {
+    "reviewer_credentials": "SECURE_PORTAL_ONLY_DEDICATED_REVIEWER_ACCOUNT_REQUIRED",
+    "reviewer_credentials_in_repo": false,
+    "every_certified_operation_server_tested": true,
+    "certified_operation_pass_count": 74,
+    "certified_operation_failure_count": 0,
+    "official_mcp_inspector": "pending_current_ci_run",
+    "real_claude_origin": "pending",
+    "openai_surface_reverified_unchanged": true
+  },
+  "step_10_compliance": {
+    "directory_guidelines_acknowledge": true,
+    "first_party_api": true,
+    "transfers_money_or_financial_assets": false,
+    "ai_image_video_audio_generation": false,
+    "prompt_injection_patterns": false,
+    "collects_conversation_history": false,
+    "public_documentation_required_by_publish_date": true
+  },
+  "step_11_review": {
+    "ready_to_submit": false,
+    "blockers": [
+      "Real Claude custom-connector OAuth and authenticated Axiom call have not yet been originated by Claude.",
+      "MUSITU-owned publication MCP/auth domains have not yet been deployed.",
+      "A public support contact has not yet been designated.",
+      "A dedicated reviewer credential has not yet been provisioned for secure portal entry.",
+      "Team/Enterprise Claude organization with Directory-management access must be available.",
+      "Official MCP Inspector full-surface CI run is currently pending."
+    ]
+  }
+}
