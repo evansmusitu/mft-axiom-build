@@ -92,3 +92,47 @@ def test_claude_mcp_candidate_has_isolated_algebra_solve_compatibility_without_o
     assert '"algebra.polynomial_roots"' in src
     assert "single polynomial equation and one symbol" in src
     assert "compatibility_rewrite" in src
+
+
+def test_claude_mcp_projects_safe_scalar_result_into_text_content():
+    import subprocess
+    script = r'''
+import fs from 'node:fs';
+import assert from 'node:assert/strict';
+const src = fs.readFileSync(process.argv[1], 'utf8');
+const module = await import('data:text/javascript;base64,' + Buffer.from(src + '\nexport { projectClaudeTextResult };').toString('base64'));
+const input = {
+  jsonrpc: '2.0',
+  id: 1,
+  result: {
+    content: [{type: 'text', text: 'MUSITU Axiom completed arithmetic.evaluate.'}],
+    structuredContent: {
+      operation: 'arithmetic.evaluate',
+      result: {
+        ok: true,
+        operation: 'arithmetic.evaluate',
+        result: '42.000000000000000000000000000000000000000000000000'
+      }
+    }
+  }
+};
+const out = module.projectClaudeTextResult(structuredClone(input));
+assert.equal(out.result.structuredContent.result.result, '42.000000000000000000000000000000000000000000000000');
+assert.match(out.result.content[0].text, /42\.000000000000000000000000000000000000000000000000/);
+assert.match(out.result.content[0].text, /arithmetic\.evaluate/);
+
+const noScalar = {
+  jsonrpc: '2.0',
+  id: 2,
+  result: {
+    content: [{type: 'text', text: 'No scalar result.'}],
+    structuredContent: {operation: 'example', result: {ok: true}}
+  }
+};
+const unchanged = module.projectClaudeTextResult(structuredClone(noScalar));
+assert.equal(unchanged.result.content[0].text, 'No scalar result.');
+'''
+    subprocess.run([
+        "node", "--input-type=module", "-e", script,
+        str(CLAUDE / "musitu_axiom_mcp_gate_claude_candidate.mjs"),
+    ], check=True, capture_output=True, text=True)
