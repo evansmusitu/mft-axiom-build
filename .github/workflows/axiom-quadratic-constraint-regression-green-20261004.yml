@@ -1,0 +1,61 @@
+name: Axiom Quadratic Constraint Regression GREEN 20261004
+on:
+  push:
+    branches: [fix/axiom-quadratic-constraints-20261004]
+    paths:
+      - 'frontier_v5/scripts/patch_quadratic_constraints_runtime.py'
+      - 'frontier_v5/scripts/verify_quadratic_constraints_runtime.py'
+      - '.github/workflows/axiom-quadratic-constraint-regression-green-20261004.yml'
+permissions:
+  contents: read
+jobs:
+  green:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.13'}
+      - name: Reconstruct sealed runtime
+        env:
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          P=deploy_payload/runtime_min
+          cat "$P/chunk_00.b64" "$P/chunk_01_02.b64" "$P/chunk_03_04.b64" "$P/chunk_05_06.b64" "$P/chunk_07_08.b64" "$P/chunk_09.b64" > runtime.enc.b64
+          base64 -d runtime.enc.b64 > runtime.tar.gz.enc
+          test "$(sha256sum runtime.tar.gz.enc | awk '{print $1}')" = 'b82448d6b4b34b302748815af976b535d69922c197d4b7a9056fc2f91a9e12cf'
+          python - <<'PY'
+          import hashlib,hmac,os
+          b=open('runtime.tar.gz.enc','rb').read()
+          if not hmac.compare_digest(hmac.new(os.environ['CLOUDFLARE_GLOBAL_API_KEY'].encode(),b,hashlib.sha256).hexdigest(),'1a3193d4f3271d61d151e6ebd7cf4576d8ab86c2e79b84eff4ad0f635fe7ab47'):
+            raise SystemExit('ciphertext HMAC mismatch')
+          PY
+          openssl enc -d -aes-256-cbc -pbkdf2 -iter 250000 -in runtime.tar.gz.enc -out runtime.tar.gz -pass env:CLOUDFLARE_GLOBAL_API_KEY
+          test "$(sha256sum runtime.tar.gz | awk '{print $1}')" = 'b4d5a0266446523969a619f5e9bb5a04d9b815c78a2ab82ed046ef5e23d53663'
+          mkdir runtime && tar -xzf runtime.tar.gz -C runtime
+          test "$(sha256sum runtime/kernel/app/main.py | awk '{print $1}')" = '9389e4a501cd2385afe3820da685e97790e723da3bc5871a6dc2565b19f8fa3f'
+      - name: Apply deterministic quadratic runtime patch
+        run: python frontier_v5/scripts/patch_quadratic_constraints_runtime.py runtime/kernel/app/main.py
+      - name: Install exact runtime roots
+        run: python -m pip install --disable-pip-version-check --quiet fastapi==0.128.2 sympy==1.14.0 numpy==2.3.5 scipy==1.17.0 mpmath==1.3.0
+      - name: Run identical constrained-QP regression
+        run: PYTHONPATH=. python frontier_v5/scripts/verify_quadratic_constraints_runtime.py --runtime runtime
+      - name: Smoke all 74 canonical operation fixtures
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import importlib,json,pathlib,sys
+          sys.path.insert(0,str(pathlib.Path('runtime').resolve()))
+          m=importlib.import_module('kernel.app.main')
+          doc=json.load(open('submission/claude/operation-fixtures.json'))
+          failures={}
+          for op,args in sorted((doc.get('fixtures') or {}).items()):
+            try:m.dispatch(op,args,50)
+            except Exception as e:failures[op]=type(e).__name__+':'+str(e)
+          if failures: raise SystemExit('fixture smoke failures '+json.dumps(failures,sort_keys=True)[:5000])
+          if len(doc.get('fixtures') or {})!=74: raise SystemExit('fixture count drift')
+          print('MUSITU_AXIOM_ALL_74_OPERATION_FIXTURE_SMOKE_PASS')
+          PY
