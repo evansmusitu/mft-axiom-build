@@ -44,6 +44,52 @@ class PlatformBoundaryTests(unittest.TestCase):
         })
         self.assertEqual(result,{"ok":True})
         self.assertEqual(seen[0]["request_id"],"MUSITU-CONNECT-mining-q1-aaaaaaaaaaaaaaaa")
+    def test_axiom_compute_executor_forwards_account_key_and_connect_request_id(self):
+        from connect.axiom_gateway import AxiomComputeExecutor
+        request_id="MUSITU-CONNECT-mining-q1-aaaaaaaaaaaaaaaa"
+        response={
+            "ok":True,
+            "request_id":request_id,
+            "operation":"arithmetic.evaluate",
+            "result":{"ok":True,"result":"3.348"}
+        }
+        with patch("urllib.request.urlopen",return_value=_FakeHttpResponse(response)) as call:
+            executor=AxiomComputeExecutor("https://axiom.example/v1/compute","secret-account-key")
+            result=executor({
+                "operation":"arithmetic.evaluate",
+                "args":{"expression":"0.54*10*0.62"},
+                "run_id":"mining-q1",
+                "canonical_sha256":"a"*64,
+                "request_id":request_id
+            })
+        request=call.call_args.args[0]
+        body=json.loads(request.data.decode("utf-8"))
+        self.assertEqual(request.get_header("Authorization"),"Bearer secret-account-key")
+        self.assertEqual(request.get_header("X-musitu-request-id"),request_id)
+        self.assertEqual(body,{"operation":"arithmetic.evaluate","args":{"expression":"0.54*10*0.62"}})
+        self.assertNotIn("secret-account-key",request.data.decode("utf-8"))
+        self.assertEqual(result["result"]["result"],"3.348")
+
+    def test_axiom_compute_executor_rejects_mismatched_returned_request_id(self):
+        from connect.axiom_gateway import AxiomComputeExecutor
+        request_id="MUSITU-CONNECT-mining-q1-aaaaaaaaaaaaaaaa"
+        response={
+            "ok":True,
+            "request_id":"MUSITU-CONNECT-other-run-bbbbbbbbbbbbbbbb",
+            "operation":"arithmetic.evaluate",
+            "result":{"ok":True,"result":"3.348"}
+        }
+        with patch("urllib.request.urlopen",return_value=_FakeHttpResponse(response)):
+            executor=AxiomComputeExecutor("https://axiom.example/v1/compute","secret-account-key")
+            with self.assertRaisesRegex(RuntimeError,"AXIOM_REQUEST_ID_MISMATCH"):
+                executor({
+                    "operation":"arithmetic.evaluate",
+                    "args":{"expression":"0.54*10*0.62"},
+                    "run_id":"mining-q1",
+                    "canonical_sha256":"a"*64,
+                    "request_id":request_id
+                })
+
     def test_axiom_mcp_executor_forwards_oauth_and_connect_request_id(self):
         from connect.axiom_gateway import AxiomMcpExecutor
         response={
