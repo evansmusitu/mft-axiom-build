@@ -181,7 +181,7 @@ jobs:
           expected=[0.30418737,0.25477424,0.25637699,0.18466141]
           if max(abs(float(a)-b) for a,b in zip(x,expected))>2e-6:raise SystemExit('candidate portfolio weights mismatch '+repr(x))
           if abs(sum(map(float,x))-1)>1e-8 or abs(sum(float(a)*b for a,b in zip([0.06,0.09,0.14,0.07],x))-0.09)>1e-8:raise SystemExit('candidate portfolio constraints violated')
-          if not isinstance(o.get('verified'),dict) or o['verified'].get('verified') is not True:raise SystemExit('candidate outer verification failed '+repr(o.get('verified')))
+          if not isinstance(r.get('verification'),dict) or r['verification'].get('verified') is not True:raise SystemExit('candidate QP verification failed '+repr(r.get('verification')))
           badcode,bad=call('optimization.quadratic',{'Q':[[2.0]],'c':[0.0],'Aeq':[[1.0]],'beq':[1.0]})
           if badcode==200 and bad.get('ok') is True:raise SystemExit('candidate unknown arguments did not fail closed')
           print(json.dumps({'candidate_qp_pass':True,'weights':x,'objective':r.get('fun'),'unknown_args_rejected':True},sort_keys=True))
@@ -230,7 +230,7 @@ jobs:
           code,o=req(portfolio); r=o.get('result') or {}; x=r.get('x') or []
           expected=[0.30418737,0.25477424,0.25637699,0.18466141]
           if code!=200 or o.get('ok') is not True or r.get('success') is not True or len(x)!=4 or max(abs(float(a)-b) for a,b in zip(x,expected))>2e-6:raise SystemExit('live direct QP mismatch '+repr((code,o))[:1800])
-          if not isinstance(o.get('verified'),dict) or o['verified'].get('verified') is not True:raise SystemExit('live direct QP verification missing')
+          if not isinstance(r.get('verification'),dict) or r['verification'].get('verified') is not True:raise SystemExit('live direct QP verification missing')
           bc,bo=req({'Q':[[2.0]],'c':[0.0],'Aeq':[[1.0]],'beq':[1.0]})
           if bc==200 and bo.get('ok') is True:raise SystemExit('live unknown args did not fail closed')
           print(json.dumps({'live_direct_qp_pass':True,'weights':x,'objective':r.get('fun'),'unknown_args_rejected':True},sort_keys=True))
@@ -264,7 +264,7 @@ jobs:
               c,o=get('/qp'); rr=o.get('result') or {}; x=rr.get('x') or []
               expected=[0.30418737,0.25477424,0.25637699,0.18466141]
               if c!=200 or o.get('ok') is not True or rr.get('success') is not True or len(x)!=4 or max(abs(float(a)-b) for a,b in zip(x,expected))>2e-6:raise RuntimeError('service-chain QP mismatch '+repr((c,o))[:1600])
-              if not isinstance(o.get('verified'),dict) or o['verified'].get('verified') is not True:raise RuntimeError('service-chain verification absent')
+              if not isinstance(rr.get('verification'),dict) or rr['verification'].get('verified') is not True:raise RuntimeError('service-chain verification absent')
               bc,bo=get('/bad')
               if bc==200 and bo.get('ok') is True:raise RuntimeError('service-chain unknown args not rejected')
               print(json.dumps({'gate':'MUSITU_AXIOM_SHARED_CORE_QP_SERVICE_CHAIN_PASS','weights':x,'objective':rr.get('fun'),'unknown_args_rejected':True},sort_keys=True))
