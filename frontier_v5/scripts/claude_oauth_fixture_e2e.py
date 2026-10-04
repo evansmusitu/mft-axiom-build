@@ -188,7 +188,7 @@ def main() -> int:
             headers,
             "INSERT INTO customers(id,email,name,plan,status,monthly_unit_override,created_at,updated_at) "
             "VALUES(?1,?2,?3,?4,?5,?6,?7,?7)",
-            [customer, prefix + "@invalid.example", "MUSITU Claude OAuth E2E fixture", "developer", "active", 100, created],
+            [customer, prefix + "@invalid.example", "MUSITU Claude OAuth E2E fixture", "developer", "active", 5000, created],
         )
         d1(
             headers,
@@ -345,6 +345,75 @@ def main() -> int:
         ):
             raise RuntimeError("Claude fixture metering evidence mismatch")
 
+        fixture_path = ROOT / "submission/claude/operation-fixtures.json"
+        fixture_doc = json.loads(fixture_path.read_text(encoding="utf-8"))
+        if fixture_doc.get("operation_count") != 74:
+            raise RuntimeError("Claude operation fixture corpus must declare exactly 74 operations")
+        fixtures = fixture_doc.get("fixtures") or {}
+        if len(fixtures) != 74:
+            raise RuntimeError(f"Claude operation fixture corpus cardinality mismatch: {len(fixtures)}")
+
+        functional_operation_failures = []
+        functional_operation_pass_count = 0
+        functional_request_prefix = "MUSITU-CLAUDE-74OP-" + uuid.uuid4().hex.upper() + "-"
+        for operation, args in sorted(fixtures.items()):
+            rid = functional_request_prefix + re.sub(r"[^A-Z0-9]+", "-", operation.upper()).strip("-")
+            fc, _, fpayload, _ = json_http(
+                MCP_URL + "/mcp",
+                "POST",
+                {
+                    "jsonrpc": "2.0",
+                    "id": rid,
+                    "method": "tools/call",
+                    "params": {
+                        "name": "musitu_axiom_execute",
+                        "arguments": {
+                            "operation": operation,
+                            "args": args,
+                        },
+                    },
+                },
+                {
+                    "Authorization": "Bearer " + access,
+                    "x-musitu-request-id": rid,
+                },
+            )
+            tool_result = fpayload.get("result") if isinstance(fpayload, dict) else None
+            is_error = isinstance(tool_result, dict) and tool_result.get("isError") is True
+            has_rpc_error = isinstance(fpayload, dict) and isinstance(fpayload.get("error"), dict)
+            if fc != 200 or is_error or has_rpc_error:
+                functional_operation_failures.append({
+                    "operation": operation,
+                    "http_status": fc,
+                    "is_error": bool(is_error),
+                    "rpc_error_code": (fpayload.get("error") or {}).get("code") if has_rpc_error else None,
+                })
+            else:
+                functional_operation_pass_count += 1
+
+        if functional_operation_failures or functional_operation_pass_count != 74:
+            raise RuntimeError(
+                "Claude 74-operation functional preflight failed: "
+                + json.dumps({
+                    "pass_count": functional_operation_pass_count,
+                    "failures": functional_operation_failures,
+                }, sort_keys=True)
+            )
+
+        functional_usage = d1(
+            headers,
+            "SELECT request_id,compute_units,http_status,result_sha256 FROM usage_events "
+            "WHERE customer_id=?1 AND request_id LIKE ?2 ORDER BY created_at ASC",
+            [customer, functional_request_prefix + "%"],
+        )
+        if (
+            len(functional_usage) != 74
+            or any(int(row.get("compute_units") or 0) <= 0 for row in functional_usage)
+            or any(int(row.get("http_status") or 0) != 200 for row in functional_usage)
+            or any(len(str(row.get("result_sha256") or "")) < 32 for row in functional_usage)
+        ):
+            raise RuntimeError("Claude 74-operation functional metering evidence mismatch")
+
         after = snapshot_openai_surface()
         after_digest = canonical_digest(after)
         if after_digest != before_digest:
@@ -369,6 +438,10 @@ def main() -> int:
         "authenticated_axiom_compute_http": 200,
             "arithmetic_40_plus_2_result_42": True,
             "metering_verified": True,
+            "functional_operation_fixture_count": 74,
+            "functional_operation_pass_count": functional_operation_pass_count,
+            "functional_operation_failures": functional_operation_failures,
+            "functional_operation_metering_rows": len(functional_usage),
             "synthetic_account_only": True,
             "raw_fixture_key_published": False,
             "raw_access_token_published": False,
@@ -439,6 +512,8 @@ def main() -> int:
         "authenticated_axiom_compute_http": 200,
         "result_42_observed": True,
         "metering_verified": True,
+        "functional_operation_pass_count": evidence.get("functional_operation_pass_count"),
+        "functional_operation_failures": evidence.get("functional_operation_failures"),
         "openai_surface_unchanged": True,
         "fixture_rows_remaining": 0,
         "evidence_sha256": digest,
