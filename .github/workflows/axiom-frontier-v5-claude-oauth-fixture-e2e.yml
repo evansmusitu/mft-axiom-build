@@ -1,0 +1,49 @@
+name: Axiom Claude Disposable OAuth E2E
+
+on:
+  push:
+    branches:
+      - "distribution/claude-remote-mcp-20261004"
+    paths:
+      - ".github/workflows/axiom-frontier-v5-claude-oauth-fixture-e2e.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: musitu-axiom-claude-oauth-fixture-e2e
+  cancel-in-progress: false
+
+jobs:
+  oauth-fixture-e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      CLAUDE_FIXTURE_CONFIRM: RUN_DISPOSABLE_CLAUDE_OAUTH_FIXTURE
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Verify fixture contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF_NAME" = "distribution/claude-remote-mcp-20261004"
+          python -m pip install --disable-pip-version-check pytest
+          PYTHONPATH=. python -m pytest -q \
+            frontier_v5/tests/test_claude_oauth_fixture_e2e_contract.py \
+            frontier_v5/tests/test_claude_workers_dev_deploy_contract.py
+
+      - name: Run disposable Claude callback OAuth-to-Axiom E2E
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          PYTHONPATH=. python frontier_v5/scripts/claude_oauth_fixture_e2e.py
