@@ -95,15 +95,17 @@ def test_publication_domain_uses_hostname_scoped_config_rules_via_phase_entrypoi
     main = src[src.index("def main()"):]
     assert "_assert_machine_rule_available(" in main
     assert "_create_machine_rule(" in main
-    assert "AUTH_RULE_REF" in main
-    assert "MCP_RULE_REF" in main
+    assert "MACHINE_RULE_REF" in main
+    assert main.count("_create_machine_rule(") == 1
     assert 'rules_headers = _ruleset_headers()' in main
     assert "CLOUDFLARE_RULESETS_API_TOKEN" in src
 
     assert '"action": "set_config"' in src
     assert '"security_level": "essentially_off"' in src
     assert '"bic": False' in src
-    assert 'expression = f\'http.host eq "{hostname}"\'' in src
+    assert 'def _machine_rule_expression()' in src
+    assert 'http.host eq "{PUBLIC_AUTH_HOST}" or ' in src
+    assert 'http.host eq "{PUBLIC_MCP_HOST}"' in src
     assert '"global_security_policy_mutated": False' in src
 
 
@@ -118,13 +120,14 @@ def test_publication_rollback_removes_created_scoped_rules_domains_and_workers()
     assert "Claude publication rollback incomplete" in src
 
 
-def test_publication_security_exception_is_two_hostname_rules_not_zone_global_settings():
+def test_publication_security_exception_is_one_two_hostname_rule_not_zone_global_settings():
     src = SCRIPT.read_text(encoding="utf-8")
     main = src[src.index("def main()"):]
     assert "PUBLIC_AUTH_HOST" in main
     assert "PUBLIC_MCP_HOST" in main
-    assert "AUTH_RULE_REF" in main
-    assert "MCP_RULE_REF" in main
+    assert "MACHINE_RULE_REF" in main
+    assert '"count": len(created_rules)' in src
+    assert "hostnames" in src
     assert '"/settings/security_level"' not in main
     assert '"/settings/browser_check"' not in main
     assert "_ruleset_headers()" in main

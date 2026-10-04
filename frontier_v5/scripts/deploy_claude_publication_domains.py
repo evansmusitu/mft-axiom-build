@@ -39,8 +39,7 @@ PUBLIC_MCP_HOST = "claude-mcp.mftintelligence.com"
 PUBLIC_AUTH_URL = "https://" + PUBLIC_AUTH_HOST
 PUBLIC_MCP_URL = "https://" + PUBLIC_MCP_HOST
 PUBLIC_MCP_RESOURCE = PUBLIC_MCP_URL + "/mcp"
-AUTH_RULE_REF = "mft_axiom_claude_auth_machine_transport"
-MCP_RULE_REF = "mft_axiom_claude_mcp_machine_transport"
+MACHINE_RULE_REF = "mft_axiom_claude_machine_transport"
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 
@@ -168,21 +167,37 @@ def _configuration_ruleset(headers: dict, zone_id: str) -> tuple[str, list[dict]
     return ruleset_id, [r for r in rules if isinstance(r, dict)]
 
 
+def _machine_rule_expression() -> str:
+    return (
+        f'(http.host eq "{PUBLIC_AUTH_HOST}" or '
+        f'http.host eq "{PUBLIC_MCP_HOST}")'
+    )
+
+
 def _assert_machine_rule_available(
     headers: dict,
     zone_id: str,
-    hostname: str,
-    ref: str,
 ) -> str:
     ruleset_id, rules = _configuration_ruleset(headers, zone_id)
-    expression = f'http.host eq "{hostname}"'
-    by_ref = [r for r in rules if r.get("ref") == ref]
+    expression = _machine_rule_expression()
+    protected_refs = {
+        MACHINE_RULE_REF,
+        "mft_axiom_claude_auth_machine_transport",
+        "mft_axiom_claude_mcp_machine_transport",
+    }
+    by_ref = [r for r in rules if r.get("ref") in protected_refs]
     if by_ref:
-        raise RuntimeError(f"{ref} already exists; refusing implicit replacement")
-    same_expression = [r for r in rules if r.get("expression") == expression]
-    if same_expression:
+        raise RuntimeError("Claude machine-transport rule already exists; refusing implicit replacement")
+    overlaps = [
+        r for r in rules
+        if PUBLIC_AUTH_HOST in str(r.get("expression") or "")
+        or PUBLIC_MCP_HOST in str(r.get("expression") or "")
+    ]
+    if overlaps:
+        raise RuntimeError("Claude publication hostname already has a configuration rule; refusing overlap")
+    if len(rules) >= 10:
         raise RuntimeError(
-            f"{hostname} already has a configuration rule; refusing overlap"
+            "Cloudflare Configuration Rules quota is already full before Claude publication"
         )
     return ruleset_id
 
@@ -191,10 +206,9 @@ def _create_machine_rule(
     headers: dict,
     zone_id: str,
     ruleset_id: str,
-    hostname: str,
     ref: str,
 ) -> str:
-    expression = f'http.host eq "{hostname}"'
+    expression = _machine_rule_expression()
     payload = {
         "action": "set_config",
         "action_parameters": {
@@ -204,7 +218,7 @@ def _create_machine_rule(
         "expression": expression,
         "description": (
             "MUSITU Axiom Claude machine transport: disable browser challenge "
-            "only on this Claude API hostname; OAuth/Worker auth remains fail-closed"
+            "only on the two authorized Claude API hostnames; OAuth/Worker auth remains fail-closed"
         ),
         "enabled": True,
         "ref": ref,
@@ -234,7 +248,7 @@ def _create_machine_rule(
             "Cloudflare configuration-rule create failed "
             + json.dumps({
                 "http": code,
-                "hostname": hostname,
+                "hostnames": [PUBLIC_AUTH_HOST, PUBLIC_MCP_HOST],
                 "ref": ref,
                 "errors": safe_errors,
             }, sort_keys=True)
@@ -245,7 +259,7 @@ def _create_machine_rule(
         if isinstance(r, dict) and r.get("ref") == ref
     ]
     if len(matches) != 1 or not matches[0].get("id"):
-        raise RuntimeError(f"machine-transport rule readback failed for {hostname}")
+        raise RuntimeError("machine-transport rule readback failed")
     rule = matches[0]
     ap = rule.get("action_parameters") or {}
     if (
@@ -255,7 +269,7 @@ def _create_machine_rule(
         or ap.get("bic") is not False
         or rule.get("enabled") is False
     ):
-        raise RuntimeError(f"machine-transport rule contract mismatch for {hostname}")
+        raise RuntimeError("machine-transport rule contract mismatch")
     return str(rule["id"])
 
 
@@ -470,14 +484,7 @@ def main() -> int:
 
     _assert_domain_available(headers, zone_id, PUBLIC_AUTH_HOST, PUBLIC_AUTH_WORKER)
     _assert_domain_available(headers, zone_id, PUBLIC_MCP_HOST, PUBLIC_MCP_WORKER)
-    auth_ruleset_id = _assert_machine_rule_available(
-        rules_headers, zone_id, PUBLIC_AUTH_HOST, AUTH_RULE_REF
-    )
-    mcp_ruleset_id = _assert_machine_rule_available(
-        rules_headers, zone_id, PUBLIC_MCP_HOST, MCP_RULE_REF
-    )
-    if auth_ruleset_id != mcp_ruleset_id:
-        raise RuntimeError("Claude machine-transport ruleset mismatch")
+    machine_ruleset_id = _assert_machine_rule_available(rules_headers, zone_id)
 
     before = snapshot_openai_surface()
     before_digest = canonical_digest(before)
@@ -487,15 +494,9 @@ def main() -> int:
 
     try:
         created_rules.append((
-            auth_ruleset_id,
+            machine_ruleset_id,
             _create_machine_rule(
-                rules_headers, zone_id, auth_ruleset_id, PUBLIC_AUTH_HOST, AUTH_RULE_REF
-            ),
-        ))
-        created_rules.append((
-            mcp_ruleset_id,
-            _create_machine_rule(
-                rules_headers, zone_id, mcp_ruleset_id, PUBLIC_MCP_HOST, MCP_RULE_REF
+                rules_headers, zone_id, machine_ruleset_id, MACHINE_RULE_REF
             ),
         ))
 
@@ -580,15 +581,10 @@ def main() -> int:
             "machine_transport_rules": {
                 "created": True,
                 "count": len(created_rules),
-                "auth": {
-                    "ref": AUTH_RULE_REF,
-                    "scope": f'http.host eq "{PUBLIC_AUTH_HOST}"',
-                    "security_level": "essentially_off",
-                    "bic": False,
-                },
-                "mcp": {
-                    "ref": MCP_RULE_REF,
-                    "scope": f'http.host eq "{PUBLIC_MCP_HOST}"',
+                "combined": {
+                    "ref": MACHINE_RULE_REF,
+                    "scope": _machine_rule_expression(),
+                    "hostnames": [PUBLIC_AUTH_HOST, PUBLIC_MCP_HOST],
                     "security_level": "essentially_off",
                     "bic": False,
                 },
