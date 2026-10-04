@@ -7,7 +7,7 @@
     "controlled_integration_allowed": true,
     "production_integration_allowed": false,
     "scope": "controlled qualification integration only",
-    "reason": "all technical controls except non-fixture production Axiom identity are qualified; read-only identity preflight found active non-fixture Axiom identities but no dedicated Connect credential or admin control secret in CI. Production integration remains blocked pending supported identity assignment, then explicit promotion authorization and a separate runtime-enable action"
+    "reason": "all technical controls except non-fixture production Axiom identity are qualified; latest preflight confirms active non-fixture identities exist but CI has no dedicated Connect credential and neither MUSITU_CONTROL_SECRET nor MFT_CONTROL_SECRET is available. Production remains blocked; direct D1 identity creation is prohibited."
   },
   "tests": {
     "repository_contract_tests": 21,
@@ -34,7 +34,7 @@
     "rollback_rehearsal": "PASS_ISOLATED_CANARY",
     "observability_alerting_slo": "PASS_SYNTHETIC_CANARY_SIGNAL",
     "canary": "PASS_ISOLATED_WORKERS_DEV",
-    "non_fixture_identity_preflight": "BLOCKED_EXPECTED_NO_DEDICATED_CREDENTIAL"
+    "non_fixture_identity_preflight": "BLOCKED_EXPECTED_NO_DEDICATED_CREDENTIAL_OR_ADMIN_CONTROL"
   },
   "qualification_evidence": {
     "source_commit": "c6f6617fdf17a18afbfa21b1aefd6b055ba0ecc2",
@@ -267,27 +267,24 @@
     ]
   },
   "non_fixture_identity_preflight": {
-    "schema": "musitu.connect.non_fixture_identity_preflight.v2",
-    "source_commit": "2a8f052945fba24d5956674d22c5129f3ab5659b",
-    "workflow_run_id": 37184200227,
-    "workflow_run_url": "https://github.com/evansmusitu/mft-axiom-build/actions/runs/37184200227",
-    "evidence_sha256": "a3ff6ce0b6967575abf5a83aa19bec676cc21b54ba92de3436a7120a75a988ff",
-    "gate": "MUSITU_CONNECT_NON_FIXTURE_IDENTITY_BLOCKED",
+    "schema": "musitu.connect.non_fixture_identity_preflight.v3",
+    "source_commit": "6b80d39d04752c11eda9cf0ac4323a89287f7881",
+    "workflow_run_id": 37187531468,
+    "workflow_run_url": "https://github.com/evansmusitu/mft-axiom-build/actions/runs/37187531468",
+    "evidence_sha256": "e8de53ca35803612f1b9ff7073e93487c34c640182e8003c1e86d83994725654",
     "mcp_health_verified": true,
     "active_non_fixture_customer_count": 5,
     "active_non_fixture_api_key_count": 5,
     "dedicated_account_key_secret_present": false,
     "dedicated_bearer_secret_present": false,
-    "admin_control_secret_present": false,
+    "successor_admin_control_secret_present": false,
+    "legacy_admin_control_secret_present": false,
+    "supported_admin_provisioning_validation_reached": false,
     "live_identity_proof_executed": false,
     "non_fixture_identity_control_ready": false,
     "identity_records_created_or_modified": false,
-    "database_mutated": false,
+    "direct_production_d1_identity_creation_allowed": false,
     "production_axiom_integration_enabled": false,
-    "direct_production_d1_identity_creation_prohibited": true,
-    "self_closing_behavior": "If a dedicated Connect credential is installed in CI and matches an active non-fixture api_keys row, the preflight executes one canonical Connect-to-Axiom MCP request and requires exact Axiom usage-ledger request-ID correlation before reporting QUALIFIED.",
-    "required_assignment": "Assign an authorized dedicated non-fixture Axiom credential to MUSITU Connect through the supported identity/provisioning path; do not bypass the control plane with direct D1 insertion.",
-    "artifact_available": false,
-    "artifact_note": "Evidence JSON and SHA-256 were emitted in the successful workflow log/step summary. Immediate artifact availability is not required for the blocker claim."
+    "blocker": "Assign a dedicated MUSITU Connect Axiom credential through a supported secure provisioning path or install an existing dedicated credential in CI; then rerun the self-closing live identity proof."
   }
 }
