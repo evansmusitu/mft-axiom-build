@@ -1,0 +1,61 @@
+name: MUSITU Connect non-fixture identity preflight
+
+on:
+  workflow_dispatch:
+  push:
+    branches: ['feat/musitu-connect-frontier']
+    paths:
+      - 'qualification/non_fixture_identity_preflight.py'
+      - '.github/workflows/musitu-connect-non-fixture-identity.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    env:
+      CF_API: https://api.cloudflare.com/client/v4
+      ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      D1_UUID: 504029cc-f9a5-495e-818f-63c6144b4ea4
+      MCP_BASE: https://mcp.mftintelligence.com
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Validate preflight source
+        run: python -m py_compile qualification/non_fixture_identity_preflight.py
+      - name: Inspect supported non-fixture identity readiness
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          MUSITU_CONNECT_AXIOM_ACCOUNT_KEY: ${{ secrets.MUSITU_CONNECT_AXIOM_ACCOUNT_KEY }}
+          MUSITU_CONNECT_AXIOM_BEARER_TOKEN: ${{ secrets.MUSITU_CONNECT_AXIOM_BEARER_TOKEN }}
+          MFT_CONTROL_SECRET: ${{ secrets.MFT_CONTROL_SECRET }}
+        run: python qualification/non_fixture_identity_preflight.py
+      - name: Publish identity preflight evidence
+        if: success()
+        shell: bash
+        run: |
+          {
+            echo '## MUSITU Connect non-fixture identity preflight'
+            echo
+            echo 'Evidence SHA-256:'
+            cat musitu-connect-non-fixture-identity-preflight.sha256
+            echo
+            echo '```json'
+            cat musitu-connect-non-fixture-identity-preflight.json
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Upload identity preflight evidence
+        if: success()
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: musitu-connect-non-fixture-identity-preflight
+          path: |
+            musitu-connect-non-fixture-identity-preflight.json
+            musitu-connect-non-fixture-identity-preflight.sha256
+          retention-days: 30
+          if-no-files-found: error
