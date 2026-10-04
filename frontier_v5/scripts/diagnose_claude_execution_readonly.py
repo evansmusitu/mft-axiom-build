@@ -22,6 +22,23 @@ SINCE = "2026-10-04T13:00:00"
 ISSUER = "https://claude-auth.mftintelligence.com"
 RESOURCE = "https://claude-mcp.mftintelligence.com/mcp"
 
+def sanitized_policy_context(text):
+    # Emit only bounded policy code, masking every string/template literal except
+    # this small list of non-secret plan/status/property names. No source artifact.
+    allowed = {"free", "starter", "developer", "pro", "enterprise", "active", "inactive",
+               "trial", "monthly_unit_override", "unit_limit", "used_units",
+               "quota_exhausted", "quota_store_unavailable", "number", "string"}
+    literal = re.compile(r'''"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|`(?:\\.|[^`\\])*`''', re.S)
+    safe = literal.sub(lambda m: m.group(0) if m.group(0)[1:-1] in allowed else '"<literal redacted>"', text)
+    safe = re.sub(r"/\*.*?\*/|//[^\n]*", "", safe, flags=re.S)
+    windows = []
+    for needle in ("monthly_unit_override", "unit_limit", "quota_exhausted"):
+        hits = list(re.finditer(re.escape(needle), safe))
+        for hit in hits[:6]:
+            windows.append({"anchor": needle, "offset": hit.start(),
+                            "sanitized_context": safe[max(0,hit.start()-450):hit.end()+750]})
+    return windows
+
 def read_query(headers, sql, params=None):
     if not (sql.startswith("SELECT ") or re.fullmatch(r"PRAGMA table_info\((customers|usage_buckets|billing_subscriptions|oauth_access_tokens)\)", sql)):
         raise RuntimeError("read-only query guard rejected statement")
@@ -59,7 +76,7 @@ def main():
     subscription = []
     usage = []
     if count == 1:
-        entitlement = read_query(headers, "SELECT plan,status,monthly_unit_override FROM customers WHERE id IN (" + recent + ")", params)
+        entitlement = read_query(headers, "SELECT plan,status,monthly_unit_override,created_at,updated_at FROM customers WHERE id IN (" + recent + ")", params)
         if "status" in schemas["billing_subscriptions"] and "customer_id" in schemas["billing_subscriptions"]:
             subscription = read_query(headers, "SELECT status,COUNT(*) AS count FROM billing_subscriptions WHERE customer_id IN (" + recent + ") GROUP BY status", params)
         safe_usage = [x for x in ("month", "units_used", "compute_units", "used_units", "units", "unit_limit") if x in schemas["usage_buckets"]]
@@ -94,6 +111,7 @@ def main():
     plan_limits = []
     for m in re.finditer(r"[\"']?(free|starter|developer|pro|enterprise)[\"']?\s*:\s*(\d{1,12})", text):
         plan_limits.append({"plan": m.group(1), "numeric_mapping": int(m.group(2))})
+    print("CLAUDE_SANITIZED_QUOTA_POLICY_CONTEXT=" + json.dumps(sanitized_policy_context(text), sort_keys=True))
     after = canonical_digest(snapshot_openai_surface())
     if after != before:
         raise RuntimeError("frozen OpenAI surface drifted during read-only diagnosis")
