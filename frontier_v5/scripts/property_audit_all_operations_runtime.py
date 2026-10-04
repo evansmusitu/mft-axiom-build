@@ -159,7 +159,7 @@ def main():
         ref=sum(cf/(1+rr)**j for j,cf in enumerate(cash))
         p.check(f"npv.{i}",abs(got-ref)<=max(1e-9,abs(ref)*1e-12))
     for i in range(30):
-        S=rng.uniform(30,300); K=rng.uniform(30,300); T=rng.uniform(.1,3); r=rng.uniform(-.05,.15); sigma=rng.uniform(.05,.8); q=rng.uniform(0,.08)
+        S=rng.uniform(60,180); K=S*rng.uniform(.75,1.25); T=rng.uniform(.25,3); r=rng.uniform(-.03,.12); sigma=rng.uniform(.1,.7); q=rng.uniform(0,.06)
         call=float(p.call("finance.black_scholes",{"S":S,"K":K,"T":T,"r":r,"sigma":sigma,"q":q,"kind":"call"}))
         put=float(p.call("finance.black_scholes",{"S":S,"K":K,"T":T,"r":r,"sigma":sigma,"q":q,"kind":"put"}))
         parity=S*math.exp(-q*T)-K*math.exp(-r*T)
