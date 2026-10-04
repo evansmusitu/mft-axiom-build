@@ -9,7 +9,7 @@ This checklist is deliberately separate from the server-side E2E evidence. The s
 **Name:** MUSITU Axiom
 
 **Remote MCP URL:**
-`https://musitu-axiom-claude-mcp-candidate.mft-education-nexus-93f395f5.workers.dev/mcp`
+`https://claude-mcp.mftintelligence.com/mcp`
 
 In Claude:
 
@@ -105,4 +105,5 @@ After the real Claude-origin tool call:
 - Frozen OpenAI surface unchanged across deployment.
 - Current isolated Claude worker deployment with exact `/mcp` OAuth resource, HTTP 401 discovery challenge, all 108 tool descriptors validated, 74 operations / 30 business products, commerce hidden, and frozen OpenAI surface unchanged: GitHub Actions run `37173130982`.
 - Disposable synthetic OAuth E2E with exact Claude callback, DCR + PKCE + token exchange, authenticated `40+2 → 42`, **74/74 canonical operation fixtures passed through the Claude MCP**, 74 metering rows, zero functional failures, zero fixture residue, and OpenAI unchanged: GitHub Actions run `37173358086`; evidence SHA-256 `2bffbb3891b2cfa6bc5ede18a23f42e658c72292b9ee33614289138077b09a72`.
+- Publication custom-domain deployment: **PASS** — GitHub Actions run `37187577016`; deployment step succeeded with 108 tools / 74 operations / 30 business products, one hostname-scoped configuration rule covering only the two authorized Claude hosts, testing workers unchanged, and frozen OpenAI surface unchanged. Runtime evidence SHA-256: `7e369bf7d900afd98b607c029836bfebb5afc139cacb1d0dbed87489114a627c`.
 - Real Claude-origin evidence: **not yet completed**.
