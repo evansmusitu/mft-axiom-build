@@ -9,7 +9,7 @@
     "mcp_generation": "2.0",
     "testing_url": "https://musitu-axiom-claude-mcp-candidate.mft-education-nexus-93f395f5.workers.dev/mcp",
     "publication_url": "https://claude-mcp.mftintelligence.com/mcp",
-    "publication_url_status": "not_deployed"
+    "publication_url_status": "prepared_collision_free_not_deployed"
   },
   "oauth": {
     "registration": "dcr_or_published_identity",
@@ -20,7 +20,7 @@
     "issuer": "https://musitu-axiom-claude-auth-candidate.mft-education-nexus-93f395f5.workers.dev",
     "testing_issuer": "https://musitu-axiom-claude-auth-candidate.mft-education-nexus-93f395f5.workers.dev",
     "publication_issuer": "https://claude-auth.mftintelligence.com",
-    "publication_issuer_status": "not_deployed"
+    "publication_issuer_status": "prepared_collision_free_not_deployed"
   },
   "submission": {
     "status": "blocked_pending_real_claude_origin_and_publication_domain",
@@ -48,6 +48,11 @@
     "eligibility_source": "https://claude.com/docs/connectors/building/submission",
     "eligibility_verified_on": "2026-10-04",
     "publication_domain_must_match_service": true,
-    "publication_domain_source": "https://claude.com/docs/connectors/building/review-criteria"
+    "publication_domain_source": "https://claude.com/docs/connectors/building/review-criteria",
+    "publication_domain_preflight_passed": true,
+    "publication_domain_preflight_run": 37174975719,
+    "publication_domain_surface_free": true,
+    "publication_domain_deployment_prepared": true,
+    "publication_domain_deployment_authorized": false
   }
 }
