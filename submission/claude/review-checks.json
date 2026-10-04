@@ -23,10 +23,10 @@
   "blockers": [
     "real Claude custom-connector OAuth session has not yet originated from Claude",
     "authenticated Axiom tool invocation has not yet originated from Claude",
-    "public directory developer-portal submission has not been performed",
+    "Cloudflare Zone Configuration Rules permission is required before the two branded Claude publication hostnames can be deployed without browser challenge",
+    "public directory submission has not been performed",
     "Team/Enterprise Claude organization with Directory-management access must be available for directory submission",
-    "MUSITU-owned Claude publication domains are not yet deployed",
-    "public directory submission has not been performed"
+    "a verified public MUSITU support contact must be supplied for directory review"
   ],
   "live_endpoint_evidence": {
     "github_actions_run": 37173130982,
@@ -106,7 +106,23 @@
     "preflight_passed": true,
     "preflight_run": 37174975719,
     "topology_free": true,
-    "deployment_prepared": true
+    "deployment_prepared": true,
+    "authorized": true,
+    "deployment_attempted": true,
+    "rollback_verified": true,
+    "final_rollback_preflight_run": 37177997579,
+    "final_rollback_state": {
+      "auth_dns_records": 0,
+      "mcp_dns_records": 0,
+      "auth_domain_rows": 0,
+      "mcp_domain_rows": 0,
+      "publication_workers_present": false,
+      "testing_workers_present": true,
+      "openai_surface_unchanged": true,
+      "write_performed": false
+    },
+    "blocker": "Cloudflare credentials available to the repo can manage Workers/custom domains but do not currently have Zone Configuration Rules permission required for exact-host machine-transport challenge suppression.",
+    "real_claude_origin_test_url": "https://musitu-axiom-claude-mcp-candidate.mft-education-nexus-93f395f5.workers.dev/mcp"
   },
   "official_mcp_inspector": {
     "passed": true,
