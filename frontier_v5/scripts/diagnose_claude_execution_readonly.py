@@ -32,7 +32,7 @@ def sanitized_policy_context(text):
     safe = literal.sub(lambda m: m.group(0) if m.group(0)[1:-1] in allowed else '"<literal redacted>"', text)
     safe = re.sub(r"/\*.*?\*/|//[^\n]*", "", safe, flags=re.S)
     windows = []
-    for needle in ("monthly_unit_override", "unit_limit", "quota_exhausted"):
+    for needle in ("monthly_unit_override", "unit_limit", "quota_exhausted", "var PLANS", "const PLANS"):
         hits = list(re.finditer(re.escape(needle), safe))
         for hit in hits[:6]:
             windows.append({"anchor": needle, "offset": hit.start(),
@@ -111,6 +111,10 @@ def main():
     plan_limits = []
     for m in re.finditer(r"[\"']?(free|starter|developer|pro|enterprise)[\"']?\s*:\s*(\d{1,12})", text):
         plan_limits.append({"plan": m.group(1), "numeric_mapping": int(m.group(2))})
+    runtime_plan_limits = []
+    for m in re.finditer(r"[\"']?(developer|pro|enterprise)[\"']?\s*:\s*\{[^}]{0,1000}?monthly_units\s*:\s*([0-9_]+)", text):
+        runtime_plan_limits.append({"plan": m.group(1), "monthly_units": int(m.group(2).replace("_", ""))})
+    null_override_coercion = "if (Number.isFinite(Number(principal.monthly_unit_override))) return Number(principal.monthly_unit_override);" in text
     print("CLAUDE_SANITIZED_QUOTA_POLICY_CONTEXT=" + json.dumps(sanitized_policy_context(text), sort_keys=True))
     after = canonical_digest(snapshot_openai_surface())
     if after != before:
@@ -127,6 +131,8 @@ def main():
         "upstream_source_sha256": hashlib.sha256(source).hexdigest(),
         "http_402_rejection_metadata": contexts,
         "plan_numeric_mappings": plan_limits,
+        "runtime_plan_monthly_units": runtime_plan_limits,
+        "unguarded_null_override_number_coercion_present": null_override_coercion,
         "publication_tool_count": publication["tool_count"],
         "openai_surface_unchanged": True, "openai_surface_sha256": after,
         "credential_values_read": False, "mutations_performed": False,
