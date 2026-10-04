@@ -24,6 +24,7 @@ import subprocess
 import tempfile
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 import uuid
 
@@ -246,12 +247,26 @@ def main() -> None:
         if status!=200 or not subdomain:
             raise RuntimeError("Cloudflare workers.dev subdomain unavailable")
         url=f"https://{WORKER}.{subdomain}.workers.dev"
-        evidence["canary_url_host"]=urllib.request.urlparse(url).hostname if hasattr(urllib.request,"urlparse") else None
+        evidence["canary_url_host"]=urllib.parse.urlparse(url).hostname
 
-        # Public health is non-sensitive; protected probe must fail closed before secret install.
-        health_status,health,health_ms=http_json(url+"/health")
-        if health_status!=200 or health.get("ok") is not True or health.get("production") is not False:
-            raise RuntimeError("baseline canary health failed")
+        # Workers.dev propagation is asynchronous. Poll the exact baseline contract.
+        health_status=None
+        health={}
+        health_ms=0.0
+        health_last=None
+        for _ in range(45):
+            health_status,health,health_ms=http_json(url+"/health")
+            health_last=(health_status,health)
+            if (
+                health_status==200
+                and health.get("ok") is True
+                and health.get("release")=="baseline"
+                and health.get("production") is False
+            ):
+                break
+            time.sleep(1)
+        else:
+            raise RuntimeError("baseline canary health failed after propagation window: "+repr(health_last))
         pre_status,_,_=http_json(url+"/probe","POST")
         if pre_status not in (401,503):
             raise RuntimeError("canary probe did not fail closed before secret installation")
