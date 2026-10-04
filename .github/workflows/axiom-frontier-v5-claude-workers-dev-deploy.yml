@@ -64,3 +64,4 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 # Retry after 15/15 static distribution/deployment-contract tests passed.
+# Diagnostic retry after discovery-probe instrumentation passed static gate.
