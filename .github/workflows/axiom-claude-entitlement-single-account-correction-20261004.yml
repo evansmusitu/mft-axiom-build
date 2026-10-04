@@ -1,0 +1,288 @@
+name: Axiom Claude Authorized Single-Account Entitlement Correction 20261004
+
+on:
+  push:
+    branches:
+      - distribution/claude-remote-mcp-20261004
+    paths:
+      - '.github/workflows/axiom-claude-entitlement-single-account-correction-20261004.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  correct-one-account:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      CF_API: https://api.cloudflare.com/client/v4
+      ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      D1_UUID: 504029cc-f9a5-495e-818f-63c6144b4ea4
+      CLAUDE_ISSUER: https://claude-auth.mftintelligence.com
+      CLAUDE_RESOURCE: https://claude-mcp.mftintelligence.com/mcp
+      LINK_SINCE: '2026-10-04T13:00:00Z'
+      OBSERVED_CREATED_AT: '2026-09-06T10:52:40.082822Z'
+      OBSERVED_UPDATED_AT: '2026-09-06T10:52:40.082822Z'
+      TARGET_MONTH: '2026-10'
+      SEALED_MAIN: d6a846f6bbe0bccac1758713eb4de167caf07113
+      OPENAI_AUTH_BLOB: 8ba0dbc1b6dd1533c6c26bff23991429e03a71a5
+      OPENAI_MCP_BLOB: 4a1ad37a5e7df0e4d3966e8b5f9f0e8f2db69167
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: distribution/claude-remote-mcp-20261004
+          fetch-depth: 0
+
+      - name: Reverify protected repository state
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git ls-remote origin refs/heads/main | awk '{print $1}')" = "$SEALED_MAIN"
+          test "$(git hash-object auth/musitu_axiom_oauth_worker.mjs)" = "$OPENAI_AUTH_BLOB"
+          test "$(git hash-object mcp/musitu_axiom_plugin_gate_v4.mjs)" = "$OPENAI_MCP_BLOB"
+          python - <<'PY'
+          import json, os, urllib.request
+          q=urllib.request.Request(
+              "https://api.github.com/repos/evansmusitu/mft-axiom-build/pulls/1",
+              headers={
+                  "Authorization":"Bearer "+os.environ["GH_TOKEN"],
+                  "Accept":"application/vnd.github+json",
+                  "User-Agent":"MUSITU-Axiom-Claude-Entitlement-Correction/1.0",
+              },
+          )
+          with urllib.request.urlopen(q, timeout=30) as r:
+              p=json.load(r)
+          if p.get("state")!="open" or p.get("draft") is not True or p.get("merged_at") is not None:
+              raise SystemExit("PR #1 protection boundary failed")
+          print("PROTECTED_REPOSITORY_STATE_PASS")
+          PY
+
+      - name: Guarded preflight, exact one-row correction, and readback
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$CLOUDFLARE_API_TOKEN"
+          python - <<'PY'
+          import datetime, json, os, sys, urllib.error, urllib.request
+
+          API=os.environ["CF_API"]
+          AID=os.environ["ACCOUNT_ID"]
+          DBID=os.environ["D1_UUID"]
+          ISSUER=os.environ["CLAUDE_ISSUER"]
+          RESOURCE=os.environ["CLAUDE_RESOURCE"]
+          SINCE=os.environ["LINK_SINCE"]
+          OBS_CREATED=os.environ["OBSERVED_CREATED_AT"]
+          OBS_UPDATED=os.environ["OBSERVED_UPDATED_AT"]
+          MONTH=os.environ["TARGET_MONTH"]
+          TOKEN=os.environ["CLOUDFLARE_API_TOKEN"].strip()
+          correction_ts=datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="milliseconds").replace("+00:00","Z")
+
+          headers={
+              "Authorization":"Bearer "+TOKEN,
+              "Accept":"application/json",
+              "Content-Type":"application/json",
+              "User-Agent":"MUSITU-Axiom-Claude-Entitlement-Correction/1.0",
+          }
+
+          def d1(sql, params=None):
+              body={"sql":sql}
+              if params is not None:
+                  body["params"]=params
+              req=urllib.request.Request(
+                  f"{API}/accounts/{AID}/d1/database/{DBID}/query",
+                  headers=headers,
+                  method="POST",
+                  data=json.dumps(body,separators=(",",":")).encode(),
+              )
+              try:
+                  with urllib.request.urlopen(req,timeout=45) as r:
+                      raw=r.read()
+              except urllib.error.HTTPError as e:
+                  raise RuntimeError(f"D1 HTTP {e.code}: {e.read(500)!r}")
+              obj=json.loads(raw or b"{}")
+              if obj.get("success") is not True:
+                  raise RuntimeError("D1 top-level success=false")
+              result=obj.get("result") or []
+              if len(result)!=1 or result[0].get("success") is not True:
+                  raise RuntimeError("D1 statement failed")
+              return result[0]
+
+          linked=d1(
+              """SELECT DISTINCT customer_id
+                 FROM oauth_access_tokens
+                 WHERE issuer=?1 AND resource=?2 AND created_at>=?3
+                   AND revoked_at IS NULL
+                   AND datetime(expires_at)>datetime(?4)""",
+              [ISSUER,RESOURCE,SINCE,correction_ts],
+          ).get("results") or []
+          if len(linked)!=1:
+              raise RuntimeError(f"linked-account cardinality guard failed: {len(linked)}")
+          customer_id=str(linked[0].get("customer_id") or "")
+          if not customer_id:
+              raise RuntimeError("linked account identifier absent")
+
+          customer_rows=d1(
+              """SELECT plan,status,monthly_unit_override,created_at,updated_at
+                 FROM customers WHERE id=?1 LIMIT 2""",
+              [customer_id],
+          ).get("results") or []
+          if len(customer_rows)!=1:
+              raise RuntimeError("customer cardinality guard failed")
+          customer=customer_rows[0]
+          if customer.get("plan")!="developer" or customer.get("status")!="active":
+              raise RuntimeError("customer plan/status guard failed")
+          if customer.get("monthly_unit_override") is not None:
+              raise RuntimeError("monthly override is no longer NULL; refusing correction")
+          if customer.get("created_at")!=OBS_CREATED or customer.get("updated_at")!=OBS_UPDATED:
+              raise RuntimeError("customer timestamp stale-state guard failed")
+
+          bucket_rows=d1(
+              """SELECT month,used_units,unit_limit,updated_at
+                 FROM usage_buckets
+                 WHERE customer_id=?1 AND month=?2 LIMIT 2""",
+              [customer_id,MONTH],
+          ).get("results") or []
+          if len(bucket_rows)!=1:
+              raise RuntimeError("usage bucket cardinality guard failed")
+          bucket= bucket_rows[0]
+          if int(bucket.get("used_units") or 0)!=0 or int(bucket.get("unit_limit") or 0)!=0:
+              raise RuntimeError("usage bucket zero-state guard failed")
+
+          token_meta_before=d1(
+              """SELECT issuer,resource,scope,created_at,expires_at,revoked_at
+                 FROM oauth_access_tokens
+                 WHERE customer_id=?1 AND issuer=?2 AND resource=?3
+                 ORDER BY created_at""",
+              [customer_id,ISSUER,RESOURCE],
+          ).get("results") or []
+          subscription_before=d1(
+              """SELECT provider,status,price_id,current_period_end,updated_at
+                 FROM billing_subscriptions WHERE customer_id=?1 ORDER BY provider""",
+              [customer_id],
+          ).get("results") or []
+          usage_before=d1(
+              """SELECT month,used_units,unit_limit,updated_at
+                 FROM usage_buckets WHERE customer_id=?1 ORDER BY month""",
+              [customer_id],
+          ).get("results") or []
+
+          update=d1(
+              """WITH linked AS (
+                   SELECT DISTINCT customer_id
+                   FROM oauth_access_tokens
+                   WHERE issuer=?1
+                     AND resource=?2
+                     AND created_at>=?3
+                     AND revoked_at IS NULL
+                     AND datetime(expires_at)>datetime(?4)
+                 )
+                 UPDATE customers
+                 SET monthly_unit_override=1000,
+                     updated_at=?4
+                 WHERE id IN (SELECT customer_id FROM linked)
+                   AND (SELECT COUNT(*) FROM linked)=1
+                   AND plan='developer'
+                   AND status='active'
+                   AND monthly_unit_override IS NULL
+                   AND created_at=?5
+                   AND updated_at=?6
+                   AND EXISTS (
+                     SELECT 1 FROM usage_buckets
+                     WHERE customer_id=customers.id
+                       AND month=?7
+                       AND used_units=0
+                       AND unit_limit=0
+                   )""",
+              [ISSUER,RESOURCE,SINCE,correction_ts,OBS_CREATED,OBS_UPDATED,MONTH],
+          )
+          changes=int((update.get("meta") or {}).get("changes") or 0)
+          if changes!=1:
+              raise RuntimeError(f"exact-one-row mutation guard failed: changes={changes}")
+
+          after_rows=d1(
+              """SELECT plan,status,monthly_unit_override,created_at,updated_at
+                 FROM customers WHERE id=?1 LIMIT 2""",
+              [customer_id],
+          ).get("results") or []
+          if len(after_rows)!=1:
+              raise RuntimeError("post-correction customer cardinality failed")
+          after=after_rows[0]
+          if after.get("plan")!="developer" or after.get("status")!="active":
+              raise RuntimeError("post-correction plan/status drift")
+          if int(after.get("monthly_unit_override") or 0)!=1000:
+              raise RuntimeError("post-correction allowance readback failed")
+          if after.get("created_at")!=OBS_CREATED or after.get("updated_at")!=correction_ts:
+              raise RuntimeError("post-correction timestamp contract failed")
+
+          token_meta_after=d1(
+              """SELECT issuer,resource,scope,created_at,expires_at,revoked_at
+                 FROM oauth_access_tokens
+                 WHERE customer_id=?1 AND issuer=?2 AND resource=?3
+                 ORDER BY created_at""",
+              [customer_id,ISSUER,RESOURCE],
+          ).get("results") or []
+          subscription_after=d1(
+              """SELECT provider,status,price_id,current_period_end,updated_at
+                 FROM billing_subscriptions WHERE customer_id=?1 ORDER BY provider""",
+              [customer_id],
+          ).get("results") or []
+          usage_after=d1(
+              """SELECT month,used_units,unit_limit,updated_at
+                 FROM usage_buckets WHERE customer_id=?1 ORDER BY month""",
+              [customer_id],
+          ).get("results") or []
+
+          if token_meta_after!=token_meta_before:
+              raise RuntimeError("OAuth metadata changed unexpectedly")
+          if subscription_after!=subscription_before:
+              raise RuntimeError("subscription state changed unexpectedly")
+          if usage_after!=usage_before:
+              raise RuntimeError("usage state changed unexpectedly")
+
+          print(json.dumps({
+              "gate":"MUSITU_AXIOM_CLAUDE_SINGLE_ACCOUNT_ENTITLEMENT_CORRECTION_PASS",
+              "correction_timestamp":correction_ts,
+              "affected_customer_rows":1,
+              "plan":"developer",
+              "status":"active",
+              "monthly_unit_override_before":None,
+              "monthly_unit_override_after":1000,
+              "usage_bucket_unchanged":True,
+              "oauth_metadata_unchanged":True,
+              "subscription_state_unchanged":True,
+              "credentials_read_or_exposed":False,
+              "customer_identifier_exposed":False,
+              "other_customer_rows_changed":0
+          },sort_keys=True))
+          PY
+
+      - name: Reverify protected repository state after correction
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git ls-remote origin refs/heads/main | awk '{print $1}')" = "$SEALED_MAIN"
+          test "$(git hash-object auth/musitu_axiom_oauth_worker.mjs)" = "$OPENAI_AUTH_BLOB"
+          test "$(git hash-object mcp/musitu_axiom_plugin_gate_v4.mjs)" = "$OPENAI_MCP_BLOB"
+          python - <<'PY'
+          import json, os, urllib.request
+          q=urllib.request.Request(
+              "https://api.github.com/repos/evansmusitu/mft-axiom-build/pulls/1",
+              headers={
+                  "Authorization":"Bearer "+os.environ["GH_TOKEN"],
+                  "Accept":"application/vnd.github+json",
+                  "User-Agent":"MUSITU-Axiom-Claude-Entitlement-Correction/1.0",
+              },
+          )
+          with urllib.request.urlopen(q, timeout=30) as r:
+              p=json.load(r)
+          if p.get("state")!="open" or p.get("draft") is not True or p.get("merged_at") is not None:
+              raise SystemExit("PR #1 protection boundary failed after correction")
+          print("PROTECTED_REPOSITORY_STATE_POST_CORRECTION_PASS")
+          PY
