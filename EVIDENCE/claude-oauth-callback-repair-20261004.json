@@ -27,7 +27,14 @@
   "authenticated_tool_call_passed": false,
   "notes": [
     "The deployment verification does not establish real Claude-origin OAuth or authenticated execution.",
-    "Existing push triggers also ran candidate deployment 37191885766 and disposable fixture run 37191885825. Candidate deployment passed with unchanged frozen OpenAI digest. Automatic triggers were then removed; fixture cleanup is being checked.",
+    "Existing push triggers also ran candidate deployment 37191885766 and disposable fixture run 37191885825. Candidate deployment passed with unchanged frozen OpenAI digest. Automatic triggers were then removed; fixture cleanup subsequently confirmed zero remaining rows.",
     "testing_workers_unchanged describes the content-only publication repair, not the earlier automatically triggered candidate deployment."
-  ]
+  ],
+  "unintended_fixture_run": {
+    "github_actions_run": 37191885825,
+    "conclusion": "success",
+    "fixture_rows_remaining": 0,
+    "claude_origin_verified": false,
+    "openai_surface_unchanged": true
+  }
 }
