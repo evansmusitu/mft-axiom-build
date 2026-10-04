@@ -1,0 +1,24 @@
+{
+  "provider_id": "claude",
+  "display_name": "Claude",
+  "distribution_mode": "single_remote_mcp",
+  "mcp": {
+    "canonical_upstream": "https://mcp.mftintelligence.com/mcp",
+    "submission_url": "https://claude-mcp.mftintelligence.com/mcp",
+    "transport": "streamable_http",
+    "mcp_generation": "2.0"
+  },
+  "oauth": {
+    "registration": "dcr_or_published_identity",
+    "pkce": "S256",
+    "callback_uris": [
+      "https://claude.ai/api/mcp/auth_callback",
+      "https://claude.com/api/mcp/auth_callback"
+    ]
+  },
+  "submission": {
+    "status": "blocked_pending_isolated_endpoint_deployment",
+    "portal_requires_paid_plan": true,
+    "route": "developer_portal_single_remote_mcp"
+  }
+}
