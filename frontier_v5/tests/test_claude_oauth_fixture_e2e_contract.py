@@ -31,3 +31,12 @@ def test_fixture_e2e_reverifies_openai_surface_and_does_not_claim_real_claude_or
     assert "snapshot_openai_surface" in src
     assert "server_side_claude_callback_e2e" in src
     assert '"claude_origin_verified": False' in src
+
+
+def test_fixture_e2e_uses_exact_mcp_resource_and_proves_http_401_challenge():
+    src = SCRIPT.read_text(encoding="utf-8")
+    assert 'MCP_RESOURCE = MCP_URL + "/mcp"' in src
+    assert '"resource": MCP_RESOURCE' in src
+    assert "unauth_code != 401" in src
+    assert "WWW-Authenticate" in src
+    assert 'scope="axiom.execute"' in src
