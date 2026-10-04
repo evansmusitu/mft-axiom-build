@@ -13,7 +13,15 @@
     "testing_url": "https://musitu-axiom-claude-mcp-candidate.mft-education-nexus-93f395f5.workers.dev/mcp",
     "transport": "Streamable HTTP",
     "per_user_url": false,
-    "publication_url_status": "not_deployed"
+    "publication_url_status": "not_deployed",
+    "publication_domain_preflight": {
+      "status": "passed",
+      "github_actions_run": 37174975719,
+      "surface_free": true,
+      "write_performed": false
+    },
+    "publication_deployment_workflow": ".github/workflows/axiom-frontier-v5-claude-publication-domain.yml",
+    "publication_deployment_status": "prepared_not_authorized"
   },
   "step_3_tools": {
     "exposed_tool_count": 108,
@@ -118,7 +126,7 @@
     "ready_to_submit": false,
     "blockers": [
       "Real Claude custom-connector OAuth and authenticated Axiom call have not yet been originated by Claude.",
-      "MUSITU-owned publication MCP/auth domains have not yet been deployed.",
+      "MUSITU-owned publication MCP/auth domains are collision-free and deployment-ready, but have not been attached because explicit DNS/custom-domain authorization has not been given.",
       "A public support contact has not yet been designated.",
       "A dedicated reviewer credential has not yet been provisioned for secure portal entry.",
       "Team/Enterprise Claude organization with Directory-management access must be available."
