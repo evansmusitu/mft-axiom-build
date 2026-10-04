@@ -45,3 +45,13 @@ def test_deployer_has_failure_cleanup_and_live_openai_reverification():
     assert "cleanup_created_candidates" in src
     assert "snapshot_openai_surface" in src
     assert "openai_surface_unchanged" in src
+
+
+def test_candidate_and_credential_fixture_jobs_require_manual_dispatch():
+    for filename in (
+        "axiom-frontier-v5-claude-workers-dev-deploy.yml",
+        "axiom-frontier-v5-claude-oauth-fixture-e2e.yml",
+    ):
+        src = (ROOT / ".github/workflows" / filename).read_text()
+        assert "workflow_dispatch:" in src
+        assert "\n  push:" not in src

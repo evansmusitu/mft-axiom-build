@@ -1,20 +1,6 @@
 name: Axiom Claude Isolated Workers Dev Deployment
 
 on:
-  push:
-    branches:
-      - "distribution/claude-remote-mcp-20261004"
-    paths:
-      - ".github/workflows/axiom-frontier-v5-claude-workers-dev-deploy.yml"
-      - "frontier_v5/distribution/claude/musitu_axiom_oauth_worker_claude_candidate.mjs"
-      - "frontier_v5/distribution/claude/musitu_axiom_mcp_gate_claude_candidate.mjs"
-      - "frontier_v5/distribution/providers/claude.json"
-      - "frontier_v5/distribution/oauth_redirect_policy.py"
-      - "frontier_v5/distribution/provider_registry.py"
-      - "frontier_v5/scripts/deploy_claude_workers_dev.py"
-      - "frontier_v5/tests/test_distribution_oauth_policy.py"
-      - "frontier_v5/tests/test_claude_worker_isolation_contract.py"
-      - "frontier_v5/tests/test_claude_workers_dev_deploy_contract.py"
   workflow_dispatch:
 
 permissions:
