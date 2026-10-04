@@ -1,6 +1,6 @@
 # MUSITU Axiom — Claude Directory Portal Packet
 
-Status: **BLOCKED — real Claude discovery passed; authenticated execution returned HTTP 402. Do not submit.**
+Status: **BLOCKED ON PUBLISHER PREREQUISITES — real Claude-origin verification passed; paid submission eligibility, public support contact, secure reviewer credential entry, portal validation/compliance, and final submission remain pending.**
 
 Current official process re-read on 2026-10-04:
 https://claude.com/docs/directory/publish
@@ -25,7 +25,7 @@ The current developer portal at https://claude.ai/directory/manage accepts a sin
 - Historical canonical server preflight: **74/74 PASS**.
 - Historical official MCP Inspector full-surface test: **108/108 PASS**, run `37174144402`.
 - These historical synthetic/Inspector checks do not establish real Claude execution success.
-- Real Claude: OAuth completed; 108 tools discovered; capabilities tool actually invoked. Arithmetic and NPV execution failed with HTTP 402 and no numerical output.
+- Real Claude: **PASS** — OAuth completed; 108 tools discovered; capabilities tool actually invoked; `axiom_arithmetic_evaluate` returned `42`; `investment_npv` / `finance.npv` returned `117570.23440753826`; private commerce tools remained absent.
 - Evidence: `submission/claude/real-claude-origin-evidence.json`.
 
 ## 3. Listing
@@ -72,13 +72,13 @@ Prerequisite: existing MUSITU Axiom account with sufficient compute entitlement.
 - Infrastructure providers include Cloudflare and the private compute hosting layer.
 
 ## 8. Test & launch
-- Dedicated reviewer credential: **not provided to Anthropic; secure portal entry only**.
-- Real Claude Gate A: **PASS**.
-- Real Claude Gate B: **FAIL — axiom_arithmetic_evaluate returned HTTP 402; no result**.
-- Real Claude Gate C: **FAIL — axiom_finance_npv and investment_npv returned HTTP 402; no result**.
-- Read-only diagnostic run `37205474595`: linked account active; monthly compute limit **0**, usage **0**. No credential values read and no billing or entitlement writes performed.
-- Post-test frozen OpenAI surface: reverified unchanged in that run.
-- Current submission guide has differing checklist/Test & launch wording about testing every tool in Claude versus Inspector or Claude. Do not attest every tool passed in Claude: only the actual discovery and failed execution attempts are recorded.
+- Dedicated reviewer credential: **not yet provided to Anthropic; secure portal entry only**.
+- Real Claude Gate A: **PASS** — 108 tools discovered and commerce tools absent.
+- Real Claude Gate B: **PASS** — `axiom_arithmetic_evaluate` / `arithmetic.evaluate` returned `42` from MUSITU Axiom.
+- Real Claude Gate C: **PASS** — `investment_npv` / `finance.npv` returned `117570.23440753826` from MUSITU Axiom.
+- Guarded entitlement correction run `37209332065`: exactly one linked active developer account received the existing 1000-unit developer allowance; unrelated customer, usage, OAuth and subscription state did not change.
+- Live result-text projection repair run `37212837854`: 74/74 operation fixtures and 108/108 Inspector tools passed; frozen OpenAI surface unchanged.
+- The current submission guide permits confirming every tool was tested through MCP Inspector or as a custom connector in Claude. The sealed Inspector run `37174144402` provides the 108/108 full-surface evidence; the actual Claude-origin gates provide separate product-origin proof.
 
 ## 9. Compliance
 The publisher must review and truthfully make the seven portal acknowledgements covering directory guidelines, first-party API usage, financial transactions, AI media generation, prompt injection, conversation data collection and public documentation. No legal or business attestation has been made in the portal.

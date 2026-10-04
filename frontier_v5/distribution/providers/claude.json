@@ -23,7 +23,7 @@
     "publication_issuer_status": "live_verified"
   },
   "submission": {
-    "status": "blocked_pending_authenticated_claude_execution_and_submission_requirements",
+    "status": "blocked_pending_publisher_prerequisites_and_portal_submission",
     "route": "developer_portal_single_remote_mcp",
     "live_endpoint_verified": true,
     "live_endpoint_evidence_run": 37173130982,
@@ -70,14 +70,18 @@
     "publication_domain_evidence_sha256": "7e369bf7d900afd98b607c029836bfebb5afc139cacb1d0dbed87489114a627c",
     "claude_oauth_completed": true,
     "tools_discovered": true,
-    "authenticated_tool_call_passed": false,
-    "claude_origin_verified": false,
+    "authenticated_tool_call_passed": true,
+    "claude_origin_verified": true,
     "real_claude_origin_evidence": "submission/claude/real-claude-origin-evidence.json",
-    "real_claude_execution_blocker": "Verified upstream quota defect: Number(null) converts the missing override to zero and skips the existing 1000-unit developer allowance. A guarded single-account correction is prepared but requires explicit authorization for shared customer data.",
+    "real_claude_execution_blocker": null,
     "legitimate_public_support_contact_present": false,
     "dedicated_reviewer_credentials_securely_provided": false,
     "observed_claude_plan": "free",
     "entitlement_root_cause_evidence": "EVIDENCE/claude-entitlement-root-cause-20261004.json",
-    "entitlement_correction_plan": "submission/claude/ENTITLEMENT_CORRECTION_PLAN.md"
+    "entitlement_correction_plan": "submission/claude/ENTITLEMENT_CORRECTION_PLAN.md",
+    "real_claude_origin_verified_at": "2026-10-04T19:15:19.426Z",
+    "real_claude_origin_source_commit": "35c52cbe27212c2022bc05391ada49e9a27b4a6c",
+    "entitlement_correction_evidence": "EVIDENCE/claude-entitlement-correction-20261004.json",
+    "public_text_projection_evidence": "EVIDENCE/claude-live-text-projection-repair-20261004.json"
   }
 }

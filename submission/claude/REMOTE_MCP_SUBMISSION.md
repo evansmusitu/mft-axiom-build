@@ -1,6 +1,6 @@
 # MUSITU Axiom — Claude Remote MCP Submission
 
-Status: **BLOCKED — publication live, real Claude OAuth/discovery passed, execution returned HTTP 402.**
+Status: **BLOCKED ON PUBLISHER PREREQUISITES — publication live and real Claude-origin execution verified; paid submission eligibility, public support contact, secure reviewer credential entry, portal checks, and final submission remain pending.**
 
 This package is for the single remote MCP connector submission route. The frozen OpenAI surface is protected.
 
@@ -25,11 +25,12 @@ The connector exposes 108 tools: 74 quantitative runtime operations, 30 business
 - Publication deployment step succeeded in run `37187577016`; the final artifact upload failed due to GitHub artifact-storage quota. This was not publication failure.
 - Publication runtime evidence SHA-256: `7e369bf7d900afd98b607c029836bfebb5afc139cacb1d0dbed87489114a627c`.
 - Content-only Claude OAuth callback repair deployed successfully in run `37192021652`, preserving strict CSP, redirect validation, Worker settings and frozen OpenAI state.
-- Actual Claude web session completed OAuth and invoked musitu_axiom_capabilities. Claude discovered 108 tools with commerce absent.
-- Actual axiom_arithmetic_evaluate call for 40+2 returned HTTP 402; no Axiom result was returned.
-- Actual axiom_finance_npv and investment_npv calls for the requested cash flows and 12% rate returned HTTP 402; no Axiom NPV was returned.
-- Read-only diagnostic run `37205474595` confirmed one recent Claude-linked active account with monthly compute limit 0 and usage 0; upstream rejection code checks quota. No credentials read, entitlement writes or billing changes occurred.
-- Frozen main, PR #1 state, OpenAI source blobs and live surface were reverified after the real Claude test.
+- Actual Claude web session completed OAuth and invoked `musitu_axiom_capabilities`. Claude discovered 108 tools with commerce absent.
+- Actual `axiom_arithmetic_evaluate` / `arithmetic.evaluate` call for `40+2` returned the MUSITU Axiom result `42`.
+- Actual `investment_npv` / `finance.npv` call for the requested cash flows and 12% rate returned the MUSITU Axiom result `117570.23440753826`.
+- Guarded single-account entitlement correction passed in run `37209332065`; exactly one linked active developer account changed from a null monthly override to 1000, with unrelated customer, usage, OAuth, and subscription state unchanged.
+- Claude result-text projection repair passed in run `37212837854`; 74/74 operation fixtures and 108/108 Inspector tools passed, with frozen OpenAI unchanged.
+- Frozen main, PR #1 state, and OpenAI source blobs were reverified before sealing this evidence; the real-origin finalization workflow performs the post-test live OpenAI surface digest check.
 - Real evidence: `submission/claude/real-claude-origin-evidence.json`.
 
 Historical synthetic server OAuth preflight (run `37173358086`, 74/74 operations) and Inspector preflight (run `37174144402`, 108/108 tools) remain separate evidence. They do not establish successful execution from Claude.

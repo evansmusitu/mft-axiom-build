@@ -1,6 +1,6 @@
 {
   "schema": "musitu.axiom.claude_real_origin_evidence.v1",
-  "timestamp_utc": "2026-10-04T13:27:42.560Z",
+  "timestamp_utc": "2026-10-04T19:15:19.426Z",
   "claude_surface": "claude.ai web, Sonnet 5.5 Medium, fresh conversation",
   "connector_name": "MUSITU Axiom",
   "remote_mcp_url": "https://claude-mcp.mftintelligence.com/mcp",
@@ -9,30 +9,30 @@
   "tools_discovered": true,
   "commerce_tools_absent": true,
   "arithmetic_tool_name": "axiom_arithmetic_evaluate",
-  "arithmetic_result_42": false,
-  "npv_tool_call_passed": false,
+  "arithmetic_result_42": true,
+  "npv_tool_call_passed": true,
   "no_secrets_exposed": true,
-  "notes": "OAuth and discovery passed in real Claude. Arithmetic and NPV tool calls visibly invoked MUSITU Axiom but returned HTTP 402 with no numerical result. No pass or READY status is claimed. No reconnect loop was observed. A legitimate account with non-zero compute entitlement is required before retry.",
+  "notes": "All three real Claude-origin gates passed on the publication URL after the guarded single-account developer allowance correction and live Claude text-result projection repair. Claude visibly invoked MUSITU Axiom, discovered 108 tools with private commerce tools absent, returned 42 from arithmetic.evaluate, and returned 117570.23440753826 from finance.npv. No reconnect loop or secret exposure was observed. Directory submission prerequisites remain separate.",
   "claude_oauth_completed": true,
-  "authenticated_tool_call_passed": false,
-  "claude_origin_verified": false,
+  "authenticated_tool_call_passed": true,
+  "claude_origin_verified": true,
   "discovered_tool_count": 108,
   "arithmetic_operation": "arithmetic.evaluate",
-  "arithmetic_result": null,
+  "arithmetic_result": 42,
   "arithmetic_tool_invoked": true,
-  "arithmetic_http_status": 402,
-  "npv_tool_name": "axiom_finance_npv",
+  "arithmetic_http_status": null,
+  "npv_tool_name": "investment_npv",
   "npv_operation": "finance.npv",
-  "npv_result": null,
+  "npv_result": 117570.23440753826,
   "npv_tool_invoked": true,
-  "npv_http_status": 402,
+  "npv_http_status": null,
   "source_branch": "distribution/claude-remote-mcp-20261004",
-  "source_commit": "ac789b5c2872bbcaf156d41de4ff3294af19e8c9",
+  "source_commit": "35c52cbe27212c2022bc05391ada49e9a27b4a6c",
   "publication_run": 37187577016,
   "publication_evidence_sha256": "7e369bf7d900afd98b607c029836bfebb5afc139cacb1d0dbed87489114a627c",
   "gate_a": {
     "passed": true,
-    "timestamp_utc": "2026-10-04T13:08:51.971Z",
+    "timestamp_utc": "2026-10-04T19:15:19.426Z",
     "connector_name": "MUSITU Axiom",
     "oauth_completed": true,
     "tools_discovered": true,
@@ -40,11 +40,11 @@
     "capabilities_tool": "musitu_axiom_capabilities",
     "actual_capabilities_result": "MUSITU Axiom exposes 74 certified quantitative runtime operations and 30 business-facing quantitative products through this plugin.",
     "commerce_tools_absent": true,
-    "claude_chat_url": "https://claude.ai/chat/cabd0391-ade5-4f2d-9cf5-e0ffac290dc6",
-    "source_commit": "ac789b5c2872bbcaf156d41de4ff3294af19e8c9"
+    "claude_chat_url": "https://claude.ai/chat/0c96a4e7-111c-43fc-ba88-219d91c9f8e3",
+    "source_commit": "35c52cbe27212c2022bc05391ada49e9a27b4a6c"
   },
   "gate_b": {
-    "timestamp_utc": "2026-10-04T13:16:20.015Z",
+    "timestamp_utc": "2026-10-04T19:15:19.426Z",
     "tool_name": "axiom_arithmetic_evaluate",
     "operation": "arithmetic.evaluate",
     "arguments": {
@@ -52,14 +52,14 @@
         "expression": "40+2"
       }
     },
-    "http_status": 402,
-    "error": "Axiom operation failed HTTP 402.",
-    "result": null,
-    "passed": false
+    "http_status": null,
+    "error": null,
+    "result": 42,
+    "passed": true
   },
   "gate_c": {
-    "timestamp_utc": "2026-10-04T13:16:20.015Z",
-    "tool_name": "axiom_finance_npv",
+    "timestamp_utc": "2026-10-04T19:15:19.426Z",
+    "tool_name": "investment_npv",
     "operation": "finance.npv",
     "arguments": {
       "args": {
@@ -73,12 +73,10 @@
         ]
       }
     },
-    "http_status": 402,
-    "error": "Axiom operation failed HTTP 402.",
-    "result": null,
-    "passed": false,
-    "fallback_tool": "investment_npv",
-    "fallback_http_status": 402
+    "http_status": null,
+    "error": null,
+    "result": 117570.23440753826,
+    "passed": true
   },
   "connector_configuration": {
     "request_headers": [],
@@ -87,7 +85,7 @@
     "actual_oauth_mode_verified_by": "real browser authorization client class and sanitized ledger diagnostic run 37205474595",
     "duplicate_connector_created": false
   },
-  "claude_chat_url": "https://claude.ai/chat/cabd0391-ade5-4f2d-9cf5-e0ffac290dc6",
+  "claude_chat_url": "https://claude.ai/chat/0c96a4e7-111c-43fc-ba88-219d91c9f8e3",
   "post_test_protected_boundary": {
     "main": "d6a846f6bbe0bccac1758713eb4de167caf07113",
     "pr_1": {
@@ -98,18 +96,22 @@
     "auth_blob": "8ba0dbc1b6dd1533c6c26bff23991429e03a71a5",
     "mcp_v4_blob": "4a1ad37a5e7df0e4d3966e8b5f9f0e8f2db69167",
     "openai_surface_sha256": "1515ae38afc222de1d29e9dbfc49830aa22ca6350bf94d84d8e506239fe7d29d",
-    "read_only_verification_run": 37205474595
-  },
-  "nonsecret_screenshot": {
-    "filename": "musitu-claude-real-execution-402-20261004.jpg",
-    "sha256": "b80e924d0af55dbbe8de076cbde37018514a1ad8ea0d9174b9153c85f61c8762"
+    "live_reverification": "pending_real_origin_finalization_workflow"
   },
   "blockers": [
-    "actual Claude arithmetic.evaluate and finance.npv calls returned HTTP 402; the connected account monthly compute limit is 0 units",
-    "all real Claude execution gates must pass before READY",
-    "signed-in Claude Free account cannot submit; Pro/Max/Team/Enterprise is required",
+    "signed-in Claude Free account cannot submit; Pro, Max, Team, or Enterprise is required",
     "a legitimate public MUSITU support contact has not been designated",
     "dedicated reviewer credentials must be supplied directly through the secure portal",
-    "directory validation, publisher compliance acknowledgements and final submission remain pending"
+    "directory validation, publisher compliance acknowledgements, and final submission remain pending"
+  ],
+  "nonsecret_screenshots": [
+    {
+      "filename": "musitu-real-claude-gate-b-42-pass-20261004-1791141358366.jpg",
+      "sha256": "b8a147491d750334a9437076d6f0e6f5b5ed2484aac5ca72cf0b4dc08cc09d2f"
+    },
+    {
+      "filename": "musitu-real-claude-gate-c-npv-pass-20261004-1791141319426.jpg",
+      "sha256": "11c25af7ad43be84109c7d1a6b3121524f2e2a4f180a6d36b65ff84d9424fd1c"
+    }
   ]
 }

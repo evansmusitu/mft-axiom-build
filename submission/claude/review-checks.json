@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-10-04T13:27:42.560Z",
+  "generated_at": "2026-10-04T19:15:19.426Z",
   "provider": "claude",
   "route": "developer_portal_single_remote_mcp",
   "static_candidate": {
@@ -16,21 +16,19 @@
     "isolated_auth_endpoint_live": true,
     "claude_oauth_completed": true,
     "tools_list_discovered": true,
-    "authenticated_tool_call_passed": false,
+    "authenticated_tool_call_passed": true,
     "openai_surface_unchanged_reverified": true,
     "official_mcp_inspector_full_surface_passed": true,
-    "claude_origin_verified": false,
-    "representative_npv_tool_call_passed": false,
+    "claude_origin_verified": true,
+    "representative_npv_tool_call_passed": true,
     "entitlement_correction_passed": true,
     "public_text_result_projection_passed": true
   },
   "blockers": [
-    "Public Claude OAuth/MCP server-side proof now returns the Axiom arithmetic result through MCP text content; genuine Claude-origin arithmetic and NPV retries are still required before READY.",
-    "all real Claude execution gates must pass before READY",
-    "signed-in Claude Free account cannot submit; Pro/Max/Team/Enterprise is required",
+    "signed-in Claude Free account cannot submit; Pro, Max, Team, or Enterprise is required",
     "a legitimate public MUSITU support contact has not been designated",
     "dedicated reviewer credentials must be supplied directly through the secure portal",
-    "directory validation, publisher compliance acknowledgements and final submission remain pending"
+    "directory validation, publisher compliance acknowledgements, and final submission remain pending"
   ],
   "live_endpoint_evidence": {
     "github_actions_run": 37173130982,
@@ -172,12 +170,20 @@
     "tools_discovered": true,
     "discovered_tool_count": 108,
     "gate_a_passed": true,
-    "gate_b_passed": false,
-    "gate_c_passed": false,
+    "gate_b_passed": true,
+    "gate_c_passed": true,
     "no_secrets_exposed": true,
-    "claude_origin_verified": false,
+    "claude_origin_verified": true,
     "execution_http_status": null,
-    "post_test_openai_reverification_run": 37205474595
+    "post_test_openai_reverification_run": null,
+    "arithmetic_tool_name": "axiom_arithmetic_evaluate",
+    "arithmetic_operation": "arithmetic.evaluate",
+    "arithmetic_result": 42,
+    "npv_tool_name": "investment_npv",
+    "npv_operation": "finance.npv",
+    "npv_result": 117570.23440753826,
+    "source_commit": "35c52cbe27212c2022bc05391ada49e9a27b4a6c",
+    "claude_chat_url": "https://claude.ai/chat/0c96a4e7-111c-43fc-ba88-219d91c9f8e3"
   },
   "entitlement_root_cause_evidence": "EVIDENCE/claude-entitlement-root-cause-20261004.json",
   "entitlement_correction_evidence": "EVIDENCE/claude-entitlement-correction-20261004.json",
@@ -216,7 +222,7 @@
     "dns_changed": false,
     "cloudflare_rules_changed": false,
     "rollback_executed": false,
-    "real_claude_origin_still_required": true
+    "real_claude_origin_still_required": false
   },
   "public_text_projection_evidence": "EVIDENCE/claude-live-text-projection-repair-20261004.json"
 }
