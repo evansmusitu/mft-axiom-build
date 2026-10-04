@@ -78,13 +78,25 @@ Verified by GitHub Actions run `37169862332`:
 - frozen OpenAI live surface before/after SHA-256 identical: `1515ae38afc222de1d29e9dbfc49830aa22ca6350bf94d84d8e506239fe7d29d`;
 - canonical OpenAI auth/MCP source blobs remained pinned.
 
-Server-side callback E2E is also verified by GitHub Actions run `37170153704` using a disposable synthetic account:
+Current live Claude worker deployment is verified by GitHub Actions run `37173130982`:
+- exact OAuth resource includes `/mcp`;
+- unauthenticated protected calls return HTTP 401 with `WWW-Authenticate` discovery;
+- 108 tools / 74 runtime operations / 30 business products;
+- all tool names unique and ≤64 characters;
+- all tools have titles, descriptions, input/output schemas and read-only/non-destructive annotations;
+- commerce tools remain hidden;
+- frozen OpenAI live surface is unchanged.
+
+Server-side callback and full operation E2E is verified by GitHub Actions run `37173358086` using a disposable synthetic account:
 - exact callback: `https://claude.ai/api/mcp/auth_callback`;
 - DCR + PKCE S256 + authorization-code token exchange passed;
-- authenticated `arithmetic.evaluate` call returned 42;
-- metering passed;
+- authenticated `arithmetic.evaluate` returned 42;
+- all **74/74 canonical operation fixtures** passed through the isolated Claude MCP;
+- 74 metering rows were verified;
+- functional failures: 0;
 - zero fixture rows remained after cleanup;
-- OpenAI live surface remained unchanged.
+- OpenAI live surface remained unchanged;
+- evidence SHA-256: `2bffbb3891b2cfa6bc5ede18a23f42e658c72292b9ee33614289138077b09a72`.
 
 Still required:
 1. Add the live remote MCP candidate URL to Claude as a custom connector.
@@ -117,4 +129,4 @@ Official source pages used for this package:
 
 ## Explicit blocker
 
-This package is **not yet submitted**. The isolated workers.dev endpoints are live, and the complete server-side OAuth→MCP→Axiom chain has passed using the exact Claude callback contract. The remaining blocker is narrower: no OAuth session or authenticated Axiom call has yet been originated by the real Claude product. Submission readiness remains blocked until that Claude-origin proof passes.
+This package is **not yet submitted**. The isolated workers.dev endpoints are live, every exposed tool descriptor has passed the directory-readiness audit, and all 74 canonical runtime operations have passed through the disposable server-side OAuth→MCP→Axiom path using the exact Claude callback contract. The remaining blocker is external-origin only: no OAuth session or authenticated Axiom call has yet been originated by the real Claude product. Submission readiness remains blocked until that Claude-origin proof passes.
