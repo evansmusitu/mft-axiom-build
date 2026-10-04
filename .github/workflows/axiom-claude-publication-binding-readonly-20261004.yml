@@ -28,8 +28,8 @@ jobs:
         run: |
           set -euo pipefail
           python - <<'PY'
-          import json, urllib.parse
-          from frontier_v5.scripts.deploy_claude_workers_dev import ACCOUNT_ID, cf, cloudflare_headers
+          import email, hashlib, json, subprocess, urllib.parse
+          from frontier_v5.scripts.deploy_claude_workers_dev import ACCOUNT_ID, CF_API, cf, cloudflare_headers, raw
           worker="musitu-axiom-claude-mcp-publication"
           headers=cloudflare_headers()
           settings,_=cf(headers,f"/accounts/{ACCOUNT_ID}/workers/scripts/{urllib.parse.quote(worker,safe='')}/settings")
@@ -51,5 +51,24 @@ jobs:
               rows.append(row)
           print("SANITIZED_BINDINGS="+json.dumps(sorted(rows,key=lambda x:x["name"]),sort_keys=True))
           print("compatibility_date="+str(settings.get("compatibility_date")))
+          code,rh,body=raw(f"{CF_API}/accounts/{ACCOUNT_ID}/workers/scripts/{urllib.parse.quote(worker,safe='')}",headers=headers)
+          if code!=200: raise SystemExit("worker source read failed")
+          ct=str(rh.get("content-type") or "")
+          src=body
+          if "multipart/" in ct.lower():
+              msg=email.message_from_bytes((f"Content-Type: {ct}\\r\\nMIME-Version: 1.0\\r\\n\\r\\n").encode()+body)
+              parts=[]
+              for part in msg.walk():
+                  if part.is_multipart(): continue
+                  data=part.get_payload(decode=True) or b""
+                  if b"export default" in data and b"tools/call" in data: parts.append(data)
+              if len(parts)!=1: raise SystemExit("worker executable source cardinality mismatch")
+              src=parts[0]
+          live_sha=hashlib.sha256(src).hexdigest()
+          old=subprocess.check_output(["git","show","63071425a75c419924e62eb59ab56f6dc361515e:frontier_v5/distribution/claude/musitu_axiom_mcp_gate_claude_candidate.mjs"])
+          expected_sha=hashlib.sha256(old).hexdigest()
+          print("LIVE_PUBLICATION_SOURCE_SHA256="+live_sha)
+          print("EXPECTED_PRE_FIX_SOURCE_SHA256="+expected_sha)
+          print("SOURCE_MATCH="+str(live_sha==expected_sha).lower())
           print("mutation_performed=false")
           PY
