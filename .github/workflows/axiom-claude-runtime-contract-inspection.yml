@@ -90,3 +90,7 @@ jobs:
           if not hits:
               raise SystemExit('no target operation contracts found')
           PY
+          echo '=== AXIOM DISPATCH CONTRACT LINES 145-245 ==='
+          sed -n '145,245p' /tmp/axiom-runtime/kernel/app/main.py
+          echo '=== AXIOM DISPATCH CONTRACT LINES 311-390 ==='
+          sed -n '311,390p' /tmp/axiom-runtime/kernel/app/main.py
