@@ -1,0 +1,86 @@
+name: Axiom All Operations Final Isolated GREEN 20261004
+on:
+  push:
+    branches: [fix/axiom-all-operation-contracts-20261004]
+    paths:
+      - 'frontier_v5/scripts/patch_http_serialization_runtime.py'
+      - '.github/workflows/axiom-all-operations-final-isolated-green-20261004.yml'
+permissions:
+  contents: read
+jobs:
+  green:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    env:
+      CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.13'}
+      - name: Reconstruct final isolated runtime candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          P=deploy_payload/runtime_min
+          cat "$P/chunk_00.b64" "$P/chunk_01_02.b64" "$P/chunk_03_04.b64" "$P/chunk_05_06.b64" "$P/chunk_07_08.b64" "$P/chunk_09.b64" > runtime.enc.b64
+          base64 -d runtime.enc.b64 > runtime.tar.gz.enc
+          test "$(sha256sum runtime.tar.gz.enc | awk '{print $1}')" = 'b82448d6b4b34b302748815af976b535d69922c197d4b7a9056fc2f91a9e12cf'
+          python - <<'PY'
+          import hashlib,hmac,os
+          b=open('runtime.tar.gz.enc','rb').read()
+          got=hmac.new(os.environ['CLOUDFLARE_GLOBAL_API_KEY'].encode(),b,hashlib.sha256).hexdigest()
+          if not hmac.compare_digest(got,'1a3193d4f3271d61d151e6ebd7cf4576d8ab86c2e79b84eff4ad0f635fe7ab47'):
+              raise SystemExit('ciphertext HMAC mismatch')
+          PY
+          openssl enc -d -aes-256-cbc -pbkdf2 -iter 250000 -in runtime.tar.gz.enc -out runtime.tar.gz -pass env:CLOUDFLARE_GLOBAL_API_KEY
+          test "$(sha256sum runtime.tar.gz | awk '{print $1}')" = 'b4d5a0266446523969a619f5e9bb5a04d9b815c78a2ab82ed046ef5e23d53663'
+          mkdir runtime && tar -xzf runtime.tar.gz -C runtime
+          test "$(sha256sum runtime/kernel/app/main.py | awk '{print $1}')" = '9389e4a501cd2385afe3820da685e97790e723da3bc5871a6dc2565b19f8fa3f'
+          python frontier_v5/scripts/patch_quadratic_constraints_runtime.py runtime/kernel/app/main.py
+          test "$(sha256sum runtime/kernel/app/main.py | awk '{print $1}')" = 'cfa39f0f17c56a183c5024a600086aba4644ec925343129245a62e18294f7c47'
+          python frontier_v5/scripts/patch_all_operation_contracts_runtime.py runtime/kernel/app/main.py
+          test "$(sha256sum runtime/kernel/app/main.py | awk '{print $1}')" = 'ef3e1a081ad2d68447bbbb0571795d8af9a6ab6a5e72c8e399533250bafb1b13'
+          python frontier_v5/scripts/patch_http_serialization_runtime.py runtime/kernel/app/main.py
+          sha256sum runtime/kernel/app/main.py
+      - name: Install exact runtime roots
+        run: python -m pip install --disable-pip-version-check --quiet fastapi==0.128.2 sympy==1.14.0 numpy==2.3.5 scipy==1.17.0 mpmath==1.3.0 duckdb==1.5.5 pyarrow==25.0.1 Pint==0.25.3 cvxpy==1.9.2 highspy==1.15.1 QuantLib==1.43 python-flint==0.9.0 z3-solver==5.1.0.0
+      - name: Gate 1 all 74 HTTP JSON envelopes
+        shell: bash
+        run: |
+          set -euo pipefail
+          PYTHONPATH=. python frontier_v5/scripts/verify_all_operation_http_serialization.py --runtime runtime --fixtures submission/claude/operation-fixtures.json | tee /tmp/http.log
+      - name: Gate 2 exhaustive 411 contract cases
+        shell: bash
+        run: |
+          set -euo pipefail
+          PYTHONPATH=. python frontier_v5/scripts/audit_all_operations_runtime.py --runtime runtime --fixtures submission/claude/operation-fixtures.json --out /tmp/exhaustive.json | tee /tmp/exhaustive.log
+          python - <<'PY'
+          import json
+          r=json.load(open('/tmp/exhaustive.json'))
+          if r['tests_run']!=411 or r['finding_count']!=0:
+              raise SystemExit('exhaustive gate failed '+json.dumps({k:r[k] for k in ('tests_run','finding_count','findings_by_category')},sort_keys=True))
+          print('MUSITU_AXIOM_411_EXHAUSTIVE_GATE_PASS')
+          PY
+      - name: Gate 3 deterministic property and metamorphic cases
+        shell: bash
+        run: |
+          set -euo pipefail
+          PYTHONPATH=. python frontier_v5/scripts/property_audit_all_operations_runtime.py --runtime runtime --fixtures submission/claude/operation-fixtures.json --out /tmp/property.json | tee /tmp/property.log
+          python - <<'PY'
+          import json
+          r=json.load(open('/tmp/property.json'))
+          if r['tests_run']!=1543 or r['failure_count']!=0:
+              raise SystemExit('property gate failed '+json.dumps({'tests_run':r['tests_run'],'failure_count':r['failure_count']},sort_keys=True))
+          print('MUSITU_AXIOM_1543_PROPERTY_GATE_PASS')
+          PY
+      - name: Final isolated gate
+        run: echo MUSITU_AXIOM_ALL_74_OPERATIONS_FINAL_ISOLATED_GREEN_PASS
+      - uses: actions/upload-artifact@v4
+        if: always()
+        continue-on-error: true
+        with:
+          name: axiom-all-operations-final-isolated-green
+          path: |
+            /tmp/exhaustive.json
+            /tmp/property.json
+          retention-days: 30
