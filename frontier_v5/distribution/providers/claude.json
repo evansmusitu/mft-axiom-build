@@ -18,12 +18,14 @@
     "issuer": "https://musitu-axiom-claude-auth-candidate.mft-education-nexus-93f395f5.workers.dev"
   },
   "submission": {
-    "status": "blocked_pending_real_claude_origin",
+    "status": "blocked_pending_real_claude_origin_validation",
     "portal_requires_paid_plan": true,
     "route": "developer_portal_single_remote_mcp",
     "live_endpoint_verified": true,
     "live_endpoint_evidence_run": 37169862332,
     "server_side_oauth_e2e_verified": true,
-    "server_side_oauth_e2e_run": 37170153704
+    "server_side_oauth_e2e_run": 37170153704,
+    "server_oauth_e2e_verified": true,
+    "server_oauth_e2e_run": 37170153704
   }
 }
