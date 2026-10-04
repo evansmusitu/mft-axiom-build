@@ -98,6 +98,29 @@ class PlatformBoundaryTests(unittest.TestCase):
                     "canonical_sha256":"a"*64,
                     "request_id":"MUSITU-CONNECT-mining-q1-aaaaaaaaaaaaaaaa"
                 })
+    def test_axiom_mcp_executor_rejects_mismatched_jsonrpc_id(self):
+        from connect.axiom_gateway import AxiomMcpExecutor
+        response={
+            "jsonrpc":"2.0",
+            "id":"MUSITU-CONNECT-other-run-bbbbbbbbbbbbbbbb",
+            "result":{
+                "structuredContent":{
+                    "operation":"arithmetic.evaluate",
+                    "request_id":"MUSITU-CONNECT-mining-q1-aaaaaaaaaaaaaaaa",
+                    "result":{"ok":True,"result":"3.348"}
+                }
+            }
+        }
+        with patch("urllib.request.urlopen",return_value=_FakeHttpResponse(response)):
+            executor=AxiomMcpExecutor("https://axiom.example/mcp","secret-token")
+            with self.assertRaisesRegex(RuntimeError,"AXIOM_REQUEST_ID_MISMATCH"):
+                executor({
+                    "operation":"arithmetic.evaluate",
+                    "args":{"expression":"0.54*10*0.62"},
+                    "run_id":"mining-q1",
+                    "canonical_sha256":"a"*64,
+                    "request_id":"MUSITU-CONNECT-mining-q1-aaaaaaaaaaaaaaaa"
+                })
     def test_lineage_event_has_required_openlineage_shape(self):
         e=event(namespace="musitu.connect",job_name="test",run_id="r")
         self.assertEqual(e["eventType"],"COMPLETE")
