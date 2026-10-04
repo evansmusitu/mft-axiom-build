@@ -1,6 +1,11 @@
 """Validate MUSITU Connect production admission evidence against policy-as-code."""
 import json
+import sys
 from pathlib import Path
+
+ROOT=Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0,str(ROOT))
 
 from connect.admission import (
     ProductionAdmissionEvidence,
@@ -8,7 +13,6 @@ from connect.admission import (
     ProductionPromotionAuthorization,
 )
 
-ROOT=Path(__file__).resolve().parents[1]
 GATE_PATH=ROOT/"qualification"/"musitu_connect_gate.json"
 
 def fail(message: str) -> None:
