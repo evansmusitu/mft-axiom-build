@@ -77,3 +77,27 @@ def test_publication_domain_preflight_workflow_is_non_mutating():
     assert "check_claude_publication_domain_preflight.py" in workflow
     assert "deploy_claude_publication_domains.py" not in workflow
     assert "CLAUDE_PUBLICATION_CONFIRM" not in workflow
+
+
+def test_publication_domain_deploy_scopes_machine_transport_rules_to_claude_hosts_only():
+    src = SCRIPT.read_text(encoding="utf-8")
+    assert 'AUTH_RULE_REF = "mft_axiom_claude_auth_machine_transport"' in src
+    assert 'MCP_RULE_REF = "mft_axiom_claude_mcp_machine_transport"' in src
+    assert 'http.host eq "' in src
+    assert '"action": "set_config"' in src
+    assert '"security_level": "essentially_off"' in src
+    assert '"bic": False' in src
+    assert "global_security_policy_mutated" in src
+    assert '"global_security_policy_mutated": False' in src
+    assert "_create_machine_rule" in src
+    assert "_delete_machine_rule" in src
+    assert "created_rules" in src
+
+
+def test_publication_rollback_removes_scoped_rules_as_well_as_domains_and_workers():
+    src = SCRIPT.read_text(encoding="utf-8")
+    assert "cleanup_created_publication_surface(" in src
+    assert "created_rules" in src
+    assert "/rules/" in src
+    assert '"DELETE"' in src
+    assert "Claude publication rollback incomplete" in src
