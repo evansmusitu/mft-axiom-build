@@ -9,6 +9,7 @@ on:
       - "frontier_v5/scripts/claude_distribution_gate.py"
       - "frontier_v5/scripts/deploy_claude_workers_dev.py"
       - "frontier_v5/scripts/claude_oauth_fixture_e2e.py"
+      - "frontier_v5/scripts/deploy_claude_publication_domains.py"
       - "frontier_v5/tests/test_distribution_oauth_policy.py"
       - "frontier_v5/tests/test_claude_worker_isolation_contract.py"
       - "frontier_v5/tests/test_claude_distribution_gate.py"
@@ -21,6 +22,7 @@ on:
       - "frontier_v5/tests/test_claude_publication_domain_contract.py"
       - "submission/claude/**"
       - ".github/workflows/axiom-frontier-v5-claude-distribution-gate.yml"
+      - ".github/workflows/axiom-frontier-v5-claude-publication-domain.yml"
   pull_request:
     paths:
       - "frontier_v5/distribution/**"
