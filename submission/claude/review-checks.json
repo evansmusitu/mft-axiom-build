@@ -17,7 +17,8 @@
     "claude_oauth_completed": false,
     "tools_list_discovered": true,
     "authenticated_tool_call_passed": false,
-    "openai_surface_unchanged_reverified": true
+    "openai_surface_unchanged_reverified": true,
+    "official_mcp_inspector_full_surface_passed": true
   },
   "blockers": [
     "real Claude custom-connector OAuth session has not yet originated from Claude",
@@ -102,5 +103,20 @@
     "deployed": false,
     "reason": "Anthropic review criteria says the MCP server domain should match the submitting service.",
     "source": "https://claude.com/docs/connectors/building/review-criteria"
+  },
+  "official_mcp_inspector": {
+    "passed": true,
+    "github_actions_run": 37174144402,
+    "package": "@modelcontextprotocol/inspector@2.5.0",
+    "node_version": "22.19.0",
+    "tool_count": 108,
+    "tool_pass_count": 108,
+    "tool_failures": {},
+    "protected_tool_count": 105,
+    "metering_rows_delta": 105,
+    "raw_inspector_access_token_published": false,
+    "fixture_rows_remaining": 0,
+    "openai_surface_unchanged": true,
+    "evidence_sha256": "a1d8c3ee01666c776fd94f02aee07ab11ddbd6221215ea61c551283ce62e17eb"
   }
 }
