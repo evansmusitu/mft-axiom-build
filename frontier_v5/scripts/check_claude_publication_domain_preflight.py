@@ -7,12 +7,14 @@ import urllib.parse
 
 from frontier_v5.scripts.deploy_claude_workers_dev import (
     ACCOUNT_ID,
+    CF_API,
     canonical_digest,
     cf,
     cloudflare_headers,
     git_blob_sha1,
     snapshot_openai_surface,
     worker_exists,
+    raw,
 )
 
 EXPECTED_OPENAI_AUTH_BLOB = "8ba0dbc1b6dd1533c6c26bff23991429e03a71a5"
@@ -80,6 +82,37 @@ def _dns_rows(headers: dict, zone_id: str, hostname: str) -> list[dict]:
     ]
 
 
+
+def _security_api_probe(headers: dict, zone_id: str) -> dict:
+    paths = {
+        "page_rules": f"/zones/{zone_id}/pagerules?per_page=50",
+        "config_rules_entrypoint": f"/zones/{zone_id}/rulesets/phases/http_config_settings/entrypoint",
+        "custom_rules_entrypoint": f"/zones/{zone_id}/rulesets/phases/http_request_firewall_custom/entrypoint",
+        "security_level_setting": f"/zones/{zone_id}/settings/security_level",
+        "browser_check_setting": f"/zones/{zone_id}/settings/browser_check",
+    }
+    out = {}
+    for name, path in paths.items():
+        code, _, data = raw(CF_API + path, headers=headers)
+        item = {"http": code, "accessible": 200 <= code < 300}
+        if item["accessible"]:
+            try:
+                payload = json.loads(data or b"{}")
+            except Exception:
+                payload = {}
+            result = payload.get("result") if isinstance(payload, dict) else None
+            if isinstance(result, list):
+                item["result_count"] = len(result)
+            elif isinstance(result, dict):
+                item["result_present"] = True
+                if name.endswith("_setting"):
+                    item["setting_id"] = result.get("id")
+                    item["setting_value"] = result.get("value")
+        out[name] = item
+    return out
+
+
+
 def main() -> int:
     if git_blob_sha1(ROOT / "auth/musitu_axiom_oauth_worker.mjs") != EXPECTED_OPENAI_AUTH_BLOB:
         raise RuntimeError("frozen OpenAI auth source drifted")
@@ -109,6 +142,7 @@ def main() -> int:
         PUBLIC_AUTH_HOST: _dns_rows(headers, zone_id, PUBLIC_AUTH_HOST),
         PUBLIC_MCP_HOST: _dns_rows(headers, zone_id, PUBLIC_MCP_HOST),
     }
+    security_api_probe = _security_api_probe(headers, zone_id)
 
     if not all(testing_workers.values()):
         raise RuntimeError("isolated Claude testing workers are not both present")
@@ -140,6 +174,7 @@ def main() -> int:
         "openai_surface_before_sha256": openai_before_digest,
         "openai_surface_after_sha256": openai_after_digest,
         "openai_surface_unchanged": True,
+        "security_api_probe": security_api_probe,
         "write_performed": False,
     }
 
@@ -178,6 +213,7 @@ def main() -> int:
             for row in dns_records[PUBLIC_MCP_HOST]
         ],
         "openai_surface_unchanged": True,
+        "security_api_probe": security_api_probe,
         "write_performed": False,
         "evidence_sha256": digest,
     }, sort_keys=True))
