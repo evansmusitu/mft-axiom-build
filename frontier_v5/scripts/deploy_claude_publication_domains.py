@@ -156,20 +156,16 @@ def _detach_domain(headers: dict, domain_id: str) -> None:
     )
 
 def _configuration_ruleset(headers: dict, zone_id: str) -> tuple[str, list[dict]]:
-    rows, _ = cf(headers, f"/zones/{zone_id}/rulesets")
-    matches = [
-        row for row in (rows or [])
-        if isinstance(row, dict)
-        and row.get("phase") == "http_config_settings"
-        and row.get("kind") == "zone"
-    ]
-    if len(matches) != 1 or not matches[0].get("id"):
-        raise RuntimeError(
-            f"expected exactly one zone http_config_settings ruleset, got {len(matches)}"
-        )
-    ruleset_id = str(matches[0]["id"])
-    detail, _ = cf(headers, f"/zones/{zone_id}/rulesets/{ruleset_id}")
-    rules = (detail or {}).get("rules") or []
+    detail, _ = cf(
+        headers,
+        f"/zones/{zone_id}/rulesets/phases/http_config_settings/entrypoint",
+    )
+    if not isinstance(detail, dict) or not detail.get("id"):
+        raise RuntimeError("http_config_settings entrypoint is unavailable")
+    if detail.get("phase") not in {None, "http_config_settings"}:
+        raise RuntimeError("unexpected configuration-rules phase")
+    ruleset_id = str(detail["id"])
+    rules = detail.get("rules") or []
     return ruleset_id, [r for r in rules if isinstance(r, dict)]
 
 
@@ -449,6 +445,15 @@ def main() -> int:
 
     _assert_domain_available(headers, zone_id, PUBLIC_AUTH_HOST, PUBLIC_AUTH_WORKER)
     _assert_domain_available(headers, zone_id, PUBLIC_MCP_HOST, PUBLIC_MCP_WORKER)
+    auth_ruleset_id = _assert_machine_rule_available(
+        headers, zone_id, PUBLIC_AUTH_HOST, AUTH_RULE_REF
+    )
+    mcp_ruleset_id = _assert_machine_rule_available(
+        headers, zone_id, PUBLIC_MCP_HOST, MCP_RULE_REF
+    )
+    if auth_ruleset_id != mcp_ruleset_id:
+        raise RuntimeError("Claude machine-transport ruleset mismatch")
+
     before = snapshot_openai_surface()
     before_digest = canonical_digest(before)
     created_workers: list[str] = []
@@ -456,6 +461,19 @@ def main() -> int:
     created_rules: list[tuple[str, str]] = []
 
     try:
+        created_rules.append((
+            auth_ruleset_id,
+            _create_machine_rule(
+                headers, zone_id, auth_ruleset_id, PUBLIC_AUTH_HOST, AUTH_RULE_REF
+            ),
+        ))
+        created_rules.append((
+            mcp_ruleset_id,
+            _create_machine_rule(
+                headers, zone_id, mcp_ruleset_id, PUBLIC_MCP_HOST, MCP_RULE_REF
+            ),
+        ))
+
         auth_bindings = [
             {"type": "d1", "name": "AXIOM_DB", "id": D1_UUID},
             {"type": "plain_text", "name": "OAUTH_ISSUER", "text": PUBLIC_AUTH_URL},
@@ -535,8 +553,20 @@ def main() -> int:
             },
             "testing_workers_unchanged": True,
             "machine_transport_rules": {
-                "created": False,
-                "reason": "not required; publication hosts must pass direct external health/OAuth verification or rollback"
+                "created": True,
+                "count": len(created_rules),
+                "auth": {
+                    "ref": AUTH_RULE_REF,
+                    "scope": f'http.host eq "{PUBLIC_AUTH_HOST}"',
+                    "security_level": "essentially_off",
+                    "bic": False,
+                },
+                "mcp": {
+                    "ref": MCP_RULE_REF,
+                    "scope": f'http.host eq "{PUBLIC_MCP_HOST}"',
+                    "security_level": "essentially_off",
+                    "bic": False,
+                },
             },
             "global_security_policy_mutated": False,
             "openai_surface_before_sha256": before_digest,
@@ -569,7 +599,7 @@ def main() -> int:
     except Exception:
         cleanup_created_publication_surface(
             headers,
-            {},
+            headers,
             zone_id,
             created_domains,
             created_rules,
