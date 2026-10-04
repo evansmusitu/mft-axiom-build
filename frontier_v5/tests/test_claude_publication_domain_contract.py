@@ -3,6 +3,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 SCRIPT = ROOT / "frontier_v5/scripts/deploy_claude_publication_domains.py"
 WORKFLOW = ROOT / ".github/workflows/axiom-frontier-v5-claude-publication-domain.yml"
+PREFLIGHT = ROOT / "frontier_v5/scripts/check_claude_publication_domain_preflight.py"
+PREFLIGHT_WORKFLOW = ROOT / ".github/workflows/axiom-frontier-v5-claude-publication-domain-preflight.yml"
 
 
 def test_publication_domain_deploy_is_manual_only_and_separate_from_test_workers():
@@ -52,3 +54,26 @@ def test_publication_workflow_requires_explicit_manual_authorization():
     assert "ATTACH_CLAUDE_PUBLICATION_DOMAINS" in workflow
     assert "CLAUDE_PUBLICATION_CONFIRM" in workflow
     assert "deploy_claude_publication_domains.py" in workflow
+
+
+def test_publication_domain_preflight_is_read_only():
+    assert PREFLIGHT.exists(), "Claude publication-domain preflight script is missing"
+    src = PREFLIGHT.read_text(encoding="utf-8")
+    assert 'PUBLIC_AUTH_HOST = "claude-auth.mftintelligence.com"' in src
+    assert 'PUBLIC_MCP_HOST = "claude-mcp.mftintelligence.com"' in src
+    assert "workers/domains" in src
+    assert "dns_records" in src
+    assert '"PUT"' not in src
+    assert '"POST"' not in src
+    assert '"DELETE"' not in src
+    assert "write_performed" in src
+    assert '"write_performed": False' in src
+
+
+def test_publication_domain_preflight_workflow_is_non_mutating():
+    assert PREFLIGHT_WORKFLOW.exists(), "Claude publication-domain preflight workflow is missing"
+    workflow = PREFLIGHT_WORKFLOW.read_text(encoding="utf-8")
+    assert "workflow_dispatch:" in workflow
+    assert "check_claude_publication_domain_preflight.py" in workflow
+    assert "deploy_claude_publication_domains.py" not in workflow
+    assert "CLAUDE_PUBLICATION_CONFIRM" not in workflow
