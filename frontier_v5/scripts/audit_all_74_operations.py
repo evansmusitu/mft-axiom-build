@@ -13,7 +13,9 @@ def norm(v):
     if isinstance(v, dict): return {str(k):norm(x) for k,x in v.items()}
     if isinstance(v, (list,tuple)): return [norm(x) for x in v]
     if isinstance(v, np.ndarray): return norm(v.tolist())
-    if isinstance(v, np.generic): return v.item()
+    if isinstance(v, np.generic): return norm(v.item())
+    if isinstance(v, float) and not math.isfinite(v):
+        return "NaN" if math.isnan(v) else ("Infinity" if v > 0 else "-Infinity")
     return str(v) if type(v).__module__.startswith("sympy") else v
 
 def approx(a,b,tol=1e-8): return abs(float(a)-float(b)) <= tol*max(1.0,abs(float(b)))
