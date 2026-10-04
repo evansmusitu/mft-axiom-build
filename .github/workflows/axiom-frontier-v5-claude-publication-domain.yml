@@ -1,0 +1,57 @@
+name: Axiom Claude Publication Domain Deployment
+
+on:
+  workflow_dispatch:
+    inputs:
+      authorization:
+        description: "Type ATTACH_CLAUDE_PUBLICATION_DOMAINS to authorize the isolated Claude publication-domain deployment"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: musitu-axiom-claude-publication-domain
+  cancel-in-progress: false
+
+jobs:
+  publication-domain:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      CLAUDE_PUBLICATION_CONFIRM: ${{ inputs.authorization }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Verify publication-domain safety contract
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF_NAME" = "distribution/claude-remote-mcp-20261004"
+          test "$GITHUB_EVENT_NAME" = "workflow_dispatch"
+          test "$CLAUDE_PUBLICATION_CONFIRM" = "ATTACH_CLAUDE_PUBLICATION_DOMAINS"
+          python -m pip install --disable-pip-version-check pytest
+          PYTHONPATH=. python -m pytest -q             frontier_v5/tests/test_claude_publication_domain_contract.py             frontier_v5/tests/test_distribution_oauth_policy.py             frontier_v5/tests/test_claude_worker_isolation_contract.py
+
+      - name: Deploy and verify MUSITU-owned Claude publication domains
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        run: |
+          set -euo pipefail
+          PYTHONPATH=. python frontier_v5/scripts/deploy_claude_publication_domains.py
+
+      - name: Upload Claude publication-domain evidence
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: musitu-axiom-claude-publication-domain-evidence
+          path: |
+            musitu-axiom-claude-publication-domain-evidence.json
+            musitu-axiom-claude-publication-domain-evidence.sha256
+          retention-days: 30
