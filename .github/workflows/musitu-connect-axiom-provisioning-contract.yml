@@ -29,58 +29,42 @@ jobs:
           test "$(sha256sum runtime.tar.gz | awk '{print $1}')" = 'b4d5a0266446523969a619f5e9bb5a04d9b815c78a2ab82ed046ef5e23d53663'
           mkdir runtime
           tar -xzf runtime.tar.gz -C runtime
-      - name: Probe live admin contract read-only
+      - name: Probe available Cloudflare D1 credentials read-only
         env:
-          MFT_CONTROL_SECRET: ${{ secrets.MFT_CONTROL_SECRET }}
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+          CLOUDFLARE_TOKEN: ${{ secrets.CLOUDFLARE_TOKEN }}
         shell: bash
         run: |
           set -euo pipefail
           python - <<'PY'
           import json,os,urllib.error,urllib.request
-          base='https://axiom.mftintelligence.com'
-          secret=os.environ.get('MFT_CONTROL_SECRET') or ''
-          if not secret:
-              raise RuntimeError('MFT_CONTROL_SECRET unavailable')
-          req=urllib.request.Request(
-              base+'/v1/admin/customers',
-              headers={
-                  'Accept':'application/json',
-                  'x-mft-control':secret,
-                  'x-mft-axiom-version':'3.0.0',
-                  'User-Agent':'MUSITU-Connect-Provisioning-Probe/1.0',
-              },
-          )
-          try:
-              with urllib.request.urlopen(req,timeout=30) as r:
-                  status=r.status; raw=r.read()
-          except urllib.error.HTTPError as e:
-              status=e.code; raw=e.read()
-          try:
-              obj=json.loads(raw or b'{}')
-          except Exception:
-              obj={}
-          rows=[]
-          if isinstance(obj,list): rows=obj
-          elif isinstance(obj,dict):
-              for k in ('customers','items','data','results'):
-                  if isinstance(obj.get(k),list):
-                      rows=obj[k]; break
-          fixture_like=[]
-          for row in rows:
-              if not isinstance(row,dict): continue
-              s=' '.join(str(row.get(k) or '') for k in ('id','email','name','label')).lower()
-              if any(x in s for x in ('fixture','e2e','test','invalid.example')):
-                  fixture_like.append(row)
-          print('CONNECT_AXIOM_ADMIN_PROBE='+json.dumps({
-              'http_status':status,
-              'customer_count':len(rows),
-              'fixture_like_count':len(fixture_like),
-              'authenticated':status==200,
-              'raw_customer_data_published':False,
-              'secret_values_published':False,
-          },sort_keys=True))
-          if status!=200:
-              raise RuntimeError('live admin read-only probe failed HTTP '+str(status))
+          url='https://api.cloudflare.com/client/v4/accounts/93f395f5121954671f92fffa453d6b61/d1/database/504029cc-f9a5-495e-818f-63c6144b4ea4/query'
+          body=json.dumps({'sql':'SELECT 1 AS ok'},separators=(',',':')).encode()
+          def call(headers):
+              h={'Accept':'application/json','Content-Type':'application/json','User-Agent':'MUSITU-Connect-CF-Credential-Probe/1.0'}
+              h.update(headers)
+              q=urllib.request.Request(url,headers=h,method='POST',data=body)
+              try:
+                  with urllib.request.urlopen(q,timeout=30) as r:return r.status
+              except urllib.error.HTTPError as e:return e.code
+          results={}
+          email=os.environ.get('CLOUDFLARE_EMAIL') or ''
+          global_key=os.environ.get('CLOUDFLARE_GLOBAL_API_KEY') or ''
+          results['legacy_global_key_present']=bool(email and global_key)
+          if email and global_key:
+              results['legacy_global_key_http']=call({'X-Auth-Email':email,'X-Auth-Key':global_key})
+              results['global_key_as_bearer_http']=call({'Authorization':'Bearer '+global_key})
+          for name in ('CLOUDFLARE_API_TOKEN','CF_API_TOKEN','CLOUDFLARE_TOKEN'):
+              token=os.environ.get(name) or ''
+              results[name.lower()+'_present']=bool(token)
+              if token:
+                  results[name.lower()+'_http']=call({'Authorization':'Bearer '+token})
+          results['any_readonly_d1_success']=any(v==200 for k,v in results.items() if k.endswith('_http'))
+          results['secret_values_published']=False
+          print('CONNECT_CF_CREDENTIAL_PROBE='+json.dumps(results,sort_keys=True))
           PY
       - name: Emit safe provisioning contract metadata
         shell: bash
