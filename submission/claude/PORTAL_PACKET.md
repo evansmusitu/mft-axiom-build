@@ -78,6 +78,7 @@ Prerequisite: existing MUSITU Axiom account with sufficient compute entitlement.
 - Real Claude Gate C: **PASS** — `investment_npv` / `finance.npv` returned `117570.23440753826` from MUSITU Axiom.
 - Guarded entitlement correction run `37209332065`: exactly one linked active developer account received the existing 1000-unit developer allowance; unrelated customer, usage, OAuth and subscription state did not change.
 - Live result-text projection repair run `37212837854`: 74/74 operation fixtures and 108/108 Inspector tools passed; frozen OpenAI surface unchanged.
+- Real-origin finalization run `37228078509`: **PASS** — 10 focused tests passed and the post-test frozen OpenAI live-surface digest remained unchanged.
 - The current submission guide permits confirming every tool was tested through MCP Inspector or as a custom connector in Claude. The sealed Inspector run `37174144402` provides the 108/108 full-surface evidence; the actual Claude-origin gates provide separate product-origin proof.
 
 ## 9. Compliance

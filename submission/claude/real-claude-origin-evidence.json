@@ -96,7 +96,13 @@
     "auth_blob": "8ba0dbc1b6dd1533c6c26bff23991429e03a71a5",
     "mcp_v4_blob": "4a1ad37a5e7df0e4d3966e8b5f9f0e8f2db69167",
     "openai_surface_sha256": "1515ae38afc222de1d29e9dbfc49830aa22ca6350bf94d84d8e506239fe7d29d",
-    "live_reverification": "pending_real_origin_finalization_workflow"
+    "live_reverification": {
+      "passed": true,
+      "workflow_run": 37228078509,
+      "gate": "MUSITU_AXIOM_CLAUDE_REAL_ORIGIN_PASS",
+      "openai_surface_unchanged_reverified": true,
+      "openai_surface_sha256": "1515ae38afc222de1d29e9dbfc49830aa22ca6350bf94d84d8e506239fe7d29d"
+    }
   },
   "blockers": [
     "signed-in Claude Free account cannot submit; Pro, Max, Team, or Enterprise is required",

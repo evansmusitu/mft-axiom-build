@@ -33,13 +33,13 @@ def test_provider_mismatch_fails_closed():
     assert not is_allowed_redirect("https://claude.ai/api/mcp/auth_callback", provider="unknown")
 
 
-def test_claude_profile_is_live_single_remote_mcp_but_blocked_until_execution_and_submission_gates_pass():
+def test_claude_profile_is_live_and_real_origin_verified_but_blocked_on_publisher_prerequisites():
     root = Path(__file__).resolve().parents[1]
     profile = load_provider_profile(root / "distribution" / "providers" / "claude.json")
     assert profile["provider_id"] == "claude"
     assert profile["distribution_mode"] == "single_remote_mcp"
     assert profile["oauth"]["callback_uris"] == ["https://claude.ai/api/mcp/auth_callback"]
-    assert profile["submission"]["status"] == "blocked_pending_authenticated_claude_execution_and_submission_requirements"
+    assert profile["submission"]["status"] == "blocked_pending_publisher_prerequisites_and_portal_submission"
     assert profile["submission"]["portal_requires_paid_plan"] is True
     assert profile["submission"]["team_enterprise_org_connector_admin_controls"] is True
     assert profile["submission"]["remote_mcp_directory_submission_requires_team_or_enterprise"] is False
@@ -52,8 +52,12 @@ def test_claude_profile_is_live_single_remote_mcp_but_blocked_until_execution_an
     assert profile["oauth"]["issuer"] == "https://claude-auth.mftintelligence.com"
     assert profile["submission"]["publication_domain_deployment_succeeded"] is True
     assert profile["submission"]["claude_oauth_completed"] is True
-    assert profile["submission"]["authenticated_tool_call_passed"] is False
-    assert profile["submission"]["claude_origin_verified"] is False
+    assert profile["submission"]["authenticated_tool_call_passed"] is True
+    assert profile["submission"]["claude_origin_verified"] is True
+    assert profile["submission"]["real_claude_execution_blocker"] is None
+    assert profile["submission"]["observed_claude_plan"] == "free"
+    assert profile["submission"]["legitimate_public_support_contact_present"] is False
+    assert profile["submission"]["dedicated_reviewer_credentials_securely_provided"] is False
 
 
 def test_profile_validation_rejects_wildcard_redirects(tmp_path):

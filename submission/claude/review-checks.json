@@ -175,7 +175,7 @@
     "no_secrets_exposed": true,
     "claude_origin_verified": true,
     "execution_http_status": null,
-    "post_test_openai_reverification_run": null,
+    "post_test_openai_reverification_run": 37228078509,
     "arithmetic_tool_name": "axiom_arithmetic_evaluate",
     "arithmetic_operation": "arithmetic.evaluate",
     "arithmetic_result": 42,
@@ -183,7 +183,9 @@
     "npv_operation": "finance.npv",
     "npv_result": 117570.23440753826,
     "source_commit": "35c52cbe27212c2022bc05391ada49e9a27b4a6c",
-    "claude_chat_url": "https://claude.ai/chat/0c96a4e7-111c-43fc-ba88-219d91c9f8e3"
+    "claude_chat_url": "https://claude.ai/chat/0c96a4e7-111c-43fc-ba88-219d91c9f8e3",
+    "finalization_gate": "MUSITU_AXIOM_CLAUDE_REAL_ORIGIN_PASS",
+    "finalization_tests_passed": 10
   },
   "entitlement_root_cause_evidence": "EVIDENCE/claude-entitlement-root-cause-20261004.json",
   "entitlement_correction_evidence": "EVIDENCE/claude-entitlement-correction-20261004.json",

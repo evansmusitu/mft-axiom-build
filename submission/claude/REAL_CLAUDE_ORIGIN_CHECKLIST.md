@@ -113,3 +113,4 @@ After the real Claude-origin tool call:
 - Guarded entitlement correction: GitHub Actions run `37209332065`, exactly one linked active developer account changed from a null monthly override to 1000; unrelated customer, usage, OAuth, and subscription state remained unchanged.
 - Claude text-result projection repair: GitHub Actions run `37212837854`; 108/108 Inspector tools and 74/74 operation fixtures passed, with the frozen OpenAI surface unchanged.
 - Evidence: `submission/claude/real-claude-origin-evidence.json`. `claude_oauth_completed=true`, `authenticated_tool_call_passed=true`, `claude_origin_verified=true`.
+- Real-origin finalization and post-test frozen OpenAI live-surface recheck: **PASS**, run `37228078509`; 10 focused tests passed and the canonical OpenAI surface SHA-256 remained `1515ae38afc222de1d29e9dbfc49830aa22ca6350bf94d84d8e506239fe7d29d`.

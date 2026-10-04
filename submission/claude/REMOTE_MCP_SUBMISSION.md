@@ -30,7 +30,7 @@ The connector exposes 108 tools: 74 quantitative runtime operations, 30 business
 - Actual `investment_npv` / `finance.npv` call for the requested cash flows and 12% rate returned the MUSITU Axiom result `117570.23440753826`.
 - Guarded single-account entitlement correction passed in run `37209332065`; exactly one linked active developer account changed from a null monthly override to 1000, with unrelated customer, usage, OAuth, and subscription state unchanged.
 - Claude result-text projection repair passed in run `37212837854`; 74/74 operation fixtures and 108/108 Inspector tools passed, with frozen OpenAI unchanged.
-- Frozen main, PR #1 state, and OpenAI source blobs were reverified before sealing this evidence; the real-origin finalization workflow performs the post-test live OpenAI surface digest check.
+- Frozen main, PR #1 state, and OpenAI source blobs were reverified before sealing this evidence. Real-origin finalization run `37228078509` passed 10 focused tests and reverified the frozen OpenAI live-surface SHA-256 as `1515ae38afc222de1d29e9dbfc49830aa22ca6350bf94d84d8e506239fe7d29d`.
 - Real evidence: `submission/claude/real-claude-origin-evidence.json`.
 
 Historical synthetic server OAuth preflight (run `37173358086`, 74/74 operations) and Inspector preflight (run `37174144402`, 108/108 tools) remain separate evidence. They do not establish successful execution from Claude.
