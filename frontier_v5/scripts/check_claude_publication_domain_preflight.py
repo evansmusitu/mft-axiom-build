@@ -161,6 +161,22 @@ def main() -> int:
         "mcp_domain_rows": len(domain_rows[PUBLIC_MCP_HOST]),
         "auth_dns_records": len(dns_records[PUBLIC_AUTH_HOST]),
         "mcp_dns_records": len(dns_records[PUBLIC_MCP_HOST]),
+        "auth_domain_detail": [
+            {k: row.get(k) for k in ("id","hostname","service","status","zone_id","zone_name") if row.get(k) is not None}
+            for row in domain_rows[PUBLIC_AUTH_HOST]
+        ],
+        "mcp_domain_detail": [
+            {k: row.get(k) for k in ("id","hostname","service","status","zone_id","zone_name") if row.get(k) is not None}
+            for row in domain_rows[PUBLIC_MCP_HOST]
+        ],
+        "auth_dns_detail": [
+            {k: row.get(k) for k in ("id","name","type","content","proxied","status") if row.get(k) is not None}
+            for row in dns_records[PUBLIC_AUTH_HOST]
+        ],
+        "mcp_dns_detail": [
+            {k: row.get(k) for k in ("id","name","type","content","proxied","status") if row.get(k) is not None}
+            for row in dns_records[PUBLIC_MCP_HOST]
+        ],
         "openai_surface_unchanged": True,
         "write_performed": False,
         "evidence_sha256": digest,
