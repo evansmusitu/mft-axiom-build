@@ -23,7 +23,7 @@ concurrency:
 jobs:
   oauth-fixture-e2e:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 20
     env:
       CLAUDE_FIXTURE_CONFIRM: RUN_DISPOSABLE_CLAUDE_OAUTH_FIXTURE
     steps:
@@ -32,6 +32,17 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22.19.0"
+
+      - name: Install pinned MCP Inspector
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --global @modelcontextprotocol/inspector@2.5.0
+          mcp-inspector --help >/dev/null
 
       - name: Verify fixture contract
         shell: bash
