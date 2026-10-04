@@ -1,6 +1,6 @@
 # MUSITU Axiom — Claude Remote MCP Submission Candidate
 
-Status: **BLOCKED — isolated Claude endpoint is live-validated; real Claude OAuth/tool E2E remains required**
+Status: **BLOCKED — isolated endpoint and server OAuth→Axiom E2E are proven; real Claude-origin OAuth/tool validation remains required**
 
 This package is for the Claude developer portal **single remote MCP connector** route. It does not alter the frozen OpenAI submission or its production OAuth/MCP surface.
 
@@ -116,4 +116,4 @@ Official source pages used for this package:
 
 ## Explicit blocker
 
-This package is **not yet submitted**. The isolated workers.dev endpoints are live and have passed server-side health/discovery/tools-list verification, but no real Claude custom-connector OAuth session or authenticated Claude-originated tool invocation has yet been completed. Submission readiness remains blocked until those two end-to-end checks pass.
+This package is **not yet submitted**. The isolated workers.dev endpoints are live, and the complete server-side OAuth→MCP→Axiom chain has passed using the exact Claude callback contract. The remaining blocker is narrower: no OAuth session or authenticated Axiom call has yet been originated by the real Claude product. Submission readiness remains blocked until that Claude-origin proof passes.
