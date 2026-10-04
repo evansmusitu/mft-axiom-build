@@ -28,7 +28,7 @@ jobs:
         run: |
           set -euo pipefail
           python - <<'PY'
-          import email, hashlib, json, subprocess, urllib.parse
+          import email, hashlib, json, urllib.parse
           from frontier_v5.scripts.deploy_claude_workers_dev import ACCOUNT_ID, CF_API, cf, cloudflare_headers, raw
           worker="musitu-axiom-claude-mcp-publication"
           headers=cloudflare_headers()
@@ -65,10 +65,11 @@ jobs:
               if len(parts)!=1: raise SystemExit("worker executable source cardinality mismatch")
               src=parts[0]
           live_sha=hashlib.sha256(src).hexdigest()
-          old=subprocess.check_output(["git","show","63071425a75c419924e62eb59ab56f6dc361515e:frontier_v5/distribution/claude/musitu_axiom_mcp_gate_claude_candidate.mjs"])
-          expected_sha=hashlib.sha256(old).hexdigest()
+          live_blob=hashlib.sha1(f"blob {len(src)}\\0".encode()+src).hexdigest()
+          expected_blob="b35010542eb654974e40003a5e42874a93b6b2b9"
           print("LIVE_PUBLICATION_SOURCE_SHA256="+live_sha)
-          print("EXPECTED_PRE_FIX_SOURCE_SHA256="+expected_sha)
-          print("SOURCE_MATCH="+str(live_sha==expected_sha).lower())
+          print("LIVE_PUBLICATION_SOURCE_GIT_BLOB_SHA1="+live_blob)
+          print("EXPECTED_PRE_FIX_GIT_BLOB_SHA1="+expected_blob)
+          print("SOURCE_MATCH="+str(live_blob==expected_blob).lower())
           print("mutation_performed=false")
           PY
