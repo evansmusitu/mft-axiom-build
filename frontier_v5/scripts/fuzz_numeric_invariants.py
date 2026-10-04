@@ -28,7 +28,13 @@ def main():
         p=float(m.dispatch("finance.black_scholes",{"S":S,"K":K,"T":T,"r":r,"q":q,"sigma":sig,"kind":"put"},50))
         assert abs((c-p)-(S*math.exp(-q*T)-K*math.exp(-r*T)))<1e-8;checks+=1
         iv=float(m.dispatch("finance.implied_vol",{"price":c,"S":S,"K":K,"T":T,"r":r,"q":q,"kind":"call"},50))
-        assert abs(iv-sig)<2e-7;checks+=1
+        intrinsic=max(0.0,S*math.exp(-q*T)-K*math.exp(-r*T))
+        if c-intrinsic > max(1e-8,1e-10*S):
+            assert abs(iv-sig)<2e-7
+        else:
+            repriced=float(m.dispatch("finance.black_scholes",{"S":S,"K":K,"T":T,"r":r,"q":q,"sigma":iv,"kind":"call"},50))
+            assert abs(repriced-c)<1e-8
+        checks+=1
     # FFT/IFFT roundtrip.
     for n in (2,3,4,7,16):
       for _ in range(5):
