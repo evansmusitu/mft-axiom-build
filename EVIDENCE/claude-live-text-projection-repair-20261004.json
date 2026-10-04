@@ -1,0 +1,61 @@
+{
+  "schema": "musitu.axiom.claude_live_text_projection_repair.v1",
+  "timestamp_utc": "2026-10-04T15:28:33.775Z",
+  "source_branch": "distribution/claude-remote-mcp-20261004",
+  "source_commit": "dc5af6ce554185d0fecb747297b2665028a86987",
+  "github_actions_run": 37212837854,
+  "github_actions_job": 111467310283,
+  "regression_cycle": {
+    "red_commit": "63071425a75c419924e62eb59ab56f6dc361515e",
+    "red_run": 37211582992,
+    "red_result": "1 failed, 59 passed; projectClaudeTextResult missing",
+    "green_commit": "3e0082151fd9f713ff3bb3bbf831f054ba59364e",
+    "green_run": 37211734176,
+    "green_result": "success"
+  },
+  "candidate_proof": {
+    "run": 37211841680,
+    "step": "Prove candidate OAuth, 74 operations, Inspector, and text result",
+    "passed": true,
+    "gate": "MUSITU_AXIOM_CLAUDE_SERVER_OAUTH_E2E_PASS",
+    "evidence_sha256": "979d901cc58337a4725ab18b34a1e1897e08bf0423abdea3277d521a13a7bd56"
+  },
+  "live_publication_repair": {
+    "patch_gate": "MUSITU_AXIOM_CLAUDE_LIVE_TEXT_PROJECTION_PATCH_PASS",
+    "source_before_sha256": "15b44bf0ff10a3f6abd229ad9e657311cad1587e7d403e2f3c18837e76722ad8",
+    "source_after_sha256": "a894efea1f4904570c5d0a7dc23b063b80711375aa8610cb809506c0fa2b4664",
+    "tools": 108,
+    "operations": 74,
+    "business_products": 30,
+    "auth_publication_changed": false,
+    "dns_changed": false,
+    "cloudflare_rules_changed": false,
+    "openai_surface_unchanged": true
+  },
+  "public_server_oauth_proof": {
+    "gate": "MUSITU_AXIOM_CLAUDE_SERVER_OAUTH_E2E_PASS",
+    "authenticated_axiom_compute_http": 200,
+    "all_74_operations_mcp_preflight_passed": true,
+    "functional_operation_pass_count": 74,
+    "functional_operation_failures": {},
+    "inspector_tool_count": 108,
+    "inspector_tool_pass_count": 108,
+    "inspector_tool_failures": {},
+    "result_42_observed": true,
+    "arithmetic_result_in_text_content_required_by_verifier": true,
+    "metering_verified": true,
+    "fixture_rows_remaining": 0,
+    "raw_inspector_access_token_published": false,
+    "evidence_sha256": "beb1eee94c4c27d8c9f0490f67be1bbae9ffc77bb6780bcb75319f16c231fb42"
+  },
+  "frozen_boundaries": {
+    "main": "d6a846f6bbe0bccac1758713eb4de167caf07113",
+    "openai_auth_blob": "8ba0dbc1b6dd1533c6c26bff23991429e03a71a5",
+    "openai_mcp_blob": "4a1ad37a5e7df0e4d3966e8b5f9f0e8f2db69167",
+    "openai_surface_unchanged": true
+  },
+  "claude_origin_verified": false,
+  "authenticated_tool_call_passed": false,
+  "representative_npv_tool_call_passed": false,
+  "next_required_gate": "genuine Claude-origin arithmetic and finance.npv retries"
+}

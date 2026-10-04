@@ -21,10 +21,11 @@
     "official_mcp_inspector_full_surface_passed": true,
     "claude_origin_verified": false,
     "representative_npv_tool_call_passed": false,
-    "entitlement_correction_passed": true
+    "entitlement_correction_passed": true,
+    "public_text_result_projection_passed": true
   },
   "blockers": [
-    "The linked Developer entitlement defect is corrected and verified; the real Claude arithmetic and NPV execution gates must now be rerun.",
+    "Public Claude OAuth/MCP server-side proof now returns the Axiom arithmetic result through MCP text content; genuine Claude-origin arithmetic and NPV retries are still required before READY.",
     "all real Claude execution gates must pass before READY",
     "signed-in Claude Free account cannot submit; Pro/Max/Team/Enterprise is required",
     "a legitimate public MUSITU support contact has not been designated",
@@ -193,5 +194,29 @@
     "usage_bucket_unchanged": true,
     "oauth_metadata_unchanged": true,
     "subscription_state_unchanged": true
-  }
+  },
+  "public_text_projection_repair": {
+    "passed": true,
+    "github_actions_run": 37212837854,
+    "job": 111467310283,
+    "patch_gate": "MUSITU_AXIOM_CLAUDE_LIVE_TEXT_PROJECTION_PATCH_PASS",
+    "public_oauth_gate": "MUSITU_AXIOM_CLAUDE_SERVER_OAUTH_E2E_PASS",
+    "public_proof_evidence_sha256": "beb1eee94c4c27d8c9f0490f67be1bbae9ffc77bb6780bcb75319f16c231fb42",
+    "source_before_sha256": "15b44bf0ff10a3f6abd229ad9e657311cad1587e7d403e2f3c18837e76722ad8",
+    "source_after_sha256": "a894efea1f4904570c5d0a7dc23b063b80711375aa8610cb809506c0fa2b4664",
+    "tool_count": 108,
+    "operation_count": 74,
+    "business_product_count": 30,
+    "functional_operation_pass_count": 74,
+    "inspector_tool_pass_count": 108,
+    "result_42_observed": true,
+    "arithmetic_result_required_in_text_content": true,
+    "openai_surface_unchanged": true,
+    "auth_publication_changed": false,
+    "dns_changed": false,
+    "cloudflare_rules_changed": false,
+    "rollback_executed": false,
+    "real_claude_origin_still_required": true
+  },
+  "public_text_projection_evidence": "EVIDENCE/claude-live-text-projection-repair-20261004.json"
 }
