@@ -98,6 +98,31 @@ class PlatformBoundaryTests(unittest.TestCase):
             })
         self.assertEqual(result["result"]["result"],"3.348")
 
+    def test_axiom_mcp_executor_accepts_sanitized_response_when_jsonrpc_id_matches(self):
+        from connect.axiom_gateway import AxiomMcpExecutor
+        request_id="MUSITU-CONNECT-mining-q1-aaaaaaaaaaaaaaaa"
+        response={
+            "jsonrpc":"2.0",
+            "id":request_id,
+            "result":{
+                "structuredContent":{
+                    "operation":"arithmetic.evaluate",
+                    "result":{"ok":True,"result":"3.348"}
+                }
+            }
+        }
+        with patch("urllib.request.urlopen",return_value=_FakeHttpResponse(response)):
+            executor=AxiomMcpExecutor("https://axiom.example/mcp","secret-token")
+            result=executor({
+                "operation":"arithmetic.evaluate",
+                "args":{"expression":"0.54*10*0.62"},
+                "run_id":"mining-q1",
+                "canonical_sha256":"a"*64,
+                "request_id":request_id
+            })
+        self.assertNotIn("request_id",result)
+        self.assertEqual(result["result"]["result"],"3.348")
+
     def test_axiom_mcp_executor_rejects_mismatched_request_id(self):
         from connect.axiom_gateway import AxiomMcpExecutor
         response={
