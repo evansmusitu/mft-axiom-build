@@ -22,7 +22,7 @@
   "blockers": [
     "real Claude custom-connector OAuth session has not yet originated from Claude",
     "authenticated Axiom tool invocation has not yet originated from Claude",
-    "developer-portal directory submission has not been performed"
+    "public directory developer-portal submission has not been performed"
   ],
   "live_endpoint_evidence": {
     "github_actions_run": 37173130982,
@@ -82,5 +82,11 @@
     "fixture_rows_remaining": 0,
     "openai_surface_unchanged": true,
     "evidence_sha256": "2bffbb3891b2cfa6bc5ede18a23f42e658c72292b9ee33614289138077b09a72"
+  },
+  "portal_eligibility": {
+    "public_directory_developer_portal": "Paid Claude plan",
+    "custom_remote_mcp_testing": "Free, Pro, Max, Team, and Enterprise; Free is limited to one custom connector",
+    "in_app_organization_directory_management": "Team or Enterprise; Admin/Owner access, with delegated Directory-management support on Enterprise",
+    "verified_from_official_anthropic_docs_on": "2026-10-04"
   }
 }
