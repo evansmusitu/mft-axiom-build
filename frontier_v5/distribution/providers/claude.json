@@ -23,7 +23,7 @@
     "publication_issuer_status": "prepared_collision_free_not_deployed"
   },
   "submission": {
-    "status": "blocked_pending_real_claude_origin_and_publication_domain",
+    "status": "blocked_pending_real_claude_origin_and_cloudflare_ruleset_permission",
     "route": "developer_portal_single_remote_mcp",
     "live_endpoint_verified": true,
     "live_endpoint_evidence_run": 37173130982,
@@ -53,6 +53,12 @@
     "publication_domain_preflight_run": 37174975719,
     "publication_domain_surface_free": true,
     "publication_domain_deployment_prepared": true,
-    "publication_domain_deployment_authorized": false
+    "publication_domain_deployment_authorized": true,
+    "publication_domain_deployment_attempted": true,
+    "publication_domain_deployment_succeeded": false,
+    "publication_domain_rollback_verified": true,
+    "publication_domain_final_rollback_preflight_run": 37177997579,
+    "publication_domain_blocker": "current Cloudflare credentials lack Zone Configuration Rules access required to suppress browser challenge only on the two Claude machine-to-machine hostnames",
+    "real_claude_origin_test_endpoint": "https://musitu-axiom-claude-mcp-candidate.mft-education-nexus-93f395f5.workers.dev/mcp"
   }
 }
