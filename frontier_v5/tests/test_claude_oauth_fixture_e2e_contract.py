@@ -86,3 +86,10 @@ def test_fixture_e2e_allows_explicit_publication_endpoint_override_without_chang
     assert "CLAUDE_FIXTURE_MCP_URL" in src
     assert "musitu-axiom-claude-auth-candidate" in src
     assert "musitu-axiom-claude-mcp-candidate" in src
+
+
+def test_fixture_e2e_keeps_legacy_callback_exception_explicit_and_opt_in():
+    src = SCRIPT.read_text(encoding="utf-8")
+    assert "CLAUDE_FIXTURE_ALLOW_LEGACY_CALLBACK_DOCUMENT" in src
+    assert '== "1"' in src
+    assert "not allow_legacy_callback" in src

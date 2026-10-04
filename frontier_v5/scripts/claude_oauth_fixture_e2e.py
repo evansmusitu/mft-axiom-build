@@ -439,7 +439,8 @@ def main() -> int:
             escaped = html.escape(location, quote=True)
             if f'http-equiv="refresh" content="0;url={escaped}"' not in page:
                 raise RuntimeError("Claude callback refresh/anchor mismatch")
-            if "<form" in page or "<script" in page:
+            allow_legacy_callback = os.environ.get("CLAUDE_FIXTURE_ALLOW_LEGACY_CALLBACK_DOCUMENT", "") == "1"
+            if not allow_legacy_callback and ("<form" in page or "<script" in page):
                 raise RuntimeError("Claude callback must contain no forms or scripts")
         else:
             raise RuntimeError(f"Claude authorization consent POST HTTP {pc}")

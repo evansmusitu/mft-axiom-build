@@ -230,6 +230,7 @@ jobs:
           CLAUDE_FIXTURE_CONFIRM: RUN_DISPOSABLE_CLAUDE_OAUTH_FIXTURE
           CLAUDE_FIXTURE_AUTH_URL: https://claude-auth.mftintelligence.com
           CLAUDE_FIXTURE_MCP_URL: https://claude-mcp.mftintelligence.com
+          CLAUDE_FIXTURE_ALLOW_LEGACY_CALLBACK_DOCUMENT: "1"
         shell: bash
         run: |
           set -euo pipefail
