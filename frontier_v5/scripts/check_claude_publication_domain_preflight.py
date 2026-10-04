@@ -95,11 +95,20 @@ def _security_api_probe(headers: dict, zone_id: str) -> dict:
     for name, path in paths.items():
         code, _, data = raw(CF_API + path, headers=headers)
         item = {"http": code, "accessible": 200 <= code < 300}
+        try:
+            payload = json.loads(data or b"{}")
+        except Exception:
+            payload = {}
+        if not item["accessible"] and isinstance(payload, dict):
+            errs = []
+            for err in payload.get("errors") or []:
+                if isinstance(err, dict):
+                    errs.append({
+                        "code": err.get("code"),
+                        "message": str(err.get("message") or "")[:240],
+                    })
+            item["errors"] = errs[:5]
         if item["accessible"]:
-            try:
-                payload = json.loads(data or b"{}")
-            except Exception:
-                payload = {}
             result = payload.get("result") if isinstance(payload, dict) else None
             if isinstance(result, list):
                 item["result_count"] = len(result)
