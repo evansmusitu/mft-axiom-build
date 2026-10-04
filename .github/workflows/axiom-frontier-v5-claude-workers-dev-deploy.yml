@@ -6,6 +6,15 @@ on:
       - "distribution/claude-remote-mcp-20261004"
     paths:
       - ".github/workflows/axiom-frontier-v5-claude-workers-dev-deploy.yml"
+      - "frontier_v5/distribution/claude/musitu_axiom_oauth_worker_claude_candidate.mjs"
+      - "frontier_v5/distribution/claude/musitu_axiom_mcp_gate_claude_candidate.mjs"
+      - "frontier_v5/distribution/providers/claude.json"
+      - "frontier_v5/distribution/oauth_redirect_policy.py"
+      - "frontier_v5/distribution/provider_registry.py"
+      - "frontier_v5/scripts/deploy_claude_workers_dev.py"
+      - "frontier_v5/tests/test_distribution_oauth_policy.py"
+      - "frontier_v5/tests/test_claude_worker_isolation_contract.py"
+      - "frontier_v5/tests/test_claude_workers_dev_deploy_contract.py"
   workflow_dispatch:
 
 permissions:
@@ -20,7 +29,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 12
     env:
-      CLAUDE_DEPLOY_CONFIRM: DEPLOY_ISOLATED_CLAUDE_WORKERS_DEV
+      CLAUDE_DEPLOY_CONFIRM: UPDATE_ISOLATED_CLAUDE_WORKERS_DEV
     steps:
       - uses: actions/checkout@v4
 
@@ -55,6 +64,7 @@ jobs:
 
       - name: Upload isolated Claude deployment evidence
         if: success()
+        continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
           name: musitu-axiom-claude-workers-dev-evidence
@@ -65,3 +75,5 @@ jobs:
           retention-days: 30
 # Retry after 15/15 static distribution/deployment-contract tests passed.
 # Diagnostic retry after discovery-probe instrumentation passed static gate.
+
+# 2026-10-04: isolated candidate update mode; no DNS/custom-domain mutation.
