@@ -13,6 +13,7 @@ on:
       - "frontier_v5/tests/test_claude_worker_isolation_contract.py"
       - "frontier_v5/tests/test_claude_distribution_gate.py"
       - "frontier_v5/tests/test_claude_workers_dev_deploy_contract.py"
+      - "frontier_v5/tests/test_claude_runtime_repair_contract.py"
       - "frontier_v5/tests/test_claude_oauth_fixture_e2e_contract.py"
       - "submission/claude/**"
       - ".github/workflows/axiom-frontier-v5-claude-distribution-gate.yml"
