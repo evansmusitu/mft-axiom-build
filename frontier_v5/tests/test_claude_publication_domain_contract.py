@@ -85,26 +85,46 @@ def test_publication_domain_preflight_workflow_is_non_mutating():
     assert "CLAUDE_PUBLICATION_CONFIRM" not in workflow
 
 
-def test_publication_domain_deploy_uses_live_verification_instead_of_ruleset_mutation():
+def test_publication_domain_uses_hostname_scoped_config_rules_via_phase_entrypoint():
+    src = SCRIPT.read_text(encoding="utf-8")
+    assert '/rulesets/phases/http_config_settings/entrypoint' in src
+    cfg = src[src.index("def _configuration_ruleset"):src.index("def _assert_machine_rule_available")]
+    assert '/rulesets/phases/http_config_settings/entrypoint' in cfg
+    assert 'f"/zones/{zone_id}/rulesets"' not in cfg
+
+    main = src[src.index("def main()"):]
+    assert "_assert_machine_rule_available(" in main
+    assert "_create_machine_rule(" in main
+    assert "AUTH_RULE_REF" in main
+    assert "MCP_RULE_REF" in main
+    assert 'rules_headers = _ruleset_headers()' not in main
+
+    assert '"action": "set_config"' in src
+    assert '"security_level": "essentially_off"' in src
+    assert '"bic": False' in src
+    assert 'expression = f\'http.host eq "{hostname}"\'' in src
+    assert '"global_security_policy_mutated": False' in src
+
+
+def test_publication_rollback_removes_created_scoped_rules_domains_and_workers():
     src = SCRIPT.read_text(encoding="utf-8")
     main = src[src.index("def main()"):]
-    assert "_ruleset_headers()" not in main
-    assert "_assert_machine_rule_available(" not in main
-    assert "_create_machine_rule(" not in main
-    assert "_verify_publication_surface()" in main
-    assert "custom domain did not become healthy" in main
-    assert '"global_security_policy_mutated": False' in src
-    assert '"created": False' in src
-
-def test_publication_rollback_removes_domains_and_workers_without_ruleset_dependency():
-    src = SCRIPT.read_text(encoding="utf-8")
-    assert "cleanup_created_publication_surface(" in src
-    assert "created_domains" in src
-    assert "created_workers" in src
+    assert "created_rules" in main
+    assert "cleanup_created_publication_surface(" in main
+    assert "_delete_machine_rule(" in src
+    assert "created_domains" in main
+    assert "created_workers" in main
     assert "Claude publication rollback incomplete" in src
 
-def test_publication_execution_does_not_require_ruleset_credentials():
+
+def test_publication_security_exception_is_two_hostname_rules_not_zone_global_settings():
     src = SCRIPT.read_text(encoding="utf-8")
     main = src[src.index("def main()"):]
-    assert "rules_headers = _ruleset_headers()" not in main
-    assert "_create_machine_rule(" not in main
+    assert "PUBLIC_AUTH_HOST" in main
+    assert "PUBLIC_MCP_HOST" in main
+    assert "AUTH_RULE_REF" in main
+    assert "MCP_RULE_REF" in main
+    assert '"/settings/security_level"' not in main
+    assert '"/settings/browser_check"' not in main
+    assert "_ruleset_headers()" not in main
+    assert '"global_security_policy_mutated": False' in src
