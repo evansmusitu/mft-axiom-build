@@ -1,0 +1,280 @@
+name: Axiom Claude Result Text Projection Repair 20261004
+
+on:
+  push:
+    branches:
+      - distribution/claude-remote-mcp-20261004
+    paths:
+      - '.github/workflows/axiom-claude-result-text-projection-repair-20261004.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: musitu-axiom-claude-result-text-projection-repair
+  cancel-in-progress: false
+
+jobs:
+  prove-and-repair:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    env:
+      TARGET_BRANCH: distribution/claude-remote-mcp-20261004
+      PRE_FIX_SOURCE_COMMIT: 63071425a75c419924e62eb59ab56f6dc361515e
+      SEALED_MAIN: d6a846f6bbe0bccac1758713eb4de167caf07113
+      OPENAI_AUTH_BLOB: 8ba0dbc1b6dd1533c6c26bff23991429e03a71a5
+      OPENAI_MCP_BLOB: 4a1ad37a5e7df0e4d3966e8b5f9f0e8f2db69167
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: distribution/claude-remote-mcp-20261004
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22.19.0"
+
+      - name: Reverify frozen source and run focused contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF_NAME" = "$TARGET_BRANCH"
+          test "$(git ls-remote origin refs/heads/main | awk '{print $1}')" = "$SEALED_MAIN"
+          test "$(git hash-object auth/musitu_axiom_oauth_worker.mjs)" = "$OPENAI_AUTH_BLOB"
+          test "$(git hash-object mcp/musitu_axiom_plugin_gate_v4.mjs)" = "$OPENAI_MCP_BLOB"
+          node --check frontier_v5/distribution/claude/musitu_axiom_mcp_gate_claude_candidate.mjs
+          python -m pip install --disable-pip-version-check pytest
+          PYTHONPATH=. python -m pytest -q \
+            frontier_v5/tests/test_claude_worker_isolation_contract.py \
+            frontier_v5/tests/test_claude_oauth_fixture_e2e_contract.py \
+            frontier_v5/tests/test_claude_workers_dev_deploy_contract.py
+          PYTHONPATH=. python frontier_v5/scripts/claude_distribution_gate.py
+
+      - name: Install pinned MCP Inspector
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --global @modelcontextprotocol/inspector@2.5.0
+          mcp-inspector --help >/dev/null
+
+      - name: Update isolated Claude candidate workers
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+          CLAUDE_DEPLOY_CONFIRM: UPDATE_ISOLATED_CLAUDE_WORKERS_DEV
+        shell: bash
+        run: |
+          set -euo pipefail
+          PYTHONPATH=. python frontier_v5/scripts/deploy_claude_workers_dev.py
+
+      - name: Prove candidate OAuth, 74 operations, Inspector, and text result
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+          CLAUDE_FIXTURE_CONFIRM: RUN_DISPOSABLE_CLAUDE_OAUTH_FIXTURE
+        shell: bash
+        run: |
+          set -euo pipefail
+          PYTHONPATH=. python frontier_v5/scripts/claude_oauth_fixture_e2e.py
+
+      - name: Update only the existing Claude publication MCP Worker with rollback
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import email
+          import hashlib
+          import json
+          import os
+          import pathlib
+          import subprocess
+          import urllib.parse
+
+          from frontier_v5.scripts.deploy_claude_workers_dev import (
+              ACCOUNT_ID, D1_UUID, canonical_digest, cf, cloudflare_headers,
+              parse_json_response, raw, snapshot_openai_surface, upload_worker,
+              wait_json,
+          )
+
+          ROOT=pathlib.Path.cwd()
+          PUBLIC_WORKER="musitu-axiom-claude-mcp-publication"
+          PUBLIC_AUTH_URL="https://claude-auth.mftintelligence.com"
+          PUBLIC_MCP_URL="https://claude-mcp.mftintelligence.com"
+          PUBLIC_RESOURCE=PUBLIC_MCP_URL+"/mcp"
+          CORE_WORKER="musitu-axiom-mcp-core"
+          SOURCE=ROOT/"frontier_v5/distribution/claude/musitu_axiom_mcp_gate_claude_candidate.mjs"
+          API="https://api.cloudflare.com/client/v4"
+          pre_commit=os.environ["PRE_FIX_SOURCE_COMMIT"]
+
+          def executable_source(body: bytes, content_type: str) -> bytes:
+              if "multipart/" not in content_type.lower():
+                  return body
+              msg=email.message_from_bytes(
+                  (f"Content-Type: {content_type}\r\nMIME-Version: 1.0\r\n\r\n").encode()+body
+              )
+              parts=[]
+              for part in msg.walk():
+                  if part.is_multipart():
+                      continue
+                  data=part.get_payload(decode=True) or b""
+                  if b"export default" in data and b"tools/call" in data:
+                      parts.append(data)
+              if len(parts)!=1:
+                  raise RuntimeError(f"publication executable-module cardinality {len(parts)}")
+              return parts[0]
+
+          headers=cloudflare_headers()
+          before_openai=snapshot_openai_surface()
+          before_openai_digest=canonical_digest(before_openai)
+
+          settings,_=cf(
+              headers,
+              f"/accounts/{ACCOUNT_ID}/workers/scripts/{urllib.parse.quote(PUBLIC_WORKER,safe='')}/settings",
+          )
+          if not isinstance(settings,dict):
+              raise RuntimeError("publication MCP Worker settings unavailable")
+          bindings=[]
+          for item in settings.get("bindings") or []:
+              if isinstance(item,dict):
+                  bindings.append({
+                      k:item.get(k)
+                      for k in ("name","type","text","id","service","environment")
+                      if item.get(k) is not None
+                  })
+          normalized=sorted(bindings,key=lambda x:str(x.get("name")))
+          expected=sorted([
+              {"type":"d1","name":"AXIOM_DB","id":D1_UUID},
+              {"type":"plain_text","name":"AUTH_ISSUER","text":PUBLIC_AUTH_URL},
+              {"type":"plain_text","name":"MCP_PUBLIC_BASE","text":PUBLIC_MCP_URL},
+              {"type":"plain_text","name":"MCP_OAUTH_RESOURCE","text":PUBLIC_RESOURCE},
+              {"type":"service","name":"MCP_CORE","service":CORE_WORKER},
+          ],key=lambda x:str(x.get("name")))
+          if normalized!=expected:
+              raise RuntimeError("publication MCP Worker bindings drifted; refusing replacement")
+
+          code,response_headers,body=raw(
+              f"{API}/accounts/{ACCOUNT_ID}/workers/scripts/{urllib.parse.quote(PUBLIC_WORKER,safe='')}",
+              headers=headers,
+          )
+          if code!=200:
+              raise RuntimeError(f"cannot read current publication worker source HTTP {code}")
+          old_source=executable_source(body,str(response_headers.get("content-type") or ""))
+          expected_old=subprocess.check_output([
+              "git","show",f"{pre_commit}:frontier_v5/distribution/claude/musitu_axiom_mcp_gate_claude_candidate.mjs"
+          ])
+          old_sha=hashlib.sha256(old_source).hexdigest()
+          expected_old_sha=hashlib.sha256(expected_old).hexdigest()
+          new_source=SOURCE.read_bytes()
+          new_sha=hashlib.sha256(new_source).hexdigest()
+          print(json.dumps({
+              "publication_source_sha256_before":old_sha,
+              "expected_pre_fix_sha256":expected_old_sha,
+              "candidate_source_sha256_after":new_sha,
+          },sort_keys=True))
+          if old_sha!=expected_old_sha:
+              raise RuntimeError("live Claude publication source differs from expected pre-fix source; refusing replacement")
+          if new_sha==old_sha:
+              raise RuntimeError("new Claude publication source is unchanged")
+
+          bindings_for_upload=[
+              {"type":"d1","name":"AXIOM_DB","id":D1_UUID},
+              {"type":"plain_text","name":"AUTH_ISSUER","text":PUBLIC_AUTH_URL},
+              {"type":"plain_text","name":"MCP_PUBLIC_BASE","text":PUBLIC_MCP_URL},
+              {"type":"plain_text","name":"MCP_OAUTH_RESOURCE","text":PUBLIC_RESOURCE},
+              {"type":"service","name":"MCP_CORE","service":CORE_WORKER},
+          ]
+
+          changed=False
+          try:
+              upload_worker(headers,PUBLIC_WORKER,new_source,bindings_for_upload)
+              changed=True
+
+              hp=wait_json(
+                  PUBLIC_MCP_URL+"/health",
+                  lambda code,payload: code==200 and payload.get("ok") is True
+                    and payload.get("auth_issuer")==PUBLIC_AUTH_URL
+                    and payload.get("resource")==PUBLIC_RESOURCE,
+                  attempts=60,delay=2.0,
+              )
+              if not hp or hp[0]!=200:
+                  raise RuntimeError("publication MCP health failed after text-projection update")
+
+              lc,_,listing,_=parse_json_response(
+                  PUBLIC_RESOURCE,"POST",
+                  {"jsonrpc":"2.0","id":910,"method":"tools/list","params":{}},
+              )
+              tools=(listing.get("result") or {}).get("tools") or []
+              operations={
+                  (t.get("_meta") or {}).get("musitu/operation")
+                  for t in tools if isinstance(t,dict)
+              }-{None}
+              business=[
+                  t for t in tools
+                  if isinstance(t,dict)
+                  and (t.get("_meta") or {}).get("musitu/business_product") is True
+              ]
+              if lc!=200 or len(tools)!=108 or len(operations)!=74 or len(business)!=30:
+                  raise RuntimeError("publication tool surface drift after text-projection update")
+
+              uc,uh,_,_=parse_json_response(
+                  PUBLIC_RESOURCE,"POST",
+                  {"jsonrpc":"2.0","id":911,"method":"tools/call","params":{
+                      "name":"musitu_axiom_execute",
+                      "arguments":{"operation":"arithmetic.evaluate","args":{"expression":"40+2"}},
+                  }},
+              )
+              challenge=str(uh.get("WWW-Authenticate") or uh.get("www-authenticate") or "")
+              if uc!=401 or PUBLIC_MCP_URL+"/.well-known/oauth-protected-resource" not in challenge:
+                  raise RuntimeError("publication OAuth challenge drift after update")
+
+              after_openai=snapshot_openai_surface()
+              after_openai_digest=canonical_digest(after_openai)
+              if after_openai_digest!=before_openai_digest:
+                  raise RuntimeError("frozen OpenAI surface changed during Claude publication update")
+
+              print(json.dumps({
+                  "gate":"MUSITU_AXIOM_CLAUDE_TEXT_RESULT_PROJECTION_PUBLICATION_PASS",
+                  "publication_worker":PUBLIC_WORKER,
+                  "publication_mcp_url":PUBLIC_RESOURCE,
+                  "tool_count":len(tools),
+                  "operation_count":len(operations),
+                  "business_product_count":len(business),
+                  "publication_source_sha256_before":old_sha,
+                  "publication_source_sha256_after":new_sha,
+                  "openai_surface_unchanged":True,
+                  "dns_changed":False,
+                  "cloudflare_rules_changed":False,
+                  "auth_publication_changed":False,
+              },sort_keys=True))
+          except Exception:
+              if changed:
+                  upload_worker(headers,PUBLIC_WORKER,old_source,bindings_for_upload)
+                  rb=wait_json(
+                      PUBLIC_MCP_URL+"/health",
+                      lambda code,payload: code==200 and payload.get("ok") is True,
+                      attempts=60,delay=2.0,
+                  )
+                  if not rb or rb[0]!=200:
+                      raise RuntimeError("publication rollback failed to restore healthy MCP surface")
+              raise
+          PY
+
+      - name: Reverify frozen repository boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git ls-remote origin refs/heads/main | awk '{print $1}')" = "$SEALED_MAIN"
+          test "$(git hash-object auth/musitu_axiom_oauth_worker.mjs)" = "$OPENAI_AUTH_BLOB"
+          test "$(git hash-object mcp/musitu_axiom_plugin_gate_v4.mjs)" = "$OPENAI_MCP_BLOB"
+          echo MUSITU_AXIOM_CLAUDE_RESULT_TEXT_PROJECTION_REPAIR_COMPLETE
