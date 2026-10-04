@@ -1,0 +1,65 @@
+name: Axiom Claude Isolated Workers Dev Deployment
+
+on:
+  push:
+    branches:
+      - "distribution/claude-remote-mcp-20261004"
+    paths:
+      - ".github/workflows/axiom-frontier-v5-claude-workers-dev-deploy.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: musitu-axiom-claude-isolated-workers-dev
+  cancel-in-progress: false
+
+jobs:
+  deploy-isolated-claude:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    env:
+      CLAUDE_DEPLOY_CONFIRM: DEPLOY_ISOLATED_CLAUDE_WORKERS_DEV
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Prove isolated source contract before Cloudflare mutation
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF_NAME" = "distribution/claude-remote-mcp-20261004"
+          node --check frontier_v5/distribution/claude/musitu_axiom_oauth_worker_claude_candidate.mjs
+          node --check frontier_v5/distribution/claude/musitu_axiom_mcp_gate_claude_candidate.mjs
+          python -m pip install --disable-pip-version-check pytest
+          PYTHONPATH=. python -m pytest -q \
+            frontier_v5/tests/test_distribution_oauth_policy.py \
+            frontier_v5/tests/test_claude_worker_isolation_contract.py \
+            frontier_v5/tests/test_claude_distribution_gate.py \
+            frontier_v5/tests/test_claude_workers_dev_deploy_contract.py
+          PYTHONPATH=. python frontier_v5/scripts/claude_distribution_gate.py
+
+      - name: Deploy and verify isolated Claude workers.dev surfaces
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          PYTHONPATH=. python frontier_v5/scripts/deploy_claude_workers_dev.py
+
+      - name: Upload isolated Claude deployment evidence
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: musitu-axiom-claude-workers-dev-evidence
+          path: |
+            musitu-axiom-claude-workers-dev-evidence.json
+            musitu-axiom-claude-workers-dev-evidence.sha256
+          if-no-files-found: error
+          retention-days: 30
