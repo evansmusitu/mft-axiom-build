@@ -17,11 +17,11 @@ def test_openai_redirect_contract_remains_exact():
     assert not is_allowed_redirect("https://evil.example/connector_platform_oauth_redirect", provider="openai")
 
 
-def test_claude_redirect_contract_accepts_current_and_future_documented_hosts_only():
+def test_claude_redirect_contract_accepts_current_documented_host_only():
     assert classify_redirect("https://claude.ai/api/mcp/auth_callback") == "claude"
-    assert classify_redirect("https://claude.com/api/mcp/auth_callback") == "claude"
+    assert classify_redirect("https://claude.com/api/mcp/auth_callback") is None
     assert is_allowed_redirect("https://claude.ai/api/mcp/auth_callback", provider="claude")
-    assert is_allowed_redirect("https://claude.com/api/mcp/auth_callback", provider="claude")
+    assert not is_allowed_redirect("https://claude.com/api/mcp/auth_callback", provider="claude")
     assert not is_allowed_redirect("https://claude.ai/api/mcp/auth_callback/extra", provider="claude")
     assert not is_allowed_redirect("http://claude.ai/api/mcp/auth_callback", provider="claude")
     assert not is_allowed_redirect("https://sub.claude.ai/api/mcp/auth_callback", provider="claude")
@@ -38,12 +38,10 @@ def test_claude_profile_is_single_remote_mcp_and_submission_blocked_until_isolat
     profile = load_provider_profile(root / "distribution" / "providers" / "claude.json")
     assert profile["provider_id"] == "claude"
     assert profile["distribution_mode"] == "single_remote_mcp"
-    assert profile["oauth"]["callback_uris"] == [
-        "https://claude.ai/api/mcp/auth_callback",
-        "https://claude.com/api/mcp/auth_callback",
-    ]
+    assert profile["oauth"]["callback_uris"] == ["https://claude.ai/api/mcp/auth_callback"]
     assert profile["submission"]["status"] == "blocked_pending_real_claude_origin_validation"
-    assert profile["submission"]["portal_requires_paid_plan"] is True
+    assert profile["submission"]["portal_requires_team_or_enterprise"] is True
+    assert profile["submission"]["directory_management_access_required"] is True
     assert profile["mcp"]["canonical_upstream"] == "https://mcp.mftintelligence.com/mcp"
     assert profile["mcp"]["submission_url"] != profile["mcp"]["canonical_upstream"]
     assert profile["mcp"]["submission_url"].endswith("/mcp")
@@ -66,7 +64,8 @@ def test_profile_validation_rejects_wildcard_redirects(tmp_path):
         },
         "submission": {
             "status": "blocked_pending_isolated_endpoint_deployment",
-            "portal_requires_paid_plan": True,
+            "portal_requires_team_or_enterprise": True,
+            "directory_management_access_required": True,
         },
     }))
     with pytest.raises(ValueError, match="wildcard"):
