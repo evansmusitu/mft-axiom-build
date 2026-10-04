@@ -35,7 +35,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   claude-distribution-candidate:
@@ -60,30 +60,3 @@ jobs:
             frontier_v5/tests/test_verify_real_claude_origin.py
       - name: Run static Claude candidate gate
         run: PYTHONPATH=. python frontier_v5/scripts/claude_distribution_gate.py
-      - name: Record scoped-ruleset-token contract pass
-        run: |
-          set -euo pipefail
-          mkdir -p EVIDENCE
-          python - <<'PY'
-          import json, os, pathlib
-          payload = {
-              "schema": "musitu.axiom.claude_scoped_ruleset_token_contract.v1",
-              "gate": "MUSITU_AXIOM_CLAUDE_SCOPED_RULESET_TOKEN_CONTRACT_PASS",
-              "source_commit": os.environ["GITHUB_SHA"],
-              "publication_script_uses_dedicated_rulesets_token": True,
-              "publication_workflow_wires_dedicated_rulesets_token": True,
-              "claude_distribution_contract_tests_passed": True,
-              "static_candidate_gate_passed": True,
-              "cloudflare_write_performed": False,
-              "openai_surface_mutated": False,
-          }
-          pathlib.Path("EVIDENCE/claude-scoped-ruleset-token-contract-pass.json").write_text(
-              json.dumps(payload, indent=2, sort_keys=True) + "\n",
-              encoding="utf-8",
-          )
-          PY
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add EVIDENCE/claude-scoped-ruleset-token-contract-pass.json
-          git commit -m "evidence: verify scoped Cloudflare ruleset token contract"
-          git push origin HEAD:distribution/claude-remote-mcp-20261004
