@@ -20,8 +20,8 @@
     "openai_surface_unchanged_reverified": true
   },
   "blockers": [
-    "real Claude custom-connector OAuth has not been completed from Claude",
-    "authenticated Claude-originated Axiom tool invocation has not been executed",
+    "real Claude custom-connector OAuth session has not yet originated from Claude",
+    "authenticated Axiom tool invocation has not yet originated from Claude",
     "developer-portal directory submission has not been performed"
   ],
   "live_endpoint_evidence": {
@@ -43,6 +43,24 @@
     "metering_verified": true,
     "fixture_rows_remaining": 0,
     "claude_origin_verified": false,
+    "evidence_sha256": "65aff9eef2884ae956b47e9c0c04afb3b72161ab2eb91df432d945464aa51733"
+  },
+  "server_side_evidence": {
+    "github_actions_run": 37170153704,
+    "gate": "MUSITU_AXIOM_CLAUDE_SERVER_OAUTH_E2E_PASS",
+    "server_side_claude_callback_e2e": true,
+    "claude_origin_verified": false,
+    "callback": "https://claude.ai/api/mcp/auth_callback",
+    "dynamic_client_registration": true,
+    "pkce_s256": true,
+    "authorization_response_http": 302,
+    "authenticated_axiom_compute_http": 200,
+    "arithmetic_40_plus_2_result_42": true,
+    "metering_verified": true,
+    "synthetic_account_only": true,
+    "cleanup_complete": true,
+    "fixture_rows_remaining": 0,
+    "openai_surface_unchanged": true,
     "evidence_sha256": "65aff9eef2884ae956b47e9c0c04afb3b72161ab2eb91df432d945464aa51733"
   }
 }
