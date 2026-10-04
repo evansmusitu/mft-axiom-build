@@ -291,7 +291,7 @@ def _validate_operation_args(op,a):
     elif op=='finance.beta':
         x=_vec('asset_returns',a['asset_returns'],2); y=_vec('market_returns',a['market_returns'],2)
         if x.size!=y.size: raise ValueError('asset_returns and market_returns must have same length')
-        if float(np.var(y,ddof=1))<=0: raise ValueError('market variance must be positive')
+        if float(np.var(y,ddof=1))<=1e-24: raise ValueError('market variance must be positive')
     elif op=='finance.drawdown':
         z=_vec('values',a['values'])
         if np.any(z<=0): raise ValueError('values must be positive')
