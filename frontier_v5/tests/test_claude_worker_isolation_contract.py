@@ -25,8 +25,9 @@ def test_frozen_openai_sources_are_byte_exact():
 def test_claude_auth_candidate_is_isolated_and_uses_exact_callback_contract():
     src = (CLAUDE / "musitu_axiom_oauth_worker_claude_candidate.mjs").read_text()
     assert "https://claude-auth.mftintelligence.com" in src
-    assert "https://claude-mcp.mftintelligence.com" in src
-    assert 'u.hostname !== "claude.ai" && u.hostname !== "claude.com"' in src
+    assert "https://claude-mcp.mftintelligence.com/mcp" in src
+    assert 'u.hostname !== "claude.ai"' in src
+    assert '"claude.com"' not in src
     assert 'u.pathname !== "/api/mcp/auth_callback"' in src
     assert "status: 302" in src or "status:302" in src
     assert "chatgpt.com" not in src
@@ -40,3 +41,14 @@ def test_claude_mcp_candidate_has_no_openai_only_surface():
     assert "openai-apps-challenge" not in src
     assert "openai/toolInvocation" not in src
     assert "OPENAI_APPS_CHALLENGE" not in src
+
+
+def test_claude_mcp_candidate_uses_exact_mcp_resource_and_http_401_auth_challenge():
+    src = (CLAUDE / "musitu_axiom_mcp_gate_claude_candidate.mjs").read_text()
+    assert 'oauthResource:env.MCP_OAUTH_RESOURCE||"https://claude-mcp.mftintelligence.com/mcp"' in src
+    assert 'publicBase:env.MCP_PUBLIC_BASE||"https://claude-mcp.mftintelligence.com"' in src
+    assert 'row.resource!==c.oauthResource' in src
+    assert 'new Request(c.publicBase+path' in src
+    assert 'resource:c.oauthResource' in src
+    assert 'return response(401' in src
+    assert '"www-authenticate":challenge(c)' in src
