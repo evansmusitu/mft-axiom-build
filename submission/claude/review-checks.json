@@ -1,0 +1,29 @@
+{
+  "generated_at": "2026-10-04",
+  "provider": "claude",
+  "route": "developer_portal_single_remote_mcp",
+  "static_candidate": {
+    "provider_profile_present": true,
+    "claude_auth_candidate_present": true,
+    "claude_mcp_candidate_present": true,
+    "exact_callback_allowlist_required": true,
+    "openai_source_hash_pinning_required": true,
+    "commerce_exclusion_required": true,
+    "unsupported_superiority_claims_forbidden": true
+  },
+  "live_evidence": {
+    "isolated_mcp_endpoint_live": false,
+    "isolated_auth_endpoint_live": false,
+    "claude_oauth_completed": false,
+    "tools_list_discovered": false,
+    "authenticated_tool_call_passed": false,
+    "openai_surface_unchanged_reverified": false
+  },
+  "blockers": [
+    "isolated Claude MCP/auth endpoints are not deployed",
+    "real Claude custom-connector OAuth has not been completed",
+    "Claude tools/list has not been read back from the isolated endpoint",
+    "authenticated Claude tool invocation has not been executed",
+    "developer-portal submission has not been performed"
+  ]
+}
