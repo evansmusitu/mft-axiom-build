@@ -1,0 +1,63 @@
+name: MUSITU Connect OAuth PKCE qualification
+
+on:
+  workflow_dispatch:
+  push:
+    branches: ['feat/musitu-connect-frontier']
+    paths:
+      - 'qualification/oauth_pkce_qualification.py'
+      - '.github/workflows/musitu-connect-oauth-pkce.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: musitu-connect-oauth-pkce-qualification
+  cancel-in-progress: false
+
+jobs:
+  qualify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      CF_API: https://api.cloudflare.com/client/v4
+      ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      D1_UUID: 504029cc-f9a5-495e-818f-63c6144b4ea4
+      OAUTH_ISSUER: https://auth.mftintelligence.com
+      MCP_BASE: https://mcp.mftintelligence.com
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Validate qualification source
+        run: python -m py_compile qualification/oauth_pkce_qualification.py
+      - name: Prove live authorization-code and PKCE flow
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: python qualification/oauth_pkce_qualification.py
+      - name: Publish OAuth PKCE evidence summary
+        if: success()
+        shell: bash
+        run: |
+          {
+            echo '## MUSITU Connect OAuth authorization-code + PKCE qualification'
+            echo
+            echo 'Evidence SHA-256:'
+            cat musitu-connect-oauth-pkce-qualification.sha256
+            echo
+            echo '```json'
+            cat musitu-connect-oauth-pkce-qualification.json
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Upload sealed OAuth PKCE evidence when artifact quota permits
+        if: success()
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: musitu-connect-oauth-pkce-qualification
+          path: |
+            musitu-connect-oauth-pkce-qualification.json
+            musitu-connect-oauth-pkce-qualification.sha256
+          retention-days: 30
+          if-no-files-found: error
