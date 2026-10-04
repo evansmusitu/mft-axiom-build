@@ -1,0 +1,26 @@
+name: Axiom Claude Execution Diagnostic Read-Only
+on:
+  push:
+    branches:
+      - distribution/claude-remote-mcp-20261004
+    paths:
+      - .github/workflows/axiom-claude-execution-diagnostic-readonly.yml
+      - frontier_v5/scripts/diagnose_claude_execution_readonly.py
+  workflow_dispatch:
+permissions:
+  contents: read
+  pull-requests: read
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Inspect Claude execution rejection without secrets or writes
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+        run: python -m frontier_v5.scripts.diagnose_claude_execution_readonly
