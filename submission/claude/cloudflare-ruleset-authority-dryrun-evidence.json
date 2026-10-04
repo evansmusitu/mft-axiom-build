@@ -1,0 +1,36 @@
+{
+  "api_token": {
+    "accepted": false,
+    "available": true,
+    "credential_type": "api_token",
+    "dry_run": true,
+    "errors": [
+      {
+        "code": null,
+        "message": "request is not authorized"
+      }
+    ],
+    "http": 403,
+    "write_performed": false
+  },
+  "dry_run": true,
+  "global_api_key": {
+    "accepted": false,
+    "available": true,
+    "credential_type": "global_api_key",
+    "dry_run": true,
+    "errors": [
+      {
+        "code": 10000,
+        "message": "Authentication error"
+      }
+    ],
+    "http": 403,
+    "write_performed": false
+  },
+  "hostname": "claude-auth.mftintelligence.com",
+  "ruleset_id": "8e8a2552a8ee4bb383abbe0d748e1da5",
+  "schema": "musitu.axiom.cloudflare.ruleset_authority_dry_run.v1",
+  "write_performed": false,
+  "zone_id": "5b56528f03948ff5917a5e0cd9f7109e"
+}
