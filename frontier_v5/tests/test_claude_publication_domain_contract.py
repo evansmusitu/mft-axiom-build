@@ -101,3 +101,15 @@ def test_publication_rollback_removes_scoped_rules_as_well_as_domains_and_worker
     assert "/rules/" in src
     assert '"DELETE"' in src
     assert "Claude publication rollback incomplete" in src
+
+
+def test_publication_ruleset_writes_use_legacy_global_key_headers():
+    src = SCRIPT.read_text(encoding="utf-8")
+    assert "def _ruleset_headers" in src
+    assert '"X-Auth-Email"' in src
+    assert '"X-Auth-Key"' in src
+    assert "CLOUDFLARE_GLOBAL_API_KEY" in src
+    assert "rules_headers = _ruleset_headers()" in src
+    assert "_assert_machine_rule_available(\n        rules_headers" in src
+    assert "_create_machine_rule(\n                rules_headers" in src
+    assert "_delete_machine_rule(rules_headers" in src
