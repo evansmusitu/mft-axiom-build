@@ -27,7 +27,16 @@
     "commerce_tools_exposed": false,
     "annotations": "all exposed tools have title, readOnlyHint=true, destructiveHint=false, openWorldHint=false",
     "functional_server_preflight": "74/74 certified operations passed",
-    "official_mcp_inspector_preflight": "pending_current_ci_run",
+    "official_mcp_inspector_preflight": {
+      "status": "passed",
+      "github_actions_run": 37174144402,
+      "package": "@modelcontextprotocol/inspector@2.5.0",
+      "tool_count": 108,
+      "tool_pass_count": 108,
+      "tool_failures": {},
+      "protected_tool_count": 105,
+      "metering_rows_delta": 105
+    },
     "real_claude_custom_connector_preflight": "pending"
   },
   "step_4_listing": {
@@ -86,7 +95,13 @@
     "every_certified_operation_server_tested": true,
     "certified_operation_pass_count": 74,
     "certified_operation_failure_count": 0,
-    "official_mcp_inspector": "pending_current_ci_run",
+    "official_mcp_inspector": {
+      "status": "passed",
+      "github_actions_run": 37174144402,
+      "tool_count": 108,
+      "tool_pass_count": 108,
+      "tool_failures": {}
+    },
     "real_claude_origin": "pending",
     "openai_surface_reverified_unchanged": true
   },
@@ -106,8 +121,7 @@
       "MUSITU-owned publication MCP/auth domains have not yet been deployed.",
       "A public support contact has not yet been designated.",
       "A dedicated reviewer credential has not yet been provisioned for secure portal entry.",
-      "Team/Enterprise Claude organization with Directory-management access must be available.",
-      "Official MCP Inspector full-surface CI run is currently pending."
+      "Team/Enterprise Claude organization with Directory-management access must be available."
     ]
   }
 }
