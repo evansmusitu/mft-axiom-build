@@ -19,9 +19,8 @@ Governed quantitative analysis for finance, risk, statistics, forecasting, optim
 - Submission route: single remote MCP connector.
 - Transport: Streamable HTTP / MCP 2.0 candidate.
 - Authentication: OAuth 2.1 authorization-code flow with PKCE S256.
-- Supported Claude callback URIs:
+- Supported Claude callback URI:
   - `https://claude.ai/api/mcp/auth_callback`
-  - `https://claude.com/api/mcp/auth_callback`
 - Preferred portal client option for live testing: **Use Claude's published identity**.
 - Compatibility fallback: **Register automatically** using Dynamic Client Registration.
 - No wildcard OAuth redirects.
@@ -103,6 +102,8 @@ Anthropic's September 25, 2026 announcement states:
 - a single MCP connector can be submitted by pointing to a remote MCP server;
 - submissions are auto-validated and safety-scanned;
 - Claude supports MCP 2.0.
+
+Separate organization-level connector administration rules apply to Team and Enterprise organizations; those admin controls are not the same as public directory submission eligibility.
 
 Current custom-connector documentation states Claude can use:
 - Claude's published OAuth identity;
