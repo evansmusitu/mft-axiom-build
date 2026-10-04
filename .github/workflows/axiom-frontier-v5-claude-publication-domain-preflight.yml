@@ -42,3 +42,5 @@ jobs:
         run: |
           set -euo pipefail
           PYTHONPATH=. python frontier_v5/scripts/check_claude_publication_domain_preflight.py
+
+# rollback-verification trigger after authorized publication attempt
