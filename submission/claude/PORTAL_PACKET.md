@@ -12,7 +12,8 @@ Submission type: **Remote MCP server**.
 - Current isolated test URL: `https://musitu-axiom-claude-mcp-candidate.mft-education-nexus-93f395f5.workers.dev/mcp`
 - Transport: **Streamable HTTP**
 - Same URL for every user: **Yes**
-- Publication URL status: **not yet deployed**
+- Publication URL status: **collision-free and deployment-ready; intentionally not attached pending explicit DNS/custom-domain authorization**
+- Read-only publication topology preflight: **PASS** — GitHub Actions run `37174975719`; zero publication workers, zero custom-domain rows, zero DNS records; `write_performed=false`
 
 ## 3. Tools
 - Exposed tools: **108**
@@ -91,7 +92,7 @@ All seven portal acknowledgements should reflect the actual implementation:
 ## 11. Review
 Do **not** press Submit until:
 1. real Claude-origin OAuth + tool execution passes;
-2. `claude-mcp.mftintelligence.com` and `claude-auth.mftintelligence.com` are live and revalidated;
+2. explicitly authorize and run the prepared manual custom-domain workflow for `claude-mcp.mftintelligence.com` and `claude-auth.mftintelligence.com`, then revalidate them live;
 3. a public support contact is designated;
 4. a dedicated reviewer credential is provisioned securely;
 5. Team/Enterprise Directory-management access is available;
