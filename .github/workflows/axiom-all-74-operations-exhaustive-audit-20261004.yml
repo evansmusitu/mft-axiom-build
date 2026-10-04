@@ -1,7 +1,7 @@
 name: Axiom All 74 Operations Exhaustive Audit 20261004
 on:
   push:
-    branches: [fix/axiom-quadratic-constraints-20261004]
+    branches: [fix/axiom-all-operation-contracts-20261004]
     paths:
       - 'frontier_v5/scripts/audit_all_operations_runtime.py'
       - '.github/workflows/axiom-all-74-operations-exhaustive-audit-20261004.yml'

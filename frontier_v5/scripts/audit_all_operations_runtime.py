@@ -157,7 +157,7 @@ def main():
     A.expect_ok("geometry.volume_sphere","oracle.volume",{"radius":3},lambda r:A.approx(r,36*math.pi,1e-12))
     if fft is not None:
         A.expect_ok("transforms.ifft","oracle.fft_roundtrip",{"data":norm(fft),"n":4},lambda r:np.allclose(np.asarray(r,float),[1,0,0,0],atol=1e-10))
-    A.expect_ok("verify.crosscheck","oracle.crosscheck",{"operation":"algebra.simplify","args":{"expression":"(x+x)+2"}},lambda r:str(r["result"])=="2*x + 2" and r["verification"].get("verified") is True)
+    A.expect_ok("verify.crosscheck","oracle.crosscheck",{"operation":"numeric.root","args":{"expression":"x^2-2","symbol":"x","guess":1}},lambda r:A.approx(r["result"],math.sqrt(2),1e-10) and r["verification"].get("verified") is True)
 
     # Layer 5: domain and shape rejection. These cases must never produce successful non-finite or nonsensical results.
     neg=[
@@ -246,6 +246,25 @@ def main():
       ("timeseries.moving_average","domain.window_gt_length",{"data":[1,2,3],"window":4}),
       ("timeseries.rolling_volatility","domain.window_gt_length",{"returns":[.1,.2,.3],"window":4,"annualization":252}),
       ("timeseries.rolling_volatility","domain.annualization_zero",{"returns":[.1,.2,.3],"window":2,"annualization":0}),
+      ("probability.normal_ppf","domain.p_zero",{"p":0,"mu":0,"sigma":1}),
+      ("probability.normal_ppf","domain.p_one",{"p":1,"mu":0,"sigma":1}),
+      ("calculus.diff","type.fractional_order",{"expression":"x^3","symbol":"x","order":1.5}),
+      ("calculus.series","type.fractional_order",{"expression":"exp(x)","symbol":"x","at":0,"order":4.5}),
+      ("calculus.sum","type.fractional_start",{"expression":"k","symbol":"k","start":1.5,"end":5}),
+      ("calculus.product","type.fractional_end",{"expression":"k","symbol":"k","start":1,"end":5.5}),
+      ("probability.binomial_pmf","type.fractional_n",{"k":1,"n":3.5,"p":.5}),
+      ("probability.binomial_pmf","type.fractional_k",{"k":1.5,"n":3,"p":.5}),
+      ("probability.poisson_pmf","type.fractional_k",{"k":1.5,"mu":2}),
+      ("finance.returns","domain.invalid_kind",{"prices":[100,110,120],"kind":"nonsense"}),
+      ("timeseries.moving_average","type.fractional_window",{"data":[1,2,3,4],"window":2.5}),
+      ("statistics.ttest_ind","type.nonboolean_equal_var",{"x":[1,2,3],"y":[2,3,4],"equal_var":"false"}),
+      ("finance.bond_price","type.fractional_frequency",{"face":1000,"coupon_rate":.05,"maturity":5,"yield":.04,"frequency":2.5}),
+      ("finance.bond_yield","type.fractional_frequency",{"face":1000,"coupon_rate":.05,"maturity":5,"price":1000,"frequency":2.5}),
+      ("finance.duration","type.fractional_frequency",{"face":1000,"coupon_rate":.05,"maturity":5,"yield":.04,"frequency":2.5}),
+      ("finance.beta","shape.length_mismatch",{"asset_returns":[.1,.2,.3],"market_returns":[.1,.2]}),
+      ("finance.monte_carlo_gbm","type.fractional_steps",{"S0":100,"mu":.05,"sigma":.2,"T":1,"steps":5.5,"paths":10,"seed":1}),
+      ("finance.monte_carlo_gbm","type.fractional_paths",{"S0":100,"mu":.05,"sigma":.2,"T":1,"steps":5,"paths":10.5,"seed":1}),
+      ("timeseries.rolling_volatility","type.fractional_window",{"returns":[.1,.2,.3,.4],"window":2.5,"annualization":252}),
     ]
     for op,test,args in neg:
         try:
