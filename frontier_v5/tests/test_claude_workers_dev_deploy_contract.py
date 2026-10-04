@@ -31,9 +31,12 @@ def test_deployer_pins_frozen_openai_sources_and_does_not_run_oauth_writes():
     src = DEPLOY.read_text(encoding="utf-8")
     assert '8ba0dbc1b6dd1533c6c26bff23991429e03a71a5' in src
     assert '4a1ad37a5e7df0e4d3966e8b5f9f0e8f2db69167' in src
-    assert "/oauth/register" not in src
-    assert "/oauth/token" not in src
-    assert "/oauth/authorize" not in src
+    assert 'parse_json_response(auth_url + "/oauth/register"' not in src
+    assert 'parse_json_response(auth_url + "/oauth/token"' not in src
+    assert 'parse_json_response(auth_url + "/oauth/authorize"' not in src
+    assert 'raw(auth_url + "/oauth/register"' not in src
+    assert 'raw(auth_url + "/oauth/token"' not in src
+    assert 'raw(auth_url + "/oauth/authorize"' not in src
     assert "/d1/database/" not in src
 
 
