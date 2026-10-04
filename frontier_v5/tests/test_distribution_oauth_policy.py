@@ -40,8 +40,10 @@ def test_claude_profile_is_single_remote_mcp_and_submission_blocked_until_isolat
     assert profile["distribution_mode"] == "single_remote_mcp"
     assert profile["oauth"]["callback_uris"] == ["https://claude.ai/api/mcp/auth_callback"]
     assert profile["submission"]["status"] == "blocked_pending_real_claude_origin_validation"
-    assert profile["submission"]["portal_requires_paid_plan"] is True
+    assert profile["submission"]["portal_requires_paid_plan"] is False
     assert profile["submission"]["team_enterprise_org_connector_admin_controls"] is True
+    assert profile["submission"]["remote_mcp_directory_submission_requires_team_or_enterprise"] is True
+    assert profile["submission"]["directory_management_access_required"] is True
     assert profile["mcp"]["canonical_upstream"] == "https://mcp.mftintelligence.com/mcp"
     assert profile["mcp"]["submission_url"] != profile["mcp"]["canonical_upstream"]
     assert profile["mcp"]["submission_url"].endswith("/mcp")
@@ -64,8 +66,10 @@ def test_profile_validation_rejects_wildcard_redirects(tmp_path):
         },
         "submission": {
             "status": "blocked_pending_isolated_endpoint_deployment",
-            "portal_requires_paid_plan": True,
+            "portal_requires_paid_plan": False,
             "team_enterprise_org_connector_admin_controls": True,
+            "remote_mcp_directory_submission_requires_team_or_enterprise": True,
+            "directory_management_access_required": True,
         },
     }))
     with pytest.raises(ValueError, match="wildcard"):
