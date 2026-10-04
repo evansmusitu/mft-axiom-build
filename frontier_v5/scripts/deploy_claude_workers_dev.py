@@ -255,7 +255,8 @@ def wait_json(url: str, predicate, *, attempts: int = 40, delay: float = 2.0):
 def main() -> int:
     if os.environ.get("GITHUB_REF_NAME") != EXPECTED_BRANCH:
         raise RuntimeError("isolated Claude deployment may run only from the dedicated distribution branch")
-    if os.environ.get("CLAUDE_DEPLOY_CONFIRM") != "DEPLOY_ISOLATED_CLAUDE_WORKERS_DEV":
+    deploy_mode = os.environ.get("CLAUDE_DEPLOY_CONFIRM")
+    if deploy_mode not in {"DEPLOY_ISOLATED_CLAUDE_WORKERS_DEV", "UPDATE_ISOLATED_CLAUDE_WORKERS_DEV"}:
         raise RuntimeError("isolated Claude deployment confirmation sentinel missing")
 
     if git_blob_sha1(ROOT / "auth/musitu_axiom_oauth_worker.mjs") != EXPECTED_OPENAI_AUTH_BLOB:
@@ -271,9 +272,14 @@ def main() -> int:
 
     auth_url = f"https://{AUTH_WORKER}.{subdomain}.workers.dev"
     mcp_url = f"https://{MCP_WORKER}.{subdomain}.workers.dev"
+    mcp_resource = mcp_url + "/mcp"
 
-    if worker_exists(headers, AUTH_WORKER) or worker_exists(headers, MCP_WORKER):
+    auth_exists = worker_exists(headers, AUTH_WORKER)
+    mcp_exists = worker_exists(headers, MCP_WORKER)
+    if deploy_mode == "DEPLOY_ISOLATED_CLAUDE_WORKERS_DEV" and (auth_exists or mcp_exists):
         raise RuntimeError("isolated Claude candidate Worker already exists; refusing implicit replacement")
+    if deploy_mode == "UPDATE_ISOLATED_CLAUDE_WORKERS_DEV" and not (auth_exists and mcp_exists):
+        raise RuntimeError("isolated Claude update requires both candidate Workers to already exist")
 
     before = snapshot_openai_surface()
     before_digest = canonical_digest(before)
@@ -283,26 +289,29 @@ def main() -> int:
         auth_bindings = [
             {"type": "d1", "name": "AXIOM_DB", "id": D1_UUID},
             {"type": "plain_text", "name": "OAUTH_ISSUER", "text": auth_url},
-            {"type": "plain_text", "name": "MCP_RESOURCE", "text": mcp_url},
+            {"type": "plain_text", "name": "MCP_RESOURCE", "text": mcp_resource},
         ]
         upload_worker(headers, AUTH_WORKER, AUTH_SOURCE.read_bytes(), auth_bindings)
-        created.append(AUTH_WORKER)
+        if not auth_exists:
+            created.append(AUTH_WORKER)
 
         mcp_bindings = [
             {"type": "d1", "name": "AXIOM_DB", "id": D1_UUID},
             {"type": "plain_text", "name": "AUTH_ISSUER", "text": auth_url},
             {"type": "plain_text", "name": "MCP_PUBLIC_BASE", "text": mcp_url},
+            {"type": "plain_text", "name": "MCP_OAUTH_RESOURCE", "text": mcp_resource},
             {"type": "service", "name": "MCP_CORE", "service": CORE_WORKER},
         ]
         upload_worker(headers, MCP_WORKER, MCP_SOURCE.read_bytes(), mcp_bindings)
-        created.append(MCP_WORKER)
+        if not mcp_exists:
+            created.append(MCP_WORKER)
 
         auth_probe = wait_json(
             auth_url + "/health",
             lambda code, payload: code == 200
             and payload.get("ok") is True
             and payload.get("issuer") == auth_url
-            and payload.get("resource") == mcp_url
+            and payload.get("resource") == mcp_resource
             and payload.get("dcr") is True
             and payload.get("pkce_s256") is True,
         )
@@ -340,14 +349,32 @@ def main() -> int:
             and payload.get("ok") is True
             and payload.get("oauth_enforced") is True
             and payload.get("auth_issuer") == auth_url
-            and payload.get("resource") == mcp_url,
+            and payload.get("resource") == mcp_resource,
         )
         if not mcp_probe or mcp_probe[0] != 200:
             raise RuntimeError("isolated Claude MCP Worker did not become healthy")
 
         pc, _, protected, _ = parse_json_response(mcp_url + "/.well-known/oauth-protected-resource")
-        if pc != 200 or protected.get("resource") != mcp_url or protected.get("authorization_servers") != [auth_url]:
+        if pc != 200 or protected.get("resource") != mcp_resource or protected.get("authorization_servers") != [auth_url]:
             raise RuntimeError("isolated Claude protected-resource metadata mismatch")
+
+        unauth_code, unauth_headers, unauth_payload, _ = parse_json_response(
+            mcp_url + "/mcp",
+            "POST",
+            {
+                "jsonrpc": "2.0",
+                "id": 991,
+                "method": "tools/call",
+                "params": {
+                    "name": "musitu_axiom_execute",
+                    "arguments": {"operation": "arithmetic.evaluate", "args": {"expression": "40+2"}},
+                },
+            },
+        )
+        unauth_challenge = str(unauth_headers.get("WWW-Authenticate") or unauth_headers.get("www-authenticate") or "")
+        expected_metadata = mcp_url + "/.well-known/oauth-protected-resource"
+        if unauth_code != 401 or expected_metadata not in unauth_challenge or 'scope="axiom.execute"' not in unauth_challenge:
+            raise RuntimeError("isolated Claude MCP does not expose the required HTTP 401 OAuth challenge")
 
         lc, _, listing, _ = parse_json_response(
             mcp_url + "/mcp",
@@ -389,6 +416,9 @@ def main() -> int:
             "mcp_worker": MCP_WORKER,
             "auth_url": auth_url,
             "mcp_url": mcp_url,
+            "oauth_resource": mcp_resource,
+            "unauthenticated_protected_call_http": 401,
+            "www_authenticate_resource_metadata": mcp_url + "/.well-known/oauth-protected-resource",
             "shared_identity_ledger": True,
             "oauth_mutation_performed": False,
             "dns_or_custom_domain_mutation_performed": False,
