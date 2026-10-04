@@ -1,4 +1,5 @@
 name: MUSITU Connect OAuth PKCE qualification
+# Direct HTTPS consent capture enabled
 
 on:
   workflow_dispatch:
