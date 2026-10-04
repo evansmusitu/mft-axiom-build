@@ -3,7 +3,7 @@ from __future__ import annotations
 from urllib.parse import urlparse
 
 _OPENAI_HOST = "chatgpt.com"
-_CLAUDE_HOSTS = {"claude.ai", "claude.com"}
+_CLAUDE_HOST = "claude.ai"
 _CLAUDE_PATH = "/api/mcp/auth_callback"
 
 
@@ -26,7 +26,7 @@ def classify_redirect(uri: str) -> str | None:
     ):
         return "openai"
 
-    if host in _CLAUDE_HOSTS and path == _CLAUDE_PATH:
+    if host == _CLAUDE_HOST and path == _CLAUDE_PATH:
         return "claude"
 
     return None
