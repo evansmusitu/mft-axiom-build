@@ -1,0 +1,16 @@
+{
+  "schema": "musitu.axiom.claude_real_origin_evidence.v1",
+  "timestamp_utc": "",
+  "claude_surface": "",
+  "connector_name": "MUSITU Axiom",
+  "remote_mcp_url": "https://musitu-axiom-claude-mcp-candidate.mft-education-nexus-93f395f5.workers.dev/mcp",
+  "oauth_client_mode": "",
+  "oauth_completed": false,
+  "tools_discovered": false,
+  "commerce_tools_absent": false,
+  "arithmetic_tool_name": "",
+  "arithmetic_result_42": false,
+  "npv_tool_call_passed": false,
+  "no_secrets_exposed": false,
+  "notes": ""
+}
