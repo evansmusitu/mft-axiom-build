@@ -71,5 +71,14 @@ jobs:
           print("LIVE_PUBLICATION_SOURCE_GIT_BLOB_SHA1="+live_blob)
           print("EXPECTED_PRE_FIX_GIT_BLOB_SHA1="+expected_blob)
           print("SOURCE_MATCH="+str(live_blob==expected_blob).lower())
+          text=src.decode("utf-8","replace")
+          markers={
+              "clean_tool_result":text.count("function cleanToolResult"),
+              "forward_call":text.count("async function forwardCall"),
+              "old_forward_return":text.count("return response(200,markAlgebraSolveCompatibility(cleanToolResult(o),compat))"),
+              "projection_helper":text.count("function projectClaudeTextResult"),
+              "projection_call":text.count("projectClaudeTextResult(markAlgebraSolveCompatibility(cleanToolResult(o),compat))"),
+          }
+          print("LIVE_PATCH_MARKERS="+json.dumps(markers,sort_keys=True))
           print("mutation_performed=false")
           PY
