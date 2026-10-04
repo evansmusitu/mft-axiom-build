@@ -6,7 +6,10 @@
     "canonical_upstream": "https://mcp.mftintelligence.com/mcp",
     "submission_url": "https://musitu-axiom-claude-mcp-candidate.mft-education-nexus-93f395f5.workers.dev/mcp",
     "transport": "streamable_http",
-    "mcp_generation": "2.0"
+    "mcp_generation": "2.0",
+    "testing_url": "https://musitu-axiom-claude-mcp-candidate.mft-education-nexus-93f395f5.workers.dev/mcp",
+    "publication_url": "https://claude-mcp.mftintelligence.com/mcp",
+    "publication_url_status": "not_deployed"
   },
   "oauth": {
     "registration": "dcr_or_published_identity",
@@ -14,10 +17,13 @@
     "callback_uris": [
       "https://claude.ai/api/mcp/auth_callback"
     ],
-    "issuer": "https://musitu-axiom-claude-auth-candidate.mft-education-nexus-93f395f5.workers.dev"
+    "issuer": "https://musitu-axiom-claude-auth-candidate.mft-education-nexus-93f395f5.workers.dev",
+    "testing_issuer": "https://musitu-axiom-claude-auth-candidate.mft-education-nexus-93f395f5.workers.dev",
+    "publication_issuer": "https://claude-auth.mftintelligence.com",
+    "publication_issuer_status": "not_deployed"
   },
   "submission": {
-    "status": "blocked_pending_real_claude_origin_validation",
+    "status": "blocked_pending_real_claude_origin_and_publication_domain",
     "route": "developer_portal_single_remote_mcp",
     "live_endpoint_verified": true,
     "live_endpoint_evidence_run": 37173130982,
@@ -40,6 +46,8 @@
     "directory_management_access_required": true,
     "submission_location": "Claude.ai organization admin settings",
     "eligibility_source": "https://claude.com/docs/connectors/building/submission",
-    "eligibility_verified_on": "2026-10-04"
+    "eligibility_verified_on": "2026-10-04",
+    "publication_domain_must_match_service": true,
+    "publication_domain_source": "https://claude.com/docs/connectors/building/review-criteria"
   }
 }
