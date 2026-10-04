@@ -39,7 +39,7 @@ def test_claude_profile_is_single_remote_mcp_and_submission_blocked_until_isolat
     assert profile["provider_id"] == "claude"
     assert profile["distribution_mode"] == "single_remote_mcp"
     assert profile["oauth"]["callback_uris"] == ["https://claude.ai/api/mcp/auth_callback"]
-    assert profile["submission"]["status"] == "blocked_pending_real_claude_origin_validation"
+    assert profile["submission"]["status"] == "blocked_pending_real_claude_origin_and_publication_domain"
     assert profile["submission"]["portal_requires_paid_plan"] is False
     assert profile["submission"]["team_enterprise_org_connector_admin_controls"] is True
     assert profile["submission"]["remote_mcp_directory_submission_requires_team_or_enterprise"] is True
