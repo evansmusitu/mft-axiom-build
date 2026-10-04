@@ -18,6 +18,7 @@ on:
       - "submission/claude/real-claude-origin-evidence.template.json"
       - "frontier_v5/tests/test_claude_runtime_repair_contract.py"
       - "frontier_v5/tests/test_claude_oauth_fixture_e2e_contract.py"
+      - "frontier_v5/tests/test_claude_publication_domain_contract.py"
       - "submission/claude/**"
       - ".github/workflows/axiom-frontier-v5-claude-distribution-gate.yml"
   pull_request:
