@@ -23,7 +23,7 @@
     "live_endpoint_evidence_run": 37169862332,
     "server_oauth_e2e_verified": true,
     "server_oauth_e2e_run": 37170153704,
-    "portal_requires_team_or_enterprise": true,
-    "directory_management_access_required": true
+    "portal_requires_paid_plan": true,
+    "team_enterprise_org_connector_admin_controls": true
   }
 }
