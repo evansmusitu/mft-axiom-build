@@ -1,0 +1,43 @@
+name: Axiom Runtime Implementation Map 20261004
+on:
+  push:
+    branches: [audit/axiom-74-operation-exhaustive-20261004]
+    paths: ['.github/workflows/axiom-runtime-implementation-map-20261004.yml']
+permissions:
+  contents: read
+jobs:
+  map:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.13'}
+      - name: Reconstruct patched kernel and emit implementation map
+        env:
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          P=deploy_payload/runtime_min
+          cat "$P/chunk_00.b64" "$P/chunk_01_02.b64" "$P/chunk_03_04.b64" "$P/chunk_05_06.b64" "$P/chunk_07_08.b64" "$P/chunk_09.b64" > runtime.enc.b64
+          base64 -d runtime.enc.b64 > runtime.tar.gz.enc
+          openssl enc -d -aes-256-cbc -pbkdf2 -iter 250000 -in runtime.tar.gz.enc -out runtime.tar.gz -pass env:CLOUDFLARE_GLOBAL_API_KEY
+          mkdir runtime && tar -xzf runtime.tar.gz -C runtime
+          python frontier_v5/scripts/patch_quadratic_constraints_runtime.py runtime/kernel/app/main.py
+          python - <<'PY'
+          import ast,json,pathlib
+          p=pathlib.Path('runtime/kernel/app/main.py')
+          tree=ast.parse(p.read_text())
+          rows=[]
+          class V(ast.NodeVisitor):
+              def visit_If(self,node):
+                  txt=ast.get_source_segment(p.read_text(),node.test) or ''
+                  if "op==" in txt or "op ==" in txt:
+                      body='\n'.join(ast.get_source_segment(p.read_text(),x) or '' for x in node.body)
+                      rows.append({'test':txt,'body':body[:3500]})
+                  self.generic_visit(node)
+          V().visit(tree)
+          for r in rows:
+              print('OP_IMPL='+json.dumps(r,sort_keys=True))
+          PY
