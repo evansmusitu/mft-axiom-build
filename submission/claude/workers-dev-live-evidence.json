@@ -1,0 +1,31 @@
+{
+  "schema": "musitu.axiom.claude_workers_dev_deployment.v1",
+  "recorded_from_github_actions_run": 37169862332,
+  "recorded_from_job": 111340412876,
+  "deployment_step_conclusion": "success",
+  "artifact_upload_step_conclusion": "failure",
+  "artifact_upload_failure_reason": "GitHub artifact storage quota exhausted",
+  "status": "PASS",
+  "auth_worker": "musitu-axiom-claude-auth-candidate",
+  "mcp_worker": "musitu-axiom-claude-mcp-candidate",
+  "auth_url": "https://musitu-axiom-claude-auth-candidate.mft-education-nexus-93f395f5.workers.dev",
+  "mcp_url": "https://musitu-axiom-claude-mcp-candidate.mft-education-nexus-93f395f5.workers.dev",
+  "shared_identity_ledger": true,
+  "oauth_mutation_performed": false,
+  "dns_or_custom_domain_mutation_performed": false,
+  "tool_count": 108,
+  "operation_count": 74,
+  "business_product_count": 30,
+  "commerce_tools_exposed": false,
+  "openai_surface_before_sha256": "1515ae38afc222de1d29e9dbfc49830aa22ca6350bf94d84d8e506239fe7d29d",
+  "openai_surface_after_sha256": "1515ae38afc222de1d29e9dbfc49830aa22ca6350bf94d84d8e506239fe7d29d",
+  "openai_surface_unchanged": true,
+  "frozen_openai_auth_blob": "8ba0dbc1b6dd1533c6c26bff23991429e03a71a5",
+  "frozen_openai_mcp_blob": "4a1ad37a5e7df0e4d3966e8b5f9f0e8f2db69167",
+  "claude_auth_source_sha256": "7a038141d44cf68723402f0ccb989ddd987066d3297d241df5042888a0772cdf",
+  "claude_mcp_source_sha256": "4ab603c757188b9d4dc297a8f5c6762087de54b631f4cc9aba9640a81bb463c5",
+  "remaining_live_requirements": [
+    "real Claude custom-connector OAuth completion",
+    "authenticated Axiom tool call through Claude"
+  ]
+}
