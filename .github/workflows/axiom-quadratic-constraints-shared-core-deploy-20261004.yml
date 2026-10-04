@@ -163,7 +163,7 @@ jobs:
           PY
           echo "::add-mask::$(cat /tmp/modal-key)"; echo "::add-mask::$(cat /tmp/modal-secret)"
           python - <<'PY'
-          import json,os,pathlib,urllib.request,urllib.error,math
+          import json,os,pathlib,urllib.request,urllib.error,math,time
           base=pathlib.Path('/tmp/candidate-url').read_text().strip().rstrip('/')
           headers={'Modal-Key':pathlib.Path('/tmp/modal-key').read_text(),'Modal-Secret':pathlib.Path('/tmp/modal-secret').read_text(),'content-type':'application/json','accept':'application/json'}
           def call(op,args,verify=True):
@@ -174,8 +174,29 @@ jobs:
                   try:b=json.loads(e.read() or b'{}')
                   except:b={}
                   return e.code,b
+          # Modal may return a transient 5xx while a freshly deployed ASGI container is cold-starting.
+          ready=False
+          for _ in range(60):
+              q=urllib.request.Request(base+'/health',headers={k:v for k,v in headers.items() if k.lower()!='content-type'},method='GET')
+              try:
+                  with urllib.request.urlopen(q,timeout=30) as rr:
+                      hb=json.loads(rr.read() or b'{}'); hc=rr.status
+              except urllib.error.HTTPError as e:
+                  hc=e.code; hb={}
+              except Exception:
+                  hc=0; hb={}
+              if hc==200 and hb.get('ok') is True:
+                  ready=True; break
+              if hc not in {0,500,502,503,504}: raise SystemExit('candidate readiness unexpected HTTP '+str(hc))
+              time.sleep(2)
+          if not ready: raise SystemExit('candidate readiness timeout')
           portfolio={'Q':[[0.04,0.006,0.012,0],[0.006,0.09,0.018,0.009],[0.012,0.018,0.16,0.03],[0,0.009,0.03,0.0625]],'c':[0,0,0,0],'A_eq':[[1,1,1,1],[0.06,0.09,0.14,0.07]],'b_eq':[1,0.09],'bounds':[[0,1],[0,1],[0,1],[0,1]]}
-          code,o=call('optimization.quadratic',portfolio)
+          code=o=None
+          for _ in range(20):
+              code,o=call('optimization.quadratic',portfolio)
+              if code==200: break
+              if code not in {500,502,503,504}: break
+              time.sleep(2)
           r=o.get('result') or {}; x=r.get('x') or []
           if code!=200 or o.get('ok') is not True or r.get('success') is not True or len(x)!=4:raise SystemExit('candidate portfolio execution failed '+repr((code,o))[:1500])
           expected=[0.30418737,0.25477424,0.25637699,0.18466141]
@@ -215,7 +236,7 @@ jobs:
           print('LIVE_MODAL_PATCH_READBACK_PASS')
           PY
           python - <<'PY'
-          import json,os,pathlib,urllib.request,urllib.error
+          import json,os,pathlib,urllib.request,urllib.error,time
           base=os.environ['LIVE_MODAL_URL'].rstrip('/')
           headers={'Modal-Key':pathlib.Path('/tmp/modal-key').read_text(),'Modal-Secret':pathlib.Path('/tmp/modal-secret').read_text(),'content-type':'application/json','accept':'application/json'}
           portfolio={'Q':[[0.04,0.006,0.012,0],[0.006,0.09,0.018,0.009],[0.012,0.018,0.16,0.03],[0,0.009,0.03,0.0625]],'c':[0,0,0,0],'A_eq':[[1,1,1,1],[0.06,0.09,0.14,0.07]],'b_eq':[1,0.09],'bounds':[[0,1],[0,1],[0,1],[0,1]]}
@@ -227,7 +248,29 @@ jobs:
                 try:o=json.loads(e.read() or b'{}')
                 except:o={}
                 return e.code,o
-          code,o=req(portfolio); r=o.get('result') or {}; x=r.get('x') or []
+          # Wait for the newly recreated live ASGI container before evaluating semantics.
+          ready=False
+          for _ in range(60):
+              q=urllib.request.Request(base+'/health',headers={k:v for k,v in headers.items() if k.lower()!='content-type'},method='GET')
+              try:
+                  with urllib.request.urlopen(q,timeout=30) as hr:
+                      hb=json.loads(hr.read() or b'{}'); hc=hr.status
+              except urllib.error.HTTPError as e:
+                  hc=e.code; hb={}
+              except Exception:
+                  hc=0; hb={}
+              if hc==200 and hb.get('ok') is True:
+                  ready=True; break
+              if hc not in {0,500,502,503,504}: raise SystemExit('live readiness unexpected HTTP '+str(hc))
+              time.sleep(2)
+          if not ready: raise SystemExit('live readiness timeout')
+          code=o=None
+          for _ in range(20):
+              code,o=req(portfolio)
+              if code==200: break
+              if code not in {500,502,503,504}: break
+              time.sleep(2)
+          r=o.get('result') or {}; x=r.get('x') or []
           expected=[0.30418737,0.25477424,0.25637699,0.18466141]
           if code!=200 or o.get('ok') is not True or r.get('success') is not True or len(x)!=4 or max(abs(float(a)-b) for a,b in zip(x,expected))>2e-6:raise SystemExit('live direct QP mismatch '+repr((code,o))[:1800])
           if not isinstance(r.get('verification'),dict) or r['verification'].get('verified') is not True:raise SystemExit('live direct QP verification missing')
