@@ -1,0 +1,46 @@
+name: Axiom Frontier V5 Claude Distribution Gate
+
+on:
+  push:
+    branches:
+      - "distribution/claude-remote-mcp-*"
+    paths:
+      - "frontier_v5/distribution/**"
+      - "frontier_v5/scripts/claude_distribution_gate.py"
+      - "frontier_v5/tests/test_distribution_oauth_policy.py"
+      - "frontier_v5/tests/test_claude_worker_isolation_contract.py"
+      - "frontier_v5/tests/test_claude_distribution_gate.py"
+      - "submission/claude/**"
+      - ".github/workflows/axiom-frontier-v5-claude-distribution-gate.yml"
+  pull_request:
+    paths:
+      - "frontier_v5/distribution/**"
+      - "frontier_v5/scripts/claude_distribution_gate.py"
+      - "frontier_v5/tests/test_distribution_oauth_policy.py"
+      - "frontier_v5/tests/test_claude_worker_isolation_contract.py"
+      - "frontier_v5/tests/test_claude_distribution_gate.py"
+      - "submission/claude/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  claude-distribution-candidate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install focused test dependency
+        run: python -m pip install --disable-pip-version-check pytest
+      - name: Run Claude distribution contract tests
+        run: |
+          PYTHONPATH=. python -m pytest -q \
+            frontier_v5/tests/test_distribution_oauth_policy.py \
+            frontier_v5/tests/test_claude_worker_isolation_contract.py \
+            frontier_v5/tests/test_claude_distribution_gate.py
+      - name: Run static Claude candidate gate
+        run: PYTHONPATH=. python frontier_v5/scripts/claude_distribution_gate.py
