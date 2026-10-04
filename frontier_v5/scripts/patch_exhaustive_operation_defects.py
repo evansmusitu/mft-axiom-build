@@ -260,10 +260,9 @@ def main():
     if "higher-precision-recompute" in verify_region: raise SystemExit('verification patch already present')
     s=s[:epos]+VERIFY_INSERT+s[epos:]
 
-    old_compute="    try: result=dispatch(req.operation,req.args,req.precision)\\n    except Exception as e: raise HTTPException(status_code=422,detail={'error':type(e).__name__,'message':str(e)[:500]})\\n    out={'ok':True,'kernel_version':VERSION,'operation':req.operation,'result':encode(result),'verified':None,'elapsed_ms':round((time.perf_counter()-t)*1000,3)}"
-    new_compute="    try:\\n        result=dispatch(req.operation,req.args,req.precision)\\n        encoded=encode(result)\\n    except Exception as e: raise HTTPException(status_code=422,detail={'error':type(e).__name__,'message':str(e)[:500]})\\n    out={'ok':True,'kernel_version':VERSION,'operation':req.operation,'result':encoded,'verified':None,'elapsed_ms':round((time.perf_counter()-t)*1000,3)}"
-    if s.count(old_compute)!=1: raise SystemExit('compute route anchor mismatch')
-    s=s.replace(old_compute,new_compute,1)
+    # Dispatch-level validation now rejects the audited bad domains before serialization.
+    # Keep the existing HTTP route byte-for-byte unchanged.
+
 
     p.write_text(s)
     out=hashlib.sha256(p.read_bytes()).hexdigest()
