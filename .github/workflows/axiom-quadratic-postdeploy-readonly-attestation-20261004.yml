@@ -1,0 +1,99 @@
+name: Axiom Quadratic Post-Deploy Read-Only Attestation 20261004
+on:
+  push:
+    branches: [fix/axiom-quadratic-constraints-20261004]
+    paths: ['.github/workflows/axiom-quadratic-postdeploy-readonly-attestation-20261004.yml']
+permissions:
+  contents: read
+jobs:
+  attest:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    env:
+      MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID }}
+      MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET }}
+      CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+      ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      LIVE_APP: musitu-axiom-v3-modal-staging
+      LIVE_MODAL_URL: https://evansmusitu--musitu-axiom-v3-modal-staging-axiom-kernel.modal.run
+      PATCH_ID: MFT-AXIOM-QP-CONSTRAINED-20261004
+      PATCHED_MAIN_SHA256: cfa39f0f17c56a183c5024a600086aba4644ec925343129245a62e18294f7c47
+      SEALED_MAIN: d6a846f6bbe0bccac1758713eb4de167caf07113
+      OPENAI_AUTH_BLOB: 8ba0dbc1b6dd1533c6c26bff23991429e03a71a5
+      OPENAI_MCP_BLOB: 4a1ad37a5e7df0e4d3966e8b5f9f0e8f2db69167
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/axiom-quadratic-constraints-20261004
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.13'}
+      - name: Reverify protected repository invariants
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git ls-remote origin refs/heads/main | awk '{print $1}')" = "$SEALED_MAIN"
+          test "$(git hash-object auth/musitu_axiom_oauth_worker.mjs)" = "$OPENAI_AUTH_BLOB"
+          test "$(git hash-object mcp/musitu_axiom_plugin_gate_v4.mjs)" = "$OPENAI_MCP_BLOB"
+          echo PROTECTED_REPOSITORY_INVARIANTS_PASS
+      - name: Read live Modal patch marker
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --disable-pip-version-check --quiet 'modal>=1.5,<2'
+          python - <<'PY'
+          import json,modal,os
+          r=modal.Function.from_name(os.environ['LIVE_APP'],'runtime_probe').remote()
+          safe={k:r.get(k) for k in ('build_id','runtime_patch','main_sha256','routes') if isinstance(r,dict)}
+          if safe.get('runtime_patch')!=os.environ['PATCH_ID']:raise SystemExit('live runtime patch marker mismatch')
+          if safe.get('main_sha256')!=os.environ['PATCHED_MAIN_SHA256']:raise SystemExit('live patched kernel digest mismatch')
+          if '/v1/compute' not in (safe.get('routes') or []):raise SystemExit('live compute route missing')
+          print('LIVE_MODAL_QP_PATCH_ATTESTATION='+json.dumps(safe,sort_keys=True))
+          PY
+      - name: Read exact Cloudflare compute-chain bindings
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json,os,urllib.request
+          base='https://api.cloudflare.com/client/v4'
+          hs=[]
+          tok=os.environ.get('CLOUDFLARE_API_TOKEN','').strip()
+          if tok:hs.append({'Authorization':'Bearer '+tok,'Accept':'application/json'})
+          if os.environ.get('CLOUDFLARE_EMAIL') and os.environ.get('CLOUDFLARE_GLOBAL_API_KEY'):
+              hs.append({'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY'],'Accept':'application/json'})
+          def get(worker):
+              last=None
+              for h in hs:
+                  try:
+                      q=urllib.request.Request(f"{base}/accounts/{os.environ['ACCOUNT_ID']}/workers/scripts/{worker}/settings",headers=h)
+                      with urllib.request.urlopen(q,timeout=30) as r:x=json.load(r)
+                      if x.get('success') is not False:return x.get('result') or {}
+                  except Exception as e:last=e
+              raise SystemExit(f'Cloudflare read failed for {worker}: {type(last).__name__}')
+          def service(settings,name):
+              rows=[b for b in settings.get('bindings') or [] if isinstance(b,dict) and b.get('name')==name]
+              if len(rows)!=1 or rows[0].get('type')!='service':raise SystemExit(f'{name} binding mismatch')
+              return rows[0].get('service'),rows[0].get('environment')
+          core=get('musitu-axiom-mcp-core')
+          e1=get('musitu-axiom-modal-edge-stage')
+          e2=get('mft-axiom-modal-edge-stage')
+          adapter=get('mft-axiom-modal-adapter')
+          if service(core,'AXIOM_SERVICE')!=('musitu-axiom-modal-edge-stage','production'):raise SystemExit('core->edge drift')
+          if service(e1,'LEGACY_EDGE')!=('mft-axiom-modal-edge-stage','production'):raise SystemExit('edge alias drift')
+          if service(e2,'AXIOM_KERNEL')!=('mft-axiom-modal-adapter','production'):raise SystemExit('edge->adapter drift')
+          bs={b.get('name'):b for b in adapter.get('bindings') or [] if isinstance(b,dict)}
+          if bs.get('MODAL_BASE_URL',{}).get('text')!=os.environ['LIVE_MODAL_URL']:raise SystemExit('adapter live URL drift')
+          if bs.get('MODAL_PROXY_KEY',{}).get('type')!='secret_text' or bs.get('MODAL_PROXY_SECRET',{}).get('type')!='secret_text':raise SystemExit('adapter proxy secret drift')
+          print('SHARED_CORE_BINDING_CHAIN_PASS='+json.dumps({
+            'core_to_edge':'musitu-axiom-modal-edge-stage',
+            'edge_alias':'mft-axiom-modal-edge-stage',
+            'edge_to_adapter':'mft-axiom-modal-adapter',
+            'adapter_to_modal':os.environ['LIVE_MODAL_URL'],
+            'secret_values_exposed':False
+          },sort_keys=True))
+          PY
+      - name: Attestation gate
+        run: echo MUSITU_AXIOM_QP_POSTDEPLOY_READONLY_ATTESTATION_PASS
