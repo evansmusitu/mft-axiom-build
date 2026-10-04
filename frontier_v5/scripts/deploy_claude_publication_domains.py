@@ -39,6 +39,8 @@ PUBLIC_MCP_HOST = "claude-mcp.mftintelligence.com"
 PUBLIC_AUTH_URL = "https://" + PUBLIC_AUTH_HOST
 PUBLIC_MCP_URL = "https://" + PUBLIC_MCP_HOST
 PUBLIC_MCP_RESOURCE = PUBLIC_MCP_URL + "/mcp"
+AUTH_RULE_REF = "mft_axiom_claude_auth_machine_transport"
+MCP_RULE_REF = "mft_axiom_claude_mcp_machine_transport"
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 
@@ -138,10 +140,110 @@ def _detach_domain(headers: dict, domain_id: str) -> None:
         allow={200, 202, 204},
     )
 
+def _configuration_ruleset(headers: dict, zone_id: str) -> tuple[str, list[dict]]:
+    rows, _ = cf(headers, f"/zones/{zone_id}/rulesets")
+    matches = [
+        row for row in (rows or [])
+        if isinstance(row, dict)
+        and row.get("phase") == "http_config_settings"
+        and row.get("kind") == "zone"
+    ]
+    if len(matches) != 1 or not matches[0].get("id"):
+        raise RuntimeError(
+            f"expected exactly one zone http_config_settings ruleset, got {len(matches)}"
+        )
+    ruleset_id = str(matches[0]["id"])
+    detail, _ = cf(headers, f"/zones/{zone_id}/rulesets/{ruleset_id}")
+    rules = (detail or {}).get("rules") or []
+    return ruleset_id, [r for r in rules if isinstance(r, dict)]
+
+
+def _assert_machine_rule_available(
+    headers: dict,
+    zone_id: str,
+    hostname: str,
+    ref: str,
+) -> str:
+    ruleset_id, rules = _configuration_ruleset(headers, zone_id)
+    expression = f'http.host eq "{hostname}"'
+    by_ref = [r for r in rules if r.get("ref") == ref]
+    if by_ref:
+        raise RuntimeError(f"{ref} already exists; refusing implicit replacement")
+    same_expression = [r for r in rules if r.get("expression") == expression]
+    if same_expression:
+        raise RuntimeError(
+            f"{hostname} already has a configuration rule; refusing overlap"
+        )
+    return ruleset_id
+
+
+def _create_machine_rule(
+    headers: dict,
+    zone_id: str,
+    ruleset_id: str,
+    hostname: str,
+    ref: str,
+) -> str:
+    expression = f'http.host eq "{hostname}"'
+    cf(
+        headers,
+        f"/zones/{zone_id}/rulesets/{ruleset_id}/rules",
+        "POST",
+        {
+            "action": "set_config",
+            "action_parameters": {
+                "security_level": "essentially_off",
+                "bic": False,
+            },
+            "expression": expression,
+            "description": (
+                "MUSITU Axiom Claude machine transport: disable browser challenge "
+                "only on this Claude API hostname; OAuth/Worker auth remains fail-closed"
+            ),
+            "enabled": True,
+            "ref": ref,
+        },
+    )
+    detail, _ = cf(headers, f"/zones/{zone_id}/rulesets/{ruleset_id}")
+    matches = [
+        r for r in ((detail or {}).get("rules") or [])
+        if isinstance(r, dict) and r.get("ref") == ref
+    ]
+    if len(matches) != 1 or not matches[0].get("id"):
+        raise RuntimeError(f"machine-transport rule readback failed for {hostname}")
+    rule = matches[0]
+    ap = rule.get("action_parameters") or {}
+    if (
+        rule.get("action") != "set_config"
+        or rule.get("expression") != expression
+        or ap.get("security_level") != "essentially_off"
+        or ap.get("bic") is not False
+        or rule.get("enabled") is False
+    ):
+        raise RuntimeError(f"machine-transport rule contract mismatch for {hostname}")
+    return str(rule["id"])
+
+
+def _delete_machine_rule(
+    headers: dict,
+    zone_id: str,
+    ruleset_id: str,
+    rule_id: str,
+) -> None:
+    cf(
+        headers,
+        f"/zones/{zone_id}/rulesets/{ruleset_id}/rules/{urllib.parse.quote(rule_id, safe='')}",
+        "DELETE",
+        allow={200, 202, 204},
+    )
+
+
 
 def cleanup_created_publication_surface(
     headers: dict,
+    zone_id: str,
     created_domains: list[str],
+    created_rules: list[tuple[str, str]],
     created_workers: list[str],
 ) -> None:
     errors: list[str] = []
@@ -150,6 +252,11 @@ def cleanup_created_publication_surface(
             _detach_domain(headers, domain_id)
         except Exception as exc:
             errors.append(f"domain:{domain_id}:{exc}")
+    for ruleset_id, rule_id in reversed(created_rules):
+        try:
+            _delete_machine_rule(headers, zone_id, ruleset_id, rule_id)
+        except Exception as exc:
+            errors.append(f"rule:{rule_id}:{exc}")
     for worker in reversed(created_workers):
         try:
             delete_worker(headers, worker)
@@ -306,11 +413,20 @@ def main() -> int:
 
     _assert_domain_available(headers, zone_id, PUBLIC_AUTH_HOST, PUBLIC_AUTH_WORKER)
     _assert_domain_available(headers, zone_id, PUBLIC_MCP_HOST, PUBLIC_MCP_WORKER)
+    auth_ruleset_id = _assert_machine_rule_available(
+        headers, zone_id, PUBLIC_AUTH_HOST, AUTH_RULE_REF
+    )
+    mcp_ruleset_id = _assert_machine_rule_available(
+        headers, zone_id, PUBLIC_MCP_HOST, MCP_RULE_REF
+    )
+    if auth_ruleset_id != mcp_ruleset_id:
+        raise RuntimeError("Claude machine-transport ruleset mismatch")
 
     before = snapshot_openai_surface()
     before_digest = canonical_digest(before)
     created_workers: list[str] = []
     created_domains: list[str] = []
+    created_rules: list[tuple[str, str]] = []
 
     try:
         auth_bindings = [
@@ -330,6 +446,19 @@ def main() -> int:
         ]
         upload_worker(headers, PUBLIC_MCP_WORKER, MCP_SOURCE.read_bytes(), mcp_bindings)
         created_workers.append(PUBLIC_MCP_WORKER)
+
+        created_rules.append((
+            auth_ruleset_id,
+            _create_machine_rule(
+                headers, zone_id, auth_ruleset_id, PUBLIC_AUTH_HOST, AUTH_RULE_REF
+            ),
+        ))
+        created_rules.append((
+            mcp_ruleset_id,
+            _create_machine_rule(
+                headers, zone_id, mcp_ruleset_id, PUBLIC_MCP_HOST, MCP_RULE_REF
+            ),
+        ))
 
         created_domains.append(
             _attach_domain(headers, zone_id, PUBLIC_AUTH_HOST, PUBLIC_AUTH_WORKER)
@@ -385,6 +514,21 @@ def main() -> int:
                 "mcp": PUBLIC_MCP_WORKER,
             },
             "testing_workers_unchanged": True,
+            "machine_transport_rules": {
+                "auth": {
+                    "ref": AUTH_RULE_REF,
+                    "scope": f'http.host eq "{PUBLIC_AUTH_HOST}"',
+                    "security_level": "essentially_off",
+                    "bic": False,
+                },
+                "mcp": {
+                    "ref": MCP_RULE_REF,
+                    "scope": f'http.host eq "{PUBLIC_MCP_HOST}"',
+                    "security_level": "essentially_off",
+                    "bic": False,
+                },
+            },
+            "global_security_policy_mutated": False,
             "openai_surface_before_sha256": before_digest,
             "openai_surface_after_sha256": after_digest,
             "openai_surface_unchanged": True,
@@ -406,12 +550,16 @@ def main() -> int:
             "operation_count": publication["operation_count"],
             "business_product_count": publication["business_product_count"],
             "testing_workers_unchanged": True,
+            "machine_transport_rules_created": len(created_rules),
+            "global_security_policy_mutated": False,
             "openai_surface_unchanged": True,
             "evidence_sha256": digest,
         }, sort_keys=True))
         return 0
     except Exception:
-        cleanup_created_publication_surface(headers, created_domains, created_workers)
+        cleanup_created_publication_surface(
+            headers, zone_id, created_domains, created_rules, created_workers
+        )
         raise
 
 
