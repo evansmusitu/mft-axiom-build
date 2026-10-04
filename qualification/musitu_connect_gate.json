@@ -7,17 +7,22 @@
     "controlled_integration_allowed": true,
     "production_integration_allowed": false,
     "scope": "controlled qualification integration only",
-    "reason": "independent infrastructure E2E qualification passed on the qualified source commit; production credentialed Connect-to-Axiom E2E remains pending"
+    "reason": "independent infrastructure E2E qualification and credentialed live Connect-to-Axiom request-id correlation passed; production integration remains separately blocked pending explicit production promotion and authorization"
   },
   "tests": {
-    "repository_contract_tests": 15,
+    "repository_contract_tests": 17,
     "independent_recheck": "PASS",
     "runtime_recheck": "PASS",
     "infrastructure_e2e": "PASS",
     "recovery_recheck": "PASS",
     "evidence_validation": "PASS",
     "axiom_bridge_contract": "PASS",
-    "axiom_response_correlation": "PASS"
+    "axiom_response_correlation": "PASS",
+    "credentialed_live_axiom_e2e": "PASS",
+    "jsonrpc_response_id_correlation": "PASS",
+    "unauthorized_live_axiom": "PASS",
+    "malformed_authenticated_live_axiom": "PASS",
+    "mismatched_id_negative": "PASS"
   },
   "qualification_evidence": {
     "source_commit": "c6f6617fdf17a18afbfa21b1aefd6b055ba0ecc2",
@@ -34,7 +39,7 @@
       "result": "3.3480000000000003090860900556435808539390563964844",
       "valid_request": "PASS",
       "malformed_request": "REJECTED_HTTP_422",
-      "note": "Live Axiom compute was exercised separately through the connected Axiom capability. The repository bridge contract verifies OAuth/MCP transport and Connect request correlation at a mocked external boundary; a credentialed live Connect-generated request-id E2E is not yet demonstrated."
+      "note": "Earlier separate live arithmetic probe remains valid background evidence. The stronger credentialed Connect-generated request-id E2E is now recorded under credentialed_axiom_e2e."
     }
   },
   "demonstrated": [
@@ -55,15 +60,51 @@
     "Connect-generated provenance-bound Axiom request IDs",
     "OAuth MCP Axiom transport contract without bearer-token body leakage",
     "canonical Mining run to Axiom arithmetic request derivation",
-    "Axiom response request-id correlation rejection",
-    "separate live Axiom arithmetic success and malformed-request rejection"
+    "separate live Axiom arithmetic success and malformed-request rejection",
+    "Axiom JSON-RPC response request-id correlation rejection",
+    "credentialed live Connect-to-Axiom MCP execution using a Connect-generated request ID",
+    "exact Connect request-ID correlation into the Axiom usage ledger",
+    "credentialed live unauthorized and malformed-request rejection",
+    "credentialed E2E lineage evidence and zero-row fixture cleanup"
   ],
   "not_yet_demonstrated": [
     "production mining-system connectors",
     "independent comparative benchmarking",
     "mine-specific predictive accuracy",
-    "credentialed live Connect-to-Axiom E2E using a Connect-generated request ID",
-    "production Axiom integration"
+    "production Axiom integration",
+    "full OAuth authorization-code / PKCE consent flow as part of the Connect qualification"
   ],
-  "gate_state": "CONNECT_INFRA_QUALIFIED__CONTROLLED_AXIOM_BRIDGE_QUALIFIED__PRODUCTION_AXIOM_BLOCKED"
+  "gate_state": "CONNECT_INFRA_QUALIFIED__CONTROLLED_AXIOM_BRIDGE_QUALIFIED__CREDENTIALED_AXIOM_E2E_QUALIFIED__PRODUCTION_AXIOM_BLOCKED",
+  "credentialed_axiom_e2e": {
+    "schema": "musitu.connect.axiom_credentialed_e2e.v2",
+    "source_commit": "ebe9d6c86fd6a69366f85afebca19ceb0fb57ad7",
+    "workflow_run_id": 37178624664,
+    "workflow_run_url": "https://github.com/evansmusitu/mft-axiom-build/actions/runs/37178624664",
+    "evidence_sha256": "bdb34f084986d17d2da2ddc5ead00fe2bee1cb69f1770e83a727f2d38b4eb3d9",
+    "canonical_sha256": "293e82a3e3b861ed0add015f6bd350885976c6b1cc7f7bf51d09884fc7a3f501",
+    "connect_request_id": "MUSITU-CONNECT-mining-live-ef8e6bad9120-293e82a3e3b861ed",
+    "axiom_usage_ledger_request_id": "MUSITU-CONNECT-mining-live-ef8e6bad9120-293e82a3e3b861ed",
+    "exact_request_id_correlation": true,
+    "authenticated_mcp_call": true,
+    "oauth_scope": "axiom.execute",
+    "oauth_access_fixture_seeded": true,
+    "oauth_authorization_code_flow_exercised": false,
+    "oauth_pkce_s256_exercised": false,
+    "jsonrpc_response_id_exact_match_enforced": true,
+    "public_structured_request_id_sanitized": true,
+    "result_3_348_observed": true,
+    "negative_tests": {
+      "unauthorized": "PASS",
+      "malformed": "PASS",
+      "jsonrpc_request_id_mismatch": "PASS",
+      "structured_request_id_mismatch_when_present": "PASS"
+    },
+    "lineage_evidence": "PASS",
+    "cleanup_complete": true,
+    "fixture_rows_remaining": 0,
+    "bearer_token_published": false,
+    "production_axiom_integration_enabled": false,
+    "artifact_available": false,
+    "artifact_note": "Evidence JSON and SHA-256 were emitted in the successful GitHub Actions log and step summary. The artifact listing was empty on immediate post-run readback, so downloadable artifact availability is not claimed."
+  }
 }
