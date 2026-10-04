@@ -1,0 +1,44 @@
+name: Axiom Claude Publication Domain Readonly Preflight
+
+on:
+  push:
+    branches:
+      - "distribution/claude-remote-mcp-20261004"
+    paths:
+      - "frontier_v5/scripts/check_claude_publication_domain_preflight.py"
+      - "frontier_v5/tests/test_claude_publication_domain_contract.py"
+      - ".github/workflows/axiom-frontier-v5-claude-publication-domain-preflight.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: musitu-axiom-claude-publication-domain-preflight
+  cancel-in-progress: false
+
+jobs:
+  readonly-preflight:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Verify non-mutating publication preflight contract
+        run: |
+          set -euo pipefail
+          python -m pip install --disable-pip-version-check pytest
+          PYTHONPATH=. python -m pytest -q             frontier_v5/tests/test_claude_publication_domain_contract.py
+
+      - name: Read Claude publication-domain topology
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        run: |
+          set -euo pipefail
+          PYTHONPATH=. python frontier_v5/scripts/check_claude_publication_domain_preflight.py
