@@ -57,5 +57,9 @@ def load_provider_profile(path: str | Path) -> dict:
         raise ValueError("submission.portal_requires_paid_plan must be boolean")
     if not isinstance(submission.get("team_enterprise_org_connector_admin_controls"), bool):
         raise ValueError("submission.team_enterprise_org_connector_admin_controls must be boolean")
+    if not isinstance(submission.get("remote_mcp_directory_submission_requires_team_or_enterprise"), bool):
+        raise ValueError("submission.remote_mcp_directory_submission_requires_team_or_enterprise must be boolean")
+    if not isinstance(submission.get("directory_management_access_required"), bool):
+        raise ValueError("submission.directory_management_access_required must be boolean")
 
     return data
