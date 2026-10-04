@@ -52,3 +52,12 @@ def test_claude_mcp_candidate_uses_exact_mcp_resource_and_http_401_auth_challeng
     assert 'resource:c.oauthResource' in src
     assert 'return response(401' in src
     assert '"www-authenticate":challenge(c)' in src
+
+
+def test_claude_mcp_candidate_has_isolated_algebra_solve_compatibility_without_openai_mutation():
+    src = (CLAUDE / "musitu_axiom_mcp_gate_claude_candidate.mjs").read_text()
+    assert "function algebraSolveCompatibilityRequest" in src
+    assert 'operation==="algebra.solve"' in src
+    assert '"algebra.polynomial_roots"' in src
+    assert "single polynomial equation and one symbol" in src
+    assert "compatibility_rewrite" in src
