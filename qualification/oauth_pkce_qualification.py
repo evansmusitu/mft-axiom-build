@@ -10,6 +10,7 @@ from __future__ import annotations
 import base64
 import datetime as dt
 import hashlib
+import http.client
 import json
 import os
 from pathlib import Path
@@ -101,6 +102,35 @@ def form(
         h.update(headers)
     body=urllib.parse.urlencode(fields).encode("utf-8")
     return http(url,"POST",h,body,follow=follow)
+
+def direct_form_no_redirect(
+    url: str,
+    fields: dict[str,str],
+    headers: dict[str,str] | None=None,
+):
+    """POST a form over HTTPS without any redirect-capable client layer."""
+    parsed=urllib.parse.urlparse(url)
+    if parsed.scheme!="https" or not parsed.hostname:
+        raise ValueError("direct_form_no_redirect requires HTTPS")
+    path=parsed.path or "/"
+    if parsed.query:
+        path+="?"+parsed.query
+    h={
+        "Accept":"text/html",
+        "Content-Type":"application/x-www-form-urlencoded",
+        "User-Agent":"MUSITU-Connect-OAuth-PKCE-Qualification/1.0",
+    }
+    if headers:
+        h.update(headers)
+    body=urllib.parse.urlencode(fields).encode("utf-8")
+    conn=http.client.HTTPSConnection(parsed.hostname,parsed.port or 443,timeout=50)
+    try:
+        conn.request("POST",path,body=body,headers=h)
+        response=conn.getresponse()
+        raw=response.read()
+        return response.status,dict(response.getheaders()),raw
+    finally:
+        conn.close()
 
 def d1(sql: str, params: list[Any] | None=None) -> list[dict[str,Any]]:
     payload={"sql":sql}
@@ -305,14 +335,29 @@ def main() -> None:
         cookie=cookie_header.split(";",1)[0]
         print("::add-mask::"+flow_id)
 
-        pc,ph,_=form(
+        pc,ph,pb=direct_form_no_redirect(
             OAUTH_ISSUER+"/oauth/authorize",
             {"flow_id":flow_id,"musitu_account_key":account_key},
-            {"Accept":"text/html","Cookie":cookie},
-            follow=False,
+            {"Cookie":cookie},
         )
         if pc!=302:
-            raise RuntimeError(f"authorization consent POST expected 302 got {pc}")
+            flow_state=d1(
+                "SELECT used_at FROM oauth_authorization_flows WHERE id=?1",
+                [flow_id],
+            )
+            code_count=d1(
+                "SELECT count(*) AS n FROM oauth_authorization_codes WHERE client_id=?1 AND customer_id=?2",
+                [client_id,customer],
+            )
+            meta={
+                "http_status":pc,
+                "content_type":str(ph.get("Content-Type") or ph.get("content-type") or ""),
+                "body_sha256":hashlib.sha256(pb).hexdigest(),
+                "body_length":len(pb),
+                "flow_used":bool(flow_state and flow_state[0].get("used_at")),
+                "authorization_code_rows":int(code_count[0]["n"]) if code_count else -1,
+            }
+            raise RuntimeError("authorization consent redirect contract mismatch "+json.dumps(meta,sort_keys=True))
         location=str(ph.get("Location") or "")
         parsed=urllib.parse.urlparse(location)
         params=urllib.parse.parse_qs(parsed.query)
