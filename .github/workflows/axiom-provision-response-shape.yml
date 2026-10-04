@@ -64,3 +64,5 @@ jobs:
           pathlib.Path('provision-response-shape.json').write_text(json.dumps(result,indent=2,sort_keys=True))
           print(json.dumps(result,sort_keys=True))
           PY
+
+# Trigger-only contract extraction 2026-10-04
