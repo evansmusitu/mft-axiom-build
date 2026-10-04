@@ -158,11 +158,15 @@ def delete_worker(headers: dict, worker: str) -> None:
 
 def cleanup_created_candidates(headers: dict, created: list[str]) -> None:
     errors = []
+    cleaned = []
     for worker in reversed(created):
         try:
             delete_worker(headers, worker)
+            cleaned.append(worker)
         except Exception as exc:
             errors.append(f"{worker}: {exc}")
+    if cleaned:
+        print(json.dumps({"candidate_cleanup": {"deleted": cleaned}}, sort_keys=True))
     if errors:
         raise RuntimeError("candidate cleanup incomplete: " + "; ".join(errors))
 
@@ -313,7 +317,19 @@ def main() -> int:
             "registration_endpoint": auth_url + "/oauth/register",
             "revocation_endpoint": auth_url + "/oauth/revoke",
         }
-        if dc != 200 or any(discovery.get(k) != v for k, v in expected_discovery.items()):
+        mismatch = {k: {"actual": discovery.get(k), "expected": v} for k, v in expected_discovery.items() if discovery.get(k) != v}
+        if dc != 200 or mismatch:
+            print(json.dumps({
+                "claude_oauth_discovery_probe": {
+                    "http": dc,
+                    "mismatch": mismatch,
+                    "issuer": discovery.get("issuer"),
+                    "response_types_supported": discovery.get("response_types_supported"),
+                    "grant_types_supported": discovery.get("grant_types_supported"),
+                    "token_endpoint_auth_methods_supported": discovery.get("token_endpoint_auth_methods_supported"),
+                    "code_challenge_methods_supported": discovery.get("code_challenge_methods_supported"),
+                }
+            }, sort_keys=True))
             raise RuntimeError("isolated Claude OAuth discovery contract mismatch")
         if "S256" not in (discovery.get("code_challenge_methods_supported") or []):
             raise RuntimeError("isolated Claude OAuth discovery missing PKCE S256")
