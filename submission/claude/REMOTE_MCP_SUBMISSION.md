@@ -109,23 +109,19 @@ The GitHub Actions artifact upload failed only because the repository's artifact
 
 ## Current Anthropic program facts captured 2026-10-04
 
-Anthropic's September 25, 2026 announcement states:
-- the directory developer portal is open to developers on paid Claude plans;
-- a single MCP connector can be submitted by pointing to a remote MCP server;
-- submissions are auto-validated and safety-scanned;
-- Claude supports MCP 2.0.
+Anthropic currently exposes three related but distinct paths:
 
-Separate organization-level connector administration rules apply to Team and Enterprise organizations; those admin controls are not the same as public directory submission eligibility.
+1. **Public directory developer portal:** Anthropic's September 25, 2026 announcement says the submission portal is open to developers on **paid Claude plans**. A single remote MCP connector can be submitted by pointing Anthropic to the remote MCP server.
+2. **Custom remote-MCP testing:** Claude's current help documentation says custom remote connectors are available on **Free, Pro, Max, Team, and Enterprise** plans; Free users are limited to one custom connector.
+3. **In-app organization Directory management:** the separate Organization settings → Directory workflow is for **Team and Enterprise** organizations and requires the relevant Admin/Owner or delegated Directory-management permissions.
 
-Current custom-connector documentation states Claude can use:
-- Claude's published OAuth identity;
-- automatic registration;
-- a custom OAuth client.
+Therefore a Team/Enterprise upgrade is not recorded as a requirement for the public developer-portal route unless Anthropic changes the portal's eligibility rules or the intended submission path changes to organization-level in-app directory management.
 
 Official source pages used for this package:
 - https://claude.com/blog/build-plugins-for-claude
+- https://claude.com/blog/observability-for-developers-building-connectors
 - https://support.claude.com/en/articles/11175166-get-started-with-custom-connectors-using-remote-mcp
-- https://support.anthropic.com/en/articles/11503834-building-custom-connectors-via-remote-mcp-servers
+- https://support.claude.com/en/articles/13930452-manage-custom-roles-on-enterprise-plans
 
 ## Explicit blocker
 
