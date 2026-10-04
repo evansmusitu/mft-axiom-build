@@ -78,3 +78,11 @@ def test_fixture_e2e_requires_arithmetic_result_in_text_content_for_claude():
     assert "arithmetic_text_42_observed" in src
     assert "Claude arithmetic result 42 is absent from MCP text content" in src
     assert '"arithmetic_40_plus_2_text_result_42"' in src
+
+
+def test_fixture_e2e_allows_explicit_publication_endpoint_override_without_changing_defaults():
+    src = SCRIPT.read_text(encoding="utf-8")
+    assert "CLAUDE_FIXTURE_AUTH_URL" in src
+    assert "CLAUDE_FIXTURE_MCP_URL" in src
+    assert "musitu-axiom-claude-auth-candidate" in src
+    assert "musitu-axiom-claude-mcp-candidate" in src

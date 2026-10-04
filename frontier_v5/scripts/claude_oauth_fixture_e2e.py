@@ -25,8 +25,8 @@ from frontier_v5.scripts.deploy_claude_workers_dev import (
     snapshot_openai_surface,
 )
 
-AUTH_URL = "https://musitu-axiom-claude-auth-candidate.mft-education-nexus-93f395f5.workers.dev"
-MCP_URL = "https://musitu-axiom-claude-mcp-candidate.mft-education-nexus-93f395f5.workers.dev"
+AUTH_URL = os.environ.get("CLAUDE_FIXTURE_AUTH_URL", "https://musitu-axiom-claude-auth-candidate.mft-education-nexus-93f395f5.workers.dev").rstrip("/")
+MCP_URL = os.environ.get("CLAUDE_FIXTURE_MCP_URL", "https://musitu-axiom-claude-mcp-candidate.mft-education-nexus-93f395f5.workers.dev").rstrip("/")
 MCP_RESOURCE = MCP_URL + "/mcp"
 CALLBACK = "https://claude.ai/api/mcp/auth_callback"
 CF_API = "https://api.cloudflare.com/client/v4"
