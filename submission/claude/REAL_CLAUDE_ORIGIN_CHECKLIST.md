@@ -103,5 +103,6 @@ After the real Claude-origin tool call:
 - Commerce tools hidden.
 - No DNS/custom-domain mutation.
 - Frozen OpenAI surface unchanged across deployment.
-- Server-side exact Claude callback + DCR + PKCE + token + authenticated Axiom `40+2 → 42` + metering + zero-residue cleanup: GitHub Actions run `37170153704`.
+- Current isolated Claude worker deployment with exact `/mcp` OAuth resource, HTTP 401 discovery challenge, all 108 tool descriptors validated, 74 operations / 30 business products, commerce hidden, and frozen OpenAI surface unchanged: GitHub Actions run `37173130982`.
+- Disposable synthetic OAuth E2E with exact Claude callback, DCR + PKCE + token exchange, authenticated `40+2 → 42`, **74/74 canonical operation fixtures passed through the Claude MCP**, 74 metering rows, zero functional failures, zero fixture residue, and OpenAI unchanged: GitHub Actions run `37173358086`; evidence SHA-256 `2bffbb3891b2cfa6bc5ede18a23f42e658c72292b9ee33614289138077b09a72`.
 - Real Claude-origin evidence: **not yet completed**.
