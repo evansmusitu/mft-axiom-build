@@ -1,6 +1,6 @@
 # MUSITU Axiom — Claude Remote MCP Submission Candidate
 
-Status: **BLOCKED — isolated Claude endpoint not yet deployed or live-validated**
+Status: **BLOCKED — isolated Claude endpoint is live-validated; real Claude OAuth/tool E2E remains required**
 
 This package is for the Claude developer portal **single remote MCP connector** route. It does not alter the frozen OpenAI submission or its production OAuth/MCP surface.
 
@@ -8,8 +8,8 @@ This package is for the Claude developer portal **single remote MCP connector** 
 
 **Name:** MUSITU Axiom  
 **Publisher:** MUSITU  
-**Proposed remote MCP URL:** `https://claude-mcp.mftintelligence.com/mcp`  
-**Proposed authorization issuer:** `https://claude-auth.mftintelligence.com`
+**Live remote MCP candidate URL:** `https://musitu-axiom-claude-mcp-candidate.mft-education-nexus-93f395f5.workers.dev/mcp`  
+**Live authorization issuer candidate:** `https://musitu-axiom-claude-auth-candidate.mft-education-nexus-93f395f5.workers.dev`
 
 **Short description:**  
 Governed quantitative analysis for finance, risk, statistics, forecasting, optimization and verification, with evidence and authorization boundaries for users with an existing MUSITU Axiom entitlement.
@@ -67,20 +67,28 @@ These prompts are designed around operations already demonstrated through the co
 
 If Anthropic requires a reviewer account, provision it through the existing MUSITU account/reviewer process and transmit the credential only through the portal's secure reviewer-credential field. Do not place account keys, access tokens, authorization codes, client secrets or API keys in this repository.
 
-## Required live validation before portal submission
+## Live validation status before portal submission
 
-All must pass:
+Verified by GitHub Actions run `37169862332`:
+- isolated workers.dev OAuth endpoint live and healthy;
+- isolated workers.dev MCP endpoint live and healthy;
+- OAuth discovery + protected-resource metadata served;
+- safe MCP tools/list discovered: 108 tools / 74 runtime operations / 30 business products;
+- commerce tools absent;
+- no DNS or custom-domain mutation;
+- frozen OpenAI live surface before/after SHA-256 identical: `1515ae38afc222de1d29e9dbfc49830aa22ca6350bf94d84d8e506239fe7d29d`;
+- canonical OpenAI auth/MCP source blobs remained pinned.
 
-1. `https://claude-mcp.mftintelligence.com/mcp` is publicly reachable.
-2. `https://claude-auth.mftintelligence.com` serves OAuth/OIDC discovery required by the connector.
-3. A Claude custom connector detects OAuth from the MCP endpoint.
-4. Authorization completes through the Claude callback and token exchange.
-5. Claude discovers the expected safe tool surface.
-6. At least one authenticated quantitative tool call succeeds.
-7. Public/no-auth discovery tools behave as intended.
-8. Commerce/private tools are absent.
-9. Privacy, terms and docs endpoints resolve on the isolated resource.
-10. The frozen OpenAI production surface is re-read and proven unchanged after the isolated deployment.
+Still required:
+1. Add the live remote MCP candidate URL to Claude as a custom Web connector.
+2. Confirm Claude detects OAuth.
+3. Complete authorization through the Claude callback and token exchange.
+4. Confirm Claude tools/list is usable in an actual Claude conversation.
+5. Execute at least one authenticated quantitative Axiom tool call from Claude.
+6. Re-read the frozen OpenAI surface once more after the Claude OAuth/tool test.
+7. Submit the live connector through Claude's developer directory portal.
+
+The GitHub Actions artifact upload failed only because the repository's artifact-storage quota was exhausted; the deploy/verification step itself passed and its evidence is recorded in `submission/claude/workers-dev-live-evidence.json`.
 
 ## Current Anthropic program facts captured 2026-10-04
 
@@ -102,4 +110,4 @@ Official source pages used for this package:
 
 ## Explicit blocker
 
-This package is **not yet submitted**. The proposed Claude-specific DNS/Cloudflare endpoints do not exist as verified live endpoints in this workstream, and no real Claude OAuth/tool-discovery validation has been performed against them. The static candidate gate must remain distinct from live submission readiness.
+This package is **not yet submitted**. The isolated workers.dev endpoints are live and have passed server-side health/discovery/tools-list verification, but no real Claude custom-connector OAuth session or authenticated Claude-originated tool invocation has yet been completed. Submission readiness remains blocked until those two end-to-end checks pass.
