@@ -36,5 +36,19 @@
     "fixture_rows_remaining": 0,
     "claude_origin_verified": false,
     "openai_surface_unchanged": true
+  },
+  "latest_real_browser_attempt": {
+    "timestamp_utc": "2026-10-04T13:02:45.831Z",
+    "source_commit": "da248f16f5b0037cfb28996c1ff06e3c8c42a254",
+    "claude_surface": "Claude web in ChatGPT Work Cloud Browser",
+    "connector_name": "MUSITU Axiom",
+    "remote_mcp_url": "https://claude-mcp.mftintelligence.com/mcp",
+    "non_secret_error": "MUSITU account authentication failed.",
+    "oauth_completed": false,
+    "tools_discovered": false,
+    "authenticated_tool_call_passed": false,
+    "claude_origin_verified": false,
+    "secret_values_recorded": false,
+    "external_blocker": "Secure entry of a valid existing MUSITU Axiom account key is required."
   }
 }
