@@ -112,8 +112,14 @@ def main():
     for m in re.finditer(r"[\"']?(free|starter|developer|pro|enterprise)[\"']?\s*:\s*(\d{1,12})", text):
         plan_limits.append({"plan": m.group(1), "numeric_mapping": int(m.group(2))})
     runtime_plan_limits = []
-    for m in re.finditer(r"[\"']?(developer|pro|enterprise)[\"']?\s*:\s*\{[^}]{0,1000}?monthly_units\s*:\s*([0-9_]+)", text):
-        runtime_plan_limits.append({"plan": m.group(1), "monthly_units": int(m.group(2).replace("_", ""))})
+    for m in re.finditer(r"[\"']?(developer|pro|quant|enterprise)[\"']?\s*:\s*\{[^}]{0,1000}?monthly_units\s*:\s*(null|[0-9_]+(?:\.[0-9_]+)?(?:[eE][+-]?[0-9_]+)?)(?=\s*[,}])", text):
+        value = m.group(2)
+        runtime_plan_limits.append({"plan": m.group(1), "monthly_units": None if value == "null" else int(float(value.replace("_", "")))})
+    reserve_start = text.index("async function reserveUnits(")
+    reserve_end = text.index("__name(reserveUnits,", reserve_start)
+    reserve_body = text[reserve_start:reserve_end]
+    reservation_sql = re.findall(r'prepare\("((?:\\.|[^"\\])*)"\)', reserve_body)
+    reservation_sql = [sql for sql in reservation_sql if "usage_buckets" in sql and not re.search(r"token|key|password|email", sql, re.I)]
     null_override_coercion = "if (Number.isFinite(Number(principal.monthly_unit_override))) return Number(principal.monthly_unit_override);" in text
     print("CLAUDE_SANITIZED_QUOTA_POLICY_CONTEXT=" + json.dumps(sanitized_policy_context(text), sort_keys=True))
     after = canonical_digest(snapshot_openai_surface())
@@ -133,6 +139,7 @@ def main():
         "plan_numeric_mappings": plan_limits,
         "runtime_plan_monthly_units": runtime_plan_limits,
         "unguarded_null_override_number_coercion_present": null_override_coercion,
+        "reservation_static_sql": reservation_sql,
         "publication_tool_count": publication["tool_count"],
         "openai_surface_unchanged": True, "openai_surface_sha256": after,
         "credential_values_read": False, "mutations_performed": False,
