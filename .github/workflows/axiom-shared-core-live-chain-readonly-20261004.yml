@@ -1,0 +1,82 @@
+name: Axiom Shared Core Live Chain Read-Only 20261004
+on:
+  push:
+    branches: [distribution/claude-remote-mcp-20261004]
+    paths: ['.github/workflows/axiom-shared-core-live-chain-readonly-20261004.yml']
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID }}
+      MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET }}
+      CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.13'}
+      - name: Inspect Cloudflare service chain without secret values
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json,os,urllib.request,urllib.error
+          base='https://api.cloudflare.com/client/v4'
+          hs=[]
+          tok=os.environ.get('CLOUDFLARE_API_TOKEN','').strip()
+          if tok: hs.append({'Authorization':'Bearer '+tok,'Accept':'application/json'})
+          if os.environ.get('CLOUDFLARE_EMAIL') and os.environ.get('CLOUDFLARE_GLOBAL_API_KEY'):
+            hs.append({'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY'],'Accept':'application/json'})
+          def get(path):
+            last=None
+            for h in hs:
+              try:
+                with urllib.request.urlopen(urllib.request.Request(base+path,headers=h),timeout=30) as r:
+                  x=json.load(r)
+                if x.get('success') is not False:return x.get('result')
+              except Exception as e:last=e
+            raise SystemExit('Cloudflare read failed '+repr(last))
+          workers=['musitu-axiom-mcp-core','mft-axiom-modal-edge-stage','musitu-axiom-modal-edge-stage','mft-axiom-modal-adapter']
+          safe=[]
+          for w in workers:
+            try:s=get(f"/accounts/{os.environ['ACCOUNT_ID']}/workers/scripts/{w}/settings")
+            except Exception:
+              safe.append({'worker':w,'present':False});continue
+            row={'worker':w,'present':True,'bindings':[]}
+            for b in (s or {}).get('bindings') or []:
+              if not isinstance(b,dict):continue
+              n=str(b.get('name') or ''); t=str(b.get('type') or '')
+              x={'name':n,'type':t}
+              if t=='service':
+                for k in ('service','environment'): 
+                  if b.get(k) is not None:x[k]=b.get(k)
+              elif n in {'MODAL_BASE_URL','AXIOM_BASE','BILLING_BASE','MCP_PUBLIC_BASE','AUTH_ISSUER'} and b.get('text') is not None:
+                x['text']=b.get('text')
+              row['bindings'].append(x)
+            safe.append(row)
+          print('SAFE_CLOUDFLARE_CHAIN='+json.dumps(safe,sort_keys=True))
+          PY
+      - name: Inspect candidate Modal runtime apps read-only
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --disable-pip-version-check --quiet 'modal>=1.5,<2'
+          modal app list --json >/tmp/apps.json
+          python - <<'PY'
+          import json,modal
+          out=[]
+          for app in ['mft-axiom-v3-modal-staging','musitu-axiom-v3-modal-staging','mft-axiom-production']:
+            for fn in ['runtime_probe']:
+              try:
+                f=modal.Function.from_name(app,fn)
+                r=f.remote()
+                out.append({'app':app,'function':fn,'present':True,'build_id':r.get('build_id'),'routes':r.get('routes')})
+              except Exception as e:
+                out.append({'app':app,'function':fn,'present':False,'error_type':type(e).__name__})
+          print('SAFE_MODAL_CHAIN='+json.dumps(out,sort_keys=True))
+          PY
