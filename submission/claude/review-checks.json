@@ -23,7 +23,9 @@
     "real Claude custom-connector OAuth session has not yet originated from Claude",
     "authenticated Axiom tool invocation has not yet originated from Claude",
     "public directory developer-portal submission has not been performed",
-    "Team/Enterprise Claude organization with Directory-management access must be available for directory submission"
+    "Team/Enterprise Claude organization with Directory-management access must be available for directory submission",
+    "MUSITU-owned Claude publication domains are not yet deployed",
+    "public directory submission has not been performed"
   ],
   "live_endpoint_evidence": {
     "github_actions_run": 37173130982,
@@ -91,5 +93,14 @@
     "custom_remote_mcp_testing": "Custom connector testing remains distinct from directory submission eligibility",
     "verified_from_official_anthropic_docs_on": "2026-10-04",
     "source": "https://claude.com/docs/connectors/building/submission"
+  },
+  "publication_domain": {
+    "testing_mcp_url": "https://musitu-axiom-claude-mcp-candidate.mft-education-nexus-93f395f5.workers.dev/mcp",
+    "testing_auth_issuer": "https://musitu-axiom-claude-auth-candidate.mft-education-nexus-93f395f5.workers.dev",
+    "proposed_publication_mcp_url": "https://claude-mcp.mftintelligence.com/mcp",
+    "proposed_publication_auth_issuer": "https://claude-auth.mftintelligence.com",
+    "deployed": false,
+    "reason": "Anthropic review criteria says the MCP server domain should match the submitting service.",
+    "source": "https://claude.com/docs/connectors/building/review-criteria"
   }
 }
