@@ -1,0 +1,102 @@
+name: Axiom Claude Operation Schema Diagnostic
+
+on:
+  push:
+    branches:
+      - "distribution/claude-remote-mcp-20261004"
+    paths:
+      - ".github/workflows/axiom-claude-operation-schema-diagnostic.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  extract-schema-hints:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    env:
+      CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Reconstruct protected canonical runtime locally
+        shell: bash
+        run: |
+          set -euo pipefail
+          P=deploy_payload/runtime_min
+          cat "$P/chunk_00.b64" "$P/chunk_01_02.b64" "$P/chunk_03_04.b64" "$P/chunk_05_06.b64" "$P/chunk_07_08.b64" "$P/chunk_09.b64" > runtime.enc.b64
+          base64 -d runtime.enc.b64 > runtime.tar.gz.enc
+          test "$(sha256sum runtime.tar.gz.enc | awk '{print $1}')" = 'b82448d6b4b34b302748815af976b535d69922c197d4b7a9056fc2f91a9e12cf'
+          openssl enc -d -aes-256-cbc -pbkdf2 -iter 250000 -in runtime.tar.gz.enc -out runtime.tar.gz -pass env:CLOUDFLARE_GLOBAL_API_KEY
+          test "$(sha256sum runtime.tar.gz | awk '{print $1}')" = 'b4d5a0266446523969a619f5e9bb5a04d9b815c78a2ab82ed046ef5e23d53663'
+          mkdir runtime && tar -xzf runtime.tar.gz -C runtime
+
+      - name: Extract sanitized argument-schema hints only
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          import json,re
+
+          ops = [
+            "algebra.solve","numeric.root","numeric.ode","numeric.optimize_scalar",
+            "numeric.interpolate","verify.evaluate","finance.bond_price",
+            "finance.bond_yield","finance.duration","finance.drawdown",
+            "finance.portfolio_metrics","knowledge.constant","knowledge.element",
+          ]
+          roots=[p for p in Path("runtime").rglob("*") if p.is_file() and p.suffix in {".js",".mjs",".py",".json"}]
+          out={}
+          for op in ops:
+              hits=[]
+              for p in roots:
+                  try:s=p.read_text(encoding="utf-8",errors="ignore")
+                  except Exception:continue
+                  start=0
+                  while True:
+                      i=s.find(op,start)
+                      if i<0:break
+                      lo=max(0,i-3500); hi=min(len(s),i+7000); w=s[lo:hi]
+                      fields=set()
+                      patterns=[
+                          r'args\.([A-Za-z_][A-Za-z0-9_]*)',
+                          r'args\?\.([A-Za-z_][A-Za-z0-9_]*)',
+                          r'args\[["\']([A-Za-z_][A-Za-z0-9_]*)["\']\]',
+                          r'\b(?:required|properties)\s*[:=]\s*\{([^}]{0,2500})\}',
+                      ]
+                      for pat in patterns[:3]:
+                          fields.update(re.findall(pat,w))
+                      for block in re.findall(patterns[3],w):
+                          fields.update(re.findall(r'["\']?([A-Za-z_][A-Za-z0-9_]*)["\']?\s*:',block))
+                      # Common destructuring close to the operation implementation.
+                      for block in re.findall(r'\{([^{}]{1,700})\}\s*=\s*args',w):
+                          fields.update(re.findall(r'\b([A-Za-z_][A-Za-z0-9_]*)\b',block))
+                      deny={"if","else","return","const","let","var","true","false","null","undefined","operation","args"}
+                      fields=sorted(x for x in fields if x not in deny and len(x)<80)
+                      hits.append({"file":str(p.relative_to("runtime")),"fields":fields})
+                      start=i+len(op)
+              # Merge repeated hits without emitting source text.
+              merged=sorted({x for h in hits for x in h["fields"]})
+              out[op]={"files":sorted({h["file"] for h in hits}),"fields":merged}
+          print("CLAUDE_SCHEMA_HINTS="+json.dumps(out,sort_keys=True,separators=(",",":")))
+          Path("claude-operation-schema-hints.json").write_text(json.dumps(out,indent=2,sort_keys=True)+"\n")
+          PY
+
+      - name: Assert no plaintext runtime is uploaded
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f claude-operation-schema-hints.json
+          python - <<'PY'
+          import json
+          x=json.load(open("claude-operation-schema-hints.json"))
+          if not x or any("source" in v for v in x.values()):
+              raise SystemExit("sanitized schema map contract failed")
+          print("MUSITU_AXIOM_CLAUDE_SCHEMA_HINT_DIAGNOSTIC_PASS")
+          PY
+
+      - name: Cleanup reconstructed runtime
+        if: always()
+        shell: bash
+        run: rm -rf runtime runtime.enc.b64 runtime.tar.gz.enc runtime.tar.gz claude-operation-schema-hints.json
