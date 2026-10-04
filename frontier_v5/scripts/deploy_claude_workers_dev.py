@@ -358,6 +358,32 @@ def main() -> int:
         if pc != 200 or protected.get("resource") != mcp_resource or protected.get("authorization_servers") != [auth_url]:
             raise RuntimeError("isolated Claude protected-resource metadata mismatch")
 
+        public_pages = {}
+        for page in ("docs", "privacy", "terms"):
+            page_code, page_headers, page_body = raw(
+                mcp_url + "/" + page,
+                "GET",
+                {"Accept": "text/html", "User-Agent": "MUSITU-Axiom-Claude-Directory-Preflight/1.0"},
+            )
+            page_text = page_body.decode("utf-8", "replace")
+            if page_code != 200 or "text/html" not in str(page_headers.get("content-type") or "").lower():
+                raise RuntimeError(f"Claude public {page} page is unavailable or not HTML")
+            if "ChatGPT" in page_text or "OpenAI" in page_text or "Plugin Directory" in page_text:
+                raise RuntimeError(f"Claude public {page} page contains OpenAI-specific wording")
+            public_pages[page] = {"http": page_code, "bytes": len(page_body), "text": page_text}
+
+        if "MUSITU Axiom Documentation" not in public_pages["docs"]["text"]:
+            raise RuntimeError("Claude documentation page title missing")
+        if mcp_resource not in public_pages["docs"]["text"]:
+            raise RuntimeError("Claude documentation page does not name the exact MCP endpoint")
+        for required in ("Data we process", "Why we use it", "Who receives it", "Retention", "Your controls"):
+            if required not in public_pages["privacy"]["text"]:
+                raise RuntimeError(f"Claude privacy policy missing required section: {required}")
+        if "support contact published in the MUSITU Axiom Claude directory listing" not in public_pages["privacy"]["text"]:
+            raise RuntimeError("Claude privacy policy does not identify the directory support-contact route")
+        if "MUSITU Axiom Terms of Use" not in public_pages["terms"]["text"]:
+            raise RuntimeError("Claude terms page title missing")
+
         unauth_code, unauth_headers, unauth_payload, _ = parse_json_response(
             mcp_url + "/mcp",
             "POST",
@@ -453,6 +479,11 @@ def main() -> int:
             "oauth_resource": mcp_resource,
             "unauthenticated_protected_call_http": 401,
             "www_authenticate_resource_metadata": mcp_url + "/.well-known/oauth-protected-resource",
+            "public_docs_http": public_pages["docs"]["http"],
+            "public_privacy_http": public_pages["privacy"]["http"],
+            "public_terms_http": public_pages["terms"]["http"],
+            "public_policy_provider_wording_clean": True,
+            "privacy_required_sections_present": True,
             "shared_identity_ledger": True,
             "oauth_mutation_performed": False,
             "dns_or_custom_domain_mutation_performed": False,
