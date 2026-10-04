@@ -36,10 +36,7 @@ def evaluate_candidate(root: str | Path) -> dict:
         raise ValueError("Claude provider profile must use single_remote_mcp")
 
     callbacks = profile.get("oauth", {}).get("callback_uris") or []
-    expected_callbacks = [
-        "https://claude.ai/api/mcp/auth_callback",
-        "https://claude.com/api/mcp/auth_callback",
-    ]
+    expected_callbacks = ["https://claude.ai/api/mcp/auth_callback"]
     if callbacks != expected_callbacks:
         raise ValueError("Claude callback contract is not exact")
     if any("*" in str(uri) for uri in callbacks):
