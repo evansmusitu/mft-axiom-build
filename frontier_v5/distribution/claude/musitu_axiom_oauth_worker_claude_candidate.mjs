@@ -1,5 +1,5 @@
 const ISSUER_DEFAULT = "https://claude-auth.mftintelligence.com";
-const RESOURCE_DEFAULT = "https://claude-mcp.mftintelligence.com";
+const RESOURCE_DEFAULT = "https://claude-mcp.mftintelligence.com/mcp";
 const SCOPES = new Set(["axiom.execute", "billing.read", "billing.write", "openid", "email"]);
 const OIDC_SIGNING_ALG = "RS256";
 const OIDC_ACTIVE_KID = "musitu_oidc_rs256_20260909";
@@ -46,7 +46,7 @@ async function sha256(s) { const d = await crypto.subtle.digest("SHA-256", new T
 async function pkce(v) { const d = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(v)); return b64url(new Uint8Array(d)); }
 function scopes(raw) { const xs = String(raw || "").split(/\s+/).filter(Boolean); if (!xs.length) xs.push("axiom.execute"); if (xs.some(x => !SCOPES.has(x))) return null; return [...new Set(xs)].join(" "); }
 function scopeSet(raw) { return new Set(String(raw || "").split(/\s+/).filter(Boolean)); }
-function allowedRedirect(s) { try { const u = new URL(s); if (u.protocol !== "https:") return false; if (u.username || u.password || u.port || u.search || u.hash) return false; if (u.hostname !== "claude.ai" && u.hostname !== "claude.com") return false; if (u.pathname !== "/api/mcp/auth_callback") return false; return true; } catch { return false; } }
+function allowedRedirect(s) { try { const u = new URL(s); if (u.protocol !== "https:") return false; if (u.username || u.password || u.port || u.search || u.hash) return false; if (u.hostname !== "claude.ai") return false; if (u.pathname !== "/api/mcp/auth_callback") return false; return true; } catch { return false; } }
 function esc(s) { return String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;", "'": "&#39;" }[c])); }
 function jsString(s) { return JSON.stringify(String(s)).replace(/</g, "\\u003c").replace(/>/g, "\\u003e").replace(/&/g, "\\u0026"); }
 function cookie(req, name) { const raw = req.headers.get("cookie") || ""; for (const part of raw.split(";")) { const i = part.indexOf("="); if (i > 0 && part.slice(0, i).trim() === name) return decodeURIComponent(part.slice(i + 1).trim()); } return ""; }
