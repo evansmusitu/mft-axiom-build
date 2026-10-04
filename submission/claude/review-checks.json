@@ -23,7 +23,7 @@
     "representative_npv_tool_call_passed": false
   },
   "blockers": [
-    "actual Claude arithmetic.evaluate and finance.npv calls returned HTTP 402; the connected account monthly compute limit is 0 units",
+    "Real Claude execution returned HTTP 402 because the live quota code treats a null override as zero; the guarded single-account 1000-unit developer correction is prepared, not authorized or applied.",
     "all real Claude execution gates must pass before READY",
     "signed-in Claude Free account cannot submit; Pro/Max/Team/Enterprise is required",
     "a legitimate public MUSITU support contact has not been designated",
@@ -176,5 +176,6 @@
     "claude_origin_verified": false,
     "execution_http_status": 402,
     "post_test_openai_reverification_run": 37205474595
-  }
+  },
+  "entitlement_root_cause_evidence": "EVIDENCE/claude-entitlement-root-cause-20261004.json"
 }

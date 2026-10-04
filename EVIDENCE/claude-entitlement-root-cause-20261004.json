@@ -1,0 +1,83 @@
+{
+  "schema": "musitu.axiom.claude_entitlement_root_cause.v1",
+  "timestamp_utc": "2026-10-04T13:56:19.401Z",
+  "source_branch": "distribution/claude-remote-mcp-20261004",
+  "source_commit": "4859803c6b6c915232d775936837d73c2ef198df",
+  "read_only_diagnostic_run": 37207220294,
+  "upstream_source_sha256": "abd8468f26514c59da090d960443ea8d01209736ebfa308edfda2ab04d616a2e",
+  "verified_facts": {
+    "linked_account_plan": "developer",
+    "linked_account_status": "active",
+    "monthly_unit_override": null,
+    "monthly_limit_observed": 0,
+    "units_used_observed": 0,
+    "runtime_developer_monthly_units": 1000,
+    "public_catalog_developer_monthly_units": 1000,
+    "unguarded_number_conversion_of_null": true,
+    "javascript_number_null": 0,
+    "developer_fallback_skipped": true,
+    "quota_rejection_http": 402,
+    "quota_rejection_error": "quota_exhausted",
+    "account_creation_defaults_missing_override_to_null": true,
+    "next_reservation_updates_bucket_limit_from_plan": true
+  },
+  "diagnosis": "The live planLimit function treats a null monthly_unit_override as an explicit zero because Number(null) is 0 and Number.isFinite(0) is true. This skips the existing developer plan default of 1000 units.",
+  "scope_of_general_bug": "Other plans with null overrides are susceptible; actual affected-account counts were not queried.",
+  "paid_plan_alignment": {
+    "runtime": [
+      {
+        "monthly_units": 1000,
+        "plan": "developer"
+      },
+      {
+        "monthly_units": 100000,
+        "plan": "pro"
+      },
+      {
+        "monthly_units": 500000,
+        "plan": "quant"
+      },
+      {
+        "monthly_units": null,
+        "plan": "enterprise"
+      }
+    ],
+    "public_catalog": [
+      {
+        "monthly_units": 1000,
+        "plan": "developer"
+      },
+      {
+        "monthly_units": 5000,
+        "plan": "pro"
+      },
+      {
+        "monthly_units": 25000,
+        "plan": "enterprise"
+      }
+    ],
+    "conclusion": "Developer agrees at 1000; paid plans differ. No global correction should be deployed without reconciling that policy."
+  },
+  "proposal": {
+    "status": "PREPARED_NOT_APPLIED",
+    "target": "only the currently connected active developer account, selected without exposing its identifier",
+    "change": "monthly_unit_override: null -> 1000; updated_at receives the correction timestamp",
+    "sql_file": "frontier_v5/distribution/claude/restore_linked_developer_allowance.sql",
+    "guard_tests_passed": 13,
+    "offline_tests_only": true,
+    "requires_explicit_authorization_for_shared_customer_data": true,
+    "affects_openai_for_same_account": true,
+    "other_accounts_affected": 0,
+    "credential_changes": false,
+    "plan_or_subscription_changes": false,
+    "usage_reset": false,
+    "worker_code_changes": false,
+    "not_a_general_runtime_bug_fix": true
+  },
+  "openai_surface_unchanged": true,
+  "openai_surface_sha256": "1515ae38afc222de1d29e9dbfc49830aa22ca6350bf94d84d8e506239fe7d29d",
+  "production_mutations_performed": false,
+  "credentials_read_or_exposed": false,
+  "claude_origin_verified": false,
+  "authenticated_tool_call_passed": false
+}

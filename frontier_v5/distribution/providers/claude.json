@@ -73,9 +73,11 @@
     "authenticated_tool_call_passed": false,
     "claude_origin_verified": false,
     "real_claude_origin_evidence": "submission/claude/real-claude-origin-evidence.json",
-    "real_claude_execution_blocker": "Actual Claude arithmetic and NPV calls returned HTTP 402. Linked account has zero monthly compute-unit limit; entitlement must be legitimately resolved.",
+    "real_claude_execution_blocker": "Verified upstream quota defect: Number(null) converts the missing override to zero and skips the existing 1000-unit developer allowance. A guarded single-account correction is prepared but requires explicit authorization for shared customer data.",
     "legitimate_public_support_contact_present": false,
     "dedicated_reviewer_credentials_securely_provided": false,
-    "observed_claude_plan": "free"
+    "observed_claude_plan": "free",
+    "entitlement_root_cause_evidence": "EVIDENCE/claude-entitlement-root-cause-20261004.json",
+    "entitlement_correction_plan": "submission/claude/ENTITLEMENT_CORRECTION_PLAN.md"
   }
 }
