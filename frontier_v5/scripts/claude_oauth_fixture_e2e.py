@@ -23,6 +23,7 @@ from frontier_v5.scripts.deploy_claude_workers_dev import (
 
 AUTH_URL = "https://musitu-axiom-claude-auth-candidate.mft-education-nexus-93f395f5.workers.dev"
 MCP_URL = "https://musitu-axiom-claude-mcp-candidate.mft-education-nexus-93f395f5.workers.dev"
+MCP_RESOURCE = MCP_URL + "/mcp"
 CALLBACK = "https://claude.ai/api/mcp/auth_callback"
 CF_API = "https://api.cloudflare.com/client/v4"
 ROOT = pathlib.Path(__file__).resolve().parents[2]
@@ -118,6 +119,34 @@ def main() -> int:
     if mh != 200 or mcp_health.get("ok") is not True:
         raise RuntimeError("isolated Claude MCP endpoint is not healthy")
 
+    unauth_code, unauth_headers, _, _ = json_http(
+        MCP_URL + "/mcp",
+        "POST",
+        {
+            "jsonrpc": "2.0",
+            "id": 41,
+            "method": "tools/call",
+            "params": {
+                "name": "musitu_axiom_execute",
+                "arguments": {
+                    "operation": "arithmetic.evaluate",
+                    "args": {"expression": "40+2"},
+                },
+            },
+        },
+    )
+    challenge_header = str(
+        unauth_headers.get("WWW-Authenticate")
+        or unauth_headers.get("www-authenticate")
+        or ""
+    )
+    if (
+        unauth_code != 401
+        or MCP_URL + "/.well-known/oauth-protected-resource" not in challenge_header
+        or 'scope="axiom.execute"' not in challenge_header
+    ):
+        raise RuntimeError("Claude MCP HTTP 401 OAuth discovery challenge mismatch")
+
     before = snapshot_openai_surface()
     before_digest = canonical_digest(before)
     headers = cloudflare_headers()
@@ -193,7 +222,7 @@ def main() -> int:
             "state": state,
             "code_challenge": challenge,
             "code_challenge_method": "S256",
-            "resource": MCP_URL,
+            "resource": MCP_RESOURCE,
         }
         ac, ahdr, abody = raw(
             AUTH_URL + "/oauth/authorize?" + urllib.parse.urlencode(query),
@@ -241,7 +270,7 @@ def main() -> int:
                 "code_verifier": verifier,
                 "client_id": client_id,
                 "redirect_uri": CALLBACK,
-                "resource": MCP_URL,
+                "resource": MCP_RESOURCE,
             },
         )
         if tc != 200:
@@ -251,7 +280,7 @@ def main() -> int:
         refresh = str(token.get("refresh_token") or "")
         if not access or not refresh or token.get("token_type") != "Bearer":
             raise RuntimeError("Claude token response contract mismatch")
-        if token.get("resource") != MCP_URL:
+        if token.get("resource") != MCP_RESOURCE:
             raise RuntimeError("Claude token resource binding mismatch")
         print("::add-mask::" + access)
         print("::add-mask::" + refresh)
@@ -267,7 +296,7 @@ def main() -> int:
             len(ledger) != 1
             or ledger[0].get("customer_id") != customer
             or ledger[0].get("issuer") != AUTH_URL
-            or ledger[0].get("resource") != MCP_URL
+            or ledger[0].get("resource") != MCP_RESOURCE
             or ledger[0].get("status") != "active"
             or ledger[0].get("revoked_at")
         ):
@@ -328,13 +357,16 @@ def main() -> int:
             "claude_origin_verified": False,
             "callback": CALLBACK,
             "issuer": AUTH_URL,
-            "resource": MCP_URL,
+            "resource": MCP_RESOURCE,
             "dynamic_client_registration": True,
             "pkce_s256": True,
             "authorization_response_http": 302,
             "authorization_code_flow": True,
             "opaque_access_token": True,
-            "authenticated_axiom_compute_http": 200,
+            "unauthenticated_protected_call_http": 401,
+            "www_authenticate_resource_metadata": MCP_URL + "/.well-known/oauth-protected-resource",
+            "unauthenticated_protected_call_http": 401,
+        "authenticated_axiom_compute_http": 200,
             "arithmetic_40_plus_2_result_42": True,
             "metering_verified": True,
             "synthetic_account_only": True,
