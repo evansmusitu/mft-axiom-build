@@ -242,13 +242,13 @@ def main():
     marker="_QUADRATIC_ALLOWED={'Q','c','x0','A_eq','b_eq','A_ub','b_ub','bounds'}"
     pos=s.find(marker)
     if pos<0: raise SystemExit('quadratic helper anchor missing')
-    s=s[:pos]+VALIDATION+"\\n"+s[pos:]
+    s=s[:pos]+VALIDATION+"\n"+s[pos:]
 
     dispatch_pos=s.rfind("def dispatch(op,a,p):")
     if dispatch_pos<0: raise SystemExit('final dispatch missing')
-    body_pos=s.find("\\n",dispatch_pos)+1
+    body_pos=s.find("\n",dispatch_pos)+1
     if "_validate_operation_args(op,a)" in s[body_pos:body_pos+200]: raise SystemExit('validator already present')
-    s=s[:body_pos]+"    _validate_operation_args(op,a)\\n"+s[body_pos:]
+    s=s[:body_pos]+"    _validate_operation_args(op,a)\n"+s[body_pos:]
 
     qverify="        if op=='optimization.quadratic':"
     qpos=s.find(qverify)
