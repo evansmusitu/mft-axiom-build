@@ -42,10 +42,12 @@ def test_claude_profile_is_single_remote_mcp_and_submission_blocked_until_isolat
         "https://claude.ai/api/mcp/auth_callback",
         "https://claude.com/api/mcp/auth_callback",
     ]
-    assert profile["submission"]["status"] == "blocked_pending_isolated_endpoint_deployment"
+    assert profile["submission"]["status"] == "blocked_pending_claude_oauth_e2e"
     assert profile["submission"]["portal_requires_paid_plan"] is True
     assert profile["mcp"]["canonical_upstream"] == "https://mcp.mftintelligence.com/mcp"
     assert profile["mcp"]["submission_url"] != profile["mcp"]["canonical_upstream"]
+    assert profile["mcp"]["submission_url"].endswith("/mcp")
+    assert profile["oauth"]["issuer"].startswith("https://")
 
 
 def test_profile_validation_rejects_wildcard_redirects(tmp_path):
