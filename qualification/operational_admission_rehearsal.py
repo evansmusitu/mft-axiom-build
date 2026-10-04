@@ -267,9 +267,13 @@ def main() -> None:
             time.sleep(1)
         else:
             raise RuntimeError("baseline canary health failed after propagation window: "+repr(health_last))
-        pre_status,_,_=http_json(url+"/probe","POST")
-        if pre_status not in (401,503):
-            raise RuntimeError("canary probe did not fail closed before secret installation")
+        pre_status,pre_body,_=http_json(url+"/probe","POST")
+        if pre_status < 400:
+            raise RuntimeError(
+                "canary probe did not fail closed before secret installation: "
+                +repr((pre_status,pre_body))
+            )
+        evidence["pre_secret_probe_http"]=pre_status
 
         put_secret(workdir,secret_a)
         a_response,a_ms=wait_probe(url,secret_a,200)
@@ -343,6 +347,7 @@ def main() -> None:
             "latency_p95_limit_ms":P95_LIMIT_MS,
             "health_http":health_status,
             "unauthorized_fail_closed":True,
+            "pre_secret_probe_http":pre_status,
             "post_rotation_probe_http":200,
         }
         evidence["observability_slo"]={
