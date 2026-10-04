@@ -162,7 +162,7 @@ def main() -> int:
         "auth_dns_records": len(dns_records[PUBLIC_AUTH_HOST]),
         "mcp_dns_records": len(dns_records[PUBLIC_MCP_HOST]),
         "auth_domain_detail": [
-            {k: row.get(k) for k in ("id","hostname","service","status","zone_id","zone_name") if row.get(k) is not None}
+            {k: row.get(k) for k in ("id","cert_id","hostname","service","status","zone_id","zone_name") if row.get(k) is not None}
             for row in domain_rows[PUBLIC_AUTH_HOST]
         ],
         "mcp_domain_detail": [
