@@ -136,3 +136,57 @@ assert.equal(unchanged.result.content[0].text, 'No scalar result.');
         "node", "--input-type=module", "-e", script,
         str(CLAUDE / "musitu_axiom_mcp_gate_claude_candidate.mjs"),
     ], check=True, capture_output=True, text=True)
+
+
+def test_claude_exposes_exact_native_argument_schemas_for_all_74_operations():
+    import subprocess
+    script = r'''
+import fs from 'node:fs';
+import assert from 'node:assert/strict';
+const src = fs.readFileSync(process.argv[1], 'utf8');
+const module = await import('data:text/javascript;base64,' + Buffer.from(src + '\nexport { OPERATION_NATIVE_SCHEMAS, operationNativeSchema, correctedTool };').toString('base64'));
+assert.equal(Object.keys(module.OPERATION_NATIVE_SCHEMAS).length, 74);
+
+const qp = module.operationNativeSchema('optimization.quadratic');
+assert.deepEqual(qp.required, ['Q','c']);
+assert.equal(qp.additionalProperties, false);
+assert.deepEqual(Object.keys(qp.properties).sort(), ['A_eq','A_ub','Q','b_eq','b_ub','bounds','c','x0'].sort());
+
+const npv = module.operationNativeSchema('finance.npv');
+assert.deepEqual(npv.required, ['cashflows','rate']);
+assert.equal(npv.additionalProperties, false);
+assert.deepEqual(Object.keys(npv.properties).sort(), ['cashflows','rate']);
+
+const solve = module.operationNativeSchema('algebra.solve');
+assert.deepEqual(solve.required, ['equations']);
+assert.equal(solve.additionalProperties, false);
+assert.deepEqual(Object.keys(solve.properties).sort(), ['equations','symbols']);
+
+const focused = module.correctedTool({
+  name:'axiom_optimization_quadratic',
+  description:'x',
+  inputSchema:{type:'object',properties:{args:{type:'object',additionalProperties:true}},required:['args'],additionalProperties:false},
+  _meta:{'musitu/operation':'optimization.quadratic'}
+});
+assert.deepEqual(focused.inputSchema.properties.args, qp);
+
+const business = module.correctedTool({
+  name:'quadratic_optimization',
+  description:'x',
+  inputSchema:{type:'object',properties:{args:{type:'object',additionalProperties:true}},required:['args'],additionalProperties:false},
+  _meta:{'musitu/operation':'optimization.quadratic','musitu/business_product':true}
+});
+assert.deepEqual(business.inputSchema.properties.args, qp);
+
+const generic = module.correctedTool({
+  name:'musitu_axiom_execute',
+  description:'x',
+  inputSchema:{type:'object',properties:{operation:{type:'string'},args:{type:'object'}},required:['operation','args']},
+  _meta:{}
+});
+assert.equal(generic.inputSchema.properties.operation.enum.length, 74);
+'''
+    subprocess.run([
+        "node", "--input-type=module", "-e", script,
+        str(CLAUDE / "musitu_axiom_mcp_gate_claude_candidate.mjs"),
+    ], check=True, capture_output=True, text=True)
