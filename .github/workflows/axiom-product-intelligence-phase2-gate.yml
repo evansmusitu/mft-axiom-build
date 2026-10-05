@@ -1,0 +1,112 @@
+name: MUSITU Axiom Product Intelligence Phase 2 Gate
+
+on:
+  push:
+    branches:
+      - frontier/axiom-product-intelligence-phase2-20261004
+    paths:
+      - 'axiom_interface/vnext/product_intelligence/**'
+      - 'axiom_interface/vnext/deep_context_adapters.js'
+      - 'axiom_interface/vnext/tests/product_intelligence_pgvector_vector_index_*.test.mjs'
+      - 'axiom_interface/vnext/tests/product_intelligence_signing_provenance_*.test.mjs'
+      - 'axiom_interface/vnext/tests/product_intelligence_tree_sitter_code_intelligence.test.mjs'
+      - 'axiom_interface/vnext/tests/pgvector_vector_index_test_fixture.mjs'
+      - 'axiom_interface/vnext/tests/signing_provenance_test_fixture.mjs'
+      - '.github/workflows/axiom-product-intelligence-phase2-gate.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: musitu-axiom-product-intelligence-phase2-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  focused-contract-tests:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout immutable action
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - name: Record runtime
+        run: node --version
+      - name: Run pgvector 0.8.6 VectorIndex contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --test \
+            axiom_interface/vnext/tests/product_intelligence_pgvector_vector_index_contract.test.mjs \
+            axiom_interface/vnext/tests/product_intelligence_pgvector_vector_index_query.test.mjs \
+            axiom_interface/vnext/tests/product_intelligence_pgvector_vector_index_write.test.mjs
+      - name: Run cosign 3.1.3 and in-toto 3.1.0 provenance contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --test \
+            axiom_interface/vnext/tests/product_intelligence_signing_provenance_contract.test.mjs \
+            axiom_interface/vnext/tests/product_intelligence_signing_provenance_signer.test.mjs \
+            axiom_interface/vnext/tests/product_intelligence_signing_provenance_verifier.test.mjs
+      - name: Run Tree-sitter 0.27.0 integration contracts
+        run: node --test axiom_interface/vnext/tests/product_intelligence_tree_sitter_code_intelligence.test.mjs
+
+  independent-replay-and-authority-gate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    needs: focused-contract-tests
+    steps:
+      - name: Checkout immutable action without credentials
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Independently replay all frozen-order slice tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --test \
+            axiom_interface/vnext/tests/product_intelligence_pgvector_vector_index_contract.test.mjs \
+            axiom_interface/vnext/tests/product_intelligence_pgvector_vector_index_query.test.mjs \
+            axiom_interface/vnext/tests/product_intelligence_pgvector_vector_index_write.test.mjs \
+            axiom_interface/vnext/tests/product_intelligence_signing_provenance_contract.test.mjs \
+            axiom_interface/vnext/tests/product_intelligence_signing_provenance_signer.test.mjs \
+            axiom_interface/vnext/tests/product_intelligence_signing_provenance_verifier.test.mjs \
+            axiom_interface/vnext/tests/product_intelligence_tree_sitter_code_intelligence.test.mjs
+      - name: Fail closed on provider or release authority escalation
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          files = [
+              Path('axiom_interface/vnext/product_intelligence/backends/pgvector_vector_index_backend.js'),
+              Path('axiom_interface/vnext/product_intelligence/signing_provenance.js'),
+              Path('axiom_interface/vnext/product_intelligence/tree_sitter_code_intelligence.js'),
+          ]
+          required = {
+              'pgvector_vector_index_backend.js': ['0.8.6', 'MECHANISM_ONLY'],
+              'signing_provenance.js': ['3.1.3', '3.1.0', 'MECHANISM_ONLY'],
+              'tree_sitter_code_intelligence.js': ['0.27.0', 'MECHANISM_ONLY'],
+          }
+          for path in files:
+              text = path.read_text(encoding='utf-8')
+              for marker in required[path.name]:
+                  if marker not in text:
+                      raise SystemExit(f'MISSING_REQUIRED_MARKER:{path}:{marker}')
+              for forbidden in [
+                  'release_authority:true',
+                  'production_authority:true',
+                  'certification_authority:true',
+              ]:
+                  if forbidden in text:
+                      raise SystemExit(f'FORBIDDEN_AUTHORITY_ESCALATION:{path}:{forbidden}')
+          print('MUSITU_AXIOM_PHASE2_PROVIDER_AUTHORITY_FAIL_CLOSED_PASS')
+          PY
+      - name: Record non-release verification boundary
+        run: |
+          echo 'MUSITU_AXIOM_PHASE2_SLICE_VERIFICATION_PASS'
+          echo 'RELEASE_AUTHORITY=FALSE'
+          echo 'PRODUCTION_AUTHORITY=FALSE'
+          echo 'CERTIFICATION_AUTHORITY=FALSE'
