@@ -1,0 +1,74 @@
+{
+  "schema": "musitu.axiom.official-support-d1-provision-evidence.v1",
+  "recorded_at": "2026-10-05T15:47:49Z",
+  "repository": "evansmusitu/mft-axiom-build",
+  "branch": "support/axiom-official-support-20261005",
+  "provisioning_commit": "544cd16c7242d3c47c4b49c181325b94d899a218",
+  "workflow_hardening_commit": "62d024100259e7a607da7146d26ced332a5ddad6",
+  "scope": "isolated_whole_product_support_d1_prerequisite",
+  "cloudflare": {
+    "account_id": "93f395f5121954671f92fffa453d6b61",
+    "authentication_mode_used": "api_token",
+    "global_api_key_fallback_configured": true,
+    "browser_authentication_used": false,
+    "database_name": "musitu-axiom-support",
+    "database_uuid": "a525c8b6-9b44-413b-a219-46e419b71b12",
+    "database_created_in_run": true,
+    "turnstile_widget_created": false,
+    "support_data_key_created": false,
+    "worker_deployed": false,
+    "hostname_attached": false,
+    "dns_modified": false,
+    "email_routing_modified": false
+  },
+  "verification": {
+    "gate": "MUSITU_AXIOM_SUPPORT_D1_PROVISIONED",
+    "provisioning_workflow_run": 37334846392,
+    "provisioning_job": 111846901239,
+    "provisioning_conclusion": "success",
+    "runtime_evidence_sha256": "d06fc226924a6ec8f9dc86a185b990e3c8fd09c756fc8f4b4d7a7f7adf983757",
+    "support_tests_passed": 43,
+    "support_tests_failed": 0,
+    "workflow_hardening_gate_run": 37335625895,
+    "workflow_hardening_gate_conclusion": "success",
+    "secret_values_logged": false,
+    "secret_values_committed": false
+  },
+  "remaining_external_prerequisites": [
+    "primary_human_support_owner_identity",
+    "different_independent_approver_identity",
+    "publisher_controlled_mailbox_destination",
+    "remaining_eleven_gate_operational_evidence"
+  ],
+  "remaining_technical_prerequisites": [
+    "turnstile_widget_and_immediate_secret_storage",
+    "zero_output_support_data_key_generation_and_immediate_secret_storage",
+    "worker_deployment_and_schema_application",
+    "support_hostname_attachment",
+    "live_readiness_and_intake_verification",
+    "email_routing_delivery_verification"
+  ],
+  "claim_boundaries": {
+    "d1_provisioned": true,
+    "support_publicly_operational": false,
+    "support_email_delivery_claimed": false,
+    "turnstile_live_claimed": false,
+    "secret_exposed": false,
+    "openai_surface_modified": false,
+    "claude_surface_modified": false
+  },
+  "protected_state": {
+    "main": "d6a846f6bbe0bccac1758713eb4de167caf07113",
+    "pr_1": {
+      "state": "open",
+      "draft": true,
+      "merged": false,
+      "base": "d6a846f6bbe0bccac1758713eb4de167caf07113",
+      "head": "8fc1fbb7c5ebbcc1604ecf24c5f4594f2d5667e3"
+    },
+    "frozen_openai_auth_blob": "8ba0dbc1b6dd1533c6c26bff23991429e03a71a5",
+    "frozen_openai_mcp_v4_blob": "4a1ad37a5e7df0e4d3966e8b5f9f0e8f2db69167",
+    "claude_branch_head": "4d956f415431836018e5145227c8df5bd5fde7d8",
+    "protected_files_modified": false
+  }
+}
