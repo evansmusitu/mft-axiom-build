@@ -84,7 +84,7 @@ test('production worker computes the exact constrained Mining plan when authenti
   assert.equal(body.spend, 44000);
   assert.deepEqual(body.selected, ['Ground collapse', 'Explosives / gases', 'Shaft falls']);
   assert.equal(body.baselineRisk, 4.9992);
-  assert.equal(body.residualRisk, 0.6998880000000001);
+  assert.ok(Math.abs(body.residualRisk - 0.699888) < 1e-12);
 });
 
 test('production worker sends provenance-bound risk execution to Axiom and sanitizes the response', async () => {
