@@ -336,7 +336,7 @@ def verify_surface(base: str, identity: dict, *, stage: str):
         fail(stage+" authenticated deterministic plan mismatch")
 
     base_run_id=("canary-" if stage=="canary" else "production-enable-")+str(RUN_ID)
-    retryable_statuses={0,429,500,502,503,504}
+    retryable_statuses={0,404,429,500,502,503,504}
     risk_attempt_statuses=[]
     risk=None
     run_id=None
