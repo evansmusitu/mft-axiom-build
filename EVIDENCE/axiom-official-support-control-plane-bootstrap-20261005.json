@@ -1,0 +1,111 @@
+{
+  "schema": "musitu.axiom.official-support-control-plane-bootstrap-evidence.v1",
+  "recorded_at": "2026-10-05T16:29:01Z",
+  "repository": "evansmusitu/mft-axiom-build",
+  "branch": "support/axiom-official-support-20261005",
+  "verified_commit": "7138d6c794a24e2dd3f4eaf47334cd253844cfe7",
+  "scope": "whole_product_official_support_non_public_control_plane",
+  "governance": {
+    "primary_owner_ref": "github:evansmusitu",
+    "independent_approver_ref": "person:elvis-musitu",
+    "owner_and_approver_are_different_people": true,
+    "private_role_contact_committed": false,
+    "private_role_contact_logged": false
+  },
+  "cloudflare": {
+    "account_id": "93f395f5121954671f92fffa453d6b61",
+    "successful_authentication_mode": "api_token",
+    "global_api_key_attempt": "HTTP_403_FAIL_CLOSED",
+    "d1": {
+      "name": "musitu-axiom-support",
+      "uuid": "a525c8b6-9b44-413b-a219-46e419b71b12",
+      "schema_applied": true,
+      "schema_objects_read_back": 4,
+      "append_only_triggers_verified": 2
+    },
+    "turnstile": {
+      "widget_exists": true,
+      "mode": "managed",
+      "domains": [
+        "support.mftintelligence.com"
+      ],
+      "exact_domain_scope_verified": true,
+      "secret_binding_stored": true,
+      "secret_value_exposed": false
+    },
+    "support_data_key": {
+      "generated_bytes": 32,
+      "algorithm_target": "AES-256-GCM",
+      "secret_binding_stored": true,
+      "secret_value_exposed": false
+    },
+    "worker": {
+      "name": "musitu-axiom-support",
+      "bootstrap_uploaded": true,
+      "assets_attached": false,
+      "custom_domain_attached": false,
+      "workers_dev_enabled": false,
+      "publicly_reachable": false
+    },
+    "email_destination": {
+      "approved_destination_created": true,
+      "raw_destination_recorded": false,
+      "verification_status": "VERIFICATION_REQUIRED",
+      "routing_rule_created": false,
+      "email_routing_dns_modified": false,
+      "delivery_verified": false
+    }
+  },
+  "verification": {
+    "gate": "MUSITU_AXIOM_SUPPORT_CONTROL_PLANE_BOOTSTRAP_PASS",
+    "workflow_run": 37340981040,
+    "workflow_job": 111867678833,
+    "workflow_conclusion": "success",
+    "runtime_evidence_sha256": "8f7d81c0ee860b798115a186e97e117464236913dbb139ac502dd0a4c1405d7d",
+    "support_tests_passed": 51,
+    "support_tests_failed": 0,
+    "support_gate_run": 37340981020,
+    "support_gate_conclusion": "success",
+    "pre_secret_global_key_failure_run": 37339449575,
+    "turnstile_and_destination_creation_run": 37339984731,
+    "secret_values_logged": false,
+    "secret_values_committed": false,
+    "private_runner_state_destroyed": true
+  },
+  "external_boundary": {
+    "type": "DESTINATION_EMAIL_VERIFICATION",
+    "required_action": "Open the Cloudflare verification message in the approved Gmail destination and approve the destination address.",
+    "password_or_code_required_in_chat": false
+  },
+  "remaining_before_public_deployment": [
+    "destination_email_verified",
+    "read_only_email_routing_and_dns_conflict_preflight",
+    "support_mailbox_rule_created_without_openai_surface_drift",
+    "notification_delivery_verified",
+    "remaining_operational_readiness_evidence",
+    "final_live_support_security_accessibility_and_backup_restore_checks"
+  ],
+  "claim_boundaries": {
+    "technical_control_plane_bootstrapped": true,
+    "public_support_deployed": false,
+    "support_email_delivery_claimed": false,
+    "customer_case_intake_live_claimed": false,
+    "openai_surface_modified": false,
+    "claude_surface_modified": false,
+    "credential_or_secret_exposed": false
+  },
+  "protected_state": {
+    "main": "d6a846f6bbe0bccac1758713eb4de167caf07113",
+    "pr_1": {
+      "state": "open",
+      "draft": true,
+      "merged": false,
+      "base": "d6a846f6bbe0bccac1758713eb4de167caf07113",
+      "head": "8fc1fbb7c5ebbcc1604ecf24c5f4594f2d5667e3"
+    },
+    "frozen_openai_auth_blob": "8ba0dbc1b6dd1533c6c26bff23991429e03a71a5",
+    "frozen_openai_mcp_v4_blob": "4a1ad37a5e7df0e4d3966e8b5f9f0e8f2db69167",
+    "claude_branch_head": "4d956f415431836018e5145227c8df5bd5fde7d8",
+    "protected_files_modified": false
+  }
+}
