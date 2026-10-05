@@ -1,0 +1,87 @@
+name: MUSITU Axiom Phase 2 Modal Fanout Audit
+
+on:
+  push:
+    branches:
+      - frontier/axiom-product-intelligence-phase2-20261004
+    paths:
+      - '.github/workflows/axiom-phase2-modal-fanout-audit.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  modal-readonly-inventory:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID }}
+      MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET }}
+      INCIDENT_APP: musitu-axiom-v3-modal-staging
+      INCIDENT_START_UTC: '2026-10-05T05:57:41Z'
+      INCIDENT_END_UTC: '2026-10-05T06:00:00Z'
+    steps:
+      - name: Install exact Modal client
+        run: python -m pip install --disable-pip-version-check --quiet 'modal==1.6.1'
+      - name: Authenticate read-only inventory
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$MODAL_TOKEN_ID"
+          test -n "$MODAL_TOKEN_SECRET"
+          modal app list --json >/tmp/apps.json
+          echo 'MODAL_AUTH_READONLY_PASS'
+      - name: Capture app history info and token inventory without secrets
+        shell: bash
+        run: |
+          set -euo pipefail
+          modal app history "$INCIDENT_APP" --json >/tmp/app-history.json
+          modal app info "$INCIDENT_APP" --json >/tmp/app-info.json
+          modal workspace proxy-tokens list --json >/tmp/proxy-tokens.json
+          python - <<'PY'
+          import json, os, re
+          from pathlib import Path
+
+          def load(path):
+              return json.loads(Path(path).read_text(encoding='utf-8'))
+
+          def redact(obj):
+              if isinstance(obj, dict):
+                  out = {}
+                  for k, v in obj.items():
+                      lk = str(k).lower()
+                      if 'secret' in lk or lk in {'token','access_token','refresh_token'}:
+                          out[k] = '[REDACTED]'
+                      else:
+                          out[k] = redact(v)
+                  return out
+              if isinstance(obj, list):
+                  return [redact(x) for x in obj]
+              if isinstance(obj, str):
+                  if obj.startswith('ws-'):
+                      return '[REDACTED]'
+                  return obj
+              return obj
+
+          history=load('/tmp/app-history.json')
+          info=load('/tmp/app-info.json')
+          tokens=load('/tmp/proxy-tokens.json')
+
+          print('MUSITU_AXIOM_MODAL_FANOUT_AUDIT_BEGIN')
+          print('INCIDENT_APP='+os.environ['INCIDENT_APP'])
+          print('INCIDENT_WINDOW='+os.environ['INCIDENT_START_UTC']+'..'+os.environ['INCIDENT_END_UTC'])
+          print('APP_HISTORY_JSON='+json.dumps(redact(history),sort_keys=True,separators=(',',':')))
+          print('APP_INFO_JSON='+json.dumps(redact(info),sort_keys=True,separators=(',',':')))
+          print('PROXY_TOKEN_INVENTORY_JSON='+json.dumps(redact(tokens),sort_keys=True,separators=(',',':')))
+          print('MUSITU_AXIOM_MODAL_FANOUT_AUDIT_END')
+          PY
+      - name: Verify accidental successor endpoint remains authenticated-only
+        shell: bash
+        run: |
+          set -euo pipefail
+          URL='https://evansmusitu--musitu-axiom-v3-modal-staging-axiom-kernel.modal.run'
+          code="$(curl -sS -o /tmp/unauth-body -w '%{http_code}' "$URL/health" || true)"
+          test "$code" = 401 -o "$code" = 403
+          echo "INCIDENT_MODAL_ENDPOINT_UNAUTH_HTTP=$code"
+          echo 'PROVIDER_MUTATION_PERFORMED=FALSE'
