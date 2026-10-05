@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="description" content="Official support for the MUSITU Axiom product and its integrations.">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; connect-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'">
+  <title>MUSITU Axiom Support</title>
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <a class="skip" href="#main">Skip to support</a>
+  <header class="topbar">
+    <a class="brand" href="/" aria-label="MUSITU Axiom Support home"><span aria-hidden="true">A</span><strong>MUSITU Axiom</strong><small>Official Support</small></a>
+    <nav aria-label="Support navigation"><a href="#get-help">Get help</a><a href="#safety">Safety</a><a href="#service">Service</a></nav>
+  </header>
+  <main id="main">
+    <section class="hero" aria-labelledby="hero-title">
+      <p class="eyebrow">One support system · every Axiom surface</p>
+      <h1 id="hero-title">Resolve the issue. Preserve the evidence.</h1>
+      <p class="lede">Support for the Axiom application, OAuth and accounts, MCP integrations, quantitative results, evidence, runtime APIs, billing, privacy, security, accessibility and incidents.</p>
+      <div class="hero-actions"><a class="primary" href="#case-form">Open a secure case</a><a class="secondary" href="#service">Check service guidance</a></div>
+      <p class="boundary">Never send passwords, tokens, authorization codes, API keys, session cookies, payment-card numbers, or private keys. The intake gate rejects suspected secrets before storage.</p>
+    </section>
+    <section id="get-help" class="section" aria-labelledby="help-title">
+      <div class="section-head"><p class="eyebrow">Start in the right lane</p><h2 id="help-title">What do you need help with?</h2></div>
+      <div class="grid">
+        <article><h3>Access & integrations</h3><p>Sign-in, OAuth, account linking, OpenAI, Claude, MCP clients and API runtime behavior.</p></article>
+        <article><h3>Results & evidence</h3><p>Calculation disputes, reproducibility, input interpretation, operation identity and evidence lineage.</p></article>
+        <article><h3>Privacy & security</h3><p>Data rights, deletion requests, responsible disclosure, suspicious activity and incident impact.</p></article>
+        <article><h3>Billing & accessibility</h3><p>Entitlements, charges, refunds, accessible use, documentation and product feedback.</p></article>
+      </div>
+    </section>
+    <section id="case-form" class="case-section" aria-labelledby="case-title">
+      <div class="form-copy"><p class="eyebrow">Secure intake</p><h2 id="case-title">Open a support case</h2><p>Your description is encrypted before persistence. You receive a recovery code once; MUSITU stores only its cryptographic hash.</p><ul><li>No account is required for recovery-code cases.</li><li>Priority is derived from impact, not payment tier.</li><li>Sensitive actions require identity verification and independent human approval.</li></ul></div>
+      <form id="support-form" novalidate>
+        <div class="two">
+          <label>Product surface<select name="surface" required><option value="">Choose…</option><option value="web_app">Axiom web app</option><option value="mcp_openai">OpenAI connector</option><option value="mcp_claude">Claude connector</option><option value="mcp_other">Another MCP client</option><option value="oauth_account">OAuth or account</option><option value="quantitative_result">Quantitative result</option><option value="evidence_reproducibility">Evidence or reproducibility</option><option value="api_runtime">API or runtime</option><option value="billing_commerce">Billing or commerce</option><option value="privacy_data_rights">Privacy or data rights</option><option value="security">Security</option><option value="reviewer">Reviewer access</option><option value="status_incident">Service incident</option></select></label>
+          <label>Issue type<select name="category" required><option value="">Choose…</option><option value="access">Access</option><option value="bug">Bug</option><option value="calculation_dispute">Calculation dispute</option><option value="evidence_question">Evidence question</option><option value="integration">Integration</option><option value="billing">Billing</option><option value="privacy_request">Privacy request</option><option value="security_report">Security report</option><option value="incident">Incident</option><option value="documentation">Documentation</option><option value="accessibility">Accessibility</option><option value="feedback">Feedback</option></select></label>
+        </div>
+        <label>Affected scope<select name="affected_scope" required><option value="">Choose…</option><option value="self">Only me</option><option value="team">My team</option><option value="organization">My organization</option><option value="blocked">Critical work is blocked</option><option value="all_users">Appears to affect everyone</option><option value="unknown">Unknown</option></select></label>
+        <label>Summary<input name="summary" maxlength="160" required autocomplete="off"></label>
+        <label>What happened?<textarea name="description" maxlength="8000" required></textarea></label>
+        <label>Steps to reproduce<textarea name="reproduction" maxlength="6000"></textarea></label>
+        <label>Impact<textarea name="impact" maxlength="1000"></textarea></label>
+        <fieldset><legend>Safety signals</legend><label class="check"><input name="active_exploitation" type="checkbox"> Active exploitation may be occurring</label><label class="check"><input name="safety_impact" type="checkbox"> People, funds or critical decisions may be at immediate risk</label></fieldset>
+        <label class="check"><input name="consent_to_process" type="checkbox" required> I consent to processing this information to provide support and confirm I removed credentials and payment secrets.</label>
+        <div id="form-status" role="status" aria-live="polite"></div>
+        <button class="primary" type="submit">Create secure case</button>
+      </form>
+      <section id="case-receipt" class="receipt" hidden aria-labelledby="receipt-title" tabindex="-1"><p class="eyebrow">Case created</p><h3 id="receipt-title"></h3><p>Save this recovery code now. It is shown once and cannot be recovered by MUSITU.</p><output id="recovery-code"></output><button id="copy-code" class="secondary" type="button">Copy code</button><p id="receipt-priority"></p></section>
+    </section>
+    <section id="safety" class="section split" aria-labelledby="safety-title"><div><p class="eyebrow">Safety by construction</p><h2 id="safety-title">Support cannot silently widen authority.</h2></div><div><p>Case events are append-only and hash chained. Customer-visible and internal notes are separated. Account recovery, refunds, data rights, disclosure and production changes are gated by verification, evidence and independent human approval.</p></div></section>
+    <section id="service" class="section" aria-labelledby="service-title"><div class="section-head"><p class="eyebrow">Service objectives</p><h2 id="service-title">Impact-driven response</h2></div><div class="objectives"><div><strong>P0</strong><span>Critical · 15-minute acknowledgement objective</span></div><div><strong>P1</strong><span>High · 1-hour acknowledgement objective</span></div><div><strong>P2</strong><span>Normal · 8-hour acknowledgement objective</span></div><div><strong>P3</strong><span>Low · 2-day acknowledgement objective</span></div></div><p class="fine">These are operating objectives, not contractual guarantees. Public incident claims are made only from verified service evidence.</p></section>
+  </main>
+  <footer><p>MUSITU Axiom Official Support</p><nav aria-label="Legal"><a href="https://mcp.mftintelligence.com/privacy">Privacy</a><a href="https://mcp.mftintelligence.com/terms">Terms</a><a href="https://mcp.mftintelligence.com/docs">Documentation</a></nav></footer>
+  <script type="module" src="./app.js"></script>
+</body>
+</html>

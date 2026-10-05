@@ -1,17 +1,18 @@
 # MUSITU Axiom Support
 
-For MUSITU Axiom app support, bug reports, or account-linking issues, open a GitHub issue in this repository:
+MUSITU Axiom's official support control plane covers the application, accounts and OAuth, provider connectors, quantitative-result disputes, evidence and reproducibility, APIs and runtime, billing, privacy, security, accessibility, reviewers, and incidents.
 
-https://github.com/evansmusitu/mft-axiom-build/issues
+The implementation lives in [`support/`](support/README.md). Until its dedicated public hostname, secure storage, anti-abuse service, encryption key, and staffed operating model are deployed and verified, it must be described as **built but not yet publicly operational**.
 
-Please include the problem you observed and the approximate time it occurred.
-Do not post API keys, OAuth tokens, account keys, payment credentials, private financial information, or other secrets in a public issue.
+Do not use repository issues for customer cases or security disclosures. They are not an approved system for customer data.
 
-For security-sensitive reports, do not disclose exploit details or credentials publicly. Use the repository owner's private contact channel rather than a public issue.
+Never submit passwords, API keys, OAuth codes or tokens, client secrets, session cookies, private keys, payment-card numbers, raw authentication headers, or unrestricted private datasets.
 
-Public service references:
+Current verified service references:
 
 - MCP: https://mcp.mftintelligence.com/mcp
 - Privacy: https://mcp.mftintelligence.com/privacy
 - Terms: https://mcp.mftintelligence.com/terms
 - Documentation: https://mcp.mftintelligence.com/docs
+
+Proposed support hostname (not yet a live claim): `https://support.mftintelligence.com`

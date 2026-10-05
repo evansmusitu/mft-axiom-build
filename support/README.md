@@ -1,0 +1,39 @@
+# MUSITU Axiom official support control plane
+
+This directory is the isolated, whole-product support implementation. It is not Claude-specific and does not modify the frozen OpenAI surface.
+
+## Implemented
+
+- public, accessible support surface and secure case intake;
+- one canonical case contract across product and provider surfaces;
+- impact-derived priority and explicit state transitions;
+- pre-storage credential/payment-secret rejection;
+- AES-256-GCM narrative encryption with case-bound AAD;
+- one-time recovery credentials with hash-only persistence;
+- append-only, hash-chained case events;
+- D1 schema with immutable event triggers;
+- quantitative-dispute evidence packages that bind operation, result and hashes without raw inputs;
+- verified public-incident receipts and an eleven-gate operational-readiness contract;
+- human-approval gates for identity, billing, privacy, security, incident, purge, and production actions;
+- fail-closed production readiness and anti-abuse checks;
+- focused tests and a branch gate.
+
+## Deployment prerequisites
+
+Deployment must not proceed until all of these are real and verified:
+
+1. A dedicated Cloudflare D1 database with `schema.sql` applied.
+2. A newly provisioned 32-byte data-encryption key supplied only as `SUPPORT_DATA_KEY_B64` through the platform secret store. It must never be committed or printed.
+3. A production `SUPPORT_ABUSE_GATE` binding.
+4. An owner-approved public hostname and DNS route. `support.mftintelligence.com` is a proposal, not a live claim.
+5. A designated, trained human support owner and escalation roster.
+6. Privacy/security retention, key-rotation, incident, and erasure procedures.
+7. Real accessibility, mobile, security, load, backup/restore, and notification-delivery evidence.
+
+## Local tests
+
+```sh
+node --test support/tests/*.test.mjs
+```
+
+No production credentials are required or accepted by the test suite.

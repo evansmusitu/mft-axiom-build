@@ -1,0 +1,54 @@
+name: MUSITU Axiom Official Support Gate
+
+on:
+  push:
+    branches:
+      - 'support/axiom-official-support-*'
+    paths:
+      - 'support/**'
+      - 'SUPPORT.md'
+      - '.github/workflows/axiom-official-support-gate.yml'
+  pull_request:
+    paths:
+      - 'support/**'
+      - 'SUPPORT.md'
+      - '.github/workflows/axiom-official-support-gate.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  support-contract-security-accessibility:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Use Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Syntax checks
+        run: |
+          node --check support/control_plane.js
+          node --check support/crypto_envelope.js
+          node --check support/d1_case_store.js
+          node --check support/evidence_packages.js
+          node --check support/readiness.js
+          node --check support/worker.js
+          node --check support/app.js
+      - name: Support contract and adversarial tests
+        run: node --test support/tests/*.test.mjs
+      - name: Secret literal gate
+        shell: bash
+        run: |
+          if grep -RInE --exclude-dir=tests --exclude='*.md' '(sk-(proj-)?[A-Za-z0-9_-]{20,}|gh[pousr]_[A-Za-z0-9]{20,}|xox[baprs]-[A-Za-z0-9-]{10,}|BEGIN (RSA |EC |OPENSSH )?PRIVATE KEY)' support; then
+            echo 'Forbidden credential-like literal detected'
+            exit 1
+          fi
+      - name: Frozen production boundary
+        shell: bash
+        run: |
+          test "$GITHUB_REF_NAME" != 'main'
+          ! grep -RIn 'auth.mftintelligence.com\|mcp.mftintelligence.com/mcp' support/worker.js support/control_plane.js support/d1_case_store.js

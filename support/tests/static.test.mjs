@@ -1,0 +1,53 @@
+import assert from 'node:assert/strict';
+import test from 'node:test';
+import {readFile} from 'node:fs/promises';
+import {resolve, dirname} from 'node:path';
+import {fileURLToPath} from 'node:url';
+
+const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+const read = path => readFile(resolve(root, path), 'utf8');
+
+test('public support page has unique ids, complete scope and accessible form semantics', async () => {
+  const html = await read('index.html');
+  const ids = [...html.matchAll(/\sid="([^"]+)"/g)].map(match => match[1]);
+  assert.equal(ids.length, new Set(ids).size);
+  for (const phrase of ['OAuth and accounts', 'MCP integrations', 'quantitative results', 'billing', 'privacy', 'security', 'accessibility', 'incidents']) assert.match(html, new RegExp(phrase, 'i'));
+  assert.match(html, /<main id="main">/);
+  assert.match(html, /aria-live="polite"/);
+  assert.match(html, /consent_to_process/);
+  assert.match(html, /Content-Security-Policy/);
+  assert.doesNotMatch(html, /mailto:/i);
+  assert.doesNotMatch(html, /support@/i);
+});
+
+test('support browser sends only relative same-origin intake and performs local secret inspection', async () => {
+  const source = await read('app.js');
+  assert.match(source, /inspectSecretMaterial/);
+  assert.match(source, /fetch\('\/api\/v1\/cases'/);
+  assert.doesNotMatch(source, /https?:\/\//);
+  assert.doesNotMatch(source, /localStorage|sessionStorage|indexedDB/);
+});
+
+test('support UI includes responsive, reduced-motion, contrast and dark-mode behavior', async () => {
+  const css = await read('styles.css');
+  assert.match(css, /@media\(max-width:760px\)/);
+  assert.match(css, /prefers-reduced-motion/);
+  assert.match(css, /prefers-contrast:more/);
+  assert.match(css, /prefers-color-scheme:dark/);
+});
+
+test('D1 schema keeps events append-only and avoids plaintext narrative columns', async () => {
+  const sql = await read('schema.sql');
+  assert.match(sql, /support_case_event_no_update/);
+  assert.match(sql, /support_case_event_no_delete/);
+  assert.match(sql, /encrypted_payload TEXT NOT NULL/);
+  assert.doesNotMatch(sql, /description TEXT|reproduction TEXT|impact TEXT/i);
+});
+
+test('deployment documentation refuses unverified public and operating claims', async () => {
+  const [readme, policy, threat] = await Promise.all([read('README.md'), read('POLICY.md'), read('THREAT_MODEL.md')]);
+  assert.match(readme, /proposal, not a live claim/i);
+  assert.match(readme, /designated, trained human support owner/i);
+  assert.match(policy, /not contractual guarantees/i);
+  assert.match(threat, /does not designate a human support contact/i);
+});
