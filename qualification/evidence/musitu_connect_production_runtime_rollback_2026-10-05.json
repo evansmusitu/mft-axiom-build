@@ -1,0 +1,22 @@
+{
+  "schema": "musitu.connect.production_runtime_rollback.v1",
+  "gate": "MUSITU_CONNECT_PRODUCTION_RUNTIME_ROLLED_BACK",
+  "source_commit": "020b5499685e8a9b854c3d6d5bd940623eb71766",
+  "workflow_run_id": 37358173954,
+  "workflow_run_url": "https://github.com/evansmusitu/mft-axiom-build/actions/runs/37358173954",
+  "artifact_id": 11366285541,
+  "canary_pass": true,
+  "attempted_custom_hostname": "connect.mftintelligence.com",
+  "failure": "health contract did not converge: HTTP 403",
+  "machine_transport_rule_status": "SKIPPED_PERMISSION_DENIED",
+  "rollback_required": true,
+  "rollback": {
+    "domain_deleted": true,
+    "rule_deleted": true,
+    "worker_deleted": true,
+    "errors": []
+  },
+  "pr_9_unmerged": true,
+  "main_unchanged": true,
+  "credential_values_published": false
+}
