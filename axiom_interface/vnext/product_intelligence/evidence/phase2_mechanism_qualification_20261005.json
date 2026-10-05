@@ -1,0 +1,142 @@
+{
+  "schema": "musitu.axiom.phase2.product-intelligence.mechanism-qualification-evidence.v1",
+  "generated_at": "2026-10-05T18:43:12Z",
+  "qualification": "PASS",
+  "qualification_scope": "ISOLATED_EPHEMERAL_CI",
+  "source_authority": {
+    "repository": "evansmusitu/mft-axiom-build",
+    "phase2_branch": "frontier/axiom-product-intelligence-phase2-20261004",
+    "phase2_head_before_evidence": "7ded97b6f1f87514d476590eb7a1463733eda555",
+    "fa20_source": "21d087f0fdebffd4cfb4065286aa16696fcec9c0",
+    "sealed_main": "d6a846f6bbe0bccac1758713eb4de167caf07113",
+    "pr1_head": "8fc1fbb7c5ebbcc1604ecf24c5f4594f2d5667e3"
+  },
+  "contract_qualification": {
+    "execution": "exact GitHub blob replay",
+    "pgvector_tests": {
+      "passed": 11,
+      "failed": 0
+    },
+    "signing_provenance_tests": {
+      "passed": 10,
+      "failed": 0
+    },
+    "tree_sitter_tests": {
+      "passed": 10,
+      "failed": 0
+    },
+    "total": {
+      "passed": 31,
+      "failed": 0
+    }
+  },
+  "independent_executor": {
+    "provider": "GitLab SaaS isolated Docker executor",
+    "project_id": 86647955,
+    "project_path": "evansmusitu/mft-axiom-build",
+    "scratch_branch": "verify/axiom-phase2-mechanisms-20261005",
+    "scratch_commit": "c58cda90aac26cbddef42492267be95f75fe4214",
+    "pipeline_id": 2914849808,
+    "pipeline_iid": 64,
+    "verdict_job_id": 16948324742,
+    "verdict_marker": "MUSITU_AXIOM_PHASE2_MECHANISM_QUALIFICATION_PASS"
+  },
+  "mechanisms": {
+    "pgvector": {
+      "status": "PASS",
+      "job_id": 16948324738,
+      "postgresql_version": "18.6",
+      "postgresql_source_sha256": "555610c24d53e4316da5b7d3fc25c279d96856d5e0e23ee308c328c5fa881d9f",
+      "version": "0.8.6",
+      "tag_commit": "8ee86c96f0fd72390f890aa8a336fda6d3ab4c6c",
+      "positive_tests": [
+        "extension-load",
+        "cosine-ordering",
+        "l2-ordering",
+        "inner-product-ordering",
+        "tombstone-filter"
+      ],
+      "negative_tests": [
+        "dimension-mismatch-rejected"
+      ]
+    },
+    "cosign": {
+      "status": "PASS",
+      "job_id": 16948324739,
+      "version": "3.1.3",
+      "git_commit": "11926fa5bbbbde47e88fc006b625a17769b743b2",
+      "binary_sha256": "4629c757b7618056f8ddd7e2625ae9fdd94c0372a65049520bc7d9df9efc7f71",
+      "mode": "OFFLINE_SCRATCH_KEY",
+      "positive_tests": [
+        "blob-sign",
+        "blob-verify"
+      ],
+      "negative_tests": [
+        "tampered-blob-rejected"
+      ],
+      "transparency_log_upload": false
+    },
+    "in_toto": {
+      "status": "PASS",
+      "job_id": 16948324740,
+      "version": "3.1.0",
+      "wheel_sha256": "fe8c69a8dae32690d116bb8112e7d6da53bbad3b9a4057ff8d43f1a5a90ee2d4",
+      "key_type": "Ed25519",
+      "positive_tests": [
+        "signed-link-created",
+        "public-key-signature-verified"
+      ],
+      "negative_tests": [
+        "tampered-link-rejected"
+      ]
+    },
+    "tree_sitter": {
+      "status": "PASS",
+      "job_id": 16948324741,
+      "version": "0.27.0",
+      "binary_sha256": "20a1f39ec1c45f2211492dcb8881c802b643b554bb196869a29ac3778277fa77",
+      "javascript_grammar_commit": "44c892e0be055ac465d5eeddae6d3e194424e7de",
+      "positive_tests": [
+        "javascript-parse",
+        "symbolic-structure-observed"
+      ],
+      "negative_tests": [
+        "invalid-syntax-detected",
+        "source-digest-tamper-detected"
+      ]
+    }
+  },
+  "preserved_harness_failures": [
+    {
+      "pipeline_id": 2914800225,
+      "result": "FAILED",
+      "reason": "CI YAML heredoc parse failure; no mechanism job created"
+    },
+    {
+      "pipeline_id": 2914806288,
+      "result": "FAILED",
+      "reason": "scratch PostgreSQL log ownership blocked server startup"
+    },
+    {
+      "pipeline_id": 2914819437,
+      "result": "FAILED",
+      "reason": "psql defaulted to root instead of isolated axiompg role"
+    },
+    {
+      "pipeline_id": 2914837247,
+      "result": "FAILED",
+      "reason": "cosign 3.1.3 offline harness omitted upstream-required use-signing-config=false; pgvector/in-toto/tree-sitter mechanism jobs passed"
+    }
+  ],
+  "authority_boundary": {
+    "semantic_owner": "AXIOM",
+    "provider_authority": "MECHANISM_ONLY",
+    "authority_effect": "VERIFICATION_ONLY",
+    "release_authority": false,
+    "production_authority": false,
+    "certification_authority": false,
+    "live_integrated_runtime_qualification": "NOT_PROVEN",
+    "production_touched": false,
+    "openai_surface_touched": false
+  }
+}
