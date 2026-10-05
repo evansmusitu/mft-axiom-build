@@ -1,0 +1,81 @@
+{
+  "schema": "musitu.axiom.official-support-email-routing-preflight-evidence.v1",
+  "recorded_at": "2026-10-05T17:20:02.437Z",
+  "repository": "evansmusitu/mft-axiom-build",
+  "branch": "support/axiom-official-support-20261005",
+  "verified_commit": "467477edc56797a85ef1a3396b6668a6915f6bfa",
+  "scope": "whole_product_official_support_email_routing_read_only_preflight",
+  "verification": {
+    "gate": "MUSITU_AXIOM_SUPPORT_EMAIL_ROUTING_PREFLIGHT_OBSERVED",
+    "workflow_run": 37347615562,
+    "workflow_job": 111890080158,
+    "workflow_conclusion": "success",
+    "runtime_evidence_sha256": "2554d9306743618dcff55809b895fbba1d525121463a1bd5e1c79d5673e96342",
+    "support_gate_run": 37347615410,
+    "support_gate_job": 111890079193,
+    "support_gate_conclusion": "success",
+    "support_tests_passed": 55,
+    "support_tests_failed": 0
+  },
+  "destination": {
+    "fingerprint_sha256": "96e4302ad956e3e5ac9496e041199457d62e17eef6f41e1ad62256a6b3761747",
+    "read_access": true,
+    "http_status": 200,
+    "exact_match_count": 1,
+    "verified": true,
+    "raw_address_recorded": false
+  },
+  "email_routing": {
+    "read_access": true,
+    "http_status": 200,
+    "enabled": false,
+    "status": "unconfigured",
+    "ready": false,
+    "matching_support_rule_count": 0,
+    "exact_support_rule_present": false,
+    "conflicting_support_rule_present": false,
+    "safe_to_create_rule_without_dns_change": false
+  },
+  "dns_and_domain_isolation": {
+    "root_dns_read_access": true,
+    "root_mx_count": 3,
+    "root_spf_count": 0,
+    "root_mail_fingerprint_sha256": "32a3e7aaf05a059140d4dde82e72716dc53fc49a2912e80aafa48d1abc9010bf",
+    "support_hostname_dns_record_count": 0,
+    "support_worker_custom_domain_count": 0,
+    "support_worker_custom_domain_attached": false,
+    "protected_openai_dns_readable": true,
+    "protected_openai_dns_combined_fingerprint_sha256": "c8bf49f7d667fe3fe232af6d19f91156cc2170e72eb1f2cec9d1edcfb1663f39"
+  },
+  "external_boundary": {
+    "type": "ZONE_WIDE_EMAIL_ROUTING_DNS_AUTHORIZATION",
+    "reason": "Cloudflare Email Routing is unconfigured. Enabling it is a zone-level action that can add or replace and lock root MX and SPF records. Three root MX records already exist, so an exact mail-provider migration or compatibility decision is required before any write.",
+    "required_authorization": "Explicitly authorize changing the mftintelligence.com root email-routing DNS after reviewing the existing mail-provider impact, or select an integration path through the current mail provider that preserves the root MX records.",
+    "password_or_code_required_in_chat": false
+  },
+  "claim_boundaries": {
+    "destination_verified": true,
+    "email_routing_enabled": false,
+    "support_rule_created": false,
+    "delivery_verified": false,
+    "public_support_deployed": false,
+    "write_performed_by_preflight": false,
+    "openai_surface_modified": false,
+    "claude_surface_modified": false,
+    "credential_or_secret_exposed": false
+  },
+  "protected_state": {
+    "main": "d6a846f6bbe0bccac1758713eb4de167caf07113",
+    "pr_1": {
+      "state": "open",
+      "draft": true,
+      "merged": false,
+      "base": "d6a846f6bbe0bccac1758713eb4de167caf07113",
+      "head": "8fc1fbb7c5ebbcc1604ecf24c5f4594f2d5667e3"
+    },
+    "frozen_openai_auth_blob": "8ba0dbc1b6dd1533c6c26bff23991429e03a71a5",
+    "frozen_openai_mcp_v4_blob": "4a1ad37a5e7df0e4d3966e8b5f9f0e8f2db69167",
+    "claude_branch_head": "4d956f415431836018e5145227c8df5bd5fde7d8",
+    "protected_files_modified": false
+  }
+}
