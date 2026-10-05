@@ -1,0 +1,329 @@
+name: MUSITU Connect clean continuation package
+
+on:
+  push:
+    branches: ['feat/musitu-connect-frontier']
+    paths:
+      - '.github/workflows/musitu-connect-handoff-package.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Build clean authoritative continuation package
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          PRODUCT_BASE_COMMIT="$(git rev-parse HEAD^)"
+          MAIN_SHA="d6a846f6bbe0bccac1758713eb4de167caf07113"
+          PACKAGE_NAME="MUSITU_CONNECT_CLEAN_WHOLE_PRODUCT_CONTINUATION_HANDOFF_20261005_2225CAT"
+          ROOT="$PWD/package/MUSITU_CONNECT_PRODUCT"
+          mkdir -p "$ROOT/HANDOFF"
+
+          # High-confidence secret leak check on the product snapshot. Names of
+          # secrets are allowed; actual common credential formats are not.
+          if git grep -n -E --             '-----BEGIN (RSA |OPENSSH |EC )?PRIVATE KEY-----|ghp_[A-Za-z0-9]{30,}|github_pat_[A-Za-z0-9_]{40,}|sk-proj-[A-Za-z0-9_-]{20,}|AKIA[0-9A-Z]{16}'             "$PRODUCT_BASE_COMMIT" -- ':!*.lock' ':!deploy_payload/**'; then
+            echo "High-confidence credential material detected; refusing package." >&2
+            exit 1
+          fi
+
+          # Export the exact product snapshot from before this temporary
+          # packaging-workflow commit, so the ZIP contains no packaging noise.
+          git archive --format=tar "$PRODUCT_BASE_COMMIT" | tar -x -C "$ROOT"
+
+          cat > "$ROOT/HANDOFF/README_FIRST.md" <<'EOF'
+          # MUSITU Connect — Read This First
+
+          This ZIP is the authoritative continuation snapshot for MUSITU Connect
+          at the end of the 2026-10-05 production-runtime enablement session.
+
+          The entire tracked repository snapshot is included, plus a handoff
+          directory containing the exact continuation state and next-chat command.
+
+          ## Non-negotiable constraints
+
+          - Do **not** merge PR #9 unless the user explicitly authorizes that separately.
+          - Keep sealed `main` unchanged unless the user explicitly authorizes changing it.
+          - Do not rotate or expose credentials.
+          - Do not weaken Cloudflare/Axiom security to obtain a prettier custom domain.
+          - Do not redeploy the production runtime merely because a new chat started.
+          - Claims of beating baselines must come from reproducible benchmarks and evidence.
+
+          ## Immediate next objective
+
+          Before customer acquisition, make the **MUSITU Connect Mining Adapter fully
+          functional end-to-end** and prove, using a reproducible benchmark suite, whether
+          it beats the strongest relevant current baselines. Benchmark claims must name
+          the baselines, datasets/scenarios, metrics, hardware/runtime assumptions,
+          statistical treatment, failure cases, and independent evidence artifacts.
+          EOF
+
+          cat > "$ROOT/HANDOFF/CONTINUATION.md" <<EOF
+          # MUSITU Connect Authoritative Continuation Handoff
+
+          ## Repository state
+
+          - Repository: `evansmusitu/mft-axiom-build`
+          - Product branch: `feat/musitu-connect-frontier`
+          - Product snapshot commit: `$PRODUCT_BASE_COMMIT`
+          - PR: #9 — intentionally open/unmerged
+          - Sealed main commit: `$MAIN_SHA`
+          - Packaging workflow commit: `$GITHUB_SHA` (not part of product snapshot)
+
+          ## Production state
+
+          MUSITU Connect production runtime is enabled and independently verified.
+
+          - Worker: `musitu-connect-production`
+          - Verified endpoint:
+            `https://musitu-connect-production.mft-education-nexus-93f395f5.workers.dev`
+          - Runtime authorization:
+            `MUSITU-CONNECT-RUNTIME-AUTH-2026-10-05-001`
+          - Successful canary-first rollout run: `37361309451`
+          - Successful rollout artifact: `11367280656`
+          - Rollout evidence SHA-256:
+            `57d74d19b71a5dd36d9e0e4f0ddb421993f157805715d906bc9c98f68f5f88fd`
+          - Production health: HTTP 200
+          - Unauthenticated plan: HTTP 401
+          - Authenticated plan: HTTP 200
+          - Production Axiom-backed risk execution: HTTP 200
+          - Mining-derived Axiom result observed: `3.348`
+          - Exact Connect request-ID → Axiom usage-ledger correlation: PASS
+          - Production Axiom integration: enabled
+          - Raw Axiom account credential published: no
+          - Derived runtime token published: no
+          - Rollback required on successful activation: no
+
+          A previous custom-domain attempt failed closed with HTTP 403 because the
+          narrowly scoped Cloudflare machine-transport configuration rule could not
+          be created. That attempt rolled back completely: domain deleted, rule
+          state cleaned, Worker deleted, zero rollback errors.
+
+          Preferred custom domain `connect.musitu.com` therefore remains deferred.
+          No global Cloudflare security policy was weakened.
+
+          ## Axiom / identity state
+
+          - Dedicated service identity: `MUSITU Connect Production Service`
+          - Account key is stored as GitHub Actions secret
+            `MUSITU_CONNECT_AXIOM_ACCOUNT_KEY`; never print or move it into chat.
+          - Dedicated internal service quota used for qualification: 100 units.
+          - Non-fixture identity qualification run: `37217196676`, attempt 3 also green.
+          - Direct-compute evidence SHA-256:
+            `22fd32c6213a3f1ae7acf0c1420b7808e977074e00da66e8eb30193eb958dcfe`
+          - Axiom public `/mcp` stays OAuth-only.
+          - Connect backend-to-backend execution uses Axiom `/v1/compute`.
+
+          ## Admission / authorization state
+
+          All seven technical production controls are qualified:
+          1. credentialed request-ID E2E
+          2. non-fixture identity
+          3. OAuth authorization-code / S256 PKCE
+          4. secret rotation/recovery
+          5. rollback rehearsal
+          6. observability/SLO/alerting
+          7. canary
+
+          Promotion authorization:
+          `MUSITU-CONNECT-PROMOTION-AUTH-2026-10-04-001`
+
+          Runtime authorization:
+          `MUSITU-CONNECT-RUNTIME-AUTH-2026-10-05-001`
+
+          Production admission policy itself remains deliberately non-enabling;
+          runtime activation is recorded separately in
+          `qualification/musitu_connect_gate.json`.
+
+          ## Current verification notes
+
+          At the product snapshot head:
+          - push Connect qualification run `37362970628`: success
+          - push infrastructure qualification run `37362970675`: success
+          - PR infrastructure qualification run `37362976608`: success
+          - PR Brand Guard run `37362976545`: success
+          - PR Connect qualification container run `37362976683` shows failure
+            because its sole test job was **cancelled by the stale-run cancellation
+            policy**, not because product tests failed.
+          - Live runtime guard had already passed independently on both push and PR
+            qualification runs after activation.
+
+          The branch later receives only packaging-workflow cleanup commits; a new
+          chat should verify the current branch head rather than assuming this
+          snapshot commit is still the branch tip.
+
+          ## Architecture that exists
+
+          The repository includes the MUSITU Connect general-purpose enterprise
+          interoperability/runtime foundation, including:
+          - Connect core/runtime/fabric/security/admission layers
+          - Mining Adapter
+          - canonical contracts
+          - Axiom gateway/direct-compute backend lane
+          - production Cloudflare Worker
+          - OpenAPI contract
+          - protocol/infrastructure qualification
+          - lineage / Arrow-Parquet / DuckDB-PostGIS / MQTT / OPC-UA / Temporal /
+            observability qualification assets present in the branch
+          - production admission, rollback, canary and evidence tooling
+          - tests under `tests/connect`
+          - qualification/evidence artifacts
+          - production runtime endpoint recorded in the OpenAPI contract and README
+
+          ## Critical product distinction
+
+          MUSITU Connect is the enterprise integration/runtime layer.
+          MUSITU Axiom is the downstream quantitative/intelligence engine.
+
+          Do not collapse the two products into one conceptual layer.
+
+          ## Immediate next program: Mining Adapter baseline supremacy
+
+          Before customers, the next job is **not more generic UI**. It is to make
+          Mining Adapter objectively production-complete and benchmark it against
+          the strongest relevant current baselines.
+
+          The new chat should:
+
+          1. Verify current GitHub branch/head, PR #9, sealed main, live runtime guard,
+             and current production endpoint before making changes.
+          2. Inventory the Mining Adapter end-to-end: ingestion, normalization,
+             canonical contracts, validation, lineage, persistence, optimization,
+             Axiom execution, observability, replay/recovery, security and audit.
+          3. Define what “fully functional” means as a deterministic qualification
+             matrix with no hand-wavy boxes.
+          4. Research current industry/open-source/commercial baselines that actually
+             correspond to each capability. Do not benchmark against weak strawmen.
+          5. Build a reproducible benchmark harness with pinned versions, datasets,
+             workload scales, latency/throughput/resource metrics, correctness,
+             resilience, recovery, interoperability and cost.
+          6. Run the benchmarks and seal raw results/evidence.
+          7. Only claim “beats baseline X” where the measured evidence supports it.
+             Report losses and limitations equally.
+          8. Close remaining gaps and rerun until the Mining Adapter meets the
+             world-class target or the remaining blockers are explicitly evidenced.
+          9. Do not merge PR #9 just to simplify the process.
+
+          ## Security
+
+          No plaintext credential values should exist in this package.
+          Secrets remain in their external secret stores. Never ask the user to paste
+          them into chat.
+
+          ## Drive handoff
+
+          This package is intended to be uploaded to the connected Drive folder
+          `MUSITU_AXIOM_HANDOFFS`.
+          EOF
+
+          cat > "$ROOT/HANDOFF/NEXT_CHAT_COMMAND.txt" <<'EOF'
+          Continue MUSITU Connect from the authoritative Drive handoff package “MUSITU_CONNECT_CLEAN_WHOLE_PRODUCT_CONTINUATION_HANDOFF_20261005_2225CAT.zip” in the connected “MUSITU_AXIOM_HANDOFFS” folder. Read HANDOFF/README_FIRST.md, HANDOFF/CONTINUATION.md, HANDOFF/STATE.json and HANDOFF/PACKAGE_MANIFEST.json first, then verify the current GitHub branch/head and live runtime before changing anything. Preserve these constraints: do not merge PR #9, do not alter sealed main without explicit authorization, do not expose/rotate credentials, do not weaken Cloudflare/Axiom security, and do not redeploy production merely because this is a new chat. The immediate objective before customers is to make the MUSITU Connect Mining Adapter fully functional end-to-end and establish reproducible evidence against the strongest relevant current baselines. Define a rigorous qualification matrix and benchmark suite, research and name the real baselines, pin versions/datasets/workloads, measure correctness, latency, throughput, resource use, resilience/recovery, interoperability, observability and cost, seal raw evidence, close gaps, and only claim superiority where the benchmark evidence proves it. Continue actively from the handoff without making me restate prior context.
+          EOF
+
+          python - <<PY
+          import json, pathlib, hashlib, os
+          root=pathlib.Path("$ROOT")
+          state={
+            "schema":"musitu.connect.continuation_state.v1",
+            "generated_at_utc":"2026-10-05T20:25:00Z",
+            "repository":"evansmusitu/mft-axiom-build",
+            "branch":"feat/musitu-connect-frontier",
+            "product_snapshot_commit":"$PRODUCT_BASE_COMMIT",
+            "packaging_workflow_commit":"$GITHUB_SHA",
+            "sealed_main_sha":"$MAIN_SHA",
+            "pr_9":{"state":"open","merged":False},
+            "production_runtime":{
+              "enabled":True,
+              "worker":"musitu-connect-production",
+              "endpoint":"https://musitu-connect-production.mft-education-nexus-93f395f5.workers.dev",
+              "successful_rollout_run_id":37361309451,
+              "artifact_id":11367280656,
+              "evidence_sha256":"57d74d19b71a5dd36d9e0e4f0ddb421993f157805715d906bc9c98f68f5f88fd",
+              "canary_pass":True,
+              "production_pass":True,
+              "result_3_348_observed":True,
+              "exact_usage_ledger_request_id_correlation":True,
+              "custom_domain_status":"DEFERRED_SECURITY_PERMISSION",
+            },
+            "axiom_non_fixture_identity":{
+              "qualified":True,
+              "run_id":37217196676,
+              "evidence_sha256":"22fd32c6213a3f1ae7acf0c1420b7808e977074e00da66e8eb30193eb958dcfe",
+            },
+            "promotion_authorization_id":"MUSITU-CONNECT-PROMOTION-AUTH-2026-10-04-001",
+            "runtime_authorization_id":"MUSITU-CONNECT-RUNTIME-AUTH-2026-10-05-001",
+            "next_objective":"Mining Adapter production completeness and reproducible benchmark comparison against strongest relevant current baselines",
+            "credential_values_in_package":False,
+          }
+          (root/"HANDOFF/STATE.json").write_text(json.dumps(state,indent=2,sort_keys=True)+"\n")
+
+          entries=[]
+          for p in sorted(root.rglob("*")):
+              if p.is_file() and p.name!="PACKAGE_MANIFEST.json":
+                  raw=p.read_bytes()
+                  entries.append({
+                    "path":str(p.relative_to(root)),
+                    "size":len(raw),
+                    "sha256":hashlib.sha256(raw).hexdigest(),
+                  })
+          manifest={
+            "schema":"musitu.connect.clean_whole_product_package.v1",
+            "package_name":"$PACKAGE_NAME.zip",
+            "product_snapshot_commit":"$PRODUCT_BASE_COMMIT",
+            "file_count":len(entries),
+            "files":entries,
+          }
+          (root/"HANDOFF/PACKAGE_MANIFEST.json").write_text(
+              json.dumps(manifest,indent=2,sort_keys=True)+"\n"
+          )
+          PY
+
+          (
+            cd "$PWD/package"
+            python - <<PY
+          import pathlib, zipfile
+          src=pathlib.Path("MUSITU_CONNECT_PRODUCT")
+          out=pathlib.Path("$PACKAGE_NAME.zip")
+          with zipfile.ZipFile(out,"w",compression=zipfile.ZIP_DEFLATED,compresslevel=9) as z:
+              for p in sorted(src.rglob("*")):
+                  if p.is_file():
+                      z.write(p,p.as_posix())
+          PY
+            sha256sum "$PACKAGE_NAME.zip" > "$PACKAGE_NAME.sha256"
+          )
+
+          echo "PACKAGE_NAME=$PACKAGE_NAME" >> "$GITHUB_ENV"
+          echo "PRODUCT_BASE_COMMIT=$PRODUCT_BASE_COMMIT" >> "$GITHUB_ENV"
+
+      - name: Publish handoff summary
+        shell: bash
+        run: |
+          {
+            echo "## MUSITU Connect clean continuation handoff"
+            echo
+            echo "- Product snapshot: `$PRODUCT_BASE_COMMIT`"
+            echo "- Package: `$PACKAGE_NAME.zip`"
+            echo "- Secret values included: no"
+            echo "- PR #9 merge performed: no"
+            echo "- Production mutation performed: no"
+            echo
+            cat "package/$PACKAGE_NAME.sha256"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: musitu-connect-clean-continuation-handoff-20261005-2225CAT
+          path: |
+            package/MUSITU_CONNECT_CLEAN_WHOLE_PRODUCT_CONTINUATION_HANDOFF_20261005_2225CAT.zip
+            package/MUSITU_CONNECT_CLEAN_WHOLE_PRODUCT_CONTINUATION_HANDOFF_20261005_2225CAT.sha256
+          retention-days: 30
+          if-no-files-found: error
