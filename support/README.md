@@ -24,13 +24,15 @@ Deployment must not proceed until all of these are real and verified:
 
 1. A dedicated Cloudflare D1 database with `schema.sql` applied.
 2. A newly provisioned 32-byte data-encryption key supplied only as `SUPPORT_DATA_KEY_B64` through the platform secret store. It must never be committed or printed.
-3. A production `SUPPORT_ABUSE_GATE` binding.
-4. An owner-approved public hostname and DNS route. `support.mftintelligence.com` is a proposal, not a live claim.
+3. A Cloudflare Turnstile widget for the approved hostname, with its public site key in `SUPPORT_TURNSTILE_SITE_KEY` and secret key only in the Worker secret store as `TURNSTILE_SECRET_KEY`. Server-side Siteverify, hostname, and action checks are mandatory.
+4. The owner-approved `support.mftintelligence.com` hostname and DNS route. Approval is recorded; it is not a live claim until deployment verification passes.
 5. A designated, trained human support owner and escalation roster.
 6. Privacy/security retention, key-rotation, incident, and erasure procedures.
 7. Real accessibility, mobile, security, load, backup/restore, and notification-delivery evidence.
 
-`axiom-official-support-deploy.yml` is manual-only, branch-locked, exact-commit-bound, and environment-gated. It verifies that `SUPPORT_DATA_KEY_B64` was already provisioned without reading its value; it never creates or prints that credential. The workflow must not be dispatched until all eleven readiness gates pass.
+The approved public contact is `support@mftintelligence.com`; it must not be advertised as operational until Cloudflare Email Routing delivery is proven to a publisher-controlled destination.
+
+`axiom-official-support-deploy.yml` is manual-only, branch-locked, exact-commit-bound, and environment-gated. It verifies that `SUPPORT_DATA_KEY_B64` and `TURNSTILE_SECRET_KEY` were already provisioned by name without reading either value. The workflow must not be dispatched until all eleven readiness gates pass.
 
 ## Local tests
 

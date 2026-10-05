@@ -7,7 +7,7 @@ Customer identity, case narrative, quantitative inputs and results, evidence ref
 ## Trust boundaries
 
 1. Public browser to edge intake.
-2. Edge intake to anti-abuse verifier.
+2. Edge intake to Cloudflare Turnstile Siteverify.
 3. Worker to envelope-encrypted D1 storage.
 4. Customer recovery credential to case read boundary.
 5. Staff identity/policy plane to any sensitive operation executor.
@@ -27,9 +27,9 @@ Customer identity, case narrative, quantitative inputs and results, evidence ref
 | Support-agent overreach | Sensitive-action matrix; customer verification; independent approval; scoped executor | Staff identity and policy integration |
 | Public status misinformation | Verified incident evidence required before public update | Incident-command integration |
 | PII overcollection | No raw contact fields; opaque requester reference; bounded fields | Data-flow review |
-| Abuse and denial of service | Production fails closed without anti-abuse binding; size limits | Load and rate-limit evidence |
+| Abuse and denial of service | Turnstile token verified server-side; hostname/action binding; single-use short-lived proof; size limits | Live negative probes and rate-limit evidence |
 | Accessibility exclusion | Semantic form, keyboard flow, live regions, high contrast, reduced motion, responsive layout | Automated scan and real-device/user testing |
 
 ## Explicit non-authority
 
-The current branch does not designate a human support contact, create staff identities, provision secrets, deploy DNS, authorize refunds or account changes, publish incident claims, promise an SLA, or alter any OpenAI/Claude production surface.
+The support hostname and mailbox are owner-approved, but human role identities remain deployment prerequisites. The current branch does not invent staff identities, expose secrets, claim live DNS or mail delivery, authorize refunds or account changes, publish incident claims, promise an SLA, or alter any OpenAI/Claude production surface.

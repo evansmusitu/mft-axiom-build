@@ -36,7 +36,7 @@ jobs:
       SUPPORT_WORKER_NAME: ${{ vars.SUPPORT_WORKER_NAME }}
       SUPPORT_D1_DATABASE_NAME: ${{ vars.SUPPORT_D1_DATABASE_NAME }}
       SUPPORT_D1_DATABASE_ID: ${{ vars.SUPPORT_D1_DATABASE_ID }}
-      SUPPORT_ABUSE_GATE_SERVICE: ${{ vars.SUPPORT_ABUSE_GATE_SERVICE }}
+      SUPPORT_TURNSTILE_SITE_KEY: ${{ vars.SUPPORT_TURNSTILE_SITE_KEY }}
       SUPPORT_HUMAN_OWNER_REF: ${{ vars.SUPPORT_HUMAN_OWNER_REF }}
       SUPPORT_READINESS_SHA256: ${{ vars.SUPPORT_READINESS_SHA256 }}
       SUPPORT_DOMAIN: ${{ inputs.support_domain }}
@@ -57,11 +57,11 @@ jobs:
         run: node --test support/tests/*.test.mjs
       - name: Render bounded Wrangler configuration
         run: node support/scripts/render_wrangler.mjs support-wrangler.generated.json
-      - name: Verify pre-provisioned encryption secret without reading it
+      - name: Verify pre-provisioned secret names without reading values
         shell: bash
         run: |
           npx --yes wrangler@4 secret list --config support-wrangler.generated.json > support-secret-names.json
-          node -e "const names=require('./support-secret-names.json').map(x=>x.name); if(!names.includes('SUPPORT_DATA_KEY_B64')) process.exit(1)"
+          node -e "const names=require('./support-secret-names.json').map(x=>x.name); for(const required of ['SUPPORT_DATA_KEY_B64','TURNSTILE_SECRET_KEY']) if(!names.includes(required)) process.exit(1)"
           rm support-secret-names.json
       - name: Apply append-only support schema
         run: npx --yes wrangler@4 d1 execute SUPPORT_DB --remote --config support-wrangler.generated.json --file support/schema.sql
@@ -71,6 +71,6 @@ jobs:
         shell: bash
         run: |
           curl --fail --silent --show-error --proto '=https' "https://${SUPPORT_DOMAIN}/health" > support-health.json
-          node -e "const h=require('./support-health.json'); if(h.status!=='READY'||!h.secure_storage||!h.abuse_gate||!h.human_owner||!h.readiness_evidence) process.exit(1)"
+          node -e "const h=require('./support-health.json'); if(h.status!=='READY'||!h.secure_storage||!h.abuse_gate||!h.turnstile||!h.human_owner||!h.readiness_evidence) process.exit(1)"
           curl --fail --silent --show-error --proto '=https' "https://${SUPPORT_DOMAIN}/" | grep -q 'MUSITU Axiom Support'
           rm support-health.json support-wrangler.generated.json

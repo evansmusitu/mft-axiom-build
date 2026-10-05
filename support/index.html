@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="description" content="Official support for the MUSITU Axiom product and its integrations.">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; connect-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; connect-src 'self' https://challenges.cloudflare.com; img-src 'self' data:; style-src 'self'; script-src 'self' https://challenges.cloudflare.com; frame-src https://challenges.cloudflare.com; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'">
   <title>MUSITU Axiom Support</title>
   <link rel="stylesheet" href="./styles.css">
 </head>
@@ -45,15 +45,17 @@
         <label>Impact<textarea name="impact" maxlength="1000"></textarea></label>
         <fieldset><legend>Safety signals</legend><label class="check"><input name="active_exploitation" type="checkbox"> Active exploitation may be occurring</label><label class="check"><input name="safety_impact" type="checkbox"> People, funds or critical decisions may be at immediate risk</label></fieldset>
         <label class="check"><input name="consent_to_process" type="checkbox" required> I consent to processing this information to provide support and confirm I removed credentials and payment secrets.</label>
+        <div id="turnstile-widget" aria-label="Anti-abuse verification"></div>
         <div id="form-status" role="status" aria-live="polite"></div>
-        <button class="primary" type="submit">Create secure case</button>
+        <button class="primary" type="submit" disabled>Create secure case</button>
       </form>
       <section id="case-receipt" class="receipt" hidden aria-labelledby="receipt-title" tabindex="-1"><p class="eyebrow">Case created</p><h3 id="receipt-title"></h3><p>Save this recovery code now. It is shown once and cannot be recovered by MUSITU.</p><output id="recovery-code"></output><button id="copy-code" class="secondary" type="button">Copy code</button><p id="receipt-priority"></p></section>
     </section>
     <section id="safety" class="section split" aria-labelledby="safety-title"><div><p class="eyebrow">Safety by construction</p><h2 id="safety-title">Support cannot silently widen authority.</h2></div><div><p>Case events are append-only and hash chained. Customer-visible and internal notes are separated. Account recovery, refunds, data rights, disclosure and production changes are gated by verification, evidence and independent human approval.</p></div></section>
     <section id="service" class="section" aria-labelledby="service-title"><div class="section-head"><p class="eyebrow">Service objectives</p><h2 id="service-title">Impact-driven response</h2></div><div class="objectives"><div><strong>P0</strong><span>Critical · 15-minute acknowledgement objective</span></div><div><strong>P1</strong><span>High · 1-hour acknowledgement objective</span></div><div><strong>P2</strong><span>Normal · 8-hour acknowledgement objective</span></div><div><strong>P3</strong><span>Low · 2-day acknowledgement objective</span></div></div><p class="fine">These are operating objectives, not contractual guarantees. Public incident claims are made only from verified service evidence.</p></section>
   </main>
-  <footer><p>MUSITU Axiom Official Support</p><nav aria-label="Legal"><a href="https://mcp.mftintelligence.com/privacy">Privacy</a><a href="https://mcp.mftintelligence.com/terms">Terms</a><a href="https://mcp.mftintelligence.com/docs">Documentation</a></nav></footer>
+  <footer><p>MUSITU Axiom Official Support · <a href="mailto:support@mftintelligence.com">support@mftintelligence.com</a></p><nav aria-label="Legal"><a href="https://mcp.mftintelligence.com/privacy">Privacy</a><a href="https://mcp.mftintelligence.com/terms">Terms</a><a href="https://mcp.mftintelligence.com/docs">Documentation</a></nav></footer>
+  <script src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit" async defer></script>
   <script type="module" src="./app.js"></script>
 </body>
 </html>

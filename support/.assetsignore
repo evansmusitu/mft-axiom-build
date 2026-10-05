@@ -7,4 +7,5 @@ crypto_envelope.js
 d1_case_store.js
 evidence_packages.js
 readiness.js
+turnstile.js
 wrangler.*

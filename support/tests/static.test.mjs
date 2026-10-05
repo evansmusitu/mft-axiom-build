@@ -16,14 +16,17 @@ test('public support page has unique ids, complete scope and accessible form sem
   assert.match(html, /aria-live="polite"/);
   assert.match(html, /consent_to_process/);
   assert.match(html, /Content-Security-Policy/);
-  assert.doesNotMatch(html, /mailto:/i);
-  assert.doesNotMatch(html, /support@/i);
+  assert.match(html, /mailto:support@mftintelligence\.com/i);
+  assert.match(html, /challenges\.cloudflare\.com\/turnstile\/v0\/api\.js\?render=explicit/);
+  assert.match(html, /id="turnstile-widget"/);
 });
 
 test('support browser sends only relative same-origin intake and performs local secret inspection', async () => {
   const source = await read('app.js');
   assert.match(source, /inspectSecretMaterial/);
   assert.match(source, /fetch\('\/api\/v1\/cases'/);
+  assert.match(source, /fetch\('\/api\/v1\/config'/);
+  assert.match(source, /turnstile_token/);
   assert.doesNotMatch(source, /https?:\/\//);
   assert.doesNotMatch(source, /localStorage|sessionStorage|indexedDB/);
 });
@@ -41,6 +44,7 @@ test('static asset deployment excludes server, schema, tests and operating docum
   for (const entry of ['tests/', 'scripts/', '*.md', 'schema.sql', 'worker.js', 'crypto_envelope.js', 'd1_case_store.js', 'evidence_packages.js', 'readiness.js', 'wrangler.*']) assert.match(ignore, new RegExp(entry.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
   assert.match(headers, /Content-Security-Policy/);
   assert.match(headers, /frame-ancestors 'none'/);
+  assert.match(headers, /frame-src https:\/\/challenges\.cloudflare\.com/);
   assert.match(headers, /Permissions-Policy/);
 });
 
@@ -54,8 +58,8 @@ test('D1 schema keeps events append-only and avoids plaintext narrative columns'
 
 test('deployment documentation refuses unverified public and operating claims', async () => {
   const [readme, policy, threat] = await Promise.all([read('README.md'), read('POLICY.md'), read('THREAT_MODEL.md')]);
-  assert.match(readme, /proposal, not a live claim/i);
+  assert.match(readme, /not a live claim until deployment verification passes/i);
   assert.match(readme, /designated, trained human support owner/i);
   assert.match(policy, /not contractual guarantees/i);
-  assert.match(threat, /does not designate a human support contact/i);
+  assert.match(threat, /human role identities remain deployment prerequisites/i);
 });

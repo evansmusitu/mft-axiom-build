@@ -1,6 +1,7 @@
 import {createCaseRecord, SecretMaterialError} from './control_plane.js';
 import {importSupportDataKey} from './crypto_envelope.js';
 import {D1CaseStore} from './d1_case_store.js';
+import {verifyTurnstile} from './turnstile.js';
 
 const JSON_HEADERS = Object.freeze({'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store', 'x-content-type-options': 'nosniff'});
 const CASE_PATH = /^\/api\/v1\/cases\/([A-Z0-9-]+)$/;
@@ -27,22 +28,15 @@ async function readJson(request) {
   return JSON.parse(text);
 }
 
-async function abuseAllowed(request, env) {
-  if (env.SUPPORT_ABUSE_GATE?.fetch) {
-    const signal = {
-      schema: 'musitu.axiom.support-abuse-signal.v1',
-      method: request.method,
-      path: new URL(request.url).pathname,
-      country: request.cf?.country || null,
-      bot_score: request.cf?.botManagement?.score ?? null,
-      verified_bot: request.cf?.botManagement?.verifiedBot ?? null,
-    };
-    const response = await env.SUPPORT_ABUSE_GATE.fetch('https://support-abuse-gate.internal/verify', {
-      method: 'POST', headers: {'content-type': 'application/json'}, body: JSON.stringify(signal),
-    });
-    return response.ok;
-  }
-  return env.ENVIRONMENT !== 'production';
+async function abuseAllowed(token, env) {
+  if (env.ENVIRONMENT !== 'production' && !token) return true;
+  return verifyTurnstile({
+    token,
+    secret: env.TURNSTILE_SECRET_KEY,
+    expectedHostname: env.SUPPORT_DOMAIN,
+    expectedAction: 'support_case_create',
+    fetchImpl: env.TURNSTILE_VERIFY || fetch,
+  });
 }
 
 async function storeFor(env) {
@@ -64,16 +58,23 @@ export async function handleSupportRequest(request, env = {}) {
   const url = new URL(request.url);
   if (request.method === 'GET' && url.pathname === '/health') {
     const production = env.ENVIRONMENT === 'production';
-    const ready = Boolean(env.SUPPORT_DB && env.SUPPORT_DATA_KEY_B64 && (env.SUPPORT_ABUSE_GATE || !production) && (!production || (env.SUPPORT_HUMAN_OWNER_REF && HASH.test(String(env.SUPPORT_READINESS_SHA256 || '')))));
-    return json({schema: 'musitu.axiom.support-health.v1', status: ready ? 'READY' : 'NOT_READY', secure_storage: Boolean(env.SUPPORT_DB && env.SUPPORT_DATA_KEY_B64), abuse_gate: Boolean(env.SUPPORT_ABUSE_GATE), human_owner: Boolean(env.SUPPORT_HUMAN_OWNER_REF), readiness_evidence: HASH.test(String(env.SUPPORT_READINESS_SHA256 || '')), production}, ready ? 200 : 503);
+    const turnstile = Boolean(env.TURNSTILE_SITE_KEY && env.TURNSTILE_SECRET_KEY && env.SUPPORT_DOMAIN);
+    const ready = Boolean(env.SUPPORT_DB && env.SUPPORT_DATA_KEY_B64 && (turnstile || !production) && (!production || (env.SUPPORT_HUMAN_OWNER_REF && HASH.test(String(env.SUPPORT_READINESS_SHA256 || '')))));
+    return json({schema: 'musitu.axiom.support-health.v1', status: ready ? 'READY' : 'NOT_READY', secure_storage: Boolean(env.SUPPORT_DB && env.SUPPORT_DATA_KEY_B64), abuse_gate: turnstile, turnstile, human_owner: Boolean(env.SUPPORT_HUMAN_OWNER_REF), readiness_evidence: HASH.test(String(env.SUPPORT_READINESS_SHA256 || '')), production}, ready ? 200 : 503);
+  }
+  if (request.method === 'GET' && url.pathname === '/api/v1/config') {
+    return json({schema: 'musitu.axiom.support-browser-config.v1', turnstile_sitekey: String(env.TURNSTILE_SITE_KEY || ''), turnstile_action: 'support_case_create'});
   }
   if (request.method === 'GET' && url.pathname === '/api/v1/catalog') {
     return json({schema: 'musitu.axiom.support-catalog.v1', case_creation: '/api/v1/cases', authentication: 'one-time recovery code shown only at creation; send as Authorization: Support <code>', secrets_policy: 'credentials, tokens, passwords, cookies and payment card numbers are rejected before storage'});
   }
   if (request.method === 'POST' && url.pathname === '/api/v1/cases') {
-    if (!await abuseAllowed(request, env)) return json({error: 'ABUSE_PROOF_REQUIRED', message: 'Complete the anti-abuse check and try again.'}, 403);
     const body = await readJson(request);
-    const bundle = await createCaseRecord(body);
+    if (!body || Array.isArray(body) || typeof body !== 'object') throw new TypeError('intake must be an object');
+    const {turnstile_token: token, ...intake} = body;
+    const proof = await abuseAllowed(token, env);
+    if (proof !== true && !proof.ok) return json({error: proof.code || 'ABUSE_PROOF_REQUIRED', message: 'Complete the anti-abuse check and try again.'}, 403);
+    const bundle = await createCaseRecord(intake);
     const store = await storeFor(env);
     const publicCase = await store.create(bundle);
     return json({case: publicCase, recovery_code: bundle.recovery_code, recovery_code_notice: 'Save this code now. It is shown once and cannot be recovered by MUSITU.'}, 201);

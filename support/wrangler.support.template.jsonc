@@ -18,14 +18,10 @@
       "database_id": "__D1_DATABASE_ID__"
     }
   ],
-  "services": [
-    {
-      "binding": "SUPPORT_ABUSE_GATE",
-      "service": "__ABUSE_GATE_SERVICE__"
-    }
-  ],
   "vars": {
     "ENVIRONMENT": "production",
+    "SUPPORT_DOMAIN": "__SUPPORT_DOMAIN__",
+    "TURNSTILE_SITE_KEY": "__TURNSTILE_SITE_KEY__",
     "SUPPORT_HUMAN_OWNER_REF": "__HUMAN_OWNER_REF__",
     "SUPPORT_READINESS_SHA256": "__READINESS_SHA256__"
   },
