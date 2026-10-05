@@ -1,0 +1,92 @@
+{
+  "schema": "musitu.axiom.phase2.product-intelligence.yjs-qualification-evidence.v1",
+  "generated_at": "2026-10-05T19:45:49Z",
+  "qualification": "PASS",
+  "qualification_scope": "ISOLATED_EPHEMERAL_CI",
+  "source_authority": {
+    "repository": "evansmusitu/mft-axiom-build",
+    "phase2_branch": "frontier/axiom-product-intelligence-phase2-20261004",
+    "phase2_parent_before_yjs": "be73ad10170da44b16ff0ef944eb144cca4ad9e8",
+    "implementation_commit": "a54c48842b6c2d543abcb38d8bb344c09b164590",
+    "shared_state_blob": "44fe9f209881dbd553e05dae819c1b3bad304a54",
+    "test_blob": "fc0eee2cca6f054a98d87b6e5c52d35c30214a89",
+    "sealed_main": "d6a846f6bbe0bccac1758713eb4de167caf07113",
+    "fa20_source": "21d087f0fdebffd4cfb4065286aa16696fcec9c0",
+    "pr1_head": "8fc1fbb7c5ebbcc1604ecf24c5f4594f2d5667e3"
+  },
+  "contract_qualification": {
+    "execution": "exact GitHub blob replay",
+    "node_version": "v22.16.0",
+    "passed": 10,
+    "failed": 0,
+    "prior_frozen_order_evidence": [
+      {
+        "path": "axiom_interface/vnext/product_intelligence/evidence/phase2_mechanism_qualification_20261005.json",
+        "verified_contract_tests": 31
+      },
+      {
+        "path": "axiom_interface/vnext/product_intelligence/evidence/phase2_opentofu_qualification_20261005.json",
+        "verified_contract_tests": 8
+      }
+    ],
+    "cumulative_verified_contract_evidence_count": 49
+  },
+  "independent_executor": {
+    "provider": "GitLab SaaS isolated Docker executor",
+    "project_id": 86647955,
+    "project_path": "evansmusitu/mft-axiom-build",
+    "scratch_branch": "verify/axiom-phase2-yjs-13-6-33-20261005",
+    "scratch_commit": "ba522e446e7318f0e269d110a65e23a97236cd17",
+    "pipeline_id": 2915023934,
+    "pipeline_iid": 82,
+    "qualification_job_id": 16949701809,
+    "verdict_job_id": 16949701810,
+    "verdict_marker": "MUSITU_AXIOM_YJS_13_6_33_MECHANISM_QUALIFICATION_PASS"
+  },
+  "mechanism": {
+    "status": "PASS",
+    "package": "yjs",
+    "version": "13.6.33",
+    "git_tag_commit": "9ea3a4fb57b814292ce18dfd13c4f422e44e6c5c",
+    "npm_git_head": "9ea3a4fb57b814292ce18dfd13c4f422e44e6c5c",
+    "npm_dist_shasum": "da54bb9a6463a694ae35e5ed085f718cfe96f138",
+    "npm_dist_integrity": "sha512-q/UYvr1gOk4XII+Cu1CW2dINjYqJJFifTzogEaIARznrvX7uOlHsdTEXcnOBMuIsrCGEEKdNxi74kyMLZlKVfw==",
+    "tarball_sha256": "cfd28813389c4204a6d1ae3db7847c8b47195523c9ef8e31a8a4b69a2b499f34",
+    "merged_update_sha256": "a7a8c5cf5e57dc30ffde6ab9b9daf658e5432f83e62d81fc4321eb69eaa762e6",
+    "state_vector_sha256": "d8d9cf31d57b27179a25ed1f91e749c003b88c7ac6a2e3e1136d639213013af3",
+    "peer_delta_sha256": "083d75df803f699b7564df9641e6312247ca5550edd74959b8a44f7b85f25167",
+    "positive_tests": [
+      "exact-version",
+      "npm-integrity-match",
+      "tag-commit-match",
+      "merge-order-determinism",
+      "duplicate-update-idempotence",
+      "merged-state-application",
+      "state-vector-equivalence",
+      "peer-delta-convergence",
+      "replay-idempotence"
+    ],
+    "negative_tests": [
+      "malformed-update-rejected"
+    ]
+  },
+  "semantic_boundary": {
+    "substrate": "SharedStateCRDT",
+    "semantic_owner": "AXIOM",
+    "provider_authority": "MECHANISM_ONLY",
+    "persistence_authority": false,
+    "identity_authority": false,
+    "policy_authority": false,
+    "canonical_evidence_authority": false,
+    "presence_protocol_in_core_scope": false
+  },
+  "authority_boundary": {
+    "authority_effect": "VERIFICATION_ONLY",
+    "release_authority": false,
+    "production_authority": false,
+    "certification_authority": false,
+    "live_integrated_runtime_qualification": "NOT_PROVEN",
+    "production_touched": false,
+    "openai_surface_touched": false
+  }
+}
