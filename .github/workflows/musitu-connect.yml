@@ -23,3 +23,5 @@ jobs:
         run: node --test tests/connect/test_production_worker.mjs
       - name: Enforce production admission guard
         run: python qualification/validate_production_admission.py
+      - name: Verify live production runtime guard
+        run: python qualification/verify_live_production_runtime.py
