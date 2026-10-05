@@ -34,3 +34,10 @@ test('deployment renderer rejects foreign domains and unresolved identities', as
   assert.throws(() => renderWranglerTemplate(template, {...valid, independentApproverRef: ''}), /opaque approver reference/);
   assert.throws(() => renderWranglerTemplate(template, {...valid, independentApproverRef: valid.humanOwnerRef}), /must be different people/);
 });
+
+test('deployment workflow can use the established masked Cloudflare global-key credentials', async () => {
+  const workflow = await readFile(resolve(root, '..', '.github', 'workflows', 'axiom-official-support-deploy.yml'), 'utf8');
+  assert.match(workflow, /CLOUDFLARE_API_KEY:\s*\$\{\{ secrets\.CLOUDFLARE_GLOBAL_API_KEY \}\}/);
+  assert.match(workflow, /CLOUDFLARE_EMAIL:\s*\$\{\{ secrets\.CLOUDFLARE_EMAIL \}\}/);
+  assert.doesNotMatch(workflow, /[A-Fa-f0-9]{37}|cfk_[A-Za-z0-9_-]{20,}/);
+});

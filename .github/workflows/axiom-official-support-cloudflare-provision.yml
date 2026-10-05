@@ -1,0 +1,71 @@
+name: MUSITU Axiom Official Support Cloudflare Provision
+
+on:
+  workflow_dispatch:
+    inputs:
+      authorization:
+        description: Type PROVISION_MUSITU_AXIOM_SUPPORT_D1
+        required: true
+        type: string
+      expected_commit:
+        description: Exact isolated support commit approved for provisioning
+        required: true
+        type: string
+  push:
+    branches:
+      - 'support/axiom-official-support-20261005'
+    paths:
+      - 'support/PROVISION_CLOUDFLARE_D1.authorized'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: musitu-axiom-official-support-cloudflare-provision
+  cancel-in-progress: false
+
+jobs:
+  provision-d1:
+    if: github.ref_name == 'support/axiom-official-support-20261005'
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    env:
+      SUPPORT_CLOUDFLARE_CONFIRM: ${{ github.event_name == 'workflow_dispatch' && inputs.authorization || 'PROVISION_MUSITU_AXIOM_SUPPORT_D1' }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - name: Checkout exact isolated branch
+        uses: actions/checkout@v4
+      - name: Use Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Exact commit, branch and authorization gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF_NAME" = 'support/axiom-official-support-20261005'
+          test "$GITHUB_REF_NAME" != 'main'
+          test "$SUPPORT_CLOUDFLARE_CONFIRM" = 'PROVISION_MUSITU_AXIOM_SUPPORT_D1'
+          test -f support/PROVISION_CLOUDFLARE_D1.authorized
+          test "$(cat support/PROVISION_CLOUDFLARE_D1.authorized)" = 'PROVISION_MUSITU_AXIOM_SUPPORT_D1'
+          if [ "$GITHUB_EVENT_NAME" = 'workflow_dispatch' ]; then
+            test "$GITHUB_SHA" = '${{ inputs.expected_commit }}'
+          else
+            test "$GITHUB_EVENT_NAME" = 'push'
+          fi
+      - name: Re-run complete support gate
+        run: node --test support/tests/*.test.mjs
+      - name: Create or reuse isolated support D1 without exposing credentials
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        run: |
+          set -euo pipefail
+          node support/scripts/provision_cloudflare_d1.mjs
+      - name: Seal non-secret run summary
+        shell: bash
+        run: |
+          set -euo pipefail
+          node -e "const e=require('./musitu-axiom-support-cloudflare-provision.json'); const h=require('node:fs').readFileSync('./musitu-axiom-support-cloudflare-provision.json.sha256','utf8').split(' ')[0]; process.stdout.write(['### MUSITU Axiom support D1 provisioning', '', '- Gate: `MUSITU_AXIOM_SUPPORT_D1_PROVISIONED`', '- Database: `'+e.d1.name+'`', '- Database UUID: `'+e.d1.uuid+'`', '- Created in this run: `'+e.d1.created+'`', '- Authentication mode: `'+e.authentication_mode+'`', '- Evidence SHA-256: `'+h+'`', '- Secrets exposed: `false`', '- Public deployment performed: `false`'].join('\n')+'\n')" >> "$GITHUB_STEP_SUMMARY"
+          rm musitu-axiom-support-cloudflare-provision.json musitu-axiom-support-cloudflare-provision.json.sha256

@@ -32,6 +32,8 @@ jobs:
     environment: ${{ inputs.target == 'production' && 'axiom-support-production' || 'axiom-support-staging' }}
     env:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+      CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
       SUPPORT_WORKER_NAME: ${{ vars.SUPPORT_WORKER_NAME }}
       SUPPORT_D1_DATABASE_NAME: ${{ vars.SUPPORT_D1_DATABASE_NAME }}

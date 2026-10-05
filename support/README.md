@@ -34,6 +34,8 @@ The approved public contact is `support@mftintelligence.com`; it must not be adv
 
 `axiom-official-support-deploy.yml` is manual-only, branch-locked, exact-commit-bound, and environment-gated. It verifies that `SUPPORT_DATA_KEY_B64` and `TURNSTILE_SECRET_KEY` were already provisioned by name without reading either value. The workflow must not be dispatched until all eleven readiness gates pass.
 
+`axiom-official-support-cloudflare-provision.yml` is a narrower, one-shot prerequisite workflow. It reuses the repository's already-masked Cloudflare API credential path to create or reuse only the exact `musitu-axiom-support` D1 database. It does not create or print Turnstile or encryption secrets, attach a hostname, deploy a Worker, alter DNS, or touch the frozen OpenAI surface.
+
 ## Local tests
 
 ```sh
