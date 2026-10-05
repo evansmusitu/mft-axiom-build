@@ -36,6 +36,8 @@ The approved public contact is `support@mftintelligence.com`; it must not be adv
 
 `axiom-official-support-cloudflare-provision.yml` is a narrower, one-shot prerequisite workflow. It reuses the repository's already-masked Cloudflare API credential path to create or reuse only the exact `musitu-axiom-support` D1 database. It does not create or print Turnstile or encryption secrets, attach a hostname, deploy a Worker, alter DNS, or touch the frozen OpenAI surface.
 
+`axiom-official-support-control-plane-provision.yml` performs the next approved prerequisite stage. It uses the existing masked Cloudflare email/global-key path, creates or reuses the exact Turnstile widget and approved email destination, deploys the Worker with no route and `workers.dev` disabled, generates a fresh 256-bit data key, stores both secrets directly through Cloudflare's secret API, and applies the D1 schema. It never records secret values and it verifies that the bootstrap remains non-public.
+
 ## Local tests
 
 ```sh

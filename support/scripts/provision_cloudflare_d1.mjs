@@ -9,15 +9,15 @@ export const CLOUDFLARE_API = 'https://api.cloudflare.com/client/v4';
 
 const UUID = /^[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i;
 
-export function cloudflareCredentialCandidates(env = process.env) {
+export function cloudflareCredentialCandidates(env = process.env, {preferGlobal = false} = {}) {
   const candidates = [];
   const token = String(env.CLOUDFLARE_API_TOKEN || '').trim();
   const email = String(env.CLOUDFLARE_EMAIL || '').trim();
   const globalKey = String(env.CLOUDFLARE_GLOBAL_API_KEY || '').trim();
   const common = {'accept': 'application/json', 'user-agent': 'MUSITU-Axiom-Official-Support-Provision/1.0'};
-  if (token) candidates.push({mode: 'api_token', headers: {...common, authorization: `Bearer ${token}`}});
-  if (email && globalKey) candidates.push({mode: 'global_api_key', headers: {...common, 'x-auth-email': email, 'x-auth-key': globalKey}});
-  return candidates;
+  const tokenCandidate = token ? {mode: 'api_token', headers: {...common, authorization: `Bearer ${token}`}} : null;
+  const globalCandidate = email && globalKey ? {mode: 'global_api_key', headers: {...common, 'x-auth-email': email, 'x-auth-key': globalKey}} : null;
+  return (preferGlobal ? [globalCandidate, tokenCandidate] : [tokenCandidate, globalCandidate]).filter(Boolean);
 }
 
 function safeErrorCodes(payload) {
@@ -45,8 +45,8 @@ export async function cloudflareRequest({fetchImpl = fetch, headers, path, metho
   return payload;
 }
 
-export async function selectCloudflareCredential({fetchImpl = fetch, env = process.env} = {}) {
-  const candidates = cloudflareCredentialCandidates(env);
+export async function selectCloudflareCredential({fetchImpl = fetch, env = process.env, preferGlobal = false} = {}) {
+  const candidates = cloudflareCredentialCandidates(env, {preferGlobal});
   if (!candidates.length) throw new Error('no configured Cloudflare credential candidate');
   const failures = [];
   for (const candidate of candidates) {

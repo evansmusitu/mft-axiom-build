@@ -11,6 +11,7 @@ on:
       - '.github/workflows/axiom-official-support-gate.yml'
       - '.github/workflows/axiom-official-support-deploy.yml'
       - '.github/workflows/axiom-official-support-cloudflare-provision.yml'
+      - '.github/workflows/axiom-official-support-control-plane-provision.yml'
   pull_request:
     paths:
       - 'support/**'
@@ -19,6 +20,7 @@ on:
       - '.github/workflows/axiom-official-support-gate.yml'
       - '.github/workflows/axiom-official-support-deploy.yml'
       - '.github/workflows/axiom-official-support-cloudflare-provision.yml'
+      - '.github/workflows/axiom-official-support-control-plane-provision.yml'
   workflow_dispatch:
 
 permissions:
@@ -45,6 +47,7 @@ jobs:
           node --check support/turnstile.js
           node --check support/scripts/render_wrangler.mjs
           node --check support/scripts/provision_cloudflare_d1.mjs
+          node --check support/scripts/provision_cloudflare_control_plane.mjs
           node --check support/worker.js
           node --check support/app.js
       - name: Support contract and adversarial tests

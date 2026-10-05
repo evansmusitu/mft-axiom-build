@@ -41,3 +41,17 @@ test('deployment workflow can use the established masked Cloudflare global-key c
   assert.match(workflow, /CLOUDFLARE_EMAIL:\s*\$\{\{ secrets\.CLOUDFLARE_EMAIL \}\}/);
   assert.doesNotMatch(workflow, /[A-Fa-f0-9]{37}|cfk_[A-Za-z0-9_-]{20,}/);
 });
+
+test('bootstrap rendering removes every public route and does not claim readiness', async () => {
+  const template = await readFile(resolve(root, 'wrangler.support.template.jsonc'), 'utf8');
+  const rendered = renderWranglerTemplate(template, {
+    workerName: 'musitu-axiom-support', databaseName: 'musitu-axiom-support',
+    databaseId: '123e4567-e89b-12d3-a456-426614174000', turnstileSiteKey: '0x4AAAAAAAAAAAAAAAAAAAAAA',
+    supportDomain: 'support.mftintelligence.com', humanOwnerRef: 'github:evansmusitu', independentApproverRef: 'person:elvis-musitu', readinessSha256: '', deploymentMode: 'bootstrap',
+  });
+  const parsed = JSON.parse(rendered);
+  assert.equal(parsed.vars.ENVIRONMENT, 'bootstrap');
+  assert.equal(parsed.vars.SUPPORT_READINESS_SHA256, '');
+  assert.equal(parsed.routes, undefined);
+  assert.equal(parsed.workers_dev, false);
+});

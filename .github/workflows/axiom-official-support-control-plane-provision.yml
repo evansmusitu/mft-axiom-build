@@ -1,0 +1,107 @@
+name: MUSITU Axiom Official Support Control Plane Provision
+
+on:
+  push:
+    branches:
+      - 'support/axiom-official-support-20261005'
+    paths:
+      - 'support/PROVISION_CLOUDFLARE_CONTROL_PLANE.authorized'
+  workflow_dispatch:
+    inputs:
+      authorization:
+        description: Type PROVISION_MUSITU_AXIOM_SUPPORT_CONTROL_PLANE
+        required: true
+        type: string
+      expected_commit:
+        description: Exact isolated support commit approved for provisioning
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: musitu-axiom-official-support-control-plane
+  cancel-in-progress: false
+
+jobs:
+  provision-non-public-control-plane:
+    if: github.ref_name == 'support/axiom-official-support-20261005'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      SUPPORT_CONTROL_PLANE_CONFIRM: ${{ github.event_name == 'workflow_dispatch' && inputs.authorization || 'PROVISION_MUSITU_AXIOM_SUPPORT_CONTROL_PLANE' }}
+      SUPPORT_WORKER_NAME: musitu-axiom-support
+      SUPPORT_D1_DATABASE_NAME: musitu-axiom-support
+      SUPPORT_DOMAIN: support.mftintelligence.com
+      SUPPORT_HUMAN_OWNER_REF: github:evansmusitu
+      SUPPORT_INDEPENDENT_APPROVER_REF: person:elvis-musitu
+      SUPPORT_DEPLOYMENT_MODE: bootstrap
+      SUPPORT_READINESS_SHA256: ''
+      CLOUDFLARE_ACCOUNT_ID: '93f395f5121954671f92fffa453d6b61'
+    steps:
+      - name: Checkout exact isolated branch
+        uses: actions/checkout@v4
+      - name: Use Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Exact commit, branch, identities and authorization gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF_NAME" = 'support/axiom-official-support-20261005'
+          test "$GITHUB_REF_NAME" != 'main'
+          test "$SUPPORT_CONTROL_PLANE_CONFIRM" = 'PROVISION_MUSITU_AXIOM_SUPPORT_CONTROL_PLANE'
+          test "$SUPPORT_HUMAN_OWNER_REF" != "$SUPPORT_INDEPENDENT_APPROVER_REF"
+          test -f support/PROVISION_CLOUDFLARE_CONTROL_PLANE.authorized
+          IFS= read -r support_authorization < support/PROVISION_CLOUDFLARE_CONTROL_PLANE.authorized
+          test "$support_authorization" = 'PROVISION_MUSITU_AXIOM_SUPPORT_CONTROL_PLANE'
+          if [ "$GITHUB_EVENT_NAME" = 'workflow_dispatch' ]; then
+            test "$GITHUB_SHA" = '${{ inputs.expected_commit }}'
+          else
+            test "$GITHUB_EVENT_NAME" = 'push'
+          fi
+      - name: Re-run complete support gate
+        run: node --test support/tests/*.test.mjs
+      - name: Prepare D1, exact Turnstile and approved email destination
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+          SUPPORT_MAILBOX_DESTINATION: ${{ secrets.CLOUDFLARE_EMAIL }}
+        run: |
+          set -euo pipefail
+          node support/scripts/provision_cloudflare_control_plane.mjs prepare
+          node -e 'const s=require("./support-control-plane.private.json"); process.stdout.write("SUPPORT_D1_DATABASE_ID="+s.database_uuid+"\nSUPPORT_TURNSTILE_SITE_KEY="+s.turnstile_sitekey+"\n")' >> "$GITHUB_ENV"
+      - name: Render non-public bootstrap configuration
+        run: node support/scripts/render_wrangler.mjs support-wrangler.bootstrap.json
+      - name: Deploy isolated Worker without a route or workers.dev exposure
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        run: npx --yes wrangler@4 deploy --config support-wrangler.bootstrap.json
+      - name: Generate and store support secrets with zero value output
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        run: node support/scripts/provision_cloudflare_control_plane.mjs finalize
+      - name: Apply append-only support schema
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        run: npx --yes wrangler@4 d1 execute SUPPORT_DB --remote --config support-wrangler.bootstrap.json --file support/schema.sql
+      - name: Verify non-public isolation and seal safe evidence
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        run: |
+          set -euo pipefail
+          node support/scripts/provision_cloudflare_control_plane.mjs verify-isolation
+          rm support-wrangler.bootstrap.json
+      - name: Publish non-secret summary only
+        shell: bash
+        run: |
+          set -euo pipefail
+          node -e 'const e=require("./support-control-plane.public.json"); const h=require("node:fs").readFileSync("./support-control-plane.public.json.sha256","utf8").split(" ")[0]; process.stdout.write(["### MUSITU Axiom support non-public bootstrap", "", "- Gate: MUSITU_AXIOM_SUPPORT_CONTROL_PLANE_BOOTSTRAP_PASS", "- D1 UUID: "+e.d1.uuid, "- Turnstile site key: "+e.turnstile.sitekey, "- Destination verified: "+e.email_destination.verified, "- Worker public: false", "- Secret values exposed: false", "- Evidence SHA-256: "+h].join("\n")+"\n")' >> "$GITHUB_STEP_SUMMARY"
+          node -e 'const e=require("./support-control-plane.public.json"); const h=require("node:fs").readFileSync("./support-control-plane.public.json.sha256","utf8").split(" ")[0]; process.stdout.write(JSON.stringify({gate:"MUSITU_AXIOM_SUPPORT_CONTROL_PLANE_BOOTSTRAP_PASS",destination_verified:e.email_destination.verified,evidence_sha256:h,secret_values_exposed:false,public_deployment:false})+"\n")'
+          rm support-control-plane.public.json support-control-plane.public.json.sha256
