@@ -73,34 +73,43 @@ def json_bytes(obj) -> bytes:
 def internal_token() -> str:
     return hmac.new(ACCOUNT_KEY.encode("utf-8"),INTERNAL_LABEL,hashlib.sha256).hexdigest()
 
-def cf_headers() -> dict[str,str]:
+def cf_header_candidates() -> list[dict[str,str]]:
+    common={
+        "Accept":"application/json",
+        "Content-Type":"application/json",
+        "User-Agent":"MUSITU-Connect-Production-Rollout/1.0",
+    }
+    candidates=[]
+    if TOKEN:
+        candidates.append({**common,"Authorization":"Bearer "+TOKEN})
     if EMAIL and GLOBAL_KEY:
-        return {
+        candidates.append({
+            **common,
             "X-Auth-Email":EMAIL,
             "X-Auth-Key":GLOBAL_KEY,
-            "Accept":"application/json",
-            "Content-Type":"application/json",
-            "User-Agent":"MUSITU-Connect-Production-Rollout/1.0",
-        }
-    if TOKEN:
-        return {
-            "Authorization":"Bearer "+TOKEN,
-            "Accept":"application/json",
-            "Content-Type":"application/json",
-            "User-Agent":"MUSITU-Connect-Production-Rollout/1.0",
-        }
-    fail("no Cloudflare API credential available")
+        })
+    if not candidates:
+        fail("no Cloudflare API credential available")
+    return candidates
 
 def cf_call(path: str, method: str="GET", body=None, *, allow_404: bool=False):
     data=None if body is None else json_bytes(body)
-    req=urllib.request.Request(CF_API+path,headers=cf_headers(),data=data,method=method)
-    try:
-        with urllib.request.urlopen(req,timeout=45) as response:
-            raw=response.read()
-            code=response.status
-    except urllib.error.HTTPError as exc:
-        raw=exc.read()
-        code=exc.code
+    last_code=0
+    last_raw=b""
+    for index,headers in enumerate(cf_header_candidates()):
+        req=urllib.request.Request(CF_API+path,headers=headers,data=data,method=method)
+        try:
+            with urllib.request.urlopen(req,timeout=45) as response:
+                raw=response.read()
+                code=response.status
+        except urllib.error.HTTPError as exc:
+            raw=exc.read()
+            code=exc.code
+        last_code,last_raw=code,raw
+        if code in (401,403) and index+1<len(cf_header_candidates()):
+            continue
+        break
+    code,raw=last_code,last_raw
     if code==404 and allow_404:
         return code,None
     try:
