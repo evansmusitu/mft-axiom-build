@@ -56,3 +56,5 @@ jobs:
             musitu-connect-non-fixture-direct-compute.sha256
           retention-days: 30
           if-no-files-found: error
+
+# Revalidate production backend lane before runtime enablement retry 2026-10-05
