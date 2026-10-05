@@ -5,12 +5,12 @@
   "adapter": "Mining Adapter",
   "axiom": {
     "controlled_integration_allowed": true,
-    "production_integration_allowed": false,
-    "scope": "technical production qualification complete; promotion authorized; runtime enablement remains separate",
-    "reason": "all seven technical production admission controls are qualified and explicit production promotion authorization is recorded. PR #9 merge is not authorized, production runtime enablement is not authorized, and production Axiom integration remains blocked."
+    "production_integration_allowed": true,
+    "scope": "production runtime enabled through separately authorized, canary-first Workers.dev rollout; admission policy remains non-enabling",
+    "reason": "all seven technical controls are qualified, promotion and runtime enablement were explicitly authorized, the isolated canary passed, the production Worker passed health/auth/planning/Axiom execution with exact usage-ledger request-ID correlation, and failed rollout attempts demonstrated automatic rollback. The preferred custom domain remains deferred because the scoped Cloudflare machine-transport rule could not be created without weakening zone security."
   },
   "tests": {
-    "repository_contract_tests": 23,
+    "repository_contract_tests": 26,
     "independent_recheck": "PASS",
     "runtime_recheck": "PASS",
     "infrastructure_e2e": "PASS",
@@ -37,7 +37,14 @@
     "non_fixture_identity_preflight": "SUPERSEDED_BY_DIRECT_COMPUTE_QUALIFICATION",
     "non_fixture_identity_direct_compute": "PASS",
     "axiom_direct_compute_backend_lane": "PASS",
-    "production_promotion_authorization": "PASS_USER_EXPLICIT"
+    "production_promotion_authorization": "PASS_USER_EXPLICIT",
+    "production_runtime_activation_policy": "PASS",
+    "production_runtime_enablement": "PASS",
+    "production_runtime_canary": "PASS",
+    "production_runtime_axiom_execution": "PASS",
+    "production_runtime_usage_ledger_correlation": "PASS",
+    "production_runtime_automatic_rollback": "PASS",
+    "production_runtime_custom_domain": "DEFERRED_ZONE_SECURITY_PERMISSION"
   },
   "qualification_evidence": {
     "source_commit": "c6f6617fdf17a18afbfa21b1aefd6b055ba0ecc2",
@@ -95,17 +102,22 @@
     "ephemeral canary cleanup after operational rehearsal",
     "read-only production identity inventory confirming active non-fixture Axiom customers and API keys without publishing identifiers",
     "self-closing non-fixture identity preflight that requires live canonical Connect-to-Axiom execution and exact usage-ledger request-ID correlation when a dedicated credential is assigned",
-    "explicit production promotion authorization recorded without PR merge or runtime enablement"
+    "explicit production promotion authorization recorded without PR merge or runtime enablement",
+    "separately authorized production runtime activation evidence validation",
+    "canary-first production Workers.dev runtime deployment",
+    "production Connect-to-Axiom arithmetic execution through the dedicated non-fixture service identity",
+    "exact production Connect request-ID correlation into the Axiom usage ledger",
+    "fail-closed production API authentication with unauthenticated planning rejected HTTP 401",
+    "automatic rollback of failed production rollout attempts with created resources removed and no rollback errors"
   ],
   "not_yet_demonstrated": [
     "production mining-system connectors",
     "independent comparative benchmarking",
     "mine-specific predictive accuracy",
-    "production Axiom integration",
     "external production paging / on-call alert delivery",
-    "rollback of an actual production-host Connect deployment"
+    "preferred custom domain connect.musitu.com (deferred until a scoped Cloudflare machine-transport rule can be created without weakening zone security)"
   ],
-  "gate_state": "CONNECT_INFRA_QUALIFIED__CONTROLLED_AXIOM_BRIDGE_QUALIFIED__CREDENTIALED_AXIOM_E2E_QUALIFIED__OAUTH_PKCE_COMPOSED_QUALIFIED__OPERATIONAL_CANARY_REHEARSAL_QUALIFIED__NON_FIXTURE_IDENTITY_QUALIFIED__PRODUCTION_ADMISSION_TECHNICALLY_QUALIFIED__PROMOTION_AUTHORIZED__ENABLEMENT_REMAINS_SEPARATELY_BLOCKED__PRODUCTION_AXIOM_BLOCKED",
+  "gate_state": "CONNECT_INFRA_QUALIFIED__CONTROLLED_AXIOM_BRIDGE_QUALIFIED__CREDENTIALED_AXIOM_E2E_QUALIFIED__OAUTH_PKCE_COMPOSED_QUALIFIED__OPERATIONAL_CANARY_REHEARSAL_QUALIFIED__NON_FIXTURE_IDENTITY_QUALIFIED__PRODUCTION_ADMISSION_TECHNICALLY_QUALIFIED__PROMOTION_AUTHORIZED__RUNTIME_AUTHORIZED__PRODUCTION_RUNTIME_ENABLED",
   "credentialed_axiom_e2e": {
     "schema": "musitu.connect.axiom_credentialed_e2e.v2",
     "source_commit": "ebe9d6c86fd6a69366f85afebca19ceb0fb57ad7",
@@ -159,7 +171,13 @@
     },
     "state": "PRODUCTION_ADMISSION_QUALIFIED__PROMOTION_AUTHORIZED__ENABLEMENT_REMAINS_SEPARATELY_BLOCKED",
     "enablement_permitted": false,
-    "runtime_enablement_boundary": "separate explicit implementation and authorization required after admission; current authorization explicitly excludes PR merge and runtime enablement"
+    "runtime_enablement_boundary": "satisfied by a separate explicit production runtime authorization and verified rollout; the admission policy object itself remains non-enabling",
+    "separate_runtime_activation": {
+      "authorized": true,
+      "enabled": true,
+      "authorization_id": "MUSITU-CONNECT-RUNTIME-AUTH-2026-10-05-001",
+      "policy_enablement_permitted": false
+    }
   },
   "oauth_pkce_qualification": {
     "schema": "musitu.connect.oauth_pkce_composed_qualification.v1",
@@ -306,5 +324,58 @@
     "merge_pr_9_authorized": false,
     "production_runtime_enablement_authorized": false,
     "production_axiom_integration_enablement_authorized": false
+  },
+  "production_runtime_authorization": {
+    "schema": "musitu.connect.production_runtime_authorization.v1",
+    "file": "qualification/evidence/musitu_connect_production_runtime_authorization_2026-10-05.json",
+    "authorization_id": "MUSITU-CONNECT-RUNTIME-AUTH-2026-10-05-001",
+    "authorized_by": "project_owner_explicit_chat_authorization",
+    "authorized_on": "2026-10-05",
+    "merge_pr_9_authorized": false,
+    "fail_closed_controls_required": true,
+    "canary_before_full_activation_required": true,
+    "automatic_rollback_on_failed_production_verification_required": true
+  },
+  "production_runtime": {
+    "enabled": true,
+    "authorization_id": "MUSITU-CONNECT-RUNTIME-AUTH-2026-10-05-001",
+    "gate": "MUSITU_CONNECT_PRODUCTION_RUNTIME_ENABLED",
+    "endpoint": "https://musitu-connect-production.mft-education-nexus-93f395f5.workers.dev",
+    "worker": "musitu-connect-production",
+    "source_commit": "d56e8d3089e4f9aed11ba7011697f9791a160e08",
+    "workflow_run_id": 37361309451,
+    "workflow_run_url": "https://github.com/evansmusitu/mft-axiom-build/actions/runs/37361309451",
+    "artifact_id": 11367280656,
+    "evidence_file": "qualification/evidence/musitu_connect_production_runtime_enablement_2026-10-05.json",
+    "evidence_sha256": "57d74d19b71a5dd36d9e0e4f0ddb421993f157805715d906bc9c98f68f5f88fd",
+    "worker_source_sha256": "8c67a93f48c7acc82135460657aca43a081ce8c01b0bb126cf29108f9c4c2b3a",
+    "canary_pass": true,
+    "production_pass": true,
+    "exact_usage_ledger_request_id_correlation": true,
+    "result_3_348_observed": true,
+    "unauthenticated_plan_http": 401,
+    "authenticated_plan_http": 200,
+    "risk_http": 200,
+    "pr_9_unmerged": true,
+    "main_unchanged": true,
+    "rollback_required": false,
+    "production_axiom_integration_enabled": true,
+    "credentials_published": false,
+    "custom_domain": {
+      "preferred_hostname": "connect.musitu.com",
+      "status": "DEFERRED",
+      "reason": "CLOUDFLARE_SCOPED_MACHINE_TRANSPORT_RULE_PERMISSION_DENIED",
+      "zone_security_weakened": false
+    }
+  },
+  "production_runtime_rollback_evidence": {
+    "file": "qualification/evidence/musitu_connect_production_runtime_rollback_2026-10-05.json",
+    "workflow_run_id": 37358173954,
+    "artifact_id": 11366285541,
+    "rollback_verified": true,
+    "domain_deleted": true,
+    "rule_deleted": true,
+    "worker_deleted": true,
+    "rollback_errors": []
   }
 }
