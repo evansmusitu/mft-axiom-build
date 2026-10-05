@@ -4,7 +4,8 @@ info:
   version: 1.0.0
   description: General-purpose enterprise interoperability and adapter platform.
 servers:
-  - url: https://connect.musitu.com
+  - url: https://musitu-connect-production.mft-education-nexus-93f395f5.workers.dev
+    description: Verified production runtime; preferred connect.musitu.com custom domain is deferred pending scoped Cloudflare transport-rule permission.
 paths:
   /api/mining/plan:
     post:
