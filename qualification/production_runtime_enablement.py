@@ -515,26 +515,46 @@ def main() -> None:
         prod_dir=deploy_worker(PROD_WORKER,production=True,workers_dev=False)
         production_worker_created=True
 
-        _,created_rule=cf_call(
-            f"/zones/{zone_id}/rulesets/{ruleset_id}/rules",
-            "POST",
-            {
-                "action":"set_config",
-                "action_parameters":{"security_level":"essentially_off","bic":False},
-                "expression":host_expr,
-                "description":"MUSITU Connect production machine transport: disable browser challenge only on canonical API hostname; Worker bearer auth remains fail-closed",
-                "enabled":True,
-                "ref":RULE_REF,
-            },
-        )
-        created_rule_id=(created_rule or {}).get("id") if isinstance(created_rule,dict) else None
-        if not created_rule_id:
-            _,new_detail=cf_call(f"/zones/{zone_id}/rulesets/{ruleset_id}")
-            matches=[r for r in ((new_detail or {}).get("rules") or []) if r.get("ref")==RULE_REF]
-            if len(matches)!=1 or not matches[0].get("id"):
-                fail("machine-transport rule creation readback failed")
-            created_rule_id=matches[0]["id"]
-        rule_created=True
+        evidence["machine_transport_rule"]={
+            "requested":True,
+            "created":False,
+            "status":"PENDING",
+        }
+        try:
+            _,created_rule=cf_call(
+                f"/zones/{zone_id}/rulesets/{ruleset_id}/rules",
+                "POST",
+                {
+                    "action":"set_config",
+                    "action_parameters":{"security_level":"essentially_off","bic":False},
+                    "expression":host_expr,
+                    "description":"MUSITU Connect production machine transport: disable browser challenge only on canonical API hostname; Worker bearer auth remains fail-closed",
+                    "enabled":True,
+                    "ref":RULE_REF,
+                },
+            )
+            created_rule_id=(created_rule or {}).get("id") if isinstance(created_rule,dict) else None
+            if not created_rule_id:
+                _,new_detail=cf_call(f"/zones/{zone_id}/rulesets/{ruleset_id}")
+                matches=[r for r in ((new_detail or {}).get("rules") or []) if r.get("ref")==RULE_REF]
+                if len(matches)!=1 or not matches[0].get("id"):
+                    fail("machine-transport rule creation readback failed")
+                created_rule_id=matches[0]["id"]
+            rule_created=True
+            evidence["machine_transport_rule"]={
+                "requested":True,
+                "created":True,
+                "status":"CREATED",
+            }
+        except RuntimeError as exc:
+            message=str(exc)
+            if "HTTP 401" not in message and "HTTP 403" not in message:
+                raise
+            evidence["machine_transport_rule"]={
+                "requested":True,
+                "created":False,
+                "status":"SKIPPED_PERMISSION_DENIED",
+            }
 
         _,created_domain=cf_call(
             f"/accounts/{ACCOUNT_ID}/workers/domains",
@@ -556,20 +576,21 @@ def main() -> None:
             fail("production custom-domain readback mismatch")
         created_domain_id=created_domain_id or domain_rows[0].get("id")
 
-        _,rule_detail=cf_call(f"/zones/{zone_id}/rulesets/{ruleset_id}")
-        matches=[r for r in ((rule_detail or {}).get("rules") or []) if r.get("ref")==RULE_REF]
-        if len(matches)!=1:
-            fail("production machine-transport rule readback mismatch")
-        rr=matches[0]
-        ap=rr.get("action_parameters") or {}
-        if (
-            rr.get("action")!="set_config"
-            or rr.get("expression")!=host_expr
-            or ap.get("security_level")!="essentially_off"
-            or ap.get("bic") is not False
-            or rr.get("enabled") is False
-        ):
-            fail("production machine-transport rule exact contract mismatch")
+        if rule_created:
+            _,rule_detail=cf_call(f"/zones/{zone_id}/rulesets/{ruleset_id}")
+            matches=[r for r in ((rule_detail or {}).get("rules") or []) if r.get("ref")==RULE_REF]
+            if len(matches)!=1:
+                fail("production machine-transport rule readback mismatch")
+            rr=matches[0]
+            ap=rr.get("action_parameters") or {}
+            if (
+                rr.get("action")!="set_config"
+                or rr.get("expression")!=host_expr
+                or ap.get("security_level")!="essentially_off"
+                or ap.get("bic") is not False
+                or rr.get("enabled") is False
+            ):
+                fail("production machine-transport rule exact contract mismatch")
 
         prod_base="https://"+PROD_HOST
         wait_health(prod_base,production=True)
@@ -578,7 +599,7 @@ def main() -> None:
             "health_http":200,
             "custom_domain_attached":True,
             "workers_dev_enabled":False,
-            "scoped_machine_transport_rule":True,
+            "scoped_machine_transport_rule":rule_created,
             "production_axiom_integration_enabled":True,
         })
 
