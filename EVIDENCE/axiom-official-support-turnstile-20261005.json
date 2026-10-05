@@ -1,0 +1,80 @@
+{
+  "schema": "musitu.axiom.official-support-turnstile-evidence.v1",
+  "recorded_at": "2026-10-05T05:39:20Z",
+  "repository": "evansmusitu/mft-axiom-build",
+  "branch": "support/axiom-official-support-20261005",
+  "verified_commit": "f468a73e0dedbb13b126820e4c5a63d4e6cd4667",
+  "scope": "whole_product_official_support_turnstile_and_public_contact",
+  "implementation": {
+    "cloudflare_siteverify_server_side": true,
+    "hostname_bound": "support.mftintelligence.com",
+    "action_bound": "support_case_create",
+    "proof_length_limit": 2048,
+    "verification_timeout_ms": 5000,
+    "fails_closed": true,
+    "customer_narrative_sent_to_turnstile": false,
+    "turnstile_secret_exposed_to_browser": false,
+    "turnstile_secret_exposed_to_repository": false,
+    "public_site_key_only_browser_config": true,
+    "content_security_policy_allows_only_cloudflare_challenge_origin": true,
+    "approved_hostname": "support.mftintelligence.com",
+    "approved_public_contact": "support@mftintelligence.com"
+  },
+  "verification": {
+    "local_node_tests": {
+      "command": "node --test support/tests/*.test.mjs",
+      "passed": 35,
+      "failed": 0
+    },
+    "javascript_syntax_checks": "PASS",
+    "production_secret_literal_gate": "PASS",
+    "github_gate": {
+      "run_id": 37266970361,
+      "commit": "f468a73e0dedbb13b126820e4c5a63d4e6cd4667",
+      "conclusion": "success"
+    }
+  },
+  "deployment": {
+    "publicly_operational": false,
+    "deployment_dispatched": false,
+    "hostname_approved": true,
+    "hostname_live_verified": false,
+    "public_contact_approved": true,
+    "email_delivery_verified": false,
+    "d1_provisioned": false,
+    "turnstile_widget_provisioned": false,
+    "support_data_key_generated": false,
+    "support_data_key_exposed": false,
+    "cloudflare_browser_sign_in": "EXTERNAL_BLOCKER_SITE_REPORTED_UNABLE_TO_SIGN_IN",
+    "blocked_until": [
+      "cloudflare_authenticated_provisioning_access",
+      "publisher_controlled_mailbox_destination",
+      "primary_human_support_owner_identity",
+      "different_independent_approver_identity",
+      "remaining_eleven_gate_operational_evidence"
+    ]
+  },
+  "protected_state": {
+    "main": "d6a846f6bbe0bccac1758713eb4de167caf07113",
+    "pr_1": {
+      "state": "open",
+      "draft": true,
+      "merged": false,
+      "base": "d6a846f6bbe0bccac1758713eb4de167caf07113",
+      "head": "8fc1fbb7c5ebbcc1604ecf24c5f4594f2d5667e3"
+    },
+    "frozen_openai_auth_blob": "8ba0dbc1b6dd1533c6c26bff23991429e03a71a5",
+    "frozen_openai_mcp_v4_blob": "4a1ad37a5e7df0e4d3966e8b5f9f0e8f2db69167",
+    "claude_branch_head": "4d956f415431836018e5145227c8df5bd5fde7d8",
+    "protected_files_modified": false
+  },
+  "claim_boundaries": {
+    "turnstile_live_claimed": false,
+    "support_email_delivery_claimed": false,
+    "credential_or_secret_recorded": false,
+    "human_identity_invented": false,
+    "production_deployed": false,
+    "openai_surface_modified": false,
+    "pr_1_merged": false
+  }
+}

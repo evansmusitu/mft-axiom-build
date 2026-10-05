@@ -7,14 +7,14 @@ on:
     paths:
       - 'support/**'
       - 'SUPPORT.md'
-      - 'EVIDENCE/axiom-official-support-build-*'
+      - 'EVIDENCE/axiom-official-support-*'
       - '.github/workflows/axiom-official-support-gate.yml'
       - '.github/workflows/axiom-official-support-deploy.yml'
   pull_request:
     paths:
       - 'support/**'
       - 'SUPPORT.md'
-      - 'EVIDENCE/axiom-official-support-build-*'
+      - 'EVIDENCE/axiom-official-support-*'
       - '.github/workflows/axiom-official-support-gate.yml'
       - '.github/workflows/axiom-official-support-deploy.yml'
   workflow_dispatch:
