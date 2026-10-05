@@ -284,45 +284,59 @@ async function handleRisk(request, env) {
 
 export default {
   async fetch(request, env) {
-    const url = new URL(request.url);
-    if (request.method === 'GET' && url.pathname === '/health') {
-      return json(200, {
-        ok: true,
-        service: 'MUSITU Connect',
-        release: String(env.RELEASE || 'unknown'),
-        production: String(env.PRODUCTION || 'false') === 'true',
-        axiomIntegrationAllowed: Boolean(env.AXIOM_ACCOUNT_KEY),
+    try {
+      const url = new URL(request.url);
+      if (request.method === 'GET' && url.pathname === '/health') {
+        return json(200, {
+          ok: true,
+          service: 'MUSITU Connect',
+          release: String(env.RELEASE || 'unknown'),
+          production: String(env.PRODUCTION || 'false') === 'true',
+          axiomIntegrationAllowed: Boolean(env.AXIOM_ACCOUNT_KEY),
+        });
+      }
+
+      if (
+        request.method === 'POST' &&
+        (url.pathname === '/api/mining/plan' ||
+          url.pathname === '/api/mining/risk')
+      ) {
+        const auth = await authorize(request, env);
+        if (!auth.configured) {
+          return json(503, {
+            ok: false,
+            error: 'AXIOM_ACCOUNT_KEY_NOT_CONFIGURED',
+          });
+        }
+        if (!auth.authorized) {
+          return json(401, { ok: false, error: 'UNAUTHORIZED' });
+        }
+        try {
+          if (url.pathname === '/api/mining/plan') {
+            return await handlePlan(request);
+          }
+          return await handleRisk(request, env);
+        } catch (error) {
+          const code =
+            error instanceof Error && /^[A-Z0-9_:-]{1,120}$/.test(error.message)
+              ? error.message
+              : 'INVALID_REQUEST';
+          return json(400, { ok: false, error: code });
+        }
+      }
+
+      return json(404, { ok: false, error: 'NOT_FOUND' });
+    } catch (error) {
+      const errorClass =
+        error && typeof error === 'object' && 'name' in error
+          ? String(error.name).slice(0, 80)
+          : 'UnknownError';
+      console.error('MUSITU_CONNECT_WORKER_INTERNAL', errorClass);
+      return json(500, {
+        ok: false,
+        error: 'WORKER_INTERNAL_ERROR',
+        error_class: errorClass,
       });
     }
-
-    if (
-      request.method === 'POST' &&
-      (url.pathname === '/api/mining/plan' ||
-        url.pathname === '/api/mining/risk')
-    ) {
-      const auth = await authorize(request, env);
-      if (!auth.configured) {
-        return json(503, {
-          ok: false,
-          error: 'AXIOM_ACCOUNT_KEY_NOT_CONFIGURED',
-        });
-      }
-      if (!auth.authorized) {
-        return json(401, { ok: false, error: 'UNAUTHORIZED' });
-      }
-      try {
-        if (url.pathname === '/api/mining/plan') {
-          return await handlePlan(request);
-        }
-        return await handleRisk(request, env);
-      } catch (error) {
-        return json(400, {
-          ok: false,
-          error: error instanceof Error ? error.message : 'invalid_request',
-        });
-      }
-    }
-
-    return json(404, { ok: false, error: 'NOT_FOUND' });
   },
 };
