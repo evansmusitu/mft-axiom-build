@@ -101,7 +101,7 @@ export function buildPublicControlPlaneEvidence({database, turnstile, destinatio
     authentication_mode: authMode,
     d1: {name: database.name, uuid: database.uuid, created: database.created},
     turnstile: {sitekey: turnstile.sitekey, created: turnstile.created, exact_domain: SUPPORT_DOMAIN, mode: 'managed', secret_exposed: false, secret_stored: false},
-    email_destination: {fingerprint_sha256: destination.fingerprint, created: destination.created, verified: destination.verified, raw_address_recorded: false},
+    email_destination: {fingerprint_sha256: destination.fingerprint, created: destination.created, verified: destination.verified, status: destination.status || (destination.verified ? 'verified' : 'verification_required'), raw_address_recorded: false},
     owner_ref: String(env.SUPPORT_HUMAN_OWNER_REF || ''),
     independent_approver_ref: String(env.SUPPORT_INDEPENDENT_APPROVER_REF || ''),
     worker: {name: SUPPORT_WORKER_NAME, bootstrap_deployed: false, custom_domain_attached: false, workers_dev_enabled: false},
@@ -132,10 +132,17 @@ export async function prepare(env = process.env, fetchImpl = fetch) {
   const sentinel = await readFile(new URL('../PROVISION_CLOUDFLARE_CONTROL_PLANE.authorized', import.meta.url), 'utf8');
   if (sentinel !== 'PROVISION_MUSITU_AXIOM_SUPPORT_CONTROL_PLANE\n') throw new Error('support control-plane authorization file is invalid');
   const credential = await selectCloudflareCredential({fetchImpl, env, preferGlobal: true});
-  if (credential.mode !== 'global_api_key') throw new Error('authorized Cloudflare global-key credential path is unavailable');
   const database = await ensureSupportD1({fetchImpl, headers: credential.headers});
   const turnstile = await ensureSupportTurnstile({fetchImpl, headers: credential.headers});
-  const destination = await ensureSupportEmailDestination({fetchImpl, headers: credential.headers, email: env.SUPPORT_MAILBOX_DESTINATION});
+  let destination;
+  try {
+    destination = await ensureSupportEmailDestination({fetchImpl, headers: credential.headers, email: env.SUPPORT_MAILBOX_DESTINATION});
+  } catch (error) {
+    if (error?.status !== 403) throw error;
+    const normalized = String(env.SUPPORT_MAILBOX_DESTINATION || '').trim().toLowerCase();
+    if (!EMAIL.test(normalized)) throw new Error('approved support mailbox destination is invalid');
+    destination = {fingerprint: sha256(normalized), created: false, verified: false, status: 'api_permission_blocked'};
+  }
   const publicEvidence = buildPublicControlPlaneEvidence({database, turnstile, destination, authMode: credential.mode, env});
   const privatePath = env.SUPPORT_PRIVATE_STATE || 'support-control-plane.private.json';
   const publicPath = env.SUPPORT_PUBLIC_EVIDENCE || 'support-control-plane.public.json';
@@ -156,7 +163,6 @@ export async function finalize(env = process.env, fetchImpl = fetch) {
     if ((info.mode & 0o077) !== 0) throw new Error('private support provisioning state permissions are unsafe');
     state = JSON.parse(await readFile(privatePath, 'utf8'));
     const credential = await selectCloudflareCredential({fetchImpl, env, preferGlobal: true});
-    if (credential.mode !== 'global_api_key') throw new Error('authorized Cloudflare global-key credential path is unavailable');
     await cloudflareRequest({fetchImpl, headers: credential.headers, path: `/accounts/${SUPPORT_ACCOUNT_ID}/workers/scripts/${SUPPORT_WORKER_NAME}/settings`});
     await putWorkerSecret({fetchImpl, headers: credential.headers, name: 'TURNSTILE_SECRET_KEY', value: state.turnstile_secret});
     const dataKey = randomBytes(32).toString('base64');

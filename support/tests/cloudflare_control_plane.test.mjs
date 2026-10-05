@@ -77,5 +77,6 @@ test('public control-plane evidence excludes email addresses and secret values',
   const serialized = JSON.stringify(evidence);
   assert.equal(evidence.turnstile.secret_exposed, false);
   assert.equal(evidence.email_destination.raw_address_recorded, false);
+  assert.equal(evidence.email_destination.status, 'verification_required');
   assert.doesNotMatch(serialized, /private-value|@example|turnstile_secret/i);
 });

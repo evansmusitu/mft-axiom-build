@@ -6,6 +6,7 @@ on:
       - 'support/axiom-official-support-20261005'
     paths:
       - 'support/PROVISION_CLOUDFLARE_CONTROL_PLANE.authorized'
+      - 'support/PROVISION_CLOUDFLARE_CONTROL_PLANE_RETRY_1.authorized'
   workflow_dispatch:
     inputs:
       authorization:
@@ -67,6 +68,7 @@ jobs:
       - name: Prepare D1, exact Turnstile and approved email destination
         env:
           CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
           SUPPORT_MAILBOX_DESTINATION: ${{ secrets.CLOUDFLARE_EMAIL }}
         run: |
@@ -79,20 +81,24 @@ jobs:
         env:
           CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
           CLOUDFLARE_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
         run: npx --yes wrangler@4 deploy --config support-wrangler.bootstrap.json
       - name: Generate and store support secrets with zero value output
         env:
           CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
         run: node support/scripts/provision_cloudflare_control_plane.mjs finalize
       - name: Apply append-only support schema
         env:
           CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
           CLOUDFLARE_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
         run: npx --yes wrangler@4 d1 execute SUPPORT_DB --remote --config support-wrangler.bootstrap.json --file support/schema.sql
       - name: Verify non-public isolation and seal safe evidence
         env:
           CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
         run: |
           set -euo pipefail
