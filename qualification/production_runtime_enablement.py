@@ -406,17 +406,30 @@ def main() -> None:
     if (feature_branch.get("commit") or {}).get("sha")!=GITHUB_SHA:
         fail("workflow source is not current feature head")
 
+    requested_zone=ZONE_NAME
+    requested_host=PROD_HOST
     _,zones=cf_call(
         "/zones?"+urllib.parse.urlencode(
             {"name":ZONE_NAME,"account.id":ACCOUNT_ID,"status":"active"}
         )
     )
+    hostname_fallback_used=False
     if not isinstance(zones,list) or len(zones)!=1:
-        fail("musitu.com active zone is not unique")
+        if ZONE_NAME=="musitu.com" and PROD_HOST=="connect.musitu.com":
+            ZONE_NAME="mftintelligence.com"
+            PROD_HOST="connect.mftintelligence.com"
+            hostname_fallback_used=True
+            _,zones=cf_call(
+                "/zones?"+urllib.parse.urlencode(
+                    {"name":ZONE_NAME,"account.id":ACCOUNT_ID,"status":"active"}
+                )
+            )
+        if not isinstance(zones,list) or len(zones)!=1:
+            fail("no unique active Cloudflare zone is available for Connect production")
     zone=zones[0]
     zone_id=zone.get("id")
     if (zone.get("account") or {}).get("id")!=ACCOUNT_ID or not zone_id:
-        fail("musitu.com zone/account mismatch")
+        fail("Connect production zone/account mismatch")
 
     if worker_exists(PROD_WORKER):
         fail("production Connect Worker already exists; refusing unknown-state overwrite")
@@ -457,7 +470,11 @@ def main() -> None:
         "source_commit":GITHUB_SHA,
         "workflow_run_id":os.environ.get("GITHUB_RUN_ID"),
         "worker_source_sha256":source_sha,
+        "requested_hostname":requested_host,
+        "requested_zone":requested_zone,
         "canonical_hostname":PROD_HOST,
+        "zone_name":ZONE_NAME,
+        "hostname_fallback_used":hostname_fallback_used,
         "production_worker":PROD_WORKER,
         "sealed_main_sha":SEALED_MAIN_SHA,
         "pr_9_unmerged":True,
