@@ -47,7 +47,8 @@ jobs:
           test "$GITHUB_REF_NAME" != 'main'
           test "$SUPPORT_CLOUDFLARE_CONFIRM" = 'PROVISION_MUSITU_AXIOM_SUPPORT_D1'
           test -f support/PROVISION_CLOUDFLARE_D1.authorized
-          test "$(cat support/PROVISION_CLOUDFLARE_D1.authorized)" = 'PROVISION_MUSITU_AXIOM_SUPPORT_D1'
+          IFS= read -r support_authorization < support/PROVISION_CLOUDFLARE_D1.authorized
+          test "$support_authorization" = 'PROVISION_MUSITU_AXIOM_SUPPORT_D1'
           if [ "$GITHUB_EVENT_NAME" = 'workflow_dispatch' ]; then
             test "$GITHUB_SHA" = '${{ inputs.expected_commit }}'
           else
@@ -67,5 +68,5 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          node -e "const e=require('./musitu-axiom-support-cloudflare-provision.json'); const h=require('node:fs').readFileSync('./musitu-axiom-support-cloudflare-provision.json.sha256','utf8').split(' ')[0]; process.stdout.write(['### MUSITU Axiom support D1 provisioning', '', '- Gate: `MUSITU_AXIOM_SUPPORT_D1_PROVISIONED`', '- Database: `'+e.d1.name+'`', '- Database UUID: `'+e.d1.uuid+'`', '- Created in this run: `'+e.d1.created+'`', '- Authentication mode: `'+e.authentication_mode+'`', '- Evidence SHA-256: `'+h+'`', '- Secrets exposed: `false`', '- Public deployment performed: `false`'].join('\n')+'\n')" >> "$GITHUB_STEP_SUMMARY"
+          node -e 'const e=require("./musitu-axiom-support-cloudflare-provision.json"); const h=require("node:fs").readFileSync("./musitu-axiom-support-cloudflare-provision.json.sha256","utf8").split(" ")[0]; process.stdout.write(["### MUSITU Axiom support D1 provisioning", "", "- Gate: MUSITU_AXIOM_SUPPORT_D1_PROVISIONED", "- Database: "+e.d1.name, "- Database UUID: "+e.d1.uuid, "- Created in this run: "+e.d1.created, "- Authentication mode: "+e.authentication_mode, "- Evidence SHA-256: "+h, "- Secrets exposed: false", "- Public deployment performed: false"].join("\n")+"\n")' >> "$GITHUB_STEP_SUMMARY"
           rm musitu-axiom-support-cloudflare-provision.json musitu-axiom-support-cloudflare-provision.json.sha256
