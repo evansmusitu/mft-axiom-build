@@ -1,14 +1,6 @@
 name: MUSITU Connect production runtime enablement
 
 on:
-  push:
-    branches: ['feat/musitu-connect-frontier']
-    paths:
-      - 'connect/production_worker.mjs'
-      - 'tests/connect/test_production_worker.mjs'
-      - 'qualification/production_runtime_enablement.py'
-      - 'qualification/evidence/musitu_connect_production_runtime_authorization_2026-10-05.json'
-      - '.github/workflows/musitu-connect-production-runtime-enablement.yml'
   workflow_dispatch:
 
 permissions:
