@@ -33,6 +33,29 @@ function normalizeDns(records) {
   })).sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b)));
 }
 
+function mailRecordKey(row) {
+  const name = row.name === '@' ? SUPPORT_ZONE_NAME : row.name;
+  return JSON.stringify({type: row.type, name, content: row.content.toLowerCase().replace(/\.$/, ''), priority: row.priority});
+}
+
+function sameRecordSet(left, right) {
+  const a = left.map(mailRecordKey).sort();
+  const b = right.map(mailRecordKey).sort();
+  return a.length === b.length && a.every((value, index) => value === b[index]);
+}
+
+function classifyMxProvider(records) {
+  if (!records.length) return 'none';
+  const values = records.map(row => row.content.toLowerCase().replace(/\.$/, ''));
+  if (values.every(value => value.endsWith('.mx.cloudflare.net'))) return 'cloudflare_email_routing';
+  if (values.every(value => value.endsWith('.google.com') || value.endsWith('.googlemail.com'))) return 'google_workspace';
+  if (values.every(value => value.endsWith('.outlook.com') || value.endsWith('.protection.outlook.com'))) return 'microsoft_365';
+  if (values.every(value => value.includes('.zoho.'))) return 'zoho_mail';
+  if (values.every(value => value.endsWith('.registrar-servers.com'))) return 'namecheap_mail';
+  if (values.every(value => value.endsWith('.forwardemail.net'))) return 'forward_email';
+  return 'other_or_mixed';
+}
+
 async function safeCloudflareRead({fetchImpl, headers, path}) {
   try {
     const payload = await cloudflareRequest({fetchImpl, headers, path});
@@ -75,12 +98,13 @@ function scrubbedRule(rule, destinationEmail) {
 }
 
 export function buildEmailRoutingEvidence(input) {
-  const allowed = new Set(['destinationEmail', 'destination', 'routing', 'rules', 'customDomains', 'dnsByName', 'authMode', 'env', 'now']);
+  const allowed = new Set(['destinationEmail', 'destination', 'routing', 'requiredDns', 'rules', 'customDomains', 'dnsByName', 'authMode', 'env', 'now']);
   for (const key of Object.keys(input)) if (!allowed.has(key)) throw new Error(`unexpected evidence input ${key}`);
   const {
     destinationEmail,
     destination,
     routing,
+    requiredDns,
     rules,
     customDomains,
     dnsByName,
@@ -106,6 +130,9 @@ export function buildEmailRoutingEvidence(input) {
   const rootDns = rootDnsRead.ok && Array.isArray(rootDnsRead.result) ? normalizeDns(rootDnsRead.result) : [];
   const mx = rootDns.filter(row => row.type === 'MX');
   const spf = rootDns.filter(row => row.type === 'TXT' && row.content.trim().toLowerCase().startsWith('v=spf1'));
+  const requiredRows = requiredDns.ok && Array.isArray(requiredDns.result) ? normalizeDns(requiredDns.result) : [];
+  const requiredMx = requiredRows.filter(row => row.type === 'MX');
+  const requiredSpf = requiredRows.filter(row => row.type === 'TXT' && row.content.trim().toLowerCase().startsWith('v=spf1'));
   const supportDns = supportDnsRead.ok && Array.isArray(supportDnsRead.result) ? normalizeDns(supportDnsRead.result) : [];
   const protectedDnsReads = PROTECTED_OPENAI_HOSTS.map(host => [host, dnsByName.get(host) || {ok: false, http_status: 0, result: null}]);
   const protectedDnsReadable = protectedDnsReads.every(([, value]) => value.ok);
@@ -116,8 +143,9 @@ export function buildEmailRoutingEvidence(input) {
     record_count: value.ok && Array.isArray(value.result) ? value.result.length : 0,
     fingerprint_sha256: value.ok && Array.isArray(value.result) ? fingerprint(normalizeDns(value.result)) : null,
   }));
-  const allRequiredReads = routing.ok && rules.ok && customDomains.ok && rootDnsRead.ok && supportDnsRead.ok && protectedDnsReadable;
+  const allRequiredReads = routing.ok && requiredDns.ok && rules.ok && customDomains.ok && rootDnsRead.ok && supportDnsRead.ok && protectedDnsReadable;
   const safeToCreate = destination.read_access === true && destination.verified === true && routingReady && allRequiredReads && supportRules.length === 0;
+  const migrationSafe = destination.read_access === true && destination.verified === true && routing.ok && requiredDns.ok && rules.ok && conflictingRules.length === 0 && protectedDnsReadable && requiredMx.length > 0 && requiredSpf.length > 0;
 
   return {
     schema: 'musitu.axiom.official-support-email-routing-preflight.v1',
@@ -142,6 +170,21 @@ export function buildEmailRoutingEvidence(input) {
       enabled: routingEnabled,
       status: routingStatus,
       ready: routingReady,
+    },
+    email_routing_migration: {
+      required_dns_read_access: requiredDns.ok,
+      required_dns_http_status: requiredDns.http_status,
+      current_mx_provider: classifyMxProvider(mx),
+      current_mx_count: mx.length,
+      required_mx_count: requiredMx.length,
+      current_spf_count: spf.length,
+      required_spf_count: requiredSpf.length,
+      current_mail_fingerprint_sha256: rootDnsRead.ok ? fingerprint({mx, spf}) : null,
+      required_mail_fingerprint_sha256: requiredDns.ok ? fingerprint({mx: requiredMx, spf: requiredSpf}) : null,
+      would_change_mx: requiredDns.ok && rootDnsRead.ok ? !sameRecordSet(mx, requiredMx) : null,
+      would_change_spf: requiredDns.ok && rootDnsRead.ok ? !sameRecordSet(spf, requiredSpf) : null,
+      safe_to_apply_endpoint: migrationSafe,
+      endpoint_write_performed: false,
     },
     support_rule: {
       alias_fingerprint_sha256: sha256(SUPPORT_EMAIL_ALIAS),
@@ -203,8 +246,9 @@ export async function inspectEmailRouting({env = process.env, fetchImpl = fetch,
     match_count: matches.length,
     verified: matches.length === 1 && (matches[0]?.verified === true || (typeof matches[0]?.verified === 'string' && matches[0].verified.length > 0)),
   };
-  const [routing, rules, customDomains] = await Promise.all([
+  const [routing, requiredDns, rules, customDomains] = await Promise.all([
     safeCloudflareRead({fetchImpl, headers: credential.headers, path: `/zones/${SUPPORT_ZONE_ID}/email/routing`}),
+    safeCloudflareRead({fetchImpl, headers: credential.headers, path: `/zones/${SUPPORT_ZONE_ID}/email/routing/dns`}),
     safeCloudflareRead({fetchImpl, headers: credential.headers, path: `/zones/${SUPPORT_ZONE_ID}/email/routing/rules?page=1&per_page=50`}),
     safeCloudflareRead({fetchImpl, headers: credential.headers, path: `/accounts/${SUPPORT_ACCOUNT_ID}/workers/domains`}),
   ]);
@@ -218,6 +262,7 @@ export async function inspectEmailRouting({env = process.env, fetchImpl = fetch,
     destinationEmail,
     destination,
     routing,
+    requiredDns,
     rules,
     customDomains,
     dnsByName: new Map(dnsRows),

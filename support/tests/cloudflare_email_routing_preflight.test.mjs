@@ -12,12 +12,21 @@ function response(status, payload) {
 
 const destination = 'approved-destination@example.test';
 
-function mockCloudflare({verified = '2026-10-05T18:00:00Z', routingEnabled = true, routingStatus = 'ready', rules = []} = {}) {
+const requiredDns = [
+  {type: 'MX', name: 'mftintelligence.com', content: 'route1.mx.cloudflare.net', priority: 12, ttl: 1},
+  {type: 'MX', name: 'mftintelligence.com', content: 'route2.mx.cloudflare.net', priority: 67, ttl: 1},
+  {type: 'MX', name: 'mftintelligence.com', content: 'route3.mx.cloudflare.net', priority: 84, ttl: 1},
+  {type: 'TXT', name: 'mftintelligence.com', content: 'v=spf1 include:_spf.mx.cloudflare.net ~all', ttl: 1},
+];
+
+function mockCloudflare({verified = '2026-10-05T18:00:00Z', routingEnabled = true, routingStatus = 'ready', rules = [], rootRecords = [], desiredRecords = requiredDns} = {}) {
   return async url => {
     if (url.includes('/email/routing/addresses')) return response(200, {success: true, result: [{id: 'destination-1', email: destination, verified}]});
+    if (url.endsWith('/email/routing/dns')) return response(200, {success: true, result: desiredRecords});
     if (url.endsWith('/email/routing')) return response(200, {success: true, result: {enabled: routingEnabled, status: routingStatus}});
     if (url.includes('/email/routing/rules')) return response(200, {success: true, result: rules});
     if (url.includes('/workers/domains')) return response(200, {success: true, result: []});
+    if (url.includes('/dns_records') && url.includes('name=mftintelligence.com')) return response(200, {success: true, result: rootRecords});
     if (url.includes('/dns_records')) return response(200, {success: true, result: []});
     if (url.includes('/workers/subdomain')) return response(200, {success: true, result: {subdomain: 'example'}});
     throw new Error(`unexpected URL ${url}`);
@@ -42,9 +51,30 @@ test('verified destination and ready routing permit only the exact support-rule 
   assert.equal(evidence.email_routing.status, 'ready');
   assert.equal(evidence.support_rule.exact_present, false);
   assert.equal(evidence.support_rule.safe_to_create, true);
+  assert.equal(evidence.email_routing_migration.required_dns_read_access, true);
+  assert.equal(evidence.email_routing_migration.current_mx_provider, 'none');
+  assert.equal(evidence.email_routing_migration.would_change_mx, true);
   assert.equal(evidence.write_performed, false);
   assert.equal(evidence.openai_surface_modified, false);
   assert.doesNotMatch(JSON.stringify(evidence), /approved-destination@example\.test/);
+});
+
+test('migration planner recognizes an exact existing Cloudflare mail record set', async () => {
+  const evidence = await inspectEmailRouting({
+    fetchImpl: mockCloudflare({routingEnabled: false, routingStatus: 'unconfigured', rootRecords: requiredDns}),
+    env: {
+      GITHUB_REPOSITORY: 'evansmusitu/mft-axiom-build',
+      GITHUB_REF_NAME: 'support/axiom-official-support-20261005',
+      GITHUB_SHA: 'f'.repeat(40),
+      SUPPORT_EMAIL_ROUTING_CONFIRM: 'VERIFY_MUSITU_AXIOM_SUPPORT_EMAIL_ROUTING',
+      SUPPORT_MAILBOX_DESTINATION: destination,
+      CLOUDFLARE_API_TOKEN: 'masked-token',
+    },
+  });
+  assert.equal(evidence.email_routing_migration.current_mx_provider, 'cloudflare_email_routing');
+  assert.equal(evidence.email_routing_migration.would_change_mx, false);
+  assert.equal(evidence.email_routing_migration.would_change_spf, false);
+  assert.equal(evidence.email_routing_migration.safe_to_apply_endpoint, true);
 });
 
 test('an exact existing support rule is recognized without requesting a duplicate', async () => {
@@ -96,6 +126,7 @@ test('public evidence rejects raw private destination material', () => {
     destinationEmail: destination,
     destination: {verified: true, fingerprint: 'd'.repeat(64)},
     routing: {ok: true, result: {enabled: true, status: 'ready'}},
+    requiredDns: {ok: true, result: requiredDns},
     rules: {ok: true, result: []},
     customDomains: {ok: true, result: []},
     dnsByName: new Map(),
