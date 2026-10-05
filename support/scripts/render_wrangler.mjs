@@ -19,6 +19,8 @@ export function validateDeploymentConfig(value) {
   if (!TURNSTILE_SITE_KEY.test(value.turnstileSiteKey || '')) errors.push('turnstileSiteKey must be a public Cloudflare Turnstile site key');
   if (!DOMAIN.test(value.supportDomain || '')) errors.push('supportDomain must be a controlled mftintelligence.com hostname');
   if (!OWNER.test(value.humanOwnerRef || '')) errors.push('humanOwnerRef must be an opaque owner reference');
+  if (!OWNER.test(value.independentApproverRef || '')) errors.push('independentApproverRef must be an opaque approver reference');
+  if (value.humanOwnerRef && value.independentApproverRef && value.humanOwnerRef === value.independentApproverRef) errors.push('owner and approver must be different people');
   if (!HASH.test(value.readinessSha256 || '')) errors.push('readinessSha256 must be a SHA-256 digest');
   if (errors.length) throw new TypeError(errors.join('; '));
   return value;
@@ -33,6 +35,7 @@ export function renderWranglerTemplate(template, input) {
     '__TURNSTILE_SITE_KEY__': value.turnstileSiteKey,
     '__SUPPORT_DOMAIN__': value.supportDomain,
     '__HUMAN_OWNER_REF__': value.humanOwnerRef,
+    '__INDEPENDENT_APPROVER_REF__': value.independentApproverRef,
     '__READINESS_SHA256__': value.readinessSha256.toLowerCase(),
   };
   let rendered = template;
@@ -52,6 +55,7 @@ async function main() {
     turnstileSiteKey: process.env.SUPPORT_TURNSTILE_SITE_KEY,
     supportDomain: process.env.SUPPORT_DOMAIN,
     humanOwnerRef: process.env.SUPPORT_HUMAN_OWNER_REF,
+    independentApproverRef: process.env.SUPPORT_INDEPENDENT_APPROVER_REF,
     readinessSha256: process.env.SUPPORT_READINESS_SHA256,
   };
   const rendered = renderWranglerTemplate(await readFile(templatePath, 'utf8'), input);

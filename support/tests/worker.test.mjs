@@ -16,6 +16,19 @@ test('production health fails closed until storage, key and Turnstile configurat
   const body = await response.json();
   assert.equal(body.status, 'NOT_READY');
   assert.equal(body.secure_storage, false);
+  assert.equal(body.independent_approver, false);
+});
+
+test('production health rejects the same person as owner and approver', async () => {
+  const env = {
+    ENVIRONMENT: 'production', SUPPORT_DB: {}, SUPPORT_DATA_KEY_B64: 'present', SUPPORT_DOMAIN: 'support.example',
+    TURNSTILE_SITE_KEY: '0x4AAAAAAAAAAAAAAAAAAAAAA', TURNSTILE_SECRET_KEY: 'present',
+    SUPPORT_HUMAN_OWNER_REF: 'person_one_12345678', SUPPORT_INDEPENDENT_APPROVER_REF: 'person_one_12345678',
+    SUPPORT_READINESS_SHA256: 'a'.repeat(64),
+  };
+  const response = await handleSupportRequest(new Request('https://support.example/health'), env);
+  assert.equal(response.status, 503);
+  assert.equal((await response.json()).independent_approver, false);
 });
 
 test('production case creation rejects missing Turnstile proof before touching storage', async () => {

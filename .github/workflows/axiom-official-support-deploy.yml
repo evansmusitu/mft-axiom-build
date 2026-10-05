@@ -38,6 +38,7 @@ jobs:
       SUPPORT_D1_DATABASE_ID: ${{ vars.SUPPORT_D1_DATABASE_ID }}
       SUPPORT_TURNSTILE_SITE_KEY: ${{ vars.SUPPORT_TURNSTILE_SITE_KEY }}
       SUPPORT_HUMAN_OWNER_REF: ${{ vars.SUPPORT_HUMAN_OWNER_REF }}
+      SUPPORT_INDEPENDENT_APPROVER_REF: ${{ vars.SUPPORT_INDEPENDENT_APPROVER_REF }}
       SUPPORT_READINESS_SHA256: ${{ vars.SUPPORT_READINESS_SHA256 }}
       SUPPORT_DOMAIN: ${{ inputs.support_domain }}
     steps:
@@ -71,6 +72,6 @@ jobs:
         shell: bash
         run: |
           curl --fail --silent --show-error --proto '=https' "https://${SUPPORT_DOMAIN}/health" > support-health.json
-          node -e "const h=require('./support-health.json'); if(h.status!=='READY'||!h.secure_storage||!h.abuse_gate||!h.turnstile||!h.human_owner||!h.readiness_evidence) process.exit(1)"
+          node -e "const h=require('./support-health.json'); if(h.status!=='READY'||!h.secure_storage||!h.abuse_gate||!h.turnstile||!h.human_owner||!h.independent_approver||!h.readiness_evidence) process.exit(1)"
           curl --fail --silent --show-error --proto '=https' "https://${SUPPORT_DOMAIN}/" | grep -q 'MUSITU Axiom Support'
           rm support-health.json support-wrangler.generated.json
