@@ -145,7 +145,7 @@ export function buildEmailRoutingEvidence(input) {
   }));
   const allRequiredReads = routing.ok && requiredDns.ok && rules.ok && customDomains.ok && rootDnsRead.ok && supportDnsRead.ok && protectedDnsReadable;
   const safeToCreate = destination.read_access === true && destination.verified === true && routingReady && allRequiredReads && supportRules.length === 0;
-  const migrationSafe = destination.read_access === true && destination.verified === true && routing.ok && requiredDns.ok && rules.ok && conflictingRules.length === 0 && protectedDnsReadable && requiredMx.length > 0 && requiredSpf.length > 0;
+  const migrationSafe = destination.read_access === true && destination.verified === true && routing.ok && requiredDns.ok && rules.ok && conflictingRules.length === 0 && protectedDnsReadable && requiredMx.length > 0;
 
   return {
     schema: 'musitu.axiom.official-support-email-routing-preflight.v1',

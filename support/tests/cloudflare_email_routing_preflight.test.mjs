@@ -135,3 +135,21 @@ test('public evidence rejects raw private destination material', () => {
     unsafeDebugValue: destination,
   }), /unexpected evidence input/);
 });
+
+test('migration planner accepts Cloudflare current MX-only required DNS response', async () => {
+  const mxOnly = requiredDns.filter(row => row.type === 'MX');
+  const evidence = await inspectEmailRouting({
+    fetchImpl: mockCloudflare({routingEnabled: false, routingStatus: 'unconfigured', rootRecords: [], desiredRecords: mxOnly}),
+    env: {
+      GITHUB_REPOSITORY: 'evansmusitu/mft-axiom-build',
+      GITHUB_REF_NAME: 'support/axiom-official-support-20261005',
+      GITHUB_SHA: '1'.repeat(40),
+      SUPPORT_EMAIL_ROUTING_CONFIRM: 'VERIFY_MUSITU_AXIOM_SUPPORT_EMAIL_ROUTING',
+      SUPPORT_MAILBOX_DESTINATION: destination,
+      CLOUDFLARE_API_TOKEN: 'masked-token',
+    },
+  });
+  assert.equal(evidence.email_routing_migration.required_mx_count, 3);
+  assert.equal(evidence.email_routing_migration.required_spf_count, 0);
+  assert.equal(evidence.email_routing_migration.safe_to_apply_endpoint, true);
+});

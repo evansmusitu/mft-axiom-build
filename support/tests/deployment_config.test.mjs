@@ -55,3 +55,16 @@ test('bootstrap rendering removes every public route and does not claim readines
   assert.equal(parsed.routes, undefined);
   assert.equal(parsed.workers_dev, false);
 });
+
+test('email-routing migration workflow is isolated, exact-commit-gated and never exposes retired mailbox addresses', async () => {
+  const workflow = await readFile(resolve(root, '..', '.github', 'workflows', 'axiom-official-support-email-routing-migration.yml'), 'utf8');
+  assert.match(workflow, /support\/axiom-official-support-20261005/);
+  assert.match(workflow, /expected_commit/);
+  assert.match(workflow, /MIGRATE_MUSITU_AXIOM_EMAIL_ROUTING/);
+  assert.match(workflow, /RETIRE_UNUSED_ZOHO_TEST_MAILBOXES/);
+  assert.match(workflow, /node support\/scripts\/migrate_cloudflare_email_routing\.mjs/);
+  assert.match(workflow, /CLOUDFLARE_API_TOKEN:\s*\$\{\{ secrets\.CLOUDFLARE_API_TOKEN \}\}/);
+  assert.match(workflow, /SUPPORT_MAILBOX_DESTINATION:\s*\$\{\{ secrets\.CLOUDFLARE_EMAIL \}\}/);
+  assert.doesNotMatch(workflow, /evans(?:\.musitu)?@mftintelligence\.com/);
+  assert.doesNotMatch(workflow, /branches:\s*\n\s*-\s*['"]?main/);
+});

@@ -1,0 +1,160 @@
+import assert from 'node:assert/strict';
+import test from 'node:test';
+import {migrateEmailRouting} from '../scripts/migrate_cloudflare_email_routing.mjs';
+
+function response(status, payload) {
+  return {ok: status >= 200 && status < 300, status, async json() { return payload; }};
+}
+
+const destination = 'approved-destination@example.test';
+const zone = 'mftintelligence.com';
+const supportAlias = 'support@mftintelligence.com';
+const zoho = [
+  {id: 'zoho-1', type: 'MX', name: zone, content: 'mx.zoho.com', priority: 10, ttl: 3600},
+  {id: 'zoho-2', type: 'MX', name: zone, content: 'mx2.zoho.com', priority: 20, ttl: 3600},
+  {id: 'zoho-3', type: 'MX', name: zone, content: 'mx3.zoho.com', priority: 50, ttl: 3600},
+];
+const required = [
+  {type: 'MX', name: zone, content: 'route1.mx.cloudflare.net', priority: 12, ttl: 1},
+  {type: 'MX', name: zone, content: 'route2.mx.cloudflare.net', priority: 67, ttl: 1},
+  {type: 'MX', name: zone, content: 'route3.mx.cloudflare.net', priority: 84, ttl: 1},
+];
+const protectedHosts = new Map([
+  ['auth.mftintelligence.com', [{id: 'a', type: 'A', name: 'auth.mftintelligence.com', content: '192.0.2.10'}]],
+  ['mcp.mftintelligence.com', [{id: 'b', type: 'A', name: 'mcp.mftintelligence.com', content: '192.0.2.11'}]],
+  ['claude-auth.mftintelligence.com', [{id: 'c', type: 'A', name: 'claude-auth.mftintelligence.com', content: '192.0.2.12'}]],
+  ['claude-mcp.mftintelligence.com', [{id: 'd', type: 'A', name: 'claude-mcp.mftintelligence.com', content: '192.0.2.13'}]],
+]);
+
+function env() {
+  return {
+    GITHUB_REPOSITORY: 'evansmusitu/mft-axiom-build',
+    GITHUB_REF_NAME: 'support/axiom-official-support-20261005',
+    GITHUB_SHA: '9'.repeat(40),
+    SUPPORT_EMAIL_ROUTING_MIGRATION_CONFIRM: 'MIGRATE_MUSITU_AXIOM_EMAIL_ROUTING',
+    SUPPORT_ZOHO_RETIREMENT_CONFIRM: 'RETIRE_UNUSED_ZOHO_TEST_MAILBOXES',
+    SUPPORT_MAILBOX_DESTINATION: destination,
+    CLOUDFLARE_API_TOKEN: 'masked-token',
+  };
+}
+
+function mockCloudflare({unverified = false, mutateProtectedAfterCutover = false, unsafeCatchAll = false, unrelatedRule = false} = {}) {
+  const calls = [];
+  let routing = {enabled: false, status: 'unconfigured'};
+  let root = structuredClone(zoho);
+  let rules = unrelatedRule ? [{id: 'unexpected-rule', enabled: true, matchers: [{type: 'literal', field: 'to', value: 'legacy@mftintelligence.com'}], actions: [{type: 'forward', value: [destination]}]}] : [];
+  let nextDnsId = 100;
+  let cutover = false;
+  const protectedState = new Map([...protectedHosts].map(([k, v]) => [k, structuredClone(v)]));
+
+  const fetchImpl = async (url, options = {}) => {
+    const method = options.method || 'GET';
+    const u = new URL(url);
+    const path = `${u.pathname}${u.search}`;
+    const body = options.body ? JSON.parse(options.body) : undefined;
+    calls.push({method, path, body});
+
+    if (u.pathname.endsWith('/workers/subdomain')) return response(200, {success: true, result: {subdomain: 'example'}});
+    if (u.pathname.includes('/email/routing/addresses')) {
+      return response(200, {success: true, result: [{id: 'destination-1', email: destination, verified: unverified ? null : '2026-10-05T18:00:00Z'}]});
+    }
+    if (u.pathname.endsWith('/email/routing/dns') && method === 'GET') return response(200, {success: true, result: required});
+    if (u.pathname.endsWith('/email/routing/dns') && method === 'POST') {
+      cutover = true;
+      routing = {enabled: true, status: 'ready'};
+      root = required.map((r, i) => ({id: `cf-${i}`, ...r}));
+      return response(200, {success: true, result: {...routing, name: zone}});
+    }
+    if (u.pathname.endsWith('/email/routing/dns') && method === 'DELETE') {
+      cutover = false;
+      routing = {enabled: false, status: 'unconfigured'};
+      root = [];
+      return response(200, {success: true, result: {...routing, name: zone}});
+    }
+    if (u.pathname.endsWith('/email/routing') && method === 'GET') return response(200, {success: true, result: routing});
+    if (u.pathname.endsWith('/email/routing/rules/catch_all') && method === 'GET') {
+      return response(200, {success: true, result: unsafeCatchAll
+        ? {enabled: true, matchers: [{type: 'all'}], actions: [{type: 'forward', value: [destination]}]}
+        : {enabled: false, matchers: [{type: 'all'}], actions: [{type: 'drop'}]}});
+    }
+    if (u.pathname.includes('/email/routing/rules') && method === 'GET') return response(200, {success: true, result: rules});
+    if (u.pathname.endsWith('/email/routing/rules') && method === 'POST') {
+      const row = {id: 'support-rule', ...body};
+      rules.push(row);
+      return response(200, {success: true, result: row});
+    }
+    if (u.pathname.includes('/email/routing/rules/') && method === 'DELETE') {
+      const id = u.pathname.split('/').at(-1);
+      rules = rules.filter(r => r.id !== id);
+      return response(200, {success: true, result: null});
+    }
+    if (u.pathname.includes('/dns_records') && method === 'GET') {
+      const name = u.searchParams.get('name');
+      if (name === zone) return response(200, {success: true, result: root});
+      const rows = structuredClone(protectedState.get(name) || []);
+      if (cutover && mutateProtectedAfterCutover && name === 'claude-mcp.mftintelligence.com') rows[0].content = '198.51.100.77';
+      return response(200, {success: true, result: rows});
+    }
+    if (u.pathname.endsWith('/dns_records') && method === 'POST') {
+      const row = {id: `restored-${nextDnsId++}`, ...body};
+      root.push(row);
+      return response(200, {success: true, result: row});
+    }
+    if (u.pathname.includes('/dns_records/') && method === 'DELETE') {
+      const id = u.pathname.split('/').at(-1);
+      root = root.filter(r => r.id !== id);
+      return response(200, {success: true, result: null});
+    }
+    throw new Error(`unexpected ${method} ${path}`);
+  };
+  return {fetchImpl, calls, state: () => ({routing, root, rules})};
+}
+
+test('migration accepts the live MX-only Cloudflare required DNS shape and creates support routing before cutover', async () => {
+  const mock = mockCloudflare();
+  const evidence = await migrateEmailRouting({fetchImpl: mock.fetchImpl, env: env(), now: '2026-10-05T21:00:00Z'});
+  assert.equal(evidence.gate, 'MUSITU_AXIOM_SUPPORT_EMAIL_ROUTING_MIGRATION_PASS');
+  assert.equal(evidence.routing.ready, true);
+  assert.equal(evidence.support_rule.exact_present, true);
+  assert.equal(evidence.retired_zoho_test_mailboxes.count, 2);
+  assert.equal(evidence.rollback.performed, false);
+  assert.equal(evidence.protected_provider_dns.unchanged, true);
+  assert.equal(evidence.delivery_verified, false);
+  assert.doesNotMatch(JSON.stringify(evidence), /approved-destination@example\.test/);
+  assert.doesNotMatch(JSON.stringify(evidence), /evans(?:\.musitu)?@mftintelligence\.com/);
+
+  const createRule = mock.calls.findIndex(c => c.method === 'POST' && c.path.endsWith('/email/routing/rules'));
+  const enableDns = mock.calls.findIndex(c => c.method === 'POST' && c.path.endsWith('/email/routing/dns'));
+  assert.ok(createRule >= 0 && enableDns > createRule, 'support route must be created before root MX cutover when API permits');
+  assert.deepEqual(mock.state().root.map(r => r.content).sort(), required.map(r => r.content).sort());
+});
+
+test('unverified support destination fails closed before any write', async () => {
+  const mock = mockCloudflare({unverified: true});
+  await assert.rejects(() => migrateEmailRouting({fetchImpl: mock.fetchImpl, env: env()}), /destination is not verified/);
+  assert.equal(mock.calls.some(c => c.method !== 'GET'), false);
+  assert.deepEqual(mock.state().root.map(r => r.content), zoho.map(r => r.content));
+});
+
+test('post-cutover protected-provider drift triggers rollback to the exact prior Zoho MX contents and removes a newly created support rule', async () => {
+  const mock = mockCloudflare({mutateProtectedAfterCutover: true});
+  await assert.rejects(() => migrateEmailRouting({fetchImpl: mock.fetchImpl, env: env()}), /PROTECTED_PROVIDER_DNS_DRIFT_ROLLED_BACK/);
+  assert.equal(mock.state().routing.enabled, false);
+  assert.deepEqual(mock.state().root.map(r => r.content).sort(), zoho.map(r => r.content).sort());
+  assert.equal(mock.state().rules.length, 0);
+  assert.ok(mock.calls.some(c => c.method === 'DELETE' && c.path.endsWith('/email/routing/dns')));
+});
+
+test('enabled forwarding catch-all fails closed before any migration write', async () => {
+  const mock = mockCloudflare({unsafeCatchAll: true});
+  await assert.rejects(() => migrateEmailRouting({fetchImpl: mock.fetchImpl, env: env()}), /catch-all routing must be disabled or dropping mail/);
+  assert.equal(mock.calls.some(c => c.method !== 'GET'), false);
+  assert.deepEqual(mock.state().root.map(r => r.content), zoho.map(r => r.content));
+});
+
+test('unexpected non-support forwarding rule fails closed before any migration write', async () => {
+  const mock = mockCloudflare({unrelatedRule: true});
+  await assert.rejects(() => migrateEmailRouting({fetchImpl: mock.fetchImpl, env: env()}), /unexpected non-support Email Routing rule exists/);
+  assert.equal(mock.calls.some(c => c.method !== 'GET'), false);
+  assert.deepEqual(mock.state().root.map(r => r.content), zoho.map(r => r.content));
+});

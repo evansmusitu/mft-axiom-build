@@ -1,0 +1,70 @@
+name: MUSITU Axiom Official Support Email Routing Migration
+
+on:
+  workflow_dispatch:
+    inputs:
+      authorization:
+        description: Type MIGRATE_MUSITU_AXIOM_EMAIL_ROUTING
+        required: true
+        type: string
+      retirement_confirmation:
+        description: Type RETIRE_UNUSED_ZOHO_TEST_MAILBOXES
+        required: true
+        type: string
+      expected_commit:
+        description: Exact isolated support commit approved for root Email Routing migration
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: musitu-axiom-official-support-email-routing-migration
+  cancel-in-progress: false
+
+jobs:
+  migrate-root-mail-routing:
+    if: github.ref_name == 'support/axiom-official-support-20261005'
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    environment: axiom-support-production
+    env:
+      SUPPORT_EMAIL_ROUTING_MIGRATION_CONFIRM: ${{ inputs.authorization }}
+      SUPPORT_ZOHO_RETIREMENT_CONFIRM: ${{ inputs.retirement_confirmation }}
+      SUPPORT_MAILBOX_DESTINATION: ${{ secrets.CLOUDFLARE_EMAIL }}
+      CLOUDFLARE_ACCOUNT_ID: '93f395f5121954671f92fffa453d6b61'
+    steps:
+      - name: Checkout exact isolated support branch
+        uses: actions/checkout@v4
+      - name: Use Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Exact branch, commit and explicit migration authorization gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF_NAME" = 'support/axiom-official-support-20261005'
+          test "$GITHUB_REF_NAME" != 'main'
+          test "$GITHUB_SHA" = '${{ inputs.expected_commit }}'
+          test "$SUPPORT_EMAIL_ROUTING_MIGRATION_CONFIRM" = 'MIGRATE_MUSITU_AXIOM_EMAIL_ROUTING'
+          test "$SUPPORT_ZOHO_RETIREMENT_CONFIRM" = 'RETIRE_UNUSED_ZOHO_TEST_MAILBOXES'
+          mapfile -t authorization < support/MIGRATE_CLOUDFLARE_EMAIL_ROUTING.authorized
+          test "${authorization[0]}" = 'MIGRATE_MUSITU_AXIOM_EMAIL_ROUTING'
+          test "${authorization[1]}" = 'RETIRE_UNUSED_ZOHO_TEST_MAILBOXES'
+          test "${#authorization[@]}" -eq 2
+      - name: Re-run complete support gate before any Cloudflare write
+        run: node --test support/tests/*.test.mjs
+      - name: Migrate root inbound mail routing with automatic rollback
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        run: node support/scripts/migrate_cloudflare_email_routing.mjs
+      - name: Publish non-secret migration summary
+        shell: bash
+        run: |
+          set -euo pipefail
+          node -e 'const e=require("./support-email-routing-migration.json"); const h=require("node:fs").readFileSync("./support-email-routing-migration.json.sha256","utf8").split(" ")[0]; process.stdout.write(["### MUSITU Axiom support Email Routing migration", "", "- Gate: "+e.gate, "- Routing ready: "+e.routing.ready, "- Exact support rule: "+e.support_rule.exact_present, "- Retired Zoho test mailboxes: "+e.retired_zoho_test_mailboxes.count, "- Protected OpenAI/Claude DNS unchanged: "+e.protected_provider_dns.unchanged, "- Delivery verified: false", "- Public support deployed: false", "- Evidence SHA-256: "+h].join("\n")+"\n")' >> "$GITHUB_STEP_SUMMARY"
+          rm support-email-routing-migration.json support-email-routing-migration.json.sha256
