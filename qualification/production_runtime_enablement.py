@@ -360,6 +360,7 @@ def verify_surface(base: str, identity: dict, *, stage: str):
     }
 
 def main() -> None:
+    global ZONE_NAME, PROD_HOST
     if BRANCH!="feat/musitu-connect-frontier":
         fail("runtime enablement may run only from feat/musitu-connect-frontier")
     if not ACCOUNT_KEY or not TOKEN or not GITHUB_TOKEN:
