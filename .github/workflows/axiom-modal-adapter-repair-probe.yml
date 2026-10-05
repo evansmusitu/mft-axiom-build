@@ -1,115 +1,158 @@
-name: MUSITU Axiom Modal Adapter Repair Probe
+name: MUSITU Axiom Phase 2 Modal Fanout Token Remediation
+
 on:
-  workflow_dispatch:
   push:
-    paths: ['.github/workflows/axiom-modal-adapter-repair-probe.yml']
+    branches:
+      - frontier/axiom-product-intelligence-phase2-20261004
+    paths:
+      - '.github/workflows/axiom-modal-adapter-repair-probe.yml'
+  workflow_dispatch:
+
 permissions:
   contents: read
+
 jobs:
-  repair-probe:
+  revoke-incident-token-only:
     runs-on: ubuntu-latest
-    timeout-minutes: 18
+    timeout-minutes: 10
     env:
-      CLOUDFLARE_ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
-      CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
-      CLOUDFLARE_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
       MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID }}
       MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET }}
-      ADAPTER_WORKER: mft-axiom-modal-adapter
-      PROBE_WORKER: musitu-axiom-modal-adapter-probe
-      MODAL_BASE_URL: https://evansmusitu--mft-axiom-v3-modal-staging-axiom-kernel.modal.run
+      INCIDENT_START_UTC: '2026-10-05T05:58:15Z'
+      INCIDENT_END_UTC: '2026-10-05T05:58:25Z'
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.13'
-      - name: Install and verify providers
+      - name: Install exact Modal client
+        run: python -m pip install --disable-pip-version-check --quiet 'modal==1.6.1'
+
+      - name: Identify exactly one incident-created unnamed proxy token
         shell: bash
         run: |
           set -euo pipefail
-          npm install --no-save --ignore-scripts --no-audit --no-fund wrangler@4.129.0 >/dev/null
-          python -m pip install --disable-pip-version-check --quiet 'modal>=1.5,<2'
-          npx wrangler auth token --json >/tmp/cf-auth.json
+          test -n "$MODAL_TOKEN_ID"
+          test -n "$MODAL_TOKEN_SECRET"
+          modal workspace proxy-tokens list --json >/tmp/tokens-before.json
           python - <<'PY'
-          import json
-          if json.load(open('/tmp/cf-auth.json')).get('type')!='api_key': raise SystemExit('Cloudflare auth mismatch')
-          PY
-          modal app list --json >/dev/null
-          python - <<'PY'
-          import modal
-          r=modal.Function.from_name('mft-axiom-v3-modal-staging','runtime_probe').remote()
-          if r.get('build_id')!='MFT-AXIOM-V3-FULL-SELF-CONTAINED-20260904': raise SystemExit('Modal build mismatch')
-          PY
-          test "$(curl -sS -o /tmp/u -w '%{http_code}' "$MODAL_BASE_URL/health" || true)" = 401
-      - name: Create proxy credential
-        shell: bash
-        run: |
-          set -euo pipefail
-          modal workspace proxy-tokens create --json >/tmp/proxy.json
-          python - <<'PY'
-          import json,pathlib
-          vals=[]
-          def w(x):
+          import datetime as dt, json, os, pathlib, re, sys
+
+          raw=json.load(open('/tmp/tokens-before.json',encoding='utf-8'))
+          start=dt.datetime.fromisoformat(os.environ['INCIDENT_START_UTC'].replace('Z','+00:00'))
+          end=dt.datetime.fromisoformat(os.environ['INCIDENT_END_UTC'].replace('Z','+00:00'))
+          id_re=re.compile(r'^wk-[A-Za-z0-9_-]+$')
+
+          def walk(x):
               if isinstance(x,dict):
-                  for v in x.values(): w(v)
+                  yield x
+                  for v in x.values():
+                      yield from walk(v)
               elif isinstance(x,list):
-                  for v in x: w(v)
-              elif isinstance(x,str): vals.append(x)
-          w(json.load(open('/tmp/proxy.json')))
-          k=[x for x in vals if x.startswith('wk-')]; s=[x for x in vals if x.startswith('ws-')]
-          if len(k)!=1 or len(s)!=1: raise SystemExit('proxy token shape')
-          pathlib.Path('/tmp/pk').write_text(k[0]); pathlib.Path('/tmp/ps').write_text(s[0])
+                  for v in x:
+                      yield from walk(v)
+
+          def parse_time(v):
+              if not isinstance(v,str):
+                  return None
+              s=v.strip()
+              try:
+                  if s.endswith('Z'): s=s[:-1]+'+00:00'
+                  d=dt.datetime.fromisoformat(s)
+                  if d.tzinfo is None: d=d.replace(tzinfo=dt.timezone.utc)
+                  return d.astimezone(dt.timezone.utc)
+              except Exception:
+                  return None
+
+          seen={}
+          for obj in walk(raw):
+              ids=[v for v in obj.values() if isinstance(v,str) and id_re.match(v)]
+              if len(ids)!=1:
+                  continue
+              token_id=ids[0]
+              times=[]
+              for k,v in obj.items():
+                  lk=str(k).lower()
+                  if any(word in lk for word in ('create','created','time','date','timestamp')):
+                      d=parse_time(v)
+                      if d: times.append(d)
+              name=None
+              for k,v in obj.items():
+                  if str(k).lower() in ('name','token_name','display_name'):
+                      name=v
+                      break
+              seen[token_id]={'times':times,'name':name,'keys':sorted(map(str,obj.keys()))}
+
+          candidates=[]
+          for token_id,meta in seen.items():
+              if any(start <= d <= end for d in meta['times']) and meta['name'] in (None,''):
+                  candidates.append(token_id)
+
+          print('PROXY_TOKEN_RECORDS_WITH_IDS='+str(len(seen)))
+          print('INCIDENT_TOKEN_CANDIDATE_COUNT='+str(len(candidates)))
+          if len(candidates)==0:
+              # A zero count is safe only when timestamp metadata exists somewhere:
+              # it means the incident token is already absent.
+              timed=sum(bool(m['times']) for m in seen.values())
+              print('PROXY_TOKEN_RECORDS_WITH_TIMESTAMPS='+str(timed))
+              if timed==0:
+                  raise SystemExit('NOT_PROVEN: token-list schema exposes no usable creation timestamps; refusing deletion')
+              pathlib.Path('/tmp/already-clean').write_text('1')
+              print('INCIDENT_PROXY_TOKEN_ALREADY_ABSENT=TRUE')
+          elif len(candidates)==1:
+              pathlib.Path('/tmp/incident-token-id').write_text(candidates[0])
+              print('INCIDENT_PROXY_TOKEN_EXACT_MATCH=TRUE')
+          else:
+              raise SystemExit('FAIL_CLOSED: multiple proxy tokens match the incident creation window')
           PY
-          echo "::add-mask::$(cat /tmp/pk)"; echo "::add-mask::$(cat /tmp/ps)"
-      - name: Deploy hardened private adapter
+
+      - name: Delete only the exact incident token
+        if: ${{ hashFiles('/tmp/incident-token-id') != '' }}
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p /tmp/adapter
-          cat >/tmp/adapter/worker.js <<'JS'
-          export default {async fetch(request,env){
-            if(!env.MODAL_PROXY_KEY||!env.MODAL_PROXY_SECRET)return Response.json({ok:false,error:'ADAPTER_AUTH_NOT_CONFIGURED'},{status:503});
-            const u=new URL(request.url), target=new URL(u.pathname+u.search,env.MODAL_BASE_URL), h=new Headers(request.headers);
-            for(const n of ['host','content-length','transfer-encoding','connection','modal-key','modal-secret'])h.delete(n);
-            h.set('Modal-Key',env.MODAL_PROXY_KEY); h.set('Modal-Secret',env.MODAL_PROXY_SECRET);
-            const init={method:request.method,headers:h,redirect:'manual'};
-            if(request.method!=='GET'&&request.method!=='HEAD'){const b=await request.arrayBuffer();if(b.byteLength)init.body=b;}
-            try{return await fetch(target.toString(),init);}catch(e){return Response.json({ok:false,error:'ADAPTER_UPSTREAM_FETCH_FAILED'},{status:502});}
-          }};
-          JS
-          python - <<'PY'
-          import json,os
-          json.dump({'name':os.environ['ADAPTER_WORKER'],'main':'worker.js','compatibility_date':'2026-09-04','workers_dev':False,'vars':{'MODAL_BASE_URL':os.environ['MODAL_BASE_URL']}},open('/tmp/adapter/wrangler.json','w'))
-          PY
-          (cd /tmp/adapter && npx wrangler deploy --config wrangler.json >/tmp/ad.log 2>&1) || { tail -100 /tmp/ad.log; exit 1; }
-          printf '%s' "$(cat /tmp/pk)" | (cd /tmp/adapter && npx wrangler secret put MODAL_PROXY_KEY --config wrangler.json >/dev/null)
-          printf '%s' "$(cat /tmp/ps)" | (cd /tmp/adapter && npx wrangler secret put MODAL_PROXY_SECRET --config wrangler.json >/dev/null)
-      - name: Deploy service-binding probe and verify Modal
+          TOKEN_ID="$(cat /tmp/incident-token-id)"
+          modal workspace proxy-tokens delete -y "$TOKEN_ID"
+          echo 'INCIDENT_PROXY_TOKEN_DELETE_REQUESTED=TRUE'
+
+      - name: Independently verify incident window is clean
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p /tmp/probe
-          cat >/tmp/probe/worker.js <<'JS'
-          export default {async fetch(r,e){const u=new URL(r.url);if(u.pathname==='/h')return e.UP.fetch('http://container/health');if(u.pathname==='/c')return e.UP.fetch('http://container/v1/compute',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({operation:'arithmetic.evaluate',args:{expression:'40+2'},verify:true})});return new Response('x',{status:404});}};
-          JS
+          modal workspace proxy-tokens list --json >/tmp/tokens-after.json
           python - <<'PY'
-          import json,os
-          json.dump({'name':os.environ['PROBE_WORKER'],'main':'worker.js','compatibility_date':'2026-09-04','workers_dev':True,'services':[{'binding':'UP','service':os.environ['ADAPTER_WORKER']}]},open('/tmp/probe/wrangler.json','w'))
-          PY
-          (cd /tmp/probe && npx wrangler deploy --config wrangler.json >/tmp/pr.log 2>&1) || { tail -100 /tmp/pr.log; exit 1; }
-          SUB="$(python - <<'PY'
-          import json,os,urllib.request
-          h={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_API_KEY']};q=urllib.request.Request(f"https://api.cloudflare.com/client/v4/accounts/{os.environ['CLOUDFLARE_ACCOUNT_ID']}/workers/subdomain",headers=h)
-          with urllib.request.urlopen(q) as r:x=json.load(r)
-          print(x['result']['subdomain'])
-          PY
-          )"
-          U="https://${PROBE_WORKER}.${SUB}.workers.dev"
-          test "$(curl -sS --max-time 90 -o /tmp/h.json -w '%{http_code}' "$U/h")" = 200 || { cat /tmp/h.json; exit 1; }
-          test "$(curl -sS --max-time 90 -o /tmp/c.json -w '%{http_code}' "$U/c")" = 200 || { cat /tmp/c.json; exit 1; }
-          python - <<'PY'
-          import json
-          if json.load(open('/tmp/h.json')).get('ok') is not True: raise SystemExit('health body')
-          if json.load(open('/tmp/c.json')).get('ok') is not True: raise SystemExit('compute body')
-          print('SERVICE_BINDING_MODAL_PASS')
+          import datetime as dt, json, os, re
+
+          raw=json.load(open('/tmp/tokens-after.json',encoding='utf-8'))
+          start=dt.datetime.fromisoformat(os.environ['INCIDENT_START_UTC'].replace('Z','+00:00'))
+          end=dt.datetime.fromisoformat(os.environ['INCIDENT_END_UTC'].replace('Z','+00:00'))
+          id_re=re.compile(r'^wk-[A-Za-z0-9_-]+$')
+
+          def walk(x):
+              if isinstance(x,dict):
+                  yield x
+                  for v in x.values(): yield from walk(v)
+              elif isinstance(x,list):
+                  for v in x: yield from walk(v)
+
+          def parse(v):
+              if not isinstance(v,str): return None
+              try:
+                  s=v[:-1]+'+00:00' if v.endswith('Z') else v
+                  d=dt.datetime.fromisoformat(s)
+                  if d.tzinfo is None:d=d.replace(tzinfo=dt.timezone.utc)
+                  return d.astimezone(dt.timezone.utc)
+              except Exception:return None
+
+          remain=[]
+          for obj in walk(raw):
+              ids=[v for v in obj.values() if isinstance(v,str) and id_re.match(v)]
+              if len(ids)!=1: continue
+              name=next((v for k,v in obj.items() if str(k).lower() in ('name','token_name','display_name')),None)
+              times=[parse(v) for k,v in obj.items() if any(w in str(k).lower() for w in ('create','created','time','date','timestamp'))]
+              times=[x for x in times if x]
+              if name in (None,'') and any(start<=x<=end for x in times):
+                  remain.append(ids[0])
+          if remain:
+              raise SystemExit('FAIL_CLOSED: incident-window proxy token still present')
+          print('MUSITU_AXIOM_MODAL_INCIDENT_PROXY_TOKEN_REMEDIATION_PASS')
+          print('PRODUCTION_AUTHORITY=FALSE')
+          print('OPENAI_SURFACE_MUTATED=FALSE')
+          print('MODAL_APP_ROLLBACK_PERFORMED=FALSE')
           PY
