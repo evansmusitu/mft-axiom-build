@@ -1,0 +1,41 @@
+{
+  "schema": "musitu.axiom.official-support-human-separation-evidence.v1",
+  "recorded_at": "2026-10-05T05:44:53Z",
+  "repository": "evansmusitu/mft-axiom-build",
+  "branch": "support/axiom-official-support-20261005",
+  "verified_commit": "d886d43b06d15aefbc3a0724fd8010d26ec4befa",
+  "contract": {
+    "primary_owner_required": true,
+    "independent_approver_required": true,
+    "owner_and_approver_must_differ": true,
+    "production_health_fails_closed_without_both": true,
+    "deployment_probe_requires_both": true,
+    "human_identities_designated": false,
+    "human_identity_invented": false
+  },
+  "verification": {
+    "local_tests_passed": 36,
+    "local_tests_failed": 0,
+    "github_gate_run": 37269107961,
+    "github_gate_conclusion": "success"
+  },
+  "deployment": {
+    "publicly_operational": false,
+    "deployment_dispatched": false,
+    "blocked_until": [
+      "primary_human_support_owner_identity",
+      "different_independent_approver_identity",
+      "cloudflare_authenticated_provisioning_access",
+      "publisher_controlled_mailbox_destination",
+      "remaining_operational_readiness_evidence"
+    ]
+  },
+  "protected_state": {
+    "main": "d6a846f6bbe0bccac1758713eb4de167caf07113",
+    "pr_1_open_draft_unmerged": true,
+    "frozen_openai_auth_blob": "8ba0dbc1b6dd1533c6c26bff23991429e03a71a5",
+    "frozen_openai_mcp_v4_blob": "4a1ad37a5e7df0e4d3966e8b5f9f0e8f2db69167",
+    "claude_branch_head": "4d956f415431836018e5145227c8df5bd5fde7d8",
+    "protected_files_modified": false
+  }
+}
