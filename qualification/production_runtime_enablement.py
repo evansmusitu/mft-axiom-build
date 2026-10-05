@@ -316,15 +316,30 @@ def verify_surface(base: str, identity: dict, *, stage: str):
     ):
         fail(stage+" authenticated deterministic plan mismatch")
 
-    run_id=("canary-" if stage=="canary" else "production-enable-")+str(RUN_ID)
-    rc,risk=http_json(
-        base+"/api/mining/risk",
-        "POST",
-        headers=auth,
-        body={"run_id":run_id,"rows":[SCENARIO[0]]},
-    )
-    if rc!=200 or risk.get("ok") is not True or risk.get("gate")!="OPEN":
-        fail(stage+" authenticated Axiom risk call failed HTTP "+str(rc))
+    base_run_id=("canary-" if stage=="canary" else "production-enable-")+str(RUN_ID)
+    retryable_statuses={0,429,500,502,503,504}
+    risk_attempt_statuses=[]
+    risk=None
+    run_id=None
+    rc=0
+    for attempt in range(3):
+        candidate_run_id=base_run_id+("-retry-"+str(attempt) if attempt else "")
+        rc,candidate=http_json(
+            base+"/api/mining/risk",
+            "POST",
+            headers=auth,
+            body={"run_id":candidate_run_id,"rows":[SCENARIO[0]]},
+        )
+        risk_attempt_statuses.append(rc)
+        if rc==200 and candidate.get("ok") is True and candidate.get("gate")=="OPEN":
+            run_id=candidate_run_id
+            risk=candidate
+            break
+        if rc not in retryable_statuses:
+            fail(stage+" authenticated Axiom risk call failed HTTP "+str(rc))
+        time.sleep(2)
+    if risk is None or run_id is None:
+        fail(stage+" authenticated Axiom risk call did not converge; statuses="+repr(risk_attempt_statuses))
     if "3.348" not in json.dumps(risk,separators=(",",":"),sort_keys=True):
         fail(stage+" expected Axiom result 3.348 was not observed")
     request_id=str(risk.get("request_id") or "")
@@ -357,6 +372,8 @@ def verify_surface(base: str, identity: dict, *, stage: str):
         "exact_usage_ledger_request_id_correlation":True,
         "request_id_sha256":hashlib.sha256(request_id.encode("utf-8")).hexdigest(),
         "canonical_sha256":canonical_sha,
+        "risk_attempt_statuses":risk_attempt_statuses,
+        "risk_retry_count":len(risk_attempt_statuses)-1,
     }
 
 def main() -> None:
