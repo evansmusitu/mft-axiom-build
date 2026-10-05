@@ -1,0 +1,83 @@
+{
+  "schema": "musitu.axiom.official-support-build-evidence.v1",
+  "recorded_at": "2026-10-05T03:36:12Z",
+  "repository": "evansmusitu/mft-axiom-build",
+  "branch": "support/axiom-official-support-20261005",
+  "build_commit": "a0f51c24dc7eb55d4fb9ac6c0cc75a38f792d0dc",
+  "build_parent": "afc8958d740025b2296cf53d01dd8ead020da471",
+  "whole_product_base": "3182724b18f90ba7308f2a07bd167a6d9352efd4",
+  "scope": "whole_product_official_support_control_plane",
+  "implementation": {
+    "canonical_case_contract": true,
+    "whole_product_taxonomy": true,
+    "pre_storage_secret_rejection": true,
+    "payment_card_rejection": true,
+    "aes_256_gcm_case_payload_encryption": true,
+    "one_time_recovery_access": true,
+    "recovery_hash_only_persistence": true,
+    "append_only_hash_chained_events": true,
+    "impact_derived_priority": true,
+    "sensitive_action_human_approval": true,
+    "quantitative_dispute_evidence_package": true,
+    "verified_public_incident_receipt": true,
+    "operational_readiness_gate_count": 11,
+    "accessible_responsive_public_surface": true,
+    "fail_closed_deployment_workflow": true
+  },
+  "verification": {
+    "local_node_tests": {
+      "command": "node --test support/tests/*.test.mjs",
+      "passed": 30,
+      "failed": 0
+    },
+    "javascript_syntax_checks": "PASS",
+    "sqlite_schema_parse": "PASS",
+    "github_gate": {
+      "run_id": 37260040414,
+      "commit": "a0f51c24dc7eb55d4fb9ac6c0cc75a38f792d0dc",
+      "conclusion": "success"
+    }
+  },
+  "deployment": {
+    "publicly_operational": false,
+    "deployment_dispatched": false,
+    "proposed_hostname": "support.mftintelligence.com",
+    "hostname_is_live_claim": false,
+    "blocked_until": [
+      "dedicated_d1_binding",
+      "pre_provisioned_support_data_encryption_secret",
+      "anti_abuse_service_binding",
+      "designated_human_support_owner",
+      "escalation_roster",
+      "privacy_retention_approval",
+      "accessibility_reality_evidence",
+      "security_review_evidence",
+      "backup_restore_evidence",
+      "notification_delivery_evidence"
+    ]
+  },
+  "protected_state": {
+    "main": "d6a846f6bbe0bccac1758713eb4de167caf07113",
+    "pr_1": {
+      "state": "open",
+      "draft": true,
+      "merged": false,
+      "base": "d6a846f6bbe0bccac1758713eb4de167caf07113",
+      "head": "8fc1fbb7c5ebbcc1604ecf24c5f4594f2d5667e3"
+    },
+    "frozen_openai_reference_branch": "frontier/axiom-v5-skill-fabric",
+    "frozen_openai_auth_blob": "8ba0dbc1b6dd1533c6c26bff23991429e03a71a5",
+    "frozen_openai_mcp_v4_blob": "4a1ad37a5e7df0e4d3966e8b5f9f0e8f2db69167",
+    "claude_branch": "distribution/claude-remote-mcp-20261004",
+    "claude_branch_head": "4d956f415431836018e5145227c8df5bd5fde7d8",
+    "protected_files_modified_by_support_commits": false
+  },
+  "claim_boundaries": {
+    "best_ever_claimed": false,
+    "support_contact_invented": false,
+    "credential_created_or_exposed": false,
+    "production_deployed": false,
+    "openai_surface_modified": false,
+    "pr_1_merged": false
+  }
+}
