@@ -293,20 +293,39 @@ def verify_surface(base: str, identity: dict, *, stage: str):
     token=internal_token()
     auth={"Authorization":"Bearer "+token}
 
-    uc,_=http_json(
-        base+"/api/mining/plan",
-        "POST",
-        body={"rows":SCENARIO,"budget":50000},
-    )
+    unauth_statuses=[]
+    uc=0
+    for _ in range(30):
+        uc,_=http_json(
+            base+"/api/mining/plan",
+            "POST",
+            body={"rows":SCENARIO,"budget":50000},
+        )
+        unauth_statuses.append(uc)
+        if uc==401:
+            break
+        if uc not in {0,404,503}:
+            fail(stage+" unauthenticated plan expected 401 got "+str(uc))
+        time.sleep(1)
     if uc!=401:
-        fail(stage+" unauthenticated plan expected 401 got "+str(uc))
+        fail(stage+" unauthenticated plan did not converge; statuses="+repr(unauth_statuses))
 
-    pc,plan=http_json(
-        base+"/api/mining/plan",
-        "POST",
-        headers=auth,
-        body={"rows":SCENARIO,"budget":50000},
-    )
+    authenticated_plan_statuses=[]
+    pc=0
+    plan={}
+    for _ in range(30):
+        pc,plan=http_json(
+            base+"/api/mining/plan",
+            "POST",
+            headers=auth,
+            body={"rows":SCENARIO,"budget":50000},
+        )
+        authenticated_plan_statuses.append(pc)
+        if pc==200:
+            break
+        if pc not in {0,404,503}:
+            fail(stage+" authenticated plan expected 200 got "+str(pc))
+        time.sleep(1)
     if (
         pc!=200
         or int(plan.get("spend") or -1)!=44000
@@ -366,7 +385,9 @@ def verify_surface(base: str, identity: dict, *, stage: str):
         fail(stage+" Axiom usage-ledger correlation mismatch")
     return {
         "unauthenticated_plan_http":uc,
+        "unauthenticated_plan_convergence_statuses":unauth_statuses,
         "authenticated_plan_http":pc,
+        "authenticated_plan_convergence_statuses":authenticated_plan_statuses,
         "risk_http":rc,
         "result_3_348_observed":True,
         "exact_usage_ledger_request_id_correlation":True,
