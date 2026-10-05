@@ -1,0 +1,98 @@
+{
+  "schema": "musitu.axiom.phase2.product-intelligence.opentofu-qualification-evidence.v1",
+  "generated_at": "2026-10-05T19:36:24Z",
+  "qualification": "PASS",
+  "qualification_scope": "ISOLATED_EPHEMERAL_CI",
+  "source_authority": {
+    "repository": "evansmusitu/mft-axiom-build",
+    "phase2_branch": "frontier/axiom-product-intelligence-phase2-20261004",
+    "phase2_parent_before_opentofu": "0c55eb7bca2bacfe0e79924ea1f23a025e3ddb2f",
+    "implementation_commit": "f0733d279c77cb6c73327f05a0caec4d9ec634f8",
+    "backend_blob": "9ee05b5a2cbf889b0e9a8fc300540c0fecb8deda",
+    "test_blob": "84602e0536be1dad0844e4f6df53cfed70c9701e",
+    "infrastructure_contract_blob": "8f2c39711dae311e0de199d3b0203a6a9b782d25",
+    "sealed_main": "d6a846f6bbe0bccac1758713eb4de167caf07113",
+    "fa20_source": "21d087f0fdebffd4cfb4065286aa16696fcec9c0",
+    "pr1_head": "8fc1fbb7c5ebbcc1604ecf24c5f4594f2d5667e3"
+  },
+  "contract_qualification": {
+    "execution": "exact GitHub blob replay against exact frozen infrastructure contract",
+    "node_version": "v22.16.0",
+    "passed": 8,
+    "failed": 0,
+    "prior_frozen_order_evidence": {
+      "path": "axiom_interface/vnext/product_intelligence/evidence/phase2_mechanism_qualification_20261005.json",
+      "prior_contract_tests_passed": 31,
+      "prior_contract_tests_failed": 0,
+      "relationship": "OpenTofu implementation commit is additive-only; prior qualified source files were not modified"
+    },
+    "cumulative_verified_contract_evidence_count": 39
+  },
+  "independent_executor": {
+    "provider": "GitLab SaaS isolated Docker executor",
+    "project_id": 86647955,
+    "project_path": "evansmusitu/mft-axiom-build",
+    "scratch_branch": "verify/axiom-phase2-opentofu-1-13-1-20261005",
+    "scratch_commit": "31946fd134d21243634b79fbfe077516992206a7",
+    "pipeline_id": 2915000855,
+    "pipeline_iid": 81,
+    "qualification_job_id": 16949505636,
+    "verdict_job_id": 16949505637,
+    "verdict_marker": "MUSITU_AXIOM_OPENTOFU_1_13_1_MECHANISM_QUALIFICATION_PASS"
+  },
+  "mechanism": {
+    "status": "PASS",
+    "tool": "OpenTofu",
+    "version": "1.13.1",
+    "platform": "linux_amd64",
+    "release_checksum_file_sha256": "f4a03dd8613320c665848cb6e1962ee112d777c9c6a8a725586dcc341b1c7252",
+    "release_zip_sha256": "8ccbc6f8ee21d2827715f3c6e08a9b3e0209b1e62057c05067ef117e047c1a80",
+    "configuration_digest_sha256": "d3cc675a37f9bc66a32e23a91c882a18bf38485a5b106f0b761883ffcd22df2a",
+    "provider_lock_digest_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "planfile_sha256": "f07a6633b2dfca664a1a169d951cdc31481426010dc65e2364259fcd22c94554",
+    "plan_json_sha256": "ba6f4c095afd93913f8786962d1f5926ecd06e7e03ed93794b1c8f52dff38cd6",
+    "provider_mode": "BUILTIN_TERRAFORM_DATA_ONLY",
+    "resource_changes": [
+      {
+        "address": "terraform_data.sample",
+        "actions": ["create"]
+      }
+    ],
+    "positive_tests": [
+      "release-digest",
+      "exact-version",
+      "providerless-init",
+      "validate",
+      "plan-create",
+      "show-json",
+      "no-state-mutation"
+    ],
+    "negative_tests": [
+      "configuration-digest-tamper",
+      "plan-json-digest-tamper",
+      "provider-lock-digest-tamper"
+    ],
+    "executed_commands_contains_apply_or_destroy": false,
+    "cli_output_contained_standard_apply_instruction": true,
+    "apply_executed": false,
+    "destroy_executed": false,
+    "state_mutated": false
+  },
+  "adapter_boundary": {
+    "kind": "DeploymentBackend",
+    "semantic_owner": "AXIOM",
+    "provider_authority": "MECHANISM_ONLY",
+    "mode": "PLAN_ONLY",
+    "raw_plan_values_cross_axiom_boundary": false,
+    "required_next_gate": "CHANGE_ADMISSION"
+  },
+  "authority_boundary": {
+    "authority_effect": "VERIFICATION_ONLY",
+    "release_authority": false,
+    "production_authority": false,
+    "certification_authority": false,
+    "live_integrated_runtime_qualification": "NOT_PROVEN",
+    "production_touched": false,
+    "openai_surface_touched": false
+  }
+}
