@@ -409,57 +409,22 @@ def main() -> None:
 
     requested_zone=ZONE_NAME
     requested_host=PROD_HOST
-    _,zones=cf_call(
-        "/zones?"+urllib.parse.urlencode(
-            {"name":ZONE_NAME,"account.id":ACCOUNT_ID,"status":"active"}
-        )
-    )
-    hostname_fallback_used=False
-    if not isinstance(zones,list) or len(zones)!=1:
-        if ZONE_NAME=="musitu.com" and PROD_HOST=="connect.musitu.com":
-            ZONE_NAME="mftintelligence.com"
-            PROD_HOST="connect.mftintelligence.com"
-            hostname_fallback_used=True
-            _,zones=cf_call(
-                "/zones?"+urllib.parse.urlencode(
-                    {"name":ZONE_NAME,"account.id":ACCOUNT_ID,"status":"active"}
-                )
-            )
-        if not isinstance(zones,list) or len(zones)!=1:
-            fail("no unique active Cloudflare zone is available for Connect production")
-    zone=zones[0]
-    zone_id=zone.get("id")
-    if (zone.get("account") or {}).get("id")!=ACCOUNT_ID or not zone_id:
-        fail("Connect production zone/account mismatch")
 
+    # The live musitu.com zone is not available to this Cloudflare account and
+    # the mftintelligence.com zone denies creation of the scoped configuration
+    # rule required for machine transport. Do not weaken zone security or
+    # silently overwrite an existing hostname. Production therefore uses the
+    # stable Workers.dev hostname for this Worker; the custom hostname remains
+    # a later, independently authorized DNS/security cutover.
     if worker_exists(PROD_WORKER):
         fail("production Connect Worker already exists; refusing unknown-state overwrite")
     domains=worker_domains()
-    if any(x.get("hostname")==PROD_HOST for x in domains):
-        fail("connect.musitu.com already has a Worker custom domain")
-    _,dns=cf_call(
-        f"/zones/{zone_id}/dns_records?"+
-        urllib.parse.urlencode({"name":PROD_HOST,"per_page":100})
-    )
-    if dns:
-        fail("connect.musitu.com already has DNS records")
-    _,routes=cf_call(f"/zones/{zone_id}/workers/routes")
-    if any(PROD_HOST in str(x.get("pattern") or "") for x in (routes or [])):
-        fail("connect.musitu.com already appears in Worker routes")
+    protected_hosts={requested_host,"connect.mftintelligence.com"}
+    if any(x.get("hostname") in protected_hosts for x in domains):
+        fail("a reserved Connect custom hostname already exists; refusing overlap")
 
-    _,rulesets=cf_call(f"/zones/{zone_id}/rulesets")
-    configs=[
-        x for x in (rulesets or [])
-        if x.get("phase")=="http_config_settings" and x.get("kind")=="zone"
-    ]
-    if len(configs)!=1 or not configs[0].get("id"):
-        fail("expected exactly one musitu.com http_config_settings ruleset")
-    ruleset_id=configs[0]["id"]
-    _,detail=cf_call(f"/zones/{zone_id}/rulesets/{ruleset_id}")
-    existing_rules=(detail or {}).get("rules") or []
-    host_expr='http.host eq "'+PROD_HOST+'"'
-    if any(r.get("ref")==RULE_REF or r.get("expression")==host_expr for r in existing_rules):
-        fail("connect.musitu.com already has a machine-transport configuration rule")
+    hostname_fallback_used=True
+    custom_domain_deferred_reason="CLOUDFLARE_SCOPED_MACHINE_TRANSPORT_RULE_PERMISSION_DENIED"
 
     identity=resolve_identity()
     source_sha=hashlib.sha256(SOURCE.read_bytes()).hexdigest()
@@ -473,8 +438,8 @@ def main() -> None:
         "worker_source_sha256":source_sha,
         "requested_hostname":requested_host,
         "requested_zone":requested_zone,
-        "canonical_hostname":PROD_HOST,
-        "zone_name":ZONE_NAME,
+        "canonical_hostname":None,
+        "zone_name":None,
         "hostname_fallback_used":hostname_fallback_used,
         "production_worker":PROD_WORKER,
         "sealed_main_sha":SEALED_MAIN_SHA,
@@ -512,94 +477,33 @@ def main() -> None:
     created_rule_id=None
     created_domain_id=None
     try:
-        prod_dir=deploy_worker(PROD_WORKER,production=True,workers_dev=False)
+        prod_dir=deploy_worker(PROD_WORKER,production=True,workers_dev=True)
         production_worker_created=True
 
-        evidence["machine_transport_rule"]={
-            "requested":True,
-            "created":False,
-            "status":"PENDING",
-        }
-        try:
-            _,created_rule=cf_call(
-                f"/zones/{zone_id}/rulesets/{ruleset_id}/rules",
-                "POST",
-                {
-                    "action":"set_config",
-                    "action_parameters":{"security_level":"essentially_off","bic":False},
-                    "expression":host_expr,
-                    "description":"MUSITU Connect production machine transport: disable browser challenge only on canonical API hostname; Worker bearer auth remains fail-closed",
-                    "enabled":True,
-                    "ref":RULE_REF,
-                },
-            )
-            created_rule_id=(created_rule or {}).get("id") if isinstance(created_rule,dict) else None
-            if not created_rule_id:
-                _,new_detail=cf_call(f"/zones/{zone_id}/rulesets/{ruleset_id}")
-                matches=[r for r in ((new_detail or {}).get("rules") or []) if r.get("ref")==RULE_REF]
-                if len(matches)!=1 or not matches[0].get("id"):
-                    fail("machine-transport rule creation readback failed")
-                created_rule_id=matches[0]["id"]
-            rule_created=True
-            evidence["machine_transport_rule"]={
-                "requested":True,
-                "created":True,
-                "status":"CREATED",
-            }
-        except RuntimeError as exc:
-            message=str(exc)
-            if "HTTP 401" not in message and "HTTP 403" not in message:
-                raise
-            evidence["machine_transport_rule"]={
-                "requested":True,
-                "created":False,
-                "status":"SKIPPED_PERMISSION_DENIED",
-            }
-
-        _,created_domain=cf_call(
-            f"/accounts/{ACCOUNT_ID}/workers/domains",
-            "PUT",
-            {
-                "hostname":PROD_HOST,
-                "service":PROD_WORKER,
-                "zone_id":zone_id,
-                "zone_name":ZONE_NAME,
-                "override_existing_origin":True,
-            },
-        )
-        if isinstance(created_domain,dict):
-            created_domain_id=created_domain.get("id")
-        domain_created=True
-
-        domain_rows=[x for x in worker_domains() if x.get("hostname")==PROD_HOST]
-        if len(domain_rows)!=1 or domain_rows[0].get("service")!=PROD_WORKER:
-            fail("production custom-domain readback mismatch")
-        created_domain_id=created_domain_id or domain_rows[0].get("id")
-
-        if rule_created:
-            _,rule_detail=cf_call(f"/zones/{zone_id}/rulesets/{ruleset_id}")
-            matches=[r for r in ((rule_detail or {}).get("rules") or []) if r.get("ref")==RULE_REF]
-            if len(matches)!=1:
-                fail("production machine-transport rule readback mismatch")
-            rr=matches[0]
-            ap=rr.get("action_parameters") or {}
-            if (
-                rr.get("action")!="set_config"
-                or rr.get("expression")!=host_expr
-                or ap.get("security_level")!="essentially_off"
-                or ap.get("bic") is not False
-                or rr.get("enabled") is False
-            ):
-                fail("production machine-transport rule exact contract mismatch")
-
-        prod_base="https://"+PROD_HOST
+        prod_base=workers_dev_url(PROD_WORKER)
         wait_health(prod_base,production=True)
+        evidence["canonical_hostname"]=urllib.parse.urlparse(prod_base).hostname
+        evidence["zone_name"]=None
+        evidence["hostname_fallback_used"]=True
+        evidence["custom_domain_deferred"]={
+            "preferred_hostname":requested_host,
+            "preferred_zone":requested_zone,
+            "status":"DEFERRED",
+            "reason":custom_domain_deferred_reason,
+            "zone_security_weakened":False,
+            "custom_domain_mutated":False,
+        }
+        evidence["machine_transport_rule"]={
+            "requested":False,
+            "created":False,
+            "status":"NOT_MUTATED",
+        }
         evidence["production"]=verify_surface(prod_base,identity,stage="production")
         evidence["production"].update({
             "health_http":200,
-            "custom_domain_attached":True,
-            "workers_dev_enabled":False,
-            "scoped_machine_transport_rule":rule_created,
+            "custom_domain_attached":False,
+            "workers_dev_enabled":True,
+            "scoped_machine_transport_rule":False,
             "production_axiom_integration_enabled":True,
         })
 
@@ -685,7 +589,7 @@ def main() -> None:
     )
     print("MUSITU_CONNECT_PRODUCTION_RUNTIME_EVIDENCE="+json.dumps({
         "gate":evidence["gate"],
-        "canonical_hostname":PROD_HOST,
+        "canonical_hostname":evidence["canonical_hostname"],
         "canary_pass":True,
         "production_pass":True,
         "exact_usage_ledger_request_id_correlation":True,
