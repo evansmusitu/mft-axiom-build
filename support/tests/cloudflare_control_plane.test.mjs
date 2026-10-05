@@ -3,6 +3,8 @@ import test from 'node:test';
 import {
   SUPPORT_DOMAIN,
   TURNSTILE_WIDGET_NAME,
+  buildBootstrapWorkerMetadata,
+  buildWorkerMultipart,
   buildPublicControlPlaneEvidence,
   ensureSupportEmailDestination,
   ensureSupportTurnstile,
@@ -19,6 +21,20 @@ const widget = {name: TURNSTILE_WIDGET_NAME, domains: [SUPPORT_DOMAIN], mode: 'm
 test('control-plane provisioning deliberately prefers the authorized global-key path', () => {
   const rows = cloudflareCredentialCandidates({CLOUDFLARE_API_TOKEN: 'token', CLOUDFLARE_EMAIL: 'owner@example.test', CLOUDFLARE_GLOBAL_API_KEY: 'global'}, {preferGlobal: true});
   assert.deepEqual(rows.map(row => row.mode), ['global_api_key', 'api_token']);
+});
+
+test('direct bootstrap Worker metadata is isolated, D1-bound and contains no route or secret', () => {
+  const metadata = buildBootstrapWorkerMetadata({databaseUuid: '123e4567-e89b-12d3-a456-426614174000', turnstileSitekey: widget.sitekey, ownerRef: 'github:evansmusitu', approverRef: 'person:elvis-musitu'});
+  assert.equal(metadata.main_module, 'index.mjs');
+  assert.equal(metadata.bindings.find(row => row.name === 'SUPPORT_DB').id, '123e4567-e89b-12d3-a456-426614174000');
+  assert.equal(metadata.bindings.find(row => row.name === 'ENVIRONMENT').text, 'bootstrap');
+  assert.equal(metadata.routes, undefined);
+  assert.doesNotMatch(JSON.stringify(metadata), /SUPPORT_DATA_KEY_B64|TURNSTILE_SECRET_KEY/);
+  const multipart = buildWorkerMultipart('export default {fetch(){return new Response("ok")}}', metadata, 'test-boundary');
+  assert.equal(multipart.boundary, 'test-boundary');
+  assert.match(multipart.body.toString(), /name="metadata"/);
+  assert.match(multipart.body.toString(), /name="index\.mjs"/);
+  assert.doesNotMatch(multipart.body.toString(), /private-value/);
 });
 
 test('Turnstile creates only the exact managed support-domain widget and retrieves its secret privately', async () => {

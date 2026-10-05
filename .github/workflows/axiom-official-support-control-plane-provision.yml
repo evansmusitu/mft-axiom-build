@@ -7,6 +7,7 @@ on:
     paths:
       - 'support/PROVISION_CLOUDFLARE_CONTROL_PLANE.authorized'
       - 'support/PROVISION_CLOUDFLARE_CONTROL_PLANE_RETRY_1.authorized'
+      - 'support/PROVISION_CLOUDFLARE_CONTROL_PLANE_RETRY_2.authorized'
   workflow_dispatch:
     inputs:
       authorization:
@@ -37,8 +38,6 @@ jobs:
       SUPPORT_DOMAIN: support.mftintelligence.com
       SUPPORT_HUMAN_OWNER_REF: github:evansmusitu
       SUPPORT_INDEPENDENT_APPROVER_REF: person:elvis-musitu
-      SUPPORT_DEPLOYMENT_MODE: bootstrap
-      SUPPORT_READINESS_SHA256: ''
       CLOUDFLARE_ACCOUNT_ID: '93f395f5121954671f92fffa453d6b61'
     steps:
       - name: Checkout exact isolated branch
@@ -74,15 +73,14 @@ jobs:
         run: |
           set -euo pipefail
           node support/scripts/provision_cloudflare_control_plane.mjs prepare
-          node -e 'const s=require("./support-control-plane.private.json"); process.stdout.write("SUPPORT_D1_DATABASE_ID="+s.database_uuid+"\nSUPPORT_TURNSTILE_SITE_KEY="+s.turnstile_sitekey+"\n")' >> "$GITHUB_ENV"
-      - name: Render non-public bootstrap configuration
-        run: node support/scripts/render_wrangler.mjs support-wrangler.bootstrap.json
-      - name: Deploy isolated Worker without a route or workers.dev exposure
+      - name: Bundle non-public Worker module
+        run: npx --yes esbuild@0.25.11 support/worker.js --bundle --format=esm --platform=browser --target=es2022 --outfile=support-worker.bootstrap.mjs
+      - name: Upload isolated Worker directly without a route or assets
         env:
           CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
-          CLOUDFLARE_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-        run: npx --yes wrangler@4 deploy --config support-wrangler.bootstrap.json
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        run: node support/scripts/provision_cloudflare_control_plane.mjs upload-bootstrap
       - name: Generate and store support secrets with zero value output
         env:
           CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
@@ -92,9 +90,9 @@ jobs:
       - name: Apply append-only support schema
         env:
           CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
-          CLOUDFLARE_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-        run: npx --yes wrangler@4 d1 execute SUPPORT_DB --remote --config support-wrangler.bootstrap.json --file support/schema.sql
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        run: node support/scripts/provision_cloudflare_control_plane.mjs apply-schema
       - name: Verify non-public isolation and seal safe evidence
         env:
           CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
@@ -103,7 +101,7 @@ jobs:
         run: |
           set -euo pipefail
           node support/scripts/provision_cloudflare_control_plane.mjs verify-isolation
-          rm support-wrangler.bootstrap.json
+          rm support-worker.bootstrap.mjs
       - name: Publish non-secret summary only
         shell: bash
         run: |
@@ -111,3 +109,4 @@ jobs:
           node -e 'const e=require("./support-control-plane.public.json"); const h=require("node:fs").readFileSync("./support-control-plane.public.json.sha256","utf8").split(" ")[0]; process.stdout.write(["### MUSITU Axiom support non-public bootstrap", "", "- Gate: MUSITU_AXIOM_SUPPORT_CONTROL_PLANE_BOOTSTRAP_PASS", "- D1 UUID: "+e.d1.uuid, "- Turnstile site key: "+e.turnstile.sitekey, "- Destination verified: "+e.email_destination.verified, "- Worker public: false", "- Secret values exposed: false", "- Evidence SHA-256: "+h].join("\n")+"\n")' >> "$GITHUB_STEP_SUMMARY"
           node -e 'const e=require("./support-control-plane.public.json"); const h=require("node:fs").readFileSync("./support-control-plane.public.json.sha256","utf8").split(" ")[0]; process.stdout.write(JSON.stringify({gate:"MUSITU_AXIOM_SUPPORT_CONTROL_PLANE_BOOTSTRAP_PASS",destination_verified:e.email_destination.verified,evidence_sha256:h,secret_values_exposed:false,public_deployment:false})+"\n")'
           rm support-control-plane.public.json support-control-plane.public.json.sha256
+          test ! -e support-control-plane.private.json
