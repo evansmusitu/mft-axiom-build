@@ -1,0 +1,76 @@
+name: MUSITU Axiom Official Support Deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: Isolated support environment
+        required: true
+        type: choice
+        options: [staging, production]
+      expected_commit:
+        description: Exact support branch commit approved for deployment
+        required: true
+        type: string
+      support_domain:
+        description: Approved mftintelligence.com support hostname
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: axiom-official-support-${{ inputs.target }}
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    if: github.ref_name == 'support/axiom-official-support-20261005'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: ${{ inputs.target == 'production' && 'axiom-support-production' || 'axiom-support-staging' }}
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      SUPPORT_WORKER_NAME: ${{ vars.SUPPORT_WORKER_NAME }}
+      SUPPORT_D1_DATABASE_NAME: ${{ vars.SUPPORT_D1_DATABASE_NAME }}
+      SUPPORT_D1_DATABASE_ID: ${{ vars.SUPPORT_D1_DATABASE_ID }}
+      SUPPORT_ABUSE_GATE_SERVICE: ${{ vars.SUPPORT_ABUSE_GATE_SERVICE }}
+      SUPPORT_HUMAN_OWNER_REF: ${{ vars.SUPPORT_HUMAN_OWNER_REF }}
+      SUPPORT_READINESS_SHA256: ${{ vars.SUPPORT_READINESS_SHA256 }}
+      SUPPORT_DOMAIN: ${{ inputs.support_domain }}
+    steps:
+      - name: Checkout exact branch
+        uses: actions/checkout@v4
+      - name: Use Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Exact commit and protected branch gate
+        shell: bash
+        run: |
+          test "$GITHUB_SHA" = "${{ inputs.expected_commit }}"
+          test "$GITHUB_REF_NAME" = 'support/axiom-official-support-20261005'
+          test "$GITHUB_REF_NAME" != 'main'
+      - name: Re-run support tests
+        run: node --test support/tests/*.test.mjs
+      - name: Render bounded Wrangler configuration
+        run: node support/scripts/render_wrangler.mjs support-wrangler.generated.json
+      - name: Verify pre-provisioned encryption secret without reading it
+        shell: bash
+        run: |
+          npx --yes wrangler@4 secret list --config support-wrangler.generated.json > support-secret-names.json
+          node -e "const names=require('./support-secret-names.json').map(x=>x.name); if(!names.includes('SUPPORT_DATA_KEY_B64')) process.exit(1)"
+          rm support-secret-names.json
+      - name: Apply append-only support schema
+        run: npx --yes wrangler@4 d1 execute SUPPORT_DB --remote --config support-wrangler.generated.json --file support/schema.sql
+      - name: Deploy isolated support worker and assets
+        run: npx --yes wrangler@4 deploy --config support-wrangler.generated.json
+      - name: Live readiness and surface probes
+        shell: bash
+        run: |
+          curl --fail --silent --show-error --proto '=https' "https://${SUPPORT_DOMAIN}/health" > support-health.json
+          node -e "const h=require('./support-health.json'); if(h.status!=='READY'||!h.secure_storage||!h.abuse_gate||!h.human_owner||!h.readiness_evidence) process.exit(1)"
+          curl --fail --silent --show-error --proto '=https' "https://${SUPPORT_DOMAIN}/" | grep -q 'MUSITU Axiom Support'
+          rm support-health.json support-wrangler.generated.json

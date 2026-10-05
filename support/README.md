@@ -30,6 +30,8 @@ Deployment must not proceed until all of these are real and verified:
 6. Privacy/security retention, key-rotation, incident, and erasure procedures.
 7. Real accessibility, mobile, security, load, backup/restore, and notification-delivery evidence.
 
+`axiom-official-support-deploy.yml` is manual-only, branch-locked, exact-commit-bound, and environment-gated. It verifies that `SUPPORT_DATA_KEY_B64` was already provisioned without reading its value; it never creates or prints that credential. The workflow must not be dispatched until all eleven readiness gates pass.
+
 ## Local tests
 
 ```sh

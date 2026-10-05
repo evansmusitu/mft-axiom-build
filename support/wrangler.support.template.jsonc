@@ -1,0 +1,46 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "__WORKER_NAME__",
+  "main": "support/worker.js",
+  "compatibility_date": "2026-10-05",
+  "workers_dev": false,
+  "assets": {
+    "directory": "./support",
+    "binding": "ASSETS",
+    "run_worker_first": ["/api/*", "/health"],
+    "html_handling": "auto-trailing-slash",
+    "not_found_handling": "404-page"
+  },
+  "d1_databases": [
+    {
+      "binding": "SUPPORT_DB",
+      "database_name": "__D1_DATABASE_NAME__",
+      "database_id": "__D1_DATABASE_ID__"
+    }
+  ],
+  "services": [
+    {
+      "binding": "SUPPORT_ABUSE_GATE",
+      "service": "__ABUSE_GATE_SERVICE__"
+    }
+  ],
+  "vars": {
+    "ENVIRONMENT": "production",
+    "SUPPORT_HUMAN_OWNER_REF": "__HUMAN_OWNER_REF__",
+    "SUPPORT_READINESS_SHA256": "__READINESS_SHA256__"
+  },
+  "routes": [
+    {
+      "pattern": "__SUPPORT_DOMAIN__",
+      "custom_domain": true
+    }
+  ],
+  "observability": {
+    "enabled": true,
+    "logs": {
+      "enabled": true,
+      "invocation_logs": true,
+      "head_sampling_rate": 0.1
+    }
+  }
+}

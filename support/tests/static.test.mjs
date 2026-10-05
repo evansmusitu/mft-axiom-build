@@ -36,6 +36,14 @@ test('support UI includes responsive, reduced-motion, contrast and dark-mode beh
   assert.match(css, /prefers-color-scheme:dark/);
 });
 
+test('static asset deployment excludes server, schema, tests and operating documents', async () => {
+  const [ignore, headers] = await Promise.all([read('.assetsignore'), read('_headers')]);
+  for (const entry of ['tests/', 'scripts/', '*.md', 'schema.sql', 'worker.js', 'crypto_envelope.js', 'd1_case_store.js', 'evidence_packages.js', 'readiness.js', 'wrangler.*']) assert.match(ignore, new RegExp(entry.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+  assert.match(headers, /Content-Security-Policy/);
+  assert.match(headers, /frame-ancestors 'none'/);
+  assert.match(headers, /Permissions-Policy/);
+});
+
 test('D1 schema keeps events append-only and avoids plaintext narrative columns', async () => {
   const sql = await read('schema.sql');
   assert.match(sql, /support_case_event_no_update/);

@@ -4,6 +4,7 @@ import {D1CaseStore} from './d1_case_store.js';
 
 const JSON_HEADERS = Object.freeze({'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store', 'x-content-type-options': 'nosniff'});
 const CASE_PATH = /^\/api\/v1\/cases\/([A-Z0-9-]+)$/;
+const HASH = /^[a-f0-9]{64}$/i;
 
 function json(body, status = 200, extra = {}) {
   return new Response(JSON.stringify(body), {status, headers: {...JSON_HEADERS, ...extra}});
@@ -46,6 +47,9 @@ async function abuseAllowed(request, env) {
 
 async function storeFor(env) {
   if (!env.SUPPORT_DB || !env.SUPPORT_DATA_KEY_B64) throw new DOMException('secure support storage is not configured', 'InvalidStateError');
+  if (env.ENVIRONMENT === 'production' && (!env.SUPPORT_HUMAN_OWNER_REF || !HASH.test(String(env.SUPPORT_READINESS_SHA256 || '')))) {
+    throw new DOMException('human ownership and readiness evidence are not configured', 'InvalidStateError');
+  }
   const key = await importSupportDataKey(env.SUPPORT_DATA_KEY_B64);
   return new D1CaseStore({database: env.SUPPORT_DB, encryptionKey: key});
 }
@@ -59,8 +63,9 @@ function recoveryCode(request) {
 export async function handleSupportRequest(request, env = {}) {
   const url = new URL(request.url);
   if (request.method === 'GET' && url.pathname === '/health') {
-    const ready = Boolean(env.SUPPORT_DB && env.SUPPORT_DATA_KEY_B64 && (env.SUPPORT_ABUSE_GATE || env.ENVIRONMENT !== 'production'));
-    return json({schema: 'musitu.axiom.support-health.v1', status: ready ? 'READY' : 'NOT_READY', secure_storage: Boolean(env.SUPPORT_DB && env.SUPPORT_DATA_KEY_B64), abuse_gate: Boolean(env.SUPPORT_ABUSE_GATE), production: env.ENVIRONMENT === 'production'}, ready ? 200 : 503);
+    const production = env.ENVIRONMENT === 'production';
+    const ready = Boolean(env.SUPPORT_DB && env.SUPPORT_DATA_KEY_B64 && (env.SUPPORT_ABUSE_GATE || !production) && (!production || (env.SUPPORT_HUMAN_OWNER_REF && HASH.test(String(env.SUPPORT_READINESS_SHA256 || '')))));
+    return json({schema: 'musitu.axiom.support-health.v1', status: ready ? 'READY' : 'NOT_READY', secure_storage: Boolean(env.SUPPORT_DB && env.SUPPORT_DATA_KEY_B64), abuse_gate: Boolean(env.SUPPORT_ABUSE_GATE), human_owner: Boolean(env.SUPPORT_HUMAN_OWNER_REF), readiness_evidence: HASH.test(String(env.SUPPORT_READINESS_SHA256 || '')), production}, ready ? 200 : 503);
   }
   if (request.method === 'GET' && url.pathname === '/api/v1/catalog') {
     return json({schema: 'musitu.axiom.support-catalog.v1', case_creation: '/api/v1/cases', authentication: 'one-time recovery code shown only at creation; send as Authorization: Support <code>', secrets_policy: 'credentials, tokens, passwords, cookies and payment card numbers are rejected before storage'});

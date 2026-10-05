@@ -8,11 +8,13 @@ on:
       - 'support/**'
       - 'SUPPORT.md'
       - '.github/workflows/axiom-official-support-gate.yml'
+      - '.github/workflows/axiom-official-support-deploy.yml'
   pull_request:
     paths:
       - 'support/**'
       - 'SUPPORT.md'
       - '.github/workflows/axiom-official-support-gate.yml'
+      - '.github/workflows/axiom-official-support-deploy.yml'
   workflow_dispatch:
 
 permissions:
@@ -36,6 +38,7 @@ jobs:
           node --check support/d1_case_store.js
           node --check support/evidence_packages.js
           node --check support/readiness.js
+          node --check support/scripts/render_wrangler.mjs
           node --check support/worker.js
           node --check support/app.js
       - name: Support contract and adversarial tests
