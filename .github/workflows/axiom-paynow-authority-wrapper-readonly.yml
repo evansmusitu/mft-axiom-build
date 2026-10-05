@@ -1,0 +1,65 @@
+name: MUSITU Axiom Paynow Authority Wrapper Read-Only
+
+on:
+  push:
+    paths:
+      - '.github/workflows/axiom-paynow-authority-wrapper-readonly.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      CF_API: https://api.cloudflare.com/client/v4
+      ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      AUTHORITY: mft-phase8-external-authority
+    steps:
+      - uses: actions/checkout@v4
+      - name: Print narrow non-secret route and verifier excerpts
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        run: |
+          python - <<'PY'
+          import email,hashlib,json,os,re,urllib.parse,urllib.request
+          api=os.environ['CF_API'];aid=os.environ['ACCOUNT_ID'];w=os.environ['AUTHORITY'];H={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY']}
+          q=urllib.request.Request(f'{api}/accounts/{aid}/workers/scripts/{urllib.parse.quote(w,safe="")}',headers=H)
+          with urllib.request.urlopen(q,timeout=45) as r: raw=r.read();ct=r.headers.get('content-type','')
+          src=raw
+          if 'multipart/' in ct.lower():
+            msg=email.message_from_bytes((f'Content-Type: {ct}\r\nMIME-Version: 1.0\r\n\r\n').encode()+raw);ps=[]
+            for p in msg.walk():
+              if p.is_multipart():continue
+              d=p.get_payload(decode=True) or b''
+              if b'verifyPaynowCallback' in d:ps.append(d)
+            if len(ps)!=1:raise SystemExit('module mismatch')
+            src=ps[0]
+          text=src.decode('utf-8','ignore')
+          # Redact any accidental secret assignments while retaining structural code.
+          def redact(s):
+            s=re.sub(r'(?i)(secret|token|key)\s*=\s*["\'][^"\']+["\']',r'\1="<redacted>"',s)
+            return s
+          def body(name):
+            m=re.search(r'(?:async\s+)?function\s+'+re.escape(name)+r'\s*\([^)]*\)\s*\{',text)
+            if not m:return ''
+            b=text.find('{',m.start());d=0;q=None;e=False
+            for i in range(b,len(text)):
+              ch=text[i]
+              if q:
+                if e:e=False
+                elif ch=='\\':e=True
+                elif ch==q:q=None
+                continue
+              if ch in ('"',"'",'`'):q=ch;continue
+              if ch=='{':d+=1
+              elif ch=='}':
+                d-=1
+                if d==0:return text[m.start():i+1]
+            return ''
+          vf=redact(body('verifyPaynowCallback'))
+          # Find narrow context around route literal.
+          needle='/internal/paynow/verify-callback';i=text.find(needle);ctx=redact(text[max(0,i-900):min(len(text),i+1500)]) if i>=0 else ''
+          print(json.dumps({'source_sha256':hashlib.sha256(src).hexdigest(),'verify_function':vf,'route_context':ctx,'mutation_performed':False,'gate':'AXIOM_PAYNOW_AUTHORITY_WRAPPER_READ_PASS'},sort_keys=True))
+          PY

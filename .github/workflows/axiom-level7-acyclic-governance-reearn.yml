@@ -1,0 +1,145 @@
+name: MUSITU Axiom Level-7 Acyclic Governance Re-Earn
+
+on:
+  push:
+    branches:
+      - frontier/axiom-v5-level7-acyclic-governance-20260912
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: musitu-axiom-level7-acyclic-governance-reearn-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  review-safe-reearn:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - name: Checkout immutable action
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Setup patch-pinned Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
+        with:
+          python-version: '3.12.14'
+      - name: Enforce frozen OpenAI review snapshot
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --no-tags --force origin \
+            +refs/heads/main:refs/remotes/origin/main \
+            +refs/heads/frontier/axiom-v5-skill-fabric:refs/remotes/origin/frontier/axiom-v5-skill-fabric
+          PYTHONPATH=. python - <<'PY'
+          import json
+          import pathlib
+          import subprocess
+          from frontier_review_safe.review_snapshot import ReviewSnapshotGuard, ReviewSnapshotManifest
+
+          def git(*args):
+              return subprocess.check_output(['git', *args], text=True).strip()
+
+          raw = json.loads(pathlib.Path('frontier_review_safe/review_snapshot_manifest.json').read_text(encoding='utf-8'))
+          manifest = ReviewSnapshotManifest(
+              schema=raw['schema'],
+              authoritative_frontier_sha=raw['authoritative_frontier_sha'],
+              sealed_main_sha=raw['sealed_main_sha'],
+              public_tool_count=raw['public_tool_count'],
+              required_scopes=tuple(raw['required_scopes']),
+              forbidden_tools=tuple(raw['forbidden_tools']),
+              protected_paths=tuple(raw['protected_paths']),
+              protected_git_object_shas=dict(raw['protected_git_object_shas']),
+              mcp_url=raw['mcp_url'],
+              auth_url=raw['auth_url'],
+              demo_url=raw['demo_url'],
+          )
+          guard = ReviewSnapshotGuard(manifest)
+          observed_main = git('rev-parse', 'refs/remotes/origin/main')
+          observed_frontier = git('rev-parse', 'refs/remotes/origin/frontier/axiom-v5-skill-fabric')
+          if observed_main != manifest.sealed_main_sha:
+              raise SystemExit(f'FROZEN_MAIN_DRIFT:{observed_main}')
+          if observed_frontier != manifest.authoritative_frontier_sha:
+              raise SystemExit(f'FROZEN_FRONTIER_DRIFT:{observed_frontier}')
+          authoritative_objects = {
+              path: git('rev-parse', f'{manifest.authoritative_frontier_sha}:{path}')
+              for path in manifest.protected_git_object_shas
+          }
+          current_objects = {
+              path: git('rev-parse', f'HEAD:{path}')
+              for path in manifest.protected_git_object_shas
+          }
+          guard.verify_tree(authoritative_objects)
+          guard.verify_tree(current_objects)
+          changed = [
+              line for line in git('diff', '--name-only', f'{manifest.authoritative_frontier_sha}..HEAD').splitlines()
+              if line
+          ]
+          guard.verify_no_protected_diff(changed, manifest.protected_paths)
+          print(json.dumps({
+              'status': 'PASS',
+              'sealed_main_sha': observed_main,
+              'authoritative_frontier_sha': observed_frontier,
+              'protected_objects_verified': len(current_objects),
+              'changed_paths_checked': len(changed),
+              'manifest_sha256': manifest.fingerprint,
+          }, sort_keys=True))
+          PY
+      - name: Compile private review-safe runtime
+        run: python -m compileall -q frontier_review_safe
+      - name: Run complete private review-safe suite
+        run: PYTHONPATH=. python -m unittest discover -s frontier_review_safe/tests -v
+      - name: Explicit Level-7 semantic regression gate
+        run: PYTHONPATH=. python -m unittest frontier_review_safe.tests.test_level7_semantic_artifact_binding -v
+      - name: Explicit Level-7 acyclic-governance regression gate
+        run: PYTHONPATH=. python -m unittest frontier_review_safe.tests.test_level7_governance_chain -v
+      - name: Measure private runtime scale with raw evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          PYTHONPATH=. python -m frontier_review_safe.scale_benchmarks | tee /tmp/axiom-scale-evidence.json
+          python - <<'PY'
+          import json, os
+          p = '/tmp/axiom-scale-evidence.json'
+          with open(p, encoding='utf-8') as f:
+              evidence = json.load(f)
+          assert evidence['schema'] == 'musitu.axiom.review-safe-scale-evidence.v1'
+          assert evidence['candidate_sha'] == os.environ['GITHUB_SHA']
+          assert len(evidence['benchmarks']) == 7
+          assert len(evidence['evidence_sha256']) == 64
+          for row in evidence['benchmarks']:
+              assert row['units'] > 0
+              assert row['elapsed_ms'] >= 0
+              assert row['throughput_per_sec'] > 0
+              assert row['peak_python_bytes'] >= 0
+          print('MUSITU_AXIOM_REVIEW_SAFE_SCALE_EVIDENCE_OK')
+          PY
+      - name: Gate performance regression against measured baseline
+        shell: bash
+        run: |
+          set -euo pipefail
+          workload_blob="$(git hash-object frontier_review_safe/scale_benchmarks.py)"
+          PYTHONPATH=. python -m frontier_review_safe.scale_budget /tmp/axiom-scale-evidence.json "$workload_blob"
+      - name: Measure unbudgeted degraded-path scale experiments
+        shell: bash
+        run: |
+          set -euo pipefail
+          PYTHONPATH=. python -m frontier_review_safe.scale_experiments | tee /tmp/axiom-scale-experiments.json
+          python - <<'PY'
+          import json, os
+          from frontier_review_safe.scale_experiments import validate_experimental_evidence
+          p = '/tmp/axiom-scale-experiments.json'
+          with open(p, encoding='utf-8') as f:
+              evidence = json.load(f)
+          assert evidence['candidate_sha'] == os.environ['GITHUB_SHA']
+          report = validate_experimental_evidence(evidence)
+          assert report['status'] == 'PASS', report
+          assert report['experiment_count'] == 5
+          assert report['promotion_status'] == 'MEASUREMENT_ONLY_UNBUDGETED'
+          assert report['budget_authorized'] is False
+          assert report['claim_authorized'] is False
+          print('MUSITU_AXIOM_REVIEW_SAFE_SCALE_EXPERIMENTS_MEASURED_NOT_PROMOTED')
+          PY

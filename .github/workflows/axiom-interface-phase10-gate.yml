@@ -1,0 +1,102 @@
+name: MUSITU Axiom Interface Phase 10 Gate
+on:
+  push:
+    branches:
+      - frontier/axiom-v5-interface-phase10-memory-graph-20260913
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: musitu-axiom-interface-phase10-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  runtime-security-memory-and-protected-regression:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - name: Checkout immutable action
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Setup patch-pinned Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
+        with:
+          python-version: '3.12.14'
+      - name: Fetch exact protected authorities
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --no-tags --force origin +refs/heads/main:refs/remotes/origin/main +refs/heads/frontier/axiom-v5-skill-fabric:refs/remotes/origin/frontier/axiom-v5-skill-fabric +refs/heads/archive/axiom-track-a-post-freeze-20260912:refs/remotes/origin/archive/axiom-track-a-post-freeze-20260912 +refs/heads/frontier/axiom-v5-world-top-tier-review-safe:refs/remotes/origin/frontier/axiom-v5-world-top-tier-review-safe
+          PYTHONPATH=. python frontier_v5/scripts/verify_phase10_authority.py
+      - name: Run inherited runtime security plus Phase 10 memory red-team
+        env:
+          AXIOM_PHASE8_SECURITY_ARTIFACT_DIR: /tmp/axiom-interface-phase8-security
+          AXIOM_PHASE9_SECURITY_ARTIFACT_DIR: /tmp/axiom-interface-phase9-security
+          AXIOM_PHASE10_SECURITY_ARTIFACT_DIR: /tmp/axiom-interface-phase10-security
+        run: PYTHONPATH=. python frontier_v5/scripts/run_phase10_regression_gate.py
+      - name: Upload complete Phase 10 runtime security evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: musitu-axiom-interface-phase10-runtime-security-evidence
+          path: |
+            /tmp/axiom-interface-phase8-security/phase8-security-evidence.json
+            /tmp/axiom-interface-phase9-security/phase9-security-evidence.json
+            /tmp/axiom-interface-phase10-security/phase10-security-evidence.json
+          if-no-files-found: error
+  browser-memory-and-regression:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 85
+    steps:
+      - name: Checkout immutable action
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - name: Setup patch-pinned Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
+        with:
+          python-version: '3.12.14'
+      - name: Install existing locked browser and semantic stack
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends ffmpeg espeak-ng tesseract-ocr xvfb xdotool python3-tk scrot unzip ca-certificates curl
+          python -m pip install 'pip==26.2.1'
+          python -m pip install -r frontier_v5/requirements/fullstack.lock.txt
+          python -m pip check
+          python -m playwright install --with-deps chromium
+          PYTHONPATH=. python frontier_v5/scripts/verify_supply_chain.py --output /tmp/musitu-interface-supply-chain.json
+      - name: Fetch digest-pinned offline Vosk model
+        shell: bash
+        run: |
+          set -euo pipefail
+          model_zip=/tmp/vosk-model-small-en-us-0.15.zip; model_root=/tmp/axiom-vosk; rm -rf "$model_root" "$model_zip"; mkdir -p "$model_root"
+          curl --fail --silent --show-error --location --retry 3 --retry-all-errors https://alphacephei.com/vosk/models/vosk-model-small-en-us-0.15.zip --output "$model_zip"
+          echo '30f26242c4eb449f948e42cb302dd7a686cb29a3423a8367f99ff41780942498  /tmp/vosk-model-small-en-us-0.15.zip' | sha256sum --check --strict
+          unzip -q "$model_zip" -d "$model_root"; test -d "$model_root/vosk-model-small-en-us-0.15/am"
+      - name: Run inherited browser semantic gates plus Phase 10 memory red-team
+        env:
+          AXIOM_VOSK_MODEL_DIR: /tmp/axiom-vosk/vosk-model-small-en-us-0.15
+          AXIOM_VOSK_MODEL_SHA256: 30f26242c4eb449f948e42cb302dd7a686cb29a3423a8367f99ff41780942498
+        run: PYTHONPATH=. python frontier_v5/scripts/run_phase10_browser_regression_gate.py
+      - name: Upload complete Phase 10 evidence envelope
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: musitu-axiom-interface-phase10-memory-evidence
+          path: |
+            /tmp/axiom-interface-phase10/phase10-memory-browser-evidence.json
+            /tmp/axiom-interface-phase10/phase10-memory-graph.png
+            /tmp/axiom-interface-phase9/phase9-agent-automation-browser-evidence.json
+            /tmp/axiom-interface-phase8/phase8-computer-browser-evidence.json
+            /tmp/axiom-interface-phase7-semantic/phase7-semantic-evidence.json
+            /tmp/axiom-interface-phase7/phase7-live-evidence.json
+            /tmp/axiom-interface-phase6/phase6-observability-evidence.json
+            /tmp/axiom-interface-phase5/phase5-artifact-evidence.json
+            /tmp/axiom-interface-phase4/phase4-research-evidence.json
+            /tmp/axiom-interface-phase4-quality/phase4-blueprint-completeness-evidence.json
+            /tmp/axiom-interface-phase3/phase3-work-evidence.json
+            /tmp/axiom-interface-phase2/project-evidence.json
+            /tmp/axiom-interface-phase1/browser-evidence.json
+            /tmp/musitu-interface-supply-chain.json
+          if-no-files-found: error

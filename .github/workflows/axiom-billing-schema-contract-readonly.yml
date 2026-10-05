@@ -1,0 +1,59 @@
+name: MUSITU Axiom Billing Schema Contract Read-Only
+
+on:
+  push:
+    paths:
+      - '.github/workflows/axiom-billing-schema-contract-readonly.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      CF_API: https://api.cloudflare.com/client/v4
+      ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      D1_UUID: 504029cc-f9a5-495e-818f-63c6144b4ea4
+    steps:
+      - uses: actions/checkout@v4
+      - name: Read billing/auth table columns only
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import hashlib,json,os,urllib.error,urllib.request
+          api=os.environ['CF_API'];aid=os.environ['ACCOUNT_ID'];dbid=os.environ['D1_UUID']
+          H={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY'],'Content-Type':'application/json','User-Agent':'MUSITU-Axiom-Billing-Schema-Contract/1.0'}
+          def q(sql):
+              req=urllib.request.Request(f'{api}/accounts/{aid}/d1/database/{dbid}/query',headers=H,method='POST',data=json.dumps({'sql':sql}).encode())
+              try:
+                  with urllib.request.urlopen(req,timeout=45) as r: raw=r.read();code=r.status
+              except urllib.error.HTTPError as e: raw=e.read();code=e.code
+              if not 200<=code<300:raise SystemExit(f'D1 HTTP {code}: '+raw[:300].decode('utf-8','ignore'))
+              obj=json.loads(raw or b'{}'); rr=obj.get('result') or []; rows=[]
+              if not rr or not all(x.get('success') is True for x in rr):raise SystemExit('D1 query fail')
+              for x in rr:rows.extend(x.get('results') or [])
+              return rows
+          tables=['customers','api_keys','billing_subscriptions','usage_buckets','usage_events','webhook_events','billing_checkout_intents']
+          contract={}
+          for t in tables:
+              cols=q(f'PRAGMA table_info("{t}");')
+              contract[t]=[{'name':x.get('name'),'type':x.get('type'),'notnull':x.get('notnull'),'pk':x.get('pk'),'default':x.get('dflt_value')} for x in cols]
+          out={'schema':'musitu.axiom.billing_schema_contract.v1','database_uuid':dbid,'tables':contract,'query_mode':'SELECT_ONLY','mutation_performed':False,'gate':'AXIOM_BILLING_SCHEMA_CONTRACT_READ_PASS'}
+          blob=(json.dumps(out,indent=2,sort_keys=True)+'\n').encode();open('billing-schema-contract.json','wb').write(blob);dg=hashlib.sha256(blob).hexdigest();open('billing-schema-contract.sha256','w').write(dg+'  billing-schema-contract.json\n')
+          print(json.dumps({**out,'evidence_sha256':dg},sort_keys=True))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: musitu-axiom-billing-schema-contract
+          path: |
+            billing-schema-contract.json
+            billing-schema-contract.sha256
+          retention-days: 14
+          if-no-files-found: error

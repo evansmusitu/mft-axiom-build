@@ -1,0 +1,104 @@
+name: MUSITU Axiom Metering Identity Diagnostic
+
+on:
+  push:
+    paths:
+      - '.github/workflows/axiom-metering-identity-diagnostic.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      CF_API: https://api.cloudflare.com/client/v4
+      ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      D1_UUID: 504029cc-f9a5-495e-818f-63c6144b4ea4
+      EDGE: https://axiom-stage.mftintelligence.com
+      EXPECTED_BUILD: MFT-AXIOM-V3-FULL-SELF-CONTAINED-20260904
+    steps:
+      - uses: actions/checkout@v4
+      - name: Probe disposable identity mapping without publishing credentials
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import datetime,hashlib,json,os,secrets,urllib.error,urllib.parse,urllib.request,uuid
+          api=os.environ['CF_API'];aid=os.environ['ACCOUNT_ID'];dbid=os.environ['D1_UUID'];edge=os.environ['EDGE'];build=os.environ['EXPECTED_BUILD']
+          CFH={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY'],'Accept':'application/json','User-Agent':'MUSITU-Axiom-Metering-Identity-Diagnostic/1.0'}
+          def http(url,method='GET',headers=None,body=None):
+              q=urllib.request.Request(url,headers=dict(headers or {}),method=method,data=body)
+              try:
+                  with urllib.request.urlopen(q,timeout=45) as r:return r.status,r.headers,r.read()
+              except urllib.error.HTTPError as e:return e.code,e.headers,e.read()
+          def cf(path,obj):
+              h=dict(CFH);h['Content-Type']='application/json';c,_,b=http(api+path,'POST',h,json.dumps(obj,separators=(',',':')).encode())
+              if not 200<=c<300:raise RuntimeError('Cloudflare HTTP '+str(c))
+              x=json.loads(b or b'{}')
+              if x.get('success') is False:raise RuntimeError('Cloudflare success=false')
+              return x.get('result') or []
+          def d1(sql,params=None):
+              obj={'sql':sql};
+              if params is not None:obj['params']=params
+              rows=[]
+              for rr in cf(f'/accounts/{aid}/d1/database/{dbid}/query',obj):
+                  if rr.get('success') is not True:raise RuntimeError('D1 statement failed')
+                  rows.extend(rr.get('results') or [])
+              return rows
+          def live(path,obj=None,token=None,rid=None):
+              h={'Accept':'application/json','User-Agent':'MUSITU-Axiom-Metering-Identity-Diagnostic/1.0'};body=None;method='GET'
+              if obj is not None:method='POST';h['Content-Type']='application/json';body=json.dumps(obj,separators=(',',':')).encode()
+              if token:h['Authorization']='Bearer '+token
+              if rid:h['x-musitu-request-id']=rid
+              c,hh,b=http(edge+path,method,h,body)
+              try:o=json.loads(b or b'{}')
+              except:o={}
+              return c,hh,o
+          def request_values(x,out=None,depth=0):
+              out=[] if out is None else out
+              if depth>6:return out
+              if isinstance(x,dict):
+                  for k,v in x.items():
+                      if str(k).lower() in ('request_id','requestid') and isinstance(v,str):out.append(v)
+                      request_values(v,out,depth+1)
+              elif isinstance(x,list):
+                  for v in x[:50]:request_values(v,out,depth+1)
+              return out
+          c,_,health=live('/health')
+          if c!=200 or health.get('ok') is not True or health.get('build_id')!=build or int(health.get('operation_count') or -1)!=74:raise RuntimeError('health contract mismatch')
+          suffix=uuid.uuid4().hex;customer='fixture_compute_customer_'+suffix;key_id='fixture_compute_key_'+suffix;token='musitu_axiom_compute_test_'+secrets.token_urlsafe(36);print('::add-mask::'+token)
+          email='axiom-metering-identity-'+suffix+'@invalid.example';key_hash=hashlib.sha256(token.encode()).hexdigest();key_prefix=token[:16]
+          now=datetime.datetime.now(datetime.timezone.utc);created=now.isoformat().replace('+00:00','Z');expires=(now+datetime.timedelta(hours=1)).isoformat().replace('+00:00','Z');rid='MUSITU-E2E-'+uuid.uuid4().hex.upper();payload={'operation':'arithmetic.evaluate','args':{'expression':'40+2'}}
+          evidence={};inserted=False
+          try:
+              d1('INSERT INTO customers(id,email,name,plan,status,monthly_unit_override,created_at,updated_at) VALUES(?1,?2,?3,?4,?5,?6,?7,?7)',[customer,email,'MUSITU disposable metering identity fixture','developer','active',100,created])
+              d1('INSERT INTO api_keys(id,customer_id,key_hash,key_prefix,label,status,created_at,last_used_at,expires_at,revoked_at) VALUES(?1,?2,?3,?4,?5,?6,?7,NULL,?8,NULL)',[key_id,customer,key_hash,key_prefix,'metering-identity-diagnostic','active',created,expires]);inserted=True
+              c,hh,o=live('/v1/compute',payload,token,rid)
+              if c!=200:raise RuntimeError('authenticated compute HTTP '+str(c))
+              events=d1('SELECT request_id,operation,compute_units,customer_id,key_id,status,http_status,result_sha256 FROM usage_events WHERE customer_id=?1 ORDER BY created_at DESC',[customer])
+              if len(events)!=1:raise RuntimeError('expected exactly one usage event, got '+str(len(events)))
+              ev=events[0];body_rids=request_values(o);response_header_rid=hh.get('x-musitu-request-id') or hh.get('X-Musitu-Request-Id')
+              evidence={'schema':'musitu.axiom.metering_identity_diagnostic.v1','gate':'AXIOM_METERING_IDENTITY_DIAGNOSTIC_PASS','event_count':1,'request_id_matches_sent_header':ev.get('request_id')==rid,'request_id_matches_response_header':bool(response_header_rid) and ev.get('request_id')==response_header_rid,'response_header_request_id_present':bool(response_header_rid),'response_body_request_id_candidates':len(body_rids),'request_id_matches_any_response_body_candidate':any(ev.get('request_id')==v for v in body_rids),'operation_matches':ev.get('operation')=='arithmetic.evaluate','customer_id_matches':ev.get('customer_id')==customer,'key_id_matches':ev.get('key_id')==key_id,'event_status':str(ev.get('status') or ''),'event_http_status':int(ev.get('http_status') or 0),'compute_units_positive':int(ev.get('compute_units') or 0)>0,'result_sha256_present':len(str(ev.get('result_sha256') or ''))>=32,'raw_api_key_published':False,'worker_secret_mutation':False}
+          finally:
+              if inserted:
+                  d1('DELETE FROM usage_events WHERE customer_id=?1',[customer]);d1('DELETE FROM usage_buckets WHERE customer_id=?1',[customer]);d1('DELETE FROM api_keys WHERE id=?1',[key_id]);d1('DELETE FROM customers WHERE id=?1',[customer])
+                  remain=d1('SELECT (SELECT count(*) FROM customers WHERE id=?1)+(SELECT count(*) FROM api_keys WHERE id=?2)+(SELECT count(*) FROM usage_events WHERE customer_id=?1)+(SELECT count(*) FROM usage_buckets WHERE customer_id=?1) AS n',[customer,key_id]);evidence['fixture_rows_remaining']=int(remain[0]['n']) if remain else -1
+          if evidence.get('fixture_rows_remaining')!=0:raise RuntimeError('fixture cleanup failed')
+          evidence['cleanup_complete']=True
+          raw=(json.dumps(evidence,indent=2,sort_keys=True)+'\n').encode();open('metering-identity-diagnostic.json','wb').write(raw);dg=hashlib.sha256(raw).hexdigest();open('metering-identity-diagnostic.sha256','w').write(dg+'  metering-identity-diagnostic.json\n')
+          print(json.dumps({**evidence,'evidence_sha256':dg},sort_keys=True))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: musitu-axiom-metering-identity-diagnostic
+          path: |
+            metering-identity-diagnostic.json
+            metering-identity-diagnostic.sha256
+          retention-days: 14
+          if-no-files-found: error

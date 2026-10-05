@@ -1,0 +1,74 @@
+name: MUSITU Axiom Billing Bridge Debug Read-Only
+
+on:
+  push:
+    paths:
+      - '.github/workflows/axiom-billing-bridge-debug-readonly.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      CF_API: https://api.cloudflare.com/client/v4
+      ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      ZONE_ID: 5b56528f03948ff5917a5e0cd9f7109e
+      AUTHORITY: mft-phase8-external-authority
+      BILLING: mft-axiom-billing-ingress
+      BILLING_ROUTE: payments.mftintelligence.com/billing/*
+    steps:
+      - uses: actions/checkout@v4
+      - name: Inspect verifier function and rollback state
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        run: |
+          python - <<'PY'
+          import email,hashlib,json,os,re,urllib.request,urllib.error,urllib.parse
+          api=os.environ['CF_API'];aid=os.environ['ACCOUNT_ID'];zid=os.environ['ZONE_ID'];auth=os.environ['AUTHORITY'];billing=os.environ['BILLING'];route=os.environ['BILLING_ROUTE']
+          H={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY'],'User-Agent':'MUSITU-Axiom-Billing-Debug/1.0'}
+          def get(path):
+            q=urllib.request.Request(api+path,headers=H)
+            with urllib.request.urlopen(q,timeout=45) as r:return r.headers,r.read()
+          def j(path):return json.loads(get(path)[1] or b'{}').get('result')
+          h,b=get(f'/accounts/{aid}/workers/scripts/{urllib.parse.quote(auth,safe="")}');ctype=h.get('content-type','');src=b
+          if 'multipart/' in ctype.lower():
+            msg=email.message_from_bytes((f'Content-Type: {ctype}\r\nMIME-Version: 1.0\r\n\r\n').encode()+b);parts=[]
+            for p in msg.walk():
+              if p.is_multipart():continue
+              d=p.get_payload(decode=True) or b''
+              if b'verifyPaynowCallback' in d:parts.append(d)
+            if len(parts)!=1:raise SystemExit('module mismatch')
+            src=parts[0]
+          text=src.decode('utf-8','ignore')
+          def fn(name):
+            m=re.search(r'(?:async\s+)?function\s+'+re.escape(name)+r'\s*\([^)]*\)\s*\{',text)
+            if not m:return None
+            brace=text.find('{',m.start());depth=0;quote=None;esc=False
+            for i in range(brace,len(text)):
+              ch=text[i]
+              if quote:
+                if esc:esc=False
+                elif ch=='\\':esc=True
+                elif ch==quote:quote=None
+                continue
+              if ch in ('"',"'",'`'):quote=ch;continue
+              if ch=='{':depth+=1
+              elif ch=='}':
+                depth-=1
+                if depth==0:return text[m.start():i+1]
+          body=fn('verifyPaynowCallback') or ''
+          # Extract only interface-level tokens; never secret values.
+          literals=sorted(set(re.findall(r'["\']([A-Za-z][A-Za-z0-9_-]{1,80})["\']',body)))
+          methods=sorted(set(re.findall(r'\.([A-Za-z][A-Za-z0-9_]*)\s*\(',body)))
+          routes=j(f'/zones/{zid}/workers/routes') or []
+          scripts=j(f'/accounts/{aid}/workers/scripts') or []
+          names={str(x.get('id') or x.get('name')) for x in scripts if isinstance(x,dict)}
+          secrets_meta=j(f'/accounts/{aid}/workers/scripts/{urllib.parse.quote(auth,safe="")}/secrets') or []
+          out={'authority_sha256':hashlib.sha256(src).hexdigest(),'verify_function_sha256':hashlib.sha256(body.encode()).hexdigest(),'verify_string_literals':literals,'verify_method_calls':methods,'billing_worker_exists':billing in names,'billing_route_exists':any(isinstance(r,dict) and r.get('pattern')==route for r in routes),'authority_secret_names':sorted(x.get('name') for x in secrets_meta if isinstance(x,dict) and x.get('name')),'mutation_performed':False,'gate':'AXIOM_BILLING_BRIDGE_DEBUG_READ_PASS'}
+          print(json.dumps(out,sort_keys=True))
+          PY

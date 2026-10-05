@@ -1,0 +1,96 @@
+name: MUSITU Axiom Paynow Parser + Verifier Contract Read-Only
+
+on:
+  push:
+    paths:
+      - '.github/workflows/axiom-paynow-parser-verifier-contract-readonly.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    env:
+      CF_API: https://api.cloudflare.com/client/v4
+      ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      GATEWAY: mft-paynow-transport-gateway
+      AUTHORITY: mft-phase8-external-authority
+    steps:
+      - uses: actions/checkout@v4
+      - name: Extract parser and verifier interface metadata only
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import email,hashlib,json,os,re,urllib.error,urllib.parse,urllib.request
+          api=os.environ['CF_API']; aid=os.environ['ACCOUNT_ID']
+          headers={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY'],'User-Agent':'MUSITU-Axiom-Paynow-Parser-Verifier-Audit/1.0'}
+          def get_source(worker,needle):
+              req=urllib.request.Request(f'{api}/accounts/{aid}/workers/scripts/{urllib.parse.quote(worker,safe="")}',headers=headers,method='GET')
+              try:
+                  with urllib.request.urlopen(req,timeout=45) as r: raw=r.read(); ctype=r.headers.get('content-type','')
+              except urllib.error.HTTPError as e: raise SystemExit(f'Fail-closed source HTTP {e.code} {worker}')
+              if 'multipart/' not in ctype.lower(): return raw
+              msg=email.message_from_bytes((f'Content-Type: {ctype}\r\nMIME-Version: 1.0\r\n\r\n').encode()+raw)
+              parts=[]
+              for p in msg.walk():
+                  if p.is_multipart(): continue
+                  d=p.get_payload(decode=True) or b''
+                  if needle.encode() in d: parts.append(d)
+              if not parts: raise SystemExit('Fail-closed matching module absent '+worker)
+              return max(parts,key=len)
+          def func_body(text,name):
+              m=re.search(r'(?:async\s+)?function\s+'+re.escape(name)+r'\s*\([^)]*\)\s*\{',text)
+              if not m: raise SystemExit('Fail-closed function absent '+name)
+              brace=text.find('{',m.start()); depth=0; quote=None; esc=False
+              for i in range(brace,len(text)):
+                  ch=text[i]
+                  if quote:
+                      if esc: esc=False
+                      elif ch=='\\': esc=True
+                      elif ch==quote: quote=None
+                      continue
+                  if ch in ('"',"'",'`'): quote=ch; continue
+                  if ch=='{': depth+=1
+                  elif ch=='}':
+                      depth-=1
+                      if depth==0: return text[m.start():i+1]
+              raise SystemExit('Fail-closed unmatched '+name)
+          gsrc=get_source(os.environ['GATEWAY'],'handleInitiate').decode('utf-8','ignore')
+          asrc=get_source(os.environ['AUTHORITY'],'verifyPaynowCallback').decode('utf-8','ignore')
+          initiate=func_body(gsrc,'handleInitiate')
+          verify=func_body(asrc,'verifyPaynowCallback')
+          def parser_meta(s):
+              content_types=sorted(set(re.findall(r"['\"](application/[A-Za-z0-9.+_-]+|text/[A-Za-z0-9.+_-]+|multipart/[A-Za-z0-9.+_-]+)['\"]",s,re.I)))
+              request_parsers=sorted(set(re.findall(r'\brequest\.(json|text|formData|arrayBuffer|blob)\s*\(',s)))
+              header_names=sorted(set(x.lower() for x in re.findall(r"headers\s*\.\s*get\s*\(\s*['\"]([A-Za-z0-9_-]{1,80})['\"]",s,re.I)))
+              form_keys=sorted(set(re.findall(r'\.(?:get|has)\s*\(\s*["\']([A-Za-z0-9_.:-]{1,100})["\']\s*\)',s)))
+              urlparam_keys=sorted(set(re.findall(r'\.(?:append|set)\s*\(\s*["\']([A-Za-z0-9_.:-]{1,100})["\']',s)))
+              prop_keys=sorted(set(re.findall(r'\b(?:body|payload|data|input|parsed|form|fields|params)\.([A-Za-z_$][A-Za-z0-9_$]{0,80})\b',s)))
+              status_codes=sorted(set(int(x) for x in re.findall(r'\bstatus\s*:\s*(\d{3})\b',s)))
+              methods=sorted(set(x.upper() for x in re.findall(r"method\s*:\s*['\"](GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS)['\"]",s,re.I)))
+              hosts=sorted(set(re.findall(r'https?://([A-Za-z0-9.-]+)',s)))
+              return {'content_type_literals':content_types,'request_parsers':request_parsers,'header_names':header_names,'form_or_param_get_keys':form_keys,'outbound_param_keys':urlparam_keys,'object_property_candidates':prop_keys,'status_codes':status_codes,'outbound_methods':methods,'literal_hosts':hosts,'body_sha256':hashlib.sha256(s.encode()).hexdigest()}
+          gmeta=parser_meta(initiate); ameta=parser_meta(verify)
+          # Verifier-specific safe field/key names from canonical Paynow hash material and result objects.
+          ameta['callback_field_candidates']=sorted(set(re.findall(r'\b(?:payload|data|callback|body|fields|parsed)\[?["\']?([A-Za-z][A-Za-z0-9_]{1,80})["\']?\]?',verify)))
+          ameta['safe_result_key_candidates']=sorted(set(k for k in re.findall(r'(?<![.\w])["\']?([A-Za-z_$][A-Za-z0-9_$]{1,60})["\']?\s*:',verify) if any(x in k.lower() for x in ('valid','verified','status','reference','amount','hash','reason','provider','ok','error','authority'))))
+          out={'schema':'musitu.axiom.paynow_parser_verifier_contract_readonly.v1','gateway':{'worker':os.environ['GATEWAY'],'handleInitiate':gmeta,'source_sha256':hashlib.sha256(gsrc.encode()).hexdigest()},'authority':{'worker':os.environ['AUTHORITY'],'verifyPaynowCallback':ameta,'source_sha256':hashlib.sha256(asrc.encode()).hexdigest()},'source_code_published':False,'secret_values_read':False,'mutation_performed':False,'gate':'AXIOM_PAYNOW_PARSER_VERIFIER_CONTRACT_READ_PASS'}
+          raw=(json.dumps(out,indent=2,sort_keys=True)+'\n').encode(); open('parser-verifier-contract.json','wb').write(raw)
+          d=hashlib.sha256(raw).hexdigest(); open('parser-verifier-contract.sha256','w').write(d+'  parser-verifier-contract.json\n')
+          print(json.dumps({'gate':out['gate'],'gateway':out['gateway'],'authority':out['authority'],'source_code_published':False,'secret_values_read':False,'mutation_performed':False,'sha256':d},sort_keys=True))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: musitu-axiom-paynow-parser-verifier-contract-readonly
+          path: |
+            parser-verifier-contract.json
+            parser-verifier-contract.sha256
+          retention-days: 14
+          if-no-files-found: error

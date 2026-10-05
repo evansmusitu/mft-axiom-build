@@ -1,0 +1,33 @@
+{
+  "schema": "musitu.axiom.interface.visual-layout-baseline.v1",
+  "desktop": {
+    "min_main_width": 500,
+    "regions": {
+      "global": {"displayed": true, "in_viewport": true},
+      "project": {"displayed": true, "in_viewport": true},
+      "main": {"displayed": true, "in_viewport": true},
+      "proof": {"displayed": true, "in_viewport": true},
+      "composer": {"displayed": true, "in_viewport": true}
+    }
+  },
+  "tablet": {
+    "min_main_width": 450,
+    "regions": {
+      "global": {"displayed": true, "in_viewport": true},
+      "project": {"displayed": false, "in_viewport": false},
+      "main": {"displayed": true, "in_viewport": true},
+      "proof": {"displayed": true, "in_viewport": true},
+      "composer": {"displayed": true, "in_viewport": true}
+    }
+  },
+  "mobile": {
+    "min_main_width": 360,
+    "regions": {
+      "global": {"displayed": true, "in_viewport": true},
+      "project": {"displayed": false, "in_viewport": false},
+      "main": {"displayed": true, "in_viewport": true},
+      "proof": {"displayed": true, "in_viewport": false},
+      "composer": {"displayed": true, "in_viewport": true}
+    }
+  }
+}

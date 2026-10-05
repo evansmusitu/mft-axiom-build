@@ -1,0 +1,134 @@
+name: MUSITU Axiom Production Bearer Compute Metering E2E
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/axiom-production-customer-bearer-compute-metering-e2e.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: musitu-axiom-production-bearer-compute-metering
+  cancel-in-progress: false
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    env:
+      CF_API: https://api.cloudflare.com/client/v4
+      ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      D1_UUID: 504029cc-f9a5-495e-818f-63c6144b4ea4
+      EDGE: https://axiom.mftintelligence.com
+      EXPECTED_BUILD: MFT-AXIOM-V3-FULL-SELF-CONTAINED-20260904
+      V3_PATH: .github/workflows/axiom-customer-bearer-compute-metering-e2e-v3.yml
+      V3_BLOB: 5c3d3e1b78afedab04b98e68f0c11cc1706008cb
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Execute pinned v3 proof engine against production hostname
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse "HEAD:${V3_PATH}")" = "$V3_BLOB"
+          python - <<'PY'
+          from pathlib import Path
+          import os
+          p=Path(os.environ['V3_PATH'])
+          text=p.read_text()
+          marker="          python - <<'PY'\n"
+          start=text.index(marker)+len(marker)
+          end=text.index("\n          PY\n      - uses:",start)
+          block=text[start:end]
+          lines=[]
+          for line in block.splitlines():
+              lines.append(line[10:] if line.startswith('          ') else line)
+          Path('/tmp/musitu-axiom-v3-proof.py').write_text('\n'.join(lines)+'\n')
+          print('pinned_v3_proof_extracted=true')
+          PY
+          python /tmp/musitu-axiom-v3-proof.py
+
+      - name: Seal production-host evidence wrapper
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import hashlib,json,os,pathlib,urllib.parse
+          source_path=pathlib.Path('bearer-compute-metering-e2e-v3.json')
+          source_raw=source_path.read_bytes()
+          source=json.loads(source_raw)
+          expected_host=urllib.parse.urlparse(os.environ['EDGE']).hostname
+          if source.get('gate')!='AXIOM_CUSTOMER_BEARER_COMPUTE_METERING_E2E_PASS':
+              raise SystemExit('Fail-closed: pinned v3 proof did not pass')
+          if source.get('edge_host')!=expected_host or expected_host!='axiom.mftintelligence.com':
+              raise SystemExit('Fail-closed: proof was not executed through canonical production hostname')
+          required={
+            'authenticated_compute_http':200,
+            'unauth_compute_http':401,
+            'operation':'arithmetic.evaluate',
+            'result_42_observed':True,
+            'receipt_or_signature_material_present':True,
+            'usage_event_delta':1,
+            'result_sha256_present':True,
+            'api_key_last_used_updated':True,
+            'fixture_rows_remaining':0,
+            'raw_api_key_published':False,
+            'worker_secret_mutation':False,
+          }
+          for k,v in required.items():
+              if source.get(k)!=v:
+                  raise SystemExit('Fail-closed: production proof invariant failed: '+k)
+          units=int(source.get('compute_units') or 0)
+          if units<=0 or int(source.get('usage_bucket_unit_delta') or -1)!=units:
+              raise SystemExit('Fail-closed: production metering unit delta mismatch')
+          out={
+            'schema':'musitu.axiom.production_customer_bearer_compute_metering_e2e.v1',
+            'gate':'AXIOM_PRODUCTION_BEARER_COMPUTE_METERING_E2E_PASS',
+            'edge_host':expected_host,
+            'build_id':source.get('build_id'),
+            'operation_count':source.get('operation_count'),
+            'authenticated_compute_http':source.get('authenticated_compute_http'),
+            'unauth_compute_http':source.get('unauth_compute_http'),
+            'operation':source.get('operation'),
+            'arg_contract':source.get('arg_contract'),
+            'result_42_observed':source.get('result_42_observed'),
+            'receipt_or_signature_material_present':source.get('receipt_or_signature_material_present'),
+            'usage_event_delta':source.get('usage_event_delta'),
+            'compute_units':units,
+            'usage_bucket_unit_delta':source.get('usage_bucket_unit_delta'),
+            'request_id_matched':source.get('request_id_matched'),
+            'customer_id_matched':source.get('customer_id_matched'),
+            'key_id_matched':source.get('key_id_matched'),
+            'result_sha256_present':source.get('result_sha256_present'),
+            'api_key_last_used_updated':source.get('api_key_last_used_updated'),
+            'fixture_rows_remaining':source.get('fixture_rows_remaining'),
+            'cleanup_complete':source.get('cleanup_complete'),
+            'raw_api_key_published':source.get('raw_api_key_published'),
+            'worker_secret_mutation':source.get('worker_secret_mutation'),
+            'source_v3_blob':os.environ['V3_BLOB'],
+            'source_v3_evidence_sha256':hashlib.sha256(source_raw).hexdigest(),
+            'wolfram_parity':'NOT_CERTIFIED',
+            'superiority':'NOT_CERTIFIED',
+          }
+          raw=(json.dumps(out,indent=2,sort_keys=True)+'\n').encode()
+          pathlib.Path('production-bearer-compute-metering-e2e.json').write_bytes(raw)
+          digest=hashlib.sha256(raw).hexdigest()
+          pathlib.Path('production-bearer-compute-metering-e2e.sha256').write_text(digest+'  production-bearer-compute-metering-e2e.json\n')
+          print(json.dumps({**out,'evidence_sha256':digest},sort_keys=True))
+          PY
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: musitu-axiom-production-bearer-compute-metering-e2e
+          path: |
+            production-bearer-compute-metering-e2e.json
+            production-bearer-compute-metering-e2e.sha256
+            bearer-compute-metering-e2e-v3.json
+            bearer-compute-metering-e2e-v3.sha256
+          retention-days: 30
+          if-no-files-found: error

@@ -1,0 +1,77 @@
+name: MUSITU Axiom Paynow Authority Contract Read-Only
+
+on:
+  push:
+    paths:
+      - '.github/workflows/axiom-paynow-authority-contract-readonly.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      CF_API: https://api.cloudflare.com/client/v4
+      ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      AUTHORITY: mft-phase8-external-authority
+    steps:
+      - uses: actions/checkout@v4
+      - name: Extract Paynow authority route metadata only
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import email,hashlib,json,os,re,urllib.parse,urllib.request
+          api=os.environ['CF_API']; aid=os.environ['ACCOUNT_ID']; w=os.environ['AUTHORITY']
+          H={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY'],'User-Agent':'MUSITU-Axiom-Paynow-Authority-Contract/1.0'}
+          q=urllib.request.Request(f'{api}/accounts/{aid}/workers/scripts/{urllib.parse.quote(w,safe="")}',headers=H)
+          with urllib.request.urlopen(q,timeout=45) as r: raw=r.read(); ct=r.headers.get('content-type','')
+          src=raw
+          if 'multipart/' in ct.lower():
+              msg=email.message_from_bytes((f'Content-Type: {ct}\r\nMIME-Version: 1.0\r\n\r\n').encode()+raw); parts=[]
+              for p in msg.walk():
+                  if p.is_multipart(): continue
+                  d=p.get_payload(decode=True) or b''
+                  if any(x in d for x in (b'fetch(',b'export default',b'addEventListener')): parts.append(d)
+              if len(parts)!=1: raise SystemExit(f'Fail-closed executable module count {len(parts)}')
+              src=parts[0]
+          text=src.decode('utf-8','ignore')
+          routes=sorted(set(re.findall(r'["\'](/internal/paynow/[A-Za-z0-9_./:-]+)["\']',text)))
+          route_meta={}
+          for route in routes:
+              i=text.find(route); win=text[max(0,i-3500):min(len(text),i+7000)]
+              body_fields=sorted(set(re.findall(r'\b(?:body|payload|input|data)\.([A-Za-z_][A-Za-z0-9_]*)',win)))
+              destructured=[]
+              for m in re.finditer(r'\{([^{}]{1,800})\}\s*=\s*await\s+req(?:uest)?\.json\(\)',win,re.S):
+                  for part in m.group(1).split(','):
+                      k=part.strip().split(':',1)[0].strip()
+                      if re.fullmatch(r'[A-Za-z_][A-Za-z0-9_]*',k):destructured.append(k)
+              response_fields=set()
+              for m in re.finditer(r'(?:json|JSON\.stringify)\s*\(\s*\{([^{}]{1,1200})\}',win,re.S):
+                  for f in re.finditer(r'([A-Za-z_][A-Za-z0-9_]*)\s*:',m.group(1)):response_fields.add(f.group(1))
+              literals=sorted(set(re.findall(r'["\']([A-Za-z][A-Za-z0-9_-]{1,60})["\']',win)))
+              relevant=[x for x in literals if x.lower() in {'id','reference','amount','additionalinfo','returnurl','resulturl','hash','status','pollurl','browserurl','redirecturl','raw_body_base64','raw_form','form_body','currency'}]
+              route_meta[route]={'json_body_fields':sorted(set(body_fields+destructured)),'response_fields':sorted(response_fields),'relevant_literals':relevant,'uses_integration_key_symbol':'PAYNOW_INTEGRATION_KEY' in win,'mentions_sha512':bool(re.search(r'SHA-?512|sha512',win,re.I))}
+          settings_req=urllib.request.Request(f'{api}/accounts/{aid}/workers/scripts/{urllib.parse.quote(w,safe="")}/settings',headers=H)
+          with urllib.request.urlopen(settings_req,timeout=45) as r: settings=json.loads(r.read() or b'{}').get('result') or {}
+          bindings=[]
+          for b in settings.get('bindings') or []:
+              if isinstance(b,dict):bindings.append({'name':b.get('name'),'type':b.get('type')})
+          out={'schema':'musitu.axiom.paynow_authority_contract.v1','source_sha256':hashlib.sha256(src).hexdigest(),'routes':routes,'route_meta':route_meta,'bindings':sorted(bindings,key=lambda x:str(x.get('name'))),'secret_values_read':False,'mutation_performed':False,'source_published':False,'gate':'AXIOM_PAYNOW_AUTHORITY_CONTRACT_READ_PASS'}
+          blob=(json.dumps(out,indent=2,sort_keys=True)+'\n').encode();open('paynow-authority-contract.json','wb').write(blob);dg=hashlib.sha256(blob).hexdigest();open('paynow-authority-contract.sha256','w').write(dg+'  paynow-authority-contract.json\n')
+          print(json.dumps({**out,'evidence_sha256':dg},sort_keys=True))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: musitu-axiom-paynow-authority-contract
+          path: |
+            paynow-authority-contract.json
+            paynow-authority-contract.sha256
+          retention-days: 14
+          if-no-files-found: error

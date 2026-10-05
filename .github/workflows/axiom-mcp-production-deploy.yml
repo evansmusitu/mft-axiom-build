@@ -1,0 +1,236 @@
+name: MUSITU Axiom MCP Production Deploy
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'mcp/musitu_axiom_mcp_worker.mjs'
+      - '.github/workflows/axiom-mcp-production-deploy.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      CF_API: https://api.cloudflare.com/client/v4
+      ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      ZONE_ID: 5b56528f03948ff5917a5e0cd9f7109e
+      ZONE_NAME: mftintelligence.com
+      MCP_HOST: mcp.mftintelligence.com
+      MCP_WORKER: musitu-axiom-mcp
+      MCP_RULE_REF: musitu_axiom_mcp_machine_transport
+      AXIOM_BASE: https://axiom.mftintelligence.com
+      BILLING_BASE: https://payments.mftintelligence.com
+      EXPECTED_BUILD: MFT-AXIOM-V3-FULL-SELF-CONTAINED-20260904
+      EXPECTED_OPERATIONS: '74'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate MCP gateway source
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check mcp/musitu_axiom_mcp_worker.mjs
+          if grep -Eiq '\bMFT[[:space:]]+Axiom\b|\bmft\.axiom\b' mcp/musitu_axiom_mcp_worker.mjs; then
+            echo 'Retired company branding found in MCP source' >&2
+            exit 1
+          fi
+
+      - name: Deploy isolated MCP worker and custom domain fail-closed
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$CLOUDFLARE_EMAIL"
+          test -n "$CLOUDFLARE_GLOBAL_API_KEY"
+          python - <<'PY'
+          import email,hashlib,json,os,pathlib,secrets,time,urllib.error,urllib.parse,urllib.request
+
+          api=os.environ['CF_API']; aid=os.environ['ACCOUNT_ID']; zid=os.environ['ZONE_ID']; zone=os.environ['ZONE_NAME']
+          host=os.environ['MCP_HOST']; worker=os.environ['MCP_WORKER']; rule_ref=os.environ['MCP_RULE_REF']
+          source_path=pathlib.Path('mcp/musitu_axiom_mcp_worker.mjs'); source=source_path.read_bytes(); source_sha=hashlib.sha256(source).hexdigest()
+          auth={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY'],'Accept':'application/json','User-Agent':'MUSITU-Axiom-MCP-Deploy/1.0'}
+
+          def raw(url,method='GET',headers=None,body=None,timeout=45):
+              req=urllib.request.Request(url,headers=dict(headers or {}),data=body,method=method)
+              try:
+                  with urllib.request.urlopen(req,timeout=timeout) as r:return r.status,r.headers,r.read()
+              except urllib.error.HTTPError as e:return e.code,e.headers,e.read()
+              except urllib.error.URLError:return 0,{},b''
+
+          def cf(path,method='GET',obj=None,expected=None):
+              h=dict(auth); body=None
+              if obj is not None:
+                  h['Content-Type']='application/json'; body=json.dumps(obj,separators=(',',':')).encode()
+              c,hh,b=raw(api+path,method,h,body)
+              if expected is not None:
+                  if c not in expected: raise RuntimeError(f'Cloudflare HTTP {c}: {method} {path}')
+              elif not 200<=c<300: raise RuntimeError(f'Cloudflare HTTP {c}: {method} {path}')
+              try:x=json.loads(b or b'{}')
+              except Exception:x={}
+              if isinstance(x,dict) and x.get('success') is False: raise RuntimeError('Cloudflare success=false '+path+' '+str(x.get('errors'))[:300])
+              return x.get('result') if isinstance(x,dict) else None
+
+          def mp(metadata,filename,content):
+              boundary='----MUSITU'+secrets.token_hex(18); parts=[]
+              def add(v):parts.append(v.encode() if isinstance(v,str) else v)
+              add(f'--{boundary}\r\nContent-Disposition: form-data; name="metadata"\r\nContent-Type: application/json\r\n\r\n')
+              add(json.dumps(metadata,separators=(',',':'))); add('\r\n')
+              add(f'--{boundary}\r\nContent-Disposition: form-data; name="{filename}"; filename="{filename}"\r\nContent-Type: application/javascript+module\r\n\r\n')
+              add(content); add('\r\n'); add(f'--{boundary}--\r\n')
+              return boundary,b''.join(parts)
+
+          def upload():
+              metadata={
+                  'main_module':'index.mjs','compatibility_date':'2026-09-05',
+                  'bindings':[
+                      {'type':'plain_text','name':'AXIOM_BASE','text':os.environ['AXIOM_BASE']},
+                      {'type':'plain_text','name':'BILLING_BASE','text':os.environ['BILLING_BASE']},
+                      {'type':'plain_text','name':'MCP_PUBLIC_BASE','text':'https://'+host},
+                  ],
+              }
+              boundary,body=mp(metadata,'index.mjs',source); h=dict(auth); h['Content-Type']='multipart/form-data; boundary='+boundary
+              c,_,b=raw(f'{api}/accounts/{aid}/workers/scripts/{urllib.parse.quote(worker,safe="")}', 'PUT', h, body)
+              if not 200<=c<300:raise RuntimeError(f'Worker upload HTTP {c}: '+b[:400].decode('utf-8','ignore'))
+
+          def http_json(url,method='GET',obj=None,headers=None):
+              h={'Accept':'application/json','User-Agent':'MUSITU-Axiom-MCP-Verify/1.0'}
+              if headers:h.update(headers)
+              body=None
+              if obj is not None:h['Content-Type']='application/json';body=json.dumps(obj,separators=(',',':')).encode()
+              c,hh,b=raw(url,method,h,body,45)
+              try:x=json.loads(b or b'{}')
+              except Exception:x={}
+              return c,hh,x
+
+          zones=cf('/zones?name='+urllib.parse.quote(zone)+'&status=active') or []
+          if len(zones)!=1 or zones[0].get('id')!=zid or (zones[0].get('account') or {}).get('id')!=aid:
+              raise RuntimeError('canonical Cloudflare zone/account mismatch')
+
+          # Re-confirm the certified upstreams before deploying the gateway.
+          hc,_,ho=http_json(os.environ['AXIOM_BASE']+'/health')
+          if hc!=200 or ho.get('ok') is not True or ho.get('build_id')!=os.environ['EXPECTED_BUILD'] or int(ho.get('operation_count') or -1)!=int(os.environ['EXPECTED_OPERATIONS']):
+              raise RuntimeError('certified Axiom production runtime precondition failed')
+          tc,_,to=http_json(os.environ['AXIOM_BASE']+'/v1/tools')
+          if tc!=200 or int(to.get('operation_count') or -1)!=int(os.environ['EXPECTED_OPERATIONS']) or len(to.get('tools') or [])!=int(os.environ['EXPECTED_OPERATIONS']):
+              raise RuntimeError('certified Axiom registry precondition failed')
+          bc,_,bo=http_json(os.environ['BILLING_BASE']+'/billing/healthz')
+          if bc!=200 or bo.get('ok') is not True or bo.get('catalog_configured') is not True or bo.get('checkout_enabled') is not True or bo.get('provider')!='paynow':
+              raise RuntimeError('certified billing precondition failed')
+
+          domains=cf(f'/accounts/{aid}/workers/domains') or []
+          before=[d for d in domains if isinstance(d,dict) and d.get('hostname')==host]
+          if len(before)>1:raise RuntimeError('duplicate MCP custom-domain rows')
+          if before and before[0].get('service')!=worker:raise RuntimeError('MCP hostname belongs to another Worker')
+          if not before:
+              dns=cf(f'/zones/{zid}/dns_records?name='+urllib.parse.quote(host)+'&per_page=100') or []
+              if dns:raise RuntimeError('MCP hostname already has DNS records; refusing override')
+              routes=cf(f'/zones/{zid}/workers/routes') or []
+              if any(host in str(r.get('pattern') or '') for r in routes if isinstance(r,dict)):raise RuntimeError('MCP hostname already appears in Worker routes')
+
+          upload()
+          cf(f'/accounts/{aid}/workers/scripts/{urllib.parse.quote(worker,safe="")}/subdomain','POST',{'enabled':False,'previews_enabled':False})
+          settings=cf(f'/accounts/{aid}/workers/scripts/{urllib.parse.quote(worker,safe="")}/settings') or {}
+          bindings={b.get('name'):b for b in settings.get('bindings') or [] if isinstance(b,dict)}
+          for name,value in [('AXIOM_BASE',os.environ['AXIOM_BASE']),('BILLING_BASE',os.environ['BILLING_BASE']),('MCP_PUBLIC_BASE','https://'+host)]:
+              if bindings.get(name,{}).get('text')!=value:raise RuntimeError('MCP Worker binding readback mismatch '+name)
+          sub=cf(f'/accounts/{aid}/workers/scripts/{urllib.parse.quote(worker,safe="")}/subdomain') or {}
+          if sub.get('enabled') is not False or sub.get('previews_enabled') is not False:raise RuntimeError('MCP workers.dev exposure not disabled')
+
+          # Exact-host machine transport exception while preserving the strict global policy.
+          sec=cf(f'/zones/{zid}/settings/security_level') or {}; bic=cf(f'/zones/{zid}/settings/browser_check') or {}
+          if sec.get('value')!='under_attack' or bic.get('value')!='on':raise RuntimeError('global challenge posture drift')
+          rulesets=cf(f'/zones/{zid}/rulesets') or []
+          cfg=[x for x in rulesets if x.get('phase')=='http_config_settings' and x.get('kind')=='zone']
+          if len(cfg)!=1:raise RuntimeError('zone configuration ruleset not unique')
+          rid=cfg[0].get('id'); detail=cf(f'/zones/{zid}/rulesets/{rid}') or {}; rules=detail.get('rules') or []
+          expr='http.host eq "'+host+'"'
+          by_ref=[r for r in rules if r.get('ref')==rule_ref]
+          if len(by_ref)>1:raise RuntimeError('duplicate MCP machine transport rules')
+          if by_ref:
+              r=by_ref[0]; ap=r.get('action_parameters') or {}
+              if r.get('action')!='set_config' or r.get('expression')!=expr or ap.get('security_level')!='essentially_off' or ap.get('bic') is not False or r.get('enabled') is False:
+                  raise RuntimeError('existing MCP machine transport rule drift')
+          else:
+              same=[r for r in rules if r.get('expression')==expr]
+              if same:raise RuntimeError('MCP host already has different configuration rule')
+              cf(f'/zones/{zid}/rulesets/{rid}/rules','POST',{
+                  'action':'set_config','action_parameters':{'security_level':'essentially_off','bic':False},
+                  'expression':expr,'description':'MUSITU Axiom MCP machine transport; disable browser challenge only on MCP hostname; tool authorization remains fail-closed',
+                  'enabled':True,'ref':rule_ref,
+              })
+
+          if not before:
+              cf(f'/accounts/{aid}/workers/domains','PUT',{'hostname':host,'service':worker,'zone_id':zid,'zone_name':zone,'override_existing_origin':True})
+          after=[d for d in (cf(f'/accounts/{aid}/workers/domains') or []) if isinstance(d,dict) and d.get('hostname')==host]
+          if len(after)!=1 or after[0].get('service')!=worker:raise RuntimeError('MCP custom-domain mapping readback failed')
+
+          # Wait for the custom domain and execute the MCP protocol contract.
+          base='https://'+host; final_health=None
+          for _ in range(60):
+              c,_,x=http_json(base+'/health')
+              if c==200 and x.get('ok') is True and int(x.get('operation_count') or -1)==int(os.environ['EXPECTED_OPERATIONS']) and x.get('build_id')==os.environ['EXPECTED_BUILD'] and x.get('catalog_configured') is True and x.get('checkout_enabled') is True:
+                  final_health=x;break
+              time.sleep(2)
+          if final_health is None:raise RuntimeError('MCP health did not reach exact production contract')
+
+          init={'jsonrpc':'2.0','id':1,'method':'initialize','params':{'protocolVersion':'2025-06-18','capabilities':{},'clientInfo':{'name':'musitu-deploy-verifier','version':'1.0'}}}
+          ic,_,io=http_json(base+'/mcp','POST',init)
+          if ic!=200 or (io.get('result') or {}).get('serverInfo',{}).get('name')!='musitu-axiom':raise RuntimeError('MCP initialize failed')
+          lc,_,lo=http_json(base+'/mcp','POST',{'jsonrpc':'2.0','id':2,'method':'tools/list','params':{}})
+          tools=(lo.get('result') or {}).get('tools') or []
+          if lc!=200 or not isinstance(tools,list):raise RuntimeError('MCP tools/list failed')
+          names={t.get('name') for t in tools if isinstance(t,dict)}
+          required={'musitu_axiom_capabilities','musitu_axiom_plans','musitu_axiom_recommend_plan','musitu_axiom_execute','musitu_axiom_start_checkout','musitu_axiom_checkout_status'}
+          if not required.issubset(names):raise RuntimeError('MCP commercial/static tool set incomplete')
+          mapped={((t.get('_meta') or {}).get('musitu/operation')) for t in tools if isinstance(t,dict)}-{None}
+          if len(mapped)!=int(os.environ['EXPECTED_OPERATIONS']):raise RuntimeError(f'MCP did not wire complete Axiom registry: unique mapped={len(mapped)}')
+          checkout=[t for t in tools if t.get('name')=='musitu_axiom_start_checkout'][0]
+          ann=checkout.get('annotations') or {}; schemes=checkout.get('securitySchemes') or []
+          if ann.get('readOnlyHint') is not False or ann.get('openWorldHint') is not True or not any(s.get('type')=='oauth2' and 'billing.write' in (s.get('scopes') or []) for s in schemes):
+              raise RuntimeError('checkout safety/auth annotations invalid')
+
+          pc,_,po=http_json(base+'/mcp','POST',{'jsonrpc':'2.0','id':3,'method':'tools/call','params':{'name':'musitu_axiom_plans','arguments':{}}})
+          plan_result=po.get('result') or {}; catalog=(plan_result.get('structuredContent') or {}).get('catalog') or {}; plans=catalog.get('plans') or []
+          if pc!=200 or len(plans)!=3:raise RuntimeError('MCP pricing/catalog tool failed')
+          economics=sorted((p.get('id'),p.get('amount_cents'),p.get('currency'),p.get('monthly_unit_limit')) for p in plans)
+          expected=sorted([('developer',1900,'USD',1000),('pro',4900,'USD',5000),('enterprise',14900,'USD',25000)])
+          if economics!=expected:raise RuntimeError('MCP pricing economics drift')
+
+          ac,_,ao=http_json(base+'/mcp','POST',{'jsonrpc':'2.0','id':4,'method':'tools/call','params':{'name':'musitu_axiom_execute','arguments':{'operation':'arithmetic.evaluate','args':{'expression':'40+2'}}}})
+          ar=ao.get('result') or {}
+          if ac!=200 or ar.get('isError') is not True or (ar.get('structuredContent') or {}).get('authenticated') is not False:
+              raise RuntimeError('MCP unauthenticated paid execution did not fail closed')
+
+          out={
+              'schema':'musitu.axiom.mcp.production_deploy.v1','gate':'MUSITU_AXIOM_REMOTE_MCP_DEPLOY_PASS',
+              'hostname':host,'worker':worker,'mcp_endpoint':base+'/mcp','source_sha256':source_sha,
+              'build_id':final_health.get('build_id'),'operation_count':final_health.get('operation_count'),
+              'unique_axiom_operations_wired':len(mapped),'advertised_tool_count':len(tools),
+              'commercial_tools':sorted(required),'pricing_catalog_verified':True,'checkout_tool_oauth_gated':True,
+              'unauthenticated_paid_execution_fail_closed':True,'workers_dev_enabled':False,'previews_enabled':False,
+              'global_security_level':'under_attack','global_browser_check':'on','machine_transport_rule_ref':rule_ref,
+              'oauth_provider_configured':False,'oauth_remaining_external_prerequisite':True,
+              'kernel_mutated':False,'billing_worker_mutated':False,'raw_modal_public_exposure_added':False,
+              'secret_values_logged':False,'wolfram_parity':'NOT_CERTIFIED','superiority':'NOT_CERTIFIED',
+          }
+          p=pathlib.Path('musitu-axiom-mcp-production-deploy.json');p.write_text(json.dumps(out,indent=2,sort_keys=True)+'\n')
+          dg=hashlib.sha256(p.read_bytes()).hexdigest();pathlib.Path('musitu-axiom-mcp-production-deploy.sha256').write_text(dg+'  '+p.name+'\n')
+          print(json.dumps({'gate':out['gate'],'hostname':host,'operation_count':out['operation_count'],'unique_axiom_operations_wired':len(mapped),'advertised_tool_count':len(tools),'pricing_catalog_verified':True,'checkout_tool_oauth_gated':True,'oauth_provider_configured':False,'evidence_sha256':dg},sort_keys=True))
+          PY
+
+      - name: Upload sealed MCP production-deploy evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: musitu-axiom-mcp-production-deploy
+          path: |
+            musitu-axiom-mcp-production-deploy.json
+            musitu-axiom-mcp-production-deploy.sha256
+          retention-days: 30
+          if-no-files-found: warn

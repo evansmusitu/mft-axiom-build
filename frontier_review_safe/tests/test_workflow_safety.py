@@ -1,0 +1,82 @@
+from __future__ import annotations
+
+import copy
+from pathlib import Path
+import unittest
+
+from frontier_review_safe.workflow_safety import (
+    RISK_MUTABLE_ACTION,
+    RISK_PRIVILEGED_MUTATION,
+    authoritative_workflow_audit,
+    deny_review_snapshot_workflow_execution,
+    validate_authoritative_workflow_audit,
+)
+
+
+class WorkflowSafetyTests(unittest.TestCase):
+    def test_authoritative_audit_is_complete_and_execution_remains_denied(self):
+        audit = authoritative_workflow_audit()
+        result = validate_authoritative_workflow_audit(audit)
+        self.assertEqual(result["status"], "PASS", result)
+        self.assertEqual(result["workflow_count"], 32)
+        self.assertFalse(result["execution_authorized"])
+        self.assertEqual(result["risk_summary"], {
+            "LOCAL_READ_ONLY_CONTRACT": 29,
+            "READ_ONLY_REPO_WITH_NETWORK_AND_ARTIFACT_UPLOAD": 1,
+            "PRIVILEGED_EXTERNAL_MUTATION": 1,
+            "LOCAL_READ_ONLY_MUTABLE_ACTION_REF": 1,
+        })
+
+    def test_fullstack_privileged_mutation_can_never_be_laundered_as_safe(self):
+        audit = authoritative_workflow_audit()
+        fullstack = next(
+            x for x in audit["records"]
+            if x["name"] == "MUSITU Axiom Frontier v5 Full-Stack Verification"
+        )
+        self.assertEqual(fullstack["risk_class"], RISK_PRIVILEGED_MUTATION)
+        self.assertTrue(fullstack["secrets"])
+        self.assertTrue(fullstack["external_mutation"])
+        self.assertEqual(deny_review_snapshot_workflow_execution(fullstack["run_id"])["status"], "DENY")
+
+        laundering = copy.deepcopy(audit)
+        f = next(
+            x for x in laundering["records"]
+            if x["name"] == "MUSITU Axiom Frontier v5 Full-Stack Verification"
+        )
+        f["risk_class"] = "LOCAL_READ_ONLY_CONTRACT"
+        self.assertEqual(validate_authoritative_workflow_audit(laundering)["status"], "FAIL")
+
+    def test_authoritative_brand_guard_mutable_ref_remains_visible_as_historical_gap(self):
+        audit = authoritative_workflow_audit()
+        brand = next(x for x in audit["records"] if x["name"] == "MUSITU Brand Guard")
+        self.assertEqual(brand["risk_class"], RISK_MUTABLE_ACTION)
+
+    def test_review_safe_candidate_brand_guard_uses_immutable_action_and_runner(self):
+        text = Path(".github/workflows/musitu-brand-guard.yml").read_text(encoding="utf-8")
+        self.assertIn("runs-on: ubuntu-24.04", text)
+        self.assertIn("actions/checkout@11d5960a326750d5838078e36cf38b85af677262", text)
+        self.assertIn("persist-credentials: false", text)
+        self.assertNotIn("actions/checkout@v4", text)
+        self.assertNotIn("runs-on: ubuntu-latest", text)
+
+    def test_review_safe_ci_does_not_persist_checkout_credentials(self):
+        text = Path(".github/workflows/axiom-frontier-review-safe-ci.yml").read_text(encoding="utf-8")
+        self.assertIn("persist-credentials: false", text)
+        self.assertIn("permissions:\n  contents: read", text)
+
+    def test_review_safe_ci_guard_runs_on_every_track_b_push(self):
+        text = Path(".github/workflows/axiom-frontier-review-safe-ci.yml").read_text(encoding="utf-8")
+        push_block = text.split("  push:\n", 1)[1].split("  workflow_dispatch:\n", 1)[0]
+        self.assertIn("      - frontier/axiom-v5-world-top-tier-review-safe", push_block)
+        self.assertNotIn("    paths:", push_block)
+        self.assertNotIn("    paths-ignore:", push_block)
+
+    def test_job_creation_tamper_invalidates_blocked_unexecuted_evidence(self):
+        audit = authoritative_workflow_audit()
+        tampered = copy.deepcopy(audit)
+        tampered["records"][0]["job_count"] = 1
+        self.assertEqual(validate_authoritative_workflow_audit(tampered)["status"], "FAIL")
+
+
+if __name__ == "__main__":
+    unittest.main(verbosity=2)

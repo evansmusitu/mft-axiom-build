@@ -1,0 +1,158 @@
+name: MUSITU Axiom Paynow Offline Contract Execution
+
+on:
+  push:
+    paths:
+      - '.github/workflows/axiom-paynow-offline-contract-execution.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  execute-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      CF_API: https://api.cloudflare.com/client/v4
+      ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      PAYNOW_WORKER: mft-paynow-transport-gateway
+    steps:
+      - uses: actions/checkout@v4
+      - name: Execute live handler functions with network fully mocked
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import email,hashlib,os,re,urllib.request
+          api=os.environ['CF_API']; aid=os.environ['ACCOUNT_ID']; worker=os.environ['PAYNOW_WORKER']
+          h={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY'],'User-Agent':'MUSITU-Axiom-Paynow-Offline-Contract/1.0'}
+          req=urllib.request.Request(f'{api}/accounts/{aid}/workers/scripts/{worker}',headers=h,method='GET')
+          with urllib.request.urlopen(req,timeout=45) as r:
+              raw=r.read(); ctype=r.headers.get('content-type','')
+          source=raw
+          if 'multipart/' in ctype.lower():
+              msg=email.message_from_bytes((f'Content-Type: {ctype}\r\nMIME-Version: 1.0\r\n\r\n').encode()+raw)
+              candidates=[]
+              for part in msg.walk():
+                  if part.is_multipart(): continue
+                  data=part.get_payload(decode=True) or b''
+                  ct=(part.get_content_type() or '').lower()
+                  name=part.get_filename() or part.get_param('name',header='content-disposition') or ''
+                  if 'javascript' in ct or name.endswith(('.js','.mjs')) or b'handleInitiate' in data:
+                      candidates.append(data)
+              if not candidates: raise SystemExit('Fail-closed: no JS module part found')
+              source=max(candidates,key=len)
+          text=source.decode('utf-8')
+          if 'function handleInitiate' not in text or 'function handlePoll' not in text:
+              raise SystemExit('Fail-closed: expected handlers absent')
+          # Export only the two existing functions for local test execution. Live source is never modified.
+          text += '\nexport { handleInitiate as __axiomTestInitiate, handlePoll as __axiomTestPoll };\n'
+          open('gateway-under-test.mjs','w',encoding='utf-8').write(text)
+          open('gateway-source.sha256','w').write(hashlib.sha256(source).hexdigest()+'\n')
+          PY
+          cat > offline-contract.mjs <<'JS'
+          import { pathToFileURL } from 'node:url';
+          import fs from 'node:fs';
+          import crypto from 'node:crypto';
+          const mod = await import(pathToFileURL(process.cwd() + '/gateway-under-test.mjs').href + '?v=' + Date.now());
+          const initiate = mod.__axiomTestInitiate;
+          const poll = mod.__axiomTestPoll;
+          if (typeof initiate !== 'function' || typeof poll !== 'function') throw new Error('handler export failed');
+
+          function shapeBody(raw) {
+            const text = typeof raw === 'string' ? raw : raw == null ? '' : String(raw);
+            const keys = new Set();
+            try {
+              const o = JSON.parse(text);
+              if (o && typeof o === 'object' && !Array.isArray(o)) for (const k of Object.keys(o)) keys.add(k);
+            } catch {}
+            try {
+              const p = new URLSearchParams(text);
+              for (const k of p.keys()) keys.add(k);
+            } catch {}
+            return { byte_length: Buffer.byteLength(text), keys:[...keys].sort(), sha256:crypto.createHash('sha256').update(text).digest('hex') };
+          }
+          function safeUrl(raw) {
+            try {
+              const u = new URL(String(raw));
+              return { protocol:u.protocol, host:u.host, pathname:u.pathname, query_keys:[...u.searchParams.keys()].sort() };
+            } catch { return { opaque:true }; }
+          }
+          function fakeEnv() {
+            const vaultCalls=[];
+            const stub={
+              async fetch(req) {
+                const body = req instanceof Request ? await req.clone().text().catch(()=> '') : '';
+                vaultCalls.push({ url:safeUrl(req.url), method:req.method, body:shapeBody(body) });
+                return new Response(JSON.stringify({ok:true,status:'mocked',reference:'mock-reference',poll_url:'https://www.paynow.co.zw/Interface/CheckPayment/?guid=mock'}),{status:200,headers:{'content-type':'application/json'}});
+              }
+            };
+            return {
+              env:{
+                CONTROL_RATE_LIMITER:{async limit(){return {success:true};}},
+                PUBLIC_CALLBACK_RATE_LIMITER:{async limit(){return {success:true};}},
+                CALLBACK_VAULT:{idFromName(x){return 'mock-id';},get(x){return stub;}},
+                MFT_GATEWAY_CAPABILITY_TOKEN:'offline-placeholder-not-live-secret'
+              }, vaultCalls
+            };
+          }
+          function fakeFetchRecorder() {
+            const calls=[];
+            const fn=async (input,init={})=>{
+              const req=input instanceof Request ? input : new Request(String(input),init);
+              const body=await req.clone().text().catch(()=> '');
+              calls.push({url:safeUrl(req.url),method:req.method,headers:[...req.headers.keys()].sort(),body:shapeBody(body)});
+              const u=new URL(req.url);
+              if (u.pathname.toLowerCase().includes('checkpayment')) {
+                return new Response('status=Paid&reference=mock-reference&paynowreference=mock-provider-reference&amount=1.00&hash=mockhash',{status:200,headers:{'content-type':'application/x-www-form-urlencoded'}});
+              }
+              return new Response('status=Ok&browserurl=https%3A%2F%2Fexample.invalid%2Fpay&pollurl=https%3A%2F%2Fwww.paynow.co.zw%2FInterface%2FCheckPayment%2F%3Fguid%3Dmock&hash=mockhash',{status:200,headers:{'content-type':'application/x-www-form-urlencoded'}});
+            };
+            return {fn,calls};
+          }
+          async function runInitiate(payload) {
+            const {env,vaultCalls}=fakeEnv(); const {fn,calls}=fakeFetchRecorder();
+            const req=new Request('https://internal.invalid/internal/paynow/initiate',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(payload)});
+            let res,err=null; try {res=await initiate(req,env,fn);} catch(e){err={name:e?.name,message:String(e?.message||e).slice(0,160)}}
+            let body=''; if(res) body=await res.clone().text().catch(()=> '');
+            let responseKeys=[]; try {const o=JSON.parse(body); if(o&&typeof o==='object') responseKeys=Object.keys(o).sort();}catch{}
+            return {input_keys:Object.keys(payload).sort(),error:err,http_status:res?.status??null,response_keys:responseKeys,response_body_sha256:crypto.createHash('sha256').update(body).digest('hex'),fetch_calls:calls,vault_calls:vaultCalls};
+          }
+          async function runPoll(payload) {
+            const {env,vaultCalls}=fakeEnv(); const {fn,calls}=fakeFetchRecorder();
+            const req=new Request('https://internal.invalid/internal/paynow/poll',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(payload)});
+            let res,err=null; try {res=await poll(req,env,fn);} catch(e){err={name:e?.name,message:String(e?.message||e).slice(0,160)}}
+            let body=''; if(res) body=await res.clone().text().catch(()=> '');
+            let responseKeys=[]; try {const o=JSON.parse(body); if(o&&typeof o==='object') responseKeys=Object.keys(o).sort();}catch{}
+            return {input_keys:Object.keys(payload).sort(),error:err,http_status:res?.status??null,response_keys:responseKeys,response_body_sha256:crypto.createHash('sha256').update(body).digest('hex'),fetch_calls:calls,vault_calls:vaultCalls};
+          }
+          const common={order_id:'mock-order',reference:'mock-reference',amount:'1.00',email:'billing-test@example.invalid',additionalinfo:'MUSITU Axiom test',returnurl:'https://example.invalid/return',resulturl:'https://example.invalid/result',return_url:'https://example.invalid/return',result_url:'https://example.invalid/result'};
+          const report={
+            schema:'musitu.axiom.paynow_offline_contract_execution.v1',
+            network_mode:'FULLY_MOCKED_NO_PROVIDER_CALLS',
+            production_mutation_performed:false,
+            initiate_empty:await runInitiate({}),
+            initiate_order_only:await runInitiate({order_id:'mock-order'}),
+            initiate_common:await runInitiate(common),
+            poll_empty:await runPoll({}),
+            poll_url:await runPoll({poll_url:'https://www.paynow.co.zw/Interface/CheckPayment/?guid=mock'}),
+            gate:'AXIOM_PAYNOW_OFFLINE_CONTRACT_EXECUTION_PASS'
+          };
+          const out=JSON.stringify(report,null,2)+'\n'; fs.writeFileSync('paynow-offline-contract.json',out);
+          const digest=crypto.createHash('sha256').update(out).digest('hex'); fs.writeFileSync('paynow-offline-contract.sha256',digest+'  paynow-offline-contract.json\n');
+          console.log(JSON.stringify({...report,artifact_sha256:digest}));
+          JS
+          node offline-contract.mjs
+      - uses: actions/upload-artifact@v4
+        with:
+          name: musitu-axiom-paynow-offline-contract-execution
+          path: |
+            paynow-offline-contract.json
+            paynow-offline-contract.sha256
+            gateway-source.sha256
+          retention-days: 14
+          if-no-files-found: error

@@ -1,0 +1,66 @@
+# Read-only verification for acyclic, anchored Level-7 governance history.
+name: MUSITU Axiom Level-7 Acyclic Governance CI
+
+on:
+  push:
+    branches:
+      - frontier/axiom-v5-level7-acyclic-governance-20260912
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: musitu-axiom-level7-acyclic-governance-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  acyclic-governance:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - name: Checkout immutable action
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Setup patch-pinned Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
+        with:
+          python-version: '3.12.14'
+      - name: Enforce sealed main and frozen Track A
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --no-tags --force origin \
+            +refs/heads/main:refs/remotes/origin/main \
+            +refs/heads/frontier/axiom-v5-skill-fabric:refs/remotes/origin/frontier/axiom-v5-skill-fabric
+          PYTHONPATH=. python - <<'PY'
+          import json, pathlib, subprocess
+          from frontier_review_safe.review_snapshot import ReviewSnapshotGuard, ReviewSnapshotManifest
+          def git(*args): return subprocess.check_output(['git', *args], text=True).strip()
+          raw=json.loads(pathlib.Path('frontier_review_safe/review_snapshot_manifest.json').read_text(encoding='utf-8'))
+          manifest=ReviewSnapshotManifest(
+              schema=raw['schema'], authoritative_frontier_sha=raw['authoritative_frontier_sha'],
+              sealed_main_sha=raw['sealed_main_sha'], public_tool_count=raw['public_tool_count'],
+              required_scopes=tuple(raw['required_scopes']), forbidden_tools=tuple(raw['forbidden_tools']),
+              protected_paths=tuple(raw['protected_paths']), protected_git_object_shas=dict(raw['protected_git_object_shas']),
+              mcp_url=raw['mcp_url'], auth_url=raw['auth_url'], demo_url=raw['demo_url'])
+          guard=ReviewSnapshotGuard(manifest)
+          main=git('rev-parse','refs/remotes/origin/main')
+          track_a=git('rev-parse','refs/remotes/origin/frontier/axiom-v5-skill-fabric')
+          if main != manifest.sealed_main_sha: raise SystemExit(f'FROZEN_MAIN_DRIFT:{main}')
+          if track_a != manifest.authoritative_frontier_sha: raise SystemExit(f'FROZEN_FRONTIER_DRIFT:{track_a}')
+          authoritative={p:git('rev-parse',f'{manifest.authoritative_frontier_sha}:{p}') for p in manifest.protected_git_object_shas}
+          current={p:git('rev-parse',f'HEAD:{p}') for p in manifest.protected_git_object_shas}
+          guard.verify_tree(authoritative); guard.verify_tree(current)
+          changed=[x for x in git('diff','--name-only',f'{manifest.authoritative_frontier_sha}..HEAD').splitlines() if x]
+          guard.verify_no_protected_diff(changed, manifest.protected_paths)
+          print(json.dumps({'status':'PASS','sealed_main_sha':main,'authoritative_frontier_sha':track_a,'manifest_sha256':manifest.fingerprint},sort_keys=True))
+          PY
+      - name: Compile private review-safe runtime
+        run: python -m compileall -q frontier_review_safe
+      - name: Run complete private review-safe suite
+        run: PYTHONPATH=. python -m unittest discover -s frontier_review_safe/tests -v
+      - name: Explicit acyclic-governance regression gate
+        run: PYTHONPATH=. python -m unittest frontier_review_safe.tests.test_level7_governance_chain -v

@@ -1,0 +1,150 @@
+name: MUSITU Axiom FA-12 Product Reality Gate
+
+on:
+  push:
+    branches:
+      - frontier/axiom-final-product-fa12-20260915
+    paths:
+      - 'axiom_interface/vnext/**'
+      - 'docs/axiom_final_product/FA12_*.md'
+      - '.github/workflows/axiom-fa12-product-reality-gate.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify-fa12:
+    name: FA-12 read-only Product Reality verification
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Checkout exact branch history without persisted credentials
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Verify governed branch and FA-12 authority
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "${GITHUB_REF_NAME}" = "frontier/axiom-final-product-fa12-20260915"
+          git merge-base --is-ancestor 85992b728f239883596f4ad3bb768cfb4232d74d HEAD
+          test -f docs/axiom_final_product/FA12_PREWRITE_INTENT.md
+          test -f docs/axiom_final_product/FA12_PRODUCT_REALITY_LAB.md
+          grep -Fq 'No fake visual completion' docs/axiom_final_product/FA12_PREWRITE_INTENT.md
+          grep -Eq 'IMPLEMENTED_PENDING_REPOSITORY_VERIFICATION|FA12_IMPLEMENTATION_GATE_EARNED_REPOSITORY_VERIFIED_NOT_PRODUCTION_QUALIFIED' docs/axiom_final_product/FA12_PRODUCT_REALITY_LAB.md
+
+      - name: Prove earned source authorities are unchanged from sealed FA-11
+        shell: bash
+        run: |
+          set -euo pipefail
+          git diff --exit-code 85992b728f239883596f4ad3bb768cfb4232d74d -- \
+            axiom_interface/projects.js \
+            axiom_interface/observability.js \
+            axiom_interface/browser_session.js \
+            axiom_interface/computer_security.js \
+            axiom_interface/computer_store_execution.js \
+            axiom_interface/computer_store_control.js \
+            axiom_interface/agent_security.js \
+            axiom_interface/agent_store.js \
+            axiom_interface/vnext/mission_control_store.js \
+            axiom_interface/vnext/mission_control_verifier.js \
+            axiom_interface/vnext/mission_control_ui.js \
+            axiom_interface/vnext/deep_context_security.js \
+            axiom_interface/vnext/system_graph.js \
+            axiom_interface/vnext/deep_context_adapters.js \
+            axiom_interface/vnext/deep_context_store.js \
+            axiom_interface/vnext/deep_context_ui.js \
+            axiom_interface/vnext/execution_security.js \
+            axiom_interface/vnext/authorization_gateway.js \
+            axiom_interface/vnext/execution_store.js \
+            axiom_interface/vnext/execution_ui.js
+          git diff --exit-code 85992b728f239883596f4ad3bb768cfb4232d74d -- \
+            mcp auth chatgpt-app-submission.json submission
+
+      - name: Verify Product Reality syntax and UI wiring
+        shell: bash
+        run: |
+          set -euo pipefail
+          for file in \
+            axiom_interface/vnext/product_reality_security.js \
+            axiom_interface/vnext/product_reality_verifier.js \
+            axiom_interface/vnext/product_reality_adapters.js \
+            axiom_interface/vnext/product_reality_store.js \
+            axiom_interface/vnext/product_reality_ui.js; do
+            node --check "$file"
+          done
+          grep -Fq '<script type="module" src="./product_reality_ui.js"></script>' axiom_interface/vnext/index.html
+          grep -Fq 'No fake visual completion' axiom_interface/vnext/product_reality_ui.js
+          grep -Fq 'never prove a physical device' axiom_interface/vnext/product_reality_ui.js
+
+      - name: Enforce reality truth and no-fake-visual-completion contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -Fq "export const TRUTH_STATES=Object.freeze(['OBSERVED','EMULATED','STATIC','EXTERNAL_EVIDENCE','MISSING','NOT_PROVEN']);" axiom_interface/vnext/product_reality_security.js
+          grep -Fq "export const REALITY_CHANNELS=Object.freeze(['browser','dom','screenshot','accessibility','responsive','performance','network','console','auth_session','headers']);" axiom_interface/vnext/product_reality_security.js
+          grep -Fq 'emulated evidence cannot become physical-device evidence' axiom_interface/vnext/product_reality_security.js
+          grep -Fq 'screenshot OBSERVED requires qualified pixel capture' axiom_interface/vnext/product_reality_security.js
+          grep -Fq 'physical-device external evidence requires independent verification' axiom_interface/vnext/product_reality_security.js
+          grep -Fq 'visual_completion_requires_qualified_screenshot' axiom_interface/vnext/product_reality_verifier.js
+          grep -Fq 'fake_visual_completion_blocked' axiom_interface/vnext/product_reality_verifier.js
+          grep -Fq 'session_cannot_self_assert_physical_device' axiom_interface/vnext/product_reality_verifier.js
+          grep -Fq 'ordinary page JavaScript has no qualified pixel screenshot capture authority' axiom_interface/vnext/product_reality_adapters.js
+          grep -Fq 'STATIC_DOM_HEURISTIC_ONLY_NOT_PLATFORM_ACCESSIBILITY_TREE' axiom_interface/vnext/product_reality_adapters.js
+          grep -Fq 'top-level response/security headers are not proven by ordinary page JavaScript' axiom_interface/vnext/product_reality_adapters.js
+          grep -Fq 'REPAIR_IMPLEMENTED_PENDING_REINSPECTION' axiom_interface/vnext/product_reality_store.js
+          grep -Fq 'fresh post-finding observation required' axiom_interface/vnext/product_reality_store.js
+          grep -Fq 'inspection actor cannot self-verify finding resolution' axiom_interface/vnext/product_reality_store.js
+
+      - name: Run cumulative vNext deterministic and adversarial tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --test axiom_interface/vnext/tests/*.test.mjs
+
+      - name: Run earned source-store regression suites
+        shell: bash
+        run: |
+          set -euo pipefail
+          python axiom_interface/tests/test_project_contract.py
+          python axiom_interface/tests/test_observability_phase6.py
+          python axiom_interface/tests/test_computer_phase8.py
+          python axiom_interface/tests/test_agents_phase9.py
+          python axiom_interface/tests/test_developer_phase12.py
+          python axiom_interface/tests/test_evidence_phase13.py
+
+      - name: Enforce no transport fake screenshot host shell or deployment widening
+        shell: bash
+        run: |
+          set -euo pipefail
+          ! grep -Eq '\bfetch[[:space:]]*\(|WebSocket[[:space:]]*\(|XMLHttpRequest|EventSource[[:space:]]*\(|navigator\.sendBeacon|getDisplayMedia[[:space:]]*\(|html2canvas|toDataURL[[:space:]]*\(|child_process|spawn[[:space:]]*\(|exec[[:space:]]*\(' \
+            axiom_interface/vnext/product_reality_security.js \
+            axiom_interface/vnext/product_reality_verifier.js \
+            axiom_interface/vnext/product_reality_adapters.js \
+            axiom_interface/vnext/product_reality_store.js \
+            axiom_interface/vnext/product_reality_ui.js
+          grep -Fq 'BROWSER_LOCAL_INSPECTION_NO_FAKE_SCREENSHOT_NO_PHYSICAL_DEVICE_INFERENCE' axiom_interface/vnext/product_reality_security.js
+          grep -Fq 'physical_device_verified:false' axiom_interface/vnext/product_reality_store.js
+
+      - name: Enforce read-only CI and no repository-write or deployment capability
+        shell: bash
+        run: |
+          set -euo pipefail
+          workflow=.github/workflows/axiom-fa12-product-reality-gate.yml
+          grep -Fq 'contents: read' "$workflow"
+          ! grep -Eq '(^|[[:space:]])(pages: write|id-token: write|packages: write|contents: write|pull-requests: write|issues: write|statuses: write)([[:space:]]|$)' "$workflow"
+          ! grep -Eq '\b(git push|gh pr merge|npm publish|docker push|kubectl apply|terraform apply)\b' "$workflow"
+          git diff --check

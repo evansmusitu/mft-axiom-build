@@ -1,0 +1,109 @@
+name: MUSITU Axiom Interface Phase 4 Blueprint Completeness
+
+on:
+  push:
+    branches:
+      - frontier/axiom-v5-interface-phase4-research-claim-graph-20260912
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: musitu-axiom-interface-phase4-blueprint-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  source-quality-and-contradiction-contract:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - name: Checkout immutable action
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Setup patch-pinned Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
+        with:
+          python-version: '3.12.14'
+      - name: Preserve exact authority anchors and Phase 3 ancestry
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --no-tags --force origin \
+            +refs/heads/main:refs/remotes/origin/main \
+            +refs/heads/frontier/axiom-v5-skill-fabric:refs/remotes/origin/frontier/axiom-v5-skill-fabric \
+            +refs/heads/archive/axiom-track-a-post-freeze-20260912:refs/remotes/origin/archive/axiom-track-a-post-freeze-20260912 \
+            +refs/heads/frontier/axiom-v5-world-top-tier-review-safe:refs/remotes/origin/frontier/axiom-v5-world-top-tier-review-safe
+          test "$(git rev-parse refs/remotes/origin/main)" = "d6a846f6bbe0bccac1758713eb4de167caf07113"
+          test "$(git rev-parse refs/remotes/origin/frontier/axiom-v5-skill-fabric)" = "d9196774a9fff3150922e2cb681d16e2423651da"
+          test "$(git rev-parse refs/remotes/origin/archive/axiom-track-a-post-freeze-20260912)" = "20a84b1090b8ad986e35fee20008f3ed8920440c"
+          test "$(git rev-parse refs/remotes/origin/frontier/axiom-v5-world-top-tier-review-safe)" = "73ecdbad38cb10020b6e30ebe42a9222a3bb6c55"
+          git merge-base --is-ancestor ddb8a97c394e7e5b4107c95110c426ebd19ca66c HEAD
+          echo MUSITU_AXIOM_PHASE4_BLUEPRINT_AUTHORITY_GUARD_PASS
+      - name: Compile and attack source-quality plus contradiction-search integrity
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m compileall -q frontier_v5/runtime/claim_graph_quality.py frontier_v5/tests/test_claim_graph_quality.py axiom_interface/tests/test_research_quality_phase4.py axiom_interface/tests/run_browser_phase4_quality.py
+          PYTHONPATH=. python frontier_v5/tests/test_claim_graph_quality.py | tee /tmp/phase4-quality-runtime.log
+          grep -q 'MUSITU_AXIOM_INTERFACE_PHASE4_SOURCE_QUALITY_PASS' /tmp/phase4-quality-runtime.log
+          PYTHONPATH=. python -m unittest axiom_interface.tests.test_research_quality_phase4 -v
+
+  browser-blueprint-completeness:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - name: Checkout immutable action
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - name: Setup patch-pinned Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
+        with:
+          python-version: '3.12.14'
+      - name: Install existing locked browser dependency set
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install 'pip==26.2.1'
+          python -m pip install -r frontier_v5/requirements/fullstack.lock.txt
+          python -m pip check
+          python -m playwright install --with-deps chromium
+          PYTHONPATH=. python frontier_v5/scripts/verify_supply_chain.py --output /tmp/musitu-interface-supply-chain.json | tee /tmp/interface-supply-chain.log
+          grep -q 'MUSITU_AXIOM_FRONTIER_SUPPLY_CHAIN_LOCK_PASS' /tmp/interface-supply-chain.log
+      - name: Run real-browser source-quality and contradiction-search gate
+        env:
+          AXIOM_PHASE4_QUALITY_ARTIFACT_DIR: /tmp/axiom-interface-phase4-quality
+        shell: bash
+        run: |
+          set -euo pipefail
+          python axiom_interface/tests/run_browser_phase4_quality.py | tee /tmp/interface-phase4-quality-browser.log
+          grep -q 'MUSITU_AXIOM_INTERFACE_PHASE4_BLUEPRINT_COMPLETENESS_PASS' /tmp/interface-phase4-quality-browser.log
+          test -s /tmp/axiom-interface-phase4-quality/phase4-blueprint-completeness-evidence.json
+          test -s /tmp/axiom-interface-phase4-quality/research-quality-contradiction-search.png
+          python - <<'PY'
+          import json
+          p='/tmp/axiom-interface-phase4-quality/phase4-blueprint-completeness-evidence.json'
+          e=json.load(open(p,encoding='utf-8'))
+          assert e['status']=='PASS'
+          assert e['source_quality_boundary']=='INTERNAL_HEURISTIC_NOT_EXTERNALLY_CALIBRATED'
+          assert e['source_quality_external_calibration_claimed'] is False
+          assert e['contradiction_search_mode']=='EXPLICIT_GRAPH_STANCE_SEARCH_NOT_SEMANTIC_NLI'
+          assert e['semantic_nli_contradiction_detection_claimed'] is False
+          assert e['quality_metadata_fail_closed_before_admission'] is True
+          assert e['quality_tamper_detected'] is True
+          assert e['external_consequential_actions_executed'] is False
+          assert e['foreign_requests']==[]
+          print('MUSITU_AXIOM_PHASE4_BLUEPRINT_EVIDENCE_BOUNDARY_PASS')
+          PY
+      - name: Upload Phase 4 blueprint-completeness evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: musitu-axiom-interface-phase4-blueprint-completeness
+          path: |
+            /tmp/axiom-interface-phase4-quality/phase4-blueprint-completeness-evidence.json
+            /tmp/axiom-interface-phase4-quality/research-quality-contradiction-search.png
+            /tmp/musitu-interface-supply-chain.json
+          if-no-files-found: error

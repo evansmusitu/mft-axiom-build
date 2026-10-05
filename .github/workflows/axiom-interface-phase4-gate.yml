@@ -1,0 +1,163 @@
+name: MUSITU Axiom Interface Phase 4 Gate
+
+on:
+  push:
+    branches:
+      - frontier/axiom-v5-interface-phase4-research-claim-graph-20260912
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: musitu-axiom-interface-phase4-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  claim-integrity-and-protected-regression:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Checkout immutable action
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Setup patch-pinned Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
+        with:
+          python-version: '3.12.14'
+      - name: Preserve sealed review anchors and protected objects
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --no-tags --force origin +refs/heads/main:refs/remotes/origin/main +refs/heads/frontier/axiom-v5-skill-fabric:refs/remotes/origin/frontier/axiom-v5-skill-fabric
+          PYTHONPATH=. python - <<'PY'
+          import json,pathlib,subprocess
+          from frontier_review_safe.review_snapshot import ReviewSnapshotGuard, ReviewSnapshotManifest
+          def git(*args): return subprocess.check_output(['git',*args],text=True).strip()
+          raw=json.loads(pathlib.Path('frontier_review_safe/review_snapshot_manifest.json').read_text(encoding='utf-8'))
+          m=ReviewSnapshotManifest(schema=raw['schema'],authoritative_frontier_sha=raw['authoritative_frontier_sha'],sealed_main_sha=raw['sealed_main_sha'],public_tool_count=raw['public_tool_count'],required_scopes=tuple(raw['required_scopes']),forbidden_tools=tuple(raw['forbidden_tools']),protected_paths=tuple(raw['protected_paths']),protected_git_object_shas=dict(raw['protected_git_object_shas']),mcp_url=raw['mcp_url'],auth_url=raw['auth_url'],demo_url=raw['demo_url'])
+          g=ReviewSnapshotGuard(m); main=git('rev-parse','refs/remotes/origin/main'); track=git('rev-parse','refs/remotes/origin/frontier/axiom-v5-skill-fabric')
+          if main!=m.sealed_main_sha: raise SystemExit(f'FROZEN_MAIN_DRIFT:{main}')
+          if track!=m.authoritative_frontier_sha: raise SystemExit(f'FROZEN_FRONTIER_DRIFT:{track}')
+          authoritative={p:git('rev-parse',f'{m.authoritative_frontier_sha}:{p}') for p in m.protected_git_object_shas}; current={p:git('rev-parse',f'HEAD:{p}') for p in m.protected_git_object_shas}
+          g.verify_tree(authoritative);g.verify_tree(current);changed=[x for x in git('diff','--name-only',f'{m.authoritative_frontier_sha}..HEAD').splitlines() if x];g.verify_no_protected_diff(changed,m.protected_paths)
+          print(json.dumps({'status':'PASS','sealed_main_sha':main,'frozen_track_a_sha':track,'protected_objects_verified':len(current)},sort_keys=True))
+          PY
+      - name: Compile and run Phase 1 through Phase 4 contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m compileall -q frontier_review_safe frontier_v5/runtime/claim_graph.py axiom_interface/tests
+          PYTHONPATH=. python -m unittest discover -s axiom_interface/tests -p 'test_*.py' -v
+          PYTHONPATH=. python frontier_v5/tests/test_durable_tasks.py
+          PYTHONPATH=. python frontier_v5/tests/test_persistent_planner.py
+          PYTHONPATH=. python frontier_v5/tests/test_outcome_contract_runtime.py
+          PYTHONPATH=. python -m unittest frontier_v5.tests.test_freshness_contract frontier_v5.tests.test_claim_graph_integrity -v
+      - name: Run complete private review-safe regression suite
+        run: PYTHONPATH=. python -m unittest discover -s frontier_review_safe/tests -v
+      - name: Measure and gate protected scale workloads
+        shell: bash
+        run: |
+          set -euo pipefail
+          PYTHONPATH=. python -m frontier_review_safe.scale_benchmarks | tee /tmp/axiom-scale-evidence.json
+          python - <<'PY'
+          import json,os
+          e=json.load(open('/tmp/axiom-scale-evidence.json',encoding='utf-8'));assert e['candidate_sha']==os.environ['GITHUB_SHA'];assert len(e['benchmarks'])==7;assert all(x['throughput_per_sec']>0 and x['peak_python_bytes']>=0 for x in e['benchmarks'])
+          print('MUSITU_AXIOM_PHASE4_PROTECTED_SCALE_EVIDENCE_OK')
+          PY
+          workload_blob="$(git hash-object frontier_review_safe/scale_benchmarks.py)"
+          PYTHONPATH=. python -m frontier_review_safe.scale_budget /tmp/axiom-scale-evidence.json "$workload_blob"
+      - name: Measure degraded paths without promotion authority
+        shell: bash
+        run: |
+          set -euo pipefail
+          PYTHONPATH=. python -m frontier_review_safe.scale_experiments | tee /tmp/axiom-scale-experiments.json
+          python - <<'PY'
+          import json,os
+          from frontier_review_safe.scale_experiments import validate_experimental_evidence
+          e=json.load(open('/tmp/axiom-scale-experiments.json',encoding='utf-8'));assert e['candidate_sha']==os.environ['GITHUB_SHA'];r=validate_experimental_evidence(e);assert r['status']=='PASS' and r['promotion_status']=='MEASUREMENT_ONLY_UNBUDGETED' and r['budget_authorized'] is False and r['claim_authorized'] is False
+          print('MUSITU_AXIOM_PHASE4_DEGRADED_PATHS_MEASURED_NOT_PROMOTED')
+          PY
+
+  browser-citation-and-claim-evidence-integrity:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - name: Checkout immutable action
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - name: Setup patch-pinned Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
+        with:
+          python-version: '3.12.14'
+      - name: Install existing locked full-stack dependency set
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends ffmpeg espeak-ng xvfb xdotool python3-tk scrot unzip ca-certificates
+          python -m pip install 'pip==26.2.1'
+          python -m pip install -r frontier_v5/requirements/fullstack.lock.txt
+          python -m pip check
+          python -m playwright install --with-deps chromium
+          PYTHONPATH=. python frontier_v5/scripts/verify_supply_chain.py --output /tmp/musitu-interface-supply-chain.json | tee /tmp/interface-supply-chain.log
+          grep -q 'MUSITU_AXIOM_FRONTIER_SUPPLY_CHAIN_LOCK_PASS' /tmp/interface-supply-chain.log
+      - name: Run deterministic full-stack and network regressions
+        shell: bash
+        run: |
+          set -euo pipefail
+          PYTHONPATH=. python frontier_v5/tests/test_fullstack_local.py | tee /tmp/interface-fullstack-local.log
+          grep -q 'MUSITU_AXIOM_FRONTIER_FULLSTACK_LOCAL_PASS' /tmp/interface-fullstack-local.log
+          PYTHONPATH=. python frontier_v5/tests/test_browser_network_preflight.py | tee /tmp/interface-browser-preflight.log
+          grep -q 'MUSITU_AXIOM_FRONTIER_BROWSER_NETWORK_PREFLIGHT_PASS' /tmp/interface-browser-preflight.log
+      - name: Re-run qualified Phase 1 browser gate
+        env:
+          AXIOM_BROWSER_ARTIFACT_DIR: /tmp/axiom-interface-phase1
+        run: python axiom_interface/tests/run_browser_phase1.py | tee /tmp/interface-phase1-browser.log
+      - name: Re-run qualified Phase 2 browser gate
+        env:
+          AXIOM_PHASE2_ARTIFACT_DIR: /tmp/axiom-interface-phase2
+        shell: bash
+        run: |
+          set -euo pipefail
+          python axiom_interface/tests/run_browser_phase2.py | tee /tmp/interface-phase2-browser.log
+          grep -q 'MUSITU_AXIOM_INTERFACE_PHASE2_PROJECT_GRAPH_PASS' /tmp/interface-phase2-browser.log
+      - name: Re-run qualified Phase 3 browser gate
+        env:
+          AXIOM_PHASE3_ARTIFACT_DIR: /tmp/axiom-interface-phase3
+        shell: bash
+        run: |
+          set -euo pipefail
+          python axiom_interface/tests/run_browser_phase3.py | tee /tmp/interface-phase3-browser.log
+          grep -q 'MUSITU_AXIOM_INTERFACE_PHASE3_WORK_PASS' /tmp/interface-phase3-browser.log
+      - name: Run Phase 4 citation and claim-evidence integrity gate
+        env:
+          AXIOM_PHASE4_ARTIFACT_DIR: /tmp/axiom-interface-phase4
+        shell: bash
+        run: |
+          set -euo pipefail
+          python axiom_interface/tests/run_browser_phase4.py | tee /tmp/interface-phase4-browser.log
+          grep -q 'MUSITU_AXIOM_INTERFACE_PHASE4_RESEARCH_PASS' /tmp/interface-phase4-browser.log
+          test -s /tmp/axiom-interface-phase4/phase4-research-evidence.json
+          test -s /tmp/axiom-interface-phase4/research-claim-graph.png
+      - name: Upload Phase 4 evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: musitu-axiom-interface-phase4-research-evidence
+          path: |
+            /tmp/axiom-interface-phase4/phase4-research-evidence.json
+            /tmp/axiom-interface-phase4/research-claim-graph.png
+            /tmp/axiom-interface-phase3/phase3-work-evidence.json
+            /tmp/axiom-interface-phase3/work-outcome-contract.png
+            /tmp/axiom-interface-phase2/project-evidence.json
+            /tmp/axiom-interface-phase2/project-home.png
+            /tmp/axiom-interface-phase1/browser-evidence.json
+            /tmp/axiom-interface-phase1/desktop.png
+            /tmp/axiom-interface-phase1/tablet.png
+            /tmp/axiom-interface-phase1/mobile.png
+            /tmp/axiom-interface-phase1/high-contrast.png
+            /tmp/musitu-interface-supply-chain.json
+          if-no-files-found: error

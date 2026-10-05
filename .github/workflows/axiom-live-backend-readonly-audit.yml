@@ -1,0 +1,239 @@
+name: MUSITU Axiom Live Backend Read-Only Audit
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/axiom-live-backend-readonly-audit.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    env:
+      CF_API: https://api.cloudflare.com/client/v4
+      ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      ZONE_ID: 5b56528f03948ff5917a5e0cd9f7109e
+      ZONE_NAME: mftintelligence.com
+      STAGE_HOST: axiom-stage.mftintelligence.com
+      PUBLIC_EDGE: musitu-axiom-modal-edge-stage
+      PROTECTED_BACKEND: mft-axiom-modal-edge-stage
+      PROTECTED_ADAPTER: mft-axiom-modal-adapter
+      MUSITU_D1: musitu-axiom-prod
+      MUSITU_MODAL_URL: https://evansmusitu--musitu-axiom-v3-modal-staging-axiom-kernel.modal.run
+      EXPECTED_BUILD: MFT-AXIOM-V3-FULL-SELF-CONTAINED-20260904
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - name: Prove current live MUSITU-backed chain read-only
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$CLOUDFLARE_EMAIL"
+          test -n "$CLOUDFLARE_GLOBAL_API_KEY"
+          python - <<'PY'
+          import hashlib,json,os,urllib.error,urllib.parse,urllib.request
+
+          api=os.environ['CF_API']; aid=os.environ['ACCOUNT_ID']; zid=os.environ['ZONE_ID']
+          cf_headers={
+            'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],
+            'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY'],
+            'Content-Type':'application/json',
+            'User-Agent':'MUSITU-Axiom-Live-Backend-Audit/1.0',
+          }
+
+          def cf(path,method='GET',body=None):
+            data=None if body is None else json.dumps(body).encode()
+            req=urllib.request.Request(api+path,headers=cf_headers,data=data,method=method)
+            try:
+              with urllib.request.urlopen(req,timeout=45) as r:
+                raw=r.read(); code=r.status
+            except urllib.error.HTTPError as e:
+              raw=e.read(); code=e.code
+            if code < 200 or code >= 300:
+              raise SystemExit(f'Fail-closed Cloudflare API HTTP {code} path={path}')
+            x=json.loads(raw or b'{}')
+            if x.get('success') is False:
+              raise SystemExit(f'Fail-closed Cloudflare success=false path={path}')
+            return x.get('result')
+
+          def http_json(url,method='GET',body=None):
+            data=None if body is None else json.dumps(body).encode()
+            h={'Accept':'application/json','User-Agent':'MUSITU-Axiom-Live-Backend-Audit/1.0'}
+            if data is not None: h['Content-Type']='application/json'
+            req=urllib.request.Request(url,headers=h,data=data,method=method)
+            try:
+              with urllib.request.urlopen(req,timeout=45) as r:
+                raw=r.read(); return r.status,json.loads(raw or b'{}')
+            except urllib.error.HTTPError as e:
+              raw=e.read()
+              try: parsed=json.loads(raw or b'{}')
+              except Exception: parsed={}
+              return e.code,parsed
+
+          zones=cf('/zones?name='+urllib.parse.quote(os.environ['ZONE_NAME'])+'&status=active') or []
+          if len(zones)!=1:
+            raise SystemExit('Fail-closed: canonical active zone not unique')
+          zone=zones[0]
+          if zone.get('id')!=zid or (zone.get('account') or {}).get('id')!=aid:
+            raise SystemExit('Fail-closed: zone/account identity mismatch')
+
+          domains=cf(f'/accounts/{aid}/workers/domains') or []
+          stage=[d for d in domains if d.get('hostname')==os.environ['STAGE_HOST']]
+          if len(stage)!=1 or stage[0].get('service')!=os.environ['PUBLIC_EDGE']:
+            raise SystemExit('Fail-closed: stage custom-domain mapping drift')
+
+          edge=cf(f'/accounts/{aid}/workers/scripts/{os.environ["PUBLIC_EDGE"]}/settings') or {}
+          edge_bindings=edge.get('bindings') or []
+          edge_services=[b for b in edge_bindings if isinstance(b,dict) and b.get('type')=='service']
+          if not any(b.get('service')==os.environ['PROTECTED_BACKEND'] for b in edge_services):
+            raise SystemExit('Fail-closed: MUSITU public edge no longer targets protected backend')
+
+          dbs=cf(f'/accounts/{aid}/d1/database?name='+urllib.parse.quote(os.environ['MUSITU_D1'])) or []
+          dbs=[d for d in dbs if d.get('name')==os.environ['MUSITU_D1']]
+          if len(dbs)!=1:
+            raise SystemExit('Fail-closed: MUSITU D1 not uniquely resolvable')
+          d1_id=dbs[0].get('uuid') or dbs[0].get('id')
+          if not d1_id:
+            raise SystemExit('Fail-closed: MUSITU D1 has no stable identifier')
+
+          backend=cf(f'/accounts/{aid}/workers/scripts/{os.environ["PROTECTED_BACKEND"]}/settings') or {}
+          backend_bindings=backend.get('bindings') or []
+          backend_names={b.get('name') for b in backend_bindings if isinstance(b,dict)}
+          required_backend={'AXIOM_DB','AXIOM_KERNEL','MUSITU_CONTROL_SECRET','MUSITU_RECEIPT_SECRET'}
+          missing=sorted(required_backend-backend_names)
+          if missing:
+            raise SystemExit('Fail-closed: current MUSITU backend bindings missing '+repr(missing))
+          retired={'MFT_CONTROL_SECRET','MFT_RECEIPT_SECRET'} & backend_names
+          if retired:
+            raise SystemExit('Fail-closed: retired protocol secret binding unexpectedly active '+repr(sorted(retired)))
+          db_binding=[b for b in backend_bindings if b.get('name')=='AXIOM_DB']
+          if len(db_binding)!=1 or db_binding[0].get('id')!=d1_id:
+            raise SystemExit('Fail-closed: AXIOM_DB does not target resolved MUSITU D1')
+          kernel_binding=[b for b in backend_bindings if b.get('name')=='AXIOM_KERNEL']
+          if len(kernel_binding)!=1 or kernel_binding[0].get('service')!=os.environ['PROTECTED_ADAPTER']:
+            raise SystemExit('Fail-closed: AXIOM_KERNEL protected adapter binding drift')
+
+          adapter=cf(f'/accounts/{aid}/workers/scripts/{os.environ["PROTECTED_ADAPTER"]}/settings') or {}
+          adapter_bindings=adapter.get('bindings') or []
+          adapter_names={b.get('name') for b in adapter_bindings if isinstance(b,dict)}
+          required_adapter={'MODAL_BASE_URL','MODAL_PROXY_KEY','MODAL_PROXY_SECRET'}
+          if not required_adapter.issubset(adapter_names):
+            raise SystemExit('Fail-closed: protected adapter binding presence drift')
+          modal=[b for b in adapter_bindings if b.get('name')=='MODAL_BASE_URL']
+          if len(modal)!=1 or modal[0].get('text')!=os.environ['MUSITU_MODAL_URL']:
+            raise SystemExit('Fail-closed: protected adapter is not targeting MUSITU Modal')
+
+          inventory_sql="SELECT type,name,tbl_name FROM sqlite_master WHERE type IN ('table','index') AND name NOT LIKE 'sqlite_%' AND name NOT LIKE '_cf_%' ORDER BY type,name;"
+          q=cf(f'/accounts/{aid}/d1/database/{d1_id}/query','POST',{'sql':inventory_sql}) or []
+          if not q or not all(x.get('success') is True for x in q):
+            raise SystemExit('Fail-closed: MUSITU D1 SELECT inventory failed')
+          inventory=[]
+          for chunk in q: inventory.extend(chunk.get('results') or [])
+          tables=sorted(x['name'] for x in inventory if x.get('type')=='table')
+          indexes=sorted(x['name'] for x in inventory if x.get('type')=='index')
+          expected_tables=sorted(['customers','api_keys','usage_buckets','usage_events','billing_subscriptions','webhook_events'])
+          required_indexes=sorted(['idx_api_keys_customer','idx_usage_events_customer_time','idx_usage_events_request'])
+          if tables!=expected_tables:
+            raise SystemExit('Fail-closed: live MUSITU D1 user-table set mismatch '+repr(tables))
+          missing_indexes=[x for x in required_indexes if x not in indexes]
+          if missing_indexes:
+            raise SystemExit('Fail-closed: live MUSITU D1 required indexes missing '+repr(missing_indexes))
+
+          base='https://'+os.environ['STAGE_HOST']
+          hs,hj=http_json(base+'/health')
+          if hs!=200 or hj.get('ok') is not True:
+            raise SystemExit(f'Fail-closed: stage health expected 200/ok, got {hs}')
+          if hj.get('build_id')!=os.environ['EXPECTED_BUILD'] or int(hj.get('operation_count') or -1)!=74:
+            raise SystemExit('Fail-closed: immutable build/operation contract drift')
+          ts,tj=http_json(base+'/v1/tools')
+          if ts!=200 or int(tj.get('operation_count') or -1)!=74 or len(tj.get('tools') or [])!=74:
+            raise SystemExit('Fail-closed: 74-tool public contract drift')
+          us,_=http_json(base+'/v1/compute','POST',{'operation':'arithmetic.add','args':{'a':40,'b':2}})
+          if us!=401:
+            raise SystemExit(f'Fail-closed: anonymous compute expected 401, got {us}')
+
+          safe_backend_binding_names=sorted(str(x) for x in backend_names if x)
+          safe_adapter_binding_names=sorted(str(x) for x in adapter_names if x)
+          out={
+            'schema':'musitu.axiom.live_backend_readonly_audit.v1',
+            'commit':os.environ.get('GITHUB_SHA'),
+            'zone':{'name':os.environ['ZONE_NAME'],'id':zid,'account_id':aid},
+            'stage':{
+              'hostname':os.environ['STAGE_HOST'],
+              'public_edge':os.environ['PUBLIC_EDGE'],
+              'protected_backend':os.environ['PROTECTED_BACKEND'],
+              'mapping':'PASS',
+              'health_http':hs,
+              'build_id':hj.get('build_id'),
+              'operation_count':hj.get('operation_count'),
+              'tools':'PASS',
+              'anonymous_compute_status':us,
+            },
+            'backend':{
+              'binding_names':safe_backend_binding_names,
+              'musitu_protocol_secret_bindings_present':True,
+              'retired_protocol_secret_bindings_absent':True,
+              'axiom_kernel_service':os.environ['PROTECTED_ADAPTER'],
+            },
+            'd1':{
+              'name':os.environ['MUSITU_D1'],
+              'uuid':d1_id,
+              'query_mode':'SELECT_ONLY',
+              'mutation_performed':False,
+              'tables':tables,
+              'required_indexes_verified':required_indexes,
+              'cloudflare_internal_tables_ignored':True,
+            },
+            'adapter':{
+              'name':os.environ['PROTECTED_ADAPTER'],
+              'binding_names':safe_adapter_binding_names,
+              'modal_base_url':os.environ['MUSITU_MODAL_URL'],
+              'proxy_secret_values_read':False,
+            },
+            'security_evidence':'SEPARATELY_VERIFIED_READ_ONLY',
+            'customer_bearer_metering_e2e':'NOT_PROVEN',
+            'billing':'NOT_CONFIGURED_UNLESS_SEPARATELY_PROVEN',
+            'wolfram_parity':'NOT_CERTIFIED',
+            'superiority':'NOT_CERTIFIED',
+            'write_performed':False,
+            'gate':'MUSITU_LIVE_BACKEND_READONLY_PASS',
+          }
+          raw=(json.dumps(out,indent=2,sort_keys=True)+'\n').encode()
+          open('musitu-live-backend-readonly-audit.json','wb').write(raw)
+          digest=hashlib.sha256(raw).hexdigest()
+          open('musitu-live-backend-readonly-audit.sha256','w').write(digest+'  musitu-live-backend-readonly-audit.json\n')
+          print(json.dumps({
+            'gate':out['gate'],
+            'stage_service':os.environ['PUBLIC_EDGE'],
+            'protected_backend':os.environ['PROTECTED_BACKEND'],
+            'd1_name':os.environ['MUSITU_D1'],
+            'd1_uuid':d1_id,
+            'd1_table_count':len(tables),
+            'required_index_count':len(required_indexes),
+            'modal_target_is_musitu':True,
+            'musitu_protocol_bindings':True,
+            'retired_protocol_bindings_absent':True,
+            'health_http':hs,
+            'operation_count':hj.get('operation_count'),
+            'anonymous_compute_status':us,
+            'write_performed':False,
+            'sha256':digest,
+          },sort_keys=True))
+          PY
+      - name: Upload sealed live-backend evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: musitu-axiom-live-backend-readonly-audit
+          path: |
+            musitu-live-backend-readonly-audit.json
+            musitu-live-backend-readonly-audit.sha256
+          retention-days: 30
+          if-no-files-found: error

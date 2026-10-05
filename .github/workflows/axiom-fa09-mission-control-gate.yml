@@ -1,0 +1,109 @@
+name: MUSITU Axiom FA-09 Mission Control Gate
+
+on:
+  push:
+    branches:
+      - frontier/axiom-final-product-fa09-20260915
+    paths:
+      - 'axiom_interface/vnext/**'
+      - 'docs/axiom_final_product/FA09_*.md'
+      - '.github/workflows/axiom-fa09-mission-control-gate.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  verify-fa09:
+    name: FA-09 least-privilege Mission Control verification
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout exact branch history without persisted credentials
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Verify governed branch and FA-09 authority
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "${GITHUB_REF_NAME}" = "frontier/axiom-final-product-fa09-20260915"
+          git merge-base --is-ancestor 714ac26db04c832f56665b26a18747e61404f533 HEAD
+          test -f docs/axiom_final_product/FA09_PREWRITE_INTENT.md
+          test -f docs/axiom_final_product/FA09_AGENTS_MISSION_CONTROL.md
+          grep -Fq 'Redirect can never elevate authority' docs/axiom_final_product/FA09_PREWRITE_INTENT.md
+          grep -Fq 'IMPLEMENTED_PENDING_REPOSITORY_VERIFICATION' docs/axiom_final_product/FA09_AGENTS_MISSION_CONTROL.md
+
+      - name: Prove earned Agent Project Observability authorities are unchanged
+        shell: bash
+        run: |
+          set -euo pipefail
+          git diff --exit-code 714ac26db04c832f56665b26a18747e61404f533 -- \
+            axiom_interface/agent_security.js \
+            axiom_interface/agent_store.js \
+            axiom_interface/projects.js \
+            axiom_interface/observability.js
+
+      - name: Verify Mission Control syntax and UI wiring
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check axiom_interface/vnext/mission_control_verifier.js
+          node --check axiom_interface/vnext/mission_control_store.js
+          node --check axiom_interface/vnext/mission_control_ui.js
+          node --check axiom_interface/vnext/agent_runtime_ui.js
+          grep -Fq "import './mission_control_ui.js';" axiom_interface/vnext/agent_runtime_ui.js
+          grep -Fq 'Execution graph' axiom_interface/vnext/mission_control_ui.js
+          grep -Fq 'Preview kill switch' axiom_interface/vnext/mission_control_ui.js
+          grep -Fq 'Confirm exact redirect' axiom_interface/vnext/mission_control_ui.js
+
+      - name: Run cumulative vNext deterministic tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --test axiom_interface/vnext/tests/*.test.mjs
+
+      - name: Run earned Agent Project Observability regression suites
+        shell: bash
+        run: |
+          set -euo pipefail
+          python axiom_interface/tests/test_agents_phase9.py
+          python axiom_interface/tests/test_project_contract.py
+          python axiom_interface/tests/test_observability_phase6.py
+
+      - name: Enforce least-privilege redirect and no-external-execution boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -Fq 'redirect cannot elevate authority' axiom_interface/vnext/mission_control_store.js
+          grep -Fq 'AWAITING_EXACT_CONFIRMATION' axiom_interface/vnext/mission_control_store.js
+          grep -Fq 'mission-control-redirect' axiom_interface/vnext/mission_control_store.js
+          grep -Fq 'workload_identity_duplicate' axiom_interface/vnext/mission_control_verifier.js
+          grep -Fq 'redirect_escalation' axiom_interface/vnext/mission_control_verifier.js
+          grep -Fq 'redirect_orphan_edge' axiom_interface/vnext/mission_control_verifier.js
+          grep -Fq 'external_action_executed:false' axiom_interface/vnext/mission_control_store.js
+          grep -Fq 'network_request_performed:false' axiom_interface/vnext/mission_control_store.js
+          grep -Fq 'plaintext_secret_access:false' axiom_interface/vnext/mission_control_store.js
+          ! grep -Eq '\bfetch[[:space:]]*\(|WebSocket[[:space:]]*\(|XMLHttpRequest|EventSource[[:space:]]*\(' \
+            axiom_interface/vnext/mission_control_verifier.js \
+            axiom_interface/vnext/mission_control_store.js \
+            axiom_interface/vnext/mission_control_ui.js
+
+      - name: Enforce read-only CI and no deployment capability
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -Fq 'contents: read' .github/workflows/axiom-fa09-mission-control-gate.yml
+          ! grep -Eq '(^|[[:space:]])(deploy|pages: write|id-token: write|packages: write|contents: write)([[:space:]]|$)' .github/workflows/axiom-fa09-mission-control-gate.yml
+          git diff --check

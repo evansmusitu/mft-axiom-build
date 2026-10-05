@@ -1,0 +1,73 @@
+name: MUSITU Axiom Request ID Contract Read-Only
+
+on:
+  push:
+    paths:
+      - '.github/workflows/axiom-request-id-contract-readonly.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    env:
+      CF_API: https://api.cloudflare.com/client/v4
+      ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      BACKEND: mft-axiom-modal-edge-stage
+      EXPECTED_SOURCE_SHA256: a19212c5efc5651c8551ad6ed72370b7cc6da51009f9de6c8c9442fd04d61c13
+    steps:
+      - uses: actions/checkout@v4
+      - name: Emit structural request ID contract only
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import email,hashlib,json,os,re,urllib.parse,urllib.request
+          api=os.environ['CF_API'];aid=os.environ['ACCOUNT_ID'];worker=os.environ['BACKEND'];expected=os.environ['EXPECTED_SOURCE_SHA256']
+          H={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY'],'Accept':'application/json','User-Agent':'MUSITU-Axiom-Request-ID-Contract/1.0'}
+          q=urllib.request.Request(f'{api}/accounts/{aid}/workers/scripts/{urllib.parse.quote(worker,safe="")}',headers=H)
+          with urllib.request.urlopen(q,timeout=45) as r:raw=r.read();ctype=r.headers.get('content-type','')
+          if 'multipart/' in ctype.lower():
+              msg=email.message_from_bytes((f'Content-Type: {ctype}\r\nMIME-Version: 1.0\r\n\r\n').encode()+raw);parts=[]
+              for p in msg.walk():
+                  if p.is_multipart():continue
+                  d=p.get_payload(decode=True) or b''
+                  if b'recordUsage' in d and b'/v1/compute' in d:parts.append(d)
+              if len(parts)!=1:raise RuntimeError('target module count '+str(len(parts)))
+              src=parts[0]
+          else:src=raw
+          sha=hashlib.sha256(src).hexdigest()
+          if sha!=expected:raise RuntimeError('live source SHA changed; refusing stale structural read')
+          text=src.decode('utf-8');lower=text.lower()
+          hdr='x-musitu-request-id'
+          decls=[]
+          for ident in ('requestId','request_id'):
+              for m in re.finditer(r'\b(?:const|let|var)\s+'+re.escape(ident)+r'\s*=\s*([^;\n]+)',text):
+                  rhs=m.group(1)
+                  decls.append({'identifier':ident,'reads_request_header':hdr in rhs.lower() and bool(re.search(r'headers?\s*\.\s*get\s*\(',rhs,re.I)),'uses_random_uuid':bool(re.search(r'crypto\s*\.\s*randomUUID\s*\(',rhs)),'uses_response_request_field':bool(re.search(r'(?:request_id|requestId)',rhs))})
+          call_matches=[]
+          for m in re.finditer(r'\brecordUsage\s*\(',text):
+              prefix=text[max(0,m.start()-100):m.start()]
+              if re.search(r'(?:async\s+)?function\s*$',prefix):continue
+              call_matches.append(m)
+          if len(call_matches)!=1:raise RuntimeError('recordUsage call count '+str(len(call_matches)))
+          m=call_matches[0];window=text[m.start():min(len(text),m.start()+2600)]
+          rid_prop=re.search(r'\brequest_id\s*:\s*([A-Za-z_$][A-Za-z0-9_$]*)',window)
+          out={'schema':'musitu.axiom.request_id_contract_readonly.v1','gate':'AXIOM_REQUEST_ID_CONTRACT_READ_PASS','worker':worker,'source_sha256':sha,'request_header_literal_count':lower.count(hdr),'request_header_get_count':len(re.findall(r'headers?\s*\.\s*get\s*\(\s*["\']x-musitu-request-id["\']\s*\)',text,re.I)),'request_header_object_assignment_count':len(re.findall(r'["\']x-musitu-request-id["\']\s*:',text,re.I)),'random_uuid_call_count':len(re.findall(r'crypto\s*\.\s*randomUUID\s*\(',text)),'request_identifier_declarations':decls,'record_usage_call_count':1,'record_usage_request_id_identifier':rid_prop.group(1) if rid_prop else None,'record_usage_call_mentions_request_id':bool(re.search(r'\brequest_id\b',window)),'response_object_request_id_from_requestId_count':len(re.findall(r'\brequest_id\s*:\s*requestId\b',text)),'response_object_requestId_shorthand_count':len(re.findall(r'(?<![A-Za-z0-9_$])requestId\s*[,}]',text)),'mutation_performed':False,'source_published':False,'secret_values_published':False}
+          blob=(json.dumps(out,indent=2,sort_keys=True)+'\n').encode();open('request-id-contract.json','wb').write(blob);dg=hashlib.sha256(blob).hexdigest();open('request-id-contract.sha256','w').write(dg+'  request-id-contract.json\n')
+          print(json.dumps({**out,'evidence_sha256':dg},sort_keys=True))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: musitu-axiom-request-id-contract
+          path: |
+            request-id-contract.json
+            request-id-contract.sha256
+          retention-days: 14
+          if-no-files-found: error

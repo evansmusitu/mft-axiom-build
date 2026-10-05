@@ -1,0 +1,72 @@
+name: MUSITU Axiom OIDC Worker Deploy Repair
+
+on:
+  push:
+    paths:
+      - '.github/workflows/axiom-oidc-worker-deploy-repair.yml'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: musitu-axiom-publication-repair
+  cancel-in-progress: false
+
+jobs:
+  repair:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: frontier/axiom-v5-skill-fabric
+          fetch-depth: 0
+
+      - name: Add only the reviewed OIDC discovery surface
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          test "$(git merge-base 'd6a846f6bbe0bccac1758713eb4de167caf07113' refs/remotes/origin/main)" = 'd6a846f6bbe0bccac1758713eb4de167caf07113'
+          git diff --exit-code 'd6a846f6bbe0bccac1758713eb4de167caf07113' refs/remotes/origin/main --
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('auth/musitu_axiom_oauth_worker.mjs')
+          s=p.read_text()
+          if '/.well-known/openid-configuration' in s:
+              raise SystemExit('OIDC discovery already present; refusing duplicate repair')
+          marker='async function register(req, c) {'
+          if marker not in s: raise SystemExit('OAuth register marker missing')
+          s=s.replace(marker,'''async function oidcDiscovery(c) {
+            return j(200, {
+              issuer: c.issuer,
+              authorization_endpoint: c.issuer + "/oauth/authorize",
+              token_endpoint: c.issuer + "/oauth/token",
+              registration_endpoint: c.issuer + "/oauth/register",
+              revocation_endpoint: c.issuer + "/oauth/revoke",
+              userinfo_endpoint: c.issuer + "/oauth/userinfo",
+              response_types_supported: ["code"],
+              grant_types_supported: ["authorization_code", "refresh_token"],
+              token_endpoint_auth_methods_supported: ["none"],
+              code_challenge_methods_supported: ["S256"],
+              scopes_supported: [...SCOPES],
+              subject_types_supported: ["public"],
+              claims_supported: ["sub", "email", "email_verified"],
+              client_id_metadata_document_supported: false,
+            });
+          }
+
+          '''+marker,1)
+          route='    if (u.pathname === "/.well-known/oauth-authorization-server" && req.method === "GET") return discovery(c);'
+          if route not in s: raise SystemExit('OAuth discovery router marker missing')
+          s=s.replace(route,'    if (u.pathname === "/.well-known/openid-configuration" && req.method === "GET") return oidcDiscovery(c);\n'+route,1)
+          p.write_text(s)
+          PY
+          node --check auth/musitu_axiom_oauth_worker.mjs
+          git diff --check
+          test "$(git hash-object auth/musitu_axiom_oauth_worker.mjs)" = 'b25132acec4973a1a5e0d7c2c36962f716f2cc59'
+          git config user.name 'evansmusitu'
+          git config user.email 'evansmusitu5@gmail.com'
+          git add auth/musitu_axiom_oauth_worker.mjs
+          git commit -m 'Enable OIDC discovery for enterprise domain restrictions'
+          git push origin HEAD:frontier/axiom-v5-skill-fabric

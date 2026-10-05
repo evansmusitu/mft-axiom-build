@@ -1,0 +1,111 @@
+name: MUSITU Axiom Paynow Authority + Binding Inventory Read-Only
+
+on:
+  push:
+    paths:
+      - '.github/workflows/axiom-paynow-authority-binding-inventory-readonly.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    env:
+      CF_API: https://api.cloudflare.com/client/v4
+      ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      PAYMENTS_BASE: https://payments.mftintelligence.com
+    steps:
+      - uses: actions/checkout@v4
+      - name: Read public authority flags and binding metadata only
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import hashlib,json,os,urllib.error,urllib.parse,urllib.request
+
+          def http_json(url):
+              req=urllib.request.Request(url,headers={'Accept':'application/json','User-Agent':'MUSITU-Axiom-Paynow-Authority-Audit/1.0'},method='GET')
+              try:
+                  with urllib.request.urlopen(req,timeout=30) as r: raw=r.read(); status=r.status
+              except urllib.error.HTTPError as e:
+                  raw=e.read(); status=e.code
+              try: obj=json.loads(raw or b'{}')
+              except Exception: obj={}
+              return status,obj,raw
+
+          base=os.environ['PAYMENTS_BASE']
+          public={}
+          for path in ['/','/healthz']:
+              status,obj,raw=http_json(base+path)
+              safe={}
+              if isinstance(obj,dict):
+                  for k in ['authority','certifies_payments','stores_paynow_integration_key','service','provider','mode','ok','status']:
+                      v=obj.get(k)
+                      if isinstance(v,(str,bool,int,float)) or v is None: safe[k]=v
+              public[path]={'http_status':status,'safe_values':safe,'body_sha256':hashlib.sha256(raw).hexdigest()}
+
+          api=os.environ['CF_API']; aid=os.environ['ACCOUNT_ID']
+          headers={'X-Auth-Email':os.environ['CLOUDFLARE_EMAIL'],'X-Auth-Key':os.environ['CLOUDFLARE_GLOBAL_API_KEY'],'Accept':'application/json','User-Agent':'MUSITU-Axiom-Paynow-Authority-Audit/1.0'}
+          def cf(path):
+              req=urllib.request.Request(api+path,headers=headers,method='GET')
+              try:
+                  with urllib.request.urlopen(req,timeout=45) as r: raw=r.read(); code=r.status
+              except urllib.error.HTTPError as e:
+                  raw=e.read(); code=e.code
+              if not 200<=code<300: raise SystemExit(f'Fail-closed Cloudflare HTTP {code} path={path}')
+              obj=json.loads(raw or b'{}')
+              if isinstance(obj,dict) and obj.get('success') is False: raise SystemExit('Fail-closed Cloudflare success=false '+path)
+              return obj.get('result') if isinstance(obj,dict) else None
+
+          scripts=cf(f'/accounts/{aid}/workers/scripts') or []
+          names=[]
+          for item in scripts:
+              if isinstance(item,dict):
+                  n=item.get('id') or item.get('name')
+                  if n: names.append(str(n))
+          names=sorted(set(names))
+
+          interesting=[]
+          keywords=('paynow','payment','billing','integration','merchant','credential','gateway','capability','secret','sign','verify','webhook')
+          for name in names:
+              settings=cf(f'/accounts/{aid}/workers/scripts/{urllib.parse.quote(name,safe="")}/settings') or {}
+              bindings=settings.get('bindings') or [] if isinstance(settings,dict) else []
+              meta=[]
+              for b in bindings:
+                  if not isinstance(b,dict) or not b.get('name'): continue
+                  bn=str(b.get('name')); bt=str(b.get('type') or '')
+                  if any(k in bn.lower() for k in keywords):
+                      meta.append({'name':bn,'type':bt})
+              if meta or any(k in name.lower() for k in ('paynow','payment','billing','revenue')):
+                  interesting.append({'worker':name,'interesting_bindings':sorted(meta,key=lambda x:x['name'])})
+
+          out={
+              'schema':'musitu.axiom.paynow_authority_binding_inventory_readonly.v1',
+              'payments_public_authority':public,
+              'worker_count_scanned':len(names),
+              'interesting_worker_binding_metadata':interesting,
+              'secret_values_read':False,
+              'script_sources_read':False,
+              'mutation_performed':False,
+              'gate':'AXIOM_PAYNOW_AUTHORITY_BINDING_INVENTORY_READ_PASS'
+          }
+          raw=(json.dumps(out,indent=2,sort_keys=True)+'\n').encode()
+          open('authority-binding-inventory.json','wb').write(raw)
+          digest=hashlib.sha256(raw).hexdigest()
+          open('authority-binding-inventory.sha256','w').write(digest+'  authority-binding-inventory.json\n')
+          print(json.dumps({'gate':out['gate'],'payments_public_authority':public,'worker_count_scanned':len(names),'interesting_worker_binding_metadata':interesting,'secret_values_read':False,'script_sources_read':False,'mutation_performed':False,'sha256':digest},sort_keys=True))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: musitu-axiom-paynow-authority-binding-inventory-readonly
+          path: |
+            authority-binding-inventory.json
+            authority-binding-inventory.sha256
+          retention-days: 14
+          if-no-files-found: error
