@@ -173,3 +173,17 @@ test('reconciliation rejects tampered IR instead of issuing MATCH from a stale e
     /integrity|hash|sha256|tamper/i,
   );
 });
+
+
+test('declared bindings reject unknown authority fields and structured values instead of coercing them',async()=>{
+  const badAuthority=[{...bindings[0],release_authority:true},bindings[1]];
+  await assert.rejects(
+    ()=>compileProductIR(graph(),{bindings:badAuthority,compilerVersion:'1.0.0'}),
+    /binding.*unsupported fields|unsupported fields.*binding|authority/i,
+  );
+  const badRegion=[{...bindings[0],region:{path:'src/components/ObjectiveComposer.js'}},bindings[1]];
+  await assert.rejects(
+    ()=>compileProductIR(graph(),{bindings:badRegion,compilerVersion:'1.0.0'}),
+    /binding.*region|region.*string|structured/i,
+  );
+});
