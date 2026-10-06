@@ -16,7 +16,7 @@ concurrency:
 
 jobs:
   verify-public-origin:
-    if: github.event_name == 'push' && github.event.before == '40b7ce6d1d90b04c2a1805a7ecdee0f1e01e7095'
+    if: github.event_name == 'push' && github.event.before == 'a8bc30037b34fe37367d59468bf20bfe43b8426c'
     runs-on: ubuntu-latest
     environment: axiom-support-production
     timeout-minutes: 15
@@ -27,6 +27,7 @@ jobs:
       CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
       CLOUDFLARE_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
       CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+      CLOUDFLARE_RULESETS_API_TOKEN: ${{ secrets.CLOUDFLARE_RULESETS_API_TOKEN }}
       CLOUDFLARE_ACCOUNT_ID: '93f395f5121954671f92fffa453d6b61'
       SUPPORT_WORKER_NAME: 'musitu-axiom-support'
       SUPPORT_D1_DATABASE_NAME: 'musitu-axiom-support'
@@ -49,7 +50,7 @@ jobs:
           test "$GITHUB_EVENT_NAME" = 'push'
           test "$GITHUB_REF_NAME" = 'support/axiom-official-support-20261005'
           test "$GITHUB_REF_NAME" != 'main'
-          test "${{ github.event.before }}" = '40b7ce6d1d90b04c2a1805a7ecdee0f1e01e7095'
+          test "${{ github.event.before }}" = 'a8bc30037b34fe37367d59468bf20bfe43b8426c'
           test "$SUPPORT_DOMAIN" = 'support.mftintelligence.com'
           node <<'NODE'
           const api='https://api.github.com/repos/evansmusitu/mft-axiom-build';
@@ -183,14 +184,10 @@ jobs:
           node <<'NODE'
           const account=String(process.env.CLOUDFLARE_ACCOUNT_ID||'');
           const db=String(process.env.SUPPORT_D1_DATABASE_ID||'');
-          const token=String(process.env.CLOUDFLARE_API_TOKEN||'');
-          const email=String(process.env.CLOUDFLARE_EMAIL||'');
-          const key=String(process.env.CLOUDFLARE_API_KEY||'');
-          if(!account||!db) throw new Error('Cloudflare support identifiers missing');
+          const token=String(process.env.CLOUDFLARE_RULESETS_API_TOKEN||'');
+          if(!account||!db||!token) throw new Error('Cloudflare D1 read configuration missing');
           function headers(){
-            if(email&&key) return {'X-Auth-Email':email,'X-Auth-Key':key,'content-type':'application/json',accept:'application/json'};
-            if(token) return {authorization:'Bearer '+token,'content-type':'application/json',accept:'application/json'};
-            throw new Error('Cloudflare authentication missing');
+            return {authorization:'Bearer '+token,'content-type':'application/json',accept:'application/json'};
           }
           async function count(table){
             const r=await fetch('https://api.cloudflare.com/client/v4/accounts/'+account+'/d1/database/'+db+'/query',{
@@ -207,7 +204,7 @@ jobs:
 
       - name: Apply idempotent support schema
         env:
-          CLOUDFLARE_API_TOKEN: ''
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_RULESETS_API_TOKEN }}
         run: npx --yes wrangler@4 d1 execute SUPPORT_DB --remote --config support-wrangler.generated.json --file support/schema.sql
 
       - name: Publish exact support custom domain for verification
