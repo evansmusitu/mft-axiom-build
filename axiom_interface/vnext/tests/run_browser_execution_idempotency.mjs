@@ -13,9 +13,17 @@ if(version.status!==0) throw new Error('browser version check failed: '+version.
 console.log('BROWSER_RUNTIME='+version.stdout.trim());
 
 const repoRoot=process.cwd();
+let crashReadyResolve;
+let crashReady=new Promise(resolve=>{crashReadyResolve=resolve;});
 const mime=new Map([['.html','text/html; charset=utf-8'],['.js','text/javascript; charset=utf-8'],['.mjs','text/javascript; charset=utf-8'],['.json','application/json; charset=utf-8']]);
 const server=createServer(async(req,res)=>{
   try{
+    if(req.method==='POST'&&String(req.url||'').startsWith('/__axiom_crash_ready')){
+      crashReadyResolve?.('terminal-transaction-open');
+      res.writeHead(204);
+      res.end();
+      return;
+    }
     const url=new URL(req.url,'http://127.0.0.1');
     const decoded=decodeURIComponent(url.pathname).replace(/^\/+/, '');
     const file=path.resolve(repoRoot,decoded||'index.html');
@@ -145,6 +153,40 @@ async function launchSeparateTabRace(){
   }
 }
 
+
+async function launchProcessKillPhase(){
+  crashReady=new Promise(resolve=>{crashReadyResolve=resolve;});
+  const chrome=spawn(browser,[
+    '--headless=new','--no-sandbox','--disable-gpu','--disable-dev-shm-usage',
+    `--user-data-dir=${profile}`,`--remote-debugging-port=${debugPort}`,'about:blank',
+  ],{stdio:['ignore','pipe','pipe']});
+  let stderr='';
+  chrome.stderr.on('data',chunk=>{stderr+=chunk.toString();});
+  try{
+    await waitJson(`http://127.0.0.1:${debugPort}/json/version`);
+    const targetUrl=`${origin}/axiom_interface/vnext/tests/product_intelligence_browser_execution_idempotency.html?phase=process-kill-arm`;
+    const created=await fetch(`http://127.0.0.1:${debugPort}/json/new?${encodeURIComponent(targetUrl)}`,{method:'PUT'});
+    if(!created.ok)throw new Error('process-kill CDP target creation failed HTTP '+created.status);
+    const signal=await Promise.race([
+      crashReady,
+      sleep(12000).then(()=>{throw new Error('process-kill crash-ready signal timeout');}),
+    ]);
+    console.log('PROCESS_KILL_SIGNAL='+signal);
+    chrome.kill('SIGKILL');
+    await Promise.race([
+      new Promise(resolve=>chrome.once('exit',(code,signalName)=>resolve({code,signalName}))),
+      sleep(5000).then(()=>{throw new Error('Chrome did not exit after SIGKILL');}),
+    ]);
+    await sleep(800);
+    await launchPhase('process-kill-inspect','MUSITU_AXIOM_PHASE2_BROWSER_PROCESS_KILL_ATOMICITY_PASS');
+    console.log('MUSITU_AXIOM_PHASE2_BROWSER_PROCESS_KILL_QUALIFICATION_PASS');
+  }catch(error){
+    try{chrome.kill('SIGKILL');}catch{}
+    console.error('PROCESS_KILL_BROWSER_STDERR='+stderr.slice(-4000));
+    throw error;
+  }
+}
+
 async function launchPhase(phase,expectedMarker){
   const chrome=spawn(browser,[
     '--headless=new','--no-sandbox','--disable-gpu','--disable-dev-shm-usage',
@@ -193,6 +235,7 @@ try{
   await launchPhase('stale-seed','MUSITU_AXIOM_PHASE2_BROWSER_STALE_CLAIM_SEED_PASS');
   await launchPhase('stale-recover','MUSITU_AXIOM_PHASE2_BROWSER_STALE_CLAIM_RECOVERY_PASS');
   await launchPhase('atomic-fault','MUSITU_AXIOM_PHASE2_BROWSER_TERMINAL_COMMIT_ATOMICITY_PASS');
+  await launchProcessKillPhase();
   console.log('MUSITU_AXIOM_PHASE2_BROWSER_DURABLE_IDEMPOTENCY_QUALIFICATION_PASS');
 }finally{
   server.close();
