@@ -33,6 +33,10 @@ Additional metrics require a new scenario version so historical comparisons rema
 
 `targets.json` records official documentation entry points and the current access blocker. Onfleet requires real API credentials for live execution. Bringg requires sandbox credentials plus sandbox-specific service identifiers. No production credential is requested by this protocol.
 
+## Live access preflight
+
+`BENCHMARK_ACCESS.md` and `run-access-preflight.mjs` define a secret-safe preflight for dedicated Onfleet test access and Bringg Own Fleet Sandbox access. Preflight readiness is necessary but not sufficient for a comparison: it never upgrades the claim state by itself.
+
 ## Claim policy
 
 The executable validator returns only:

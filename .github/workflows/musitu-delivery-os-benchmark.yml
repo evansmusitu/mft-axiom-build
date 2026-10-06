@@ -23,7 +23,21 @@ jobs:
           node-version: '22'
       - name: Benchmark contract tests
         working-directory: delivery-os
-        run: node --test evaluation/benchmark.test.mjs
+        run: node --test evaluation/benchmark.test.mjs evaluation/external-access.test.mjs
+      - name: Prove external access fails closed without sandbox credentials
+        working-directory: delivery-os
+        run: |
+          mkdir -p "$RUNNER_TEMP/musitu-benchmark"
+          node evaluation/run-access-preflight.mjs --offline --output "$RUNNER_TEMP/musitu-benchmark/external-access-offline.json"
+          node - <<'NODE'
+          const fs = require('fs');
+          const p = process.env.RUNNER_TEMP + '/musitu-benchmark/external-access-offline.json';
+          const report = JSON.parse(fs.readFileSync(p, 'utf8'));
+          if (report.ready !== false) throw new Error('offline access must remain blocked');
+          if (report.providers.onfleet.blocked_by[0] !== 'ONFLEET_TEST_API_KEY_REQUIRED') throw new Error('Onfleet fail-closed contract drifted');
+          if (!report.providers.bringg.blocked_by.includes('BRINGG_SANDBOX_TOKEN_URL_REQUIRED')) throw new Error('Bringg fail-closed contract drifted');
+          console.log('MUSITU_DELIVERY_OS_EXTERNAL_ACCESS_FAIL_CLOSED_PASS');
+          NODE
       - name: Generate controlled evidence report
         working-directory: delivery-os
         run: |
@@ -42,6 +56,8 @@ jobs:
       - uses: actions/upload-artifact@v6
         with:
           name: musitu-delivery-benchmark-controlled
-          path: ${{ runner.temp }}/musitu-benchmark/controlled-report.json
+          path: |
+            ${{ runner.temp }}/musitu-benchmark/controlled-report.json
+            ${{ runner.temp }}/musitu-benchmark/external-access-offline.json
           if-no-files-found: error
           retention-days: 90

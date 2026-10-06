@@ -4,7 +4,7 @@
   "targets": [
     {
       "provider": "onfleet",
-      "access_status": "live_api_credentials_required",
+      "access_status": "dedicated_test_organization_api_key_required",
       "official_docs": [
         "https://docs.onfleet.com/reference/introduction",
         "https://docs.onfleet.com/reference/tasks",
@@ -18,11 +18,15 @@
         "route_plans",
         "route_optimization",
         "webhooks"
+      ],
+      "auth_probe": "GET https://onfleet.com/api/v2/auth/test",
+      "required_runtime_configuration": [
+        "ONFLEET_TEST_API_KEY"
       ]
     },
     {
       "provider": "bringg",
-      "access_status": "sandbox_credentials_and_service_ids_required",
+      "access_status": "own_fleet_sandbox_token_url_and_client_credentials_required",
       "official_docs": [
         "https://developers.bringg.com/v2/docs/overview",
         "https://developers.bringg.com/reference/welcome-to-bringgs-api-reference",
@@ -36,6 +40,12 @@
         "driver_location",
         "proof_of_delivery",
         "route_optimization"
+      ],
+      "auth_probe": "OAuth2 client_credentials against exact Sandbox token URL",
+      "required_runtime_configuration": [
+        "BRINGG_SANDBOX_TOKEN_URL",
+        "BRINGG_SANDBOX_CLIENT_ID",
+        "BRINGG_SANDBOX_CLIENT_SECRET"
       ]
     }
   ]
