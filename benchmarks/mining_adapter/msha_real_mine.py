@@ -139,25 +139,31 @@ def canonicalize_msha_row(raw: Mapping[str,Any]) -> dict[str,Any]:
     }
 
 
-def normalize_msha_rows(rows: Iterable[Mapping[str,Any]]) -> CanonicalEnvelope:
-    records=[]
+def canonical_msha_envelope(records: Iterable[Mapping[str,Any]]) -> CanonicalEnvelope:
+    materialized=[]
     documents=set()
-    for raw in rows:
-        record=canonicalize_msha_row(raw)
-        document=record["document_no"]
+    for raw in records:
+        record=dict(raw)
+        document=str(record.get("document_no","")).strip()
+        if not document:
+            raise ValueError("msha_document_no_required")
         if document in documents:
             raise ValueError("duplicate_document_no")
         documents.add(document)
-        records.append(record)
-    if not records:
+        materialized.append(record)
+    if not materialized:
         raise ValueError("msha_rows_required")
     return CanonicalEnvelope(
         contract="musitu.connect.mining.public_incident.v1",
         domain="mining_incident",
-        records=tuple(records),
+        records=tuple(materialized),
         source="msha-open-government",
         provenance="official-public-source",
     )
+
+
+def normalize_msha_rows(rows: Iterable[Mapping[str,Any]]) -> CanonicalEnvelope:
+    return canonical_msha_envelope(canonicalize_msha_row(raw) for raw in rows)
 
 
 def _is_sha256(value: Any) -> bool:
@@ -322,7 +328,7 @@ def run_real_mine_qualification(
         text_sha=_sha256_file(text_path)
         selected,stats=_scan_and_select(text_path,spec)
 
-    envelope=normalize_msha_rows(selected)
+    envelope=canonical_msha_envelope(selected)
     fabric=ConnectFabric(signing_secret=_SIGNING_SECRET).seal(
         run_id=f"msha-real-{zip_sha[:16]}",
         connector_name="MSHA Open Government Accident Injuries",
