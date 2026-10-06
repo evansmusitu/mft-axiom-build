@@ -5,6 +5,7 @@ import math
 import os
 import platform
 import random
+import re
 import resource
 import statistics
 import sys
@@ -159,9 +160,63 @@ def _benchmark_pipeline(rows: list[dict], budget: float, warmups: int, repetitio
     return {
         "records":scale,
         "latency_ms":summaries,
+        "raw_samples_ms":samples,
         "throughput_records_per_second":{
             "total_p50":scale/(summaries["total"]["p50"]/1000.0),
             "ingest_p50":scale/(summaries["ingest"]["p50"]/1000.0),
+        },
+    }
+
+
+def _qualification_topology_metrics() -> dict:
+    compose_path=ROOT/"infra"/"qualification"/"docker-compose.yml"
+    requirements_path=ROOT/"infra"/"qualification"/"requirements.txt"
+    versions_path=ROOT/"infra"/"versions.lock"
+    compose_text=compose_path.read_text()
+    requirements_text=requirements_path.read_text()
+    versions_text=versions_path.read_text()
+
+    services=[]
+    in_services=False
+    for line in compose_text.splitlines():
+        if line.strip()=="services:" and not line.startswith(" "):
+            in_services=True
+            continue
+        if in_services and line and not line.startswith(" "):
+            break
+        if in_services:
+            match=re.match(r"^  ([A-Za-z0-9_.-]+):\s*$",line)
+            if match:
+                services.append(match.group(1))
+
+    dependencies=[
+        line.strip() for line in requirements_text.splitlines()
+        if line.strip() and not line.lstrip().startswith("#")
+    ]
+    components=[]
+    in_components=False
+    for line in versions_text.splitlines():
+        if line.strip()=="components:" and not line.startswith(" "):
+            in_components=True
+            continue
+        if in_components and line and not line.startswith(" "):
+            break
+        if in_components:
+            match=re.match(r"^  ([A-Za-z0-9_]+):\s*$",line)
+            if match:
+                components.append(match.group(1))
+
+    return {
+        "comparison_status":"NOT_COMPARABLE",
+        "reason":"These are reproducible MUSITU qualification-topology proxies, not a same-deployment cross-vendor operations/TCO comparison.",
+        "qualification_topology":{
+            "compose_service_count":len(services),
+            "compose_services":services,
+            "python_dependency_count":len(dependencies),
+            "pinned_component_count":len(components),
+            "compose_file_bytes":compose_path.stat().st_size,
+            "requirements_file_bytes":requirements_path.stat().st_size,
+            "versions_lock_bytes":versions_path.stat().st_size,
         },
     }
 
@@ -211,6 +266,10 @@ def run_benchmark(
                 "musitu_exact": musitu_summary,
                 "scipy_milp": scipy_summary,
             },
+            "raw_samples_ms": {
+                "musitu_exact": musitu_samples,
+                "scipy_milp": scipy_samples,
+            },
             "throughput_records_per_second": {
                 "musitu_exact": count/(musitu_summary["p50"]/1000.0),
                 "scipy_milp": count/(scipy_summary["p50"]/1000.0),
@@ -241,6 +300,7 @@ def run_benchmark(
             "budget_fraction":0.25,
             "workload":"deterministic synthetic independent hazard interventions",
             "canonical_pipeline":"in-process JSON ingress -> normalize/sign -> SQLite WAL persist -> exact plan -> verified replay",
+            "raw_samples_preserved":True,
         },
         "runtime":{
             "python":platform.python_version(),
@@ -257,6 +317,7 @@ def run_benchmark(
             "reason":"Equivalent licensed commercial deployments on identical hardware/workloads were not available in this run.",
             "resource_proxies":["latency_ms","throughput_records_per_second","peak_rss_kib"],
         },
+        "operational_complexity":_qualification_topology_metrics(),
         "optimization":optimization,
         "canonical_pipeline":canonical_pipeline,
     }
