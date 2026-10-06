@@ -131,6 +131,7 @@ jobs:
           name: musitu-delivery-os-unified-source
           path: ${{ runner.temp }}/musitu-delivery-os-unified-source
           if-no-files-found: error
+          include-hidden-files: true
           retention-days: 90
 
   android:
