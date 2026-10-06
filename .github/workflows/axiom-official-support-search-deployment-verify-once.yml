@@ -12,7 +12,7 @@ permissions:
 
 jobs:
   verify:
-    if: github.event_name == 'push' && github.event.before == 'a254ab3a2b1d108b06aa929d8b3d407bb5479045'
+    if: github.event_name == 'push' && github.event.before == '642fd1df7658d9692f72d30a396168a3286c145a'
     runs-on: ubuntu-latest
     environment: axiom-support-production
     timeout-minutes: 6
@@ -26,7 +26,7 @@ jobs:
           set -euo pipefail
           test "$GITHUB_REF_NAME" = 'support/axiom-official-support-20261005'
           test "$GITHUB_REF_NAME" != 'main'
-          test "${{ github.event.before }}" = 'a254ab3a2b1d108b06aa929d8b3d407bb5479045'
+          test "${{ github.event.before }}" = '642fd1df7658d9692f72d30a396168a3286c145a'
 
       - name: Verify deployed search surface and edge policy read-only
         shell: bash
@@ -69,7 +69,7 @@ jobs:
           const dm=(Array.isArray(domains)?domains:[]).filter(x=>String(x?.hostname||'')==='support.mftintelligence.com');
           if(dm.length!==1||String(dm[0]?.service||'')!=='musitu-axiom-support') throw new Error('canonical support domain drift');
 
-          const contentResponse=await fetch('https://api.cloudflare.com/client/v4/accounts/'+account+'/workers/scripts/musitu-axiom-support/content',{headers});
+          const contentResponse=await fetch('https://api.cloudflare.com/client/v4/accounts/'+account+'/workers/scripts/musitu-axiom-support/content/v2',{headers});
           if(!contentResponse.ok) throw new Error('Worker content read failed HTTP '+contentResponse.status);
           const deployed=await contentResponse.text();
           const required=[
