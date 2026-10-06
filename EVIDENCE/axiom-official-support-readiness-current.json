@@ -1,13 +1,13 @@
 {
   "schema": "musitu.axiom.support-readiness-snapshot.v1",
-  "recorded_at": "2026-10-06T07:49:00Z",
+  "recorded_at": "2026-10-06T08:14:29Z",
   "repository": "evansmusitu/mft-axiom-build",
   "branch": "support/axiom-official-support-20261005",
   "public_operational_claim_authorized": false,
   "deployment_dispatch_authorized": false,
   "required_gate_count": 11,
-  "pass_count": 7,
-  "partial_count": 3,
+  "pass_count": 8,
+  "partial_count": 2,
   "missing_count": 1,
   "gates": [
     {
@@ -47,14 +47,15 @@
       "gate": "ANTI_ABUSE",
       "status": "PARTIAL",
       "evidence": {
-        "live_readback_run": 37422536639,
         "exact_turnstile_widget": true,
         "turnstile_secret_present": true,
         "hostname_bound": "support.mftintelligence.com",
         "action_bound": "support_case_create",
-        "live_origin_challenge_verified": false
+        "private_edge_missing_proof_403_verified": true,
+        "private_edge_rate_limit_429_verified": true,
+        "real_widget_token_on_authorized_hostname_verified": false
       },
-      "next_requirement": "real challenge/token validation against a live authorized origin"
+      "next_requirement": "complete a real Turnstile browser challenge and server-side token verification on the explicitly authorized support hostname"
     },
     {
       "gate": "HUMAN_SUPPORT_OWNER",
@@ -109,14 +110,17 @@
     },
     {
       "gate": "SECURITY_REVIEW",
-      "status": "PARTIAL",
+      "status": "PASS",
       "evidence": {
-        "file": "EVIDENCE/axiom-official-support-security-review-partial-20261006.json",
-        "automated_status": "PASS",
-        "live_edge_penetration_tested": false,
-        "live_rate_limit_evidence_tested": false
-      },
-      "next_requirement": "live-edge negative and rate-limit probes after an authorized live origin exists"
+        "file": "EVIDENCE/axiom-official-support-security-review-live-20261006.json",
+        "predeployment_automated_status": "PASS",
+        "private_edge_run": 37434637439,
+        "cleanup_readback_run": 37434514247,
+        "cleanup_readback_attempt": 2,
+        "live_edge_negative_boundaries_verified": true,
+        "live_rate_limit_429_verified": true,
+        "production_worker_unchanged": true
+      }
     },
     {
       "gate": "BACKUP_RESTORE",
