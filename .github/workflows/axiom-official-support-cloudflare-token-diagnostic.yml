@@ -58,6 +58,7 @@ jobs:
             account_verify_http_status: accountVerify.status,
             token_details_readable: details.ok,
             token_details_http_status: details.status,
+            token_name: details.ok ? String(details.result?.name || '') : '',
             email_routing_rules_write: details.ok ? has('Email Routing Rules Write', 'Email Routing Rules Edit') : null,
             zone_settings_write: details.ok ? has('Zone Settings Write', 'Zone Settings Edit') : null,
             api_tokens_write: details.ok ? has('API Tokens Write', 'API Tokens Edit') : null,
