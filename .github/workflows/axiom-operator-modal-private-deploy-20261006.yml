@@ -206,15 +206,54 @@ jobs:
           }
           trap cleanup EXIT
 
-          curl -fsS             -H "Modal-Key: $KEY"             -H "Modal-Secret: $SECRET"             "$URL/health" > /tmp/operator-health.json
+          export URL KEY SECRET
           python - <<'PY'
-          import json
-          x=json.load(open('/tmp/operator-health.json'))
-          assert x['status']=='READY'
-          assert x['durable_state']=='LOCAL_ATOMIC_STATE_PACK_WITH_FILE_LOCK'
-          assert x['production_authority'] is False
-          assert x['public_submission_mutation_authority'] is False
-          print('operator_authenticated_health=PASS')
+          import json,os,time
+          from urllib.error import HTTPError, URLError
+          from urllib.request import Request, urlopen
+
+          url=os.environ['URL'].rstrip('/')+'/health'
+          headers={'Modal-Key':os.environ['KEY'],'Modal-Secret':os.environ['SECRET']}
+          last=None
+          for attempt in range(1,31):
+              req=Request(url,headers=headers,method='GET')
+              try:
+                  with urlopen(req,timeout=15) as resp:
+                      raw=resp.read()
+                      status=resp.status
+              except HTTPError as exc:
+                  raw=exc.read()
+                  status=exc.code
+              except URLError as exc:
+                  last={'status':0,'transport_error':str(exc)}
+                  print('operator_initial_health_attempt='+str(attempt)+' '+json.dumps(last,sort_keys=True))
+                  time.sleep(2)
+                  continue
+              except Exception as exc:
+                  last={'status':0,'transport_error':f'{type(exc).__name__}: {exc}'}
+                  print('operator_initial_health_attempt='+str(attempt)+' '+json.dumps(last,sort_keys=True))
+                  time.sleep(2)
+                  continue
+              try:
+                  body=json.loads(raw.decode('utf-8')) if raw else {'decode_error':'empty response body'}
+              except Exception as exc:
+                  body={'decode_error':f'{type(exc).__name__}: {exc}','body_preview':raw[:500].decode('utf-8','replace')}
+              last={'status':status,'body':body}
+              ok=(
+                  status==200
+                  and isinstance(body,dict)
+                  and body.get('status')=='READY'
+                  and body.get('durable_state')=='LOCAL_ATOMIC_STATE_PACK_WITH_FILE_LOCK'
+                  and body.get('production_authority') is False
+                  and body.get('public_submission_mutation_authority') is False
+              )
+              if ok:
+                  print('operator_authenticated_health=PASS')
+                  break
+              print('operator_initial_health_attempt='+str(attempt)+' '+json.dumps(last,sort_keys=True)[:1200])
+              time.sleep(2)
+          else:
+              raise SystemExit('Fail-closed: authenticated Operator health never became READY: '+json.dumps(last,sort_keys=True)[:1600])
           PY
 
           cat > /tmp/tools-list.json <<'JSON'
