@@ -14,10 +14,13 @@ const zoho = [
   {id: 'zoho-2', type: 'MX', name: zone, content: 'mx2.zoho.com', priority: 20, ttl: 3600},
   {id: 'zoho-3', type: 'MX', name: zone, content: 'mx3.zoho.com', priority: 50, ttl: 3600},
 ];
+const dkimName = `cf2024-1._domainkey.${zone}`;
 const required = [
-  {type: 'MX', name: zone, content: 'route1.mx.cloudflare.net', priority: 12, ttl: 1},
-  {type: 'MX', name: zone, content: 'route2.mx.cloudflare.net', priority: 67, ttl: 1},
-  {type: 'MX', name: zone, content: 'route3.mx.cloudflare.net', priority: 84, ttl: 1},
+  {type: 'MX', name: zone, content: 'route1.mx.cloudflare.net.', priority: 7, ttl: 1},
+  {type: 'MX', name: zone, content: 'route2.mx.cloudflare.net.', priority: 32, ttl: 1},
+  {type: 'MX', name: zone, content: 'route3.mx.cloudflare.net.', priority: 94, ttl: 1},
+  {type: 'TXT', name: dkimName, content: '"v=DKIM1; h=sha256; k=rsa; p=TESTPUBLICKEY"', ttl: 1},
+  {type: 'TXT', name: zone, content: '"v=spf1 include:_spf.mx.cloudflare.net ~all"', ttl: 1},
 ];
 const protectedHosts = new Map([
   ['auth.mftintelligence.com', [{id: 'a', type: 'A', name: 'auth.mftintelligence.com', content: '192.0.2.10'}]],
@@ -42,6 +45,7 @@ function mockCloudflare({unverified = false, mutateProtectedAfterCutover = false
   const calls = [];
   let routing = {enabled: false, status: 'unconfigured'};
   let root = structuredClone(zoho);
+  let dkim = [];
   let rules = unrelatedRule ? [{id: 'unexpected-rule', enabled: true, matchers: [{type: 'literal', field: 'to', value: 'legacy@mftintelligence.com'}], actions: [{type: 'forward', value: [destination]}]}] : disabledDropAll ? [{id: 'default-drop', enabled: false, matchers: [{type: 'all'}], actions: [{type: 'drop'}]}] : [];
   let nextDnsId = 100;
   let cutover = false;
@@ -63,20 +67,25 @@ function mockCloudflare({unverified = false, mutateProtectedAfterCutover = false
     if (u.pathname.endsWith('/email/routing/dns') && method === 'POST') {
       if (enableDnsFailure) return response(409, {success: false, errors: [{code: 2008, message: 'conflict'}]});
       cutover = true;
-      routing = {enabled: true, status: readyAfterReads > 0 ? 'configuring' : 'ready'};
-      root = required.map((r, i) => ({id: `cf-${i}`, ...r}));
+      routing = {enabled: true, status: 'misconfigured/locked'};
+      root = required.filter(r => r.type === 'MX').map((r, i) => ({id: `cf-${i}`, ...r}));
+      dkim = [];
       return response(200, {success: true, result: {...routing, name: zone}});
     }
     if (u.pathname.endsWith('/email/routing/dns') && method === 'DELETE') {
       cutover = false;
       routing = {enabled: false, status: 'unconfigured'};
       root = [];
+      dkim = [];
       return response(200, {success: true, result: {...routing, name: zone}});
     }
     if (u.pathname.endsWith('/email/routing') && method === 'GET') {
-      if (cutover && readyAfterReads > 0) {
+      const hasSpf = root.some(r => r.type === 'TXT' && String(r.content || '').includes('v=spf1 include:_spf.mx.cloudflare.net'));
+      const hasDkim = dkim.some(r => r.type === 'TXT' && String(r.content || '').includes('v=DKIM1'));
+      const hasMx = root.filter(r => r.type === 'MX').length === 3;
+      if (cutover && hasMx && hasSpf && hasDkim) {
         postCutoverRoutingReads += 1;
-        if (postCutoverRoutingReads >= readyAfterReads) routing = {enabled: true, status: 'ready'};
+        if (readyAfterReads === 0 || postCutoverRoutingReads >= readyAfterReads) routing = {enabled: true, status: 'ready'};
       }
       return response(200, {success: true, result: routing});
     }
@@ -99,23 +108,26 @@ function mockCloudflare({unverified = false, mutateProtectedAfterCutover = false
     if (u.pathname.includes('/dns_records') && method === 'GET') {
       const name = u.searchParams.get('name');
       if (name === zone) return response(200, {success: true, result: root});
+      if (name === dkimName) return response(200, {success: true, result: dkim});
       const rows = structuredClone(protectedState.get(name) || []);
       if (cutover && mutateProtectedAfterCutover && name === 'claude-mcp.mftintelligence.com') rows[0].content = '198.51.100.77';
       return response(200, {success: true, result: rows});
     }
     if (u.pathname.endsWith('/dns_records') && method === 'POST') {
       const row = {id: `restored-${nextDnsId++}`, ...body};
-      root.push(row);
+      if (body.name === dkimName) dkim.push(row);
+      else root.push(row);
       return response(200, {success: true, result: row});
     }
     if (u.pathname.includes('/dns_records/') && method === 'DELETE') {
       const id = u.pathname.split('/').at(-1);
       root = root.filter(r => r.id !== id);
+      dkim = dkim.filter(r => r.id !== id);
       return response(200, {success: true, result: null});
     }
     throw new Error(`unexpected ${method} ${path}`);
   };
-  return {fetchImpl, calls, state: () => ({routing, root, rules})};
+  return {fetchImpl, calls, state: () => ({routing, root, dkim, rules})};
 }
 
 test('migration accepts the live MX-only Cloudflare required DNS shape and creates support routing before cutover', async () => {
@@ -138,7 +150,14 @@ test('migration accepts the live MX-only Cloudflare required DNS shape and creat
   assert.equal(deleteMx.length, 3, 'all three conflicting Zoho MX records must be removed before Cloudflare root activation');
   assert.ok(mock.calls.findIndex(c => c.method === 'DELETE' && c.path.includes('/dns_records/')) < enableDns);
   assert.equal(mock.calls[enableDns].body, undefined, 'root-domain Email Routing enable must omit the subdomain name payload');
-  assert.deepEqual(mock.state().root.map(r => r.content).sort(), required.map(r => r.content).sort());
+  const txtCreates = mock.calls.filter(c => c.method === 'POST' && c.path.endsWith('/dns_records') && c.body?.type === 'TXT');
+  assert.equal(txtCreates.length, 2, 'missing routing SPF and DKIM must be created from Cloudflare exact required DNS');
+  assert.ok(txtCreates.some(c => c.body.name === zone && String(c.body.content).startsWith('v=spf1')));
+  assert.ok(txtCreates.some(c => c.body.name === dkimName && String(c.body.content).startsWith('v=DKIM1')));
+  assert.equal(mock.state().routing.status, 'ready');
+  assert.equal(mock.state().root.filter(r => r.type === 'MX').length, 3);
+  assert.equal(mock.state().root.filter(r => r.type === 'TXT' && String(r.content).startsWith('v=spf1')).length, 1);
+  assert.equal(mock.state().dkim.length, 1);
 });
 
 test('unverified support destination fails closed before any write', async () => {
@@ -160,7 +179,9 @@ test('migration waits for asynchronous Cloudflare routing readiness before decla
   assert.equal(evidence.gate, 'MUSITU_AXIOM_SUPPORT_EMAIL_ROUTING_MIGRATION_PASS');
   assert.equal(evidence.routing.ready, true);
   assert.equal(sleeps, 2);
-  assert.deepEqual(mock.state().root.map(r => r.content).sort(), required.map(r => r.content).sort());
+  assert.equal(mock.state().root.filter(r => r.type === 'MX').length, 3);
+  assert.equal(mock.state().root.filter(r => r.type === 'TXT' && String(r.content).startsWith('v=spf1')).length, 1);
+  assert.equal(mock.state().dkim.length, 1);
 });
 
 test('Cloudflare activation conflict after MX removal rolls back exact Zoho MX and removes the new support rule', async () => {
@@ -169,6 +190,7 @@ test('Cloudflare activation conflict after MX removal rolls back exact Zoho MX a
   assert.equal(mock.state().routing.enabled, false);
   assert.deepEqual(mock.state().root.map(r => r.content).sort(), zoho.map(r => r.content).sort());
   assert.equal(mock.state().rules.length, 0);
+  assert.equal(mock.state().dkim.length, 0);
   assert.ok(mock.calls.some(c => c.method === 'DELETE' && c.path.includes('/dns_records/')));
 });
 
@@ -178,6 +200,7 @@ test('post-cutover protected-provider drift triggers rollback to the exact prior
   assert.equal(mock.state().routing.enabled, false);
   assert.deepEqual(mock.state().root.map(r => r.content).sort(), zoho.map(r => r.content).sort());
   assert.equal(mock.state().rules.length, 0);
+  assert.equal(mock.state().dkim.length, 0);
   assert.ok(mock.calls.some(c => c.method === 'DELETE' && c.path.endsWith('/email/routing/dns')));
 });
 

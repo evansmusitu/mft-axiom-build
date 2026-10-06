@@ -12,6 +12,7 @@ import {SUPPORT_ZONE_ID, SUPPORT_ZONE_NAME, SUPPORT_EMAIL_ALIAS} from './verify_
 const EMAIL = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 const MIGRATION_CONFIRM = 'MIGRATE_MUSITU_AXIOM_EMAIL_ROUTING';
 const RETIREMENT_CONFIRM = 'RETIRE_UNUSED_ZOHO_TEST_MAILBOXES';
+const ROUTING_DKIM_NAME = `cf2024-1._domainkey.${SUPPORT_ZONE_NAME}`;
 const PROTECTED_PROVIDER_HOSTS = [
   'auth.mftintelligence.com',
   'mcp.mftintelligence.com',
@@ -29,10 +30,17 @@ function normalizedName(name) {
 }
 
 function normalizeRecord(row, {keepId = false} = {}) {
+  const type = String(row?.type || '').toUpperCase();
+  let content = String(row?.content || '').trim();
+  if (type === 'TXT' && content.length >= 2 && content.startsWith('"') && content.endsWith('"')) {
+    content = content.slice(1, -1);
+  } else if (type !== 'TXT') {
+    content = content.replace(/\.$/, '');
+  }
   const out = {
-    type: String(row?.type || '').toUpperCase(),
+    type,
     name: normalizedName(row?.name),
-    content: String(row?.content || '').trim().replace(/\.$/, ''),
+    content,
     priority: Number.isFinite(Number(row?.priority)) ? Number(row.priority) : null,
     ttl: Number.isFinite(Number(row?.ttl)) ? Number(row.ttl) : 1,
   };
@@ -41,16 +49,29 @@ function normalizeRecord(row, {keepId = false} = {}) {
 }
 
 function isSpf(row) {
-  return String(row?.type || '').toUpperCase() === 'TXT' && String(row?.content || '').trim().toLowerCase().startsWith('v=spf1');
+  const value = normalizeRecord(row);
+  return value.type === 'TXT' && value.name === SUPPORT_ZONE_NAME && value.content.toLowerCase().startsWith('v=spf1');
+}
+
+function isRoutingDkim(row) {
+  const value = normalizeRecord(row);
+  return value.type === 'TXT' && value.name === ROUTING_DKIM_NAME && value.content.toLowerCase().startsWith('v=dkim1');
+}
+
+function isRoutingDkimName(row) {
+  const value = normalizeRecord(row);
+  return value.type === 'TXT' && value.name === ROUTING_DKIM_NAME;
 }
 
 function isMailRecord(row) {
-  return String(row?.type || '').toUpperCase() === 'MX' || isSpf(row);
+  const value = normalizeRecord(row);
+  return (value.type === 'MX' && value.name === SUPPORT_ZONE_NAME) || isSpf(value);
 }
 
 function recordKey(row) {
   const value = normalizeRecord(row);
-  return JSON.stringify({type: value.type, name: value.name, content: value.content.toLowerCase(), priority: value.priority});
+  const content = value.type === 'MX' ? value.content.toLowerCase() : value.content;
+  return JSON.stringify({type: value.type, name: value.name, content, priority: value.priority});
 }
 
 function sameRecordSet(left, right) {
@@ -100,6 +121,23 @@ async function readRootMail({fetchImpl, headers}) {
     path: `/zones/${SUPPORT_ZONE_ID}/dns_records?name=${encodeURIComponent(SUPPORT_ZONE_NAME)}&per_page=100`,
   });
   return (Array.isArray(rows) ? rows : []).filter(isMailRecord).map(row => normalizeRecord(row, {keepId: true}));
+}
+
+async function readRoutingDkim({fetchImpl, headers}) {
+  const rows = await getResult({
+    fetchImpl,
+    headers,
+    path: `/zones/${SUPPORT_ZONE_ID}/dns_records?name=${encodeURIComponent(ROUTING_DKIM_NAME)}&per_page=100`,
+  });
+  return (Array.isArray(rows) ? rows : []).filter(isRoutingDkimName).map(row => normalizeRecord(row, {keepId: true}));
+}
+
+async function readRoutingMail({fetchImpl, headers}) {
+  const [root, dkim] = await Promise.all([
+    readRootMail({fetchImpl, headers}),
+    readRoutingDkim({fetchImpl, headers}),
+  ]);
+  return [...root, ...dkim];
 }
 
 async function readProtectedProviderDns({fetchImpl, headers}) {
@@ -204,7 +242,7 @@ async function waitForRoutingConvergence({
   for (let attempt = 1; attempt <= attempts; attempt += 1) {
     [afterRouting, afterMail] = await Promise.all([
       routingState({fetchImpl, headers}),
-      readRootMail({fetchImpl, headers}),
+      readRoutingMail({fetchImpl, headers}),
     ]);
     if (afterRouting.ready && sameRecordSet(afterMail, desiredMail)) {
       return {afterRouting, afterMail, attemptsUsed: attempt};
@@ -217,9 +255,38 @@ async function waitForRoutingConvergence({
 
 async function requiredDns({fetchImpl, headers}) {
   const rows = await getResult({fetchImpl, headers, path: `/zones/${SUPPORT_ZONE_ID}/email/routing/dns`});
-  const normalized = (Array.isArray(rows) ? rows : []).filter(isMailRecord).map(row => normalizeRecord(row));
+  const normalized = (Array.isArray(rows) ? rows : []).map(row => normalizeRecord(row))
+    .filter(row => isMailRecord(row) || isRoutingDkimName(row));
   if (!normalized.some(row => row.type === 'MX')) throw new Error('Cloudflare Email Routing returned no required MX records');
+  if (!normalized.some(isSpf)) throw new Error('Cloudflare Email Routing returned no required SPF record');
+  const dkim = normalized.filter(isRoutingDkimName);
+  if (dkim.length !== 1 || !isRoutingDkim(dkim[0])) throw new Error('Cloudflare Email Routing returned no exact required DKIM record');
   return normalized;
+}
+
+async function ensureRequiredRoutingAuthDns({fetchImpl, headers, desired}) {
+  let current = await readRoutingMail({fetchImpl, headers});
+  const desiredKeys = new Set(desired.map(recordKey));
+  const unexpectedSpfOrDkim = current.filter(row =>
+    (isSpf(row) || isRoutingDkimName(row)) && !desiredKeys.has(recordKey(row))
+  );
+  if (unexpectedSpfOrDkim.length) throw new Error('unexpected SPF or routing DKIM conflicts with Cloudflare required DNS');
+
+  const missing = desired.filter(row => !new Set(current.map(recordKey)).has(recordKey(row)));
+  for (const row of missing) {
+    if (row.type !== 'TXT') throw new Error('Cloudflare activation did not create required MX records');
+    const body = {type: row.type, name: row.name, content: row.content, ttl: row.ttl || 1};
+    await cloudflareRequest({
+      fetchImpl,
+      headers,
+      path: `/zones/${SUPPORT_ZONE_ID}/dns_records`,
+      method: 'POST',
+      body,
+    });
+  }
+  current = await readRoutingMail({fetchImpl, headers});
+  if (!sameRecordSet(current, desired)) throw new Error('Cloudflare required Email Routing DNS did not converge after exact TXT repair');
+  return {created: missing.length, current};
 }
 
 async function removeConflictingRootMx({fetchImpl, headers, current, desired}) {
@@ -251,14 +318,14 @@ async function restoreRootMail({fetchImpl, headers, snapshot}) {
   } catch (error) {
     if (![409, 422].includes(Number(error?.status))) throw error;
   }
-  const current = await readRootMail({fetchImpl, headers});
+  const current = await readRoutingMail({fetchImpl, headers});
   const wantedKeys = new Set(snapshot.map(recordKey));
   for (const row of current) {
     if (!wantedKeys.has(recordKey(row)) && row.id) {
       await cloudflareRequest({fetchImpl, headers, path: `/zones/${SUPPORT_ZONE_ID}/dns_records/${encodeURIComponent(row.id)}`, method: 'DELETE'});
     }
   }
-  const afterDelete = await readRootMail({fetchImpl, headers});
+  const afterDelete = await readRoutingMail({fetchImpl, headers});
   const existingKeys = new Set(afterDelete.map(recordKey));
   for (const row of snapshot) {
     if (existingKeys.has(recordKey(row))) continue;
@@ -266,7 +333,7 @@ async function restoreRootMail({fetchImpl, headers, snapshot}) {
     if (row.type === 'MX' && row.priority !== null) body.priority = row.priority;
     await cloudflareRequest({fetchImpl, headers, path: `/zones/${SUPPORT_ZONE_ID}/dns_records`, method: 'POST', body});
   }
-  const restored = await readRootMail({fetchImpl, headers});
+  const restored = await readRoutingMail({fetchImpl, headers});
   if (!sameRecordSet(restored, snapshot)) throw new Error('root mail DNS rollback verification failed');
   return restored;
 }
@@ -289,7 +356,7 @@ export async function migrateEmailRouting({
   const catchAll = await readCatchAll({fetchImpl, headers: credential.headers});
   if (!catchAllSafeForRetirement(catchAll)) throw new Error('catch-all routing must be disabled or dropping mail before retiring Zoho test mailboxes');
 
-  const beforeMail = await readRootMail({fetchImpl, headers: credential.headers});
+  const beforeMail = await readRoutingMail({fetchImpl, headers: credential.headers});
   const beforeProtected = await readProtectedProviderDns({fetchImpl, headers: credential.headers});
   const desiredMail = await requiredDns({fetchImpl, headers: credential.headers});
   const initialRouting = await routingState({fetchImpl, headers: credential.headers});
@@ -311,6 +378,11 @@ export async function migrateEmailRouting({
         headers: credential.headers,
         path: `/zones/${SUPPORT_ZONE_ID}/email/routing/dns`,
         method: 'POST',
+      });
+      await ensureRequiredRoutingAuthDns({
+        fetchImpl,
+        headers: credential.headers,
+        desired: desiredMail,
       });
     }
 
@@ -362,6 +434,7 @@ export async function migrateEmailRouting({
         record_count: desiredMail.length,
         mx_count: desiredMail.filter(row => row.type === 'MX').length,
         spf_count: desiredMail.filter(isSpf).length,
+        dkim_count: desiredMail.filter(isRoutingDkim).length,
         fingerprint_sha256: fingerprintRecords(desiredMail),
       },
       routing: afterRouting,
