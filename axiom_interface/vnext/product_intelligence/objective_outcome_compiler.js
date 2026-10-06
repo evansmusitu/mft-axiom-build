@@ -8,6 +8,14 @@ const OUTCOME_CONSTRAINT_KEYS=new Set(['privacy','evidence','autonomy','approval
 const clean=(value,max=4000)=>String(value??'').replace(/[\u0000-\u001f\u007f]/g,' ').trim().slice(0,max);
 const isPlainObject=value=>Boolean(value)&&typeof value==='object'&&!Array.isArray(value)&&(Object.getPrototypeOf(value)===Object.prototype||Object.getPrototypeOf(value)===null);
 function rejectUnknownKeys(value,allowed,label){const extra=Object.keys(value).filter(key=>!allowed.has(key));if(extra.length)throw new DOMException(label+' contains unsupported fields: '+extra.join(','),'SecurityError');}
+function validateConstraintTypes(constraints){
+  for(const key of ['privacy','evidence','autonomy','approval','deadline']){
+    const value=constraints[key];
+    if(value!==null&&value!==undefined&&typeof value!=='string') throw new TypeError('Outcome Contract constraint '+key+' must be a string or null');
+  }
+  const budget=constraints.compute_budget;
+  if(budget!==null&&budget!==undefined&&(typeof budget!=='number'||!Number.isFinite(budget)||budget<0)) throw new TypeError('Outcome Contract constraint compute_budget must be a finite non-negative number or null');
+}
 function canonical(value){
   if(Array.isArray(value)) return `[${value.map(canonical).join(',')}]`;
   if(value&&typeof value==='object') return `{${Object.keys(value).sort().map(key=>`${JSON.stringify(key)}:${canonical(value[key])}`).join(',')}}`;
@@ -65,6 +73,7 @@ export async function compileObjectiveOutcomeGraph({project,contract,contractVer
   if(!Array.isArray(contract.success_criteria)||!contract.success_criteria.length) throw new TypeError('Outcome Contract success criteria required');
   if(!isPlainObject(contract.constraints)) throw new TypeError('Outcome Contract constraints required');
   rejectUnknownKeys(contract.constraints,OUTCOME_CONSTRAINT_KEYS,'Outcome Contract constraints');
+  validateConstraintTypes(contract.constraints);
   if(approval!==null){
     if(!isPlainObject(approval)||approval.contract_id!==contract.contract_id||approval.contract_sha256!==contract.contract_sha256) throw new TypeError('approval receipt must bind the verified Outcome Contract');
   }
