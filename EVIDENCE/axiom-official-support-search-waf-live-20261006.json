@@ -1,0 +1,43 @@
+{
+  "schema": "musitu.axiom.support-search-waf-evidence.v1",
+  "status": "PASS",
+  "verified_at": "2026-10-06T14:24:13Z",
+  "repository": "evansmusitu/mft-axiom-build",
+  "branch": "support/axiom-official-support-20261005",
+  "workflow_run": 37478633718,
+  "cloudflare": {
+    "ruleset_id": "b6e24c698e0842bcb8e27739074a865c",
+    "rule_id": "c89f7e9768174c9fa6c2be35d612bc26",
+    "rule_ref": "musitu_axiom_support_verified_search_crawlers",
+    "verified_bot_category": "Search Engine Crawler",
+    "methods": [
+      "GET",
+      "HEAD"
+    ],
+    "public_paths": [
+      "/",
+      "/index.html",
+      "/robots.txt",
+      "/sitemap.xml",
+      "/styles.css",
+      "/app.js"
+    ],
+    "skip_products": [
+      "bic",
+      "securityLevel"
+    ],
+    "global_security_level": "under_attack",
+    "global_browser_integrity_check": "on",
+    "bot_fight_mode": false,
+    "api_or_health_exception": false,
+    "ai_crawler_exception": false,
+    "secret_exposed": false
+  },
+  "boundaries": {
+    "global_security_weakened": false,
+    "main_modified": false,
+    "pr_1_modified": false,
+    "openai_surface_modified": false,
+    "claude_surface_modified": false
+  }
+}
