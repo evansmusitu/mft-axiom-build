@@ -108,8 +108,6 @@ test('verified search crawler edge rule is exact-host, exact-category, GET/HEAD-
   assert.match(rule.expression, /http\.host eq "support\.mftintelligence\.com"/);
   assert.match(rule.expression, /cf\.client\.bot/);
   assert.match(rule.expression, /cf\.verified_bot_category eq "Search Engine Crawler"/);
-  assert.match(rule.expression, /http\.user_agent contains "Google-InspectionTool"/);
-  assert.ok(rule.expression.includes('(cf.verified_bot_category eq "Search Engine Crawler" or http.user_agent contains "Google-InspectionTool")'));
   assert.match(rule.expression, /http\.request\.method in \{"GET" "HEAD"\}/);
   for (const path of ['/', '/index.html', '/robots.txt', '/sitemap.xml', '/styles.css', '/app.js']) assert.ok(rule.expression.includes(path), 'missing public path '+path);
   assert.doesNotMatch(rule.expression, /\/api\/|\/health|AI Search|AI Crawler|AI Assistant/);
@@ -137,6 +135,8 @@ test('verified search crawler WAF skip rule matches only traditional search craw
   assert.match(rule.expression, /http\.host eq "support\.mftintelligence\.com"/);
   assert.match(rule.expression, /cf\.client\.bot/);
   assert.match(rule.expression, /cf\.verified_bot_category eq "Search Engine Crawler"/);
+  assert.match(rule.expression, /http\.user_agent contains "Google-InspectionTool"/);
+  assert.ok(rule.expression.includes('(cf.verified_bot_category eq "Search Engine Crawler" or http.user_agent contains "Google-InspectionTool")'));
   assert.match(rule.expression, /http\.request\.method in \{"GET" "HEAD"\}/);
   for (const path of ['/', '/index.html', '/robots.txt', '/sitemap.xml', '/styles.css', '/app.js']) assert.ok(rule.expression.includes(path), 'missing public path '+path);
   assert.doesNotMatch(rule.expression, /\/api\/|\/health|AI Search|AI Crawler|AI Assistant/);
