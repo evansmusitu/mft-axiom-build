@@ -109,3 +109,12 @@ test('authorized public-origin verification bootstrap is one-shot, exact-host, n
   assert.doesNotMatch(workflow, /branches:\s*\n\s*-\s*['"]?main/);
   assert.doesNotMatch(workflow, /workflow_dispatch/);
 });
+
+
+test('public-origin verification bundles the browser app with all local module dependencies before embedding it', async () => {
+  const workflow = await readFile(resolve(root, '..', '.github', 'workflows', 'axiom-official-support-public-origin-verify-once.yml'), 'utf8');
+  assert.match(workflow, /esbuild@0\.25\.11 support\/app\.js --bundle --format=esm --platform=browser --target=es2022 --outfile=\.axiom-support-app\.browser\.js/);
+  assert.match(workflow, /readFileSync\('\.axiom-support-app\.browser\.js','utf8'\)/);
+  assert.doesNotMatch(workflow, /readFileSync\('support\/app\.js','utf8'\)/);
+  assert.match(workflow, /if\(request\.method==='GET'&&u\.pathname==='\/app\.js'\) return asset\(APP,'text\/javascript; charset=utf-8'\)/);
+});
