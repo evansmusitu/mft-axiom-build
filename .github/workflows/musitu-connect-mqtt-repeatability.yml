@@ -89,12 +89,18 @@ jobs:
                   assert not trial["errors"]
           assert aggregate["throughput"]["reference_outcome"] in {"WIN","TIE","LOSS","INCONCLUSIVE"}
           assert aggregate["p99_latency"]["reference_outcome"] in {"WIN","TIE","LOSS","INCONCLUSIVE"}
+          frontier=report["performance_frontier"]
+          assert frontier["integrity_preserved"] is True
+          assert frontier["throughput_target_met"] is True
+          assert frontier["throughput_gain_x"] >= 2.0
           print("MQTT_REPEATABILITY_EVIDENCE_VALID=PASS")
+          print("MQTT_PERFORMANCE_FRONTIER=PASS")
           print(json.dumps({
               "comparison_fingerprint":report["comparison_fingerprint"],
               "throughput":aggregate["throughput"],
               "p99_latency":aggregate["p99_latency"],
               "repeatability_passed":aggregate["repeatability_passed"],
+              "performance_frontier":frontier,
           },indent=2,sort_keys=True))
           PY
           sha256sum qualification/repeatability/mqtt_repeatability.json
@@ -114,6 +120,10 @@ jobs:
           print(f"- Reference throughput outcome: **{a['throughput']['reference_outcome']}**")
           print(f"- Reference p99 outcome: **{a['p99_latency']['reference_outcome']}**")
           print(f"- Repeatability gate: **{'PASS' if a['repeatability_passed'] else 'INCONCLUSIVE'}**")
+          frontier=r["performance_frontier"]
+          print(f"- Performance frontier: **{'PASS' if frontier['throughput_target_met'] else 'FAIL'}**")
+          print(f"- Reference throughput gain: **{frontier['throughput_gain_x']:.2f}×**")
+          print(f"- Reference p99 improvement: **{frontier['p99_improvement_x']:.2f}×**")
           PY
           } >> "$GITHUB_STEP_SUMMARY"
 
