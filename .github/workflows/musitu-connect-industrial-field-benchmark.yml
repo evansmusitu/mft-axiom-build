@@ -7,6 +7,7 @@ on:
       - '.github/workflows/musitu-connect-industrial-field-benchmark.yml'
       - 'benchmarks/mining_adapter/industrial_field.py'
       - 'benchmarks/mining_adapter/mqtt_field_runner.py'
+      - 'benchmarks/mining_adapter/test_mqtt_field_runner.py'
       - 'benchmarks/mining_adapter/opcua_field_runner.py'
       - 'qualification/mining_adapter_field_qualify.py'
       - 'qualification/mining_adapter_field_matrix.json'
