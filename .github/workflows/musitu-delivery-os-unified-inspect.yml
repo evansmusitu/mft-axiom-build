@@ -102,6 +102,36 @@ jobs:
       - name: Unified regression and acceptance gates
         working-directory: delivery-os
         run: npm run verify
+      - name: Stage verified reconstructed unified source snapshot
+        shell: bash
+        run: |
+          set -euo pipefail
+          SNAPSHOT="$RUNNER_TEMP/musitu-delivery-os-unified-source"
+          rm -rf "$SNAPSHOT"
+          mkdir -p "$SNAPSHOT"
+          tar -C delivery-os \
+            --exclude='./vendor' \
+            --exclude='./source-parts' \
+            --exclude='./phase1-src.tar.gz' \
+            --exclude='./PHASE1_SOURCE_SHA256.txt' \
+            --exclude='./PHASE2_UNIFIED.patch.gz' \
+            --exclude='./PHASE2_UNIFIED_PATCH_SHA256.txt' \
+            -cf - . | tar -C "$SNAPSHOT" -xf -
+          cat > "$SNAPSHOT/SNAPSHOT_METADATA.txt" <<EOF
+          unified_head=$GITHUB_SHA
+          ownfleet_pin=98744125c827b6e5bbe2af384c3ef9308c445ec8
+          source_kind=reconstructed_phase1_plus_phase2_patch
+          EOF
+          (
+            cd "$SNAPSHOT"
+            find . -type f ! -name MANIFEST.sha256 -print0 | sort -z | xargs -0 sha256sum > MANIFEST.sha256
+          )
+      - uses: actions/upload-artifact@v6
+        with:
+          name: musitu-delivery-os-unified-source
+          path: ${{ runner.temp }}/musitu-delivery-os-unified-source
+          if-no-files-found: error
+          retention-days: 90
 
   android:
     name: Flutter Android release
