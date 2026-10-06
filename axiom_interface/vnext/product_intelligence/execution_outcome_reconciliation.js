@@ -145,3 +145,55 @@ export async function createExecutionOutcomeEvidence(verified){
   assertAxiomObject(evidence,{expectedType:'Evidence'});
   return Object.freeze(structuredClone(evidence));
 }
+
+
+export async function reconcileVerifiedExecutionOutcome({persistence,verifiedOutcome,at=verifiedOutcome?.created_at}={}){
+  if(!persistence||typeof persistence!=='object'||typeof persistence.load!=='function'||typeof persistence.commit!=='function')throw new TypeError('Living Product Graph persistence API required');
+  const evidence=await createExecutionOutcomeEvidence(verifiedOutcome);
+  const projectId=requireString(verifiedOutcome.project_id,'verifiedOutcome.project_id',300);
+  const current=await persistence.load(projectId);
+  if(!current)throw new DOMException('Living Product Graph required before execution outcome reconciliation','NotFoundError');
+  const nodeId=`lpg_evidence_${verifiedOutcome.receipt_sha256.slice(0,24)}`;
+  const existing=current.nodes.find(node=>node.node_id===nodeId);
+  if(existing){
+    if(existing.type!=='EvidenceRef'||existing.data?.evidence_id!==evidence.id||existing.data?.receipt_sha256!==verifiedOutcome.receipt_sha256||existing.data?.request_sha256!==verifiedOutcome.request_sha256||existing.data?.verification_sha256!==verifiedOutcome.verification_sha256)throw new DOMException('execution outcome replay conflicts with existing EvidenceRef','DataError');
+    return Object.freeze({status:'IDEMPOTENT_REPLAY',project_id:projectId,evidence,graph:structuredClone(current),authority_effect:'NONE',release_authority:false,production_authority:false,certification_authority:false});
+  }
+  const created_at=canonicalIso(at,'reconciliation.at');
+  const generation=current.generation+1;
+  const nodes=current.nodes.map(node=>({...structuredClone(node),metadata:{...structuredClone(node.metadata),generation}}));
+  const edges=current.edges.map(edge=>({...structuredClone(edge),metadata:{...structuredClone(edge.metadata),generation}}));
+  nodes.push({
+    node_id:nodeId,
+    type:'EvidenceRef',
+    metadata:{
+      project_id:projectId,
+      version:1,
+      generation,
+      valid_from:created_at,
+      valid_to:null,
+      provenance:{source:'operation-scoped-execution-outcome',handoff_sha256:verifiedOutcome.handoff_sha256,request_sha256:verifiedOutcome.request_sha256,receipt_sha256:verifiedOutcome.receipt_sha256},
+      evidence_refs:[evidence.id],
+      confidence:1,
+      uncertainty:{kind:'NONE'},
+      actor_id:verifiedOutcome.verifier_actor_id,
+      risk_class:verifiedOutcome.risk_class,
+      content_hash:verifiedOutcome.verification_sha256,
+      freshness:{as_of:created_at},
+      supersession:{state:'CURRENT',supersedes:[]},
+    },
+    data:{
+      evidence_id:evidence.id,
+      handoff_sha256:verifiedOutcome.handoff_sha256,
+      request_sha256:verifiedOutcome.request_sha256,
+      receipt_sha256:verifiedOutcome.receipt_sha256,
+      verification_sha256:verifiedOutcome.verification_sha256,
+      execution_status:verifiedOutcome.execution_status,
+      rollback_available:verifiedOutcome.rollback_available,
+      failure_state:verifiedOutcome.failure_state,
+    },
+  });
+  const next={schema:current.schema,project_id:current.project_id,generation,impact_state:current.impact_state,nodes,edges};
+  const saved=await persistence.commit(next,{expectedGeneration:current.generation});
+  return Object.freeze({status:'RECONCILED',project_id:projectId,evidence,graph:structuredClone(saved),authority_effect:'NONE',release_authority:false,production_authority:false,certification_authority:false});
+}
