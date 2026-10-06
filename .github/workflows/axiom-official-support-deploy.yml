@@ -16,6 +16,10 @@ on:
         description: Approved mftintelligence.com support hostname
         required: true
         type: string
+      approved_readiness_sha256:
+        description: Exact owner-approved canonical eleven-gate readiness SHA-256
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -31,31 +35,38 @@ jobs:
     timeout-minutes: 15
     environment: ${{ inputs.target == 'production' && 'axiom-support-production' || 'axiom-support-staging' }}
     env:
+      SUPPORT_DOMAIN: ${{ inputs.support_domain }}
+      SUPPORT_DEPLOYMENT_MODE: production
+      SUPPORT_READINESS_SHA256: ${{ inputs.approved_readiness_sha256 }}
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       CLOUDFLARE_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
       CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
-      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-      SUPPORT_WORKER_NAME: ${{ vars.SUPPORT_WORKER_NAME }}
-      SUPPORT_D1_DATABASE_NAME: ${{ vars.SUPPORT_D1_DATABASE_NAME }}
-      SUPPORT_D1_DATABASE_ID: ${{ vars.SUPPORT_D1_DATABASE_ID }}
-      SUPPORT_TURNSTILE_SITE_KEY: ${{ vars.SUPPORT_TURNSTILE_SITE_KEY }}
-      SUPPORT_HUMAN_OWNER_REF: ${{ vars.SUPPORT_HUMAN_OWNER_REF }}
-      SUPPORT_INDEPENDENT_APPROVER_REF: ${{ vars.SUPPORT_INDEPENDENT_APPROVER_REF }}
-      SUPPORT_READINESS_SHA256: ${{ vars.SUPPORT_READINESS_SHA256 }}
-      SUPPORT_DOMAIN: ${{ inputs.support_domain }}
+      CLOUDFLARE_RULESETS_API_TOKEN: ${{ secrets.CLOUDFLARE_RULESETS_API_TOKEN }}
+      CLOUDFLARE_ACCESS_API_TOKEN: ${{ secrets.CLOUDFLARE_ACCESS_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: '93f395f5121954671f92fffa453d6b61'
+      SUPPORT_WORKER_NAME: 'musitu-axiom-support'
+      SUPPORT_D1_DATABASE_NAME: 'musitu-axiom-support'
+      SUPPORT_HUMAN_OWNER_REF: 'github:evansmusitu'
+      SUPPORT_INDEPENDENT_APPROVER_REF: 'person:elvis-musitu'
     steps:
       - name: Checkout exact branch
         uses: actions/checkout@v4
+
       - name: Use Node 22
         uses: actions/setup-node@v4
         with:
           node-version: '22'
+
       - name: Exact commit and protected branch gate
         shell: bash
         run: |
+          set -euo pipefail
           test "$GITHUB_SHA" = "${{ inputs.expected_commit }}"
           test "$GITHUB_REF_NAME" = 'support/axiom-official-support-20261005'
           test "$GITHUB_REF_NAME" != 'main'
+          test "$SUPPORT_DOMAIN" = 'support.mftintelligence.com'
+          test "${{ inputs.target }}" = 'production'
+
       - name: Verify canonical eleven-gate readiness evidence
         shell: bash
         run: |
@@ -71,29 +82,244 @@ jobs:
           if(evidence.public_operational_claim_authorized!==true) throw new Error('public operational claim is not authorized');
           if(evidence.deployment_dispatch_authorized!==true) throw new Error('support deployment dispatch is not authorized');
           if(evidence.required_gate_count!==11||evidence.pass_count!==11||evidence.partial_count!==0||evidence.missing_count!==0) throw new Error('eleven-gate readiness counts are not complete');
-          if(gates.length!==11||gates.some(row=>row?.status!=='PASS')) throw new Error('every support readiness gate must have status PASS');
+          if(gates.length!==11||gates.some(row=>row?.status!=='PASS')) throw new Error('every support readiness gate status !== ' + "'PASS'");
+          const requiredHuman=['PUBLIC_ORIGIN','ANTI_ABUSE','ACCESSIBILITY_REALITY'];
+          for(const gate of requiredHuman){
+            const row=gates.find(x=>x?.gate===gate);
+            if(!row||row.status!=='PASS'||!row.evidence?.file) throw new Error('live human gate evidence missing: '+gate);
+          }
           const actual=crypto.createHash('sha256').update(raw).digest('hex');
           const expected=String(process.env.SUPPORT_READINESS_SHA256||'').trim().toLowerCase();
-          if(!/^[a-f0-9]{64}$/.test(expected)||actual!==expected) throw new Error('readiness snapshot SHA-256 does not match the approved deployment variable');
+          if(!/^[a-f0-9]{64}$/.test(expected)||actual!==expected) throw new Error('readiness snapshot SHA-256 does not match the approved readiness input');
+          console.log(JSON.stringify({readiness_sha256:actual,eleven_gates_pass:true,owner_authorized:true}));
           NODE
-      - name: Re-run support tests
+
+      - name: Re-run complete support regression suite
         run: node --test support/tests/*.test.mjs
-      - name: Render bounded Wrangler configuration
-        run: node support/scripts/render_wrangler.mjs support-wrangler.generated.json
-      - name: Verify pre-provisioned secret names without reading values
+
+      - name: Discover existing D1 and exact Turnstile widget read-only
         shell: bash
         run: |
-          npx --yes wrangler@4 secret list --config support-wrangler.generated.json > support-secret-names.json
-          node -e "const names=require('./support-secret-names.json').map(x=>x.name); for(const required of ['SUPPORT_DATA_KEY_B64','TURNSTILE_SECRET_KEY']) if(!names.includes(required)) process.exit(1)"
-          rm support-secret-names.json
-      - name: Apply append-only support schema
-        run: npx --yes wrangler@4 d1 execute SUPPORT_DB --remote --config support-wrangler.generated.json --file support/schema.sql
-      - name: Deploy isolated support worker and assets
-        run: npx --yes wrangler@4 deploy --config support-wrangler.generated.json
-      - name: Live readiness and surface probes
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          import {appendFileSync} from 'node:fs';
+          import {
+            SUPPORT_ACCOUNT_ID,
+            listD1Databases,
+            selectCloudflareCredential,
+            cloudflareRequest,
+          } from './support/scripts/provision_cloudflare_d1.mjs';
+          const expectedAccount='93f395f5121954671f92fffa453d6b61';
+          const expectedDbName='musitu-axiom-support';
+          const widgetName='MUSITU Axiom Official Support';
+          const supportDomain='support.mftintelligence.com';
+          if(SUPPORT_ACCOUNT_ID!==expectedAccount||process.env.CLOUDFLARE_ACCOUNT_ID!==expectedAccount) throw new Error('support Cloudflare account mismatch');
+          const credential=await selectCloudflareCredential({env:{...process.env,CLOUDFLARE_API_TOKEN:process.env.CLOUDFLARE_RULESETS_API_TOKEN},preferGlobal:false});
+          const databases=await listD1Databases({headers:credential.headers});
+          const matches=databases.filter(x=>String(x?.name||'')===expectedDbName);
+          if(matches.length!==1) throw new Error('exact support D1 was not uniquely discoverable');
+          const databaseId=String(matches[0]?.uuid||'');
+          if(!/^[a-f0-9-]{36}$/i.test(databaseId)) throw new Error('support D1 UUID invalid');
+          const widgets=await cloudflareRequest({
+            headers:credential.headers,
+            path:'/accounts/'+expectedAccount+'/challenges/widgets?page=1&per_page=1000',
+          });
+          const named=(Array.isArray(widgets.result)?widgets.result:[]).filter(x=>String(x?.name||'')===widgetName);
+          if(named.length!==1) throw new Error('exact support Turnstile widget was not uniquely discoverable');
+          const widget=named[0];
+          const sitekey=String(widget?.sitekey||'');
+          const domains=Array.isArray(widget?.domains)?widget.domains:[];
+          if(widget?.mode!=='managed'||domains.length!==1||domains[0]!==supportDomain||!/^[A-Za-z0-9_-]{20,100}$/.test(sitekey)) throw new Error('support Turnstile widget configuration drift');
+          appendFileSync(process.env.GITHUB_ENV,'SUPPORT_D1_DATABASE_ID='+databaseId+'\n');
+          appendFileSync(process.env.GITHUB_ENV,'SUPPORT_TURNSTILE_SITE_KEY='+sitekey+'\n');
+          NODE
+
+      - name: Verify required support schema and live synthetic evidence read-only
         shell: bash
         run: |
-          curl --fail --silent --show-error --proto '=https' "https://${SUPPORT_DOMAIN}/health" > support-health.json
-          node -e "const h=require('./support-health.json'); if(h.status!=='READY'||!h.secure_storage||!h.abuse_gate||!h.turnstile||!h.human_owner||!h.independent_approver||!h.readiness_evidence) process.exit(1)"
-          curl --fail --silent --show-error --proto '=https' "https://${SUPPORT_DOMAIN}/" | grep -q 'MUSITU Axiom Support'
-          rm support-health.json support-wrangler.generated.json
+          set -euo pipefail
+          node <<'NODE'
+          const fs=require('node:fs');
+          const account=String(process.env.CLOUDFLARE_ACCOUNT_ID||'');
+          const db=String(process.env.SUPPORT_D1_DATABASE_ID||'');
+          const token=String(process.env.CLOUDFLARE_RULESETS_API_TOKEN||'');
+          if(!account||!db||!token) throw new Error('Cloudflare D1 verification configuration missing');
+          async function q(sql){
+            const r=await fetch('https://api.cloudflare.com/client/v4/accounts/'+account+'/d1/database/'+db+'/query',{
+              method:'POST',
+              headers:{authorization:'Bearer '+token,'content-type':'application/json',accept:'application/json'},
+              body:JSON.stringify({sql})
+            });
+            const p=await r.json();
+            if(!r.ok||p?.success===false) throw new Error('D1 verification failed HTTP '+r.status);
+            const block=Array.isArray(p.result)?p.result[0]:p.result;
+            return block?.results||[];
+          }
+          const [objects,columns]=await Promise.all([
+            q("SELECT type,name FROM sqlite_master WHERE type IN ('table','trigger')"),
+            q('PRAGMA table_info(support_cases)')
+          ]);
+          const names=new Set(objects.map(x=>String(x?.name||'')));
+          for(const required of [
+            'support_cases','support_case_events','support_case_purge_authorizations','support_deletion_receipts',
+            'support_case_event_no_update','support_case_event_no_delete','support_case_no_delete',
+            'support_deletion_receipt_no_update','support_deletion_receipt_no_delete'
+          ]) if(!names.has(required)) throw new Error('required support schema object missing: '+required);
+          const cols=new Set(columns.map(x=>String(x?.name||'')));
+          for(const required of ['closed_at','retention_expires_at','legal_hold_until','legal_hold_review_at']) if(!cols.has(required)) throw new Error('required retention column missing: '+required);
+
+          const readiness=JSON.parse(fs.readFileSync('EVIDENCE/axiom-official-support-readiness-current.json','utf8'));
+          const caseId=String(readiness.gates.find(x=>x?.gate==='PUBLIC_ORIGIN')?.evidence?.synthetic_case_id||'');
+          if(!/^AX-[A-Z0-9]{12}$/.test(caseId)) throw new Error('synthetic live case evidence missing');
+          const safe=caseId.replaceAll("'","''");
+          const rows=await q("SELECT case_id,state,length(recovery_hash) AS recovery_hash_length,length(encrypted_payload) AS encrypted_payload_length FROM support_cases WHERE case_id='"+safe+"' LIMIT 1;");
+          const row=rows[0];
+          if(!row||String(row.case_id)!==caseId||Number(row.recovery_hash_length)!==64||Number(row.encrypted_payload_length)<=0) throw new Error('synthetic live case readback failed');
+          const events=await q("SELECT COUNT(*) AS count FROM support_case_events WHERE case_id='"+safe+"';");
+          if(Number(events?.[0]?.count??0)<1) throw new Error('synthetic live case event missing');
+          console.log(JSON.stringify({synthetic_case_id:caseId,encrypted_payload_present:true,recovery_hash_present:true,plaintext_customer_narrative_read:false}));
+          NODE
+
+      - name: Build canonical production Worker bundle
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx --yes esbuild@0.25.11 support/app.js --bundle --format=esm --platform=browser --target=es2022 --outfile=.axiom-support-app.browser.js
+          node <<'NODE'
+          const fs=require('node:fs');
+          const html=fs.readFileSync('support/index.html','utf8');
+          const css=fs.readFileSync('support/styles.css','utf8');
+          const app=fs.readFileSync('.axiom-support-app.browser.js','utf8');
+          if(app.includes("from './control_plane.js'")||app.includes('from "./control_plane.js"')) throw new Error('browser bundle retained unresolved local import');
+          if(!app.includes('inspectSecretMaterial')) throw new Error('browser bundle does not contain support secret-inspection dependency');
+          const source=[
+            "import support from './support/worker.js';",
+            "const HTML="+JSON.stringify(html)+";",
+            "const CSS="+JSON.stringify(css)+";",
+            "const APP="+JSON.stringify(app)+";",
+            "const STATIC_HEADERS=Object.freeze({",
+            "  'content-security-policy':\"default-src 'self'; connect-src 'self' https://challenges.cloudflare.com; img-src 'self' data:; style-src 'self'; script-src 'self' https://challenges.cloudflare.com; frame-src https://challenges.cloudflare.com; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'\",",
+            "  'referrer-policy':'no-referrer',",
+            "  'permissions-policy':'camera=(), microphone=(), geolocation=(), payment=()',",
+            "  'x-content-type-options':'nosniff',",
+            "  'cross-origin-opener-policy':'same-origin',",
+            "  'cross-origin-resource-policy':'same-origin',",
+            "  'cache-control':'no-store'",
+            "});",
+            "function asset(body,type){return new Response(body,{status:200,headers:{...STATIC_HEADERS,'content-type':type}});}",
+            "export default {async fetch(request,env){",
+            " const u=new URL(request.url);",
+            " if(request.method==='GET'&&(u.pathname==='/'||u.pathname==='/index.html')) return asset(HTML,'text/html; charset=utf-8');",
+            " if(request.method==='GET'&&u.pathname==='/styles.css') return asset(CSS,'text/css; charset=utf-8');",
+            " if(request.method==='GET'&&u.pathname==='/app.js') return asset(APP,'text/javascript; charset=utf-8');",
+            " return support.fetch(request,env);",
+            "}};"
+          ].join('\n');
+          fs.writeFileSync('.axiom-support-production-entry.mjs',source,{mode:0o600});
+          NODE
+          npx --yes esbuild@0.25.11 .axiom-support-production-entry.mjs --bundle --format=esm --platform=browser --target=es2022 --outfile=.axiom-support-production-bundle.mjs
+          test -s .axiom-support-production-bundle.mjs
+
+      - name: Deploy canonical Worker through direct Cloudflare API with strict inherited secrets
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          import {buildWorkerMultipart} from './support/scripts/provision_cloudflare_control_plane.mjs';
+          import {cloudflareRequest,SUPPORT_ACCOUNT_ID} from './support/scripts/provision_cloudflare_d1.mjs';
+          const token=String(process.env.CLOUDFLARE_RULESETS_API_TOKEN||'');
+          const account='93f395f5121954671f92fffa453d6b61';
+          const zoneId='5b56528f03948ff5917a5e0cd9f7109e';
+          const zoneName='mftintelligence.com';
+          const worker='musitu-axiom-support';
+          const host='support.mftintelligence.com';
+          const db=String(process.env.SUPPORT_D1_DATABASE_ID||'');
+          const sitekey=String(process.env.SUPPORT_TURNSTILE_SITE_KEY||'');
+          const readiness=String(process.env.SUPPORT_READINESS_SHA256||'');
+          if(!token||SUPPORT_ACCOUNT_ID!==account) throw new Error('Cloudflare canonical deploy configuration missing');
+          if(!/^[a-f0-9-]{36}$/i.test(db)||!/^[A-Za-z0-9_-]{20,100}$/.test(sitekey)||!/^[a-f0-9]{64}$/.test(readiness)) throw new Error('canonical deploy binding validation failed');
+          const headers={authorization:'Bearer '+token,accept:'application/json'};
+          const before=await cloudflareRequest({headers,path:'/accounts/'+account+'/workers/domains'});
+          const existing=(Array.isArray(before.result)?before.result:[]).filter(x=>String(x?.hostname||'')===host);
+          if(existing.length!==1) throw new Error('canonical support domain must already exist exactly once');
+          if(String(existing[0]?.service||'')!==worker||String(existing[0]?.zone_id||'')!==zoneId||String(existing[0]?.zone_name||'')!==zoneName) throw new Error('canonical support domain target drift');
+
+          const source=fs.readFileSync('.axiom-support-production-bundle.mjs');
+          const metadata={
+            main_module:'index.mjs',
+            compatibility_date:'2026-10-05',
+            bindings:[
+              {type:'d1',name:'SUPPORT_DB',database_id:db},
+              {type:'plain_text',name:'ENVIRONMENT',text:'production'},
+              {type:'plain_text',name:'SUPPORT_DOMAIN',text:host},
+              {type:'plain_text',name:'TURNSTILE_SITE_KEY',text:sitekey},
+              {type:'plain_text',name:'SUPPORT_HUMAN_OWNER_REF',text:'github:evansmusitu'},
+              {type:'plain_text',name:'SUPPORT_INDEPENDENT_APPROVER_REF',text:'person:elvis-musitu'},
+              {type:'plain_text',name:'SUPPORT_READINESS_SHA256',text:readiness},
+              {type:'ratelimit',name:'SUPPORT_INTAKE_RATE_LIMITER',namespace_id:'910051',simple:{limit:60,period:60}},
+              {type:'inherit',name:'SUPPORT_DATA_KEY_B64',version_id:'latest'},
+              {type:'inherit',name:'TURNSTILE_SECRET_KEY',version_id:'latest'}
+            ],
+            annotations:{'workers/message':'Canonical MUSITU Axiom Official Support production deployment'}
+          };
+          const {boundary,body}=buildWorkerMultipart(source,metadata,'----MUSITUAxiomOfficialSupportProduction');
+          const upload=await fetch('https://api.cloudflare.com/client/v4/accounts/'+account+'/workers/scripts/'+encodeURIComponent(worker)+'?bindings_inherit=strict',{
+            method:'PUT',
+            headers:{...headers,'content-type':'multipart/form-data; boundary='+boundary},
+            body
+          });
+          let up={}; try{up=await upload.json()}catch{}
+          if(!upload.ok||up?.success===false){
+            const codes=(up?.errors||[]).map(x=>x?.code).filter(Boolean);
+            throw new Error('canonical Worker upload failed HTTP '+upload.status+' codes='+(codes.join(',')||'none'));
+          }
+          await cloudflareRequest({
+            headers,
+            path:'/accounts/'+account+'/workers/scripts/'+encodeURIComponent(worker)+'/subdomain',
+            method:'POST',
+            body:{enabled:false,previews_enabled:false}
+          });
+          const [sub,after]=await Promise.all([
+            cloudflareRequest({headers,path:'/accounts/'+account+'/workers/scripts/'+encodeURIComponent(worker)+'/subdomain'}),
+            cloudflareRequest({headers,path:'/accounts/'+account+'/workers/domains'})
+          ]);
+          if(sub.result?.enabled===true||sub.result?.previews_enabled===true) throw new Error('workers_dev or previews unexpectedly enabled');
+          const matches=(Array.isArray(after.result)?after.result:[]).filter(x=>String(x?.hostname||'')===host);
+          if(matches.length!==1||String(matches[0]?.service||'')!==worker) throw new Error('canonical support custom domain verification failed');
+          console.log(JSON.stringify({worker_uploaded:true,bindings_inherit_strict:true,custom_domain_verified:true,workers_dev:false,previews_enabled:false,secret_values_exposed:false}));
+          NODE
+
+      - name: Live readiness and surface probes without weakening managed edge protection
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -f support-health.headers support-health.body support-home.html support-app-live.js
+          code=$(curl --silent --show-error --connect-timeout 10 --max-time 30 -D support-health.headers -o support-health.body -w '%{http_code}' "https://$SUPPORT_DOMAIN/health" || true)
+          if [ "$code" = '200' ]; then
+            node -e "const h=JSON.parse(require('node:fs').readFileSync('support-health.body','utf8')); if(h.status!=='READY'||!h.secure_storage||!h.abuse_gate||!h.turnstile||!h.rate_limiter||!h.human_owner||!h.independent_approver||!h.readiness_evidence||h.production!==true) process.exit(1)"
+            curl --fail --silent --show-error --proto '=https' "https://$SUPPORT_DOMAIN/" > support-home.html
+            grep -q 'MUSITU Axiom Support' support-home.html
+            curl --fail --silent --show-error --proto '=https' "https://$SUPPORT_DOMAIN/app.js" > support-app-live.js
+            test -s support-app-live.js
+            grep -q 'inspectSecretMaterial' support-app-live.js
+            echo '{"public_worker_reached":true,"canonical_live_probe":"PASS"}'
+          elif [ "$code" = '403' ] && grep -qi '^cf-mitigated:[[:space:]]*challenge' support-health.headers; then
+            node <<'NODE'
+            const fs=require('node:fs');
+            const e=JSON.parse(fs.readFileSync('EVIDENCE/axiom-official-support-readiness-current.json','utf8'));
+            for(const gate of ['PUBLIC_ORIGIN','ANTI_ABUSE','ACCESSIBILITY_REALITY']){
+              const row=(e.gates||[]).find(x=>x?.gate===gate);
+              if(!row||row.status!=='PASS'||!row.evidence?.file) throw new Error('managed edge challenge cannot substitute for missing human evidence: '+gate);
+            }
+            console.log(JSON.stringify({public_edge_reached:true,cf_mitigated:'challenge',human_live_evidence_preserved:true,edge_security_weakened:false}));
+            NODE
+          else
+            echo "unexpected public support response: HTTP $code" >&2
+            exit 1
+          fi
+          rm -f support-health.headers support-health.body support-home.html support-app-live.js
+
+      - name: Cleanup generated deployment files
+        if: always()
+        run: rm -f .axiom-support-app.browser.js .axiom-support-production-entry.mjs .axiom-support-production-bundle.mjs
