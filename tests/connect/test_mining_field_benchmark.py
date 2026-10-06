@@ -1,4 +1,6 @@
+import json
 import unittest
+from pathlib import Path
 
 from benchmarks.mining_adapter.industrial_field import (
     IndustrialWorkloadSpec,
@@ -10,6 +12,14 @@ from benchmarks.mining_adapter.industrial_field import (
 
 
 class IndustrialFieldBenchmarkTests(unittest.TestCase):
+    def test_baseline_catalog_is_valid_json(self):
+        path=Path(__file__).resolve().parents[2]/"benchmarks"/"mining_adapter"/"baselines.json"
+        catalog=json.loads(path.read_text())
+        by_name={item["name"]:item for item in catalog["baselines"]}
+        self.assertEqual(by_name["EMQX Enterprise"]["version"],"6.3.1")
+        self.assertEqual(by_name["HighByte Intelligence Hub"]["version"],"4.5.2")
+        self.assertEqual(by_name["Azure IoT Operations"]["version"],"1.4.73 (2608)")
+
     def test_default_workload_is_million_scale_and_prolonged(self):
         spec=IndustrialWorkloadSpec()
         self.assertGreaterEqual(spec.mqtt_events,1_000_000)
