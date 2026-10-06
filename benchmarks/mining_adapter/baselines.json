@@ -53,7 +53,7 @@
       "kind": "mqtt_scale_reference",
       "name": "EMQX Enterprise",
       "source": "https://docs.emqx.com/en/emqx/latest/release-notes/changes-ee-v6.html",
-      "version": "6.3.0"
+      "version": "6.3.1"
     },
     {
       "comparison_policy": "Run in the same process/machine with identical objective, dataset, warmup and repetition schedule.",
@@ -148,4 +148,4 @@
     "same_workload_required_for_superiority": true
   },
   "schema": "musitu.connect.mining.baselines.v2"
-}
+}\n
