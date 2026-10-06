@@ -267,7 +267,7 @@ export async function createInferredGraphPatch({projectId,generation,actorId,at=
   if(!Number.isFinite(Date.parse(at))) throw new TypeError('at must be an ISO instant');
   if(!Array.isArray(observations)||!observations.length) throw new TypeError('observations required');
 
-  const ids=new Set(),nodes=[];
+  const ids=new Set(),nodeIds=new Set(),nodes=[];
   for(const [index,observation] of observations.entries()){
     if(!isPlainObject(observation)) throw new TypeError(`observation[${index}] must be a plain object`);
     rejectUnknownKeys(observation,OBSERVATION_KEYS,`observation[${index}]`);
@@ -290,7 +290,10 @@ export async function createInferredGraphPatch({projectId,generation,actorId,at=
       uncertainty:{kind:'REVERSE_INFERENCE',verification_state:'INFERRED_REQUIRES_VERIFICATION'},
       actor_id:actorId,risk_class:'S0',content_hash:await sha256(data),freshness:{as_of:at},supersession:{state:'CURRENT',supersedes:[]},
     };
-    nodes.push({node_id:`lpg_inferred_${stableId(observationId)}`,type:observation.type,data,metadata});
+    const nodeId=`lpg_inferred_${stableId(observationId)}`;
+    if(nodeIds.has(nodeId)) throw new TypeError('normalized observation identity collision: '+nodeId);
+    nodeIds.add(nodeId);
+    nodes.push({node_id:nodeId,type:observation.type,data,metadata});
   }
   const body={schema:PRODUCT_COMPILER_INFERENCE_SCHEMA,project_id:projectId,generation,status:'INFERRED_REQUIRES_VERIFICATION',authority_effect:'NONE',can_overwrite_verified_nodes:false,nodes:nodes.sort((a,b)=>a.node_id.localeCompare(b.node_id)),edges:[]};
   return Object.freeze({...body,patch_sha256:await sha256(body)});
