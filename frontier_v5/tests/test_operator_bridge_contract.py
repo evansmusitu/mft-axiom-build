@@ -6,6 +6,7 @@ from pathlib import Path
 from frontier_v5.runtime.operator_bridge import OperatorBridge, OperatorBridgeError
 from frontier_v5.runtime.operator_mcp import build_operator_mcp
 from frontier_v5.runtime.operator_http import OperatorHTTPApplication
+from frontier_v5.runtime.operator_state import export_operator_state, restore_operator_state
 from frontier_v5.runtime.mcp_2026 import PROTOCOL_META, PROTOCOL_VERSION
 
 
@@ -153,6 +154,22 @@ def main():
         result=call(server,"axiom.project.status",{"project_id":"p1"})
         assert result["project_id"]=="p1"
         assert result["resultType"]=="complete"
+
+        state_pack=export_operator_state(bridge)
+        bridge.close()
+        restored=restore_operator_state(
+            root=root/"restored",
+            state_pack=state_pack,
+            tenant="tenant-a",
+            actor_id="owner-a",
+        )
+        restored_status=restored.call_tool("axiom.work.status",{"project_id":"p1","plan_id":plan_id})
+        assert any(n["node_id"]=="n1" and n["status"]=="COMPLETED" for n in restored_status["plan"]["nodes"])
+        assert restored.call_tool("axiom.agent.integrity",{"project_id":"p1"})["status"]=="PASS"
+        assert restored.call_tool("axiom.artifact.export",{"project_id":"p1","artifact_id":"artifact1"})["integrity"]["status"]=="PASS"
+        assert restored.call_tool("axiom.evidence.verify",{"project_id":"p1"})["status"]=="PASS"
+        assert restored.call_tool("axiom.computer.integrity",{"session_id":"c1"})["status"]=="PASS"
+        bridge=restored
 
         app=OperatorHTTPApplication(bridge=bridge,bearer_token="test-operator-token")
         code, headers, body=app.handle("GET","/health",{},b"")
