@@ -137,7 +137,7 @@ jobs:
                       body,
                   )
                   if request.method=="POST" and path=="mcp" and status < 500:
-                      volume.commit()
+                      await volume.commit.aio()
                   safe_headers={
                       str(k):str(v)
                       for k,v in headers.items()
@@ -315,7 +315,7 @@ jobs:
           jq -er '.result.plan_id' /tmp/work-create-response.json > /tmp/plan-id
           echo 'operator_remote_work_created=PASS'
 
-          modal deploy modal_operator_deploy.py             --name "$OPERATOR_APP"             --strategy recreate             --tag "$GITHUB_SHA-durability-redeploy" >/tmp/operator-modal-redeploy.log
+          modal deploy modal_operator_deploy.py             --name "$OPERATOR_APP"             --strategy recreate             --tag "durability-${GITHUB_SHA::12}" >/tmp/operator-modal-redeploy.log
 
           python - <<'PY' > /tmp/operator-url
           import os,modal
