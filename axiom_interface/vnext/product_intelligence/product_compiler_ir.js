@@ -111,6 +111,7 @@ function semanticEdgeBody(edge){
 
 export async function compileProductIR(graph,{bindings=[],compilerVersion='1.0.0'}={}){
   assertLivingProductGraph(graph);
+  if(typeof compilerVersion!=='string') throw new TypeError('compilerVersion must be a string');
   compilerVersion=clean(compilerVersion,80);
   if(!compilerVersion) throw new TypeError('compilerVersion required');
 
@@ -260,6 +261,8 @@ export async function reconcileProductIR(ir,observedBindings=[]){
 }
 
 export async function createInferredGraphPatch({projectId,generation,actorId,at=new Date().toISOString(),observations=[]}={}){
+  if(typeof projectId!=='string') throw new TypeError('projectId must be a string');
+  if(typeof actorId!=='string') throw new TypeError('actorId must be a string');
   projectId=clean(projectId,180); actorId=clean(actorId,120);
   if(!projectId) throw new TypeError('projectId required');
   if(!Number.isInteger(generation)||generation<1) throw new TypeError('generation must be a positive integer');
