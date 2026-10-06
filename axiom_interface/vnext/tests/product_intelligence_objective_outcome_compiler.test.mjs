@@ -144,3 +144,13 @@ test('approval provenance rejects extra or credential-bearing fields before Deci
     /approval provenance.*unsupported fields|unsupported fields.*approval provenance|credential/i,
   );
 });
+
+
+test('Outcome Contract execution boundary is frozen preview-only and cannot be escalated',async()=>{
+  const bad=contract();
+  bad.execution_boundary='ALLOW_EXTERNAL_CONSEQUENTIAL_ACTIONS';
+  await assert.rejects(
+    ()=>compileObjectiveOutcomeGraph({project:project(),contract:bad,contractVerified:true,approval:null,generation:1,actorId:'local-user',at:'2026-10-04T15:03:00Z'}),
+    /execution boundary|preview-only/i,
+  );
+});
