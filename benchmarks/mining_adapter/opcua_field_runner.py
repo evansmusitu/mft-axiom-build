@@ -14,6 +14,10 @@ from pathlib import Path
 from statistics import fmean
 from typing import Any
 
+ROOT=Path(__file__).resolve().parents[2]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0,str(ROOT))
+
 from benchmarks.mining_adapter.industrial_field import IndustrialWorkloadSpec, workload_fingerprint
 
 
