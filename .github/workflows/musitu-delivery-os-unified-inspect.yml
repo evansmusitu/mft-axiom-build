@@ -1,0 +1,43 @@
+name: MUSITU Delivery OS Unified Inspect
+
+on:
+  push:
+    branches:
+      - product/musitu-delivery-os-unified-20261006
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          submodules: recursive
+      - name: Reconstruct Phase 1 source
+        run: |
+          cd delivery-os
+          cat source-parts/part-* | base64 -d > phase1-src.tar.gz
+          sha256sum -c PHASE1_SOURCE_SHA256.txt
+          cd ..
+          tar -xzf delivery-os/phase1-src.tar.gz -C .
+      - name: Print unified source map
+        run: |
+          echo '=== FILES ==='
+          find delivery-os -maxdepth 4 -type f | sort
+          echo '=== PACKAGE ==='
+          cat delivery-os/package.json
+          echo '=== SERVER SOURCES ==='
+          for f in delivery-os/src/*.js delivery-os/src/**/*.js delivery-os/core/*.js delivery-os/core/**/*.js; do
+            [ -f "$f" ] || continue
+            echo "===== $f ====="
+            sed -n '1,260p' "$f"
+          done
+          echo '=== TEST SOURCES ==='
+          for f in delivery-os/test/*.js delivery-os/tests/*.js delivery-os/test/**/*.js delivery-os/tests/**/*.js; do
+            [ -f "$f" ] || continue
+            echo "===== $f ====="
+            sed -n '1,260p' "$f"
+          done
