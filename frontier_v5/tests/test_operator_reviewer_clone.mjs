@@ -41,6 +41,8 @@ assert.doesNotMatch(d,/configure_machine_transport_exception/);
 assert.match(d,/Mozilla\/5\.0/);
 assert.match(d,/User-Agent/);
 assert.match(d,/Sec-Fetch-Site/);
+assert.match(d,/probe_modal_runtime/);
+assert.match(d,/MODAL_AUTH_MODE/);
 
 
 const gateModule=await import("../../reviewer_clone/musitu_axiom_operator_reviewer_gate.mjs?contract="+Date.now());
@@ -100,15 +102,15 @@ try{
     MCP_PUBLIC_BASE:resource,
     MODAL_OPERATOR_URL:"https://modal.example",
     MODAL_PROXY_KEY:"wk-contract",
-    MODAL_PROXY_SECRET:"ws-contract"
+    MODAL_PROXY_SECRET:"ws-contract",
+    MODAL_AUTH_MODE:"bearer"
   });
   assert.equal(response.status,200);
   assert.ok(forwardedRequest);
   assert.equal(forwardedRequest.headers.get("mcp-method"),"tools/call");
   assert.equal(forwardedRequest.headers.get("mcp-name"),"axiom.provider.status");
   assert.equal(forwardedRequest.headers.get("mcp-protocol-version"),"2026-07-28");
-  assert.equal(forwardedRequest.headers.get("modal-key"),"wk-contract");
-  assert.equal(forwardedRequest.headers.get("modal-secret"),"ws-contract");
+  assert.equal(forwardedRequest.headers.get("authorization"),"Bearer wk-contract.ws-contract");
 }finally{
   globalThis.fetch=originalFetch;
 }
