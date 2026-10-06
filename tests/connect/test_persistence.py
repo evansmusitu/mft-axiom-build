@@ -48,6 +48,58 @@ class RunStoreTests(unittest.TestCase):
             self.assertEqual(reopened.audit_events("mining-r1")[0].event_type, "RUN_RECORDED")
             self.assertTrue(reopened.verify_audit_chain("mining-r1"))
 
+
+    def test_ingest_persistence_is_atomic_and_preserves_exact_audit_chain(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path=Path(directory)/"runs.sqlite3"
+            store=RunStore(path)
+            self.addCleanup(store.close)
+            stored=store.record_ingest_run(
+                run_id="mining-fast-r1",
+                connector_name="mqtt-face-1",
+                protocol="mqtt",
+                envelope=self._envelope(),
+                lineage={"run":{"runId":"mining-fast-r1"}},
+                signature="sig",
+            )
+            self.assertEqual(stored.run_id,"mining-fast-r1")
+            events=store.audit_events("mining-fast-r1")
+            self.assertEqual(
+                [event.event_type for event in events],
+                ["RUN_RECORDED","INGEST_COMPLETED"],
+            )
+            self.assertEqual(events[1].payload["canonical_sha256"],stored.canonical_sha256)
+            self.assertEqual(events[1].payload["record_count"],1)
+            self.assertEqual(events[1].payload["protocol"],"mqtt")
+            self.assertTrue(store.verify_audit_chain("mining-fast-r1"))
+
+            store.close()
+            reopened=RunStore(path)
+            self.addCleanup(reopened.close)
+            loaded=reopened.load_run("mining-fast-r1")
+            self.assertEqual(loaded.envelope,self._envelope())
+            self.assertTrue(reopened.verify_audit_chain("mining-fast-r1"))
+
+    def test_idempotent_ingest_keeps_single_run_record_and_appends_completion(self):
+        with tempfile.TemporaryDirectory() as directory:
+            store=RunStore(Path(directory)/"runs.sqlite3")
+            self.addCleanup(store.close)
+            for _ in range(2):
+                store.record_ingest_run(
+                    run_id="mining-fast-r1",
+                    connector_name="mqtt-face-1",
+                    protocol="mqtt",
+                    envelope=self._envelope(),
+                    lineage={},
+                    signature="sig",
+                )
+            events=store.audit_events("mining-fast-r1")
+            self.assertEqual(
+                [event.event_type for event in events],
+                ["RUN_RECORDED","INGEST_COMPLETED","INGEST_COMPLETED"],
+            )
+            self.assertTrue(store.verify_audit_chain("mining-fast-r1"))
+
     def test_same_run_id_is_idempotent_only_for_identical_canonical_content(self):
         with tempfile.TemporaryDirectory() as directory:
             store=RunStore(Path(directory)/"runs.sqlite3")
