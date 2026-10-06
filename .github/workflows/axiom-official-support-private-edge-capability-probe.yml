@@ -60,8 +60,13 @@ jobs:
             const relevantPermissions=[...new Set(permissionNames.filter(x=>/access|worker/i.test(x)))].sort();
             const apps=await call(token,'/accounts/'+account+'/access/apps?per_page=100');
             const serviceTokens=await call(token,'/accounts/'+account+'/access/service_tokens?per_page=100');
+            const scripts=await call(token,'/accounts/'+account+'/workers/scripts');
+            const prodSubdomain=await call(token,'/accounts/'+account+'/workers/scripts/musitu-axiom-support/subdomain');
             const worker=await call(token,'/accounts/'+account+'/workers/scripts/musitu-axiom-support/settings');
             const versions=await call(token,'/accounts/'+account+'/workers/scripts/musitu-axiom-support/versions');
+            const tempApps=(Array.isArray(apps.result)?apps.result:[]).filter(x=>String(x?.name||'').startsWith('MUSITU Axiom Support Private Edge'));
+            const tempTokens=(Array.isArray(serviceTokens.result)?serviceTokens.result:[]).filter(x=>String(x?.name||'').startsWith('MUSITU Axiom Support Private Edge CI'));
+            const tempWorkers=(Array.isArray(scripts.result)?scripts.result:[]).filter(x=>String(x?.id||'').startsWith('axiom-support-edge-'));
             out.push({
               secret_name:name,present:true,
               token_kind:av.ok?'account_owned':uv.ok?'user_owned':'unresolved',
@@ -73,6 +78,11 @@ jobs:
               worker_versions_read:versions.ok,worker_versions_http:versions.http,
               access_app_count:Array.isArray(apps.result)?apps.result.length:null,
               service_token_count:Array.isArray(serviceTokens.result)?serviceTokens.result.length:null,
+              temporary_private_edge_app_count:tempApps.length,
+              temporary_private_edge_service_token_count:tempTokens.length,
+              temporary_private_edge_worker_count:tempWorkers.length,
+              production_support_workers_dev_enabled:prodSubdomain.result?.enabled===true,
+              production_support_previews_enabled:prodSubdomain.result?.previews_enabled===true,
               raw_ids_recorded:false,raw_policy_recorded:false,secret_exposed:false,write_performed:false
             });
           }
