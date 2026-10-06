@@ -534,3 +534,72 @@ test('execution outcome evidence rejects rehashed authority extensions identity 
     );
   }
 });
+
+
+test('FA-11 runtime exception becomes FAILED receipt and verified failure evidence',async()=>{
+  const {GovernedExecutionStore}=await import('../execution_store.js');
+  const module=await import('../product_intelligence/living_product_graph.js');
+  const security=await import('../execution_security.js');
+  const keys={sandboxes:'sandbox_id',requests:'request_sha256',approvals:'approval_sha256',receipts:'receipt_id',leases:'lease_id',events:'event_id'};
+  class MemoryExecutionStore extends GovernedExecutionStore{
+    constructor(){super(null);this.rows=Object.fromEntries(Object.keys(keys).map(name=>[name,new Map()]));}
+    async _put(store,row){this.rows[store].set(row[keys[store]],structuredClone(row));return structuredClone(row);}
+    async _get(store,key){const row=this.rows[store].get(key);return row?structuredClone(row):null;}
+    async _all(store,projectId){return [...this.rows[store].values()].filter(row=>!projectId||row.project_id===projectId).map(structuredClone);}
+  }
+  const projectId='project_12345678',at='2026-10-06T13:00:00.000Z';
+  const authority={
+    project_id:projectId,actor_id:'agent_operator_1',agent_id:'agent_executor_1',workload_identity_id:'workload_executor_1',
+    agent_status:'ACTIVE',kill_switch_engaged:false,revoked:false,requester_type:'AGENT',
+    grant:{tool_scopes:['artifact.write'],data_scopes:[projectId],network_policy:'DENY_ALL_EXTERNAL_NETWORK',
+      secrets_policy:'OPAQUE_SHORT_LIVED_OPERATION_SCOPED_NO_PLAINTEXT',budget:{max_compute_units:10}},
+    usage:{compute_units:0},incident_posture:'NORMAL',jurisdiction:'LOCAL_BROWSER',
+  };
+  const store=new MemoryExecutionStore();
+  const sandbox=await store.createSandbox(authority);
+  const proposed=await store.propose(sandbox.sandbox_id,authority,{
+    operation:'worktree.create',target:'main',compute_units:1,instruction_provenance:'GOVERNED_PLAN',requested_at:at,
+  });
+  assert.equal(proposed.decision.status,'AUTHORIZED');
+
+  const receipt=await store.execute(proposed.request.request_sha256,authority);
+  assert.equal(receipt.schema,'musitu.axiom.execution-receipt.browser.v1');
+  assert.equal(receipt.status,'FAILED');
+  assert.equal(receipt.request_sha256,proposed.request.request_sha256);
+  assert.equal(receipt.rollback_available,false);
+  assert.equal(receipt.external_action_executed,false);
+  assert.equal(receipt.network_request_performed,false);
+  assert.equal(receipt.host_shell_executed,false);
+  assert.equal(receipt.plaintext_secret_access,false);
+  assert.match(receipt.reason,/unique worktree id required/i);
+  assert.equal(receipt.error_name,'ConstraintError');
+  assert.match(receipt.receipt_sha256,/^[a-f0-9]{64}$/);
+
+  const handoffBody={
+    schema:'musitu.axiom.product-operation-scoped-executor-handoff.v1',scope:'SINGLE_OPERATION',
+    project_id:projectId,work_id:'work_12345678',checkpoint_sha256:'a'.repeat(64),
+    change_admission_request_sha256:'b'.repeat(64),change_admission_evaluation_sha256:'c'.repeat(64),
+    authority_sha256:proposed.request.authority_sha256,actor_id:authority.actor_id,agent_id:authority.agent_id,
+    workload_identity_id:authority.workload_identity_id,builder_actor_id:'agent_builder_1',risk_class:'S1',
+    operation:'worktree.create',execution_request:Object.fromEntries(Object.entries(proposed.request).filter(([key])=>!['sandbox_id','decision_status','created_at'].includes(key))),
+    authority_effect:'NONE',execution_authority:false,external_execution_authority:false,release_authority:false,
+    production_authority:false,certification_authority:false,created_at:at,
+  };
+  const handoff={...handoffBody,handoff_sha256:await security.sha256(handoffBody)};
+  const integrity=await store.verify(projectId);
+  assert.equal(integrity.status,'PASS');
+
+  const verified=await module.verifyOperationScopedExecutionOutcome({
+    handoff,receipt,executionIntegrity:integrity,verifierActorId:'agent_verifier_2',at,
+  });
+  assert.equal(verified.status,'VERIFIED_FAILED');
+  assert.equal(verified.execution_status,'FAILED');
+  assert.equal(verified.failure_state,'FAILED');
+  assert.equal(verified.failure_reason,receipt.reason);
+  assert.equal(verified.rollback_available,false);
+  const evidence=await module.createExecutionOutcomeEvidence(verified);
+  assert.deepEqual(evidence.data.failures,[{status:'FAILED',reason:receipt.reason}]);
+  assert.equal(evidence.data.verification.release_authority,false);
+  assert.equal(evidence.data.verification.production_authority,false);
+  assert.equal(evidence.data.verification.certification_authority,false);
+});
