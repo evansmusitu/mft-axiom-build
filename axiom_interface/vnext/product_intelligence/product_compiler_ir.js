@@ -5,9 +5,11 @@ export const PRODUCT_COMPILER_RECONCILIATION_SCHEMA='musitu.axiom.product-compil
 export const PRODUCT_COMPILER_INFERENCE_SCHEMA='musitu.axiom.product-compiler-inference.v1';
 
 const HASH=/^[a-f0-9]{64}$/i;
+const BINDING_KEYS=new Set(['binding_id','node_id','region','external_sha256']);
 const isPlainObject=value=>Boolean(value)&&typeof value==='object'&&!Array.isArray(value)&&(Object.getPrototypeOf(value)===Object.prototype||Object.getPrototypeOf(value)===null);
 const clean=(value,max=1000)=>String(value??'').replace(/[\u0000-\u001f\u007f]/g,' ').trim().slice(0,max);
 const stableId=(value,max=180)=>clean(value,max).replace(/[^A-Za-z0-9_.:-]+/g,'_').replace(/^_+|_+$/g,'')||'unknown';
+function rejectUnknownKeys(value,allowed,label){const extra=Object.keys(value).filter(key=>!allowed.has(key));if(extra.length)throw new DOMException(label+' contains unsupported fields: '+extra.join(','),'SecurityError');}
 
 function canonical(value){
   if(Array.isArray(value)) return `[${value.map(canonical).join(',')}]`;
@@ -48,6 +50,8 @@ function normalizeBindings(bindings,nodeIds){
   const ids=new Set();
   return bindings.map((binding,index)=>{
     if(!isPlainObject(binding)) throw new TypeError(`binding[${index}] must be a plain object`);
+    rejectUnknownKeys(binding,BINDING_KEYS,`binding[${index}]`);
+    for(const key of BINDING_KEYS) if(typeof binding[key]!=='string') throw new TypeError(`binding[${index}] ${key} must be a string`);
     const binding_id=clean(binding.binding_id,180),node_id=clean(binding.node_id,180),region=clean(binding.region,1000),external_sha256=clean(binding.external_sha256,64).toLowerCase();
     if(!binding_id||ids.has(binding_id)) throw new TypeError(`binding[${index}] binding_id must be unique and non-empty`);
     ids.add(binding_id);
