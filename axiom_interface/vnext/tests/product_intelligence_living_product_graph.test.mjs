@@ -769,12 +769,9 @@ test('reconciliation permits retryable BLOCKED evidence before one terminal outc
   const requestNodes=completedResult.graph.nodes.filter(node=>node.type==='EvidenceRef'&&node.data?.request_sha256===completed.request_sha256);
   assert.equal(requestNodes.length,2);
   assert.deepEqual(requestNodes.map(node=>node.data.execution_status).sort(),['BLOCKED','COMPLETED']);
+  const conflictingTerminal=await makeVerified({receiptSha:'9'.repeat(64),receiptId:'execution-receipt_second_terminal',executionStatus:'FAILED',failureReason:'later conflicting failure'});
   await assert.rejects(
-    ()=>module.reconcileVerifiedExecutionOutcome({
-      persistence,
-      verifiedOutcome:await makeVerified({receiptSha:'9'.repeat(64),receiptId:'execution-receipt_second_terminal',executionStatus:'FAILED',failureReason:'later conflicting failure'}),
-      at,
-    }),
+    ()=>module.reconcileVerifiedExecutionOutcome({persistence,verifiedOutcome:conflictingTerminal,at}),
     /conflicting execution replay|terminal|different receipt/i,
   );
 });
