@@ -198,3 +198,21 @@ test('checkpoint request rejects unknown fields and identity coercion instead of
     );
   }
 });
+
+
+test('checkpoint verification binds attached Evidence Artifact and outcome package to the receipt',async()=>{
+  const {prior,next,diff}=await fixture();
+  const checkpoint=await createCompilerCheckpoint({projectId,workId:'work_12345678',priorIR:prior,nextIR:next,diff,actorId:'agent_builder_1',evidenceRefs:['evidence_source_12345678'],at},services);
+
+  const evidenceTamper=structuredClone(checkpoint);
+  evidenceTamper.evidence_object.data.verification.independent_verification='PASS';
+  assert.equal(await verifyCompilerCheckpoint(evidenceTamper),false);
+
+  const artifactTamper=structuredClone(checkpoint);
+  artifactTamper.artifact.versions[0].content_sha256='f'.repeat(64);
+  assert.equal(await verifyCompilerCheckpoint(artifactTamper),false);
+
+  const packageTamper=structuredClone(checkpoint);
+  packageTamper.artifact_package.publication_execution_allowed=true;
+  assert.equal(await verifyCompilerCheckpoint(packageTamper),false);
+});
