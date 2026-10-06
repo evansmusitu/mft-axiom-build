@@ -159,7 +159,13 @@ async function launchProcessKillPhase(){
   const chrome=spawn(browser,[
     '--headless=new','--no-sandbox','--disable-gpu','--disable-dev-shm-usage',
     `--user-data-dir=${profile}`,`--remote-debugging-port=${debugPort}`,'about:blank',
-  ],{stdio:['ignore','pipe','pipe']});
+  ],{stdio:['ignore','pipe','pipe'],detached:process.platform!=='win32'});
+  const killChromeGroup=()=>{
+    try{
+      if(process.platform!=='win32'&&chrome.pid)process.kill(-chrome.pid,'SIGKILL');
+      else chrome.kill('SIGKILL');
+    }catch{}
+  };
   let stderr='';
   chrome.stderr.on('data',chunk=>{stderr+=chunk.toString();});
   try{
@@ -172,7 +178,7 @@ async function launchProcessKillPhase(){
       sleep(12000).then(()=>{throw new Error('process-kill crash-ready signal timeout');}),
     ]);
     console.log('PROCESS_KILL_SIGNAL='+signal);
-    chrome.kill('SIGKILL');
+    killChromeGroup();
     await Promise.race([
       new Promise(resolve=>chrome.once('exit',(code,signalName)=>resolve({code,signalName}))),
       sleep(5000).then(()=>{throw new Error('Chrome did not exit after SIGKILL');}),
@@ -181,7 +187,7 @@ async function launchProcessKillPhase(){
     await launchPhase('process-kill-inspect','MUSITU_AXIOM_PHASE2_BROWSER_PROCESS_KILL_ATOMICITY_PASS');
     console.log('MUSITU_AXIOM_PHASE2_BROWSER_PROCESS_KILL_QUALIFICATION_PASS');
   }catch(error){
-    try{chrome.kill('SIGKILL');}catch{}
+    killChromeGroup();
     console.error('PROCESS_KILL_BROWSER_STDERR='+stderr.slice(-4000));
     throw error;
   }
