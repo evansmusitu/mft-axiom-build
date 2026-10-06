@@ -137,3 +137,16 @@ test('case intake returns 429 before Turnstile or storage work when the edge lim
   assert.equal(turnstileCalls, 0);
   assert.equal((await response.json()).error, 'RATE_LIMITED');
 });
+
+
+test('health and API responses are explicitly non-indexable at the HTTP layer', async () => {
+  const health = await worker.fetch(new Request('https://support.mftintelligence.com/health'), {ENVIRONMENT: 'production'});
+  assert.equal(health.headers.get('x-robots-tag'), 'noindex, nofollow, noarchive');
+
+  const catalog = await worker.fetch(new Request('https://support.mftintelligence.com/api/v1/catalog'), {});
+  assert.equal(catalog.status, 200);
+  assert.equal(catalog.headers.get('x-robots-tag'), 'noindex, nofollow, noarchive');
+
+  const missing = await worker.fetch(new Request('https://support.mftintelligence.com/api/v1/cases/AX-000000000000'), {});
+  assert.equal(missing.headers.get('x-robots-tag'), 'noindex, nofollow, noarchive');
+});
