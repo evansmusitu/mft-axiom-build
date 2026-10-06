@@ -92,6 +92,15 @@ def mining_row(index: int, seed: int=20261006) -> dict[str,Any]:
     }
 
 
+def encode_mqtt_batch(*, start_index: int, count: int, seed: int=20261006) -> bytes:
+    if start_index < 0:
+        raise ValueError("start_index_must_be_nonnegative")
+    if count <= 0:
+        raise ValueError("count_must_be_positive")
+    rows=[mining_row(start_index+offset,seed) for offset in range(count)]
+    return json.dumps({"rows":rows},sort_keys=True,separators=(",",":")).encode("utf-8")
+
+
 def workload_fingerprint(spec: IndustrialWorkloadSpec) -> str:
     payload={
         "spec":asdict(spec),
