@@ -56,6 +56,26 @@ jobs:
           test "$GITHUB_SHA" = "${{ inputs.expected_commit }}"
           test "$GITHUB_REF_NAME" = 'support/axiom-official-support-20261005'
           test "$GITHUB_REF_NAME" != 'main'
+      - name: Verify canonical eleven-gate readiness evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          const fs=require('node:fs');
+          const crypto=require('node:crypto');
+          const path='EVIDENCE/axiom-official-support-readiness-current.json';
+          const raw=fs.readFileSync(path);
+          const evidence=JSON.parse(raw);
+          const gates=Array.isArray(evidence.gates)?evidence.gates:[];
+          if(evidence.schema!=='musitu.axiom.support-readiness-snapshot.v1') throw new Error('readiness snapshot schema mismatch');
+          if(evidence.public_operational_claim_authorized!==true) throw new Error('public operational claim is not authorized');
+          if(evidence.deployment_dispatch_authorized!==true) throw new Error('support deployment dispatch is not authorized');
+          if(evidence.required_gate_count!==11||evidence.pass_count!==11||evidence.partial_count!==0||evidence.missing_count!==0) throw new Error('eleven-gate readiness counts are not complete');
+          if(gates.length!==11||gates.some(row=>row?.status!=='PASS')) throw new Error('every support readiness gate must have status PASS');
+          const actual=crypto.createHash('sha256').update(raw).digest('hex');
+          const expected=String(process.env.SUPPORT_READINESS_SHA256||'').trim().toLowerCase();
+          if(!/^[a-f0-9]{64}$/.test(expected)||actual!==expected) throw new Error('readiness snapshot SHA-256 does not match the approved deployment variable');
+          NODE
       - name: Re-run support tests
         run: node --test support/tests/*.test.mjs
       - name: Render bounded Wrangler configuration
