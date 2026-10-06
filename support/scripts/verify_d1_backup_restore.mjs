@@ -63,6 +63,7 @@ export async function runBackupRestoreDrill({
   const payloadSha = sha256('synthetic-support-backup-restore-v1');
   let databaseId = '';
   let cleanupOk = false;
+  let evidence = null;
 
   try {
     const created = await cf({
@@ -121,7 +122,7 @@ INSERT INTO support_backup_probe(case_id,payload_sha256,marker) VALUES('AX-BACKU
     }
     if (finalRow?.marker !== 'seed' || finalRow?.payload_sha256 !== payloadSha) throw new Error('D1 Time Travel restore readback mismatch');
 
-    return {
+    evidence = {
       schema: 'musitu.axiom.support-readiness-evidence.v1',
       gate: 'BACKUP_RESTORE',
       status: 'PASS',
@@ -150,6 +151,9 @@ INSERT INTO support_backup_probe(case_id,payload_sha256,marker) VALUES('AX-BACKU
     }
     if (!cleanupOk && databaseId) throw new Error('temporary D1 backup/restore database cleanup failed');
   }
+  if (!evidence) throw new Error('backup/restore drill did not produce evidence');
+  evidence.temporary_database_deleted = cleanupOk;
+  return evidence;
 }
 
 export async function main(env = process.env, fetchImpl = fetch) {
