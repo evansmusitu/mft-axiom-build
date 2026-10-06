@@ -118,3 +118,40 @@ test('public-origin verification bundles the browser app with all local module d
   assert.doesNotMatch(workflow, /readFileSync\('support\/app\.js','utf8'\)/);
   assert.match(workflow, /if\(request\.method==='GET'&&u\.pathname==='\/app\.js'\) return asset\(APP,'text\/javascript; charset=utf-8'\)/);
 });
+
+
+test('canonical production deploy consumes an explicit approved readiness SHA and does not depend on repository deployment variables', async () => {
+  const workflow = await readFile(resolve(root, '..', '.github', 'workflows', 'axiom-official-support-deploy.yml'), 'utf8');
+  assert.match(workflow, /approved_readiness_sha256/);
+  assert.match(workflow, /SUPPORT_READINESS_SHA256:\s*\$\{\{ inputs\.approved_readiness_sha256 \}\}/);
+  assert.doesNotMatch(workflow, /\$\{\{ vars\./);
+  assert.match(workflow, /CLOUDFLARE_RULESETS_API_TOKEN/);
+  assert.match(workflow, /listD1Databases/);
+  assert.match(workflow, /challenges\/widgets/);
+  assert.match(workflow, /MUSITU Axiom Official Support/);
+});
+
+test('canonical production deploy uses the proven direct Worker upload with strict inherited secrets and exact domain controls', async () => {
+  const workflow = await readFile(resolve(root, '..', '.github', 'workflows', 'axiom-official-support-deploy.yml'), 'utf8');
+  assert.match(workflow, /esbuild@0\.25\.11 support\/app\.js --bundle/);
+  assert.match(workflow, /workers\/scripts/);
+  assert.match(workflow, /bindings_inherit=strict/);
+  assert.match(workflow, /type:'inherit',name:'SUPPORT_DATA_KEY_B64'/);
+  assert.match(workflow, /type:'inherit',name:'TURNSTILE_SECRET_KEY'/);
+  assert.match(workflow, /workers\/domains/);
+  assert.match(workflow, /workers_dev|subdomain/);
+  assert.match(workflow, /previews_enabled/);
+  assert.match(workflow, /support\.mftintelligence\.com/);
+  assert.doesNotMatch(workflow, /wrangler@4 secret list/);
+  assert.doesNotMatch(workflow, /wrangler@4 deploy/);
+});
+
+test('canonical live probe preserves the managed edge challenge instead of weakening it', async () => {
+  const workflow = await readFile(resolve(root, '..', '.github', 'workflows', 'axiom-official-support-deploy.yml'), 'utf8');
+  assert.match(workflow, /cf-mitigated/);
+  assert.match(workflow, /challenge/);
+  assert.match(workflow, /PUBLIC_ORIGIN/);
+  assert.match(workflow, /ANTI_ABUSE/);
+  assert.match(workflow, /ACCESSIBILITY_REALITY/);
+  assert.doesNotMatch(workflow, /skip|disable.*challenge|bypass.*challenge/i);
+});
