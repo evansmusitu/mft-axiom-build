@@ -1,0 +1,89 @@
+name: MUSITU Axiom Support Public Origin Diagnostic Once
+
+on:
+  push:
+    branches:
+      - 'support/axiom-official-support-20261005'
+    paths:
+      - '.github/workflows/axiom-official-support-public-origin-diagnostic-once.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    environment: axiom-support-production
+    timeout-minutes: 5
+    env:
+      CF_ACCOUNT: '93f395f5121954671f92fffa453d6b61'
+      CF_ZONE: '5b56528f03948ff5917a5e0cd9f7109e'
+      HOST: 'support.mftintelligence.com'
+      WORKER: 'musitu-axiom-support'
+      CF_TOKEN: ${{ secrets.CLOUDFLARE_RULESETS_API_TOKEN }}
+    steps:
+      - name: Exact branch boundary
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF_NAME" = 'support/axiom-official-support-20261005'
+          test "$GITHUB_REF_NAME" != 'main'
+
+      - name: Classify live HTTPS response without submitting customer data
+        shell: bash
+        run: |
+          set -euo pipefail
+          for ua in 'curl/8.5.0' 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/141.0 Safari/537.36'; do
+            rm -f h.txt b.txt
+            code=$(curl --silent --show-error --connect-timeout 10 --max-time 20 -A "$ua" -D h.txt -o b.txt -w '%{http_code}' "https://$HOST/health" || true)
+            node - "$code" "$ua" <<'NODE'
+          const fs=require('node:fs');
+          const code=process.argv[2],ua=process.argv[3];
+          const raw=fs.existsSync('h.txt')?fs.readFileSync('h.txt','utf8'):'';
+          const body=fs.existsSync('b.txt')?fs.readFileSync('b.txt','utf8'):'';
+          const safe={};
+          for(const line of raw.split(/\r?\n/)){
+            const m=line.match(/^([^:]+):\s*(.*)$/); if(!m) continue;
+            const k=m[1].toLowerCase();
+            if(['server','cf-ray','cf-mitigated','content-type','location','x-content-type-options','cache-control'].includes(k)) safe[k]=m[2].slice(0,300);
+          }
+          const classification=/cloudflare/i.test(body)&&/challenge|attention required|error 1020|access denied/i.test(body)?'CLOUDFLARE_EDGE_DENIAL':body.trim().startsWith('{')?'JSON_RESPONSE':'OTHER';
+          console.log(JSON.stringify({code,user_agent_family:ua.startsWith('Mozilla')?'browser':'curl',headers:safe,classification,body_prefix:body.slice(0,240).replace(/\s+/g,' ')}));
+          NODE
+          done
+          rm -f h.txt b.txt
+
+      - name: Read Cloudflare support edge topology only
+        shell: bash
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          const token=String(process.env.CF_TOKEN||''),account=process.env.CF_ACCOUNT,zone=process.env.CF_ZONE,host=process.env.HOST,worker=process.env.WORKER;
+          if(!token) throw new Error('Cloudflare diagnostic token missing');
+          async function cf(path){
+            const r=await fetch('https://api.cloudflare.com/client/v4'+path,{headers:{authorization:'Bearer '+token,accept:'application/json'}});
+            let p={}; try{p=await r.json()}catch{}
+            return {http:r.status,ok:r.ok&&p?.success!==false,result:p?.result??null,codes:(p?.errors||[]).map(x=>x?.code).filter(Boolean)};
+          }
+          const [domains,sub,dns,apps,zoneRules,accountRules]=await Promise.all([
+            cf('/accounts/'+account+'/workers/domains'),
+            cf('/accounts/'+account+'/workers/scripts/'+encodeURIComponent(worker)+'/subdomain'),
+            cf('/zones/'+zone+'/dns_records?name='+encodeURIComponent(host)+'&per_page=100'),
+            cf('/accounts/'+account+'/access/apps?per_page=100'),
+            cf('/zones/'+zone+'/rulesets'),
+            cf('/accounts/'+account+'/rulesets')
+          ]);
+          const supportDomains=(Array.isArray(domains.result)?domains.result:[]).filter(x=>String(x?.hostname||'')===host).map(x=>({hostname:x.hostname,service:x.service,zone_id:x.zone_id,zone_name:x.zone_name,environment:x.environment}));
+          const supportDns=(Array.isArray(dns.result)?dns.result:[]).map(x=>({type:x.type,name:x.name,proxied:x.proxied,content_present:Boolean(x.content)}));
+          const access=(Array.isArray(apps.result)?apps.result:[]).filter(x=>JSON.stringify(x).includes(host)).map(x=>({name:x.name,type:x.type,domain:x.domain||null,destinations:x.destinations||null}));
+          const summarizeRules=(x)=>({http:x.http,ok:x.ok,codes:x.codes,count:Array.isArray(x.result)?x.result.length:null,phases:(Array.isArray(x.result)?[...new Set(x.result.map(r=>r?.phase).filter(Boolean))].sort():[])});
+          console.log(JSON.stringify({
+            domains:{http:domains.http,ok:domains.ok,support:supportDomains},
+            subdomain:{http:sub.http,ok:sub.ok,enabled:sub.result?.enabled===true,previews_enabled:sub.result?.previews_enabled===true},
+            dns:{http:dns.http,ok:dns.ok,records:supportDns},
+            access:{http:apps.http,ok:apps.ok,matching_apps:access},
+            zone_rulesets:summarizeRules(zoneRules),
+            account_rulesets:summarizeRules(accountRules),
+            write_performed:false,secret_exposed:false
+          }));
+          NODE
