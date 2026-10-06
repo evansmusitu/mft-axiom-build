@@ -45,7 +45,7 @@
         <label>Impact<textarea name="impact" maxlength="1000"></textarea></label>
         <fieldset><legend>Safety signals</legend><label class="check"><input name="active_exploitation" type="checkbox"> Active exploitation may be occurring</label><label class="check"><input name="safety_impact" type="checkbox"> People, funds or critical decisions may be at immediate risk</label></fieldset>
         <label class="check"><input name="consent_to_process" type="checkbox" required> I consent to processing this information to provide support and confirm I removed credentials and payment secrets.</label>
-        <div id="turnstile-widget" aria-label="Anti-abuse verification"></div>
+        <div id="turnstile-widget" role="group" aria-label="Anti-abuse verification"></div>
         <div id="form-status" role="status" aria-live="polite"></div>
         <button class="primary" type="submit" disabled>Create secure case</button>
       </form>
