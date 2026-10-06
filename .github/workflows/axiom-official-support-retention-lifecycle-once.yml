@@ -1,0 +1,53 @@
+name: MUSITU Axiom Support Retention Lifecycle Verification Once
+
+on:
+  push:
+    branches:
+      - 'support/axiom-official-support-20261005'
+    paths:
+      - '.github/workflows/axiom-official-support-retention-lifecycle-once.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: musitu-axiom-support-retention-lifecycle
+  cancel-in-progress: false
+
+jobs:
+  verify-live:
+    if: github.event.before == '8bb50ec25e334e51354900456995061db89a4674'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: axiom-support-production
+    env:
+      SUPPORT_RETENTION_LIFECYCLE_CONFIRM: VERIFY_MUSITU_AXIOM_SUPPORT_RETENTION_LIFECYCLE
+      CLOUDFLARE_ACCOUNT_ID: '93f395f5121954671f92fffa453d6b61'
+      CLOUDFLARE_ZONE_ID: '5b56528f03948ff5917a5e0cd9f7109e'
+      SUPPORT_D1_DATABASE_ID: 'a525c8b6-9b44-413b-a219-46e419b71b12'
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_RULESETS_API_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Exact one-shot boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF_NAME" = 'support/axiom-official-support-20261005'
+          test "$GITHUB_REF_NAME" != 'main'
+          test "$GITHUB_EVENT_NAME" = 'push'
+          test "${{ github.event.before }}" = '8bb50ec25e334e51354900456995061db89a4674'
+      - name: Re-run retention policy and purge contracts
+        run: |
+          node --test support/tests/retention_policy.test.mjs
+          node --test support/tests/retention_lifecycle.test.mjs
+      - name: Exercise live synthetic retention and erasure lifecycle
+        run: node support/scripts/verify_retention_lifecycle_live.mjs
+      - name: Publish sanitized lifecycle evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          node -e 'const e=require("./support-retention-live-evidence.json"); const h=require("node:fs").readFileSync("support-retention-live-evidence.json.sha256","utf8").split(" ")[0]; console.log(JSON.stringify({gate:e.gate,status:e.status,direct_event_delete_blocked:e.direct_event_delete_blocked,expired_case_purged:e.expired_case_purged,deletion_receipt_immutable:e.deletion_receipt_immutable,live_case_count_after:e.live_case_count_after,live_event_count_after:e.live_event_count_after,purge_authorization_count_after:e.purge_authorization_count_after,deletion_receipt_count_after:e.deletion_receipt_count_after,public_route_absent_verified:e.public_route_absent_verified,evidence_sha256:h}))'
+          rm support-retention-live-evidence.json support-retention-live-evidence.json.sha256
