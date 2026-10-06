@@ -1,0 +1,13 @@
+{
+  "schema": "musitu.axiom.support-production-dispatch.v1",
+  "status": "AUTHORIZED",
+  "branch": "support/axiom-official-support-20261005",
+  "target": "production",
+  "support_domain": "support.mftintelligence.com",
+  "expected_parent": "8bfb6df891bcdc33de3afc1c4997310d6c2e9db9",
+  "approved_readiness_sha256": "06845ff4dd9b41ab64d9fc85b613ca905982f6424e3beee1a02342daf6e240c5",
+  "public_operational_claim_authorized": true,
+  "deployment_dispatch_authorized": true,
+  "authorization_scope": "public operational claim and canonical production deployment dispatch for MUSITU Axiom Official Support",
+  "recovery_code_recorded": false
+}
