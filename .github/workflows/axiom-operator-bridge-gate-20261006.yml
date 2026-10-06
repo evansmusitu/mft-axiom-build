@@ -19,6 +19,7 @@ on:
       - 'frontier_v5/tests/test_operator_bridge_contract.py'
       - 'docs/axiom_final_product/AXIOM_OPERATOR_BRIDGE_V1.md'
       - '.github/workflows/axiom-operator-bridge-gate-20261006.yml'
+      - '.github/workflows/axiom-operator-modal-private-deploy-20261006.yml'
   workflow_dispatch:
 
 permissions:
@@ -64,6 +65,7 @@ jobs:
             'frontier_v5/tests/test_operator_bridge_contract.py',
             'docs/axiom_final_product/AXIOM_OPERATOR_BRIDGE_V1.md',
             '.github/workflows/axiom-operator-bridge-gate-20261006.yml',
+            '.github/workflows/axiom-operator-modal-private-deploy-20261006.yml',
           }
           changed=set(subprocess.check_output(['git','diff','--name-only',f'{base}..HEAD'],text=True).splitlines())
           bad=sorted(changed-allowed)
@@ -122,6 +124,7 @@ jobs:
             Path('api/mcp.mjs'),
             Path('vercel.json'),
             Path('.github/workflows/axiom-operator-bridge-gate-20261006.yml'),
+            Path('.github/workflows/axiom-operator-modal-private-deploy-20261006.yml'),
           ]
           text='\n'.join(p.read_text() if p.exists() else '' for p in files)
           forbidden=[
