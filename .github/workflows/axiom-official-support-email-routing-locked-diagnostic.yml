@@ -25,7 +25,7 @@ jobs:
         run: |
           set -euo pipefail
           node <<'NODE'
-          const crypto=require('node:crypto');
+          const crypto=await import('node:crypto');
           const zid=process.env.CF_ZONE_ID, zone=process.env.CF_ZONE_NAME;
           const token=String(process.env.CF_TOKEN||'').trim();
           if(!token) throw new Error('scoped Cloudflare token missing');
@@ -38,10 +38,12 @@ jobs:
               errors:(p?.errors||[]).map(x=>({code:x?.code??null,message:String(x?.message||'').slice(0,160)})),
               messages:(p?.messages||[]).map(x=>({code:x?.code??null,message:String(x?.message||'').slice(0,160)}))};
           }
-          const [settings,required,root]=await Promise.all([
+          const dkimName='cf2024-1._domainkey.'+zone;
+          const [settings,required,root,dkim]=await Promise.all([
             get('/zones/'+zid+'/email/routing'),
             get('/zones/'+zid+'/email/routing/dns'),
-            get('/zones/'+zid+'/dns_records?name='+encodeURIComponent(zone)+'&per_page=100')
+            get('/zones/'+zid+'/dns_records?name='+encodeURIComponent(zone)+'&per_page=100'),
+            get('/zones/'+zid+'/dns_records?name='+encodeURIComponent(dkimName)+'&per_page=100')
           ]);
           const safeSettings=settings.success&&settings.result?{
             enabled:settings.result.enabled===true,
@@ -80,6 +82,7 @@ jobs:
             settings:{http:settings.http,success:settings.success,value:safeSettings,errors:settings.errors,messages:settings.messages},
             required_dns:{http:required.http,success:required.success,records:safeRequired,errors:required.errors,messages:required.messages},
             root_dns:{http:root.http,success:root.success,records:safeRoot,errors:root.errors,messages:root.messages},
+            routing_dkim:{http:dkim.http,success:dkim.success,count:Array.isArray(dkim.result)?dkim.result.length:0,records:(Array.isArray(dkim.result)?dkim.result:[]).map(r=>({type:String(r?.type||''),name:String(r?.name||''),ttl:r?.ttl??null,locked:r?.locked??null,auto_added:r?.meta?.auto_added??null,content_sha256:hash(r?.content||'')})),errors:dkim.errors,messages:dkim.messages},
             write_performed:false,secret_exposed:false
           };
           console.log(JSON.stringify(out));
