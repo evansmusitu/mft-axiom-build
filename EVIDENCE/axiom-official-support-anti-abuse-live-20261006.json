@@ -1,0 +1,23 @@
+{
+  "schema": "musitu.axiom.support-readiness-evidence.v1",
+  "gate": "ANTI_ABUSE",
+  "status": "PASS",
+  "verified_at": "2026-10-06T12:51:02Z",
+  "evidence": {
+    "human_browser_public_origin": true,
+    "synthetic_case_id": "AX-06Z583BK7BSH",
+    "synthetic_case_created_at": "2026-10-06T12:47:02.399Z",
+    "d1_readback_run": 37466253297,
+    "recovery_code_in_evidence": false,
+    "plaintext_customer_narrative_read": false,
+    "secret_exposed": false,
+    "turnstile_widget_rendered_in_real_human_browser": true,
+    "real_widget_token_accepted": true,
+    "server_side_verification_required_before_insert": true,
+    "expected_hostname": "support.mftintelligence.com",
+    "expected_action": "support_case_create",
+    "turnstile_verifier_module": "support/turnstile.js",
+    "private_edge_missing_proof_403_verified": true,
+    "private_edge_rate_limit_429_verified": true
+  }
+}
