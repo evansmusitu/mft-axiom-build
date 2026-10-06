@@ -24,4 +24,17 @@ assert.match(g,/tools\/call/);
 assert.doesNotMatch(g,/https:\/\/mcp\.mftintelligence\.com/);
 assert.doesNotMatch(g,/musitu_axiom_plugin_gate_v4/);
 
+
+const deploy="reviewer_clone/deploy_operator_reviewer_clone.py";
+assert.equal(fs.existsSync(deploy),true,`missing ${deploy}`);
+const d=fs.readFileSync(deploy,"utf8");
+assert.match(d,/musitu_axiom_operator_reviewer_oauth_machine_transport/);
+assert.match(d,/musitu_axiom_operator_reviewer_mcp_machine_transport/);
+assert.match(d,/security_level/);
+assert.match(d,/essentially_off/);
+assert.match(d,/bic/);
+assert.match(d,/under_attack/);
+assert.match(d,/OAUTH_HOST/);
+assert.match(d,/MCP_HOST/);
+
 console.log("MUSITU_AXIOM_OPERATOR_REVIEWER_CLONE_CONTRACT_PASS");
