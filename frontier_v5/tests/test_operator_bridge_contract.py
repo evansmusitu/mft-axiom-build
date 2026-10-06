@@ -5,6 +5,7 @@ from pathlib import Path
 
 from frontier_v5.runtime.operator_bridge import OperatorBridge, OperatorBridgeError
 from frontier_v5.runtime.operator_mcp import build_operator_mcp
+from frontier_v5.runtime.operator_http import OperatorHTTPApplication
 from frontier_v5.runtime.mcp_2026 import PROTOCOL_META, PROTOCOL_VERSION
 
 
@@ -16,6 +17,11 @@ def expect_error(fn, contains=""):
             raise AssertionError(f"expected {contains!r}, got {exc!r}") from exc
         return
     raise AssertionError("expected failure")
+
+
+def json_bytes(value):
+    import json
+    return json.dumps(value,separators=(",",":")).encode("utf-8")
 
 
 def call(server, name, arguments):
@@ -105,6 +111,30 @@ def main():
         receipt=bridge.call_tool("axiom.computer.execute",{"session_id":"c1","action_id":"a1"})
         assert receipt["network_request_performed"] is False
 
+        agent=bridge.call_tool("axiom.agent.register",{
+            "project_id":"p1","agent_id":"agent1","name":"Verifier","purpose":"verify project evidence",
+            "tool_scopes":["project.read","artifact.read"],"data_scopes":["project.metadata"],
+            "autonomy":"PROPOSE_ONLY","max_runs":2,"max_compute_units":2
+        })
+        assert agent["status"]=="ACTIVE"
+        assert bridge.call_tool("axiom.agent.integrity",{"project_id":"p1"})["status"]=="PASS"
+
+        artifact=bridge.call_tool("axiom.artifact.create",{
+            "project_id":"p1","artifact_id":"artifact1","artifact_type":"document","title":"Operator evidence",
+            "content":{"status":"draft"},"provenance_source":"operator-test"
+        })
+        assert artifact["current_version_number"]==0
+        export=bridge.call_tool("axiom.artifact.export",{"project_id":"p1","artifact_id":"artifact1"})
+        assert export["integrity"]["status"]=="PASS"
+
+        definition=bridge.call_tool("axiom.evidence.register",{
+            "project_id":"p1","definition_id":"eval1","name":"Operator bridge qualification",
+            "methodology":"sealed deterministic operator bridge contract",
+            "metrics":["correctness"],"source_sha256":"a"*64
+        })
+        assert definition["definition_id"]=="eval1"
+        assert bridge.call_tool("axiom.evidence.verify",{"project_id":"p1"})["status"]=="PASS"
+
         provider=bridge.call_tool("axiom.provider.status",{})
         assert provider["status"]=="UNAVAILABLE"
         assert provider["external_provider_execution_authority"] is False
@@ -123,6 +153,24 @@ def main():
         result=call(server,"axiom.project.status",{"project_id":"p1"})
         assert result["project_id"]=="p1"
         assert result["resultType"]=="complete"
+
+        app=OperatorHTTPApplication(bridge=bridge,bearer_token="test-operator-token")
+        code, headers, body=app.handle("GET","/health",{},b"")
+        assert code==200 and body["status"]=="READY"
+        code, _, body=app.handle("POST","/mcp",{
+            "MCP-Protocol-Version":PROTOCOL_VERSION,
+            "Mcp-Method":"tools/list",
+            "Content-Type":"application/json",
+        },json_bytes(list_msg))
+        assert code==401 and body["error"]=="UNAUTHORIZED"
+        code, _, body=app.handle("POST","/mcp",{
+            "Authorization":"Bearer test-operator-token",
+            "MCP-Protocol-Version":PROTOCOL_VERSION,
+            "Mcp-Method":"tools/list",
+            "Content-Type":"application/json",
+        },json_bytes(list_msg))
+        assert code==200
+        assert any(t["name"]=="axiom.work.status" for t in body["result"]["tools"])
 
         expect_error(lambda: bridge.call_tool("axiom.unknown",{}),"unknown operator tool")
         bridge.close()
