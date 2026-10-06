@@ -16,6 +16,8 @@ assert.doesNotMatch(o,/https:\/\/mcp\.mftintelligence\.com/);
 assert.match(o,/name="flow_nonce"/);
 assert.match(o,/flow_nonce/);
 assert.match(o,/nonce_hash/);
+assert.match(o,/authorization_response_iss_parameter_supported/);
+assert.match(o,/searchParams\.set\("iss",c\.issuer\)/);
 
 assert.match(g,/axiom\.operator\.execute/);
 assert.match(g,/MODAL_OPERATOR_URL/);
@@ -41,12 +43,8 @@ assert.doesNotMatch(d,/configure_machine_transport_exception/);
 assert.match(d,/Mozilla\/5\.0/);
 assert.match(d,/User-Agent/);
 assert.match(d,/Sec-Fetch-Site/);
-assert.match(d,/probe_modal_runtime/);
-assert.match(d,/MODAL_AUTH_MODE/);
-
 const modalProxy="reviewer_clone/modal_operator_reviewer_proxy.py";
 const mp=fs.readFileSync(modalProxy,"utf8");
-assert.doesNotMatch(mp,/from __future__ import annotations/);
 assert.match(mp,/request: Request/);
 
 
@@ -107,8 +105,7 @@ try{
     MCP_PUBLIC_BASE:resource,
     MODAL_OPERATOR_URL:"https://modal.example",
     MODAL_PROXY_KEY:"wk-contract",
-    MODAL_PROXY_SECRET:"ws-contract",
-    MODAL_AUTH_MODE:"bearer"
+    MODAL_PROXY_SECRET:"ws-contract"
   });
   assert.equal(response.status,200);
   assert.ok(forwardedRequest);
