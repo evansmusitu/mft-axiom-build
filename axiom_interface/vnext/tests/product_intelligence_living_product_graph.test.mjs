@@ -505,3 +505,32 @@ test('reconciliation rejects a different receipt for an already reconciled execu
     /conflicting execution replay|request.*receipt|different receipt|canonical outcome/i,
   );
 });
+
+
+test('execution outcome evidence rejects rehashed authority extensions identity coercion and semantic drift',async()=>{
+  const module=await import('../product_intelligence/living_product_graph.js');
+  const security=await import('../execution_security.js');
+  const at='2026-10-06T12:55:00.000Z';
+  const baseBody={
+    schema:'musitu.axiom.product-execution-outcome-verification.v1',
+    project_id:'project_12345678',work_id:'work_12345678',checkpoint_sha256:'a'.repeat(64),
+    handoff_sha256:'b'.repeat(64),request_sha256:'c'.repeat(64),receipt_id:'execution-receipt_12345678',
+    receipt_sha256:'d'.repeat(64),execution_integrity_sha256:'e'.repeat(64),operation:'file.write',risk_class:'S1',
+    execution_status:'COMPLETED',status:'VERIFIED_COMPLETED',verifier_actor_id:'agent_verifier_2',
+    independent_verification:'PASS',rollback_available:true,failure_state:'NONE',failure_reason:null,
+    external_action_executed:false,network_request_performed:false,host_shell_executed:false,plaintext_secret_access:false,
+    authority_effect:'NONE',release_authority:false,production_authority:false,certification_authority:false,created_at:at,
+  };
+  const rehash=async body=>({...body,verification_sha256:await security.sha256(body)});
+  const cases=[
+    await rehash({...baseBody,external_execution_authority:true}),
+    await rehash({...baseBody,verifier_actor_id:['agent_verifier_2']}),
+    await rehash({...baseBody,execution_status:'BLOCKED',status:'VERIFIED_COMPLETED',failure_state:'NONE',failure_reason:null,rollback_available:false}),
+  ];
+  for(const verified of cases){
+    await assert.rejects(
+      ()=>module.createExecutionOutcomeEvidence(verified),
+      /unsupported fields|authority|verifier|identity|string|semantic|status|failure/i,
+    );
+  }
+});
