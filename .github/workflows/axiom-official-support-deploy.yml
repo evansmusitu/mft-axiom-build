@@ -63,32 +63,36 @@ jobs:
         with:
           node-version: '22'
 
-      - name: Resolve authorized deployment request
+      - name: Resolve authorized push deployment request
+        if: github.event_name == 'push'
         shell: bash
         run: |
           set -euo pipefail
-          if [ "$GITHUB_EVENT_NAME" = 'push' ]; then
-            node <<'NODE'
-            const fs=require('node:fs');
-            const path='EVIDENCE/axiom-official-support-production-dispatch-request.json';
-            const r=JSON.parse(fs.readFileSync(path,'utf8'));
-            if(r.schema!=='musitu.axiom.support-production-dispatch.v1') throw new Error('production dispatch request schema mismatch');
-            if(r.status!=='AUTHORIZED') throw new Error('production dispatch request is not authorized');
-            if(r.branch!=='support/axiom-official-support-20261005') throw new Error('production dispatch branch mismatch');
-            if(r.target!=='production'||r.support_domain!=='support.mftintelligence.com') throw new Error('production dispatch target mismatch');
-            if(r.expected_parent!==process.env.EVENT_BEFORE) throw new Error('production dispatch expected_parent mismatch');
-            if(r.public_operational_claim_authorized!==true||r.deployment_dispatch_authorized!==true) throw new Error('production dispatch authorization flags missing');
-            if(!/^[a-f0-9]{64}$/.test(String(r.approved_readiness_sha256||''))) throw new Error('approved readiness SHA invalid');
-            fs.appendFileSync(process.env.GITHUB_ENV,'SUPPORT_READINESS_SHA256='+r.approved_readiness_sha256+'\n');
-            fs.appendFileSync(process.env.GITHUB_ENV,'SUPPORT_DOMAIN='+r.support_domain+'\n');
-            console.log(JSON.stringify({canonical_push_dispatch:true,target:r.target,expected_parent:r.expected_parent,approved_readiness_sha256:r.approved_readiness_sha256}));
-            NODE
-          else
-            test "$GITHUB_SHA" = "${{ inputs.expected_commit }}"
-            test "${{ inputs.target }}" = 'production'
-            test "$SUPPORT_DOMAIN" = 'support.mftintelligence.com'
-            test "${{ inputs.approved_readiness_sha256 }}" != ''
-          fi
+          node <<'NODE'
+          const fs=require('node:fs');
+          const path='EVIDENCE/axiom-official-support-production-dispatch-request.json';
+          const r=JSON.parse(fs.readFileSync(path,'utf8'));
+          if(r.schema!=='musitu.axiom.support-production-dispatch.v1') throw new Error('production dispatch request schema mismatch');
+          if(r.status!=='AUTHORIZED') throw new Error('production dispatch request is not authorized');
+          if(r.branch!=='support/axiom-official-support-20261005') throw new Error('production dispatch branch mismatch');
+          if(r.target!=='production'||r.support_domain!=='support.mftintelligence.com') throw new Error('production dispatch target mismatch');
+          if(r.expected_parent!==process.env.EVENT_BEFORE) throw new Error('production dispatch expected_parent mismatch');
+          if(r.public_operational_claim_authorized!==true||r.deployment_dispatch_authorized!==true) throw new Error('production dispatch authorization flags missing');
+          if(!/^[a-f0-9]{64}$/.test(String(r.approved_readiness_sha256||''))) throw new Error('approved readiness SHA invalid');
+          fs.appendFileSync(process.env.GITHUB_ENV,'SUPPORT_READINESS_SHA256='+r.approved_readiness_sha256+'\n');
+          fs.appendFileSync(process.env.GITHUB_ENV,'SUPPORT_DOMAIN='+r.support_domain+'\n');
+          console.log(JSON.stringify({canonical_push_dispatch:true,target:r.target,expected_parent:r.expected_parent,approved_readiness_sha256:r.approved_readiness_sha256}));
+          NODE
+
+      - name: Resolve manual deployment request
+        if: github.event_name == 'workflow_dispatch'
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_SHA" = "${{ inputs.expected_commit }}"
+          test "${{ inputs.target }}" = 'production'
+          test "$SUPPORT_DOMAIN" = 'support.mftintelligence.com'
+          test "${{ inputs.approved_readiness_sha256 }}" != ''
 
       - name: Exact commit and protected branch gate
         shell: bash
