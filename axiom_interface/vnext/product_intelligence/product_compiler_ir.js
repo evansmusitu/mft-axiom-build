@@ -7,10 +7,26 @@ export const PRODUCT_COMPILER_INFERENCE_SCHEMA='musitu.axiom.product-compiler-in
 const HASH=/^[a-f0-9]{64}$/i;
 const BINDING_KEYS=new Set(['binding_id','node_id','region','external_sha256']);
 const OBSERVED_BINDING_KEYS=new Set(['binding_id','external_sha256']);
+const OBSERVATION_KEYS=new Set(['observation_id','type','data','source','confidence']);
+const OBSERVATION_SOURCE_KEYS=new Set(['kind','uri']);
+const FORBIDDEN_CREDENTIAL_KEY=/^(?:access|refresh|id)?_?token$|authorization|api_?key|password|private_?key|client_?secret|secret$/i;
+const FORBIDDEN_AUTHORITY_KEY=/^(?:release|production|certification|policy|identity)_authority$|^canonical_evidence$|^allow_(?:release|production)$|^certified$|^authority_effect$/i;
 const isPlainObject=value=>Boolean(value)&&typeof value==='object'&&!Array.isArray(value)&&(Object.getPrototypeOf(value)===Object.prototype||Object.getPrototypeOf(value)===null);
 const clean=(value,max=1000)=>String(value??'').replace(/[\u0000-\u001f\u007f]/g,' ').trim().slice(0,max);
 const stableId=(value,max=180)=>clean(value,max).replace(/[^A-Za-z0-9_.:-]+/g,'_').replace(/^_+|_+$/g,'')||'unknown';
 function rejectUnknownKeys(value,allowed,label){const extra=Object.keys(value).filter(key=>!allowed.has(key));if(extra.length)throw new DOMException(label+' contains unsupported fields: '+extra.join(','),'SecurityError');}
+function rejectSensitivePayload(value,path='payload',depth=0){
+  if(depth>10) throw new RangeError(path+' exceeds nesting limit');
+  if(value===null||value===undefined||typeof value==='string'||typeof value==='boolean') return;
+  if(typeof value==='number'){if(!Number.isFinite(value))throw new TypeError(path+' number must be finite');return;}
+  if(Array.isArray(value)){for(const [index,item] of value.entries())rejectSensitivePayload(item,path+'['+index+']',depth+1);return;}
+  if(!isPlainObject(value)) throw new TypeError(path+' must be JSON-compatible');
+  for(const [key,child] of Object.entries(value)){
+    if(FORBIDDEN_CREDENTIAL_KEY.test(key)) throw new DOMException(path+'.'+key+' contains forbidden credential material','SecurityError');
+    if(FORBIDDEN_AUTHORITY_KEY.test(key)) throw new DOMException(path+'.'+key+' contains forbidden authority material','SecurityError');
+    rejectSensitivePayload(child,path+'.'+key,depth+1);
+  }
+}
 
 function canonical(value){
   if(Array.isArray(value)) return `[${value.map(canonical).join(',')}]`;
@@ -254,13 +270,18 @@ export async function createInferredGraphPatch({projectId,generation,actorId,at=
   const ids=new Set(),nodes=[];
   for(const [index,observation] of observations.entries()){
     if(!isPlainObject(observation)) throw new TypeError(`observation[${index}] must be a plain object`);
+    rejectUnknownKeys(observation,OBSERVATION_KEYS,`observation[${index}]`);
+    if(typeof observation.observation_id!=='string') throw new TypeError(`observation[${index}] observation_id must be a string`);
     const observationId=clean(observation.observation_id,180);
     if(!observationId||ids.has(observationId)) throw new TypeError(`observation[${index}] id must be unique and non-empty`);
     ids.add(observationId);
-    if(!LPG_NODE_TYPES.includes(observation.type)) throw new TypeError(`observation[${index}] type is not in the frozen LPG vocabulary`);
+    if(typeof observation.type!=='string'||!LPG_NODE_TYPES.includes(observation.type)) throw new TypeError(`observation[${index}] type is not in the frozen LPG vocabulary`);
     if(!isPlainObject(observation.data)) throw new TypeError(`observation[${index}] data must be a plain object`);
-    if(!isPlainObject(observation.source)||!clean(observation.source.kind,80)||!clean(observation.source.uri,1000)) throw new TypeError(`observation[${index}] source required`);
-    if(typeof observation.confidence!=='number'||observation.confidence<0||observation.confidence>1) throw new TypeError(`observation[${index}] confidence must be 0..1`);
+    rejectSensitivePayload(observation.data,`observation[${index}].data`);
+    if(!isPlainObject(observation.source)) throw new TypeError(`observation[${index}] source required`);
+    rejectUnknownKeys(observation.source,OBSERVATION_SOURCE_KEYS,`observation[${index}].source`);
+    if(typeof observation.source.kind!=='string'||!clean(observation.source.kind,80)||typeof observation.source.uri!=='string'||!clean(observation.source.uri,1000)) throw new TypeError(`observation[${index}] source kind and uri must be strings`);
+    if(typeof observation.confidence!=='number'||!Number.isFinite(observation.confidence)||observation.confidence<0||observation.confidence>1) throw new TypeError(`observation[${index}] confidence must be finite 0..1`);
     const data={...structuredClone(observation.data),verification_state:'INFERRED_REQUIRES_VERIFICATION',inference_source:structuredClone(observation.source),observation_id:observationId};
     const metadata={
       project_id:projectId,version:1,generation,valid_from:at,valid_to:null,
