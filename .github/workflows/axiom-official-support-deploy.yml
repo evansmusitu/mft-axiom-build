@@ -1,6 +1,11 @@
 name: MUSITU Axiom Official Support Deploy
 
 on:
+  push:
+    branches:
+      - 'support/axiom-official-support-20261005'
+    paths:
+      - 'EVIDENCE/axiom-official-support-production-dispatch-request.json'
   workflow_dispatch:
     inputs:
       target:
@@ -30,14 +35,15 @@ concurrency:
 
 jobs:
   deploy:
-    if: github.ref_name == 'support/axiom-official-support-20261005'
+    if: github.ref_name == 'support/axiom-official-support-20261005' && (github.event_name == 'workflow_dispatch' || github.event_name == 'push')
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    environment: ${{ inputs.target == 'production' && 'axiom-support-production' || 'axiom-support-staging' }}
+    environment: ${{ github.event_name == 'push' && 'axiom-support-production' || (inputs.target == 'production' && 'axiom-support-production' || 'axiom-support-staging') }}
     env:
       SUPPORT_DOMAIN: ${{ inputs.support_domain }}
       SUPPORT_DEPLOYMENT_MODE: production
       SUPPORT_READINESS_SHA256: ${{ inputs.approved_readiness_sha256 }}
+      EVENT_BEFORE: ${{ github.event.before }}
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       CLOUDFLARE_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
       CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
@@ -57,15 +63,40 @@ jobs:
         with:
           node-version: '22'
 
+      - name: Resolve authorized deployment request
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "$GITHUB_EVENT_NAME" = 'push' ]; then
+            node <<'NODE'
+            const fs=require('node:fs');
+            const path='EVIDENCE/axiom-official-support-production-dispatch-request.json';
+            const r=JSON.parse(fs.readFileSync(path,'utf8'));
+            if(r.schema!=='musitu.axiom.support-production-dispatch.v1') throw new Error('production dispatch request schema mismatch');
+            if(r.status!=='AUTHORIZED') throw new Error('production dispatch request is not authorized');
+            if(r.branch!=='support/axiom-official-support-20261005') throw new Error('production dispatch branch mismatch');
+            if(r.target!=='production'||r.support_domain!=='support.mftintelligence.com') throw new Error('production dispatch target mismatch');
+            if(r.expected_parent!==process.env.EVENT_BEFORE) throw new Error('production dispatch expected_parent mismatch');
+            if(r.public_operational_claim_authorized!==true||r.deployment_dispatch_authorized!==true) throw new Error('production dispatch authorization flags missing');
+            if(!/^[a-f0-9]{64}$/.test(String(r.approved_readiness_sha256||''))) throw new Error('approved readiness SHA invalid');
+            fs.appendFileSync(process.env.GITHUB_ENV,'SUPPORT_READINESS_SHA256='+r.approved_readiness_sha256+'\n');
+            fs.appendFileSync(process.env.GITHUB_ENV,'SUPPORT_DOMAIN='+r.support_domain+'\n');
+            console.log(JSON.stringify({canonical_push_dispatch:true,target:r.target,expected_parent:r.expected_parent,approved_readiness_sha256:r.approved_readiness_sha256}));
+            NODE
+          else
+            test "$GITHUB_SHA" = "${{ inputs.expected_commit }}"
+            test "${{ inputs.target }}" = 'production'
+            test "$SUPPORT_DOMAIN" = 'support.mftintelligence.com'
+            test "${{ inputs.approved_readiness_sha256 }}" != ''
+          fi
+
       - name: Exact commit and protected branch gate
         shell: bash
         run: |
           set -euo pipefail
-          test "$GITHUB_SHA" = "${{ inputs.expected_commit }}"
           test "$GITHUB_REF_NAME" = 'support/axiom-official-support-20261005'
           test "$GITHUB_REF_NAME" != 'main'
           test "$SUPPORT_DOMAIN" = 'support.mftintelligence.com'
-          test "${{ inputs.target }}" = 'production'
 
       - name: Verify canonical eleven-gate readiness evidence
         shell: bash
