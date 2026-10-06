@@ -13,8 +13,28 @@ const env = process.env;
 const approved = norm(env.CLOUDFLARE_EMAIL);
 if (!approved) throw new Error('approved destination secret is missing');
 
+async function probeKeyPair(key) {
+  const value = String(key || '').trim();
+  if (!value) return {configured: false, read_ok: false};
+  const common = {'accept': 'application/json', 'user-agent': 'MUSITU-Axiom-Support-Credential-Probe/1.0'};
+  try {
+    await cloudflareRequest({
+      fetchImpl: fetch,
+      headers: {...common, 'x-auth-email': env.CLOUDFLARE_EMAIL, 'x-auth-key': value},
+      path: `/zones?name=${encodeURIComponent('mftintelligence.com')}&status=active`,
+    });
+    return {configured: true, read_ok: true};
+  } catch (error) {
+    return {configured: true, read_ok: false, http_status: Number(error?.status) || 0};
+  }
+}
+
 const credential = await selectCloudflareCredential({fetchImpl: fetch, env});
 const preferredGlobalCredential = await selectCloudflareCredential({fetchImpl: fetch, env, preferGlobal: true});
+const [globalKeyProbe, legacyApiKeyProbe] = await Promise.all([
+  probeKeyPair(env.CLOUDFLARE_GLOBAL_API_KEY),
+  probeKeyPair(env.CLOUDFLARE_API_KEY),
+]);
 const get = async path => (await cloudflareRequest({fetchImpl: fetch, headers: credential.headers, path})).result;
 const getPreferredGlobal = async path => (await cloudflareRequest({fetchImpl: fetch, headers: preferredGlobalCredential.headers, path})).result;
 
@@ -54,6 +74,8 @@ const summary = {
   authentication_mode: credential.mode,
   preferred_global_authentication_mode: preferredGlobalCredential.mode,
   preferred_global_rule_read_succeeded: Array.isArray(preferredGlobalRulesRaw),
+  global_api_key_probe: globalKeyProbe,
+  legacy_api_key_probe: legacyApiKeyProbe,
   routing: {
     enabled: routing?.enabled === true,
     status: String(routing?.status || '').toLowerCase(),
