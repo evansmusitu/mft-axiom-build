@@ -1,0 +1,158 @@
+{
+  "schema": "musitu.axiom.phase2.change-admission-qualification.v1",
+  "recorded_date": "2026-10-06",
+  "source_authority": {
+    "repository": "evansmusitu/mft-axiom-build",
+    "branch": "frontier/axiom-product-intelligence-phase2-20261004",
+    "predecessor_compiler_checkpoint_evidence_commit": "e356cc857c9fd6cba5e8967622f52c75bfe4f240",
+    "final_hardened_head": "8185d92e5ccb20b3e367cbbac156f10b926ac37e",
+    "implementation_path": "axiom_interface/vnext/product_intelligence/change_admission.js",
+    "implementation_git_blob": "aa0693decf17c4c42d2aff2de53818a60f35eafb",
+    "contract_test_path": "axiom_interface/vnext/tests/product_intelligence_change_admission.test.mjs",
+    "contract_test_git_blob": "8790a330a0c8e9b3d6411128600305dc3a59ac64",
+    "gate_workflow_path": ".github/workflows/axiom-product-intelligence-phase2-gate.yml",
+    "gate_workflow_git_blob": "e8a35cc3e20a9645c9b10b48e076ba0cb85f9054"
+  },
+  "tdd": {
+    "observed_red_green_behavior_cycles": 8,
+    "cycles": [
+      {
+        "cycle": 1,
+        "red_test_commit": "9cecfb93f17de28382aa21c0d46c4f634054cd5a",
+        "gate_commit": "fc131666f97bf7e1099c1a49e1fddff078044500",
+        "red_run_id": 37434760301,
+        "red_conclusion": "failure",
+        "green_commit": "3fc81033366d4cc3b388811c3ad3907117b0df9f",
+        "green_run_id": 37435005889,
+        "green_conclusion": "success",
+        "behavior": "require genuine verified compiler checkpoint and bind Change Admission to that verified checkpoint"
+      },
+      {
+        "cycle": 2,
+        "red_commit": "cf7a80fc820b8031fb0080f221301fbd380cdfa1",
+        "red_run_id": 37435167373,
+        "red_conclusion": "failure",
+        "green_commit": "9fa09fbe8d16c27451be0fcdc48bdeacf7ec8c3c",
+        "green_run_id": 37435246014,
+        "green_conclusion": "success",
+        "behavior": "prevent rehashed requests from weakening frozen S0-S5 risk and verification requirements"
+      },
+      {
+        "cycle": 3,
+        "red_commit": "e321809e44a96ba13affb40d2f11bc2222340bc1",
+        "red_run_id": 37435380624,
+        "red_conclusion": "failure",
+        "green_commit": "5f0f03a90576a4279c9e69983d140cefa49bb6ab",
+        "green_run_id": 37435477691,
+        "green_conclusion": "success",
+        "behavior": "enforce exact Change Admission request envelope and reject unsigned authority extensions"
+      },
+      {
+        "cycle": 4,
+        "red_commit": "f4d24c305f0fc34f4db2257f803641ffefafa63a",
+        "red_run_id": 37435592717,
+        "red_conclusion": "failure",
+        "green_commit": "f85047eeafc5ff74e387d4f707ebc47848c77d33",
+        "green_run_id": 37435695556,
+        "green_conclusion": "success",
+        "behavior": "enforce exact policy-decision schema and string-only reasons"
+      },
+      {
+        "cycle": 5,
+        "red_commit": "cfff5cb375cddb5c354b835ee715ec4d26ff1e04",
+        "red_run_id": 37435827841,
+        "red_conclusion": "failure",
+        "green_commit": "5dbe8e690a32faeac67c965a5691451bf8167bb2",
+        "green_run_id": 37444976467,
+        "green_conclusion": "success",
+        "behavior": "enforce exact verification-evidence schema and primitive types and reject verification kinds not required by the request"
+      },
+      {
+        "cycle": 6,
+        "red_commit": "b1280b88ff5da110610acceb48cf9ab5c7da61be",
+        "red_run_id": 37445289440,
+        "red_conclusion": "failure",
+        "green_commit": "b8eb37a3b25cdcfaeac719eb88575ff77869a96d",
+        "green_run_id": 37445383646,
+        "green_conclusion": "success",
+        "behavior": "reject structured builder identity that could bypass security-reviewer or independent-verifier separation"
+      },
+      {
+        "cycle": 7,
+        "red_commit": "6dbfb6e29fe5f5bc494f786624f9a7a7ea82aed0",
+        "red_run_id": 37445696702,
+        "red_conclusion": "failure",
+        "green_commit": "33400665b76545d31b18b938bd45489992b7705a",
+        "green_run_id": 37445794443,
+        "green_conclusion": "success",
+        "behavior": "enforce primitive project work checkpoint hash builder and canonical time bindings in rehashed requests"
+      },
+      {
+        "cycle": 8,
+        "red_commit": "65be25a37049c671d219501eaaa1056e59862141",
+        "red_run_id": 37445922164,
+        "red_conclusion": "failure",
+        "green_commit": "8185d92e5ccb20b3e367cbbac156f10b926ac37e",
+        "green_run_id": 37446017806,
+        "green_conclusion": "success",
+        "behavior": "enforce exact human-approval receipt schema and reject authority extensions and structured identity or time coercion"
+      }
+    ],
+    "red_runs_observed_as_failure": true,
+    "green_runs_observed_as_success": true,
+    "final_contract_tests": {
+      "total": 14,
+      "pass": 14,
+      "fail": 0
+    },
+    "assertions_weakened_to_pass": false
+  },
+  "independent_verification": {
+    "workflow": "MUSITU Axiom Product Intelligence Phase 2 Gate",
+    "run_id": 37446017806,
+    "head_sha": "8185d92e5ccb20b3e367cbbac156f10b926ac37e",
+    "conclusion": "success",
+    "focused_contract_job": {
+      "job_id": 112210916224,
+      "conclusion": "success",
+      "change_admission_contracts": "PASS_14_OF_14"
+    },
+    "independent_replay_job": {
+      "job_id": 112210966539,
+      "conclusion": "success",
+      "all_frozen_order_tests": "PASS_143_OF_143",
+      "authority_marker": "MUSITU_AXIOM_PHASE2_PROVIDER_AUTHORITY_FAIL_CLOSED_PASS",
+      "slice_marker": "MUSITU_AXIOM_PHASE2_SLICE_VERIFICATION_PASS",
+      "release_authority": false,
+      "production_authority": false,
+      "certification_authority": false
+    }
+  },
+  "qualification": {
+    "change_admission_contract_and_authority_gate": "PASS",
+    "semantic_scope": "CHECKPOINT_BOUND_RISK_CLASSIFIED_VERIFICATION_GATED_ADMISSION_ONLY",
+    "risk_model": "S0_S5_FROZEN",
+    "admitted_state_effect": "ADMISSION_ONLY",
+    "executor_transition": "OPERATION_SCOPED_EXECUTOR_REQUIRED",
+    "live_integrated_runtime_qualification": "NOT_PROVEN",
+    "live_verification_artifact_authenticity": "NOT_PROVEN",
+    "external_authorization_gateway_integration": "NOT_PROVEN",
+    "human_approval_receipt_authenticity": "NOT_PROVEN",
+    "human_approval_receipt_note": "This slice validates receipt schema, request binding, identity separation and canonical time only; it does not independently establish that an external authorization gateway issued the receipt.",
+    "release_authority": false,
+    "production_authority": false,
+    "certification_authority": false,
+    "external_execution_authority": false,
+    "production_mutation": false,
+    "frozen_openai_mutation": false,
+    "next_layer_advanced": false
+  },
+  "incident_boundary": {
+    "modal_fanout_cleanup": "NOT_PROVEN",
+    "latest_checked_run_id": 37284936693,
+    "latest_checked_job_id": 111795419209,
+    "latest_checked_job_conclusion": "failure",
+    "required_pass_marker": "MUSITU_AXIOM_MODAL_INCIDENT_PROXY_TOKEN_REMEDIATION_PASS",
+    "required_pass_marker_observed": false
+  }
+}
