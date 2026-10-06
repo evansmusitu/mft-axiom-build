@@ -61,6 +61,7 @@ class MiningAdapterService:
                 envelope=run.canonical,
                 lineage=run.fabric.lineage,
                 signature=run.fabric.signature,
+                sealed_canonical_sha256=run.fabric.canonical_sha256,
             )
             return run
 
@@ -188,6 +189,7 @@ class MiningAdapterService:
             envelope=stored.envelope,
             lineage=dict(stored.lineage),
             signature=stored.signature,
+            canonical_sha256=stored.canonical_sha256,
         )
         run=EnterpriseRun(fabric=fabric,adapter_name=self.adapter_name,canonical=stored.envelope)
         result=self.runtime.execute_mining_risk(run,record_index=record_index)
