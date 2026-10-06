@@ -74,7 +74,7 @@ test('incremental diff marks only changed units directly and computes a conserva
   component.metadata.content_hash='f'.repeat(64);
   const prior=await compileProductIR(priorGraph,{bindings,compilerVersion:'1.0.0'});
   const next=await compileProductIR(nextGraph,{bindings,compilerVersion:'1.0.0'});
-  const diff=diffProductIR(prior,next);
+  const diff=await diffProductIR(prior,next);
   assert.equal(diff.status,'CHANGED');
   assert.deepEqual(diff.operations.filter(op=>op.operation==='UPDATE').map(op=>op.node_id),['component_1']);
   assert.equal(diff.operations.filter(op=>op.operation==='ADD').length,0);
@@ -90,7 +90,7 @@ test('incremental diff preserves removals and never represents unknown impact as
   nextGraph.edges=nextGraph.edges.filter(edge=>!['e6'].includes(edge.edge_id));
   nextGraph.nodes=nextGraph.nodes.filter(node=>node.node_id!=='test_1');
   const next=await compileProductIR(nextGraph,{bindings,compilerVersion:'1.0.0'});
-  const diff=diffProductIR(prior,next);
+  const diff=await diffProductIR(prior,next);
   assert.deepEqual(diff.operations.filter(op=>op.operation==='REMOVE').map(op=>op.node_id),['test_1']);
   assert.ok(diff.impact_node_ids.includes('test_1'));
   assert.equal(diff.impact_state,'COMPUTED');
@@ -135,7 +135,7 @@ test('relation-only changes produce explicit relation operations and conservativ
   relation.relation='REFERENCES';
   relation.metadata.content_hash='e'.repeat(64);
   const next=await compileProductIR(nextGraph,{bindings,compilerVersion:'1.0.0'});
-  const diff=diffProductIR(prior,next);
+  const diff=await diffProductIR(prior,next);
   assert.equal(diff.status,'CHANGED');
   assert.deepEqual(diff.operations,[]);
   assert.deepEqual(diff.relation_operations.map(operation=>[operation.operation,operation.edge_id]),[['UPDATE','e4']]);
@@ -146,7 +146,7 @@ test('relation-only changes produce explicit relation operations and conservativ
 test('generation-only recompilation does not trigger semantic rebuild work',async()=>{
   const prior=await compileProductIR(graph(1),{bindings,compilerVersion:'1.0.0'});
   const next=await compileProductIR(graph(2),{bindings,compilerVersion:'1.0.0'});
-  const diff=diffProductIR(prior,next);
+  const diff=await diffProductIR(prior,next);
   assert.equal(diff.status,'UNCHANGED');
   assert.deepEqual(diff.operations,[]);
   assert.deepEqual(diff.impact_node_ids,[]);

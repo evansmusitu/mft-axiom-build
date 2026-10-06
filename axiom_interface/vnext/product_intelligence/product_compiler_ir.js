@@ -27,6 +27,22 @@ function assertCompilerIR(ir,label='compiler IR'){
   if(typeof ir.ir_sha256!=='string'||!HASH.test(ir.ir_sha256)) throw new TypeError(`${label} ir_sha256 required`);
   return ir;
 }
+async function assertCompilerIRIntegrity(ir,label='compiler IR'){
+  assertCompilerIR(ir,label);
+  for(const [index,unit] of ir.units.entries()){
+    if(!isPlainObject(unit)||typeof unit.unit_sha256!=='string'||!HASH.test(unit.unit_sha256)) throw new TypeError(`${label} unit[${index}] unit_sha256 required`);
+    const {unit_sha256,...body}=unit;
+    if(await sha256(body)!==unit_sha256) throw new DOMException(`${label} unit[${index}] integrity hash mismatch`,'DataError');
+  }
+  for(const [index,relation] of ir.relations.entries()){
+    if(!isPlainObject(relation)||typeof relation.relation_sha256!=='string'||!HASH.test(relation.relation_sha256)) throw new TypeError(`${label} relation[${index}] relation_sha256 required`);
+    const {relation_sha256,...body}=relation;
+    if(await sha256(body)!==relation_sha256) throw new DOMException(`${label} relation[${index}] integrity hash mismatch`,'DataError');
+  }
+  const {ir_sha256,...body}=ir;
+  if(await sha256(body)!==ir_sha256) throw new DOMException(`${label} integrity hash mismatch`,'DataError');
+  return ir;
+}
 function normalizeBindings(bindings,nodeIds){
   if(!Array.isArray(bindings)) throw new TypeError('bindings must be an array');
   const ids=new Set();
@@ -127,9 +143,9 @@ function downstream(startIds,relationMaps){
   return [...seen].sort();
 }
 
-export function diffProductIR(prior,next){
-  assertCompilerIR(prior,'prior compiler IR');
-  assertCompilerIR(next,'next compiler IR');
+export async function diffProductIR(prior,next){
+  await assertCompilerIRIntegrity(prior,'prior compiler IR');
+  await assertCompilerIRIntegrity(next,'next compiler IR');
   if(prior.project_id!==next.project_id) throw new DOMException('cross-project compiler diff blocked','SecurityError');
   if(prior.compiler_version!==next.compiler_version) throw new TypeError('compiler version change requires explicit migration');
   if(prior.ir_sha256===next.ir_sha256){
