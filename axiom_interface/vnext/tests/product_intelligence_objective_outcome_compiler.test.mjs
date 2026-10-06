@@ -134,3 +134,13 @@ test('approval receipts require stable receipt and edge identities',async()=>{
     );
   }
 });
+
+
+test('approval provenance rejects extra or credential-bearing fields before Decision compilation',async()=>{
+  const bad=approval();
+  bad.provenance={...bad.provenance,api_key:'must-not-cross'};
+  await assert.rejects(
+    ()=>compileObjectiveOutcomeGraph({project:project(),contract:contract(),contractVerified:true,approval:bad,generation:1,actorId:'local-user',at:'2026-10-04T15:03:00Z'}),
+    /approval provenance.*unsupported fields|unsupported fields.*approval provenance|credential/i,
+  );
+});
