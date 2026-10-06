@@ -228,6 +228,7 @@ test('persistence export is explicitly migration-only and carries no AXIOM autho
 test('verified FA-11 completed receipt becomes AXIOM Evidence without gaining authority',async()=>{
   const module=await import('../product_intelligence/living_product_graph.js');
   const security=await import('../execution_security.js');
+  const gateway=await import('../authorization_gateway.js');
   const contracts=await import('../foundation_contracts.js');
   assert.equal(typeof module.verifyOperationScopedExecutionOutcome,'function','execution outcome verifier must exist');
   assert.equal(typeof module.createExecutionOutcomeEvidence,'function','execution outcome evidence builder must exist');
@@ -557,15 +558,17 @@ test('FA-11 runtime exception becomes FAILED receipt and verified failure eviden
   };
   const store=new MemoryExecutionStore();
   const sandbox=await store.createSandbox(authority);
-  const proposed=await store.propose(sandbox.sandbox_id,authority,{
+  const request=await gateway.normalizeActionRequest(authority,{
     operation:'worktree.create',target:'main',compute_units:1,instruction_provenance:'GOVERNED_PLAN',requested_at:at,
   });
-  assert.equal(proposed.decision.status,'AUTHORIZED');
+  const decision=await gateway.evaluateAuthorization(authority,request);
+  assert.equal(decision.status,'AUTHORIZED');
+  await store._put('requests',{...request,sandbox_id:sandbox.sandbox_id,project_id:projectId,decision_status:decision.status,created_at:at});
 
-  const receipt=await store.execute(proposed.request.request_sha256,authority);
+  const receipt=await store.execute(request.request_sha256,authority);
   assert.equal(receipt.schema,'musitu.axiom.execution-receipt.browser.v1');
   assert.equal(receipt.status,'FAILED');
-  assert.equal(receipt.request_sha256,proposed.request.request_sha256);
+  assert.equal(receipt.request_sha256,request.request_sha256);
   assert.equal(receipt.rollback_available,false);
   assert.equal(receipt.external_action_executed,false);
   assert.equal(receipt.network_request_performed,false);
@@ -579,9 +582,9 @@ test('FA-11 runtime exception becomes FAILED receipt and verified failure eviden
     schema:'musitu.axiom.product-operation-scoped-executor-handoff.v1',scope:'SINGLE_OPERATION',
     project_id:projectId,work_id:'work_12345678',checkpoint_sha256:'a'.repeat(64),
     change_admission_request_sha256:'b'.repeat(64),change_admission_evaluation_sha256:'c'.repeat(64),
-    authority_sha256:proposed.request.authority_sha256,actor_id:authority.actor_id,agent_id:authority.agent_id,
+    authority_sha256:request.authority_sha256,actor_id:authority.actor_id,agent_id:authority.agent_id,
     workload_identity_id:authority.workload_identity_id,builder_actor_id:'agent_builder_1',risk_class:'S1',
-    operation:'worktree.create',execution_request:Object.fromEntries(Object.entries(proposed.request).filter(([key])=>!['sandbox_id','decision_status','created_at'].includes(key))),
+    operation:'worktree.create',execution_request:Object.fromEntries(Object.entries(request).filter(([key])=>!['sandbox_id','decision_status','created_at'].includes(key))),
     authority_effect:'NONE',execution_authority:false,external_execution_authority:false,release_authority:false,
     production_authority:false,certification_authority:false,created_at:at,
   };
