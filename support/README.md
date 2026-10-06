@@ -18,6 +18,10 @@ This directory is the isolated, whole-product support implementation. It is not 
 - fail-closed production readiness and anti-abuse checks;
 - focused tests and a branch gate.
 
+## Current live verification status
+
+The current authoritative readiness snapshot is `EVIDENCE/axiom-official-support-readiness-snapshot-20261006.json`. It records 6 PASS, 3 PARTIAL and 2 MISSING gates, with public deployment and operational claims explicitly blocked. Verified live prerequisites include D1 secure storage, a real zero-data encryption-key rotation drill, inbound support-email routing and delivery, outbound notification delivery, D1 Time Travel backup/restore, and automated Chromium keyboard/mobile/WCAG checks. The public support hostname remains unattached.
+
 ## Deployment prerequisites
 
 Deployment must not proceed until all of these are real and verified:
@@ -30,13 +34,13 @@ Deployment must not proceed until all of these are real and verified:
 6. Privacy/security retention, key-rotation, incident, and erasure procedures.
 7. Real accessibility, mobile, security, load, backup/restore, and notification-delivery evidence.
 
-The approved public contact is `support@mftintelligence.com`; it must not be advertised as operational until Cloudflare Email Routing delivery is proven to a publisher-controlled destination.
+The approved support contact is `support@mftintelligence.com`. Cloudflare Email Routing and end-to-end delivery are now verified to a publisher-controlled destination, but the overall support service must not be advertised as publicly operational until the remaining readiness gates pass and the hostname deployment is explicitly authorized.
 
 `axiom-official-support-deploy.yml` is manual-only, branch-locked, exact-commit-bound, and environment-gated. It verifies that `SUPPORT_DATA_KEY_B64` and `TURNSTILE_SECRET_KEY` were already provisioned by name without reading either value. The workflow must not be dispatched until all eleven readiness gates pass.
 
 `axiom-official-support-cloudflare-provision.yml` is a narrower, one-shot prerequisite workflow. It reuses the repository's already-masked Cloudflare API credential path to create or reuse only the exact `musitu-axiom-support` D1 database. It does not create or print Turnstile or encryption secrets, attach a hostname, deploy a Worker, alter DNS, or touch the frozen OpenAI surface.
 
-`axiom-official-support-control-plane-provision.yml` performs the next approved prerequisite stage. It uses the existing masked Cloudflare credentials, preferring the authorized email/global-key path and safely falling back to the already-working scoped token, creates or reuses the exact Turnstile widget and approved email destination, uploads a bundled Worker directly through the Workers API with no assets or route and `workers.dev` disabled, generates a fresh 256-bit data key, stores both secrets directly through Cloudflare's secret API, and applies and reads back the D1 schema through the D1 API. It never records secret values and it verifies that the bootstrap remains non-public. An email-address permission failure is recorded without blocking the isolated technical bootstrap; public deployment remains blocked until address verification and delivery pass.
+`axiom-official-support-control-plane-provision.yml` performs the next approved prerequisite stage. It uses the existing masked Cloudflare credentials, preferring the authorized email/global-key path and safely falling back to the already-working scoped token, creates or reuses the exact Turnstile widget and approved email destination, uploads a bundled Worker directly through the Workers API with no assets or route and `workers.dev` disabled, generates a fresh 256-bit data key, stores both secrets directly through Cloudflare's secret API, and applies and reads back the D1 schema through the D1 API. It never records secret values and it verifies that the bootstrap remains non-public. Historical email-address permission failures were recorded without weakening the isolated bootstrap. Destination verification and delivery have since passed; public deployment remains blocked by the current eleven-gate readiness snapshot.
 
 ## Local tests
 
