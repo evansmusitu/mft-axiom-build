@@ -1,0 +1,39 @@
+{
+  "schema": "musitu.axiom.support-search-edge-audit.v1",
+  "status": "PASS",
+  "verified_at": "2026-10-06T14:07:34Z",
+  "repository": "evansmusitu/mft-axiom-build",
+  "branch": "support/axiom-official-support-20261005",
+  "workflow_run": 37476338180,
+  "host": "support.mftintelligence.com",
+  "cloudflare": {
+    "security_level": "under_attack",
+    "browser_integrity_check": "on",
+    "bot_management_readable": true,
+    "fight_mode": false,
+    "sbfm_verified_bots": null,
+    "sbfm_likely_automated": null,
+    "sbfm_definitely_automated": null,
+    "ai_bots_protection": "disabled",
+    "ai_search": "disabled",
+    "ai_training": "disabled",
+    "ai_user": "disabled",
+    "content_bots_protection": "disabled",
+    "crawler_protection": "disabled",
+    "is_robots_txt_managed": false,
+    "bot_preference_sync_enabled": false,
+    "rulesets_readable": true,
+    "managed_free_ruleset_rule_count": 31,
+    "managed_free_ruleset_challenge_rule_count": 0,
+    "existing_verified_bot_references": 0,
+    "existing_support_host_references": 0
+  },
+  "decision": {
+    "global_security_level_change_authorized": false,
+    "global_browser_integrity_change_authorized": false,
+    "approved_narrow_exception": "Cloudflare-verified Search Engine Crawler only, GET/HEAD only, exact public support assets only",
+    "api_or_health_exception_authorized": false,
+    "ai_crawler_or_ai_assistant_exception_authorized": false
+  },
+  "secret_exposed": false
+}
