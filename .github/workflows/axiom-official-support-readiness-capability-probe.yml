@@ -68,6 +68,7 @@ jobs:
               d1_read:d1.ok,
               d1_http:d1.status,
               d1_database_count:Array.isArray(d1.result)?d1.result.length:null,
+              d1_databases:Array.isArray(d1.result)?d1.result.map(x=>({name:String(x?.name||''),version:String(x?.version||'')})):null,
               d1_write:details.ok?has('D1 Write','D1 Edit'):null,
               email_sending_read:sending.ok,
               email_sending_http:sending.status,
