@@ -73,7 +73,8 @@ test('expired closed case purge removes live case and events but retains only a 
 
 test('purge refuses active retention or legal hold before any batch write', async()=>{
   const db=new FakeD1();
-  db.caseRow.retention_expires_at='2026-12-31T00:00:00Z';
+  db.caseRow.closed_at='2026-03-01T00:00:00Z';
+  db.caseRow.retention_expires_at='2026-05-30T00:00:00.000Z';
   await assert.rejects(()=>purgeExpiredCase({
     database:db,caseId:'AX-0123456789AB',now:'2026-04-02T00:00:00Z',
     actorRole:'privacy_officer',ownerRef:'github:evansmusitu',independentApproverRef:'person:elvis-musitu',
@@ -81,6 +82,7 @@ test('purge refuses active retention or legal hold before any batch write', asyn
   }),/not eligible for purge/);
   assert.equal(db.batchCalls.length,0);
 
+  db.caseRow.closed_at='2026-01-01T00:00:00Z';
   db.caseRow.retention_expires_at='2026-04-01T00:00:00.000Z';
   db.caseRow.legal_hold_until='2026-05-01T00:00:00Z';
   await assert.rejects(()=>purgeExpiredCase({
