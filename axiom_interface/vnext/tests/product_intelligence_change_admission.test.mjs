@@ -195,3 +195,14 @@ test('rehashed admission request cannot weaken frozen S0-S5 verification require
     /risk model|verification requirements|request.*invariant|required_verifications/i,
   );
 });
+
+
+test('request envelope rejects unsigned authority extensions that are excluded from the request hash',async()=>{
+  const r=await request('S1');
+  const tampered={...r,release_authority:true};
+  const policy={decision:'ALLOW',request_sha256:r.request_sha256,policy_sha256:'e'.repeat(64),reasons:['attempted envelope extension']};
+  await assert.rejects(
+    ()=>evaluateChangeAdmission({request:tampered,policyDecision:policy,verificationEvidence:[pass('TESTS')],at}),
+    /unsupported fields|request envelope|authority/i,
+  );
+});
