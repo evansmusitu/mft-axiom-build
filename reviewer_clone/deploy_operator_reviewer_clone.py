@@ -355,7 +355,7 @@ def full_oauth_e2e(reviewer_db, issuer, resource):
     form = urllib.parse.urlencode(
         {"flow_id": match.group(1), "musitu_account_key": fixture_key}
     ).encode()
-    code, headers, _ = raw(
+    code, headers, payload = raw(
         issuer + "/oauth/authorize",
         "POST",
         {"Content-Type": "application/x-www-form-urlencoded", "Cookie": cookie},
@@ -364,7 +364,12 @@ def full_oauth_e2e(reviewer_db, issuer, resource):
         False,
     )
     if code != 302:
-        raise RuntimeError("authorize POST failed " + str(code))
+        raise RuntimeError(
+            "authorize POST failed "
+            + str(code)
+            + " body="
+            + payload[:1200].decode("utf-8", "replace")
+        )
     location = headers.get("Location") or headers.get("location") or ""
     auth_code = urllib.parse.parse_qs(
         urllib.parse.urlparse(location).query
