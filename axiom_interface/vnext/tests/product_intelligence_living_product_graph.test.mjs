@@ -402,3 +402,61 @@ test('blocked external execution remains failure evidence and cannot be forged c
     /cannot complete external|external operation|browser-local/i,
   );
 });
+
+
+test('verified execution outcome reconciles one deterministic EvidenceRef and replays idempotently',async()=>{
+  const module=await import('../product_intelligence/living_product_graph.js');
+  const security=await import('../execution_security.js');
+  assert.equal(typeof module.reconcileVerifiedExecutionOutcome,'function','execution outcome graph reconciler must exist');
+
+  const at='2026-10-06T12:45:00.000Z';
+  const verifiedBody={
+    schema:'musitu.axiom.product-execution-outcome-verification.v1',
+    project_id:'project_12345678',work_id:'work_12345678',checkpoint_sha256:'a'.repeat(64),
+    handoff_sha256:'b'.repeat(64),request_sha256:'c'.repeat(64),receipt_id:'execution-receipt_12345678',
+    receipt_sha256:'d'.repeat(64),execution_integrity_sha256:'e'.repeat(64),operation:'file.write',risk_class:'S1',
+    execution_status:'COMPLETED',status:'VERIFIED_COMPLETED',verifier_actor_id:'agent_verifier_2',
+    independent_verification:'PASS',rollback_available:true,failure_state:'NONE',failure_reason:null,
+    external_action_executed:false,network_request_performed:false,host_shell_executed:false,plaintext_secret_access:false,
+    authority_effect:'NONE',release_authority:false,production_authority:false,certification_authority:false,created_at:at,
+  };
+  const verifiedOutcome={...verifiedBody,verification_sha256:await security.sha256(verifiedBody)};
+  const rows=new Map([['project_12345678',graph()]]);
+  let commits=0;
+  const backend={
+    descriptor:{
+      kind:'PersistenceBackend',adapter_version:'1.0.0',provider:'reconciliation-memory',semantic_owner:'AXIOM',authority:'MECHANISM_ONLY',
+      capabilities:['load','commit','verify','export'],unsupported_operations:['production_mutation'],timeout_ms:1000,
+      retry:{max_attempts:1,backoff:'NONE'},idempotency:{mode:'REQUIRED_FOR_WRITES'},data_classification:['project-private'],
+      egress:{required:false,allowed_origins:[]},identity_binding:{required:true,mode:'AXIOM_WORKLOAD_ID'},
+      evidence_envelope:{schema:'musitu.axiom.evidence.v1',required:true},health:{mode:'EXPLICIT'},migration_export:{supported:true,format:'JSONL'},fail_closed:true,
+    },
+    async loadProjectGraph(projectId){return structuredClone(rows.get(projectId)??null);},
+    async commitGraph(projectId,value,{expectedGeneration}){
+      const prior=rows.get(projectId);
+      assert.equal(prior?.generation??0,expectedGeneration);
+      commits+=1; rows.set(projectId,structuredClone(value)); return structuredClone(value);
+    },
+    async verifyIntegrity(projectId){return {status:rows.has(projectId)?'PASS':'NOT_PROVEN',project_id:projectId};},
+    async exportProject(projectId){return {project_id:projectId,graph:structuredClone(rows.get(projectId)??null)};},
+  };
+  const persistence=module.createLivingProductGraphPersistence(backend);
+  const first=await module.reconcileVerifiedExecutionOutcome({persistence,verifiedOutcome,at});
+  assert.equal(first.status,'RECONCILED');
+  assert.equal(first.graph.generation,2);
+  assert.equal(commits,1);
+  assert.equal(first.authority_effect,'NONE');
+  assert.equal(first.release_authority,false);
+  assert.equal(first.production_authority,false);
+  assert.equal(first.certification_authority,false);
+  const evidenceNode=first.graph.nodes.find(node=>node.type==='EvidenceRef'&&node.data.receipt_sha256===verifiedOutcome.receipt_sha256);
+  assert.ok(evidenceNode);
+  assert.equal(evidenceNode.data.evidence_id,first.evidence.id);
+  assert.equal(evidenceNode.metadata.evidence_refs.includes(first.evidence.id),true);
+
+  const replay=await module.reconcileVerifiedExecutionOutcome({persistence,verifiedOutcome,at});
+  assert.equal(replay.status,'IDEMPOTENT_REPLAY');
+  assert.equal(replay.graph.generation,2);
+  assert.equal(replay.evidence.id,first.evidence.id);
+  assert.equal(commits,1);
+});
