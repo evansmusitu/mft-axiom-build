@@ -71,41 +71,83 @@ def b64url(x):return base64.urlsafe_b64encode(x).rstrip(b"=").decode()
 deploy()
 for _ in range(20):
     code,_,disc,_=probe_json(ISSUER+"/.well-known/oauth-authorization-server")
-    if code==200 and disc.get("authorization_response_iss_parameter_supported") is True and disc.get("issuer")==ISSUER:
+    if (
+        code==200
+        and disc.get("issuer")==ISSUER
+        and disc.get("authorization_response_iss_parameter_supported") is not True
+        and "S256" in (disc.get("code_challenge_methods_supported") or [])
+        and "none" in (disc.get("token_endpoint_auth_methods_supported") or [])
+    ):
         break
     time.sleep(1)
-else: raise RuntimeError("RFC9207 discovery did not become ready")
+else: raise RuntimeError("submitted-style OAuth discovery did not become ready")
 
-callback="https://chatgpt.com/connector_platform_oauth_redirect"
-code,_,reg,_=probe_json(ISSUER+"/oauth/register","POST",{"redirect_uris":[callback],"client_name":"MUSITU Operator Reviewer RFC9207 E2E"})
+callback="https://chatgpt.com/connector/oauth/musitu-operator-reviewer-android-e2e"
+code,_,reg,_=probe_json(ISSUER+"/oauth/register","POST",{"redirect_uris":[callback],"client_name":"MUSITU Operator Reviewer Submitted-Style E2E"})
 if code!=201 or not reg.get("client_id"):raise RuntimeError("DCR failed")
 client=reg["client_id"]
 
-customer="fixture_rfc9207_"+uuid.uuid4().hex
-key="fixture_rfc9207_key_"+secrets.token_urlsafe(36)
+customer="fixture_submitted_"+uuid.uuid4().hex
+key="fixture_submitted_key_"+secrets.token_urlsafe(36)
 print("::add-mask::"+key)
-key_id="fixture_rfc9207_key_"+uuid.uuid4().hex
+key_id="fixture_submitted_key_"+uuid.uuid4().hex
 now=time.strftime("%Y-%m-%dT%H:%M:%SZ",time.gmtime())
 d1("INSERT INTO oprev_customers(id,email,name,plan,status,monthly_unit_override,created_at,updated_at) VALUES(?1,?2,?3,'developer','active',100,?4,?4)",[customer,customer+"@invalid.example","RFC9207 Fixture",now])
-d1("INSERT INTO oprev_api_keys(id,customer_id,key_hash,key_prefix,label,status,created_at,last_used_at,expires_at,revoked_at) VALUES(?1,?2,?3,?4,'rfc9207-e2e','active',?5,NULL,NULL,NULL)",[key_id,customer,hashlib.sha256(key.encode()).hexdigest(),key[:16],now])
+d1("INSERT INTO oprev_api_keys(id,customer_id,key_hash,key_prefix,label,status,created_at,last_used_at,expires_at,revoked_at) VALUES(?1,?2,?3,?4,'submitted-style-e2e','active',?5,NULL,NULL,NULL)",[key_id,customer,hashlib.sha256(key.encode()).hexdigest(),key[:16],now])
 
 verifier=b64url(secrets.token_bytes(48));challenge=b64url(hashlib.sha256(verifier.encode()).digest());state="st_"+secrets.token_urlsafe(16)
 q=urllib.parse.urlencode({"response_type":"code","client_id":client,"redirect_uri":callback,"resource":RESOURCE,"scope":"axiom.operator.execute openid email","code_challenge":challenge,"code_challenge_method":"S256","state":state})
 c,h,_,page=probe_json(ISSUER+"/oauth/authorize?"+q,follow=False)
-html=page.decode("utf-8","replace");fm=re.search(r'name="flow_id" value="([^"]+)"',html);nm=re.search(r'name="flow_nonce" value="([^"]+)"',html)
-if c!=200 or not fm or not nm:raise RuntimeError("authorize page missing flow")
-form=urllib.parse.urlencode({"flow_id":fm.group(1),"flow_nonce":nm.group(1),"musitu_account_key":key}).encode()
-headers={"Content-Type":"application/x-www-form-urlencoded","User-Agent":"Mozilla/5.0 (Linux; Android 12) AppleWebKit/537.36 Chrome/140.0 Mobile Safari/537.36","Origin":ISSUER,"Referer":ISSUER+"/oauth/authorize?"+q}
+html=page.decode("utf-8","replace")
+fm=re.search(r'name="flow_id" value="([^"]+)"',html)
+cookie_header=str(h.get("Set-Cookie") or h.get("set-cookie") or "")
+if c!=200 or not fm or "musitu_oauth_flow=" not in cookie_header:
+    raise RuntimeError("submitted-style authorize flow/cookie missing")
+cookie=cookie_header.split(";",1)[0]
+form=urllib.parse.urlencode({"flow_id":fm.group(1),"musitu_account_key":key}).encode()
+headers={
+    "Content-Type":"application/x-www-form-urlencoded",
+    "Cookie":cookie,
+    "User-Agent":"Mozilla/5.0 (Linux; Android 12) AppleWebKit/537.36 Chrome/140.0 Mobile Safari/537.36",
+    "Origin":ISSUER,
+    "Referer":ISSUER+"/oauth/authorize?"+q,
+}
 c,h,b=raw(ISSUER+"/oauth/authorize","POST",headers,form,False)
 if c!=302:raise RuntimeError(f"authorize POST {c}: {b[:500]!r}")
 loc=h.get("Location") or h.get("location") or ""
 qp=urllib.parse.parse_qs(urllib.parse.urlparse(loc).query)
 if qp.get("state",[""])[0]!=state:raise RuntimeError("state mismatch")
-if qp.get("iss",[""])[0]!=ISSUER:raise RuntimeError("iss mismatch")
-if not qp.get("code",[""])[0]:raise RuntimeError("code missing")
+if "iss" in qp:raise RuntimeError("submitted AXIOM style must not emit iss")
+auth_code=qp.get("code",[""])[0]
+if not auth_code:raise RuntimeError("code missing")
+
+token_body=urllib.parse.urlencode({
+    "grant_type":"authorization_code",
+    "client_id":client,
+    "code":auth_code,
+    "redirect_uri":callback,
+    "resource":RESOURCE,
+    "code_verifier":verifier,
+}).encode()
+tc,_,tb=raw(
+    ISSUER+"/oauth/token",
+    "POST",
+    {
+        "Content-Type":"application/x-www-form-urlencoded",
+        "Accept":"application/json",
+        "User-Agent":"MUSITU-Axiom-Operator-Reviewer-Submitted-Style/1.0",
+    },
+    token_body,
+    True,
+)
+tok=json.loads(tb or b"{}") if tc==200 else {}
+if tc!=200 or not tok.get("access_token") or tok.get("token_type")!="Bearer":
+    raise RuntimeError("submitted-style token exchange failed")
 
 # Clean fixture only.
 for sql,params in [
+ ("DELETE FROM oprev_oauth_access_tokens WHERE customer_id=?1",[customer]),
+ ("DELETE FROM oprev_oauth_refresh_tokens WHERE customer_id=?1",[customer]),
  ("DELETE FROM oprev_oauth_authorization_codes WHERE customer_id=?1",[customer]),
  ("DELETE FROM oprev_oauth_authorization_flows WHERE client_id=?1",[client]),
  ("DELETE FROM oprev_oauth_clients WHERE client_id=?1",[client]),
@@ -113,7 +155,8 @@ for sql,params in [
  ("DELETE FROM oprev_customers WHERE id=?1",[customer]),
 ]: d1(sql,params)
 
-print("REVIEWER_RFC9207_DISCOVERY=PASS")
-print("REVIEWER_STABLE_CALLBACK_REDIRECT=PASS")
-print("REVIEWER_MOBILE_FORM_NONCE=PASS")
+print("REVIEWER_SUBMITTED_STYLE_DISCOVERY=PASS")
+print("REVIEWER_PER_CONNECTION_CALLBACK=PASS")
+print("REVIEWER_COOKIE_BOUND_CONSENT=PASS")
+print("REVIEWER_PKCE_TOKEN_REDEMPTION=PASS")
 print("MUSITU_AXIOM_REVIEWER_OAUTH_HOTFIX_PASS")
