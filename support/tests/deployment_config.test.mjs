@@ -68,3 +68,18 @@ test('email-routing migration workflow is isolated, exact-commit-gated and never
   assert.doesNotMatch(workflow, /evans(?:\.musitu)?@mftintelligence\.com/);
   assert.doesNotMatch(workflow, /branches:\s*\n\s*-\s*['"]?main/);
 });
+
+
+test('deployment workflow proves the canonical eleven-gate snapshot is fully ready and hash-bound before deploy', async () => {
+  const workflow = await readFile(resolve(root, '..', '.github', 'workflows', 'axiom-official-support-deploy.yml'), 'utf8');
+  assert.match(workflow, /EVIDENCE\/axiom-official-support-readiness-current\.json/);
+  assert.match(workflow, /public_operational_claim_authorized/);
+  assert.match(workflow, /deployment_dispatch_authorized/);
+  assert.match(workflow, /required_gate_count/);
+  assert.match(workflow, /pass_count/);
+  assert.match(workflow, /partial_count/);
+  assert.match(workflow, /missing_count/);
+  assert.match(workflow, /status\s*!==?\s*['"]PASS['"]/);
+  assert.match(workflow, /SUPPORT_READINESS_SHA256/);
+  assert.match(workflow, /createHash\(['"]sha256['"]\)/);
+});
