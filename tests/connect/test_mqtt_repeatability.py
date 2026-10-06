@@ -61,6 +61,7 @@ class MqttRepeatabilityTests(unittest.TestCase):
                     {
                         "events":1_000_000,"received":1_000_000,"duplicates":0,
                         "audit_chain_verified":True,"errors":[],
+                        "credentials_used":False,
                     }
                     for _ in range(4)
                 ],
