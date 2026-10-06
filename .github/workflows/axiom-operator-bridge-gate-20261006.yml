@@ -55,6 +55,18 @@ jobs:
               raise SystemExit('operator bridge scope escaped: '+repr(bad))
           PY
 
+      - name: Run underlying AXIOM subsystem contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          PYTHONPATH=. python frontier_v5/tests/test_persistent_planner.py
+          PYTHONPATH=. python frontier_v5/tests/test_agent_automation.py
+          PYTHONPATH=. python frontier_v5/tests/test_artifact_engine.py
+          PYTHONPATH=. python frontier_v5/tests/test_evidence_observatory.py
+          PYTHONPATH=. python frontier_v5/tests/test_computer_execution.py
+          PYTHONPATH=. python frontier_v5/tests/test_provider_fallback_contract.py
+          PYTHONPATH=. python frontier_v5/tests/test_mcp_2026_contract.py
+
       - name: Run operator bridge contract
         shell: bash
         run: |
