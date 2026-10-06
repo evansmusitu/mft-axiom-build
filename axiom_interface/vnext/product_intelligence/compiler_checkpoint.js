@@ -5,6 +5,7 @@ export const PRODUCT_COMPILER_ROLLBACK_SCHEMA='musitu.axiom.product-compiler-rol
 
 const HASH=/^[a-f0-9]{64}$/i;
 const RISK_CLASSES=new Set(['S0','S1','S2','S3','S4','S5']);
+const CHECKPOINT_ENVELOPE_KEYS=new Set(['schema','checkpoint_id','project_id','work_id','created_at','actor_id','risk_class','compiler_version','prior_ir_sha256','next_ir_sha256','diff_sha256','diff_status','impact_state','impact_node_ids','authority_effect','rollback_mode','external_execution_authority','production_authority','builder_attested','independent_verification','evidence_refs','prior_ir_snapshot','checkpoint_sha256','evidence_object','artifact','artifact_verification','artifact_package']);
 const isPlainObject=value=>Boolean(value)&&typeof value==='object'&&!Array.isArray(value)&&(Object.getPrototypeOf(value)===Object.prototype||Object.getPrototypeOf(value)===null);
 const clean=(value,max=1000)=>String(value??'').replace(/[\u0000-\u001f\u007f]/g,' ').trim().slice(0,max);
 
@@ -173,6 +174,7 @@ export async function createCompilerCheckpoint(input={},services={}){
 export async function verifyCompilerCheckpoint(checkpoint){
   try{
     if(!isPlainObject(checkpoint)||checkpoint.schema!==PRODUCT_COMPILER_CHECKPOINT_SCHEMA) return false;
+    if(Object.keys(checkpoint).some(key=>!CHECKPOINT_ENVELOPE_KEYS.has(key))) return false;
     if(typeof checkpoint.checkpoint_sha256!=='string'||!HASH.test(checkpoint.checkpoint_sha256)) return false;
     if(checkpoint.authority_effect!=='NONE'||checkpoint.rollback_mode!=='PREPARE_ONLY'||checkpoint.external_execution_authority!==false||checkpoint.production_authority!==false) return false;
     if(checkpoint.builder_attested!==true||checkpoint.independent_verification!=='NOT_PROVEN') return false;
