@@ -89,7 +89,7 @@ jobs:
           python - <<'PY'
           from pathlib import Path
           text=Path('.github/workflows/axiom-level56-official-surface-gate-20261006.yml').read_text()
-          forbidden=['contents: write','id-token: write','git push','wrangler deploy','kubectl apply','terraform apply','gh pr merge']
+          forbidden=['contents:'+' write','id-token:'+' write','git'+' push','wrangler'+' deploy','kubectl'+' apply','terraform'+' apply','gh pr'+' merge']
           bad=[x for x in forbidden if x in text]
           if bad: raise SystemExit('forbidden authority present: '+repr(bad))
           print('MUSITU_AXIOM_LEVEL56_NO_WRITE_AUTHORITY_PASS')
