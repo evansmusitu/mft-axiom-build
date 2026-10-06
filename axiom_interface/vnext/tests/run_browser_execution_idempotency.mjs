@@ -69,6 +69,82 @@ async function cdpSession(wsUrl){
   });
   return {ws,call};
 }
+
+async function launchSeparateTabRace(){
+  const chrome=spawn(browser,[
+    '--headless=new','--no-sandbox','--disable-gpu','--disable-dev-shm-usage',
+    `--user-data-dir=${profile}`,`--remote-debugging-port=${debugPort}`,'about:blank',
+  ],{stdio:['ignore','pipe','pipe']});
+  let stderr='';
+  chrome.stderr.on('data',chunk=>{stderr+=chunk.toString();});
+  const openTarget=async phase=>{
+    const targetUrl=`${origin}/axiom_interface/vnext/tests/product_intelligence_browser_execution_idempotency.html?phase=${encodeURIComponent(phase)}`;
+    const created=await fetch(`http://127.0.0.1:${debugPort}/json/new?${encodeURIComponent(targetUrl)}`,{method:'PUT'});
+    if(!created.ok)throw new Error('CDP target creation failed HTTP '+created.status);
+    const target=await created.json();
+    return cdpSession(target.webSocketDebuggerUrl);
+  };
+  const readResult=async cdp=>{
+    const result=await cdp.call('Runtime.evaluate',{expression:"document.querySelector('#result')?.textContent || ''",returnByValue:true});
+    return String(result?.result?.value||'');
+  };
+  const waitFor=async(cdp,predicate,label,timeoutMs=12000)=>{
+    const deadline=Date.now()+timeoutMs;
+    let value='';
+    while(Date.now()<deadline){
+      value=await readResult(cdp);
+      if(predicate(value))return value;
+      await sleep(100);
+    }
+    throw new Error(label+' timeout with '+value);
+  };
+  try{
+    await waitJson(`http://127.0.0.1:${debugPort}/json/version`);
+    const a=await openTarget('tab-race');
+    const b=await openTarget('tab-race');
+    await Promise.all([
+      waitFor(a,value=>value==='MUSITU_AXIOM_PHASE2_BROWSER_TAB_CALLER_READY','tab A ready'),
+      waitFor(b,value=>value==='MUSITU_AXIOM_PHASE2_BROWSER_TAB_CALLER_READY','tab B ready'),
+    ]);
+    await Promise.all([
+      a.call('Runtime.evaluate',{expression:"window.__axiomStart(); 'STARTED_A'",returnByValue:true}),
+      b.call('Runtime.evaluate',{expression:"window.__axiomStart(); 'STARTED_B'",returnByValue:true}),
+    ]);
+    const results=await Promise.all([
+      waitFor(a,value=>value!=='MUSITU_AXIOM_PHASE2_BROWSER_TAB_CALLER_READY','tab A execution'),
+      waitFor(b,value=>value!=='MUSITU_AXIOM_PHASE2_BROWSER_TAB_CALLER_READY','tab B execution'),
+    ]);
+    console.log('TAB_A_RESULT='+results[0]);
+    console.log('TAB_B_RESULT='+results[1]);
+    for(const value of results){
+      if(value.startsWith('MUSITU_AXIOM_PHASE2_BROWSER_IDEMPOTENCY_FAIL:'))throw new Error(value);
+      if(!value.startsWith('MUSITU_AXIOM_PHASE2_BROWSER_TAB_CALLER_FULFILLED:')&&value!=='MUSITU_AXIOM_PHASE2_BROWSER_TAB_CALLER_FAIL_CLOSED')throw new Error('unexpected separate-tab result '+value);
+    }
+    const inspect=await openTarget('tab-inspect');
+    const inspected=await waitFor(inspect,value=>value!=='MUSITU_AXIOM_PHASE2_BROWSER_IDEMPOTENCY_RUNNING','tab inspect');
+    console.log('TAB_INSPECT_RESULT='+inspected);
+    if(inspected!=='MUSITU_AXIOM_PHASE2_BROWSER_SEPARATE_TAB_ATOMIC_PASS')throw new Error('separate-tab inspect failed: '+inspected);
+    for(const cdp of [a,b,inspect]){try{cdp.ws.close();}catch{}}
+    try{
+      const versionInfo=await waitJson(`http://127.0.0.1:${debugPort}/json/version`,2000);
+      const browserCdp=await cdpSession(versionInfo.webSocketDebuggerUrl);
+      try{await browserCdp.call('Browser.close');}catch{}
+      browserCdp.ws.close();
+    }catch{}
+    const exit=await Promise.race([
+      new Promise(resolve=>chrome.once('exit',(code,signal)=>resolve({code,signal}))),
+      sleep(5000).then(()=>null),
+    ]);
+    if(!exit){chrome.kill('SIGTERM');await new Promise(resolve=>chrome.once('exit',resolve));}
+    await sleep(300);
+    console.log('MUSITU_AXIOM_PHASE2_BROWSER_SEPARATE_TAB_QUALIFICATION_PASS');
+  }catch(error){
+    chrome.kill('SIGTERM');
+    console.error('BROWSER_STDERR='+stderr.slice(-4000));
+    throw error;
+  }
+}
+
 async function launchPhase(phase,expectedMarker){
   const chrome=spawn(browser,[
     '--headless=new','--no-sandbox','--disable-gpu','--disable-dev-shm-usage',
@@ -112,6 +188,10 @@ try{
   await launchPhase('seed','MUSITU_AXIOM_PHASE2_BROWSER_RESTART_SEED_PASS');
   await launchPhase('replay','MUSITU_AXIOM_PHASE2_BROWSER_RESTART_REPLAY_PASS');
   await launchPhase('concurrent','MUSITU_AXIOM_PHASE2_BROWSER_CROSS_INSTANCE_ATOMIC_PASS');
+  await launchPhase('tab-seed','MUSITU_AXIOM_PHASE2_BROWSER_SEPARATE_TAB_SEED_PASS');
+  await launchSeparateTabRace();
+  await launchPhase('stale-seed','MUSITU_AXIOM_PHASE2_BROWSER_STALE_CLAIM_SEED_PASS');
+  await launchPhase('stale-recover','MUSITU_AXIOM_PHASE2_BROWSER_STALE_CLAIM_RECOVERY_PASS');
   console.log('MUSITU_AXIOM_PHASE2_BROWSER_DURABLE_IDEMPOTENCY_QUALIFICATION_PASS');
 }finally{
   server.close();
