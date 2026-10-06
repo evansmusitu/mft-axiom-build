@@ -7,6 +7,7 @@ on:
     paths:
       - 'frontier_v5/runtime/external_execution_receipts.py'
       - 'frontier_v5/evals/EXTERNAL_LEVEL56_PROTOCOL_V2.json'
+      - 'frontier_v5/evals/EXTERNAL_LEVEL56_CASESET_COMMITMENT_20261006.json'
       - 'frontier_v5/scripts/run_external_level56_readiness.py'
       - 'frontier_v5/tests/test_external_execution_receipts.py'
       - 'frontier_v5/tests/test_external_level56_protocol.py'
@@ -43,6 +44,7 @@ jobs:
           allowed={
             'frontier_v5/runtime/external_execution_receipts.py',
             'frontier_v5/evals/EXTERNAL_LEVEL56_PROTOCOL_V2.json',
+            'frontier_v5/evals/EXTERNAL_LEVEL56_CASESET_COMMITMENT_20261006.json',
             'frontier_v5/scripts/run_external_level56_readiness.py',
             'frontier_v5/tests/test_external_execution_receipts.py',
             'frontier_v5/tests/test_external_level56_protocol.py',
@@ -51,7 +53,8 @@ jobs:
           }
           changed=set(subprocess.check_output(['git','diff','--name-only',f'{base}..HEAD'],text=True).splitlines())
           bad=sorted(changed-allowed)
-          if bad: raise SystemExit('Level5/6 isolated scope escaped: '+repr(bad))
+          if bad:
+              raise SystemExit('Level5/6 isolated scope escaped: '+repr(bad))
           PY
       - name: Verify provider-neutral external receipt contract
         shell: bash
@@ -59,7 +62,7 @@ jobs:
           set -euo pipefail
           PYTHONPATH=. python frontier_v5/tests/test_external_execution_receipts.py | tee /tmp/level56-receipts.log
           grep -q 'MUSITU_AXIOM_EXTERNAL_EXECUTION_RECEIPTS_V2_PASS' /tmp/level56-receipts.log
-      - name: Verify frozen no-paid-key protocol
+      - name: Verify frozen no-paid-key protocol and case commitments
         shell: bash
         run: |
           set -euo pipefail
@@ -71,6 +74,8 @@ jobs:
           set -euo pipefail
           PYTHONPATH=. python frontier_v5/scripts/run_external_level56_readiness.py --output /tmp/level56-readiness.json | tee /tmp/level56-readiness.log
           test "$(jq -r .protocol_requires_paid_api_key /tmp/level56-readiness.json)" = false
+          test "$(jq -r .case_set_sha256 /tmp/level56-readiness.json)" = 6eea99e9e943498bbbb0e16e0be8447bff5cd206252d6d3fce79020e1e94bbf6
+          test "$(jq -r .constraints_sha256 /tmp/level56-readiness.json)" = 2161fef373d371dcc0fefa9fc81df906a2eeddff2cc1429b33439c080e0a6c22
           test "$(jq -r .current_level5_status /tmp/level56-readiness.json)" = NOT_VERIFIED
           test "$(jq -r .current_level6_status /tmp/level56-readiness.json)" = NOT_VERIFIED
           test "$(jq -r .gate /tmp/level56-readiness.json)" = MUSITU_AXIOM_LEVEL56_IN_PROGRESS
@@ -91,6 +96,7 @@ jobs:
           text=Path('.github/workflows/axiom-level56-official-surface-gate-20261006.yml').read_text()
           forbidden=['contents:'+' write','id-token:'+' write','git'+' push','wrangler'+' deploy','kubectl'+' apply','terraform'+' apply','gh pr'+' merge']
           bad=[x for x in forbidden if x in text]
-          if bad: raise SystemExit('forbidden authority present: '+repr(bad))
+          if bad:
+              raise SystemExit('forbidden authority present: '+repr(bad))
           print('MUSITU_AXIOM_LEVEL56_NO_WRITE_AUTHORITY_PASS')
           PY
