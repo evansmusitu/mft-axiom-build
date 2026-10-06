@@ -23,6 +23,8 @@ REVIEWER_DB_NAME = os.environ["REVIEWER_DB_NAME"]
 OAUTH_WORKER = os.environ["OAUTH_WORKER"]
 MCP_WORKER = os.environ["MCP_WORKER"]
 OPERATOR_APP = os.environ["OPERATOR_APP"]
+FALLBACK_STAGING_DB_NAME = "mft-axiom-staging"
+FALLBACK_STAGING_DB_UUID = "92de45db-399a-450b-81d0-24d28b105f41"
 
 AUTH_SRC = pathlib.Path("reviewer_clone/musitu_axiom_operator_reviewer_oauth.mjs").read_bytes()
 GATE_SRC = pathlib.Path("reviewer_clone/musitu_axiom_operator_reviewer_gate.mjs").read_bytes()
@@ -156,7 +158,7 @@ def deploy_worker(worker, source, bindings):
 def ensure_reviewer_db():
     databases = cf(f"/accounts/{ACCOUNT_ID}/d1/database?per_page=100") or []
     print("reviewer_d1_inventory=" + json.dumps(
-        [{"name":row.get("name"),"uuid":row.get("uuid")} for row in databases],
+        [{"name": row.get("name"), "uuid": row.get("uuid")} for row in databases],
         sort_keys=True,
     ))
     hits = [row for row in databases if row.get("name") == REVIEWER_DB_NAME]
@@ -164,18 +166,50 @@ def ensure_reviewer_db():
         raise RuntimeError("duplicate reviewer D1 names")
     if hits:
         reviewer = hits[0]["uuid"]
+        mode = "DEDICATED_DATABASE"
+    elif len(databases) >= 10:
+        fallback = [
+            row for row in databases
+            if row.get("name") == FALLBACK_STAGING_DB_NAME
+            and row.get("uuid") == FALLBACK_STAGING_DB_UUID
+        ]
+        if len(fallback) != 1:
+            raise RuntimeError("safe reviewer staging D1 fallback unavailable")
+        reviewer = fallback[0]["uuid"]
+        mode = "NAMESPACED_STAGING_DATABASE"
     else:
         reviewer = cf(
             f"/accounts/{ACCOUNT_ID}/d1/database",
             "POST",
             {"name": REVIEWER_DB_NAME},
         )["uuid"]
+        mode = "DEDICATED_DATABASE"
     if reviewer == PROD_D1_UUID:
         raise RuntimeError("reviewer D1 collided with production")
+    print("reviewer_d1_mode=" + mode)
     return reviewer
 
-
 def clone_identity_schema_and_snapshot(reviewer_db):
+    names = {
+        "customers": "oprev_customers",
+        "api_keys": "oprev_api_keys",
+        "oauth_identity_claims": "oprev_identity_claims",
+    }
+    all_names = {
+        **names,
+        "oauth_clients": "oprev_oauth_clients",
+        "oauth_authorization_flows": "oprev_oauth_authorization_flows",
+        "oauth_authorization_codes": "oprev_oauth_authorization_codes",
+        "oauth_access_tokens": "oprev_oauth_access_tokens",
+        "oauth_refresh_tokens": "oprev_oauth_refresh_tokens",
+    }
+
+    def namespace_schema(sql):
+        out = sql
+        for src, dst in sorted(all_names.items(), key=lambda item: len(item[0]), reverse=True):
+            out = re.sub(r"\\b" + re.escape(src) + r"\\b", dst, out)
+        return out
+
     for table in ["customers", "api_keys", "oauth_identity_claims"]:
         rows = d1(
             PROD_D1_UUID,
@@ -184,33 +218,33 @@ def clone_identity_schema_and_snapshot(reviewer_db):
         )
         if not rows or not rows[0].get("sql"):
             raise RuntimeError("missing production identity schema " + table)
-        d1(reviewer_db, rows[0]["sql"])
+        d1(reviewer_db, namespace_schema(rows[0]["sql"]))
 
     migrations = [
-        """CREATE TABLE IF NOT EXISTS oauth_clients (client_id TEXT PRIMARY KEY, redirect_uris_json TEXT NOT NULL, client_name TEXT NOT NULL, created_at TEXT NOT NULL);""",
-        """CREATE TABLE IF NOT EXISTS oauth_authorization_flows (id TEXT PRIMARY KEY, client_id TEXT NOT NULL, redirect_uri TEXT NOT NULL, state TEXT NOT NULL, resource TEXT NOT NULL, scope TEXT NOT NULL, code_challenge TEXT NOT NULL, nonce_hash TEXT NOT NULL, created_at TEXT NOT NULL, expires_at TEXT NOT NULL, used_at TEXT);""",
-        """CREATE TABLE IF NOT EXISTS oauth_authorization_codes (code_hash TEXT PRIMARY KEY, client_id TEXT NOT NULL, customer_id TEXT NOT NULL, redirect_uri TEXT NOT NULL, resource TEXT NOT NULL, scope TEXT NOT NULL, code_challenge TEXT NOT NULL, created_at TEXT NOT NULL, expires_at TEXT NOT NULL, used_at TEXT);""",
-        """CREATE TABLE IF NOT EXISTS oauth_access_tokens (token_hash TEXT PRIMARY KEY, api_key_id TEXT NOT NULL, client_id TEXT NOT NULL, customer_id TEXT NOT NULL, issuer TEXT NOT NULL, resource TEXT NOT NULL, scope TEXT NOT NULL, created_at TEXT NOT NULL, expires_at TEXT NOT NULL, revoked_at TEXT);""",
-        """CREATE TABLE IF NOT EXISTS oauth_refresh_tokens (token_hash TEXT PRIMARY KEY, api_key_id TEXT NOT NULL, client_id TEXT NOT NULL, customer_id TEXT NOT NULL, resource TEXT NOT NULL, scope TEXT NOT NULL, created_at TEXT NOT NULL, expires_at TEXT NOT NULL, revoked_at TEXT);""",
-        """CREATE INDEX IF NOT EXISTS idx_oprev_flows_expiry ON oauth_authorization_flows(expires_at);""",
-        """CREATE INDEX IF NOT EXISTS idx_oprev_codes_client_expiry ON oauth_authorization_codes(client_id,expires_at);""",
-        """CREATE INDEX IF NOT EXISTS idx_oprev_access_customer_expiry ON oauth_access_tokens(customer_id,expires_at);""",
-        """CREATE INDEX IF NOT EXISTS idx_oprev_refresh_customer_expiry ON oauth_refresh_tokens(customer_id,expires_at);""",
+        """CREATE TABLE IF NOT EXISTS oprev_oauth_clients (client_id TEXT PRIMARY KEY, redirect_uris_json TEXT NOT NULL, client_name TEXT NOT NULL, created_at TEXT NOT NULL);""",
+        """CREATE TABLE IF NOT EXISTS oprev_oauth_authorization_flows (id TEXT PRIMARY KEY, client_id TEXT NOT NULL, redirect_uri TEXT NOT NULL, state TEXT NOT NULL, resource TEXT NOT NULL, scope TEXT NOT NULL, code_challenge TEXT NOT NULL, nonce_hash TEXT NOT NULL, created_at TEXT NOT NULL, expires_at TEXT NOT NULL, used_at TEXT);""",
+        """CREATE TABLE IF NOT EXISTS oprev_oauth_authorization_codes (code_hash TEXT PRIMARY KEY, client_id TEXT NOT NULL, customer_id TEXT NOT NULL, redirect_uri TEXT NOT NULL, resource TEXT NOT NULL, scope TEXT NOT NULL, code_challenge TEXT NOT NULL, created_at TEXT NOT NULL, expires_at TEXT NOT NULL, used_at TEXT);""",
+        """CREATE TABLE IF NOT EXISTS oprev_oauth_access_tokens (token_hash TEXT PRIMARY KEY, api_key_id TEXT NOT NULL, client_id TEXT NOT NULL, customer_id TEXT NOT NULL, issuer TEXT NOT NULL, resource TEXT NOT NULL, scope TEXT NOT NULL, created_at TEXT NOT NULL, expires_at TEXT NOT NULL, revoked_at TEXT);""",
+        """CREATE TABLE IF NOT EXISTS oprev_oauth_refresh_tokens (token_hash TEXT PRIMARY KEY, api_key_id TEXT NOT NULL, client_id TEXT NOT NULL, customer_id TEXT NOT NULL, resource TEXT NOT NULL, scope TEXT NOT NULL, created_at TEXT NOT NULL, expires_at TEXT NOT NULL, revoked_at TEXT);""",
+        """CREATE INDEX IF NOT EXISTS idx_oprev_flows_expiry ON oprev_oauth_authorization_flows(expires_at);""",
+        """CREATE INDEX IF NOT EXISTS idx_oprev_codes_client_expiry ON oprev_oauth_authorization_codes(client_id,expires_at);""",
+        """CREATE INDEX IF NOT EXISTS idx_oprev_access_customer_expiry ON oprev_oauth_access_tokens(customer_id,expires_at);""",
+        """CREATE INDEX IF NOT EXISTS idx_oprev_refresh_customer_expiry ON oprev_oauth_refresh_tokens(customer_id,expires_at);""",
     ]
     for sql in migrations:
         d1(reviewer_db, sql)
 
-    for table, query in [
-        ("customers", "SELECT * FROM customers"),
-        ("api_keys", "SELECT * FROM api_keys WHERE label IS NULL OR label!='chatgpt-oauth-access'"),
-        ("oauth_identity_claims", "SELECT * FROM oauth_identity_claims"),
+    for source, target, query in [
+        ("customers", "oprev_customers", "SELECT * FROM customers"),
+        ("api_keys", "oprev_api_keys", "SELECT * FROM api_keys WHERE label IS NULL OR label!='chatgpt-oauth-access'"),
+        ("oauth_identity_claims", "oprev_identity_claims", "SELECT * FROM oauth_identity_claims"),
     ]:
         rows = d1(PROD_D1_UUID, query)
         for row in rows:
             cols = list(row.keys())
             sql = (
                 "INSERT OR REPLACE INTO "
-                + qident(table)
+                + qident(target)
                 + "("
                 + ",".join(qident(col) for col in cols)
                 + ") VALUES("
@@ -218,7 +252,6 @@ def clone_identity_schema_and_snapshot(reviewer_db):
                 + ")"
             )
             d1(reviewer_db, sql, [row[col] for col in cols])
-
 
 def get_modal_runtime():
     function = modal.Function.from_name(OPERATOR_APP, "operator_endpoint")
@@ -283,12 +316,12 @@ def full_oauth_e2e(reviewer_db, issuer, resource):
 
     d1(
         reviewer_db,
-        "INSERT INTO customers(id,email,name,plan,status,monthly_unit_override,created_at,updated_at) VALUES(?1,?2,?3,'developer','active',100,?4,?4)",
+        "INSERT INTO oprev_customers(id,email,name,plan,status,monthly_unit_override,created_at,updated_at) VALUES(?1,?2,?3,'developer','active',100,?4,?4)",
         [fixture_customer, fixture_customer + "@invalid.example", "Operator Reviewer Fixture", now],
     )
     d1(
         reviewer_db,
-        "INSERT INTO api_keys(id,customer_id,key_hash,key_prefix,label,status,created_at,last_used_at,expires_at,revoked_at) VALUES(?1,?2,?3,?4,'operator-reviewer-e2e','active',?5,NULL,NULL,NULL)",
+        "INSERT INTO oprev_api_keys(id,customer_id,key_hash,key_prefix,label,status,created_at,last_used_at,expires_at,revoked_at) VALUES(?1,?2,?3,?4,'operator-reviewer-e2e','active',?5,NULL,NULL,NULL)",
         [key_id, fixture_customer, key_hash, fixture_key[:16], now],
     )
 
@@ -385,13 +418,13 @@ def full_oauth_e2e(reviewer_db, issuer, resource):
         raise RuntimeError("authenticated Operator call failed: " + repr(result)[:1000])
 
     for sql, params in [
-        ("DELETE FROM oauth_access_tokens WHERE customer_id=?1", [fixture_customer]),
-        ("DELETE FROM oauth_refresh_tokens WHERE customer_id=?1", [fixture_customer]),
-        ("DELETE FROM oauth_authorization_codes WHERE customer_id=?1", [fixture_customer]),
-        ("DELETE FROM oauth_authorization_flows WHERE client_id=?1", [client]),
-        ("DELETE FROM oauth_clients WHERE client_id=?1", [client]),
-        ("DELETE FROM api_keys WHERE customer_id=?1", [fixture_customer]),
-        ("DELETE FROM customers WHERE id=?1", [fixture_customer]),
+        ("DELETE FROM oprev_oauth_access_tokens WHERE customer_id=?1", [fixture_customer]),
+        ("DELETE FROM oprev_oauth_refresh_tokens WHERE customer_id=?1", [fixture_customer]),
+        ("DELETE FROM oprev_oauth_authorization_codes WHERE customer_id=?1", [fixture_customer]),
+        ("DELETE FROM oprev_oauth_authorization_flows WHERE client_id=?1", [client]),
+        ("DELETE FROM oprev_oauth_clients WHERE client_id=?1", [client]),
+        ("DELETE FROM oprev_api_keys WHERE customer_id=?1", [fixture_customer]),
+        ("DELETE FROM oprev_customers WHERE id=?1", [fixture_customer]),
     ]:
         d1(reviewer_db, sql, params)
 
