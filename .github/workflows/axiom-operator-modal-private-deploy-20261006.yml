@@ -193,29 +193,19 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          modal workspace proxy-tokens create --json > /tmp/modal-proxy.json
           python - <<'PY'
-          import json,pathlib
-          obj=json.load(open('/tmp/modal-proxy.json')); vals=[]
-          def walk(x):
-              if isinstance(x,dict):
-                  for v in x.values(): walk(v)
-              elif isinstance(x,list):
-                  for v in x: walk(v)
-              elif isinstance(x,str):
-                  vals.append(x)
-          walk(obj)
-          keys=[x for x in vals if x.startswith('wk-')]
-          secs=[x for x in vals if x.startswith('ws-')]
-          if len(keys)!=1 or len(secs)!=1:
-              raise SystemExit('Fail-closed: unexpected Modal proxy credential shape')
-          pathlib.Path('/tmp/proxy-key').write_text(keys[0])
-          pathlib.Path('/tmp/proxy-secret').write_text(secs[0])
+          import modal,pathlib,os
+          token=modal.Workspace.from_context().proxy_tokens.create(
+              name='axiom-operator-ci-'+os.environ.get('GITHUB_SHA','qualification')[:12]
+          )
+          if not token.token_id.startswith('wk-') or not token.token_secret.startswith('ws-'):
+              raise SystemExit('Fail-closed: unexpected Modal proxy credential contract')
+          pathlib.Path('/tmp/proxy-key').write_text(token.token_id)
+          pathlib.Path('/tmp/proxy-secret').write_text(token.token_secret)
           print('ephemeral_proxy_credential=READY')
           PY
           echo "::add-mask::$(cat /tmp/proxy-key)"
           echo "::add-mask::$(cat /tmp/proxy-secret)"
-
       - name: Authenticated MCP discovery and durable Work mutation
         shell: bash
         run: |
