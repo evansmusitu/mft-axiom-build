@@ -20,16 +20,16 @@ Customer identity, case narrative, quantitative inputs and results, evidence ref
 | Credential or payment-secret submission | Client and server inspection; reject before storage; never return matched value | Live negative probes and log review |
 | Case enumeration | Non-sequential case IDs; recovery credential required; indistinguishable 404 | Edge penetration test |
 | Recovery-code theft | Shown once; only hash stored; no URL query credential | Browser and observability review |
-| Narrative disclosure | AES-256-GCM envelope encryption with case-bound AAD | Secret provisioning and key-rotation drill |
-| Tampering or silent deletion | Append-only event table and SHA-256 chain | Restore and independent verification drill |
+| Narrative disclosure | AES-256-GCM envelope encryption with case-bound AAD | Verified: secret provisioning plus a live zero-data 256-bit key-rotation drill |
+| Tampering or silent deletion | Append-only event table and SHA-256 chain | Verified: D1 Time Travel restore drill and cleanup readback |
 | Forged priority | Server-derived impact model | Abuse corpus evaluation |
 | Prompt injection in customer content | Content remains data-only; no instruction authority; no automatic actions | Agent/triage red-team test |
 | Support-agent overreach | Sensitive-action matrix; customer verification; independent approval; scoped executor | Staff identity and policy integration |
 | Public status misinformation | Verified incident evidence required before public update | Incident-command integration |
 | PII overcollection | No raw contact fields; opaque requester reference; bounded fields | Data-flow review |
-| Abuse and denial of service | Turnstile token verified server-side; hostname/action binding; single-use short-lived proof; size limits | Live negative probes and rate-limit evidence |
-| Accessibility exclusion | Semantic form, keyboard flow, live regions, high contrast, reduced motion, responsive layout | Automated scan and real-device/user testing |
+| Abuse and denial of service | Turnstile token verified server-side; hostname/action binding; single-use short-lived proof; size limits | Real challenge on an authorized live origin plus live negative/rate-limit evidence |
+| Accessibility exclusion | Semantic form, keyboard flow, live regions, high contrast, reduced motion, responsive layout | Automated Chromium/WCAG/keyboard/mobile checks pass; real-device/human verification remains |
 
 ## Explicit non-authority
 
-The support hostname and mailbox are owner-approved, but human role identities remain deployment prerequisites. The current branch does not invent staff identities, expose secrets, claim live DNS or mail delivery, authorize refunds or account changes, publish incident claims, promise an SLA, or alter any OpenAI/Claude production surface.
+The support hostname and mailbox are owner-approved and the accountable owner/independent approver references are live-bound. Email routing and delivery are verified, but the support hostname remains non-public. The current branch does not expose secrets, authorize refunds or account changes, publish incident claims, promise an SLA, or alter any OpenAI/Claude production surface.
