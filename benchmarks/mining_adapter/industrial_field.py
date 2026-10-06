@@ -169,9 +169,14 @@ def _positive_metric(report: dict[str,Any], path: tuple[str,...]) -> bool:
     return isinstance(value,(int,float)) and value > 0
 
 
+def _fingerprint_matches(report: dict[str,Any], spec: IndustrialWorkloadSpec) -> bool:
+    return report.get("workload_fingerprint") == workload_fingerprint(spec)
+
+
 def _mqtt_qualified(report: dict[str,Any], spec: IndustrialWorkloadSpec) -> bool:
     return (
-        int(report.get("events") or 0) >= spec.mqtt_events
+        _fingerprint_matches(report,spec)
+        and int(report.get("events") or 0) >= spec.mqtt_events
         and int(report.get("received") or 0) == int(report.get("events") or 0)
         and int(report.get("duplicates") or 0) >= 0
         and report.get("fault_injected") is True
@@ -184,7 +189,8 @@ def _mqtt_qualified(report: dict[str,Any], spec: IndustrialWorkloadSpec) -> bool
 
 def _opcua_qualified(report: dict[str,Any], spec: IndustrialWorkloadSpec) -> bool:
     return (
-        int(report.get("data_points") or 0) >= spec.opcua_data_points
+        _fingerprint_matches(report,spec)
+        and int(report.get("data_points") or 0) >= spec.opcua_data_points
         and int(report.get("received") or 0) == int(report.get("data_points") or 0)
         and report.get("fault_injected") is True
         and report.get("recovered") is True
@@ -193,17 +199,54 @@ def _opcua_qualified(report: dict[str,Any], spec: IndustrialWorkloadSpec) -> boo
     )
 
 
+def _ratio_outcome(left: float, right: float, tie_band: float, *, higher_is_better: bool) -> str:
+    if left <= 0 or right <= 0:
+        return "INVALID"
+    ratio=left/right
+    if abs(ratio-1.0) <= tie_band:
+        return "TIE"
+    if higher_is_better:
+        return "WIN" if ratio > 1.0 else "LOSS"
+    return "WIN" if ratio < 1.0 else "LOSS"
+
+
 def _throughput_outcome(musitu: dict[str,Any], baseline: dict[str,Any], tie_band: float) -> str:
     left=musitu.get("throughput_events_per_second")
     right=baseline.get("throughput_events_per_second")
-    if not isinstance(left,(int,float)) or not isinstance(right,(int,float)) or left <= 0 or right <= 0:
+    if not isinstance(left,(int,float)) or not isinstance(right,(int,float)):
         return "INVALID"
-    ratio=left/right
-    if ratio > 1 + tie_band:
-        return "WIN"
-    if ratio < 1 - tie_band:
-        return "LOSS"
-    return "TIE"
+    return _ratio_outcome(float(left),float(right),tie_band,higher_is_better=True)
+
+
+def _opcua_throughput_outcome(musitu: dict[str,Any], baseline: dict[str,Any], tie_band: float) -> str:
+    left=musitu.get("throughput_data_points_per_second")
+    right=baseline.get("throughput_data_points_per_second")
+    if not isinstance(left,(int,float)) or not isinstance(right,(int,float)):
+        return "INVALID"
+    return _ratio_outcome(float(left),float(right),tie_band,higher_is_better=True)
+
+
+def _p99_latency_outcome(musitu: dict[str,Any], baseline: dict[str,Any], tie_band: float) -> str:
+    left=(musitu.get("latency_ms") or {}).get("p99")
+    right=(baseline.get("latency_ms") or {}).get("p99")
+    if not isinstance(left,(int,float)) or not isinstance(right,(int,float)):
+        return "INVALID"
+    return _ratio_outcome(float(left),float(right),tie_band,higher_is_better=False)
+
+
+def _external_product_qualified(result: dict[str,Any], spec: IndustrialWorkloadSpec) -> bool:
+    if result.get("same_workload_measured") is not True:
+        return False
+    if not _fingerprint_matches(result,spec):
+        return False
+    mqtt=result.get("mqtt")
+    opcua=result.get("opcua")
+    return (
+        isinstance(mqtt,dict)
+        and isinstance(opcua,dict)
+        and _mqtt_qualified(mqtt,spec)
+        and _opcua_qualified(opcua,spec)
+    )
 
 
 def evaluate_field_gate(
@@ -230,14 +273,15 @@ def evaluate_field_gate(
             "baseline_events_per_second":emqx_mqtt.get("throughput_events_per_second"),
             "musitu_p99_ms":(musitu_mqtt.get("latency_ms") or {}).get("p99"),
             "baseline_p99_ms":(emqx_mqtt.get("latency_ms") or {}).get("p99"),
+            "p99_latency_outcome":_p99_latency_outcome(musitu_mqtt,emqx_mqtt,spec.tie_band_fraction),
         })
     else:
         comparisons.append({
             "baseline":"EMQX Enterprise","version":"6.3.1","outcome":"NOT_RUN",
-            "reason":"Identical MQTT result is absent or does not meet the field workload contract.",
+            "reason":"Identical MQTT result is absent, has the wrong workload fingerprint, or does not meet the field workload contract.",
         })
 
-    for name,version,result,reason in (
+    for name,version,result,blocked_reason in (
         (
             "HighByte Intelligence Hub","4.5.2",highbyte,
             "Runtime requires explicit EULA acceptance and a configured Intelligence Hub deployment; no legal terms are accepted by the benchmark.",
@@ -247,20 +291,39 @@ def evaluate_field_gate(
             "Valid scale testing requires a legitimate Azure subscription and Arc-enabled Kubernetes deployment; Codespaces are not accepted as performance evidence.",
         ),
     ):
-        if isinstance(result,dict) and result.get("same_workload_measured") is True:
+        if result is None:
             comparisons.append({
-                "baseline":name,"version":version,"outcome":result.get("outcome","INVALID"),
-                "dimension":"identical industrial field workload",
-                "evidence":result,
+                "baseline":name,"version":version,"outcome":"BLOCKED","reason":blocked_reason,
+            })
+        elif not isinstance(result,dict) or not _external_product_qualified(result,spec):
+            comparisons.append({
+                "baseline":name,"version":version,"outcome":"INVALID_EVIDENCE",
+                "reason":"External evidence must bind to the exact workload fingerprint and contain qualified MQTT and OPC-UA results.",
             })
         else:
+            external_mqtt=result["mqtt"]; external_opcua=result["opcua"]
             comparisons.append({
-                "baseline":name,"version":version,"outcome":"BLOCKED","reason":reason,
+                "baseline":name,
+                "version":version,
+                "outcome":"MEASURED",
+                "dimension":"identical industrial field workload",
+                "workload_fingerprint":workload_fingerprint(spec),
+                "dimensions":{
+                    "mqtt_throughput":_throughput_outcome(musitu_mqtt,external_mqtt,spec.tie_band_fraction),
+                    "mqtt_p99_latency":_p99_latency_outcome(musitu_mqtt,external_mqtt,spec.tie_band_fraction),
+                    "opcua_throughput":_opcua_throughput_outcome(opcua,external_opcua,spec.tie_band_fraction),
+                    "opcua_p99_latency":_p99_latency_outcome(opcua,external_opcua,spec.tie_band_fraction),
+                },
+                "evidence":result,
             })
 
-    external_complete=all(
-        next(item for item in comparisons if item["baseline"]==name)["outcome"] not in ("BLOCKED","NOT_RUN","INVALID")
-        for name in ("EMQX Enterprise","HighByte Intelligence Hub","Azure IoT Operations")
+    emqx_outcome=next(item for item in comparisons if item["baseline"]=="EMQX Enterprise")["outcome"]
+    external_complete=(
+        emqx_outcome in ("WIN","TIE","LOSS")
+        and all(
+            next(item for item in comparisons if item["baseline"]==name)["outcome"]=="MEASURED"
+            for name in ("HighByte Intelligence Hub","Azure IoT Operations")
+        )
     )
     gate=(
         "INDUSTRIAL_FIELD_BENCHMARK_COMPLETE"
@@ -280,7 +343,7 @@ def evaluate_field_gate(
         ],
         "comparisons":comparisons,
         "claim_policy":{
-            "product_superiority":"PROHIBITED until all named comparator lanes have identical-workload measured evidence.",
-            "dimension_claims":"Only measured same-workload WIN/TIE/LOSS outcomes may be stated.",
+            "product_superiority":"PROHIBITED: comparison completeness is evidence coverage, not a product-wide aggregate score.",
+            "dimension_claims":"Only measured same-workload WIN/TIE/LOSS outcomes may be stated for their named dimensions.",
         },
     }
