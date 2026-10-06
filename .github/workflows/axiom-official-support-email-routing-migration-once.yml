@@ -16,7 +16,7 @@ concurrency:
 
 jobs:
   migrate-root-mail-routing-once:
-    if: github.event.before == '47d5c3878d077d35bcf11a9ca49f6d93ef2280ed'
+    if: github.event.before == 'c89d2284c1d9885dd76331c11b6d2978ec1ab3fb'
     runs-on: ubuntu-latest
     timeout-minutes: 12
     environment: axiom-support-production
@@ -39,7 +39,7 @@ jobs:
           test "$GITHUB_REF_NAME" = 'support/axiom-official-support-20261005'
           test "$GITHUB_REF_NAME" != 'main'
           test "$GITHUB_EVENT_NAME" = 'push'
-          test "${{ github.event.before }}" = '47d5c3878d077d35bcf11a9ca49f6d93ef2280ed'
+          test "${{ github.event.before }}" = 'c89d2284c1d9885dd76331c11b6d2978ec1ab3fb'
           mapfile -t authorization < support/MIGRATE_CLOUDFLARE_EMAIL_ROUTING.authorized
           test "${authorization[0]}" = 'MIGRATE_MUSITU_AXIOM_EMAIL_ROUTING'
           test "${authorization[1]}" = 'RETIRE_UNUSED_ZOHO_TEST_MAILBOXES'
