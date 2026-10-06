@@ -27,9 +27,11 @@ OPERATOR_APP = os.environ["OPERATOR_APP"]
 AUTH_SRC = pathlib.Path("reviewer_clone/musitu_axiom_operator_reviewer_oauth.mjs").read_bytes()
 GATE_SRC = pathlib.Path("reviewer_clone/musitu_axiom_operator_reviewer_gate.mjs").read_bytes()
 
+_api_token = os.environ.get("CLOUDFLARE_API_TOKEN", "").strip()
+if not _api_token:
+    raise RuntimeError("CLOUDFLARE_API_TOKEN is required for isolated reviewer deployment")
 CFH = {
-    "X-Auth-Email": os.environ["CLOUDFLARE_EMAIL"],
-    "X-Auth-Key": os.environ["CLOUDFLARE_GLOBAL_API_KEY"],
+    "Authorization": "Bearer " + _api_token,
     "Accept": "application/json",
     "User-Agent": "MUSITU-Axiom-Operator-Reviewer-Clone/1.0",
 }
