@@ -8,6 +8,10 @@ const OUTCOME_CONTRACT_KEYS=new Set(['schema','project_id','contract_id','contra
 const OUTCOME_CONSTRAINT_KEYS=new Set(['privacy','evidence','autonomy','approval','deadline','compute_budget']);
 const APPROVAL_RECEIPT_KEYS=new Set(['receipt_id','edge_id','contract_id','contract_sha256','provenance']);
 const APPROVAL_PROVENANCE_KEYS=new Set(['source','actor_id','created_at']);
+const PRIVACY_VALUES=new Set(['Private','Project','Organization']);
+const EVIDENCE_VALUES=new Set(['Standard','Strict','Independent validation']);
+const AUTONOMY_VALUES=new Set(['Preview only','Approval each action','Policy-bounded']);
+const APPROVAL_VALUES=new Set(['Before consequential action','Every tool action','Read-only auto, writes approved']);
 const clean=(value,max=4000)=>String(value??'').replace(/[\u0000-\u001f\u007f]/g,' ').trim().slice(0,max);
 const isPlainObject=value=>Boolean(value)&&typeof value==='object'&&!Array.isArray(value)&&(Object.getPrototypeOf(value)===Object.prototype||Object.getPrototypeOf(value)===null);
 function rejectUnknownKeys(value,allowed,label){const extra=Object.keys(value).filter(key=>!allowed.has(key));if(extra.length)throw new DOMException(label+' contains unsupported fields: '+extra.join(','),'SecurityError');}
@@ -18,6 +22,7 @@ function validateConstraintTypes(constraints){
   }
   const budget=constraints.compute_budget;
   if(budget!==null&&budget!==undefined&&(typeof budget!=='number'||!Number.isFinite(budget)||budget<0)) throw new TypeError('Outcome Contract constraint compute_budget must be a finite non-negative number or null');
+  if(!PRIVACY_VALUES.has(constraints.privacy)||!EVIDENCE_VALUES.has(constraints.evidence)||!AUTONOMY_VALUES.has(constraints.autonomy)||!APPROVAL_VALUES.has(constraints.approval)) throw new TypeError('invalid Outcome Contract constraint value');
 }
 function canonical(value){
   if(Array.isArray(value)) return `[${value.map(canonical).join(',')}]`;
