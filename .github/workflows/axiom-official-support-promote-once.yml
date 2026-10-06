@@ -17,7 +17,7 @@ concurrency:
 
 jobs:
   promote:
-    if: github.event_name == 'push' && github.event.before == 'df0bb8e7b49c70c9f9691b23587969969cdb8e80'
+    if: github.event_name == 'push' && github.event.before == 'da2a8eb129896139044f6431161690828b0055ef'
     runs-on: ubuntu-latest
     environment: axiom-support-production
     timeout-minutes: 8
@@ -35,10 +35,10 @@ jobs:
           set -euo pipefail
           test "$GITHUB_REF_NAME" = 'support/axiom-official-support-20261005'
           test "$GITHUB_REF_NAME" != 'main'
-          test "${{ github.event.before }}" = 'df0bb8e7b49c70c9f9691b23587969969cdb8e80'
-          node <<'NODE'
-          const fs=require('node:fs');
-          const crypto=require('node:crypto');
+          test "${{ github.event.before }}" = 'da2a8eb129896139044f6431161690828b0055ef'
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          import crypto from 'node:crypto';
           const api='https://api.github.com/repos/evansmusitu/mft-axiom-build';
           const token=process.env.GH_READ_TOKEN;
           async function gh(path){
