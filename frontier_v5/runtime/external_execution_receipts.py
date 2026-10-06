@@ -197,7 +197,7 @@ class ExternalExecutionReceiptGate:
             "leader_claim_allowed": False,
         }
 
-    def assess_level56(self, *, expected_system_ids: Sequence[str], expected_case_ids: Sequence[str], receipts: Sequence[Mapping[str, Any]], independent_replays: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
+    def assess_level56(self, *, expected_system_ids: Sequence[str], expected_case_ids: Sequence[str], expected_case_set_sha256: str, expected_constraints_sha256: str, receipts: Sequence[Mapping[str, Any]], independent_replays: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
         if isinstance(expected_system_ids, (str, bytes, bytearray)) or not isinstance(expected_system_ids, Sequence) or not expected_system_ids:
             raise ExternalExecutionReceiptError("expected_system_ids must be a non-empty sequence")
         expected = [_string(x, "expected_system_id") for x in expected_system_ids]
@@ -236,7 +236,7 @@ class ExternalExecutionReceiptGate:
         return {
             "schema": "musitu.axiom.frontier.external-level56-readiness.v2",
             "expected_systems": expected,
-            "expected_case_ids": expected_cases,
+            "expected_case_ids": expected_cases,\n            "expected_case_set_sha256": expected_case_hash,\n            "expected_constraints_sha256": expected_constraints_hash,
             "completed_systems": completed,
             "access_blocked_systems": blocked,
             "missing_systems": missing,
