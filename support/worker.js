@@ -15,6 +15,7 @@ function securityHeaders(response) {
   const headers = new Headers(response.headers);
   headers.set('referrer-policy', 'no-referrer');
   headers.set('permissions-policy', 'camera=(), microphone=(), geolocation=(), payment=()');
+  headers.set('x-robots-tag', 'noindex, nofollow, noarchive');
   headers.set('content-security-policy', "default-src 'none'; object-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'");
   return new Response(response.body, {status: response.status, statusText: response.statusText, headers});
 }
