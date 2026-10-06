@@ -15,6 +15,7 @@ const zoho = [
   {id: 'zoho-3', type: 'MX', name: zone, content: 'mx3.zoho.com', priority: 50, ttl: 3600},
 ];
 const dkimName = `cf2024-1._domainkey.${zone}`;
+const zohoSpf = {id: 'zoho-spf', type: 'TXT', name: zone, content: 'v=spf1 include:zohomail.com ~all', priority: null, ttl: 3600};
 const required = [
   {type: 'MX', name: zone, content: 'route1.mx.cloudflare.net.', priority: 7, ttl: 1},
   {type: 'MX', name: zone, content: 'route2.mx.cloudflare.net.', priority: 32, ttl: 1},
@@ -41,11 +42,13 @@ function env() {
   };
 }
 
-function mockCloudflare({unverified = false, mutateProtectedAfterCutover = false, unsafeCatchAll = false, unrelatedRule = false, disabledDropAll = false, enableDnsFailure = false, readyAfterReads = 0, cloudflareCreatesChunkedAuth = false} = {}) {
+function mockCloudflare({unverified = false, mutateProtectedAfterCutover = false, unsafeCatchAll = false, unrelatedRule = false, disabledDropAll = false, enableDnsFailure = false, readyAfterReads = 0, cloudflareCreatesChunkedAuth = false, existingZohoSpf = false, existingRequiredDkim = false} = {}) {
   const calls = [];
   let routing = {enabled: false, status: 'unconfigured'};
-  let root = structuredClone(zoho);
-  let dkim = [];
+  let root = structuredClone(existingZohoSpf ? [...zoho, zohoSpf] : zoho);
+  let dkim = existingRequiredDkim
+    ? [{id: 'existing-dkim', ...required.find(row => row.type === 'TXT' && row.name === dkimName)}]
+    : [];
   let rules = unrelatedRule ? [{id: 'unexpected-rule', enabled: true, matchers: [{type: 'literal', field: 'to', value: 'legacy@mftintelligence.com'}], actions: [{type: 'forward', value: [destination]}]}] : disabledDropAll ? [{id: 'default-drop', enabled: false, matchers: [{type: 'all'}], actions: [{type: 'drop'}]}] : [];
   let nextDnsId = 100;
   let cutover = false;
@@ -68,8 +71,8 @@ function mockCloudflare({unverified = false, mutateProtectedAfterCutover = false
       if (enableDnsFailure) return response(409, {success: false, errors: [{code: 2008, message: 'conflict'}]});
       cutover = true;
       routing = {enabled: true, status: 'misconfigured/locked'};
-      root = required.filter(r => r.type === 'MX').map((r, i) => ({id: `cf-${i}`, ...r}));
-      dkim = [];
+      const preservedRootTxt = root.filter(r => r.type === 'TXT');
+      root = [...required.filter(r => r.type === 'MX').map((r, i) => ({id: `cf-${i}`, ...r})), ...preservedRootTxt];
       if (cloudflareCreatesChunkedAuth) {
         root.push({id: 'cf-spf', type: 'TXT', name: zone, content: 'v=spf1 include:_spf.mx.cloudflare.net ~all', ttl: 1});
         dkim.push({id: 'cf-dkim', type: 'TXT', name: dkimName, content: '"v=DKIM1; h=sha256; k=rsa; ""p=TESTPUBLICKEY"', ttl: 1});
@@ -176,6 +179,34 @@ test('DNS-equivalent quoted and chunked TXT representations do not create duplic
   const txtCreates = mock.calls.filter(c => c.method === 'POST' && c.path.endsWith('/dns_records') && c.body?.type === 'TXT');
   assert.equal(txtCreates.length, 0, 'DNS-equivalent TXT serialization must not create duplicate auth records');
   assert.equal(mock.state().root.filter(r => r.type === 'TXT').length, 1);
+  assert.equal(mock.state().dkim.length, 1);
+});
+
+test('explicit Zoho retirement removes only the exact Zoho SPF and preserves matching Cloudflare DKIM', async () => {
+  const mock = mockCloudflare({existingZohoSpf: true, existingRequiredDkim: true});
+  const evidence = await migrateEmailRouting({
+    fetchImpl: mock.fetchImpl,
+    env: env(),
+    now: '2026-10-06T05:10:00Z',
+  });
+  assert.equal(evidence.gate, 'MUSITU_AXIOM_SUPPORT_EMAIL_ROUTING_MIGRATION_PASS');
+  assert.equal(evidence.routing.ready, true);
+  const deletes = mock.calls.filter(c => c.method === 'DELETE' && c.path.includes('/dns_records/'));
+  assert.ok(deletes.some(c => c.path.endsWith('/zoho-spf')), 'authorized Zoho SPF must be retired');
+  assert.equal(deletes.some(c => c.path.endsWith('/existing-dkim')), false, 'matching Cloudflare DKIM must be preserved');
+  assert.equal(mock.state().root.some(r => String(r.content || '').includes('zohomail.com')), false);
+  assert.equal(mock.state().root.filter(r => r.type === 'TXT' && String(r.content || '').includes('_spf.mx.cloudflare.net')).length, 1);
+  assert.equal(mock.state().dkim.length, 1);
+});
+
+test('failed activation restores the exact retired Zoho SPF with the Zoho MX snapshot', async () => {
+  const mock = mockCloudflare({existingZohoSpf: true, existingRequiredDkim: true, enableDnsFailure: true});
+  await assert.rejects(() => migrateEmailRouting({fetchImpl: mock.fetchImpl, env: env()}), /ROLLED_BACK/);
+  assert.equal(mock.state().root.some(r => String(r.content || '').includes('zohomail.com')), true);
+  assert.deepEqual(
+    mock.state().root.filter(r => r.type === 'MX').map(r => r.content).sort(),
+    zoho.map(r => r.content).sort(),
+  );
   assert.equal(mock.state().dkim.length, 1);
 });
 

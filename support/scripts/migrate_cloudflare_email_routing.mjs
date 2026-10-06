@@ -13,6 +13,7 @@ const EMAIL = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 const MIGRATION_CONFIRM = 'MIGRATE_MUSITU_AXIOM_EMAIL_ROUTING';
 const RETIREMENT_CONFIRM = 'RETIRE_UNUSED_ZOHO_TEST_MAILBOXES';
 const ROUTING_DKIM_NAME = `cf2024-1._domainkey.${SUPPORT_ZONE_NAME}`;
+const RETIRED_ZOHO_SPF = 'v=spf1 include:zohomail.com ~all';
 const PROTECTED_PROVIDER_HOSTS = [
   'auth.mftintelligence.com',
   'mcp.mftintelligence.com',
@@ -67,6 +68,11 @@ function normalizeRecord(row, {keepId = false} = {}) {
 function isSpf(row) {
   const value = normalizeRecord(row);
   return value.type === 'TXT' && value.name === SUPPORT_ZONE_NAME && value.content.toLowerCase().startsWith('v=spf1');
+}
+
+function isRetiredZohoSpf(row) {
+  const value = normalizeRecord(row);
+  return isSpf(value) && value.content.toLowerCase() === RETIRED_ZOHO_SPF;
 }
 
 function isRoutingDkim(row) {
@@ -321,10 +327,22 @@ async function ensureRequiredRoutingAuthDns({fetchImpl, headers, desired}) {
 }
 
 async function removeConflictingRootMx({fetchImpl, headers, current, desired}) {
+  const desiredKeys = new Set(desired.map(recordKey));
   const desiredMx = new Set(desired.filter(row => row.type === 'MX').map(recordKey));
-  const conflicts = current.filter(row => row.type === 'MX' && !desiredMx.has(recordKey(row)));
+  const unauthorizedAuthConflicts = current.filter(row =>
+    (isSpf(row) || isRoutingDkimName(row)) &&
+    !desiredKeys.has(recordKey(row)) &&
+    !isRetiredZohoSpf(row)
+  );
+  if (unauthorizedAuthConflicts.length) {
+    throw new Error('unexpected non-Zoho SPF or routing DKIM conflict exists before migration');
+  }
+  const conflicts = current.filter(row =>
+    (row.type === 'MX' && !desiredMx.has(recordKey(row))) ||
+    (isRetiredZohoSpf(row) && !desiredKeys.has(recordKey(row)))
+  );
   for (const row of conflicts) {
-    if (!row.id) throw new Error('conflicting root MX record has no id for bounded migration');
+    if (!row.id) throw new Error('conflicting retired-provider mail record has no id for bounded migration');
     await cloudflareRequest({
       fetchImpl,
       headers,
@@ -332,10 +350,16 @@ async function removeConflictingRootMx({fetchImpl, headers, current, desired}) {
       method: 'DELETE',
     });
   }
-  const after = await readRootMail({fetchImpl, headers});
-  const remainingConflict = after.some(row => row.type === 'MX' && !desiredMx.has(recordKey(row)));
-  if (remainingConflict) throw new Error('conflicting root MX record remains after bounded migration delete');
-  return conflicts.length;
+  const after = await readRoutingMail({fetchImpl, headers});
+  const remainingConflict = after.some(row =>
+    (row.type === 'MX' && !desiredMx.has(recordKey(row))) ||
+    (isRetiredZohoSpf(row) && !desiredKeys.has(recordKey(row)))
+  );
+  if (remainingConflict) throw new Error('conflicting retired-provider mail record remains after bounded migration delete');
+  return {
+    mx: conflicts.filter(row => row.type === 'MX').length,
+    zoho_spf: conflicts.filter(isRetiredZohoSpf).length,
+  };
 }
 
 async function deleteRule({fetchImpl, headers, id}) {
