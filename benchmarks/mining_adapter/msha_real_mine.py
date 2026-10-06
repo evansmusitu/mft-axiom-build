@@ -13,6 +13,11 @@ from dataclasses import asdict, dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Iterable, Iterator, Mapping, TextIO
+import sys
+
+ROOT=Path(__file__).resolve().parents[2]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0,str(ROOT))
 
 from connect.core import CanonicalEnvelope
 from connect.fabric import ConnectFabric
