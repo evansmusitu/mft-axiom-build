@@ -157,3 +157,14 @@ test('checkpoint and rollback reject tampered Product Compiler IR content even w
     /integrity|hash|sha256|tamper/i,
   );
 });
+
+
+test('checkpoint rejects forged diff impact or operations even when IR hashes match',async()=>{
+  const {prior,next,diff}=await fixture();
+  const forged=structuredClone(diff);
+  forged.impact_node_ids=['lpg_test_1'];
+  await assert.rejects(
+    ()=>createCompilerCheckpoint({projectId,priorIR:prior,nextIR:next,diff:forged,actorId:'agent_builder_1',evidenceRefs:['evidence_source_12345678'],at},services),
+    /diff.*semantic|semantic.*diff|impact.*mismatch|diff.*mismatch/i,
+  );
+});
