@@ -12,6 +12,7 @@ on:
       - 'axiom_interface/vnext/tests/product_intelligence_tree_sitter_code_intelligence.test.mjs'
       - 'axiom_interface/vnext/tests/product_intelligence_openfeature_flag_evaluation.test.mjs'
       - 'axiom_interface/vnext/tests/product_intelligence_openfeature_real_sdk_qualification.mjs'
+      - 'axiom_interface/vnext/tests/product_intelligence_sandbox_backend.test.mjs'
       - 'axiom_interface/vnext/tests/pgvector_vector_index_test_fixture.mjs'
       - 'axiom_interface/vnext/tests/signing_provenance_test_fixture.mjs'
       - '.github/workflows/axiom-product-intelligence-phase2-gate.yml'
@@ -55,6 +56,8 @@ jobs:
         run: node --test axiom_interface/vnext/tests/product_intelligence_tree_sitter_code_intelligence.test.mjs
       - name: Run OpenFeature 1.23.0 AXIOM contracts
         run: node --test axiom_interface/vnext/tests/product_intelligence_openfeature_flag_evaluation.test.mjs
+      - name: Run governed SandboxBackend contracts
+        run: node --test axiom_interface/vnext/tests/product_intelligence_sandbox_backend.test.mjs
 
   independent-replay-and-authority-gate:
     runs-on: ubuntu-24.04
@@ -78,7 +81,8 @@ jobs:
             axiom_interface/vnext/tests/product_intelligence_signing_provenance_signer.test.mjs \
             axiom_interface/vnext/tests/product_intelligence_signing_provenance_verifier.test.mjs \
             axiom_interface/vnext/tests/product_intelligence_tree_sitter_code_intelligence.test.mjs \
-            axiom_interface/vnext/tests/product_intelligence_openfeature_flag_evaluation.test.mjs
+            axiom_interface/vnext/tests/product_intelligence_openfeature_flag_evaluation.test.mjs \
+            axiom_interface/vnext/tests/product_intelligence_sandbox_backend.test.mjs
       - name: Fail closed on provider or release authority escalation
         shell: bash
         run: |
@@ -90,12 +94,14 @@ jobs:
               Path('axiom_interface/vnext/product_intelligence/signing_provenance.js'),
               Path('axiom_interface/vnext/product_intelligence/tree_sitter_code_intelligence.js'),
               Path('axiom_interface/vnext/product_intelligence/openfeature_flag_evaluation.js'),
+              Path('axiom_interface/vnext/product_intelligence/backends/governed_sandbox_backend.js'),
           ]
           required = {
               'pgvector_vector_index_backend.js': ['0.8.6', 'MECHANISM_ONLY'],
               'signing_provenance.js': ['3.1.3', '3.1.0', 'MECHANISM_ONLY'],
               'tree_sitter_code_intelligence.js': ['0.27.0', 'MECHANISM_ONLY'],
               'openfeature_flag_evaluation.js': ['OpenFeature', '1.23.0', 'MECHANISM_ONLY'],
+              'governed_sandbox_backend.js': ['SandboxBackend', 'FA11_S0_S5_V1', 'MECHANISM_ONLY', "external_process_runtime_qualification:'NOT_PROVEN'"],
           }
           for path in files:
               text = path.read_text(encoding='utf-8')
