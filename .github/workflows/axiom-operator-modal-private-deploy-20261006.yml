@@ -280,7 +280,37 @@ jobs:
           PY
 
           URL="$(cat /tmp/operator-url)"
-          curl --retry 8 --retry-delay 2 --retry-all-errors -fsS             -H "Modal-Key: $KEY" -H "Modal-Secret: $SECRET"             "$URL/health" > /tmp/operator-health-after-redeploy.json
+          : > /tmp/operator-health-after-redeploy.json
+          ready=0
+          for attempt in $(seq 1 30); do
+            code="$(curl -sS --connect-timeout 5 --max-time 15               -H "Modal-Key: $KEY" -H "Modal-Secret: $SECRET"               -o /tmp/operator-health-candidate.json -w '%{http_code}'               "$URL/health" || true)"
+            if [ "$code" = "200" ] && python - <<'PY'
+          import json,sys
+          try:
+              x=json.load(open('/tmp/operator-health-candidate.json'))
+          except Exception:
+              sys.exit(1)
+          ok=(
+              x.get('status')=='READY'
+              and x.get('durable_state')=='LOCAL_ATOMIC_STATE_PACK_WITH_FILE_LOCK'
+              and x.get('state_present') is True
+          )
+          sys.exit(0 if ok else 1)
+          PY
+            then
+              cp /tmp/operator-health-candidate.json /tmp/operator-health-after-redeploy.json
+              ready=1
+              break
+            fi
+            echo "operator_redeploy_readiness_attempt=$attempt http=$code"
+            sleep 2
+          done
+          if [ "$ready" != "1" ]; then
+            echo 'Fail-closed: refreshed Operator never returned durable READY state' >&2
+            echo 'last_health_body:' >&2
+            cat /tmp/operator-health-candidate.json >&2 || true
+            exit 1
+          fi
           python - <<'PY'
           import json
           x=json.load(open('/tmp/operator-health-after-redeploy.json'))
@@ -303,7 +333,13 @@ jobs:
             }
           },separators=(',',':')))
           PY
-          curl --retry 8 --retry-delay 2 --retry-all-errors -fsS             -H "Modal-Key: $KEY" -H "Modal-Secret: $SECRET"             -H 'Content-Type: application/json'             -H 'MCP-Protocol-Version: 2026-07-28'             -H 'Mcp-Method: tools/call' -H 'Mcp-Name: axiom.work.status'             --data-binary @/tmp/work-status.json "$URL/mcp" > /tmp/work-status-response.json
+          code="$(curl -sS --connect-timeout 5 --max-time 30             -H "Modal-Key: $KEY" -H "Modal-Secret: $SECRET"             -H 'Content-Type: application/json'             -H 'MCP-Protocol-Version: 2026-07-28'             -H 'Mcp-Method: tools/call' -H 'Mcp-Name: axiom.work.status'             --data-binary @/tmp/work-status.json -o /tmp/work-status-response.json -w '%{http_code}' "$URL/mcp" || true)"
+          if [ "$code" != "200" ]; then
+            echo "Fail-closed: post-redeploy work.status HTTP $code" >&2
+            cat /tmp/work-status-response.json >&2 || true
+            exit 1
+          fi
+          test -s /tmp/work-status-response.json
           python - <<'PY'
           import json,os
           x=json.load(open('/tmp/work-status-response.json'))
