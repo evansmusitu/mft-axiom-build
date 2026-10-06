@@ -148,7 +148,7 @@ jobs:
               'compiler_checkpoint.js': ['PRODUCT_COMPILER_CHECKPOINT_SCHEMA', 'PREPARE_ONLY', 'GOVERNED_WRITE_AUTHORIZATION', 'external_execution_authority:false', 'production_authority:false', "independent_verification:'NOT_PROVEN'"],
               'change_admission.js': ['CHANGE_RISK_MODEL', 'MECHANISM_ONLY', 'builder_may_approve:false', 'external_execution_authority:false', 'production_authority:false', "authority_effect:'ADMISSION_ONLY'"],
               'execution_outcome_reconciliation.js': ['EXECUTION_OUTCOME_VERIFICATION_SCHEMA', 'FA11_BROWSER_LOCAL_EXECUTION_RECEIPT', "authority_effect:'NONE'", 'release_authority:false', 'production_authority:false', 'certification_authority:false'],
-              'execution_store.js': ["status:'FAILED'", 'execution.failed', 'normalizeActionRequest(envelopeRaw,raw)', 'evaluateAuthorization(envelopeRaw,request)', 'QUALIFIED_EXTERNAL_EXECUTOR_REQUIRED', 'network_request_performed:false', 'plaintext_secret_access:false'],
+              'execution_store.js': ["status:'FAILED'", 'execution.failed', 'normalizeActionRequest(envelopeRaw,raw)', 'evaluateAuthorization(envelopeRaw,request)', 'QUALIFIED_EXTERNAL_EXECUTOR_REQUIRED', 'this.inflight', 'multiple terminal execution receipts for one request', 'execution authority envelope changed', "['COMPLETED','FAILED']", 'network_request_performed:false', 'plaintext_secret_access:false'],
           }
           for path in files:
               text = path.read_text(encoding='utf-8')
