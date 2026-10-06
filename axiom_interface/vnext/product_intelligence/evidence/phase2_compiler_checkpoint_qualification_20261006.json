@@ -1,0 +1,133 @@
+{
+  "schema": "musitu.axiom.phase2.compiler-checkpoint-qualification.v1",
+  "recorded_date": "2026-10-06",
+  "source_authority": {
+    "repository": "evansmusitu/mft-axiom-build",
+    "branch": "frontier/axiom-product-intelligence-phase2-20261004",
+    "predecessor_product_compiler_ir_evidence_commit": "e19b716ea09879587a431f588f78b71263060b2f",
+    "final_hardened_head": "f352bacdf32a835c367cdbf3f00b651e71083d58",
+    "implementation_path": "axiom_interface/vnext/product_intelligence/compiler_checkpoint.js",
+    "implementation_git_blob": "881d3b3488f5dbd22ec92f94ffdb75b571ffa3ce",
+    "contract_test_path": "axiom_interface/vnext/tests/product_intelligence_compiler_checkpoint.test.mjs",
+    "contract_test_git_blob": "3bebcd786c4bc2951dffff598f24e912cae6b8f4",
+    "gate_workflow_path": ".github/workflows/axiom-product-intelligence-phase2-gate.yml",
+    "gate_workflow_git_blob": "e26cbf0de01ba863001f9f3d6395ccc878e033f5"
+  },
+  "tdd": {
+    "observed_red_green_behavior_cycles": 7,
+    "cycles": [
+      {
+        "cycle": 1,
+        "red_test_commit": "b25c40cdd6f28f32a05b9e6184590db06d68e386",
+        "gate_commit": "89d61ae0e92f254f5f9fd7c4d1c53a6393028135",
+        "red_run_id": 37431015135,
+        "red_conclusion": "failure",
+        "first_green_candidate": "3d613da64932f03e08b316764b3c5d5a15fdd76c",
+        "first_green_run_id": 37431135197,
+        "first_green_conclusion": "failure",
+        "preserved_intermediate_failure": "cross-project governance error precedence changed to IR hash mismatch",
+        "final_green_commit": "74d9b31b85742a7e6b019c62c683c86821953f12",
+        "final_green_run_id": 37431250418,
+        "final_green_conclusion": "success",
+        "behavior": "reject tampered Product Compiler IR in checkpoint creation and rollback while preserving cross-project error precedence"
+      },
+      {
+        "cycle": 2,
+        "red_commit": "7ca626f89918363f3d04b2e30fe29a236563ea8a",
+        "red_run_id": 37433087571,
+        "green_commit": "4466297cd37026d7c0db035850aaff3b69ec0e4a",
+        "green_run_id": 37433155001,
+        "behavior": "recompute and bind exact compiler diff semantics"
+      },
+      {
+        "cycle": 3,
+        "red_commit": "066a3a4be05b6725fbcde3e16a7975fb90ef4f5a",
+        "red_run_id": 37433300507,
+        "green_commit": "7dcd53ba500d0cbd5ee43dfb1cdd8e9a5ac1b1c5",
+        "green_run_id": 37433381472,
+        "behavior": "reject authority-bearing checkpoint envelope extensions"
+      },
+      {
+        "cycle": 4,
+        "red_commit": "53cbb4f1e255898a0e0168bb6943c71799e9e4e3",
+        "red_run_id": 37433507542,
+        "green_commit": "f394c6759e770c87b8fb26482a92ed769a9bd25f",
+        "green_run_id": 37433611392,
+        "behavior": "enforce exact checkpoint request schema and string identities"
+      },
+      {
+        "cycle": 5,
+        "red_commit": "095db2104fe22ea6e09101e91a6b20078fb0b30a",
+        "red_run_id": 37433823919,
+        "green_commit": "c940a20352f6b2038c4a97c0d59d092d7be88400",
+        "green_run_id": 37433944083,
+        "behavior": "bind attached AXIOM Evidence FA14 Artifact and outcome package to checkpoint receipt"
+      },
+      {
+        "cycle": 6,
+        "red_commit": "53ea51cbc65c5ab87452b3f9998354249b0121e8",
+        "red_run_id": 37434049600,
+        "green_commit": "bbedcd55cbd2c65de8009f89dae4fd671bc6caad",
+        "green_run_id": 37434126893,
+        "behavior": "enforce rollback request schema and actor identity type"
+      },
+      {
+        "cycle": 7,
+        "red_commit": "3ad2c79453bf14400ef52008bdcadd7cf236ebbd",
+        "red_run_id": 37434225623,
+        "green_commit": "f352bacdf32a835c367cdbf3f00b651e71083d58",
+        "green_run_id": 37434310355,
+        "behavior": "reject checkpoint execution authorization at every risk class"
+      }
+    ],
+    "red_runs_observed_as_failure": true,
+    "final_contract_tests": {
+      "total": 12,
+      "pass": 12,
+      "fail": 0
+    },
+    "assertions_weakened_to_pass": false
+  },
+  "independent_verification": {
+    "workflow": "MUSITU Axiom Product Intelligence Phase 2 Gate",
+    "run_id": 37434310355,
+    "head_sha": "f352bacdf32a835c367cdbf3f00b651e71083d58",
+    "conclusion": "success",
+    "focused_contract_job": {
+      "job_id": 112172253748,
+      "conclusion": "success",
+      "compiler_checkpoint_contracts": "PASS_12_OF_12"
+    },
+    "independent_replay_job": {
+      "job_id": 112172316292,
+      "conclusion": "success",
+      "all_frozen_order_tests": "PASS_129_OF_129",
+      "authority_marker": "MUSITU_AXIOM_PHASE2_PROVIDER_AUTHORITY_FAIL_CLOSED_PASS",
+      "slice_marker": "MUSITU_AXIOM_PHASE2_SLICE_VERIFICATION_PASS",
+      "release_authority": false,
+      "production_authority": false,
+      "certification_authority": false
+    }
+  },
+  "qualification": {
+    "reversible_compiler_checkpoint_contract_and_authority_gate": "PASS",
+    "semantic_scope": "CONTENT_BOUND_REVERSIBLE_CHECKPOINT_RECEIPT_AND_PREPARE_ONLY_ROLLBACK",
+    "live_integrated_runtime_qualification": "NOT_PROVEN",
+    "rollback_execution_mode": "PREPARE_ONLY",
+    "required_write_authority": "GOVERNED_WRITE_AUTHORIZATION",
+    "independent_verification_state": "NOT_PROVEN_UNTIL_SEPARATE_VERIFIER",
+    "release_authority": false,
+    "production_authority": false,
+    "certification_authority": false,
+    "production_mutation": false,
+    "frozen_openai_mutation": false,
+    "required_next_gate": "CHANGE_ADMISSION"
+  },
+  "incident_boundary": {
+    "modal_fanout_cleanup": "NOT_PROVEN",
+    "latest_checked_run_id": 37284936693,
+    "latest_checked_job_id": 111795419209,
+    "latest_checked_job_conclusion": "failure",
+    "required_pass_marker_observed": false
+  }
+}
