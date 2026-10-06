@@ -180,3 +180,21 @@ test('checkpoint verification rejects authority-bearing envelope extensions even
     /checkpoint integrity failure/i,
   );
 });
+
+
+test('checkpoint request rejects unknown fields and identity coercion instead of normalizing untrusted control values',async()=>{
+  const {prior,next,diff}=await fixture();
+  const base={projectId,workId:'work_12345678',priorIR:prior,nextIR:next,diff,actorId:'agent_builder_1',evidenceRefs:['evidence_source_12345678'],at};
+  const cases=[
+    {...base,release_authority:true},
+    {...base,actorId:{id:'agent_builder_1'}},
+    {...base,workId:42},
+    {...base,evidenceRefs:[{id:'evidence_source_12345678'}]},
+  ];
+  for(const input of cases){
+    await assert.rejects(
+      ()=>createCompilerCheckpoint(input,services),
+      /unsupported fields|actorId|workId|evidence reference|string|schema/i,
+    );
+  }
+});
