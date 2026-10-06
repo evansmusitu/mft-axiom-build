@@ -1,1 +1,105 @@
-The requested file reference is not currently visible. Use files.search or files.list to rediscover the file, then retry with a returned ref_id or file_id.
+name: MUSITU Delivery OS Phase 1
+
+on:
+  push:
+    branches:
+      - product/musitu-delivery-os-phase1-20261006
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  foundation:
+    name: Pinned OwnFleet foundation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          submodules: recursive
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: delivery-os/vendor/ownfleet/package-lock.json
+      - name: Verify upstream pin
+        run: test "$(git -C delivery-os/vendor/ownfleet rev-parse HEAD)" = "98744125c827b6e5bbe2af384c3ef9308c445ec8"
+      - name: Install foundation dependencies
+        working-directory: delivery-os/vendor/ownfleet
+        run: npm ci
+      - name: Generate Prisma client
+        working-directory: delivery-os/vendor/ownfleet
+        run: npx prisma generate --schema apps/api/prisma/schema.prisma
+      - name: API tests
+        working-directory: delivery-os/vendor/ownfleet
+        run: npm test -w @ownfleet/api -- --runInBand
+      - name: Web tests
+        working-directory: delivery-os/vendor/ownfleet
+        run: npm test -w @ownfleet/web
+      - name: API build
+        working-directory: delivery-os/vendor/ownfleet
+        run: npm run build -w @ownfleet/api
+      - name: Web build
+        working-directory: delivery-os/vendor/ownfleet
+        run: npm run build -w @ownfleet/web
+
+  musitu-core:
+    name: MUSITU overlay core
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          submodules: recursive
+      - name: Expand Phase-1 source
+        run: tar -xzf delivery-os/phase1-src.tar.gz -C .
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Verify source checksum
+        working-directory: delivery-os
+        run: sha256sum -c PHASE1_SOURCE_SHA256.txt
+      - name: Verify pinned OwnFleet foundation
+        run: test "$(git -C delivery-os/vendor/ownfleet rev-parse HEAD)" = "98744125c827b6e5bbe2af384c3ef9308c445ec8"
+      - name: Core tests and structure gate
+        working-directory: delivery-os
+        run: npm run verify
+
+  android:
+    name: Flutter Android release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          submodules: recursive
+      - name: Expand Phase-1 source
+        run: tar -xzf delivery-os/phase1-src.tar.gz -C .
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - name: Create Android platform scaffold
+        working-directory: delivery-os/driver_flutter
+        run: |
+          flutter create --platforms=android --org com.musitu --project-name musitu_driver .
+          ../scripts/configure_android.sh
+      - name: Dependencies
+        working-directory: delivery-os/driver_flutter
+        run: flutter pub get
+      - name: Analyze
+        working-directory: delivery-os/driver_flutter
+        run: flutter analyze
+      - name: Test
+        working-directory: delivery-os/driver_flutter
+        run: flutter test
+      - name: Build release APK
+        working-directory: delivery-os/driver_flutter
+        run: flutter build apk --release --dart-define=MUSITU_API_URL=https://delivery-api.invalid
+      - uses: actions/upload-artifact@v4
+        with:
+          name: musitu-driver-phase1-apk
+          path: delivery-os/driver_flutter/build/app/outputs/flutter-apk/app-release.apk
+          if-no-files-found: error
