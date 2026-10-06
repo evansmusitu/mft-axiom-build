@@ -1,6 +1,11 @@
 name: MUSITU Axiom Operator Modal Private Deploy 20261006
 
 on:
+  push:
+    branches:
+      - frontier/axiom-operator-bridge-20261006
+    paths:
+      - '.github/workflows/axiom-operator-modal-private-deploy-20261006.yml'
   workflow_dispatch:
 
 permissions:
