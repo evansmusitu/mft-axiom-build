@@ -22,6 +22,11 @@ test('deployment renderer accepts only controlled domains, opaque ownership and 
   assert.equal(parsed.vars.TURNSTILE_SITE_KEY, '0x4AAAAAAAAAAAAAAAAAAAAAA');
   assert.equal(parsed.vars.SUPPORT_INDEPENDENT_APPROVER_REF, 'approver_support_87654321');
   assert.equal(parsed.services, undefined);
+  assert.deepEqual(parsed.ratelimits, [{
+    name: 'SUPPORT_INTAKE_RATE_LIMITER',
+    namespace_id: '910051',
+    simple: {limit: 60, period: 60},
+  }]);
   assert.doesNotMatch(rendered, /SUPPORT_DATA_KEY_B64/);
   assert.doesNotMatch(rendered, /TURNSTILE_SECRET_KEY/);
 });

@@ -18,6 +18,16 @@
       "database_id": "__D1_DATABASE_ID__"
     }
   ],
+  "ratelimits": [
+    {
+      "name": "SUPPORT_INTAKE_RATE_LIMITER",
+      "namespace_id": "910051",
+      "simple": {
+        "limit": 60,
+        "period": 60
+      }
+    }
+  ],
   "vars": {
     "ENVIRONMENT": "production",
     "SUPPORT_DOMAIN": "__SUPPORT_DOMAIN__",

@@ -39,6 +39,17 @@ async function abuseAllowed(token, env) {
   });
 }
 
+async function intakeRateState(env) {
+  const limiter = env.SUPPORT_INTAKE_RATE_LIMITER;
+  if (!limiter || typeof limiter.limit !== 'function') return env.ENVIRONMENT === 'production' ? 'UNAVAILABLE' : 'ALLOW';
+  try {
+    const result = await limiter.limit({key: 'support-case-create'});
+    return result?.success === true ? 'ALLOW' : 'LIMIT';
+  } catch {
+    return env.ENVIRONMENT === 'production' ? 'UNAVAILABLE' : 'ALLOW';
+  }
+}
+
 async function storeFor(env) {
   if (!env.SUPPORT_DB || !env.SUPPORT_DATA_KEY_B64) throw new DOMException('secure support storage is not configured', 'InvalidStateError');
   if (env.ENVIRONMENT === 'production' && (!env.SUPPORT_HUMAN_OWNER_REF || !env.SUPPORT_INDEPENDENT_APPROVER_REF || env.SUPPORT_HUMAN_OWNER_REF === env.SUPPORT_INDEPENDENT_APPROVER_REF || !HASH.test(String(env.SUPPORT_READINESS_SHA256 || '')))) {
@@ -59,10 +70,12 @@ export async function handleSupportRequest(request, env = {}) {
   if (request.method === 'GET' && url.pathname === '/health') {
     const production = env.ENVIRONMENT === 'production';
     const turnstile = Boolean(env.TURNSTILE_SITE_KEY && env.TURNSTILE_SECRET_KEY && env.SUPPORT_DOMAIN);
+    const rateLimiter = Boolean(env.SUPPORT_INTAKE_RATE_LIMITER && typeof env.SUPPORT_INTAKE_RATE_LIMITER.limit === 'function');
     const humanOwner = Boolean(env.SUPPORT_HUMAN_OWNER_REF);
     const independentApprover = Boolean(env.SUPPORT_INDEPENDENT_APPROVER_REF && env.SUPPORT_INDEPENDENT_APPROVER_REF !== env.SUPPORT_HUMAN_OWNER_REF);
-    const ready = Boolean(env.SUPPORT_DB && env.SUPPORT_DATA_KEY_B64 && (turnstile || !production) && (!production || (humanOwner && independentApprover && HASH.test(String(env.SUPPORT_READINESS_SHA256 || '')))));
-    return json({schema: 'musitu.axiom.support-health.v1', status: ready ? 'READY' : 'NOT_READY', secure_storage: Boolean(env.SUPPORT_DB && env.SUPPORT_DATA_KEY_B64), abuse_gate: turnstile, turnstile, human_owner: humanOwner, independent_approver: independentApprover, readiness_evidence: HASH.test(String(env.SUPPORT_READINESS_SHA256 || '')), production}, ready ? 200 : 503);
+    const abuseGate = turnstile && rateLimiter;
+    const ready = Boolean(env.SUPPORT_DB && env.SUPPORT_DATA_KEY_B64 && (abuseGate || !production) && (!production || (humanOwner && independentApprover && HASH.test(String(env.SUPPORT_READINESS_SHA256 || '')))));
+    return json({schema: 'musitu.axiom.support-health.v1', status: ready ? 'READY' : 'NOT_READY', secure_storage: Boolean(env.SUPPORT_DB && env.SUPPORT_DATA_KEY_B64), abuse_gate: abuseGate, turnstile, rate_limiter: rateLimiter, human_owner: humanOwner, independent_approver: independentApprover, readiness_evidence: HASH.test(String(env.SUPPORT_READINESS_SHA256 || '')), production}, ready ? 200 : 503);
   }
   if (request.method === 'GET' && url.pathname === '/api/v1/config') {
     return json({schema: 'musitu.axiom.support-browser-config.v1', turnstile_sitekey: String(env.TURNSTILE_SITE_KEY || ''), turnstile_action: 'support_case_create'});
@@ -71,6 +84,9 @@ export async function handleSupportRequest(request, env = {}) {
     return json({schema: 'musitu.axiom.support-catalog.v1', case_creation: '/api/v1/cases', authentication: 'one-time recovery code shown only at creation; send as Authorization: Support <code>', secrets_policy: 'credentials, tokens, passwords, cookies and payment card numbers are rejected before storage'});
   }
   if (request.method === 'POST' && url.pathname === '/api/v1/cases') {
+    const rateState = await intakeRateState(env);
+    if (rateState === 'UNAVAILABLE') return json({error: 'SERVICE_NOT_READY', message: 'Support intake protection is temporarily unavailable. No case was stored.'}, 503);
+    if (rateState === 'LIMIT') return json({error: 'RATE_LIMITED', message: 'Too many support intake attempts. Try again later.'}, 429, {'retry-after': '60'});
     const body = await readJson(request);
     if (!body || Array.isArray(body) || typeof body !== 'object') throw new TypeError('intake must be an object');
     const {turnstile_token: token, ...intake} = body;
