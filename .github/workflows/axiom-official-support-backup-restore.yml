@@ -1,0 +1,49 @@
+name: MUSITU Axiom Support Backup Restore Verification
+
+on:
+  push:
+    branches:
+      - 'support/axiom-official-support-20261005'
+    paths:
+      - 'support/scripts/verify_d1_backup_restore.mjs'
+      - 'support/tests/d1_backup_restore.test.mjs'
+      - '.github/workflows/axiom-official-support-backup-restore.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: musitu-axiom-support-backup-restore
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    if: github.ref_name == 'support/axiom-official-support-20261005'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: axiom-support-production
+    env:
+      SUPPORT_BACKUP_RESTORE_CONFIRM: VERIFY_MUSITU_AXIOM_SUPPORT_BACKUP_RESTORE
+      CLOUDFLARE_ACCOUNT_ID: '93f395f5121954671f92fffa453d6b61'
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Exact isolated branch gate
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF_NAME" = 'support/axiom-official-support-20261005'
+          test "$GITHUB_REF_NAME" != 'main'
+      - name: Focused backup restore contract
+        run: node --test support/tests/d1_backup_restore.test.mjs
+      - name: Exercise isolated Cloudflare D1 Time Travel restore
+        run: node support/scripts/verify_d1_backup_restore.mjs
+      - name: Publish sanitized result
+        shell: bash
+        run: |
+          set -euo pipefail
+          node -e 'const e=require("./support-backup-restore-evidence.json"); const h=require("node:fs").readFileSync("./support-backup-restore-evidence.json.sha256","utf8").split(" ")[0]; process.stdout.write(JSON.stringify({gate:e.gate,status:e.status,synthetic_seed_restored:e.synthetic_seed_restored,temporary_database_deleted:e.temporary_database_deleted,production_support_database_modified:e.production_support_database_modified,evidence_sha256:h})+"\n")'
+          rm support-backup-restore-evidence.json support-backup-restore-evidence.json.sha256
