@@ -1,0 +1,150 @@
+{
+  "schema": "musitu.axiom.phase2.objective-outcome-compiler-qualification.v1",
+  "recorded_date": "2026-10-06",
+  "source_authority": {
+    "repository": "evansmusitu/mft-axiom-build",
+    "branch": "frontier/axiom-product-intelligence-phase2-20261004",
+    "predecessor_living_product_graph_evidence_commit": "f5fa01319e795fa17a20f306e8d7419e1658b841",
+    "final_hardened_head": "59b857b4b67e7f0fabe9beae51bedabc61c6985b",
+    "implementation_path": "axiom_interface/vnext/product_intelligence/objective_outcome_compiler.js",
+    "implementation_git_blob": "e2912b816446f9bcefcc44a20c222a818ab9b2a3",
+    "contract_test_path": "axiom_interface/vnext/tests/product_intelligence_objective_outcome_compiler.test.mjs",
+    "contract_test_git_blob": "4b16ebba64a39798218514624f2e48fecc074ef7",
+    "gate_workflow_path": ".github/workflows/axiom-product-intelligence-phase2-gate.yml",
+    "gate_workflow_git_blob": "7e174f82881716815d750203a50f0b6916476cd8"
+  },
+  "tdd": {
+    "observed_red_green_behavior_cycles": 10,
+    "cycles": [
+      {
+        "cycle": 1,
+        "red_test_commit": "3e6006fb81fa1c5d31b66bf724b84944ee80ba57",
+        "gate_commit": "19a6d35949ad554a0ab0a59cdc12db156bd02799",
+        "red_run_id": 37423846115,
+        "red_conclusion": "failure",
+        "green_commit": "628c4aef621f1df016e7961fb0d7978becbb09ba",
+        "green_run_id": 37423926669,
+        "green_conclusion": "success",
+        "behavior": "reject unknown Outcome Contract fields"
+      },
+      {
+        "cycle": 2,
+        "red_commit": "08333b56445a1e7108844f46720ca7792290b63f",
+        "red_run_id": 37424056004,
+        "green_commit": "146c25263363a304c69f5e846e9e0daee956c560",
+        "green_run_id": 37424193572,
+        "behavior": "reject malformed success criteria"
+      },
+      {
+        "cycle": 3,
+        "red_commit": "26a58eb14dd63899b4bfdffd4e075a97eab84dde",
+        "red_run_id": 37424310680,
+        "green_commit": "74752f88a1a72ab3541d8761ad2f3b3a16154e39",
+        "green_run_id": 37424388870,
+        "behavior": "reject unknown Outcome Contract constraints"
+      },
+      {
+        "cycle": 4,
+        "red_commit": "1c304b3d9ca67e1aeee561faa51a4f0f03efbbe4",
+        "red_run_id": 37424501495,
+        "green_commit": "819e7537af094c81c62ff7e28a412a25a09190d1",
+        "green_run_id": 37424574872,
+        "behavior": "reject structured constraint values"
+      },
+      {
+        "cycle": 5,
+        "red_commit": "66851475903f34994886fd7ec30dd7db20ae6d5b",
+        "red_run_id": 37424672068,
+        "green_commit": "17a750ff2e86dfc751f01f065f8bde27e35e9387",
+        "green_run_id": 37424738796,
+        "behavior": "reject authority-bearing approval fields"
+      },
+      {
+        "cycle": 6,
+        "red_commit": "c3ba4e6ecf512a575164f7f907619567e5283ffa",
+        "red_run_id": 37424864857,
+        "green_commit": "b2a485d70b3271088cfca33eb3e1ffa10bababb9",
+        "green_run_id": 37424950011,
+        "behavior": "require approval receipt identities"
+      },
+      {
+        "cycle": 7,
+        "red_commit": "ab331b50d48485677369f786f00dff41500e3f64",
+        "red_run_id": 37425040304,
+        "green_commit": "3aaef3e444c252652b112c9e6cb7dcc9ff065578",
+        "green_run_id": 37425137332,
+        "behavior": "reject unsafe approval provenance"
+      },
+      {
+        "cycle": 8,
+        "red_commit": "dabc88fb07c2d69e1262e0fa0a7f8c4ca2374c8c",
+        "red_run_id": 37425221067,
+        "green_commit": "ad5e92dc8bde6bd35ea83b461332126791e41c1e",
+        "green_run_id": 37425294727,
+        "behavior": "freeze preview-only execution boundary"
+      },
+      {
+        "cycle": 9,
+        "red_commit": "bdb40bc094856d186b4e3316679e4cca1e2ca639",
+        "red_run_id": 37425377303,
+        "green_commit": "0383a1fa097aac0c85b747ec14fdab918860aa31",
+        "green_run_id": 37425487774,
+        "behavior": "enforce governed Outcome Contract vocabularies"
+      },
+      {
+        "cycle": 10,
+        "red_commit": "8125a82bc5f846a111f9b5e577fc6c59de7efacd",
+        "red_run_id": 37425578321,
+        "green_commit": "59b857b4b67e7f0fabe9beae51bedabc61c6985b",
+        "green_run_id": 37425676168,
+        "behavior": "reject unknown or authority-bearing Project compiler fields"
+      }
+    ],
+    "final_contract_tests": {
+      "total": 15,
+      "pass": 15,
+      "fail": 0
+    },
+    "assertions_weakened_to_pass": false
+  },
+  "independent_verification": {
+    "workflow": "MUSITU Axiom Product Intelligence Phase 2 Gate",
+    "run_id": 37425676168,
+    "head_sha": "59b857b4b67e7f0fabe9beae51bedabc61c6985b",
+    "conclusion": "success",
+    "focused_contract_job": {
+      "job_id": 112144643001,
+      "conclusion": "success",
+      "objective_outcome_contracts": "PASS_15_OF_15"
+    },
+    "independent_replay_job": {
+      "job_id": 112144696728,
+      "conclusion": "success",
+      "all_frozen_order_tests": "PASS_101_OF_101",
+      "authority_marker": "MUSITU_AXIOM_PHASE2_PROVIDER_AUTHORITY_FAIL_CLOSED_PASS",
+      "slice_marker": "MUSITU_AXIOM_PHASE2_SLICE_VERIFICATION_PASS",
+      "release_authority": false,
+      "production_authority": false,
+      "certification_authority": false
+    }
+  },
+  "qualification": {
+    "objective_outcome_compiler_contract_and_authority_gate": "PASS",
+    "live_integrated_runtime_qualification": "NOT_PROVEN",
+    "external_execution_authority": false,
+    "canonical_evidence_authority": false,
+    "release_authority": false,
+    "production_authority": false,
+    "certification_authority": false,
+    "production_mutation": false,
+    "frozen_openai_mutation": false,
+    "required_next_gate": "PRODUCT_COMPILER_IR"
+  },
+  "incident_boundary": {
+    "modal_fanout_cleanup": "NOT_PROVEN",
+    "latest_checked_run_id": 37284936693,
+    "latest_checked_job_id": 111795419209,
+    "latest_checked_job_conclusion": "failure",
+    "required_pass_marker_observed": false
+  }
+}
