@@ -232,7 +232,7 @@ export async function migrateEmailRouting({env = process.env, fetchImpl = fetch,
   const destination = String(env.SUPPORT_MAILBOX_DESTINATION || '').trim().toLowerCase();
   if (!EMAIL.test(destination)) throw new Error('approved support mailbox destination is invalid');
 
-  const credential = await selectCloudflareCredential({fetchImpl, env, preferGlobal: true});
+  const credential = await selectCloudflareCredential({fetchImpl, env});
   const destinationState = await readDestination({fetchImpl, headers: credential.headers, destination});
   if (destinationState.matchCount !== 1 || !destinationState.verified) throw new Error('approved support destination is not verified');
   const catchAll = await readCatchAll({fetchImpl, headers: credential.headers});
