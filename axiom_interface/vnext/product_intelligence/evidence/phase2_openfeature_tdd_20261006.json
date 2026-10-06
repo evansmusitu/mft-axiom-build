@@ -1,0 +1,25 @@
+{
+  "schema": "musitu.axiom.phase2.openfeature-tdd-evidence.v1",
+  "generated_at": "2026-10-06T03:48:16.233865Z",
+  "implementation_sha256": "04208f12040ef29be80a3b3264eed7caa684e29ffd38ea97a555c66e0458d2fd",
+  "contract_test_sha256": "e9622c40d7fe6659df7b3502b5afad9c3f09dcd6424fcb7961ef479cc83258a7",
+  "cycles": [
+    {"cycle":1,"red_sha256":"8fabf0e527a54703dd08e0cff43766f7888ff2f96f7eb407923eb63a85c732e3","green_sha256":"6332cd12d002e8569c549a12d76d67e17e06efc34648fddf658e5f8ca6d1a564","red_observed":true,"green_pass":true},
+    {"cycle":2,"red_sha256":"bdf8387343d9de55e2e2c1fc04872674d2aa6cb81f9ae38b9849aebaff9bd6a3","green_sha256":"249f1077607bb2d7e62bf70e6f367f78da1325d8587550c0114d19170a9e9f9a7","red_observed":true,"green_pass":true},
+    {"cycle":3,"red_sha256":"f4c3f74925fa3a160b69d9deeed75ddb6c379e370cd38551ef6c2c2f09e9f1e1","green_sha256":"e21f970f4c62dc07668bcc7386682c0b06e202b72c3743628701568b58ca84a0","red_observed":true,"green_pass":true},
+    {"cycle":4,"red_sha256":"fd03aedcc5777e69c0af4c84458f97f4b468940151c09707cc7c06b21d13734f","green_sha256":"35bd8b76596aa00593ecb681987d395ea425d3b27f6948e484d5a4f00d36ba50","red_observed":true,"green_pass":true},
+    {"cycle":5,"red_sha256":"c2befff783e411b651b2f483581c88a92677fe41d83b072835987f3204a26caf","green_sha256":"f404301610525d9790d7e7041f2869820521f9294c2ec651ad9a2cacec6ec15a","red_observed":true,"green_pass":true},
+    {"cycle":6,"red_sha256":"43a06b6e551402ef279908695da2dd1ddc0f6dfe562e3562111d4ecd396caa34","green_sha256":"f1813dcde05b63f09766553b16ee2b8226483eb9df848c13fad23c5dbc3a2c42","red_observed":true,"green_pass":true},
+    {"cycle":7,"red_sha256":"28a11c90e3eaab3c8c3f6bac3ec1d47cd23afbb40849cb90265a018e8d4151cd","green_sha256":"2f13562749761439884ab8f26b0238b4e5f14b19f23ab597f7f5b831cf9fefb2","red_observed":true,"green_pass":true},
+    {"cycle":8,"red_sha256":"bea9b0385a0275c9cb8089cbb5c0ee6adad8e3a9b28fa351f639225bbb4a6401","green_sha256":"c44eaf1c1d5702ab87c584a208c06c3796c788b55bd26c4348633f94b7349a54","red_observed":true,"green_pass":true},
+    {"cycle":9,"red_sha256":"61107f5f728d7501a38fc882deec2be087ab4de330f5f365697cc195e8784736","green_sha256":"53b2b675f5b86173a3a9088082857af2c8b0638a25888bb8958de64c9ddcba08","red_observed":true,"green_pass":true},
+    {"cycle":10,"red_sha256":"f0ba3250fb82e16d2db0e6b5865aab1617487a5f85379c3614a695510e07a0ea","green_sha256":"a94ed941742663a652d7c7401e1b6b05abdaad5a740087f8c847739b0267e812","red_observed":true,"green_pass":true}
+  ],
+  "final_contract_tests": {"total": 10, "pass": 10, "fail": 0},
+  "builder_state": "TDD_CONTRACT_IMPLEMENTED",
+  "independent_mechanism_qualification": "NOT_PROVEN",
+  "live_integrated_runtime_qualification": "NOT_PROVEN",
+  "production_mutation": false,
+  "frozen_openai_mutation": false,
+  "note": "The local exact-SDK npm install attempt timed out before installation; it is not qualification evidence."
+}
