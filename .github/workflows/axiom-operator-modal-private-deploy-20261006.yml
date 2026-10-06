@@ -280,73 +280,109 @@ jobs:
           PY
 
           URL="$(cat /tmp/operator-url)"
-          : > /tmp/operator-health-after-redeploy.json
-          ready=0
-          for attempt in $(seq 1 30); do
-            code="$(curl -sS --connect-timeout 5 --max-time 15               -H "Modal-Key: $KEY" -H "Modal-Secret: $SECRET"               -o /tmp/operator-health-candidate.json -w '%{http_code}'               "$URL/health" || true)"
-            if [ "$code" = "200" ] && python - <<'PY'
-          import json,sys
-          try:
-              x=json.load(open('/tmp/operator-health-candidate.json'))
-          except Exception:
-              sys.exit(1)
-          ok=(
-              x.get('status')=='READY'
-              and x.get('durable_state')=='LOCAL_ATOMIC_STATE_PACK_WITH_FILE_LOCK'
-              and x.get('state_present') is True
-          )
-          sys.exit(0 if ok else 1)
-          PY
-            then
-              cp /tmp/operator-health-candidate.json /tmp/operator-health-after-redeploy.json
-              ready=1
-              break
-            fi
-            echo "operator_redeploy_readiness_attempt=$attempt http=$code"
-            sleep 2
-          done
-          if [ "$ready" != "1" ]; then
-            echo 'Fail-closed: refreshed Operator never returned durable READY state' >&2
-            echo 'last_health_body:' >&2
-            cat /tmp/operator-health-candidate.json >&2 || true
-            exit 1
-          fi
-          python - <<'PY'
-          import json
-          x=json.load(open('/tmp/operator-health-after-redeploy.json'))
-          assert x['status']=='READY'
-          assert x['durable_state']=='LOCAL_ATOMIC_STATE_PACK_WITH_FILE_LOCK'
-          assert x['state_present'] is True
-          print('operator_refreshed_endpoint_health_and_state=PASS')
-          PY
-
           PLAN_ID="$(cat /tmp/plan-id)"
-          export PLAN_ID
-          python - <<'PY' > /tmp/work-status.json
-          import json,os
-          print(json.dumps({
-            'jsonrpc':'2.0','id':'work-status','method':'tools/call',
-            'params':{
-              'name':'axiom.work.status',
-              'arguments':{'project_id':os.environ['PROJECT'],'plan_id':os.environ['PLAN_ID']},
-              '_meta':{'io.modelcontextprotocol/protocolVersion':'2026-07-28'}
-            }
-          },separators=(',',':')))
-          PY
-          code="$(curl -sS --connect-timeout 5 --max-time 30             -H "Modal-Key: $KEY" -H "Modal-Secret: $SECRET"             -H 'Content-Type: application/json'             -H 'MCP-Protocol-Version: 2026-07-28'             -H 'Mcp-Method: tools/call' -H 'Mcp-Name: axiom.work.status'             --data-binary @/tmp/work-status.json -o /tmp/work-status-response.json -w '%{http_code}' "$URL/mcp" || true)"
-          if [ "$code" != "200" ]; then
-            echo "Fail-closed: post-redeploy work.status HTTP $code" >&2
-            cat /tmp/work-status-response.json >&2 || true
-            exit 1
-          fi
-          test -s /tmp/work-status-response.json
+          export URL KEY SECRET PLAN_ID PROJECT
           python - <<'PY'
-          import json,os
-          x=json.load(open('/tmp/work-status-response.json'))
-          r=x['result']
-          assert r['project_id']==os.environ['PROJECT']
-          assert r['plan']['plan_id']==os.environ['PLAN_ID']
-          assert any(n['node_id']=='verify' for n in r['plan']['nodes'])
+          import json,os,sys,time
+          from urllib.error import HTTPError, URLError
+          from urllib.request import Request, urlopen
+
+          base=os.environ['URL'].rstrip('/')
+          key=os.environ['KEY']
+          secret=os.environ['SECRET']
+          project=os.environ['PROJECT']
+          plan_id=os.environ['PLAN_ID']
+
+          def request_json(path, *, method='GET', payload=None, extra_headers=None, timeout=20):
+              headers={'Modal-Key':key,'Modal-Secret':secret}
+              if extra_headers:
+                  headers.update(extra_headers)
+              data=None
+              if payload is not None:
+                  data=json.dumps(payload,separators=(',',':')).encode('utf-8')
+                  headers.setdefault('Content-Type','application/json')
+              req=Request(base+path,data=data,headers=headers,method=method)
+              try:
+                  with urlopen(req,timeout=timeout) as resp:
+                      raw=resp.read()
+                      status=resp.status
+              except HTTPError as exc:
+                  raw=exc.read()
+                  status=exc.code
+              except URLError as exc:
+                  return 0,{'transport_error':str(exc)}
+              except Exception as exc:
+                  return 0,{'transport_error':f'{type(exc).__name__}: {exc}'}
+              if not raw:
+                  return status,{'decode_error':'empty response body'}
+              try:
+                  return status,json.loads(raw.decode('utf-8'))
+              except Exception as exc:
+                  return status,{
+                      'decode_error':f'{type(exc).__name__}: {exc}',
+                      'body_preview':raw[:500].decode('utf-8','replace'),
+                  }
+
+          health=None
+          for attempt in range(1,31):
+              status,body=request_json('/health',timeout=15)
+              ok=(
+                  status==200
+                  and isinstance(body,dict)
+                  and body.get('status')=='READY'
+                  and body.get('durable_state')=='LOCAL_ATOMIC_STATE_PACK_WITH_FILE_LOCK'
+                  and body.get('state_present') is True
+              )
+              if ok:
+                  health=body
+                  print('operator_refreshed_endpoint_health_and_state=PASS')
+                  break
+              print(
+                  'operator_redeploy_readiness_attempt='
+                  +str(attempt)
+                  +' http='+str(status)
+                  +' body='+json.dumps(body,sort_keys=True)[:700]
+              )
+              time.sleep(2)
+          if health is None:
+              raise SystemExit('Fail-closed: refreshed Operator never returned durable READY state')
+
+          message={
+              'jsonrpc':'2.0',
+              'id':'work-status',
+              'method':'tools/call',
+              'params':{
+                  'name':'axiom.work.status',
+                  'arguments':{'project_id':project,'plan_id':plan_id},
+                  '_meta':{'io.modelcontextprotocol/protocolVersion':'2026-07-28'},
+              },
+          }
+          status,body=request_json(
+              '/mcp',
+              method='POST',
+              payload=message,
+              extra_headers={
+                  'MCP-Protocol-Version':'2026-07-28',
+                  'Mcp-Method':'tools/call',
+                  'Mcp-Name':'axiom.work.status',
+              },
+              timeout=30,
+          )
+          if status!=200:
+              raise SystemExit(
+                  'Fail-closed: post-redeploy work.status HTTP '
+                  +str(status)+' body='+json.dumps(body,sort_keys=True)[:1200]
+              )
+          result=body.get('result') if isinstance(body,dict) else None
+          if not isinstance(result,dict):
+              raise SystemExit('Fail-closed: post-redeploy work.status missing result: '+repr(body))
+          if result.get('project_id')!=project:
+              raise SystemExit('Fail-closed: post-redeploy project mismatch')
+          plan=result.get('plan')
+          if not isinstance(plan,dict) or plan.get('plan_id')!=plan_id:
+              raise SystemExit('Fail-closed: post-redeploy plan mismatch')
+          if not any(isinstance(n,dict) and n.get('node_id')=='verify' for n in plan.get('nodes',[])):
+              raise SystemExit('Fail-closed: post-redeploy Work node missing')
           print('operator_volume_redeploy_durability=PASS')
           PY
 
