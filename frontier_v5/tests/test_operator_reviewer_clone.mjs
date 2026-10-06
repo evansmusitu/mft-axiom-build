@@ -44,6 +44,11 @@ assert.match(d,/Sec-Fetch-Site/);
 assert.match(d,/probe_modal_runtime/);
 assert.match(d,/MODAL_AUTH_MODE/);
 
+const modalProxy="reviewer_clone/modal_operator_reviewer_proxy.py";
+const mp=fs.readFileSync(modalProxy,"utf8");
+assert.doesNotMatch(mp,/from __future__ import annotations/);
+assert.match(mp,/request: Request/);
+
 
 const gateModule=await import("../../reviewer_clone/musitu_axiom_operator_reviewer_gate.mjs?contract="+Date.now());
 const issuer="https://issuer.example";
