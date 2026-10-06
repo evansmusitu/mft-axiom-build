@@ -22,6 +22,19 @@ jobs:
       CF_TOKEN_DEFAULT: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       TEST_SUBJECT: 'MUSITU Axiom Support Routing Verification 978776fb'
     steps:
+      - name: Read public MX from Google and Cloudflare resolvers
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json, subprocess
+          out={}
+          for label,server in [('google','8.8.8.8'),('cloudflare','1.1.1.1')]:
+              p=subprocess.run(['dig','@'+server,'mftintelligence.com','MX','+short'],capture_output=True,text=True,timeout=20)
+              rows=sorted(x.strip() for x in p.stdout.splitlines() if x.strip())
+              out[label]={'ok':p.returncode==0,'mx':rows}
+          print(json.dumps({'gate':'MUSITU_AXIOM_SUPPORT_PUBLIC_MX_OBSERVED','resolvers':out,'write_performed':False},sort_keys=True))
+          PY
       - name: Query Cloudflare Email Routing activity read-only
         shell: bash
         run: |
