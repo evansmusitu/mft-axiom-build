@@ -5,6 +5,10 @@ export const PRODUCT_COMPILER_RECONCILIATION_SCHEMA='musitu.axiom.product-compil
 export const PRODUCT_COMPILER_INFERENCE_SCHEMA='musitu.axiom.product-compiler-inference.v1';
 
 const HASH=/^[a-f0-9]{64}$/i;
+const IR_KEYS=new Set(['schema','project_id','source_lpg_generation','source_impact_state','compiler_version','units','relations','bindings','round_trip_policy','unbound_change_policy','incremental_policy','ir_sha256']);
+const IR_UNIT_KEYS=new Set(['node_id','type','data','provenance','evidence_refs','confidence','uncertainty','risk_class','content_hash','supersession','unit_sha256']);
+const IR_RELATION_KEYS=new Set(['edge_id','from_id','to_id','relation','causal_semantics','provenance','evidence_refs','confidence','uncertainty','risk_class','content_hash','supersession','relation_sha256']);
+const IR_BINDING_KEYS=new Set(['binding_id','node_id','region','external_sha256','authority']);
 const BINDING_KEYS=new Set(['binding_id','node_id','region','external_sha256']);
 const OBSERVED_BINDING_KEYS=new Set(['binding_id','external_sha256']);
 const OBSERVATION_KEYS=new Set(['observation_id','type','data','source','confidence']);
@@ -41,8 +45,15 @@ async function sha256(value){
 function uniqueSorted(values){return [...new Set(values)].sort();}
 function assertCompilerIR(ir,label='compiler IR'){
   if(!isPlainObject(ir)||ir.schema!==PRODUCT_COMPILER_IR_SCHEMA) throw new TypeError(`${label} must be ${PRODUCT_COMPILER_IR_SCHEMA}`);
+  rejectUnknownKeys(ir,IR_KEYS,label);
   if(typeof ir.project_id!=='string'||!ir.project_id) throw new TypeError(`${label} project_id required`);
+  if(!Number.isInteger(ir.source_lpg_generation)||ir.source_lpg_generation<1) throw new TypeError(`${label} source_lpg_generation must be a positive integer`);
+  if(!['COMPUTED','NOT_PROVEN'].includes(ir.source_impact_state)) throw new TypeError(`${label} source_impact_state invalid`);
+  if(typeof ir.compiler_version!=='string'||!ir.compiler_version) throw new TypeError(`${label} compiler_version required`);
   if(!Array.isArray(ir.units)||!Array.isArray(ir.relations)||!Array.isArray(ir.bindings)) throw new TypeError(`${label} units, relations and bindings required`);
+  if(ir.round_trip_policy!=='DECLARED_BINDINGS_ONLY') throw new DOMException(`${label} round_trip_policy must remain DECLARED_BINDINGS_ONLY`,'SecurityError');
+  if(ir.unbound_change_policy!=='DIFF_REQUIRES_RECONCILIATION') throw new DOMException(`${label} unbound_change_policy must remain DIFF_REQUIRES_RECONCILIATION`,'SecurityError');
+  if(ir.incremental_policy!=='CONTENT_ADDRESSED_IMPACT_SET') throw new DOMException(`${label} incremental_policy must remain CONTENT_ADDRESSED_IMPACT_SET`,'SecurityError');
   if(typeof ir.ir_sha256!=='string'||!HASH.test(ir.ir_sha256)) throw new TypeError(`${label} ir_sha256 required`);
   return ir;
 }
@@ -50,13 +61,20 @@ async function assertCompilerIRIntegrity(ir,label='compiler IR'){
   assertCompilerIR(ir,label);
   for(const [index,unit] of ir.units.entries()){
     if(!isPlainObject(unit)||typeof unit.unit_sha256!=='string'||!HASH.test(unit.unit_sha256)) throw new TypeError(`${label} unit[${index}] unit_sha256 required`);
+    rejectUnknownKeys(unit,IR_UNIT_KEYS,`${label} unit[${index}]`);
     const {unit_sha256,...body}=unit;
     if(await sha256(body)!==unit_sha256) throw new DOMException(`${label} unit[${index}] integrity hash mismatch`,'DataError');
   }
   for(const [index,relation] of ir.relations.entries()){
     if(!isPlainObject(relation)||typeof relation.relation_sha256!=='string'||!HASH.test(relation.relation_sha256)) throw new TypeError(`${label} relation[${index}] relation_sha256 required`);
+    rejectUnknownKeys(relation,IR_RELATION_KEYS,`${label} relation[${index}]`);
     const {relation_sha256,...body}=relation;
     if(await sha256(body)!==relation_sha256) throw new DOMException(`${label} relation[${index}] integrity hash mismatch`,'DataError');
+  }
+  for(const [index,binding] of ir.bindings.entries()){
+    if(!isPlainObject(binding)) throw new TypeError(`${label} binding[${index}] must be a plain object`);
+    rejectUnknownKeys(binding,IR_BINDING_KEYS,`${label} binding[${index}]`);
+    if(binding.authority!=='DECLARED_BINDING') throw new DOMException(`${label} binding[${index}] authority must remain DECLARED_BINDING`,'SecurityError');
   }
   const {ir_sha256,...body}=ir;
   if(await sha256(body)!==ir_sha256) throw new DOMException(`${label} integrity hash mismatch`,'DataError');
