@@ -4,6 +4,7 @@ const PROJECT_SCHEMA='musitu.axiom.project.v1';
 const OUTCOME_SCHEMA='musitu.axiom.outcome-contract.v1';
 const EXECUTION_BOUNDARY='PREVIEW_ONLY_NO_EXTERNAL_CONSEQUENTIAL_ACTIONS';
 const HASH=/^[a-f0-9]{64}$/i;
+const PROJECT_KEYS=new Set(['schema','project_id','name','goal','owner_id','created_at','updated_at','revision','memory_scope','permissions','provenance','version_history','evidence_links','persistence_scope']);
 const OUTCOME_CONTRACT_KEYS=new Set(['schema','project_id','contract_id','contract_sha256','project_object_id','title','outcome','success_criteria','constraints','execution_boundary','supersedes_contract_id','created_at','created_by']);
 const OUTCOME_CONSTRAINT_KEYS=new Set(['privacy','evidence','autonomy','approval','deadline','compute_budget']);
 const APPROVAL_RECEIPT_KEYS=new Set(['receipt_id','edge_id','contract_id','contract_sha256','provenance']);
@@ -69,6 +70,7 @@ async function edge({id,fromId,toId,relation,projectId,actorId,at,generation,evi
 
 export async function compileObjectiveOutcomeGraph({project,contract,contractVerified,approval=null,generation,actorId,at=new Date().toISOString()}={}){
   if(!isPlainObject(project)||project.schema!==PROJECT_SCHEMA) throw new TypeError('qualified Project record required');
+  rejectUnknownKeys(project,PROJECT_KEYS,'Project');
   if(!isPlainObject(contract)||contract.schema!==OUTCOME_SCHEMA) throw new TypeError('qualified Outcome Contract required');
   rejectUnknownKeys(contract,OUTCOME_CONTRACT_KEYS,'Outcome Contract');
   if(contract.execution_boundary!==EXECUTION_BOUNDARY) throw new DOMException('Outcome Contract execution boundary must remain preview-only','SecurityError');
