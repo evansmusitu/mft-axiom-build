@@ -121,7 +121,8 @@ class MiningAdapterService:
     ) -> EnterpriseRun:
         if not record_node_maps:
             raise ValueError("opcua_record_node_maps_required")
-        rows=[]
+        layouts=[]
+        all_node_ids=[]
         for mapping in record_node_maps:
             if not mapping:
                 raise ValueError("opcua_node_map_required")
@@ -129,17 +130,26 @@ class MiningAdapterService:
             node_ids=[str(mapping[field]) for field in mapping]
             if any(not node_id.strip() for node_id in node_ids):
                 raise ValueError("opcua_node_id_required")
-            batch_reader=getattr(transport,"read_many",None)
-            if callable(batch_reader):
-                values=await batch_reader(node_ids)
-                if len(values)!=len(node_ids):
-                    raise RuntimeError("OPCUA_BATCH_LENGTH_MISMATCH")
-                row=dict(zip(fields,values,strict=True))
-            else:
+            layouts.append((fields,node_ids))
+            all_node_ids.extend(node_ids)
+
+        rows=[]
+        batch_reader=getattr(transport,"read_many",None)
+        if callable(batch_reader):
+            values=await batch_reader(all_node_ids)
+            if len(values)!=len(all_node_ids):
+                raise RuntimeError("OPCUA_BATCH_LENGTH_MISMATCH")
+            offset=0
+            for fields,node_ids in layouts:
+                next_offset=offset+len(node_ids)
+                rows.append(dict(zip(fields,values[offset:next_offset],strict=True)))
+                offset=next_offset
+        else:
+            for fields,node_ids in layouts:
                 row={}
                 for field,node_id in zip(fields,node_ids,strict=True):
                     row[field]=await transport.read(node_id)
-            rows.append(row)
+                rows.append(row)
         return self._ingest_rows(
             run_id=run_id,
             connector_name=connector_name,
