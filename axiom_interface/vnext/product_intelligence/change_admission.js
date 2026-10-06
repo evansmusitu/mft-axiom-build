@@ -1,5 +1,5 @@
 import {verifyCompilerCheckpoint} from './compiler_checkpoint.js';
-import {evaluateAuthorization,normalizeActionRequest,normalizeAuthorityEnvelope} from '../authorization_gateway.js';
+import {evaluateAuthorization,finalizeAuthorization,normalizeActionRequest,normalizeAuthorityEnvelope} from '../authorization_gateway.js';
 
 export const CHANGE_ADMISSION_REQUEST_SCHEMA='musitu.axiom.product-change-admission-request.v1';
 export const CHANGE_ADMISSION_RESULT_SCHEMA='musitu.axiom.product-change-admission-result.v1';
@@ -22,7 +22,7 @@ const HUMAN_APPROVAL_KEYS=new Set(['decision','request_sha256','actor_id','recei
 const ADMISSION_RESULT_KEYS=new Set(['schema','project_id','work_id','request_sha256','checkpoint_sha256','risk_class','requested_action','policy_decision','policy_sha256','policy_reasons','verification_artifacts','missing_verifications','independent_verification','human_approval','status','admitted_to_executor','authority_effect','external_execution_authority','production_authority','required_next_gate','created_at','human_approval_receipt','evaluation_sha256']);
 const EXECUTION_REQUEST_KEYS=new Set(['schema','project_id','actor_id','agent_id','workload_identity_id','operation','computed_risk_class','risk_class','effect','reversible','external','required_tool_scope','target','payload','destination','compute_units','instruction_provenance','requested_at','authority_sha256','execution_mode','request_sha256']);
 const EXECUTOR_OPERATION_INPUT_KEYS=new Set(['operation','target','payload','destination','compute_units','requested_at']);
-const EXECUTOR_HANDOFF_KEYS=new Set(['schema','scope','project_id','work_id','checkpoint_sha256','change_admission_request_sha256','change_admission_evaluation_sha256','authority_sha256','actor_id','agent_id','workload_identity_id','risk_class','operation','execution_request','authority_effect','execution_authority','external_execution_authority','release_authority','production_authority','certification_authority','created_at','handoff_sha256']);
+const EXECUTOR_HANDOFF_KEYS=new Set(['schema','scope','project_id','work_id','checkpoint_sha256','change_admission_request_sha256','change_admission_evaluation_sha256','authority_sha256','actor_id','agent_id','workload_identity_id','builder_actor_id','risk_class','operation','execution_request','authority_effect','execution_authority','external_execution_authority','release_authority','production_authority','certification_authority','created_at','handoff_sha256']);
 const isPlainObject=value=>Boolean(value)&&typeof value==='object'&&!Array.isArray(value)&&(Object.getPrototypeOf(value)===Object.prototype||Object.getPrototypeOf(value)===null);
 const clean=(value,max=1000)=>String(value??'').replace(/[\u0000-\u001f\u007f]/g,' ').trim().slice(0,max);
 function rejectUnknownKeys(value,allowed,label){const extra=Object.keys(value).filter(key=>!allowed.has(key));if(extra.length)throw new DOMException(label+' contains unsupported fields: '+extra.join(','),'SecurityError');}
@@ -215,6 +215,7 @@ async function assertExecutorHandoffIntegrity(handoff){
   if((await sha256(executorHandoffHashBody(handoff)))!==handoff.handoff_sha256) throw new DOMException('operation-scoped executor handoff integrity failure','DataError');
   if(handoff.scope!=='SINGLE_OPERATION'||handoff.authority_effect!=='NONE'||handoff.execution_authority!==false||handoff.external_execution_authority!==false||handoff.release_authority!==false||handoff.production_authority!==false||handoff.certification_authority!==false) throw new DOMException('executor handoff authority boundary invalid','SecurityError');
   await assertExecutionRequestIntegrity(handoff.execution_request);
+  if(typeof handoff.builder_actor_id!=='string'||!handoff.builder_actor_id||clean(handoff.builder_actor_id,180)!==handoff.builder_actor_id) throw new TypeError('executor handoff builder_actor_id must be a normalized non-empty string');
   if(handoff.execution_request.project_id!==handoff.project_id||handoff.execution_request.authority_sha256!==handoff.authority_sha256||handoff.execution_request.agent_id!==handoff.agent_id||handoff.execution_request.workload_identity_id!==handoff.workload_identity_id||handoff.execution_request.operation!==handoff.operation||handoff.execution_request.risk_class!==handoff.risk_class) throw new DOMException('executor handoff execution-request binding mismatch','SecurityError');
   return handoff;
 }
@@ -245,6 +246,7 @@ export async function createOperationScopedExecutorHandoff({request,admissionRes
     actor_id:authority.actor_id,
     agent_id:authority.agent_id,
     workload_identity_id:authority.workload_identity_id,
+    builder_actor_id:request.builder_actor_id,
     risk_class:request.risk_class,
     operation:execution_request.operation,
     execution_request,
@@ -265,4 +267,19 @@ export async function evaluateOperationScopedExecutorHandoff({handoff,authorityE
   if((await sha256(authority))!==handoff.authority_sha256) throw new DOMException('executor handoff authority envelope changed','SecurityError');
   if(authority.project_id!==handoff.project_id||authority.actor_id!==handoff.actor_id||authority.agent_id!==handoff.agent_id||authority.workload_identity_id!==handoff.workload_identity_id) throw new DOMException('executor handoff workload identity binding mismatch','SecurityError');
   return evaluateAuthorization(authorityEnvelope,handoff.execution_request);
+}
+
+
+export async function finalizeOperationScopedExecutorHandoff({handoff,authorityEnvelope,approvals=[]}={}){
+  await assertExecutorHandoffIntegrity(handoff);
+  const authority=normalizeAuthorityEnvelope(authorityEnvelope);
+  if((await sha256(authority))!==handoff.authority_sha256) throw new DOMException('executor handoff authority envelope changed','SecurityError');
+  if(authority.project_id!==handoff.project_id||authority.actor_id!==handoff.actor_id||authority.agent_id!==handoff.agent_id||authority.workload_identity_id!==handoff.workload_identity_id) throw new DOMException('executor handoff workload identity binding mismatch','SecurityError');
+  if(!Array.isArray(approvals)) throw new TypeError('approvals must be an array');
+  for(const [index,approval] of approvals.entries()){
+    if(!isPlainObject(approval)) throw new TypeError(`approvals[${index}] must be a plain object`);
+    if(typeof approval.actor_id!=='string'||!approval.actor_id||clean(approval.actor_id,180)!==approval.actor_id) throw new TypeError(`approvals[${index}].actor_id must be a normalized non-empty string`);
+    if(approval.actor_id===handoff.builder_actor_id) throw new DOMException('builder cannot approve its own operation-scoped executor handoff','NotAllowedError');
+  }
+  return finalizeAuthorization(authorityEnvelope,handoff.execution_request,approvals);
 }
