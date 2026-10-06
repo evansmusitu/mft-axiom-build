@@ -1,0 +1,92 @@
+name: MUSITU Axiom Support Human Verification Readback Once
+
+on:
+  push:
+    branches:
+      - 'support/axiom-official-support-20261005'
+    paths:
+      - '.github/workflows/axiom-official-support-human-verification-readback-once.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  readback:
+    if: github.event_name == 'push' && github.event.before == '1656eafb16137954cb398c8084854a552da836b0'
+    runs-on: ubuntu-latest
+    environment: axiom-support-production
+    timeout-minutes: 5
+    env:
+      CF_ACCOUNT: '93f395f5121954671f92fffa453d6b61'
+      CF_D1_TOKEN: ${{ secrets.CLOUDFLARE_RULESETS_API_TOKEN }}
+    steps:
+      - name: Exact branch and one-shot boundary
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF_NAME" = 'support/axiom-official-support-20261005'
+          test "$GITHUB_REF_NAME" != 'main'
+          test "${{ github.event.before }}" = '1656eafb16137954cb398c8084854a552da836b0'
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Discover existing support D1 and read latest case metadata only
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          import {
+            listD1Databases,
+            cloudflareRequest,
+            SUPPORT_ACCOUNT_ID,
+          } from './support/scripts/provision_cloudflare_d1.mjs';
+          const account=process.env.CF_ACCOUNT;
+          const token=String(process.env.CF_D1_TOKEN||'');
+          if(account!==SUPPORT_ACCOUNT_ID||!token) throw new Error('support D1 readback configuration missing');
+          const headers={authorization:'Bearer '+token,'content-type':'application/json',accept:'application/json'};
+          const databases=await listD1Databases({headers});
+          const matches=databases.filter(x=>String(x?.name||'')==='musitu-axiom-support');
+          if(matches.length!==1) throw new Error('exact support D1 not uniquely discoverable');
+          const db=String(matches[0]?.uuid||'');
+          async function q(sql){
+            const r=await fetch('https://api.cloudflare.com/client/v4/accounts/'+account+'/d1/database/'+db+'/query',{
+              method:'POST',headers,body:JSON.stringify({sql})
+            });
+            const p=await r.json();
+            if(!r.ok||p?.success===false) throw new Error('D1 readback failed HTTP '+r.status);
+            const block=Array.isArray(p.result)?p.result[0]:p.result;
+            return block?.results||[];
+          }
+          const counts=(await q("SELECT (SELECT COUNT(*) FROM support_cases) AS cases, (SELECT COUNT(*) FROM support_case_events) AS events;"))[0]||{};
+          const latest=(await q("SELECT case_id,state,priority,surface,category,retention_class,created_at,updated_at,length(recovery_hash) AS recovery_hash_length,length(encrypted_payload) AS encrypted_payload_length FROM support_cases ORDER BY created_at DESC LIMIT 1;"))[0]||null;
+          if(Number(counts.cases)!==1) throw new Error('expected exactly one synthetic support case after human verification');
+          if(!latest||!/^AX-[A-Z0-9]{12}$/.test(String(latest.case_id||''))) throw new Error('latest case metadata missing or malformed');
+          if(String(latest.state)!=='NEW') throw new Error('synthetic case state is not NEW');
+          if(Number(latest.recovery_hash_length)!==64) throw new Error('recovery hash is not present');
+          if(Number(latest.encrypted_payload_length)<=0) throw new Error('encrypted support payload missing');
+          const eventRows=await q("SELECT COUNT(*) AS count FROM support_case_events WHERE case_id='"+String(latest.case_id).replaceAll("'","''")+"';");
+          const eventCount=Number(eventRows?.[0]?.count??-1);
+          if(eventCount<1) throw new Error('synthetic case initial event missing');
+          const createdMs=Date.parse(String(latest.created_at||''));
+          if(!Number.isFinite(createdMs)||Date.now()-createdMs>4*60*60*1000||createdMs>Date.now()+5*60*1000) throw new Error('latest support case is not recent enough to bind to current human verification');
+          console.log(JSON.stringify({
+            gate:'MUSITU_AXIOM_SUPPORT_HUMAN_PUBLIC_ORIGIN_READBACK',
+            synthetic_case_count:Number(counts.cases),
+            support_event_count:Number(counts.events),
+            latest_case:{
+              case_id:latest.case_id,
+              state:latest.state,
+              priority:latest.priority,
+              surface:latest.surface,
+              category:latest.category,
+              retention_class:latest.retention_class,
+              created_at:latest.created_at,
+              event_count:eventCount,
+              recovery_hash_present:true,
+              encrypted_payload_present:true
+            },
+            plaintext_customer_narrative_read:false,
+            recovery_code_read:false,
+            secret_exposed:false
+          }));
+          NODE
