@@ -16,7 +16,7 @@ concurrency:
 
 jobs:
   verify-live:
-    if: github.event.before == 'a339b101d3b5f23d6abe6a7cccb5145ce27fee76'
+    if: github.event.before == '0249d77a31ea90ffe5759bc21b71afd1faa0b9a8'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     environment: axiom-support-production
@@ -38,7 +38,7 @@ jobs:
           test "$GITHUB_REF_NAME" = 'support/axiom-official-support-20261005'
           test "$GITHUB_REF_NAME" != 'main'
           test "$GITHUB_EVENT_NAME" = 'push'
-          test "${{ github.event.before }}" = 'a339b101d3b5f23d6abe6a7cccb5145ce27fee76'
+          test "${{ github.event.before }}" = '0249d77a31ea90ffe5759bc21b71afd1faa0b9a8'
       - name: Re-run legal hold contract
         run: node --test support/tests/legal_hold_lifecycle.test.mjs
       - name: Exercise live dual-approved legal hold lifecycle
