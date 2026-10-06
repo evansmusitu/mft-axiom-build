@@ -1,0 +1,142 @@
+name: MUSITU Axiom OpenAI Secure MCP Tunnel Activate 20261006
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  activate-tunnel:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID }}
+      MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET }}
+      OPENAI_TUNNEL_ID: ${{ secrets.OPENAI_TUNNEL_ID }}
+      OPENAI_TUNNEL_API_KEY: ${{ secrets.OPENAI_TUNNEL_API_KEY }}
+      TUNNEL_APP: musitu-axiom-operator-tunnel-private-20261006
+      TUNNEL_SECRET: musitu-axiom-openai-tunnel-20261006
+
+    steps:
+      - name: Checkout exact isolated Operator
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Setup Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: '3.13'
+
+      - name: Reassert authority and required secret presence
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF_NAME" = 'frontier/axiom-operator-bridge-20261006'
+          BASE=07a01aa59e5c8512a074fcb5c4a147d265b1221a
+          test "$(git merge-base "$BASE" HEAD)" = "$BASE"
+          test "$(git rev-parse origin/main)" = 'd6a846f6bbe0bccac1758713eb4de167caf07113'
+          test -n "$MODAL_TOKEN_ID"
+          test -n "$MODAL_TOKEN_SECRET"
+          test -n "$OPENAI_TUNNEL_API_KEY"
+          case "$OPENAI_TUNNEL_ID" in
+            tunnel_*) ;;
+            *) echo 'Fail-closed: OPENAI_TUNNEL_ID missing or invalid' >&2; exit 1 ;;
+          esac
+          test -f modal_operator_tunnel.py
+          echo 'secure_tunnel_authority=PASS'
+
+      - name: Verify pinned OpenAI tunnel-client declaration
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m py_compile modal_operator_tunnel.py
+          python - <<'PY'
+          from pathlib import Path
+          text=Path('modal_operator_tunnel.py').read_text()
+          assert 'v0.0.15' in text
+          assert '8c836dc5d68d68b663d9a5c5b28ff9fa780d9f7a3fffb1c306880b8f32fab5f1' in text
+          assert '127.0.0.1:8765' not in text or 'OPERATOR_PORT = 8765' in text
+          assert 'public_mcp_listener' in text
+          print('secure_tunnel_pinned_client=PASS')
+          PY
+
+      - name: Authenticate Modal
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --disable-pip-version-check --quiet 'modal>=1.5,<2'
+          modal app list --json >/dev/null
+          echo 'modal_auth=PASS'
+
+      - name: Store OpenAI tunnel runtime credentials only in Modal Secret
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "::add-mask::$OPENAI_TUNNEL_API_KEY"
+          modal secret create "$TUNNEL_SECRET"             "CONTROL_PLANE_API_KEY=$OPENAI_TUNNEL_API_KEY"             "OPENAI_TUNNEL_ID=$OPENAI_TUNNEL_ID"             --force >/dev/null
+          echo 'modal_tunnel_secret=READY'
+
+      - name: Deploy outbound-only AXIOM tunnel runner
+        shell: bash
+        run: |
+          set -euo pipefail
+          modal deploy modal_operator_tunnel.py             --name "$TUNNEL_APP"             --strategy recreate             --tag "tunnel-${GITHUB_SHA::12}" | tee /tmp/tunnel-deploy.log
+          echo 'secure_tunnel_deployed=PASS'
+
+      - name: Prove tunnel-client ready and Operator remains private
+        shell: bash
+        run: |
+          set -euo pipefail
+          export TUNNEL_APP
+          python - <<'PY'
+          import json,os,time,modal
+          cls=modal.Cls.from_name(os.environ['TUNNEL_APP'],'TunnelRunner')
+          obj=cls()
+          last=None
+          for attempt in range(1,31):
+              try:
+                  last=obj.status.remote()
+              except Exception as exc:
+                  last={'status':'ERROR','error':f'{type(exc).__name__}: {exc}'}
+              print('tunnel_status_attempt='+str(attempt)+' '+json.dumps(last,sort_keys=True)[:1200])
+              if (
+                  isinstance(last,dict)
+                  and last.get('status')=='READY'
+                  and last.get('tunnel_process_running') is True
+                  and last.get('tunnel_ready') is True
+                  and last.get('public_mcp_listener') is False
+                  and last.get('production_authority') is False
+                  and last.get('public_submission_mutation_authority') is False
+              ):
+                  print('MUSITU_AXIOM_SECURE_MCP_TUNNEL_READY')
+                  break
+              time.sleep(2)
+          else:
+              raise SystemExit('Fail-closed: AXIOM secure MCP tunnel never became READY: '+repr(last))
+          PY
+
+      - name: Seal non-production activation evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import hashlib,json,os
+          body={
+            'schema':'musitu.axiom.operator-secure-mcp-tunnel-activation.v1',
+            'source_commit':os.environ['GITHUB_SHA'],
+            'branch':os.environ['GITHUB_REF_NAME'],
+            'tunnel_client_version':'v0.0.15',
+            'tunnel_id_sha256':hashlib.sha256(os.environ['OPENAI_TUNNEL_ID'].encode()).hexdigest(),
+            'private_outbound_tunnel':True,
+            'public_mcp_listener':False,
+            'production_authority':False,
+            'public_submission_mutation_authority':False,
+            'gate':'PASS',
+          }
+          encoded=json.dumps(body,sort_keys=True,separators=(',',':')).encode()
+          print('secure_tunnel_evidence_sha256='+hashlib.sha256(encoded).hexdigest())
+          print('MUSITU_AXIOM_SECURE_MCP_TUNNEL_ACTIVATION_PASS')
+          PY
