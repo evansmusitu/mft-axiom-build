@@ -122,3 +122,15 @@ test('approval receipts reject unknown authority-bearing fields fail closed',asy
     /approval receipt.*unsupported fields|unsupported fields.*approval receipt/i,
   );
 });
+
+
+test('approval receipts require stable receipt and edge identities',async()=>{
+  for(const field of ['receipt_id','edge_id']){
+    const bad=approval();
+    delete bad[field];
+    await assert.rejects(
+      ()=>compileObjectiveOutcomeGraph({project:project(),contract:contract(),contractVerified:true,approval:bad,generation:1,actorId:'local-user',at:'2026-10-04T15:03:00Z'}),
+      /approval receipt.*(receipt_id|edge_id)|receipt_id|edge_id/i,
+    );
+  }
+});
