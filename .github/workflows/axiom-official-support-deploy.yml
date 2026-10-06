@@ -173,8 +173,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          node <<'NODE'
-          const fs=require('node:fs');
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
           const account=String(process.env.CLOUDFLARE_ACCOUNT_ID||'');
           const db=String(process.env.SUPPORT_D1_DATABASE_ID||'');
           const token=String(process.env.CLOUDFLARE_RULESETS_API_TOKEN||'');
