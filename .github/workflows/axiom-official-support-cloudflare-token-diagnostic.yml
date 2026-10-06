@@ -32,10 +32,14 @@ jobs:
             try { payload = await response.json(); } catch {}
             return {status: response.status, ok: response.ok && payload?.success !== false, result: payload?.result || null};
           }
-          const verify = await read('/user/tokens/verify');
+          const userVerify = await read('/user/tokens/verify');
+          const accountId = '93f395f5121954671f92fffa453d6b61';
+          const accountVerify = await read('/accounts/' + accountId + '/tokens/verify');
+          const verify = accountVerify.ok ? accountVerify : userVerify;
           let details = {status: 0, ok: false, result: null};
           if (verify.ok && verify.result?.id) {
-            details = await read('/user/tokens/' + encodeURIComponent(verify.result.id));
+            const base = accountVerify.ok ? '/accounts/' + accountId + '/tokens/' : '/user/tokens/';
+            details = await read(base + encodeURIComponent(verify.result.id));
           }
           const names = [];
           if (details.ok && Array.isArray(details.result?.policies)) {
@@ -49,7 +53,9 @@ jobs:
           const evidence = {
             gate: 'MUSITU_AXIOM_CLOUDFLARE_TOKEN_CAPABILITY_DIAGNOSTIC',
             token_active: verify.ok && String(verify.result?.status || '').toLowerCase() === 'active',
-            verify_http_status: verify.status,
+            token_kind: accountVerify.ok ? 'account_owned' : (userVerify.ok ? 'user_owned' : 'unresolved'),
+            user_verify_http_status: userVerify.status,
+            account_verify_http_status: accountVerify.status,
             token_details_readable: details.ok,
             token_details_http_status: details.status,
             email_routing_rules_write: details.ok ? has('Email Routing Rules Write', 'Email Routing Rules Edit') : null,
