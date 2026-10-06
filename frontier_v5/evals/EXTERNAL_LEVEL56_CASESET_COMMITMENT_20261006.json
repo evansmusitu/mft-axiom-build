@@ -1,0 +1,18 @@
+{
+  "schema": "musitu.axiom.level56.caseset-commitment.v1",
+  "protocol_id": "axiom-level56-official-surface-v2-20261006",
+  "task_ids": [
+    "BUG_REPRO_MINIMAL_REPAIR",
+    "CROSS_FILE_FEATURE_REGRESSION",
+    "SECURITY_FAIL_CLOSED_REPAIR",
+    "ROLLBACK_EXACT_RESTORE"
+  ],
+  "case_set_sha256": "6eea99e9e943498bbbb0e16e0be8447bff5cd206252d6d3fce79020e1e94bbf6",
+  "constraints_sha256": "2161fef373d371dcc0fefa9fc81df906a2eeddff2cc1429b33439c080e0a6c22",
+  "private_evaluator_pack_sha256": "ab550cd24ca18cf3a09ab14ce3bca76c8298dbae108f250a11a9a1d235087955",
+  "provider_inputs_bundle_sha256": "19223b303b2f5c368a0edb54def2fdc2b06eaa8a513455d91a5571dc0b036ba8",
+  "hidden_content_published": false,
+  "level_5_verified": false,
+  "level_6_verified": false,
+  "production_authority": false
+}
