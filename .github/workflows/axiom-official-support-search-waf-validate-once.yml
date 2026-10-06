@@ -1,0 +1,84 @@
+name: MUSITU Axiom Support WAF Search Rule Validate Once
+
+on:
+  push:
+    branches:
+      - 'support/axiom-official-support-20261005'
+    paths:
+      - '.github/workflows/axiom-official-support-search-waf-validate-once.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    if: github.event_name == 'push' && github.event.before == '32aa72408a66e8af4ea39265e0a7d1f5faf19539'
+    runs-on: ubuntu-latest
+    environment: axiom-support-production
+    timeout-minutes: 5
+    env:
+      CF_TOKEN: ${{ secrets.CLOUDFLARE_RULESETS_API_TOKEN }}
+      CF_ZONE: '5b56528f03948ff5917a5e0cd9f7109e'
+    steps:
+      - name: Exact branch boundary
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF_NAME" = 'support/axiom-official-support-20261005'
+          test "$GITHUB_REF_NAME" != 'main'
+          test "${{ github.event.before }}" = '32aa72408a66e8af4ea39265e0a7d1f5faf19539'
+
+      - name: Dry-run exact verified search crawler WAF skip rule
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          const token=String(process.env.CF_TOKEN||'');
+          const zone=String(process.env.CF_ZONE||'');
+          if(!token||!zone) throw new Error('Cloudflare WAF validation configuration missing');
+          const headers={authorization:'Bearer '+token,accept:'application/json','content-type':'application/json'};
+          const base='https://api.cloudflare.com/client/v4/zones/'+zone;
+          const expression='(http.host eq "support.mftintelligence.com" and cf.client.bot and cf.verified_bot_category eq "Search Engine Crawler" and http.request.method in {"GET" "HEAD"} and http.request.uri.path in {"/" "/index.html" "/robots.txt" "/sitemap.xml" "/styles.css" "/app.js"})';
+          const rule={
+            ref:'musitu_axiom_support_verified_search_crawlers',
+            description:'Allow only Cloudflare-verified traditional search-engine crawlers to public MUSITU Axiom Official Support assets without human challenges',
+            expression,
+            action:'skip',
+            action_parameters:{products:['bic','securityLevel']},
+            enabled:true
+          };
+          async function parse(r){
+            let p={}; try{p=await r.json()}catch{}
+            return {status:r.status,ok:r.ok&&p?.success!==false,p};
+          }
+          const entry=await parse(await fetch(base+'/rulesets/phases/http_request_firewall_custom/entrypoint',{headers}));
+          let result;
+          if(entry.ok&&entry.p?.result?.id){
+            const id=String(entry.p.result.id);
+            result=await parse(await fetch(base+'/rulesets/'+encodeURIComponent(id)+'/rules?dry_run=true',{
+              method:'POST',headers,body:JSON.stringify(rule)
+            }));
+          } else if(entry.status===404){
+            result=await parse(await fetch(base+'/rulesets?dry_run=true',{
+              method:'POST',headers,body:JSON.stringify({
+                name:'MUSITU Axiom Official Support verified search crawler WAF',
+                description:'Narrow traditional search crawler exception for public support assets',
+                kind:'zone',
+                phase:'http_request_firewall_custom',
+                rules:[rule]
+              })
+            }));
+          } else {
+            throw new Error('custom WAF entrypoint read failed HTTP '+entry.status);
+          }
+          console.log(JSON.stringify({
+            gate:'MUSITU_AXIOM_SUPPORT_SEARCH_WAF_DRY_RUN',
+            http_status:result.status,
+            success:result.ok,
+            entrypoint_exists:entry.ok,
+            errors:(result.p?.errors||[]).map(x=>({code:x?.code??null,message:String(x?.message||'').slice(0,500),pointer:String(x?.source?.pointer||'')})),
+            category:'Search Engine Crawler',
+            skip_products:['bic','securityLevel'],
+            persisted:false
+          }));
+          if(!result.ok) process.exit(1);
+          NODE
