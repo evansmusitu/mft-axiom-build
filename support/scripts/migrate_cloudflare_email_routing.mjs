@@ -191,6 +191,30 @@ async function routingState({fetchImpl, headers}) {
   return {enabled: row?.enabled === true, status, ready: row?.enabled === true && ['ready', 'active'].includes(status)};
 }
 
+async function waitForRoutingConvergence({
+  fetchImpl,
+  headers,
+  desiredMail,
+  sleepImpl,
+  attempts = 90,
+  delayMs = 2000,
+}) {
+  let afterRouting = null;
+  let afterMail = null;
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    [afterRouting, afterMail] = await Promise.all([
+      routingState({fetchImpl, headers}),
+      readRootMail({fetchImpl, headers}),
+    ]);
+    if (afterRouting.ready && sameRecordSet(afterMail, desiredMail)) {
+      return {afterRouting, afterMail, attemptsUsed: attempt};
+    }
+    if (attempt < attempts) await sleepImpl(delayMs);
+  }
+  if (!afterRouting?.ready) throw new Error('EMAIL_ROUTING_NOT_READY');
+  throw new Error('EMAIL_ROUTING_DNS_NOT_CONVERGED');
+}
+
 async function requiredDns({fetchImpl, headers}) {
   const rows = await getResult({fetchImpl, headers, path: `/zones/${SUPPORT_ZONE_ID}/email/routing/dns`});
   const normalized = (Array.isArray(rows) ? rows : []).filter(isMailRecord).map(row => normalizeRecord(row));
@@ -247,7 +271,12 @@ async function restoreRootMail({fetchImpl, headers, snapshot}) {
   return restored;
 }
 
-export async function migrateEmailRouting({env = process.env, fetchImpl = fetch, now = new Date().toISOString()} = {}) {
+export async function migrateEmailRouting({
+  env = process.env,
+  fetchImpl = fetch,
+  now = new Date().toISOString(),
+  sleepImpl = ms => new Promise(resolve => setTimeout(resolve, ms)),
+} = {}) {
   if (env.GITHUB_REF_NAME !== SUPPORT_BRANCH) throw new Error('email-routing migration may run only from the isolated support branch');
   if (env.SUPPORT_EMAIL_ROUTING_MIGRATION_CONFIRM !== MIGRATION_CONFIRM) throw new Error('email-routing migration confirmation is missing');
   if (env.SUPPORT_ZOHO_RETIREMENT_CONFIRM !== RETIREMENT_CONFIRM) throw new Error('Zoho retirement confirmation is missing');
@@ -285,9 +314,13 @@ export async function migrateEmailRouting({env = process.env, fetchImpl = fetch,
       });
     }
 
-    const [afterRouting, afterMail, afterRules, afterProtected] = await Promise.all([
-      routingState({fetchImpl, headers: credential.headers}),
-      readRootMail({fetchImpl, headers: credential.headers}),
+    const {afterRouting, afterMail} = await waitForRoutingConvergence({
+      fetchImpl,
+      headers: credential.headers,
+      desiredMail,
+      sleepImpl,
+    });
+    const [afterRules, afterProtected] = await Promise.all([
       readRules({fetchImpl, headers: credential.headers}),
       readProtectedProviderDns({fetchImpl, headers: credential.headers}),
     ]);
@@ -295,8 +328,6 @@ export async function migrateEmailRouting({env = process.env, fetchImpl = fetch,
     const supportMatches = effectiveRules.filter(targetsSupport);
     const supportExact = effectiveRules.length === 1 && supportMatches.length === 1 && exactForward(supportMatches[0], destination);
     const providerUnchanged = sameProtectedProviderDns(beforeProtected, afterProtected);
-    if (!afterRouting.ready) throw new Error('EMAIL_ROUTING_NOT_READY');
-    if (!sameRecordSet(afterMail, desiredMail)) throw new Error('EMAIL_ROUTING_DNS_NOT_CONVERGED');
     if (!supportExact) throw new Error('SUPPORT_RULE_NOT_EXACT');
     if (!providerUnchanged) throw new Error('PROTECTED_PROVIDER_DNS_DRIFT');
 
