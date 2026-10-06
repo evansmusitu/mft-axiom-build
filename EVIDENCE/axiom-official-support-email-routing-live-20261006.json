@@ -1,0 +1,51 @@
+{
+  "boundaries": {
+    "claude_surface_modified": false,
+    "openai_surface_modified": false,
+    "public_support_deployed": false,
+    "secret_values_exposed": false,
+    "support_hostname_attached": false
+  },
+  "branch": "support/axiom-official-support-20261005",
+  "delivery": {
+    "action": "forward",
+    "cloudflare_event_datetime": "2026-10-06T05:13:03Z",
+    "delivery_verified": true,
+    "matching_event_count": 1,
+    "raw_destination_recorded": false,
+    "raw_message_id_recorded": false,
+    "raw_sender_recorded": false,
+    "status": "delivered",
+    "verification_subject_sha256": "bc88f2002c8f013bb1169245b99b01a67f4a369db700f97a6b646887a04577a8"
+  },
+  "independent_readback": {
+    "attempt": 3,
+    "current_mx_count": 3,
+    "current_mx_provider": "cloudflare_email_routing",
+    "evidence_sha256": "e3199f9e428dccdd90e9d66da1c6c4b6388e718e1dfbd6f1b851cb81d008f38d",
+    "exact_support_rule": true,
+    "protected_openai_dns_fingerprint_sha256": "c8bf49f7d667fe3fe232af6d19f91156cc2170e72eb1f2cec9d1edcfb1663f39",
+    "routing_enabled": true,
+    "routing_status": "ready",
+    "run_id": 37409493772,
+    "support_rule_conflict": false
+  },
+  "migration": {
+    "evidence_sha256": "1145ad3154965ece9792c91f975fe486a26f3bec7b4a11b97129732c8921aa2b",
+    "exact_support_rule": true,
+    "gate": "MUSITU_AXIOM_SUPPORT_EMAIL_ROUTING_MIGRATION_PASS",
+    "protected_provider_dns_unchanged": true,
+    "retired_zoho_test_mailboxes": 2,
+    "routing_ready": true,
+    "run_id": 37416997946,
+    "source_commit": "077207c0b293c2d7d02529f74b83f6fd1b099307"
+  },
+  "public_dns": {
+    "cloudflare_resolver_cloudflare_mx_count": 3,
+    "google_resolver_cloudflare_mx_count": 3,
+    "observed_at": "2026-10-06T05:13:17Z"
+  },
+  "recorded_at": "2026-10-06T05:16:06Z",
+  "repository": "evansmusitu/mft-axiom-build",
+  "schema": "musitu.axiom.official-support-email-routing-live-evidence.v1"
+}
