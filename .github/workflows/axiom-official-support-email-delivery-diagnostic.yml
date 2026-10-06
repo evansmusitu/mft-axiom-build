@@ -20,7 +20,7 @@ jobs:
       CF_TOKEN_RULESETS: ${{ secrets.CLOUDFLARE_RULESETS_API_TOKEN }}
       CF_TOKEN_ACCESS: ${{ secrets.CLOUDFLARE_ACCESS_API_TOKEN }}
       CF_TOKEN_DEFAULT: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-      TEST_SUBJECT: 'MUSITU Axiom Support Routing Verification 978776fb'
+      TEST_SUBJECT: 'MUSITU Axiom Support Routing Verification 6c740302'
     steps:
       - name: Read public MX from Google and Cloudflare resolvers
         shell: bash
