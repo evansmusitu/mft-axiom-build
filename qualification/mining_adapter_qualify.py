@@ -7,6 +7,7 @@ from typing import Any
 
 ROOT=Path(__file__).resolve().parents[1]
 MATRIX_PATH=ROOT/"qualification"/"mining_adapter_matrix.json"
+BASELINES_PATH=ROOT/"benchmarks"/"mining_adapter"/"baselines.json"
 
 
 def _stage(report: dict[str,Any], name: str) -> bool:
@@ -32,8 +33,10 @@ def evaluate(
     benchmark: dict[str,Any],
     live_guard: dict[str,Any],
     production_gate: dict[str,Any],
+    baseline_catalog: dict[str,Any] | None=None,
 ) -> dict[str,Any]:
     matrix=json.loads(MATRIX_PATH.read_text())
+    baseline_catalog=baseline_catalog or json.loads(BASELINES_PATH.read_text())
     thresholds=matrix["thresholds"]
     baseline_versions=matrix.get("baseline_versions") or {}
     tests=production_gate.get("tests") or {}
@@ -59,6 +62,14 @@ def evaluate(
     required_scipy=str(baseline_versions.get("scipy") or "")
     current_scipy=(not required_scipy) or scipy_version==required_scipy
     largest_throughput=largest.get("throughput_records_per_second",{}).get("musitu_exact")
+    catalog_versions={item.get("name"):str(item.get("version") or "") for item in baseline_catalog.get("baselines") or []}
+    expected_catalog={
+        "HighByte Intelligence Hub":str(baseline_versions.get("highbyte") or ""),
+        "DuckDB":str(baseline_versions.get("duckdb") or ""),
+        "OpenTelemetry Collector":str(baseline_versions.get("opentelemetry_collector") or ""),
+        "Temporal":f"server {baseline_versions.get('temporal_server')} / Python SDK {baseline_versions.get('temporal_python_sdk')}",
+    }
+    baseline_catalog_current=all(expected and catalog_versions.get(name)==expected for name,expected in expected_catalog.items())
 
     capabilities=[
         _pass("ingestion.mqtt",_stage(post,"mqtt_to_canonical_persistence"),"post-recovery composed e2e"),
@@ -74,6 +85,7 @@ def evaluate(
         _pass("persistence.restart",_stage(post,"persistence_restart_replay"),"SQLite WAL store reopened after process boundary"),
         _pass("replay.recovery",_stage(post,"persistence_restart_replay") and (post.get("evidence") or {}).get("audit_chain_verified") is True,"replay integrity after restart"),
         _pass("observability.otel_slo",_stage(post,"opentelemetry_otlp") and tests.get("observability_alerting_slo") == "PASS_SYNTHETIC_CANARY_SIGNAL","OTLP export + production canary SLO evidence"),
+        _pass("baseline.catalog_freshness",baseline_catalog_current,"researched current-stable baseline catalog",{"required":expected_catalog,"observed":{name:catalog_versions.get(name) for name in expected_catalog}}),
         _pass("optimization.current_scipy_baseline",current_scipy,"benchmark runtime version pin",{"required":required_scipy,"observed":scipy_version}),
         _pass("optimization.correctness",all_correct and current_scipy,"same-machine current SciPy MILP objective equivalence",{"scales":[item.get("records") for item in optimization],"scipy":scipy_version}),
         _pass("optimization.scale_slo",optimization_slo,"largest deterministic benchmark",{"records":largest.get("records"),"p99_ms":p99,"limit_ms":thresholds["optimization_p99_ms_max"]}),
