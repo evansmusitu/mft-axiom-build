@@ -6,7 +6,7 @@ export const EXECUTION_OUTCOME_VERIFICATION_SCHEMA='musitu.axiom.product-executi
 const HASH=/^[a-f0-9]{64}$/i;
 const HANDOFF_KEYS=new Set(['schema','scope','project_id','work_id','checkpoint_sha256','change_admission_request_sha256','change_admission_evaluation_sha256','authority_sha256','actor_id','agent_id','workload_identity_id','builder_actor_id','risk_class','operation','execution_request','authority_effect','execution_authority','external_execution_authority','release_authority','production_authority','certification_authority','created_at','handoff_sha256']);
 const REQUEST_KEYS=new Set(['schema','project_id','actor_id','agent_id','workload_identity_id','operation','computed_risk_class','risk_class','effect','reversible','external','required_tool_scope','target','payload','destination','compute_units','instruction_provenance','requested_at','authority_sha256','execution_mode','request_sha256']);
-const RECEIPT_KEYS=new Set(['schema','receipt_id','project_id','sandbox_id','request_sha256','risk_class','status','result','reason','rollback_available','external_action_executed','network_request_performed','host_shell_executed','plaintext_secret_access','created_at','receipt_sha256']);
+const RECEIPT_KEYS=new Set(['schema','receipt_id','project_id','sandbox_id','request_sha256','risk_class','status','result','reason','error_name','rollback_available','external_action_executed','network_request_performed','host_shell_executed','plaintext_secret_access','created_at','receipt_sha256']);
 const INTEGRITY_KEYS=new Set(['schema','project_id','status','errors','event_count','network_policy','secrets_policy','integrity_sha256']);
 const VERIFIED_OUTCOME_KEYS=new Set(['schema','project_id','work_id','checkpoint_sha256','handoff_sha256','request_sha256','receipt_id','receipt_sha256','execution_integrity_sha256','operation','risk_class','execution_status','status','verifier_actor_id','independent_verification','rollback_available','failure_state','failure_reason','external_action_executed','network_request_performed','host_shell_executed','plaintext_secret_access','authority_effect','release_authority','production_authority','certification_authority','created_at','verification_sha256']);
 const isPlainObject=value=>Boolean(value)&&typeof value==='object'&&!Array.isArray(value)&&(Object.getPrototypeOf(value)===Object.prototype||Object.getPrototypeOf(value)===null);
@@ -49,7 +49,7 @@ async function assertReceipt(receipt,handoff,request){
   if(await sha256(bodyWithout(receipt,'receipt_sha256'))!==receipt.receipt_sha256)throw new DOMException('FA-11 execution receipt integrity failure','DataError');
   canonicalIso(receipt.created_at,'receipt.created_at');
   if(receipt.project_id!==handoff.project_id||receipt.request_sha256!==request.request_sha256||receipt.risk_class!==handoff.risk_class)throw new DOMException('execution receipt binding mismatch','SecurityError');
-  if(!['COMPLETED','BLOCKED'].includes(receipt.status))throw new TypeError('execution receipt status must be COMPLETED or BLOCKED');
+  if(!['COMPLETED','BLOCKED','FAILED'].includes(receipt.status))throw new TypeError('execution receipt status must be COMPLETED, BLOCKED or FAILED');
   for(const key of ['rollback_available','external_action_executed','network_request_performed','host_shell_executed','plaintext_secret_access'])if(typeof receipt[key]!=='boolean')throw new TypeError(`receipt.${key} must be boolean`);
   if(receipt.external_action_executed||receipt.network_request_performed||receipt.host_shell_executed||receipt.plaintext_secret_access)throw new DOMException('FA-11 browser-local receipt attempted forbidden side-effect claim','SecurityError');
   if(receipt.status==='COMPLETED'){
@@ -58,8 +58,10 @@ async function assertReceipt(receipt,handoff,request){
     if(receipt.rollback_available!==request.reversible)throw new DOMException('execution receipt rollback truth mismatch','DataError');
   }else{
     requireString(receipt.reason,'receipt.reason');
-    if(Object.hasOwn(receipt,'result'))throw new TypeError('BLOCKED execution receipt cannot contain result');
-    if(receipt.rollback_available!==false)throw new DOMException('blocked receipt cannot claim rollback availability','DataError');
+    if(Object.hasOwn(receipt,'result'))throw new TypeError(receipt.status+' execution receipt cannot contain result');
+    if(receipt.rollback_available!==false)throw new DOMException(receipt.status.toLowerCase()+' receipt cannot claim rollback availability','DataError');
+    if(receipt.status==='FAILED')requireString(receipt.error_name,'receipt.error_name',80);
+    else if(Object.hasOwn(receipt,'error_name'))throw new TypeError('BLOCKED execution receipt cannot contain error_name');
   }
   return receipt;
 }
@@ -96,12 +98,12 @@ export async function verifyOperationScopedExecutionOutcome({handoff,receipt,exe
     operation:handoff.operation,
     risk_class:handoff.risk_class,
     execution_status:receipt.status,
-    status:receipt.status==='COMPLETED'?'VERIFIED_COMPLETED':'VERIFIED_BLOCKED',
+    status:receipt.status==='COMPLETED'?'VERIFIED_COMPLETED':receipt.status==='FAILED'?'VERIFIED_FAILED':'VERIFIED_BLOCKED',
     verifier_actor_id,
     independent_verification:'PASS',
     rollback_available:receipt.rollback_available,
-    failure_state:receipt.status==='BLOCKED'?'BLOCKED':'NONE',
-    failure_reason:receipt.status==='BLOCKED'?receipt.reason:null,
+    failure_state:receipt.status==='COMPLETED'?'NONE':receipt.status,
+    failure_reason:receipt.status==='COMPLETED'?null:receipt.reason,
     external_action_executed:false,
     network_request_performed:false,
     host_shell_executed:false,
@@ -126,17 +128,17 @@ async function assertVerifiedOutcome(verified){
   if(await sha256(bodyWithout(verified,'verification_sha256'))!==verified.verification_sha256)throw new DOMException('verified execution outcome integrity failure','DataError');
   canonicalIso(verified.created_at,'verifiedOutcome.created_at');
   if(!['S0','S1','S2','S3','S4','S5'].includes(verified.risk_class))throw new TypeError('verifiedOutcome.risk_class must be S0..S5');
-  if(!['COMPLETED','BLOCKED'].includes(verified.execution_status))throw new TypeError('verifiedOutcome.execution_status must be COMPLETED or BLOCKED');
-  const expectedStatus=verified.execution_status==='COMPLETED'?'VERIFIED_COMPLETED':'VERIFIED_BLOCKED';
+  if(!['COMPLETED','BLOCKED','FAILED'].includes(verified.execution_status))throw new TypeError('verifiedOutcome.execution_status must be COMPLETED, BLOCKED or FAILED');
+  const expectedStatus=verified.execution_status==='COMPLETED'?'VERIFIED_COMPLETED':verified.execution_status==='FAILED'?'VERIFIED_FAILED':'VERIFIED_BLOCKED';
   if(verified.status!==expectedStatus)throw new DOMException('verified execution outcome status semantic mismatch','DataError');
   if(verified.independent_verification!=='PASS')throw new DOMException('verified execution outcome independent verification must PASS','SecurityError');
   if(typeof verified.rollback_available!=='boolean')throw new TypeError('verifiedOutcome.rollback_available must be boolean');
   if(verified.execution_status==='COMPLETED'){
     if(verified.failure_state!=='NONE'||verified.failure_reason!==null)throw new DOMException('completed outcome cannot carry failure state','DataError');
   }else{
-    if(verified.failure_state!=='BLOCKED')throw new DOMException('blocked outcome must preserve BLOCKED failure state','DataError');
+    if(verified.failure_state!==verified.execution_status)throw new DOMException(verified.execution_status.toLowerCase()+' outcome must preserve '+verified.execution_status+' failure state','DataError');
     requireString(verified.failure_reason,'verifiedOutcome.failure_reason',300);
-    if(verified.rollback_available!==false)throw new DOMException('blocked outcome cannot claim rollback availability','DataError');
+    if(verified.rollback_available!==false)throw new DOMException(verified.execution_status.toLowerCase()+' outcome cannot claim rollback availability','DataError');
   }
   for(const key of ['external_action_executed','network_request_performed','host_shell_executed','plaintext_secret_access'])if(verified[key]!==false)throw new DOMException(`verified execution outcome ${key} must remain false`,'SecurityError');
   if(verified.authority_effect!=='NONE'||verified.release_authority!==false||verified.production_authority!==false||verified.certification_authority!==false)throw new DOMException('verified execution outcome authority boundary invalid','SecurityError');
@@ -157,13 +159,13 @@ export async function createExecutionOutcomeEvidence(verified){
       sources:[{kind:'FA11_BROWSER_LOCAL_EXECUTION_RECEIPT',receipt_id:verified.receipt_id}],
       capability_chain:['ChangeAdmission','OperationScopedExecutorHandoff','FA11AuthorizationGateway','FA11GovernedExecutionStore','ExecutionOutcomeVerification'],
       calculations:[{kind:'EXECUTION_RECEIPT_INTEGRITY',status:'PASS'},{kind:'FA11_STORE_INTEGRITY',status:'PASS'}],
-      actions:[{kind:verified.execution_status==='COMPLETED'?'EXECUTION_COMPLETED':'EXECUTION_BLOCKED',rollback_available:verified.rollback_available,external_action_executed:false}],
+      actions:[{kind:verified.execution_status==='COMPLETED'?'EXECUTION_COMPLETED':verified.execution_status==='FAILED'?'EXECUTION_FAILED':'EXECUTION_BLOCKED',rollback_available:verified.rollback_available,external_action_executed:false}],
       policies:['S0_S5_FROZEN','BUILDER_EXECUTOR_VERIFIER_SEPARATION','FAILURE_TRUTH_PRESERVED','ROLLBACK_TRUTH_PRESERVED','NO_AUTHORITY_ESCALATION'],
       approvals:[],
       hashes:[verified.handoff_sha256,verified.request_sha256,verified.receipt_sha256,verified.execution_integrity_sha256,verified.verification_sha256],
       receipts:[{schema:'musitu.axiom.execution-receipt.browser.v1',receipt_id:verified.receipt_id,receipt_sha256:verified.receipt_sha256,status:verified.execution_status}],
       verification:{status:verified.status,verifier_actor_id:verified.verifier_actor_id,independent_verification:'PASS',receipt_integrity:'PASS',execution_store_integrity:'PASS',authority_effect:'NONE',release_authority:false,production_authority:false,certification_authority:false},
-      failures:verified.failure_state==='BLOCKED'?[{status:'BLOCKED',reason:verified.failure_reason}]:[],
+      failures:verified.failure_state==='NONE'?[]:[{status:verified.failure_state,reason:verified.failure_reason}],
       timestamps:[{kind:'OUTCOME_VERIFIED',at:verified.created_at}],
       versions:[{schema:EXECUTION_OUTCOME_VERIFICATION_SCHEMA,verification_sha256:verified.verification_sha256}],
     },
