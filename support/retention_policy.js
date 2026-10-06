@@ -5,6 +5,7 @@ export const RETENTION_DAYS = Object.freeze({
 });
 
 export const LEGAL_HOLD_REVIEW_DAYS = 90;
+export const LEGAL_HOLD_SENTINEL = '9999-12-31T23:59:59.000Z';
 
 const HASH=/^[a-f0-9]{64}$/i;
 const ISO=/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?Z$/;
@@ -51,6 +52,7 @@ export async function createLegalHold({
     independent_approver_ref:approver,
     reason_sha256:String(reasonHash).toLowerCase(),
     started_at:started,
+    hold_until:LEGAL_HOLD_SENTINEL,
     review_due_at:addDays(started,LEGAL_HOLD_REVIEW_DAYS),
   });
 }
