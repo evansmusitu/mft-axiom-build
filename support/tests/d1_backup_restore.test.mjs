@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import {createHash} from 'node:crypto';
 import test from 'node:test';
 import {runBackupRestoreDrill} from '../scripts/verify_d1_backup_restore.mjs';
 
@@ -8,6 +9,7 @@ function response(status, payload) {
 
 test('backup/restore drill restores synthetic support data from a D1 Time Travel bookmark and cleans up', async () => {
   const calls = [];
+  const expectedPayloadSha = createHash('sha256').update('synthetic-support-backup-restore-v1').digest('hex');
   let marker = 'seed';
   let deleted = false;
   const fetchImpl = async (url, options = {}) => {
@@ -23,7 +25,7 @@ test('backup/restore drill restores synthetic support data from a D1 Time Travel
       const sql = String(body.sql || '');
       if (sql.includes('INSERT INTO support_backup_probe')) marker = 'seed';
       if (sql.includes("UPDATE support_backup_probe SET marker='mutated'")) marker = 'mutated';
-      if (sql.startsWith('SELECT ')) return response(200, {success: true, result: [{results: [{marker, payload_sha256: 'a'.repeat(64)}]}]});
+      if (sql.startsWith('SELECT ')) return response(200, {success: true, result: [{results: [{marker, payload_sha256: expectedPayloadSha}]}]});
       return response(200, {success: true, result: [{success: true}]});
     }
     if (u.pathname.endsWith('/time_travel/bookmark') && method === 'GET') {
