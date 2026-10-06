@@ -1,0 +1,49 @@
+name: MUSITU Axiom Support Accessibility Reality Verification
+
+on:
+  push:
+    branches:
+      - 'support/axiom-official-support-20261005'
+    paths:
+      - 'support/index.html'
+      - 'support/styles.css'
+      - 'support/app.js'
+      - 'support/scripts/verify_accessibility_reality.mjs'
+      - '.github/workflows/axiom-official-support-accessibility.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  accessibility:
+    if: github.ref_name == 'support/axiom-official-support-20261005'
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install isolated browser verification dependencies
+        run: |
+          npm install --no-save --ignore-scripts playwright @axe-core/playwright
+          npx playwright install --with-deps chromium
+      - name: Serve support surface only on runner localhost
+        shell: bash
+        run: |
+          python3 -m http.server 4173 --bind 127.0.0.1 --directory support >/tmp/axiom-support-http.log 2>&1 &
+          echo $! > /tmp/axiom-support-http.pid
+          for i in {1..20}; do curl --fail --silent http://127.0.0.1:4173/index.html >/dev/null && exit 0; sleep 0.25; done
+          exit 1
+      - name: Run real Chromium accessibility verification
+        run: node support/scripts/verify_accessibility_reality.mjs
+      - name: Publish sanitized result
+        if: always()
+        shell: bash
+        run: |
+          if [ -f support-accessibility-reality.json ]; then
+            node -e 'const e=require("./support-accessibility-reality.json"); const h=require("node:fs").readFileSync("support-accessibility-reality.json.sha256","utf8").split(" ")[0]; console.log(JSON.stringify({gate:e.gate,status:e.status,real_browser_rendering:e.real_browser_rendering,real_physical_device_user_tested:e.real_physical_device_user_tested,public_origin_used:e.public_origin_used,failures:e.failures,evidence_sha256:h}))'
+            rm support-accessibility-reality.json support-accessibility-reality.json.sha256
+          fi
+          kill "$(cat /tmp/axiom-support-http.pid)" 2>/dev/null || true
