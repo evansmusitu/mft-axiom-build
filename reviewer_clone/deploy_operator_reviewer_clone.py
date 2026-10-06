@@ -355,10 +355,24 @@ def full_oauth_e2e(reviewer_db, issuer, resource):
     form = urllib.parse.urlencode(
         {"flow_id": match.group(1), "musitu_account_key": fixture_key}
     ).encode()
+    browser_headers = {
+        "Content-Type": "application/x-www-form-urlencoded",
+        "Cookie": cookie,
+        "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+        "Accept-Language": "en-US,en;q=0.9",
+        "Origin": issuer,
+        "Referer": issuer + "/oauth/authorize?" + query,
+        "Sec-Fetch-Site": "same-origin",
+        "Sec-Fetch-Mode": "navigate",
+        "Sec-Fetch-User": "?1",
+        "Sec-Fetch-Dest": "document",
+        "Upgrade-Insecure-Requests": "1",
+    }
     code, headers, payload = raw(
         issuer + "/oauth/authorize",
         "POST",
-        {"Content-Type": "application/x-www-form-urlencoded", "Cookie": cookie},
+        browser_headers,
         form,
         45,
         False,
@@ -390,7 +404,11 @@ def full_oauth_e2e(reviewer_db, issuer, resource):
     code, _, payload = raw(
         issuer + "/oauth/token",
         "POST",
-        {"Content-Type": "application/x-www-form-urlencoded", "Accept": "application/json"},
+        {
+            "Content-Type": "application/x-www-form-urlencoded",
+            "Accept": "application/json",
+            "User-Agent": "MUSITU-Axiom-Operator-Reviewer-E2E/1.0",
+        },
         token_body,
     )
     token = json.loads(payload or b"{}") if code == 200 else {}
