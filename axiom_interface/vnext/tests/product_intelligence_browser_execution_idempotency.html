@@ -1,0 +1,113 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>MUSITU Axiom Phase 2 browser execution idempotency qualification</title>
+<pre id="result">MUSITU_AXIOM_PHASE2_BROWSER_IDEMPOTENCY_RUNNING</pre>
+<script type="module">
+import {GovernedExecutionStore} from '../execution_store.js';
+
+const out=document.querySelector('#result');
+const DB='musitu-axiom-execution-v1';
+const phase=new URL(location.href).searchParams.get('phase')||'seed';
+const invariant=(condition,message)=>{if(!condition)throw new Error(message);};
+const deleteDb=()=>new Promise((resolve,reject)=>{
+  const request=indexedDB.deleteDatabase(DB);
+  request.onsuccess=()=>resolve();
+  request.onerror=()=>reject(request.error);
+  request.onblocked=()=>reject(new Error('indexedDB deletion blocked'));
+});
+const authorityFor=projectId=>({
+  project_id:projectId,
+  actor_id:'agent_operator_browser_1',
+  agent_id:'agent_executor_browser_1',
+  workload_identity_id:'workload_executor_browser_1',
+  agent_status:'ACTIVE',
+  kill_switch_engaged:false,
+  revoked:false,
+  requester_type:'AGENT',
+  grant:{
+    tool_scopes:['artifact.write'],
+    data_scopes:[projectId],
+    network_policy:'DENY_ALL_EXTERNAL_NETWORK',
+    secrets_policy:'OPAQUE_SHORT_LIVED_OPERATION_SCOPED_NO_PLAINTEXT',
+    budget:{max_compute_units:20},
+  },
+  usage:{compute_units:0},
+  incident_posture:'NORMAL',
+  jurisdiction:'LOCAL_BROWSER',
+});
+const terminalReceipts=async(store,projectId,requestSha)=>(await store._all('receipts',projectId)).filter(row=>row.request_sha256===requestSha&&['COMPLETED','FAILED'].includes(row.status));
+const completedEvents=async(store,projectId,requestSha)=>(await store._all('events',projectId)).filter(row=>row.kind==='execution.completed'&&row.payload?.request_sha256===requestSha);
+
+try{
+  if(phase==='seed'){
+    localStorage.clear();
+    await deleteDb();
+    const projectId='project_browser_restart_12345678';
+    const authority=authorityFor(projectId);
+    const store=await GovernedExecutionStore.open();
+    const sandbox=await store.createSandbox(authority,{label:'Browser restart seed'});
+    const proposed=await store.propose(sandbox.sandbox_id,authority,{
+      operation:'file.write',
+      target:'restart-proof.txt',
+      payload:{content:'one governed side effect'},
+      compute_units:1,
+      instruction_provenance:'GOVERNED_PLAN',
+      requested_at:'2026-10-06T13:45:00.000Z',
+    });
+    invariant(proposed.decision.status==='AUTHORIZED','seed request must be authorized');
+    const receipt=await store.execute(proposed.request.request_sha256,authority);
+    invariant(receipt.status==='COMPLETED','seed execution must complete');
+    invariant((await terminalReceipts(store,projectId,proposed.request.request_sha256)).length===1,'seed must persist one terminal receipt');
+    invariant((await completedEvents(store,projectId,proposed.request.request_sha256)).length===1,'seed must persist one completion event');
+    localStorage.setItem('axiom_restart_state',JSON.stringify({projectId,authority,requestSha:proposed.request.request_sha256,receiptId:receipt.receipt_id,receiptSha:receipt.receipt_sha256}));
+    store.db.close();
+    out.textContent='MUSITU_AXIOM_PHASE2_BROWSER_RESTART_SEED_PASS';
+  }else if(phase==='replay'){
+    const saved=JSON.parse(localStorage.getItem('axiom_restart_state')||'null');
+    invariant(saved,'restart seed state missing');
+    const store=await GovernedExecutionStore.open();
+    const replay=await store.execute(saved.requestSha,saved.authority);
+    invariant(replay.receipt_id===saved.receiptId,'restart replay changed terminal receipt id');
+    invariant(replay.receipt_sha256===saved.receiptSha,'restart replay changed terminal receipt hash');
+    invariant((await terminalReceipts(store,saved.projectId,saved.requestSha)).length===1,'restart replay created duplicate terminal receipt');
+    invariant((await completedEvents(store,saved.projectId,saved.requestSha)).length===1,'restart replay repeated completion event');
+    store.db.close();
+    out.textContent='MUSITU_AXIOM_PHASE2_BROWSER_RESTART_REPLAY_PASS';
+  }else if(phase==='concurrent'){
+    const projectId='project_browser_concurrent_12345678';
+    const authority=authorityFor(projectId);
+    const storeA=await GovernedExecutionStore.open();
+    const sandbox=await storeA.createSandbox(authority,{label:'Browser concurrent qualification'});
+    const proposed=await storeA.propose(sandbox.sandbox_id,authority,{
+      operation:'worktree.create',
+      target:'concurrent-worktree',
+      compute_units:1,
+      instruction_provenance:'GOVERNED_PLAN',
+      requested_at:'2026-10-06T13:46:00.000Z',
+    });
+    invariant(proposed.decision.status==='AUTHORIZED','concurrent request must be authorized');
+    const storeB=await GovernedExecutionStore.open();
+    const settled=await Promise.allSettled([
+      storeA.execute(proposed.request.request_sha256,authority),
+      storeB.execute(proposed.request.request_sha256,authority),
+    ]);
+    const terminal=await terminalReceipts(storeA,projectId,proposed.request.request_sha256);
+    const events=await completedEvents(storeA,projectId,proposed.request.request_sha256);
+    invariant(terminal.length===1,`cross-instance concurrency persisted ${terminal.length} terminal receipts`);
+    invariant(events.length===1,`cross-instance concurrency persisted ${events.length} completion events`);
+    const canonical=terminal[0];
+    for(const item of settled){
+      if(item.status==='fulfilled') invariant(item.value.receipt_sha256===canonical.receipt_sha256,'fulfilled concurrent caller observed a noncanonical terminal receipt');
+      else invariant(item.reason?.name==='InvalidStateError'||/in.?flight|concurrent/i.test(String(item.reason?.message||item.reason)),'concurrent loser did not fail closed');
+    }
+    invariant(settled.some(item=>item.status==='fulfilled'),'no concurrent execution winner');
+    storeA.db.close();storeB.db.close();
+    out.textContent='MUSITU_AXIOM_PHASE2_BROWSER_CROSS_INSTANCE_ATOMIC_PASS';
+  }else{
+    throw new Error('unknown qualification phase');
+  }
+}catch(error){
+  out.textContent='MUSITU_AXIOM_PHASE2_BROWSER_IDEMPOTENCY_FAIL:'+error.name+':'+error.message;
+  document.body.dataset.failure='true';
+}
+</script>
