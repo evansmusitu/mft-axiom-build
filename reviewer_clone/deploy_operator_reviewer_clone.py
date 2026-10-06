@@ -207,7 +207,7 @@ def clone_identity_schema_and_snapshot(reviewer_db):
     def namespace_schema(sql):
         out = sql
         for src, dst in sorted(all_names.items(), key=lambda item: len(item[0]), reverse=True):
-            out = re.sub(r"\\b" + re.escape(src) + r"\\b", dst, out)
+            out = re.sub(r"\b" + re.escape(src) + r"\b", dst, out)
         return out
 
     for table in ["customers", "api_keys", "oauth_identity_claims"]:
