@@ -357,7 +357,7 @@ def configure_custom_domain_and_transport(host, worker, rule_ref):
     else:
         if any(row.get("expression") == expression for row in rules):
             raise RuntimeError("reviewer host already has a different configuration rule")
-        cf(
+        zone_cf(
             f"/zones/{ZONE_ID}/rulesets/{ruleset_id}/rules",
             "POST",
             {
