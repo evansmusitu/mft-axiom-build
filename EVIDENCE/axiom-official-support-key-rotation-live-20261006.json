@@ -1,0 +1,23 @@
+{
+  "schema": "musitu.axiom.support-readiness-evidence.v1",
+  "gate": "ENCRYPTION_KEY_MANAGEMENT",
+  "status": "PASS",
+  "artifact_sha256": "f77def8adb8a7e1dd83d10f5167cd3ce31fc16b29acab4385ec48bf8a0aad71d",
+  "verifier_ref": "github-actions:run:37423983269+readback:37422536639:attempt2",
+  "verified_at": "2026-10-06T06:29:52Z",
+  "algorithm": "AES-256-GCM",
+  "rotation_performed": true,
+  "generated_key_bytes": 32,
+  "database_empty_verified": true,
+  "support_case_count": 0,
+  "support_event_count": 0,
+  "public_route_absent_verified": true,
+  "workers_dev_enabled": false,
+  "previews_enabled": false,
+  "support_custom_domain_count": 0,
+  "data_key_secret_present_after": true,
+  "turnstile_secret_preserved": true,
+  "customer_data_reencryption_required": false,
+  "secret_value_exposed": false,
+  "public_support_deployed": false
+}
