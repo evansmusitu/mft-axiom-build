@@ -23,6 +23,10 @@ REVIEWER_DB_NAME = os.environ["REVIEWER_DB_NAME"]
 OAUTH_WORKER = os.environ["OAUTH_WORKER"]
 MCP_WORKER = os.environ["MCP_WORKER"]
 OPERATOR_APP = os.environ["OPERATOR_APP"]
+ZONE_ID = os.environ["ZONE_ID"]
+ZONE_NAME = os.environ["ZONE_NAME"]
+OAUTH_HOST = os.environ["OAUTH_HOST"]
+MCP_HOST = os.environ["MCP_HOST"]
 FALLBACK_STAGING_DB_NAME = "mft-axiom-staging"
 FALLBACK_STAGING_DB_UUID = "92de45db-399a-450b-81d0-24d28b105f41"
 
@@ -151,7 +155,7 @@ def deploy_worker(worker, source, bindings):
     cf(
         f"/accounts/{ACCOUNT_ID}/workers/scripts/{urllib.parse.quote(worker, safe='')}/subdomain",
         "POST",
-        {"enabled": True, "previews_enabled": False},
+        {"enabled": False, "previews_enabled": False},
     )
 
 
@@ -271,17 +275,107 @@ def get_modal_runtime():
     return url, key, secret
 
 
-def get_workers_dev_urls():
-    result = cf(f"/accounts/{ACCOUNT_ID}/workers/subdomain") or {}
-    subdomain = str(result.get("subdomain") or "").strip()
-    if not subdomain:
-        raise RuntimeError("Cloudflare workers.dev subdomain unavailable")
-    issuer = f"https://{OAUTH_WORKER}.{subdomain}.workers.dev"
-    resource = f"https://{MCP_WORKER}.{subdomain}.workers.dev"
-    if "mftintelligence.com" in issuer or "mftintelligence.com" in resource:
-        raise RuntimeError("reviewer clone unexpectedly uses production domain")
-    return issuer, resource
+def configure_custom_domain_and_transport(host, worker, rule_ref):
+    zones = cf("/zones?name=" + urllib.parse.quote(ZONE_NAME) + "&status=active") or []
+    if (
+        len(zones) != 1
+        or zones[0].get("id") != ZONE_ID
+        or (zones[0].get("account") or {}).get("id") != ACCOUNT_ID
+    ):
+        raise RuntimeError("canonical zone/account mismatch")
 
+    domains = cf(f"/accounts/{ACCOUNT_ID}/workers/domains") or []
+    existing = [row for row in domains if row.get("hostname") == host]
+    if len(existing) > 1:
+        raise RuntimeError("duplicate reviewer custom-domain rows")
+    if existing and existing[0].get("service") != worker:
+        raise RuntimeError("reviewer hostname belongs to another Worker")
+
+    if not existing:
+        dns = cf(
+            f"/zones/{ZONE_ID}/dns_records?name="
+            + urllib.parse.quote(host)
+            + "&per_page=100"
+        ) or []
+        if dns:
+            raise RuntimeError("reviewer hostname already has DNS records")
+        routes = cf(f"/zones/{ZONE_ID}/workers/routes") or []
+        if any(host in str(row.get("pattern") or "") for row in routes if isinstance(row, dict)):
+            raise RuntimeError("reviewer hostname already appears in Worker routes")
+
+    # Exact-host machine transport exception only; production host rules are untouched.
+    rulesets = cf(f"/zones/{ZONE_ID}/rulesets") or []
+    candidates = [
+        row for row in rulesets
+        if row.get("phase") == "http_config_settings" and row.get("kind") == "zone"
+    ]
+    if len(candidates) != 1:
+        raise RuntimeError("zone configuration ruleset not unique")
+    ruleset_id = candidates[0]["id"]
+    detail = cf(f"/zones/{ZONE_ID}/rulesets/{ruleset_id}") or {}
+    rules = detail.get("rules") or []
+    expression = 'http.host eq "' + host + '"'
+    by_ref = [row for row in rules if row.get("ref") == rule_ref]
+    if len(by_ref) > 1:
+        raise RuntimeError("duplicate reviewer machine-transport rules")
+    if by_ref:
+        row = by_ref[0]
+        params = row.get("action_parameters") or {}
+        if (
+            row.get("action") != "set_config"
+            or row.get("expression") != expression
+            or params.get("security_level") != "essentially_off"
+            or params.get("bic") is not False
+            or row.get("enabled") is False
+        ):
+            raise RuntimeError("reviewer machine-transport rule drift")
+    else:
+        if any(row.get("expression") == expression for row in rules):
+            raise RuntimeError("reviewer host already has a different configuration rule")
+        cf(
+            f"/zones/{ZONE_ID}/rulesets/{ruleset_id}/rules",
+            "POST",
+            {
+                "action": "set_config",
+                "action_parameters": {
+                    "security_level": "essentially_off",
+                    "bic": False,
+                },
+                "expression": expression,
+                "description": "MUSITU Axiom Operator Reviewer machine transport",
+                "enabled": True,
+                "ref": rule_ref,
+            },
+        )
+
+    if not existing:
+        cf(
+            f"/accounts/{ACCOUNT_ID}/workers/domains",
+            "PUT",
+            {
+                "hostname": host,
+                "service": worker,
+                "zone_id": ZONE_ID,
+                "zone_name": ZONE_NAME,
+                "override_existing_origin": True,
+            },
+        )
+    after = [
+        row for row in (cf(f"/accounts/{ACCOUNT_ID}/workers/domains") or [])
+        if row.get("hostname") == host
+    ]
+    if len(after) != 1 or after[0].get("service") != worker:
+        raise RuntimeError("reviewer custom-domain mapping failed")
+
+
+def get_reviewer_urls():
+    if OAUTH_HOST in {"auth.mftintelligence.com", "mcp.mftintelligence.com"}:
+        raise RuntimeError("reviewer OAuth hostname collides with production")
+    if MCP_HOST in {"auth.mftintelligence.com", "mcp.mftintelligence.com"}:
+        raise RuntimeError("reviewer MCP hostname collides with production")
+    issuer = "https://" + OAUTH_HOST
+    resource = "https://" + MCP_HOST
+    return issuer, resource
 
 def wait_health(base, label):
     last = None
@@ -439,7 +533,7 @@ def main():
     reviewer_db = ensure_reviewer_db()
     clone_identity_schema_and_snapshot(reviewer_db)
     modal_url, modal_key, modal_secret = get_modal_runtime()
-    issuer, resource = get_workers_dev_urls()
+    issuer, resource = get_reviewer_urls()
 
     deploy_worker(
         OAUTH_WORKER,
@@ -461,6 +555,17 @@ def main():
             {"type": "secret_text", "name": "MODAL_PROXY_KEY", "text": modal_key},
             {"type": "secret_text", "name": "MODAL_PROXY_SECRET", "text": modal_secret},
         ],
+    )
+
+    configure_custom_domain_and_transport(
+        OAUTH_HOST,
+        OAUTH_WORKER,
+        "musitu_axiom_operator_reviewer_oauth_transport",
+    )
+    configure_custom_domain_and_transport(
+        MCP_HOST,
+        MCP_WORKER,
+        "musitu_axiom_operator_reviewer_mcp_transport",
     )
 
     wait_health(issuer, "oauth")
