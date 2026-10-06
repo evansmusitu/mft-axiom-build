@@ -87,7 +87,7 @@ test('persistence binding preserves AXIOM graph semantics and project scope',asy
       rows.set(projectId,structuredClone(value));
       return structuredClone(value);
     },
-    async verifyIntegrity(projectId){return {status:rows.has(projectId)?'PASS':'NOT_PROVEN'};},
+    async verifyIntegrity(projectId){return {status:rows.has(projectId)?'PASS':'NOT_PROVEN',project_id:projectId};},
     async exportProject(projectId){return {project_id:projectId,graph:rows.get(projectId) ?? null};},
   };
   const persistence=createLivingProductGraphPersistence(backend);
@@ -99,4 +99,127 @@ test('persistence binding preserves AXIOM graph semantics and project scope',asy
   const cross=graph();
   cross.project_id='project_87654321';
   await assert.rejects(()=>persistence.commitForProject('project_12345678',cross,{expectedGeneration:1}),/cross-project graph commit blocked/);
+});
+
+test('Living Product Graph rejects unknown structural fields fail-closed',()=>{
+  const cases=[];
+  const top=graph(); top.unexpected=true; cases.push(top);
+  const node=graph(); node.nodes[0].unexpected=true; cases.push(node);
+  const edge=graph(); edge.edges[0].unexpected=true; cases.push(edge);
+  const meta=graph(); meta.nodes[0].metadata.unexpected=true; cases.push(meta);
+  for(const candidate of cases){
+    const result=validateLivingProductGraph(candidate);
+    assert.equal(result.ok,false);
+    assert.ok(result.errors.some(error=>error.includes('unsupported fields')));
+  }
+});
+
+test('node and edge metadata generation must match the enclosing graph generation',()=>{
+  for(const mutate of [
+    candidate=>{candidate.nodes[0].metadata.generation=2;},
+    candidate=>{candidate.edges[0].metadata.generation=2;},
+  ]){
+    const candidate=graph(); mutate(candidate);
+    const result=validateLivingProductGraph(candidate);
+    assert.equal(result.ok,false);
+    assert.ok(result.errors.some(error=>error.includes('metadata.generation must equal graph generation')));
+  }
+});
+
+test('persistence mechanism outputs cannot grant authority or return credential material',async()=>{
+  const descriptor={
+    kind:'PersistenceBackend',adapter_version:'1.0.0',provider:'adversarial-memory',semantic_owner:'AXIOM',authority:'MECHANISM_ONLY',
+    capabilities:['load','commit','verify','export'],unsupported_operations:['production_mutation'],timeout_ms:1000,
+    retry:{max_attempts:1,backoff:'NONE'},idempotency:{mode:'REQUIRED_FOR_WRITES'},data_classification:['project-private'],
+    egress:{required:false,allowed_origins:[]},identity_binding:{required:true,mode:'AXIOM_WORKLOAD_ID'},
+    evidence_envelope:{schema:'musitu.axiom.evidence.v1',required:true},health:{mode:'EXPLICIT'},migration_export:{supported:true,format:'JSONL'},fail_closed:true,
+  };
+  const baseBackend={descriptor,async loadProjectGraph(){return null;},async commitGraph(_projectId,value){return value;}};
+  for(const result of [
+    {status:'PASS',project_id:'project_12345678',release_authority:true},
+    {status:'PASS',project_id:'project_12345678',nested:{api_key:'must-not-cross'}},
+  ]){
+    const persistence=createLivingProductGraphPersistence({...baseBackend,async verifyIntegrity(){return result;},async exportProject(projectId){return {project_id:projectId,graph:null};}});
+    await assert.rejects(()=>persistence.verify('project_12345678'),/authority|credential/i);
+  }
+  for(const result of [
+    {project_id:'project_12345678',graph:null,production_authority:true},
+    {project_id:'project_12345678',graph:null,client_secret:'must-not-cross'},
+  ]){
+    const persistence=createLivingProductGraphPersistence({...baseBackend,async verifyIntegrity(projectId){return {status:'NOT_PROVEN',project_id:projectId};},async exportProject(){return result;}});
+    await assert.rejects(()=>persistence.exportProject('project_12345678'),/authority|credential/i);
+  }
+});
+
+test('persistence integrity PASS is project-bound mechanism evidence only and cannot become AXIOM certification',async()=>{
+  const descriptor={
+    kind:'PersistenceBackend',adapter_version:'1.0.0',provider:'integrity-memory',semantic_owner:'AXIOM',authority:'MECHANISM_ONLY',
+    capabilities:['load','commit','verify','export'],unsupported_operations:['production_mutation'],timeout_ms:1000,
+    retry:{max_attempts:1,backoff:'NONE'},idempotency:{mode:'REQUIRED_FOR_WRITES'},data_classification:['project-private'],
+    egress:{required:false,allowed_origins:[]},identity_binding:{required:true,mode:'AXIOM_WORKLOAD_ID'},
+    evidence_envelope:{schema:'musitu.axiom.evidence.v1',required:true},health:{mode:'EXPLICIT'},migration_export:{supported:true,format:'JSONL'},fail_closed:true,
+  };
+  const make=result=>createLivingProductGraphPersistence({
+    descriptor,async loadProjectGraph(){return null;},async commitGraph(_projectId,value){return value;},
+    async verifyIntegrity(){return result;},async exportProject(projectId){return {project_id:projectId,graph:null};},
+  });
+  await assert.rejects(()=>make({status:'PASS',project_id:'project_other_12345678'}).verify('project_12345678'),/cross-project|identity/i);
+  await assert.rejects(()=>make({status:'CERTIFIED',project_id:'project_12345678'}).verify('project_12345678'),/status/i);
+  const out=await make({status:'PASS',project_id:'project_12345678',generation:1,node_count:2,edge_count:1}).verify('project_12345678');
+  assert.equal(out.status,'PASS');
+  assert.equal(out.verification_scope,'PERSISTENCE_MECHANISM_INTEGRITY');
+  assert.equal(out.canonical_evidence,false);
+  assert.equal(out.authority_effect,'NONE');
+  assert.equal(out.release_authority,false);
+  assert.equal(out.production_authority,false);
+  assert.equal(out.certification_authority,false);
+});
+
+test('Living Product Graph identifiers, evidence references and validity windows are fail-closed',()=>{
+  const cases=[];
+  const badNode=graph(); badNode.nodes[0].node_id='bad node id'; cases.push(badNode);
+  const badEdge=graph(); badEdge.edges[0].edge_id='bad edge id'; cases.push(badEdge);
+  const badActor=graph(); badActor.nodes[0].metadata.actor_id='bad actor id'; cases.push(badActor);
+  const badEvidence=graph(); badEvidence.nodes[0].metadata.evidence_refs=['']; cases.push(badEvidence);
+  const duplicateEvidence=graph(); duplicateEvidence.nodes[0].metadata.evidence_refs=['evidence_a','evidence_a']; cases.push(duplicateEvidence);
+  const reversed=graph(); reversed.nodes[0].metadata.valid_to='2026-10-04T14:59:59Z'; cases.push(reversed);
+  for(const candidate of cases){
+    const result=validateLivingProductGraph(candidate);
+    assert.equal(result.ok,false);
+  }
+});
+
+test('Living Product Graph metadata cannot persist credential material',()=>{
+  for(const mutate of [
+    candidate=>{candidate.nodes[0].metadata.provenance.api_key='must-not-cross';},
+    candidate=>{candidate.edges[0].metadata.uncertainty={nested:{client_secret:'must-not-cross'}};},
+  ]){
+    const candidate=graph(); mutate(candidate);
+    const result=validateLivingProductGraph(candidate);
+    assert.equal(result.ok,false);
+    assert.ok(result.errors.some(error=>error.includes('credential material')));
+  }
+});
+
+test('persistence export is explicitly migration-only and carries no AXIOM authority',async()=>{
+  const descriptor={
+    kind:'PersistenceBackend',adapter_version:'1.0.0',provider:'export-memory',semantic_owner:'AXIOM',authority:'MECHANISM_ONLY',
+    capabilities:['load','commit','verify','export'],unsupported_operations:['production_mutation'],timeout_ms:1000,
+    retry:{max_attempts:1,backoff:'NONE'},idempotency:{mode:'REQUIRED_FOR_WRITES'},data_classification:['project-private'],
+    egress:{required:false,allowed_origins:[]},identity_binding:{required:true,mode:'AXIOM_WORKLOAD_ID'},
+    evidence_envelope:{schema:'musitu.axiom.evidence.v1',required:true},health:{mode:'EXPLICIT'},migration_export:{supported:true,format:'JSONL'},fail_closed:true,
+  };
+  const persistence=createLivingProductGraphPersistence({
+    descriptor,async loadProjectGraph(){return null;},async commitGraph(_projectId,value){return value;},
+    async verifyIntegrity(projectId){return {status:'NOT_PROVEN',project_id:projectId};},
+    async exportProject(projectId){return {project_id:projectId,graph:null};},
+  });
+  const out=await persistence.exportProject('project_12345678');
+  assert.equal(out.project_id,'project_12345678');
+  assert.equal(out.export_scope,'PERSISTENCE_MIGRATION_EXPORT');
+  assert.equal(out.canonical_evidence,false);
+  assert.equal(out.authority_effect,'NONE');
+  assert.equal(out.release_authority,false);
+  assert.equal(out.production_authority,false);
+  assert.equal(out.certification_authority,false);
 });
