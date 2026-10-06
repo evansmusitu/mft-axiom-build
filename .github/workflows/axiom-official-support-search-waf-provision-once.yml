@@ -1,0 +1,167 @@
+name: MUSITU Axiom Support Search WAF Provision Once
+
+on:
+  push:
+    branches:
+      - 'support/axiom-official-support-20261005'
+    paths:
+      - '.github/workflows/axiom-official-support-search-waf-provision-once.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  provision:
+    if: github.event_name == 'push' && github.event.before == '3d6883a7fd125fadbf143667433a45ff94e0166a'
+    runs-on: ubuntu-latest
+    environment: axiom-support-production
+    timeout-minutes: 8
+    env:
+      CF_TOKEN: ${{ secrets.CLOUDFLARE_RULESETS_API_TOKEN }}
+      CF_ZONE: '5b56528f03948ff5917a5e0cd9f7109e'
+      GH_READ_TOKEN: ${{ github.token }}
+    steps:
+      - name: Checkout exact support branch
+        uses: actions/checkout@v4
+
+      - name: Exact protected-state and evidence boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF_NAME" = 'support/axiom-official-support-20261005'
+          test "$GITHUB_REF_NAME" != 'main'
+          test "${{ github.event.before }}" = '3d6883a7fd125fadbf143667433a45ff94e0166a'
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          import crypto from 'node:crypto';
+          const api='https://api.github.com/repos/evansmusitu/mft-axiom-build';
+          const token=process.env.GH_READ_TOKEN;
+          async function gh(path){
+            const r=await fetch(api+path,{headers:{authorization:'Bearer '+token,accept:'application/vnd.github+json'}});
+            if(!r.ok) throw new Error('GitHub boundary read failed HTTP '+r.status+' '+path);
+            return r.json();
+          }
+          const enc=encodeURIComponent;
+          const [main,support,claude,pr,authBlob,mcpBlob]=await Promise.all([
+            gh('/branches/main'),
+            gh('/branches/'+enc('support/axiom-official-support-20261005')),
+            gh('/branches/'+enc('distribution/claude-remote-mcp-20261004')),
+            gh('/pulls/1'),
+            gh('/git/blobs/8ba0dbc1b6dd1533c6c26bff23991429e03a71a5'),
+            gh('/git/blobs/4a1ad37a5e7df0e4d3966e8b5f9f0e8f2db69167'),
+          ]);
+          if(main?.commit?.sha!=='d6a846f6bbe0bccac1758713eb4de167caf07113') throw new Error('protected main drift');
+          if(support?.commit?.sha!==process.env.GITHUB_SHA) throw new Error('support branch advanced during WAF provisioning');
+          if(claude?.commit?.sha!=='4d956f415431836018e5145227c8df5bd5fde7d8') throw new Error('Claude branch drift');
+          if(pr?.state!=='open'||pr?.draft!==true||pr?.merged===true||pr?.head?.sha!=='8fc1fbb7c5ebbcc1604ecf24c5f4594f2d5667e3') throw new Error('PR #1 drift');
+          if(authBlob?.sha!=='8ba0dbc1b6dd1533c6c26bff23991429e03a71a5'||mcpBlob?.sha!=='4a1ad37a5e7df0e4d3966e8b5f9f0e8f2db69167') throw new Error('frozen OpenAI blob drift');
+          const readiness=JSON.parse(fs.readFileSync('EVIDENCE/axiom-official-support-readiness-current.json','utf8'));
+          if(readiness.operational_status!=='OPERATIONAL'||readiness.pass_count!==11||readiness.partial_count!==0||readiness.missing_count!==0) throw new Error('Official Support operational state drift');
+          const raw=fs.readFileSync('EVIDENCE/axiom-official-support-search-edge-audit-live-20261006.json');
+          if(crypto.createHash('sha256').update(raw).digest('hex')!=='466b8a3e3aea70667335539d2049c4205d8fd03b4178cac555fca9b484126e40') throw new Error('search edge audit hash mismatch');
+          NODE
+
+      - name: Dry-run then apply exact WAF search crawler exception
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          import {
+            buildVerifiedSearchCrawlerSkipRule,
+            VERIFIED_SEARCH_CRAWLER_RULE_REF,
+          } from './support/scripts/provision_cloudflare_control_plane.mjs';
+
+          const token=String(process.env.CF_TOKEN||'');
+          const zone=String(process.env.CF_ZONE||'');
+          if(!token||!zone) throw new Error('Cloudflare WAF provisioning configuration missing');
+          const base='https://api.cloudflare.com/client/v4/zones/'+zone;
+          const headers={authorization:'Bearer '+token,accept:'application/json','content-type':'application/json'};
+          async function req(path,{method='GET',body,allow404=false}={}){
+            const r=await fetch(base+path,{method,headers,body:body===undefined?undefined:JSON.stringify(body)});
+            let p={}; try{p=await r.json()}catch{}
+            if(allow404&&r.status===404) return {ok:false,status:404,payload:p};
+            if(!r.ok||p?.success===false){
+              const codes=(p?.errors||[]).map(x=>x?.code).filter(Boolean);
+              throw new Error('Cloudflare WAF request failed HTTP '+r.status+' codes='+(codes.join(',')||'none')+' path='+path);
+            }
+            return {ok:true,status:r.status,result:p?.result};
+          }
+
+          const rule=buildVerifiedSearchCrawlerSkipRule();
+          if(rule.action!=='skip'||JSON.stringify(rule.action_parameters)!==JSON.stringify({products:['bic','securityLevel']})) throw new Error('WAF search rule action drift');
+          if(!rule.expression.includes('cf.client.bot')||!rule.expression.includes('cf.verified_bot_category eq "Search Engine Crawler"')) throw new Error('verified search category missing');
+          if(/\/api\/|\/health|AI Search|AI Crawler|AI Assistant/.test(rule.expression)) throw new Error('WAF search rule widened into forbidden surface');
+
+          let entry=await req('/rulesets/phases/http_request_firewall_custom/entrypoint',{allow404:true});
+          let rulesetId='';
+          let mutation='';
+          if(!entry.ok){
+            const body={
+              name:'MUSITU Axiom Official Support verified search crawler WAF',
+              description:'Narrow traditional search crawler exception for public Official Support assets',
+              kind:'zone',
+              phase:'http_request_firewall_custom',
+              rules:[rule]
+            };
+            await req('/rulesets?dry_run=true',{method:'POST',body});
+            const created=await req('/rulesets',{method:'POST',body});
+            rulesetId=String(created.result?.id||'');
+            if(!rulesetId) throw new Error('created WAF ruleset id missing');
+            mutation='created_ruleset';
+          } else {
+            rulesetId=String(entry.result?.id||'');
+            if(!rulesetId) throw new Error('custom WAF entrypoint id missing');
+            const rules=Array.isArray(entry.result?.rules)?entry.result.rules:[];
+            const matches=rules.filter(x=>String(x?.ref||'')===VERIFIED_SEARCH_CRAWLER_RULE_REF);
+            if(matches.length>1) throw new Error('duplicate search WAF rules exist');
+            if(matches.length===0){
+              await req('/rulesets/'+encodeURIComponent(rulesetId)+'/rules?dry_run=true',{method:'POST',body:rule});
+              await req('/rulesets/'+encodeURIComponent(rulesetId)+'/rules',{method:'POST',body:rule});
+              mutation='created_rule';
+            } else {
+              const ruleId=String(matches[0]?.id||'');
+              if(!ruleId) throw new Error('existing search WAF rule id missing');
+              await req('/rulesets/'+encodeURIComponent(rulesetId)+'/rules/'+encodeURIComponent(ruleId)+'?dry_run=true',{method:'PATCH',body:rule});
+              await req('/rulesets/'+encodeURIComponent(rulesetId)+'/rules/'+encodeURIComponent(ruleId),{method:'PATCH',body:rule});
+              mutation='updated_rule';
+            }
+          }
+
+          const [after,security,bic,bots]=await Promise.all([
+            req('/rulesets/phases/http_request_firewall_custom/entrypoint'),
+            req('/settings/security_level'),
+            req('/settings/browser_check'),
+            req('/bot_management')
+          ]);
+          const rules=Array.isArray(after.result?.rules)?after.result.rules:[];
+          const matches=rules.filter(x=>String(x?.ref||'')===VERIFIED_SEARCH_CRAWLER_RULE_REF);
+          if(matches.length!==1) throw new Error('exact search WAF rule not present once');
+          const actual=matches[0];
+          if(actual?.enabled===false||actual?.action!=='skip'||actual?.expression!==rule.expression) throw new Error('search WAF rule readback mismatch');
+          const products=Array.isArray(actual?.action_parameters?.products)?actual.action_parameters.products:[];
+          if(JSON.stringify(products)!==JSON.stringify(['bic','securityLevel'])) throw new Error('search WAF skip products drift');
+          if(security.result?.value!=='under_attack') throw new Error('global Under Attack mode changed');
+          if(bic.result?.value!=='on') throw new Error('global Browser Integrity Check changed');
+          if(bots.result?.fight_mode!==false) throw new Error('Bot Fight Mode changed');
+          for(const field of ['ai_bots_protection','ai_search','ai_training','ai_user','content_bots_protection','crawler_protection']){
+            if(String(bots.result?.[field]??'disabled')!=='disabled') throw new Error('AI/bot policy changed unexpectedly: '+field);
+          }
+          console.log(JSON.stringify({
+            gate:'MUSITU_AXIOM_SUPPORT_SEARCH_WAF',
+            status:'PASS',
+            mutation,
+            ruleset_id:rulesetId,
+            rule_id:String(actual?.id||''),
+            rule_ref:VERIFIED_SEARCH_CRAWLER_RULE_REF,
+            verified_bot_category:'Search Engine Crawler',
+            methods:['GET','HEAD'],
+            public_paths:['/','/index.html','/robots.txt','/sitemap.xml','/styles.css','/app.js'],
+            skip_products:products,
+            global_security_level:'under_attack',
+            global_browser_integrity_check:'on',
+            bot_fight_mode:false,
+            api_or_health_exception:false,
+            ai_crawler_exception:false,
+            secret_exposed:false
+          }));
+          NODE
