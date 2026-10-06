@@ -82,7 +82,12 @@ export async function createChangeAdmissionRequest({projectId,workId='',checkpoi
 function assertRequest(request){
   if(!isPlainObject(request)||request.schema!==CHANGE_ADMISSION_REQUEST_SCHEMA) throw new TypeError('change admission request required');
   rejectUnknownKeys(request,REQUEST_KEYS,'change admission request');
+  if(typeof request.project_id!=='string'||!request.project_id||clean(request.project_id,180)!==request.project_id) throw new TypeError('project_id must be a normalized non-empty string');
+  if(typeof request.work_id!=='string'||clean(request.work_id,180)!==request.work_id) throw new TypeError('work_id must be a normalized string');
+  if(typeof request.checkpoint_id!=='string'||!request.checkpoint_id||clean(request.checkpoint_id,180)!==request.checkpoint_id) throw new TypeError('checkpoint_id must be a normalized non-empty string');
+  if(typeof request.checkpoint_sha256!=='string'||!HASH.test(request.checkpoint_sha256)) throw new TypeError('checkpoint_sha256 must be a sha256 string');
   if(typeof request.builder_actor_id!=='string'||!request.builder_actor_id||clean(request.builder_actor_id,180)!==request.builder_actor_id) throw new TypeError('builder_actor_id must be a normalized non-empty string');
+  if(typeof request.created_at!=='string'||iso(request.created_at,'request.created_at')!==request.created_at) throw new TypeError('created_at must be a canonical ISO instant string');
   if(typeof request.request_sha256!=='string'||!HASH.test(request.request_sha256)) throw new TypeError('request sha256 required');
   if(request.policy_engine_authority!=='MECHANISM_ONLY'||request.builder_may_approve!==false||request.external_execution_authority!==false||request.production_authority!==false) throw new DOMException('change admission authority boundary invalid','SecurityError');
   const model=CHANGE_RISK_MODEL[request.risk_class];
