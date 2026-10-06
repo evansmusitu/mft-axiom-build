@@ -5,6 +5,7 @@ from pathlib import Path
 from benchmarks.mining_adapter.industrial_field import (
     IndustrialWorkloadSpec,
     comparator_matrix,
+    encode_mqtt_batch,
     evaluate_field_gate,
     mining_row,
     workload_fingerprint,
@@ -38,6 +39,14 @@ class IndustrialFieldBenchmarkTests(unittest.TestCase):
             "record_id","asset_id","site","event_time","latitude","longitude",
             "hazard","exposure","severity","likelihood","cost","benefit",
         })
+
+    def test_three_thousand_record_mqtt_batch_stays_inside_adapter_boundary(self):
+        payload=encode_mqtt_batch(start_index=0,count=3000,seed=20261006)
+        self.assertLessEqual(len(payload),1024*1024)
+        decoded=json.loads(payload.decode("utf-8"))
+        self.assertEqual(len(decoded["rows"]),3000)
+        self.assertEqual(decoded["rows"][0]["record_id"],"field-0000000000")
+        self.assertEqual(decoded["rows"][-1]["record_id"],"field-0000002999")
 
     def test_current_comparator_matrix_is_fail_closed(self):
         matrix=comparator_matrix()
