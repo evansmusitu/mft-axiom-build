@@ -16,7 +16,7 @@ concurrency:
 
 jobs:
   verify-private-edge:
-    if: github.event.before == 'd4e574635f0f087fc03e67b233ddf2f601afd61e'
+    if: github.event.before == 'b8a592f90e621dfb2b7771c46f26d18a083fb780'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     environment: axiom-support-production
@@ -36,7 +36,7 @@ jobs:
           test "$GITHUB_REF_NAME" = 'support/axiom-official-support-20261005'
           test "$GITHUB_REF_NAME" != 'main'
           test "$GITHUB_EVENT_NAME" = 'push'
-          test "${{ github.event.before }}" = 'd4e574635f0f087fc03e67b233ddf2f601afd61e'
+          test "${{ github.event.before }}" = 'b8a592f90e621dfb2b7771c46f26d18a083fb780'
       - name: Re-run full support and rate-limit contracts
         run: node --test support/tests/*.test.mjs
       - name: Create Access-protected ephemeral edge, verify negatives and rate limiting, then destroy it
@@ -254,9 +254,14 @@ jobs:
             await new Promise(r=>setTimeout(r,5000));
             await cf('/accounts/'+account+'/workers/scripts/'+encodeURIComponent(worker)+'/subdomain',{method:'POST',body:{enabled:true,previews_enabled:false}});
             subdomainEnabled=true;
-            const sub=await cf('/accounts/'+account+'/workers/scripts/'+encodeURIComponent(worker)+'/subdomain');
-            workerUrl=String(sub.result?.url||'').replace(/\/$/,'');
-            if(!/^https:\/\//.test(workerUrl)) throw new Error('ephemeral Worker URL unavailable after controlled enable');
+            const [sub,accountSubdomain]=await Promise.all([
+              cf('/accounts/'+account+'/workers/scripts/'+encodeURIComponent(worker)+'/subdomain'),
+              cf('/accounts/'+account+'/workers/subdomain')
+            ]);
+            if(sub.result?.enabled!==true) throw new Error('ephemeral Worker subdomain did not enable');
+            const accountSub=String(accountSubdomain.result?.subdomain||'').trim();
+            if(!/^[a-z0-9-]+$/i.test(accountSub)) throw new Error('account Workers subdomain unavailable');
+            workerUrl='https://'+worker+'.'+accountSub+'.workers.dev';
 
             let unauthStatus=0;
             for(let i=0;i<12;i++){
