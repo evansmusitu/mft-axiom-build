@@ -47,6 +47,7 @@ assert.match(d,/User-Agent/);
 assert.match(d,/Sec-Fetch-Site/);
 const modalProxy="reviewer_clone/modal_operator_reviewer_proxy.py";
 const mp=fs.readFileSync(modalProxy,"utf8");
+assert.doesNotMatch(mp,/from __future__ import annotations/);
 assert.match(mp,/request: Request/);
 
 
