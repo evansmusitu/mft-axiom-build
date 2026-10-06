@@ -12,7 +12,7 @@ permissions:
 
 jobs:
   verify:
-    if: github.event_name == 'push' && github.event.before == '642fd1df7658d9692f72d30a396168a3286c145a'
+    if: github.event_name == 'push' && github.event.before == 'dbb175e376e225a1e47104a4a2fefe10007e6196'
     runs-on: ubuntu-latest
     environment: axiom-support-production
     timeout-minutes: 6
@@ -26,7 +26,7 @@ jobs:
           set -euo pipefail
           test "$GITHUB_REF_NAME" = 'support/axiom-official-support-20261005'
           test "$GITHUB_REF_NAME" != 'main'
-          test "${{ github.event.before }}" = '642fd1df7658d9692f72d30a396168a3286c145a'
+          test "${{ github.event.before }}" = 'dbb175e376e225a1e47104a4a2fefe10007e6196'
 
       - name: Verify deployed search surface and edge policy read-only
         shell: bash
@@ -59,6 +59,7 @@ jobs:
           const rule=matches[0];
           if(rule.action!=='skip'||rule.enabled===false) throw new Error('search crawler WAF rule inactive');
           if(!String(rule.expression||'').includes('cf.client.bot')||!String(rule.expression||'').includes('cf.verified_bot_category eq "Search Engine Crawler"')) throw new Error('search crawler verification expression drift');
+          if(!String(rule.expression||'').includes('http.user_agent contains "Google-InspectionTool"')) throw new Error('Google Inspection Tool verified-bot condition missing');
           if(/\/api\/|\/health|AI Search|AI Crawler|AI Assistant/.test(String(rule.expression||''))) throw new Error('search crawler WAF rule widened');
           if(JSON.stringify(rule.action_parameters?.products||[])!==JSON.stringify(['bic','securityLevel'])) throw new Error('search crawler skip products drift');
           if(security?.value!=='under_attack'||bic?.value!=='on'||bots?.fight_mode!==false) throw new Error('global security posture drift');
@@ -103,16 +104,20 @@ jobs:
           }));
           NODE
 
-      - name: Prove spoofed Googlebot user agent does not get verified-bot bypass
+      - name: Prove spoofed Googlebot and Google Inspection Tool user agents do not get verified-bot bypass
         shell: bash
         run: |
           set -euo pipefail
-          rm -f spoof.headers spoof.body
+          rm -f spoof.headers spoof.body inspection.headers inspection.body
           code=$(curl --silent --show-error --connect-timeout 10 --max-time 30 -A 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)' -D spoof.headers -o spoof.body -w '%{http_code}' 'https://support.mftintelligence.com/' || true)
-          if [ "$code" = '403' ] && grep -qi '^cf-mitigated:[[:space:]]*challenge' spoof.headers; then
-            echo '{"spoofed_googlebot_bypass":false,"cf_mitigated":"challenge","status":"PASS"}'
-          else
+          if [ "$code" != '403' ] || ! grep -qi '^cf-mitigated:[[:space:]]*challenge' spoof.headers; then
             echo "spoofed Googlebot request did not prove expected managed challenge: HTTP $code" >&2
             exit 1
           fi
-          rm -f spoof.headers spoof.body
+          inspection_code=$(curl --silent --show-error --connect-timeout 10 --max-time 30 -A 'Mozilla/5.0 (Linux; Android 6.0.1; Nexus 5X Build/MMB29P) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/113.0.5672.92 Mobile Safari/537.36 (compatible; Google-InspectionTool/1.0)' -D inspection.headers -o inspection.body -w '%{http_code}' 'https://support.mftintelligence.com/' || true)
+          if [ "$inspection_code" != '403' ] || ! grep -qi '^cf-mitigated:[[:space:]]*challenge' inspection.headers; then
+            echo "spoofed Google Inspection Tool request did not prove expected managed challenge: HTTP $inspection_code" >&2
+            exit 1
+          fi
+          echo '{"spoofed_googlebot_bypass":false,"spoofed_google_inspection_tool_bypass":false,"cf_mitigated":"challenge","status":"PASS"}'
+          rm -f spoof.headers spoof.body inspection.headers inspection.body
