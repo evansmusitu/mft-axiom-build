@@ -37,6 +37,7 @@ test('production case creation rejects missing Turnstile proof before touching s
   assert.equal((await response.json()).error, 'TURNSTILE_PROOF_REQUIRED');
   assert.equal(response.headers.get('referrer-policy'), 'no-referrer');
   assert.match(response.headers.get('content-security-policy'), /frame-ancestors 'none'/);
+  assert.match(response.headers.get('content-security-policy'), /object-src 'none'/);
 });
 
 test('Turnstile verification receives only the proof token, never the customer narrative', async () => {
