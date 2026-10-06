@@ -16,6 +16,7 @@ const HASH=/^[a-f0-9]{64}$/i;
 const REQUEST_KEYS=new Set(['schema','project_id','work_id','checkpoint_id','checkpoint_sha256','builder_actor_id','requested_action','risk_class','required_verifications','human_approval_required','policy_engine_authority','builder_may_approve','external_execution_authority','production_authority','created_at','request_sha256']);
 const POLICY_DECISION_KEYS=new Set(['decision','request_sha256','policy_sha256','reasons']);
 const VERIFICATION_EVIDENCE_KEYS=new Set(['kind','status','actor_id','artifact_sha256']);
+const HUMAN_APPROVAL_KEYS=new Set(['decision','request_sha256','actor_id','receipt_id','at']);
 const isPlainObject=value=>Boolean(value)&&typeof value==='object'&&!Array.isArray(value)&&(Object.getPrototypeOf(value)===Object.prototype||Object.getPrototypeOf(value)===null);
 const clean=(value,max=1000)=>String(value??'').replace(/[\u0000-\u001f\u007f]/g,' ').trim().slice(0,max);
 function rejectUnknownKeys(value,allowed,label){const extra=Object.keys(value).filter(key=>!allowed.has(key));if(extra.length)throw new DOMException(label+' contains unsupported fields: '+extra.join(','),'SecurityError');}
@@ -125,10 +126,13 @@ function normalizeVerificationEvidence(request,items){
 function humanApprovalState(request,humanApproval){
   if(!request.human_approval_required) return {state:'NOT_REQUIRED',receipt:null};
   if(!humanApproval) return {state:'MISSING',receipt:null};
-  if(!isPlainObject(humanApproval)||humanApproval.decision!=='ALLOW') throw new DOMException('human approval ALLOW receipt required','NotAllowedError');
+  if(!isPlainObject(humanApproval)) throw new DOMException('human approval ALLOW receipt required','NotAllowedError');
+  rejectUnknownKeys(humanApproval,HUMAN_APPROVAL_KEYS,'human approval');
+  if(humanApproval.decision!=='ALLOW') throw new DOMException('human approval ALLOW receipt required','NotAllowedError');
   if(humanApproval.request_sha256!==request.request_sha256) throw new DOMException('human approval is not bound to admission request','DataError');
+  if(typeof humanApproval.actor_id!=='string'||typeof humanApproval.receipt_id!=='string'||typeof humanApproval.at!=='string') throw new TypeError('human approval actor_id receipt_id and at must be strings');
   const actor_id=clean(humanApproval.actor_id,180),receipt_id=clean(humanApproval.receipt_id,180);
-  if(!actor_id||!receipt_id) throw new TypeError('human approval actor_id and receipt_id required');
+  if(!actor_id||actor_id!==humanApproval.actor_id||!receipt_id||receipt_id!==humanApproval.receipt_id) throw new TypeError('human approval actor_id and receipt_id must be normalized non-empty strings');
   if(actor_id===request.builder_actor_id) throw new DOMException('builder cannot provide required human approval','NotAllowedError');
   return {state:'PASS',receipt:{decision:'ALLOW',request_sha256:request.request_sha256,actor_id,receipt_id,at:iso(humanApproval.at,'humanApproval.at')}};
 }
