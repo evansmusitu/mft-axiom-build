@@ -11,6 +11,7 @@ import {
   putWorkerSecret,
 } from '../scripts/provision_cloudflare_control_plane.mjs';
 import {SUPPORT_DATABASE_NAME, cloudflareCredentialCandidates} from '../scripts/provision_cloudflare_d1.mjs';
+import * as controlPlane from '../scripts/provision_cloudflare_control_plane.mjs';
 
 function response(status, payload) {
   return {ok: status >= 200 && status < 300, status, async json() { return payload; }};
@@ -95,4 +96,31 @@ test('public control-plane evidence excludes email addresses and secret values',
   assert.equal(evidence.email_destination.raw_address_recorded, false);
   assert.equal(evidence.email_destination.status, 'verification_required');
   assert.doesNotMatch(serialized, /private-value|@example|turnstile_secret/i);
+});
+
+
+test('verified search crawler edge rule is exact-host, exact-category, GET/HEAD-only and excludes control routes', () => {
+  assert.equal(typeof controlPlane.buildVerifiedSearchCrawlerConfigRule, 'function');
+  const rule = controlPlane.buildVerifiedSearchCrawlerConfigRule();
+  assert.equal(rule.ref, 'musitu_axiom_support_verified_search_crawlers');
+  assert.equal(rule.action, 'set_config');
+  assert.deepEqual(rule.action_parameters, {security_level: 'off', bic: false});
+  assert.match(rule.expression, /http\.host eq "support\.mftintelligence\.com"/);
+  assert.match(rule.expression, /cf\.client\.bot/);
+  assert.match(rule.expression, /cf\.verified_bot_category eq "Search Engine Crawler"/);
+  assert.match(rule.expression, /http\.request\.method in \{"GET" "HEAD"\}/);
+  for (const path of ['/', '/index.html', '/robots.txt', '/sitemap.xml', '/styles.css', '/app.js']) assert.ok(rule.expression.includes(path), 'missing public path '+path);
+  assert.doesNotMatch(rule.expression, /\/api\/|\/health|AI Search|AI Crawler|AI Assistant/);
+});
+
+test('verified search crawler rule merge is idempotent and preserves unrelated configuration rules', () => {
+  assert.equal(typeof controlPlane.mergeVerifiedSearchCrawlerConfigRule, 'function');
+  const unrelated = {ref: 'existing_rule', expression: 'http.host eq "example.com"', action: 'set_config', action_parameters: {bic: true}};
+  const first = controlPlane.mergeVerifiedSearchCrawlerConfigRule([unrelated]);
+  assert.equal(first.length, 2);
+  assert.deepEqual(first[0], unrelated);
+  const second = controlPlane.mergeVerifiedSearchCrawlerConfigRule(first);
+  assert.equal(second.length, 2);
+  assert.equal(second.filter(rule => rule.ref === 'musitu_axiom_support_verified_search_crawlers').length, 1);
+  assert.deepEqual(second[0], unrelated);
 });
