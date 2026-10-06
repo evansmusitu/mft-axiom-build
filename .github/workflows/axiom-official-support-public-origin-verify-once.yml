@@ -16,7 +16,7 @@ concurrency:
 
 jobs:
   verify-public-origin:
-    if: github.event_name == 'push' && github.event.before == 'a8bc30037b34fe37367d59468bf20bfe43b8426c'
+    if: github.event_name == 'push' && github.event.before == '813d3913837c350ea6ba51ce54941dd2128bb75b'
     runs-on: ubuntu-latest
     environment: axiom-support-production
     timeout-minutes: 15
@@ -28,6 +28,7 @@ jobs:
       CLOUDFLARE_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
       CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
       CLOUDFLARE_RULESETS_API_TOKEN: ${{ secrets.CLOUDFLARE_RULESETS_API_TOKEN }}
+      CLOUDFLARE_ACCESS_API_TOKEN: ${{ secrets.CLOUDFLARE_ACCESS_API_TOKEN }}
       CLOUDFLARE_ACCOUNT_ID: '93f395f5121954671f92fffa453d6b61'
       SUPPORT_WORKER_NAME: 'musitu-axiom-support'
       SUPPORT_D1_DATABASE_NAME: 'musitu-axiom-support'
@@ -50,7 +51,7 @@ jobs:
           test "$GITHUB_EVENT_NAME" = 'push'
           test "$GITHUB_REF_NAME" = 'support/axiom-official-support-20261005'
           test "$GITHUB_REF_NAME" != 'main'
-          test "${{ github.event.before }}" = 'a8bc30037b34fe37367d59468bf20bfe43b8426c'
+          test "${{ github.event.before }}" = '813d3913837c350ea6ba51ce54941dd2128bb75b'
           test "$SUPPORT_DOMAIN" = 'support.mftintelligence.com'
           node <<'NODE'
           const api='https://api.github.com/repos/evansmusitu/mft-axiom-build';
@@ -202,14 +203,43 @@ jobs:
           if(cases!==0||events!==0) throw new Error('public verification requires zero customer support rows');
           NODE
 
-      - name: Apply idempotent support schema
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_RULESETS_API_TOKEN }}
-        run: npx --yes wrangler@4 d1 execute SUPPORT_DB --remote --config support-wrangler.generated.json --file support/schema.sql
+      - name: Verify required support schema objects read-only
+        shell: bash
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          const account=String(process.env.CLOUDFLARE_ACCOUNT_ID||'');
+          const db=String(process.env.SUPPORT_D1_DATABASE_ID||'');
+          const token=String(process.env.CLOUDFLARE_RULESETS_API_TOKEN||'');
+          if(!account||!db||!token) throw new Error('Cloudflare D1 schema read configuration missing');
+          async function q(sql){
+            const r=await fetch('https://api.cloudflare.com/client/v4/accounts/'+account+'/d1/database/'+db+'/query',{
+              method:'POST',
+              headers:{authorization:'Bearer '+token,'content-type':'application/json',accept:'application/json'},
+              body:JSON.stringify({sql})
+            });
+            const p=await r.json();
+            if(!r.ok||p?.success===false) throw new Error('D1 schema read failed HTTP '+r.status);
+            const block=Array.isArray(p.result)?p.result[0]:p.result;
+            return block?.results||[];
+          }
+          const [objects,columns]=await Promise.all([
+            q("SELECT type,name FROM sqlite_master WHERE type IN ('table','trigger')"),
+            q('PRAGMA table_info(support_cases)')
+          ]);
+          const names=new Set(objects.map(x=>String(x?.name||'')));
+          for(const required of [
+            'support_cases','support_case_events','support_case_purge_authorizations','support_deletion_receipts',
+            'support_case_event_no_update','support_case_event_no_delete','support_case_no_delete',
+            'support_deletion_receipt_no_update','support_deletion_receipt_no_delete'
+          ]) if(!names.has(required)) throw new Error('required support schema object missing: '+required);
+          const cols=new Set(columns.map(x=>String(x?.name||'')));
+          for(const required of ['closed_at','retention_expires_at','legal_hold_until','legal_hold_review_at']) if(!cols.has(required)) throw new Error('required retention column missing: '+required);
+          NODE
 
       - name: Publish exact support custom domain for verification
         env:
-          CLOUDFLARE_API_TOKEN: ''
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_ACCESS_API_TOKEN }}
         run: npx --yes wrangler@4 deploy --config support-wrangler.generated.json
 
       - name: Verify custom domain exists while workers.dev and previews remain disabled
@@ -219,13 +249,10 @@ jobs:
           node <<'NODE'
           const account=String(process.env.CLOUDFLARE_ACCOUNT_ID||'');
           const worker=String(process.env.SUPPORT_WORKER_NAME||'');
-          const token=String(process.env.CLOUDFLARE_API_TOKEN||'');
-          const email=String(process.env.CLOUDFLARE_EMAIL||'');
-          const key=String(process.env.CLOUDFLARE_API_KEY||'');
+          const token=String(process.env.CLOUDFLARE_ACCESS_API_TOKEN||'');
           function headers(){
-            if(email&&key) return {'X-Auth-Email':email,'X-Auth-Key':key,accept:'application/json'};
-            if(token) return {authorization:'Bearer '+token,accept:'application/json'};
-            throw new Error('Cloudflare authentication missing');
+            if(!token) throw new Error('Cloudflare Workers verification token missing');
+            return {authorization:'Bearer '+token,accept:'application/json'};
           }
           async function cf(path){
             const r=await fetch('https://api.cloudflare.com/client/v4'+path,{headers:headers()});
