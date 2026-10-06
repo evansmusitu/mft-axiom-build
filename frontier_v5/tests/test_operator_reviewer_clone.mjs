@@ -36,5 +36,8 @@ assert.match(d,/bic/);
 assert.match(d,/under_attack/);
 assert.match(d,/OAUTH_HOST/);
 assert.match(d,/MCP_HOST/);
+assert.match(d,/CLOUDFLARE_EMAIL/);
+assert.match(d,/CLOUDFLARE_GLOBAL_API_KEY/);
+assert.match(d,/X-Auth-Key/);
 
 console.log("MUSITU_AXIOM_OPERATOR_REVIEWER_CLONE_CONTRACT_PASS");
