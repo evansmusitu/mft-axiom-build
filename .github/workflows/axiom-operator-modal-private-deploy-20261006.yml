@@ -284,6 +284,34 @@ jobs:
 
           modal deploy modal_operator_deploy.py             --name "$OPERATOR_APP"             --strategy recreate             --tag "$GITHUB_SHA-durability-redeploy" >/tmp/operator-modal-redeploy.log
 
+          python - <<'PY' > /tmp/operator-url
+          import os,modal
+          f=modal.Function.from_name(os.environ["OPERATOR_APP"],"operator_endpoint")
+          url=f.get_web_url()
+          if not url or not url.startswith("https://"):
+              raise SystemExit("Fail-closed: refreshed private Operator HTTPS URL missing")
+          print(url)
+          PY
+
+          python - <<'PY'
+          import os,modal
+          p=modal.Function.from_name(os.environ['OPERATOR_APP'],'operator_state_probe')
+          r=p.remote()
+          if not r.get('state_present') or r.get('schema')!='musitu.axiom.operator-state-envelope.v1' or not r.get('state_sha256'):
+              raise SystemExit('Fail-closed: Modal Volume state proof missing after redeploy')
+          print('operator_modal_volume_state_after_redeploy=PASS')
+          PY
+
+          URL="$(cat /tmp/operator-url)"
+          curl --retry 8 --retry-delay 2 --retry-all-errors -fsS             -H "Modal-Key: $KEY" -H "Modal-Secret: $SECRET"             "$URL/health" > /tmp/operator-health-after-redeploy.json
+          python - <<'PY'
+          import json
+          x=json.load(open('/tmp/operator-health-after-redeploy.json'))
+          assert x['status']=='READY'
+          assert x['durable_state']=='LOCAL_ATOMIC_STATE_PACK_WITH_FILE_LOCK'
+          print('operator_refreshed_endpoint_health=PASS')
+          PY
+
           PLAN_ID="$(cat /tmp/plan-id)"
           export PLAN_ID
           python - <<'PY' > /tmp/work-status.json
@@ -306,15 +334,6 @@ jobs:
           assert r['plan']['plan_id']==os.environ['PLAN_ID']
           assert any(n['node_id']=='verify' for n in r['plan']['nodes'])
           print('operator_volume_redeploy_durability=PASS')
-          PY
-
-          python - <<'PY'
-          import os,modal
-          p=modal.Function.from_name(os.environ['OPERATOR_APP'],'operator_state_probe')
-          r=p.remote()
-          if not r.get('state_present') or r.get('schema')!='musitu.axiom.operator-state-envelope.v1' or not r.get('state_sha256'):
-              raise SystemExit('Fail-closed: Modal Volume state proof missing')
-          print('operator_modal_volume_state=PASS')
           PY
 
           modal workspace proxy-tokens delete -y "$KEY" >/dev/null
