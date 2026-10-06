@@ -1,0 +1,20 @@
+{
+  "schema": "musitu.axiom.support-readiness-evidence.v1",
+  "gate": "ACCESSIBILITY_REALITY",
+  "status": "PARTIAL",
+  "artifact_sha256": "4cc50a467d2b312e9db42a4cb8c33bf051e07bdaf102e823c64f5c24de277723",
+  "verifier_ref": "github-actions:run:37423308920",
+  "verified_at": "2026-10-06T06:22:22Z",
+  "automated_status": "PASS",
+  "browser": "chromium",
+  "wcag_serious_or_critical_violations": 0,
+  "keyboard_skip_link_verified": true,
+  "keyboard_form_navigation_verified": true,
+  "mobile_viewport_overflow_verified": true,
+  "reduced_motion_verified": true,
+  "real_browser_rendering": true,
+  "real_physical_device_user_tested": false,
+  "public_origin_used": false,
+  "public_support_deployed": false,
+  "secret_exposed": false
+}
