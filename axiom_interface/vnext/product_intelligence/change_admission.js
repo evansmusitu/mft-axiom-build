@@ -79,7 +79,11 @@ function assertRequest(request){
   if(!isPlainObject(request)||request.schema!==CHANGE_ADMISSION_REQUEST_SCHEMA) throw new TypeError('change admission request required');
   if(typeof request.request_sha256!=='string'||!HASH.test(request.request_sha256)) throw new TypeError('request sha256 required');
   if(request.policy_engine_authority!=='MECHANISM_ONLY'||request.builder_may_approve!==false||request.external_execution_authority!==false||request.production_authority!==false) throw new DOMException('change admission authority boundary invalid','SecurityError');
-  if(!CHANGE_RISK_MODEL[request.risk_class]) throw new TypeError('request risk class invalid');
+  const model=CHANGE_RISK_MODEL[request.risk_class];
+  if(!model) throw new TypeError('request risk class invalid');
+  if(request.requested_action!==model.action) throw new DOMException('change admission request violates frozen risk model action','SecurityError');
+  if(!Array.isArray(request.required_verifications)||canonical(request.required_verifications)!==canonical([...model.required_verifications])) throw new DOMException('change admission request verification requirements violate frozen risk model','SecurityError');
+  if(request.human_approval_required!==model.human_approval_required) throw new DOMException('change admission request human approval requirement violates frozen risk model','SecurityError');
   return request;
 }
 async function assertRequestIntegrity(request){
