@@ -1,31 +1,22 @@
-# MUSITU Delivery OS — reproducible competitive benchmark protocol v1
+# MUSITU Delivery OS — reproducible competitive benchmark protocol v2
 
-This evaluation layer is outside the operational authority. It does not create orders, dispatchers, stores, or synchronization bridges. MUSITU Delivery Core remains the only runtime authority.
+This evaluation layer is outside operational authority. It creates no second store, dispatcher, API authority, order model, or synchronization bridge. MUSITU Delivery Core remains the single runtime authority.
 
-## Purpose
+## Evidence and claim policy
 
-The unified architecture requires the sequence: relevant Onfleet/Bringg baseline parity -> reproducible benchmark -> measured superiority only where evidence supports it. This protocol implements the reproducibility and claim-safety gate without pretending that competitor access exists.
+`internal_controlled` evidence prevents regressions but cannot support an external superiority claim. `live_external` evidence must come from real test/sandbox execution for MUSITU and every named competitor on an identical scenario and workload fingerprint.
 
-## Evidence classes
+The report gate returns only `NOT_CERTIFIED` or `EVIDENCE_READY_FOR_REVIEW`; it never emits `MUSITU_SUPERIOR`. Any later comparative claim must name the exact benchmark version, date, competitors and measured dimensions. The internal `projected_improvement=0.451` regression remains non-comparative.
 
-- `internal_controlled`: deterministic MUSITU-only regression evidence. Useful for preventing regressions, but never sufficient for an external superiority claim.
-- `live_external`: evidence captured from a real sandbox/test environment or equivalent live vendor API execution. This is required for MUSITU and every competitor named in a head-to-head comparison.
+## Scenario versioning
 
-Marketing pages, screenshots, hand-entered claims, documentation feature lists, and synthetic competitor numbers are not accepted as live benchmark evidence.
+Standard-v1 is immutable for audit reproducibility. Its SHA-256 is `bb64c1d425bf5e8245a0daad8acffa01f849da79f3b9a9d83fbdd86aec012554`, but its 100-order workload has aggregate demand 250 against fleet capacity 200. The VROOM preflight therefore rejects v1 with `BENCHMARK_FLEET_CAPACITY_INFEASIBLE`. It must not be used for head-to-head results.
 
-## Standard scenario
+`scenario.standard-v2.json` is the current executable benchmark candidate. It preserves 100 orders, 10 drivers, one depot, 10 deterministic disruptions, time windows, skills, service durations, route continuity and photo+signature POD, while declaring capacity 30 per driver (aggregate 300).
 
-`scenario.standard-v1.json` defines the versioned common workload and metric directions. Every compared run must use exactly the same scenario id, version, and metric contract. A mismatch fails closed.
+Canonical standard-v2 workload SHA-256: `fb80db552b55efb60c5372629c606cdd6879f796950ec44e1d854f46e8dfabdc`.
 
-The v1 workload fixes 100 orders, 10 drivers, one depot, 10 disruption events, time windows, capacity/service constraints, and photo+signature proof requirements. The common flow is ingest -> plan -> dispatch -> disrupt -> replan/recommend -> complete -> verify evidence.
-
-## Exact standard-v1 workload
-
-The abstract scenario is materialized by `standard-workload.mjs` into a vendor-neutral JSON workload. The generated workload contains the exact 100 orders, 10 drivers, 10 disruptions, time windows, capacity demands, skills, coordinates and proof requirements that every provider must receive. CI materializes and publishes the workload together with its checksum.
-
-Canonical workload SHA-256: `bb64c1d425bf5e8245a0daad8acffa01f849da79f3b9a9d83fbdd86aec012554`.
-
-A provider run over a different workload is not comparable, even if the order/driver counts match.
+Every provider run must use this exact workload fingerprint.
 
 ## Metrics
 
@@ -35,54 +26,32 @@ A provider run over a different workload is not comparable, even if the order/dr
 - operator interventions — lower is better
 - proof completeness rate — higher is better
 
-Additional metrics require a new scenario version so historical comparisons remain reproducible.
+## Provider access boundary
 
-## Targets and access boundary
+Onfleet live execution remains blocked until a dedicated test API key, test team/worker bindings and compatible Route Optimization access/default schedule are available. The dry-run adapter emits 100 documented task requests without credentials.
 
-`targets.json` records official documentation entry points and the current access blocker. Onfleet requires real API credentials for live execution. Bringg requires sandbox credentials plus sandbox-specific service identifiers. No production credential is requested by this protocol.
+Bringg Own Fleet remains blocked until the real Sandbox token URL/client credentials, exact Create Order service URL and sandbox-specific order schema are supplied. Service UUIDs are never guessed.
 
-## Live access preflight
+No production credentials or customer data are required.
 
-`BENCHMARK_ACCESS.md` and `run-access-preflight.mjs` define a secret-safe preflight for dedicated Onfleet test access and Bringg Own Fleet Sandbox access. Preflight readiness is necessary but not sufficient for a comparison: it never upgrades the claim state by itself.
+## Constrained MUSITU planning
 
-## Claim policy
+`vroom-standard.mjs` maps standard-v2 into 10 VROOM vehicles and 100 jobs with capacity, deterministic numeric skill IDs, demand, service durations, time windows, depot continuity and priority.
 
-The executable validator returns only:
+Competitive benchmarking fails closed if the runtime optimizer degrades to `heuristic-fallback`, if aggregate fleet capacity is insufficient, or if VROOM leaves any job unassigned. CI publishes `standard-v2-vroom-request.json` with `LIVE_VROOM_REQUIRED` and `NOT_CERTIFIED`.
 
-- `NOT_CERTIFIED` when required live evidence is absent or incompatible; or
-- `EVIDENCE_READY_FOR_REVIEW` when matching live external runs are present.
+## Runtime disruption evidence
 
-It intentionally does not emit `MUSITU_SUPERIOR`. A superiority statement requires review of the resulting metric evidence and must name the exact benchmark version, competitors, date, and measured dimensions. Dimensions not measured remain unclaimed.
-
-## Current controlled evidence
-
-The existing unified CI gate reported `projected_improvement=0.451` in the internal controlled optimization regression. The fixture preserves that evidence as `internal_controlled`, so the validator demonstrably refuses to convert it into an Onfleet/Bringg superiority claim.
+Driver offline/online changes are now represented by idempotent canonical `DRIVER_AVAILABILITY` events in the same DeliveryStore tamper-evident chain. This allows standard-v2 driver-offline disruptions without mutating internal maps outside the canonical authority.
 
 ## Commands
 
 ```bash
 node --test evaluation/benchmark.test.mjs evaluation/external-access.test.mjs evaluation/standard-workload.test.mjs evaluation/provider-adapters.test.mjs evaluation/vroom-standard.test.mjs
-node evaluation/materialize-standard-v1.mjs --output /tmp/standard-v1-workload.json
-node evaluation/materialize-vroom-standard.mjs --output /tmp/standard-v1-vroom-request.json
+node evaluation/materialize-standard-v2.mjs --output /tmp/standard-v2-workload.json
+node evaluation/materialize-provider-plans.mjs --output-dir /tmp/provider-plans
+node evaluation/materialize-vroom-standard.mjs --output /tmp/standard-v2-vroom-request.json
 node evaluation/run-controlled.mjs --output /tmp/musitu-benchmark-controlled.json
 ```
 
-When real sandbox runs become available, serialize each provider result with schema `musitu-delivery-benchmark-run.v1` and pass them through the same `buildBenchmarkReport` contract. Do not modify the benchmark rules to fit a desired result; version the scenario instead.
-
-## Provider dry-run plans
-
-`provider-adapters.mjs` converts the exact standard-v1 workload into provider-facing dry-run plans without embedding credentials.
-
-For Onfleet, the adapter maps all 100 orders to documented `POST /api/v2/tasks` requests with explicit coordinates, parsed city/country context, time windows, quantity, service time, photo/signature completion requirements, benchmark provenance, and ROv3 refrigeration capability metadata. It deliberately does not attach authentication headers or perform live mutation. Live execution remains blocked until a dedicated test API key, test team/worker bindings, and compatible Route Optimization entitlement/default schedule are available.
-
-For Bringg Own Fleet, the adapter fails closed and emits no order requests until the exact Sandbox Create Order service URL is supplied. Even after that URL is supplied it remains blocked pending confirmation of the sandbox-specific order schema; service UUIDs are never guessed from public examples.
-
-CI publishes both dry-run plans as evidence artifacts tied to the same workload SHA-256 `bb64c1d425bf5e8245a0daad8acffa01f849da79f3b9a9d83fbdd86aec012554`.
-
-## MUSITU constrained planning preflight
-
-`vroom-standard.mjs` maps the exact standard-v1 workload into a VROOM request with 10 vehicles and 100 jobs. The mapping carries driver capacity, deterministic numeric skill IDs, job demands, service durations, job time windows, depot start/end continuity and priority.
-
-The normal runtime optimizer is allowed to degrade safely to a deterministic heuristic when VROOM is unavailable. The competitive benchmark is stricter: `runStandardVroomPlanning` rejects `heuristic-fallback` with `BENCHMARK_VROOM_REQUIRED`, and rejects any real VROOM result with unassigned standard-v1 jobs. This prevents a degraded unconstrained plan from being presented as constrained benchmark evidence.
-
-CI publishes `standard-v1-vroom-request.json` with status `LIVE_VROOM_REQUIRED` and claim status `NOT_CERTIFIED`. The request remains internal controlled evidence until executed against real VROOM and then carried through the rest of the standard-v1 dispatch/disruption/completion/evidence flow.
+The next evidence step is real VROOM-backed standard-v2 planning followed by the same dispatch, disruption, replan, completion and evidence-verification flow. External Onfleet/Bringg comparison remains `NOT_CERTIFIED` until their dedicated test/sandbox access is obtained.

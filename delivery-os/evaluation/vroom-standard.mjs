@@ -24,6 +24,15 @@ function requireWorkload(workload) {
 
 export function buildStandardVroomInput(workload) {
   requireWorkload(workload);
+  const demand = workload.orders.reduce((sum, order) => sum + Number(order.demand || 0), 0);
+  const capacity = workload.drivers.reduce((sum, driver) => sum + Number(driver.capacity || 0), 0);
+  if (capacity < demand) {
+    throw Object.assign(new Error(`aggregate fleet capacity ${capacity} is below delivery demand ${demand}`), {
+      code: 'BENCHMARK_FLEET_CAPACITY_INFEASIBLE',
+      demand,
+      capacity,
+    });
+  }
   const skillIds = skillMapping(workload);
   const windowStarts = workload.orders.map((order) => unixSeconds(order.window.start));
   const windowEnds = workload.orders.map((order) => unixSeconds(order.window.end));
@@ -78,7 +87,7 @@ export async function runStandardVroomPlanning({ workload, optimizer } = {}) {
   const unassigned = Array.isArray(result.unassigned) ? result.unassigned : [];
   const unassignedCount = Number.isFinite(result?.summary?.unassigned) ? result.summary.unassigned : unassigned.length;
   if (unassigned.length > 0 || unassignedCount > 0) {
-    throw Object.assign(new Error('standard-v1 workload contains unassigned jobs'), {
+    throw Object.assign(new Error('benchmark workload contains unassigned jobs'), {
       code: 'BENCHMARK_WORKLOAD_UNASSIGNED',
       unassignedCount: Math.max(unassigned.length, unassignedCount),
     });

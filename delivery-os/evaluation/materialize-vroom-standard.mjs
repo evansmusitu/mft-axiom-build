@@ -6,7 +6,7 @@ import { generateStandardWorkload } from './standard-workload.mjs';
 import { buildStandardVroomInput } from './vroom-standard.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
-const scenario = JSON.parse(fs.readFileSync(path.join(here, 'scenario.standard-v1.json'), 'utf8'));
+const scenario = JSON.parse(fs.readFileSync(path.join(here, 'scenario.standard-v2.json'), 'utf8'));
 const workload = generateStandardWorkload(scenario);
 const input = buildStandardVroomInput(workload);
 const outputIndex = process.argv.indexOf('--output');

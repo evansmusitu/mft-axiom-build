@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import { generateStandardWorkload, workloadFingerprint } from './standard-workload.mjs';
 import { buildOnfleetTaskPlan, buildBringgOrderPlan } from './provider-adapters.mjs';
 
-const scenario = JSON.parse(fs.readFileSync(new URL('./scenario.standard-v1.json', import.meta.url), 'utf8'));
+const scenario = JSON.parse(fs.readFileSync(new URL('./scenario.standard-v2.json', import.meta.url), 'utf8'));
 const workload = generateStandardWorkload(scenario);
 
 test('Onfleet plan deterministically maps all 100 benchmark orders without credentials', () => {

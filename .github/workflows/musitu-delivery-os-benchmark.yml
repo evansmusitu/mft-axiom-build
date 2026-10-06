@@ -38,28 +38,29 @@ jobs:
           if (!report.providers.bringg.blocked_by.includes('BRINGG_SANDBOX_TOKEN_URL_REQUIRED')) throw new Error('Bringg fail-closed contract drifted');
           console.log('MUSITU_DELIVERY_OS_EXTERNAL_ACCESS_FAIL_CLOSED_PASS');
           NODE
-      - name: Materialize exact standard-v1 workload
+      - name: Materialize exact standard-v2 workload
         working-directory: delivery-os
         run: |
           mkdir -p "$RUNNER_TEMP/musitu-benchmark"
-          node evaluation/materialize-standard-v1.mjs --output "$RUNNER_TEMP/musitu-benchmark/standard-v1-workload.json"
+          node evaluation/materialize-standard-v2.mjs --output "$RUNNER_TEMP/musitu-benchmark/standard-v2-workload.json"
+          (cd "$RUNNER_TEMP/musitu-benchmark" && sha256sum -c standard-v2-workload.json.sha256)
       - name: Materialize provider dry-run plans
         working-directory: delivery-os
         run: |
           mkdir -p "$RUNNER_TEMP/musitu-benchmark/provider-plans"
           node evaluation/materialize-provider-plans.mjs --output-dir "$RUNNER_TEMP/musitu-benchmark/provider-plans"
-      - name: Materialize exact standard-v1 VROOM request
+      - name: Materialize exact standard-v2 VROOM request
         working-directory: delivery-os
         run: |
           mkdir -p "$RUNNER_TEMP/musitu-benchmark"
-          node evaluation/materialize-vroom-standard.mjs --output "$RUNNER_TEMP/musitu-benchmark/standard-v1-vroom-request.json"
+          node evaluation/materialize-vroom-standard.mjs --output "$RUNNER_TEMP/musitu-benchmark/standard-v2-vroom-request.json"
           node - <<'NODE'
           const fs = require('fs');
-          const p = process.env.RUNNER_TEMP + '/musitu-benchmark/standard-v1-vroom-request.json';
+          const p = process.env.RUNNER_TEMP + '/musitu-benchmark/standard-v2-vroom-request.json';
           const artifact = JSON.parse(fs.readFileSync(p, 'utf8'));
           if (artifact.status !== 'LIVE_VROOM_REQUIRED') throw new Error('VROOM request must remain blocked pending live VROOM');
           if (artifact.claim_status !== 'NOT_CERTIFIED') throw new Error('VROOM request must not certify benchmark claims');
-          if (artifact.metadata.workload_sha256 !== 'bb64c1d425bf5e8245a0daad8acffa01f849da79f3b9a9d83fbdd86aec012554') throw new Error('VROOM request workload fingerprint drifted');
+          if (artifact.metadata.workload_sha256 !== 'fb80db552b55efb60c5372629c606cdd6879f796950ec44e1d854f46e8dfabdc') throw new Error('VROOM request workload fingerprint drifted');
           if (artifact.request.vehicles.length !== 10 || artifact.request.jobs.length !== 100) throw new Error('VROOM request cardinality drifted');
           console.log('MUSITU_DELIVERY_OS_VROOM_REQUEST_FAIL_CLOSED_PASS');
           NODE
@@ -84,10 +85,10 @@ jobs:
           path: |
             ${{ runner.temp }}/musitu-benchmark/controlled-report.json
             ${{ runner.temp }}/musitu-benchmark/external-access-offline.json
-            ${{ runner.temp }}/musitu-benchmark/standard-v1-workload.json
-            ${{ runner.temp }}/musitu-benchmark/standard-v1-workload.json.sha256
-            ${{ runner.temp }}/musitu-benchmark/provider-plans/onfleet-standard-v1-plan.json
-            ${{ runner.temp }}/musitu-benchmark/provider-plans/bringg-standard-v1-blocked-plan.json
-            ${{ runner.temp }}/musitu-benchmark/standard-v1-vroom-request.json
+            ${{ runner.temp }}/musitu-benchmark/standard-v2-workload.json
+            ${{ runner.temp }}/musitu-benchmark/standard-v2-workload.json.sha256
+            ${{ runner.temp }}/musitu-benchmark/provider-plans/onfleet-standard-v2-plan.json
+            ${{ runner.temp }}/musitu-benchmark/provider-plans/bringg-standard-v2-blocked-plan.json
+            ${{ runner.temp }}/musitu-benchmark/standard-v2-vroom-request.json
           if-no-files-found: error
           retention-days: 90

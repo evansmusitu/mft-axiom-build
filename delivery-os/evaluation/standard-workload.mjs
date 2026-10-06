@@ -8,14 +8,15 @@ const round6 = (value) => Number(value.toFixed(6));
 const isoFromMinutes = (minutes) => new Date(BASE_TIME + minutes * 60_000).toISOString();
 
 export function generateStandardWorkload(scenario) {
-  if (!scenario || scenario.id !== 'musitu-last-mile-standard-v1' || scenario.version !== 1) {
-    throw new Error('standard-v1 scenario contract required');
+  if (!scenario || !/^musitu-last-mile-standard-v\d+$/.test(scenario.id || '') || !Number.isInteger(scenario.version)) {
+    throw new Error('versioned standard scenario contract required');
   }
   const counts = scenario.workload || {};
   const driverCount = Number(counts.drivers);
   const orderCount = Number(counts.orders);
   const disruptionCount = Number(counts.disruption_events);
-  if (![driverCount, orderCount, disruptionCount].every(Number.isInteger)) {
+  const driverCapacity = Number(counts.driver_capacity ?? 20);
+  if (![driverCount, orderCount, disruptionCount, driverCapacity].every(Number.isInteger)) {
     throw new Error('integer workload counts required');
   }
 
@@ -26,7 +27,7 @@ export function generateStandardWorkload(scenario) {
       id: `bench-driver-${String(index + 1).padStart(2, '0')}`,
       lat: round6(DEPOT.lat + (row - 0.5) * 0.006),
       lon: round6(DEPOT.lon + (col - 2) * 0.006),
-      capacity: 20,
+      capacity: driverCapacity,
       skills: index % 2 === 0 ? ['standard', 'refrigerated'] : ['standard'],
       start_depot_id: DEPOT.id,
       end_depot_id: DEPOT.id,

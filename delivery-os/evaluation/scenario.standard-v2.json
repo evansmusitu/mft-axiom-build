@@ -1,0 +1,29 @@
+{
+  "schema": "musitu-delivery-benchmark-scenario.v1",
+  "id": "musitu-last-mile-standard-v2",
+  "version": 2,
+  "seed": 20261006,
+  "supersedes": {
+    "id": "musitu-last-mile-standard-v1",
+    "version": 1,
+    "reason": "v1 aggregate delivery demand was 250 while one-route fleet capacity was 200"
+  },
+  "workload": {
+    "orders": 100,
+    "drivers": 10,
+    "depots": 1,
+    "driver_capacity": 30,
+    "disruption_events": 10,
+    "proof_required": ["photo", "signature"],
+    "constraints": ["time_windows", "driver_capacity", "skills", "service_duration", "route_continuity"]
+  },
+  "phases": ["ingest","initial_plan","dispatch","apply_disruptions","replan_or_recommend","complete","verify_evidence"],
+  "metrics": {
+    "assignment_decision_ms": "lower",
+    "route_total_distance_m": "lower",
+    "on_time_completion_rate": "higher",
+    "operator_interventions": "lower",
+    "proof_completeness_rate": "higher"
+  },
+  "claim_rule": "No superiority claim is allowed unless MUSITU and every named competitor are measured on this exact version with live_external evidence."
+}
