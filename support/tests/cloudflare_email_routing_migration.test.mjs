@@ -152,7 +152,7 @@ test('enabled forwarding catch-all fails closed before any migration write', asy
   assert.deepEqual(mock.state().root.map(r => r.content), zoho.map(r => r.content));
 });
 
-test('migration prefers the authorized global-key credential when both Cloudflare credentials exist', async () => {
+test('migration prefers the scoped Cloudflare API token when both credentials exist', async () => {
   const mock = mockCloudflare();
   const both = env();
   both.CLOUDFLARE_EMAIL = destination;
@@ -160,7 +160,7 @@ test('migration prefers the authorized global-key credential when both Cloudflar
   const evidence = await migrateEmailRouting({fetchImpl: mock.fetchImpl, env: both, now: '2026-10-06T03:12:00Z'});
   assert.equal(evidence.gate, 'MUSITU_AXIOM_SUPPORT_EMAIL_ROUTING_MIGRATION_PASS');
   const write = mock.calls.find(c => c.method === 'POST' && c.path.endsWith('/email/routing/rules'));
-  assert.equal(write?.authMode, 'global_api_key');
+  assert.equal(write?.authMode, 'api_token');
 });
 
 test('disabled all-drop baseline rule is preserved and does not block exact support routing', async () => {
