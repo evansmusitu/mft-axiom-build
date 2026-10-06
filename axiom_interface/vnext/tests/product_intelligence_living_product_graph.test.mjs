@@ -541,6 +541,7 @@ test('FA-11 runtime exception becomes FAILED receipt and verified failure eviden
   const {GovernedExecutionStore}=await import('../execution_store.js');
   const module=await import('../product_intelligence/living_product_graph.js');
   const security=await import('../execution_security.js');
+  const gateway=await import('../authorization_gateway.js');
   const keys={sandboxes:'sandbox_id',requests:'request_sha256',approvals:'approval_sha256',receipts:'receipt_id',leases:'lease_id',events:'event_id'};
   class MemoryExecutionStore extends GovernedExecutionStore{
     constructor(){super(null);this.rows=Object.fromEntries(Object.keys(keys).map(name=>[name,new Map()]));}
