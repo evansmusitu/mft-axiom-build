@@ -107,6 +107,8 @@ try{
   assert.equal(forwardedRequest.headers.get("mcp-method"),"tools/call");
   assert.equal(forwardedRequest.headers.get("mcp-name"),"axiom.provider.status");
   assert.equal(forwardedRequest.headers.get("mcp-protocol-version"),"2026-07-28");
+  assert.equal(forwardedRequest.headers.get("modal-key"),"wk-contract");
+  assert.equal(forwardedRequest.headers.get("modal-secret"),"ws-contract");
 }finally{
   globalThis.fetch=originalFetch;
 }
