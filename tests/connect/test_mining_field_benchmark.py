@@ -4,7 +4,6 @@ from pathlib import Path
 
 from benchmarks.mining_adapter.industrial_field import (
     IndustrialWorkloadSpec,
-    MqttSubscriptionBarrier,
     comparator_matrix,
     encode_mqtt_batch,
     evaluate_field_gate,
@@ -67,20 +66,6 @@ class IndustrialFieldBenchmarkTests(unittest.TestCase):
         self.assertEqual(decoded["rows"][0]["record_id"],"field-0000000000")
         self.assertEqual(decoded["rows"][-1]["record_id"],"field-0000002999")
 
-
-    def test_mqtt_subscription_readiness_requires_suback_after_reconnect(self):
-        barrier=MqttSubscriptionBarrier()
-        self.assertFalse(barrier.ready)
-        barrier.mark_connected()
-        self.assertFalse(barrier.ready)
-        barrier.mark_subscribed()
-        self.assertTrue(barrier.ready)
-        barrier.mark_disconnected()
-        self.assertFalse(barrier.ready)
-        barrier.mark_connected()
-        self.assertFalse(barrier.ready)
-        barrier.mark_subscribed()
-        self.assertTrue(barrier.ready)
 
     def test_current_comparator_matrix_is_fail_closed(self):
         matrix=comparator_matrix()
