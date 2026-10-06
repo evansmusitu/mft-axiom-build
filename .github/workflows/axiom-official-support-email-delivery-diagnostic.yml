@@ -1,0 +1,83 @@
+name: MUSITU Axiom Support Email Delivery Diagnostic
+
+on:
+  push:
+    branches:
+      - 'support/axiom-official-support-20261005'
+    paths:
+      - '.github/workflows/axiom-official-support-email-delivery-diagnostic.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  inspect-routing-delivery:
+    runs-on: ubuntu-latest
+    environment: axiom-support-production
+    timeout-minutes: 5
+    env:
+      CF_ZONE_ID: '5b56528f03948ff5917a5e0cd9f7109e'
+      CF_TOKEN_RULESETS: ${{ secrets.CLOUDFLARE_RULESETS_API_TOKEN }}
+      CF_TOKEN_ACCESS: ${{ secrets.CLOUDFLARE_ACCESS_API_TOKEN }}
+      CF_TOKEN_DEFAULT: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      TEST_SUBJECT: 'MUSITU Axiom Support Routing Verification 077207c0'
+    steps:
+      - name: Query Cloudflare Email Routing activity read-only
+        shell: bash
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          const zoneTag=process.env.CF_ZONE_ID;
+          const subject=process.env.TEST_SUBJECT;
+          const end=new Date(Date.now()+5*60*1000).toISOString();
+          const start=new Date(Date.now()-60*60*1000).toISOString();
+          const query=`query EmailRoutingActivity($zoneTag: string, $filter: EmailRoutingAdaptiveFilter_InputObject) {
+            viewer {
+              zones(filter: { zoneTag: $zoneTag }) {
+                emailRoutingAdaptive(filter: $filter, limit: 100, orderBy: [datetime_DESC]) {
+                  datetime
+                  subject
+                  status
+                  action
+                }
+              }
+            }
+          }`;
+          const body=JSON.stringify({query,variables:{zoneTag,filter:{datetime_geq:start,datetime_leq:end}}});
+          const candidates=[
+            ['CLOUDFLARE_RULESETS_API_TOKEN',process.env.CF_TOKEN_RULESETS],
+            ['CLOUDFLARE_ACCESS_API_TOKEN',process.env.CF_TOKEN_ACCESS],
+            ['CLOUDFLARE_API_TOKEN',process.env.CF_TOKEN_DEFAULT],
+          ];
+          let last=null;
+          for(const [name,raw] of candidates){
+            const token=String(raw||'').trim();
+            if(!token) continue;
+            const response=await fetch('https://api.cloudflare.com/client/v4/graphql',{
+              method:'POST',
+              headers:{authorization:'Bearer '+token,accept:'application/json','content-type':'application/json'},
+              body
+            });
+            let payload={}; try{payload=await response.json()}catch{}
+            const rows=payload?.data?.viewer?.zones?.[0]?.emailRoutingAdaptive;
+            if(response.ok && Array.isArray(rows)){
+              const matches=rows.filter(x=>String(x?.subject||'')===subject);
+              const safe=matches.map(x=>({datetime:String(x.datetime||''),status:String(x.status||''),action:String(x.action||'')}));
+              console.log(JSON.stringify({
+                gate:'MUSITU_AXIOM_SUPPORT_EMAIL_DELIVERY_DIAGNOSTIC',
+                credential_secret_name:name,
+                query_http:response.status,
+                matching_event_count:safe.length,
+                matching_events:safe,
+                raw_addresses_recorded:false,
+                raw_message_id_recorded:false,
+                write_performed:false,
+                secret_exposed:false
+              }));
+              process.exit(0);
+            }
+            last={secret_name:name,http:response.status,error_count:Array.isArray(payload?.errors)?payload.errors.length:0};
+          }
+          console.log(JSON.stringify({gate:'MUSITU_AXIOM_SUPPORT_EMAIL_DELIVERY_DIAGNOSTIC_UNAVAILABLE',last_attempt:last,write_performed:false,secret_exposed:false}));
+          process.exit(2);
+          NODE
