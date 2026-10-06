@@ -14,12 +14,15 @@ const approved = norm(env.CLOUDFLARE_EMAIL);
 if (!approved) throw new Error('approved destination secret is missing');
 
 const credential = await selectCloudflareCredential({fetchImpl: fetch, env});
+const preferredGlobalCredential = await selectCloudflareCredential({fetchImpl: fetch, env, preferGlobal: true});
 const get = async path => (await cloudflareRequest({fetchImpl: fetch, headers: credential.headers, path})).result;
+const getPreferredGlobal = async path => (await cloudflareRequest({fetchImpl: fetch, headers: preferredGlobalCredential.headers, path})).result;
 
-const [rulesRaw, catchAll, routing] = await Promise.all([
+const [rulesRaw, catchAll, routing, preferredGlobalRulesRaw] = await Promise.all([
   get(`/zones/${SUPPORT_ZONE_ID}/email/routing/rules?page=1&per_page=100`),
   get(`/zones/${SUPPORT_ZONE_ID}/email/routing/rules/catch_all`),
   get(`/zones/${SUPPORT_ZONE_ID}/email/routing`),
+  getPreferredGlobal(`/zones/${SUPPORT_ZONE_ID}/email/routing/rules?page=1&per_page=100`),
 ]);
 
 const rules = Array.isArray(rulesRaw) ? rulesRaw : [];
@@ -49,6 +52,8 @@ const summarizeAction = a => {
 const summary = {
   gate: 'MUSITU_AXIOM_SUPPORT_EMAIL_ROUTING_DIAGNOSTIC_PASS',
   authentication_mode: credential.mode,
+  preferred_global_authentication_mode: preferredGlobalCredential.mode,
+  preferred_global_rule_read_succeeded: Array.isArray(preferredGlobalRulesRaw),
   routing: {
     enabled: routing?.enabled === true,
     status: String(routing?.status || '').toLowerCase(),
