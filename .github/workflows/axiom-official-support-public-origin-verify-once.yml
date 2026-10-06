@@ -16,7 +16,7 @@ concurrency:
 
 jobs:
   verify-public-origin:
-    if: github.event_name == 'push' && github.event.before == '159c03caa38f2bf9dbd3705e817133f6f19a7e2b'
+    if: github.event_name == 'push' && github.event.before == '2508c9b5bd6a6c2bf08719a30ea5c3bdbe0d2a7d'
     runs-on: ubuntu-latest
     environment: axiom-support-production
     timeout-minutes: 15
@@ -51,7 +51,7 @@ jobs:
           test "$GITHUB_EVENT_NAME" = 'push'
           test "$GITHUB_REF_NAME" = 'support/axiom-official-support-20261005'
           test "$GITHUB_REF_NAME" != 'main'
-          test "${{ github.event.before }}" = '159c03caa38f2bf9dbd3705e817133f6f19a7e2b'
+          test "${{ github.event.before }}" = '2508c9b5bd6a6c2bf08719a30ea5c3bdbe0d2a7d'
           test "$SUPPORT_DOMAIN" = 'support.mftintelligence.com'
           node <<'NODE'
           const api='https://api.github.com/repos/evansmusitu/mft-axiom-build';
@@ -237,10 +237,131 @@ jobs:
           for(const required of ['closed_at','retention_expires_at','legal_hold_until','legal_hold_review_at']) if(!cols.has(required)) throw new Error('required retention column missing: '+required);
           NODE
 
-      - name: Publish exact support custom domain for verification
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_ACCESS_API_TOKEN }}
-        run: npx --yes wrangler@4.143.0 deploy --config support-wrangler.generated.json
+      - name: Build verification Worker bundle with the canonical support UI
+        shell: bash
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          const fs=require('node:fs');
+          const html=fs.readFileSync('support/index.html','utf8');
+          const css=fs.readFileSync('support/styles.css','utf8');
+          const app=fs.readFileSync('support/app.js','utf8');
+          const source=[
+            "import support from './support/worker.js';",
+            "const HTML="+JSON.stringify(html)+";",
+            "const CSS="+JSON.stringify(css)+";",
+            "const APP="+JSON.stringify(app)+";",
+            "const STATIC_HEADERS=Object.freeze({",
+            "  'content-security-policy':\"default-src 'self'; connect-src 'self' https://challenges.cloudflare.com; img-src 'self' data:; style-src 'self'; script-src 'self' https://challenges.cloudflare.com; frame-src https://challenges.cloudflare.com; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'\",",
+            "  'referrer-policy':'no-referrer',",
+            "  'permissions-policy':'camera=(), microphone=(), geolocation=(), payment=()',",
+            "  'x-content-type-options':'nosniff',",
+            "  'cross-origin-opener-policy':'same-origin',",
+            "  'cross-origin-resource-policy':'same-origin',",
+            "  'cache-control':'no-store'",
+            "});",
+            "function asset(body,type){return new Response(body,{status:200,headers:{...STATIC_HEADERS,'content-type':type}});}",
+            "export default {async fetch(request,env){",
+            " const u=new URL(request.url);",
+            " if(request.method==='GET'&&(u.pathname==='/'||u.pathname==='/index.html')) return asset(HTML,'text/html; charset=utf-8');",
+            " if(request.method==='GET'&&u.pathname==='/styles.css') return asset(CSS,'text/css; charset=utf-8');",
+            " if(request.method==='GET'&&u.pathname==='/app.js') return asset(APP,'text/javascript; charset=utf-8');",
+            " return support.fetch(request,env);",
+            "}};"
+          ].join('\n');
+          fs.writeFileSync('.axiom-support-public-origin-entry.mjs',source,{mode:0o600});
+          NODE
+          npx --yes esbuild@0.25.11 .axiom-support-public-origin-entry.mjs --bundle --format=esm --platform=browser --target=es2022 --outfile=.axiom-support-public-origin-bundle.mjs
+          test -s .axiom-support-public-origin-bundle.mjs
+
+      - name: Upload Worker directly with strict inherited secrets and attach only canonical domain
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          import {buildWorkerMultipart} from './support/scripts/provision_cloudflare_control_plane.mjs';
+          import {cloudflareRequest,SUPPORT_ACCOUNT_ID} from './support/scripts/provision_cloudflare_d1.mjs';
+
+          const token=String(process.env.CLOUDFLARE_RULESETS_API_TOKEN||'');
+          const account='93f395f5121954671f92fffa453d6b61';
+          const zoneId='5b56528f03948ff5917a5e0cd9f7109e';
+          const zoneName='mftintelligence.com';
+          const worker='musitu-axiom-support';
+          const host='support.mftintelligence.com';
+          const db=String(process.env.SUPPORT_D1_DATABASE_ID||'');
+          const sitekey=String(process.env.SUPPORT_TURNSTILE_SITE_KEY||'');
+          const readiness=String(process.env.SUPPORT_READINESS_SHA256||'');
+          if(!token||SUPPORT_ACCOUNT_ID!==account) throw new Error('direct support deploy credential/account missing');
+          if(!/^[a-f0-9-]{36}$/i.test(db)) throw new Error('support D1 binding invalid');
+          if(!/^[A-Za-z0-9_-]{20,100}$/.test(sitekey)) throw new Error('support Turnstile site key invalid');
+          if(!/^[a-f0-9]{64}$/.test(readiness)) throw new Error('support readiness hash invalid');
+
+          const headers={authorization:'Bearer '+token,accept:'application/json'};
+          const domainsBefore=await cloudflareRequest({headers,path:'/accounts/'+account+'/workers/domains'});
+          const existing=(Array.isArray(domainsBefore.result)?domainsBefore.result:[]).filter(x=>String(x?.hostname||'')===host);
+          if(existing.length>1) throw new Error('multiple support Worker domains exist');
+          if(existing.length===1){
+            const row=existing[0];
+            if(String(row?.service||'')!==worker||String(row?.zone_id||'')!==zoneId||String(row?.zone_name||'')!==zoneName) throw new Error('existing support domain points to an unexpected target');
+          }
+
+          const source=fs.readFileSync('.axiom-support-public-origin-bundle.mjs');
+          const metadata={
+            main_module:'index.mjs',
+            compatibility_date:'2026-10-05',
+            bindings:[
+              {type:'d1',name:'SUPPORT_DB',database_id:db},
+              {type:'plain_text',name:'ENVIRONMENT',text:'production'},
+              {type:'plain_text',name:'SUPPORT_DOMAIN',text:host},
+              {type:'plain_text',name:'TURNSTILE_SITE_KEY',text:sitekey},
+              {type:'plain_text',name:'SUPPORT_HUMAN_OWNER_REF',text:'github:evansmusitu'},
+              {type:'plain_text',name:'SUPPORT_INDEPENDENT_APPROVER_REF',text:'person:elvis-musitu'},
+              {type:'plain_text',name:'SUPPORT_READINESS_SHA256',text:readiness},
+              {type:'ratelimit',name:'SUPPORT_INTAKE_RATE_LIMITER',namespace_id:'910051',simple:{limit:60,period:60}},
+              {type:'inherit',name:'SUPPORT_DATA_KEY_B64',version_id:'latest'},
+              {type:'inherit',name:'TURNSTILE_SECRET_KEY',version_id:'latest'}
+            ],
+            annotations:{'workers/message':'Authorized MUSITU Axiom support public-origin verification'}
+          };
+          const {boundary,body}=buildWorkerMultipart(source,metadata,'----MUSITUSupportPublicOriginVerification');
+          const upload=await fetch('https://api.cloudflare.com/client/v4/accounts/'+account+'/workers/scripts/'+encodeURIComponent(worker)+'?bindings_inherit=strict',{
+            method:'PUT',
+            headers:{...headers,'content-type':'multipart/form-data; boundary='+boundary},
+            body
+          });
+          let up={}; try{up=await upload.json()}catch{}
+          if(!upload.ok||up?.success===false||String(up?.result?.id||worker)!==worker){
+            const codes=(up?.errors||[]).map(x=>x?.code).filter(Boolean);
+            throw new Error('direct Worker upload failed HTTP '+upload.status+' codes='+(codes.join(',')||'none'));
+          }
+
+          await cloudflareRequest({
+            headers,
+            path:'/accounts/'+account+'/workers/scripts/'+encodeURIComponent(worker)+'/subdomain',
+            method:'POST',
+            body:{enabled:false,previews_enabled:false}
+          });
+          const sub=await cloudflareRequest({headers,path:'/accounts/'+account+'/workers/scripts/'+encodeURIComponent(worker)+'/subdomain'});
+          if(sub.result?.enabled===true||sub.result?.previews_enabled===true) throw new Error('workers.dev or previews enabled after direct upload');
+
+          if(existing.length===0){
+            await cloudflareRequest({
+              headers,
+              path:'/accounts/'+account+'/workers/domains',
+              method:'PUT',
+              body:{hostname:host,service:worker,zone_id:zoneId,zone_name:zoneName}
+            });
+          }
+
+          const domainsAfter=await cloudflareRequest({headers,path:'/accounts/'+account+'/workers/domains'});
+          const matches=(Array.isArray(domainsAfter.result)?domainsAfter.result:[]).filter(x=>String(x?.hostname||'')===host);
+          if(matches.length!==1) throw new Error('canonical support custom domain not attached exactly once');
+          const row=matches[0];
+          if(String(row?.service||'')!==worker||String(row?.zone_id||'')!==zoneId||String(row?.zone_name||'')!==zoneName) throw new Error('canonical support domain target mismatch');
+          console.log(JSON.stringify({worker_uploaded:true,custom_domain_attached:true,workers_dev_enabled:false,previews_enabled:false,secret_values_exposed:false}));
+          NODE
+          rm -f .axiom-support-public-origin-entry.mjs .axiom-support-public-origin-bundle.mjs
 
       - name: Verify custom domain exists while workers.dev and previews remain disabled
         shell: bash
