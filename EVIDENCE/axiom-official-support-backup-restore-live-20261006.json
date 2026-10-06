@@ -1,0 +1,18 @@
+{
+  "schema": "musitu.axiom.support-readiness-evidence.v1",
+  "gate": "BACKUP_RESTORE",
+  "status": "PASS",
+  "artifact_sha256": "562066c4eb66c67ec85a5b17ca76ebb92e4d322a6a2d18d859f7056c411a99ab",
+  "verifier_ref": "github-actions:run:37420774435",
+  "verified_at": "2026-10-06T05:53:18Z",
+  "method": "cloudflare_d1_time_travel_existing_non_public_support_database",
+  "synthetic_seed_restored": true,
+  "temporary_table_deleted": true,
+  "existing_support_database_used": true,
+  "real_support_case_count_required_zero": true,
+  "real_support_event_count_required_zero": true,
+  "support_hostname_required_non_public": true,
+  "production_support_customer_data_modified": false,
+  "secret_exposed": false,
+  "public_support_deployed": false
+}
