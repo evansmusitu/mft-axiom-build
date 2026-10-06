@@ -71,3 +71,5 @@ jobs:
           set -euo pipefail
           node -e 'const e=require("./support-email-routing-preflight.json"); const h=require("node:fs").readFileSync("./support-email-routing-preflight.json.sha256","utf8").split(" ")[0]; process.stdout.write(["### MUSITU Axiom support Email Routing preflight", "", "- Gate: MUSITU_AXIOM_SUPPORT_EMAIL_ROUTING_PREFLIGHT_OBSERVED", "- Destination verified: "+e.destination.verified, "- Email Routing ready: "+e.email_routing.ready, "- Exact support rule present: "+e.support_rule.exact_present, "- Conflicting support rule: "+e.support_rule.conflict_present, "- Safe to create exact rule: "+e.support_rule.safe_to_create, "- OpenAI DNS readable: "+e.protected_openai_dns.readable, "- Write performed: false", "- Evidence SHA-256: "+h].join("\n")+"\n")' >> "$GITHUB_STEP_SUMMARY"
           rm support-email-routing-preflight.json support-email-routing-preflight.json.sha256
+
+# transient-state-observation-20261006
