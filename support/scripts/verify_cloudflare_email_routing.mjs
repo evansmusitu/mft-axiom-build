@@ -80,6 +80,16 @@ function exactForward(rule, destinationEmail) {
   return values.length === 1 && String(values[0] || '').trim().toLowerCase() === destinationEmail;
 }
 
+function safeDisabledDropAll(rule) {
+  if (rule?.enabled !== false) return false;
+  const matchers = Array.isArray(rule?.matchers) ? rule.matchers : [];
+  const actions = Array.isArray(rule?.actions) ? rule.actions : [];
+  return matchers.length === 1 &&
+    String(matchers[0]?.type || '').toLowerCase() === 'all' &&
+    actions.length === 1 &&
+    String(actions[0]?.type || '').toLowerCase() === 'drop';
+}
+
 function scrubbedRule(rule, destinationEmail) {
   return {
     enabled: rule?.enabled === true,
@@ -195,6 +205,18 @@ export function buildEmailRoutingEvidence(input) {
       conflict_present: conflictingRules.length > 0 || exactRules.length > 1,
       matching_rules_fingerprint_sha256: fingerprint(supportRules.map(row => scrubbedRule(row, destinationNormalized))),
       safe_to_create: safeToCreate,
+    },
+    email_routing_rules: {
+      total_count: ruleRows.length,
+      enabled_count: ruleRows.filter(row => row?.enabled === true).length,
+      disabled_count: ruleRows.filter(row => row?.enabled === false).length,
+      support_target_count: supportRules.length,
+      safe_disabled_drop_all_count: ruleRows.filter(safeDisabledDropAll).length,
+      other_rule_count: ruleRows.filter(row => !matcherTargetsSupport(row) && !safeDisabledDropAll(row)).length,
+      scrubbed_rules: ruleRows.map(row => scrubbedRule(row, destinationNormalized)),
+      scrubbed_rules_fingerprint_sha256: fingerprint(ruleRows.map(row => scrubbedRule(row, destinationNormalized))),
+      raw_match_values_recorded: false,
+      raw_action_values_recorded: false,
     },
     email_dns: {
       root_read_access: rootDnsRead.ok,
