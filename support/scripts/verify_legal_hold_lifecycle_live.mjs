@@ -71,21 +71,42 @@ export async function runLegalHoldLifecycleDrill({env=process.env,fetchImpl=fetc
   }
 
   const db=new RestD1({fetchImpl,token,accountId,databaseId});
-  const beforeCases=await count(db,'support_cases');
-  const beforeEvents=await count(db,'support_case_events');
-  const beforeAuth=await count(db,'support_case_purge_authorizations');
-  const beforeReceipts=await count(db,'support_deletion_receipts');
-  if(beforeCases!==0||beforeEvents!==0||beforeAuth!==0||beforeReceipts<1) throw new Error('legal hold drill requires zero live cases/events/auth and prior erasure evidence');
+  const initialCases=await count(db,'support_cases');
+  const initialEvents=await count(db,'support_case_events');
+  const initialAuth=await count(db,'support_case_purge_authorizations');
+  const initialReceipts=await count(db,'support_deletion_receipts');
+  if(initialAuth!==0||initialReceipts<1) throw new Error('legal hold drill requires no active purge authorization and prior erasure evidence');
 
-  const caseId='AX-0123456789CD';
-  const initialHash='e'.repeat(64);
+  let staleSyntheticCaseRecovered=false;
+  const staleCaseId='AX-0123456789CD';
+  const stale=await db.prepare('SELECT case_id,state,legal_hold_until FROM support_cases WHERE case_id=? LIMIT 1').bind(staleCaseId).first();
+  if(initialCases===1&&stale?.case_id===staleCaseId&&!stale.legal_hold_until){
+    const recovered=await purgeExpiredCase({
+      database:db,caseId:staleCaseId,now:new Date().toISOString(),
+      actorRole:'privacy_officer',ownerRef:'github:evansmusitu',independentApproverRef:'person:elvis-musitu',
+      approvalEvidenceHashes:['c'.repeat(64),'d'.repeat(64)],
+    });
+    if(recovered.status!=='PURGED') throw new Error('stale synthetic legal hold case recovery failed');
+    staleSyntheticCaseRecovered=true;
+  } else if(initialCases!==0||initialEvents!==0) {
+    throw new Error('unexpected live support case/event state before legal hold drill');
+  }
+
+  const baselineCases=await count(db,'support_cases');
+  const baselineEvents=await count(db,'support_case_events');
+  const baselineAuth=await count(db,'support_case_purge_authorizations');
+  const baselineReceipts=await count(db,'support_deletion_receipts');
+  if(baselineCases!==0||baselineEvents!==0||baselineAuth!==0) throw new Error('synthetic recovery did not return support D1 to zero live cases/events/auth');
+
+  const caseId='AX-0123456789EF';
+  const initialHash='1'.repeat(64);
   const closedAt='2026-01-01T00:00:00Z';
   const publicJson=JSON.stringify({schema:'musitu.axiom.support-case-public.v1',case_id:caseId,state:'CLOSED',priority:'P2',surface:'privacy_data_rights',category:'privacy_request',created_at:closedAt,updated_at:closedAt});
   await db.batch([
     db.prepare(`INSERT INTO support_cases
       (case_id,state,priority,surface,category,requester_ref,retention_class,human_approval_required,recovery_hash,public_json,encrypted_payload,last_event_hash,closed_at,retention_expires_at,legal_hold_until,legal_hold_review_at,created_at,updated_at)
       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).bind(
-      caseId,'CLOSED','P2','privacy_data_rights','privacy_request',null,'PRIVACY_RESTRICTED','1','f'.repeat(64),
+      caseId,'CLOSED','P2','privacy_data_rights','privacy_request',null,'PRIVACY_RESTRICTED','1','2'.repeat(64),
       publicJson,JSON.stringify({v:1,synthetic:true}),initialHash,closedAt,'2026-04-01T00:00:00.000Z',null,null,closedAt,closedAt),
     db.prepare(`INSERT INTO support_case_events
       (case_id,event_hash,prior_event_hash,type,actor,visibility,payload_json,created_at)
@@ -96,35 +117,37 @@ export async function runLegalHoldLifecycleDrill({env=process.env,fetchImpl=fetc
     actorRole:'privacy_officer',
     ownerRef:'github:evansmusitu',
     independentApproverRef:'person:elvis-musitu',
-    approvalEvidenceHashes:['a'.repeat(64)],
+    approvalEvidenceHashes:['3'.repeat(64)],
   };
-  const hold=await applyLegalHold({database:db,caseId,reasonHash:'b'.repeat(64),at:'2026-04-02T00:00:00Z',...auth});
+  const hold=await applyLegalHold({database:db,caseId,reasonHash:'4'.repeat(64),at:'2026-06-01T00:00:00Z',...auth});
   const heldRow=await db.prepare('SELECT legal_hold_until,legal_hold_review_at FROM support_cases WHERE case_id=? LIMIT 1').bind(caseId).first();
-  if(String(heldRow?.legal_hold_until)!=='9999-12-31T23:59:59.000Z'||String(heldRow?.legal_hold_review_at)!=='2026-07-01T00:00:00.000Z') {
+  if(String(heldRow?.legal_hold_until)!=='9999-12-31T23:59:59.000Z'||String(heldRow?.legal_hold_review_at)!=='2026-08-30T00:00:00.000Z') {
     throw new Error('live legal hold readback mismatch');
   }
 
   let overduePurgeBlocked=false;
   try {
     await purgeExpiredCase({
-      database:db,caseId,now:'2026-08-01T00:00:00Z',
+      database:db,caseId,now,
       actorRole:'privacy_officer',ownerRef:'github:evansmusitu',independentApproverRef:'person:elvis-musitu',
-      approvalEvidenceHashes:['c'.repeat(64)],
+      approvalEvidenceHashes:['5'.repeat(64)],
     });
   } catch(error) {
     overduePurgeBlocked=/LEGAL_HOLD_ACTIVE|not eligible for purge/.test(String(error?.message||''));
   }
   if(!overduePurgeBlocked) throw new Error('overdue legal hold did not block live purge');
 
-  const reviewed=await reviewLegalHold({database:db,caseId,reasonHash:'b'.repeat(64),at:'2026-08-01T00:00:00Z',...auth});
-  if(reviewed.review_due_at!=='2026-10-30T00:00:00.000Z') throw new Error('live legal hold review deadline mismatch');
-  const released=await releaseLegalHold({database:db,caseId,at:'2026-08-02T00:00:00Z',...auth});
+  const reviewed=await reviewLegalHold({database:db,caseId,reasonHash:'4'.repeat(64),at:now,...auth});
+  const reviewDelta=Date.parse(reviewed.review_due_at)-Date.parse(now);
+  if(reviewDelta!==90*24*60*60*1000) throw new Error('live legal hold review deadline is not exactly 90 days');
+  const releaseAt=new Date().toISOString();
+  const released=await releaseLegalHold({database:db,caseId,at:releaseAt,...auth});
   if(released.status!=='RELEASED') throw new Error('live legal hold release failed');
 
   const purged=await purgeExpiredCase({
-    database:db,caseId,now:'2026-08-02T00:00:01Z',
+    database:db,caseId,now:new Date().toISOString(),
     actorRole:'privacy_officer',ownerRef:'github:evansmusitu',independentApproverRef:'person:elvis-musitu',
-    approvalEvidenceHashes:['c'.repeat(64),'d'.repeat(64)],
+    approvalEvidenceHashes:['5'.repeat(64),'6'.repeat(64)],
   });
   if(purged.status!=='PURGED') throw new Error('post-release live purge failed');
 
@@ -132,7 +155,7 @@ export async function runLegalHoldLifecycleDrill({env=process.env,fetchImpl=fetc
   const afterEvents=await count(db,'support_case_events');
   const afterAuth=await count(db,'support_case_purge_authorizations');
   const afterReceipts=await count(db,'support_deletion_receipts');
-  if(afterCases!==0||afterEvents!==0||afterAuth!==0||afterReceipts!==beforeReceipts+1) throw new Error('legal hold lifecycle cleanup counts are invalid');
+  if(afterCases!==0||afterEvents!==0||afterAuth!==0||afterReceipts!==baselineReceipts+1) throw new Error('legal hold lifecycle cleanup counts are invalid');
 
   return {
     schema:'musitu.axiom.support-readiness-evidence.v1',
@@ -151,7 +174,9 @@ export async function runLegalHoldLifecycleDrill({env=process.env,fetchImpl=fetc
     live_case_count_after:afterCases,
     live_event_count_after:afterEvents,
     purge_authorization_count_after:afterAuth,
-    deletion_receipt_count_before:beforeReceipts,
+    initial_deletion_receipt_count:initialReceipts,
+    stale_synthetic_case_recovered:staleSyntheticCaseRecovered,
+    baseline_deletion_receipt_count_after_recovery:baselineReceipts,
     deletion_receipt_count_after:afterReceipts,
     public_route_absent_verified:true,
     synthetic_customer_content_used:false,
