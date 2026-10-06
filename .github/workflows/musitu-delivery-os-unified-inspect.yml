@@ -92,8 +92,10 @@ jobs:
           tar -xzf delivery-os/phase1-src.tar.gz -C .
           cd delivery-os
           sha256sum -c PHASE2_UNIFIED_PATCH_SHA256.txt
+          sha256sum -c PHASE2_CONSTRAINT_GUARD_PATCH_SHA256.txt
           cd ..
           gzip -dc delivery-os/PHASE2_UNIFIED.patch.gz | git apply --unsafe-paths --directory=delivery-os -
+          gzip -dc delivery-os/PHASE2_CONSTRAINT_GUARD.patch.gz | git apply --unsafe-paths --directory=delivery-os -
       - uses: actions/setup-node@v6
         with:
           node-version: '22'
@@ -116,11 +118,14 @@ jobs:
             --exclude='./PHASE1_SOURCE_SHA256.txt' \
             --exclude='./PHASE2_UNIFIED.patch.gz' \
             --exclude='./PHASE2_UNIFIED_PATCH_SHA256.txt' \
+            --exclude='./PHASE2_CONSTRAINT_GUARD.patch.gz' \
+            --exclude='./PHASE2_CONSTRAINT_GUARD_PATCH_SHA256.txt' \
             -cf - . | tar -C "$SNAPSHOT" -xf -
           cat > "$SNAPSHOT/SNAPSHOT_METADATA.txt" <<EOF
           unified_head=$GITHUB_SHA
           ownfleet_pin=98744125c827b6e5bbe2af384c3ef9308c445ec8
-          source_kind=reconstructed_phase1_plus_phase2_patch
+          source_kind=reconstructed_phase1_plus_phase2_patch_chain
+          phase2_constraint_guard_sha256=f3e22402a8b51d549c84ef71d7e7d13fd6cd682e7f4b54fd5b7f0b12a47f2e34
           EOF
           (
             cd "$SNAPSHOT"
@@ -150,8 +155,10 @@ jobs:
           tar -xzf delivery-os/phase1-src.tar.gz -C .
           cd delivery-os
           sha256sum -c PHASE2_UNIFIED_PATCH_SHA256.txt
+          sha256sum -c PHASE2_CONSTRAINT_GUARD_PATCH_SHA256.txt
           cd ..
           gzip -dc delivery-os/PHASE2_UNIFIED.patch.gz | git apply --unsafe-paths --directory=delivery-os -
+          gzip -dc delivery-os/PHASE2_CONSTRAINT_GUARD.patch.gz | git apply --unsafe-paths --directory=delivery-os -
       - uses: actions/setup-java@v5
         with:
           distribution: temurin
