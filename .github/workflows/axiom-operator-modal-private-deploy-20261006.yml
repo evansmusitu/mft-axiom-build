@@ -46,6 +46,7 @@ jobs:
           test -f frontier_v5/runtime/operator_bridge.py
           test -f frontier_v5/runtime/operator_daemon.py
           test -f frontier_v5/tests/test_operator_bridge_contract.py
+          test -f frontier_v5/tests/test_operator_remote_core.py
           echo 'operator_isolated_authority=PASS'
 
       - name: Verify operator contracts before external deployment
