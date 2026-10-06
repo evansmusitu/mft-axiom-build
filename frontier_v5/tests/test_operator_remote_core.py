@@ -59,14 +59,14 @@ def main():
     assert work["mutated"] is True
     state2=work["state_pack"]
     assert state2["state_sha256"]!=state["state_sha256"]
-    plan_id=work["body"]["plan_id"]
+    plan_id=work["body"]["result"]["plan_id"]
 
     h,m=mcp_call("axiom.work.status",{"project_id":"p1","plan_id":plan_id},"r4")
     continuity=execute_remote_mcp(
         state_pack=state2,tenant=tenant,actor_id=actor,headers=h,message=m
     )
     assert continuity["status"]==200
-    assert continuity["body"]["plan"]["plan_id"]==plan_id
+    assert continuity["body"]["result"]["plan"]["plan_id"]==plan_id
     assert continuity["mutated"] is False
 
     h,m=mcp_call("axiom.unknown",{},"r5")
@@ -76,7 +76,7 @@ def main():
     assert bad["status"]==200
     assert bad["mutated"] is False
     assert bad["state_pack"] is None
-    assert bad["body"]["isError"] is True
+    assert bad["body"]["result"]["isError"] is True
 
     print("MUSITU_AXIOM_OPERATOR_REMOTE_CORE_PASS")
 
