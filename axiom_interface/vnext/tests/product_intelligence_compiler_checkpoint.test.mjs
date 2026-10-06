@@ -59,7 +59,7 @@ function graph(title='Initial requirement',generation=1){
 async function fixture(){
   const prior=await compileProductIR(graph('Initial requirement',1),{compilerVersion:'1.0.0'});
   const next=await compileProductIR(graph('Updated requirement',2),{compilerVersion:'1.0.0'});
-  const diff=diffProductIR(prior,next);
+  const diff=await diffProductIR(prior,next);
   return {prior,next,diff};
 }
 
@@ -137,4 +137,23 @@ test('rollback preparation rejects stale current IR and tampered checkpoint rece
   const tampered={...checkpoint,impact_node_ids:['lpg_tampered']};
   assert.equal(await verifyCompilerCheckpoint(tampered),false);
   await assert.rejects(()=>prepareCompilerRollback(tampered,{currentIR:next,actorId:'agent_verifier_1'}),/checkpoint integrity failure/);
+});
+
+
+test('checkpoint and rollback reject tampered Product Compiler IR content even when envelope hashes are syntactically valid',async()=>{
+  const {prior,next,diff}=await fixture();
+  const tamperedNext=structuredClone(next);
+  tamperedNext.units[0].data={...tamperedNext.units[0].data,title:'tampered after compilation'};
+  await assert.rejects(
+    ()=>createCompilerCheckpoint({projectId,priorIR:prior,nextIR:tamperedNext,diff,actorId:'agent_builder_1',evidenceRefs:['evidence_source_12345678'],at},services),
+    /integrity|hash|sha256|tamper/i,
+  );
+
+  const checkpoint=await createCompilerCheckpoint({projectId,priorIR:prior,nextIR:next,diff,actorId:'agent_builder_1',evidenceRefs:['evidence_source_12345678'],at},services);
+  const tamperedCurrent=structuredClone(next);
+  tamperedCurrent.units[0].data={...tamperedCurrent.units[0].data,title:'tampered current state'};
+  await assert.rejects(
+    ()=>prepareCompilerRollback(checkpoint,{currentIR:tamperedCurrent,actorId:'agent_verifier_1',at:'2026-10-04T17:05:00Z'}),
+    /integrity|hash|sha256|tamper/i,
+  );
 });
