@@ -20,7 +20,7 @@ test('retention migration alters only an empty non-public support D1 and verifie
       if(sql==='SELECT COUNT(*) AS count FROM support_case_events;') return response(200,{success:true,result:[{results:[{count:0}]}]});
       if(sql==='PRAGMA table_info(support_cases);') return response(200,{success:true,result:[{results:[...columns].map((name,cid)=>({cid,name}))}]});
       if(sql.includes("SELECT type,name FROM sqlite_master")) return response(200,{success:true,result:[{results:[...objects].map(name=>({type:name.includes('trigger')||name.includes('no_')?'trigger':'table',name}))}]});
-      if(sql.startsWith('ALTER TABLE support_cases ADD COLUMN ')){ columns.add(sql.split(' ')[6]); return response(200,{success:true,result:[{success:true}]}); }
+      if(sql.startsWith('ALTER TABLE support_cases ADD COLUMN ')){ columns.add(sql.split(' ')[5]); return response(200,{success:true,result:[{success:true}]}); }
       if(sql.startsWith('CREATE TABLE IF NOT EXISTS support_case_purge_authorizations')){objects.add('support_case_purge_authorizations');return response(200,{success:true,result:[{success:true}]});}
       if(sql.startsWith('CREATE TABLE IF NOT EXISTS support_deletion_receipts')){objects.add('support_deletion_receipts');return response(200,{success:true,result:[{success:true}]});}
       if(sql.startsWith('DROP TRIGGER IF EXISTS support_case_event_no_delete')){objects.delete('support_case_event_no_delete');return response(200,{success:true,result:[{success:true}]});}
