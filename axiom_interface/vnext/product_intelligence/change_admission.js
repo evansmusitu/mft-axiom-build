@@ -220,9 +220,38 @@ async function assertExecutorHandoffIntegrity(handoff){
   return handoff;
 }
 
+
+function assertExecutorAuthorityEnvelopeInput(authorityEnvelope){
+  if(!isPlainObject(authorityEnvelope)) throw new TypeError('executor authority envelope must be a plain object');
+  for(const [key,max] of [['project_id',200],['actor_id',200],['agent_id',200],['workload_identity_id',200]]){
+    const value=authorityEnvelope[key];
+    if(typeof value!=='string'||!value||clean(value,max)!==value) throw new TypeError(`executor authority ${key} must be a normalized non-empty string`);
+  }
+  if(authorityEnvelope.grant!==undefined){
+    if(!isPlainObject(authorityEnvelope.grant)) throw new TypeError('executor authority grant must be a plain object');
+    for(const key of ['tool_scopes','data_scopes']){
+      const values=authorityEnvelope.grant[key];
+      if(values!==undefined){
+        if(!Array.isArray(values)||values.some(value=>typeof value!=='string'||!value||clean(value,120)!==value)) throw new TypeError(`executor authority grant ${key} must contain normalized strings only`);
+      }
+    }
+    if(authorityEnvelope.grant.budget!==undefined){
+      const budget=authorityEnvelope.grant.budget;
+      if(!isPlainObject(budget)) throw new TypeError('executor authority grant budget must be a plain object');
+      if(budget.max_compute_units!==undefined&&(!Number.isInteger(budget.max_compute_units)||budget.max_compute_units<0)) throw new TypeError('executor authority grant budget max_compute_units must be a non-negative integer');
+    }
+  }
+  if(authorityEnvelope.usage!==undefined){
+    if(!isPlainObject(authorityEnvelope.usage)) throw new TypeError('executor authority usage must be a plain object');
+    if(authorityEnvelope.usage.compute_units!==undefined&&(!Number.isInteger(authorityEnvelope.usage.compute_units)||authorityEnvelope.usage.compute_units<0)) throw new TypeError('executor authority usage compute_units must be a non-negative integer');
+  }
+  return authorityEnvelope;
+}
+
 export async function createOperationScopedExecutorHandoff({request,admissionResult,authorityEnvelope,operationRequest={},at=new Date().toISOString()}={}){
   await assertRequestIntegrity(request);
   await assertAdmittedResultIntegrity(request,admissionResult);
+  assertExecutorAuthorityEnvelopeInput(authorityEnvelope);
   if(!isPlainObject(operationRequest)) throw new TypeError('operationRequest must be a plain object');
   rejectUnknownKeys(operationRequest,EXECUTOR_OPERATION_INPUT_KEYS,'operationRequest');
   const authority=normalizeAuthorityEnvelope(authorityEnvelope);
@@ -263,6 +292,7 @@ export async function createOperationScopedExecutorHandoff({request,admissionRes
 
 export async function evaluateOperationScopedExecutorHandoff({handoff,authorityEnvelope}={}){
   await assertExecutorHandoffIntegrity(handoff);
+  assertExecutorAuthorityEnvelopeInput(authorityEnvelope);
   const authority=normalizeAuthorityEnvelope(authorityEnvelope);
   if((await sha256(authority))!==handoff.authority_sha256) throw new DOMException('executor handoff authority envelope changed','SecurityError');
   if(authority.project_id!==handoff.project_id||authority.actor_id!==handoff.actor_id||authority.agent_id!==handoff.agent_id||authority.workload_identity_id!==handoff.workload_identity_id) throw new DOMException('executor handoff workload identity binding mismatch','SecurityError');
@@ -272,6 +302,7 @@ export async function evaluateOperationScopedExecutorHandoff({handoff,authorityE
 
 export async function finalizeOperationScopedExecutorHandoff({handoff,authorityEnvelope,approvals=[]}={}){
   await assertExecutorHandoffIntegrity(handoff);
+  assertExecutorAuthorityEnvelopeInput(authorityEnvelope);
   const authority=normalizeAuthorityEnvelope(authorityEnvelope);
   if((await sha256(authority))!==handoff.authority_sha256) throw new DOMException('executor handoff authority envelope changed','SecurityError');
   if(authority.project_id!==handoff.project_id||authority.actor_id!==handoff.actor_id||authority.agent_id!==handoff.agent_id||authority.workload_identity_id!==handoff.workload_identity_id) throw new DOMException('executor handoff workload identity binding mismatch','SecurityError');
