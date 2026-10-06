@@ -61,6 +61,8 @@ jobs:
           PYTHONPATH=. python frontier_v5/tests/test_mcp_2026_contract.py
           PYTHONPATH=. python frontier_v5/tests/test_operator_bridge_contract.py | tee /tmp/operator-contract.log
           grep -q 'MUSITU_AXIOM_OPERATOR_BRIDGE_CONTRACT_PASS' /tmp/operator-contract.log
+          PYTHONPATH=. python frontier_v5/tests/test_operator_remote_core.py | tee /tmp/operator-remote.log
+          grep -q 'MUSITU_AXIOM_OPERATOR_REMOTE_CORE_PASS' /tmp/operator-remote.log
 
       - name: Authenticate Modal fail-closed
         shell: bash
