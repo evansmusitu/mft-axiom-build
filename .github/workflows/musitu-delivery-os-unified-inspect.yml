@@ -41,3 +41,8 @@ jobs:
             echo "===== $f ====="
             sed -n '1,260p' "$f"
           done
+      - uses: actions/upload-artifact@v6
+        with:
+          name: musitu-delivery-os-reconstructed-foundation
+          path: delivery-os
+          if-no-files-found: error
