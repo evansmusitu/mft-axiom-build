@@ -86,6 +86,7 @@ export async function compileObjectiveOutcomeGraph({project,contract,contractVer
   nodes.push({node_id:objectiveId,type:'Objective',data:objectiveData,metadata:await metadata({projectId,actorId,at,data:objectiveData,evidenceRefs,generation})});
 
   for(const [index,criterionRaw] of contract.success_criteria.entries()){
+    if(typeof criterionRaw!=='string') throw new TypeError('Outcome Contract success criteria must be strings');
     const criterion=clean(criterionRaw,1000);
     if(!criterion) throw new TypeError('Outcome Contract success criteria cannot be empty');
     const nodeId=`lpg_outcome_${stable(contract.contract_id)}_${index+1}`;
