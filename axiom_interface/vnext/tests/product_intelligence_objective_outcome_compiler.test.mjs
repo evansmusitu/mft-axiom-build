@@ -154,3 +154,21 @@ test('Outcome Contract execution boundary is frozen preview-only and cannot be e
     /execution boundary|preview-only/i,
   );
 });
+
+
+test('Outcome Contract governed constraint values must match the authoritative vocabularies',async()=>{
+  const cases=[
+    ['privacy','Public'],
+    ['evidence','Trust me'],
+    ['autonomy','Unrestricted'],
+    ['approval','Never'],
+  ];
+  for(const [key,value] of cases){
+    const bad=contract();
+    bad.constraints[key]=value;
+    await assert.rejects(
+      ()=>compileObjectiveOutcomeGraph({project:project(),contract:bad,contractVerified:true,approval:null,generation:1,actorId:'local-user',at:'2026-10-04T15:03:00Z'}),
+      /invalid Outcome Contract constraint|constraint.*invalid/i,
+    );
+  }
+});
