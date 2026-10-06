@@ -155,3 +155,17 @@ test('canonical live probe preserves the managed edge challenge instead of weake
   assert.match(workflow, /ACCESSIBILITY_REALITY/);
   assert.doesNotMatch(workflow, /skip|disable.*challenge|bypass.*challenge/i);
 });
+
+
+test('canonical deploy supports a branch-only one-shot production request without requiring protected main', async () => {
+  const workflow = await readFile(resolve(root, '..', '.github', 'workflows', 'axiom-official-support-deploy.yml'), 'utf8');
+  assert.match(workflow, /push:/);
+  assert.match(workflow, /support\/axiom-official-support-20261005/);
+  assert.match(workflow, /axiom-official-support-production-dispatch-request\.json/);
+  assert.match(workflow, /github\.event\.before|EVENT_BEFORE/);
+  assert.match(workflow, /musitu\.axiom\.support-production-dispatch\.v1/);
+  assert.match(workflow, /expected_parent/);
+  assert.match(workflow, /approved_readiness_sha256/);
+  assert.match(workflow, /target.*production/);
+  assert.doesNotMatch(workflow, /branches:\s*\n\s*-\s*['"]?main/);
+});
