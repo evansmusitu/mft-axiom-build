@@ -57,7 +57,7 @@ function normalizeRecord(row, {keepId = false} = {}) {
     type,
     name: normalizedName(row?.name),
     content,
-    priority: Number.isFinite(Number(row?.priority)) ? Number(row.priority) : null,
+    priority: type === 'MX' && row?.priority !== null && row?.priority !== undefined && Number.isFinite(Number(row.priority)) ? Number(row.priority) : null,
     ttl: Number.isFinite(Number(row?.ttl)) ? Number(row.ttl) : 1,
   };
   if (keepId) out.id = String(row?.id || '');

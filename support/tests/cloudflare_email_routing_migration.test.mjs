@@ -19,8 +19,8 @@ const required = [
   {type: 'MX', name: zone, content: 'route1.mx.cloudflare.net.', priority: 7, ttl: 1},
   {type: 'MX', name: zone, content: 'route2.mx.cloudflare.net.', priority: 32, ttl: 1},
   {type: 'MX', name: zone, content: 'route3.mx.cloudflare.net.', priority: 94, ttl: 1},
-  {type: 'TXT', name: dkimName, content: '"v=DKIM1; h=sha256; k=rsa; p=TESTPUBLICKEY"', ttl: 1},
-  {type: 'TXT', name: zone, content: '"v=spf1 include:_spf.mx.cloudflare.net ~all"', ttl: 1},
+  {type: 'TXT', name: dkimName, content: '"v=DKIM1; h=sha256; k=rsa; p=TESTPUBLICKEY"', priority: null, ttl: 1},
+  {type: 'TXT', name: zone, content: '"v=spf1 include:_spf.mx.cloudflare.net ~all"', priority: null, ttl: 1},
 ];
 const protectedHosts = new Map([
   ['auth.mftintelligence.com', [{id: 'a', type: 'A', name: 'auth.mftintelligence.com', content: '192.0.2.10'}]],
