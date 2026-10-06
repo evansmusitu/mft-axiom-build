@@ -13,6 +13,9 @@ assert.match(o,/openid/);
 assert.match(o,/email/);
 assert.doesNotMatch(o,/https:\/\/auth\.mftintelligence\.com/);
 assert.doesNotMatch(o,/https:\/\/mcp\.mftintelligence\.com/);
+assert.match(o,/name="flow_nonce"/);
+assert.match(o,/flow_nonce/);
+assert.match(o,/nonce_hash/);
 
 assert.match(g,/axiom\.operator\.execute/);
 assert.match(g,/MODAL_OPERATOR_URL/);
