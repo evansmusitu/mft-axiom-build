@@ -1,0 +1,36 @@
+name: MUSITU Axiom Operator Reviewer Clone Gate 20261006
+
+on:
+  push:
+    branches:
+      - frontier/axiom-operator-reviewer-clone-20261006
+    paths:
+      - 'reviewer_clone/**'
+      - 'frontier_v5/tests/test_operator_reviewer_clone.mjs'
+      - '.github/workflows/axiom-operator-reviewer-clone-gate-20261006.yml'
+      - '.github/workflows/axiom-operator-reviewer-clone-deploy-20261006.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  qualify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Verify isolation and clone contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE=eb63341be824ad1a7621e7b6b3352c603386969b
+          test "$(git merge-base "$BASE" HEAD)" = "$BASE"
+          node frontier_v5/tests/test_operator_reviewer_clone.mjs
+          node --check reviewer_clone/musitu_axiom_operator_reviewer_oauth.mjs
+          node --check reviewer_clone/musitu_axiom_operator_reviewer_gate.mjs
+          test "$(git rev-parse origin/main)" = d6a846f6bbe0bccac1758713eb4de167caf07113
+          git diff --check
