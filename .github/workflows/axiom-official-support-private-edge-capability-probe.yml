@@ -1,0 +1,60 @@
+name: MUSITU Axiom Support Private Edge Capability Probe
+
+on:
+  push:
+    branches:
+      - 'support/axiom-official-support-20261005'
+    paths:
+      - '.github/workflows/axiom-official-support-private-edge-capability-probe.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    environment: axiom-support-production
+    timeout-minutes: 6
+    env:
+      CF_ACCOUNT_ID: '93f395f5121954671f92fffa453d6b61'
+      CF_TOKEN_RULESETS: ${{ secrets.CLOUDFLARE_RULESETS_API_TOKEN }}
+      CF_TOKEN_ACCESS: ${{ secrets.CLOUDFLARE_ACCESS_API_TOKEN }}
+      CF_TOKEN_DEFAULT: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+    steps:
+      - name: Read Access and Worker preview capabilities without writes
+        shell: bash
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          const account=process.env.CF_ACCOUNT_ID;
+          const candidates=[
+            ['CLOUDFLARE_RULESETS_API_TOKEN',process.env.CF_TOKEN_RULESETS],
+            ['CLOUDFLARE_ACCESS_API_TOKEN',process.env.CF_TOKEN_ACCESS],
+            ['CLOUDFLARE_API_TOKEN',process.env.CF_TOKEN_DEFAULT],
+          ];
+          async function call(token,path){
+            const r=await fetch('https://api.cloudflare.com/client/v4'+path,{headers:{authorization:'Bearer '+token,accept:'application/json'}});
+            let p={};try{p=await r.json()}catch{}
+            return {http:r.status,ok:r.ok&&p?.success!==false,result:p?.result??null,errors:(p?.errors||[]).map(x=>x?.code).filter(Boolean)};
+          }
+          const out=[];
+          for(const [name,raw] of candidates){
+            const token=String(raw||'').trim();
+            if(!token){out.push({secret_name:name,present:false});continue;}
+            const apps=await call(token,'/accounts/'+account+'/access/apps?per_page=100');
+            const serviceTokens=await call(token,'/accounts/'+account+'/access/service_tokens?per_page=100');
+            const worker=await call(token,'/accounts/'+account+'/workers/scripts/musitu-axiom-support/settings');
+            const versions=await call(token,'/accounts/'+account+'/workers/scripts/musitu-axiom-support/versions');
+            out.push({
+              secret_name:name,present:true,
+              access_apps_read:apps.ok,access_apps_http:apps.http,
+              access_service_tokens_read:serviceTokens.ok,access_service_tokens_http:serviceTokens.http,
+              worker_settings_read:worker.ok,worker_settings_http:worker.http,
+              worker_versions_read:versions.ok,worker_versions_http:versions.http,
+              access_app_count:Array.isArray(apps.result)?apps.result.length:null,
+              service_token_count:Array.isArray(serviceTokens.result)?serviceTokens.result.length:null,
+              raw_ids_recorded:false,secret_exposed:false,write_performed:false
+            });
+          }
+          console.log(JSON.stringify({gate:'MUSITU_AXIOM_SUPPORT_PRIVATE_EDGE_CAPABILITY_PROBE',tokens:out,write_performed:false,secret_exposed:false}));
+          NODE
