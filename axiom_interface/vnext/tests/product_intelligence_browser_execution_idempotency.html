@@ -182,6 +182,52 @@ try{
     invariant((await store._all('execution_claims',saved.projectId)).length===0,'stale-claim recovery left an execution claim behind');
     store.db.close();
     out.textContent='MUSITU_AXIOM_PHASE2_BROWSER_STALE_CLAIM_RECOVERY_PASS';
+  }else if(phase==='atomic-fault'){
+    const projectId='project_browser_atomic_terminal_12345678';
+    const authority=authorityFor(projectId);
+    const store=await GovernedExecutionStore.open();
+    const sandbox=await store.createSandbox(authority,{label:'Atomic terminal commit fault injection'});
+    const proposed=await store.propose(sandbox.sandbox_id,authority,{
+      operation:'file.write',
+      target:'atomic-window.txt',
+      payload:{content:'must not survive a failed terminal commit'},
+      compute_units:1,
+      instruction_provenance:'GOVERNED_PLAN',
+      requested_at:'2026-10-06T19:10:00.000Z',
+    });
+    invariant(proposed.decision.status==='AUTHORIZED','atomic-fault request must be authorized');
+    const originalPut=IDBObjectStore.prototype.put;
+    let injected=false;
+    IDBObjectStore.prototype.put=function(value,...args){
+      if(this.name==='events'&&value?.kind==='execution.completed'){
+        injected=true;
+        throw new DOMException('INJECTED_TERMINAL_EVENT_PUT_FAILURE','AbortError');
+      }
+      return originalPut.call(this,value,...args);
+    };
+    let rejected=null;
+    try{
+      await store.execute(proposed.request.request_sha256,authority);
+    }catch(error){
+      rejected=error;
+    }finally{
+      IDBObjectStore.prototype.put=originalPut;
+    }
+    invariant(injected,'terminal event fault injection was not reached');
+    invariant(rejected,'terminal commit fault must reject execution');
+    store.db.close();
+
+    const inspect=await GovernedExecutionStore.open();
+    const terminal=await terminalReceipts(inspect,projectId,proposed.request.request_sha256);
+    const events=await completedEvents(inspect,projectId,proposed.request.request_sha256);
+    const persistedSandbox=await inspect.getSandbox(sandbox.sandbox_id);
+    invariant(terminal.length===0,`failed terminal commit leaked ${terminal.length} terminal receipts`);
+    invariant(events.length===0,`failed terminal commit leaked ${events.length} completion events`);
+    invariant(!Object.hasOwn(persistedSandbox.worktrees.main.files,'atomic-window.txt'),'failed terminal commit leaked sandbox side effect');
+    const integrity=await inspect.verify(projectId);
+    invariant(integrity.status==='PASS',`failed terminal commit damaged store integrity: ${integrity.errors.join(',')}`);
+    inspect.db.close();
+    out.textContent='MUSITU_AXIOM_PHASE2_BROWSER_TERMINAL_COMMIT_ATOMICITY_PASS';
   }else{
     throw new Error('unknown qualification phase');
   }
