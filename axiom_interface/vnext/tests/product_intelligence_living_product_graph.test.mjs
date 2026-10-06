@@ -223,3 +223,117 @@ test('persistence export is explicitly migration-only and carries no AXIOM autho
   assert.equal(out.production_authority,false);
   assert.equal(out.certification_authority,false);
 });
+
+
+test('verified FA-11 completed receipt becomes AXIOM Evidence without gaining authority',async()=>{
+  const module=await import('../product_intelligence/living_product_graph.js');
+  const security=await import('../execution_security.js');
+  const contracts=await import('../foundation_contracts.js');
+  assert.equal(typeof module.verifyOperationScopedExecutionOutcome,'function','execution outcome verifier must exist');
+  assert.equal(typeof module.createExecutionOutcomeEvidence,'function','execution outcome evidence builder must exist');
+
+  const at='2026-10-06T12:30:00.000Z';
+  const requestBody={
+    schema:'musitu.axiom.execution-request.browser.v1',
+    project_id:'project_12345678',
+    actor_id:'agent_operator_1',
+    agent_id:'agent_executor_1',
+    workload_identity_id:'workload_executor_1',
+    operation:'file.write',
+    computed_risk_class:'S1',
+    risk_class:'S1',
+    effect:'LOCAL_WRITE',
+    reversible:true,
+    external:false,
+    required_tool_scope:'artifact.write',
+    target:'src/example.txt',
+    payload:{content:'verified change'},
+    destination:null,
+    compute_units:1,
+    instruction_provenance:'GOVERNED_PLAN',
+    requested_at:at,
+    authority_sha256:'a'.repeat(64),
+    execution_mode:'BROWSER_LOCAL_GOVERNED_EXECUTION_SUBSTRATE',
+  };
+  const executionRequest={...requestBody,request_sha256:await security.sha256(requestBody)};
+  const handoffBody={
+    schema:'musitu.axiom.product-operation-scoped-executor-handoff.v1',
+    scope:'SINGLE_OPERATION',
+    project_id:'project_12345678',
+    work_id:'work_12345678',
+    checkpoint_sha256:'b'.repeat(64),
+    change_admission_request_sha256:'c'.repeat(64),
+    change_admission_evaluation_sha256:'d'.repeat(64),
+    authority_sha256:executionRequest.authority_sha256,
+    actor_id:'agent_operator_1',
+    agent_id:'agent_executor_1',
+    workload_identity_id:'workload_executor_1',
+    builder_actor_id:'agent_builder_1',
+    risk_class:'S1',
+    operation:'file.write',
+    execution_request:executionRequest,
+    authority_effect:'NONE',
+    execution_authority:false,
+    external_execution_authority:false,
+    release_authority:false,
+    production_authority:false,
+    certification_authority:false,
+    created_at:at,
+  };
+  const handoff={...handoffBody,handoff_sha256:await security.sha256(handoffBody)};
+  const receiptBody={
+    schema:'musitu.axiom.execution-receipt.browser.v1',
+    receipt_id:'execution-receipt_12345678',
+    project_id:'project_12345678',
+    sandbox_id:'sandbox_12345678',
+    request_sha256:executionRequest.request_sha256,
+    risk_class:'S1',
+    status:'COMPLETED',
+    result:{path:'src/example.txt',content_sha256:'e'.repeat(64),bytes:15},
+    rollback_available:true,
+    external_action_executed:false,
+    network_request_performed:false,
+    host_shell_executed:false,
+    plaintext_secret_access:false,
+    created_at:at,
+  };
+  const receipt={...receiptBody,receipt_sha256:await security.sha256(receiptBody)};
+  const integrityBody={
+    schema:'musitu.axiom.execution-integrity.browser.v1',
+    project_id:'project_12345678',
+    status:'PASS',
+    errors:[],
+    event_count:3,
+    network_policy:'DENY_ALL_EXTERNAL_NETWORK',
+    secrets_policy:'OPAQUE_SHORT_LIVED_OPERATION_SCOPED_NO_PLAINTEXT',
+  };
+  const executionIntegrity={...integrityBody,integrity_sha256:await security.sha256(integrityBody)};
+
+  const verified=await module.verifyOperationScopedExecutionOutcome({
+    handoff,receipt,executionIntegrity,verifierActorId:'agent_verifier_2',at,
+  });
+  assert.equal(verified.schema,'musitu.axiom.product-execution-outcome-verification.v1');
+  assert.equal(verified.status,'VERIFIED_COMPLETED');
+  assert.equal(verified.execution_status,'COMPLETED');
+  assert.equal(verified.receipt_sha256,receipt.receipt_sha256);
+  assert.equal(verified.handoff_sha256,handoff.handoff_sha256);
+  assert.equal(verified.request_sha256,executionRequest.request_sha256);
+  assert.equal(verified.verifier_actor_id,'agent_verifier_2');
+  assert.equal(verified.independent_verification,'PASS');
+  assert.equal(verified.rollback_available,true);
+  assert.equal(verified.failure_state,'NONE');
+  assert.equal(verified.authority_effect,'NONE');
+  assert.equal(verified.release_authority,false);
+  assert.equal(verified.production_authority,false);
+  assert.equal(verified.certification_authority,false);
+
+  const evidence=await module.createExecutionOutcomeEvidence(verified);
+  assert.doesNotThrow(()=>contracts.assertAxiomObject(evidence,{expectedType:'Evidence'}));
+  assert.ok(evidence.data.hashes.includes(receipt.receipt_sha256));
+  assert.ok(evidence.data.hashes.includes(handoff.handoff_sha256));
+  assert.equal(evidence.data.failures.length,0);
+  assert.equal(evidence.data.verification.independent_verification,'PASS');
+  assert.equal(evidence.data.verification.release_authority,false);
+  assert.equal(evidence.data.verification.production_authority,false);
+  assert.equal(evidence.data.verification.certification_authority,false);
+});
