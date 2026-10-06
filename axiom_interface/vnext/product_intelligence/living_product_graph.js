@@ -1,3 +1,4 @@
+export {verifyOperationScopedExecutionOutcome,createExecutionOutcomeEvidence} from './execution_outcome_reconciliation.js';
 import {assertAdapterDescriptor} from './infrastructure_contracts.js';
 
 export const LIVING_PRODUCT_GRAPH_SCHEMA='musitu.axiom.living-product-graph.v1';
