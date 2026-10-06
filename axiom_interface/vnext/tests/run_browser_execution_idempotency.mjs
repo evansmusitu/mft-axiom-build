@@ -111,8 +111,8 @@ async function launchSeparateTabRace(){
       b.call('Runtime.evaluate',{expression:"window.__axiomStart(); 'STARTED_B'",returnByValue:true}),
     ]);
     const results=await Promise.all([
-      waitFor(a,value=>value!=='MUSITU_AXIOM_PHASE2_BROWSER_TAB_CALLER_READY','tab A execution'),
-      waitFor(b,value=>value!=='MUSITU_AXIOM_PHASE2_BROWSER_TAB_CALLER_READY','tab B execution'),
+      waitFor(a,value=>Boolean(value)&&value!=='MUSITU_AXIOM_PHASE2_BROWSER_TAB_CALLER_READY','tab A execution'),
+      waitFor(b,value=>Boolean(value)&&value!=='MUSITU_AXIOM_PHASE2_BROWSER_TAB_CALLER_READY','tab B execution'),
     ]);
     console.log('TAB_A_RESULT='+results[0]);
     console.log('TAB_B_RESULT='+results[1]);
@@ -121,7 +121,7 @@ async function launchSeparateTabRace(){
       if(!value.startsWith('MUSITU_AXIOM_PHASE2_BROWSER_TAB_CALLER_FULFILLED:')&&value!=='MUSITU_AXIOM_PHASE2_BROWSER_TAB_CALLER_FAIL_CLOSED')throw new Error('unexpected separate-tab result '+value);
     }
     const inspect=await openTarget('tab-inspect');
-    const inspected=await waitFor(inspect,value=>value!=='MUSITU_AXIOM_PHASE2_BROWSER_IDEMPOTENCY_RUNNING','tab inspect');
+    const inspected=await waitFor(inspect,value=>Boolean(value)&&value!=='MUSITU_AXIOM_PHASE2_BROWSER_IDEMPOTENCY_RUNNING','tab inspect');
     console.log('TAB_INSPECT_RESULT='+inspected);
     if(inspected!=='MUSITU_AXIOM_PHASE2_BROWSER_SEPARATE_TAB_ATOMIC_PASS')throw new Error('separate-tab inspect failed: '+inspected);
     for(const cdp of [a,b,inspect]){try{cdp.ws.close();}catch{}}
@@ -195,5 +195,5 @@ try{
   console.log('MUSITU_AXIOM_PHASE2_BROWSER_DURABLE_IDEMPOTENCY_QUALIFICATION_PASS');
 }finally{
   server.close();
-  await rm(profile,{recursive:true,force:true});
+  await rm(profile,{recursive:true,force:true,maxRetries:8,retryDelay:250});
 }
