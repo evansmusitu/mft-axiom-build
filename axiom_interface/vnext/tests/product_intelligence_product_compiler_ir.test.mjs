@@ -187,3 +187,24 @@ test('declared bindings reject unknown authority fields and structured values in
     /binding.*region|region.*string|structured/i,
   );
 });
+
+
+test('observed reconciliation bindings reject unknown authority fields and structured identifiers',async()=>{
+  const ir=await compileProductIR(graph(),{bindings,compilerVersion:'1.0.0'});
+  const authority=[
+    {binding_id:'binding_component_1',external_sha256:'1'.repeat(64),production_authority:true},
+    {binding_id:'binding_api_1',external_sha256:'2'.repeat(64)},
+  ];
+  await assert.rejects(
+    ()=>reconcileProductIR(ir,authority),
+    /observed binding.*unsupported fields|unsupported fields.*observed binding|authority/i,
+  );
+  const structured=[
+    {binding_id:{id:'binding_component_1'},external_sha256:'1'.repeat(64)},
+    {binding_id:'binding_api_1',external_sha256:'2'.repeat(64)},
+  ];
+  await assert.rejects(
+    ()=>reconcileProductIR(ir,structured),
+    /observed binding.*binding_id|binding_id.*string|structured/i,
+  );
+});
