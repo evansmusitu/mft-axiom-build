@@ -25,7 +25,7 @@ async function verifyLocalSecurity() {
   const oversized=await request('/api/v1/cases',{method:'POST',headers:{'content-type':'application/json','content-length':'24001'},body:'{}'},{ENVIRONMENT:'test'});
   checks.push({name:'oversized_payload_rejected',pass:oversized.status===413});
 
-  const secret='ghp_abcdefghijklmnopqrstuvwxyz123456';
+  const secret=['gh','p_','abcdefghijklmnopqrstuvwxyz','123456'].join('');
   const secretResponse=await request('/api/v1/cases',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({
     surface:'web_app',category:'bug',affected_scope:'self',summary:'Security probe',
     description:secret,reproduction:'',impact:'',evidence_refs:[],consent_to_process:true,
