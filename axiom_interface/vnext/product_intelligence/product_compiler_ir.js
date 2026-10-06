@@ -57,7 +57,7 @@ function assertCompilerIR(ir,label='compiler IR'){
   if(typeof ir.ir_sha256!=='string'||!HASH.test(ir.ir_sha256)) throw new TypeError(`${label} ir_sha256 required`);
   return ir;
 }
-async function assertCompilerIRIntegrity(ir,label='compiler IR'){
+export async function assertProductIRIntegrity(ir,label='compiler IR'){
   assertCompilerIR(ir,label);
   const unitIds=new Set();
   for(const [index,unit] of ir.units.entries()){
@@ -202,8 +202,8 @@ function downstream(startIds,relationMaps){
 }
 
 export async function diffProductIR(prior,next){
-  await assertCompilerIRIntegrity(prior,'prior compiler IR');
-  await assertCompilerIRIntegrity(next,'next compiler IR');
+  await assertProductIRIntegrity(prior,'prior compiler IR');
+  await assertProductIRIntegrity(next,'next compiler IR');
   if(prior.project_id!==next.project_id) throw new DOMException('cross-project compiler diff blocked','SecurityError');
   if(prior.compiler_version!==next.compiler_version) throw new TypeError('compiler version change requires explicit migration');
   if(prior.ir_sha256===next.ir_sha256){
@@ -262,7 +262,7 @@ export async function diffProductIR(prior,next){
 }
 
 export async function reconcileProductIR(ir,observedBindings=[]){
-  await assertCompilerIRIntegrity(ir);
+  await assertProductIRIntegrity(ir);
   if(!Array.isArray(observedBindings)) throw new TypeError('observedBindings must be an array');
   const observed=new Map();
   for(const [index,item] of observedBindings.entries()){

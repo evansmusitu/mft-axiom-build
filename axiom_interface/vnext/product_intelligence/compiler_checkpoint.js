@@ -1,4 +1,4 @@
-import {PRODUCT_COMPILER_IR_SCHEMA} from './product_compiler_ir.js';
+import {PRODUCT_COMPILER_IR_SCHEMA,assertProductIRIntegrity} from './product_compiler_ir.js';
 
 export const PRODUCT_COMPILER_CHECKPOINT_SCHEMA='musitu.axiom.product-compiler-checkpoint.v1';
 export const PRODUCT_COMPILER_ROLLBACK_SCHEMA='musitu.axiom.product-compiler-rollback-proposal.v1';
@@ -79,8 +79,8 @@ export async function createCompilerCheckpoint(input={},services={}){
   if(!evidence_refs.length) throw new TypeError('at least one evidence reference required');
   const created_at=normalizeAt(at);
 
-  assertIR(priorIR,'priorIR');
-  assertIR(nextIR,'nextIR');
+  await assertProductIRIntegrity(priorIR,'priorIR');
+  await assertProductIRIntegrity(nextIR,'nextIR');
   if(priorIR.project_id!==project_id||nextIR.project_id!==project_id) throw new DOMException('cross-project compiler checkpoint blocked','SecurityError');
   if(priorIR.compiler_version!==nextIR.compiler_version) throw new TypeError('compiler version mismatch requires migration before checkpoint');
   if(!isPlainObject(diff)) throw new TypeError('compiler diff required');
@@ -172,7 +172,7 @@ export async function verifyCompilerCheckpoint(checkpoint){
     if(typeof checkpoint.checkpoint_sha256!=='string'||!HASH.test(checkpoint.checkpoint_sha256)) return false;
     if(checkpoint.authority_effect!=='NONE'||checkpoint.rollback_mode!=='PREPARE_ONLY'||checkpoint.external_execution_authority!==false||checkpoint.production_authority!==false) return false;
     if(checkpoint.builder_attested!==true||checkpoint.independent_verification!=='NOT_PROVEN') return false;
-    assertIR(checkpoint.prior_ir_snapshot,'checkpoint prior IR');
+    await assertProductIRIntegrity(checkpoint.prior_ir_snapshot,'checkpoint prior IR');
     if(checkpoint.prior_ir_snapshot.project_id!==checkpoint.project_id||checkpoint.prior_ir_snapshot.ir_sha256!==checkpoint.prior_ir_sha256) return false;
     return (await sha256(checkpointHashBody(checkpoint)))===checkpoint.checkpoint_sha256;
   }catch{return false;}
@@ -180,7 +180,7 @@ export async function verifyCompilerCheckpoint(checkpoint){
 
 export async function prepareCompilerRollback(checkpoint,{currentIR,actorId,at=new Date().toISOString()}={}){
   if(!(await verifyCompilerCheckpoint(checkpoint))) throw new DOMException('checkpoint integrity failure','DataError');
-  assertIR(currentIR,'currentIR');
+  await assertProductIRIntegrity(currentIR,'currentIR');
   if(currentIR.project_id!==checkpoint.project_id) throw new DOMException('cross-project compiler rollback blocked','SecurityError');
   if(currentIR.ir_sha256!==checkpoint.next_ir_sha256) throw new DOMException('current IR does not match checkpoint head','InvalidStateError');
   const actor_id=clean(actorId,180);
