@@ -22,7 +22,6 @@ from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor, SpanExportResult
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
-from temporalio import workflow
 from temporalio.client import Client
 from temporalio.worker import Worker
 
@@ -36,23 +35,7 @@ from connect.persistence import RunStore
 from connect.protocols import MqttTransport, OpcUaTransport
 from connect.runtime import ConnectRuntime
 from connect.workflows import DurableWorkflowBoundary
-
-
-@workflow.defn
-class MiningRunDurabilityWorkflow:
-    def __init__(self) -> None:
-        self.phase="CREATED"
-
-    @workflow.query
-    def current_phase(self) -> str:
-        return self.phase
-
-    @workflow.run
-    async def run(self, run_id: str) -> str:
-        self.phase="WAITING_AFTER_FIRST_WORKER"
-        await workflow.sleep(timedelta(seconds=2))
-        self.phase="COMPLETED_AFTER_RECOVERY"
-        return run_id
+from infra.qualification.temporal_mining_workflow import MiningRunDurabilityWorkflow
 
 
 def utcnow() -> str:
