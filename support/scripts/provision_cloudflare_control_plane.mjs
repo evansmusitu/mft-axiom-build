@@ -42,7 +42,7 @@ export function buildVerifiedSearchCrawlerSkipRule() {
   return {
     ref: VERIFIED_SEARCH_CRAWLER_RULE_REF,
     description: 'Allow only Cloudflare-verified traditional search-engine crawlers to public MUSITU Axiom Official Support assets without human challenges',
-    expression: `(http.host eq "${SUPPORT_DOMAIN}" and cf.client.bot and cf.verified_bot_category eq "Search Engine Crawler" and http.request.method in {"GET" "HEAD"} and http.request.uri.path in {${quotedPaths}})`,
+    expression: `(http.host eq "${SUPPORT_DOMAIN}" and cf.client.bot and (cf.verified_bot_category eq "Search Engine Crawler" or http.user_agent contains "Google-InspectionTool") and http.request.method in {"GET" "HEAD"} and http.request.uri.path in {${quotedPaths}})`,
     action: 'skip',
     action_parameters: {products: ['bic', 'securityLevel']},
     enabled: true,
