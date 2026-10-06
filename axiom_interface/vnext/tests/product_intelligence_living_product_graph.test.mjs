@@ -775,3 +775,42 @@ test('reconciliation permits retryable BLOCKED evidence before one terminal outc
     /conflicting execution replay|terminal|different receipt/i,
   );
 });
+
+
+test('terminal receipt replay rejects changed authority envelope without repeating side effect',async()=>{
+  const {GovernedExecutionStore}=await import('../execution_store.js');
+  const keys={sandboxes:'sandbox_id',requests:'request_sha256',approvals:'approval_sha256',receipts:'receipt_id',leases:'lease_id',events:'event_id'};
+  class MemoryExecutionStore extends GovernedExecutionStore{
+    constructor(){super(null);this.rows=Object.fromEntries(Object.keys(keys).map(name=>[name,new Map()]));}
+    async _put(store,row){this.rows[store].set(row[keys[store]],structuredClone(row));return structuredClone(row);}
+    async _get(store,key){const row=this.rows[store].get(key);return row?structuredClone(row):null;}
+    async _all(store,projectId){return [...this.rows[store].values()].filter(row=>!projectId||row.project_id===projectId).map(row=>structuredClone(row));}
+  }
+  const projectId='project_12345678',at='2026-10-06T13:25:00.000Z';
+  const authority={
+    project_id:projectId,actor_id:'agent_operator_1',agent_id:'agent_executor_1',workload_identity_id:'workload_executor_1',
+    agent_status:'ACTIVE',kill_switch_engaged:false,revoked:false,requester_type:'AGENT',
+    grant:{tool_scopes:['artifact.write'],data_scopes:[projectId],network_policy:'DENY_ALL_EXTERNAL_NETWORK',
+      secrets_policy:'OPAQUE_SHORT_LIVED_OPERATION_SCOPED_NO_PLAINTEXT',budget:{max_compute_units:10}},
+    usage:{compute_units:0},incident_posture:'NORMAL',jurisdiction:'LOCAL_BROWSER',
+  };
+  const store=new MemoryExecutionStore();
+  const sandbox=await store.createSandbox(authority);
+  const proposed=await store.propose(sandbox.sandbox_id,authority,{
+    operation:'file.write',target:'src/authority-replay.txt',payload:{content:'once'},compute_units:1,
+    instruction_provenance:'GOVERNED_PLAN',requested_at:at,
+  });
+  const first=await store.execute(proposed.request.request_sha256,authority);
+  assert.equal(first.status,'COMPLETED');
+
+  const changed=structuredClone(authority);
+  changed.grant.budget.max_compute_units=11;
+  await assert.rejects(
+    ()=>store.execute(proposed.request.request_sha256,changed),
+    /authority envelope changed/i,
+  );
+  const after=await store.getSandbox(sandbox.sandbox_id);
+  const receipts=(await store._all('receipts',projectId)).filter(receipt=>receipt.request_sha256===proposed.request.request_sha256&&receipt.status==='COMPLETED');
+  assert.equal(after.worktrees.main.snapshots.length,1);
+  assert.equal(receipts.length,1);
+});
