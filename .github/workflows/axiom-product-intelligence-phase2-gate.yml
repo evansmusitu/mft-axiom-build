@@ -15,6 +15,7 @@ on:
       - 'axiom_interface/vnext/tests/product_intelligence_sandbox_backend.test.mjs'
       - 'axiom_interface/vnext/tests/product_intelligence_conditional_infrastructure_admission.test.mjs'
       - 'axiom_interface/vnext/tests/product_intelligence_optional_adapter_admission.test.mjs'
+      - 'axiom_interface/vnext/tests/product_intelligence_living_product_graph.test.mjs'
       - 'axiom_interface/vnext/tests/pgvector_vector_index_test_fixture.mjs'
       - 'axiom_interface/vnext/tests/signing_provenance_test_fixture.mjs'
       - '.github/workflows/axiom-product-intelligence-phase2-gate.yml'
@@ -64,6 +65,8 @@ jobs:
         run: node --test axiom_interface/vnext/tests/product_intelligence_conditional_infrastructure_admission.test.mjs
       - name: Run optional adapter admission contracts
         run: node --test axiom_interface/vnext/tests/product_intelligence_optional_adapter_admission.test.mjs
+      - name: Run Living Product Graph contracts
+        run: node --test axiom_interface/vnext/tests/product_intelligence_living_product_graph.test.mjs
 
   independent-replay-and-authority-gate:
     runs-on: ubuntu-24.04
@@ -90,7 +93,8 @@ jobs:
             axiom_interface/vnext/tests/product_intelligence_openfeature_flag_evaluation.test.mjs \
             axiom_interface/vnext/tests/product_intelligence_sandbox_backend.test.mjs \
             axiom_interface/vnext/tests/product_intelligence_conditional_infrastructure_admission.test.mjs \
-            axiom_interface/vnext/tests/product_intelligence_optional_adapter_admission.test.mjs
+            axiom_interface/vnext/tests/product_intelligence_optional_adapter_admission.test.mjs \
+            axiom_interface/vnext/tests/product_intelligence_living_product_graph.test.mjs
       - name: Fail closed on provider or release authority escalation
         shell: bash
         run: |
@@ -105,6 +109,7 @@ jobs:
               Path('axiom_interface/vnext/product_intelligence/backends/governed_sandbox_backend.js'),
               Path('axiom_interface/vnext/product_intelligence/conditional_infrastructure_admission.js'),
               Path('axiom_interface/vnext/product_intelligence/optional_adapter_admission.js'),
+              Path('axiom_interface/vnext/product_intelligence/living_product_graph.js'),
           ]
           required = {
               'pgvector_vector_index_backend.js': ['0.8.6', 'MECHANISM_ONLY'],
@@ -114,6 +119,7 @@ jobs:
               'governed_sandbox_backend.js': ['SandboxBackend', 'FA11_S0_S5_V1', 'MECHANISM_ONLY', "external_process_runtime_qualification:'NOT_PROVEN'"],
               'conditional_infrastructure_admission.js': ['CONDITIONAL_INFRASTRUCTURE_COMPONENTS', 'MECHANISM_ONLY', 'mandatory:false', 'provider_selected:false', 'activation_authorized:false'],
               'optional_adapter_admission.js': ['OPTIONAL_ADAPTER_CATALOG', 'E2B', 'OpenHands', 'Langfuse', 'GrowthBook', 'Penpot', 'GrapesJS', 'MECHANISM_ONLY', 'mandatory:false', 'provider_selected:false', 'runtime_activation_authorized:false'],
+              'living_product_graph.js': ['LIVING_PRODUCT_GRAPH_SCHEMA', 'PersistenceBackend', 'MECHANISM_ONLY', 'canonical_evidence:false', 'release_authority:false', 'production_authority:false', 'certification_authority:false'],
           }
           for path in files:
               text = path.read_text(encoding='utf-8')
