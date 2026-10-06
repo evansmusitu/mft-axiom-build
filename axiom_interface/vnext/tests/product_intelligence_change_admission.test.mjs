@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import {compileProductIR,diffProductIR} from '../product_intelligence/product_compiler_ir.js';
+import {createCompilerCheckpoint} from '../product_intelligence/compiler_checkpoint.js';
 import {
   CHANGE_RISK_MODEL,
   createChangeAdmissionRequest,
@@ -7,7 +9,7 @@ import {
 } from '../product_intelligence/change_admission.js';
 
 const at='2026-10-04T17:20:00Z';
-const checkpoint={
+const checkpointLookalike={
   schema:'musitu.axiom.product-compiler-checkpoint.v1',
   checkpoint_id:'checkpoint_1234567890abcdef',
   checkpoint_sha256:'a'.repeat(64),
@@ -20,9 +22,61 @@ const checkpoint={
   production_authority:false,
 };
 
+const projectId='project_12345678';
+const checkpointAt='2026-10-04T17:00:00Z';
+const checkpointArtifactApi={
+  createArtifactRecord(input={}){return {schema:'musitu.axiom.fa14.artifact.v1',artifact_id:input.artifactId,project_id:input.projectId,work_id:input.workId??'',title:input.title,kind:input.kind,evidence_refs:[...(input.evidenceRefs??[])],provenance:structuredClone(input.provenance??[]),versions:[],approval_state:'DRAFT',publication_intent:null,created_at:checkpointAt};},
+  addArtifactVersion(artifact,input={}){const row={version:artifact.versions.length+1,content_sha256:input.contentSha256,summary:input.summary??'',created_at:checkpointAt};artifact.versions.push(row);return structuredClone(row);},
+  verifyArtifact(artifact){const ok=artifact.evidence_refs.length>0&&artifact.provenance.length>0&&artifact.versions.length>0;return {schema:'musitu.axiom.fa14.artifact-verification.v1',status:ok?'PASS_ARTIFACT_LINEAGE_GATE':'BLOCKED',findings:[]};},
+  buildArtifactOutcomePackage(artifact){if(this.verifyArtifact(artifact).status!=='PASS_ARTIFACT_LINEAGE_GATE')throw new Error('artifact lineage gate');return {schema:'musitu.axiom.fa14.artifact-outcome-package.v1',artifact:structuredClone(artifact),verification:this.verifyArtifact(artifact),publication_execution_allowed:false,required_next_gate:'AUTHORIZATION_APPROVAL'};},
+};
+const checkpointEvidenceApi={
+  assertAxiomObject(candidate,{expectedType}={}){
+    assert.equal(candidate.schema,'musitu.axiom.evidence.v1');
+    assert.equal(candidate.type,expectedType??'Evidence');
+    assert.equal(candidate.data.verification.independent_verification,'NOT_PROVEN');
+    return candidate;
+  },
+};
+const checkpointServices={artifactApi:checkpointArtifactApi,evidenceApi:checkpointEvidenceApi};
+const checkpointMetadata=generation=>({
+  project_id:projectId,version:1,generation,valid_from:checkpointAt,valid_to:null,
+  provenance:{source:'change-admission-checkpoint-fixture'},evidence_refs:['evidence_source_12345678'],confidence:1,
+  uncertainty:{kind:'NONE'},actor_id:'agent_builder_1',risk_class:'S1',content_hash:'a'.repeat(64),
+  freshness:{as_of:checkpointAt},supersession:{state:'CURRENT',supersedes:[]},
+});
+function checkpointGraph(title,generation){
+  return {
+    schema:'musitu.axiom.living-product-graph.v1',project_id:projectId,generation,impact_state:'NOT_PROVEN',
+    nodes:[
+      {node_id:'lpg_requirement_1',type:'Requirement',metadata:checkpointMetadata(generation),data:{title}},
+      {node_id:'lpg_test_1',type:'Test',metadata:checkpointMetadata(generation),data:{title:'Verification'}},
+    ],
+    edges:[
+      {edge_id:'lpg_edge_1',from_id:'lpg_requirement_1',to_id:'lpg_test_1',relation:'VERIFIED_BY',causal_semantics:'NONE',metadata:checkpointMetadata(generation)},
+    ],
+  };
+}
+let verifiedCheckpointPromise;
+async function verifiedCheckpoint(){
+  if(!verifiedCheckpointPromise){
+    verifiedCheckpointPromise=(async()=>{
+      const prior=await compileProductIR(checkpointGraph('Initial requirement',1),{compilerVersion:'1.0.0'});
+      const next=await compileProductIR(checkpointGraph('Updated requirement',2),{compilerVersion:'1.0.0'});
+      const diff=await diffProductIR(prior,next);
+      return createCompilerCheckpoint({
+        projectId,workId:'work_12345678',priorIR:prior,nextIR:next,diff,
+        actorId:'agent_builder_1',riskClass:'S1',evidenceRefs:['evidence_source_12345678'],at:checkpointAt,
+      },checkpointServices);
+    })();
+  }
+  return verifiedCheckpointPromise;
+}
+
 const pass=(kind,actor='agent_verifier_1')=>({kind,status:'PASS',actor_id:actor,artifact_sha256:'d'.repeat(64)});
 
 async function request(riskClass='S3'){
+  const checkpoint=await verifiedCheckpoint();
   return createChangeAdmissionRequest({
     projectId:'project_12345678',workId:'work_12345678',checkpoint,
     builderActorId:'agent_builder_1',requestedAction:CHANGE_RISK_MODEL[riskClass].action,
@@ -47,7 +101,7 @@ test('admission request binds one compiler checkpoint and keeps policy engine me
   const r=await request('S3');
   assert.equal(r.schema,'musitu.axiom.product-change-admission-request.v1');
   assert.equal(r.project_id,'project_12345678');
-  assert.equal(r.checkpoint_sha256,checkpoint.checkpoint_sha256);
+  assert.equal(r.checkpoint_sha256,(await verifiedCheckpoint()).checkpoint_sha256);
   assert.equal(r.builder_actor_id,'agent_builder_1');
   assert.deepEqual(r.required_verifications,['TESTS','SECURITY','INDEPENDENT_VERIFIER']);
   assert.equal(r.policy_engine_authority,'MECHANISM_ONLY');
@@ -109,7 +163,7 @@ test('DENY and policy/request hash mismatch fail closed',async()=>{
 test('admission request rejects an unverified checkpoint look-alike even when its surface fields appear valid',async()=>{
   await assert.rejects(
     ()=>createChangeAdmissionRequest({
-      projectId:'project_12345678',workId:'work_12345678',checkpoint,
+      projectId:'project_12345678',workId:'work_12345678',checkpoint:checkpointLookalike,
       builderActorId:'agent_builder_1',requestedAction:CHANGE_RISK_MODEL.S3.action,riskClass:'S3',at,
     }),
     /checkpoint.*integrity|verified.*checkpoint|checkpoint.*verification/i,

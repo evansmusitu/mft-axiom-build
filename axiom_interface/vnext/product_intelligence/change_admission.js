@@ -1,3 +1,5 @@
+import {verifyCompilerCheckpoint} from './compiler_checkpoint.js';
+
 export const CHANGE_ADMISSION_REQUEST_SCHEMA='musitu.axiom.product-change-admission-request.v1';
 export const CHANGE_ADMISSION_RESULT_SCHEMA='musitu.axiom.product-change-admission-result.v1';
 
@@ -28,11 +30,12 @@ function iso(value,name='at'){
   if(!Number.isFinite(time)) throw new TypeError(`${name} must be an ISO instant`);
   return new Date(time).toISOString();
 }
-function assertCheckpoint(checkpoint,projectId){
+async function assertCheckpoint(checkpoint,projectId){
   if(!isPlainObject(checkpoint)||checkpoint.schema!=='musitu.axiom.product-compiler-checkpoint.v1') throw new TypeError('compiler checkpoint required');
   if(checkpoint.project_id!==projectId) throw new DOMException('cross-project change admission blocked','SecurityError');
   if(typeof checkpoint.checkpoint_sha256!=='string'||!HASH.test(checkpoint.checkpoint_sha256)) throw new TypeError('checkpoint sha256 required');
   if(checkpoint.authority_effect!=='NONE'||checkpoint.rollback_mode!=='PREPARE_ONLY'||checkpoint.external_execution_authority!==false||checkpoint.production_authority!==false) throw new DOMException('checkpoint authority boundary invalid','SecurityError');
+  if(!(await verifyCompilerCheckpoint(checkpoint))) throw new DOMException('compiler checkpoint integrity verification required','DataError');
 }
 function requestHashBody(request){
   return {
@@ -52,7 +55,7 @@ export async function createChangeAdmissionRequest({projectId,workId='',checkpoi
   const model=CHANGE_RISK_MODEL[riskClass];
   if(!model) throw new TypeError('riskClass must be S0..S5');
   if(requestedAction!==model.action) throw new TypeError(`requestedAction must equal ${model.action} for ${riskClass}`);
-  assertCheckpoint(checkpoint,project_id);
+  await assertCheckpoint(checkpoint,project_id);
   const body={
     schema:CHANGE_ADMISSION_REQUEST_SCHEMA,
     project_id,work_id,
