@@ -182,8 +182,9 @@ export async function reconcileVerifiedExecutionOutcome({persistence,verifiedOut
   const current=await persistence.load(projectId);
   if(!current)throw new DOMException('Living Product Graph required before execution outcome reconciliation','NotFoundError');
   const nodeId=`lpg_evidence_${verifiedOutcome.receipt_sha256.slice(0,24)}`;
-  const priorForRequest=current.nodes.find(node=>node.type==='EvidenceRef'&&node.data?.request_sha256===verifiedOutcome.request_sha256);
-  if(priorForRequest&&priorForRequest.data?.receipt_sha256!==verifiedOutcome.receipt_sha256)throw new DOMException('conflicting execution replay: request already reconciled to a different receipt','DataError');
+  const priorForRequest=current.nodes.filter(node=>node.type==='EvidenceRef'&&node.data?.request_sha256===verifiedOutcome.request_sha256);
+  const terminalPrior=priorForRequest.find(node=>['COMPLETED','FAILED'].includes(node.data?.execution_status));
+  if(terminalPrior&&terminalPrior.data?.receipt_sha256!==verifiedOutcome.receipt_sha256)throw new DOMException('conflicting execution replay: request already has a different terminal receipt','DataError');
   const existing=current.nodes.find(node=>node.node_id===nodeId);
   if(existing){
     if(existing.type!=='EvidenceRef'||existing.data?.evidence_id!==evidence.id||existing.data?.receipt_sha256!==verifiedOutcome.receipt_sha256||existing.data?.request_sha256!==verifiedOutcome.request_sha256||existing.data?.verification_sha256!==verifiedOutcome.verification_sha256)throw new DOMException('execution outcome replay conflicts with existing EvidenceRef','DataError');
