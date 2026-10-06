@@ -198,13 +198,35 @@ async function requiredDns({fetchImpl, headers}) {
   return normalized;
 }
 
+async function removeConflictingRootMx({fetchImpl, headers, current, desired}) {
+  const desiredMx = new Set(desired.filter(row => row.type === 'MX').map(recordKey));
+  const conflicts = current.filter(row => row.type === 'MX' && !desiredMx.has(recordKey(row)));
+  for (const row of conflicts) {
+    if (!row.id) throw new Error('conflicting root MX record has no id for bounded migration');
+    await cloudflareRequest({
+      fetchImpl,
+      headers,
+      path: `/zones/${SUPPORT_ZONE_ID}/dns_records/${encodeURIComponent(row.id)}`,
+      method: 'DELETE',
+    });
+  }
+  const after = await readRootMail({fetchImpl, headers});
+  const remainingConflict = after.some(row => row.type === 'MX' && !desiredMx.has(recordKey(row)));
+  if (remainingConflict) throw new Error('conflicting root MX record remains after bounded migration delete');
+  return conflicts.length;
+}
+
 async function deleteRule({fetchImpl, headers, id}) {
   if (!id) return;
   await cloudflareRequest({fetchImpl, headers, path: `/zones/${SUPPORT_ZONE_ID}/email/routing/rules/${encodeURIComponent(id)}`, method: 'DELETE'});
 }
 
 async function restoreRootMail({fetchImpl, headers, snapshot}) {
-  await cloudflareRequest({fetchImpl, headers, path: `/zones/${SUPPORT_ZONE_ID}/email/routing/dns`, method: 'DELETE'});
+  try {
+    await cloudflareRequest({fetchImpl, headers, path: `/zones/${SUPPORT_ZONE_ID}/email/routing/dns`, method: 'DELETE'});
+  } catch (error) {
+    if (![409, 422].includes(Number(error?.status))) throw error;
+  }
   const current = await readRootMail({fetchImpl, headers});
   const wantedKeys = new Set(snapshot.map(recordKey));
   for (const row of current) {
@@ -248,13 +270,19 @@ export async function migrateEmailRouting({env = process.env, fetchImpl = fetch,
   try {
     supportRule = await ensureSupportRule({fetchImpl, headers: credential.headers, destination});
     if (!initialRouting.ready || !sameRecordSet(beforeMail, desiredMail)) {
+      cutoverPerformed = true;
+      await removeConflictingRootMx({
+        fetchImpl,
+        headers: credential.headers,
+        current: beforeMail,
+        desired: desiredMail,
+      });
       await cloudflareRequest({
         fetchImpl,
         headers: credential.headers,
         path: `/zones/${SUPPORT_ZONE_ID}/email/routing/dns`,
         method: 'POST',
       });
-      cutoverPerformed = true;
     }
 
     const [afterRouting, afterMail, afterRules, afterProtected] = await Promise.all([

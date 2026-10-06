@@ -38,7 +38,7 @@ function env() {
   };
 }
 
-function mockCloudflare({unverified = false, mutateProtectedAfterCutover = false, unsafeCatchAll = false, unrelatedRule = false, disabledDropAll = false} = {}) {
+function mockCloudflare({unverified = false, mutateProtectedAfterCutover = false, unsafeCatchAll = false, unrelatedRule = false, disabledDropAll = false, enableDnsFailure = false} = {}) {
   const calls = [];
   let routing = {enabled: false, status: 'unconfigured'};
   let root = structuredClone(zoho);
@@ -60,6 +60,7 @@ function mockCloudflare({unverified = false, mutateProtectedAfterCutover = false
     }
     if (u.pathname.endsWith('/email/routing/dns') && method === 'GET') return response(200, {success: true, result: required});
     if (u.pathname.endsWith('/email/routing/dns') && method === 'POST') {
+      if (enableDnsFailure) return response(409, {success: false, errors: [{code: 2008, message: 'conflict'}]});
       cutover = true;
       routing = {enabled: true, status: 'ready'};
       root = required.map((r, i) => ({id: `cf-${i}`, ...r}));
@@ -125,7 +126,10 @@ test('migration accepts the live MX-only Cloudflare required DNS shape and creat
 
   const createRule = mock.calls.findIndex(c => c.method === 'POST' && c.path.endsWith('/email/routing/rules'));
   const enableDns = mock.calls.findIndex(c => c.method === 'POST' && c.path.endsWith('/email/routing/dns'));
+  const deleteMx = mock.calls.filter(c => c.method === 'DELETE' && c.path.includes('/dns_records/'));
   assert.ok(createRule >= 0 && enableDns > createRule, 'support route must be created before root MX cutover when API permits');
+  assert.equal(deleteMx.length, 3, 'all three conflicting Zoho MX records must be removed before Cloudflare root activation');
+  assert.ok(mock.calls.findIndex(c => c.method === 'DELETE' && c.path.includes('/dns_records/')) < enableDns);
   assert.equal(mock.calls[enableDns].body, undefined, 'root-domain Email Routing enable must omit the subdomain name payload');
   assert.deepEqual(mock.state().root.map(r => r.content).sort(), required.map(r => r.content).sort());
 });
@@ -135,6 +139,15 @@ test('unverified support destination fails closed before any write', async () =>
   await assert.rejects(() => migrateEmailRouting({fetchImpl: mock.fetchImpl, env: env()}), /destination is not verified/);
   assert.equal(mock.calls.some(c => c.method !== 'GET'), false);
   assert.deepEqual(mock.state().root.map(r => r.content), zoho.map(r => r.content));
+});
+
+test('Cloudflare activation conflict after MX removal rolls back exact Zoho MX and removes the new support rule', async () => {
+  const mock = mockCloudflare({enableDnsFailure: true});
+  await assert.rejects(() => migrateEmailRouting({fetchImpl: mock.fetchImpl, env: env()}), /CLOUDFLARE_POST__ZONES_.*ROLLED_BACK|ROLLED_BACK/);
+  assert.equal(mock.state().routing.enabled, false);
+  assert.deepEqual(mock.state().root.map(r => r.content).sort(), zoho.map(r => r.content).sort());
+  assert.equal(mock.state().rules.length, 0);
+  assert.ok(mock.calls.some(c => c.method === 'DELETE' && c.path.includes('/dns_records/')));
 });
 
 test('post-cutover protected-provider drift triggers rollback to the exact prior Zoho MX contents and removes a newly created support rule', async () => {
