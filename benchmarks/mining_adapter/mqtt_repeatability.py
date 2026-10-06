@@ -57,6 +57,56 @@ def comparison_fingerprint(spec: MqttRepeatabilitySpec) -> str:
     return hashlib.sha256(raw).hexdigest()
 
 
+_PERFORMANCE_FRONTIER_BASELINE={
+    "run_id":37471589320,
+    "artifact_id":11417483605,
+    "artifact_sha256":"2c461d93e22a52ce121fa19ce8c6303785dcca39290c9c7eddf0c46ed0d89a7f",
+    "reference_median_throughput_events_per_second":15278.37222790132,
+    "reference_median_p99_ms":38795.88768011001,
+}
+_PERFORMANCE_FRONTIER_TARGET_X=2.0
+
+
+def evaluate_performance_frontier(aggregate: dict[str,Any]) -> dict[str,Any]:
+    reference_trials=(aggregate.get("raw_trials") or {}).get("reference") or []
+    integrity_preserved=(
+        len(reference_trials) >= 4
+        and all(
+            int(trial.get("events") or 0) >= 1_000_000
+            and int(trial.get("received") or 0) == int(trial.get("events") or 0)
+            and int(trial.get("duplicates") or 0) == 0
+            and trial.get("audit_chain_verified") is True
+            and not trial.get("errors")
+            and trial.get("credentials_used") is False
+            for trial in reference_trials
+        )
+    )
+    current_throughput=_positive_float(
+        (aggregate.get("throughput") or {}).get("reference_median"),
+        "frontier.reference_median_throughput",
+    )
+    current_p99=_positive_float(
+        (aggregate.get("p99_latency") or {}).get("reference_median"),
+        "frontier.reference_median_p99",
+    )
+    baseline_throughput=float(_PERFORMANCE_FRONTIER_BASELINE["reference_median_throughput_events_per_second"])
+    baseline_p99=float(_PERFORMANCE_FRONTIER_BASELINE["reference_median_p99_ms"])
+    throughput_gain_x=current_throughput/baseline_throughput
+    p99_improvement_x=baseline_p99/current_p99
+    return {
+        "schema":"musitu.connect.mining.performance_frontier.v1",
+        "baseline":dict(_PERFORMANCE_FRONTIER_BASELINE),
+        "target_throughput_gain_x":_PERFORMANCE_FRONTIER_TARGET_X,
+        "current_reference_median_throughput_events_per_second":current_throughput,
+        "current_reference_median_p99_ms":current_p99,
+        "throughput_gain_x":throughput_gain_x,
+        "p99_improvement_x":p99_improvement_x,
+        "integrity_preserved":integrity_preserved,
+        "throughput_target_met":integrity_preserved and throughput_gain_x >= _PERFORMANCE_FRONTIER_TARGET_X,
+        "claim_scope":"Same counterbalanced 1M-event Mining Adapter MQTT harness versus the sealed pre-optimization artifact; no product-wide competitor claim.",
+    }
+
+
 def _positive_float(value: Any, name: str) -> float:
     if not isinstance(value,(int,float)) or value <= 0:
         raise ValueError(f"repeatability_metric_invalid:{name}")
@@ -251,11 +301,13 @@ def execute(args: argparse.Namespace) -> dict[str,Any]:
                 drain_timeout=args.drain_timeout,
             ))
     aggregate=aggregate_repeatability(spec,raw["reference"],raw["emqx"])
+    frontier=evaluate_performance_frontier(aggregate)
     return {
         "schema":"musitu.connect.mining.mqtt_repeatability_evidence.v1",
         "spec":asdict(spec),
         "comparison_fingerprint":comparison_fingerprint(spec),
         "aggregate":aggregate,
+        "performance_frontier":frontier,
     }
 
 
