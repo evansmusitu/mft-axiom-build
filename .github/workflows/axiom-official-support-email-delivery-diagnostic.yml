@@ -20,7 +20,7 @@ jobs:
       CF_TOKEN_RULESETS: ${{ secrets.CLOUDFLARE_RULESETS_API_TOKEN }}
       CF_TOKEN_ACCESS: ${{ secrets.CLOUDFLARE_ACCESS_API_TOKEN }}
       CF_TOKEN_DEFAULT: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-      TEST_SUBJECT: 'MUSITU Axiom Support Routing Verification 077207c0'
+      TEST_SUBJECT: 'MUSITU Axiom Support Routing Verification 978776fb'
     steps:
       - name: Query Cloudflare Email Routing activity read-only
         shell: bash
