@@ -5,6 +5,7 @@ const OUTCOME_SCHEMA='musitu.axiom.outcome-contract.v1';
 const HASH=/^[a-f0-9]{64}$/i;
 const OUTCOME_CONTRACT_KEYS=new Set(['schema','project_id','contract_id','contract_sha256','project_object_id','title','outcome','success_criteria','constraints','execution_boundary','supersedes_contract_id','created_at','created_by']);
 const OUTCOME_CONSTRAINT_KEYS=new Set(['privacy','evidence','autonomy','approval','deadline','compute_budget']);
+const APPROVAL_RECEIPT_KEYS=new Set(['receipt_id','edge_id','contract_id','contract_sha256','provenance']);
 const clean=(value,max=4000)=>String(value??'').replace(/[\u0000-\u001f\u007f]/g,' ').trim().slice(0,max);
 const isPlainObject=value=>Boolean(value)&&typeof value==='object'&&!Array.isArray(value)&&(Object.getPrototypeOf(value)===Object.prototype||Object.getPrototypeOf(value)===null);
 function rejectUnknownKeys(value,allowed,label){const extra=Object.keys(value).filter(key=>!allowed.has(key));if(extra.length)throw new DOMException(label+' contains unsupported fields: '+extra.join(','),'SecurityError');}
@@ -75,7 +76,9 @@ export async function compileObjectiveOutcomeGraph({project,contract,contractVer
   rejectUnknownKeys(contract.constraints,OUTCOME_CONSTRAINT_KEYS,'Outcome Contract constraints');
   validateConstraintTypes(contract.constraints);
   if(approval!==null){
-    if(!isPlainObject(approval)||approval.contract_id!==contract.contract_id||approval.contract_sha256!==contract.contract_sha256) throw new TypeError('approval receipt must bind the verified Outcome Contract');
+    if(!isPlainObject(approval)) throw new TypeError('approval receipt must bind the verified Outcome Contract');
+    rejectUnknownKeys(approval,APPROVAL_RECEIPT_KEYS,'approval receipt');
+    if(approval.contract_id!==contract.contract_id||approval.contract_sha256!==contract.contract_sha256) throw new TypeError('approval receipt must bind the verified Outcome Contract');
   }
 
   const projectId=project.project_id;
