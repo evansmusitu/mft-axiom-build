@@ -37,6 +37,24 @@ export function mergeVerifiedSearchCrawlerConfigRule(existingRules = []) {
   return [...retained, buildVerifiedSearchCrawlerConfigRule()];
 }
 
+export function buildVerifiedSearchCrawlerSkipRule() {
+  const quotedPaths = SEARCH_PUBLIC_PATHS.map(path => JSON.stringify(path)).join(' ');
+  return {
+    ref: VERIFIED_SEARCH_CRAWLER_RULE_REF,
+    description: 'Allow only Cloudflare-verified traditional search-engine crawlers to public MUSITU Axiom Official Support assets without human challenges',
+    expression: `(http.host eq "${SUPPORT_DOMAIN}" and cf.client.bot and cf.verified_bot_category eq "Search Engine Crawler" and http.request.method in {"GET" "HEAD"} and http.request.uri.path in {${quotedPaths}})`,
+    action: 'skip',
+    action_parameters: {products: ['bic', 'securityLevel']},
+    enabled: true,
+  };
+}
+
+export function mergeVerifiedSearchCrawlerSkipRule(existingRules = []) {
+  if (!Array.isArray(existingRules)) throw new TypeError('custom WAF rules must be an array');
+  const retained = existingRules.filter(rule => String(rule?.ref || '') !== VERIFIED_SEARCH_CRAWLER_RULE_REF);
+  return [...retained, buildVerifiedSearchCrawlerSkipRule()];
+}
+
 function sha256(value) {
   return createHash('sha256').update(String(value)).digest('hex');
 }
