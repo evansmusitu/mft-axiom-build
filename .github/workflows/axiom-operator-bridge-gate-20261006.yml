@@ -9,6 +9,7 @@ on:
       - 'frontier_v5/runtime/operator_mcp.py'
       - 'frontier_v5/runtime/operator_http.py'
       - 'frontier_v5/runtime/operator_state.py'
+      - 'frontier_v5/runtime/operator_remote_core.py'
       - 'frontier_v5/tests/test_operator_bridge_contract.py'
       - 'docs/axiom_final_product/AXIOM_OPERATOR_BRIDGE_V1.md'
       - '.github/workflows/axiom-operator-bridge-gate-20261006.yml'
@@ -47,6 +48,7 @@ jobs:
             'frontier_v5/runtime/operator_mcp.py',
             'frontier_v5/runtime/operator_http.py',
             'frontier_v5/runtime/operator_state.py',
+            'frontier_v5/runtime/operator_remote_core.py',
             'frontier_v5/tests/test_operator_bridge_contract.py',
             'docs/axiom_final_product/AXIOM_OPERATOR_BRIDGE_V1.md',
             '.github/workflows/axiom-operator-bridge-gate-20261006.yml',
@@ -87,6 +89,7 @@ jobs:
             Path('frontier_v5/runtime/operator_mcp.py'),
             Path('frontier_v5/runtime/operator_http.py'),
             Path('frontier_v5/runtime/operator_state.py'),
+            Path('frontier_v5/runtime/operator_remote_core.py'),
             Path('.github/workflows/axiom-operator-bridge-gate-20261006.yml'),
           ]
           text='\n'.join(p.read_text() if p.exists() else '' for p in files)
