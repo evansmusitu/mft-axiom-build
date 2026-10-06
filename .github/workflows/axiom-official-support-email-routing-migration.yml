@@ -58,7 +58,7 @@ jobs:
         run: node --test support/tests/*.test.mjs
       - name: Migrate root inbound mail routing with automatic rollback
         env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_RULESETS_API_TOKEN }}
           CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
           CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
         run: node support/scripts/migrate_cloudflare_email_routing.mjs
