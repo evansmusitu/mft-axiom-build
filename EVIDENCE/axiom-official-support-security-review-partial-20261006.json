@@ -1,0 +1,20 @@
+{
+  "schema": "musitu.axiom.support-readiness-evidence.v1",
+  "gate": "SECURITY_REVIEW",
+  "status": "PARTIAL",
+  "artifact_sha256": "e0e9c28cd05cf5ecb682020891f83b31c64e8b74465d8a3c60046849d0a1049d",
+  "verifier_ref": "github-actions:run:37423619077",
+  "verified_at": "2026-10-06T06:25:16Z",
+  "automated_status": "PASS",
+  "pre_storage_secret_rejection_tested": true,
+  "recovery_auth_boundary_tested": true,
+  "request_size_and_media_type_boundaries_tested": true,
+  "response_header_policy_tested": true,
+  "source_sink_scan_tested": true,
+  "production_fail_closed_tested": true,
+  "live_edge_penetration_tested": false,
+  "live_rate_limit_evidence_tested": false,
+  "public_origin_used": false,
+  "public_support_deployed": false,
+  "secret_exposed": false
+}
