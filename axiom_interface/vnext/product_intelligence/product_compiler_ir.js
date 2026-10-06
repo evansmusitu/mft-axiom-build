@@ -59,21 +59,39 @@ function assertCompilerIR(ir,label='compiler IR'){
 }
 async function assertCompilerIRIntegrity(ir,label='compiler IR'){
   assertCompilerIR(ir,label);
+  const unitIds=new Set();
   for(const [index,unit] of ir.units.entries()){
     if(!isPlainObject(unit)||typeof unit.unit_sha256!=='string'||!HASH.test(unit.unit_sha256)) throw new TypeError(`${label} unit[${index}] unit_sha256 required`);
     rejectUnknownKeys(unit,IR_UNIT_KEYS,`${label} unit[${index}]`);
+    if(typeof unit.node_id!=='string'||!unit.node_id) throw new TypeError(`${label} unit[${index}] node_id required`);
+    if(unitIds.has(unit.node_id)) throw new TypeError(`${label} duplicate node_id: ${unit.node_id}`);
+    unitIds.add(unit.node_id);
+    if(!LPG_NODE_TYPES.includes(unit.type)) throw new TypeError(`${label} unit[${index}] type invalid`);
+    if(!isPlainObject(unit.data)) throw new TypeError(`${label} unit[${index}] data must be a plain object`);
     const {unit_sha256,...body}=unit;
     if(await sha256(body)!==unit_sha256) throw new DOMException(`${label} unit[${index}] integrity hash mismatch`,'DataError');
   }
+  const relationIds=new Set();
   for(const [index,relation] of ir.relations.entries()){
     if(!isPlainObject(relation)||typeof relation.relation_sha256!=='string'||!HASH.test(relation.relation_sha256)) throw new TypeError(`${label} relation[${index}] relation_sha256 required`);
     rejectUnknownKeys(relation,IR_RELATION_KEYS,`${label} relation[${index}]`);
+    if(typeof relation.edge_id!=='string'||!relation.edge_id) throw new TypeError(`${label} relation[${index}] edge_id required`);
+    if(relationIds.has(relation.edge_id)) throw new TypeError(`${label} duplicate edge_id: ${relation.edge_id}`);
+    relationIds.add(relation.edge_id);
+    if(typeof relation.from_id!=='string'||typeof relation.to_id!=='string'||relation.from_id===relation.to_id||!unitIds.has(relation.from_id)||!unitIds.has(relation.to_id)) throw new TypeError(`${label} relation[${index}] endpoint must reference distinct IR units`);
     const {relation_sha256,...body}=relation;
     if(await sha256(body)!==relation_sha256) throw new DOMException(`${label} relation[${index}] integrity hash mismatch`,'DataError');
   }
+  const bindingIds=new Set();
   for(const [index,binding] of ir.bindings.entries()){
     if(!isPlainObject(binding)) throw new TypeError(`${label} binding[${index}] must be a plain object`);
     rejectUnknownKeys(binding,IR_BINDING_KEYS,`${label} binding[${index}]`);
+    if(typeof binding.binding_id!=='string'||!binding.binding_id) throw new TypeError(`${label} binding[${index}] binding_id required`);
+    if(bindingIds.has(binding.binding_id)) throw new TypeError(`${label} duplicate binding_id: ${binding.binding_id}`);
+    bindingIds.add(binding.binding_id);
+    if(typeof binding.node_id!=='string'||!unitIds.has(binding.node_id)) throw new TypeError(`${label} binding[${index}] node_id must reference an IR unit`);
+    if(typeof binding.region!=='string'||!binding.region) throw new TypeError(`${label} binding[${index}] region required`);
+    if(typeof binding.external_sha256!=='string'||!HASH.test(binding.external_sha256)) throw new TypeError(`${label} binding[${index}] external_sha256 required`);
     if(binding.authority!=='DECLARED_BINDING') throw new DOMException(`${label} binding[${index}] authority must remain DECLARED_BINDING`,'SecurityError');
   }
   const {ir_sha256,...body}=ir;
