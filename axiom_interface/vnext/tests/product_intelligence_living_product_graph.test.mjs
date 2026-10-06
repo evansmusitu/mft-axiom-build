@@ -545,7 +545,7 @@ test('FA-11 runtime exception becomes FAILED receipt and verified failure eviden
     constructor(){super(null);this.rows=Object.fromEntries(Object.keys(keys).map(name=>[name,new Map()]));}
     async _put(store,row){this.rows[store].set(row[keys[store]],structuredClone(row));return structuredClone(row);}
     async _get(store,key){const row=this.rows[store].get(key);return row?structuredClone(row):null;}
-    async _all(store,projectId){return [...this.rows[store].values()].filter(row=>!projectId||row.project_id===projectId).map(structuredClone);}
+    async _all(store,projectId){return [...this.rows[store].values()].filter(row=>!projectId||row.project_id===projectId).map(row=>structuredClone(row));}
   }
   const projectId='project_12345678',at='2026-10-06T13:00:00.000Z';
   const authority={
