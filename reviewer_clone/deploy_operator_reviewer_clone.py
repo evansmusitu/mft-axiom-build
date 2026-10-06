@@ -253,6 +253,41 @@ def clone_identity_schema_and_snapshot(reviewer_db):
             )
             d1(reviewer_db, sql, [row[col] for col in cols])
 
+def probe_modal_runtime(url, key, secret):
+    attempts = (
+        ("bearer", {"Authorization": "Bearer " + key + "." + secret}),
+        ("modal_headers", {"Modal-Key": key, "Modal-Secret": secret}),
+    )
+    last = {}
+    for attempt in range(1, 31):
+        for mode, headers in attempts:
+            code, _, payload = raw(url.rstrip("/") + "/health", "GET", headers, None, 20, True)
+            try:
+                body = json.loads(payload or b"{}")
+            except Exception:
+                body = {
+                    "decode_error": True,
+                    "body_preview": payload[:300].decode("utf-8", "replace"),
+                }
+            last[mode] = {"status": code, "body": body}
+            if (
+                code == 200
+                and isinstance(body, dict)
+                and body.get("status") == "READY"
+                and body.get("production_authority") is False
+                and body.get("public_submission_mutation_authority") is False
+            ):
+                print("reviewer_modal_direct_health=PASS")
+                print("reviewer_modal_auth_mode=" + mode)
+                return mode
+        if attempt < 30:
+            time.sleep(2)
+    raise RuntimeError(
+        "fresh reviewer Modal proxy credential never authenticated: "
+        + json.dumps(last, sort_keys=True)[:1800]
+    )
+
+
 def get_modal_runtime():
     function = modal.Function.from_name(OPERATOR_APP, "operator_endpoint")
     url = function.get_web_url()
@@ -267,7 +302,8 @@ def get_modal_runtime():
         raise RuntimeError("unexpected Modal proxy credential contract")
     print("::add-mask::" + key)
     print("::add-mask::" + secret)
-    return url, key, secret
+    auth_mode = probe_modal_runtime(url, key, secret)
+    return url, key, secret, auth_mode
 
 
 def get_workers_dev_urls():
@@ -455,7 +491,7 @@ def full_oauth_e2e(reviewer_db, issuer, resource):
 def main():
     reviewer_db = ensure_reviewer_db()
     clone_identity_schema_and_snapshot(reviewer_db)
-    modal_url, modal_key, modal_secret = get_modal_runtime()
+    modal_url, modal_key, modal_secret, modal_auth_mode = get_modal_runtime()
     issuer, resource = get_workers_dev_urls()
 
     deploy_worker(
@@ -477,6 +513,7 @@ def main():
             {"type": "plain_text", "name": "MODAL_OPERATOR_URL", "text": modal_url},
             {"type": "secret_text", "name": "MODAL_PROXY_KEY", "text": modal_key},
             {"type": "secret_text", "name": "MODAL_PROXY_SECRET", "text": modal_secret},
+            {"type": "plain_text", "name": "MODAL_AUTH_MODE", "text": modal_auth_mode},
         ],
     )
 
