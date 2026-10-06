@@ -16,6 +16,27 @@ export const TURNSTILE_WIDGET_NAME = 'MUSITU Axiom Official Support';
 const SITEKEY = /^[A-Za-z0-9_-]{20,100}$/;
 const EMAIL = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 
+export const VERIFIED_SEARCH_CRAWLER_RULE_REF = 'musitu_axiom_support_verified_search_crawlers';
+const SEARCH_PUBLIC_PATHS = Object.freeze(['/', '/index.html', '/robots.txt', '/sitemap.xml', '/styles.css', '/app.js']);
+
+export function buildVerifiedSearchCrawlerConfigRule() {
+  const quotedPaths = SEARCH_PUBLIC_PATHS.map(path => JSON.stringify(path)).join(' ');
+  return {
+    ref: VERIFIED_SEARCH_CRAWLER_RULE_REF,
+    description: 'Allow only verified search-engine crawlers to read the public MUSITU Axiom Support surface without zone-wide human challenges',
+    expression: `(http.host eq "${SUPPORT_DOMAIN}" and cf.client.bot and cf.verified_bot_category eq "Search Engine Crawler" and http.request.method in {"GET" "HEAD"} and http.request.uri.path in {${quotedPaths}})`,
+    action: 'set_config',
+    action_parameters: {security_level: 'off', bic: false},
+    enabled: true,
+  };
+}
+
+export function mergeVerifiedSearchCrawlerConfigRule(existingRules = []) {
+  if (!Array.isArray(existingRules)) throw new TypeError('configuration rules must be an array');
+  const retained = existingRules.filter(rule => String(rule?.ref || '') !== VERIFIED_SEARCH_CRAWLER_RULE_REF);
+  return [...retained, buildVerifiedSearchCrawlerConfigRule()];
+}
+
 function sha256(value) {
   return createHash('sha256').update(String(value)).digest('hex');
 }
