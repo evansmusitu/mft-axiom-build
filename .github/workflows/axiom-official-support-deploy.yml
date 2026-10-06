@@ -340,15 +340,7 @@ jobs:
             grep -q 'inspectSecretMaterial' support-app-live.js
             echo '{"public_worker_reached":true,"canonical_live_probe":"PASS"}'
           elif [ "$code" = '403' ] && grep -qi '^cf-mitigated:[[:space:]]*challenge' support-health.headers; then
-            node <<'NODE'
-            const fs=require('node:fs');
-            const e=JSON.parse(fs.readFileSync('EVIDENCE/axiom-official-support-readiness-current.json','utf8'));
-            for(const gate of ['PUBLIC_ORIGIN','ANTI_ABUSE','ACCESSIBILITY_REALITY']){
-              const row=(e.gates||[]).find(x=>x?.gate===gate);
-              if(!row||row.status!=='PASS'||!row.evidence?.file) throw new Error('managed edge challenge cannot substitute for missing human evidence: '+gate);
-            }
-            console.log(JSON.stringify({public_edge_reached:true,cf_mitigated:'challenge',human_live_evidence_preserved:true,edge_security_weakened:false}));
-            NODE
+            node -e "const fs=require('node:fs'); const e=JSON.parse(fs.readFileSync('EVIDENCE/axiom-official-support-readiness-current.json','utf8')); for(const gate of ['PUBLIC_ORIGIN','ANTI_ABUSE','ACCESSIBILITY_REALITY']){ const row=(e.gates||[]).find(x=>x?.gate===gate); if(!row||row.status!=='PASS'||!row.evidence?.file) throw new Error('managed edge challenge cannot substitute for missing human evidence: '+gate); } console.log(JSON.stringify({public_edge_reached:true,cf_mitigated:'challenge',human_live_evidence_preserved:true,edge_security_weakened:false}));"
           else
             echo "unexpected public support response: HTTP $code" >&2
             exit 1
