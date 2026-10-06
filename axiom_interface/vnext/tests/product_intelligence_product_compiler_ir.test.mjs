@@ -98,10 +98,10 @@ test('incremental diff preserves removals and never represents unknown impact as
 
 test('round-trip reconciliation never auto-overwrites manual or out-of-binding changes',async()=>{
   const ir=await compileProductIR(graph(),{bindings,compilerVersion:'1.0.0'});
-  const match=reconcileProductIR(ir,bindings.map(({binding_id,external_sha256})=>({binding_id,external_sha256})));
+  const match=await reconcileProductIR(ir,bindings.map(({binding_id,external_sha256})=>({binding_id,external_sha256})));
   assert.equal(match.status,'MATCH');
   assert.equal(match.auto_apply,false);
-  const changed=reconcileProductIR(ir,[
+  const changed=await reconcileProductIR(ir,[
     {binding_id:'binding_component_1',external_sha256:'9'.repeat(64)},
     {binding_id:'binding_api_1',external_sha256:'2'.repeat(64)},
     {binding_id:'outside_manual_region',external_sha256:'8'.repeat(64)},

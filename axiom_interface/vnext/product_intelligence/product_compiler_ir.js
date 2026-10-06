@@ -203,8 +203,8 @@ export async function diffProductIR(prior,next){
   });
 }
 
-export function reconcileProductIR(ir,observedBindings=[]){
-  assertCompilerIR(ir);
+export async function reconcileProductIR(ir,observedBindings=[]){
+  await assertCompilerIRIntegrity(ir);
   if(!Array.isArray(observedBindings)) throw new TypeError('observedBindings must be an array');
   const observed=new Map();
   for(const [index,item] of observedBindings.entries()){
