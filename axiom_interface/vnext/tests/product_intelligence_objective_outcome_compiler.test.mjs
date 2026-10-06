@@ -172,3 +172,13 @@ test('Outcome Contract governed constraint values must match the authoritative v
     );
   }
 });
+
+
+test('Project input rejects unknown or authority-bearing fields fail closed',async()=>{
+  const bad=project();
+  bad.release_authority=true;
+  await assert.rejects(
+    ()=>compileObjectiveOutcomeGraph({project:bad,contract:contract(),contractVerified:true,approval:null,generation:1,actorId:'local-user',at:'2026-10-04T15:03:00Z'}),
+    /Project.*unsupported fields|unsupported fields.*Project/i,
+  );
+});
