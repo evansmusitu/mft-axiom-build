@@ -8,6 +8,7 @@ import tempfile
 import time
 import sys
 import uuid
+from dataclasses import asdict, is_dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -56,6 +57,19 @@ class MiningRunDurabilityWorkflow:
 
 def utcnow() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00","Z")
+
+
+def json_evidence(value):
+    """Convert stage results into deterministic JSON-safe evidence."""
+    if is_dataclass(value):
+        return json_evidence(asdict(value))
+    if isinstance(value, dict):
+        return {str(key):json_evidence(item) for key,item in value.items()}
+    if isinstance(value, (list,tuple)):
+        return [json_evidence(item) for item in value]
+    if value is None or isinstance(value,(str,int,float,bool)):
+        return value
+    return repr(value)
 
 
 def build_service(store_path: Path, observed_axiom: list[dict], workflow_calls: list[str]) -> MiningAdapterService:
@@ -304,7 +318,7 @@ async def run(output: Path, phase: str) -> dict:
         begin=time.perf_counter()
         try:
             detail=await awaitable
-            results.append({"name":name,"status":"PASS","elapsed_ms":round((time.perf_counter()-begin)*1000,3),"detail":detail})
+            results.append({"name":name,"status":"PASS","elapsed_ms":round((time.perf_counter()-begin)*1000,3),"detail":json_evidence(detail)})
             return detail
         except Exception as exc:
             results.append({"name":name,"status":"FAIL","elapsed_ms":round((time.perf_counter()-begin)*1000,3),"detail":f"{type(exc).__name__}: {exc}"})
