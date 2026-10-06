@@ -1,0 +1,114 @@
+{
+  "schema": "musitu.axiom.phase2.openfeature-hardening-qualification.v1",
+  "recorded_date": "2026-10-06",
+  "source_authority": {
+    "repository": "evansmusitu/mft-axiom-build",
+    "branch": "frontier/axiom-product-intelligence-phase2-20261004",
+    "predecessor_qualified_head": "9a6af09b08569738eeb3d34f3fdaebeb6851122e",
+    "hardened_implementation_commit": "22588e3b93fbd663a857a77aeaf5739fa2b5115a",
+    "implementation_path": "axiom_interface/vnext/product_intelligence/openfeature_flag_evaluation.js",
+    "implementation_sha256": "cf2b774033ce2119d085198c903c074e41155d8b4419f8aa6b127583922f5744",
+    "contract_test_path": "axiom_interface/vnext/tests/product_intelligence_openfeature_flag_evaluation.test.mjs",
+    "contract_test_sha256": "39f096cbbcd244671b684a60e42976db513c805e032038d51cd16f643b2aad91",
+    "real_sdk_harness_path": "axiom_interface/vnext/tests/product_intelligence_openfeature_real_sdk_qualification.mjs",
+    "real_sdk_harness_sha256": "150fcb2bb0561e66a64a2137b6071af75e9372fb4e3d75529aa7f4e85f440e38"
+  },
+  "reconciliation": {
+    "preserved_predecessor_evidence": "axiom_interface/vnext/product_intelligence/evidence/phase2_openfeature_qualification_20261006.json",
+    "predecessor_not_deleted_or_relabelled": true,
+    "predecessor_candidate_contract_tests": "PASS_10_OF_10",
+    "hardened_successor_reason": [
+      "The predecessor identity hook verified required AXIOM identity values but did not reject additional SDK-merged global/client/transaction context.",
+      "The predecessor evidence provider label was caller-supplied and was not bound to the OpenFeature client provider metadata, so a provider swap could be misattributed."
+    ],
+    "disposition": "PRESERVE_PREDECESSOR_AS_HISTORICAL_EVIDENCE_AND_QUALIFY_HARDENED_SUCCESSOR"
+  },
+  "tdd_hardening": {
+    "predecessor_cycles": 10,
+    "successor_cycles": [
+      {
+        "cycle": 11,
+        "behavior": "reject SDK-merged context additions and require exact AXIOM invocation context",
+        "red_observed": true,
+        "red_sha256": "d4b621599f3d18e40ec649d23a52cedc52b110e099d3f540d8b4988ec5eadc99",
+        "green_pass": true,
+        "green_sha256": "8230dbc7e8287e821767b37db6f9bb60986ed61f46abafc7ff9714413300d36d"
+      },
+      {
+        "cycle": 12,
+        "behavior": "bind evidence provider identity to OpenFeature client metadata and reject provider swaps",
+        "red_observed": true,
+        "red_sha256": "43ec503a969e29b875fd03f51b9b23e787b907d957cb941814abc03aa4a2f6d8",
+        "green_pass": true,
+        "green_sha256": "5e29ff764faf690b7e1044d50fd65165f72411d8346a8a369144428fefdef4c1"
+      }
+    ],
+    "final_contract_tests": {
+      "total": 12,
+      "pass": 12,
+      "fail": 0
+    },
+    "assertions_weakened_to_pass": false
+  },
+  "independent_verification": {
+    "provider": "GitLab SaaS isolated runner",
+    "project_id": 86647955,
+    "mirror_note": "The GitLab mirror did not contain the live Phase-2 branch; verification used an isolated scratch branch rooted at the known FA20 commit and hash-bound exact candidate files.",
+    "scratch_branch": "verify/axiom-phase2-openfeature-1-23-0-20261006",
+    "scratch_commit": "9c2837ac6f4677fb18e162f1f87eb7de5ae059ed",
+    "pipeline_id": 2916176652,
+    "pipeline_status": "success",
+    "qualification_job": {
+      "job_id": 16957240529,
+      "status": "success"
+    },
+    "independent_verdict_job": {
+      "job_id": 16957240530,
+      "status": "success"
+    },
+    "pass_marker": "MUSITU_AXIOM_OPENFEATURE_1_23_0_MECHANISM_QUALIFICATION_PASS",
+    "exact_sdk": {
+      "package": "@openfeature/server-sdk",
+      "version": "1.23.0",
+      "status": "PASS"
+    },
+    "checks": {
+      "exact_source_hash_binding": "PASS",
+      "exact_contract_hash_binding": "PASS",
+      "exact_real_sdk_harness_hash_binding": "PASS",
+      "contract_tests": "PASS_12_OF_12",
+      "real_sdk_evaluation": "PASS",
+      "project_work_agent_identity_binding": "PASS",
+      "sdk_merged_context_attack": "PASS_FAIL_CLOSED",
+      "provider_identity_swap_attack": "PASS_FAIL_CLOSED",
+      "provider_authority_escalation_attack": "PASS_FAIL_CLOSED",
+      "provider_error_path": "PASS_FAIL_CLOSED",
+      "deterministic_evaluation_evidence": "PASS"
+    }
+  },
+  "github_post_append_verification": {
+    "hardened_head_observed": "22588e3b93fbd663a857a77aeaf5739fa2b5115a",
+    "exact_candidate_git_blob_match": true,
+    "phase2_gate_contains_openfeature_contract": true,
+    "phase2_gate_contains_openfeature_authority_scan": true,
+    "attached_workflow_or_status_evidence_at_check": "NOT_PROVEN"
+  },
+  "qualification": {
+    "isolated_mechanism_qualification": "PASS",
+    "live_integrated_runtime_qualification": "NOT_PROVEN",
+    "release_authority": false,
+    "production_authority": false,
+    "certification_authority": false,
+    "canonical_evidence_authority": false,
+    "production_mutation": false,
+    "frozen_openai_mutation": false,
+    "required_next_gate": "SANDBOX_QUALIFICATION"
+  },
+  "incident_boundary": {
+    "modal_fanout_cleanup": "NOT_PROVEN",
+    "latest_checked_run_id": 37284936693,
+    "latest_checked_job_id": 111795419209,
+    "latest_checked_job_conclusion": "failure",
+    "required_pass_marker_observed": false
+  }
+}
