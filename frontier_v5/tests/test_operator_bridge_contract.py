@@ -8,6 +8,7 @@ from frontier_v5.runtime.operator_mcp import build_operator_mcp
 from frontier_v5.runtime.operator_http import OperatorHTTPApplication
 from frontier_v5.runtime.operator_state import export_operator_state, restore_operator_state
 from frontier_v5.runtime.operator_remote_core import execute_remote_mcp
+from frontier_v5.runtime.operator_daemon import OperatorDaemonApplication
 from frontier_v5.runtime.mcp_2026 import PROTOCOL_META, PROTOCOL_VERSION
 
 
@@ -228,6 +229,59 @@ def main():
         )
         assert remote2["body"]["result"]["project_id"]=="remote-p"
         assert remote2["mutated"] is False and remote2["state_pack"] is None
+
+        daemon_root=root/"daemon"
+        daemon=OperatorDaemonApplication(
+            root=daemon_root,
+            tenant="tenant-daemon",
+            actor_id="owner-daemon",
+            bearer_token="daemon-test-token-123456789",
+        )
+        create_msg={
+            "jsonrpc":"2.0","id":"d1","method":"tools/call",
+            "params":{
+                "name":"axiom.project.create",
+                "arguments":{"project_id":"daemon-p","name":"Durable daemon project"},
+                "_meta":{PROTOCOL_META:PROTOCOL_VERSION},
+            },
+        }
+        create_headers={
+            "Authorization":"Bearer daemon-test-token-123456789",
+            "MCP-Protocol-Version":PROTOCOL_VERSION,
+            "Mcp-Method":"tools/call",
+            "Mcp-Name":"axiom.project.create",
+            "Content-Type":"application/json",
+        }
+        dcode, _, dbody=daemon.handle("POST","/mcp",create_headers,json_bytes(create_msg))
+        assert dcode==200 and dbody["result"]["project_id"]=="daemon-p"
+        # A new daemon instance must restore the full portable state from disk.
+        daemon=OperatorDaemonApplication(
+            root=daemon_root,
+            tenant="tenant-daemon",
+            actor_id="owner-daemon",
+            bearer_token="daemon-test-token-123456789",
+        )
+        status_msg={
+            "jsonrpc":"2.0","id":"d2","method":"tools/call",
+            "params":{
+                "name":"axiom.project.status",
+                "arguments":{"project_id":"daemon-p"},
+                "_meta":{PROTOCOL_META:PROTOCOL_VERSION},
+            },
+        }
+        status_headers={
+            "Authorization":"Bearer daemon-test-token-123456789",
+            "MCP-Protocol-Version":PROTOCOL_VERSION,
+            "Mcp-Method":"tools/call",
+            "Mcp-Name":"axiom.project.status",
+            "Content-Type":"application/json",
+        }
+        dcode, _, dbody=daemon.handle("POST","/mcp",status_headers,json_bytes(status_msg))
+        assert dcode==200 and dbody["result"]["project_id"]=="daemon-p"
+        hcode, _, hbody=daemon.handle("GET","/health",{},b"")
+        assert hcode==200 and hbody["durable_state"]=="LOCAL_ATOMIC_STATE_PACK_WITH_FILE_LOCK"
+        ucode, _, ubody=daemon.handle("POST","/mcp",{**status_headers,"Authorization":"Bearer wrong-token"},json_bytes(status_msg))
+        assert ucode==401 and ubody["error"]=="UNAUTHORIZED"
 
         expect_error(lambda: bridge.call_tool("axiom.unknown",{}),"unknown operator tool")
         bridge.close()
