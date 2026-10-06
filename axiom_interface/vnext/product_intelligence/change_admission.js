@@ -15,6 +15,7 @@ export const CHANGE_RISK_MODEL=Object.freeze({
 const HASH=/^[a-f0-9]{64}$/i;
 const REQUEST_KEYS=new Set(['schema','project_id','work_id','checkpoint_id','checkpoint_sha256','builder_actor_id','requested_action','risk_class','required_verifications','human_approval_required','policy_engine_authority','builder_may_approve','external_execution_authority','production_authority','created_at','request_sha256']);
 const POLICY_DECISION_KEYS=new Set(['decision','request_sha256','policy_sha256','reasons']);
+const VERIFICATION_EVIDENCE_KEYS=new Set(['kind','status','actor_id','artifact_sha256']);
 const isPlainObject=value=>Boolean(value)&&typeof value==='object'&&!Array.isArray(value)&&(Object.getPrototypeOf(value)===Object.prototype||Object.getPrototypeOf(value)===null);
 const clean=(value,max=1000)=>String(value??'').replace(/[\u0000-\u001f\u007f]/g,' ').trim().slice(0,max);
 function rejectUnknownKeys(value,allowed,label){const extra=Object.keys(value).filter(key=>!allowed.has(key));if(extra.length)throw new DOMException(label+' contains unsupported fields: '+extra.join(','),'SecurityError');}
@@ -99,8 +100,11 @@ function normalizeVerificationEvidence(request,items){
   const byKind=new Map();
   for(const [index,item] of items.entries()){
     if(!isPlainObject(item)) throw new TypeError(`verificationEvidence[${index}] must be a plain object`);
+    rejectUnknownKeys(item,VERIFICATION_EVIDENCE_KEYS,`verificationEvidence[${index}]`);
+    if(typeof item.kind!=='string'||typeof item.status!=='string'||typeof item.actor_id!=='string'||typeof item.artifact_sha256!=='string') throw new TypeError(`verificationEvidence[${index}] fields must be strings`);
     const kind=clean(item.kind,80),status=clean(item.status,40),actor_id=clean(item.actor_id,180),artifact_sha256=clean(item.artifact_sha256,64).toLowerCase();
     if(!kind||byKind.has(kind)) throw new TypeError(`verificationEvidence[${index}] kind must be unique and non-empty`);
+    if(!request.required_verifications.includes(kind)) throw new DOMException(`verificationEvidence[${index}] kind is not required by admission request`,'SecurityError');
     if(status!=='PASS') throw new TypeError(`verificationEvidence[${index}] must be PASS evidence`);
     if(!actor_id) throw new TypeError(`verificationEvidence[${index}] actor_id required`);
     if(!HASH.test(artifact_sha256)) throw new TypeError(`verificationEvidence[${index}] artifact_sha256 required`);
