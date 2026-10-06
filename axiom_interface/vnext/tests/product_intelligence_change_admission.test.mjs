@@ -521,3 +521,76 @@ test('executor handoff rejects structured workload identity scope and budget coe
     );
   }
 });
+
+
+test('executor finalization rejects rehashed approval authority extensions and expiry coercion',async()=>{
+  const module=await import('../product_intelligence/change_admission.js');
+  const gateway=await import('../authorization_gateway.js');
+  const r=await request('S3');
+  const policy={decision:'ALLOW',request_sha256:r.request_sha256,policy_sha256:'e'.repeat(64),reasons:['bounded external reversible write']};
+  const admission=await evaluateChangeAdmission({
+    request:r,
+    policyDecision:policy,
+    verificationEvidence:[pass('TESTS'),pass('SECURITY'),pass('INDEPENDENT_VERIFIER')],
+    at,
+  });
+  const authorityEnvelope={
+    project_id:projectId,
+    actor_id:'agent_operator_1',
+    agent_id:'agent_executor_1',
+    workload_identity_id:'workload_executor_1',
+    agent_status:'ACTIVE',
+    kill_switch_engaged:false,
+    revoked:false,
+    requester_type:'AGENT',
+    grant:{
+      tool_scopes:['artifact.write'],
+      data_scopes:[projectId],
+      network_policy:{mode:'ALLOWLIST',hosts:['github.example.test']},
+      secrets_policy:'OPAQUE_SHORT_LIVED_OPERATION_SCOPED_NO_PLAINTEXT',
+      budget:{max_compute_units:10},
+    },
+    usage:{compute_units:0},
+    incident_posture:'NORMAL',
+    jurisdiction:'LOCAL_BROWSER',
+  };
+  const handoff=await module.createOperationScopedExecutorHandoff({
+    request:r,
+    admissionResult:admission,
+    authorityEnvelope,
+    operationRequest:{
+      operation:'repo.mutate',
+      target:'frontier/change-set',
+      payload:{change_sha256:'a'.repeat(64)},
+      destination:'https://github.example.test/api/v1/change',
+      compute_units:1,
+      requested_at:at,
+    },
+    at,
+  });
+  const valid=await gateway.createApproval(handoff.execution_request,{
+    actor_id:'human_approver_2',
+    role:'HUMAN_APPROVER',
+    expires_at:'2026-10-07T17:20:00.000Z',
+  });
+  const canonical=value=>{
+    if(Array.isArray(value)) return `[${value.map(canonical).join(',')}]`;
+    if(value&&typeof value==='object') return `{${Object.keys(value).sort().map(key=>`${JSON.stringify(key)}:${canonical(value[key])}`).join(',')}}`;
+    return JSON.stringify(value);
+  };
+  const rehash=async approval=>{
+    const body=Object.fromEntries(Object.entries(approval).filter(([key])=>key!=='approval_sha256'));
+    const digest=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(canonical(body)));
+    return {...approval,approval_sha256:[...new Uint8Array(digest)].map(value=>value.toString(16).padStart(2,'0')).join('')};
+  };
+  const cases=[
+    await rehash({...valid,production_authority:true}),
+    await rehash({...valid,expires_at:[valid.expires_at]}),
+  ];
+  for(const approval of cases){
+    await assert.rejects(
+      ()=>module.finalizeOperationScopedExecutorHandoff({handoff,authorityEnvelope,approvals:[approval]}),
+      /approval|unsupported fields|production_authority|expires_at|string|instant|authority/i,
+    );
+  }
+});
