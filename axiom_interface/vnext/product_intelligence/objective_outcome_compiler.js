@@ -3,8 +3,10 @@ import {assertLivingProductGraph} from './living_product_graph.js';
 const PROJECT_SCHEMA='musitu.axiom.project.v1';
 const OUTCOME_SCHEMA='musitu.axiom.outcome-contract.v1';
 const HASH=/^[a-f0-9]{64}$/i;
+const OUTCOME_CONTRACT_KEYS=new Set(['schema','project_id','contract_id','contract_sha256','project_object_id','title','outcome','success_criteria','constraints','execution_boundary','supersedes_contract_id','created_at','created_by']);
 const clean=(value,max=4000)=>String(value??'').replace(/[\u0000-\u001f\u007f]/g,' ').trim().slice(0,max);
 const isPlainObject=value=>Boolean(value)&&typeof value==='object'&&!Array.isArray(value)&&(Object.getPrototypeOf(value)===Object.prototype||Object.getPrototypeOf(value)===null);
+function rejectUnknownKeys(value,allowed,label){const extra=Object.keys(value).filter(key=>!allowed.has(key));if(extra.length)throw new DOMException(label+' contains unsupported fields: '+extra.join(','),'SecurityError');}
 function canonical(value){
   if(Array.isArray(value)) return `[${value.map(canonical).join(',')}]`;
   if(value&&typeof value==='object') return `{${Object.keys(value).sort().map(key=>`${JSON.stringify(key)}:${canonical(value[key])}`).join(',')}}`;
@@ -51,6 +53,7 @@ async function edge({id,fromId,toId,relation,projectId,actorId,at,generation,evi
 export async function compileObjectiveOutcomeGraph({project,contract,contractVerified,approval=null,generation,actorId,at=new Date().toISOString()}={}){
   if(!isPlainObject(project)||project.schema!==PROJECT_SCHEMA) throw new TypeError('qualified Project record required');
   if(!isPlainObject(contract)||contract.schema!==OUTCOME_SCHEMA) throw new TypeError('qualified Outcome Contract required');
+  rejectUnknownKeys(contract,OUTCOME_CONTRACT_KEYS,'Outcome Contract');
   if(contract.project_id!==project.project_id) throw new DOMException('cross-project outcome contract blocked','SecurityError');
   if(contractVerified!==true) throw new DOMException('contract integrity must be verified','DataError');
   if(typeof contract.contract_sha256!=='string'||!HASH.test(contract.contract_sha256)) throw new TypeError('verified Outcome Contract sha256 required');
