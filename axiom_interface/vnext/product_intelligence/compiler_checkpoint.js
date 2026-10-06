@@ -1,4 +1,4 @@
-import {PRODUCT_COMPILER_IR_SCHEMA,assertProductIRIntegrity} from './product_compiler_ir.js';
+import {PRODUCT_COMPILER_IR_SCHEMA,assertProductIRIntegrity,diffProductIR} from './product_compiler_ir.js';
 
 export const PRODUCT_COMPILER_CHECKPOINT_SCHEMA='musitu.axiom.product-compiler-checkpoint.v1';
 export const PRODUCT_COMPILER_ROLLBACK_SCHEMA='musitu.axiom.product-compiler-rollback-proposal.v1';
@@ -89,6 +89,8 @@ export async function createCompilerCheckpoint(input={},services={}){
   if(diff.prior_ir_sha256!==priorIR.ir_sha256||diff.next_ir_sha256!==nextIR.ir_sha256) throw new TypeError('diff hash binding mismatch');
   if(!['CHANGED','UNCHANGED'].includes(diff.status)) throw new TypeError('compiler diff status invalid');
   if(!['COMPUTED','NOT_PROVEN'].includes(diff.impact_state)) throw new TypeError('compiler diff impact state invalid');
+  const expected_diff=await diffProductIR(priorIR,nextIR);
+  if(canonical(diff)!==canonical(expected_diff)) throw new DOMException('compiler diff semantic mismatch','DataError');
   const impact_node_ids=Array.isArray(diff.impact_node_ids)?[...diff.impact_node_ids]:[];
   const diff_sha256=await sha256(diff);
   const seed=await sha256({project_id,prior_ir_sha256:priorIR.ir_sha256,next_ir_sha256:nextIR.ir_sha256,diff_sha256,created_at,actor_id});
