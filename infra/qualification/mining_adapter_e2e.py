@@ -328,7 +328,7 @@ async def run(output: Path, phase: str) -> dict:
         begin=time.perf_counter()
         try:
             detail=fn()
-            results.append({"name":name,"status":"PASS","elapsed_ms":round((time.perf_counter()-begin)*1000,3),"detail":detail})
+            results.append({"name":name,"status":"PASS","elapsed_ms":round((time.perf_counter()-begin)*1000,3),"detail":json_evidence(detail)})
             return detail
         except Exception as exc:
             results.append({"name":name,"status":"FAIL","elapsed_ms":round((time.perf_counter()-begin)*1000,3),"detail":f"{type(exc).__name__}: {exc}"})
