@@ -2,6 +2,12 @@ name: MUSITU Axiom Reviewer OAuth Diagnostic 20261006
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - frontier/axiom-operator-reviewer-clone-20261006
+    paths:
+      - 'reviewer_clone/diagnose_reviewer_oauth.py'
+      - '.github/workflows/axiom-operator-reviewer-oauth-diagnostic-20261006.yml'
 
 permissions:
   contents: read
