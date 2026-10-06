@@ -206,3 +206,18 @@ test('request envelope rejects unsigned authority extensions that are excluded f
     /unsupported fields|request envelope|authority/i,
   );
 });
+
+
+test('policy decision envelope rejects authority extensions and non-string reasons',async()=>{
+  const r=await request('S1');
+  const base={decision:'ALLOW',request_sha256:r.request_sha256,policy_sha256:'e'.repeat(64),reasons:['bounded private write']};
+  for(const policyDecision of [
+    {...base,production_authority:true},
+    {...base,reasons:[{text:'structured reason'}]},
+  ]){
+    await assert.rejects(
+      ()=>evaluateChangeAdmission({request:r,policyDecision,verificationEvidence:[pass('TESTS')],at}),
+      /unsupported fields|policy.*authority|reasons.*string|string.*reasons/i,
+    );
+  }
+});
