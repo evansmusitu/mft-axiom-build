@@ -1,6 +1,6 @@
 {
   "schema": "musitu.axiom.support-readiness-snapshot.v1",
-  "recorded_at": "2026-10-06T10:40:47Z",
+  "recorded_at": "2026-10-06T11:28:49Z",
   "repository": "evansmusitu/mft-axiom-build",
   "branch": "support/axiom-official-support-20261005",
   "public_operational_claim_authorized": false,
@@ -25,9 +25,18 @@
         "previews_enabled": false,
         "https_edge_reached": true,
         "cf_mitigated": "challenge",
-        "worker_health_verified_on_public_origin": false
+        "worker_health_verified_on_public_origin": false,
+        "verification_repair_run": 37456639074,
+        "verification_repair_source_commit": "ee1385cbb9567c0fe4cb5a4cca1a11ced024b234",
+        "browser_bundle_dependency_closed": true,
+        "browser_app_bundled_with_local_dependencies": true,
+        "customer_case_count_after_repair": 0,
+        "customer_event_count_after_repair": 0,
+        "strict_secret_binding_inheritance": true,
+        "secret_values_exposed": false,
+        "human_edge_challenge_pending": true
       },
-      "next_requirement": "complete the existing Cloudflare managed edge challenge in a real human browser, then verify the support UI and public-origin Worker health without weakening edge security"
+      "next_requirement": "refresh in the already-approved real human browser session, complete the Cloudflare managed edge challenge if shown, then verify the Turnstile widget renders and the public Worker health/UI are reachable without weakening edge security"
     },
     {
       "gate": "SECURE_STORAGE",
@@ -62,9 +71,11 @@
         "action_bound": "support_case_create",
         "private_edge_missing_proof_403_verified": true,
         "private_edge_rate_limit_429_verified": true,
-        "real_widget_token_on_authorized_hostname_verified": false
+        "real_widget_token_on_authorized_hostname_verified": false,
+        "browser_bundle_dependency_closed": true,
+        "public_origin_repair_run": 37456639074
       },
-      "next_requirement": "after completing the existing Cloudflare managed edge challenge in a real human browser, complete a genuine Turnstile widget challenge and require successful server-side hostname/action verification"
+      "next_requirement": "in the real human browser session, confirm the Turnstile widget renders, complete it, and require successful server-side hostname/action verification on a synthetic support case"
     },
     {
       "gate": "HUMAN_SUPPORT_OWNER",
