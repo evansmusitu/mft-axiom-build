@@ -253,3 +253,18 @@ test('compiler version and reverse-inference identities reject structured values
     /actorId.*string|string.*actorId/i,
   );
 });
+
+
+test('replayed IR rejects authority-bearing schema drift and compiler policy escalation before hash interpretation',async()=>{
+  const ir=await compileProductIR(graph(),{bindings,compilerVersion:'1.0.0'});
+  const cases=[
+    [{...structuredClone(ir),release_authority:true},/compiler IR.*unsupported fields|unsupported fields.*release_authority|authority/i],
+    [(()=>{const x=structuredClone(ir);x.units[0].production_authority=true;return x;})(),/unit.*unsupported fields|unsupported fields.*production_authority|authority/i],
+    [(()=>{const x=structuredClone(ir);x.relations[0].certification_authority=true;return x;})(),/relation.*unsupported fields|unsupported fields.*certification_authority|authority/i],
+    [(()=>{const x=structuredClone(ir);x.bindings[0].authority='RELEASE';return x;})(),/binding.*authority|DECLARED_BINDING/i],
+    [(()=>{const x=structuredClone(ir);x.round_trip_policy='AUTO_APPLY';return x;})(),/round_trip_policy|policy/i],
+  ];
+  for(const [candidate,pattern] of cases){
+    await assert.rejects(()=>diffProductIR(ir,candidate),pattern);
+  }
+});
