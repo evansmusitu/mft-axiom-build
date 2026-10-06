@@ -1,0 +1,51 @@
+name: MUSITU Axiom Support Closure Retention Verification Once
+
+on:
+  push:
+    branches:
+      - 'support/axiom-official-support-20261005'
+    paths:
+      - '.github/workflows/axiom-official-support-closure-retention-once.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: musitu-axiom-support-closure-retention
+  cancel-in-progress: false
+
+jobs:
+  verify-live:
+    if: github.event.before == 'a3118e7d302cde1453ecf84af27d8033c61b7b1b'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: axiom-support-production
+    env:
+      SUPPORT_CLOSURE_RETENTION_CONFIRM: VERIFY_MUSITU_AXIOM_SUPPORT_CLOSURE_RETENTION
+      CLOUDFLARE_ACCOUNT_ID: '93f395f5121954671f92fffa453d6b61'
+      CLOUDFLARE_ZONE_ID: '5b56528f03948ff5917a5e0cd9f7109e'
+      SUPPORT_D1_DATABASE_ID: 'a525c8b6-9b44-413b-a219-46e419b71b12'
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_RULESETS_API_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Exact one-shot boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF_NAME" = 'support/axiom-official-support-20261005'
+          test "$GITHUB_REF_NAME" != 'main'
+          test "$GITHUB_EVENT_NAME" = 'push'
+          test "${{ github.event.before }}" = 'a3118e7d302cde1453ecf84af27d8033c61b7b1b'
+      - name: Re-run closure retention contract
+        run: node --test support/tests/case_closure_retention.test.mjs
+      - name: Exercise live closure-driven retention clock
+        run: node support/scripts/verify_closure_retention_live.mjs
+      - name: Publish sanitized closure evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          node -e 'const e=require("./support-closure-retention-live.json"); const h=require("node:fs").readFileSync("support-closure-retention-live.json.sha256","utf8").split(" ")[0]; console.log(JSON.stringify({gate:e.gate,status:e.status,closure_transition_verified:e.closure_transition_verified,retention_expiry_stamped:e.retention_expiry_stamped,expired_case_purged:e.expired_case_purged,live_case_count_after:e.live_case_count_after,live_event_count_after:e.live_event_count_after,purge_authorization_count_after:e.purge_authorization_count_after,deletion_receipt_count_after:e.deletion_receipt_count_after,evidence_sha256:h}))'
+          rm support-closure-retention-live.json support-closure-retention-live.json.sha256
