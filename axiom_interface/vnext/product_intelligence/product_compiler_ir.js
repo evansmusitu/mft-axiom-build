@@ -6,6 +6,7 @@ export const PRODUCT_COMPILER_INFERENCE_SCHEMA='musitu.axiom.product-compiler-in
 
 const HASH=/^[a-f0-9]{64}$/i;
 const BINDING_KEYS=new Set(['binding_id','node_id','region','external_sha256']);
+const OBSERVED_BINDING_KEYS=new Set(['binding_id','external_sha256']);
 const isPlainObject=value=>Boolean(value)&&typeof value==='object'&&!Array.isArray(value)&&(Object.getPrototypeOf(value)===Object.prototype||Object.getPrototypeOf(value)===null);
 const clean=(value,max=1000)=>String(value??'').replace(/[\u0000-\u001f\u007f]/g,' ').trim().slice(0,max);
 const stableId=(value,max=180)=>clean(value,max).replace(/[^A-Za-z0-9_.:-]+/g,'_').replace(/^_+|_+$/g,'')||'unknown';
@@ -213,6 +214,8 @@ export async function reconcileProductIR(ir,observedBindings=[]){
   const observed=new Map();
   for(const [index,item] of observedBindings.entries()){
     if(!isPlainObject(item)) throw new TypeError(`observed binding[${index}] must be a plain object`);
+    rejectUnknownKeys(item,OBSERVED_BINDING_KEYS,`observed binding[${index}]`);
+    for(const key of OBSERVED_BINDING_KEYS) if(typeof item[key]!=='string') throw new TypeError(`observed binding[${index}] ${key} must be a string`);
     const binding_id=clean(item.binding_id,180),external_sha256=clean(item.external_sha256,64).toLowerCase();
     if(!binding_id||observed.has(binding_id)) throw new TypeError(`observed binding[${index}] binding_id must be unique and non-empty`);
     if(!HASH.test(external_sha256)) throw new TypeError(`observed binding[${index}] external_sha256 must be sha256 hex`);
