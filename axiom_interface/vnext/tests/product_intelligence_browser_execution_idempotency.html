@@ -228,6 +228,50 @@ try{
     invariant(integrity.status==='PASS',`failed terminal commit damaged store integrity: ${integrity.errors.join(',')}`);
     inspect.db.close();
     out.textContent='MUSITU_AXIOM_PHASE2_BROWSER_TERMINAL_COMMIT_ATOMICITY_PASS';
+  }else if(phase==='process-kill-arm'){
+    const projectId='project_browser_process_kill_12345678';
+    const authority=authorityFor(projectId);
+    const store=await GovernedExecutionStore.open();
+    const sandbox=await store.createSandbox(authority,{label:'Process-kill terminal transaction'});
+    const proposed=await store.propose(sandbox.sandbox_id,authority,{
+      operation:'file.write',
+      target:'process-kill-window.txt',
+      payload:{content:'must not survive SIGKILL before terminal transaction commit'},
+      compute_units:1,
+      instruction_provenance:'GOVERNED_PLAN',
+      requested_at:'2026-10-06T20:10:00.000Z',
+    });
+    invariant(proposed.decision.status==='AUTHORIZED','process-kill request must be authorized');
+    localStorage.setItem('axiom_process_kill_state',JSON.stringify({projectId,authority,requestSha:proposed.request.request_sha256,sandboxId:sandbox.sandbox_id}));
+    const originalPut=IDBObjectStore.prototype.put;
+    IDBObjectStore.prototype.put=function(value,...args){
+      if(this.name==='events'&&value?.kind==='execution.completed'){
+        fetch('/__axiom_crash_ready',{method:'POST',body:'terminal-transaction-open',keepalive:true}).catch(()=>{});
+        const until=performance.now()+15000;
+        while(performance.now()<until){}
+      }
+      return originalPut.call(this,value,...args);
+    };
+    out.textContent='MUSITU_AXIOM_PHASE2_BROWSER_PROCESS_KILL_ARMED';
+    await store.execute(proposed.request.request_sha256,authority);
+    IDBObjectStore.prototype.put=originalPut;
+    out.textContent='MUSITU_AXIOM_PHASE2_BROWSER_IDEMPOTENCY_FAIL:Error:process was not killed during terminal transaction';
+  }else if(phase==='process-kill-inspect'){
+    const saved=JSON.parse(localStorage.getItem('axiom_process_kill_state')||'null');
+    invariant(saved,'process-kill seed state missing');
+    const store=await GovernedExecutionStore.open();
+    const terminal=await terminalReceipts(store,saved.projectId,saved.requestSha);
+    const events=await completedEvents(store,saved.projectId,saved.requestSha);
+    const sandbox=await store.getSandbox(saved.sandboxId);
+    const claims=await store._all('execution_claims',saved.projectId);
+    invariant(terminal.length===0,`process kill leaked ${terminal.length} terminal receipts`);
+    invariant(events.length===0,`process kill leaked ${events.length} completion events`);
+    invariant(!Object.hasOwn(sandbox.worktrees.main.files,'process-kill-window.txt'),'process kill leaked persisted sandbox mutation');
+    invariant(claims.length===1,'process kill must preserve one recoverable execution claim');
+    const integrity=await store.verify(saved.projectId);
+    invariant(integrity.status==='PASS',`process-kill recovery store integrity failed: ${integrity.errors.join(',')}`);
+    store.db.close();
+    out.textContent='MUSITU_AXIOM_PHASE2_BROWSER_PROCESS_KILL_ATOMICITY_PASS';
   }else{
     throw new Error('unknown qualification phase');
   }
