@@ -1,0 +1,37 @@
+name: MUSITU Axiom Operator Reviewer MCP Compatibility Deploy 20261006
+
+on:
+  push:
+    branches:
+      - frontier/axiom-operator-reviewer-clone-20261006
+    paths:
+      - 'reviewer_clone/musitu_axiom_operator_reviewer_gate.mjs'
+      - 'reviewer_clone/deploy_reviewer_mcp_compat.py'
+      - '.github/workflows/axiom-operator-reviewer-mcp-compat-20261006.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  deploy-mcp-only:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: '3.13'
+      - name: Deploy reviewer MCP compatibility code only
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$CLOUDFLARE_API_TOKEN"
+          node frontier_v5/tests/test_operator_reviewer_clone.mjs
+          node --check reviewer_clone/musitu_axiom_operator_reviewer_gate.mjs
+          python reviewer_clone/deploy_reviewer_mcp_compat.py | tee /tmp/reviewer-mcp-compat.log
+          grep -q 'MUSITU_AXIOM_OPERATOR_REVIEWER_MCP_COMPAT_DEPLOY_PASS' /tmp/reviewer-mcp-compat.log
