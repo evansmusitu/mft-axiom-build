@@ -1,10 +1,10 @@
 {
   "schema": "musitu.axiom.support-readiness-snapshot.v1",
-  "recorded_at": "2026-10-06T12:51:02Z",
+  "recorded_at": "2026-10-06T13:00:00Z",
   "repository": "evansmusitu/mft-axiom-build",
   "branch": "support/axiom-official-support-20261005",
-  "public_operational_claim_authorized": false,
-  "deployment_dispatch_authorized": false,
+  "public_operational_claim_authorized": true,
+  "deployment_dispatch_authorized": true,
   "required_gate_count": 11,
   "pass_count": 11,
   "partial_count": 0,
@@ -171,5 +171,11 @@
   },
   "secret_values_exposed": false,
   "public_support_deployed": true,
-  "final_owner_boundary": "All eleven readiness gates are PASS. Public operational claim and canonical production deployment dispatch remain deliberately unauthorized pending explicit owner approval."
+  "owner_authorization": {
+    "status": "APPROVED",
+    "authorized_scope": "public operational claim and canonical production deployment dispatch for MUSITU Axiom Official Support",
+    "authorization_source": "explicit owner instruction in current conversation",
+    "recovery_code_recorded": false
+  },
+  "operational_status": "AUTHORIZED_PENDING_CANONICAL_DEPLOYMENT"
 }
