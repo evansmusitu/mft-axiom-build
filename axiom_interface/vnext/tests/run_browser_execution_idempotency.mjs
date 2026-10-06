@@ -4,6 +4,7 @@ import {readFile} from 'node:fs/promises';
 import {mkdtemp,rm} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import path from 'node:path';
+import {createServer as createNetServer} from 'node:net';
 
 const browser=process.env.BROWSER_BIN;
 if(!browser) throw new Error('BROWSER_BIN is required');
@@ -40,9 +41,16 @@ await new Promise((resolve,reject)=>{server.once('error',reject);server.listen(0
 const port=server.address().port;
 const origin=`http://127.0.0.1:${port}`;
 const profile=await mkdtemp(path.join(tmpdir(),'axiom-phase2-browser-profile-'));
-const debugPort=9333;
 
 const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
+async function allocateDebugPort(){
+  const socket=createNetServer();
+  await new Promise((resolve,reject)=>{socket.once('error',reject);socket.listen(0,'127.0.0.1',resolve);});
+  const port=socket.address().port;
+  await new Promise(resolve=>socket.close(resolve));
+  return port;
+}
+
 async function waitJson(url,timeoutMs=10000){
   const deadline=Date.now()+timeoutMs;
   let last;
@@ -79,6 +87,7 @@ async function cdpSession(wsUrl){
 }
 
 async function launchSeparateTabRace(){
+  const debugPort=await allocateDebugPort();
   const chrome=spawn(browser,[
     '--headless=new','--no-sandbox','--disable-gpu','--disable-dev-shm-usage',
     `--user-data-dir=${profile}`,`--remote-debugging-port=${debugPort}`,'about:blank',
@@ -155,6 +164,7 @@ async function launchSeparateTabRace(){
 
 
 async function launchProcessKillPhase(){
+  const debugPort=await allocateDebugPort();
   crashReady=new Promise(resolve=>{crashReadyResolve=resolve;});
   const chrome=spawn(browser,[
     '--headless=new','--no-sandbox','--disable-gpu','--disable-dev-shm-usage',
@@ -194,6 +204,7 @@ async function launchProcessKillPhase(){
 }
 
 async function launchPhase(phase,expectedMarker){
+  const debugPort=await allocateDebugPort();
   const chrome=spawn(browser,[
     '--headless=new','--no-sandbox','--disable-gpu','--disable-dev-shm-usage',
     `--user-data-dir=${profile}`,`--remote-debugging-port=${debugPort}`,'about:blank',
