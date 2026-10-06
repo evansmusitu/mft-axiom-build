@@ -8,6 +8,7 @@ const HANDOFF_KEYS=new Set(['schema','scope','project_id','work_id','checkpoint_
 const REQUEST_KEYS=new Set(['schema','project_id','actor_id','agent_id','workload_identity_id','operation','computed_risk_class','risk_class','effect','reversible','external','required_tool_scope','target','payload','destination','compute_units','instruction_provenance','requested_at','authority_sha256','execution_mode','request_sha256']);
 const RECEIPT_KEYS=new Set(['schema','receipt_id','project_id','sandbox_id','request_sha256','risk_class','status','result','reason','rollback_available','external_action_executed','network_request_performed','host_shell_executed','plaintext_secret_access','created_at','receipt_sha256']);
 const INTEGRITY_KEYS=new Set(['schema','project_id','status','errors','event_count','network_policy','secrets_policy','integrity_sha256']);
+const VERIFIED_OUTCOME_KEYS=new Set(['schema','project_id','work_id','checkpoint_sha256','handoff_sha256','request_sha256','receipt_id','receipt_sha256','execution_integrity_sha256','operation','risk_class','execution_status','status','verifier_actor_id','independent_verification','rollback_available','failure_state','failure_reason','external_action_executed','network_request_performed','host_shell_executed','plaintext_secret_access','authority_effect','release_authority','production_authority','certification_authority','created_at','verification_sha256']);
 const isPlainObject=value=>Boolean(value)&&typeof value==='object'&&!Array.isArray(value)&&(Object.getPrototypeOf(value)===Object.prototype||Object.getPrototypeOf(value)===null);
 const clean=(value,max=300)=>String(value??'').replace(/[\u0000-\u001f\u007f]/g,' ').trim().slice(0,max);
 function rejectUnknown(value,allowed,label){const extra=Object.keys(value).filter(key=>!allowed.has(key));if(extra.length)throw new DOMException(label+' contains unsupported fields: '+extra.join(','),'SecurityError');}
@@ -114,11 +115,36 @@ export async function verifyOperationScopedExecutionOutcome({handoff,receipt,exe
   return Object.freeze({...body,verification_sha256:await sha256(body)});
 }
 
-export async function createExecutionOutcomeEvidence(verified){
+
+
+async function assertVerifiedOutcome(verified){
   if(!isPlainObject(verified)||verified.schema!==EXECUTION_OUTCOME_VERIFICATION_SCHEMA)throw new TypeError('verified execution outcome required');
-  requireHash(verified.verification_sha256,'verification_sha256');
+  rejectUnknown(verified,VERIFIED_OUTCOME_KEYS,'verified execution outcome');
+  for(const key of ['project_id','receipt_id','operation','risk_class','verifier_actor_id'])requireString(verified[key],`verifiedOutcome.${key}`,300);
+  if(typeof verified.work_id!=='string'||clean(verified.work_id,300)!==verified.work_id)throw new TypeError('verifiedOutcome.work_id must be a normalized string');
+  for(const key of ['checkpoint_sha256','handoff_sha256','request_sha256','receipt_sha256','execution_integrity_sha256','verification_sha256'])requireHash(verified[key],`verifiedOutcome.${key}`);
   if(await sha256(bodyWithout(verified,'verification_sha256'))!==verified.verification_sha256)throw new DOMException('verified execution outcome integrity failure','DataError');
-  if(verified.independent_verification!=='PASS'||verified.authority_effect!=='NONE'||verified.release_authority!==false||verified.production_authority!==false||verified.certification_authority!==false)throw new DOMException('verified execution outcome authority boundary invalid','SecurityError');
+  canonicalIso(verified.created_at,'verifiedOutcome.created_at');
+  if(!['S0','S1','S2','S3','S4','S5'].includes(verified.risk_class))throw new TypeError('verifiedOutcome.risk_class must be S0..S5');
+  if(!['COMPLETED','BLOCKED'].includes(verified.execution_status))throw new TypeError('verifiedOutcome.execution_status must be COMPLETED or BLOCKED');
+  const expectedStatus=verified.execution_status==='COMPLETED'?'VERIFIED_COMPLETED':'VERIFIED_BLOCKED';
+  if(verified.status!==expectedStatus)throw new DOMException('verified execution outcome status semantic mismatch','DataError');
+  if(verified.independent_verification!=='PASS')throw new DOMException('verified execution outcome independent verification must PASS','SecurityError');
+  if(typeof verified.rollback_available!=='boolean')throw new TypeError('verifiedOutcome.rollback_available must be boolean');
+  if(verified.execution_status==='COMPLETED'){
+    if(verified.failure_state!=='NONE'||verified.failure_reason!==null)throw new DOMException('completed outcome cannot carry failure state','DataError');
+  }else{
+    if(verified.failure_state!=='BLOCKED')throw new DOMException('blocked outcome must preserve BLOCKED failure state','DataError');
+    requireString(verified.failure_reason,'verifiedOutcome.failure_reason',300);
+    if(verified.rollback_available!==false)throw new DOMException('blocked outcome cannot claim rollback availability','DataError');
+  }
+  for(const key of ['external_action_executed','network_request_performed','host_shell_executed','plaintext_secret_access'])if(verified[key]!==false)throw new DOMException(`verified execution outcome ${key} must remain false`,'SecurityError');
+  if(verified.authority_effect!=='NONE'||verified.release_authority!==false||verified.production_authority!==false||verified.certification_authority!==false)throw new DOMException('verified execution outcome authority boundary invalid','SecurityError');
+  return verified;
+}
+
+export async function createExecutionOutcomeEvidence(verified){
+  await assertVerifiedOutcome(verified);
   const evidence={
     schema:'musitu.axiom.evidence.v1',
     type:'Evidence',
