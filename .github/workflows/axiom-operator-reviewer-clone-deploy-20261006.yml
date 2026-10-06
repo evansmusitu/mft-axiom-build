@@ -27,7 +27,7 @@ jobs:
       REVIEWER_DB_NAME: musitu-axiom-operator-reviewer-20261006
       OAUTH_WORKER: musitu-axiom-operator-reviewer-oauth-20261006
       MCP_WORKER: musitu-axiom-operator-reviewer-mcp-20261006
-      OPERATOR_APP: musitu-axiom-operator-private-20261006
+      OPERATOR_APP: musitu-axiom-operator-reviewer-private-20261006
       MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID }}
       MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET }}
     steps:
@@ -51,6 +51,7 @@ jobs:
           node --check reviewer_clone/musitu_axiom_operator_reviewer_oauth.mjs
           node --check reviewer_clone/musitu_axiom_operator_reviewer_gate.mjs
           python -m py_compile reviewer_clone/deploy_operator_reviewer_clone.py
+          python -m py_compile reviewer_clone/modal_operator_reviewer_proxy.py
 
       - name: Deploy and qualify isolated reviewer clone
         env:
@@ -62,6 +63,7 @@ jobs:
           test -n "$MODAL_TOKEN_ID"
           test -n "$MODAL_TOKEN_SECRET"
           python -m pip install --disable-pip-version-check --quiet 'modal>=1.5,<2'
+          modal deploy reviewer_clone/modal_operator_reviewer_proxy.py --name "$OPERATOR_APP" --strategy recreate --tag "$GITHUB_SHA" | tee /tmp/operator-reviewer-modal-deploy.log
           python reviewer_clone/deploy_operator_reviewer_clone.py | tee /tmp/operator-reviewer-clone-deploy.log
           grep -q 'MUSITU_AXIOM_OPERATOR_REVIEWER_CLONE_DEPLOY_PASS' /tmp/operator-reviewer-clone-deploy.log
 
