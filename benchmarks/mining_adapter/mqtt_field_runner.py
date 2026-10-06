@@ -20,7 +20,7 @@ if str(ROOT) not in sys.path:
 
 import paho.mqtt.client as mqtt
 
-from benchmarks.mining_adapter.industrial_field import IndustrialWorkloadSpec, mining_row, workload_fingerprint
+from benchmarks.mining_adapter.industrial_field import IndustrialWorkloadSpec, MqttSubscriptionBarrier, mining_row, workload_fingerprint
 from connect.adapters import AdapterCatalog, AdapterContract
 from connect.axiom_gateway import AxiomGateway
 from connect.core import IntegrationGate
@@ -71,6 +71,7 @@ class FieldSession:
         self.host=host; self.port=port; self.label=label; self.service=service; self.qos=qos; self.timeout=timeout
         self.topic_root=f"musitu/field/{label}"
         self.pub_connected=threading.Event(); self.sub_connected=threading.Event()
+        self.subscription_barrier=MqttSubscriptionBarrier()
         self.lock=threading.RLock()
         self.sent_at: dict[tuple[str,int],float]={}; self.seen: set[tuple[str,int]]=set()
         self.phase_rows={"stress":0,"soak":0}; self.latency_ms={"stress":[],"soak":[]}
@@ -93,6 +94,7 @@ class FieldSession:
         # A TCP/MQTT CONNECT acknowledgement is not enough for lossless
         # recovery. Publishing may resume only after the broker confirms the
         # wildcard subscription with SUBACK.
+        self.subscription_barrier.mark_connected()
         self.sub_connected.clear()
         result,_mid=client.subscribe(f"{self.topic_root}/#",qos=self.qos)
         if result != mqtt.MQTT_ERR_SUCCESS:
@@ -104,12 +106,15 @@ class FieldSession:
             with self.lock: self.errors.append("subscribe_ack_failed")
             self.sub_connected.clear()
             return
-        self.sub_connected.set()
+        self.subscription_barrier.mark_subscribed()
+        if self.subscription_barrier.ready:
+            self.sub_connected.set()
 
     def _on_pub_connect(self, _client, _userdata, _flags, reason_code, _properties):
         if not self._failed(reason_code): self.pub_connected.set()
 
     def _on_sub_disconnect(self, *_args):
+        self.subscription_barrier.mark_disconnected()
         self.subscriber_disconnects += 1; self.sub_connected.clear()
 
     def _on_pub_disconnect(self, *_args):
