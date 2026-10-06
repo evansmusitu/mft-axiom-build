@@ -337,3 +337,68 @@ test('verified FA-11 completed receipt becomes AXIOM Evidence without gaining au
   assert.equal(evidence.data.verification.production_authority,false);
   assert.equal(evidence.data.verification.certification_authority,false);
 });
+
+
+test('blocked external execution remains failure evidence and cannot be forged completed',async()=>{
+  const module=await import('../product_intelligence/living_product_graph.js');
+  const security=await import('../execution_security.js');
+  const at='2026-10-06T12:40:00.000Z';
+  const requestBody={
+    schema:'musitu.axiom.execution-request.browser.v1',project_id:'project_12345678',
+    actor_id:'agent_operator_1',agent_id:'agent_executor_1',workload_identity_id:'workload_executor_1',
+    operation:'repo.mutate',computed_risk_class:'S3',risk_class:'S3',effect:'EXTERNAL_REVERSIBLE_WRITE',
+    reversible:true,external:true,required_tool_scope:'artifact.write',target:'frontier/change-set',
+    payload:{change_sha256:'a'.repeat(64)},destination:'https://github.example.test/api/v1/change',
+    compute_units:1,instruction_provenance:'GOVERNED_PLAN',requested_at:at,authority_sha256:'b'.repeat(64),
+    execution_mode:'BROWSER_LOCAL_GOVERNED_EXECUTION_SUBSTRATE',
+  };
+  const executionRequest={...requestBody,request_sha256:await security.sha256(requestBody)};
+  const handoffBody={
+    schema:'musitu.axiom.product-operation-scoped-executor-handoff.v1',scope:'SINGLE_OPERATION',
+    project_id:'project_12345678',work_id:'work_12345678',checkpoint_sha256:'c'.repeat(64),
+    change_admission_request_sha256:'d'.repeat(64),change_admission_evaluation_sha256:'e'.repeat(64),
+    authority_sha256:executionRequest.authority_sha256,actor_id:'agent_operator_1',agent_id:'agent_executor_1',
+    workload_identity_id:'workload_executor_1',builder_actor_id:'agent_builder_1',risk_class:'S3',
+    operation:'repo.mutate',execution_request:executionRequest,authority_effect:'NONE',execution_authority:false,
+    external_execution_authority:false,release_authority:false,production_authority:false,certification_authority:false,
+    created_at:at,
+  };
+  const handoff={...handoffBody,handoff_sha256:await security.sha256(handoffBody)};
+  const blockedBody={
+    schema:'musitu.axiom.execution-receipt.browser.v1',receipt_id:'execution-receipt_blocked_1',
+    project_id:'project_12345678',sandbox_id:'sandbox_12345678',request_sha256:executionRequest.request_sha256,
+    risk_class:'S3',status:'BLOCKED',reason:'QUALIFIED_EXTERNAL_EXECUTOR_REQUIRED',rollback_available:false,
+    external_action_executed:false,network_request_performed:false,host_shell_executed:false,
+    plaintext_secret_access:false,created_at:at,
+  };
+  const blocked={...blockedBody,receipt_sha256:await security.sha256(blockedBody)};
+  const integrityBody={schema:'musitu.axiom.execution-integrity.browser.v1',project_id:'project_12345678',status:'PASS',
+    errors:[],event_count:4,network_policy:'DENY_ALL_EXTERNAL_NETWORK',secrets_policy:'OPAQUE_SHORT_LIVED_OPERATION_SCOPED_NO_PLAINTEXT'};
+  const executionIntegrity={...integrityBody,integrity_sha256:await security.sha256(integrityBody)};
+
+  const verified=await module.verifyOperationScopedExecutionOutcome({
+    handoff,receipt:blocked,executionIntegrity,verifierActorId:'agent_verifier_2',at,
+  });
+  assert.equal(verified.status,'VERIFIED_BLOCKED');
+  assert.equal(verified.execution_status,'BLOCKED');
+  assert.equal(verified.failure_state,'BLOCKED');
+  assert.equal(verified.failure_reason,'QUALIFIED_EXTERNAL_EXECUTOR_REQUIRED');
+  assert.equal(verified.rollback_available,false);
+  const evidence=await module.createExecutionOutcomeEvidence(verified);
+  assert.deepEqual(evidence.data.failures,[{status:'BLOCKED',reason:'QUALIFIED_EXTERNAL_EXECUTOR_REQUIRED'}]);
+
+  const forgedCompletedBody={
+    schema:'musitu.axiom.execution-receipt.browser.v1',receipt_id:'execution-receipt_forged_1',
+    project_id:'project_12345678',sandbox_id:'sandbox_12345678',request_sha256:executionRequest.request_sha256,
+    risk_class:'S3',status:'COMPLETED',result:{commit_sha256:'f'.repeat(64)},rollback_available:true,
+    external_action_executed:false,network_request_performed:false,host_shell_executed:false,
+    plaintext_secret_access:false,created_at:at,
+  };
+  const forgedCompleted={...forgedCompletedBody,receipt_sha256:await security.sha256(forgedCompletedBody)};
+  await assert.rejects(
+    ()=>module.verifyOperationScopedExecutionOutcome({
+      handoff,receipt:forgedCompleted,executionIntegrity,verifierActorId:'agent_verifier_2',at,
+    }),
+    /cannot complete external|external operation|browser-local/i,
+  );
+});
