@@ -305,3 +305,23 @@ test('rehashed admission request rejects malformed primitive bindings before pol
     );
   }
 });
+
+
+test('human approval receipt rejects authority extensions and structured identity fields',async()=>{
+  const r=await request('S4');
+  const policy={decision:'ALLOW',request_sha256:r.request_sha256,policy_sha256:'e'.repeat(64),reasons:['release policy passed']};
+  const verification=[pass('TESTS'),pass('SECURITY'),pass('INDEPENDENT_VERIFIER')];
+  const valid={decision:'ALLOW',request_sha256:r.request_sha256,actor_id:'user_final_authority',receipt_id:'approval_12345678',at};
+  const cases=[
+    {...valid,production_authority:true},
+    {...valid,actor_id:['user_final_authority']},
+    {...valid,receipt_id:{value:'approval_12345678'}},
+    {...valid,at:[at]},
+  ];
+  for(const humanApproval of cases){
+    await assert.rejects(
+      ()=>evaluateChangeAdmission({request:r,policyDecision:policy,verificationEvidence:verification,humanApproval,at}),
+      /human approval|unsupported fields|actor_id|receipt_id|at|string|authority/i,
+    );
+  }
+});
