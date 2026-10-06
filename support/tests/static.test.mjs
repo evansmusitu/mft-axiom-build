@@ -61,5 +61,6 @@ test('deployment documentation refuses unverified public and operating claims', 
   assert.match(readme, /not a live claim until deployment verification passes/i);
   assert.match(readme, /designated, trained human support owner/i);
   assert.match(policy, /not contractual guarantees/i);
-  assert.match(threat, /human role identities remain deployment prerequisites/i);
+  assert.match(threat, /support hostname remains non-public/i);
+  assert.match(threat, /email routing and delivery are verified/i);
 });
