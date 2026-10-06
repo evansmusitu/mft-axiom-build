@@ -26,4 +26,4 @@ The primary owner may triage, assign and coordinate cases. Identity or entitleme
 - Customer narratives remain encrypted at rest and are accessed only through one-time recovery credentials.
 - Public incident statements require evidence and an independent verifier.
 - Support targets are operational objectives, not contractual guarantees, until formally published in customer terms.
-- The public support mailbox is not claimed operational until destination verification and end-to-end delivery pass.
+- Support mailbox routing and end-to-end delivery are verified. This does not make the web support service publicly operational; publication still requires the remaining readiness gates and explicit hostname deployment authorization.
