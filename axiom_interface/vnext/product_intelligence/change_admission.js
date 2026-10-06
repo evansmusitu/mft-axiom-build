@@ -14,6 +14,7 @@ export const CHANGE_RISK_MODEL=Object.freeze({
 
 const HASH=/^[a-f0-9]{64}$/i;
 const REQUEST_KEYS=new Set(['schema','project_id','work_id','checkpoint_id','checkpoint_sha256','builder_actor_id','requested_action','risk_class','required_verifications','human_approval_required','policy_engine_authority','builder_may_approve','external_execution_authority','production_authority','created_at','request_sha256']);
+const POLICY_DECISION_KEYS=new Set(['decision','request_sha256','policy_sha256','reasons']);
 const isPlainObject=value=>Boolean(value)&&typeof value==='object'&&!Array.isArray(value)&&(Object.getPrototypeOf(value)===Object.prototype||Object.getPrototypeOf(value)===null);
 const clean=(value,max=1000)=>String(value??'').replace(/[\u0000-\u001f\u007f]/g,' ').trim().slice(0,max);
 function rejectUnknownKeys(value,allowed,label){const extra=Object.keys(value).filter(key=>!allowed.has(key));if(extra.length)throw new DOMException(label+' contains unsupported fields: '+extra.join(','),'SecurityError');}
@@ -125,10 +126,11 @@ function humanApprovalState(request,humanApproval){
 export async function evaluateChangeAdmission({request,policyDecision,verificationEvidence=[],humanApproval=null,at=new Date().toISOString()}={}){
   await assertRequestIntegrity(request);
   if(!isPlainObject(policyDecision)) throw new TypeError('policyDecision required');
+  rejectUnknownKeys(policyDecision,POLICY_DECISION_KEYS,'policy decision');
   if(!['ALLOW','DENY','NEEDS_HUMAN'].includes(policyDecision.decision)) throw new TypeError('policy decision must be ALLOW, DENY or NEEDS_HUMAN');
   if(policyDecision.request_sha256!==request.request_sha256) throw new DOMException('policy decision is not bound to admission request','DataError');
   if(typeof policyDecision.policy_sha256!=='string'||!HASH.test(policyDecision.policy_sha256)) throw new TypeError('policy_sha256 required');
-  if(!Array.isArray(policyDecision.reasons)) throw new TypeError('policy decision reasons must be an array');
+  if(!Array.isArray(policyDecision.reasons)||policyDecision.reasons.some(reason=>typeof reason!=='string')) throw new TypeError('policy decision reasons must be an array of strings');
   const created_at=iso(at);
   const evidence=normalizeVerificationEvidence(request,verificationEvidence);
   const missing=request.required_verifications.filter(kind=>!evidence.has(kind));
