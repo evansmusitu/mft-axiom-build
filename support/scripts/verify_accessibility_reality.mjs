@@ -92,12 +92,16 @@ export async function verifyAccessibilityReality({now=new Date().toISOString()}=
     if(reduced.reduced_motion_scroll_behavior_auto!==true) failures.push('reduced-motion: scroll behavior is not auto');
 
     const basis=JSON.stringify(views);
+    const humanVerifierRef=String(process.env.SUPPORT_ACCESSIBILITY_HUMAN_VERIFIER_REF||'').trim();
+    const automatedStatus=failures.length?'FAIL':'PASS';
+    const finalStatus=automatedStatus==='PASS' && humanVerifierRef ? 'PASS' : automatedStatus==='PASS' ? 'PARTIAL' : 'FAIL';
     return {
       schema:'musitu.axiom.support-readiness-evidence.v1',
       gate:'ACCESSIBILITY_REALITY',
-      status:failures.length?'FAIL':'PASS',
+      status:finalStatus,
+      automated_status:automatedStatus,
       verified_at:now,
-      verifier_ref:'github-actions:playwright-chromium+axe',
+      verifier_ref:humanVerifierRef || 'github-actions:playwright-chromium+axe',
       artifact_sha256:sha256(basis),
       browser:'chromium',
       desktop,
@@ -105,7 +109,8 @@ export async function verifyAccessibilityReality({now=new Date().toISOString()}=
       reduced_motion:reduced,
       failures,
       real_browser_rendering:true,
-      real_physical_device_user_tested:false,
+      real_physical_device_user_tested:Boolean(humanVerifierRef),
+      human_verifier_ref_recorded:Boolean(humanVerifierRef),
       public_origin_used:false,
       public_support_deployed:false,
       secret_exposed:false,
@@ -128,6 +133,6 @@ export async function main(){
     failures:evidence.failures,
     violation_ids:[...new Set([evidence.desktop,evidence.mobile,evidence.reduced_motion].flatMap(v=>v.axe_violation_ids))].sort(),
   })+'\n');
-  if(evidence.status!=='PASS') process.exitCode=1;
+  if(evidence.automated_status!=='PASS') process.exitCode=1;
 }
 if(import.meta.url===pathToFileURL(process.argv[1]||'').href) await main();
