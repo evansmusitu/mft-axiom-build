@@ -1,0 +1,156 @@
+{
+  "schema": "musitu.axiom.phase2.browser-durable-execution-idempotency-qualification.v1",
+  "recorded_date": "2026-10-06",
+  "source_authority": {
+    "repository": "evansmusitu/mft-axiom-build",
+    "branch": "frontier/axiom-product-intelligence-phase2-20261004",
+    "predecessor_execution_failure_idempotency_evidence_commit": "c9f31176858bfdffbb9b0dc90ce3e68efba6e3ca",
+    "final_hardened_head": "3046b99c3dc0560766f4556c73380798558c4065",
+    "execution_store_path": "axiom_interface/vnext/execution_store.js",
+    "execution_store_git_blob": "edfa79474895b0bafd759c69b68221611251d410",
+    "browser_qualification_page_path": "axiom_interface/vnext/tests/product_intelligence_browser_execution_idempotency.html",
+    "browser_qualification_page_git_blob": "286c6618031731b43f69789c0e5af9bdcad0aef8",
+    "browser_runner_path": "axiom_interface/vnext/tests/run_browser_execution_idempotency.mjs",
+    "browser_runner_git_blob": "e625f78c37e5570faf78187e15d526fd4f024571",
+    "gate_workflow_path": ".github/workflows/axiom-product-intelligence-phase2-gate.yml",
+    "gate_workflow_git_blob": "e49397d893214cfa4eac37e72902bc276497b1cb",
+    "predecessor_evidence_path": "axiom_interface/vnext/product_intelligence/evidence/phase2_execution_failure_idempotency_qualification_20261006.json",
+    "predecessor_evidence_git_blob": "bff453d4afc92d7371b7fb607f7a969d15414483"
+  },
+  "browser_runtime": {
+    "observed_runtime": "Google Chrome 154.0.8037.57",
+    "environment": "GitHub Actions ubuntu-24.04 headless Chrome",
+    "exact_runtime_pin": "NOT_PROVEN",
+    "qualification_scope": "OBSERVED_RUNTIME_ONLY"
+  },
+  "tdd": {
+    "observed_red_green_behavior_cycles": 1,
+    "invalid_harness_runs_excluded": [
+      {
+        "commit": "8ec3d9f0248643452f27867f77464ea1afb0717e",
+        "run_id": 37512772771,
+        "focused_job_id": 112437921790,
+        "independent_job_id": 112438080791,
+        "recorded_job_conclusion": "success",
+        "reason_excluded": "dump-dom grep matched marker strings inside JavaScript source while rendered result was still RUNNING or failure; false-positive harness cannot qualify behavior"
+      }
+    ],
+    "cycle": {
+      "behavior": "two independent GovernedExecutionStore IndexedDB connections racing the same authorized request must persist at most one terminal receipt and one completion event",
+      "red_commit": "c8c6084b58c7f083310d2981968ad733c6a00c5d",
+      "red_run_id": 37513168638,
+      "red_focused_job_id": 112439271418,
+      "red_conclusion": "failure",
+      "red_observation": "SEED_PASS_RESTART_REPLAY_PASS_CONCURRENT_FAIL_CROSS_INSTANCE_CONCURRENCY_PERSISTED_2_TERMINAL_RECEIPTS",
+      "red_browser_runtime": "Google Chrome 154.0.8037.57",
+      "implementation_commits": [
+        "080ae5d06a1b6f0e6b1b38bce1c39482ce2a944c",
+        "25a7bd984569eb8d45b9e767894ef94bf0ec6c96"
+      ],
+      "intermediate_green_attempt": {
+        "commit": "080ae5d06a1b6f0e6b1b38bce1c39482ce2a944c",
+        "run_id": 37513429451,
+        "focused_job_id": 112440174983,
+        "conclusion": "failure",
+        "preserved_regression": "four deterministic MemoryExecutionStore regressions failed because the first claim implementation assumed a real IndexedDB handle"
+      },
+      "green_commit": "25a7bd984569eb8d45b9e767894ef94bf0ec6c96",
+      "green_run_id": 37513648356,
+      "green_focused_job_id": 112440909798,
+      "green_independent_job_id": 112441086692,
+      "green_conclusion": "success",
+      "green_browser_markers": [
+        "MUSITU_AXIOM_PHASE2_BROWSER_RESTART_SEED_PASS",
+        "MUSITU_AXIOM_PHASE2_BROWSER_RESTART_REPLAY_PASS",
+        "MUSITU_AXIOM_PHASE2_BROWSER_CROSS_INSTANCE_ATOMIC_PASS",
+        "MUSITU_AXIOM_PHASE2_BROWSER_DURABLE_IDEMPOTENCY_QUALIFICATION_PASS"
+      ],
+      "independent_frozen_replay": "PASS_158_OF_158"
+    },
+    "coverage_only_not_counted_as_tdd": {
+      "behavior": "terminal receipt survives a real Chrome process restart using the same profile and IndexedDB origin without creating a second receipt or completion event",
+      "proved_before_production_change": true,
+      "red_run_id": 37513168638,
+      "focused_job_id": 112439271418,
+      "observed_markers": [
+        "MUSITU_AXIOM_PHASE2_BROWSER_RESTART_SEED_PASS",
+        "MUSITU_AXIOM_PHASE2_BROWSER_RESTART_REPLAY_PASS"
+      ],
+      "reason_not_counted": "restart replay already passed in the valid RED run before the cross-instance claim implementation"
+    },
+    "assertions_weakened_to_pass": false
+  },
+  "final_governance_gate": {
+    "commit": "3046b99c3dc0560766f4556c73380798558c4065",
+    "run_id": 37513868820,
+    "focused_job_id": 112441659559,
+    "independent_job_id": 112441827961,
+    "conclusion": "success",
+    "focused_frozen_contracts": "PASS_22_OF_22",
+    "independent_frozen_order_replay": "PASS_158_OF_158",
+    "browser_runtime": "Google Chrome 154.0.8037.57",
+    "browser_markers": [
+      "MUSITU_AXIOM_PHASE2_BROWSER_RESTART_SEED_PASS",
+      "MUSITU_AXIOM_PHASE2_BROWSER_RESTART_REPLAY_PASS",
+      "MUSITU_AXIOM_PHASE2_BROWSER_CROSS_INSTANCE_ATOMIC_PASS",
+      "MUSITU_AXIOM_PHASE2_BROWSER_DURABLE_IDEMPOTENCY_QUALIFICATION_PASS"
+    ],
+    "static_execution_claim_markers": [
+      "VERSION=2",
+      "execution_claims",
+      "musitu.axiom.execution-claim.browser.v1",
+      "concurrent execution already in flight",
+      "EXECUTION_CLAIM_TTL_MS"
+    ],
+    "authority_marker": "MUSITU_AXIOM_PHASE2_PROVIDER_AUTHORITY_FAIL_CLOSED_PASS",
+    "slice_marker": "MUSITU_AXIOM_PHASE2_SLICE_VERIFICATION_PASS",
+    "release_authority": false,
+    "production_authority": false,
+    "certification_authority": false
+  },
+  "qualification": {
+    "actual_chrome_process_restart_terminal_replay": "PASS",
+    "persisted_indexeddb_terminal_receipt_reuse": "PASS",
+    "persisted_indexeddb_no_duplicate_completion_event_after_restart": "PASS",
+    "two_independent_indexeddb_connections_same_document_concurrent_at_most_once": "PASS",
+    "concurrent_duplicate_fails_closed_before_side_effect": "PASS",
+    "transactional_execution_claim_store": "PASS_REPOSITORY_AND_OBSERVED_BROWSER_RUNTIME",
+    "stale_claim_ttl_present": true,
+    "blocked_retryability_preserved_by_predecessor_contract": true,
+    "deterministic_memory_store_regressions_preserved": "PASS_22_OF_22_FOCUSED_SUITE",
+    "authority_effect": "NONE",
+    "release_authority": false,
+    "production_authority": false,
+    "certification_authority": false,
+    "production_mutation": false,
+    "frozen_openai_mutation": false,
+    "main_mutation": false
+  },
+  "evidence_boundaries": {
+    "actual_browser_runtime_used": "Google Chrome 154.0.8037.57",
+    "browser_runtime_long_term_pin": "NOT_PROVEN",
+    "sequential_browser_process_restart_replay": "PROVEN_FOR_OBSERVED_CI_BROWSER_RUNTIME",
+    "indexeddb_version_2_fresh_database_path": "PROVEN_FOR_OBSERVED_CI_BROWSER_RUNTIME",
+    "preexisting_version_1_to_version_2_upgrade": "NOT_PROVEN",
+    "two_independent_store_connections_same_document_concurrency": "PROVEN_FOR_OBSERVED_CI_BROWSER_RUNTIME",
+    "actual_separate_tabs_concurrency": "NOT_PROVEN",
+    "simultaneous_separate_browser_process_concurrency": "NOT_PROVEN",
+    "stale_claim_recovery_after_crash": "NOT_PROVEN",
+    "crash_after_side_effect_before_terminal_receipt": "NOT_PROVEN",
+    "transactionally_atomic_side_effect_plus_receipt_commit": "NOT_PROVEN",
+    "external_side_effect_idempotency": "NOT_PROVEN",
+    "distributed_executor_idempotency": "NOT_PROVEN",
+    "production_side_effect_idempotency": "NOT_PROVEN",
+    "live_production_browser_integration": "NOT_PROVEN",
+    "independent_external_security_validation": "NOT_PROVEN",
+    "sha256_signature_or_attestation": "NOT_PROVEN"
+  },
+  "incident_boundary": {
+    "modal_fanout_cleanup": "NOT_PROVEN",
+    "latest_checked_run_id": 37284936693,
+    "latest_checked_job_id": 111795419209,
+    "latest_checked_job_conclusion": "failure",
+    "required_pass_marker": "MUSITU_AXIOM_MODAL_INCIDENT_PROXY_TOKEN_REMEDIATION_PASS",
+    "required_pass_marker_observed": false
+  }
+}
