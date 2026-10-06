@@ -104,3 +104,14 @@ test('DENY and policy/request hash mismatch fail closed',async()=>{
 
   await assert.rejects(()=>evaluateChangeAdmission({request:r,policyDecision:{decision:'ALLOW',request_sha256:'f'.repeat(64),policy_sha256:'e'.repeat(64),reasons:[]},verificationEvidence:[pass('TESTS')],at}),/policy decision is not bound to admission request/);
 });
+
+
+test('admission request rejects an unverified checkpoint look-alike even when its surface fields appear valid',async()=>{
+  await assert.rejects(
+    ()=>createChangeAdmissionRequest({
+      projectId:'project_12345678',workId:'work_12345678',checkpoint,
+      builderActorId:'agent_builder_1',requestedAction:CHANGE_RISK_MODEL.S3.action,riskClass:'S3',at,
+    }),
+    /checkpoint.*integrity|verified.*checkpoint|checkpoint.*verification/i,
+  );
+});
