@@ -38,11 +38,11 @@ function env() {
   };
 }
 
-function mockCloudflare({unverified = false, mutateProtectedAfterCutover = false, unsafeCatchAll = false, unrelatedRule = false} = {}) {
+function mockCloudflare({unverified = false, mutateProtectedAfterCutover = false, unsafeCatchAll = false, unrelatedRule = false, disabledDropAll = false} = {}) {
   const calls = [];
   let routing = {enabled: false, status: 'unconfigured'};
   let root = structuredClone(zoho);
-  let rules = unrelatedRule ? [{id: 'unexpected-rule', enabled: true, matchers: [{type: 'literal', field: 'to', value: 'legacy@mftintelligence.com'}], actions: [{type: 'forward', value: [destination]}]}] : [];
+  let rules = unrelatedRule ? [{id: 'unexpected-rule', enabled: true, matchers: [{type: 'literal', field: 'to', value: 'legacy@mftintelligence.com'}], actions: [{type: 'forward', value: [destination]}]}] : disabledDropAll ? [{id: 'default-drop', enabled: false, matchers: [{type: 'all'}], actions: [{type: 'drop'}]}] : [];
   let nextDnsId = 100;
   let cutover = false;
   const protectedState = new Map([...protectedHosts].map(([k, v]) => [k, structuredClone(v)]));
@@ -150,6 +150,15 @@ test('enabled forwarding catch-all fails closed before any migration write', asy
   await assert.rejects(() => migrateEmailRouting({fetchImpl: mock.fetchImpl, env: env()}), /catch-all routing must be disabled or dropping mail/);
   assert.equal(mock.calls.some(c => c.method !== 'GET'), false);
   assert.deepEqual(mock.state().root.map(r => r.content), zoho.map(r => r.content));
+});
+
+test('disabled all-drop baseline rule is preserved and does not block exact support routing', async () => {
+  const mock = mockCloudflare({disabledDropAll: true});
+  const evidence = await migrateEmailRouting({fetchImpl: mock.fetchImpl, env: env(), now: '2026-10-06T03:10:00Z'});
+  assert.equal(evidence.gate, 'MUSITU_AXIOM_SUPPORT_EMAIL_ROUTING_MIGRATION_PASS');
+  assert.equal(evidence.support_rule.exact_present, true);
+  assert.equal(mock.state().rules.some(r => r.id === 'default-drop' && r.enabled === false), true);
+  assert.equal(mock.state().rules.some(r => r.id === 'support-rule' && r.enabled === true), true);
 });
 
 test('unexpected non-support forwarding rule fails closed before any migration write', async () => {
