@@ -32,7 +32,7 @@ def build(root: Path, receipt_path: Path, replay_path: Path) -> dict:
         receipts=receipts,
         independent_replays=replays,
     )
-    out['protocol_id']=protocol['protocol_id']
+    out['protocol_id']=protocol['protocol_id']\n    out['case_set_sha256']=commitment['case_set_sha256']\n    out['constraints_sha256']=commitment['constraints_sha256']\n    out['private_evaluator_pack_sha256']=commitment['private_evaluator_pack_sha256']\n    out['provider_inputs_bundle_sha256']=commitment['provider_inputs_bundle_sha256']
     out['protocol_requires_paid_api_key']=protocol['execution_policy']['api_key_required']
     out['required_external_system_count']=len(expected_systems)
     out['required_case_count']=len(expected_cases)
