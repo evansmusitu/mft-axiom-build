@@ -101,6 +101,8 @@ class MiningAdapterServiceTests(unittest.TestCase):
             )
             self.assertEqual(run.canonical.records[0]["severity"], 10.0)
             self.assertEqual(transport.topics[0][0], "mine/site-a/hazards")
+            stored_after_ingest=service.store.load_run("mqtt-r1")
+            self.assertEqual(run.fabric.canonical_sha256,stored_after_ingest.canonical_sha256)
             plan=service.plan("mqtt-r1", budget=18000)
             self.assertEqual(plan.selected, ("Ground collapse",))
             replay=service.replay("mqtt-r1")
