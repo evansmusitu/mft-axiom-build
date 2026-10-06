@@ -1,26 +1,143 @@
 {
   "schema": "musitu.axiom.support-readiness-snapshot.v1",
-  "recorded_at": "2026-10-06T06:30:30Z",
+  "recorded_at": "2026-10-06T07:49:00Z",
   "repository": "evansmusitu/mft-axiom-build",
   "branch": "support/axiom-official-support-20261005",
   "public_operational_claim_authorized": false,
   "deployment_dispatch_authorized": false,
   "required_gate_count": 11,
-  "pass_count": 6,
+  "pass_count": 7,
   "partial_count": 3,
-  "missing_count": 2,
+  "missing_count": 1,
   "gates": [
-    {"gate":"PUBLIC_ORIGIN","status":"MISSING","evidence":{"support_custom_domain_count":0,"workers_dev_enabled":false,"previews_enabled":false},"next_requirement":"explicitly authorized public deployment and live origin verification"},
-    {"gate":"SECURE_STORAGE","status":"PASS","evidence":{"live_readback_run":37422536639,"run_attempt":2,"d1_binding_exact":true,"d1_schema_exact":true,"support_case_count":0,"support_event_count":0,"data_key_secret_present":true}},
-    {"gate":"ENCRYPTION_KEY_MANAGEMENT","status":"PASS","evidence":{"file":"EVIDENCE/axiom-official-support-key-rotation-live-20261006.json","live_rotation_run":37423983269,"generated_key_bytes":32,"secret_value_exposed":false}},
-    {"gate":"ANTI_ABUSE","status":"PARTIAL","evidence":{"live_readback_run":37422536639,"exact_turnstile_widget":true,"turnstile_secret_present":true,"hostname_bound":"support.mftintelligence.com","action_bound":"support_case_create","live_origin_challenge_verified":false},"next_requirement":"real challenge/token validation against a live authorized origin"},
-    {"gate":"HUMAN_SUPPORT_OWNER","status":"PASS","evidence":{"live_readback_run":37422536639,"owner_ref_exact":true,"approver_ref_exact":true,"owner_approver_distinct":true}},
-    {"gate":"ESCALATION_ROSTER","status":"PASS","evidence":{"operating_model":"support/OPERATING_MODEL.md","primary_owner":true,"independent_approver":true,"infrastructure_escalation":true,"product_escalation":true,"two_person_sensitive_action_rule":true}},
-    {"gate":"PRIVACY_RETENTION","status":"MISSING","evidence":{"retention_classes_implemented":true,"exact_retention_periods_approved":false,"legal_hold_policy_approved":false,"verified_erasure_lifecycle_deployed":false},"next_requirement":"owner-approved retention durations, legal-hold rule and erasure lifecycle"},
-    {"gate":"ACCESSIBILITY_REALITY","status":"PARTIAL","evidence":{"file":"EVIDENCE/axiom-official-support-accessibility-partial-20261006.json","automated_status":"PASS","real_browser_rendering":true,"real_physical_device_user_tested":false},"next_requirement":"real-device/human accessibility verification"},
-    {"gate":"SECURITY_REVIEW","status":"PARTIAL","evidence":{"file":"EVIDENCE/axiom-official-support-security-review-partial-20261006.json","automated_status":"PASS","live_edge_penetration_tested":false,"live_rate_limit_evidence_tested":false},"next_requirement":"live-edge negative and rate-limit probes after an authorized live origin exists"},
-    {"gate":"BACKUP_RESTORE","status":"PASS","evidence":{"file":"EVIDENCE/axiom-official-support-backup-restore-live-20261006.json","workflow_run":37420774435,"synthetic_seed_restored":true,"temporary_table_deleted":true}},
-    {"gate":"NOTIFICATION_DELIVERY","status":"PASS","evidence":{"file":"EVIDENCE/axiom-official-support-notification-delivery-live-20261006.json","workflow_run":37422037122,"delivered_count":1,"destination_mailbox_inbox_visible":true}}
+    {
+      "gate": "PUBLIC_ORIGIN",
+      "status": "MISSING",
+      "evidence": {
+        "support_custom_domain_count": 0,
+        "workers_dev_enabled": false,
+        "previews_enabled": false
+      },
+      "next_requirement": "explicitly authorized public deployment and live origin verification"
+    },
+    {
+      "gate": "SECURE_STORAGE",
+      "status": "PASS",
+      "evidence": {
+        "live_readback_run": 37422536639,
+        "run_attempt": 2,
+        "d1_binding_exact": true,
+        "d1_schema_exact": true,
+        "support_case_count": 0,
+        "support_event_count": 0,
+        "data_key_secret_present": true
+      }
+    },
+    {
+      "gate": "ENCRYPTION_KEY_MANAGEMENT",
+      "status": "PASS",
+      "evidence": {
+        "file": "EVIDENCE/axiom-official-support-key-rotation-live-20261006.json",
+        "live_rotation_run": 37423983269,
+        "generated_key_bytes": 32,
+        "secret_value_exposed": false
+      }
+    },
+    {
+      "gate": "ANTI_ABUSE",
+      "status": "PARTIAL",
+      "evidence": {
+        "live_readback_run": 37422536639,
+        "exact_turnstile_widget": true,
+        "turnstile_secret_present": true,
+        "hostname_bound": "support.mftintelligence.com",
+        "action_bound": "support_case_create",
+        "live_origin_challenge_verified": false
+      },
+      "next_requirement": "real challenge/token validation against a live authorized origin"
+    },
+    {
+      "gate": "HUMAN_SUPPORT_OWNER",
+      "status": "PASS",
+      "evidence": {
+        "live_readback_run": 37422536639,
+        "owner_ref_exact": true,
+        "approver_ref_exact": true,
+        "owner_approver_distinct": true
+      }
+    },
+    {
+      "gate": "ESCALATION_ROSTER",
+      "status": "PASS",
+      "evidence": {
+        "operating_model": "support/OPERATING_MODEL.md",
+        "primary_owner": true,
+        "independent_approver": true,
+        "infrastructure_escalation": true,
+        "product_escalation": true,
+        "two_person_sensitive_action_rule": true
+      }
+    },
+    {
+      "gate": "PRIVACY_RETENTION",
+      "status": "PASS",
+      "evidence": {
+        "file": "EVIDENCE/axiom-official-support-privacy-retention-live-20261006.json",
+        "policy_owner_approved": true,
+        "retention_days": {
+          "SUPPORT_STANDARD": 180,
+          "PRIVACY_RESTRICTED": 90,
+          "SECURITY_RESTRICTED": 365
+        },
+        "legal_hold_review_days": 90,
+        "live_schema_migration_run": 37428696297,
+        "live_erasure_lifecycle_run": 37428987102,
+        "live_legal_hold_lifecycle_run": 37429947712,
+        "live_closure_retention_clock_run": 37430538870
+      }
+    },
+    {
+      "gate": "ACCESSIBILITY_REALITY",
+      "status": "PARTIAL",
+      "evidence": {
+        "file": "EVIDENCE/axiom-official-support-accessibility-partial-20261006.json",
+        "automated_status": "PASS",
+        "real_browser_rendering": true,
+        "real_physical_device_user_tested": false
+      },
+      "next_requirement": "real-device/human accessibility verification"
+    },
+    {
+      "gate": "SECURITY_REVIEW",
+      "status": "PARTIAL",
+      "evidence": {
+        "file": "EVIDENCE/axiom-official-support-security-review-partial-20261006.json",
+        "automated_status": "PASS",
+        "live_edge_penetration_tested": false,
+        "live_rate_limit_evidence_tested": false
+      },
+      "next_requirement": "live-edge negative and rate-limit probes after an authorized live origin exists"
+    },
+    {
+      "gate": "BACKUP_RESTORE",
+      "status": "PASS",
+      "evidence": {
+        "file": "EVIDENCE/axiom-official-support-backup-restore-live-20261006.json",
+        "workflow_run": 37420774435,
+        "synthetic_seed_restored": true,
+        "temporary_table_deleted": true
+      }
+    },
+    {
+      "gate": "NOTIFICATION_DELIVERY",
+      "status": "PASS",
+      "evidence": {
+        "file": "EVIDENCE/axiom-official-support-notification-delivery-live-20261006.json",
+        "workflow_run": 37422037122,
+        "delivered_count": 1,
+        "destination_mailbox_inbox_visible": true
+      }
+    }
   ],
   "protected_boundaries": {
     "main_expected": "d6a846f6bbe0bccac1758713eb4de167caf07113",
