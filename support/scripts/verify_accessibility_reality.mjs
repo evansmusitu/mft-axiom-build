@@ -121,7 +121,13 @@ export async function main(){
   const digest=sha256(serialized);
   await writeFile('support-accessibility-reality.json',serialized,{encoding:'utf8',mode:0o600,flag:'wx'});
   await writeFile('support-accessibility-reality.json.sha256',`${digest}  support-accessibility-reality.json\n`,{encoding:'utf8',mode:0o600,flag:'wx'});
-  process.stdout.write(JSON.stringify({gate:evidence.gate,status:evidence.status,evidence_sha256:digest,failures:evidence.failures})+'\n');
+  process.stdout.write(JSON.stringify({
+    gate:evidence.gate,
+    status:evidence.status,
+    evidence_sha256:digest,
+    failures:evidence.failures,
+    violation_ids:[...new Set([evidence.desktop,evidence.mobile,evidence.reduced_motion].flatMap(v=>v.axe_violation_ids))].sort(),
+  })+'\n');
   if(evidence.status!=='PASS') process.exitCode=1;
 }
 if(import.meta.url===pathToFileURL(process.argv[1]||'').href) await main();
