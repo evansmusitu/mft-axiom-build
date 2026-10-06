@@ -1,0 +1,101 @@
+{
+  "schema": "musitu.axiom.phase2.sandbox-qualification.v1",
+  "recorded_date": "2026-10-06",
+  "source_authority": {
+    "repository": "evansmusitu/mft-axiom-build",
+    "branch": "frontier/axiom-product-intelligence-phase2-20261004",
+    "predecessor_openfeature_head": "ed829af84a6c335a13b73779ea026fc0470f6f03",
+    "backend_commit": "8f691886758cb9dd7befa67ce0944becf072a0b3",
+    "contract_commit": "f356754a1c74c8437f92e03a81d9e408f18c6554",
+    "gate_commit": "e3b3f0cb73880d35f02b2b72c695454c56a1ed1e",
+    "implementation_path": "axiom_interface/vnext/product_intelligence/backends/governed_sandbox_backend.js",
+    "implementation_sha256": "74807bdffd61e9b9aab812fc10e8e3fb3fb62f1b8739b7120ca2143e5cc953f5",
+    "implementation_git_blob": "5aca8c908b84d4f91e6fd6c3d12a8dcbb7b71f4b",
+    "contract_test_path": "axiom_interface/vnext/tests/product_intelligence_sandbox_backend.test.mjs",
+    "contract_test_sha256": "7e99db805b86c2a41df277e770614a24aeff759846176840f3f1f665b960572c",
+    "contract_test_git_blob": "71d2c73463507c4c7557ab8b1f0707f99a95c447",
+    "gate_workflow_git_blob": "e0990f497adbb38cc2543d168fac46ef9fbb5c4e"
+  },
+  "tdd": {
+    "cycles_recorded": 12,
+    "final_contract_tests": {
+      "total": 12,
+      "pass": 12,
+      "fail": 0
+    },
+    "provider_swap_red_observed": true,
+    "assertions_weakened_to_pass": false,
+    "support_dependencies_rebased_to_live_phase2_before_final_replay": true
+  },
+  "github_independent_replay": {
+    "workflow": "MUSITU Axiom Product Intelligence Phase 2 Gate",
+    "run_id": 37415397044,
+    "head_sha": "e3b3f0cb73880d35f02b2b72c695454c56a1ed1e",
+    "conclusion": "success",
+    "focused_contract_job": {
+      "job_id": 112112779565,
+      "conclusion": "success",
+      "sandbox_contracts": "PASS_12_OF_12"
+    },
+    "independent_replay_job": {
+      "job_id": 112112820691,
+      "conclusion": "success",
+      "all_frozen_order_tests": "PASS_55_OF_55",
+      "authority_marker": "MUSITU_AXIOM_PHASE2_PROVIDER_AUTHORITY_FAIL_CLOSED_PASS",
+      "slice_marker": "MUSITU_AXIOM_PHASE2_SLICE_VERIFICATION_PASS"
+    },
+    "authority": {
+      "release": false,
+      "production": false,
+      "certification": false
+    }
+  },
+  "linux_namespace_probe": {
+    "provider": "GitLab SaaS isolated runner",
+    "project_id": 86647955,
+    "branch": "verify/axiom-phase2-sandbox-namespace-20261006",
+    "failed_attempts_preserved": [
+      {
+        "commit": "97440c1ca1b823879fdd271e21bdae7039baf98d",
+        "pipeline_id": 2916192737,
+        "job_id": 16957340279,
+        "conclusion": "failure",
+        "reason": "namespace verifier path defect; no PASS marker emitted"
+      }
+    ],
+    "corrected_commit": "dd0145bd812bd4f4c987248b45066841bce6a621",
+    "pipeline_id": 2916196675,
+    "job_id": 16957363553,
+    "conclusion": "success",
+    "mechanism": "Linux unshare user+mount+network namespaces with tmpfs root and chroot",
+    "observed_markers": [
+      "NETWORK_DENIED",
+      "HOST_FS_HIDDEN",
+      "MUSITU_AXIOM_SANDBOX_NAMESPACE_PROBE_PASS"
+    ],
+    "network_denial": "PASS",
+    "host_filesystem_hidden": "PASS"
+  },
+  "qualification": {
+    "sandbox_qualification": "PASS",
+    "scope": "GOVERNED_VIRTUAL_SANDBOX_CONTRACT_PLUS_ISOLATED_LINUX_NAMESPACE_MECHANISM",
+    "sandbox_backend_mechanism": "PASS",
+    "linux_namespace_mechanism": "PASS",
+    "external_process_product_integration": "NOT_PROVEN",
+    "live_integrated_runtime_qualification": "NOT_PROVEN",
+    "canonical_evidence_authority": false,
+    "release_authority": false,
+    "production_authority": false,
+    "certification_authority": false,
+    "production_mutation": false,
+    "frozen_openai_mutation": false,
+    "required_next_gate": "TRIGGER_BASED_DISTRIBUTED_INFRASTRUCTURE"
+  },
+  "incident_boundary": {
+    "modal_fanout_cleanup": "NOT_PROVEN",
+    "latest_checked_run_id": 37284936693,
+    "latest_checked_job_id": 111795419209,
+    "latest_checked_job_conclusion": "failure",
+    "required_pass_marker_observed": false
+  }
+}
