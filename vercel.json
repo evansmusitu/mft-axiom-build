@@ -1,0 +1,19 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "functions": {
+    "api/mcp.mjs": {
+      "maxDuration": 60
+    },
+    "api/operator_core.py": {
+      "maxDuration": 60,
+      "includeFiles": "frontier_v5/**"
+    },
+    "api/health.mjs": {
+      "maxDuration": 10
+    }
+  },
+  "rewrites": [
+    {"source": "/mcp", "destination": "/api/mcp.mjs"},
+    {"source": "/health", "destination": "/api/health.mjs"}
+  ]
+}
