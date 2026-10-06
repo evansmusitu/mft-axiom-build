@@ -169,3 +169,18 @@ test('canonical deploy supports a branch-only one-shot production request withou
   assert.match(workflow, /target.*production/);
   assert.doesNotMatch(workflow, /branches:\s*\n\s*-\s*['"]?main/);
 });
+
+
+test('canonical production deploy serves and verifies robots and sitemap from the Worker bundle', async () => {
+  const workflow = await readFile(resolve(root, '..', '.github', 'workflows', 'axiom-official-support-deploy.yml'), 'utf8');
+  assert.match(workflow, /readFileSync\('support\/robots\.txt','utf8'\)/);
+  assert.match(workflow, /readFileSync\('support\/sitemap\.xml','utf8'\)/);
+  assert.match(workflow, /u\.pathname==='\/robots\.txt'/);
+  assert.match(workflow, /text\/plain; charset=utf-8/);
+  assert.match(workflow, /u\.pathname==='\/sitemap\.xml'/);
+  assert.match(workflow, /application\/xml; charset=utf-8/);
+  assert.match(workflow, /Sitemap: https:\/\/support\.mftintelligence\.com\/sitemap\.xml/);
+  assert.match(workflow, /<loc>https:\/\/support\.mftintelligence\.com\/<\/loc>/);
+  assert.match(workflow, /curl[^\n]+\/robots\.txt/);
+  assert.match(workflow, /curl[^\n]+\/sitemap\.xml/);
+});
