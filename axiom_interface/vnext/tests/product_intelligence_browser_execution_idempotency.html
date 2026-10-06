@@ -350,6 +350,63 @@ try{
     invariant(integrity.status==='PASS',`process-kill recovery store integrity failed: ${integrity.errors.join(',')}`);
     store.db.close();
     out.textContent='MUSITU_AXIOM_PHASE2_BROWSER_PROCESS_KILL_ATOMICITY_PASS';
+  }else if(phase==='upgrade-v1-seed'){
+    await deleteDb();
+    const projectId='project_browser_upgrade_12345678';
+    const sandboxBody={
+      schema:'musitu.axiom.execution-sandbox.browser.v1',
+      sandbox_id:'sandbox_upgrade_v1_12345678',
+      project_id:projectId,
+      workload_identity_id:'workload_executor_browser_1',
+      label:'v1 upgrade preservation sentinel',
+      sandbox_mode:'BROWSER_LOCAL_VIRTUAL_SANDBOX',
+      terminal_mode:'BROWSER_LOCAL_VIRTUAL_TERMINAL',
+      worktree_mode:'BROWSER_LOCAL_VIRTUAL_WORKTREE',
+      network_policy:'DENY_ALL_EXTERNAL_NETWORK',
+      secrets_policy:'OPAQUE_SHORT_LIVED_OPERATION_SCOPED_NO_PLAINTEXT',
+      base_tree_sha256:null,
+      worktrees:{main:{worktree_id:'main',parent_id:null,files:{'preserve.txt':'v1-persisted'},snapshots:[],created_at:'2026-10-06T20:30:00.000Z'}},
+      active_worktree_id:'main',
+      created_at:'2026-10-06T20:30:00.000Z',
+      external_network_enabled:false,
+      host_shell_enabled:false,
+      plaintext_secret_access:false,
+    };
+    const sandbox={...sandboxBody,sandbox_sha256:await sha256(sandboxBody)};
+    const request=indexedDB.open(DB,1);
+    await new Promise((resolve,reject)=>{
+      request.onupgradeneeded=()=>{
+        const db=request.result;
+        for(const [name,key] of [['sandboxes','sandbox_id'],['requests','request_sha256'],['approvals','approval_sha256'],['receipts','receipt_id'],['leases','lease_id'],['events','event_id']]){
+          const store=db.createObjectStore(name,{keyPath:key});
+          store.createIndex('project_id','project_id',{unique:false});
+          if(name==='events')store.createIndex('project_sequence',['project_id','sequence'],{unique:true});
+        }
+      };
+      request.onsuccess=resolve;
+      request.onerror=()=>reject(request.error);
+    });
+    const db=request.result;
+    const tx=db.transaction('sandboxes','readwrite');
+    tx.objectStore('sandboxes').put(sandbox);
+    await new Promise((resolve,reject)=>{tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error);tx.onabort=()=>reject(tx.error||new Error('v1 seed transaction aborted'));});
+    db.close();
+    localStorage.setItem('axiom_upgrade_state',JSON.stringify({projectId,sandboxId:sandbox.sandbox_id,sandboxSha:sandbox.sandbox_sha256}));
+    out.textContent='MUSITU_AXIOM_PHASE2_BROWSER_INDEXEDDB_V1_SEED_PASS';
+  }else if(phase==='upgrade-v2-inspect'){
+    const saved=JSON.parse(localStorage.getItem('axiom_upgrade_state')||'null');
+    invariant(saved,'v1 upgrade seed state missing');
+    const store=await GovernedExecutionStore.open();
+    invariant(store.db.version===2,`upgraded IndexedDB version was ${store.db.version}`);
+    invariant(store.db.objectStoreNames.contains('execution_claims'),'v2 upgrade did not add execution_claims store');
+    const sandbox=await store.getSandbox(saved.sandboxId);
+    invariant(sandbox,'v1 sandbox was lost during v2 upgrade');
+    invariant(sandbox.sandbox_sha256===saved.sandboxSha,'v1 sandbox hash changed during v2 upgrade');
+    invariant(sandbox.worktrees.main.files['preserve.txt']==='v1-persisted','v1 sandbox content changed during v2 upgrade');
+    const integrity=await store.verify(saved.projectId);
+    invariant(integrity.status==='PASS',`v1->v2 upgrade integrity failed: ${integrity.errors.join(',')}`);
+    store.db.close();
+    out.textContent='MUSITU_AXIOM_PHASE2_BROWSER_INDEXEDDB_V1_TO_V2_UPGRADE_PASS';
   }else{
     throw new Error('unknown qualification phase');
   }

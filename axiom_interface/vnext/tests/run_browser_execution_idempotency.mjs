@@ -255,6 +255,8 @@ try{
   await launchPhase('failed-atomic-fault','MUSITU_AXIOM_PHASE2_BROWSER_FAILED_TERMINAL_COMMIT_ATOMICITY_PASS');
   await launchPhase('blocked-atomic-fault','MUSITU_AXIOM_PHASE2_BROWSER_BLOCKED_RECEIPT_EVENT_ATOMICITY_PASS');
   await launchProcessKillPhase();
+  await launchPhase('upgrade-v1-seed','MUSITU_AXIOM_PHASE2_BROWSER_INDEXEDDB_V1_SEED_PASS');
+  await launchPhase('upgrade-v2-inspect','MUSITU_AXIOM_PHASE2_BROWSER_INDEXEDDB_V1_TO_V2_UPGRADE_PASS');
   console.log('MUSITU_AXIOM_PHASE2_BROWSER_DURABLE_IDEMPOTENCY_QUALIFICATION_PASS');
 }finally{
   server.close();
