@@ -30,6 +30,31 @@ _ASSETS=(
 _SITES=("open-pit-a","open-pit-b","processing-plant","underground-east")
 
 
+class MqttSubscriptionBarrier:
+    """Small state machine: publishing is safe only after CONNECT + SUBACK."""
+
+    def __init__(self) -> None:
+        self._connected=False
+        self._subscribed=False
+
+    @property
+    def ready(self) -> bool:
+        return self._connected and self._subscribed
+
+    def mark_connected(self) -> None:
+        self._connected=True
+        self._subscribed=False
+
+    def mark_subscribed(self) -> None:
+        if not self._connected:
+            raise RuntimeError("mqtt_suback_without_connection")
+        self._subscribed=True
+
+    def mark_disconnected(self) -> None:
+        self._connected=False
+        self._subscribed=False
+
+
 @dataclass(frozen=True)
 class IndustrialWorkloadSpec:
     schema: str="musitu.connect.mining.industrial_field_workload.v1"
