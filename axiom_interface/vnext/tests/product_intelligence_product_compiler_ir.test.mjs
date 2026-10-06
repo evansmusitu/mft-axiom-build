@@ -225,3 +225,15 @@ test('reverse inference rejects authority fields credential material and non-fin
     );
   }
 });
+
+
+test('reverse inference rejects normalized node-id collisions between distinct observation identities',async()=>{
+  const observations=[
+    {observation_id:'obs a',type:'Component',data:{name:'One'},source:{kind:'code',uri:'src/One.js'},confidence:0.7},
+    {observation_id:'obs_a',type:'Component',data:{name:'Two'},source:{kind:'code',uri:'src/Two.js'},confidence:0.8},
+  ];
+  await assert.rejects(
+    ()=>createInferredGraphPatch({projectId:'project_12345678',generation:3,actorId:'agent_reverse_1',at:'2026-10-04T16:00:00Z',observations}),
+    /collision|node.*unique|normalized.*identity/i,
+  );
+});
