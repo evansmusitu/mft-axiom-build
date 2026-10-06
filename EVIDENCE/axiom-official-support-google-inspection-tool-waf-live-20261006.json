@@ -1,0 +1,35 @@
+{
+  "schema": "musitu.axiom.support-google-inspection-tool-waf.v1",
+  "status": "PASS",
+  "verified_at": "2026-10-06T14:56:00Z",
+  "repository": "evansmusitu/mft-axiom-build",
+  "branch": "support/axiom-official-support-20261005",
+  "google": {
+    "crawler": "Google-InspectionTool",
+    "purpose": "Search Console URL Inspection live test",
+    "cloudflare_verified_bot_required": true,
+    "public_methods": ["GET", "HEAD"],
+    "public_paths": ["/", "/index.html", "/robots.txt", "/sitemap.xml", "/styles.css", "/app.js"]
+  },
+  "cloudflare": {
+    "waf_provision_run": 37483014607,
+    "waf_ruleset_id": "b6e24c698e0842bcb8e27739074a865c",
+    "waf_rule_id": "c89f7e9768174c9fa6c2be35d612bc26",
+    "skip_products": ["bic", "securityLevel"],
+    "global_security_level": "under_attack",
+    "global_browser_integrity_check": "on",
+    "api_or_health_exception": false,
+    "ai_crawler_exception": false
+  },
+  "adversarial_verification": {
+    "workflow_run": 37483196740,
+    "spoofed_googlebot_bypass": false,
+    "spoofed_google_inspection_tool_bypass": false,
+    "spoofed_requests_cf_mitigated": "challenge"
+  },
+  "external_boundary": {
+    "real_google_inspection_tool_fetch_proven": false,
+    "next_step": "Repeat Test Live URL in Google Search Console"
+  },
+  "secret_exposed": false
+}
