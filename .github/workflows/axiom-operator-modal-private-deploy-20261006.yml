@@ -84,8 +84,10 @@ jobs:
           import sys
           import modal
 
-          APP_NAME=os.environ["OPERATOR_APP"]
-          VOLUME_NAME=os.environ["OPERATOR_VOLUME"]
+          APP_NAME="musitu-axiom-operator-private-20261006"
+          VOLUME_NAME="musitu-axiom-operator-state-20261006"
+          OPERATOR_TENANT="musitu-private-operator"
+          OPERATOR_ACTOR="chatgpt-operator"
 
           image=(
               modal.Image.debian_slim(python_version="3.13")
@@ -112,8 +114,8 @@ jobs:
 
               operator=OperatorDaemonApplication(
                   root="/state",
-                  tenant=os.environ.get("OPERATOR_TENANT","musitu-private-operator"),
-                  actor_id=os.environ.get("OPERATOR_ACTOR","chatgpt-operator"),
+                  tenant=OPERATOR_TENANT,
+                  actor_id=OPERATOR_ACTOR,
                   bearer_token="modal-proxy-authenticated-internal-only",
               )
               api=FastAPI(
