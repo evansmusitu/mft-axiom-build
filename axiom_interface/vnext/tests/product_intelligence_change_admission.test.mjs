@@ -479,3 +479,45 @@ test('S3 executor handoff preserves builder approver separation through FA-11 fi
   assert.equal(handoff.production_authority,false);
   assert.equal(handoff.certification_authority,false);
 });
+
+
+test('executor handoff rejects structured workload identity scope and budget coercion before FA-11 normalization',async()=>{
+  const module=await import('../product_intelligence/change_admission.js');
+  const r=await request('S1');
+  const policy={decision:'ALLOW',request_sha256:r.request_sha256,policy_sha256:'e'.repeat(64),reasons:['bounded private reversible write']};
+  const admission=await evaluateChangeAdmission({request:r,policyDecision:policy,verificationEvidence:[pass('TESTS')],at});
+  const baseAuthority={
+    project_id:projectId,
+    actor_id:'agent_operator_1',
+    agent_id:'agent_executor_1',
+    workload_identity_id:'workload_executor_1',
+    agent_status:'ACTIVE',
+    kill_switch_engaged:false,
+    revoked:false,
+    requester_type:'AGENT',
+    grant:{
+      tool_scopes:['artifact.write'],
+      data_scopes:[projectId],
+      network_policy:'DENY_ALL_EXTERNAL_NETWORK',
+      secrets_policy:'OPAQUE_SHORT_LIVED_OPERATION_SCOPED_NO_PLAINTEXT',
+      budget:{max_compute_units:10},
+    },
+    usage:{compute_units:0},
+    incident_posture:'NORMAL',
+    jurisdiction:'LOCAL_BROWSER',
+  };
+  const operationRequest={operation:'file.write',target:'src/example.txt',payload:{content:'verified change'},compute_units:1,requested_at:at};
+
+  const cases=[
+    {...structuredClone(baseAuthority),workload_identity_id:['workload_executor_1']},
+    {...structuredClone(baseAuthority),agent_id:{value:'agent_executor_1'}},
+    {...structuredClone(baseAuthority),grant:{...structuredClone(baseAuthority.grant),tool_scopes:[['artifact.write']]}},
+    {...structuredClone(baseAuthority),grant:{...structuredClone(baseAuthority.grant),budget:{max_compute_units:[10]}}},
+  ];
+  for(const authorityEnvelope of cases){
+    await assert.rejects(
+      ()=>module.createOperationScopedExecutorHandoff({request:r,admissionResult:admission,authorityEnvelope,operationRequest,at}),
+      /authority|identity|workload|agent|tool_scopes|budget|primitive|string|integer/i,
+    );
+  }
+});
