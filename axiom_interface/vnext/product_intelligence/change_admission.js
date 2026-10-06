@@ -23,6 +23,7 @@ const ADMISSION_RESULT_KEYS=new Set(['schema','project_id','work_id','request_sh
 const EXECUTION_REQUEST_KEYS=new Set(['schema','project_id','actor_id','agent_id','workload_identity_id','operation','computed_risk_class','risk_class','effect','reversible','external','required_tool_scope','target','payload','destination','compute_units','instruction_provenance','requested_at','authority_sha256','execution_mode','request_sha256']);
 const EXECUTOR_OPERATION_INPUT_KEYS=new Set(['operation','target','payload','destination','compute_units','requested_at']);
 const EXECUTOR_HANDOFF_KEYS=new Set(['schema','scope','project_id','work_id','checkpoint_sha256','change_admission_request_sha256','change_admission_evaluation_sha256','authority_sha256','actor_id','agent_id','workload_identity_id','builder_actor_id','risk_class','operation','execution_request','authority_effect','execution_authority','external_execution_authority','release_authority','production_authority','certification_authority','created_at','handoff_sha256']);
+const FA11_APPROVAL_KEYS=new Set(['schema','request_sha256','risk_class','actor_id','role','decision','expires_at','approval_sha256']);
 const isPlainObject=value=>Boolean(value)&&typeof value==='object'&&!Array.isArray(value)&&(Object.getPrototypeOf(value)===Object.prototype||Object.getPrototypeOf(value)===null);
 const clean=(value,max=1000)=>String(value??'').replace(/[\u0000-\u001f\u007f]/g,' ').trim().slice(0,max);
 function rejectUnknownKeys(value,allowed,label){const extra=Object.keys(value).filter(key=>!allowed.has(key));if(extra.length)throw new DOMException(label+' contains unsupported fields: '+extra.join(','),'SecurityError');}
@@ -309,7 +310,14 @@ export async function finalizeOperationScopedExecutorHandoff({handoff,authorityE
   if(!Array.isArray(approvals)) throw new TypeError('approvals must be an array');
   for(const [index,approval] of approvals.entries()){
     if(!isPlainObject(approval)) throw new TypeError(`approvals[${index}] must be a plain object`);
-    if(typeof approval.actor_id!=='string'||!approval.actor_id||clean(approval.actor_id,180)!==approval.actor_id) throw new TypeError(`approvals[${index}].actor_id must be a normalized non-empty string`);
+    rejectUnknownKeys(approval,FA11_APPROVAL_KEYS,`approvals[${index}]`);
+    if(approval.schema!=='musitu.axiom.execution-approval.browser.v1') throw new TypeError(`approvals[${index}] schema invalid`);
+    for(const key of ['request_sha256','risk_class','actor_id','role','decision','expires_at','approval_sha256']){
+      if(typeof approval[key]!=='string') throw new TypeError(`approvals[${index}].${key} must be a string`);
+    }
+    if(!HASH.test(approval.request_sha256)||!HASH.test(approval.approval_sha256)) throw new TypeError(`approvals[${index}] hashes must be sha256 strings`);
+    if(!approval.actor_id||clean(approval.actor_id,180)!==approval.actor_id) throw new TypeError(`approvals[${index}].actor_id must be a normalized non-empty string`);
+    if(iso(approval.expires_at,`approvals[${index}].expires_at`)!==approval.expires_at) throw new TypeError(`approvals[${index}].expires_at must be a canonical ISO instant string`);
     if(approval.actor_id===handoff.builder_actor_id) throw new DOMException('builder cannot approve its own operation-scoped executor handoff','NotAllowedError');
   }
   return finalizeAuthorization(authorityEnvelope,handoff.execution_request,approvals);
