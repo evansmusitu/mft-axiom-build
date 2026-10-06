@@ -29,12 +29,28 @@ function normalizedName(name) {
   return value === '@' ? SUPPORT_ZONE_NAME : value;
 }
 
+function normalizeTxtContent(raw) {
+  const content = String(raw || '').trim();
+  const chunks = [...content.matchAll(/"((?:\\.|[^"])*)"/g)];
+  if (chunks.length) {
+    const consumed = chunks.map(match => match[0]).join('');
+    const compact = content.replace(/\s+/g, '');
+    if (consumed.replace(/\s+/g, '') === compact) {
+      return chunks.map(match => match[1].replace(/\\(["\\])/g, '$1')).join('');
+    }
+  }
+  if (content.length >= 2 && content.startsWith('"') && content.endsWith('"')) {
+    return content.slice(1, -1);
+  }
+  return content;
+}
+
 function normalizeRecord(row, {keepId = false} = {}) {
   const type = String(row?.type || '').toUpperCase();
   let content = String(row?.content || '').trim();
-  if (type === 'TXT' && content.length >= 2 && content.startsWith('"') && content.endsWith('"')) {
-    content = content.slice(1, -1);
-  } else if (type !== 'TXT') {
+  if (type === 'TXT') {
+    content = normalizeTxtContent(content);
+  } else {
     content = content.replace(/\.$/, '');
   }
   const out = {

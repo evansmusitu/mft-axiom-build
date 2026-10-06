@@ -41,7 +41,7 @@ function env() {
   };
 }
 
-function mockCloudflare({unverified = false, mutateProtectedAfterCutover = false, unsafeCatchAll = false, unrelatedRule = false, disabledDropAll = false, enableDnsFailure = false, readyAfterReads = 0} = {}) {
+function mockCloudflare({unverified = false, mutateProtectedAfterCutover = false, unsafeCatchAll = false, unrelatedRule = false, disabledDropAll = false, enableDnsFailure = false, readyAfterReads = 0, cloudflareCreatesChunkedAuth = false} = {}) {
   const calls = [];
   let routing = {enabled: false, status: 'unconfigured'};
   let root = structuredClone(zoho);
@@ -70,6 +70,10 @@ function mockCloudflare({unverified = false, mutateProtectedAfterCutover = false
       routing = {enabled: true, status: 'misconfigured/locked'};
       root = required.filter(r => r.type === 'MX').map((r, i) => ({id: `cf-${i}`, ...r}));
       dkim = [];
+      if (cloudflareCreatesChunkedAuth) {
+        root.push({id: 'cf-spf', type: 'TXT', name: zone, content: 'v=spf1 include:_spf.mx.cloudflare.net ~all', ttl: 1});
+        dkim.push({id: 'cf-dkim', type: 'TXT', name: dkimName, content: '"v=DKIM1; h=sha256; k=rsa; ""p=TESTPUBLICKEY"', ttl: 1});
+      }
       return response(200, {success: true, result: {...routing, name: zone}});
     }
     if (u.pathname.endsWith('/email/routing/dns') && method === 'DELETE') {
@@ -157,6 +161,21 @@ test('migration accepts the live MX-only Cloudflare required DNS shape and creat
   assert.equal(mock.state().routing.status, 'ready');
   assert.equal(mock.state().root.filter(r => r.type === 'MX').length, 3);
   assert.equal(mock.state().root.filter(r => r.type === 'TXT' && String(r.content).startsWith('v=spf1')).length, 1);
+  assert.equal(mock.state().dkim.length, 1);
+});
+
+test('DNS-equivalent quoted and chunked TXT representations do not create duplicate SPF or DKIM records', async () => {
+  const mock = mockCloudflare({cloudflareCreatesChunkedAuth: true});
+  const evidence = await migrateEmailRouting({
+    fetchImpl: mock.fetchImpl,
+    env: env(),
+    now: '2026-10-06T04:30:00Z',
+  });
+  assert.equal(evidence.gate, 'MUSITU_AXIOM_SUPPORT_EMAIL_ROUTING_MIGRATION_PASS');
+  assert.equal(evidence.routing.ready, true);
+  const txtCreates = mock.calls.filter(c => c.method === 'POST' && c.path.endsWith('/dns_records') && c.body?.type === 'TXT');
+  assert.equal(txtCreates.length, 0, 'DNS-equivalent TXT serialization must not create duplicate auth records');
+  assert.equal(mock.state().root.filter(r => r.type === 'TXT').length, 1);
   assert.equal(mock.state().dkim.length, 1);
 });
 
