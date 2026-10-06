@@ -7,6 +7,7 @@ on:
     paths:
       - 'reviewer_clone/**'
       - 'frontier_v5/tests/test_operator_reviewer_clone.mjs'
+      - 'frontier_v5/tests/test_operator_reviewer_transport.py'
       - '.github/workflows/axiom-operator-reviewer-clone-gate-20261006.yml'
       - '.github/workflows/axiom-operator-reviewer-clone-deploy-20261006.yml'
   workflow_dispatch:
@@ -30,6 +31,7 @@ jobs:
           BASE=eb63341be824ad1a7621e7b6b3352c603386969b
           test "$(git merge-base "$BASE" HEAD)" = "$BASE"
           node frontier_v5/tests/test_operator_reviewer_clone.mjs
+          PYTHONPATH=. python frontier_v5/tests/test_operator_reviewer_transport.py
           node --check reviewer_clone/musitu_axiom_operator_reviewer_oauth.mjs
           node --check reviewer_clone/musitu_axiom_operator_reviewer_gate.mjs
           test "$(git rev-parse origin/main)" = d6a846f6bbe0bccac1758713eb4de167caf07113
