@@ -38,8 +38,8 @@
       ],
       "kind": "commercial_external_reference",
       "name": "HighByte Intelligence Hub",
-      "source": "https://www.highbyte.com/resources/release-notes/version-4-3",
-      "version": "4.3.4"
+      "source": "https://www.highbyte.com/resources/release-notes/version-4-5",
+      "version": "4.5.2"
     },
     {
       "benchmark_source": "https://docs.emqx.com/en/emqx/latest/guides/performance/benchmark-emqtt-bench.html",
@@ -127,7 +127,7 @@
       "name": "Temporal",
       "sdk_source": "https://github.com/temporalio/sdk-python/releases",
       "source": "https://github.com/temporalio/temporal/releases",
-      "version": "server 1.32.0 / Python SDK 1.32.0"
+      "version": "server 1.32.0 / Python SDK 1.34.0"
     },
     {
       "comparison_policy": "Current stable external reference; product pin may intentionally lag until qualification.",
