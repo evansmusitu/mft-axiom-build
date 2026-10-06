@@ -1,6 +1,8 @@
 import hashlib
 import json
 import sqlite3
+import threading
+from functools import wraps
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -8,6 +10,14 @@ from typing import Any, Mapping
 
 from .core import CanonicalEnvelope
 from .security import SignedEnvelope, canonical_bytes, verify
+
+
+def _synchronized(method):
+    @wraps(method)
+    def wrapped(self, *args, **kwargs):
+        with self._lock:
+            return method(self, *args, **kwargs)
+    return wrapped
 
 
 @dataclass(frozen=True)
@@ -50,13 +60,15 @@ class RunStore:
     def __init__(self, path: str | Path) -> None:
         self.path=Path(path)
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        self.connection=sqlite3.connect(self.path)
+        self._lock=threading.RLock()
+        self.connection=sqlite3.connect(self.path, timeout=30.0, check_same_thread=False)
         self.connection.row_factory=sqlite3.Row
         self.connection.execute("PRAGMA journal_mode=WAL")
         self.connection.execute("PRAGMA synchronous=FULL")
         self.connection.execute("PRAGMA foreign_keys=ON")
         self._initialize()
 
+    @_synchronized
     def _initialize(self) -> None:
         self.connection.executescript("""
         CREATE TABLE IF NOT EXISTS connect_runs (
@@ -103,6 +115,7 @@ class RunStore:
         })
         return hashlib.sha256(payload).hexdigest()
 
+    @_synchronized
     def record_run(
         self,
         *,
@@ -160,6 +173,7 @@ class RunStore:
         })
         return self.load_run(run_id)
 
+    @_synchronized
     def load_run(self, run_id: str) -> StoredRun:
         row=self.connection.execute(
             "SELECT * FROM connect_runs WHERE run_id=?", (run_id,)
@@ -190,6 +204,7 @@ class RunStore:
             created_at=row["created_at"],
         )
 
+    @_synchronized
     def append_audit_event(self, run_id: str, event_type: str, payload: Mapping[str, Any]) -> AuditEvent:
         if not event_type.strip():
             raise ValueError("event_type_required")
@@ -228,6 +243,7 @@ class RunStore:
             created_at=created_at,
         )
 
+    @_synchronized
     def audit_events(self, run_id: str) -> tuple[AuditEvent, ...]:
         rows=self.connection.execute(
             "SELECT * FROM run_audit WHERE run_id=? ORDER BY event_index", (run_id,)
@@ -242,6 +258,7 @@ class RunStore:
             created_at=row["created_at"],
         ) for row in rows)
 
+    @_synchronized
     def verify_audit_chain(self, run_id: str) -> bool:
         expected_previous="0"*64
         for expected_index, event in enumerate(self.audit_events(run_id)):
@@ -260,6 +277,7 @@ class RunStore:
             expected_previous=event.event_hash
         return True
 
+    @_synchronized
     def close(self) -> None:
         self.connection.close()
 
