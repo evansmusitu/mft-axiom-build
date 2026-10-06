@@ -681,3 +681,44 @@ test('FA-11 terminal execution retries are idempotent before repeating local sid
   assert.equal(receipts.filter(receipt=>receipt.request_sha256===proposed.request.request_sha256&&receipt.status==='COMPLETED').length,1);
   assert.equal(completedEvents.filter(event=>event.payload.request_sha256===proposed.request.request_sha256).length,1);
 });
+
+
+test('FA-11 concurrent same-request execution collapses to one browser-runtime side effect',async()=>{
+  const {GovernedExecutionStore}=await import('../execution_store.js');
+  const keys={sandboxes:'sandbox_id',requests:'request_sha256',approvals:'approval_sha256',receipts:'receipt_id',leases:'lease_id',events:'event_id'};
+  class MemoryExecutionStore extends GovernedExecutionStore{
+    constructor(){super(null);this.rows=Object.fromEntries(Object.keys(keys).map(name=>[name,new Map()]));}
+    async _put(store,row){await Promise.resolve();this.rows[store].set(row[keys[store]],structuredClone(row));return structuredClone(row);}
+    async _get(store,key){await Promise.resolve();const row=this.rows[store].get(key);return row?structuredClone(row):null;}
+    async _all(store,projectId){await Promise.resolve();return [...this.rows[store].values()].filter(row=>!projectId||row.project_id===projectId).map(row=>structuredClone(row));}
+  }
+  const projectId='project_12345678',at='2026-10-06T13:15:00.000Z';
+  const authority={
+    project_id:projectId,actor_id:'agent_operator_1',agent_id:'agent_executor_1',workload_identity_id:'workload_executor_1',
+    agent_status:'ACTIVE',kill_switch_engaged:false,revoked:false,requester_type:'AGENT',
+    grant:{tool_scopes:['artifact.write'],data_scopes:[projectId],network_policy:'DENY_ALL_EXTERNAL_NETWORK',
+      secrets_policy:'OPAQUE_SHORT_LIVED_OPERATION_SCOPED_NO_PLAINTEXT',budget:{max_compute_units:10}},
+    usage:{compute_units:0},incident_posture:'NORMAL',jurisdiction:'LOCAL_BROWSER',
+  };
+  const store=new MemoryExecutionStore();
+  const sandbox=await store.createSandbox(authority);
+  const proposed=await store.propose(sandbox.sandbox_id,authority,{
+    operation:'file.write',target:'src/concurrent.txt',payload:{content:'once'},compute_units:1,
+    instruction_provenance:'GOVERNED_PLAN',requested_at:at,
+  });
+  assert.equal(proposed.decision.status,'AUTHORIZED');
+
+  const [a,b]=await Promise.all([
+    store.execute(proposed.request.request_sha256,authority),
+    store.execute(proposed.request.request_sha256,authority),
+  ]);
+  const after=await store.getSandbox(sandbox.sandbox_id);
+  const receipts=(await store._all('receipts',projectId)).filter(receipt=>receipt.request_sha256===proposed.request.request_sha256&&receipt.status==='COMPLETED');
+  const events=(await store._all('events',projectId)).filter(event=>event.kind==='execution.completed'&&event.payload.request_sha256===proposed.request.request_sha256);
+
+  assert.equal(a.receipt_id,b.receipt_id);
+  assert.equal(a.receipt_sha256,b.receipt_sha256);
+  assert.equal(after.worktrees.main.snapshots.length,1);
+  assert.equal(receipts.length,1);
+  assert.equal(events.length,1);
+});
