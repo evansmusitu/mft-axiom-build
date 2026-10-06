@@ -722,3 +722,59 @@ test('FA-11 concurrent same-request execution collapses to one browser-runtime s
   assert.equal(receipts.length,1);
   assert.equal(events.length,1);
 });
+
+
+test('reconciliation permits retryable BLOCKED evidence before one terminal outcome',async()=>{
+  const module=await import('../product_intelligence/living_product_graph.js');
+  const security=await import('../execution_security.js');
+  const at='2026-10-06T13:20:00.000Z';
+  const makeVerified=async({receiptSha,receiptId,executionStatus,failureReason=null})=>{
+    const body={
+      schema:'musitu.axiom.product-execution-outcome-verification.v1',
+      project_id:'project_12345678',work_id:'work_12345678',checkpoint_sha256:'a'.repeat(64),
+      handoff_sha256:'b'.repeat(64),request_sha256:'c'.repeat(64),receipt_id:receiptId,
+      receipt_sha256:receiptSha,execution_integrity_sha256:'e'.repeat(64),operation:'file.write',risk_class:'S1',
+      execution_status:executionStatus,
+      status:executionStatus==='COMPLETED'?'VERIFIED_COMPLETED':executionStatus==='FAILED'?'VERIFIED_FAILED':'VERIFIED_BLOCKED',
+      verifier_actor_id:'agent_verifier_2',independent_verification:'PASS',
+      rollback_available:executionStatus==='COMPLETED',
+      failure_state:executionStatus==='COMPLETED'?'NONE':executionStatus,
+      failure_reason:executionStatus==='COMPLETED'?null:failureReason,
+      external_action_executed:false,network_request_performed:false,host_shell_executed:false,plaintext_secret_access:false,
+      authority_effect:'NONE',release_authority:false,production_authority:false,certification_authority:false,created_at:at,
+    };
+    return {...body,verification_sha256:await security.sha256(body)};
+  };
+  const blocked=await makeVerified({receiptSha:'d'.repeat(64),receiptId:'execution-receipt_blocked_retry',executionStatus:'BLOCKED',failureReason:'exact independent approval required'});
+  const completed=await makeVerified({receiptSha:'f'.repeat(64),receiptId:'execution-receipt_completed_retry',executionStatus:'COMPLETED'});
+  const rows=new Map([['project_12345678',graph()]]);
+  const backend={
+    descriptor:{
+      kind:'PersistenceBackend',adapter_version:'1.0.0',provider:'retry-memory',semantic_owner:'AXIOM',authority:'MECHANISM_ONLY',
+      capabilities:['load','commit','verify','export'],unsupported_operations:['production_mutation'],timeout_ms:1000,
+      retry:{max_attempts:1,backoff:'NONE'},idempotency:{mode:'REQUIRED_FOR_WRITES'},data_classification:['project-private'],
+      egress:{required:false,allowed_origins:[]},identity_binding:{required:true,mode:'AXIOM_WORKLOAD_ID'},
+      evidence_envelope:{schema:'musitu.axiom.evidence.v1',required:true},health:{mode:'EXPLICIT'},migration_export:{supported:true,format:'JSONL'},fail_closed:true,
+    },
+    async loadProjectGraph(projectId){return structuredClone(rows.get(projectId)??null);},
+    async commitGraph(projectId,value,{expectedGeneration}){const prior=rows.get(projectId);assert.equal(prior?.generation??0,expectedGeneration);rows.set(projectId,structuredClone(value));return structuredClone(value);},
+    async verifyIntegrity(projectId){return {status:rows.has(projectId)?'PASS':'NOT_PROVEN',project_id:projectId};},
+    async exportProject(projectId){return {project_id:projectId,graph:structuredClone(rows.get(projectId)??null)};},
+  };
+  const persistence=module.createLivingProductGraphPersistence(backend);
+  const blockedResult=await module.reconcileVerifiedExecutionOutcome({persistence,verifiedOutcome:blocked,at});
+  assert.equal(blockedResult.status,'RECONCILED');
+  const completedResult=await module.reconcileVerifiedExecutionOutcome({persistence,verifiedOutcome:completed,at});
+  assert.equal(completedResult.status,'RECONCILED');
+  const requestNodes=completedResult.graph.nodes.filter(node=>node.type==='EvidenceRef'&&node.data?.request_sha256===completed.request_sha256);
+  assert.equal(requestNodes.length,2);
+  assert.deepEqual(requestNodes.map(node=>node.data.execution_status).sort(),['BLOCKED','COMPLETED']);
+  await assert.rejects(
+    ()=>module.reconcileVerifiedExecutionOutcome({
+      persistence,
+      verifiedOutcome:await makeVerified({receiptSha:'9'.repeat(64),receiptId:'execution-receipt_second_terminal',executionStatus:'FAILED',failureReason:'later conflicting failure'}),
+      at,
+    }),
+    /conflicting execution replay|terminal|different receipt/i,
+  );
+});
