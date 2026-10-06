@@ -13,7 +13,11 @@
       "system_id": "openai-codex",
       "provider": "OpenAI",
       "product": "Codex",
-      "accepted_surfaces": ["OFFICIAL_CLI", "OFFICIAL_DESKTOP", "OFFICIAL_WEB"],
+      "accepted_surfaces": [
+        "OFFICIAL_CLI",
+        "OFFICIAL_DESKTOP",
+        "OFFICIAL_WEB"
+      ],
       "no_api_key_path": "ChatGPT account session",
       "access_reference": "https://help.openai.com/en/articles/11369540-using-codex-with-your-chatgpt-plan"
     },
@@ -21,7 +25,10 @@
       "system_id": "anthropic-claude-code",
       "provider": "Anthropic",
       "product": "Claude Code",
-      "accepted_surfaces": ["OFFICIAL_CLI", "OFFICIAL_DESKTOP"],
+      "accepted_surfaces": [
+        "OFFICIAL_CLI",
+        "OFFICIAL_DESKTOP"
+      ],
       "no_api_key_path": "Claude Pro/Max subscription session",
       "access_reference": "https://support.claude.com/en/articles/11145838-use-claude-code-with-your-pro-or-max-plan"
     },
@@ -29,7 +36,10 @@
       "system_id": "google-antigravity",
       "provider": "Google",
       "product": "Antigravity CLI",
-      "accepted_surfaces": ["OFFICIAL_CLI", "OFFICIAL_DESKTOP"],
+      "accepted_surfaces": [
+        "OFFICIAL_CLI",
+        "OFFICIAL_DESKTOP"
+      ],
       "no_api_key_path": "Official consumer account session",
       "access_reference": "https://developers.googleblog.com/an-important-update-transitioning-gemini-cli-to-antigravity-cli/"
     },
@@ -37,7 +47,9 @@
       "system_id": "cognition-devin-desktop",
       "provider": "Cognition",
       "product": "Devin Desktop",
-      "accepted_surfaces": ["OFFICIAL_DESKTOP"],
+      "accepted_surfaces": [
+        "OFFICIAL_DESKTOP"
+      ],
       "no_api_key_path": "Official account session including Free tier",
       "access_reference": "https://devin.ai/desktop"
     }
@@ -55,7 +67,13 @@
   "execution_policy": {
     "api_key_required": false,
     "official_authenticated_surface_required": true,
-    "allowed_surface_types": ["OFFICIAL_CLI", "OFFICIAL_DESKTOP", "OFFICIAL_WEB", "OFFICIAL_API", "CONNECTED_PROVIDER"],
+    "allowed_surface_types": [
+      "OFFICIAL_CLI",
+      "OFFICIAL_DESKTOP",
+      "OFFICIAL_WEB",
+      "OFFICIAL_API",
+      "CONNECTED_PROVIDER"
+    ],
     "same_case_set_required": true,
     "same_constraints_required": true,
     "attempt_limit": 1,
@@ -95,5 +113,13 @@
     "level_6_verified": false,
     "level_7_verified": false,
     "superiority": "NOT_CERTIFIED"
+  },
+  "sealed_evidence_commitment": {
+    "commitment_file": "frontier_v5/evals/EXTERNAL_LEVEL56_CASESET_COMMITMENT_20261006.json",
+    "case_set_sha256": "6eea99e9e943498bbbb0e16e0be8447bff5cd206252d6d3fce79020e1e94bbf6",
+    "constraints_sha256": "2161fef373d371dcc0fefa9fc81df906a2eeddff2cc1429b33439c080e0a6c22",
+    "private_evaluator_pack_sha256": "ab550cd24ca18cf3a09ab14ce3bca76c8298dbae108f250a11a9a1d235087955",
+    "provider_inputs_bundle_sha256": "19223b303b2f5c368a0edb54def2fdc2b06eaa8a513455d91a5571dc0b036ba8",
+    "hidden_content_published": false
   }
 }
