@@ -197,19 +197,31 @@ class ExternalExecutionReceiptGate:
             "leader_claim_allowed": False,
         }
 
-    def assess_level56(self, *, expected_system_ids: Sequence[str], expected_case_ids: Sequence[str], expected_case_set_sha256: str, expected_constraints_sha256: str, receipts: Sequence[Mapping[str, Any]], independent_replays: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
+    def assess_level56(
+        self,
+        *,
+        expected_system_ids: Sequence[str],
+        expected_case_ids: Sequence[str],
+        expected_case_set_sha256: str,
+        expected_constraints_sha256: str,
+        receipts: Sequence[Mapping[str, Any]],
+        independent_replays: Sequence[Mapping[str, Any]],
+    ) -> dict[str, Any]:
         if isinstance(expected_system_ids, (str, bytes, bytearray)) or not isinstance(expected_system_ids, Sequence) or not expected_system_ids:
             raise ExternalExecutionReceiptError("expected_system_ids must be a non-empty sequence")
         expected = [_string(x, "expected_system_id") for x in expected_system_ids]
+        if len(set(expected)) != len(expected):
+            raise ExternalExecutionReceiptError("expected_system_ids must be unique")
         if isinstance(expected_case_ids, (str, bytes, bytearray)) or not isinstance(expected_case_ids, Sequence) or not expected_case_ids:
             raise ExternalExecutionReceiptError("expected_case_ids must be a non-empty sequence")
         expected_cases = [_string(x, "expected_case_id") for x in expected_case_ids]
         if len(set(expected_cases)) != len(expected_cases):
             raise ExternalExecutionReceiptError("expected_case_ids must be unique")
-        if len(set(expected)) != len(expected):
-            raise ExternalExecutionReceiptError("expected_system_ids must be unique")
+        expected_case_hash = _sha256(expected_case_set_sha256, "expected_case_set_sha256")
+        expected_constraints_hash = _sha256(expected_constraints_sha256, "expected_constraints_sha256")
         if isinstance(receipts, (str, bytes, bytearray)) or not isinstance(receipts, Sequence):
             raise ExternalExecutionReceiptError("receipts must be a sequence")
+
         seen: dict[str, dict[str, Any]] = {}
         for raw in receipts:
             item = self.validate_receipt(raw)
@@ -218,12 +230,18 @@ class ExternalExecutionReceiptGate:
                 raise ExternalExecutionReceiptError(f"unexpected system_id: {sid}")
             if item["receipt"]["case_ids"] != expected_cases:
                 raise ExternalExecutionReceiptError(f"case coverage mismatch for {sid}")
+            if item["receipt"]["case_set_sha256"] != expected_case_hash:
+                raise ExternalExecutionReceiptError(f"case-set hash mismatch for {sid}")
+            if item["receipt"]["constraints_sha256"] != expected_constraints_hash:
+                raise ExternalExecutionReceiptError(f"constraints hash mismatch for {sid}")
             if sid in seen:
                 raise ExternalExecutionReceiptError(f"duplicate system receipt: {sid}")
             seen[sid] = item
+
         completed = sorted(sid for sid, item in seen.items() if item["counts_as_baseline"])
         blocked = sorted(sid for sid, item in seen.items() if item["status"] == "ACCESS_BLOCKED")
         missing = sorted(set(expected) - set(seen))
+
         if independent_replays is None:
             independent_replays = []
         if isinstance(independent_replays, (str, bytes, bytearray)) or not isinstance(independent_replays, Sequence):
@@ -232,16 +250,36 @@ class ExternalExecutionReceiptGate:
         replay_ids = [item["replay"]["replay_id"] for item in replay_items]
         if len(set(replay_ids)) != len(replay_ids):
             raise ExternalExecutionReceiptError("independent replay ids must be unique")
-        replay_count = len(replay_items)
+        replay_systems: set[str] = set()
+        for item in replay_items:
+            replay = item["replay"]
+            sid = replay["system_id"]
+            if sid not in expected:
+                raise ExternalExecutionReceiptError(f"unexpected replay system_id: {sid}")
+            if sid in replay_systems:
+                raise ExternalExecutionReceiptError(f"duplicate independent replay system: {sid}")
+            replay_systems.add(sid)
+            if replay["case_set_sha256"] != expected_case_hash:
+                raise ExternalExecutionReceiptError(f"replay case-set hash mismatch for {sid}")
+            if replay["constraints_sha256"] != expected_constraints_hash:
+                raise ExternalExecutionReceiptError(f"replay constraints hash mismatch for {sid}")
+            source = seen.get(sid)
+            if source is None or source["counts_as_baseline"] is not True:
+                raise ExternalExecutionReceiptError(f"replay requires completed external receipt for {sid}")
+            if replay["source_receipt_sha256"] != source["receipt_sha256"]:
+                raise ExternalExecutionReceiptError(f"replay source receipt hash mismatch for {sid}")
+
         return {
             "schema": "musitu.axiom.frontier.external-level56-readiness.v2",
             "expected_systems": expected,
-            "expected_case_ids": expected_cases,\n            "expected_case_set_sha256": expected_case_hash,\n            "expected_constraints_sha256": expected_constraints_hash,
+            "expected_case_ids": expected_cases,
+            "expected_case_set_sha256": expected_case_hash,
+            "expected_constraints_sha256": expected_constraints_hash,
             "completed_systems": completed,
             "access_blocked_systems": blocked,
             "missing_systems": missing,
             "completed_external_reference_count": len(completed),
-            "independent_replay_candidate_count": replay_count,
+            "independent_replay_candidate_count": len(replay_items),
             "external_origin_authenticated": False,
             "evidence_level_5_verified": False,
             "evidence_level_6_verified": False,
