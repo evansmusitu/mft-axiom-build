@@ -92,3 +92,13 @@ test('Outcome Contract success criteria must be strings and are never coerced fr
     /success criteria.*string|string.*success criteria/i,
   );
 });
+
+
+test('Outcome Contract constraint schema rejects unknown fields fail closed',async()=>{
+  const bad=contract();
+  bad.constraints.unexpected='must-not-be-ignored';
+  await assert.rejects(
+    ()=>compileObjectiveOutcomeGraph({project:project(),contract:bad,contractVerified:true,approval:null,generation:1,actorId:'local-user',at:'2026-10-04T15:03:00Z'}),
+    /constraints.*unsupported fields|unsupported fields.*constraints/i,
+  );
+});
