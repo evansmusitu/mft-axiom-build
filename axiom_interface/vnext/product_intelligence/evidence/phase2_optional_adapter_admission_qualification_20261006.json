@@ -1,0 +1,188 @@
+{
+  "schema": "musitu.axiom.phase2.optional-adapter-admission-qualification.v1",
+  "recorded_date": "2026-10-06",
+  "source_authority": {
+    "repository": "evansmusitu/mft-axiom-build",
+    "branch": "frontier/axiom-product-intelligence-phase2-20261004",
+    "predecessor_conditional_infrastructure_head": "d9497cd5404cce138e4da3afec85e8600227cbef",
+    "admission_module_commit": "a80667fb74acf370e3d8fd0e07535bcee36d5495",
+    "contract_test_commit": "a0f464b294c3a7b523c671b91e4f68990a7bbaa0",
+    "independent_gate_commit": "386b7a347a90eba832d34cf1f856067c97ded2e8",
+    "implementation_path": "axiom_interface/vnext/product_intelligence/optional_adapter_admission.js",
+    "implementation_sha256": "818b138a0d5098362e28bde40b96c9149278f6d33e33aa8446a746209d166fa8",
+    "implementation_git_blob": "d419a7d50dd565e41a068c51b2fc0ef4605b91e0",
+    "contract_test_path": "axiom_interface/vnext/tests/product_intelligence_optional_adapter_admission.test.mjs",
+    "contract_test_sha256": "1f74dadc1faea6c1e5dfe80e6760597f955be5a5cc30bc60199d3f727c367955",
+    "contract_test_git_blob": "21254eabc08d652b9a4bed4bb261e2017ecb5ee5",
+    "gate_workflow_path": ".github/workflows/axiom-product-intelligence-phase2-gate.yml",
+    "gate_workflow_sha256": "00a5aa13b0b70300584724a11fd87d89889c605f1aac990d9273a971fe00c09f",
+    "gate_workflow_git_blob": "49b44e198b8c84e3dde8dd704f4fc907c56bab90"
+  },
+  "tdd": {
+    "observed_red_green_behavior_cycles": 10,
+    "cycles": [
+      {
+        "cycle": 1,
+        "red_sha256": "e7c33cc1bd425292b0537b58b88df5907e1ae9650e70ba3e1a5ca8c9658e0242",
+        "green_sha256": "2286bc94f3e4339928554a8b2d10535234061759dee21a69ad7cad000d07ad80",
+        "red_observed": true,
+        "green_pass": true
+      },
+      {
+        "cycle": 2,
+        "red_sha256": "1fae64d042db2bbf2decd649eeb214d984aecc536f6d1e1f0ebdbad03a531a8e",
+        "green_sha256": "4797c36c47c0c7794519b835a5092df4e1acadbd6d9321934b1b52062b7862dd",
+        "red_observed": true,
+        "green_pass": true
+      },
+      {
+        "cycle": 3,
+        "red_sha256": "ad3619f68b9010ff591de3d6aca617354f25be73491311c1c42c95d893d2c4a2",
+        "green_sha256": "d55e36ff8edda7a487db4d2e1f78e53d70334c6f4c033313a3f28f288a90cef6",
+        "red_observed": true,
+        "green_pass": true
+      },
+      {
+        "cycle": 4,
+        "red_sha256": "894011cda26572e7cc602a08471989a3f64df6a8e1b32ceac40c1d2ec877d123",
+        "green_sha256": "61493b42d185efe34ca3567680ad56215dea4f9a8b2eae63ef2b1560126725e0",
+        "red_observed": true,
+        "green_pass": true
+      },
+      {
+        "cycle": 5,
+        "red_sha256": "094bab0f2168cf15fb93867d172a852b55c6c9507e8c25adac93df3d47936ad3",
+        "green_sha256": "0f5910237c0cfebd80ba36a6ef54753393b94ddba533b79322dd28e7a02747ba",
+        "red_observed": true,
+        "green_pass": true
+      },
+      {
+        "cycle": 6,
+        "red_sha256": "52d46e4faeefce522d6035c13ee629a104d126e2b9360c23ee0751efa8352add",
+        "green_sha256": "0c82dde1a834469a7474a43e4f0d58dc7becea2c342a9c82b2a4a465e5aec140",
+        "red_observed": true,
+        "green_pass": true
+      },
+      {
+        "cycle": 7,
+        "red_sha256": "77af2311d16fb9fa873c3d4607dd1a3b1424fe22da305be4e0d4c3300e424a60",
+        "green_sha256": "d37e9244a89fabb1f1c0113386b7c7e19c6ba998ed339701ca5a2391596344ac",
+        "red_observed": true,
+        "green_pass": true
+      },
+      {
+        "cycle": 8,
+        "red_sha256": "a310d7abf7a08bb215b79d8497cbba4f7c4762fe97b49f68eb56c9f110b9ca39",
+        "green_sha256": "11bba4806298d8b26e54373e822f483ad1dc370443414a0608308b92890dcc85",
+        "red_observed": true,
+        "green_pass": true
+      },
+      {
+        "cycle": 9,
+        "red_sha256": "c17191a4d4ec49856a7c22697055764736658de6e243e7cd0eb82dee46c36456",
+        "green_sha256": "ab53b56451b0d4f547625979b1d263bb9ff9d15860b2b9554d517fdc851f3e9d",
+        "red_observed": true,
+        "green_pass": true
+      },
+      {
+        "cycle": 10,
+        "red_sha256": "700f84c570c90c38ba8da2d3b297b883fce8fbab41b37570ac8d77d90469e22a",
+        "green_sha256": "9acaec6198610d14fbbc45c3838fd09d7624c2701be645854004e961be0bec5a",
+        "red_observed": true,
+        "green_pass": true
+      }
+    ],
+    "final_contract_tests": {
+      "total": 10,
+      "pass": 10,
+      "fail": 0
+    },
+    "assertions_weakened_to_pass": false
+  },
+  "independent_verification": {
+    "workflow": "MUSITU Axiom Product Intelligence Phase 2 Gate",
+    "run_id": 37419460678,
+    "head_sha": "386b7a347a90eba832d34cf1f856067c97ded2e8",
+    "focused_contract_job": {
+      "job_id": 112125340540,
+      "conclusion": "success",
+      "optional_adapter_contracts": "PASS_10_OF_10"
+    },
+    "independent_replay_job": {
+      "job_id": 112125419720,
+      "conclusion": "success",
+      "all_frozen_order_tests": "PASS_75_OF_75",
+      "authority_marker": "MUSITU_AXIOM_PHASE2_PROVIDER_AUTHORITY_FAIL_CLOSED_PASS",
+      "slice_marker": "MUSITU_AXIOM_PHASE2_SLICE_VERIFICATION_PASS",
+      "release_authority": false,
+      "production_authority": false,
+      "certification_authority": false
+    }
+  },
+  "frozen_optional_adapters": {
+    "e2b": {
+      "provider": "E2B",
+      "target_seam": "SandboxBackend",
+      "admission_state": "NOT_PROVEN",
+      "provider_selected": false,
+      "runtime_activation_authorized": false
+    },
+    "openhands": {
+      "provider": "OpenHands",
+      "target_seam": "EngineeringWorkerBackend",
+      "admission_state": "NOT_PROVEN",
+      "provider_selected": false,
+      "runtime_activation_authorized": false
+    },
+    "langfuse": {
+      "provider": "Langfuse",
+      "target_seam": "TelemetryBackend",
+      "admission_state": "NOT_PROVEN",
+      "provider_selected": false,
+      "runtime_activation_authorized": false
+    },
+    "growthbook": {
+      "provider": "GrowthBook",
+      "target_seam": "ExperimentEngineBackend",
+      "admission_state": "NOT_PROVEN",
+      "provider_selected": false,
+      "runtime_activation_authorized": false
+    },
+    "penpot": {
+      "provider": "Penpot",
+      "target_seam": "DesignInteropBackend",
+      "admission_state": "NOT_PROVEN",
+      "provider_selected": false,
+      "runtime_activation_authorized": false
+    },
+    "grapesjs": {
+      "provider": "GrapesJS",
+      "target_seam": "DesignInteropBackend",
+      "admission_state": "NOT_PROVEN",
+      "provider_selected": false,
+      "runtime_activation_authorized": false
+    }
+  },
+  "qualification": {
+    "optional_adapter_admission_gate": "PASS",
+    "verified_need_evidence_present": false,
+    "admitted_candidates": [],
+    "provider_selection_performed": false,
+    "runtime_activation_authorized": false,
+    "live_integrated_runtime_qualification": "NOT_APPLICABLE_ADMISSION_ONLY",
+    "release_authority": false,
+    "production_authority": false,
+    "certification_authority": false,
+    "production_mutation": false,
+    "frozen_openai_mutation": false,
+    "required_next_frozen_order_gate": "MUSITU_LAYERS"
+  },
+  "interpretation": "The admission mechanism is qualified. No optional provider is qualified, selected, required, or runtime-active. Missing adapter-specific need evidence remains NOT_PROVEN.",
+  "incident_boundary": {
+    "modal_fanout_cleanup": "NOT_PROVEN",
+    "latest_checked_run_id": 37284936693,
+    "latest_checked_job_id": 111795419209,
+    "latest_checked_job_conclusion": "failure",
+    "required_pass_marker_observed": false
+  }
+}
