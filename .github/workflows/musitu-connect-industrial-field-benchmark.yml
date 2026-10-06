@@ -1,0 +1,202 @@
+name: MUSITU Connect industrial field benchmark
+
+on:
+  push:
+    branches: ['feat/musitu-connect-frontier']
+    paths:
+      - '.github/workflows/musitu-connect-industrial-field-benchmark.yml'
+      - 'benchmarks/mining_adapter/industrial_field.py'
+      - 'benchmarks/mining_adapter/mqtt_field_runner.py'
+      - 'benchmarks/mining_adapter/opcua_field_runner.py'
+      - 'qualification/mining_adapter_field_qualify.py'
+      - 'qualification/mining_adapter_field_matrix.json'
+      - 'connect/mining_adapter.py'
+      - 'benchmarks/mining_adapter/baselines.json'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: musitu-connect-industrial-field-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  field:
+    runs-on: ubuntu-latest
+    timeout-minutes: 55
+    env:
+      FIELD_EVENTS: '1000000'
+      FIELD_OPCUA_POINTS: '1000000'
+      FIELD_SOAK_SECONDS: '600'
+      FIELD_SEED: '20261006'
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install field benchmark dependencies
+        run: |
+          python -m pip install --disable-pip-version-check \
+            paho-mqtt==2.1.0 asyncua==2.0.1
+          python -m py_compile \
+            benchmarks/mining_adapter/industrial_field.py \
+            benchmarks/mining_adapter/mqtt_field_runner.py \
+            benchmarks/mining_adapter/opcua_field_runner.py \
+            qualification/mining_adapter_field_qualify.py
+
+      - name: Focused field contract tests
+        run: |
+          python -m unittest \
+            tests.connect.test_mining_field_benchmark \
+            tests.connect.test_mining_adapter -v
+
+      - name: Start MUSITU reference MQTT broker
+        run: |
+          docker run -d --name musitu-field-mosquitto \
+            -p 18831:1883 \
+            -v "$PWD/infra/qualification/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro" \
+            eclipse-mosquitto:2.1.2-alpine
+          python - <<'PY'
+          import socket,time
+          for _ in range(120):
+              try:
+                  with socket.create_connection(("127.0.0.1",18831),timeout=.5):
+                      break
+              except OSError:
+                  time.sleep(.25)
+          else:
+              raise SystemExit("mosquitto_not_ready")
+          PY
+
+      - name: MUSITU MQTT field runner smoke
+        run: |
+          python benchmarks/mining_adapter/mqtt_field_runner.py \
+            --port 18831 --label musitu-mosquitto --broker-version 2.1.2 \
+            --restart-container musitu-field-mosquitto \
+            --events 10000 --batch-size 250 --soak-seconds 10 \
+            --opcua-data-points 10000 \
+            --output /tmp/musitu_mqtt_smoke.json
+
+      - name: MUSITU 1M-event MQTT adapter stress + 10-minute soak
+        run: |
+          mkdir -p qualification/field
+          python benchmarks/mining_adapter/mqtt_field_runner.py \
+            --port 18831 --label musitu-mosquitto --broker-version 2.1.2 \
+            --restart-container musitu-field-mosquitto \
+            --events "$FIELD_EVENTS" --batch-size 500 \
+            --soak-seconds "$FIELD_SOAK_SECONDS" \
+            --opcua-data-points "$FIELD_OPCUA_POINTS" --seed "$FIELD_SEED" \
+            --output qualification/field/musitu_mqtt.json
+
+      - name: Replace reference broker with EMQX Enterprise 6.3.1
+        run: |
+          docker rm -f musitu-field-mosquitto
+          docker run -d --name musitu-field-emqx \
+            --ulimit nofile=262144:262144 \
+            -e EMQX_NODE__DEFAULT_LISTENER_ADDRESS=all \
+            -p 18832:1883 -p 18084:18083 \
+            emqx/emqx-enterprise:6.3.1
+          python - <<'PY'
+          import socket,time
+          for _ in range(240):
+              try:
+                  with socket.create_connection(("127.0.0.1",18832),timeout=.5):
+                      break
+              except OSError:
+                  time.sleep(.5)
+          else:
+              raise SystemExit("emqx_not_ready")
+          PY
+          docker logs --tail 50 musitu-field-emqx
+
+      - name: EMQX identical MQTT field runner smoke
+        run: |
+          python benchmarks/mining_adapter/mqtt_field_runner.py \
+            --port 18832 --label emqx-enterprise --broker-version 6.3.1 \
+            --restart-container musitu-field-emqx \
+            --events 10000 --batch-size 250 --soak-seconds 10 \
+            --opcua-data-points 10000 \
+            --output /tmp/emqx_mqtt_smoke.json
+
+      - name: EMQX identical 1M-event stress + 10-minute soak
+        run: |
+          python benchmarks/mining_adapter/mqtt_field_runner.py \
+            --port 18832 --label emqx-enterprise --broker-version 6.3.1 \
+            --restart-container musitu-field-emqx \
+            --events "$FIELD_EVENTS" --batch-size 500 \
+            --soak-seconds "$FIELD_SOAK_SECONDS" \
+            --opcua-data-points "$FIELD_OPCUA_POINTS" --seed "$FIELD_SEED" \
+            --output qualification/field/emqx_mqtt.json
+          docker rm -f musitu-field-emqx
+
+      - name: OPC-UA field runner smoke
+        run: |
+          python benchmarks/mining_adapter/opcua_field_runner.py run \
+            --port 4841 --node-count 100 --data-points 10000 \
+            --mqtt-events 10000 --soak-seconds 10 \
+            --output /tmp/opcua_field_smoke.json
+
+      - name: OPC-UA 1M-data-point stress + forced server recovery
+        run: |
+          python benchmarks/mining_adapter/opcua_field_runner.py run \
+            --port 4841 --node-count 250 \
+            --data-points "$FIELD_OPCUA_POINTS" --mqtt-events "$FIELD_EVENTS" \
+            --soak-seconds "$FIELD_SOAK_SECONDS" --seed "$FIELD_SEED" \
+            --output qualification/field/opcua.json
+
+      - name: Evaluate industrial field gate
+        run: |
+          python qualification/mining_adapter_field_qualify.py \
+            --musitu-mqtt qualification/field/musitu_mqtt.json \
+            --emqx-mqtt qualification/field/emqx_mqtt.json \
+            --opcua qualification/field/opcua.json \
+            --events "$FIELD_EVENTS" --opcua-data-points "$FIELD_OPCUA_POINTS" \
+            --soak-seconds "$FIELD_SOAK_SECONDS" --seed "$FIELD_SEED" \
+            --output qualification/field/qualification.json
+
+      - name: Validate field evidence
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          q=json.loads(Path("qualification/field/qualification.json").read_text())
+          assert q["execution_passed"] is True
+          assert q["field_load_qualified"] is True
+          assert q["gate"] in {"INDUSTRIAL_FIELD_BENCHMARK_PARTIAL","INDUSTRIAL_FIELD_BENCHMARK_COMPLETE"}
+          m=json.loads(Path("qualification/field/musitu_mqtt.json").read_text())
+          e=json.loads(Path("qualification/field/emqx_mqtt.json").read_text())
+          o=json.loads(Path("qualification/field/opcua.json").read_text())
+          assert m["events"] >= 1_000_000 and m["received"] == m["events"]
+          assert e["events"] >= 1_000_000 and e["received"] == e["events"]
+          assert o["data_points"] >= 1_000_000 and o["received"] == o["data_points"]
+          assert m["soak_seconds"] >= 600 and e["soak_seconds"] >= 600
+          assert m["recovered"] is True and e["recovered"] is True and o["recovered"] is True
+          print("INDUSTRIAL_FIELD_EVIDENCE_VALID=PASS")
+          PY
+          sha256sum qualification/field/*.json
+          {
+            echo "## MUSITU Connect Mining Industrial Field Benchmark"
+            echo
+            cat qualification/field/qualification.json
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Archive raw industrial field evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: musitu-connect-industrial-field-evidence
+          path: |
+            qualification/field/*.json
+            qualification/mining_adapter_field_matrix.json
+            benchmarks/mining_adapter/baselines.json
+          retention-days: 90
+          if-no-files-found: warn
+
+      - name: Cleanup benchmark containers
+        if: always()
+        run: |
+          docker rm -f musitu-field-mosquitto 2>/dev/null || true
+          docker rm -f musitu-field-emqx 2>/dev/null || true
