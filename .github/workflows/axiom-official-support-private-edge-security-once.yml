@@ -16,7 +16,7 @@ concurrency:
 
 jobs:
   verify-private-edge:
-    if: github.event.before == '7f41a9de07d65d56a4471881cd863ad5659829ab'
+    if: github.event.before == 'd4e574635f0f087fc03e67b233ddf2f601afd61e'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     environment: axiom-support-production
@@ -36,7 +36,7 @@ jobs:
           test "$GITHUB_REF_NAME" = 'support/axiom-official-support-20261005'
           test "$GITHUB_REF_NAME" != 'main'
           test "$GITHUB_EVENT_NAME" = 'push'
-          test "${{ github.event.before }}" = '7f41a9de07d65d56a4471881cd863ad5659829ab'
+          test "${{ github.event.before }}" = 'd4e574635f0f087fc03e67b233ddf2f601afd61e'
       - name: Re-run full support and rate-limit contracts
         run: node --test support/tests/*.test.mjs
       - name: Create Access-protected ephemeral edge, verify negatives and rate limiting, then destroy it
@@ -48,6 +48,7 @@ jobs:
           const crypto=require('node:crypto');
           const {spawnSync}=require('node:child_process');
 
+          (async()=>{
           const account=String(process.env.CF_ACCOUNT_ID||'');
           const token=String(process.env.CF_ACCESS_TOKEN||'');
           const d1=String(process.env.SUPPORT_D1_ID||'');
@@ -385,6 +386,7 @@ jobs:
           evidence.cleanup_verified=true;
           evidence.secret_exposed=false;
           console.log(JSON.stringify(evidence));
+          })().catch(error=>{ console.error(error?.stack||String(error)); process.exitCode=1; });
           NODE
       - name: Confirm protected repository branch state is unchanged by drill
         shell: bash
