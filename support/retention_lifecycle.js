@@ -1,5 +1,5 @@
-import {appendCaseEvent, evaluateSensitiveAction} from './control_plane.js';
-import {buildDeletionReceipt, createLegalHold, evaluatePurgeEligibility, LEGAL_HOLD_SENTINEL} from './retention_policy.js';
+import {appendCaseEvent, assertTransition, evaluateSensitiveAction} from './control_plane.js';
+import {buildDeletionReceipt, createLegalHold, evaluatePurgeEligibility, LEGAL_HOLD_SENTINEL, retentionExpiry} from './retention_policy.js';
 
 const CASE_ID=/^AX-[0-9A-HJKMNP-TV-Z]{12}$/;
 const HASH=/^[a-f0-9]{64}$/i;
@@ -15,6 +15,41 @@ function addMinutes(value,minutes){
   return d.toISOString();
 }
 
+
+
+export async function closeSupportCase({
+  database,caseId,at=new Date().toISOString(),actor,
+}={}) {
+  requireDb(database);
+  if(!CASE_ID.test(String(caseId||''))) throw new TypeError('valid case id required');
+  const actorRef=String(actor||'').trim();
+  if(!actorRef) throw new TypeError('closure actor is required');
+  const row=await database.prepare(`SELECT case_id,state,priority,surface,category,retention_class,closed_at,retention_expires_at,last_event_hash,created_at,updated_at,public_json
+    FROM support_cases WHERE case_id=? LIMIT 1`).bind(caseId).first();
+  if(!row) throw new Error('support case not found');
+  assertTransition(String(row.state),'CLOSED');
+  const closedAt=new Date(at).toISOString();
+  const expiresAt=retentionExpiry(String(row.retention_class),closedAt);
+  const event=await appendCaseEvent(row,{
+    type:'CASE_CLOSED',actor:actorRef,visibility:'internal',
+    payload:{from_state:String(row.state),retention_class:String(row.retention_class),retention_expires_at:expiresAt},
+  },{at:closedAt});
+  const publicView={...JSON.parse(String(row.public_json||'{}')),state:'CLOSED',updated_at:closedAt};
+  await database.batch([
+    database.prepare(`UPDATE support_cases SET state=?,closed_at=?,retention_expires_at=?,last_event_hash=?,updated_at=?,public_json=? WHERE case_id=?`)
+      .bind('CLOSED',closedAt,expiresAt,event.event_hash,closedAt,JSON.stringify(publicView),caseId),
+    database.prepare(`INSERT INTO support_case_events
+      (case_id,event_hash,prior_event_hash,type,actor,visibility,payload_json,created_at)
+      VALUES (?,?,?,?,?,?,?,?)`).bind(
+        event.case_id,event.event_hash,event.prior_event_hash,event.type,event.actor,event.visibility,
+        JSON.stringify(event.payload),event.at,
+      ),
+  ]);
+  return Object.freeze({
+    case_id:caseId,state:'CLOSED',closed_at:closedAt,retention_class:String(row.retention_class),
+    retention_expires_at:expiresAt,event_hash:event.event_hash,
+  });
+}
 
 function authorizeRetentionAction({action,actorRole,ownerRef,independentApproverRef,approvalEvidenceHashes}) {
   const owner=String(ownerRef||'').trim();
