@@ -1,5 +1,5 @@
-import {evaluateSensitiveAction} from './control_plane.js';
-import {buildDeletionReceipt, evaluatePurgeEligibility} from './retention_policy.js';
+import {appendCaseEvent, evaluateSensitiveAction} from './control_plane.js';
+import {buildDeletionReceipt, createLegalHold, evaluatePurgeEligibility, LEGAL_HOLD_SENTINEL} from './retention_policy.js';
 
 const CASE_ID=/^AX-[0-9A-HJKMNP-TV-Z]{12}$/;
 const HASH=/^[a-f0-9]{64}$/i;
@@ -13,6 +13,107 @@ function addMinutes(value,minutes){
   if(!Number.isFinite(d.getTime())) throw new TypeError('purge instant is invalid');
   d.setUTCMinutes(d.getUTCMinutes()+minutes);
   return d.toISOString();
+}
+
+
+function authorizeRetentionAction({action,actorRole,ownerRef,independentApproverRef,approvalEvidenceHashes}) {
+  const owner=String(ownerRef||'').trim();
+  const approver=String(independentApproverRef||'').trim();
+  if(!owner||!approver||owner===approver) throw new Error('legal hold requires owner and a different independent approver');
+  if(!Array.isArray(approvalEvidenceHashes)||approvalEvidenceHashes.length===0||approvalEvidenceHashes.some(x=>!HASH.test(String(x)))) {
+    throw new TypeError('legal hold approval evidence hashes are required');
+  }
+  const admission=evaluateSensitiveAction({
+    action,actorRole,independentApprover:approver,customerVerified:true,evidenceHashes:approvalEvidenceHashes,
+  });
+  if(!admission.allowed) throw new Error(`legal hold authorization denied: ${admission.gate}`);
+  return {owner,approver,admission};
+}
+
+async function getRetentionCase(database,caseId) {
+  const row=await database.prepare(`SELECT case_id,state,retention_class,closed_at,retention_expires_at,legal_hold_until,legal_hold_review_at,last_event_hash,updated_at
+    FROM support_cases WHERE case_id=? LIMIT 1`).bind(caseId).first();
+  if(!row) throw new Error('support case not found');
+  return row;
+}
+
+async function persistLegalHoldEvent({database,row,event,updateStatement}) {
+  await database.batch([
+    updateStatement,
+    database.prepare(`INSERT INTO support_case_events
+      (case_id,event_hash,prior_event_hash,type,actor,visibility,payload_json,created_at)
+      VALUES (?,?,?,?,?,?,?,?)`).bind(
+        event.case_id,event.event_hash,event.prior_event_hash,event.type,event.actor,event.visibility,
+        JSON.stringify(event.payload),event.at,
+      ),
+  ]);
+}
+
+export async function applyLegalHold({
+  database,caseId,reasonHash,at=new Date().toISOString(),actorRole,ownerRef,independentApproverRef,approvalEvidenceHashes=[],
+}={}) {
+  requireDb(database);
+  if(!CASE_ID.test(String(caseId||''))) throw new TypeError('valid case id required');
+  const {owner,approver,admission}=authorizeRetentionAction({
+    action:'LEGAL_HOLD_APPLY',actorRole,ownerRef,independentApproverRef,approvalEvidenceHashes,
+  });
+  const row=await getRetentionCase(database,caseId);
+  if(row.legal_hold_until) throw new Error('support case already has an active legal hold');
+  const hold=await createLegalHold({ownerRef:owner,independentApproverRef:approver,reasonHash,at});
+  const event=await appendCaseEvent(row,{
+    type:'LEGAL_HOLD_APPLIED',actor:owner,visibility:'internal',
+    payload:{reason_sha256:hold.reason_sha256,independent_approver_ref:approver,review_due_at:hold.review_due_at},
+  },{at:hold.started_at});
+  await persistLegalHoldEvent({
+    database,row,event,
+    updateStatement:database.prepare(`UPDATE support_cases SET legal_hold_until=?,legal_hold_review_at=?,last_event_hash=?,updated_at=? WHERE case_id=?`)
+      .bind(hold.hold_until,hold.review_due_at,event.event_hash,event.at,caseId),
+  });
+  return Object.freeze({...hold,authority_effect:admission.authority_effect,event_hash:event.event_hash});
+}
+
+export async function reviewLegalHold({
+  database,caseId,reasonHash,at=new Date().toISOString(),actorRole,ownerRef,independentApproverRef,approvalEvidenceHashes=[],
+}={}) {
+  requireDb(database);
+  const {owner,approver,admission}=authorizeRetentionAction({
+    action:'LEGAL_HOLD_REVIEW',actorRole,ownerRef,independentApproverRef,approvalEvidenceHashes,
+  });
+  const row=await getRetentionCase(database,caseId);
+  if(String(row.legal_hold_until||'')!==LEGAL_HOLD_SENTINEL) throw new Error('support case has no active legal hold to review');
+  const hold=await createLegalHold({ownerRef:owner,independentApproverRef:approver,reasonHash,at});
+  const event=await appendCaseEvent(row,{
+    type:'LEGAL_HOLD_REVIEWED',actor:owner,visibility:'internal',
+    payload:{reason_sha256:hold.reason_sha256,independent_approver_ref:approver,review_due_at:hold.review_due_at},
+  },{at:hold.started_at});
+  await persistLegalHoldEvent({
+    database,row,event,
+    updateStatement:database.prepare(`UPDATE support_cases SET legal_hold_review_at=?,last_event_hash=?,updated_at=? WHERE case_id=?`)
+      .bind(hold.review_due_at,event.event_hash,event.at,caseId),
+  });
+  return Object.freeze({...hold,authority_effect:admission.authority_effect,event_hash:event.event_hash});
+}
+
+export async function releaseLegalHold({
+  database,caseId,at=new Date().toISOString(),actorRole,ownerRef,independentApproverRef,approvalEvidenceHashes=[],
+}={}) {
+  requireDb(database);
+  const {owner,approver,admission}=authorizeRetentionAction({
+    action:'LEGAL_HOLD_RELEASE',actorRole,ownerRef,independentApproverRef,approvalEvidenceHashes,
+  });
+  const row=await getRetentionCase(database,caseId);
+  if(String(row.legal_hold_until||'')!==LEGAL_HOLD_SENTINEL) throw new Error('support case has no active legal hold to release');
+  const releasedAt=new Date(at).toISOString();
+  const event=await appendCaseEvent(row,{
+    type:'LEGAL_HOLD_RELEASED',actor:owner,visibility:'internal',
+    payload:{independent_approver_ref:approver},
+  },{at:releasedAt});
+  await persistLegalHoldEvent({
+    database,row,event,
+    updateStatement:database.prepare(`UPDATE support_cases SET legal_hold_until=NULL,legal_hold_review_at=NULL,last_event_hash=?,updated_at=? WHERE case_id=?`)
+      .bind(event.event_hash,event.at,caseId),
+  });
+  return Object.freeze({status:'RELEASED',released_at:releasedAt,authority_effect:admission.authority_effect,event_hash:event.event_hash});
 }
 
 export async function purgeExpiredCase({
