@@ -32,7 +32,10 @@ test('production health rejects the same person as owner and approver', async ()
 });
 
 test('production case creation rejects missing Turnstile proof before touching storage', async () => {
-  const response = await worker.fetch(new Request('https://support.example/api/v1/cases', {method: 'POST', headers: {'content-type': 'application/json'}, body: JSON.stringify(payload)}), {ENVIRONMENT: 'production'});
+  const response = await worker.fetch(new Request('https://support.example/api/v1/cases', {method: 'POST', headers: {'content-type': 'application/json'}, body: JSON.stringify(payload)}), {
+    ENVIRONMENT: 'production',
+    SUPPORT_INTAKE_RATE_LIMITER: {limit: async () => ({success: true})},
+  });
   assert.equal(response.status, 403);
   assert.equal((await response.json()).error, 'TURNSTILE_PROOF_REQUIRED');
   assert.equal(response.headers.get('referrer-policy'), 'no-referrer');
@@ -44,6 +47,7 @@ test('Turnstile verification receives only the proof token, never the customer n
   let received = '';
   const env = {
     ENVIRONMENT: 'production', SUPPORT_DOMAIN: 'support.example', TURNSTILE_SECRET_KEY: 'server-only-secret',
+    SUPPORT_INTAKE_RATE_LIMITER: {limit: async () => ({success: true})},
     TURNSTILE_VERIFY: async (_url, options) => { received = String(options.body); return new Response(JSON.stringify({success: false, hostname: 'support.example', action: 'support_case_create'}), {headers: {'content-type': 'application/json'}}); },
   };
   const response = await worker.fetch(new Request('https://support.example/api/v1/cases', {method: 'POST', headers: {'content-type': 'application/json'}, body: JSON.stringify({...payload, ...turnstile})}), env);
