@@ -23,7 +23,7 @@ jobs:
           node-version: '22'
       - name: Benchmark contract tests
         working-directory: delivery-os
-        run: node --test evaluation/benchmark.test.mjs evaluation/external-access.test.mjs
+        run: node --test evaluation/benchmark.test.mjs evaluation/external-access.test.mjs evaluation/standard-workload.test.mjs
       - name: Prove external access fails closed without sandbox credentials
         working-directory: delivery-os
         run: |
@@ -38,6 +38,11 @@ jobs:
           if (!report.providers.bringg.blocked_by.includes('BRINGG_SANDBOX_TOKEN_URL_REQUIRED')) throw new Error('Bringg fail-closed contract drifted');
           console.log('MUSITU_DELIVERY_OS_EXTERNAL_ACCESS_FAIL_CLOSED_PASS');
           NODE
+      - name: Materialize exact standard-v1 workload
+        working-directory: delivery-os
+        run: |
+          mkdir -p "$RUNNER_TEMP/musitu-benchmark"
+          node evaluation/materialize-standard-v1.mjs --output "$RUNNER_TEMP/musitu-benchmark/standard-v1-workload.json"
       - name: Generate controlled evidence report
         working-directory: delivery-os
         run: |
@@ -59,5 +64,7 @@ jobs:
           path: |
             ${{ runner.temp }}/musitu-benchmark/controlled-report.json
             ${{ runner.temp }}/musitu-benchmark/external-access-offline.json
+            ${{ runner.temp }}/musitu-benchmark/standard-v1-workload.json
+            ${{ runner.temp }}/musitu-benchmark/standard-v1-workload.json.sha256
           if-no-files-found: error
           retention-days: 90

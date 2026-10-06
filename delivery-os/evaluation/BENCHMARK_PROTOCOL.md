@@ -19,6 +19,14 @@ Marketing pages, screenshots, hand-entered claims, documentation feature lists, 
 
 The v1 workload fixes 100 orders, 10 drivers, one depot, 10 disruption events, time windows, capacity/service constraints, and photo+signature proof requirements. The common flow is ingest -> plan -> dispatch -> disrupt -> replan/recommend -> complete -> verify evidence.
 
+## Exact standard-v1 workload
+
+The abstract scenario is materialized by `standard-workload.mjs` into a vendor-neutral JSON workload. The generated workload contains the exact 100 orders, 10 drivers, 10 disruptions, time windows, capacity demands, skills, coordinates and proof requirements that every provider must receive. CI materializes and publishes the workload together with its checksum.
+
+Canonical workload SHA-256: `bb64c1d425bf5e8245a0daad8acffa01f849da79f3b9a9d83fbdd86aec012554`.
+
+A provider run over a different workload is not comparable, even if the order/driver counts match.
+
 ## Metrics
 
 - assignment decision latency — lower is better
@@ -53,7 +61,8 @@ The existing unified CI gate reported `projected_improvement=0.451` in the inter
 ## Commands
 
 ```bash
-node --test evaluation/benchmark.test.mjs
+node --test evaluation/benchmark.test.mjs evaluation/external-access.test.mjs evaluation/standard-workload.test.mjs
+node evaluation/materialize-standard-v1.mjs --output /tmp/standard-v1-workload.json
 node evaluation/run-controlled.mjs --output /tmp/musitu-benchmark-controlled.json
 ```
 
