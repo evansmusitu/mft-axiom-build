@@ -257,18 +257,20 @@ try{
     IDBObjectStore.prototype.put=originalPut;
     out.textContent='MUSITU_AXIOM_PHASE2_BROWSER_IDEMPOTENCY_FAIL:Error:process was not killed during terminal transaction';
   }else if(phase==='process-kill-inspect'){
-    const saved=JSON.parse(localStorage.getItem('axiom_process_kill_state')||'null');
-    invariant(saved,'process-kill seed state missing');
+    const projectId='project_browser_process_kill_12345678';
     const store=await GovernedExecutionStore.open();
-    const terminal=await terminalReceipts(store,saved.projectId,saved.requestSha);
-    const events=await completedEvents(store,saved.projectId,saved.requestSha);
-    const sandbox=await store.getSandbox(saved.sandboxId);
-    const claims=await store._all('execution_claims',saved.projectId);
+    const requests=await store._all('requests',projectId);
+    invariant(requests.length===1,`process-kill durable request count was ${requests.length}`);
+    const request=requests[0];
+    const terminal=await terminalReceipts(store,projectId,request.request_sha256);
+    const events=await completedEvents(store,projectId,request.request_sha256);
+    const sandbox=await store.getSandbox(request.sandbox_id);
+    const claims=await store._all('execution_claims',projectId);
     invariant(terminal.length===0,`process kill leaked ${terminal.length} terminal receipts`);
     invariant(events.length===0,`process kill leaked ${events.length} completion events`);
     invariant(!Object.hasOwn(sandbox.worktrees.main.files,'process-kill-window.txt'),'process kill leaked persisted sandbox mutation');
     invariant(claims.length===1,'process kill must preserve one recoverable execution claim');
-    const integrity=await store.verify(saved.projectId);
+    const integrity=await store.verify(projectId);
     invariant(integrity.status==='PASS',`process-kill recovery store integrity failed: ${integrity.errors.join(',')}`);
     store.db.close();
     out.textContent='MUSITU_AXIOM_PHASE2_BROWSER_PROCESS_KILL_ATOMICITY_PASS';
