@@ -1,0 +1,99 @@
+{
+  "schema": "musitu.axiom.frontier.external-level56-protocol.v2",
+  "protocol_id": "axiom-level56-official-surface-v2-20261006",
+  "frozen_at": "2026-10-06",
+  "parent_fa19_protocol_sha256": "eea8c3a4d3c85ca762201fcb5b06fd338ba0f9d3c2cc3ed280949cb138d4a465",
+  "candidate_system": {
+    "system_id": "musitu-axiom",
+    "provider": "MUSITU",
+    "product": "MUSITU Axiom"
+  },
+  "required_external_systems": [
+    {
+      "system_id": "openai-codex",
+      "provider": "OpenAI",
+      "product": "Codex",
+      "accepted_surfaces": ["OFFICIAL_CLI", "OFFICIAL_DESKTOP", "OFFICIAL_WEB"],
+      "no_api_key_path": "ChatGPT account session",
+      "access_reference": "https://help.openai.com/en/articles/11369540-using-codex-with-your-chatgpt-plan"
+    },
+    {
+      "system_id": "anthropic-claude-code",
+      "provider": "Anthropic",
+      "product": "Claude Code",
+      "accepted_surfaces": ["OFFICIAL_CLI", "OFFICIAL_DESKTOP"],
+      "no_api_key_path": "Claude Pro/Max subscription session",
+      "access_reference": "https://support.claude.com/en/articles/11145838-use-claude-code-with-your-pro-or-max-plan"
+    },
+    {
+      "system_id": "google-antigravity",
+      "provider": "Google",
+      "product": "Antigravity CLI",
+      "accepted_surfaces": ["OFFICIAL_CLI", "OFFICIAL_DESKTOP"],
+      "no_api_key_path": "Official consumer account session",
+      "access_reference": "https://developers.googleblog.com/an-important-update-transitioning-gemini-cli-to-antigravity-cli/"
+    },
+    {
+      "system_id": "cognition-devin-desktop",
+      "provider": "Cognition",
+      "product": "Devin Desktop",
+      "accepted_surfaces": ["OFFICIAL_DESKTOP"],
+      "no_api_key_path": "Official account session including Free tier",
+      "access_reference": "https://devin.ai/desktop"
+    }
+  ],
+  "legacy_identity_rules": {
+    "windsurf-cascade": "cognition-devin-desktop",
+    "windsurf_and_devin_desktop_must_not_count_as_distinct_baselines": true
+  },
+  "required_case_ids": [
+    "BUG_REPRO_MINIMAL_REPAIR",
+    "CROSS_FILE_FEATURE_REGRESSION",
+    "SECURITY_FAIL_CLOSED_REPAIR",
+    "ROLLBACK_EXACT_RESTORE"
+  ],
+  "execution_policy": {
+    "api_key_required": false,
+    "official_authenticated_surface_required": true,
+    "allowed_surface_types": ["OFFICIAL_CLI", "OFFICIAL_DESKTOP", "OFFICIAL_WEB", "OFFICIAL_API", "CONNECTED_PROVIDER"],
+    "same_case_set_required": true,
+    "same_constraints_required": true,
+    "attempt_limit": 1,
+    "human_intervention_after_start": "FORBIDDEN",
+    "raw_credentials_in_evidence": "FORBIDDEN",
+    "access_blocked_counts_as_completed": false,
+    "failed_execution_with_valid_authenticated_receipt_counts_as_executed": true
+  },
+  "level_5_rule": {
+    "all_required_external_systems_required": true,
+    "all_required_cases_required": true,
+    "external_origin_authentication_required": true,
+    "registered_distinct_external_trust_root_required": true,
+    "repository_local_self_attestation_sufficient": false,
+    "partial_matrix_may_be_preserved": true,
+    "partial_matrix_may_earn_level_5": false
+  },
+  "level_6_rule": {
+    "level_5_required": true,
+    "independent_replay_required": true,
+    "all_level_5_system_case_evidence_must_be_replayed": true,
+    "distinct_evaluator_required": true,
+    "replay_must_bind_source_receipt_hash": true,
+    "same_sealed_inputs_required": true,
+    "same_constraints_required": true,
+    "registered_evaluator_trust_root_required": true,
+    "repository_local_self_attestation_sufficient": false
+  },
+  "claim_policy": {
+    "matched_task_set_result_requires_level": 5,
+    "general_superiority_authorized": false,
+    "world_best_authorized": false,
+    "production_authority": false
+  },
+  "current_state": {
+    "level_5_verified": false,
+    "level_6_verified": false,
+    "level_7_verified": false,
+    "superiority": "NOT_CERTIFIED"
+  }
+}
