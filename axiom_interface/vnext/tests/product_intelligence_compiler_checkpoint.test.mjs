@@ -231,3 +231,15 @@ test('rollback request rejects unknown control fields and actor identity coercio
     );
   }
 });
+
+
+test('checkpoint rejects caller authorization at every risk class because authorization belongs to the downstream write gate',async()=>{
+  const {prior,next,diff}=await fixture();
+  await assert.rejects(
+    ()=>createCompilerCheckpoint({
+      projectId,priorIR:prior,nextIR:next,diff,actorId:'agent_builder_1',riskClass:'S1',
+      evidenceRefs:['evidence_source_12345678'],authorization:{decision:'ALLOW',human_approval:true,receipt_id:'auth_12345678'},at,
+    },services),
+    /authorization|self-authorize|governed.*write/i,
+  );
+});
