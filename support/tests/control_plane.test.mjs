@@ -6,6 +6,7 @@ import {
   createCaseRecord, appendCaseEvent, verifyEventChain, assertTransition,
   evaluateSensitiveAction, publicCaseView,
 } from '../control_plane.js';
+import {retentionExpiry, evaluatePurgeEligibility} from '../retention_policy.js';
 
 const intake = (overrides = {}) => ({
   surface: 'quantitative_result', category: 'calculation_dispute', affected_scope: 'self',
@@ -63,6 +64,25 @@ test('case creation stores only a recovery hash and produces a valid initial cha
   const view = publicCaseView(bundle.case_record);
   assert.equal('recovery_hash' in view, false);
   assert.equal(view.service_objective_is_guarantee, false);
+});
+
+test('automatic retention-class assignment follows the approved category policy', async () => {
+  const common={at:'2026-10-06T08:30:00Z',recoveryCode:'01234567-89ABCDEF-GHJKMNPQ'};
+  const standard=await createCaseRecord(intake({category:'calculation_dispute'}), {...common,caseId:'AX-0123456789AB'});
+  const privacy=await createCaseRecord(intake({category:'privacy_request'}), {...common,caseId:'AX-0123456789AC'});
+  const security=await createCaseRecord(intake({category:'security_report'}), {...common,caseId:'AX-0123456789AD'});
+  assert.equal(standard.case_record.retention_class,'SUPPORT_STANDARD');
+  assert.equal(privacy.case_record.retention_class,'PRIVACY_RESTRICTED');
+  assert.equal(security.case_record.retention_class,'SECURITY_RESTRICTED');
+});
+
+test('retention policy fails closed when the class is invalid or missing', () => {
+  assert.throws(()=>retentionExpiry(undefined,'2026-10-06T00:00:00Z'),/unknown retention class/);
+  assert.throws(()=>retentionExpiry('UNAPPROVED','2026-10-06T00:00:00Z'),/unknown retention class/);
+  const missing=evaluatePurgeEligibility({state:'CLOSED',closed_at:'2026-01-01T00:00:00Z',now:'2026-12-31T00:00:00Z'});
+  const invalid=evaluatePurgeEligibility({state:'CLOSED',retention_class:'UNAPPROVED',closed_at:'2026-01-01T00:00:00Z',now:'2026-12-31T00:00:00Z'});
+  assert.deepEqual(missing,{eligible:false,reason:'RETENTION_METADATA_INVALID'});
+  assert.deepEqual(invalid,{eligible:false,reason:'RETENTION_METADATA_INVALID'});
 });
 
 test('event chain rejects tampering and secret-bearing events', async () => {
