@@ -1,0 +1,32 @@
+{
+  "schema": "musitu.axiom.frontier.external-execution-receipt.v2",
+  "case_set_sha256": "6eea99e9e943498bbbb0e16e0be8447bff5cd206252d6d3fce79020e1e94bbf6",
+  "case_ids": [
+    "BUG_REPRO_MINIMAL_REPAIR",
+    "CROSS_FILE_FEATURE_REGRESSION",
+    "SECURITY_FAIL_CLOSED_REPAIR",
+    "ROLLBACK_EXACT_RESTORE"
+  ],
+  "constraints_sha256": "2161fef373d371dcc0fefa9fc81df906a2eeddff2cc1429b33439c080e0a6c22",
+  "result_bundle_sha256": null,
+  "session_artifact_sha256": null,
+  "receipt_id": "access-blocked-anthropic-claude-code-20261006",
+  "system_id": "anthropic-claude-code",
+  "provider": "Anthropic",
+  "product": "Claude Code",
+  "surface": "OFFICIAL_CLI",
+  "execution_status": "ACCESS_BLOCKED",
+  "captured_at": "2026-10-06T10:43:06.420000Z",
+  "auth": {
+    "mode": "ACCOUNT_SESSION",
+    "authenticated": false,
+    "account_tier": "UNAUTHENTICATED"
+  },
+  "environment": {
+    "system_version": "Claude Code 2.1.291",
+    "model_disclosure": "NOT_REACHED_AUTH_BOUNDARY",
+    "attempt": 1,
+    "human_intervention": "NONE_BEFORE_AUTH_BOUNDARY"
+  },
+  "access_blocker": "HUMAN_CLAUDE_OAUTH_AUTHORIZATION_REQUIRED"
+}
