@@ -72,3 +72,13 @@ test('bridge stops before persistence when contract verification fails',async()=
   await assert.rejects(()=>bridge.compileOutcomeContract('oc_123',{expectedGeneration:0}),/contract integrity must be verified/);
   assert.equal(persisted,false);
 });
+
+
+test('unknown Outcome Contract fields fail closed instead of being silently ignored',async()=>{
+  const bad=contract();
+  bad.unexpected=true;
+  await assert.rejects(
+    ()=>compileObjectiveOutcomeGraph({project:project(),contract:bad,contractVerified:true,approval:null,generation:1,actorId:'local-user',at:'2026-10-04T15:03:00Z'}),
+    /unsupported fields|Outcome Contract/i,
+  );
+});
