@@ -13,11 +13,13 @@ assert.match(o,/openid/);
 assert.match(o,/email/);
 assert.doesNotMatch(o,/https:\/\/auth\.mftintelligence\.com/);
 assert.doesNotMatch(o,/https:\/\/mcp\.mftintelligence\.com/);
-assert.match(o,/name="flow_nonce"/);
-assert.match(o,/flow_nonce/);
-assert.match(o,/nonce_hash/);
-assert.match(o,/authorization_response_iss_parameter_supported/);
-assert.match(o,/searchParams\.set\("iss",c\.issuer\)/);
+assert.match(o,/musitu_oauth_flow/);
+assert.match(o,/SameSite=Lax/);
+assert.match(o,/connector\/oauth\//);
+assert.doesNotMatch(o,/name="flow_nonce"/);
+assert.doesNotMatch(o,/flow_nonce/);
+assert.doesNotMatch(o,/authorization_response_iss_parameter_supported/);
+assert.doesNotMatch(o,/searchParams\.set\("iss",c\.issuer\)/);
 
 assert.match(g,/axiom\.operator\.execute/);
 assert.match(g,/MODAL_OPERATOR_URL/);
