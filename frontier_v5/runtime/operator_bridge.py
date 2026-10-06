@@ -11,7 +11,7 @@ from typing import Any, Mapping, Sequence
 
 from frontier_v5.runtime.agent_automation import AgentAutomationLedger
 from frontier_v5.runtime.artifact_engine import UniversalArtifactEngine
-from frontier_v5.runtime.computer_execution import ComputerExecutionLedger
+from frontier_v5.runtime.computer_execution import ComputerApprovalRequired, ComputerExecutionLedger
 from frontier_v5.runtime.evidence_observatory import EvidenceObservatoryLedger
 from frontier_v5.runtime.persistent_planner import PlannerStore
 from frontier_v5.runtime.provider_fallback import ProviderRequest
@@ -296,6 +296,8 @@ class OperatorBridge:
             return self._dispatch(name, args)
         except OperatorBridgeError:
             raise
+        except ComputerApprovalRequired as exc:
+            raise OperatorBridgeError(f"approval required: {exc}") from exc
         except Exception as exc:
             raise OperatorBridgeError(f"{type(exc).__name__}: {exc}") from exc
 
