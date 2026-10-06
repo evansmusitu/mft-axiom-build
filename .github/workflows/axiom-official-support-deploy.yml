@@ -224,13 +224,19 @@ jobs:
           const fs=require('node:fs');
           const html=fs.readFileSync('support/index.html','utf8');
           const css=fs.readFileSync('support/styles.css','utf8');
+          const robots=fs.readFileSync('support/robots.txt','utf8');
+          const sitemap=fs.readFileSync('support/sitemap.xml','utf8');
           const app=fs.readFileSync('.axiom-support-app.browser.js','utf8');
+          if(!robots.includes('Sitemap: https://support.mftintelligence.com/sitemap.xml')) throw new Error('canonical sitemap directive missing');
+          if(!sitemap.includes('<loc>https://support.mftintelligence.com/</loc>')) throw new Error('canonical homepage sitemap location missing');
           if(app.includes("from './control_plane.js'")||app.includes('from "./control_plane.js"')) throw new Error('browser bundle retained unresolved local import');
           if(!app.includes('inspectSecretMaterial')) throw new Error('browser bundle does not contain support secret-inspection dependency');
           const source=[
             "import support from './support/worker.js';",
             "const HTML="+JSON.stringify(html)+";",
             "const CSS="+JSON.stringify(css)+";",
+            "const ROBOTS="+JSON.stringify(robots)+";",
+            "const SITEMAP="+JSON.stringify(sitemap)+";",
             "const APP="+JSON.stringify(app)+";",
             "const STATIC_HEADERS=Object.freeze({",
             "  'content-security-policy':\"default-src 'self'; connect-src 'self' https://challenges.cloudflare.com; img-src 'self' data:; style-src 'self'; script-src 'self' https://challenges.cloudflare.com; frame-src https://challenges.cloudflare.com; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'\",",
@@ -246,6 +252,8 @@ jobs:
             " const u=new URL(request.url);",
             " if(request.method==='GET'&&(u.pathname==='/'||u.pathname==='/index.html')) return asset(HTML,'text/html; charset=utf-8');",
             " if(request.method==='GET'&&u.pathname==='/styles.css') return asset(CSS,'text/css; charset=utf-8');",
+            " if(request.method==='GET'&&u.pathname==='/robots.txt') return asset(ROBOTS,'text/plain; charset=utf-8');",
+            " if(request.method==='GET'&&u.pathname==='/sitemap.xml') return asset(SITEMAP,'application/xml; charset=utf-8');",
             " if(request.method==='GET'&&u.pathname==='/app.js') return asset(APP,'text/javascript; charset=utf-8');",
             " return support.fetch(request,env);",
             "}};"
@@ -329,7 +337,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          rm -f support-health.headers support-health.body support-home.html support-app-live.js
+          rm -f support-health.headers support-health.body support-home.html support-app-live.js support-robots-live.txt support-sitemap-live.xml
           code=$(curl --silent --show-error --connect-timeout 10 --max-time 30 -D support-health.headers -o support-health.body -w '%{http_code}' "https://$SUPPORT_DOMAIN/health" || true)
           if [ "$code" = '200' ]; then
             node -e "const h=JSON.parse(require('node:fs').readFileSync('support-health.body','utf8')); if(h.status!=='READY'||!h.secure_storage||!h.abuse_gate||!h.turnstile||!h.rate_limiter||!h.human_owner||!h.independent_approver||!h.readiness_evidence||h.production!==true) process.exit(1)"
@@ -338,14 +346,21 @@ jobs:
             curl --fail --silent --show-error --proto '=https' "https://$SUPPORT_DOMAIN/app.js" > support-app-live.js
             test -s support-app-live.js
             grep -q 'inspectSecretMaterial' support-app-live.js
-            echo '{"public_worker_reached":true,"canonical_live_probe":"PASS"}'
+            curl --fail --silent --show-error --proto '=https' "https://$SUPPORT_DOMAIN/robots.txt" > support-robots-live.txt
+            grep -q 'Sitemap: https://support.mftintelligence.com/sitemap.xml' support-robots-live.txt
+            grep -q 'Disallow: /api/' support-robots-live.txt
+            grep -q 'Disallow: /health' support-robots-live.txt
+            curl --fail --silent --show-error --proto '=https' "https://$SUPPORT_DOMAIN/sitemap.xml" > support-sitemap-live.xml
+            grep -q '<loc>https://support.mftintelligence.com/</loc>' support-sitemap-live.xml
+            ! grep -Eq '/api/|/health|AX-[A-Z0-9]{12}|recovery' support-sitemap-live.xml
+            echo '{"public_worker_reached":true,"canonical_live_probe":"PASS","robots_verified":true,"sitemap_verified":true}'
           elif [ "$code" = '403' ] && grep -qi '^cf-mitigated:[[:space:]]*challenge' support-health.headers; then
             node -e "const fs=require('node:fs'); const e=JSON.parse(fs.readFileSync('EVIDENCE/axiom-official-support-readiness-current.json','utf8')); for(const gate of ['PUBLIC_ORIGIN','ANTI_ABUSE','ACCESSIBILITY_REALITY']){ const row=(e.gates||[]).find(x=>x?.gate===gate); if(!row||row.status!=='PASS'||!row.evidence?.file) throw new Error('managed edge challenge cannot substitute for missing human evidence: '+gate); } console.log(JSON.stringify({public_edge_reached:true,cf_mitigated:'challenge',human_live_evidence_preserved:true,edge_security_weakened:false}));"
           else
             echo "unexpected public support response: HTTP $code" >&2
             exit 1
           fi
-          rm -f support-health.headers support-health.body support-home.html support-app-live.js
+          rm -f support-health.headers support-health.body support-home.html support-app-live.js support-robots-live.txt support-sitemap-live.xml
 
       - name: Cleanup generated deployment files
         if: always()
