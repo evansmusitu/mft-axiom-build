@@ -35,5 +35,8 @@ assert.doesNotMatch(d,/CLOUDFLARE_GLOBAL_API_KEY/);
 assert.doesNotMatch(d,/X-Auth-Key/);
 assert.doesNotMatch(d,/configure_custom_domain/);
 assert.doesNotMatch(d,/configure_machine_transport_exception/);
+assert.match(d,/Mozilla\/5\.0/);
+assert.match(d,/User-Agent/);
+assert.match(d,/Sec-Fetch-Site/);
 
 console.log("MUSITU_AXIOM_OPERATOR_REVIEWER_CLONE_CONTRACT_PASS");
