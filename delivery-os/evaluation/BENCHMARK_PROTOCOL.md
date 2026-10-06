@@ -61,8 +61,9 @@ The existing unified CI gate reported `projected_improvement=0.451` in the inter
 ## Commands
 
 ```bash
-node --test evaluation/benchmark.test.mjs evaluation/external-access.test.mjs evaluation/standard-workload.test.mjs
+node --test evaluation/benchmark.test.mjs evaluation/external-access.test.mjs evaluation/standard-workload.test.mjs evaluation/provider-adapters.test.mjs evaluation/vroom-standard.test.mjs
 node evaluation/materialize-standard-v1.mjs --output /tmp/standard-v1-workload.json
+node evaluation/materialize-vroom-standard.mjs --output /tmp/standard-v1-vroom-request.json
 node evaluation/run-controlled.mjs --output /tmp/musitu-benchmark-controlled.json
 ```
 
@@ -77,3 +78,11 @@ For Onfleet, the adapter maps all 100 orders to documented `POST /api/v2/tasks` 
 For Bringg Own Fleet, the adapter fails closed and emits no order requests until the exact Sandbox Create Order service URL is supplied. Even after that URL is supplied it remains blocked pending confirmation of the sandbox-specific order schema; service UUIDs are never guessed from public examples.
 
 CI publishes both dry-run plans as evidence artifacts tied to the same workload SHA-256 `bb64c1d425bf5e8245a0daad8acffa01f849da79f3b9a9d83fbdd86aec012554`.
+
+## MUSITU constrained planning preflight
+
+`vroom-standard.mjs` maps the exact standard-v1 workload into a VROOM request with 10 vehicles and 100 jobs. The mapping carries driver capacity, deterministic numeric skill IDs, job demands, service durations, job time windows, depot start/end continuity and priority.
+
+The normal runtime optimizer is allowed to degrade safely to a deterministic heuristic when VROOM is unavailable. The competitive benchmark is stricter: `runStandardVroomPlanning` rejects `heuristic-fallback` with `BENCHMARK_VROOM_REQUIRED`, and rejects any real VROOM result with unassigned standard-v1 jobs. This prevents a degraded unconstrained plan from being presented as constrained benchmark evidence.
+
+CI publishes `standard-v1-vroom-request.json` with status `LIVE_VROOM_REQUIRED` and claim status `NOT_CERTIFIED`. The request remains internal controlled evidence until executed against real VROOM and then carried through the rest of the standard-v1 dispatch/disruption/completion/evidence flow.

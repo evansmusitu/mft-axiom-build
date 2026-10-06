@@ -23,7 +23,7 @@ jobs:
           node-version: '22'
       - name: Benchmark contract tests
         working-directory: delivery-os
-        run: node --test evaluation/benchmark.test.mjs evaluation/external-access.test.mjs evaluation/standard-workload.test.mjs evaluation/provider-adapters.test.mjs
+        run: node --test evaluation/benchmark.test.mjs evaluation/external-access.test.mjs evaluation/standard-workload.test.mjs evaluation/provider-adapters.test.mjs evaluation/vroom-standard.test.mjs
       - name: Prove external access fails closed without sandbox credentials
         working-directory: delivery-os
         run: |
@@ -48,6 +48,21 @@ jobs:
         run: |
           mkdir -p "$RUNNER_TEMP/musitu-benchmark/provider-plans"
           node evaluation/materialize-provider-plans.mjs --output-dir "$RUNNER_TEMP/musitu-benchmark/provider-plans"
+      - name: Materialize exact standard-v1 VROOM request
+        working-directory: delivery-os
+        run: |
+          mkdir -p "$RUNNER_TEMP/musitu-benchmark"
+          node evaluation/materialize-vroom-standard.mjs --output "$RUNNER_TEMP/musitu-benchmark/standard-v1-vroom-request.json"
+          node - <<'NODE'
+          const fs = require('fs');
+          const p = process.env.RUNNER_TEMP + '/musitu-benchmark/standard-v1-vroom-request.json';
+          const artifact = JSON.parse(fs.readFileSync(p, 'utf8'));
+          if (artifact.status !== 'LIVE_VROOM_REQUIRED') throw new Error('VROOM request must remain blocked pending live VROOM');
+          if (artifact.claim_status !== 'NOT_CERTIFIED') throw new Error('VROOM request must not certify benchmark claims');
+          if (artifact.metadata.workload_sha256 !== 'bb64c1d425bf5e8245a0daad8acffa01f849da79f3b9a9d83fbdd86aec012554') throw new Error('VROOM request workload fingerprint drifted');
+          if (artifact.request.vehicles.length !== 10 || artifact.request.jobs.length !== 100) throw new Error('VROOM request cardinality drifted');
+          console.log('MUSITU_DELIVERY_OS_VROOM_REQUEST_FAIL_CLOSED_PASS');
+          NODE
       - name: Generate controlled evidence report
         working-directory: delivery-os
         run: |
@@ -73,5 +88,6 @@ jobs:
             ${{ runner.temp }}/musitu-benchmark/standard-v1-workload.json.sha256
             ${{ runner.temp }}/musitu-benchmark/provider-plans/onfleet-standard-v1-plan.json
             ${{ runner.temp }}/musitu-benchmark/provider-plans/bringg-standard-v1-blocked-plan.json
+            ${{ runner.temp }}/musitu-benchmark/standard-v1-vroom-request.json
           if-no-files-found: error
           retention-days: 90
