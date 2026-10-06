@@ -19,7 +19,28 @@ jobs:
       CF_TOKEN_RULESETS: ${{ secrets.CLOUDFLARE_RULESETS_API_TOKEN }}
       CF_TOKEN_ACCESS: ${{ secrets.CLOUDFLARE_ACCESS_API_TOKEN }}
       CF_TOKEN_DEFAULT: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CF_GLOBAL_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+      CF_GLOBAL_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+      CF_ZONE_ID: '5b56528f03948ff5917a5e0cd9f7109e'
     steps:
+      - name: Probe legacy Cloudflare auth against Email Sending read endpoint
+        shell: bash
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          const key=String(process.env.CF_GLOBAL_KEY||'');
+          const email=String(process.env.CF_GLOBAL_EMAIL||'');
+          const zone=String(process.env.CF_ZONE_ID||'');
+          let out={gate:'MUSITU_AXIOM_SUPPORT_EMAIL_SENDING_LEGACY_AUTH_PROBE',present:Boolean(key&&email),http:null,success:false,error_codes:[],write_performed:false,secret_exposed:false};
+          if(key&&email&&zone){
+            const r=await fetch('https://api.cloudflare.com/client/v4/zones/'+zone+'/email/sending/subdomains',{headers:{'x-auth-email':email,'x-auth-key':key,accept:'application/json'}});
+            let p={}; try{p=await r.json()}catch{}
+            out.http=r.status;
+            out.success=r.ok&&p?.success!==false;
+            out.error_codes=Array.isArray(p?.errors)?p.errors.map(x=>x?.code).filter(x=>Number.isFinite(Number(x))).map(Number):[];
+          }
+          console.log(JSON.stringify(out));
+          NODE
       - name: Authenticate SMTP and verify sender authorization without sending
         shell: bash
         run: |
