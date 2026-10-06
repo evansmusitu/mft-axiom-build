@@ -74,6 +74,29 @@ class RunStoreTests(unittest.TestCase):
                     envelope=changed, lineage={}, signature="different",
                 )
 
+    def test_store_can_be_used_by_protocol_worker_thread(self):
+        from concurrent.futures import ThreadPoolExecutor
+
+        with tempfile.TemporaryDirectory() as directory:
+            store=RunStore(Path(directory)/"runs.sqlite3")
+            self.addCleanup(store.close)
+
+            def write_from_protocol_thread():
+                return store.record_run(
+                    run_id="mining-threaded",
+                    connector_name="mqtt-broker",
+                    protocol="mqtt",
+                    envelope=self._envelope(),
+                    lineage={"run":{"runId":"mining-threaded"}},
+                    signature="sig",
+                )
+
+            with ThreadPoolExecutor(max_workers=1) as executor:
+                created=executor.submit(write_from_protocol_thread).result(timeout=5)
+
+            self.assertEqual(created.run_id, "mining-threaded")
+            self.assertTrue(store.verify_audit_chain("mining-threaded"))
+
     def test_audit_chain_detects_database_tampering(self):
         with tempfile.TemporaryDirectory() as directory:
             path=Path(directory)/"runs.sqlite3"
