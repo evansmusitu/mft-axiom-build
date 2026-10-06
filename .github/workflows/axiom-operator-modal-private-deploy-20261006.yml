@@ -193,6 +193,8 @@ jobs:
           PY
           echo "::add-mask::$(cat /tmp/proxy-key)"
           echo "::add-mask::$(cat /tmp/proxy-secret)"
+          modal workspace proxy-tokens allow "$(cat /tmp/proxy-key)" main
+          echo 'ephemeral_proxy_environment_main=ALLOWED'
       - name: Authenticated MCP discovery and durable Work mutation
         shell: bash
         run: |
