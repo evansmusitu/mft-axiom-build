@@ -17,6 +17,7 @@ on:
       - 'package.json'
       - 'vercel.json'
       - 'frontier_v5/tests/test_operator_bridge_contract.py'
+      - 'frontier_v5/tests/test_operator_remote_core.py'
       - 'docs/axiom_final_product/AXIOM_OPERATOR_BRIDGE_V1.md'
       - '.github/workflows/axiom-operator-bridge-gate-20261006.yml'
       - '.github/workflows/axiom-operator-modal-private-deploy-20261006.yml'
@@ -63,6 +64,7 @@ jobs:
             'package.json',
             'vercel.json',
             'frontier_v5/tests/test_operator_bridge_contract.py',
+            'frontier_v5/tests/test_operator_remote_core.py',
             'docs/axiom_final_product/AXIOM_OPERATOR_BRIDGE_V1.md',
             '.github/workflows/axiom-operator-bridge-gate-20261006.yml',
             '.github/workflows/axiom-operator-modal-private-deploy-20261006.yml',
@@ -105,6 +107,8 @@ jobs:
           set -euo pipefail
           PYTHONPATH=. python frontier_v5/tests/test_operator_bridge_contract.py | tee /tmp/operator-bridge.log
           grep -q 'MUSITU_AXIOM_OPERATOR_BRIDGE_CONTRACT_PASS' /tmp/operator-bridge.log
+          PYTHONPATH=. python frontier_v5/tests/test_operator_remote_core.py | tee /tmp/operator-remote.log
+          grep -q 'MUSITU_AXIOM_OPERATOR_REMOTE_CORE_PASS' /tmp/operator-remote.log
 
       - name: Prove no production or public-submission authority
         shell: bash
