@@ -385,11 +385,15 @@ def full_oauth_e2e(reviewer_db, issuer, resource):
             + payload[:1200].decode("utf-8", "replace")
         )
     location = headers.get("Location") or headers.get("location") or ""
-    auth_code = urllib.parse.parse_qs(
+    callback_query = urllib.parse.parse_qs(
         urllib.parse.urlparse(location).query
-    ).get("code", [""])[0]
+    )
+    auth_code = callback_query.get("code", [""])[0]
+    returned_iss = callback_query.get("iss", [""])[0]
     if not auth_code:
         raise RuntimeError("authorization code missing")
+    if returned_iss != issuer:
+        raise RuntimeError("authorization response issuer mismatch")
 
     token_body = urllib.parse.urlencode(
         {
