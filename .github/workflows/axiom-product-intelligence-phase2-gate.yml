@@ -14,6 +14,7 @@ on:
       - 'axiom_interface/vnext/tests/product_intelligence_openfeature_real_sdk_qualification.mjs'
       - 'axiom_interface/vnext/tests/product_intelligence_sandbox_backend.test.mjs'
       - 'axiom_interface/vnext/tests/product_intelligence_conditional_infrastructure_admission.test.mjs'
+      - 'axiom_interface/vnext/tests/product_intelligence_optional_adapter_admission.test.mjs'
       - 'axiom_interface/vnext/tests/pgvector_vector_index_test_fixture.mjs'
       - 'axiom_interface/vnext/tests/signing_provenance_test_fixture.mjs'
       - '.github/workflows/axiom-product-intelligence-phase2-gate.yml'
@@ -61,6 +62,8 @@ jobs:
         run: node --test axiom_interface/vnext/tests/product_intelligence_sandbox_backend.test.mjs
       - name: Run conditional distributed infrastructure admission contracts
         run: node --test axiom_interface/vnext/tests/product_intelligence_conditional_infrastructure_admission.test.mjs
+      - name: Run optional adapter admission contracts
+        run: node --test axiom_interface/vnext/tests/product_intelligence_optional_adapter_admission.test.mjs
 
   independent-replay-and-authority-gate:
     runs-on: ubuntu-24.04
@@ -86,7 +89,8 @@ jobs:
             axiom_interface/vnext/tests/product_intelligence_tree_sitter_code_intelligence.test.mjs \
             axiom_interface/vnext/tests/product_intelligence_openfeature_flag_evaluation.test.mjs \
             axiom_interface/vnext/tests/product_intelligence_sandbox_backend.test.mjs \
-            axiom_interface/vnext/tests/product_intelligence_conditional_infrastructure_admission.test.mjs
+            axiom_interface/vnext/tests/product_intelligence_conditional_infrastructure_admission.test.mjs \
+            axiom_interface/vnext/tests/product_intelligence_optional_adapter_admission.test.mjs
       - name: Fail closed on provider or release authority escalation
         shell: bash
         run: |
@@ -100,6 +104,7 @@ jobs:
               Path('axiom_interface/vnext/product_intelligence/openfeature_flag_evaluation.js'),
               Path('axiom_interface/vnext/product_intelligence/backends/governed_sandbox_backend.js'),
               Path('axiom_interface/vnext/product_intelligence/conditional_infrastructure_admission.js'),
+              Path('axiom_interface/vnext/product_intelligence/optional_adapter_admission.js'),
           ]
           required = {
               'pgvector_vector_index_backend.js': ['0.8.6', 'MECHANISM_ONLY'],
@@ -108,6 +113,7 @@ jobs:
               'openfeature_flag_evaluation.js': ['OpenFeature', '1.23.0', 'MECHANISM_ONLY'],
               'governed_sandbox_backend.js': ['SandboxBackend', 'FA11_S0_S5_V1', 'MECHANISM_ONLY', "external_process_runtime_qualification:'NOT_PROVEN'"],
               'conditional_infrastructure_admission.js': ['CONDITIONAL_INFRASTRUCTURE_COMPONENTS', 'MECHANISM_ONLY', 'mandatory:false', 'provider_selected:false', 'activation_authorized:false'],
+              'optional_adapter_admission.js': ['OPTIONAL_ADAPTER_CATALOG', 'E2B', 'OpenHands', 'Langfuse', 'GrowthBook', 'Penpot', 'GrapesJS', 'MECHANISM_ONLY', 'mandatory:false', 'provider_selected:false', 'runtime_activation_authorized:false'],
           }
           for path in files:
               text = path.read_text(encoding='utf-8')
@@ -125,6 +131,10 @@ jobs:
                   for forbidden in ['mandatory:true', 'provider_selected:true', 'activation_authorized:true']:
                       if forbidden in text:
                           raise SystemExit(f'FORBIDDEN_CONDITIONAL_INFRASTRUCTURE_PROMOTION:{path}:{forbidden}')
+              if path.name == 'optional_adapter_admission.js':
+                  for forbidden in ['mandatory:true', 'provider_selected:true', 'runtime_activation_authorized:true']:
+                      if forbidden in text:
+                          raise SystemExit(f'FORBIDDEN_OPTIONAL_ADAPTER_PROMOTION:{path}:{forbidden}')
           print('MUSITU_AXIOM_PHASE2_PROVIDER_AUTHORITY_FAIL_CLOSED_PASS')
           PY
       - name: Record non-release verification boundary
