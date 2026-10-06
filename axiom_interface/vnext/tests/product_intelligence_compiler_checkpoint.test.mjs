@@ -216,3 +216,18 @@ test('checkpoint verification binds attached Evidence Artifact and outcome packa
   packageTamper.artifact_package.publication_execution_allowed=true;
   assert.equal(await verifyCompilerCheckpoint(packageTamper),false);
 });
+
+
+test('rollback request rejects unknown control fields and actor identity coercion',async()=>{
+  const {prior,next,diff}=await fixture();
+  const checkpoint=await createCompilerCheckpoint({projectId,priorIR:prior,nextIR:next,diff,actorId:'agent_builder_1',evidenceRefs:['evidence_source_12345678'],at},services);
+  for(const options of [
+    {currentIR:next,actorId:'agent_verifier_1',release_authority:true},
+    {currentIR:next,actorId:{id:'agent_verifier_1'}},
+  ]){
+    await assert.rejects(
+      ()=>prepareCompilerRollback(checkpoint,options),
+      /unsupported fields|actorId|string|rollback request/i,
+    );
+  }
+});
