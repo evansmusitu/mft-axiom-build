@@ -221,3 +221,21 @@ test('policy decision envelope rejects authority extensions and non-string reaso
     );
   }
 });
+
+
+test('verification evidence rejects authority extensions coercion and unrequested kinds',async()=>{
+  const r=await request('S3');
+  const policy={decision:'ALLOW',request_sha256:r.request_sha256,policy_sha256:'e'.repeat(64),reasons:['bounded reversible write']};
+  const valid=[pass('TESTS'),pass('SECURITY'),pass('INDEPENDENT_VERIFIER')];
+  const cases=[
+    [{...pass('TESTS'),production_authority:true},pass('SECURITY'),pass('INDEPENDENT_VERIFIER')],
+    [{kind:['TESTS'],status:'PASS',actor_id:'agent_verifier_1',artifact_sha256:'d'.repeat(64)},pass('SECURITY'),pass('INDEPENDENT_VERIFIER')],
+    [...valid,{kind:'CANONICAL_CERTIFICATION',status:'PASS',actor_id:'agent_other_1',artifact_sha256:'e'.repeat(64)}],
+  ];
+  for(const verificationEvidence of cases){
+    await assert.rejects(
+      ()=>evaluateChangeAdmission({request:r,policyDecision:policy,verificationEvidence,at}),
+      /unsupported fields|verificationEvidence|verification evidence|kind|required|string|authority/i,
+    );
+  }
+});
