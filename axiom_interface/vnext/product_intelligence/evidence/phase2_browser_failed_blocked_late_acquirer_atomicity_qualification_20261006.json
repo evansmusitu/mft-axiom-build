@@ -1,0 +1,145 @@
+{
+  "schema": "musitu.axiom.phase2.browser-failed-blocked-late-acquirer-atomicity-qualification.v1",
+  "recorded_date": "2026-10-06",
+  "source_authority": {
+    "repository": "evansmusitu/mft-axiom-build",
+    "branch": "frontier/axiom-product-intelligence-phase2-20261004",
+    "predecessor_process_kill_evidence_commit": "80347877b72383a8992e403795e9d6573db56d7c",
+    "final_hardened_head": "37d4713827ca055e7638f57b763fd2335fae54d8",
+    "execution_store_path": "axiom_interface/vnext/execution_store.js",
+    "execution_store_git_blob": "fb23b5f8337342ff7a40274e8e5d0331602ba631",
+    "browser_qualification_page_path": "axiom_interface/vnext/tests/product_intelligence_browser_execution_idempotency.html",
+    "browser_qualification_page_git_blob": "4ed372330b4c5b6618601923ece059f13622f7a0",
+    "browser_runner_path": "axiom_interface/vnext/tests/run_browser_execution_idempotency.mjs",
+    "browser_runner_git_blob": "4cb8b207f257bfef362eed28124d9b7bac4585dc",
+    "gate_workflow_path": ".github/workflows/axiom-product-intelligence-phase2-gate.yml",
+    "gate_workflow_git_blob": "15e982b413e24aaa4abe0d212b93ed3c750fc912",
+    "predecessor_evidence_path": "axiom_interface/vnext/product_intelligence/evidence/phase2_browser_process_kill_terminal_atomicity_qualification_20261006.json",
+    "predecessor_evidence_git_blob": "b9f28fa3463bb970fd8f205d427f7504dd689b99"
+  },
+  "tdd": {
+    "observed_red_green_behavior_cycles": 2,
+    "cycles": [
+      {
+        "cycle": 1,
+        "behavior": "BLOCKED receipt and execution.blocked event must commit atomically so an injected event write failure leaves no orphan BLOCKED receipt",
+        "red_commit": "77511d865a7014c85add794975da7b5e81701c0c",
+        "red_run_id": 37528319177,
+        "red_focused_job_id": 112490907389,
+        "red_conclusion": "failure",
+        "red_observation": "FAILED terminal atomicity passed, then BLOCKED fault injection leaked 1 BLOCKED receipt",
+        "implementation_commit": "5b6b5edd4ea498d59867e4ccacdf4f9f642fd0be",
+        "intermediate_green_run_id": 37528511001,
+        "intermediate_green_focused_job_id": 112491554763,
+        "intermediate_green_independent_job_id": 112491888156,
+        "intermediate_focused_conclusion": "success",
+        "preserved_independent_failure": "separate-tab late-acquirer race allowed both tabs to fulfill and persisted 2 terminal receipts"
+      },
+      {
+        "cycle": 2,
+        "behavior": "claim acquisition must atomically consult terminal receipts so a waiter cannot acquire a fresh claim after the winner deletes its claim and then repeat the side effect",
+        "red_source_run_id": 37528511001,
+        "red_independent_job_id": 112491888156,
+        "red_conclusion": "failure",
+        "red_observation": "independent browser replay observed TAB_A_FULFILLED and TAB_B_FULFILLED followed by separate-tab concurrency persisted 2 terminal receipts",
+        "repair_commit": "5b7799a4be0d10e72320593317c24acd5dca5914",
+        "green_rerun_id": 37528844301,
+        "green_focused_job_id": 112493200913,
+        "green_independent_job_id": 112493498697,
+        "green_conclusion": "success",
+        "independent_frozen_replay": "PASS_158_OF_158"
+      }
+    ],
+    "coverage_only_not_counted_as_tdd": {
+      "behavior": "FAILED terminal event-write fault injection atomically rolls back FAILED receipt/event and leaves no execution claim",
+      "first_observed_run_id": 37528319177,
+      "focused_job_id": 112490907389,
+      "marker": "MUSITU_AXIOM_PHASE2_BROWSER_FAILED_TERMINAL_COMMIT_ATOMICITY_PASS",
+      "reason_not_counted": "FAILED-path fault injection passed before any production change because FAILED already used the atomic terminal helper"
+    },
+    "harness_failures_excluded": [
+      {
+        "run_id": 37528844301,
+        "initial_attempt_job_id": 112492692029,
+        "observation": "CDP endpoint unavailable before first browser phase",
+        "disposition": "rerun identical product commit; excluded from product evidence"
+      },
+      {
+        "run_id": 37529319632,
+        "observations": "independent browser startup failed before first browser phase on two attempts",
+        "disposition": "qualification harness changed to allocate a fresh ephemeral CDP port per Chrome process; no product assertions changed"
+      }
+    ],
+    "assertions_weakened_to_pass": false
+  },
+  "final_governance_gate": {
+    "commit": "37d4713827ca055e7638f57b763fd2335fae54d8",
+    "run_id": 37529711150,
+    "focused_job_id": 112495664809,
+    "independent_job_id": 112495865270,
+    "conclusion": "success",
+    "focused_frozen_contracts": "PASS_22_OF_22",
+    "independent_frozen_order_replay": "PASS_158_OF_158",
+    "browser_markers": [
+      "MUSITU_AXIOM_PHASE2_BROWSER_SEPARATE_TAB_ATOMIC_PASS",
+      "MUSITU_AXIOM_PHASE2_BROWSER_FAILED_TERMINAL_COMMIT_ATOMICITY_PASS",
+      "MUSITU_AXIOM_PHASE2_BROWSER_BLOCKED_RECEIPT_EVENT_ATOMICITY_PASS",
+      "MUSITU_AXIOM_PHASE2_BROWSER_PROCESS_KILL_ATOMICITY_PASS",
+      "MUSITU_AXIOM_PHASE2_BROWSER_DURABLE_IDEMPOTENCY_QUALIFICATION_PASS"
+    ],
+    "static_markers": [
+      "_commitBlockedOutcome",
+      "transaction(['receipts','events'],'readwrite')",
+      "transaction(['execution_claims','receipts'],'readwrite')",
+      "terminalReceipt",
+      "receiptStore.index('project_id').getAll(request.project_id)"
+    ],
+    "authority_marker": "MUSITU_AXIOM_PHASE2_PROVIDER_AUTHORITY_FAIL_CLOSED_PASS",
+    "slice_marker": "MUSITU_AXIOM_PHASE2_SLICE_VERIFICATION_PASS",
+    "release_authority": false,
+    "production_authority": false,
+    "certification_authority": false
+  },
+  "qualification": {
+    "failed_terminal_event_fault_atomicity": "PASS_COVERAGE",
+    "blocked_receipt_event_atomicity": "PASS",
+    "blocked_fault_leaves_no_orphan_receipt": "PASS",
+    "blocked_fault_leaves_no_orphan_event": "PASS",
+    "late_acquirer_terminal_race": "PASS",
+    "claim_acquisition_terminal_receipt_check": "PASS",
+    "separate_tab_same_origin_concurrency_after_late_acquirer_fix": "PASS_FOR_OBSERVED_CI_BROWSER_RUNTIME",
+    "browser_process_kill_completed_path": "PASS_FROM_PREDECESSOR_AND_FINAL_GATE",
+    "blocked_retryability_preserved": true,
+    "authority_effect": "NONE",
+    "release_authority": false,
+    "production_authority": false,
+    "certification_authority": false,
+    "production_mutation": false,
+    "frozen_openai_mutation": false,
+    "main_mutation": false
+  },
+  "evidence_boundaries": {
+    "failed_terminal_fault_injection_atomicity": "PROVEN_FOR_OBSERVED_CI_BROWSER_RUNTIME",
+    "blocked_receipt_event_fault_injection_atomicity": "PROVEN_FOR_OBSERVED_CI_BROWSER_RUNTIME",
+    "late_acquirer_same_origin_tab_race": "PROVEN_FOR_OBSERVED_CI_BROWSER_RUNTIME",
+    "blocked_path_actual_process_kill_mid_transaction": "NOT_PROVEN",
+    "failed_path_actual_process_kill_mid_transaction": "NOT_PROVEN",
+    "preexisting_indexeddb_version1_to_version2_upgrade": "NOT_PROVEN",
+    "simultaneous_separate_browser_process_concurrency": "NOT_PROVEN",
+    "distributed_executor_idempotency": "NOT_PROVEN",
+    "external_side_effect_idempotency": "NOT_PROVEN",
+    "production_side_effect_idempotency": "NOT_PROVEN",
+    "live_production_browser_integration": "NOT_PROVEN",
+    "exact_long_term_browser_runtime_pin": "NOT_PROVEN",
+    "independent_external_security_validation": "NOT_PROVEN",
+    "sha256_signature_or_attestation": "NOT_PROVEN"
+  },
+  "incident_boundary": {
+    "modal_fanout_cleanup": "NOT_PROVEN",
+    "latest_checked_run_id": 37284936693,
+    "latest_checked_job_id": 111795419209,
+    "latest_checked_job_conclusion": "failure",
+    "required_pass_marker": "MUSITU_AXIOM_MODAL_INCIDENT_PROXY_TOKEN_REMEDIATION_PASS",
+    "required_pass_marker_observed": false
+  }
+}
