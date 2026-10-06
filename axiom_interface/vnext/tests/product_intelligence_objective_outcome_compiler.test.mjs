@@ -102,3 +102,13 @@ test('Outcome Contract constraint schema rejects unknown fields fail closed',asy
     /constraints.*unsupported fields|unsupported fields.*constraints/i,
   );
 });
+
+
+test('Outcome Contract constraint values reject structured or credential-bearing values instead of coercing them',async()=>{
+  const bad=contract();
+  bad.constraints.privacy={api_key:'must-not-cross'};
+  await assert.rejects(
+    ()=>compileObjectiveOutcomeGraph({project:project(),contract:bad,contractVerified:true,approval:null,generation:1,actorId:'local-user',at:'2026-10-04T15:03:00Z'}),
+    /constraint.*privacy|privacy.*constraint|string/i,
+  );
+});
