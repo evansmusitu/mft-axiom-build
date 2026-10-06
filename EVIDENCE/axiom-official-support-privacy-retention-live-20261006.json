@@ -1,0 +1,76 @@
+{
+  "schema": "musitu.axiom.support-readiness-evidence.v1",
+  "gate": "PRIVACY_RETENTION",
+  "status": "PASS",
+  "verified_at": "2026-10-06T07:35:39Z",
+  "policy": {
+    "owner_approved": true,
+    "standard_support_days_after_closure": 180,
+    "privacy_restricted_days_after_fulfillment_or_closure": 90,
+    "security_restricted_days_after_closure": 365,
+    "legal_hold_review_days": 90,
+    "legal_hold_requires_distinct_owner_and_independent_approver": true,
+    "missed_review_never_auto_releases_hold": true,
+    "release_requires_dual_approval": true,
+    "live_customer_content_purged_at_eligible_expiry": true,
+    "non_sensitive_cryptographic_deletion_receipt_retained": true,
+    "processor_backup_erasure_is_not_claimed_instantaneous": true
+  },
+  "live_schema_migration": {
+    "run_id": 37428696297,
+    "status": "PASS",
+    "evidence_sha256": "81ec45346c69a922dfe6567ea018132fbf9afd8d0ad399129b57dbaaea4210c8",
+    "support_case_count_before": 0,
+    "support_event_count_before": 0,
+    "support_case_count_after": 0,
+    "support_event_count_after": 0,
+    "public_route_absent_verified": true
+  },
+  "live_erasure_lifecycle": {
+    "run_id": 37428987102,
+    "status": "PASS",
+    "evidence_sha256": "3beba784ef6932e7cd25477fdf74103e18e2242f0b675b71f7398632986f59bb",
+    "direct_event_delete_blocked": true,
+    "expired_case_purged": true,
+    "deletion_receipt_immutable": true,
+    "raw_case_id_retained_in_receipt": false
+  },
+  "live_legal_hold_lifecycle": {
+    "run_id": 37429947712,
+    "status": "PASS",
+    "evidence_sha256": "9d5902ca1231d30627715a069dd6fe87aec5b080abcbad264e439e69f8538f94",
+    "overdue_review_never_auto_released": true,
+    "overdue_purge_blocked": true,
+    "hold_review_verified": true,
+    "hold_release_dual_approved": true,
+    "post_release_purge_verified": true
+  },
+  "live_closure_retention_clock": {
+    "run_id": 37430538870,
+    "status": "PASS",
+    "evidence_sha256": "0622bf9add79b349f7e090b7530f7f6cde5a1e0bf6e93a5c516c38e05e474c07",
+    "closure_transition_verified": true,
+    "standard_retention_days": 180,
+    "closed_at_stamped": true,
+    "retention_expiry_stamped": true,
+    "append_only_close_event_written": true,
+    "expired_case_purged": true
+  },
+  "independent_final_readback": {
+    "run_id": 37429670395,
+    "run_attempt": 2,
+    "job_id": 112160381794,
+    "support_case_count": 0,
+    "support_event_count": 0,
+    "purge_authorization_count": 0,
+    "synthetic_deletion_receipt_count": 4,
+    "customer_case_or_event_data_remaining": false
+  },
+  "boundaries": {
+    "synthetic_customer_content_used": false,
+    "secret_exposed": false,
+    "public_support_deployed": false,
+    "openai_surface_modified": false,
+    "claude_surface_modified": false
+  }
+}
