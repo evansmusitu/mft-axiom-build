@@ -10,6 +10,11 @@ on:
       - 'frontier_v5/runtime/operator_http.py'
       - 'frontier_v5/runtime/operator_state.py'
       - 'frontier_v5/runtime/operator_remote_core.py'
+      - 'api/operator_core.py'
+      - 'api/health.mjs'
+      - 'api/mcp.mjs'
+      - 'package.json'
+      - 'vercel.json'
       - 'frontier_v5/tests/test_operator_bridge_contract.py'
       - 'docs/axiom_final_product/AXIOM_OPERATOR_BRIDGE_V1.md'
       - '.github/workflows/axiom-operator-bridge-gate-20261006.yml'
@@ -49,6 +54,11 @@ jobs:
             'frontier_v5/runtime/operator_http.py',
             'frontier_v5/runtime/operator_state.py',
             'frontier_v5/runtime/operator_remote_core.py',
+            'api/operator_core.py',
+            'api/health.mjs',
+            'api/mcp.mjs',
+            'package.json',
+            'vercel.json',
             'frontier_v5/tests/test_operator_bridge_contract.py',
             'docs/axiom_final_product/AXIOM_OPERATOR_BRIDGE_V1.md',
             '.github/workflows/axiom-operator-bridge-gate-20261006.yml',
@@ -71,6 +81,20 @@ jobs:
           PYTHONPATH=. python frontier_v5/tests/test_provider_fallback_contract.py
           PYTHONPATH=. python frontier_v5/tests/test_mcp_2026_contract.py
 
+      - name: Verify remote deployment adapters
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m py_compile api/operator_core.py frontier_v5/runtime/operator_remote_core.py frontier_v5/runtime/operator_state.py
+          node --check api/mcp.mjs
+          node --check api/health.mjs
+          python - <<'PY'
+          import json
+          for path in ('package.json','vercel.json'):
+              json.load(open(path,encoding='utf-8'))
+          print('MUSITU_AXIOM_OPERATOR_REMOTE_ADAPTERS_PASS')
+          PY
+
       - name: Run operator bridge contract
         shell: bash
         run: |
@@ -90,6 +114,10 @@ jobs:
             Path('frontier_v5/runtime/operator_http.py'),
             Path('frontier_v5/runtime/operator_state.py'),
             Path('frontier_v5/runtime/operator_remote_core.py'),
+            Path('api/operator_core.py'),
+            Path('api/health.mjs'),
+            Path('api/mcp.mjs'),
+            Path('vercel.json'),
             Path('.github/workflows/axiom-operator-bridge-gate-20261006.yml'),
           ]
           text='\n'.join(p.read_text() if p.exists() else '' for p in files)
