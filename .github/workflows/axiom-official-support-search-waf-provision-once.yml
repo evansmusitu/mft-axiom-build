@@ -12,7 +12,7 @@ permissions:
 
 jobs:
   provision:
-    if: github.event_name == 'push' && github.event.before == '3d6883a7fd125fadbf143667433a45ff94e0166a'
+    if: github.event_name == 'push' && github.event.before == '4f21b426b59045b170e3d4d8b23b174fdcc03141'
     runs-on: ubuntu-latest
     environment: axiom-support-production
     timeout-minutes: 8
@@ -30,7 +30,7 @@ jobs:
           set -euo pipefail
           test "$GITHUB_REF_NAME" = 'support/axiom-official-support-20261005'
           test "$GITHUB_REF_NAME" != 'main'
-          test "${{ github.event.before }}" = '3d6883a7fd125fadbf143667433a45ff94e0166a'
+          test "${{ github.event.before }}" = '4f21b426b59045b170e3d4d8b23b174fdcc03141'
           node --input-type=module <<'NODE'
           import fs from 'node:fs';
           import crypto from 'node:crypto';
@@ -90,6 +90,7 @@ jobs:
           const rule=buildVerifiedSearchCrawlerSkipRule();
           if(rule.action!=='skip'||JSON.stringify(rule.action_parameters)!==JSON.stringify({products:['bic','securityLevel']})) throw new Error('WAF search rule action drift');
           if(!rule.expression.includes('cf.client.bot')||!rule.expression.includes('cf.verified_bot_category eq "Search Engine Crawler"')) throw new Error('verified search category missing');
+          if(!rule.expression.includes('http.user_agent contains "Google-InspectionTool"')) throw new Error('verified Google Inspection Tool condition missing');
           if(/\/api\/|\/health|AI Search|AI Crawler|AI Assistant/.test(rule.expression)) throw new Error('WAF search rule widened into forbidden surface');
 
           let entry=await req('/rulesets/phases/http_request_firewall_custom/entrypoint',{allow404:true});
@@ -154,6 +155,7 @@ jobs:
             rule_id:String(actual?.id||''),
             rule_ref:VERIFIED_SEARCH_CRAWLER_RULE_REF,
             verified_bot_category:'Search Engine Crawler',
+            google_inspection_tool_verified_bot:true,
             methods:['GET','HEAD'],
             public_paths:['/','/index.html','/robots.txt','/sitemap.xml','/styles.css','/app.js'],
             skip_products:products,
