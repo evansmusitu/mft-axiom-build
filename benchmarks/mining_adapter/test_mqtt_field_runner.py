@@ -1,6 +1,7 @@
 import threading
 import unittest
 
+from benchmarks.mining_adapter.industrial_field import MqttSubscriptionBarrier
 from benchmarks.mining_adapter.mqtt_field_runner import FieldSession
 
 
@@ -24,6 +25,7 @@ class FieldSessionRecoveryTests(unittest.TestCase):
         session.lock=threading.RLock()
         session.errors=[]
         session.sub_connected=threading.Event()
+        session.subscription_barrier=MqttSubscriptionBarrier()
         client=_Client()
 
         session._on_sub_connect(client,None,None,_Reason(),None)
