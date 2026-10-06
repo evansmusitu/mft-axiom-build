@@ -1,0 +1,75 @@
+name: MUSITU Axiom Operator Reviewer Clone Deploy 20261006
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - frontier/axiom-operator-reviewer-clone-20261006
+    paths:
+      - 'reviewer_clone/**'
+      - '.github/workflows/axiom-operator-reviewer-clone-deploy-20261006.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: musitu-axiom-operator-reviewer-clone
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    env:
+      CF_API: https://api.cloudflare.com/client/v4
+      ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      PROD_D1_UUID: 504029cc-f9a5-495e-818f-63c6144b4ea4
+      REVIEWER_DB_NAME: musitu-axiom-operator-reviewer-20261006
+      OAUTH_WORKER: musitu-axiom-operator-reviewer-oauth-20261006
+      MCP_WORKER: musitu-axiom-operator-reviewer-mcp-20261006
+      OPERATOR_APP: musitu-axiom-operator-private-20261006
+      MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID }}
+      MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET }}
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: '3.13'
+
+      - name: Reassert isolated authority
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF_NAME" = frontier/axiom-operator-reviewer-clone-20261006
+          test "$(git merge-base eb63341be824ad1a7621e7b6b3352c603386969b HEAD)" = eb63341be824ad1a7621e7b6b3352c603386969b
+          test "$(git rev-parse origin/main)" = d6a846f6bbe0bccac1758713eb4de167caf07113
+          node frontier_v5/tests/test_operator_reviewer_clone.mjs
+          node --check reviewer_clone/musitu_axiom_operator_reviewer_oauth.mjs
+          node --check reviewer_clone/musitu_axiom_operator_reviewer_gate.mjs
+          python -m py_compile reviewer_clone/deploy_operator_reviewer_clone.py
+
+      - name: Deploy and qualify isolated reviewer clone
+        env:
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$CLOUDFLARE_EMAIL"
+          test -n "$CLOUDFLARE_GLOBAL_API_KEY"
+          test -n "$MODAL_TOKEN_ID"
+          test -n "$MODAL_TOKEN_SECRET"
+          python -m pip install --disable-pip-version-check --quiet 'modal>=1.5,<2'
+          python reviewer_clone/deploy_operator_reviewer_clone.py | tee /tmp/operator-reviewer-clone-deploy.log
+          grep -q 'MUSITU_AXIOM_OPERATOR_REVIEWER_CLONE_DEPLOY_PASS' /tmp/operator-reviewer-clone-deploy.log
+
+      - name: Prove protected repository state untouched
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse origin/main)" = d6a846f6bbe0bccac1758713eb4de167caf07113
+          git diff --check
