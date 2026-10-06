@@ -16,7 +16,7 @@ concurrency:
 
 jobs:
   verify-public-origin:
-    if: github.event_name == 'push' && github.event.before == 'f9804036485a173bef8cd2a5dfeefac75a0bf917'
+    if: github.event_name == 'push' && github.event.before == 'e35d9f262a1888091017dc1112007dc241b52975'
     runs-on: ubuntu-latest
     environment: axiom-support-production
     timeout-minutes: 15
@@ -51,7 +51,7 @@ jobs:
           test "$GITHUB_EVENT_NAME" = 'push'
           test "$GITHUB_REF_NAME" = 'support/axiom-official-support-20261005'
           test "$GITHUB_REF_NAME" != 'main'
-          test "${{ github.event.before }}" = 'f9804036485a173bef8cd2a5dfeefac75a0bf917'
+          test "${{ github.event.before }}" = 'e35d9f262a1888091017dc1112007dc241b52975'
           test "$SUPPORT_DOMAIN" = 'support.mftintelligence.com'
           node <<'NODE'
           const api='https://api.github.com/repos/evansmusitu/mft-axiom-build';
@@ -247,7 +247,7 @@ jobs:
           const html=fs.readFileSync('support/index.html','utf8');
           const css=fs.readFileSync('support/styles.css','utf8');
           const app=fs.readFileSync('.axiom-support-app.browser.js','utf8');
-          if(/from\\s+['"]\\.\\/control_plane\\.js['"]/.test(app)) throw new Error('browser bundle retained unresolved control_plane import');
+          if(app.includes("from './control_plane.js'") || app.includes('from "./control_plane.js"')) throw new Error('browser bundle retained unresolved control_plane import');
           if(!app.includes('inspectSecretMaterial')) throw new Error('browser bundle does not contain support secret-inspection dependency');
           const source=[
             "import support from './support/worker.js';",
