@@ -1,0 +1,76 @@
+name: MUSITU Axiom Cloudflare Existing Token Matrix
+
+on:
+  push:
+    branches:
+      - 'support/axiom-official-support-20261005'
+    paths:
+      - '.github/workflows/axiom-official-support-cloudflare-token-matrix.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  inspect-existing-tokens:
+    runs-on: ubuntu-latest
+    environment: axiom-support-production
+    timeout-minutes: 6
+    env:
+      CF_ACCOUNT_ID: '93f395f5121954671f92fffa453d6b61'
+      CF_TOKEN_DEFAULT: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CF_TOKEN_RULESETS: ${{ secrets.CLOUDFLARE_RULESETS_API_TOKEN }}
+      CF_TOKEN_ACCESS: ${{ secrets.CLOUDFLARE_ACCESS_API_TOKEN }}
+    steps:
+      - name: Read existing Cloudflare token permissions without exposing values
+        shell: bash
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          const accountId=process.env.CF_ACCOUNT_ID;
+          const candidates=[
+            ['CLOUDFLARE_API_TOKEN',process.env.CF_TOKEN_DEFAULT],
+            ['CLOUDFLARE_RULESETS_API_TOKEN',process.env.CF_TOKEN_RULESETS],
+            ['CLOUDFLARE_ACCESS_API_TOKEN',process.env.CF_TOKEN_ACCESS],
+          ];
+          async function call(token,path){
+            const r=await fetch('https://api.cloudflare.com/client/v4'+path,{headers:{authorization:'Bearer '+token,accept:'application/json'}});
+            let p={}; try{p=await r.json()}catch{}
+            return {status:r.status,ok:r.ok&&p?.success!==false,result:p?.result||null};
+          }
+          const out=[];
+          for(const [name,raw] of candidates){
+            const token=String(raw||'').trim();
+            if(!token){out.push({secret_name:name,present:false});continue;}
+            const uv=await call(token,'/user/tokens/verify');
+            const av=await call(token,'/accounts/'+accountId+'/tokens/verify');
+            const verify=av.ok?av:uv;
+            let details={status:0,ok:false,result:null};
+            let kind='unresolved';
+            if(av.ok&&verify.result?.id){kind='account_owned';details=await call(token,'/accounts/'+accountId+'/tokens/'+encodeURIComponent(verify.result.id));}
+            else if(uv.ok&&verify.result?.id){kind='user_owned';details=await call(token,'/user/tokens/'+encodeURIComponent(verify.result.id));}
+            const names=[];
+            if(details.ok&&Array.isArray(details.result?.policies)){
+              for(const policy of details.result.policies){
+                for(const g of Array.isArray(policy?.permission_groups)?policy.permission_groups:[]){
+                  if(g?.name) names.push(String(g.name));
+                }
+              }
+            }
+            const low=names.map(x=>x.toLowerCase());
+            const has=(...needles)=>low.some(n=>needles.some(x=>n===x.toLowerCase()));
+            out.push({
+              secret_name:name,present:true,token_kind:kind,
+              active:verify.ok&&String(verify.result?.status||'').toLowerCase()==='active',
+              user_verify_http:uv.status,account_verify_http:av.status,
+              details_readable:details.ok,details_http:details.status,
+              email_routing_rules_write: details.ok?has('Email Routing Rules Write','Email Routing Rules Edit'):null,
+              zone_settings_write: details.ok?has('Zone Settings Write','Zone Settings Edit'):null,
+              dns_write: details.ok?has('DNS Write','DNS Edit'):null,
+              config_rules_write: details.ok?has('Config Rules Write','Config Rules Edit','Zone Config Rules Write','Zone Config Rules Edit'):null,
+              workers_scripts_write: details.ok?has('Workers Scripts Write','Workers Scripts Edit'):null,
+              api_tokens_write: details.ok?has('API Tokens Write','API Tokens Edit'):null,
+              raw_token_id_recorded:false,raw_policy_recorded:false,secret_exposed:false,write_performed:false
+            });
+          }
+          console.log(JSON.stringify({gate:'MUSITU_AXIOM_CLOUDFLARE_EXISTING_TOKEN_MATRIX',tokens:out,write_performed:false,secret_exposed:false}));
+          NODE
