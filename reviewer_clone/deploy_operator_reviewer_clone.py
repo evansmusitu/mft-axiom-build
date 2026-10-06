@@ -23,10 +23,6 @@ REVIEWER_DB_NAME = os.environ["REVIEWER_DB_NAME"]
 OAUTH_WORKER = os.environ["OAUTH_WORKER"]
 MCP_WORKER = os.environ["MCP_WORKER"]
 OPERATOR_APP = os.environ["OPERATOR_APP"]
-ZONE_ID = os.environ["ZONE_ID"]
-ZONE_NAME = os.environ["ZONE_NAME"]
-OAUTH_HOST = os.environ["OAUTH_HOST"]
-MCP_HOST = os.environ["MCP_HOST"]
 FALLBACK_STAGING_DB_NAME = "mft-axiom-staging"
 FALLBACK_STAGING_DB_UUID = "92de45db-399a-450b-81d0-24d28b105f41"
 
@@ -42,16 +38,6 @@ CFH = {
     "User-Agent": "MUSITU-Axiom-Operator-Reviewer-Clone/1.0",
 }
 
-_cf_email = os.environ.get("CLOUDFLARE_EMAIL", "").strip()
-_cf_global_key = os.environ.get("CLOUDFLARE_GLOBAL_API_KEY", "").strip()
-if not _cf_email or not _cf_global_key:
-    raise RuntimeError("CLOUDFLARE_EMAIL and CLOUDFLARE_GLOBAL_API_KEY are required for reviewer host ruleset changes")
-CF_RULESET_HEADERS = {
-    "X-Auth-Email": _cf_email,
-    "X-Auth-Key": _cf_global_key,
-    "Accept": "application/json",
-    "User-Agent": "MUSITU-Axiom-Operator-Reviewer-Ruleset/1.0",
-}
 def raw(url, method="GET", headers=None, body=None, timeout=45, follow=True):
     req = urllib.request.Request(url, headers=dict(headers or {}), method=method, data=body)
     opener = (
@@ -86,21 +72,6 @@ def cf(path, method="GET", obj=None):
     out = json.loads(payload or b"{}")
     if isinstance(out, dict) and out.get("success") is False:
         raise RuntimeError(f"Cloudflare success=false {path}: {str(out.get('errors'))[:500]}")
-    return out.get("result") if isinstance(out, dict) else None
-
-
-def cf_ruleset(path, method="GET", obj=None):
-    headers = dict(CF_RULESET_HEADERS)
-    body = None
-    if obj is not None:
-        headers["Content-Type"] = "application/json"
-        body = json.dumps(obj, separators=(",", ":")).encode()
-    code, _, payload = raw(CF_API + path, method, headers, body)
-    if not 200 <= code < 300:
-        raise RuntimeError(f"Cloudflare ruleset HTTP {code}: {method} {path} {payload[:500]!r}")
-    out = json.loads(payload or b"{}")
-    if isinstance(out, dict) and out.get("success") is False:
-        raise RuntimeError(f"Cloudflare ruleset success=false {path}: {str(out.get('errors'))[:500]}")
     return out.get("result") if isinstance(out, dict) else None
 
 
@@ -179,7 +150,7 @@ def deploy_worker(worker, source, bindings):
     cf(
         f"/accounts/{ACCOUNT_ID}/workers/scripts/{urllib.parse.quote(worker, safe='')}/subdomain",
         "POST",
-        {"enabled": False, "previews_enabled": False},
+        {"enabled": True, "previews_enabled": False},
     )
 
 
@@ -299,118 +270,17 @@ def get_modal_runtime():
     return url, key, secret
 
 
-def configure_custom_domain(host, worker):
-    # Account-scoped Workers custom-domain binding only. No zone rules, routes,
-    # production hostnames, or production Worker content are modified.
-    domains = cf(f"/accounts/{ACCOUNT_ID}/workers/domains") or []
-    existing = [row for row in domains if row.get("hostname") == host]
-    if len(existing) > 1:
-        raise RuntimeError("duplicate reviewer custom-domain rows")
-    if existing:
-        if existing[0].get("service") != worker:
-            raise RuntimeError("reviewer hostname belongs to another Worker")
-    else:
-        cf(
-            f"/accounts/{ACCOUNT_ID}/workers/domains",
-            "PUT",
-            {
-                "hostname": host,
-                "service": worker,
-                "zone_id": ZONE_ID,
-                "zone_name": ZONE_NAME,
-                "override_existing_origin": False,
-            },
-        )
-    after = [
-        row for row in (cf(f"/accounts/{ACCOUNT_ID}/workers/domains") or [])
-        if row.get("hostname") == host
-    ]
-    if len(after) != 1 or after[0].get("service") != worker:
-        raise RuntimeError("reviewer custom-domain mapping failed")
-
-
-def configure_machine_transport_exception(host, rule_ref):
-    if host in {"auth.mftintelligence.com", "mcp.mftintelligence.com"}:
-        raise RuntimeError("refusing machine-transport exception on production hostname")
-
-    security = cf_ruleset(f"/zones/{ZONE_ID}/settings/security_level") or {}
-    browser_check = cf_ruleset(f"/zones/{ZONE_ID}/settings/browser_check") or {}
-    if security.get("value") != "under_attack" or browser_check.get("value") != "on":
-        raise RuntimeError("global Cloudflare security posture drift")
-
-    rulesets = cf_ruleset(f"/zones/{ZONE_ID}/rulesets") or []
-    candidates = [
-        row for row in rulesets
-        if row.get("phase") == "http_config_settings" and row.get("kind") == "zone"
-    ]
-    if len(candidates) != 1:
-        raise RuntimeError("zone configuration ruleset not unique")
-    ruleset_id = candidates[0].get("id")
-    detail = cf_ruleset(f"/zones/{ZONE_ID}/rulesets/{ruleset_id}") or {}
-    rules = detail.get("rules") or []
-    expression = 'http.host eq "' + host + '"'
-
-    matches = [row for row in rules if row.get("ref") == rule_ref]
-    if len(matches) > 1:
-        raise RuntimeError("duplicate reviewer machine-transport rule")
-    if matches:
-        row = matches[0]
-        params = row.get("action_parameters") or {}
-        if (
-            row.get("action") != "set_config"
-            or row.get("expression") != expression
-            or params.get("security_level") != "essentially_off"
-            or params.get("bic") is not False
-            or row.get("enabled") is False
-        ):
-            raise RuntimeError("reviewer machine-transport rule drift")
-    else:
-        if any(row.get("expression") == expression for row in rules):
-            raise RuntimeError("reviewer hostname already has a different config rule")
-        cf_ruleset(
-            f"/zones/{ZONE_ID}/rulesets/{ruleset_id}/rules",
-            "POST",
-            {
-                "action": "set_config",
-                "action_parameters": {
-                    "security_level": "essentially_off",
-                    "bic": False,
-                },
-                "expression": expression,
-                "description": "MUSITU Axiom Operator Reviewer machine transport; application OAuth remains fail-closed",
-                "enabled": True,
-                "ref": rule_ref,
-            },
-        )
-
-    refreshed = cf_ruleset(f"/zones/{ZONE_ID}/rulesets/{ruleset_id}") or {}
-    verified = [row for row in (refreshed.get("rules") or []) if row.get("ref") == rule_ref]
-    if len(verified) != 1:
-        raise RuntimeError("reviewer machine-transport rule readback failed")
-    row = verified[0]
-    params = row.get("action_parameters") or {}
-    if (
-        row.get("expression") != expression
-        or params.get("security_level") != "essentially_off"
-        or params.get("bic") is not False
-        or row.get("enabled") is False
-    ):
-        raise RuntimeError("reviewer machine-transport rule readback drift")
-
-    security_after = cf_ruleset(f"/zones/{ZONE_ID}/settings/security_level") or {}
-    browser_after = cf_ruleset(f"/zones/{ZONE_ID}/settings/browser_check") or {}
-    if security_after.get("value") != "under_attack" or browser_after.get("value") != "on":
-        raise RuntimeError("global Cloudflare security posture changed")
-
-
-def get_reviewer_urls():
-    if OAUTH_HOST in {"auth.mftintelligence.com", "mcp.mftintelligence.com"}:
-        raise RuntimeError("reviewer OAuth hostname collides with production")
-    if MCP_HOST in {"auth.mftintelligence.com", "mcp.mftintelligence.com"}:
-        raise RuntimeError("reviewer MCP hostname collides with production")
-    issuer = "https://" + OAUTH_HOST
-    resource = "https://" + MCP_HOST
+def get_workers_dev_urls():
+    result = cf(f"/accounts/{ACCOUNT_ID}/workers/subdomain") or {}
+    subdomain = str(result.get("subdomain") or "").strip()
+    if not subdomain:
+        raise RuntimeError("Cloudflare workers.dev account subdomain unavailable")
+    issuer = f"https://{OAUTH_WORKER}.{subdomain}.workers.dev"
+    resource = f"https://{MCP_WORKER}.{subdomain}.workers.dev"
+    if "mftintelligence.com" in issuer or "mftintelligence.com" in resource:
+        raise RuntimeError("reviewer clone unexpectedly uses production zone")
     return issuer, resource
+
 
 def wait_health(base, label):
     last = None
@@ -568,7 +438,7 @@ def main():
     reviewer_db = ensure_reviewer_db()
     clone_identity_schema_and_snapshot(reviewer_db)
     modal_url, modal_key, modal_secret = get_modal_runtime()
-    issuer, resource = get_reviewer_urls()
+    issuer, resource = get_workers_dev_urls()
 
     deploy_worker(
         OAUTH_WORKER,
@@ -590,18 +460,6 @@ def main():
             {"type": "secret_text", "name": "MODAL_PROXY_KEY", "text": modal_key},
             {"type": "secret_text", "name": "MODAL_PROXY_SECRET", "text": modal_secret},
         ],
-    )
-
-    configure_custom_domain(OAUTH_HOST, OAUTH_WORKER)
-    configure_custom_domain(MCP_HOST, MCP_WORKER)
-
-    configure_machine_transport_exception(
-        OAUTH_HOST,
-        "musitu_axiom_operator_reviewer_oauth_machine_transport",
-    )
-    configure_machine_transport_exception(
-        MCP_HOST,
-        "musitu_axiom_operator_reviewer_mcp_machine_transport",
     )
 
     wait_health(issuer, "oauth")
