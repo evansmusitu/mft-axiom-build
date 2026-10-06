@@ -319,18 +319,26 @@ class RunStore:
         envelope: CanonicalEnvelope,
         lineage: Mapping[str, Any],
         signature: str,
+        sealed_canonical_sha256: str | None=None,
     ) -> StoredRun:
         """Atomically persist an ingest run and its initial audit chain.
 
         New ingests commit the run row, RUN_RECORDED and INGEST_COMPLETED in
         one FULL-synchronous SQLite transaction. Idempotent ingests preserve
         existing conflict/integrity checks and append only a new completion
-        event, matching the prior public behavior.
+        event, matching the prior public behavior. When supplied,
+        sealed_canonical_sha256 must come from ConnectFabric.seal; stored runs
+        are still independently re-hashed on load/replay before they are trusted.
         """
         self._validate_run_inputs(
             run_id=run_id, connector_name=connector_name, protocol=protocol,
         )
-        digest=self.canonical_sha256(run_id, envelope)
+        if sealed_canonical_sha256 is None:
+            digest=self.canonical_sha256(run_id,envelope)
+        else:
+            digest=str(sealed_canonical_sha256).lower()
+            if len(digest) != 64 or any(ch not in "0123456789abcdef" for ch in digest):
+                raise ValueError("sealed_canonical_sha256_invalid")
         existing=self._existing_or_conflict(
             run_id=run_id,
             connector_name=connector_name,
