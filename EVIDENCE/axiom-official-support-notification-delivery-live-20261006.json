@@ -1,0 +1,22 @@
+{
+  "schema": "musitu.axiom.support-readiness-evidence.v1",
+  "gate": "NOTIFICATION_DELIVERY",
+  "status": "PASS",
+  "artifact_sha256": "d523cd4d5ab5f1896393840277398cfce8c65d22768eb85de7170ca84a056ee5",
+  "verifier_ref": "github-actions:run:37422037122+gmail:subject-match",
+  "verified_at": "2026-10-06T06:07:32Z",
+  "channel": "cloudflare_email_service_rest_verified_destination",
+  "provider_http": 200,
+  "provider_success": true,
+  "delivered_count": 1,
+  "queued_count": 0,
+  "permanent_bounce_count": 0,
+  "suppressed_count": 0,
+  "destination_mailbox_match_count": 1,
+  "destination_mailbox_inbox_visible": true,
+  "sender": "support@mftintelligence.com",
+  "raw_destination_recorded": false,
+  "provider_message_id_recorded": false,
+  "secret_exposed": false,
+  "public_support_deployed": false
+}
