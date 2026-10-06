@@ -23,7 +23,7 @@ jobs:
           node-version: '22'
       - name: Benchmark contract tests
         working-directory: delivery-os
-        run: node --test evaluation/benchmark.test.mjs evaluation/external-access.test.mjs evaluation/standard-workload.test.mjs
+        run: node --test evaluation/benchmark.test.mjs evaluation/external-access.test.mjs evaluation/standard-workload.test.mjs evaluation/provider-adapters.test.mjs
       - name: Prove external access fails closed without sandbox credentials
         working-directory: delivery-os
         run: |
@@ -43,6 +43,11 @@ jobs:
         run: |
           mkdir -p "$RUNNER_TEMP/musitu-benchmark"
           node evaluation/materialize-standard-v1.mjs --output "$RUNNER_TEMP/musitu-benchmark/standard-v1-workload.json"
+      - name: Materialize provider dry-run plans
+        working-directory: delivery-os
+        run: |
+          mkdir -p "$RUNNER_TEMP/musitu-benchmark/provider-plans"
+          node evaluation/materialize-provider-plans.mjs --output-dir "$RUNNER_TEMP/musitu-benchmark/provider-plans"
       - name: Generate controlled evidence report
         working-directory: delivery-os
         run: |
@@ -66,5 +71,7 @@ jobs:
             ${{ runner.temp }}/musitu-benchmark/external-access-offline.json
             ${{ runner.temp }}/musitu-benchmark/standard-v1-workload.json
             ${{ runner.temp }}/musitu-benchmark/standard-v1-workload.json.sha256
+            ${{ runner.temp }}/musitu-benchmark/provider-plans/onfleet-standard-v1-plan.json
+            ${{ runner.temp }}/musitu-benchmark/provider-plans/bringg-standard-v1-blocked-plan.json
           if-no-files-found: error
           retention-days: 90

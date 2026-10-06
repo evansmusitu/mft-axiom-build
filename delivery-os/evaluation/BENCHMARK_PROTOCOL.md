@@ -67,3 +67,13 @@ node evaluation/run-controlled.mjs --output /tmp/musitu-benchmark-controlled.jso
 ```
 
 When real sandbox runs become available, serialize each provider result with schema `musitu-delivery-benchmark-run.v1` and pass them through the same `buildBenchmarkReport` contract. Do not modify the benchmark rules to fit a desired result; version the scenario instead.
+
+## Provider dry-run plans
+
+`provider-adapters.mjs` converts the exact standard-v1 workload into provider-facing dry-run plans without embedding credentials.
+
+For Onfleet, the adapter maps all 100 orders to documented `POST /api/v2/tasks` requests with explicit coordinates, parsed city/country context, time windows, quantity, service time, photo/signature completion requirements, benchmark provenance, and ROv3 refrigeration capability metadata. It deliberately does not attach authentication headers or perform live mutation. Live execution remains blocked until a dedicated test API key, test team/worker bindings, and compatible Route Optimization entitlement/default schedule are available.
+
+For Bringg Own Fleet, the adapter fails closed and emits no order requests until the exact Sandbox Create Order service URL is supplied. Even after that URL is supplied it remains blocked pending confirmation of the sandbox-specific order schema; service UUIDs are never guessed from public examples.
+
+CI publishes both dry-run plans as evidence artifacts tied to the same workload SHA-256 `bb64c1d425bf5e8245a0daad8acffa01f849da79f3b9a9d83fbdd86aec012554`.
