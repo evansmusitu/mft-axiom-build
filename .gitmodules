@@ -1,0 +1,3 @@
+[submodule "delivery-os/vendor/ownfleet"]
+	path = delivery-os/vendor/ownfleet
+	url = https://github.com/Volodymyr4K/ownfleet.git
