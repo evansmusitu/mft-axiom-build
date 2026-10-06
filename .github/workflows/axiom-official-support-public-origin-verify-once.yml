@@ -1,0 +1,261 @@
+name: MUSITU Axiom Support Public Origin Verify Once
+
+on:
+  push:
+    branches:
+      - 'support/axiom-official-support-20261005'
+    paths:
+      - '.github/workflows/axiom-official-support-public-origin-verify-once.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: musitu-axiom-support-public-origin-verify-once
+  cancel-in-progress: false
+
+jobs:
+  verify-public-origin:
+    if: github.event_name == 'push' && github.event.before == '5fb7f7984c8ff013390cd0c418c66e6801f6caa0'
+    runs-on: ubuntu-latest
+    environment: axiom-support-production
+    timeout-minutes: 15
+    env:
+      SUPPORT_DOMAIN: 'support.mftintelligence.com'
+      SUPPORT_DEPLOYMENT_MODE: production
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+      CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      SUPPORT_WORKER_NAME: ${{ vars.SUPPORT_WORKER_NAME }}
+      SUPPORT_D1_DATABASE_NAME: ${{ vars.SUPPORT_D1_DATABASE_NAME }}
+      SUPPORT_D1_DATABASE_ID: ${{ vars.SUPPORT_D1_DATABASE_ID }}
+      SUPPORT_TURNSTILE_SITE_KEY: ${{ vars.SUPPORT_TURNSTILE_SITE_KEY }}
+      SUPPORT_HUMAN_OWNER_REF: ${{ vars.SUPPORT_HUMAN_OWNER_REF }}
+      SUPPORT_INDEPENDENT_APPROVER_REF: ${{ vars.SUPPORT_INDEPENDENT_APPROVER_REF }}
+      GH_READ_TOKEN: ${{ github.token }}
+    steps:
+      - name: Checkout exact authorized support commit
+        uses: actions/checkout@v4
+
+      - name: Use Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: One-shot authorization and protected-boundary gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_EVENT_NAME" = 'push'
+          test "$GITHUB_REF_NAME" = 'support/axiom-official-support-20261005'
+          test "$GITHUB_REF_NAME" != 'main'
+          test "${{ github.event.before }}" = '5fb7f7984c8ff013390cd0c418c66e6801f6caa0'
+          test "$SUPPORT_DOMAIN" = 'support.mftintelligence.com'
+          node <<'NODE'
+          const api='https://api.github.com/repos/evansmusitu/mft-axiom-build';
+          const token=process.env.GH_READ_TOKEN;
+          async function get(path){
+            const r=await fetch(api+path,{headers:{authorization:'Bearer '+token,accept:'application/vnd.github+json'}});
+            if(!r.ok) throw new Error('GitHub protected-boundary read failed HTTP '+r.status+' '+path);
+            return r.json();
+          }
+          const enc=encodeURIComponent;
+          const [main,support,claude,pr,authBlob,mcpBlob]=await Promise.all([
+            get('/branches/main'),
+            get('/branches/'+enc('support/axiom-official-support-20261005')),
+            get('/branches/'+enc('distribution/claude-remote-mcp-20261004')),
+            get('/pulls/1'),
+            get('/git/blobs/8ba0dbc1b6dd1533c6c26bff23991429e03a71a5'),
+            get('/git/blobs/4a1ad37a5e7df0e4d3966e8b5f9f0e8f2db69167'),
+          ]);
+          if(main?.commit?.sha!=='d6a846f6bbe0bccac1758713eb4de167caf07113') throw new Error('protected main drift');
+          if(support?.commit?.sha!==process.env.GITHUB_SHA) throw new Error('support branch advanced during authorized run');
+          if(claude?.commit?.sha!=='4d956f415431836018e5145227c8df5bd5fde7d8') throw new Error('Claude branch drift');
+          if(pr?.state!=='open'||pr?.draft!==true||pr?.merged===true||pr?.head?.sha!=='8fc1fbb7c5ebbcc1604ecf24c5f4594f2d5667e3') throw new Error('PR #1 protected state drift');
+          if(authBlob?.sha!=='8ba0dbc1b6dd1533c6c26bff23991429e03a71a5') throw new Error('frozen OpenAI auth blob unavailable');
+          if(mcpBlob?.sha!=='4a1ad37a5e7df0e4d3966e8b5f9f0e8f2db69167') throw new Error('frozen OpenAI MCP blob unavailable');
+          NODE
+
+      - name: Require exact pre-public readiness boundary without promoting it
+        shell: bash
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          const fs=require('node:fs');
+          const crypto=require('node:crypto');
+          const path='EVIDENCE/axiom-official-support-readiness-current.json';
+          const raw=fs.readFileSync(path);
+          const e=JSON.parse(raw);
+          const expected={
+            PUBLIC_ORIGIN:'MISSING',
+            SECURE_STORAGE:'PASS',
+            ENCRYPTION_KEY_MANAGEMENT:'PASS',
+            ANTI_ABUSE:'PARTIAL',
+            HUMAN_SUPPORT_OWNER:'PASS',
+            ESCALATION_ROSTER:'PASS',
+            PRIVACY_RETENTION:'PASS',
+            ACCESSIBILITY_REALITY:'PARTIAL',
+            SECURITY_REVIEW:'PASS',
+            BACKUP_RESTORE:'PASS',
+            NOTIFICATION_DELIVERY:'PASS',
+          };
+          const actual=Object.fromEntries((e.gates||[]).map(x=>[x.gate,x.status]));
+          if(e.schema!=='musitu.axiom.support-readiness-snapshot.v1') throw new Error('readiness schema mismatch');
+          if(e.required_gate_count!==11||e.pass_count!==8||e.partial_count!==2||e.missing_count!==1) throw new Error('authorized pre-public readiness counts changed');
+          if(e.public_operational_claim_authorized!==false) throw new Error('public operational claim must remain false during verification');
+          if(e.deployment_dispatch_authorized!==false) throw new Error('canonical 11/11 deployment dispatch must remain false during verification');
+          if(e.public_support_deployed!==false) throw new Error('support was already publicly deployed before authorized bootstrap');
+          if(JSON.stringify(actual)!==JSON.stringify(expected)) throw new Error('authorized pre-public gate statuses changed');
+          const hash=crypto.createHash('sha256').update(raw).digest('hex');
+          fs.appendFileSync(process.env.GITHUB_ENV,'SUPPORT_READINESS_SHA256='+hash+'\n');
+          NODE
+
+      - name: Re-run complete support regression suite
+        run: node --test support/tests/*.test.mjs
+
+      - name: Render exact production configuration for verification origin
+        run: node support/scripts/render_wrangler.mjs support-wrangler.generated.json
+
+      - name: Verify public-origin config and secret bindings without reading secret values
+        shell: bash
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          const c=require('./support-wrangler.generated.json');
+          if(c.name!==process.env.SUPPORT_WORKER_NAME) throw new Error('worker name mismatch');
+          if(c.workers_dev!==false) throw new Error('workers_dev must remain disabled');
+          if(c.vars?.ENVIRONMENT!=='production') throw new Error('verification origin must exercise production controls');
+          if(c.vars?.SUPPORT_DOMAIN!=='support.mftintelligence.com') throw new Error('support hostname mismatch');
+          if(!Array.isArray(c.routes)||c.routes.length!==1||c.routes[0]?.pattern!=='support.mftintelligence.com'||c.routes[0]?.custom_domain!==true) throw new Error('exact custom support domain required');
+          NODE
+          npx --yes wrangler@4 secret list --config support-wrangler.generated.json > support-secret-names.json
+          node -e "const names=require('./support-secret-names.json').map(x=>x.name); for(const required of ['SUPPORT_DATA_KEY_B64','TURNSTILE_SECRET_KEY']) if(!names.includes(required)) process.exit(1)"
+          rm support-secret-names.json
+
+      - name: Require zero customer support rows before public verification
+        shell: bash
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          const account=String(process.env.CLOUDFLARE_ACCOUNT_ID||'');
+          const db=String(process.env.SUPPORT_D1_DATABASE_ID||'');
+          const token=String(process.env.CLOUDFLARE_API_TOKEN||'');
+          const email=String(process.env.CLOUDFLARE_EMAIL||'');
+          const key=String(process.env.CLOUDFLARE_API_KEY||'');
+          if(!account||!db) throw new Error('Cloudflare support identifiers missing');
+          function headers(){
+            if(email&&key) return {'X-Auth-Email':email,'X-Auth-Key':key,'content-type':'application/json',accept:'application/json'};
+            if(token) return {authorization:'Bearer '+token,'content-type':'application/json',accept:'application/json'};
+            throw new Error('Cloudflare authentication missing');
+          }
+          async function count(table){
+            const r=await fetch('https://api.cloudflare.com/client/v4/accounts/'+account+'/d1/database/'+db+'/query',{
+              method:'POST',headers:headers(),body:JSON.stringify({sql:'SELECT COUNT(*) AS count FROM '+table+';'})
+            });
+            const p=await r.json();
+            if(!r.ok||p?.success===false) throw new Error('D1 read failed HTTP '+r.status);
+            const block=Array.isArray(p.result)?p.result[0]:p.result;
+            return Number(block?.results?.[0]?.count??-1);
+          }
+          const [cases,events]=await Promise.all([count('support_cases'),count('support_case_events')]);
+          if(cases!==0||events!==0) throw new Error('public verification requires zero customer support rows');
+          NODE
+
+      - name: Apply idempotent support schema
+        run: npx --yes wrangler@4 d1 execute SUPPORT_DB --remote --config support-wrangler.generated.json --file support/schema.sql
+
+      - name: Publish exact support custom domain for verification
+        run: npx --yes wrangler@4 deploy --config support-wrangler.generated.json
+
+      - name: Verify custom domain exists while workers.dev and previews remain disabled
+        shell: bash
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          const account=String(process.env.CLOUDFLARE_ACCOUNT_ID||'');
+          const worker=String(process.env.SUPPORT_WORKER_NAME||'');
+          const token=String(process.env.CLOUDFLARE_API_TOKEN||'');
+          const email=String(process.env.CLOUDFLARE_EMAIL||'');
+          const key=String(process.env.CLOUDFLARE_API_KEY||'');
+          function headers(){
+            if(email&&key) return {'X-Auth-Email':email,'X-Auth-Key':key,accept:'application/json'};
+            if(token) return {authorization:'Bearer '+token,accept:'application/json'};
+            throw new Error('Cloudflare authentication missing');
+          }
+          async function cf(path){
+            const r=await fetch('https://api.cloudflare.com/client/v4'+path,{headers:headers()});
+            const p=await r.json();
+            if(!r.ok||p?.success===false) throw new Error('Cloudflare read failed HTTP '+r.status+' '+path);
+            return p?.result;
+          }
+          const [sub,domains]=await Promise.all([
+            cf('/accounts/'+account+'/workers/scripts/'+encodeURIComponent(worker)+'/subdomain'),
+            cf('/accounts/'+account+'/workers/domains'),
+          ]);
+          if(sub?.enabled===true||sub?.previews_enabled===true) throw new Error('workers.dev or previews unexpectedly enabled');
+          const matches=(Array.isArray(domains)?domains:[]).filter(x=>String(x?.hostname||'')==='support.mftintelligence.com');
+          if(matches.length!==1) throw new Error('exact support custom domain was not attached once');
+          if(String(matches[0]?.service||matches[0]?.service_name||'') && String(matches[0]?.service||matches[0]?.service_name||'')!==worker) throw new Error('support custom domain points to unexpected Worker');
+          NODE
+
+      - name: Verify live public surface and fail-closed missing Turnstile proof
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -f support-health.json support-home.html support-missing-proof.json
+          ok=0
+          for i in $(seq 1 20); do
+            if curl --fail --silent --show-error --proto '=https' "https://$SUPPORT_DOMAIN/health" > support-health.json; then ok=1; break; fi
+            sleep 3
+          done
+          test "$ok" = 1
+          node -e "const h=require('./support-health.json'); if(h.status!=='READY'||!h.secure_storage||!h.abuse_gate||!h.turnstile||!h.rate_limiter||!h.human_owner||!h.independent_approver||!h.readiness_evidence||h.production!==true) process.exit(1)"
+          curl --fail --silent --show-error --proto '=https' "https://$SUPPORT_DOMAIN/" > support-home.html
+          grep -q 'MUSITU Axiom Support' support-home.html
+          status=$(curl --silent --show-error --proto '=https' -o support-missing-proof.json -w '%{http_code}'             -X POST "https://$SUPPORT_DOMAIN/api/v1/cases"             -H 'content-type: application/json'             --data '{"surface":"web_app","category":"bug","affected_scope":"self","summary":"Synthetic public-origin verification","description":"Synthetic verification request; expected rejection before storage.","reproduction":"Verification only.","impact":"None.","evidence_refs":[],"consent_to_process":true}')
+          test "$status" = '403'
+          node -e "const r=require('./support-missing-proof.json'); if(!['ABUSE_PROOF_REQUIRED','TURNSTILE_REQUIRED'].includes(String(r.error||''))) process.exit(1)"
+          rm support-health.json support-home.html support-missing-proof.json
+
+      - name: Prove missing-proof probe stored no case data
+        shell: bash
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          const account=String(process.env.CLOUDFLARE_ACCOUNT_ID||'');
+          const db=String(process.env.SUPPORT_D1_DATABASE_ID||'');
+          const token=String(process.env.CLOUDFLARE_API_TOKEN||'');
+          const email=String(process.env.CLOUDFLARE_EMAIL||'');
+          const key=String(process.env.CLOUDFLARE_API_KEY||'');
+          function headers(){
+            if(email&&key) return {'X-Auth-Email':email,'X-Auth-Key':key,'content-type':'application/json',accept:'application/json'};
+            if(token) return {authorization:'Bearer '+token,'content-type':'application/json',accept:'application/json'};
+            throw new Error('Cloudflare authentication missing');
+          }
+          async function count(table){
+            const r=await fetch('https://api.cloudflare.com/client/v4/accounts/'+account+'/d1/database/'+db+'/query',{
+              method:'POST',headers:headers(),body:JSON.stringify({sql:'SELECT COUNT(*) AS count FROM '+table+';'})
+            });
+            const p=await r.json();
+            if(!r.ok||p?.success===false) throw new Error('D1 readback failed HTTP '+r.status);
+            const block=Array.isArray(p.result)?p.result[0]:p.result;
+            return Number(block?.results?.[0]?.count??-1);
+          }
+          const [cases,events]=await Promise.all([count('support_cases'),count('support_case_events')]);
+          if(cases!==0||events!==0) throw new Error('verification probe unexpectedly stored support data');
+          console.log(JSON.stringify({
+            gate:'MUSITU_AXIOM_SUPPORT_PUBLIC_ORIGIN_VERIFICATION',
+            hostname:'support.mftintelligence.com',
+            public_origin_live:true,
+            workers_dev_enabled:false,
+            previews_enabled:false,
+            missing_turnstile_proof_http:403,
+            customer_case_count:cases,
+            customer_event_count:events,
+            public_operational_claim_authorized:false,
+            canonical_deployment_dispatch_authorized:false,
+            secret_exposed:false
+          }));
+          NODE
+          rm -f support-wrangler.generated.json
