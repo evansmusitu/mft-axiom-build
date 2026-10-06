@@ -6,6 +6,7 @@ const HASH=/^[a-f0-9]{64}$/i;
 const OUTCOME_CONTRACT_KEYS=new Set(['schema','project_id','contract_id','contract_sha256','project_object_id','title','outcome','success_criteria','constraints','execution_boundary','supersedes_contract_id','created_at','created_by']);
 const OUTCOME_CONSTRAINT_KEYS=new Set(['privacy','evidence','autonomy','approval','deadline','compute_budget']);
 const APPROVAL_RECEIPT_KEYS=new Set(['receipt_id','edge_id','contract_id','contract_sha256','provenance']);
+const APPROVAL_PROVENANCE_KEYS=new Set(['source','actor_id','created_at']);
 const clean=(value,max=4000)=>String(value??'').replace(/[\u0000-\u001f\u007f]/g,' ').trim().slice(0,max);
 const isPlainObject=value=>Boolean(value)&&typeof value==='object'&&!Array.isArray(value)&&(Object.getPrototypeOf(value)===Object.prototype||Object.getPrototypeOf(value)===null);
 function rejectUnknownKeys(value,allowed,label){const extra=Object.keys(value).filter(key=>!allowed.has(key));if(extra.length)throw new DOMException(label+' contains unsupported fields: '+extra.join(','),'SecurityError');}
@@ -80,6 +81,9 @@ export async function compileObjectiveOutcomeGraph({project,contract,contractVer
     rejectUnknownKeys(approval,APPROVAL_RECEIPT_KEYS,'approval receipt');
     if(typeof approval.receipt_id!=='string'||!clean(approval.receipt_id,180)||typeof approval.edge_id!=='string'||!clean(approval.edge_id,180)) throw new TypeError('approval receipt receipt_id and edge_id are required');
     if(approval.contract_id!==contract.contract_id||approval.contract_sha256!==contract.contract_sha256) throw new TypeError('approval receipt must bind the verified Outcome Contract');
+    if(!isPlainObject(approval.provenance)) throw new TypeError('approval provenance required');
+    rejectUnknownKeys(approval.provenance,APPROVAL_PROVENANCE_KEYS,'approval provenance');
+    if(typeof approval.provenance.source!=='string'||!clean(approval.provenance.source,180)||typeof approval.provenance.actor_id!=='string'||!clean(approval.provenance.actor_id,120)||typeof approval.provenance.created_at!=='string'||!Number.isFinite(Date.parse(approval.provenance.created_at))) throw new TypeError('approval provenance source actor_id and created_at are required');
   }
 
   const projectId=project.project_id;
