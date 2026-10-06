@@ -1,0 +1,143 @@
+{
+  "schema": "musitu.axiom.phase2.product-compiler-ir-qualification.v1",
+  "recorded_date": "2026-10-06",
+  "source_authority": {
+    "repository": "evansmusitu/mft-axiom-build",
+    "branch": "frontier/axiom-product-intelligence-phase2-20261004",
+    "predecessor_objective_outcome_evidence_commit": "3bf16affb0c909a8f25d1707ed6f8dac894df3c8",
+    "final_hardened_head": "32b3b0311d9425f9389b64d34222089a9b30e44c",
+    "implementation_path": "axiom_interface/vnext/product_intelligence/product_compiler_ir.js",
+    "implementation_git_blob": "2a4324b7de21633f8bc0d3dc165d6f449fe99762",
+    "contract_test_path": "axiom_interface/vnext/tests/product_intelligence_product_compiler_ir.test.mjs",
+    "contract_test_git_blob": "7cb0263fbd6fd0c874e58bf0ec028923d1d16958",
+    "gate_workflow_path": ".github/workflows/axiom-product-intelligence-phase2-gate.yml",
+    "gate_workflow_git_blob": "a01351ef2acd3aa236dd03b0220c9af8db15f360"
+  },
+  "tdd": {
+    "observed_red_green_behavior_cycles": 9,
+    "cycles": [
+      {
+        "cycle": 1,
+        "red_test_commit": "4a570a383ffebf6007096ff3952102f7781dd325",
+        "gate_commit": "e46c6cd3a344bd70166ed3f2891e48b6774cc787",
+        "red_run_id": 37428926837,
+        "green_commit": "937cb63f0cbf83ba7766d505b32fe8dc1e4670b6",
+        "green_run_id": 37429151252,
+        "behavior": "reject stale-hash semantic tamper before IR diff"
+      },
+      {
+        "cycle": 2,
+        "red_commit": "4fea4b8db9840fc0dccf96a82c391c20a3e1deb7",
+        "red_run_id": 37429244726,
+        "green_commit": "bd3cb781b65416e6488bc4e42e0b992db47f0df1",
+        "green_run_id": 37429332528,
+        "behavior": "reject tampered IR before reconciliation"
+      },
+      {
+        "cycle": 3,
+        "red_commit": "5dbdb90d19309b703aab79a9211f0b1014b1cd2a",
+        "red_run_id": 37429434717,
+        "green_commit": "9e862ff8f1d051eff4abb3755ada1d4c3b257a4a",
+        "green_run_id": 37429512229,
+        "behavior": "fail closed on malformed declared bindings"
+      },
+      {
+        "cycle": 4,
+        "red_commit": "5699b1efba52fa051375685f40f09acbc9e25e61",
+        "red_run_id": 37429595084,
+        "green_commit": "b49add5443ff06f9aadd060922f0ef0455d3b141",
+        "green_run_id": 37429676656,
+        "behavior": "fail closed on observed reconciliation binding schema"
+      },
+      {
+        "cycle": 5,
+        "red_commit": "ec487c5109b15ea6d3fc080c51bae0d9f3c8ebfa",
+        "red_run_id": 37429768139,
+        "green_commit": "24f8813eb1a9a9c476d8c7cb848da868755607db",
+        "green_run_id": 37429877551,
+        "behavior": "reject reverse-inference authority credentials and non-finite confidence"
+      },
+      {
+        "cycle": 6,
+        "red_commit": "f273c692a1c44eeec336195eea12d0a64ace0982",
+        "red_run_id": 37429954410,
+        "green_commit": "2fe46dbbb044c3941704232def9861f06968d97f",
+        "green_run_id": 37430056043,
+        "behavior": "reject normalized inferred node identity collisions"
+      },
+      {
+        "cycle": 7,
+        "red_commit": "23620ab74ab6d4267457a32d3b211aa1eb888a04",
+        "red_run_id": 37430144745,
+        "green_commit": "c88284ac8577d7c49edee0ce0070852aabfdfda9",
+        "green_run_id": 37430215542,
+        "behavior": "reject compiler and inference identity coercion"
+      },
+      {
+        "cycle": 8,
+        "red_commit": "6fa1b857e3bbe383b467a93e1b4438e3a5657148",
+        "red_run_id": 37430376766,
+        "green_commit": "c9ab68bd03129c62a2263fecb74397c4ca36a841",
+        "green_run_id": 37430476716,
+        "behavior": "enforce exact replayed IR envelopes and frozen compiler policies"
+      },
+      {
+        "cycle": 9,
+        "red_commit": "a4dec2d537b319ac4bc1c2816fd756b0725ba488",
+        "red_run_id": 37430578000,
+        "green_commit": "32b3b0311d9425f9389b64d34222089a9b30e44c",
+        "green_run_id": 37430675212,
+        "behavior": "enforce unique IR identities and in-graph references"
+      }
+    ],
+    "red_runs_observed_as_failure": true,
+    "green_runs_observed_as_success": true,
+    "final_contract_tests": {
+      "total": 16,
+      "pass": 16,
+      "fail": 0
+    },
+    "assertions_weakened_to_pass": false
+  },
+  "independent_verification": {
+    "workflow": "MUSITU Axiom Product Intelligence Phase 2 Gate",
+    "run_id": 37430675212,
+    "head_sha": "32b3b0311d9425f9389b64d34222089a9b30e44c",
+    "conclusion": "success",
+    "focused_contract_job": {
+      "job_id": 112160539554,
+      "conclusion": "success",
+      "product_compiler_ir_contracts": "PASS_16_OF_16"
+    },
+    "independent_replay_job": {
+      "job_id": 112160603464,
+      "conclusion": "success",
+      "all_frozen_order_tests": "PASS_117_OF_117",
+      "authority_marker": "MUSITU_AXIOM_PHASE2_PROVIDER_AUTHORITY_FAIL_CLOSED_PASS",
+      "slice_marker": "MUSITU_AXIOM_PHASE2_SLICE_VERIFICATION_PASS",
+      "release_authority": false,
+      "production_authority": false,
+      "certification_authority": false
+    }
+  },
+  "qualification": {
+    "product_compiler_ir_contract_and_authority_gate": "PASS",
+    "semantic_scope": "CONTENT_ADDRESSED_IR_DIFF_RECONCILIATION_AND_VERIFICATION_REQUIRED_REVERSE_INFERENCE",
+    "live_integrated_runtime_qualification": "NOT_PROVEN",
+    "auto_apply": false,
+    "can_overwrite_verified_nodes": false,
+    "release_authority": false,
+    "production_authority": false,
+    "certification_authority": false,
+    "production_mutation": false,
+    "frozen_openai_mutation": false,
+    "required_next_gate": "REVERSIBLE_COMPILER_CHECKPOINTS"
+  },
+  "incident_boundary": {
+    "modal_fanout_cleanup": "NOT_PROVEN",
+    "latest_checked_run_id": 37284936693,
+    "latest_checked_job_id": 111795419209,
+    "latest_checked_job_conclusion": "failure",
+    "required_pass_marker_observed": false
+  }
+}
