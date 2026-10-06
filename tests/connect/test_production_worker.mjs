@@ -84,7 +84,66 @@ test('production worker computes the exact constrained Mining plan when authenti
   assert.equal(body.spend, 44000);
   assert.deepEqual(body.selected, ['Ground collapse', 'Explosives / gases', 'Shaft falls']);
   assert.equal(body.baselineRisk, 4.9992);
-  assert.ok(Math.abs(body.residualRisk - 0.699888) < 1e-12);
+  assert.ok(Math.abs(body.residualRisk - 3.46248) < 1e-12);
+  assert.ok(Math.abs(body.riskReduction - 1.53672) < 1e-12);
+  assert.ok(Math.abs(body.relativeReduction - 30.74) < 1e-12);
+});
+
+
+test('production worker exact planner accepts more than twenty Mining rows', async () => {
+  const mod = await worker();
+  const rows = Array.from({ length: 25 }, (_, index) => ({
+    hazard: `Hazard ${String(index).padStart(2, '0')}`,
+    exposure: 1,
+    severity: 1,
+    likelihood: 1,
+    cost: index === 0 ? 1 : 1000,
+    benefit: index === 0 ? 1 : 0.01,
+  }));
+  const response = await mod.default.fetch(
+    new Request('https://canary.example/api/mining/plan', {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify({ rows, budget: 1 }),
+    }),
+    env,
+  );
+  assert.equal(response.status, 200);
+  const body = await response.json();
+  assert.deepEqual(body.selected, ['Hazard 00']);
+  assert.equal(body.spend, 1);
+  assert.equal(body.residualRisk, 24);
+});
+
+test('production worker rejects Mining benefit above one', async () => {
+  const mod = await worker();
+  const response = await mod.default.fetch(
+    new Request('https://canary.example/api/mining/plan', {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify({
+        rows: [{ ...scenario[0], benefit: 1.01 }],
+        budget: 50000,
+      }),
+    }),
+    env,
+  );
+  assert.equal(response.status, 400);
+  assert.deepEqual(await response.json(), { ok: false, error: 'INVALID_REQUEST' });
+});
+
+
+test('production worker rejects incomplete spatial metadata', async () => {
+  const mod = await worker();
+  const response = await mod.default.fetch(
+    new Request('https://canary.example/api/mining/plan', {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify({ rows: [{ ...scenario[0], latitude: -17.83 }], budget: 50000 }),
+    }),
+    env,
+  );
+  assert.equal(response.status, 400);
 });
 
 test('production worker sends provenance-bound risk execution to Axiom and sanitizes the response', async () => {

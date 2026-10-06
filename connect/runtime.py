@@ -21,8 +21,9 @@ class ConnectRuntime:
     def ingest(self, *, run_id:str, connector_name:str, domain:str, adapter_name:str, records:Iterable[dict[str,Any]]) -> EnterpriseRun:
         spec=self.catalog.resolve(adapter_name)
         if spec.domain!=domain: raise ValueError("adapter_domain_mismatch")
-        fabric_run=self.fabric.ingest(run_id=run_id,connector_name=connector_name,domain=domain,records=records)
-        canonical=spec.normalize(fabric_run.envelope.records)
+        rows=tuple(records)
+        canonical=spec.normalize(rows)
+        fabric_run=self.fabric.seal(run_id=run_id,connector_name=connector_name,envelope=canonical)
         return EnterpriseRun(fabric=fabric_run,adapter_name=adapter_name,canonical=canonical)
 
     def execute_downstream(self, request:dict[str,Any]) -> Any:

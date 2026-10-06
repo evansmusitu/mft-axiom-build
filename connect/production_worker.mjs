@@ -14,6 +14,7 @@ const REQUIRED_MINING_FIELDS = [
   'benefit',
 ];
 
+const OPTIONAL_MINING_FIELDS = ['record_id', 'asset_id', 'site', 'event_time', 'latitude', 'longitude'];
 const AXIOM_BASE = 'https://axiom.mftintelligence.com';
 const INTERNAL_TOKEN_LABEL = 'MUSITU-CONNECT-RUNTIME-INTERNAL-V1';
 
@@ -77,9 +78,6 @@ function normalizeMiningRows(rawRows) {
   if (!Array.isArray(rawRows) || rawRows.length === 0) {
     throw new Error('rows_required');
   }
-  if (rawRows.length > 20) {
-    throw new Error('too_many_rows_for_exact_planner');
-  }
   return rawRows.map(raw => {
     if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
       throw new Error('invalid_row');
@@ -88,6 +86,9 @@ function normalizeMiningRows(rawRows) {
     if (missing.length) {
       throw new Error('missing_fields:' + missing.join(','));
     }
+    const allowed = new Set([...REQUIRED_MINING_FIELDS, ...OPTIONAL_MINING_FIELDS]);
+    const unknown = Object.keys(raw).filter(field => !allowed.has(field)).sort();
+    if (unknown.length) throw new Error('unknown_fields:' + unknown.join(','));
     const hazard = String(raw.hazard).trim();
     if (!hazard) throw new Error('hazard_required');
     const exposure = Number(raw.exposure);
@@ -106,11 +107,41 @@ function normalizeMiningRows(rawRows) {
       severity < 0 ||
       severity > 10 ||
       cost < 0 ||
-      benefit < 0
+      benefit < 0 ||
+      benefit > 1
     ) {
       throw new Error('value_out_of_range');
     }
-    return { hazard, exposure, severity, likelihood, cost, benefit };
+    const normalized = { hazard, exposure, severity, likelihood, cost, benefit };
+    for (const field of ['record_id', 'asset_id', 'site']) {
+      if (field in raw) {
+        const value = String(raw[field]).trim();
+        if (!value) throw new Error(field + '_required');
+        normalized[field] = value;
+      }
+    }
+    if ('event_time' in raw) {
+      const eventTime = String(raw.event_time).trim();
+      if (!eventTime) throw new Error('event_time_required');
+      if (!/(?:Z|[+-]\d{2}:\d{2})$/.test(eventTime) || !Number.isFinite(Date.parse(eventTime))) {
+        throw new Error('event_time_timezone_required');
+      }
+      normalized.event_time = eventTime;
+    }
+    const hasLatitude = Object.prototype.hasOwnProperty.call(raw, 'latitude');
+    const hasLongitude = Object.prototype.hasOwnProperty.call(raw, 'longitude');
+    if (hasLatitude !== hasLongitude) throw new Error('coordinate_pair_required');
+    if (hasLatitude) {
+      const latitude = Number(raw.latitude);
+      const longitude = Number(raw.longitude);
+      if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) throw new Error('value_not_finite');
+      if (latitude < -90 || latitude > 90 || longitude < -180 || longitude > 180) {
+        throw new Error('value_out_of_range');
+      }
+      normalized.latitude = latitude;
+      normalized.longitude = longitude;
+    }
+    return normalized;
   });
 }
 
@@ -118,41 +149,113 @@ function optimizeInterventions(rows, budget) {
   if (!Number.isFinite(budget) || budget < 0) {
     throw new Error('budget_must_be_nonnegative');
   }
+  const epsilon = 1e-12;
   const baselineRisk = rows.reduce(
     (sum, row) => sum + row.exposure * row.severity * row.likelihood,
     0,
   );
-  let bestBenefit = 0;
+  const items = rows
+    .map((row, originalIndex) => {
+      const risk = row.exposure * row.severity * row.likelihood;
+      const riskReduction = risk * row.benefit;
+      return {
+        originalIndex,
+        cost: row.cost,
+        riskReduction,
+        density: row.cost <= epsilon ? Number.POSITIVE_INFINITY : riskReduction / row.cost,
+      };
+    })
+    .filter(item => item.riskReduction > epsilon)
+    .sort((left, right) => {
+      if (left.density !== right.density) return right.density - left.density;
+      if (left.cost !== right.cost) return left.cost - right.cost;
+      return left.originalIndex - right.originalIndex;
+    });
+
+  let bestReduction = 0;
   let bestSpend = 0;
   let bestSelected = [];
-  const totalMasks = 2 ** rows.length;
-  for (let mask = 0; mask < totalMasks; mask += 1) {
-    let spend = 0;
-    let benefit = 0;
-    const selected = [];
-    for (let index = 0; index < rows.length; index += 1) {
-      if (mask & (1 << index)) {
-        spend += rows[index].cost;
-        benefit += rows[index].benefit;
-        selected.push(rows[index].hazard);
+
+  function upperBound(index, spend, reduction) {
+    let remaining = budget - spend;
+    let bound = reduction;
+    for (let cursor = index; cursor < items.length; cursor += 1) {
+      const item = items[cursor];
+      if (item.cost <= epsilon) {
+        bound += item.riskReduction;
+        continue;
       }
+      if (item.cost <= remaining + epsilon) {
+        remaining -= item.cost;
+        bound += item.riskReduction;
+        continue;
+      }
+      if (remaining > epsilon) {
+        bound += item.riskReduction * (remaining / item.cost);
+      }
+      break;
     }
-    if (
-      spend <= budget &&
-      (benefit > bestBenefit ||
-        (benefit === bestBenefit && spend < bestSpend))
-    ) {
-      bestBenefit = benefit;
-      bestSpend = spend;
+    return bound;
+  }
+
+  function lexicographicallyBefore(left, right) {
+    const length = Math.min(left.length, right.length);
+    for (let index = 0; index < length; index += 1) {
+      if (left[index] !== right[index]) return left[index] < right[index];
+    }
+    return left.length < right.length;
+  }
+
+  function isBetter(reduction, spend, selected) {
+    if (reduction > bestReduction + epsilon) return true;
+    if (Math.abs(reduction - bestReduction) > epsilon) return false;
+    if (spend < bestSpend - epsilon) return true;
+    if (Math.abs(spend - bestSpend) > epsilon) return false;
+    return lexicographicallyBefore(selected, bestSelected);
+  }
+
+  const stack = [{ index: 0, spend: 0, reduction: 0, selected: [] }];
+  while (stack.length) {
+    const state = stack.pop();
+    const selected = [...state.selected].sort((left, right) => left - right);
+    if (isBetter(state.reduction, state.spend, selected)) {
+      bestReduction = state.reduction;
+      bestSpend = state.spend;
       bestSelected = selected;
     }
+    if (state.index >= items.length) continue;
+    if (upperBound(state.index, state.spend, state.reduction) < bestReduction - epsilon) {
+      continue;
+    }
+
+    const item = items[state.index];
+    stack.push({
+      index: state.index + 1,
+      spend: state.spend,
+      reduction: state.reduction,
+      selected: state.selected,
+    });
+    const nextSpend = state.spend + item.cost;
+    if (nextSpend <= budget + epsilon) {
+      stack.push({
+        index: state.index + 1,
+        spend: nextSpend,
+        reduction: state.reduction + item.riskReduction,
+        selected: [...state.selected, item.originalIndex],
+      });
+    }
   }
+
+  const relativeReduction = baselineRisk <= epsilon
+    ? 0
+    : (bestReduction / baselineRisk) * 100;
   return {
     baselineRisk,
-    residualRisk: Math.max(0, baselineRisk * (1 - bestBenefit)),
+    residualRisk: Math.max(0, baselineRisk - bestReduction),
+    riskReduction: bestReduction,
     spend: bestSpend,
-    selected: bestSelected,
-    relativeReduction: Number((bestBenefit * 100).toFixed(2)),
+    selected: bestSelected.map(index => rows[index].hazard),
+    relativeReduction: Number(relativeReduction.toFixed(2)),
     gate: 'LOCKED',
   };
 }

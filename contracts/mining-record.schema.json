@@ -37,8 +37,62 @@
     },
     "benefit": {
       "type": "number",
-      "minimum": 0
+      "minimum": 0,
+      "maximum": 1,
+      "description": "Fraction of this hazard baseline risk removed when the intervention is selected."
+    },
+    "record_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "asset_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "site": {
+      "type": "string",
+      "minLength": 1
+    },
+    "event_time": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "latitude": {
+      "type": "number",
+      "minimum": -90,
+      "maximum": 90
+    },
+    "longitude": {
+      "type": "number",
+      "minimum": -180,
+      "maximum": 180
     }
   },
-  "additionalProperties": false
+  "additionalProperties": false,
+  "allOf": [
+    {
+      "if": {
+        "required": [
+          "latitude"
+        ]
+      },
+      "then": {
+        "required": [
+          "longitude"
+        ]
+      }
+    },
+    {
+      "if": {
+        "required": [
+          "longitude"
+        ]
+      },
+      "then": {
+        "required": [
+          "latitude"
+        ]
+      }
+    }
+  ]
 }

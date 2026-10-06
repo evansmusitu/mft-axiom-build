@@ -1,0 +1,18 @@
+{
+  "as_of": "2026-10-06",
+  "baseline_versions": {
+    "scipy": "1.18.1"
+  },
+  "policy": {
+    "commercial_performance_without_same_workload": "NOT_COMPARABLE",
+    "missing_evidence": "FAIL",
+    "superiority_claim": "Only same-workload measured WIN outcomes may use beats/superior language."
+  },
+  "schema": "musitu.connect.mining_adapter_matrix.v1",
+  "thresholds": {
+    "baseline_tie_band_fraction": 0.05,
+    "composed_e2e_runtime_seconds_max": 30.0,
+    "minimum_optimization_records": 256,
+    "optimization_p99_ms_max": 250.0
+  }
+}

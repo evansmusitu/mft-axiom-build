@@ -5,6 +5,7 @@ from connect.mining import normalize_mining_rows
 from connect.fabric import ConnectFabric
 from connect.core import IntegrationGate
 from connect.axiom_gateway import AxiomGateway
+from connect.security import SignedEnvelope, canonical_bytes, verify
 
 class RuntimeTests(unittest.TestCase):
     def _runtime(self, *, allowed=False, executor=None):
@@ -23,6 +24,31 @@ class RuntimeTests(unittest.TestCase):
         self.assertEqual(run.fabric.lineage["job"]["name"],"mining-source")
         with self.assertRaisesRegex(RuntimeError,"AXIOM_INTEGRATION_BLOCKED"):
             runtime.execute_downstream({"operation":"optimization.linear_program"})
+
+
+    def test_fabric_signature_covers_normalized_canonical_records(self):
+        runtime=self._runtime()
+        run=runtime.ingest(
+            run_id="normalized-signature",
+            connector_name="mqtt-face-1",
+            domain="mining",
+            adapter_name="Mining Adapter",
+            records=[{
+                "hazard":"Ground collapse",
+                "exposure":"0.54",
+                "severity":"10",
+                "likelihood":"0.62",
+                "cost":"18000",
+                "benefit":"0.34",
+            }],
+        )
+        payload=canonical_bytes({
+            "contract":run.canonical.contract,
+            "domain":run.canonical.domain,
+            "records":[dict(item) for item in run.canonical.records],
+            "run_id":run.fabric.run_id,
+        })
+        self.assertTrue(verify(SignedEnvelope(payload,run.fabric.signature), b"secret"))
 
     def test_mining_risk_execution_derives_axiom_request_from_canonical_run(self):
         seen=[]

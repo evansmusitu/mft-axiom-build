@@ -20,12 +20,20 @@ class ConnectFabric:
         if not signing_secret: raise ValueError("signing_secret_required")
         self.signing_secret=signing_secret
         self.axiom_gate=axiom_gate or IntegrationGate()
+    def seal(self, *, run_id: str, connector_name: str, envelope: CanonicalEnvelope) -> FabricRun:
+        payload=canonical_bytes({
+            "contract":envelope.contract,
+            "domain":envelope.domain,
+            "records":[dict(item) for item in envelope.records],
+            "run_id":run_id,
+        })
+        signed=sign(payload,self.signing_secret)
+        lineage=event(namespace="musitu.connect",job_name=connector_name,run_id=run_id,outputs=[{"namespace":"musitu.connect","name":f"{envelope.domain}.{run_id}"}])
+        return FabricRun(run_id=run_id,envelope=envelope,lineage=lineage,signature=signed.signature)
+
     def ingest(self, *, run_id: str, connector_name: str, domain: str, records: Iterable[dict[str,Any]]) -> FabricRun:
         rows=tuple(records)
         envelope=CanonicalEnvelope(contract="musitu.connect.canonical.v1",domain=domain,records=rows,source=connector_name,provenance="ingested")
-        payload=canonical_bytes({"contract":envelope.contract,"domain":envelope.domain,"records":list(rows),"run_id":run_id})
-        signed=sign(payload,self.signing_secret)
-        lineage=event(namespace="musitu.connect",job_name=connector_name,run_id=run_id,outputs=[{"namespace":"musitu.connect","name":f"{domain}.{run_id}"}])
-        return FabricRun(run_id=run_id,envelope=envelope,lineage=lineage,signature=signed.signature)
+        return self.seal(run_id=run_id,connector_name=connector_name,envelope=envelope)
     def assert_axiom_allowed(self) -> None:
         self.axiom_gate.assert_open()

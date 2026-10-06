@@ -5,7 +5,7 @@ from connect.security import sign,verify,canonical_bytes
 from connect.lineage import event
 from connect.fabric import ConnectFabric
 from connect.core import IntegrationGate
-from connect.workflows import DurableWorkflowBoundary
+from connect.workflows import DurableWorkflowBoundary, TemporalWorkflowBoundary
 from connect.axiom_gateway import AxiomGateway
 
 class _FakeHttpResponse:
@@ -30,6 +30,54 @@ class PlatformBoundaryTests(unittest.TestCase):
     def test_workflow_boundary_fails_closed_until_qualified(self):
         with self.assertRaisesRegex(RuntimeError,"WORKFLOW_ENGINE_NOT_QUALIFIED"):
             DurableWorkflowBoundary().submit("w1",lambda:"unsafe-inline")
+    def test_workflow_boundary_executes_only_through_qualified_executor(self):
+        calls=[]
+        boundary=DurableWorkflowBoundary(
+            qualified=True,
+            executor=lambda workflow_id, action: calls.append(workflow_id) or action(),
+        )
+        self.assertEqual(boundary.submit("w-qualified",lambda:"durable-result"),"durable-result")
+        self.assertEqual(calls,["w-qualified"])
+
+    def test_temporal_workflow_boundary_delegates_to_durable_client(self):
+        calls=[]
+        class FakeTemporalClient:
+            async def execute_workflow(self, workflow, argument, **kwargs):
+                calls.append((workflow,argument,kwargs))
+                return {"status":"durable"}
+
+        async def exercise():
+            boundary=TemporalWorkflowBoundary(
+                FakeTemporalClient(),
+                IntegrationGate(allowed=True,reason="Temporal qualified"),
+            )
+            return await boundary.execute(
+                "MiningRunDurabilityWorkflow.run",
+                {"run_id":"mining-r1"},
+                workflow_id="mining-r1",
+                task_queue="musitu-connect-mining",
+            )
+
+        import asyncio
+        result=asyncio.run(exercise())
+        self.assertEqual(result,{"status":"durable"})
+        self.assertEqual(calls[0][1],{"run_id":"mining-r1"})
+        self.assertEqual(calls[0][2]["id"],"mining-r1")
+        self.assertEqual(calls[0][2]["task_queue"],"musitu-connect-mining")
+
+    def test_temporal_workflow_boundary_fails_closed_without_qualification(self):
+        class FakeTemporalClient:
+            async def execute_workflow(self, *args, **kwargs):
+                raise AssertionError("must_not_execute")
+
+        async def exercise():
+            return await TemporalWorkflowBoundary(FakeTemporalClient()).execute(
+                "workflow",{},workflow_id="w1",task_queue="q"
+            )
+
+        import asyncio
+        with self.assertRaisesRegex(RuntimeError,"WORKFLOW_ENGINE_NOT_QUALIFIED"):
+            asyncio.run(exercise())
     def test_axiom_gateway_fails_closed(self):
         with self.assertRaisesRegex(RuntimeError,"AXIOM_INTEGRATION_BLOCKED"):
             AxiomGateway(IntegrationGate()).execute({"operation":"algebra_simplify"})

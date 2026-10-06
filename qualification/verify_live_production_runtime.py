@@ -1,6 +1,7 @@
 """Read-only guard for the live MUSITU Connect production runtime."""
 from __future__ import annotations
 
+from datetime import datetime, timezone
 import json
 from pathlib import Path
 import urllib.error
@@ -8,6 +9,8 @@ import urllib.request
 
 ROOT=Path(__file__).resolve().parents[1]
 GATE=ROOT/"qualification"/"musitu_connect_gate.json"
+EVIDENCE=ROOT/"qualification"/"live_runtime_guard.json"
+
 
 def call(url: str, method: str="GET", body: bytes|None=None):
     headers={
@@ -30,15 +33,39 @@ def call(url: str, method: str="GET", body: bytes|None=None):
         payload={}
     return status,payload
 
+
+def write_evidence(*,passed: bool, source_commit: str="", health_status: int|None=None, unauth_status: int|None=None, reason: str="") -> None:
+    report={
+        "schema":"musitu.connect.live_runtime_guard.v1",
+        "checked_at_utc":datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00","Z"),
+        "passed":passed,
+        "source_commit":source_commit,
+        "health_http_status":health_status,
+        "unauthenticated_plan_http_status":unauth_status,
+        "reason":reason,
+        "credentials_used":False,
+        "production_mutation_performed":False,
+    }
+    EVIDENCE.write_text(json.dumps(report,indent=2,sort_keys=True)+"\n")
+
+
+def fail(reason: str, *, source_commit: str="", health_status: int|None=None, unauth_status: int|None=None) -> None:
+    write_evidence(
+        passed=False,source_commit=source_commit,health_status=health_status,
+        unauth_status=unauth_status,reason=reason,
+    )
+    raise SystemExit("MUSITU_CONNECT_LIVE_RUNTIME_GUARD=FAIL: "+reason)
+
+
 gate=json.loads(GATE.read_text(encoding="utf-8"))
 runtime=gate.get("production_runtime") or {}
 if runtime.get("enabled") is not True:
-    raise SystemExit("MUSITU_CONNECT_LIVE_RUNTIME_GUARD=FAIL: runtime not recorded enabled")
+    fail("runtime not recorded enabled")
 
 endpoint=str(runtime.get("endpoint") or "").rstrip("/")
 source_commit=str(runtime.get("source_commit") or "")
 if not endpoint.startswith("https://") or not source_commit:
-    raise SystemExit("MUSITU_CONNECT_LIVE_RUNTIME_GUARD=FAIL: endpoint/source missing")
+    fail("endpoint/source missing",source_commit=source_commit)
 
 status,health=call(endpoint+"/health")
 if (
@@ -49,10 +76,7 @@ if (
     or health.get("production") is not True
     or health.get("axiomIntegrationAllowed") is not True
 ):
-    raise SystemExit(
-        "MUSITU_CONNECT_LIVE_RUNTIME_GUARD=FAIL: health contract mismatch HTTP "
-        +str(status)
-    )
+    fail("health contract mismatch",source_commit=source_commit,health_status=status)
 
 scenario={
     "rows":[{
@@ -71,10 +95,14 @@ status,body=call(
     json.dumps(scenario,separators=(",",":")).encode(),
 )
 if status!=401 or body.get("error")!="UNAUTHORIZED":
-    raise SystemExit(
-        "MUSITU_CONNECT_LIVE_RUNTIME_GUARD=FAIL: unauthenticated plan not fail-closed HTTP "
-        +str(status)
+    fail(
+        "unauthenticated plan not fail-closed",
+        source_commit=source_commit,health_status=200,unauth_status=status,
     )
 
+write_evidence(
+    passed=True,source_commit=source_commit,health_status=200,unauth_status=status,
+    reason="health contract and fail-closed unauthenticated planning verified",
+)
 print("MUSITU_CONNECT_LIVE_RUNTIME_GUARD=PASS")
-print("endpoint_host="+urllib.request.urlparse(endpoint).hostname if False else "production_endpoint_verified=true")
+print("production_endpoint_verified=true")
