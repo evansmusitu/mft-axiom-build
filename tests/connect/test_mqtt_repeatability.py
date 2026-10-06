@@ -5,6 +5,7 @@ from benchmarks.mining_adapter.mqtt_repeatability import (
     aggregate_repeatability,
     comparison_fingerprint,
     counterbalanced_order,
+    evaluate_performance_frontier,
 )
 
 
@@ -49,6 +50,36 @@ class MqttRepeatabilityTests(unittest.TestCase):
         self.assertEqual(report["p99_latency"]["consistent_rounds"],4)
         self.assertEqual(len(report["raw_trials"]["reference"]),4)
         self.assertEqual(len(report["raw_trials"]["emqx"]),4)
+
+
+    def test_performance_frontier_requires_two_x_gain_and_integrity(self):
+        aggregate={
+            "throughput":{"reference_median":31_000.0},
+            "p99_latency":{"reference_median":18_000.0},
+            "raw_trials":{
+                "reference":[
+                    {
+                        "events":1_000_000,"received":1_000_000,"duplicates":0,
+                        "audit_chain_verified":True,"errors":[],
+                    }
+                    for _ in range(4)
+                ],
+                "emqx":[],
+            },
+        }
+        frontier=evaluate_performance_frontier(aggregate)
+        self.assertTrue(frontier["throughput_target_met"])
+        self.assertTrue(frontier["integrity_preserved"])
+        self.assertGreaterEqual(frontier["throughput_gain_x"],2.0)
+        self.assertEqual(
+            frontier["baseline"]["artifact_sha256"],
+            "2c461d93e22a52ce121fa19ce8c6303785dcca39290c9c7eddf0c46ed0d89a7f",
+        )
+
+        aggregate["raw_trials"]["reference"][0]["received"]=999_999
+        broken=evaluate_performance_frontier(aggregate)
+        self.assertFalse(broken["throughput_target_met"])
+        self.assertFalse(broken["integrity_preserved"])
 
     def test_aggregate_fails_closed_on_insufficient_or_misaligned_trials(self):
         spec=MqttRepeatabilitySpec()
