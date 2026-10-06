@@ -16,7 +16,7 @@ concurrency:
 
 jobs:
   verify-public-origin:
-    if: github.event_name == 'push' && github.event.before == '5fb7f7984c8ff013390cd0c418c66e6801f6caa0'
+    if: github.event_name == 'push' && github.event.before == '73c70008050dd784e87bdb34468e0ff22f1459c1'
     runs-on: ubuntu-latest
     environment: axiom-support-production
     timeout-minutes: 15
@@ -24,15 +24,14 @@ jobs:
       SUPPORT_DOMAIN: 'support.mftintelligence.com'
       SUPPORT_DEPLOYMENT_MODE: production
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
       CLOUDFLARE_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
       CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
-      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-      SUPPORT_WORKER_NAME: ${{ vars.SUPPORT_WORKER_NAME }}
-      SUPPORT_D1_DATABASE_NAME: ${{ vars.SUPPORT_D1_DATABASE_NAME }}
-      SUPPORT_D1_DATABASE_ID: ${{ vars.SUPPORT_D1_DATABASE_ID }}
-      SUPPORT_TURNSTILE_SITE_KEY: ${{ vars.SUPPORT_TURNSTILE_SITE_KEY }}
-      SUPPORT_HUMAN_OWNER_REF: ${{ vars.SUPPORT_HUMAN_OWNER_REF }}
-      SUPPORT_INDEPENDENT_APPROVER_REF: ${{ vars.SUPPORT_INDEPENDENT_APPROVER_REF }}
+      CLOUDFLARE_ACCOUNT_ID: '93f395f5121954671f92fffa453d6b61'
+      SUPPORT_WORKER_NAME: 'musitu-axiom-support'
+      SUPPORT_D1_DATABASE_NAME: 'musitu-axiom-support'
+      SUPPORT_HUMAN_OWNER_REF: 'github:evansmusitu'
+      SUPPORT_INDEPENDENT_APPROVER_REF: 'person:elvis-musitu'
       GH_READ_TOKEN: ${{ github.token }}
     steps:
       - name: Checkout exact authorized support commit
@@ -50,7 +49,7 @@ jobs:
           test "$GITHUB_EVENT_NAME" = 'push'
           test "$GITHUB_REF_NAME" = 'support/axiom-official-support-20261005'
           test "$GITHUB_REF_NAME" != 'main'
-          test "${{ github.event.before }}" = '5fb7f7984c8ff013390cd0c418c66e6801f6caa0'
+          test "${{ github.event.before }}" = '73c70008050dd784e87bdb34468e0ff22f1459c1'
           test "$SUPPORT_DOMAIN" = 'support.mftintelligence.com'
           node <<'NODE'
           const api='https://api.github.com/repos/evansmusitu/mft-axiom-build';
@@ -109,6 +108,43 @@ jobs:
           if(JSON.stringify(actual)!==JSON.stringify(expected)) throw new Error('authorized pre-public gate statuses changed');
           const hash=crypto.createHash('sha256').update(raw).digest('hex');
           fs.appendFileSync(process.env.GITHUB_ENV,'SUPPORT_READINESS_SHA256='+hash+'\n');
+          NODE
+
+      - name: Discover the already-provisioned D1 and exact Turnstile widget read-only
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          import {appendFileSync} from 'node:fs';
+          import {
+            SUPPORT_ACCOUNT_ID,
+            listD1Databases,
+            selectCloudflareCredential,
+            cloudflareRequest,
+          } from './support/scripts/provision_cloudflare_d1.mjs';
+          const expectedAccount='93f395f5121954671f92fffa453d6b61';
+          const expectedDbName='musitu-axiom-support';
+          const widgetName='MUSITU Axiom Official Support';
+          const supportDomain='support.mftintelligence.com';
+          if(SUPPORT_ACCOUNT_ID!==expectedAccount||process.env.CLOUDFLARE_ACCOUNT_ID!==expectedAccount) throw new Error('support Cloudflare account mismatch');
+          const credential=await selectCloudflareCredential({env:process.env,preferGlobal:true});
+          const databases=await listD1Databases({headers:credential.headers});
+          const matches=databases.filter(x=>String(x?.name||'')===expectedDbName);
+          if(matches.length!==1) throw new Error('exact existing support D1 was not uniquely discoverable');
+          const databaseId=String(matches[0]?.uuid||'');
+          if(!/^[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i.test(databaseId)) throw new Error('support D1 UUID invalid');
+          const widgets=await cloudflareRequest({
+            headers:credential.headers,
+            path:'/accounts/'+expectedAccount+'/challenges/widgets?page=1&per_page=1000',
+          });
+          const named=(Array.isArray(widgets.result)?widgets.result:[]).filter(x=>String(x?.name||'')===widgetName);
+          if(named.length!==1) throw new Error('exact existing support Turnstile widget was not uniquely discoverable');
+          const widget=named[0];
+          const sitekey=String(widget?.sitekey||'');
+          const domains=Array.isArray(widget?.domains)?widget.domains:[];
+          if(widget?.mode!=='managed'||domains.length!==1||domains[0]!==supportDomain||!/^[A-Za-z0-9_-]{20,100}$/.test(sitekey)) throw new Error('existing Turnstile widget configuration drift');
+          appendFileSync(process.env.GITHUB_ENV,'SUPPORT_D1_DATABASE_ID='+databaseId+'\n');
+          appendFileSync(process.env.GITHUB_ENV,'SUPPORT_TURNSTILE_SITE_KEY='+sitekey+'\n');
           NODE
 
       - name: Re-run complete support regression suite
