@@ -31,7 +31,7 @@ concurrency:
 
 jobs:
   migrate-root-mail-routing:
-    if: github.ref_name == 'support/axiom-official-support-20261005' && (github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.event.before == '7d084853cfce042cb6bcf3d669608552245b5ada'))
+    if: github.ref_name == 'support/axiom-official-support-20261005' && (github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.event.before == '70df63daa99667436f766ce9785f95fa5ebfcaca'))
     runs-on: ubuntu-latest
     timeout-minutes: 12
     environment: axiom-support-production
@@ -63,11 +63,11 @@ jobs:
           test "${authorization[1]}" = 'RETIRE_UNUSED_ZOHO_TEST_MAILBOXES'
           test "${#authorization[@]}" -eq 2
           if [ "$GITHUB_EVENT_NAME" = 'push' ]; then
-            test "$MIGRATION_EVENT_BEFORE" = '7d084853cfce042cb6bcf3d669608552245b5ada'
+            test "$MIGRATION_EVENT_BEFORE" = '70df63daa99667436f766ce9785f95fa5ebfcaca'
             mapfile -t one_shot < support/EMAIL_ROUTING_MIGRATION_RUN_ONCE.authorized
             test "${one_shot[0]}" = 'MIGRATE_MUSITU_AXIOM_EMAIL_ROUTING'
             test "${one_shot[1]}" = 'RETIRE_UNUSED_ZOHO_TEST_MAILBOXES'
-            test "${one_shot[2]}" = 'PARENT_COMMIT=7d084853cfce042cb6bcf3d669608552245b5ada'
+            test "${one_shot[2]}" = 'PARENT_COMMIT=70df63daa99667436f766ce9785f95fa5ebfcaca'
             test "${#one_shot[@]}" -eq 3
           fi
       - name: Re-run complete support gate before any Cloudflare write
