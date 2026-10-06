@@ -1,0 +1,60 @@
+name: MUSITU Axiom Support Notification REST Probe
+
+on:
+  push:
+    branches:
+      - 'support/axiom-official-support-20261005'
+    paths:
+      - '.github/workflows/axiom-official-support-notification-rest-probe.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  send-one-verified-destination-probe:
+    runs-on: ubuntu-latest
+    environment: axiom-support-production
+    timeout-minutes: 5
+    env:
+      CF_ACCOUNT_ID: '93f395f5121954671f92fffa453d6b61'
+      CF_TOKEN: ${{ secrets.CLOUDFLARE_RULESETS_API_TOKEN }}
+      PRIVATE_DESTINATION: ${{ secrets.CLOUDFLARE_EMAIL }}
+    steps:
+      - name: Send one harmless support notification to the verified private destination
+        shell: bash
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          const token=String(process.env.CF_TOKEN||'');
+          const account=String(process.env.CF_ACCOUNT_ID||'');
+          const destination=String(process.env.PRIVATE_DESTINATION||'').trim();
+          if(!token||!account||!destination) throw new Error('notification probe prerequisites missing');
+          const subject='MUSITU Axiom Support Notification Verification f9f6cf43';
+          const r=await fetch('https://api.cloudflare.com/client/v4/accounts/'+account+'/email/sending/send',{
+            method:'POST',
+            headers:{authorization:'Bearer '+token,accept:'application/json','content-type':'application/json'},
+            body:JSON.stringify({
+              to:destination,
+              from:'support@mftintelligence.com',
+              subject,
+              text:'Automated MUSITU Axiom private support notification-delivery verification. No reply is required.'
+            })
+          });
+          let p={}; try{p=await r.json()}catch{}
+          const errors=Array.isArray(p?.errors)?p.errors.map(x=>Number(x?.code)).filter(Number.isFinite):[];
+          const result=p?.result||{};
+          const out={
+            gate:'MUSITU_AXIOM_SUPPORT_NOTIFICATION_REST_PROBE',
+            http:r.status,
+            success:r.ok&&p?.success===true,
+            error_codes:errors,
+            delivered_count:Array.isArray(result.delivered)?result.delivered.length:0,
+            queued_count:Array.isArray(result.queued)?result.queued.length:0,
+            permanent_bounce_count:Array.isArray(result.permanent_bounces)?result.permanent_bounces.length:0,
+            suppressed_count:Array.isArray(result.suppressed_recipients)?result.suppressed_recipients.length:0,
+            raw_destination_recorded:false,
+            provider_message_id_recorded:false,
+            secret_exposed:false
+          };
+          console.log(JSON.stringify(out));
+          NODE
