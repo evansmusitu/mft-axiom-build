@@ -19,6 +19,7 @@ on:
       - 'axiom_interface/vnext/tests/product_intelligence_objective_outcome_compiler.test.mjs'
       - 'axiom_interface/vnext/tests/product_intelligence_product_compiler_ir.test.mjs'
       - 'axiom_interface/vnext/tests/product_intelligence_compiler_checkpoint.test.mjs'
+      - 'axiom_interface/vnext/tests/product_intelligence_change_admission.test.mjs'
       - 'axiom_interface/vnext/tests/pgvector_vector_index_test_fixture.mjs'
       - 'axiom_interface/vnext/tests/signing_provenance_test_fixture.mjs'
       - '.github/workflows/axiom-product-intelligence-phase2-gate.yml'
@@ -76,6 +77,8 @@ jobs:
         run: node --test axiom_interface/vnext/tests/product_intelligence_product_compiler_ir.test.mjs
       - name: Run reversible Compiler Checkpoint contracts
         run: node --test axiom_interface/vnext/tests/product_intelligence_compiler_checkpoint.test.mjs
+      - name: Run Change Admission contracts
+        run: node --test axiom_interface/vnext/tests/product_intelligence_change_admission.test.mjs
 
   independent-replay-and-authority-gate:
     runs-on: ubuntu-24.04
@@ -106,7 +109,8 @@ jobs:
             axiom_interface/vnext/tests/product_intelligence_living_product_graph.test.mjs \
             axiom_interface/vnext/tests/product_intelligence_objective_outcome_compiler.test.mjs \
             axiom_interface/vnext/tests/product_intelligence_product_compiler_ir.test.mjs \
-            axiom_interface/vnext/tests/product_intelligence_compiler_checkpoint.test.mjs
+            axiom_interface/vnext/tests/product_intelligence_compiler_checkpoint.test.mjs \
+            axiom_interface/vnext/tests/product_intelligence_change_admission.test.mjs
       - name: Fail closed on provider or release authority escalation
         shell: bash
         run: |
@@ -125,6 +129,7 @@ jobs:
               Path('axiom_interface/vnext/product_intelligence/objective_outcome_compiler.js'),
               Path('axiom_interface/vnext/product_intelligence/product_compiler_ir.js'),
               Path('axiom_interface/vnext/product_intelligence/compiler_checkpoint.js'),
+              Path('axiom_interface/vnext/product_intelligence/change_admission.js'),
           ]
           required = {
               'pgvector_vector_index_backend.js': ['0.8.6', 'MECHANISM_ONLY'],
@@ -138,6 +143,7 @@ jobs:
               'objective_outcome_compiler.js': ['PROJECT_SCHEMA', 'OUTCOME_SCHEMA', 'contract integrity must be verified', 'cross-project outcome contract blocked', 'external_execution_authority:false'],
               'product_compiler_ir.js': ['PRODUCT_COMPILER_IR_SCHEMA', 'DIFF_REQUIRES_RECONCILIATION', 'CONTENT_ADDRESSED_IMPACT_SET', 'can_overwrite_verified_nodes:false', "authority_effect:'NONE'"],
               'compiler_checkpoint.js': ['PRODUCT_COMPILER_CHECKPOINT_SCHEMA', 'PREPARE_ONLY', 'GOVERNED_WRITE_AUTHORIZATION', 'external_execution_authority:false', 'production_authority:false', "independent_verification:'NOT_PROVEN'"],
+              'change_admission.js': ['CHANGE_RISK_MODEL', 'MECHANISM_ONLY', 'builder_may_approve:false', 'external_execution_authority:false', 'production_authority:false', "authority_effect:'ADMISSION_ONLY'"],
           }
           for path in files:
               text = path.read_text(encoding='utf-8')
