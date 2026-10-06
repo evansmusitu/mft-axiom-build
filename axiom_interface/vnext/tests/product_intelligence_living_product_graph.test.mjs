@@ -460,3 +460,48 @@ test('verified execution outcome reconciles one deterministic EvidenceRef and re
   assert.equal(replay.evidence.id,first.evidence.id);
   assert.equal(commits,1);
 });
+
+
+test('reconciliation rejects a different receipt for an already reconciled execution request',async()=>{
+  const module=await import('../product_intelligence/living_product_graph.js');
+  const security=await import('../execution_security.js');
+  const at='2026-10-06T12:50:00.000Z';
+  const makeVerified=async(receiptSha,verificationSeed)=>{
+    const body={
+      schema:'musitu.axiom.product-execution-outcome-verification.v1',
+      project_id:'project_12345678',work_id:'work_12345678',checkpoint_sha256:'a'.repeat(64),
+      handoff_sha256:'b'.repeat(64),request_sha256:'c'.repeat(64),receipt_id:`execution-receipt_${verificationSeed}`,
+      receipt_sha256:receiptSha,execution_integrity_sha256:'e'.repeat(64),operation:'file.write',risk_class:'S1',
+      execution_status:'COMPLETED',status:'VERIFIED_COMPLETED',verifier_actor_id:'agent_verifier_2',
+      independent_verification:'PASS',rollback_available:true,failure_state:'NONE',failure_reason:null,
+      external_action_executed:false,network_request_performed:false,host_shell_executed:false,plaintext_secret_access:false,
+      authority_effect:'NONE',release_authority:false,production_authority:false,certification_authority:false,created_at:at,
+    };
+    return {...body,verification_sha256:await security.sha256(body)};
+  };
+  const firstOutcome=await makeVerified('d'.repeat(64),'one');
+  const conflictingOutcome=await makeVerified('f'.repeat(64),'two');
+  const rows=new Map([['project_12345678',graph()]]);
+  const backend={
+    descriptor:{
+      kind:'PersistenceBackend',adapter_version:'1.0.0',provider:'replay-memory',semantic_owner:'AXIOM',authority:'MECHANISM_ONLY',
+      capabilities:['load','commit','verify','export'],unsupported_operations:['production_mutation'],timeout_ms:1000,
+      retry:{max_attempts:1,backoff:'NONE'},idempotency:{mode:'REQUIRED_FOR_WRITES'},data_classification:['project-private'],
+      egress:{required:false,allowed_origins:[]},identity_binding:{required:true,mode:'AXIOM_WORKLOAD_ID'},
+      evidence_envelope:{schema:'musitu.axiom.evidence.v1',required:true},health:{mode:'EXPLICIT'},migration_export:{supported:true,format:'JSONL'},fail_closed:true,
+    },
+    async loadProjectGraph(projectId){return structuredClone(rows.get(projectId)??null);},
+    async commitGraph(projectId,value,{expectedGeneration}){
+      const prior=rows.get(projectId);assert.equal(prior?.generation??0,expectedGeneration);
+      rows.set(projectId,structuredClone(value));return structuredClone(value);
+    },
+    async verifyIntegrity(projectId){return {status:rows.has(projectId)?'PASS':'NOT_PROVEN',project_id:projectId};},
+    async exportProject(projectId){return {project_id:projectId,graph:structuredClone(rows.get(projectId)??null)};},
+  };
+  const persistence=module.createLivingProductGraphPersistence(backend);
+  await module.reconcileVerifiedExecutionOutcome({persistence,verifiedOutcome:firstOutcome,at});
+  await assert.rejects(
+    ()=>module.reconcileVerifiedExecutionOutcome({persistence,verifiedOutcome:conflictingOutcome,at}),
+    /conflicting execution replay|request.*receipt|different receipt|canonical outcome/i,
+  );
+});
