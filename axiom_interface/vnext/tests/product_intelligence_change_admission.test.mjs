@@ -325,3 +325,76 @@ test('human approval receipt rejects authority extensions and structured identit
     );
   }
 });
+
+
+test('operation-scoped executor handoff binds admitted change to one FA-11 request without granting authority',async()=>{
+  const module=await import('../product_intelligence/change_admission.js');
+  assert.equal(typeof module.createOperationScopedExecutorHandoff,'function','operation-scoped executor handoff builder must exist');
+  assert.equal(typeof module.evaluateOperationScopedExecutorHandoff,'function','operation-scoped executor handoff evaluator must exist');
+
+  const r=await request('S1');
+  const policy={decision:'ALLOW',request_sha256:r.request_sha256,policy_sha256:'e'.repeat(64),reasons:['bounded private reversible write']};
+  const admission=await evaluateChangeAdmission({request:r,policyDecision:policy,verificationEvidence:[pass('TESTS')],at});
+  assert.equal(admission.status,'ADMITTED_TO_EXECUTOR');
+
+  const authorityEnvelope={
+    project_id:projectId,
+    actor_id:'agent_operator_1',
+    agent_id:'agent_executor_1',
+    workload_identity_id:'workload_executor_1',
+    agent_status:'ACTIVE',
+    kill_switch_engaged:false,
+    revoked:false,
+    requester_type:'AGENT',
+    grant:{
+      tool_scopes:['artifact.write'],
+      data_scopes:[projectId],
+      network_policy:'DENY_ALL_EXTERNAL_NETWORK',
+      secrets_policy:'OPAQUE_SHORT_LIVED_OPERATION_SCOPED_NO_PLAINTEXT',
+      budget:{max_compute_units:10},
+    },
+    usage:{compute_units:0},
+    incident_posture:'NORMAL',
+    jurisdiction:'LOCAL_BROWSER',
+  };
+
+  const handoff=await module.createOperationScopedExecutorHandoff({
+    request:r,
+    admissionResult:admission,
+    authorityEnvelope,
+    operationRequest:{
+      operation:'file.write',
+      target:'src/example.txt',
+      payload:{content:'verified change'},
+      compute_units:1,
+      requested_at:at,
+    },
+    at,
+  });
+
+  assert.equal(handoff.schema,'musitu.axiom.product-operation-scoped-executor-handoff.v1');
+  assert.equal(handoff.scope,'SINGLE_OPERATION');
+  assert.equal(handoff.project_id,projectId);
+  assert.equal(handoff.work_id,'work_12345678');
+  assert.equal(handoff.checkpoint_sha256,r.checkpoint_sha256);
+  assert.equal(handoff.change_admission_request_sha256,r.request_sha256);
+  assert.equal(handoff.change_admission_evaluation_sha256,admission.evaluation_sha256);
+  assert.equal(handoff.workload_identity_id,'workload_executor_1');
+  assert.equal(handoff.agent_id,'agent_executor_1');
+  assert.equal(handoff.risk_class,'S1');
+  assert.equal(handoff.execution_request.operation,'file.write');
+  assert.equal(handoff.execution_request.risk_class,'S1');
+  assert.equal(handoff.execution_request.instruction_provenance,'GOVERNED_PLAN');
+  assert.equal(handoff.authority_effect,'NONE');
+  assert.equal(handoff.execution_authority,false);
+  assert.equal(handoff.external_execution_authority,false);
+  assert.equal(handoff.release_authority,false);
+  assert.equal(handoff.production_authority,false);
+  assert.equal(handoff.certification_authority,false);
+  assert.match(handoff.handoff_sha256,/^[a-f0-9]{64}$/);
+
+  const decision=await module.evaluateOperationScopedExecutorHandoff({handoff,authorityEnvelope});
+  assert.equal(decision.status,'AUTHORIZED');
+  assert.equal(decision.execution_allowed,true);
+  assert.equal(decision.request_sha256,handoff.execution_request.request_sha256);
+});
