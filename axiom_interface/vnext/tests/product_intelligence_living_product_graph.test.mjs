@@ -607,3 +607,33 @@ test('FA-11 runtime exception becomes FAILED receipt and verified failure eviden
   assert.equal(evidence.data.verification.production_authority,false);
   assert.equal(evidence.data.verification.certification_authority,false);
 });
+
+
+test('FA-11 propose preserves original grant-shaped authority for valid S1 request',async()=>{
+  const {GovernedExecutionStore}=await import('../execution_store.js');
+  const keys={sandboxes:'sandbox_id',requests:'request_sha256',approvals:'approval_sha256',receipts:'receipt_id',leases:'lease_id',events:'event_id'};
+  class MemoryExecutionStore extends GovernedExecutionStore{
+    constructor(){super(null);this.rows=Object.fromEntries(Object.keys(keys).map(name=>[name,new Map()]));}
+    async _put(store,row){this.rows[store].set(row[keys[store]],structuredClone(row));return structuredClone(row);}
+    async _get(store,key){const row=this.rows[store].get(key);return row?structuredClone(row):null;}
+    async _all(store,projectId){return [...this.rows[store].values()].filter(row=>!projectId||row.project_id===projectId).map(row=>structuredClone(row));}
+  }
+  const projectId='project_12345678',at='2026-10-06T13:05:00.000Z';
+  const authority={
+    project_id:projectId,actor_id:'agent_operator_1',agent_id:'agent_executor_1',workload_identity_id:'workload_executor_1',
+    agent_status:'ACTIVE',kill_switch_engaged:false,revoked:false,requester_type:'AGENT',
+    grant:{tool_scopes:['artifact.write'],data_scopes:[projectId],network_policy:'DENY_ALL_EXTERNAL_NETWORK',
+      secrets_policy:'OPAQUE_SHORT_LIVED_OPERATION_SCOPED_NO_PLAINTEXT',budget:{max_compute_units:10}},
+    usage:{compute_units:0},incident_posture:'NORMAL',jurisdiction:'LOCAL_BROWSER',
+  };
+  const store=new MemoryExecutionStore();
+  const sandbox=await store.createSandbox(authority);
+  const proposed=await store.propose(sandbox.sandbox_id,authority,{
+    operation:'file.write',target:'src/propose.txt',payload:{content:'allowed'},compute_units:1,
+    instruction_provenance:'GOVERNED_PLAN',requested_at:at,
+  });
+  assert.equal(proposed.request.required_tool_scope,'artifact.write');
+  assert.equal(proposed.decision.status,'AUTHORIZED');
+  assert.equal(proposed.decision.execution_allowed,true);
+  assert.equal(proposed.decision.reason,'policy satisfied');
+});
