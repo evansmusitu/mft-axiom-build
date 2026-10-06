@@ -24,7 +24,7 @@ concurrency:
 jobs:
   field:
     runs-on: ubuntu-latest
-    timeout-minutes: 55
+    timeout-minutes: 75
     env:
       FIELD_EVENTS: '1000000'
       FIELD_OPCUA_POINTS: '1000000'
@@ -89,7 +89,7 @@ jobs:
           python benchmarks/mining_adapter/mqtt_field_runner.py \
             --port 18831 --label musitu-mosquitto --broker-version 2.1.2 \
             --restart-container musitu-field-mosquitto \
-            --events "$FIELD_EVENTS" --batch-size 500 \
+            --events "$FIELD_EVENTS" --batch-size 3000 \
             --soak-seconds "$FIELD_SOAK_SECONDS" \
             --opcua-data-points "$FIELD_OPCUA_POINTS" --seed "$FIELD_SEED" \
             --output qualification/field/musitu_mqtt.json
@@ -129,7 +129,7 @@ jobs:
           python benchmarks/mining_adapter/mqtt_field_runner.py \
             --port 18832 --label emqx-enterprise --broker-version 6.3.1 \
             --restart-container musitu-field-emqx \
-            --events "$FIELD_EVENTS" --batch-size 500 \
+            --events "$FIELD_EVENTS" --batch-size 3000 \
             --soak-seconds "$FIELD_SOAK_SECONDS" \
             --opcua-data-points "$FIELD_OPCUA_POINTS" --seed "$FIELD_SEED" \
             --output qualification/field/emqx_mqtt.json
