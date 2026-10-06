@@ -13,6 +13,24 @@ from benchmarks.mining_adapter.industrial_field import (
 
 
 class IndustrialFieldBenchmarkTests(unittest.TestCase):
+    def _mqtt(self, spec, throughput=5000.0):
+        return {
+            "workload_fingerprint":workload_fingerprint(spec),
+            "events":spec.mqtt_events,"received":spec.mqtt_events,"duplicates":0,
+            "fault_injected":True,"recovered":True,"soak_seconds":spec.soak_seconds,
+            "latency_ms":{"p50":1.0,"p95":2.0,"p99":3.0},
+            "throughput_events_per_second":throughput,
+        }
+
+    def _opcua(self, spec, throughput=5000.0):
+        return {
+            "workload_fingerprint":workload_fingerprint(spec),
+            "data_points":spec.opcua_data_points,"received":spec.opcua_data_points,
+            "fault_injected":True,"recovered":True,
+            "latency_ms":{"p50":1.0,"p95":2.0,"p99":3.0},
+            "throughput_data_points_per_second":throughput,
+        }
+
     def test_baseline_catalog_is_valid_json(self):
         path=Path(__file__).resolve().parents[2]/"benchmarks"/"mining_adapter"/"baselines.json"
         catalog=json.loads(path.read_text())
@@ -59,17 +77,9 @@ class IndustrialFieldBenchmarkTests(unittest.TestCase):
 
     def test_field_gate_requires_million_scale_soak_and_fault_recovery(self):
         spec=IndustrialWorkloadSpec()
-        mqtt={
-            "events":spec.mqtt_events,"received":spec.mqtt_events,"duplicates":0,
-            "fault_injected":True,"recovered":True,"soak_seconds":spec.soak_seconds,
-            "latency_ms":{"p50":1.0,"p95":2.0,"p99":3.0},"throughput_events_per_second":5000.0,
-        }
-        opcua={
-            "data_points":spec.opcua_data_points,"received":spec.opcua_data_points,
-            "fault_injected":True,"recovered":True,
-            "latency_ms":{"p50":1.0,"p95":2.0,"p99":3.0},"throughput_data_points_per_second":5000.0,
-        }
-        emqx=dict(mqtt)
+        mqtt=self._mqtt(spec)
+        opcua=self._opcua(spec)
+        emqx=self._mqtt(spec)
         report=evaluate_field_gate(spec=spec,musitu_mqtt=mqtt,opcua=opcua,emqx_mqtt=emqx)
         self.assertTrue(report["field_load_qualified"])
         self.assertEqual(report["gate"],"INDUSTRIAL_FIELD_BENCHMARK_PARTIAL")
@@ -81,6 +91,48 @@ class IndustrialFieldBenchmarkTests(unittest.TestCase):
         broken=dict(mqtt); broken["received"]=spec.mqtt_events-1
         failed=evaluate_field_gate(spec=spec,musitu_mqtt=broken,opcua=opcua,emqx_mqtt=emqx)
         self.assertFalse(failed["field_load_qualified"])
+
+    def test_identical_workload_fingerprint_is_required_for_every_measured_lane(self):
+        spec=IndustrialWorkloadSpec()
+        mqtt=self._mqtt(spec); opcua=self._opcua(spec)
+        emqx=self._mqtt(spec); emqx["workload_fingerprint"]="wrong"
+        fake_external={
+            "same_workload_measured":True,
+            "workload_fingerprint":"wrong",
+            "mqtt":self._mqtt(spec),
+            "opcua":self._opcua(spec),
+        }
+        report=evaluate_field_gate(
+            spec=spec,musitu_mqtt=mqtt,opcua=opcua,emqx_mqtt=emqx,
+            highbyte=fake_external,azure=fake_external,
+        )
+        outcomes={x["baseline"]:x["outcome"] for x in report["comparisons"]}
+        self.assertEqual(outcomes["EMQX Enterprise"],"NOT_RUN")
+        self.assertEqual(outcomes["HighByte Intelligence Hub"],"INVALID_EVIDENCE")
+        self.assertEqual(outcomes["Azure IoT Operations"],"INVALID_EVIDENCE")
+        self.assertEqual(report["gate"],"INDUSTRIAL_FIELD_BENCHMARK_PARTIAL")
+
+    def test_complete_gate_accepts_only_verified_external_protocol_evidence(self):
+        spec=IndustrialWorkloadSpec()
+        mqtt=self._mqtt(spec,throughput=5000.0)
+        opcua=self._opcua(spec,throughput=4000.0)
+        emqx=self._mqtt(spec,throughput=4500.0)
+        external={
+            "same_workload_measured":True,
+            "workload_fingerprint":workload_fingerprint(spec),
+            "mqtt":self._mqtt(spec,throughput=4800.0),
+            "opcua":self._opcua(spec,throughput=3900.0),
+        }
+        report=evaluate_field_gate(
+            spec=spec,musitu_mqtt=mqtt,opcua=opcua,emqx_mqtt=emqx,
+            highbyte=external,azure=external,
+        )
+        by_name={x["baseline"]:x for x in report["comparisons"]}
+        self.assertEqual(by_name["HighByte Intelligence Hub"]["outcome"],"MEASURED")
+        self.assertEqual(by_name["Azure IoT Operations"]["outcome"],"MEASURED")
+        self.assertIn(by_name["HighByte Intelligence Hub"]["dimensions"]["mqtt_throughput"],{"WIN","TIE","LOSS"})
+        self.assertIn(by_name["HighByte Intelligence Hub"]["dimensions"]["opcua_throughput"],{"WIN","TIE","LOSS"})
+        self.assertEqual(report["gate"],"INDUSTRIAL_FIELD_BENCHMARK_COMPLETE")
 
 
 if __name__=="__main__":
