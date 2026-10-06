@@ -1,0 +1,30 @@
+name: MUSITU Axiom Support Current Readiness Hash Once
+
+on:
+  push:
+    branches:
+      - 'support/axiom-official-support-20261005'
+    paths:
+      - '.github/workflows/axiom-official-support-current-readiness-hash-once.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  hash:
+    if: github.event_name == 'push' && github.event.before == 'b652706b2af9cfa4f0e0fc2608289d2e59c8e62f'
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compute exact readiness hash
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          const fs=require('node:fs');
+          const crypto=require('node:crypto');
+          const raw=fs.readFileSync('EVIDENCE/axiom-official-support-readiness-current.json');
+          const e=JSON.parse(raw);
+          if(e.operational_status!=='OPERATIONAL'||e.pass_count!==11||e.partial_count!==0||e.missing_count!==0) throw new Error('readiness state drift');
+          console.log(JSON.stringify({gate:'MUSITU_AXIOM_SUPPORT_CURRENT_READINESS_HASH',sha256:crypto.createHash('sha256').update(raw).digest('hex'),operational_status:e.operational_status,pass_count:e.pass_count}));
+          NODE
