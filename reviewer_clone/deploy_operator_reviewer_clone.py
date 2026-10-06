@@ -155,6 +155,10 @@ def deploy_worker(worker, source, bindings):
 
 def ensure_reviewer_db():
     databases = cf(f"/accounts/{ACCOUNT_ID}/d1/database?per_page=100") or []
+    print("reviewer_d1_inventory=" + json.dumps(
+        [{"name":row.get("name"),"uuid":row.get("uuid")} for row in databases],
+        sort_keys=True,
+    ))
     hits = [row for row in databases if row.get("name") == REVIEWER_DB_NAME]
     if len(hits) > 1:
         raise RuntimeError("duplicate reviewer D1 names")
