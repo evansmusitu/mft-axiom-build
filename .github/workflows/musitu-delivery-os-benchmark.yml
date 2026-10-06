@@ -1,0 +1,47 @@
+name: MUSITU Delivery OS Benchmark Evidence
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - product/musitu-delivery-os-unified-20261006
+    paths:
+      - 'delivery-os/evaluation/**'
+      - '.github/workflows/musitu-delivery-os-benchmark.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  benchmark-policy:
+    name: Reproducible benchmark claim gate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+      - name: Benchmark contract tests
+        working-directory: delivery-os
+        run: node --test evaluation/benchmark.test.mjs
+      - name: Generate controlled evidence report
+        working-directory: delivery-os
+        run: |
+          mkdir -p "$RUNNER_TEMP/musitu-benchmark"
+          node evaluation/run-controlled.mjs --output "$RUNNER_TEMP/musitu-benchmark/controlled-report.json"
+      - name: Require fail-closed current claim state
+        run: |
+          node - <<'NODE'
+          const fs = require('fs');
+          const p = process.env.RUNNER_TEMP + '/musitu-benchmark/controlled-report.json';
+          const report = JSON.parse(fs.readFileSync(p, 'utf8'));
+          if (report.claim_status !== 'NOT_CERTIFIED') throw new Error('controlled evidence must not certify superiority');
+          if (report.comparison_ready !== false) throw new Error('controlled evidence must not be comparison-ready');
+          console.log('MUSITU_DELIVERY_OS_BENCHMARK_CLAIM_GATE_PASS');
+          NODE
+      - uses: actions/upload-artifact@v6
+        with:
+          name: musitu-delivery-benchmark-controlled
+          path: ${{ runner.temp }}/musitu-benchmark/controlled-report.json
+          if-no-files-found: error
+          retention-days: 90

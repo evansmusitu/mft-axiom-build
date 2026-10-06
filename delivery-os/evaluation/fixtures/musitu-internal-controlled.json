@@ -1,0 +1,24 @@
+{
+  "schema": "musitu-delivery-benchmark-run.v1",
+  "provider": "musitu",
+  "scenario": {
+    "id": "musitu-internal-optimization-regression",
+    "version": 1,
+    "metrics": {
+      "projected_improvement": "higher"
+    }
+  },
+  "evidence": {
+    "kind": "internal_controlled",
+    "source": "MUSITU Delivery OS unified core regression gate",
+    "captured_at": "2026-10-06T10:58:34Z"
+  },
+  "metrics": {
+    "projected_improvement": 0.451
+  },
+  "context": {
+    "github_run_id": 37453303342,
+    "unified_head": "b52c57c069ad5b6b8f7a567c2ef884ce354c4441",
+    "gate": "MUSITU_DELIVERY_OS_CONTROLLED_REGRESSION_PASS"
+  }
+}

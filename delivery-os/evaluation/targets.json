@@ -1,0 +1,42 @@
+{
+  "schema": "musitu-delivery-benchmark-targets.v1",
+  "as_of": "2026-10-06",
+  "targets": [
+    {
+      "provider": "onfleet",
+      "access_status": "live_api_credentials_required",
+      "official_docs": [
+        "https://docs.onfleet.com/reference/introduction",
+        "https://docs.onfleet.com/reference/tasks",
+        "https://docs.onfleet.com/reference/routeplan",
+        "https://docs.onfleet.com/reference/route-optimization",
+        "https://docs.onfleet.com/reference/webhooks"
+      ],
+      "documented_surfaces": [
+        "tasks",
+        "workers",
+        "route_plans",
+        "route_optimization",
+        "webhooks"
+      ]
+    },
+    {
+      "provider": "bringg",
+      "access_status": "sandbox_credentials_and_service_ids_required",
+      "official_docs": [
+        "https://developers.bringg.com/v2/docs/overview",
+        "https://developers.bringg.com/reference/welcome-to-bringgs-api-reference",
+        "https://developers.bringg.com/reference/create_task",
+        "https://developers.bringg.com/reference/api-calls",
+        "https://help.bringg.com/docs/about-route-optimization-in-bringg"
+      ],
+      "documented_surfaces": [
+        "orders_tasks",
+        "driver_assignment",
+        "driver_location",
+        "proof_of_delivery",
+        "route_optimization"
+      ]
+    }
+  ]
+}
