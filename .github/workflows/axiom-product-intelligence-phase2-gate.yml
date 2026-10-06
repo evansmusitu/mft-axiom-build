@@ -17,6 +17,7 @@ on:
       - 'axiom_interface/vnext/tests/product_intelligence_conditional_infrastructure_admission.test.mjs'
       - 'axiom_interface/vnext/tests/product_intelligence_optional_adapter_admission.test.mjs'
       - 'axiom_interface/vnext/tests/product_intelligence_living_product_graph.test.mjs'
+      - 'axiom_interface/vnext/tests/product_intelligence_browser_execution_idempotency.html'
       - 'axiom_interface/vnext/tests/product_intelligence_objective_outcome_compiler.test.mjs'
       - 'axiom_interface/vnext/tests/product_intelligence_product_compiler_ir.test.mjs'
       - 'axiom_interface/vnext/tests/product_intelligence_compiler_checkpoint.test.mjs'
@@ -72,6 +73,39 @@ jobs:
         run: node --test axiom_interface/vnext/tests/product_intelligence_optional_adapter_admission.test.mjs
       - name: Run Living Product Graph contracts
         run: node --test axiom_interface/vnext/tests/product_intelligence_living_product_graph.test.mjs
+      - name: Qualify real-browser restart and cross-instance execution idempotency
+        shell: bash
+        run: |
+          set -euo pipefail
+          chrome="$(command -v google-chrome || command -v google-chrome-stable || command -v chromium || command -v chromium-browser || true)"
+          if [ -z "$chrome" ]; then
+            echo "MUSITU_AXIOM_PHASE2_BROWSER_RUNTIME_NOT_AVAILABLE"
+            exit 1
+          fi
+          echo "BROWSER_RUNTIME=$("$chrome" --version)"
+          profile="$RUNNER_TEMP/axiom-phase2-browser-profile"
+          rm -rf "$profile"
+          python3 -m http.server 8765 --bind 127.0.0.1 >"$RUNNER_TEMP/axiom-phase2-http.log" 2>&1 &
+          server_pid=$!
+          trap 'kill "$server_pid" 2>/dev/null || true' EXIT
+          for attempt in $(seq 1 30); do
+            if curl -fsS "http://127.0.0.1:8765/axiom_interface/vnext/tests/product_intelligence_browser_execution_idempotency.html?phase=seed" >/dev/null; then break; fi
+            sleep 0.2
+          done
+          run_phase() {
+            phase="$1"
+            marker="$2"
+            output="$RUNNER_TEMP/axiom-phase2-browser-$phase.html"
+            "$chrome" --headless=new --no-sandbox --disable-gpu --disable-dev-shm-usage \
+              --user-data-dir="$profile" --virtual-time-budget=10000 --dump-dom \
+              "http://127.0.0.1:8765/axiom_interface/vnext/tests/product_intelligence_browser_execution_idempotency.html?phase=$phase" \
+              >"$output" 2>"$RUNNER_TEMP/axiom-phase2-browser-$phase.stderr"
+            cat "$output"
+            grep -F "$marker" "$output"
+          }
+          run_phase seed MUSITU_AXIOM_PHASE2_BROWSER_RESTART_SEED_PASS
+          run_phase replay MUSITU_AXIOM_PHASE2_BROWSER_RESTART_REPLAY_PASS
+          run_phase concurrent MUSITU_AXIOM_PHASE2_BROWSER_CROSS_INSTANCE_ATOMIC_PASS
       - name: Run Objective Outcome Compiler contracts
         run: node --test axiom_interface/vnext/tests/product_intelligence_objective_outcome_compiler.test.mjs
       - name: Run Product Compiler IR contracts
@@ -112,6 +146,39 @@ jobs:
             axiom_interface/vnext/tests/product_intelligence_product_compiler_ir.test.mjs \
             axiom_interface/vnext/tests/product_intelligence_compiler_checkpoint.test.mjs \
             axiom_interface/vnext/tests/product_intelligence_change_admission.test.mjs
+      - name: Qualify real-browser restart and cross-instance execution idempotency
+        shell: bash
+        run: |
+          set -euo pipefail
+          chrome="$(command -v google-chrome || command -v google-chrome-stable || command -v chromium || command -v chromium-browser || true)"
+          if [ -z "$chrome" ]; then
+            echo "MUSITU_AXIOM_PHASE2_BROWSER_RUNTIME_NOT_AVAILABLE"
+            exit 1
+          fi
+          echo "BROWSER_RUNTIME=$("$chrome" --version)"
+          profile="$RUNNER_TEMP/axiom-phase2-browser-profile"
+          rm -rf "$profile"
+          python3 -m http.server 8765 --bind 127.0.0.1 >"$RUNNER_TEMP/axiom-phase2-http.log" 2>&1 &
+          server_pid=$!
+          trap 'kill "$server_pid" 2>/dev/null || true' EXIT
+          for attempt in $(seq 1 30); do
+            if curl -fsS "http://127.0.0.1:8765/axiom_interface/vnext/tests/product_intelligence_browser_execution_idempotency.html?phase=seed" >/dev/null; then break; fi
+            sleep 0.2
+          done
+          run_phase() {
+            phase="$1"
+            marker="$2"
+            output="$RUNNER_TEMP/axiom-phase2-browser-$phase.html"
+            "$chrome" --headless=new --no-sandbox --disable-gpu --disable-dev-shm-usage \
+              --user-data-dir="$profile" --virtual-time-budget=10000 --dump-dom \
+              "http://127.0.0.1:8765/axiom_interface/vnext/tests/product_intelligence_browser_execution_idempotency.html?phase=$phase" \
+              >"$output" 2>"$RUNNER_TEMP/axiom-phase2-browser-$phase.stderr"
+            cat "$output"
+            grep -F "$marker" "$output"
+          }
+          run_phase seed MUSITU_AXIOM_PHASE2_BROWSER_RESTART_SEED_PASS
+          run_phase replay MUSITU_AXIOM_PHASE2_BROWSER_RESTART_REPLAY_PASS
+          run_phase concurrent MUSITU_AXIOM_PHASE2_BROWSER_CROSS_INSTANCE_ATOMIC_PASS
       - name: Fail closed on provider or release authority escalation
         shell: bash
         run: |
