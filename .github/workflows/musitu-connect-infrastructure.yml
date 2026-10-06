@@ -53,6 +53,10 @@ jobs:
         run: python infra/qualification/otel_smoke.py
       - name: Durable workflow qualification
         run: python infra/qualification/temporal_smoke.py
+      - name: Composed Mining Adapter E2E before recovery
+        run: python infra/qualification/mining_adapter_e2e.py --phase pre-recovery --output qualification/mining_adapter_e2e_pre.json
+      - name: Deterministic Mining Adapter benchmark
+        run: python benchmarks/mining_adapter/benchmark.py --output qualification/mining_adapter_benchmark.json
       - name: Infrastructure recovery qualification
         run: |
           docker compose -f infra/qualification/docker-compose.yml restart mqtt postgres otel
@@ -68,6 +72,17 @@ jobs:
           python infra/qualification/smoke.py
           python infra/qualification/otel_smoke.py
           python infra/qualification/temporal_smoke.py
+          python infra/qualification/mining_adapter_e2e.py --phase post-recovery --output qualification/mining_adapter_e2e_post.json
+      - name: Verify current live production runtime read-only
+        run: python qualification/verify_live_production_runtime.py
+      - name: Evaluate Mining Adapter production-completeness matrix
+        run: |
+          python qualification/mining_adapter_qualify.py \
+            --pre qualification/mining_adapter_e2e_pre.json \
+            --post qualification/mining_adapter_e2e_post.json \
+            --benchmark qualification/mining_adapter_benchmark.json \
+            --live-guard qualification/live_runtime_guard.json \
+            --output qualification/mining_adapter_qualification.json
       - name: Validate qualification evidence
         run: |
           python - <<'PY'
@@ -79,17 +94,43 @@ jobs:
           assert data["axiom_integration_allowed"] is False
           assert data["source_commit"]
           assert data["workflow_run_id"]
+          for name in (
+              "mining_adapter_e2e_pre.json",
+              "mining_adapter_e2e_post.json",
+              "mining_adapter_benchmark.json",
+              "live_runtime_guard.json",
+              "mining_adapter_qualification.json",
+          ):
+              report=json.loads((Path("qualification")/name).read_text())
+              if name.startswith("mining_adapter_e2e"):
+                  assert report["all_passed"] is True, name
+              if name=="live_runtime_guard.json":
+                  assert report["passed"] is True
+              if name=="mining_adapter_qualification.json":
+                  assert report["all_passed"] is True
           print("QUALIFICATION_EVIDENCE_VALID=PASS")
           PY
-          sha256sum qualification/infrastructure_report.json
-          echo "### MUSITU Connect infrastructure evidence" >> "$GITHUB_STEP_SUMMARY"
-          cat qualification/infrastructure_report.json >> "$GITHUB_STEP_SUMMARY"
+          sha256sum \
+            qualification/infrastructure_report.json \
+            qualification/mining_adapter_e2e_pre.json \
+            qualification/mining_adapter_e2e_post.json \
+            qualification/mining_adapter_benchmark.json \
+            qualification/live_runtime_guard.json \
+            qualification/mining_adapter_qualification.json
+          echo "### MUSITU Connect Mining Adapter evidence" >> "$GITHUB_STEP_SUMMARY"
+          cat qualification/mining_adapter_qualification.json >> "$GITHUB_STEP_SUMMARY"
       - name: Archive qualification evidence
         continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
           name: musitu-connect-infrastructure-evidence
-          path: qualification/infrastructure_report.json
+          path: |
+            qualification/infrastructure_report.json
+            qualification/mining_adapter_e2e_pre.json
+            qualification/mining_adapter_e2e_post.json
+            qualification/mining_adapter_benchmark.json
+            qualification/live_runtime_guard.json
+            qualification/mining_adapter_qualification.json
       - name: Teardown
         if: always()
         run: docker compose -f infra/qualification/docker-compose.yml down -v
