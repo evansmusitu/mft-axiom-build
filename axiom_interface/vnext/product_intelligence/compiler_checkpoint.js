@@ -57,6 +57,29 @@ function checkpointHashBody(checkpoint){
     prior_ir_snapshot:checkpoint.prior_ir_snapshot,
   };
 }
+function verifyCheckpointAttachments(checkpoint){
+  const evidence=checkpoint.evidence_object;
+  if(!isPlainObject(evidence)||evidence.schema!=='musitu.axiom.evidence.v1'||evidence.type!=='Evidence'||typeof evidence.id!=='string'||!evidence.id) return false;
+  if(!isPlainObject(evidence.data)||!isPlainObject(evidence.data.verification)) return false;
+  if(evidence.data.verification.builder_attested!==true||evidence.data.verification.independent_verification!=='NOT_PROVEN'||evidence.data.verification.publication_execution_allowed!==false) return false;
+  if(!Array.isArray(evidence.data.hashes)||![checkpoint.prior_ir_sha256,checkpoint.next_ir_sha256,checkpoint.diff_sha256,checkpoint.checkpoint_sha256].every(hash=>evidence.data.hashes.includes(hash))) return false;
+  if(!Array.isArray(evidence.data.receipts)||!evidence.data.receipts.some(receipt=>isPlainObject(receipt)&&receipt.schema===PRODUCT_COMPILER_CHECKPOINT_SCHEMA&&receipt.checkpoint_id===checkpoint.checkpoint_id&&receipt.checkpoint_sha256===checkpoint.checkpoint_sha256)) return false;
+
+  const artifact=checkpoint.artifact;
+  if(!isPlainObject(artifact)||artifact.schema!=='musitu.axiom.fa14.artifact.v1'||artifact.project_id!==checkpoint.project_id||artifact.work_id!==checkpoint.work_id||artifact.kind!=='product-compiler-checkpoint') return false;
+  if(artifact.approval_state!=='DRAFT'||artifact.publication_intent!==null) return false;
+  if(!Array.isArray(artifact.evidence_refs)||!artifact.evidence_refs.includes(evidence.id)) return false;
+  if(!Array.isArray(artifact.versions)||!artifact.versions.some(version=>isPlainObject(version)&&version.content_sha256===checkpoint.checkpoint_sha256)) return false;
+
+  const verification=checkpoint.artifact_verification;
+  if(!isPlainObject(verification)||verification.schema!=='musitu.axiom.fa14.artifact-verification.v1'||verification.status!=='PASS_ARTIFACT_LINEAGE_GATE') return false;
+
+  const pkg=checkpoint.artifact_package;
+  if(!isPlainObject(pkg)||pkg.schema!=='musitu.axiom.fa14.artifact-outcome-package.v1'||pkg.publication_execution_allowed!==false||pkg.required_next_gate!=='AUTHORIZATION_APPROVAL') return false;
+  if(canonical(pkg.artifact)!==canonical(artifact)||canonical(pkg.verification)!==canonical(verification)) return false;
+  return true;
+}
+
 async function resolveServices(services={}){
   const artifactApi=services.artifactApi??await import('../fa14_evidence_native_engine.js');
   const evidenceApi=services.evidenceApi??await import('../foundation_contracts.js');
@@ -188,7 +211,8 @@ export async function verifyCompilerCheckpoint(checkpoint){
     if(checkpoint.builder_attested!==true||checkpoint.independent_verification!=='NOT_PROVEN') return false;
     await assertProductIRIntegrity(checkpoint.prior_ir_snapshot,'checkpoint prior IR');
     if(checkpoint.prior_ir_snapshot.project_id!==checkpoint.project_id||checkpoint.prior_ir_snapshot.ir_sha256!==checkpoint.prior_ir_sha256) return false;
-    return (await sha256(checkpointHashBody(checkpoint)))===checkpoint.checkpoint_sha256;
+    if((await sha256(checkpointHashBody(checkpoint)))!==checkpoint.checkpoint_sha256) return false;
+    return verifyCheckpointAttachments(checkpoint);
   }catch{return false;}
 }
 
