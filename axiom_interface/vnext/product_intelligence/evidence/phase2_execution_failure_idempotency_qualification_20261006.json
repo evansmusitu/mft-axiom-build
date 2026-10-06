@@ -1,0 +1,235 @@
+{
+  "schema": "musitu.axiom.phase2.execution-failure-idempotency-qualification.v1",
+  "recorded_date": "2026-10-06",
+  "source_authority": {
+    "repository": "evansmusitu/mft-axiom-build",
+    "branch": "frontier/axiom-product-intelligence-phase2-20261004",
+    "predecessor_execution_outcome_evidence_commit": "dd441e5fb1e240ac2d1389f40b17ffe385a9886d",
+    "final_hardened_head": "d90862146b58c5c8f6e5c75217864c55812024c4",
+    "execution_store_path": "axiom_interface/vnext/execution_store.js",
+    "execution_store_git_blob": "a3929b2f5adcabed55575d207c2a2f1fd9a737a4",
+    "execution_outcome_path": "axiom_interface/vnext/product_intelligence/execution_outcome_reconciliation.js",
+    "execution_outcome_git_blob": "b4fb7d9a8a742eedd7bfa9ca2e100e7b96e811e0",
+    "living_product_graph_path": "axiom_interface/vnext/product_intelligence/living_product_graph.js",
+    "living_product_graph_git_blob": "b255a3867d3a5df64e215f37cd5f716e04ddb56e",
+    "contract_test_path": "axiom_interface/vnext/tests/product_intelligence_living_product_graph.test.mjs",
+    "contract_test_git_blob": "507ad807318f149e985425b3c2fe4622f669431c",
+    "gate_workflow_path": ".github/workflows/axiom-product-intelligence-phase2-gate.yml",
+    "gate_workflow_git_blob": "0eaab11840398d58112013f7011bb9b68f79d958"
+  },
+  "tdd": {
+    "observed_red_green_behavior_cycles": 5,
+    "setup_failures_not_counted": [
+      {
+        "commit": "0eb2c592d463e6563bb445c90f5b85767abf7c49",
+        "run_id": 37471600381,
+        "focused_job_id": 112296216644,
+        "observation": "TEST_HARNESS_STRUCTUREDCLONE_MAP_OPTIONS_ERROR",
+        "reason": "test helper failure occurred before the intended production behavior"
+      },
+      {
+        "commit": "f454623bcfbe2b4f509b8307c7fb0b0ff58e195c",
+        "run_id": 37471714966,
+        "focused_job_id": 112296614538,
+        "observation": "VALID_S1_PROPOSAL_DENIED_BEFORE_FAILURE_LIFECYCLE_ASSERTION",
+        "reason": "exposed a separate pre-existing FA-11 authority-envelope defect; preserved and fixed in its own RED/GREEN cycle"
+      },
+      {
+        "commit": "14cce413d84b297e624168288d87605d8cb75718",
+        "run_id": 37471895229,
+        "focused_job_id": 112297235552,
+        "observation": "TEST_LOCAL_GATEWAY_IMPORT_MISSING",
+        "reason": "test setup failure before the intended production behavior"
+      },
+      {
+        "commit": "2731d42e4b4a12583b13462b71d0e1122a24f3bb",
+        "run_id": 37473985983,
+        "focused_job_id": 112304485858,
+        "observation": "TEST_SYNTAX_ERROR_AWAIT_IN_NON_ASYNC_CALLBACK",
+        "reason": "test syntax failure; excluded from TDD evidence"
+      }
+    ],
+    "cycles": [
+      {
+        "cycle": 1,
+        "behavior": "FA-11 operation runtime exceptions become hash-bound FAILED receipts/events and verify into AXIOM failure Evidence",
+        "red_commit": "efe5ec155c1174a671c1d3def82dcae67f26569b",
+        "red_run_id": 37472037740,
+        "red_focused_job_id": 112297717901,
+        "red_conclusion": "failure",
+        "red_observation": "execute threw the operation ConstraintError instead of returning a governed FAILED receipt",
+        "implementation_commits": [
+          "8b1451c465b39ce0b05f74f0603e5fd26d5bc6fb",
+          "4cdd8b2a601f3da9226ab83000493d2273595a27"
+        ],
+        "green_run_id": 37472319609,
+        "green_focused_job_id": 112298705914,
+        "green_independent_job_id": 112298806008,
+        "green_conclusion": "success",
+        "independent_replay": "PASS_153_OF_153"
+      },
+      {
+        "cycle": 2,
+        "behavior": "GovernedExecutionStore.propose preserves the original grant-shaped authority so valid S1 artifact.write requests are not denied by double normalization",
+        "red_commit": "01ad343beaf868fdec6d4509d7db76b0c0b81acd",
+        "red_run_id": 37472493880,
+        "red_focused_job_id": 112299311569,
+        "red_conclusion": "failure",
+        "red_observation": "17_PASS_1_FAIL_VALID_S1_PROPOSAL_RETURNED_DENIED",
+        "implementation_commit": "35d82e68f76bcf310df0ea4cbb26e5158b20aebf",
+        "green_tested_head": "2235040cedfdd42df71478c1535b8c7f44c94fbf",
+        "green_run_id": 37472826866,
+        "green_focused_job_id": 112300477480,
+        "green_independent_job_id": 112300600922,
+        "green_conclusion": "success",
+        "independent_replay": "PASS_154_OF_154"
+      },
+      {
+        "cycle": 3,
+        "behavior": "sequential retries of a terminal COMPLETED or FAILED request return the existing terminal receipt before repeating the local side effect; BLOCKED remains retryable",
+        "red_commit": "c73ade88379e7ae0d5c8ea10485aa46c190c3c89",
+        "red_run_id": 37473064304,
+        "red_focused_job_id": 112301300695,
+        "red_conclusion": "failure",
+        "red_observation": "18_PASS_1_FAIL_SECOND_EXECUTION_CREATED_A_DIFFERENT_COMPLETED_RECEIPT",
+        "green_commit": "f252415d2dde1adc55fce958be5ed2c9b8e657bd",
+        "green_run_id": 37473215575,
+        "green_focused_job_id": 112301827739,
+        "green_independent_job_id": 112301941242,
+        "green_conclusion": "success",
+        "independent_replay": "PASS_155_OF_155"
+      },
+      {
+        "cycle": 4,
+        "behavior": "concurrent same-request calls in one GovernedExecutionStore runtime collapse onto one in-flight operation and one terminal receipt",
+        "red_commit": "1d4dc6317a8804815b1010fb8b7e4a40c6d1121a",
+        "red_run_id": 37473440295,
+        "red_focused_job_id": 112302589150,
+        "red_conclusion": "failure",
+        "red_observation": "19_PASS_1_FAIL_CONCURRENT_CALLS_PRODUCED_DIFFERENT_RECEIPTS",
+        "green_commit": "6eed33b3bfccd79c0a3a11518101eefa97769020",
+        "green_run_id": 37473676152,
+        "green_focused_job_id": 112303415600,
+        "green_independent_job_id": 112303499250,
+        "green_conclusion": "success",
+        "independent_replay": "PASS_156_OF_156"
+      },
+      {
+        "cycle": 5,
+        "behavior": "BLOCKED attempts may be reconciled as truthful retryable evidence before one terminal COMPLETED or FAILED outcome; a second different terminal outcome still fails closed",
+        "red_commit": "1741335ea870e391dda2e9d7cd16eb3ffee97c91",
+        "red_run_id": 37474233617,
+        "red_focused_job_id": 112305342332,
+        "red_conclusion": "failure",
+        "red_observation": "20_PASS_1_FAIL_PRIOR_BLOCKED_RECEIPT_PREVENTED_LATER_TERMINAL_RECONCILIATION",
+        "green_commit": "6fe1b404345dc2293feb72ab6ba2035b5f3946a3",
+        "green_run_id": 37474404785,
+        "green_focused_job_id": 112305942284,
+        "green_independent_job_id": 112306065008,
+        "green_conclusion": "success",
+        "independent_replay": "PASS_157_OF_157"
+      }
+    ],
+    "coverage_only_not_counted_as_tdd": {
+      "commit": "9666a140e13275c3120909aefcfcb95e328fe012",
+      "run_id": 37474626826,
+      "focused_job_id": 112306762827,
+      "independent_job_id": 112306910695,
+      "conclusion": "success",
+      "reason_not_counted": "the changed-authority terminal-replay test passed on its first run because the concurrent-idempotency implementation already enforced the authority fingerprint boundary",
+      "behavior_confirmed": "terminal receipt replay rejects a changed authority envelope and does not repeat the side effect",
+      "independent_replay": "PASS_158_OF_158"
+    },
+    "final_contract_tests": {
+      "living_product_graph_execution_lifecycle_total": 22,
+      "pass": 22,
+      "fail": 0
+    },
+    "final_frozen_order_independent_replay": {
+      "total": 158,
+      "pass": 158,
+      "fail": 0
+    },
+    "assertions_weakened_to_pass": false
+  },
+  "final_governance_gate": {
+    "commit": "d90862146b58c5c8f6e5c75217864c55812024c4",
+    "run_id": 37474908221,
+    "focused_job_id": 112307677221,
+    "independent_job_id": 112307803497,
+    "conclusion": "success",
+    "execution_store_scanned": true,
+    "required_execution_store_markers": [
+      "status:'FAILED'",
+      "execution.failed",
+      "normalizeActionRequest(envelopeRaw,raw)",
+      "evaluateAuthorization(envelopeRaw,request)",
+      "QUALIFIED_EXTERNAL_EXECUTOR_REQUIRED",
+      "this.inflight",
+      "multiple terminal execution receipts for one request",
+      "execution authority envelope changed",
+      "['COMPLETED','FAILED']",
+      "network_request_performed:false",
+      "plaintext_secret_access:false"
+    ],
+    "authority_marker": "MUSITU_AXIOM_PHASE2_PROVIDER_AUTHORITY_FAIL_CLOSED_PASS",
+    "slice_marker": "MUSITU_AXIOM_PHASE2_SLICE_VERIFICATION_PASS",
+    "release_authority": false,
+    "production_authority": false,
+    "certification_authority": false
+  },
+  "qualification": {
+    "fa11_runtime_failure_receipt_lifecycle": "PASS_REPOSITORY_CONTRACT",
+    "failed_receipt_to_axiom_evidence": "PASS_REPOSITORY_CONTRACT",
+    "proposal_authority_envelope_preservation": "PASS",
+    "sequential_terminal_execution_idempotency": "PASS_REPOSITORY_CONTRACT",
+    "same_store_runtime_concurrent_idempotency": "PASS",
+    "changed_authority_terminal_replay_rejection": "PASS",
+    "multiple_terminal_receipt_fail_closed_detection": "IMPLEMENTED_STATIC_BOUNDARY",
+    "blocked_attempt_retryability": "PASS",
+    "blocked_then_terminal_graph_reconciliation": "PASS",
+    "second_distinct_terminal_graph_outcome_rejection": "PASS",
+    "rollback_truth_for_failed_receipts": "FAILED_RECEIPT_ROLLBACK_AVAILABLE_FALSE",
+    "failure_truth": "FAILED_AND_BLOCKED_REMAIN_DISTINCT",
+    "terminal_statuses": [
+      "COMPLETED",
+      "FAILED"
+    ],
+    "retryable_statuses": [
+      "BLOCKED"
+    ],
+    "authority_effect": "NONE",
+    "release_authority": false,
+    "production_authority": false,
+    "certification_authority": false,
+    "production_mutation": false,
+    "frozen_openai_mutation": false,
+    "main_mutation": false
+  },
+  "evidence_boundaries": {
+    "sha256_content_binding": "PROVEN",
+    "sha256_signature_or_attestation": "NOT_PROVEN",
+    "runtime_operation_exception_to_failed_receipt": "PROVEN_FOR_FA11_REPOSITORY_BROWSER_LOCAL_DISPATCH_PATH",
+    "persistence_or_transaction_failure_durable_failed_receipt": "NOT_PROVEN",
+    "reason": "storage/integrity failures are intentionally allowed to propagate rather than falsely claiming a durable FAILED receipt",
+    "sequential_terminal_replay_same_store_contract": "PROVEN",
+    "concurrent_same_request_same_store_instance": "PROVEN",
+    "actual_browser_indexeddb_restart_replay": "NOT_PROVEN",
+    "cross_tab_or_cross_process_atomic_idempotency": "NOT_PROVEN",
+    "distributed_executor_idempotency": "NOT_PROVEN",
+    "external_side_effect_idempotency": "NOT_PROVEN",
+    "production_side_effect_idempotency": "NOT_PROVEN",
+    "live_external_executor_receipt_lifecycle": "NOT_PROVEN",
+    "production_living_product_graph_persistence_integration": "NOT_PROVEN",
+    "independent_external_security_validation": "NOT_PROVEN",
+    "product_outcome_causality_from_execution": "NOT_PROVEN"
+  },
+  "incident_boundary": {
+    "modal_fanout_cleanup": "NOT_PROVEN",
+    "latest_checked_run_id": 37284936693,
+    "latest_checked_job_id": 111795419209,
+    "latest_checked_job_conclusion": "failure",
+    "required_pass_marker": "MUSITU_AXIOM_MODAL_INCIDENT_PROXY_TOKEN_REMEDIATION_PASS",
+    "required_pass_marker_observed": false
+  }
+}
