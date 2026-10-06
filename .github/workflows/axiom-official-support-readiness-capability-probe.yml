@@ -1,0 +1,83 @@
+name: MUSITU Axiom Support Readiness Capability Probe
+
+on:
+  push:
+    branches:
+      - 'support/axiom-official-support-20261005'
+    paths:
+      - '.github/workflows/axiom-official-support-readiness-capability-probe.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    environment: axiom-support-production
+    timeout-minutes: 6
+    env:
+      CF_ACCOUNT_ID: '93f395f5121954671f92fffa453d6b61'
+      CF_ZONE_ID: '5b56528f03948ff5917a5e0cd9f7109e'
+      CF_TOKEN_DEFAULT: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CF_TOKEN_RULESETS: ${{ secrets.CLOUDFLARE_RULESETS_API_TOKEN }}
+      CF_TOKEN_ACCESS: ${{ secrets.CLOUDFLARE_ACCESS_API_TOKEN }}
+    steps:
+      - name: Read capability and service state without writes
+        shell: bash
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          const accountId=process.env.CF_ACCOUNT_ID;
+          const zoneId=process.env.CF_ZONE_ID;
+          const candidates=[
+            ['CLOUDFLARE_API_TOKEN',process.env.CF_TOKEN_DEFAULT],
+            ['CLOUDFLARE_RULESETS_API_TOKEN',process.env.CF_TOKEN_RULESETS],
+            ['CLOUDFLARE_ACCESS_API_TOKEN',process.env.CF_TOKEN_ACCESS],
+          ];
+          async function call(token,path){
+            const r=await fetch('https://api.cloudflare.com/client/v4'+path,{headers:{authorization:'Bearer '+token,accept:'application/json'}});
+            let p={}; try{p=await r.json()}catch{}
+            return {status:r.status,ok:r.ok&&p?.success!==false,result:p?.result||null};
+          }
+          const out=[];
+          for(const [secretName,raw] of candidates){
+            const token=String(raw||'').trim();
+            if(!token){out.push({secret_name:secretName,present:false});continue;}
+            const uv=await call(token,'/user/tokens/verify');
+            const av=await call(token,'/accounts/'+accountId+'/tokens/verify');
+            const verify=av.ok?av:uv;
+            let details={status:0,ok:false,result:null};
+            if(verify.ok&&verify.result?.id){
+              const base=av.ok?'/accounts/'+accountId+'/tokens/':'/user/tokens/';
+              details=await call(token,base+encodeURIComponent(verify.result.id));
+            }
+            const perms=[];
+            if(details.ok&&Array.isArray(details.result?.policies)){
+              for(const p of details.result.policies){
+                for(const g of Array.isArray(p?.permission_groups)?p.permission_groups:[]) if(g?.name) perms.push(String(g.name));
+              }
+            }
+            const low=perms.map(x=>x.toLowerCase());
+            const has=(...xs)=>low.some(n=>xs.some(x=>n===x.toLowerCase()));
+            const d1=await call(token,'/accounts/'+accountId+'/d1/database?per_page=100');
+            const sending=await call(token,'/zones/'+zoneId+'/email/sending/subdomains');
+            out.push({
+              secret_name:secretName,
+              present:true,
+              active:verify.ok&&String(verify.result?.status||'').toLowerCase()==='active',
+              d1_read:d1.ok,
+              d1_http:d1.status,
+              d1_database_count:Array.isArray(d1.result)?d1.result.length:null,
+              d1_write:details.ok?has('D1 Write','D1 Edit'):null,
+              email_sending_read:sending.ok,
+              email_sending_http:sending.status,
+              email_sending_subdomains:Array.isArray(sending.result)?sending.result.map(x=>({name:String(x?.name||''),enabled:x?.enabled===true})):null,
+              email_sending_write:details.ok?has('Email Sending Write','Email Sending Edit'):null,
+              workers_scripts_write:details.ok?has('Workers Scripts Write','Workers Scripts Edit'):null,
+              raw_policy_recorded:false,
+              secret_exposed:false,
+              write_performed:false
+            });
+          }
+          console.log(JSON.stringify({gate:'MUSITU_AXIOM_SUPPORT_READINESS_CAPABILITY_PROBE',tokens:out,write_performed:false,secret_exposed:false}));
+          NODE
