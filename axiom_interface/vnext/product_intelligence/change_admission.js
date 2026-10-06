@@ -226,7 +226,7 @@ export async function createOperationScopedExecutorHandoff({request,admissionRes
   rejectUnknownKeys(operationRequest,EXECUTOR_OPERATION_INPUT_KEYS,'operationRequest');
   const authority=normalizeAuthorityEnvelope(authorityEnvelope);
   if(authority.project_id!==request.project_id) throw new DOMException('cross-project executor handoff blocked','SecurityError');
-  const execution_request=await normalizeActionRequest(authority,{
+  const execution_request=await normalizeActionRequest(authorityEnvelope,{
     ...operationRequest,
     risk_class:request.risk_class,
     instruction_provenance:'GOVERNED_PLAN',
@@ -264,5 +264,5 @@ export async function evaluateOperationScopedExecutorHandoff({handoff,authorityE
   const authority=normalizeAuthorityEnvelope(authorityEnvelope);
   if((await sha256(authority))!==handoff.authority_sha256) throw new DOMException('executor handoff authority envelope changed','SecurityError');
   if(authority.project_id!==handoff.project_id||authority.actor_id!==handoff.actor_id||authority.agent_id!==handoff.agent_id||authority.workload_identity_id!==handoff.workload_identity_id) throw new DOMException('executor handoff workload identity binding mismatch','SecurityError');
-  return evaluateAuthorization(authority,handoff.execution_request);
+  return evaluateAuthorization(authorityEnvelope,handoff.execution_request);
 }
