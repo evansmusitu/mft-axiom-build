@@ -295,6 +295,7 @@ async function ensureRequiredRoutingAuthDns({fetchImpl, headers, desired}) {
         priority: value.priority,
         content_length: value.content.length,
         content_sha256: sha256(value.content),
+        public_spf_value: isSpf(value) ? value.content : null,
         valid_spf: isSpf(value),
         valid_routing_dkim: isRoutingDkim(value),
       };
