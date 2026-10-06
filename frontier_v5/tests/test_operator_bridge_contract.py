@@ -7,6 +7,7 @@ from frontier_v5.runtime.operator_bridge import OperatorBridge, OperatorBridgeEr
 from frontier_v5.runtime.operator_mcp import build_operator_mcp
 from frontier_v5.runtime.operator_http import OperatorHTTPApplication
 from frontier_v5.runtime.operator_state import export_operator_state, restore_operator_state
+from frontier_v5.runtime.operator_remote_core import execute_remote_mcp
 from frontier_v5.runtime.mcp_2026 import PROTOCOL_META, PROTOCOL_VERSION
 
 
@@ -188,6 +189,45 @@ def main():
         },json_bytes(list_msg))
         assert code==200
         assert any(t["name"]=="axiom.work.status" for t in body["result"]["tools"])
+
+        remote_create={
+            "jsonrpc":"2.0","id":"r1","method":"tools/call",
+            "params":{
+                "name":"axiom.project.create",
+                "arguments":{"project_id":"remote-p","name":"Remote project"},
+                "_meta":{PROTOCOL_META:PROTOCOL_VERSION},
+            },
+        }
+        remote_headers={
+            "MCP-Protocol-Version":PROTOCOL_VERSION,
+            "Mcp-Method":"tools/call",
+            "Mcp-Name":"axiom.project.create",
+        }
+        remote=execute_remote_mcp(
+            state_pack=None,tenant="tenant-remote",actor_id="owner-remote",
+            headers=remote_headers,message=remote_create,
+        )
+        assert remote["status"]==200 and remote["mutated"] is True
+        assert remote["state_pack"]["state_sha256"]
+        remote_status={
+            "jsonrpc":"2.0","id":"r2","method":"tools/call",
+            "params":{
+                "name":"axiom.project.status",
+                "arguments":{"project_id":"remote-p"},
+                "_meta":{PROTOCOL_META:PROTOCOL_VERSION},
+            },
+        }
+        remote_status_headers={
+            "MCP-Protocol-Version":PROTOCOL_VERSION,
+            "Mcp-Method":"tools/call",
+            "Mcp-Name":"axiom.project.status",
+        }
+        remote2=execute_remote_mcp(
+            state_pack=remote["state_pack"],tenant="tenant-remote",actor_id="owner-remote",
+            headers=remote_status_headers,message=remote_status,
+        )
+        assert remote2["body"]["result"]["project_id"]=="remote-p"
+        assert remote2["mutated"] is False and remote2["state_pack"] is None
 
         expect_error(lambda: bridge.call_tool("axiom.unknown",{}),"unknown operator tool")
         bridge.close()
