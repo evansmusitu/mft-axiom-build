@@ -110,7 +110,7 @@ jobs:
           rm -rf "$SNAPSHOT"
           mkdir -p "$SNAPSHOT"
           tar -C delivery-os \
-            --exclude='./vendor' \
+            --exclude='./vendor/ownfleet/.git' \
             --exclude='./source-parts' \
             --exclude='./phase1-src.tar.gz' \
             --exclude='./PHASE1_SOURCE_SHA256.txt' \
