@@ -18,9 +18,13 @@ export class GovernedExecutionStore{
       if(prior&&Date.parse(prior.expires_at)>now){if(prior.project_id!==request.project_id||prior.workload_identity_id!==request.workload_identity_id||prior.authority_sha256!==authority_sha256||await sha256(without(prior,'claim_sha256'))!==prior.claim_sha256)throw new DOMException('execution claim integrity failure','DataError');return {acquired:false,claim:clone(prior)};}
       this.memoryExecutionClaims.set(request.request_sha256,clone(claim));return {acquired:true,claim:clone(claim)};
     }
-    const tx=this.db.transaction('execution_claims','readwrite'),store=tx.objectStore('execution_claims'),prior=await req(store.get(request.request_sha256));
-    if(prior&&Date.parse(prior.expires_at)>now){await done(tx);if(prior.project_id!==request.project_id||prior.workload_identity_id!==request.workload_identity_id||prior.authority_sha256!==authority_sha256||await sha256(without(prior,'claim_sha256'))!==prior.claim_sha256)throw new DOMException('execution claim integrity failure','DataError');return {acquired:false,claim:clone(prior)};}
-    store.put(clone(claim));await done(tx);return {acquired:true,claim:clone(claim)};
+    const tx=this.db.transaction(['execution_claims','receipts'],'readwrite'),store=tx.objectStore('execution_claims'),receiptStore=tx.objectStore('receipts');
+    const [prior,projectReceipts]=await Promise.all([req(store.get(request.request_sha256)),req(receiptStore.index('project_id').getAll(request.project_id))]);
+    const terminal=projectReceipts.filter(receipt=>receipt.request_sha256===request.request_sha256&&['COMPLETED','FAILED'].includes(receipt.status));
+    if(terminal.length>1){try{tx.abort();}catch{}throw new DOMException('multiple terminal execution receipts for one request','DataError');}
+    if(terminal.length===1){const receipt=terminal[0];if(receipt.project_id!==request.project_id||receipt.risk_class!==request.risk_class||await sha256(without(receipt,'receipt_sha256'))!==receipt.receipt_sha256){try{tx.abort();}catch{}throw new DOMException('terminal execution receipt integrity failure','DataError');}await done(tx);return {acquired:false,claim:null,terminalReceipt:clone(receipt)};}
+    if(prior&&Date.parse(prior.expires_at)>now){await done(tx);if(prior.project_id!==request.project_id||prior.workload_identity_id!==request.workload_identity_id||prior.authority_sha256!==authority_sha256||await sha256(without(prior,'claim_sha256'))!==prior.claim_sha256)throw new DOMException('execution claim integrity failure','DataError');return {acquired:false,claim:clone(prior),terminalReceipt:null};}
+    store.put(clone(claim));await done(tx);return {acquired:true,claim:clone(claim),terminalReceipt:null};
   }
   async _releaseExecutionClaim(requestSha,ownerId){
     if(!this.db){const prior=this.memoryExecutionClaims.get(requestSha);if(prior?.owner_id===ownerId)this.memoryExecutionClaims.delete(requestSha);return;}
@@ -90,6 +94,7 @@ export class GovernedExecutionStore{
     const approvals=(await this._all('approvals',request.project_id)).filter(a=>a.request_sha256===requestSha),decision=await finalizeAuthorization(envelopeRaw,request,approvals);
     if(decision.status!=='AUTHORIZED')return this._blockedReceipt(request,decision.reason);
     const claimState=await this._acquireExecutionClaim(request,authority_sha256);
+    if(claimState.terminalReceipt)return clone(claimState.terminalReceipt);
     if(!claimState.acquired)throw new DOMException('concurrent execution already in flight','InvalidStateError');
     try{
       const sandbox=await this.getSandbox(request.sandbox_id);
