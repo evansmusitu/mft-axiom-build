@@ -1,0 +1,54 @@
+{
+  "schema": "musitu.axiom.support-readiness-evidence.v1",
+  "gate": "PUBLIC_ORIGIN",
+  "status": "PARTIAL",
+  "verified_at": "2026-10-06T10:40:47Z",
+  "authorization": {
+    "owner_authorized_public_origin_verification": true,
+    "public_operational_claim_authorized": false,
+    "canonical_deployment_dispatch_authorized": false
+  },
+  "deployment": {
+    "source_commit": "d313fc55653355b4b7cbb6bfbbc826f694feb9a7",
+    "workflow_run": 37451064305,
+    "worker": "musitu-axiom-support",
+    "hostname": "support.mftintelligence.com",
+    "zone_id": "5b56528f03948ff5917a5e0cd9f7109e",
+    "zone_name": "mftintelligence.com",
+    "custom_domain_attached": true,
+    "workers_dev_enabled": false,
+    "previews_enabled": false,
+    "strict_secret_binding_inheritance": true,
+    "secret_values_exposed": false,
+    "customer_case_count_before_deploy": 0,
+    "customer_event_count_before_deploy": 0,
+    "required_schema_verified_read_only": true
+  },
+  "live_edge_diagnostic": {
+    "workflow_run": 37451359791,
+    "curl_http_status": 403,
+    "browser_user_agent_http_status": 403,
+    "cf_mitigated": "challenge",
+    "classification": "CLOUDFLARE_EDGE_DENIAL",
+    "tls_https_edge_reached": true,
+    "dns_record_type": "AAAA",
+    "dns_proxied": true,
+    "matching_cloudflare_access_apps": 0,
+    "worker_handler_reached": false,
+    "worker_health_verified_on_public_origin": false,
+    "support_ui_verified_after_edge_challenge": false
+  },
+  "readiness_effect": {
+    "public_origin": "PARTIAL",
+    "anti_abuse": "PARTIAL",
+    "accessibility_reality": "PARTIAL",
+    "next_external_requirement": "A real human browser must complete the Cloudflare managed edge challenge on support.mftintelligence.com, then verify the support UI and complete the live-origin Turnstile challenge; real-device accessibility verification remains separately required."
+  },
+  "boundaries": {
+    "main_modified": false,
+    "pr_1_modified": false,
+    "openai_surface_modified": false,
+    "claude_surface_modified": false,
+    "public_operational_claim_made": false
+  }
+}
