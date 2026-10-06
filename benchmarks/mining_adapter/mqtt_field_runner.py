@@ -79,7 +79,8 @@ class FieldSession:
         self.sub=mqtt.Client(mqtt.CallbackAPIVersion.VERSION2,client_id=f"musitu-field-sub-{label}",protocol=mqtt.MQTTv311,clean_session=True)
         self.pub=mqtt.Client(mqtt.CallbackAPIVersion.VERSION2,client_id=f"musitu-field-pub-{label}",protocol=mqtt.MQTTv311,clean_session=True)
         self.sub.reconnect_delay_set(1,5); self.pub.reconnect_delay_set(1,5)
-        self.sub.on_connect=self._on_sub_connect; self.sub.on_disconnect=self._on_sub_disconnect; self.sub.on_message=self._on_message
+        self.sub.on_connect=self._on_sub_connect; self.sub.on_subscribe=self._on_subscribe
+        self.sub.on_disconnect=self._on_sub_disconnect; self.sub.on_message=self._on_message
         self.pub.on_connect=self._on_pub_connect; self.pub.on_disconnect=self._on_pub_disconnect
 
     @staticmethod
@@ -89,9 +90,19 @@ class FieldSession:
     def _on_sub_connect(self, client, _userdata, _flags, reason_code, _properties):
         if self._failed(reason_code):
             return
+        # A TCP/MQTT CONNECT acknowledgement is not enough for lossless
+        # recovery. Publishing may resume only after the broker confirms the
+        # wildcard subscription with SUBACK.
+        self.sub_connected.clear()
         result,_mid=client.subscribe(f"{self.topic_root}/#",qos=self.qos)
         if result != mqtt.MQTT_ERR_SUCCESS:
             with self.lock: self.errors.append(f"subscribe_failed:{result}")
+
+    def _on_subscribe(self, _client, _userdata, _mid, reason_codes, _properties):
+        failures=[code for code in (reason_codes or []) if self._failed(code)]
+        if failures:
+            with self.lock: self.errors.append("subscribe_ack_failed")
+            self.sub_connected.clear()
             return
         self.sub_connected.set()
 
