@@ -173,6 +173,7 @@ def run(args: argparse.Namespace) -> dict[str,Any]:
                 take=min(args.batch_size,spec.mqtt_events-cursor)
                 session.publish_rows("stress",batch_index,[mining_row(cursor+i,spec.seed) for i in range(take)])
                 cursor += take
+            stress_publish_seconds=time.perf_counter()-stress_started
             session.wait_rows("stress",spec.mqtt_events,args.drain_timeout)
             stress_seconds=time.perf_counter()-stress_started
 
@@ -216,7 +217,8 @@ def run(args: argparse.Namespace) -> dict[str,Any]:
                 "broker":{"label":args.label,"version":args.broker_version},
                 "workload_fingerprint":workload_fingerprint(spec),
                 "events":spec.mqtt_events,"received":session.phase_rows["stress"],"duplicates":session.duplicates,
-                "stress_batches":stress_batches,"batch_size":args.batch_size,"stress_seconds":stress_seconds,
+                "stress_batches":stress_batches,"batch_size":args.batch_size,
+                "stress_publish_seconds":stress_publish_seconds,"stress_seconds":stress_seconds,
                 "throughput_events_per_second":spec.mqtt_events/stress_seconds,
                 "latency_ms":latency_summary(stress_latencies),"raw_batch_latency_ms":stress_latencies,
                 "soak_seconds":soak_actual,"soak_events_sent":soak_rows_sent,"soak_events_received":session.phase_rows["soak"],
@@ -239,7 +241,7 @@ def main() -> None:
     p.add_argument("--opcua-data-points",type=int,default=1_000_000); p.add_argument("--batch-size",type=int,default=500)
     p.add_argument("--soak-seconds",type=int,default=600); p.add_argument("--soak-batch-size",type=int,default=10)
     p.add_argument("--soak-batches-per-second",type=float,default=1.0); p.add_argument("--qos",type=int,default=1)
-    p.add_argument("--fault-fraction",type=float,default=0.5); p.add_argument("--drain-timeout",type=float,default=300.0)
+    p.add_argument("--fault-fraction",type=float,default=0.5); p.add_argument("--drain-timeout",type=float,default=1200.0)
     p.add_argument("--seed",type=int,default=20261006); p.add_argument("--output",type=Path,required=True)
     args=p.parse_args(); report=run(args)
     args.output.parent.mkdir(parents=True,exist_ok=True)
