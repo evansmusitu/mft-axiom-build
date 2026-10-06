@@ -64,3 +64,22 @@ test('deployment documentation refuses unverified public and operating claims', 
   assert.match(threat, /support hostname remains non-public/i);
   assert.match(threat, /email routing and delivery are verified/i);
 });
+
+
+test('public search-discoverability contract exposes only the canonical support homepage', async () => {
+  const [html, robots, sitemap] = await Promise.all([
+    read('index.html'),
+    read('robots.txt'),
+    read('sitemap.xml'),
+  ]);
+  assert.match(html, /<link rel="canonical" href="https:\/\/support\.mftintelligence\.com\/">/);
+  assert.match(html, /<meta name="robots" content="index,follow/);
+  assert.match(robots, /User-agent:\s*\*/i);
+  assert.match(robots, /Allow:\s*\//i);
+  assert.match(robots, /Disallow:\s*\/api\//i);
+  assert.match(robots, /Disallow:\s*\/health/i);
+  assert.match(robots, /Sitemap:\s*https:\/\/support\.mftintelligence\.com\/sitemap\.xml/i);
+  const locations = [...sitemap.matchAll(/<loc>([^<]+)<\/loc>/g)].map(match => match[1]);
+  assert.deepEqual(locations, ['https://support.mftintelligence.com/']);
+  assert.doesNotMatch(sitemap, /\/api\/|\/health|AX-[A-Z0-9]{12}|recovery/i);
+});
