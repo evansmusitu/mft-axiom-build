@@ -112,3 +112,13 @@ test('Outcome Contract constraint values reject structured or credential-bearing
     /constraint.*privacy|privacy.*constraint|string/i,
   );
 });
+
+
+test('approval receipts reject unknown authority-bearing fields fail closed',async()=>{
+  const bad=approval();
+  bad.release_authority=true;
+  await assert.rejects(
+    ()=>compileObjectiveOutcomeGraph({project:project(),contract:contract(),contractVerified:true,approval:bad,generation:1,actorId:'local-user',at:'2026-10-04T15:03:00Z'}),
+    /approval receipt.*unsupported fields|unsupported fields.*approval receipt/i,
+  );
+});
