@@ -193,8 +193,6 @@ jobs:
           PY
           echo "::add-mask::$(cat /tmp/proxy-key)"
           echo "::add-mask::$(cat /tmp/proxy-secret)"
-          modal workspace proxy-tokens allow "$(cat /tmp/proxy-key)" main
-          echo 'ephemeral_proxy_environment_main=ALLOWED'
       - name: Authenticated MCP discovery and durable Work mutation
         shell: bash
         run: |
@@ -202,6 +200,16 @@ jobs:
           URL="$(cat /tmp/operator-url)"
           KEY="$(cat /tmp/proxy-key)"
           SECRET="$(cat /tmp/proxy-secret)"
+          modal curl --max-time 30 "$URL/health" > /tmp/operator-modal-api-health.json
+          python - <<'PY'
+          import json
+          x=json.load(open('/tmp/operator-modal-api-health.json'))
+          assert x['status']=='READY'
+          assert x['durable_state']=='LOCAL_ATOMIC_STATE_PACK_WITH_FILE_LOCK'
+          assert x['production_authority'] is False
+          assert x['public_submission_mutation_authority'] is False
+          print('operator_modal_api_authenticated_health=PASS')
+          PY
           cleanup() {
             modal workspace proxy-tokens delete -y "$KEY" >/dev/null 2>&1 || true
             rm -f /tmp/modal-proxy.json /tmp/proxy-key /tmp/proxy-secret
@@ -215,7 +223,7 @@ jobs:
           from urllib.request import Request, urlopen
 
           url=os.environ['URL'].rstrip('/')+'/health'
-          headers={'Modal-Key':os.environ['KEY'],'Modal-Secret':os.environ['SECRET']}
+          headers={'Authorization':'Bearer '+os.environ['KEY']+'.'+os.environ['SECRET']}
           last=None
           for attempt in range(1,31):
               req=Request(url,headers=headers,method='GET')
@@ -261,7 +269,7 @@ jobs:
           cat > /tmp/tools-list.json <<'JSON'
           {"jsonrpc":"2.0","id":"list-1","method":"tools/list","params":{"_meta":{"io.modelcontextprotocol/protocolVersion":"2026-07-28"}}}
           JSON
-          curl -fsS             -H "Modal-Key: $KEY"             -H "Modal-Secret: $SECRET"             -H 'Content-Type: application/json'             -H 'MCP-Protocol-Version: 2026-07-28'             -H 'Mcp-Method: tools/list'             --data-binary @/tmp/tools-list.json             "$URL/mcp" > /tmp/tools.json
+          curl -fsS             -H "Authorization: Bearer $KEY.$SECRET"             -H 'Content-Type: application/json'             -H 'MCP-Protocol-Version: 2026-07-28'             -H 'Mcp-Method: tools/list'             --data-binary @/tmp/tools-list.json             "$URL/mcp" > /tmp/tools.json
           python - <<'PY'
           import json
           x=json.load(open('/tmp/tools.json'))
@@ -285,7 +293,7 @@ jobs:
             }
           },separators=(',',':')))
           PY
-          curl -fsS             -H "Modal-Key: $KEY" -H "Modal-Secret: $SECRET"             -H 'Content-Type: application/json'             -H 'MCP-Protocol-Version: 2026-07-28'             -H 'Mcp-Method: tools/call' -H 'Mcp-Name: axiom.project.create'             --data-binary @/tmp/project-create.json "$URL/mcp" > /tmp/project-create-response.json
+          curl -fsS             -H "Authorization: Bearer $KEY.$SECRET"             -H 'Content-Type: application/json'             -H 'MCP-Protocol-Version: 2026-07-28'             -H 'Mcp-Method: tools/call' -H 'Mcp-Name: axiom.project.create'             --data-binary @/tmp/project-create.json "$URL/mcp" > /tmp/project-create-response.json
 
           python - <<'PY' > /tmp/work-create.json
           import json,os
@@ -305,7 +313,7 @@ jobs:
             }
           },separators=(',',':')))
           PY
-          curl -fsS             -H "Modal-Key: $KEY" -H "Modal-Secret: $SECRET"             -H 'Content-Type: application/json'             -H 'MCP-Protocol-Version: 2026-07-28'             -H 'Mcp-Method: tools/call' -H 'Mcp-Name: axiom.work.create'             --data-binary @/tmp/work-create.json "$URL/mcp" > /tmp/work-create-response.json
+          curl -fsS             -H "Authorization: Bearer $KEY.$SECRET"             -H 'Content-Type: application/json'             -H 'MCP-Protocol-Version: 2026-07-28'             -H 'Mcp-Method: tools/call' -H 'Mcp-Name: axiom.work.create'             --data-binary @/tmp/work-create.json "$URL/mcp" > /tmp/work-create-response.json
           jq -er '.result.plan_id' /tmp/work-create-response.json > /tmp/plan-id
           echo 'operator_remote_work_created=PASS'
 
@@ -335,7 +343,7 @@ jobs:
           plan_id=os.environ['PLAN_ID']
 
           def request_json(path, *, method='GET', payload=None, extra_headers=None, timeout=20):
-              headers={'Modal-Key':key,'Modal-Secret':secret}
+              headers={'Authorization':'Bearer '+key+'.'+secret}
               if extra_headers:
                   headers.update(extra_headers)
               data=None
