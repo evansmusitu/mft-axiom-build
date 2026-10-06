@@ -1,6 +1,6 @@
 {
   "schema": "musitu.axiom.support-readiness-snapshot.v1",
-  "recorded_at": "2026-10-06T13:00:00Z",
+  "recorded_at": "2026-10-06T13:25:37Z",
   "repository": "evansmusitu/mft-axiom-build",
   "branch": "support/axiom-official-support-20261005",
   "public_operational_claim_authorized": true,
@@ -177,5 +177,18 @@
     "authorization_source": "explicit owner instruction in current conversation",
     "recovery_code_recorded": false
   },
-  "operational_status": "AUTHORIZED_PENDING_CANONICAL_DEPLOYMENT"
+  "operational_status": "OPERATIONAL",
+  "operational_evidence": {
+    "file": "EVIDENCE/axiom-official-support-operational-live-20261006.json",
+    "checksum_sha256": "a07e5752394bfd6e54f419c7a65d36506e1f8cbec29fb373ddfe0372d0113ca3",
+    "canonical_deployment_run": 37470648118,
+    "canonical_deployment_source_commit": "8b5c75764d164c698e8400098c2da053ac9a4119",
+    "deployed_readiness_sha256": "06845ff4dd9b41ab64d9fc85b613ca905982f6424e3beee1a02342daf6e240c5",
+    "canonical_deployment_conclusion": "success",
+    "public_operational_claim_effective": true,
+    "workers_dev_enabled": false,
+    "previews_enabled": false,
+    "managed_edge_challenge_preserved": true,
+    "edge_security_weakened": false
+  }
 }
