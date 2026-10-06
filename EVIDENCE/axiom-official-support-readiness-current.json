@@ -1,42 +1,33 @@
 {
   "schema": "musitu.axiom.support-readiness-snapshot.v1",
-  "recorded_at": "2026-10-06T11:28:49Z",
+  "recorded_at": "2026-10-06T12:51:02Z",
   "repository": "evansmusitu/mft-axiom-build",
   "branch": "support/axiom-official-support-20261005",
   "public_operational_claim_authorized": false,
   "deployment_dispatch_authorized": false,
   "required_gate_count": 11,
-  "pass_count": 8,
-  "partial_count": 3,
+  "pass_count": 11,
+  "partial_count": 0,
   "missing_count": 0,
   "gates": [
     {
       "gate": "PUBLIC_ORIGIN",
-      "status": "PARTIAL",
+      "status": "PASS",
       "evidence": {
-        "file": "EVIDENCE/axiom-official-support-public-origin-partial-20261006.json",
-        "verification_deployment_run": 37451064305,
-        "diagnostic_run": 37451359791,
+        "file": "EVIDENCE/axiom-official-support-public-origin-live-20261006.json",
+        "d1_readback_run": 37466253297,
+        "synthetic_case_id": "AX-06Z583BK7BSH",
         "hostname": "support.mftintelligence.com",
-        "custom_domain_count": 1,
         "custom_domain_service": "musitu-axiom-support",
-        "dns_proxied": true,
         "workers_dev_enabled": false,
         "previews_enabled": false,
-        "https_edge_reached": true,
-        "cf_mitigated": "challenge",
-        "worker_health_verified_on_public_origin": false,
-        "verification_repair_run": 37456639074,
-        "verification_repair_source_commit": "ee1385cbb9567c0fe4cb5a4cca1a11ced024b234",
-        "browser_bundle_dependency_closed": true,
-        "browser_app_bundled_with_local_dependencies": true,
-        "customer_case_count_after_repair": 0,
-        "customer_event_count_after_repair": 0,
-        "strict_secret_binding_inheritance": true,
-        "secret_values_exposed": false,
-        "human_edge_challenge_pending": true
-      },
-      "next_requirement": "refresh in the already-approved real human browser session, complete the Cloudflare managed edge challenge if shown, then verify the Turnstile widget renders and the public Worker health/UI are reachable without weakening edge security"
+        "human_completed_edge_challenge": true,
+        "support_ui_rendered": true,
+        "public_worker_case_create_reached": true,
+        "d1_case_persisted": true,
+        "initial_event_persisted": true,
+        "recovery_code_in_evidence": false
+      }
     },
     {
       "gate": "SECURE_STORAGE",
@@ -63,19 +54,21 @@
     },
     {
       "gate": "ANTI_ABUSE",
-      "status": "PARTIAL",
+      "status": "PASS",
       "evidence": {
+        "file": "EVIDENCE/axiom-official-support-anti-abuse-live-20261006.json",
+        "d1_readback_run": 37466253297,
+        "synthetic_case_id": "AX-06Z583BK7BSH",
         "exact_turnstile_widget": true,
         "turnstile_secret_present": true,
         "hostname_bound": "support.mftintelligence.com",
         "action_bound": "support_case_create",
+        "real_widget_token_on_authorized_hostname_verified": true,
+        "server_side_hostname_action_verification_required_before_insert": true,
         "private_edge_missing_proof_403_verified": true,
         "private_edge_rate_limit_429_verified": true,
-        "real_widget_token_on_authorized_hostname_verified": false,
-        "browser_bundle_dependency_closed": true,
-        "public_origin_repair_run": 37456639074
-      },
-      "next_requirement": "in the real human browser session, confirm the Turnstile widget renders, complete it, and require successful server-side hostname/action verification on a synthetic support case"
+        "recovery_code_in_evidence": false
+      }
     },
     {
       "gate": "HUMAN_SUPPORT_OWNER",
@@ -119,14 +112,19 @@
     },
     {
       "gate": "ACCESSIBILITY_REALITY",
-      "status": "PARTIAL",
+      "status": "PASS",
       "evidence": {
-        "file": "EVIDENCE/axiom-official-support-accessibility-partial-20261006.json",
+        "file": "EVIDENCE/axiom-official-support-accessibility-live-20261006.json",
         "automated_status": "PASS",
         "real_browser_rendering": true,
-        "real_physical_device_user_tested": false
-      },
-      "next_requirement": "real-device/human accessibility verification"
+        "real_physical_device_user_tested": true,
+        "text_readable_when_enlarged_or_zoomed": true,
+        "portrait_and_landscape_usable": true,
+        "controls_understandable_and_usable": true,
+        "navigation_or_focus_trap_encountered": false,
+        "end_to_end_case_creation_completed": true,
+        "screen_reader_claimed": false
+      }
     },
     {
       "gate": "SECURITY_REVIEW",
@@ -172,5 +170,6 @@
     "openai_surface_must_remain_unchanged": true
   },
   "secret_values_exposed": false,
-  "public_support_deployed": true
+  "public_support_deployed": true,
+  "final_owner_boundary": "All eleven readiness gates are PASS. Public operational claim and canonical production deployment dispatch remain deliberately unauthorized pending explicit owner approval."
 }
