@@ -4,11 +4,11 @@
   "branch": "support/axiom-official-support-20261005",
   "target": "production",
   "support_domain": "support.mftintelligence.com",
-  "expected_parent": "fa9e3448a022ae6141936a5a8100240f2af817a7",
+  "expected_parent": "ffeb0e9d0a28af12f0f26a7d5d49edc10d0ae6fb",
   "approved_readiness_sha256": "06845ff4dd9b41ab64d9fc85b613ca905982f6424e3beee1a02342daf6e240c5",
   "public_operational_claim_authorized": true,
   "deployment_dispatch_authorized": true,
   "authorization_scope": "public operational claim and canonical production deployment dispatch for MUSITU Axiom Official Support",
   "recovery_code_recorded": false,
-  "retry_reason": "canonical resolver shell wrapper corrected after fail-closed pre-deployment stop"
+  "retry_reason": "canonical read-only D1 verifier module execution corrected after fail-closed pre-deployment stop"
 }
