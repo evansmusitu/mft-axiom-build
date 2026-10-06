@@ -253,7 +253,6 @@ export async function migrateEmailRouting({env = process.env, fetchImpl = fetch,
         headers: credential.headers,
         path: `/zones/${SUPPORT_ZONE_ID}/email/routing/dns`,
         method: 'POST',
-        body: {name: SUPPORT_ZONE_NAME},
       });
       cutoverPerformed = true;
     }

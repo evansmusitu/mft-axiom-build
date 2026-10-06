@@ -126,6 +126,7 @@ test('migration accepts the live MX-only Cloudflare required DNS shape and creat
   const createRule = mock.calls.findIndex(c => c.method === 'POST' && c.path.endsWith('/email/routing/rules'));
   const enableDns = mock.calls.findIndex(c => c.method === 'POST' && c.path.endsWith('/email/routing/dns'));
   assert.ok(createRule >= 0 && enableDns > createRule, 'support route must be created before root MX cutover when API permits');
+  assert.equal(mock.calls[enableDns].body, undefined, 'root-domain Email Routing enable must omit the subdomain name payload');
   assert.deepEqual(mock.state().root.map(r => r.content).sort(), required.map(r => r.content).sort());
 });
 
