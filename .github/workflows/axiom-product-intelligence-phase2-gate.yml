@@ -7,6 +7,7 @@ on:
     paths:
       - 'axiom_interface/vnext/product_intelligence/**'
       - 'axiom_interface/vnext/deep_context_adapters.js'
+      - 'axiom_interface/vnext/execution_store.js'
       - 'axiom_interface/vnext/tests/product_intelligence_pgvector_vector_index_*.test.mjs'
       - 'axiom_interface/vnext/tests/product_intelligence_signing_provenance_*.test.mjs'
       - 'axiom_interface/vnext/tests/product_intelligence_tree_sitter_code_intelligence.test.mjs'
@@ -131,6 +132,7 @@ jobs:
               Path('axiom_interface/vnext/product_intelligence/compiler_checkpoint.js'),
               Path('axiom_interface/vnext/product_intelligence/change_admission.js'),
               Path('axiom_interface/vnext/product_intelligence/execution_outcome_reconciliation.js'),
+              Path('axiom_interface/vnext/execution_store.js'),
           ]
           required = {
               'pgvector_vector_index_backend.js': ['0.8.6', 'MECHANISM_ONLY'],
@@ -146,6 +148,7 @@ jobs:
               'compiler_checkpoint.js': ['PRODUCT_COMPILER_CHECKPOINT_SCHEMA', 'PREPARE_ONLY', 'GOVERNED_WRITE_AUTHORIZATION', 'external_execution_authority:false', 'production_authority:false', "independent_verification:'NOT_PROVEN'"],
               'change_admission.js': ['CHANGE_RISK_MODEL', 'MECHANISM_ONLY', 'builder_may_approve:false', 'external_execution_authority:false', 'production_authority:false', "authority_effect:'ADMISSION_ONLY'"],
               'execution_outcome_reconciliation.js': ['EXECUTION_OUTCOME_VERIFICATION_SCHEMA', 'FA11_BROWSER_LOCAL_EXECUTION_RECEIPT', "authority_effect:'NONE'", 'release_authority:false', 'production_authority:false', 'certification_authority:false'],
+              'execution_store.js': ["status:'FAILED'", 'execution.failed', 'normalizeActionRequest(envelopeRaw,raw)', 'evaluateAuthorization(envelopeRaw,request)', 'QUALIFIED_EXTERNAL_EXECUTOR_REQUIRED', 'network_request_performed:false', 'plaintext_secret_access:false'],
           }
           for path in files:
               text = path.read_text(encoding='utf-8')
