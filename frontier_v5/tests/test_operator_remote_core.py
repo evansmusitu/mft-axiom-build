@@ -43,7 +43,7 @@ def main():
     assert read["status"]==200
     assert read["mutated"] is False
     assert read["state_pack"] is None
-    assert read["body"]["project_id"]=="p1"
+    assert read["body"]["result"]["project_id"]=="p1"
 
     h,m=mcp_call("axiom.work.create",{
         "project_id":"p1",
@@ -73,10 +73,10 @@ def main():
     bad=execute_remote_mcp(
         state_pack=state2,tenant=tenant,actor_id=actor,headers=h,message=m
     )
-    assert bad["status"]==200
+    assert bad["status"]==400
     assert bad["mutated"] is False
     assert bad["state_pack"] is None
-    assert bad["body"]["result"]["isError"] is True
+    assert bad["body"]["error"]=="MCP_REQUEST_REJECTED"
 
     print("MUSITU_AXIOM_OPERATOR_REMOTE_CORE_PASS")
 
