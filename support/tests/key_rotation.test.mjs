@@ -66,6 +66,9 @@ test('key rotation fails closed before write when support data exists', async()=
     if(u.pathname.endsWith('/workers/domains')) return response(200,{success:true,result:[]});
     if(u.pathname.endsWith('/workers/scripts/musitu-axiom-support/subdomain')) return response(200,{success:true,result:{enabled:false,previews_enabled:false}});
     if(u.pathname.includes('/dns_records')) return response(200,{success:true,result:[]});
+    if(u.pathname.endsWith('/workers/scripts/musitu-axiom-support/secrets')&&method==='GET') {
+      return response(200,{success:true,result:[{name:'SUPPORT_DATA_KEY_B64',type:'secret_text'},{name:'TURNSTILE_SECRET_KEY',type:'secret_text'}]});
+    }
     if(u.pathname.endsWith('/query')){
       const sql=String(body.sql||'');
       const count=sql.includes('support_cases')?1:0;
