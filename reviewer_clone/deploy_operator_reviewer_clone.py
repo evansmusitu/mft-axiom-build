@@ -41,6 +41,16 @@ CFH = {
     "Accept": "application/json",
     "User-Agent": "MUSITU-Axiom-Operator-Reviewer-Clone/1.0",
 }
+_zone_email = os.environ.get("CLOUDFLARE_EMAIL", "").strip()
+_zone_key = os.environ.get("CLOUDFLARE_GLOBAL_API_KEY", "").strip()
+if not _zone_email or not _zone_key:
+    raise RuntimeError("Cloudflare legacy zone credentials are required for exact-host ruleset configuration")
+ZONE_CFH = {
+    "X-Auth-Email": _zone_email,
+    "X-Auth-Key": _zone_key,
+    "Accept": "application/json",
+    "User-Agent": "MUSITU-Axiom-Operator-Reviewer-Zone/1.0",
+}
 
 
 def raw(url, method="GET", headers=None, body=None, timeout=45, follow=True):
@@ -77,6 +87,21 @@ def cf(path, method="GET", obj=None):
     out = json.loads(payload or b"{}")
     if isinstance(out, dict) and out.get("success") is False:
         raise RuntimeError(f"Cloudflare success=false {path}: {str(out.get('errors'))[:500]}")
+    return out.get("result") if isinstance(out, dict) else None
+
+
+def zone_cf(path, method="GET", obj=None):
+    headers = dict(ZONE_CFH)
+    body = None
+    if obj is not None:
+        headers["Content-Type"] = "application/json"
+        body = json.dumps(obj, separators=(",", ":")).encode()
+    code, _, payload = raw(CF_API + path, method, headers, body)
+    if not 200 <= code < 300:
+        raise RuntimeError(f"Cloudflare zone HTTP {code}: {method} {path} {payload[:500]!r}")
+    out = json.loads(payload or b"{}")
+    if isinstance(out, dict) and out.get("success") is False:
+        raise RuntimeError(f"Cloudflare zone success=false {path}: {str(out.get('errors'))[:500]}")
     return out.get("result") if isinstance(out, dict) else None
 
 
@@ -276,7 +301,7 @@ def get_modal_runtime():
 
 
 def configure_custom_domain_and_transport(host, worker, rule_ref):
-    zones = cf("/zones?name=" + urllib.parse.quote(ZONE_NAME) + "&status=active") or []
+    zones = zone_cf("/zones?name=" + urllib.parse.quote(ZONE_NAME) + "&status=active") or []
     if (
         len(zones) != 1
         or zones[0].get("id") != ZONE_ID
@@ -292,19 +317,19 @@ def configure_custom_domain_and_transport(host, worker, rule_ref):
         raise RuntimeError("reviewer hostname belongs to another Worker")
 
     if not existing:
-        dns = cf(
+        dns = zone_cf(
             f"/zones/{ZONE_ID}/dns_records?name="
             + urllib.parse.quote(host)
             + "&per_page=100"
         ) or []
         if dns:
             raise RuntimeError("reviewer hostname already has DNS records")
-        routes = cf(f"/zones/{ZONE_ID}/workers/routes") or []
+        routes = zone_cf(f"/zones/{ZONE_ID}/workers/routes") or []
         if any(host in str(row.get("pattern") or "") for row in routes if isinstance(row, dict)):
             raise RuntimeError("reviewer hostname already appears in Worker routes")
 
     # Exact-host machine transport exception only; production host rules are untouched.
-    rulesets = cf(f"/zones/{ZONE_ID}/rulesets") or []
+    rulesets = zone_cf(f"/zones/{ZONE_ID}/rulesets") or []
     candidates = [
         row for row in rulesets
         if row.get("phase") == "http_config_settings" and row.get("kind") == "zone"
@@ -312,7 +337,7 @@ def configure_custom_domain_and_transport(host, worker, rule_ref):
     if len(candidates) != 1:
         raise RuntimeError("zone configuration ruleset not unique")
     ruleset_id = candidates[0]["id"]
-    detail = cf(f"/zones/{ZONE_ID}/rulesets/{ruleset_id}") or {}
+    detail = zone_cf(f"/zones/{ZONE_ID}/rulesets/{ruleset_id}") or {}
     rules = detail.get("rules") or []
     expression = 'http.host eq "' + host + '"'
     by_ref = [row for row in rules if row.get("ref") == rule_ref]
