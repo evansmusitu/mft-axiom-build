@@ -6,6 +6,7 @@ export const PRODUCT_COMPILER_ROLLBACK_SCHEMA='musitu.axiom.product-compiler-rol
 const HASH=/^[a-f0-9]{64}$/i;
 const RISK_CLASSES=new Set(['S0','S1','S2','S3','S4','S5']);
 const CHECKPOINT_INPUT_KEYS=new Set(['projectId','workId','priorIR','nextIR','diff','actorId','riskClass','evidenceRefs','at','authorization']);
+const ROLLBACK_INPUT_KEYS=new Set(['currentIR','actorId','at']);
 const CHECKPOINT_ENVELOPE_KEYS=new Set(['schema','checkpoint_id','project_id','work_id','created_at','actor_id','risk_class','compiler_version','prior_ir_sha256','next_ir_sha256','diff_sha256','diff_status','impact_state','impact_node_ids','authority_effect','rollback_mode','external_execution_authority','production_authority','builder_attested','independent_verification','evidence_refs','prior_ir_snapshot','checkpoint_sha256','evidence_object','artifact','artifact_verification','artifact_package']);
 const isPlainObject=value=>Boolean(value)&&typeof value==='object'&&!Array.isArray(value)&&(Object.getPrototypeOf(value)===Object.prototype||Object.getPrototypeOf(value)===null);
 const clean=(value,max=1000)=>String(value??'').replace(/[\u0000-\u001f\u007f]/g,' ').trim().slice(0,max);
@@ -216,7 +217,13 @@ export async function verifyCompilerCheckpoint(checkpoint){
   }catch{return false;}
 }
 
-export async function prepareCompilerRollback(checkpoint,{currentIR,actorId,at=new Date().toISOString()}={}){
+export async function prepareCompilerRollback(checkpoint,options={}){
+  if(!isPlainObject(options)) throw new TypeError('rollback request must be a plain object');
+  const extra=Object.keys(options).filter(key=>!ROLLBACK_INPUT_KEYS.has(key));
+  if(extra.length) throw new DOMException('rollback request contains unsupported fields: '+extra.join(','),'SecurityError');
+  if(typeof options.actorId!=='string') throw new TypeError('actorId must be a string');
+  if(options.at!==undefined&&typeof options.at!=='string') throw new TypeError('at must be an ISO instant string');
+  const {currentIR,actorId,at=new Date().toISOString()}=options;
   if(!(await verifyCompilerCheckpoint(checkpoint))) throw new DOMException('checkpoint integrity failure','DataError');
   await assertProductIRIntegrity(currentIR,'currentIR');
   if(currentIR.project_id!==checkpoint.project_id) throw new DOMException('cross-project compiler rollback blocked','SecurityError');
