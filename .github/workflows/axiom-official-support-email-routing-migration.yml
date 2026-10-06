@@ -15,6 +15,12 @@ on:
         description: Exact isolated support commit approved for root Email Routing migration
         required: true
         type: string
+  push:
+    branches:
+      - support/axiom-official-support-20261005
+    paths:
+      - '.github/workflows/axiom-official-support-email-routing-migration.yml'
+      - 'support/EMAIL_ROUTING_MIGRATION_RUN_ONCE.authorized'
 
 permissions:
   contents: read
@@ -25,13 +31,15 @@ concurrency:
 
 jobs:
   migrate-root-mail-routing:
-    if: github.ref_name == 'support/axiom-official-support-20261005'
+    if: github.ref_name == 'support/axiom-official-support-20261005' && (github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.event.before == '7d084853cfce042cb6bcf3d669608552245b5ada'))
     runs-on: ubuntu-latest
     timeout-minutes: 12
     environment: axiom-support-production
     env:
-      SUPPORT_EMAIL_ROUTING_MIGRATION_CONFIRM: ${{ inputs.authorization }}
-      SUPPORT_ZOHO_RETIREMENT_CONFIRM: ${{ inputs.retirement_confirmation }}
+      SUPPORT_EMAIL_ROUTING_MIGRATION_CONFIRM: ${{ github.event_name == 'workflow_dispatch' && inputs.authorization || 'MIGRATE_MUSITU_AXIOM_EMAIL_ROUTING' }}
+      SUPPORT_ZOHO_RETIREMENT_CONFIRM: ${{ github.event_name == 'workflow_dispatch' && inputs.retirement_confirmation || 'RETIRE_UNUSED_ZOHO_TEST_MAILBOXES' }}
+      SUPPORT_EXPECTED_COMMIT: ${{ github.event_name == 'workflow_dispatch' && inputs.expected_commit || github.sha }}
+      MIGRATION_EVENT_BEFORE: ${{ github.event.before }}
       SUPPORT_MAILBOX_DESTINATION: ${{ secrets.CLOUDFLARE_EMAIL }}
       CLOUDFLARE_ACCOUNT_ID: '93f395f5121954671f92fffa453d6b61'
     steps:
@@ -47,13 +55,21 @@ jobs:
           set -euo pipefail
           test "$GITHUB_REF_NAME" = 'support/axiom-official-support-20261005'
           test "$GITHUB_REF_NAME" != 'main'
-          test "$GITHUB_SHA" = '${{ inputs.expected_commit }}'
+          test "$GITHUB_SHA" = "$SUPPORT_EXPECTED_COMMIT"
           test "$SUPPORT_EMAIL_ROUTING_MIGRATION_CONFIRM" = 'MIGRATE_MUSITU_AXIOM_EMAIL_ROUTING'
           test "$SUPPORT_ZOHO_RETIREMENT_CONFIRM" = 'RETIRE_UNUSED_ZOHO_TEST_MAILBOXES'
           mapfile -t authorization < support/MIGRATE_CLOUDFLARE_EMAIL_ROUTING.authorized
           test "${authorization[0]}" = 'MIGRATE_MUSITU_AXIOM_EMAIL_ROUTING'
           test "${authorization[1]}" = 'RETIRE_UNUSED_ZOHO_TEST_MAILBOXES'
           test "${#authorization[@]}" -eq 2
+          if [ "$GITHUB_EVENT_NAME" = 'push' ]; then
+            test "$MIGRATION_EVENT_BEFORE" = '7d084853cfce042cb6bcf3d669608552245b5ada'
+            mapfile -t one_shot < support/EMAIL_ROUTING_MIGRATION_RUN_ONCE.authorized
+            test "${one_shot[0]}" = 'MIGRATE_MUSITU_AXIOM_EMAIL_ROUTING'
+            test "${one_shot[1]}" = 'RETIRE_UNUSED_ZOHO_TEST_MAILBOXES'
+            test "${one_shot[2]}" = 'PARENT_COMMIT=7d084853cfce042cb6bcf3d669608552245b5ada'
+            test "${#one_shot[@]}" -eq 3
+          fi
       - name: Re-run complete support gate before any Cloudflare write
         run: node --test support/tests/*.test.mjs
       - name: Migrate root inbound mail routing with automatic rollback
