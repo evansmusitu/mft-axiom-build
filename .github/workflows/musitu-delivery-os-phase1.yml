@@ -4,7 +4,7 @@ on:
   push:
     branches:
       - product/musitu-delivery-os-phase1-20261006
-  workflow_dispatch: {}
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -14,12 +14,12 @@ jobs:
     name: Pinned OwnFleet foundation
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
         with:
           submodules: recursive
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
-          node-version: "22"
+          node-version: '22'
           cache: npm
           cache-dependency-path: delivery-os/vendor/ownfleet/package-lock.json
       - name: Verify upstream pin
@@ -47,17 +47,19 @@ jobs:
     name: MUSITU overlay core
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
         with:
           submodules: recursive
-      - name: Expand Phase-1 source
-        run: tar -xzf delivery-os/phase1-src.tar.gz -C .
-      - uses: actions/setup-node@v4
+      - name: Reconstruct exact Phase-1 source
+        run: |
+          cd delivery-os
+          cat source-parts/part-* | base64 -d > phase1-src.tar.gz
+          sha256sum -c PHASE1_SOURCE_SHA256.txt
+          cd ..
+          tar -xzf delivery-os/phase1-src.tar.gz -C .
+      - uses: actions/setup-node@v6
         with:
-          node-version: "22"
-      - name: Verify source checksum
-        working-directory: delivery-os
-        run: sha256sum -c PHASE1_SOURCE_SHA256.txt
+          node-version: '22'
       - name: Verify pinned OwnFleet foundation
         run: test "$(git -C delivery-os/vendor/ownfleet rev-parse HEAD)" = "98744125c827b6e5bbe2af384c3ef9308c445ec8"
       - name: Core tests and structure gate
@@ -68,15 +70,20 @@ jobs:
     name: Flutter Android release
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
         with:
           submodules: recursive
-      - name: Expand Phase-1 source
-        run: tar -xzf delivery-os/phase1-src.tar.gz -C .
-      - uses: actions/setup-java@v4
+      - name: Reconstruct exact Phase-1 source
+        run: |
+          cd delivery-os
+          cat source-parts/part-* | base64 -d > phase1-src.tar.gz
+          sha256sum -c PHASE1_SOURCE_SHA256.txt
+          cd ..
+          tar -xzf delivery-os/phase1-src.tar.gz -C .
+      - uses: actions/setup-java@v5
         with:
           distribution: temurin
-          java-version: "21"
+          java-version: '21'
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
@@ -98,7 +105,7 @@ jobs:
       - name: Build release APK
         working-directory: delivery-os/driver_flutter
         run: flutter build apk --release --dart-define=MUSITU_API_URL=https://delivery-api.invalid
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         with:
           name: musitu-driver-phase1-apk
           path: delivery-os/driver_flutter/build/app/outputs/flutter-apk/app-release.apk
