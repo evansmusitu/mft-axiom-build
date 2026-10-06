@@ -1,7 +1,9 @@
 import {verifyCompilerCheckpoint} from './compiler_checkpoint.js';
+import {evaluateAuthorization,normalizeActionRequest,normalizeAuthorityEnvelope} from '../authorization_gateway.js';
 
 export const CHANGE_ADMISSION_REQUEST_SCHEMA='musitu.axiom.product-change-admission-request.v1';
 export const CHANGE_ADMISSION_RESULT_SCHEMA='musitu.axiom.product-change-admission-result.v1';
+export const OPERATION_SCOPED_EXECUTOR_HANDOFF_SCHEMA='musitu.axiom.product-operation-scoped-executor-handoff.v1';
 
 export const CHANGE_RISK_MODEL=Object.freeze({
   S0:Object.freeze({action:'READ_COMPUTE',required_verifications:Object.freeze([]),human_approval_required:false}),
@@ -17,6 +19,10 @@ const REQUEST_KEYS=new Set(['schema','project_id','work_id','checkpoint_id','che
 const POLICY_DECISION_KEYS=new Set(['decision','request_sha256','policy_sha256','reasons']);
 const VERIFICATION_EVIDENCE_KEYS=new Set(['kind','status','actor_id','artifact_sha256']);
 const HUMAN_APPROVAL_KEYS=new Set(['decision','request_sha256','actor_id','receipt_id','at']);
+const ADMISSION_RESULT_KEYS=new Set(['schema','project_id','work_id','request_sha256','checkpoint_sha256','risk_class','requested_action','policy_decision','policy_sha256','policy_reasons','verification_artifacts','missing_verifications','independent_verification','human_approval','status','admitted_to_executor','authority_effect','external_execution_authority','production_authority','required_next_gate','created_at','human_approval_receipt','evaluation_sha256']);
+const EXECUTION_REQUEST_KEYS=new Set(['schema','project_id','actor_id','agent_id','workload_identity_id','operation','computed_risk_class','risk_class','effect','reversible','external','required_tool_scope','target','payload','destination','compute_units','instruction_provenance','requested_at','authority_sha256','execution_mode','request_sha256']);
+const EXECUTOR_OPERATION_INPUT_KEYS=new Set(['operation','target','payload','destination','compute_units','requested_at']);
+const EXECUTOR_HANDOFF_KEYS=new Set(['schema','scope','project_id','work_id','checkpoint_sha256','change_admission_request_sha256','change_admission_evaluation_sha256','authority_sha256','actor_id','agent_id','workload_identity_id','risk_class','operation','execution_request','authority_effect','execution_authority','external_execution_authority','release_authority','production_authority','certification_authority','created_at','handoff_sha256']);
 const isPlainObject=value=>Boolean(value)&&typeof value==='object'&&!Array.isArray(value)&&(Object.getPrototypeOf(value)===Object.prototype||Object.getPrototypeOf(value)===null);
 const clean=(value,max=1000)=>String(value??'').replace(/[\u0000-\u001f\u007f]/g,' ').trim().slice(0,max);
 function rejectUnknownKeys(value,allowed,label){const extra=Object.keys(value).filter(key=>!allowed.has(key));if(extra.length)throw new DOMException(label+' contains unsupported fields: '+extra.join(','),'SecurityError');}
@@ -174,4 +180,89 @@ export async function evaluateChangeAdmission({request,policyDecision,verificati
     human_approval_receipt:approval.receipt,
   };
   return Object.freeze({...body,evaluation_sha256:await sha256(body)});
+}
+
+
+async function assertAdmittedResultIntegrity(request,result){
+  if(!isPlainObject(result)||result.schema!==CHANGE_ADMISSION_RESULT_SCHEMA) throw new TypeError('change admission result required');
+  rejectUnknownKeys(result,ADMISSION_RESULT_KEYS,'change admission result');
+  if(typeof result.evaluation_sha256!=='string'||!HASH.test(result.evaluation_sha256)) throw new TypeError('change admission evaluation sha256 required');
+  const body=Object.fromEntries(Object.entries(result).filter(([key])=>key!=='evaluation_sha256'));
+  if((await sha256(body))!==result.evaluation_sha256) throw new DOMException('change admission result integrity failure','DataError');
+  if(result.project_id!==request.project_id||result.work_id!==request.work_id||result.request_sha256!==request.request_sha256||result.checkpoint_sha256!==request.checkpoint_sha256) throw new DOMException('change admission result binding mismatch','SecurityError');
+  if(result.risk_class!==request.risk_class||result.requested_action!==request.requested_action) throw new DOMException('change admission risk binding mismatch','SecurityError');
+  if(result.status!=='ADMITTED_TO_EXECUTOR'||result.admitted_to_executor!==true||result.required_next_gate!=='OPERATION_SCOPED_EXECUTOR') throw new DOMException('change is not admitted to operation-scoped executor','NotAllowedError');
+  if(result.authority_effect!=='ADMISSION_ONLY'||result.external_execution_authority!==false||result.production_authority!==false) throw new DOMException('change admission result authority boundary invalid','SecurityError');
+  return result;
+}
+function executionRequestHashBody(request){
+  return Object.fromEntries(Object.entries(request).filter(([key])=>key!=='request_sha256'));
+}
+async function assertExecutionRequestIntegrity(request){
+  if(!isPlainObject(request)) throw new TypeError('FA-11 execution request required');
+  rejectUnknownKeys(request,EXECUTION_REQUEST_KEYS,'FA-11 execution request');
+  if(typeof request.request_sha256!=='string'||!HASH.test(request.request_sha256)) throw new TypeError('FA-11 execution request sha256 required');
+  if((await sha256(executionRequestHashBody(request)))!==request.request_sha256) throw new DOMException('FA-11 execution request integrity failure','DataError');
+  return request;
+}
+function executorHandoffHashBody(handoff){
+  return Object.fromEntries(Object.entries(handoff).filter(([key])=>key!=='handoff_sha256'));
+}
+async function assertExecutorHandoffIntegrity(handoff){
+  if(!isPlainObject(handoff)||handoff.schema!==OPERATION_SCOPED_EXECUTOR_HANDOFF_SCHEMA) throw new TypeError('operation-scoped executor handoff required');
+  rejectUnknownKeys(handoff,EXECUTOR_HANDOFF_KEYS,'operation-scoped executor handoff');
+  if(typeof handoff.handoff_sha256!=='string'||!HASH.test(handoff.handoff_sha256)) throw new TypeError('executor handoff sha256 required');
+  if((await sha256(executorHandoffHashBody(handoff)))!==handoff.handoff_sha256) throw new DOMException('operation-scoped executor handoff integrity failure','DataError');
+  if(handoff.scope!=='SINGLE_OPERATION'||handoff.authority_effect!=='NONE'||handoff.execution_authority!==false||handoff.external_execution_authority!==false||handoff.release_authority!==false||handoff.production_authority!==false||handoff.certification_authority!==false) throw new DOMException('executor handoff authority boundary invalid','SecurityError');
+  await assertExecutionRequestIntegrity(handoff.execution_request);
+  if(handoff.execution_request.project_id!==handoff.project_id||handoff.execution_request.authority_sha256!==handoff.authority_sha256||handoff.execution_request.agent_id!==handoff.agent_id||handoff.execution_request.workload_identity_id!==handoff.workload_identity_id||handoff.execution_request.operation!==handoff.operation||handoff.execution_request.risk_class!==handoff.risk_class) throw new DOMException('executor handoff execution-request binding mismatch','SecurityError');
+  return handoff;
+}
+
+export async function createOperationScopedExecutorHandoff({request,admissionResult,authorityEnvelope,operationRequest={},at=new Date().toISOString()}={}){
+  await assertRequestIntegrity(request);
+  await assertAdmittedResultIntegrity(request,admissionResult);
+  if(!isPlainObject(operationRequest)) throw new TypeError('operationRequest must be a plain object');
+  rejectUnknownKeys(operationRequest,EXECUTOR_OPERATION_INPUT_KEYS,'operationRequest');
+  const authority=normalizeAuthorityEnvelope(authorityEnvelope);
+  if(authority.project_id!==request.project_id) throw new DOMException('cross-project executor handoff blocked','SecurityError');
+  const execution_request=await normalizeActionRequest(authority,{
+    ...operationRequest,
+    risk_class:request.risk_class,
+    instruction_provenance:'GOVERNED_PLAN',
+    requested_at:operationRequest.requested_at??iso(at,'operationRequest.requested_at'),
+  });
+  if(execution_request.computed_risk_class!==request.risk_class||execution_request.risk_class!==request.risk_class) throw new DOMException('concrete operation risk must exactly match admitted risk class','SecurityError');
+  const body={
+    schema:OPERATION_SCOPED_EXECUTOR_HANDOFF_SCHEMA,
+    scope:'SINGLE_OPERATION',
+    project_id:request.project_id,
+    work_id:request.work_id,
+    checkpoint_sha256:request.checkpoint_sha256,
+    change_admission_request_sha256:request.request_sha256,
+    change_admission_evaluation_sha256:admissionResult.evaluation_sha256,
+    authority_sha256:execution_request.authority_sha256,
+    actor_id:authority.actor_id,
+    agent_id:authority.agent_id,
+    workload_identity_id:authority.workload_identity_id,
+    risk_class:request.risk_class,
+    operation:execution_request.operation,
+    execution_request,
+    authority_effect:'NONE',
+    execution_authority:false,
+    external_execution_authority:false,
+    release_authority:false,
+    production_authority:false,
+    certification_authority:false,
+    created_at:iso(at),
+  };
+  return Object.freeze({...body,handoff_sha256:await sha256(body)});
+}
+
+export async function evaluateOperationScopedExecutorHandoff({handoff,authorityEnvelope}={}){
+  await assertExecutorHandoffIntegrity(handoff);
+  const authority=normalizeAuthorityEnvelope(authorityEnvelope);
+  if((await sha256(authority))!==handoff.authority_sha256) throw new DOMException('executor handoff authority envelope changed','SecurityError');
+  if(authority.project_id!==handoff.project_id||authority.actor_id!==handoff.actor_id||authority.agent_id!==handoff.agent_id||authority.workload_identity_id!==handoff.workload_identity_id) throw new DOMException('executor handoff workload identity binding mismatch','SecurityError');
+  return evaluateAuthorization(authority,handoff.execution_request);
 }
