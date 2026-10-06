@@ -8,6 +8,7 @@ on:
       - 'frontier_v5/runtime/external_execution_receipts.py'
       - 'frontier_v5/evals/EXTERNAL_LEVEL56_PROTOCOL_V2.json'
       - 'frontier_v5/evals/EXTERNAL_LEVEL56_CASESET_COMMITMENT_20261006.json'
+      - 'frontier_v5/evals/external_level56_receipts/20261006/**'
       - 'frontier_v5/scripts/run_external_level56_readiness.py'
       - 'frontier_v5/tests/test_external_execution_receipts.py'
       - 'frontier_v5/tests/test_external_level56_protocol.py'
@@ -45,6 +46,10 @@ jobs:
             'frontier_v5/runtime/external_execution_receipts.py',
             'frontier_v5/evals/EXTERNAL_LEVEL56_PROTOCOL_V2.json',
             'frontier_v5/evals/EXTERNAL_LEVEL56_CASESET_COMMITMENT_20261006.json',
+            'frontier_v5/evals/external_level56_receipts/20261006/openai-codex.json',
+            'frontier_v5/evals/external_level56_receipts/20261006/anthropic-claude-code.json',
+            'frontier_v5/evals/external_level56_receipts/20261006/google-antigravity.json',
+            'frontier_v5/evals/external_level56_receipts/20261006/cognition-devin-desktop.json',
             'frontier_v5/scripts/run_external_level56_readiness.py',
             'frontier_v5/tests/test_external_execution_receipts.py',
             'frontier_v5/tests/test_external_level56_protocol.py',
@@ -72,18 +77,21 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          PYTHONPATH=. python frontier_v5/scripts/run_external_level56_readiness.py --output /tmp/level56-readiness.json | tee /tmp/level56-readiness.log
+          PYTHONPATH=. python frontier_v5/scripts/run_external_level56_readiness.py --receipts frontier_v5/evals/external_level56_receipts/20261006 --output /tmp/level56-readiness.json | tee /tmp/level56-readiness.log
           test "$(jq -r .protocol_requires_paid_api_key /tmp/level56-readiness.json)" = false
           test "$(jq -r .case_set_sha256 /tmp/level56-readiness.json)" = 6eea99e9e943498bbbb0e16e0be8447bff5cd206252d6d3fce79020e1e94bbf6
           test "$(jq -r .constraints_sha256 /tmp/level56-readiness.json)" = 2161fef373d371dcc0fefa9fc81df906a2eeddff2cc1429b33439c080e0a6c22
           test "$(jq -r .current_level5_status /tmp/level56-readiness.json)" = NOT_VERIFIED
+          test "$(jq -r .completed_external_reference_count /tmp/level56-readiness.json)" = 0
+          test "$(jq -r '.access_blocked_systems | length' /tmp/level56-readiness.json)" = 4
+          test "$(jq -r '.missing_systems | length' /tmp/level56-readiness.json)" = 0
           test "$(jq -r .current_level6_status /tmp/level56-readiness.json)" = NOT_VERIFIED
           test "$(jq -r .gate /tmp/level56-readiness.json)" = MUSITU_AXIOM_LEVEL56_IN_PROGRESS
-          if PYTHONPATH=. python frontier_v5/scripts/run_external_level56_readiness.py --require-level5 >/tmp/require-level5.log 2>&1; then
+          if PYTHONPATH=. python frontier_v5/scripts/run_external_level56_readiness.py --receipts frontier_v5/evals/external_level56_receipts/20261006 --require-level5 >/tmp/require-level5.log 2>&1; then
             echo 'Level 5 unexpectedly promoted without authenticated external evidence' >&2
             exit 1
           fi
-          if PYTHONPATH=. python frontier_v5/scripts/run_external_level56_readiness.py --require-level6 >/tmp/require-level6.log 2>&1; then
+          if PYTHONPATH=. python frontier_v5/scripts/run_external_level56_readiness.py --receipts frontier_v5/evals/external_level56_receipts/20261006 --require-level6 >/tmp/require-level6.log 2>&1; then
             echo 'Level 6 unexpectedly promoted without independent replay evidence' >&2
             exit 1
           fi
