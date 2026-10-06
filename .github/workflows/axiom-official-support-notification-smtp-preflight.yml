@@ -1,0 +1,61 @@
+name: MUSITU Axiom Support Notification SMTP Preflight
+
+on:
+  push:
+    branches:
+      - 'support/axiom-official-support-20261005'
+    paths:
+      - '.github/workflows/axiom-official-support-notification-smtp-preflight.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    environment: axiom-support-production
+    timeout-minutes: 5
+    env:
+      CF_TOKEN_RULESETS: ${{ secrets.CLOUDFLARE_RULESETS_API_TOKEN }}
+      CF_TOKEN_ACCESS: ${{ secrets.CLOUDFLARE_ACCESS_API_TOKEN }}
+      CF_TOKEN_DEFAULT: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+    steps:
+      - name: Authenticate SMTP and verify sender authorization without sending
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json, os, smtplib, ssl
+          candidates=[
+              ('CLOUDFLARE_RULESETS_API_TOKEN', os.environ.get('CF_TOKEN_RULESETS','')),
+              ('CLOUDFLARE_ACCESS_API_TOKEN', os.environ.get('CF_TOKEN_ACCESS','')),
+              ('CLOUDFLARE_API_TOKEN', os.environ.get('CF_TOKEN_DEFAULT','')),
+          ]
+          results=[]
+          for name,token in candidates:
+              if not token:
+                  results.append({'secret_name':name,'present':False})
+                  continue
+              row={'secret_name':name,'present':True,'auth_ok':False,'mail_from_code':None,'sender_authorized':False}
+              try:
+                  with smtplib.SMTP_SSL('smtp.mx.cloudflare.net',465,timeout=20,context=ssl.create_default_context()) as s:
+                      s.login('api_token',token)
+                      row['auth_ok']=True
+                      code,_=s.mail('support@mftintelligence.com')
+                      row['mail_from_code']=int(code)
+                      row['sender_authorized']=200 <= code < 300
+                      try: s.rset()
+                      except Exception: pass
+              except smtplib.SMTPResponseException as e:
+                  row['smtp_error_code']=int(e.smtp_code)
+              except Exception as e:
+                  row['error_class']=type(e).__name__
+              results.append(row)
+          print(json.dumps({
+              'gate':'MUSITU_AXIOM_SUPPORT_NOTIFICATION_SMTP_PREFLIGHT',
+              'results':results,
+              'message_sent':False,
+              'recipient_supplied':False,
+              'secret_exposed':False
+          },sort_keys=True))
+          PY
