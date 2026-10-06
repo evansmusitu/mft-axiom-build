@@ -10,6 +10,7 @@ on:
       - 'frontier_v5/runtime/operator_http.py'
       - 'frontier_v5/runtime/operator_state.py'
       - 'frontier_v5/runtime/operator_remote_core.py'
+      - 'frontier_v5/runtime/operator_daemon.py'
       - 'api/operator_core.py'
       - 'api/health.mjs'
       - 'api/mcp.mjs'
@@ -54,6 +55,7 @@ jobs:
             'frontier_v5/runtime/operator_http.py',
             'frontier_v5/runtime/operator_state.py',
             'frontier_v5/runtime/operator_remote_core.py',
+            'frontier_v5/runtime/operator_daemon.py',
             'api/operator_core.py',
             'api/health.mjs',
             'api/mcp.mjs',
@@ -85,7 +87,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          python -m py_compile api/operator_core.py frontier_v5/runtime/operator_remote_core.py frontier_v5/runtime/operator_state.py
+          python -m py_compile api/operator_core.py frontier_v5/runtime/operator_remote_core.py frontier_v5/runtime/operator_state.py frontier_v5/runtime/operator_daemon.py
           node --check api/mcp.mjs
           node --check api/health.mjs
           python - <<'PY'
@@ -114,6 +116,7 @@ jobs:
             Path('frontier_v5/runtime/operator_http.py'),
             Path('frontier_v5/runtime/operator_state.py'),
             Path('frontier_v5/runtime/operator_remote_core.py'),
+            Path('frontier_v5/runtime/operator_daemon.py'),
             Path('api/operator_core.py'),
             Path('api/health.mjs'),
             Path('api/mcp.mjs'),
