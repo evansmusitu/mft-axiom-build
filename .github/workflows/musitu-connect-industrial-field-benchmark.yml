@@ -46,6 +46,9 @@ jobs:
             benchmarks/mining_adapter/mqtt_field_runner.py \
             benchmarks/mining_adapter/opcua_field_runner.py \
             qualification/mining_adapter_field_qualify.py
+          python benchmarks/mining_adapter/mqtt_field_runner.py --help >/dev/null
+          python benchmarks/mining_adapter/opcua_field_runner.py --help >/dev/null
+          python qualification/mining_adapter_field_qualify.py --help >/dev/null
 
       - name: Focused field contract tests
         run: |
