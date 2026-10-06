@@ -86,3 +86,50 @@ test('browser config exposes only the public Turnstile site key', async () => {
   assert.match(text, /support_case_create/);
   assert.doesNotMatch(text, /never-public/);
 });
+
+
+test('production health requires both Turnstile and intake rate limiter', async () => {
+  const base = {
+    ENVIRONMENT: 'production', SUPPORT_DB: {}, SUPPORT_DATA_KEY_B64: 'present',
+    SUPPORT_DOMAIN: 'support.mftintelligence.com',
+    TURNSTILE_SITE_KEY: '1x00000000000000000000AA', TURNSTILE_SECRET_KEY: 'present-secret-value',
+    SUPPORT_HUMAN_OWNER_REF: 'github:evansmusitu',
+    SUPPORT_INDEPENDENT_APPROVER_REF: 'person:elvis-musitu',
+    SUPPORT_READINESS_SHA256: 'a'.repeat(64),
+  };
+  const missing = await handleSupportRequest(new Request('https://support.example/health'), base);
+  assert.equal(missing.status, 503);
+  assert.equal((await missing.json()).rate_limiter, false);
+
+  const ready = await handleSupportRequest(new Request('https://support.example/health'), {
+    ...base,
+    SUPPORT_INTAKE_RATE_LIMITER: {limit: async () => ({success: true})},
+  });
+  assert.equal(ready.status, 200);
+  const body = await ready.json();
+  assert.equal(body.rate_limiter, true);
+  assert.equal(body.abuse_gate, true);
+});
+
+test('case intake returns 429 before Turnstile or storage work when the edge limiter is exhausted', async () => {
+  let turnstileCalls = 0;
+  const response = await worker.fetch(new Request('https://support.mftintelligence.com/api/v1/cases', {
+    method: 'POST',
+    headers: {'content-type': 'application/json'},
+    body: JSON.stringify({...payload, ...turnstile}),
+  }), {
+    ENVIRONMENT: 'production',
+    SUPPORT_INTAKE_RATE_LIMITER: {limit: async ({key}) => {
+      assert.equal(key, 'support-case-create');
+      return {success: false};
+    }},
+    TURNSTILE_VERIFY: async () => {
+      turnstileCalls += 1;
+      return new Response(JSON.stringify({success: true}), {headers:{'content-type':'application/json'}});
+    },
+  });
+  assert.equal(response.status, 429);
+  assert.equal(response.headers.get('retry-after'), '60');
+  assert.equal(turnstileCalls, 0);
+  assert.equal((await response.json()).error, 'RATE_LIMITED');
+});
