@@ -17,25 +17,23 @@ concurrency:
 
 jobs:
   promote:
-    if: github.event_name == 'push' && github.event.before == 'da2a8eb129896139044f6431161690828b0055ef'
+    if: github.event_name == 'push' && github.event.before == '34821a455f6cc182b1f50e669e10f983a96baf8d'
     runs-on: ubuntu-latest
     environment: axiom-support-production
-    timeout-minutes: 8
+    timeout-minutes: 5
     env:
       GH_READ_TOKEN: ${{ github.token }}
-      CF_ACCOUNT: '93f395f5121954671f92fffa453d6b61'
-      CF_TOKEN: ${{ secrets.CLOUDFLARE_RULESETS_API_TOKEN }}
     steps:
       - name: Checkout exact authorized support head
         uses: actions/checkout@v4
 
-      - name: Exact owner authorization and protected-boundary gate
+      - name: Validate final owner authorization and protected state
         shell: bash
         run: |
           set -euo pipefail
           test "$GITHUB_REF_NAME" = 'support/axiom-official-support-20261005'
           test "$GITHUB_REF_NAME" != 'main'
-          test "${{ github.event.before }}" = 'da2a8eb129896139044f6431161690828b0055ef'
+          test "${{ github.event.before }}" = '34821a455f6cc182b1f50e669e10f983a96baf8d'
           node --input-type=module <<'NODE'
           import fs from 'node:fs';
           import crypto from 'node:crypto';
@@ -59,96 +57,19 @@ jobs:
           if(support?.commit?.sha!==process.env.GITHUB_SHA) throw new Error('support branch advanced during promotion');
           if(claude?.commit?.sha!=='4d956f415431836018e5145227c8df5bd5fde7d8') throw new Error('Claude branch drift');
           if(pr?.state!=='open'||pr?.draft!==true||pr?.merged===true||pr?.head?.sha!=='8fc1fbb7c5ebbcc1604ecf24c5f4594f2d5667e3') throw new Error('PR #1 protected state drift');
-          if(authBlob?.sha!=='8ba0dbc1b6dd1533c6c26bff23991429e03a71a5') throw new Error('frozen OpenAI auth blob unavailable');
-          if(mcpBlob?.sha!=='4a1ad37a5e7df0e4d3966e8b5f9f0e8f2db69167') throw new Error('frozen OpenAI MCP blob unavailable');
+          if(authBlob?.sha!=='8ba0dbc1b6dd1533c6c26bff23991429e03a71a5'||mcpBlob?.sha!=='4a1ad37a5e7df0e4d3966e8b5f9f0e8f2db69167') throw new Error('frozen OpenAI blob drift');
 
-          const path='EVIDENCE/axiom-official-support-readiness-current.json';
-          const raw=fs.readFileSync(path);
+          const raw=fs.readFileSync('EVIDENCE/axiom-official-support-readiness-current.json');
           const e=JSON.parse(raw);
           const gates=Array.isArray(e.gates)?e.gates:[];
           if(e.schema!=='musitu.axiom.support-readiness-snapshot.v1') throw new Error('readiness schema mismatch');
           if(e.required_gate_count!==11||e.pass_count!==11||e.partial_count!==0||e.missing_count!==0) throw new Error('readiness counts are not 11/11');
           if(gates.length!==11||gates.some(g=>g?.status!=='PASS')) throw new Error('not every readiness gate is PASS');
-          if(e.public_operational_claim_authorized!==true||e.deployment_dispatch_authorized!==true) throw new Error('owner promotion authorization missing');
-          if(e.owner_authorization?.status!=='APPROVED') throw new Error('owner authorization record missing');
+          if(e.public_operational_claim_authorized!==true||e.deployment_dispatch_authorized!==true||e.owner_authorization?.status!=='APPROVED') throw new Error('final owner promotion authorization missing');
           if(e.operational_status!=='AUTHORIZED_PENDING_CANONICAL_DEPLOYMENT') throw new Error('unexpected pre-deployment operational state');
           const hash=crypto.createHash('sha256').update(raw).digest('hex');
-          fs.appendFileSync(process.env.GITHUB_ENV,'SUPPORT_READINESS_SHA256='+hash+'\n');
-          console.log(JSON.stringify({readiness_sha256:hash,eleven_gates_pass:true,owner_authorized:true}));
-          NODE
-
-      - name: Discover exact existing D1 and Turnstile widget read-only
-        shell: bash
-        run: |
-          set -euo pipefail
-          node --input-type=module <<'NODE'
-          import {appendFileSync} from 'node:fs';
-          import {
-            SUPPORT_ACCOUNT_ID,
-            listD1Databases,
-            selectCloudflareCredential,
-            cloudflareRequest,
-          } from './support/scripts/provision_cloudflare_d1.mjs';
-          const account='93f395f5121954671f92fffa453d6b61';
-          const dbName='musitu-axiom-support';
-          const widgetName='MUSITU Axiom Official Support';
-          const host='support.mftintelligence.com';
-          if(SUPPORT_ACCOUNT_ID!==account||process.env.CF_ACCOUNT!==account) throw new Error('support Cloudflare account mismatch');
-          const credential=await selectCloudflareCredential({env:{...process.env,CLOUDFLARE_API_TOKEN:process.env.CF_TOKEN},preferGlobal:false});
-          const dbs=await listD1Databases({headers:credential.headers});
-          const dbMatches=dbs.filter(x=>String(x?.name||'')===dbName);
-          if(dbMatches.length!==1) throw new Error('support D1 not uniquely discoverable');
-          const dbId=String(dbMatches[0]?.uuid||'');
-          const widgets=await cloudflareRequest({headers:credential.headers,path:'/accounts/'+account+'/challenges/widgets?page=1&per_page=1000'});
-          const named=(Array.isArray(widgets.result)?widgets.result:[]).filter(x=>String(x?.name||'')===widgetName);
-          if(named.length!==1) throw new Error('support Turnstile widget not uniquely discoverable');
-          const widget=named[0];
-          const sitekey=String(widget?.sitekey||'');
-          const domains=Array.isArray(widget?.domains)?widget.domains:[];
-          if(widget?.mode!=='managed'||domains.length!==1||domains[0]!==host||!/^[A-Za-z0-9_-]{20,100}$/.test(sitekey)) throw new Error('support Turnstile widget drift');
-          appendFileSync(process.env.GITHUB_ENV,'SUPPORT_D1_DATABASE_ID='+dbId+'\n');
-          appendFileSync(process.env.GITHUB_ENV,'SUPPORT_TURNSTILE_SITE_KEY='+sitekey+'\n');
-          NODE
-
-      - name: Upsert exact canonical support deployment variables
-        shell: bash
-        run: |
-          set -euo pipefail
-          node <<'NODE'
-          const api='https://api.github.com/repos/evansmusitu/mft-axiom-build';
-          const token=process.env.GH_READ_TOKEN;
-          const variables={
-            SUPPORT_WORKER_NAME:'musitu-axiom-support',
-            SUPPORT_D1_DATABASE_NAME:'musitu-axiom-support',
-            SUPPORT_D1_DATABASE_ID:String(process.env.SUPPORT_D1_DATABASE_ID||''),
-            SUPPORT_TURNSTILE_SITE_KEY:String(process.env.SUPPORT_TURNSTILE_SITE_KEY||''),
-            SUPPORT_HUMAN_OWNER_REF:'github:evansmusitu',
-            SUPPORT_INDEPENDENT_APPROVER_REF:'person:elvis-musitu',
-            SUPPORT_READINESS_SHA256:String(process.env.SUPPORT_READINESS_SHA256||''),
-          };
-          if(!/^[a-f0-9]{64}$/.test(variables.SUPPORT_READINESS_SHA256)) throw new Error('readiness SHA invalid');
-          if(!/^[a-f0-9-]{36}$/i.test(variables.SUPPORT_D1_DATABASE_ID)) throw new Error('D1 ID invalid');
-          if(!/^[A-Za-z0-9_-]{20,100}$/.test(variables.SUPPORT_TURNSTILE_SITE_KEY)) throw new Error('Turnstile site key invalid');
-          const headers={authorization:'Bearer '+token,accept:'application/vnd.github+json','content-type':'application/json','x-github-api-version':'2022-11-28'};
-          for(const [name,value] of Object.entries(variables)){
-            const read=await fetch(api+'/actions/variables/'+encodeURIComponent(name),{headers});
-            if(read.status===200){
-              const write=await fetch(api+'/actions/variables/'+encodeURIComponent(name),{method:'PATCH',headers,body:JSON.stringify({name,value})});
-              if(!write.ok) throw new Error('failed updating repository variable '+name+' HTTP '+write.status);
-            } else if(read.status===404){
-              const write=await fetch(api+'/actions/variables',{method:'POST',headers,body:JSON.stringify({name,value})});
-              if(!write.ok) throw new Error('failed creating repository variable '+name+' HTTP '+write.status);
-            } else {
-              throw new Error('failed reading repository variable '+name+' HTTP '+read.status);
-            }
-          }
-          for(const [name,value] of Object.entries(variables)){
-            const read=await fetch(api+'/actions/variables/'+encodeURIComponent(name),{headers});
-            if(!read.ok) throw new Error('variable readback failed '+name+' HTTP '+read.status);
-            const row=await read.json();
-            if(String(row?.value||'')!==value) throw new Error('variable readback mismatch '+name);
-          }
-          console.log(JSON.stringify({canonical_support_variables_verified:true,variable_count:Object.keys(variables).length}));
+          fs.appendFileSync(process.env.GITHUB_ENV,'APPROVED_READINESS_SHA256='+hash+'\n');
+          console.log(JSON.stringify({readiness_sha256:hash,eleven_gates_pass:true,owner_authorized:true,protected_state_verified:true}));
           NODE
 
       - name: Dispatch canonical production deployment
@@ -156,21 +77,27 @@ jobs:
         run: |
           set -euo pipefail
           node <<'NODE'
+          const sha=String(process.env.APPROVED_READINESS_SHA256||'');
+          if(!/^[a-f0-9]{64}$/.test(sha)) throw new Error('approved readiness SHA missing');
           const url='https://api.github.com/repos/evansmusitu/mft-axiom-build/actions/workflows/axiom-official-support-deploy.yml/dispatches';
-          const token=process.env.GH_READ_TOKEN;
-          const body={
-            ref:'support/axiom-official-support-20261005',
-            inputs:{
-              target:'production',
-              expected_commit:process.env.GITHUB_SHA,
-              support_domain:'support.mftintelligence.com'
-            }
-          };
           const r=await fetch(url,{
             method:'POST',
-            headers:{authorization:'Bearer '+token,accept:'application/vnd.github+json','content-type':'application/json','x-github-api-version':'2022-11-28'},
-            body:JSON.stringify(body)
+            headers:{
+              authorization:'Bearer '+process.env.GH_READ_TOKEN,
+              accept:'application/vnd.github+json',
+              'content-type':'application/json',
+              'x-github-api-version':'2022-11-28'
+            },
+            body:JSON.stringify({
+              ref:'support/axiom-official-support-20261005',
+              inputs:{
+                target:'production',
+                expected_commit:process.env.GITHUB_SHA,
+                support_domain:'support.mftintelligence.com',
+                approved_readiness_sha256:sha
+              }
+            })
           });
-          if(r.status!==204) throw new Error('canonical deployment dispatch failed HTTP '+r.status);
-          console.log(JSON.stringify({canonical_deployment_dispatched:true,expected_commit:process.env.GITHUB_SHA,target:'production',support_domain:'support.mftintelligence.com'}));
+          if(r.status!==204) throw new Error('canonical production dispatch failed HTTP '+r.status);
+          console.log(JSON.stringify({canonical_deployment_dispatched:true,target:'production',expected_commit:process.env.GITHUB_SHA,support_domain:'support.mftintelligence.com',readiness_sha256:sha}));
           NODE
