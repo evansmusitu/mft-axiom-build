@@ -1,0 +1,82 @@
+{
+  "schema": "musitu.axiom.support-search-discoverability.v1",
+  "status": "READY_FOR_SEARCH_ENGINE_VERIFICATION",
+  "verified_at": "2026-10-06T14:30:35Z",
+  "repository": "evansmusitu/mft-axiom-build",
+  "branch": "support/axiom-official-support-20261005",
+  "public_surface": {
+    "canonical_url": "https://support.mftintelligence.com/",
+    "homepage_indexable": true,
+    "robots_path": "https://support.mftintelligence.com/robots.txt",
+    "sitemap_path": "https://support.mftintelligence.com/sitemap.xml",
+    "sitemap_url_count": 1,
+    "sitemap_only_url": "https://support.mftintelligence.com/",
+    "api_disallowed_in_robots": true,
+    "health_disallowed_in_robots": true,
+    "api_and_control_responses_x_robots_tag": "noindex, nofollow, noarchive"
+  },
+  "production_deployment": {
+    "workflow_run": 37479146221,
+    "source_commit": "a254ab3a2b1d108b06aa929d8b3d407bb5479045",
+    "conclusion": "success",
+    "operational_readiness_sha256": "5fd7c5d50a49ef71e0e58bb543a5cdf8e3d9d4ede3726ad22b62c01996222ffb",
+    "workers_dev_enabled": false,
+    "previews_enabled": false
+  },
+  "cloudflare_search_edge": {
+    "audit_run": 37476338180,
+    "waf_provision_run": 37478633718,
+    "ruleset_id": "b6e24c698e0842bcb8e27739074a865c",
+    "rule_id": "c89f7e9768174c9fa6c2be35d612bc26",
+    "rule_ref": "musitu_axiom_support_verified_search_crawlers",
+    "verified_bot_category": "Search Engine Crawler",
+    "methods": [
+      "GET",
+      "HEAD"
+    ],
+    "public_paths": [
+      "/",
+      "/index.html",
+      "/robots.txt",
+      "/sitemap.xml",
+      "/styles.css",
+      "/app.js"
+    ],
+    "skip_products": [
+      "bic",
+      "securityLevel"
+    ],
+    "global_security_level": "under_attack",
+    "global_browser_integrity_check": "on",
+    "api_or_health_exception": false,
+    "ai_crawler_exception": false
+  },
+  "independent_production_readback": {
+    "workflow_run": 37479535339,
+    "worker_content_search_contract_verified": true,
+    "canonical_url_verified": true,
+    "robots_verified": true,
+    "sitemap_verified": true,
+    "control_route_noindex_marker_verified": true,
+    "verified_search_waf_rule_verified": true,
+    "spoofed_googlebot_bypass": false,
+    "spoofed_googlebot_cf_mitigated": "challenge",
+    "secret_values_read": false
+  },
+  "external_verification": {
+    "real_verified_search_engine_fetch_proven": false,
+    "google_search_console_url_inspection": "PENDING",
+    "google_sitemap_submission": "PENDING",
+    "bing_webmaster_verification": "PENDING",
+    "reason": "Requires authenticated search-engine owner tooling; connected GSC integration is currently unavailable for execution."
+  },
+  "boundaries": {
+    "support_operational_readiness_unchanged": true,
+    "main_modified": false,
+    "pr_1_modified": false,
+    "openai_surface_modified": false,
+    "claude_surface_modified": false,
+    "ai_search_permission_changed": false,
+    "ai_training_permission_changed": false
+  }
+}
