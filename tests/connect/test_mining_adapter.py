@@ -151,6 +151,31 @@ class MiningAdapterServiceTests(unittest.TestCase):
             self.assertEqual(len(transport.calls),1)
             self.assertEqual(set(transport.calls[0]),set(node_map.values()))
 
+    def test_opcua_ingestion_batches_all_records_into_one_transport_read(self):
+        with tempfile.TemporaryDirectory() as directory:
+            service=self._service(Path(directory)/"runs.sqlite3")
+            rows=[
+                dict(ROW, hazard="Ground collapse"),
+                dict(ROW, hazard="Vehicle collision", exposure=0.31, severity=8, likelihood=0.27),
+            ]
+            values={}
+            maps=[]
+            for index,row in enumerate(rows):
+                mapping={}
+                for key,value in row.items():
+                    node_id=f"ns=2;s=r{index}.{key}"
+                    mapping[key]=node_id
+                    values[node_id]=value
+                maps.append(mapping)
+            transport=_FakeOpcUaBatchTransport(values)
+            run=asyncio.run(service.ingest_opcua(
+                run_id="opc-multi-batch",connector_name="field-opcua",
+                transport=transport,record_node_maps=maps,
+            ))
+            self.assertEqual(len(run.canonical.records),2)
+            self.assertEqual(len(transport.calls),1)
+            self.assertEqual(len(transport.calls[0]),len(ROW)*2)
+
     def test_axiom_execution_from_replayed_run_is_audited_without_credentials(self):
         seen=[]
         def executor(request):
