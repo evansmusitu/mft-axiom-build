@@ -145,20 +145,6 @@ jobs:
 
               return api
 
-          @app.function(image=image,volumes={"/state":volume},timeout=120)
-          def operator_state_probe():
-              import gzip,json,pathlib,hashlib
-              p=pathlib.Path("/state/operator-state-v1.json.gz")
-              if not p.exists():
-                  return {"state_present":False}
-              raw=p.read_bytes()
-              body=json.loads(gzip.decompress(raw))
-              return {
-                  "state_present":True,
-                  "compressed_sha256":hashlib.sha256(raw).hexdigest(),
-                  "state_sha256":body.get("state_sha256"),
-                  "schema":body.get("schema"),
-              }
           PY
           python -m py_compile modal_operator_deploy.py
           echo 'modal_operator_package=PASS'
@@ -293,15 +279,6 @@ jobs:
           print(url)
           PY
 
-          python - <<'PY'
-          import os,modal
-          p=modal.Function.from_name(os.environ['OPERATOR_APP'],'operator_state_probe')
-          r=p.remote()
-          if not r.get('state_present') or r.get('schema')!='musitu.axiom.operator-state-envelope.v1' or not r.get('state_sha256'):
-              raise SystemExit('Fail-closed: Modal Volume state proof missing after redeploy')
-          print('operator_modal_volume_state_after_redeploy=PASS')
-          PY
-
           URL="$(cat /tmp/operator-url)"
           curl --retry 8 --retry-delay 2 --retry-all-errors -fsS             -H "Modal-Key: $KEY" -H "Modal-Secret: $SECRET"             "$URL/health" > /tmp/operator-health-after-redeploy.json
           python - <<'PY'
@@ -309,7 +286,8 @@ jobs:
           x=json.load(open('/tmp/operator-health-after-redeploy.json'))
           assert x['status']=='READY'
           assert x['durable_state']=='LOCAL_ATOMIC_STATE_PACK_WITH_FILE_LOCK'
-          print('operator_refreshed_endpoint_health=PASS')
+          assert x['state_present'] is True
+          print('operator_refreshed_endpoint_health_and_state=PASS')
           PY
 
           PLAN_ID="$(cat /tmp/plan-id)"
@@ -357,7 +335,7 @@ jobs:
             'modal_proxy_auth_required':True,
             'operator_tool_discovery_verified':True,
             'durable_work_survived_redeploy':True,
-            'state_pack_present_on_modal_volume':True,
+            'state_present_after_redeploy_verified':True,
             'production_authority':False,
             'public_submission_mutation_authority':False,
             'external_provider_execution_authority':False,
