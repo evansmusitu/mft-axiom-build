@@ -82,3 +82,13 @@ test('unknown Outcome Contract fields fail closed instead of being silently igno
     /unsupported fields|Outcome Contract/i,
   );
 });
+
+
+test('Outcome Contract success criteria must be strings and are never coerced from malformed values',async()=>{
+  const bad=contract();
+  bad.success_criteria=['valid criterion',42];
+  await assert.rejects(
+    ()=>compileObjectiveOutcomeGraph({project:project(),contract:bad,contractVerified:true,approval:null,generation:1,actorId:'local-user',at:'2026-10-04T15:03:00Z'}),
+    /success criteria.*string|string.*success criteria/i,
+  );
+});
