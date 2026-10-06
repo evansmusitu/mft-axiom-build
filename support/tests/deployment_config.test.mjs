@@ -88,3 +88,24 @@ test('deployment workflow proves the canonical eleven-gate snapshot is fully rea
   assert.match(workflow, /SUPPORT_READINESS_SHA256/);
   assert.match(workflow, /createHash\(['"]sha256['"]\)/);
 });
+
+
+test('authorized public-origin verification bootstrap is one-shot, exact-host, non-promotional and preserves the canonical deploy gate', async () => {
+  const workflow = await readFile(resolve(root, '..', '.github', 'workflows', 'axiom-official-support-public-origin-verify-once.yml'), 'utf8');
+  assert.match(workflow, /support\/axiom-official-support-20261005/);
+  assert.match(workflow, /github\.event\.before/);
+  assert.match(workflow, /support\.mftintelligence\.com/);
+  assert.match(workflow, /axiom-support-production/);
+  assert.match(workflow, /EVIDENCE\/axiom-official-support-readiness-current\.json/);
+  assert.match(workflow, /PUBLIC_ORIGIN/);
+  assert.match(workflow, /ANTI_ABUSE/);
+  assert.match(workflow, /ACCESSIBILITY_REALITY/);
+  assert.match(workflow, /public_operational_claim_authorized/);
+  assert.match(workflow, /deployment_dispatch_authorized/);
+  assert.match(workflow, /workers_dev/);
+  assert.match(workflow, /previews_enabled/);
+  assert.match(workflow, /SUPPORT_DEPLOYMENT_MODE:\s*production/);
+  assert.match(workflow, /node --test support\/tests\/\*\.test\.mjs/);
+  assert.doesNotMatch(workflow, /branches:\s*\n\s*-\s*['"]?main/);
+  assert.doesNotMatch(workflow, /workflow_dispatch/);
+});
