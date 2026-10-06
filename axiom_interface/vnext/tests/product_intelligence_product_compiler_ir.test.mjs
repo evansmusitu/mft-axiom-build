@@ -237,3 +237,19 @@ test('reverse inference rejects normalized node-id collisions between distinct o
     /collision|node.*unique|normalized.*identity/i,
   );
 });
+
+
+test('compiler version and reverse-inference identities reject structured values instead of coercing them',async()=>{
+  await assert.rejects(
+    ()=>compileProductIR(graph(),{bindings,compilerVersion:{version:'1.0.0'}}),
+    /compilerVersion.*string|string.*compilerVersion/i,
+  );
+  await assert.rejects(
+    ()=>createInferredGraphPatch({projectId:{id:'project_12345678'},generation:3,actorId:'agent_reverse_1',at:'2026-10-04T16:00:00Z',observations:[{observation_id:'obs_1',type:'Component',data:{name:'Card'},source:{kind:'code',uri:'src/Card.js'},confidence:0.7}]}),
+    /projectId.*string|string.*projectId/i,
+  );
+  await assert.rejects(
+    ()=>createInferredGraphPatch({projectId:'project_12345678',generation:3,actorId:{id:'agent_reverse_1'},at:'2026-10-04T16:00:00Z',observations:[{observation_id:'obs_1',type:'Component',data:{name:'Card'},source:{kind:'code',uri:'src/Card.js'},confidence:0.7}]}),
+    /actorId.*string|string.*actorId/i,
+  );
+});
