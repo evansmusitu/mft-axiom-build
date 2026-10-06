@@ -1,24 +1,33 @@
 {
   "schema": "musitu.axiom.support-readiness-snapshot.v1",
-  "recorded_at": "2026-10-06T08:14:29Z",
+  "recorded_at": "2026-10-06T10:40:47Z",
   "repository": "evansmusitu/mft-axiom-build",
   "branch": "support/axiom-official-support-20261005",
   "public_operational_claim_authorized": false,
   "deployment_dispatch_authorized": false,
   "required_gate_count": 11,
   "pass_count": 8,
-  "partial_count": 2,
-  "missing_count": 1,
+  "partial_count": 3,
+  "missing_count": 0,
   "gates": [
     {
       "gate": "PUBLIC_ORIGIN",
-      "status": "MISSING",
+      "status": "PARTIAL",
       "evidence": {
-        "support_custom_domain_count": 0,
+        "file": "EVIDENCE/axiom-official-support-public-origin-partial-20261006.json",
+        "verification_deployment_run": 37451064305,
+        "diagnostic_run": 37451359791,
+        "hostname": "support.mftintelligence.com",
+        "custom_domain_count": 1,
+        "custom_domain_service": "musitu-axiom-support",
+        "dns_proxied": true,
         "workers_dev_enabled": false,
-        "previews_enabled": false
+        "previews_enabled": false,
+        "https_edge_reached": true,
+        "cf_mitigated": "challenge",
+        "worker_health_verified_on_public_origin": false
       },
-      "next_requirement": "explicitly authorized public deployment and live origin verification"
+      "next_requirement": "complete the existing Cloudflare managed edge challenge in a real human browser, then verify the support UI and public-origin Worker health without weakening edge security"
     },
     {
       "gate": "SECURE_STORAGE",
@@ -55,7 +64,7 @@
         "private_edge_rate_limit_429_verified": true,
         "real_widget_token_on_authorized_hostname_verified": false
       },
-      "next_requirement": "complete a real Turnstile browser challenge and server-side token verification on the explicitly authorized support hostname"
+      "next_requirement": "after completing the existing Cloudflare managed edge challenge in a real human browser, complete a genuine Turnstile widget challenge and require successful server-side hostname/action verification"
     },
     {
       "gate": "HUMAN_SUPPORT_OWNER",
@@ -119,7 +128,9 @@
         "cleanup_readback_attempt": 2,
         "live_edge_negative_boundaries_verified": true,
         "live_rate_limit_429_verified": true,
-        "production_worker_unchanged": true
+        "production_worker_unchanged_during_private_edge_drill": true,
+        "public_verification_origin_deployed": true,
+        "public_verification_source_commit": "d313fc55653355b4b7cbb6bfbbc826f694feb9a7"
       }
     },
     {
@@ -150,5 +161,5 @@
     "openai_surface_must_remain_unchanged": true
   },
   "secret_values_exposed": false,
-  "public_support_deployed": false
+  "public_support_deployed": true
 }
