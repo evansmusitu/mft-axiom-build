@@ -1,7 +1,7 @@
 {
   "schema": "musitu.axiom.support-search-discoverability.v1",
   "status": "READY_FOR_SEARCH_ENGINE_VERIFICATION",
-  "verified_at": "2026-10-06T14:30:35Z",
+  "verified_at": "2026-10-06T14:56:00Z",
   "repository": "evansmusitu/mft-axiom-build",
   "branch": "support/axiom-official-support-20261005",
   "public_surface": {
@@ -65,10 +65,10 @@
   },
   "external_verification": {
     "real_verified_search_engine_fetch_proven": false,
-    "google_search_console_url_inspection": "PENDING",
+    "google_search_console_url_inspection": "RETRY_REQUIRED_AFTER_VERIFIED_INSPECTION_TOOL_WAF_FIX",
     "google_sitemap_submission": "PENDING",
     "bing_webmaster_verification": "PENDING",
-    "reason": "Requires authenticated search-engine owner tooling; connected GSC integration is currently unavailable for execution."
+    "reason": "Google Search Console live test previously failed with 403 from Google-InspectionTool. A verified-bot-only WAF exception is now deployed; rerun Test Live URL to prove Google fetch."
   },
   "boundaries": {
     "support_operational_readiness_unchanged": true,
@@ -78,5 +78,13 @@
     "claude_surface_modified": false,
     "ai_search_permission_changed": false,
     "ai_training_permission_changed": false
+  },
+  "google_inspection_tool_waf": {
+    "file": "EVIDENCE/axiom-official-support-google-inspection-tool-waf-live-20261006.json",
+    "checksum_sha256": "9b609e81c5d2242507df820f3d97d2d2f7fa9cf735c76907ced321c596a402a2",
+    "waf_provision_run": 37483014607,
+    "adversarial_verification_run": 37483196740,
+    "cloudflare_verified_bot_required": true,
+    "spoofed_google_inspection_tool_bypass": false
   }
 }
