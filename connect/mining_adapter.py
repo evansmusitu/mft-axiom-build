@@ -54,7 +54,7 @@ class MiningAdapterService:
                 adapter_name=self.adapter_name,
                 records=materialized_rows,
             )
-            stored=self.store.record_run(
+            self.store.record_ingest_run(
                 run_id=run.fabric.run_id,
                 connector_name=connector_name,
                 protocol=protocol,
@@ -62,11 +62,6 @@ class MiningAdapterService:
                 lineage=run.fabric.lineage,
                 signature=run.fabric.signature,
             )
-            self.store.append_audit_event(run_id, "INGEST_COMPLETED", {
-                "canonical_sha256": stored.canonical_sha256,
-                "record_count": len(run.canonical.records),
-                "protocol": protocol,
-            })
             return run
 
         return self.workflow.submit(f"mining-ingest:{run_id}", ingest_action)
