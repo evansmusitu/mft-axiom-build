@@ -1,0 +1,103 @@
+name: MUSITU Axiom Support Search Edge Audit Once
+
+on:
+  push:
+    branches:
+      - 'support/axiom-official-support-20261005'
+    paths:
+      - '.github/workflows/axiom-official-support-search-edge-audit-once.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    if: github.event_name == 'push' && github.event.before == '8e2d0a6c15aade42ad89545fcfe22091c728b026'
+    runs-on: ubuntu-latest
+    environment: axiom-support-production
+    timeout-minutes: 5
+    env:
+      CF_TOKEN: ${{ secrets.CLOUDFLARE_RULESETS_API_TOKEN }}
+      CF_ACCOUNT: '93f395f5121954671f92fffa453d6b61'
+      CF_ZONE: '5b56528f03948ff5917a5e0cd9f7109e'
+      SUPPORT_HOST: 'support.mftintelligence.com'
+    steps:
+      - name: Exact branch boundary
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF_NAME" = 'support/axiom-official-support-20261005'
+          test "$GITHUB_REF_NAME" != 'main'
+          test "${{ github.event.before }}" = '8e2d0a6c15aade42ad89545fcfe22091c728b026'
+
+      - name: Read live Cloudflare bot and challenge posture
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          const token=String(process.env.CF_TOKEN||'');
+          const zone=process.env.CF_ZONE;
+          if(!token||!zone) throw new Error('Cloudflare audit configuration missing');
+          const headers={authorization:'Bearer '+token,accept:'application/json'};
+          async function cf(path){
+            const r=await fetch('https://api.cloudflare.com/client/v4'+path,{headers});
+            let p={}; try{p=await r.json()}catch{}
+            if(!r.ok||p?.success===false) return {ok:false,status:r.status,codes:(p?.errors||[]).map(x=>x?.code).filter(Boolean)};
+            return {ok:true,status:r.status,result:p?.result};
+          }
+          const [securityLevel,browserCheck,botConfig,rulesets]=await Promise.all([
+            cf('/zones/'+zone+'/settings/security_level'),
+            cf('/zones/'+zone+'/settings/browser_check'),
+            cf('/zones/'+zone+'/bot_management'),
+            cf('/zones/'+zone+'/rulesets')
+          ]);
+          const summaries=[];
+          if(rulesets.ok&&Array.isArray(rulesets.result)){
+            for(const rs of rulesets.result){
+              if(!['http_request_firewall_custom','http_request_sbfm','http_request_firewall_managed'].includes(String(rs?.phase||''))) continue;
+              const full=await cf('/zones/'+zone+'/rulesets/'+encodeURIComponent(rs.id));
+              if(!full.ok){ summaries.push({phase:rs.phase,name:rs.name,read_status:full.status}); continue; }
+              const rules=Array.isArray(full.result?.rules)?full.result.rules:[];
+              summaries.push({
+                phase:rs.phase,
+                name:rs.name,
+                rule_count:rules.length,
+                challenge_rule_count:rules.filter(x=>['managed_challenge','challenge','js_challenge'].includes(String(x?.action||''))).length,
+                verified_bot_references:rules.filter(x=>String(x?.expression||'').includes('cf.client.bot')||String(x?.expression||'').includes('cf.bot_management.verified_bot')).length,
+                support_host_references:rules.filter(x=>String(x?.expression||'').includes(process.env.SUPPORT_HOST)).length,
+                support_related_rules:rules.filter(x=>String(x?.expression||'').includes(process.env.SUPPORT_HOST)||String(x?.expression||'').includes('cf.client.bot')).map(x=>({
+                  description:String(x?.description||''),
+                  action:String(x?.action||''),
+                  enabled:x?.enabled!==false,
+                  references_support_host:String(x?.expression||'').includes(process.env.SUPPORT_HOST),
+                  references_verified_bot:String(x?.expression||'').includes('cf.client.bot')||String(x?.expression||'').includes('cf.bot_management.verified_bot')
+                }))
+              });
+            }
+          }
+          const b=botConfig.ok&&botConfig.result?botConfig.result:{};
+          const output={
+            gate:'MUSITU_AXIOM_SUPPORT_SEARCH_EDGE_AUDIT',
+            host:process.env.SUPPORT_HOST,
+            security_level:securityLevel.ok?securityLevel.result?.value:null,
+            browser_integrity_check:browserCheck.ok?browserCheck.result?.value:null,
+            bot_management_readable:botConfig.ok,
+            bot_posture:botConfig.ok?{
+              fight_mode:b.fight_mode??null,
+              sbfm_verified_bots:b.sbfm_verified_bots??null,
+              sbfm_likely_automated:b.sbfm_likely_automated??null,
+              sbfm_definitely_automated:b.sbfm_definitely_automated??null,
+              ai_bots_protection:b.ai_bots_protection??null,
+              ai_search:b.ai_search??null,
+              ai_training:b.ai_training??null,
+              ai_user:b.ai_user??null,
+              content_bots_protection:b.content_bots_protection??null,
+              crawler_protection:b.crawler_protection??null,
+              is_robots_txt_managed:b.is_robots_txt_managed??null,
+              bot_preference_sync_enabled:b.bot_preference_sync_enabled??null
+            }:null,
+            rulesets_readable:rulesets.ok,
+            ruleset_summaries:summaries,
+            secret_exposed:false
+          };
+          console.log(JSON.stringify(output));
+          NODE
