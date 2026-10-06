@@ -4,6 +4,7 @@
 <pre id="result">MUSITU_AXIOM_PHASE2_BROWSER_IDEMPOTENCY_RUNNING</pre>
 <script type="module">
 import {GovernedExecutionStore} from '../execution_store.js';
+import {sha256} from '../execution_security.js';
 
 const out=document.querySelector('#result');
 const DB='musitu-axiom-execution-v1';
@@ -103,6 +104,84 @@ try{
     invariant(settled.some(item=>item.status==='fulfilled'),'no concurrent execution winner');
     storeA.db.close();storeB.db.close();
     out.textContent='MUSITU_AXIOM_PHASE2_BROWSER_CROSS_INSTANCE_ATOMIC_PASS';
+  }else if(phase==='tab-seed'){
+    const projectId='project_browser_tabs_12345678';
+    const authority=authorityFor(projectId);
+    const store=await GovernedExecutionStore.open();
+    const sandbox=await store.createSandbox(authority,{label:'Separate-tab concurrency seed'});
+    const proposed=await store.propose(sandbox.sandbox_id,authority,{
+      operation:'worktree.create',
+      target:'separate-tab-worktree',
+      compute_units:1,
+      instruction_provenance:'GOVERNED_PLAN',
+      requested_at:'2026-10-06T19:00:00.000Z',
+    });
+    invariant(proposed.decision.status==='AUTHORIZED','separate-tab seed request must be authorized');
+    localStorage.setItem('axiom_tab_race_state',JSON.stringify({projectId,authority,requestSha:proposed.request.request_sha256}));
+    store.db.close();
+    out.textContent='MUSITU_AXIOM_PHASE2_BROWSER_SEPARATE_TAB_SEED_PASS';
+  }else if(phase==='tab-race'){
+    const saved=JSON.parse(localStorage.getItem('axiom_tab_race_state')||'null');
+    invariant(saved,'separate-tab race seed missing');
+    const store=await GovernedExecutionStore.open();
+    window.__axiomStart=async()=>{
+      try{
+        const receipt=await store.execute(saved.requestSha,saved.authority);
+        out.textContent='MUSITU_AXIOM_PHASE2_BROWSER_TAB_CALLER_FULFILLED:'+receipt.receipt_sha256;
+      }catch(error){
+        if(error?.name==='InvalidStateError'||/in.?flight|concurrent/i.test(String(error?.message||error)))out.textContent='MUSITU_AXIOM_PHASE2_BROWSER_TAB_CALLER_FAIL_CLOSED';
+        else out.textContent='MUSITU_AXIOM_PHASE2_BROWSER_IDEMPOTENCY_FAIL:'+error.name+':'+error.message;
+      }
+    };
+    out.textContent='MUSITU_AXIOM_PHASE2_BROWSER_TAB_CALLER_READY';
+  }else if(phase==='tab-inspect'){
+    const saved=JSON.parse(localStorage.getItem('axiom_tab_race_state')||'null');
+    invariant(saved,'separate-tab inspect seed missing');
+    const store=await GovernedExecutionStore.open();
+    const terminal=await terminalReceipts(store,saved.projectId,saved.requestSha);
+    const events=await completedEvents(store,saved.projectId,saved.requestSha);
+    invariant(terminal.length===1,`separate-tab concurrency persisted ${terminal.length} terminal receipts`);
+    invariant(events.length===1,`separate-tab concurrency persisted ${events.length} completion events`);
+    store.db.close();
+    out.textContent='MUSITU_AXIOM_PHASE2_BROWSER_SEPARATE_TAB_ATOMIC_PASS';
+  }else if(phase==='stale-seed'){
+    const projectId='project_browser_stale_claim_12345678';
+    const authority=authorityFor(projectId);
+    const store=await GovernedExecutionStore.open();
+    const sandbox=await store.createSandbox(authority,{label:'Stale claim recovery seed'});
+    const proposed=await store.propose(sandbox.sandbox_id,authority,{
+      operation:'file.write',
+      target:'stale-recovery.txt',
+      payload:{content:'recover after stale claim'},
+      compute_units:1,
+      instruction_provenance:'GOVERNED_PLAN',
+      requested_at:'2026-10-06T19:01:00.000Z',
+    });
+    invariant(proposed.decision.status==='AUTHORIZED','stale-claim seed request must be authorized');
+    const claimBody={
+      schema:'musitu.axiom.execution-claim.browser.v1',
+      request_sha256:proposed.request.request_sha256,
+      project_id:projectId,
+      workload_identity_id:authority.workload_identity_id,
+      authority_sha256:proposed.request.authority_sha256,
+      owner_id:'execution-claim-owner_crashed_1',
+      acquired_at:'2026-10-06T18:00:00.000Z',
+      expires_at:'2026-10-06T18:00:01.000Z',
+    };
+    await store._put('execution_claims',{...claimBody,claim_sha256:await sha256(claimBody)});
+    localStorage.setItem('axiom_stale_claim_state',JSON.stringify({projectId,authority,requestSha:proposed.request.request_sha256}));
+    store.db.close();
+    out.textContent='MUSITU_AXIOM_PHASE2_BROWSER_STALE_CLAIM_SEED_PASS';
+  }else if(phase==='stale-recover'){
+    const saved=JSON.parse(localStorage.getItem('axiom_stale_claim_state')||'null');
+    invariant(saved,'stale-claim seed state missing');
+    const store=await GovernedExecutionStore.open();
+    const receipt=await store.execute(saved.requestSha,saved.authority);
+    invariant(receipt.status==='COMPLETED','stale-claim recovery must complete');
+    invariant((await terminalReceipts(store,saved.projectId,saved.requestSha)).length===1,'stale-claim recovery created duplicate terminal receipt');
+    invariant((await store._all('execution_claims',saved.projectId)).length===0,'stale-claim recovery left an execution claim behind');
+    store.db.close();
+    out.textContent='MUSITU_AXIOM_PHASE2_BROWSER_STALE_CLAIM_RECOVERY_PASS';
   }else{
     throw new Error('unknown qualification phase');
   }
