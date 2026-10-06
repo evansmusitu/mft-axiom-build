@@ -208,3 +208,20 @@ test('observed reconciliation bindings reject unknown authority fields and struc
     /observed binding.*binding_id|binding_id.*string|structured/i,
   );
 });
+
+
+test('reverse inference rejects authority fields credential material and non-finite confidence fail closed',async()=>{
+  const base={observation_id:'obs_secure',type:'Component',data:{name:'Imported Card'},source:{kind:'code',uri:'src/Card.js'},confidence:0.7};
+  const cases=[
+    {...base,release_authority:true},
+    {...base,source:{...base.source,api_key:'must-not-cross'}},
+    {...base,data:{name:'Imported Card',nested:{client_secret:'must-not-cross'}}},
+    {...base,confidence:Number.NaN},
+  ];
+  for(const observation of cases){
+    await assert.rejects(
+      ()=>createInferredGraphPatch({projectId:'project_12345678',generation:3,actorId:'agent_reverse_1',at:'2026-10-04T16:00:00Z',observations:[observation]}),
+      /unsupported fields|credential|authority|confidence|finite/i,
+    );
+  }
+});
