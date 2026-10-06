@@ -1,0 +1,44 @@
+name: MUSITU Axiom Support Security Review
+
+on:
+  push:
+    branches:
+      - 'support/axiom-official-support-20261005'
+    paths:
+      - 'support/**'
+      - '.github/workflows/axiom-official-support-security-review.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  security-review:
+    if: github.ref_name == 'support/axiom-official-support-20261005'
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Full support regression suite
+        run: node --test support/tests/*.test.mjs
+      - name: Adversarial isolated security review
+        run: node support/scripts/verify_security_review.mjs
+      - name: Repository secret literal gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          if grep -RInE --exclude-dir=tests --exclude='*.md' '(sk-(proj-)?[A-Za-z0-9_-]{20,}|gh[pousr]_[A-Za-z0-9]{20,}|xox[baprs]-[A-Za-z0-9-]{10,}|BEGIN (RSA |EC |OPENSSH )?PRIVATE KEY)' support; then
+            echo 'Forbidden credential-like literal detected'
+            exit 1
+          fi
+      - name: Publish sanitized review status
+        if: always()
+        shell: bash
+        run: |
+          if [ -f support-security-review.json ]; then
+            node -e 'const e=require("./support-security-review.json"); const h=require("node:fs").readFileSync("support-security-review.json.sha256","utf8").split(" ")[0]; console.log(JSON.stringify({gate:e.gate,status:e.status,automated_status:e.automated_status,failures:e.failures,live_edge_penetration_tested:e.live_edge_penetration_tested,evidence_sha256:h}))'
+            rm support-security-review.json support-security-review.json.sha256
+          fi
