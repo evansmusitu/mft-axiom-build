@@ -106,7 +106,10 @@ export async function createCompilerCheckpoint(input={},services={}){
   if(!project_id) throw new TypeError('projectId required');
   if(!actor_id) throw new TypeError('actorId required');
   if(!RISK_CLASSES.has(riskClass)) throw new TypeError('riskClass must be S0..S5');
-  if(['S4','S5'].includes(riskClass)&&authorization) throw new DOMException('checkpoint cannot self-authorize S4/S5 execution','NotAllowedError');
+  if(authorization!==null){
+    if(['S4','S5'].includes(riskClass)) throw new DOMException('checkpoint cannot self-authorize S4/S5 execution','NotAllowedError');
+    throw new DOMException('checkpoint authorization belongs to the downstream governed write gate','NotAllowedError');
+  }
   if(!Array.isArray(evidenceRefs)||!evidenceRefs.length) throw new TypeError('at least one evidence reference required');
   const evidence_refs=[...new Set(evidenceRefs.map(value=>clean(value,180)).filter(Boolean))];
   if(!evidence_refs.length) throw new TypeError('at least one evidence reference required');
