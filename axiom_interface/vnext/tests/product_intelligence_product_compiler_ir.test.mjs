@@ -162,3 +162,14 @@ test('tampered IR semantic content cannot reuse stale hashes to produce an UNCHA
     /integrity|hash|sha256|tamper/i,
   );
 });
+
+
+test('reconciliation rejects tampered IR instead of issuing MATCH from a stale envelope hash',async()=>{
+  const ir=await compileProductIR(graph(),{bindings,compilerVersion:'1.0.0'});
+  const tampered=structuredClone(ir);
+  tampered.units[0].data={...tampered.units[0].data,title:'tampered before reconciliation'};
+  await assert.rejects(
+    async()=>reconcileProductIR(tampered,bindings.map(({binding_id,external_sha256})=>({binding_id,external_sha256}))),
+    /integrity|hash|sha256|tamper/i,
+  );
+});
