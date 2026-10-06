@@ -5,6 +5,7 @@ export const PRODUCT_COMPILER_ROLLBACK_SCHEMA='musitu.axiom.product-compiler-rol
 
 const HASH=/^[a-f0-9]{64}$/i;
 const RISK_CLASSES=new Set(['S0','S1','S2','S3','S4','S5']);
+const CHECKPOINT_INPUT_KEYS=new Set(['projectId','workId','priorIR','nextIR','diff','actorId','riskClass','evidenceRefs','at','authorization']);
 const CHECKPOINT_ENVELOPE_KEYS=new Set(['schema','checkpoint_id','project_id','work_id','created_at','actor_id','risk_class','compiler_version','prior_ir_sha256','next_ir_sha256','diff_sha256','diff_status','impact_state','impact_node_ids','authority_effect','rollback_mode','external_execution_authority','production_authority','builder_attested','independent_verification','evidence_refs','prior_ir_snapshot','checkpoint_sha256','evidence_object','artifact','artifact_verification','artifact_package']);
 const isPlainObject=value=>Boolean(value)&&typeof value==='object'&&!Array.isArray(value)&&(Object.getPrototypeOf(value)===Object.prototype||Object.getPrototypeOf(value)===null);
 const clean=(value,max=1000)=>String(value??'').replace(/[\u0000-\u001f\u007f]/g,' ').trim().slice(0,max);
@@ -67,6 +68,13 @@ async function resolveServices(services={}){
 }
 
 export async function createCompilerCheckpoint(input={},services={}){
+  if(!isPlainObject(input)) throw new TypeError('checkpoint input must be a plain object');
+  const extra=Object.keys(input).filter(key=>!CHECKPOINT_INPUT_KEYS.has(key));
+  if(extra.length) throw new DOMException('checkpoint input contains unsupported fields: '+extra.join(','),'SecurityError');
+  if(typeof input.projectId!=='string') throw new TypeError('projectId must be a string');
+  if(input.workId!==undefined&&typeof input.workId!=='string') throw new TypeError('workId must be a string');
+  if(typeof input.actorId!=='string') throw new TypeError('actorId must be a string');
+  if(input.evidenceRefs!==undefined&&(!Array.isArray(input.evidenceRefs)||input.evidenceRefs.some(value=>typeof value!=='string'))) throw new TypeError('evidence references must be strings');
   const {
     projectId,workId='',priorIR,nextIR,diff,actorId,riskClass='S1',evidenceRefs=[],at=new Date().toISOString(),authorization=null,
   }=input;
