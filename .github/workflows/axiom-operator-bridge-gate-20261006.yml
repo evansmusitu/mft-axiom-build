@@ -78,8 +78,8 @@ jobs:
             'terraform'+' apply',
             'git'+' push',
             'gh pr'+' merge',
-            'mcp/musitu_axiom_plugin_gate_v4.mjs',
-            'mcp/musitu_axiom_mcp_worker_v2.mjs',
+            'mcp/'+'musitu_axiom_plugin_gate_v4.mjs',
+            'mcp/'+'musitu_axiom_mcp_worker_v2.mjs',
           ]
           bad=[x for x in forbidden if x in text]
           if bad:
