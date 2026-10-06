@@ -91,11 +91,11 @@ export class GovernedExecutionStore{
         else if(request.operation==='test.run'){result={status:'PASS',suite:clean(request.target||'local',120),external_process_spawned:false};rollback_available=true;}
         else if(request.operation==='secret.use'){const leaseBody={schema:'musitu.axiom.secret-lease.browser.v1',lease_id:uid('secret-lease'),project_id:request.project_id,request_sha256:request.request_sha256,workload_identity_id:request.workload_identity_id,destination:request.destination,operation:request.operation,issued_at:new Date().toISOString(),expires_at:new Date(Date.now()+120000).toISOString(),plaintext_secret_released:false,external_secret_backend_bound:false};const lease={...leaseBody,lease_sha256:await sha256(leaseBody)};await this._put('leases',lease);result={lease_id:lease.lease_id,lease_sha256:lease.lease_sha256,expires_at:lease.expires_at,plaintext_secret_released:false};}
         else blocked_reason='QUALIFIED_EXTERNAL_EXECUTOR_REQUIRED';
-      }catch(error){return this._failedReceipt(request,error,claimState.claim.owner_id);}
+      }catch(error){return await this._failedReceipt(request,error,claimState.claim.owner_id);}
       if(blocked_reason)return this._blockedReceipt(request,blocked_reason);
       const body={schema:'musitu.axiom.execution-receipt.browser.v1',receipt_id:uid('execution-receipt'),project_id:request.project_id,sandbox_id:sandbox.sandbox_id,request_sha256:request.request_sha256,risk_class:request.risk_class,status:'COMPLETED',result:clone(result),rollback_available,external_action_executed:false,network_request_performed:false,host_shell_executed:false,plaintext_secret_access:false,created_at:new Date().toISOString()},receipt={...body,receipt_sha256:await sha256(body)};
       const persistedSandbox={...sandbox,sandbox_sha256:await sha256(without(sandbox,'sandbox_sha256'))};
-      return this._commitTerminalOutcome({request,receipt,sandbox:persistedSandbox,eventKind:'execution.completed',eventPayload:{request_sha256:request.request_sha256,receipt_id:receipt.receipt_id,receipt_sha256:receipt.receipt_sha256,risk_class:request.risk_class},claimOwnerId:claimState.claim.owner_id});
+      return await this._commitTerminalOutcome({request,receipt,sandbox:persistedSandbox,eventKind:'execution.completed',eventPayload:{request_sha256:request.request_sha256,receipt_id:receipt.receipt_id,receipt_sha256:receipt.receipt_sha256,risk_class:request.risk_class},claimOwnerId:claimState.claim.owner_id});
     }finally{
       await this._releaseExecutionClaim(requestSha,claimState.claim.owner_id);
     }
