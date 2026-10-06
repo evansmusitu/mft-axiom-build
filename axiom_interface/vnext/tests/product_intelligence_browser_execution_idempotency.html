@@ -228,6 +228,82 @@ try{
     invariant(integrity.status==='PASS',`failed terminal commit damaged store integrity: ${integrity.errors.join(',')}`);
     inspect.db.close();
     out.textContent='MUSITU_AXIOM_PHASE2_BROWSER_TERMINAL_COMMIT_ATOMICITY_PASS';
+  }else if(phase==='failed-atomic-fault'){
+    const projectId='project_browser_failed_atomic_12345678';
+    const authority=authorityFor(projectId);
+    const store=await GovernedExecutionStore.open();
+    const sandbox=await store.createSandbox(authority,{label:'FAILED terminal fault injection'});
+    const proposed=await store.propose(sandbox.sandbox_id,authority,{
+      operation:'worktree.create',
+      target:'main',
+      compute_units:1,
+      instruction_provenance:'GOVERNED_PLAN',
+      requested_at:'2026-10-06T20:20:00.000Z',
+    });
+    invariant(proposed.decision.status==='AUTHORIZED','FAILED atomic request must be authorized');
+    const originalPut=IDBObjectStore.prototype.put;
+    let injected=false;
+    IDBObjectStore.prototype.put=function(value,...args){
+      if(this.name==='events'&&value?.kind==='execution.failed'){
+        injected=true;
+        throw new DOMException('INJECTED_FAILED_EVENT_PUT_FAILURE','AbortError');
+      }
+      return originalPut.call(this,value,...args);
+    };
+    let rejected=null;
+    try{await store.execute(proposed.request.request_sha256,authority);}catch(error){rejected=error;}finally{IDBObjectStore.prototype.put=originalPut;}
+    invariant(injected,'FAILED terminal event fault injection was not reached');
+    invariant(rejected,'FAILED terminal commit fault must reject execution');
+    store.db.close();
+    const inspect=await GovernedExecutionStore.open();
+    const receipts=(await inspect._all('receipts',projectId)).filter(row=>row.request_sha256===proposed.request.request_sha256&&row.status==='FAILED');
+    const events=(await inspect._all('events',projectId)).filter(row=>row.kind==='execution.failed'&&row.payload?.request_sha256===proposed.request.request_sha256);
+    const claims=await inspect._all('execution_claims',projectId);
+    invariant(receipts.length===0,`failed-path atomic fault leaked ${receipts.length} FAILED receipts`);
+    invariant(events.length===0,`failed-path atomic fault leaked ${events.length} FAILED events`);
+    invariant(claims.length===0,`failed-path atomic fault left ${claims.length} execution claims`);
+    const integrity=await inspect.verify(projectId);
+    invariant(integrity.status==='PASS',`FAILED-path atomic fault damaged store integrity: ${integrity.errors.join(',')}`);
+    inspect.db.close();
+    out.textContent='MUSITU_AXIOM_PHASE2_BROWSER_FAILED_TERMINAL_COMMIT_ATOMICITY_PASS';
+  }else if(phase==='blocked-atomic-fault'){
+    const projectId='project_browser_blocked_atomic_12345678';
+    const authority=authorityFor(projectId);
+    const store=await GovernedExecutionStore.open();
+    const sandbox=await store.createSandbox(authority,{label:'BLOCKED receipt/event fault injection'});
+    const proposed=await store.propose(sandbox.sandbox_id,authority,{
+      operation:'repo.mutate',
+      target:'frontier/blocked-test',
+      payload:{change_sha256:'a'.repeat(64)},
+      destination:'https://github.example.test/api/v1/change',
+      compute_units:1,
+      instruction_provenance:'GOVERNED_PLAN',
+      requested_at:'2026-10-06T20:21:00.000Z',
+    });
+    invariant(proposed.decision.status!=='AUTHORIZED','BLOCKED atomic request must not be immediately authorized');
+    const originalPut=IDBObjectStore.prototype.put;
+    let injected=false;
+    IDBObjectStore.prototype.put=function(value,...args){
+      if(this.name==='events'&&value?.kind==='execution.blocked'){
+        injected=true;
+        throw new DOMException('INJECTED_BLOCKED_EVENT_PUT_FAILURE','AbortError');
+      }
+      return originalPut.call(this,value,...args);
+    };
+    let rejected=null;
+    try{await store.execute(proposed.request.request_sha256,authority);}catch(error){rejected=error;}finally{IDBObjectStore.prototype.put=originalPut;}
+    invariant(injected,'BLOCKED event fault injection was not reached');
+    invariant(rejected,'BLOCKED receipt/event fault must reject execution');
+    store.db.close();
+    const inspect=await GovernedExecutionStore.open();
+    const receipts=(await inspect._all('receipts',projectId)).filter(row=>row.request_sha256===proposed.request.request_sha256&&row.status==='BLOCKED');
+    const events=(await inspect._all('events',projectId)).filter(row=>row.kind==='execution.blocked'&&row.payload?.request_sha256===proposed.request.request_sha256);
+    invariant(receipts.length===0,`blocked atomic fault leaked ${receipts.length} BLOCKED receipts`);
+    invariant(events.length===0,`blocked atomic fault leaked ${events.length} BLOCKED events`);
+    const integrity=await inspect.verify(projectId);
+    invariant(integrity.status==='PASS',`BLOCKED atomic fault damaged store integrity: ${integrity.errors.join(',')}`);
+    inspect.db.close();
+    out.textContent='MUSITU_AXIOM_PHASE2_BROWSER_BLOCKED_RECEIPT_EVENT_ATOMICITY_PASS';
   }else if(phase==='process-kill-arm'){
     const projectId='project_browser_process_kill_12345678';
     const authority=authorityFor(projectId);

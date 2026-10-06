@@ -241,6 +241,8 @@ try{
   await launchPhase('stale-seed','MUSITU_AXIOM_PHASE2_BROWSER_STALE_CLAIM_SEED_PASS');
   await launchPhase('stale-recover','MUSITU_AXIOM_PHASE2_BROWSER_STALE_CLAIM_RECOVERY_PASS');
   await launchPhase('atomic-fault','MUSITU_AXIOM_PHASE2_BROWSER_TERMINAL_COMMIT_ATOMICITY_PASS');
+  await launchPhase('failed-atomic-fault','MUSITU_AXIOM_PHASE2_BROWSER_FAILED_TERMINAL_COMMIT_ATOMICITY_PASS');
+  await launchPhase('blocked-atomic-fault','MUSITU_AXIOM_PHASE2_BROWSER_BLOCKED_RECEIPT_EVENT_ATOMICITY_PASS');
   await launchProcessKillPhase();
   console.log('MUSITU_AXIOM_PHASE2_BROWSER_DURABLE_IDEMPOTENCY_QUALIFICATION_PASS');
 }finally{
