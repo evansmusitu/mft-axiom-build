@@ -1,3 +1,4 @@
+import hashlib
 from dataclasses import dataclass
 from typing import Any, Protocol, Iterable
 from .core import CanonicalEnvelope, IntegrationGate
@@ -14,6 +15,7 @@ class FabricRun:
     envelope: CanonicalEnvelope
     lineage: dict[str,Any]
     signature: str
+    canonical_sha256: str = ""
 
 class ConnectFabric:
     def __init__(self, *, signing_secret: bytes, axiom_gate: IntegrationGate | None = None) -> None:
@@ -28,8 +30,12 @@ class ConnectFabric:
             "run_id":run_id,
         })
         signed=sign(payload,self.signing_secret)
+        canonical_sha256=hashlib.sha256(payload).hexdigest()
         lineage=event(namespace="musitu.connect",job_name=connector_name,run_id=run_id,outputs=[{"namespace":"musitu.connect","name":f"{envelope.domain}.{run_id}"}])
-        return FabricRun(run_id=run_id,envelope=envelope,lineage=lineage,signature=signed.signature)
+        return FabricRun(
+            run_id=run_id,envelope=envelope,lineage=lineage,
+            signature=signed.signature,canonical_sha256=canonical_sha256,
+        )
 
     def ingest(self, *, run_id: str, connector_name: str, domain: str, records: Iterable[dict[str,Any]]) -> FabricRun:
         rows=tuple(records)
