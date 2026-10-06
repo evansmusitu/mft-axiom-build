@@ -39,6 +39,39 @@ jobs:
       - name: API build
         working-directory: delivery-os/vendor/ownfleet
         run: npm run build -w @ownfleet/api
+      - name: Prepare deterministic Next font responses
+        run: |
+          cat > "$RUNNER_TEMP/next-font-mocked-responses.cjs" <<'EOF'
+          module.exports = {
+            'https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap': `
+          /* cyrillic */
+          @font-face {
+            font-family: 'Manrope';
+            font-style: normal;
+            font-weight: 400 800;
+            font-display: swap;
+            src: url(https://mock.invalid/manrope-cyrillic.woff2) format('woff2');
+          }
+          /* latin */
+          @font-face {
+            font-family: 'Manrope';
+            font-style: normal;
+            font-weight: 400 800;
+            font-display: swap;
+            src: url(https://mock.invalid/manrope-latin.woff2) format('woff2');
+          }`,
+            'https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap': `
+          /* latin */
+          @font-face {
+            font-family: 'JetBrains Mono';
+            font-style: normal;
+            font-weight: 400 700;
+            font-display: swap;
+            src: url(https://mock.invalid/jetbrains-mono-latin.woff2) format('woff2');
+          }`,
+          }
+          EOF
+          echo "NEXT_FONT_GOOGLE_MOCKED_RESPONSES=$RUNNER_TEMP/next-font-mocked-responses.cjs" >> "$GITHUB_ENV"
       - name: Web build
         working-directory: delivery-os/vendor/ownfleet
         run: npm run build -w @ownfleet/web
