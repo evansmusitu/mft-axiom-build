@@ -1,0 +1,51 @@
+name: MUSITU Axiom Support Data Key Rotation Once
+
+on:
+  push:
+    branches:
+      - 'support/axiom-official-support-20261005'
+    paths:
+      - '.github/workflows/axiom-official-support-key-rotation-once.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: musitu-axiom-support-data-key-rotation
+  cancel-in-progress: false
+
+jobs:
+  rotate:
+    if: github.event.before == '44e430bdbfbcab994cd84a99685be46c29ce2af6'
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    environment: axiom-support-production
+    env:
+      SUPPORT_KEY_ROTATION_CONFIRM: ROTATE_MUSITU_AXIOM_SUPPORT_DATA_KEY_EMPTY_D1
+      CLOUDFLARE_ACCOUNT_ID: '93f395f5121954671f92fffa453d6b61'
+      CLOUDFLARE_ZONE_ID: '5b56528f03948ff5917a5e0cd9f7109e'
+      SUPPORT_D1_DATABASE_ID: 'a525c8b6-9b44-413b-a219-46e419b71b12'
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_RULESETS_API_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Exact one-shot boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF_NAME" = 'support/axiom-official-support-20261005'
+          test "$GITHUB_REF_NAME" != 'main'
+          test "$GITHUB_EVENT_NAME" = 'push'
+          test "${{ github.event.before }}" = '44e430bdbfbcab994cd84a99685be46c29ce2af6'
+      - name: Re-run focused key rotation contract before write
+        run: node --test support/tests/key_rotation.test.mjs
+      - name: Rotate support data key only if D1 remains empty and Worker non-public
+        run: node support/scripts/verify_support_key_rotation.mjs
+      - name: Publish sanitized rotation evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          node -e 'const e=require("./support-key-rotation-evidence.json"); const h=require("node:fs").readFileSync("support-key-rotation-evidence.json.sha256","utf8").split(" ")[0]; console.log(JSON.stringify({gate:e.gate,status:e.status,rotation_performed:e.rotation_performed,database_empty_verified:e.database_empty_verified,public_route_absent_verified:e.public_route_absent_verified,generated_key_bytes:e.generated_key_bytes,secret_value_exposed:e.secret_value_exposed,evidence_sha256:h}))'
+          rm support-key-rotation-evidence.json support-key-rotation-evidence.json.sha256
