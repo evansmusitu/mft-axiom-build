@@ -79,6 +79,16 @@ function exactForward(rule, destination) {
   return values.length === 1 && String(values[0] || '').trim().toLowerCase() === destination;
 }
 
+function safeDisabledDropAll(rule) {
+  if (rule?.enabled !== false) return false;
+  const matchers = Array.isArray(rule?.matchers) ? rule.matchers : [];
+  const actions = Array.isArray(rule?.actions) ? rule.actions : [];
+  return matchers.length === 1 &&
+    String(matchers[0]?.type || '').toLowerCase() === 'all' &&
+    actions.length === 1 &&
+    String(actions[0]?.type || '').toLowerCase() === 'drop';
+}
+
 async function getResult({fetchImpl, headers, path}) {
   return (await cloudflareRequest({fetchImpl, headers, path})).result;
 }
@@ -151,7 +161,7 @@ function catchAllSafeForRetirement(rule) {
 
 async function ensureSupportRule({fetchImpl, headers, destination}) {
   const rules = await readRules({fetchImpl, headers});
-  const unrelated = rules.filter(rule => !targetsSupport(rule));
+  const unrelated = rules.filter(rule => !targetsSupport(rule) && !safeDisabledDropAll(rule));
   if (unrelated.length) throw new Error('unexpected non-support Email Routing rule exists');
   const matches = rules.filter(targetsSupport);
   const exact = matches.filter(rule => exactForward(rule, destination));
@@ -254,8 +264,9 @@ export async function migrateEmailRouting({env = process.env, fetchImpl = fetch,
       readRules({fetchImpl, headers: credential.headers}),
       readProtectedProviderDns({fetchImpl, headers: credential.headers}),
     ]);
-    const supportMatches = afterRules.filter(targetsSupport);
-    const supportExact = afterRules.length === 1 && supportMatches.length === 1 && exactForward(supportMatches[0], destination);
+    const effectiveRules = afterRules.filter(rule => !safeDisabledDropAll(rule));
+    const supportMatches = effectiveRules.filter(targetsSupport);
+    const supportExact = effectiveRules.length === 1 && supportMatches.length === 1 && exactForward(supportMatches[0], destination);
     const providerUnchanged = sameProtectedProviderDns(beforeProtected, afterProtected);
     if (!afterRouting.ready) throw new Error('EMAIL_ROUTING_NOT_READY');
     if (!sameRecordSet(afterMail, desiredMail)) throw new Error('EMAIL_ROUTING_DNS_NOT_CONVERGED');
