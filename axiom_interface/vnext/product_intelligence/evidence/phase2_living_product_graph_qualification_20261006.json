@@ -1,0 +1,62 @@
+{
+  "schema": "musitu.axiom.phase2.living-product-graph-qualification.v1",
+  "recorded_date": "2026-10-06",
+  "source_authority": {
+    "repository": "evansmusitu/mft-axiom-build",
+    "branch": "frontier/axiom-product-intelligence-phase2-20261004",
+    "predecessor_optional_adapter_evidence_commit": "884b12b1903e89a85fb735bccb78b636f58f49d2",
+    "contract_hardening_commit": "f8531ef8a5a042f94dc819bfc1a0c77d472dfb09",
+    "semantic_hardening_commit": "f0ae95fe2944efad14c4b05e49a056c8335b713b",
+    "independent_gate_commit": "57450468589b9fb7c6e6ba1c9325bf5399b4ec12",
+    "implementation_path": "axiom_interface/vnext/product_intelligence/living_product_graph.js",
+    "implementation_git_blob": "12bf338d6472770c7f45baa44c07f74010df7e84",
+    "contract_test_path": "axiom_interface/vnext/tests/product_intelligence_living_product_graph.test.mjs",
+    "contract_test_git_blob": "3ae95040afa47b1d027bab6e309914a8d348f003",
+    "gate_workflow_path": ".github/workflows/axiom-product-intelligence-phase2-gate.yml",
+    "gate_workflow_git_blob": "0295505f10b4cf48bac1adcb87ae2b5ae2755125"
+  },
+  "development_process": {
+    "tdd_provenance": "NOT_PROVEN",
+    "reason": "The current verifier did not observe red-first execution for the two pre-existing Living Product Graph hardening commits. No TDD claim is made."
+  },
+  "independent_verification": {
+    "workflow": "MUSITU Axiom Product Intelligence Phase 2 Gate",
+    "run_id": 37423310589,
+    "head_sha": "57450468589b9fb7c6e6ba1c9325bf5399b4ec12",
+    "conclusion": "success",
+    "focused_contract_job": {
+      "job_id": 112137291627,
+      "conclusion": "success",
+      "living_product_graph_contracts": "PASS_11_OF_11"
+    },
+    "independent_replay_job": {
+      "job_id": 112137325310,
+      "conclusion": "success",
+      "all_frozen_order_tests": "PASS_86_OF_86",
+      "authority_marker": "MUSITU_AXIOM_PHASE2_PROVIDER_AUTHORITY_FAIL_CLOSED_PASS",
+      "slice_marker": "MUSITU_AXIOM_PHASE2_SLICE_VERIFICATION_PASS",
+      "release_authority": false,
+      "production_authority": false,
+      "certification_authority": false
+    }
+  },
+  "qualification": {
+    "living_product_graph_contract_and_authority_gate": "PASS",
+    "semantic_scope": "PROJECT_SCOPED_VERSIONED_GRAPH_PLUS_PERSISTENCE_MECHANISM_BOUNDARY",
+    "live_integrated_runtime_qualification": "NOT_PROVEN",
+    "canonical_evidence_authority": false,
+    "release_authority": false,
+    "production_authority": false,
+    "certification_authority": false,
+    "production_mutation": false,
+    "frozen_openai_mutation": false,
+    "required_next_gate": "NEXT_MUSITU_LAYER_ONLY_AFTER_FRESH_AUTHORITY_RECONCILIATION"
+  },
+  "incident_boundary": {
+    "modal_fanout_cleanup": "NOT_PROVEN",
+    "latest_checked_run_id": 37284936693,
+    "latest_checked_job_id": 111795419209,
+    "latest_checked_job_conclusion": "failure",
+    "required_pass_marker_observed": false
+  }
+}
