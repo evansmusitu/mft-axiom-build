@@ -268,3 +268,18 @@ test('replayed IR rejects authority-bearing schema drift and compiler policy esc
     await assert.rejects(()=>diffProductIR(ir,candidate),pattern);
   }
 });
+
+
+test('replayed IR rejects duplicate identities and out-of-graph relation or binding references',async()=>{
+  const ir=await compileProductIR(graph(),{bindings,compilerVersion:'1.0.0'});
+  const cases=[
+    [(()=>{const x=structuredClone(ir);x.units.push(structuredClone(x.units[0]));return x;})(),/duplicate.*node|node.*duplicate|unit.*unique/i],
+    [(()=>{const x=structuredClone(ir);x.relations.push(structuredClone(x.relations[0]));return x;})(),/duplicate.*edge|edge.*duplicate|relation.*unique/i],
+    [(()=>{const x=structuredClone(ir);x.relations[0].to_id='missing_unit';return x;})(),/relation.*endpoint|endpoint.*unit|reference.*unit/i],
+    [(()=>{const x=structuredClone(ir);x.bindings.push(structuredClone(x.bindings[0]));return x;})(),/duplicate.*binding|binding.*unique/i],
+    [(()=>{const x=structuredClone(ir);x.bindings[0].node_id='missing_unit';return x;})(),/binding.*node_id|binding.*reference|reference.*unit/i],
+  ];
+  for(const [candidate,pattern] of cases){
+    await assert.rejects(()=>diffProductIR(ir,candidate),pattern);
+  }
+});
