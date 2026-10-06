@@ -2,6 +2,7 @@ import unittest
 
 from benchmarks.mining_adapter.msha_real_mine import (
     MshaRealMineSpec,
+    canonical_msha_envelope,
     evaluate_real_mine_gate,
     normalize_msha_rows,
     parse_msha_pipe_text,
@@ -34,6 +35,12 @@ class MshaRealMineTests(unittest.TestCase):
         self.assertNotIn("likelihood",first)
         self.assertNotIn("benefit",first)
         self.assertNotIn("cost",first)
+
+
+    def test_canonical_envelope_accepts_already_normalized_source_selection(self):
+        normalized=normalize_msha_rows(parse_msha_pipe_text(_FIXTURE))
+        rebuilt=canonical_msha_envelope([dict(item) for item in normalized.records])
+        self.assertEqual(rebuilt,normalized)
 
     def test_normalizer_rejects_duplicate_document_numbers(self):
         rows=parse_msha_pipe_text(_FIXTURE)
