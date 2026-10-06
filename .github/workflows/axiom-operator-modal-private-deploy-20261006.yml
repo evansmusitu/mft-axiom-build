@@ -1,0 +1,361 @@
+name: MUSITU Axiom Operator Modal Private Deploy 20261006
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  deploy-private-operator:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID }}
+      MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET }}
+      OPERATOR_APP: musitu-axiom-operator-private-20261006
+      OPERATOR_VOLUME: musitu-axiom-operator-state-20261006
+      OPERATOR_TENANT: musitu-private-operator
+      OPERATOR_ACTOR: chatgpt-operator
+    steps:
+      - name: Checkout isolated operator candidate
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Setup Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: '3.13'
+
+      - name: Reassert isolated authority
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF_NAME" = 'frontier/axiom-operator-bridge-20261006'
+          BASE=07a01aa59e5c8512a074fcb5c4a147d265b1221a
+          test "$(git merge-base "$BASE" HEAD)" = "$BASE"
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          test "$(git rev-parse origin/main)" = 'd6a846f6bbe0bccac1758713eb4de167caf07113'
+          test -f frontier_v5/runtime/operator_bridge.py
+          test -f frontier_v5/runtime/operator_daemon.py
+          test -f frontier_v5/tests/test_operator_bridge_contract.py
+          echo 'operator_isolated_authority=PASS'
+
+      - name: Verify operator contracts before external deployment
+        shell: bash
+        run: |
+          set -euo pipefail
+          PYTHONPATH=. python frontier_v5/tests/test_persistent_planner.py
+          PYTHONPATH=. python frontier_v5/tests/test_agent_automation.py
+          PYTHONPATH=. python frontier_v5/tests/test_artifact_engine.py
+          PYTHONPATH=. python frontier_v5/tests/test_evidence_observatory.py
+          PYTHONPATH=. python frontier_v5/tests/test_computer_execution.py
+          PYTHONPATH=. python frontier_v5/tests/test_provider_fallback_contract.py
+          PYTHONPATH=. python frontier_v5/tests/test_mcp_2026_contract.py
+          PYTHONPATH=. python frontier_v5/tests/test_operator_bridge_contract.py | tee /tmp/operator-contract.log
+          grep -q 'MUSITU_AXIOM_OPERATOR_BRIDGE_CONTRACT_PASS' /tmp/operator-contract.log
+
+      - name: Authenticate Modal fail-closed
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$MODAL_TOKEN_ID"
+          test -n "$MODAL_TOKEN_SECRET"
+          python -m pip install --disable-pip-version-check --quiet 'modal>=1.5,<2'
+          modal app list --json >/dev/null
+          echo 'modal_auth=PASS'
+
+      - name: Generate isolated Modal Operator deployment
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > modal_operator_deploy.py <<'PY'
+          import os
+          import sys
+          import modal
+
+          APP_NAME=os.environ["OPERATOR_APP"]
+          VOLUME_NAME=os.environ["OPERATOR_VOLUME"]
+
+          image=(
+              modal.Image.debian_slim(python_version="3.13")
+              .pip_install("fastapi==0.128.2","uvicorn==0.38.0")
+              .add_local_dir("frontier_v5","/opt/axiom/frontier_v5",copy=True)
+          )
+          volume=modal.Volume.from_name(VOLUME_NAME,create_if_missing=True)
+          app=modal.App(APP_NAME,include_source=True)
+
+          @app.function(
+              image=image,
+              volumes={"/state":volume},
+              min_containers=0,
+              max_containers=1,
+              scaledown_window=300,
+              timeout=300,
+          )
+          @modal.asgi_app(requires_proxy_auth=True)
+          def operator_endpoint():
+              sys.path.insert(0,"/opt/axiom")
+              from fastapi import FastAPI, Request
+              from fastapi.responses import JSONResponse
+              from frontier_v5.runtime.operator_daemon import OperatorDaemonApplication
+
+              operator=OperatorDaemonApplication(
+                  root="/state",
+                  tenant=os.environ.get("OPERATOR_TENANT","musitu-private-operator"),
+                  actor_id=os.environ.get("OPERATOR_ACTOR","chatgpt-operator"),
+                  bearer_token="modal-proxy-authenticated-internal-only",
+              )
+              api=FastAPI(
+                  title="MUSITU Axiom Operator Private",
+                  docs_url=None,
+                  redoc_url=None,
+                  openapi_url=None,
+              )
+
+              @api.api_route("/{path:path}",methods=["GET","POST","PUT","DELETE"])
+              async def dispatch(path: str, request: Request):
+                  body=await request.body()
+                  incoming=dict(request.headers)
+                  incoming["authorization"]="Bearer modal-proxy-authenticated-internal-only"
+                  status,headers,payload=operator.handle(
+                      request.method,
+                      "/"+path,
+                      incoming,
+                      body,
+                  )
+                  if request.method=="POST" and path=="mcp" and status < 500:
+                      volume.commit()
+                  safe_headers={
+                      str(k):str(v)
+                      for k,v in headers.items()
+                      if str(k).lower() in {"content-type","cache-control","mcp-protocol-version"}
+                  }
+                  return JSONResponse(content=payload,status_code=status,headers=safe_headers)
+
+              return api
+
+          @app.function(image=image,volumes={"/state":volume},timeout=120)
+          def operator_state_probe():
+              import gzip,json,pathlib,hashlib
+              p=pathlib.Path("/state/operator-state-v1.json.gz")
+              if not p.exists():
+                  return {"state_present":False}
+              raw=p.read_bytes()
+              body=json.loads(gzip.decompress(raw))
+              return {
+                  "state_present":True,
+                  "compressed_sha256":hashlib.sha256(raw).hexdigest(),
+                  "state_sha256":body.get("state_sha256"),
+                  "schema":body.get("schema"),
+              }
+          PY
+          python -m py_compile modal_operator_deploy.py
+          echo 'modal_operator_package=PASS'
+
+      - name: Deploy isolated private Operator
+        shell: bash
+        run: |
+          set -euo pipefail
+          modal deploy modal_operator_deploy.py             --name "$OPERATOR_APP"             --strategy recreate             --tag "$GITHUB_SHA" | tee /tmp/operator-modal-deploy.log
+          python - <<'PY' > /tmp/operator-url
+          import os,modal
+          f=modal.Function.from_name(os.environ["OPERATOR_APP"],"operator_endpoint")
+          url=f.get_web_url()
+          if not url or not url.startswith("https://"):
+              raise SystemExit("Fail-closed: private Operator HTTPS URL missing")
+          print(url)
+          PY
+          echo 'modal_operator_deployed=PASS'
+
+      - name: Prove unauthenticated boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          URL="$(cat /tmp/operator-url)"
+          code="$(curl -sS -o /tmp/operator-unauth-body -w '%{http_code}' "$URL/health" || true)"
+          if [ "$code" != '401' ] && [ "$code" != '403' ]; then
+            echo "Fail-closed: unauthenticated Operator returned HTTP $code" >&2
+            exit 1
+          fi
+          echo "operator_unauthenticated_http=$code"
+
+      - name: Create ephemeral Modal proxy credential
+        shell: bash
+        run: |
+          set -euo pipefail
+          modal workspace proxy-tokens create --json > /tmp/modal-proxy.json
+          python - <<'PY'
+          import json,pathlib
+          obj=json.load(open('/tmp/modal-proxy.json')); vals=[]
+          def walk(x):
+              if isinstance(x,dict):
+                  for v in x.values(): walk(v)
+              elif isinstance(x,list):
+                  for v in x: walk(v)
+              elif isinstance(x,str):
+                  vals.append(x)
+          walk(obj)
+          keys=[x for x in vals if x.startswith('wk-')]
+          secs=[x for x in vals if x.startswith('ws-')]
+          if len(keys)!=1 or len(secs)!=1:
+              raise SystemExit('Fail-closed: unexpected Modal proxy credential shape')
+          pathlib.Path('/tmp/proxy-key').write_text(keys[0])
+          pathlib.Path('/tmp/proxy-secret').write_text(secs[0])
+          print('ephemeral_proxy_credential=READY')
+          PY
+          echo "::add-mask::$(cat /tmp/proxy-key)"
+          echo "::add-mask::$(cat /tmp/proxy-secret)"
+
+      - name: Authenticated MCP discovery and durable Work mutation
+        shell: bash
+        run: |
+          set -euo pipefail
+          URL="$(cat /tmp/operator-url)"
+          KEY="$(cat /tmp/proxy-key)"
+          SECRET="$(cat /tmp/proxy-secret)"
+          cleanup() {
+            modal workspace proxy-tokens delete -y "$KEY" >/dev/null 2>&1 || true
+            rm -f /tmp/modal-proxy.json /tmp/proxy-key /tmp/proxy-secret
+          }
+          trap cleanup EXIT
+
+          curl -fsS             -H "Modal-Key: $KEY"             -H "Modal-Secret: $SECRET"             "$URL/health" > /tmp/operator-health.json
+          python - <<'PY'
+          import json
+          x=json.load(open('/tmp/operator-health.json'))
+          assert x['status']=='READY'
+          assert x['durable_state']=='LOCAL_ATOMIC_STATE_PACK_WITH_FILE_LOCK'
+          assert x['production_authority'] is False
+          assert x['public_submission_mutation_authority'] is False
+          print('operator_authenticated_health=PASS')
+          PY
+
+          cat > /tmp/tools-list.json <<'JSON'
+          {"jsonrpc":"2.0","id":"list-1","method":"tools/list","params":{"_meta":{"io.modelcontextprotocol/protocolVersion":"2026-07-28"}}}
+          JSON
+          curl -fsS             -H "Modal-Key: $KEY"             -H "Modal-Secret: $SECRET"             -H 'Content-Type: application/json'             -H 'MCP-Protocol-Version: 2026-07-28'             -H 'Mcp-Method: tools/list'             --data-binary @/tmp/tools-list.json             "$URL/mcp" > /tmp/tools.json
+          python - <<'PY'
+          import json
+          x=json.load(open('/tmp/tools.json'))
+          names={t['name'] for t in x['result']['tools']}
+          required={'axiom.work.create','axiom.work.status','axiom.agent.register','axiom.artifact.create','axiom.evidence.register','axiom.computer.session.create','axiom.provider.status'}
+          missing=sorted(required-names)
+          if missing: raise SystemExit('missing operator tools '+repr(missing))
+          print('operator_mcp_discovery=PASS')
+          PY
+
+          PROJECT="modal-qualification-${GITHUB_SHA::12}"
+          export PROJECT
+          python - <<'PY' > /tmp/project-create.json
+          import json,os
+          print(json.dumps({
+            'jsonrpc':'2.0','id':'project-create','method':'tools/call',
+            'params':{
+              'name':'axiom.project.create',
+              'arguments':{'project_id':os.environ['PROJECT'],'name':'Modal Operator Qualification'},
+              '_meta':{'io.modelcontextprotocol/protocolVersion':'2026-07-28'}
+            }
+          },separators=(',',':')))
+          PY
+          curl -fsS             -H "Modal-Key: $KEY" -H "Modal-Secret: $SECRET"             -H 'Content-Type: application/json'             -H 'MCP-Protocol-Version: 2026-07-28'             -H 'Mcp-Method: tools/call' -H 'Mcp-Name: axiom.project.create'             --data-binary @/tmp/project-create.json "$URL/mcp" > /tmp/project-create-response.json
+
+          python - <<'PY' > /tmp/work-create.json
+          import json,os
+          print(json.dumps({
+            'jsonrpc':'2.0','id':'work-create','method':'tools/call',
+            'params':{
+              'name':'axiom.work.create',
+              'arguments':{
+                'project_id':os.environ['PROJECT'],
+                'work_id':'durability-proof',
+                'goal':'prove remote durable Work survives redeployment',
+                'premises':{'qualification':True},
+                'nodes':[{'node_id':'verify','action':'verify durability','dependencies':[],'preconditions':[],'side_effecting':False}],
+                'max_replans':1
+              },
+              '_meta':{'io.modelcontextprotocol/protocolVersion':'2026-07-28'}
+            }
+          },separators=(',',':')))
+          PY
+          curl -fsS             -H "Modal-Key: $KEY" -H "Modal-Secret: $SECRET"             -H 'Content-Type: application/json'             -H 'MCP-Protocol-Version: 2026-07-28'             -H 'Mcp-Method: tools/call' -H 'Mcp-Name: axiom.work.create'             --data-binary @/tmp/work-create.json "$URL/mcp" > /tmp/work-create-response.json
+          jq -er '.result.plan_id' /tmp/work-create-response.json > /tmp/plan-id
+          echo 'operator_remote_work_created=PASS'
+
+          modal deploy modal_operator_deploy.py             --name "$OPERATOR_APP"             --strategy recreate             --tag "$GITHUB_SHA-durability-redeploy" >/tmp/operator-modal-redeploy.log
+
+          PLAN_ID="$(cat /tmp/plan-id)"
+          export PLAN_ID
+          python - <<'PY' > /tmp/work-status.json
+          import json,os
+          print(json.dumps({
+            'jsonrpc':'2.0','id':'work-status','method':'tools/call',
+            'params':{
+              'name':'axiom.work.status',
+              'arguments':{'project_id':os.environ['PROJECT'],'plan_id':os.environ['PLAN_ID']},
+              '_meta':{'io.modelcontextprotocol/protocolVersion':'2026-07-28'}
+            }
+          },separators=(',',':')))
+          PY
+          curl --retry 8 --retry-delay 2 --retry-all-errors -fsS             -H "Modal-Key: $KEY" -H "Modal-Secret: $SECRET"             -H 'Content-Type: application/json'             -H 'MCP-Protocol-Version: 2026-07-28'             -H 'Mcp-Method: tools/call' -H 'Mcp-Name: axiom.work.status'             --data-binary @/tmp/work-status.json "$URL/mcp" > /tmp/work-status-response.json
+          python - <<'PY'
+          import json,os
+          x=json.load(open('/tmp/work-status-response.json'))
+          r=x['result']
+          assert r['project_id']==os.environ['PROJECT']
+          assert r['plan']['plan_id']==os.environ['PLAN_ID']
+          assert any(n['node_id']=='verify' for n in r['plan']['nodes'])
+          print('operator_volume_redeploy_durability=PASS')
+          PY
+
+          python - <<'PY'
+          import os,modal
+          p=modal.Function.from_name(os.environ['OPERATOR_APP'],'operator_state_probe')
+          r=p.remote()
+          if not r.get('state_present') or r.get('schema')!='musitu.axiom.operator-state-envelope.v1' or not r.get('state_sha256'):
+              raise SystemExit('Fail-closed: Modal Volume state proof missing')
+          print('operator_modal_volume_state=PASS')
+          PY
+
+          modal workspace proxy-tokens delete -y "$KEY" >/dev/null
+          rm -f /tmp/modal-proxy.json /tmp/proxy-key /tmp/proxy-secret
+          trap - EXIT
+
+      - name: Seal non-production qualification summary
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import hashlib,json,os,pathlib
+          url=pathlib.Path('/tmp/operator-url').read_text().strip()
+          body={
+            'schema':'musitu.axiom.operator-modal-private-deploy.v1',
+            'source_commit':os.environ['GITHUB_SHA'],
+            'branch':os.environ['GITHUB_REF_NAME'],
+            'modal_app':os.environ['OPERATOR_APP'],
+            'modal_volume':os.environ['OPERATOR_VOLUME'],
+            'endpoint_https':url.startswith('https://'),
+            'modal_proxy_auth_required':True,
+            'operator_tool_discovery_verified':True,
+            'durable_work_survived_redeploy':True,
+            'state_pack_present_on_modal_volume':True,
+            'production_authority':False,
+            'public_submission_mutation_authority':False,
+            'external_provider_execution_authority':False,
+            'global_superiority_claim_allowed':False,
+            'gate':'PASS',
+          }
+          encoded=json.dumps(body,sort_keys=True,separators=(',',':')).encode()
+          print('operator_modal_evidence_sha256='+hashlib.sha256(encoded).hexdigest())
+          print('MUSITU_AXIOM_OPERATOR_MODAL_PRIVATE_DEPLOY_PASS')
+          PY
+
+      - name: Prove public/protected state untouched
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse origin/main)" = 'd6a846f6bbe0bccac1758713eb4de167caf07113'
+          git diff --check
+          echo 'protected_state_unchanged=PASS'
