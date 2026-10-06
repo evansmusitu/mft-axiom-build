@@ -61,28 +61,64 @@ export async function runBackupRestoreDrill({
   const runId = String(env.GITHUB_RUN_ID || 'local').replace(/[^a-zA-Z0-9-]/g, '').slice(-24) || 'local';
   const databaseName = `axiom-support-restore-drill-${runId}`.toLowerCase();
   const payloadSha = sha256('synthetic-support-backup-restore-v1');
+  const existingSupportDatabaseId = String(env.SUPPORT_D1_DATABASE_ID || '').trim();
+  const usingExistingSupportDatabase = Boolean(existingSupportDatabaseId);
+  const probeTable = usingExistingSupportDatabase
+    ? `support_backup_probe_${runId.replace(/-/g, '_').toLowerCase()}`
+    : 'support_backup_probe';
   let databaseId = '';
   let cleanupOk = false;
   let evidence = null;
+  let supportCaseCountBefore = null;
+  let supportEventCountBefore = null;
 
   try {
-    const created = await cf({
-      fetchImpl, token,
-      path: `/accounts/${accountId}/d1/database`,
-      method: 'POST',
-      body: {name: databaseName},
-    });
-    databaseId = String(created?.uuid || created?.id || '');
-    if (!databaseId) throw new Error('temporary D1 database id missing');
+    if (usingExistingSupportDatabase) {
+      const zoneId = String(env.CLOUDFLARE_ZONE_ID || '').trim();
+      if (!zoneId) throw new Error('Cloudflare zone id is required for non-public support D1 drill');
+
+      const [domains, dns] = await Promise.all([
+        cf({fetchImpl, token, path: `/accounts/${accountId}/workers/domains`}),
+        cf({fetchImpl, token, path: `/zones/${zoneId}/dns_records?name=${encodeURIComponent('support.mftintelligence.com')}&per_page=100`}),
+      ]);
+      const publicDomain = (Array.isArray(domains) ? domains : []).some(row =>
+        String(row?.hostname || '').toLowerCase() === 'support.mftintelligence.com'
+      );
+      if (publicDomain || (Array.isArray(dns) && dns.length)) throw new Error('support D1 restore drill requires the support hostname to remain non-public');
+
+      databaseId = existingSupportDatabaseId;
+      const caseRows = queryRows(await query({
+        fetchImpl, token, accountId, databaseId,
+        sql: 'SELECT COUNT(*) AS count FROM support_cases;',
+      }));
+      const eventRows = queryRows(await query({
+        fetchImpl, token, accountId, databaseId,
+        sql: 'SELECT COUNT(*) AS count FROM support_case_events;',
+      }));
+      supportCaseCountBefore = Number(caseRows[0]?.count ?? -1);
+      supportEventCountBefore = Number(eventRows[0]?.count ?? -1);
+      if (supportCaseCountBefore !== 0 || supportEventCountBefore !== 0) {
+        throw new Error('support D1 restore drill refuses to run when real support data exists');
+      }
+    } else {
+      const created = await cf({
+        fetchImpl, token,
+        path: `/accounts/${accountId}/d1/database`,
+        method: 'POST',
+        body: {name: databaseName},
+      });
+      databaseId = String(created?.uuid || created?.id || '');
+      if (!databaseId) throw new Error('temporary D1 database id missing');
+    }
 
     await query({
       fetchImpl, token, accountId, databaseId,
-      sql: `CREATE TABLE support_backup_probe(case_id TEXT PRIMARY KEY, payload_sha256 TEXT NOT NULL, marker TEXT NOT NULL);
-INSERT INTO support_backup_probe(case_id,payload_sha256,marker) VALUES('AX-BACKUP-RESTORE-DRILL','${payloadSha}','seed');`,
+      sql: `CREATE TABLE ${probeTable}(case_id TEXT PRIMARY KEY, payload_sha256 TEXT NOT NULL, marker TEXT NOT NULL);
+INSERT INTO ${probeTable}(case_id,payload_sha256,marker) VALUES('AX-BACKUP-RESTORE-DRILL','${payloadSha}','seed');`,
     });
     const seeded = queryRows(await query({
       fetchImpl, token, accountId, databaseId,
-      sql: `SELECT payload_sha256, marker FROM support_backup_probe WHERE case_id='AX-BACKUP-RESTORE-DRILL' LIMIT 1;`,
+      sql: `SELECT payload_sha256, marker FROM ${probeTable} WHERE case_id='AX-BACKUP-RESTORE-DRILL' LIMIT 1;`,
     }))[0];
     if (seeded?.marker !== 'seed' || seeded?.payload_sha256 !== payloadSha) throw new Error('synthetic seed readback failed');
 
@@ -95,11 +131,11 @@ INSERT INTO support_backup_probe(case_id,payload_sha256,marker) VALUES('AX-BACKU
 
     await query({
       fetchImpl, token, accountId, databaseId,
-      sql: `UPDATE support_backup_probe SET marker='mutated' WHERE case_id='AX-BACKUP-RESTORE-DRILL';`,
+      sql: `UPDATE ${probeTable} SET marker='mutated' WHERE case_id='AX-BACKUP-RESTORE-DRILL';`,
     });
     const mutated = queryRows(await query({
       fetchImpl, token, accountId, databaseId,
-      sql: `SELECT payload_sha256, marker FROM support_backup_probe WHERE case_id='AX-BACKUP-RESTORE-DRILL' LIMIT 1;`,
+      sql: `SELECT payload_sha256, marker FROM ${probeTable} WHERE case_id='AX-BACKUP-RESTORE-DRILL' LIMIT 1;`,
     }))[0];
     if (mutated?.marker !== 'mutated') throw new Error('destructive mutation verification failed');
 
@@ -114,7 +150,7 @@ INSERT INTO support_backup_probe(case_id,payload_sha256,marker) VALUES('AX-BACKU
     for (let attempt = 0; attempt < 10; attempt += 1) {
       const rows = queryRows(await query({
         fetchImpl, token, accountId, databaseId,
-        sql: `SELECT payload_sha256, marker FROM support_backup_probe WHERE case_id='AX-BACKUP-RESTORE-DRILL' LIMIT 1;`,
+        sql: `SELECT payload_sha256, marker FROM ${probeTable} WHERE case_id='AX-BACKUP-RESTORE-DRILL' LIMIT 1;`,
       }));
       finalRow = rows[0] || null;
       if (finalRow?.marker === 'seed' && finalRow?.payload_sha256 === payloadSha) break;
@@ -130,7 +166,11 @@ INSERT INTO support_backup_probe(case_id,payload_sha256,marker) VALUES('AX-BACKU
       verifier_ref: 'cloudflare:d1-time-travel-isolated-drill',
       artifact_sha256: payloadSha,
       synthetic_seed_restored: true,
+      existing_support_database_used: usingExistingSupportDatabase,
+      support_case_count_before: supportCaseCountBefore,
+      support_event_count_before: supportEventCountBefore,
       temporary_database_deleted: false,
+      temporary_table_deleted: false,
       production_support_database_modified: false,
       bookmark_recorded: false,
       customer_data_used: false,
@@ -139,26 +179,33 @@ INSERT INTO support_backup_probe(case_id,payload_sha256,marker) VALUES('AX-BACKU
   } finally {
     if (databaseId) {
       try {
-        await cf({
-          fetchImpl, token,
-          path: `/accounts/${accountId}/d1/database/${databaseId}`,
-          method: 'DELETE',
-        });
+        if (usingExistingSupportDatabase) {
+          await query({
+            fetchImpl, token, accountId, databaseId,
+            sql: `DROP TABLE IF EXISTS ${probeTable};`,
+          });
+        } else {
+          await cf({
+            fetchImpl, token,
+            path: `/accounts/${accountId}/d1/database/${databaseId}`,
+            method: 'DELETE',
+          });
+        }
         cleanupOk = true;
       } catch {
         cleanupOk = false;
       }
     }
-    if (!cleanupOk && databaseId) throw new Error('temporary D1 backup/restore database cleanup failed');
+    if (!cleanupOk && databaseId) throw new Error('backup/restore drill cleanup failed');
   }
   if (!evidence) throw new Error('backup/restore drill did not produce evidence');
-  evidence.temporary_database_deleted = cleanupOk;
+  evidence.temporary_database_deleted = cleanupOk && !usingExistingSupportDatabase;
+  evidence.temporary_table_deleted = cleanupOk && usingExistingSupportDatabase;
   return evidence;
 }
 
 export async function main(env = process.env, fetchImpl = fetch) {
   const evidence = await runBackupRestoreDrill({env, fetchImpl});
-  evidence.temporary_database_deleted = true;
   const serialized = JSON.stringify(evidence, null, 2) + '\n';
   const digest = sha256(serialized);
   const output = env.SUPPORT_BACKUP_RESTORE_OUTPUT || 'support-backup-restore-evidence.json';
@@ -168,7 +215,9 @@ export async function main(env = process.env, fetchImpl = fetch) {
     gate:evidence.gate,
     status:evidence.status,
     synthetic_seed_restored:true,
-    temporary_database_deleted:true,
+    temporary_database_deleted:evidence.temporary_database_deleted,
+    temporary_table_deleted:evidence.temporary_table_deleted,
+    existing_support_database_used:evidence.existing_support_database_used,
     production_support_database_modified:false,
     evidence_sha256:digest,
   }) + '\n');
