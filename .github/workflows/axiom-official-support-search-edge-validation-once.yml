@@ -1,0 +1,62 @@
+name: MUSITU Axiom Support Search Edge Rule Validation Once
+
+on:
+  push:
+    branches:
+      - 'support/axiom-official-support-20261005'
+    paths:
+      - '.github/workflows/axiom-official-support-search-edge-validation-once.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    if: github.event_name == 'push' && github.event.before == '6d85d15a9192925e437e9db9b3342564d317835b'
+    runs-on: ubuntu-latest
+    environment: axiom-support-production
+    timeout-minutes: 5
+    env:
+      CF_TOKEN: ${{ secrets.CLOUDFLARE_RULESETS_API_TOKEN }}
+      CF_ZONE: '5b56528f03948ff5917a5e0cd9f7109e'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Dry-run candidate crawler rules only
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF_NAME" = 'support/axiom-official-support-20261005'
+          test "${{ github.event.before }}" = '6d85d15a9192925e437e9db9b3342564d317835b'
+          node --input-type=module <<'NODE'
+          const token=String(process.env.CF_TOKEN||'');
+          const zone=String(process.env.CF_ZONE||'');
+          const headers={authorization:'Bearer '+token,accept:'application/json','content-type':'application/json'};
+          const base='https://api.cloudflare.com/client/v4/zones/'+zone;
+          const entryResponse=await fetch(base+'/rulesets/phases/http_config_settings/entrypoint',{headers});
+          const entry=await entryResponse.json();
+          if(!entryResponse.ok||entry?.success===false||!entry?.result?.id) throw new Error('configuration entrypoint read failed');
+          const ruleset=entry.result.id;
+          const paths='http.request.uri.path in {"/" "/index.html" "/robots.txt" "/sitemap.xml" "/styles.css" "/app.js"}';
+          const common='http.host eq "support.mftintelligence.com" and http.request.method in {"GET" "HEAD"} and '+paths;
+          const candidates=[
+            ['category_and_known','('+common+' and cf.client.bot and cf.verified_bot_category eq "Search Engine Crawler")',{security_level:'off',bic:false}],
+            ['known_only','('+common+' and cf.client.bot)',{security_level:'off',bic:false}],
+            ['category_only','('+common+' and cf.verified_bot_category eq "Search Engine Crawler")',{security_level:'off',bic:false}],
+            ['no_bot_field','('+common+')',{security_level:'off',bic:false}],
+            ['known_security_only','('+common+' and cf.client.bot)',{security_level:'off'}],
+            ['known_bic_only','('+common+' and cf.client.bot)',{bic:false}],
+          ];
+          for(const [name,expression,action_parameters] of candidates){
+            const body={ref:'musitu_search_validation_'+name,description:'dry-run only',expression,action:'set_config',action_parameters,enabled:true};
+            const r=await fetch(base+'/rulesets/'+encodeURIComponent(ruleset)+'/rules?dry_run=true',{method:'POST',headers,body:JSON.stringify(body)});
+            let p={}; try{p=await r.json()}catch{}
+            console.log(JSON.stringify({
+              candidate:name,
+              http_status:r.status,
+              success:r.ok&&p?.success!==false,
+              errors:(p?.errors||[]).map(x=>({code:x?.code??null,message:String(x?.message||'').slice(0,300),pointer:String(x?.source?.pointer||'')})),
+              persisted:false
+            }));
+          }
+          NODE
