@@ -2,6 +2,7 @@ import {assertLivingProductGraph} from './living_product_graph.js';
 
 const PROJECT_SCHEMA='musitu.axiom.project.v1';
 const OUTCOME_SCHEMA='musitu.axiom.outcome-contract.v1';
+const EXECUTION_BOUNDARY='PREVIEW_ONLY_NO_EXTERNAL_CONSEQUENTIAL_ACTIONS';
 const HASH=/^[a-f0-9]{64}$/i;
 const OUTCOME_CONTRACT_KEYS=new Set(['schema','project_id','contract_id','contract_sha256','project_object_id','title','outcome','success_criteria','constraints','execution_boundary','supersedes_contract_id','created_at','created_by']);
 const OUTCOME_CONSTRAINT_KEYS=new Set(['privacy','evidence','autonomy','approval','deadline','compute_budget']);
@@ -65,6 +66,7 @@ export async function compileObjectiveOutcomeGraph({project,contract,contractVer
   if(!isPlainObject(project)||project.schema!==PROJECT_SCHEMA) throw new TypeError('qualified Project record required');
   if(!isPlainObject(contract)||contract.schema!==OUTCOME_SCHEMA) throw new TypeError('qualified Outcome Contract required');
   rejectUnknownKeys(contract,OUTCOME_CONTRACT_KEYS,'Outcome Contract');
+  if(contract.execution_boundary!==EXECUTION_BOUNDARY) throw new DOMException('Outcome Contract execution boundary must remain preview-only','SecurityError');
   if(contract.project_id!==project.project_id) throw new DOMException('cross-project outcome contract blocked','SecurityError');
   if(contractVerified!==true) throw new DOMException('contract integrity must be verified','DataError');
   if(typeof contract.contract_sha256!=='string'||!HASH.test(contract.contract_sha256)) throw new TypeError('verified Outcome Contract sha256 required');
