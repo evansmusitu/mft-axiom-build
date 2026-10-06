@@ -106,12 +106,19 @@ jobs:
           PY
           python - <<'PY'
           from pathlib import Path
-          import yaml
           text=Path('modal_operator_tunnel.py').read_text()
           assert 'TUNNEL_VERSION = "v0.0.15"' in text
           assert '8c836dc5d68d68b663d9a5c5b28ff9fa780d9f7a3fffb1c306880b8f32fab5f1' in text
           assert 'public_mcp_listener": False' in text
-          yaml.safe_load(Path('.github/workflows/axiom-operator-openai-secure-tunnel-20261006.yml').read_text())
+          wf=Path('.github/workflows/axiom-operator-openai-secure-tunnel-20261006.yml').read_text()
+          for needle in (
+              'workflow_dispatch:',
+              'OPENAI_TUNNEL_ID:',
+              'OPENAI_TUNNEL_API_KEY:',
+              'modal secret create',
+              'MUSITU_AXIOM_SECURE_MCP_TUNNEL_READY',
+          ):
+              assert needle in wf, needle
           print('MUSITU_AXIOM_OPERATOR_TUNNEL_STATIC_PASS')
           PY
 
