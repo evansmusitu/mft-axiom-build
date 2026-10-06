@@ -78,6 +78,7 @@ export async function compileObjectiveOutcomeGraph({project,contract,contractVer
   if(approval!==null){
     if(!isPlainObject(approval)) throw new TypeError('approval receipt must bind the verified Outcome Contract');
     rejectUnknownKeys(approval,APPROVAL_RECEIPT_KEYS,'approval receipt');
+    if(typeof approval.receipt_id!=='string'||!clean(approval.receipt_id,180)||typeof approval.edge_id!=='string'||!clean(approval.edge_id,180)) throw new TypeError('approval receipt receipt_id and edge_id are required');
     if(approval.contract_id!==contract.contract_id||approval.contract_sha256!==contract.contract_sha256) throw new TypeError('approval receipt must bind the verified Outcome Contract');
   }
 
