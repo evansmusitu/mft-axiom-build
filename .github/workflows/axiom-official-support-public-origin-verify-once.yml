@@ -16,7 +16,7 @@ concurrency:
 
 jobs:
   verify-public-origin:
-    if: github.event_name == 'push' && github.event.before == '73c70008050dd784e87bdb34468e0ff22f1459c1'
+    if: github.event_name == 'push' && github.event.before == '40b7ce6d1d90b04c2a1805a7ecdee0f1e01e7095'
     runs-on: ubuntu-latest
     environment: axiom-support-production
     timeout-minutes: 15
@@ -49,7 +49,7 @@ jobs:
           test "$GITHUB_EVENT_NAME" = 'push'
           test "$GITHUB_REF_NAME" = 'support/axiom-official-support-20261005'
           test "$GITHUB_REF_NAME" != 'main'
-          test "${{ github.event.before }}" = '73c70008050dd784e87bdb34468e0ff22f1459c1'
+          test "${{ github.event.before }}" = '40b7ce6d1d90b04c2a1805a7ecdee0f1e01e7095'
           test "$SUPPORT_DOMAIN" = 'support.mftintelligence.com'
           node <<'NODE'
           const api='https://api.github.com/repos/evansmusitu/mft-axiom-build';
@@ -165,9 +165,16 @@ jobs:
           if(c.vars?.SUPPORT_DOMAIN!=='support.mftintelligence.com') throw new Error('support hostname mismatch');
           if(!Array.isArray(c.routes)||c.routes.length!==1||c.routes[0]?.pattern!=='support.mftintelligence.com'||c.routes[0]?.custom_domain!==true) throw new Error('exact custom support domain required');
           NODE
-          npx --yes wrangler@4 secret list --config support-wrangler.generated.json > support-secret-names.json
-          node -e "const names=require('./support-secret-names.json').map(x=>x.name); for(const required of ['SUPPORT_DATA_KEY_B64','TURNSTILE_SECRET_KEY']) if(!names.includes(required)) process.exit(1)"
-          rm support-secret-names.json
+          node --input-type=module <<'NODE'
+          import {selectCloudflareCredential,cloudflareRequest,SUPPORT_ACCOUNT_ID} from './support/scripts/provision_cloudflare_d1.mjs';
+          const credential=await selectCloudflareCredential({env:process.env,preferGlobal:true});
+          const response=await cloudflareRequest({
+            headers:credential.headers,
+            path:'/accounts/'+SUPPORT_ACCOUNT_ID+'/workers/scripts/musitu-axiom-support/secrets',
+          });
+          const names=new Set((Array.isArray(response.result)?response.result:[]).map(x=>String(x?.name||'')));
+          for(const required of ['SUPPORT_DATA_KEY_B64','TURNSTILE_SECRET_KEY']) if(!names.has(required)) throw new Error('required support Worker secret binding missing: '+required);
+          NODE
 
       - name: Require zero customer support rows before public verification
         shell: bash
@@ -199,9 +206,13 @@ jobs:
           NODE
 
       - name: Apply idempotent support schema
+        env:
+          CLOUDFLARE_API_TOKEN: ''
         run: npx --yes wrangler@4 d1 execute SUPPORT_DB --remote --config support-wrangler.generated.json --file support/schema.sql
 
       - name: Publish exact support custom domain for verification
+        env:
+          CLOUDFLARE_API_TOKEN: ''
         run: npx --yes wrangler@4 deploy --config support-wrangler.generated.json
 
       - name: Verify custom domain exists while workers.dev and previews remain disabled
