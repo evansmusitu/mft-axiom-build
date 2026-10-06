@@ -13,8 +13,10 @@ export const CHANGE_RISK_MODEL=Object.freeze({
 });
 
 const HASH=/^[a-f0-9]{64}$/i;
+const REQUEST_KEYS=new Set(['schema','project_id','work_id','checkpoint_id','checkpoint_sha256','builder_actor_id','requested_action','risk_class','required_verifications','human_approval_required','policy_engine_authority','builder_may_approve','external_execution_authority','production_authority','created_at','request_sha256']);
 const isPlainObject=value=>Boolean(value)&&typeof value==='object'&&!Array.isArray(value)&&(Object.getPrototypeOf(value)===Object.prototype||Object.getPrototypeOf(value)===null);
 const clean=(value,max=1000)=>String(value??'').replace(/[\u0000-\u001f\u007f]/g,' ').trim().slice(0,max);
+function rejectUnknownKeys(value,allowed,label){const extra=Object.keys(value).filter(key=>!allowed.has(key));if(extra.length)throw new DOMException(label+' contains unsupported fields: '+extra.join(','),'SecurityError');}
 function canonical(value){
   if(Array.isArray(value)) return `[${value.map(canonical).join(',')}]`;
   if(value&&typeof value==='object') return `{${Object.keys(value).sort().map(key=>`${JSON.stringify(key)}:${canonical(value[key])}`).join(',')}}`;
@@ -77,6 +79,7 @@ export async function createChangeAdmissionRequest({projectId,workId='',checkpoi
 
 function assertRequest(request){
   if(!isPlainObject(request)||request.schema!==CHANGE_ADMISSION_REQUEST_SCHEMA) throw new TypeError('change admission request required');
+  rejectUnknownKeys(request,REQUEST_KEYS,'change admission request');
   if(typeof request.request_sha256!=='string'||!HASH.test(request.request_sha256)) throw new TypeError('request sha256 required');
   if(request.policy_engine_authority!=='MECHANISM_ONLY'||request.builder_may_approve!==false||request.external_execution_authority!==false||request.production_authority!==false) throw new DOMException('change admission authority boundary invalid','SecurityError');
   const model=CHANGE_RISK_MODEL[request.risk_class];
