@@ -124,3 +124,30 @@ test('verified search crawler rule merge is idempotent and preserves unrelated c
   assert.equal(second.filter(rule => rule.ref === 'musitu_axiom_support_verified_search_crawlers').length, 1);
   assert.deepEqual(second[0], unrelated);
 });
+
+
+test('verified search crawler WAF skip rule matches only traditional search crawlers and skips only human-challenge products', () => {
+  assert.equal(typeof controlPlane.buildVerifiedSearchCrawlerSkipRule, 'function');
+  const rule = controlPlane.buildVerifiedSearchCrawlerSkipRule();
+  assert.equal(rule.ref, 'musitu_axiom_support_verified_search_crawlers');
+  assert.equal(rule.action, 'skip');
+  assert.deepEqual(rule.action_parameters, {products: ['bic', 'securityLevel']});
+  assert.match(rule.expression, /http\.host eq "support\.mftintelligence\.com"/);
+  assert.match(rule.expression, /cf\.client\.bot/);
+  assert.match(rule.expression, /cf\.verified_bot_category eq "Search Engine Crawler"/);
+  assert.match(rule.expression, /http\.request\.method in \{"GET" "HEAD"\}/);
+  for (const path of ['/', '/index.html', '/robots.txt', '/sitemap.xml', '/styles.css', '/app.js']) assert.ok(rule.expression.includes(path), 'missing public path '+path);
+  assert.doesNotMatch(rule.expression, /\/api\/|\/health|AI Search|AI Crawler|AI Assistant/);
+});
+
+test('verified search crawler WAF skip merge is idempotent and preserves unrelated custom rules', () => {
+  assert.equal(typeof controlPlane.mergeVerifiedSearchCrawlerSkipRule, 'function');
+  const unrelated = {ref: 'existing_rule', expression: 'http.host eq "example.com"', action: 'block'};
+  const first = controlPlane.mergeVerifiedSearchCrawlerSkipRule([unrelated]);
+  assert.equal(first.length, 2);
+  assert.deepEqual(first[0], unrelated);
+  const second = controlPlane.mergeVerifiedSearchCrawlerSkipRule(first);
+  assert.equal(second.length, 2);
+  assert.equal(second.filter(rule => rule.ref === 'musitu_axiom_support_verified_search_crawlers').length, 1);
+  assert.deepEqual(second[0], unrelated);
+});
