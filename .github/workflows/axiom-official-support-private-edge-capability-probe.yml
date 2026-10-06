@@ -41,19 +41,39 @@ jobs:
           for(const [name,raw] of candidates){
             const token=String(raw||'').trim();
             if(!token){out.push({secret_name:name,present:false});continue;}
+            const uv=await call(token,'/user/tokens/verify');
+            const av=await call(token,'/accounts/'+account+'/tokens/verify');
+            const verify=av.ok?av:uv;
+            let details={http:0,ok:false,result:null};
+            if(verify.ok&&verify.result?.id){
+              const base=av.ok?'/accounts/'+account+'/tokens/':'/user/tokens/';
+              details=await call(token,base+encodeURIComponent(verify.result.id));
+            }
+            const permissionNames=[];
+            if(details.ok&&Array.isArray(details.result?.policies)){
+              for(const policy of details.result.policies){
+                for(const group of Array.isArray(policy?.permission_groups)?policy.permission_groups:[]){
+                  if(group?.name) permissionNames.push(String(group.name));
+                }
+              }
+            }
+            const relevantPermissions=[...new Set(permissionNames.filter(x=>/access|worker/i.test(x)))].sort();
             const apps=await call(token,'/accounts/'+account+'/access/apps?per_page=100');
             const serviceTokens=await call(token,'/accounts/'+account+'/access/service_tokens?per_page=100');
             const worker=await call(token,'/accounts/'+account+'/workers/scripts/musitu-axiom-support/settings');
             const versions=await call(token,'/accounts/'+account+'/workers/scripts/musitu-axiom-support/versions');
             out.push({
               secret_name:name,present:true,
+              token_kind:av.ok?'account_owned':uv.ok?'user_owned':'unresolved',
+              token_details_readable:details.ok,
+              relevant_permission_names:relevantPermissions,
               access_apps_read:apps.ok,access_apps_http:apps.http,
               access_service_tokens_read:serviceTokens.ok,access_service_tokens_http:serviceTokens.http,
               worker_settings_read:worker.ok,worker_settings_http:worker.http,
               worker_versions_read:versions.ok,worker_versions_http:versions.http,
               access_app_count:Array.isArray(apps.result)?apps.result.length:null,
               service_token_count:Array.isArray(serviceTokens.result)?serviceTokens.result.length:null,
-              raw_ids_recorded:false,secret_exposed:false,write_performed:false
+              raw_ids_recorded:false,raw_policy_recorded:false,secret_exposed:false,write_performed:false
             });
           }
           console.log(JSON.stringify({gate:'MUSITU_AXIOM_SUPPORT_PRIVATE_EDGE_CAPABILITY_PROBE',tokens:out,write_performed:false,secret_exposed:false}));
