@@ -1,0 +1,175 @@
+name: MUSITU Axiom Support Search Edge Provision Once
+
+on:
+  push:
+    branches:
+      - 'support/axiom-official-support-20261005'
+    paths:
+      - '.github/workflows/axiom-official-support-search-edge-provision-once.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  provision:
+    if: github.event_name == 'push' && github.event.before == 'e230438dcf11f4ddf8d356676e8280c642da6726'
+    runs-on: ubuntu-latest
+    environment: axiom-support-production
+    timeout-minutes: 8
+    env:
+      CF_TOKEN: ${{ secrets.CLOUDFLARE_RULESETS_API_TOKEN }}
+      CF_ZONE: '5b56528f03948ff5917a5e0cd9f7109e'
+      GH_READ_TOKEN: ${{ github.token }}
+    steps:
+      - name: Checkout exact support branch
+        uses: actions/checkout@v4
+
+      - name: Use Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Exact authorization and protected-state boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF_NAME" = 'support/axiom-official-support-20261005'
+          test "$GITHUB_REF_NAME" != 'main'
+          test "${{ github.event.before }}" = 'e230438dcf11f4ddf8d356676e8280c642da6726'
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          import crypto from 'node:crypto';
+          const api='https://api.github.com/repos/evansmusitu/mft-axiom-build';
+          const token=process.env.GH_READ_TOKEN;
+          async function gh(path){
+            const r=await fetch(api+path,{headers:{authorization:'Bearer '+token,accept:'application/vnd.github+json'}});
+            if(!r.ok) throw new Error('GitHub boundary read failed HTTP '+r.status+' '+path);
+            return r.json();
+          }
+          const enc=encodeURIComponent;
+          const [main,support,claude,pr,authBlob,mcpBlob]=await Promise.all([
+            gh('/branches/main'),
+            gh('/branches/'+enc('support/axiom-official-support-20261005')),
+            gh('/branches/'+enc('distribution/claude-remote-mcp-20261004')),
+            gh('/pulls/1'),
+            gh('/git/blobs/8ba0dbc1b6dd1533c6c26bff23991429e03a71a5'),
+            gh('/git/blobs/4a1ad37a5e7df0e4d3966e8b5f9f0e8f2db69167'),
+          ]);
+          if(main?.commit?.sha!=='d6a846f6bbe0bccac1758713eb4de167caf07113') throw new Error('protected main drift');
+          if(support?.commit?.sha!==process.env.GITHUB_SHA) throw new Error('support branch advanced during search-edge provisioning');
+          if(claude?.commit?.sha!=='4d956f415431836018e5145227c8df5bd5fde7d8') throw new Error('Claude branch drift');
+          if(pr?.state!=='open'||pr?.draft!==true||pr?.merged===true||pr?.head?.sha!=='8fc1fbb7c5ebbcc1604ecf24c5f4594f2d5667e3') throw new Error('PR #1 drift');
+          if(authBlob?.sha!=='8ba0dbc1b6dd1533c6c26bff23991429e03a71a5'||mcpBlob?.sha!=='4a1ad37a5e7df0e4d3966e8b5f9f0e8f2db69167') throw new Error('frozen OpenAI blob drift');
+
+          const readiness=JSON.parse(fs.readFileSync('EVIDENCE/axiom-official-support-readiness-current.json','utf8'));
+          if(readiness.operational_status!=='OPERATIONAL'||readiness.pass_count!==11||readiness.partial_count!==0||readiness.missing_count!==0) throw new Error('Official Support is not in the sealed 11/11 operational state');
+          const auditRaw=fs.readFileSync('EVIDENCE/axiom-official-support-search-edge-audit-live-20261006.json');
+          const auditHash=crypto.createHash('sha256').update(auditRaw).digest('hex');
+          if(auditHash!=='466b8a3e3aea70667335539d2049c4205d8fd03b4178cac555fca9b484126e40') throw new Error('search-edge audit evidence hash mismatch');
+          const audit=JSON.parse(auditRaw);
+          if(audit.cloudflare?.security_level!=='under_attack'||audit.cloudflare?.browser_integrity_check!=='on'||audit.cloudflare?.fight_mode!==false) throw new Error('search-edge audit preconditions changed');
+          NODE
+
+      - name: Dry-run and provision only the verified search crawler configuration rule
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          import {
+            buildVerifiedSearchCrawlerConfigRule,
+            VERIFIED_SEARCH_CRAWLER_RULE_REF,
+          } from './support/scripts/provision_cloudflare_control_plane.mjs';
+
+          const token=String(process.env.CF_TOKEN||'');
+          const zone=String(process.env.CF_ZONE||'');
+          if(!token||!zone) throw new Error('Cloudflare search-edge configuration missing');
+          const base='https://api.cloudflare.com/client/v4/zones/'+zone;
+          const headers={authorization:'Bearer '+token,accept:'application/json','content-type':'application/json'};
+
+          async function request(path,{method='GET',body,allow404=false}={}){
+            const r=await fetch(base+path,{method,headers,body:body===undefined?undefined:JSON.stringify(body)});
+            let p={}; try{p=await r.json()}catch{}
+            if(allow404&&r.status===404) return {ok:false,status:404,payload:p};
+            if(!r.ok||p?.success===false){
+              const codes=(p?.errors||[]).map(x=>x?.code).filter(Boolean);
+              throw new Error('Cloudflare rules request failed HTTP '+r.status+' codes='+(codes.join(',')||'none')+' path='+path);
+            }
+            return {ok:true,status:r.status,result:p?.result};
+          }
+
+          const rule=buildVerifiedSearchCrawlerConfigRule();
+          if(rule.action!=='set_config'||rule.action_parameters?.security_level!=='off'||rule.action_parameters?.bic!==false) throw new Error('search crawler rule action drift');
+          if(!rule.expression.includes('cf.verified_bot_category eq "Search Engine Crawler"')||!rule.expression.includes('cf.client.bot')) throw new Error('search crawler verification boundary missing');
+          if(/\/api\/|\/health|AI Search|AI Crawler|AI Assistant/.test(rule.expression)) throw new Error('search crawler rule widened into forbidden surface');
+
+          let entry=await request('/rulesets/phases/http_config_settings/entrypoint',{allow404:true});
+          let rulesetId='';
+          let mutation='none';
+          if(!entry.ok){
+            const body={
+              name:'MUSITU Axiom Support verified search crawler configuration',
+              description:'Narrow crawler discoverability override for Official Support public assets only',
+              kind:'zone',
+              phase:'http_config_settings',
+              rules:[rule],
+            };
+            await request('/rulesets?dry_run=true',{method:'POST',body});
+            const created=await request('/rulesets',{method:'POST',body});
+            rulesetId=String(created.result?.id||'');
+            if(!rulesetId) throw new Error('Cloudflare did not return created configuration ruleset id');
+            mutation='created_ruleset';
+          } else {
+            const rules=Array.isArray(entry.result?.rules)?entry.result.rules:[];
+            rulesetId=String(entry.result?.id||'');
+            if(!rulesetId) throw new Error('configuration entrypoint ruleset id missing');
+            const matches=rules.filter(x=>String(x?.ref||'')===VERIFIED_SEARCH_CRAWLER_RULE_REF);
+            if(matches.length>1) throw new Error('duplicate MUSITU verified search crawler rules exist');
+            if(matches.length===0){
+              await request('/rulesets/'+encodeURIComponent(rulesetId)+'/rules?dry_run=true',{method:'POST',body:rule});
+              await request('/rulesets/'+encodeURIComponent(rulesetId)+'/rules',{method:'POST',body:rule});
+              mutation='created_rule';
+            } else {
+              const ruleId=String(matches[0]?.id||'');
+              if(!ruleId) throw new Error('existing search crawler rule id missing');
+              await request('/rulesets/'+encodeURIComponent(rulesetId)+'/rules/'+encodeURIComponent(ruleId)+'?dry_run=true',{method:'PATCH',body:rule});
+              await request('/rulesets/'+encodeURIComponent(rulesetId)+'/rules/'+encodeURIComponent(ruleId),{method:'PATCH',body:rule});
+              mutation='updated_rule';
+            }
+          }
+
+          const [after,security,bic,bots]=await Promise.all([
+            request('/rulesets/phases/http_config_settings/entrypoint'),
+            request('/settings/security_level'),
+            request('/settings/browser_check'),
+            request('/bot_management')
+          ]);
+          const rules=Array.isArray(after.result?.rules)?after.result.rules:[];
+          const matches=rules.filter(x=>String(x?.ref||'')===VERIFIED_SEARCH_CRAWLER_RULE_REF);
+          if(matches.length!==1) throw new Error('exact search crawler rule was not present once after provisioning');
+          const actual=matches[0];
+          if(actual?.enabled===false||actual?.action!=='set_config'||actual?.expression!==rule.expression) throw new Error('search crawler rule readback mismatch');
+          if(actual?.action_parameters?.security_level!=='off'||actual?.action_parameters?.bic!==false) throw new Error('search crawler action parameters readback mismatch');
+          if(security.result?.value!=='under_attack') throw new Error('global Under Attack mode was changed');
+          if(bic.result?.value!=='on') throw new Error('global Browser Integrity Check was changed');
+          if(bots.result?.fight_mode!==false) throw new Error('Bot Fight Mode changed unexpectedly');
+          for(const field of ['ai_bots_protection','ai_search','ai_training','ai_user','content_bots_protection','crawler_protection']){
+            if(String(bots.result?.[field]??'disabled')!=='disabled') throw new Error('AI/bot policy changed unexpectedly: '+field);
+          }
+          console.log(JSON.stringify({
+            gate:'MUSITU_AXIOM_SUPPORT_VERIFIED_SEARCH_CRAWLER_EDGE',
+            status:'PASS',
+            mutation,
+            ruleset_id:rulesetId,
+            rule_ref:VERIFIED_SEARCH_CRAWLER_RULE_REF,
+            rule_id:String(actual?.id||''),
+            category:'Search Engine Crawler',
+            methods:['GET','HEAD'],
+            public_paths:['/','/index.html','/robots.txt','/sitemap.xml','/styles.css','/app.js'],
+            global_security_level:'under_attack',
+            global_browser_integrity_check:'on',
+            bot_fight_mode:false,
+            api_or_health_exception:false,
+            ai_crawler_exception:false,
+            secret_exposed:false
+          }));
+          NODE
