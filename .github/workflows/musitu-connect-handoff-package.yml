@@ -23,7 +23,7 @@ jobs:
         run: |
           set -euo pipefail
 
-          PRODUCT_BASE_COMMIT="$(git rev-parse HEAD^)"
+          PRODUCT_BASE_COMMIT="f008dee87d4146fd88b884d695c7cb6614bd825d"
           MAIN_SHA="d6a846f6bbe0bccac1758713eb4de167caf07113"
           PACKAGE_NAME="MUSITU_CONNECT_CLEAN_WHOLE_PRODUCT_CONTINUATION_HANDOFF_20261005_2225CAT"
           ROOT="$PWD/package/MUSITU_CONNECT_PRODUCT"
@@ -327,3 +327,12 @@ jobs:
             package/MUSITU_CONNECT_CLEAN_WHOLE_PRODUCT_CONTINUATION_HANDOFF_20261005_2225CAT.sha256
           retention-days: 30
           if-no-files-found: error
+
+      - name: Upload clean product directory directly
+        uses: actions/upload-artifact@v4
+        with:
+          name: musitu-connect-clean-continuation-handoff-direct-20261006
+          path: package/MUSITU_CONNECT_PRODUCT
+          retention-days: 30
+          if-no-files-found: error
+          include-hidden-files: true
