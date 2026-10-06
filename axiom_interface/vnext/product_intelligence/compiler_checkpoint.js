@@ -79,10 +79,12 @@ export async function createCompilerCheckpoint(input={},services={}){
   if(!evidence_refs.length) throw new TypeError('at least one evidence reference required');
   const created_at=normalizeAt(at);
 
-  await assertProductIRIntegrity(priorIR,'priorIR');
-  await assertProductIRIntegrity(nextIR,'nextIR');
+  assertIR(priorIR,'priorIR');
+  assertIR(nextIR,'nextIR');
   if(priorIR.project_id!==project_id||nextIR.project_id!==project_id) throw new DOMException('cross-project compiler checkpoint blocked','SecurityError');
   if(priorIR.compiler_version!==nextIR.compiler_version) throw new TypeError('compiler version mismatch requires migration before checkpoint');
+  await assertProductIRIntegrity(priorIR,'priorIR');
+  await assertProductIRIntegrity(nextIR,'nextIR');
   if(!isPlainObject(diff)) throw new TypeError('compiler diff required');
   if(diff.prior_ir_sha256!==priorIR.ir_sha256||diff.next_ir_sha256!==nextIR.ir_sha256) throw new TypeError('diff hash binding mismatch');
   if(!['CHANGED','UNCHANGED'].includes(diff.status)) throw new TypeError('compiler diff status invalid');
