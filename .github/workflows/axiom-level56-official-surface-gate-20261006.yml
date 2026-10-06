@@ -1,0 +1,96 @@
+name: MUSITU Axiom Level5-6 Official Surface Gate 20261006
+
+on:
+  push:
+    branches:
+      - frontier/axiom-level56-no-paid-api-20261006
+    paths:
+      - 'frontier_v5/runtime/external_execution_receipts.py'
+      - 'frontier_v5/evals/EXTERNAL_LEVEL56_PROTOCOL_V2.json'
+      - 'frontier_v5/scripts/run_external_level56_readiness.py'
+      - 'frontier_v5/tests/test_external_execution_receipts.py'
+      - 'frontier_v5/tests/test_external_level56_protocol.py'
+      - 'docs/axiom_final_product/FA19_V2_LEVEL56_OFFICIAL_SURFACE_PROTOCOL.md'
+      - '.github/workflows/axiom-level56-official-surface-gate-20261006.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  level56-protocol:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - name: Checkout isolated candidate without persisted credentials
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Setup Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: '3.12.14'
+      - name: Freeze ancestry and write scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE=74d9b31b85742a7e6b019c62c683c86821953f12
+          test "$(git merge-base "$BASE" HEAD)" = "$BASE"
+          python - <<'PY'
+          import subprocess
+          base='74d9b31b85742a7e6b019c62c683c86821953f12'
+          allowed={
+            'frontier_v5/runtime/external_execution_receipts.py',
+            'frontier_v5/evals/EXTERNAL_LEVEL56_PROTOCOL_V2.json',
+            'frontier_v5/scripts/run_external_level56_readiness.py',
+            'frontier_v5/tests/test_external_execution_receipts.py',
+            'frontier_v5/tests/test_external_level56_protocol.py',
+            'docs/axiom_final_product/FA19_V2_LEVEL56_OFFICIAL_SURFACE_PROTOCOL.md',
+            '.github/workflows/axiom-level56-official-surface-gate-20261006.yml',
+          }
+          changed=set(subprocess.check_output(['git','diff','--name-only',f'{base}..HEAD'],text=True).splitlines())
+          bad=sorted(changed-allowed)
+          if bad: raise SystemExit('Level5/6 isolated scope escaped: '+repr(bad))
+          PY
+      - name: Verify provider-neutral external receipt contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          PYTHONPATH=. python frontier_v5/tests/test_external_execution_receipts.py | tee /tmp/level56-receipts.log
+          grep -q 'MUSITU_AXIOM_EXTERNAL_EXECUTION_RECEIPTS_V2_PASS' /tmp/level56-receipts.log
+      - name: Verify frozen no-paid-key protocol
+        shell: bash
+        run: |
+          set -euo pipefail
+          PYTHONPATH=. python frontier_v5/tests/test_external_level56_protocol.py | tee /tmp/level56-protocol.log
+          grep -q 'MUSITU_AXIOM_EXTERNAL_LEVEL56_PROTOCOL_V2_PASS' /tmp/level56-protocol.log
+      - name: Emit fail-closed Level 5/6 readiness
+        shell: bash
+        run: |
+          set -euo pipefail
+          PYTHONPATH=. python frontier_v5/scripts/run_external_level56_readiness.py --output /tmp/level56-readiness.json | tee /tmp/level56-readiness.log
+          test "$(jq -r .protocol_requires_paid_api_key /tmp/level56-readiness.json)" = false
+          test "$(jq -r .current_level5_status /tmp/level56-readiness.json)" = NOT_VERIFIED
+          test "$(jq -r .current_level6_status /tmp/level56-readiness.json)" = NOT_VERIFIED
+          test "$(jq -r .gate /tmp/level56-readiness.json)" = MUSITU_AXIOM_LEVEL56_IN_PROGRESS
+          if PYTHONPATH=. python frontier_v5/scripts/run_external_level56_readiness.py --require-level5 >/tmp/require-level5.log 2>&1; then
+            echo 'Level 5 unexpectedly promoted without authenticated external evidence' >&2
+            exit 1
+          fi
+          if PYTHONPATH=. python frontier_v5/scripts/run_external_level56_readiness.py --require-level6 >/tmp/require-level6.log 2>&1; then
+            echo 'Level 6 unexpectedly promoted without independent replay evidence' >&2
+            exit 1
+          fi
+      - name: Prove no production or repository-write authority
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          text=Path('.github/workflows/axiom-level56-official-surface-gate-20261006.yml').read_text()
+          forbidden=['contents: write','id-token: write','git push','wrangler deploy','kubectl apply','terraform apply','gh pr merge']
+          bad=[x for x in forbidden if x in text]
+          if bad: raise SystemExit('forbidden authority present: '+repr(bad))
+          print('MUSITU_AXIOM_LEVEL56_NO_WRITE_AUTHORITY_PASS')
+          PY
