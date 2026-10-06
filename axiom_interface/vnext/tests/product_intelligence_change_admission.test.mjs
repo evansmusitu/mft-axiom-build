@@ -268,3 +268,40 @@ test('structured builder identity cannot bypass independent-verifier separation 
     /builder_actor_id|builder identity|string|structured|independent verifier/i,
   );
 });
+
+
+test('rehashed admission request rejects malformed primitive bindings before policy evaluation',async()=>{
+  const original=await request('S3');
+  const cases=[
+    {...structuredClone(original),project_id:{value:original.project_id}},
+    {...structuredClone(original),work_id:[original.work_id]},
+    {...structuredClone(original),checkpoint_id:[original.checkpoint_id]},
+    {...structuredClone(original),checkpoint_sha256:'not-a-checkpoint-hash'},
+    {...structuredClone(original),created_at:[original.created_at]},
+  ];
+  const canonical=value=>{
+    if(Array.isArray(value)) return `[${value.map(canonical).join(',')}]`;
+    if(value&&typeof value==='object') return `{${Object.keys(value).sort().map(key=>`${JSON.stringify(key)}:${canonical(value[key])}`).join(',')}}`;
+    return JSON.stringify(value);
+  };
+  for(const forged of cases){
+    const body={
+      schema:forged.schema,project_id:forged.project_id,work_id:forged.work_id,checkpoint_id:forged.checkpoint_id,
+      checkpoint_sha256:forged.checkpoint_sha256,builder_actor_id:forged.builder_actor_id,requested_action:forged.requested_action,
+      risk_class:forged.risk_class,required_verifications:forged.required_verifications,human_approval_required:forged.human_approval_required,
+      policy_engine_authority:forged.policy_engine_authority,builder_may_approve:forged.builder_may_approve,
+      external_execution_authority:forged.external_execution_authority,production_authority:forged.production_authority,
+      created_at:forged.created_at,
+    };
+    const digest=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(canonical(body)));
+    forged.request_sha256=[...new Uint8Array(digest)].map(value=>value.toString(16).padStart(2,'0')).join('');
+    const policy={decision:'ALLOW',request_sha256:forged.request_sha256,policy_sha256:'e'.repeat(64),reasons:['attempted primitive binding drift']};
+    await assert.rejects(
+      ()=>evaluateChangeAdmission({
+        request:forged,policyDecision:policy,
+        verificationEvidence:[pass('TESTS'),pass('SECURITY'),pass('INDEPENDENT_VERIFIER')],at,
+      }),
+      /project_id|work_id|checkpoint_id|checkpoint_sha256|created_at|string|hash|instant|primitive/i,
+    );
+  }
+});
