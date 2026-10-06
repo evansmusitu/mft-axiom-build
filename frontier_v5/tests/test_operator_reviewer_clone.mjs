@@ -119,4 +119,77 @@ try{
   globalThis.fetch=originalFetch;
 }
 
+
+const modernGateModule=await import("../../reviewer_clone/musitu_axiom_operator_reviewer_gate.mjs?modern="+Date.now());
+const modernDb={
+  prepare(){
+    return {bind(){return {async first(){return null;}}}};
+  }
+};
+let modernForwarded=null;
+const originalModernFetch=globalThis.fetch;
+globalThis.fetch=async (input,init)=>{
+  modernForwarded=new Request(input,init);
+  return new Response(JSON.stringify({
+    jsonrpc:"2.0",
+    id:"modern-tools",
+    result:{
+      tools:[{
+        name:"axiom.project.status",
+        description:"Read project status",
+        inputSchema:{type:"object",properties:{project_id:{type:"string"}},required:["project_id"],additionalProperties:false}
+      }]
+    }
+  }),{status:200,headers:{"content-type":"application/json"}});
+};
+try{
+  const env={
+    AXIOM_DB:modernDb,
+    AUTH_ISSUER:"https://issuer.example",
+    MCP_PUBLIC_BASE:"https://resource.example",
+    MODAL_OPERATOR_URL:"https://modal.example",
+    MODAL_PROXY_KEY:"wk-contract",
+    MODAL_PROXY_SECRET:"ws-contract"
+  };
+  const discoverReq=new Request("https://resource.example/mcp",{
+    method:"POST",
+    headers:{
+      "content-type":"application/json",
+      "mcp-protocol-version":"2026-07-28"
+    },
+    body:JSON.stringify({jsonrpc:"2.0",id:"discover",method:"server/discover",params:{}})
+  });
+  const discoverRes=await modernGateModule.default.fetch(discoverReq,env);
+  assert.equal(discoverRes.status,200);
+  const discover=await discoverRes.json();
+  assert.equal(discover.result.resultType,"complete");
+  assert.deepEqual(discover.result.supportedVersions,["2026-07-28"]);
+  assert.equal(discover.result.cacheScope,"public");
+  assert.equal(discover.result.ttlMs,60000);
+  assert.equal(discover.result._meta["io.modelcontextprotocol/serverInfo"].name,"musitu-axiom-operator-reviewer");
+
+  const listReq=new Request("https://resource.example/mcp",{
+    method:"POST",
+    headers:{
+      "content-type":"application/json",
+      "mcp-protocol-version":"2026-07-28"
+    },
+    body:JSON.stringify({
+      jsonrpc:"2.0",id:"modern-tools",method:"tools/list",
+      params:{_meta:{"io.modelcontextprotocol/protocolVersion":"2026-07-28"}}
+    })
+  });
+  const listRes=await modernGateModule.default.fetch(listReq,env);
+  assert.equal(listRes.status,200);
+  const listed=await listRes.json();
+  assert.equal(listed.result.resultType,"complete");
+  assert.equal(listed.result.cacheScope,"public");
+  assert.equal(listed.result.ttlMs,60000);
+  assert.equal(listed.result.tools.length,1);
+  assert.equal(listed.result.tools[0].name,"axiom.project.status");
+  assert.equal(listed.result._meta["io.modelcontextprotocol/serverInfo"].version,"1.0.1");
+}finally{
+  globalThis.fetch=originalModernFetch;
+}
+
 console.log("MUSITU_AXIOM_OPERATOR_REVIEWER_CLONE_CONTRACT_PASS");
