@@ -1,0 +1,164 @@
+{
+  "schema": "musitu.axiom.phase2.operation-scoped-executor-handoff-qualification.v1",
+  "recorded_date": "2026-10-06",
+  "source_authority": {
+    "repository": "evansmusitu/mft-axiom-build",
+    "branch": "frontier/axiom-product-intelligence-phase2-20261004",
+    "predecessor_change_admission_evidence_commit": "0a42ef472edb574522481236277e24b44385c7c7",
+    "final_hardened_head": "dd86251b9e18dcd4fd92730becb66e2c4d60be0e",
+    "implementation_path": "axiom_interface/vnext/product_intelligence/change_admission.js",
+    "implementation_git_blob": "e31e1a32d5b2ba445d3863cd826ba518aa57ec42",
+    "contract_test_path": "axiom_interface/vnext/tests/product_intelligence_change_admission.test.mjs",
+    "contract_test_git_blob": "01e623526c5bd70c72c9d35b404e5dbbf7430751",
+    "fa11_authorization_gateway_path": "axiom_interface/vnext/authorization_gateway.js",
+    "fa11_authorization_gateway_git_blob": "41362fb8ed63d182fd44d3d516f79bddebd0d47e",
+    "gate_workflow_path": ".github/workflows/axiom-product-intelligence-phase2-gate.yml",
+    "gate_workflow_git_blob": "e8a35cc3e20a9645c9b10b48e076ba0cb85f9054"
+  },
+  "tdd": {
+    "observed_red_green_behavior_cycles": 4,
+    "cycles": [
+      {
+        "cycle": 1,
+        "red_commit": "e8c4c1e89c84233395d42e0138a11ac42d9aa2a7",
+        "red_run_id": 37460345396,
+        "red_job_id": 112258061632,
+        "red_conclusion": "failure",
+        "red_observation": "14_PASS_1_FAIL_OPERATION_SCOPED_HANDOFF_BUILDER_MISSING",
+        "intermediate_green_attempt": {
+          "commit": "0251c9922324cd0531030bbdc118278ea0a0da9e",
+          "run_id": 37460560438,
+          "job_id": 112258786644,
+          "conclusion": "failure",
+          "preserved_failure": "FA11_AUTHORITY_ENVELOPE_WAS_NORMALIZED_TWICE_CAUSING_AUTHORITY_FINGERPRINT_MISMATCH"
+        },
+        "green_commit": "35ea34b92d694391a275d611806d8dbab8d05417",
+        "green_run_id": 37460724372,
+        "green_focused_job_id": 112259327316,
+        "green_independent_job_id": 112259483870,
+        "green_conclusion": "success",
+        "independent_replay": "PASS_144_OF_144",
+        "behavior": "bind one admitted S1 change to one concrete FA-11 request and workload identity without granting authority in the handoff"
+      },
+      {
+        "cycle": 2,
+        "red_commit": "1a7d287da330821c60bf135d99bef4cdd47751a5",
+        "red_run_id": 37460991550,
+        "red_job_id": 112260213793,
+        "red_conclusion": "failure",
+        "red_observation": "15_PASS_1_FAIL_EXECUTOR_HANDOFF_FINALIZER_MISSING",
+        "green_commit": "50a91838593aca54d1f88baf48ddd47b85ead8f0",
+        "green_run_id": 37461136571,
+        "green_focused_job_id": 112260701264,
+        "green_independent_job_id": 112260774742,
+        "green_conclusion": "success",
+        "independent_replay": "PASS_145_OF_145",
+        "behavior": "preserve Product Intelligence builder versus FA-11 approver separation through S3 finalization"
+      },
+      {
+        "cycle": 3,
+        "red_commit": "e11b184f1f9fe878cb3feea9f04b2463f07fc12e",
+        "red_run_id": 37461392823,
+        "red_job_id": 112261566856,
+        "red_conclusion": "failure",
+        "red_observation": "16_PASS_1_FAIL_MISSING_EXPECTED_REJECTION_FOR_STRUCTURED_AUTHORITY_INPUT",
+        "green_commit": "16fe189a3fcc1facc56ab022f5a75bd56012f04d",
+        "green_run_id": 37461534960,
+        "green_focused_job_id": 112262045134,
+        "green_independent_job_id": 112262132223,
+        "green_conclusion": "success",
+        "independent_replay": "PASS_146_OF_146",
+        "behavior": "reject structured workload identity tool-scope and budget coercion before FA-11 normalization"
+      },
+      {
+        "cycle": 4,
+        "red_commit": "6d1eb96a3d919c37aa51f1ece7c8d3a217f8ccc1",
+        "red_run_id": 37461774084,
+        "red_job_id": 112262851670,
+        "red_conclusion": "failure",
+        "red_observation": "17_PASS_1_FAIL_MISSING_EXPECTED_REJECTION_FOR_REHASHED_APPROVAL_EXTENSION",
+        "green_commit": "dd86251b9e18dcd4fd92730becb66e2c4d60be0e",
+        "green_run_id": 37461894560,
+        "green_focused_job_id": 112263254092,
+        "green_independent_job_id": 112263334465,
+        "green_conclusion": "success",
+        "independent_replay": "PASS_147_OF_147",
+        "behavior": "reject rehashed FA-11 approval authority extensions and expiry coercion before finalization"
+      }
+    ],
+    "final_contract_tests": {
+      "total": 18,
+      "pass": 18,
+      "fail": 0
+    },
+    "final_frozen_order_independent_replay": {
+      "total": 147,
+      "pass": 147,
+      "fail": 0
+    },
+    "assertions_weakened_to_pass": false
+  },
+  "independent_verification": {
+    "workflow": "MUSITU Axiom Product Intelligence Phase 2 Gate",
+    "run_id": 37461894560,
+    "head_sha": "dd86251b9e18dcd4fd92730becb66e2c4d60be0e",
+    "conclusion": "success",
+    "focused_contract_job": {
+      "job_id": 112263254092,
+      "conclusion": "success",
+      "change_admission_and_executor_handoff_contracts": "PASS_18_OF_18"
+    },
+    "independent_replay_job": {
+      "job_id": 112263334465,
+      "conclusion": "success",
+      "all_frozen_order_tests": "PASS_147_OF_147",
+      "authority_marker": "MUSITU_AXIOM_PHASE2_PROVIDER_AUTHORITY_FAIL_CLOSED_PASS",
+      "slice_marker": "MUSITU_AXIOM_PHASE2_SLICE_VERIFICATION_PASS",
+      "release_authority": false,
+      "production_authority": false,
+      "certification_authority": false
+    }
+  },
+  "qualification": {
+    "change_admission_to_operation_scoped_executor_handoff": "PASS",
+    "semantic_scope": "CONTENT_ADDRESSED_SINGLE_OPERATION_HANDOFF_TO_EXISTING_FA11_AUTHORIZATION_GATEWAY",
+    "risk_model": "S0_S5_FROZEN",
+    "handoff_scope": "SINGLE_OPERATION",
+    "exact_concrete_operation_risk_binding": "PASS",
+    "workload_identity_binding": "PASS",
+    "authority_envelope_primitive_validation": "PASS",
+    "builder_approver_separation": "PASS",
+    "approval_envelope_fail_closed_validation": "PASS",
+    "delegated_authorizer": "EXISTING_FA11_AUTHORIZATION_GATEWAY",
+    "gateway_decision_note": "The FA-11 gateway may return execution_allowed=true for an eligible operation after its own policy and approval requirements are satisfied. That decision is operation authorization only and does not grant this handoff release, production, certification, or external-executor authority.",
+    "handoff_execution_authority": false,
+    "external_execution_authority": false,
+    "release_authority": false,
+    "production_authority": false,
+    "certification_authority": false,
+    "production_mutation": false,
+    "frozen_openai_mutation": false,
+    "main_mutation": false
+  },
+  "evidence_boundaries": {
+    "sha256_content_binding": "PROVEN",
+    "sha256_signature_or_attestation": "NOT_PROVEN",
+    "change_admission_artifact_authenticity": "NOT_PROVEN",
+    "fa11_repository_contract_qualification": "PROVEN",
+    "fa11_live_production_qualification": "NOT_PROVEN",
+    "external_executor_side_effect_execution": "NOT_PROVEN",
+    "live_integrated_runtime_qualification": "NOT_PROVEN",
+    "production_authorization_gateway_integration": "NOT_PROVEN",
+    "approval_receipt_external_authenticity": "NOT_PROVEN",
+    "production_replay_idempotency": "NOT_PROVEN",
+    "independent_external_security_validation": "NOT_PROVEN"
+  },
+  "incident_boundary": {
+    "modal_fanout_cleanup": "NOT_PROVEN",
+    "latest_checked_run_id": 37284936693,
+    "latest_checked_job_id": 111795419209,
+    "latest_checked_job_conclusion": "failure",
+    "required_pass_marker": "MUSITU_AXIOM_MODAL_INCIDENT_PROXY_TOKEN_REMEDIATION_PASS",
+    "required_pass_marker_observed": false
+  }
+}
