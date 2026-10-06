@@ -86,11 +86,14 @@ function normalizeTypedValue(valueType,value,label){
 }
 
 function createIdentityGuard(expected){
+  const expectedKeys=Object.keys(expected).sort();
   const assertBound=hookContext=>{
     const context=hookContext?.context;
-    if(!context||typeof context!=='object')throw new DOMException('OpenFeature identity binding mismatch: context missing','SecurityError');
-    for(const [key,value] of Object.entries(expected)){
-      if(context[key]!==value)throw new DOMException('OpenFeature identity binding mismatch: '+key,'SecurityError');
+    if(!isPlainObject(context))throw new DOMException('OpenFeature identity binding mismatch: context missing','SecurityError');
+    const actualKeys=Object.keys(context).sort();
+    if(actualKeys.length!==expectedKeys.length||actualKeys.some((key,index)=>key!==expectedKeys[index]))throw new DOMException('OpenFeature identity binding mismatch: merged context schema','SecurityError');
+    for(const key of expectedKeys){
+      if(JSON.stringify(canonical(context[key]))!==JSON.stringify(canonical(expected[key])))throw new DOMException('OpenFeature identity binding mismatch: '+key,'SecurityError');
     }
   };
   return Object.freeze({before:assertBound,after:assertBound,finally:assertBound});
@@ -101,9 +104,20 @@ async function sha256(value){const bytes=new TextEncoder().encode(JSON.stringify
 export function createOpenFeatureEvaluation({client,providerName}={}){
   if(!client||typeof client!=='object')throw new TypeError('OpenFeature client required');
   const provider=id('providerName',providerName);
+  const assertClientIdentity=()=>{
+    const metadata=client.metadata;
+    if(metadata===undefined)return;
+    if(!isPlainObject(metadata))throw new TypeError('OpenFeature client metadata must be a plain object');
+    if(metadata.sdk!==undefined&&metadata.sdk!=='js-server')throw new DOMException('OpenFeature client SDK identity mismatch','SecurityError');
+    if(metadata.paradigm!==undefined&&metadata.paradigm!=='server')throw new DOMException('OpenFeature client paradigm mismatch','SecurityError');
+    const actual=metadata.providerMetadata?.name;
+    if(actual!==undefined&&id('client.metadata.providerMetadata.name',actual)!==provider)throw new DOMException('OpenFeature provider identity mismatch','SecurityError');
+  };
+  assertClientIdentity();
   return Object.freeze({
     descriptor:OPENFEATURE_EVALUATION_DESCRIPTOR,
     async evaluate(request={}){
+      assertClientIdentity();
       rejectUnknownKeys(request,REQUEST_KEYS,'request');
       const {projectId,workId,agentId,requestId,flagKey,valueType,defaultValue,context={}}=request;
       rejectUnknownKeys(context,CONTEXT_KEYS,'context');
@@ -113,8 +127,9 @@ export function createOpenFeatureEvaluation({client,providerName}={}){
       const targetingKey=id('context.targetingKey',context.targetingKey),attributes=normalizeAttributes(context.attributes);
       const providerContext={targetingKey,...structuredClone(attributes),axiom_project_id:project_id,axiom_work_id:work_id,axiom_agent_id:agent_id,axiom_request_id:request_id};
       const evaluation_context_sha256=await sha256(providerContext);
-      const guard=createIdentityGuard({targetingKey,axiom_project_id:project_id,axiom_work_id:work_id,axiom_agent_id:agent_id,axiom_request_id:request_id});
+      const guard=createIdentityGuard(providerContext);
       const details=await client[method](flag_key,structuredClone(normalizedDefault),structuredClone(providerContext),{hooks:[guard]});
+      assertClientIdentity();
       if(!isPlainObject(details))throw new TypeError('OpenFeature evaluation details required');
       rejectProviderAuthority(details,'provider_result');
       const variant=normalizeProviderText(details.variant,'variant',256),reason=normalizeProviderText(details.reason,'reason',128);

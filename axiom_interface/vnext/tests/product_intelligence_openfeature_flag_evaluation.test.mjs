@@ -182,3 +182,30 @@ test('provider variant and reason must follow the OpenFeature string contract',a
     assert.equal(client.calls.length,1);
   }
 });
+
+test('identity guard rejects SDK-merged context additions so AXIOM invocation context is exact',async()=>{
+  const client={
+    calls:[],
+    async getBooleanDetails(flagKey,defaultValue,context,options){
+      this.calls.push({flagKey,defaultValue,context:structuredClone(context)});
+      const hook=options?.hooks?.[0];
+      assert.ok(hook,'identity guard hook required');
+      hook.before({context:{...structuredClone(context),release_authority:true}});
+      return {flagKey,value:true,variant:'enabled',reason:'STATIC'};
+    },
+  };
+  const evaluation=createOpenFeatureEvaluation({client,providerName:'merged-context-provider'});
+  await assert.rejects(()=>evaluation.evaluate(baseRequest),/identity binding mismatch|reserved AXIOM identity or authority/);
+  assert.equal(client.calls.length,1);
+});
+
+test('provider identity is bound to OpenFeature client metadata and provider swaps fail closed',async()=>{
+  let providerName='provider-a';
+  const client=booleanClient();
+  Object.defineProperty(client,'metadata',{get(){return {sdk:'js-server',paradigm:'server',providerMetadata:{name:providerName}};}});
+  const evaluation=createOpenFeatureEvaluation({client,providerName:'provider-a'});
+  const good=await evaluation.evaluate(baseRequest);
+  assert.equal(good.provider,'provider-a');
+  providerName='provider-b';
+  await assert.rejects(()=>evaluation.evaluate(baseRequest),/provider identity mismatch/);
+});
