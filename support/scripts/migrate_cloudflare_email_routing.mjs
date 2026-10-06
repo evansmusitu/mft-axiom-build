@@ -286,7 +286,21 @@ async function ensureRequiredRoutingAuthDns({fetchImpl, headers, desired}) {
   const unexpectedSpfOrDkim = current.filter(row =>
     (isSpf(row) || isRoutingDkimName(row)) && !desiredKeys.has(recordKey(row))
   );
-  if (unexpectedSpfOrDkim.length) throw new Error('unexpected SPF or routing DKIM conflicts with Cloudflare required DNS');
+  if (unexpectedSpfOrDkim.length) {
+    const shape = rows => rows.filter(row => isSpf(row) || isRoutingDkimName(row)).map(row => {
+      const value = normalizeRecord(row);
+      return {
+        type: value.type,
+        name: value.name,
+        priority: value.priority,
+        content_length: value.content.length,
+        content_sha256: sha256(value.content),
+        valid_spf: isSpf(value),
+        valid_routing_dkim: isRoutingDkim(value),
+      };
+    });
+    throw new Error(`unexpected SPF or routing DKIM conflicts with Cloudflare required DNS; current=${JSON.stringify(shape(current))}; desired=${JSON.stringify(shape(desired))}`);
+  }
 
   const missing = desired.filter(row => !new Set(current.map(recordKey)).has(recordKey(row)));
   for (const row of missing) {
