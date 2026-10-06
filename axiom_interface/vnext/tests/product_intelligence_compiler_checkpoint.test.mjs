@@ -168,3 +168,15 @@ test('checkpoint rejects forged diff impact or operations even when IR hashes ma
     /diff.*semantic|semantic.*diff|impact.*mismatch|diff.*mismatch/i,
   );
 });
+
+
+test('checkpoint verification rejects authority-bearing envelope extensions even when the signed body is unchanged',async()=>{
+  const {prior,next,diff}=await fixture();
+  const checkpoint=await createCompilerCheckpoint({projectId,priorIR:prior,nextIR:next,diff,actorId:'agent_builder_1',evidenceRefs:['evidence_source_12345678'],at},services);
+  const tampered={...checkpoint,release_authority:true};
+  assert.equal(await verifyCompilerCheckpoint(tampered),false);
+  await assert.rejects(
+    ()=>prepareCompilerRollback(tampered,{currentIR:next,actorId:'agent_verifier_1'}),
+    /checkpoint integrity failure/i,
+  );
+});
