@@ -1,0 +1,31 @@
+{
+  "schema": "musitu.axiom.support-readiness-evidence.v1",
+  "gate": "PUBLIC_ORIGIN",
+  "status": "PASS",
+  "verified_at": "2026-10-06T12:51:02Z",
+  "evidence": {
+    "human_browser_public_origin": true,
+    "synthetic_case_id": "AX-06Z583BK7BSH",
+    "synthetic_case_created_at": "2026-10-06T12:47:02.399Z",
+    "d1_readback_run": 37466253297,
+    "recovery_code_in_evidence": false,
+    "plaintext_customer_narrative_read": false,
+    "secret_exposed": false,
+    "hostname": "support.mftintelligence.com",
+    "custom_domain_service": "musitu-axiom-support",
+    "workers_dev_enabled": false,
+    "previews_enabled": false,
+    "human_completed_edge_challenge": true,
+    "support_ui_rendered": true,
+    "public_worker_case_create_reached": true,
+    "d1_case_persisted": true,
+    "initial_event_persisted": true
+  },
+  "boundaries": {
+    "public_operational_claim_made": false,
+    "main_modified": false,
+    "pr_1_modified": false,
+    "openai_surface_modified": false,
+    "claude_surface_modified": false
+  }
+}
