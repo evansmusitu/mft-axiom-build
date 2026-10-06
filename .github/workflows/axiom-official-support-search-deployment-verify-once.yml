@@ -1,0 +1,118 @@
+name: MUSITU Axiom Support Search Deployment Verify Once
+
+on:
+  push:
+    branches:
+      - 'support/axiom-official-support-20261005'
+    paths:
+      - '.github/workflows/axiom-official-support-search-deployment-verify-once.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    if: github.event_name == 'push' && github.event.before == 'a254ab3a2b1d108b06aa929d8b3d407bb5479045'
+    runs-on: ubuntu-latest
+    environment: axiom-support-production
+    timeout-minutes: 6
+    env:
+      CF_TOKEN: ${{ secrets.CLOUDFLARE_RULESETS_API_TOKEN }}
+      CF_ACCOUNT: '93f395f5121954671f92fffa453d6b61'
+      CF_ZONE: '5b56528f03948ff5917a5e0cd9f7109e'
+    steps:
+      - name: Exact branch boundary
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF_NAME" = 'support/axiom-official-support-20261005'
+          test "$GITHUB_REF_NAME" != 'main'
+          test "${{ github.event.before }}" = 'a254ab3a2b1d108b06aa929d8b3d407bb5479045'
+
+      - name: Verify deployed search surface and edge policy read-only
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          const token=String(process.env.CF_TOKEN||'');
+          const account=String(process.env.CF_ACCOUNT||'');
+          const zone=String(process.env.CF_ZONE||'');
+          const headers={authorization:'Bearer '+token,accept:'application/json'};
+          async function cf(url){
+            const r=await fetch('https://api.cloudflare.com/client/v4'+url,{headers});
+            let p={}; try{p=await r.json()}catch{}
+            if(!r.ok||p?.success===false){
+              const codes=(p?.errors||[]).map(x=>x?.code).filter(Boolean);
+              throw new Error('Cloudflare read failed HTTP '+r.status+' codes='+(codes.join(',')||'none')+' '+url);
+            }
+            return p?.result;
+          }
+          const [waf,security,bic,bots,subdomain,domains]=await Promise.all([
+            cf('/zones/'+zone+'/rulesets/phases/http_request_firewall_custom/entrypoint'),
+            cf('/zones/'+zone+'/settings/security_level'),
+            cf('/zones/'+zone+'/settings/browser_check'),
+            cf('/zones/'+zone+'/bot_management'),
+            cf('/accounts/'+account+'/workers/scripts/musitu-axiom-support/subdomain'),
+            cf('/accounts/'+account+'/workers/domains')
+          ]);
+          const matches=(Array.isArray(waf?.rules)?waf.rules:[]).filter(x=>String(x?.ref||'')==='musitu_axiom_support_verified_search_crawlers');
+          if(matches.length!==1) throw new Error('verified search crawler WAF rule missing or duplicated');
+          const rule=matches[0];
+          if(rule.action!=='skip'||rule.enabled===false) throw new Error('search crawler WAF rule inactive');
+          if(!String(rule.expression||'').includes('cf.client.bot')||!String(rule.expression||'').includes('cf.verified_bot_category eq "Search Engine Crawler"')) throw new Error('search crawler verification expression drift');
+          if(/\/api\/|\/health|AI Search|AI Crawler|AI Assistant/.test(String(rule.expression||''))) throw new Error('search crawler WAF rule widened');
+          if(JSON.stringify(rule.action_parameters?.products||[])!==JSON.stringify(['bic','securityLevel'])) throw new Error('search crawler skip products drift');
+          if(security?.value!=='under_attack'||bic?.value!=='on'||bots?.fight_mode!==false) throw new Error('global security posture drift');
+          for(const field of ['ai_bots_protection','ai_search','ai_training','ai_user','content_bots_protection','crawler_protection']){
+            if(String(bots?.[field]??'disabled')!=='disabled') throw new Error('AI/bot policy changed: '+field);
+          }
+          if(subdomain?.enabled===true||subdomain?.previews_enabled===true) throw new Error('workers.dev or previews enabled');
+          const dm=(Array.isArray(domains)?domains:[]).filter(x=>String(x?.hostname||'')==='support.mftintelligence.com');
+          if(dm.length!==1||String(dm[0]?.service||'')!=='musitu-axiom-support') throw new Error('canonical support domain drift');
+
+          const contentResponse=await fetch('https://api.cloudflare.com/client/v4/accounts/'+account+'/workers/scripts/musitu-axiom-support/content',{headers});
+          if(!contentResponse.ok) throw new Error('Worker content read failed HTTP '+contentResponse.status);
+          const deployed=await contentResponse.text();
+          const required=[
+            'https://support.mftintelligence.com/',
+            'Sitemap: https://support.mftintelligence.com/sitemap.xml',
+            '<loc>https://support.mftintelligence.com/</loc>',
+            'noindex, nofollow, noarchive',
+            '/robots.txt',
+            '/sitemap.xml'
+          ];
+          for(const value of required) if(!deployed.includes(value)) throw new Error('deployed Worker missing search contract marker: '+value);
+          if(/AX-[A-Z0-9]{12}/.test(deployed)) throw new Error('deployed search bundle contains a case id literal');
+
+          console.log(JSON.stringify({
+            gate:'MUSITU_AXIOM_SUPPORT_SEARCH_DEPLOYMENT_READBACK',
+            status:'PASS',
+            worker_content_search_contract_verified:true,
+            canonical_url_verified:true,
+            robots_verified:true,
+            sitemap_verified:true,
+            control_route_noindex_marker_verified:true,
+            verified_search_waf_rule_verified:true,
+            global_security_level:'under_attack',
+            global_browser_integrity_check:'on',
+            bot_fight_mode:false,
+            workers_dev_enabled:false,
+            previews_enabled:false,
+            api_or_health_exception:false,
+            ai_crawler_exception:false,
+            secret_values_read:false
+          }));
+          NODE
+
+      - name: Prove spoofed Googlebot user agent does not get verified-bot bypass
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -f spoof.headers spoof.body
+          code=$(curl --silent --show-error --connect-timeout 10 --max-time 30 -A 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)' -D spoof.headers -o spoof.body -w '%{http_code}' 'https://support.mftintelligence.com/' || true)
+          if [ "$code" = '403' ] && grep -qi '^cf-mitigated:[[:space:]]*challenge' spoof.headers; then
+            echo '{"spoofed_googlebot_bypass":false,"cf_mitigated":"challenge","status":"PASS"}'
+          else
+            echo "spoofed Googlebot request did not prove expected managed challenge: HTTP $code" >&2
+            exit 1
+          fi
+          rm -f spoof.headers spoof.body
