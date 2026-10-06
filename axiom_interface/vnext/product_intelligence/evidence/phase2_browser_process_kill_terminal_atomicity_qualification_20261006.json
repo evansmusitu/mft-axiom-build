@@ -1,0 +1,83 @@
+{
+  "schema": "musitu.axiom.phase2.browser-process-kill-terminal-atomicity-qualification.v1",
+  "recorded_date": "2026-10-06",
+  "source_authority": {
+    "repository": "evansmusitu/mft-axiom-build",
+    "branch": "frontier/axiom-product-intelligence-phase2-20261004",
+    "predecessor_terminal_atomicity_evidence_commit": "dd9a21babee84b2d6c753fd3d4753f9cb27f4ae4",
+    "observed_head": "cb4b4254292cbad73e1a9e3ee294a04c965c7fb1",
+    "execution_store_path": "axiom_interface/vnext/execution_store.js",
+    "execution_store_git_blob": "5447c3ca20966cd0df995b66424d7240352843a8",
+    "browser_qualification_page_path": "axiom_interface/vnext/tests/product_intelligence_browser_execution_idempotency.html",
+    "browser_qualification_page_git_blob": "1734bfc7d40a787eaed42290cd7681d6bcbcc373",
+    "browser_runner_path": "axiom_interface/vnext/tests/run_browser_execution_idempotency.mjs",
+    "browser_runner_git_blob": "5172b36f8a8a6afbee1fd3c250da2aba85431112",
+    "gate_workflow_path": ".github/workflows/axiom-product-intelligence-phase2-gate.yml",
+    "gate_workflow_git_blob": "856bcfa627bf15493795806bdad3b7a26f30cb89",
+    "predecessor_evidence_path": "axiom_interface/vnext/product_intelligence/evidence/phase2_browser_terminal_atomicity_qualification_20261006.json",
+    "predecessor_evidence_git_blob": "7b6287dfc8f1c09b1246b518576c26e91e38c103"
+  },
+  "qualification_type": "COVERAGE_ONLY_NOT_TDD",
+  "reason_not_tdd": "The process-kill browser qualification exercised already-implemented terminal atomicity; no production behavior change was required to make the product path pass. Harness process-group termination was corrected separately and is not counted as product TDD.",
+  "observed_run": {
+    "run_id": 37524094901,
+    "focused_job_id": 112476903238,
+    "independent_job_id": 112477211762,
+    "conclusion": "success",
+    "focused_frozen_contracts": "PASS_22_OF_22",
+    "independent_frozen_order_replay": "PASS_158_OF_158",
+    "focused_browser_runtime": "Google Chrome 154.0.8037.97",
+    "independent_browser_runtime": "Google Chrome 154.0.8037.57",
+    "process_kill_signal_marker": "PROCESS_KILL_SIGNAL=terminal-transaction-open",
+    "focused_markers": [
+      "MUSITU_AXIOM_PHASE2_BROWSER_PROCESS_KILL_ATOMICITY_PASS",
+      "MUSITU_AXIOM_PHASE2_BROWSER_PROCESS_KILL_QUALIFICATION_PASS"
+    ],
+    "independent_markers": [
+      "MUSITU_AXIOM_PHASE2_BROWSER_PROCESS_KILL_ATOMICITY_PASS",
+      "MUSITU_AXIOM_PHASE2_BROWSER_PROCESS_KILL_QUALIFICATION_PASS"
+    ],
+    "authority_marker": "MUSITU_AXIOM_PHASE2_PROVIDER_AUTHORITY_FAIL_CLOSED_PASS",
+    "slice_marker": "MUSITU_AXIOM_PHASE2_SLICE_VERIFICATION_PASS",
+    "release_authority": false,
+    "production_authority": false,
+    "certification_authority": false
+  },
+  "qualification": {
+    "actual_process_group_sigkill_mid_terminal_transaction": "PASS_FOR_OBSERVED_CI_BROWSER_RUNTIMES",
+    "restart_inspection_after_sigkill": "PASS",
+    "no_persisted_partial_sandbox_mutation_after_sigkill": "PASS",
+    "no_terminal_receipt_after_interrupted_atomic_transaction": "PASS",
+    "no_completion_event_after_interrupted_atomic_transaction": "PASS",
+    "store_integrity_after_restart": "PASS",
+    "authority_effect": "NONE",
+    "release_authority": false,
+    "production_authority": false,
+    "certification_authority": false,
+    "production_mutation": false,
+    "frozen_openai_mutation": false,
+    "main_mutation": false
+  },
+  "evidence_boundaries": {
+    "exact_long_term_browser_runtime_pin": "NOT_PROVEN",
+    "process_kill_mid_completed_terminal_transaction": "PROVEN_FOR_OBSERVED_CI_BROWSER_RUNTIMES",
+    "failed_terminal_path_fault_injection_atomicity": "NOT_PROVEN",
+    "blocked_receipt_event_atomicity": "NOT_PROVEN",
+    "preexisting_indexeddb_version1_to_version2_upgrade": "NOT_PROVEN",
+    "simultaneous_separate_browser_process_concurrency": "NOT_PROVEN",
+    "distributed_executor_idempotency": "NOT_PROVEN",
+    "external_side_effect_idempotency": "NOT_PROVEN",
+    "production_side_effect_idempotency": "NOT_PROVEN",
+    "live_production_browser_integration": "NOT_PROVEN",
+    "independent_external_security_validation": "NOT_PROVEN",
+    "sha256_signature_or_attestation": "NOT_PROVEN"
+  },
+  "incident_boundary": {
+    "modal_fanout_cleanup": "NOT_PROVEN",
+    "latest_checked_run_id": 37284936693,
+    "latest_checked_job_id": 111795419209,
+    "latest_checked_job_conclusion": "failure",
+    "required_pass_marker": "MUSITU_AXIOM_MODAL_INCIDENT_PROXY_TOKEN_REMEDIATION_PASS",
+    "required_pass_marker_observed": false
+  }
+}
