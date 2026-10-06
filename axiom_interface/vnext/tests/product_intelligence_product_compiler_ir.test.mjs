@@ -151,3 +151,14 @@ test('generation-only recompilation does not trigger semantic rebuild work',asyn
   assert.deepEqual(diff.operations,[]);
   assert.deepEqual(diff.impact_node_ids,[]);
 });
+
+
+test('tampered IR semantic content cannot reuse stale hashes to produce an UNCHANGED diff',async()=>{
+  const prior=await compileProductIR(graph(1),{bindings,compilerVersion:'1.0.0'});
+  const tampered=structuredClone(prior);
+  tampered.units[0].data={...tampered.units[0].data,title:'tampered after compile'};
+  await assert.rejects(
+    async()=>diffProductIR(prior,tampered),
+    /integrity|hash|sha256|tamper/i,
+  );
+});
