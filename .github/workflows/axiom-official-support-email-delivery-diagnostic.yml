@@ -20,7 +20,7 @@ jobs:
       CF_TOKEN_RULESETS: ${{ secrets.CLOUDFLARE_RULESETS_API_TOKEN }}
       CF_TOKEN_ACCESS: ${{ secrets.CLOUDFLARE_ACCESS_API_TOKEN }}
       CF_TOKEN_DEFAULT: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-      TEST_SUBJECT: 'MUSITU Axiom Direct SMTP Routing Verification 2bc90167'
+      TEST_SUBJECT: 'MUSITU Axiom Support Routing Verification 6c740302'
     steps:
       - name: Read public MX from Google and Cloudflare resolvers
         shell: bash
@@ -35,38 +35,6 @@ jobs:
               out[label]={'ok':p.returncode==0,'mx':rows}
           print(json.dumps({'gate':'MUSITU_AXIOM_SUPPORT_PUBLIC_MX_OBSERVED','resolvers':out,'write_performed':False},sort_keys=True))
           PY
-      - name: Send one direct SMTP probe to Cloudflare MX
-        shell: bash
-        run: |
-          set -euo pipefail
-          python - <<'PY'
-          import json, smtplib
-          subject='MUSITU Axiom Direct SMTP Routing Verification 2bc90167'
-          msg=(
-              'From: MAILER-DAEMON <>\r\n'
-              'To: support@mftintelligence.com\r\n'
-              f'Subject: {subject}\r\n'
-              'Date: Tue, 06 Oct 2026 05:15:00 +0000\r\n'
-              'Message-ID: <musitu-axiom-direct-smtp-2bc90167@mftintelligence.com>\r\n'
-              '\r\n'
-              'Authorized MUSITU Axiom support routing verification. No reply is required.\r\n'
-          )
-          out={'gate':'MUSITU_AXIOM_SUPPORT_DIRECT_SMTP_PROBE','accepted':False,'smtp_code':None,'error_class':None}
-          try:
-              with smtplib.SMTP('route1.mx.cloudflare.net',25,timeout=20) as s:
-                  s.ehlo_or_helo_if_needed()
-                  code,resp=s.mail('')
-                  if code >= 400: raise RuntimeError(f'MAIL_FROM_{code}')
-                  code,resp=s.rcpt('support@mftintelligence.com')
-                  if code >= 400: raise RuntimeError(f'RCPT_TO_{code}')
-                  code,resp=s.data(msg)
-                  out['smtp_code']=int(code)
-                  out['accepted']=200 <= code < 300
-          except Exception as e:
-              out['error_class']=type(e).__name__
-          print(json.dumps(out,sort_keys=True))
-          PY
-          sleep 8
       - name: Query Cloudflare Email Routing activity read-only
         shell: bash
         run: |
