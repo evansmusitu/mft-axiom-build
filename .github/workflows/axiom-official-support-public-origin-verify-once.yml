@@ -16,7 +16,7 @@ concurrency:
 
 jobs:
   verify-public-origin:
-    if: github.event_name == 'push' && github.event.before == '813d3913837c350ea6ba51ce54941dd2128bb75b'
+    if: github.event_name == 'push' && github.event.before == '159c03caa38f2bf9dbd3705e817133f6f19a7e2b'
     runs-on: ubuntu-latest
     environment: axiom-support-production
     timeout-minutes: 15
@@ -51,7 +51,7 @@ jobs:
           test "$GITHUB_EVENT_NAME" = 'push'
           test "$GITHUB_REF_NAME" = 'support/axiom-official-support-20261005'
           test "$GITHUB_REF_NAME" != 'main'
-          test "${{ github.event.before }}" = '813d3913837c350ea6ba51ce54941dd2128bb75b'
+          test "${{ github.event.before }}" = '159c03caa38f2bf9dbd3705e817133f6f19a7e2b'
           test "$SUPPORT_DOMAIN" = 'support.mftintelligence.com'
           node <<'NODE'
           const api='https://api.github.com/repos/evansmusitu/mft-axiom-build';
@@ -240,7 +240,7 @@ jobs:
       - name: Publish exact support custom domain for verification
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_ACCESS_API_TOKEN }}
-        run: npx --yes wrangler@4 deploy --config support-wrangler.generated.json
+        run: npx --yes wrangler@4.143.0 deploy --config support-wrangler.generated.json
 
       - name: Verify custom domain exists while workers.dev and previews remain disabled
         shell: bash
