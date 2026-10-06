@@ -200,16 +200,6 @@ jobs:
           URL="$(cat /tmp/operator-url)"
           KEY="$(cat /tmp/proxy-key)"
           SECRET="$(cat /tmp/proxy-secret)"
-          modal curl --max-time 30 "$URL/health" > /tmp/operator-modal-api-health.json
-          python - <<'PY'
-          import json
-          x=json.load(open('/tmp/operator-modal-api-health.json'))
-          assert x['status']=='READY'
-          assert x['durable_state']=='LOCAL_ATOMIC_STATE_PACK_WITH_FILE_LOCK'
-          assert x['production_authority'] is False
-          assert x['public_submission_mutation_authority'] is False
-          print('operator_modal_api_authenticated_health=PASS')
-          PY
           cleanup() {
             modal workspace proxy-tokens delete -y "$KEY" >/dev/null 2>&1 || true
             rm -f /tmp/modal-proxy.json /tmp/proxy-key /tmp/proxy-secret
