@@ -21,6 +21,8 @@ on:
       - 'docs/axiom_final_product/AXIOM_OPERATOR_BRIDGE_V1.md'
       - '.github/workflows/axiom-operator-bridge-gate-20261006.yml'
       - '.github/workflows/axiom-operator-modal-private-deploy-20261006.yml'
+      - '.github/workflows/axiom-operator-openai-secure-tunnel-20261006.yml'
+      - 'modal_operator_tunnel.py'
   workflow_dispatch:
 
 permissions:
@@ -68,6 +70,8 @@ jobs:
             'docs/axiom_final_product/AXIOM_OPERATOR_BRIDGE_V1.md',
             '.github/workflows/axiom-operator-bridge-gate-20261006.yml',
             '.github/workflows/axiom-operator-modal-private-deploy-20261006.yml',
+            '.github/workflows/axiom-operator-openai-secure-tunnel-20261006.yml',
+            'modal_operator_tunnel.py',
           }
           changed=set(subprocess.check_output(['git','diff','--name-only',f'{base}..HEAD'],text=True).splitlines())
           bad=sorted(changed-allowed)
@@ -91,7 +95,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          python -m py_compile api/operator_core.py frontier_v5/runtime/operator_remote_core.py frontier_v5/runtime/operator_state.py frontier_v5/runtime/operator_daemon.py
+          python -m py_compile api/operator_core.py modal_operator_tunnel.py frontier_v5/runtime/operator_remote_core.py frontier_v5/runtime/operator_state.py frontier_v5/runtime/operator_daemon.py
           node --check api/mcp.mjs
           node --check api/health.mjs
           python - <<'PY'
@@ -99,6 +103,16 @@ jobs:
           for path in ('package.json','vercel.json'):
               json.load(open(path,encoding='utf-8'))
           print('MUSITU_AXIOM_OPERATOR_REMOTE_ADAPTERS_PASS')
+          PY
+          python - <<'PY'
+          from pathlib import Path
+          import yaml
+          text=Path('modal_operator_tunnel.py').read_text()
+          assert 'TUNNEL_VERSION = "v0.0.15"' in text
+          assert '8c836dc5d68d68b663d9a5c5b28ff9fa780d9f7a3fffb1c306880b8f32fab5f1' in text
+          assert 'public_mcp_listener": False' in text
+          yaml.safe_load(Path('.github/workflows/axiom-operator-openai-secure-tunnel-20261006.yml').read_text())
+          print('MUSITU_AXIOM_OPERATOR_TUNNEL_STATIC_PASS')
           PY
 
       - name: Run operator bridge contract
@@ -129,6 +143,8 @@ jobs:
             Path('vercel.json'),
             Path('.github/workflows/axiom-operator-bridge-gate-20261006.yml'),
             Path('.github/workflows/axiom-operator-modal-private-deploy-20261006.yml'),
+            Path('.github/workflows/axiom-operator-openai-secure-tunnel-20261006.yml'),
+            Path('modal_operator_tunnel.py'),
           ]
           text='\n'.join(p.read_text() if p.exists() else '' for p in files)
           forbidden=[
