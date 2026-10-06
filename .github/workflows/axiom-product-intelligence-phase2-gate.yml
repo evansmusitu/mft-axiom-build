@@ -130,6 +130,7 @@ jobs:
               Path('axiom_interface/vnext/product_intelligence/product_compiler_ir.js'),
               Path('axiom_interface/vnext/product_intelligence/compiler_checkpoint.js'),
               Path('axiom_interface/vnext/product_intelligence/change_admission.js'),
+              Path('axiom_interface/vnext/product_intelligence/execution_outcome_reconciliation.js'),
           ]
           required = {
               'pgvector_vector_index_backend.js': ['0.8.6', 'MECHANISM_ONLY'],
@@ -144,6 +145,7 @@ jobs:
               'product_compiler_ir.js': ['PRODUCT_COMPILER_IR_SCHEMA', 'DIFF_REQUIRES_RECONCILIATION', 'CONTENT_ADDRESSED_IMPACT_SET', 'can_overwrite_verified_nodes:false', "authority_effect:'NONE'"],
               'compiler_checkpoint.js': ['PRODUCT_COMPILER_CHECKPOINT_SCHEMA', 'PREPARE_ONLY', 'GOVERNED_WRITE_AUTHORIZATION', 'external_execution_authority:false', 'production_authority:false', "independent_verification:'NOT_PROVEN'"],
               'change_admission.js': ['CHANGE_RISK_MODEL', 'MECHANISM_ONLY', 'builder_may_approve:false', 'external_execution_authority:false', 'production_authority:false', "authority_effect:'ADMISSION_ONLY'"],
+              'execution_outcome_reconciliation.js': ['EXECUTION_OUTCOME_VERIFICATION_SCHEMA', 'FA11_BROWSER_LOCAL_EXECUTION_RECEIPT', "authority_effect:'NONE'", 'release_authority:false', 'production_authority:false', 'certification_authority:false'],
           }
           for path in files:
               text = path.read_text(encoding='utf-8')
