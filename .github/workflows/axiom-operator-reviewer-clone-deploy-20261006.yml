@@ -23,10 +23,6 @@ jobs:
     env:
       CF_API: https://api.cloudflare.com/client/v4
       ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
-      ZONE_ID: 5b56528f03948ff5917a5e0cd9f7109e
-      ZONE_NAME: mftintelligence.com
-      OAUTH_HOST: auth-operator-reviewer.mftintelligence.com
-      MCP_HOST: operator-reviewer.mftintelligence.com
       PROD_D1_UUID: 504029cc-f9a5-495e-818f-63c6144b4ea4
       REVIEWER_DB_NAME: musitu-axiom-operator-reviewer-20261006
       OAUTH_WORKER: musitu-axiom-operator-reviewer-oauth-20261006
@@ -59,14 +55,10 @@ jobs:
       - name: Deploy and qualify isolated reviewer clone
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
-          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
         shell: bash
         run: |
           set -euo pipefail
           test -n "$CLOUDFLARE_API_TOKEN"
-          test -n "$CLOUDFLARE_EMAIL"
-          test -n "$CLOUDFLARE_GLOBAL_API_KEY"
           test -n "$MODAL_TOKEN_ID"
           test -n "$MODAL_TOKEN_SECRET"
           python -m pip install --disable-pip-version-check --quiet 'modal>=1.5,<2'
