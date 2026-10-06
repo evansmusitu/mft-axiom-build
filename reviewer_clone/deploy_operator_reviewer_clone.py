@@ -303,6 +303,80 @@ def configure_custom_domain(host, worker):
         raise RuntimeError("reviewer custom-domain mapping failed")
 
 
+def configure_machine_transport_exception(host, rule_ref):
+    if host in {"auth.mftintelligence.com", "mcp.mftintelligence.com"}:
+        raise RuntimeError("refusing machine-transport exception on production hostname")
+
+    security = cf(f"/zones/{ZONE_ID}/settings/security_level") or {}
+    browser_check = cf(f"/zones/{ZONE_ID}/settings/browser_check") or {}
+    if security.get("value") != "under_attack" or browser_check.get("value") != "on":
+        raise RuntimeError("global Cloudflare security posture drift")
+
+    rulesets = cf(f"/zones/{ZONE_ID}/rulesets") or []
+    candidates = [
+        row for row in rulesets
+        if row.get("phase") == "http_config_settings" and row.get("kind") == "zone"
+    ]
+    if len(candidates) != 1:
+        raise RuntimeError("zone configuration ruleset not unique")
+    ruleset_id = candidates[0].get("id")
+    detail = cf(f"/zones/{ZONE_ID}/rulesets/{ruleset_id}") or {}
+    rules = detail.get("rules") or []
+    expression = 'http.host eq "' + host + '"'
+
+    matches = [row for row in rules if row.get("ref") == rule_ref]
+    if len(matches) > 1:
+        raise RuntimeError("duplicate reviewer machine-transport rule")
+    if matches:
+        row = matches[0]
+        params = row.get("action_parameters") or {}
+        if (
+            row.get("action") != "set_config"
+            or row.get("expression") != expression
+            or params.get("security_level") != "essentially_off"
+            or params.get("bic") is not False
+            or row.get("enabled") is False
+        ):
+            raise RuntimeError("reviewer machine-transport rule drift")
+    else:
+        if any(row.get("expression") == expression for row in rules):
+            raise RuntimeError("reviewer hostname already has a different config rule")
+        cf(
+            f"/zones/{ZONE_ID}/rulesets/{ruleset_id}/rules",
+            "POST",
+            {
+                "action": "set_config",
+                "action_parameters": {
+                    "security_level": "essentially_off",
+                    "bic": False,
+                },
+                "expression": expression,
+                "description": "MUSITU Axiom Operator Reviewer machine transport; application OAuth remains fail-closed",
+                "enabled": True,
+                "ref": rule_ref,
+            },
+        )
+
+    refreshed = cf(f"/zones/{ZONE_ID}/rulesets/{ruleset_id}") or {}
+    verified = [row for row in (refreshed.get("rules") or []) if row.get("ref") == rule_ref]
+    if len(verified) != 1:
+        raise RuntimeError("reviewer machine-transport rule readback failed")
+    row = verified[0]
+    params = row.get("action_parameters") or {}
+    if (
+        row.get("expression") != expression
+        or params.get("security_level") != "essentially_off"
+        or params.get("bic") is not False
+        or row.get("enabled") is False
+    ):
+        raise RuntimeError("reviewer machine-transport rule readback drift")
+
+    security_after = cf(f"/zones/{ZONE_ID}/settings/security_level") or {}
+    browser_after = cf(f"/zones/{ZONE_ID}/settings/browser_check") or {}
+    if security_after.get("value") != "under_attack" or browser_after.get("value") != "on":
+        raise RuntimeError("global Cloudflare security posture changed")
+
+
 def get_reviewer_urls():
     if OAUTH_HOST in {"auth.mftintelligence.com", "mcp.mftintelligence.com"}:
         raise RuntimeError("reviewer OAuth hostname collides with production")
@@ -494,6 +568,15 @@ def main():
 
     configure_custom_domain(OAUTH_HOST, OAUTH_WORKER)
     configure_custom_domain(MCP_HOST, MCP_WORKER)
+
+    configure_machine_transport_exception(
+        OAUTH_HOST,
+        "musitu_axiom_operator_reviewer_oauth_machine_transport",
+    )
+    configure_machine_transport_exception(
+        MCP_HOST,
+        "musitu_axiom_operator_reviewer_mcp_machine_transport",
+    )
 
     wait_health(issuer, "oauth")
     wait_health(resource, "mcp")
