@@ -11,7 +11,8 @@
     "browser_runner_path": "axiom_interface/vnext/tests/run_browser_execution_idempotency.mjs",
     "browser_runner_git_blob": "1fdf4b7d678c10c7076ee6f80788ae03d739d094",
     "gate_workflow_path": ".github/workflows/axiom-product-intelligence-phase2-gate.yml",
-    "gate_workflow_git_blob": "15e982b413e24aaa4abe0d212b93ed3c750fc912"
+    "gate_workflow_git_blob": "15e982b413e24aaa4abe0d212b93ed3c750fc912",
+    "final_validated_head": "4ed510a5a40e0a3188666e6a2f8ac087e238e184"
   },
   "classification": {
     "kind": "COVERAGE_ONLY",
@@ -70,5 +71,17 @@
     "live_production_browser_integration": "NOT_PROVEN",
     "independent_external_security_validation": "NOT_PROVEN",
     "sha256_signature_or_attestation": "NOT_PROVEN"
+  },
+  "seal_validation": {
+    "harness_fix_commit": "4ed510a5a40e0a3188666e6a2f8ac087e238e184",
+    "run_id": 37570277294,
+    "focused_job_id": 112627107209,
+    "independent_job_id": 112627251157,
+    "focused_conclusion": "success",
+    "independent_conclusion": "success",
+    "note": "The preceding evidence-file commit run was cancelled by a browser-runner exit-listener race after all product assertions had passed. The harness fix registered process exit before Browser.close and this exact head completed both jobs successfully.",
+    "release_authority": false,
+    "production_authority": false,
+    "certification_authority": false
   }
 }
