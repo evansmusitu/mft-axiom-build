@@ -791,3 +791,109 @@ test('EngineeringWorkerBackend lifecycle receipts preserve dispatch bindings and
     assert.equal(call.input.production_authority,false);
   }
 });
+
+
+test('independent external worker result verification preserves provider report truth without certifying external execution',async()=>{
+  const outcomeModule=await import('../product_intelligence/execution_outcome_reconciliation.js');
+  const security=await import('../execution_security.js');
+  assert.equal(typeof outcomeModule.verifyExternalWorkerResult,'function');
+  assert.equal(typeof outcomeModule.createExternalWorkerResultEvidence,'function');
+
+  const dispatchBody={
+    schema:'musitu.axiom.external-worker-dispatch-receipt.v1',
+    project_id:projectId,
+    work_id:'work_12345678',
+    handoff_sha256:'1'.repeat(64),
+    request_sha256:'2'.repeat(64),
+    workload_identity_id:'workload_executor_1',
+    operation:'repo.mutate',
+    risk_class:'S3',
+    destination:'https://github.example.test/api/v1/change',
+    provider:'axiom-isolated-worker',
+    provider_work_id:'worker_job_lifecycle_12345678',
+    provider_status:'ACCEPTED',
+    dispatch_idempotency_sha256:'4'.repeat(64),
+    external_action_executed:false,
+    live_runtime_qualification:'NOT_PROVEN',
+    authority_effect:'NONE',
+    release_authority:false,
+    production_authority:false,
+    certification_authority:false,
+    created_at:at,
+  };
+  const dispatchReceipt={...dispatchBody,receipt_sha256:await security.sha256(dispatchBody)};
+  const providerOutput={artifact_sha256:'a'.repeat(64)};
+  const resultBody={
+    schema:'musitu.axiom.engineering-worker-result-receipt.v1',
+    project_id:projectId,
+    work_id:'work_12345678',
+    handoff_sha256:'1'.repeat(64),
+    request_sha256:'2'.repeat(64),
+    workload_identity_id:'workload_executor_1',
+    provider_work_id:'worker_job_lifecycle_12345678',
+    dispatch_receipt_sha256:dispatchReceipt.receipt_sha256,
+    dispatch_idempotency_sha256:'4'.repeat(64),
+    production_authority:false,
+    provider:'axiom-isolated-worker',
+    provider_status:'COMPLETED',
+    provider_output:providerOutput,
+    provider_output_sha256:await security.sha256(providerOutput),
+    provider_claimed_external_action_executed:true,
+    provider_data_authority:'UNTRUSTED_MECHANISM_DATA',
+    independent_verification:'NOT_PROVEN',
+    external_action_executed:false,
+    live_runtime_qualification:'NOT_PROVEN',
+    authority_effect:'NONE',
+    release_authority:false,
+    certification_authority:false,
+    created_at:at,
+  };
+  const resultReceipt={...resultBody,receipt_sha256:await security.sha256(resultBody)};
+
+  const verified=await outcomeModule.verifyExternalWorkerResult({
+    dispatchReceipt,
+    resultReceipt,
+    verifierActorId:'agent_independent_verifier_2',
+    at,
+  });
+  assert.equal(verified.schema,'musitu.axiom.external-worker-result-verification.v1');
+  assert.equal(verified.status,'VERIFIED_PROVIDER_REPORT');
+  assert.equal(verified.project_id,projectId);
+  assert.equal(verified.work_id,'work_12345678');
+  assert.equal(verified.request_sha256,'2'.repeat(64));
+  assert.equal(verified.provider,'axiom-isolated-worker');
+  assert.equal(verified.provider_work_id,'worker_job_lifecycle_12345678');
+  assert.equal(verified.provider_status,'COMPLETED');
+  assert.equal(verified.provider_output_sha256,resultBody.provider_output_sha256);
+  assert.equal(verified.provider_claimed_external_action_executed,true);
+  assert.equal(verified.provider_data_authority,'UNTRUSTED_MECHANISM_DATA');
+  assert.equal(verified.independent_verification,'PASS_BINDING_INTEGRITY_ONLY');
+  assert.equal(verified.execution_truth,'NOT_PROVEN');
+  assert.equal(verified.external_action_executed,false);
+  assert.equal(verified.live_runtime_qualification,'NOT_PROVEN');
+  assert.equal(verified.authority_effect,'NONE');
+  assert.equal(verified.release_authority,false);
+  assert.equal(verified.production_authority,false);
+  assert.equal(verified.certification_authority,false);
+  assert.match(verified.verification_sha256,/^[a-f0-9]{64}$/);
+
+  const evidence=await outcomeModule.createExternalWorkerResultEvidence(verified);
+  assert.equal(evidence.schema,'musitu.axiom.evidence.v1');
+  assert.equal(evidence.type,'Evidence');
+  assert.equal(evidence.data.verification.status,'VERIFIED_PROVIDER_REPORT');
+  assert.equal(evidence.data.verification.independent_verification,'PASS_BINDING_INTEGRITY_ONLY');
+  assert.equal(evidence.data.verification.execution_truth,'NOT_PROVEN');
+  assert.equal(evidence.data.verification.external_action_executed,false);
+  assert.equal(evidence.data.verification.live_runtime_qualification,'NOT_PROVEN');
+  assert.equal(evidence.data.verification.authority_effect,'NONE');
+
+  await assert.rejects(
+    ()=>outcomeModule.verifyExternalWorkerResult({
+      dispatchReceipt,
+      resultReceipt,
+      verifierActorId:'workload_executor_1',
+      at,
+    }),
+    /independent|verifier|workload/i,
+  );
+});
