@@ -228,3 +228,166 @@ export async function reconcileVerifiedExecutionOutcome({persistence,verifiedOut
   const saved=await persistence.commit(next,{expectedGeneration:current.generation});
   return Object.freeze({status:'RECONCILED',project_id:projectId,evidence,graph:structuredClone(saved),authority_effect:'NONE',release_authority:false,production_authority:false,certification_authority:false});
 }
+
+
+export const EXTERNAL_WORKER_RESULT_VERIFICATION_SCHEMA='musitu.axiom.external-worker-result-verification.v1';
+
+const EXTERNAL_DISPATCH_RECEIPT_KEYS=new Set([
+  'schema','project_id','work_id','handoff_sha256','request_sha256','workload_identity_id','operation','risk_class','destination',
+  'provider','provider_work_id','provider_status','dispatch_idempotency_sha256','external_action_executed','live_runtime_qualification',
+  'authority_effect','release_authority','production_authority','certification_authority','created_at','receipt_sha256',
+]);
+const EXTERNAL_RESULT_RECEIPT_KEYS=new Set([
+  'schema','project_id','work_id','handoff_sha256','request_sha256','workload_identity_id','provider_work_id','dispatch_receipt_sha256',
+  'dispatch_idempotency_sha256','production_authority','provider','provider_status','provider_output','provider_output_sha256',
+  'provider_claimed_external_action_executed','provider_data_authority','independent_verification','external_action_executed',
+  'live_runtime_qualification','authority_effect','release_authority','certification_authority','created_at','receipt_sha256',
+]);
+const EXTERNAL_RESULT_VERIFICATION_KEYS=new Set([
+  'schema','project_id','work_id','handoff_sha256','request_sha256','workload_identity_id','dispatch_receipt_sha256',
+  'result_receipt_sha256','provider','provider_work_id','provider_status','provider_output_sha256',
+  'provider_claimed_external_action_executed','provider_data_authority','verifier_actor_id','independent_verification',
+  'execution_truth','external_action_executed','live_runtime_qualification','status','authority_effect',
+  'release_authority','production_authority','certification_authority','created_at','verification_sha256',
+]);
+
+async function assertExternalDispatchReceipt(receipt){
+  if(!isPlainObject(receipt)||receipt.schema!=='musitu.axiom.external-worker-dispatch-receipt.v1')throw new TypeError('external worker dispatch receipt required');
+  rejectUnknown(receipt,EXTERNAL_DISPATCH_RECEIPT_KEYS,'external worker dispatch receipt');
+  for(const key of ['project_id','work_id','workload_identity_id','operation','risk_class','destination','provider','provider_work_id','provider_status'])requireString(receipt[key],`dispatchReceipt.${key}`,key==='destination'?2048:300);
+  for(const key of ['handoff_sha256','request_sha256','dispatch_idempotency_sha256','receipt_sha256'])requireHash(receipt[key],`dispatchReceipt.${key}`);
+  if(await sha256(bodyWithout(receipt,'receipt_sha256'))!==receipt.receipt_sha256)throw new DOMException('external worker dispatch receipt integrity failure','DataError');
+  canonicalIso(receipt.created_at,'dispatchReceipt.created_at');
+  if(receipt.risk_class!=='S3')throw new DOMException('external worker dispatch receipt must remain S3','SecurityError');
+  if(receipt.external_action_executed!==false||receipt.live_runtime_qualification!=='NOT_PROVEN')throw new DOMException('dispatch receipt cannot prove external execution or live qualification','SecurityError');
+  if(receipt.authority_effect!=='NONE'||receipt.release_authority!==false||receipt.production_authority!==false||receipt.certification_authority!==false)throw new DOMException('external worker dispatch receipt authority boundary invalid','SecurityError');
+  return receipt;
+}
+
+async function assertExternalResultReceipt(receipt){
+  if(!isPlainObject(receipt)||receipt.schema!=='musitu.axiom.engineering-worker-result-receipt.v1')throw new TypeError('engineering worker result receipt required');
+  rejectUnknown(receipt,EXTERNAL_RESULT_RECEIPT_KEYS,'engineering worker result receipt');
+  for(const key of ['project_id','work_id','workload_identity_id','provider_work_id','provider','provider_status','provider_data_authority','independent_verification'])requireString(receipt[key],`resultReceipt.${key}`,300);
+  for(const key of ['handoff_sha256','request_sha256','dispatch_receipt_sha256','dispatch_idempotency_sha256','provider_output_sha256','receipt_sha256'])requireHash(receipt[key],`resultReceipt.${key}`);
+  if(await sha256(receipt.provider_output)!==receipt.provider_output_sha256)throw new DOMException('engineering worker provider output hash mismatch','DataError');
+  if(await sha256(bodyWithout(receipt,'receipt_sha256'))!==receipt.receipt_sha256)throw new DOMException('engineering worker result receipt integrity failure','DataError');
+  canonicalIso(receipt.created_at,'resultReceipt.created_at');
+  if(typeof receipt.provider_claimed_external_action_executed!=='boolean')throw new TypeError('resultReceipt.provider_claimed_external_action_executed must be boolean');
+  if(receipt.provider_data_authority!=='UNTRUSTED_MECHANISM_DATA'||receipt.independent_verification!=='NOT_PROVEN')throw new DOMException('provider result must remain untrusted and unverified before AXIOM verification','SecurityError');
+  if(receipt.external_action_executed!==false||receipt.live_runtime_qualification!=='NOT_PROVEN')throw new DOMException('provider result receipt cannot certify external execution or live qualification','SecurityError');
+  if(receipt.authority_effect!=='NONE'||receipt.release_authority!==false||receipt.production_authority!==false||receipt.certification_authority!==false)throw new DOMException('engineering worker result receipt authority boundary invalid','SecurityError');
+  return receipt;
+}
+
+async function assertExternalWorkerResultVerification(verified){
+  if(!isPlainObject(verified)||verified.schema!==EXTERNAL_WORKER_RESULT_VERIFICATION_SCHEMA)throw new TypeError('verified external worker result required');
+  rejectUnknown(verified,EXTERNAL_RESULT_VERIFICATION_KEYS,'verified external worker result');
+  for(const key of ['project_id','work_id','workload_identity_id','provider','provider_work_id','provider_status','provider_data_authority','verifier_actor_id','independent_verification','execution_truth','status'])requireString(verified[key],`verifiedExternalResult.${key}`,300);
+  for(const key of ['handoff_sha256','request_sha256','dispatch_receipt_sha256','result_receipt_sha256','provider_output_sha256','verification_sha256'])requireHash(verified[key],`verifiedExternalResult.${key}`);
+  if(await sha256(bodyWithout(verified,'verification_sha256'))!==verified.verification_sha256)throw new DOMException('verified external worker result integrity failure','DataError');
+  canonicalIso(verified.created_at,'verifiedExternalResult.created_at');
+  if(typeof verified.provider_claimed_external_action_executed!=='boolean')throw new TypeError('verified external result provider claim must be boolean');
+  if(verified.status!=='VERIFIED_PROVIDER_REPORT'||verified.provider_data_authority!=='UNTRUSTED_MECHANISM_DATA'||verified.independent_verification!=='PASS_BINDING_INTEGRITY_ONLY'||verified.execution_truth!=='NOT_PROVEN')throw new DOMException('external result verification semantic boundary invalid','SecurityError');
+  if(verified.external_action_executed!==false||verified.live_runtime_qualification!=='NOT_PROVEN')throw new DOMException('external result verification cannot certify execution or live runtime','SecurityError');
+  if(verified.authority_effect!=='NONE'||verified.release_authority!==false||verified.production_authority!==false||verified.certification_authority!==false)throw new DOMException('verified external result authority boundary invalid','SecurityError');
+  return verified;
+}
+
+export async function verifyExternalWorkerResult({dispatchReceipt,resultReceipt,verifierActorId,at=new Date().toISOString()}={}){
+  await assertExternalDispatchReceipt(dispatchReceipt);
+  await assertExternalResultReceipt(resultReceipt);
+  const verifier_actor_id=requireString(verifierActorId,'verifierActorId',180);
+  if(verifier_actor_id===dispatchReceipt.workload_identity_id)throw new DOMException('independent external result verifier must differ from executor workload identity','NotAllowedError');
+  const bindings=[
+    ['project_id',dispatchReceipt.project_id,resultReceipt.project_id],
+    ['work_id',dispatchReceipt.work_id,resultReceipt.work_id],
+    ['handoff_sha256',dispatchReceipt.handoff_sha256,resultReceipt.handoff_sha256],
+    ['request_sha256',dispatchReceipt.request_sha256,resultReceipt.request_sha256],
+    ['workload_identity_id',dispatchReceipt.workload_identity_id,resultReceipt.workload_identity_id],
+    ['provider',dispatchReceipt.provider,resultReceipt.provider],
+    ['provider_work_id',dispatchReceipt.provider_work_id,resultReceipt.provider_work_id],
+    ['dispatch_idempotency_sha256',dispatchReceipt.dispatch_idempotency_sha256,resultReceipt.dispatch_idempotency_sha256],
+    ['dispatch_receipt_sha256',dispatchReceipt.receipt_sha256,resultReceipt.dispatch_receipt_sha256],
+  ];
+  for(const [name,expected,actual] of bindings)if(actual!==expected)throw new DOMException('external worker result '+name+' binding mismatch','SecurityError');
+  const created_at=canonicalIso(at,'at');
+  const body={
+    schema:EXTERNAL_WORKER_RESULT_VERIFICATION_SCHEMA,
+    project_id:dispatchReceipt.project_id,
+    work_id:dispatchReceipt.work_id,
+    handoff_sha256:dispatchReceipt.handoff_sha256,
+    request_sha256:dispatchReceipt.request_sha256,
+    workload_identity_id:dispatchReceipt.workload_identity_id,
+    dispatch_receipt_sha256:dispatchReceipt.receipt_sha256,
+    result_receipt_sha256:resultReceipt.receipt_sha256,
+    provider:resultReceipt.provider,
+    provider_work_id:resultReceipt.provider_work_id,
+    provider_status:resultReceipt.provider_status,
+    provider_output_sha256:resultReceipt.provider_output_sha256,
+    provider_claimed_external_action_executed:resultReceipt.provider_claimed_external_action_executed,
+    provider_data_authority:'UNTRUSTED_MECHANISM_DATA',
+    verifier_actor_id,
+    independent_verification:'PASS_BINDING_INTEGRITY_ONLY',
+    execution_truth:'NOT_PROVEN',
+    external_action_executed:false,
+    live_runtime_qualification:'NOT_PROVEN',
+    status:'VERIFIED_PROVIDER_REPORT',
+    authority_effect:'NONE',
+    release_authority:false,
+    production_authority:false,
+    certification_authority:false,
+    created_at,
+  };
+  return Object.freeze({...body,verification_sha256:await sha256(body)});
+}
+
+export async function createExternalWorkerResultEvidence(verified){
+  await assertExternalWorkerResultVerification(verified);
+  const evidence={
+    schema:'musitu.axiom.evidence.v1',
+    type:'Evidence',
+    id:`evidence_${verified.result_receipt_sha256.slice(0,24)}`,
+    version:1,
+    created_at:verified.created_at,
+    updated_at:verified.created_at,
+    data:{
+      inputs:[{project_id:verified.project_id,work_id:verified.work_id,provider:verified.provider,provider_work_id:verified.provider_work_id}],
+      sources:[
+        {kind:'EXTERNAL_WORKER_DISPATCH_RECEIPT',receipt_sha256:verified.dispatch_receipt_sha256},
+        {kind:'EXTERNAL_WORKER_PROVIDER_RESULT_RECEIPT',receipt_sha256:verified.result_receipt_sha256,provider_status:verified.provider_status},
+      ],
+      capability_chain:['ChangeAdmission','OperationScopedExecutorHandoff','FA11AuthorizationGateway','EngineeringWorkerBackend','ExternalWorkerResultVerification'],
+      calculations:[
+        {kind:'DISPATCH_RESULT_BINDING_INTEGRITY',status:'PASS'},
+        {kind:'PROVIDER_OUTPUT_CONTENT_HASH',status:'PASS'},
+      ],
+      actions:[{kind:'PROVIDER_RESULT_REPORTED',provider_status:verified.provider_status,external_action_executed:false}],
+      policies:['PROVIDER_OUTPUT_IS_DATA_NOT_AUTHORITY','BUILDER_EXECUTOR_VERIFIER_SEPARATION','NO_EXTERNAL_EXECUTION_CERTIFICATION_WITHOUT_EVIDENCE','NO_AUTHORITY_ESCALATION'],
+      approvals:[],
+      hashes:[verified.handoff_sha256,verified.request_sha256,verified.dispatch_receipt_sha256,verified.result_receipt_sha256,verified.provider_output_sha256,verified.verification_sha256],
+      receipts:[
+        {schema:'musitu.axiom.external-worker-dispatch-receipt.v1',receipt_sha256:verified.dispatch_receipt_sha256},
+        {schema:'musitu.axiom.engineering-worker-result-receipt.v1',receipt_sha256:verified.result_receipt_sha256,status:verified.provider_status},
+      ],
+      verification:{
+        status:'VERIFIED_PROVIDER_REPORT',
+        verifier_actor_id:verified.verifier_actor_id,
+        independent_verification:'PASS_BINDING_INTEGRITY_ONLY',
+        provider_report_integrity:'PASS',
+        provider_data_authority:'UNTRUSTED_MECHANISM_DATA',
+        execution_truth:'NOT_PROVEN',
+        external_action_executed:false,
+        live_runtime_qualification:'NOT_PROVEN',
+        authority_effect:'NONE',
+        release_authority:false,
+        production_authority:false,
+        certification_authority:false,
+      },
+      failures:[],
+      timestamps:[{kind:'PROVIDER_RESULT_VERIFIED_AS_REPORT_ONLY',at:verified.created_at}],
+      versions:[{schema:EXTERNAL_WORKER_RESULT_VERIFICATION_SCHEMA,verification_sha256:verified.verification_sha256}],
+    },
+  };
+  assertAxiomObject(evidence,{expectedType:'Evidence'});
+  return Object.freeze(structuredClone(evidence));
+}
