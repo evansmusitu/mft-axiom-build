@@ -19,6 +19,7 @@ if str(ROOT) not in sys.path:
 
 from benchmarks.mining_adapter.polish_longwall_telemetry import (
     LongwallTelemetrySpec,
+    _arff_attributes_and_data,
     _detect_delimiter,
     canonical_telemetry_row,
     evaluate_longwall_gate,
@@ -49,26 +50,29 @@ def _sha256_file(path: Path) -> str:
     return digest.hexdigest()
 
 
-def _extract_sensor_member(archive_path: Path, directory: Path) -> tuple[Path,str,int]:
-    with zipfile.ZipFile(archive_path) as archive:
-        candidates=[
-            item for item in archive.infolist()
-            if not item.is_dir() and item.filename.lower().endswith((".csv",".txt"))
-        ]
-        if not candidates:
-            raise ValueError("longwall_source_data_member_missing")
-        # The raw synchronized sensor table is by far the largest tabular file.
-        member=max(candidates,key=lambda item:item.file_size)
-        target=directory/Path(member.filename).name
-        digest=hashlib.sha256()
-        with archive.open(member) as source, target.open("wb") as destination:
-            while True:
-                chunk=source.read(1024*1024)
-                if not chunk:
-                    break
-                digest.update(chunk)
-                destination.write(chunk)
-        return target,digest.hexdigest(),member.file_size
+def _prepare_sensor_source(source_path: Path, directory: Path) -> tuple[Path,str,int,str]:
+    if zipfile.is_zipfile(source_path):
+        with zipfile.ZipFile(source_path) as archive:
+            candidates=[
+                item for item in archive.infolist()
+                if not item.is_dir() and item.filename.lower().endswith((".csv",".txt",".arff"))
+            ]
+            if not candidates:
+                raise ValueError("longwall_source_data_member_missing")
+            member=max(candidates,key=lambda item:item.file_size)
+            target=directory/Path(member.filename).name
+            digest=hashlib.sha256()
+            with archive.open(member) as source, target.open("wb") as destination:
+                while True:
+                    chunk=source.read(1024*1024)
+                    if not chunk:
+                        break
+                    digest.update(chunk)
+                    destination.write(chunk)
+            return target,digest.hexdigest(),member.file_size,"zip"
+    if source_path.suffix.casefold() not in {".arff",".csv",".txt"}:
+        raise ValueError("longwall_source_format_unsupported")
+    return source_path,_sha256_file(source_path),source_path.stat().st_size,"raw"
 
 
 def _build_service(store_path: Path) -> MiningAdapterService:
@@ -103,7 +107,7 @@ def run(*, archive_path: Path, store_path: Path, spec: LongwallTelemetrySpec, tr
     archive_sha=_sha256_file(archive_path)
 
     with tempfile.TemporaryDirectory(prefix="musitu-polish-longwall-") as directory:
-        member_path,member_sha,member_size=_extract_sensor_member(archive_path,Path(directory))
+        member_path,member_sha,member_size,container_kind=_prepare_sensor_source(archive_path,Path(directory))
         service=_build_service(store_path)
         run_ids=[]
         batch=[]
@@ -118,16 +122,20 @@ def run(*, archive_path: Path, store_path: Path, spec: LongwallTelemetrySpec, tr
         errors=[]
         try:
             with member_path.open("r",encoding="utf-8-sig",errors="strict",newline="") as stream:
-                first_line=stream.readline()
-                delimiter=_detect_delimiter(first_line)
-                reader=csv.DictReader(itertools.chain([first_line],stream),delimiter=delimiter)
-                header=validate_header(reader.fieldnames)
+                if member_path.suffix.casefold()==".arff":
+                    header,rows=_arff_attributes_and_data(stream)
+                else:
+                    first_line=stream.readline()
+                    delimiter=_detect_delimiter(first_line)
+                    reader=csv.DictReader(itertools.chain([first_line],stream),delimiter=delimiter)
+                    header=validate_header(reader.fieldnames)
+                    rows=reader
                 folded={name.casefold() for name in header}
                 sensor_count=sum(
                     1 for sensor in MINING_TELEMETRY_SENSORS
                     if sensor.casefold() in folded
                 )
-                for raw in reader:
+                for raw in rows:
                     if raw is None or not any(str(value or "").strip() for value in raw.values()):
                         continue
                     try:
@@ -201,6 +209,7 @@ def run(*, archive_path: Path, store_path: Path, spec: LongwallTelemetrySpec, tr
                 "source_member_sha256":member_sha,
                 "source_member_name":member_path.name,
                 "source_member_bytes":member_size,
+                "source_container_kind":container_kind,
                 "source_rows":source_rows,
                 "sensor_count":sensor_count,
                 "parse_failures":parse_failures,
@@ -243,7 +252,9 @@ def run(*, archive_path: Path, store_path: Path, spec: LongwallTelemetrySpec, tr
 
 def main() -> None:
     parser=argparse.ArgumentParser()
-    parser.add_argument("--archive",type=Path,required=True)
+    source_group=parser.add_mutually_exclusive_group(required=True)
+    source_group.add_argument("--archive",dest="source",type=Path)
+    source_group.add_argument("--source",dest="source",type=Path)
     parser.add_argument("--transport-source",choices=("mendeley","openml:42701"),required=True)
     parser.add_argument("--store",type=Path,required=True)
     parser.add_argument("--min-source-rows",type=int,default=9_000_000)
@@ -257,7 +268,7 @@ def main() -> None:
         durable_batch_size=args.durable_batch_size,
     )
     evidence=run(
-        archive_path=args.archive,
+        archive_path=args.source,
         store_path=args.store,
         spec=spec,
         transport_source=args.transport_source,
