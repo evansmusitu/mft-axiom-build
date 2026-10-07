@@ -3,6 +3,7 @@ from __future__ import annotations
 import csv
 import hashlib
 import itertools
+import shlex
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from math import isfinite
@@ -123,6 +124,91 @@ def iter_canonical_rows(stream: TextIO) -> Iterator[dict[str,Any]]:
         if raw is None or not any(str(value or "").strip() for value in raw.values()):
             continue
         yield canonical_telemetry_row(raw)
+
+
+def _arff_attributes_and_data(stream: TextIO) -> tuple[list[str],Iterator[dict[str,str]]]:
+    attributes=[]
+    found_data=False
+    for line in stream:
+        stripped=line.strip()
+        if not stripped or stripped.startswith("%"):
+            continue
+        lowered=stripped.casefold()
+        if lowered.startswith("@attribute"):
+            parts=shlex.split(stripped,posix=True)
+            if len(parts)<3:
+                raise ValueError("longwall_arff_attribute_invalid")
+            attributes.append(parts[1])
+            continue
+        if lowered=="@data":
+            found_data=True
+            break
+    if not found_data:
+        raise ValueError("longwall_arff_data_marker_missing")
+    validate_header(attributes)
+
+    def rows() -> Iterator[dict[str,str]]:
+        for line in stream:
+            stripped=line.strip()
+            if not stripped or stripped.startswith("%"):
+                continue
+            values=next(csv.reader([line]))
+            if len(values)!=len(attributes):
+                raise ValueError(
+                    f"longwall_arff_row_width_invalid:{len(values)}:{len(attributes)}"
+                )
+            yield dict(zip(attributes,values,strict=True))
+    return attributes,rows()
+
+
+def iter_arff_canonical_rows(stream: TextIO) -> Iterator[dict[str,Any]]:
+    _attributes,rows=_arff_attributes_and_data(stream)
+    for raw in rows:
+        yield canonical_telemetry_row(raw)
+
+
+def scan_arff_stream(stream: TextIO, spec: LongwallTelemetrySpec) -> tuple[dict[str,Any],list[dict[str,Any]]]:
+    names,rows=_arff_attributes_and_data(stream)
+    selected=[]
+    source_rows=0
+    parse_failures=0
+    first_timestamp=None
+    last_timestamp=None
+    warning_samples=0
+    folded={name.casefold() for name in names}
+    sensor_count=sum(
+        1 for sensor in MINING_TELEMETRY_SENSORS if sensor.casefold() in folded
+    )
+
+    for raw in rows:
+        try:
+            row=canonical_telemetry_row(raw)
+        except ValueError:
+            parse_failures += 1
+            continue
+        source_rows += 1
+        timestamp=row["event_time"]
+        if first_timestamp is None:
+            first_timestamp=timestamp
+        last_timestamp=timestamp
+        if any(row[name] >= spec.methane_warning_threshold for name in _TARGET_METHANE):
+            warning_samples += 1
+        if len(selected) < spec.durable_sample_rows:
+            selected.append(row)
+
+    return {
+        "dataset_id":spec.dataset_id,
+        "dataset_version":spec.dataset_version,
+        "doi":spec.doi,
+        "license":spec.license,
+        "source_page":spec.source_page,
+        "source_rows":source_rows,
+        "sensor_count":sensor_count,
+        "parse_failures":parse_failures,
+        "first_timestamp":first_timestamp,
+        "last_timestamp":last_timestamp,
+        "target_warning_samples":warning_samples,
+    },selected
 
 
 def scan_csv_stream(stream: TextIO, spec: LongwallTelemetrySpec) -> tuple[dict[str,Any],list[dict[str,Any]]]:
