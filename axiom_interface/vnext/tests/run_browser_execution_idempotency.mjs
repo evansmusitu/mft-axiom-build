@@ -269,13 +269,23 @@ async function launchPhase(phase,expectedMarker){
     }
     console.log(`${phase.toUpperCase()}_RESULT=${value}`);
     if(value!==expectedMarker)throw new Error(`${phase} qualification expected ${expectedMarker} but received ${value}`);
+    const exitPromise=new Promise(resolve=>{
+      if(chrome.exitCode!==null||chrome.signalCode!==null)resolve({code:chrome.exitCode,signal:chrome.signalCode});
+      else chrome.once('exit',(code,signal)=>resolve({code,signal}));
+    });
     try{await cdp.call('Browser.close');}catch{}
     cdp.ws.close();
-    const exit=await Promise.race([
-      new Promise(resolve=>chrome.once('exit',(code,signal)=>resolve({code,signal}))),
-      sleep(5000).then(()=>null),
-    ]);
-    if(!exit){chrome.kill('SIGTERM');await new Promise(resolve=>chrome.once('exit',resolve));}
+    const exit=await Promise.race([exitPromise,sleep(5000).then(()=>null)]);
+    if(!exit&&chrome.exitCode===null&&chrome.signalCode===null){
+      chrome.kill('SIGTERM');
+      await Promise.race([
+        new Promise(resolve=>{
+          if(chrome.exitCode!==null||chrome.signalCode!==null)resolve();
+          else chrome.once('exit',resolve);
+        }),
+        sleep(2000),
+      ]);
+    }
     await sleep(300);
   }catch(error){
     chrome.kill('SIGTERM');
