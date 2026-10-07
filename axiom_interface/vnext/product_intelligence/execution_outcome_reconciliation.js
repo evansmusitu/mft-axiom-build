@@ -495,3 +495,113 @@ export async function reconcileVerifiedExternalWorkerResult({persistence,verifie
     certification_authority:false,
   });
 }
+
+
+export const EXTERNAL_DESTINATION_STATE_CORRELATION_SCHEMA='musitu.axiom.external-destination-state-correlation.v1';
+
+const REALITY_OBSERVATION_KEYS=new Set([
+  'schema','project_id','work_id','workload_identity_id','request_id','surface_ref','expected_surface_digest_sha256',
+  'browser','browser_version','observed_at','final_url','title','dom_sha256','screenshot_sha256','viewport',
+  'console_errors','failed_requests','observation_state','certification','canonical_evidence','external_action_executed',
+  'external_write_authority','authority_effect','release_authority','production_authority','plan',
+]);
+
+async function assertRealityObservation(observation,label){
+  if(!isPlainObject(observation)||observation.schema!=='musitu.axiom.browser-reality-observation.v1')throw new TypeError(label+' browser reality observation required');
+  rejectUnknown(observation,REALITY_OBSERVATION_KEYS,label+' browser reality observation');
+  for(const key of ['project_id','work_id','workload_identity_id','request_id','surface_ref','browser','browser_version','final_url'])requireString(observation[key],label+'.'+key,key==='surface_ref'||key==='final_url'?2048:300);
+  requireHash(observation.expected_surface_digest_sha256,label+'.expected_surface_digest_sha256');
+  requireHash(observation.dom_sha256,label+'.dom_sha256');
+  if(observation.screenshot_sha256!==null)requireHash(observation.screenshot_sha256,label+'.screenshot_sha256');
+  canonicalIso(observation.observed_at,label+'.observed_at');
+  if(!isPlainObject(observation.viewport)||!Number.isInteger(observation.viewport.width)||observation.viewport.width<1||!Number.isInteger(observation.viewport.height)||observation.viewport.height<1)throw new TypeError(label+'.viewport invalid');
+  if(!Array.isArray(observation.console_errors)||!Array.isArray(observation.failed_requests)||!isPlainObject(observation.plan)||!Array.isArray(observation.plan.steps))throw new TypeError(label+' observation payload invalid');
+  if(observation.observation_state!=='OBSERVED'||observation.certification!=='NOT_CERTIFIED'||observation.canonical_evidence!==false)throw new DOMException(label+' observation attempted evidence/certification escalation','SecurityError');
+  if(observation.external_action_executed!==false||observation.external_write_authority!==false)throw new DOMException(label+' observation cannot claim or hold external write authority','SecurityError');
+  if(observation.authority_effect!=='NONE'||observation.release_authority!==false||observation.production_authority!==false)throw new DOMException(label+' observation authority boundary invalid','SecurityError');
+  return observation;
+}
+
+export async function verifyExternalDestinationStateCorrelation({
+  dispatchReceipt,
+  verifiedResult,
+  beforeObservation,
+  afterObservation,
+  verifierActorId,
+  at=new Date().toISOString(),
+}={}){
+  await assertExternalDispatchReceipt(dispatchReceipt);
+  await assertExternalWorkerResultVerification(verifiedResult);
+  await assertRealityObservation(beforeObservation,'beforeObservation');
+  await assertRealityObservation(afterObservation,'afterObservation');
+
+  const verifiedBindings=[
+    ['project_id',dispatchReceipt.project_id,verifiedResult.project_id],
+    ['work_id',dispatchReceipt.work_id,verifiedResult.work_id],
+    ['handoff_sha256',dispatchReceipt.handoff_sha256,verifiedResult.handoff_sha256],
+    ['request_sha256',dispatchReceipt.request_sha256,verifiedResult.request_sha256],
+    ['workload_identity_id',dispatchReceipt.workload_identity_id,verifiedResult.workload_identity_id],
+    ['provider',dispatchReceipt.provider,verifiedResult.provider],
+    ['provider_work_id',dispatchReceipt.provider_work_id,verifiedResult.provider_work_id],
+    ['dispatch_receipt_sha256',dispatchReceipt.receipt_sha256,verifiedResult.dispatch_receipt_sha256],
+  ];
+  for(const [name,expected,actual] of verifiedBindings)if(actual!==expected)throw new DOMException('destination correlation verified result '+name+' binding mismatch','SecurityError');
+
+  for(const [label,observation] of [['beforeObservation',beforeObservation],['afterObservation',afterObservation]]){
+    if(observation.project_id!==dispatchReceipt.project_id||observation.work_id!==dispatchReceipt.work_id)throw new DOMException(label+' project/work binding mismatch','SecurityError');
+    if(observation.surface_ref!==dispatchReceipt.destination||observation.final_url!==dispatchReceipt.destination)throw new DOMException(label+' destination binding mismatch','SecurityError');
+  }
+  if(beforeObservation.workload_identity_id!==afterObservation.workload_identity_id)throw new DOMException('destination observations must share one independent observer workload identity','SecurityError');
+  if(beforeObservation.expected_surface_digest_sha256!==afterObservation.expected_surface_digest_sha256)throw new DOMException('destination observation surface identity mismatch','SecurityError');
+  if(beforeObservation.request_id===afterObservation.request_id)throw new DOMException('destination observations require distinct request identities','SecurityError');
+
+  const observer_workload_identity_id=beforeObservation.workload_identity_id;
+  const verifier_actor_id=requireString(verifierActorId,'verifierActorId',180);
+  const forbiddenIdentities=new Set([dispatchReceipt.workload_identity_id,verifiedResult.verifier_actor_id]);
+  if(forbiddenIdentities.has(observer_workload_identity_id))throw new DOMException('destination observer must be independent from executor and provider-report verifier','NotAllowedError');
+  if(forbiddenIdentities.has(verifier_actor_id)||verifier_actor_id===observer_workload_identity_id)throw new DOMException('destination correlation verifier must be independent from executor, provider-report verifier and observer','NotAllowedError');
+
+  const beforeMs=Date.parse(beforeObservation.observed_at);
+  const dispatchMs=Date.parse(dispatchReceipt.created_at);
+  const resultMs=Date.parse(verifiedResult.created_at);
+  const afterMs=Date.parse(afterObservation.observed_at);
+  if(!(beforeMs<=dispatchMs&&dispatchMs<=resultMs&&resultMs<=afterMs))throw new DOMException('destination observations do not bracket the governed external worker lifecycle','DataError');
+  if(beforeObservation.dom_sha256===afterObservation.dom_sha256)throw new DOMException('destination state change not observed','DataError');
+  const created_at=canonicalIso(at,'at');
+  if(Date.parse(created_at)<afterMs)throw new DOMException('destination correlation verification cannot predate after observation','DataError');
+
+  const before_observation_sha256=await sha256(beforeObservation);
+  const after_observation_sha256=await sha256(afterObservation);
+  const body={
+    schema:EXTERNAL_DESTINATION_STATE_CORRELATION_SCHEMA,
+    project_id:dispatchReceipt.project_id,
+    work_id:dispatchReceipt.work_id,
+    handoff_sha256:dispatchReceipt.handoff_sha256,
+    request_sha256:dispatchReceipt.request_sha256,
+    dispatch_receipt_sha256:dispatchReceipt.receipt_sha256,
+    result_verification_sha256:verifiedResult.verification_sha256,
+    destination:dispatchReceipt.destination,
+    provider:dispatchReceipt.provider,
+    provider_work_id:dispatchReceipt.provider_work_id,
+    observer_workload_identity_id,
+    before_request_id:beforeObservation.request_id,
+    after_request_id:afterObservation.request_id,
+    before_observation_sha256,
+    after_observation_sha256,
+    before_dom_sha256:beforeObservation.dom_sha256,
+    after_dom_sha256:afterObservation.dom_sha256,
+    destination_state_change_observed:true,
+    verifier_actor_id,
+    independent_verification:'PASS_DESTINATION_STATE_CORRELATION_ONLY',
+    execution_truth:'CORRELATED_DESTINATION_STATE_CHANGE_NOT_CAUSALLY_PROVEN',
+    external_action_executed:false,
+    live_runtime_qualification:'NOT_PROVEN',
+    status:'VERIFIED_DESTINATION_STATE_CORRELATION',
+    authority_effect:'NONE',
+    release_authority:false,
+    production_authority:false,
+    certification_authority:false,
+    created_at,
+  };
+  return Object.freeze({...body,verification_sha256:await sha256(body)});
+}
