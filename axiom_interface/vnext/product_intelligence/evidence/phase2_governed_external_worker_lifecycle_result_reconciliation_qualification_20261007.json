@@ -1,0 +1,164 @@
+{
+  "schema": "musitu.axiom.phase2.external-worker-lifecycle-result-reconciliation-qualification.v1",
+  "record_type": "PHASE2_QUALIFICATION_EVIDENCE",
+  "scope": "GOVERNED_EXTERNAL_WORKER_LIFECYCLE_AND_PROVIDER_REPORT_RECONCILIATION",
+  "branch": "frontier/axiom-product-intelligence-phase2-20261004",
+  "parent_evidence_seal": "3689155e0dab9d22fd35c812f744d11eccd4e68a",
+  "implementation_head_before_evidence_seal": "0e1d87586e8ec03a9137a7980561a6a72ed325b1",
+  "governance_snapshot": {
+    "main_sha": "d6a846f6bbe0bccac1758713eb4de167caf07113",
+    "fa20_sha": "21d087f0fdebffd4cfb4065286aa16696fcec9c0",
+    "pr_1_state": "open",
+    "pr_1_draft": true,
+    "pr_1_merged_at": null,
+    "main_mutated": false,
+    "production_mutated": false,
+    "frozen_openai_surface_mutated": false
+  },
+  "source_blobs": {
+    "governed_engineering_worker_backend_js": "8319dbc776f30f48edb1bdb34029b491f8e51174",
+    "execution_outcome_reconciliation_js": "c291f0b044fef005bd9dc6519e59b716738f7e2c",
+    "living_product_graph_js": "fc9f25bc652f8122d34e4740c74b0b8979482644",
+    "change_admission_test_mjs": "dc1c8ba7adedd86ed0d5214bcf528bf6391fb418",
+    "living_product_graph_test_mjs": "c6d14d36e89a7749f62fa1663f012ad2fdf0eb4c",
+    "phase2_gate_yml": "6b3575be01090dca189925ebda151c9fea39211f"
+  },
+  "delivered_contracts": {
+    "engineering_worker_backend_authority": "MECHANISM_ONLY",
+    "admitted_risk_class": "S3_EXTERNAL_REVERSIBLE_ONLY",
+    "lifecycle_operations": [
+      "observe-external-operation",
+      "request-external-operation-cancellation",
+      "collect-external-operation-result"
+    ],
+    "provider_data_authority": "UNTRUSTED_MECHANISM_DATA",
+    "cancellation_effect": "NOT_PROVEN",
+    "provider_result_independent_verification": "PASS_BINDING_INTEGRITY_ONLY",
+    "execution_truth": "NOT_PROVEN",
+    "external_action_executed": false,
+    "live_runtime_qualification": "NOT_PROVEN",
+    "graph_reconciliation": "REPORT_ONLY_EVIDENCE_REF",
+    "graph_uncertainty": "EXTERNAL_EXECUTION_NOT_PROVEN",
+    "exact_replay": "IDEMPOTENT",
+    "provider_selection_or_activation": false,
+    "release_authority": false,
+    "production_authority": false,
+    "certification_authority": false
+  },
+  "tdd_history": {
+    "lifecycle": {
+      "red": {
+        "commit": "0f5eb34db166e538dfd25f101e223f480ad8b3d6",
+        "run_id": 37671288764,
+        "focused_job_id": 112963389217,
+        "outcome": "FAIL_EXPECTED_BEHAVIOR_MISSING",
+        "focused_result": "19_PASS_1_FAIL",
+        "defect": "EngineeringWorkerBackend.describeOperation was undefined"
+      },
+      "first_green_attempt": {
+        "commit": "92be312450a24807dda0b23eb2d861ed6274669b",
+        "run_id": 37671506182,
+        "focused_job_id": 112964129994,
+        "outcome": "FAIL_IMPLEMENTATION_DEFECT",
+        "defect": "lifecycle request schema overwrote receipt schema during object construction"
+      },
+      "green_repair": {
+        "commit": "d5d3fcdde42cdbd55dca3dbd04a7f19dfb8b3dfa",
+        "run_id": 37671707215,
+        "focused_job_id": 112964819125,
+        "independent_job_id": 112965212452,
+        "focused_change_admission": "20/20_PASS",
+        "independent_replay": "160/160_PASS",
+        "browser_durability": "PASS",
+        "authority_gate": "PASS"
+      }
+    },
+    "provider_result_verification": {
+      "red": {
+        "commit": "17b232ebe4f8ace4705175fcf5db1018be9cadde",
+        "run_id": 37672020626,
+        "focused_job_id": 112965893670,
+        "outcome": "FAIL_EXPECTED_BEHAVIOR_MISSING",
+        "focused_result": "20_PASS_1_FAIL",
+        "defect": "verifyExternalWorkerResult was undefined"
+      },
+      "first_green_attempt": {
+        "commit": "73b623f6e09f2d7e2b4ddd3d8bbb67e333c4ae6a",
+        "run_id": 37672242257,
+        "focused_job_id": 112966660260,
+        "outcome": "FAIL_TEST_FIXTURE_CANONICAL_TIMESTAMP",
+        "defect": "new fixture used non-canonical ISO instant while production correctly required canonical ISO",
+        "production_validation_weakened": false
+      },
+      "fixture_only_repair": {
+        "commit": "397a173ea0ab347ad75263e46b22d1ecf420395e",
+        "run_id": 37672641406,
+        "focused_job_id": 112968032006,
+        "independent_job_id": 112968311500,
+        "focused_change_admission": "21/21_PASS",
+        "independent_replay": "161/161_PASS",
+        "browser_durability": "PASS",
+        "authority_gate": "PASS",
+        "assertions_weakened": false
+      }
+    },
+    "graph_reconciliation": {
+      "red": {
+        "commit": "394b09edfb7ccc3732865cc357003f46f792adec",
+        "run_id": 37672970470,
+        "focused_job_id": 112969148544,
+        "outcome": "FAIL_EXPECTED_PRODUCT_SURFACE_MISSING",
+        "living_product_graph": "22/23_PASS",
+        "defect": "external worker result reconciliation product surface was undefined"
+      },
+      "implementation": {
+        "mechanism_commit": "2d5c6408d82aa68804198f3b4cb01197fb356b0c",
+        "product_surface_commit": "5f661c4f632d906990866771e63be34c7b4cc62b",
+        "run_id": 37673180261,
+        "focused_job_id": 112969856205,
+        "independent_job_id": 112970210205,
+        "living_product_graph": "23/23_PASS",
+        "focused_change_admission": "21/21_PASS",
+        "independent_replay": "162/162_PASS",
+        "browser_durability": "PASS",
+        "authority_gate": "PASS"
+      }
+    },
+    "static_gate_hardening": {
+      "commit": "0e1d87586e8ec03a9137a7980561a6a72ed325b1",
+      "run_id": 37673445568,
+      "focused_job_id": 112970770912,
+      "independent_job_id": 112971077757,
+      "living_product_graph": "23/23_PASS",
+      "focused_change_admission": "21/21_PASS",
+      "independent_replay": "162/162_PASS",
+      "browser_durability": "PASS",
+      "provider_authority_fail_closed": "PASS",
+      "slice_verification": "PASS",
+      "release_authority": false,
+      "production_authority": false,
+      "certification_authority": false
+    }
+  },
+  "qualification_truth": {
+    "repository_contract_qualification": "PASS",
+    "provider_report_binding_integrity": "PASS",
+    "provider_report_is_execution_proof": false,
+    "external_side_effect_execution": "NOT_PROVEN",
+    "external_worker_live_runtime": "NOT_PROVEN",
+    "production_external_worker_integration": "NOT_PROVEN",
+    "production_side_effect_idempotency": "NOT_PROVEN",
+    "cancellation_effectiveness": "NOT_PROVEN",
+    "external_approval_receipt_authenticity": "NOT_PROVEN",
+    "independent_external_security_validation": "NOT_PROVEN",
+    "provider_selected": false,
+    "runtime_activation_authorized": false,
+    "wolfram_parity": "NOT_CERTIFIED",
+    "superiority": "NOT_CERTIFIED"
+  },
+  "self_certification": {
+    "builder_self_certification": false,
+    "evidence_record_self_certifying": false,
+    "post_commit_independent_qualification_required": true
+  }
+}
