@@ -8,6 +8,7 @@ from benchmarks.mining_adapter.polish_longwall_telemetry import (
     LongwallTelemetrySpec,
     canonical_telemetry_row,
     evaluate_longwall_gate,
+    scan_arff_stream,
     scan_csv_stream,
 )
 from connect.mining_telemetry import MINING_TELEMETRY_SENSORS
@@ -29,6 +30,16 @@ def fixture_text():
     return ",".join(header)+"\n"+"\n".join(rows)+"\n"
 
 
+
+def fixture_arff():
+    attrs=["year","month","day","hour","minute","second",*MINING_TELEMETRY_SENSORS]
+    lines=["@RELATION methane"]
+    lines.extend(f"@ATTRIBUTE {name} NUMERIC" for name in attrs)
+    lines.append("@DATA")
+    csv_lines=fixture_text().splitlines()
+    lines.extend(csv_lines[1:])
+    return "\n".join(lines)+"\n"
+
 class PolishLongwallTelemetryTests(unittest.TestCase):
     def test_canonical_row_maps_six_part_timestamp_and_all_28_sensors(self):
         header=fixture_text().splitlines()[0].split(",")
@@ -48,6 +59,15 @@ class PolishLongwallTelemetryTests(unittest.TestCase):
         self.assertEqual(report["last_timestamp"],"2014-03-02T00:00:02Z")
         self.assertEqual(report["target_warning_samples"],1)
         self.assertEqual(len(selected),2)
+
+
+    def test_arff_stream_preserves_same_real_sensor_schema(self):
+        spec=LongwallTelemetrySpec(min_source_rows=3,durable_sample_rows=2)
+        report,selected=scan_arff_stream(io.StringIO(fixture_arff()),spec)
+        self.assertEqual(report["source_rows"],3)
+        self.assertEqual(report["sensor_count"],28)
+        self.assertEqual(report["target_warning_samples"],1)
+        self.assertEqual(selected[0]["event_time"],"2014-03-02T00:00:00Z")
 
     def test_gate_requires_cc_by_source_scale_28_sensors_and_durable_integrity(self):
         spec=LongwallTelemetrySpec(min_source_rows=3,durable_sample_rows=2)
