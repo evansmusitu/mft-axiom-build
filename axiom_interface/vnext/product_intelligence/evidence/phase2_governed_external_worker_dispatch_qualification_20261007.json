@@ -1,0 +1,128 @@
+{
+  "schema": "musitu.axiom.phase2.governed-external-worker-dispatch-qualification.v1",
+  "recorded_date": "2026-10-07",
+  "source_authority": {
+    "repository": "evansmusitu/mft-axiom-build",
+    "branch": "frontier/axiom-product-intelligence-phase2-20261004",
+    "predecessor_green_head": "b225aaa1c97381444371ec31d2219d30018118bd",
+    "qualified_head": "0102b5f52356cd5d2738ed3997c15a20e5baacfe",
+    "external_worker_dispatch_path": "axiom_interface/vnext/product_intelligence/external_worker_dispatch.js",
+    "external_worker_dispatch_git_blob": "5645c6e138ee7785d60fd4fccf6b7c2a4379b6e6",
+    "engineering_worker_backend_path": "axiom_interface/vnext/product_intelligence/backends/governed_engineering_worker_backend.js",
+    "engineering_worker_backend_git_blob": "2ead44160529d1ac32051cef861a59dec2f84748",
+    "contract_test_path": "axiom_interface/vnext/tests/product_intelligence_change_admission.test.mjs",
+    "contract_test_git_blob": "e533e9c59c69aee99080d678073d871e3e4602d4",
+    "gate_workflow_path": ".github/workflows/axiom-product-intelligence-phase2-gate.yml",
+    "gate_workflow_git_blob": "6e6b3e92b84e1dbdef8072e91bb976a270d556d8"
+  },
+  "tdd": {
+    "observed_product_red_green_history": {
+      "red": {
+        "commit": "2d7790b3e1b4da9c7832ebde184f8472d9735188",
+        "run_id": 37570645794,
+        "focused_job_id": 112628239744,
+        "result": "18_PASS_1_FAIL",
+        "observation": "ERR_MODULE_NOT_FOUND_FOR_EXTERNAL_WORKER_DISPATCH"
+      },
+      "first_green_attempt": {
+        "commit": "9c87b02103f8b3556794d1d46e07880e72bc0809",
+        "run_id": 37570932654,
+        "focused_job_id": 112629156236,
+        "result": "18_PASS_1_FAIL",
+        "observation": "ENGINEERING_WORKER_DISPATCH_SCHEMA_INVALID"
+      },
+      "green_repair": {
+        "commit": "b225aaa1c97381444371ec31d2219d30018118bd",
+        "run_id": 37571047811,
+        "focused_job_id": 112629515819,
+        "independent_job_id": 112629712319,
+        "focused_contracts": "PASS_19_OF_19",
+        "independent_frozen_order_replay": "PASS_159_OF_159"
+      }
+    },
+    "assertions_weakened_to_pass": false
+  },
+  "seal_hardening_history": {
+    "static_authority_gate_hardening": {
+      "commit": "c908663ad2cde53679d276e2a4da9c2a95e2e717",
+      "run_id": 37660532578,
+      "focused_job_id": 112926603915,
+      "conclusion": "failure",
+      "independent_job_id": 112926937979,
+      "independent_conclusion": "skipped",
+      "external_worker_dispatch_contract": "PASS",
+      "browser_durable_idempotency": "PASS",
+      "failure_preserved": "THREE_APPROVAL_TEST_FIXTURES_EXPIRED_AT_2026_10_07T17_20_00Z",
+      "classification": "TEST_FIXTURE_CLOCK_EXPIRY_NOT_PRODUCT_BEHAVIOR_FAILURE"
+    },
+    "fixture_only_repair": {
+      "commit": "0102b5f52356cd5d2738ed3997c15a20e5baacfe",
+      "run_id": 37660865879,
+      "focused_job_id": 112927731855,
+      "independent_job_id": 112927992970,
+      "conclusion": "success",
+      "focused_contracts": "PASS_19_OF_19",
+      "independent_frozen_order_replay": "PASS_159_OF_159",
+      "browser_marker": "MUSITU_AXIOM_PHASE2_BROWSER_DURABLE_IDEMPOTENCY_QUALIFICATION_PASS",
+      "authority_marker": "MUSITU_AXIOM_PHASE2_PROVIDER_AUTHORITY_FAIL_CLOSED_PASS",
+      "slice_marker": "MUSITU_AXIOM_PHASE2_SLICE_VERIFICATION_PASS",
+      "release_authority": false,
+      "production_authority": false,
+      "certification_authority": false,
+      "classification": "TEST_HARNESS_REPAIR_NO_PRODUCT_BEHAVIOR_CHANGE"
+    }
+  },
+  "qualification": {
+    "governed_external_worker_dispatch": "PASS_FOR_REPOSITORY_CONTRACTS",
+    "finalized_fa11_authorization_required": true,
+    "admitted_risk_scope": "S3_EXTERNAL_REVERSIBLE_ONLY",
+    "axiom_semantic_policy_evidence_authority_preserved": true,
+    "engineering_worker_backend_authority": "MECHANISM_ONLY",
+    "engineering_worker_backend_fail_closed": true,
+    "workload_identity_binding": "PASS",
+    "idempotency_binding": "PASS",
+    "provider_submission_is_external_side_effect_proof": false,
+    "external_action_executed": false,
+    "live_runtime_qualification": "NOT_PROVEN",
+    "authority_effect": "NONE",
+    "release_authority": false,
+    "production_authority": false,
+    "certification_authority": false,
+    "main_mutation": false,
+    "production_mutation": false,
+    "frozen_openai_mutation": false
+  },
+  "static_no_authority_gate": {
+    "external_worker_dispatch_explicitly_scanned": true,
+    "governed_engineering_worker_backend_explicitly_scanned": true,
+    "required_release_authority_false": true,
+    "required_production_authority_false": true,
+    "required_certification_authority_false": true,
+    "required_live_runtime_not_proven": true,
+    "required_external_action_executed_false": true
+  },
+  "evidence_boundaries": {
+    "repository_contract_qualification": "PROVEN",
+    "static_authority_boundary_scan": "PROVEN",
+    "external_provider_submission_contract": "PROVEN_FOR_TEST_DOUBLE_CONTRACT",
+    "external_side_effect_execution": "NOT_PROVEN",
+    "live_external_worker_runtime_qualification": "NOT_PROVEN",
+    "production_external_worker_integration": "NOT_PROVEN",
+    "production_side_effect_idempotency": "NOT_PROVEN",
+    "external_approval_receipt_authenticity": "NOT_PROVEN",
+    "independent_external_security_validation": "NOT_PROVEN",
+    "provider_submission_does_not_prove_side_effect": true,
+    "wolfram_parity": "NOT_CERTIFIED",
+    "superiority": "NOT_CERTIFIED"
+  },
+  "seal_policy": {
+    "evidence_record_self_certifying": false,
+    "builder_self_certification": false,
+    "required_post_commit_gate": "MUSITU Axiom Product Intelligence Phase 2 Gate",
+    "required_post_commit_focused_contracts": "PASS_19_OF_19",
+    "required_post_commit_independent_replay": "PASS_159_OF_159",
+    "required_post_commit_browser_qualification": true,
+    "required_post_commit_authority_marker": "MUSITU_AXIOM_PHASE2_PROVIDER_AUTHORITY_FAIL_CLOSED_PASS",
+    "note": "This record is sealed only when the commit containing it independently passes the required Phase-2 gate; the record itself does not grant release, production, certification, or live-runtime authority."
+  }
+}
