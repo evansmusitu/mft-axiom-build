@@ -80,8 +80,16 @@ async function cdpSession(wsUrl){
   });
   const call=(method,params={})=>new Promise((resolve,reject)=>{
     const callId=++id;
-    pending.set(callId,{resolve,reject});
-    ws.send(JSON.stringify({id:callId,method,params}));
+    const timer=setTimeout(()=>{
+      pending.delete(callId);
+      reject(new Error('CDP call timeout '+method));
+    },10000);
+    pending.set(callId,{
+      resolve:value=>{clearTimeout(timer);resolve(value);},
+      reject:error=>{clearTimeout(timer);reject(error);},
+    });
+    try{ws.send(JSON.stringify({id:callId,method,params}));}
+    catch(error){clearTimeout(timer);pending.delete(callId);reject(error);}
   });
   return {ws,call};
 }
