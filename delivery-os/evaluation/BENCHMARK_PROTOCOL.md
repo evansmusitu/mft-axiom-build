@@ -38,20 +38,21 @@ No production credentials or customer data are required.
 
 `vroom-standard.mjs` maps standard-v2 into 10 VROOM vehicles and 100 jobs with capacity, deterministic numeric skill IDs, demand, service durations, time windows, depot continuity and priority.
 
-Competitive benchmarking fails closed if the runtime optimizer degrades to `heuristic-fallback`, if aggregate fleet capacity is insufficient, or if VROOM leaves any job unassigned. CI publishes `standard-v2-vroom-request.json` with `LIVE_VROOM_REQUIRED` and `NOT_CERTIFIED`.
+Competitive benchmarking fails closed if the runtime optimizer degrades to `heuristic-fallback`, if aggregate fleet capacity is insufficient, or if VROOM leaves any job unassigned. The exact request now includes deterministic per-profile travel-time and distance matrices (`haversine-30kmh-v1`). This makes the request self-contained for VROOM: no OSRM, Valhalla or ORS call is required. CI publishes `standard-v2-vroom-request.json` with `EXECUTION_INPUT_READY` and `NOT_CERTIFIED`, then executes the same workload against pinned real VROOM.
 
 ## Runtime disruption evidence
 
-Driver offline/online changes are now represented by idempotent canonical `DRIVER_AVAILABILITY` events in the same DeliveryStore tamper-evident chain. This allows standard-v2 driver-offline disruptions without mutating internal maps outside the canonical authority.
+Driver registration, driver location continuity, driver offline/online changes, and traffic-delay disruptions are represented by canonical tamper-evident DeliveryStore events (`DRIVER_REGISTERED`, `DRIVER_LOCATION`, `DRIVER_AVAILABILITY`, `TRAFFIC_DELAY`). The standard-v2 harness creates/assigns/transitions/completes all 100 orders only through DeliveryStore public paths, applies all 10 deterministic disruptions, replans after every disruption, requires photo+signature proof, and verifies the complete event chain before emitting evidence.
 
 ## Commands
 
 ```bash
-node --test evaluation/benchmark.test.mjs evaluation/external-access.test.mjs evaluation/standard-workload.test.mjs evaluation/provider-adapters.test.mjs evaluation/vroom-standard.test.mjs
+node --test evaluation/benchmark.test.mjs evaluation/external-access.test.mjs evaluation/standard-workload.test.mjs evaluation/provider-adapters.test.mjs evaluation/vroom-standard.test.mjs evaluation/standard-v2-harness.test.mjs
 node evaluation/materialize-standard-v2.mjs --output /tmp/standard-v2-workload.json
 node evaluation/materialize-provider-plans.mjs --output-dir /tmp/provider-plans
 node evaluation/materialize-vroom-standard.mjs --output /tmp/standard-v2-vroom-request.json
 node evaluation/run-controlled.mjs --output /tmp/musitu-benchmark-controlled.json
+VROOM_URL=http://127.0.0.1:3000 node evaluation/run-standard-v2-harness.mjs --product-head <git-sha> --output /tmp/standard-v2-internal-evidence.json
 ```
 
-The next evidence step is real VROOM-backed standard-v2 planning followed by the same dispatch, disruption, replan, completion and evidence-verification flow. External Onfleet/Bringg comparison remains `NOT_CERTIFIED` until their dedicated test/sandbox access is obtained.
+The internal standard-v2 evidence step is implemented and remains `internal_controlled` / `NOT_CERTIFIED`. External Onfleet/Bringg comparison remains `NOT_CERTIFIED` until dedicated test/sandbox access produces matching `live_external` runs on the identical workload fingerprint.

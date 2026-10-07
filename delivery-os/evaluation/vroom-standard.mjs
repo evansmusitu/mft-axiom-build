@@ -1,5 +1,18 @@
 import { workloadFingerprint } from './standard-workload.mjs';
 
+const EARTH_RADIUS_M = 6371e3;
+const rad = (value) => value * Math.PI / 180;
+
+function matrixDistanceMeters(a, b) {
+  const p1 = rad(a.lat);
+  const p2 = rad(b.lat);
+  const dp = rad(b.lat - a.lat);
+  const dl = rad(b.lon - a.lon);
+  const h = Math.sin(dp / 2) ** 2 + Math.cos(p1) * Math.cos(p2) * Math.sin(dl / 2) ** 2;
+  return Math.round(2 * EARTH_RADIUS_M * Math.atan2(Math.sqrt(h), Math.sqrt(1 - h)));
+}
+
+
 function unixSeconds(value) {
   const ms = Date.parse(value);
   if (!Number.isFinite(ms)) throw new Error(`invalid benchmark timestamp: ${value}`);
@@ -69,6 +82,33 @@ export function buildStandardVroomInput(workload) {
       workload_sha256: workloadFingerprint(workload),
       skill_ids: skillIds,
     },
+  };
+}
+
+export function buildDeterministicMatrixVroomInput(workload) {
+  const input = buildStandardVroomInput(workload);
+  const positions = [
+    ...workload.drivers.map((driver) => ({ lat: driver.lat, lon: driver.lon })),
+    ...workload.orders.map((order) => ({ lat: order.lat, lon: order.lon })),
+  ];
+  const distances = positions.map((from, row) => positions.map((to, col) => (row === col ? 0 : matrixDistanceMeters(from, to))));
+  const durations = distances.map((line) => line.map((distance) => (distance === 0 ? 0 : Math.max(1, Math.round(distance / (30_000 / 3600))))));
+  const vehicles = input.vehicles.map((vehicle, index) => ({
+    ...vehicle,
+    profile: 'car',
+    start_index: index,
+    end_index: index,
+  }));
+  const jobs = input.jobs.map((job, index) => ({
+    ...job,
+    location_index: workload.drivers.length + index,
+  }));
+  return {
+    ...input,
+    vehicles,
+    jobs,
+    matrices: { car: { durations, distances } },
+    metadata: { ...input.metadata, matrix_model: 'haversine-30kmh-v1' },
   };
 }
 

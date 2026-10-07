@@ -1,0 +1,202 @@
+diff --git a/core/src/store.mjs b/core/src/store.mjs
+index ea0eaf7..db0dd55 100644
+--- a/core/src/store.mjs
++++ b/core/src/store.mjs
+@@ -34,7 +34,80 @@ export class DeliveryStore extends EventEmitter {
+     }
+   }
+ 
+-  createOrder(input) {
++  registerDriver(input, { eventId = null, actor = 'dispatcher', at = null } = {}) {
++    if (!input?.id || typeof input.id !== 'string') {
++      throw Object.assign(new Error('driver id required'), { code: 'BAD_EVENT' });
++    }
++    if (eventId && this.eventIds.has(eventId)) {
++      const driver = this.drivers.get(input.id);
++      return { accepted: true, duplicate: true, created: false, driver };
++    }
++    const existing = this.drivers.get(input.id);
++    if (existing) {
++      return { accepted: true, duplicate: false, created: false, driver: existing };
++    }
++    const driver = { ...input };
++    this.drivers.set(driver.id, driver);
++    const event = this.#record({
++      eventId: eventId || `driver-register:${driver.id}:${this.version + 1}`,
++      type: 'DRIVER_REGISTERED',
++      actor,
++      driverId: driver.id,
++      at: at || new Date().toISOString(),
++    });
++    return { accepted: true, duplicate: false, created: true, driver, event };
++  }
++
++  setDriverLocation(driverId, { lat, lon } = {}, { eventId = null, actor = 'driver', at = null } = {}) {
++    const driver = this.drivers.get(driverId);
++    if (!driver) throw Object.assign(new Error('unknown driver'), { code: 'NOT_FOUND' });
++    if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
++      throw Object.assign(new Error('finite driver coordinates required'), { code: 'BAD_EVENT' });
++    }
++    if (eventId && this.eventIds.has(eventId)) {
++      return { accepted: true, duplicate: true, changed: false, driver };
++    }
++    if (driver.lat === lat && driver.lon === lon) {
++      return { accepted: true, duplicate: false, changed: false, driver };
++    }
++    driver.lat = lat;
++    driver.lon = lon;
++    const event = this.#record({
++      eventId: eventId || `driver-location:${driverId}:${this.version + 1}`,
++      type: 'DRIVER_LOCATION',
++      actor,
++      driverId,
++      lat,
++      lon,
++      at: at || new Date().toISOString(),
++    });
++    return { accepted: true, duplicate: false, changed: true, driver, event };
++  }
++
++  recordTrafficDelay({ eventId, zone, delayMinutes, reason = null, actor = 'dispatcher', at = null } = {}) {
++    if (!eventId) throw Object.assign(new Error('eventId required'), { code: 'BAD_EVENT' });
++    if (this.eventIds.has(eventId)) {
++      return { accepted: true, duplicate: true, event: this.events.find((x) => x.eventId === eventId) || null };
++    }
++    if (!zone || typeof zone !== 'string') {
++      throw Object.assign(new Error('zone required'), { code: 'BAD_EVENT' });
++    }
++    if (!Number.isFinite(delayMinutes) || delayMinutes <= 0) {
++      throw Object.assign(new Error('delayMinutes must be positive'), { code: 'BAD_EVENT' });
++    }
++    const event = this.#record({
++      eventId,
++      type: 'TRAFFIC_DELAY',
++      actor,
++      zone,
++      delayMinutes,
++      reason,
++      at: at || new Date().toISOString(),
++    });
++    return { accepted: true, duplicate: false, event };
++  }
++
++  createOrder(input, { eventId = null, actor = 'system', at = null } = {}) {
+     if (this.orders.has(input.id)) return this.orders.get(input.id);
+     const order = {
+       ...input,
+@@ -46,11 +119,11 @@ export class DeliveryStore extends EventEmitter {
+     };
+     this.orders.set(order.id, order);
+     this.#record({
+-      eventId: `create:${order.id}`,
++      eventId: eventId || `create:${order.id}`,
+       orderId: order.id,
+       type: 'CREATED',
+-      actor: 'system',
+-      at: new Date().toISOString(),
++      actor,
++      at: at || new Date().toISOString(),
+     });
+     return order;
+   }
+@@ -78,7 +151,7 @@ export class DeliveryStore extends EventEmitter {
+     return { accepted: true, duplicate: false, changed: true, driver, event };
+   }
+ 
+-  assign(orderId, driverId) {
++  assign(orderId, driverId, { eventId = null, actor = 'dispatcher', at = null } = {}) {
+     const order = this.#get(orderId);
+     const driver = this.drivers.get(driverId);
+     if (!driver) {
+@@ -96,12 +169,12 @@ export class DeliveryStore extends EventEmitter {
+     order.driverId = driverId;
+     order.version++;
+     this.#record({
+-      eventId: `assign:${orderId}:${order.version}`,
++      eventId: eventId || `assign:${orderId}:${order.version}`,
+       orderId,
+       type: 'ASSIGNED',
+-      actor: 'dispatcher',
++      actor,
+       driverId,
+-      at: new Date().toISOString(),
++      at: at || new Date().toISOString(),
+     });
+     return order;
+   }
+diff --git a/core/test/store.test.mjs b/core/test/store.test.mjs
+index a3600aa..4e6b1ef 100644
+--- a/core/test/store.test.mjs
++++ b/core/test/store.test.mjs
+@@ -43,3 +43,71 @@ test('canonical driver availability changes are idempotent and tamper-evident',
+   assert.equal(s.version, versionAfterFirst);
+   assert.equal(s.evidencePack('ord-1001').chainValid, true);
+ });
++
++test('canonical driver registration is idempotent and tamper-evident', () => {
++  const s = new DeliveryStore(false);
++  assert.equal(typeof s.registerDriver, 'function');
++  const input = {
++    id: 'bench-driver-01',
++    name: 'Benchmark Driver 01',
++    online: true,
++    lat: -17.83,
++    lon: 31.05,
++    capacity: 30,
++    skills: ['standard', 'refrigerated'],
++  };
++  const first = s.registerDriver(input, { eventId: 'bench:driver-register:01' });
++  assert.equal(first.created, true);
++  assert.equal(first.duplicate, false);
++  assert.deepEqual(s.drivers.get(input.id), input);
++  assert.equal(s.snapshot().events.at(-1).type, 'DRIVER_REGISTERED');
++  const versionAfterFirst = s.version;
++  const replay = s.registerDriver(input, { eventId: 'bench:driver-register:01' });
++  assert.equal(replay.duplicate, true);
++  assert.equal(s.version, versionAfterFirst);
++  assert.equal(s.snapshot().events.at(-1).hash.length, 64);
++});
++
++test('canonical traffic-delay evidence is idempotent and preserves the tamper-evident chain', () => {
++  const s = new DeliveryStore(false);
++  assert.equal(typeof s.recordTrafficDelay, 'function');
++  const first = s.recordTrafficDelay({
++    eventId: 'bench:traffic:01',
++    zone: 'zone-01',
++    delayMinutes: 20,
++    reason: 'standard-v2 deterministic disruption',
++    at: '2026-10-06T09:00:00.000Z',
++  });
++  assert.equal(first.accepted, true);
++  assert.equal(first.duplicate, false);
++  assert.equal(first.event.type, 'TRAFFIC_DELAY');
++  assert.equal(first.event.zone, 'zone-01');
++  assert.equal(first.event.delayMinutes, 20);
++  const versionAfterFirst = s.version;
++  const replay = s.recordTrafficDelay({
++    eventId: 'bench:traffic:01',
++    zone: 'zone-01',
++    delayMinutes: 20,
++    reason: 'standard-v2 deterministic disruption',
++  });
++  assert.equal(replay.duplicate, true);
++  assert.equal(s.version, versionAfterFirst);
++  assert.equal(s.snapshot().events.at(-1).hash.length, 64);
++});
++
++test('canonical driver location updates are idempotent and tamper-evident', () => {
++  const s = new DeliveryStore(false);
++  s.registerDriver({ id: 'bench-driver-01', online: true, lat: -17.83, lon: 31.05, capacity: 30, skills: ['standard'] }, { eventId: 'bench:driver-register:location' });
++  assert.equal(typeof s.setDriverLocation, 'function');
++  const first = s.setDriverLocation('bench-driver-01', { lat: -17.84, lon: 31.06 }, { eventId: 'bench:driver-location:01', at: '2026-10-06T09:00:00.000Z' });
++  assert.equal(first.changed, true);
++  assert.equal(first.duplicate, false);
++  assert.equal(s.drivers.get('bench-driver-01').lat, -17.84);
++  assert.equal(s.drivers.get('bench-driver-01').lon, 31.06);
++  assert.equal(first.event.type, 'DRIVER_LOCATION');
++  const version = s.version;
++  const replay = s.setDriverLocation('bench-driver-01', { lat: -17.84, lon: 31.06 }, { eventId: 'bench:driver-location:01' });
++  assert.equal(replay.duplicate, true);
++  assert.equal(s.version, version);
++  assert.equal(s.snapshot().events.at(-1).hash.length, 64);
++});

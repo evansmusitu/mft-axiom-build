@@ -94,10 +94,12 @@ jobs:
           sha256sum -c PHASE2_UNIFIED_PATCH_SHA256.txt
           sha256sum -c PHASE2_CONSTRAINT_GUARD_PATCH_SHA256.txt
           sha256sum -c PHASE2_DRIVER_AVAILABILITY_PATCH_SHA256.txt
+          sha256sum -c PHASE2_STANDARD_V2_HARNESS_PATCH_SHA256.txt
           cd ..
           gzip -dc delivery-os/PHASE2_UNIFIED.patch.gz | git apply --unsafe-paths --directory=delivery-os -
           gzip -dc delivery-os/PHASE2_CONSTRAINT_GUARD.patch.gz | git apply --unsafe-paths --directory=delivery-os -
           gzip -dc delivery-os/PHASE2_DRIVER_AVAILABILITY.patch.gz | git apply --unsafe-paths --directory=delivery-os -
+          git apply --unsafe-paths --directory=delivery-os delivery-os/PHASE2_STANDARD_V2_HARNESS.patch
       - uses: actions/setup-node@v6
         with:
           node-version: '22'
@@ -124,6 +126,8 @@ jobs:
             --exclude='./PHASE2_CONSTRAINT_GUARD_PATCH_SHA256.txt' \
             --exclude='./PHASE2_DRIVER_AVAILABILITY.patch.gz' \
             --exclude='./PHASE2_DRIVER_AVAILABILITY_PATCH_SHA256.txt' \
+            --exclude='./PHASE2_STANDARD_V2_HARNESS.patch' \
+            --exclude='./PHASE2_STANDARD_V2_HARNESS_PATCH_SHA256.txt' \
             -cf - . | tar -C "$SNAPSHOT" -xf -
           cat > "$SNAPSHOT/SNAPSHOT_METADATA.txt" <<EOF
           unified_head=$GITHUB_SHA
@@ -131,6 +135,7 @@ jobs:
           source_kind=reconstructed_phase1_plus_phase2_patch_chain
           phase2_constraint_guard_sha256=f3e22402a8b51d549c84ef71d7e7d13fd6cd682e7f4b54fd5b7f0b12a47f2e34
           phase2_driver_availability_sha256=3a429997c636e65689212f697650b28646b2869de3d2abbe6e6f3ba61c563777
+          phase2_standard_v2_harness_sha256=1f5890d65eba5276b2210f05229146baa3d52dd5bc0e853659639069dbfdec35
           EOF
           (
             cd "$SNAPSHOT"
@@ -162,10 +167,12 @@ jobs:
           sha256sum -c PHASE2_UNIFIED_PATCH_SHA256.txt
           sha256sum -c PHASE2_CONSTRAINT_GUARD_PATCH_SHA256.txt
           sha256sum -c PHASE2_DRIVER_AVAILABILITY_PATCH_SHA256.txt
+          sha256sum -c PHASE2_STANDARD_V2_HARNESS_PATCH_SHA256.txt
           cd ..
           gzip -dc delivery-os/PHASE2_UNIFIED.patch.gz | git apply --unsafe-paths --directory=delivery-os -
           gzip -dc delivery-os/PHASE2_CONSTRAINT_GUARD.patch.gz | git apply --unsafe-paths --directory=delivery-os -
           gzip -dc delivery-os/PHASE2_DRIVER_AVAILABILITY.patch.gz | git apply --unsafe-paths --directory=delivery-os -
+          git apply --unsafe-paths --directory=delivery-os delivery-os/PHASE2_STANDARD_V2_HARNESS.patch
       - uses: actions/setup-java@v5
         with:
           distribution: temurin

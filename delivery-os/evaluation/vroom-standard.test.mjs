@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { generateStandardWorkload, workloadFingerprint } from './standard-workload.mjs';
-import { buildStandardVroomInput, runStandardVroomPlanning } from './vroom-standard.mjs';
+import { buildStandardVroomInput, buildDeterministicMatrixVroomInput, runStandardVroomPlanning } from './vroom-standard.mjs';
 
 const scenarioV1 = JSON.parse(fs.readFileSync(new URL('./scenario.standard-v1.json', import.meta.url), 'utf8'));
 const scenarioV2 = JSON.parse(fs.readFileSync(new URL('./scenario.standard-v2.json', import.meta.url), 'utf8'));
@@ -68,4 +68,24 @@ test('successful VROOM planning emits internal planning evidence without upgradi
   assert.equal(result.claim_status, 'NOT_CERTIFIED');
   assert.equal(result.workload_sha256, workloadFingerprint(workload));
   assert.equal(result.provider, 'vroom');
+});
+
+test('standard-v2 deterministic custom matrix can drive real VROOM without an external routing engine', () => {
+  assert.equal(typeof buildDeterministicMatrixVroomInput, 'function');
+  const input = buildDeterministicMatrixVroomInput(workload);
+  const size = workload.drivers.length + workload.orders.length;
+  assert.equal(input.vehicles.length, 10);
+  assert.equal(input.jobs.length, 100);
+  assert.equal(input.matrices.car.durations.length, size);
+  assert.equal(input.matrices.car.distances.length, size);
+  assert.equal(input.matrices.car.durations[0].length, size);
+  assert.equal(input.matrices.car.distances[0].length, size);
+  assert.equal(input.vehicles[0].profile, 'car');
+  assert.equal(input.vehicles[0].start_index, 0);
+  assert.equal(input.vehicles[0].end_index, 0);
+  assert.equal(input.jobs[0].location_index, workload.drivers.length);
+  assert.equal(input.matrices.car.durations[0][0], 0);
+  assert.equal(input.matrices.car.distances[0][0], 0);
+  assert.equal(input.metadata.matrix_model, 'haversine-30kmh-v1');
+  assert.deepEqual(input, buildDeterministicMatrixVroomInput(workload));
 });

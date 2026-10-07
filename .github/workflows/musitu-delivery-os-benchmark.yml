@@ -18,12 +18,30 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
+      - name: Reconstruct checksum-pinned unified source
+        run: |
+          set -euo pipefail
+          cd delivery-os
+          cat source-parts/part-* | base64 -d > phase1-src.tar.gz
+          sha256sum -c PHASE1_SOURCE_SHA256.txt
+          cd ..
+          tar -xzf delivery-os/phase1-src.tar.gz -C .
+          cd delivery-os
+          sha256sum -c PHASE2_UNIFIED_PATCH_SHA256.txt
+          sha256sum -c PHASE2_CONSTRAINT_GUARD_PATCH_SHA256.txt
+          sha256sum -c PHASE2_DRIVER_AVAILABILITY_PATCH_SHA256.txt
+          sha256sum -c PHASE2_STANDARD_V2_HARNESS_PATCH_SHA256.txt
+          cd ..
+          gzip -dc delivery-os/PHASE2_UNIFIED.patch.gz | git apply --unsafe-paths --directory=delivery-os -
+          gzip -dc delivery-os/PHASE2_CONSTRAINT_GUARD.patch.gz | git apply --unsafe-paths --directory=delivery-os -
+          gzip -dc delivery-os/PHASE2_DRIVER_AVAILABILITY.patch.gz | git apply --unsafe-paths --directory=delivery-os -
+          git apply --unsafe-paths --directory=delivery-os delivery-os/PHASE2_STANDARD_V2_HARNESS.patch
       - uses: actions/setup-node@v6
         with:
           node-version: '22'
       - name: Benchmark contract tests
         working-directory: delivery-os
-        run: node --test evaluation/benchmark.test.mjs evaluation/external-access.test.mjs evaluation/standard-workload.test.mjs evaluation/provider-adapters.test.mjs evaluation/vroom-standard.test.mjs
+        run: node --test evaluation/benchmark.test.mjs evaluation/external-access.test.mjs evaluation/standard-workload.test.mjs evaluation/provider-adapters.test.mjs evaluation/vroom-standard.test.mjs evaluation/standard-v2-harness.test.mjs
       - name: Prove external access fails closed without sandbox credentials
         working-directory: delivery-os
         run: |
@@ -58,12 +76,63 @@ jobs:
           const fs = require('fs');
           const p = process.env.RUNNER_TEMP + '/musitu-benchmark/standard-v2-vroom-request.json';
           const artifact = JSON.parse(fs.readFileSync(p, 'utf8'));
-          if (artifact.status !== 'LIVE_VROOM_REQUIRED') throw new Error('VROOM request must remain blocked pending live VROOM');
+          if (artifact.status !== 'EXECUTION_INPUT_READY') throw new Error('VROOM request must be executable input');
           if (artifact.claim_status !== 'NOT_CERTIFIED') throw new Error('VROOM request must not certify benchmark claims');
           if (artifact.metadata.workload_sha256 !== 'fb80db552b55efb60c5372629c606cdd6879f796950ec44e1d854f46e8dfabdc') throw new Error('VROOM request workload fingerprint drifted');
           if (artifact.request.vehicles.length !== 10 || artifact.request.jobs.length !== 100) throw new Error('VROOM request cardinality drifted');
-          console.log('MUSITU_DELIVERY_OS_VROOM_REQUEST_FAIL_CLOSED_PASS');
+          if (artifact.metadata.matrix_model !== 'haversine-30kmh-v1') throw new Error('VROOM request matrix model drifted');
+          if (artifact.request.matrices.car.durations.length !== 110 || artifact.request.matrices.car.distances.length !== 110) throw new Error('VROOM request matrix cardinality drifted');
+          console.log('MUSITU_DELIVERY_OS_VROOM_REQUEST_EXECUTABLE_PASS');
           NODE
+      - name: Start pinned VROOM engine
+        run: |
+          set -euo pipefail
+          VROOM_IMAGE='ghcr.io/vroom-project/vroom-docker:v1.15.0@sha256:247d5683d6745c755d718a156d16b16aac80baccc276a003a68b986c13883b08'
+          docker run -d --name musitu-vroom -p 3000:3000 "$VROOM_IMAGE"
+          for i in $(seq 1 60); do
+            code="$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3000/ || true)"
+            if [ "$code" != "000" ]; then
+              exit 0
+            fi
+            sleep 1
+          done
+          docker logs musitu-vroom
+          exit 1
+      - name: Run standard-v2 on real VROOM
+        working-directory: delivery-os
+        env:
+          VROOM_URL: http://127.0.0.1:3000
+          VROOM_RELEASE: ghcr.io/vroom-project/vroom-docker:v1.15.0@sha256:247d5683d6745c755d718a156d16b16aac80baccc276a003a68b986c13883b08
+        run: |
+          set -euo pipefail
+          mkdir -p benchmark-artifact
+          CAPTURED_AT="$(date -u +%Y-%m-%dT%H:%M:%S.000Z)"
+          node evaluation/run-standard-v2-harness.mjs \
+            --product-head "$GITHUB_SHA" \
+            --captured-at "$CAPTURED_AT" \
+            --output benchmark-artifact/standard-v2-internal-evidence.json
+          jq -e '
+            .schema == "musitu-delivery-standard-v2-internal-evidence.v1" and
+            .workload_sha256 == "fb80db552b55efb60c5372629c606cdd6879f796950ec44e1d854f46e8dfabdc" and
+            .product_head == env.GITHUB_SHA and
+            .planner.provider == "vroom" and
+            .planner.plan_count == 11 and
+            .evidence.kind == "internal_controlled" and
+            .claim_status == "NOT_CERTIFIED" and
+            .comparison_ready == false and
+            .execution.orders_total == 100 and
+            .execution.orders_delivered == 100 and
+            .execution.disruptions_applied == 10 and
+            .execution.driver_offline_events == 5 and
+            .execution.traffic_delay_events == 5 and
+            .metrics.proof_completeness_rate == 1 and
+            .metrics.operator_interventions == 0 and
+            .chain.valid == true
+          ' benchmark-artifact/standard-v2-internal-evidence.json >/dev/null
+          echo MUSITU_DELIVERY_OS_STANDARD_V2_REAL_VROOM_PASS
+      - name: Stop VROOM engine
+        if: always()
+        run: docker rm -f musitu-vroom >/dev/null 2>&1 || true
       - name: Generate controlled evidence report
         working-directory: delivery-os
         run: |
@@ -90,5 +159,6 @@ jobs:
             ${{ runner.temp }}/musitu-benchmark/provider-plans/onfleet-standard-v2-plan.json
             ${{ runner.temp }}/musitu-benchmark/provider-plans/bringg-standard-v2-blocked-plan.json
             ${{ runner.temp }}/musitu-benchmark/standard-v2-vroom-request.json
+            delivery-os/benchmark-artifact/standard-v2-internal-evidence.json
           if-no-files-found: error
           retention-days: 90
