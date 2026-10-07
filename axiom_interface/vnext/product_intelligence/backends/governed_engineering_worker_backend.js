@@ -111,8 +111,8 @@ export function createGovernedEngineeringWorkerBackend({transport,provider='prov
       const providerResult=assertProviderResult(await transport.describe(clone(binding)),'engineering worker describe');
       const provider_status=requiredText('provider_status',providerResult.status,80).toUpperCase();
       return lifecycleReceipt({
-        schema:'musitu.axiom.engineering-worker-observation-receipt.v1',
         ...binding,
+        schema:'musitu.axiom.engineering-worker-observation-receipt.v1',
         provider,
         provider_status,
         provider_data_authority:'UNTRUSTED_MECHANISM_DATA',
@@ -132,8 +132,8 @@ export function createGovernedEngineeringWorkerBackend({transport,provider='prov
       if(typeof providerResult.accepted!=='boolean')throw new TypeError('engineering worker cancellation accepted must be boolean');
       const provider_status=requiredText('provider_status',providerResult.status,80).toUpperCase();
       return lifecycleReceipt({
-        schema:'musitu.axiom.engineering-worker-cancellation-request-receipt.v1',
         ...binding,
+        schema:'musitu.axiom.engineering-worker-cancellation-request-receipt.v1',
         provider,
         cancellation_request_accepted:providerResult.accepted,
         provider_status,
@@ -157,8 +157,8 @@ export function createGovernedEngineeringWorkerBackend({transport,provider='prov
       const provider_output=clone(providerResult.output??null);
       const provider_output_sha256=await sha256(provider_output);
       return lifecycleReceipt({
-        schema:'musitu.axiom.engineering-worker-result-receipt.v1',
         ...binding,
+        schema:'musitu.axiom.engineering-worker-result-receipt.v1',
         provider,
         provider_status,
         provider_output,
