@@ -25,6 +25,7 @@ class MiningAdapterService:
         runtime: ConnectRuntime,
         store: RunStore,
         adapter_name: str="Mining Adapter",
+        telemetry_adapter_name: str="Mining Telemetry Adapter",
         max_mqtt_payload_bytes: int=1024*1024,
         workflow: DurableWorkflowBoundary | None=None,
     ) -> None:
@@ -33,15 +34,19 @@ class MiningAdapterService:
         self.runtime=runtime
         self.store=store
         self.adapter_name=adapter_name
+        self.telemetry_adapter_name=telemetry_adapter_name
         self.max_mqtt_payload_bytes=max_mqtt_payload_bytes
         self.workflow=workflow or DurableWorkflowBoundary()
 
-    def _ingest_rows(
+    def _ingest_domain_rows(
         self,
         *,
         run_id: str,
         connector_name: str,
         protocol: str,
+        domain: str,
+        adapter_name: str,
+        workflow_prefix: str,
         rows: Iterable[dict[str, Any]],
     ) -> EnterpriseRun:
         materialized_rows=tuple(rows)
@@ -50,8 +55,8 @@ class MiningAdapterService:
             run=self.runtime.ingest(
                 run_id=run_id,
                 connector_name=connector_name,
-                domain="mining",
-                adapter_name=self.adapter_name,
+                domain=domain,
+                adapter_name=adapter_name,
                 records=materialized_rows,
             )
             self.store.record_ingest_run(
@@ -65,7 +70,25 @@ class MiningAdapterService:
             )
             return run
 
-        return self.workflow.submit(f"mining-ingest:{run_id}", ingest_action)
+        return self.workflow.submit(f"{workflow_prefix}:{run_id}", ingest_action)
+
+    def _ingest_rows(
+        self,
+        *,
+        run_id: str,
+        connector_name: str,
+        protocol: str,
+        rows: Iterable[dict[str, Any]],
+    ) -> EnterpriseRun:
+        return self._ingest_domain_rows(
+            run_id=run_id,
+            connector_name=connector_name,
+            protocol=protocol,
+            domain="mining",
+            adapter_name=self.adapter_name,
+            workflow_prefix="mining-ingest",
+            rows=rows,
+        )
 
     def ingest_mqtt(
         self,
@@ -104,6 +127,31 @@ class MiningAdapterService:
             run_id=run_id,
             connector_name=connector_name,
             protocol="mqtt",
+            rows=decoded["rows"],
+        )
+
+    def ingest_telemetry_payload(
+        self,
+        *,
+        run_id: str,
+        connector_name: str,
+        payload: bytes,
+    ) -> EnterpriseRun:
+        if len(payload) > self.max_mqtt_payload_bytes:
+            raise ValueError("mqtt_payload_too_large")
+        try:
+            decoded=json.loads(payload.decode("utf-8"))
+        except (UnicodeDecodeError, json.JSONDecodeError):
+            raise ValueError("mqtt_payload_invalid") from None
+        if not isinstance(decoded,dict) or set(decoded) != {"rows"} or not isinstance(decoded["rows"],list):
+            raise ValueError("mqtt_payload_invalid")
+        return self._ingest_domain_rows(
+            run_id=run_id,
+            connector_name=connector_name,
+            protocol="mqtt",
+            domain="mining_telemetry",
+            adapter_name=self.telemetry_adapter_name,
+            workflow_prefix="mining-telemetry-ingest",
             rows=decoded["rows"],
         )
 
