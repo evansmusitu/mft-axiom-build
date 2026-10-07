@@ -243,6 +243,39 @@ class MCP2026Server:
             is_error=True,
         )
 
+    def _validated_call_tool_result(
+        self,
+        request_id: Any,
+        result: Mapping[str, Any],
+    ) -> tuple[int, dict[str, str], dict[str, Any]]:
+        value = dict(_mapping(result, "tool result"))
+        content = value.get("content")
+        if not isinstance(content, list) or not content:
+            raise MCP2026Error("tool result content must be a non-empty array")
+        normalized_content: list[dict[str, Any]] = []
+        for index, item in enumerate(content):
+            part = dict(_mapping(item, f"tool result content[{index}]"))
+            part_type = _nonempty_string(part.get("type"), f"tool result content[{index}].type")
+            if part_type == "text":
+                _nonempty_string(part.get("text"), f"tool result content[{index}].text")
+            normalized_content.append(part)
+        value["content"] = normalized_content
+
+        if "structuredContent" in value:
+            value["structuredContent"] = dict(
+                _mapping(value["structuredContent"], "tool result structuredContent")
+            )
+        value["isError"] = bool(value.get("isError", False))
+        existing_meta = value.get("_meta", {})
+        existing_meta = dict(_mapping(existing_meta, "tool result _meta"))
+        existing_meta[SERVER_INFO_META] = self.server_info
+        value["_meta"] = existing_meta
+        return (
+            200,
+            self._response_headers(),
+            {"jsonrpc": "2.0", "id": request_id, "result": value},
+        )
+
     def _discover(self, request_id: Any) -> tuple[int, dict[str, str], dict[str, Any]]:
         return self._success(
             request_id,
@@ -316,6 +349,8 @@ class MCP2026Server:
                 message="Tool execution failed.",
             )
         result = dict(_mapping(raw_result, "tool result"))
+        if "content" in result:
+            return self._validated_call_tool_result(request_id, result)
         return self._call_tool_result(request_id, result, is_error=False)
 
     def handle(
