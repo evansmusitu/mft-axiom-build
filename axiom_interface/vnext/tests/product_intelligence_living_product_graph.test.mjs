@@ -814,3 +814,90 @@ test('terminal receipt replay rejects changed authority envelope without repeati
   assert.equal(after.worktrees.main.snapshots.length,1);
   assert.equal(receipts.length,1);
 });
+
+
+test('verified external worker provider report reconciles as report-only EvidenceRef and replays idempotently',async()=>{
+  const module=await import('../product_intelligence/living_product_graph.js');
+  const security=await import('../execution_security.js');
+  assert.equal(typeof module.verifyExternalWorkerResult,'function');
+  assert.equal(typeof module.createExternalWorkerResultEvidence,'function');
+  assert.equal(typeof module.reconcileVerifiedExternalWorkerResult,'function');
+
+  const externalAt='2026-10-07T19:20:00.000Z';
+  const body={
+    schema:'musitu.axiom.external-worker-result-verification.v1',
+    project_id:'project_12345678',
+    work_id:'work_12345678',
+    handoff_sha256:'1'.repeat(64),
+    request_sha256:'2'.repeat(64),
+    workload_identity_id:'workload_executor_1',
+    dispatch_receipt_sha256:'3'.repeat(64),
+    result_receipt_sha256:'4'.repeat(64),
+    provider:'axiom-isolated-worker',
+    provider_work_id:'worker_job_lifecycle_12345678',
+    provider_status:'COMPLETED',
+    provider_output_sha256:'5'.repeat(64),
+    provider_claimed_external_action_executed:true,
+    provider_data_authority:'UNTRUSTED_MECHANISM_DATA',
+    verifier_actor_id:'agent_independent_verifier_2',
+    independent_verification:'PASS_BINDING_INTEGRITY_ONLY',
+    execution_truth:'NOT_PROVEN',
+    external_action_executed:false,
+    live_runtime_qualification:'NOT_PROVEN',
+    status:'VERIFIED_PROVIDER_REPORT',
+    authority_effect:'NONE',
+    release_authority:false,
+    production_authority:false,
+    certification_authority:false,
+    created_at:externalAt,
+  };
+  const verifiedResult={...body,verification_sha256:await security.sha256(body)};
+  const rows=new Map([['project_12345678',graph()]]);
+  let commits=0;
+  const backend={
+    descriptor:{
+      kind:'PersistenceBackend',adapter_version:'1.0.0',provider:'external-result-memory',semantic_owner:'AXIOM',authority:'MECHANISM_ONLY',
+      capabilities:['load','commit','verify','export'],unsupported_operations:['production_mutation'],timeout_ms:1000,
+      retry:{max_attempts:1,backoff:'NONE'},idempotency:{mode:'REQUIRED_FOR_WRITES'},data_classification:['project-private'],
+      egress:{required:false,allowed_origins:[]},identity_binding:{required:true,mode:'AXIOM_WORKLOAD_ID'},
+      evidence_envelope:{schema:'musitu.axiom.evidence.v1',required:true},health:{mode:'EXPLICIT'},migration_export:{supported:true,format:'JSONL'},fail_closed:true,
+    },
+    async loadProjectGraph(projectId){return structuredClone(rows.get(projectId)??null);},
+    async commitGraph(projectId,value,{expectedGeneration}){
+      const prior=rows.get(projectId);
+      assert.equal(prior?.generation??0,expectedGeneration);
+      commits+=1;
+      rows.set(projectId,structuredClone(value));
+      return structuredClone(value);
+    },
+    async verifyIntegrity(projectId){return {status:rows.has(projectId)?'PASS':'NOT_PROVEN',project_id:projectId};},
+    async exportProject(projectId){return {project_id:projectId,graph:structuredClone(rows.get(projectId)??null)};},
+  };
+  const persistence=module.createLivingProductGraphPersistence(backend);
+  const first=await module.reconcileVerifiedExternalWorkerResult({persistence,verifiedResult,at:externalAt});
+  assert.equal(first.status,'RECONCILED');
+  assert.equal(first.graph.generation,2);
+  assert.equal(commits,1);
+  assert.equal(first.authority_effect,'NONE');
+  assert.equal(first.release_authority,false);
+  assert.equal(first.production_authority,false);
+  assert.equal(first.certification_authority,false);
+
+  const evidenceNode=first.graph.nodes.find(node=>node.type==='EvidenceRef'&&node.data?.result_receipt_sha256===verifiedResult.result_receipt_sha256);
+  assert.ok(evidenceNode);
+  assert.equal(evidenceNode.data.evidence_id,first.evidence.id);
+  assert.equal(evidenceNode.data.provider_status,'COMPLETED');
+  assert.equal(evidenceNode.data.provider_data_authority,'UNTRUSTED_MECHANISM_DATA');
+  assert.equal(evidenceNode.data.independent_verification,'PASS_BINDING_INTEGRITY_ONLY');
+  assert.equal(evidenceNode.data.execution_truth,'NOT_PROVEN');
+  assert.equal(evidenceNode.data.external_action_executed,false);
+  assert.equal(evidenceNode.data.live_runtime_qualification,'NOT_PROVEN');
+  assert.equal(evidenceNode.metadata.risk_class,'S3');
+  assert.equal(evidenceNode.metadata.uncertainty.kind,'EXTERNAL_EXECUTION_NOT_PROVEN');
+
+  const replay=await module.reconcileVerifiedExternalWorkerResult({persistence,verifiedResult,at:externalAt});
+  assert.equal(replay.status,'IDEMPOTENT_REPLAY');
+  assert.equal(replay.graph.generation,2);
+  assert.equal(replay.evidence.id,first.evidence.id);
+  assert.equal(commits,1);
+});
