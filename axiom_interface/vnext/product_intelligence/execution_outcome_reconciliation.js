@@ -391,3 +391,107 @@ export async function createExternalWorkerResultEvidence(verified){
   assertAxiomObject(evidence,{expectedType:'Evidence'});
   return Object.freeze(structuredClone(evidence));
 }
+
+
+export async function reconcileVerifiedExternalWorkerResult({persistence,verifiedResult,at=verifiedResult?.created_at}={}){
+  if(!persistence||typeof persistence!=='object'||typeof persistence.load!=='function'||typeof persistence.commit!=='function')throw new TypeError('Living Product Graph persistence API required');
+  const evidence=await createExternalWorkerResultEvidence(verifiedResult);
+  const projectId=requireString(verifiedResult.project_id,'verifiedResult.project_id',300);
+  const current=await persistence.load(projectId);
+  if(!current)throw new DOMException('Living Product Graph required before external worker result reconciliation','NotFoundError');
+
+  const nodeId=`lpg_evidence_external_${verifiedResult.result_receipt_sha256.slice(0,24)}`;
+  const existing=current.nodes.find(node=>node.node_id===nodeId);
+  if(existing){
+    if(
+      existing.type!=='EvidenceRef'||
+      existing.data?.evidence_id!==evidence.id||
+      existing.data?.result_receipt_sha256!==verifiedResult.result_receipt_sha256||
+      existing.data?.dispatch_receipt_sha256!==verifiedResult.dispatch_receipt_sha256||
+      existing.data?.request_sha256!==verifiedResult.request_sha256||
+      existing.data?.verification_sha256!==verifiedResult.verification_sha256||
+      existing.data?.execution_truth!=='NOT_PROVEN'||
+      existing.data?.external_action_executed!==false
+    )throw new DOMException('external worker result replay conflicts with existing EvidenceRef','DataError');
+    return Object.freeze({
+      status:'IDEMPOTENT_REPLAY',
+      project_id:projectId,
+      evidence,
+      graph:structuredClone(current),
+      authority_effect:'NONE',
+      release_authority:false,
+      production_authority:false,
+      certification_authority:false,
+    });
+  }
+
+  const created_at=canonicalIso(at,'external reconciliation.at');
+  const generation=current.generation+1;
+  const nodes=current.nodes.map(node=>({...structuredClone(node),metadata:{...structuredClone(node.metadata),generation}}));
+  const edges=current.edges.map(edge=>({...structuredClone(edge),metadata:{...structuredClone(edge.metadata),generation}}));
+  nodes.push({
+    node_id:nodeId,
+    type:'EvidenceRef',
+    metadata:{
+      project_id:projectId,
+      version:1,
+      generation,
+      valid_from:created_at,
+      valid_to:null,
+      provenance:{
+        source:'external-worker-provider-result-report',
+        handoff_sha256:verifiedResult.handoff_sha256,
+        request_sha256:verifiedResult.request_sha256,
+        dispatch_receipt_sha256:verifiedResult.dispatch_receipt_sha256,
+        result_receipt_sha256:verifiedResult.result_receipt_sha256,
+        provider:verifiedResult.provider,
+        provider_work_id:verifiedResult.provider_work_id,
+      },
+      evidence_refs:[evidence.id],
+      confidence:1,
+      uncertainty:{kind:'EXTERNAL_EXECUTION_NOT_PROVEN'},
+      actor_id:verifiedResult.verifier_actor_id,
+      risk_class:'S3',
+      content_hash:verifiedResult.verification_sha256,
+      freshness:{as_of:created_at},
+      supersession:{state:'CURRENT',supersedes:[]},
+    },
+    data:{
+      evidence_id:evidence.id,
+      handoff_sha256:verifiedResult.handoff_sha256,
+      request_sha256:verifiedResult.request_sha256,
+      dispatch_receipt_sha256:verifiedResult.dispatch_receipt_sha256,
+      result_receipt_sha256:verifiedResult.result_receipt_sha256,
+      verification_sha256:verifiedResult.verification_sha256,
+      provider:verifiedResult.provider,
+      provider_work_id:verifiedResult.provider_work_id,
+      provider_status:verifiedResult.provider_status,
+      provider_output_sha256:verifiedResult.provider_output_sha256,
+      provider_claimed_external_action_executed:verifiedResult.provider_claimed_external_action_executed,
+      provider_data_authority:'UNTRUSTED_MECHANISM_DATA',
+      independent_verification:'PASS_BINDING_INTEGRITY_ONLY',
+      execution_truth:'NOT_PROVEN',
+      external_action_executed:false,
+      live_runtime_qualification:'NOT_PROVEN',
+    },
+  });
+  const next={
+    schema:current.schema,
+    project_id:current.project_id,
+    generation,
+    impact_state:current.impact_state,
+    nodes,
+    edges,
+  };
+  const saved=await persistence.commit(next,{expectedGeneration:current.generation});
+  return Object.freeze({
+    status:'RECONCILED',
+    project_id:projectId,
+    evidence,
+    graph:structuredClone(saved),
+    authority_effect:'NONE',
+    release_authority:false,
+    production_authority:false,
+    certification_authority:false,
+  });
+}
