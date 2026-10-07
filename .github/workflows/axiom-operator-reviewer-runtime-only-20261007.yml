@@ -1,0 +1,83 @@
+name: MUSITU Axiom Operator Reviewer Runtime Only Deploy 20261007
+
+on:
+  push:
+    branches:
+      - frontier/axiom-operator-reviewer-clone-20261006
+    paths:
+      - 'frontier_v5/runtime/mcp_2026.py'
+      - 'frontier_v5/runtime/operator_mcp.py'
+      - 'frontier_v5/runtime/operator_remote_core.py'
+      - 'reviewer_clone/modal_operator_reviewer_proxy.py'
+      - '.github/workflows/axiom-operator-reviewer-runtime-only-20261007.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      OPERATOR_APP: musitu-axiom-operator-reviewer-private-20261006
+      MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID }}
+      MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET }}
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: '3.13'
+      - name: Verify isolated protocol contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse origin/main)" = d6a846f6bbe0bccac1758713eb4de167caf07113
+          PYTHONPATH=. python frontier_v5/tests/test_operator_mcp_response_contract.py
+          PYTHONPATH=. python frontier_v5/tests/test_mcp_2026_contract.py
+          PYTHONPATH=. python frontier_v5/tests/test_operator_bridge_contract.py
+          PYTHONPATH=. python frontier_v5/tests/test_operator_remote_core.py
+      - name: Deploy private reviewer runtime only
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$MODAL_TOKEN_ID"
+          test -n "$MODAL_TOKEN_SECRET"
+          python -m pip install --disable-pip-version-check --quiet 'modal>=1.5,<2'
+          modal deploy reviewer_clone/modal_operator_reviewer_proxy.py --name "$OPERATOR_APP" --strategy recreate --tag "$GITHUB_SHA"
+      - name: Verify public Reviewer MCP still exposes tools
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json, time, urllib.request
+          url="https://musitu-axiom-operator-reviewer-mcp-20261006.mft-education-nexus-93f395f5.workers.dev/mcp"
+          body=json.dumps({"jsonrpc":"2.0","id":"verify","method":"tools/list","params":{"_meta":{"io.modelcontextprotocol/protocolVersion":"2026-07-28"}}}).encode()
+          headers={"Content-Type":"application/json","Accept":"application/json","MCP-Protocol-Version":"2026-07-28","Mcp-Method":"tools/list"}
+          last=None
+          for _ in range(30):
+              try:
+                  req=urllib.request.Request(url,data=body,headers=headers,method="POST")
+                  with urllib.request.urlopen(req,timeout=20) as r:
+                      obj=json.load(r)
+                  tools=((obj.get("result") or {}).get("tools") or [])
+                  if len(tools)==27:
+                      print("REVIEWER_RUNTIME_ONLY_DEPLOY=PASS")
+                      print("REVIEWER_TOOL_COUNT=27")
+                      break
+                  last=("tool_count",len(tools),obj)
+              except Exception as exc:
+                  last=("exception",type(exc).__name__,str(exc))
+              time.sleep(2)
+          else:
+              raise SystemExit("Reviewer tools unavailable after runtime deploy: "+repr(last))
+          PY
+      - name: Reassert protected production state
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse origin/main)" = d6a846f6bbe0bccac1758713eb4de167caf07113
+          git diff --check
