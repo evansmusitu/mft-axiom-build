@@ -1,0 +1,163 @@
+{
+  "schema": "musitu.axiom.phase2.destination-native-mutation-readback-qualification.v1",
+  "record_type": "PHASE2_QUALIFICATION_EVIDENCE",
+  "slice": "DESTINATION_NATIVE_MUTATION_RECEIPT_PLUS_OPERATION_SPECIFIC_READBACK",
+  "branch": "frontier/axiom-product-intelligence-phase2-20261004",
+  "parent_sealed_boundary": {
+    "external_destination_state_correlation_evidence_commit": "531819690770c3e444d3aee0bac152ebcd54bfab",
+    "repository_contract_status": "SEALED",
+    "execution_truth": "CORRELATED_DESTINATION_STATE_CHANGE_NOT_CAUSALLY_PROVEN",
+    "external_action_executed": false,
+    "live_runtime_qualification": "NOT_PROVEN"
+  },
+  "governance_snapshot": {
+    "main_sha": "d6a846f6bbe0bccac1758713eb4de167caf07113",
+    "fa20_sha": "21d087f0fdebffd4cfb4065286aa16696fcec9c0",
+    "phase2_preseal_sha": "0c98455e345b902db476ec886303521a97b41100",
+    "pr_1_state": "open",
+    "pr_1_draft": true,
+    "pr_1_merged_at": null,
+    "main_mutated": false,
+    "production_mutated": false,
+    "frozen_openai_surface_mutated": false
+  },
+  "source_blobs": {
+    "execution_outcome_reconciliation_js": "6cd9cf387af26a5c4805d3f904f60a48cd0b165a",
+    "living_product_graph_js": "0898ffbd5c386dc17dfed618e4928f5b3017a77a",
+    "living_product_graph_test_mjs": "a90ca362c74b0aff14fd00171edfbd2954a28435",
+    "phase2_gate_yml": "0ec2faffd906ea7de815cd0bc8b8339f95c2dbae"
+  },
+  "tdd_history": [
+    {
+      "cycle": "DESTINATION_NATIVE_MUTATION_EVIDENCE_VERIFICATION",
+      "red": {
+        "commit": "1f58e3a9097d7d283b029d316aa4306cb90abf4b",
+        "run_id": 37683656068,
+        "focused_job_id": 113005802133,
+        "living_product_graph": "25/26_PASS",
+        "outcome": "FAIL_EXPECTED_BEHAVIOR_MISSING",
+        "defect": "verifyExternalDestinationMutationEvidence was undefined",
+        "expected_failure": true
+      },
+      "green": {
+        "commit": "39f3938a974623903258c72c4f85d5efb21eeb57",
+        "run_id": 37684021516,
+        "focused_job_id": 113007066876,
+        "independent_job_id": 113007373812,
+        "focused_living_product_graph": "26/26_PASS",
+        "independent_replay": "165/165_PASS",
+        "browser_durability": "PASS",
+        "provider_authority_fail_closed": "PASS",
+        "slice_verification": "PASS",
+        "release_authority": false,
+        "production_authority": false,
+        "certification_authority": false
+      }
+    },
+    {
+      "cycle": "DESTINATION_MUTATION_EVIDENCE_RECONCILIATION",
+      "red": {
+        "commit": "0e2dc1bded3d1c5a1499469c18b2613e87ec9310",
+        "run_id": 37684275518,
+        "focused_job_id": 113007940683,
+        "living_product_graph": "26/27_PASS",
+        "outcome": "FAIL_EXPECTED_BEHAVIOR_MISSING",
+        "defect": "createExternalDestinationMutationEvidence was undefined",
+        "expected_failure": true
+      },
+      "green": {
+        "commit": "842c0a3dd8358017c811cf91c888fc539b0351d9",
+        "run_id": 37684514193,
+        "focused_job_id": 113008746423,
+        "independent_job_id": 113009027987,
+        "focused_living_product_graph": "27/27_PASS",
+        "independent_replay": "166/166_PASS",
+        "browser_durability": "PASS",
+        "provider_authority_fail_closed": "PASS",
+        "slice_verification": "PASS",
+        "release_authority": false,
+        "production_authority": false,
+        "certification_authority": false
+      }
+    }
+  ],
+  "static_gate_hardening": {
+    "commit": "0c98455e345b902db476ec886303521a97b41100",
+    "run_id": 37684828493,
+    "focused_job_id": 113009836306,
+    "independent_job_id": 113010101678,
+    "focused_living_product_graph": "27/27_PASS",
+    "independent_replay": "166/166_PASS",
+    "browser_durability": "PASS",
+    "provider_authority_fail_closed": "PASS",
+    "slice_verification": "PASS",
+    "required_static_markers": [
+      "EXTERNAL_DESTINATION_MUTATION_EVIDENCE_SCHEMA",
+      "DESTINATION_NATIVE_RECEIPT_PLUS_OPERATION_READBACK",
+      "PASS_NATIVE_RECEIPT_AND_OPERATION_READBACK_ONLY",
+      "STRONG_EVIDENCE_NOT_LIVE_QUALIFIED",
+      "execution_truth:'NOT_LIVE_QUALIFIED'",
+      "reconcileExternalDestinationMutationEvidence",
+      "LIVE_EXTERNAL_EXECUTION_NOT_QUALIFIED",
+      "external_action_executed:false",
+      "live_runtime_qualification:'NOT_PROVEN'"
+    ],
+    "release_authority": false,
+    "production_authority": false,
+    "certification_authority": false
+  },
+  "delivered_contracts": {
+    "admitted_risk_class": "S3_EXTERNAL_REVERSIBLE_ONLY_VIA_PRIOR_GOVERNED_DISPATCH",
+    "destination_native_mutation_receipt_integrity": "PASS_REPOSITORY_CONTRACT",
+    "exact_dispatch_binding": "PASS_REPOSITORY_CONTRACT",
+    "operation_specific_readback_match": "PASS_REPOSITORY_CONTRACT",
+    "readback_mode": "READ_ONLY",
+    "independent_identity_separation": "PASS_REPOSITORY_CONTRACT",
+    "temporal_ordering": "PASS_REPOSITORY_CONTRACT",
+    "evidence_strength": "DESTINATION_NATIVE_RECEIPT_PLUS_OPERATION_READBACK",
+    "independent_verification": "PASS_NATIVE_RECEIPT_AND_OPERATION_READBACK_ONLY",
+    "causal_attribution": "STRONG_EVIDENCE_NOT_LIVE_QUALIFIED",
+    "execution_truth": "NOT_LIVE_QUALIFIED",
+    "evidence_object_creation": "PASS",
+    "living_product_graph_reconciliation": "PASS_NOT_LIVE_QUALIFIED_EVIDENCE_REF",
+    "graph_uncertainty": "LIVE_EXTERNAL_EXECUTION_NOT_QUALIFIED",
+    "replay_idempotency": "PASS",
+    "external_action_executed": false,
+    "live_runtime_qualification": "NOT_PROVEN",
+    "release_authority": false,
+    "production_authority": false,
+    "certification_authority": false
+  },
+  "qualification_truth": {
+    "repository_contract_qualification": "PASS_PRESEAL",
+    "destination_native_mutation_receipt_contract": "PASS",
+    "operation_specific_readback_contract": "PASS",
+    "evidence_reconciliation_contract": "PASS",
+    "repository_fixture_is_live_external_execution_proof": false,
+    "external_side_effect_execution": "NOT_PROVEN",
+    "live_external_worker_runtime": "NOT_PROVEN",
+    "production_external_worker_integration": "NOT_PROVEN",
+    "production_side_effect_idempotency": "NOT_PROVEN",
+    "cancellation_effectiveness": "NOT_PROVEN",
+    "provider_selected": false,
+    "runtime_activation_authorized": false,
+    "external_action_executed": false,
+    "live_runtime_qualification": "NOT_PROVEN",
+    "execution_truth": "NOT_LIVE_QUALIFIED",
+    "release_authority": false,
+    "production_authority": false,
+    "certification_authority": false,
+    "wolfram_parity": "NOT_CERTIFIED",
+    "superiority": "NOT_CERTIFIED"
+  },
+  "tdd_integrity": {
+    "primary_new_behaviors_observed_red_first": true,
+    "assertions_weakened_to_pass": false,
+    "authority_thresholds_lowered": false
+  },
+  "self_certification": {
+    "builder_self_certification": false,
+    "evidence_record_self_certifying": false,
+    "post_commit_independent_qualification_required": true
+  }
+}
