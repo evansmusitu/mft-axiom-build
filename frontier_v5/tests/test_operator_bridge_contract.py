@@ -45,7 +45,10 @@ def call(server, name, arguments):
     }
     status, _, body=server.handle(headers,message)
     assert status==200
-    return body["result"]
+    result=body["result"]
+    assert result["content"] and result["content"][0]["type"]=="text"
+    assert result["isError"] is False
+    return result["structuredContent"]
 
 
 def main():
@@ -155,7 +158,6 @@ def main():
         assert any(t["name"]=="axiom.work.status" for t in body["result"]["tools"])
         result=call(server,"axiom.project.status",{"project_id":"p1"})
         assert result["project_id"]=="p1"
-        assert result["resultType"]=="complete"
 
         state_pack=export_operator_state(bridge)
         bridge.close()
@@ -227,7 +229,8 @@ def main():
             state_pack=remote["state_pack"],tenant="tenant-remote",actor_id="owner-remote",
             headers=remote_status_headers,message=remote_status,
         )
-        assert remote2["body"]["result"]["project_id"]=="remote-p"
+        assert remote2["body"]["result"]["structuredContent"]["project_id"]=="remote-p"
+        assert remote2["body"]["result"]["isError"] is False
         assert remote2["mutated"] is False and remote2["state_pack"] is None
 
         daemon_root=root/"daemon"
@@ -253,7 +256,8 @@ def main():
             "Content-Type":"application/json",
         }
         dcode, _, dbody=daemon.handle("POST","/mcp",create_headers,json_bytes(create_msg))
-        assert dcode==200 and dbody["result"]["project_id"]=="daemon-p"
+        assert dcode==200 and dbody["result"]["structuredContent"]["project_id"]=="daemon-p"
+        assert dbody["result"]["isError"] is False
         # A new daemon instance must restore the full portable state from disk.
         daemon=OperatorDaemonApplication(
             root=daemon_root,
@@ -277,7 +281,8 @@ def main():
             "Content-Type":"application/json",
         }
         dcode, _, dbody=daemon.handle("POST","/mcp",status_headers,json_bytes(status_msg))
-        assert dcode==200 and dbody["result"]["project_id"]=="daemon-p"
+        assert dcode==200 and dbody["result"]["structuredContent"]["project_id"]=="daemon-p"
+        assert dbody["result"]["isError"] is False
         hcode, _, hbody=daemon.handle("GET","/health",{},b"")
         assert hcode==200 and hbody["durable_state"]=="LOCAL_ATOMIC_STATE_PACK_WITH_FILE_LOCK"
         ucode, _, ubody=daemon.handle("POST","/mcp",{**status_headers,"Authorization":"Bearer wrong-token"},json_bytes(status_msg))
