@@ -707,3 +707,87 @@ test('authorized external S3 handoff dispatches through mechanism-only Engineeri
   assert.equal(calls[0].input.external_action_authorized,true);
   assert.equal(calls[0].input.production_authority,false);
 });
+
+
+test('EngineeringWorkerBackend lifecycle receipts preserve dispatch bindings and treat provider status/result as non-authoritative data',async()=>{
+  const workerModule=await import('../product_intelligence/backends/governed_engineering_worker_backend.js');
+  const calls=[];
+  const transport={
+    async submit(){return {provider_work_id:'worker_job_lifecycle_12345678',status:'ACCEPTED'};},
+    async describe(input){calls.push({op:'describe',input:structuredClone(input)});return {status:'RUNNING'};},
+    async cancel(input){calls.push({op:'cancel',input:structuredClone(input)});return {accepted:true,status:'CANCEL_REQUESTED'};},
+    async result(input){calls.push({op:'result',input:structuredClone(input)});return {status:'COMPLETED',output:{artifact_sha256:'a'.repeat(64)},external_action_executed:true};},
+  };
+  const backend=workerModule.createGovernedEngineeringWorkerBackend({transport,provider:'axiom-isolated-worker'});
+  assert.equal(typeof backend.describeOperation,'function');
+  assert.equal(typeof backend.cancelOperation,'function');
+  assert.equal(typeof backend.getResult,'function');
+
+  const binding={
+    schema:'musitu.axiom.engineering-worker-lifecycle-request.v1',
+    project_id:projectId,
+    work_id:'work_12345678',
+    handoff_sha256:'1'.repeat(64),
+    request_sha256:'2'.repeat(64),
+    workload_identity_id:'workload_executor_1',
+    provider_work_id:'worker_job_lifecycle_12345678',
+    dispatch_receipt_sha256:'3'.repeat(64),
+    dispatch_idempotency_sha256:'4'.repeat(64),
+    production_authority:false,
+  };
+
+  const observation=await backend.describeOperation(binding);
+  assert.equal(observation.schema,'musitu.axiom.engineering-worker-observation-receipt.v1');
+  assert.equal(observation.project_id,projectId);
+  assert.equal(observation.provider_work_id,'worker_job_lifecycle_12345678');
+  assert.equal(observation.provider_status,'RUNNING');
+  assert.equal(observation.provider_data_authority,'UNTRUSTED_MECHANISM_DATA');
+  assert.equal(observation.external_action_executed,false);
+  assert.equal(observation.live_runtime_qualification,'NOT_PROVEN');
+  assert.equal(observation.authority_effect,'NONE');
+  assert.equal(observation.release_authority,false);
+  assert.equal(observation.production_authority,false);
+  assert.equal(observation.certification_authority,false);
+  assert.match(observation.receipt_sha256,/^[a-f0-9]{64}$/);
+
+  const cancellation=await backend.cancelOperation({...binding,reason:'operator requested governed cancellation'});
+  assert.equal(cancellation.schema,'musitu.axiom.engineering-worker-cancellation-request-receipt.v1');
+  assert.equal(cancellation.cancellation_request_accepted,true);
+  assert.equal(cancellation.provider_status,'CANCEL_REQUESTED');
+  assert.equal(cancellation.cancellation_effect,'NOT_PROVEN');
+  assert.equal(cancellation.external_action_executed,false);
+  assert.equal(cancellation.authority_effect,'NONE');
+  assert.equal(cancellation.release_authority,false);
+  assert.equal(cancellation.production_authority,false);
+  assert.equal(cancellation.certification_authority,false);
+  assert.match(cancellation.receipt_sha256,/^[a-f0-9]{64}$/);
+
+  const result=await backend.getResult(binding);
+  assert.equal(result.schema,'musitu.axiom.engineering-worker-result-receipt.v1');
+  assert.equal(result.provider_status,'COMPLETED');
+  assert.deepEqual(result.provider_output,{artifact_sha256:'a'.repeat(64)});
+  assert.match(result.provider_output_sha256,/^[a-f0-9]{64}$/);
+  assert.equal(result.provider_claimed_external_action_executed,true);
+  assert.equal(result.provider_data_authority,'UNTRUSTED_MECHANISM_DATA');
+  assert.equal(result.independent_verification,'NOT_PROVEN');
+  assert.equal(result.external_action_executed,false);
+  assert.equal(result.live_runtime_qualification,'NOT_PROVEN');
+  assert.equal(result.authority_effect,'NONE');
+  assert.equal(result.release_authority,false);
+  assert.equal(result.production_authority,false);
+  assert.equal(result.certification_authority,false);
+  assert.match(result.receipt_sha256,/^[a-f0-9]{64}$/);
+
+  assert.deepEqual(calls.map(row=>row.op),['describe','cancel','result']);
+  for(const call of calls){
+    assert.equal(call.input.project_id,projectId);
+    assert.equal(call.input.work_id,'work_12345678');
+    assert.equal(call.input.handoff_sha256,'1'.repeat(64));
+    assert.equal(call.input.request_sha256,'2'.repeat(64));
+    assert.equal(call.input.workload_identity_id,'workload_executor_1');
+    assert.equal(call.input.provider_work_id,'worker_job_lifecycle_12345678');
+    assert.equal(call.input.dispatch_receipt_sha256,'3'.repeat(64));
+    assert.equal(call.input.dispatch_idempotency_sha256,'4'.repeat(64));
+    assert.equal(call.input.production_authority,false);
+  }
+});
