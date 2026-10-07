@@ -350,6 +350,94 @@ try{
     invariant(integrity.status==='PASS',`process-kill recovery store integrity failed: ${integrity.errors.join(',')}`);
     store.db.close();
     out.textContent='MUSITU_AXIOM_PHASE2_BROWSER_PROCESS_KILL_ATOMICITY_PASS';
+  }else if(phase==='process-kill-failed-arm'){
+    const projectId='project_browser_process_kill_failed_12345678';
+    const authority=authorityFor(projectId);
+    const store=await GovernedExecutionStore.open();
+    const sandbox=await store.createSandbox(authority,{label:'Process-kill FAILED terminal transaction'});
+    const proposed=await store.propose(sandbox.sandbox_id,authority,{
+      operation:'worktree.create',
+      target:'main',
+      compute_units:1,
+      instruction_provenance:'GOVERNED_PLAN',
+      requested_at:'2026-10-07T04:05:00.000Z',
+    });
+    invariant(proposed.decision.status==='AUTHORIZED','process-kill FAILED request must be authorized');
+    localStorage.setItem('axiom_process_kill_failed_state',JSON.stringify({projectId,requestSha:proposed.request.request_sha256,sandboxId:sandbox.sandbox_id}));
+    const originalPut=IDBObjectStore.prototype.put;
+    IDBObjectStore.prototype.put=function(value,...args){
+      if(this.name==='events'&&value?.kind==='execution.failed'){
+        fetch('/__axiom_crash_ready',{method:'POST',body:'failed-terminal-transaction-open',keepalive:true}).catch(()=>{});
+        const until=performance.now()+15000;
+        while(performance.now()<until){}
+      }
+      return originalPut.call(this,value,...args);
+    };
+    out.textContent='MUSITU_AXIOM_PHASE2_BROWSER_PROCESS_KILL_FAILED_ARMED';
+    await store.execute(proposed.request.request_sha256,authority);
+    IDBObjectStore.prototype.put=originalPut;
+    out.textContent='MUSITU_AXIOM_PHASE2_BROWSER_IDEMPOTENCY_FAIL:Error:process was not killed during FAILED terminal transaction';
+  }else if(phase==='process-kill-failed-inspect'){
+    const projectId='project_browser_process_kill_failed_12345678';
+    const store=await GovernedExecutionStore.open();
+    const requests=await store._all('requests',projectId);
+    invariant(requests.length===1,`FAILED process-kill durable request count was ${requests.length}`);
+    const request=requests[0];
+    const failedReceipts=(await store._all('receipts',projectId)).filter(row=>row.request_sha256===request.request_sha256&&row.status==='FAILED');
+    const failedEvents=(await store._all('events',projectId)).filter(row=>row.kind==='execution.failed'&&row.payload?.request_sha256===request.request_sha256);
+    const claims=await store._all('execution_claims',projectId);
+    invariant(failedReceipts.length===0,`FAILED process kill leaked ${failedReceipts.length} receipts`);
+    invariant(failedEvents.length===0,`FAILED process kill leaked ${failedEvents.length} events`);
+    invariant(claims.length===1,`FAILED process kill expected one recoverable execution claim, got ${claims.length}`);
+    const integrity=await store.verify(projectId);
+    invariant(integrity.status==='PASS',`FAILED process-kill recovery store integrity failed: ${integrity.errors.join(',')}`);
+    store.db.close();
+    out.textContent='MUSITU_AXIOM_PHASE2_BROWSER_PROCESS_KILL_FAILED_ATOMICITY_PASS';
+  }else if(phase==='process-kill-blocked-arm'){
+    const projectId='project_browser_process_kill_blocked_12345678';
+    const authority=authorityFor(projectId);
+    const store=await GovernedExecutionStore.open();
+    const sandbox=await store.createSandbox(authority,{label:'Process-kill BLOCKED receipt/event transaction'});
+    const proposed=await store.propose(sandbox.sandbox_id,authority,{
+      operation:'repo.mutate',
+      target:'frontier/process-kill-blocked',
+      payload:{change_sha256:'a'.repeat(64)},
+      destination:'https://github.example.test/api/v1/change',
+      compute_units:1,
+      instruction_provenance:'GOVERNED_PLAN',
+      requested_at:'2026-10-07T04:06:00.000Z',
+    });
+    invariant(proposed.decision.status!=='AUTHORIZED','process-kill BLOCKED request must remain unauthorized');
+    localStorage.setItem('axiom_process_kill_blocked_state',JSON.stringify({projectId,requestSha:proposed.request.request_sha256,sandboxId:sandbox.sandbox_id}));
+    const originalPut=IDBObjectStore.prototype.put;
+    IDBObjectStore.prototype.put=function(value,...args){
+      if(this.name==='events'&&value?.kind==='execution.blocked'){
+        fetch('/__axiom_crash_ready',{method:'POST',body:'blocked-terminal-transaction-open',keepalive:true}).catch(()=>{});
+        const until=performance.now()+15000;
+        while(performance.now()<until){}
+      }
+      return originalPut.call(this,value,...args);
+    };
+    out.textContent='MUSITU_AXIOM_PHASE2_BROWSER_PROCESS_KILL_BLOCKED_ARMED';
+    await store.execute(proposed.request.request_sha256,authority);
+    IDBObjectStore.prototype.put=originalPut;
+    out.textContent='MUSITU_AXIOM_PHASE2_BROWSER_IDEMPOTENCY_FAIL:Error:process was not killed during BLOCKED transaction';
+  }else if(phase==='process-kill-blocked-inspect'){
+    const projectId='project_browser_process_kill_blocked_12345678';
+    const store=await GovernedExecutionStore.open();
+    const requests=await store._all('requests',projectId);
+    invariant(requests.length===1,`BLOCKED process-kill durable request count was ${requests.length}`);
+    const request=requests[0];
+    const blockedReceipts=(await store._all('receipts',projectId)).filter(row=>row.request_sha256===request.request_sha256&&row.status==='BLOCKED');
+    const blockedEvents=(await store._all('events',projectId)).filter(row=>row.kind==='execution.blocked'&&row.payload?.request_sha256===request.request_sha256);
+    const claims=await store._all('execution_claims',projectId);
+    invariant(blockedReceipts.length===0,`BLOCKED process kill leaked ${blockedReceipts.length} receipts`);
+    invariant(blockedEvents.length===0,`BLOCKED process kill leaked ${blockedEvents.length} events`);
+    invariant(claims.length===0,`BLOCKED process kill unexpectedly persisted ${claims.length} claims`);
+    const integrity=await store.verify(projectId);
+    invariant(integrity.status==='PASS',`BLOCKED process-kill recovery store integrity failed: ${integrity.errors.join(',')}`);
+    store.db.close();
+    out.textContent='MUSITU_AXIOM_PHASE2_BROWSER_PROCESS_KILL_BLOCKED_ATOMICITY_PASS';
   }else if(phase==='upgrade-v1-seed'){
     await deleteDb();
     const projectId='project_browser_upgrade_12345678';
