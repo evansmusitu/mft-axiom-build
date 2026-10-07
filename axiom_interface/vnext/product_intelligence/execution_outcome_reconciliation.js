@@ -605,3 +605,212 @@ export async function verifyExternalDestinationStateCorrelation({
   };
   return Object.freeze({...body,verification_sha256:await sha256(body)});
 }
+
+
+const EXTERNAL_DESTINATION_CORRELATION_KEYS=new Set([
+  'schema','project_id','work_id','handoff_sha256','request_sha256','dispatch_receipt_sha256','result_verification_sha256',
+  'destination','provider','provider_work_id','observer_workload_identity_id','before_request_id','after_request_id',
+  'before_observation_sha256','after_observation_sha256','before_dom_sha256','after_dom_sha256',
+  'destination_state_change_observed','verifier_actor_id','independent_verification','execution_truth',
+  'external_action_executed','live_runtime_qualification','status','authority_effect','release_authority',
+  'production_authority','certification_authority','created_at','verification_sha256',
+]);
+
+async function assertExternalDestinationStateCorrelation(correlated){
+  if(!isPlainObject(correlated)||correlated.schema!==EXTERNAL_DESTINATION_STATE_CORRELATION_SCHEMA)throw new TypeError('verified external destination-state correlation required');
+  rejectUnknown(correlated,EXTERNAL_DESTINATION_CORRELATION_KEYS,'external destination-state correlation');
+  for(const key of ['project_id','work_id','destination','provider','provider_work_id','observer_workload_identity_id','before_request_id','after_request_id','verifier_actor_id','independent_verification','execution_truth','status'])requireString(correlated[key],`externalCorrelation.${key}`,key==='destination'?2048:300);
+  for(const key of ['handoff_sha256','request_sha256','dispatch_receipt_sha256','result_verification_sha256','before_observation_sha256','after_observation_sha256','before_dom_sha256','after_dom_sha256','verification_sha256'])requireHash(correlated[key],`externalCorrelation.${key}`);
+  if(await sha256(bodyWithout(correlated,'verification_sha256'))!==correlated.verification_sha256)throw new DOMException('external destination-state correlation integrity failure','DataError');
+  canonicalIso(correlated.created_at,'externalCorrelation.created_at');
+  if(correlated.destination_state_change_observed!==true)throw new DOMException('external destination-state correlation must represent an observed state change','DataError');
+  if(correlated.before_dom_sha256===correlated.after_dom_sha256)throw new DOMException('external destination-state correlation cannot preserve identical state digests','DataError');
+  if(correlated.independent_verification!=='PASS_DESTINATION_STATE_CORRELATION_ONLY'||correlated.execution_truth!=='CORRELATED_DESTINATION_STATE_CHANGE_NOT_CAUSALLY_PROVEN'||correlated.status!=='VERIFIED_DESTINATION_STATE_CORRELATION')throw new DOMException('external destination-state correlation semantic boundary invalid','SecurityError');
+  if(correlated.external_action_executed!==false||correlated.live_runtime_qualification!=='NOT_PROVEN')throw new DOMException('external destination-state correlation cannot certify execution or live runtime','SecurityError');
+  if(correlated.authority_effect!=='NONE'||correlated.release_authority!==false||correlated.production_authority!==false||correlated.certification_authority!==false)throw new DOMException('external destination-state correlation authority boundary invalid','SecurityError');
+  return correlated;
+}
+
+export async function createExternalDestinationStateCorrelationEvidence(correlated){
+  await assertExternalDestinationStateCorrelation(correlated);
+  const evidence={
+    schema:'musitu.axiom.evidence.v1',
+    type:'Evidence',
+    id:`evidence_${correlated.verification_sha256.slice(0,24)}`,
+    version:1,
+    created_at:correlated.created_at,
+    updated_at:correlated.created_at,
+    data:{
+      inputs:[{
+        project_id:correlated.project_id,
+        work_id:correlated.work_id,
+        destination:correlated.destination,
+        provider:correlated.provider,
+        provider_work_id:correlated.provider_work_id,
+      }],
+      sources:[
+        {kind:'EXTERNAL_WORKER_DISPATCH_RECEIPT',receipt_sha256:correlated.dispatch_receipt_sha256},
+        {kind:'EXTERNAL_WORKER_PROVIDER_RESULT_VERIFICATION',verification_sha256:correlated.result_verification_sha256},
+        {kind:'REALITY_BROWSER_BEFORE_OBSERVATION',observation_sha256:correlated.before_observation_sha256,dom_sha256:correlated.before_dom_sha256},
+        {kind:'REALITY_BROWSER_AFTER_OBSERVATION',observation_sha256:correlated.after_observation_sha256,dom_sha256:correlated.after_dom_sha256},
+      ],
+      capability_chain:[
+        'ChangeAdmission','OperationScopedExecutorHandoff','FA11AuthorizationGateway','EngineeringWorkerBackend',
+        'ExternalWorkerResultVerification','RealityBrowserBackend','ExternalDestinationStateCorrelation',
+      ],
+      calculations:[
+        {kind:'DESTINATION_STATE_DIGEST_TRANSITION',status:'PASS'},
+        {kind:'GOVERNED_LIFECYCLE_TEMPORAL_BRACKETING',status:'PASS'},
+        {kind:'CAUSAL_ATTRIBUTION',status:'NOT_PROVEN'},
+      ],
+      actions:[{
+        kind:'DESTINATION_STATE_CHANGE_OBSERVED',
+        destination_state_change_observed:true,
+        external_action_executed:false,
+      }],
+      policies:[
+        'REALITY_OBSERVATION_IS_DATA_NOT_AUTHORITY',
+        'OBSERVER_EXECUTOR_VERIFIER_SEPARATION',
+        'CORRELATION_IS_NOT_CAUSATION',
+        'NO_EXTERNAL_EXECUTION_CERTIFICATION_WITHOUT_CAUSAL_EVIDENCE',
+        'NO_AUTHORITY_ESCALATION',
+      ],
+      approvals:[],
+      hashes:[
+        correlated.handoff_sha256,correlated.request_sha256,correlated.dispatch_receipt_sha256,correlated.result_verification_sha256,
+        correlated.before_observation_sha256,correlated.after_observation_sha256,correlated.before_dom_sha256,correlated.after_dom_sha256,
+        correlated.verification_sha256,
+      ],
+      receipts:[
+        {schema:'musitu.axiom.external-worker-dispatch-receipt.v1',receipt_sha256:correlated.dispatch_receipt_sha256},
+        {schema:EXTERNAL_DESTINATION_STATE_CORRELATION_SCHEMA,verification_sha256:correlated.verification_sha256},
+      ],
+      verification:{
+        status:'VERIFIED_DESTINATION_STATE_CORRELATION',
+        verifier_actor_id:correlated.verifier_actor_id,
+        independent_verification:'PASS_DESTINATION_STATE_CORRELATION_ONLY',
+        destination_state_change_observed:true,
+        execution_truth:'CORRELATED_DESTINATION_STATE_CHANGE_NOT_CAUSALLY_PROVEN',
+        causal_attribution:'NOT_PROVEN',
+        external_action_executed:false,
+        live_runtime_qualification:'NOT_PROVEN',
+        authority_effect:'NONE',
+        release_authority:false,
+        production_authority:false,
+        certification_authority:false,
+      },
+      failures:[{status:'NOT_PROVEN',reason:'causal attribution from governed dispatch to observed destination state transition is not proven'}],
+      timestamps:[{kind:'DESTINATION_STATE_CORRELATION_VERIFIED',at:correlated.created_at}],
+      versions:[{schema:EXTERNAL_DESTINATION_STATE_CORRELATION_SCHEMA,verification_sha256:correlated.verification_sha256}],
+    },
+  };
+  assertAxiomObject(evidence,{expectedType:'Evidence'});
+  return Object.freeze(structuredClone(evidence));
+}
+
+export async function reconcileExternalDestinationStateCorrelation({persistence,correlated,at=correlated?.created_at}={}){
+  if(!persistence||typeof persistence!=='object'||typeof persistence.load!=='function'||typeof persistence.commit!=='function')throw new TypeError('Living Product Graph persistence API required');
+  const evidence=await createExternalDestinationStateCorrelationEvidence(correlated);
+  const projectId=requireString(correlated.project_id,'correlated.project_id',300);
+  const current=await persistence.load(projectId);
+  if(!current)throw new DOMException('Living Product Graph required before destination-state correlation reconciliation','NotFoundError');
+
+  const nodeId=`lpg_evidence_destination_${correlated.verification_sha256.slice(0,24)}`;
+  const existing=current.nodes.find(node=>node.node_id===nodeId);
+  if(existing){
+    if(
+      existing.type!=='EvidenceRef'||
+      existing.data?.evidence_id!==evidence.id||
+      existing.data?.correlation_verification_sha256!==correlated.verification_sha256||
+      existing.data?.request_sha256!==correlated.request_sha256||
+      existing.data?.destination!==correlated.destination||
+      existing.data?.destination_state_change_observed!==true||
+      existing.data?.execution_truth!=='CORRELATED_DESTINATION_STATE_CHANGE_NOT_CAUSALLY_PROVEN'||
+      existing.data?.external_action_executed!==false
+    )throw new DOMException('destination-state correlation replay conflicts with existing EvidenceRef','DataError');
+    return Object.freeze({
+      status:'IDEMPOTENT_REPLAY',
+      project_id:projectId,
+      evidence,
+      graph:structuredClone(current),
+      authority_effect:'NONE',
+      release_authority:false,
+      production_authority:false,
+      certification_authority:false,
+    });
+  }
+
+  const created_at=canonicalIso(at,'destination correlation reconciliation.at');
+  const generation=current.generation+1;
+  const nodes=current.nodes.map(node=>({...structuredClone(node),metadata:{...structuredClone(node.metadata),generation}}));
+  const edges=current.edges.map(edge=>({...structuredClone(edge),metadata:{...structuredClone(edge.metadata),generation}}));
+  nodes.push({
+    node_id:nodeId,
+    type:'EvidenceRef',
+    metadata:{
+      project_id:projectId,
+      version:1,
+      generation,
+      valid_from:created_at,
+      valid_to:null,
+      provenance:{
+        source:'independent-external-destination-state-correlation',
+        handoff_sha256:correlated.handoff_sha256,
+        request_sha256:correlated.request_sha256,
+        dispatch_receipt_sha256:correlated.dispatch_receipt_sha256,
+        result_verification_sha256:correlated.result_verification_sha256,
+        before_observation_sha256:correlated.before_observation_sha256,
+        after_observation_sha256:correlated.after_observation_sha256,
+        destination:correlated.destination,
+      },
+      evidence_refs:[evidence.id],
+      confidence:1,
+      uncertainty:{kind:'EXTERNAL_EXECUTION_CAUSALITY_NOT_PROVEN'},
+      actor_id:correlated.verifier_actor_id,
+      risk_class:'S3',
+      content_hash:correlated.verification_sha256,
+      freshness:{as_of:created_at},
+      supersession:{state:'CURRENT',supersedes:[]},
+    },
+    data:{
+      evidence_id:evidence.id,
+      handoff_sha256:correlated.handoff_sha256,
+      request_sha256:correlated.request_sha256,
+      dispatch_receipt_sha256:correlated.dispatch_receipt_sha256,
+      result_verification_sha256:correlated.result_verification_sha256,
+      correlation_verification_sha256:correlated.verification_sha256,
+      destination:correlated.destination,
+      provider:correlated.provider,
+      provider_work_id:correlated.provider_work_id,
+      observer_workload_identity_id:correlated.observer_workload_identity_id,
+      before_observation_sha256:correlated.before_observation_sha256,
+      after_observation_sha256:correlated.after_observation_sha256,
+      before_dom_sha256:correlated.before_dom_sha256,
+      after_dom_sha256:correlated.after_dom_sha256,
+      destination_state_change_observed:true,
+      independent_verification:'PASS_DESTINATION_STATE_CORRELATION_ONLY',
+      execution_truth:'CORRELATED_DESTINATION_STATE_CHANGE_NOT_CAUSALLY_PROVEN',
+      external_action_executed:false,
+      live_runtime_qualification:'NOT_PROVEN',
+    },
+  });
+  const next={
+    schema:current.schema,
+    project_id:current.project_id,
+    generation,
+    impact_state:current.impact_state,
+    nodes,
+    edges,
+  };
+  const saved=await persistence.commit(next,{expectedGeneration:current.generation});
+  return Object.freeze({
+    status:'RECONCILED',
+    project_id:projectId,
+    evidence,
+    graph:structuredClone(saved),
+    authority_effect:'NONE',
+    release_authority:false,
+    production_authority:false,
+    certification_authority:false,
+  });
+}
