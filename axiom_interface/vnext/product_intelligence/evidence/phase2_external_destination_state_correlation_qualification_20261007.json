@@ -1,0 +1,155 @@
+{
+  "schema": "musitu.axiom.phase2.external-destination-state-correlation-qualification.v1",
+  "record_type": "PHASE2_QUALIFICATION_EVIDENCE",
+  "slice": "Independent External Destination-State Correlation + Evidence Reconciliation",
+  "branch": "frontier/axiom-product-intelligence-phase2-20261004",
+  "parent_sealed_boundary": {
+    "external_worker_lifecycle_result_reconciliation_evidence_commit": "1fe05666e9f03e5c5e68d348786e6a9e7f8bce4a",
+    "repository_contract_status": "SEALED",
+    "external_action_executed": false,
+    "live_runtime_qualification": "NOT_PROVEN"
+  },
+  "governance_snapshot": {
+    "main_sha": "d6a846f6bbe0bccac1758713eb4de167caf07113",
+    "fa20_sha": "21d087f0fdebffd4cfb4065286aa16696fcec9c0",
+    "phase2_preseal_sha": "eebed89c3c6fb4dd7d5d453f5b60d0537bb1f69b",
+    "pr_1_state": "open",
+    "pr_1_draft": true,
+    "pr_1_merged_at": null,
+    "main_mutated": false,
+    "production_mutated": false,
+    "frozen_openai_surface_mutated": false
+  },
+  "implementation_blobs": {
+    "execution_outcome_reconciliation": "b8eecbc4e69231b8b4f2f0fe23baa8caac1ba0c2",
+    "living_product_graph": "060b98ed3cb38163efc8c9cdcb7274e5f780b87a",
+    "living_product_graph_tests": "df4d08b769d24f98c769a0284e7ce5366eaf8803",
+    "phase2_gate": "f9077f2363622ad062077a958036180eee46386f"
+  },
+  "tdd_history": [
+    {
+      "cycle": "DESTINATION_STATE_CORRELATION_VERIFICATION",
+      "red": {
+        "commit": "0c50dfe9e37ea4e939432b12d6a6696e1ef51593",
+        "run_id": 37681273926,
+        "focused_job_id": 112997648083,
+        "observation": "23/24 Living Product Graph tests PASS; new test failed because verifyExternalDestinationStateCorrelation was undefined",
+        "expected_failure": true
+      },
+      "green": {
+        "commit": "bd984bbd99089696ead1414602d027d9c36ccfa5",
+        "run_id": 37681625715,
+        "focused_job_id": 112998852215,
+        "independent_job_id": 112999176087,
+        "focused_living_product_graph": "24/24_PASS",
+        "independent_replay": "163/163_PASS",
+        "browser_durability": "PASS",
+        "authority_fail_closed": "PASS",
+        "release_authority": false,
+        "production_authority": false,
+        "certification_authority": false
+      }
+    },
+    {
+      "cycle": "DESTINATION_STATE_CORRELATION_EVIDENCE_RECONCILIATION",
+      "red": {
+        "commit": "401afc75b5d2428870c12ebe359b35e73d62270c",
+        "run_id": 37681998143,
+        "focused_job_id": 113000122357,
+        "observation": "24/25 Living Product Graph tests PASS; new test failed because createExternalDestinationStateCorrelationEvidence was undefined",
+        "expected_failure": true
+      },
+      "green": {
+        "commit": "2c7d0da53c306cda602297c73630482a21c784ab",
+        "run_id": 37682229721,
+        "focused_job_id": 113000924240,
+        "independent_job_id": 113001294228,
+        "focused_living_product_graph": "25/25_PASS",
+        "independent_replay": "164/164_PASS",
+        "browser_durability": "PASS",
+        "authority_fail_closed": "PASS",
+        "release_authority": false,
+        "production_authority": false,
+        "certification_authority": false
+      }
+    }
+  ],
+  "gate_hardening": {
+    "commit": "eebed89c3c6fb4dd7d5d453f5b60d0537bb1f69b",
+    "run_id": 37682603385,
+    "focused_job_id": 113002207217,
+    "independent_job_id": 113002662844,
+    "focused_living_product_graph": "25/25_PASS",
+    "focused_change_admission": "21/21_PASS",
+    "independent_replay": "164/164_PASS",
+    "browser_durability": "PASS",
+    "provider_authority_fail_closed": "PASS",
+    "slice_verification": "PASS",
+    "required_static_markers": [
+      "EXTERNAL_DESTINATION_STATE_CORRELATION_SCHEMA",
+      "PASS_DESTINATION_STATE_CORRELATION_ONLY",
+      "CORRELATED_DESTINATION_STATE_CHANGE_NOT_CAUSALLY_PROVEN",
+      "reconcileExternalDestinationStateCorrelation",
+      "EXTERNAL_EXECUTION_CAUSALITY_NOT_PROVEN",
+      "external_action_executed:false",
+      "live_runtime_qualification:'NOT_PROVEN'"
+    ],
+    "release_authority": false,
+    "production_authority": false,
+    "certification_authority": false
+  },
+  "semantic_boundary": {
+    "admitted_risk_class": "S3_EXTERNAL_REVERSIBLE_ONLY_VIA_PRIOR_GOVERNED_DISPATCH",
+    "observer_mechanism": "RealityBrowserBackend",
+    "observer_authority": "MECHANISM_ONLY_READ_ONLY",
+    "exact_destination_binding": true,
+    "independent_observer_required": true,
+    "independent_correlation_verifier_required": true,
+    "governed_lifecycle_temporal_bracketing_required": true,
+    "before_after_state_digest_change_required": true,
+    "destination_state_change_observed_contract": true,
+    "independent_verification": "PASS_DESTINATION_STATE_CORRELATION_ONLY",
+    "execution_truth": "CORRELATED_DESTINATION_STATE_CHANGE_NOT_CAUSALLY_PROVEN",
+    "causal_attribution": "NOT_PROVEN",
+    "external_action_executed": false,
+    "live_runtime_qualification": "NOT_PROVEN",
+    "provider_report_authority": "UNTRUSTED_MECHANISM_DATA",
+    "causal_graph_edge_added": false,
+    "external_attested_causal_semantics_claimed": false,
+    "release_authority": false,
+    "production_authority": false,
+    "certification_authority": false
+  },
+  "qualification_truth": {
+    "repository_contract_qualification": "PASS_PRESEAL",
+    "independent_destination_state_correlation_contract": "PASS",
+    "evidence_object_creation": "PASS",
+    "living_product_graph_reconciliation": "PASS_NON_CAUSAL_EVIDENCE_REF",
+    "replay_idempotency": "PASS",
+    "external_side_effect_execution": "NOT_PROVEN",
+    "causal_execution_attribution": "NOT_PROVEN",
+    "destination_native_mutation_receipt": "NOT_PROVEN",
+    "operation_specific_readback_match": "NOT_PROVEN",
+    "external_worker_live_runtime": "NOT_PROVEN",
+    "production_external_worker_integration": "NOT_PROVEN",
+    "production_side_effect_idempotency": "NOT_PROVEN",
+    "provider_selected": false,
+    "runtime_activation_authorized": false,
+    "release_authority": false,
+    "production_authority": false,
+    "certification_authority": false,
+    "wolfram_parity": "NOT_CERTIFIED",
+    "superiority": "NOT_CERTIFIED"
+  },
+  "tdd_integrity": {
+    "primary_new_behaviors_observed_red_first": true,
+    "assertions_weakened_to_pass": false,
+    "authority_thresholds_lowered": false,
+    "note": "Defensive schema, identity-separation, temporal-order and destination-binding checks were added during GREEN hardening; the two primary public behaviors were each observed failing before implementation."
+  },
+  "self_certification": {
+    "builder_self_certification": false,
+    "evidence_record_self_certifying": false,
+    "post_commit_independent_qualification_required": true
+  }
+}
