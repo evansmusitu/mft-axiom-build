@@ -1255,3 +1255,100 @@ test('destination-native mutation receipt plus operation-specific readback stren
     /integrity|hash|state|readback|receipt/i,
   );
 });
+
+
+test('verified destination mutation evidence reconciles as not-live-qualified EvidenceRef and replays idempotently',async()=>{
+  const module=await import('../product_intelligence/living_product_graph.js');
+  const security=await import('../execution_security.js');
+  assert.equal(typeof module.createExternalDestinationMutationEvidence,'function');
+  assert.equal(typeof module.reconcileExternalDestinationMutationEvidence,'function');
+
+  const body={
+    schema:'musitu.axiom.external-destination-mutation-evidence-verification.v1',
+    project_id:'project_12345678',
+    work_id:'work_12345678',
+    handoff_sha256:'1'.repeat(64),
+    request_sha256:'2'.repeat(64),
+    dispatch_receipt_sha256:'3'.repeat(64),
+    correlation_verification_sha256:'4'.repeat(64),
+    native_mutation_receipt_sha256:'5'.repeat(64),
+    operation_readback_sha256:'6'.repeat(64),
+    destination:'https://example.invalid/app',
+    operation:'repo.mutate',
+    mutation_id:'destination_mutation_12345678',
+    destination_native_mutation_receipt_verified:true,
+    operation_specific_readback_match:true,
+    before_state_sha256:'7'.repeat(64),
+    after_state_sha256:'8'.repeat(64),
+    verifier_actor_id:'agent_native_mutation_verifier_5',
+    evidence_strength:'DESTINATION_NATIVE_RECEIPT_PLUS_OPERATION_READBACK',
+    independent_verification:'PASS_NATIVE_RECEIPT_AND_OPERATION_READBACK_ONLY',
+    causal_attribution:'STRONG_EVIDENCE_NOT_LIVE_QUALIFIED',
+    execution_truth:'NOT_LIVE_QUALIFIED',
+    external_action_executed:false,
+    live_runtime_qualification:'NOT_PROVEN',
+    status:'VERIFIED_DESTINATION_MUTATION_EVIDENCE',
+    authority_effect:'NONE',
+    release_authority:false,
+    production_authority:false,
+    certification_authority:false,
+    created_at:'2026-10-07T20:05:00.000Z',
+  };
+  const verified={...body,verification_sha256:await security.sha256(body)};
+  const evidence=await module.createExternalDestinationMutationEvidence(verified);
+  assert.equal(evidence.schema,'musitu.axiom.evidence.v1');
+  assert.equal(evidence.type,'Evidence');
+  assert.equal(evidence.data.verification.status,'VERIFIED_DESTINATION_MUTATION_EVIDENCE');
+  assert.equal(evidence.data.verification.destination_native_mutation_receipt_verified,true);
+  assert.equal(evidence.data.verification.operation_specific_readback_match,true);
+  assert.equal(evidence.data.verification.execution_truth,'NOT_LIVE_QUALIFIED');
+  assert.equal(evidence.data.verification.external_action_executed,false);
+  assert.equal(evidence.data.verification.live_runtime_qualification,'NOT_PROVEN');
+
+  const rows=new Map([['project_12345678',graph()]]);
+  let commits=0;
+  const backend={
+    descriptor:{
+      kind:'PersistenceBackend',adapter_version:'1.0.0',provider:'destination-mutation-memory',semantic_owner:'AXIOM',authority:'MECHANISM_ONLY',
+      capabilities:['load','commit','verify','export'],unsupported_operations:['production_mutation'],timeout_ms:1000,
+      retry:{max_attempts:1,backoff:'NONE'},idempotency:{mode:'REQUIRED_FOR_WRITES'},data_classification:['project-private'],
+      egress:{required:false,allowed_origins:[]},identity_binding:{required:true,mode:'AXIOM_WORKLOAD_ID'},
+      evidence_envelope:{schema:'musitu.axiom.evidence.v1',required:true},health:{mode:'EXPLICIT'},migration_export:{supported:true,format:'JSONL'},fail_closed:true,
+    },
+    async loadProjectGraph(projectId){return structuredClone(rows.get(projectId)??null);},
+    async commitGraph(projectId,value,{expectedGeneration}){
+      const prior=rows.get(projectId);
+      assert.equal(prior?.generation??0,expectedGeneration);
+      commits+=1;
+      rows.set(projectId,structuredClone(value));
+      return structuredClone(value);
+    },
+    async verifyIntegrity(projectId){return {status:rows.has(projectId)?'PASS':'NOT_PROVEN',project_id:projectId};},
+    async exportProject(projectId){return {project_id:projectId,graph:structuredClone(rows.get(projectId)??null)};},
+  };
+  const persistence=module.createLivingProductGraphPersistence(backend);
+  const first=await module.reconcileExternalDestinationMutationEvidence({persistence,verified,at:verified.created_at});
+  assert.equal(first.status,'RECONCILED');
+  assert.equal(first.graph.generation,2);
+  assert.equal(commits,1);
+  assert.equal(first.authority_effect,'NONE');
+  assert.equal(first.release_authority,false);
+  assert.equal(first.production_authority,false);
+  assert.equal(first.certification_authority,false);
+
+  const node=first.graph.nodes.find(row=>row.type==='EvidenceRef'&&row.data?.mutation_evidence_verification_sha256===verified.verification_sha256);
+  assert.ok(node);
+  assert.equal(node.data.destination_native_mutation_receipt_verified,true);
+  assert.equal(node.data.operation_specific_readback_match,true);
+  assert.equal(node.data.execution_truth,'NOT_LIVE_QUALIFIED');
+  assert.equal(node.data.external_action_executed,false);
+  assert.equal(node.data.live_runtime_qualification,'NOT_PROVEN');
+  assert.equal(node.metadata.risk_class,'S3');
+  assert.equal(node.metadata.uncertainty.kind,'LIVE_EXTERNAL_EXECUTION_NOT_QUALIFIED');
+
+  const replay=await module.reconcileExternalDestinationMutationEvidence({persistence,verified,at:verified.created_at});
+  assert.equal(replay.status,'IDEMPOTENT_REPLAY');
+  assert.equal(replay.graph.generation,2);
+  assert.equal(replay.evidence.id,first.evidence.id);
+  assert.equal(commits,1);
+});
