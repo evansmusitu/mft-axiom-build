@@ -243,6 +243,19 @@ class MCP2026Server:
             is_error=True,
         )
 
+    @staticmethod
+    def _looks_like_call_tool_result(result: Mapping[str, Any]) -> bool:
+        content = result.get("content")
+        if not isinstance(content, list) or not content:
+            return False
+        for item in content:
+            if not isinstance(item, Mapping):
+                return False
+            part_type = item.get("type")
+            if not isinstance(part_type, str) or not part_type.strip():
+                return False
+        return True
+
     def _validated_call_tool_result(
         self,
         request_id: Any,
@@ -349,7 +362,7 @@ class MCP2026Server:
                 message="Tool execution failed.",
             )
         result = dict(_mapping(raw_result, "tool result"))
-        if "content" in result:
+        if self._looks_like_call_tool_result(result):
             return self._validated_call_tool_result(request_id, result)
         return self._call_tool_result(request_id, result, is_error=False)
 
