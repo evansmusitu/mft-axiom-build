@@ -1,0 +1,85 @@
+{
+  "schema": "musitu.axiom.phase2.external-worker-lifecycle-result-reconciliation-postseal-qualification.v1",
+  "record_type": "PHASE2_POSTSEAL_QUALIFICATION_EVIDENCE",
+  "scope": "GOVERNED_EXTERNAL_WORKER_LIFECYCLE_AND_PROVIDER_REPORT_RECONCILIATION",
+  "branch": "frontier/axiom-product-intelligence-phase2-20261004",
+  "prior_evidence_commit": "1f8763803574a7223431145cc8f731d87314d364",
+  "repaired_qualified_head": "b3afeeaf83129628d38c720513c6aa210acf1cc7",
+  "governance_snapshot": {
+    "main_sha": "d6a846f6bbe0bccac1758713eb4de167caf07113",
+    "fa20_sha": "21d087f0fdebffd4cfb4065286aa16696fcec9c0",
+    "pr_1_state": "open",
+    "pr_1_draft": true,
+    "pr_1_merged_at": null,
+    "main_mutated": false,
+    "production_mutated": false,
+    "frozen_openai_surface_mutated": false
+  },
+  "prior_evidence": {
+    "path": "axiom_interface/vnext/product_intelligence/evidence/phase2_governed_external_worker_lifecycle_result_reconciliation_qualification_20261007.json",
+    "blob_sha": "c0a5f62e78d557bb96e0a99e29019325b961d980",
+    "post_commit_independent_qualification_required": true
+  },
+  "evidence_seal_run": {
+    "run_id": 37673773471,
+    "focused_job_id": 112972633870,
+    "conclusion": "FAIL_INFRASTRUCTURE_STARTUP_TIMING",
+    "product_contract_failure": false,
+    "browser_failure": "CDP endpoint unavailable: fetch failed",
+    "browser_runtime": "Google Chrome 154.0.8037.97",
+    "failed_wait_ms": 10000,
+    "authority_or_assertion_weakened": false
+  },
+  "repair": {
+    "commit": "b3afeeaf83129628d38c720513c6aa210acf1cc7",
+    "file": "axiom_interface/vnext/tests/run_browser_execution_idempotency.mjs",
+    "change": "CDP startup wait only",
+    "before_wait_ms": 10000,
+    "after_wait_ms": 30000,
+    "product_behavior_changed": false,
+    "security_boundary_changed": false,
+    "test_assertions_weakened": false,
+    "authority_boundary_weakened": false
+  },
+  "postseal_qualification": {
+    "run_id": 37674166325,
+    "focused_job_id": 112973237964,
+    "independent_job_id": 112973565579,
+    "workflow_conclusion": "success",
+    "focused_change_admission": "21/21_PASS",
+    "focused_living_product_graph": "23/23_PASS",
+    "independent_replay": "162/162_PASS",
+    "browser_durability": "PASS",
+    "provider_authority_fail_closed": "PASS",
+    "slice_verification": "PASS",
+    "release_authority": false,
+    "production_authority": false,
+    "certification_authority": false
+  },
+  "qualification_truth": {
+    "repository_contract_qualification": "PASS",
+    "lifecycle_receipts": "PASS",
+    "provider_report_binding_integrity": "PASS",
+    "provider_report_reconciliation": "PASS_REPORT_ONLY",
+    "external_side_effect_execution": "NOT_PROVEN",
+    "external_worker_live_runtime": "NOT_PROVEN",
+    "production_external_worker_integration": "NOT_PROVEN",
+    "cancellation_effectiveness": "NOT_PROVEN",
+    "production_side_effect_idempotency": "NOT_PROVEN",
+    "external_approval_receipt_authenticity": "NOT_PROVEN",
+    "provider_selected": false,
+    "runtime_activation_authorized": false,
+    "external_action_executed": false,
+    "live_runtime_qualification": "NOT_PROVEN",
+    "release_authority": false,
+    "production_authority": false,
+    "certification_authority": false,
+    "wolfram_parity": "NOT_CERTIFIED",
+    "superiority": "NOT_CERTIFIED"
+  },
+  "self_certification": {
+    "builder_self_certification": false,
+    "evidence_record_self_certifying": false,
+    "post_commit_independent_qualification_required": true
+  }
+}
