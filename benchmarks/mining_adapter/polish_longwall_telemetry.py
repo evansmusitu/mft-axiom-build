@@ -184,8 +184,10 @@ def _sha256(value: Any) -> bool:
 
 
 def evaluate_longwall_gate(spec: LongwallTelemetrySpec, report: Mapping[str,Any]) -> dict[str,Any]:
+    transport_ok=report.get("transport_source") in {"mendeley","openml:42701"}
     source_bound=(
-        report.get("dataset_id")==spec.dataset_id
+        transport_ok
+        and report.get("dataset_id")==spec.dataset_id
         and int(report.get("dataset_version") or 0)==spec.dataset_version
         and report.get("doi")==spec.doi
         and report.get("license")==spec.license
@@ -214,7 +216,7 @@ def evaluate_longwall_gate(spec: LongwallTelemetrySpec, report: Mapping[str,Any]
         "real_telemetry_qualified":qualified,
         "gate":"REAL_MINE_TELEMETRY_QUALIFIED" if qualified else "REAL_MINE_TELEMETRY_FAILED",
         "checks":{
-            "cc_by_source_binding":"PASS" if source_bound else "FAIL",
+            "verified_transport_and_cc_by_source_binding":"PASS" if source_bound else "FAIL",
             "full_corpus_schema_and_warning_evidence":"PASS" if corpus_ok else "FAIL",
             "million_row_signed_durable_replay":"PASS" if durable_ok else "FAIL",
             "no_credentials_or_hidden_errors":"PASS" if safe else "FAIL",
