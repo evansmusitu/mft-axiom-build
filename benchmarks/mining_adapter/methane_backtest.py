@@ -124,14 +124,13 @@ def build_windowed_prediction_examples(
         window.append((source_index,raw,stamp))
         if len(window)<total_span:
             continue
-        materialized=list(window)
-        candidate_index,candidate,candidate_time=materialized[candidate_position]
+        candidate_index,candidate,candidate_time=window[candidate_position]
         if candidate_index % spec.sample_stride_seconds != 0:
             continue
 
-        history_time=materialized[0][2]
-        future_start=materialized[candidate_position+spec.horizon_start_seconds][2]
-        future_end=materialized[candidate_position+spec.horizon_end_seconds][2]
+        history_time=window[0][2]
+        future_start=window[candidate_position+spec.horizon_start_seconds][2]
+        future_end=window[candidate_position+spec.horizon_end_seconds][2]
         if candidate_time-history_time != timedelta(seconds=spec.history_seconds):
             continue
         if future_start-candidate_time != timedelta(seconds=spec.horizon_start_seconds):
@@ -139,6 +138,7 @@ def build_windowed_prediction_examples(
         if future_end-candidate_time != timedelta(seconds=spec.horizon_end_seconds):
             continue
 
+        materialized=list(window)
         label=False
         for index in range(
             candidate_position+spec.horizon_start_seconds,
