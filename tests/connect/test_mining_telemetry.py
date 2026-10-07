@@ -22,7 +22,7 @@ def telemetry_row():
     row["MM263"]=0.7
     row["MM264"]=0.8
     row["MM256"]=0.9
-    row["F_SIDE"]=0.5
+    row["F_SIDE"]="right"
     return row
 
 
@@ -62,7 +62,13 @@ class MiningTelemetryTests(unittest.TestCase):
         record=envelope.records[0]
         self.assertEqual(set(record),{"event_time",*MINING_TELEMETRY_SENSORS})
         self.assertEqual(record["MM263"],0.7)
-        self.assertEqual(record["F_SIDE"],0.5)
+        self.assertEqual(record["F_SIDE"],"right")
+
+    def test_operational_direction_channel_is_preserved_as_non_numeric_state(self):
+        row=telemetry_row()
+        row["F_SIDE"]="left"
+        envelope=normalize_mining_telemetry_rows([row])
+        self.assertEqual(envelope.records[0]["F_SIDE"],"left")
 
     def test_normalizer_preserves_real_outliers_but_rejects_nonfinite_values(self):
         row=telemetry_row()
