@@ -19,12 +19,10 @@ from benchmarks.mining_adapter.methane_backtest import (
     MethaneBacktestSpec,
     build_windowed_prediction_examples,
     evaluate_backtest_gate,
+    online_recalibrated_predictions,
     rolling_backtest_folds,
 )
-from benchmarks.mining_adapter.methane_prediction import (
-    binary_metrics,
-    select_operating_threshold,
-)
+from benchmarks.mining_adapter.methane_prediction import binary_metrics
 from benchmarks.mining_adapter.polish_longwall_telemetry import (
     _arff_attributes_and_data,
     canonical_telemetry_row,
@@ -124,21 +122,27 @@ def run(*, source: Path, spec: MethaneBacktestSpec) -> dict[str,Any]:
         train_seconds=time.perf_counter()-train_started
 
         calibration_scores=model.predict_proba(X_cal)[:,1]
-        operating=select_operating_threshold(
-            y_cal.tolist(),
-            calibration_scores.tolist(),
-            minimum_recall=spec.calibration_recall_target,
-        )
-        threshold=float(operating["threshold"])
 
         score_started=time.perf_counter()
         scores=model.predict_proba(X_test)[:,1]
         score_seconds=time.perf_counter()-score_started
-        predicted=(scores>=threshold).astype(np.uint8)
+        online=online_recalibrated_predictions(
+            calibration_examples=calibration,
+            calibration_scores=calibration_scores.tolist(),
+            test_examples=test,
+            test_scores=scores.tolist(),
+            minimum_recall=spec.calibration_recall_target,
+            update_every_examples=spec.threshold_update_examples,
+            window_examples=spec.threshold_window_examples,
+            minimum_online_positives=spec.minimum_online_positives,
+        )
+        predicted=np.asarray(online["predictions"],dtype=np.uint8)
         model_metrics=binary_metrics(y_test.tolist(),predicted.tolist())
         model_metrics["average_precision"]=float(average_precision_score(y_test,scores))
         model_metrics["roc_auc"]=float(roc_auc_score(y_test,scores))
-        model_metrics["threshold"]=threshold
+        model_metrics["threshold"]=float(online["thresholds"][-1])
+        model_metrics["initial_threshold"]=float(online["thresholds"][0])
+        model_metrics["threshold_updates"]=int(online["threshold_updates"])
 
         current_index=feature_names.index("target_current_max")
         baseline_pred=(X_test[:,current_index]>=spec.warning_threshold).astype(np.uint8)
@@ -155,7 +159,12 @@ def run(*, source: Path, spec: MethaneBacktestSpec) -> dict[str,Any]:
             "test_positives":int(y_test.sum()),
             "test_prevalence":prevalence,
             "temporal_leakage_check":bool(leakage),
-            "calibration_operating_point":operating,
+            "online_recalibration_leakage_check":bool(online["leakage_safe"]),
+            "calibration_operating_point":online["initial_operating_point"],
+            "online_threshold_updates":online["threshold_updates"],
+            "online_initial_threshold":float(online["thresholds"][0]),
+            "online_final_threshold":float(online["thresholds"][-1]),
+            "online_update_audit":online["update_audit"],
             "baseline":baseline,
             "model":model_metrics,
             "model_train_seconds":train_seconds,
@@ -186,6 +195,9 @@ def run(*, source: Path, spec: MethaneBacktestSpec) -> dict[str,Any]:
         "horizon_end_seconds":spec.horizon_end_seconds,
         "development_fraction":spec.development_fraction,
         "calibration_recall_target":spec.calibration_recall_target,
+        "threshold_update_examples":spec.threshold_update_examples,
+        "threshold_window_examples":spec.threshold_window_examples,
+        "minimum_online_positives":spec.minimum_online_positives,
         "folds":fold_reports,
         "median_test_recall":median(item["model"]["recall"] for item in fold_reports),
         "median_test_precision":median(item["model"]["precision"] for item in fold_reports),
@@ -219,6 +231,9 @@ def run(*, source: Path, spec: MethaneBacktestSpec) -> dict[str,Any]:
             "minimum_test_precision":spec.minimum_test_precision,
             "minimum_f2_gain_fraction":spec.minimum_f2_gain_fraction,
             "required_passing_folds":spec.required_passing_folds,
+            "threshold_update_examples":spec.threshold_update_examples,
+            "threshold_window_examples":spec.threshold_window_examples,
+            "minimum_online_positives":spec.minimum_online_positives,
             "minimum_source_rows":spec.minimum_source_rows,
         },
         "execution":report,
