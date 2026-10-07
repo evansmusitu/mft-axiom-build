@@ -901,3 +901,121 @@ test('verified external worker provider report reconciles as report-only Evidenc
   assert.equal(replay.evidence.id,first.evidence.id);
   assert.equal(commits,1);
 });
+
+
+test('independent destination-state correlation proves an observed change without certifying external execution',async()=>{
+  const module=await import('../product_intelligence/living_product_graph.js');
+  const security=await import('../execution_security.js');
+  assert.equal(typeof module.verifyExternalDestinationStateCorrelation,'function');
+
+  const dispatchBody={
+    schema:'musitu.axiom.external-worker-dispatch-receipt.v1',
+    project_id:'project_12345678',
+    work_id:'work_12345678',
+    handoff_sha256:'1'.repeat(64),
+    request_sha256:'2'.repeat(64),
+    workload_identity_id:'workload_executor_1',
+    operation:'repo.mutate',
+    risk_class:'S3',
+    destination:'https://example.invalid/app',
+    provider:'axiom-isolated-worker',
+    provider_work_id:'worker_job_lifecycle_12345678',
+    provider_status:'ACCEPTED',
+    dispatch_idempotency_sha256:'3'.repeat(64),
+    external_action_executed:false,
+    live_runtime_qualification:'NOT_PROVEN',
+    authority_effect:'NONE',
+    release_authority:false,
+    production_authority:false,
+    certification_authority:false,
+    created_at:'2026-10-07T20:00:00.000Z',
+  };
+  const dispatchReceipt={...dispatchBody,receipt_sha256:await security.sha256(dispatchBody)};
+
+  const resultBody={
+    schema:'musitu.axiom.external-worker-result-verification.v1',
+    project_id:'project_12345678',
+    work_id:'work_12345678',
+    handoff_sha256:'1'.repeat(64),
+    request_sha256:'2'.repeat(64),
+    workload_identity_id:'workload_executor_1',
+    dispatch_receipt_sha256:dispatchReceipt.receipt_sha256,
+    result_receipt_sha256:'4'.repeat(64),
+    provider:'axiom-isolated-worker',
+    provider_work_id:'worker_job_lifecycle_12345678',
+    provider_status:'COMPLETED',
+    provider_output_sha256:'5'.repeat(64),
+    provider_claimed_external_action_executed:true,
+    provider_data_authority:'UNTRUSTED_MECHANISM_DATA',
+    verifier_actor_id:'agent_independent_verifier_2',
+    independent_verification:'PASS_BINDING_INTEGRITY_ONLY',
+    execution_truth:'NOT_PROVEN',
+    external_action_executed:false,
+    live_runtime_qualification:'NOT_PROVEN',
+    status:'VERIFIED_PROVIDER_REPORT',
+    authority_effect:'NONE',
+    release_authority:false,
+    production_authority:false,
+    certification_authority:false,
+    created_at:'2026-10-07T20:02:00.000Z',
+  };
+  const verifiedResult={...resultBody,verification_sha256:await security.sha256(resultBody)};
+
+  const observation=(request_id,observed_at,dom_sha256)=>({
+    schema:'musitu.axiom.browser-reality-observation.v1',
+    project_id:'project_12345678',
+    work_id:'work_12345678',
+    workload_identity_id:'workload_destination_observer_2',
+    request_id,
+    surface_ref:'https://example.invalid/app',
+    expected_surface_digest_sha256:'6'.repeat(64),
+    browser:'PLAYWRIGHT',
+    browser_version:'1.63.0',
+    observed_at,
+    final_url:'https://example.invalid/app',
+    title:'Observed destination',
+    dom_sha256,
+    screenshot_sha256:null,
+    viewport:{width:1440,height:900},
+    console_errors:[],
+    failed_requests:[],
+    observation_state:'OBSERVED',
+    certification:'NOT_CERTIFIED',
+    canonical_evidence:false,
+    external_action_executed:false,
+    external_write_authority:false,
+    authority_effect:'NONE',
+    release_authority:false,
+    production_authority:false,
+    plan:{steps:[{op:'NAVIGATE'},{op:'SNAPSHOT'}]},
+  });
+  const beforeObservation=observation('observation_before_12345678','2026-10-07T19:59:00.000Z','7'.repeat(64));
+  const afterObservation=observation('observation_after_12345678','2026-10-07T20:03:00.000Z','8'.repeat(64));
+
+  const correlated=await module.verifyExternalDestinationStateCorrelation({
+    dispatchReceipt,
+    verifiedResult,
+    beforeObservation,
+    afterObservation,
+    verifierActorId:'agent_destination_verifier_3',
+    at:'2026-10-07T20:04:00.000Z',
+  });
+  assert.equal(correlated.schema,'musitu.axiom.external-destination-state-correlation.v1');
+  assert.equal(correlated.project_id,'project_12345678');
+  assert.equal(correlated.request_sha256,'2'.repeat(64));
+  assert.equal(correlated.destination,'https://example.invalid/app');
+  assert.equal(correlated.observer_workload_identity_id,'workload_destination_observer_2');
+  assert.equal(correlated.verifier_actor_id,'agent_destination_verifier_3');
+  assert.equal(correlated.destination_state_change_observed,true);
+  assert.equal(correlated.independent_verification,'PASS_DESTINATION_STATE_CORRELATION_ONLY');
+  assert.equal(correlated.execution_truth,'CORRELATED_DESTINATION_STATE_CHANGE_NOT_CAUSALLY_PROVEN');
+  assert.equal(correlated.external_action_executed,false);
+  assert.equal(correlated.live_runtime_qualification,'NOT_PROVEN');
+  assert.equal(correlated.authority_effect,'NONE');
+  assert.equal(correlated.release_authority,false);
+  assert.equal(correlated.production_authority,false);
+  assert.equal(correlated.certification_authority,false);
+  assert.match(correlated.before_observation_sha256,/^[a-f0-9]{64}$/);
+  assert.match(correlated.after_observation_sha256,/^[a-f0-9]{64}$/);
+  assert.match(correlated.verification_sha256,/^[a-f0-9]{64}$/);
+});
