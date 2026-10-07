@@ -13,11 +13,6 @@ ROOT=Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0,str(ROOT))
 
-import numpy as np
-import sklearn
-from sklearn.ensemble import HistGradientBoostingClassifier
-from sklearn.metrics import average_precision_score, roc_auc_score
-
 from benchmarks.mining_adapter.methane_prediction import (
     MethanePredictionSpec,
     binary_metrics,
@@ -52,7 +47,8 @@ def _canonical_source_rows(path: Path, state: dict[str,Any]) -> Iterator[dict[st
             yield row
 
 
-def _matrix(examples, feature_names: list[str]) -> tuple[np.ndarray,np.ndarray]:
+def _matrix(examples, feature_names: list[str]):
+    import numpy as np
     X=np.asarray(
         [[float(item.features[name]) for name in feature_names] for item in examples],
         dtype=np.float32,
@@ -61,7 +57,8 @@ def _matrix(examples, feature_names: list[str]) -> tuple[np.ndarray,np.ndarray]:
     return X,y
 
 
-def _balanced_weights(y: np.ndarray) -> np.ndarray:
+def _balanced_weights(y):
+    import numpy as np
     positives=int(y.sum())
     negatives=int(len(y)-positives)
     if positives==0 or negatives==0:
@@ -72,6 +69,11 @@ def _balanced_weights(y: np.ndarray) -> np.ndarray:
 
 
 def run(*, source: Path, spec: MethanePredictionSpec) -> dict[str,Any]:
+    import numpy as np
+    import sklearn
+    from sklearn.ensemble import HistGradientBoostingClassifier
+    from sklearn.metrics import average_precision_score, roc_auc_score
+
     if not source.is_file():
         raise FileNotFoundError(source)
     source_sha=_sha256_file(source)
