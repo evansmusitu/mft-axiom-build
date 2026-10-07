@@ -794,6 +794,7 @@ test('EngineeringWorkerBackend lifecycle receipts preserve dispatch bindings and
 
 
 test('independent external worker result verification preserves provider report truth without certifying external execution',async()=>{
+  const externalAt='2026-10-04T17:20:00.000Z';
   const outcomeModule=await import('../product_intelligence/execution_outcome_reconciliation.js');
   const security=await import('../execution_security.js');
   assert.equal(typeof outcomeModule.verifyExternalWorkerResult,'function');
@@ -819,7 +820,7 @@ test('independent external worker result verification preserves provider report 
     release_authority:false,
     production_authority:false,
     certification_authority:false,
-    created_at:at,
+    created_at:externalAt,
   };
   const dispatchReceipt={...dispatchBody,receipt_sha256:await security.sha256(dispatchBody)};
   const providerOutput={artifact_sha256:'a'.repeat(64)};
@@ -846,7 +847,7 @@ test('independent external worker result verification preserves provider report 
     authority_effect:'NONE',
     release_authority:false,
     certification_authority:false,
-    created_at:at,
+    created_at:externalAt,
   };
   const resultReceipt={...resultBody,receipt_sha256:await security.sha256(resultBody)};
 
@@ -854,7 +855,7 @@ test('independent external worker result verification preserves provider report 
     dispatchReceipt,
     resultReceipt,
     verifierActorId:'agent_independent_verifier_2',
-    at,
+    at:externalAt,
   });
   assert.equal(verified.schema,'musitu.axiom.external-worker-result-verification.v1');
   assert.equal(verified.status,'VERIFIED_PROVIDER_REPORT');
@@ -892,7 +893,7 @@ test('independent external worker result verification preserves provider report 
       dispatchReceipt,
       resultReceipt,
       verifierActorId:'workload_executor_1',
-      at,
+      at:externalAt,
     }),
     /independent|verifier|workload/i,
   );
