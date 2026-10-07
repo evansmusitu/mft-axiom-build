@@ -7,7 +7,7 @@ from math import isfinite
 from statistics import fmean, median
 from typing import Any, Iterable, Mapping, Sequence
 
-from benchmarks.mining_adapter.methane_prediction import PredictionExample
+from benchmarks.mining_adapter.methane_prediction import PredictionExample, select_operating_threshold
 from connect.mining_telemetry import MINING_TELEMETRY_SENSORS
 
 
@@ -23,7 +23,7 @@ class MethaneBacktestSpec:
     doi: str="10.17632/yd7vw4c5mk.1"
     license: str="CC BY 4.0"
     warning_threshold: float=1.0
-    history_seconds: int=180
+    history_seconds: int=600
     horizon_start_seconds: int=180
     horizon_end_seconds: int=360
     sample_stride_seconds: int=30
@@ -36,6 +36,9 @@ class MethaneBacktestSpec:
     minimum_test_precision: float=0.10
     minimum_f2_gain_fraction: float=0.05
     required_passing_folds: int=3
+    threshold_update_examples: int=120
+    threshold_window_examples: int=10_000
+    minimum_online_positives: int=50
     minimum_source_rows: int=9_000_000
 
     def __post_init__(self) -> None:
@@ -65,6 +68,12 @@ class MethaneBacktestSpec:
             raise ValueError("methane_backtest_f2_gain_invalid")
         if not 1 <= self.required_passing_folds <= self.fold_count:
             raise ValueError("methane_backtest_required_folds_invalid")
+        if self.threshold_update_examples < 1:
+            raise ValueError("methane_backtest_threshold_update_invalid")
+        if self.threshold_window_examples < 2:
+            raise ValueError("methane_backtest_threshold_window_invalid")
+        if self.minimum_online_positives < 1:
+            raise ValueError("methane_backtest_online_positives_invalid")
         if self.minimum_source_rows < 1:
             raise ValueError("methane_backtest_source_rows_invalid")
 
@@ -207,6 +216,101 @@ def rolling_backtest_folds(
     return folds
 
 
+
+def online_recalibrated_predictions(
+    *,
+    calibration_examples: Sequence[PredictionExample],
+    calibration_scores: Sequence[float],
+    test_examples: Sequence[PredictionExample],
+    test_scores: Sequence[float],
+    minimum_recall: float,
+    update_every_examples: int,
+    window_examples: int,
+    minimum_online_positives: int,
+) -> dict[str,Any]:
+    """Sequentially recalibrate an alert threshold using only resolved labels.
+
+    Test labels enter the calibration window only after their complete future
+    outcome window has elapsed. This simulates an online deployment where a
+    3–6 minute forecast becomes fully observable six minutes after prediction.
+    """
+    if len(calibration_examples)!=len(calibration_scores) or not calibration_examples:
+        raise ValueError("methane_backtest_online_calibration_length_invalid")
+    if len(test_examples)!=len(test_scores) or not test_examples:
+        raise ValueError("methane_backtest_online_test_length_invalid")
+    if update_every_examples < 1 or window_examples < 2 or minimum_online_positives < 1:
+        raise ValueError("methane_backtest_online_parameters_invalid")
+
+    ordered_cal=list(zip(calibration_examples,calibration_scores,strict=True))
+    ordered_test=list(zip(test_examples,test_scores,strict=True))
+    if any(
+        ordered_test[index][0].feature_time < ordered_test[index-1][0].feature_time
+        for index in range(1,len(ordered_test))
+    ):
+        raise ValueError("methane_backtest_online_test_order_invalid")
+
+    labeled=[
+        (item,bool(item.label),float(score))
+        for item,score in ordered_cal
+    ]
+    initial_window=labeled[-window_examples:]
+    if sum(1 for _,label,_ in initial_window if label) < minimum_online_positives:
+        initial_window=labeled
+    operating=select_operating_threshold(
+        [label for _,label,_ in initial_window],
+        [score for _,_,score in initial_window],
+        minimum_recall=minimum_recall,
+    )
+    threshold=float(operating["threshold"])
+
+    predictions=[]
+    thresholds=[]
+    update_audit=[]
+    resolved_cursor=0
+    online_labeled=[]
+    leakage_safe=True
+
+    for index,(current,current_score) in enumerate(ordered_test):
+        while resolved_cursor < index:
+            prior,prior_score=ordered_test[resolved_cursor]
+            if prior.label_window_end >= current.feature_time:
+                break
+            online_labeled.append((prior,bool(prior.label),float(prior_score)))
+            resolved_cursor += 1
+
+        if index % update_every_examples == 0:
+            pool=(labeled+online_labeled)[-window_examples:]
+            positives=sum(1 for _,label,_ in pool if label)
+            if positives >= minimum_online_positives:
+                latest=max((item.label_window_end for item,_,_ in pool),default=None)
+                if latest is not None and latest >= current.feature_time:
+                    leakage_safe=False
+                operating=select_operating_threshold(
+                    [label for _,label,_ in pool],
+                    [score for _,_,score in pool],
+                    minimum_recall=minimum_recall,
+                )
+                threshold=float(operating["threshold"])
+                update_audit.append({
+                    "prediction_time":current.feature_time.isoformat(),
+                    "latest_label_window_end_used":None if latest is None else latest.isoformat(),
+                    "labeled_examples":len(pool),
+                    "positive_examples":positives,
+                    "threshold":threshold,
+                })
+
+        predictions.append(float(current_score)>=threshold)
+        thresholds.append(threshold)
+
+    return {
+        "predictions":predictions,
+        "thresholds":thresholds,
+        "threshold_updates":len(update_audit),
+        "update_audit":update_audit,
+        "leakage_safe":leakage_safe,
+    }
+
+
 def _sha256(value: Any) -> bool:
     return (
         isinstance(value,str)
@@ -235,7 +339,10 @@ def evaluate_backtest_gate(
     recalls=[]
     if structure_ok:
         for fold in folds:
-            leakage=fold.get("temporal_leakage_check") is True
+            leakage=(
+                fold.get("temporal_leakage_check") is True
+                and fold.get("online_recalibration_leakage_check") is True
+            )
             test_examples=int(fold.get("test_examples") or 0)
             positives=int(fold.get("test_positives") or 0)
             baseline=fold.get("baseline") or {}
@@ -259,7 +366,9 @@ def evaluate_backtest_gate(
                 passing += 1
             recalls.append(recall)
         structure_ok = structure_ok and all(
-            fold.get("temporal_leakage_check") is True for fold in folds
+            fold.get("temporal_leakage_check") is True
+            and fold.get("online_recalibration_leakage_check") is True
+            for fold in folds
         )
     median_recall=median(recalls) if recalls else 0.0
     performance_ok=(
