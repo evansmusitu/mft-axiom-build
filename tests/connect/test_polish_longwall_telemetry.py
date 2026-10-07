@@ -56,6 +56,7 @@ class PolishLongwallTelemetryTests(unittest.TestCase):
             "dataset_version":1,
             "doi":spec.doi,
             "license":"CC BY 4.0",
+            "transport_source":"openml:42701",
             "source_archive_sha256":"a"*64,
             "source_member_sha256":"b"*64,
             "source_rows":3,
@@ -79,6 +80,10 @@ class PolishLongwallTelemetryTests(unittest.TestCase):
         broken=dict(report)
         broken["license"]="unknown"
         self.assertFalse(evaluate_longwall_gate(spec,broken)["real_telemetry_qualified"])
+
+        wrong_transport=dict(report)
+        wrong_transport["transport_source"]="unverified-mirror"
+        self.assertFalse(evaluate_longwall_gate(spec,wrong_transport)["real_telemetry_qualified"])
 
     def test_spec_is_bound_to_public_mendeley_dataset_and_million_row_durable_sample(self):
         spec=LongwallTelemetrySpec()
