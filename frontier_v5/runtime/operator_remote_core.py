@@ -57,7 +57,13 @@ def execute_remote_mcp(
         try:
             server=build_operator_mcp(bridge)
             status,response_headers,body=server.handle(headers,message)
-            mutating=_mutates(message) and status==200
+            result=body.get("result") if isinstance(body,Mapping) else None
+            tool_failed=(
+                message.get("method")=="tools/call"
+                and isinstance(result,Mapping)
+                and result.get("isError") is True
+            )
+            mutating=_mutates(message) and status==200 and not tool_failed
             next_state=export_operator_state(bridge) if mutating else None
             return {
                 "status":status,
@@ -67,10 +73,19 @@ def execute_remote_mcp(
                 "state_pack":next_state,
             }
         except MCP2026Error as exc:
+            request_id=message.get("id") if isinstance(message,Mapping) else None
             return {
                 "status":400,
                 "headers":{"content-type":"application/json; charset=utf-8","cache-control":"no-store"},
-                "body":{"error":"MCP_REQUEST_REJECTED","message":str(exc)},
+                "body":{
+                    "jsonrpc":"2.0",
+                    "id":request_id,
+                    "error":{
+                        "code":-32600,
+                        "message":"MCP request rejected",
+                        "data":{"reason":str(exc)},
+                    },
+                },
                 "mutated":False,
                 "state_pack":None,
             }
