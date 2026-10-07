@@ -16,6 +16,7 @@ Security boundary:
 from __future__ import annotations
 
 from collections.abc import Callable, Mapping, Sequence
+import json
 from typing import Any
 
 
@@ -28,6 +29,14 @@ SERVER_INFO_META = "io.modelcontextprotocol/serverInfo"
 
 class MCP2026Error(RuntimeError):
     """Raised when a modern MCP request violates the candidate contract."""
+
+
+class MCPToolExecutionError(RuntimeError):
+    """Governed tool/business outcome that must remain a valid MCP tool result."""
+
+    def __init__(self, message: str, *, code: str = "TOOL_EXECUTION_ERROR") -> None:
+        super().__init__(str(message))
+        self.code = _nonempty_string(code, "tool error code")
 
 
 def _nonempty_string(value: Any, name: str) -> str:
@@ -173,6 +182,67 @@ class MCP2026Server:
             {"jsonrpc": "2.0", "id": request_id, "result": payload},
         )
 
+    def _call_tool_result(
+        self,
+        request_id: Any,
+        structured: Mapping[str, Any],
+        *,
+        is_error: bool,
+    ) -> tuple[int, dict[str, str], dict[str, Any]]:
+        payload = dict(_mapping(structured, "structuredContent"))
+        try:
+            text = json.dumps(
+                payload,
+                ensure_ascii=False,
+                sort_keys=True,
+                separators=(",", ":"),
+            )
+        except Exception as exc:
+            fallback = {
+                "error": {
+                    "code": "TOOL_RESULT_SERIALIZATION_FAILED",
+                    "message": "Tool result could not be serialized safely.",
+                }
+            }
+            text = json.dumps(fallback, sort_keys=True, separators=(",", ":"))
+            payload = fallback
+            is_error = True
+
+        return (
+            200,
+            self._response_headers(),
+            {
+                "jsonrpc": "2.0",
+                "id": request_id,
+                "result": {
+                    "content": [{"type": "text", "text": text}],
+                    "structuredContent": payload,
+                    "isError": bool(is_error),
+                    "_meta": {SERVER_INFO_META: self.server_info},
+                },
+            },
+        )
+
+    def _tool_error(
+        self,
+        request_id: Any,
+        *,
+        name: str,
+        code: str,
+        message: str,
+    ) -> tuple[int, dict[str, str], dict[str, Any]]:
+        return self._call_tool_result(
+            request_id,
+            {
+                "tool": name,
+                "error": {
+                    "code": _nonempty_string(code, "tool error code"),
+                    "message": _nonempty_string(message, "tool error message"),
+                },
+            },
+            is_error=True,
+        )
+
     def _discover(self, request_id: Any) -> tuple[int, dict[str, str], dict[str, Any]]:
         return self._success(
             request_id,
@@ -229,14 +299,24 @@ class MCP2026Server:
         arguments = dict(_mapping(arguments, "params.arguments"))
         try:
             raw_result = self._call_tool(name, arguments)
+        except MCPToolExecutionError as exc:
+            return self._tool_error(
+                request_id,
+                name=name,
+                code=exc.code,
+                message=str(exc),
+            )
         except MCP2026Error:
             raise
-        except Exception as exc:
-            # Do not leak internal tool/provider exceptions through the
-            # protocol boundary.
-            raise MCP2026Error("tool execution failed") from exc
+        except Exception:
+            return self._tool_error(
+                request_id,
+                name=name,
+                code="TOOL_EXECUTION_FAILED",
+                message="Tool execution failed.",
+            )
         result = dict(_mapping(raw_result, "tool result"))
-        return self._success(request_id, result)
+        return self._call_tool_result(request_id, result, is_error=False)
 
     def handle(
         self,
@@ -259,6 +339,7 @@ __all__ = [
     "CLIENT_INFO_META",
     "MCP2026Error",
     "MCP2026Server",
+    "MCPToolExecutionError",
     "PROTOCOL_META",
     "PROTOCOL_VERSION",
     "SERVER_INFO_META",
