@@ -1,0 +1,71 @@
+{
+  "schema": "musitu.axiom.phase2.indexeddb-v1-v2-upgrade-qualification.v1",
+  "recorded_date": "2026-10-07",
+  "source_authority": {
+    "repository": "evansmusitu/mft-axiom-build",
+    "branch": "frontier/axiom-product-intelligence-phase2-20261004",
+    "predecessor_atomicity_evidence_commit": "29d12cd45cd422dcb11dcdd173e9a69b89eb2fa9",
+    "qualified_head": "e1e7c4f32e64381bd9a4a3120c7702ddf1e1e646",
+    "browser_qualification_page_path": "axiom_interface/vnext/tests/product_intelligence_browser_execution_idempotency.html",
+    "browser_qualification_page_git_blob": "d3632cf1693248bee4e126d3403d6d92e3af84d0",
+    "browser_runner_path": "axiom_interface/vnext/tests/run_browser_execution_idempotency.mjs",
+    "browser_runner_git_blob": "d1c1eebad3e392d386813b55d8fc453664c2a645"
+  },
+  "classification": {
+    "kind": "COVERAGE_ONLY",
+    "tdd_cycle": false,
+    "reason": "No production behavior changed. The qualification exercises the existing IndexedDB VERSION=2 upgrade path against a deliberately created VERSION=1 database."
+  },
+  "qualification_run": {
+    "run_id": 37530440973,
+    "run_attempt": 2,
+    "conclusion": "success",
+    "focused_job_id": 112622297535,
+    "independent_job_id": 112622463230,
+    "focused_browser_runtime": "Google Chrome 154.0.8037.57",
+    "independent_browser_runtime": "Google Chrome 154.0.8037.97",
+    "focused_frozen_contracts": "PASS_22_OF_22",
+    "independent_frozen_order_replay": "PASS_158_OF_158",
+    "browser_markers": [
+      "MUSITU_AXIOM_PHASE2_BROWSER_INDEXEDDB_V1_SEED_PASS",
+      "MUSITU_AXIOM_PHASE2_BROWSER_INDEXEDDB_V1_TO_V2_UPGRADE_PASS",
+      "MUSITU_AXIOM_PHASE2_BROWSER_DURABLE_IDEMPOTENCY_QUALIFICATION_PASS"
+    ],
+    "authority_marker": "MUSITU_AXIOM_PHASE2_PROVIDER_AUTHORITY_FAIL_CLOSED_PASS",
+    "slice_marker": "MUSITU_AXIOM_PHASE2_SLICE_VERIFICATION_PASS",
+    "release_authority": false,
+    "production_authority": false,
+    "certification_authority": false
+  },
+  "qualification": {
+    "indexeddb_version_1_database_creation": "PASS",
+    "indexeddb_version_1_to_2_upgrade": "PASS_FOR_OBSERVED_CI_BROWSER_RUNTIMES",
+    "execution_claims_store_added_on_upgrade": "PASS",
+    "preexisting_sandbox_record_preserved": "PASS",
+    "preexisting_sandbox_hash_preserved": "PASS",
+    "preexisting_sandbox_file_content_preserved": "PASS",
+    "post_upgrade_execution_store_integrity": "PASS",
+    "authority_effect": "NONE",
+    "release_authority": false,
+    "production_authority": false,
+    "certification_authority": false,
+    "production_mutation": false,
+    "frozen_openai_mutation": false,
+    "main_mutation": false
+  },
+  "evidence_boundaries": {
+    "observed_browser_runtimes": [
+      "Google Chrome 154.0.8037.57",
+      "Google Chrome 154.0.8037.97"
+    ],
+    "exact_long_term_browser_runtime_pin": "NOT_PROVEN",
+    "version_1_to_2_upgrade_with_seeded_v1_sandbox": "PROVEN_FOR_OBSERVED_CI_BROWSER_RUNTIMES",
+    "upgrade_with_large_or_pathological_real_user_dataset": "NOT_PROVEN",
+    "downgrade_from_v2_to_v1": "NOT_PROVEN",
+    "future_schema_migration_beyond_v2": "NOT_PROVEN",
+    "simultaneous_upgrade_from_multiple_browser_processes": "NOT_PROVEN",
+    "live_production_browser_upgrade": "NOT_PROVEN",
+    "independent_external_security_validation": "NOT_PROVEN",
+    "sha256_signature_or_attestation": "NOT_PROVEN"
+  }
+}
