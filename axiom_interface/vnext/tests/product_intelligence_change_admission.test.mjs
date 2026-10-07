@@ -594,3 +594,116 @@ test('executor finalization rejects rehashed approval authority extensions and e
     );
   }
 });
+
+
+test('authorized external S3 handoff dispatches through mechanism-only EngineeringWorkerBackend without side-effect authority',async()=>{
+  const change=await import('../product_intelligence/change_admission.js');
+  const gateway=await import('../authorization_gateway.js');
+  const workerModule=await import('../product_intelligence/backends/governed_engineering_worker_backend.js');
+  const dispatchModule=await import('../product_intelligence/external_worker_dispatch.js');
+  assert.equal(typeof workerModule.createGovernedEngineeringWorkerBackend,'function');
+  assert.equal(typeof dispatchModule.dispatchAuthorizedExternalOperation,'function');
+
+  const admissionRequest=await request('S3');
+  const policy={
+    decision:'ALLOW',
+    request_sha256:admissionRequest.request_sha256,
+    policy_sha256:'e'.repeat(64),
+    reasons:['bounded external reversible write'],
+  };
+  const admission=await evaluateChangeAdmission({
+    request:admissionRequest,
+    policyDecision:policy,
+    verificationEvidence:[pass('TESTS'),pass('SECURITY'),pass('INDEPENDENT_VERIFIER')],
+    at,
+  });
+  assert.equal(admission.status,'ADMITTED_TO_EXECUTOR');
+
+  const authorityEnvelope={
+    project_id:projectId,
+    actor_id:'agent_operator_1',
+    agent_id:'agent_executor_1',
+    workload_identity_id:'workload_executor_1',
+    agent_status:'ACTIVE',
+    kill_switch_engaged:false,
+    revoked:false,
+    requester_type:'AGENT',
+    grant:{
+      tool_scopes:['artifact.write'],
+      data_scopes:[projectId],
+      network_policy:{mode:'ALLOWLIST',hosts:['github.example.test']},
+      secrets_policy:'OPAQUE_SHORT_LIVED_OPERATION_SCOPED_NO_PLAINTEXT',
+      budget:{max_compute_units:10},
+    },
+    usage:{compute_units:0},
+    incident_posture:'NORMAL',
+    jurisdiction:'LOCAL_BROWSER',
+  };
+  const handoff=await change.createOperationScopedExecutorHandoff({
+    request:admissionRequest,
+    admissionResult:admission,
+    authorityEnvelope,
+    operationRequest:{
+      operation:'repo.mutate',
+      target:'frontier/change-set',
+      payload:{change_sha256:'a'.repeat(64)},
+      destination:'https://github.example.test/api/v1/change',
+      compute_units:1,
+      requested_at:at,
+    },
+    at,
+  });
+  const approval=await gateway.createApproval(handoff.execution_request,{
+    actor_id:'human_approver_external_1',
+    role:'HUMAN_APPROVER',
+    expires_at:new Date(Date.now()+3600000).toISOString(),
+  });
+
+  const calls=[];
+  const transport={
+    async submit(input){calls.push({op:'submit',input:structuredClone(input)});return {provider_work_id:'worker_job_12345678',status:'ACCEPTED'};},
+    async describe(input){calls.push({op:'describe',input:structuredClone(input)});return {status:'QUEUED'};},
+    async cancel(input){calls.push({op:'cancel',input:structuredClone(input)});return {accepted:true,status:'CANCEL_REQUESTED'};},
+    async result(input){calls.push({op:'result',input:structuredClone(input)});return {status:'NOT_PROVEN',output:null};},
+  };
+  const backend=workerModule.createGovernedEngineeringWorkerBackend({transport,provider:'axiom-isolated-worker'});
+  assert.equal(backend.descriptor.kind,'EngineeringWorkerBackend');
+  assert.equal(backend.descriptor.semantic_owner,'AXIOM');
+  assert.equal(backend.descriptor.authority,'MECHANISM_ONLY');
+  assert.equal(backend.descriptor.live_runtime_qualification,'NOT_PROVEN');
+
+  const receipt=await dispatchModule.dispatchAuthorizedExternalOperation({
+    handoff,
+    authorityEnvelope,
+    approvals:[approval],
+    backend,
+    at,
+  });
+  assert.equal(receipt.schema,'musitu.axiom.external-worker-dispatch-receipt.v1');
+  assert.equal(receipt.project_id,projectId);
+  assert.equal(receipt.work_id,'work_12345678');
+  assert.equal(receipt.handoff_sha256,handoff.handoff_sha256);
+  assert.equal(receipt.request_sha256,handoff.execution_request.request_sha256);
+  assert.equal(receipt.workload_identity_id,'workload_executor_1');
+  assert.equal(receipt.operation,'repo.mutate');
+  assert.equal(receipt.destination,'https://github.example.test/api/v1/change');
+  assert.equal(receipt.provider_work_id,'worker_job_12345678');
+  assert.equal(receipt.provider_status,'ACCEPTED');
+  assert.match(receipt.dispatch_idempotency_sha256,/^[a-f0-9]{64}$/);
+  assert.equal(receipt.external_action_executed,false);
+  assert.equal(receipt.live_runtime_qualification,'NOT_PROVEN');
+  assert.equal(receipt.authority_effect,'NONE');
+  assert.equal(receipt.release_authority,false);
+  assert.equal(receipt.production_authority,false);
+  assert.equal(receipt.certification_authority,false);
+
+  assert.equal(calls.length,1);
+  assert.equal(calls[0].op,'submit');
+  assert.equal(calls[0].input.project_id,projectId);
+  assert.equal(calls[0].input.request_sha256,handoff.execution_request.request_sha256);
+  assert.equal(calls[0].input.workload_identity_id,'workload_executor_1');
+  assert.equal(calls[0].input.destination,'https://github.example.test/api/v1/change');
+  assert.match(calls[0].input.idempotency_key,/^[a-f0-9]{64}$/);
+  assert.equal(calls[0].input.external_action_authorized,true);
+  assert.equal(calls[0].input.production_authority,false);
+});
