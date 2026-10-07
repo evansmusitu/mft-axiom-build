@@ -80,6 +80,66 @@
   "self_certification": {
     "builder_self_certification": false,
     "evidence_record_self_certifying": false,
-    "post_commit_independent_qualification_required": true
+    "post_commit_independent_qualification_required": true,
+    "note": "This updated evidence record requires its own successful post-commit gate before the slice is called evidence-sealed."
+  },
+  "postseal_evidence_commit_attempt": {
+    "commit": "3f821f90a816f8a0a52231ad0dc8d91a499d3f99",
+    "run_id": 37678811009,
+    "focused_job_id": 112989178869,
+    "independent_job_id": 112989482536,
+    "workflow_conclusion": "cancelled",
+    "focused_job": "PASS",
+    "independent_replay": "162/162_PASS",
+    "independent_browser_progress": [
+      "MUSITU_AXIOM_PHASE2_BROWSER_RESTART_SEED_PASS",
+      "MUSITU_AXIOM_PHASE2_BROWSER_RESTART_REPLAY_PASS"
+    ],
+    "independent_browser_final": "CANCELLED_BEFORE_CONCURRENT_RESULT",
+    "provider_authority_gate": "NOT_RUN",
+    "release_authority": "NOT_EARNED_BY_CANCELLED_RUN",
+    "production_authority": "NOT_EARNED_BY_CANCELLED_RUN",
+    "certification_authority": "NOT_EARNED_BY_CANCELLED_RUN",
+    "interpretation": "NOT_PROVEN; cancellation is not PASS or FAIL"
+  },
+  "harness_liveness_repair": {
+    "commit": "81da215ca23209386dbe3ed515e55835beb96240",
+    "file": "axiom_interface/vnext/tests/run_browser_execution_idempotency.mjs",
+    "defect": "CDP command promise had no response timeout and could stall until the job-level timeout",
+    "repair": "add 10-second fail-closed timeout to each CDP command and clean pending state on timeout/send failure",
+    "cdp_command_timeout_ms": 10000,
+    "product_behavior_changed": false,
+    "browser_assertions_changed": false,
+    "expected_markers_changed": false,
+    "security_boundary_changed": false,
+    "authority_boundary_changed": false,
+    "assertions_weakened": false
+  },
+  "final_postseal_qualification": {
+    "qualified_head": "81da215ca23209386dbe3ed515e55835beb96240",
+    "run_id": 37680404393,
+    "focused_job_id": 112994643433,
+    "independent_job_id": 112994920859,
+    "workflow_conclusion": "success",
+    "focused_living_product_graph": "23/23_PASS",
+    "focused_change_admission": "21/21_PASS",
+    "independent_replay": "162/162_PASS",
+    "browser_restart": "PASS",
+    "browser_cross_instance_atomicity": "PASS",
+    "browser_separate_tab_atomicity": "PASS",
+    "browser_stale_claim_recovery": "PASS",
+    "browser_terminal_commit_atomicity": "PASS",
+    "browser_failed_terminal_commit_atomicity": "PASS",
+    "browser_blocked_receipt_event_atomicity": "PASS",
+    "browser_process_kill_atomicity": "PASS",
+    "browser_process_kill_failed_atomicity": "PASS",
+    "browser_process_kill_blocked_atomicity": "PASS",
+    "browser_indexeddb_v1_to_v2_upgrade": "PASS",
+    "browser_durable_idempotency": "PASS",
+    "provider_authority_fail_closed": "PASS",
+    "slice_verification": "PASS",
+    "release_authority": false,
+    "production_authority": false,
+    "certification_authority": false
   }
 }
