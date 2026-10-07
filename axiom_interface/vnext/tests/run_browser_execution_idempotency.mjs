@@ -51,7 +51,7 @@ async function allocateDebugPort(){
   return port;
 }
 
-async function waitJson(url,timeoutMs=10000){
+async function waitJson(url,timeoutMs=30000){
   const deadline=Date.now()+timeoutMs;
   let last;
   while(Date.now()<deadline){
