@@ -102,15 +102,20 @@ jobs:
           assert e["source_sha256"]=="28e2eed4c4a314daa4319f656a09bb43d8acea603dcb906e31c98049c91a8fdc"
           assert e["source_rows"] >= 9_000_000
           assert e["eligible_examples"] >= spec["minimum_examples"]
-          assert e["history_seconds"]==180
+          assert e["history_seconds"]==600
           assert e["horizon_start_seconds"]==180
           assert e["horizon_end_seconds"]==360
           assert e["development_fraction"]==0.80
           assert e["calibration_recall_target"]==0.95
+          assert e["threshold_update_examples"]==120
+          assert e["threshold_window_examples"]==10000
+          assert e["minimum_online_positives"]>=50
           assert len(e["folds"])==4
           assert q["passing_folds"] >= spec["required_passing_folds"]
           for fold in e["folds"]:
               assert fold["temporal_leakage_check"] is True
+              assert fold["online_recalibration_leakage_check"] is True
+              assert fold["online_threshold_updates"] > 0
               assert fold["test_positives"] >= spec["minimum_fold_test_positives"]
           assert e["credentials_used"] is False
           assert e["errors"] == []
