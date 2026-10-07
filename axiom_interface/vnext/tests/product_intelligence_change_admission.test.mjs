@@ -459,7 +459,7 @@ test('S3 executor handoff preserves builder approver separation through FA-11 fi
   const builderApproval=await gateway.createApproval(handoff.execution_request,{
     actor_id:'agent_builder_1',
     role:'HUMAN_APPROVER',
-    expires_at:'2026-10-07T17:20:00.000Z',
+    expires_at:new Date(Date.now()+3600000).toISOString(),
   });
   await assert.rejects(
     ()=>module.finalizeOperationScopedExecutorHandoff({handoff,authorityEnvelope,approvals:[builderApproval]}),
@@ -469,7 +469,7 @@ test('S3 executor handoff preserves builder approver separation through FA-11 fi
   const independentApproval=await gateway.createApproval(handoff.execution_request,{
     actor_id:'human_approver_2',
     role:'HUMAN_APPROVER',
-    expires_at:'2026-10-07T17:20:00.000Z',
+    expires_at:new Date(Date.now()+3600000).toISOString(),
   });
   const authorized=await module.finalizeOperationScopedExecutorHandoff({handoff,authorityEnvelope,approvals:[independentApproval]});
   assert.equal(authorized.status,'AUTHORIZED');
@@ -571,7 +571,7 @@ test('executor finalization rejects rehashed approval authority extensions and e
   const valid=await gateway.createApproval(handoff.execution_request,{
     actor_id:'human_approver_2',
     role:'HUMAN_APPROVER',
-    expires_at:'2026-10-07T17:20:00.000Z',
+    expires_at:new Date(Date.now()+3600000).toISOString(),
   });
   const canonical=value=>{
     if(Array.isArray(value)) return `[${value.map(canonical).join(',')}]`;
