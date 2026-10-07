@@ -814,3 +814,143 @@ export async function reconcileExternalDestinationStateCorrelation({persistence,
     certification_authority:false,
   });
 }
+
+
+export const EXTERNAL_DESTINATION_MUTATION_EVIDENCE_SCHEMA='musitu.axiom.external-destination-mutation-evidence-verification.v1';
+
+const DESTINATION_NATIVE_MUTATION_RECEIPT_KEYS=new Set([
+  'schema','project_id','work_id','request_sha256','destination','operation','mutation_id','issuer_identity_id',
+  'dispatch_idempotency_sha256','before_state_sha256','after_state_sha256','mutation_committed','committed_at',
+  'authority_effect','release_authority','production_authority','certification_authority','receipt_sha256',
+]);
+const EXTERNAL_OPERATION_READBACK_KEYS=new Set([
+  'schema','project_id','work_id','request_sha256','destination','operation','mutation_id','observer_workload_identity_id',
+  'expected_state_sha256','observed_state_sha256','read_only','observed_at','authority_effect','release_authority',
+  'production_authority','certification_authority','readback_sha256',
+]);
+
+async function assertDestinationNativeMutationReceipt(receipt){
+  if(!isPlainObject(receipt)||receipt.schema!=='musitu.axiom.external-destination-native-mutation-receipt.v1')throw new TypeError('destination-native mutation receipt required');
+  rejectUnknown(receipt,DESTINATION_NATIVE_MUTATION_RECEIPT_KEYS,'destination-native mutation receipt');
+  for(const key of ['project_id','work_id','destination','operation','mutation_id','issuer_identity_id'])requireString(receipt[key],`nativeMutationReceipt.${key}`,key==='destination'?2048:300);
+  for(const key of ['request_sha256','dispatch_idempotency_sha256','before_state_sha256','after_state_sha256','receipt_sha256'])requireHash(receipt[key],`nativeMutationReceipt.${key}`);
+  if(await sha256(bodyWithout(receipt,'receipt_sha256'))!==receipt.receipt_sha256)throw new DOMException('destination-native mutation receipt integrity failure','DataError');
+  canonicalIso(receipt.committed_at,'nativeMutationReceipt.committed_at');
+  if(receipt.mutation_committed!==true)throw new DOMException('destination-native mutation receipt must represent committed mutation data','DataError');
+  if(receipt.before_state_sha256===receipt.after_state_sha256)throw new DOMException('destination-native mutation receipt must change state digest','DataError');
+  if(receipt.authority_effect!=='NONE'||receipt.release_authority!==false||receipt.production_authority!==false||receipt.certification_authority!==false)throw new DOMException('destination-native mutation receipt authority boundary invalid','SecurityError');
+  return receipt;
+}
+
+async function assertExternalOperationReadback(readback){
+  if(!isPlainObject(readback)||readback.schema!=='musitu.axiom.external-operation-readback.v1')throw new TypeError('external operation readback required');
+  rejectUnknown(readback,EXTERNAL_OPERATION_READBACK_KEYS,'external operation readback');
+  for(const key of ['project_id','work_id','destination','operation','mutation_id','observer_workload_identity_id'])requireString(readback[key],`operationReadback.${key}`,key==='destination'?2048:300);
+  for(const key of ['request_sha256','expected_state_sha256','observed_state_sha256','readback_sha256'])requireHash(readback[key],`operationReadback.${key}`);
+  if(await sha256(bodyWithout(readback,'readback_sha256'))!==readback.readback_sha256)throw new DOMException('external operation readback integrity failure','DataError');
+  canonicalIso(readback.observed_at,'operationReadback.observed_at');
+  if(readback.read_only!==true)throw new DOMException('external operation readback must be read-only','SecurityError');
+  if(readback.authority_effect!=='NONE'||readback.release_authority!==false||readback.production_authority!==false||readback.certification_authority!==false)throw new DOMException('external operation readback authority boundary invalid','SecurityError');
+  return readback;
+}
+
+export async function verifyExternalDestinationMutationEvidence({
+  dispatchReceipt,
+  correlated,
+  nativeMutationReceipt,
+  operationReadback,
+  verifierActorId,
+  at=new Date().toISOString(),
+}={}){
+  await assertExternalDispatchReceipt(dispatchReceipt);
+  await assertExternalDestinationStateCorrelation(correlated);
+  await assertDestinationNativeMutationReceipt(nativeMutationReceipt);
+  await assertExternalOperationReadback(operationReadback);
+
+  const correlationBindings=[
+    ['project_id',dispatchReceipt.project_id,correlated.project_id],
+    ['work_id',dispatchReceipt.work_id,correlated.work_id],
+    ['handoff_sha256',dispatchReceipt.handoff_sha256,correlated.handoff_sha256],
+    ['request_sha256',dispatchReceipt.request_sha256,correlated.request_sha256],
+    ['receipt_sha256',dispatchReceipt.receipt_sha256,correlated.dispatch_receipt_sha256],
+    ['destination',dispatchReceipt.destination,correlated.destination],
+    ['provider',dispatchReceipt.provider,correlated.provider],
+    ['provider_work_id',dispatchReceipt.provider_work_id,correlated.provider_work_id],
+  ];
+  for(const [name,expected,actual] of correlationBindings)if(actual!==expected)throw new DOMException('destination mutation correlation '+name+' binding mismatch','SecurityError');
+
+  const nativeBindings=[
+    ['project_id',dispatchReceipt.project_id,nativeMutationReceipt.project_id],
+    ['work_id',dispatchReceipt.work_id,nativeMutationReceipt.work_id],
+    ['request_sha256',dispatchReceipt.request_sha256,nativeMutationReceipt.request_sha256],
+    ['destination',dispatchReceipt.destination,nativeMutationReceipt.destination],
+    ['operation',dispatchReceipt.operation,nativeMutationReceipt.operation],
+    ['dispatch_idempotency_sha256',dispatchReceipt.dispatch_idempotency_sha256,nativeMutationReceipt.dispatch_idempotency_sha256],
+  ];
+  for(const [name,expected,actual] of nativeBindings)if(actual!==expected)throw new DOMException('destination-native mutation receipt '+name+' binding mismatch','SecurityError');
+
+  const readbackBindings=[
+    ['project_id',dispatchReceipt.project_id,operationReadback.project_id],
+    ['work_id',dispatchReceipt.work_id,operationReadback.work_id],
+    ['request_sha256',dispatchReceipt.request_sha256,operationReadback.request_sha256],
+    ['destination',dispatchReceipt.destination,operationReadback.destination],
+    ['operation',dispatchReceipt.operation,operationReadback.operation],
+    ['mutation_id',nativeMutationReceipt.mutation_id,operationReadback.mutation_id],
+  ];
+  for(const [name,expected,actual] of readbackBindings)if(actual!==expected)throw new DOMException('external operation readback '+name+' binding mismatch','SecurityError');
+
+  if(operationReadback.expected_state_sha256!==nativeMutationReceipt.after_state_sha256||operationReadback.observed_state_sha256!==nativeMutationReceipt.after_state_sha256)throw new DOMException('operation-specific readback state mismatch','DataError');
+
+  const verifier_actor_id=requireString(verifierActorId,'verifierActorId',180);
+  const independentIdentities=new Set([
+    dispatchReceipt.workload_identity_id,
+    correlated.observer_workload_identity_id,
+    correlated.verifier_actor_id,
+    nativeMutationReceipt.issuer_identity_id,
+    operationReadback.observer_workload_identity_id,
+  ]);
+  if(nativeMutationReceipt.issuer_identity_id===dispatchReceipt.workload_identity_id)throw new DOMException('destination-native receipt issuer must be independent from executor','NotAllowedError');
+  if(operationReadback.observer_workload_identity_id===dispatchReceipt.workload_identity_id||operationReadback.observer_workload_identity_id===nativeMutationReceipt.issuer_identity_id||operationReadback.observer_workload_identity_id===correlated.observer_workload_identity_id)throw new DOMException('operation readback observer must be independent from executor native issuer and prior observer','NotAllowedError');
+  if(independentIdentities.has(verifier_actor_id))throw new DOMException('destination mutation evidence verifier must be independently separated','NotAllowedError');
+
+  const dispatchMs=Date.parse(dispatchReceipt.created_at);
+  const committedMs=Date.parse(nativeMutationReceipt.committed_at);
+  const readbackMs=Date.parse(operationReadback.observed_at);
+  const correlatedMs=Date.parse(correlated.created_at);
+  const created_at=canonicalIso(at,'at');
+  const verifiedMs=Date.parse(created_at);
+  if(!(dispatchMs<=committedMs&&committedMs<=readbackMs&&readbackMs<=correlatedMs&&correlatedMs<=verifiedMs))throw new DOMException('destination mutation evidence temporal ordering invalid','DataError');
+
+  const body={
+    schema:EXTERNAL_DESTINATION_MUTATION_EVIDENCE_SCHEMA,
+    project_id:dispatchReceipt.project_id,
+    work_id:dispatchReceipt.work_id,
+    handoff_sha256:dispatchReceipt.handoff_sha256,
+    request_sha256:dispatchReceipt.request_sha256,
+    dispatch_receipt_sha256:dispatchReceipt.receipt_sha256,
+    correlation_verification_sha256:correlated.verification_sha256,
+    native_mutation_receipt_sha256:nativeMutationReceipt.receipt_sha256,
+    operation_readback_sha256:operationReadback.readback_sha256,
+    destination:dispatchReceipt.destination,
+    operation:dispatchReceipt.operation,
+    mutation_id:nativeMutationReceipt.mutation_id,
+    destination_native_mutation_receipt_verified:true,
+    operation_specific_readback_match:true,
+    before_state_sha256:nativeMutationReceipt.before_state_sha256,
+    after_state_sha256:nativeMutationReceipt.after_state_sha256,
+    verifier_actor_id,
+    evidence_strength:'DESTINATION_NATIVE_RECEIPT_PLUS_OPERATION_READBACK',
+    independent_verification:'PASS_NATIVE_RECEIPT_AND_OPERATION_READBACK_ONLY',
+    causal_attribution:'STRONG_EVIDENCE_NOT_LIVE_QUALIFIED',
+    execution_truth:'NOT_LIVE_QUALIFIED',
+    external_action_executed:false,
+    live_runtime_qualification:'NOT_PROVEN',
+    status:'VERIFIED_DESTINATION_MUTATION_EVIDENCE',
+    authority_effect:'NONE',
+    release_authority:false,
+    production_authority:false,
+    certification_authority:false,
+    created_at,
+  };
+  return Object.freeze({...body,verification_sha256:await sha256(body)});
+}
