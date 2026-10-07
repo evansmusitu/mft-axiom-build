@@ -56,7 +56,7 @@ jobs:
           import json, time, urllib.request
           url="https://musitu-axiom-operator-reviewer-mcp-20261006.mft-education-nexus-93f395f5.workers.dev/mcp"
           body=json.dumps({"jsonrpc":"2.0","id":"verify","method":"tools/list","params":{"_meta":{"io.modelcontextprotocol/protocolVersion":"2026-07-28"}}}).encode()
-          headers={"Content-Type":"application/json","Accept":"application/json","MCP-Protocol-Version":"2026-07-28","Mcp-Method":"tools/list"}
+          headers={"Content-Type":"application/json","Accept":"application/json","MCP-Protocol-Version":"2026-07-28","Mcp-Method":"tools/list","User-Agent":"Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/140.0.0.0 Safari/537.36","Accept-Language":"en-US,en;q=0.9"}
           last=None
           for _ in range(30):
               try:
