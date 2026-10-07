@@ -1114,3 +1114,144 @@ test('destination-state correlation reconciles as non-causal EvidenceRef and rep
   assert.equal(replay.evidence.id,first.evidence.id);
   assert.equal(commits,1);
 });
+
+
+test('destination-native mutation receipt plus operation-specific readback strengthens causal evidence without claiming live execution',async()=>{
+  const module=await import('../product_intelligence/living_product_graph.js');
+  const security=await import('../execution_security.js');
+  assert.equal(typeof module.verifyExternalDestinationMutationEvidence,'function');
+
+  const dispatchBody={
+    schema:'musitu.axiom.external-worker-dispatch-receipt.v1',
+    project_id:'project_12345678',
+    work_id:'work_12345678',
+    handoff_sha256:'1'.repeat(64),
+    request_sha256:'2'.repeat(64),
+    workload_identity_id:'workload_executor_1',
+    operation:'repo.mutate',
+    risk_class:'S3',
+    destination:'https://example.invalid/app',
+    provider:'axiom-isolated-worker',
+    provider_work_id:'worker_job_lifecycle_12345678',
+    provider_status:'ACCEPTED',
+    dispatch_idempotency_sha256:'3'.repeat(64),
+    external_action_executed:false,
+    live_runtime_qualification:'NOT_PROVEN',
+    authority_effect:'NONE',
+    release_authority:false,
+    production_authority:false,
+    certification_authority:false,
+    created_at:'2026-10-07T20:00:00.000Z',
+  };
+  const dispatchReceipt={...dispatchBody,receipt_sha256:await security.sha256(dispatchBody)};
+
+  const correlatedBody={
+    schema:'musitu.axiom.external-destination-state-correlation.v1',
+    project_id:'project_12345678',
+    work_id:'work_12345678',
+    handoff_sha256:'1'.repeat(64),
+    request_sha256:'2'.repeat(64),
+    dispatch_receipt_sha256:dispatchReceipt.receipt_sha256,
+    result_verification_sha256:'4'.repeat(64),
+    destination:'https://example.invalid/app',
+    provider:'axiom-isolated-worker',
+    provider_work_id:'worker_job_lifecycle_12345678',
+    observer_workload_identity_id:'workload_destination_observer_2',
+    before_request_id:'observation_before_12345678',
+    after_request_id:'observation_after_12345678',
+    before_observation_sha256:'5'.repeat(64),
+    after_observation_sha256:'6'.repeat(64),
+    before_dom_sha256:'7'.repeat(64),
+    after_dom_sha256:'8'.repeat(64),
+    destination_state_change_observed:true,
+    verifier_actor_id:'agent_destination_verifier_3',
+    independent_verification:'PASS_DESTINATION_STATE_CORRELATION_ONLY',
+    execution_truth:'CORRELATED_DESTINATION_STATE_CHANGE_NOT_CAUSALLY_PROVEN',
+    external_action_executed:false,
+    live_runtime_qualification:'NOT_PROVEN',
+    status:'VERIFIED_DESTINATION_STATE_CORRELATION',
+    authority_effect:'NONE',
+    release_authority:false,
+    production_authority:false,
+    certification_authority:false,
+    created_at:'2026-10-07T20:04:00.000Z',
+  };
+  const correlated={...correlatedBody,verification_sha256:await security.sha256(correlatedBody)};
+
+  const nativeBody={
+    schema:'musitu.axiom.external-destination-native-mutation-receipt.v1',
+    project_id:'project_12345678',
+    work_id:'work_12345678',
+    request_sha256:'2'.repeat(64),
+    destination:'https://example.invalid/app',
+    operation:'repo.mutate',
+    mutation_id:'destination_mutation_12345678',
+    issuer_identity_id:'destination_native_issuer_1',
+    dispatch_idempotency_sha256:'3'.repeat(64),
+    before_state_sha256:'9'.repeat(64),
+    after_state_sha256:'a'.repeat(64),
+    mutation_committed:true,
+    committed_at:'2026-10-07T20:02:30.000Z',
+    authority_effect:'NONE',
+    release_authority:false,
+    production_authority:false,
+    certification_authority:false,
+  };
+  const nativeMutationReceipt={...nativeBody,receipt_sha256:await security.sha256(nativeBody)};
+
+  const readbackBody={
+    schema:'musitu.axiom.external-operation-readback.v1',
+    project_id:'project_12345678',
+    work_id:'work_12345678',
+    request_sha256:'2'.repeat(64),
+    destination:'https://example.invalid/app',
+    operation:'repo.mutate',
+    mutation_id:'destination_mutation_12345678',
+    observer_workload_identity_id:'workload_operation_readback_4',
+    expected_state_sha256:'a'.repeat(64),
+    observed_state_sha256:'a'.repeat(64),
+    read_only:true,
+    observed_at:'2026-10-07T20:03:30.000Z',
+    authority_effect:'NONE',
+    release_authority:false,
+    production_authority:false,
+    certification_authority:false,
+  };
+  const operationReadback={...readbackBody,readback_sha256:await security.sha256(readbackBody)};
+
+  const verified=await module.verifyExternalDestinationMutationEvidence({
+    dispatchReceipt,
+    correlated,
+    nativeMutationReceipt,
+    operationReadback,
+    verifierActorId:'agent_native_mutation_verifier_5',
+    at:'2026-10-07T20:05:00.000Z',
+  });
+  assert.equal(verified.schema,'musitu.axiom.external-destination-mutation-evidence-verification.v1');
+  assert.equal(verified.status,'VERIFIED_DESTINATION_MUTATION_EVIDENCE');
+  assert.equal(verified.destination_native_mutation_receipt_verified,true);
+  assert.equal(verified.operation_specific_readback_match,true);
+  assert.equal(verified.evidence_strength,'DESTINATION_NATIVE_RECEIPT_PLUS_OPERATION_READBACK');
+  assert.equal(verified.independent_verification,'PASS_NATIVE_RECEIPT_AND_OPERATION_READBACK_ONLY');
+  assert.equal(verified.causal_attribution,'STRONG_EVIDENCE_NOT_LIVE_QUALIFIED');
+  assert.equal(verified.execution_truth,'NOT_LIVE_QUALIFIED');
+  assert.equal(verified.external_action_executed,false);
+  assert.equal(verified.live_runtime_qualification,'NOT_PROVEN');
+  assert.equal(verified.authority_effect,'NONE');
+  assert.equal(verified.release_authority,false);
+  assert.equal(verified.production_authority,false);
+  assert.equal(verified.certification_authority,false);
+  assert.match(verified.verification_sha256,/^[a-f0-9]{64}$/);
+
+  await assert.rejects(
+    ()=>module.verifyExternalDestinationMutationEvidence({
+      dispatchReceipt,
+      correlated,
+      nativeMutationReceipt:{...nativeMutationReceipt,after_state_sha256:'b'.repeat(64)},
+      operationReadback,
+      verifierActorId:'agent_native_mutation_verifier_5',
+      at:'2026-10-07T20:05:00.000Z',
+    }),
+    /integrity|hash|state|readback|receipt/i,
+  );
+});
