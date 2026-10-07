@@ -14,6 +14,10 @@ MINING_TELEMETRY_SENSORS=(
     "CR863","P_864","TC862","WM868",
     "AMP1_IR","AMP2_IR","DMP3_IR","DMP4_IR","AMP5_IR","F_SIDE","V",
 )
+_STATE_SENSORS=("F_SIDE",)
+_NUMERIC_SENSORS=tuple(
+    sensor for sensor in MINING_TELEMETRY_SENSORS if sensor not in _STATE_SENSORS
+)
 _REQUIRED=("event_time",)+MINING_TELEMETRY_SENSORS
 _ALLOWED=set(_REQUIRED)
 
@@ -39,7 +43,7 @@ def normalize_mining_telemetry_rows(rows: Iterable[dict[str,Any]]) -> CanonicalE
             raise ValueError("telemetry_event_time_timezone_required")
 
         record={"event_time":event_time}
-        for sensor in MINING_TELEMETRY_SENSORS:
+        for sensor in _NUMERIC_SENSORS:
             try:
                 value=float(raw[sensor])
             except (TypeError,ValueError):
@@ -49,6 +53,12 @@ def normalize_mining_telemetry_rows(rows: Iterable[dict[str,Any]]) -> CanonicalE
             # Real mine telemetry contains documented outliers and values outside
             # nominal sensor ranges. Preserve them rather than silently clipping
             # source evidence at the interoperability boundary.
+            record[sensor]=value
+
+        for sensor in _STATE_SENSORS:
+            value=str(raw[sensor]).strip()
+            if not value:
+                raise ValueError(f"telemetry_state_required:{sensor}")
             record[sensor]=value
         normalized.append(record)
 
