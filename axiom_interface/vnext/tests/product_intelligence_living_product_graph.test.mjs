@@ -1019,3 +1019,98 @@ test('independent destination-state correlation proves an observed change withou
   assert.match(correlated.after_observation_sha256,/^[a-f0-9]{64}$/);
   assert.match(correlated.verification_sha256,/^[a-f0-9]{64}$/);
 });
+
+
+test('destination-state correlation reconciles as non-causal EvidenceRef and replays idempotently',async()=>{
+  const module=await import('../product_intelligence/living_product_graph.js');
+  const security=await import('../execution_security.js');
+  assert.equal(typeof module.createExternalDestinationStateCorrelationEvidence,'function');
+  assert.equal(typeof module.reconcileExternalDestinationStateCorrelation,'function');
+
+  const correlatedBody={
+    schema:'musitu.axiom.external-destination-state-correlation.v1',
+    project_id:'project_12345678',
+    work_id:'work_12345678',
+    handoff_sha256:'1'.repeat(64),
+    request_sha256:'2'.repeat(64),
+    dispatch_receipt_sha256:'3'.repeat(64),
+    result_verification_sha256:'4'.repeat(64),
+    destination:'https://example.invalid/app',
+    provider:'axiom-isolated-worker',
+    provider_work_id:'worker_job_lifecycle_12345678',
+    observer_workload_identity_id:'workload_destination_observer_2',
+    before_request_id:'observation_before_12345678',
+    after_request_id:'observation_after_12345678',
+    before_observation_sha256:'5'.repeat(64),
+    after_observation_sha256:'6'.repeat(64),
+    before_dom_sha256:'7'.repeat(64),
+    after_dom_sha256:'8'.repeat(64),
+    destination_state_change_observed:true,
+    verifier_actor_id:'agent_destination_verifier_3',
+    independent_verification:'PASS_DESTINATION_STATE_CORRELATION_ONLY',
+    execution_truth:'CORRELATED_DESTINATION_STATE_CHANGE_NOT_CAUSALLY_PROVEN',
+    external_action_executed:false,
+    live_runtime_qualification:'NOT_PROVEN',
+    status:'VERIFIED_DESTINATION_STATE_CORRELATION',
+    authority_effect:'NONE',
+    release_authority:false,
+    production_authority:false,
+    certification_authority:false,
+    created_at:'2026-10-07T20:04:00.000Z',
+  };
+  const correlated={...correlatedBody,verification_sha256:await security.sha256(correlatedBody)};
+  const evidence=await module.createExternalDestinationStateCorrelationEvidence(correlated);
+  assert.equal(evidence.schema,'musitu.axiom.evidence.v1');
+  assert.equal(evidence.data.verification.destination_state_change_observed,true);
+  assert.equal(evidence.data.verification.execution_truth,'CORRELATED_DESTINATION_STATE_CHANGE_NOT_CAUSALLY_PROVEN');
+  assert.equal(evidence.data.verification.external_action_executed,false);
+  assert.equal(evidence.data.verification.live_runtime_qualification,'NOT_PROVEN');
+
+  const rows=new Map([['project_12345678',graph()]]);
+  let commits=0;
+  const backend={
+    descriptor:{
+      kind:'PersistenceBackend',adapter_version:'1.0.0',provider:'destination-correlation-memory',semantic_owner:'AXIOM',authority:'MECHANISM_ONLY',
+      capabilities:['load','commit','verify','export'],unsupported_operations:['production_mutation'],timeout_ms:1000,
+      retry:{max_attempts:1,backoff:'NONE'},idempotency:{mode:'REQUIRED_FOR_WRITES'},data_classification:['project-private'],
+      egress:{required:false,allowed_origins:[]},identity_binding:{required:true,mode:'AXIOM_WORKLOAD_ID'},
+      evidence_envelope:{schema:'musitu.axiom.evidence.v1',required:true},health:{mode:'EXPLICIT'},migration_export:{supported:true,format:'JSONL'},fail_closed:true,
+    },
+    async loadProjectGraph(projectId){return structuredClone(rows.get(projectId)??null);},
+    async commitGraph(projectId,value,{expectedGeneration}){
+      const prior=rows.get(projectId);
+      assert.equal(prior?.generation??0,expectedGeneration);
+      commits+=1;
+      rows.set(projectId,structuredClone(value));
+      return structuredClone(value);
+    },
+    async verifyIntegrity(projectId){return {status:rows.has(projectId)?'PASS':'NOT_PROVEN',project_id:projectId};},
+    async exportProject(projectId){return {project_id:projectId,graph:structuredClone(rows.get(projectId)??null)};},
+  };
+  const persistence=module.createLivingProductGraphPersistence(backend);
+  const first=await module.reconcileExternalDestinationStateCorrelation({persistence,correlated,at:correlated.created_at});
+  assert.equal(first.status,'RECONCILED');
+  assert.equal(first.graph.generation,2);
+  assert.equal(commits,1);
+  assert.equal(first.authority_effect,'NONE');
+  assert.equal(first.release_authority,false);
+  assert.equal(first.production_authority,false);
+  assert.equal(first.certification_authority,false);
+
+  const node=first.graph.nodes.find(row=>row.type==='EvidenceRef'&&row.data?.correlation_verification_sha256===correlated.verification_sha256);
+  assert.ok(node);
+  assert.equal(node.data.destination,'https://example.invalid/app');
+  assert.equal(node.data.destination_state_change_observed,true);
+  assert.equal(node.data.independent_verification,'PASS_DESTINATION_STATE_CORRELATION_ONLY');
+  assert.equal(node.data.execution_truth,'CORRELATED_DESTINATION_STATE_CHANGE_NOT_CAUSALLY_PROVEN');
+  assert.equal(node.data.external_action_executed,false);
+  assert.equal(node.data.live_runtime_qualification,'NOT_PROVEN');
+  assert.equal(node.metadata.risk_class,'S3');
+  assert.equal(node.metadata.uncertainty.kind,'EXTERNAL_EXECUTION_CAUSALITY_NOT_PROVEN');
+
+  const replay=await module.reconcileExternalDestinationStateCorrelation({persistence,correlated,at:correlated.created_at});
+  assert.equal(replay.status,'IDEMPOTENT_REPLAY');
+  assert.equal(replay.graph.generation,2);
+  assert.equal(replay.evidence.id,first.evidence.id);
+  assert.equal(commits,1);
+});
