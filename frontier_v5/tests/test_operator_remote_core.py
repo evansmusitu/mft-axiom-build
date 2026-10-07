@@ -43,7 +43,8 @@ def main():
     assert read["status"]==200
     assert read["mutated"] is False
     assert read["state_pack"] is None
-    assert read["body"]["result"]["project_id"]=="p1"
+    assert read["body"]["result"]["structuredContent"]["project_id"]=="p1"
+    assert read["body"]["result"]["isError"] is False
 
     h,m=mcp_call("axiom.work.create",{
         "project_id":"p1",
@@ -59,24 +60,43 @@ def main():
     assert work["mutated"] is True
     state2=work["state_pack"]
     assert state2["state_sha256"]!=state["state_sha256"]
-    plan_id=work["body"]["result"]["plan_id"]
+    plan_id=work["body"]["result"]["structuredContent"]["plan_id"]
 
     h,m=mcp_call("axiom.work.status",{"project_id":"p1","plan_id":plan_id},"r4")
     continuity=execute_remote_mcp(
         state_pack=state2,tenant=tenant,actor_id=actor,headers=h,message=m
     )
     assert continuity["status"]==200
-    assert continuity["body"]["result"]["plan"]["plan_id"]==plan_id
+    assert continuity["body"]["result"]["structuredContent"]["plan"]["plan_id"]==plan_id
+    assert continuity["body"]["result"]["isError"] is False
     assert continuity["mutated"] is False
 
     h,m=mcp_call("axiom.unknown",{},"r5")
     bad=execute_remote_mcp(
         state_pack=state2,tenant=tenant,actor_id=actor,headers=h,message=m
     )
-    assert bad["status"]==400
+    assert bad["status"]==200
     assert bad["mutated"] is False
     assert bad["state_pack"] is None
-    assert bad["body"]["error"]=="MCP_REQUEST_REJECTED"
+    assert bad["body"]["jsonrpc"]=="2.0"
+    assert bad["body"]["id"]=="r5"
+    assert bad["body"]["result"]["isError"] is True
+    assert bad["body"]["result"]["structuredContent"]["error"]["code"]=="TOOL_NOT_FOUND"
+
+    # True protocol violations use a valid JSON-RPC error envelope, not a raw
+    # transport object and never persist state.
+    h,m=mcp_call("axiom.project.status",{"project_id":"p1"},"r6")
+    h["Mcp-Name"]="axiom.work.status"
+    rejected=execute_remote_mcp(
+        state_pack=state2,tenant=tenant,actor_id=actor,headers=h,message=m
+    )
+    assert rejected["status"]==400
+    assert rejected["mutated"] is False
+    assert rejected["state_pack"] is None
+    assert rejected["body"]["jsonrpc"]=="2.0"
+    assert rejected["body"]["id"]=="r6"
+    assert rejected["body"]["error"]["code"]==-32600
+    assert rejected["body"]["error"]["message"]=="MCP request rejected"
 
     print("MUSITU_AXIOM_OPERATOR_REMOTE_CORE_PASS")
 
