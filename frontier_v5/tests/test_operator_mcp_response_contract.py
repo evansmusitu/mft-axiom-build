@@ -99,6 +99,26 @@ def main() -> None:
         assert structured["error"]["code"] == "GOVERNED_OUTCOME_UNAVAILABLE"
         assert "governed outcome unavailable" in structured["error"]["message"]
 
+
+    # A domain object may itself have a field named "content". That must not be
+    # mistaken for a pre-wrapped MCP CallToolResult unless content is actually
+    # an MCP content array.
+    domain_server = MCP2026Server(
+        server_name="operator-response-contract",
+        server_version="1.0.0",
+        list_tools=list_tools,
+        call_tool=lambda name, arguments: {
+            "tool": name,
+            "content": {"domain": "artifact-body"},
+            "status": "OK",
+        },
+    )
+    name = names[0]
+    status, _, body = domain_server.handle(headers(name), message(name, "domain-content"))
+    assert status == 200
+    assert_call_tool_result(body, request_id="domain-content", is_error=False, name=name)
+    assert body["result"]["structuredContent"]["content"] == {"domain": "artifact-body"}
+
     print("MUSITU_AXIOM_OPERATOR_MCP_RESPONSE_CONTRACT_PASS")
 
 
