@@ -155,6 +155,7 @@ class MethaneBacktestTests(unittest.TestCase):
                 "test_positives":20,
                 "test_prevalence":0.20,
                 "temporal_leakage_check":True,
+                "online_recalibration_leakage_check":True,
                 "baseline":baseline,
                 "model":model,
             })
@@ -177,6 +178,11 @@ class MethaneBacktestTests(unittest.TestCase):
         self.assertEqual(result["passing_folds"],3)
 
         report["folds"][0]["temporal_leakage_check"]=False
+        result=evaluate_backtest_gate(spec,report)
+        self.assertFalse(result["backtest_qualified"])
+
+        report["folds"][0]["temporal_leakage_check"]=True
+        report["folds"][0]["online_recalibration_leakage_check"]=False
         result=evaluate_backtest_gate(spec,report)
         self.assertFalse(result["backtest_qualified"])
 
