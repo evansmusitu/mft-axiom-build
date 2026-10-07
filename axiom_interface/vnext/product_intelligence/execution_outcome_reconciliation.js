@@ -954,3 +954,221 @@ export async function verifyExternalDestinationMutationEvidence({
   };
   return Object.freeze({...body,verification_sha256:await sha256(body)});
 }
+
+
+const EXTERNAL_DESTINATION_MUTATION_EVIDENCE_KEYS=new Set([
+  'schema','project_id','work_id','handoff_sha256','request_sha256','dispatch_receipt_sha256',
+  'correlation_verification_sha256','native_mutation_receipt_sha256','operation_readback_sha256',
+  'destination','operation','mutation_id','destination_native_mutation_receipt_verified','operation_specific_readback_match',
+  'before_state_sha256','after_state_sha256','verifier_actor_id','evidence_strength','independent_verification',
+  'causal_attribution','execution_truth','external_action_executed','live_runtime_qualification','status',
+  'authority_effect','release_authority','production_authority','certification_authority','created_at','verification_sha256',
+]);
+
+async function assertExternalDestinationMutationEvidenceVerification(verified){
+  if(!isPlainObject(verified)||verified.schema!==EXTERNAL_DESTINATION_MUTATION_EVIDENCE_SCHEMA)throw new TypeError('verified external destination mutation evidence required');
+  rejectUnknown(verified,EXTERNAL_DESTINATION_MUTATION_EVIDENCE_KEYS,'external destination mutation evidence verification');
+  for(const key of ['project_id','work_id','destination','operation','mutation_id','verifier_actor_id','evidence_strength','independent_verification','causal_attribution','execution_truth','status'])requireString(verified[key],`destinationMutationEvidence.${key}`,key==='destination'?2048:300);
+  for(const key of ['handoff_sha256','request_sha256','dispatch_receipt_sha256','correlation_verification_sha256','native_mutation_receipt_sha256','operation_readback_sha256','before_state_sha256','after_state_sha256','verification_sha256'])requireHash(verified[key],`destinationMutationEvidence.${key}`);
+  if(await sha256(bodyWithout(verified,'verification_sha256'))!==verified.verification_sha256)throw new DOMException('external destination mutation evidence verification integrity failure','DataError');
+  canonicalIso(verified.created_at,'destinationMutationEvidence.created_at');
+  if(verified.destination_native_mutation_receipt_verified!==true||verified.operation_specific_readback_match!==true)throw new DOMException('external destination mutation evidence requires native receipt and readback verification','DataError');
+  if(verified.before_state_sha256===verified.after_state_sha256)throw new DOMException('external destination mutation evidence must represent state transition','DataError');
+  if(
+    verified.evidence_strength!=='DESTINATION_NATIVE_RECEIPT_PLUS_OPERATION_READBACK'||
+    verified.independent_verification!=='PASS_NATIVE_RECEIPT_AND_OPERATION_READBACK_ONLY'||
+    verified.causal_attribution!=='STRONG_EVIDENCE_NOT_LIVE_QUALIFIED'||
+    verified.execution_truth!=='NOT_LIVE_QUALIFIED'||
+    verified.status!=='VERIFIED_DESTINATION_MUTATION_EVIDENCE'
+  )throw new DOMException('external destination mutation evidence semantic boundary invalid','SecurityError');
+  if(verified.external_action_executed!==false||verified.live_runtime_qualification!=='NOT_PROVEN')throw new DOMException('external destination mutation evidence cannot certify live execution','SecurityError');
+  if(verified.authority_effect!=='NONE'||verified.release_authority!==false||verified.production_authority!==false||verified.certification_authority!==false)throw new DOMException('external destination mutation evidence authority boundary invalid','SecurityError');
+  return verified;
+}
+
+export async function createExternalDestinationMutationEvidence(verified){
+  await assertExternalDestinationMutationEvidenceVerification(verified);
+  const evidence={
+    schema:'musitu.axiom.evidence.v1',
+    type:'Evidence',
+    id:`evidence_${verified.verification_sha256.slice(0,24)}`,
+    version:1,
+    created_at:verified.created_at,
+    updated_at:verified.created_at,
+    data:{
+      inputs:[{
+        project_id:verified.project_id,
+        work_id:verified.work_id,
+        destination:verified.destination,
+        operation:verified.operation,
+        mutation_id:verified.mutation_id,
+      }],
+      sources:[
+        {kind:'EXTERNAL_WORKER_DISPATCH_RECEIPT',receipt_sha256:verified.dispatch_receipt_sha256},
+        {kind:'EXTERNAL_DESTINATION_STATE_CORRELATION',verification_sha256:verified.correlation_verification_sha256},
+        {kind:'DESTINATION_NATIVE_MUTATION_RECEIPT',receipt_sha256:verified.native_mutation_receipt_sha256},
+        {kind:'OPERATION_SPECIFIC_READBACK',readback_sha256:verified.operation_readback_sha256},
+      ],
+      capability_chain:[
+        'ChangeAdmission','OperationScopedExecutorHandoff','EngineeringWorkerBackend',
+        'ExternalDestinationStateCorrelation','DestinationNativeMutationReceipt','OperationSpecificReadback',
+      ],
+      calculations:[
+        {kind:'DESTINATION_NATIVE_MUTATION_RECEIPT_VERIFICATION',status:'PASS'},
+        {kind:'OPERATION_SPECIFIC_READBACK_MATCH',status:'PASS'},
+        {kind:'LIVE_RUNTIME_QUALIFICATION',status:'NOT_PROVEN'},
+      ],
+      actions:[{
+        kind:'DESTINATION_MUTATION_EVIDENCE_VERIFIED',
+        destination_native_mutation_receipt_verified:true,
+        operation_specific_readback_match:true,
+        external_action_executed:false,
+      }],
+      policies:[
+        'DESTINATION_NATIVE_RECEIPT_IS_EVIDENCE_NOT_AUTHORITY',
+        'OPERATION_READBACK_MUST_BE_READ_ONLY_AND_INDEPENDENT',
+        'STRONG_CAUSAL_EVIDENCE_IS_NOT_LIVE_RUNTIME_QUALIFICATION',
+        'NO_EXTERNAL_EXECUTION_CERTIFICATION_FROM_REPOSITORY_TEST_FIXTURES',
+        'NO_AUTHORITY_ESCALATION',
+      ],
+      approvals:[],
+      hashes:[
+        verified.handoff_sha256,verified.request_sha256,verified.dispatch_receipt_sha256,
+        verified.correlation_verification_sha256,verified.native_mutation_receipt_sha256,
+        verified.operation_readback_sha256,verified.before_state_sha256,verified.after_state_sha256,
+        verified.verification_sha256,
+      ],
+      receipts:[
+        {schema:'musitu.axiom.external-worker-dispatch-receipt.v1',receipt_sha256:verified.dispatch_receipt_sha256},
+        {schema:'musitu.axiom.external-destination-native-mutation-receipt.v1',receipt_sha256:verified.native_mutation_receipt_sha256},
+        {schema:'musitu.axiom.external-operation-readback.v1',readback_sha256:verified.operation_readback_sha256},
+      ],
+      verification:{
+        status:'VERIFIED_DESTINATION_MUTATION_EVIDENCE',
+        verifier_actor_id:verified.verifier_actor_id,
+        destination_native_mutation_receipt_verified:true,
+        operation_specific_readback_match:true,
+        evidence_strength:'DESTINATION_NATIVE_RECEIPT_PLUS_OPERATION_READBACK',
+        independent_verification:'PASS_NATIVE_RECEIPT_AND_OPERATION_READBACK_ONLY',
+        causal_attribution:'STRONG_EVIDENCE_NOT_LIVE_QUALIFIED',
+        execution_truth:'NOT_LIVE_QUALIFIED',
+        external_action_executed:false,
+        live_runtime_qualification:'NOT_PROVEN',
+        authority_effect:'NONE',
+        release_authority:false,
+        production_authority:false,
+        certification_authority:false,
+      },
+      failures:[{status:'NOT_PROVEN',reason:'live external worker runtime execution has not been independently qualified'}],
+      timestamps:[{kind:'DESTINATION_MUTATION_EVIDENCE_VERIFIED',at:verified.created_at}],
+      versions:[{schema:EXTERNAL_DESTINATION_MUTATION_EVIDENCE_SCHEMA,verification_sha256:verified.verification_sha256}],
+    },
+  };
+  assertAxiomObject(evidence,{expectedType:'Evidence'});
+  return Object.freeze(structuredClone(evidence));
+}
+
+export async function reconcileExternalDestinationMutationEvidence({persistence,verified,at=verified?.created_at}={}){
+  if(!persistence||typeof persistence!=='object'||typeof persistence.load!=='function'||typeof persistence.commit!=='function')throw new TypeError('Living Product Graph persistence API required');
+  const evidence=await createExternalDestinationMutationEvidence(verified);
+  const projectId=requireString(verified.project_id,'verified.project_id',300);
+  const current=await persistence.load(projectId);
+  if(!current)throw new DOMException('Living Product Graph required before destination mutation evidence reconciliation','NotFoundError');
+
+  const nodeId=`lpg_evidence_destination_mutation_${verified.verification_sha256.slice(0,24)}`;
+  const existing=current.nodes.find(node=>node.node_id===nodeId);
+  if(existing){
+    if(
+      existing.type!=='EvidenceRef'||
+      existing.data?.evidence_id!==evidence.id||
+      existing.data?.mutation_evidence_verification_sha256!==verified.verification_sha256||
+      existing.data?.request_sha256!==verified.request_sha256||
+      existing.data?.destination!==verified.destination||
+      existing.data?.destination_native_mutation_receipt_verified!==true||
+      existing.data?.operation_specific_readback_match!==true||
+      existing.data?.execution_truth!=='NOT_LIVE_QUALIFIED'||
+      existing.data?.external_action_executed!==false
+    )throw new DOMException('destination mutation evidence replay conflicts with existing EvidenceRef','DataError');
+    return Object.freeze({
+      status:'IDEMPOTENT_REPLAY',
+      project_id:projectId,
+      evidence,
+      graph:structuredClone(current),
+      authority_effect:'NONE',
+      release_authority:false,
+      production_authority:false,
+      certification_authority:false,
+    });
+  }
+
+  const created_at=canonicalIso(at,'destination mutation evidence reconciliation.at');
+  const generation=current.generation+1;
+  const nodes=current.nodes.map(node=>({...structuredClone(node),metadata:{...structuredClone(node.metadata),generation}}));
+  const edges=current.edges.map(edge=>({...structuredClone(edge),metadata:{...structuredClone(edge.metadata),generation}}));
+  nodes.push({
+    node_id:nodeId,
+    type:'EvidenceRef',
+    metadata:{
+      project_id:projectId,
+      version:1,
+      generation,
+      valid_from:created_at,
+      valid_to:null,
+      provenance:{
+        source:'external-destination-native-mutation-evidence',
+        handoff_sha256:verified.handoff_sha256,
+        request_sha256:verified.request_sha256,
+        dispatch_receipt_sha256:verified.dispatch_receipt_sha256,
+        correlation_verification_sha256:verified.correlation_verification_sha256,
+        native_mutation_receipt_sha256:verified.native_mutation_receipt_sha256,
+        operation_readback_sha256:verified.operation_readback_sha256,
+        destination:verified.destination,
+        mutation_id:verified.mutation_id,
+      },
+      evidence_refs:[evidence.id],
+      confidence:1,
+      uncertainty:{kind:'LIVE_EXTERNAL_EXECUTION_NOT_QUALIFIED'},
+      actor_id:verified.verifier_actor_id,
+      risk_class:'S3',
+      content_hash:verified.verification_sha256,
+      freshness:{as_of:created_at},
+      supersession:{state:'CURRENT',supersedes:[]},
+    },
+    data:{
+      evidence_id:evidence.id,
+      request_sha256:verified.request_sha256,
+      mutation_evidence_verification_sha256:verified.verification_sha256,
+      destination:verified.destination,
+      operation:verified.operation,
+      mutation_id:verified.mutation_id,
+      native_mutation_receipt_sha256:verified.native_mutation_receipt_sha256,
+      operation_readback_sha256:verified.operation_readback_sha256,
+      destination_native_mutation_receipt_verified:true,
+      operation_specific_readback_match:true,
+      evidence_strength:'DESTINATION_NATIVE_RECEIPT_PLUS_OPERATION_READBACK',
+      causal_attribution:'STRONG_EVIDENCE_NOT_LIVE_QUALIFIED',
+      execution_truth:'NOT_LIVE_QUALIFIED',
+      external_action_executed:false,
+      live_runtime_qualification:'NOT_PROVEN',
+    },
+  });
+  const next={
+    schema:current.schema,
+    project_id:current.project_id,
+    generation,
+    impact_state:current.impact_state,
+    nodes,
+    edges,
+  };
+  const saved=await persistence.commit(next,{expectedGeneration:current.generation});
+  return Object.freeze({
+    status:'RECONCILED',
+    project_id:projectId,
+    evidence,
+    graph:structuredClone(saved),
+    authority_effect:'NONE',
+    release_authority:false,
+    production_authority:false,
+    certification_authority:false,
+  });
+}
