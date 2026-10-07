@@ -97,7 +97,7 @@ def _build_service(store_path: Path) -> MiningAdapterService:
     )
 
 
-def run(*, archive_path: Path, store_path: Path, spec: LongwallTelemetrySpec) -> dict[str,Any]:
+def run(*, archive_path: Path, store_path: Path, spec: LongwallTelemetrySpec, transport_source: str) -> dict[str,Any]:
     if not archive_path.is_file():
         raise FileNotFoundError(archive_path)
     archive_sha=_sha256_file(archive_path)
@@ -196,6 +196,7 @@ def run(*, archive_path: Path, store_path: Path, spec: LongwallTelemetrySpec) ->
                 "doi":spec.doi,
                 "license":spec.license,
                 "source_page":spec.source_page,
+                "transport_source":transport_source,
                 "source_archive_sha256":archive_sha,
                 "source_member_sha256":member_sha,
                 "source_member_name":member_path.name,
@@ -243,6 +244,7 @@ def run(*, archive_path: Path, store_path: Path, spec: LongwallTelemetrySpec) ->
 def main() -> None:
     parser=argparse.ArgumentParser()
     parser.add_argument("--archive",type=Path,required=True)
+    parser.add_argument("--transport-source",choices=("mendeley","openml:42701"),required=True)
     parser.add_argument("--store",type=Path,required=True)
     parser.add_argument("--min-source-rows",type=int,default=9_000_000)
     parser.add_argument("--durable-sample-rows",type=int,default=1_000_000)
@@ -254,7 +256,12 @@ def main() -> None:
         durable_sample_rows=args.durable_sample_rows,
         durable_batch_size=args.durable_batch_size,
     )
-    evidence=run(archive_path=args.archive,store_path=args.store,spec=spec)
+    evidence=run(
+        archive_path=args.archive,
+        store_path=args.store,
+        spec=spec,
+        transport_source=args.transport_source,
+    )
     args.output.parent.mkdir(parents=True,exist_ok=True)
     args.output.write_text(json.dumps(evidence,indent=2,sort_keys=True)+"\n")
     print(json.dumps(evidence,indent=2,sort_keys=True))
