@@ -131,7 +131,9 @@ def main() -> None:
     }
     _, _, called = server.handle(headers("tools/call", "alpha"), call_request)
     assert called["result"]["structuredContent"] == {"name": "alpha", "x": 42}
-    assert called["result"]["resultType"] == "complete"
+    assert called["result"]["content"] == [{"type": "text", "text": "alpha:42"}]
+    assert called["result"]["isError"] is False
+    assert called["result"]["_meta"]["io.modelcontextprotocol/serverInfo"]["name"] == "musitu-axiom-frontier-candidate"
 
     # Modern requests must fail closed on legacy/session ambiguity or header
     # smuggling/mismatch.
