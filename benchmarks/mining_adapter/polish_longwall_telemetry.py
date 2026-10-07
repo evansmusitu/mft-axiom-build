@@ -93,9 +93,14 @@ def canonical_telemetry_row(raw: Mapping[str,Any]) -> dict[str,Any]:
 
     record={"event_time":stamp.isoformat(timespec="seconds").replace("+00:00","Z")}
     for sensor in MINING_TELEMETRY_SENSORS:
-        raw_value=row[sensor.casefold()]
+        raw_value=str(row[sensor.casefold()]).strip()
+        if sensor=="F_SIDE":
+            if not raw_value:
+                raise ValueError("longwall_sensor_state_required:F_SIDE")
+            record[sensor]=raw_value
+            continue
         try:
-            value=float(str(raw_value).strip())
+            value=float(raw_value)
         except (TypeError,ValueError):
             raise ValueError(f"longwall_sensor_value_invalid:{sensor}") from None
         if not isfinite(value):
