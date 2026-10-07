@@ -33,8 +33,8 @@ export async function dispatchAuthorizedExternalOperation({handoff,authorityEnve
   };
   const idempotency_key=await sha256(dispatchKeyBody);
   const submission=await backend.submitOperation({
-    schema:'musitu.axiom.external-worker-dispatch.v1',
     ...dispatchKeyBody,
+    schema:'musitu.axiom.external-worker-dispatch.v1',
     risk_class:request.risk_class,
     payload:clone(request.payload??null),
     idempotency_key,
