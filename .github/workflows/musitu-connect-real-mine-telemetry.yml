@@ -1,0 +1,168 @@
+name: MUSITU Connect real mine telemetry qualification
+
+on:
+  push:
+    branches: ['feat/musitu-connect-frontier']
+    paths:
+      - '.github/workflows/musitu-connect-real-mine-telemetry.yml'
+      - 'benchmarks/mining_adapter/polish_longwall_telemetry.py'
+      - 'benchmarks/mining_adapter/polish_longwall_telemetry_runner.py'
+      - 'tests/connect/test_polish_longwall_telemetry.py'
+      - 'tests/connect/test_mining_telemetry.py'
+      - 'connect/mining_telemetry.py'
+      - 'connect/mining_adapter.py'
+      - 'connect/fabric.py'
+      - 'connect/persistence.py'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: musitu-connect-real-mine-telemetry-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  qualify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      DATASET_PAGE: 'https://data.mendeley.com/datasets/yd7vw4c5mk/1'
+      DATASET_ZIP_ENDPOINT: 'https://api.data.mendeley.com/datasets/yd7vw4c5mk/zip/file_downloaded?version=1'
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Verify telemetry contract
+        run: |
+          python -m py_compile             connect/mining_telemetry.py             benchmarks/mining_adapter/polish_longwall_telemetry.py             benchmarks/mining_adapter/polish_longwall_telemetry_runner.py
+          python -m unittest             tests.connect.test_mining_telemetry             tests.connect.test_polish_longwall_telemetry -v
+          python benchmarks/mining_adapter/polish_longwall_telemetry_runner.py --help >/dev/null
+
+      - name: Bind public dataset identity and CC BY 4.0 license
+        run: |
+          mkdir -p /tmp/musitu-longwall qualification/real_telemetry
+          curl --fail --location             --retry 5 --retry-all-errors --retry-delay 2             --connect-timeout 20 --max-time 120             "$DATASET_PAGE"             --output /tmp/musitu-longwall/dataset-page.html
+          python - <<'PY'
+          from pathlib import Path
+          text=Path("/tmp/musitu-longwall/dataset-page.html").read_text(encoding="utf-8",errors="replace")
+          required=("yd7vw4c5mk","10.17632/yd7vw4c5mk.1","CC BY 4.0")
+          missing=[item for item in required if item not in text]
+          if missing:
+              raise SystemExit("mendeley_dataset_identity_missing:"+",".join(missing))
+          print("MENDELEY_DATASET_IDENTITY=PASS")
+          print("MENDELEY_LICENSE=CC_BY_4_0")
+          PY
+
+      - name: Download public Mendeley telemetry archive without credentials
+        run: |
+          set -euo pipefail
+          if curl --fail --location               --retry 5 --retry-all-errors --retry-delay 3               --connect-timeout 30 --max-time 1800               "$DATASET_ZIP_ENDPOINT"               --output /tmp/musitu-longwall/Methane.zip; then
+            echo "MENDELEY_PUBLIC_DOWNLOAD=ZIP_ENDPOINT"
+          else
+            echo "Primary anonymous ZIP endpoint failed; checking public dataset page for an anonymous download URL."
+            python - <<'PY'
+          from pathlib import Path
+          import html,re
+          text=html.unescape(Path("/tmp/musitu-longwall/dataset-page.html").read_text(encoding="utf-8",errors="replace"))
+          patterns=[
+              r'https://[^"\'<> ]+yd7vw4c5mk[^"\'<> ]+(?:file_downloaded|download)[^"\'<> ]*',
+              r'/public-files/datasets/yd7vw4c5mk/[^"\'<> ]+file_downloaded[^"\'<> ]*',
+          ]
+          candidates=[]
+          for pattern in patterns:
+              candidates.extend(re.findall(pattern,text))
+          if not candidates:
+              raise SystemExit("mendeley_anonymous_download_url_not_found")
+          url=candidates[0]
+          if url.startswith("/"):
+              url="https://data.mendeley.com"+url
+          Path("/tmp/musitu-longwall/fallback-url.txt").write_text(url)
+          print("MENDELEY_FALLBACK_URL_DISCOVERED=PASS")
+          PY
+            curl --fail --location               --retry 5 --retry-all-errors --retry-delay 3               --connect-timeout 30 --max-time 1800               "$(cat /tmp/musitu-longwall/fallback-url.txt)"               --output /tmp/musitu-longwall/Methane.zip
+          fi
+          python - <<'PY'
+          from pathlib import Path
+          import zipfile
+          path=Path("/tmp/musitu-longwall/Methane.zip")
+          if not path.is_file() or path.stat().st_size < 1_000_000:
+              raise SystemExit(f"longwall_archive_too_small:{path.stat().st_size if path.exists() else 0}")
+          with zipfile.ZipFile(path) as archive:
+              bad=archive.testzip()
+              if bad is not None:
+                  raise SystemExit("longwall_archive_corrupt:"+bad)
+              members=[
+                  (item.filename,item.file_size)
+                  for item in archive.infolist()
+                  if not item.is_dir()
+              ]
+              print("LONGWALL_ARCHIVE_VALID=PASS")
+              print("LONGWALL_ARCHIVE_MEMBERS="+repr(members))
+          PY
+          sha256sum /tmp/musitu-longwall/Methane.zip
+
+      - name: Stream full corpus and persist one million real telemetry rows
+        run: |
+          python benchmarks/mining_adapter/polish_longwall_telemetry_runner.py             --archive /tmp/musitu-longwall/Methane.zip             --store /tmp/musitu-longwall/telemetry-runs.sqlite3             --min-source-rows 9000000             --durable-sample-rows 1000000             --durable-batch-size 1000             --output qualification/real_telemetry/polish_longwall.json
+
+      - name: Validate real telemetry evidence fail closed
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          report=json.loads(Path("qualification/real_telemetry/polish_longwall.json").read_text())
+          e=report["execution"]
+          q=report["qualification"]
+          assert q["real_telemetry_qualified"] is True
+          assert q["gate"]=="REAL_MINE_TELEMETRY_QUALIFIED"
+          assert e["dataset_id"]=="yd7vw4c5mk"
+          assert e["dataset_version"]==1
+          assert e["doi"]=="10.17632/yd7vw4c5mk.1"
+          assert e["license"]=="CC BY 4.0"
+          assert e["source_rows"] >= 9_000_000
+          assert e["sensor_count"] == 28
+          assert e["parse_failures"] == 0
+          assert e["target_warning_samples"] > 0
+          assert e["durable_records"] >= 1_000_000
+          assert e["durable_batches"] > 0
+          assert e["replay_records"] == e["durable_records"]
+          assert e["replay_verified"] is True
+          assert e["audit_chain_verified"] is True
+          assert e["signatures_verified"] is True
+          assert e["credentials_used"] is False
+          assert e["errors"] == []
+          print("REAL_MINE_TELEMETRY_QUALIFICATION=PASS")
+          print(json.dumps({
+              "source_rows":e["source_rows"],
+              "sensor_count":e["sensor_count"],
+              "first_timestamp":e["first_timestamp"],
+              "last_timestamp":e["last_timestamp"],
+              "target_warning_samples":e["target_warning_samples"],
+              "durable_records":e["durable_records"],
+              "durable_batches":e["durable_batches"],
+              "durable_ingest_records_per_second":e["durable_ingest_records_per_second"],
+              "source_archive_sha256":e["source_archive_sha256"],
+              "source_member_sha256":e["source_member_sha256"],
+              "durable_batch_digest_sha256":e["durable_batch_digest_sha256"],
+              "gate":q["gate"],
+          },indent=2,sort_keys=True))
+          PY
+          sha256sum qualification/real_telemetry/polish_longwall.json
+          {
+            echo "## MUSITU Connect Real Mine Telemetry Qualification"
+            echo
+            cat qualification/real_telemetry/polish_longwall.json
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Archive evidence only
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: musitu-connect-real-mine-telemetry-evidence
+          path: qualification/real_telemetry/*.json
+          retention-days: 90
+          if-no-files-found: warn
