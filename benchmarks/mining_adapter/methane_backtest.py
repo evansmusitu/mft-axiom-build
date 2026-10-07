@@ -261,6 +261,7 @@ def online_recalibrated_predictions(
         [score for _,_,score in initial_window],
         minimum_recall=minimum_recall,
     )
+    initial_operating_point=dict(operating)
     threshold=float(operating["threshold"])
 
     predictions=[]
@@ -305,6 +306,7 @@ def online_recalibrated_predictions(
     return {
         "predictions":predictions,
         "thresholds":thresholds,
+        "initial_operating_point":initial_operating_point,
         "threshold_updates":len(update_audit),
         "update_audit":update_audit,
         "leakage_safe":leakage_safe,
