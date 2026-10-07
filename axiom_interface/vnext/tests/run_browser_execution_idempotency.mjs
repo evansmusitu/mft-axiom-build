@@ -203,6 +203,47 @@ async function launchProcessKillPhase(){
   }
 }
 
+
+async function launchProcessKillVariant(armPhase,inspectPhase,expectedMarker,qualificationMarker){
+  const debugPort=await allocateDebugPort();
+  crashReady=new Promise(resolve=>{crashReadyResolve=resolve;});
+  const chrome=spawn(browser,[
+    '--headless=new','--no-sandbox','--disable-gpu','--disable-dev-shm-usage',
+    `--user-data-dir=${profile}`,`--remote-debugging-port=${debugPort}`,'about:blank',
+  ],{stdio:['ignore','pipe','pipe'],detached:process.platform!=='win32'});
+  const killChromeGroup=()=>{
+    try{
+      if(process.platform!=='win32'&&chrome.pid)process.kill(-chrome.pid,'SIGKILL');
+      else chrome.kill('SIGKILL');
+    }catch{}
+  };
+  let stderr='';
+  chrome.stderr.on('data',chunk=>{stderr+=chunk.toString();});
+  try{
+    await waitJson(`http://127.0.0.1:${debugPort}/json/version`);
+    const targetUrl=`${origin}/axiom_interface/vnext/tests/product_intelligence_browser_execution_idempotency.html?phase=${encodeURIComponent(armPhase)}`;
+    const created=await fetch(`http://127.0.0.1:${debugPort}/json/new?${encodeURIComponent(targetUrl)}`,{method:'PUT'});
+    if(!created.ok)throw new Error(`${armPhase} CDP target creation failed HTTP ${created.status}`);
+    const signal=await Promise.race([
+      crashReady,
+      sleep(12000).then(()=>{throw new Error(`${armPhase} crash-ready signal timeout`);}),
+    ]);
+    console.log(`${armPhase.toUpperCase()}_SIGNAL=${signal}`);
+    killChromeGroup();
+    await Promise.race([
+      new Promise(resolve=>chrome.once('exit',(code,signalName)=>resolve({code,signalName}))),
+      sleep(5000).then(()=>{throw new Error(`${armPhase} Chrome did not exit after SIGKILL`);}),
+    ]);
+    await sleep(800);
+    await launchPhase(inspectPhase,expectedMarker);
+    console.log(qualificationMarker);
+  }catch(error){
+    killChromeGroup();
+    console.error(`${armPhase.toUpperCase()}_BROWSER_STDERR=`+stderr.slice(-4000));
+    throw error;
+  }
+}
+
 async function launchPhase(phase,expectedMarker){
   const debugPort=await allocateDebugPort();
   const chrome=spawn(browser,[
@@ -255,6 +296,18 @@ try{
   await launchPhase('failed-atomic-fault','MUSITU_AXIOM_PHASE2_BROWSER_FAILED_TERMINAL_COMMIT_ATOMICITY_PASS');
   await launchPhase('blocked-atomic-fault','MUSITU_AXIOM_PHASE2_BROWSER_BLOCKED_RECEIPT_EVENT_ATOMICITY_PASS');
   await launchProcessKillPhase();
+  await launchProcessKillVariant(
+    'process-kill-failed-arm',
+    'process-kill-failed-inspect',
+    'MUSITU_AXIOM_PHASE2_BROWSER_PROCESS_KILL_FAILED_ATOMICITY_PASS',
+    'MUSITU_AXIOM_PHASE2_BROWSER_PROCESS_KILL_FAILED_QUALIFICATION_PASS',
+  );
+  await launchProcessKillVariant(
+    'process-kill-blocked-arm',
+    'process-kill-blocked-inspect',
+    'MUSITU_AXIOM_PHASE2_BROWSER_PROCESS_KILL_BLOCKED_ATOMICITY_PASS',
+    'MUSITU_AXIOM_PHASE2_BROWSER_PROCESS_KILL_BLOCKED_QUALIFICATION_PASS',
+  );
   await launchPhase('upgrade-v1-seed','MUSITU_AXIOM_PHASE2_BROWSER_INDEXEDDB_V1_SEED_PASS');
   await launchPhase('upgrade-v2-inspect','MUSITU_AXIOM_PHASE2_BROWSER_INDEXEDDB_V1_TO_V2_UPGRADE_PASS');
   console.log('MUSITU_AXIOM_PHASE2_BROWSER_DURABLE_IDEMPOTENCY_QUALIFICATION_PASS');
