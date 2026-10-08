@@ -1,5 +1,5 @@
 import {encryptSupportPayload, decryptSupportPayload} from './crypto_envelope.js';
-import {appendCaseEvent, createConversationMessage, publicCaseView, sha256} from './control_plane.js';
+import {appendCaseEvent, assertTransition, createConversationMessage, publicCaseView, sha256, storageStateForPublicLabel} from './control_plane.js';
 
 export class D1CaseStore {
   constructor({database, encryptionKey}) {
@@ -85,6 +85,106 @@ export class D1CaseStore {
         .bind(event.event_hash,event.at,caseId),
     ]);
     return Object.freeze({message});
+  }
+
+
+  async getAuthorizedThread(caseId, recoveryCode) {
+    const recoveryHash = await sha256(recoveryCode);
+    const row = await this.db.prepare(`SELECT public_json, encrypted_payload, recovery_hash FROM support_cases WHERE case_id=? LIMIT 1`).bind(caseId).first();
+    if (!row || !constantTimeEqual(String(row.recovery_hash), recoveryHash)) return null;
+    const details = await decryptSupportPayload(JSON.parse(row.encrypted_payload), {key: this.key, caseId});
+    const result = await this.db.prepare(`SELECT message_id,case_id,type,actor,visibility,encrypted_payload,event_hash,created_at
+      FROM support_case_messages WHERE case_id=? AND visibility='customer' ORDER BY created_at ASC`).bind(caseId).all();
+    const messages = [];
+    for (const item of (result?.results || []).filter(value => value.visibility === 'customer')) {
+      const payload = await decryptSupportPayload(JSON.parse(item.encrypted_payload), {key: this.key, caseId});
+      messages.push(Object.freeze({
+        message_id:item.message_id,case_id:item.case_id,type:item.type,actor:item.actor,visibility:item.visibility,
+        body:String(payload?.body || ''),event_hash:item.event_hash,created_at:item.created_at,
+      }));
+    }
+    return Object.freeze({case: JSON.parse(row.public_json), details, messages: Object.freeze(messages)});
+  }
+
+  async getOperatorCase(caseId) {
+    const row = await this.db.prepare(`SELECT case_id,state,priority,surface,category,requester_ref,retention_class,human_approval_required,
+      public_json,encrypted_payload,last_event_hash,created_at,updated_at
+      FROM support_cases WHERE case_id=? LIMIT 1`).bind(caseId).first();
+    if (!row) return null;
+    const details = await decryptSupportPayload(JSON.parse(row.encrypted_payload), {key: this.key, caseId});
+    const result = await this.db.prepare(`SELECT message_id,case_id,type,actor,visibility,encrypted_payload,event_hash,created_at
+      FROM support_case_messages WHERE case_id=? ORDER BY created_at ASC`).bind(caseId).all();
+    const messages = [];
+    for (const item of result?.results || []) {
+      const payload = await decryptSupportPayload(JSON.parse(item.encrypted_payload), {key: this.key, caseId});
+      messages.push(Object.freeze({
+        message_id:item.message_id,case_id:item.case_id,type:item.type,actor:item.actor,visibility:item.visibility,
+        body:String(payload?.body || ''),event_hash:item.event_hash,created_at:item.created_at,
+      }));
+    }
+    return Object.freeze({case: JSON.parse(row.public_json), details, messages: Object.freeze(messages)});
+  }
+
+  async appendCustomerMessage(caseId, recoveryCode, input) {
+    const recoveryHash = await sha256(recoveryCode);
+    const row = await this.db.prepare(`SELECT case_id,state,priority,surface,category,requester_ref,retention_class,human_approval_required,
+      public_json,recovery_hash,last_event_hash,created_at,updated_at
+      FROM support_cases WHERE case_id=? LIMIT 1`).bind(caseId).first();
+    if (!row || !constantTimeEqual(String(row.recovery_hash), recoveryHash)) return null;
+    const message = await createConversationMessage({
+      caseId,type:'CUSTOMER_MESSAGE',actor:'requester',visibility:'customer',body:input?.body,
+    });
+    const encrypted = await encryptSupportPayload(
+      {body: message.body},
+      {key: this.key, caseId, schema: 'musitu.axiom.support-message-encrypted.v1'},
+    );
+    const event = await appendCaseEvent(row, {
+      type: message.type, actor: message.actor, visibility: message.visibility,
+      payload: {message_id: message.message_id},
+    }, {at: message.created_at});
+    await this.db.batch([
+      this.db.prepare(`INSERT INTO support_case_messages
+        (message_id,case_id,type,actor,visibility,encrypted_payload,event_hash,created_at)
+        VALUES (?,?,?,?,?,?,?,?)`).bind(
+        message.message_id,message.case_id,message.type,message.actor,message.visibility,
+        JSON.stringify(encrypted),event.event_hash,message.created_at,
+      ),
+      this.db.prepare(`INSERT INTO support_case_events
+        (case_id,event_hash,prior_event_hash,type,actor,visibility,payload_json,created_at)
+        VALUES (?,?,?,?,?,?,?,?)`).bind(
+        event.case_id,event.event_hash,event.prior_event_hash,event.type,event.actor,event.visibility,
+        JSON.stringify(event.payload),event.at,
+      ),
+      this.db.prepare('UPDATE support_cases SET last_event_hash=?,updated_at=? WHERE case_id=?')
+        .bind(event.event_hash,event.at,caseId),
+    ]);
+    return Object.freeze({message, case: {...JSON.parse(row.public_json), updated_at:event.at}});
+  }
+
+  async transitionOperatorCase(caseId, label, principal) {
+    const row = await this.db.prepare(`SELECT case_id,state,priority,surface,category,requester_ref,retention_class,human_approval_required,
+      public_json,last_event_hash,created_at,updated_at
+      FROM support_cases WHERE case_id=? LIMIT 1`).bind(caseId).first();
+    if (!row) return null;
+    const next = storageStateForPublicLabel(label);
+    assertTransition(String(row.state), next);
+    const event = await appendCaseEvent(row, {
+      type:'STATE_CHANGED',actor:principal?.actor_ref,visibility:'customer',
+      payload:{from:String(row.state),to:next,public_label:String(label)},
+    });
+    const currentPublic = JSON.parse(row.public_json);
+    const nextPublic = {...currentPublic,state:next,updated_at:event.at};
+    await this.db.batch([
+      this.db.prepare('UPDATE support_cases SET state=?,public_json=?,last_event_hash=?,updated_at=? WHERE case_id=?')
+        .bind(next,JSON.stringify(nextPublic),event.event_hash,event.at,caseId),
+      this.db.prepare(`INSERT INTO support_case_events
+        (case_id,event_hash,prior_event_hash,type,actor,visibility,payload_json,created_at)
+        VALUES (?,?,?,?,?,?,?,?)`).bind(
+        event.case_id,event.event_hash,event.prior_event_hash,event.type,event.actor,event.visibility,
+        JSON.stringify(event.payload),event.at,
+      ),
+    ]);
+    return Object.freeze({case_id:caseId,state:next,public_label:String(label),updated_at:event.at});
   }
 
   async listOperatorCases({state = null, limit = 100} = {}) {
