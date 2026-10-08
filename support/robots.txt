@@ -2,5 +2,6 @@ User-agent: *
 Allow: /
 Disallow: /api/
 Disallow: /health
+Disallow: /recovery/
 
 Sitemap: https://support.mftintelligence.com/sitemap.xml
