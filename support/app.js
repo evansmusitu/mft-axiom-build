@@ -177,6 +177,19 @@ document.querySelector('#refresh-case-thread')?.addEventListener('click', async 
 });
 
 const caseToolsStatus=document.querySelector('#case-tools-status');
+document.querySelector('#bind-email-thread')?.addEventListener('click',async()=>{
+  if(!activeCaseSession)return;
+  const input=document.querySelector('#case-email-thread');
+  const email=String(input?.value||'').trim();
+  if(!email){caseToolsStatus.textContent='Enter an email address first.';return;}
+  caseToolsStatus.textContent='Creating private email reply alias…';
+  try{
+    const value=await caseApi(`/api/v1/cases/${encodeURIComponent(activeCaseSession.caseId)}/email-thread`,{method:'POST',body:{email}});
+    document.querySelector('#case-email-reply-address').textContent='Reply from that email address to: '+value.reply_address;
+    if(input)input.value='';
+    caseToolsStatus.textContent='Email replies enabled. Your raw email address was not stored.';
+  }catch(e){caseToolsStatus.textContent=e.message;}
+});
 document.querySelector('#send-diagnostics')?.addEventListener('click',async()=>{
   if(!activeCaseSession)return;caseToolsStatus.textContent='Sending consented diagnostics…';
   try{await caseApi(`/api/v1/cases/${encodeURIComponent(activeCaseSession.caseId)}/diagnostics`,{method:'POST',body:{consent:true,browser:navigator.userAgent,os:navigator.platform||'',app_version:'support-web-v1',locale:navigator.language||'',timezone_offset_minutes:new Date().getTimezoneOffset()}});caseToolsStatus.textContent='Diagnostics sent.';}catch(e){caseToolsStatus.textContent=e.message;}
