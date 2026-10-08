@@ -1,7 +1,7 @@
 const OPERATOR_STATE_ACTIONS=Object.freeze(['IN_PROGRESS_MUSITU_SUPPORT','ACTION_REQUIRED','SOLUTION_PROVIDED','ESCALATED','CLOSED']);
 const $=selector=>document.querySelector(selector);
 const list=$('#case-list'),search=$('#case-search'),conversation=$('#conversation'),messageBody=$('#message-body');
-const send=$('#send-message'),status=$('#composer-status'),stateSelect=$('#state-select'),applyState=$('#apply-state'),assignButton=$('#assign-to-me'),approvalAction=$('#approval-action'),approvalEvidence=$('#approval-evidence'),requestApproval=$('#request-approval'),approvalStatus=$('#approval-status');
+const send=$('#send-message'),status=$('#composer-status'),stateSelect=$('#state-select'),applyState=$('#apply-state'),assignButton=$('#assign-to-me'),approvalAction=$('#approval-action'),approvalEvidence=$('#approval-evidence'),requestApproval=$('#request-approval'),approvalStatus=$('#approval-status'),recoveryGovernance=$('#recovery-governance');
 let cases=[],selected=null,mode='AGENT_REPLY',filter='all';
 
 const esc=value=>String(value??'').replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
@@ -13,6 +13,51 @@ async function api(path,options={}){
   const data=await response.json().catch(()=>({}));
   if(!response.ok) throw new Error(data.message||data.error||`Request failed (${response.status})`);
   return data;
+}
+
+async function decideSensitiveApproval(approvalId,decision){
+  if(!selected)return;
+  recoveryGovernance.querySelectorAll('button').forEach(button=>button.disabled=true);
+  try{
+    await api(`/api/v1/operator/cases/${encodeURIComponent(selected.case.case_id)}/approvals/${encodeURIComponent(approvalId)}/approve`,{
+      method:'POST',body:JSON.stringify({decision}),
+    });
+    status.textContent=decision==='APPROVED'?'Recovery approval recorded.':'Recovery request rejected.';
+    await openCase(selected.case.case_id);
+  }catch(error){status.textContent=error.message;}
+}
+async function requestRecoveryApproval(request){
+  if(!selected)return;
+  recoveryGovernance.querySelectorAll('button').forEach(button=>button.disabled=true);
+  try{
+    const value=await api(`/api/v1/operator/cases/${encodeURIComponent(selected.case.case_id)}/approvals`,{
+      method:'POST',body:JSON.stringify({action:'ACCOUNT_RECOVERY',evidence_hashes:[request.evidence_hash]}),
+    });
+    status.textContent=`Approval ${value.approval_id} is pending a different authorized operator.`;
+    await openCase(selected.case.case_id);
+  }catch(error){status.textContent=error.message;}
+}
+function renderRecoveryGovernance(value){
+  const requests=value.recovery_requests||[];
+  const approvals=(value.approvals||[]).filter(item=>item.action==='ACCOUNT_RECOVERY');
+  const request=requests[requests.length-1]||null;
+  const approval=approvals[approvals.length-1]||null;
+  if(!request){
+    recoveryGovernance.innerHTML='<p class="muted">No verified recovery request for this case.</p>';
+    return;
+  }
+  if(!approval){
+    recoveryGovernance.innerHTML=`<p><strong>Verified identity recovery requested</strong></p><p class="muted">Request ${esc(request.request_id)} · independent approval required.</p><button id="request-recovery-approval" class="secondary">Request ACCOUNT_RECOVERY approval</button>`;
+    recoveryGovernance.querySelector('#request-recovery-approval')?.addEventListener('click',()=>requestRecoveryApproval(request));
+    return;
+  }
+  if(!approval.decision){
+    recoveryGovernance.innerHTML=`<p><strong>Approval pending</strong></p><p class="muted">${esc(approval.approval_id)} must be decided by a different authorized operator.</p><div class="case-access-actions"><button id="approve-recovery" class="secondary">Approve</button><button id="reject-recovery" class="secondary">Reject</button></div>`;
+    recoveryGovernance.querySelector('#approve-recovery')?.addEventListener('click',()=>decideSensitiveApproval(approval.approval_id,'APPROVED'));
+    recoveryGovernance.querySelector('#reject-recovery')?.addEventListener('click',()=>decideSensitiveApproval(approval.approval_id,'REJECTED'));
+    return;
+  }
+  recoveryGovernance.innerHTML=`<p><strong>Recovery ${esc(approval.decision.toLowerCase())}</strong></p><p class="muted">${approval.decision==='APPROVED'?'Customer may retry verified recovery; the approval can be consumed only once.':'Customer recovery remains blocked.'}</p>`;
 }
 
 function renderList(){
@@ -43,6 +88,7 @@ function renderCase(value){
     const author=m.visibility==='internal'?'Internal note':m.type==='AGENT_REPLY'?'MUSITU Support':'Customer';
     return `<article class="message ${cls}"><header class="message-head"><span>${author}</span><time datetime="${esc(m.created_at)}">${esc(new Date(m.created_at).toLocaleString())}</time></header><p>${esc(m.body)}</p></article>`;
   }).join(''):'<p class="muted">No follow-up messages yet.</p>';
+  renderRecoveryGovernance(value);
   const audit=[...(value.messages||[])].reverse().slice(0,8);
   $('#audit-trail').innerHTML=audit.length?audit.map(m=>`<div class="audit-event"><time>${esc(new Date(m.created_at).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}))}</time><span>${esc(m.type.replaceAll('_',' ').toLowerCase())}</span></div>`).join(''):'<p class="muted">No conversation events yet.</p>';
   messageBody.disabled=false;send.disabled=false;stateSelect.disabled=false;applyState.disabled=false;assignButton.disabled=false;approvalAction.disabled=false;approvalEvidence.disabled=false;requestApproval.disabled=false;renderList();
