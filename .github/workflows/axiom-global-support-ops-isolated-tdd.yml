@@ -1,0 +1,29 @@
+name: MUSITU Axiom Global Support Operations Isolated TDD
+
+on:
+  push:
+    branches:
+      - 'support/axiom-global-support-ops-isolated-20261008'
+    paths:
+      - 'support/**'
+      - '.github/workflows/axiom-global-support-ops-isolated-tdd.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Syntax
+        run: |
+          test ! -f support/global_ops.js || node --check support/global_ops.js
+          node --check support/worker.js
+          node --check support/operator_worker.js
+      - name: Full support suite
+        run: node --test support/tests/*.test.mjs
