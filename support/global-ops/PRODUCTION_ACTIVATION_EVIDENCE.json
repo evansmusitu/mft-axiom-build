@@ -1,10 +1,10 @@
 {
   "schema": "musitu.axiom.global-support-ops-production-activation.v1",
-  "status": "PRODUCTION_SOFTWARE_ROLLOUT_COMPLETE_WITH_PROVIDER_AND_HUMAN_BOUNDARIES",
-  "recorded_at": "2026-10-08T18:08:30Z",
+  "status": "PRODUCTION_SOFTWARE_ROLLOUT_COMPLETE_WITH_INBOUND_EMAIL_AND_EXTERNAL_PROVIDER_HUMAN_BOUNDARIES",
+  "recorded_at": "2026-10-08T18:24:30Z",
   "repository": "evansmusitu/mft-axiom-build",
   "branch": "support/axiom-global-support-ops-production-rollout-20261008",
-  "production_head_before_evidence": "c3d3ca8058c4a3f1a7bae0f1784c7b0053de4a7a",
+  "production_head_before_evidence": "ccd0c86566510d1b605117e970d788e1754544c3",
   "source": {
     "isolated_branch": "support/axiom-global-support-ops-isolated-20261008",
     "isolated_evidence_head": "abf87d846b49f4844a65ea131bce79751d18a4d7"
@@ -13,9 +13,12 @@
     "production_tdd_run": 37821280624,
     "production_deploy_run": 37821537980,
     "production_audit_run": 37821894538,
-    "tests": 191,
-    "passed": 191,
-    "failed": 0
+    "tests": 195,
+    "passed": 195,
+    "failed": 0,
+    "inbound_email_tdd_run": 37823666605,
+    "inbound_email_deploy_run": 37823801669,
+    "inbound_email_audit_run": 37823977130
   },
   "d1": {
     "time_travel_bookmark_sha256": "73537ca51e49ac412ededfe609a3933aa5739661ac4b09660ade0e31dab11734",
@@ -86,11 +89,12 @@
     "operator macros",
     "analytics, QA and CSAT",
     "bounded customer case reopen",
-    "secure verified-identity recovery"
+    "secure verified-identity recovery",
+    "recovery-authenticated hash-only inbound email reply aliases routed through the support Worker"
   ],
   "provider_boundaries": {
-    "outbound_customer_email": "NOT_BOUND_FAIL_CLOSED",
-    "inbound_email_worker_route": "NOT_BOUND_FAIL_CLOSED",
+    "outbound_customer_email": "NOT_BOUND_EMAIL_SENDING_DOMAIN_OR_PROVIDER_REQUIRED",
+    "inbound_email_worker_route": "BOUND_OPERATIONAL",
     "malware_scanner": "NOT_BOUND_MANUAL_SCAN_GOVERNANCE_ONLY",
     "external_webhook_sender": "NOT_BOUND_FAIL_CLOSED",
     "pager_on_call_provider": "NOT_BOUND_FAIL_CLOSED",
@@ -125,5 +129,13 @@
   },
   "customer_content_read": false,
   "recovery_code_read": false,
-  "secret_values_recorded": false
+  "secret_values_recorded": false,
+  "mail": {
+    "routing_ready": true,
+    "support_forward_rule_preserved": true,
+    "threaded_reply_catch_all_worker": "musitu-axiom-support",
+    "email_threads_at_audit": 0,
+    "raw_customer_email_stored": false,
+    "outbound_email_sending_credentials_available": false
+  }
 }
