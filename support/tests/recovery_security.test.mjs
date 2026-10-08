@@ -70,6 +70,7 @@ test('verified binding plus rotation invalidates old code and only the same opaq
   const identity={issuer:'https://team.cloudflareaccess.com',subject:'opaque-customer-1'};
   const other={issuer:'https://team.cloudflareaccess.com',subject:'opaque-customer-2'};
   assert.equal((await store.bindRecoveryIdentity(bundle.case_record.case_id,oldCode,identity)).bound,true);
+  assert.equal(await store.bindRecoveryIdentity(bundle.case_record.case_id,oldCode,other),null);
   assert.equal(await store.rotateRecoveryCredential(bundle.case_record.case_id,other,{recoveryCode:'11111111-22222222-33333333'}),null);
   const newCode='ABCDEFGH-JKLMNPQR-STUVWXYZ';
   const rotated=await store.rotateRecoveryCredential(bundle.case_record.case_id,identity,{recoveryCode:newCode});
