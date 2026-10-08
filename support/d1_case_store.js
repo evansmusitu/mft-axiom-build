@@ -1,5 +1,5 @@
 import {encryptSupportPayload, decryptSupportPayload} from './crypto_envelope.js';
-import {SENSITIVE_ACTIONS, appendCaseEvent, assertTransition, createConversationMessage, publicCaseView, sha256, storageStateForPublicLabel} from './control_plane.js';
+import {SENSITIVE_ACTIONS, appendCaseEvent, assertTransition, createConversationMessage, newRecoveryCode, publicCaseView, recoveryIdentityHash, sha256, storageStateForPublicLabel} from './control_plane.js';
 
 export class D1CaseStore {
   constructor({database, encryptionKey}) {
@@ -193,6 +193,82 @@ export class D1CaseStore {
       ),
     ]);
     return Object.freeze({case_id:caseId,state:next,public_label:String(label),updated_at:event.at});
+  }
+
+
+  async bindRecoveryIdentity(caseId, recoveryCode, identity) {
+    const recoveryHash = await sha256(recoveryCode);
+    const identityHash = await recoveryIdentityHash(identity);
+    const row = await this.db.prepare(`SELECT case_id,state,priority,surface,category,requester_ref,retention_class,human_approval_required,recovery_hash,last_event_hash,created_at,updated_at
+      FROM support_cases WHERE case_id=? LIMIT 1`).bind(caseId).first();
+    if (!row || !constantTimeEqual(String(row.recovery_hash), recoveryHash)) return null;
+    const existing = await this.db.prepare(`SELECT identity_hash,provider,created_at FROM support_case_recovery_bindings WHERE case_id=? LIMIT 1`).bind(caseId).first();
+    if (existing) {
+      if (!constantTimeEqual(String(existing.identity_hash), identityHash)) throw new DOMException('case recovery identity is already bound', 'InvalidStateError');
+      return Object.freeze({case_id:caseId,bound:true,already_bound:true,provider:String(existing.provider),bound_at:String(existing.created_at)});
+    }
+    const at = new Date().toISOString();
+    const event = await appendCaseEvent(row,{
+      type:'RECOVERY_IDENTITY_BOUND',actor:'requester',visibility:'customer',
+      payload:{provider:'cloudflare_access'},
+    },{at});
+    await this.db.batch([
+      this.db.prepare(`INSERT INTO support_case_recovery_bindings
+        (case_id,identity_hash,provider,event_hash,created_at) VALUES (?,?,?,?,?)`)
+        .bind(caseId,identityHash,'cloudflare_access',event.event_hash,at),
+      this.db.prepare(`INSERT INTO support_case_events
+        (case_id,event_hash,prior_event_hash,type,actor,visibility,payload_json,created_at) VALUES (?,?,?,?,?,?,?,?)`)
+        .bind(event.case_id,event.event_hash,event.prior_event_hash,event.type,event.actor,event.visibility,JSON.stringify(event.payload),event.at),
+      this.db.prepare('UPDATE support_cases SET last_event_hash=?,updated_at=? WHERE case_id=?')
+        .bind(event.event_hash,event.at,caseId),
+    ]);
+    return Object.freeze({case_id:caseId,bound:true,already_bound:false,provider:'cloudflare_access',bound_at:at});
+  }
+
+  async rotateRecoveryCredential(caseId, identity, {recoveryCode = newRecoveryCode()} = {}) {
+    const identityHash = await recoveryIdentityHash(identity);
+    const row = await this.db.prepare(`SELECT case_id,state,priority,surface,category,requester_ref,retention_class,human_approval_required,recovery_hash,last_event_hash,created_at,updated_at
+      FROM support_cases WHERE case_id=? LIMIT 1`).bind(caseId).first();
+    if (!row) return null;
+    const binding = await this.db.prepare(`SELECT identity_hash,provider,created_at FROM support_case_recovery_bindings WHERE case_id=? LIMIT 1`).bind(caseId).first();
+    if (!binding || !constantTimeEqual(String(binding.identity_hash), identityHash)) return null;
+
+    let approvalId = null;
+    if (Number(row.human_approval_required) === 1) {
+      const approved = await this.db.prepare(`SELECT a.approval_id
+        FROM support_case_approvals a
+        JOIN support_case_approval_decisions d ON d.approval_id=a.approval_id AND d.case_id=a.case_id
+        LEFT JOIN support_case_recovery_rotations r ON r.approval_id=a.approval_id
+        WHERE a.case_id=? AND a.action='ACCOUNT_RECOVERY' AND d.decision='APPROVED' AND r.rotation_id IS NULL
+        ORDER BY d.created_at DESC LIMIT 1`).bind(caseId).first();
+      approvalId = approved ? String(approved.approval_id || '') : null;
+      if (!approvalId) return Object.freeze({case_id:caseId,status:'APPROVAL_REQUIRED'});
+    }
+
+    const priorRecoveryHash = String(row.recovery_hash || '');
+    const newRecoveryHash = await sha256(recoveryCode);
+    if (!/^[a-f0-9]{64}$/i.test(priorRecoveryHash) || !/^[a-f0-9]{64}$/i.test(newRecoveryHash)) throw new DOMException('recovery hash invariant failed','InvalidStateError');
+    const at = new Date().toISOString();
+    const rotationId = 'AXR-' + randomToken(16);
+    const event = await appendCaseEvent(row,{
+      type:'RECOVERY_CODE_ROTATED',actor:'requester',visibility:'customer',
+      payload:{identity_verified:true,approval_id:approvalId},
+    },{at});
+    await this.db.batch([
+      this.db.prepare('UPDATE support_cases SET recovery_hash=?,last_event_hash=?,updated_at=? WHERE case_id=?')
+        .bind(newRecoveryHash,event.event_hash,event.at,caseId),
+      this.db.prepare(`INSERT INTO support_case_recovery_rotations
+        (rotation_id,case_id,approval_id,prior_recovery_hash,new_recovery_hash,event_hash,created_at) VALUES (?,?,?,?,?,?,?)`)
+        .bind(rotationId,caseId,approvalId,priorRecoveryHash,newRecoveryHash,event.event_hash,at),
+      this.db.prepare(`INSERT INTO support_case_events
+        (case_id,event_hash,prior_event_hash,type,actor,visibility,payload_json,created_at) VALUES (?,?,?,?,?,?,?,?)`)
+        .bind(event.case_id,event.event_hash,event.prior_event_hash,event.type,event.actor,event.visibility,JSON.stringify(event.payload),event.at),
+    ]);
+    return Object.freeze({
+      case_id:caseId,status:'ROTATED',recovery_code:recoveryCode,
+      recovery_code_notice:'Save this new code now. It is shown once. The previous recovery code is invalid.',
+      rotation_id:rotationId,approval_id:approvalId,rotated_at:at,
+    });
   }
 
 
