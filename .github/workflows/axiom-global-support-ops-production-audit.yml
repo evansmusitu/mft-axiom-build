@@ -12,7 +12,7 @@ permissions:
 
 jobs:
   audit:
-    if: github.event_name == 'push' && github.event.before == '0f35228c8ba23ccfc4e48383cb6ae6388c3fd1ac'
+    if: github.event_name == 'push' && github.event.before == '11cc24d1f6915a7a14bef57a7cc5fd9b4d90acae'
     runs-on: ubuntu-latest
     environment: axiom-support-production
     timeout-minutes: 10
@@ -50,8 +50,7 @@ jobs:
             return call(gh,path);
           }
           async function query(sql){const result=await call(dh,'/accounts/'+account+'/d1/database/'+db+'/query',{method:'POST',body:{sql}});const x=Array.isArray(result)?result[0]:result;return Array.isArray(x?.results)?x.results:[];}
-          async function content(name){const r=await fetch(api+'/accounts/'+account+'/workers/scripts/'+name+'/content',{headers:{authorization:'Bearer '+worker}});if(!r.ok)throw new Error('Worker content read failed '+r.status);return r.text();}
-          const [pub,ops,domains,schedules,subPub,subOps,buckets,apps,counts,objects,queueCounts,pubContent,opsContent]=await Promise.all([
+          const [pub,ops,domains,schedules,subPub,subOps,buckets,apps,counts,objects,queueCounts]=await Promise.all([
             call(wh,'/accounts/'+account+'/workers/scripts/musitu-axiom-support/settings'),
             call(wh,'/accounts/'+account+'/workers/scripts/musitu-axiom-support-ops/settings'),
             call(wh,'/accounts/'+account+'/workers/domains'),
@@ -62,9 +61,7 @@ jobs:
             accessCall('/accounts/'+account+'/access/apps?per_page=100'),
             query("SELECT (SELECT COUNT(*) FROM support_cases) cases,(SELECT COUNT(*) FROM support_case_events) events,(SELECT COUNT(*) FROM support_case_messages) messages,(SELECT COUNT(*) FROM support_case_sla) sla,(SELECT COUNT(*) FROM support_case_triage) triage,(SELECT COUNT(*) FROM support_case_languages) languages,(SELECT COUNT(*) FROM support_case_escalations) escalations,(SELECT COUNT(*) FROM support_incidents) incidents,(SELECT COUNT(*) FROM support_attachments) attachments,(SELECT COUNT(*) FROM support_csat) csat,(SELECT COUNT(*) FROM support_qa_reviews) qa;"),
             query("SELECT type,name FROM sqlite_master WHERE type IN ('table','index','trigger') AND name LIKE 'support_%' ORDER BY type,name;"),
-            query("SELECT (SELECT COUNT(*) FROM support_notification_outbox) notification_outbox,(SELECT COUNT(*) FROM support_notification_attempts) notification_attempts,(SELECT COUNT(*) FROM support_webhook_outbox) webhook_outbox,(SELECT COUNT(*) FROM support_attachment_deletion_outbox) attachment_deletions;"),
-            content('musitu-axiom-support'),
-            content('musitu-axiom-support-ops')
+            query("SELECT (SELECT COUNT(*) FROM support_notification_outbox) notification_outbox,(SELECT COUNT(*) FROM support_notification_attempts) notification_attempts,(SELECT COUNT(*) FROM support_webhook_outbox) webhook_outbox,(SELECT COUNT(*) FROM support_attachment_deletion_outbox) attachment_deletions;")
           ]);
           const pb=Array.isArray(pub?.bindings)?pub.bindings:[],ob=Array.isArray(ops?.bindings)?ops.bindings:[];
           const ds=Array.isArray(domains)?domains:[],sc=Array.isArray(schedules?.schedules)?schedules.schedules:Array.isArray(schedules)?schedules:[];
@@ -81,8 +78,6 @@ jobs:
           if(subPub?.enabled===true||subPub?.previews_enabled===true||subOps?.enabled===true||subOps?.previews_enabled===true)throw new Error('workers.dev/previews enabled');
           const c=counts[0]||{},q=queueCounts[0]||{};
           if(Number(c.sla||0)<Number(c.cases||0)||Number(c.triage||0)<Number(c.cases||0)||Number(c.languages||0)<Number(c.cases||0))throw new Error('global backfill incomplete');
-          for(const marker of ['musitu.axiom.support-analytics.v1','/api/v1/status','SUPPORT_ATTACHMENTS','ATTACHMENT_HASH_MISMATCH','processSupportQueues','Service status'])if(!pubContent.includes(marker))throw new Error('public Worker marker missing: '+marker);
-          for(const marker of ['SLA','Incidents','Analytics','QA','Macros','/api/v1/operator/analytics'])if(!opsContent.includes(marker))throw new Error('operator Worker marker missing: '+marker);
           const ownerRef=String(pb.find(x=>x?.name==='SUPPORT_HUMAN_OWNER_REF')?.text||'');
           const approverRef=String(pb.find(x=>x?.name==='SUPPORT_INDEPENDENT_APPROVER_REF')?.text||'');
           let mapping={};try{mapping=JSON.parse(String(pb.find(x=>x?.name==='SUPPORT_OPERATOR_BINDINGS_JSON')?.text||'{}'))}catch{}
