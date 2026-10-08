@@ -56,6 +56,24 @@ class MethaneBacktestTests(unittest.TestCase):
         self.assertLess(item.features["MM263_max_60"],1.0)
         self.assertLess(item.features["target_current_max"],1.0)
 
+
+    def test_window_features_encode_published_f_side_direction_state(self):
+        spec=MethaneBacktestSpec(sample_stride_seconds=1)
+        rows=[row(second) for second in range(1200)]
+        for item in rows:
+            item["F_SIDE"]="1"
+        examples=list(build_windowed_prediction_examples(rows,spec))
+        self.assertTrue(examples)
+        self.assertEqual(examples[0].features["F_SIDE_left"],1.0)
+        self.assertEqual(examples[0].features["F_SIDE_right"],0.0)
+
+        rows=[row(second) for second in range(1200)]
+        for item in rows:
+            item["F_SIDE"]="0.5"
+        examples=list(build_windowed_prediction_examples(rows,spec))
+        self.assertEqual(examples[0].features["F_SIDE_left"],0.0)
+        self.assertEqual(examples[0].features["F_SIDE_right"],1.0)
+
     def test_window_examples_fail_closed_across_timestamp_gap(self):
         spec=MethaneBacktestSpec(sample_stride_seconds=1)
         rows=[row(second) for second in range(1200) if second!=100]
