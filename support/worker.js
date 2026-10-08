@@ -22,6 +22,10 @@ const OPERATOR_LEASE_PATH = /^\/api\/v1\/operator\/cases\/([A-Z0-9-]+)\/lease$/;
 const OPERATOR_HANDOFF_PATH = /^\/api\/v1\/operator\/cases\/([A-Z0-9-]+)\/handoff$/;
 const OPERATOR_ESCALATIONS_PATH = /^\/api\/v1\/operator\/cases\/([A-Z0-9-]+)\/escalations$/;
 const OPERATOR_INCIDENT_CASES_PATH = /^\/api\/v1\/operator\/incidents\/(AXI-[0-9A-HJKMNP-TV-Z]{16})\/cases$/;
+const OPERATOR_INCIDENT_STATUS_PATH = /^\/api\/v1\/operator\/incidents\/(AXI-[0-9A-HJKMNP-TV-Z]{16})\/status$/;
+const OPERATOR_ORG_ENTITLEMENTS_PATH = /^\/api\/v1\/operator\/organizations\/([^/]+)\/entitlements$/;
+const OPERATOR_QA_PATH = /^\/api\/v1\/operator\/cases\/([A-Z0-9-]+)\/qa$/;
+const OPERATOR_TRIAGE_PATH = /^\/api\/v1\/operator\/cases\/([A-Z0-9-]+)\/triage$/;
 const HASH = /^[a-f0-9]{64}$/i;
 
 function json(body, status = 200, extra = {}) {
@@ -368,7 +372,8 @@ export async function deliverSupportWebhook(delivery, env = {}) {
 
 export async function processSupportQueues(env = {}) {
   const store = await storeFor(env);
-  const summary = {notifications:{delivered:0,failed:0,provider_unavailable:0},webhooks:{delivered:0,failed:0,provider_unavailable:0}};
+  const sla = typeof store.scanSlaBreaches === 'function' ? await store.scanSlaBreaches() : {new_breaches:0,scanned:0};
+  const summary = {sla,notifications:{delivered:0,failed:0,provider_unavailable:0},webhooks:{delivered:0,failed:0,provider_unavailable:0}};
   const notifications = typeof store.listPendingNotifications === 'function' ? await store.listPendingNotifications({limit:50}) : [];
   for (const item of notifications || []) {
     let result;
@@ -389,7 +394,7 @@ export async function processSupportQueues(env = {}) {
     else summary.webhooks.failed += 1;
     if (typeof store.recordWebhookAttempt === 'function') await store.recordWebhookAttempt(item,result);
   }
-  return Object.freeze({notifications:Object.freeze(summary.notifications),webhooks:Object.freeze(summary.webhooks)});
+  return Object.freeze({sla:Object.freeze(summary.sla),notifications:Object.freeze(summary.notifications),webhooks:Object.freeze(summary.webhooks)});
 }
 
 export async function handleOperatorRequest(request, env = {}) {
@@ -406,6 +411,60 @@ export async function handleOperatorRequest(request, env = {}) {
 
   if (request.method === 'GET' && url.pathname === '/api/v1/operator/analytics') {
     return json(await store.globalOpsAnalytics());
+  }
+
+
+  if (request.method === 'GET' && url.pathname === '/api/v1/operator/sla/breaches') {
+    return json({breaches:await store.listSlaBreaches()});
+  }
+
+  if (url.pathname === '/api/v1/operator/organizations' && request.method === 'POST') {
+    const body=await readJson(request);
+    return json(await store.upsertOrganization(body,principal),201);
+  }
+
+  const entitlementsMatch=url.pathname.match(OPERATOR_ORG_ENTITLEMENTS_PATH);
+  if(request.method==='POST'&&entitlementsMatch){
+    const body=await readJson(request);
+    const value=await store.setOrganizationEntitlement(decodeURIComponent(entitlementsMatch[1]),body,principal);
+    if(!value)return json({error:'ORGANIZATION_NOT_FOUND'},404);
+    return json(value,201);
+  }
+
+  if(url.pathname==='/api/v1/operator/webhooks'&&request.method==='POST'){
+    const body=await readJson(request);
+    const value=await store.createWebhookSubscription(body,principal);
+    if(!value)return json({error:'ORGANIZATION_NOT_FOUND'},404);
+    return json(value,201);
+  }
+
+  if(url.pathname==='/api/v1/operator/macros'){
+    if(request.method==='GET')return json({macros:await store.listOperatorMacros(principal)});
+    if(request.method==='POST'){const body=await readJson(request);return json(await store.createOperatorMacro(body,principal),201);}
+  }
+
+  const qaMatch=url.pathname.match(OPERATOR_QA_PATH);
+  if(request.method==='POST'&&qaMatch){
+    const body=await readJson(request);
+    const value=await store.recordQaReview(qaMatch[1],body,principal);
+    if(!value)return json({error:'CASE_NOT_FOUND'},404);
+    return json(value,201);
+  }
+
+  const triageMatch=url.pathname.match(OPERATOR_TRIAGE_PATH);
+  if(request.method==='POST'&&triageMatch){
+    const body=await readJson(request);
+    const value=await store.setCaseTriage(triageMatch[1],body,principal);
+    if(!value)return json({error:'CASE_NOT_FOUND'},404);
+    return json(value);
+  }
+
+  const incidentStatusMatch=url.pathname.match(OPERATOR_INCIDENT_STATUS_PATH);
+  if(request.method==='POST'&&incidentStatusMatch){
+    const body=await readJson(request);
+    const value=await store.updateIncidentStatus(incidentStatusMatch[1],body,principal);
+    if(!value)return json({error:'INCIDENT_NOT_FOUND'},404);
+    return json(value);
   }
 
   if (url.pathname === '/api/v1/operator/incidents') {
