@@ -44,6 +44,46 @@ CREATE TABLE IF NOT EXISTS support_case_messages (
   created_at TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS support_case_assignments (
+  sequence INTEGER PRIMARY KEY AUTOINCREMENT,
+  case_id TEXT NOT NULL REFERENCES support_cases(case_id) ON DELETE RESTRICT,
+  assigned_operator_ref TEXT NOT NULL,
+  assigned_by TEXT NOT NULL,
+  event_hash TEXT NOT NULL UNIQUE CHECK (length(event_hash) = 64),
+  created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS support_case_approvals (
+  approval_id TEXT PRIMARY KEY CHECK (approval_id GLOB 'AXA-*'),
+  case_id TEXT NOT NULL REFERENCES support_cases(case_id) ON DELETE RESTRICT,
+  action TEXT NOT NULL,
+  proposer_ref TEXT NOT NULL,
+  proposer_role TEXT NOT NULL,
+  evidence_hashes_json TEXT NOT NULL,
+  event_hash TEXT NOT NULL UNIQUE CHECK (length(event_hash) = 64),
+  created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS support_case_approval_decisions (
+  decision_id TEXT PRIMARY KEY CHECK (decision_id GLOB 'AXD-*'),
+  approval_id TEXT NOT NULL REFERENCES support_case_approvals(approval_id) ON DELETE RESTRICT,
+  case_id TEXT NOT NULL REFERENCES support_cases(case_id) ON DELETE RESTRICT,
+  decision TEXT NOT NULL CHECK (decision IN ('APPROVED','REJECTED')),
+  approver_ref TEXT NOT NULL,
+  approver_role TEXT NOT NULL,
+  event_hash TEXT NOT NULL UNIQUE CHECK (length(event_hash) = 64),
+  created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS support_notification_outbox (
+  notification_id TEXT PRIMARY KEY CHECK (notification_id GLOB 'AXN-*'),
+  case_id TEXT NOT NULL REFERENCES support_cases(case_id) ON DELETE RESTRICT,
+  kind TEXT NOT NULL,
+  audience TEXT NOT NULL CHECK (audience IN ('operator','customer')),
+  event_hash TEXT,
+  created_at TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS support_case_purge_authorizations (
   case_id TEXT PRIMARY KEY CHECK (case_id GLOB 'AX-*'),
   receipt_sha256 TEXT NOT NULL CHECK (length(receipt_sha256) = 64),
@@ -69,6 +109,16 @@ CREATE INDEX IF NOT EXISTS support_cases_retention ON support_cases(state, reten
 CREATE INDEX IF NOT EXISTS support_deletion_receipts_purged_at ON support_deletion_receipts(purged_at);
 CREATE INDEX IF NOT EXISTS support_case_events_case_sequence ON support_case_events(case_id, sequence);
 CREATE INDEX IF NOT EXISTS support_case_messages_case_created ON support_case_messages(case_id, created_at);
+CREATE INDEX IF NOT EXISTS support_case_assignments_case_created ON support_case_assignments(case_id, created_at);
+CREATE INDEX IF NOT EXISTS support_case_approvals_case_created ON support_case_approvals(case_id, created_at);
+CREATE INDEX IF NOT EXISTS support_notification_outbox_case_created ON support_notification_outbox(case_id, created_at);
+
+CREATE TRIGGER IF NOT EXISTS support_case_assignment_no_update
+BEFORE UPDATE ON support_case_assignments BEGIN SELECT RAISE(ABORT, 'support assignments are append-only'); END;
+CREATE TRIGGER IF NOT EXISTS support_case_approval_no_update
+BEFORE UPDATE ON support_case_approvals BEGIN SELECT RAISE(ABORT, 'support approval proposals are immutable'); END;
+CREATE TRIGGER IF NOT EXISTS support_case_approval_decision_no_update
+BEFORE UPDATE ON support_case_approval_decisions BEGIN SELECT RAISE(ABORT, 'support approval decisions are immutable'); END;
 
 CREATE TRIGGER IF NOT EXISTS support_case_message_no_update
 BEFORE UPDATE ON support_case_messages BEGIN SELECT RAISE(ABORT, 'support messages are append-only'); END;
