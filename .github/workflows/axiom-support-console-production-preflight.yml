@@ -1,0 +1,107 @@
+name: MUSITU Axiom Support Console Production Preflight
+
+on:
+  push:
+    branches:
+      - 'support/axiom-support-console-production-rollout-20261008'
+    paths:
+      - '.github/workflows/axiom-support-console-production-preflight.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  preflight:
+    if: github.event_name == 'push' && github.event.before == '0f193e264eea7a0c0675570c7f4d62d616b6a03e'
+    runs-on: ubuntu-latest
+    environment: axiom-support-production
+    timeout-minutes: 8
+    env:
+      CF_ACCOUNT: '93f395f5121954671f92fffa453d6b61'
+      CF_ZONE: '5b56528f03948ff5917a5e0cd9f7109e'
+      SUPPORT_DB: 'a525c8b6-9b44-413b-a219-46e419b71b12'
+      ACCESS_TOKEN: ${{ secrets.CLOUDFLARE_ACCESS_API_TOKEN }}
+      D1_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Exact rollout boundary
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF_NAME" = 'support/axiom-support-console-production-rollout-20261008'
+          test "${{ github.event.before }}" = '0f193e264eea7a0c0675570c7f4d62d616b6a03e'
+          test "$GITHUB_REF_NAME" != 'main'
+
+      - name: Cloudflare Access and D1 preflight
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          import {createHash} from 'node:crypto';
+          const account=process.env.CF_ACCOUNT;
+          const zone=process.env.CF_ZONE;
+          const db=process.env.SUPPORT_DB;
+          const accessToken=String(process.env.ACCESS_TOKEN||'');
+          const d1Token=String(process.env.D1_TOKEN||'');
+          if(!accessToken) throw new Error('CLOUDFLARE_ACCESS_API_TOKEN is not configured');
+          if(!d1Token) throw new Error('CLOUDFLARE_API_TOKEN is not configured');
+          const api='https://api.cloudflare.com/client/v4';
+          async function call(token,path,{method='GET',body}={}){
+            const r=await fetch(api+path,{method,headers:{authorization:'Bearer '+token,accept:'application/json',...(body===undefined?{}:{'content-type':'application/json'})},...(body===undefined?{}:{body:JSON.stringify(body)})});
+            let p={}; try{p=await r.json()}catch{}
+            if(!r.ok||p?.success===false){
+              const codes=(p?.errors||[]).map(x=>x?.code).filter(Boolean);
+              throw new Error('Cloudflare '+method+' '+path+' failed HTTP '+r.status+' codes='+(codes.join(',')||'none'));
+            }
+            return p?.result;
+          }
+          async function query(sql){
+            return call(d1Token,`/accounts/${account}/d1/database/${db}/query`,{method:'POST',body:{sql}});
+          }
+          function rows(result){const b=Array.isArray(result)?result[0]:result;return Array.isArray(b?.results)?b.results:[];}
+          const [apps,idps,groups,domains,scripts,bookmark,counts,schemaRows]=await Promise.all([
+            call(accessToken,`/accounts/${account}/access/apps?per_page=100`),
+            call(accessToken,`/accounts/${account}/access/identity_providers`),
+            call(accessToken,`/accounts/${account}/access/groups?per_page=100`),
+            call(d1Token,`/accounts/${account}/workers/domains`),
+            call(d1Token,`/accounts/${account}/workers/scripts`),
+            call(d1Token,`/accounts/${account}/d1/database/${db}/time_travel/bookmark`),
+            query("SELECT (SELECT COUNT(*) FROM support_cases) AS cases,(SELECT COUNT(*) FROM support_case_events) AS events;"),
+            query("SELECT type,name,tbl_name FROM sqlite_master WHERE type IN ('table','index','trigger') AND name LIKE 'support_%' ORDER BY type,name;")
+          ]);
+          const appRows=Array.isArray(apps)?apps:[];
+          const idpRows=Array.isArray(idps)?idps:[];
+          const groupRows=Array.isArray(groups)?groups:[];
+          const domainRows=Array.isArray(domains)?domains:[];
+          const scriptRows=Array.isArray(scripts)?scripts:[];
+          const c=rows(counts)[0]||{};
+          const bm=String(bookmark?.bookmark||'');
+          if(!bm) throw new Error('D1 Time Travel bookmark missing');
+          const summary={
+            gate:'MUSITU_AXIOM_SUPPORT_CONSOLE_PRODUCTION_PREFLIGHT',
+            status:'PASS',
+            access:{
+              target_app_exists:appRows.some(x=>String(x?.domain||'').toLowerCase()==='support-ops.mftintelligence.com'),
+              apps:appRows.map(x=>({id:String(x?.id||''),name:String(x?.name||''),domain:String(x?.domain||''),type:String(x?.type||'')})).filter(x=>x.id),
+              identity_providers:idpRows.map(x=>({id:String(x?.id||''),name:String(x?.name||''),type:String(x?.type||'')})).filter(x=>x.id),
+              groups:groupRows.map(x=>({id:String(x?.id||''),name:String(x?.name||'')})).filter(x=>x.id)
+            },
+            edge:{
+              target_domain_attached:domainRows.some(x=>String(x?.hostname||'').toLowerCase()==='support-ops.mftintelligence.com'),
+              target_worker_exists:scriptRows.some(x=>/musitu-axiom-support-ops/i.test(String(x?.id||x?.name||''))),
+              public_support_preserved:domainRows.some(x=>String(x?.hostname||'').toLowerCase()==='support.mftintelligence.com'&&String(x?.service||'')==='musitu-axiom-support')
+            },
+            d1:{
+              case_count:Number(c.cases||0),
+              event_count:Number(c.events||0),
+              bookmark_sha256:createHash('sha256').update(bm).digest('hex'),
+              bookmark_value_recorded:false,
+              schema_objects:rows(schemaRows).map(x=>({type:x.type,name:x.name,tbl_name:x.tbl_name}))
+            },
+            customer_content_read:false,
+            recovery_code_read:false,
+            mutation_performed:false,
+            secret_values_recorded:false
+          };
+          console.log(JSON.stringify(summary));
+          NODE
