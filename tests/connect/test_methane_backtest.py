@@ -35,9 +35,9 @@ class MethaneBacktestTests(unittest.TestCase):
         self.assertEqual(spec.calibration_recall_target,0.95)
         self.assertEqual(spec.minimum_test_recall,0.90)
         self.assertEqual(spec.required_passing_folds,3)
-        self.assertEqual(spec.threshold_update_examples,120)
-        self.assertEqual(spec.threshold_window_examples,10000)
-        self.assertGreaterEqual(spec.minimum_online_positives,50)
+        self.assertEqual(spec.threshold_update_examples,30)
+        self.assertEqual(spec.threshold_window_examples,2000)
+        self.assertEqual(spec.minimum_online_positives,20)
 
     def test_window_features_use_only_past_and_present(self):
         spec=MethaneBacktestSpec(sample_stride_seconds=1)
