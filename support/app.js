@@ -176,6 +176,29 @@ document.querySelector('#refresh-case-thread')?.addEventListener('click', async 
   catch (error) { accessStatus.textContent = error.message; }
 });
 
+const caseToolsStatus=document.querySelector('#case-tools-status');
+document.querySelector('#send-diagnostics')?.addEventListener('click',async()=>{
+  if(!activeCaseSession)return;caseToolsStatus.textContent='Sending consented diagnostics…';
+  try{await caseApi(`/api/v1/cases/${encodeURIComponent(activeCaseSession.caseId)}/diagnostics`,{method:'POST',body:{consent:true,browser:navigator.userAgent,os:navigator.platform||'',app_version:'support-web-v1',locale:navigator.language||'',timezone_offset_minutes:new Date().getTimezoneOffset()}});caseToolsStatus.textContent='Diagnostics sent.';}catch(e){caseToolsStatus.textContent=e.message;}
+});
+document.querySelector('#customer-escalate')?.addEventListener('click',async()=>{
+  if(!activeCaseSession)return;caseToolsStatus.textContent='Requesting escalation…';
+  try{await caseApi(`/api/v1/cases/${encodeURIComponent(activeCaseSession.caseId)}/escalations`,{method:'POST',body:{reason_code:'CUSTOMER_ESCALATION'}});caseToolsStatus.textContent='Escalation requested.';}catch(e){caseToolsStatus.textContent=e.message;}
+});
+document.querySelector('#send-csat')?.addEventListener('click',async()=>{
+  if(!activeCaseSession)return;try{await caseApi(`/api/v1/cases/${encodeURIComponent(activeCaseSession.caseId)}/csat`,{method:'POST',body:{score:Number(document.querySelector('#csat-score').value),reason:document.querySelector('#csat-reason').value.trim()}});document.querySelector('#csat-reason').value='';caseToolsStatus.textContent='Satisfaction feedback sent.';}catch(e){caseToolsStatus.textContent=e.message;}
+});
+document.querySelector('#upload-attachment')?.addEventListener('click',async()=>{
+  if(!activeCaseSession)return;const file=document.querySelector('#case-attachment')?.files?.[0];if(!file){caseToolsStatus.textContent='Choose a file first.';return;}
+  try{
+    const bytes=new Uint8Array(await file.arrayBuffer());const digest=await crypto.subtle.digest('SHA-256',bytes);const sha=[...new Uint8Array(digest)].map(x=>x.toString(16).padStart(2,'0')).join('');
+    const meta=await caseApi(`/api/v1/cases/${encodeURIComponent(activeCaseSession.caseId)}/attachments`,{method:'POST',body:{filename:file.name,content_type:file.type||'application/octet-stream',bytes:file.size,sha256:sha}});
+    const upload=await fetch(meta.upload_url,{method:'PUT',headers:{'content-type':file.type||'application/octet-stream'},body:file});
+    if(!upload.ok)throw new Error('Attachment upload failed.');
+    document.querySelector('#case-attachment').value='';caseToolsStatus.textContent='Attachment uploaded and awaiting security scan.';
+  }catch(e){caseToolsStatus.textContent=e.message;}
+});
+
 document.querySelector('#close-case-session')?.addEventListener('click', () => {
   activeCaseSession = null;
   accessForm?.reset();
