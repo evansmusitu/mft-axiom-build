@@ -1,0 +1,49 @@
+name: MUSITU Axiom Public Status WAF Cleanup
+
+on:
+  push:
+    branches:
+      - 'support/axiom-global-support-ops-production-rollout-20261008'
+    paths:
+      - '.github/workflows/axiom-global-support-status-waf-cleanup.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  cleanup:
+    if: github.event_name == 'push' && github.event.before == '00bfce79b45d8830cf4d2db8ea2d674b903cdf44'
+    runs-on: ubuntu-latest
+    environment: axiom-support-production
+    timeout-minutes: 5
+    env:
+      CF_ZONE: '5b56528f03948ff5917a5e0cd9f7109e'
+      TOKEN: ${{ secrets.CLOUDFLARE_RULESETS_API_TOKEN }}
+    steps:
+      - name: Remove ineffective status WAF exception
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          const api='https://api.cloudflare.com/client/v4',zone=process.env.CF_ZONE,token=String(process.env.TOKEN||'');
+          const h={authorization:'Bearer '+token,accept:'application/json','content-type':'application/json'};
+          async function call(path,{method='GET'}={}){
+            const r=await fetch(api+path,{method,headers:h});
+            const p=await r.json().catch(()=>({}));
+            if(!r.ok||p?.success===false)throw new Error('Cloudflare '+method+' failed HTTP '+r.status);
+            return p.result;
+          }
+          const entry=await call('/zones/'+zone+'/rulesets/phases/http_request_firewall_custom/entrypoint');
+          const rulesetId=String(entry?.id||'');if(!rulesetId)throw new Error('custom WAF entrypoint missing');
+          const ref='musitu_axiom_support_public_status';
+          const rows=(Array.isArray(entry?.rules)?entry.rules:[]).filter(r=>String(r?.ref||'')===ref);
+          if(rows.length>1)throw new Error('duplicate public status WAF rules');
+          let removed=false;
+          if(rows.length===1){
+            await call('/zones/'+zone+'/rulesets/'+rulesetId+'/rules/'+String(rows[0].id),{method:'DELETE'});
+            removed=true;
+          }
+          const after=await call('/zones/'+zone+'/rulesets/phases/http_request_firewall_custom/entrypoint');
+          if((Array.isArray(after?.rules)?after.rules:[]).some(r=>String(r?.ref||'')===ref))throw new Error('status WAF rule still present');
+          console.log(JSON.stringify({gate:'MUSITU_AXIOM_PUBLIC_STATUS_WAF_CLEANUP',status:'PASS',removed,security_exception_present:false}));
+          NODE
