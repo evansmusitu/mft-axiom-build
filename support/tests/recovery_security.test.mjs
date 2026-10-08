@@ -146,8 +146,9 @@ test('customer recovery Access verification fails closed on wrong audience, expi
 test('valid SHA-256 evidence fields are not misclassified as payment cards, while ordinary fields remain protected',()=>{
   const hash='4111111111111111'+'a'.repeat(48);
   assert.equal(hash.length,64);
-  assert.equal(inspectSecretMaterial({evidence_hash:hash}).safe,true);
-  assert.equal(inspectSecretMaterial({evidence_hashes:[hash]}).safe,true);
+  assert.equal(inspectSecretMaterial({evidence_hash:hash},'event').safe,true);
+  assert.equal(inspectSecretMaterial({evidence_hashes:[hash]},'event').safe,true);
+  assert.equal(inspectSecretMaterial({evidence_hash:hash},'intake').safe,false);
   const ordinary=inspectSecretMaterial({note:hash});
   assert.equal(ordinary.safe,false);
   assert.equal(ordinary.findings.some(x=>x.type==='payment_card_number'),true);
