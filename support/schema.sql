@@ -152,6 +152,17 @@ CREATE TABLE IF NOT EXISTS support_attachments (
   filename TEXT NOT NULL, content_type TEXT NOT NULL, bytes INTEGER NOT NULL CHECK(bytes>0), sha256 TEXT NOT NULL CHECK(length(sha256)=64),
   storage_key TEXT NOT NULL UNIQUE, scan_state TEXT NOT NULL CHECK(scan_state IN ('PENDING','CLEAN','QUARANTINED','FAILED')), visibility TEXT NOT NULL CHECK(visibility IN ('customer','internal')), created_at TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS support_attachment_deletion_outbox (
+  deletion_id TEXT PRIMARY KEY CHECK (deletion_id GLOB 'AXZ-*'),
+  storage_key TEXT NOT NULL UNIQUE,
+  sha256 TEXT NOT NULL CHECK (length(sha256)=64),
+  state TEXT NOT NULL CHECK (state IN ('PENDING','RETRY','DELETED','DEAD')),
+  attempts INTEGER NOT NULL DEFAULT 0,
+  next_attempt_at TEXT,
+  created_at TEXT NOT NULL,
+  deleted_at TEXT
+);
+
 CREATE TABLE IF NOT EXISTS support_diagnostics (
   diagnostic_id TEXT PRIMARY KEY CHECK (diagnostic_id GLOB 'AXG-*'), case_id TEXT NOT NULL REFERENCES support_cases(case_id) ON DELETE RESTRICT,
   consented INTEGER NOT NULL CHECK(consented=1), metadata_json TEXT NOT NULL, event_hash TEXT NOT NULL UNIQUE CHECK(length(event_hash)=64), created_at TEXT NOT NULL
@@ -222,6 +233,7 @@ CREATE TABLE IF NOT EXISTS support_deletion_receipts (
 CREATE INDEX IF NOT EXISTS support_case_escalations_case_created ON support_case_escalations(case_id,created_at);
 CREATE INDEX IF NOT EXISTS support_incident_cases_case ON support_incident_cases(case_id,incident_id);
 CREATE INDEX IF NOT EXISTS support_attachments_case_created ON support_attachments(case_id,created_at);
+CREATE INDEX IF NOT EXISTS support_attachment_deletion_outbox_state_next ON support_attachment_deletion_outbox(state,next_attempt_at,created_at);
 CREATE INDEX IF NOT EXISTS support_webhook_outbox_state_next ON support_webhook_outbox(state,next_attempt_at,created_at);
 CREATE INDEX IF NOT EXISTS support_notification_attempts_notification ON support_notification_attempts(notification_id,attempted_at);
 CREATE INDEX IF NOT EXISTS support_csat_case_created ON support_csat(case_id,created_at);
@@ -241,7 +253,12 @@ CREATE INDEX IF NOT EXISTS support_case_recovery_rotations_case_created ON suppo
 CREATE TRIGGER IF NOT EXISTS support_case_escalation_no_update
 BEFORE UPDATE ON support_case_escalations WHEN NEW.status=OLD.status BEGIN SELECT RAISE(ABORT,'support escalation history is append-first'); END;
 CREATE TRIGGER IF NOT EXISTS support_attachment_no_delete
-BEFORE DELETE ON support_attachments BEGIN SELECT RAISE(ABORT,'support attachment metadata is retained with the case lifecycle'); END;
+BEFORE DELETE ON support_attachments
+WHEN NOT EXISTS (
+  SELECT 1 FROM support_case_purge_authorizations
+  WHERE case_id=OLD.case_id AND expires_at >= strftime('%Y-%m-%dT%H:%M:%fZ','now')
+)
+BEGIN SELECT RAISE(ABORT,'support attachment metadata may be deleted only by an authorized case purge'); END;
 CREATE TRIGGER IF NOT EXISTS support_diagnostic_no_update
 BEFORE UPDATE ON support_diagnostics BEGIN SELECT RAISE(ABORT,'support diagnostics are immutable'); END;
 CREATE TRIGGER IF NOT EXISTS support_csat_no_update
