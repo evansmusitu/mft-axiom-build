@@ -1,6 +1,6 @@
 import {encryptSupportPayload, decryptSupportPayload} from './crypto_envelope.js';
 import {SENSITIVE_ACTIONS, SecretMaterialError, appendCaseEvent, assertTransition, createConversationMessage, inspectSecretMaterial, newRecoveryCode, publicCaseView, recoveryIdentityHash, sha256, storageStateForPublicLabel} from './control_plane.js';
-import {buildTriageEnvelope, computeSlaClock, createOperatorLease, escalationLane, normalizeLanguage, validateAttachmentMetadata, validateCsat, validateDiagnostics} from './global_ops.js';
+import {buildTriageEnvelope, buildWebhookEvent, computeSlaClock, createOperatorLease, escalationLane, normalizeLanguage, validateAttachmentMetadata, validateCsat, validateDiagnostics, validateQaReview} from './global_ops.js';
 
 export class D1CaseStore {
   constructor({database, encryptionKey}) {
@@ -653,6 +653,165 @@ export class D1CaseStore {
     return Object.freeze({delivery_id:String(delivery.delivery_id),state,attempts,next_attempt_at:next,delivered_at:delivered?at:null});
   }
 
+
+  async scanSlaBreaches(){
+    const result=await this.db.prepare(`SELECT c.case_id,c.state,c.priority,c.surface,c.category,c.requester_ref,c.retention_class,c.human_approval_required,
+      c.last_event_hash,c.created_at,c.updated_at,s.ack_due_at,s.resolve_target_at,s.acknowledged_at
+      FROM support_cases c JOIN support_case_sla s ON s.case_id=c.case_id
+      WHERE c.state NOT IN ('CLOSED','RESOLVED','REJECTED','DUPLICATE')
+        AND ((s.acknowledged_at IS NULL AND s.ack_due_at<=strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+          OR s.resolve_target_at<=strftime('%Y-%m-%dT%H:%M:%fZ','now'))`).all();
+    let created=0;
+    for(const row of result?.results||[]){
+      const breach=(!row.acknowledged_at&&Date.parse(String(row.ack_due_at))<=Date.now())?'SLA_ACK_BREACH':'SLA_RESOLUTION_TARGET_BREACH';
+      const exists=await this.db.prepare(`SELECT escalation_id FROM support_case_escalations WHERE case_id=? AND reason_code=? AND status='OPEN' LIMIT 1`).bind(row.case_id,breach).first();
+      if(exists)continue;
+      const escalationId='AXE-'+randomToken(16),notificationId='AXN-'+randomToken(16),at=new Date().toISOString();
+      const lane=escalationLane(row);
+      const event=await appendCaseEvent(row,{type:breach,actor:'system',visibility:'internal',payload:{escalation_id:escalationId,lane}},{at});
+      await this.db.batch([
+        this.db.prepare(`INSERT INTO support_case_escalations (escalation_id,case_id,lane,reason_code,requested_by,status,event_hash,created_at,closed_at) VALUES (?,?,?,?,?,'OPEN',?,?,NULL)`).bind(escalationId,row.case_id,lane,breach,'system',event.event_hash,at),
+        this.db.prepare(`INSERT INTO support_case_events (case_id,event_hash,prior_event_hash,type,actor,visibility,payload_json,created_at) VALUES (?,?,?,?,?,?,?,?)`).bind(event.case_id,event.event_hash,event.prior_event_hash,event.type,event.actor,event.visibility,JSON.stringify(event.payload),event.at),
+        this.db.prepare('UPDATE support_cases SET last_event_hash=?,updated_at=? WHERE case_id=?').bind(event.event_hash,event.at,row.case_id),
+        this.db.prepare(`INSERT INTO support_notification_outbox (notification_id,case_id,kind,audience,event_hash,created_at) VALUES (?,?,?,?,?,?)`).bind(notificationId,row.case_id,breach,'operator',event.event_hash,at),
+      ]);
+      created+=1;
+    }
+    return Object.freeze({new_breaches:created,scanned:Number(result?.results?.length||0)});
+  }
+
+  async listSlaBreaches(){
+    const result=await this.db.prepare(`SELECT c.case_id,c.priority,c.state,s.plan,s.ack_due_at,s.resolve_target_at,s.acknowledged_at,
+      CASE WHEN s.acknowledged_at IS NULL AND s.ack_due_at<=strftime('%Y-%m-%dT%H:%M:%fZ','now') THEN 'ACK' ELSE 'RESOLUTION_TARGET' END AS breach
+      FROM support_cases c JOIN support_case_sla s ON s.case_id=c.case_id
+      WHERE c.state NOT IN ('CLOSED','RESOLVED','REJECTED','DUPLICATE')
+        AND ((s.acknowledged_at IS NULL AND s.ack_due_at<=strftime('%Y-%m-%dT%H:%M:%fZ','now')) OR s.resolve_target_at<=strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+      ORDER BY c.priority ASC,c.created_at ASC LIMIT 100`).all();
+    return Object.freeze((result?.results||[]).map(row=>Object.freeze({...row})));
+  }
+
+  async bindEmailThread(caseId,{thread_ref,address_hash,provider_thread_hash}={}){
+    if(!/^thread:[a-z0-9._:-]{8,191}$/i.test(String(thread_ref||''))||!/^[a-f0-9]{64}$/i.test(String(address_hash||''))||!/^[a-f0-9]{64}$/i.test(String(provider_thread_hash||'')))throw new TypeError('email thread metadata invalid');
+    const row=await this.db.prepare('SELECT case_id FROM support_cases WHERE case_id=? LIMIT 1').bind(caseId).first();if(!row)return null;
+    const at=new Date().toISOString();
+    await this.db.prepare(`INSERT INTO support_email_threads (thread_ref,case_id,address_hash,provider_thread_hash,created_at,updated_at) VALUES (?,?,?,?,?,?)
+      ON CONFLICT(thread_ref) DO UPDATE SET updated_at=excluded.updated_at`).bind(thread_ref,caseId,String(address_hash).toLowerCase(),String(provider_thread_hash).toLowerCase(),at,at).run?.();
+    return Object.freeze({thread_ref,case_id:caseId,created_at:at});
+  }
+
+  async appendInboundEmailByThread(threadRef,{sender_hash,body}={}){
+    const thread=await this.db.prepare('SELECT thread_ref,case_id,address_hash FROM support_email_threads WHERE thread_ref=? LIMIT 1').bind(threadRef).first();
+    if(!thread||!constantTimeEqual(String(thread.address_hash),String(sender_hash||'').toLowerCase()))return null;
+    const row=await this.db.prepare(`SELECT case_id,state,priority,surface,category,requester_ref,retention_class,human_approval_required,last_event_hash,created_at,updated_at FROM support_cases WHERE case_id=? LIMIT 1`).bind(thread.case_id).first();
+    if(!row)return null;
+    const message=await createConversationMessage({caseId:row.case_id,type:'CUSTOMER_MESSAGE',actor:'requester',visibility:'customer',body});
+    const encrypted=await encryptSupportPayload({body:message.body},{key:this.key,caseId:row.case_id,schema:'musitu.axiom.support-message-encrypted.v1'});
+    const event=await appendCaseEvent(row,{type:'CUSTOMER_MESSAGE',actor:'requester',visibility:'customer',payload:{message_id:message.message_id,channel:'email'}},{at:message.created_at});
+    const notificationId='AXN-'+randomToken(16);
+    await this.db.batch([
+      this.db.prepare(`INSERT INTO support_case_messages (message_id,case_id,type,actor,visibility,encrypted_payload,event_hash,created_at) VALUES (?,?,?,?,?,?,?,?)`).bind(message.message_id,message.case_id,message.type,message.actor,message.visibility,JSON.stringify(encrypted),event.event_hash,message.created_at),
+      this.db.prepare(`INSERT INTO support_case_events (case_id,event_hash,prior_event_hash,type,actor,visibility,payload_json,created_at) VALUES (?,?,?,?,?,?,?,?)`).bind(event.case_id,event.event_hash,event.prior_event_hash,event.type,event.actor,event.visibility,JSON.stringify(event.payload),event.at),
+      this.db.prepare('UPDATE support_cases SET last_event_hash=?,updated_at=? WHERE case_id=?').bind(event.event_hash,event.at,row.case_id),
+      this.db.prepare(`INSERT INTO support_notification_outbox (notification_id,case_id,kind,audience,event_hash,created_at) VALUES (?,?,?,?,?,?)`).bind(notificationId,row.case_id,'CUSTOMER_EMAIL_REPLY_RECEIVED','operator',event.event_hash,event.at),
+    ]);
+    return Object.freeze({message,case_id:row.case_id,notification_id:notificationId});
+  }
+
+  async upsertOrganization(input={},principal){
+    const orgRef=String(input.org_ref||''),plan=String(input.plan||'STANDARD').toUpperCase(),status=String(input.status||'ACTIVE').toUpperCase();
+    if(!/^org:[a-z0-9._:-]{6,180}$/i.test(orgRef)||!['COMMUNITY','STANDARD','BUSINESS','ENTERPRISE'].includes(plan)||!['ACTIVE','SUSPENDED'].includes(status))throw new TypeError('organization metadata invalid');
+    const at=new Date().toISOString();
+    await this.db.prepare(`INSERT INTO support_organizations (org_ref,plan,status,created_at,updated_at) VALUES (?,?,?,?,?)
+      ON CONFLICT(org_ref) DO UPDATE SET plan=excluded.plan,status=excluded.status,updated_at=excluded.updated_at`).bind(orgRef,plan,status,at,at).run?.();
+    return Object.freeze({org_ref:orgRef,plan,status,updated_at:at});
+  }
+
+  async setOrganizationEntitlement(orgRef,input={},principal){
+    if(!/^org:[a-z0-9._:-]{6,180}$/i.test(String(orgRef||'')))throw new TypeError('organization ref invalid');
+    const capability=String(input.capability||'').toLowerCase();
+    if(!/^[a-z][a-z0-9._:-]{2,79}$/.test(capability))throw new TypeError('entitlement capability invalid');
+    const enabled=input.enabled===true,at=new Date().toISOString(),id='AXT-'+randomToken(16);
+    const org=await this.db.prepare('SELECT org_ref FROM support_organizations WHERE org_ref=? LIMIT 1').bind(orgRef).first();if(!org)return null;
+    await this.db.prepare(`INSERT INTO support_support_entitlements (entitlement_id,org_ref,capability,enabled,starts_at,ends_at,created_at) VALUES (?,?,?,?,?,?,?)`).bind(id,orgRef,capability,enabled?1:0,at,input.ends_at||null,at).run?.();
+    return Object.freeze({entitlement_id:id,org_ref:orgRef,capability,enabled,starts_at:at,ends_at:input.ends_at||null});
+  }
+
+  async createWebhookSubscription(input={},principal){
+    const webhookRef=String(input.webhook_ref||''),orgRef=String(input.org_ref||''),endpointRef=String(input.endpoint_ref||''),secretRef=String(input.secret_ref||'');
+    const events=Array.isArray(input.event_types)?input.event_types.map(String):[];
+    if(!/^webhook:[a-z0-9._:-]{6,180}$/i.test(webhookRef)||!/^org:[a-z0-9._:-]{6,180}$/i.test(orgRef)||!/^vault:[a-z0-9._:-]{6,180}$/i.test(endpointRef)||!/^vault:[a-z0-9._:-]{6,180}$/i.test(secretRef)||!events.length||events.some(x=>!/^case\.[a-z_]+$/.test(x)))throw new TypeError('webhook subscription invalid');
+    const org=await this.db.prepare('SELECT org_ref FROM support_organizations WHERE org_ref=? LIMIT 1').bind(orgRef).first();if(!org)return null;
+    const at=new Date().toISOString();
+    await this.db.prepare(`INSERT INTO support_webhook_subscriptions (webhook_ref,org_ref,endpoint_ref,secret_ref,event_types_json,enabled,created_at,updated_at) VALUES (?,?,?,?,?,1,?,?)
+      ON CONFLICT(webhook_ref) DO UPDATE SET org_ref=excluded.org_ref,endpoint_ref=excluded.endpoint_ref,secret_ref=excluded.secret_ref,event_types_json=excluded.event_types_json,enabled=1,updated_at=excluded.updated_at`).bind(webhookRef,orgRef,endpointRef,secretRef,JSON.stringify(events),at,at).run?.();
+    return Object.freeze({webhook_ref:webhookRef,org_ref:orgRef,event_types:Object.freeze(events),enabled:true,updated_at:at});
+  }
+
+  async enqueueWebhookForCase(caseId,{type,state,priority,event_hash,at}={}){
+    const row=await this.db.prepare('SELECT case_id,requester_ref,state,priority FROM support_cases WHERE case_id=? LIMIT 1').bind(caseId).first();
+    if(!row||!String(row.requester_ref||'').startsWith('org:'))return Object.freeze({queued:0});
+    const subs=await this.db.prepare('SELECT webhook_ref,event_types_json FROM support_webhook_subscriptions WHERE org_ref=? AND enabled=1').bind(row.requester_ref).all();
+    let queued=0;
+    for(const sub of subs?.results||[]){
+      const types=JSON.parse(String(sub.event_types_json||'[]'));if(!types.includes(type))continue;
+      const payload=buildWebhookEvent({type,caseId,state:state||row.state,priority:priority||row.priority,eventHash:event_hash,at});
+      const deliveryId='AXW-'+randomToken(16);
+      await this.db.prepare(`INSERT INTO support_webhook_outbox (delivery_id,webhook_ref,case_id,event_type,payload_json,event_hash,state,attempts,next_attempt_at,created_at,delivered_at) VALUES (?,?,?,?,?,?,'PENDING',0,NULL,?,NULL)`).bind(deliveryId,sub.webhook_ref,caseId,type,JSON.stringify(payload),event_hash,payload.created_at).run?.();
+      queued+=1;
+    }
+    return Object.freeze({queued});
+  }
+
+  async createOperatorMacro(input={},principal){
+    const name=String(input.name||'').trim(),body=String(input.body||'').trim();if(!name||name.length>80||!body||body.length>4000)throw new TypeError('macro name/body invalid');
+    const check=inspectSecretMaterial({body});if(!check.safe)throw new SecretMaterialError(check.findings);
+    const id='AXK-'+randomToken(16),at=new Date().toISOString();
+    const encrypted=await encryptSupportPayload({body},{key:this.key,caseId:'AX-000000000000',schema:'musitu.axiom.support-macro-encrypted.v1'});
+    await this.db.prepare(`INSERT INTO support_operator_macros (macro_id,owner_ref,name,body_encrypted,enabled,created_at,updated_at) VALUES (?,?,?,?,1,?,?)`).bind(id,String(principal?.actor_ref||''),name,JSON.stringify(encrypted),at,at).run?.();
+    return Object.freeze({macro_id:id,name,enabled:true,created_at:at});
+  }
+
+  async listOperatorMacros(principal){
+    const result=await this.db.prepare('SELECT macro_id,name,body_encrypted,created_at,updated_at FROM support_operator_macros WHERE owner_ref=? AND enabled=1 ORDER BY name ASC LIMIT 100').bind(String(principal?.actor_ref||'')).all();
+    const out=[];for(const row of result?.results||[]){const p=await decryptSupportPayload(JSON.parse(row.body_encrypted),{key:this.key,caseId:'AX-000000000000'});out.push(Object.freeze({macro_id:row.macro_id,name:row.name,body:String(p?.body||''),created_at:row.created_at,updated_at:row.updated_at}));}
+    return Object.freeze(out);
+  }
+
+  async recordQaReview(caseId,input={},principal){
+    const validated=validateQaReview({quality:input.quality,policy:input.policy,accuracy:input.accuracy,reviewerRef:principal?.actor_ref});if(!validated.ok)throw new TypeError(validated.errors.join('; '));
+    const row=await this.db.prepare('SELECT case_id FROM support_cases WHERE case_id=? LIMIT 1').bind(caseId).first();if(!row)return null;
+    const reviewId='AXJ-'+randomToken(16),at=new Date().toISOString();
+    let notesEncrypted=null;if(String(input.notes||'').trim()){const check=inspectSecretMaterial({notes:String(input.notes)});if(!check.safe)throw new SecretMaterialError(check.findings);notesEncrypted=JSON.stringify(await encryptSupportPayload({notes:String(input.notes).trim()},{key:this.key,caseId,schema:'musitu.axiom.support-qa-encrypted.v1'}));}
+    await this.db.prepare(`INSERT INTO support_qa_reviews (review_id,case_id,reviewer_ref,quality,policy,accuracy,notes_encrypted,created_at) VALUES (?,?,?,?,?,?,?,?)`).bind(reviewId,caseId,validated.value.reviewer_ref,validated.value.quality,validated.value.policy,validated.value.accuracy,notesEncrypted,at).run?.();
+    return Object.freeze({review_id:reviewId,case_id:caseId,quality:validated.value.quality,policy:validated.value.policy,accuracy:validated.value.accuracy,created_at:at});
+  }
+
+  async updateIncidentStatus(incidentId,input={},principal){
+    const incident=await this.db.prepare('SELECT incident_id,title,severity,state,public_summary,created_at,updated_at FROM support_incidents WHERE incident_id=? LIMIT 1').bind(incidentId).first();if(!incident)return null;
+    const state=String(input.state||'').toUpperCase(),message=String(input.public_message||'').trim();if(!['INVESTIGATING','IDENTIFIED','MONITORING','RESOLVED'].includes(state)||!message||message.length>2000)throw new TypeError('incident status invalid');
+    const check=inspectSecretMaterial({message});if(!check.safe)throw new SecretMaterialError(check.findings);
+    const at=new Date().toISOString(),updateId='AXU-'+randomToken(16),eventHash=await sha256({schema:'musitu.axiom.status-update.v1',update_id:updateId,incident_id:incidentId,state,message,at});
+    await this.db.batch([
+      this.db.prepare('UPDATE support_incidents SET state=?,public_summary=?,updated_at=? WHERE incident_id=?').bind(state,message,at,incidentId),
+      this.db.prepare(`INSERT INTO support_status_updates (update_id,incident_id,state,public_message,event_hash,created_at) VALUES (?,?,?,?,?,?)`).bind(updateId,incidentId,state,message,eventHash,at),
+    ]);
+    return Object.freeze({incident_id:incidentId,state,public_message:message,updated_at:at});
+  }
+
+  async setCaseTriage(caseId,input={},principal){
+    const row=await this.db.prepare(`SELECT case_id,state,priority,surface,category,requester_ref,retention_class,human_approval_required,last_event_hash,created_at,updated_at FROM support_cases WHERE case_id=? LIMIT 1`).bind(caseId).first();if(!row)return null;
+    const lane=String(input.lane||escalationLane(row)).toUpperCase(),language=normalizeLanguage(input.language);if(language==='und'&&!['und',''].includes(String(input.language||'').toLowerCase()))throw new TypeError('unsupported language');
+    if(!/^[A-Z][A-Z0-9_]{2,79}$/.test(lane))throw new TypeError('triage lane invalid');
+    const at=new Date().toISOString();
+    const event=await appendCaseEvent(row,{type:'TRIAGE_UPDATED',actor:principal?.actor_ref,visibility:'internal',payload:{lane,language}},{at});
+    await this.db.batch([
+      this.db.prepare(`INSERT INTO support_case_triage (case_id,lane,language,advisory_only,human_review_required,updated_at) VALUES (?,?,?,1,1,?) ON CONFLICT(case_id) DO UPDATE SET lane=excluded.lane,language=excluded.language,updated_at=excluded.updated_at`).bind(caseId,lane,language,at),
+      this.db.prepare(`INSERT INTO support_case_languages (case_id,language,detected_from,updated_at) VALUES (?,?, 'operator',?) ON CONFLICT(case_id) DO UPDATE SET language=excluded.language,detected_from='operator',updated_at=excluded.updated_at`).bind(caseId,language,at),
+      this.db.prepare(`INSERT INTO support_case_events (case_id,event_hash,prior_event_hash,type,actor,visibility,payload_json,created_at) VALUES (?,?,?,?,?,?,?,?)`).bind(event.case_id,event.event_hash,event.prior_event_hash,event.type,event.actor,event.visibility,JSON.stringify(event.payload),event.at),
+      this.db.prepare('UPDATE support_cases SET last_event_hash=?,updated_at=? WHERE case_id=?').bind(event.event_hash,event.at,caseId),
+    ]);
+    return Object.freeze({case_id:caseId,lane,language,updated_at:at});
+  }
 
   async listOperatorCases({state = null, limit = 100} = {}) {
     const bounded = Math.max(1, Math.min(100, Number(limit) || 100));
