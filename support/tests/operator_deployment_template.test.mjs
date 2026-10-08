@@ -9,7 +9,7 @@ test('operator deployment template is private-by-default and has no production r
   assert.match(text,/"preview_urls"\s*:\s*false/);
   assert.match(text,/"directory"\s*:\s*"\.\/console"/);
   assert.match(text,/"binding"\s*:\s*"ASSETS"/);
-  assert.match(text,/"binding_name"\s*:\s*"SUPPORT_DB"/);
+  assert.match(text,/"binding"\s*:\s*"SUPPORT_DB"/);
   assert.doesNotMatch(text,/"routes"\s*:/);
   assert.doesNotMatch(text,/support-ops\.mftintelligence\.com/);
   assert.doesNotMatch(text,/SUPPORT_DATA_KEY_B64\s*["':=]+\s*[A-Za-z0-9+/]{20,}/);
