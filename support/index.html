@@ -53,6 +53,27 @@
       </form>
       <section id="case-receipt" class="receipt" hidden aria-labelledby="receipt-title" tabindex="-1"><p class="eyebrow">Case created</p><h3 id="receipt-title"></h3><p>Save this recovery code now. It is shown once and cannot be recovered by MUSITU.</p><output id="recovery-code"></output><button id="copy-code" class="secondary" type="button">Copy code</button><p id="receipt-priority"></p></section>
     </section>
+    <section id="existing-case" class="section existing-case" aria-labelledby="existing-case-title">
+      <div class="section-head"><p class="eyebrow">Secure conversation</p><h2 id="existing-case-title">Check an existing case</h2><p>Use the case ID and one-time recovery code you saved when the case was created. The recovery code stays in this page's memory only and is never placed in the URL or browser storage.</p></div>
+      <form id="case-access-form" class="case-access-form" novalidate>
+        <div class="two">
+          <label>Case ID<input name="case_id" required autocomplete="off" inputmode="text" placeholder="AX-…"></label>
+          <label>Recovery code<input name="recovery_code" required autocomplete="off" inputmode="text" placeholder="XXXXXXXX-XXXXXXXX-XXXXXXXX"></label>
+        </div>
+        <div class="case-access-actions"><button class="primary" type="submit">Open secure conversation</button><button id="close-case-session" class="secondary" type="button" hidden>Forget recovery code</button></div>
+        <div id="case-access-status" role="status" aria-live="polite"></div>
+      </form>
+      <section id="case-thread" class="customer-thread" hidden aria-labelledby="case-thread-title">
+        <div class="customer-thread-head"><div><p class="eyebrow">Case conversation</p><h3 id="case-thread-title"></h3><p id="case-thread-state"></p></div><button id="refresh-case-thread" class="secondary" type="button">Refresh</button></div>
+        <div id="case-original" class="case-original"></div>
+        <div id="case-messages" class="case-messages" aria-live="polite"></div>
+        <form id="case-reply" class="case-reply" novalidate>
+          <label>Add a reply<textarea name="body" maxlength="8000" required placeholder="Add sanitized details for the support team…"></textarea></label>
+          <p class="fine">Do not include passwords, tokens, API keys, session cookies, payment-card numbers, private keys, or other credentials.</p>
+          <div class="case-access-actions"><button class="primary" type="submit">Send secure reply</button><span id="case-reply-status" role="status" aria-live="polite"></span></div>
+        </form>
+      </section>
+    </section>
     <section id="safety" class="section split" aria-labelledby="safety-title"><div><p class="eyebrow">Safety by construction</p><h2 id="safety-title">Support cannot silently widen authority.</h2></div><div><p>Case events are append-only and hash chained. Customer-visible and internal notes are separated. Account recovery, refunds, data rights, disclosure and production changes are gated by verification, evidence and independent human approval.</p></div></section>
     <section id="service" class="section" aria-labelledby="service-title"><div class="section-head"><p class="eyebrow">Service objectives</p><h2 id="service-title">Impact-driven response</h2></div><div class="objectives"><div><strong>P0</strong><span>Critical · 15-minute acknowledgement objective</span></div><div><strong>P1</strong><span>High · 1-hour acknowledgement objective</span></div><div><strong>P2</strong><span>Normal · 8-hour acknowledgement objective</span></div><div><strong>P3</strong><span>Low · 2-day acknowledgement objective</span></div></div><p class="fine">These are operating objectives, not contractual guarantees. Public incident claims are made only from verified service evidence.</p></section>
   </main>
