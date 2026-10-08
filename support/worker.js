@@ -473,13 +473,13 @@ export async function deliverSupportNotification(notification, env = {}) {
       to: null,
       from: {email: sender, name: 'MUSITU Axiom Support'},
       subject: `MUSITU Axiom Support · ${label}`,
-      text: `Case ${caseId}\nEvent ${kind}\nOpen Support Operations: https://support-ops.mftintelligence.com/\n\nThis alert intentionally contains no customer narrative or credentials.`,
+      text: `Case ${caseId}\nEvent ${kind}\nOpen Support Operations: https://support-ops.mftintelligence.com/\n\nThis alert contains case metadata only.`,
     });
     return Object.freeze({delivered:true,receipt_id:String(receipt?.messageId||receipt?.id||'')||null});
   }
 
   if (typeof env.SUPPORT_NOTIFICATION_SEND !== 'function') return Object.freeze({delivered:false,reason:'PROVIDER_UNAVAILABLE'});
-  const payload=Object.freeze({notification_id:notificationId,case_id:caseId,kind,audience});
+  const payload=Object.freeze({notification_id:notificationId,case_id:caseId,kind});
   const receipt=await env.SUPPORT_NOTIFICATION_SEND(payload);
   return Object.freeze({delivered:true,receipt_id:String(receipt?.id||'')||null});
 }
