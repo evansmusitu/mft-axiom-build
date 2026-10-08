@@ -12,10 +12,10 @@ permissions:
 
 jobs:
   deploy:
-    if: github.event_name == 'push' && github.event.before == '56633b505e278e6647fd15a4f7ba02829fc2142b'
+    if: github.event_name == 'push' && github.event.before == 'fc4397e6538bd73f0f9fc5cc2b8d011f303706aa'
     runs-on: ubuntu-latest
     environment: axiom-support-production
-    timeout-minutes: 12
+    timeout-minutes: 25
     env:
       CF_ACCOUNT: '93f395f5121954671f92fffa453d6b61'
       CF_ZONE: '5b56528f03948ff5917a5e0cd9f7109e'
@@ -34,7 +34,7 @@ jobs:
         run: |
           set -euo pipefail
           test "$GITHUB_REF_NAME" = 'support/axiom-global-support-ops-production-rollout-20261008'
-          test "${{ github.event.before }}" = '56633b505e278e6647fd15a4f7ba02829fc2142b'
+          test "${{ github.event.before }}" = 'fc4397e6538bd73f0f9fc5cc2b8d011f303706aa'
           node --check support/worker.js
           node --test support/tests/*.test.mjs
 
@@ -197,7 +197,7 @@ jobs:
             const x=Array.isArray(p.result)?p.result[0]:p.result;return x?.results||[];
           }
           let proof=null;
-          for(let i=0;i<32;i++){
+          for(let i=0;i<90;i++){
             const rows=await q(`SELECT a.attempt_id,a.state,a.provider_ref_hash,a.attempted_at,n.notification_id,n.case_id,n.kind
               FROM support_notification_attempts a JOIN support_notification_outbox n ON n.notification_id=a.notification_id
               WHERE n.audience='operator' AND a.state='SENT'
@@ -205,7 +205,21 @@ jobs:
             if(rows[0]){proof=rows[0];break;}
             await new Promise(r=>setTimeout(r,10000));
           }
-          if(!proof)throw new Error('no SENT operator email attempt observed before timeout');
+          if(!proof){
+            const recent=await q(`SELECT a.state,a.provider_ref_hash,a.attempted_at,n.kind
+              FROM support_notification_attempts a JOIN support_notification_outbox n ON n.notification_id=a.notification_id
+              WHERE n.audience='operator' ORDER BY a.attempted_at DESC LIMIT 12`);
+            console.log(JSON.stringify({
+              gate:'MUSITU_AXIOM_OPERATOR_EMAIL_LIVE_PROOF_DIAGNOSTIC',
+              status:'NO_SENT_YET',
+              recent_attempts:recent.map(x=>({
+                state:x.state,kind:x.kind,attempted_at:x.attempted_at,
+                provider_receipt_hash_present:/^[a-f0-9]{64}$/i.test(String(x.provider_ref_hash||''))
+              })),
+              destination_value_recorded:false,customer_content_read:false
+            }));
+            throw new Error('no SENT operator email attempt observed before extended propagation window');
+          }
           if(!/^[a-f0-9]{64}$/i.test(String(proof.provider_ref_hash||'')))throw new Error('operator email receipt hash missing');
           console.log(JSON.stringify({
             gate:'MUSITU_AXIOM_OPERATOR_EMAIL_LIVE_PROOF',
