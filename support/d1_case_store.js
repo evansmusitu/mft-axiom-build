@@ -777,6 +777,13 @@ export class D1CaseStore {
     return Object.freeze((result?.results||[]).map(row=>Object.freeze({...row})));
   }
 
+  async bindCustomerEmailThread(caseId,recoveryCode,input={}){
+    const recoveryHash=await sha256(recoveryCode);
+    const row=await this.db.prepare('SELECT case_id,recovery_hash FROM support_cases WHERE case_id=? LIMIT 1').bind(caseId).first();
+    if(!row||!constantTimeEqual(String(row.recovery_hash),recoveryHash))return null;
+    return this.bindEmailThread(caseId,input);
+  }
+
   async bindEmailThread(caseId,{thread_ref,address_hash,provider_thread_hash}={}){
     if(!/^thread:[a-z0-9._:-]{8,191}$/i.test(String(thread_ref||''))||!/^[a-f0-9]{64}$/i.test(String(address_hash||''))||!/^[a-f0-9]{64}$/i.test(String(provider_thread_hash||'')))throw new TypeError('email thread metadata invalid');
     const row=await this.db.prepare('SELECT case_id FROM support_cases WHERE case_id=? LIMIT 1').bind(caseId).first();if(!row)return null;
