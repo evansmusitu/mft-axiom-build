@@ -1,0 +1,60 @@
+name: MUSITU Pythia reference logits
+on:
+  push:
+    branches:
+      - proof-routed-r4-pythia-ci-20261008
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  reference:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Generate transformer reference evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --quiet --disable-pip-version-check "transformers==4.40.0" "safetensors>=0.4" "huggingface_hub[hf_xet]>=0.34"
+          python - <<'PY'
+          import hashlib, json, pathlib, numpy as np, torch
+          from huggingface_hub import HfApi, snapshot_download
+          from transformers import AutoModelForCausalLM
+          repo="EleutherAI/pythia-14m"
+          rev=HfApi().model_info(repo).sha
+          src=pathlib.Path(snapshot_download(repo_id=repo,revision=rev,allow_patterns=["model.safetensors","config.json"]))
+          h=hashlib.sha256((src/"model.safetensors").read_bytes()).hexdigest()
+          model=AutoModelForCausalLM.from_pretrained(src,torch_dtype=torch.float32,local_files_only=True)
+          model.eval()
+          ids=torch.tensor([
+             [0,1,2,3,4,5,6,7,8,9,10,11],
+             [42,314,2718,7,503,9001,17,29,31,37,41,43]
+          ],dtype=torch.long)
+          with torch.no_grad():
+             out=model(ids,output_hidden_states=True,use_cache=False)
+          od=pathlib.Path("reference_artifact"); od.mkdir()
+          np.save(od/"input_ids.npy",ids.numpy())
+          np.save(od/"last_logits.npy",out.logits[:,-1,:].cpu().numpy().astype(np.float64))
+          # Store all returned hidden states for layer-local debugging.
+          hs=np.stack([x.cpu().numpy().astype(np.float64) for x in out.hidden_states],axis=0)
+          np.save(od/"hidden_states.npy",hs)
+          top=torch.topk(out.logits[:,-1,:],k=10,dim=-1)
+          meta={
+             "repo":repo,"revision":rev,"model_sha256":h,
+             "torch":torch.__version__,"transformers":"4.40.0",
+             "input_shape":list(ids.shape),"hidden_states_shape":list(hs.shape),
+             "top10_ids":top.indices.cpu().tolist(),
+             "top10_values":top.values.cpu().tolist()
+          }
+          (od/"REFERENCE_MANIFEST.json").write_text(json.dumps(meta,indent=2)+"\n")
+          print(json.dumps(meta,indent=2))
+          PY
+      - name: Upload reference artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: pythia-14m-transformers-reference
+          path: reference_artifact/
+          if-no-files-found: error
+          retention-days: 1
