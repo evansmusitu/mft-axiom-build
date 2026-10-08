@@ -21,4 +21,4 @@ jobs:
         with:
           node-version: '22'
       - name: Conversation and console HTTP contract tests
-        run: node --test support/tests/conversation_contract.test.mjs support/tests/console_http_contract.test.mjs support/tests/conversation_store.test.mjs support/tests/conversation_read_state.test.mjs support/tests/operator_access_contract.test.mjs
+        run: node --test support/tests/conversation_contract.test.mjs support/tests/console_http_contract.test.mjs support/tests/conversation_store.test.mjs support/tests/conversation_read_state.test.mjs support/tests/operator_access_contract.test.mjs support/tests/console_ui_contract.test.mjs
