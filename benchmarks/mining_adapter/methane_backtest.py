@@ -99,6 +99,15 @@ def _numeric(row: Mapping[str,Any], sensor: str) -> float:
     return value
 
 
+def _f_side_features(value: Any) -> dict[str,float]:
+    text=str(value).strip().casefold()
+    if text in {"1","1.0","left","l"}:
+        return {"F_SIDE_left":1.0,"F_SIDE_right":0.0}
+    if text in {"0","0.0","0.5","right","r"}:
+        return {"F_SIDE_left":0.0,"F_SIDE_right":1.0}
+    raise ValueError("methane_backtest_f_side_invalid")
+
+
 def _window_features(
     materialized: Sequence[tuple[int,Mapping[str,Any],datetime]],
     candidate_position: int,
@@ -106,6 +115,7 @@ def _window_features(
 ) -> dict[str,float]:
     candidate=materialized[candidate_position][1]
     features={sensor:_numeric(candidate,sensor) for sensor in _NUMERIC_SENSORS}
+    features.update(_f_side_features(candidate.get("F_SIDE")))
     features["target_current_max"]=max(features[sensor] for sensor in _TARGET_METHANE)
 
     for sensor in _TARGET_METHANE:
