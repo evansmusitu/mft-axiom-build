@@ -1,0 +1,44 @@
+name: MUSITU Axiom Phase 2 OpenHands Qualification Gate
+
+on:
+  push:
+    branches:
+      - frontier/axiom-phase2-openhands-live-qualification-20261008
+    paths:
+      - 'axiom_interface/vnext/product_intelligence/openhands_live_qualification.js'
+      - 'axiom_interface/vnext/tests/product_intelligence_openhands_live_qualification.test.mjs'
+      - 'axiom_interface/vnext/product_intelligence/evidence/phase2_openhands_live_qualification_*.json'
+      - '.github/workflows/axiom-phase2-openhands-qualification-gate.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: musitu-axiom-phase2-openhands-qualification-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  focused-contract:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Checkout immutable action without credentials
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - name: Run OpenHands live-qualification contract
+        run: node --test axiom_interface/vnext/tests/product_intelligence_openhands_live_qualification.test.mjs
+      - name: Preserve authority boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "${{ github.ref_name }}" = "frontier/axiom-phase2-openhands-live-qualification-20261008"
+          echo 'OPENHANDS_QUALIFICATION_BRANCH_ISOLATED=TRUE'
+          echo 'MAIN_MUTATION_ALLOWED=FALSE'
+          echo 'PR1_MUTATION_ALLOWED=FALSE'
+          echo 'PRODUCTION_MUTATION_ALLOWED=FALSE'
+          echo 'FROZEN_OPENAI_MUTATION_ALLOWED=FALSE'
+          echo 'RELEASE_AUTHORITY=FALSE'
+          echo 'PRODUCTION_AUTHORITY=FALSE'
+          echo 'CERTIFICATION_AUTHORITY=FALSE'
