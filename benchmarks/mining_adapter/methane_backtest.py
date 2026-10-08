@@ -462,6 +462,13 @@ def online_recalibrated_predictions(
         for index in range(1,len(ordered_test))
     ):
         raise ValueError("methane_backtest_online_test_order_invalid")
+    # Calibration labels must be fully resolved BEFORE the first live
+    # prediction, not simply earlier in feature timestamp order.
+    if any(
+        item.label_window_end >= ordered_test[0][0].feature_time
+        for item,_ in ordered_cal
+    ):
+        raise ValueError("methane_backtest_calibration_label_not_resolved")
 
     labeled=[
         (item,bool(item.label),float(score))
@@ -534,6 +541,49 @@ def online_recalibrated_predictions(
         "update_audit":update_audit,
         "leakage_safe":leakage_safe,
     }
+
+
+def causal_consensus_predictions(
+    *,
+    test_examples: Sequence[PredictionExample],
+    test_scores: Sequence[float],
+    thresholds: Sequence[float],
+    warning_threshold: float,
+    consecutive_samples: int,
+    sample_stride_seconds: int,
+) -> list[bool]:
+    """Research-only past-only temporal consensus, never a hard-alert override.
+
+    A learned alert requires N consecutive threshold crossings at the
+    published sampling stride; gaps reset state. Hard observed alerts are
+    always emitted immediately, regardless of the learned model's output.
+    This does not use labels or future scores and is NOT the admission policy.
+    """
+    if not test_examples or not (
+        len(test_examples)==len(test_scores)==len(thresholds)
+    ):
+        raise ValueError("methane_backtest_shadow_length_invalid")
+    if consecutive_samples < 1 or sample_stride_seconds < 1 or warning_threshold<=0:
+        raise ValueError("methane_backtest_shadow_parameters_invalid")
+    prior_time: datetime | None=None
+    streak=0
+    predictions=[]
+    for item,raw_score,raw_threshold in zip(test_examples,test_scores,thresholds,strict=True):
+        score=float(raw_score)
+        threshold=float(raw_threshold)
+        observed=float(item.features["target_current_max"])
+        if not all(map(isfinite,(score,threshold,observed))):
+            raise ValueError("methane_backtest_shadow_value_not_finite")
+        if prior_time is not None:
+            delta=(item.feature_time-prior_time).total_seconds()
+            if delta<=0:
+                raise ValueError("methane_backtest_shadow_order_invalid")
+            if delta!=sample_stride_seconds:
+                streak=0
+        streak=streak+1 if score>=threshold else 0
+        predictions.append(observed>=warning_threshold or streak>=consecutive_samples)
+        prior_time=item.feature_time
+    return predictions
 
 
 def _sha256(value: Any) -> bool:
@@ -610,10 +660,37 @@ def evaluate_backtest_gate(
             ):
                 blockers.append("confusion_matrix_counts_invalid")
 
+            # Every metric used for admission must agree with its confusion
+            # matrix: forged summary fields must never qualify a fold.
+            reported_metrics_valid=True
+            for counts in (baseline,model):
+                if any(type(counts.get(key)) is not int or counts[key]<0
+                       for key in ("tp","tn","fp","fn")):
+                    reported_metrics_valid=False
+                    continue
+                expected=_metrics_from_counts(
+                    counts["tp"],counts["tn"],counts["fp"],counts["fn"]
+                )
+                for key in ("precision","recall","specificity","f1","f2"):
+                    try:
+                        reported=float(counts[key])
+                    except (KeyError,TypeError,ValueError,OverflowError):
+                        reported_metrics_valid=False
+                        break
+                    if not isfinite(reported) or abs(reported-expected[key])>1e-10:
+                        reported_metrics_valid=False
+                        break
+            if not reported_metrics_valid:
+                blockers.append("reported_metrics_mismatch")
+            if (not isfinite(prevalence)
+                or abs(prevalence-(positives/test_examples if test_examples else 0.0))>1e-10
+                or not isfinite(ap) or not 0.0<=ap<=1.0):
+                blockers.append("reported_prevalence_or_average_precision_invalid")
+
             support_ok=(
                 leakage and test_examples>0
                 and positives>=spec.minimum_fold_test_positives
-                and counts_consistent
+                and counts_consistent and reported_metrics_valid
             )
             if support_ok:
                 support_eligible+=1

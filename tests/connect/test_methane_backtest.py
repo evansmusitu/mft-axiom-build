@@ -1,6 +1,7 @@
 from datetime import datetime, timedelta, timezone
 import unittest
 
+import benchmarks.mining_adapter.methane_backtest as methane_module
 from benchmarks.mining_adapter.methane_backtest import (
     MethaneBacktestSpec,
     build_windowed_prediction_examples,
@@ -176,6 +177,57 @@ class MethaneBacktestTests(unittest.TestCase):
                 )
         self.assertLess(result["thresholds"][-1],result["thresholds"][0])
 
+    def test_initial_online_calibration_rejects_unresolved_future_label(self):
+        base=datetime(2014,3,2,tzinfo=timezone.utc)
+        calibration=[
+            PredictionExample(
+                feature_time=base-timedelta(seconds=180),
+                label_window_end=base+timedelta(seconds=180),
+                features={"target_current_max":0.2},label=True,
+            ),
+            PredictionExample(
+                feature_time=base-timedelta(seconds=500),
+                label_window_end=base-timedelta(seconds=140),
+                features={"target_current_max":0.2},label=False,
+            ),
+        ]
+        test=[PredictionExample(
+            feature_time=base,label_window_end=base+timedelta(seconds=360),
+            features={"target_current_max":1.2},label=False,
+        )]
+        with self.assertRaisesRegex(ValueError,"methane_backtest_calibration_label_not_resolved"):
+            online_recalibrated_predictions(
+                calibration_examples=calibration,
+                calibration_scores=[0.8,0.3],
+                test_examples=test,test_scores=[0.1],
+                warning_threshold=1.0,minimum_recall=0.9,
+                update_every_examples=1,window_examples=2,
+                minimum_online_positives=1,
+            )
+
+    def test_causal_consensus_reduces_isolated_model_alerts_without_delaying_hard_warning(self):
+        self.assertTrue(hasattr(methane_module,"causal_consensus_predictions"))
+        base=datetime(2014,3,2,tzinfo=timezone.utc)
+        times=(0,30,60,180,210)
+        samples=[PredictionExample(
+            feature_time=base+timedelta(seconds=second),
+            label_window_end=base+timedelta(seconds=second+360),
+            features={"target_current_max":1.2 if second==60 else 0.2},
+            label=False,
+        ) for second in times]
+        predictions=methane_module.causal_consensus_predictions(
+            test_examples=samples,
+            test_scores=(0.8,0.9,0.1,0.9,0.91),
+            thresholds=(0.5,)*5,
+            warning_threshold=1.0,
+            consecutive_samples=2,
+            sample_stride_seconds=30,
+        )
+        self.assertEqual(predictions,[False,True,True,False,True])
+        self.assertFalse(predictions[0])  # no future score may influence t=0
+        self.assertTrue(predictions[2])   # hard warning is never suppressed
+        self.assertFalse(predictions[3])  # source gap resets consensus
+
     def test_backtest_gate_requires_three_of_four_strong_folds(self):
         spec=MethaneBacktestSpec(
             minimum_examples=100,
@@ -190,7 +242,11 @@ class MethaneBacktestTests(unittest.TestCase):
         for index in range(4):
             model=dict(good_model)
             if index==3:
-                model["recall"]=0.85
+                model=binary_metrics(
+                    [1]*20+[0]*80,
+                    [1]*17+[0]*3+[1]*10+[0]*70,
+                )
+                model["average_precision"]=0.70
             folds.append({
                 "fold":index,
                 "train_examples":300,
@@ -221,6 +277,15 @@ class MethaneBacktestTests(unittest.TestCase):
         self.assertEqual(result["gate"],"REAL_MINE_METHANE_BACKTEST_QUALIFIED")
         self.assertEqual(result["passing_folds"],3)
 
+        # Tamper with published metrics while leaving counts unchanged;
+        # the gate must not be satisfied by forged summaries.
+        report["folds"][0]["model"]["precision"]=1.0
+        report["folds"][0]["model"]["f2"]=1.0
+        result=evaluate_backtest_gate(spec,report)
+        self.assertFalse(result["backtest_qualified"])
+        self.assertIn("reported_metrics_mismatch",result["fold_diagnostics"][0]["blockers"])
+        report["folds"][0]["model"]=dict(good_model)
+
         report["folds"][0]["temporal_leakage_check"]=False
         result=evaluate_backtest_gate(spec,report)
         self.assertFalse(result["backtest_qualified"])
@@ -241,9 +306,11 @@ class MethaneBacktestTests(unittest.TestCase):
             predictions=[1]*(positives-1)+[0]+[1]*5+[0]*(30648-positives-5)
             metrics=binary_metrics(truths,predictions)
             metrics["average_precision"]=0.90
-            baseline={"f2":0.20,"tp":positives//5,
-                      "fn":positives-positives//5,
-                      "fp":30,"tn":30648-positives-30}
+            baseline=binary_metrics(
+                truths,
+                [1]*(positives//5)+[0]*(positives-positives//5)
+                +[1]*30+[0]*(30648-positives-30),
+            )
             folds.append({
                 "fold":index,"test_examples":30648,
                 "test_positives":positives,"test_prevalence":positives/30648,

@@ -18,6 +18,7 @@ if str(ROOT) not in sys.path:
 from benchmarks.mining_adapter.methane_backtest import (
     MethaneBacktestSpec,
     build_windowed_prediction_examples,
+    causal_consensus_predictions,
     evaluate_backtest_gate,
     online_recalibrated_predictions,
     rolling_backtest_folds,
@@ -150,6 +151,23 @@ def run(*, source: Path, spec: MethaneBacktestSpec) -> dict[str,Any]:
         baseline=binary_metrics(y_test.tolist(),baseline_pred.tolist())
         prevalence=float(y_test.mean())
 
+        # Experimental causal alternatives are measured on these SPENT
+        # development folds, not promoted to the admission model. An
+        # untouched independent validation set is required before promotion.
+        shadow_consensus={}
+        for length in (2,3):
+            shadow_pred=causal_consensus_predictions(
+                test_examples=test,
+                test_scores=scores.tolist(),
+                thresholds=online["thresholds"],
+                warning_threshold=spec.warning_threshold,
+                consecutive_samples=length,
+                sample_stride_seconds=spec.sample_stride_seconds,
+            )
+            shadow_consensus[str(length)]=binary_metrics(
+                y_test.tolist(),shadow_pred
+            )
+
         fold_reports.append({
             "fold":fold["fold"],
             "train_examples":len(train),
@@ -168,6 +186,7 @@ def run(*, source: Path, spec: MethaneBacktestSpec) -> dict[str,Any]:
             "online_update_audit":online["update_audit"],
             "baseline":baseline,
             "model":model_metrics,
+            "research_only_causal_consensus":shadow_consensus,
             "model_train_seconds":train_seconds,
             "test_score_seconds":score_seconds,
             "test_start":min(item.feature_time for item in test).isoformat(),
