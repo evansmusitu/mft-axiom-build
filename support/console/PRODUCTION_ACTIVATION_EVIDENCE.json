@@ -1,0 +1,61 @@
+{
+  "schema": "musitu.axiom.support-console-production-activation.v1",
+  "status": "AUTOMATED_PRODUCTION_GATES_PASS_HUMAN_AUTH_PENDING",
+  "recorded_at": "2026-10-08T11:15:00Z",
+  "branch": "support/axiom-support-console-production-rollout-20261008",
+  "preflight_run": 37767378354,
+  "foundation_run": 37768009235,
+  "worker_stage_run": 37768254780,
+  "activation_run": 37768545880,
+  "external_access_run": 37768696328,
+  "access": {
+    "application": "support-ops.mftintelligence.com",
+    "allow_policy_count": 1,
+    "operator_binding_count": 1,
+    "operator_role": "support_agent",
+    "operator_identity_value_recorded": false,
+    "anonymous_ui_status": 403,
+    "anonymous_api_status": 403,
+    "independent_approver_bound": false
+  },
+  "workers": {
+    "public_worker": "musitu-axiom-support",
+    "operator_worker": "musitu-axiom-support-ops",
+    "operator_service_binding": "musitu-axiom-support",
+    "workers_dev": false,
+    "previews": false,
+    "operator_custom_domain_attached": true
+  },
+  "d1": {
+    "database": "musitu-axiom-support",
+    "pre_migration_cases": 2,
+    "pre_migration_events": 2,
+    "post_migration_cases": 2,
+    "post_migration_events": 2,
+    "migration": "ADDITIVE_ONLY",
+    "time_travel_bookmark_sha256": "6ddbe5d7088cbf2972825fd487c4e90cc2f4acb8c7d796ac18238fb5a202157d",
+    "bookmark_value_recorded": false
+  },
+  "protected_state": {
+    "official_support": "e336556b1b4dbca3c3d7656b2efc914752857276",
+    "main": "d6a846f6bbe0bccac1758713eb4de167caf07113",
+    "claude": "4d956f415431836018e5145227c8df5bd5fde7d8",
+    "pr1": {
+      "state": "OPEN",
+      "draft": true,
+      "merged": false,
+      "head": "8fc1fbb7c5ebbcc1604ecf24c5f4594f2d5667e3"
+    },
+    "frozen_openai_auth": "8ba0dbc1b6dd1533c6c26bff23991429e03a71a5",
+    "frozen_openai_mcp": "4a1ad37a5e7df0e4d3966e8b5f9f0e8f2db69167"
+  },
+  "remaining_gates": [
+    "real human Cloudflare Access authentication",
+    "authenticated operator inbox/API proof",
+    "synthetic customer case -> operator reply -> customer readback",
+    "optional separate independent-approver identity binding"
+  ],
+  "customer_content_read": false,
+  "recovery_code_read": false,
+  "secret_values_recorded": false
+}
