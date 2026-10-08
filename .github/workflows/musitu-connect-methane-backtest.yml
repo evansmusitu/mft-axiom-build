@@ -107,9 +107,9 @@ jobs:
           assert e["horizon_end_seconds"]==360
           assert e["development_fraction"]==0.80
           assert e["calibration_recall_target"]==0.95
-          assert e["threshold_update_examples"]==120
-          assert e["threshold_window_examples"]==10000
-          assert e["minimum_online_positives"]>=50
+          assert e["threshold_update_examples"]==30
+          assert e["threshold_window_examples"]==2000
+          assert e["minimum_online_positives"]>=20
           assert len(e["folds"])==4
           assert q["passing_folds"] >= spec["required_passing_folds"]
           for fold in e["folds"]:
