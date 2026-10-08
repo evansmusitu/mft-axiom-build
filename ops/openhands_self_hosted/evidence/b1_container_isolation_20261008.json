@@ -1,0 +1,41 @@
+{
+  "schema": "musitu.axiom.trackb.b1-ci-progress.v1",
+  "recorded_date": "2026-10-08",
+  "source_handoff_sha256": "86691d38f1a9ac086a0f3167fa6cf2f0dd125224be98f80da12ac33c914bb312",
+  "source_verifier": "MUSITU_AXIOM_PHASE2_OPENHANDS_20261008_1610_HANDOFF_VERIFY_PASS",
+  "repository": "evansmusitu/mft-axiom-build",
+  "branch": "frontier/axiom-trackb-openhands-selfhost-20261008",
+  "qualified_commit": "d5a0ffa32b315c687083ba9fc91b06f5797be4e8",
+  "ci": {
+    "run_id": 37832188029,
+    "job_id": 113500065084,
+    "conclusion": "success",
+    "unit_tests_passed": 8,
+    "container_count": 2,
+    "image_id": "sha256:21c8b4e1ec26eeb8d53786571852c4e5072abc5fb011c3934976be5288d17ec6",
+    "runtime_marker": "MUSITU_AXIOM_OPENHANDS_SELFHOST_CONTAINER_ISOLATION_PASS",
+    "attestation_scope": "CI_CONTAINER_CONFIGURATION_AND_OBSERVABLE_BOUNDARIES_ONLY"
+  },
+  "previous_cloud_state": "BLOCKED_CREDENTIAL_UNAVAILABLE",
+  "truth": {
+    "selfhost_authentication": "PASS_IN_EPHEMERAL_CI",
+    "two_container_isolation": "PASS_IN_EPHEMERAL_CI",
+    "s3_external_mutation": "NOT_PROVEN",
+    "real_agent_model_execution": "NOT_PROVEN",
+    "mass_concurrency": "NOT_TESTED",
+    "live_runtime_qualification": "NOT_PROVEN",
+    "release_authority": false,
+    "production_authority": false,
+    "certification_authority": false
+  },
+  "remaining": [
+    "pin base-image registry digest and transitive dependencies",
+    "qualify model broker, workload identity and egress allowlist",
+    "prove true OpenHands agent task",
+    "independent human approver and bounded FA-11 S3",
+    "destination-native reversible mutation, independent verification and rollback",
+    "ten-worker tenant isolation and cancellation",
+    "production security and capacity gates"
+  ],
+  "claim_authority": "BUILDER_PROGRESS_EVIDENCE_ONLY_NOT_INDEPENDENT_CERTIFICATION"
+}
