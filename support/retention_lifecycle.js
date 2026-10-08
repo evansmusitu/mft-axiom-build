@@ -8,6 +8,12 @@ function requireDb(database){
   if(!database?.prepare||!database?.batch) throw new TypeError('D1-compatible database binding required');
 }
 
+function randomToken(length){
+  const alphabet='0123456789ABCDEFGHJKMNPQRSTVWXYZ';
+  const bytes=crypto.getRandomValues(new Uint8Array(length));
+  return [...bytes].map(byte=>alphabet[byte%alphabet.length]).join('');
+}
+
 function addMinutes(value,minutes){
   const d=new Date(value);
   if(!Number.isFinite(d.getTime())) throw new TypeError('purge instant is invalid');
@@ -198,6 +204,13 @@ export async function purgeExpiredCase({
     approvalEvidenceHashes,
   });
   const authExpires=addMinutes(purgedAt,5);
+  const attachmentRows=await database.prepare('SELECT attachment_id,storage_key,sha256 FROM support_attachments WHERE case_id=? ORDER BY created_at ASC').bind(caseId).all();
+  const attachmentDeletionStatements=(attachmentRows?.results||[]).map(item=>
+    database.prepare(`INSERT INTO support_attachment_deletion_outbox
+      (deletion_id,storage_key,sha256,state,attempts,next_attempt_at,created_at,deleted_at)
+      VALUES (?,?,?,'PENDING',0,NULL,?,NULL)`)
+      .bind('AXZ-'+randomToken(16),String(item.storage_key),String(item.sha256),purgedAt)
+  );
 
   await database.batch([
     database.prepare(`INSERT INTO support_case_purge_authorizations
@@ -211,6 +224,30 @@ export async function purgeExpiredCase({
         receipt.retention_expires_at,receipt.purged_at,receipt.last_event_hash,
         JSON.stringify(receipt.approval_evidence_hashes),receipt.processor_backup_expiry_note,purgedAt,
       ),
+    ...attachmentDeletionStatements,
+    database.prepare(`DELETE FROM support_notification_attempts WHERE notification_id IN
+      (SELECT notification_id FROM support_notification_outbox WHERE case_id=?)`).bind(caseId),
+    database.prepare('DELETE FROM support_case_approval_decisions WHERE case_id=?').bind(caseId),
+    database.prepare('DELETE FROM support_case_messages WHERE case_id=?').bind(caseId),
+    database.prepare('DELETE FROM support_case_assignments WHERE case_id=?').bind(caseId),
+    database.prepare('DELETE FROM support_case_recovery_rotations WHERE case_id=?').bind(caseId),
+    database.prepare('DELETE FROM support_case_approvals WHERE case_id=?').bind(caseId),
+    database.prepare('DELETE FROM support_notification_outbox WHERE case_id=?').bind(caseId),
+    database.prepare('DELETE FROM support_case_recovery_requests WHERE case_id=?').bind(caseId),
+    database.prepare('DELETE FROM support_case_recovery_bindings WHERE case_id=?').bind(caseId),
+    database.prepare('DELETE FROM support_case_sla WHERE case_id=?').bind(caseId),
+    database.prepare('DELETE FROM support_case_escalations WHERE case_id=?').bind(caseId),
+    database.prepare('DELETE FROM support_incident_cases WHERE case_id=?').bind(caseId),
+    database.prepare('DELETE FROM support_attachments WHERE case_id=?').bind(caseId),
+    database.prepare('DELETE FROM support_diagnostics WHERE case_id=?').bind(caseId),
+    database.prepare('DELETE FROM support_webhook_outbox WHERE case_id=?').bind(caseId),
+    database.prepare('DELETE FROM support_operator_leases WHERE case_id=?').bind(caseId),
+    database.prepare('DELETE FROM support_case_handoffs WHERE case_id=?').bind(caseId),
+    database.prepare('DELETE FROM support_case_triage WHERE case_id=?').bind(caseId),
+    database.prepare('DELETE FROM support_case_languages WHERE case_id=?').bind(caseId),
+    database.prepare('DELETE FROM support_csat WHERE case_id=?').bind(caseId),
+    database.prepare('DELETE FROM support_qa_reviews WHERE case_id=?').bind(caseId),
+    database.prepare('DELETE FROM support_email_threads WHERE case_id=?').bind(caseId),
     database.prepare('DELETE FROM support_case_events WHERE case_id=?').bind(caseId),
     database.prepare('DELETE FROM support_cases WHERE case_id=?').bind(caseId),
     database.prepare('DELETE FROM support_case_purge_authorizations WHERE case_id=?').bind(caseId),
