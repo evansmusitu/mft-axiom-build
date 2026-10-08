@@ -1,0 +1,85 @@
+{
+  "schema": "musitu.axiom.support-recovery-isolated-build-evidence.v1",
+  "status": "IMPLEMENTED_IN_ISOLATION_READY_FOR_AUTHORIZED_PRODUCTION_RELEASE",
+  "recorded_at": "2026-10-08T15:44:00Z",
+  "repository": "evansmusitu/mft-axiom-build",
+  "branch": "support/axiom-support-recovery-isolated-20261008",
+  "head_before_evidence": "04d98d1d7988a198f0c8614dc091e4fc4a97de5a",
+  "source": {
+    "production_rollout_branch": "support/axiom-support-console-production-rollout-20261008",
+    "source_sha": "5887dd1759699bb085b289af93f2c60be5c43570"
+  },
+  "implementation": {
+    "opaque_identity_hash": true,
+    "bind_requires_current_recovery_code": true,
+    "same_identity_rotation": true,
+    "old_code_invalidated": true,
+    "anonymous_unbound_reset": false,
+    "raw_contact_storage": false,
+    "raw_email_storage": false,
+    "otp_storage": false,
+    "jwt_storage": false,
+    "recovery_ui": [
+      "support/recovery/index.html",
+      "support/recovery/app.js"
+    ],
+    "endpoints": [
+      "POST /recovery/api/v1/cases/:case_id/bind",
+      "POST /recovery/api/v1/cases/:case_id/rotate"
+    ],
+    "schema_objects": [
+      "support_case_recovery_bindings",
+      "support_case_recovery_requests",
+      "support_case_recovery_rotations"
+    ],
+    "sensitive_recovery": {
+      "action": "ACCOUNT_RECOVERY",
+      "request_evidence_append_only": true,
+      "operator_notification": "RECOVERY_APPROVAL_REQUIRED",
+      "independent_approver_required": true,
+      "proposer_cannot_self_approve": true,
+      "approval_single_use": true
+    }
+  },
+  "verification": {
+    "full_regression_run": 37803064842,
+    "tests": 154,
+    "passed": 154,
+    "failed": 0,
+    "adversarial": [
+      "wrong identity cannot rebind",
+      "wrong identity cannot rotate",
+      "old recovery code invalid after rotation",
+      "unbound case fails generically",
+      "sensitive recovery request deduplicates",
+      "approved sensitive recovery consumed once",
+      "wrong Access audience fails closed",
+      "expired Access JWT fails closed",
+      "missing Access subject fails closed",
+      "recovery browser uses no localStorage/sessionStorage/indexedDB",
+      "recovery code never appears in URL",
+      "recovery surface excluded from robots discovery"
+    ]
+  },
+  "deployment_handoff": "support/recovery/DEPLOYMENT.md",
+  "protected_state": {
+    "production_rollout_head": "5887dd1759699bb085b289af93f2c60be5c43570",
+    "official_support_head": "e336556b1b4dbca3c3d7656b2efc914752857276",
+    "main": "d6a846f6bbe0bccac1758713eb4de167caf07113",
+    "claude": "4d956f415431836018e5145227c8df5bd5fde7d8",
+    "pr1": {
+      "state": "OPEN",
+      "draft": true,
+      "merged": false,
+      "head": "8fc1fbb7c5ebbcc1604ecf24c5f4594f2d5667e3"
+    },
+    "frozen_openai_auth": "8ba0dbc1b6dd1533c6c26bff23991429e03a71a5",
+    "frozen_openai_mcp": "4a1ad37a5e7df0e4d3966e8b5f9f0e8f2db69167"
+  },
+  "authority": {
+    "production_authority": false,
+    "release_authority": false,
+    "public_submission_authority": false
+  },
+  "next_boundary": "Explicit production-release authorization required before Cloudflare Access recovery-path provisioning, D1 migration, or Worker deployment."
+}
