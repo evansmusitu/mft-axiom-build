@@ -1,0 +1,230 @@
+name: MUSITU Axiom Support Console Production Worker Stage
+
+on:
+  push:
+    branches:
+      - 'support/axiom-support-console-production-rollout-20261008'
+    paths:
+      - '.github/workflows/axiom-support-console-production-worker-stage.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  deploy-stage:
+    if: github.event_name == 'push' && github.event.before == '1bef2fb7fcd048fb694ac4e0cf339fce889f44ae'
+    runs-on: ubuntu-latest
+    environment: axiom-support-production
+    timeout-minutes: 12
+    env:
+      CF_ACCOUNT: '93f395f5121954671f92fffa453d6b61'
+      CF_ZONE: '5b56528f03948ff5917a5e0cd9f7109e'
+      WORKER_TOKEN: ${{ secrets.CLOUDFLARE_RULESETS_API_TOKEN }}
+      ACCESS_TOKEN: ${{ secrets.CLOUDFLARE_ACCESS_API_TOKEN }}
+      CF_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+      CF_GLOBAL_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Exact stage gate and full regression
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF_NAME" = 'support/axiom-support-console-production-rollout-20261008'
+          test "${{ github.event.before }}" = '1bef2fb7fcd048fb694ac4e0cf339fce889f44ae'
+          node --test support/tests/*.test.mjs
+
+      - name: Build public and private production bundles
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx --yes esbuild@0.25.11 support/app.js --bundle --format=esm --platform=browser --target=es2022 --outfile=.support-public-app.js
+          node <<'NODE'
+          const fs=require('node:fs');
+          const html=fs.readFileSync('support/index.html','utf8');
+          const css=fs.readFileSync('support/styles.css','utf8');
+          const robots=fs.readFileSync('support/robots.txt','utf8');
+          const sitemap=fs.readFileSync('support/sitemap.xml','utf8');
+          const app=fs.readFileSync('.support-public-app.js','utf8');
+          const source=[
+            "import support,{handleOperatorRequest} from './support/worker.js';",
+            "const HTML="+JSON.stringify(html)+";",
+            "const CSS="+JSON.stringify(css)+";",
+            "const ROBOTS="+JSON.stringify(robots)+";",
+            "const SITEMAP="+JSON.stringify(sitemap)+";",
+            "const APP="+JSON.stringify(app)+";",
+            "const H=Object.freeze({'content-security-policy':\"default-src 'self'; connect-src 'self' https://challenges.cloudflare.com; img-src 'self' data:; style-src 'self'; script-src 'self' https://challenges.cloudflare.com; frame-src https://challenges.cloudflare.com; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'\",'referrer-policy':'no-referrer','permissions-policy':'camera=(), microphone=(), geolocation=(), payment=()','x-content-type-options':'nosniff','cross-origin-opener-policy':'same-origin','cross-origin-resource-policy':'same-origin','cache-control':'no-store'});",
+            "function asset(body,type){return new Response(body,{status:200,headers:{...H,'content-type':type}})}",
+            "export default {async fetch(request,env){const u=new URL(request.url);",
+            "if(u.pathname.startsWith('/api/v1/operator/')) return handleOperatorRequest(request,env);",
+            "if(request.method==='GET'&&(u.pathname==='/'||u.pathname==='/index.html')) return asset(HTML,'text/html; charset=utf-8');",
+            "if(request.method==='GET'&&u.pathname==='/styles.css') return asset(CSS,'text/css; charset=utf-8');",
+            "if(request.method==='GET'&&u.pathname==='/robots.txt') return asset(ROBOTS,'text/plain; charset=utf-8');",
+            "if(request.method==='GET'&&u.pathname==='/sitemap.xml') return asset(SITEMAP,'application/xml; charset=utf-8');",
+            "if(request.method==='GET'&&u.pathname==='/app.js') return asset(APP,'text/javascript; charset=utf-8');",
+            "return support.fetch(request,env);}};"
+          ].join('\n');
+          fs.writeFileSync('.support-public-entry.mjs',source,{mode:0o600});
+
+          const ohtml=fs.readFileSync('support/console/index.html','utf8');
+          const ocss=fs.readFileSync('support/console/styles.css','utf8');
+          const oapp=fs.readFileSync('support/console/app.js','utf8');
+          const ops=[
+            "import operator from './support/operator_worker.js';",
+            "import {verifyOperatorAccess} from './support/worker.js';",
+            "const HTML="+JSON.stringify(ohtml)+";",
+            "const CSS="+JSON.stringify(ocss)+";",
+            "const APP="+JSON.stringify(oapp)+";",
+            "const H=Object.freeze({'cache-control':'no-store','x-content-type-options':'nosniff','x-robots-tag':'noindex, nofollow, noarchive','referrer-policy':'no-referrer','content-security-policy':\"default-src 'self'; connect-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'\"});",
+            "function asset(body,type){return new Response(body,{status:200,headers:{...H,'content-type':type}})}",
+            "export default {async fetch(request,env){const principal=await verifyOperatorAccess(request,env);if(!principal)return operator.fetch(request,env);const u=new URL(request.url);",
+            "if((request.method==='GET'||request.method==='HEAD')&&(u.pathname==='/'||u.pathname==='/index.html'))return asset(request.method==='HEAD'?null:HTML,'text/html; charset=utf-8');",
+            "if((request.method==='GET'||request.method==='HEAD')&&u.pathname==='/styles.css')return asset(request.method==='HEAD'?null:CSS,'text/css; charset=utf-8');",
+            "if((request.method==='GET'||request.method==='HEAD')&&u.pathname==='/app.js')return asset(request.method==='HEAD'?null:APP,'text/javascript; charset=utf-8');",
+            "return operator.fetch(request,env);}};"
+          ].join('\n');
+          fs.writeFileSync('.support-ops-entry.mjs',ops,{mode:0o600});
+          NODE
+          npx --yes esbuild@0.25.11 .support-public-entry.mjs --bundle --format=esm --platform=browser --target=es2022 --outfile=.support-public-bundle.mjs
+          npx --yes esbuild@0.25.11 .support-ops-entry.mjs --bundle --format=esm --platform=browser --target=es2022 --outfile=.support-ops-bundle.mjs
+          test -s .support-public-bundle.mjs
+          test -s .support-ops-bundle.mjs
+
+      - name: Deploy updated public API and staged operator Worker
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          import {buildWorkerMultipart} from './support/scripts/provision_cloudflare_control_plane.mjs';
+          const api='https://api.cloudflare.com/client/v4';
+          const account=process.env.CF_ACCOUNT;
+          const zone=process.env.CF_ZONE;
+          const token=String(process.env.WORKER_TOKEN||'');
+          const accessToken=String(process.env.ACCESS_TOKEN||'');
+          const email=String(process.env.CF_EMAIL||'');
+          const globalKey=String(process.env.CF_GLOBAL_KEY||'');
+          if(!token) throw new Error('Worker API token missing');
+          const wh={authorization:'Bearer '+token,accept:'application/json','content-type':'application/json'};
+          async function call(headers,path,{method='GET',body,rawBody,contentType}={}){
+            const r=await fetch(api+path,{method,headers:{...headers,...(contentType?{'content-type':contentType}:{})},...(rawBody!==undefined?{body:rawBody}:body===undefined?{}:{body:JSON.stringify(body)})});
+            let p={}; try{p=await r.json()}catch{}
+            if(!r.ok||p?.success===false){
+              const codes=(p?.errors||[]).map(x=>x?.code).filter(Boolean);
+              throw new Error('Cloudflare '+method+' '+path+' failed HTTP '+r.status+' codes='+(codes.join(',')||'none'));
+            }
+            return p?.result;
+          }
+          async function access(path){
+            if(accessToken){
+              try{return await call({authorization:'Bearer '+accessToken,accept:'application/json','content-type':'application/json'},path);}catch{}
+            }
+            if(!email||!globalKey) throw new Error('Access read credentials missing');
+            return call({'X-Auth-Email':email,'X-Auth-Key':globalKey,accept:'application/json','content-type':'application/json'},path);
+          }
+          const org=await access('/accounts/'+account+'/access/organizations');
+          const authDomainRaw=String(org?.auth_domain||'').trim();
+          const team=authDomainRaw.startsWith('http')?authDomainRaw:'https://'+authDomainRaw;
+          const apps=await access('/accounts/'+account+'/access/apps?per_page=100');
+          const matches=(Array.isArray(apps)?apps:[]).filter(x=>String(x?.domain||'').toLowerCase()==='support-ops.mftintelligence.com');
+          if(matches.length!==1) throw new Error('operator Access app is not unique');
+          const aud=String(matches[0]?.aud||'');
+          if(!aud||!team) throw new Error('operator Access app config incomplete');
+          const policies=await access('/accounts/'+account+'/access/apps/'+encodeURIComponent(String(matches[0].id))+'/policies');
+          if(Array.isArray(policies)&&policies.length!==0) throw new Error('operator Access app must still be deny-by-default before identity binding');
+
+          const publicWorker='musitu-axiom-support';
+          const settings=await call(wh,'/accounts/'+account+'/workers/scripts/'+publicWorker+'/settings');
+          const current=Array.isArray(settings?.bindings)?settings.bindings:[];
+          const secretNames=new Set((await call(wh,'/accounts/'+account+'/workers/scripts/'+publicWorker+'/secrets')).map?.(x=>String(x?.name||''))||[]);
+          for(const required of ['SUPPORT_DATA_KEY_B64','TURNSTILE_SECRET_KEY']) if(!secretNames.has(required)) throw new Error('public support secret missing: '+required);
+          const replaceNames=new Set(['SUPPORT_ACCESS_TEAM_DOMAIN','SUPPORT_ACCESS_AUD','SUPPORT_OPERATOR_BINDINGS_JSON']);
+          const bindings=[];
+          for(const b of current){
+            const name=String(b?.name||'');
+            if(!name||replaceNames.has(name)) continue;
+            if(secretNames.has(name)||b?.type==='secret_text') bindings.push({type:'inherit',name,version_id:'latest'});
+            else bindings.push(b);
+          }
+          bindings.push(
+            {type:'plain_text',name:'SUPPORT_ACCESS_TEAM_DOMAIN',text:team},
+            {type:'plain_text',name:'SUPPORT_ACCESS_AUD',text:aud},
+            {type:'plain_text',name:'SUPPORT_OPERATOR_BINDINGS_JSON',text:'{}'}
+          );
+          const publicSource=fs.readFileSync('.support-public-bundle.mjs');
+          const publicMeta={main_module:'index.mjs',compatibility_date:'2026-10-08',bindings,annotations:{'workers/message':'MUSITU Axiom support conversation/operator API rollout'}};
+          const pm=buildWorkerMultipart(publicSource,publicMeta,'----MUSITUAxiomSupportConsolePublic');
+          await call({...wh},'/accounts/'+account+'/workers/scripts/'+encodeURIComponent(publicWorker)+'?bindings_inherit=strict',{
+            method:'PUT',rawBody:pm.body,contentType:'multipart/form-data; boundary='+pm.boundary
+          });
+          await call(wh,'/accounts/'+account+'/workers/scripts/'+publicWorker+'/subdomain',{method:'POST',body:{enabled:false,previews_enabled:false}});
+
+          const opsWorker='musitu-axiom-support-ops';
+          const opsSource=fs.readFileSync('.support-ops-bundle.mjs');
+          const opsMeta={
+            main_module:'index.mjs',
+            compatibility_date:'2026-10-08',
+            bindings:[
+              {type:'plain_text',name:'ENVIRONMENT',text:'production'},
+              {type:'plain_text',name:'SUPPORT_ACCESS_TEAM_DOMAIN',text:team},
+              {type:'plain_text',name:'SUPPORT_ACCESS_AUD',text:aud},
+              {type:'plain_text',name:'SUPPORT_OPERATOR_BINDINGS_JSON',text:'{}'},
+              {type:'service',name:'SUPPORT_API',service:publicWorker}
+            ],
+            annotations:{'workers/message':'MUSITU Axiom private support operations staged deployment'}
+          };
+          const om=buildWorkerMultipart(opsSource,opsMeta,'----MUSITUAxiomSupportConsoleOps');
+          await call(wh,'/accounts/'+account+'/workers/scripts/'+encodeURIComponent(opsWorker),{
+            method:'PUT',rawBody:om.body,contentType:'multipart/form-data; boundary='+om.boundary
+          });
+          await call(wh,'/accounts/'+account+'/workers/scripts/'+opsWorker+'/subdomain',{method:'POST',body:{enabled:false,previews_enabled:false}});
+
+          const [domains,pubSub,opsSub,pubSettings,opsSettings]=await Promise.all([
+            call(wh,'/accounts/'+account+'/workers/domains'),
+            call(wh,'/accounts/'+account+'/workers/scripts/'+publicWorker+'/subdomain'),
+            call(wh,'/accounts/'+account+'/workers/scripts/'+opsWorker+'/subdomain'),
+            call(wh,'/accounts/'+account+'/workers/scripts/'+publicWorker+'/settings'),
+            call(wh,'/accounts/'+account+'/workers/scripts/'+opsWorker+'/settings')
+          ]);
+          const domainRows=Array.isArray(domains)?domains:[];
+          if(!domainRows.some(x=>String(x?.hostname||'')==='support.mftintelligence.com'&&String(x?.service||'')===publicWorker)) throw new Error('public support domain drift');
+          if(domainRows.some(x=>String(x?.hostname||'')==='support-ops.mftintelligence.com')) throw new Error('operator domain attached before identity binding');
+          if(pubSub?.enabled===true||pubSub?.previews_enabled===true||opsSub?.enabled===true||opsSub?.previews_enabled===true) throw new Error('workers.dev or previews enabled unexpectedly');
+          const opBindings=Array.isArray(opsSettings?.bindings)?opsSettings.bindings:[];
+          if(!opBindings.some(x=>x?.type==='service'&&x?.name==='SUPPORT_API'&&x?.service===publicWorker)) throw new Error('operator service binding missing');
+
+          console.log(JSON.stringify({
+            gate:'MUSITU_AXIOM_SUPPORT_CONSOLE_WORKER_STAGE',
+            status:'PASS',
+            public_worker_updated:true,
+            public_secret_values_read:false,
+            operator_worker_uploaded:true,
+            operator_service_binding:true,
+            operator_binding_count:0,
+            operator_domain_attached:false,
+            access_allow_policy_count:0,
+            workers_dev:false,
+            previews:false
+          }));
+          NODE
+
+      - name: Confirm public support surface still reaches the existing edge
+        shell: bash
+        run: |
+          set -euo pipefail
+          code=$(curl --silent --show-error --connect-timeout 10 --max-time 30 -D /tmp/h -o /tmp/b -w '%{http_code}' https://support.mftintelligence.com/ || true)
+          if [ "$code" = "200" ]; then
+            grep -q 'MUSITU Axiom' /tmp/b
+          elif [ "$code" = "403" ]; then
+            grep -qi '^cf-mitigated:[[:space:]]*challenge' /tmp/h
+          else
+            echo "unexpected public support edge response: $code" >&2
+            exit 1
+          fi
+          rm -f /tmp/h /tmp/b
+
+      - name: Cleanup bundles
+        if: always()
+        run: rm -f .support-public-app.js .support-public-entry.mjs .support-ops-entry.mjs .support-public-bundle.mjs .support-ops-bundle.mjs
