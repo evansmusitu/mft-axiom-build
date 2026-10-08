@@ -72,6 +72,16 @@
           <p class="fine">Do not include passwords, tokens, API keys, session cookies, payment-card numbers, private keys, or other credentials.</p>
           <div class="case-access-actions"><button class="primary" type="submit">Send secure reply</button><span id="case-reply-status" role="status" aria-live="polite"></span></div>
         </form>
+        <section class="case-tools" aria-labelledby="case-tools-title">
+          <h4 id="case-tools-title">Case tools</h4>
+          <div class="grid">
+            <article><h5>Diagnostics</h5><p>Share minimal browser/runtime metadata only with explicit consent.</p><button id="send-diagnostics" class="secondary" type="button">Send diagnostics</button></article>
+            <article><h5>Attachment</h5><p>Upload a sanitized PDF, image, JSON, CSV, log or text file when secure object storage is available.</p><input id="case-attachment" type="file" accept=".txt,.log,.csv,.json,.pdf,.png,.jpg,.jpeg,.webp"><button id="upload-attachment" class="secondary" type="button">Prepare attachment</button></article>
+            <article><h5>Escalation</h5><p>Ask for engineering or specialist review when the normal case path is not enough.</p><button id="customer-escalate" class="secondary" type="button">Request escalation</button></article>
+            <article><h5>Satisfaction feedback</h5><label>Score<select id="csat-score"><option value="5">5 — Excellent</option><option value="4">4 — Good</option><option value="3">3 — Fair</option><option value="2">2 — Poor</option><option value="1">1 — Very poor</option></select></label><label>Reason<textarea id="csat-reason" maxlength="500"></textarea></label><button id="send-csat" class="secondary" type="button">Send feedback</button></article>
+          </div>
+          <p id="case-tools-status" class="fine" role="status" aria-live="polite"></p>
+        </section>
       </section>
     </section>
     <section id="safety" class="section split" aria-labelledby="safety-title"><div><p class="eyebrow">Safety by construction</p><h2 id="safety-title">Support cannot silently widen authority.</h2></div><div><p>Case events are append-only and hash chained. Customer-visible and internal notes are separated. Account recovery, refunds, data rights, disclosure and production changes are gated by verification, evidence and independent human approval.</p></div></section>
