@@ -12,7 +12,7 @@ permissions:
 
 jobs:
   deploy:
-    if: github.event_name == 'push' && github.event.before == '2aae758da7686da405d38881d6010ee5f4b2a848'
+    if: github.event_name == 'push' && github.event.before == '5a1aa342c0e16229de170ff680802308872e7476'
     runs-on: ubuntu-latest
     environment: axiom-support-production
     timeout-minutes: 8
@@ -20,6 +20,10 @@ jobs:
       CF_ZONE: '5b56528f03948ff5917a5e0cd9f7109e'
       TOKEN: ${{ secrets.CLOUDFLARE_RULESETS_API_TOKEN }}
     steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
       - name: Prove status API is public metadata-only in source
         run: |
           set -euo pipefail
