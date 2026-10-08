@@ -58,3 +58,25 @@ test('notification delivery helper sends only non-sensitive case-update metadata
 test('sensitive approval is independent: proposer cannot approve own request',async()=>{
   assert.equal(typeof D1CaseStore.prototype.approveSensitiveAction,'function');
 });
+
+
+test('operator UI exposes assignment and sensitive-action approval controls without embedding production executors',async()=>{
+  const [html,js]=await Promise.all([
+    readFile(new URL('../console/index.html',import.meta.url),'utf8'),
+    readFile(new URL('../console/app.js',import.meta.url),'utf8'),
+  ]);
+  assert.match(html,/id="assign-to-me"/);
+  assert.match(html,/id="approval-action"/);
+  assert.match(html,/id="request-approval"/);
+  assert.match(js,/\/assignment/);
+  assert.match(js,/\/approvals/);
+  assert.doesNotMatch(js,/PRODUCTION_CHANGE.*execute|execute.*PRODUCTION_CHANGE/is);
+});
+
+test('customer and agent replies enqueue metadata-only notification outbox records in the same transaction',async()=>{
+  const source=await readFile(new URL('../d1_case_store.js',import.meta.url),'utf8');
+  assert.match(source,/support_notification_outbox/);
+  assert.match(source,/CUSTOMER_REPLY_RECEIVED/);
+  assert.match(source,/AGENT_REPLY_AVAILABLE/);
+  assert.doesNotMatch(source,/support_notification_outbox[^;]+message\.body/is);
+});
