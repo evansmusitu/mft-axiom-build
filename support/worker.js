@@ -6,6 +6,10 @@ import {verifyTurnstile} from './turnstile.js';
 const JSON_HEADERS = Object.freeze({'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store', 'x-content-type-options': 'nosniff'});
 const CASE_PATH = /^\/api\/v1\/cases\/([A-Z0-9-]+)$/;
 const CASE_MESSAGE_PATH = /^\/api\/v1\/cases\/([A-Z0-9-]+)\/messages$/;
+const CASE_DIAGNOSTICS_PATH = /^\/api\/v1\/cases\/([A-Z0-9-]+)\/diagnostics$/;
+const CASE_CSAT_PATH = /^\/api\/v1\/cases\/([A-Z0-9-]+)\/csat$/;
+const CASE_ESCALATIONS_PATH = /^\/api\/v1\/cases\/([A-Z0-9-]+)\/escalations$/;
+const CASE_ATTACHMENTS_PATH = /^\/api\/v1\/cases\/([A-Z0-9-]+)\/attachments$/;
 const RECOVERY_BIND_PATH = /^\/recovery\/api\/v1\/cases\/([A-Z0-9-]+)\/bind$/;
 const RECOVERY_ROTATE_PATH = /^\/recovery\/api\/v1\/cases\/([A-Z0-9-]+)\/rotate$/;
 const OPERATOR_CASE_PATH = /^\/api\/v1\/operator\/cases\/([A-Z0-9-]+)$/;
@@ -14,6 +18,10 @@ const OPERATOR_STATE_PATH = /^\/api\/v1\/operator\/cases\/([A-Z0-9-]+)\/state$/;
 const OPERATOR_ASSIGNMENT_PATH = /^\/api\/v1\/operator\/cases\/([A-Z0-9-]+)\/assignment$/;
 const OPERATOR_APPROVALS_PATH = /^\/api\/v1\/operator\/cases\/([A-Z0-9-]+)\/approvals$/;
 const OPERATOR_APPROVE_PATH = /^\/api\/v1\/operator\/cases\/([A-Z0-9-]+)\/approvals\/(AXA-[0-9A-HJKMNP-TV-Z]{16})\/approve$/;
+const OPERATOR_LEASE_PATH = /^\/api\/v1\/operator\/cases\/([A-Z0-9-]+)\/lease$/;
+const OPERATOR_HANDOFF_PATH = /^\/api\/v1\/operator\/cases\/([A-Z0-9-]+)\/handoff$/;
+const OPERATOR_ESCALATIONS_PATH = /^\/api\/v1\/operator\/cases\/([A-Z0-9-]+)\/escalations$/;
+const OPERATOR_INCIDENT_CASES_PATH = /^\/api\/v1\/operator\/incidents\/(AXI-[0-9A-HJKMNP-TV-Z]{16})\/cases$/;
 const HASH = /^[a-f0-9]{64}$/i;
 
 function json(body, status = 200, extra = {}) {
@@ -244,6 +252,59 @@ export async function handleSupportRequest(request, env = {}) {
     return json(value);
   }
 
+  if (request.method === 'GET' && url.pathname === '/api/v1/status') {
+    const store = await storeFor(env);
+    const incidents = await store.listPublicIncidents();
+    return json({schema:'musitu.axiom.support-public-status.v1',incidents});
+  }
+
+  const diagnosticsMatch = url.pathname.match(CASE_DIAGNOSTICS_PATH);
+  if (request.method === 'POST' && diagnosticsMatch) {
+    const code = recoveryCode(request);
+    if (!code) return json({error:'CASE_AUTH_REQUIRED'},401,{'www-authenticate':'Support'});
+    const body = await readJson(request);
+    const store = await storeFor(env);
+    const value = await store.recordDiagnostics(diagnosticsMatch[1],code,body);
+    if (!value) return json({error:'CASE_NOT_FOUND'},404);
+    return json(value,201);
+  }
+
+  const csatMatch = url.pathname.match(CASE_CSAT_PATH);
+  if (request.method === 'POST' && csatMatch) {
+    const code = recoveryCode(request);
+    if (!code) return json({error:'CASE_AUTH_REQUIRED'},401,{'www-authenticate':'Support'});
+    const body = await readJson(request);
+    const store = await storeFor(env);
+    const value = await store.recordCsat(csatMatch[1],code,body);
+    if (!value) return json({error:'CASE_NOT_FOUND'},404);
+    return json(value,201);
+  }
+
+  const customerEscalationMatch = url.pathname.match(CASE_ESCALATIONS_PATH);
+  if (request.method === 'POST' && customerEscalationMatch) {
+    const code = recoveryCode(request);
+    if (!code) return json({error:'CASE_AUTH_REQUIRED'},401,{'www-authenticate':'Support'});
+    const body = await readJson(request);
+    const store = await storeFor(env);
+    const value = await store.requestCustomerEscalation(customerEscalationMatch[1],code,body);
+    if (!value) return json({error:'CASE_NOT_FOUND'},404);
+    return json(value,201);
+  }
+
+  const attachmentMatch = url.pathname.match(CASE_ATTACHMENTS_PATH);
+  if (request.method === 'POST' && attachmentMatch) {
+    const code = recoveryCode(request);
+    if (!code) return json({error:'CASE_AUTH_REQUIRED'},401,{'www-authenticate':'Support'});
+    if (typeof env.SUPPORT_ATTACHMENT_INIT !== 'function') return json({error:'ATTACHMENT_PROVIDER_UNAVAILABLE'},503);
+    const body = await readJson(request);
+    const store = await storeFor(env);
+    const meta = await store.prepareAttachment(attachmentMatch[1],code,body);
+    if (!meta) return json({error:'CASE_NOT_FOUND'},404);
+    const upload = await env.SUPPORT_ATTACHMENT_INIT(meta);
+    if (!upload?.upload_url) return json({error:'ATTACHMENT_PROVIDER_UNAVAILABLE'},503);
+    return json({...meta,upload_url:String(upload.upload_url),expires_in:Number(upload.expires_in||300)},201);
+  }
+
   const caseMessageMatch = url.pathname.match(CASE_MESSAGE_PATH);
   if (request.method === 'POST' && caseMessageMatch) {
     const code = recoveryCode(request);
@@ -297,6 +358,40 @@ export async function deliverSupportNotification(notification, env = {}) {
   return Object.freeze({delivered:true,receipt_id:String(receipt?.id||'')||null});
 }
 
+export async function deliverSupportWebhook(delivery, env = {}) {
+  if (!delivery || typeof delivery !== 'object') throw new TypeError('webhook delivery required');
+  if (typeof env.SUPPORT_WEBHOOK_SEND !== 'function') return Object.freeze({delivered:false,reason:'PROVIDER_UNAVAILABLE'});
+  const receipt = await env.SUPPORT_WEBHOOK_SEND(Object.freeze({...delivery}));
+  const status = Number(receipt?.status || 0);
+  return Object.freeze({delivered:status >= 200 && status < 300,receipt_id:String(receipt?.id||'')||null,status});
+}
+
+export async function processSupportQueues(env = {}) {
+  const store = await storeFor(env);
+  const summary = {notifications:{delivered:0,failed:0,provider_unavailable:0},webhooks:{delivered:0,failed:0,provider_unavailable:0}};
+  const notifications = typeof store.listPendingNotifications === 'function' ? await store.listPendingNotifications({limit:50}) : [];
+  for (const item of notifications || []) {
+    let result;
+    try { result = await deliverSupportNotification(item, env); }
+    catch (error) { result = {delivered:false,reason:'DELIVERY_FAILED',error_class:String(error?.name||'Error')}; }
+    if (result.delivered) summary.notifications.delivered += 1;
+    else if (result.reason === 'PROVIDER_UNAVAILABLE') summary.notifications.provider_unavailable += 1;
+    else summary.notifications.failed += 1;
+    if (typeof store.recordNotificationAttempt === 'function') await store.recordNotificationAttempt(item,result);
+  }
+  const webhooks = typeof store.listPendingWebhookDeliveries === 'function' ? await store.listPendingWebhookDeliveries({limit:50}) : [];
+  for (const item of webhooks || []) {
+    let result;
+    try { result = await deliverSupportWebhook(item, env); }
+    catch (error) { result = {delivered:false,reason:'DELIVERY_FAILED',error_class:String(error?.name||'Error')}; }
+    if (result.delivered) summary.webhooks.delivered += 1;
+    else if (result.reason === 'PROVIDER_UNAVAILABLE') summary.webhooks.provider_unavailable += 1;
+    else summary.webhooks.failed += 1;
+    if (typeof store.recordWebhookAttempt === 'function') await store.recordWebhookAttempt(item,result);
+  }
+  return Object.freeze({notifications:Object.freeze(summary.notifications),webhooks:Object.freeze(summary.webhooks)});
+}
+
 export async function handleOperatorRequest(request, env = {}) {
   const principal = await operatorPrincipal(request, env);
   if (!principal) return json({error: 'OPERATOR_AUTH_REQUIRED'}, 401, {'www-authenticate': 'Cloudflare-Access'});
@@ -307,6 +402,51 @@ export async function handleOperatorRequest(request, env = {}) {
     const state = url.searchParams.get('state') || null;
     const cases = await store.listOperatorCases({state, limit: 100});
     return json({schema: 'musitu.axiom.support-operator-inbox.v1', cases});
+  }
+
+  if (request.method === 'GET' && url.pathname === '/api/v1/operator/analytics') {
+    return json(await store.globalOpsAnalytics());
+  }
+
+  if (url.pathname === '/api/v1/operator/incidents') {
+    if (request.method === 'GET') return json({incidents:await store.listOperatorIncidents()});
+    if (request.method === 'POST') {
+      const body=await readJson(request);
+      const value=await store.createIncident(body,principal);
+      return json(value,201);
+    }
+  }
+
+  const incidentCasesMatch=url.pathname.match(OPERATOR_INCIDENT_CASES_PATH);
+  if(request.method==='POST'&&incidentCasesMatch){
+    const body=await readJson(request);
+    const value=await store.linkIncidentCase(incidentCasesMatch[1],body.case_id,principal);
+    if(!value)return json({error:'INCIDENT_OR_CASE_NOT_FOUND'},404);
+    return json(value,201);
+  }
+
+  const leaseMatch=url.pathname.match(OPERATOR_LEASE_PATH);
+  if(request.method==='POST'&&leaseMatch){
+    const body=await readJson(request);
+    const value=await store.leaseOperatorCase(leaseMatch[1],principal,{minutes:body.minutes});
+    if(!value)return json({error:'CASE_NOT_FOUND'},404);
+    return json(value);
+  }
+
+  const handoffMatch=url.pathname.match(OPERATOR_HANDOFF_PATH);
+  if(request.method==='POST'&&handoffMatch){
+    const body=await readJson(request);
+    const value=await store.handoffOperatorCase(handoffMatch[1],body,principal);
+    if(!value)return json({error:'CASE_NOT_FOUND'},404);
+    return json(value,201);
+  }
+
+  const escalationMatch=url.pathname.match(OPERATOR_ESCALATIONS_PATH);
+  if(request.method==='POST'&&escalationMatch){
+    const body=await readJson(request);
+    const value=await store.escalateOperatorCase(escalationMatch[1],body,principal);
+    if(!value)return json({error:'CASE_NOT_FOUND'},404);
+    return json(value,201);
   }
 
   const assignmentMatch = url.pathname.match(OPERATOR_ASSIGNMENT_PATH);
@@ -369,6 +509,9 @@ export async function handleOperatorRequest(request, env = {}) {
 }
 
 export default {
+  async scheduled(controller, env) {
+    return processSupportQueues(env);
+  },
   async fetch(request, env) {
     try { return securityHeaders(await handleSupportRequest(request, env)); }
     catch (error) {
