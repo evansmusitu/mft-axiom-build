@@ -1,4 +1,5 @@
-import {createCaseRecord, SecretMaterialError} from './control_plane.js';
+import {createCaseRecord, inspectSecretMaterial, SecretMaterialError} from './control_plane.js';
+import {searchKnowledge} from './knowledge.js';
 import {importSupportDataKey} from './crypto_envelope.js';
 import {D1CaseStore} from './d1_case_store.js';
 import {verifyTurnstile} from './turnstile.js';
@@ -10,6 +11,7 @@ const CASE_DIAGNOSTICS_PATH = /^\/api\/v1\/cases\/([A-Z0-9-]+)\/diagnostics$/;
 const CASE_CSAT_PATH = /^\/api\/v1\/cases\/([A-Z0-9-]+)\/csat$/;
 const CASE_ESCALATIONS_PATH = /^\/api\/v1\/cases\/([A-Z0-9-]+)\/escalations$/;
 const CASE_ATTACHMENTS_PATH = /^\/api\/v1\/cases\/([A-Z0-9-]+)\/attachments$/;
+const CASE_REOPEN_PATH = /^\/api\/v1\/cases\/([A-Z0-9-]+)\/reopen$/;
 const RECOVERY_BIND_PATH = /^\/recovery\/api\/v1\/cases\/([A-Z0-9-]+)\/bind$/;
 const RECOVERY_ROTATE_PATH = /^\/recovery\/api\/v1\/cases\/([A-Z0-9-]+)\/rotate$/;
 const OPERATOR_CASE_PATH = /^\/api\/v1\/operator\/cases\/([A-Z0-9-]+)$/;
@@ -26,6 +28,7 @@ const OPERATOR_INCIDENT_STATUS_PATH = /^\/api\/v1\/operator\/incidents\/(AXI-[0-
 const OPERATOR_ORG_ENTITLEMENTS_PATH = /^\/api\/v1\/operator\/organizations\/([^/]+)\/entitlements$/;
 const OPERATOR_QA_PATH = /^\/api\/v1\/operator\/cases\/([A-Z0-9-]+)\/qa$/;
 const OPERATOR_TRIAGE_PATH = /^\/api\/v1\/operator\/cases\/([A-Z0-9-]+)\/triage$/;
+const OPERATOR_ATTACHMENT_SCAN_PATH = /^\/api\/v1\/operator\/attachments\/(AXF-[0-9A-HJKMNP-TV-Z]{16})\/scan$/;
 const HASH = /^[a-f0-9]{64}$/i;
 
 function json(body, status = 200, extra = {}) {
@@ -219,6 +222,21 @@ export async function handleSupportRequest(request, env = {}) {
   if (request.method === 'GET' && url.pathname === '/api/v1/catalog') {
     return json({schema: 'musitu.axiom.support-catalog.v1', case_creation: '/api/v1/cases', authentication: 'one-time recovery code shown only at creation; send as Authorization: Support <code>', secrets_policy: 'credentials, tokens, passwords, cookies and payment card numbers are rejected before storage'});
   }
+  if (request.method === 'GET' && url.pathname === '/api/v1/help') {
+    const query=url.searchParams.get('q')||'';
+    return json({schema:'musitu.axiom.support-knowledge.v1',articles:searchKnowledge(query)});
+  }
+  if (request.method === 'POST' && url.pathname === '/api/v1/help/assist') {
+    const body=await readJson(request);
+    const question=String(body?.question||'').trim();
+    if(!question||question.length>2000)throw new TypeError('support question is required');
+    const secret=inspectSecretMaterial({question},'message');
+    if(!secret.safe)throw new SecretMaterialError(secret.findings);
+    const articles=searchKnowledge(question);
+    if(typeof env.SUPPORT_AI_ASSIST!=='function')return json({schema:'musitu.axiom.support-assist.v1',advisory_only:true,human_escalation_available:true,provider_used:false,articles});
+    const answer=await env.SUPPORT_AI_ASSIST({question,articles});
+    return json({schema:'musitu.axiom.support-assist.v1',advisory_only:true,human_escalation_available:true,provider_used:true,answer:String(answer?.answer||''),articles});
+  }
   if (request.method === 'POST' && url.pathname === '/api/v1/cases') {
     const rateState = await intakeRateState(env);
     if (rateState === 'UNAVAILABLE') return json({error: 'SERVICE_NOT_READY', message: 'Support intake protection is temporarily unavailable. No case was stored.'}, 503);
@@ -307,6 +325,16 @@ export async function handleSupportRequest(request, env = {}) {
     const upload = await env.SUPPORT_ATTACHMENT_INIT(meta);
     if (!upload?.upload_url) return json({error:'ATTACHMENT_PROVIDER_UNAVAILABLE'},503);
     return json({...meta,upload_url:String(upload.upload_url),expires_in:Number(upload.expires_in||300)},201);
+  }
+
+  const reopenMatch=url.pathname.match(CASE_REOPEN_PATH);
+  if(request.method==='POST'&&reopenMatch){
+    const code=recoveryCode(request);
+    if(!code)return json({error:'CASE_AUTH_REQUIRED'},401,{'www-authenticate':'Support'});
+    const store=await storeFor(env);
+    const value=await store.reopenCustomerCase(reopenMatch[1],code);
+    if(!value)return json({error:'CASE_NOT_FOUND'},404);
+    return json(value);
   }
 
   const caseMessageMatch = url.pathname.match(CASE_MESSAGE_PATH);
@@ -506,6 +534,14 @@ export async function handleOperatorRequest(request, env = {}) {
     const value=await store.escalateOperatorCase(escalationMatch[1],body,principal);
     if(!value)return json({error:'CASE_NOT_FOUND'},404);
     return json(value,201);
+  }
+
+  const attachmentScanMatch=url.pathname.match(OPERATOR_ATTACHMENT_SCAN_PATH);
+  if(request.method==='POST'&&attachmentScanMatch){
+    const body=await readJson(request);
+    const value=await store.recordAttachmentScan(attachmentScanMatch[1],body,principal);
+    if(!value)return json({error:'ATTACHMENT_NOT_FOUND'},404);
+    return json(value);
   }
 
   const assignmentMatch = url.pathname.match(OPERATOR_ASSIGNMENT_PATH);
