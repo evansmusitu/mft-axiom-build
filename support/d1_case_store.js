@@ -126,7 +126,25 @@ export class D1CaseStore {
         body:String(payload?.body || ''),event_hash:item.event_hash,created_at:item.created_at,
       }));
     }
-    return Object.freeze({case: JSON.parse(row.public_json), details, messages: Object.freeze(messages)});
+    const recoveryResult = await this.db.prepare(`SELECT request_id,evidence_hash,created_at
+      FROM support_case_recovery_requests WHERE case_id=? ORDER BY created_at ASC`).bind(caseId).all();
+    const approvalsResult = await this.db.prepare(`SELECT a.approval_id,a.action,a.proposer_ref,a.proposer_role,a.evidence_hashes_json,a.created_at,
+      d.decision,d.approver_ref,d.approver_role,d.created_at AS decided_at
+      FROM support_case_approvals a
+      LEFT JOIN support_case_approval_decisions d ON d.approval_id=a.approval_id AND d.case_id=a.case_id
+      WHERE a.case_id=? ORDER BY a.created_at ASC`).bind(caseId).all();
+    const recoveryRequests = Object.freeze((recoveryResult?.results || []).map(item => Object.freeze({
+      request_id:String(item.request_id),evidence_hash:String(item.evidence_hash),created_at:String(item.created_at),
+    })));
+    const approvals = Object.freeze((approvalsResult?.results || []).map(item => Object.freeze({
+      approval_id:String(item.approval_id),action:String(item.action),proposer_ref:String(item.proposer_ref),
+      proposer_role:String(item.proposer_role),evidence_hashes:Object.freeze(JSON.parse(String(item.evidence_hashes_json || '[]'))),
+      created_at:String(item.created_at),decision:item.decision ? String(item.decision) : null,
+      approver_ref:item.approver_ref ? String(item.approver_ref) : null,
+      approver_role:item.approver_role ? String(item.approver_role) : null,
+      decided_at:item.decided_at ? String(item.decided_at) : null,
+    })));
+    return Object.freeze({case: JSON.parse(row.public_json), details, messages: Object.freeze(messages), recovery_requests: recoveryRequests, approvals});
   }
 
   async appendCustomerMessage(caseId, recoveryCode, input) {
@@ -242,7 +260,48 @@ export class D1CaseStore {
         WHERE a.case_id=? AND a.action='ACCOUNT_RECOVERY' AND d.decision='APPROVED' AND r.rotation_id IS NULL
         ORDER BY d.created_at DESC LIMIT 1`).bind(caseId).first();
       approvalId = approved ? String(approved.approval_id || '') : null;
-      if (!approvalId) return Object.freeze({case_id:caseId,status:'APPROVAL_REQUIRED'});
+      if (!approvalId) {
+        const existingRequest = await this.db.prepare(`SELECT q.request_id,q.evidence_hash,q.created_at
+          FROM support_case_recovery_requests q
+          WHERE q.case_id=? AND q.identity_hash=?
+            AND NOT EXISTS (
+              SELECT 1 FROM support_case_recovery_rotations r
+              WHERE r.case_id=q.case_id AND r.created_at >= q.created_at
+            )
+          ORDER BY q.created_at DESC LIMIT 1`).bind(caseId,identityHash).first();
+        if (existingRequest) {
+          return Object.freeze({
+            case_id:caseId,status:'APPROVAL_REQUIRED',
+            request_id:String(existingRequest.request_id),requested_at:String(existingRequest.created_at),
+          });
+        }
+
+        const at = new Date().toISOString();
+        const requestId = 'AXQ-' + randomToken(16);
+        const evidenceHash = await sha256({
+          schema:'musitu.axiom.support-recovery-request-evidence.v1',
+          request_id:requestId,case_id:caseId,identity_hash:identityHash,created_at:at,
+        });
+        const event = await appendCaseEvent(row,{
+          type:'RECOVERY_APPROVAL_REQUESTED',actor:'requester',visibility:'internal',
+          payload:{request_id:requestId,evidence_hash:evidenceHash},
+        },{at});
+        const notificationId = 'AXN-' + randomToken(16);
+        await this.db.batch([
+          this.db.prepare(`INSERT INTO support_case_recovery_requests
+            (request_id,case_id,identity_hash,evidence_hash,event_hash,created_at) VALUES (?,?,?,?,?,?)`)
+            .bind(requestId,caseId,identityHash,evidenceHash,event.event_hash,at),
+          this.db.prepare(`INSERT INTO support_case_events
+            (case_id,event_hash,prior_event_hash,type,actor,visibility,payload_json,created_at) VALUES (?,?,?,?,?,?,?,?)`)
+            .bind(event.case_id,event.event_hash,event.prior_event_hash,event.type,event.actor,event.visibility,JSON.stringify(event.payload),event.at),
+          this.db.prepare('UPDATE support_cases SET last_event_hash=?,updated_at=? WHERE case_id=?')
+            .bind(event.event_hash,event.at,caseId),
+          this.db.prepare(`INSERT INTO support_notification_outbox
+            (notification_id,case_id,kind,audience,event_hash,created_at) VALUES (?,?,?,?,?,?)`)
+            .bind(notificationId,caseId,'RECOVERY_APPROVAL_REQUIRED','operator',event.event_hash,at),
+        ]);
+        return Object.freeze({case_id:caseId,status:'APPROVAL_REQUIRED',request_id:requestId,requested_at:at});
+      }
     }
 
     const priorRecoveryHash = String(row.recovery_hash || '');
