@@ -1,0 +1,124 @@
+name: MUSITU Axiom Global Support Production Preflight
+
+on:
+  push:
+    branches:
+      - 'support/axiom-global-support-ops-production-rollout-20261008'
+    paths:
+      - '.github/workflows/axiom-global-support-production-preflight.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  preflight:
+    if: github.event_name == 'push' && github.event.before == 'abf87d846b49f4844a65ea131bce79751d18a4d7'
+    runs-on: ubuntu-latest
+    environment: axiom-support-production
+    timeout-minutes: 10
+    env:
+      CF_ACCOUNT: '93f395f5121954671f92fffa453d6b61'
+      SUPPORT_DB: 'a525c8b6-9b44-413b-a219-46e419b71b12'
+      CF_ZONE: '5b56528f03948ff5917a5e0cd9f7109e'
+      WORKER_TOKEN: ${{ secrets.CLOUDFLARE_RULESETS_API_TOKEN }}
+      D1_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      ACCESS_TOKEN: ${{ secrets.CLOUDFLARE_ACCESS_API_TOKEN }}
+      CF_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+      CF_GLOBAL_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+      EMAIL_TOKEN: ${{ secrets.CLOUDFLARE_EMAIL_SENDING_API_TOKEN }}
+      R2_TOKEN: ${{ secrets.CLOUDFLARE_R2_API_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Exact authorized boundary and full regression
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF_NAME" = 'support/axiom-global-support-ops-production-rollout-20261008'
+          test "${{ github.event.before }}" = 'abf87d846b49f4844a65ea131bce79751d18a4d7'
+          test "$GITHUB_REF_NAME" != 'main'
+          node --test support/tests/*.test.mjs
+      - name: Read production capability state
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          import {createHash} from 'node:crypto';
+          const api='https://api.cloudflare.com/client/v4';
+          const account=process.env.CF_ACCOUNT, db=process.env.SUPPORT_DB;
+          const workerToken=String(process.env.WORKER_TOKEN||''),d1Token=String(process.env.D1_TOKEN||'');
+          const accessToken=String(process.env.ACCESS_TOKEN||''),email=String(process.env.CF_EMAIL||''),globalKey=String(process.env.CF_GLOBAL_KEY||'');
+          const emailToken=String(process.env.EMAIL_TOKEN||''),r2Token=String(process.env.R2_TOKEN||'');
+          async function raw(headers,path,{method='GET',body}={}){
+            const r=await fetch(api+path,{method,headers:{...headers,accept:'application/json',...(body===undefined?{}:{'content-type':'application/json'})},...(body===undefined?{}:{body:JSON.stringify(body)})});
+            let p={};try{p=await r.json()}catch{}
+            return {r,p};
+          }
+          async function call(headers,path,opts={}){
+            const {r,p}=await raw(headers,path,opts);
+            if(!r.ok||p?.success===false){
+              const codes=(p?.errors||[]).map(x=>x?.code).filter(Boolean);
+              throw new Error('Cloudflare read failed HTTP '+r.status+' codes='+(codes.join(',')||'none')+' '+path);
+            }
+            return p?.result;
+          }
+          const wh={authorization:'Bearer '+workerToken},dh={authorization:'Bearer '+d1Token};
+          const ah=accessToken?{authorization:'Bearer '+accessToken}:null,gh={'X-Auth-Email':email,'X-Auth-Key':globalKey};
+          async function access(path){
+            if(ah){const a=await raw(ah,path);if(a.r.ok&&a.p?.success!==false)return a.p.result;if(!(a.r.status===401||a.r.status===403))throw new Error('Access read failed '+a.r.status);}
+            return call(gh,path);
+          }
+          async function query(sql){const x=await call(dh,'/accounts/'+account+'/d1/database/'+db+'/query',{method:'POST',body:{sql}});const b=Array.isArray(x)?x[0]:x;return Array.isArray(b?.results)?b.results:[];}
+          const [bookmark,counts,objects,domains,pubSettings,opsSettings,pubSchedules,apps]=await Promise.all([
+            call(dh,'/accounts/'+account+'/d1/database/'+db+'/time_travel/bookmark'),
+            query("SELECT (SELECT COUNT(*) FROM support_cases) cases,(SELECT COUNT(*) FROM support_case_events) events,(SELECT COUNT(*) FROM support_case_messages) messages,(SELECT COUNT(*) FROM support_case_approvals) approvals,(SELECT COUNT(*) FROM support_case_approval_decisions) decisions,(SELECT COUNT(*) FROM support_notification_outbox) notifications,(SELECT COUNT(*) FROM support_case_recovery_bindings) recovery_bindings,(SELECT COUNT(*) FROM support_case_recovery_requests) recovery_requests,(SELECT COUNT(*) FROM support_case_recovery_rotations) recovery_rotations;"),
+            query("SELECT type,name FROM sqlite_master WHERE type IN ('table','index','trigger') AND name LIKE 'support_%' ORDER BY type,name;"),
+            call(wh,'/accounts/'+account+'/workers/domains'),
+            call(wh,'/accounts/'+account+'/workers/scripts/musitu-axiom-support/settings'),
+            call(wh,'/accounts/'+account+'/workers/scripts/musitu-axiom-support-ops/settings'),
+            raw(wh,'/accounts/'+account+'/workers/scripts/musitu-axiom-support/schedules'),
+            access('/accounts/'+account+'/access/apps?per_page=100')
+          ]);
+          const bm=String(bookmark?.bookmark||'');if(!bm)throw new Error('D1 Time Travel bookmark missing');
+          async function capability(headers,path){
+            const {r,p}=await raw(headers,path);
+            return {http_status:r.status,available:r.ok&&p?.success!==false,codes:(p?.errors||[]).map(x=>x?.code).filter(Boolean)};
+          }
+          const r2Headers=r2Token?{authorization:'Bearer '+r2Token}:wh;
+          const emailHeaders=emailToken?{authorization:'Bearer '+emailToken}:wh;
+          const [r2,emailSend]=await Promise.all([
+            capability(r2Headers,'/accounts/'+account+'/r2/buckets'),
+            capability(emailHeaders,'/accounts/'+account+'/email/sending/domains')
+          ]);
+          const d=Array.isArray(domains)?domains:[];
+          const pubBindings=Array.isArray(pubSettings?.bindings)?pubSettings.bindings:[];
+          const opsBindings=Array.isArray(opsSettings?.bindings)?opsSettings.bindings:[];
+          const appRows=Array.isArray(apps)?apps:[];
+          console.log(JSON.stringify({
+            gate:'MUSITU_AXIOM_GLOBAL_SUPPORT_PRODUCTION_PREFLIGHT',
+            status:'PASS',
+            d1:{
+              bookmark_sha256:createHash('sha256').update(bm).digest('hex'),bookmark_value_recorded:false,
+              counts:counts[0]||{},schema_object_count:objects.length
+            },
+            workers:{
+              public_domain:d.some(x=>String(x?.hostname||'')==='support.mftintelligence.com'&&String(x?.service||'')==='musitu-axiom-support'),
+              operator_domain:d.some(x=>String(x?.hostname||'')==='support-ops.mftintelligence.com'&&String(x?.service||'')==='musitu-axiom-support-ops'),
+              public_binding_names:pubBindings.map(x=>String(x?.name||'')).filter(Boolean).sort(),
+              operator_binding_names:opsBindings.map(x=>String(x?.name||'')).filter(Boolean).sort(),
+              schedules_readable:pubSchedules.r.ok&&pubSchedules.p?.success!==false,
+              schedules:(pubSchedules.p?.result?.schedules||pubSchedules.p?.result||[]).map?.(x=>({cron:x.cron}))||[]
+            },
+            infrastructure:{
+              r2_api:r2,
+              email_sending_api:emailSend,
+              dedicated_r2_token_present:Boolean(r2Token),
+              dedicated_email_token_present:Boolean(emailToken)
+            },
+            access:{
+              app_domains:appRows.map(x=>String(x?.domain||'')).filter(Boolean).sort()
+            },
+            customer_content_read:false,recovery_code_read:false,secret_values_recorded:false,mutation_performed:false
+          }));
+          NODE
