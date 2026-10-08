@@ -1,0 +1,32 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "musitu-axiom-support-ops-isolated",
+  "main": "operator_worker.js",
+  "compatibility_date": "2026-10-08",
+  "workers_dev": false,
+  "preview_urls": false,
+
+  "assets": {
+    "directory": "./console",
+    "binding": "ASSETS",
+    "run_worker_first": true
+  },
+
+  "d1_databases": [
+    {
+      "binding": "SUPPORT_DB",
+      "database_name": "musitu-axiom-support",
+      "database_id": "__REQUIRED_AT_AUTHORIZED_DEPLOYMENT__"
+    }
+  ],
+
+  "vars": {
+    "ENVIRONMENT": "production",
+    "SUPPORT_ACCESS_TEAM_DOMAIN": "__REQUIRED_AT_AUTHORIZED_DEPLOYMENT__",
+    "SUPPORT_ACCESS_AUD": "__REQUIRED_AT_AUTHORIZED_DEPLOYMENT__",
+    "SUPPORT_OPERATOR_BINDINGS_JSON": "__REQUIRED_AT_AUTHORIZED_DEPLOYMENT__",
+    "SUPPORT_HUMAN_OWNER_REF": "__REQUIRED_AT_AUTHORIZED_DEPLOYMENT__",
+    "SUPPORT_INDEPENDENT_APPROVER_REF": "__REQUIRED_AT_AUTHORIZED_DEPLOYMENT__",
+    "SUPPORT_READINESS_SHA256": "__REQUIRED_AT_AUTHORIZED_DEPLOYMENT__"
+  }
+}
