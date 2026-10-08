@@ -11,6 +11,7 @@ const CASE_DIAGNOSTICS_PATH = /^\/api\/v1\/cases\/([A-Z0-9-]+)\/diagnostics$/;
 const CASE_CSAT_PATH = /^\/api\/v1\/cases\/([A-Z0-9-]+)\/csat$/;
 const CASE_ESCALATIONS_PATH = /^\/api\/v1\/cases\/([A-Z0-9-]+)\/escalations$/;
 const CASE_ATTACHMENTS_PATH = /^\/api\/v1\/cases\/([A-Z0-9-]+)\/attachments$/;
+const CASE_ATTACHMENT_CONTENT_PATH = /^\/api\/v1\/cases\/([A-Z0-9-]+)\/attachments\/(AXF-[0-9A-HJKMNP-TV-Z]{16})\/content$/;
 const CASE_REOPEN_PATH = /^\/api\/v1\/cases\/([A-Z0-9-]+)\/reopen$/;
 const RECOVERY_BIND_PATH = /^\/recovery\/api\/v1\/cases\/([A-Z0-9-]+)\/bind$/;
 const RECOVERY_ROTATE_PATH = /^\/recovery\/api\/v1\/cases\/([A-Z0-9-]+)\/rotate$/;
@@ -317,14 +318,58 @@ export async function handleSupportRequest(request, env = {}) {
   if (request.method === 'POST' && attachmentMatch) {
     const code = recoveryCode(request);
     if (!code) return json({error:'CASE_AUTH_REQUIRED'},401,{'www-authenticate':'Support'});
-    if (typeof env.SUPPORT_ATTACHMENT_INIT !== 'function') return json({error:'ATTACHMENT_PROVIDER_UNAVAILABLE'},503);
+    const nativeObjects = env.SUPPORT_ATTACHMENTS && typeof env.SUPPORT_ATTACHMENTS.put === 'function' && typeof env.SUPPORT_ATTACHMENTS.get === 'function';
+    if (!nativeObjects && typeof env.SUPPORT_ATTACHMENT_INIT !== 'function') return json({error:'ATTACHMENT_PROVIDER_UNAVAILABLE'},503);
     const body = await readJson(request);
     const store = await storeFor(env);
     const meta = await store.prepareAttachment(attachmentMatch[1],code,body);
     if (!meta) return json({error:'CASE_NOT_FOUND'},404);
+    if (nativeObjects) {
+      return json({...meta,upload_url:`/api/v1/cases/${encodeURIComponent(meta.case_id)}/attachments/${encodeURIComponent(meta.attachment_id)}/content`,expires_in:300},201);
+    }
     const upload = await env.SUPPORT_ATTACHMENT_INIT(meta);
     if (!upload?.upload_url) return json({error:'ATTACHMENT_PROVIDER_UNAVAILABLE'},503);
     return json({...meta,upload_url:String(upload.upload_url),expires_in:Number(upload.expires_in||300)},201);
+  }
+
+  const attachmentContentMatch=url.pathname.match(CASE_ATTACHMENT_CONTENT_PATH);
+  if(attachmentContentMatch && (request.method==='PUT'||request.method==='GET')){
+    const code=recoveryCode(request);
+    if(!code)return json({error:'CASE_AUTH_REQUIRED'},401,{'www-authenticate':'Support'});
+    if(!env.SUPPORT_ATTACHMENTS||typeof env.SUPPORT_ATTACHMENTS.put!=='function'||typeof env.SUPPORT_ATTACHMENTS.get!=='function')return json({error:'ATTACHMENT_PROVIDER_UNAVAILABLE'},503);
+    const store=await storeFor(env);
+    const caseId=attachmentContentMatch[1],attachmentId=attachmentContentMatch[2];
+    if(request.method==='PUT'){
+      const meta=await store.authorizeAttachmentUpload(caseId,code,attachmentId);
+      if(!meta)return json({error:'ATTACHMENT_NOT_AVAILABLE'},404);
+      const declared=Number(request.headers.get('content-length')||0);
+      if(declared&&declared!==Number(meta.bytes))return json({error:'ATTACHMENT_SIZE_MISMATCH'},422);
+      if(declared>25*1024*1024)return json({error:'PAYLOAD_TOO_LARGE'},413);
+      const type=String(request.headers.get('content-type')||'').split(';')[0].trim().toLowerCase();
+      if(type!==String(meta.content_type).toLowerCase())return json({error:'ATTACHMENT_TYPE_MISMATCH'},422);
+      const bytes=new Uint8Array(await request.arrayBuffer());
+      if(bytes.byteLength!==Number(meta.bytes))return json({error:'ATTACHMENT_SIZE_MISMATCH'},422);
+      const digest=await crypto.subtle.digest('SHA-256',bytes);
+      const actual=[...new Uint8Array(digest)].map(x=>x.toString(16).padStart(2,'0')).join('');
+      if(actual!==String(meta.sha256).toLowerCase())return json({error:'ATTACHMENT_HASH_MISMATCH'},422);
+      await env.SUPPORT_ATTACHMENTS.put(meta.storage_key,bytes,{httpMetadata:{contentType:meta.content_type},customMetadata:{case_id:caseId,attachment_id:attachmentId,sha256:actual}});
+      await store.markAttachmentUploaded(attachmentId,{actor_ref:'requester'});
+      return json({attachment_id:attachmentId,case_id:caseId,scan_state:'PENDING',uploaded:true},201);
+    }
+    const meta=await store.authorizeAttachmentDownload(caseId,code,attachmentId);
+    if(!meta)return json({error:'ATTACHMENT_NOT_AVAILABLE'},404);
+    const object=await env.SUPPORT_ATTACHMENTS.get(meta.storage_key);
+    if(!object||!object.body)return json({error:'ATTACHMENT_OBJECT_MISSING'},404);
+    const safeName=String(meta.filename||'attachment').replace(/["\\\r\n]/g,'_');
+    const headers=new Headers({
+      'content-type':meta.content_type,
+      'content-disposition':`attachment; filename="${safeName}"`,
+      'cache-control':'no-store',
+      'x-content-type-options':'nosniff',
+    });
+    if(Number(meta.bytes)>0)headers.set('content-length',String(meta.bytes));
+    if(object.httpEtag)headers.set('etag',String(object.httpEtag));
+    return new Response(object.body,{status:200,headers});
   }
 
   const reopenMatch=url.pathname.match(CASE_REOPEN_PATH);
