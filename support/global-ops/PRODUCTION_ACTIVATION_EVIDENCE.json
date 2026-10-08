@@ -1,0 +1,129 @@
+{
+  "schema": "musitu.axiom.global-support-ops-production-activation.v1",
+  "status": "PRODUCTION_SOFTWARE_ROLLOUT_COMPLETE_WITH_PROVIDER_AND_HUMAN_BOUNDARIES",
+  "recorded_at": "2026-10-08T18:08:30Z",
+  "repository": "evansmusitu/mft-axiom-build",
+  "branch": "support/axiom-global-support-ops-production-rollout-20261008",
+  "production_head_before_evidence": "c3d3ca8058c4a3f1a7bae0f1784c7b0053de4a7a",
+  "source": {
+    "isolated_branch": "support/axiom-global-support-ops-isolated-20261008",
+    "isolated_evidence_head": "abf87d846b49f4844a65ea131bce79751d18a4d7"
+  },
+  "verification": {
+    "production_tdd_run": 37821280624,
+    "production_deploy_run": 37821537980,
+    "production_audit_run": 37821894538,
+    "tests": 191,
+    "passed": 191,
+    "failed": 0
+  },
+  "d1": {
+    "time_travel_bookmark_sha256": "73537ca51e49ac412ededfe609a3933aa5739661ac4b09660ade0e31dab11734",
+    "bookmark_value_recorded": false,
+    "pre_existing_counts": {
+      "cases": 3,
+      "events": 5,
+      "messages": 2,
+      "approvals": 0,
+      "decisions": 0,
+      "notifications": 2,
+      "recovery_bindings": 0,
+      "recovery_requests": 0,
+      "recovery_rotations": 0
+    },
+    "post_existing_counts": {
+      "cases": 3,
+      "events": 5,
+      "messages": 2,
+      "approvals": 0,
+      "decisions": 0,
+      "notifications": 2,
+      "recovery_bindings": 0,
+      "recovery_requests": 0,
+      "recovery_rotations": 0
+    },
+    "operational_backfill": {
+      "sla": 3,
+      "triage": 3,
+      "languages": 3
+    },
+    "schema_object_count": 72,
+    "migration": "ADDITIVE_ONLY",
+    "retroactive_sla_breach_created": false
+  },
+  "infrastructure": {
+    "r2": {
+      "bucket": "musitu-axiom-support-attachments",
+      "private": true,
+      "binding": "SUPPORT_ATTACHMENTS"
+    },
+    "schedule": {
+      "worker": "musitu-axiom-support",
+      "cron": "*/5 * * * *"
+    },
+    "public_worker": "musitu-axiom-support",
+    "operator_worker": "musitu-axiom-support-ops",
+    "public_domain": "support.mftintelligence.com",
+    "operator_domain": "support-ops.mftintelligence.com",
+    "workers_dev": false,
+    "previews": false,
+    "recovery_access_app_count": 1,
+    "operator_access_app_count": 1
+  },
+  "production_capabilities": [
+    "SLA/SLO clocks and scheduled breach scanning",
+    "operator assignment, work leases and handoffs",
+    "customer and operator escalations",
+    "incident records, case correlation and public status surface",
+    "organization/support-plan/entitlement records",
+    "retryable notification and webhook queues",
+    "hashed inbound-email threading adapter",
+    "private R2 attachment upload/download with SHA-256 verification",
+    "attachment quarantine/scan lifecycle and purge-safe object deletion outbox",
+    "consented diagnostics",
+    "deterministic knowledge search and advisory AI-assist seam",
+    "language-routing and human-review triage",
+    "operator macros",
+    "analytics, QA and CSAT",
+    "bounded customer case reopen",
+    "secure verified-identity recovery"
+  ],
+  "provider_boundaries": {
+    "outbound_customer_email": "NOT_BOUND_FAIL_CLOSED",
+    "inbound_email_worker_route": "NOT_BOUND_FAIL_CLOSED",
+    "malware_scanner": "NOT_BOUND_MANUAL_SCAN_GOVERNANCE_ONLY",
+    "external_webhook_sender": "NOT_BOUND_FAIL_CLOSED",
+    "pager_on_call_provider": "NOT_BOUND_FAIL_CLOSED",
+    "ai_generation_translation": "OPTIONAL_NOT_BOUND"
+  },
+  "human_boundaries": {
+    "distinct_independent_approver_identity_bound": false,
+    "continuous_24x7_staffing_evidenced": false,
+    "contractual_sla_evidenced": false,
+    "certified_multilingual_human_coverage_evidenced": false
+  },
+  "edge": {
+    "ordinary_automation_public_root": "403_CLOUDFLARE_CHALLENGE",
+    "ordinary_automation_public_status": "403_CLOUDFLARE_CHALLENGE",
+    "ordinary_automation_public_status_api": "403_CLOUDFLARE_CHALLENGE",
+    "recovery_anonymous": "403_ACCESS_PROTECTED",
+    "operator_anonymous": "403_ACCESS_PROTECTED"
+  },
+  "protected_state": {
+    "main": "d6a846f6bbe0bccac1758713eb4de167caf07113",
+    "claude": "4d956f415431836018e5145227c8df5bd5fde7d8",
+    "recovery_production_branch": "64946c4df8ff0c608063444503155d188df93f2e",
+    "official_support_branch": "e336556b1b4dbca3c3d7656b2efc914752857276",
+    "pr1": {
+      "state": "OPEN",
+      "draft": true,
+      "merged": false,
+      "head": "8fc1fbb7c5ebbcc1604ecf24c5f4594f2d5667e3"
+    },
+    "frozen_openai_auth": "8ba0dbc1b6dd1533c6c26bff23991429e03a71a5",
+    "frozen_openai_mcp": "4a1ad37a5e7df0e4d3966e8b5f9f0e8f2db69167"
+  },
+  "customer_content_read": false,
+  "recovery_code_read": false,
+  "secret_values_recorded": false
+}
