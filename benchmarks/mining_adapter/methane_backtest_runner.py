@@ -25,6 +25,7 @@ from benchmarks.mining_adapter.methane_backtest import (
     retrospective_threshold_frontier,
     rolling_backtest_folds,
 )
+from benchmarks.mining_adapter.event_warning_metrics import analyze_warning_opportunities
 from benchmarks.mining_adapter.methane_prediction import binary_metrics
 from benchmarks.mining_adapter.polish_longwall_telemetry import (
     _arff_attributes_and_data,
@@ -184,6 +185,20 @@ def run(*, source: Path, spec: MethaneBacktestSpec) -> dict[str,Any]:
         overlap=positive_label_window_components(
             test,horizon_start_seconds=spec.horizon_start_seconds,
         )
+        warning_opportunities={
+            "model":analyze_warning_opportunities(
+                examples=test,predictions=online["predictions"],
+                warning_threshold=spec.warning_threshold,
+                horizon_start_seconds=spec.horizon_start_seconds,
+                sample_stride_seconds=spec.sample_stride_seconds,
+            ),
+            "hard_observed_warning_baseline":analyze_warning_opportunities(
+                examples=test,predictions=baseline_pred.tolist(),
+                warning_threshold=spec.warning_threshold,
+                horizon_start_seconds=spec.horizon_start_seconds,
+                sample_stride_seconds=spec.sample_stride_seconds,
+            ),
+        }
 
         fold_reports.append({
             "fold":fold["fold"],
@@ -206,6 +221,7 @@ def run(*, source: Path, spec: MethaneBacktestSpec) -> dict[str,Any]:
             "research_only_causal_consensus":shadow_consensus,
             "research_only_retrospective_threshold_oracle":oracle,
             "research_only_positive_label_overlap":overlap,
+            "research_only_warning_opportunities":warning_opportunities,
             "model_train_seconds":train_seconds,
             "test_score_seconds":score_seconds,
             "test_start":min(item.feature_time for item in test).isoformat(),
