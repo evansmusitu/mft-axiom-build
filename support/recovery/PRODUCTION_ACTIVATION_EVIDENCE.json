@@ -1,0 +1,88 @@
+{
+  "schema": "musitu.axiom.support-recovery-production-activation.v1",
+  "status": "NON_SENSITIVE_RECOVERY_DEPLOYED_HUMAN_E2E_PENDING_SENSITIVE_APPROVER_IDENTITY_PENDING",
+  "recorded_at": "2026-10-08T16:07:00Z",
+  "repository": "evansmusitu/mft-axiom-build",
+  "branch": "support/axiom-support-recovery-production-rollout-20261008",
+  "automated_runs": {
+    "preflight": 37805060296,
+    "foundation": 37805260481,
+    "worker_stage": 37805515271,
+    "access_activation": 37805709012,
+    "production_audit": 37805933508
+  },
+  "access": {
+    "domain": "support.mftintelligence.com/recovery/*",
+    "policy_count": 1,
+    "selector": "authenticated_everyone",
+    "bypass": false,
+    "anonymous_ui_status": 403,
+    "anonymous_api_status": 403
+  },
+  "d1": {
+    "pre_migration": {
+      "cases": 3,
+      "events": 5,
+      "messages": 2,
+      "assignments": 0,
+      "approvals": 0,
+      "decisions": 0,
+      "notifications": 2
+    },
+    "post_migration": {
+      "cases": 3,
+      "events": 5,
+      "messages": 2,
+      "assignments": 0,
+      "approvals": 0,
+      "decisions": 0,
+      "notifications": 2,
+      "recovery_bindings": 0,
+      "recovery_requests": 0,
+      "recovery_rotations": 0
+    },
+    "time_travel_bookmark_sha256": "f81a8064568447d9981f8d8e094c0acce99d2e635bc113f87c59070605f2171d",
+    "bookmark_value_recorded": false,
+    "migration": "ADDITIVE_ONLY"
+  },
+  "workers": {
+    "public_worker": "musitu-axiom-support",
+    "operator_worker": "musitu-axiom-support-ops",
+    "recovery_access_bindings": true,
+    "operator_service_binding": true,
+    "workers_dev": false,
+    "previews": false,
+    "existing_secret_values_read": false
+  },
+  "operator_authority": {
+    "operator_binding_count": 1,
+    "primary_role": "support_agent",
+    "independent_approver_reference_configured": true,
+    "independent_approver_reference_distinct": true,
+    "distinct_independent_approver_identity_bound": false,
+    "sensitive_recovery_operational": false
+  },
+  "protected_state": {
+    "isolated_recovery": "8e7cee1b56def7e4caae7332de9b9c0fb8d72e28",
+    "support_console_rollout": "5887dd1759699bb085b289af93f2c60be5c43570",
+    "official_support": "e336556b1b4dbca3c3d7656b2efc914752857276",
+    "main": "d6a846f6bbe0bccac1758713eb4de167caf07113",
+    "claude": "4d956f415431836018e5145227c8df5bd5fde7d8",
+    "pr1": {
+      "state": "OPEN",
+      "draft": true,
+      "merged": false,
+      "head": "8fc1fbb7c5ebbcc1604ecf24c5f4594f2d5667e3"
+    },
+    "frozen_openai_auth": "8ba0dbc1b6dd1533c6c26bff23991429e03a71a5",
+    "frozen_openai_mcp": "4a1ad37a5e7df0e4d3966e8b5f9f0e8f2db69167"
+  },
+  "remaining_gates": [
+    "real human Access login and non-sensitive recovery bind/rotate/readback proof",
+    "genuinely distinct second operator identity for independent sensitive-recovery approval"
+  ],
+  "customer_content_read": false,
+  "recovery_code_read": false,
+  "identity_values_recorded": false,
+  "secret_values_recorded": false
+}
