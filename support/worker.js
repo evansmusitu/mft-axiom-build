@@ -186,7 +186,7 @@ export async function handleSupportRequest(request, env = {}) {
     const code = recoveryCode(request);
     if (!code) return json({error: 'CASE_AUTH_REQUIRED'}, 401, {'www-authenticate': 'Support'});
     const store = await storeFor(env);
-    const value = await store.getAuthorized(caseMatch[1], code);
+    const value = await store.getAuthorizedThread(caseMatch[1], code);
     if (!value) return json({error: 'CASE_NOT_FOUND'}, 404);
     return json(value);
   }
