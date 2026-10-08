@@ -328,6 +328,20 @@ def rolling_backtest_folds(
 
 
 
+def _metrics_from_counts(tp: int, tn: int, fp: int, fn: int) -> dict[str,float|int]:
+    precision=tp/(tp+fp) if tp+fp else 0.0
+    recall=tp/(tp+fn) if tp+fn else 0.0
+    specificity=tn/(tn+fp) if tn+fp else 0.0
+    f1=(2*precision*recall/(precision+recall)) if precision+recall else 0.0
+    beta2=4.0
+    f2=((1+beta2)*precision*recall/(beta2*precision+recall)) if beta2*precision+recall else 0.0
+    return {
+        "tp":tp,"tn":tn,"fp":fp,"fn":fn,
+        "precision":precision,"recall":recall,"specificity":specificity,
+        "f1":f1,"f2":f2,
+    }
+
+
 def select_augmented_operating_point(
     *,
     y_true: Sequence[int|bool],
@@ -336,15 +350,13 @@ def select_augmented_operating_point(
     warning_threshold: float,
     minimum_recall: float,
 ) -> dict[str,Any]:
-    """Select a score threshold while preserving the mine's hard warning rule.
+    """Select the exact best augmented threshold with one score sweep.
 
-    A prediction is positive when methane is already at/above the operational
-    warning threshold OR the learned score crosses the calibrated early-warning
-    threshold. The learned model can therefore add earlier warnings but can
-    never suppress an observed hard-threshold warning.
+    The policy always preserves the mine's observed hard-warning rule and adds
+    model alerts as the score threshold descends. Grouping equal scores makes
+    the sweep exactly equivalent to evaluating every unique score threshold,
+    but avoids an O(n²) rescan of the calibration window.
     """
-    from benchmarks.mining_adapter.methane_prediction import binary_metrics
-
     if len(y_true)!=len(scores) or len(y_true)!=len(current_max) or not y_true:
         raise ValueError("methane_backtest_augmented_length_invalid")
     if warning_threshold <= 0:
@@ -352,6 +364,7 @@ def select_augmented_operating_point(
     if not 0 < minimum_recall <= 1:
         raise ValueError("methane_backtest_augmented_recall_invalid")
 
+    truths=[bool(value) for value in y_true]
     clean_scores=[]
     clean_current=[]
     for score,current in zip(scores,current_max,strict=True):
@@ -363,39 +376,59 @@ def select_augmented_operating_point(
         clean_current.append(current_value)
 
     hard=[value>=warning_threshold for value in clean_current]
-    candidates=sorted(set(clean_scores),reverse=True)
-    results=[]
-    for threshold in candidates:
-        predicted=[
-            hard_alert or score>=threshold
-            for hard_alert,score in zip(hard,clean_scores,strict=True)
-        ]
-        metrics=binary_metrics(y_true,predicted)
-        results.append({
-            "threshold":threshold,
-            "metrics":metrics,
-            "predictions":predicted,
-        })
-    feasible=[
-        result for result in results
-        if float(result["metrics"]["recall"])>=minimum_recall
+    tp=sum(1 for truth,alert in zip(truths,hard,strict=True) if truth and alert)
+    fp=sum(1 for truth,alert in zip(truths,hard,strict=True) if not truth and alert)
+    fn=sum(1 for truth,alert in zip(truths,hard,strict=True) if truth and not alert)
+    tn=sum(1 for truth,alert in zip(truths,hard,strict=True) if not truth and not alert)
+
+    order=sorted(range(len(clean_scores)),key=clean_scores.__getitem__,reverse=True)
+    best_feasible=None
+    best_feasible_key=None
+    best_any=None
+    best_any_key=None
+    cursor=0
+    while cursor < len(order):
+        threshold=clean_scores[order[cursor]]
+        next_cursor=cursor
+        while next_cursor < len(order) and clean_scores[order[next_cursor]]==threshold:
+            index=order[next_cursor]
+            if not hard[index]:
+                if truths[index]:
+                    tp += 1
+                    fn -= 1
+                else:
+                    fp += 1
+                    tn -= 1
+            next_cursor += 1
+
+        metrics=_metrics_from_counts(tp,tn,fp,fn)
+        result={"threshold":threshold,"metrics":metrics}
+        key=(metrics["precision"],metrics["f2"],threshold)
+        if best_any_key is None or key>best_any_key:
+            best_any=result
+            best_any_key=key
+        if metrics["recall"]>=minimum_recall and (
+            best_feasible_key is None or key>best_feasible_key
+        ):
+            best_feasible=result
+            best_feasible_key=key
+        cursor=next_cursor
+
+    chosen=best_feasible if best_feasible is not None else best_any
+    if chosen is None:
+        raise RuntimeError("methane_backtest_augmented_threshold_missing")
+    threshold=float(chosen["threshold"])
+    predictions=[
+        hard_alert or score>=threshold
+        for hard_alert,score in zip(hard,clean_scores,strict=True)
     ]
-    pool=feasible or results
-    chosen=max(
-        pool,
-        key=lambda item:(
-            item["metrics"]["precision"],
-            item["metrics"]["f2"],
-            item["threshold"],
-        ),
-    )
     return {
         **chosen,
+        "predictions":predictions,
         "minimum_recall_requested":minimum_recall,
         "minimum_recall_met":chosen["metrics"]["recall"]>=minimum_recall,
         "hard_warning_threshold":warning_threshold,
     }
-
 
 def online_recalibrated_predictions(
     *,
