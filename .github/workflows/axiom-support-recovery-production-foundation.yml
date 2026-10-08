@@ -1,0 +1,163 @@
+name: MUSITU Axiom Secure Recovery Production Foundation
+
+on:
+  push:
+    branches:
+      - 'support/axiom-support-recovery-production-rollout-20261008'
+    paths:
+      - '.github/workflows/axiom-support-recovery-production-foundation.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  foundation:
+    if: github.event_name == 'push' && github.event.before == '06a9a56e347d49dddf7594db6dfb0221f6b8ab8d'
+    runs-on: ubuntu-latest
+    environment: axiom-support-production
+    timeout-minutes: 10
+    env:
+      CF_ACCOUNT: '93f395f5121954671f92fffa453d6b61'
+      SUPPORT_DB: 'a525c8b6-9b44-413b-a219-46e419b71b12'
+      ACCESS_TOKEN: ${{ secrets.CLOUDFLARE_ACCESS_API_TOKEN }}
+      D1_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CF_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+      CF_GLOBAL_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Exact authorized release gate
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF_NAME" = 'support/axiom-support-recovery-production-rollout-20261008'
+          test "${{ github.event.before }}" = '06a9a56e347d49dddf7594db6dfb0221f6b8ab8d'
+          test "$GITHUB_REF_NAME" != 'main'
+          node --test support/tests/*.test.mjs
+
+      - name: Create deny-by-default recovery Access app and migrate D1 additively
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          import {createHash} from 'node:crypto';
+          const api='https://api.cloudflare.com/client/v4';
+          const account=process.env.CF_ACCOUNT,db=process.env.SUPPORT_DB;
+          const accessToken=String(process.env.ACCESS_TOKEN||''),d1Token=String(process.env.D1_TOKEN||'');
+          const email=String(process.env.CF_EMAIL||''),globalKey=String(process.env.CF_GLOBAL_KEY||'');
+          if(!d1Token) throw new Error('D1 token missing');
+          async function raw(headers,path,{method='GET',body}={}){
+            const r=await fetch(api+path,{method,headers:{...headers,accept:'application/json',...(body===undefined?{}:{'content-type':'application/json'})},...(body===undefined?{}:{body:JSON.stringify(body)})});
+            let p={};try{p=await r.json()}catch{}
+            return {r,p};
+          }
+          async function call(headers,path,opts={}){
+            const {r,p}=await raw(headers,path,opts);
+            if(!r.ok||p?.success===false){
+              const codes=(p?.errors||[]).map(x=>x?.code).filter(Boolean);
+              throw new Error('Cloudflare '+(opts.method||'GET')+' '+path+' failed HTTP '+r.status+' codes='+(codes.join(',')||'none'));
+            }
+            return p?.result;
+          }
+          const ah=accessToken?{authorization:'Bearer '+accessToken}:null;
+          const gh={'X-Auth-Email':email,'X-Auth-Key':globalKey};
+          const dh={authorization:'Bearer '+d1Token};
+          async function access(path,opts={}){
+            if(ah){
+              const a=await raw(ah,path,opts);
+              if(a.r.ok&&a.p?.success!==false) return a.p?.result;
+              if(!(a.r.status===401||a.r.status===403)) throw new Error('Access API failed HTTP '+a.r.status);
+            }
+            if(!email||!globalKey) throw new Error('Access write credentials unavailable');
+            return call(gh,path,opts);
+          }
+          async function query(sql){return call(dh,'/accounts/'+account+'/d1/database/'+db+'/query',{method:'POST',body:{sql}})}
+          const rows=result=>{const b=Array.isArray(result)?result[0]:result;return Array.isArray(b?.results)?b.results:[]};
+
+          const [org,idps,apps]=await Promise.all([
+            access('/accounts/'+account+'/access/organizations'),
+            access('/accounts/'+account+'/access/identity_providers'),
+            access('/accounts/'+account+'/access/apps?per_page=100')
+          ]);
+          const authDomain=String(org?.auth_domain||'').trim();
+          if(!authDomain) throw new Error('Zero Trust auth domain missing');
+          const idpRows=Array.isArray(idps)?idps:[];
+          if(idpRows.length!==1) throw new Error('expected exactly one Access identity provider');
+          const idpId=String(idpRows[0]?.id||'');
+          if(!idpId) throw new Error('Access identity provider id missing');
+
+          const target='support.mftintelligence.com/recovery/*';
+          let matches=(Array.isArray(apps)?apps:[]).filter(x=>String(x?.domain||'').toLowerCase()===target);
+          if(matches.length>1) throw new Error('duplicate recovery Access applications');
+          let app=matches[0]||null,created=false;
+          if(!app){
+            app=await access('/accounts/'+account+'/access/apps',{
+              method:'POST',
+              body:{
+                name:'MUSITU Axiom Secure Case Recovery',
+                type:'self_hosted',
+                domain:target,
+                session_duration:'30m',
+                allowed_idps:[idpId],
+                auto_redirect_to_identity:true,
+                app_launcher_visible:false
+              }
+            });
+            created=true;
+          }
+          const appId=String(app?.id||''),aud=String(app?.aud||'');
+          if(!appId||!aud) throw new Error('recovery Access app id/audience missing');
+          const policies=await access('/accounts/'+account+'/access/apps/'+encodeURIComponent(appId)+'/policies');
+          if(!Array.isArray(policies)||policies.length!==0) throw new Error('recovery Access app must remain deny-by-default before Worker deployment');
+
+          const before=rows(await query("SELECT (SELECT COUNT(*) FROM support_cases) AS cases,(SELECT COUNT(*) FROM support_case_events) AS events,(SELECT COUNT(*) FROM support_case_messages) AS messages,(SELECT COUNT(*) FROM support_case_assignments) AS assignments,(SELECT COUNT(*) FROM support_case_approvals) AS approvals,(SELECT COUNT(*) FROM support_case_approval_decisions) AS decisions,(SELECT COUNT(*) FROM support_notification_outbox) AS notifications;"))[0]||{};
+          const bookmark=await call(dh,'/accounts/'+account+'/d1/database/'+db+'/time_travel/bookmark');
+          const bookmarkValue=String(bookmark?.bookmark||'');
+          if(!bookmarkValue) throw new Error('D1 Time Travel bookmark missing');
+
+          const schema=fs.readFileSync('support/schema.sql','utf8');
+          await query(schema);
+
+          const after=rows(await query("SELECT (SELECT COUNT(*) FROM support_cases) AS cases,(SELECT COUNT(*) FROM support_case_events) AS events,(SELECT COUNT(*) FROM support_case_messages) AS messages,(SELECT COUNT(*) FROM support_case_assignments) AS assignments,(SELECT COUNT(*) FROM support_case_approvals) AS approvals,(SELECT COUNT(*) FROM support_case_approval_decisions) AS decisions,(SELECT COUNT(*) FROM support_notification_outbox) AS notifications,(SELECT COUNT(*) FROM support_case_recovery_bindings) AS recovery_bindings,(SELECT COUNT(*) FROM support_case_recovery_requests) AS recovery_requests,(SELECT COUNT(*) FROM support_case_recovery_rotations) AS recovery_rotations;"))[0]||{};
+          for(const key of ['cases','events','messages','assignments','approvals','decisions','notifications']){
+            if(Number(before[key]||0)!==Number(after[key]||0)) throw new Error('existing D1 count changed during additive migration: '+key);
+          }
+          const objects=rows(await query("SELECT type,name FROM sqlite_master WHERE type IN ('table','index','trigger') AND name LIKE 'support_%';"));
+          const names=new Set(objects.map(x=>String(x?.name||'')));
+          for(const name of [
+            'support_case_recovery_bindings','support_case_recovery_requests','support_case_recovery_rotations',
+            'support_case_recovery_requests_case_created','support_case_recovery_rotations_case_created',
+            'support_case_recovery_binding_no_update','support_case_recovery_binding_no_delete',
+            'support_case_recovery_request_no_update','support_case_recovery_request_no_delete',
+            'support_case_recovery_rotation_no_update','support_case_recovery_rotation_no_delete'
+          ]) if(!names.has(name)) throw new Error('recovery schema object missing: '+name);
+
+          console.log(JSON.stringify({
+            gate:'MUSITU_AXIOM_SUPPORT_RECOVERY_PRODUCTION_FOUNDATION',
+            status:'PASS',
+            access:{
+              app_created:created,
+              domain:target,
+              app_id_present:true,
+              audience_present:true,
+              auth_domain_present:true,
+              identity_provider_type:String(idpRows[0]?.type||''),
+              allow_policy_count:0,
+              deny_by_default:true
+            },
+            d1:{
+              bookmark_sha256:createHash('sha256').update(bookmarkValue).digest('hex'),
+              bookmark_value_recorded:false,
+              before:Object.fromEntries(Object.entries(before).map(([k,v])=>[k,Number(v||0)])),
+              after:Object.fromEntries(Object.entries(after).map(([k,v])=>[k,Number(v||0)])),
+              migration:'ADDITIVE_ONLY'
+            },
+            customer_content_read:false,
+            recovery_code_read:false,
+            identity_values_recorded:false,
+            secret_values_recorded:false
+          }));
+          NODE
