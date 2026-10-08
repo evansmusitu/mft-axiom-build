@@ -561,6 +561,8 @@ def evaluate_backtest_gate(
     folds=report.get("folds")
     structure_ok=isinstance(folds,list) and len(folds)==spec.fold_count
     passing=0
+    support_eligible=0
+    diagnostics=[]
     recalls=[]
     if structure_ok:
         for fold in folds:
@@ -578,19 +580,65 @@ def evaluate_backtest_gate(
             f2=float(model.get("f2") or 0.0)
             baseline_f2=float(baseline.get("f2") or 0.0)
             ap=float(model.get("average_precision") or 0.0)
-            fold_pass=(
-                leakage
-                and test_examples>0
+            blockers=[]
+            if not leakage:
+                blockers.append("temporal_or_online_leakage")
+            if test_examples<=0:
+                blockers.append("empty_test_fold")
+            if positives<spec.minimum_fold_test_positives:
+                blockers.append("insufficient_test_positives")
+
+            # Validate source-derived test support against BOTH independent
+            # confusion matrices. Metadata alone must not unlock a fold.
+            counts_consistent=True
+            for counts in (baseline,model):
+                keys=("tp","tn","fp","fn")
+                if any(not isinstance(counts.get(key),int) or counts[key]<0 for key in keys):
+                    counts_consistent=False
+                    continue
+                if counts["tp"]+counts["fn"]!=positives:
+                    if "test_positive_count_mismatch" not in blockers:
+                        blockers.append("test_positive_count_mismatch")
+                    counts_consistent=False
+                if sum(counts[key] for key in keys)!=test_examples:
+                    if "confusion_matrix_examples_mismatch" not in blockers:
+                        blockers.append("confusion_matrix_examples_mismatch")
+                    counts_consistent=False
+            if not counts_consistent and not any(
+                reason in blockers for reason in
+                ("test_positive_count_mismatch","confusion_matrix_examples_mismatch")
+            ):
+                blockers.append("confusion_matrix_counts_invalid")
+
+            support_ok=(
+                leakage and test_examples>0
                 and positives>=spec.minimum_fold_test_positives
-                and recall>=spec.minimum_test_recall
-                and precision>=spec.minimum_test_precision
-                and f2>=baseline_f2*(1.0+spec.minimum_f2_gain_fraction)
-                and ap>prevalence
+                and counts_consistent
             )
+            if support_ok:
+                support_eligible+=1
+            if recall<spec.minimum_test_recall:
+                blockers.append("recall_below_gate")
+            if precision<spec.minimum_test_precision:
+                blockers.append("precision_below_gate")
+            if f2<baseline_f2*(1.0+spec.minimum_f2_gain_fraction):
+                blockers.append("f2_gain_below_gate")
+            if ap<=prevalence:
+                blockers.append("average_precision_no_skill")
+            fold_pass=not blockers
             if fold_pass:
-                passing += 1
+                passing+=1
+            diagnostics.append({
+                "fold":fold.get("fold"),
+                "test_examples":test_examples,
+                "test_positives":positives,
+                "minimum_test_positives":spec.minimum_fold_test_positives,
+                "support_eligible":support_ok,
+                "fold_pass":fold_pass,
+                "blockers":blockers,
+            })
             recalls.append(recall)
-        structure_ok = structure_ok and all(
+        structure_ok=structure_ok and all(
             fold.get("temporal_leakage_check") is True
             and fold.get("online_recalibration_leakage_check") is True
             for fold in folds
@@ -608,10 +656,13 @@ def evaluate_backtest_gate(
         "gate":"REAL_MINE_METHANE_BACKTEST_QUALIFIED" if qualified else "REAL_MINE_METHANE_BACKTEST_FAILED",
         "passing_folds":passing,
         "required_passing_folds":spec.required_passing_folds,
+        "maximum_support_eligible_folds":support_eligible,
+        "fold_diagnostics":diagnostics,
         "median_test_recall":median_recall,
         "checks":{
             "verified_source_and_example_scale":"PASS" if source_ok else "FAIL",
             "rolling_temporal_purge":"PASS" if structure_ok else "FAIL",
+            "positive_support_for_required_folds":"PASS" if support_eligible>=spec.required_passing_folds else "FAIL",
             "repeated_holdout_performance":"PASS" if performance_ok else "FAIL",
             "no_credentials_or_hidden_errors":"PASS" if safe else "FAIL",
         },

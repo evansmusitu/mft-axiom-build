@@ -231,5 +231,50 @@ class MethaneBacktestTests(unittest.TestCase):
         self.assertFalse(result["backtest_qualified"])
 
 
+    def test_gate_exposes_irrecoverable_positive_support_blocker(self):
+        spec=MethaneBacktestSpec()
+        folds=[]
+        for index, positives in enumerate((2131,475,308,919)):
+            # Performance is deliberately excellent in every fold. Two folds
+            # still cannot qualify because their positive-support floor fails.
+            truths=[1]*positives+[0]*(30648-positives)
+            predictions=[1]*(positives-1)+[0]+[1]*5+[0]*(30648-positives-5)
+            metrics=binary_metrics(truths,predictions)
+            metrics["average_precision"]=0.90
+            baseline={"f2":0.20,"tp":positives//5,
+                      "fn":positives-positives//5,
+                      "fp":30,"tn":30648-positives-30}
+            folds.append({
+                "fold":index,"test_examples":30648,
+                "test_positives":positives,"test_prevalence":positives/30648,
+                "temporal_leakage_check":True,
+                "online_recalibration_leakage_check":True,
+                "model":metrics,"baseline":baseline,
+            })
+        report={
+            "dataset_id":spec.dataset_id,"dataset_version":1,
+            "doi":spec.doi,"license":spec.license,
+            "transport_source":"openml:42701","source_sha256":"a"*64,
+            "source_rows":9_199_930,"eligible_examples":306_601,
+            "folds":folds,"credentials_used":False,"errors":[],
+        }
+        q=evaluate_backtest_gate(spec,report)
+        self.assertFalse(q["backtest_qualified"])
+        self.assertEqual(q["passing_folds"],2)
+        self.assertEqual(q["maximum_support_eligible_folds"],2)
+        self.assertEqual(q["checks"]["positive_support_for_required_folds"],"FAIL")
+        self.assertEqual(
+            [f["fold"] for f in q["fold_diagnostics"] if "insufficient_test_positives" in f["blockers"]],
+            [1,2],
+        )
+
+        # Merely inflating metadata must not make this safety gate pass.
+        report["folds"][1]["test_positives"]=500
+        q=evaluate_backtest_gate(spec,report)
+        self.assertEqual(q["maximum_support_eligible_folds"],2)
+        self.assertIn("test_positive_count_mismatch",q["fold_diagnostics"][1]["blockers"])
+        self.assertFalse(q["backtest_qualified"])
+
+
 if __name__=="__main__":
     unittest.main()
