@@ -217,12 +217,82 @@ def rolling_backtest_folds(
 
 
 
+def select_augmented_operating_point(
+    *,
+    y_true: Sequence[int|bool],
+    scores: Sequence[float],
+    current_max: Sequence[float],
+    warning_threshold: float,
+    minimum_recall: float,
+) -> dict[str,Any]:
+    """Select a score threshold while preserving the mine's hard warning rule.
+
+    A prediction is positive when methane is already at/above the operational
+    warning threshold OR the learned score crosses the calibrated early-warning
+    threshold. The learned model can therefore add earlier warnings but can
+    never suppress an observed hard-threshold warning.
+    """
+    from benchmarks.mining_adapter.methane_prediction import binary_metrics
+
+    if len(y_true)!=len(scores) or len(y_true)!=len(current_max) or not y_true:
+        raise ValueError("methane_backtest_augmented_length_invalid")
+    if warning_threshold <= 0:
+        raise ValueError("methane_backtest_warning_threshold_invalid")
+    if not 0 < minimum_recall <= 1:
+        raise ValueError("methane_backtest_augmented_recall_invalid")
+
+    clean_scores=[]
+    clean_current=[]
+    for score,current in zip(scores,current_max,strict=True):
+        score_value=float(score)
+        current_value=float(current)
+        if not isfinite(score_value) or not isfinite(current_value):
+            raise ValueError("methane_backtest_augmented_value_not_finite")
+        clean_scores.append(score_value)
+        clean_current.append(current_value)
+
+    hard=[value>=warning_threshold for value in clean_current]
+    candidates=sorted(set(clean_scores),reverse=True)
+    results=[]
+    for threshold in candidates:
+        predicted=[
+            hard_alert or score>=threshold
+            for hard_alert,score in zip(hard,clean_scores,strict=True)
+        ]
+        metrics=binary_metrics(y_true,predicted)
+        results.append({
+            "threshold":threshold,
+            "metrics":metrics,
+            "predictions":predicted,
+        })
+    feasible=[
+        result for result in results
+        if float(result["metrics"]["recall"])>=minimum_recall
+    ]
+    pool=feasible or results
+    chosen=max(
+        pool,
+        key=lambda item:(
+            item["metrics"]["precision"],
+            item["metrics"]["f2"],
+            item["threshold"],
+        ),
+    )
+    return {
+        **chosen,
+        "minimum_recall_requested":minimum_recall,
+        "minimum_recall_met":chosen["metrics"]["recall"]>=minimum_recall,
+        "hard_warning_threshold":warning_threshold,
+    }
+
+
 def online_recalibrated_predictions(
     *,
     calibration_examples: Sequence[PredictionExample],
     calibration_scores: Sequence[float],
     test_examples: Sequence[PredictionExample],
     test_scores: Sequence[float],
+    warning_threshold: float,
     minimum_recall: float,
     update_every_examples: int,
     window_examples: int,
@@ -256,12 +326,16 @@ def online_recalibrated_predictions(
     initial_window=labeled[-window_examples:]
     if sum(1 for _,label,_ in initial_window if label) < minimum_online_positives:
         initial_window=labeled
-    operating=select_operating_threshold(
-        [label for _,label,_ in initial_window],
-        [score for _,_,score in initial_window],
+    operating=select_augmented_operating_point(
+        y_true=[label for _,label,_ in initial_window],
+        scores=[score for _,_,score in initial_window],
+        current_max=[float(item.features["target_current_max"]) for item,_,_ in initial_window],
+        warning_threshold=warning_threshold,
         minimum_recall=minimum_recall,
     )
-    initial_operating_point=dict(operating)
+    initial_operating_point={
+        key:value for key,value in operating.items() if key!="predictions"
+    }
     threshold=float(operating["threshold"])
 
     predictions=[]
@@ -286,9 +360,11 @@ def online_recalibrated_predictions(
                 latest=max((item.label_window_end for item,_,_ in pool),default=None)
                 if latest is not None and latest >= current.feature_time:
                     leakage_safe=False
-                operating=select_operating_threshold(
-                    [label for _,label,_ in pool],
-                    [score for _,_,score in pool],
+                operating=select_augmented_operating_point(
+                    y_true=[label for _,label,_ in pool],
+                    scores=[score for _,_,score in pool],
+                    current_max=[float(item.features["target_current_max"]) for item,_,_ in pool],
+                    warning_threshold=warning_threshold,
                     minimum_recall=minimum_recall,
                 )
                 threshold=float(operating["threshold"])
@@ -300,7 +376,10 @@ def online_recalibrated_predictions(
                     "threshold":threshold,
                 })
 
-        predictions.append(float(current_score)>=threshold)
+        predictions.append(
+            float(current.features["target_current_max"])>=warning_threshold
+            or float(current_score)>=threshold
+        )
         thresholds.append(threshold)
 
     return {
