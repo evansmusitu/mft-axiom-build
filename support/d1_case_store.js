@@ -678,6 +678,45 @@ export class D1CaseStore {
     return Object.freeze({case_id:caseId,state:'IN_PROGRESS',reopened:true,reopened_at:at});
   }
 
+  async authorizeAttachmentUpload(caseId,recoveryCode,attachmentId){
+    const recoveryHash=await sha256(recoveryCode);
+    const row=await this.db.prepare(`SELECT a.attachment_id,a.case_id,a.content_type,a.bytes,a.sha256,a.storage_key,a.scan_state,c.recovery_hash
+      FROM support_attachments a JOIN support_cases c ON c.case_id=a.case_id
+      WHERE a.attachment_id=? AND a.case_id=? LIMIT 1`).bind(attachmentId,caseId).first();
+    if(!row||!constantTimeEqual(String(row.recovery_hash),recoveryHash)||String(row.scan_state)!=='PENDING')return null;
+    return Object.freeze({
+      attachment_id:String(row.attachment_id),case_id:String(row.case_id),content_type:String(row.content_type),
+      bytes:Number(row.bytes),sha256:String(row.sha256),storage_key:String(row.storage_key),scan_state:String(row.scan_state),
+    });
+  }
+
+  async authorizeAttachmentDownload(caseId,recoveryCode,attachmentId){
+    const recoveryHash=await sha256(recoveryCode);
+    const row=await this.db.prepare(`SELECT a.attachment_id,a.case_id,a.filename,a.content_type,a.bytes,a.sha256,a.storage_key,a.scan_state,c.recovery_hash
+      FROM support_attachments a JOIN support_cases c ON c.case_id=a.case_id
+      WHERE a.attachment_id=? AND a.case_id=? AND a.visibility='customer' AND a.scan_state='CLEAN' LIMIT 1`).bind(attachmentId,caseId).first();
+    if(!row||!constantTimeEqual(String(row.recovery_hash),recoveryHash))return null;
+    return Object.freeze({
+      attachment_id:String(row.attachment_id),case_id:String(row.case_id),filename:String(row.filename),content_type:String(row.content_type),
+      bytes:Number(row.bytes),sha256:String(row.sha256),storage_key:String(row.storage_key),scan_state:'CLEAN',
+    });
+  }
+
+  async markAttachmentUploaded(attachmentId,principal={actor_ref:'requester'}){
+    const item=await this.db.prepare(`SELECT a.attachment_id,a.case_id,a.scan_state,c.state,c.priority,c.surface,c.category,c.requester_ref,c.retention_class,
+      c.human_approval_required,c.last_event_hash,c.created_at,c.updated_at
+      FROM support_attachments a JOIN support_cases c ON c.case_id=a.case_id WHERE a.attachment_id=? LIMIT 1`).bind(attachmentId).first();
+    if(!item||String(item.scan_state)!=='PENDING')return null;
+    const at=new Date().toISOString();
+    const event=await appendCaseEvent(item,{type:'ATTACHMENT_UPLOADED',actor:String(principal?.actor_ref||'requester'),visibility:'internal',payload:{attachment_id:attachmentId,scan_state:'PENDING'}},{at});
+    await this.db.batch([
+      this.db.prepare(`INSERT INTO support_case_events (case_id,event_hash,prior_event_hash,type,actor,visibility,payload_json,created_at) VALUES (?,?,?,?,?,?,?,?)`)
+        .bind(event.case_id,event.event_hash,event.prior_event_hash,event.type,event.actor,event.visibility,JSON.stringify(event.payload),event.at),
+      this.db.prepare('UPDATE support_cases SET last_event_hash=?,updated_at=? WHERE case_id=?').bind(event.event_hash,event.at,item.case_id),
+    ]);
+    return Object.freeze({attachment_id:attachmentId,case_id:String(item.case_id),scan_state:'PENDING',uploaded_at:at});
+  }
+
   async recordAttachmentScan(attachmentId,input={},principal){
     const state=String(input.scan_state||'').toUpperCase(),scannerRef=String(input.scanner_ref||'');
     if(!['CLEAN','QUARANTINED','FAILED'].includes(state)||!/^scanner:[a-z0-9._:-]{6,180}$/i.test(scannerRef))throw new TypeError('attachment scan metadata invalid');
