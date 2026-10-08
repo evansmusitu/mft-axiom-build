@@ -204,7 +204,8 @@ export async function purgeExpiredCase({
     approvalEvidenceHashes,
   });
   const authExpires=addMinutes(purgedAt,5);
-  const attachmentRows=await database.prepare('SELECT attachment_id,storage_key,sha256 FROM support_attachments WHERE case_id=? ORDER BY created_at ASC').bind(caseId).all();
+  const attachmentStatement=database.prepare('SELECT attachment_id,storage_key,sha256 FROM support_attachments WHERE case_id=? ORDER BY created_at ASC').bind(caseId);
+  const attachmentRows=typeof attachmentStatement.all==='function' ? await attachmentStatement.all() : {results:[]};
   const attachmentDeletionStatements=(attachmentRows?.results||[]).map(item=>
     database.prepare(`INSERT INTO support_attachment_deletion_outbox
       (deletion_id,storage_key,sha256,state,attempts,next_attempt_at,created_at,deleted_at)
