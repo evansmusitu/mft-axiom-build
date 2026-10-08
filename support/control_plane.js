@@ -109,7 +109,14 @@ export function inspectSecretMaterial(value, path = 'intake') {
     if (plain(candidate)) {
       for (const [key, child] of Object.entries(candidate)) {
         if (FORBIDDEN_KEYS.test(key)) findings.push({path: `${location}.${key}`, type: 'forbidden_field'});
-        else walk(child, `${location}.${key}`);
+        else {
+          const internalHashField = location.startsWith('event') && /(?:^|_)(?:hash|sha256)(?:es)?$/i.test(key);
+          const validatedHashValue = (
+            (typeof child === 'string' && HASH.test(child)) ||
+            (Array.isArray(child) && child.length > 0 && child.every(item => typeof item === 'string' && HASH.test(item)))
+          );
+          if (!(internalHashField && validatedHashValue)) walk(child, `${location}.${key}`);
+        }
       }
       return;
     }
@@ -308,7 +315,7 @@ export async function appendCaseEvent(caseRecord, event, {at = new Date().toISOS
   if (!plain(caseRecord) || !CASE_ID.test(String(caseRecord.case_id ?? ''))) throw new TypeError('valid case record required');
   if (!plain(event) || !clean(event.type, 80) || !clean(event.actor, 192)) throw new TypeError('event type and actor are required');
   if (!['customer', 'internal'].includes(event.visibility)) throw new TypeError('event visibility is invalid');
-  const secretCheck = inspectSecretMaterial(event.payload);
+  const secretCheck = inspectSecretMaterial(event.payload, 'event');
   if (!secretCheck.safe) throw new SecretMaterialError(secretCheck.findings);
   const body = {
     schema: 'musitu.axiom.support-case-event.v1',
