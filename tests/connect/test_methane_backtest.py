@@ -113,7 +113,7 @@ class MethaneBacktestTests(unittest.TestCase):
             PredictionExample(
                 feature_time=base-timedelta(seconds=1200-index*60),
                 label_window_end=base-timedelta(seconds=840-index*60),
-                features={"x":float(index)},
+                features={"x":float(index),"target_current_max":0.2},
                 label=index<4,
             )
             for index in range(8)
@@ -123,7 +123,7 @@ class MethaneBacktestTests(unittest.TestCase):
             PredictionExample(
                 feature_time=base+timedelta(seconds=index*60),
                 label_window_end=base+timedelta(seconds=index*60+360),
-                features={"x":float(index)},
+                features={"x":float(index),"target_current_max":0.2},
                 label=index in {0,1,2,7,8,9},
             )
             for index in range(12)
