@@ -43,8 +43,8 @@ test('customer thread exposes only clean customer-visible attachment metadata',a
  assert.match(source,/attachments: Object\.freeze/);
 });
 
-test('closed cases may reopen only through explicit store method and state transition includes bounded reopen',async()=>{
+test('closed cases stay terminal in the generic state machine and reopen only through explicit bounded method',async()=>{
  const control=await readFile(new URL('../control_plane.js',import.meta.url),'utf8');
- assert.match(control,/CLOSED: Object\.freeze\(\['IN_PROGRESS'\]\)/);
+ assert.match(control,/CLOSED: Object\.freeze\(\[\]\)/);
  assert.equal(typeof D1CaseStore.prototype.reopenCustomerCase,'function');
 });
