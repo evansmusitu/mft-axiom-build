@@ -68,6 +68,7 @@ export class D1CaseStore {
       visibility: message.visibility,
       payload: {message_id: message.message_id},
     }, {at: message.created_at});
+    const notificationId = type === 'AGENT_REPLY' ? 'AXN-' + randomToken(16) : null;
     await this.db.batch([
       this.db.prepare(`INSERT INTO support_case_messages
         (message_id,case_id,type,actor,visibility,encrypted_payload,event_hash,created_at)
@@ -83,8 +84,11 @@ export class D1CaseStore {
       ),
       this.db.prepare('UPDATE support_cases SET last_event_hash=?,updated_at=? WHERE case_id=?')
         .bind(event.event_hash,event.at,caseId),
+      ...(notificationId ? [this.db.prepare(`INSERT INTO support_notification_outbox
+        (notification_id,case_id,kind,audience,event_hash,created_at) VALUES (?,?,?,?,?,?)`)
+        .bind(notificationId,caseId,'AGENT_REPLY_AVAILABLE','customer',event.event_hash,event.at)] : []),
     ]);
-    return Object.freeze({message});
+    return Object.freeze({message, notification_id: notificationId});
   }
 
 
@@ -142,6 +146,7 @@ export class D1CaseStore {
       type: message.type, actor: message.actor, visibility: message.visibility,
       payload: {message_id: message.message_id},
     }, {at: message.created_at});
+    const notificationId = 'AXN-' + randomToken(16);
     await this.db.batch([
       this.db.prepare(`INSERT INTO support_case_messages
         (message_id,case_id,type,actor,visibility,encrypted_payload,event_hash,created_at)
@@ -157,8 +162,11 @@ export class D1CaseStore {
       ),
       this.db.prepare('UPDATE support_cases SET last_event_hash=?,updated_at=? WHERE case_id=?')
         .bind(event.event_hash,event.at,caseId),
+      this.db.prepare(`INSERT INTO support_notification_outbox
+        (notification_id,case_id,kind,audience,event_hash,created_at) VALUES (?,?,?,?,?,?)`)
+        .bind(notificationId,caseId,'CUSTOMER_REPLY_RECEIVED','operator',event.event_hash,event.at),
     ]);
-    return Object.freeze({message, case: {...JSON.parse(row.public_json), updated_at:event.at}});
+    return Object.freeze({message, case: {...JSON.parse(row.public_json), updated_at:event.at}, notification_id:notificationId});
   }
 
   async transitionOperatorCase(caseId, label, principal) {
