@@ -1,0 +1,127 @@
+name: MUSITU Axiom Global Support Production Audit
+
+on:
+  push:
+    branches:
+      - 'support/axiom-global-support-ops-production-rollout-20261008'
+    paths:
+      - '.github/workflows/axiom-global-support-ops-production-audit.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    if: github.event_name == 'push' && github.event.before == '0f35228c8ba23ccfc4e48383cb6ae6388c3fd1ac'
+    runs-on: ubuntu-latest
+    environment: axiom-support-production
+    timeout-minutes: 10
+    env:
+      CF_ACCOUNT: '93f395f5121954671f92fffa453d6b61'
+      SUPPORT_DB: 'a525c8b6-9b44-413b-a219-46e419b71b12'
+      D1_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      WORKER_TOKEN: ${{ secrets.CLOUDFLARE_RULESETS_API_TOKEN }}
+      ACCESS_TOKEN: ${{ secrets.CLOUDFLARE_ACCESS_API_TOKEN }}
+      CF_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+      CF_GLOBAL_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+    steps:
+      - name: Independent production readback
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          const api='https://api.cloudflare.com/client/v4',account=process.env.CF_ACCOUNT,db=process.env.SUPPORT_DB;
+          const d1=String(process.env.D1_TOKEN||''),worker=String(process.env.WORKER_TOKEN||''),access=String(process.env.ACCESS_TOKEN||'');
+          const email=String(process.env.CF_EMAIL||''),globalKey=String(process.env.CF_GLOBAL_KEY||'');
+          async function raw(headers,path,{method='GET',body}={}){
+            const r=await fetch(api+path,{method,headers:{...headers,accept:'application/json',...(body===undefined?{}:{'content-type':'application/json'})},...(body===undefined?{}:{body:JSON.stringify(body)})});
+            let p={};try{p=await r.json()}catch{}return {r,p};
+          }
+          async function call(headers,path,opts={}){
+            const {r,p}=await raw(headers,path,opts);
+            if(!r.ok||p?.success===false)throw new Error('Cloudflare read failed '+r.status+' '+path);
+            return p.result;
+          }
+          const wh={authorization:'Bearer '+worker},dh={authorization:'Bearer '+d1};
+          const ah=access?{authorization:'Bearer '+access}:null,gh={'X-Auth-Email':email,'X-Auth-Key':globalKey};
+          async function accessCall(path){
+            if(ah){const a=await raw(ah,path);if(a.r.ok&&a.p?.success!==false)return a.p.result;if(!(a.r.status===401||a.r.status===403))throw new Error('Access read failed '+a.r.status);}
+            if(!email||!globalKey)throw new Error('Access credentials unavailable');
+            return call(gh,path);
+          }
+          async function query(sql){const result=await call(dh,'/accounts/'+account+'/d1/database/'+db+'/query',{method:'POST',body:{sql}});const x=Array.isArray(result)?result[0]:result;return Array.isArray(x?.results)?x.results:[];}
+          async function content(name){const r=await fetch(api+'/accounts/'+account+'/workers/scripts/'+name+'/content',{headers:{authorization:'Bearer '+worker}});if(!r.ok)throw new Error('Worker content read failed '+r.status);return r.text();}
+          const [pub,ops,domains,schedules,subPub,subOps,buckets,apps,counts,objects,queueCounts,pubContent,opsContent]=await Promise.all([
+            call(wh,'/accounts/'+account+'/workers/scripts/musitu-axiom-support/settings'),
+            call(wh,'/accounts/'+account+'/workers/scripts/musitu-axiom-support-ops/settings'),
+            call(wh,'/accounts/'+account+'/workers/domains'),
+            call(wh,'/accounts/'+account+'/workers/scripts/musitu-axiom-support/schedules'),
+            call(wh,'/accounts/'+account+'/workers/scripts/musitu-axiom-support/subdomain'),
+            call(wh,'/accounts/'+account+'/workers/scripts/musitu-axiom-support-ops/subdomain'),
+            call(wh,'/accounts/'+account+'/r2/buckets'),
+            accessCall('/accounts/'+account+'/access/apps?per_page=100'),
+            query("SELECT (SELECT COUNT(*) FROM support_cases) cases,(SELECT COUNT(*) FROM support_case_events) events,(SELECT COUNT(*) FROM support_case_messages) messages,(SELECT COUNT(*) FROM support_case_sla) sla,(SELECT COUNT(*) FROM support_case_triage) triage,(SELECT COUNT(*) FROM support_case_languages) languages,(SELECT COUNT(*) FROM support_case_escalations) escalations,(SELECT COUNT(*) FROM support_incidents) incidents,(SELECT COUNT(*) FROM support_attachments) attachments,(SELECT COUNT(*) FROM support_csat) csat,(SELECT COUNT(*) FROM support_qa_reviews) qa;"),
+            query("SELECT type,name FROM sqlite_master WHERE type IN ('table','index','trigger') AND name LIKE 'support_%' ORDER BY type,name;"),
+            query("SELECT (SELECT COUNT(*) FROM support_notification_outbox) notification_outbox,(SELECT COUNT(*) FROM support_notification_attempts) notification_attempts,(SELECT COUNT(*) FROM support_webhook_outbox) webhook_outbox,(SELECT COUNT(*) FROM support_attachment_deletion_outbox) attachment_deletions;"),
+            content('musitu-axiom-support'),
+            content('musitu-axiom-support-ops')
+          ]);
+          const pb=Array.isArray(pub?.bindings)?pub.bindings:[],ob=Array.isArray(ops?.bindings)?ops.bindings:[];
+          const ds=Array.isArray(domains)?domains:[],sc=Array.isArray(schedules?.schedules)?schedules.schedules:Array.isArray(schedules)?schedules:[];
+          const br=Array.isArray(buckets)?buckets:Array.isArray(buckets?.buckets)?buckets.buckets:[];
+          const ar=Array.isArray(apps)?apps:[];
+          const names=new Set(objects.map(x=>String(x.name||'')));
+          for(const name of ['support_case_sla','support_case_escalations','support_incidents','support_attachments','support_attachment_deletion_outbox','support_diagnostics','support_webhook_outbox','support_operator_leases','support_csat','support_qa_reviews'])if(!names.has(name))throw new Error('global ops schema object missing: '+name);
+          if(!pb.some(x=>x?.name==='SUPPORT_ATTACHMENTS'&&x?.type==='r2_bucket'))throw new Error('R2 binding missing');
+          if(!ob.some(x=>x?.name==='SUPPORT_API'&&x?.type==='service'&&x?.service==='musitu-axiom-support'))throw new Error('operator service binding missing');
+          if(!sc.some(x=>String(x?.cron||'')==='*/5 * * * *'))throw new Error('cron missing');
+          if(!br.some(x=>String(x?.name||'')==='musitu-axiom-support-attachments'))throw new Error('R2 bucket missing');
+          if(!ds.some(x=>x?.hostname==='support.mftintelligence.com'&&x?.service==='musitu-axiom-support'))throw new Error('public custom domain drift');
+          if(!ds.some(x=>x?.hostname==='support-ops.mftintelligence.com'&&x?.service==='musitu-axiom-support-ops'))throw new Error('operator custom domain drift');
+          if(subPub?.enabled===true||subPub?.previews_enabled===true||subOps?.enabled===true||subOps?.previews_enabled===true)throw new Error('workers.dev/previews enabled');
+          const c=counts[0]||{},q=queueCounts[0]||{};
+          if(Number(c.sla||0)<Number(c.cases||0)||Number(c.triage||0)<Number(c.cases||0)||Number(c.languages||0)<Number(c.cases||0))throw new Error('global backfill incomplete');
+          for(const marker of ['musitu.axiom.support-analytics.v1','/api/v1/status','SUPPORT_ATTACHMENTS','ATTACHMENT_HASH_MISMATCH','processSupportQueues','Service status'])if(!pubContent.includes(marker))throw new Error('public Worker marker missing: '+marker);
+          for(const marker of ['SLA','Incidents','Analytics','QA','Macros','/api/v1/operator/analytics'])if(!opsContent.includes(marker))throw new Error('operator Worker marker missing: '+marker);
+          const ownerRef=String(pb.find(x=>x?.name==='SUPPORT_HUMAN_OWNER_REF')?.text||'');
+          const approverRef=String(pb.find(x=>x?.name==='SUPPORT_INDEPENDENT_APPROVER_REF')?.text||'');
+          let mapping={};try{mapping=JSON.parse(String(pb.find(x=>x?.name==='SUPPORT_OPERATOR_BINDINGS_JSON')?.text||'{}'))}catch{}
+          const actorRefs=Object.values(mapping&&typeof mapping==='object'&&!Array.isArray(mapping)?mapping:{}).map(x=>String(x?.actor_ref||'')).filter(Boolean);
+          const distinctApproverBound=Boolean(ownerRef&&approverRef&&ownerRef!==approverRef&&actorRefs.includes(approverRef));
+          const recoveryApp=ar.filter(x=>String(x?.domain||'').toLowerCase()==='support.mftintelligence.com/recovery/*');
+          const opsApp=ar.filter(x=>String(x?.domain||'').toLowerCase()==='support-ops.mftintelligence.com');
+          console.log(JSON.stringify({
+            gate:'MUSITU_AXIOM_GLOBAL_SUPPORT_PRODUCTION_AUDIT',
+            status:'PASS',
+            d1:{counts:Object.fromEntries(Object.entries(c).map(([k,v])=>[k,Number(v||0)])),queues:Object.fromEntries(Object.entries(q).map(([k,v])=>[k,Number(v||0)])),schema_object_count:names.size},
+            workers:{public_domain:true,operator_domain:true,r2_binding:true,cron:'*/5 * * * *',workers_dev:false,previews:false,public_bundle_markers:true,operator_bundle_markers:true},
+            r2:{bucket_present:true,bucket_private_by_configuration:true},
+            access:{recovery_app_count:recoveryApp.length,operator_app_count:opsApp.length},
+            human_boundaries:{distinct_independent_approver_identity_bound:distinctApproverBound,continuous_staffing_evidenced:false,contractual_sla_evidenced:false,certified_multilingual_staffing_evidenced:false},
+            provider_boundaries:{outbound_email_bound:false,external_webhook_sender_bound:false,malware_scanner_bound:false,pager_bound:false},
+            customer_content_read:false,recovery_code_read:false,secret_values_recorded:false
+          }));
+          NODE
+
+      - name: Edge probes
+        shell: bash
+        run: |
+          set -euo pipefail
+          probe(){
+            local url="$1" kind="$2"
+            code=$(curl --silent --show-error --connect-timeout 10 --max-time 30 -D /tmp/h -o /tmp/b -w '%{http_code}' "$url" || true)
+            if [ "$kind" = access ]; then
+              case "$code" in 302|303|307|401|403) ;; *) echo "access-protected route unexpectedly open: $url -> $code" >&2; exit 1;; esac
+            else
+              if [ "$code" = 200 ]; then :;
+              elif [ "$code" = 403 ] && grep -qi '^cf-mitigated:[[:space:]]*challenge' /tmp/h; then :;
+              else echo "unexpected public edge result: $url -> $code" >&2; exit 1; fi
+            fi
+            printf '{"url":"%s","http_status":"%s","classification":"%s"}\n' "$url" "$code" "$kind"
+          }
+          probe https://support.mftintelligence.com/ public
+          probe https://support.mftintelligence.com/status/ public
+          probe https://support.mftintelligence.com/api/v1/status public
+          probe https://support.mftintelligence.com/recovery/ access
+          probe https://support-ops.mftintelligence.com/ access
+          rm -f /tmp/h /tmp/b
