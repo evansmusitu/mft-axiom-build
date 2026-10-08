@@ -1,7 +1,7 @@
 const OPERATOR_STATE_ACTIONS=Object.freeze(['IN_PROGRESS_MUSITU_SUPPORT','ACTION_REQUIRED','SOLUTION_PROVIDED','ESCALATED','CLOSED']);
 const $=selector=>document.querySelector(selector);
 const list=$('#case-list'),search=$('#case-search'),conversation=$('#conversation'),messageBody=$('#message-body');
-const send=$('#send-message'),status=$('#composer-status'),stateSelect=$('#state-select'),applyState=$('#apply-state');
+const send=$('#send-message'),status=$('#composer-status'),stateSelect=$('#state-select'),applyState=$('#apply-state'),assignButton=$('#assign-to-me'),approvalAction=$('#approval-action'),approvalEvidence=$('#approval-evidence'),requestApproval=$('#request-approval'),approvalStatus=$('#approval-status');
 let cases=[],selected=null,mode='AGENT_REPLY',filter='all';
 
 const esc=value=>String(value??'').replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
@@ -45,7 +45,7 @@ function renderCase(value){
   }).join(''):'<p class="muted">No follow-up messages yet.</p>';
   const audit=[...(value.messages||[])].reverse().slice(0,8);
   $('#audit-trail').innerHTML=audit.length?audit.map(m=>`<div class="audit-event"><time>${esc(new Date(m.created_at).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}))}</time><span>${esc(m.type.replaceAll('_',' ').toLowerCase())}</span></div>`).join(''):'<p class="muted">No conversation events yet.</p>';
-  messageBody.disabled=false;send.disabled=false;stateSelect.disabled=false;applyState.disabled=false;renderList();
+  messageBody.disabled=false;send.disabled=false;stateSelect.disabled=false;applyState.disabled=false;assignButton.disabled=false;approvalAction.disabled=false;approvalEvidence.disabled=false;requestApproval.disabled=false;renderList();
 }
 
 async function loadCases(){
@@ -60,6 +60,21 @@ async function postMessage(){
   try{await api(`/api/v1/operator/cases/${encodeURIComponent(selected.case.case_id)}/messages`,{method:'POST',body:JSON.stringify({type:mode,body})});messageBody.value='';status.textContent=mode==='INTERNAL_NOTE'?'Internal note saved.':'Reply added to the customer thread.';await openCase(selected.case.case_id);await loadCases();}
   catch(error){status.textContent=error.message;}finally{send.disabled=false;}
 }
+async function assignToMe(){
+  if(!selected)return;assignButton.disabled=true;
+  try{const value=await api(`/api/v1/operator/cases/${encodeURIComponent(selected.case.case_id)}/assignment`,{method:'POST'});$('#case-owner').textContent=value.assigned_operator_ref||'Assigned';await loadCases();}
+  catch(error){status.textContent=error.message;}finally{assignButton.disabled=false;}
+}
+async function requestSensitiveApproval(){
+  if(!selected||!approvalAction.value)return;
+  const hash=approvalEvidence.value.trim();
+  if(!/^[a-f0-9]{64}$/i.test(hash)){approvalStatus.textContent='Enter one 64-character evidence SHA-256.';return;}
+  requestApproval.disabled=true;approvalStatus.textContent='Recording immutable approval request…';
+  try{
+    const value=await api(`/api/v1/operator/cases/${encodeURIComponent(selected.case.case_id)}/approvals`,{method:'POST',body:JSON.stringify({action:approvalAction.value,evidence_hashes:[hash]})});
+    approvalStatus.textContent=`Approval ${value.approval_id} is pending an independent operator.`;approvalAction.value='';approvalEvidence.value='';
+  }catch(error){approvalStatus.textContent=error.message;}finally{requestApproval.disabled=false;}
+}
 async function changeState(){
   if(!selected||!stateSelect.value)return;if(!OPERATOR_STATE_ACTIONS.includes(stateSelect.value)){status.textContent='Unsupported state action.';return;}applyState.disabled=true;
   try{await api(`/api/v1/operator/cases/${encodeURIComponent(selected.case.case_id)}/state`,{method:'POST',body:JSON.stringify({label:stateSelect.value})});stateSelect.value='';await openCase(selected.case.case_id);await loadCases();}
@@ -67,5 +82,5 @@ async function changeState(){
 }
 document.querySelectorAll('.filters button').forEach(button=>button.addEventListener('click',()=>{filter=button.dataset.filter;document.querySelectorAll('.filters button').forEach(x=>x.classList.toggle('active',x===button));renderList();}));
 document.querySelectorAll('.composer-tabs button').forEach(button=>button.addEventListener('click',()=>{mode=button.dataset.type;document.querySelectorAll('.composer-tabs button').forEach(x=>x.setAttribute('aria-selected',String(x===button)));send.textContent=mode==='INTERNAL_NOTE'?'Save internal note':'Send reply';messageBody.placeholder=mode==='INTERNAL_NOTE'?'Write a private internal note…':'Write a secure response…';}));
-search.addEventListener('input',renderList);send.addEventListener('click',postMessage);applyState.addEventListener('click',changeState);
+search.addEventListener('input',renderList);send.addEventListener('click',postMessage);applyState.addEventListener('click',changeState);assignButton.addEventListener('click',assignToMe);requestApproval.addEventListener('click',requestSensitiveApproval);
 loadCases();
