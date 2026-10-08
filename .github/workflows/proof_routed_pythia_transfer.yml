@@ -1,0 +1,46 @@
+name: MUSITU proof-routed Pythia transfer
+on:
+  push:
+    branches:
+      - proof-routed-r4-pythia-ci-20261008
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  fetch-pythia:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Fetch pinned current Pythia-14m bytes
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --quiet --disable-pip-version-check "huggingface_hub[hf_xet]>=0.34"
+          python - <<'PY'
+          from huggingface_hub import HfApi, snapshot_download
+          import hashlib, json, pathlib, shutil
+          repo="EleutherAI/pythia-14m"
+          info=HfApi().model_info(repo)
+          rev=info.sha
+          patterns=["model.safetensors","config.json","tokenizer.json","tokenizer_config.json","special_tokens_map.json"]
+          src=pathlib.Path(snapshot_download(repo_id=repo, revision=rev, allow_patterns=patterns))
+          out=pathlib.Path("pythia_artifact"); out.mkdir()
+          files=[]
+          for name in patterns:
+              p=src/name
+              if p.exists():
+                  shutil.copy2(p,out/name)
+                  b=(out/name).read_bytes()
+                  files.append({"path":name,"size":len(b),"sha256":hashlib.sha256(b).hexdigest()})
+          (out/"CHECKPOINT_MANIFEST.json").write_text(json.dumps({"repo":repo,"revision":rev,"files":files},indent=2)+"\n")
+          print(json.dumps({"repo":repo,"revision":rev,"files":files},indent=2))
+          PY
+      - name: Upload checkpoint artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: pythia-14m-proof-routed-gate
+          path: pythia_artifact/
+          if-no-files-found: error
+          retention-days: 1
