@@ -1,0 +1,229 @@
+name: MUSITU Axiom Secure Recovery Production Worker Stage
+
+on:
+  push:
+    branches:
+      - 'support/axiom-support-recovery-production-rollout-20261008'
+    paths:
+      - '.github/workflows/axiom-support-recovery-production-worker-stage.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  stage:
+    if: github.event_name == 'push' && github.event.before == '2ea826753ebe0872ccc5dbc95534e7ae5ec4b5d6'
+    runs-on: ubuntu-latest
+    environment: axiom-support-production
+    timeout-minutes: 12
+    env:
+      CF_ACCOUNT: '93f395f5121954671f92fffa453d6b61'
+      WORKER_TOKEN: ${{ secrets.CLOUDFLARE_RULESETS_API_TOKEN }}
+      ACCESS_TOKEN: ${{ secrets.CLOUDFLARE_ACCESS_API_TOKEN }}
+      CF_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+      CF_GLOBAL_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Exact stage gate and full regression
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF_NAME" = 'support/axiom-support-recovery-production-rollout-20261008'
+          test "${{ github.event.before }}" = '2ea826753ebe0872ccc5dbc95534e7ae5ec4b5d6'
+          node --test support/tests/*.test.mjs
+
+      - name: Build support and operator bundles with recovery assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx --yes esbuild@0.25.11 support/app.js --bundle --format=esm --platform=browser --target=es2022 --outfile=.support-public-app.js
+          node <<'NODE'
+          const fs=require('node:fs');
+          const html=fs.readFileSync('support/index.html','utf8');
+          const css=fs.readFileSync('support/styles.css','utf8');
+          const robots=fs.readFileSync('support/robots.txt','utf8');
+          const sitemap=fs.readFileSync('support/sitemap.xml','utf8');
+          const app=fs.readFileSync('.support-public-app.js','utf8');
+          const recoveryHtml=fs.readFileSync('support/recovery/index.html','utf8');
+          const recoveryApp=fs.readFileSync('support/recovery/app.js','utf8');
+          const publicSource=[
+            "import support,{handleOperatorRequest} from './support/worker.js';",
+            "const HTML="+JSON.stringify(html)+";const CSS="+JSON.stringify(css)+";const ROBOTS="+JSON.stringify(robots)+";const SITEMAP="+JSON.stringify(sitemap)+";const APP="+JSON.stringify(app)+";",
+            "const RECOVERY_HTML="+JSON.stringify(recoveryHtml)+";const RECOVERY_APP="+JSON.stringify(recoveryApp)+";",
+            "const H=Object.freeze({'content-security-policy':\"default-src 'self'; connect-src 'self' https://challenges.cloudflare.com; img-src 'self' data:; style-src 'self'; script-src 'self' https://challenges.cloudflare.com; frame-src https://challenges.cloudflare.com; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'\",'referrer-policy':'no-referrer','permissions-policy':'camera=(), microphone=(), geolocation=(), payment=()','x-content-type-options':'nosniff','cross-origin-opener-policy':'same-origin','cross-origin-resource-policy':'same-origin','cache-control':'no-store'});",
+            "const RH=Object.freeze({...H,'x-robots-tag':'noindex, nofollow, noarchive','content-security-policy':\"default-src 'self'; connect-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'\"});",
+            "function asset(body,type,headers=H){return new Response(body,{status:200,headers:{...headers,'content-type':type}})}",
+            "export default {async fetch(request,env){const u=new URL(request.url);",
+            "if(u.pathname.startsWith('/api/v1/operator/')) return handleOperatorRequest(request,env);",
+            "if(request.method==='GET'&&(u.pathname==='/recovery/'||u.pathname==='/recovery/index.html')) return asset(RECOVERY_HTML,'text/html; charset=utf-8',RH);",
+            "if(request.method==='GET'&&u.pathname==='/recovery/app.js') return asset(RECOVERY_APP,'text/javascript; charset=utf-8',RH);",
+            "if(request.method==='GET'&&(u.pathname==='/'||u.pathname==='/index.html')) return asset(HTML,'text/html; charset=utf-8');",
+            "if(request.method==='GET'&&u.pathname==='/styles.css') return asset(CSS,'text/css; charset=utf-8');",
+            "if(request.method==='GET'&&u.pathname==='/robots.txt') return asset(ROBOTS,'text/plain; charset=utf-8');",
+            "if(request.method==='GET'&&u.pathname==='/sitemap.xml') return asset(SITEMAP,'application/xml; charset=utf-8');",
+            "if(request.method==='GET'&&u.pathname==='/app.js') return asset(APP,'text/javascript; charset=utf-8');",
+            "return support.fetch(request,env);}};"
+          ].join('\n');
+          fs.writeFileSync('.support-public-entry.mjs',publicSource,{mode:0o600});
+
+          const ohtml=fs.readFileSync('support/console/index.html','utf8');
+          const ocss=fs.readFileSync('support/console/styles.css','utf8');
+          const oapp=fs.readFileSync('support/console/app.js','utf8');
+          const opsSource=[
+            "import operator from './support/operator_worker.js';import {verifyOperatorAccess} from './support/worker.js';",
+            "const HTML="+JSON.stringify(ohtml)+";const CSS="+JSON.stringify(ocss)+";const APP="+JSON.stringify(oapp)+";",
+            "const H=Object.freeze({'cache-control':'no-store','x-content-type-options':'nosniff','x-robots-tag':'noindex, nofollow, noarchive','referrer-policy':'no-referrer','content-security-policy':\"default-src 'self'; connect-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'\"});",
+            "function asset(body,type){return new Response(body,{status:200,headers:{...H,'content-type':type}})}",
+            "export default {async fetch(request,env){const principal=await verifyOperatorAccess(request,env);if(!principal)return operator.fetch(request,env);const u=new URL(request.url);",
+            "if((request.method==='GET'||request.method==='HEAD')&&(u.pathname==='/'||u.pathname==='/index.html'))return asset(request.method==='HEAD'?null:HTML,'text/html; charset=utf-8');",
+            "if((request.method==='GET'||request.method==='HEAD')&&u.pathname==='/styles.css')return asset(request.method==='HEAD'?null:CSS,'text/css; charset=utf-8');",
+            "if((request.method==='GET'||request.method==='HEAD')&&u.pathname==='/app.js')return asset(request.method==='HEAD'?null:APP,'text/javascript; charset=utf-8');",
+            "return operator.fetch(request,env);}};"
+          ].join('\n');
+          fs.writeFileSync('.support-ops-entry.mjs',opsSource,{mode:0o600});
+          NODE
+          npx --yes esbuild@0.25.11 .support-public-entry.mjs --bundle --format=esm --platform=browser --target=es2022 --outfile=.support-public-bundle.mjs
+          npx --yes esbuild@0.25.11 .support-ops-entry.mjs --bundle --format=esm --platform=browser --target=es2022 --outfile=.support-ops-bundle.mjs
+          test -s .support-public-bundle.mjs
+          test -s .support-ops-bundle.mjs
+
+      - name: Deploy staged recovery code while Access remains deny-by-default
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          import {buildWorkerMultipart} from './support/scripts/provision_cloudflare_control_plane.mjs';
+          const api='https://api.cloudflare.com/client/v4';
+          const account=process.env.CF_ACCOUNT;
+          const token=String(process.env.WORKER_TOKEN||'');
+          const accessToken=String(process.env.ACCESS_TOKEN||'');
+          const email=String(process.env.CF_EMAIL||''),globalKey=String(process.env.CF_GLOBAL_KEY||'');
+          if(!token) throw new Error('Worker API token missing');
+          async function raw(headers,path,{method='GET',body,rawBody,contentType}={}){
+            const r=await fetch(api+path,{method,headers:{...headers,accept:'application/json',...(body!==undefined?{'content-type':'application/json'}:{}),...(contentType?{'content-type':contentType}:{})},...(rawBody!==undefined?{body:rawBody}:body===undefined?{}:{body:JSON.stringify(body)})});
+            let p={};try{p=await r.json()}catch{}
+            return {r,p};
+          }
+          async function call(headers,path,opts={}){
+            const {r,p}=await raw(headers,path,opts);
+            if(!r.ok||p?.success===false){
+              const codes=(p?.errors||[]).map(x=>x?.code).filter(Boolean);
+              throw new Error('Cloudflare '+(opts.method||'GET')+' '+path+' failed HTTP '+r.status+' codes='+(codes.join(',')||'none'));
+            }
+            return p?.result;
+          }
+          const wh={authorization:'Bearer '+token};
+          const ah=accessToken?{authorization:'Bearer '+accessToken}:null;
+          const gh={'X-Auth-Email':email,'X-Auth-Key':globalKey};
+          async function access(path){
+            if(ah){
+              const a=await raw(ah,path);
+              if(a.r.ok&&a.p?.success!==false) return a.p?.result;
+              if(!(a.r.status===401||a.r.status===403)) throw new Error('Access API failed HTTP '+a.r.status);
+            }
+            return call(gh,path);
+          }
+
+          const [org,apps]=await Promise.all([
+            access('/accounts/'+account+'/access/organizations'),
+            access('/accounts/'+account+'/access/apps?per_page=100')
+          ]);
+          const authDomainRaw=String(org?.auth_domain||'').trim();
+          const team=authDomainRaw.startsWith('http')?authDomainRaw:'https://'+authDomainRaw;
+          const target='support.mftintelligence.com/recovery/*';
+          const matches=(Array.isArray(apps)?apps:[]).filter(x=>String(x?.domain||'').toLowerCase()===target);
+          if(matches.length!==1) throw new Error('recovery Access app is not unique');
+          const app=matches[0],aud=String(app?.aud||'');
+          if(!aud||!team) throw new Error('recovery Access config incomplete');
+          const policies=await access('/accounts/'+account+'/access/apps/'+encodeURIComponent(String(app.id))+'/policies');
+          if(!Array.isArray(policies)||policies.length!==0) throw new Error('recovery Access must remain deny-by-default during code stage');
+
+          const publicWorker='musitu-axiom-support';
+          const [publicSettings,publicSecrets]=await Promise.all([
+            call(wh,'/accounts/'+account+'/workers/scripts/'+publicWorker+'/settings'),
+            call(wh,'/accounts/'+account+'/workers/scripts/'+publicWorker+'/secrets')
+          ]);
+          const current=Array.isArray(publicSettings?.bindings)?publicSettings.bindings:[];
+          const secretNames=new Set((Array.isArray(publicSecrets)?publicSecrets:[]).map(x=>String(x?.name||'')));
+          for(const required of ['SUPPORT_DATA_KEY_B64','TURNSTILE_SECRET_KEY']) if(!secretNames.has(required)) throw new Error('public support secret missing: '+required);
+          const replace=new Set(['SUPPORT_RECOVERY_ACCESS_TEAM_DOMAIN','SUPPORT_RECOVERY_ACCESS_AUD']);
+          const publicBindings=[];
+          for(const b of current){
+            const name=String(b?.name||'');
+            if(!name||replace.has(name)) continue;
+            if(secretNames.has(name)||b?.type==='secret_text') publicBindings.push({type:'inherit',name,version_id:'latest'});
+            else publicBindings.push(b);
+          }
+          publicBindings.push(
+            {type:'plain_text',name:'SUPPORT_RECOVERY_ACCESS_TEAM_DOMAIN',text:team},
+            {type:'plain_text',name:'SUPPORT_RECOVERY_ACCESS_AUD',text:aud}
+          );
+          const pm=buildWorkerMultipart(fs.readFileSync('.support-public-bundle.mjs'),{
+            main_module:'index.mjs',compatibility_date:'2026-10-08',bindings:publicBindings,
+            annotations:{'workers/message':'MUSITU Axiom secure recovery staged production deployment'}
+          },'----MUSITUAxiomRecoveryPublic');
+          await call(wh,'/accounts/'+account+'/workers/scripts/'+publicWorker+'?bindings_inherit=strict',{
+            method:'PUT',rawBody:pm.body,contentType:'multipart/form-data; boundary='+pm.boundary
+          });
+          await call(wh,'/accounts/'+account+'/workers/scripts/'+publicWorker+'/subdomain',{method:'POST',body:{enabled:false,previews_enabled:false}});
+
+          const opsWorker='musitu-axiom-support-ops';
+          const opsSettings=await call(wh,'/accounts/'+account+'/workers/scripts/'+opsWorker+'/settings');
+          const opsBindings=Array.isArray(opsSettings?.bindings)?opsSettings.bindings:[];
+          if(!opsBindings.some(x=>x?.type==='service'&&x?.name==='SUPPORT_API'&&x?.service===publicWorker)) throw new Error('operator service binding drift');
+          const om=buildWorkerMultipart(fs.readFileSync('.support-ops-bundle.mjs'),{
+            main_module:'index.mjs',compatibility_date:'2026-10-08',bindings:opsBindings,
+            annotations:{'workers/message':'MUSITU Axiom support operations recovery governance UI'}
+          },'----MUSITUAxiomRecoveryOps');
+          await call(wh,'/accounts/'+account+'/workers/scripts/'+opsWorker,{
+            method:'PUT',rawBody:om.body,contentType:'multipart/form-data; boundary='+om.boundary
+          });
+          await call(wh,'/accounts/'+account+'/workers/scripts/'+opsWorker+'/subdomain',{method:'POST',body:{enabled:false,previews_enabled:false}});
+
+          const [pubSub,opsSub,domains]=await Promise.all([
+            call(wh,'/accounts/'+account+'/workers/scripts/'+publicWorker+'/subdomain'),
+            call(wh,'/accounts/'+account+'/workers/scripts/'+opsWorker+'/subdomain'),
+            call(wh,'/accounts/'+account+'/workers/domains')
+          ]);
+          const d=Array.isArray(domains)?domains:[];
+          if(!d.some(x=>String(x?.hostname||'')==='support.mftintelligence.com'&&String(x?.service||'')===publicWorker)) throw new Error('public support custom domain drift');
+          if(!d.some(x=>String(x?.hostname||'')==='support-ops.mftintelligence.com'&&String(x?.service||'')===opsWorker)) throw new Error('operator custom domain drift');
+          if(pubSub?.enabled===true||pubSub?.previews_enabled===true||opsSub?.enabled===true||opsSub?.previews_enabled===true) throw new Error('workers.dev/previews enabled unexpectedly');
+
+          console.log(JSON.stringify({
+            gate:'MUSITU_AXIOM_SUPPORT_RECOVERY_WORKER_STAGE',
+            status:'PASS',
+            public_worker_updated:true,
+            operator_worker_updated:true,
+            recovery_access_bindings:true,
+            existing_secret_values_read:false,
+            recovery_allow_policy_count:0,
+            recovery_surface_deny_by_default:true,
+            workers_dev:false,
+            previews:false
+          }));
+          NODE
+
+      - name: Prove recovery remains blocked before activation and public support remains intact
+        shell: bash
+        run: |
+          set -euo pipefail
+          recovery=$(curl --silent --show-error --connect-timeout 10 --max-time 30 -o /tmp/r -D /tmp/rh -w '%{http_code}' https://support.mftintelligence.com/recovery/ || true)
+          case "$recovery" in
+            302|303|307|401|403) ;;
+            *) echo "recovery path unexpectedly reachable before activation: $recovery" >&2; exit 1 ;;
+          esac
+          ! grep -q 'Protect case access' /tmp/r
+          root=$(curl --silent --show-error --connect-timeout 10 --max-time 30 -o /tmp/root -D /tmp/root-h -w '%{http_code}' https://support.mftintelligence.com/ || true)
+          if [ "$root" = "200" ]; then grep -q 'MUSITU Axiom' /tmp/root
+          elif [ "$root" = "403" ]; then grep -qi '^cf-mitigated:[[:space:]]*challenge' /tmp/root-h
+          else echo "unexpected root support status: $root" >&2; exit 1; fi
+          rm -f /tmp/r /tmp/rh /tmp/root /tmp/root-h
+
+      - name: Cleanup bundles
+        if: always()
+        run: rm -f .support-public-app.js .support-public-entry.mjs .support-ops-entry.mjs .support-public-bundle.mjs .support-ops-bundle.mjs
