@@ -1,0 +1,63 @@
+{
+  "schema": "musitu.axiom.global-support-ops-isolated-build-evidence.v1",
+  "status": "IMPLEMENTED_IN_ISOLATION_READY_FOR_PRODUCTION_ROLLOUT",
+  "recorded_at": "2026-10-08T17:05:00Z",
+  "repository": "evansmusitu/mft-axiom-build",
+  "branch": "support/axiom-global-support-ops-isolated-20261008",
+  "source": {
+    "branch": "support/axiom-support-recovery-production-rollout-20261008",
+    "sha": "64946c4df8ff0c608063444503155d188df93f2e"
+  },
+  "isolated_head_before_evidence": "2f6c3810e9b7d435fff91864870a19039d95ee04",
+  "verification": {
+    "full_regression_run": 37813644368,
+    "tests": 187,
+    "passed": 187,
+    "failed": 0
+  },
+  "capabilities": [
+    "SLA/SLO clocks and breach scanning",
+    "assignments, operator leases and handoffs",
+    "customer/operator escalations and specialist lanes",
+    "incidents, case correlation and public status",
+    "organizations, support plans and entitlements",
+    "retryable notification/webhook outboxes",
+    "hashed inbound-email threading adapter",
+    "secure private-object attachment contract and scan lifecycle",
+    "consented diagnostics",
+    "deterministic knowledge search and advisory AI hook",
+    "language routing and human-review triage",
+    "operator macros",
+    "analytics, QA and CSAT",
+    "bounded recovery-authenticated reopen",
+    "native private object-store upload/download with SHA-256 verification"
+  ],
+  "provider_boundaries": {
+    "outbound_customer_email": "PROVIDER_REQUIRED",
+    "inbound_email_worker_route": "PROVIDER_ROUTE_REQUIRED",
+    "object_storage": "R2_OR_EQUIVALENT_REQUIRED",
+    "malware_scanner": "SCANNER_REQUIRED",
+    "external_webhook_sender": "DESTINATION_SECRET_RESOLVER_REQUIRED",
+    "pager": "PAGER_PROVIDER_REQUIRED",
+    "ai_generation_translation": "AI_PROVIDER_OPTIONAL"
+  },
+  "human_boundaries": {
+    "continuous_staffing": false,
+    "contractual_sla": false,
+    "distinct_independent_approver_identity_bound": false,
+    "certified_multilingual_human_coverage": false
+  },
+  "protected_state": {
+    "main": "d6a846f6bbe0bccac1758713eb4de167caf07113",
+    "claude": "4d956f415431836018e5145227c8df5bd5fde7d8",
+    "pr1": {
+      "state": "OPEN",
+      "draft": true,
+      "merged": false,
+      "head": "8fc1fbb7c5ebbcc1604ecf24c5f4594f2d5667e3"
+    },
+    "frozen_openai_auth": "8ba0dbc1b6dd1533c6c26bff23991429e03a71a5",
+    "frozen_openai_mcp": "4a1ad37a5e7df0e4d3966e8b5f9f0e8f2db69167"
+  },
+  "production_authority": false
+}
