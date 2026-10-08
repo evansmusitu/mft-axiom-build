@@ -12,11 +12,10 @@
     "run_worker_first": true
   },
 
-  "d1_databases": [
+  "services": [
     {
-      "binding": "SUPPORT_DB",
-      "database_name": "musitu-axiom-support",
-      "database_id": "__REQUIRED_AT_AUTHORIZED_DEPLOYMENT__"
+      "binding": "SUPPORT_API",
+      "service": "musitu-axiom-support"
     }
   ],
 
