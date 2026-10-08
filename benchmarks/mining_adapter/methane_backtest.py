@@ -130,51 +130,142 @@ def _window_features(
     return features
 
 
+class _RollingStats:
+    def __init__(self, samples: int) -> None:
+        if samples < 1:
+            raise ValueError("methane_backtest_rolling_samples_invalid")
+        self.samples=samples
+        self.values: deque[tuple[int,float]]=deque()
+        self.minimums: deque[tuple[int,float]]=deque()
+        self.maximums: deque[tuple[int,float]]=deque()
+        self.total=0.0
+
+    def reset(self) -> None:
+        self.values.clear()
+        self.minimums.clear()
+        self.maximums.clear()
+        self.total=0.0
+
+    def add(self, index: int, value: float) -> None:
+        if len(self.values)==self.samples:
+            _old_index,old_value=self.values.popleft()
+            self.total -= old_value
+        self.values.append((index,value))
+        self.total += value
+
+        while self.minimums and self.minimums[-1][1] >= value:
+            self.minimums.pop()
+        self.minimums.append((index,value))
+        while self.maximums and self.maximums[-1][1] <= value:
+            self.maximums.pop()
+        self.maximums.append((index,value))
+
+        earliest=index-self.samples+1
+        while self.minimums and self.minimums[0][0] < earliest:
+            self.minimums.popleft()
+        while self.maximums and self.maximums[0][0] < earliest:
+            self.maximums.popleft()
+
+    @property
+    def ready(self) -> bool:
+        return len(self.values)==self.samples
+
+    def summary(self) -> dict[str,float]:
+        if not self.ready:
+            raise RuntimeError("methane_backtest_rolling_not_ready")
+        first=self.values[0][1]
+        current=self.values[-1][1]
+        return {
+            "mean":self.total/self.samples,
+            "min":self.minimums[0][1],
+            "max":self.maximums[0][1],
+            "delta":current-first,
+        }
+
+
+def _stream_features(
+    candidate: Mapping[str,Any],
+    stats: Mapping[tuple[str,int],_RollingStats],
+    spec: MethaneBacktestSpec,
+) -> dict[str,float]:
+    features={sensor:_numeric(candidate,sensor) for sensor in _NUMERIC_SENSORS}
+    features.update(_f_side_features(candidate.get("F_SIDE")))
+    features["target_current_max"]=max(features[sensor] for sensor in _TARGET_METHANE)
+    for sensor in _TARGET_METHANE:
+        for width in (60,spec.history_seconds):
+            summary=stats[(sensor,width)].summary()
+            features[f"{sensor}_mean_{width}"]=summary["mean"]
+            features[f"{sensor}_min_{width}"]=summary["min"]
+            features[f"{sensor}_max_{width}"]=summary["max"]
+            features[f"{sensor}_delta_{width}"]=summary["delta"]
+    return features
+
+
 def build_windowed_prediction_examples(
     rows: Iterable[Mapping[str,Any]],
     spec: MethaneBacktestSpec,
 ) -> Iterable[PredictionExample]:
-    total_span=spec.history_seconds+spec.horizon_end_seconds+1
-    candidate_position=spec.history_seconds
-    window: deque[tuple[int,Mapping[str,Any],datetime]]=deque(maxlen=total_span)
+    """Build exact history features and future-only labels in one streaming pass.
+
+    State resets on every timestamp discontinuity, so no history or target
+    window can silently span a missing/duplicate/out-of-order source second.
+    The future label at t is the exact maximum over t+180..t+360 (inclusive).
+    """
+    widths=tuple(dict.fromkeys((60,spec.history_seconds)))
+    stats={
+        (sensor,width):_RollingStats(width+1)
+        for sensor in _TARGET_METHANE
+        for width in widths
+    }
+    future_stats=_RollingStats(
+        spec.horizon_end_seconds-spec.horizon_start_seconds+1
+    )
+    pending: dict[int,tuple[datetime,datetime,Mapping[str,float]]]={}
+    previous_time: datetime | None=None
+
+    def reset_segment() -> None:
+        for window in stats.values():
+            window.reset()
+        future_stats.reset()
+        pending.clear()
 
     for source_index,raw in enumerate(rows):
         stamp=_time(raw.get("event_time"))
-        window.append((source_index,raw,stamp))
-        if len(window)<total_span:
-            continue
-        candidate_index,candidate,candidate_time=window[candidate_position]
-        if candidate_index % spec.sample_stride_seconds != 0:
-            continue
+        if previous_time is not None and stamp-previous_time != timedelta(seconds=1):
+            reset_segment()
+        previous_time=stamp
 
-        history_time=window[0][2]
-        future_start=window[candidate_position+spec.horizon_start_seconds][2]
-        future_end=window[candidate_position+spec.horizon_end_seconds][2]
-        if candidate_time-history_time != timedelta(seconds=spec.history_seconds):
-            continue
-        if future_start-candidate_time != timedelta(seconds=spec.horizon_start_seconds):
-            continue
-        if future_end-candidate_time != timedelta(seconds=spec.horizon_end_seconds):
-            continue
+        target_values={sensor:_numeric(raw,sensor) for sensor in _TARGET_METHANE}
+        for sensor,value in target_values.items():
+            for width in widths:
+                stats[(sensor,width)].add(source_index,value)
+        future_stats.add(source_index,max(target_values.values()))
 
-        materialized=list(window)
-        label=False
-        for index in range(
-            candidate_position+spec.horizon_start_seconds,
-            candidate_position+spec.horizon_end_seconds+1,
-        ):
-            future=materialized[index][1]
-            if max(_numeric(future,sensor) for sensor in _TARGET_METHANE) >= spec.warning_threshold:
-                label=True
-                break
+        ready_candidate=pending.pop(source_index,None)
+        if ready_candidate is not None:
+            feature_time,label_window_end,features=ready_candidate
+            if not future_stats.ready:
+                raise RuntimeError("methane_backtest_future_window_not_ready")
+            yield PredictionExample(
+                feature_time=feature_time,
+                label_window_end=label_window_end,
+                features=features,
+                label=future_stats.summary()["max"]>=spec.warning_threshold,
+            )
 
-        yield PredictionExample(
-            feature_time=candidate_time,
-            label_window_end=future_end,
-            features=_window_features(materialized,candidate_position,spec),
-            label=label,
+        history_ready=all(
+            stats[(sensor,spec.history_seconds)].ready
+            for sensor in _TARGET_METHANE
         )
+        if not history_ready or source_index % spec.sample_stride_seconds != 0:
+            continue
 
+        features=_stream_features(raw,stats,spec)
+        pending[source_index+spec.horizon_end_seconds]=(
+            stamp,
+            stamp+timedelta(seconds=spec.horizon_end_seconds),
+            features,
+        )
 
 def rolling_backtest_folds(
     examples: Sequence[PredictionExample],
