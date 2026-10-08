@@ -1,0 +1,110 @@
+name: MUSITU Axiom Global Support Mail Capability Audit
+
+on:
+  push:
+    branches:
+      - 'support/axiom-global-support-ops-production-rollout-20261008'
+    paths:
+      - '.github/workflows/axiom-global-support-mail-capability-audit.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    if: github.event_name == 'push' && github.event.before == '58f58cbaf631758be4bdc876c2314d7f921ccf97'
+    runs-on: ubuntu-latest
+    environment: axiom-support-production
+    timeout-minutes: 8
+    env:
+      CF_ACCOUNT: '93f395f5121954671f92fffa453d6b61'
+      CF_ZONE: '5b56528f03948ff5917a5e0cd9f7109e'
+      TOKEN: ${{ secrets.CLOUDFLARE_RULESETS_API_TOKEN }}
+      D1_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CF_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+      CF_GLOBAL_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+    steps:
+      - name: Read mail capability without mutation
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          import {createHash} from 'node:crypto';
+          const api='https://api.cloudflare.com/client/v4';
+          const account=process.env.CF_ACCOUNT,zone=process.env.CF_ZONE;
+          const token=String(process.env.TOKEN||''),email=String(process.env.CF_EMAIL||''),key=String(process.env.CF_GLOBAL_KEY||'');
+          const bh={authorization:'Bearer '+token},gh={'X-Auth-Email':email,'X-Auth-Key':key};
+          async function raw(headers,path){
+            const r=await fetch(api+path,{headers:{...headers,accept:'application/json'}});
+            let p={};try{p=await r.json()}catch{}
+            return {r,p};
+          }
+          async function tryRead(path){
+            const a=await raw(bh,path);
+            if(a.r.ok&&a.p?.success!==false)return {ok:true,status:a.r.status,result:a.p.result,auth:'bearer'};
+            if(email&&key){
+              const b=await raw(gh,path);
+              if(b.r.ok&&b.p?.success!==false)return {ok:true,status:b.r.status,result:b.p.result,auth:'global'};
+              return {ok:false,status:b.r.status,codes:(b.p?.errors||[]).map(x=>x?.code).filter(Boolean)};
+            }
+            return {ok:false,status:a.r.status,codes:(a.p?.errors||[]).map(x=>x?.code).filter(Boolean)};
+          }
+          const [routing,rules,catchAll,addresses,sending,workerSettings]=await Promise.all([
+            tryRead('/zones/'+zone+'/email/routing'),
+            tryRead('/zones/'+zone+'/email/routing/rules'),
+            tryRead('/zones/'+zone+'/email/routing/rules/catch_all'),
+            tryRead('/accounts/'+account+'/email/routing/addresses?page=1&per_page=100'),
+            tryRead('/zones/'+zone+'/email/sending/subdomains'),
+            tryRead('/accounts/'+account+'/workers/scripts/musitu-axiom-support/settings')
+          ]);
+          const rows=v=>Array.isArray(v)?v:[];
+          const routingRules=rows(rules.result);
+          const supportRule=routingRules.filter(r=>(rows(r?.matchers)).some(m=>String(m?.type||'').toLowerCase()==='literal'&&String(m?.field||'').toLowerCase()==='to'&&String(m?.value||'').toLowerCase()==='support@mftintelligence.com'));
+          const supportSummary=supportRule.map(r=>({
+            enabled:r?.enabled===true,
+            action_types:rows(r?.actions).map(a=>String(a?.type||'')),
+            destination_count:rows(r?.actions).reduce((n,a)=>n+(Array.isArray(a?.value)?a.value.length:0),0),
+            destination_hashes:rows(r?.actions).flatMap(a=>Array.isArray(a?.value)?a.value:[]).map(v=>createHash('sha256').update(String(v).toLowerCase()).digest('hex'))
+          }));
+          const ca=catchAll.result||{};
+          const sendingRows=rows(sending.result?.subdomains||sending.result);
+          const bindings=rows(workerSettings.result?.bindings);
+          console.log(JSON.stringify({
+            gate:'MUSITU_AXIOM_GLOBAL_SUPPORT_MAIL_CAPABILITY_AUDIT',
+            status:'PASS',
+            routing:{
+              api_available:routing.ok,
+              enabled:routing.result?.enabled===true,
+              state:String(routing.result?.status||''),
+              rule_count:routingRules.length,
+              exact_support_rule_count:supportRule.length,
+              support_rule:supportSummary,
+              catch_all:{
+                api_available:catchAll.ok,
+                enabled:ca?.enabled===true,
+                matcher_types:rows(ca?.matchers).map(x=>String(x?.type||'')),
+                action_types:rows(ca?.actions).map(x=>String(x?.type||''))
+              }
+            },
+            destinations:{
+              api_available:addresses.ok,
+              verified_count:rows(addresses.result).filter(x=>x?.verified===true||typeof x?.verified==='string').length,
+              raw_addresses_recorded:false
+            },
+            sending:{
+              api_available:sending.ok,
+              http_status:sending.status,
+              codes:sending.codes||[],
+              configured_subdomain_count:sendingRows.length,
+              subdomains:sendingRows.map(x=>({enabled:x?.enabled===true,status:String(x?.status||''),name_hash:createHash('sha256').update(String(x?.name||'').toLowerCase()).digest('hex')}))
+            },
+            worker:{
+              settings_api_available:workerSettings.ok,
+              send_email_binding_present:bindings.some(x=>x?.type==='send_email'||x?.name==='SUPPORT_EMAIL_SENDER'),
+              binding_types:[...new Set(bindings.map(x=>String(x?.type||'')))].sort()
+            },
+            mutation_performed:false,
+            raw_destination_recorded:false,
+            secret_values_recorded:false
+          }));
+          NODE
