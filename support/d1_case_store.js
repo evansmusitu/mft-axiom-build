@@ -623,11 +623,18 @@ export class D1CaseStore {
 
   async listPendingNotifications({limit=50}={}){
     const bounded=Math.max(1,Math.min(100,Number(limit)||50));
-    const result=await this.db.prepare(`SELECT n.notification_id,n.case_id,n.kind,n.audience,n.event_hash,n.created_at
+    const result=await this.db.prepare(`SELECT n.notification_id,n.case_id,n.kind,n.audience,n.event_hash,n.created_at,
+        (SELECT COUNT(*) FROM support_notification_attempts a WHERE a.notification_id=n.notification_id) AS attempts
       FROM support_notification_outbox n
       WHERE NOT EXISTS (SELECT 1 FROM support_notification_attempts a WHERE a.notification_id=n.notification_id AND a.state='SENT')
+        AND (SELECT COUNT(*) FROM support_notification_attempts a WHERE a.notification_id=n.notification_id) < 8
+        AND (
+          NOT EXISTS (SELECT 1 FROM support_notification_attempts a WHERE a.notification_id=n.notification_id)
+          OR (SELECT MAX(a.attempted_at) FROM support_notification_attempts a WHERE a.notification_id=n.notification_id)
+             <= strftime('%Y-%m-%dT%H:%M:%fZ','now','-15 minutes')
+        )
       ORDER BY n.created_at ASC LIMIT ?`).bind(bounded).all();
-    return Object.freeze((result?.results||[]).map(row=>Object.freeze({...row})));
+    return Object.freeze((result?.results||[]).map(row=>Object.freeze({...row,attempts:Number(row.attempts||0)})));
   }
 
   async recordNotificationAttempt(notification,result){
