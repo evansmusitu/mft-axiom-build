@@ -447,7 +447,7 @@ export async function deliverSupportWebhook(delivery, env = {}) {
 export async function processSupportQueues(env = {}) {
   const store = await storeFor(env);
   const sla = typeof store.scanSlaBreaches === 'function' ? await store.scanSlaBreaches() : {new_breaches:0,scanned:0};
-  const summary = {sla,notifications:{delivered:0,failed:0,provider_unavailable:0},webhooks:{delivered:0,failed:0,provider_unavailable:0}};
+  const summary = {sla,notifications:{delivered:0,failed:0,provider_unavailable:0},webhooks:{delivered:0,failed:0,provider_unavailable:0},attachments:{deleted:0,failed:0,provider_unavailable:0}};
   const notifications = typeof store.listPendingNotifications === 'function' ? await store.listPendingNotifications({limit:50}) : [];
   for (const item of notifications || []) {
     let result;
@@ -468,7 +468,25 @@ export async function processSupportQueues(env = {}) {
     else summary.webhooks.failed += 1;
     if (typeof store.recordWebhookAttempt === 'function') await store.recordWebhookAttempt(item,result);
   }
-  return Object.freeze({sla:Object.freeze(summary.sla),notifications:Object.freeze(summary.notifications),webhooks:Object.freeze(summary.webhooks)});
+  const attachmentDeletions = typeof store.listPendingAttachmentDeletions === 'function' ? await store.listPendingAttachmentDeletions({limit:50}) : [];
+  for (const item of attachmentDeletions || []) {
+    let result;
+    if (!env.SUPPORT_ATTACHMENTS || typeof env.SUPPORT_ATTACHMENTS.delete !== 'function') {
+      result={deleted:false,reason:'PROVIDER_UNAVAILABLE'};
+      summary.attachments.provider_unavailable += 1;
+    } else {
+      try {
+        await env.SUPPORT_ATTACHMENTS.delete(String(item.storage_key));
+        result={deleted:true};
+        summary.attachments.deleted += 1;
+      } catch (error) {
+        result={deleted:false,reason:'DELETE_FAILED',error_class:String(error?.name||'Error')};
+        summary.attachments.failed += 1;
+      }
+    }
+    if (typeof store.recordAttachmentDeletionAttempt === 'function') await store.recordAttachmentDeletionAttempt(item,result);
+  }
+  return Object.freeze({sla:Object.freeze(summary.sla),notifications:Object.freeze(summary.notifications),webhooks:Object.freeze(summary.webhooks),attachments:Object.freeze(summary.attachments)});
 }
 
 export async function handleOperatorRequest(request, env = {}) {
