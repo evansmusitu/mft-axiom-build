@@ -1,3 +1,4 @@
+const OPERATOR_STATE_ACTIONS=Object.freeze(['IN_PROGRESS_MUSITU_SUPPORT','ACTION_REQUIRED','SOLUTION_PROVIDED','ESCALATED','CLOSED']);
 const $=selector=>document.querySelector(selector);
 const list=$('#case-list'),search=$('#case-search'),conversation=$('#conversation'),messageBody=$('#message-body');
 const send=$('#send-message'),status=$('#composer-status'),stateSelect=$('#state-select'),applyState=$('#apply-state');
@@ -60,7 +61,7 @@ async function postMessage(){
   catch(error){status.textContent=error.message;}finally{send.disabled=false;}
 }
 async function changeState(){
-  if(!selected||!stateSelect.value)return;applyState.disabled=true;
+  if(!selected||!stateSelect.value)return;if(!OPERATOR_STATE_ACTIONS.includes(stateSelect.value)){status.textContent='Unsupported state action.';return;}applyState.disabled=true;
   try{await api(`/api/v1/operator/cases/${encodeURIComponent(selected.case.case_id)}/state`,{method:'POST',body:JSON.stringify({label:stateSelect.value})});stateSelect.value='';await openCase(selected.case.case_id);await loadCases();}
   catch(error){status.textContent=error.message;}finally{applyState.disabled=false;}
 }
