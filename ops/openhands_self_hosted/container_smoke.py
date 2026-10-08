@@ -12,6 +12,7 @@ import tempfile
 import time
 
 from container_policy import build_docker_command, verify_container_inspect
+from worker_leases import AdmissionDenied, LeaseScheduler
 
 BRANCH = 'frontier/axiom-trackb-openhands-selfhost-20261008'
 CHECK = r'''
@@ -81,10 +82,31 @@ def main():
         print('MUSITU_AXIOM_TRACK_B_IMAGE_ID_REQUIRED',file=sys.stderr)
         return 43
     names=[]
+    leases=[]
+    def terminate_container(name):
+        docker('rm','-f',name)
+        # A kill request is not evidence: require destination-native absence.
+        inspected = subprocess.run(['docker','inspect',name], capture_output=True, text=True, timeout=15)
+        if inspected.returncode == 0:
+            raise RuntimeError('terminated container still visible in Docker')
+    scheduler = LeaseScheduler(max_active=2, max_per_tenant=1,
+                               ttl_seconds=300, clock=time.monotonic,
+                               terminate=terminate_container)
     with tempfile.TemporaryDirectory(prefix='axiom-openhands-isolation-') as scratch:
         try:
             for idx in range(2):
                 name='axiom-openhands-'+secrets.token_hex(4)
+                tenant=f'ci-tenant-{idx}'
+                request={
+                    'tenant_id':tenant, 'project_id':'axiom-b1',
+                    'work_id':f'isolated-container-{idx}',
+                    'workload_identity_id':f'ci-workload-{idx}',
+                    'request_sha256':f'{idx+1:064x}',
+                    'risk_class':'S0',
+                    'operation':'B1_ISOLATED_CONTAINER_SMOKE',
+                }
+                lease=scheduler.acquire(request,name)
+                leases.append((lease['lease_id'],tenant))
                 credential=Path(scratch)/('ephemeral-%d.env'%idx)
                 write_env(str(credential), secrets.token_hex(32), secrets.token_hex(32))
                 command=build_docker_command(image=sha,name=name,credential_file=credential)
@@ -96,6 +118,32 @@ def main():
                     docker('exec',name,'python','-c',"from pathlib import Path; Path('/tmp/axiom-private-tenant-a').write_text('sentinel')")
                 else:
                     docker('exec',name,'python','-c',"from pathlib import Path; assert not Path('/tmp/axiom-private-tenant-a').exists(), 'cross-tenant filesystem leak'")
+            try:
+                scheduler.acquire({
+                    'tenant_id':'ci-tenant-third','project_id':'axiom-b1',
+                    'work_id':'overflow-attempt','workload_identity_id':'ci-workload-third',
+                    'request_sha256':'f'*64,'risk_class':'S0',
+                    'operation':'B1_ISOLATED_CONTAINER_SMOKE',
+                }, 'axiom-openhands-cccccccc')
+            except AdmissionDenied:
+                pass
+            else:
+                raise RuntimeError('third worker bypassed maximum capacity')
+            try:
+                scheduler.release(leases[0][0], 'ci-tenant-foreign')
+            except AdmissionDenied:
+                pass
+            else:
+                raise RuntimeError('cross-tenant revocation succeeded')
+            if scheduler.active_count != 2:
+                raise RuntimeError('lease admission count mismatch')
+            for lease_id,tenant in reversed(leases):
+                receipt=scheduler.release(lease_id,tenant)
+                if receipt['state'] != 'TERMINATED':
+                    raise RuntimeError('lease revocation not verified')
+            if scheduler.active_count != 0:
+                raise RuntimeError('lease capacity not released')
+            print('MUSITU_AXIOM_TRACK_B_REAL_CONTAINER_LEASE_LIFECYCLE_PASS')
             print('MUSITU_AXIOM_OPENHANDS_SELFHOST_CONTAINER_ISOLATION_PASS')
             print('CONTAINERS_TESTED=2')
             print('PUBLIC_EGRESS_ALLOWED=FALSE')
