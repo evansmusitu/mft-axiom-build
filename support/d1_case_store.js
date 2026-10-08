@@ -664,7 +664,6 @@ export class D1CaseStore {
     if(!row||!constantTimeEqual(String(row.recovery_hash),recoveryHash))return null;
     if(String(row.state)!=='CLOSED')throw new DOMException('only closed cases can be reopened','InvalidStateError');
     const closedAt=String(row.closed_at||row.updated_at||'');if(!closedAt||Date.now()-Date.parse(closedAt)>14*24*60*60*1000)throw new DOMException('case reopen window expired','InvalidStateError');
-    assertTransition('CLOSED','IN_PROGRESS');
     const at=new Date().toISOString(),event=await appendCaseEvent(row,{type:'CASE_REOPENED',actor:'requester',visibility:'customer',payload:{prior_state:'CLOSED',new_state:'IN_PROGRESS'}},{at});
     const publicJson={...JSON.parse(row.public_json),state:'IN_PROGRESS',updated_at:at};
     const slaRow=await this.db.prepare('SELECT plan FROM support_case_sla WHERE case_id=? LIMIT 1').bind(caseId).first();
