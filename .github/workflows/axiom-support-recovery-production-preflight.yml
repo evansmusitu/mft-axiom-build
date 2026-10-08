@@ -1,0 +1,155 @@
+name: MUSITU Axiom Secure Recovery Production Preflight
+
+on:
+  push:
+    branches:
+      - 'support/axiom-support-recovery-production-rollout-20261008'
+    paths:
+      - '.github/workflows/axiom-support-recovery-production-preflight.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  preflight:
+    if: github.event_name == 'push' && github.event.before == '8e7cee1b56def7e4caae7332de9b9c0fb8d72e28'
+    runs-on: ubuntu-latest
+    environment: axiom-support-production
+    timeout-minutes: 8
+    env:
+      CF_ACCOUNT: '93f395f5121954671f92fffa453d6b61'
+      SUPPORT_DB: 'a525c8b6-9b44-413b-a219-46e419b71b12'
+      ACCESS_TOKEN: ${{ secrets.CLOUDFLARE_ACCESS_API_TOKEN }}
+      D1_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      WORKER_TOKEN: ${{ secrets.CLOUDFLARE_RULESETS_API_TOKEN }}
+      CF_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+      CF_GLOBAL_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+      CANDIDATE_APPROVER_1: ${{ secrets.SUPPORT_INDEPENDENT_APPROVER_EMAIL }}
+      CANDIDATE_APPROVER_2: ${{ secrets.CLOUDFLARE_INDEPENDENT_APPROVER_EMAIL }}
+      CANDIDATE_APPROVER_3: ${{ secrets.AXIOM_SUPPORT_INDEPENDENT_APPROVER_EMAIL }}
+      CANDIDATE_APPROVER_4: ${{ secrets.INDEPENDENT_APPROVER_EMAIL }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Exact authorized boundary and regression
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF_NAME" = 'support/axiom-support-recovery-production-rollout-20261008'
+          test "${{ github.event.before }}" = '8e7cee1b56def7e4caae7332de9b9c0fb8d72e28'
+          test "$GITHUB_REF_NAME" != 'main'
+          node --test support/tests/*.test.mjs
+
+      - name: Read production recovery preflight
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          import {createHash} from 'node:crypto';
+          const api='https://api.cloudflare.com/client/v4';
+          const account=process.env.CF_ACCOUNT;
+          const db=process.env.SUPPORT_DB;
+          const accessToken=String(process.env.ACCESS_TOKEN||'');
+          const d1Token=String(process.env.D1_TOKEN||'');
+          const workerToken=String(process.env.WORKER_TOKEN||'');
+          const email=String(process.env.CF_EMAIL||'');
+          const globalKey=String(process.env.CF_GLOBAL_KEY||'');
+          if(!d1Token||!workerToken) throw new Error('required production read tokens unavailable');
+          async function raw(headers,path,{method='GET',body}={}){
+            const r=await fetch(api+path,{method,headers:{...headers,accept:'application/json',...(body===undefined?{}:{'content-type':'application/json'})},...(body===undefined?{}:{body:JSON.stringify(body)})});
+            let p={}; try{p=await r.json()}catch{}
+            return {r,p};
+          }
+          async function call(headers,path,opts={}){
+            const {r,p}=await raw(headers,path,opts);
+            if(!r.ok||p?.success===false){
+              const codes=(p?.errors||[]).map(x=>x?.code).filter(Boolean);
+              throw new Error('Cloudflare read failed HTTP '+r.status+' codes='+(codes.join(',')||'none')+' '+path);
+            }
+            return p?.result;
+          }
+          const wh={authorization:'Bearer '+workerToken};
+          const dh={authorization:'Bearer '+d1Token};
+          const ah=accessToken?{authorization:'Bearer '+accessToken}:null;
+          const gh={'X-Auth-Email':email,'X-Auth-Key':globalKey};
+          async function access(path){
+            if(ah){
+              const a=await raw(ah,path);
+              if(a.r.ok&&a.p?.success!==false) return a.p?.result;
+              if(!(a.r.status===401||a.r.status===403)) throw new Error('Access read failed HTTP '+a.r.status);
+            }
+            if(!email||!globalKey) throw new Error('Access read credentials unavailable');
+            return call(gh,path);
+          }
+          async function query(sql){
+            return call(dh,'/accounts/'+account+'/d1/database/'+db+'/query',{method:'POST',body:{sql}});
+          }
+          const rows=result=>{const b=Array.isArray(result)?result[0]:result;return Array.isArray(b?.results)?b.results:[]};
+          const [apps,idps,groups,domains,scripts,bookmark,counts,objects,settings]=await Promise.all([
+            access('/accounts/'+account+'/access/apps?per_page=100'),
+            access('/accounts/'+account+'/access/identity_providers'),
+            access('/accounts/'+account+'/access/groups?per_page=100'),
+            call(wh,'/accounts/'+account+'/workers/domains'),
+            call(wh,'/accounts/'+account+'/workers/scripts'),
+            call(dh,'/accounts/'+account+'/d1/database/'+db+'/time_travel/bookmark'),
+            query("SELECT (SELECT COUNT(*) FROM support_cases) AS cases,(SELECT COUNT(*) FROM support_case_events) AS events,(SELECT COUNT(*) FROM support_case_messages) AS messages,(SELECT COUNT(*) FROM support_case_assignments) AS assignments,(SELECT COUNT(*) FROM support_case_approvals) AS approvals,(SELECT COUNT(*) FROM support_case_approval_decisions) AS decisions,(SELECT COUNT(*) FROM support_notification_outbox) AS notifications;"),
+            query("SELECT type,name FROM sqlite_master WHERE type IN ('table','index','trigger') AND name LIKE 'support_%' ORDER BY type,name;"),
+            call(wh,'/accounts/'+account+'/workers/scripts/musitu-axiom-support/settings')
+          ]);
+          const appRows=Array.isArray(apps)?apps:[];
+          const groupRows=Array.isArray(groups)?groups:[];
+          const idpRows=Array.isArray(idps)?idps:[];
+          const domainRows=Array.isArray(domains)?domains:[];
+          const scriptRows=Array.isArray(scripts)?scripts:[];
+          const bm=String(bookmark?.bookmark||'');
+          if(!bm) throw new Error('D1 Time Travel bookmark unavailable');
+          const c=rows(counts)[0]||{};
+          const bindingRows=Array.isArray(settings?.bindings)?settings.bindings:[];
+          const ownerRef=bindingRows.find(x=>x?.name==='SUPPORT_HUMAN_OWNER_REF')?.text||'';
+          const approverRef=bindingRows.find(x=>x?.name==='SUPPORT_INDEPENDENT_APPROVER_REF')?.text||'';
+          const candidates=[
+            process.env.CANDIDATE_APPROVER_1,
+            process.env.CANDIDATE_APPROVER_2,
+            process.env.CANDIDATE_APPROVER_3,
+            process.env.CANDIDATE_APPROVER_4
+          ].map(x=>String(x||'').trim()).filter(Boolean);
+          const validCandidates=candidates.filter(x=>/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(x));
+          const uniqueCandidates=[...new Set(validCandidates.map(x=>x.toLowerCase()))];
+          console.log(JSON.stringify({
+            gate:'MUSITU_AXIOM_SUPPORT_RECOVERY_PRODUCTION_PREFLIGHT',
+            status:'PASS',
+            access:{
+              recovery_apps:appRows.filter(x=>String(x?.domain||'').toLowerCase().includes('support.mftintelligence.com/recovery')).map(x=>({id:String(x?.id||''),name:String(x?.name||''),domain:String(x?.domain||''),type:String(x?.type||'')})),
+              operator_apps:appRows.filter(x=>String(x?.domain||'').toLowerCase()==='support-ops.mftintelligence.com').map(x=>({id:String(x?.id||''),name:String(x?.name||''),domain:String(x?.domain||'')})),
+              identity_provider_count:idpRows.length,
+              groups:groupRows.map(x=>({id:String(x?.id||''),name:String(x?.name||'')})).filter(x=>x.id),
+              independent_approver_email_secret_present:uniqueCandidates.length>0,
+              independent_approver_email_secret_count:uniqueCandidates.length
+            },
+            edge:{
+              public_support_domain_preserved:domainRows.some(x=>String(x?.hostname||'')==='support.mftintelligence.com'&&String(x?.service||'')==='musitu-axiom-support'),
+              operator_domain_preserved:domainRows.some(x=>String(x?.hostname||'')==='support-ops.mftintelligence.com'&&String(x?.service||'')==='musitu-axiom-support-ops'),
+              public_worker_exists:scriptRows.some(x=>String(x?.id||x?.name||'')==='musitu-axiom-support'),
+              operator_worker_exists:scriptRows.some(x=>String(x?.id||x?.name||'')==='musitu-axiom-support-ops')
+            },
+            support_authority:{
+              owner_ref_present:Boolean(ownerRef),
+              independent_approver_ref_present:Boolean(approverRef),
+              refs_distinct:Boolean(ownerRef&&approverRef&&ownerRef!==approverRef),
+              ref_values_recorded:false
+            },
+            d1:{
+              counts:Object.fromEntries(Object.entries(c).map(([k,v])=>[k,Number(v||0)])),
+              bookmark_sha256:createHash('sha256').update(bm).digest('hex'),
+              bookmark_value_recorded:false,
+              recovery_objects_present:rows(objects).filter(x=>/recovery_(bindings|requests|rotations)/.test(String(x?.name||''))).map(x=>String(x.name))
+            },
+            customer_content_read:false,
+            recovery_code_read:false,
+            identity_values_recorded:false,
+            secret_values_recorded:false,
+            mutation_performed:false
+          }));
+          NODE
