@@ -1,0 +1,67 @@
+name: MUSITU AXIOM Track B Self-hosted OpenHands Isolated Smoke
+
+on:
+  push:
+    branches:
+      - frontier/axiom-trackb-openhands-selfhost-20261008
+    paths:
+      - '.github/workflows/axiom-trackb-openhands-selfhost-smoke.yml'
+      - 'ops/openhands_self_hosted/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: axiom-trackb-openhands-selfhost-smoke-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  selfhost-auth-preflight:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      AXIOM_ISOLATED_QUALIFICATION: 'TRUE'
+    steps:
+      - name: Verify isolation and prohibited mutation boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF_NAME" = 'frontier/axiom-trackb-openhands-selfhost-20261008'
+          echo 'MUSITU_AXIOM_TRACK_B_SCOPE=ISOLATED_SELFHOST_PREFLIGHT'
+          echo 'MAIN_MUTATION_ALLOWED=FALSE'
+          echo 'PR1_MUTATION_ALLOWED=FALSE'
+          echo 'PRODUCTION_MUTATION_ALLOWED=FALSE'
+          echo 'FROZEN_OPENAI_MUTATION_ALLOWED=FALSE'
+      - name: Read isolated implementation without checkout credentials
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - name: Focused local mock-boundary tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m unittest discover -s ops/openhands_self_hosted -p 'test_*.py' -v
+      - name: Install pinned OpenHands Agent Server into ephemeral venv
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m venv "$RUNNER_TEMP/axiom-oh-venv"
+          "$RUNNER_TEMP/axiom-oh-venv/bin/python" -m pip install --disable-pip-version-check --no-cache-dir 'openhands-agent-server==1.51.0'
+          "$RUNNER_TEMP/axiom-oh-venv/bin/python" -m pip check
+      - name: Start actual loopback Agent Server and challenge auth
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$RUNNER_TEMP/axiom-oh-venv/bin/python" ops/openhands_self_hosted/smoke.py
+      - name: Assert restricted outcome semantics
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF_NAME" = 'frontier/axiom-trackb-openhands-selfhost-20261008'
+          echo 'SELFHOST_AUTH_PREFLIGHT_IS_NOT_S3_RUNTIME_QUALIFICATION'
+          echo 'EXTERNAL_ACTION_EXECUTED=FALSE'
+          echo 'LIVE_RUNTIME_QUALIFICATION=NOT_PROVEN'
+          echo 'RELEASE_AUTHORITY=FALSE'
+          echo 'PRODUCTION_AUTHORITY=FALSE'
+          echo 'CERTIFICATION_AUTHORITY=FALSE'
