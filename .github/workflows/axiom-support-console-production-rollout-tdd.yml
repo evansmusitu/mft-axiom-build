@@ -1,0 +1,28 @@
+name: MUSITU Axiom Support Console Production Rollout TDD
+
+on:
+  push:
+    branches:
+      - 'support/axiom-support-console-production-rollout-20261008'
+    paths:
+      - 'support/**'
+      - '.github/workflows/axiom-support-console-production-rollout-tdd.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Syntax checks
+        run: |
+          node --check support/worker.js
+          node --check support/operator_worker.js
+      - name: Full support regression suite
+        run: node --test support/tests/*.test.mjs
