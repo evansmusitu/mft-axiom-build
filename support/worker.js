@@ -5,6 +5,10 @@ import {verifyTurnstile} from './turnstile.js';
 
 const JSON_HEADERS = Object.freeze({'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store', 'x-content-type-options': 'nosniff'});
 const CASE_PATH = /^\/api\/v1\/cases\/([A-Z0-9-]+)$/;
+const CASE_MESSAGE_PATH = /^\/api\/v1\/cases\/([A-Z0-9-]+)\/messages$/;
+const OPERATOR_CASE_PATH = /^\/api\/v1\/operator\/cases\/([A-Z0-9-]+)$/;
+const OPERATOR_MESSAGE_PATH = /^\/api\/v1\/operator\/cases\/([A-Z0-9-]+)\/messages$/;
+const OPERATOR_STATE_PATH = /^\/api\/v1\/operator\/cases\/([A-Z0-9-]+)\/state$/;
 const HASH = /^[a-f0-9]{64}$/i;
 
 function json(body, status = 200, extra = {}) {
@@ -52,6 +56,7 @@ async function intakeRateState(env) {
 }
 
 async function storeFor(env) {
+  if (env.ENVIRONMENT !== 'production' && env.SUPPORT_STORE) return env.SUPPORT_STORE;
   if (!env.SUPPORT_DB || !env.SUPPORT_DATA_KEY_B64) throw new DOMException('secure support storage is not configured', 'InvalidStateError');
   if (env.ENVIRONMENT === 'production' && (!env.SUPPORT_HUMAN_OWNER_REF || !env.SUPPORT_INDEPENDENT_APPROVER_REF || env.SUPPORT_HUMAN_OWNER_REF === env.SUPPORT_INDEPENDENT_APPROVER_REF || !HASH.test(String(env.SUPPORT_READINESS_SHA256 || '')))) {
     throw new DOMException('distinct human ownership, approval and readiness evidence are not configured', 'InvalidStateError');
@@ -98,6 +103,18 @@ export async function handleSupportRequest(request, env = {}) {
     const publicCase = await store.create(bundle);
     return json({case: publicCase, recovery_code: bundle.recovery_code, recovery_code_notice: 'Save this code now. It is shown once and cannot be recovered by MUSITU.'}, 201);
   }
+  const caseMessageMatch = url.pathname.match(CASE_MESSAGE_PATH);
+  if (request.method === 'POST' && caseMessageMatch) {
+    const code = recoveryCode(request);
+    if (!code) return json({error: 'CASE_AUTH_REQUIRED'}, 401, {'www-authenticate': 'Support'});
+    const body = await readJson(request);
+    if (!body || Array.isArray(body) || typeof body !== 'object') throw new TypeError('message must be an object');
+    const store = await storeFor(env);
+    const value = await store.appendCustomerMessage(caseMessageMatch[1], code, {body: body.body});
+    if (!value) return json({error: 'CASE_NOT_FOUND'}, 404);
+    return json(value, 201);
+  }
+
   const caseMatch = url.pathname.match(CASE_PATH);
   if (request.method === 'GET' && caseMatch) {
     const code = recoveryCode(request);
@@ -107,6 +124,60 @@ export async function handleSupportRequest(request, env = {}) {
     if (!value) return json({error: 'CASE_NOT_FOUND'}, 404);
     return json(value);
   }
+  return json({error: 'NOT_FOUND'}, 404);
+}
+
+
+const OPERATOR_ROLES = Object.freeze(['support_agent', 'privacy_officer', 'security_responder', 'billing_operator', 'incident_commander']);
+
+async function operatorPrincipal(request, env) {
+  if (typeof env.SUPPORT_OPERATOR_VERIFY !== 'function') return null;
+  const value = await env.SUPPORT_OPERATOR_VERIFY(request, env);
+  if (!value || typeof value !== 'object') return null;
+  const actorRef = String(value.actor_ref || '');
+  const role = String(value.role || '');
+  if (!/^support_agent:[a-z0-9._:-]{3,160}$/i.test(actorRef) || !OPERATOR_ROLES.includes(role)) return null;
+  return Object.freeze({actor_ref: actorRef, role});
+}
+
+export async function handleOperatorRequest(request, env = {}) {
+  const principal = await operatorPrincipal(request, env);
+  if (!principal) return json({error: 'OPERATOR_AUTH_REQUIRED'}, 401, {'www-authenticate': 'Cloudflare-Access'});
+  const url = new URL(request.url);
+  const store = await storeFor(env);
+
+  if (request.method === 'GET' && url.pathname === '/api/v1/operator/cases') {
+    const state = url.searchParams.get('state') || null;
+    const cases = await store.listOperatorCases({state, limit: 100});
+    return json({schema: 'musitu.axiom.support-operator-inbox.v1', cases});
+  }
+
+  const messageMatch = url.pathname.match(OPERATOR_MESSAGE_PATH);
+  if (request.method === 'POST' && messageMatch) {
+    const body = await readJson(request);
+    if (!body || Array.isArray(body) || typeof body !== 'object') throw new TypeError('operator message must be an object');
+    if (!['AGENT_REPLY', 'INTERNAL_NOTE'].includes(body.type)) throw new TypeError('operator message type is invalid');
+    const value = await store.appendOperatorMessage(messageMatch[1], {type: body.type, body: body.body}, principal);
+    if (!value) return json({error: 'CASE_NOT_FOUND'}, 404);
+    return json(value, 201);
+  }
+
+  const stateMatch = url.pathname.match(OPERATOR_STATE_PATH);
+  if (request.method === 'POST' && stateMatch) {
+    const body = await readJson(request);
+    if (!body || Array.isArray(body) || typeof body !== 'object') throw new TypeError('state change must be an object');
+    const value = await store.transitionOperatorCase(stateMatch[1], body.label, principal);
+    if (!value) return json({error: 'CASE_NOT_FOUND'}, 404);
+    return json(value);
+  }
+
+  const caseMatch = url.pathname.match(OPERATOR_CASE_PATH);
+  if (request.method === 'GET' && caseMatch) {
+    const value = await store.getOperatorCase(caseMatch[1]);
+    if (!value) return json({error: 'CASE_NOT_FOUND'}, 404);
+    return json(value);
+  }
+
   return json({error: 'NOT_FOUND'}, 404);
 }
 
