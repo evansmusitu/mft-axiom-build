@@ -1,0 +1,204 @@
+name: MUSITU Axiom Support Live Diagnostic 20261008
+
+on:
+  push:
+    branches:
+      - 'support/axiom-official-support-20261005'
+    paths:
+      - '.github/workflows/axiom-official-support-live-diagnostic-20261008.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    if: github.event_name == 'push' && github.event.before == '4a4f866f36ff9b951f1d29efe1310b88f4623893'
+    runs-on: ubuntu-latest
+    environment: axiom-support-production
+    timeout-minutes: 8
+    env:
+      CF_TOKEN: ${{ secrets.CLOUDFLARE_RULESETS_API_TOKEN }}
+      CF_ACCOUNT: '93f395f5121954671f92fffa453d6b61'
+      CF_ZONE: '5b56528f03948ff5917a5e0cd9f7109e'
+      SUPPORT_HOST: 'support.mftintelligence.com'
+      WORKER: 'musitu-axiom-support'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Exact branch boundary
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF_NAME" = 'support/axiom-official-support-20261005'
+          test "$GITHUB_REF_NAME" != 'main'
+          test "${{ github.event.before }}" = '4a4f866f36ff9b951f1d29efe1310b88f4623893'
+
+      - name: Read current Cloudflare support runtime state
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          const token=String(process.env.CF_TOKEN||'');
+          const account=process.env.CF_ACCOUNT;
+          const zone=process.env.CF_ZONE;
+          const host=process.env.SUPPORT_HOST;
+          const worker=process.env.WORKER;
+          if(!token||!account||!zone) throw new Error('Cloudflare diagnostic configuration missing');
+          const headers={authorization:'Bearer '+token,accept:'application/json'};
+          async function api(path,{allowFail=false}={}){
+            const r=await fetch('https://api.cloudflare.com/client/v4'+path,{headers});
+            let p={}; try{p=await r.json()}catch{}
+            if((!r.ok||p?.success===false)&&!allowFail){
+              const codes=(p?.errors||[]).map(x=>x?.code).filter(Boolean);
+              throw new Error('Cloudflare diagnostic read failed HTTP '+r.status+' codes='+(codes.join(',')||'none')+' '+path);
+            }
+            return {ok:r.ok&&p?.success!==false,status:r.status,result:p?.result,error_codes:(p?.errors||[]).map(x=>x?.code).filter(Boolean)};
+          }
+
+          const [domains,subdomain,deployments,settings,scriptSettings,widgets,waf,security,bic,bots] = await Promise.all([
+            api('/accounts/'+account+'/workers/domains'),
+            api('/accounts/'+account+'/workers/scripts/'+worker+'/subdomain'),
+            api('/accounts/'+account+'/workers/scripts/'+worker+'/deployments',{allowFail:true}),
+            api('/accounts/'+account+'/workers/scripts/'+worker+'/settings',{allowFail:true}),
+            api('/accounts/'+account+'/workers/scripts/'+worker+'/script-settings',{allowFail:true}),
+            api('/accounts/'+account+'/challenges/widgets?page=1&per_page=1000'),
+            api('/zones/'+zone+'/rulesets/phases/http_request_firewall_custom/entrypoint',{allowFail:true}),
+            api('/zones/'+zone+'/settings/security_level'),
+            api('/zones/'+zone+'/settings/browser_check'),
+            api('/zones/'+zone+'/bot_management')
+          ]);
+
+          const domainMatches=(Array.isArray(domains.result)?domains.result:[]).filter(x=>String(x?.hostname||'')===host);
+          const widgetMatches=(Array.isArray(widgets.result)?widgets.result:[]).filter(x=>String(x?.name||'')==='MUSITU Axiom Official Support');
+          const wafMatches=(Array.isArray(waf.result?.rules)?waf.result.rules:[]).filter(x=>String(x?.ref||'')==='musitu_axiom_support_verified_search_crawlers');
+
+          let contentOk=false, contentMarkers={};
+          const cr=await fetch('https://api.cloudflare.com/client/v4/accounts/'+account+'/workers/scripts/'+worker+'/content/v2',{headers});
+          if(cr.ok){
+            const text=await cr.text();
+            contentOk=true;
+            for(const marker of [
+              'Resolve the issue. Preserve the evidence.',
+              'TURNSTILE_SITE_KEY',
+              'support_case_create',
+              'noindex, nofollow, noarchive',
+              'Sitemap: https://support.mftintelligence.com/sitemap.xml'
+            ]) contentMarkers[marker]=text.includes(marker);
+          }
+
+          const summary={
+            gate:'MUSITU_AXIOM_SUPPORT_LIVE_DIAGNOSTIC_20261008',
+            custom_domain:{
+              count:domainMatches.length,
+              service:domainMatches[0]?.service||null,
+              zone_id:domainMatches[0]?.zone_id||null
+            },
+            worker_subdomain:{
+              workers_dev_enabled:subdomain.result?.enabled===true,
+              previews_enabled:subdomain.result?.previews_enabled===true
+            },
+            worker_deployments:{
+              readable:deployments.ok,
+              latest:Array.isArray(deployments.result?.deployments)?deployments.result.deployments.slice(0,3).map(x=>({
+                id:x?.id||null,created_on:x?.created_on||null,source:x?.source||null,
+                versions:Array.isArray(x?.versions)?x.versions.map(v=>({percentage:v?.percentage,version_id:v?.version_id})):null
+              })):[]
+            },
+            worker_settings:{
+              readable:settings.ok,
+              binding_names:Array.isArray(settings.result?.bindings)?settings.result.bindings.map(x=>String(x?.name||'')).filter(Boolean):[],
+              compatibility_date:settings.result?.compatibility_date||null
+            },
+            worker_script_settings:{
+              readable:scriptSettings.ok,
+              observability:scriptSettings.result?.observability||null,
+              logpush:scriptSettings.result?.logpush??null
+            },
+            turnstile:{
+              exact_widget_count:widgetMatches.length,
+              mode:widgetMatches[0]?.mode||null,
+              domains:widgetMatches[0]?.domains||null,
+              clearance_level:widgetMatches[0]?.clearance_level||null,
+              sitekey_present:typeof widgetMatches[0]?.sitekey==='string'&&widgetMatches[0].sitekey.length>0
+            },
+            waf:{
+              readable:waf.ok,
+              exact_rule_count:wafMatches.length,
+              enabled:wafMatches[0]?.enabled!==false,
+              action:wafMatches[0]?.action||null,
+              expression:wafMatches[0]?.expression||null,
+              products:wafMatches[0]?.action_parameters?.products||null
+            },
+            zone_security:{
+              security_level:security.result?.value||null,
+              browser_integrity_check:bic.result?.value||null,
+              fight_mode:bots.result?.fight_mode??null,
+              ai_bots_protection:bots.result?.ai_bots_protection??null,
+              ai_search:bots.result?.ai_search??null,
+              ai_training:bots.result?.ai_training??null
+            },
+            worker_content:{
+              readable:contentOk,
+              markers:contentMarkers
+            },
+            secret_values_read:false
+          };
+          console.log(JSON.stringify(summary));
+          NODE
+
+      - name: Read D1 support activity metadata only
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          const token=String(process.env.CF_TOKEN||'');
+          const account=process.env.CF_ACCOUNT;
+          const headers={authorization:'Bearer '+token,accept:'application/json'};
+          async function cf(path){
+            const r=await fetch('https://api.cloudflare.com/client/v4'+path,{headers});
+            let p={}; try{p=await r.json()}catch{}
+            if(!r.ok||p?.success===false) throw new Error('Cloudflare D1 diagnostic read failed HTTP '+r.status+' '+path);
+            return p?.result;
+          }
+          const dbs=await cf('/accounts/'+account+'/d1/database?page=1&per_page=1000');
+          const matches=(Array.isArray(dbs)?dbs:[]).filter(x=>String(x?.name||'')==='musitu-axiom-support');
+          if(matches.length!==1) throw new Error('support D1 not uniquely discoverable');
+          const db=String(matches[0]?.uuid||'');
+          async function q(sql){
+            const r=await fetch('https://api.cloudflare.com/client/v4/accounts/'+account+'/d1/database/'+db+'/query',{
+              method:'POST',
+              headers:{authorization:'Bearer '+token,'content-type':'application/json',accept:'application/json'},
+              body:JSON.stringify({sql})
+            });
+            const p=await r.json();
+            if(!r.ok||p?.success===false) throw new Error('D1 query failed HTTP '+r.status);
+            const block=Array.isArray(p.result)?p.result[0]:p.result;
+            return block?.results||[];
+          }
+          const counts=(await q("SELECT (SELECT COUNT(*) FROM support_cases) AS cases,(SELECT COUNT(*) FROM support_case_events) AS events;"))[0]||{};
+          const latest=(await q("SELECT case_id,state,priority,surface,category,retention_class,created_at,updated_at,length(recovery_hash) AS recovery_hash_length,length(encrypted_payload) AS encrypted_payload_length FROM support_cases ORDER BY created_at DESC LIMIT 5;"));
+          console.log(JSON.stringify({
+            gate:'MUSITU_AXIOM_SUPPORT_D1_ACTIVITY_20261008',
+            case_count:Number(counts.cases||0),
+            event_count:Number(counts.events||0),
+            latest_cases:latest.map(x=>({
+              case_id:x.case_id,state:x.state,priority:x.priority,surface:x.surface,category:x.category,retention_class:x.retention_class,
+              created_at:x.created_at,updated_at:x.updated_at,
+              recovery_hash_present:Number(x.recovery_hash_length)===64,
+              encrypted_payload_present:Number(x.encrypted_payload_length)>0
+            })),
+            plaintext_customer_narrative_read:false,
+            recovery_code_read:false
+          }));
+          NODE
+
+      - name: Classify public HTTPS responses
+        shell: bash
+        run: |
+          set -euo pipefail
+          for path in / /health /robots.txt /sitemap.xml /app.js; do
+            safe=$(printf '%s' "$path" | tr '/.' '__')
+            code=$(curl --silent --show-error --connect-timeout 10 --max-time 30               -A 'Mozilla/5.0 (Linux; Android 12) AppleWebKit/537.36 Chrome/140.0 Mobile Safari/537.36'               -D "$safe.headers" -o "$safe.body" -w '%{http_code}' "https://$SUPPORT_HOST$path" || true)
+            mitigated=$(awk 'BEGIN{IGNORECASE=1}/^cf-mitigated:/{gsub("\r",""); print $2}' "$safe.headers" | tail -1)
+            ctype=$(awk 'BEGIN{IGNORECASE=1}/^content-type:/{sub(/^[^:]+:[[:space:]]*/,"");gsub("\r","");print}' "$safe.headers" | tail -1)
+            printf '{"path":"%s","http_status":"%s","cf_mitigated":"%s","content_type":"%s","body_bytes":%s}\n' "$path" "$code" "$mitigated" "$ctype" "$(wc -c < "$safe.body")"
+          done
