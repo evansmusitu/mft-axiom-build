@@ -131,6 +131,7 @@ def run(*, source: Path, spec: MethaneBacktestSpec) -> dict[str,Any]:
             calibration_scores=calibration_scores.tolist(),
             test_examples=test,
             test_scores=scores.tolist(),
+            warning_threshold=spec.warning_threshold,
             minimum_recall=spec.calibration_recall_target,
             update_every_examples=spec.threshold_update_examples,
             window_examples=spec.threshold_window_examples,
