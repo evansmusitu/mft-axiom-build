@@ -92,6 +92,15 @@ CREATE TABLE IF NOT EXISTS support_case_recovery_bindings (
   created_at TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS support_case_recovery_requests (
+  request_id TEXT PRIMARY KEY CHECK (request_id GLOB 'AXQ-*'),
+  case_id TEXT NOT NULL REFERENCES support_cases(case_id) ON DELETE RESTRICT,
+  identity_hash TEXT NOT NULL CHECK (length(identity_hash) = 64),
+  evidence_hash TEXT NOT NULL CHECK (length(evidence_hash) = 64),
+  event_hash TEXT NOT NULL UNIQUE CHECK (length(event_hash) = 64),
+  created_at TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS support_case_recovery_rotations (
   rotation_id TEXT PRIMARY KEY CHECK (rotation_id GLOB 'AXR-*'),
   case_id TEXT NOT NULL REFERENCES support_cases(case_id) ON DELETE RESTRICT,
@@ -130,7 +139,19 @@ CREATE INDEX IF NOT EXISTS support_case_messages_case_created ON support_case_me
 CREATE INDEX IF NOT EXISTS support_case_assignments_case_created ON support_case_assignments(case_id, created_at);
 CREATE INDEX IF NOT EXISTS support_case_approvals_case_created ON support_case_approvals(case_id, created_at);
 CREATE INDEX IF NOT EXISTS support_notification_outbox_case_created ON support_notification_outbox(case_id, created_at);
+CREATE INDEX IF NOT EXISTS support_case_recovery_requests_case_created ON support_case_recovery_requests(case_id, created_at);
 CREATE INDEX IF NOT EXISTS support_case_recovery_rotations_case_created ON support_case_recovery_rotations(case_id, created_at);
+
+CREATE TRIGGER IF NOT EXISTS support_case_recovery_request_no_update
+BEFORE UPDATE ON support_case_recovery_requests BEGIN SELECT RAISE(ABORT, 'support recovery requests are immutable'); END;
+
+CREATE TRIGGER IF NOT EXISTS support_case_recovery_request_no_delete
+BEFORE DELETE ON support_case_recovery_requests
+WHEN NOT EXISTS (
+  SELECT 1 FROM support_case_purge_authorizations
+  WHERE case_id = OLD.case_id AND expires_at >= strftime('%Y-%m-%dT%H:%M:%fZ','now')
+)
+BEGIN SELECT RAISE(ABORT, 'support recovery requests are immutable outside an authorized case purge'); END;
 
 CREATE TRIGGER IF NOT EXISTS support_case_recovery_binding_no_update
 BEFORE UPDATE ON support_case_recovery_bindings BEGIN SELECT RAISE(ABORT, 'support recovery identity bindings are immutable'); END;
