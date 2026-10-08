@@ -1,10 +1,10 @@
 {
   "schema": "musitu.axiom.support-recovery-isolated-build-evidence.v1",
   "status": "IMPLEMENTED_IN_ISOLATION_READY_FOR_AUTHORIZED_PRODUCTION_RELEASE",
-  "recorded_at": "2026-10-08T15:44:00Z",
+  "recorded_at": "2026-10-08T15:48:00Z",
   "repository": "evansmusitu/mft-axiom-build",
   "branch": "support/axiom-support-recovery-isolated-20261008",
-  "head_before_evidence": "04d98d1d7988a198f0c8614dc091e4fc4a97de5a",
+  "head_before_evidence": "5340cfe46dac3025f6207ab36bd5921ab9b0b790",
   "source": {
     "production_rollout_branch": "support/axiom-support-console-production-rollout-20261008",
     "source_sha": "5887dd1759699bb085b289af93f2c60be5c43570"
@@ -42,9 +42,9 @@
     }
   },
   "verification": {
-    "full_regression_run": 37803064842,
-    "tests": 154,
-    "passed": 154,
+    "full_regression_run": 37803619844,
+    "tests": 155,
+    "passed": 155,
     "failed": 0,
     "adversarial": [
       "wrong identity cannot rebind",
@@ -58,7 +58,8 @@
       "missing Access subject fails closed",
       "recovery browser uses no localStorage/sessionStorage/indexedDB",
       "recovery code never appears in URL",
-      "recovery surface excluded from robots discovery"
+      "recovery surface excluded from robots discovery",
+      "internally validated SHA-256 evidence cannot be misclassified as payment-card data; external intake retains full card scanning"
     ]
   },
   "deployment_handoff": "support/recovery/DEPLOYMENT.md",
