@@ -1,7 +1,7 @@
 const CASE_ID=/^AX-[0-9A-HJKMNP-TV-Z]{12}$/;
 const ATTACHMENT_ID=/^AXF-[0-9A-HJKMNP-TV-Z]{16}$/;
 const HASH=/^[a-f0-9]{64}$/i;
-const OPERATOR=/^support_agent:[a-z0-9._:-]{3,160}$/i;
+const OPERATOR=/^support_agent:[a-z0-9._:-]{2,160}$/i;
 const PRIORITY=Object.freeze({
   P0:{ack:15,update:60,resolve:240},
   P1:{ack:60,update:240,resolve:1440},
