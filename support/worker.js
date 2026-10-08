@@ -336,10 +336,10 @@ export async function handleSupportRequest(request, env = {}) {
   if(attachmentContentMatch && (request.method==='PUT'||request.method==='GET')){
     const code=recoveryCode(request);
     if(!code)return json({error:'CASE_AUTH_REQUIRED'},401,{'www-authenticate':'Support'});
-    if(!env.SUPPORT_ATTACHMENTS||typeof env.SUPPORT_ATTACHMENTS.put!=='function'||typeof env.SUPPORT_ATTACHMENTS.get!=='function')return json({error:'ATTACHMENT_PROVIDER_UNAVAILABLE'},503);
     const store=await storeFor(env);
     const caseId=attachmentContentMatch[1],attachmentId=attachmentContentMatch[2];
     if(request.method==='PUT'){
+      if(!env.SUPPORT_ATTACHMENTS||typeof env.SUPPORT_ATTACHMENTS.put!=='function')return json({error:'ATTACHMENT_PROVIDER_UNAVAILABLE'},503);
       const meta=await store.authorizeAttachmentUpload(caseId,code,attachmentId);
       if(!meta)return json({error:'ATTACHMENT_NOT_AVAILABLE'},404);
       const declared=Number(request.headers.get('content-length')||0);
@@ -356,6 +356,7 @@ export async function handleSupportRequest(request, env = {}) {
       await store.markAttachmentUploaded(attachmentId,{actor_ref:'requester'});
       return json({attachment_id:attachmentId,case_id:caseId,scan_state:'PENDING',uploaded:true},201);
     }
+    if(!env.SUPPORT_ATTACHMENTS||typeof env.SUPPORT_ATTACHMENTS.get!=='function')return json({error:'ATTACHMENT_PROVIDER_UNAVAILABLE'},503);
     const meta=await store.authorizeAttachmentDownload(caseId,code,attachmentId);
     if(!meta)return json({error:'ATTACHMENT_NOT_AVAILABLE'},404);
     const object=await env.SUPPORT_ATTACHMENTS.get(meta.storage_key);
