@@ -9,6 +9,9 @@ const CASE_MESSAGE_PATH = /^\/api\/v1\/cases\/([A-Z0-9-]+)\/messages$/;
 const OPERATOR_CASE_PATH = /^\/api\/v1\/operator\/cases\/([A-Z0-9-]+)$/;
 const OPERATOR_MESSAGE_PATH = /^\/api\/v1\/operator\/cases\/([A-Z0-9-]+)\/messages$/;
 const OPERATOR_STATE_PATH = /^\/api\/v1\/operator\/cases\/([A-Z0-9-]+)\/state$/;
+const OPERATOR_ASSIGNMENT_PATH = /^\/api\/v1\/operator\/cases\/([A-Z0-9-]+)\/assignment$/;
+const OPERATOR_APPROVALS_PATH = /^\/api\/v1\/operator\/cases\/([A-Z0-9-]+)\/approvals$/;
+const OPERATOR_APPROVE_PATH = /^\/api\/v1\/operator\/cases\/([A-Z0-9-]+)\/approvals\/(AXA-[0-9A-HJKMNP-TV-Z]{16})\/approve$/;
 const HASH = /^[a-f0-9]{64}$/i;
 
 function json(body, status = 200, extra = {}) {
@@ -208,6 +211,20 @@ async function operatorPrincipal(request, env) {
   return Object.freeze({actor_ref: actorRef, role});
 }
 
+export async function deliverSupportNotification(notification, env = {}) {
+  const value = notification && typeof notification === 'object' ? notification : {};
+  const notificationId = String(value.notification_id || '');
+  const caseId = String(value.case_id || '');
+  const kind = String(value.kind || '');
+  if (!/^AXN-[0-9A-HJKMNP-TV-Z]{16}$/.test(notificationId)) throw new TypeError('notification id is invalid');
+  if (!/^AX-[0-9A-HJKMNP-TV-Z]{12}$/.test(caseId)) throw new TypeError('notification case id is invalid');
+  if (!/^[A-Z][A-Z0-9_]{2,79}$/.test(kind)) throw new TypeError('notification kind is invalid');
+  if (typeof env.SUPPORT_NOTIFICATION_SEND !== 'function') return Object.freeze({delivered:false,reason:'PROVIDER_UNAVAILABLE'});
+  const payload=Object.freeze({notification_id:notificationId,case_id:caseId,kind});
+  const receipt=await env.SUPPORT_NOTIFICATION_SEND(payload);
+  return Object.freeze({delivered:true,receipt_id:String(receipt?.id||'')||null});
+}
+
 export async function handleOperatorRequest(request, env = {}) {
   const principal = await operatorPrincipal(request, env);
   if (!principal) return json({error: 'OPERATOR_AUTH_REQUIRED'}, 401, {'www-authenticate': 'Cloudflare-Access'});
@@ -218,6 +235,36 @@ export async function handleOperatorRequest(request, env = {}) {
     const state = url.searchParams.get('state') || null;
     const cases = await store.listOperatorCases({state, limit: 100});
     return json({schema: 'musitu.axiom.support-operator-inbox.v1', cases});
+  }
+
+  const assignmentMatch = url.pathname.match(OPERATOR_ASSIGNMENT_PATH);
+  if (request.method === 'POST' && assignmentMatch) {
+    const value = await store.assignOperatorCase(assignmentMatch[1], principal);
+    if (!value) return json({error: 'CASE_NOT_FOUND'}, 404);
+    return json(value);
+  }
+
+  const approvalsMatch = url.pathname.match(OPERATOR_APPROVALS_PATH);
+  if (request.method === 'POST' && approvalsMatch) {
+    const body = await readJson(request);
+    if (!body || Array.isArray(body) || typeof body !== 'object') throw new TypeError('approval proposal must be an object');
+    const value = await store.proposeSensitiveAction(approvalsMatch[1], {
+      action: body.action,
+      evidence_hashes: body.evidence_hashes,
+    }, principal);
+    if (!value) return json({error: 'CASE_NOT_FOUND'}, 404);
+    return json(value, 201);
+  }
+
+  const approveMatch = url.pathname.match(OPERATOR_APPROVE_PATH);
+  if (request.method === 'POST' && approveMatch) {
+    const body = await readJson(request);
+    if (!body || Array.isArray(body) || typeof body !== 'object') throw new TypeError('approval decision must be an object');
+    const value = await store.approveSensitiveAction(approveMatch[1], approveMatch[2], {
+      decision: body.decision || 'APPROVED',
+    }, principal);
+    if (!value) return json({error: 'APPROVAL_NOT_FOUND'}, 404);
+    return json(value);
   }
 
   const messageMatch = url.pathname.match(OPERATOR_MESSAGE_PATH);
