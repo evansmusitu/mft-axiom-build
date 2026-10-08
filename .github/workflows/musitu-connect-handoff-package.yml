@@ -1,0 +1,495 @@
+name: MUSITU Connect continuation handoff package
+
+on:
+  push:
+    branches:
+      - 'handoff/musitu-connect-20261008-cba0a3b'
+    paths:
+      - '.github/workflows/musitu-connect-handoff-package.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      FROZEN_HEAD: 'cba0a3b1c29d7607c0668d8e4a5a1399152dd932'
+      SEALED_MAIN: 'd6a846f6bbe0bccac1758713eb4de167caf07113'
+      PACKAGE_NAME: 'MUSITU_CONNECT_CLEAN_WHOLE_PRODUCT_CONTINUATION_HANDOFF_20261008_CBA0A3B_AUTHORITATIVE'
+    steps:
+      - name: Checkout exact frozen product snapshot
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.FROZEN_HEAD }}
+          path: handoff-root/PRODUCT
+          fetch-depth: 1
+
+      - name: Remove VCS working metadata
+        run: |
+          rm -rf handoff-root/PRODUCT/.git
+          test ! -e handoff-root/PRODUCT/.git
+
+      - name: Create continuation authority
+        run: |
+          mkdir -p handoff-root/HANDOFF handoff-root/EVIDENCE
+
+          cat > handoff-root/HANDOFF/00_READ_FIRST.md <<'EOF'
+          # MUSITU Connect — continuation authority
+
+          This package is the authoritative clean continuation snapshot for MUSITU Connect created on 2026-10-08.
+
+          ## Read order in a new chat
+
+          Before changing anything, read these files in this exact order:
+
+          1. `HANDOFF/00_READ_FIRST.md`
+          2. `HANDOFF/STATE.json`
+          3. `HANDOFF/CONTINUATION.md`
+          4. `HANDOFF/EVIDENCE_INDEX.json`
+          5. `HANDOFF/PACKAGE_MANIFEST.json`
+          6. `HANDOFF/MANIFEST.sha256`
+          7. `HANDOFF/EXACT_NEW_CHAT_COMMAND.txt`
+
+          Then immediately re-read the live GitHub PR/head/CI state before modifying the repository, because the live feature branch may have advanced after this snapshot was frozen.
+
+          ## Frozen source baseline
+
+          - Repository: `evansmusitu/mft-axiom-build`
+          - Product branch: `feat/musitu-connect-frontier`
+          - PR: `#9`
+          - Frozen package head: `cba0a3b1c29d7607c0668d8e4a5a1399152dd932`
+          - Sealed `main`: `d6a846f6bbe0bccac1758713eb4de167caf07113`
+
+          The complete source tree at the frozen head is under `PRODUCT/`.
+
+          ## Immutable operating rules
+
+          - MUSITU Connect is the general-purpose enterprise interoperability/runtime platform.
+          - Mining is the first adapter.
+          - Axiom is a downstream intelligence/quant engine and must not become the integration layer.
+          - Keep PR #9 open/unmerged unless the user explicitly authorizes merge.
+          - Keep sealed `main` exactly at the SHA above unless the user explicitly authorizes otherwise.
+          - Do not redeploy or mutate production merely because of a chat shift, CI result, or infrastructure qualification.
+          - Do not weaken Cloudflare/Axiom security.
+          - Do not expose, print, rotate, or ask the user to paste credentials/secrets.
+          - `connect.musitu.com` remains deferred unless scoped Cloudflare transport/security permission can be solved without weakening security.
+          - Commercial/named-baseline superiority claims require identical workload/topology/hardware/licensing evidence.
+
+          ## Exact status at freeze
+
+          PR #9 was open, unmerged and mergeable. Normal Connect qualification, infrastructure qualification and Brand Guard were green on the frozen head. The methane forecasting backtest was intentionally red and is the active engineering frontier.
+
+          Latest red methane run:
+          - Workflow run: `37728089126`
+          - Artifact ID: `11529095892`
+          - Gate: `REAL_MINE_METHANE_BACKTEST_FAILED`
+          - Source rows: 9,199,930
+          - Eligible examples: 306,601
+          - Median recall: 0.8968409598533875
+          - Median precision: 0.05242017983047713
+          - Median F2: 0.21223930547348396
+          - Persistence baseline median F2: 0.29807984913409546
+          - Passing folds: 0 / 4
+          - Required passing folds: 3 / 4
+
+          Do **not** lower the gate to turn CI green. Diagnose and improve the predictive policy/model while preserving chronological leakage controls and the published task geometry.
+
+          ## Published real-mine prediction geometry currently enforced
+
+          - Dataset identity: Mendeley Data `yd7vw4c5mk`, DOI `10.17632/yd7vw4c5mk.1`
+          - License: CC BY 4.0
+          - Anonymous transport used in qualified telemetry evidence: OpenML dataset 42701
+          - Exact source SHA-256: `28e2eed4c4a314daa4319f656a09bb43d8acea603dcb906e31c98049c91a8fdc`
+          - History window: 600 seconds
+          - Forecast target: methane threshold exceedance 180–360 seconds ahead
+          - Target sensors: MM263, MM264, MM256
+          - Warning threshold: 1.0
+          - Rolling temporal folds are leakage-purged.
+          - Online recalibration may use only outcomes whose complete future label window has elapsed.
+          - The hard observed-methane warning rule must never be suppressed by a learned model.
+
+          Continue from live state, not from assumptions.
+          EOF
+
+          cat > handoff-root/HANDOFF/CONTINUATION.md <<'EOF'
+          # MUSITU Connect — full continuation context
+
+          ## Product architecture
+
+          MUSITU Connect is being built as a world-class general-purpose enterprise interoperability/runtime platform. Mining is only its first adapter. The durable path already spans protocol ingress, canonical contracts, signed lineage, SQLite WAL durability, analytical/spatial integration, workflow durability, OTLP observability, optimization and a controlled Axiom downstream boundary.
+
+          Axiom is downstream intelligence. It must never absorb the integration layer.
+
+          ## Proven engineering layers already established
+
+          ### Durable Mining Adapter
+          - MQTT JSON ingress with a 1 MiB bound.
+          - Explicit OPC-UA node mapping.
+          - Canonical normalization/signing.
+          - SQLite WAL ledger with `synchronous=FULL`.
+          - Idempotence/conflict protection.
+          - Tamper-evident hash-chained audit.
+          - Exact replay and tamper detection.
+          - Qualified workflow boundary.
+          - Axiom execution only through a controlled downstream gateway.
+
+          ### Persistence performance frontier
+          The initial ingest persistence path was optimized without weakening durability:
+          - run row + `RUN_RECORDED` + `INGEST_COMPLETED` are committed atomically,
+          - the sealing SHA is carried into persistence rather than redundantly recomputed,
+          - replay still independently re-hashes stored canonical bytes.
+
+          Verified reference-lane median durable MQTT throughput improved from about 15,278 events/s to 41,534 events/s (~2.72x), with p99 improving about 4.84x. The stronger four-round counterbalanced reference-vs-EMQX result remained TIE within the 5% band.
+
+          ### Industrial field evidence
+          A full one-million-event MQTT stress path and 10-minute restart soak passed for both reference Mosquitto and EMQX-backed lanes, plus a one-million-point OPC-UA forced-recovery run. This is field/load software evidence, not mine-safety certification.
+
+          ### Mine Reality Gate
+          A separate adversarial synthetic mining-telemetry gate passed:
+          - 1,000,000 / 1,000,000 events,
+          - deliberate duplicates,
+          - stale/out-of-order/clock-drift data,
+          - multiple broker restarts,
+          - fail-closed malformed telemetry probes,
+          - replay/audit verification.
+
+          ### Real public mine incident data
+          The official MSHA Accident Injuries corpus was qualified:
+          - 275,094 source records,
+          - zero parse failures,
+          - 2000-01-01 through 2026-09-25 at that run,
+          - latest 50,000 records persisted through a dedicated real-incident canonical contract.
+          No fake optimizer likelihood/cost/benefit fields were invented.
+
+          ### Real underground mine telemetry
+          A dedicated `mining_telemetry` canonical contract was added for real sensor streams instead of coercing telemetry into the intervention-risk contract.
+
+          Qualified longwall corpus:
+          - Mendeley Data `yd7vw4c5mk`, DOI `10.17632/yd7vw4c5mk.1`, CC BY 4.0.
+          - 9,199,930 one-second rows.
+          - 28 sensor/operational channels.
+          - zero parse failures.
+          - 1,000,000 records durably ingested in 1,000 signed batches.
+          - exact replay, audit and signature checks passed.
+          - `F_SIDE` is preserved as non-numeric operational state.
+          - real numeric outliers are preserved instead of silently clipped.
+
+          ## Current active frontier: methane forecasting
+
+          The project moved beyond ingestion into a leakage-safe real-mine forecasting benchmark using the same qualified longwall source.
+
+          The current benchmark deliberately fails closed. At the frozen head, the latest four-fold rolling backtest did not meet the gate:
+          - median recall 0.8968409598533875 (target >= 0.90),
+          - median precision 0.05242017983047713 (target >= 0.10),
+          - median F2 0.21223930547348396,
+          - baseline median F2 0.29807984913409546,
+          - 0/4 folds passed, 3/4 required.
+
+          Historical development showed strong ranking discrimination in some folds, but threshold/policy transfer under methane-regime drift is the bottleneck. Do not reinterpret or hide this failure.
+
+          ### Required next engineering behavior
+          1. Re-read live branch/PR/CI state first.
+          2. Inspect the latest `benchmarks/mining_adapter/methane_backtest.py`, runner, tests and failed artifact.
+          3. Preserve the published 600-second history and 180–360 second future label.
+          4. Preserve temporal leakage checks.
+          5. Never use unresolved future labels for threshold/model adaptation.
+          6. Never allow the learned model to suppress an observed hard methane >= 1.0 warning.
+          7. Improve model/policy/feature regime handling without weakening:
+             - test recall >= 0.90,
+             - test precision >= 0.10,
+             - F2 >= baseline F2 * 1.05,
+             - at least 3/4 passing rolling folds.
+          8. Run the same real-corpus backtest and report the actual result.
+          9. If it still fails, keep it red and preserve the evidence.
+
+          ## Evidence and claims discipline
+
+          Evidence artifacts are bundled under `EVIDENCE/` and indexed in `HANDOFF/EVIDENCE_INDEX.json`.
+
+          Current defensible scope:
+          - strong Connect software qualification,
+          - optimized durable MQTT path,
+          - industrial load/fault-soak evidence,
+          - real public mining incident ingestion,
+          - real public underground-mine telemetry ingestion.
+
+          Not yet defensible:
+          - mine-safety certification,
+          - customer-mine deployment evidence,
+          - proven economic intervention value,
+          - product-wide superiority over HighByte/Azure/EMQX,
+          - qualified methane predictive signal while the rolling backtest remains red.
+
+          HighByte Intelligence Hub and Azure IoT Operations remain blocked until legitimate licensed same-workload environments are available. Never fabricate these results or accept license/EULA terms on the user's behalf.
+
+          ## Production / repository safety
+
+          Do not merge PR #9.
+          Do not move sealed main.
+          Do not redeploy production.
+          Do not enable production Axiom merely because infrastructure gates are green.
+          Do not modify custom-domain/Cloudflare security without explicit scope.
+          EOF
+
+          cat > handoff-root/HANDOFF/EXACT_NEW_CHAT_COMMAND.txt <<'EOF'
+          @MUSITU Axiom — Continue MUSITU Connect from the authoritative continuation package in my connected Google Drive named "MUSITU_CONNECT_CLEAN_WHOLE_PRODUCT_CONTINUATION_HANDOFF_20261008_CBA0A3B_AUTHORITATIVE.zip".
+
+          First locate and read the package, then read HANDOFF/00_READ_FIRST.md, HANDOFF/STATE.json, HANDOFF/CONTINUATION.md, HANDOFF/EVIDENCE_INDEX.json, HANDOFF/PACKAGE_MANIFEST.json, and HANDOFF/MANIFEST.sha256 before doing anything else. Treat GitHub repo "evansmusitu/mft-axiom-build", branch "feat/musitu-connect-frontier", PR #9, packaged head "cba0a3b1c29d7607c0668d8e4a5a1399152dd932", and sealed main "d6a846f6bbe0bccac1758713eb4de167caf07113" as the continuation baseline, but immediately re-read the live PR/head/CI state before modifying it because it may have advanced after packaging.
+
+          Preserve the architecture and safety boundaries: MUSITU Connect is the general-purpose enterprise interoperability/runtime platform; Mining is the first adapter; Axiom is downstream intelligence and must not become the integration layer. Do not merge PR #9, move sealed main, redeploy production, weaken Cloudflare/Axiom security, expose credentials, or enable production Axiom integration unless I explicitly authorize it.
+
+          The active frontier at package freeze is the real-mine methane forecasting backtest. Normal Connect qualification, infrastructure qualification and Brand Guard were green, but methane backtest run 37728089126 was intentionally red: gate REAL_MINE_METHANE_BACKTEST_FAILED, 9,199,930 source rows, 306,601 eligible examples, median recall 0.8968409598533875, median precision 0.05242017983047713, median F2 0.21223930547348396 versus persistence baseline median F2 0.29807984913409546, with 0/4 folds passing and 3/4 required. Do not lower the gate to make CI green.
+
+          Continue the engineering directly from live state. Preserve the published task geometry and leakage controls: 600-second history, methane threshold >=1.0 on MM263/MM264/MM256 predicted 180–360 seconds ahead, chronological/purged folds, online adaptation only from fully resolved labels, and the hard observed-methane warning rule must never be suppressed by the learned model. Improve the predictive model/policy/features until the existing strict gate passes honestly, or keep the gate red and report the measured blocker if it does not. Keep HighByte/Azure qualification blocked until legitimate licensed environments exist.
+          EOF
+
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          root=Path("handoff-root")
+          state={
+            "schema":"musitu.connect.continuation_state.v1",
+            "package_created_date":"2026-10-08",
+            "repository":"evansmusitu/mft-axiom-build",
+            "feature_branch":"feat/musitu-connect-frontier",
+            "pull_request":9,
+            "packaged_head":"cba0a3b1c29d7607c0668d8e4a5a1399152dd932",
+            "sealed_main":"d6a846f6bbe0bccac1758713eb4de167caf07113",
+            "pr_state_at_freeze":{
+              "state":"open",
+              "merged":False,
+              "mergeable":True
+            },
+            "latest_head_workflows_at_freeze":{
+              "connect_qualification":{"run_id":37728089206,"conclusion":"success"},
+              "infrastructure_qualification":{"run_id":37728089130,"conclusion":"success"},
+              "brand_guard":{"run_id":37728093384,"conclusion":"success"},
+              "methane_backtest":{"run_id":37728089126,"conclusion":"failure"}
+            },
+            "active_frontier":{
+              "name":"real_mine_methane_forecasting",
+              "gate":"REAL_MINE_METHANE_BACKTEST_FAILED",
+              "source_rows":9199930,
+              "eligible_examples":306601,
+              "median_test_recall":0.8968409598533875,
+              "median_test_precision":0.05242017983047713,
+              "median_test_f2":0.21223930547348396,
+              "median_baseline_f2":0.29807984913409546,
+              "passing_folds":0,
+              "required_passing_folds":3,
+              "history_seconds":600,
+              "horizon_start_seconds":180,
+              "horizon_end_seconds":360,
+              "warning_threshold":1.0
+            },
+            "architecture":{
+              "platform":"MUSITU Connect",
+              "scope":"general-purpose enterprise interoperability/runtime platform",
+              "first_adapter":"Mining",
+              "axiom_role":"downstream intelligence engine only"
+            },
+            "immutable_rules":{
+              "merge_pr_9_without_explicit_authorization":False,
+              "move_sealed_main_without_explicit_authorization":False,
+              "redeploy_production_on_chat_shift":False,
+              "weaken_security":False,
+              "fabricate_external_comparator_results":False
+            },
+            "external_blockers":{
+              "highbyte":"BLOCKED_PENDING_LEGITIMATE_LICENSED_IDENTICAL_WORKLOAD_ENVIRONMENT",
+              "azure_iot_operations":"BLOCKED_PENDING_LEGITIMATE_AZURE_ARC_ENVIRONMENT"
+            }
+          }
+          (root/"HANDOFF"/"STATE.json").write_text(
+              json.dumps(state,indent=2,sort_keys=True)+"\n",encoding="utf-8"
+          )
+          PY
+
+      - name: Download and verify key evidence artifacts
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          cd handoff-root/EVIDENCE
+
+          download_artifact() {
+            local id="$1"
+            local file="$2"
+            local digest="$3"
+            curl --fail --location               --retry 5 --retry-all-errors --retry-delay 2               -H "Authorization: Bearer $GH_TOKEN"               -H "Accept: application/vnd.github+json"               -H "X-GitHub-Api-Version: 2022-11-28"               "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/artifacts/${id}/zip"               --output "$file"
+            echo "${digest}  ${file}" | sha256sum -c -
+          }
+
+          download_artifact 11529095892 methane_backtest_latest_failed_run_37728089126.zip 4e5c46e80711453058edd7e938d223a8f756ff5895bfa431a0db39a7a11007e3
+          download_artifact 11528572819 infrastructure_current_head_run_37728089130.zip 4a6afcd5d074d43d67fff8354ac067728d44786895382d1e44c2f980d0db811d
+          download_artifact 11421301253 mqtt_performance_frontier_run_37480700570.zip bacc0c8537bccb3b751284cd1db3ed69c8c58ad3b64ff5e345ee46936e1f2bcb
+          download_artifact 11422995054 industrial_field_run_37480700637.zip 0bbc07921ffc2facfd3e3644fbd5b85ee61c6e7a6b736a8030f6dcaaabcbc17a
+          download_artifact 11429439990 mine_reality_run_37503051079.zip c0770fd493390286dcd9167cfa8f56d9eb702c0a83000ecf29aaa422b6f2ffc6
+          download_artifact 11443612392 real_mine_public_data_run_37529185354.zip 87b53fb0a5143de98e5bfdc2124878527d89c5002e8bc02c7b3c768b4c01f84d
+          download_artifact 11464710749 real_mine_telemetry_run_37579602723.zip 012e538fb986986e256c6e50ab58e277720b4ac2c8ecef3bc7846b77f7046772
+
+      - name: Write evidence index
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          evidence=[
+            {
+              "name":"latest_methane_backtest_failed",
+              "run_id":37728089126,
+              "head_sha":"cba0a3b1c29d7607c0668d8e4a5a1399152dd932",
+              "artifact_id":11529095892,
+              "artifact_sha256":"4e5c46e80711453058edd7e938d223a8f756ff5895bfa431a0db39a7a11007e3",
+              "file":"EVIDENCE/methane_backtest_latest_failed_run_37728089126.zip",
+              "status":"FAIL",
+              "gate":"REAL_MINE_METHANE_BACKTEST_FAILED"
+            },
+            {
+              "name":"current_infrastructure_qualification",
+              "run_id":37728089130,
+              "head_sha":"cba0a3b1c29d7607c0668d8e4a5a1399152dd932",
+              "artifact_id":11528572819,
+              "artifact_sha256":"4a6afcd5d074d43d67fff8354ac067728d44786895382d1e44c2f980d0db811d",
+              "file":"EVIDENCE/infrastructure_current_head_run_37728089130.zip",
+              "status":"PASS"
+            },
+            {
+              "name":"mqtt_performance_frontier",
+              "run_id":37480700570,
+              "head_sha":"95be51257cc33c622aafeddf32ec7379e210b306",
+              "artifact_id":11421301253,
+              "artifact_sha256":"bacc0c8537bccb3b751284cd1db3ed69c8c58ad3b64ff5e345ee46936e1f2bcb",
+              "file":"EVIDENCE/mqtt_performance_frontier_run_37480700570.zip",
+              "status":"PASS"
+            },
+            {
+              "name":"industrial_field",
+              "run_id":37480700637,
+              "head_sha":"95be51257cc33c622aafeddf32ec7379e210b306",
+              "artifact_id":11422995054,
+              "artifact_sha256":"0bbc07921ffc2facfd3e3644fbd5b85ee61c6e7a6b736a8030f6dcaaabcbc17a",
+              "file":"EVIDENCE/industrial_field_run_37480700637.zip",
+              "status":"PASS",
+              "gate":"INDUSTRIAL_FIELD_BENCHMARK_PARTIAL"
+            },
+            {
+              "name":"mine_reality",
+              "run_id":37503051079,
+              "head_sha":"b5f614fa836497e78d40174515929b4def0b6690",
+              "artifact_id":11429439990,
+              "artifact_sha256":"c0770fd493390286dcd9167cfa8f56d9eb702c0a83000ecf29aaa422b6f2ffc6",
+              "file":"EVIDENCE/mine_reality_run_37503051079.zip",
+              "status":"PASS",
+              "gate":"MINE_REALITY_QUALIFIED"
+            },
+            {
+              "name":"real_mine_public_data",
+              "run_id":37529185354,
+              "head_sha":"7df5eb04acdf57953a7fd9444acc7b2328f6b0e4",
+              "artifact_id":11443612392,
+              "artifact_sha256":"87b53fb0a5143de98e5bfdc2124878527d89c5002e8bc02c7b3c768b4c01f84d",
+              "file":"EVIDENCE/real_mine_public_data_run_37529185354.zip",
+              "status":"PASS",
+              "gate":"REAL_MINE_PUBLIC_DATA_QUALIFIED"
+            },
+            {
+              "name":"real_mine_telemetry",
+              "run_id":37579602723,
+              "head_sha":"1b4d5eb50525ae1905c6eb788b00eaffd757fc51",
+              "artifact_id":11464710749,
+              "artifact_sha256":"012e538fb986986e256c6e50ab58e277720b4ac2c8ecef3bc7846b77f7046772",
+              "file":"EVIDENCE/real_mine_telemetry_run_37579602723.zip",
+              "status":"PASS",
+              "gate":"REAL_MINE_TELEMETRY_QUALIFIED"
+            }
+          ]
+          Path("handoff-root/HANDOFF/EVIDENCE_INDEX.json").write_text(
+            json.dumps({"schema":"musitu.connect.evidence_index.v1","artifacts":evidence},indent=2,sort_keys=True)+"\n"
+          )
+          PY
+
+      - name: Build package manifest and cryptographic inventory
+        run: |
+          python - <<'PY'
+          import hashlib,json
+          from pathlib import Path
+
+          root=Path("handoff-root")
+          product_files=[p for p in (root/"PRODUCT").rglob("*") if p.is_file()]
+          evidence_files=[p for p in (root/"EVIDENCE").rglob("*") if p.is_file()]
+          handoff_files=[
+            p for p in (root/"HANDOFF").rglob("*")
+            if p.is_file() and p.name not in {"PACKAGE_MANIFEST.json","MANIFEST.sha256"}
+          ]
+          payload={
+            "schema":"musitu.connect.package_manifest.v1",
+            "package_name":"MUSITU_CONNECT_CLEAN_WHOLE_PRODUCT_CONTINUATION_HANDOFF_20261008_CBA0A3B_AUTHORITATIVE",
+            "packaged_head":"cba0a3b1c29d7607c0668d8e4a5a1399152dd932",
+            "sealed_main":"d6a846f6bbe0bccac1758713eb4de167caf07113",
+            "product_file_count":len(product_files),
+            "evidence_file_count":len(evidence_files),
+            "handoff_file_count_before_manifest":len(handoff_files),
+            "product_bytes":sum(p.stat().st_size for p in product_files),
+            "evidence_bytes":sum(p.stat().st_size for p in evidence_files),
+            "git_metadata_included":False,
+            "source_tree_location":"PRODUCT/",
+            "handoff_location":"HANDOFF/",
+            "evidence_location":"EVIDENCE/"
+          }
+          (root/"HANDOFF"/"PACKAGE_MANIFEST.json").write_text(
+            json.dumps(payload,indent=2,sort_keys=True)+"\n"
+          )
+          PY
+
+          cd handoff-root
+          find . -type f ! -path './HANDOFF/MANIFEST.sha256' -print0             | sort -z             | xargs -0 sha256sum > HANDOFF/MANIFEST.sha256
+
+      - name: Verify complete package
+        run: |
+          set -euo pipefail
+          cd handoff-root
+          sha256sum -c HANDOFF/MANIFEST.sha256
+          test -f HANDOFF/00_READ_FIRST.md
+          test -f HANDOFF/STATE.json
+          test -f HANDOFF/CONTINUATION.md
+          test -f HANDOFF/EVIDENCE_INDEX.json
+          test -f HANDOFF/PACKAGE_MANIFEST.json
+          test -f HANDOFF/EXACT_NEW_CHAT_COMMAND.txt
+          test -d PRODUCT/connect
+          test -d PRODUCT/benchmarks/mining_adapter
+          test -d PRODUCT/tests/connect
+          test ! -e PRODUCT/.git
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          state=json.loads(Path("HANDOFF/STATE.json").read_text())
+          manifest=json.loads(Path("HANDOFF/PACKAGE_MANIFEST.json").read_text())
+          evidence=json.loads(Path("HANDOFF/EVIDENCE_INDEX.json").read_text())
+          assert state["packaged_head"]=="cba0a3b1c29d7607c0668d8e4a5a1399152dd932"
+          assert state["sealed_main"]=="d6a846f6bbe0bccac1758713eb4de167caf07113"
+          assert state["active_frontier"]["gate"]=="REAL_MINE_METHANE_BACKTEST_FAILED"
+          assert manifest["product_file_count"]>250
+          assert len(evidence["artifacts"])==7
+          print("HANDOFF_JSON_INVARIANTS=PASS")
+          print("PRODUCT_FILE_COUNT="+str(manifest["product_file_count"]))
+          print("EVIDENCE_FILE_COUNT="+str(manifest["evidence_file_count"]))
+          PY
+          echo "MUSITU_CONNECT_HANDOFF_VERIFIED=PASS"
+
+      - name: Upload authoritative continuation package
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.PACKAGE_NAME }}
+          path: |
+            handoff-root/PRODUCT
+            handoff-root/HANDOFF
+            handoff-root/EVIDENCE
+          retention-days: 90
+          compression-level: 6
+          include-hidden-files: true
+          if-no-files-found: error
