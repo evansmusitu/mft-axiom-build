@@ -1,0 +1,29 @@
+name: MUSITU Axiom Secure Recovery Isolated TDD
+
+on:
+  push:
+    branches:
+      - 'support/axiom-support-recovery-isolated-20261008'
+    paths:
+      - 'support/**'
+      - '.github/workflows/axiom-support-recovery-isolated-tdd.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 7
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Syntax checks
+        run: |
+          node --check support/control_plane.js
+          node --check support/d1_case_store.js
+          node --check support/worker.js
+      - name: Full support regression suite
+        run: node --test support/tests/*.test.mjs
