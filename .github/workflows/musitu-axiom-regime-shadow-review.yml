@@ -1,0 +1,80 @@
+name: MUSITU Axiom regime shadow evidence review
+
+on:
+  push:
+    branches: ['feat/musitu-connect-frontier']
+    paths:
+      - '.github/workflows/musitu-axiom-regime-shadow-review.yml'
+      - 'benchmarks/mining_adapter/regime_shadow_review.py'
+      - 'tests/connect/test_regime_shadow_review.py'
+      - 'benchmarks/mining_adapter/REGIME_SHADOW_REVIEW_README.md'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Verify independent confusion checks and negative admission cases
+        run: |
+          python -m py_compile benchmarks/mining_adapter/regime_shadow_review.py
+          python -m unittest tests.connect.test_regime_shadow_review -v
+
+      - name: Retrieve pinned real-mine regime shadow archive
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p /tmp/axiom-regime-shadow qualification/axiom_regime_shadow_review
+          gh run download 37798652297 --repo "${{ github.repository }}" \
+            --name musitu-axiom-lightgbm-research-evidence \
+            --dir /tmp/axiom-regime-shadow
+          printf '%s  %s\n' \
+            '681a9e45c7c69a172759a9ecfc1f21f18dab4dbb7058d46537e5d572e17133af' \
+            '/tmp/axiom-regime-shadow/lightgbm_research.json' | sha256sum --check
+
+      - name: Audit archived evidence and reject unsafe model promotion
+        env:
+          AXIOM_REGIME_EVIDENCE_PATH: /tmp/axiom-regime-shadow/lightgbm_research.json
+        run: |
+          python -m unittest tests.connect.test_regime_shadow_review -v
+          python -m benchmarks.mining_adapter.regime_shadow_review \
+            --evidence "$AXIOM_REGIME_EVIDENCE_PATH" \
+            --output qualification/axiom_regime_shadow_review/regime_shadow_review.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          p=Path('qualification/axiom_regime_shadow_review/regime_shadow_review.json')
+          r=json.loads(p.read_text())
+          assert r['source_sha256']=='28e2eed4c4a314daa4319f656a09bb43d8acea603dcb906e31c98049c91a8fdc'
+          assert r['selection_decision']=='DO_NOT_PROMOTE'
+          assert r['development_signal']=='DEGRADES_MEDIAN_F2'
+          assert r['production_admission'] is False
+          assert r['independent_validation'] is False
+          assert r['support_eligible_folds']==2
+          assert r['required_passing_folds']==3
+          assert r['false_positive_delta']==480
+          assert r['shadow_median_f2']<r['model_median_f2']
+          assert len(r['folds'])==4
+          print('RESEARCH_REVIEW_FAIL_CLOSED=PASS')
+          print('REGIME_SHADOW_PROMOTION=REJECTED')
+          print('PRODUCTION_AXIOM=BLOCKED')
+          PY
+          sha256sum qualification/axiom_regime_shadow_review/regime_shadow_review.json
+
+      - name: Archive research-only rejection evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: musitu-axiom-regime-shadow-review
+          path: qualification/axiom_regime_shadow_review/*.json
+          retention-days: 90
+          if-no-files-found: warn
