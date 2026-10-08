@@ -17,7 +17,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: musitu-connect-methane-backtest-v2-${{ github.ref }}
+  group: musitu-connect-methane-backtest-v3-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
