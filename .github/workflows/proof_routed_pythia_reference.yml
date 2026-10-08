@@ -11,42 +11,99 @@ permissions:
 jobs:
   reference:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
     steps:
       - name: Generate transformer reference evidence
         shell: bash
         run: |
           set -euo pipefail
+          python -m pip install --quiet --disable-pip-version-check --index-url https://download.pytorch.org/whl/cpu torch
           python -m pip install --quiet --disable-pip-version-check "transformers==4.40.0" "safetensors>=0.4" "huggingface_hub[hf_xet]>=0.34"
           python - <<'PY'
           import hashlib, json, pathlib, numpy as np, torch
           from huggingface_hub import HfApi, snapshot_download
           from transformers import AutoModelForCausalLM
+
+          torch.set_grad_enabled(False)
           repo="EleutherAI/pythia-14m"
           rev=HfApi().model_info(repo).sha
-          src=pathlib.Path(snapshot_download(repo_id=repo,revision=rev,allow_patterns=["model.safetensors","config.json"]))
-          h=hashlib.sha256((src/"model.safetensors").read_bytes()).hexdigest()
-          model=AutoModelForCausalLM.from_pretrained(src,torch_dtype=torch.float32,local_files_only=True)
+          src=pathlib.Path(snapshot_download(
+              repo_id=repo,
+              revision=rev,
+              allow_patterns=["model.safetensors","config.json"],
+          ))
+          model_path=src/"model.safetensors"
+          model_sha=hashlib.sha256(model_path.read_bytes()).hexdigest()
+          model=AutoModelForCausalLM.from_pretrained(
+              src,
+              torch_dtype=torch.float32,
+              local_files_only=True,
+          )
           model.eval()
-          ids=torch.tensor([
+
+          od=pathlib.Path("reference_artifact")
+          od.mkdir()
+
+          debug_ids=torch.tensor([
              [0,1,2,3,4,5,6,7,8,9,10,11],
-             [42,314,2718,7,503,9001,17,29,31,37,41,43]
+             [42,314,2718,7,503,9001,17,29,31,37,41,43],
           ],dtype=torch.long)
-          with torch.no_grad():
-             out=model(ids,output_hidden_states=True,use_cache=False)
-          od=pathlib.Path("reference_artifact"); od.mkdir()
-          np.save(od/"input_ids.npy",ids.numpy())
-          np.save(od/"last_logits.npy",out.logits[:,-1,:].cpu().numpy().astype(np.float64))
-          # Store all returned hidden states for layer-local debugging.
-          hs=np.stack([x.cpu().numpy().astype(np.float64) for x in out.hidden_states],axis=0)
-          np.save(od/"hidden_states.npy",hs)
-          top=torch.topk(out.logits[:,-1,:],k=10,dim=-1)
+          debug=model(debug_ids,output_hidden_states=True,use_cache=False)
+          debug_hs=torch.stack(debug.hidden_states,dim=0)
+          np.save(od/"debug_input_ids.npy",debug_ids.cpu().numpy())
+          np.save(od/"debug_last_logits.npy",debug.logits[:,-1,:].cpu().numpy().astype(np.float32))
+          np.save(od/"debug_hidden_states.npy",debug_hs.cpu().numpy().astype(np.float32))
+          debug_top=torch.topk(debug.logits[:,-1,:],k=10,dim=-1)
+
+          g=torch.Generator(device="cpu")
+          g.manual_seed(20261008)
+          campaign_ids=torch.randint(
+              low=0,
+              high=int(model.config.vocab_size),
+              size=(128,32),
+              generator=g,
+              dtype=torch.long,
+          )
+          logits_chunks=[]
+          hidden_chunks=[]
+          for start in range(0,128,8):
+              batch=campaign_ids[start:start+8]
+              out=model.gpt_neox(batch,use_cache=False,output_hidden_states=False,return_dict=True)
+              hidden=out.last_hidden_state[:,-1,:]
+              logits=model.embed_out(hidden)
+              logits_chunks.append(logits.cpu())
+              hidden_chunks.append(hidden.cpu())
+          campaign_logits=torch.cat(logits_chunks,dim=0)
+          campaign_hidden=torch.cat(hidden_chunks,dim=0)
+          np.save(od/"campaign_input_ids.npy",campaign_ids.numpy())
+          np.save(od/"campaign_last_logits.npy",campaign_logits.numpy().astype(np.float32))
+          np.save(od/"campaign_last_hidden.npy",campaign_hidden.numpy().astype(np.float32))
+
+          files={}
+          for p in sorted(od.glob("*.npy")):
+              files[p.name]={
+                  "size":p.stat().st_size,
+                  "sha256":hashlib.sha256(p.read_bytes()).hexdigest(),
+              }
+
           meta={
-             "repo":repo,"revision":rev,"model_sha256":h,
-             "torch":torch.__version__,"transformers":"4.40.0",
-             "input_shape":list(ids.shape),"hidden_states_shape":list(hs.shape),
-             "top10_ids":top.indices.cpu().tolist(),
-             "top10_values":top.values.cpu().tolist()
+             "repo":repo,
+             "revision":rev,
+             "model_sha256":model_sha,
+             "torch":torch.__version__,
+             "transformers":"4.40.0",
+             "vocab_size":int(model.config.vocab_size),
+             "hidden_size":int(model.config.hidden_size),
+             "num_hidden_layers":int(model.config.num_hidden_layers),
+             "debug_input_shape":list(debug_ids.shape),
+             "debug_hidden_states_shape":list(debug_hs.shape),
+             "campaign_seed":20261008,
+             "campaign_shape":list(campaign_ids.shape),
+             "campaign_logits_shape":list(campaign_logits.shape),
+             "campaign_hidden_shape":list(campaign_hidden.shape),
+             "debug_top10_ids":debug_top.indices.cpu().tolist(),
+             "debug_top10_values":debug_top.values.cpu().tolist(),
+             "files":files,
           }
           (od/"REFERENCE_MANIFEST.json").write_text(json.dumps(meta,indent=2)+"\n")
           print(json.dumps(meta,indent=2))
