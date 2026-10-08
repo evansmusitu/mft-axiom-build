@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="robots" content="noindex,nofollow,noarchive">
+  <title>MUSITU Axiom — Secure Case Recovery</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <a class="skip" href="#main">Skip to recovery</a>
+  <header class="topbar"><a class="brand" href="/" aria-label="MUSITU Axiom Support home"><span aria-hidden="true">A</span><strong>MUSITU Axiom</strong><small>Secure Case Recovery</small></a></header>
+  <main id="main">
+    <section class="hero">
+      <p class="eyebrow">Verified identity recovery</p>
+      <h1>Protect access without giving MUSITU your recovery code.</h1>
+      <p class="lede">Your sign-in proves an identity to Cloudflare Access. MUSITU stores only an opaque one-way identity hash. Operators never receive your recovery code, sign-in token, OTP, or raw identity.</p>
+      <p class="boundary">A case must be protected while you still possess its current recovery code. A case that was never protected cannot be reset from a case ID alone.</p>
+    </section>
+
+    <section class="case-section" aria-labelledby="protect-title">
+      <div class="form-copy"><p class="eyebrow">Recommended</p><h2 id="protect-title">Protect case access</h2><p>Bind this verified sign-in identity to a case while you still have the current recovery code.</p></div>
+      <form id="protect-recovery-form" novalidate>
+        <label>Case ID<input name="case_id" required autocomplete="off" placeholder="AX-…"></label>
+        <label>Current recovery code<input name="recovery_code" required autocomplete="off" placeholder="XXXXXXXX-XXXXXXXX-XXXXXXXX"></label>
+        <button class="primary" type="submit">Protect this case</button>
+        <div id="protect-status" role="status" aria-live="polite"></div>
+      </form>
+    </section>
+
+    <section class="case-section" aria-labelledby="recover-title">
+      <div class="form-copy"><p class="eyebrow">Lost code</p><h2 id="recover-title">Lost your recovery code?</h2><p>If this case was previously protected with this same verified identity, request a replacement code. The previous code is invalidated when rotation succeeds.</p><p>Security, privacy, account, access, and billing cases may require independent human approval before rotation.</p></div>
+      <form id="rotate-recovery-form" novalidate>
+        <label>Case ID<input name="case_id" required autocomplete="off" placeholder="AX-…"></label>
+        <button class="primary" type="submit">Recover case access</button>
+        <div id="rotate-status" role="status" aria-live="polite"></div>
+      </form>
+      <section id="new-recovery-receipt" class="receipt" hidden tabindex="-1" aria-labelledby="new-recovery-title">
+        <p class="eyebrow">New recovery code</p><h3 id="new-recovery-title">Save this code now</h3>
+        <output id="new-recovery-code"></output>
+        <button id="copy-new-recovery-code" class="secondary" type="button">Copy code</button>
+        <p>The previous recovery code no longer works. This new code is shown only in this session.</p>
+      </section>
+    </section>
+    <p><a href="/">Return to Official Support</a></p>
+  </main>
+  <script type="module" src="/recovery/app.js"></script>
+</body>
+</html>
