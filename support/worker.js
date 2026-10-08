@@ -6,6 +6,8 @@ import {verifyTurnstile} from './turnstile.js';
 const JSON_HEADERS = Object.freeze({'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store', 'x-content-type-options': 'nosniff'});
 const CASE_PATH = /^\/api\/v1\/cases\/([A-Z0-9-]+)$/;
 const CASE_MESSAGE_PATH = /^\/api\/v1\/cases\/([A-Z0-9-]+)\/messages$/;
+const RECOVERY_BIND_PATH = /^\/recovery\/api\/v1\/cases\/([A-Z0-9-]+)\/bind$/;
+const RECOVERY_ROTATE_PATH = /^\/recovery\/api\/v1\/cases\/([A-Z0-9-]+)\/rotate$/;
 const OPERATOR_CASE_PATH = /^\/api\/v1\/operator\/cases\/([A-Z0-9-]+)$/;
 const OPERATOR_MESSAGE_PATH = /^\/api\/v1\/operator\/cases\/([A-Z0-9-]+)\/messages$/;
 const OPERATOR_STATE_PATH = /^\/api\/v1\/operator\/cases\/([A-Z0-9-]+)\/state$/;
@@ -49,6 +51,53 @@ function base64UrlJson(value) {
 
 function normalizedIssuer(value) {
   return String(value || '').replace(/\/+$/, '');
+}
+
+
+export async function verifyCustomerRecoveryAccess(request, env = {}) {
+  try {
+    if (env.ENVIRONMENT !== 'production' && typeof env.SUPPORT_RECOVERY_IDENTITY_VERIFY === 'function') {
+      const injected = await env.SUPPORT_RECOVERY_IDENTITY_VERIFY(request, env);
+      const issuer = normalizedIssuer(injected?.issuer);
+      const subject = String(injected?.subject || '').trim();
+      if (!/^https:\/\/[a-z0-9.-]+$/i.test(issuer) || subject.length < 3 || subject.length > 512) return null;
+      return Object.freeze({issuer, subject});
+    }
+
+    const token = String(request.headers.get('cf-access-jwt-assertion') || '').trim();
+    const team = normalizedIssuer(env.SUPPORT_RECOVERY_ACCESS_TEAM_DOMAIN);
+    const expectedAud = String(env.SUPPORT_RECOVERY_ACCESS_AUD || '').trim();
+    if (!token || token.length > 16_000 || !team || !expectedAud) return null;
+    const parts = token.split('.');
+    if (parts.length !== 3) return null;
+    const header = base64UrlJson(parts[0]);
+    const payload = base64UrlJson(parts[1]);
+    if (header?.alg !== 'RS256' || !header?.kid) return null;
+    const now = Math.floor(Date.now() / 1000);
+    if (!Number.isFinite(payload?.exp) || payload.exp <= now) return null;
+    if (payload?.nbf != null && (!Number.isFinite(payload.nbf) || payload.nbf > now + 30)) return null;
+    if (normalizedIssuer(payload?.iss) !== team) return null;
+    const audiences = Array.isArray(payload?.aud) ? payload.aud.map(String) : [String(payload?.aud || '')];
+    if (!audiences.includes(expectedAud)) return null;
+    const subject = String(payload?.sub || '').trim();
+    if (subject.length < 3 || subject.length > 512) return null;
+
+    const fetchImpl = env.SUPPORT_RECOVERY_ACCESS_CERTS_FETCH || fetch;
+    const response = await fetchImpl(team + '/cdn-cgi/access/certs', {headers:{accept:'application/json'}});
+    if (!response?.ok) return null;
+    const certs = await response.json();
+    const jwk = (Array.isArray(certs?.keys) ? certs.keys : []).find(key => String(key?.kid || '') === String(header.kid));
+    if (!jwk || jwk.kty !== 'RSA') return null;
+    const publicKey = await crypto.subtle.importKey('jwk',jwk,{name:'RSASSA-PKCS1-v1_5',hash:'SHA-256'},false,['verify']);
+    const signatureOk = await crypto.subtle.verify(
+      {name:'RSASSA-PKCS1-v1_5'},publicKey,base64UrlBytes(parts[2]),
+      new TextEncoder().encode(parts[0]+'.'+parts[1]),
+    );
+    if (!signatureOk) return null;
+    return Object.freeze({issuer:team,subject});
+  } catch {
+    return null;
+  }
 }
 
 export async function verifyOperatorAccess(request, env = {}) {
@@ -172,6 +221,29 @@ export async function handleSupportRequest(request, env = {}) {
     const publicCase = await store.create(bundle);
     return json({case: publicCase, recovery_code: bundle.recovery_code, recovery_code_notice: 'Save this code now. It is shown once and cannot be recovered by MUSITU.'}, 201);
   }
+  const recoveryBindMatch = url.pathname.match(RECOVERY_BIND_PATH);
+  if (request.method === 'POST' && recoveryBindMatch) {
+    const identity = await verifyCustomerRecoveryAccess(request, env);
+    if (!identity) return json({error:'RECOVERY_IDENTITY_REQUIRED',message:'Sign in with a verified identity to manage case recovery.'},401,{'www-authenticate':'Cloudflare-Access'});
+    const code = recoveryCode(request);
+    if (!code) return json({error:'CASE_AUTH_REQUIRED',message:'The current recovery code is required to protect this case.'},401,{'www-authenticate':'Support'});
+    const store = await storeFor(env);
+    const value = await store.bindRecoveryIdentity(recoveryBindMatch[1], code, identity);
+    if (!value) return json({error:'RECOVERY_NOT_AVAILABLE',message:'Case recovery could not be configured with the supplied credentials.'},404);
+    return json(value);
+  }
+
+  const recoveryRotateMatch = url.pathname.match(RECOVERY_ROTATE_PATH);
+  if (request.method === 'POST' && recoveryRotateMatch) {
+    const identity = await verifyCustomerRecoveryAccess(request, env);
+    if (!identity) return json({error:'RECOVERY_IDENTITY_REQUIRED',message:'Sign in with the identity previously bound to this case.'},401,{'www-authenticate':'Cloudflare-Access'});
+    const store = await storeFor(env);
+    const value = await store.rotateRecoveryCredential(recoveryRotateMatch[1], identity);
+    if (!value) return json({error:'RECOVERY_NOT_AVAILABLE',message:'Recovery is not available for this case.'},404);
+    if (value.status === 'APPROVAL_REQUIRED') return json({error:'RECOVERY_APPROVAL_REQUIRED',message:'Identity was verified. This sensitive case requires independent approval before a new recovery code can be issued.'},409);
+    return json(value);
+  }
+
   const caseMessageMatch = url.pathname.match(CASE_MESSAGE_PATH);
   if (request.method === 'POST' && caseMessageMatch) {
     const code = recoveryCode(request);
