@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="robots" content="noindex,nofollow,noarchive">
+  <title>MUSITU Axiom — Support Operations</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <a class="skip" href="#case-workspace">Skip to selected case</a>
+  <div class="console-shell">
+    <aside class="inbox" aria-label="Support inbox">
+      <header class="brand"><span class="mark" aria-hidden="true"></span><span><strong>MUSITU Axiom</strong><small>Support Operations</small></span></header>
+      <div class="inbox-heading"><h1>Inbox</h1><span id="new-count" class="badge blue">0 new</span></div>
+      <label class="search"><span class="sr-only">Search cases</span><input id="case-search" type="search" placeholder="Search cases, IDs, surfaces…" autocomplete="off"></label>
+      <div class="filters" role="group" aria-label="Case filters">
+        <button data-filter="all" class="active">All</button><button data-filter="urgent">P0/P1</button><button data-filter="waiting">Waiting</button>
+      </div>
+      <div id="case-list" class="case-list" role="list" aria-live="polite"></div>
+    </aside>
+
+    <main id="case-workspace" class="workspace" tabindex="-1">
+      <header class="case-header">
+        <p id="case-breadcrumb" class="breadcrumb">Inbox</p>
+        <div class="case-title-row"><div><h2 id="case-title">Select a case</h2><p id="case-subtitle">Open a case from the inbox to review its encrypted conversation.</p></div><div id="case-badges" class="badges"></div></div>
+      </header>
+      <section id="conversation" class="conversation" aria-label="Case conversation"><div class="empty">No case selected.</div></section>
+      <section class="composer" aria-labelledby="composer-title">
+        <h3 id="composer-title" class="sr-only">Compose support response</h3>
+        <div class="composer-tabs" role="tablist"><button id="reply-mode" role="tab" aria-selected="true" data-type="AGENT_REPLY">Reply to customer</button><button id="note-mode" role="tab" aria-selected="false" data-type="INTERNAL_NOTE">Internal note</button></div>
+        <label><span class="sr-only">Message</span><textarea id="message-body" maxlength="8000" placeholder="Write a secure response…" disabled></textarea></label>
+        <div class="composer-actions"><span id="composer-status" role="status" aria-live="polite"></span><button id="send-message" class="primary" disabled>Send reply</button></div>
+      </section>
+    </main>
+
+    <aside class="rail" aria-label="Case evidence and controls">
+      <section><h2>Case controls</h2><div class="panel"><dl><div><dt>Owner</dt><dd id="case-owner">Unassigned</dd></div><div><dt>State</dt><dd id="case-state">—</dd></div><div><dt>Priority</dt><dd id="case-priority">—</dd></div></dl>
+        <label>Change state<select id="state-select" disabled><option value="">Choose…</option><option>IN_PROGRESS_MUSITU_SUPPORT</option><option>ACTION_REQUIRED</option><option>SOLUTION_PROVIDED</option><option>ESCALATED</option><option>CLOSED</option></select></label><button id="apply-state" class="secondary" disabled>Apply state</button>
+      </div></section>
+      <section><h2>Evidence</h2><div class="panel facts"><p><strong>Encrypted narrative</strong><span>A256GCM at rest</span></p><p><strong>Recovery secret</strong><span>Not available to operators</span></p><p><strong>Event chain</strong><span>Append-only · hash linked</span></p></div></section>
+      <section><h2>Approval</h2><div class="panel warning"><strong>Sensitive actions locked</strong><p>Disclosure, data actions and production changes require independent approval.</p></div></section>
+      <section><h2>Audit trail</h2><div id="audit-trail" class="audit"><p class="muted">Select a case to inspect its activity.</p></div></section>
+    </aside>
+  </div>
+  <script type="module" src="/app.js"></script>
+</body>
+</html>
