@@ -26,6 +26,7 @@ export async function handleOperatorSurface(request,env={}){
 
   const url=new URL(request.url);
   if(url.pathname.startsWith('/api/v1/operator/')){
+    if(env.SUPPORT_API&&typeof env.SUPPORT_API.fetch==='function') return env.SUPPORT_API.fetch(request);
     const operatorEnv=env.ENVIRONMENT!=='production'
       ? {...env,SUPPORT_OPERATOR_VERIFY:async()=>principal}
       : env;
