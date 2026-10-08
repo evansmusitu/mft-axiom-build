@@ -107,6 +107,14 @@ class ExternalSourcePreflightTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'schema_invalid'):
             self.inspect()
 
+    def test_accepts_canonical_numeric_direction_codes(self):
+        self.lines[790]['F_SIDE'] = 0.0
+        self.lines[791]['F_SIDE'] = 1.0
+        self.lines[792]['F_SIDE'] = 0.5
+        self.write_source()
+        report = self.inspect()
+        self.assertEqual(report['source_rows'], 1460)
+
     def test_nonfinite_sensor_or_boolean_sensor_is_rejected(self):
         self.lines[810]['MM263'] = float('nan')
         self.write_source()

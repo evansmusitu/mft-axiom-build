@@ -17,6 +17,7 @@ from typing import Any, Iterator, Mapping
 
 from benchmarks.mining_adapter.methane_backtest import (
     MethaneBacktestSpec,
+    _f_side_features,
     build_windowed_prediction_examples,
 )
 from connect.mining_telemetry import MINING_TELEMETRY_SENSORS
@@ -86,9 +87,12 @@ def _validate_row(row: Any) -> None:
             raise ValueError('external_source_sensor_invalid')
         if not isfinite(value):
             raise ValueError('external_source_sensor_not_finite')
-    side = str(row['F_SIDE']).strip().casefold()
-    if side not in ('left', 'right', 'l', 'r', '0', '0.5', '1'):
+    if isinstance(row['F_SIDE'], bool):
         raise ValueError('external_source_sensor_invalid')
+    try:
+        _f_side_features(row['F_SIDE'])
+    except (TypeError, ValueError):
+        raise ValueError('external_source_sensor_invalid') from None
 
 
 def _stream_source(source: Path, state: dict[str, Any]) -> Iterator[dict[str, Any]]:
