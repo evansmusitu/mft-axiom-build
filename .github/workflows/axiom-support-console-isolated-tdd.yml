@@ -20,5 +20,5 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Conversation contract tests
-        run: node --test support/tests/conversation_contract.test.mjs
+      - name: Conversation and console HTTP contract tests
+        run: node --test support/tests/conversation_contract.test.mjs support/tests/console_http_contract.test.mjs
