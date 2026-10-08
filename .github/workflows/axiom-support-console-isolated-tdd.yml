@@ -20,5 +20,23 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Conversation and console HTTP contract tests
-        run: node --test support/tests/conversation_contract.test.mjs support/tests/console_http_contract.test.mjs support/tests/conversation_store.test.mjs support/tests/conversation_read_state.test.mjs support/tests/operator_access_contract.test.mjs support/tests/console_ui_contract.test.mjs support/tests/console_governance.test.mjs
+      - name: Syntax checks
+        run: |
+          node --check support/control_plane.js
+          node --check support/d1_case_store.js
+          node --check support/worker.js
+          node --check support/operator_worker.js
+          node --check support/app.js
+          node --check support/console/app.js
+
+      - name: Full support regression suite
+        run: node --test support/tests/*.test.mjs
+
+      - name: Console secret and authority gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          ! grep -RIE --exclude='*.test.mjs' --exclude='*.md' '(sk-proj-[A-Za-z0-9_-]{20,}|Bearer[[:space:]]+[A-Za-z0-9._-]{24,}|-----BEGIN[[:space:]]+(RSA|EC|OPENSSH|PRIVATE)[[:space:]]+KEY-----)' support/console support/operator_worker.js
+          ! grep -RIE 'localStorage|sessionStorage|indexedDB' support/console/app.js support/app.js
+          ! grep -RIE 'recovery[_-]?code' support/console/app.js
+          grep -q 'production_authority: false' support/console/CONTRACT.md
