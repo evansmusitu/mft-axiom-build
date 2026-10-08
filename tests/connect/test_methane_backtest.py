@@ -265,7 +265,7 @@ class MethaneBacktestTests(unittest.TestCase):
             "doi":spec.doi,
             "license":"CC BY 4.0",
             "transport_source":"openml:42701",
-            "source_sha256":"a"*64,
+            "source_sha256":"28e2eed4c4a314daa4319f656a09bb43d8acea603dcb906e31c98049c91a8fdc",
             "source_rows":9_199_930,
             "eligible_examples":1000,
             "folds":folds,
@@ -276,6 +276,12 @@ class MethaneBacktestTests(unittest.TestCase):
         self.assertTrue(result["backtest_qualified"])
         self.assertEqual(result["gate"],"REAL_MINE_METHANE_BACKTEST_QUALIFIED")
         self.assertEqual(result["passing_folds"],3)
+
+        # A valid-looking 64-character digest from a DIFFERENT source is
+        # insufficient: admission must bind the exact qualified corpus.
+        report["source_sha256"]="a"*64
+        self.assertFalse(evaluate_backtest_gate(spec,report)["backtest_qualified"])
+        report["source_sha256"]="28e2eed4c4a314daa4319f656a09bb43d8acea603dcb906e31c98049c91a8fdc"
 
         # Tamper with published metrics while leaving counts unchanged;
         # the gate must not be satisfied by forged summaries.
@@ -321,7 +327,7 @@ class MethaneBacktestTests(unittest.TestCase):
         report={
             "dataset_id":spec.dataset_id,"dataset_version":1,
             "doi":spec.doi,"license":spec.license,
-            "transport_source":"openml:42701","source_sha256":"a"*64,
+            "transport_source":"openml:42701","source_sha256":"28e2eed4c4a314daa4319f656a09bb43d8acea603dcb906e31c98049c91a8fdc",
             "source_rows":9_199_930,"eligible_examples":306_601,
             "folds":folds,"credentials_used":False,"errors":[],
         }

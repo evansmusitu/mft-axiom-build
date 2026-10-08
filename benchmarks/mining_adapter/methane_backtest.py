@@ -12,6 +12,7 @@ from connect.mining_telemetry import MINING_TELEMETRY_SENSORS
 
 
 _TARGET_METHANE=("MM263","MM264","MM256")
+_QUALIFIED_SOURCE_SHA256="28e2eed4c4a314daa4319f656a09bb43d8acea603dcb906e31c98049c91a8fdc"
 _NUMERIC_SENSORS=tuple(sensor for sensor in MINING_TELEMETRY_SENSORS if sensor!="F_SIDE")
 
 
@@ -586,14 +587,6 @@ def causal_consensus_predictions(
     return predictions
 
 
-def _sha256(value: Any) -> bool:
-    return (
-        isinstance(value,str)
-        and len(value)==64
-        and all(ch in "0123456789abcdef" for ch in value.casefold())
-    )
-
-
 def evaluate_backtest_gate(
     spec: MethaneBacktestSpec,
     report: Mapping[str,Any],
@@ -604,7 +597,7 @@ def evaluate_backtest_gate(
         and report.get("doi")==spec.doi
         and report.get("license")==spec.license
         and report.get("transport_source")=="openml:42701"
-        and _sha256(report.get("source_sha256"))
+        and report.get("source_sha256")==_QUALIFIED_SOURCE_SHA256
         and int(report.get("source_rows") or 0)>=spec.minimum_source_rows
         and int(report.get("eligible_examples") or 0)>=spec.minimum_examples
     )
