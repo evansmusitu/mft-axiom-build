@@ -49,6 +49,14 @@ class LightGBMChallengerTests(unittest.TestCase):
         self.assertEqual(result["model"]["tp"]+result["model"]["fn"],10)
         self.assertGreaterEqual(result["model"]["average_precision"],0.0)
         self.assertLessEqual(result["model"]["average_precision"],1.0)
+        shadow = result["research_only_regime_shadow"]
+        self.assertEqual(shadow["evaluation_role"], "RESEARCH_ONLY_REGIME_CALIBRATION")
+        self.assertFalse(shadow["qualified_for_admission"])
+        self.assertFalse(shadow["independent_validation"])
+        self.assertTrue(shadow["leakage_safe"])
+        self.assertEqual(shadow["hard_warnings"], 1)
+        self.assertEqual(shadow["metrics"]["tp"] + shadow["metrics"]["fn"], 10)
+        self.assertEqual(sum(shadow["regime_example_counts"].values()), 48)
 
     def test_leakage_purging_is_mandatory(self):
         self.calibration = examples(2800, 40)

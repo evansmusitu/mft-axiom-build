@@ -6,6 +6,8 @@ on:
     paths:
       - '.github/workflows/musitu-axiom-lightgbm-research.yml'
       - 'benchmarks/mining_adapter/lightgbm_challenger.py'
+      - 'benchmarks/mining_adapter/regime_shadow.py'
+      - 'tests/connect/test_regime_shadow.py'
       - 'tests/connect/test_lightgbm_challenger.py'
       - 'benchmarks/mining_adapter/CHALLENGER_README.md'
   workflow_dispatch:
@@ -37,7 +39,8 @@ jobs:
 
       - name: Verify real LightGBM training and safety contracts
         run: |
-          python -m py_compile benchmarks/mining_adapter/lightgbm_challenger.py
+          python -m py_compile benchmarks/mining_adapter/lightgbm_challenger.py benchmarks/mining_adapter/regime_shadow.py
+          python -m unittest tests.connect.test_regime_shadow -v
           python -m unittest tests.connect.test_lightgbm_challenger -v
           python -m unittest tests.connect.test_methane_backtest tests.connect.test_methane_prediction -q
 
@@ -84,10 +87,27 @@ jobs:
               assert fold['online_recalibration_leakage_check'] is True
               assert fold['hard_observed_warning_preserved'] is True
               assert fold['model']['tp'] + fold['model']['fn'] == fold['test_positives']
+              shadow = fold['research_only_regime_shadow']
+              assert shadow['evaluation_role'] == 'RESEARCH_ONLY_REGIME_CALIBRATION'
+              assert shadow['qualified_for_admission'] is False
+              assert shadow['independent_validation'] is False
+              assert shadow['leakage_safe'] is True
+              assert shadow['policy']['hard_observed_warning'] == 'never_suppressed'
+              assert shadow['hard_warnings'] >= 0
+              assert shadow['metrics']['tp'] + shadow['metrics']['fn'] == fold['test_positives']
+              assert sum(shadow['metrics'][k] for k in ('tp','tn','fp','fn')) == fold['test_examples']
+              assert sum(shadow['regime_example_counts'].values()) == fold['test_examples']
+              from datetime import datetime
+              assert all(
+                  datetime.fromisoformat(entry['latest_label_window_end_used']) <
+                  datetime.fromisoformat(entry['prediction_time'])
+                  for entry in shadow['update_audit']
+              )
           assert item['existing_gate_diagnostic_only']['gate'] in (
               'REAL_MINE_METHANE_BACKTEST_FAILED', 'REAL_MINE_METHANE_BACKTEST_QUALIFIED'
           )
           print('RESEARCH_EVIDENCE_INTEGRITY=PASS')
+          print('REGIME_SHADOW_RESEARCH_ONLY=TRUE')
           print('MODEL_GATE_DIAGNOSTIC=' + item['existing_gate_diagnostic_only']['gate'])
           print('PRODUCTION_ADMISSION=BLOCKED')
           PY

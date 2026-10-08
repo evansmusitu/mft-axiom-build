@@ -34,6 +34,7 @@ from benchmarks.mining_adapter.methane_backtest_runner import (
     _weights,
 )
 from benchmarks.mining_adapter.methane_prediction import PredictionExample, binary_metrics
+from benchmarks.mining_adapter.regime_shadow import regime_calibrated_shadow
 
 QUALIFIED_SHA256 = "28e2eed4c4a314daa4319f656a09bb43d8acea603dcb906e31c98049c91a8fdc"
 
@@ -118,6 +119,37 @@ def evaluate_challenger_fold(
     metrics["threshold_updates"] = int(online["threshold_updates"])
     persistence = binary_metrics(y_test.tolist(), hard.astype(np.uint8).tolist())
 
+    # PREDECLARED research-only regime-conditioned online threshold candidate.
+    # Original admission-policy predictions and metrics above remain unchanged.
+    shadow = regime_calibrated_shadow(
+        calibration_examples=calibration,
+        calibration_scores=cal_scores.tolist(),
+        test_examples=test,
+        test_scores=test_scores.tolist(),
+        global_thresholds=online["thresholds"],
+        warning_threshold=spec.warning_threshold,
+        regime_boundary=spec.warning_threshold / 2.0,
+        minimum_recall=spec.calibration_recall_target,
+        update_every_examples=spec.threshold_update_examples,
+        window_examples=spec.threshold_window_examples,
+        minimum_regime_positives=spec.minimum_online_positives,
+    )
+    if not shadow["leakage_safe"] or not all(
+        not observed or alerted
+        for observed, alerted in zip(hard, shadow["predictions"], strict=True)
+    ):
+        raise ValueError("research_regime_shadow_warning_or_causality_invalid")
+    shadow_metrics = binary_metrics(y_test.tolist(), shadow["predictions"])
+    shadow_summary = {
+        key: value for key, value in shadow.items()
+        if key not in ("predictions", "regimes")
+    }
+    shadow_summary["metrics"] = shadow_metrics
+    shadow_summary["delta_f2_against_admission_policy"] = shadow_metrics["f2"] - metrics["f2"]
+    shadow_summary["regime_example_counts"] = {
+        regime: shadow["regimes"].count(regime) for regime in ("low", "elevated")
+    }
+
     return {
         "fold": int(fold_index),
         "model_type": "lightgbm.LGBMClassifier",
@@ -135,6 +167,7 @@ def evaluate_challenger_fold(
         "hard_observed_warning_preserved": True,
         "baseline": persistence,
         "model": metrics,
+        "research_only_regime_shadow": shadow_summary,
         "model_train_seconds": train_seconds,
         "test_score_seconds": score_seconds,
         "test_start": test[0].feature_time.isoformat(),
