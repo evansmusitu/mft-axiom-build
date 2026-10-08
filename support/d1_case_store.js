@@ -131,7 +131,9 @@ export class D1CaseStore {
         body:String(payload?.body || ''),event_hash:item.event_hash,created_at:item.created_at,
       }));
     }
-    return Object.freeze({case: JSON.parse(row.public_json), details, messages: Object.freeze(messages)});
+    const attachmentResult=await this.db.prepare(`SELECT attachment_id,filename,content_type,bytes,sha256,scan_state,created_at FROM support_attachments WHERE case_id=? AND visibility='customer' AND scan_state='CLEAN' ORDER BY created_at ASC`).bind(caseId).all();
+    const attachments=Object.freeze((attachmentResult?.results||[]).map(item=>Object.freeze({...item,bytes:Number(item.bytes||0)})));
+    return Object.freeze({case: JSON.parse(row.public_json), details, messages: Object.freeze(messages), attachments: Object.freeze(attachments)});
   }
 
   async getOperatorCase(caseId) {
@@ -168,7 +170,9 @@ export class D1CaseStore {
       approver_role:item.approver_role ? String(item.approver_role) : null,
       decided_at:item.decided_at ? String(item.decided_at) : null,
     })));
-    return Object.freeze({case: JSON.parse(row.public_json), details, messages: Object.freeze(messages), recovery_requests: recoveryRequests, approvals});
+    const attachmentResult=await this.db.prepare(`SELECT attachment_id,filename,content_type,bytes,sha256,storage_key,scan_state,visibility,created_at FROM support_attachments WHERE case_id=? ORDER BY created_at ASC`).bind(caseId).all();
+    const attachments=Object.freeze((attachmentResult?.results||[]).map(item=>Object.freeze({...item,bytes:Number(item.bytes||0)})));
+    return Object.freeze({case: JSON.parse(row.public_json), details, messages: Object.freeze(messages), recovery_requests: recoveryRequests, approvals, attachments});
   }
 
   async appendCustomerMessage(caseId, recoveryCode, input) {
@@ -225,8 +229,8 @@ export class D1CaseStore {
     const currentPublic = JSON.parse(row.public_json);
     const nextPublic = {...currentPublic,state:next,updated_at:event.at};
     await this.db.batch([
-      this.db.prepare('UPDATE support_cases SET state=?,public_json=?,last_event_hash=?,updated_at=? WHERE case_id=?')
-        .bind(next,JSON.stringify(nextPublic),event.event_hash,event.at,caseId),
+      this.db.prepare("UPDATE support_cases SET state=?,public_json=?,last_event_hash=?,updated_at=?,closed_at=CASE WHEN ?='CLOSED' THEN ? ELSE closed_at END WHERE case_id=?")
+        .bind(next,JSON.stringify(nextPublic),event.event_hash,event.at,next,event.at,caseId),
       this.db.prepare(`UPDATE support_case_sla SET resolved_at=CASE WHEN ? IN ('RESOLVED','CLOSED') THEN COALESCE(resolved_at,?) ELSE resolved_at END,updated_at=? WHERE case_id=?`)
         .bind(next,event.at,event.at,caseId),
       this.db.prepare(`INSERT INTO support_case_events
@@ -653,6 +657,44 @@ export class D1CaseStore {
     return Object.freeze({delivery_id:String(delivery.delivery_id),state,attempts,next_attempt_at:next,delivered_at:delivered?at:null});
   }
 
+
+  async reopenCustomerCase(caseId,recoveryCode){
+    const recoveryHash=await sha256(recoveryCode);
+    const row=await this.db.prepare(`SELECT case_id,state,priority,surface,category,requester_ref,retention_class,human_approval_required,recovery_hash,public_json,last_event_hash,closed_at,created_at,updated_at FROM support_cases WHERE case_id=? LIMIT 1`).bind(caseId).first();
+    if(!row||!constantTimeEqual(String(row.recovery_hash),recoveryHash))return null;
+    if(String(row.state)!=='CLOSED')throw new DOMException('only closed cases can be reopened','InvalidStateError');
+    const closedAt=String(row.closed_at||row.updated_at||'');if(!closedAt||Date.now()-Date.parse(closedAt)>14*24*60*60*1000)throw new DOMException('case reopen window expired','InvalidStateError');
+    assertTransition('CLOSED','IN_PROGRESS');
+    const at=new Date().toISOString(),event=await appendCaseEvent(row,{type:'CASE_REOPENED',actor:'requester',visibility:'customer',payload:{prior_state:'CLOSED',new_state:'IN_PROGRESS'}},{at});
+    const publicJson={...JSON.parse(row.public_json),state:'IN_PROGRESS',updated_at:at};
+    const slaRow=await this.db.prepare('SELECT plan FROM support_case_sla WHERE case_id=? LIMIT 1').bind(caseId).first();
+    const clock=computeSlaClock({priority:row.priority,plan:String(slaRow?.plan||'STANDARD'),createdAt:at});
+    const notificationId='AXN-'+randomToken(16);
+    await this.db.batch([
+      this.db.prepare('UPDATE support_cases SET state=?,public_json=?,last_event_hash=?,updated_at=?,closed_at=NULL WHERE case_id=?').bind('IN_PROGRESS',JSON.stringify(publicJson),event.event_hash,at,caseId),
+      this.db.prepare('UPDATE support_case_sla SET update_due_at=?,resolve_target_at=?,resolved_at=NULL,last_meaningful_update_at=NULL,updated_at=? WHERE case_id=?').bind(clock.update_due_at,clock.resolve_target_at,at,caseId),
+      this.db.prepare(`INSERT INTO support_case_events (case_id,event_hash,prior_event_hash,type,actor,visibility,payload_json,created_at) VALUES (?,?,?,?,?,?,?,?)`).bind(event.case_id,event.event_hash,event.prior_event_hash,event.type,event.actor,event.visibility,JSON.stringify(event.payload),event.at),
+      this.db.prepare(`INSERT INTO support_notification_outbox (notification_id,case_id,kind,audience,event_hash,created_at) VALUES (?,?,?,?,?,?)`).bind(notificationId,caseId,'CASE_REOPENED','operator',event.event_hash,at),
+    ]);
+    return Object.freeze({case_id:caseId,state:'IN_PROGRESS',reopened:true,reopened_at:at});
+  }
+
+  async recordAttachmentScan(attachmentId,input={},principal){
+    const state=String(input.scan_state||'').toUpperCase(),scannerRef=String(input.scanner_ref||'');
+    if(!['CLEAN','QUARANTINED','FAILED'].includes(state)||!/^scanner:[a-z0-9._:-]{6,180}$/i.test(scannerRef))throw new TypeError('attachment scan metadata invalid');
+    const item=await this.db.prepare(`SELECT a.attachment_id,a.case_id,a.scan_state,c.state,c.priority,c.surface,c.category,c.requester_ref,c.retention_class,c.human_approval_required,c.last_event_hash,c.created_at,c.updated_at
+      FROM support_attachments a JOIN support_cases c ON c.case_id=a.case_id WHERE a.attachment_id=? LIMIT 1`).bind(attachmentId).first();
+    if(!item)return null;
+    if(String(item.scan_state)!=='PENDING')throw new DOMException('attachment scan already finalized','InvalidStateError');
+    const at=new Date().toISOString(),visibility=state==='CLEAN'?'customer':'internal';
+    const event=await appendCaseEvent(item,{type:'ATTACHMENT_SCAN_'+state,actor:principal?.actor_ref||'system',visibility,payload:{attachment_id:attachmentId,scan_state:state,scanner_ref:scannerRef}},{at});
+    await this.db.batch([
+      this.db.prepare('UPDATE support_attachments SET scan_state=? WHERE attachment_id=?').bind(state,attachmentId),
+      this.db.prepare(`INSERT INTO support_case_events (case_id,event_hash,prior_event_hash,type,actor,visibility,payload_json,created_at) VALUES (?,?,?,?,?,?,?,?)`).bind(event.case_id,event.event_hash,event.prior_event_hash,event.type,event.actor,event.visibility,JSON.stringify(event.payload),event.at),
+      this.db.prepare('UPDATE support_cases SET last_event_hash=?,updated_at=? WHERE case_id=?').bind(event.event_hash,event.at,item.case_id),
+    ]);
+    return Object.freeze({attachment_id:attachmentId,case_id:item.case_id,scan_state:state,scanned_at:at});
+  }
 
   async scanSlaBreaches(){
     const result=await this.db.prepare(`SELECT c.case_id,c.state,c.priority,c.surface,c.category,c.requester_ref,c.retention_class,c.human_approval_required,
