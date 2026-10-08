@@ -893,6 +893,27 @@ export class D1CaseStore {
     return Object.freeze({case_id:caseId,lane,language,updated_at:at});
   }
 
+  async listPendingAttachmentDeletions({limit=50}={}){
+    const bounded=Math.max(1,Math.min(100,Number(limit)||50));
+    const result=await this.db.prepare(`SELECT deletion_id,storage_key,sha256,state,attempts,next_attempt_at,created_at
+      FROM support_attachment_deletion_outbox
+      WHERE state IN ('PENDING','RETRY') AND (next_attempt_at IS NULL OR next_attempt_at<=strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+      ORDER BY created_at ASC LIMIT ?`).bind(bounded).all();
+    return Object.freeze((result?.results||[]).map(row=>Object.freeze({...row,attempts:Number(row.attempts||0)})));
+  }
+
+  async recordAttachmentDeletionAttempt(item,result){
+    const attempts=Number(item?.attempts||0)+1;
+    const deleted=result?.deleted===true;
+    const state=deleted?'DELETED':attempts>=8?'DEAD':'RETRY';
+    const at=new Date().toISOString();
+    const next=deleted||state==='DEAD'?null:new Date(Date.now()+Math.min(21600,Math.pow(2,Math.min(attempts,8))*60)*1000).toISOString();
+    await this.db.prepare(`UPDATE support_attachment_deletion_outbox
+      SET state=?,attempts=?,next_attempt_at=?,deleted_at=? WHERE deletion_id=?`)
+      .bind(state,attempts,next,deleted?at:null,String(item.deletion_id)).run?.();
+    return Object.freeze({deletion_id:String(item.deletion_id),state,attempts,next_attempt_at:next,deleted_at:deleted?at:null});
+  }
+
   async listOperatorCases({state = null, limit = 100} = {}) {
     const bounded = Math.max(1, Math.min(100, Number(limit) || 100));
     const fields = `SELECT case_id,state,priority,surface,category,retention_class,human_approval_required,created_at,updated_at
