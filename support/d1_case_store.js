@@ -222,7 +222,7 @@ export class D1CaseStore {
     if (!row || !constantTimeEqual(String(row.recovery_hash), recoveryHash)) return null;
     const existing = await this.db.prepare(`SELECT identity_hash,provider,created_at FROM support_case_recovery_bindings WHERE case_id=? LIMIT 1`).bind(caseId).first();
     if (existing) {
-      if (!constantTimeEqual(String(existing.identity_hash), identityHash)) throw new DOMException('case recovery identity is already bound', 'InvalidStateError');
+      if (!constantTimeEqual(String(existing.identity_hash), identityHash)) return null;
       return Object.freeze({case_id:caseId,bound:true,already_bound:true,provider:String(existing.provider),bound_at:String(existing.created_at)});
     }
     const at = new Date().toISOString();
