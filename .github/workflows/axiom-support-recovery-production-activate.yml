@@ -1,0 +1,122 @@
+name: MUSITU Axiom Secure Recovery Production Activate
+
+on:
+  push:
+    branches:
+      - 'support/axiom-support-recovery-production-rollout-20261008'
+    paths:
+      - '.github/workflows/axiom-support-recovery-production-activate.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  activate:
+    if: github.event_name == 'push' && github.event.before == '75e4294195101e60070ee3d3c059a4b12c9a8b3d'
+    runs-on: ubuntu-latest
+    environment: axiom-support-production
+    timeout-minutes: 8
+    env:
+      CF_ACCOUNT: '93f395f5121954671f92fffa453d6b61'
+      ACCESS_TOKEN: ${{ secrets.CLOUDFLARE_ACCESS_API_TOKEN }}
+      CF_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+      CF_GLOBAL_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+    steps:
+      - name: Enable authenticated customer recovery policy
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          const api='https://api.cloudflare.com/client/v4';
+          const account=process.env.CF_ACCOUNT;
+          const accessToken=String(process.env.ACCESS_TOKEN||'');
+          const email=String(process.env.CF_EMAIL||''),globalKey=String(process.env.CF_GLOBAL_KEY||'');
+          async function raw(headers,path,{method='GET',body}={}){
+            const r=await fetch(api+path,{method,headers:{...headers,accept:'application/json',...(body===undefined?{}:{'content-type':'application/json'})},...(body===undefined?{}:{body:JSON.stringify(body)})});
+            let p={};try{p=await r.json()}catch{}
+            return {r,p};
+          }
+          async function call(headers,path,opts={}){
+            const {r,p}=await raw(headers,path,opts);
+            if(!r.ok||p?.success===false){
+              const codes=(p?.errors||[]).map(x=>x?.code).filter(Boolean);
+              throw new Error('Access '+(opts.method||'GET')+' '+path+' failed HTTP '+r.status+' codes='+(codes.join(',')||'none'));
+            }
+            return p?.result;
+          }
+          const ah=accessToken?{authorization:'Bearer '+accessToken}:null;
+          const gh={'X-Auth-Email':email,'X-Auth-Key':globalKey};
+          async function access(path,opts={}){
+            if(ah){
+              const a=await raw(ah,path,opts);
+              if(a.r.ok&&a.p?.success!==false) return a.p?.result;
+              if(!(a.r.status===401||a.r.status===403)) throw new Error('Access API failed HTTP '+a.r.status);
+            }
+            if(!email||!globalKey) throw new Error('Access write credentials unavailable');
+            return call(gh,path,opts);
+          }
+          const target='support.mftintelligence.com/recovery/*';
+          const apps=await access('/accounts/'+account+'/access/apps?per_page=100');
+          const matches=(Array.isArray(apps)?apps:[]).filter(x=>String(x?.domain||'').toLowerCase()===target);
+          if(matches.length!==1) throw new Error('recovery Access app is not unique');
+          const app=matches[0],appId=String(app?.id||'');
+          let policies=await access('/accounts/'+account+'/access/apps/'+encodeURIComponent(appId)+'/policies');
+          const rows=Array.isArray(policies)?policies:[];
+          if(rows.length===0){
+            await access('/accounts/'+account+'/access/apps/'+encodeURIComponent(appId)+'/policies',{
+              method:'POST',
+              body:{
+                name:'Authenticated MUSITU support customers',
+                decision:'allow',
+                include:[{everyone:{}}],
+                session_duration:'30m',
+                precedence:1
+              }
+            });
+            policies=await access('/accounts/'+account+'/access/apps/'+encodeURIComponent(appId)+'/policies');
+          }
+          const finalRows=Array.isArray(policies)?policies:[];
+          if(finalRows.length!==1) throw new Error('recovery Access app must have exactly one policy');
+          const policy=finalRows[0];
+          if(String(policy?.decision||'')!=='allow') throw new Error('recovery policy is not allow');
+          const selectors=Array.isArray(policy?.include)?policy.include:[];
+          if(!selectors.some(x=>x&&typeof x==='object'&&x.everyone&&typeof x.everyone==='object')) throw new Error('recovery policy is not authenticated-everyone');
+          console.log(JSON.stringify({
+            gate:'MUSITU_AXIOM_SUPPORT_RECOVERY_ACCESS_ACTIVATION',
+            status:'PASS',
+            app_domain:target,
+            policy_count:1,
+            decision:'allow',
+            selector:'authenticated_everyone',
+            bypass:false,
+            identity_values_recorded:false
+          }));
+          NODE
+
+      - name: Prove anonymous recovery UI and API are Access-blocked
+        shell: bash
+        run: |
+          set -euo pipefail
+          for path in /recovery/ /recovery/app.js /recovery/api/v1/cases/AX-000000000000/rotate; do
+            code=$(curl --silent --show-error --connect-timeout 10 --max-time 30 -D /tmp/h -o /tmp/b -w '%{http_code}' "https://support.mftintelligence.com$path" || true)
+            case "$code" in
+              302|303|307|401|403) ;;
+              *) echo "anonymous recovery request unexpectedly reachable: $path -> $code" >&2; exit 1 ;;
+            esac
+            if grep -q 'Protect case access' /tmp/b; then
+              echo "recovery UI leaked to anonymous request: $path" >&2
+              exit 1
+            fi
+            printf '{"path":"%s","http_status":"%s","anonymous_access":false}\n' "$path" "$code"
+          done
+          rm -f /tmp/h /tmp/b
+
+      - name: Prove existing public support remains available
+        shell: bash
+        run: |
+          set -euo pipefail
+          code=$(curl --silent --show-error --connect-timeout 10 --max-time 30 -D /tmp/h -o /tmp/b -w '%{http_code}' https://support.mftintelligence.com/ || true)
+          if [ "$code" = "200" ]; then grep -q 'MUSITU Axiom' /tmp/b
+          elif [ "$code" = "403" ]; then grep -qi '^cf-mitigated:[[:space:]]*challenge' /tmp/h
+          else echo "unexpected public support status: $code" >&2; exit 1; fi
+          rm -f /tmp/h /tmp/b
