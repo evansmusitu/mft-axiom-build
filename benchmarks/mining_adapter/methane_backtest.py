@@ -36,9 +36,9 @@ class MethaneBacktestSpec:
     minimum_test_precision: float=0.10
     minimum_f2_gain_fraction: float=0.05
     required_passing_folds: int=3
-    threshold_update_examples: int=120
-    threshold_window_examples: int=10_000
-    minimum_online_positives: int=50
+    threshold_update_examples: int=30
+    threshold_window_examples: int=2_000
+    minimum_online_positives: int=20
     minimum_source_rows: int=9_000_000
 
     def __post_init__(self) -> None:
