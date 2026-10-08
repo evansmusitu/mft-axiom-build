@@ -33,6 +33,17 @@ CREATE TABLE IF NOT EXISTS support_case_events (
   created_at TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS support_case_messages (
+  message_id TEXT PRIMARY KEY CHECK (message_id GLOB 'AXM-*'),
+  case_id TEXT NOT NULL REFERENCES support_cases(case_id) ON DELETE RESTRICT,
+  type TEXT NOT NULL CHECK (type IN ('CUSTOMER_MESSAGE','AGENT_REPLY','INTERNAL_NOTE','SYSTEM_EVENT')),
+  actor TEXT NOT NULL,
+  visibility TEXT NOT NULL CHECK (visibility IN ('customer','internal')),
+  encrypted_payload TEXT NOT NULL,
+  event_hash TEXT NOT NULL UNIQUE CHECK (length(event_hash) = 64),
+  created_at TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS support_case_purge_authorizations (
   case_id TEXT PRIMARY KEY CHECK (case_id GLOB 'AX-*'),
   receipt_sha256 TEXT NOT NULL CHECK (length(receipt_sha256) = 64),
@@ -57,6 +68,18 @@ CREATE INDEX IF NOT EXISTS support_cases_state_priority ON support_cases(state, 
 CREATE INDEX IF NOT EXISTS support_cases_retention ON support_cases(state, retention_expires_at, legal_hold_until);
 CREATE INDEX IF NOT EXISTS support_deletion_receipts_purged_at ON support_deletion_receipts(purged_at);
 CREATE INDEX IF NOT EXISTS support_case_events_case_sequence ON support_case_events(case_id, sequence);
+CREATE INDEX IF NOT EXISTS support_case_messages_case_created ON support_case_messages(case_id, created_at);
+
+CREATE TRIGGER IF NOT EXISTS support_case_message_no_update
+BEFORE UPDATE ON support_case_messages BEGIN SELECT RAISE(ABORT, 'support messages are append-only'); END;
+
+CREATE TRIGGER IF NOT EXISTS support_case_message_no_delete
+BEFORE DELETE ON support_case_messages
+WHEN NOT EXISTS (
+  SELECT 1 FROM support_case_purge_authorizations
+  WHERE case_id = OLD.case_id AND expires_at >= strftime('%Y-%m-%dT%H:%M:%fZ','now')
+)
+BEGIN SELECT RAISE(ABORT, 'support messages are append-only outside an authorized case purge'); END;
 
 CREATE TRIGGER IF NOT EXISTS support_case_event_no_update
 BEFORE UPDATE ON support_case_events BEGIN SELECT RAISE(ABORT, 'support events are append-only'); END;
