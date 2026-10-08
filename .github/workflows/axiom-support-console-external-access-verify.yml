@@ -1,0 +1,95 @@
+name: MUSITU Axiom Support Console External Access Verify
+
+on:
+  push:
+    branches:
+      - 'support/axiom-support-console-production-rollout-20261008'
+    paths:
+      - '.github/workflows/axiom-support-console-external-access-verify.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    if: github.event_name == 'push' && github.event.before == '4637a52aa3a4b7a8049c342c3865de123adaa55b'
+    runs-on: ubuntu-latest
+    environment: axiom-support-production
+    timeout-minutes: 8
+    env:
+      CF_ACCOUNT: '93f395f5121954671f92fffa453d6b61'
+      WORKER_TOKEN: ${{ secrets.CLOUDFLARE_RULESETS_API_TOKEN }}
+      ACCESS_TOKEN: ${{ secrets.CLOUDFLARE_ACCESS_API_TOKEN }}
+      CF_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+      CF_GLOBAL_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+    steps:
+      - name: Verify control-plane state
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          const api='https://api.cloudflare.com/client/v4';
+          const account=process.env.CF_ACCOUNT;
+          const wh={authorization:'Bearer '+process.env.WORKER_TOKEN,accept:'application/json'};
+          const ah={authorization:'Bearer '+process.env.ACCESS_TOKEN,accept:'application/json'};
+          const gh={'X-Auth-Email':process.env.CF_EMAIL,'X-Auth-Key':process.env.CF_GLOBAL_KEY,accept:'application/json'};
+          async function get(headers,path){
+            const r=await fetch(api+path,{headers}); let p={}; try{p=await r.json()}catch{}
+            if(!r.ok||p?.success===false) throw new Error('Cloudflare read failed '+r.status+' '+path);
+            return p?.result;
+          }
+          async function access(path){
+            try{return await get(ah,path)}catch{return get(gh,path)}
+          }
+          const [domains,opsSub,apps]=await Promise.all([
+            get(wh,'/accounts/'+account+'/workers/domains'),
+            get(wh,'/accounts/'+account+'/workers/scripts/musitu-axiom-support-ops/subdomain'),
+            access('/accounts/'+account+'/access/apps?per_page=100')
+          ]);
+          const d=(Array.isArray(domains)?domains:[]).filter(x=>String(x?.hostname||'')==='support-ops.mftintelligence.com');
+          if(d.length!==1||String(d[0]?.service||'')!=='musitu-axiom-support-ops') throw new Error('operator custom-domain control-plane drift');
+          if(opsSub?.enabled===true||opsSub?.previews_enabled===true) throw new Error('operator workers.dev/previews enabled');
+          const a=(Array.isArray(apps)?apps:[]).filter(x=>String(x?.domain||'')==='support-ops.mftintelligence.com');
+          if(a.length!==1) throw new Error('operator Access app drift');
+          const policies=await access('/accounts/'+account+'/access/apps/'+encodeURIComponent(String(a[0].id))+'/policies');
+          if(!Array.isArray(policies)||policies.length!==1||String(policies[0]?.decision||'')!=='allow') throw new Error('operator Access allow policy drift');
+          console.log(JSON.stringify({control_plane:'PASS',domain_attached:true,access_app:true,allow_policy_count:1,workers_dev:false,previews:false,identity_value_recorded:false}));
+          NODE
+
+      - name: Wait for public DNS TLS and prove Access blocks anonymous traffic
+        shell: bash
+        run: |
+          set -euo pipefail
+          passed=0
+          for attempt in $(seq 1 30); do
+            rm -f /tmp/h /tmp/b
+            code=$(curl --silent --show-error --connect-timeout 8 --max-time 20 -D /tmp/h -o /tmp/b -w '%{http_code}' https://support-ops.mftintelligence.com/ || true)
+            if [ "$code" = "200" ]; then
+              echo "operator surface unexpectedly returned 200 without Access authentication" >&2
+              exit 1
+            fi
+            if [ "$code" = "302" ] || [ "$code" = "303" ] || [ "$code" = "307" ] || [ "$code" = "401" ] || [ "$code" = "403" ]; then
+              if grep -q 'Support Operations' /tmp/b; then
+                echo "private operator UI leaked to anonymous request" >&2
+                exit 1
+              fi
+              echo "{"external_https":"PASS","anonymous_http_status":"$code","access_blocked":true,"attempt":$attempt}"
+              passed=1
+              break
+            fi
+            sleep 10
+          done
+          test "$passed" = "1"
+
+      - name: Prove private API is equally Access-blocked
+        shell: bash
+        run: |
+          set -euo pipefail
+          code=$(curl --silent --show-error --connect-timeout 8 --max-time 20 -o /tmp/b -w '%{http_code}' https://support-ops.mftintelligence.com/api/v1/operator/cases || true)
+          case "$code" in
+            302|303|307|401|403) ;;
+            *) echo "unexpected anonymous operator API status: $code" >&2; exit 1 ;;
+          esac
+          ! grep -q '"cases"' /tmp/b
+          rm -f /tmp/b
+          echo "{"operator_api_anonymous_block":"PASS","http_status":"$code"}"
