@@ -42,6 +42,20 @@ export const SENSITIVE_ACTIONS = Object.freeze([
   'CASE_PURGE', 'LEGAL_HOLD_APPLY', 'LEGAL_HOLD_REVIEW', 'LEGAL_HOLD_RELEASE', 'PRODUCTION_CHANGE',
 ]);
 
+
+export const CONVERSATION_MESSAGE_TYPES = Object.freeze([
+  'CUSTOMER_MESSAGE', 'AGENT_REPLY', 'INTERNAL_NOTE', 'SYSTEM_EVENT',
+]);
+
+export const PUBLIC_CASE_LABELS = Object.freeze({
+  NEW: 'NEW',
+  IN_PROGRESS_MUSITU_SUPPORT: 'IN_PROGRESS',
+  ACTION_REQUIRED: 'WAITING_FOR_CUSTOMER',
+  SOLUTION_PROVIDED: 'RESOLVED',
+  CLOSED: 'CLOSED',
+  ESCALATED: 'TRIAGED',
+});
+
 const MAX = Object.freeze({summary: 160, description: 8000, reproduction: 6000, impact: 1000, evidenceRefs: 20});
 const CASE_ID = /^AX-[0-9A-HJKMNP-TV-Z]{12}$/;
 const REF_ID = /^[a-z][a-z0-9._:-]{7,191}$/i;
@@ -192,6 +206,61 @@ function randomBase32(length) {
 
 export function newCaseId() { return `AX-${randomBase32(12)}`; }
 export function newRecoveryCode() { return `${randomBase32(8)}-${randomBase32(8)}-${randomBase32(8)}`; }
+
+
+export function storageStateForPublicLabel(label) {
+  const value = PUBLIC_CASE_LABELS[String(label || '')];
+  if (!value) throw new TypeError('unknown public support case label');
+  return value;
+}
+
+export async function createConversationMessage({
+  caseId,
+  type,
+  actor,
+  visibility,
+  body,
+  at = new Date().toISOString(),
+  messageId = `AXM-${randomBase32(16)}`,
+} = {}) {
+  if (!CASE_ID.test(String(caseId || ''))) throw new TypeError('valid case id required');
+  if (!CONVERSATION_MESSAGE_TYPES.includes(type)) throw new TypeError('unknown support conversation message type');
+  if (!/^AXM-[0-9A-HJKMNP-TV-Z]{16}$/.test(String(messageId || ''))) throw new TypeError('message id is invalid');
+  if (!['customer', 'internal'].includes(visibility)) throw new TypeError('message visibility is invalid');
+  const actorValue = clean(actor, 192);
+  if (!actorValue) throw new TypeError('message actor is required');
+
+  const actorOk = (
+    (type === 'CUSTOMER_MESSAGE' && actorValue === 'requester' && visibility === 'customer') ||
+    (type === 'AGENT_REPLY' && /^support_agent:[a-z0-9._:-]{3,160}$/i.test(actorValue) && visibility === 'customer') ||
+    (type === 'INTERNAL_NOTE' && /^support_agent:[a-z0-9._:-]{3,160}$/i.test(actorValue) && visibility === 'internal') ||
+    (type === 'SYSTEM_EVENT' && actorValue === 'system' && visibility === 'customer')
+  );
+  if (!actorOk) {
+    if ((type === 'INTERNAL_NOTE' && visibility !== 'internal') || (type !== 'INTERNAL_NOTE' && visibility === 'internal')) {
+      throw new TypeError('message visibility does not match message type');
+    }
+    throw new TypeError('message actor is not authorized for message type');
+  }
+
+  const value = clean(body, 8000);
+  if (!value) throw new TypeError('message body is required');
+  if (String(body ?? '').length > 8000) throw new TypeError('message body exceeds 8000 characters');
+  const secretCheck = inspectSecretMaterial({body: value}, 'message');
+  if (!secretCheck.safe) throw new SecretMaterialError(secretCheck.findings);
+
+  const createdAt = nowIso(at);
+  return Object.freeze({
+    schema: 'musitu.axiom.support-conversation-message.v1',
+    message_id: messageId,
+    case_id: caseId,
+    type,
+    actor: actorValue,
+    visibility,
+    body: value,
+    created_at: createdAt,
+  });
+}
 
 export async function createCaseRecord(candidate, {at = new Date().toISOString(), caseId = newCaseId(), recoveryCode = newRecoveryCode()} = {}) {
   if (!CASE_ID.test(caseId)) throw new TypeError('caseId is invalid');
