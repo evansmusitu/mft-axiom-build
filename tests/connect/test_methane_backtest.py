@@ -6,6 +6,7 @@ from benchmarks.mining_adapter.methane_backtest import (
     build_windowed_prediction_examples,
     evaluate_backtest_gate,
     online_recalibrated_predictions,
+    select_augmented_operating_point,
     rolling_backtest_folds,
 )
 from benchmarks.mining_adapter.methane_prediction import PredictionExample, binary_metrics
@@ -89,6 +90,23 @@ class MethaneBacktestTests(unittest.TestCase):
             )
 
 
+
+    def test_augmented_operating_point_never_suppresses_hard_methane_warning(self):
+        y=[1,1,1,1,0,0,0,0]
+        scores=[.1,.9,.8,.7,.6,.5,.2,.1]
+        current=[1.2,.2,.3,.4,1.1,.2,.3,.4]
+        result=select_augmented_operating_point(
+            y_true=y,
+            scores=scores,
+            current_max=current,
+            warning_threshold=1.0,
+            minimum_recall=.75,
+        )
+        self.assertGreaterEqual(result["metrics"]["recall"],.75)
+        self.assertTrue(result["predictions"][0])
+        self.assertTrue(result["predictions"][4])
+        self.assertGreaterEqual(result["metrics"]["precision"],.75)
+
     def test_online_recalibration_uses_only_fully_resolved_prior_labels(self):
         base=datetime(2014,3,2,tzinfo=timezone.utc)
         calibration=[
@@ -116,6 +134,7 @@ class MethaneBacktestTests(unittest.TestCase):
             calibration_scores=calibration_scores,
             test_examples=test,
             test_scores=test_scores,
+            warning_threshold=1.0,
             minimum_recall=.90,
             update_every_examples=1,
             window_examples=4,
