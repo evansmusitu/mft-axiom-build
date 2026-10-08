@@ -35,11 +35,11 @@
     </main>
 
     <aside class="rail" aria-label="Case evidence and controls">
-      <section><h2>Case controls</h2><div class="panel"><dl><div><dt>Owner</dt><dd id="case-owner">Unassigned</dd></div><div><dt>State</dt><dd id="case-state">—</dd></div><div><dt>Priority</dt><dd id="case-priority">—</dd></div></dl>
+      <section><h2>Case controls</h2><div class="panel"><dl><div><dt>Owner</dt><dd id="case-owner">Unassigned</dd></div><div><dt>State</dt><dd id="case-state">—</dd></div><div><dt>Priority</dt><dd id="case-priority">—</dd></div></dl><button id="assign-to-me" class="secondary" disabled>Assign to me</button>
         <label>Change state<select id="state-select" disabled><option value="">Choose…</option><option>IN_PROGRESS_MUSITU_SUPPORT</option><option>ACTION_REQUIRED</option><option>SOLUTION_PROVIDED</option><option>ESCALATED</option><option>CLOSED</option></select></label><button id="apply-state" class="secondary" disabled>Apply state</button>
       </div></section>
       <section><h2>Evidence</h2><div class="panel facts"><p><strong>Encrypted narrative</strong><span>A256GCM at rest</span></p><p><strong>Recovery secret</strong><span>Not available to operators</span></p><p><strong>Event chain</strong><span>Append-only · hash linked</span></p></div></section>
-      <section><h2>Approval</h2><div class="panel warning"><strong>Sensitive actions locked</strong><p>Disclosure, data actions and production changes require independent approval.</p></div></section>
+      <section><h2>Approval</h2><div class="panel warning"><strong>Sensitive actions locked</strong><p>Disclosure, data actions and production changes require independent approval.</p><label>Request approval<select id="approval-action" disabled><option value="">Choose sensitive action…</option><option>SECURITY_DISCLOSURE</option><option>DATA_EXPORT</option><option>DATA_DELETION</option><option>PUBLIC_INCIDENT_UPDATE</option><option>REFUND</option><option>PRODUCTION_CHANGE</option></select></label><label>Evidence SHA-256<input id="approval-evidence" maxlength="64" placeholder="64-character evidence hash" disabled></label><button id="request-approval" class="secondary" disabled>Request independent approval</button><p id="approval-status" role="status" aria-live="polite"></p></div></section>
       <section><h2>Audit trail</h2><div id="audit-trail" class="audit"><p class="muted">Select a case to inspect its activity.</p></div></section>
     </aside>
   </div>
