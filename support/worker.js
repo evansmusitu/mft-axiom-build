@@ -33,6 +33,72 @@ async function readJson(request) {
   return JSON.parse(text);
 }
 
+function base64UrlBytes(value) {
+  const normalized = String(value || '').replace(/-/g, '+').replace(/_/g, '/');
+  const padded = normalized + '='.repeat((4 - normalized.length % 4) % 4);
+  const raw = atob(padded);
+  return Uint8Array.from(raw, char => char.charCodeAt(0));
+}
+
+function base64UrlJson(value) {
+  return JSON.parse(new TextDecoder().decode(base64UrlBytes(value)));
+}
+
+function normalizedIssuer(value) {
+  return String(value || '').replace(/\/+$/, '');
+}
+
+export async function verifyOperatorAccess(request, env = {}) {
+  try {
+    const token = String(request.headers.get('cf-access-jwt-assertion') || '').trim();
+    const team = normalizedIssuer(env.SUPPORT_ACCESS_TEAM_DOMAIN);
+    const expectedAud = String(env.SUPPORT_ACCESS_AUD || '').trim();
+    const bindingsRaw = String(env.SUPPORT_OPERATOR_BINDINGS_JSON || '').trim();
+    if (!token || token.length > 16_000 || !team || !expectedAud || !bindingsRaw) return null;
+
+    const parts = token.split('.');
+    if (parts.length !== 3) return null;
+    const header = base64UrlJson(parts[0]);
+    const payload = base64UrlJson(parts[1]);
+    if (header?.alg !== 'RS256' || !header?.kid) return null;
+
+    const now = Math.floor(Date.now() / 1000);
+    if (!Number.isFinite(payload?.exp) || payload.exp <= now) return null;
+    if (payload?.nbf != null && (!Number.isFinite(payload.nbf) || payload.nbf > now + 30)) return null;
+    if (normalizedIssuer(payload?.iss) !== team) return null;
+    const audiences = Array.isArray(payload?.aud) ? payload.aud.map(String) : [String(payload?.aud || '')];
+    if (!audiences.includes(expectedAud)) return null;
+    const email = String(payload?.email || '').trim().toLowerCase();
+    if (!email || email.length > 320) return null;
+
+    const fetchImpl = env.SUPPORT_ACCESS_CERTS_FETCH || fetch;
+    const response = await fetchImpl(team + '/cdn-cgi/access/certs', {headers: {'accept': 'application/json'}});
+    if (!response?.ok) return null;
+    const certs = await response.json();
+    const jwk = (Array.isArray(certs?.keys) ? certs.keys : []).find(key => String(key?.kid || '') === String(header.kid));
+    if (!jwk || jwk.kty !== 'RSA') return null;
+    const publicKey = await crypto.subtle.importKey(
+      'jwk', jwk, {name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256'}, false, ['verify'],
+    );
+    const signatureOk = await crypto.subtle.verify(
+      {name: 'RSASSA-PKCS1-v1_5'}, publicKey, base64UrlBytes(parts[2]),
+      new TextEncoder().encode(parts[0] + '.' + parts[1]),
+    );
+    if (!signatureOk) return null;
+
+    const bindings = JSON.parse(bindingsRaw);
+    const binding = bindings && typeof bindings === 'object' && !Array.isArray(bindings) ? bindings[email] : null;
+    const actorRef = String(binding?.actor_ref || '');
+    const role = String(binding?.role || '');
+    if (!/^support_agent:[a-z0-9._:-]{3,160}$/i.test(actorRef)) return null;
+    if (!['support_agent','privacy_officer','security_responder','billing_operator','incident_commander'].includes(role)) return null;
+    return Object.freeze({actor_ref: actorRef, role});
+  } catch {
+    return null;
+  }
+}
+
+
 async function abuseAllowed(token, env) {
   if (env.ENVIRONMENT !== 'production' && !token) return true;
   return verifyTurnstile({
@@ -131,8 +197,10 @@ export async function handleSupportRequest(request, env = {}) {
 const OPERATOR_ROLES = Object.freeze(['support_agent', 'privacy_officer', 'security_responder', 'billing_operator', 'incident_commander']);
 
 async function operatorPrincipal(request, env) {
-  if (typeof env.SUPPORT_OPERATOR_VERIFY !== 'function') return null;
-  const value = await env.SUPPORT_OPERATOR_VERIFY(request, env);
+  const verifier = env.ENVIRONMENT !== 'production' && typeof env.SUPPORT_OPERATOR_VERIFY === 'function'
+    ? env.SUPPORT_OPERATOR_VERIFY
+    : verifyOperatorAccess;
+  const value = await verifier(request, env);
   if (!value || typeof value !== 'object') return null;
   const actorRef = String(value.actor_ref || '');
   const role = String(value.role || '');
