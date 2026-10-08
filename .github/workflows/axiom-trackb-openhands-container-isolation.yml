@@ -1,0 +1,76 @@
+name: MUSITU AXIOM Track B OpenHands Container Isolation Qualification
+
+on:
+  push:
+    branches:
+      - frontier/axiom-trackb-openhands-selfhost-20261008
+    paths:
+      - '.github/workflows/axiom-trackb-openhands-container-isolation.yml'
+      - 'ops/openhands_self_hosted/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: axiom-trackb-selfhost-container-isolation-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  live-container-isolation:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      AXIOM_ISOLATED_QUALIFICATION: 'TRUE'
+    steps:
+      - name: Check isolated ref and write barriers
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF_NAME" = 'frontier/axiom-trackb-openhands-selfhost-20261008'
+          echo 'MUSITU_AXIOM_TRACK_B_SCOPE=DISPOSABLE_DOCKER_ISOLATION_ONLY'
+          echo 'MAIN_MUTATION_ALLOWED=FALSE'
+          echo 'PR1_MUTATION_ALLOWED=FALSE'
+          echo 'PRODUCTION_MUTATION_ALLOWED=FALSE'
+          echo 'FROZEN_OPENAI_MUTATION_ALLOWED=FALSE'
+      - name: Checkout exact isolated ref with no persisted token
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - name: Run local fail-closed boundary regression tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m unittest discover -s ops/openhands_self_hosted -p 'test_*.py' -v
+          python3 -m compileall -q ops/openhands_self_hosted
+      - name: Build disposable OpenHands Agent Server image
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker version
+          docker build --progress=plain \
+            --file ops/openhands_self_hosted/Dockerfile \
+            --tag axiom-trackb-openhands-isolation:ci \
+            ops/openhands_self_hosted
+          IMAGE_SHA="$(docker image inspect --format '{{.Id}}' axiom-trackb-openhands-isolation:ci)"
+          test "${IMAGE_SHA#sha256:}" != "$IMAGE_SHA"
+          test "${#IMAGE_SHA}" -eq 71
+          printf 'AXIOM_TRACK_B_IMAGE_SHA=%s\n' "$IMAGE_SHA" >> "$GITHUB_ENV"
+          echo "MUSITU_AXIOM_TRACK_B_LOCAL_IMAGE_ID=$IMAGE_SHA"
+      - name: Launch and independently inspect isolated agent servers
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 ops/openhands_self_hosted/container_smoke.py
+      - name: Preserve conservative release truth
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo 'B1_CONTAINER_ISOLATION_CI_CHALLENGE_ONLY=TRUE'
+          echo 'MULTITENANT_PRODUCTION_ISOLATION=NOT_PROVEN'
+          echo 'AGENT_MODEL_EXECUTION=NOT_PROVEN'
+          echo 'S3_EXTERNAL_OPERATION=NOT_PROVEN'
+          echo 'LIVE_RUNTIME_QUALIFICATION=NOT_PROVEN'
+          echo 'RELEASE_AUTHORITY=FALSE'
+          echo 'PRODUCTION_AUTHORITY=FALSE'
+          echo 'CERTIFICATION_AUTHORITY=FALSE'
