@@ -24,7 +24,7 @@ export const STATE_TRANSITIONS = Object.freeze({
   IN_PROGRESS: Object.freeze(['WAITING_FOR_CUSTOMER', 'MITIGATED', 'RESOLVED']),
   MITIGATED: Object.freeze(['IN_PROGRESS', 'RESOLVED']),
   RESOLVED: Object.freeze(['IN_PROGRESS', 'CLOSED']),
-  CLOSED: Object.freeze(['IN_PROGRESS']),
+  CLOSED: Object.freeze([]),
   DUPLICATE: Object.freeze(['CLOSED']),
   REJECTED: Object.freeze(['CLOSED']),
 });
