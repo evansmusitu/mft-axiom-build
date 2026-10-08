@@ -12,7 +12,7 @@ permissions:
 
 jobs:
   deploy:
-    if: github.event_name == 'push' && github.event.before == '6ac124b8027dd0810a87fb437d8e3793d8534547'
+    if: github.event_name == 'push' && github.event.before == '2aae758da7686da405d38881d6010ee5f4b2a848'
     runs-on: ubuntu-latest
     environment: axiom-support-production
     timeout-minutes: 8
@@ -23,7 +23,8 @@ jobs:
       - name: Prove status API is public metadata-only in source
         run: |
           set -euo pipefail
-          node --test support/tests/global_ops_http.test.mjs support/tests/global_ops_admin_ui.test.mjs
+          node --test support/tests/global_ops_http.test.mjs
+          node --test support/tests/global_ops_admin_ui.test.mjs
 
       - name: Apply narrow public-status WAF skip
         shell: bash
