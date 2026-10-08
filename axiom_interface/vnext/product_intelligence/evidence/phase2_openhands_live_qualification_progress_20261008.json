@@ -1,0 +1,102 @@
+{
+  "schema": "musitu.axiom.phase2.openhands-live-qualification-progress.v1",
+  "record_type": "BLOCKED_LIVE_QUALIFICATION_EVIDENCE",
+  "recorded_date": "2026-10-08",
+  "branch": "frontier/axiom-phase2-openhands-live-qualification-20261008",
+  "source_authority": {
+    "repository": "evansmusitu/mft-axiom-build",
+    "sealed_phase2_branch": "frontier/axiom-product-intelligence-phase2-20261004",
+    "sealed_phase2_sha": "2a96a59e3337f4801328750b45ab2ebad7fdcd0e",
+    "main_sha": "d6a846f6bbe0bccac1758713eb4de167caf07113",
+    "pr1_state": "open",
+    "pr1_draft": true,
+    "pr1_merged": false
+  },
+  "user_authorization": {
+    "confirmation": "AUTHORIZE PHASE-2 ISOLATED OPENHANDS ADMISSION AND S3 LIVE QUALIFICATION ON A FRESH NON-PROTECTED BRANCH. NO MAIN, PR #1, PRODUCTION, OR FROZEN OPENAI MUTATION.",
+    "scope": "ISOLATED_OPENHANDS_ADMISSION_AND_S3_LIVE_QUALIFICATION_ONLY",
+    "main_mutation_allowed": false,
+    "pr1_mutation_allowed": false,
+    "production_mutation_allowed": false,
+    "frozen_openai_mutation_allowed": false
+  },
+  "tdd": {
+    "red": {
+      "commit": "f61ad92db7f86718ea66ab30253119fc853c5fbd",
+      "workflow_run_id": 37761646788,
+      "job_id": 113259238532,
+      "conclusion": "failure",
+      "focused_test_result": "0_PASS_4_FAIL",
+      "decisive_failure": "evaluateOpenHandsLiveQualification must exist before OpenHands can be selected or activated",
+      "expected_failure": true
+    },
+    "green": {
+      "commit": "74d0c9e0e4d0165ab9ee88f99d44382d91f117ab",
+      "workflow_run_id": 37761829732,
+      "job_id": 113259851213,
+      "conclusion": "success",
+      "focused_contract": "PASS",
+      "authority_boundary": "PASS",
+      "assertions_weakened_to_pass": false
+    }
+  },
+  "live_probe": {
+    "commit": "3b2fb74db98c5028337c11c7a2ae306722490303",
+    "workflow_run_id": 37761988035,
+    "job_id": 113260378467,
+    "scope": "S2_READ_ONLY",
+    "conclusion": "failure",
+    "expected_fail_closed_blocker": true,
+    "marker": "MUSITU_AXIOM_OPENHANDS_API_KEY_NOT_AVAILABLE",
+    "exit_code": 42,
+    "openhands_request_attempted": false,
+    "secret_value_observed": false,
+    "blocker": "GitHub Actions repository secret OPENHANDS_API_KEY is absent or unavailable to the isolated qualification workflow."
+  },
+  "provider_state": {
+    "provider": "OpenHands",
+    "target_seam": "EngineeringWorkerBackend",
+    "mechanism_authority": "MECHANISM_ONLY",
+    "provider_selection_authorized_by_user": true,
+    "provider_selection_scope": "ISOLATED_QUALIFICATION_ONLY",
+    "runtime_activation_authorized": false,
+    "runtime_activation_state": "BLOCKED_CREDENTIAL_UNAVAILABLE",
+    "external_action_executed": false,
+    "live_runtime_qualification": "NOT_PROVEN"
+  },
+  "external_interface": {
+    "mode": "OPENHANDS_CLOUD_REST_API",
+    "api_base": "https://app.all-hands.dev",
+    "credential_reference": "OPENHANDS_API_KEY",
+    "credential_material_in_evidence": false,
+    "repository_binding_supported": true,
+    "selected_branch_binding_supported": true
+  },
+  "authority_boundary": {
+    "risk_ceiling": "S3_EXTERNAL_REVERSIBLE_ONLY",
+    "release_authority": false,
+    "production_authority": false,
+    "certification_authority": false,
+    "main_mutation": false,
+    "pr1_mutation": false,
+    "production_mutation": false,
+    "frozen_openai_mutation": false
+  },
+  "next_required_evidence": [
+    "OPENHANDS_API_KEY available as a repository Actions secret without exposing its value",
+    "read-only OpenHands Cloud API credential probe PASS",
+    "verified OpenHands repository integration for evansmusitu/mft-axiom-build",
+    "operation-scoped FA-11 S3 authorization and independent HUMAN_APPROVER",
+    "real OpenHands execution on the isolated qualification branch",
+    "destination-native GitHub mutation receipt and independent read-only operation-specific readback",
+    "rollback/reversibility proof and post-execution independent verification"
+  ],
+  "qualification_truth": {
+    "admission_contract": "PASS",
+    "live_credential_probe": "BLOCKED_CREDENTIAL_UNAVAILABLE",
+    "live_external_worker_runtime": "NOT_PROVEN",
+    "external_side_effect_execution": "NOT_PROVEN",
+    "execution_truth": "NOT_LIVE_QUALIFIED",
+    "status": "BLOCKED_NOT_FAILED"
+  }
+}
