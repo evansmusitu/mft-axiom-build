@@ -1,0 +1,76 @@
+name: MUSITU Axiom Support Console Release Boundary Verify Once
+
+on:
+  push:
+    branches:
+      - 'support/axiom-support-console-isolated-20261008'
+    paths:
+      - '.github/workflows/axiom-support-console-release-boundary-verify-once.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    if: github.event_name == 'push' && github.event.before == '15f467ed659fddaf8cb0920ded1457456e89476d'
+    runs-on: ubuntu-latest
+    environment: axiom-support-production
+    timeout-minutes: 5
+    env:
+      CF_TOKEN: ${{ secrets.CLOUDFLARE_RULESETS_API_TOKEN }}
+      CF_ACCOUNT: '93f395f5121954671f92fffa453d6b61'
+    steps:
+      - name: Exact isolated branch boundary
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF_NAME" = 'support/axiom-support-console-isolated-20261008'
+          test "$GITHUB_REF_NAME" != 'main'
+          test "${{ github.event.before }}" = '15f467ed659fddaf8cb0920ded1457456e89476d'
+
+      - name: Verify no Support Console production attachment
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          const token=String(process.env.CF_TOKEN||'');
+          const account=String(process.env.CF_ACCOUNT||'');
+          if(!token||!account) throw new Error('Cloudflare read credentials unavailable');
+          const headers={authorization:'Bearer '+token,accept:'application/json'};
+          async function cf(path){
+            const r=await fetch('https://api.cloudflare.com/client/v4'+path,{headers});
+            let p={}; try{p=await r.json()}catch{}
+            if(!r.ok||p?.success===false){
+              const codes=(p?.errors||[]).map(x=>x?.code).filter(Boolean);
+              throw new Error('Cloudflare read failed HTTP '+r.status+' codes='+(codes.join(',')||'none')+' '+path);
+            }
+            return p?.result;
+          }
+          const [domains,scripts,publicDeployments]=await Promise.all([
+            cf('/accounts/'+account+'/workers/domains'),
+            cf('/accounts/'+account+'/workers/scripts'),
+            cf('/accounts/'+account+'/workers/scripts/musitu-axiom-support/deployments')
+          ]);
+          const domainRows=Array.isArray(domains)?domains:[];
+          const scriptRows=Array.isArray(scripts)?scripts:[];
+          const opsDomains=domainRows.filter(x=>String(x?.hostname||'')==='support-ops.mftintelligence.com');
+          const opsScripts=scriptRows.filter(x=>/musitu-axiom-support-ops/i.test(String(x?.id||x?.name||'')));
+          const publicDomains=domainRows.filter(x=>String(x?.hostname||'')==='support.mftintelligence.com');
+          const deployments=Array.isArray(publicDeployments?.deployments)?publicDeployments.deployments:[];
+          if(opsDomains.length!==0) throw new Error('operator production hostname is already attached');
+          if(opsScripts.length!==0) throw new Error('operator production Worker already exists');
+          if(publicDomains.length!==1||String(publicDomains[0]?.service||'')!=='musitu-axiom-support') throw new Error('existing public support domain drift');
+          console.log(JSON.stringify({
+            gate:'MUSITU_AXIOM_SUPPORT_CONSOLE_RELEASE_BOUNDARY',
+            status:'PASS',
+            operator_hostname_attached:false,
+            operator_worker_deployed:false,
+            public_support_domain_preserved:true,
+            public_support_service:'musitu-axiom-support',
+            latest_public_support_deployment:deployments[0]?{
+              id:deployments[0].id||null,
+              created_on:deployments[0].created_on||null
+            }:null,
+            secret_values_read:false,
+            mutation_performed:false
+          }));
+          NODE
