@@ -1,0 +1,24 @@
+name: MUSITU Axiom Support Console Isolated TDD
+
+on:
+  push:
+    branches:
+      - 'support/axiom-support-console-isolated-20261008'
+    paths:
+      - 'support/**'
+      - '.github/workflows/axiom-support-console-isolated-tdd.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  focused:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Conversation contract tests
+        run: node --test support/tests/conversation_contract.test.mjs
