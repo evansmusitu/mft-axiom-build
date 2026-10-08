@@ -1,0 +1,77 @@
+name: MUSITU Axiom Global Support Inbound Email Audit
+
+on:
+  push:
+    branches:
+      - 'support/axiom-global-support-ops-production-rollout-20261008'
+    paths:
+      - '.github/workflows/axiom-global-support-inbound-email-audit.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    if: github.event_name == 'push' && github.event.before == 'b3a669962616f0e7d2550b625a7920bd6596f73a'
+    runs-on: ubuntu-latest
+    environment: axiom-support-production
+    timeout-minutes: 8
+    env:
+      CF_ACCOUNT: '93f395f5121954671f92fffa453d6b61'
+      CF_ZONE: '5b56528f03948ff5917a5e0cd9f7109e'
+      SUPPORT_DB: 'a525c8b6-9b44-413b-a219-46e419b71b12'
+      WORKER_TOKEN: ${{ secrets.CLOUDFLARE_RULESETS_API_TOKEN }}
+      D1_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CF_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+      CF_GLOBAL_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+    steps:
+      - name: Independent inbound-email production readback
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          const api='https://api.cloudflare.com/client/v4',account=process.env.CF_ACCOUNT,zone=process.env.CF_ZONE,db=process.env.SUPPORT_DB;
+          const wt=String(process.env.WORKER_TOKEN||''),dt=String(process.env.D1_TOKEN||''),email=String(process.env.CF_EMAIL||''),key=String(process.env.CF_GLOBAL_KEY||'');
+          const wh={authorization:'Bearer '+wt},dh={authorization:'Bearer '+dt},gh={'X-Auth-Email':email,'X-Auth-Key':key};
+          async function raw(headers,path,{method='GET',body}={}){
+            const r=await fetch(api+path,{method,headers:{...headers,accept:'application/json',...(body===undefined?{}:{'content-type':'application/json'})},...(body===undefined?{}:{body:JSON.stringify(body)})});
+            let p={};try{p=await r.json()}catch{}return {r,p};
+          }
+          async function call(headers,path,opts={}){
+            const {r,p}=await raw(headers,path,opts);
+            if(!r.ok||p?.success===false)throw new Error('Cloudflare read failed '+r.status+' '+path);
+            return p.result;
+          }
+          async function mail(path){
+            let x=await raw(wh,path);
+            if(x.r.ok&&x.p?.success!==false)return x.p.result;
+            x=await raw(gh,path);
+            if(!x.r.ok||x.p?.success===false)throw new Error('mail read failed '+x.r.status+' '+path);
+            return x.p.result;
+          }
+          async function query(sql){const result=await call(dh,'/accounts/'+account+'/d1/database/'+db+'/query',{method:'POST',body:{sql}});const x=Array.isArray(result)?result[0]:result;return Array.isArray(x?.results)?x.results:[];}
+          const [rules,catchAll,settings,subdomain,schedules,counts]=await Promise.all([
+            mail('/zones/'+zone+'/email/routing/rules'),
+            mail('/zones/'+zone+'/email/routing/rules/catch_all'),
+            call(wh,'/accounts/'+account+'/workers/scripts/musitu-axiom-support/settings'),
+            call(wh,'/accounts/'+account+'/workers/scripts/musitu-axiom-support/subdomain'),
+            call(wh,'/accounts/'+account+'/workers/scripts/musitu-axiom-support/schedules'),
+            query("SELECT (SELECT COUNT(*) FROM support_cases) cases,(SELECT COUNT(*) FROM support_email_threads) email_threads,(SELECT COUNT(*) FROM support_case_messages) messages,(SELECT COUNT(*) FROM support_notification_outbox) notifications;")
+          ]);
+          const rows=v=>Array.isArray(v)?v:[];
+          const support=rows(rules).filter(r=>(rows(r?.matchers)).some(m=>String(m?.type||'').toLowerCase()==='literal'&&String(m?.field||'').toLowerCase()==='to'&&String(m?.value||'').toLowerCase()==='support@mftintelligence.com'));
+          if(support.length!==1||support[0]?.enabled!==true||String(support[0]?.actions?.[0]?.type||'')!=='forward')throw new Error('support forwarding drift');
+          const acts=rows(catchAll?.actions),matchers=rows(catchAll?.matchers);
+          if(catchAll?.enabled!==true||acts.length!==1||String(acts[0]?.type||'')!=='worker'||String(acts[0]?.value?.[0]||'')!=='musitu-axiom-support'||matchers.length!==1||String(matchers[0]?.type||'')!=='all')throw new Error('inbound catch-all drift');
+          const bindings=rows(settings?.bindings),sc=rows(schedules?.schedules||schedules);
+          for(const name of ['SUPPORT_DB','SUPPORT_DATA_KEY_B64','SUPPORT_ATTACHMENTS','SUPPORT_INTAKE_RATE_LIMITER'])if(!bindings.some(x=>String(x?.name||'')===name))throw new Error('support binding missing '+name);
+          if(!sc.some(x=>String(x?.cron||'')==='*/5 * * * *'))throw new Error('support schedule drift');
+          if(subdomain?.enabled===true||subdomain?.previews_enabled===true)throw new Error('workers.dev/previews enabled');
+          console.log(JSON.stringify({
+            gate:'MUSITU_AXIOM_INBOUND_EMAIL_PRODUCTION_AUDIT',status:'PASS',
+            routing:{support_forward_rule:true,catch_all_worker:'musitu-axiom-support',raw_destination_recorded:false},
+            worker:{required_bindings:true,cron:'*/5 * * * *',workers_dev:false,previews:false},
+            d1:counts[0]||{},
+            raw_customer_email_read:false,recovery_code_read:false,secret_values_recorded:false
+          }));
+          NODE
