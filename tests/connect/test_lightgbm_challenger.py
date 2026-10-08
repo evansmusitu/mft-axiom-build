@@ -1,5 +1,6 @@
 from datetime import datetime, timedelta, timezone
 import unittest
+import importlib.util
 
 from benchmarks.mining_adapter.methane_backtest import MethaneBacktestSpec
 from benchmarks.mining_adapter.methane_prediction import PredictionExample
@@ -21,6 +22,8 @@ def examples(offset, count, period=7):
     return result
 
 
+@unittest.skipUnless(importlib.util.find_spec("lightgbm") is not None,
+                     "optional LightGBM is installed in the separate research workflow")
 class LightGBMChallengerTests(unittest.TestCase):
     def setUp(self):
         self.train = examples(0, 100, period=5)
