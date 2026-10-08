@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import {createCaseRecord,recoveryIdentityHash,sha256} from '../control_plane.js';
+import {createCaseRecord,inspectSecretMaterial,recoveryIdentityHash,sha256} from '../control_plane.js';
 import {D1CaseStore} from '../d1_case_store.js';
 import {encryptSupportPayload,importSupportDataKey} from '../crypto_envelope.js';
 import {verifyCustomerRecoveryAccess} from '../worker.js';
@@ -140,4 +140,15 @@ test('customer recovery Access verification fails closed on wrong audience, expi
     const {token,jwk}=await signedAccess(overrides);
     assert.equal(await verifyCustomerRecoveryAccess(new Request('https://support.example/recovery/',{headers:{'cf-access-jwt-assertion':token}}),accessEnv(jwk)),null);
   }
+});
+
+
+test('valid SHA-256 evidence fields are not misclassified as payment cards, while ordinary fields remain protected',()=>{
+  const hash='4111111111111111'+'a'.repeat(48);
+  assert.equal(hash.length,64);
+  assert.equal(inspectSecretMaterial({evidence_hash:hash}).safe,true);
+  assert.equal(inspectSecretMaterial({evidence_hashes:[hash]}).safe,true);
+  const ordinary=inspectSecretMaterial({note:hash});
+  assert.equal(ordinary.safe,false);
+  assert.equal(ordinary.findings.some(x=>x.type==='payment_card_number'),true);
 });
