@@ -1,0 +1,98 @@
+name: MUSITU Axiom Phase 2 OpenHands Cloud Credential Probe
+
+on:
+  push:
+    branches:
+      - frontier/axiom-phase2-openhands-live-qualification-20261008
+    paths:
+      - '.github/workflows/axiom-phase2-openhands-cloud-probe.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: musitu-axiom-phase2-openhands-cloud-probe-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  credential-probe:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    env:
+      OPENHANDS_API_KEY: ${{ secrets.OPENHANDS_API_KEY }}
+      OPENHANDS_API_BASE: https://app.all-hands.dev
+    steps:
+      - name: Preserve isolated authority boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "${{ github.ref_name }}" = "frontier/axiom-phase2-openhands-live-qualification-20261008"
+          echo 'OPENHANDS_PROBE_SCOPE=S2_READ_ONLY'
+          echo 'MAIN_MUTATION_ALLOWED=FALSE'
+          echo 'PR1_MUTATION_ALLOWED=FALSE'
+          echo 'PRODUCTION_MUTATION_ALLOWED=FALSE'
+          echo 'FROZEN_OPENAI_MUTATION_ALLOWED=FALSE'
+      - name: Fail closed when OpenHands API credential is unavailable
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -z "${OPENHANDS_API_KEY:-}" ]; then
+            echo 'MUSITU_AXIOM_OPENHANDS_API_KEY_NOT_AVAILABLE'
+            exit 42
+          fi
+          echo 'MUSITU_AXIOM_OPENHANDS_API_KEY_REFERENCE_PRESENT'
+      - name: Probe OpenHands Cloud API without mutation
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          import os
+          import sys
+          import urllib.error
+          import urllib.request
+
+          base=os.environ['OPENHANDS_API_BASE'].rstrip('/')
+          key=os.environ['OPENHANDS_API_KEY']
+          request=urllib.request.Request(
+              base + '/api/v1/app-conversations/search?limit=1',
+              headers={
+                  'Authorization':'Bearer ' + key,
+                  'Accept':'application/json',
+                  'User-Agent':'MUSITU-Axiom-OpenHands-Qualification/1.0',
+              },
+              method='GET',
+          )
+          try:
+              with urllib.request.urlopen(request, timeout=30) as response:
+                  status=response.status
+                  body=response.read(262144)
+          except urllib.error.HTTPError as error:
+              status=error.code
+              body=error.read(262144)
+          except Exception as error:
+              print('MUSITU_AXIOM_OPENHANDS_CLOUD_PROBE_TRANSPORT_FAIL:' + type(error).__name__)
+              sys.exit(43)
+
+          if status != 200:
+              print(f'MUSITU_AXIOM_OPENHANDS_CLOUD_PROBE_HTTP_FAIL:{status}')
+              sys.exit(44)
+
+          try:
+              payload=json.loads(body)
+          except Exception:
+              print('MUSITU_AXIOM_OPENHANDS_CLOUD_PROBE_INVALID_JSON')
+              sys.exit(45)
+
+          if not isinstance(payload, dict) or not isinstance(payload.get('items'), list):
+              print('MUSITU_AXIOM_OPENHANDS_CLOUD_PROBE_SCHEMA_FAIL')
+              sys.exit(46)
+
+          print('MUSITU_AXIOM_OPENHANDS_CLOUD_CREDENTIAL_PROBE_PASS')
+          print('EXTERNAL_ACTION_EXECUTED=FALSE')
+          print('LIVE_RUNTIME_QUALIFICATION=NOT_PROVEN')
+          print('RELEASE_AUTHORITY=FALSE')
+          print('PRODUCTION_AUTHORITY=FALSE')
+          print('CERTIFICATION_AUTHORITY=FALSE')
+          PY
