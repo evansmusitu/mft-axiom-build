@@ -75,6 +75,7 @@
         <section class="case-tools" aria-labelledby="case-tools-title">
           <h4 id="case-tools-title">Case tools</h4>
           <div class="grid">
+            <article><h5>Email replies</h5><p>Bind an email address to this case without storing the raw address. MUSITU stores only a one-way hash and gives you a private reply alias.</p><label>Email address<input id="case-email-thread" type="email" autocomplete="email" maxlength="254" placeholder="you@example.com"></label><button id="bind-email-thread" class="secondary" type="button">Enable email replies</button><p id="case-email-reply-address" class="fine"></p></article>
             <article><h5>Diagnostics</h5><p>Share minimal browser/runtime metadata only with explicit consent.</p><button id="send-diagnostics" class="secondary" type="button">Send diagnostics</button></article>
             <article><h5>Attachment</h5><p>Upload a sanitized PDF, image, JSON, CSV, log or text file when secure object storage is available.</p><input id="case-attachment" type="file" accept=".txt,.log,.csv,.json,.pdf,.png,.jpg,.jpeg,.webp"><button id="upload-attachment" class="secondary" type="button">Prepare attachment</button></article>
             <article><h5>Escalation</h5><p>Ask for engineering or specialist review when the normal case path is not enough.</p><button id="customer-escalate" class="secondary" type="button">Request escalation</button></article>
