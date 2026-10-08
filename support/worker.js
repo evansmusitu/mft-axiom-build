@@ -3,6 +3,7 @@ import {searchKnowledge} from './knowledge.js';
 import {importSupportDataKey} from './crypto_envelope.js';
 import {D1CaseStore} from './d1_case_store.js';
 import {verifyTurnstile} from './turnstile.js';
+import {handleInboundSupportEmail} from './email_worker.js';
 
 const JSON_HEADERS = Object.freeze({'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store', 'x-content-type-options': 'nosniff'});
 const CASE_PATH = /^\/api\/v1\/cases\/([A-Z0-9-]+)$/;
@@ -13,6 +14,7 @@ const CASE_ESCALATIONS_PATH = /^\/api\/v1\/cases\/([A-Z0-9-]+)\/escalations$/;
 const CASE_ATTACHMENTS_PATH = /^\/api\/v1\/cases\/([A-Z0-9-]+)\/attachments$/;
 const CASE_ATTACHMENT_CONTENT_PATH = /^\/api\/v1\/cases\/([A-Z0-9-]+)\/attachments\/(AXF-[0-9A-HJKMNP-TV-Z]{16})\/content$/;
 const CASE_REOPEN_PATH = /^\/api\/v1\/cases\/([A-Z0-9-]+)\/reopen$/;
+const CASE_EMAIL_THREAD_PATH = /^\/api\/v1\/cases\/([A-Z0-9-]+)\/email-thread$/;
 const RECOVERY_BIND_PATH = /^\/recovery\/api\/v1\/cases\/([A-Z0-9-]+)\/bind$/;
 const RECOVERY_ROTATE_PATH = /^\/recovery\/api\/v1\/cases\/([A-Z0-9-]+)\/rotate$/;
 const OPERATOR_CASE_PATH = /^\/api\/v1\/operator\/cases\/([A-Z0-9-]+)$/;
@@ -199,6 +201,17 @@ async function storeFor(env) {
   return new D1CaseStore({database: env.SUPPORT_DB, encryptionKey: key});
 }
 
+async function sha256Text(value){
+  const bytes=new TextEncoder().encode(String(value));
+  const digest=await crypto.subtle.digest('SHA-256',bytes);
+  return [...new Uint8Array(digest)].map(x=>x.toString(16).padStart(2,'0')).join('');
+}
+
+function emailThreadToken(){
+  const bytes=crypto.getRandomValues(new Uint8Array(8));
+  return [...bytes].map(x=>x.toString(16).padStart(2,'0')).join('');
+}
+
 function recoveryCode(request) {
   const value = request.headers.get('authorization') || '';
   const match = value.match(/^Support\s+([0-9A-HJKMNP-TV-Z-]{26})$/);
@@ -279,6 +292,26 @@ export async function handleSupportRequest(request, env = {}) {
     const store = await storeFor(env);
     const incidents = await store.listPublicIncidents();
     return json({schema:'musitu.axiom.support-public-status.v1',incidents});
+  }
+
+  const emailThreadMatch=url.pathname.match(CASE_EMAIL_THREAD_PATH);
+  if(request.method==='POST'&&emailThreadMatch){
+    const code=recoveryCode(request);
+    if(!code)return json({error:'CASE_AUTH_REQUIRED'},401,{'www-authenticate':'Support'});
+    const body=await readJson(request);
+    const email=String(body?.email||'').trim().toLowerCase();
+    if(email.length<3||email.length>254||!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email))return json({error:'INVALID_EMAIL'},400);
+    const token=emailThreadToken();
+    const threadRef='thread:'+token;
+    const replyAddress='reply+'+token+'@mftintelligence.com';
+    const store=await storeFor(env);
+    const value=await store.bindCustomerEmailThread(emailThreadMatch[1],code,{
+      thread_ref:threadRef,
+      address_hash:await sha256Text(email),
+      provider_thread_hash:await sha256Text(replyAddress),
+    });
+    if(!value)return json({error:'CASE_NOT_FOUND'},404);
+    return json({case_id:emailThreadMatch[1],thread_ref:threadRef,reply_address:replyAddress,raw_customer_email_stored:false},201);
   }
 
   const diagnosticsMatch = url.pathname.match(CASE_DIAGNOSTICS_PATH);
@@ -670,6 +703,21 @@ export async function handleOperatorRequest(request, env = {}) {
 export default {
   async scheduled(controller, env) {
     return processSupportQueues(env);
+  },
+  async email(message, env) {
+    const store=await storeFor(env);
+    let raw='';
+    try{raw=await new Response(message.raw).text();}catch{}
+    const parts=raw.split(/\r?\n\r?\n/);
+    const result=await handleInboundSupportEmail({
+      to:message.to,from:message.from,text:parts.slice(1).join('\n\n').slice(0,8000),
+    },{
+      ...env,
+      SUPPORT_STORE:store,
+      SUPPORT_EMAIL_INGRESS_VERIFY:async()=>true,
+    });
+    if(!result.accepted&&typeof message.reject==='function')message.reject('Support reply address not recognized');
+    return result;
   },
   async fetch(request, env) {
     try { return securityHeaders(await handleSupportRequest(request, env)); }
