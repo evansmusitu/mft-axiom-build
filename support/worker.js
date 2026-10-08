@@ -460,11 +460,26 @@ export async function deliverSupportNotification(notification, env = {}) {
   const notificationId = String(value.notification_id || '');
   const caseId = String(value.case_id || '');
   const kind = String(value.kind || '');
+  const audience = String(value.audience || '');
   if (!/^AXN-[0-9A-HJKMNP-TV-Z]{16}$/.test(notificationId)) throw new TypeError('notification id is invalid');
   if (!/^AX-[0-9A-HJKMNP-TV-Z]{12}$/.test(caseId)) throw new TypeError('notification case id is invalid');
   if (!/^[A-Z][A-Z0-9_]{2,79}$/.test(kind)) throw new TypeError('notification kind is invalid');
+
+  if (audience === 'operator' && env.SUPPORT_OPS_EMAIL && typeof env.SUPPORT_OPS_EMAIL.send === 'function') {
+    const sender = String(env.SUPPORT_OPS_FROM || 'support@mftintelligence.com').trim().toLowerCase();
+    if (!/^[^@\s]+@mftintelligence\.com$/.test(sender)) throw new TypeError('operator notification sender is invalid');
+    const label = kind.replace(/_/g, ' ');
+    const receipt = await env.SUPPORT_OPS_EMAIL.send({
+      to: null,
+      from: {email: sender, name: 'MUSITU Axiom Support'},
+      subject: `MUSITU Axiom Support · ${label}`,
+      text: `Case ${caseId}\nEvent ${kind}\nOpen Support Operations: https://support-ops.mftintelligence.com/\n\nThis alert intentionally contains no customer narrative or credentials.`,
+    });
+    return Object.freeze({delivered:true,receipt_id:String(receipt?.messageId||receipt?.id||'')||null});
+  }
+
   if (typeof env.SUPPORT_NOTIFICATION_SEND !== 'function') return Object.freeze({delivered:false,reason:'PROVIDER_UNAVAILABLE'});
-  const payload=Object.freeze({notification_id:notificationId,case_id:caseId,kind});
+  const payload=Object.freeze({notification_id:notificationId,case_id:caseId,kind,audience});
   const receipt=await env.SUPPORT_NOTIFICATION_SEND(payload);
   return Object.freeze({delivered:true,receipt_id:String(receipt?.id||'')||null});
 }
