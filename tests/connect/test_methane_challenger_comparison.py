@@ -37,6 +37,7 @@ def source(f2_true_positives=5):
     for i,common in enumerate(folds):
         reference=copy.deepcopy(common);reference['model']=metrics(8,42,2,48)
         competitor=copy.deepcopy(common);competitor['model']=metrics(9,21,1,69)
+        competitor['hard_observed_warning_preserved']=True
         ref.setdefault('folds',[]).append(reference)
         candidate.setdefault('folds',[]).append(competitor)
     return {'execution':ref},{'execution':candidate,
@@ -88,6 +89,12 @@ class MethaneChallengerComparisonTests(unittest.TestCase):
         before,after=source()
         after['execution']['folds'][0]['model']['f2']=0.999
         with self.assertRaisesRegex(ValueError,'metric_mismatch'):
+            compare_development_runs(before,after)
+
+    def test_challenger_hard_observed_warning_proof_must_be_present(self):
+        before,after=source()
+        after['execution']['folds'][2]['hard_observed_warning_preserved']=False
+        with self.assertRaisesRegex(ValueError,'hard_warning_check_missing'):
             compare_development_runs(before,after)
 
     def test_requires_research_only_candidate_and_full_leakage_audit(self):

@@ -90,6 +90,8 @@ def compare_development_runs(
                 or any(ref.get(k) != cand.get(k) for k in FOLD_FIELDS)
                 or ref.get("fold") != index):
             raise ValueError("research_comparison_fold_mismatch")
+        if cand.get("hard_observed_warning_preserved") is not True:
+            raise ValueError("research_comparison_hard_warning_check_missing")
         for fold in (ref, cand):
             if (fold.get("temporal_leakage_check") is not True
                     or fold.get("online_recalibration_leakage_check") is not True):
