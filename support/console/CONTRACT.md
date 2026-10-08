@@ -2,6 +2,10 @@
 
 This is an **isolated implementation contract**. It carries no production, public-submission, or release authority.
 
+`production_authority: false`
+`public_submission_authority: false`
+`release_authority: false`
+
 ## Operating model
 
 The console combines the proven frontier pattern: a private operator inbox, one durable case conversation, explicit customer-vs-internal message visibility, auditable state transitions, escalation, and independent approval for sensitive actions.
