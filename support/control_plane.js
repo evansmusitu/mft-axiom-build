@@ -208,6 +208,16 @@ export function newCaseId() { return `AX-${randomBase32(12)}`; }
 export function newRecoveryCode() { return `${randomBase32(8)}-${randomBase32(8)}-${randomBase32(8)}`; }
 
 
+export async function recoveryIdentityHash({issuer, subject} = {}) {
+  const normalizedIssuer = String(issuer || '').trim().replace(/\/+$/, '').toLowerCase();
+  const normalizedSubject = String(subject || '').trim();
+  if (!/^https:\/\/[a-z0-9.-]+$/i.test(normalizedIssuer) || normalizedSubject.length < 3 || normalizedSubject.length > 512) {
+    throw new TypeError('verified recovery identity issuer and subject are required');
+  }
+  return sha256({schema:'musitu.axiom.support-recovery-identity.v1',issuer:normalizedIssuer,subject:normalizedSubject});
+}
+
+
 export function storageStateForPublicLabel(label) {
   const value = PUBLIC_CASE_LABELS[String(label || '')];
   if (!value) throw new TypeError('unknown public support case label');
