@@ -228,6 +228,60 @@ class MethaneBacktestTests(unittest.TestCase):
         self.assertTrue(predictions[2])   # hard warning is never suppressed
         self.assertFalse(predictions[3])  # source gap resets consensus
 
+    def test_retrospective_oracle_diagnoses_ranking_without_affecting_safety_gate(self):
+        # These held-out labels may only be used for a clearly marked oracle
+        # diagnostic, never to choose a deployable or admitted threshold.
+        self.assertTrue(hasattr(methane_module, "retrospective_threshold_frontier"))
+        oracle=methane_module.retrospective_threshold_frontier(
+            y_true=[1,1,1,0,0,0],
+            scores=[.9,.7,.1,.8,.15,.05],
+            current_max=[.2,1.1,.2,.2,.2,.2],
+            warning_threshold=1.0,
+            minimum_recall=0.66,
+            minimum_precision=0.50,
+            minimum_f2_gain_fraction=0.05,
+        )
+        self.assertEqual(oracle["evaluation_role"],"POST_HOC_TEST_LABEL_DIAGNOSTIC_ONLY")
+        self.assertEqual(oracle["best_f2"]["threshold"],0.1)
+        self.assertEqual(oracle["best_f2"]["metrics"]["tp"],3)
+        self.assertEqual(oracle["best_f2"]["metrics"]["fp"],2)
+        self.assertTrue(oracle["performance_feasible"])
+        self.assertFalse(oracle["qualified_for_admission"])
+
+        # A forced observed hard warning can make exact precision impossible.
+        impossible=methane_module.retrospective_threshold_frontier(
+            y_true=[0,1],scores=[0.1,0.9],current_max=[1.2,0.2],
+            warning_threshold=1.0,minimum_recall=1.0,
+            minimum_precision=1.0,minimum_f2_gain_fraction=0.05,
+        )
+        self.assertFalse(impossible["performance_feasible"])
+        self.assertIsNone(impossible["best_gate_feasible"])
+        with self.assertRaisesRegex(ValueError,"retrospective_oracle_value_not_finite"):
+            methane_module.retrospective_threshold_frontier(
+                y_true=[1],scores=[float("nan")],current_max=[0.2],
+                warning_threshold=1.0,minimum_recall=0.9,
+                minimum_precision=0.1,minimum_f2_gain_fraction=0.05,
+            )
+
+    def test_positive_label_overlap_components_reveal_correlated_examples(self):
+        self.assertTrue(hasattr(methane_module, "positive_label_window_components"))
+        base=datetime(2014,3,2,tzinfo=timezone.utc)
+        examples=[PredictionExample(
+            feature_time=base+timedelta(seconds=t),
+            label_window_end=base+timedelta(seconds=t+360),
+            features={"target_current_max":0.2},label=positive,
+        ) for t,positive in ((0,True),(30,True),(500,True),(530,False))]
+        self.assertEqual(
+            methane_module.positive_label_window_components(
+                examples,horizon_start_seconds=180
+            ),
+            {"positive_examples":3,"overlap_connected_components":2},
+        )
+        with self.assertRaisesRegex(ValueError,"positive_window_order_invalid"):
+            methane_module.positive_label_window_components(
+                examples[::-1],horizon_start_seconds=180,
+            )
+
     def test_backtest_gate_requires_three_of_four_strong_folds(self):
         spec=MethaneBacktestSpec(
             minimum_examples=100,

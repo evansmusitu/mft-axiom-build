@@ -343,6 +343,129 @@ def _metrics_from_counts(tp: int, tn: int, fp: int, fn: int) -> dict[str,float|i
     }
 
 
+def positive_label_window_components(
+    examples: Sequence[PredictionExample],
+    *,
+    horizon_start_seconds: int,
+) -> dict[str,int]:
+    """Measure overlap-connected POSITIVE label windows, not mine events.
+
+    Adjacent sampled positive labels often arise from the same excursion and
+    are not independent evidence. A connected component is a descriptive
+    conservative grouping of overlapping positive future windows. It must
+    NOT be relabeled as the count of unique hazardous events or be used to
+    weaken the established minimum-example gate.
+    """
+    if horizon_start_seconds<1:
+        raise ValueError("methane_backtest_positive_window_horizon_invalid")
+    last_feature_time: datetime | None=None
+    prior_component_end: datetime | None=None
+    positives=0
+    components=0
+    for example in examples:
+        if last_feature_time is not None and example.feature_time<=last_feature_time:
+            raise ValueError("methane_backtest_positive_window_order_invalid")
+        last_feature_time=example.feature_time
+        start=example.feature_time+timedelta(seconds=horizon_start_seconds)
+        end=example.label_window_end
+        if start>end:
+            raise ValueError("methane_backtest_positive_window_end_invalid")
+        if not example.label:
+            continue
+        positives+=1
+        if prior_component_end is None or start>prior_component_end:
+            components+=1
+        prior_component_end=max(prior_component_end,end) if prior_component_end else end
+    return {
+        "positive_examples":positives,
+        "overlap_connected_components":components,
+    }
+
+
+def retrospective_threshold_frontier(
+    *,
+    y_true: Sequence[int|bool],
+    scores: Sequence[float],
+    current_max: Sequence[float],
+    warning_threshold: float,
+    minimum_recall: float,
+    minimum_precision: float,
+    minimum_f2_gain_fraction: float,
+) -> dict[str,Any]:
+    """POST-HOC test-label diagnostic; never a calibrated or admitted policy.
+
+    Measures whether the fixed model's score RANKING could satisfy the
+    performance criteria if an oracle had illicit access to TEST labels.
+    The selected threshold must NEVER be applied as a live operating point.
+    This O(n log n) sweep also includes hard observed-methane alerts at every
+    candidate, so even the oracle cannot suppress the hard warning rule.
+    """
+    if not y_true or len(y_true)!=len(scores) or len(y_true)!=len(current_max):
+        raise ValueError("methane_backtest_retrospective_oracle_length_invalid")
+    if not (warning_threshold>0 and 0<minimum_recall<=1
+            and 0<minimum_precision<=1 and minimum_f2_gain_fraction>0):
+        raise ValueError("methane_backtest_retrospective_oracle_parameters_invalid")
+
+    observations=[]
+    for truth,score,observed in zip(y_true,scores,current_max,strict=True):
+        score=float(score)
+        observed=float(observed)
+        if not isfinite(score) or not isfinite(observed):
+            raise ValueError("methane_backtest_retrospective_oracle_value_not_finite")
+        observations.append((bool(truth),score,observed>=warning_threshold))
+    tp=sum(int(truth) for truth,_,hard in observations if hard)
+    fp=sum(int(not truth) for truth,_,hard in observations if hard)
+    fn=sum(int(truth) for truth,_,hard in observations if not hard)
+    tn=sum(int(not truth) for truth,_,hard in observations if not hard)
+    baseline=_metrics_from_counts(tp,tn,fp,fn)
+    required_f2=baseline["f2"]*(1.0+minimum_f2_gain_fraction)
+    best_f2: dict[str,Any] | None=None
+    best_gate: dict[str,Any] | None=None
+
+    def consider(threshold: float | None) -> None:
+        nonlocal best_f2,best_gate
+        metrics=_metrics_from_counts(tp,tn,fp,fn)
+        candidate={"threshold":threshold,"metrics":metrics}
+        # Equal F2 values prefer the less aggressive (higher) threshold.
+        if best_f2 is None or metrics["f2"]>best_f2["metrics"]["f2"]:
+            best_f2=candidate
+        if (metrics["recall"]>=minimum_recall
+                and metrics["precision"]>=minimum_precision
+                and metrics["f2"]>=required_f2):
+            if best_gate is None or metrics["f2"]>best_gate["metrics"]["f2"]:
+                best_gate=candidate
+
+    # Hard-only rule is a valid comparator. Its value is not a score cutoff.
+    consider(None)
+    ranked=sorted(
+        ((score,truth) for truth,score,hard in observations if not hard),
+        reverse=True,
+    )
+    cursor=0
+    while cursor<len(ranked):
+        threshold=ranked[cursor][0]
+        while cursor<len(ranked) and ranked[cursor][0]==threshold:
+            _score,truth=ranked[cursor]
+            if truth:
+                tp+=1
+                fn-=1
+            else:
+                fp+=1
+                tn-=1
+            cursor+=1
+        consider(threshold)
+    return {
+        "evaluation_role":"POST_HOC_TEST_LABEL_DIAGNOSTIC_ONLY",
+        "qualified_for_admission":False,
+        "hard_warning_baseline":baseline,
+        "required_f2_for_gain":required_f2,
+        "best_f2":best_f2,
+        "best_gate_feasible":best_gate,
+        "performance_feasible":best_gate is not None,
+        "prospective_or_independent_evidence":False,
+    }
+
+
 def select_augmented_operating_point(
     *,
     y_true: Sequence[int|bool],

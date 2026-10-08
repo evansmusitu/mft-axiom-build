@@ -21,6 +21,8 @@ from benchmarks.mining_adapter.methane_backtest import (
     causal_consensus_predictions,
     evaluate_backtest_gate,
     online_recalibrated_predictions,
+    positive_label_window_components,
+    retrospective_threshold_frontier,
     rolling_backtest_folds,
 )
 from benchmarks.mining_adapter.methane_prediction import binary_metrics
@@ -168,6 +170,21 @@ def run(*, source: Path, spec: MethaneBacktestSpec) -> dict[str,Any]:
                 y_test.tolist(),shadow_pred
             )
 
+        # Retrospective oracle is a diagnostic upper bound for fixed model
+        # rankings, NEVER a candidate policy or independent validation.
+        oracle=retrospective_threshold_frontier(
+            y_true=y_test.tolist(),
+            scores=scores.tolist(),
+            current_max=X_test[:,current_index].tolist(),
+            warning_threshold=spec.warning_threshold,
+            minimum_recall=spec.minimum_test_recall,
+            minimum_precision=spec.minimum_test_precision,
+            minimum_f2_gain_fraction=spec.minimum_f2_gain_fraction,
+        )
+        overlap=positive_label_window_components(
+            test,horizon_start_seconds=spec.horizon_start_seconds,
+        )
+
         fold_reports.append({
             "fold":fold["fold"],
             "train_examples":len(train),
@@ -187,6 +204,8 @@ def run(*, source: Path, spec: MethaneBacktestSpec) -> dict[str,Any]:
             "baseline":baseline,
             "model":model_metrics,
             "research_only_causal_consensus":shadow_consensus,
+            "research_only_retrospective_threshold_oracle":oracle,
+            "research_only_positive_label_overlap":overlap,
             "model_train_seconds":train_seconds,
             "test_score_seconds":score_seconds,
             "test_start":min(item.feature_time for item in test).isoformat(),
