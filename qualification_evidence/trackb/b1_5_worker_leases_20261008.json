@@ -1,0 +1,65 @@
+{
+  "schema": "musitu.axiom.trackb.b1_5_lease_progress_evidence.v1",
+  "recorded_utc": "2026-10-08",
+  "repository": "evansmusitu/mft-axiom-build",
+  "branch": "frontier/axiom-trackb-openhands-selfhost-20261008",
+  "tested_source_sha": "6fedef328d04c376d080555f9318503acb864392",
+  "parent_authority_sha": "3ccbd61ab6c013a96eb6c9dccf5d865ef406367f",
+  "handoff_outer_sha256": "86691d38f1a9ac086a0f3167fa6cf2f0dd125224be98f80da12ac33c914bb312",
+  "evidence_runs": [
+    {
+      "id": 37834871448,
+      "workflow": "MUSITU AXIOM Track B Self-hosted OpenHands Isolated Smoke",
+      "conclusion": "success",
+      "verified_markers": [
+        "Ran 17 tests",
+        "MUSITU_AXIOM_OPENHANDS_SELFHOST_REAL_SERVER_AUTH_PASS"
+      ]
+    },
+    {
+      "id": 37834871451,
+      "workflow": "MUSITU AXIOM Track B OpenHands Container Isolation Qualification",
+      "conclusion": "success",
+      "verified_markers": [
+        "Ran 17 tests",
+        "MUSITU_AXIOM_TRACK_B_REAL_CONTAINER_LEASE_LIFECYCLE_PASS",
+        "MUSITU_AXIOM_OPENHANDS_SELFHOST_CONTAINER_ISOLATION_PASS",
+        "CONTAINERS_TESTED=2"
+      ]
+    }
+  ],
+  "demonstrated": [
+    "single-process bounded S0 in-memory worker lease admission",
+    "per-tenant limit 1, global limit 2",
+    "20 concurrent admission attempts capped at 2 leases by unit test",
+    "same-request idempotency and conflicting request denial",
+    "cross-tenant revocation denial",
+    "lease expiry and fail-closed termination failure unit tests",
+    "2 real isolated Docker-hosted OpenHands Agent Servers started and revoked with destination readback",
+    "zero external network reachability during smoke"
+  ],
+  "claim_boundary": {
+    "b1_5_worker_lease_ci": "PASS",
+    "production_multitenancy": "NOT_PROVEN",
+    "durable_scheduler_recovery": "NOT_PROVEN",
+    "runtime_model_execution": "NOT_PROVEN",
+    "s3_external_action": "NOT_PROVEN",
+    "mass_scale_10_plus": "NOT_TESTED",
+    "live_runtime_qualification": "NOT_PROVEN",
+    "external_action_executed": false,
+    "release_authority": false,
+    "production_authority": false,
+    "certification_authority": false
+  },
+  "open_gates": [
+    "independent security review of measured host and container isolation",
+    "immutable base digest and full transitive dependency reproducibility",
+    "separate durable scheduler and crash/reaper revocation",
+    "operation-scoped model credential broker with default-deny egress",
+    "genuine OpenHands engineering task with model provider",
+    "FA11 S3 scoped approval with independent approver and reversible verified GitHub mutation",
+    "tenant isolation under at least 10 concurrent workers",
+    "rollback, monitoring, affordability and production acceptance"
+  ],
+  "evidence_classification": "BUILD_AND_CI_EVIDENCE_NOT_INDEPENDENT_CERTIFICATION"
+}
