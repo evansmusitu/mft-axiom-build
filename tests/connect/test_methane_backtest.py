@@ -69,7 +69,14 @@ class MethaneBacktestTests(unittest.TestCase):
 
         rows=[row(second) for second in range(1200)]
         for item in rows:
-            item["F_SIDE"]="0.5"
+            item["F_SIDE"]="1.000000"
+        examples=list(build_windowed_prediction_examples(rows,spec))
+        self.assertEqual(examples[0].features["F_SIDE_left"],1.0)
+        self.assertEqual(examples[0].features["F_SIDE_right"],0.0)
+
+        rows=[row(second) for second in range(1200)]
+        for item in rows:
+            item["F_SIDE"]=".500000"
         examples=list(build_windowed_prediction_examples(rows,spec))
         self.assertEqual(examples[0].features["F_SIDE_left"],0.0)
         self.assertEqual(examples[0].features["F_SIDE_right"],1.0)
