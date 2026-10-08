@@ -100,10 +100,20 @@ def _numeric(row: Mapping[str,Any], sensor: str) -> float:
 
 
 def _f_side_features(value: Any) -> dict[str,float]:
-    text=str(value).strip().casefold()
-    if text in {"1","1.0","left","l"}:
+    text=str(value).strip().casefold().strip("'\"")
+    if text in {"left","l"}:
         return {"F_SIDE_left":1.0,"F_SIDE_right":0.0}
-    if text in {"0","0.0","0.5","right","r"}:
+    if text in {"right","r"}:
+        return {"F_SIDE_left":0.0,"F_SIDE_right":1.0}
+    try:
+        numeric=float(text)
+    except ValueError:
+        raise ValueError("methane_backtest_f_side_invalid") from None
+    if not isfinite(numeric):
+        raise ValueError("methane_backtest_f_side_invalid")
+    if abs(numeric-1.0) <= 1e-12:
+        return {"F_SIDE_left":1.0,"F_SIDE_right":0.0}
+    if abs(numeric) <= 1e-12 or abs(numeric-0.5) <= 1e-12:
         return {"F_SIDE_left":0.0,"F_SIDE_right":1.0}
     raise ValueError("methane_backtest_f_side_invalid")
 
