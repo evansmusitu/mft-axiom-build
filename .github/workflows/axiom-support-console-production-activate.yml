@@ -1,0 +1,243 @@
+name: MUSITU Axiom Support Console Production Activate
+
+on:
+  push:
+    branches:
+      - 'support/axiom-support-console-production-rollout-20261008'
+    paths:
+      - '.github/workflows/axiom-support-console-production-activate.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  activate:
+    if: github.event_name == 'push' && github.event.before == 'a591a6e8c24fc87924c72ba196f88dc75d7ebb5e'
+    runs-on: ubuntu-latest
+    environment: axiom-support-production
+    timeout-minutes: 12
+    env:
+      CF_ACCOUNT: '93f395f5121954671f92fffa453d6b61'
+      CF_ZONE: '5b56528f03948ff5917a5e0cd9f7109e'
+      WORKER_TOKEN: ${{ secrets.CLOUDFLARE_RULESETS_API_TOKEN }}
+      ACCESS_TOKEN: ${{ secrets.CLOUDFLARE_ACCESS_API_TOKEN }}
+      CF_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+      CF_GLOBAL_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Exact activation gate
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF_NAME" = 'support/axiom-support-console-production-rollout-20261008'
+          test "${{ github.event.before }}" = 'a591a6e8c24fc87924c72ba196f88dc75d7ebb5e'
+          node --test support/tests/*.test.mjs
+
+      - name: Build activation bundles
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx --yes esbuild@0.25.11 support/app.js --bundle --format=esm --platform=browser --target=es2022 --outfile=.support-public-app.js
+          node <<'NODE'
+          const fs=require('node:fs');
+          const html=fs.readFileSync('support/index.html','utf8');
+          const css=fs.readFileSync('support/styles.css','utf8');
+          const robots=fs.readFileSync('support/robots.txt','utf8');
+          const sitemap=fs.readFileSync('support/sitemap.xml','utf8');
+          const app=fs.readFileSync('.support-public-app.js','utf8');
+          fs.writeFileSync('.support-public-entry.mjs',[
+            "import support,{handleOperatorRequest} from './support/worker.js';",
+            "const HTML="+JSON.stringify(html)+";const CSS="+JSON.stringify(css)+";const ROBOTS="+JSON.stringify(robots)+";const SITEMAP="+JSON.stringify(sitemap)+";const APP="+JSON.stringify(app)+";",
+            "const H=Object.freeze({'content-security-policy':\"default-src 'self'; connect-src 'self' https://challenges.cloudflare.com; img-src 'self' data:; style-src 'self'; script-src 'self' https://challenges.cloudflare.com; frame-src https://challenges.cloudflare.com; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'\",'referrer-policy':'no-referrer','permissions-policy':'camera=(), microphone=(), geolocation=(), payment=()','x-content-type-options':'nosniff','cross-origin-opener-policy':'same-origin','cross-origin-resource-policy':'same-origin','cache-control':'no-store'});",
+            "function asset(body,type){return new Response(body,{status:200,headers:{...H,'content-type':type}})}",
+            "export default {async fetch(request,env){const u=new URL(request.url);if(u.pathname.startsWith('/api/v1/operator/'))return handleOperatorRequest(request,env);if(request.method==='GET'&&(u.pathname==='/'||u.pathname==='/index.html'))return asset(HTML,'text/html; charset=utf-8');if(request.method==='GET'&&u.pathname==='/styles.css')return asset(CSS,'text/css; charset=utf-8');if(request.method==='GET'&&u.pathname==='/robots.txt')return asset(ROBOTS,'text/plain; charset=utf-8');if(request.method==='GET'&&u.pathname==='/sitemap.xml')return asset(SITEMAP,'application/xml; charset=utf-8');if(request.method==='GET'&&u.pathname==='/app.js')return asset(APP,'text/javascript; charset=utf-8');return support.fetch(request,env);}};"
+          ].join('\n'),{mode:0o600});
+          const ohtml=fs.readFileSync('support/console/index.html','utf8');
+          const ocss=fs.readFileSync('support/console/styles.css','utf8');
+          const oapp=fs.readFileSync('support/console/app.js','utf8');
+          fs.writeFileSync('.support-ops-entry.mjs',[
+            "import operator from './support/operator_worker.js';import {verifyOperatorAccess} from './support/worker.js';",
+            "const HTML="+JSON.stringify(ohtml)+";const CSS="+JSON.stringify(ocss)+";const APP="+JSON.stringify(oapp)+";",
+            "const H=Object.freeze({'cache-control':'no-store','x-content-type-options':'nosniff','x-robots-tag':'noindex, nofollow, noarchive','referrer-policy':'no-referrer','content-security-policy':\"default-src 'self'; connect-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'\"});",
+            "function asset(body,type){return new Response(body,{status:200,headers:{...H,'content-type':type}})}",
+            "export default {async fetch(request,env){const principal=await verifyOperatorAccess(request,env);if(!principal)return operator.fetch(request,env);const u=new URL(request.url);if((request.method==='GET'||request.method==='HEAD')&&(u.pathname==='/'||u.pathname==='/index.html'))return asset(request.method==='HEAD'?null:HTML,'text/html; charset=utf-8');if((request.method==='GET'||request.method==='HEAD')&&u.pathname==='/styles.css')return asset(request.method==='HEAD'?null:CSS,'text/css; charset=utf-8');if((request.method==='GET'||request.method==='HEAD')&&u.pathname==='/app.js')return asset(request.method==='HEAD'?null:APP,'text/javascript; charset=utf-8');return operator.fetch(request,env);}};"
+          ].join('\n'),{mode:0o600});
+          NODE
+          npx --yes esbuild@0.25.11 .support-public-entry.mjs --bundle --format=esm --platform=browser --target=es2022 --outfile=.support-public-bundle.mjs
+          npx --yes esbuild@0.25.11 .support-ops-entry.mjs --bundle --format=esm --platform=browser --target=es2022 --outfile=.support-ops-bundle.mjs
+
+      - name: Bind primary operator, deploy mappings, and attach Access-protected hostname
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          import {createHash} from 'node:crypto';
+          import {buildWorkerMultipart} from './support/scripts/provision_cloudflare_control_plane.mjs';
+          const api='https://api.cloudflare.com/client/v4';
+          const account=process.env.CF_ACCOUNT, zone=process.env.CF_ZONE;
+          const workerToken=String(process.env.WORKER_TOKEN||'');
+          const accessToken=String(process.env.ACCESS_TOKEN||'');
+          const operatorEmail=String(process.env.CF_EMAIL||'').trim().toLowerCase();
+          const globalKey=String(process.env.CF_GLOBAL_KEY||'');
+          if(!workerToken||!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(operatorEmail)) throw new Error('activation credentials missing');
+          const wh={authorization:'Bearer '+workerToken,accept:'application/json','content-type':'application/json'};
+          const ah=accessToken?{authorization:'Bearer '+accessToken,accept:'application/json','content-type':'application/json'}:null;
+          const gh={'X-Auth-Email':operatorEmail,'X-Auth-Key':globalKey,accept:'application/json','content-type':'application/json'};
+          async function raw(headers,path,{method='GET',body,rawBody,contentType}={}){
+            const r=await fetch(api+path,{method,headers:{...headers,...(contentType?{'content-type':contentType}:{})},...(rawBody!==undefined?{body:rawBody}:body===undefined?{}:{body:JSON.stringify(body)})});
+            let p={};try{p=await r.json()}catch{}
+            return {r,p};
+          }
+          async function call(headers,path,opts={}){
+            const {r,p}=await raw(headers,path,opts);
+            if(!r.ok||p?.success===false){
+              const codes=(p?.errors||[]).map(x=>x?.code).filter(Boolean);
+              throw new Error('Cloudflare '+(opts.method||'GET')+' '+path+' failed HTTP '+r.status+' codes='+(codes.join(',')||'none'));
+            }
+            return p?.result;
+          }
+          async function access(path,opts={}){
+            if(ah){
+              const a=await raw(ah,path,opts);
+              if(a.r.ok&&a.p?.success!==false) return a.p?.result;
+              if(!(a.r.status===401||a.r.status===403)) throw new Error('Access API failed HTTP '+a.r.status);
+            }
+            if(!globalKey) throw new Error('Access write credential unavailable');
+            return call(gh,path,opts);
+          }
+
+          const org=await access('/accounts/'+account+'/access/organizations');
+          const rawDomain=String(org?.auth_domain||'').trim();
+          const team=rawDomain.startsWith('http')?rawDomain:'https://'+rawDomain;
+          const apps=await access('/accounts/'+account+'/access/apps?per_page=100');
+          const matches=(Array.isArray(apps)?apps:[]).filter(x=>String(x?.domain||'').toLowerCase()==='support-ops.mftintelligence.com');
+          if(matches.length!==1) throw new Error('operator Access application is not unique');
+          const app=matches[0], appId=String(app.id||''), aud=String(app.aud||'');
+          if(!appId||!aud||!team) throw new Error('operator Access application incomplete');
+
+          let policies=await access('/accounts/'+account+'/access/apps/'+encodeURIComponent(appId)+'/policies');
+          const rows=Array.isArray(policies)?policies:[];
+          if(rows.length===0){
+            await access('/accounts/'+account+'/access/apps/'+encodeURIComponent(appId)+'/policies',{
+              method:'POST',
+              body:{
+                name:'Allow primary MUSITU support operator',
+                decision:'allow',
+                include:[{email:{email:operatorEmail}}],
+                session_duration:'8h',
+                precedence:1
+              }
+            });
+            policies=await access('/accounts/'+account+'/access/apps/'+encodeURIComponent(appId)+'/policies');
+          }
+          const finalPolicies=Array.isArray(policies)?policies:[];
+          if(finalPolicies.length!==1) throw new Error('operator Access application must have exactly one allow policy');
+          const policy=finalPolicies[0];
+          if(String(policy?.decision||'')!=='allow') throw new Error('operator Access policy is not allow');
+          const policyEmail=String(policy?.include?.[0]?.email?.email||'').trim().toLowerCase();
+          if(policyEmail!==operatorEmail) throw new Error('operator Access policy identity drift');
+
+          const mapping=JSON.stringify({[operatorEmail]:{actor_ref:'support_agent:owner',role:'support_agent'}});
+          const identitySha=createHash('sha256').update(operatorEmail).digest('hex');
+
+          async function deployPublic(){
+            const publicWorker='musitu-axiom-support';
+            const settings=await call(wh,'/accounts/'+account+'/workers/scripts/'+publicWorker+'/settings');
+            const current=Array.isArray(settings?.bindings)?settings.bindings:[];
+            const secrets=await call(wh,'/accounts/'+account+'/workers/scripts/'+publicWorker+'/secrets');
+            const secretNames=new Set((Array.isArray(secrets)?secrets:[]).map(x=>String(x?.name||'')));
+            const replace=new Set(['SUPPORT_ACCESS_TEAM_DOMAIN','SUPPORT_ACCESS_AUD','SUPPORT_OPERATOR_BINDINGS_JSON']);
+            const bindings=[];
+            for(const b of current){
+              const name=String(b?.name||'');
+              if(!name||replace.has(name)) continue;
+              if(secretNames.has(name)||b?.type==='secret_text') bindings.push({type:'inherit',name,version_id:'latest'});
+              else bindings.push(b);
+            }
+            bindings.push(
+              {type:'plain_text',name:'SUPPORT_ACCESS_TEAM_DOMAIN',text:team},
+              {type:'plain_text',name:'SUPPORT_ACCESS_AUD',text:aud},
+              {type:'plain_text',name:'SUPPORT_OPERATOR_BINDINGS_JSON',text:mapping}
+            );
+            const pm=buildWorkerMultipart(fs.readFileSync('.support-public-bundle.mjs'),{
+              main_module:'index.mjs',compatibility_date:'2026-10-08',bindings,
+              annotations:{'workers/message':'MUSITU Axiom support console primary operator activation'}
+            },'----MUSITUAxiomSupportActivationPublic');
+            await call(wh,'/accounts/'+account+'/workers/scripts/'+publicWorker+'?bindings_inherit=strict',{method:'PUT',rawBody:pm.body,contentType:'multipart/form-data; boundary='+pm.boundary});
+            await call(wh,'/accounts/'+account+'/workers/scripts/'+publicWorker+'/subdomain',{method:'POST',body:{enabled:false,previews_enabled:false}});
+          }
+          async function deployOps(){
+            const opsWorker='musitu-axiom-support-ops';
+            const om=buildWorkerMultipart(fs.readFileSync('.support-ops-bundle.mjs'),{
+              main_module:'index.mjs',compatibility_date:'2026-10-08',
+              bindings:[
+                {type:'plain_text',name:'ENVIRONMENT',text:'production'},
+                {type:'plain_text',name:'SUPPORT_ACCESS_TEAM_DOMAIN',text:team},
+                {type:'plain_text',name:'SUPPORT_ACCESS_AUD',text:aud},
+                {type:'plain_text',name:'SUPPORT_OPERATOR_BINDINGS_JSON',text:mapping},
+                {type:'service',name:'SUPPORT_API',service:'musitu-axiom-support'}
+              ],
+              annotations:{'workers/message':'MUSITU Axiom support operations primary operator activation'}
+            },'----MUSITUAxiomSupportActivationOps');
+            await call(wh,'/accounts/'+account+'/workers/scripts/'+opsWorker,{method:'PUT',rawBody:om.body,contentType:'multipart/form-data; boundary='+om.boundary});
+            await call(wh,'/accounts/'+account+'/workers/scripts/'+opsWorker+'/subdomain',{method:'POST',body:{enabled:false,previews_enabled:false}});
+          }
+          await deployPublic();
+          await deployOps();
+
+          const domainsBefore=await call(wh,'/accounts/'+account+'/workers/domains');
+          const before=(Array.isArray(domainsBefore)?domainsBefore:[]).filter(x=>String(x?.hostname||'')==='support-ops.mftintelligence.com');
+          if(before.length>1) throw new Error('duplicate operator custom domains');
+          if(before.length===0){
+            await call(wh,'/accounts/'+account+'/workers/domains',{method:'PUT',body:{hostname:'support-ops.mftintelligence.com',service:'musitu-axiom-support-ops',zone_id:zone,zone_name:'mftintelligence.com'}});
+          }
+          const [domains,pubSub,opsSub]=await Promise.all([
+            call(wh,'/accounts/'+account+'/workers/domains'),
+            call(wh,'/accounts/'+account+'/workers/scripts/musitu-axiom-support/subdomain'),
+            call(wh,'/accounts/'+account+'/workers/scripts/musitu-axiom-support-ops/subdomain')
+          ]);
+          const exact=(Array.isArray(domains)?domains:[]).filter(x=>String(x?.hostname||'')==='support-ops.mftintelligence.com');
+          if(exact.length!==1||String(exact[0]?.service||'')!=='musitu-axiom-support-ops') throw new Error('operator custom domain attach failed');
+          if(pubSub?.enabled===true||pubSub?.previews_enabled===true||opsSub?.enabled===true||opsSub?.previews_enabled===true) throw new Error('workers.dev/previews unexpectedly enabled');
+          console.log(JSON.stringify({
+            gate:'MUSITU_AXIOM_SUPPORT_CONSOLE_PRIMARY_ACTIVATION',
+            status:'PASS',
+            operator_identity_sha256:identitySha,
+            operator_identity_value_recorded:false,
+            access_allow_policy_count:1,
+            operator_binding_count:1,
+            operator_role:'support_agent',
+            operator_domain_attached:true,
+            service_binding:true,
+            workers_dev:false,
+            previews:false,
+            independent_approver_bound:false,
+            secret_values_recorded:false
+          }));
+          NODE
+
+      - name: Prove unauthenticated operator access is blocked
+        shell: bash
+        run: |
+          set -euo pipefail
+          for path in / /api/v1/operator/cases; do
+            code=$(curl --silent --show-error --connect-timeout 10 --max-time 30 -D /tmp/h -o /tmp/b -w '%{http_code}' "https://support-ops.mftintelligence.com$path" || true)
+            if [ "$code" = "200" ]; then
+              echo "unauthenticated operator request unexpectedly succeeded for $path" >&2
+              exit 1
+            fi
+            if grep -q 'Support Operations' /tmp/b; then
+              echo "operator UI leaked to unauthenticated request" >&2
+              exit 1
+            fi
+            printf '{"path":"%s","http_status":"%s","unauthenticated_access":false}\n' "$path" "$code"
+          done
+          rm -f /tmp/h /tmp/b
+
+      - name: Cleanup activation bundles
+        if: always()
+        run: rm -f .support-public-app.js .support-public-entry.mjs .support-ops-entry.mjs .support-public-bundle.mjs .support-ops-bundle.mjs
