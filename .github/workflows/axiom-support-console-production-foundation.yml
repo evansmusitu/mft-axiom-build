@@ -1,0 +1,167 @@
+name: MUSITU Axiom Support Console Production Foundation
+
+on:
+  push:
+    branches:
+      - 'support/axiom-support-console-production-rollout-20261008'
+    paths:
+      - '.github/workflows/axiom-support-console-production-foundation.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  foundation:
+    if: github.event_name == 'push' && github.event.before == 'a9c85ac921ccf7fb716964f4cbfe93b3ddf3ef5c'
+    runs-on: ubuntu-latest
+    environment: axiom-support-production
+    timeout-minutes: 10
+    env:
+      CF_ACCOUNT: '93f395f5121954671f92fffa453d6b61'
+      SUPPORT_DB: 'a525c8b6-9b44-413b-a219-46e419b71b12'
+      ACCESS_TOKEN: ${{ secrets.CLOUDFLARE_ACCESS_API_TOKEN }}
+      D1_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CF_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+      CF_GLOBAL_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Exact authorized rollout gate
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF_NAME" = 'support/axiom-support-console-production-rollout-20261008'
+          test "${{ github.event.before }}" = 'a9c85ac921ccf7fb716964f4cbfe93b3ddf3ef5c'
+          test "$GITHUB_REF_NAME" != 'main'
+          node --test support/tests/*.test.mjs
+
+      - name: Create deny-by-default Access app and migrate D1 additively
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          import {createHash} from 'node:crypto';
+          const api='https://api.cloudflare.com/client/v4';
+          const account=process.env.CF_ACCOUNT;
+          const db=process.env.SUPPORT_DB;
+          const bearer=String(process.env.ACCESS_TOKEN||'');
+          const d1=String(process.env.D1_TOKEN||'');
+          const email=String(process.env.CF_EMAIL||'');
+          const globalKey=String(process.env.CF_GLOBAL_KEY||'');
+          if(!d1) throw new Error('D1 token missing');
+          const bearerHeaders=()=>({authorization:'Bearer '+bearer,accept:'application/json','content-type':'application/json'});
+          const globalHeaders=()=>({'X-Auth-Email':email,'X-Auth-Key':globalKey,accept:'application/json','content-type':'application/json'});
+          async function raw(headers,path,{method='GET',body}={}){
+            const r=await fetch(api+path,{method,headers,...(body===undefined?{}:{body:JSON.stringify(body)})});
+            let p={}; try{p=await r.json()}catch{}
+            return {r,p};
+          }
+          async function access(path,opts={}){
+            if(bearer){
+              const a=await raw(bearerHeaders(),path,opts);
+              if(a.r.ok&&a.p?.success!==false) return a.p?.result;
+              const permission=(a.r.status===401||a.r.status===403);
+              if(!permission) throw new Error('Access API failed HTTP '+a.r.status+' '+path);
+            }
+            if(!email||!globalKey) throw new Error('Access write credentials unavailable');
+            const b=await raw(globalHeaders(),path,opts);
+            if(!b.r.ok||b.p?.success===false){
+              const codes=(b.p?.errors||[]).map(x=>x?.code).filter(Boolean);
+              throw new Error('Access API failed HTTP '+b.r.status+' codes='+(codes.join(',')||'none')+' '+path);
+            }
+            return b.p?.result;
+          }
+          async function cfD1(path,{method='GET',body}={}){
+            const {r,p}=await raw({authorization:'Bearer '+d1,accept:'application/json','content-type':'application/json'},path,{method,body});
+            if(!r.ok||p?.success===false){
+              const codes=(p?.errors||[]).map(x=>x?.code).filter(Boolean);
+              throw new Error('D1 API failed HTTP '+r.status+' codes='+(codes.join(',')||'none')+' '+path);
+            }
+            return p?.result;
+          }
+          async function query(sql){
+            return cfD1('/accounts/'+account+'/d1/database/'+db+'/query',{method:'POST',body:{sql}});
+          }
+          const rows=result=>{const b=Array.isArray(result)?result[0]:result;return Array.isArray(b?.results)?b.results:[]};
+
+          const org=await access('/accounts/'+account+'/access/organizations');
+          const authDomain=String(org?.auth_domain||'').trim();
+          if(!authDomain) throw new Error('Zero Trust auth_domain missing');
+          const idps=await access('/accounts/'+account+'/access/identity_providers');
+          const idpRows=Array.isArray(idps)?idps:[];
+          if(idpRows.length!==1) throw new Error('expected exactly one configured Access identity provider');
+          const idpId=String(idpRows[0]?.id||'');
+          if(!idpId) throw new Error('Access identity provider id missing');
+
+          let apps=await access('/accounts/'+account+'/access/apps?per_page=100');
+          let matches=(Array.isArray(apps)?apps:[]).filter(x=>String(x?.domain||'').toLowerCase()==='support-ops.mftintelligence.com');
+          if(matches.length>1) throw new Error('duplicate operator Access applications');
+          let app=matches[0]||null;
+          let created=false;
+          if(!app){
+            app=await access('/accounts/'+account+'/access/apps',{
+              method:'POST',
+              body:{
+                name:'MUSITU Axiom Support Operations',
+                type:'self_hosted',
+                domain:'support-ops.mftintelligence.com',
+                session_duration:'8h',
+                allowed_idps:[idpId],
+                auto_redirect_to_identity:true,
+                app_launcher_visible:false
+              }
+            });
+            created=true;
+          }
+          const appId=String(app?.id||'');
+          const aud=String(app?.aud||'');
+          if(!appId||!aud) throw new Error('Access application id/audience missing');
+          const policies=await access('/accounts/'+account+'/access/apps/'+encodeURIComponent(appId)+'/policies');
+          if(Array.isArray(policies)&&policies.length!==0) throw new Error('new operator Access application must remain deny-by-default with no policy');
+
+          const before=rows(await query("SELECT (SELECT COUNT(*) FROM support_cases) AS cases,(SELECT COUNT(*) FROM support_case_events) AS events;"))[0]||{};
+          const bookmark=await cfD1('/accounts/'+account+'/d1/database/'+db+'/time_travel/bookmark');
+          const bookmarkValue=String(bookmark?.bookmark||'');
+          if(!bookmarkValue) throw new Error('pre-migration D1 Time Travel bookmark missing');
+
+          const schema=fs.readFileSync('support/schema.sql','utf8');
+          await query(schema);
+
+          const after=rows(await query("SELECT (SELECT COUNT(*) FROM support_cases) AS cases,(SELECT COUNT(*) FROM support_case_events) AS events,(SELECT COUNT(*) FROM support_case_messages) AS messages,(SELECT COUNT(*) FROM support_case_assignments) AS assignments,(SELECT COUNT(*) FROM support_case_approvals) AS approvals,(SELECT COUNT(*) FROM support_case_approval_decisions) AS decisions,(SELECT COUNT(*) FROM support_notification_outbox) AS notifications;"))[0]||{};
+          if(Number(before.cases)!==Number(after.cases)||Number(before.events)!==Number(after.events)) throw new Error('existing support row counts changed during additive migration');
+          const objs=rows(await query("SELECT type,name FROM sqlite_master WHERE type IN ('table','index','trigger') AND name LIKE 'support_%';"));
+          const names=new Set(objs.map(x=>String(x?.name||'')));
+          for(const name of [
+            'support_case_messages','support_case_assignments','support_case_approvals','support_case_approval_decisions','support_notification_outbox',
+            'support_case_messages_case_created','support_case_assignments_case_created','support_case_approvals_case_created','support_notification_outbox_case_created',
+            'support_case_message_no_update','support_case_message_no_delete','support_case_assignment_no_update','support_case_approval_no_update','support_case_approval_decision_no_update'
+          ]) if(!names.has(name)) throw new Error('migrated schema object missing: '+name);
+
+          console.log(JSON.stringify({
+            gate:'MUSITU_AXIOM_SUPPORT_CONSOLE_PRODUCTION_FOUNDATION',
+            status:'PASS',
+            access:{
+              app_created:created,
+              app_id_present:true,
+              audience_present:true,
+              auth_domain_present:true,
+              allow_policy_count:0,
+              deny_by_default:true,
+              idp_type:String(idpRows[0]?.type||'')
+            },
+            d1:{
+              bookmark_sha256:createHash('sha256').update(bookmarkValue).digest('hex'),
+              bookmark_value_recorded:false,
+              before:{cases:Number(before.cases||0),events:Number(before.events||0)},
+              after:{cases:Number(after.cases||0),events:Number(after.events||0),messages:Number(after.messages||0),assignments:Number(after.assignments||0),approvals:Number(after.approvals||0),decisions:Number(after.decisions||0),notifications:Number(after.notifications||0)},
+              migration:'ADDITIVE_ONLY'
+            },
+            operator_hostname_attached:false,
+            customer_content_read:false,
+            recovery_code_read:false,
+            secret_values_recorded:false
+          }));
+          NODE
