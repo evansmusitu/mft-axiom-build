@@ -51,10 +51,10 @@
         <div id="form-status" role="status" aria-live="polite"></div>
         <button class="primary" type="submit" disabled>Create secure case</button>
       </form>
-      <section id="case-receipt" class="receipt" hidden aria-labelledby="receipt-title" tabindex="-1"><p class="eyebrow">Case created</p><h3 id="receipt-title"></h3><p>Save this recovery code now. It is shown once and cannot be recovered by MUSITU.</p><output id="recovery-code"></output><button id="copy-code" class="secondary" type="button">Copy code</button><p id="receipt-priority"></p></section>
+      <section id="case-receipt" class="receipt" hidden aria-labelledby="receipt-title" tabindex="-1"><p class="eyebrow">Case created</p><h3 id="receipt-title"></h3><p>Save this recovery code now. It is shown once and cannot be recovered by MUSITU.</p><output id="recovery-code"></output><button id="copy-code" class="secondary" type="button">Copy code</button><p><a href="/recovery/">Protect this case with verified sign-in recovery</a></p><p id="receipt-priority"></p></section>
     </section>
     <section id="existing-case" class="section existing-case" aria-labelledby="existing-case-title">
-      <div class="section-head"><p class="eyebrow">Secure conversation</p><h2 id="existing-case-title">Check an existing case</h2><p>Use the case ID and one-time recovery code you saved when the case was created. The recovery code stays in this page's memory only and is never placed in the URL or browser storage.</p></div>
+      <div class="section-head"><p class="eyebrow">Secure conversation</p><h2 id="existing-case-title">Check an existing case</h2><p>Use the case ID and one-time recovery code you saved when the case was created. The recovery code stays in this page's memory only and is never placed in the URL or browser storage.</p><p><a href="/recovery/">Lost your recovery code or want to protect future recovery?</a></p></div>
       <form id="case-access-form" class="case-access-form" novalidate>
         <div class="two">
           <label>Case ID<input name="case_id" required autocomplete="off" inputmode="text" placeholder="AX-…"></label>
