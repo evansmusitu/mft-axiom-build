@@ -1,0 +1,94 @@
+{
+  "schema": "musitu.axiom.support-console-isolated-build-evidence.v1",
+  "status": "IMPLEMENTED_IN_ISOLATION_READY_FOR_AUTHORIZED_INTEGRATION",
+  "recorded_at": "2026-10-08T10:50:00Z",
+  "repository": "evansmusitu/mft-axiom-build",
+  "source": {
+    "branch": "support/axiom-official-support-20261005",
+    "sha": "e336556b1b4dbca3c3d7656b2efc914752857276"
+  },
+  "isolated_build": {
+    "branch": "support/axiom-support-console-isolated-20261008",
+    "code_head_before_evidence": "5c9ef47818e9ba09e3f8f5b1036059fb966e50ab",
+    "production_authority": false,
+    "release_authority": false,
+    "public_submission_authority": false,
+    "production_deployed": false
+  },
+  "implementation": {
+    "private_operator_worker": "support/operator_worker.js",
+    "operator_ui": [
+      "support/console/index.html",
+      "support/console/styles.css",
+      "support/console/app.js"
+    ],
+    "customer_thread_ui": [
+      "support/index.html",
+      "support/styles.css",
+      "support/app.js"
+    ],
+    "deployment_template": "support/wrangler.support-operator.template.jsonc",
+    "contract": "support/console/CONTRACT.md",
+    "deployment_handoff": "support/console/DEPLOYMENT.md",
+    "features": [
+      "private operator inbox",
+      "operator case detail",
+      "encrypted customer conversation",
+      "agent replies",
+      "internal notes isolated from customer view",
+      "customer recovery-authenticated replies",
+      "state transitions",
+      "append-only encrypted conversation storage",
+      "metadata-only inbox listing",
+      "Cloudflare Access RS256 JWT verification",
+      "operator assignment",
+      "independent sensitive-action approval records",
+      "metadata-only notification outbox",
+      "audit/event chain",
+      "no operator recovery-code dependency",
+      "no browser persistence of recovery credentials"
+    ]
+  },
+  "design": {
+    "figma_file_key": "bdLxVXS9dRCImepcweQeSv",
+    "figma_url": "https://www.figma.com/design/bdLxVXS9dRCImepcweQeSv",
+    "figma_root_node": "2:3",
+    "figma_descendants": 148,
+    "twelve_ui": {
+      "attempted": true,
+      "status": "UNAVAILABLE",
+      "error_class": "Code generation from strings disallowed for this context",
+      "idempotency_key": "axiom-support-console-draft-20261008-v1"
+    }
+  },
+  "verification": {
+    "full_regression_run": 37764162672,
+    "tests": 135,
+    "passed": 135,
+    "failed": 0,
+    "syntax_checks": "PASS",
+    "secret_and_authority_gate": "PASS",
+    "release_boundary_run": 37765993143,
+    "release_boundary_status": "PASS",
+    "operator_hostname_attached": false,
+    "operator_worker_deployed": false,
+    "public_support_domain_preserved": true,
+    "latest_public_support_deployment_id": "6c83d905-8287-4e9f-b70a-2c8a7a26b8f0",
+    "latest_public_support_deployment_created_on": "2026-10-06T14:27:58.055877Z"
+  },
+  "protected_state": {
+    "official_support_head": "e336556b1b4dbca3c3d7656b2efc914752857276",
+    "main": "d6a846f6bbe0bccac1758713eb4de167caf07113",
+    "claude": "4d956f415431836018e5145227c8df5bd5fde7d8",
+    "pr_1": {
+      "state": "open",
+      "draft": true,
+      "merged": false,
+      "head": "8fc1fbb7c5ebbcc1604ecf24c5f4594f2d5667e3"
+    },
+    "frozen_openai_auth_blob": "8ba0dbc1b6dd1533c6c26bff23991429e03a71a5",
+    "frozen_openai_mcp_blob": "4a1ad37a5e7df0e4d3966e8b5f9f0e8f2db69167"
+  },
+  "next_boundary": "Separate explicit owner authorization is required before Cloudflare Access provisioning, shared-D1 schema migration, operator hostname attachment, or production deployment.",
+  "secrets_exposed": false
+}
