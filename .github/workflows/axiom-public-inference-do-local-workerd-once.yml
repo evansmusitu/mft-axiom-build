@@ -1,0 +1,92 @@
+name: AXIOM local workerd SQLite DO production runtime contract
+on:
+  push:
+    branches: [frontier/axiom-public-inference-zero-cost-20261009]
+    paths: ['.github/workflows/axiom-public-inference-do-local-workerd-once.yml']
+permissions:
+  contents: read
+jobs:
+  scoped-runtime:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 7
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      WRANGLER_SEND_METRICS: 'false'
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22'
+      - name: Explicit isolated local runtime zero-provider admission
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF_NAME" = frontier/axiom-public-inference-zero-cost-20261009
+          echo AXIOM_LOCAL_ONLY_NO_EXTERNAL_PROVIDER_CALLS
+      - name: Prepare ephemeral secret-bound remote-dev probe
+        shell: bash
+        run: |
+          set -euo pipefail
+          A="$(openssl rand -hex 48)"
+          B="$(openssl rand -hex 48)"
+          echo "::add-mask::$A"
+          echo "::add-mask::$B"
+          echo "AXIOM_EPHEMERAL_PROBE_KEY=$A" >> "$GITHUB_ENV"
+          echo "AXIOM_DO_INTERNAL_QUOTA_KEY=$B" >> "$GITHUB_ENV"
+          python3 - <<'PY'
+          import os,json
+          x={'name':'axiom-nonpublic-do-runtime-probe-20261009',
+             'main':'ops/public_inference/remote_do_probe.mjs',
+             'compatibility_date':'2026-10-09',
+             'workers_dev':False,'preview_urls':False,'routes':[],
+             'durable_objects':{'bindings':[{'name':'AXIOM_GLOBAL_QUOTA','class_name':'ProbeAxiomQuota'}]},
+             'migrations':[{'tag':'v1','new_sqlite_classes':['ProbeAxiomQuota']}]}
+          with open('wrangler-axiom-do-probe.json','w') as f:json.dump(x,f)
+          PY
+      - name: Exercise isolated local workerd SQLite Durable Object through loopback and shut down
+        shell: bash
+        run: |
+          set -euo pipefail
+          LOG="$(mktemp)"
+          cleanup(){
+            kill "$PID" 2>/dev/null || true
+            wait "$PID" 2>/dev/null || true
+            rm -f "$LOG"
+          }
+          trap cleanup EXIT
+          # Local workerd runtime only. This does not establish live Cloudflare DO qualification.
+          npm exec --yes --package=wrangler@4.129.0 -- wrangler dev --local --ip 127.0.0.1 --port 8787 --config wrangler-axiom-do-probe.json --var "AXIOM_EPHEMERAL_PROBE_KEY:$AXIOM_EPHEMERAL_PROBE_KEY" --var "AXIOM_DO_INTERNAL_QUOTA_KEY:$AXIOM_DO_INTERNAL_QUOTA_KEY" > "$LOG" 2>&1 &
+          PID=$!
+          for i in $(seq 1 85); do
+            if ! kill -0 "$PID" 2>/dev/null; then echo NATIVE_DO_REMOTE_RUNTIME_START_FAILED; exit 43; fi
+            if curl -fsS -o /dev/null --max-time 2 http://127.0.0.1:8787/ || [ "$(curl -sS -o /dev/null -w '%{http_code}' --max-time 2 http://127.0.0.1:8787/ || true)" = 404 ]; then break; fi
+            sleep 1
+          done
+          node --input-type=module <<'JS'
+          import crypto from 'node:crypto';
+          const secret=process.env.AXIOM_EPHEMERAL_PROBE_KEY;
+          const call=async(sequence,valid=true)=>{
+            const msg=String(sequence);
+            const sig=crypto.createHmac('sha256',valid?secret:'wrong').update(msg).digest('hex');
+            const res=await fetch('http://127.0.0.1:8787/__isolated_quota_probe',{
+              method:'POST',headers:{'content-type':'application/json','x-axiom-probe-signature':sig},
+              body:JSON.stringify({sequence}),signal:AbortSignal.timeout(12000)});
+            return res.status;
+          };
+          const negative=await call(5,false);
+          if(negative!==403) throw Error('ANONYMOUS_OR_BAD_HMAC_NOT_DENIED');
+          const a=await call(1),b=await call(2),c=await call(3);
+          const replay=await call(1),overflow=await call(4);
+          console.log('AXIOM_QUOTA_SAFE_HTTP_STATUSES='+JSON.stringify([negative,a,b,c,replay,overflow]));
+          const result={schema:'musitu.axiom.live-nonpublic-sqlite-do.v1',bad_hmac:negative,admissions:[a,b,c],
+            replay_status:replay,over_capacity_status:overflow,
+            external_model_calls:0,customer_data_sent:false,public_routes:0,
+            production_release_authority:false};
+          if(JSON.stringify([negative,a,b,c,replay,overflow])!=='[403,204,204,204,429,429]')
+            throw Error('NATIVE_SQLITE_DO_CONTRACT_NOT_PROVEN');
+          console.log('MUSITU_AXIOM_LOCAL_WORKERD_SQLITE_DO_QUOTA_PASS');
+          console.log('AXIOM_LOCAL_WORKERD_SQLITE_DO_EVIDENCE='+JSON.stringify(result));
+          JS
