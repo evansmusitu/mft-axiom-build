@@ -1,0 +1,107 @@
+{
+  "schema": "musitu.axiom.public_inference.20261009_remote_do_live_probe.v1",
+  "time": "2026-10-09",
+  "repo": "evansmusitu/mft-axiom-build",
+  "branch": "frontier/axiom-public-inference-zero-cost-20261009",
+  "head_source": "40c65d79e5e81fbd19252b210d7792a9c9b2e7df",
+  "scope": "ISOLATED_REMOTE_DEVELOPMENT_NO_PRODUCTION_DEPLOY",
+  "budget_usd": "0.00",
+  "prior_proven": {
+    "workers_free_no_paid_subscriptions": "PROVIDER_READ_ONLY_PASS",
+    "workers_ai_synthetic_one_call": "PASS_RUN_37976063344",
+    "route_free_staging_worker_deployed": "PASS_RUN_37977746857",
+    "global_quota_node_SQLite_synthetic_tests": "PASS_36_OF_36_RUN_37977337327"
+  },
+  "new_live_probe_attempts": [
+    {
+      "run": 37985883645,
+      "result": "FAILED",
+      "auth_bad_signature_http": 403,
+      "authenticated_admissions": "NOT_PROVEN",
+      "details": "initial synthetic remote quota challenge did not pass"
+    },
+    {
+      "run": 37986018199,
+      "result": "FAILED",
+      "status_sequence": [
+        403,
+        429,
+        429,
+        429,
+        429,
+        429
+      ]
+    },
+    {
+      "run": 37986231751,
+      "result": "FAILED",
+      "inner_do_status": 429,
+      "status_sequence": [
+        403,
+        429,
+        429,
+        429,
+        429,
+        429
+      ]
+    },
+    {
+      "run": 37986439660,
+      "result": "FAILED",
+      "inner_do_status": 429,
+      "status_sequence": [
+        403,
+        429,
+        429,
+        429,
+        429,
+        429
+      ],
+      "diagnostic_inference": "No accepted reservation; exact internal cause not independently identified"
+    }
+  ],
+  "cloudflare_runtime_notes": {
+    "remote_dev_preview_cli": "wrangler dev --remote, loopback proxy, ephemeral synthetic HMAC",
+    "public_staging_endpoints_added": false,
+    "user_customer_requests_sent": 0,
+    "live_provider_inference_calls_new": 0,
+    "provider_native_quota_acceptance": false,
+    "provider_native_replay_rejection": "NOT_PROVEN_FIRST_ADMISSION_NEVER_PASSED",
+    "provider_native_free_limit": "NOT_PROVEN_FIRST_ADMISSION_NEVER_PASSED",
+    "security": "RUNTIME_DO_QUOTA_GATE_BLOCKS_ALL_CALLS_FAIL_CLOSED"
+  },
+  "identity_source_audit": {
+    "source_ref": "main@d6a846f6bbe0bccac1758713eb4de167caf07113",
+    "file": "auth/musitu_axiom_oauth_worker.mjs",
+    "issuer": "https://auth.mftintelligence.com",
+    "default_resource": "https://mcp.mftintelligence.com",
+    "scopes": [
+      "axiom.execute",
+      "billing.read",
+      "billing.write",
+      "openid",
+      "email"
+    ],
+    "inference_resource_supported": false,
+    "axiom_inference_scope_supported": false,
+    "separate_customer_issuer_verified": false,
+    "security_implication": "DO_NOT_TREAT_MCP_ACCESS_TOKENS_AS_INFERENCE_AUTHORIZATION"
+  },
+  "current_stage": {
+    "worker_name": "axiom-inference-zero-cash-do-stage-20261009",
+    "workers_dev": false,
+    "public_routes": 0,
+    "customer_inference_enabled": false,
+    "release_authorized": false
+  },
+  "next_required": [
+    "Independently establish the internal reason for 429 from a provider-native DO test with no customer route or synthetic auth bypass.",
+    "Validate actual admission + nonce replay + per minute/day caps in Cloudflare native SQLite-backed Durable Object, not merely Node SQLite.",
+    "Create a separately governed inference audience and scope or independent identity gateway, with revocation, no MCP OAuth token confusion.",
+    "Independently verify Free-plan overage, privacy, attack, canary and rollback before user-approved S4 public promotion."
+  ],
+  "production_release": "NOT_AUTHORIZED",
+  "missing_gates_unequivocally": "NOT_PROVEN",
+  "external_claims": "NO SUPERIORITY_OR_PARITY_CERTIFICATION",
+  "secrets_exposed": false
+}
