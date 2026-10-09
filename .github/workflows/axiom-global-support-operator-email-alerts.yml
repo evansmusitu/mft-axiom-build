@@ -125,6 +125,10 @@ jobs:
           },'----MUSITUOperatorEmail');
           await call(wh,'/accounts/'+account+'/workers/scripts/'+name+'?bindings_inherit=strict',{method:'PUT',rawBody:m.body,contentType:'multipart/form-data; boundary='+m.boundary});
           await call(wh,'/accounts/'+account+'/workers/scripts/'+name+'/subdomain',{method:'POST',body:{enabled:false,previews_enabled:false}});
+          await call(wh,'/accounts/'+account+'/workers/scripts/'+name+'/schedules',{method:'PUT',body:[{cron:'*/5 * * * *'}]});
+          const schedules=await call(wh,'/accounts/'+account+'/workers/scripts/'+name+'/schedules');
+          const scheduleRows=Array.isArray(schedules?.schedules)?schedules.schedules:Array.isArray(schedules)?schedules:[];
+          if(!scheduleRows.some(x=>String(x?.cron||'')==='*/5 * * * *'))throw new Error('support cron missing after Worker redeploy');
           const after=await call(wh,'/accounts/'+account+'/workers/scripts/'+name+'/settings');
           const bs=Array.isArray(after?.bindings)?after.bindings:[];
           const mailBinding=bs.filter(x=>x?.name==='SUPPORT_OPS_EMAIL'&&x?.type==='send_email');
