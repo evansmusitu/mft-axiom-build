@@ -1,0 +1,48 @@
+name: MUSITU Axiom Tally and Provider Preflight 20261009
+on:
+  push:
+    branches: ['support/axiom-global-support-ops-production-rollout-20261008']
+    paths: ['.github/workflows/axiom-tally-provider-preflight-20261009.yml']
+permissions:
+  contents: read
+jobs:
+  audit:
+    if: github.event.before == '7b560f416e8ee2f18a29267bb87bc771ca39ad2b'
+    runs-on: ubuntu-latest
+    environment: axiom-support-production
+    timeout-minutes: 6
+    env:
+      ACCOUNT: '93f395f5121954671f92fffa453d6b61'
+      WORKER: ${{ secrets.CLOUDFLARE_RULESETS_API_TOKEN }}
+      ACCESS: ${{ secrets.CLOUDFLARE_ACCESS_API_TOKEN }}
+      EMAIL_TOKEN: ${{ secrets.CLOUDFLARE_EMAIL_SENDING_API_TOKEN }}
+      ADMIN_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+      GLOBAL_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+    steps:
+      - name: Read provider and approver configuration without mutation
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          const base='https://api.cloudflare.com/client/v4',a=process.env.ACCOUNT;
+          const wh={authorization:'Bearer '+process.env.WORKER},ah={authorization:'Bearer '+process.env.ACCESS};
+          const gh={'X-Auth-Email':process.env.ADMIN_EMAIL,'X-Auth-Key':process.env.GLOBAL_KEY};
+          async function p(path,h){if(!h)return {ok:false,status:null,data:null};try{const r=await fetch(base+path,{headers:{...h,accept:'application/json'},signal:AbortSignal.timeout(12000)});const j=await r.json().catch(()=>({}));return {ok:r.ok&&j.success!==false,status:r.status,data:r.ok&&j.success!==false?j.result:null}}catch{return {ok:false,status:null,data:null}}}
+          async function access(path){let v=await p(path,process.env.ACCESS?ah:null);if(!v.ok&&process.env.ADMIN_EMAIL&&process.env.GLOBAL_KEY)v=await p(path,gh);return v;}
+          const apps=await access('/accounts/'+a+'/access/apps?per_page=100');
+          const matches=(Array.isArray(apps.data)?apps.data:[]).filter(x=>x?.domain==='support-ops.mftintelligence.com');
+          const app=matches.length===1?matches[0]:null;
+          const policies=app?await access('/accounts/'+a+'/access/apps/'+encodeURIComponent(app.id)+'/policies'):{ok:false,data:null,status:null};
+          const rows=Array.isArray(policies.data)?policies.data:[];
+          const target='tallyvans410@gmail.com',owner=String(process.env.ADMIN_EMAIL||'').toLowerCase();
+          const allow=(email)=>rows.some(x=>x.decision==='allow'&&(x.include||[]).some(z=>String(z?.email?.email||'').toLowerCase()===email));
+          const [pub,ops,send]=await Promise.all([
+            p('/accounts/'+a+'/workers/scripts/musitu-axiom-support/settings',process.env.WORKER?wh:null),
+            p('/accounts/'+a+'/workers/scripts/musitu-axiom-support-ops/settings',process.env.WORKER?wh:null),
+            p('/accounts/'+a+'/email/sending/domains',process.env.EMAIL_TOKEN?{authorization:'Bearer '+process.env.EMAIL_TOKEN}:null)]);
+          const bs=v=>Array.isArray(v.data?.bindings)?v.data.bindings:[];
+          function mapping(v){let m={};try{m=JSON.parse(bs(v).find(x=>x.name==='SUPPORT_OPERATOR_BINDINGS_JSON')?.text||'{}')}catch{};return {count:Object.keys(m).length,primary_mapped:Boolean(m[owner]?.actor_ref),tally_mapped:Boolean(m[target]?.actor_ref),unique_refs:new Set(Object.values(m).map(x=>x?.actor_ref)).size===Object.keys(m).length};}
+          const ref=bs(pub).find(x=>x.name==='SUPPORT_INDEPENDENT_APPROVER_REF')?.text||'';
+          console.log(JSON.stringify({gate:'MUSITU_AXIOM_TALLY_PROVIDER_PREFLIGHT_20261009',status:'READ_ONLY',access:{available:apps.ok,app_count:matches.length,policies_available:policies.ok,policy_count:rows.length,owner_allowed:allow(owner),tally_allowed:allow(target)},workers:{public_readable:pub.ok,operator_readable:ops.ok,public_mapping:mapping(pub),operator_mapping:mapping(ops),tally_independent_ref:ref==='support_agent:tally',operator_email_ready:bs(pub).find(x=>x.name==='SUPPORT_OPS_EMAIL_READY')?.text==='true'},email:{sending_api_status:send.status,token_present:Boolean(process.env.EMAIL_TOKEN),available:send.ok},mutation_performed:false,customer_content_read:false,secret_values_recorded:false}));
+          if(!apps.ok||!policies.ok||!pub.ok||!ops.ok)throw Error('Mandatory metadata unavailable: fail-closed');
+          NODE
