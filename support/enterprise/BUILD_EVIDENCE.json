@@ -1,0 +1,36 @@
+{
+  "schema": "musitu.axiom.enterprise-customer-isolated-evidence.v1",
+  "status": "IMPLEMENTED_IN_ISOLATION_READY_FOR_SUPPORT_ONLY_PRODUCTION_RELEASE",
+  "branch": "support/axiom-enterprise-customer-isolated-20261009",
+  "head_before_evidence": "c73c133cb6316cee82f5783737c904eec47c03d3",
+  "source": {
+    "branch": "support/axiom-global-support-ops-production-rollout-20261008",
+    "sha": "c512bc5fee941b48ad8d5797471ac7745be235df"
+  },
+  "verification": {
+    "run": 37960136706,
+    "tests": 226,
+    "passed": 226,
+    "failed": 0
+  },
+  "capabilities": [
+    "one-time operator organization invites",
+    "atomic invite redemption",
+    "opaque verified Access membership",
+    "multiple organizations per identity",
+    "organization-admin member invites",
+    "operator membership listing and revocation",
+    "shared organization case list/read/reply",
+    "server-authoritative organization support-plan inheritance",
+    "customer-supplied support_plan ignored",
+    "enterprise customer workspace with no browser credential persistence"
+  ],
+  "privacy": {
+    "raw_email_stored": false,
+    "jwt_stored": false,
+    "otp_stored": false,
+    "raw_subject_stored": false,
+    "invite_plaintext_stored": false
+  },
+  "production_deployed": false
+}
