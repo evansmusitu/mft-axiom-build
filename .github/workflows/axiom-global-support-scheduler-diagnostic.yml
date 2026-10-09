@@ -1,0 +1,94 @@
+name: MUSITU Axiom Global Support Scheduler Diagnostic
+
+on:
+  push:
+    branches:
+      - 'support/axiom-global-support-ops-production-rollout-20261008'
+    paths:
+      - '.github/workflows/axiom-global-support-scheduler-diagnostic.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    if: github.event_name == 'push' && github.event.before == 'ed9086c4d0b61acc85a2f7775cce2daf8b2879b2'
+    runs-on: ubuntu-latest
+    environment: axiom-support-production
+    timeout-minutes: 6
+    env:
+      CF_ACCOUNT: '93f395f5121954671f92fffa453d6b61'
+      SUPPORT_DB: 'a525c8b6-9b44-413b-a219-46e419b71b12'
+      WORKER_TOKEN: ${{ secrets.CLOUDFLARE_RULESETS_API_TOKEN }}
+      D1_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+    steps:
+      - name: Read scheduler, bindings, queue and attempt state
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          const api='https://api.cloudflare.com/client/v4';
+          const account=process.env.CF_ACCOUNT,db=process.env.SUPPORT_DB;
+          const wt=String(process.env.WORKER_TOKEN||''),dt=String(process.env.D1_TOKEN||'');
+          const wh={authorization:'Bearer '+wt,accept:'application/json'},dh={authorization:'Bearer '+dt,accept:'application/json','content-type':'application/json'};
+          async function call(headers,path,{method='GET',body}={}){
+            const r=await fetch(api+path,{method,headers,...(body===undefined?{}:{body:JSON.stringify(body)})});
+            const p=await r.json().catch(()=>({}));
+            if(!r.ok||p?.success===false)throw new Error('Cloudflare '+method+' '+path+' failed HTTP '+r.status);
+            return p.result;
+          }
+          async function q(sql){
+            const result=await call(dh,'/accounts/'+account+'/d1/database/'+db+'/query',{method:'POST',body:{sql}});
+            const x=Array.isArray(result)?result[0]:result;return x?.results||[];
+          }
+          const worker='musitu-axiom-support';
+          const [schedules,settings,deployments,pending,attempts]=await Promise.all([
+            call(wh,'/accounts/'+account+'/workers/scripts/'+worker+'/schedules'),
+            call(wh,'/accounts/'+account+'/workers/scripts/'+worker+'/settings'),
+            call(wh,'/accounts/'+account+'/workers/scripts/'+worker+'/deployments'),
+            q(`SELECT n.notification_id,n.case_id,n.kind,n.audience,n.created_at,
+              (SELECT COUNT(*) FROM support_notification_attempts a WHERE a.notification_id=n.notification_id) AS attempts,
+              (SELECT MAX(a.attempted_at) FROM support_notification_attempts a WHERE a.notification_id=n.notification_id) AS last_attempt_at,
+              (SELECT MAX(a.state) FROM support_notification_attempts a WHERE a.notification_id=n.notification_id) AS last_state
+              FROM support_notification_outbox n
+              WHERE n.audience='operator'
+              ORDER BY n.created_at DESC LIMIT 12`),
+            q(`SELECT a.state,a.attempted_at,a.provider_ref_hash,n.kind,n.case_id
+              FROM support_notification_attempts a
+              JOIN support_notification_outbox n ON n.notification_id=a.notification_id
+              WHERE n.audience='operator'
+              ORDER BY a.attempted_at DESC LIMIT 20`)
+          ]);
+          const bindings=Array.isArray(settings?.bindings)?settings.bindings:[];
+          const scheduleRows=Array.isArray(schedules)?schedules:[];
+          const deploymentRows=Array.isArray(deployments)?deployments:[];
+          console.log(JSON.stringify({
+            gate:'MUSITU_AXIOM_GLOBAL_SUPPORT_SCHEDULER_DIAGNOSTIC',
+            status:'PASS',
+            schedules:scheduleRows.map(x=>({cron:String(x?.cron||''),created_on:String(x?.created_on||'')})),
+            scheduled_every_5_minutes:scheduleRows.some(x=>String(x?.cron||'')==='*/5 * * * *'),
+            worker:{
+              send_email_binding_present:bindings.some(x=>x?.type==='send_email'&&x?.name==='SUPPORT_OPS_EMAIL'),
+              d1_binding_present:bindings.some(x=>x?.name==='SUPPORT_DB'),
+              r2_binding_present:bindings.some(x=>x?.name==='SUPPORT_ATTACHMENTS'),
+              environment_present:bindings.some(x=>x?.name==='ENVIRONMENT'),
+              binding_names:bindings.map(x=>String(x?.name||'')).filter(Boolean).sort(),
+              deployment_count:deploymentRows.length,
+              latest_deployment:deploymentRows[0]?{
+                id_present:Boolean(deploymentRows[0]?.id),
+                created_on:String(deploymentRows[0]?.created_on||deploymentRows[0]?.created_at||'')
+              }:null
+            },
+            pending_operator_notifications:pending.map(x=>({
+              notification_id:x.notification_id,case_id:x.case_id,kind:x.kind,created_at:x.created_at,
+              attempts:Number(x.attempts||0),last_attempt_at:x.last_attempt_at||null,last_state:x.last_state||null
+            })),
+            recent_operator_attempts:attempts.map(x=>({
+              state:x.state,attempted_at:x.attempted_at,kind:x.kind,case_id:x.case_id,
+              provider_receipt_hash_present:/^[a-f0-9]{64}$/i.test(String(x.provider_ref_hash||''))
+            })),
+            secret_values_recorded:false,
+            customer_content_read:false,
+            mutation_performed:false
+          }));
+          NODE
