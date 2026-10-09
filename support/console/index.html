@@ -45,6 +45,23 @@
       <section><h2>Analytics</h2><div id="ops-analytics" class="panel"><p class="muted">Loading operational metrics…</p></div></section>
       <section><h2>Incidents</h2><div id="incident-list" class="panel"><p class="muted">Loading incidents…</p></div><div class="panel"><label>New incident title<input id="incident-title" maxlength="160"></label><label>Severity<select id="incident-severity"><option>P2</option><option>P1</option><option>P0</option><option>P3</option></select></label><label>Public summary<textarea id="incident-summary" maxlength="2000"></textarea></label><button id="create-incident" class="secondary">Create incident</button></div></section>
       <section><h2>Macros</h2><div id="macro-list" class="panel"><p class="muted">Loading macros…</p></div><div class="panel"><label>Macro name<input id="macro-name" maxlength="80"></label><label>Macro body<textarea id="macro-body" maxlength="4000"></textarea></label><button id="create-macro" class="secondary">Save macro</button></div></section>
+      <section><h2>Enterprise support</h2><div class="panel">
+        <p class="muted">Provision organization entitlements and encrypted native webhook delivery.</p>
+        <label>Organization reference<input id="enterprise-org-ref" autocomplete="off" placeholder="org:customer001"></label>
+        <label>Support plan<select id="enterprise-plan"><option>COMMUNITY</option><option>STANDARD</option><option>BUSINESS</option><option>ENTERPRISE</option></select></label>
+        <button id="save-enterprise-org" class="secondary" type="button">Save organization</button>
+        <label>Entitlement<input id="enterprise-entitlement" autocomplete="off" placeholder="priority_support"></label>
+        <label>Entitlement state<select id="enterprise-entitlement-enabled"><option value="true">Enabled</option><option value="false">Disabled</option></select></label>
+        <button id="save-enterprise-entitlement" class="secondary" type="button">Save entitlement</button>
+      </div><div class="panel">
+        <label>Webhook reference<input id="enterprise-webhook-ref" autocomplete="off" placeholder="webhook:customer001"></label>
+        <label>Events<input id="enterprise-webhook-events" autocomplete="off" value="case.updated" aria-describedby="enterprise-webhook-help"></label>
+        <p id="enterprise-webhook-help" class="muted">Comma-separated case event names.</p>
+        <label>HTTPS endpoint<input id="enterprise-webhook-endpoint" type="url" autocomplete="off" placeholder="https://hooks.example.com/musitu"></label>
+        <label>Signing secret<input id="enterprise-webhook-secret" type="password" autocomplete="new-password" minlength="32" maxlength="256"></label>
+        <div class="case-access-actions"><button id="create-enterprise-webhook" class="secondary" type="button">Create webhook</button><button id="rotate-enterprise-webhook" class="secondary" type="button">Rotate delivery secret</button></div>
+        <p id="enterprise-status" class="muted" role="status" aria-live="polite"></p>
+      </div></section>
 
       <section><h2>Case recovery</h2><div id="recovery-governance" class="panel"><p class="muted">No verified recovery request for this case.</p></div></section>
       <section><h2>Approval</h2><div class="panel warning"><strong>Sensitive actions locked</strong><p>Disclosure, data actions and production changes require independent approval.</p><label>Request approval<select id="approval-action" disabled><option value="">Choose sensitive action…</option><option>ACCOUNT_RECOVERY</option><option>SECURITY_DISCLOSURE</option><option>DATA_EXPORT</option><option>DATA_DELETION</option><option>PUBLIC_INCIDENT_UPDATE</option><option>REFUND</option><option>PRODUCTION_CHANGE</option></select></label><label>Evidence SHA-256<input id="approval-evidence" maxlength="64" placeholder="64-character evidence hash" disabled></label><button id="request-approval" class="secondary" disabled>Request independent approval</button><p id="approval-status" role="status" aria-live="polite"></p></div></section>
