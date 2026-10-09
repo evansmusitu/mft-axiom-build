@@ -33,7 +33,8 @@ test('global store source keeps sensitive bodies encrypted and queue delivery ev
 test('analytics source computes open volume, SLA breach and CSAT without decrypting customer narratives',async()=>{
  const source=await readFile(new URL('../d1_case_store.js',import.meta.url),'utf8');
  const idx=source.indexOf('async globalOpsAnalytics');assert.ok(idx>0);
- const slice=source.slice(idx,idx+5000);
+ const next=source.indexOf('\n  async ',idx+10);assert.ok(next>idx);
+ const slice=source.slice(idx,next);
  assert.match(slice,/support_case_sla/);assert.match(slice,/support_csat/);
  assert.doesNotMatch(slice,/decryptSupportPayload/);
 });
