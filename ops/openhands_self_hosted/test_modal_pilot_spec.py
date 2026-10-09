@@ -16,7 +16,7 @@ class ModalPilotPlanTests(unittest.TestCase):
             work_id='work_alpha',
             workload_id='worker_alpha',
             image=PINNED,
-            ingress_cidr='203.0.113.3/32',
+            ingress_cidr='8.8.8.8/32',
             cpu=1.0,
             memory_mib=2048,
             timeout_seconds=300,
@@ -34,7 +34,7 @@ class ModalPilotPlanTests(unittest.TestCase):
         self.assertEqual(kwargs['idle_timeout'],120)
         self.assertEqual(kwargs['outbound_cidr_allowlist'],[])
         self.assertEqual(kwargs['outbound_domain_allowlist'],[])
-        self.assertEqual(kwargs['inbound_cidr_allowlist'],['203.0.113.3/32'])
+        self.assertEqual(kwargs['inbound_cidr_allowlist'],['8.8.8.8/32'])
         self.assertEqual(kwargs['encrypted_ports'],[18765])
         self.assertEqual(kwargs['unencrypted_ports'],[])
         self.assertEqual(kwargs['secrets'],[])
