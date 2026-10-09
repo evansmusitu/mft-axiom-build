@@ -497,6 +497,28 @@ export class D1CaseStore {
     return Object.freeze({escalation_id:escalationId,case_id:caseId,lane,reason_code:reason,status:'OPEN',created_at:at});
   }
 
+  async listOrganizationMemberships(orgRef){
+    if(!/^org:[a-z0-9._:-]{6,180}$/i.test(String(orgRef||'')))throw new TypeError('organization ref invalid');
+    const result=await this.db.prepare(`SELECT membership_id,role,created_at,revoked_at
+      FROM support_org_memberships WHERE org_ref=? ORDER BY created_at ASC`).bind(orgRef).all();
+    return Object.freeze((result?.results||[]).map(row=>Object.freeze({
+      membership_id:String(row.membership_id),role:String(row.role),created_at:String(row.created_at),
+      active:!row.revoked_at,revoked_at:row.revoked_at?String(row.revoked_at):null
+    })));
+  }
+
+  async revokeOrganizationMembership(orgRef,membershipId,principal){
+    if(!/^org:[a-z0-9._:-]{6,180}$/i.test(String(orgRef||''))||!/^AXL-[0-9A-HJKMNP-TV-Z]{16}$/.test(String(membershipId||'')))throw new TypeError('organization membership ref invalid');
+    const row=await this.db.prepare(`SELECT membership_id,role,revoked_at FROM support_org_memberships
+      WHERE org_ref=? AND membership_id=? LIMIT 1`).bind(orgRef,membershipId).first();
+    if(!row)return null;
+    if(row.revoked_at)return Object.freeze({membership_id:membershipId,org_ref:orgRef,revoked:true,revoked_at:String(row.revoked_at)});
+    const at=new Date().toISOString();
+    await this.db.prepare(`UPDATE support_org_memberships SET revoked_at=? WHERE org_ref=? AND membership_id=? AND revoked_at IS NULL`)
+      .bind(at,orgRef,membershipId).run?.();
+    return Object.freeze({membership_id:membershipId,org_ref:orgRef,revoked:true,revoked_at:at});
+  }
+
   async createOrganizationInvite(orgRef,input={},principal){
     const role=String(input.role||'ORG_MEMBER').toUpperCase();
     const hours=Number(input.expires_in_hours??24);
@@ -521,25 +543,24 @@ export class D1CaseStore {
     const token=String(inviteCode||'').trim().toUpperCase();
     if(!/^[0-9A-HJKMNP-TV-Z]{8}-[0-9A-HJKMNP-TV-Z]{8}-[0-9A-HJKMNP-TV-Z]{8}$/.test(token))return null;
     const tokenHash=await sha256(token),identityHash=await recoveryIdentityHash(identity);
-    const invite=await this.db.prepare(`SELECT i.invite_id,i.org_ref,i.role,i.expires_at,o.plan,o.status
-      FROM support_org_invites i JOIN support_organizations o ON o.org_ref=i.org_ref
-      WHERE i.token_hash=? AND i.consumed_at IS NULL AND i.expires_at>strftime('%Y-%m-%dT%H:%M:%fZ','now')
-      LIMIT 1`).bind(tokenHash).first();
-    if(!invite||String(invite.status)!=='ACTIVE')return null;
-    const at=new Date().toISOString(),membershipId='AXL-'+randomToken(16);
-    await this.db.batch([
-      this.db.prepare(`INSERT INTO support_org_memberships
-        (membership_id,org_ref,identity_hash,role,created_at,revoked_at) VALUES (?,?,?,?,?,NULL)
-        ON CONFLICT(org_ref,identity_hash) DO UPDATE SET role=excluded.role,revoked_at=NULL`)
-        .bind(membershipId,String(invite.org_ref),identityHash,String(invite.role),at),
-      this.db.prepare(`UPDATE support_org_invites SET consumed_at=?
-        WHERE invite_id=? AND consumed_at IS NULL`).bind(at,String(invite.invite_id)),
-    ]);
+    const at=new Date().toISOString();
+    const invite=await this.db.prepare(`UPDATE support_org_invites SET consumed_at=?
+      WHERE token_hash=? AND consumed_at IS NULL AND expires_at>strftime('%Y-%m-%dT%H:%M:%fZ','now')
+      RETURNING invite_id,org_ref,role,expires_at`).bind(at,tokenHash).first();
+    if(!invite)return null;
+    const org=await this.db.prepare(`SELECT org_ref,plan,status FROM support_organizations WHERE org_ref=? LIMIT 1`)
+      .bind(String(invite.org_ref)).first();
+    if(!org||String(org.status)!=='ACTIVE')return null;
+    const membershipId='AXL-'+randomToken(16);
+    await this.db.prepare(`INSERT INTO support_org_memberships
+      (membership_id,org_ref,identity_hash,role,created_at,revoked_at) VALUES (?,?,?,?,?,NULL)
+      ON CONFLICT(org_ref,identity_hash) DO UPDATE SET role=excluded.role,revoked_at=NULL`)
+      .bind(membershipId,String(invite.org_ref),identityHash,String(invite.role),at).run?.();
     const row=await this.db.prepare(`SELECT membership_id,org_ref,role,created_at FROM support_org_memberships
       WHERE org_ref=? AND identity_hash=? AND revoked_at IS NULL LIMIT 1`).bind(String(invite.org_ref),identityHash).first();
     return Object.freeze({
       membership_id:String(row?.membership_id||membershipId),org_ref:String(invite.org_ref),
-      role:String(invite.role),plan:String(invite.plan),joined_at:String(row?.created_at||at)
+      role:String(invite.role),plan:String(org.plan),joined_at:String(row?.created_at||at)
     });
   }
 
