@@ -1,0 +1,23 @@
+name: MUSITU Mail Fabric Isolated CI
+on:
+  push:
+    branches: ['product/musitu-mail-fabric-isolated-20261009']
+    paths: ['musitu-mail-fabric/**', '.github/workflows/musitu-mail-fabric-isolated-ci.yml']
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Validate isolated product
+        working-directory: musitu-mail-fabric
+        run: |
+          npm run check
+          npm test
+          npm run demo
+

@@ -1,0 +1,15 @@
+{
+  "name": "@musitu/mail-fabric",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Evidence-native provider-independent transactional communications fabric: isolated pre-production prototype",
+  "scripts": {
+    "test": "node --test test/*.test.mjs",
+    "demo": "node demo.mjs",
+    "check": "node --check src/fabric.mjs && node --check src/evidence.mjs && node --check src/policy.mjs && node --check src/providers.mjs && node --check src/api.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
