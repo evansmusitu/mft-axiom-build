@@ -12,6 +12,7 @@ import time
 from pathlib import Path
 
 from probe import ProbeError, run_probe
+from workspace_s0_probe import WorkspaceSmokeError, run_workspace_s0_probe
 
 PORT = 18765
 TIMEOUT_SECONDS = 110
@@ -54,6 +55,10 @@ def main() -> int:
                         if result['status'] != 'PASS' or result['live_runtime_qualification'] != 'NOT_PROVEN':
                             print('MUSITU_AXIOM_OPENHANDS_SELFHOST_PREFLIGHT_INVALID', file=sys.stderr)
                             return 44
+                        s0 = run_workspace_s0_probe('http://127.0.0.1:' + str(PORT),key)
+                        if s0['remote_workspace_s0_executed'] is not True:
+                            raise WorkspaceSmokeError('S0 terminal execution not verified')
+                        print('MUSITU_AXIOM_OPENHANDS_WORKSPACE_S0_REMOTE_EXECUTION_PASS')
                         print('MUSITU_AXIOM_OPENHANDS_SELFHOST_REAL_SERVER_AUTH_PASS')
                         print('EXTERNAL_ACTION_EXECUTED=FALSE')
                         print('LIVE_RUNTIME_QUALIFICATION=NOT_PROVEN')

@@ -114,6 +114,9 @@ def main():
                 names.append(name)
                 require_readiness(name)
                 docker('exec',name,'python','-c',CHECK)
+                s0 = docker('exec',name,'python','/opt/axiom/workspace_s0_probe.py',timeout=40)
+                if 'MUSITU_AXIOM_OPENHANDS_WORKSPACE_S0_REMOTE_EXECUTION_PASS' not in s0.stdout:
+                    raise RuntimeError('OpenHands authenticated S0 command not proven')
                 if idx==0:
                     docker('exec',name,'python','-c',"from pathlib import Path; Path('/tmp/axiom-private-tenant-a').write_text('sentinel')")
                 else:
@@ -143,6 +146,7 @@ def main():
                     raise RuntimeError('lease revocation not verified')
             if scheduler.active_count != 0:
                 raise RuntimeError('lease capacity not released')
+            print('MUSITU_AXIOM_OPENHANDS_WORKSPACE_S0_TWO_CONTAINERS_PASS')
             print('MUSITU_AXIOM_TRACK_B_REAL_CONTAINER_LEASE_LIFECYCLE_PASS')
             print('MUSITU_AXIOM_OPENHANDS_SELFHOST_CONTAINER_ISOLATION_PASS')
             print('CONTAINERS_TESTED=2')

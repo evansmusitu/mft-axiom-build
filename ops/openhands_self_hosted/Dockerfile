@@ -15,6 +15,7 @@ RUN groupadd -g 65532 axiom && \
     python -m pip check
 
 COPY --chown=65532:65532 probe.py /opt/axiom/probe.py
+COPY --chown=65532:65532 workspace_s0_probe.py /opt/axiom/workspace_s0_probe.py
 WORKDIR /tmp
 USER 65532:65532
 EXPOSE 18765
