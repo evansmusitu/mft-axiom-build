@@ -67,6 +67,34 @@ def assess_external_evidence(evidence: Mapping[str, Any]) -> dict[str, Any]:
     model, baseline=evidence.get('model'),evidence.get('baseline')
     _confirm(model,positives,n)
     _confirm(baseline,positives,n)
+    proxy = evidence.get('window_proxy_audit')
+    if (not isinstance(proxy, Mapping)
+            or proxy.get('schema') != 'musitu.axiom.external_window_proxy_audit.v1'
+            or proxy.get('independent_validation') is not False
+            or proxy.get('production_admission') is not False
+            or proxy.get('overlap_groups_are_unique_incidents') is not False
+            or proxy.get('false_alert_streaks_are_operational_alarm_events') is not False
+            or proxy.get('trace_digest_proves_source_authenticity') is not False):
+        raise ValueError('external_gate_proxy_audit_untrusted')
+    digest = proxy.get('audit_trace_sha256')
+    if (not isinstance(digest, str) or len(digest) != 64
+            or any(c not in '0123456789abcdef' for c in digest)):
+        raise ValueError('external_gate_proxy_trace_invalid')
+    counters = ('window_count', 'positive_label_windows', 'hard_observed_warning_windows',
+                'false_alert_windows', 'false_alert_prediction_streaks',
+                'positive_window_overlap_groups', 'proxy_groups_detected',
+                'proxy_groups_missed', 'hard_warning_proxy_groups_detected')
+    if any(type(proxy.get(k)) is not int or proxy[k] < 0 for k in counters):
+        raise ValueError('external_gate_proxy_count_invalid')
+    if (proxy['window_count'] != n or proxy['positive_label_windows'] != positives
+            or proxy['hard_observed_warning_windows'] != evidence.get('observed_hard_warnings')
+            or proxy['false_alert_windows'] != model['fp']
+            or proxy['false_alert_prediction_streaks'] > proxy['false_alert_windows']
+            or proxy['proxy_groups_detected'] + proxy['proxy_groups_missed']
+               != proxy['positive_window_overlap_groups']
+            or proxy['positive_window_overlap_groups'] > positives
+            or proxy['hard_warning_proxy_groups_detected'] > proxy['proxy_groups_detected']):
+        raise ValueError('external_gate_proxy_count_mismatch')
     hard = evidence.get('observed_hard_warnings')
     if (evidence.get('hard_warning_preserved') is not True
             or type(hard) is not int or hard < 0 or hard != baseline['tp']+baseline['fp']
@@ -109,6 +137,11 @@ def assess_external_evidence(evidence: Mapping[str, Any]) -> dict[str, Any]:
         'admission_gate':'NOT_AUTHORIZED',
         'provenance_verification':'HUMAN_RIGHTS_AND_SITE_REVIEW_OUTSTANDING',
         'hard_warning_preservation':'ATTESTED_AND_AGGREGATE_CONSISTENCY_ONLY',
+        'window_proxy_overlap_groups': proxy['positive_window_overlap_groups'],
+        'window_proxy_detected_groups': proxy['proxy_groups_detected'],
+        'window_proxy_missed_groups': proxy['proxy_groups_missed'],
+        'false_alert_prediction_streaks': proxy['false_alert_prediction_streaks'],
+        'window_proxy_incident_certification': False,
         'claim_policy':'No independent mine validation, four-fold qualification, production admission, or mine-safety certification.',
     }
 

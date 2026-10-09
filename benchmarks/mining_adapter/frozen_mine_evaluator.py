@@ -17,6 +17,7 @@ from benchmarks.mining_adapter.external_source_preflight import (
 from benchmarks.mining_adapter.frozen_model_bundle import load_frozen_bundle, _sha256_file
 from benchmarks.mining_adapter.methane_backtest import MethaneBacktestSpec, build_windowed_prediction_examples
 from benchmarks.mining_adapter.methane_prediction import binary_metrics
+from benchmarks.mining_adapter.external_event_proxy_audit import EventProxyAudit
 
 
 def evaluate_external_mine(*, source: Path, manifest_path: Path,
@@ -44,6 +45,7 @@ def evaluate_external_mine(*, source: Path, manifest_path: Path,
     labels: list[bool] = []
     scores: list[float] = []
     hard_total = 0
+    window_audit = EventProxyAudit()
 
     def flush(batch):
         nonlocal hard_total
@@ -55,6 +57,11 @@ def evaluate_external_mine(*, source: Path, manifest_path: Path,
             alerted = hard or score >= bundle.manifest['score_threshold']
             if hard and not alerted:
                 raise ValueError('frozen_external_hard_warning_suppressed')
+            window_audit.observe(
+                feature_time=item.feature_time, label_window_end=item.label_window_end,
+                label=bool(item.label), hard_observed=bool(hard),
+                predicted_alert=bool(alerted),
+            )
             hard_total += int(hard)
             baseline.append(hard)
             predictions.append(bool(alerted))
@@ -73,6 +80,7 @@ def evaluate_external_mine(*, source: Path, manifest_path: Path,
             or len(labels) != preflight['eligible_examples']):
         raise ValueError('frozen_external_source_changed')
     if not labels: raise ValueError('frozen_external_no_examples')
+    window_proxy_audit = window_audit.finalize()
     model_metrics = binary_metrics(labels, predictions)
     baseline_metrics = binary_metrics(labels, baseline)
     positives=sum(labels)
@@ -93,6 +101,7 @@ def evaluate_external_mine(*, source: Path, manifest_path: Path,
         'test_positives': positives, 'observed_hard_warnings': hard_total,
         'hard_warning_preserved': True,
         'baseline': baseline_metrics,
+        'window_proxy_audit': window_proxy_audit,
         'model': model_metrics,
         'feature_count': len(names),
         'frozen_score_threshold': bundle.manifest['score_threshold'],

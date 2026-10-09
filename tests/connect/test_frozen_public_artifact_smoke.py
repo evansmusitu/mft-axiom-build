@@ -46,6 +46,10 @@ class FrozenPublicArtifactSmokeTests(unittest.TestCase):
             self.assertGreater(result['eligible_examples'],0)
             self.assertGreater(result['observed_hard_warnings'],0)
             self.assertEqual(result['audit']['admission_gate'],'NOT_AUTHORIZED')
+            self.assertGreater(result['window_proxy_audit']['positive_window_overlap_groups'], 0)
+            self.assertEqual(result['window_proxy_audit']['window_count'], result['eligible_examples'])
+            self.assertFalse(result['window_proxy_audit']['overlap_groups_are_unique_incidents'])
+            self.assertFalse(result['audit']['window_proxy_incident_certification'])
             self.assertEqual(result, json.loads((root/'report.json').read_text()))
             with self.assertRaises(FileExistsError):
                 run_frozen_artifact_smoke(bundle_dir=Path(bundle_path), output=root/'report.json')
