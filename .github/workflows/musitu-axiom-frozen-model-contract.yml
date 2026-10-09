@@ -1,0 +1,112 @@
+name: MUSITU Axiom frozen model and external evaluation research
+
+on:
+  push:
+    branches: ['feat/musitu-connect-frontier']
+    paths:
+      - '.github/workflows/musitu-axiom-frozen-model-contract.yml'
+      - 'benchmarks/mining_adapter/frozen_model_bundle.py'
+      - 'benchmarks/mining_adapter/frozen_mine_evaluator.py'
+      - 'benchmarks/mining_adapter/external_validation_gate.py'
+      - 'benchmarks/mining_adapter/FROZEN_MODEL_README.md'
+      - 'tests/connect/test_frozen_model_bundle.py'
+      - 'tests/connect/test_frozen_mine_evaluator.py'
+      - 'tests/connect/test_external_validation_gate.py'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: musitu-axiom-frozen-research-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install pinned inference and test dependencies
+        run: python -m pip install --disable-pip-version-check lightgbm==4.6.0 scikit-learn==1.9.1
+      - name: Verify syntax and real native model roundtrip
+        run: |
+          python -m py_compile benchmarks/mining_adapter/frozen_model_bundle.py benchmarks/mining_adapter/frozen_mine_evaluator.py benchmarks/mining_adapter/external_validation_gate.py
+          python -m unittest tests.connect.test_frozen_model_bundle tests.connect.test_frozen_mine_evaluator tests.connect.test_external_validation_gate -v
+      - name: Confirm production qualification remains locked
+        run: |
+          echo 'REAL_INDEPENDENT_MINE_EVIDENCE_USED=FALSE'
+          echo 'MODEL_FROZEN_FOR_RESEARCH=TRUE'
+          echo 'EXTERNAL_EVALUATION_SYNTHETIC_CONTRACT_ONLY=TRUE'
+          echo 'INDEPENDENT_MINE_VALIDATION=NOT_DEMONSTRATED'
+          echo 'METHANE_SAFETY_CERTIFICATION=PROHIBITED'
+          echo 'PRODUCTION_AXIOM_ADMISSION=BLOCKED'
+
+  freeze-verified-development-model:
+    runs-on: ubuntu-latest
+    timeout-minutes: 95
+    needs: contract
+    env:
+      OPENML_SKIP_PARQUET: 'true'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install immutable research dependencies
+        run: |
+          python -m pip install --disable-pip-version-check \
+            openml==0.15.1 scikit-learn==1.9.1 lightgbm==4.6.0
+      - name: Acquire exact public research source
+        run: |
+          mkdir -p /tmp/musitu-frozen-data qualification/axiom_research_frozen_model
+          python - <<'PY'
+          import openml, hashlib, shutil
+          from pathlib import Path
+          dataset=openml.datasets.get_dataset(42701, download_data=True, download_qualities=False, download_features_meta_data=False)
+          if dataset.dataset_id != 42701 or str(dataset.name).strip().casefold() != 'methane':
+              raise SystemExit('RESEARCH_SOURCE_IDENTITY_INVALID')
+          source=Path('/tmp/musitu-frozen-data/Methane-OpenML-42701.arff')
+          shutil.copyfile(dataset.data_file,source)
+          with source.open('rb') as f: digest=hashlib.file_digest(f,'sha256').hexdigest()
+          if digest != '28e2eed4c4a314daa4319f656a09bb43d8acea603dcb906e31c98049c91a8fdc':
+              raise SystemExit('RESEARCH_SOURCE_SHA256_MISMATCH')
+          print('FROZEN_MODEL_SOURCE_SHA256_VERIFIED='+digest)
+          PY
+      - name: Freeze fold-zero training and calibration without test labels
+        run: |
+          python -m benchmarks.mining_adapter.frozen_model_bundle \
+            --source /tmp/musitu-frozen-data/Methane-OpenML-42701.arff \
+            --output-dir qualification/axiom_research_frozen_model/bundle
+      - name: Verify checksum pinned loader and no executable pickle
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          from benchmarks.mining_adapter.frozen_model_bundle import load_frozen_bundle
+          p=Path('qualification/axiom_research_frozen_model/bundle')
+          digest=(p/'manifest.sha256').read_text().strip()
+          model=load_frozen_bundle(p,expected_manifest_sha256=digest)
+          m=model.manifest
+          assert m['production_admission'] is False
+          assert m['independent_validation'] is False
+          assert m['research_only'] is True
+          assert m['training_partition']=='FROZEN_DEVELOPMENT_FOLD_0_TRAIN_ONLY'
+          assert m['threshold_partition']=='FROZEN_DEVELOPMENT_FOLD_0_CALIBRATION_ONLY'
+          assert len(m['feature_names'])==model.model.num_feature()
+          assert not list(p.glob('*.pkl')) and not list(p.glob('*.pickle'))
+          print('NATIVE_MODEL_RELOAD_AND_SHA_PIN=PASS')
+          print('MANIFEST_SHA256='+digest)
+          print('MODEL_SHA256='+m['model_sha256'])
+          print('PRODUCTION_ADMISSION=BLOCKED')
+          PY
+          sha256sum qualification/axiom_research_frozen_model/bundle/*
+      - name: Archive public-data research model; never customer data
+        uses: actions/upload-artifact@v4
+        with:
+          name: musitu-axiom-native-frozen-lightgbm-research
+          path: qualification/axiom_research_frozen_model/bundle/
+          retention-days: 90
+          if-no-files-found: error
