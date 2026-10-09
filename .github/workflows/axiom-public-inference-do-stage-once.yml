@@ -1,0 +1,115 @@
+name: AXIOM isolated DO-backed inference staging (disabled, no public routes)
+on:
+  push:
+    branches: [frontier/axiom-public-inference-zero-cost-20261009]
+    paths: ['.github/workflows/axiom-public-inference-do-stage-once.yml']
+permissions:
+  contents: read
+jobs:
+  stage-disabled-gateway:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 9
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      WORKER_NAME: axiom-inference-zero-cash-do-stage-20261009
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22'
+      - name: Verify complete offline gateway suite before any Cloudflare write
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF_NAME" = 'frontier/axiom-public-inference-zero-cost-20261009'
+          (cd ops/public_inference && node --test *.test.mjs | tail -18)
+          echo AXIOM_GATEWAY_TESTS_BEFORE_STAGE_PASS
+      - name: Existing Workers Free check and exact absent isolated staging name
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${CLOUDFLARE_API_TOKEN:-}" || exit 42
+          python3 - <<'PY'
+          import os,json,urllib.request,urllib.error
+          A=os.environ['CLOUDFLARE_ACCOUNT_ID'];W=os.environ['WORKER_NAME'];T=os.environ['CLOUDFLARE_API_TOKEN']
+          BASE='https://api.cloudflare.com/client/v4/accounts/'+A
+          H={'Authorization':'Bearer '+T,'Accept':'application/json'}
+          def check(path):
+              q=urllib.request.Request(BASE+path,headers=H,method='GET')
+              try:
+                  with urllib.request.urlopen(q,timeout=20) as r:
+                      x=json.loads(r.read(65537))
+                      if r.status!=200 or x.get('success') is not True:raise SystemExit('READ_FAIL')
+                      return x
+              except urllib.error.HTTPError as e:return {'http_code':e.code}
+          r=check('/subscriptions')
+          subs=r.get('result');meta=r.get('result_info')
+          if not isinstance(subs,list) or (isinstance(meta,dict) and meta.get('total_count')!=len(subs)):
+              raise SystemExit('FREE_PLAN_NOT_PROVEN')
+          for row in subs:
+              v=str((row.get('rate_plan') or {}).get('id') or '').upper()
+              if v.startswith(('WORKERS_PAID','PARTNERS_WORKERS')):
+                  raise SystemExit('PAID_WORKERS_DENIED')
+          stage=check('/workers/scripts/'+W+'/settings')
+          if stage.get('http_code')!=404:raise SystemExit('EXISTING_STAGE_CANNOT_OVERWRITE')
+          print('AXIOM_FREE_ACCOUNT_STAGE_PRECHECK_PASS')
+          PY
+      - name: Deploy isolated disabled Workers AI gateway and SQLite Durable Object
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > wrangler-axiom-stage.json <<'JSON'
+          {
+            "name":"axiom-inference-zero-cash-do-stage-20261009",
+            "main":"ops/public_inference/gateway.mjs",
+            "compatibility_date":"2026-10-09",
+            "workers_dev":false,
+            "routes":[],
+            "ai":{"binding":"AI"},
+            "durable_objects":{"bindings":[{"name":"AXIOM_GLOBAL_QUOTA","class_name":"AxiomGlobalInferenceQuota"}]},
+            "migrations":[{"tag":"v1","new_sqlite_classes":["AxiomGlobalInferenceQuota"]}],
+            "vars":{
+              "AXIOM_PUBLIC_INFERENCE_ENABLE":"DISABLED",
+              "AXIOM_ZERO_CASH_BUDGET_USD":"0",
+              "AXIOM_QUOTA_BACKEND":"SQLITE_DO"
+            }
+          }
+          JSON
+          (npm exec --yes --package=wrangler@4.129.0 -- wrangler deploy --config wrangler-axiom-stage.json > /tmp/axiom-stage-stdout 2>/tmp/axiom-stage-stderr) || {
+            echo AXIOM_DO_STAGE_DEPLOY_BLOCKED_OR_FAILED
+            exit 44
+          }
+          echo AXIOM_DO_STAGE_UPLOAD_PASS
+      - name: Verify native script bindings and no public workers.dev subdomain
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import os,json,urllib.request,urllib.error
+          A=os.environ['CLOUDFLARE_ACCOUNT_ID'];W=os.environ['WORKER_NAME'];T=os.environ['CLOUDFLARE_API_TOKEN']
+          BASE='https://api.cloudflare.com/client/v4/accounts/'+A
+          H={'Authorization':'Bearer '+T,'Accept':'application/json'}
+          def get(path):
+              request=urllib.request.Request(BASE+path,headers=H,method='GET')
+              with urllib.request.urlopen(request,timeout=20) as r:
+                  x=json.loads(r.read(65537))
+                  if r.status!=200 or x.get('success') is not True:raise RuntimeError('NATIVE_READBACK_FAILED')
+                  return x.get('result')
+          result=get('/workers/scripts/'+W+'/settings')
+          if not isinstance(result,dict):raise SystemExit('WORKER_NATIVE_SETTINGS_NOT_PROVEN')
+          bindings=result.get('bindings')
+          if not isinstance(bindings,list):raise SystemExit('WORKER_BINDINGS_NOT_PROVEN')
+          names={r.get('name') for r in bindings if isinstance(r,dict)}
+          if not {'AI','AXIOM_GLOBAL_QUOTA'}.issubset(names):
+              raise SystemExit('WORKER_AI_OR_DO_BINDING_NOT_PROVEN')
+          sub=get('/workers/scripts/'+W+'/subdomain')
+          enabled=(sub or {}).get('enabled') if isinstance(sub,dict) else None
+          if enabled is not False:
+              raise SystemExit('STAGE_PUBLIC_ROUTING_NOT_PROVEN_DISABLED')
+          print('MUSITU_AXIOM_NATIVE_DISABLED_SQLITE_DO_STAGING_PASS')
+          print('AXIOM_CUSTOMER_TRAFFIC_AUTHORIZED=FALSE')
+          print('AXIOM_S4_PRODUCTION_AUTHORITY=FALSE')
+          PY
