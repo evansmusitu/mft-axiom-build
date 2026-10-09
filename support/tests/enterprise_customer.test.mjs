@@ -40,7 +40,7 @@ test('enterprise Access verifier returns only issuer and opaque subject',async()
 function fakeStore(){
   const calls=[];
   return {calls,
-    async createOrganizationInvite(ref,input,p){calls.push(['invite',ref,input,p]);return {invite_id:'AXV-0123456789ABCDEF',org_ref:ref,role:input.role,invite_code:'ABCDEFGH-JKLMNPQR-STUVWXYZ',expires_at:'2026-10-10T00:00:00.000Z'};},
+    async createOrganizationInvite(ref,input,p){calls.push(['invite',ref,input,p]);return {invite_id:'AXV-0123456789ABCDEF',org_ref:ref,role:input.role,invite_code:'ABCDEFGH-JKMNPQRS-TVWXYZ01',expires_at:'2026-10-10T00:00:00.000Z'};},
     async consumeOrganizationInvite(code,who){calls.push(['join',code,who]);return {membership_id:'AXL-0123456789ABCDEF',org_ref:org,role:'ORG_MEMBER',plan:'ENTERPRISE'};},
     async getEnterpriseMemberships(who){calls.push(['me',who]);return [{org_ref:org,role:'ORG_MEMBER',plan:'ENTERPRISE',entitlements:['priority_support']}];},
     async getEnterpriseOrganizationContext(ref,who){calls.push(['context',ref,who]);return ref===org?{org_ref:org,role:'ORG_MEMBER',plan:'ENTERPRISE',entitlements:['priority_support']}:null;},
@@ -70,12 +70,12 @@ test('operator can create one-time organization invite without retrieving stored
 test('enterprise join and me require verified Access identity',async()=>{
   const store=fakeStore(),e=enterpriseEnv(store);
   const denied=await handleSupportRequest(new Request('https://support.example/enterprise/api/v1/join',{
-    method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({invite_code:'ABCDEFGH-JKLMNPQR-STUVWXYZ'})
+    method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({invite_code:'ABCDEFGH-JKMNPQRS-TVWXYZ01'})
   }),{...e,SUPPORT_ENTERPRISE_IDENTITY_VERIFY:async()=>null});
   assert.equal(denied.status,401);
 
   const joined=await handleSupportRequest(new Request('https://support.example/enterprise/api/v1/join',{
-    method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({invite_code:'ABCDEFGH-JKLMNPQR-STUVWXYZ'})
+    method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({invite_code:'ABCDEFGH-JKMNPQRS-TVWXYZ01'})
   }),e);
   assert.equal(joined.status,201);
 
