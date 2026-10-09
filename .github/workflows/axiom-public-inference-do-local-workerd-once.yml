@@ -81,6 +81,15 @@ jobs:
             'WORKER_EXCEPTION':'uncaught exception','UNSUPPORTED_RUNTIME':'not supported',
             'NO_SOCKET':'socket','INIT_ERROR':'startup failed'}
           print('AXIOM_LOCAL_WORKERD_CATEGORIZED_ROOT_CAUSE='+str([k for k,v in patterns.items() if v in s]))
+          import re,os
+          candidates=[l for l in s.splitlines() if 'failed to start' in l or 'error:' in l or 'compatibility date' in l]
+          for line in candidates[-3:]:
+              for secret in (os.environ.get('AXIOM_EPHEMERAL_PROBE_KEY'),os.environ.get('AXIOM_DO_INTERNAL_QUOTA_KEY'),os.environ.get('CLOUDFLARE_API_TOKEN')):
+                  if secret:line=line.replace(secret,'[REDACTED]')
+              line=re.sub(r'https?://[^\\s]+','[URL]',line)
+              line=re.sub(r'[\\w.+-]+@[\\w.-]+','[EMAIL]',line)
+              line=re.sub(r'[a-f0-9]{24,}','[HEX]',line)
+              print('AXIOM_LOCAL_WORKERD_START_SAFE_MESSAGE='+line[:210])
           PY
               echo AXIOM_LOCAL_WORKERD_START_NOT_PROVEN
               exit 43
