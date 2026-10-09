@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="robots" content="noindex,nofollow,noarchive">
+  <title>MUSITU Axiom — Enterprise Support</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <a class="skip" href="#main">Skip to enterprise support</a>
+  <header class="topbar"><a class="brand" href="/" aria-label="MUSITU Axiom Support home"><span aria-hidden="true">A</span><strong>MUSITU Axiom</strong><small>Enterprise Support</small></a></header>
+  <main id="main">
+    <section class="hero">
+      <p class="eyebrow">Verified organization workspace</p>
+      <h1>Enterprise Support</h1>
+      <p class="lede">Organization membership is verified through Cloudflare Access. MUSITU stores only an opaque identity hash—never your sign-in email, OTP, JWT, password or raw identity subject.</p>
+    </section>
+
+    <section id="join-section" class="case-section" aria-labelledby="join-title">
+      <div class="form-copy"><p class="eyebrow">Join organization</p><h2 id="join-title">Use a one-time invitation</h2><p>Your support operator provides the invitation. It can be used only once and expires automatically.</p></div>
+      <form id="join-form" novalidate>
+        <label>Invitation code<input name="invite_code" required autocomplete="off" placeholder="XXXXXXXX-XXXXXXXX-XXXXXXXX"></label>
+        <button class="primary" type="submit">Join organization</button>
+        <div id="join-status" role="status" aria-live="polite"></div>
+      </form>
+    </section>
+
+    <section class="section" aria-labelledby="memberships-title">
+      <div class="section-head"><p class="eyebrow">Organizations</p><h2 id="memberships-title">Your memberships</h2></div>
+      <div id="membership-list" class="grid"><p>Loading memberships…</p></div>
+    </section>
+
+    <section id="workspace" class="section" hidden aria-labelledby="workspace-title">
+      <div class="section-head"><p class="eyebrow">Shared cases</p><h2 id="workspace-title">Organization support workspace</h2><p id="workspace-meta"></p></div>
+      <div class="grid">
+        <article>
+          <h3>Shared cases</h3>
+          <div id="enterprise-case-list"><p>Select an organization.</p></div>
+        </article>
+        <article>
+          <h3>Open organization case</h3>
+          <form id="enterprise-case-form" novalidate>
+            <label>Product surface<select name="surface" required><option value="web_app">Axiom web app</option><option value="mcp_openai">OpenAI connector</option><option value="mcp_claude">Claude connector</option><option value="mcp_other">Another MCP client</option><option value="oauth_account">OAuth or account</option><option value="quantitative_result">Quantitative result</option><option value="api_runtime">API or runtime</option><option value="billing_commerce">Billing or commerce</option><option value="privacy_data_rights">Privacy or data rights</option><option value="security">Security</option><option value="status_incident">Service incident</option></select></label>
+            <label>Issue type<select name="category" required><option value="bug">Bug</option><option value="access">Access</option><option value="calculation_dispute">Calculation dispute</option><option value="integration">Integration</option><option value="billing">Billing</option><option value="privacy_request">Privacy request</option><option value="security_report">Security report</option><option value="incident">Incident</option><option value="documentation">Documentation</option><option value="accessibility">Accessibility</option><option value="feedback">Feedback</option></select></label>
+            <label>Affected scope<select name="affected_scope" required><option value="organization">My organization</option><option value="team">My team</option><option value="self">Only me</option><option value="blocked">Critical work is blocked</option><option value="all_users">Appears to affect everyone</option><option value="unknown">Unknown</option></select></label>
+            <label>Summary<input name="summary" maxlength="160" required autocomplete="off"></label>
+            <label>What happened?<textarea name="description" maxlength="8000" required></textarea></label>
+            <label>Steps to reproduce<textarea name="reproduction" maxlength="6000"></textarea></label>
+            <label>Impact<textarea name="impact" maxlength="1000"></textarea></label>
+            <label>Language<input name="language" maxlength="16" value="en" autocomplete="off"></label>
+            <label class="check"><input name="consent_to_process" type="checkbox" required> I consent to processing this information to provide organization support and confirm I removed credentials and payment secrets.</label>
+            <button class="primary" type="submit">Create shared case</button>
+            <div id="create-status" role="status" aria-live="polite"></div>
+          </form>
+          <section id="enterprise-receipt" class="receipt" hidden tabindex="-1">
+            <h4>Backup recovery code</h4>
+            <p>This code is optional backup access for this shared case. Save it now; MUSITU stores only its cryptographic hash.</p>
+            <output id="enterprise-recovery-code"></output>
+          </section>
+        </article>
+      </div>
+    </section>
+
+    <section id="case-thread" class="section" hidden aria-labelledby="thread-title">
+      <div class="section-head"><p class="eyebrow">Shared conversation</p><h2 id="thread-title">Case</h2><p id="thread-meta"></p></div>
+      <div id="thread-messages"></div>
+      <form id="enterprise-message-form">
+        <label>Reply<textarea name="body" maxlength="8000" required></textarea></label>
+        <button class="primary" type="submit">Send shared reply</button>
+        <div id="message-status" role="status" aria-live="polite"></div>
+      </form>
+    </section>
+
+    <p><a href="/">Return to Official Support</a></p>
+  </main>
+  <script type="module" src="/enterprise/app.js"></script>
+</body>
+</html>
