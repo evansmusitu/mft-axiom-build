@@ -47,7 +47,8 @@ test('customer notification never falls back to operator send_email destination'
 test('operator send_email failure is reported as delivery failure, not silent success',async()=>{
   await assert.rejects(
     ()=>deliverSupportNotification({...base,audience:'operator'},{
-      SUPPORT_OPS_EMAIL:{send:async()=>{throw new Error('simulated send failure');}}
+      SUPPORT_OPS_EMAIL:{send:async()=>{throw new Error('simulated send failure');}},
+      SUPPORT_OPS_EMAIL_READY:'true'
     }),
     /simulated send failure/
   );
