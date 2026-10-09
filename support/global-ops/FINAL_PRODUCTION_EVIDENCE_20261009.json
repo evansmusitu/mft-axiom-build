@@ -1,0 +1,166 @@
+{
+  "schema": "musitu.axiom.global-support-ops.final-production-evidence.v2",
+  "status": "PRODUCTION_SOFTWARE_COMPLETE_EXTERNAL_PROVIDER_AND_HUMAN_BOUNDARIES_REMAIN",
+  "recorded_at": "2026-10-09T04:05:00Z",
+  "repository": "evansmusitu/mft-axiom-build",
+  "branch": "support/axiom-global-support-ops-production-rollout-20261008",
+  "head_before_evidence": "b9d7f70fb5b9a92d9f45bcb56789b0b3b8111747",
+  "verification": {
+    "full_regression_run": 37882019346,
+    "tests": 209,
+    "passed": 209,
+    "failed": 0,
+    "cron_restore_run": 37880525622,
+    "cron_live_attempt_state": "FAILED",
+    "cron_execution_proven": true,
+    "operator_email_fail_closed_deploy_run": 37881193987,
+    "native_webhook_deploy_run": 37881839913,
+    "enterprise_console_deploy_run": 37882087704,
+    "final_audit_run": 37882196829
+  },
+  "production": {
+    "domains": {
+      "public_support": "support.mftintelligence.com",
+      "operator_console": "support-ops.mftintelligence.com"
+    },
+    "workers": {
+      "public": "musitu-axiom-support",
+      "operator": "musitu-axiom-support-ops",
+      "workers_dev": false,
+      "previews": false,
+      "operator_service_binding": true
+    },
+    "scheduler": {
+      "cron": "*/5 * * * *",
+      "live_execution_proven": true
+    },
+    "data": {
+      "cases": 3,
+      "events": 7,
+      "messages": 2,
+      "d1_binding": true,
+      "r2_binding": true,
+      "private_attachment_bucket": true,
+      "encrypted_customer_narratives": true
+    },
+    "capabilities": {
+      "secure_intake": true,
+      "private_operator_console": true,
+      "customer_operator_threads": true,
+      "internal_notes": true,
+      "append_only_audit": true,
+      "verified_identity_recovery": true,
+      "sla_slo_clocks": true,
+      "scheduled_sla_breach_scan": true,
+      "operator_leases": true,
+      "handoffs": true,
+      "specialist_escalation": true,
+      "incidents_and_status_records": true,
+      "organization_support_plans": true,
+      "entitlements": true,
+      "private_r2_attachments": true,
+      "attachment_sha256_verification": true,
+      "attachment_retention_deletion_queue": true,
+      "consented_diagnostics": true,
+      "inbound_email_threading": true,
+      "notification_retry_queue": true,
+      "native_enterprise_webhooks": true,
+      "native_webhook_hmac_signatures": true,
+      "native_webhook_ssrf_validation": true,
+      "encrypted_webhook_endpoint_and_secret": true,
+      "native_webhook_retry_backoff": true,
+      "operator_enterprise_admin_ui": true,
+      "macros": true,
+      "analytics": true,
+      "qa_reviews": true,
+      "csat": true,
+      "language_routing": true,
+      "advisory_ai_triage_seam": true,
+      "bounded_reopen": true
+    },
+    "native_webhooks": {
+      "encrypted_config_table": true,
+      "plaintext_endpoint_columns": false,
+      "plaintext_secret_columns": false,
+      "configured_subscriptions": 0,
+      "configured_delivery_configs": 0,
+      "production_sender_ready": true,
+      "live_external_customer_endpoint_proof": false
+    },
+    "inbound_email": {
+      "exact_support_forward_rule_count": 1,
+      "catch_all_to_support_worker": true,
+      "raw_destination_recorded": false
+    }
+  },
+  "external_boundaries": {
+    "outbound_email": {
+      "operational": false,
+      "fail_closed": true,
+      "send_email_binding_preserved": true,
+      "readiness_binding": false,
+      "cloudflare_email_sending_dns_complete": false,
+      "cf_bounce_mx": 0,
+      "cf_bounce_spf": 0,
+      "cf_bounce_dkim": 0,
+      "next_requirement": "Cloudflare Email Sending domain onboarding and generated authentication records"
+    },
+    "public_status_no_challenge": {
+      "operational": false,
+      "status_records_and_page_deployed": true,
+      "configuration_rule_count": 10,
+      "dedicated_status_rule_count": 0,
+      "prior_rule_mutation_persisted": false,
+      "next_requirement": "Available Cloudflare Configuration Rule entitlement/capacity or a separate status delivery surface"
+    },
+    "malware_scanning": {
+      "operational": false,
+      "quarantine_and_manual_scan_state": true,
+      "next_requirement": "Trusted malware-scanning provider or equivalent scanner binding"
+    },
+    "on_call_paging": {
+      "operational": false,
+      "escalation_and_notification_queues": true,
+      "next_requirement": "Pager/on-call provider plus real staffed rotation"
+    },
+    "independent_approval": {
+      "operational": false,
+      "two_person_backend_enforced": true,
+      "next_requirement": "Genuinely distinct second authorized human identity"
+    },
+    "continuous_support_staffing": {
+      "operational": false,
+      "next_requirement": "Evidence-backed 24x7 human roster and handoff coverage"
+    },
+    "contractual_sla": {
+      "operational": false,
+      "software_targets": true,
+      "next_requirement": "Business authority and staffing capable of meeting published commitments"
+    },
+    "certified_multilingual_human_support": {
+      "operational": false,
+      "language_routing_software": true,
+      "next_requirement": "Verified human language coverage"
+    }
+  },
+  "protected_state": {
+    "main": "d6a846f6bbe0bccac1758713eb4de167caf07113",
+    "pr1": {
+      "state": "OPEN",
+      "draft": true,
+      "merged": false,
+      "head": "8fc1fbb7c5ebbcc1604ecf24c5f4594f2d5667e3"
+    },
+    "claude": "4d956f415431836018e5145227c8df5bd5fde7d8",
+    "official_support": "e336556b1b4dbca3c3d7656b2efc914752857276",
+    "recovery_production": "64946c4df8ff0c608063444503155d188df93f2e",
+    "frozen_openai_auth": "8ba0dbc1b6dd1533c6c26bff23991429e03a71a5",
+    "frozen_openai_mcp": "4a1ad37a5e7df0e4d3966e8b5f9f0e8f2db69167"
+  },
+  "privacy": {
+    "customer_content_read_during_final_audit": false,
+    "recovery_codes_read": false,
+    "secret_values_recorded": false,
+    "raw_email_destinations_recorded": false
+  }
+}
