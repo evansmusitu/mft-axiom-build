@@ -1,0 +1,109 @@
+name: MUSITU Axiom Resend DNS Activation 20261009
+on:
+  push:
+    branches: ['support/axiom-global-support-ops-production-rollout-20261008']
+    paths: ['.github/workflows/axiom-resend-dns-activation-20261009.yml']
+permissions:
+  contents: read
+concurrency:
+  group: axiom-resend-dns-onboarding
+  cancel-in-progress: false
+jobs:
+  dns:
+    if: github.event.before == 'f824c227f1b30a89763b0b0692569219cc3871b0'
+    runs-on: ubuntu-latest
+    environment: axiom-support-production
+    timeout-minutes: 8
+    env:
+      ZONE: '5b56528f03948ff5917a5e0cd9f7109e'
+      CF_WORKER_TOKEN: ${{ secrets.CLOUDFLARE_RULESETS_API_TOKEN }}
+      CF_D1_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CF_ACCESS_TOKEN: ${{ secrets.CLOUDFLARE_ACCESS_API_TOKEN }}
+      CF_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+      CF_GLOBAL_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+    steps:
+      - name: Register only four exact Resend DNS records with readback and rollback
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          const zone=process.env.ZONE,base='https://api.cloudflare.com/client/v4';
+          const auths=[
+            ['worker',process.env.CF_WORKER_TOKEN?{Authorization:'Bearer '+process.env.CF_WORKER_TOKEN}:null],
+            ['standard',process.env.CF_D1_TOKEN?{Authorization:'Bearer '+process.env.CF_D1_TOKEN}:null],
+            ['access',process.env.CF_ACCESS_TOKEN?{Authorization:'Bearer '+process.env.CF_ACCESS_TOKEN}:null],
+            ['legacy',process.env.CF_EMAIL&&process.env.CF_GLOBAL_KEY?{'X-Auth-Email':process.env.CF_EMAIL,'X-Auth-Key':process.env.CF_GLOBAL_KEY}:null],
+          ].filter(x=>x[1]);
+          const specs=[
+            {type:'TXT',name:'resend._domainkey.mftintelligence.com',content:'p=MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQDjSBUwRhPbZJfLkS32jp0OxvEExblhchJ5Uu4SYQ6S/faQ/L7VRArZfABBBwWE/dbR+eyzd1vWoLZi/o/RVymrOT9KLv7HQ//WL4tRC0xTdCA9aUK4q8MCwXRKMDhw99AGYeXkMly9fZBB0SoQvmxgcupXO7SAFoCCQmrLPafhNwIDAQAB'},
+            {type:'MX',name:'send.mftintelligence.com',content:'feedback-smtp.us-east-1.amazonses.com',priority:10},
+            {type:'TXT',name:'send.mftintelligence.com',content:'v=spf1 include:amazonses.com ~all'},
+            {type:'CNAME',name:'rsend.mftintelligence.com',content:'send.forge.rmta.net'}
+          ];
+          if(auths.length===0)throw Error('No Cloudflare credential: no mutation');
+          async function request(path,auth,{method='GET',body}={}){
+            try{
+              const r=await fetch(base+path,{method,headers:{...auth,Accept:'application/json',...(body===undefined?{}:{'Content-Type':'application/json'})},...(body===undefined?{}:{body:JSON.stringify(body)}),signal:AbortSignal.timeout(16000)});
+              const x=await r.json().catch(()=>({}));
+              return {ok:r.ok&&x.success!==false,http:r.status,result:x.result,codes:(x.errors||[]).map(e=>e.code).filter(Boolean)};
+            }catch{return {ok:false,http:0,codes:[]}}
+          }
+          const path='/zones/'+zone;
+          let credential;
+          for(const [label,auth] of auths){
+            const r=await request(path,auth);
+            if(r.ok&&String(r.result?.name).toLowerCase()==='mftintelligence.com'&&String(r.result?.status)==='active'){credential=[label,auth];break}
+          }
+          if(!credential)throw Error('Active exact Cloudflare domain not independently verified: no mutation');
+          const selected=credential[1];
+          async function list(name){
+            const resp=await request(path+'/dns_records?name='+encodeURIComponent(name)+'&per_page=100',selected);
+            if(!resp.ok||!Array.isArray(resp.result))throw Error('DNS_READ_UNAVAILABLE HTTP '+resp.http);
+            return resp.result.filter(r=>String(r.name).toLowerCase()===name.toLowerCase());
+          }
+          const names=[...new Set(specs.map(x=>x.name))];
+          const initial={};
+          for(const n of names)initial[n]=await list(n);
+          const expected=(r,s)=>String(r.type).toUpperCase()===s.type&&String(r.content).replace(/\.$/,'').trim()===s.content&&((s.priority===undefined)||Number(r.priority)===s.priority);
+          for(const n of names){
+            const rows=initial[n];
+            if(rows.length>10)throw Error('Unexpected DNS record count for '+n);
+            for(const r of rows){
+              const matched=specs.some(s=>s.name===n&&expected(r,s));
+              if(!matched)throw Error('Conflicting existing record at '+n+' type '+r.type+' — stopped without changes');
+            }
+          }
+          const created=[];
+          try{
+            for(const s of specs){
+              if(initial[s.name].some(r=>expected(r,s)))continue;
+              let out=null;
+              for(const [label,auth] of auths){
+                const r=await request(path+'/dns_records',auth,{method:'POST',body:{...s,ttl:1,...(s.type==='CNAME'?{proxied:false}:{})}});
+                if(r.ok){out=r;break}
+                if(![401,403].includes(r.http))throw Error('DNS_WRITE_FAILED_'+s.type+' HTTP '+r.http+' codes '+r.codes.join(','));
+              }
+              if(!out?.ok)throw Error('DNS_WRITE_PERMISSION_UNAVAILABLE_'+s.type);
+              created.push({id:out.result?.id,name:s.name});
+              const readback=await list(s.name);
+              if(!readback.some(r=>expected(r,s)))throw Error('DNS_WRITE_READBACK_FAILED '+s.name);
+            }
+            const states={};
+            for(const n of names)states[n]=await list(n);
+            const ok=specs.every(s=>states[s.name].filter(r=>expected(r,s)).length===1);
+            if(!ok)throw Error('Exact DNS readback invariant failed');
+            console.log(JSON.stringify({gate:'MUSITU_AXIOM_RESEND_DNS_20261009',status:'PASS',verified_zone:true,
+              records_verified:specs.map(s=>({type:s.type,name:s.name,priority:s.priority??null,verified:true})),
+              created_in_run:created.length,external_email_delivery_proven:false,changes_outside_target_names:false,secrets_recorded:false}));
+          }catch(e){
+            let rollbackOk=true;
+            for(const c of created.reverse()){
+              if(!c.id){rollbackOk=false;continue}
+              let deleted=false;
+              for(const [,auth] of auths){const x=await request(path+'/dns_records/'+c.id,auth,{method:'DELETE'});if(x.ok){deleted=true;break}}
+              if(!deleted)rollbackOk=false;
+            }
+            console.log(JSON.stringify({gate:'MUSITU_AXIOM_RESEND_DNS_20261009',status:'FAIL_CLOSED',created_before_rollback:created.length,rollback_verified:rollbackOk,error:String(e?.message||e),secrets_recorded:false}));
+            throw e;
+          }
+          NODE
