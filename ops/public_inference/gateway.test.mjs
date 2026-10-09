@@ -279,7 +279,7 @@ test('1,000 concurrent synthetic public requests preserve hard 3-per-minute free
   assert.equal(providerCalls,3);
   assert.equal(e.AXIOM_PUBLIC_INFERENCE_D1.raw.prepare('SELECT COUNT(*) AS n FROM public_inference_reservations').get().n,3);
 });
-\n
+
 test('explicit Free-plan SQLite DO ledger routes only verified S2 capabilities without D1 fallback',async()=>{
  let calls=0,admissions=0;
  const e=env({
