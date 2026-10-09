@@ -3,16 +3,16 @@ name: MUSITU Axiom Public Status Configuration Rule
 on:
   push:
     branches:
-      - 'support/axiom-global-support-ops-production-rollout-20261008'
+      - support/axiom-global-support-ops-production-rollout-20261008
     paths:
-      - '.github/workflows/axiom-public-status-config-rule.yml'
+      - .github/workflows/axiom-public-status-config-rule.yml
 
 permissions:
   contents: read
 
 jobs:
   activate:
-    if: github.event_name == 'push' && github.event.before == '49aec60e7b9f9b83ab41f675ea13cc47a505f512'
+    if: github.event_name == 'push' && github.event.before == '71f1bdf4508dfbc7aeda6b784a5dc1e1d5839e81'
     runs-on: ubuntu-latest
     environment: axiom-support-production
     timeout-minutes: 7
@@ -20,68 +20,80 @@ jobs:
       CF_ZONE: '5b56528f03948ff5917a5e0cd9f7109e'
       TOKEN: ${{ secrets.CLOUDFLARE_RULESETS_API_TOKEN }}
     steps:
-      - name: Apply exact public-status security-level override
+      - name: Apply exact public status security override
         shell: bash
         run: |
           set -euo pipefail
           node --input-type=module <<'NODE'
-          const api='https://api.cloudflare.com/client/v4',zone=process.env.CF_ZONE,token=String(process.env.TOKEN||'');
-          const h={authorization:'Bearer '+token,accept:'application/json','content-type':'application/json'};
+          const api='https://api.cloudflare.com/client/v4';
+          const zone=process.env.CF_ZONE;
+          const token=String(process.env.TOKEN||'');
+          const headers={authorization:'Bearer '+token,accept:'application/json','content-type':'application/json'};
           async function call(path,{method='GET',body}={}){
-            const r=await fetch(api+path,{method,headers:h,...(body===undefined?{}:{body:JSON.stringify(body)})});
+            const r=await fetch(api+path,{method,headers,...(body===undefined?{}:{body:JSON.stringify(body)})});
             const p=await r.json().catch(()=>({}));
-            if(!r.ok||p?.success===false)throw new Error('Cloudflare '+method+' '+path+' failed HTTP '+r.status+' codes='+((p.errors||[]).map(x=>x.code).join(',')||'none'));
+            if(!r.ok||p?.success===false) throw new Error('Cloudflare '+method+' '+path+' failed HTTP '+r.status);
             return p.result;
           }
           const entry=await call('/zones/'+zone+'/rulesets/phases/http_config_settings/entrypoint');
-          const id=String(entry?.id||'');if(!id)throw new Error('configuration rules entrypoint missing');
+          const rulesetId=String(entry?.id||'');
+          if(!rulesetId) throw new Error('configuration rules entrypoint missing');
           const ref='musitu_axiom_public_status_security_level';
           const expression='(http.host eq "support.mftintelligence.com" and http.request.method in {"GET" "HEAD"} and http.request.uri.path in {"/status/" "/status/index.html" "/status/app.js" "/api/v1/status" "/styles.css"})';
-          const desired={action:'set_config',expression,description:'MUSITU Axiom public status disable Under Attack only',ref,enabled:true,action_parameters:{security_level:'off'}};
-          const current=(Array.isArray(entry?.rules)?entry.rules:[]).filter(r=>String(r?.ref||'')===ref);
-          if(current.length>1)throw new Error('duplicate public status config rules');
-          let created=false,ruleId='';
+          const desired={
+            action:'set_config',
+            expression,
+            description:'MUSITU Axiom public status disable Under Attack only',
+            ref,
+            enabled:true,
+            action_parameters:{security_level:'off'}
+          };
+          const current=(Array.isArray(entry?.rules)?entry.rules:[]).filter(x=>String(x?.ref||'')===ref);
+          if(current.length>1) throw new Error('duplicate public status config rules');
+          let created=false;
           if(current.length===0){
-            const made=await call('/zones/'+zone+'/rulesets/'+id+'/rules',{method:'POST',body:desired});
-            ruleId=String(made?.id||'');created=true;
+            await call('/zones/'+zone+'/rulesets/'+rulesetId+'/rules',{method:'POST',body:desired});
+            created=true;
           }else{
-            ruleId=String(current[0]?.id||'');
-            await call('/zones/'+zone+'/rulesets/'+id+'/rules/'+ruleId,{method:'PATCH',body:desired});
+            await call('/zones/'+zone+'/rulesets/'+rulesetId+'/rules/'+String(current[0].id),{method:'PATCH',body:desired});
           }
           const after=await call('/zones/'+zone+'/rulesets/phases/http_config_settings/entrypoint');
-          const rows=(Array.isArray(after?.rules)?after.rules:[]).filter(r=>String(r?.ref||'')===ref);
-          if(rows.length!==1)throw new Error('public status config rule missing after apply');
+          const rows=(Array.isArray(after?.rules)?after.rules:[]).filter(x=>String(x?.ref||'')===ref);
+          if(rows.length!==1) throw new Error('public status config rule missing after apply');
           const row=rows[0];
-          if(row?.enabled!==true||row?.action!=='set_config'||String(row?.expression||'')!==expression||String(row?.action_parameters?.security_level||'')!=='off')throw new Error('public status config rule readback mismatch');
+          if(row?.enabled!==true||row?.action!=='set_config'||String(row?.action_parameters?.security_level||'')!=='off'||String(row?.expression||'')!==expression) {
+            throw new Error('public status config rule readback mismatch');
+          }
           console.log(JSON.stringify({
             gate:'MUSITU_AXIOM_PUBLIC_STATUS_CONFIG_RULE',
-            status:'PASS',created,rule_id_present:Boolean(ruleId),
-            exact_host:true,methods:['GET','HEAD'],
-            paths:['/status/','/status/index.html','/status/app.js','/api/v1/status','/styles.css'],
+            status:'PASS',
+            created,
             security_level:'off',
-            case_api_affected:false,recovery_affected:false,operator_domain_affected:false
+            exact_host:true,
+            methods:['GET','HEAD'],
+            case_api_affected:false,
+            recovery_affected:false,
+            operator_domain_affected:false
           }));
           NODE
 
-      - name: Prove public status reachability and protected boundaries
+      - name: Prove status is public and protected surfaces remain protected
         shell: bash
         run: |
           set -euo pipefail
-          ok=1
+          status_ok=true
           for path in /status/ /status/app.js /api/v1/status /styles.css; do
-            code=$(curl --silent --show-error --connect-timeout 10 --max-time 30 -D /tmp/h -o /tmp/b -w '%{http_code}' "https://support.mftintelligence.com$path" || true)
-            printf '{"path":"%s","http_status":"%s"}
-' "$path" "$code"
-            [ "$code" = "200" ] || ok=0
+            code=$(curl --silent --show-error --connect-timeout 10 --max-time 30 -o /tmp/body -w '%{http_code}' "https://support.mftintelligence.com$path" || true)
+            echo "status_probe path=$path code=$code"
+            if [ "$code" != "200" ]; then status_ok=false; fi
           done
-          root=$(curl --silent --show-error --connect-timeout 10 --max-time 30 -D /tmp/h -o /tmp/b -w '%{http_code}' https://support.mftintelligence.com/ || true)
-          recovery=$(curl --silent --show-error --connect-timeout 10 --max-time 30 -o /tmp/b -w '%{http_code}' https://support.mftintelligence.com/recovery/ || true)
-          ops=$(curl --silent --show-error --connect-timeout 10 --max-time 30 -o /tmp/b -w '%{http_code}' https://support-ops.mftintelligence.com/ || true)
-          post_status=$(curl --silent --show-error --connect-timeout 10 --max-time 30 -X POST -o /tmp/b -w '%{http_code}' https://support.mftintelligence.com/api/v1/status || true)
-          case "$recovery" in 302|303|307|401|403) ;; *) echo "recovery protection drift: $recovery" >&2; exit 1;; esac
-          case "$ops" in 302|303|307|401|403) ;; *) echo "operator protection drift: $ops" >&2; exit 1;; esac
-          if [ "$root" = "200" ]; then grep -q 'MUSITU Axiom' /tmp/b || true; elif [ "$root" != "403" ]; then echo "unexpected support root status: $root" >&2; exit 1; fi
-          [ "$post_status" != "200" ] || { echo "POST status unexpectedly succeeded" >&2; exit 1; }
-          echo "{"root_status":"$root","recovery_status":"$recovery","operator_status":"$ops","post_status":"$post_status","status_assets_all_200":$([ "$ok" = 1 ] && echo true || echo false)}"
-          [ "$ok" = 1 ]
-          rm -f /tmp/h /tmp/b
+          root=$(curl --silent --show-error --connect-timeout 10 --max-time 30 -o /tmp/body -w '%{http_code}' https://support.mftintelligence.com/ || true)
+          recovery=$(curl --silent --show-error --connect-timeout 10 --max-time 30 -o /tmp/body -w '%{http_code}' https://support.mftintelligence.com/recovery/ || true)
+          ops=$(curl --silent --show-error --connect-timeout 10 --max-time 30 -o /tmp/body -w '%{http_code}' https://support-ops.mftintelligence.com/ || true)
+          post_status=$(curl --silent --show-error --connect-timeout 10 --max-time 30 -X POST -o /tmp/body -w '%{http_code}' https://support.mftintelligence.com/api/v1/status || true)
+          case "$recovery" in 302|303|307|401|403) ;; *) echo "recovery protection drift: $recovery" >&2; exit 1 ;; esac
+          case "$ops" in 302|303|307|401|403) ;; *) echo "operator protection drift: $ops" >&2; exit 1 ;; esac
+          case "$root" in 200|403) ;; *) echo "support root drift: $root" >&2; exit 1 ;; esac
+          if [ "$post_status" = "200" ]; then echo "POST status unexpectedly succeeded" >&2; exit 1; fi
+          echo "boundary_proof root=$root recovery=$recovery operator=$ops post_status=$post_status status_ok=$status_ok"
+          test "$status_ok" = true
