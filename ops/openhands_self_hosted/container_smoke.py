@@ -159,6 +159,23 @@ def main():
                 completed=list(pool.map(one_container_load,names))
             if sum(item['requests_completed'] for item in completed)!=10:
                 raise RuntimeError('ten-request S0 challenge did not complete')
+            if any(type(row.get('p50_ms')) not in (int,float)
+                   or type(row.get('p95_ms')) not in (int,float)
+                   or row['p50_ms'] < 0
+                   or row['p95_ms'] < row['p50_ms'] for row in completed):
+                raise RuntimeError('OpenHands load timing evidence invalid')
+            metrics={
+                'schema':'musitu.axiom.trackb.two-worker-ten-s0-requests.v1',
+                'workers':2,
+                'authenticated_s0_requests_completed':10,
+                'per_worker_p50_ms':[x['p50_ms'] for x in completed],
+                'per_worker_p95_ms':[x['p95_ms'] for x in completed],
+                'maximum_observed_p95_ms':max(x['p95_ms'] for x in completed),
+                'ten_concurrent_workers':'NOT_PROVEN',
+                'production_capacity':'NOT_PROVEN',
+                'model_driven_execution':'NOT_PROVEN',
+            }
+            print('MUSITU_AXIOM_OPENHANDS_TEN_S0_REQUEST_METRICS='+json.dumps(metrics,sort_keys=True))
             print('MUSITU_AXIOM_OPENHANDS_TWO_CONTAINERS_TEN_S0_REQUESTS_PASS')
             print('MODEL_DRIVEN_EXECUTION=NOT_PROVEN')
             print('TEN_INDEPENDENT_WORKERS=NOT_PROVEN')
