@@ -8,6 +8,8 @@ on:
       - '.github/workflows/axiom-trackb-modal-pilot-contract.yml'
       - 'ops/openhands_self_hosted/modal_pilot_spec.py'
       - 'ops/openhands_self_hosted/test_modal_pilot_spec.py'
+      - 'ops/openhands_self_hosted/modal_pilot_launcher.py'
+      - 'ops/openhands_self_hosted/test_modal_pilot_launcher.py'
   workflow_dispatch:
 
 permissions:
@@ -34,7 +36,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          python3 -m unittest discover -s ops/openhands_self_hosted -p 'test_modal_pilot_spec.py' -v
+          python3 -m unittest discover -s ops/openhands_self_hosted -p 'test_modal_pilot*.py' -v
           python3 -m compileall -q ops/openhands_self_hosted/modal_pilot_spec.py
       - name: Verify pinned Modal SDK Sandbox API without credentials or creation
         shell: bash
