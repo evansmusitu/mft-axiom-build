@@ -1,3 +1,4 @@
+// Global Support cron must reassert after every public Worker replacement.
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {readFile} from 'node:fs/promises';
