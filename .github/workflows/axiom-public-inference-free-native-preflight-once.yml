@@ -31,7 +31,7 @@ jobs:
               raise SystemExit('GLOBAL_API_KEY_AUTH_MODE_NOT_CONFIRMED')
           h={'X-Auth-Email':EMAIL,'X-Auth-Key':KEY,'Accept':'application/json','User-Agent':'MUSITU-AXIOM-Isolated-ReadOnly/1'}
           def req(path):
-              if not path.startswith(('/accounts/'+AID,'/zones?name=mftintelligence.com&status=active')):
+              if not path.startswith(('/accounts/'+AID,'/zones?name=mftintelligence.com&status=active','/user')):
                   raise RuntimeError('ROUTE_NOT_ALLOWED')
               q=urllib.request.Request(API+path,headers=h,method='GET')
               try:
@@ -53,6 +53,12 @@ jobs:
                and zone['data'][0].get('status')=='active'
                and (zone['data'][0].get('account') or {}).get('id')==AID)
           if not validzone:
+              # Distinguish native Cloudflare auth rejection from account mismatch,
+              # without returning names/IDs/credentials or provider messages.
+              paths=['/user','/accounts/'+AID]
+              for ix,path in enumerate(paths):
+                  check=req(path)
+                  print('AXIOM_CF_READ_DIAGNOSTIC_'+str(ix)+'='+str(check.get('reason','OK' if check.get('api_ok') else 'UNSUCCESSFUL')))
               reason=zone.get('reason','INVALID_ZONE_RESULT' if zone.get('api_ok') else 'ZONE_READ_UNSUCCESSFUL')
               print('AXIOM_CF_ZONE_DIAGNOSTIC='+str(reason))
               if zone.get('api_ok') and isinstance(zone.get('data'),list):
