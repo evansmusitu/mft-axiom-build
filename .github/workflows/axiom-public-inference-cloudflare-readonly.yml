@@ -7,13 +7,13 @@ permissions:
   contents: read
 
 concurrency:
-  group: axiom-public-inference-cloudflare-readonly-\${{ github.ref }}
+  group: axiom-public-inference-cloudflare-readonly-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
   verify-established-global-key-route:
     # No paid CI: fail closed unless owner verifies free Actions quota.
-    if: \${{ vars.AXIOM_TRACK_B_ZERO_COST_CI_ALLOWED == 'true' }}
+    if: ${{ vars.AXIOM_TRACK_B_ZERO_COST_CI_ALLOWED == 'true' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     env:
@@ -30,12 +30,12 @@ jobs:
           python3 -m unittest discover -s ops/public_inference -p 'test_cloudflare_readonly.py' -v
       - name: Read account and AXIOM zone through established secret path
         env:
-          CLOUDFLARE_EMAIL: \${{ secrets.CLOUDFLARE_EMAIL }}
-          CLOUDFLARE_GLOBAL_API_KEY: \${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
         run: |
           set -euo pipefail
-          test -n "\${CLOUDFLARE_EMAIL:-}"
-          test -n "\${CLOUDFLARE_GLOBAL_API_KEY:-}"
+          test -n "${CLOUDFLARE_EMAIL:-}"
+          test -n "${CLOUDFLARE_GLOBAL_API_KEY:-}"
           python3 ops/public_inference/cloudflare_readonly.py
           echo 'CLOUDFLARE_FREE_PLAN=NOT_PROVEN'
           echo 'WORKERS_AI_PUBLIC_INFERENCE=NOT_ENABLED'
