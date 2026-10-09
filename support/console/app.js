@@ -96,6 +96,17 @@ async function saveEnterpriseEntitlement(){
     output.textContent=`Entitlement ${value.capability} ${value.enabled?'enabled':'disabled'}.`;
   }catch(error){output.textContent=error.message;}
 }
+async function createEnterpriseInvite(){
+  const orgRef=$('#enterprise-org-ref').value.trim(),role=$('#enterprise-invite-role').value,hours=Number($('#enterprise-invite-hours').value||24);
+  const output=$('#enterprise-status');if(!orgRef)return;
+  try{
+    const value=await api(`/api/v1/operator/organizations/${encodeURIComponent(orgRef)}/invites`,{method:'POST',body:JSON.stringify({role,expires_in_hours:hours})});
+    $('#enterprise-invite-code').textContent=value.invite_code;
+    $('#enterprise-invite-receipt').hidden=false;
+    output.textContent=`Invitation ${value.invite_id} created. The plaintext code is shown once.`;
+  }catch(error){output.textContent=error.message;}
+}
+
 function enterpriseWebhookInput(){
   return {
     org_ref:$('#enterprise-org-ref').value.trim(),
@@ -196,5 +207,5 @@ document.querySelectorAll('.filters button').forEach(button=>button.addEventList
 document.querySelectorAll('.composer-tabs button').forEach(button=>button.addEventListener('click',()=>{mode=button.dataset.type;document.querySelectorAll('.composer-tabs button').forEach(x=>x.setAttribute('aria-selected',String(x===button)));send.textContent=mode==='INTERNAL_NOTE'?'Save internal note':'Send reply';messageBody.placeholder=mode==='INTERNAL_NOTE'?'Write a private internal note…':'Write a secure response…';}));
 search.addEventListener('input',renderList);send.addEventListener('click',postMessage);applyState.addEventListener('click',changeState);assignButton.addEventListener('click',assignToMe);requestApproval.addEventListener('click',requestSensitiveApproval);
 $('#lease-case')?.addEventListener('click',leaseCase);$('#escalate-case')?.addEventListener('click',escalateCase);$('#handoff-case')?.addEventListener('click',handoffCase);$('#save-qa')?.addEventListener('click',saveQa);$('#create-incident')?.addEventListener('click',createIncident);$('#create-macro')?.addEventListener('click',createMacro);
-$('#save-enterprise-org')?.addEventListener('click',saveEnterpriseOrg);$('#save-enterprise-entitlement')?.addEventListener('click',saveEnterpriseEntitlement);$('#create-enterprise-webhook')?.addEventListener('click',createEnterpriseWebhook);$('#rotate-enterprise-webhook')?.addEventListener('click',rotateEnterpriseWebhook);
+$('#save-enterprise-org')?.addEventListener('click',saveEnterpriseOrg);$('#save-enterprise-entitlement')?.addEventListener('click',saveEnterpriseEntitlement);$('#create-enterprise-invite')?.addEventListener('click',createEnterpriseInvite);$('#create-enterprise-webhook')?.addEventListener('click',createEnterpriseWebhook);$('#rotate-enterprise-webhook')?.addEventListener('click',rotateEnterpriseWebhook);
 loadCases();loadGlobalOps();
