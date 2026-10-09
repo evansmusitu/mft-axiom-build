@@ -1,17 +1,6 @@
 name: MUSITU AXIOM Track B B2 Signed Model Gateway Contract
 
 on:
-  push:
-    branches:
-      - frontier/axiom-trackb-openhands-selfhost-20261008
-    paths:
-      - '.github/workflows/axiom-trackb-b2-model-gateway.yml'
-      - 'ops/openhands_self_hosted/model_gateway_guard.py'
-      - 'ops/openhands_self_hosted/model_https_transport.py'
-      - 'ops/openhands_self_hosted/model_budget_ledger.py'
-      - 'ops/openhands_self_hosted/test_model_gateway_guard.py'
-      - 'ops/openhands_self_hosted/test_model_https_transport.py'
-      - 'ops/openhands_self_hosted/test_model_budget_ledger.py'
   workflow_dispatch:
 
 permissions:
@@ -23,6 +12,8 @@ concurrency:
 
 jobs:
   offline-provider-gateway-contract:
+    # Operator must verify no-overage quota before running even manual CI.
+    if: ${{ vars.AXIOM_TRACK_B_ZERO_COST_CI_ALLOWED == 'true' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 6
     env:

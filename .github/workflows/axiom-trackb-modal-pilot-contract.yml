@@ -1,15 +1,6 @@
 name: MUSITU AXIOM Track B Modal Sandbox API Compatibility Contract
 
 on:
-  push:
-    branches:
-      - frontier/axiom-trackb-openhands-selfhost-20261008
-    paths:
-      - '.github/workflows/axiom-trackb-modal-pilot-contract.yml'
-      - 'ops/openhands_self_hosted/modal_pilot_spec.py'
-      - 'ops/openhands_self_hosted/test_modal_pilot_spec.py'
-      - 'ops/openhands_self_hosted/modal_pilot_launcher.py'
-      - 'ops/openhands_self_hosted/test_modal_pilot_launcher.py'
   workflow_dispatch:
 
 permissions:
@@ -17,6 +8,8 @@ permissions:
 
 jobs:
   modal-sdk-api-contract:
+    # Operator must verify no-overage quota before running even manual CI.
+    if: ${{ vars.AXIOM_TRACK_B_ZERO_COST_CI_ALLOWED == 'true' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 8
     steps:

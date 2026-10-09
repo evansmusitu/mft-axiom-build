@@ -1,12 +1,6 @@
 name: MUSITU AXIOM Track B Self-hosted OpenHands Isolated Smoke
 
 on:
-  push:
-    branches:
-      - frontier/axiom-trackb-openhands-selfhost-20261008
-    paths:
-      - '.github/workflows/axiom-trackb-openhands-selfhost-smoke.yml'
-      - 'ops/openhands_self_hosted/**'
   workflow_dispatch:
 
 permissions:
@@ -18,6 +12,8 @@ concurrency:
 
 jobs:
   selfhost-auth-preflight:
+    # Operator must verify no-overage quota before running even manual CI.
+    if: ${{ vars.AXIOM_TRACK_B_ZERO_COST_CI_ALLOWED == 'true' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     env:
