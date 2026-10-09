@@ -13,8 +13,8 @@ jobs:
     timeout-minutes: 8
     env:
       CF_ACCOUNT: '93f395f5121954671f92fffa453d6b61'
-      RESEND_KEY: \${{ secrets.RESEND_API_KEY }}
-      CF_TOKEN: \${{ secrets.CLOUDFLARE_RULESETS_API_TOKEN }}
+      RESEND_KEY: ${{ secrets.RESEND_API_KEY }}
+      CF_TOKEN: ${{ secrets.CLOUDFLARE_RULESETS_API_TOKEN }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
