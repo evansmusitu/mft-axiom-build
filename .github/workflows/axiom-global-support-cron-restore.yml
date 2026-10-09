@@ -1,0 +1,100 @@
+name: MUSITU Axiom Global Support Cron Restore
+
+on:
+  push:
+    branches:
+      - 'support/axiom-global-support-ops-production-rollout-20261008'
+    paths:
+      - '.github/workflows/axiom-global-support-cron-restore.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  restore:
+    if: github.event_name == 'push' && github.event.before == '2c4144242b839c1f366d5946e155e7851b00e96a'
+    runs-on: ubuntu-latest
+    environment: axiom-support-production
+    timeout-minutes: 12
+    env:
+      CF_ACCOUNT: '93f395f5121954671f92fffa453d6b61'
+      SUPPORT_DB: 'a525c8b6-9b44-413b-a219-46e419b71b12'
+      WORKER_TOKEN: ${{ secrets.CLOUDFLARE_RULESETS_API_TOKEN }}
+      D1_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+    steps:
+      - name: Restore and verify support cron
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          const api='https://api.cloudflare.com/client/v4',account=process.env.CF_ACCOUNT,token=String(process.env.WORKER_TOKEN||'');
+          const h={authorization:'Bearer '+token,accept:'application/json','content-type':'application/json'};
+          async function call(path,{method='GET',body}={}){
+            const r=await fetch(api+path,{method,headers:h,...(body===undefined?{}:{body:JSON.stringify(body)})});
+            const p=await r.json().catch(()=>({}));
+            if(!r.ok||p?.success===false)throw new Error('Cloudflare '+method+' '+path+' failed HTTP '+r.status);
+            return p.result;
+          }
+          const path='/accounts/'+account+'/workers/scripts/musitu-axiom-support/schedules';
+          await call(path,{method:'PUT',body:[{cron:'*/5 * * * *'}]});
+          const after=await call(path);
+          const rows=Array.isArray(after?.schedules)?after.schedules:Array.isArray(after)?after:[];
+          if(rows.length!==1||String(rows[0]?.cron||'')!=='*/5 * * * *')throw new Error('support cron readback mismatch');
+          console.log(JSON.stringify({gate:'MUSITU_AXIOM_GLOBAL_SUPPORT_CRON_RESTORE',status:'PASS',cron:'*/5 * * * *',schedule_count:1}));
+          NODE
+
+      - name: Create metadata-only scheduler probe
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          const api='https://api.cloudflare.com/client/v4',account=process.env.CF_ACCOUNT,db=process.env.SUPPORT_DB,token=String(process.env.D1_TOKEN||'');
+          const h={authorization:'Bearer '+token,'content-type':'application/json',accept:'application/json'};
+          async function q(sql,params=[]){
+            const r=await fetch(api+'/accounts/'+account+'/d1/database/'+db+'/query',{method:'POST',headers:h,body:JSON.stringify({sql,params})});
+            const p=await r.json();if(!r.ok||p?.success===false)throw new Error('D1 query failed HTTP '+r.status);
+            const x=Array.isArray(p.result)?p.result[0]:p.result;return x?.results||[];
+          }
+          const cases=await q("SELECT case_id FROM support_cases ORDER BY created_at DESC LIMIT 1");
+          if(!cases[0]?.case_id)throw new Error('no support case available for scheduler probe');
+          const alphabet='0123456789ABCDEFGHJKMNPQRSTVWXYZ';
+          const bytes=crypto.getRandomValues(new Uint8Array(16));
+          const suffix=[...bytes].map(b=>alphabet[b%alphabet.length]).join('');
+          const id='AXN-'+suffix,at=new Date().toISOString();
+          await q("INSERT INTO support_notification_outbox(notification_id,case_id,kind,audience,event_hash,created_at) VALUES (?,?,?,'operator',NULL,?)",[id,String(cases[0].case_id),'SCHEDULER_RESTORE_TEST',at]);
+          console.log(JSON.stringify({gate:'MUSITU_AXIOM_GLOBAL_SUPPORT_CRON_PROBE_CREATED',status:'PASS',notification_id:id,case_id:String(cases[0].case_id),customer_content_read:false}));
+          NODE
+
+      - name: Wait for scheduled execution and clean synthetic probe
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          const api='https://api.cloudflare.com/client/v4',account=process.env.CF_ACCOUNT,db=process.env.SUPPORT_DB,token=String(process.env.D1_TOKEN||'');
+          const h={authorization:'Bearer '+token,'content-type':'application/json',accept:'application/json'};
+          async function q(sql,params=[]){
+            const r=await fetch(api+'/accounts/'+account+'/d1/database/'+db+'/query',{method:'POST',headers:h,body:JSON.stringify({sql,params})});
+            const p=await r.json();if(!r.ok||p?.success===false)throw new Error('D1 query failed HTTP '+r.status);
+            const x=Array.isArray(p.result)?p.result[0]:p.result;return x?.results||[];
+          }
+          let proof=null;
+          for(let i=0;i<70;i++){
+            const rows=await q(`SELECT a.attempt_id,a.state,a.provider_ref_hash,a.attempted_at,n.notification_id,n.case_id,n.kind
+              FROM support_notification_attempts a JOIN support_notification_outbox n ON n.notification_id=a.notification_id
+              WHERE n.kind='SCHEDULER_RESTORE_TEST' ORDER BY a.attempted_at DESC LIMIT 1`);
+            if(rows[0]){proof=rows[0];break;}
+            await new Promise(r=>setTimeout(r,5000));
+          }
+          if(!proof)throw new Error('restored cron did not process scheduler probe before timeout');
+          console.log(JSON.stringify({
+            gate:'MUSITU_AXIOM_GLOBAL_SUPPORT_CRON_LIVE_PROOF',
+            status:'PASS',
+            attempt_state:String(proof.state),
+            provider_receipt_hash_present:/^[a-f0-9]{64}$/i.test(String(proof.provider_ref_hash||'')),
+            attempted_at:String(proof.attempted_at||''),
+            customer_content_read:false
+          }));
+          await q("DELETE FROM support_notification_attempts WHERE notification_id=?",[String(proof.notification_id)]);
+          await q("DELETE FROM support_notification_outbox WHERE notification_id=?",[String(proof.notification_id)]);
+          console.log(JSON.stringify({gate:'MUSITU_AXIOM_GLOBAL_SUPPORT_CRON_PROBE_CLEANUP',status:'PASS'}));
+          NODE
