@@ -1,5 +1,6 @@
 """Real XLS parsing edge cases, based on GENERATED test data only."""
 import hashlib
+import importlib.util
 from pathlib import Path
 import tempfile
 import unittest
@@ -9,6 +10,8 @@ from connect.mining_telemetry import MINING_TELEMETRY_SENSORS
 from benchmarks.mining_adapter.public_candidate_forensics import inspect_public_workbook
 
 
+@unittest.skipUnless(importlib.util.find_spec('xlwt') is not None and importlib.util.find_spec('xlrd') is not None,
+                     'isolated public workbook forensic workflow installs legacy XLS tools')
 class PublicCandidateForensicsTests(unittest.TestCase):
     def setUp(self):
         import xlwt

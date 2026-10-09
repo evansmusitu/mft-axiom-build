@@ -1,7 +1,7 @@
 {
   "schema": "musitu.axiom.independent_mine_source_discovery.v1",
   "assessed_on": "2026-10-09",
-  "purpose": "Research candidate triage, not mine validation; no private mine dataset acquired or tested",
+  "purpose": "Public candidate research and one verified real-source XLS forensic inspection; no new independent mine validation",
   "record_count": 4,
   "sources": [
     {
@@ -31,11 +31,30 @@
       "sampling_seconds": null,
       "independently_measured_canonical_sensors": [],
       "source_url": "https://zenodo.org/records/6450554",
-      "source_description": "2022-02-06 dataset; 1.1 MB XLS described as gas, temperature and wind from No. 3209 mine. Full canonical schema, sampling, rights and event labels not verified.",
-      "evidence_category": "METADATA_ONLY_TELEMETRY_COMPATIBILITY_UNVERIFIED",
-      "source_sha256_status": "Exact source bytes not independently verified",
-      "source_permission_status": "not independently verified",
-      "real_mine_independent_validation": false
+      "source_description": "Published 2022-02-06 no.3209 mine: real 1,065,472-byte XLS verified against Zenodo publisher MD5; 1 sheet, 5,753 rows including headers, 16 columns. No exact canonical 28-sensor names identified in first 5 rows; observed time-column dominant step 10 seconds and 1,447 non-increasing deltas. No 1Hz source continuity or calibrated physical sensor equivalence established.",
+      "evidence_category": "PUBLISHED_XLS_BYTES_VERIFIED_CADENCE_AND_SCHEMA_NOT_COMPATIBLE",
+      "source_sha256_status": "Verified downloaded public workbook: SHA-256 18768c2555a63712c0da1e64430be1f6a53227712f9d9413f007ea5c26478559; publisher MD5 3186fe58543ec7f9fb4a7d71b99c02e1 matched",
+      "source_permission_status": "record API rights field absent in fetch; specific reuse license and production rights not verified",
+      "real_mine_independent_validation": false,
+      "public_binary_forensic": {
+        "schema": "musitu.axiom.public_mine_workbook_forensics.v1",
+        "workflow_run_id": 37992842532,
+        "artifact_id": 11645691981,
+        "published_md5_matched": true,
+        "xls_sha256": "18768c2555a63712c0da1e64430be1f6a53227712f9d9413f007ea5c26478559",
+        "xls_bytes": 1065472,
+        "worksheet_count": 1,
+        "worksheet_rows_including_headers": 5753,
+        "worksheet_columns": 16,
+        "canonical_named_sensors_first_five_rows": 0,
+        "inspected_timestamp_count": 5752,
+        "observed_positive_delta_mode_seconds": 10,
+        "observed_one_second_deltas": 0,
+        "observed_non_increasing_deltas": 1447,
+        "exact_one_second_cadence_verified": false,
+        "independent_methane_performance_tested": false,
+        "production_admission": false
+      }
     },
     {
       "candidate_id": "china-2022-2023-eight-sensor-study",
