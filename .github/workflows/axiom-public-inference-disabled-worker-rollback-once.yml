@@ -1,0 +1,110 @@
+name: AXIOM single disabled Worker deploy and native verified rollback
+on:
+  push:
+    branches: [frontier/axiom-public-inference-zero-cost-20261009]
+    paths: ['.github/workflows/axiom-public-inference-disabled-worker-rollback-once.yml']
+permissions:
+  contents: read
+jobs:
+  rollback-qualification:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 7
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      WORKER_NAME: axiom-public-inference-rollback-qual-20261009
+    steps:
+      - name: Verify account Workers Free and ensure target worker absent
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF_NAME" = 'frontier/axiom-public-inference-zero-cost-20261009'
+          test -n "${CLOUDFLARE_API_TOKEN:-}" || exit 42
+          python3 - <<'PY'
+          import os,json,urllib.request,urllib.error
+          A=os.environ['CLOUDFLARE_ACCOUNT_ID'];W=os.environ['WORKER_NAME']
+          BASE='https://api.cloudflare.com/client/v4/accounts/'+A
+          H={'Authorization':'Bearer '+os.environ['CLOUDFLARE_API_TOKEN'],'Accept':'application/json'}
+          def get(path):
+              q=urllib.request.Request(BASE+path,headers=H,method='GET')
+              try:
+                  with urllib.request.urlopen(q,timeout=20) as r:
+                      x=json.loads(r.read(65537))
+                      if r.status!=200 or x.get('success') is not True:raise SystemExit('READ_NOT_PROVEN')
+                      return x
+              except urllib.error.HTTPError as e:
+                  return {'http_status':e.code}
+              except Exception:raise SystemExit('READ_TRANSPORT_NOT_PROVEN') from None
+          x=get('/subscriptions')
+          rows=x.get('result')
+          meta=x.get('result_info')
+          if not isinstance(rows,list) or (isinstance(meta,dict) and meta.get('total_count')!=len(rows)):
+              raise SystemExit('FREE_SUBSCRIPTIONS_NOT_PROVEN')
+          for row in rows:
+              v=str((row.get('rate_plan') or {}).get('id') or '').upper()
+              if v.startswith(('WORKERS_PAID','PARTNERS_WORKERS')):
+                  raise SystemExit('PAID_WORKERS_PLAN_BLOCKED')
+          target=get('/workers/scripts/'+W+'/settings')
+          if target.get('http_status')!=404:
+              raise SystemExit('TARGET_WORKER_PREEXISTS_OR_READ_UNAVAILABLE')
+          print('AXIOM_DISABLED_WORKER_PREFLIGHT=PASS')
+          PY
+      - name: Create only an unexposed dummy Worker with no AI bindings or routes
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/axiom-zero-cash-worker
+          cat >/tmp/axiom-zero-cash-worker/worker.mjs <<'JS'
+          export default { async fetch(){
+            return new Response('AXIOM_ISOLATED_DISABLED',{status:503,headers:{'cache-control':'no-store'}});
+          }};
+          JS
+          cat >/tmp/axiom-zero-cash-worker/wrangler.json <<'JSON'
+          {"name":"axiom-public-inference-rollback-qual-20261009",
+          "main":"worker.mjs","compatibility_date":"2026-10-09",
+          "workers_dev":false,"routes":[]}
+          JSON
+          (cd /tmp/axiom-zero-cash-worker && npm exec --yes --package=wrangler@4.129.0 -- wrangler deploy --config wrangler.json > /tmp/axiom-deploy-stdout 2>/tmp/axiom-deploy-stderr) || {
+            echo AXIOM_ISOLATED_DEPLOY_NOT_AUTHORIZED_OR_FAILED
+            # Never display raw Wrangler logs that could include account metadata.
+            exit 44
+          }
+          echo AXIOM_DISABLED_NO_ROUTE_WORKER_DEPLOY=PASS
+      - name: Cloudflare native readback proves script exists without public exposure
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import os,json,urllib.request
+          A=os.environ['CLOUDFLARE_ACCOUNT_ID'];W=os.environ['WORKER_NAME'];T=os.environ['CLOUDFLARE_API_TOKEN']
+          H={'Authorization':'Bearer '+T,'Accept':'application/json'}
+          req=urllib.request.Request(f'https://api.cloudflare.com/client/v4/accounts/{A}/workers/scripts/{W}/settings',headers=H,method='GET')
+          with urllib.request.urlopen(req,timeout=20) as r:
+              x=json.loads(r.read(65537))
+          if not x.get('success'):raise SystemExit('NATIVE_SCRIPT_READBACK_NOT_PROVEN')
+          print('AXIOM_DISABLED_WORKER_NATIVE_SCRIPT_READBACK_PASS')
+          PY
+      - name: Delete exact isolated Worker and verify provider-native absence
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF_NAME" = 'frontier/axiom-public-inference-zero-cost-20261009'
+          # Deletion is scoped to this exact synthetic worker name.
+          (cd /tmp/axiom-zero-cash-worker && npm exec --yes --package=wrangler@4.129.0 -- wrangler delete --name axiom-public-inference-rollback-qual-20261009 --force > /tmp/axiom-delete-stdout 2>/tmp/axiom-delete-stderr) || true
+          python3 - <<'PY'
+          import os,urllib.request,urllib.error
+          A=os.environ['CLOUDFLARE_ACCOUNT_ID'];W=os.environ['WORKER_NAME'];T=os.environ['CLOUDFLARE_API_TOKEN']
+          req=urllib.request.Request(f'https://api.cloudflare.com/client/v4/accounts/{A}/workers/scripts/{W}/settings',
+            headers={'Authorization':'Bearer '+T,'Accept':'application/json'},method='GET')
+          try:
+              with urllib.request.urlopen(req,timeout=20) as r:
+                  print('AXIOM_DISABLED_WORKER_STILL_PRESENT_FAIL_CLOSED')
+                  raise SystemExit(45)
+          except urllib.error.HTTPError as e:
+              if e.code==404:
+                  print('AXIOM_DISABLED_WORKER_PROVIDER_NATIVE_ROLLBACK_PASS')
+              else:
+                  print('AXIOM_WORKER_ROLLBACK_READ_HTTP_'+str(e.code))
+                  raise SystemExit(46)
+          PY
