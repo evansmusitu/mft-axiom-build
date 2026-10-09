@@ -5,6 +5,9 @@ import hmac
 import json
 import threading
 import unittest
+import tempfile
+from pathlib import Path
+from model_budget_ledger import SqliteBudgetLedger
 from concurrent.futures import ThreadPoolExecutor
 from model_gateway_guard import ModelGatewayGuard, ModelAccessDenied, ModelTransportError
 
@@ -182,6 +185,25 @@ class GatewayGuardTests(unittest.TestCase):
             with self.subTest(scope=scope), self.assertRaises(ModelAccessDenied):
                 self.submit(claims)
         self.assertEqual(self.calls, [])
+
+    def test_durable_budget_survives_new_broker_instance(self):
+        with tempfile.TemporaryDirectory() as temp:
+            path=Path(temp)/'provider-budget.sqlite3'
+            for _ in range(2):
+                gateway=ModelGatewayGuard(
+                    signing_key=SIGNER, provider_credential='FAKE_ONLY',
+                    transport=self.transport, clock=lambda:self.now,
+                    reservation_ledger=SqliteBudgetLedger(path))
+                gateway.submit(capability=issued_claims(),signature=sign(issued_claims()),
+                               request=work(),workload_identity_id=ACTOR)
+            third=ModelGatewayGuard(
+                signing_key=SIGNER, provider_credential='FAKE_ONLY',
+                transport=self.transport, clock=lambda:self.now,
+                reservation_ledger=SqliteBudgetLedger(path))
+            with self.assertRaises(ModelAccessDenied):
+                third.submit(capability=issued_claims(),signature=sign(issued_claims()),
+                             request=work(),workload_identity_id=ACTOR)
+            self.assertEqual(len(self.calls),2)
 
     def test_missing_signing_key_rejected(self):
         with self.assertRaises((ValueError,TypeError)):
