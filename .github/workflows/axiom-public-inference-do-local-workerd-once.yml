@@ -72,6 +72,15 @@ jobs:
                 'ENVIRONMENT':'environment variables','SCRIPT_MISSING':'no such file or directory'}
           matches=[k for k,v in cats.items() if v in s]
           print('AXIOM_LOCAL_WORKERD_START_FAILURE_CATEGORIES='+str(matches if matches else ['UNKNOWN_SANITIZED']))
+          # Never print raw Wrangler logs, tokens, account IDs, stack traces or URLs.
+          # Only stable Cloudflare/workerd startup diagnostic labels.
+          patterns={'COMPAT_DATE':'compatibility date','MISSING_CLASS':'cannot find class',
+            'MISSING_EXPORT':'not exported','DO_MIGRATION':'migration','DO_STORAGE':'sqlite',
+            'MISSING_SCRIPT':'script could not be found','LOAD_ERROR':'failed to load',
+            'INVALID_MODULE':'cannot import','ESBUILD_FAILURE':'build failed',
+            'WORKER_EXCEPTION':'uncaught exception','UNSUPPORTED_RUNTIME':'not supported',
+            'NO_SOCKET':'socket','INIT_ERROR':'startup failed'}
+          print('AXIOM_LOCAL_WORKERD_CATEGORIZED_ROOT_CAUSE='+str([k for k,v in patterns.items() if v in s]))
           PY
               echo AXIOM_LOCAL_WORKERD_START_NOT_PROVEN
               exit 43
