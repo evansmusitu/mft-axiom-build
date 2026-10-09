@@ -61,7 +61,21 @@ jobs:
           npm exec --yes --package=wrangler@4.129.0 -- wrangler dev --local --ip 127.0.0.1 --port 8787 --config wrangler-axiom-do-probe.json --var "AXIOM_EPHEMERAL_PROBE_KEY:$AXIOM_EPHEMERAL_PROBE_KEY" --var "AXIOM_DO_INTERNAL_QUOTA_KEY:$AXIOM_DO_INTERNAL_QUOTA_KEY" > "$LOG" 2>&1 &
           PID=$!
           for i in $(seq 1 85); do
-            if ! kill -0 "$PID" 2>/dev/null; then echo NATIVE_DO_REMOTE_RUNTIME_START_FAILED; exit 43; fi
+            if ! kill -0 "$PID" 2>/dev/null; then
+              python3 - "$LOG" <<'PY'
+          import sys
+          s=open(sys.argv[1],errors='replace').read().lower()
+          cats={'CONFIG_SCHEMA':'invalid configuration','WRANGLER_FLAG':'unknown argument',
+                'MODULE_RESOLUTION':'could not resolve','DO_CLASS':'durable object class',
+                'LOCAL_PORT':'address already in use','WORKER_START':'failed to start',
+                'NO_ACCOUNT':'not logged in','JS_EXCEPTION':'syntaxerror',
+                'ENVIRONMENT':'environment variables','SCRIPT_MISSING':'no such file or directory'}
+          matches=[k for k,v in cats.items() if v in s]
+          print('AXIOM_LOCAL_WORKERD_START_FAILURE_CATEGORIES='+str(matches if matches else ['UNKNOWN_SANITIZED']))
+          PY
+              echo AXIOM_LOCAL_WORKERD_START_NOT_PROVEN
+              exit 43
+            fi
             if curl -fsS -o /dev/null --max-time 2 http://127.0.0.1:8787/ || [ "$(curl -sS -o /dev/null -w '%{http_code}' --max-time 2 http://127.0.0.1:8787/ || true)" = 404 ]; then break; fi
             sleep 1
           done
