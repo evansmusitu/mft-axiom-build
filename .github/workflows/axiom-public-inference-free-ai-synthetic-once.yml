@@ -57,12 +57,18 @@ jobs:
           if not isinstance(zone,list) or len(zone)!=1 or (zone[0].get('account') or {}).get('id')!=AID:
               raise SystemExit('ACCOUNT_ZONE_MISMATCH')
           message='Reply exactly OK for isolated zero-cost synthetic API qualification.'
-          body={'messages':[{'role':'user','content':message}],'max_tokens':8}
+          body={'messages':[{'role':'user','content':message}], 'max_completion_tokens':64, 'chat_template_kwargs':{'enable_thinking':False}}
           result=call('/accounts/'+AID+'/ai/run/'+MODEL,body)
           value=result.get('result')
           text=(value.get('response') if isinstance(value,dict) else None)
+          if not isinstance(text,str) and isinstance(value,dict):
+              choices=value.get('choices')
+              if isinstance(choices,list) and choices and isinstance(choices[0],dict):
+                  msg=choices[0].get('message')
+                  text=msg.get('content') if isinstance(msg,dict) else None
           # A model response can vary; require bounded nonempty text only.
           if not isinstance(text,str) or not text.strip() or len(text)>1024:
+              print('AXIOM_NATIVE_PROVIDER_RESPONSE_DIAGNOSTIC='+json.dumps({'result_type':type(value).__name__, 'has_choices':isinstance(value,dict) and isinstance(value.get('choices'),list), 'has_response':isinstance(value,dict) and 'response' in value},sort_keys=True))
               raise SystemExit('AXIOM_NATIVE_PROVIDER_RESPONSE_SHAPE_NOT_PROVEN')
           receipt={
               'schema':'musitu.axiom.workers-ai.one-synthetic-read.v1',
