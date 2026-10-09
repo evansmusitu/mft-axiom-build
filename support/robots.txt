@@ -3,5 +3,6 @@ Allow: /
 Disallow: /api/
 Disallow: /health
 Disallow: /recovery/
+Disallow: /enterprise/
 
 Sitemap: https://support.mftintelligence.com/sitemap.xml
