@@ -1,9 +1,9 @@
 {
   "name": "@musitu/mail-fabric",
-  "version": "0.3.1",
+  "version": "0.4.0",
   "private": true,
   "type": "module",
-  "description": "Isolated durable, evidence-native mail orchestration with verified provider webhook ingest and Cloudflare queue adapter",
+  "description": "Isolated durable governed transactional communications with bounded quotas and verified bounce/complaint suppression",
   "scripts": {
     "test": "node --test test/*.test.mjs",
     "demo": "node demo.mjs",

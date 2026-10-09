@@ -18,6 +18,10 @@ export class DurableMailFabric {
     if(!db?.prepare||!encryptionKey||Buffer.from(encryptionKey).length!==32)throw TypeError('Separate D1 database and AES-256 key are required');
     if(!privacyKey||Buffer.from(privacyKey).length<32)throw TypeError('Persistent opaque-identity key required');
     if(!Number.isInteger(leaseMs)||leaseMs<15000)throw TypeError('Lease must exceed provider timeout');
+    // The cap is enforced inside the same SQLite write that creates the message.
+    // Clients cannot choose or increase this limit through the HTTP body.
+    this.dailySendLimit=config.dailySendLimit??100;
+    if(!Number.isSafeInteger(this.dailySendLimit)||this.dailySendLimit<1||this.dailySendLimit>100000)throw TypeError('INVALID_DAILY_QUOTA_CONFIG');
     this.config=config;this.db=db;this.key=Buffer.from(encryptionKey);this.now=now;this.leaseMs=leaseMs;
     this.ledger=new EvidenceLedger({...keys,privacyKey:Buffer.from(privacyKey),now:()=>new Date(this.now()).toISOString()});
     this.suppressed=new Set();
@@ -50,20 +54,35 @@ export class DurableMailFabric {
   }
   async #row(id){return this.db.prepare('SELECT * FROM mail_messages WHERE message_id=? AND tenant_id=?').bind(id,this.config.tenantId).first();}
   async enqueue(input){
-    const msg=validateSubmission(input,this.config,this.suppressed);
-    if(await this.#suppressed(msg.to,msg.tenantId))throw new PolicyRejection('RECIPIENT_SUPPRESSED');
+    const msg=validateSubmission(input,this.config,new Set());
     const requestHash=hash(JSON.stringify(msg));
+    // A receipt for a previously accepted idempotency key remains accessible,
+    // even if the recipient subsequently opted out or generated a complaint.
+    const original=await this.db.prepare('SELECT * FROM mail_messages WHERE tenant_id=? AND idempotency_key=?')
+      .bind(msg.tenantId,msg.idempotencyKey).first();
+    if(original){
+      if(original.request_hash!==requestHash)throw new PolicyRejection('IDEMPOTENCY_CONFLICT');
+      return view(original,this.ledger);
+    }
+    if(this.suppressed.has(msg.to.toLowerCase())||await this.#suppressed(msg.to,msg.tenantId))
+      throw new PolicyRejection('RECIPIENT_SUPPRESSED');
     const id=randomUUID(),ms=this.now();
     const events=[];
     this.ledger.append(events,{messageId:id,tenantId:msg.tenantId,event:'POLICY_APPROVED',detail:{
       kind:msg.kind,provider:this.config.provider.name||'configured',region:this.config.provider.region,
       recipientHmac:this.ledger.opaqueRecipient(msg.to),payloadSha256:requestHash}});
     const cipher=await this.#encrypt(msg,id);
+    const dayStart=Math.floor(ms/86400000)*86400000;
+    // A single atomic SQLite statement serializes competing limit checks with
+    // the insert. A duplicated idempotency key returns its original message.
     requireSuccess(await this.db.prepare(`INSERT OR IGNORE INTO mail_messages
-      (message_id,tenant_id,idempotency_key,request_hash,state,sealed_envelope,events_json,created_ms,updated_ms)
-      VALUES(?,?,?,?,?,?,?,?,?)`).bind(id,msg.tenantId,msg.idempotencyKey,requestHash,'QUEUED',cipher,JSON.stringify(events),ms,ms).run());
+      (message_id,tenant_id,idempotency_key,request_hash,recipient_hmac,state,sealed_envelope,events_json,created_ms,updated_ms)
+      SELECT ?,?,?,?,?,?,?,?,?,? WHERE
+      (SELECT COUNT(*) FROM mail_messages WHERE tenant_id=? AND created_ms>=? AND created_ms<?) < ?`)
+      .bind(id,msg.tenantId,msg.idempotencyKey,requestHash,this.ledger.opaqueRecipient(msg.to),
+        'QUEUED',cipher,JSON.stringify(events),ms,ms,msg.tenantId,dayStart,dayStart+86400000,this.dailySendLimit).run());
     const existing=await this.db.prepare('SELECT * FROM mail_messages WHERE tenant_id=? AND idempotency_key=?').bind(msg.tenantId,msg.idempotencyKey).first();
-    if(!existing)throw Error('DURABLE_RECORD_UNAVAILABLE');
+    if(!existing)throw new PolicyRejection('QUOTA_EXCEEDED');
     if(existing.request_hash!==requestHash)throw new PolicyRejection('IDEMPOTENCY_CONFLICT');
     return view(existing,this.ledger);
   }
@@ -112,16 +131,31 @@ export class DurableMailFabric {
   async recordProviderEvent({svixId,rawSha256,type,providerId}){
     if(typeof svixId!=='string'||!(/^[A-Za-z0-9._:-]{4,200}$/).test(svixId)||!(/^[a-f0-9]{64}$/).test(rawSha256)||!['email.delivered','email.bounced','email.complained','email.delivery_delayed'].includes(type)||!(/^[A-Za-z0-9_-]{1,120}$/).test(providerId))throw TypeError('INVALID_PROVIDER_EVENT');
     const prior=await this.db.prepare(`SELECT * FROM mail_provider_events WHERE tenant_id=? AND svix_id=?`).bind(this.config.tenantId,svixId).first();
-    if(prior){if(prior.raw_sha256!==rawSha256||prior.kind!==type||prior.provider_id!==providerId)throw Error('WEBHOOK_ID_CONFLICT');return {recorded:false,reason:'DUPLICATE_EVENT'};}
+    if(prior){
+      if(prior.raw_sha256!==rawSha256||prior.kind!==type||prior.provider_id!==providerId)throw Error('WEBHOOK_ID_CONFLICT');
+      // Repair a partial failure: event was persisted but recipient suppression failed.
+      await this.#applyFeedbackSuppression(type,providerId);
+      return {recorded:false,reason:'DUPLICATE_EVENT'};
+    }
     const message=await this.db.prepare(`SELECT message_id FROM mail_messages WHERE tenant_id=? AND provider_id=? AND state='ACCEPTED_BY_PROVIDER'`).bind(this.config.tenantId,providerId).first();
     if(!message)return {recorded:false,reason:'UNRELATED_PROVIDER_ID'};
     const result=requireSuccess(await this.db.prepare(`INSERT OR IGNORE INTO mail_provider_events(tenant_id,svix_id,message_id,provider_id,kind,raw_sha256,created_ms) VALUES(?,?,?,?,?,?,?)`).bind(this.config.tenantId,svixId,message.message_id,providerId,type,rawSha256,this.now()).run());
     if(result.meta?.changes!==1){
       const existing=await this.db.prepare(`SELECT * FROM mail_provider_events WHERE tenant_id=? AND svix_id=?`).bind(this.config.tenantId,svixId).first();
       if(existing&&(existing.raw_sha256!==rawSha256||existing.kind!==type||existing.provider_id!==providerId))throw Error('WEBHOOK_ID_CONFLICT');
+      await this.#applyFeedbackSuppression(type,providerId);
       return {recorded:false,reason:'DUPLICATE_EVENT'};
     }
+    await this.#applyFeedbackSuppression(type,providerId);
     return {recorded:true};
+  }
+  async #applyFeedbackSuppression(type,providerId){
+    if(type!=='email.bounced'&&type!=='email.complained')return;
+    const recipient=await this.db.prepare(`SELECT recipient_hmac FROM mail_messages WHERE tenant_id=? AND provider_id=? AND state='ACCEPTED_BY_PROVIDER'`)
+      .bind(this.config.tenantId,providerId).first();
+    if(!recipient?.recipient_hmac)throw Error('FEEDBACK_RECIPIENT_NOT_FOUND');
+    requireSuccess(await this.db.prepare('INSERT OR IGNORE INTO mail_suppressions(tenant_id,recipient_hmac,created_ms) VALUES(?,?,?)')
+      .bind(this.config.tenantId,recipient.recipient_hmac,this.now()).run());
   }
   async getProviderEvidence(messageId,tenantId){
     if(tenantId!==this.config.tenantId)return null;

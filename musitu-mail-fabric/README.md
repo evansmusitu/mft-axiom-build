@@ -59,7 +59,7 @@ console.log(receipt.state); // ACCEPTED_BY_PROVIDER (simulation only)
 
 To prepare the Resend adapter, an operator must explicitly set `allowNetwork:true` **and** provide a secret key from a secret store. No key is committed or bundled. A production-grade store, key-management service and deployment gate must be built and separately authorized before enabling real traffic. **Do not use this prototype to send real customer messages.**
 
-## Production gaps — NOT implemented
+## Original v0.1 production gaps (historical; see current status below)
 
 - Durable, transactional message/idempotency store (e.g. D1 or PostgreSQL), safe across crashes and parallel workers.
 - Separate tenant authentication, quota enforcement, billing, allowlist/domain-ownership and role provisioning.
@@ -90,3 +90,13 @@ The `src/durable/fabric.mjs` module introduces a separate D1-compatible SQL outb
 ### v0.3.1 independent verifier and optional Postal interface
 
 Run independent verification with `node src/verify-cli.mjs --receipt receipt.json --trusted-key trusted.pem` using a separately trusted Ed25519 public key. A Postal API transport adapter is also available via explicit configuration; no live Postal or Resend dispatch is enabled by this repository. This version does not implement an independent SMTP fleet or recipient-proof legal certification.
+
+## v0.4 laboratory security and delivery controls (2026-10-10)
+
+The v0.4 release strengthens `src/durable/fabric.mjs` with one-statement, SQLite-atomic UTC-day tenant quotas (`dailySendLimit`, default 100), an explicit operator-side `MMF_DAILY_SEND_LIMIT` Worker configuration, and durable HMAC recipient identity storage. Authentication and existing tenant-isolation requirements still apply. The API signals an exhausted daily quota with HTTP 429 and `QUOTA_EXCEEDED`; idempotent repeats of the original request remain retrievable even when the cap is reached or a recipient is later suppressed.
+
+When a **properly authenticated** Resend event reports a bounce or complaint, the matching recipient is suppressed for later submissions and already-queued deliveries. Webhook re-delivery repairs a partial event/suppression write failure. The public webhook can ingest feedback while **outbound sending is paused**, without enabling queue/scheduled dispatch. Transient event-store errors return HTTP 503 for retry, rather than falsely confirming delivery. No unsigned webhook may create suppression.
+
+**Migration safety:** The v0.4 table includes `recipient_hmac` as a required column. `CREATE TABLE IF NOT EXISTS` cannot update an existing v0.3 table: do not apply this schema blindly to existing D1 data. No compatible in-place migration of historical accepted messages is proven, because their encrypted envelope is erased after provider acceptance. Use a separately created fresh database for the isolated v0.4 qualification; any later migration of real data requires a reviewed reconciliation and consent plan.
+
+**Limitations:** Tenant quota controls prevent a daily *message count* overload but are not request-per-second rate limits, spam detection, marketing consent or paid-customer abuse protection. The tests currently use local SQLite and mocked provider delivery; no Cloudflare production D1/Queue or real customer domain deployment was authorized.

@@ -4,6 +4,7 @@ CREATE TABLE IF NOT EXISTS mail_messages (
   tenant_id TEXT NOT NULL,
   idempotency_key TEXT NOT NULL,
   request_hash TEXT NOT NULL,
+  recipient_hmac TEXT NOT NULL,
   state TEXT NOT NULL CHECK(state IN ('QUEUED','SENDING','ACCEPTED_BY_PROVIDER','REJECTED_BY_PROVIDER','OUTCOME_UNKNOWN','BLOCKED_BY_POLICY')),
   sealed_envelope TEXT,
   events_json TEXT NOT NULL,

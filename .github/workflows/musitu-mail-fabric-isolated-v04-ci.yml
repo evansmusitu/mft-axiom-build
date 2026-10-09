@@ -1,0 +1,46 @@
+name: MUSITU Mail Fabric v0.4 Isolated Safety Gate
+on:
+  push:
+    branches: ['product/musitu-mail-fabric-isolated-20261009']
+    paths:
+      - 'musitu-mail-fabric/**'
+      - '.github/workflows/musitu-mail-fabric-isolated-v04-ci.yml'
+permissions:
+  contents: read
+jobs:
+  safety:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Preserve exact isolated scope
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF_NAME" = 'product/musitu-mail-fabric-isolated-20261009'
+          test -d musitu-mail-fabric/test
+          test -f musitu-mail-fabric/src/durable/schema.sql
+      - name: Safety regression (no network sender)
+        working-directory: musitu-mail-fabric
+        run: |
+          set -euo pipefail
+          npm run check
+          node --test test/production-safety.test.mjs
+          npm test
+          npm run demo
+      - name: Verify no production deployment enabled
+        working-directory: musitu-mail-fabric
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          import {readFileSync} from 'node:fs';
+          const c=JSON.parse(readFileSync('wrangler.mmf.template.jsonc','utf8'));
+          for (const name of ['MMF_REAL_SEND_ENABLED','MMF_API_ENABLED','MMF_WEBHOOK_ENABLED']){
+            if(c.vars?.[name]!=='false')throw Error('Guard misconfigured: '+name);
+          }
+          if(c.workers_dev!==false||c.preview_urls!==false||c.routes?.length)throw Error('Public route exposure refused');
+          if(c.vars?.MMF_DAILY_SEND_LIMIT!=='100')throw Error('Expected free-tier initial quota missing');
+          console.log(JSON.stringify({gate:'MUSITU_MAIL_FABRIC_V04_ISOLATED',status:'PASS',real_sending:false,public_route:false,production_secrets_accessed:false}));
+          NODE

@@ -10,16 +10,35 @@
     "MMF_WEBHOOK_ENABLED": "false",
     "MMF_REAL_SEND_ENABLED": "false",
     "MMF_TENANT_ID": "musitu-internal",
-    "MMF_FROM_DOMAIN": "example.invalid"
+    "MMF_FROM_DOMAIN": "example.invalid",
+    "MMF_DAILY_SEND_LIMIT": "100"
   },
-  "d1_databases": [{
-    "binding": "MMF_DB",
-    "database_name": "musitu-mail-fabric-isolated",
-    "database_id": "__PROVISIONED_ISOLATED_D1_ID__"
-  }],
+  "d1_databases": [
+    {
+      "binding": "MMF_DB",
+      "database_name": "musitu-mail-fabric-isolated",
+      "database_id": "__PROVISIONED_ISOLATED_D1_ID__"
+    }
+  ],
   "queues": {
-    "producers": [{"queue": "musitu-mail-fabric-outbound", "binding": "MMF_QUEUE"}],
-    "consumers": [{"queue": "musitu-mail-fabric-outbound", "max_batch_size": 5, "max_retries": 3, "dead_letter_queue": "musitu-mail-fabric-dead-letters"}]
+    "producers": [
+      {
+        "queue": "musitu-mail-fabric-outbound",
+        "binding": "MMF_QUEUE"
+      }
+    ],
+    "consumers": [
+      {
+        "queue": "musitu-mail-fabric-outbound",
+        "max_batch_size": 5,
+        "max_retries": 3,
+        "dead_letter_queue": "musitu-mail-fabric-dead-letters"
+      }
+    ]
   },
-  "triggers": {"crons": ["*/5 * * * *"]}
+  "triggers": {
+    "crons": [
+      "*/5 * * * *"
+    ]
+  }
 }
