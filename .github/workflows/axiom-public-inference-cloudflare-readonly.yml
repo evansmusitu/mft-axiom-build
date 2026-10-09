@@ -1,0 +1,43 @@
+name: MUSITU AXIOM Isolated Cloudflare Existing-Access Read-Only Check
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: axiom-public-inference-cloudflare-readonly-\${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  verify-established-global-key-route:
+    # No paid CI: fail closed unless owner verifies free Actions quota.
+    if: \${{ vars.AXIOM_TRACK_B_ZERO_COST_CI_ALLOWED == 'true' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    env:
+      AXIOM_ZERO_CASH_BUDGET_USD: '0'
+      AXIOM_CLOUDFLARE_READONLY_MODE: CONFIRMED_ISOLATED_READ
+      AXIOM_EXPECTED_CLOUDFLARE_ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - name: Run offline security and fail-closed route tests
+        run: |
+          set -euo pipefail
+          python3 -m unittest discover -s ops/public_inference -p 'test_cloudflare_readonly.py' -v
+      - name: Read account and AXIOM zone through established secret path
+        env:
+          CLOUDFLARE_EMAIL: \${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: \${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+        run: |
+          set -euo pipefail
+          test -n "\${CLOUDFLARE_EMAIL:-}"
+          test -n "\${CLOUDFLARE_GLOBAL_API_KEY:-}"
+          python3 ops/public_inference/cloudflare_readonly.py
+          echo 'CLOUDFLARE_FREE_PLAN=NOT_PROVEN'
+          echo 'WORKERS_AI_PUBLIC_INFERENCE=NOT_ENABLED'
+          echo 'CLOUDFLARE_WRITE_PERFORMED=FALSE'
+          echo 'PRODUCTION_AUTHORITY=FALSE'
