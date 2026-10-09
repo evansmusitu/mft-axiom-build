@@ -2,6 +2,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 import tempfile
 import unittest
+import importlib.util
 
 from benchmarks.mining_adapter.methane_backtest import MethaneBacktestSpec
 from benchmarks.mining_adapter.methane_prediction import PredictionExample
@@ -22,6 +23,8 @@ def examples(start, n):
     ) for i in range(n)]
 
 
+@unittest.skipUnless(importlib.util.find_spec("lightgbm") is not None,
+                     "LightGBM installed only in the separate frozen research workflow")
 class FrozenBundleTests(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()

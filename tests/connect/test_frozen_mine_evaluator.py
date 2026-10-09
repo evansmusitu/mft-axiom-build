@@ -4,6 +4,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 import tempfile
 import unittest
+import importlib.util
 from unittest.mock import patch
 
 from benchmarks.mining_adapter.methane_backtest import MethaneBacktestSpec
@@ -16,6 +17,8 @@ SHA = '28e2eed4c4a314daa4319f656a09bb43d8acea603dcb906e31c98049c91a8fdc'
 EPOCH = datetime(2025, 1, 1, tzinfo=timezone.utc)
 
 
+@unittest.skipUnless(importlib.util.find_spec("lightgbm") is not None,
+                     "LightGBM installed only in the separate frozen research workflow")
 class FrozenExternalEvaluatorTests(unittest.TestCase):
     def setUp(self):
         self.dir = tempfile.TemporaryDirectory(); self.addCleanup(self.dir.cleanup)
