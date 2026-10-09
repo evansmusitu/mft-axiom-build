@@ -1,0 +1,62 @@
+name: MUSITU AXIOM Track B Modal Sandbox API Compatibility Contract
+
+on:
+  push:
+    branches:
+      - frontier/axiom-trackb-openhands-selfhost-20261008
+    paths:
+      - '.github/workflows/axiom-trackb-modal-pilot-contract.yml'
+      - 'ops/openhands_self_hosted/modal_pilot_spec.py'
+      - 'ops/openhands_self_hosted/test_modal_pilot_spec.py'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  modal-sdk-api-contract:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - name: Verify isolated target and no external provisioning
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF_NAME" = 'frontier/axiom-trackb-openhands-selfhost-20261008'
+          test -z "${MODAL_TOKEN_ID:-}"
+          test -z "${MODAL_TOKEN_SECRET:-}"
+          echo 'REAL_MODAL_SANDBOX_CREATED=FALSE'
+          echo 'PRODUCTION_AUTHORITY=FALSE'
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - name: Run fail-closed pilot spec regression tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m unittest discover -s ops/openhands_self_hosted -p 'test_modal_pilot_spec.py' -v
+          python3 -m compileall -q ops/openhands_self_hosted/modal_pilot_spec.py
+      - name: Verify pinned Modal SDK Sandbox API without credentials or creation
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m venv "$RUNNER_TEMP/axiom-modal-sdk"
+          "$RUNNER_TEMP/axiom-modal-sdk/bin/python" -m pip install --disable-pip-version-check --no-cache-dir 'modal==1.6.1'
+          "$RUNNER_TEMP/axiom-modal-sdk/bin/python" - <<'PY'
+          import inspect
+          import modal
+          parameters=inspect.signature(modal.Sandbox.create).parameters
+          fields={
+            'app','image','name','tags','cpu','memory','timeout','idle_timeout',
+            'inbound_cidr_allowlist','outbound_cidr_allowlist',
+            'outbound_domain_allowlist','encrypted_ports','unencrypted_ports',
+            'block_network','secrets','env'
+          }
+          missing=fields-set(parameters)
+          if missing:
+              raise SystemExit('SDK Sandbox.create incompatible fields: '+','.join(sorted(missing)))
+          print('MUSITU_AXIOM_TRACK_B_MODAL_SDK_API_CONTRACT_PASS')
+          print('REAL_MODAL_SANDBOX_CREATED=FALSE')
+          print('LIVE_RUNTIME_QUALIFICATION=NOT_PROVEN')
+          print('PRODUCTION_AUTHORITY=FALSE')
+          PY
