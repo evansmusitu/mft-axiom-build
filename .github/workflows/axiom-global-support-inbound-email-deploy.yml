@@ -104,6 +104,10 @@ jobs:
           },'----MUSITUInboundEmail');
           await call('/accounts/'+account+'/workers/scripts/'+name+'?bindings_inherit=strict',{method:'PUT',rawBody:m.body,contentType:'multipart/form-data; boundary='+m.boundary});
           await call('/accounts/'+account+'/workers/scripts/'+name+'/subdomain',{method:'POST',body:{enabled:false,previews_enabled:false}});
+          await call('/accounts/'+account+'/workers/scripts/'+name+'/schedules',{method:'PUT',body:[{cron:'*/5 * * * *'}]});
+          const schedules=await call('/accounts/'+account+'/workers/scripts/'+name+'/schedules');
+          const scheduleRows=Array.isArray(schedules?.schedules)?schedules.schedules:Array.isArray(schedules)?schedules:[];
+          if(!scheduleRows.some(x=>String(x?.cron||'')==='*/5 * * * *'))throw new Error('support cron missing after Worker redeploy');
           const after=await call('/accounts/'+account+'/workers/scripts/'+name+'/settings');
           const names=new Set((after?.bindings||[]).map(x=>String(x?.name||'')));
           for(const required of ['SUPPORT_DB','SUPPORT_DATA_KEY_B64','SUPPORT_ATTACHMENTS','SUPPORT_INTAKE_RATE_LIMITER'])if(!names.has(required))throw new Error('required binding missing after deploy: '+required);
