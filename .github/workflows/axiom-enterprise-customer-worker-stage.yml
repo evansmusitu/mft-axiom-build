@@ -1,0 +1,170 @@
+name: MUSITU Axiom Enterprise Customer Worker Stage
+
+on:
+  push:
+    branches:
+      - 'support/axiom-enterprise-customer-production-rollout-20261009'
+    paths:
+      - '.github/workflows/axiom-enterprise-customer-worker-stage.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  stage:
+    if: github.event_name == 'push' && github.event.before == 'cea4c0f8e356b884849b54d32a4418df52a09680'
+    runs-on: ubuntu-latest
+    environment: axiom-support-production
+    timeout-minutes: 15
+    env:
+      CF_ACCOUNT: '93f395f5121954671f92fffa453d6b61'
+      ACCESS_TOKEN: ${{ secrets.CLOUDFLARE_ACCESS_API_TOKEN }}
+      WORKER_TOKEN: ${{ secrets.CLOUDFLARE_RULESETS_API_TOKEN }}
+      CF_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+      CF_GLOBAL_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Full regression
+        run: |
+          set -euo pipefail
+          node --check support/worker.js
+          node --check support/d1_case_store.js
+          node --test support/tests/*.test.mjs
+
+      - name: Build public and operator bundles with enterprise assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx --yes esbuild@0.25.11 support/app.js --bundle --format=esm --platform=browser --target=es2022 --outfile=.support-public-app.js
+          node <<'NODE'
+          const fs=require('node:fs');
+          const html=fs.readFileSync('support/index.html','utf8'),css=fs.readFileSync('support/styles.css','utf8'),robots=fs.readFileSync('support/robots.txt','utf8'),sitemap=fs.readFileSync('support/sitemap.xml','utf8'),app=fs.readFileSync('.support-public-app.js','utf8');
+          const recoveryHtml=fs.readFileSync('support/recovery/index.html','utf8'),recoveryApp=fs.readFileSync('support/recovery/app.js','utf8');
+          const statusHtml=fs.readFileSync('support/status/index.html','utf8'),statusApp=fs.readFileSync('support/status/app.js','utf8');
+          const enterpriseHtml=fs.readFileSync('support/enterprise/index.html','utf8'),enterpriseApp=fs.readFileSync('support/enterprise/app.js','utf8');
+          const source=[
+            "import support,{handleOperatorRequest,verifyEnterpriseAccess} from './support/worker.js';",
+            "const HTML="+JSON.stringify(html)+";const CSS="+JSON.stringify(css)+";const ROBOTS="+JSON.stringify(robots)+";const SITEMAP="+JSON.stringify(sitemap)+";const APP="+JSON.stringify(app)+";",
+            "const RECOVERY_HTML="+JSON.stringify(recoveryHtml)+";const RECOVERY_APP="+JSON.stringify(recoveryApp)+";const STATUS_HTML="+JSON.stringify(statusHtml)+";const STATUS_APP="+JSON.stringify(statusApp)+";const ENTERPRISE_HTML="+JSON.stringify(enterpriseHtml)+";const ENTERPRISE_APP="+JSON.stringify(enterpriseApp)+";",
+            "const H=Object.freeze({'content-security-policy':\"default-src 'self'; connect-src 'self' https://challenges.cloudflare.com; img-src 'self' data:; style-src 'self'; script-src 'self' https://challenges.cloudflare.com; frame-src https://challenges.cloudflare.com; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'\",'referrer-policy':'no-referrer','permissions-policy':'camera=(), microphone=(), geolocation=(), payment=()','x-content-type-options':'nosniff','cross-origin-opener-policy':'same-origin','cross-origin-resource-policy':'same-origin','cache-control':'no-store'});",
+            "const NH=Object.freeze({...H,'x-robots-tag':'noindex, nofollow, noarchive','content-security-policy':\"default-src 'self'; connect-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'\"});",
+            "function asset(body,type,headers=H){return new Response(body,{status:200,headers:{...headers,'content-type':type}})}",
+            "function authDenied(){return new Response(JSON.stringify({error:'ENTERPRISE_AUTH_REQUIRED'}),{status:401,headers:{...NH,'content-type':'application/json; charset=utf-8','www-authenticate':'Cloudflare-Access'}})}",
+            "export default {async scheduled(controller,env,ctx){return support.scheduled(controller,env,ctx);},async email(message,env,ctx){return support.email(message,env,ctx);},async fetch(request,env,ctx){const u=new URL(request.url);",
+            "if(u.pathname.startsWith('/api/v1/operator/')) return handleOperatorRequest(request,env);",
+            "if(request.method==='GET'&&(u.pathname==='/enterprise/'||u.pathname==='/enterprise/index.html')){const p=await verifyEnterpriseAccess(request,env);if(!p)return authDenied();return asset(ENTERPRISE_HTML,'text/html; charset=utf-8',NH);}",
+            "if(request.method==='GET'&&u.pathname==='/enterprise/app.js'){const p=await verifyEnterpriseAccess(request,env);if(!p)return authDenied();return asset(ENTERPRISE_APP,'text/javascript; charset=utf-8',NH);}",
+            "if(request.method==='GET'&&(u.pathname==='/recovery/'||u.pathname==='/recovery/index.html')) return asset(RECOVERY_HTML,'text/html; charset=utf-8',NH);",
+            "if(request.method==='GET'&&u.pathname==='/recovery/app.js') return asset(RECOVERY_APP,'text/javascript; charset=utf-8',NH);",
+            "if(request.method==='GET'&&(u.pathname==='/status/'||u.pathname==='/status/index.html')) return asset(STATUS_HTML,'text/html; charset=utf-8');",
+            "if(request.method==='GET'&&u.pathname==='/status/app.js') return asset(STATUS_APP,'text/javascript; charset=utf-8');",
+            "if(request.method==='GET'&&(u.pathname==='/'||u.pathname==='/index.html')) return asset(HTML,'text/html; charset=utf-8');",
+            "if(request.method==='GET'&&u.pathname==='/styles.css') return asset(CSS,'text/css; charset=utf-8');",
+            "if(request.method==='GET'&&u.pathname==='/robots.txt') return asset(ROBOTS,'text/plain; charset=utf-8');",
+            "if(request.method==='GET'&&u.pathname==='/sitemap.xml') return asset(SITEMAP,'application/xml; charset=utf-8');",
+            "if(request.method==='GET'&&u.pathname==='/app.js') return asset(APP,'text/javascript; charset=utf-8');",
+            "return support.fetch(request,env,ctx);}};"
+          ].join('\n');
+          fs.writeFileSync('.support-public-entry.mjs',source,{mode:0o600});
+
+          const oh=fs.readFileSync('support/console/index.html','utf8'),oc=fs.readFileSync('support/console/styles.css','utf8'),oa=fs.readFileSync('support/console/app.js','utf8');
+          fs.writeFileSync('.support-ops-entry.mjs',[
+            "import operator from './support/operator_worker.js';import {verifyOperatorAccess} from './support/worker.js';",
+            "const HTML="+JSON.stringify(oh)+";const CSS="+JSON.stringify(oc)+";const APP="+JSON.stringify(oa)+";",
+            "const H=Object.freeze({'cache-control':'no-store','x-content-type-options':'nosniff','x-robots-tag':'noindex, nofollow, noarchive','referrer-policy':'no-referrer','content-security-policy':\"default-src 'self'; connect-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'\"});",
+            "function asset(body,type){return new Response(body,{status:200,headers:{...H,'content-type':type}})}",
+            "export default {async fetch(request,env){const principal=await verifyOperatorAccess(request,env);if(!principal)return operator.fetch(request,env);const u=new URL(request.url);",
+            "if((request.method==='GET'||request.method==='HEAD')&&(u.pathname==='/'||u.pathname==='/index.html'))return asset(request.method==='HEAD'?null:HTML,'text/html; charset=utf-8');",
+            "if((request.method==='GET'||request.method==='HEAD')&&u.pathname==='/styles.css')return asset(request.method==='HEAD'?null:CSS,'text/css; charset=utf-8');",
+            "if((request.method==='GET'||request.method==='HEAD')&&u.pathname==='/app.js')return asset(request.method==='HEAD'?null:APP,'text/javascript; charset=utf-8');",
+            "return operator.fetch(request,env);}};"
+          ].join('\n'),{mode:0o600});
+          NODE
+          npx --yes esbuild@0.25.11 .support-public-entry.mjs --bundle --format=esm --platform=browser --target=es2022 --outfile=.support-public-bundle.mjs
+          npx --yes esbuild@0.25.11 .support-ops-entry.mjs --bundle --format=esm --platform=browser --target=es2022 --outfile=.support-ops-bundle.mjs
+          grep -q 'ENTERPRISE_AUTH_REQUIRED' .support-public-bundle.mjs
+          grep -q 'create-enterprise-invite' .support-ops-bundle.mjs
+
+      - name: Stage Workers while enterprise Access remains deny-by-default
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          import {buildWorkerMultipart} from './support/scripts/provision_cloudflare_control_plane.mjs';
+          const api='https://api.cloudflare.com/client/v4',account=process.env.CF_ACCOUNT;
+          const wt=String(process.env.WORKER_TOKEN||''),at=String(process.env.ACCESS_TOKEN||''),email=String(process.env.CF_EMAIL||''),key=String(process.env.CF_GLOBAL_KEY||'');
+          const wh={authorization:'Bearer '+wt,accept:'application/json'},ah=at?{authorization:'Bearer '+at,accept:'application/json'}:null,gh={'X-Auth-Email':email,'X-Auth-Key':key,accept:'application/json'};
+          async function raw(headers,path,{method='GET',body,rawBody,contentType}={}){
+            const r=await fetch(api+path,{method,headers:{...headers,...(body===undefined?{}:{'content-type':'application/json'}),...(contentType?{'content-type':contentType}:{})},...(rawBody!==undefined?{body:rawBody}:body===undefined?{}:{body:JSON.stringify(body)})});
+            let p={};try{p=await r.json()}catch{};return {r,p};
+          }
+          async function call(headers,path,opts={}){
+            const {r,p}=await raw(headers,path,opts);if(!r.ok||p?.success===false)throw new Error('Cloudflare '+(opts.method||'GET')+' '+path+' failed HTTP '+r.status);return p.result;
+          }
+          async function access(path){
+            if(ah){const a=await raw(ah,path);if(a.r.ok&&a.p?.success!==false)return a.p.result;if(!(a.r.status===401||a.r.status===403))throw new Error('Access read failed '+a.r.status);}
+            return call(gh,path);
+          }
+          const [org,apps]=await Promise.all([access('/accounts/'+account+'/access/organizations'),access('/accounts/'+account+'/access/apps?per_page=100')]);
+          const authRaw=String(org?.auth_domain||'').trim(),team=authRaw.startsWith('http')?authRaw:'https://'+authRaw;
+          const matches=(Array.isArray(apps)?apps:[]).filter(x=>String(x?.domain||'').toLowerCase()==='support.mftintelligence.com/enterprise/*');
+          if(matches.length!==1)throw new Error('enterprise Access app is not unique');
+          const app=matches[0],aud=String(app?.aud||'');if(!team||!aud)throw new Error('enterprise Access config incomplete');
+          const policies=await access('/accounts/'+account+'/access/apps/'+encodeURIComponent(String(app.id))+'/policies');
+          if(!Array.isArray(policies)||policies.length!==0)throw new Error('enterprise Access is not deny-by-default during stage');
+
+          async function deployPublic(){
+            const name='musitu-axiom-support';
+            const [settings,secrets]=await Promise.all([call(wh,'/accounts/'+account+'/workers/scripts/'+name+'/settings'),call(wh,'/accounts/'+account+'/workers/scripts/'+name+'/secrets')]);
+            const current=Array.isArray(settings?.bindings)?settings.bindings:[],secretNames=new Set((Array.isArray(secrets)?secrets:[]).map(x=>String(x?.name||'')));
+            const replace=new Set(['SUPPORT_ENTERPRISE_ACCESS_TEAM_DOMAIN','SUPPORT_ENTERPRISE_ACCESS_AUD']);
+            const bindings=[];
+            for(const b of current){
+              const n=String(b?.name||'');if(!n||replace.has(n))continue;
+              if(secretNames.has(n)||b?.type==='secret_text')bindings.push({type:'inherit',name:n,version_id:'latest'});else bindings.push(b);
+            }
+            bindings.push({type:'plain_text',name:'SUPPORT_ENTERPRISE_ACCESS_TEAM_DOMAIN',text:team},{type:'plain_text',name:'SUPPORT_ENTERPRISE_ACCESS_AUD',text:aud});
+            const m=buildWorkerMultipart(fs.readFileSync('.support-public-bundle.mjs'),{main_module:'index.mjs',compatibility_date:'2026-10-09',bindings,annotations:{'workers/message':'MUSITU Axiom enterprise customer support staged'}},'----MUSITUEnterprisePublic');
+            await call(wh,'/accounts/'+account+'/workers/scripts/'+name+'?bindings_inherit=strict',{method:'PUT',rawBody:m.body,contentType:'multipart/form-data; boundary='+m.boundary});
+            await call(wh,'/accounts/'+account+'/workers/scripts/'+name+'/subdomain',{method:'POST',body:{enabled:false,previews_enabled:false}});
+            await call(wh,'/accounts/'+account+'/workers/scripts/'+name+'/schedules',{method:'PUT',body:[{cron:'*/5 * * * *'}]});
+          }
+          async function deployOps(){
+            const name='musitu-axiom-support-ops';
+            const settings=await call(wh,'/accounts/'+account+'/workers/scripts/'+name+'/settings');
+            const bindings=Array.isArray(settings?.bindings)?settings.bindings:[];
+            if(!bindings.some(x=>x?.type==='service'&&x?.name==='SUPPORT_API'&&x?.service==='musitu-axiom-support'))throw new Error('operator service binding missing');
+            const m=buildWorkerMultipart(fs.readFileSync('.support-ops-bundle.mjs'),{main_module:'index.mjs',compatibility_date:'2026-10-09',bindings,annotations:{'workers/message':'MUSITU Axiom enterprise membership operator controls'}},'----MUSITUEnterpriseOps');
+            await call(wh,'/accounts/'+account+'/workers/scripts/'+name,{method:'PUT',rawBody:m.body,contentType:'multipart/form-data; boundary='+m.boundary});
+            await call(wh,'/accounts/'+account+'/workers/scripts/'+name+'/subdomain',{method:'POST',body:{enabled:false,previews_enabled:false}});
+          }
+          await deployPublic();await deployOps();
+          const [pub,ops,schedules]=await Promise.all([
+            call(wh,'/accounts/'+account+'/workers/scripts/musitu-axiom-support/settings'),
+            call(wh,'/accounts/'+account+'/workers/scripts/musitu-axiom-support-ops/settings'),
+            call(wh,'/accounts/'+account+'/workers/scripts/musitu-axiom-support/schedules')
+          ]);
+          const pb=Array.isArray(pub?.bindings)?pub.bindings:[],ob=Array.isArray(ops?.bindings)?ops.bindings:[],sc=Array.isArray(schedules?.schedules)?schedules.schedules:Array.isArray(schedules)?schedules:[];
+          for(const required of ['SUPPORT_DB','SUPPORT_DATA_KEY_B64','SUPPORT_ATTACHMENTS','SUPPORT_INTAKE_RATE_LIMITER','SUPPORT_ENTERPRISE_ACCESS_TEAM_DOMAIN','SUPPORT_ENTERPRISE_ACCESS_AUD'])if(!pb.some(x=>x?.name===required))throw new Error('public binding drift: '+required);
+          if(!ob.some(x=>x?.type==='service'&&x?.name==='SUPPORT_API'&&x?.service==='musitu-axiom-support'))throw new Error('operator binding drift');
+          if(!sc.some(x=>String(x?.cron||'')==='*/5 * * * *'))throw new Error('scheduler drift');
+          console.log(JSON.stringify({gate:'MUSITU_AXIOM_ENTERPRISE_CUSTOMER_WORKER_STAGE',status:'PASS',public_updated:true,operator_updated:true,enterprise_access_bindings:true,allow_policy_count:0,email_handler_preserved:true,scheduler_preserved:true,secret_values_read:false}));
+          NODE
+
+      - name: Prove enterprise remains inaccessible before activation
+        shell: bash
+        run: |
+          set -euo pipefail
+          for path in /enterprise/ /enterprise/app.js /enterprise/api/v1/me; do
+            code=$(curl --silent --show-error --connect-timeout 10 --max-time 30 -D /tmp/h -o /tmp/b -w '%{http_code}' "https://support.mftintelligence.com$path" || true)
+            case "$code" in 302|303|307|401|403) ;; *) echo "enterprise path unexpectedly reachable before activation: $path -> $code" >&2; exit 1;; esac
+            ! grep -q 'Verified organization workspace' /tmp/b
+          done
+          rm -f /tmp/h /tmp/b
+
+      - name: Cleanup
+        if: always()
+        run: rm -f .support-public-app.js .support-public-entry.mjs .support-ops-entry.mjs .support-public-bundle.mjs .support-ops-bundle.mjs
