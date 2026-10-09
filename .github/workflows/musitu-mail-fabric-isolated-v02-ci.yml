@@ -1,0 +1,36 @@
+name: MUSITU Mail Fabric v0.2 Isolated CI
+on:
+  push:
+    branches: ['product/musitu-mail-fabric-isolated-20261009']
+    paths:
+      - 'musitu-mail-fabric/**'
+      - '.github/workflows/musitu-mail-fabric-isolated-v02-ci.yml'
+permissions:
+  contents: read
+jobs:
+  local:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    services:
+      mailpit:
+        image: axllent/mailpit:v1.31.4
+        ports:
+          - 127.0.0.1:1025:1025
+          - 127.0.0.1:8025:8025
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Node syntax and full isolation suite
+        working-directory: musitu-mail-fabric
+        run: |
+          node --check src/durable/fabric.mjs
+          node --check src/testing/mailpit-smtp.mjs
+          npm run check
+          npm test
+      - name: Real Mailpit loopback SMTP acceptance and API visibility
+        working-directory: musitu-mail-fabric
+        env:
+          MAILPIT_INTEGRATION: '1'
+        run: node --test test/mailpit.test.mjs
