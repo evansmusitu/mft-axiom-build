@@ -56,8 +56,8 @@ jobs:
              'main':'ops/public_inference/remote_do_probe.mjs',
              'compatibility_date':'2026-10-09',
              'workers_dev':False,'preview_urls':False,'routes':[],
-             'durable_objects':{'bindings':[{'name':'AXIOM_GLOBAL_QUOTA','class_name':'AxiomGlobalInferenceQuota'}]},
-             'migrations':[{'tag':'v1','new_sqlite_classes':['AxiomGlobalInferenceQuota']}]}
+             'durable_objects':{'bindings':[{'name':'AXIOM_GLOBAL_QUOTA','class_name':'ProbeAxiomQuota'}]},
+             'migrations':[{'tag':'v1','new_sqlite_classes':['ProbeAxiomQuota']}]}
           with open('wrangler-axiom-do-probe.json','w') as f:json.dump(x,f)
           PY
       - name: Exercise nonpublic remote Cloudflare SQLite object via loopback proxy and shut down

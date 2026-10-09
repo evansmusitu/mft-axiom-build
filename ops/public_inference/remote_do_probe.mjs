@@ -2,7 +2,34 @@
  * This is NOT the deployed AXIOM API and requires two distinct ephemeral keys.
  */
 import { AxiomGlobalInferenceQuota, reserveQuotaDurable } from './durable_quota.mjs';
-export { AxiomGlobalInferenceQuota };
+/** Probe-only DO subclass. No production routes and synthetic HMAC pre-verified. */
+export class ProbeAxiomQuota extends AxiomGlobalInferenceQuota {
+ async fetch(request){
+   const clone=request.clone();
+   const base=await super.fetch(request);
+   if(base.status!==429)return base;
+   // Never emit internal diagnostic codes to unauthorized requests.
+   try{
+     const raw=await clone.text();
+     const signature=clone.headers.get('x-axiom-internal-signature');
+     const key=await crypto.subtle.importKey('raw',new TextEncoder().encode(this.env.AXIOM_DO_INTERNAL_QUOTA_KEY),
+        {name:'HMAC',hash:'SHA-256'},false,['verify']);
+     const bytes=Uint8Array.from((signature||'').match(/../g)||[],v=>parseInt(v,16));
+     if(bytes.length!==32||!await crypto.subtle.verify('HMAC',key,bytes,new TextEncoder().encode(raw)))
+       return new Response(null,{status:429});
+   }catch{return new Response(null,{status:429});}
+   try{this.ctx.storage.sql.exec('SELECT COUNT(*) AS n FROM reservations').one();}
+   catch{return new Response(null,{status:530});}
+   try{this.ctx.storage.transactionSync(()=>this.ctx.storage.sql.exec('SELECT changes() AS n').one());}
+   catch{return new Response(null,{status:531});}
+   try{
+     const count=this.ctx.storage.sql.exec('SELECT COUNT(*) AS n FROM reservations').one()?.n;
+     if(typeof count!=='number')return new Response(null,{status:532});
+     if(count>0)return new Response(null,{status:533});
+   }catch{return new Response(null,{status:534});}
+   return new Response(null,{status:535});
+ }
+}
 function hexToBytes(s) {
   if(typeof s!=='string'||!/^[a-f0-9]{64}$/.test(s))throw Error('INVALID_SIGNATURE');
   return Uint8Array.from(s.match(/../g),v=>parseInt(v,16));
