@@ -1,0 +1,83 @@
+name: MUSITU Axiom External Boundary Read-Only Audit 20261009
+
+on:
+  push:
+    branches:
+      - 'support/axiom-global-support-ops-production-rollout-20261008'
+    paths:
+      - '.github/workflows/axiom-external-boundary-readonly-audit-20261009.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    if: github.event_name == 'push' && github.event.before == '76e48f98ecb46afe4544ecbe5ab32942c1f0e61d'
+    runs-on: ubuntu-latest
+    environment: axiom-support-production
+    timeout-minutes: 6
+    env:
+      CF_ZONE: '5b56528f03948ff5917a5e0cd9f7109e'
+      CF_ACCOUNT: '93f395f5121954671f92fffa453d6b61'
+      CF_READ_TOKEN_A: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CF_READ_TOKEN_B: ${{ secrets.CLOUDFLARE_RULESETS_API_TOKEN }}
+    steps:
+      - name: Probe only provider readiness metadata, never customers or secrets
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          const origin='https://api.cloudflare.com/client/v4';
+          const zone=process.env.CF_ZONE, account=process.env.CF_ACCOUNT;
+          const tokens=[process.env.CF_READ_TOKEN_A,process.env.CF_READ_TOKEN_B].filter(Boolean);
+          if(tokens.length===0)throw Error('No bounded Cloudflare read credential available');
+          async function probe(path){
+            let last={available:false,http_status:null};
+            for(const token of tokens){
+              let r,body;
+              try{
+                r=await fetch(origin+path,{headers:{authorization:'Bearer '+token,accept:'application/json'},signal:AbortSignal.timeout(12000)});
+                body=await r.json();
+              }catch{last={available:false,http_status:null};continue;}
+              if(r.ok && body?.success!==false) return {available:true,http_status:r.status,data:body.result};
+              last={available:false,http_status:r.status};
+            }
+            return last;
+          }
+          const base='/zones/'+zone,worker='/accounts/'+account+'/workers/scripts/';
+          const [sending,mxTxt,dkim,supportSettings,opsSettings]=await Promise.all([
+            probe(base+'/email/sending/subdomains'),
+            probe(base+'/dns_records?per_page=100&name=cf-bounce.mftintelligence.com'),
+            probe(base+'/dns_records?per_page=100&name=cf-bounce._domainkey.mftintelligence.com'),
+            probe(worker+'musitu-axiom-support/settings'),
+            probe(worker+'musitu-axiom-support-ops/settings')
+          ]);
+          const rows=(v)=>Array.isArray(v)?v:[];
+          const norm=(v)=>String(v||'').trim().toLowerCase();
+          const dns1=rows(mxTxt.data),dns2=rows(dkim.data);
+          const mx=dns1.some(x=>x?.type==='MX'&&norm(x?.content).includes('mx.cloudflare.net'));
+          const spf=dns1.some(x=>x?.type==='TXT'&&norm(x?.content).includes('_spf.mx.cloudflare.net'));
+          const dk=dns2.some(x=>x?.type==='TXT'&&norm(x?.content).startsWith('v=dkim1'));
+          const pub=rows(supportSettings.data?.bindings);
+          const sendBinding=pub.some(x=>x?.type==='send_email'||x?.name==='SUPPORT_EMAIL_SENDER');
+          const opsReady=pub.find(x=>x?.name==='SUPPORT_OPS_EMAIL_READY');
+          const out={
+            gate:'MUSITU_AXIOM_EXTERNAL_BOUNDARY_READ_ONLY_20261009',
+            status:'METADATA_AUDIT_ONLY',
+            sources:{sending_api:sending.available,dns_mx_spf_api:mxTxt.available,dns_dkim_api:dkim.available,public_worker_api:supportSettings.available,operator_worker_api:opsSettings.available},
+            sending:{configured_subdomain_count:sending.available?rows(sending.data?.subdomains||sending.data).length:null,
+              http_status:sending.http_status,send_email_binding:sendBinding,
+              cf_bounce_mx:mxTxt.available?mx:null,cf_bounce_spf:mxTxt.available?spf:null,cf_bounce_dkim:dkim.available?dk:null,
+              customer_email_delivery_proven:false},
+            operator_email:{ready_binding_value:opsReady?.text==='false'?'false':opsReady?.text==='true'?'true':'unknown',
+              live_send_proven:false},
+            external_unverified:{malware_scanner:true,paging_provider:true,independent_second_approver:true,
+              continuous_24x7_staffing:true,contractual_sla:true,certified_multilingual_human_coverage:true},
+            mutation_performed:false,customer_content_read:false,secret_values_recorded:false
+          };
+          console.log(JSON.stringify(out));
+          if(!supportSettings.available||!opsSettings.available||!mxTxt.available||!dkim.available){
+            throw Error('Required Cloudflare metadata read failed closed');
+          }
+          if(opsReady?.text!=='false')throw Error('Operator email fail-closed invariant not proven');
+          NODE
