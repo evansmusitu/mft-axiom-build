@@ -5,6 +5,7 @@ import {D1CaseStore} from './d1_case_store.js';
 import {verifyTurnstile} from './turnstile.js';
 import {handleInboundSupportEmail} from './email_worker.js';
 import {validateWebhookEndpoint} from './global_ops.js';
+import {deliverResendOperatorAlert} from './resend_notifier.js';
 
 const JSON_HEADERS = Object.freeze({'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store', 'x-content-type-options': 'nosniff'});
 const CASE_PATH = /^\/api\/v1\/cases\/([A-Z0-9-]+)$/;
@@ -478,6 +479,10 @@ export async function deliverSupportNotification(notification, env = {}) {
       text: `Case ${caseId}\nEvent ${kind}\nOpen Support Operations: https://support-ops.mftintelligence.com/\n\nThis alert contains case metadata only.`,
     });
     return Object.freeze({delivered:true,receipt_id:String(receipt?.messageId||receipt?.id||'')||null});
+  }
+
+  if (audience === 'operator' && String(env.SUPPORT_RESEND_OPERATOR_READY || '').toLowerCase() === 'true') {
+    return deliverResendOperatorAlert({notification_id:notificationId,case_id:caseId,kind},env);
   }
 
   if (typeof env.SUPPORT_NOTIFICATION_SEND !== 'function') return Object.freeze({delivered:false,reason:'PROVIDER_UNAVAILABLE'});
