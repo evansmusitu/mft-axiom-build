@@ -1,0 +1,83 @@
+{
+  "schema": "musitu.axiom.trackb.b2_modal_offline_qualification_progress.v1",
+  "recorded_date": "2026-10-09",
+  "authority": {
+    "source_repo": "evansmusitu/mft-axiom-build",
+    "source_branch": "frontier/axiom-trackb-openhands-selfhost-20261008",
+    "tested_source_commit": "9e374f5093f301111824e946c0795ed6203bef2d",
+    "authoritative_handoff_sha256": "86691d38f1a9ac086a0f3167fa6cf2f0dd125224be98f80da12ac33c914bb312",
+    "handoff_integrity": "MUSITU_AXIOM_PHASE2_OPENHANDS_20261008_1610_HANDOFF_VERIFY_PASS",
+    "protected_main_sha": "d6a846f6bbe0bccac1758713eb4de167caf07113",
+    "pr1_state": "OPEN_DRAFT_UNMERGED"
+  },
+  "verified_ci": [
+    {
+      "scope": "S2 signed model gateway and fixed-origin fake HTTPS transport plus durable SQLite budget",
+      "run_id": 37881331044,
+      "job_id": 113661462106,
+      "result": "SUCCESS",
+      "tests_passed": 41,
+      "marker": "MUSITU_AXIOM_TRACK_B_SIGNED_MODEL_GATEWAY_OFFLINE_CONTRACT_PASS",
+      "actual_provider_inference": false
+    },
+    {
+      "scope": "Modal 1.6.1 SDK Sandbox API and signed provisioning launcher, fake SDK only",
+      "run_id": 37881805550,
+      "job_id": 113662945370,
+      "result": "SUCCESS",
+      "tests_passed": 9,
+      "marker": "MUSITU_AXIOM_TRACK_B_MODAL_SDK_API_CONTRACT_PASS",
+      "modal_sandbox_created": false
+    },
+    {
+      "scope": "Real self-hosted OpenHands loopback server authentication and regression suite",
+      "run_id": 37881785745,
+      "job_id": 113662881968,
+      "result": "SUCCESS",
+      "tests_passed": 50,
+      "marker": "MUSITU_AXIOM_OPENHANDS_SELFHOST_REAL_SERVER_AUTH_PASS"
+    },
+    {
+      "scope": "Two real Docker-hosted OpenHands servers, deny egress, separate filesystem, S0 lease lifecycle and revocation",
+      "run_id": 37881785678,
+      "job_id": 113662881617,
+      "result": "SUCCESS",
+      "tests_passed": 50,
+      "markers": [
+        "MUSITU_AXIOM_TRACK_B_REAL_CONTAINER_LEASE_LIFECYCLE_PASS",
+        "MUSITU_AXIOM_OPENHANDS_SELFHOST_CONTAINER_ISOLATION_PASS"
+      ]
+    }
+  ],
+  "new_capability_contracts": [
+    "independent-HMAC-signed operation-scoped 60-second model authorization",
+    "request-digest-bound synthetic-public prompt egress only",
+    "fixed api.openai.com TLS/route, no redirects, redacted provider errors",
+    "durable local SQLite call budget with transactional multi-thread admission and no fail-open fallback",
+    "immutable image digest, private ingress CIDR, bounded Modal Sandbox CPU/memory/TTL target spec",
+    "separate independent-human S3 authorization signature gate before any paid sandbox creation"
+  ],
+  "unearthed_gates": {
+    "actual_model_provider_call": "NOT_PROVEN",
+    "agent_driven_coding_task": "NOT_PROVEN",
+    "modal_hosted_sandbox": "NOT_PROVEN",
+    "modal_network_egress_denial": "NOT_PROVEN",
+    "modal_connect_token_and_ingress": "NOT_PROVEN",
+    "multi_host_budget_coordination": "NOT_PROVEN",
+    "enterprise_multitenant_isolation": "NOT_PROVEN",
+    "ten_simultaneous_workers": "NOT_TESTED",
+    "rollback_proof": "NOT_PROVEN",
+    "independent_security_certification": "NOT_PROVEN",
+    "release_authority": false,
+    "production_authority": false,
+    "certification_authority": false
+  },
+  "exact_external_blockers": [
+    "Independent operation-scoped HUMAN_APPROVER and FA-11 authorization for paid isolated S3 Modal provisioning",
+    "An approved Modal isolated app/environment with verified non-production budget ceiling and operation-scoped Modal credentials",
+    "Ephemeral OpenHands session credential via vault/broker, not ordinary prompt context",
+    "Model-provider credential held only in an independent broker, data-egress/network security approval and spend cap before external inference",
+    "Vendor-native ingress/egress/sandbox termination readback and actual ten-worker load proof before any public rollout"
+  ],
+  "claims": "CI engineering progress evidence only. No OpenHands engineering-task autonomy success, parity, superiority, production or massive-load claim."
+}
