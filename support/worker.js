@@ -336,6 +336,8 @@ export async function handleSupportRequest(request, env = {}) {
     const messageMatch=url.pathname.match(ENTERPRISE_ORG_MESSAGE_PATH);
     if(request.method==='POST'&&messageMatch){
       const orgRef=decodeURIComponent(messageMatch[1]);
+      const context=await store.getEnterpriseOrganizationContext(orgRef,identity);
+      if(!context)return json({error:'ENTERPRISE_CASE_NOT_FOUND'},404);
       const body=await readJson(request);
       const value=await store.appendEnterpriseCustomerMessage(orgRef,messageMatch[2],identity,{body:body?.body});
       if(!value)return json({error:'ENTERPRISE_CASE_NOT_FOUND'},404);
@@ -345,6 +347,8 @@ export async function handleSupportRequest(request, env = {}) {
     const caseMatch=url.pathname.match(ENTERPRISE_ORG_CASE_PATH);
     if(request.method==='GET'&&caseMatch){
       const orgRef=decodeURIComponent(caseMatch[1]);
+      const context=await store.getEnterpriseOrganizationContext(orgRef,identity);
+      if(!context)return json({error:'ENTERPRISE_CASE_NOT_FOUND'},404);
       const value=await store.getEnterpriseCase(orgRef,caseMatch[2],identity);
       if(!value)return json({error:'ENTERPRISE_CASE_NOT_FOUND'},404);
       return json(value);
