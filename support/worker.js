@@ -465,7 +465,7 @@ export async function deliverSupportNotification(notification, env = {}) {
   if (!/^AX-[0-9A-HJKMNP-TV-Z]{12}$/.test(caseId)) throw new TypeError('notification case id is invalid');
   if (!/^[A-Z][A-Z0-9_]{2,79}$/.test(kind)) throw new TypeError('notification kind is invalid');
 
-  if (audience === 'operator' && env.SUPPORT_OPS_EMAIL && typeof env.SUPPORT_OPS_EMAIL.send === 'function') {
+  if (audience === 'operator' && String(env.SUPPORT_OPS_EMAIL_READY || '').toLowerCase() === 'true' && env.SUPPORT_OPS_EMAIL && typeof env.SUPPORT_OPS_EMAIL.send === 'function') {
     const sender = String(env.SUPPORT_OPS_FROM || 'support@mftintelligence.com').trim().toLowerCase();
     if (!/^[^@\s]+@mftintelligence\.com$/.test(sender)) throw new TypeError('operator notification sender is invalid');
     const label = kind.replace(/_/g, ' ');
