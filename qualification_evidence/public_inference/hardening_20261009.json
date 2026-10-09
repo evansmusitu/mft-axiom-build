@@ -1,0 +1,38 @@
+{
+  "schema": "musitu.axiom.public_inference.hardening_local_evidence.v1",
+  "date": "2026-10-09",
+  "source_parent": "2afd75227df9f92bbedb6a54efb97576554c831d",
+  "repo": "evansmusitu/mft-axiom-build",
+  "branch": "frontier/axiom-public-inference-zero-cost-20261009",
+  "files_git_blob_sha1": {
+    "gateway.mjs": "6389bb971f18a5d8d23c510177b62dc15d850d1b",
+    "gateway.test.mjs": "000ac3ccf3340142dcfecf1e55380af2b5a1196a",
+    "providers.mjs": "f84d0d6499fa4fd5b77d60a6ffd2dc55e74ea3d0",
+    "quota.mjs": "3cb700ae0795b41103bb2d70765812f18adc4a19",
+    "signed_capability.mjs": "facfc7f186e99d6cb208ea25d6416522a7b79801",
+    "free_tier_attestation.mjs": "d7f4ad299ba64c355184c28e3c8db3cb112fe36f",
+    "free_tier_attestation.test.mjs": "f147a343224274928f6bc3cb12d680ee5c1a8c32",
+    "security_regressions.test.mjs": "0292222a8707533dc76dca5827021f2c15af0d43",
+    "README.md": "772139e833676672674c95f33444f37cf500cde0"
+  },
+  "local_test_command": "npm test && for f in *.mjs; do node --check \"$f\"; done",
+  "node_version": "v22.16.0",
+  "local_tests": {
+    "total": 29,
+    "passed": 29,
+    "failed": 0
+  },
+  "synthetic_concurrency": {
+    "requests": 1000,
+    "per_minute_success": 3,
+    "quota_denied": 997
+  },
+  "real_provider_inference_calls": 0,
+  "incremental_cash_spend_authorized_usd": "0.00",
+  "cloudflare_d1_live_qualification": "NOT_PROVEN",
+  "free_provider_accounts_verified": "NOT_PROVEN",
+  "identity_issuer": "NOT_IMPLEMENTED",
+  "public_release_authority": false,
+  "production_authority": false,
+  "external_superiority_certified": false
+}

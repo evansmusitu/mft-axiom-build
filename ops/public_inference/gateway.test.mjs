@@ -9,6 +9,7 @@ import { reserveQuota } from './quota.mjs';
 const NOW = Date.UTC(2026, 9, 9, 9, 0, 0);
 const KEY = 'S'.repeat(64);
 const GROQ_KEY = 'gsk_FAKE_ONLY_UNREAL_KEY_TOKEN_NOT_LIVE';
+const FREE_KEY='Q'.repeat(64);
 const MODEL={cloudflare:'@cf/zai-org/glm-4.7-flash',groq:'openai/gpt-oss-120b'};
 let counter=1;
 function body(provider='cloudflare') {return {provider,model:MODEL[provider],messages:[{role:'user',content:'Explain the number 42.'}],max_tokens:80};}
@@ -36,12 +37,27 @@ function database(){
  const db=new DatabaseSync(':memory:');db.exec(readFileSync(new URL('./schema.sql',import.meta.url),'utf8'));
  return {raw:db,prepare(sql){return {bind(...args){return {async run(){const r=db.prepare(sql).run(...args);return {meta:{changes:Number(r.changes)}};}}}}}};
 }
+function freeProof(provider){
+ const claim={schema:'musitu.axiom.zero-cash-free-provider-proof.v1',provider,model:MODEL[provider],
+   account_tier:'FREE',account_ref_sha256:'b'.repeat(64),evidence_sha256:'c'.repeat(64),
+   builder_id:'axiom-builder',independent_reviewer_id:'human-security-reviewer',
+   verified_no_overage:true,commercial_customer_use_allowed:true,cash_ceiling_usd:'0.00',
+   issued_ms:NOW-1000,expires_ms:NOW+60000};
+ const token=Buffer.from(JSON.stringify(claim)).toString('base64url');
+ return {token,hmac:createHmac('sha256',FREE_KEY).update(token).digest('hex')};
+}
+const CF_PROOF=freeProof('cloudflare'),GROQ_PROOF=freeProof('groq');
 function env(overrides={}){return {
   AXIOM_PUBLIC_INFERENCE_ENABLE:'EXPLICIT_NONPRODUCTION_TEST',
   AXIOM_FREE_ACCOUNT_ATTESTED:'TRUE',
   AXIOM_ZERO_CASH_BUDGET_USD:'0',
   AXIOM_EXTERNAL_PROVIDER_CONSENT_GATE:'VERIFIED',
   AXIOM_CAPABILITY_HMAC_KEY:KEY,
+  AXIOM_FREE_PROVIDER_PROOF_KEY:FREE_KEY,
+  AXIOM_CLOUDFLARE_FREE_PROOF_TOKEN:CF_PROOF.token,
+  AXIOM_CLOUDFLARE_FREE_PROOF_HMAC:CF_PROOF.hmac,
+  AXIOM_GROQ_FREE_PROOF_TOKEN:GROQ_PROOF.token,
+  AXIOM_GROQ_FREE_PROOF_HMAC:GROQ_PROOF.hmac,
   AXIOM_PUBLIC_INFERENCE_D1:database(),
   AXIOM_GROQ_FREE_ORG_ATTESTED:'TRUE',
   AXIOM_GROQ_FREE_PLAN_KEY:GROQ_KEY,
@@ -152,7 +168,7 @@ test('Groq free tier route is pinned, paid fallback denied and 429 never routes 
    assert.equal(opts.redirect,'error');
    assert.equal(opts.headers.authorization,`Bearer ${GROQ_KEY}`);
    assert.equal(JSON.parse(opts.body).model,MODEL.groq);
-   return new Response(JSON.stringify({choices:[{message:{content:'Groq answer'}}]}),{status:200});
+   return new Response(JSON.stringify({choices:[{message:{content:'Groq answer'}}]}),{status:200,headers:{'content-type':'application/json'}});
  };
  const server=createGateway({now:()=>NOW,fetchImpl:fakeFetch});
  const e=env({AI:{async run(){cfCalls++}}});
@@ -228,4 +244,38 @@ test('rejected signatures do not burn shared global quotas',async()=>{
    assert.equal(r.status,403);
  }
  assert.equal(e.AXIOM_PUBLIC_INFERENCE_D1.raw.prepare('SELECT COUNT(*) AS n FROM public_inference_reservations').get().n,0);
+});
+
+test('plain TRUE environment flags cannot replace independently signed free-provider evidence',async()=>{
+  let calls=0;
+  const e=env({AXIOM_CLOUDFLARE_FREE_PROOF_HMAC:null,AI:{async run(){calls++;return {response:'SHOULD_NOT_RUN'};}}});
+  const denied=await gw.fetch(signedRequest().request,e);
+  assert.equal(denied.status,503);
+  assert.equal(await errorCode(denied),'FREE_ACCOUNT_PROOF_NOT_VERIFIED');
+  assert.equal(calls,0);
+  assert.equal(e.AXIOM_PUBLIC_INFERENCE_D1.raw.prepare('SELECT COUNT(*) AS n FROM public_inference_reservations').get().n,0);
+});
+
+test('forged Groq free-plan attestation rejects before quota or provider network call',async()=>{
+  let calls=0;
+  const fake=createGateway({now:()=>NOW,fetchImpl:async()=>{calls++;throw Error('unexpected provider call');}});
+  const e=env({AXIOM_GROQ_FREE_PROOF_HMAC:'0'.repeat(64)});
+  const result=await fake.fetch(signedRequest(body('groq')).request,e);
+  assert.equal(result.status,503);
+  assert.equal(await errorCode(result),'FREE_ACCOUNT_PROOF_NOT_VERIFIED');
+  assert.equal(calls,0);
+  assert.equal(e.AXIOM_PUBLIC_INFERENCE_D1.raw.prepare('SELECT COUNT(*) AS n FROM public_inference_reservations').get().n,0);
+});
+
+test('1,000 concurrent synthetic public requests preserve hard 3-per-minute free quota',async()=>{
+  let providerCalls=0;
+  const e=env({AI:{async run(){providerCalls++;return {response:'synthetic-only'}}}});
+  // No public network calls. Requests share one synchronous local SQL database,
+  // so this exercises the gateway boundary, NOT D1's distributed admission.
+  const requests=Array.from({length:1000},()=>signedRequest().request);
+  const results=await Promise.all(requests.map(r=>gw.fetch(r,e)));
+  assert.equal(results.filter(r=>r.status===200).length,3);
+  assert.equal(results.filter(r=>r.status===429).length,997);
+  assert.equal(providerCalls,3);
+  assert.equal(e.AXIOM_PUBLIC_INFERENCE_D1.raw.prepare('SELECT COUNT(*) AS n FROM public_inference_reservations').get().n,3);
 });

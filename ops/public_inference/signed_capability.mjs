@@ -21,7 +21,9 @@ export async function authorizeRequest(headers, key, raw, now) {
   const fields = ['schema','subject','project','nonce','provider','model','request_sha256','classification','consent','max_tokens','issued_ms','expires_ms','risk_class','external_read_only','public_release_authority'];
   if (Object.keys(claims).sort().join('|') !== fields.sort().join('|')) throw Error('DENIED');
   if (claims.schema !== 'musitu.axiom.public-inference-capability.v1' ||
-      !ID.test(claims.subject) || !ID.test(claims.project) || !HEX64.test(claims.nonce) ||
+      typeof claims.subject !== 'string' || !ID.test(claims.subject) ||
+      typeof claims.project !== 'string' || !ID.test(claims.project) ||
+      typeof claims.nonce !== 'string' || !HEX64.test(claims.nonce) ||
       claims.model !== PROVIDER_MODELS[claims.provider] || !HEX64.test(claims.request_sha256) ||
       claims.classification !== 'EXTERNAL_PROVIDER_APPROVED' || claims.consent !== true ||
       claims.risk_class !== 'S2' || claims.external_read_only !== true || claims.public_release_authority !== false ||

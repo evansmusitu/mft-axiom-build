@@ -6,6 +6,7 @@
  */
 import { authorizeRequest } from './signed_capability.mjs';
 import { reserveQuota } from './quota.mjs';
+import { verifyFreeTierAttestation } from './free_tier_attestation.mjs';
 import { runCloudflare, runGroq, ProviderDenied } from './providers.mjs';
 
 const BASE_HEADERS = Object.freeze({
@@ -86,6 +87,11 @@ export function createGateway({ now = () => Date.now(), fetchImpl = fetch } = {}
         permit = await authorizeRequest(request.headers, env.AXIOM_CAPABILITY_HMAC_KEY, raw, now());
         verifyBody(body, permit);
       } catch { return reply(403,'CAPABILITY_OR_SCOPE_DENIED'); }
+      try {
+        // A separate reviewer key attests a short-lived, free-plan account.
+        // This cryptographic receipt is not itself proof of actual provider billing.
+        await verifyFreeTierAttestation(permit.provider,permit.model,env,now());
+      } catch { return reply(503,'FREE_ACCOUNT_PROOF_NOT_VERIFIED'); }
       if (permit.provider === 'groq' && (env.AXIOM_GROQ_FREE_ORG_ATTESTED !== 'TRUE' ||
           !env.AXIOM_GROQ_FREE_PLAN_KEY)) return reply(503,'GROQ_FREE_PLAN_UNVERIFIED');
       if (permit.provider === 'cloudflare' && !env.AI) return reply(503,'CLOUDFLARE_FREE_BINDING_MISSING');

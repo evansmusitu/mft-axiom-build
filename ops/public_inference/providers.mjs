@@ -27,8 +27,31 @@ export async function runGroq(fetchImpl, key, request) {
   } catch { throw new ProviderDenied('PROVIDER_FAILURE'); }
   if (response.status===429) throw new ProviderDenied('FREE_TIER_EXHAUSTED',429);
   if (!response.ok) throw new ProviderDenied('PROVIDER_FAILURE');
-  const buffer = await response.arrayBuffer();
-  if (buffer.byteLength>40000) throw new ProviderDenied('RESPONSE_TOO_LARGE');
+  // Cap response bytes WHILE receiving them, not after allocating an entire
+  // untrusted upstream body. JSON/UTF-8 decoding also fails closed.
+  const type = response.headers?.get('content-type') || '';
+  if (!/^application\/json(?:\s*;|$)/i.test(type)) throw new ProviderDenied('INVALID_PROVIDER_MEDIA_TYPE');
+  const reader = response.body?.getReader?.();
+  if (!reader || typeof reader.read !== 'function' || typeof reader.cancel !== 'function')
+    throw new ProviderDenied('BOUNDED_STREAM_REQUIRED');
+  const chunks = [];
+  let size = 0;
+  try {
+    while (true) {
+      const piece = await reader.read();
+      if (piece.done) break;
+      if (!(piece.value instanceof Uint8Array)) throw new ProviderDenied('INVALID_PROVIDER_CHUNK');
+      size += piece.value.byteLength;
+      if (size > 40000) throw new ProviderDenied('RESPONSE_TOO_LARGE');
+      chunks.push(piece.value);
+    }
+  } catch {
+    try { await reader.cancel(); } catch {} // never leak upstream body/errors
+    throw new ProviderDenied('PROVIDER_STREAM_REJECTED');
+  } finally { try { reader.releaseLock?.(); } catch {} }
+  const buffer = new Uint8Array(size);
+  let offset = 0;
+  for (const chunk of chunks) { buffer.set(chunk, offset); offset += chunk.byteLength; }
   let parsed;
   try { parsed=JSON.parse(new TextDecoder('utf-8',{fatal:true}).decode(buffer)); }
   catch { throw new ProviderDenied('INVALID_PROVIDER_RESULT'); }
