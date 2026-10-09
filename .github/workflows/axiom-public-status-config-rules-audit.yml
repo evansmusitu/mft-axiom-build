@@ -1,0 +1,48 @@
+name: MUSITU Axiom Public Status Config Rules Audit
+
+on:
+  push:
+    branches:
+      - 'support/axiom-global-support-ops-production-rollout-20261008'
+    paths:
+      - '.github/workflows/axiom-public-status-config-rules-audit.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    if: github.event_name == 'push' && github.event.before == '0d63186c6c041ad033bd1607f15809060bd302e6'
+    runs-on: ubuntu-latest
+    environment: axiom-support-production
+    timeout-minutes: 5
+    env:
+      CF_ZONE: '5b56528f03948ff5917a5e0cd9f7109e'
+      TOKEN: ${{ secrets.CLOUDFLARE_RULESETS_API_TOKEN }}
+    steps:
+      - name: Read http_config_settings capability
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          const api='https://api.cloudflare.com/client/v4',zone=process.env.CF_ZONE,token=String(process.env.TOKEN||'');
+          const h={authorization:'Bearer '+token,accept:'application/json'};
+          async function raw(path){
+            const r=await fetch(api+path,{headers:h});
+            let p={};try{p=await r.json()}catch{}
+            return {r,p};
+          }
+          const entry=await raw('/zones/'+zone+'/rulesets/phases/http_config_settings/entrypoint');
+          const all=await raw('/zones/'+zone+'/rulesets');
+          const rulesets=all.r.ok&&all.p?.success!==false?(Array.isArray(all.p.result)?all.p.result:[]):[];
+          const phaseRows=rulesets.filter(x=>String(x?.phase||'')==='http_config_settings');
+          console.log(JSON.stringify({
+            gate:'MUSITU_AXIOM_PUBLIC_STATUS_CONFIG_RULES_AUDIT',
+            status:'PASS',
+            entrypoint:{http_status:entry.r.status,available:entry.r.ok&&entry.p?.success!==false,id_present:Boolean(entry.p?.result?.id),rule_count:Array.isArray(entry.p?.result?.rules)?entry.p.result.rules.length:0},
+            list:{http_status:all.r.status,available:all.r.ok&&all.p?.success!==false,phase_ruleset_count:phaseRows.length},
+            token_can_read_config_rules:(entry.r.ok&&entry.p?.success!==false)||(all.r.ok&&all.p?.success!==false),
+            mutation_performed:false,
+            secret_values_recorded:false
+          }));
+          NODE
