@@ -10,7 +10,7 @@ export class D1CaseStore {
     this.key = encryptionKey;
   }
 
-  async create(bundle) {
+  async create(bundle,{supportPlan=null,language:languageOverride=null}={}) {
     const {case_record: record, intake, initial_event: event} = bundle;
     const encrypted = await encryptSupportPayload({
       summary: intake.summary, description: intake.description, reproduction: intake.reproduction,
@@ -19,9 +19,9 @@ export class D1CaseStore {
     const publicJson = JSON.stringify(publicCaseView(record));
     const encryptedJson = JSON.stringify(encrypted);
     const eventJson = JSON.stringify(event.payload);
-    const requestedPlan=String(intake.support_plan||'STANDARD').toUpperCase();
+    const requestedPlan=String(supportPlan||intake.support_plan||'STANDARD').toUpperCase();
     const plan=['COMMUNITY','STANDARD','BUSINESS','ENTERPRISE'].includes(requestedPlan)?requestedPlan:'STANDARD';
-    const language=normalizeLanguage(intake.language||'und');
+    const language=normalizeLanguage(languageOverride??intake.language??'und');
     const sla=computeSlaClock({priority:record.priority,plan,createdAt:record.created_at});
     const triage=buildTriageEnvelope({
       case_id:record.case_id,priority:record.priority,category:record.category,surface:record.surface,language,
@@ -495,6 +495,150 @@ export class D1CaseStore {
         .bind(notificationId,caseId,'CUSTOMER_ESCALATION_REQUESTED','operator',event.event_hash,at),
     ]);
     return Object.freeze({escalation_id:escalationId,case_id:caseId,lane,reason_code:reason,status:'OPEN',created_at:at});
+  }
+
+  async createOrganizationInvite(orgRef,input={},principal){
+    const role=String(input.role||'ORG_MEMBER').toUpperCase();
+    const hours=Number(input.expires_in_hours??24);
+    if(!/^org:[a-z0-9._:-]{6,180}$/i.test(String(orgRef||'')))throw new TypeError('organization ref invalid');
+    if(!['ORG_ADMIN','ORG_MEMBER'].includes(role))throw new TypeError('organization invite role invalid');
+    if(!Number.isInteger(hours)||hours<1||hours>168)throw new TypeError('organization invite expiry must be 1-168 hours');
+    const org=await this.db.prepare("SELECT org_ref,plan,status FROM support_organizations WHERE org_ref=? LIMIT 1").bind(orgRef).first();
+    if(!org||String(org.status)!=='ACTIVE')return null;
+    const inviteCode=randomToken(8)+'-'+randomToken(8)+'-'+randomToken(8);
+    const tokenHash=await sha256(inviteCode);
+    const inviteId='AXV-'+randomToken(16),createdAt=new Date().toISOString();
+    const expiresAt=new Date(Date.parse(createdAt)+hours*3600000).toISOString();
+    await this.db.prepare(`INSERT INTO support_org_invites
+      (invite_id,org_ref,token_hash,role,created_by,expires_at,consumed_at,created_at)
+      VALUES (?,?,?,?,?,?,NULL,?)`).bind(
+        inviteId,orgRef,tokenHash,role,String(principal?.actor_ref||''),expiresAt,createdAt
+      ).run?.();
+    return Object.freeze({invite_id:inviteId,org_ref:orgRef,role,invite_code:inviteCode,expires_at:expiresAt});
+  }
+
+  async consumeOrganizationInvite(inviteCode,identity){
+    const token=String(inviteCode||'').trim().toUpperCase();
+    if(!/^[0-9A-HJKMNP-TV-Z]{8}-[0-9A-HJKMNP-TV-Z]{8}-[0-9A-HJKMNP-TV-Z]{8}$/.test(token))return null;
+    const tokenHash=await sha256(token),identityHash=await recoveryIdentityHash(identity);
+    const invite=await this.db.prepare(`SELECT i.invite_id,i.org_ref,i.role,i.expires_at,o.plan,o.status
+      FROM support_org_invites i JOIN support_organizations o ON o.org_ref=i.org_ref
+      WHERE i.token_hash=? AND i.consumed_at IS NULL AND i.expires_at>strftime('%Y-%m-%dT%H:%M:%fZ','now')
+      LIMIT 1`).bind(tokenHash).first();
+    if(!invite||String(invite.status)!=='ACTIVE')return null;
+    const at=new Date().toISOString(),membershipId='AXL-'+randomToken(16);
+    await this.db.batch([
+      this.db.prepare(`INSERT INTO support_org_memberships
+        (membership_id,org_ref,identity_hash,role,created_at,revoked_at) VALUES (?,?,?,?,?,NULL)
+        ON CONFLICT(org_ref,identity_hash) DO UPDATE SET role=excluded.role,revoked_at=NULL`)
+        .bind(membershipId,String(invite.org_ref),identityHash,String(invite.role),at),
+      this.db.prepare(`UPDATE support_org_invites SET consumed_at=?
+        WHERE invite_id=? AND consumed_at IS NULL`).bind(at,String(invite.invite_id)),
+    ]);
+    const row=await this.db.prepare(`SELECT membership_id,org_ref,role,created_at FROM support_org_memberships
+      WHERE org_ref=? AND identity_hash=? AND revoked_at IS NULL LIMIT 1`).bind(String(invite.org_ref),identityHash).first();
+    return Object.freeze({
+      membership_id:String(row?.membership_id||membershipId),org_ref:String(invite.org_ref),
+      role:String(invite.role),plan:String(invite.plan),joined_at:String(row?.created_at||at)
+    });
+  }
+
+  async enterpriseEntitlements(orgRef){
+    const result=await this.db.prepare(`SELECT capability,enabled,starts_at,ends_at FROM support_support_entitlements
+      WHERE org_ref=? AND starts_at<=strftime('%Y-%m-%dT%H:%M:%fZ','now')
+        AND (ends_at IS NULL OR ends_at>strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+      ORDER BY created_at ASC`).bind(orgRef).all();
+    const state=new Map();
+    for(const row of result?.results||[])state.set(String(row.capability),Number(row.enabled)===1);
+    return Object.freeze([...state.entries()].filter(([,enabled])=>enabled).map(([capability])=>capability));
+  }
+
+  async getEnterpriseMemberships(identity){
+    const identityHash=await recoveryIdentityHash(identity);
+    const result=await this.db.prepare(`SELECT m.membership_id,m.org_ref,m.role,m.created_at,o.plan,o.status
+      FROM support_org_memberships m JOIN support_organizations o ON o.org_ref=m.org_ref
+      WHERE m.identity_hash=? AND m.revoked_at IS NULL AND o.status='ACTIVE'
+      ORDER BY o.org_ref ASC`).bind(identityHash).all();
+    const out=[];
+    for(const row of result?.results||[]){
+      out.push(Object.freeze({
+        membership_id:String(row.membership_id),org_ref:String(row.org_ref),role:String(row.role),
+        plan:String(row.plan),entitlements:await this.enterpriseEntitlements(String(row.org_ref)),
+        joined_at:String(row.created_at)
+      }));
+    }
+    return Object.freeze(out);
+  }
+
+  async getEnterpriseOrganizationContext(orgRef,identity){
+    const identityHash=await recoveryIdentityHash(identity);
+    const row=await this.db.prepare(`SELECT m.membership_id,m.org_ref,m.role,m.created_at,o.plan,o.status
+      FROM support_org_memberships m JOIN support_organizations o ON o.org_ref=m.org_ref
+      WHERE m.org_ref=? AND m.identity_hash=? AND m.revoked_at IS NULL AND o.status='ACTIVE' LIMIT 1`)
+      .bind(orgRef,identityHash).first();
+    if(!row)return null;
+    return Object.freeze({
+      membership_id:String(row.membership_id),org_ref:String(row.org_ref),role:String(row.role),
+      plan:String(row.plan),entitlements:await this.enterpriseEntitlements(String(row.org_ref)),
+      joined_at:String(row.created_at)
+    });
+  }
+
+  async listEnterpriseCases(orgRef,identity,{limit=100}={}){
+    const context=await this.getEnterpriseOrganizationContext(orgRef,identity);
+    if(!context)return null;
+    const bounded=Math.max(1,Math.min(100,Number(limit)||100));
+    const result=await this.db.prepare(`SELECT case_id,state,priority,surface,category,created_at,updated_at
+      FROM support_cases WHERE requester_ref=? ORDER BY updated_at DESC LIMIT ?`).bind(orgRef,bounded).all();
+    return Object.freeze((result?.results||[]).map(row=>Object.freeze({...row})));
+  }
+
+  async getEnterpriseCase(orgRef,caseId,identity){
+    const context=await this.getEnterpriseOrganizationContext(orgRef,identity);
+    if(!context)return null;
+    const row=await this.db.prepare(`SELECT public_json,encrypted_payload,requester_ref FROM support_cases
+      WHERE case_id=? AND requester_ref=? LIMIT 1`).bind(caseId,orgRef).first();
+    if(!row)return null;
+    const details=await decryptSupportPayload(JSON.parse(row.encrypted_payload),{key:this.key,caseId});
+    const messagesResult=await this.db.prepare(`SELECT message_id,case_id,type,actor,visibility,encrypted_payload,event_hash,created_at
+      FROM support_case_messages WHERE case_id=? AND visibility='customer' ORDER BY created_at ASC`).bind(caseId).all();
+    const messages=[];
+    for(const item of messagesResult?.results||[]){
+      const payload=await decryptSupportPayload(JSON.parse(item.encrypted_payload),{key:this.key,caseId});
+      messages.push(Object.freeze({
+        message_id:item.message_id,case_id:item.case_id,type:item.type,actor:item.actor,visibility:item.visibility,
+        body:String(payload?.body||''),event_hash:item.event_hash,created_at:item.created_at
+      }));
+    }
+    const attachmentResult=await this.db.prepare(`SELECT attachment_id,filename,content_type,bytes,sha256,scan_state,created_at
+      FROM support_attachments WHERE case_id=? AND visibility='customer' AND scan_state='CLEAN' ORDER BY created_at ASC`).bind(caseId).all();
+    const attachments=Object.freeze((attachmentResult?.results||[]).map(item=>Object.freeze({...item,bytes:Number(item.bytes||0)})));
+    return Object.freeze({case:JSON.parse(row.public_json),details,messages:Object.freeze(messages),attachments});
+  }
+
+  async appendEnterpriseCustomerMessage(orgRef,caseId,identity,input={}){
+    const context=await this.getEnterpriseOrganizationContext(orgRef,identity);
+    if(!context)return null;
+    const row=await this.db.prepare(`SELECT case_id,state,priority,surface,category,requester_ref,retention_class,human_approval_required,last_event_hash,created_at,updated_at
+      FROM support_cases WHERE case_id=? AND requester_ref=? LIMIT 1`).bind(caseId,orgRef).first();
+    if(!row)return null;
+    const message=await createConversationMessage({caseId,type:'CUSTOMER_MESSAGE',actor:'requester',visibility:'customer',body:input.body});
+    const encrypted=await encryptSupportPayload({body:message.body},{key:this.key,caseId,schema:'musitu.axiom.support-message-encrypted.v1'});
+    const event=await appendCaseEvent(row,{type:'CUSTOMER_MESSAGE',actor:'requester',visibility:'customer',payload:{message_id:message.message_id,channel:'enterprise_portal'}},{at:message.created_at});
+    const notificationId='AXN-'+randomToken(16);
+    await this.db.batch([
+      this.db.prepare(`INSERT INTO support_case_messages
+        (message_id,case_id,type,actor,visibility,encrypted_payload,event_hash,created_at) VALUES (?,?,?,?,?,?,?,?)`)
+        .bind(message.message_id,message.case_id,message.type,message.actor,message.visibility,JSON.stringify(encrypted),event.event_hash,message.created_at),
+      this.db.prepare(`INSERT INTO support_case_events
+        (case_id,event_hash,prior_event_hash,type,actor,visibility,payload_json,created_at) VALUES (?,?,?,?,?,?,?,?)`)
+        .bind(event.case_id,event.event_hash,event.prior_event_hash,event.type,event.actor,event.visibility,JSON.stringify(event.payload),event.at),
+      this.db.prepare('UPDATE support_cases SET last_event_hash=?,updated_at=? WHERE case_id=?').bind(event.event_hash,event.at,caseId),
+      this.db.prepare(`INSERT INTO support_notification_outbox
+        (notification_id,case_id,kind,audience,event_hash,created_at) VALUES (?,?,?,?,?,?)`)
+        .bind(notificationId,caseId,'CUSTOMER_MESSAGE_RECEIVED','operator',event.event_hash,event.at),
+    ]);
+    return Object.freeze({message,notification_id:notificationId});
   }
 
   async prepareAttachment(caseId,recoveryCode,input={}){
