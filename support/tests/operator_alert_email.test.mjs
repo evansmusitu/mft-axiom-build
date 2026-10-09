@@ -8,7 +8,8 @@ test('operator notifications use restricted Cloudflare send_email binding with m
   const sent=[];
   const result=await deliverSupportNotification({...base,audience:'operator'},{
     SUPPORT_OPS_EMAIL:{send:async message=>{sent.push(message);return {messageId:'msg-operator-1'};}},
-    SUPPORT_OPS_FROM:'support@mftintelligence.com'
+    SUPPORT_OPS_FROM:'support@mftintelligence.com',
+    SUPPORT_OPS_EMAIL_READY:'true'
   });
   assert.equal(result.delivered,true);
   assert.equal(result.receipt_id,'msg-operator-1');
@@ -50,4 +51,17 @@ test('operator send_email failure is reported as delivery failure, not silent su
     }),
     /simulated send failure/
   );
+});
+
+
+test('operator email binding remains fail-closed until sending domain readiness is explicitly enabled',async()=>{
+  let calls=0;
+  const result=await deliverSupportNotification({...base,audience:'operator'},{
+    SUPPORT_OPS_EMAIL:{send:async()=>{calls++;return {messageId:'must-not-send'};}},
+    SUPPORT_OPS_FROM:'support@mftintelligence.com',
+    SUPPORT_OPS_EMAIL_READY:'false'
+  });
+  assert.equal(result.delivered,false);
+  assert.equal(result.reason,'PROVIDER_UNAVAILABLE');
+  assert.equal(calls,0);
 });
