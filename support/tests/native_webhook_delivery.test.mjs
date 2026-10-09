@@ -3,7 +3,7 @@ import test from 'node:test';
 import {readFile} from 'node:fs/promises';
 import {validateWebhookEndpoint} from '../global_ops.js';
 import {D1CaseStore} from '../d1_case_store.js';
-import {deliverSupportWebhook} from '../worker.js';
+import {deliverSupportWebhook,handleOperatorRequest} from '../worker.js';
 
 test('native webhook endpoint validation is HTTPS-only and blocks local/private destinations',()=>{
   const good=validateWebhookEndpoint('https://hooks.example.com/musitu');
@@ -97,4 +97,35 @@ test('native webhook sender fails closed without delivery configuration',async()
   assert.equal(result.delivered,false);
   assert.equal(result.reason,'PROVIDER_UNAVAILABLE');
   assert.equal(calls,0);
+});
+
+
+test('authenticated operator can configure or rotate native webhook delivery without secret echo',async()=>{
+  const calls=[];
+  const store={
+    async configureWebhookDelivery(ref,input,principal){
+      calls.push({ref,input,principal});
+      return {webhook_ref:ref,native_delivery_configured:true,updated_at:'2026-10-09T00:00:00.000Z'};
+    }
+  };
+  const env={
+    ENVIRONMENT:'test',
+    SUPPORT_STORE:store,
+    SUPPORT_OPERATOR_VERIFY:async()=>({actor_ref:'support_agent:owner',role:'support_agent'})
+  };
+  const response=await handleOperatorRequest(new Request(
+    'https://ops.example/api/v1/operator/webhooks/webhook%3Aacme001/delivery',
+    {method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({
+      endpoint_url:'https://hooks.example.com/musitu',
+      signing_secret:'0123456789abcdef0123456789abcdef'
+    })}
+  ),env);
+  assert.equal(response.status,200);
+  assert.equal(calls.length,1);
+  assert.equal(calls[0].ref,'webhook:acme001');
+  assert.equal(calls[0].principal.actor_ref,'support_agent:owner');
+  const body=await response.json();
+  assert.equal(body.native_delivery_configured,true);
+  assert.equal(JSON.stringify(body).includes('0123456789abcdef'),false);
+  assert.equal(JSON.stringify(body).includes('hooks.example.com'),false);
 });
