@@ -1,0 +1,77 @@
+name: MUSITU Axiom Enterprise Customer Production Activate
+
+on:
+  push:
+    branches:
+      - 'support/axiom-enterprise-customer-production-rollout-20261009'
+    paths:
+      - '.github/workflows/axiom-enterprise-customer-production-activate.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  activate:
+    if: github.event_name == 'push' && github.event.before == 'ddc460c2a85388b28f5490e0846ff6718a40a055'
+    runs-on: ubuntu-latest
+    environment: axiom-support-production
+    timeout-minutes: 8
+    env:
+      CF_ACCOUNT: '93f395f5121954671f92fffa453d6b61'
+      ACCESS_TOKEN: ${{ secrets.CLOUDFLARE_ACCESS_API_TOKEN }}
+      CF_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+      CF_GLOBAL_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+    steps:
+      - name: Activate authenticated enterprise Access
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          const api='https://api.cloudflare.com/client/v4',account=process.env.CF_ACCOUNT;
+          const at=String(process.env.ACCESS_TOKEN||''),email=String(process.env.CF_EMAIL||''),key=String(process.env.CF_GLOBAL_KEY||'');
+          async function raw(headers,path,{method='GET',body}={}){
+            const r=await fetch(api+path,{method,headers:{...headers,accept:'application/json',...(body===undefined?{}:{'content-type':'application/json'})},...(body===undefined?{}:{body:JSON.stringify(body)})});
+            let p={};try{p=await r.json()}catch{};return {r,p};
+          }
+          async function call(headers,path,opts={}){
+            const {r,p}=await raw(headers,path,opts);if(!r.ok||p?.success===false)throw new Error('Access '+(opts.method||'GET')+' '+path+' failed HTTP '+r.status);return p.result;
+          }
+          const ah=at?{authorization:'Bearer '+at}:null,gh={'X-Auth-Email':email,'X-Auth-Key':key};
+          async function access(path,opts={}){
+            if(ah){const a=await raw(ah,path,opts);if(a.r.ok&&a.p?.success!==false)return a.p.result;if(!(a.r.status===401||a.r.status===403))throw new Error('Access API failed '+a.r.status);}
+            return call(gh,path,opts);
+          }
+          const target='support.mftintelligence.com/enterprise/*';
+          const apps=await access('/accounts/'+account+'/access/apps?per_page=100');
+          const matches=(Array.isArray(apps)?apps:[]).filter(x=>String(x?.domain||'').toLowerCase()===target);
+          if(matches.length!==1)throw new Error('enterprise Access app is not unique');
+          const appId=String(matches[0].id||'');
+          let policies=await access('/accounts/'+account+'/access/apps/'+encodeURIComponent(appId)+'/policies');
+          const rows=Array.isArray(policies)?policies:[];
+          if(rows.length===0){
+            await access('/accounts/'+account+'/access/apps/'+encodeURIComponent(appId)+'/policies',{method:'POST',body:{
+              name:'Authenticated MUSITU enterprise customers',decision:'allow',
+              include:[{everyone:{}}],session_duration:'8h',precedence:1
+            }});
+            policies=await access('/accounts/'+account+'/access/apps/'+encodeURIComponent(appId)+'/policies');
+          }
+          const finalRows=Array.isArray(policies)?policies:[];
+          if(finalRows.length!==1||String(finalRows[0]?.decision||'')!=='allow')throw new Error('enterprise Access policy drift');
+          const include=Array.isArray(finalRows[0]?.include)?finalRows[0].include:[];
+          if(!include.some(x=>x&&typeof x==='object'&&x.everyone&&typeof x.everyone==='object'))throw new Error('enterprise Access is not authenticated-everyone');
+          console.log(JSON.stringify({gate:'MUSITU_AXIOM_ENTERPRISE_CUSTOMER_ACCESS_ACTIVATION',status:'PASS',policy_count:1,selector:'authenticated_everyone',bypass:false,identity_values_recorded:false}));
+          NODE
+
+      - name: Prove anonymous enterprise access is blocked
+        shell: bash
+        run: |
+          set -euo pipefail
+          for path in /enterprise/ /enterprise/app.js /enterprise/api/v1/me /enterprise/api/v1/join; do
+            method=GET
+            [ "$path" = "/enterprise/api/v1/join" ] && method=POST
+            code=$(curl --silent --show-error --connect-timeout 10 --max-time 30 -X "$method" -D /tmp/h -o /tmp/b -w '%{http_code}' "https://support.mftintelligence.com$path" || true)
+            case "$code" in 302|303|307|401|403) ;; *) echo "anonymous enterprise request unexpectedly reachable: $path -> $code" >&2; exit 1;; esac
+            ! grep -q 'Verified organization workspace' /tmp/b
+            printf '{"path":"%s","http_status":"%s","anonymous_access":false}\n' "$path" "$code"
+          done
+          rm -f /tmp/h /tmp/b
