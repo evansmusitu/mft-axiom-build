@@ -1,0 +1,102 @@
+name: AXIOM zero-cost scoped-token Cloudflare native billing and binding read
+on:
+  push:
+    branches: [frontier/axiom-public-inference-zero-cost-20261009]
+    paths: ['.github/workflows/axiom-public-inference-scoped-free-proof-once.yml']
+permissions:
+  contents: read
+jobs:
+  native-read-only:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 4
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+    steps:
+      - name: Query exact AXIOM account with verified scoped token; NO checkout or mutation
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF_NAME" = 'frontier/axiom-public-inference-zero-cost-20261009'
+          test -n "${CLOUDFLARE_API_TOKEN:-}" || { echo TOKEN_NOT_CONFIGURED; exit 42; }
+          python3 - <<'PY'
+          import json,os,urllib.request,urllib.error
+          AID='93f395f5121954671f92fffa453d6b61'
+          API='https://api.cloudflare.com/client/v4'
+          T=os.environ['CLOUDFLARE_API_TOKEN']
+          H={'Authorization':'Bearer '+T,'Accept':'application/json','User-Agent':'AXIOM-Scoped-Account-Proof/1'}
+          paths={
+             'zone':'/zones?name=mftintelligence.com&status=active',
+             'account':'/accounts/'+AID,
+             'subscriptions':'/accounts/'+AID+'/subscriptions',
+             'workers_settings':'/accounts/'+AID+'/workers/account-settings',
+             'workers_subdomain':'/accounts/'+AID+'/workers/subdomain',
+             'd1_list':'/accounts/'+AID+'/d1/database?per_page=1',
+             'token_verify':'/user/tokens/verify',
+          }
+          def get(name):
+              path=paths[name]
+              if any(path.lower().startswith(x) for x in ('http','//')):raise RuntimeError('unsafe route')
+              req=urllib.request.Request(API+path,headers=H,method='GET')
+              try:
+                  with urllib.request.urlopen(req,timeout=18) as r:
+                      if r.status!=200:return (False,'HTTP_'+str(r.status),None)
+                      raw=r.read(131073)
+                      if len(raw)>131072:return (False,'OVERSIZE',None)
+                      data=json.loads(raw)
+                      if type(data) is not dict or data.get('success') is not True:
+                          return (False,'API_NOT_SUCCESS',None)
+                      return (True,'PASS',data)
+              except urllib.error.HTTPError as e:
+                  return (False,'HTTP_'+str(e.code),None)
+              except Exception:
+                  return (False,'TRANSPORT_FAILURE',None)
+          out={'schema':'musitu.axiom.native-scoped-free-plan-evidence.v1','writes':False,
+               'inference_calls':0,'public_release':False}
+          ok,name,data=get('zone')
+          out['zone_read']=name
+          z=data.get('result') if ok else []
+          zone_auth=(type(z) is list and len(z)==1 and z[0].get('name')=='mftintelligence.com'
+                    and (z[0].get('account') or {}).get('id')==AID)
+          out['zone_expected_account_matched']=bool(zone_auth)
+          if not zone_auth:
+              print('AXIOM_NATIVE_PROVIDER_EVIDENCE='+json.dumps(out,sort_keys=True))
+              raise SystemExit('AXIOM_NATIVE_ZONE_ACCOUNT_INVARIANT_FAIL')
+          ok,name,data=get('account')
+          out['account_read']=name
+          if not ok or not isinstance(data.get('result'),dict) or data['result'].get('id')!=AID:
+              print('AXIOM_NATIVE_PROVIDER_EVIDENCE='+json.dumps(out,sort_keys=True))
+              raise SystemExit('AXIOM_NATIVE_ACCOUNT_INVARIANT_FAIL')
+          out['auth_ok']=True
+          for key in ('subscriptions','workers_settings','workers_subdomain','d1_list','token_verify'):
+              good,reason,record=get(key)
+              out[key+'_read']=reason
+              if not good:continue
+              result=record.get('result')
+              if key=='subscriptions':
+                  if type(result) is list:
+                      out['subscription_count']=len(result)
+                      info=record.get('result_info')
+                      out['subscriptions_complete']=not info or (isinstance(info,dict) and info.get('total_count')==len(result))
+                      # Paid Workers plan is a terminal $0 rejection.
+                      ids=[str((a.get('rate_plan') or {}).get('id') or '').upper()
+                           for a in result if isinstance(a,dict)]
+                      out['workers_paid_subscription_present']=any('WORKERS_PAID' in id or 'PARTNERS_WORKERS' in id for id in ids)
+                      out['workers_plan_evidence']='NO_PAID_WORKERS_SUBSCRIPTION_OBSERVED' if not out['workers_paid_subscription_present'] and out['subscriptions_complete'] else 'NOT_PROVEN'
+                  else:out['workers_plan_evidence']='NOT_PROVEN'
+              elif key=='workers_settings':
+                  out['workers_usage_model']= (result.get('default_usage_model')
+                      if isinstance(result,dict) and result.get('default_usage_model') in ('bundled','unbound') else 'UNKNOWN')
+              elif key=='d1_list':
+                  out['d1_accessible']=isinstance(result,list)
+              elif key=='token_verify':
+                  out['token_active']=isinstance(result,dict) and result.get('status')=='active'
+              elif key=='workers_subdomain':
+                  out['subdomain_configured']=isinstance(result,dict) and bool(result.get('subdomain'))
+          out['workers_free_account_verified']=bool(out.get('workers_plan_evidence')=='NO_PAID_WORKERS_SUBSCRIPTION_OBSERVED'
+               and out.get('subscriptions_complete') and not out.get('workers_paid_subscription_present'))
+          out['provider_overage_hard_stop_verified']=False # Native billing API alone insufficient.
+          out['customer_identity_issuer_verified']=False
+          out['production_release_authorized']=False
+          print('AXIOM_NATIVE_PROVIDER_EVIDENCE='+json.dumps(out,sort_keys=True))
+          print('MUSITU_AXIOM_SCOPED_NATIVE_ACCOUNT_READ_PASS')
+          PY
