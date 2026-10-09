@@ -172,6 +172,12 @@ CREATE TABLE IF NOT EXISTS support_webhook_subscriptions (
   webhook_ref TEXT PRIMARY KEY, org_ref TEXT REFERENCES support_organizations(org_ref) ON DELETE RESTRICT, endpoint_ref TEXT NOT NULL, secret_ref TEXT NOT NULL,
   event_types_json TEXT NOT NULL, enabled INTEGER NOT NULL CHECK(enabled IN (0,1)), created_at TEXT NOT NULL, updated_at TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS support_webhook_delivery_configs (
+  webhook_ref TEXT PRIMARY KEY REFERENCES support_webhook_subscriptions(webhook_ref) ON DELETE RESTRICT,
+  config_encrypted TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
 CREATE TABLE IF NOT EXISTS support_webhook_outbox (
   delivery_id TEXT PRIMARY KEY CHECK(delivery_id GLOB 'AXW-*'), webhook_ref TEXT NOT NULL REFERENCES support_webhook_subscriptions(webhook_ref) ON DELETE RESTRICT,
   case_id TEXT REFERENCES support_cases(case_id) ON DELETE RESTRICT, event_type TEXT NOT NULL, payload_json TEXT NOT NULL, event_hash TEXT NOT NULL CHECK(length(event_hash)=64),
