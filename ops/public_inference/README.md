@@ -51,3 +51,7 @@ Official provider documentation:
 - https://developers.cloudflare.com/d1/platform/pricing/
 - https://console.groq.com/docs/rate-limits
 - https://console.groq.com/docs/api-reference
+
+## Alternative quota ledger when D1 Free capacity is exhausted (2026-10-09)
+
+The native account has 11 D1 databases against the Free plan limit of 10; a new isolated D1 creation returned HTTP 403. Do not delete, overwrite or repurpose existing production D1 databases. A new optional `AXIOM_QUOTA_BACKEND=SQLITE_DO` routes reservations to one globally named, SQLite-backed Durable Object using strict transactionSync, per-customer/global caps, unique nonces and a broker-only HMAC secret. It is **a separate candidate, not a live deployment**. Configure `AXIOM_GLOBAL_QUOTA` (SQLite Durable Object binding) and `AXIOM_DO_INTERNAL_QUOTA_KEY` through an independent secrets broker; DO class `AxiomGlobalInferenceQuota` requires an explicit Free-compatible migration. Unknown storage backends fail closed. Independent identity/release approval and native Durable Object live verification remain NOT PROVEN.

@@ -279,3 +279,39 @@ test('1,000 concurrent synthetic public requests preserve hard 3-per-minute free
   assert.equal(providerCalls,3);
   assert.equal(e.AXIOM_PUBLIC_INFERENCE_D1.raw.prepare('SELECT COUNT(*) AS n FROM public_inference_reservations').get().n,3);
 });
+\n
+test('explicit Free-plan SQLite DO ledger routes only verified S2 capabilities without D1 fallback',async()=>{
+ let calls=0,admissions=0;
+ const e=env({
+   AXIOM_QUOTA_BACKEND:'SQLITE_DO', AXIOM_PUBLIC_INFERENCE_D1:null,
+   AXIOM_DO_INTERNAL_QUOTA_KEY:'c'.repeat(64),
+   AXIOM_GLOBAL_QUOTA:{
+     idFromName(name){assert.equal(name,'axiom-public-inference-global-v1');return name;},
+     get(){return {fetch:async(url,options)=>{
+       assert.equal(new URL(url).hostname,'quota.internal');
+       assert.equal(options.method,'POST');
+       assert.equal(options.headers['x-axiom-internal-signature'].length,64);
+       admissions++;
+       return new Response(null,{status:204});
+     }};}
+   },
+   AI:{async run(){calls++;return {choices:[{message:{content:'Native compatible answer'}}]};}}
+ });
+ const r=await gw.fetch(signedRequest().request,e);
+ assert.equal(r.status,200);assert.equal((await r.json()).output,'Native compatible answer');
+ assert.equal(admissions,1);assert.equal(calls,1);
+});
+
+test('Durable Object ledger missing or failing never invokes model or falls back to D1',async()=>{
+ let calls=0;
+ const e=env({AXIOM_QUOTA_BACKEND:'SQLITE_DO',AXIOM_GLOBAL_QUOTA:null,
+               AI:{async run(){calls++;return {response:'unsafe'};}}});
+ const denied=await gw.fetch(signedRequest().request,e);
+ assert.equal(denied.status,503);assert.equal(calls,0);
+ const fail=env({AXIOM_QUOTA_BACKEND:'SQLITE_DO',AXIOM_GLOBAL_QUOTA:{
+    idFromName:x=>x,get:()=>({fetch:async()=>new Response(null,{status:429})})},
+    AXIOM_DO_INTERNAL_QUOTA_KEY:'c'.repeat(64),
+    AI:{async run(){calls++;return{response:'unsafe'}}}});
+ const rejected=await gw.fetch(signedRequest().request,fail);
+ assert.equal(rejected.status,429);assert.equal(calls,0);
+});

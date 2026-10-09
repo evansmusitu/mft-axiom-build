@@ -6,6 +6,8 @@
  */
 import { authorizeRequest } from './signed_capability.mjs';
 import { reserveQuota } from './quota.mjs';
+import { reserveQuotaDurable } from './durable_quota.mjs';
+export { AxiomGlobalInferenceQuota } from './durable_quota.mjs';
 import { verifyFreeTierAttestation } from './free_tier_attestation.mjs';
 import { runCloudflare, runGroq, ProviderDenied } from './providers.mjs';
 
@@ -44,7 +46,16 @@ function hardGate(env) {
       env.AXIOM_FREE_ACCOUNT_ATTESTED !== 'TRUE' ||
       env.AXIOM_ZERO_CASH_BUDGET_USD !== '0' ||
       env.AXIOM_EXTERNAL_PROVIDER_CONSENT_GATE !== 'VERIFIED' ||
-      !env.AXIOM_CAPABILITY_HMAC_KEY || !env.AXIOM_PUBLIC_INFERENCE_D1) return false;
+      !env.AXIOM_CAPABILITY_HMAC_KEY) return false;
+  // Only an explicit backend selection may replace the existing D1 contract.
+  // Never fall back to an in-memory, regional rate limit or paid storage.
+  if(env.AXIOM_QUOTA_BACKEND === 'SQLITE_DO'){
+    if(!env.AXIOM_GLOBAL_QUOTA || typeof env.AXIOM_DO_INTERNAL_QUOTA_KEY !== 'string' ||
+       env.AXIOM_DO_INTERNAL_QUOTA_KEY.length < 48) return false;
+  } else if((env.AXIOM_QUOTA_BACKEND===undefined || env.AXIOM_QUOTA_BACKEND==='D1') &&
+            env.AXIOM_PUBLIC_INFERENCE_D1){
+    // Existing D1 path retained only when a separately isolated namespace is qualified.
+  } else return false;
   return true;
 }
 export function createGateway({ now = () => Date.now(), fetchImpl = fetch } = {}) {
@@ -96,7 +107,13 @@ export function createGateway({ now = () => Date.now(), fetchImpl = fetch } = {}
           !env.AXIOM_GROQ_FREE_PLAN_KEY)) return reply(503,'GROQ_FREE_PLAN_UNVERIFIED');
       if (permit.provider === 'cloudflare' && !env.AI) return reply(503,'CLOUDFLARE_FREE_BINDING_MISSING');
       try {
-        await reserveQuota(env.AXIOM_PUBLIC_INFERENCE_D1, permit, now());
+        if(env.AXIOM_QUOTA_BACKEND==='SQLITE_DO'){
+          const scoped={nonce:permit.nonce,subject:permit.subject,project:permit.project,
+            provider:permit.provider,model:permit.model,max_tokens:permit.max_tokens};
+          await reserveQuotaDurable(env.AXIOM_GLOBAL_QUOTA,env.AXIOM_DO_INTERNAL_QUOTA_KEY,scoped);
+        } else {
+          await reserveQuota(env.AXIOM_PUBLIC_INFERENCE_D1,permit,now());
+        }
       } catch { return reply(429,'ZERO_COST_QUOTA_EXHAUSTED'); }
       try {
         const result = permit.provider === 'cloudflare'
