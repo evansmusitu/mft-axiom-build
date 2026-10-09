@@ -80,6 +80,52 @@ async function saveQa(){if(!selected)return;try{await api(`/api/v1/operator/case
 async function createIncident(){try{await api('/api/v1/operator/incidents',{method:'POST',body:JSON.stringify({title:$('#incident-title').value.trim(),severity:$('#incident-severity').value,public_summary:$('#incident-summary').value.trim()})});$('#incident-title').value='';$('#incident-summary').value='';await loadGlobalOps();}catch(e){status.textContent=e.message;}}
 async function createMacro(){try{await api('/api/v1/operator/macros',{method:'POST',body:JSON.stringify({name:$('#macro-name').value.trim(),body:$('#macro-body').value.trim()})});$('#macro-name').value='';$('#macro-body').value='';await loadGlobalOps();}catch(e){status.textContent=e.message;}}
 
+async function saveEnterpriseOrg(){
+  const orgRef=$('#enterprise-org-ref').value.trim(),plan=$('#enterprise-plan').value;
+  const output=$('#enterprise-status');if(!orgRef)return;
+  try{
+    const value=await api('/api/v1/operator/organizations',{method:'POST',body:JSON.stringify({org_ref:orgRef,plan})});
+    output.textContent=`Organization ${value.org_ref} saved on ${value.plan}.`;
+  }catch(error){output.textContent=error.message;}
+}
+async function saveEnterpriseEntitlement(){
+  const orgRef=$('#enterprise-org-ref').value.trim(),capability=$('#enterprise-entitlement').value.trim(),enabled=$('#enterprise-entitlement-enabled').value==='true';
+  const output=$('#enterprise-status');if(!orgRef||!capability)return;
+  try{
+    const value=await api(`/api/v1/operator/organizations/${encodeURIComponent(orgRef)}/entitlements`,{method:'POST',body:JSON.stringify({capability,enabled})});
+    output.textContent=`Entitlement ${value.capability} ${value.enabled?'enabled':'disabled'}.`;
+  }catch(error){output.textContent=error.message;}
+}
+function enterpriseWebhookInput(){
+  return {
+    org_ref:$('#enterprise-org-ref').value.trim(),
+    webhook_ref:$('#enterprise-webhook-ref').value.trim(),
+    endpoint_url:$('#enterprise-webhook-endpoint').value.trim(),
+    signing_secret:$('#enterprise-webhook-secret').value,
+    event_types:$('#enterprise-webhook-events').value.split(',').map(x=>x.trim()).filter(Boolean)
+  };
+}
+async function createEnterpriseWebhook(){
+  const input=enterpriseWebhookInput(),output=$('#enterprise-status'),secret=$('#enterprise-webhook-secret');
+  if(!input.org_ref||!input.webhook_ref||!input.endpoint_url||!input.signing_secret)return;
+  try{
+    const value=await api('/api/v1/operator/webhooks',{method:'POST',body:JSON.stringify(input)});
+    output.textContent=`Webhook ${value.webhook_ref} configured with encrypted native delivery.`;
+  }catch(error){output.textContent=error.message;}
+  finally{secret.value='';}
+}
+async function rotateEnterpriseWebhook(){
+  const input=enterpriseWebhookInput(),output=$('#enterprise-status'),secret=$('#enterprise-webhook-secret');
+  if(!input.webhook_ref||!input.endpoint_url||!input.signing_secret)return;
+  try{
+    const value=await api(`/api/v1/operator/webhooks/${encodeURIComponent(input.webhook_ref)}/delivery`,{
+      method:'POST',body:JSON.stringify({endpoint_url:input.endpoint_url,signing_secret:input.signing_secret})
+    });
+    output.textContent=`Webhook ${value.webhook_ref} delivery secret rotated.`;
+  }catch(error){output.textContent=error.message;}
+  finally{secret.value='';}
+}
+
 function renderList(){
   const q=search.value.trim().toLowerCase();
   const rows=cases.filter(item=>{
@@ -150,4 +196,5 @@ document.querySelectorAll('.filters button').forEach(button=>button.addEventList
 document.querySelectorAll('.composer-tabs button').forEach(button=>button.addEventListener('click',()=>{mode=button.dataset.type;document.querySelectorAll('.composer-tabs button').forEach(x=>x.setAttribute('aria-selected',String(x===button)));send.textContent=mode==='INTERNAL_NOTE'?'Save internal note':'Send reply';messageBody.placeholder=mode==='INTERNAL_NOTE'?'Write a private internal note…':'Write a secure response…';}));
 search.addEventListener('input',renderList);send.addEventListener('click',postMessage);applyState.addEventListener('click',changeState);assignButton.addEventListener('click',assignToMe);requestApproval.addEventListener('click',requestSensitiveApproval);
 $('#lease-case')?.addEventListener('click',leaseCase);$('#escalate-case')?.addEventListener('click',escalateCase);$('#handoff-case')?.addEventListener('click',handoffCase);$('#save-qa')?.addEventListener('click',saveQa);$('#create-incident')?.addEventListener('click',createIncident);$('#create-macro')?.addEventListener('click',createMacro);
+$('#save-enterprise-org')?.addEventListener('click',saveEnterpriseOrg);$('#save-enterprise-entitlement')?.addEventListener('click',saveEnterpriseEntitlement);$('#create-enterprise-webhook')?.addEventListener('click',createEnterpriseWebhook);$('#rotate-enterprise-webhook')?.addEventListener('click',rotateEnterpriseWebhook);
 loadCases();loadGlobalOps();
