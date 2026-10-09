@@ -1,0 +1,35 @@
+{
+  "schema": "musitu.axiom.public_inference.zero_cash_closure.v1",
+  "date_utc": "2026-10-09",
+  "repository": "evansmusitu/mft-axiom-build",
+  "source_branch": "frontier/axiom-public-inference-zero-cost-20261009",
+  "verified_parent_sha": "f9cf8d74613803f6ed074c276f1dcdc9b42d87f1",
+  "offline_local": {
+    "node_tests_passed": 29,
+    "python_tests_passed": 22,
+    "node_check": "PASS",
+    "python_compile": "PASS",
+    "model_provider_requests_sent": 0,
+    "cloudflare_account_authenticated_live": false,
+    "cloudflare_account_billing_proven_free": false,
+    "live_d1_proven": false
+  },
+  "new_files_sha256": {
+    "launch_readiness.py": "293cfc83d9bc7a8e0a72523a967b373e8e77588d3db6cab81839d6a42ad87029",
+    "test_launch_readiness.py": "eb61bf469cf724abf585729ccf944269e4d834c4424d9d0feb924e27276a277d",
+    "ZERO_CASH_CLOSURE_RUNBOOK.md": "ab65fd0d8619aa3301b84da89389e2599919be82a55f1c698336f4e44f177b59"
+  },
+  "strict_zero_cash": true,
+  "external_cloudflare_write": false,
+  "prod_deployment": false,
+  "openai_submission_modified": false,
+  "independent_s4_release_authorized": false,
+  "qualification": "OFFLINE_ENGINEERING_ONLY",
+  "blockers": [
+    "live Cloudflare Workers Free and overage evidence",
+    "approved genuinely no-charge execution route and identity issuer",
+    "independent S3 isolated nonproduction deployment",
+    "real provider + D1 end-to-end proof",
+    "independent S4 public release"
+  ]
+}
