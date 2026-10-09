@@ -1,0 +1,108 @@
+name: MUSITU Axiom Tally Independent Approver Onboarding 20261009
+on:
+  push:
+    branches: ['support/axiom-global-support-ops-production-rollout-20261008']
+    paths: ['.github/workflows/axiom-tally-independent-approver-20261009.yml']
+permissions:
+  contents: read
+jobs:
+  enroll:
+    if: github.event.before == '434b9ea7f0c35f0bcce0d2b7a73712ab0a52aea7'
+    runs-on: ubuntu-latest
+    environment: axiom-support-production
+    timeout-minutes: 12
+    env:
+      ACCOUNT: '93f395f5121954671f92fffa453d6b61'
+      WORKER: ${{ secrets.CLOUDFLARE_RULESETS_API_TOKEN }}
+      ACCESS: ${{ secrets.CLOUDFLARE_ACCESS_API_TOKEN }}
+      ADMIN: ${{ secrets.CLOUDFLARE_EMAIL }}
+      GLOBAL_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Full support regression
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF_NAME" = 'support/axiom-global-support-ops-production-rollout-20261008'
+          node --check support/worker.js
+          node --test support/tests/*.test.mjs
+      - name: Minimal scoped independent approver binding and Access policy
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          const root='https://api.cloudflare.com/client/v4',account=process.env.ACCOUNT;
+          const tally='tallyvans410@gmail.com',actor='support_agent:tally',owner=String(process.env.ADMIN||'').trim().toLowerCase();
+          if(!owner||owner===tally||!process.env.WORKER)throw Error('Missing distinct owner or Worker credential');
+          const wh={authorization:'Bearer '+process.env.WORKER},ah=process.env.ACCESS?{authorization:'Bearer '+process.env.ACCESS}:null;
+          const gh=process.env.GLOBAL_KEY?{'X-Auth-Email':owner,'X-Auth-Key':process.env.GLOBAL_KEY}:null;
+          async function raw(url,headers,{method='GET',body}={}){
+            if(!headers)return {ok:false,status:0};
+            try{const form=body instanceof FormData;const r=await fetch(root+url,{method,headers:{...headers,accept:'application/json',...(!form&&body!==undefined?{'content-type':'application/json'}:{})},...(body===undefined?{}:{body:form?body:JSON.stringify(body)}),signal:AbortSignal.timeout(20000)});const j=await r.json().catch(()=>({}));return {ok:r.ok&&j?.success!==false,status:r.status,result:j?.result}}catch{return {ok:false,status:0}}
+          }
+          async function worker(url,opts){const v=await raw(url,wh,opts);if(!v.ok)throw Error('Worker API HTTP '+v.status);return v.result}
+          async function access(url,opts){let v=await raw(url,ah,opts);if(!v.ok)v=await raw(url,gh,opts);if(!v.ok)throw Error('Access API HTTP '+v.status);return v.result}
+          const sp=n=>'/accounts/'+account+'/workers/scripts/'+n,publicName='musitu-axiom-support',opsName='musitu-axiom-support-ops';
+          const [apps,pub,ops,ps,os,publicSub,opsSub,cron]=await Promise.all([
+            access('/accounts/'+account+'/access/apps?per_page=100'),worker(sp(publicName)+'/settings'),worker(sp(opsName)+'/settings'),
+            worker(sp(publicName)+'/secrets'),worker(sp(opsName)+'/secrets'),worker(sp(publicName)+'/subdomain'),worker(sp(opsName)+'/subdomain'),worker(sp(publicName)+'/schedules')
+          ]);
+          const app=(Array.isArray(apps)?apps:[]).filter(v=>v.domain==='support-ops.mftintelligence.com');
+          if(app.length!==1||!app[0].id)throw Error('Operator Access app unexpected');
+          const policyUrl='/accounts/'+account+'/access/apps/'+encodeURIComponent(app[0].id)+'/policies';
+          const rules=await access(policyUrl),policies=Array.isArray(rules)?rules:[];
+          const allows=(rule,email)=>(rule?.include||[]).some(x=>String(x?.email?.email||'').toLowerCase()===email);
+          if(policies.length!==1||policies[0].decision!=='allow'||!allows(policies[0],owner)||allows(policies[0],tally))throw Error('Policy not exactly owner-only');
+          if(publicSub.enabled||opsSub.enabled||publicSub.previews_enabled||opsSub.previews_enabled)throw Error('Worker private boundary drift');
+          if(!(Array.isArray(cron?.schedules)?cron.schedules:Array.isArray(cron)?cron:[]).some(x=>x.cron==='*/5 * * * *'))throw Error('Cron drift');
+          const bindings=obj=>Array.isArray(obj?.bindings)?obj.bindings:[];
+          const value=(arr,name)=>arr.find(x=>x.name===name)?.text;
+          const pb=bindings(pub),ob=bindings(ops);
+          const pmap=JSON.parse(value(pb,'SUPPORT_OPERATOR_BINDINGS_JSON')||'{}');
+          const omap=JSON.parse(value(ob,'SUPPORT_OPERATOR_BINDINGS_JSON')||'{}');
+          if(JSON.stringify(pmap)!==JSON.stringify(omap)||Object.keys(pmap).length!==1||pmap[owner]?.actor_ref!=='support_agent:owner'||pmap[owner]?.role!=='support_agent'||pmap[tally])throw Error('Owner identity mapping drift');
+          const prior=value(pb,'SUPPORT_INDEPENDENT_APPROVER_REF');
+          if(!prior||prior===pmap[owner].actor_ref||Object.values(pmap).some(x=>x.actor_ref===prior))throw Error('A verified approver is already bound');
+          if(value(pb,'SUPPORT_OPS_EMAIL_READY')!=='false')throw Error('Outbound email readiness drift');
+          const newMapping=JSON.stringify({...pmap,[tally]:{actor_ref:actor,role:'support_agent'}});
+          function updated(source,secretRows,workerName,newState){
+            const secrets=new Set((Array.isArray(secretRows)?secretRows:[]).map(x=>x.name));
+            const out=bindings(source).map(b=>{
+              if(b.name==='SUPPORT_OPERATOR_BINDINGS_JSON')return {type:'plain_text',name:b.name,text:newState?newMapping:JSON.stringify(pmap)};
+              if(workerName===publicName&&b.name==='SUPPORT_INDEPENDENT_APPROVER_REF')return {type:'plain_text',name:b.name,text:newState?actor:prior};
+              if(secrets.has(b.name)||b.type==='secret_text')return {type:'inherit',name:b.name,version_id:'latest'};
+              return b;
+            });
+            if(!out.some(x=>x.name==='SUPPORT_OPERATOR_BINDINGS_JSON'))throw Error('Missing operator mapping');
+            if(workerName===publicName&&!out.some(x=>x.name==='SUPPORT_INDEPENDENT_APPROVER_REF'))throw Error('Missing approver');
+            if(new Set(out.map(x=>x.name)).size!==out.length)throw Error('Duplicate bindings');
+            return out;
+          }
+          async function patch(name,b){
+            const fd=new FormData();fd.append('settings',new Blob([JSON.stringify({bindings:b,annotations:{'workers/message':'MUSITU approved second support approver'}})],{type:'application/json'}));
+            return worker(sp(name)+'/settings',{method:'PATCH',body:fd});
+          }
+          let changedPub=false,changedOps=false,policyId=null;
+          try{
+            await patch(publicName,updated(pub,ps,publicName,true));changedPub=true;
+            await patch(opsName,updated(ops,os,opsName,true));changedOps=true;
+            const policy=await access(policyUrl,{method:'POST',body:{name:'Allow Tally nominated independent support approver',decision:'allow',include:[{email:{email:tally}}],session_duration:'8h',precedence:2}});
+            if(!policy?.id)throw Error('Policy create has no id');
+            policyId=policy.id;
+            const [pp,oo,pol]=await Promise.all([worker(sp(publicName)+'/settings'),worker(sp(opsName)+'/settings'),access(policyUrl)]);
+            const pm=JSON.parse(value(bindings(pp),'SUPPORT_OPERATOR_BINDINGS_JSON')||'{}');
+            const om=JSON.parse(value(bindings(oo),'SUPPORT_OPERATOR_BINDINGS_JSON')||'{}');
+            if(pm[tally]?.actor_ref!==actor||om[tally]?.actor_ref!==actor||pm[owner]?.actor_ref!=='support_agent:owner'||om[owner]?.actor_ref!=='support_agent:owner')throw Error('Identity readback mismatch');
+            if(value(bindings(pp),'SUPPORT_INDEPENDENT_APPROVER_REF')!==actor||value(bindings(pp),'SUPPORT_OPS_EMAIL_READY')!=='false')throw Error('Fail-closed invariant drift');
+            if(!(Array.isArray(pol)?pol:[]).some(x=>x.id===policyId&&x.decision==='allow'&&allows(x,tally)))throw Error('Access readback failed');
+            for(const [before,after] of [[pb,bindings(pp)],[ob,bindings(oo)]]){const a=new Set(before.map(x=>x.name)),b=new Set(after.map(x=>x.name));if(a.size!==b.size||[...a].some(x=>!b.has(x)))throw Error('Worker bindings dropped');}
+            console.log(JSON.stringify({gate:'MUSITU_AXIOM_TALLY_INDEPENDENT_APPROVER',status:'BOUND_AWAITING_PERSON_LOGIN',access_allow_policy_count:pol.length,operator_binding_count:2,primary_preserved:true,second_actor_distinct:true,operator_email_ready:false,readback:true,customer_content_read:false,secrets_recorded:false}));
+          }catch(e){
+            if(policyId)try{await access(policyUrl+'/'+encodeURIComponent(policyId),{method:'DELETE'});}catch{console.error('Access rollback requires review')}
+            if(changedOps)try{await patch(opsName,updated(ops,os,opsName,false));}catch{console.error('Ops rollback requires review')}
+            if(changedPub)try{await patch(publicName,updated(pub,ps,publicName,false));}catch{console.error('Public rollback requires review')}
+            throw e;
+          }
+          NODE
