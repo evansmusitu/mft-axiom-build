@@ -94,6 +94,7 @@ jobs:
           if(negative!==403) throw Error('ANONYMOUS_OR_BAD_HMAC_NOT_DENIED');
           const a=await call(1),b=await call(2),c=await call(3);
           const replay=await call(1),overflow=await call(4);
+          console.log('AXIOM_QUOTA_SAFE_HTTP_STATUSES='+JSON.stringify([negative,a,b,c,replay,overflow]));
           const result={schema:'musitu.axiom.live-nonpublic-sqlite-do.v1',bad_hmac:negative,admissions:[a,b,c],
             replay_status:replay,over_capacity_status:overflow,
             external_model_calls:0,customer_data_sent:false,public_routes:0,
