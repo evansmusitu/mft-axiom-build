@@ -52,6 +52,14 @@ jobs:
                and zone['data'][0].get('name')=='mftintelligence.com'
                and zone['data'][0].get('status')=='active'
                and (zone['data'][0].get('account') or {}).get('id')==AID)
+          if not validzone:
+              reason=zone.get('reason','INVALID_ZONE_RESULT' if zone.get('api_ok') else 'ZONE_READ_UNSUCCESSFUL')
+              print('AXIOM_CF_ZONE_DIAGNOSTIC='+str(reason))
+              if zone.get('api_ok') and isinstance(zone.get('data'),list):
+                  print('AXIOM_CF_ZONE_MATCH_COUNT='+str(len(zone['data'])))
+                  print('AXIOM_CF_EXPECTED_ACCOUNT_MATCH='+str(any(
+                      isinstance(z,dict) and (z.get('account') or {}).get('id')==AID
+                      for z in zone['data'])))
           account=req('/accounts/'+AID) if validzone else {'reason':'ZONE_MISMATCH'}
           account_ok=bool(account.get('api_ok') and isinstance(account.get('data'),dict)
               and account['data'].get('id')==AID)
