@@ -13,7 +13,7 @@ permissions:
 
 jobs:
   package:
-    if: github.event_name == 'push' && github.event.before == 'c512bc5fee941b48ad8d5797471ac7745be235df'
+    if: github.event_name == 'push' && github.event.before == 'd6cae396ccd0f448de1ef46b4f5492390a27ed42'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -30,7 +30,7 @@ jobs:
         run: |
           set -euo pipefail
           test "$GITHUB_REF_NAME" = 'support/axiom-global-support-ops-production-rollout-20261008'
-          test "${{ github.event.before }}" = 'c512bc5fee941b48ad8d5797471ac7745be235df'
+          test "${{ github.event.before }}" = 'd6cae396ccd0f448de1ef46b4f5492390a27ed42'
           test "$GITHUB_REF_NAME" != 'main'
           node --test support/tests/*.test.mjs
 
@@ -65,7 +65,7 @@ jobs:
             "repository": "evansmusitu/mft-axiom-build",
             "authoritative_branch": "support/axiom-global-support-ops-production-rollout-20261008",
             "handoff_head": "$GITHUB_SHA",
-            "source_head_before_handoff_commit": "c512bc5fee941b48ad8d5797471ac7745be235df",
+            "source_head_before_handoff_commit": "d6cae396ccd0f448de1ef46b4f5492390a27ed42",
             "latest_known_success": {
               "dedicated_public_status_final_audit_run": 37958435874,
               "dedicated_public_status_diagnostic_run": 37958329566,
@@ -110,7 +110,7 @@ jobs:
           - Repository: `evansmusitu/mft-axiom-build`
           - Branch: `support/axiom-global-support-ops-production-rollout-20261008`
           - Handoff HEAD: `$GITHUB_SHA`
-          - Parent/source immediately before handoff workflow: `c512bc5fee941b48ad8d5797471ac7745be235df`
+          - Parent/source immediately before handoff workflow: `d6cae396ccd0f448de1ef46b4f5492390a27ed42`
 
           ## Current verified production direction
 
@@ -222,6 +222,9 @@ jobs:
           test ! -d "$PKG/01_PRODUCT_REPOSITORY/.git"
           test ! -f "$PKG/01_PRODUCT_REPOSITORY/.env"
           test ! -f "$PKG/01_PRODUCT_REPOSITORY/.env.production"
+          test -f "$PKG/01_PRODUCT_REPOSITORY/.gitignore"
+          test -f "$PKG/01_PRODUCT_REPOSITORY/.github/workflows/axiom-whole-product-handoff-20261009.yml"
+          (cd "$PKG" && sha256sum -c MANIFEST.sha256 >/dev/null)
 
           du -sh "$PKG"
           find "$PKG/00_START_HERE" -maxdepth 1 -type f -printf '%f\n' | sort
@@ -234,3 +237,4 @@ jobs:
           if-no-files-found: error
           retention-days: 30
           compression-level: 6
+          include-hidden-files: true
