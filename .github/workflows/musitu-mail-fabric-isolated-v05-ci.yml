@@ -1,0 +1,57 @@
+name: MUSITU Mail Fabric v0.5 Isolated Runtime and Trust Test
+on:
+  push:
+    branches: ['product/musitu-mail-fabric-isolated-20261009']
+    paths:
+      - 'musitu-mail-fabric/**'
+      - '.github/workflows/musitu-mail-fabric-isolated-v05-ci.yml'
+permissions:
+  contents: read
+jobs:
+  regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 9
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Run independent trust and durable tests
+        working-directory: musitu-mail-fabric
+        run: |
+          set -euo pipefail
+          node --check src/trust/transitions.mjs
+          npm run check
+          npm test
+          npm run demo
+  local-cloud-runtime:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    env:
+      CLOUDFLARE_SEND_METRICS: 'false'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Guard isolated local-only configuration
+        working-directory: musitu-mail-fabric
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          import {readFileSync} from 'node:fs';
+          const c=JSON.parse(readFileSync('wrangler.mmf.local.jsonc'));
+          if(c.workers_dev!==false||c.preview_urls!==false||c.routes?.length||c.main!=='src/testing/worker-local.mjs'||c.vars?.MMF_REAL_SEND_ENABLED!=='false'||c.vars?.MMF_LOCAL_ONLY!=='true'||!c.d1_databases?.every(d=>d.database_id==='11111111-1111-4111-8111-111111111111'))throw Error('isolation preflight failed');
+          console.log('LOCAL_ONLY_ISOLATION_PASS');
+          NODE
+      - name: Provision actual Wrangler local D1 and prove queue consumer end-to-end
+        working-directory: musitu-mail-fabric
+        run: |
+          set -euo pipefail
+          export HOME="$RUNNER_TEMP/mmf-home"
+          mkdir -p "$HOME" "$RUNNER_TEMP/mmf-local-state"
+          npx --yes wrangler@4.45.0 d1 execute MMF_DB --local --yes --config wrangler.mmf.local.jsonc --persist-to "$RUNNER_TEMP/mmf-local-state" --file src/durable/schema.sql
+          npx --yes wrangler@4.45.0 dev --local --config wrangler.mmf.local.jsonc --persist-to "$RUNNER_TEMP/mmf-local-state" --ip 127.0.0.1 --port 8787 --log-level error > "$RUNNER_TEMP/mmf-worker.log" 2>&1 &
+          WRANGLER_PID=$!
+          trap 'kill "$WRANGLER_PID" 2>/dev/null || true' EXIT
+          node test/workerd-local-probe.mjs || { tail -n 100 "$RUNNER_TEMP/mmf-worker.log"; exit 1; }

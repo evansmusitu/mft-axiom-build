@@ -1,0 +1,15 @@
+{
+  "name": "mmf-only-local-test-fixture",
+  "main": "src/testing/worker-local.mjs",
+  "compatibility_date": "2026-10-09",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": false,
+  "preview_urls": false,
+  "vars": {"MMF_LOCAL_ONLY": "true", "MMF_REAL_SEND_ENABLED": "false"},
+  "d1_databases": [{"binding":"MMF_DB", "database_name":"mmf-only-local-fixture", "database_id":"11111111-1111-4111-8111-111111111111"}],
+  "queues": {
+    "producers":[{"queue":"mmf-only-local-queue","binding":"MMF_QUEUE"}],
+    "consumers":[{"queue":"mmf-only-local-queue","max_batch_size":1,"max_retries":1}]
+  },
+  "triggers": {"crons":[]}
+}

@@ -1,14 +1,15 @@
 {
   "name": "@musitu/mail-fabric",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "private": true,
   "type": "module",
-  "description": "Isolated durable governed transactional communications with bounded quotas and verified bounce/complaint suppression",
+  "description": "Isolated governed email transactions with durable abuse controls, independent trust-key rotation proofs and local Cloudflare runtime qualification",
   "scripts": {
     "test": "node --test test/*.test.mjs",
     "demo": "node demo.mjs",
-    "check": "node --check src/fabric.mjs && node --check src/evidence.mjs && node --check src/policy.mjs && node --check src/providers.mjs && node --check src/api.mjs && node --check src/durable/fabric.mjs && node --check src/testing/mailpit-smtp.mjs && node --check src/webhooks/resend.mjs && node --check src/edge/worker.mjs && node --check src/verify-cli.mjs",
-    "verify": "node src/verify-cli.mjs"
+    "check": "node --check src/fabric.mjs && node --check src/evidence.mjs && node --check src/policy.mjs && node --check src/providers.mjs && node --check src/api.mjs && node --check src/durable/fabric.mjs && node --check src/testing/mailpit-smtp.mjs && node --check src/webhooks/resend.mjs && node --check src/edge/worker.mjs && node --check src/verify-cli.mjs && node --check src/trust/transitions.mjs && node --check src/trust/verify-cli.mjs && node --check src/testing/worker-local.mjs && node --check test/workerd-local-probe.mjs",
+    "verify": "node src/verify-cli.mjs",
+    "verify-rotated": "node src/trust/verify-cli.mjs"
   },
   "engines": {
     "node": ">=20"
