@@ -1,0 +1,124 @@
+name: MUSITU Axiom Enterprise Support Console Deploy
+
+on:
+  push:
+    branches:
+      - support/axiom-global-support-ops-production-rollout-20261008
+    paths:
+      - .github/workflows/axiom-enterprise-support-console-deploy.yml
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    if: github.event_name == 'push' && github.event.before == '170f597a59d1e8654f15089b768098e792c10116'
+    runs-on: ubuntu-latest
+    environment: axiom-support-production
+    timeout-minutes: 8
+    env:
+      CF_ACCOUNT: '93f395f5121954671f92fffa453d6b61'
+      WORKER_TOKEN: ${{ secrets.CLOUDFLARE_RULESETS_API_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Enterprise console regression
+        run: |
+          set -euo pipefail
+          node --check support/console/app.js
+          node --test support/tests/enterprise_admin_ui.test.mjs
+          node --test support/tests/console_ui_contract.test.mjs
+
+      - name: Build private operator Worker
+        shell: bash
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          const fs=require('node:fs');
+          const html=fs.readFileSync('support/console/index.html','utf8');
+          const css=fs.readFileSync('support/console/styles.css','utf8');
+          const app=fs.readFileSync('support/console/app.js','utf8');
+          fs.writeFileSync('.support-ops-entry.mjs',[
+            "import operator from './support/operator_worker.js';import {verifyOperatorAccess} from './support/worker.js';",
+            "const HTML="+JSON.stringify(html)+";const CSS="+JSON.stringify(css)+";const APP="+JSON.stringify(app)+";",
+            "const H=Object.freeze({'cache-control':'no-store','x-content-type-options':'nosniff','x-robots-tag':'noindex, nofollow, noarchive','referrer-policy':'no-referrer','content-security-policy':\"default-src 'self'; connect-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'\"});",
+            "function asset(body,type){return new Response(body,{status:200,headers:{...H,'content-type':type}})}",
+            "export default {async fetch(request,env){const principal=await verifyOperatorAccess(request,env);if(!principal)return operator.fetch(request,env);const u=new URL(request.url);",
+            "if((request.method==='GET'||request.method==='HEAD')&&(u.pathname==='/'||u.pathname==='/index.html'))return asset(request.method==='HEAD'?null:HTML,'text/html; charset=utf-8');",
+            "if((request.method==='GET'||request.method==='HEAD')&&u.pathname==='/styles.css')return asset(request.method==='HEAD'?null:CSS,'text/css; charset=utf-8');",
+            "if((request.method==='GET'||request.method==='HEAD')&&u.pathname==='/app.js')return asset(request.method==='HEAD'?null:APP,'text/javascript; charset=utf-8');",
+            "return operator.fetch(request,env);}};"
+          ].join('\n'),{mode:0o600});
+          NODE
+          npx --yes esbuild@0.25.11 .support-ops-entry.mjs --bundle --format=esm --platform=browser --target=es2022 --outfile=.support-ops-bundle.mjs
+          grep -q 'enterprise-webhook-secret' .support-ops-bundle.mjs
+          grep -q '/api/v1/operator/webhooks/' .support-ops-bundle.mjs
+
+      - name: Deploy private operator UI with inherited bindings
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          import {buildWorkerMultipart} from './support/scripts/provision_cloudflare_control_plane.mjs';
+          const api='https://api.cloudflare.com/client/v4',account=process.env.CF_ACCOUNT,token=String(process.env.WORKER_TOKEN||'');
+          const h={authorization:'Bearer '+token,accept:'application/json'};
+          async function call(path,{method='GET',body,rawBody,contentType}={}){
+            const r=await fetch(api+path,{method,headers:{...h,...(body===undefined?{}:{'content-type':'application/json'}),...(contentType?{'content-type':contentType}:{})},...(rawBody!==undefined?{body:rawBody}:body===undefined?{}:{body:JSON.stringify(body)})});
+            const p=await r.json().catch(()=>({}));
+            if(!r.ok||p?.success===false)throw new Error('Cloudflare '+method+' '+path+' failed HTTP '+r.status);
+            return p.result;
+          }
+          const name='musitu-axiom-support-ops';
+          const [settings,secrets]=await Promise.all([
+            call('/accounts/'+account+'/workers/scripts/'+name+'/settings'),
+            call('/accounts/'+account+'/workers/scripts/'+name+'/secrets')
+          ]);
+          const current=Array.isArray(settings?.bindings)?settings.bindings:[],secretNames=new Set((Array.isArray(secrets)?secrets:[]).map(x=>String(x?.name||'')));
+          const bindings=[];
+          for(const b of current){
+            const n=String(b?.name||'');if(!n)continue;
+            if(secretNames.has(n)||b?.type==='secret_text')bindings.push({type:'inherit',name:n,version_id:'latest'});
+            else bindings.push(b);
+          }
+          if(!bindings.some(x=>x?.type==='service'&&x?.name==='SUPPORT_API'&&x?.service==='musitu-axiom-support'))throw new Error('operator service binding missing before deploy');
+          const multipart=buildWorkerMultipart(fs.readFileSync('.support-ops-bundle.mjs'),{
+            main_module:'index.mjs',compatibility_date:'2026-10-08',bindings,
+            annotations:{'workers/message':'MUSITU Axiom enterprise support administration console'}
+          },'----MUSITUEnterpriseOps');
+          await call('/accounts/'+account+'/workers/scripts/'+name+'?bindings_inherit=strict',{method:'PUT',rawBody:multipart.body,contentType:'multipart/form-data; boundary='+multipart.boundary});
+          await call('/accounts/'+account+'/workers/scripts/'+name+'/subdomain',{method:'POST',body:{enabled:false,previews_enabled:false}});
+          const [after,subdomain]=await Promise.all([
+            call('/accounts/'+account+'/workers/scripts/'+name+'/settings'),
+            call('/accounts/'+account+'/workers/scripts/'+name+'/subdomain')
+          ]);
+          const bs=Array.isArray(after?.bindings)?after.bindings:[];
+          if(!bs.some(x=>x?.type==='service'&&x?.name==='SUPPORT_API'&&x?.service==='musitu-axiom-support'))throw new Error('operator service binding drift');
+          if(subdomain?.enabled===true||subdomain?.previews_enabled===true)throw new Error('workers.dev/previews enabled');
+          console.log(JSON.stringify({
+            gate:'MUSITU_AXIOM_ENTERPRISE_SUPPORT_CONSOLE_DEPLOY',
+            status:'PASS',
+            operator_service_binding:true,
+            enterprise_admin_ui:true,
+            secret_values_read:false,
+            workers_dev:false,
+            previews:false
+          }));
+          NODE
+
+      - name: Prove anonymous operator access remains blocked
+        shell: bash
+        run: |
+          set -euo pipefail
+          code=$(curl --silent --show-error --connect-timeout 10 --max-time 30 -o /tmp/body -w '%{http_code}' https://support-ops.mftintelligence.com/ || true)
+          case "$code" in 302|303|307|401|403) ;; *) echo "anonymous operator access drift: $code" >&2; exit 1 ;; esac
+          ! grep -q 'Enterprise support' /tmp/body
+          echo "anonymous_operator_status=$code"
+          rm -f /tmp/body
+
+      - name: Cleanup
+        if: always()
+        run: rm -f .support-ops-entry.mjs .support-ops-bundle.mjs
