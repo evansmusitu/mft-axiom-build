@@ -1,0 +1,74 @@
+name: MUSITU Axiom Config Rules Capacity Diagnostic
+
+on:
+  push:
+    branches:
+      - support/axiom-global-support-ops-production-rollout-20261008
+    paths:
+      - .github/workflows/axiom-config-rules-capacity-diagnostic.yml
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    if: github.event_name == 'push' && github.event.before == '0f47f7ba030f5eb5e6d3326afea0f00774d1bf1e'
+    runs-on: ubuntu-latest
+    environment: axiom-support-production
+    timeout-minutes: 5
+    env:
+      CF_ZONE: '5b56528f03948ff5917a5e0cd9f7109e'
+      TOKEN: ${{ secrets.CLOUDFLARE_RULESETS_API_TOKEN }}
+    steps:
+      - name: Read existing config rules and dry-validate desired rule
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          const api='https://api.cloudflare.com/client/v4',zone=process.env.CF_ZONE,token=String(process.env.TOKEN||'');
+          const headers={authorization:'Bearer '+token,accept:'application/json','content-type':'application/json'};
+          const r=await fetch(api+'/zones/'+zone+'/rulesets/phases/http_config_settings/entrypoint',{headers});
+          const p=await r.json();
+          if(!r.ok||p?.success===false)throw new Error('config rules read failed HTTP '+r.status);
+          const entry=p.result||{},rules=Array.isArray(entry.rules)?entry.rules:[];
+          const meta=rules.map(x=>({
+            id_present:Boolean(x?.id),
+            ref:String(x?.ref||''),
+            description:String(x?.description||''),
+            enabled:x?.enabled===true,
+            action:String(x?.action||''),
+            expression:String(x?.expression||''),
+            action_parameters:x?.action_parameters||{}
+          }));
+          const desired={
+            action:'set_config',
+            expression:'(http.host eq "support.mftintelligence.com" and http.request.method in {"GET" "HEAD"} and http.request.uri.path in {"/status/" "/status/index.html" "/status/app.js" "/api/v1/status" "/styles.css"})',
+            description:'MUSITU Axiom public status disable Under Attack only',
+            ref:'musitu_axiom_public_status_security_level',
+            enabled:true,
+            action_parameters:{security_level:'off'}
+          };
+          const test=await fetch(api+'/zones/'+zone+'/rulesets/'+String(entry.id)+'/rules',{method:'POST',headers,body:JSON.stringify({...desired,enabled:false})});
+          const tp=await test.json().catch(()=>({}));
+          let cleanup=false;
+          if(test.ok&&tp?.success!==false&&tp?.result?.id){
+            cleanup=true;
+            const d=await fetch(api+'/zones/'+zone+'/rulesets/'+String(entry.id)+'/rules/'+String(tp.result.id),{method:'DELETE',headers});
+            if(!d.ok)throw new Error('temporary disabled rule cleanup failed');
+          }
+          console.log(JSON.stringify({
+            gate:'MUSITU_AXIOM_CONFIG_RULES_CAPACITY_DIAGNOSTIC',
+            status:'PASS',
+            existing_rule_count:rules.length,
+            rules:meta,
+            desired_disabled_create:{
+              http_status:test.status,
+              success:test.ok&&tp?.success!==false,
+              error_codes:(tp?.errors||[]).map(x=>x?.code).filter(Boolean),
+              error_messages:(tp?.errors||[]).map(x=>String(x?.message||'')).filter(Boolean),
+              temporary_rule_cleaned:cleanup
+            },
+            mutation_persisted:false,
+            secret_values_recorded:false
+          }));
+          NODE
