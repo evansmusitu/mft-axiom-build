@@ -1,0 +1,37 @@
+{
+  "schema": "musitu.axiom.public_inference.cloudflare_existing_connection_readonly.v1",
+  "date": "2026-10-09",
+  "drive_instruction": {
+    "name": "MFT_CLOUDFLARE_CONNECTION_AND_NEW_CHAT_EXECUTION_INSTRUCTIONS_2026-09-03.txt",
+    "file_id": "16Rv_KcMGqArAZaLdwZGVAzLsOiDi8o_T",
+    "authentication": "Cloudflare Global API Key using X-Auth-Email and X-Auth-Key; NOT Bearer",
+    "secret_contents_retrieved": false,
+    "scope_warning": "Original guidance concerns Education Nexus; AXIOM authorization must be separately scoped"
+  },
+  "live_repository": {
+    "repository": "evansmusitu/mft-axiom-build",
+    "isolated_branch": "frontier/axiom-public-inference-zero-cost-20261009",
+    "source_parent_sha": "7d8a325b95c4a2e41c5016dcc96908017116da0d",
+    "existing_default_workflow": ".github/workflows/cloudflare-control-plane.yml",
+    "isolated_preflight": "ops/public_inference/cloudflare_readonly.py",
+    "workflow_path": "MANUAL_ONLY_ON_EXISTING_DEFAULT_BRANCH_WORKFLOW",
+    "encrypted_secret_names": [
+      "CLOUDFLARE_EMAIL",
+      "CLOUDFLARE_GLOBAL_API_KEY"
+    ],
+    "new_secret_copies_created": false
+  },
+  "local_validation": {
+    "tests_passed": 7,
+    "command": "python3 -m unittest -v test_cloudflare_readonly.py",
+    "cli_without_authority_exit": 42,
+    "manual_gated_workflow_static_check": "PASS"
+  },
+  "cloudflare_live_account_read": "NOT_RUN_ZERO_CASH_CI_ELIGIBILITY_NOT_VERIFIED",
+  "free_plan_billing_hard_stop": "NOT_PROVEN",
+  "customer_inference": "NOT_PROVEN",
+  "production_release": "NOT_AUTHORIZED",
+  "write_to_cloudflare": false,
+  "write_to_protected_main": false,
+  "evidence_level": "BUILDER_PROGRESS_NON_CERTIFYING"
+}

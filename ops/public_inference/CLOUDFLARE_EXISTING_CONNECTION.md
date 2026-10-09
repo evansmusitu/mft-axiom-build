@@ -15,3 +15,12 @@ The Python preflight makes only fixed HTTPS GET calls for active mftintelligence
 The new workflow is manual-only, contents:read, pinned checkout, requires AXIOM_TRACK_B_ZERO_COST_CI_ALLOWED=true, and MUST NOT be run until no-charge included CI minutes with no billing overage are independently verified.
 
 NOT PROVEN: live Cloudflare auth, Free account eligibility, Workers AI no-overage hard stop, customer data privacy, customer serving inference, S3/S4 authorization. Preserve public gateway disabled.
+
+
+## Operational no-new-credential route (the established workflow)
+
+The GitHub Actions workflow `.github/workflows/cloudflare-control-plane.yml` already exists on protected main and is executable through manual workflow dispatch. In the **isolated public-inference branch only**, its version is modified to be manual-dispatch only, to require the no-cost-CI eligibility flag, and to run `cloudflare_readonly.py` after the existing native Cloudflare zone lookup.
+
+GitHub requires a new `workflow_dispatch` workflow to exist on the default branch to be runnable through the Actions UI. Therefore `.github/workflows/axiom-public-inference-cloudflare-readonly.yml` on the isolated branch is **reference-only**, not independently dispatchable. The established, default-branch-supported `cloudflare-control-plane.yml` is the executable path; the branch selector must target the isolated branch.
+
+**Do not run** even the existing workflow until no-charge included Actions capacity/no-billing-overage is independently verified. No run was dispatched in this continuation.
