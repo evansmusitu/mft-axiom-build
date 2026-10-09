@@ -10,6 +10,7 @@ import subprocess
 import sys
 import tempfile
 import time
+from concurrent.futures import ThreadPoolExecutor
 
 from container_policy import build_docker_command, verify_container_inspect
 from worker_leases import AdmissionDenied, LeaseScheduler
@@ -140,6 +141,27 @@ def main():
                 raise RuntimeError('cross-tenant revocation succeeded')
             if scheduler.active_count != 2:
                 raise RuntimeError('lease admission count mismatch')
+            # Two isolated OpenHands servers handle five concurrent authenticated
+            # read-only API commands EACH. These are not ten worker sandboxes.
+            def one_container_load(container_name):
+                result=docker('exec',container_name,'python',
+                              '/opt/axiom/workspace_s0_load.py',timeout=75)
+                if 'MUSITU_AXIOM_OPENHANDS_FIVE_CONCURRENT_S0_REQUESTS_PASS' not in result.stdout:
+                    raise RuntimeError('five-request real OpenHands API challenge failed')
+                try:
+                    record=json.loads(result.stdout.splitlines()[0])
+                except Exception:
+                    raise RuntimeError('OpenHands load receipt malformed') from None
+                if record.get('requests_completed') != 5 or record.get('max_inflight') != 5:
+                    raise RuntimeError('OpenHands load receipt contradicts expected bounds')
+                return record
+            with ThreadPoolExecutor(max_workers=2) as pool:
+                completed=list(pool.map(one_container_load,names))
+            if sum(item['requests_completed'] for item in completed)!=10:
+                raise RuntimeError('ten-request S0 challenge did not complete')
+            print('MUSITU_AXIOM_OPENHANDS_TWO_CONTAINERS_TEN_S0_REQUESTS_PASS')
+            print('MODEL_DRIVEN_EXECUTION=NOT_PROVEN')
+            print('TEN_INDEPENDENT_WORKERS=NOT_PROVEN')
             for lease_id,tenant in reversed(leases):
                 receipt=scheduler.release(lease_id,tenant)
                 if receipt['state'] != 'TERMINATED':
