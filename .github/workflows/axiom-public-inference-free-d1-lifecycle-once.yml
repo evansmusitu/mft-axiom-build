@@ -1,0 +1,120 @@
+name: AXIOM native D1 isolated $0 synthetic create-query-delete qualification
+on:
+  push:
+    branches: [frontier/axiom-public-inference-zero-cost-20261009]
+    paths: ['.github/workflows/axiom-public-inference-free-d1-lifecycle-once.yml']
+permissions:
+  contents: read
+jobs:
+  isolated-d1-lifecycle:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 6
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+    steps:
+      - name: Provider-native isolated D1 transactional write/read and independently queried deletion
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF_NAME" = 'frontier/axiom-public-inference-zero-cost-20261009'
+          test -n "${CLOUDFLARE_API_TOKEN:-}" || { echo MISSING_TOKEN; exit 42; }
+          python3 - <<'PY'
+          import os,json,urllib.request,urllib.error,urllib.parse,re
+          AID='93f395f5121954671f92fffa453d6b61'
+          BASE='https://api.cloudflare.com/client/v4/accounts/'+AID
+          NAME='axiom-inference-qualification-20261009-z0'
+          H={'Authorization':'Bearer '+os.environ['CLOUDFLARE_API_TOKEN'],
+             'Content-Type':'application/json','Accept':'application/json',
+             'User-Agent':'AXIOM-Isolated-D1-Zero-Cash-Lifecycle/1'}
+          def call(path,method='GET',body=None):
+              if not (path.startswith('/d1/database') or path=='/subscriptions'):
+                  raise RuntimeError('OUTSIDE_BOUNDED_ACCOUNT_ROUTE')
+              request=urllib.request.Request(BASE+path,headers=H,method=method,
+                       data=(None if body is None else json.dumps(body).encode()))
+              try:
+                  with urllib.request.urlopen(request,timeout=23) as r:
+                      raw=r.read(131073)
+                      if len(raw)>131072 or r.status not in (200,201):return None
+                      x=json.loads(raw)
+                      return x if isinstance(x,dict) and x.get('success') is True else None
+              except urllib.error.HTTPError as e:
+                  print('AXIOM_D1_NATIVE_'+method+'_HTTP='+str(e.code))
+                  return None
+              except Exception:
+                  print('AXIOM_D1_NATIVE_'+method+'_UNAVAILABLE')
+                  return None
+          def listing():
+              res=call('/d1/database?per_page=100')
+              if not res or not isinstance(res.get('result'),list):
+                  raise RuntimeError('D1_LIST_NOT_PROVEN')
+              info=res.get('result_info')
+              if isinstance(info,dict) and info.get('total_count')!=len(res['result']):
+                  raise RuntimeError('D1_LIST_INCOMPLETE')
+              return res['result']
+          subs=call('/subscriptions')
+          if not subs or not isinstance(subs.get('result'),list):raise SystemExit('BILLING_NATIVE_PLAN_UNKNOWN')
+          inf=subs.get('result_info')
+          if isinstance(inf,dict) and inf.get('total_count')!=len(subs['result']):
+              raise SystemExit('BILLING_SUBSCRIPTIONS_INCOMPLETE')
+          for x in subs['result']:
+              if not isinstance(x,dict):raise SystemExit('BILLING_RECORD_INVALID')
+              plan=str((x.get('rate_plan') or {}).get('id') or '').upper()
+              if plan.startswith('WORKERS_PAID') or plan.startswith('PARTNERS_WORKERS'):
+                  raise SystemExit('ZERO_COST_HARD_STOP_PAID_WORKERS')
+          before=listing()
+          if any(x.get('name')==NAME for x in before):
+              raise SystemExit('ISOLATED_D1_NAME_PREEXISTS_DO_NOT_OVERWRITE')
+          uuid=None
+          created=False
+          verified=False
+          deleted=False
+          try:
+              result=call('/d1/database',method='POST',body={'name':NAME})
+              if not result or not isinstance(result.get('result'),dict):
+                  raise RuntimeError('D1_CREATE_NOT_PERMITTED_OR_FAILED')
+              uuid=result['result'].get('uuid')
+              if not isinstance(uuid,str) or not re.fullmatch('[0-9a-f-]{36}',uuid):
+                  raise RuntimeError('D1_CREATE_ID_UNKNOWN')
+              created=True
+              if not any(x.get('uuid')==uuid and x.get('name')==NAME for x in listing()):
+                  raise RuntimeError('D1_PROVIDER_NATIVE_CREATE_READBACK_FAIL')
+              for statement in [
+                 'CREATE TABLE axiom_zero_cash_probe (id TEXT PRIMARY KEY, v INTEGER NOT NULL);',
+                 "INSERT INTO axiom_zero_cash_probe(id,v) VALUES ('synthetic-test', 42);",
+                 "SELECT v FROM axiom_zero_cash_probe WHERE id='synthetic-test';"
+              ]:
+                  out=call('/d1/database/'+uuid+'/query',method='POST',body={'sql':statement})
+                  if not out or not isinstance(out.get('result'),list) or any(
+                     row.get('success') is not True for row in out['result'] if isinstance(row,dict)):
+                      raise RuntimeError('D1_NATIVE_SQL_QUERY_FAILED')
+                  if statement.startswith('SELECT'):
+                      rows=[item for group in out['result'] for item in (group.get('results') or [])]
+                      if len(rows)!=1 or rows[0].get('v')!=42:
+                          raise RuntimeError('D1_SYNTHETIC_READBACK_MISMATCH')
+                      verified=True
+          except Exception:
+              print('AXIOM_D1_QUALIFICATION_STATUS=FAILED_OR_NOT_PROVEN')
+          finally:
+              if created:
+                  deletion=call('/d1/database/'+uuid,method='DELETE')
+                  # D1 deletes may return a null result on success.
+                  if deletion:
+                      try:deleted=not any(x.get('uuid')==uuid or x.get('name')==NAME for x in listing())
+                      except Exception:deleted=False
+                  print('AXIOM_D1_NATIVE_VERIFIED_DELETE='+str(deleted))
+          receipt={
+              'schema':'musitu.axiom.d1.isolated-synthetic-lifecycle.v1',
+              'native_d1_create_verified':created,
+              'native_d1_synthetic_query_verified':verified,
+              'native_d1_rollback_absence_verified':deleted,
+              'customer_data_written':False,
+              'production_database_modified':False,
+              'customer_release_authorized':False,
+              'cash_budget_usd':'0.00',
+              'test_table_data':'synthetic_only',
+          }
+          print('MUSITU_AXIOM_D1_LIFECYCLE_RECEIPT='+json.dumps(receipt,sort_keys=True))
+          if not (created and verified and deleted):
+              raise SystemExit('AXIOM_NATIVE_D1_LIFECYCLE_NOT_PROVEN')
+          print('MUSITU_AXIOM_D1_ISOLATED_REAL_CREATE_QUERY_DELETE_PASS')
+          PY
