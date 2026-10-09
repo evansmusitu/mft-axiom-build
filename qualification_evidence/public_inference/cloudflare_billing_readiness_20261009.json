@@ -1,0 +1,26 @@
+{
+  "billing_hard_stop_verified": false,
+  "cash_budget_usd": "0.00",
+  "cloudflare_account_live_read": "NOT_EXECUTED",
+  "cloudflare_billing_read": "NOT_EXECUTED",
+  "cloudflare_mutation_performed": false,
+  "date": "2026-10-09",
+  "github_protected_main_modified": false,
+  "local_artifact_sha256": {
+    "CLOUDFLARE_ZERO_CASH_BILLING_EVIDENCE.md": "76ce64e3ffd00907209741f65881bcf8ef73401f6f2d269ff6017f756156afe6",
+    "axiom-public-inference-cloudflare-readonly.yml": "2c12674c21ea88f77f694a87df02450537e78bc24c2ff618c17f055fd33f6120",
+    "cloudflare_free_readonly.py": "683094969403b1949022b4b0f43d1b36537fd51c706a8a8baeb878578c229b63",
+    "test_cloudflare_free_readonly.py": "5a75b60010f88f1a9e083d44cb09390fe6e7fda33f94ea542a6b2f88046c49db"
+  },
+  "offline_regression_tests": 16,
+  "public_deployment_authorized": false,
+  "schema": "musitu.axiom.public_inference.cloudflare.billing_readiness.v1",
+  "secrets_retrieved": false,
+  "source_scope": "ISOLATED_PUBLIC_INFERENCE_BRANCH_NOT_PRODUCTION",
+  "sources": {
+    "drive_instruction": "MFT_CLOUDFLARE_CONNECTION_AND_NEW_CHAT_EXECUTION_INSTRUCTIONS_2026-09-03.txt",
+    "existing_repo_authority": ".github/workflows/cloudflare-control-plane.yml"
+  },
+  "status": "READ_ONLY_BILLING_AUDIT_IMPLEMENTED_AND_OFFLINE_TESTED",
+  "workers_ai_free_plan_verified": false
+}

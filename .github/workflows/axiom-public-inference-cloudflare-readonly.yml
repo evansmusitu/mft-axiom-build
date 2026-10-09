@@ -1,4 +1,4 @@
-name: MUSITU AXIOM Isolated Cloudflare Existing-Access Read-Only Check
+name: MUSITU AXIOM Isolated Cloudflare Global-Key Read-Only Billing Check
 
 on:
   workflow_dispatch:
@@ -11,8 +11,9 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  verify-established-global-key-route:
-    # No paid CI: fail closed unless owner verifies free Actions quota.
+  audit-established-cloudflare-route:
+    # Strict $0 cash budget: no Actions runner until owner confirms free
+    # included minutes and provider-side no-overage billing protections.
     if: ${{ vars.AXIOM_TRACK_B_ZERO_COST_CI_ALLOWED == 'true' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 5
@@ -24,11 +25,14 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
           persist-credentials: false
-      - name: Run offline security and fail-closed route tests
+      - name: Check established global-key route and billing-read regression tests offline
+        shell: bash
         run: |
           set -euo pipefail
-          python3 -m unittest discover -s ops/public_inference -p 'test_cloudflare_readonly.py' -v
-      - name: Read account and AXIOM zone through established secret path
+          python3 -m unittest discover -s ops/public_inference -p 'test_cloudflare_*readonly.py' -v
+          python3 -m compileall -q ops/public_inference/cloudflare_readonly.py ops/public_inference/cloudflare_free_readonly.py
+      - name: Read Cloudflare account, zone, subscriptions and Workers settings without writes
+        shell: bash
         env:
           CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
           CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
@@ -36,8 +40,8 @@ jobs:
           set -euo pipefail
           test -n "${CLOUDFLARE_EMAIL:-}"
           test -n "${CLOUDFLARE_GLOBAL_API_KEY:-}"
-          python3 ops/public_inference/cloudflare_readonly.py
-          echo 'CLOUDFLARE_FREE_PLAN=NOT_PROVEN'
-          echo 'WORKERS_AI_PUBLIC_INFERENCE=NOT_ENABLED'
+          python3 ops/public_inference/cloudflare_free_readonly.py
+          echo 'WORKERS_AI_FREE_PLAN_AND_NO_OVERAGE=NOT_PROVEN'
+          echo 'PUBLIC_INFERENCE=DISABLED'
           echo 'CLOUDFLARE_WRITE_PERFORMED=FALSE'
           echo 'PRODUCTION_AUTHORITY=FALSE'
