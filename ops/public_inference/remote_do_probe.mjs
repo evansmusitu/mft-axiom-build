@@ -32,6 +32,23 @@ export default {
         env.AXIOM_EPHEMERAL_PROBE_KEY))
       return new Response(null,{status:403});
     try{
+      // Finite, authorized diagnostic: expose only the internal DO HTTP status
+      // for synthetic sequence 5, never response bodies, error messages or data.
+      if(action==='5'){
+        const claims5={nonce:action.padStart(64,'0'),subject:'isolatedSyntheticTenant',
+          project:'isolatedSyntheticWork',provider:'cloudflare',
+          model:'@cf/zai-org/glm-4.7-flash',max_tokens:60};
+        const fields=['nonce','subject','project','provider','model','max_tokens'];
+        const data=JSON.stringify(Object.fromEntries(fields.map(f=>[f,claims5[f]])));
+        const k=await crypto.subtle.importKey('raw',new TextEncoder().encode(env.AXIOM_DO_INTERNAL_QUOTA_KEY),
+          {name:'HMAC',hash:'SHA-256'},false,['sign']);
+        const bytes=await crypto.subtle.sign('HMAC',k,new TextEncoder().encode(data));
+        const sig=[...new Uint8Array(bytes)].map(x=>x.toString(16).padStart(2,'0')).join('');
+        const stub=env.AXIOM_GLOBAL_QUOTA.get(env.AXIOM_GLOBAL_QUOTA.idFromName('axiom-public-inference-global-v1'));
+        const r=await stub.fetch('https://quota.internal/reserve',{method:'POST',
+          headers:{'content-type':'application/json','x-axiom-internal-signature':sig},body:data});
+        return new Response(null,{status:r.status});
+      }
       const claims={nonce:action.padStart(64,'0'),subject:'isolatedSyntheticTenant',
         project:'isolatedSyntheticWork',provider:'cloudflare',
         model:'@cf/zai-org/glm-4.7-flash',max_tokens:60};
