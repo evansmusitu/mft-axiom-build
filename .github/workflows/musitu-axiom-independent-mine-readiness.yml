@@ -1,0 +1,85 @@
+name: MUSITU Axiom independent mine evidence readiness (non-admission)
+
+on:
+  push:
+    branches: ['feat/musitu-connect-frontier']
+    paths:
+      - '.github/workflows/musitu-axiom-independent-mine-readiness.yml'
+      - 'benchmarks/mining_adapter/independent_mine_readiness.py'
+      - 'tests/connect/test_independent_mine_readiness.py'
+      - 'qualification/independent_mine_source_catalog_20261009.json'
+      - 'docs/operations/musitu-axiom-independent-mine-qualification.md'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  fail-closed-research-readiness:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Compile negative controls
+        run: python -m py_compile benchmarks/mining_adapter/independent_mine_readiness.py tests/connect/test_independent_mine_readiness.py
+      - name: Refuse forged external-source independence, model pins, support or qualification
+        run: |
+          python -m unittest tests.connect.test_independent_mine_readiness -v
+      - name: Individually assess each public data lead; never admit
+        run: |
+          mkdir -p qualification/research_independent_mine_gap
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          from benchmarks.mining_adapter.independent_mine_readiness import screen_independent_mine_candidate
+          catalog=json.loads(Path('qualification/independent_mine_source_catalog_20261009.json').read_text())
+          assert len(catalog['sources']) == 4
+          summaries=[]
+          for candidate in catalog['sources']:
+              audit=screen_independent_mine_candidate(candidate)
+              assert audit['production_admission'] is False
+              assert audit['independent_validation'] is False
+              assert audit['production_methane_prediction_qualification'] is False
+              assert audit['outstanding_requirements']
+              summaries.append(audit)
+          report={
+            'schema':'musitu.axiom.independent_mine_catalog_assessment.v1',
+            'status':'BLOCKED_PENDING_EXTERNAL_MINE_EVIDENCE',
+            'sources_screened':len(summaries),
+            'sources_independently_qualified':0,
+            'candidate_gap_reports':summaries,
+            'synthetic_and_public_metadata_only':True,
+            'new_independent_mine_raw_data_acquired':False,
+            'production_methane_prediction_authorized':False,
+            'existing_production_axiom_compute_preserved':True,
+          }
+          Path('qualification/research_independent_mine_gap/catalog_assessment.json').write_text(
+            json.dumps(report,indent=2,sort_keys=True)+'\n')
+          print('INDEPENDENT_MINE_CANDIDATES_SCREENED='+str(len(summaries)))
+          print('INDEPENDENT_MINE_CANDIDATES_QUALIFIED=0')
+          print('PRODUCTION_METHANE_QUALIFICATION=BLOCKED')
+          PY
+      - name: Validate machine-readable safety gate is non-enabling
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          r=json.loads(Path('qualification/research_independent_mine_gap/catalog_assessment.json').read_text())
+          assert r['status']=='BLOCKED_PENDING_EXTERNAL_MINE_EVIDENCE'
+          assert r['sources_independently_qualified']==0
+          assert r['production_methane_prediction_authorized'] is False
+          assert r['new_independent_mine_raw_data_acquired'] is False
+          assert r['existing_production_axiom_compute_preserved'] is True
+          assert all(x['production_admission'] is False for x in r['candidate_gap_reports'])
+          PY
+          sha256sum qualification/research_independent_mine_gap/catalog_assessment.json
+      - name: Archive public metadata gap report only
+        uses: actions/upload-artifact@v4
+        with:
+          name: musitu-axiom-independent-mine-source-gap-report
+          path: qualification/research_independent_mine_gap/catalog_assessment.json
+          retention-days: 90
+          if-no-files-found: error

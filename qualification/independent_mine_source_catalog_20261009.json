@@ -1,0 +1,82 @@
+{
+  "schema": "musitu.axiom.independent_mine_source_discovery.v1",
+  "assessed_on": "2026-10-09",
+  "purpose": "Research candidate triage, not mine validation; no private mine dataset acquired or tested",
+  "record_count": 4,
+  "sources": [
+    {
+      "candidate_id": "public-polish-methane-original",
+      "schema": "musitu.axiom.independent_mine_candidate.v1",
+      "source_lineage_identifiers": [
+        "doi:10.17632/yd7vw4c5mk.1",
+        "openml:42701"
+      ],
+      "data_kind": "underground_operational_sensor_stream",
+      "sampling_seconds": 1,
+      "independently_measured_canonical_sensors": [],
+      "source_url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC8526955/",
+      "source_description": "Polish coal mine 2014; identical source family to MUSITU model training; never independent",
+      "evidence_category": "KNOWN_DEVELOPMENT_DATA_REUSE",
+      "source_sha256_status": "Original frozen development-source SHA already known; no independent source",
+      "source_permission_status": "not assessed for new claims",
+      "real_mine_independent_validation": false
+    },
+    {
+      "candidate_id": "zenodo-2022-3209-mine",
+      "schema": "musitu.axiom.independent_mine_candidate.v1",
+      "source_lineage_identifiers": [
+        "doi:10.5281/zenodo.6450554"
+      ],
+      "data_kind": "gas_temperature_wind_daily_observations",
+      "sampling_seconds": null,
+      "independently_measured_canonical_sensors": [],
+      "source_url": "https://zenodo.org/records/6450554",
+      "source_description": "2022-02-06 dataset; 1.1 MB XLS described as gas, temperature and wind from No. 3209 mine. Full canonical schema, sampling, rights and event labels not verified.",
+      "evidence_category": "METADATA_ONLY_TELEMETRY_COMPATIBILITY_UNVERIFIED",
+      "source_sha256_status": "Exact source bytes not independently verified",
+      "source_permission_status": "not independently verified",
+      "real_mine_independent_validation": false
+    },
+    {
+      "candidate_id": "china-2022-2023-eight-sensor-study",
+      "schema": "musitu.axiom.independent_mine_candidate.v1",
+      "source_lineage_identifiers": [
+        "sciencedirect:pii:S0957582026006440"
+      ],
+      "data_kind": "underground_operational_sensor_stream",
+      "sampling_seconds": 60,
+      "independently_measured_canonical_sensors": [],
+      "source_url": "https://www.sciencedirect.com/science/article/abs/pii/S0957582026006440",
+      "source_description": "Study describes 710367 one-minute measurements from eight sensors, which is not the frozen 28-sensor one-second task. Public release of raw observations not established.",
+      "evidence_category": "CADENCE_AND_REQUIRED_CHANNEL_MISMATCH",
+      "source_sha256_status": "Raw source not acquired",
+      "source_permission_status": "not independently verified",
+      "real_mine_independent_validation": false
+    },
+    {
+      "candidate_id": "msha-us-regulatory-data",
+      "schema": "musitu.axiom.independent_mine_candidate.v1",
+      "source_lineage_identifiers": [
+        "MSHA Open Government Data"
+      ],
+      "data_kind": "regulatory_mine_records",
+      "sampling_seconds": null,
+      "independently_measured_canonical_sensors": [],
+      "source_url": "https://arlweb.msha.gov/OpenGovernmentData/OGIMSHA.asp",
+      "source_description": "US public administrative, accident and inspection datasets; not synchronized raw 28-channel mine sensor readings",
+      "evidence_category": "WRONG_DATA_TYPE",
+      "source_sha256_status": "No compatible raw telemetry acquired",
+      "source_permission_status": "public registry only, raw sensor rights not applicable",
+      "real_mine_independent_validation": false
+    }
+  ],
+  "global_constraints": {
+    "frozen_model_manifest_sha256": "f57fab879104a8307f0b472fc106d61c1aa7cf440811229b2221b2266ee779bf",
+    "original_development_source_sha256": "28e2eed4c4a314daa4319f656a09bb43d8acea603dcb906e31c98049c91a8fdc",
+    "required_distinct_positive_fold_support": 3,
+    "min_positive_windows_per_supported_fold": 500,
+    "current_independent_prediction_evidence_admitted": false,
+    "production_methane_model_admission": false,
+    "existing_production_axiom_compute_preserved": true
+  }
+}
