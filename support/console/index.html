@@ -53,6 +53,12 @@
         <label>Entitlement<input id="enterprise-entitlement" autocomplete="off" placeholder="priority_support"></label>
         <label>Entitlement state<select id="enterprise-entitlement-enabled"><option value="true">Enabled</option><option value="false">Disabled</option></select></label>
         <button id="save-enterprise-entitlement" class="secondary" type="button">Save entitlement</button>
+        <hr>
+        <h3>Customer membership invite</h3>
+        <label>Membership role<select id="enterprise-invite-role"><option>ORG_MEMBER</option><option>ORG_ADMIN</option></select></label>
+        <label>Expires in hours<input id="enterprise-invite-hours" type="number" min="1" max="168" value="24"></label>
+        <button id="create-enterprise-invite" class="secondary" type="button">Create one-time invite</button>
+        <div id="enterprise-invite-receipt" class="receipt" hidden><p>Share this code securely. It is shown once.</p><output id="enterprise-invite-code"></output></div>
       </div><div class="panel">
         <label>Webhook reference<input id="enterprise-webhook-ref" autocomplete="off" placeholder="webhook:customer001"></label>
         <label>Events<input id="enterprise-webhook-events" autocomplete="off" value="case.updated" aria-describedby="enterprise-webhook-help"></label>
