@@ -1,6 +1,6 @@
 import {createHash,createPrivateKey,createPublicKey,timingSafeEqual,sign,verify} from 'node:crypto';
 import {DurableMailFabric} from '../durable/fabric.mjs';
-import {createResendProvider} from '../providers.mjs';
+import {createResendProvider,createPostalProvider} from '../providers.mjs';
 import {processResendWebhook,WebhookVerificationError} from '../webhooks/resend.mjs';
 import {PolicyRejection} from '../policy.mjs';
 
@@ -26,8 +26,12 @@ function fromEnv(env,providerFactory){
  const probe=Buffer.from('MUSITU-MAIL-FABRIC-SIGNING-PAIR-CHECK');
  if(!verify(null,probe,keys.publicKey,sign(null,probe,keys.privateKey)))throw Error('SIGNING_KEY_MISMATCH');
  const provider=providerFactory?providerFactory(env):env.MMF_REAL_SEND_ENABLED==='true'
-   ?createResendProvider({apiKey:env.MMF_RESEND_API_KEY,region:'us-east-1',allowNetwork:true})
-   :null;
+    ?env.MMF_PROVIDER==='postal'
+      ?createPostalProvider({baseUrl:env.MMF_POSTAL_BASE_URL,apiKey:env.MMF_POSTAL_API_KEY,region:'us-east-1',allowNetwork:true})
+      :env.MMF_PROVIDER==='resend'
+        ?createResendProvider({apiKey:env.MMF_RESEND_API_KEY,region:'us-east-1',allowNetwork:true})
+        :null
+    :null;
  if(!provider)throw Error('DELIVERY_DISABLED');
  const config={tenantId:env.MMF_TENANT_ID,verifiedDomains:[env.MMF_FROM_DOMAIN],allowedRegions:['us-east-1'],provider};
  return new DurableMailFabric(config,{db:env.MMF_DB,encryptionKey:enc,privacyKey:privacy,keys});

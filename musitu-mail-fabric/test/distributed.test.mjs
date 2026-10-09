@@ -111,3 +111,27 @@ test('mismatched private/public key configuration fails closed before enqueue',a
  const response=await worker.fetch(new Request('https://mmf.invalid/v1/messages',{method:'POST',headers:{authorization:'Bearer '+token},body:JSON.stringify(message)}),env);
  assert.equal(response.status,503);assert.equal(f.provider.attempts,0);
 });
+test('real-delivery flag without configured provider credentials fails closed',async t=>{
+ const f=fixture(t),token='minimum-strong-private-api-token-000000000000';
+ const env={MMF_DB:createD1Compat(f.d),MMF_TENANT_ID:'client1',MMF_FROM_DOMAIN:'example.org',MMF_AUTH_TOKEN:token,
+ MMF_ENCRYPTION_KEY_B64:f.encryptionKey.toString('base64'),MMF_PRIVACY_KEY_B64:f.privacyKey.toString('base64'),
+ MMF_SIGNING_PRIVATE_KEY_PEM:f.keys.privateKey.export({format:'pem',type:'pkcs8'}).toString(),
+ MMF_SIGNING_PUBLIC_KEY_PEM:f.keys.publicKey.export({format:'pem',type:'spki'}).toString(),MMF_API_ENABLED:'true',MMF_REAL_SEND_ENABLED:'true',MMF_PROVIDER:'postal'};
+ const resp=await createWorker().fetch(new Request('https://mmf.invalid/v1/messages',{method:'POST',headers:{authorization:'Bearer '+token},body:JSON.stringify(message)}),env);
+ assert.equal(resp.status,503);
+});
+test('independent Postal transport can be explicitly selected without Resend',async t=>{
+ const f=fixture(t),token='minimum-strong-private-api-token-000000000000',oldFetch=globalThis.fetch;let count=0;
+ globalThis.fetch=async(url,opts)=>{assert.equal(url,'https://mail.example.org/api/v1/send/message');count++;return{status:200,json:async()=>({status:'success',data:{message_id:'postal-message-id@rp.example.org'}})};};
+ t.after(()=>{globalThis.fetch=oldFetch});
+ const env={MMF_DB:createD1Compat(f.d),MMF_TENANT_ID:'client1',MMF_FROM_DOMAIN:'example.org',MMF_AUTH_TOKEN:token,
+ MMF_ENCRYPTION_KEY_B64:f.encryptionKey.toString('base64'),MMF_PRIVACY_KEY_B64:f.privacyKey.toString('base64'),
+ MMF_SIGNING_PRIVATE_KEY_PEM:f.keys.privateKey.export({format:'pem',type:'pkcs8'}).toString(),MMF_SIGNING_PUBLIC_KEY_PEM:f.keys.publicKey.export({format:'pem',type:'spki'}).toString(),
+ MMF_API_ENABLED:'true',MMF_REAL_SEND_ENABLED:'true',MMF_PROVIDER:'postal',MMF_POSTAL_BASE_URL:'https://mail.example.org',MMF_POSTAL_API_KEY:'test-postal-server-key'};
+ const w=createWorker(),h={authorization:'Bearer '+token};
+ const resp=await w.fetch(new Request('https://mmf.invalid/v1/messages',{method:'POST',headers:h,body:JSON.stringify(message)}),env);
+ assert.equal(resp.status,202);const row=await resp.json();
+ await w.scheduled({},env);assert.equal(count,1);
+ const result=await w.fetch(new Request('https://mmf.invalid/v1/messages/'+row.messageId,{headers:h}),env);
+ assert.equal((await result.json()).state,'ACCEPTED_BY_PROVIDER');
+});
