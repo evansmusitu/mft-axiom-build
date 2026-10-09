@@ -1,0 +1,78 @@
+{
+  "schema": "musitu.axiom.public_inference.native_provider_qualification_20261009.v1",
+  "repository": "evansmusitu/mft-axiom-build",
+  "isolated_branch": "frontier/axiom-public-inference-zero-cost-20261009",
+  "captured_source_head": "ad435b1b275532e476222fa144494e143820a0b7",
+  "scope": "ISOLATED_NONPRODUCTION_ONLY",
+  "cash_budget_usd": "0.00",
+  "native_read": {
+    "run_id": 37975739096,
+    "job_id": 113973451812,
+    "conclusion": "SUCCESS",
+    "expected_zone_and_account_match": true,
+    "workers_paid_subscription_present": false,
+    "subscription_count": 3,
+    "subscription_list_complete": true,
+    "worker_subdomain_configured": true,
+    "d1_list_accessible": true,
+    "scoped_api_token_auth_verified": true,
+    "legacy_global_api_key_auth": "FAILED_CLOUDFLARE_9103",
+    "token_verify_special_endpoint": "HTTP_401_NOT_USED_AS_ACCOUNT_AUTH_INDICATOR"
+  },
+  "native_model_inference": {
+    "first_run_id": 37975942693,
+    "initial_verifier": "FAILED_EXPECTED_RESPONSE_SHAPE",
+    "qualified_run_id": 37976063344,
+    "job_id": 113974545240,
+    "conclusion": "SUCCESS",
+    "provider": "CLOUDFLARE_WORKERS_AI",
+    "model": "@cf/zai-org/glm-4.7-flash",
+    "calls_in_qualified_run": 1,
+    "request_data": "SYNTHETIC_NO_CUSTOMER_DATA",
+    "response_nonempty": true,
+    "response_sha256": "565339bc4d33d72817b583024112eb7f5cdf3e5eef0252d6ec1b9c9a94e12bb3",
+    "provider_response_format": "CHOICES_OPENAI_STYLE"
+  },
+  "native_d1": {
+    "create_test_run_id": 37976232537,
+    "job_id": 113975120507,
+    "conclusion": "FAILURE_NOT_PROVEN",
+    "http_status": 403,
+    "new_db_created": false,
+    "production_d1_modified": false,
+    "read_only_capacity_run_id": 37976426413,
+    "capacity_job_id": 113975778494,
+    "read_only_capacity_conclusion": "SUCCESS",
+    "existing_databases": 11,
+    "cloudflare_free_limit": 10,
+    "free_capacity_available": false,
+    "database_creation_blocker": "INSUFFICIENT_FREE_CAPACITY_AND_OR_TOKEN_D1_WRITE_PERMISSIONS_NOT_PROVEN",
+    "resource_cleanup_needed": false
+  },
+  "known_not_proven": [
+    "Live D1 quota reservations",
+    "Independent OIDC/customer identity issuer",
+    "Account-native independent billing hard-stop certification",
+    "Workers deployment and binding",
+    "Adversarial security and revocation",
+    "Rollback proof",
+    "Independent S4 public release",
+    "Customer traffic"
+  ],
+  "no_credentials_exposed": true,
+  "external_writes_performed_by_this_track": false,
+  "production_deployment_performed": false,
+  "claim_status": "NATIVE_SYNTHETIC_INFERENCE_EARNED_PUBLIC_LAUNCH_UNEARNED",
+  "zero_cash_resolution_candidates": [
+    {
+      "path": "FREE_SQLITE_DURABLE_OBJECT",
+      "status": "ARCHITECTURAL_ALTERNATIVE_NOT_IMPLEMENTED_OR_QUALIFIED",
+      "constraints": "Atomic tenant and global quotas; explicit migration; separate scope/rollback/security verification; no paid usage"
+    },
+    {
+      "path": "RECOVER_FREE_D1_CAPACITY",
+      "status": "BLOCKED_NEEDS_INDEPENDENT_DATA_OWNER_REVIEW",
+      "constraints": "Never delete production or potentially valuable D1 tables/databases; S5 approval required"
+    }
+  ]
+}
