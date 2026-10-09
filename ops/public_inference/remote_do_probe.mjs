@@ -12,12 +12,13 @@ export class ProbeAxiomQuota extends AxiomGlobalInferenceQuota {
    try{
      const raw=await clone.text();
      const signature=clone.headers.get('x-axiom-internal-signature');
+     if(typeof this.env.AXIOM_DO_INTERNAL_QUOTA_KEY!=='string')return new Response(null,{status:537});
      const key=await crypto.subtle.importKey('raw',new TextEncoder().encode(this.env.AXIOM_DO_INTERNAL_QUOTA_KEY),
         {name:'HMAC',hash:'SHA-256'},false,['verify']);
      const bytes=Uint8Array.from((signature||'').match(/../g)||[],v=>parseInt(v,16));
      if(bytes.length!==32||!await crypto.subtle.verify('HMAC',key,bytes,new TextEncoder().encode(raw)))
-       return new Response(null,{status:429});
-   }catch{return new Response(null,{status:429});}
+       return new Response(null,{status:538});
+   }catch{return new Response(null,{status:539});}
    try{this.ctx.storage.sql.exec('SELECT COUNT(*) AS n FROM reservations').one();}
    catch{return new Response(null,{status:530});}
    try{this.ctx.storage.transactionSync(()=>this.ctx.storage.sql.exec('SELECT changes() AS n').one());}
