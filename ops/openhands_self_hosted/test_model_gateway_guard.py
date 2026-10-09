@@ -64,8 +64,12 @@ class GatewayGuardTests(unittest.TestCase):
             self.calls.append((origin,path,credential,body,timeout_seconds))
             return {'choices':[{'message':{'role':'assistant','content':'PASS'}}]}
         self.transport=upstream
+        self.budget_temp=tempfile.TemporaryDirectory(prefix='axiom-trackb-model-budget-')
+        self.addCleanup(self.budget_temp.cleanup)
+        self.ledger=SqliteBudgetLedger(Path(self.budget_temp.name)/'budget.sqlite3')
         self.guard=ModelGatewayGuard(signing_key=SIGNER, provider_credential='FAKE_ONLY',
-                                     transport=self.transport, clock=lambda:self.now)
+                                     transport=self.transport, clock=lambda:self.now,
+                                     reservation_ledger=self.ledger)
 
     def submit(self, claims=None, signature=None, request=None, actor=ACTOR):
         claims = issued_claims() if claims is None else claims
@@ -144,7 +148,8 @@ class GatewayGuardTests(unittest.TestCase):
         def fail(*args):
             raise RuntimeError('network error includes secret token FAKE_ONLY')
         self.guard=ModelGatewayGuard(signing_key=SIGNER, provider_credential='FAKE_ONLY',
-                                     transport=fail, clock=lambda:self.now)
+                                     transport=fail, clock=lambda:self.now,
+                                     reservation_ledger=self.ledger)
         for _ in range(2):
             with self.assertRaises(ModelTransportError) as ctx:
                 self.submit()
@@ -208,7 +213,8 @@ class GatewayGuardTests(unittest.TestCase):
     def test_missing_signing_key_rejected(self):
         with self.assertRaises((ValueError,TypeError)):
             ModelGatewayGuard(signing_key=b'weak', provider_credential='FAKE_ONLY',
-                              transport=self.transport,clock=lambda:self.now)
+                              transport=self.transport,clock=lambda:self.now,
+                              reservation_ledger=self.ledger)
 
 
 if __name__=='__main__':

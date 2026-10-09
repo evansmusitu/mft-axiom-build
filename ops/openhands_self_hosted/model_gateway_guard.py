@@ -9,7 +9,6 @@ import hmac
 import json
 import math
 import re
-import threading
 import time
 
 
@@ -68,8 +67,8 @@ def _canonical_bytes(value):
 class ModelGatewayGuard:
     """Validates an externally signed, per-operation S2 grant before transport."""
 
-    def __init__(self, *, signing_key, provider_credential, transport, clock=time.time,
-                 reservation_ledger=None):
+    def __init__(self, *, signing_key, provider_credential, transport,
+                 reservation_ledger, clock=time.time):
         if type(signing_key) is not bytes or len(signing_key) < 32:
             raise ValueError('independent model policy signing key required')
         if type(provider_credential) is not str or not provider_credential.strip():
@@ -80,11 +79,9 @@ class ModelGatewayGuard:
         self._credential = provider_credential
         self._transport = transport
         self._clock = clock
-        if reservation_ledger is not None and not callable(getattr(reservation_ledger,'reserve',None)):
-            raise TypeError('transactional model reservation ledger required')
+        if not callable(getattr(reservation_ledger,'reserve',None)):
+            raise TypeError('mandatory transactional model reservation ledger required')
         self._ledger = reservation_ledger
-        self._reservations = {}
-        self._lock = threading.Lock()
 
     def _verify(self, capability, signature, workload_identity_id):
         if type(capability) is not dict or set(capability) != _FIELDS:
@@ -173,27 +170,13 @@ class ModelGatewayGuard:
         nonce = capability['nonce']
         # Reservation happens BEFORE any external call, under a single lock.
         # Failed calls also consume the slot, deliberately fail-closed.
-        if self._ledger is not None:
-            try:
-                reserved=self._ledger.reserve(nonce=nonce,binding=binding,
-                                              max_calls=capability['max_calls'])
-            except Exception:
-                raise ModelAccessDenied('model budget reservation denied or unavailable') from None
-            if type(reserved) is not int or not 1 <= reserved <= capability['max_calls']:
-                _deny('model reservation ledger violated bounded receipt contract')
-        else:
-            # Pure unit-test/local CI mode, NEVER a production cost gate.
-            with self._lock:
-                existing = self._reservations.get(nonce)
-                if existing is not None and existing['binding'] != binding:
-                    _deny('model capability nonce reused across authority envelopes')
-                if existing is None:
-                    existing = {'binding': binding, 'used': 0}
-                    self._reservations[nonce] = existing
-                if existing['used'] >= capability['max_calls']:
-                    _deny('model capability call budget exhausted')
-                existing['used'] += 1
-                reserved = existing['used']
+        try:
+            reserved=self._ledger.reserve(nonce=nonce,binding=binding,
+                                          max_calls=capability['max_calls'])
+        except Exception:
+            raise ModelAccessDenied('model budget reservation denied or unavailable') from None
+        if type(reserved) is not int or not 1 <= reserved <= capability['max_calls']:
+            _deny('model reservation ledger violated bounded receipt contract')
         try:
             result = self._transport(_PROVIDER_ORIGIN, _PROVIDER_PATH,
                                      self._credential, body, 20)
@@ -219,7 +202,7 @@ class ModelGatewayGuard:
             'request_sha256': capability['request_sha256'],
             'calls_reserved': reserved,
             'max_calls': capability['max_calls'],
-            'budget_backend': 'LOCAL_SQLITE' if self._ledger is not None else 'EPHEMERAL_CI_ONLY',
+            'budget_backend': 'TRANSACTIONAL_REQUIRED',
             'provider_transport_attempted': True,
             'live_runtime_qualification': 'NOT_PROVEN',
             'release_authority': False,
