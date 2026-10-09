@@ -1,0 +1,107 @@
+name: MUSITU Axiom real public mine XLS forensic audit (non-admission)
+
+on:
+  push:
+    branches: ['feat/musitu-connect-frontier']
+    paths:
+      - '.github/workflows/musitu-axiom-public-mine-forensics.yml'
+      - 'benchmarks/mining_adapter/public_candidate_forensics.py'
+      - 'tests/connect/test_public_candidate_forensics.py'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify-real-public-workbook-not-a-model-qualification:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install non-executable workbook reader and synthetic fixture writer
+        run: |
+          python -m pip install --disable-pip-version-check xlrd==2.0.2 xlwt==1.3.0
+      - name: Run synthetic XLS parser controls
+        run: |
+          python -m py_compile benchmarks/mining_adapter/public_candidate_forensics.py
+          python -m unittest tests.connect.test_public_candidate_forensics -v
+      - name: Download exact public Zenodo mine source to temporary runner only
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          from urllib.request import Request, urlopen
+          from urllib.error import URLError, HTTPError
+          from hashlib import md5
+          import json
+
+          record='https://zenodo.org/api/records/6450554'
+          urls=[
+              'https://zenodo.org/records/6450554/files/Dataset%20on%206%20Feb%202022.xls?download=1',
+              'https://zenodo.org/api/records/6450554/files/Dataset%20on%206%20Feb%202022.xls/content'
+          ]
+          try:
+              with urlopen(Request(record, headers={'User-Agent':'MUSITU-Axiom-Public-Research-Forensics/1.0'}),timeout=35) as r:
+                  obj=json.loads(r.read(4_000_000))
+              assert obj.get('id')==6450554
+              rights=obj.get('metadata',{}).get('rights') or []
+              print('ZENODO_PUBLIC_RECORD_ID_VERIFIED=6450554')
+              print('ZENODO_RIGHTS_METADATA_PRESENT='+str(bool(rights)).lower())
+              for f in obj.get('files',[]):
+                  if f.get('key') == 'Dataset on 6 Feb 2022.xls':
+                      link=(f.get('links') or {}).get('self') or (f.get('links') or {}).get('content')
+                      if link and link.startswith('https://zenodo.org/'): urls.insert(0,link)
+          except (URLError, HTTPError, ValueError, AssertionError, KeyError) as exc:
+              print('ZENODO_RECORD_API_METADATA_NOT_VERIFIED='+type(exc).__name__)
+          dest=Path('/tmp/real-public-mine-candidate-6450554.xls')
+          expected='3186fe58543ec7f9fb4a7d71b99c02e1'
+          for url in urls:
+              try:
+                  with urlopen(Request(url,headers={'User-Agent':'MUSITU-Axiom-Public-Research-Forensics/1.0'}),timeout=50) as r:
+                      blob=r.read(12_000_000)
+                  if md5(blob).hexdigest()!=expected:
+                      print('PUBLIC_WORKBOOK_FETCH_HASH_MISMATCH;TRY_OTHER_ENDPOINT')
+                      continue
+                  dest.write_bytes(blob)
+                  print('PUBLIC_WORKBOOK_EXACT_PUBLISHED_MD5=PASS')
+                  print('PUBLIC_WORKBOOK_BYTES='+str(len(blob)))
+                  break
+              except (URLError,HTTPError,TimeoutError) as exc:
+                  print('PUBLIC_SOURCE_ENDPOINT_UNAVAILABLE='+type(exc).__name__)
+          if not dest.exists():
+              raise SystemExit('NO_VERIFIED_PUBLIC_SOURCE_BYTES;DO_NOT_CLAIM_DATA_TESTED')
+          PY
+      - name: Inspect REAL workbook fields and cadence; refuse model inference
+        run: |
+          mkdir -p qualification/public_candidate_forensic
+          python -m benchmarks.mining_adapter.public_candidate_forensics \
+            --source /tmp/real-public-mine-candidate-6450554.xls \
+            --output qualification/public_candidate_forensic/zenodo_6450554_structure.json
+          python - <<'PY'
+          from pathlib import Path
+          import json
+          p=Path('qualification/public_candidate_forensic/zenodo_6450554_structure.json')
+          r=json.loads(p.read_text())
+          assert r['source_md5_matches_published'] is True
+          assert r['status']=='REAL_SOURCE_BYTES_INSPECTED_NOT_ADMITTED'
+          assert r['frozen_model_inference_executed'] is False
+          assert r['frozen_model_sensor_and_cadence_qualified'] is False
+          assert r['independent_physical_methane_events_verified'] is False
+          assert r['source_rights_and_site_independence_verified'] is False
+          assert r['production_methane_qualification'] is False
+          assert r['production_admission'] is False
+          assert len(r['source_sha256'])==64 and r['sheets']
+          print('ACTUAL_PUBLIC_SOURCE_FORENSIC_INSPECTION=PASS_NON_ADMISSION')
+          print('REAL_MINE_PREDICTIVE_ACCURACY=NOT_TESTED')
+          print('PRODUCTION_METHANE_INFERENCE=BLOCKED')
+          PY
+          sha256sum qualification/public_candidate_forensic/*.json
+      - name: Archive ONLY summary: never source XLS or telemetry rows
+        uses: actions/upload-artifact@v4
+        with:
+          name: musitu-axiom-real-public-mine-workbook-metadata-forensic
+          path: qualification/public_candidate_forensic/*.json
+          retention-days: 30
+          if-no-files-found: error
