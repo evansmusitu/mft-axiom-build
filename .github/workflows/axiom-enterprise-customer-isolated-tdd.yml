@@ -1,0 +1,28 @@
+name: MUSITU Axiom Enterprise Customer Isolated TDD
+
+on:
+  push:
+    branches:
+      - 'support/axiom-enterprise-customer-isolated-20261009'
+    paths:
+      - 'support/**'
+      - '.github/workflows/axiom-enterprise-customer-isolated-tdd.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Syntax
+        run: |
+          node --check support/worker.js
+          node --check support/d1_case_store.js
+      - name: Full support regression
+        run: node --test support/tests/*.test.mjs
