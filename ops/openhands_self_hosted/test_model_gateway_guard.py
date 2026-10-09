@@ -30,6 +30,9 @@ def issued_claims(**override):
         'not_before_unix': 1000,
         'expires_unix': 1060,
         'nonce': 'a' * 32,
+        'request_sha256': hashlib.sha256(json.dumps(work(),sort_keys=True,separators=(',',':'),allow_nan=False).encode()).hexdigest(),
+        'data_classification': 'synthetic-public',
+        'external_prompt_egress_authorized': True,
         'production_authority': False,
         'release_authority': False,
         'certification_authority': False,
@@ -164,6 +167,21 @@ class GatewayGuardTests(unittest.TestCase):
         malicious={**work(), 'provider_credential':'attacker-controlled'}
         with self.assertRaises(ModelAccessDenied):
             self.submit(request=malicious)
+
+    def test_exact_prompt_digest_blocks_data_substitution(self):
+        tampered = work()
+        tampered['messages'][1]['content'] = 'private user data never authorized for egress'
+        with self.assertRaises(ModelAccessDenied):
+            self.submit(request=tampered)
+        self.assertEqual(self.calls, [])
+
+    def test_private_prompt_class_and_egress_denial(self):
+        for scope in ({'data_classification': 'project-private'},
+                      {'external_prompt_egress_authorized': False}):
+            claims = issued_claims(**scope)
+            with self.subTest(scope=scope), self.assertRaises(ModelAccessDenied):
+                self.submit(claims)
+        self.assertEqual(self.calls, [])
 
     def test_missing_signing_key_rejected(self):
         with self.assertRaises((ValueError,TypeError)):
