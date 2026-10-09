@@ -1,0 +1,65 @@
+name: MUSITU Axiom Dedicated Public Status Diagnostic
+
+on:
+  push:
+    branches:
+      - 'support/axiom-global-support-ops-production-rollout-20261008'
+    paths:
+      - '.github/workflows/axiom-dedicated-public-status-diagnostic.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    if: github.event_name == 'push' && github.event.before == '484a5e705b9a8b1476f98462ae5360568f16467c'
+    runs-on: ubuntu-latest
+    environment: axiom-support-production
+    timeout-minutes: 5
+    env:
+      CF_ACCOUNT: '93f395f5121954671f92fffa453d6b61'
+      WORKER_TOKEN: ${{ secrets.CLOUDFLARE_RULESETS_API_TOKEN }}
+    steps:
+      - name: Read status Worker and workers.dev topology
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          const api='https://api.cloudflare.com/client/v4',account=process.env.CF_ACCOUNT,token=String(process.env.WORKER_TOKEN||'');
+          const h={authorization:'Bearer '+token,accept:'application/json'};
+          async function raw(path){
+            const r=await fetch(api+path,{headers:h});let p={};try{p=await r.json()}catch{}
+            return {r,p};
+          }
+          const [scripts,settings,accountSub,scriptSub]=await Promise.all([
+            raw('/accounts/'+account+'/workers/scripts'),
+            raw('/accounts/'+account+'/workers/scripts/musitu-axiom-public-status/settings'),
+            raw('/accounts/'+account+'/workers/subdomain'),
+            raw('/accounts/'+account+'/workers/scripts/musitu-axiom-public-status/subdomain')
+          ]);
+          const scriptRows=scripts.r.ok&&scripts.p?.success!==false?(Array.isArray(scripts.p.result)?scripts.p.result:[]):[];
+          const settingsResult=settings.r.ok&&settings.p?.success!==false?settings.p.result:null;
+          const bindings=Array.isArray(settingsResult?.bindings)?settingsResult.bindings:[];
+          const sub=String(accountSub.p?.result?.subdomain||'').trim();
+          let live=null;
+          if(sub){
+            const base='https://musitu-axiom-public-status.'+sub+'.workers.dev';
+            const r=await fetch(base+'/',{redirect:'manual'}).catch(()=>null);
+            live=r?{url:base+'/',status:r.status,content_type:String(r.headers.get('content-type')||'')}:null;
+          }
+          console.log(JSON.stringify({
+            gate:'MUSITU_AXIOM_DEDICATED_PUBLIC_STATUS_DIAGNOSTIC',
+            status:'PASS',
+            worker_listed:scriptRows.some(x=>String(x?.id||x?.name||'')==='musitu-axiom-public-status'),
+            settings_http_status:settings.r.status,
+            settings_available:Boolean(settingsResult),
+            service_binding_present:bindings.some(x=>x?.type==='service'&&x?.name==='SUPPORT_API'&&x?.service==='musitu-axiom-support'),
+            account_subdomain_http_status:accountSub.r.status,
+            account_subdomain_present:Boolean(sub),
+            script_subdomain_http_status:scriptSub.r.status,
+            script_subdomain_codes:(scriptSub.p?.errors||[]).map(x=>x?.code).filter(Boolean),
+            live,
+            mutation_performed:false,
+            secret_values_recorded:false
+          }));
+          NODE
