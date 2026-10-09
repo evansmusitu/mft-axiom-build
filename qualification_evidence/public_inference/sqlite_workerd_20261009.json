@@ -1,0 +1,101 @@
+{
+  "schema": "musitu.axiom.public-inference.workerd-quota-probe.v1",
+  "recorded_utc": "2026-10-09",
+  "repository": "evansmusitu/mft-axiom-build",
+  "branch": "frontier/axiom-public-inference-zero-cost-20261009",
+  "source_head": "3a4ca840414596f2679d19c2f5c25bda5f6405c6",
+  "verified_action": {
+    "run_id": 37998084012,
+    "job_id": 114049117845,
+    "conclusion": "SUCCESS",
+    "marker": "MUSITU_AXIOM_LOCAL_WORKERD_SQLITE_DO_QUOTA_PASS",
+    "runtime": "Cloudflare workerd local mode",
+    "compatibility_date": "2026-07-01",
+    "synthetic_bad_hmac_status": 403,
+    "synthetic_reservation_http": [
+      204,
+      204,
+      204
+    ],
+    "synthetic_replay_http": 429,
+    "synthetic_over_capacity_http": 429,
+    "external_provider_calls": 0,
+    "customer_data_sent": false,
+    "public_routes": 0
+  },
+  "preserved_failures": [
+    {
+      "run_id": 37985883645,
+      "status": "FAILURE",
+      "reason": "legacy Wrangler remote development unsupported for SQLite-backed Durable Objects; first reservation 429"
+    },
+    {
+      "run_id": 37986018199,
+      "status": "FAILURE",
+      "reason": "remote 429 on all synthetic quota requests; NOT native qualification"
+    },
+    {
+      "run_id": 37986231751,
+      "status": "FAILURE",
+      "reason": "remote internal SQLite DO returned HTTP 429; NOT native qualification"
+    },
+    {
+      "run_id": 37986439660,
+      "status": "FAILURE",
+      "reason": "remote diagnostic remained HTTP 429; legacy remote path not eligible"
+    },
+    {
+      "run_id": 37997525577,
+      "status": "FAILURE",
+      "reason": "local workerd startup incompatible compatibility_date 2026-10-09"
+    },
+    {
+      "run_id": 37997891861,
+      "status": "FAILURE",
+      "reason": "pinned workerd startup incompatible compatibility_date 2026-09-15"
+    },
+    {
+      "run_id": 37998084012,
+      "status": "SUCCESS",
+      "reason": "local runtime with compatible 2026-07-01 date passed all scoped tests"
+    }
+  ],
+  "identity_findings": {
+    "source": "auth/musitu_axiom_oauth_worker.mjs on protected main",
+    "original_issuer": "https://auth.mftintelligence.com",
+    "original_resource": "https://mcp.mftintelligence.com",
+    "defined_scopes": [
+      "axiom.execute",
+      "billing.read",
+      "billing.write",
+      "openid",
+      "email"
+    ],
+    "inference_specific_scope_present": false,
+    "independent_inference_capability_issuer": "NOT_PROVEN",
+    "existing_frozen_oauth_mutated": false
+  },
+  "release_truth": {
+    "local_workerd_sqlite_quota": "PASS_ISOLATED_CI",
+    "cloudflare_deployed_staging_and_ai_binding": "PASS_NATIVE_READBACK_PRIOR",
+    "real_cloudflare_inference_single_synthetic": "PASS_PRIOR",
+    "live_cloudflare_network_do_transaction": "NOT_PROVEN",
+    "independent_customer_auth_and_external_consent": "NOT_PROVEN",
+    "security_attack_and_rollback": "NOT_PROVEN",
+    "public_production_release": "BLOCKED",
+    "independent_s4_authority": false
+  },
+  "protected": {
+    "main_sha": "d6a846f6bbe0bccac1758713eb4de167caf07113",
+    "pr1": "OPEN_DRAFT_UNMERGED",
+    "frozen_openai_submission_untouched": true,
+    "production_untouched": true
+  },
+  "notes": [
+    "Sqlite-backed Durable Objects cannot be qualified with legacy --remote mode; use local workerd tests and separately authorized Cloudflare Previews or other controlled nonpublic invocation with independent Access gate.",
+    "Workerd local test is not proof of live native Durable Object transactional admission.",
+    "Cloudflare Preview URLs are public by default; do not enable unprotected preview as a workaround.",
+    "MCP OAuth tokens are resource-bound to MCP; do not silently re-authorize them for customer inference without separate scope, consent, and independent issuer."
+  ],
+  "claim_status": "LOCAL_WORKERD_DO_PASS_PUBLIC_RELEASE_NOT_EARNED"
+}
