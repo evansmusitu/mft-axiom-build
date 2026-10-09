@@ -147,6 +147,27 @@ CREATE TABLE IF NOT EXISTS support_support_entitlements (
   capability TEXT NOT NULL, enabled INTEGER NOT NULL CHECK (enabled IN (0,1)), starts_at TEXT NOT NULL, ends_at TEXT, created_at TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS support_org_invites (
+  invite_id TEXT PRIMARY KEY CHECK (invite_id GLOB 'AXV-*'),
+  org_ref TEXT NOT NULL REFERENCES support_organizations(org_ref) ON DELETE RESTRICT,
+  token_hash TEXT NOT NULL UNIQUE CHECK (length(token_hash) = 64),
+  role TEXT NOT NULL CHECK (role IN ('ORG_ADMIN','ORG_MEMBER')),
+  created_by TEXT NOT NULL,
+  expires_at TEXT NOT NULL,
+  consumed_at TEXT,
+  created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS support_org_memberships (
+  membership_id TEXT PRIMARY KEY CHECK (membership_id GLOB 'AXL-*'),
+  org_ref TEXT NOT NULL REFERENCES support_organizations(org_ref) ON DELETE RESTRICT,
+  identity_hash TEXT NOT NULL CHECK (length(identity_hash) = 64),
+  role TEXT NOT NULL CHECK (role IN ('ORG_ADMIN','ORG_MEMBER')),
+  created_at TEXT NOT NULL,
+  revoked_at TEXT,
+  UNIQUE(org_ref,identity_hash)
+);
+
 CREATE TABLE IF NOT EXISTS support_attachments (
   attachment_id TEXT PRIMARY KEY CHECK (attachment_id GLOB 'AXF-*'), case_id TEXT NOT NULL REFERENCES support_cases(case_id) ON DELETE RESTRICT,
   filename TEXT NOT NULL, content_type TEXT NOT NULL, bytes INTEGER NOT NULL CHECK(bytes>0), sha256 TEXT NOT NULL CHECK(length(sha256)=64),
@@ -236,6 +257,8 @@ CREATE TABLE IF NOT EXISTS support_deletion_receipts (
   created_at TEXT NOT NULL
 );
 
+CREATE INDEX IF NOT EXISTS support_org_invites_org_expiry ON support_org_invites(org_ref,expires_at,consumed_at);
+CREATE INDEX IF NOT EXISTS support_org_memberships_identity ON support_org_memberships(identity_hash,revoked_at);
 CREATE INDEX IF NOT EXISTS support_case_escalations_case_created ON support_case_escalations(case_id,created_at);
 CREATE INDEX IF NOT EXISTS support_incident_cases_case ON support_incident_cases(case_id,incident_id);
 CREATE INDEX IF NOT EXISTS support_attachments_case_created ON support_attachments(case_id,created_at);
