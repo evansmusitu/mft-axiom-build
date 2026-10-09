@@ -1,0 +1,51 @@
+name: MUSITU Axiom Public Status Config Rule Merge Audit
+
+on:
+  push:
+    branches:
+      - 'support/axiom-global-support-ops-production-rollout-20261008'
+    paths:
+      - '.github/workflows/axiom-public-status-config-merge-audit.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    if: github.event_name == 'push' && github.event.before == 'd993853b34ca54353b451b0b85edb2625011b865'
+    runs-on: ubuntu-latest
+    environment: axiom-support-production
+    timeout-minutes: 5
+    env:
+      CF_ZONE: '5b56528f03948ff5917a5e0cd9f7109e'
+      TOKEN: ${{ secrets.CLOUDFLARE_RULESETS_API_TOKEN }}
+    steps:
+      - name: Read Configuration Rules for a safe merge candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          const api='https://api.cloudflare.com/client/v4',zone=process.env.CF_ZONE,token=String(process.env.TOKEN||'');
+          const h={authorization:'Bearer '+token,accept:'application/json'};
+          const r=await fetch(api+'/zones/'+zone+'/rulesets/phases/http_config_settings/entrypoint',{headers:h});
+          const p=await r.json().catch(()=>({}));
+          if(!r.ok||p?.success===false)throw new Error('config rules read failed HTTP '+r.status);
+          const rules=Array.isArray(p?.result?.rules)?p.result.rules:[];
+          const safe=rules.map(x=>({
+            id_present:Boolean(x?.id),
+            ref:String(x?.ref||''),
+            description:String(x?.description||''),
+            action:String(x?.action||''),
+            enabled:x?.enabled===true,
+            expression:String(x?.expression||''),
+            action_parameters:x?.action_parameters||{}
+          }));
+          console.log(JSON.stringify({
+            gate:'MUSITU_AXIOM_PUBLIC_STATUS_CONFIG_MERGE_AUDIT',
+            status:'PASS',
+            rule_count:safe.length,
+            rules:safe,
+            mutation_performed:false,
+            secret_values_recorded:false
+          }));
+          NODE
