@@ -1,0 +1,236 @@
+name: MUSITU Axiom Whole Product Continuation Handoff 20261009
+
+on:
+  push:
+    branches:
+      - 'support/axiom-global-support-ops-production-rollout-20261008'
+    paths:
+      - '.github/workflows/axiom-whole-product-handoff-20261009.yml'
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  package:
+    if: github.event_name == 'push' && github.event.before == 'c512bc5fee941b48ad8d5797471ac7745be235df'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Exact continuation gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF_NAME" = 'support/axiom-global-support-ops-production-rollout-20261008'
+          test "${{ github.event.before }}" = 'c512bc5fee941b48ad8d5797471ac7745be235df'
+          test "$GITHUB_REF_NAME" != 'main'
+          node --test support/tests/*.test.mjs
+
+      - name: Build authoritative whole-product handoff
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          ROOT="$RUNNER_TEMP/axiom-handoff"
+          PKG="$ROOT/MUSITU_AXIOM_WHOLE_PRODUCT_CONTINUATION_HANDOFF_20261009_1742Z_AUTHORITATIVE"
+          mkdir -p "$PKG/00_START_HERE" "$PKG/01_PRODUCT_REPOSITORY" "$PKG/02_REPOSITORY_METADATA" "$PKG/03_KEY_EVIDENCE"
+
+          # Capture the complete tracked product tree at the exact handoff commit.
+          git archive --format=tar "$GITHUB_SHA" | tar -xf - -C "$PKG/01_PRODUCT_REPOSITORY"
+
+          # Repository/branch metadata without embedding Git credentials or .git internals.
+          git status --short --branch > "$PKG/02_REPOSITORY_METADATA/git-status.txt"
+          git show -s --format=fuller "$GITHUB_SHA" > "$PKG/02_REPOSITORY_METADATA/handoff-commit.txt"
+          git log --all --decorate --oneline -n 250 > "$PKG/02_REPOSITORY_METADATA/recent-history.txt"
+          git branch -a --no-color > "$PKG/02_REPOSITORY_METADATA/branches.txt"
+          git tag --list > "$PKG/02_REPOSITORY_METADATA/tags.txt"
+          git ls-remote --heads --tags origin > "$PKG/02_REPOSITORY_METADATA/remote-refs.txt"
+          git ls-tree -r --name-only "$GITHUB_SHA" > "$PKG/02_REPOSITORY_METADATA/tracked-files.txt"
+
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs?branch=support%2Faxiom-global-support-ops-production-rollout-20261008&per_page=30"             --jq '{total_count,workflow_runs:[.workflow_runs[]|{id,name,head_sha,status,conclusion,created_at,updated_at,html_url}]}'             > "$PKG/02_REPOSITORY_METADATA/latest-workflow-runs.json"
+
+          cat > "$PKG/00_START_HERE/CURRENT_STATE.json" <<EOF
+          {
+            "schema": "musitu.axiom.whole-product-continuation-handoff.v1",
+            "generated_at": "2026-10-09T17:42:00Z",
+            "repository": "evansmusitu/mft-axiom-build",
+            "authoritative_branch": "support/axiom-global-support-ops-production-rollout-20261008",
+            "handoff_head": "$GITHUB_SHA",
+            "source_head_before_handoff_commit": "c512bc5fee941b48ad8d5797471ac7745be235df",
+            "latest_known_success": {
+              "dedicated_public_status_final_audit_run": 37958435874,
+              "dedicated_public_status_diagnostic_run": 37958329566,
+              "global_support_production_tdd_run": 37958118638
+            },
+            "protected_state": {
+              "main": "d6a846f6bbe0bccac1758713eb4de167caf07113",
+              "pr1": {"state":"OPEN","draft":true,"merged":false,"head":"8fc1fbb7c5ebbcc1604ecf24c5f4594f2d5667e3"},
+              "claude_distribution": "4d956f415431836018e5145227c8df5bd5fde7d8",
+              "official_support": "e336556b1b4dbca3c3d7656b2efc914752857276",
+              "recovery_production": "64946c4df8ff0c608063444503155d188df93f2e",
+              "frozen_openai_auth": "8ba0dbc1b6dd1533c6c26bff23991429e03a71a5",
+              "frozen_openai_mcp": "4a1ad37a5e7df0e4d3966e8b5f9f0e8f2db69167"
+            },
+            "drive_folder_id": "1b6r6jgiJOywt34gP7uR6gDPAizohUK6n",
+            "drive_folder_url": "https://drive.google.com/drive/folders/1b6r6jgiJOywt34gP7uR6gDPAizohUK6n",
+            "privacy": {
+              "secret_values_included": false,
+              "recovery_codes_included": false,
+              "customer_plaintext_narratives_intentionally_read_for_handoff": false
+            }
+          }
+          EOF
+
+          cat > "$PKG/00_START_HERE/NEW_CHAT_START_HERE.md" <<EOF
+          # MUSITU AXIOM — AUTHORITATIVE WHOLE-PRODUCT CONTINUATION
+
+          This package is the authoritative continuation handoff for the current MUSITU Axiom whole product.
+
+          ## Mandatory continuation order
+
+          1. Verify the **outer ZIP SHA-256** against the exact value supplied with the Drive upload / continuation command.
+          2. Extract the ZIP.
+          3. Run `sha256sum -c MANIFEST.sha256` from the extracted package root.
+          4. Read this file completely.
+          5. Read `CURRENT_STATE.json`, `NEXT_ACTION.md`, `PROTECTED_STATE.md`, and `EXACT_NEW_CHAT_COMMAND.txt`.
+          6. Treat fresh live GitHub/Cloudflare/Drive state as authoritative if it has advanced after this handoff; never reconstruct from chat memory.
+          7. Continue from the exact next-action boundary. Do not restart completed support/global-ops/recovery work.
+
+          ## Authoritative repository state
+
+          - Repository: `evansmusitu/mft-axiom-build`
+          - Branch: `support/axiom-global-support-ops-production-rollout-20261008`
+          - Handoff HEAD: `$GITHUB_SHA`
+          - Parent/source immediately before handoff workflow: `c512bc5fee941b48ad8d5797471ac7745be235df`
+
+          ## Current verified production direction
+
+          MUSITU Axiom Global Support Operations software is production-deployed. The support/recovery/operator surfaces, scheduled SLA processing, private attachment storage, inbound email threading, incident/status records, enterprise admin controls, native webhook delivery machinery, analytics/QA/CSAT and recovery governance are represented in the repository/evidence.
+
+          The newest branch activity includes the dedicated public-status production surface and its final audit. The latest known successful final audit run before this package was **37958435874**.
+
+          ## Do not modify without explicit authority
+
+          - `main`: `d6a846f6bbe0bccac1758713eb4de167caf07113`
+          - PR #1: OPEN + DRAFT + UNMERGED, head `8fc1fbb7c5ebbcc1604ecf24c5f4594f2d5667e3`
+          - Claude distribution: `4d956f415431836018e5145227c8df5bd5fde7d8`
+          - Frozen OpenAI auth blob: `8ba0dbc1b6dd1533c6c26bff23991429e03a71a5`
+          - Frozen OpenAI MCP v4 blob: `4a1ad37a5e7df0e4d3966e8b5f9f0e8f2db69167`
+
+          ## Evidence rule
+
+          Never claim a provider/human capability as operational unless live evidence proves it. Preserve fail-closed behavior for unavailable providers. Never expose secret values, recovery codes, customer plaintext narratives or Access tokens.
+          EOF
+
+          cat > "$PKG/00_START_HERE/NEXT_ACTION.md" <<'EOF'
+          # Exact next action
+
+          1. Read the latest workflow/state evidence from this package and then refresh the live branch state.
+          2. Confirm the current branch HEAD and verify protected states have not drifted.
+          3. Inspect the latest successful dedicated public-status final audit and any later runs.
+          4. Continue only from unresolved provider/human boundaries that are still real in fresh state. Historically these included outbound email sending readiness, malware-scanner integration, staffed paging/24x7 coverage, distinct second approver identity, contractual SLA authority, and certified multilingual human coverage; do not assume any of them still remain without fresh verification.
+          5. Do not redo already proven production deployments unless drift or a failed invariant requires it.
+          6. Keep support data/customer content private; use metadata-only audits unless content is explicitly required and authorized.
+          EOF
+
+          cat > "$PKG/00_START_HERE/PROTECTED_STATE.md" <<'EOF'
+          # Protected state
+
+          - Production main must remain: d6a846f6bbe0bccac1758713eb4de167caf07113
+          - PR #1 must remain OPEN, DRAFT, UNMERGED; head: 8fc1fbb7c5ebbcc1604ecf24c5f4594f2d5667e3
+          - Claude distribution must remain: 4d956f415431836018e5145227c8df5bd5fde7d8
+          - Official Support historical branch must remain: e336556b1b4dbca3c3d7656b2efc914752857276
+          - Recovery production branch must remain: 64946c4df8ff0c608063444503155d188df93f2e
+          - Frozen OpenAI auth blob: 8ba0dbc1b6dd1533c6c26bff23991429e03a71a5
+          - Frozen OpenAI MCP v4 blob: 4a1ad37a5e7df0e4d3966e8b5f9f0e8f2db69167
+
+          The handoff branch itself may advance only through explicitly authorized continuation work.
+          EOF
+
+          cat > "$PKG/00_START_HERE/VERIFY_HANDOFF.md" <<'EOF'
+          # Verification
+
+          After extracting the handoff ZIP, run from the extracted root:
+
+          sha256sum -c MANIFEST.sha256
+
+          The outer ZIP SHA-256 is produced by GitHub's finalized artifact digest and is supplied in the exact new-chat command/final handoff message.
+          EOF
+
+          cat > "$PKG/00_START_HERE/EXACT_NEW_CHAT_COMMAND.txt" <<EOF
+          CONTINUE MUSITU AXIOM FROM THE AUTHORITATIVE WHOLE-PRODUCT CONTINUATION HANDOFF. DO NOT RESTART OR RECONSTRUCT FROM CHAT MEMORY.
+
+          GOOGLE DRIVE FOLDER:
+          https://drive.google.com/drive/folders/1b6r6jgiJOywt34gP7uR6gDPAizohUK6n
+
+          HANDOFF ZIP:
+          MUSITU_AXIOM_WHOLE_PRODUCT_CONTINUATION_HANDOFF_20261009_1742Z_AUTHORITATIVE.zip
+
+          EXPECTED OUTER SHA-256:
+          <USE THE EXACT SHA-256 FROM THE HANDOFF MESSAGE>
+
+          REPOSITORY:
+          evansmusitu/mft-axiom-build
+
+          AUTHORITATIVE BRANCH:
+          support/axiom-global-support-ops-production-rollout-20261008
+
+          AUTHORITATIVE HANDOFF HEAD:
+          $GITHUB_SHA
+
+          THIS IS CONTINUATION ONLY. THE ZIP, ITS MANIFEST, AND FRESH LIVE STATE ARE AUTHORITATIVE. CHAT MEMORY IS NON-AUTHORITATIVE.
+
+          FIRST:
+          1. Retrieve the named ZIP from the connected Google Drive folder.
+          2. Verify its outer SHA-256 exactly.
+          3. Extract it and run: sha256sum -c MANIFEST.sha256
+          4. Read 00_START_HERE/NEW_CHAT_START_HERE.md, CURRENT_STATE.json, NEXT_ACTION.md, PROTECTED_STATE.md, and EXACT_NEW_CHAT_COMMAND.txt before any write.
+          5. Refresh live GitHub/Cloudflare state and reconcile any post-handoff advancement.
+          6. Continue from NEXT_ACTION.md without repeating completed production work.
+
+          PROTECTED:
+          - main d6a846f6bbe0bccac1758713eb4de167caf07113
+          - PR #1 OPEN + DRAFT + UNMERGED, head 8fc1fbb7c5ebbcc1604ecf24c5f4594f2d5667e3
+          - Claude distribution 4d956f415431836018e5145227c8df5bd5fde7d8
+          - frozen OpenAI auth 8ba0dbc1b6dd1533c6c26bff23991429e03a71a5
+          - frozen OpenAI MCP v4 4a1ad37a5e7df0e4d3966e8b5f9f0e8f2db69167
+
+          DO NOT EXPOSE SECRETS, RECOVERY CODES, CUSTOMER PLAINTEXT NARRATIVES OR ACCESS TOKENS.
+          EOF
+
+          # Copy critical current evidence to the front of the handoff for fast continuation.
+          for f in             support/global-ops/FINAL_PRODUCTION_EVIDENCE_20261009.json             support/global-ops/PRODUCTION_ACTIVATION_EVIDENCE.json             support/global-ops/BUILD_EVIDENCE.json; do
+            if [ -f "$f" ]; then cp "$f" "$PKG/03_KEY_EVIDENCE/"; fi
+          done
+
+          # Manifest every file in the final package. The manifest itself is intentionally excluded.
+          (
+            cd "$PKG"
+            find . -type f ! -name MANIFEST.sha256 -print0 | sort -z | xargs -0 sha256sum > MANIFEST.sha256
+          )
+
+          # Ensure no obvious credential artifacts were accidentally introduced by packaging.
+          test ! -d "$PKG/01_PRODUCT_REPOSITORY/.git"
+          test ! -f "$PKG/01_PRODUCT_REPOSITORY/.env"
+          test ! -f "$PKG/01_PRODUCT_REPOSITORY/.env.production"
+
+          du -sh "$PKG"
+          find "$PKG/00_START_HERE" -maxdepth 1 -type f -printf '%f\n' | sort
+
+      - name: Upload authoritative handoff artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: MUSITU_AXIOM_WHOLE_PRODUCT_CONTINUATION_HANDOFF_20261009_1742Z_AUTHORITATIVE
+          path: ${{ runner.temp }}/axiom-handoff/MUSITU_AXIOM_WHOLE_PRODUCT_CONTINUATION_HANDOFF_20261009_1742Z_AUTHORITATIVE/
+          if-no-files-found: error
+          retention-days: 30
+          compression-level: 6
