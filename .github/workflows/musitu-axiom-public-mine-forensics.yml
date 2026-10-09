@@ -98,7 +98,7 @@ jobs:
           print('PRODUCTION_METHANE_INFERENCE=BLOCKED')
           PY
           sha256sum qualification/public_candidate_forensic/*.json
-      - name: Archive ONLY summary: never source XLS or telemetry rows
+      - name: 'Archive ONLY summary; never source XLS or telemetry rows'
         uses: actions/upload-artifact@v4
         with:
           name: musitu-axiom-real-public-mine-workbook-metadata-forensic
