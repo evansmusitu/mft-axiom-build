@@ -1,6 +1,6 @@
 import {encryptSupportPayload, decryptSupportPayload} from './crypto_envelope.js';
 import {SENSITIVE_ACTIONS, SecretMaterialError, appendCaseEvent, assertTransition, createConversationMessage, inspectSecretMaterial, newRecoveryCode, publicCaseView, recoveryIdentityHash, sha256, storageStateForPublicLabel} from './control_plane.js';
-import {buildTriageEnvelope, buildWebhookEvent, computeSlaClock, createOperatorLease, escalationLane, normalizeLanguage, validateAttachmentMetadata, validateCsat, validateDiagnostics, validateQaReview} from './global_ops.js';
+import {buildTriageEnvelope, buildWebhookEvent, computeSlaClock, createOperatorLease, escalationLane, normalizeLanguage, validateAttachmentMetadata, validateCsat, validateDiagnostics, validateQaReview, validateWebhookEndpoint} from './global_ops.js';
 
 export class D1CaseStore {
   constructor({database, encryptionKey}) {
@@ -648,10 +648,29 @@ export class D1CaseStore {
 
   async listPendingWebhookDeliveries({limit=50}={}){
     const bounded=Math.max(1,Math.min(100,Number(limit)||50));
-    const result=await this.db.prepare(`SELECT delivery_id,webhook_ref,case_id,event_type,payload_json,event_hash,state,attempts,next_attempt_at,created_at
-      FROM support_webhook_outbox WHERE state IN ('PENDING','RETRY') AND (next_attempt_at IS NULL OR next_attempt_at<=strftime('%Y-%m-%dT%H:%M:%fZ','now'))
-      ORDER BY created_at ASC LIMIT ?`).bind(bounded).all();
-    return Object.freeze((result?.results||[]).map(row=>Object.freeze({...row,payload:JSON.parse(String(row.payload_json||'{}'))})));
+    const result=await this.db.prepare(`SELECT o.delivery_id,o.webhook_ref,o.case_id,o.event_type,o.payload_json,o.event_hash,o.state,o.attempts,o.next_attempt_at,o.created_at,
+        c.config_encrypted
+      FROM support_webhook_outbox o
+      LEFT JOIN support_webhook_delivery_configs c ON c.webhook_ref=o.webhook_ref
+      WHERE o.state IN ('PENDING','RETRY') AND (o.next_attempt_at IS NULL OR o.next_attempt_at<=strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+      ORDER BY o.created_at ASC LIMIT ?`).bind(bounded).all();
+    const deliveries=[];
+    for(const row of result?.results||[]){
+      let deliveryConfig=null;
+      if(row.config_encrypted){
+        const decrypted=await decryptSupportPayload(JSON.parse(String(row.config_encrypted)),{key:this.key,caseId:'WEBHOOK:'+String(row.webhook_ref)});
+        const endpoint=validateWebhookEndpoint(decrypted?.endpoint_url);
+        const secret=String(decrypted?.signing_secret||'');
+        if(endpoint.ok&&secret.length>=32&&secret.length<=256)deliveryConfig=Object.freeze({endpoint_url:endpoint.value,signing_secret:secret});
+      }
+      deliveries.push(Object.freeze({
+        delivery_id:row.delivery_id,webhook_ref:row.webhook_ref,case_id:row.case_id,event_type:row.event_type,event_hash:row.event_hash,
+        state:row.state,attempts:Number(row.attempts||0),next_attempt_at:row.next_attempt_at,created_at:row.created_at,
+        payload:JSON.parse(String(row.payload_json||'{}')),
+        ...(deliveryConfig?{delivery_config:deliveryConfig}:{})
+      }));
+    }
+    return Object.freeze(deliveries);
   }
 
   async recordWebhookAttempt(delivery,result){
@@ -831,14 +850,39 @@ export class D1CaseStore {
   }
 
   async createWebhookSubscription(input={},principal){
-    const webhookRef=String(input.webhook_ref||''),orgRef=String(input.org_ref||''),endpointRef=String(input.endpoint_ref||''),secretRef=String(input.secret_ref||'');
+    const webhookRef=String(input.webhook_ref||''),orgRef=String(input.org_ref||'');
+    const nativeRequested=input.endpoint_url!=null||input.signing_secret!=null;
+    const endpointRef=nativeRequested?'native:encrypted':String(input.endpoint_ref||'');
+    const secretRef=nativeRequested?'native:encrypted':String(input.secret_ref||'');
     const events=Array.isArray(input.event_types)?input.event_types.map(String):[];
-    if(!/^webhook:[a-z0-9._:-]{6,180}$/i.test(webhookRef)||!/^org:[a-z0-9._:-]{6,180}$/i.test(orgRef)||!/^vault:[a-z0-9._:-]{6,180}$/i.test(endpointRef)||!/^vault:[a-z0-9._:-]{6,180}$/i.test(secretRef)||!events.length||events.some(x=>!/^case\.[a-z_]+$/.test(x)))throw new TypeError('webhook subscription invalid');
+    const refsOk=nativeRequested||( /^vault:[a-z0-9._:-]{6,180}$/i.test(endpointRef)&&/^vault:[a-z0-9._:-]{6,180}$/i.test(secretRef) );
+    if(!/^webhook:[a-z0-9._:-]{6,180}$/i.test(webhookRef)||!/^org:[a-z0-9._:-]{6,180}$/i.test(orgRef)||!refsOk||!events.length||events.some(x=>!/^case\.[a-z_]+$/.test(x)))throw new TypeError('webhook subscription invalid');
     const org=await this.db.prepare('SELECT org_ref FROM support_organizations WHERE org_ref=? LIMIT 1').bind(orgRef).first();if(!org)return null;
     const at=new Date().toISOString();
     await this.db.prepare(`INSERT INTO support_webhook_subscriptions (webhook_ref,org_ref,endpoint_ref,secret_ref,event_types_json,enabled,created_at,updated_at) VALUES (?,?,?,?,?,1,?,?)
       ON CONFLICT(webhook_ref) DO UPDATE SET org_ref=excluded.org_ref,endpoint_ref=excluded.endpoint_ref,secret_ref=excluded.secret_ref,event_types_json=excluded.event_types_json,enabled=1,updated_at=excluded.updated_at`).bind(webhookRef,orgRef,endpointRef,secretRef,JSON.stringify(events),at,at).run?.();
-    return Object.freeze({webhook_ref:webhookRef,org_ref:orgRef,event_types:Object.freeze(events),enabled:true,updated_at:at});
+    if(nativeRequested)await this.configureWebhookDelivery(webhookRef,{endpoint_url:input.endpoint_url,signing_secret:input.signing_secret},principal);
+    return Object.freeze({webhook_ref:webhookRef,org_ref:orgRef,event_types:Object.freeze(events),enabled:true,native_delivery_configured:nativeRequested,updated_at:at});
+  }
+
+  async configureWebhookDelivery(webhookRef,input={},principal){
+    const ref=String(webhookRef||'');
+    if(!/^webhook:[a-z0-9._:-]{6,180}$/i.test(ref))throw new TypeError('webhook ref invalid');
+    const subscription=await this.db.prepare('SELECT webhook_ref FROM support_webhook_subscriptions WHERE webhook_ref=? LIMIT 1').bind(ref).first();
+    if(!subscription)return null;
+    const endpoint=validateWebhookEndpoint(input.endpoint_url);
+    if(!endpoint.ok)throw new TypeError(endpoint.errors.join('; '));
+    const secret=String(input.signing_secret||'');
+    if(secret.length<32||secret.length>256||/[\u0000-\u001f\u007f]/.test(secret))throw new TypeError('webhook signing secret must be 32-256 printable characters');
+    const at=new Date().toISOString();
+    const envelope=await encryptSupportPayload(
+      {endpoint_url:endpoint.value,signing_secret:secret},
+      {key:this.key,caseId:'WEBHOOK:'+ref,schema:'musitu.axiom.support-webhook-delivery-config.v1'}
+    );
+    await this.db.prepare(`INSERT INTO support_webhook_delivery_configs (webhook_ref,config_encrypted,created_at,updated_at) VALUES (?,?,?,?)
+      ON CONFLICT(webhook_ref) DO UPDATE SET config_encrypted=excluded.config_encrypted,updated_at=excluded.updated_at`)
+      .bind(ref,JSON.stringify(envelope),at,at).run?.();
+    return Object.freeze({webhook_ref:ref,native_delivery_configured:true,updated_at:at});
   }
 
   async enqueueWebhookForCase(caseId,{type,state,priority,event_hash,at}={}){
