@@ -1,0 +1,90 @@
+{
+  "schema": "musitu.axiom.public-inference.native-cloudflare-track-20261009.final-v1",
+  "repository": "evansmusitu/mft-axiom-build",
+  "branch": "frontier/axiom-public-inference-zero-cost-20261009",
+  "source_sha": "07f3070fef057a04671efe023e1b6a70f0898c86",
+  "date": "2026-10-09",
+  "cash_budget_usd": "0.00",
+  "scope": "ISOLATED_NONPRODUCTION",
+  "native_cloudflare_access": {
+    "auth": "BEARER_EXISTING_GITHUB_SECRET_CLOUDFLARE_API_TOKEN",
+    "run": 37975739096,
+    "conclusion": "PASS",
+    "legacy_global_api_key": "FAILED_HTTP403_NATIVE_9103",
+    "no_credentials_copied": true
+  },
+  "account_free_evidence": {
+    "run": 37975739096,
+    "subscription_count": 3,
+    "all_subscriptions_paged_complete": true,
+    "workers_paid_subscription_observed": false,
+    "user_declares_workers_free": true,
+    "zero_billing_overage_independently_certified": false
+  },
+  "native_model_run": {
+    "run": 37976063344,
+    "conclusion": "PASS",
+    "provider": "WORKERS_AI",
+    "model": "@cf/zai-org/glm-4.7-flash",
+    "synthetic_calls": 1,
+    "response_nonempty": true,
+    "response_sha256": "565339bc4d33d72817b583024112eb7f5cdf3e5eef0252d6ec1b9c9a94e12bb3",
+    "customer_data_sent": false
+  },
+  "native_d1": {
+    "create_test_run": 37976232537,
+    "result": "FAILED_HTTP403",
+    "read_capacity_run": 37976426413,
+    "existing_databases": 11,
+    "workers_free_limit": 10,
+    "new_d1_slot_available": false,
+    "production_data_mutated": false,
+    "token_d1_write_scope": "NOT_PROVEN"
+  },
+  "durable_quota_alternative": {
+    "offline_run": 37977337327,
+    "tests_passed": 36,
+    "tests_failed": 0,
+    "architecture": "CLOUDFLARE_SQLITE_DURABLE_OBJECT",
+    "atomic_transaction": "LOCAL_CI_CONTRACT_PASS",
+    "independent_cloud_runtime_reservation": "NOT_PROVEN",
+    "fallback_to_unmetered_memory": false
+  },
+  "worker_reversible_smoke": {
+    "run": 37977530905,
+    "disabled_route_free_deploy": "PASS",
+    "native_script_readback": "PASS",
+    "provider_native_delete_absence": "PASS",
+    "production_hostnames_changed": false
+  },
+  "real_staging_deployment": {
+    "run": 37977746857,
+    "conclusion": "SUCCESS",
+    "worker_name": "axiom-inference-zero-cash-do-stage-20261009",
+    "workers_dev_enabled": false,
+    "public_routes": 0,
+    "workers_ai_binding_proven": true,
+    "sqlite_durable_object_binding_proven": true,
+    "public_inference_enable": "DISABLED",
+    "account_native_bindings_readback": true,
+    "production_promotion": false
+  },
+  "gates": {
+    "independent_customer_OIDC_issuer": "NOT_PROVEN",
+    "independent_security_approval": "NOT_PROVEN",
+    "live_durable_object_quota_execution": "NOT_PROVEN",
+    "external_data_processing_privacy": "NOT_PROVEN",
+    "cash_overage_independent_hard_stop": "NOT_CERTIFIED",
+    "public_accessibility_performance_canary": "NOT_PROVEN",
+    "live_rollback_of_full_staging": "NOT_PROVEN",
+    "external_S4_release_authority": "NOT_EARNED",
+    "user_customer_service": "DISABLED"
+  },
+  "protected_authority": {
+    "main_sha": "d6a846f6bbe0bccac1758713eb4de167caf07113",
+    "pr1": "OPEN_DRAFT_UNMERGED",
+    "frozen_openai_submission_mutated": false,
+    "production_changed": false
+  },
+  "claim": "STAGING_INFRASTRUCTURE_PROVEN_CUSTOMER_LAUNCH_BLOCKED_NO_SELF_CERTIFICATION"
+}
