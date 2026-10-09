@@ -12,6 +12,7 @@ jobs:
     env:
       CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
       CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
     steps:
       - name: Exact scope and sanitized native API checks (NO checkout or writes)
         shell: bash
@@ -27,6 +28,8 @@ jobs:
           AID='93f395f5121954671f92fffa453d6b61'
           EMAIL=os.environ['CLOUDFLARE_EMAIL']
           KEY=os.environ['CLOUDFLARE_GLOBAL_API_KEY']
+          TOKEN=os.environ.get('CLOUDFLARE_API_TOKEN','')
+          print('AXIOM_CF_EXISTING_SCOPED_TOKEN_PRESENT='+str(bool(TOKEN)))
           if not KEY.startswith('cfk_') or '\n' in KEY or '\r' in KEY:
               raise SystemExit('GLOBAL_API_KEY_AUTH_MODE_NOT_CONFIRMED')
           h={'X-Auth-Email':EMAIL,'X-Auth-Key':KEY,'Accept':'application/json','User-Agent':'MUSITU-AXIOM-Isolated-ReadOnly/1'}
@@ -44,7 +47,17 @@ jobs:
                           return {'http_ok':True,'api_ok':False,'reason':'API_UNSUCCESSFUL'}
                       return {'http_ok':True,'api_ok':True,'data':x.get('result'),'meta':x.get('result_info')}
               except urllib.error.HTTPError as err:
-                  return {'http_ok':False,'api_ok':False,'reason':'HTTP_'+str(err.code)}
+                  # Only native numeric error codes; never log error messages,
+                  # headers, response body, authentication material or account IDs.
+                  codes=[]
+                  try:
+                      obj=json.loads(err.read(8192))
+                      for row in obj.get('errors',[])[:8]:
+                          code=row.get('code')
+                          if type(code) is int and code>=0 and code<10000000:codes.append(code)
+                  except Exception:pass
+                  return {'http_ok':False,'api_ok':False,'reason':'HTTP_'+str(err.code),
+                          'cloudflare_numeric_error_codes':codes}
               except Exception:
                   return {'http_ok':False,'api_ok':False,'reason':'TRANSPORT_OR_AUTH_UNAVAILABLE'}
           zone=req('/zones?name=mftintelligence.com&status=active')
@@ -53,6 +66,21 @@ jobs:
                and zone['data'][0].get('status')=='active'
                and (zone['data'][0].get('account') or {}).get('id')==AID)
           if not validzone:
+              print('AXIOM_CF_NATIVE_GLOBAL_KEY_ERROR_CODES='+json.dumps(zone.get('cloudflare_numeric_error_codes',[])))
+              if TOKEN:
+                  import copy
+                  default_headers=h
+                  h={'Authorization':'Bearer '+TOKEN,'Accept':'application/json',
+                     'User-Agent':'MUSITU-AXIOM-Isolated-Token-ReadOnly/1'}
+                  scoped=req('/zones?name=mftintelligence.com&status=active')
+                  print('AXIOM_CF_SCOPED_TOKEN_ZONE_READ='+str(scoped.get('reason','OK' if scoped.get('api_ok') else 'UNSUCCESSFUL')))
+                  print('AXIOM_CF_SCOPED_TOKEN_ERROR_CODES='+json.dumps(scoped.get('cloudflare_numeric_error_codes',[])))
+                  if scoped.get('api_ok') and isinstance(scoped.get('data'),list):
+                      print('AXIOM_CF_SCOPED_ZONE_COUNT='+str(len(scoped['data'])))
+                      print('AXIOM_CF_SCOPED_EXPECTED_ACCOUNT_MATCH='+str(any(
+                          isinstance(z,dict) and (z.get('account') or {}).get('id')==AID
+                          for z in scoped['data'])))
+                  h=default_headers
               # Distinguish native Cloudflare auth rejection from account mismatch,
               # without returning names/IDs/credentials or provider messages.
               paths=['/user','/accounts/'+AID]
